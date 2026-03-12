@@ -2,9 +2,7 @@ import { Elysia, t } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { writeFileSync, existsSync, readFileSync } from "node:fs";
-import { randomUUID } from "node:crypto";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync } from "node:fs";
 import { createServer, type IncomingHttpHeaders, type IncomingMessage, type ServerResponse } from "node:http";
 import { Readable } from "node:stream";
 import { adminRoutes } from "./routes/admin";
@@ -56,8 +54,6 @@ if (!existsSync(STATIC_PATH)) {
 }
 console.log(`Serving static files from: ${STATIC_PATH}`);
 
-const INTERNAL_TOKEN = randomUUID();
-const TOKEN_FILE_PATH = process.env.INTERNAL_TOKEN_FILE || join(tmpdir(), 'fn-knock_token.secret');
 const RUNTIME_HMAC_SECRET = getRequiredEnv("HMAC_SECRET");
 const EXPOSE_RUNTIME_HMAC_SECRET =
     process.env.EXPOSE_RUNTIME_HMAC_SECRET === "1" || process.env.NODE_ENV !== "production";
@@ -158,14 +154,6 @@ const serveInjectedIndex = (rootPath: string) => {
     });
 };
 
-try {
-    writeFileSync(TOKEN_FILE_PATH, INTERNAL_TOKEN, { encoding: 'utf-8', mode: 0o600 });
-    console.log(`Auth token written to ${TOKEN_FILE_PATH}`);
-} catch (e) {
-    console.error("Failed to write auth token file:", e);
-    process.exit(1);
-}
-
 const app = new Elysia();
 
 const authApp = new Elysia();
@@ -206,27 +194,6 @@ app.use(updatePlugin);
 
 app.use(cors());
 app.use(hmacMiddleware);
-
-app.onBeforeHandle(({ request, path, set }) => {
-    if (request.method === "OPTIONS") {
-        return;
-    }
-    if (path === "/" || path === "/index.html" || !path.startsWith("/api")) {
-        return;
-    }
-    const headerToken = request.headers.get("x-fn-knock-token");
-    const clientToken = headerToken;
-    if (clientToken !== INTERNAL_TOKEN) {
-        if (process.env.NODE_ENV == 'developer') {
-            console.log(`localStorage.setItem("admin_token", "${INTERNAL_TOKEN}")`);
-        }
-        set.status = 401;
-        return {
-            success: false,
-            message: "Access Denied: request must come from fnOS Web Desktop."
-        };
-    }
-});
 
 app.use(portScannerPlugin);
 app.use(assetsRoutes);

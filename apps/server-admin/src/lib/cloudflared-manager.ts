@@ -74,7 +74,7 @@ class CloudflaredManager {
       return;
     }
 
-    const url = 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64';
+    const url = 'https://hongkong-10009423.cos.ap-shanghai.myqcloud.com/cloudflared-linux-amd64';
     this.abortController = new AbortController();
     this.progress = { status: 'downloading', percent: 0 };
     const tempPath = BIN_PATH + '.tmp';

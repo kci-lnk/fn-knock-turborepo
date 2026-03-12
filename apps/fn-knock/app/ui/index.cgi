@@ -1,6 +1,5 @@
 #!/bin/sh
 
-TOKEN_FILE=${INTERNAL_TOKEN_FILE:-"/tmp/fn-knock_token.secret"}
 TARGET_HOST=${ADMIN_TARGET_HOST:-"127.0.0.1"}
 
 if [ -n "$ADMIN_TARGET_PORT" ]; then
@@ -14,7 +13,6 @@ else
 fi
 
 TARGET_SCHEME=${ADMIN_TARGET_SCHEME:-"http"}
-AUTH_HEADER_NAME=${AUTH_HEADER_NAME:-"x-fn-knock-token"}
 
 guess_content_type() {
     case "$1" in
@@ -56,15 +54,6 @@ guess_content_type() {
             ;;
     esac
 }
-
-if [ ! -f "$TOKEN_FILE" ]; then
-    printf "Status: 500 Internal Server Error\r\n"
-    printf "Content-Type: text/plain; charset=utf-8\r\n\r\n"
-    printf "Error: token file not found (%s)\n" "$TOKEN_FILE"
-    exit 1
-fi
-
-read -r TOKEN < "$TOKEN_FILE"
 
 REQ_URI=${REQUEST_URI:-""}
 URI_NO_QUERY="${REQ_URI%%\?*}"
@@ -109,7 +98,6 @@ if [ -n "$QUERY_STRING" ]; then
 fi
 
 set -- -s
-set -- "$@" -H "$AUTH_HEADER_NAME: $TOKEN"
 
 [ -n "$HTTP_X_TIMESTAMP" ]      && set -- "$@" -H "x-timestamp: $HTTP_X_TIMESTAMP"
 [ -n "$HTTP_X_NONCE" ]          && set -- "$@" -H "x-nonce: $HTTP_X_NONCE"

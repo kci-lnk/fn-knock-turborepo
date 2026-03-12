@@ -41,24 +41,6 @@ export const apiClient = createSignedApiClient({
     getHmacSecret: fetchRuntimeHmacSecret,
 });
 
-// Assuming token is globally provided or manually fetched in dev.
-// In actual fn-knock, the index.cgi sets it or it's provided in window property
-export function setToken(token: string) {
-    if (token) {
-        apiClient.defaults.headers.common['x-fn-knock-token'] = token;
-        localStorage.setItem('admin_token', token);
-    } else {
-        delete apiClient.defaults.headers.common['x-fn-knock-token'];
-        localStorage.removeItem('admin_token');
-    }
-}
-
-// Restore token from local storage mainly for dev convenience
-const savedToken = localStorage.getItem('admin_token');
-if (savedToken) {
-    setToken(savedToken);
-}
-
 export const ConfigAPI = {
     async getOnboardingStatus(): Promise<{ completed: boolean }> {
         const res = await apiClient.get('/onboarding/status');

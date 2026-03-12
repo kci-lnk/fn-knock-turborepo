@@ -14,7 +14,6 @@ GATEWAY_BIN="${APP_HOME}/server/go-reauth-proxy-linux-amd64"
 
 ADMIN_STATIC_PATH="${APP_HOME}/ui/www"
 AUTH_STATIC_PATH="${APP_HOME}/server-auth-view/dist"
-TOKEN_FILE="/tmp/fn-knock_token.secret"
 ACME_BUNDLE_ZIP="${APP_HOME}/server/server-admin/resources/acmesh.zip"
 PORT_PATTERN='^([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$'
 
@@ -363,7 +362,6 @@ start_backend() {
         AUTH_STATIC_PATH="${AUTH_STATIC_PATH}" \
         FN_KNOCK_DATA_DIR="${PKG_VAR_DIR}" \
         ACME_BUNDLE_ZIP="${ACME_BUNDLE_ZIP}" \
-        INTERNAL_TOKEN_FILE="${TOKEN_FILE}" \
         BACKEND_PORT="${BACKEND_PORT}" \
         AUTH_PORT="${AUTH_PORT}" \
         GO_BACKEND_PORT="${GO_BACKEND_PORT}" \

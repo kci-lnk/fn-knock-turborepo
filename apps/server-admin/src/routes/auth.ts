@@ -1,4 +1,4 @@
-import { Elysia, redirect, t } from "elysia";
+import { Elysia, t } from "elysia";
 import { configManager } from "../lib/redis";
 import { verifySync } from "otplib";
 import { randomBytes, createHmac, createHash } from "node:crypto";
@@ -209,7 +209,9 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
     });
 
     set.headers["Set-Cookie"] = buildSessionClearCookie();
-    return redirect("/");
+    set.status = 302;
+    set.headers["Location"] = "/";
+    return "";
   })
   .head("/preflight", async ({ request, set }) => {
     const clientIp = getClientIp(request);

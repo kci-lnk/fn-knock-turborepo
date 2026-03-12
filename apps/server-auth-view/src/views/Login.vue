@@ -1,129 +1,113 @@
 <template>
-  <div class="min-h-screen flex flex-col items-center justify-center bg-muted/40 p-4 relative">
-    <Card class="w-full max-w-sm">
-      <CardHeader>
-        <CardTitle class="text-2xl text-center">安全验证</CardTitle>
-        <CardDescription class="text-center" v-if="!isAltchaVerified">
-          请先完成下方的人机验证
-        </CardDescription>
-        <CardDescription class="text-center" v-else>
-          请输入您的六位数动态密码完成登录
-        </CardDescription>
-      </CardHeader>
+  <div class="min-h-screen flex flex-col bg-muted/40 p-4">
+    <div class="flex flex-1 items-center justify-center">
+      <Card class="w-full max-w-sm">
+        <CardHeader>
+          <CardTitle class="text-2xl text-center">安全验证</CardTitle>
+          <CardDescription class="text-center" v-if="!isAltchaVerified">
+            请先完成下方的人机验证
+          </CardDescription>
+          <CardDescription class="text-center" v-else>
+            请输入您的六位数动态密码完成登录
+          </CardDescription>
+        </CardHeader>
 
-      <CardContent>
-        <form @submit.prevent="handleLogin" class="flex flex-col gap-6 items-center" autocomplete="off">
-
-          <div v-if="!isAltchaVerified && canUseNativeAltcha" class="w-full flex justify-center mt-2">
-            <altcha-widget ref="altchaWidgetRef" :challengeurl="challengeUrl" @statechange="onAltchaStateChange"
-              hidefooter hidelogo class="w-full"
-              style="--altcha-color-border:pink;--altcha-border-width:3px;--altcha-border-radius:8px; --altcha-max-width: 360px;"
-              :strings="JSON.stringify({
-                label: '我不是机器人',
-                verified: '验证通过',
-                verifying: '正在验证...',
-                wait: '请稍候...',
-                error: '验证错误'
-              })">
-            </altcha-widget>
-          </div>
-          <div v-else-if="!isAltchaVerified" class="w-full mt-2 space-y-3">
-            <Button type="button" class="w-full" :disabled="isAltchaFallbackLoading" @click="handleAltchaFallbackVerify">
-              <span v-if="isAltchaFallbackLoading"
-                class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
-              {{ isAltchaFallbackLoading ? '正在验证...' : '我不是机器人' }}
-            </Button>
-          </div>
-
-          <div class="w-full" v-if="isPasskeySupported && isPasskeyAvailable">
-            <Button type="button" :variant="isAltchaVerified ? 'secondary' : 'default'" class="w-full"
-              :disabled="isPasskeyLoading" @click="handlePasskeyLogin">
-              <span v-if="isPasskeyLoading"
-                class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
-              Passkey 一键登录
-            </Button>
-          </div>
-
-
-          <div class="w-full flex justify-center" v-if="isAltchaVerified">
-            <InputOTP inputmode="numeric" :maxlength="6" v-model="token" :disabled="isLoading" :autofocus="true"
-              autocomplete="off" data-form-type="other" data-1p-ignore="true" data-lpignore="true" data-bwignore="true">
-              <InputOTPGroup>
-                <InputOTPSlot v-for="i in 6" :key="i - 1" :index="i - 1" />
-              </InputOTPGroup>
-            </InputOTP>
-          </div>
-
-          <div class="w-full flex justify-center" v-if="isAltchaVerified">
-            <div
-              class="flex items-center justify-center space-x-3 py-2 px-4 rounded-lg transition-colors hover:bg-muted/50 cursor-pointer group">
-              <Checkbox id="rememberMe" v-model:checked="rememberMe"
-                class="data-[state=checked]:bg-primary data-[state=checked]:border-primary" />
-              <label for="rememberMe"
-                class="text-sm font-medium leading-none cursor-pointer select-none text-muted-foreground group-hover:text-foreground transition-colors">
-                记住我
-              </label>
+        <CardContent>
+          <form @submit.prevent="handleLogin" class="flex flex-col gap-6 items-center" autocomplete="off">
+            <div v-if="!isAltchaVerified && canUseNativeAltcha" class="w-full flex justify-center mt-2">
+              <altcha-widget ref="altchaWidgetRef" :challengeurl="challengeUrl" @statechange="onAltchaStateChange"
+                hidefooter hidelogo class="w-full"
+                style="--altcha-color-border:pink;--altcha-border-width:3px;--altcha-border-radius:8px; --altcha-max-width: 360px;"
+                :strings="JSON.stringify({
+                  label: '我不是机器人',
+                  verified: '验证通过',
+                  verifying: '正在验证...',
+                  wait: '请稍候...',
+                  error: '验证错误'
+                })">
+              </altcha-widget>
             </div>
-          </div>
+            <div v-else-if="!isAltchaVerified" class="w-full mt-2 space-y-3">
+              <Button type="button" class="w-full" :disabled="isAltchaFallbackLoading" @click="handleAltchaFallbackVerify">
+                <span v-if="isAltchaFallbackLoading"
+                  class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
+                {{ isAltchaFallbackLoading ? '正在验证...' : '我不是机器人' }}
+              </Button>
+            </div>
 
-          <Dialog :open="showErrorDialog" @update:open="showErrorDialog = $event">
-            <DialogContent :show-close-button="false">
-              <DialogHeader>
-                <DialogTitle>提示</DialogTitle>
-                <DialogDescription>
-                  {{ errorMessage }}
-                </DialogDescription>
-              </DialogHeader>
-              <DialogFooter>
-                <Button @click="showErrorDialog = false">确定</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-          <Dialog :open="showPasskeyBindDialog" @update:open="showPasskeyBindDialog = $event">
-            <DialogContent :show-close-button="false" overlay-class="bg-black/50 backdrop-blur-sm">
-              <DialogHeader>
-                <DialogTitle>开启 Passkey 一键登录</DialogTitle>
-                <DialogDescription>
-                  是否在当前设备上绑定 Passkey？绑定后可直接一键登录。
-                </DialogDescription>
-              </DialogHeader>
-              <div v-if="passkeyBindError" class="text-sm text-destructive">{{ passkeyBindError }}</div>
-              <DialogFooter class="gap-2">
-                <Button variant="outline" @click="skipPasskeyBind">稍后再说</Button>
-                <Button :disabled="isBindingPasskey" @click="handlePasskeyBind">
-                  <span v-if="isBindingPasskey"
-                    class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
-                  立即开启
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-          <Button type="submit" class="w-full" :disabled="isLoading" v-if="isAltchaVerified">
-            <span v-if="isLoading"
-              class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
-            立即验证
-          </Button>
+            <div class="w-full" v-if="isPasskeySupported && isPasskeyAvailable">
+              <Button type="button" :variant="isAltchaVerified ? 'secondary' : 'default'" class="w-full"
+                :disabled="isPasskeyLoading" @click="handlePasskeyLogin">
+                <span v-if="isPasskeyLoading"
+                  class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
+                Passkey 一键登录
+              </Button>
+            </div>
 
-        </form>
-      </CardContent>
-    </Card>
+            <div class="w-full flex justify-center" v-if="isAltchaVerified">
+              <InputOTP inputmode="numeric" :maxlength="6" v-model="token" :disabled="isLoading" :autofocus="true"
+                autocomplete="off" data-form-type="other" data-1p-ignore="true" data-lpignore="true" data-bwignore="true">
+                <InputOTPGroup>
+                  <InputOTPSlot v-for="i in 6" :key="i - 1" :index="i - 1" />
+                </InputOTPGroup>
+              </InputOTP>
+            </div>
 
-    <div
-      v-if="clientIp"
-      class="absolute bottom-6 left-0 right-0 px-4 flex justify-center text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors duration-300 select-none"
-    >
-      <div class="w-full max-w-sm flex flex-col items-center gap-1 sm:flex-row sm:flex-wrap sm:justify-center sm:gap-x-1.5 sm:gap-y-1">
-        <span class="inline-flex items-center gap-1.5 min-w-0 sm:shrink-0">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5 shrink-0">
-            <circle cx="12" cy="12" r="10"/>
-            <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
-            <path d="M2 12h20"/>
-          </svg>
-          <span class="break-all text-center sm:break-normal sm:whitespace-nowrap">{{ clientIp }}</span>
-        </span>
-        <span v-if="ipLocation" class="text-center break-words sm:break-normal sm:whitespace-nowrap sm:shrink-0">{{ ipLocation }}</span>
-      </div>
+            <div class="w-full flex justify-center" v-if="isAltchaVerified">
+              <div
+                class="flex items-center justify-center space-x-3 py-2 px-4 rounded-lg transition-colors hover:bg-muted/50 cursor-pointer group">
+                <Checkbox id="rememberMe" v-model:checked="rememberMe"
+                  class="data-[state=checked]:bg-primary data-[state=checked]:border-primary" />
+                <label for="rememberMe"
+                  class="text-sm font-medium leading-none cursor-pointer select-none text-muted-foreground group-hover:text-foreground transition-colors">
+                  记住我
+                </label>
+              </div>
+            </div>
+
+            <Dialog :open="showErrorDialog" @update:open="showErrorDialog = $event">
+              <DialogContent :show-close-button="false">
+                <DialogHeader>
+                  <DialogTitle>提示</DialogTitle>
+                  <DialogDescription>
+                    {{ errorMessage }}
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button @click="showErrorDialog = false">确定</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            <Dialog :open="showPasskeyBindDialog" @update:open="showPasskeyBindDialog = $event">
+              <DialogContent :show-close-button="false" overlay-class="bg-black/50 backdrop-blur-sm">
+                <DialogHeader>
+                  <DialogTitle>开启 Passkey 一键登录</DialogTitle>
+                  <DialogDescription>
+                    是否在当前设备上绑定 Passkey？绑定后可直接一键登录。
+                  </DialogDescription>
+                </DialogHeader>
+                <div v-if="passkeyBindError" class="text-sm text-destructive">{{ passkeyBindError }}</div>
+                <DialogFooter class="gap-2">
+                  <Button variant="outline" @click="skipPasskeyBind">稍后再说</Button>
+                  <Button :disabled="isBindingPasskey" @click="handlePasskeyBind">
+                    <span v-if="isBindingPasskey"
+                      class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
+                    立即开启
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            <Button type="submit" class="w-full" :disabled="isLoading" v-if="isAltchaVerified">
+              <span v-if="isLoading"
+                class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
+              立即验证
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
+
+    <AuthFooter />
   </div>
 </template>
 
@@ -149,6 +133,7 @@ import {
 } from '@frontend-core/passkey/utils';
 import CryptoJS from 'crypto-js';
 import { apiClient, buildAuthApiPath } from '@/lib/api';
+import AuthFooter from '@/components/AuthFooter.vue';
 
 import 'altcha';
 
@@ -167,9 +152,6 @@ const isBindingPasskey = ref(false);
 const passkeyBindError = ref('');
 const passkeyBindToken = ref('');
 const pendingRunType = ref<0 | 1 | null>(null);
-
-const clientIp = ref('');
-const ipLocation = ref('');
 
 const altchaWidgetRef = ref<any>(null);
 const isAltchaVerified = ref(false);
@@ -201,18 +183,6 @@ function onAltchaStateChange(ev: CustomEvent) {
   }
 }
 
-async function fetchIpInfo() {
-  try {
-    const res = await apiClient.get('/ip');
-    if (res.data && res.data.success) {
-      clientIp.value = res.data.data.ip;
-      ipLocation.value = res.data.data.location;
-    }
-  } catch (e) {
-    console.error('Failed to fetch IP info:', e);
-  }
-}
-
 onMounted(async () => {
   const isAlreadyAuthenticated = await redirectIfAuthenticated();
   if (isAlreadyAuthenticated) {
@@ -224,7 +194,6 @@ onMounted(async () => {
     && typeof window.crypto !== 'undefined'
     && !!window.crypto.subtle
     && typeof window.crypto.subtle.digest === 'function';
-  fetchIpInfo();
   await initPasskeySupport();
 });
 

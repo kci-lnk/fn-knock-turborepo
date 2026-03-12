@@ -285,13 +285,7 @@ authApp.get("*", ({ path }) => {
 });
 
 const config = await configManager.getConfig()
-if (config.run_type === 0) {
-    await firewallService.applyRunTypeConfig(1);
-    await sleep(500);
-    await firewallService.applyRunTypeConfig(0);
-} else {
-    await firewallService.applyRunTypeConfig(config.run_type);
-}
+await firewallService.applyRunTypeConfig(config.run_type);
 // 自动同步SSL
 configManager.getSSLStatus().then(async data => {
     if (data.enabled) {

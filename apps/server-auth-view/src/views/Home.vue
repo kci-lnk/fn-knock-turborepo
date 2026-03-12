@@ -1,41 +1,45 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-muted/40 p-4">
-    <Card v-if="isCheckingAuth" class="w-full max-w-sm">
-      <CardHeader>
-        <Skeleton class="h-8 w-44 mx-auto" />
-        <Skeleton class="h-4 w-48 mx-auto mt-2" />
-      </CardHeader>
-      <CardContent class="flex flex-col gap-4">
-        <Skeleton class="h-4 w-full" />
-        <Skeleton class="h-9 w-full rounded-md" />
-      </CardContent>
-    </Card>
+  <div class="min-h-screen flex flex-col bg-muted/40 p-4">
+    <div class="flex flex-1 items-center justify-center">
+      <Card v-if="isCheckingAuth" class="w-full max-w-sm">
+        <CardHeader>
+          <Skeleton class="h-8 w-44 mx-auto" />
+          <Skeleton class="h-4 w-48 mx-auto mt-2" />
+        </CardHeader>
+        <CardContent class="flex flex-col gap-4">
+          <Skeleton class="h-4 w-full" />
+          <Skeleton class="h-9 w-full rounded-md" />
+        </CardContent>
+      </Card>
 
-    <Card v-else class="w-full max-w-sm">
-      <CardHeader>
-        <CardTitle class="text-2xl text-center">安全验证已通过</CardTitle>
-        <CardDescription class="text-center">
-          您的IP已被允许访问
-        </CardDescription>
-      </CardHeader>
-      
-      <CardContent class="flex flex-col gap-4">
-        <p class="text-sm text-center text-muted-foreground">如果不再需要访问，请点击下方按钮退出并撤销您的授权。</p>
-        <div v-if="isPasskeySupported && !isPasskeyAvailable" class="flex flex-col gap-2">
-          <Button class="w-full" :disabled="isPasskeyBinding" @click="handlePasskeyBind">
-            <span v-if="isPasskeyBinding"
-              class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
-            开启 Passkey 一键登录
+      <Card v-else class="w-full max-w-sm">
+        <CardHeader>
+          <CardTitle class="text-2xl text-center">安全验证已通过</CardTitle>
+          <CardDescription class="text-center">
+            您的IP已被允许访问
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent class="flex flex-col gap-4">
+          <p class="text-sm text-center text-muted-foreground">如果不再需要访问，请点击下方按钮退出并撤销您的授权。</p>
+          <div v-if="isPasskeySupported && !isPasskeyAvailable" class="flex flex-col gap-2">
+            <Button class="w-full" :disabled="isPasskeyBinding" @click="handlePasskeyBind">
+              <span v-if="isPasskeyBinding"
+                class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
+              开启 Passkey 一键登录
+            </Button>
+            <p class="text-xs text-center text-muted-foreground">当前浏览器支持 Passkey，但尚未绑定</p>
+          </div>
+          <p v-if="passkeyError" class="text-xs text-center text-destructive">{{ passkeyError }}</p>
+          <Button variant="destructive" @click="handleLogout" class="w-full" :disabled="isLoading">
+            <span v-if="isLoading" class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
+            退出登录
           </Button>
-          <p class="text-xs text-center text-muted-foreground">当前浏览器支持 Passkey，但尚未绑定</p>
-        </div>
-        <p v-if="passkeyError" class="text-xs text-center text-destructive">{{ passkeyError }}</p>
-        <Button variant="destructive" @click="handleLogout" class="w-full" :disabled="isLoading">
-          <span v-if="isLoading" class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
-          退出登录
-        </Button>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
+
+    <AuthFooter />
   </div>
 </template>
 
@@ -50,6 +54,7 @@ import {
     serializeCredential,
 } from '@frontend-core/passkey/utils';
 import { apiClient } from '@/lib/api';
+import AuthFooter from '@/components/AuthFooter.vue';
 
 const router = useRouter();
 const isLoading = ref(false);

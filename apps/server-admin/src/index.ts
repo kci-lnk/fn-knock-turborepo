@@ -283,6 +283,7 @@ authApp.get("*", ({ path }) => {
 });
 
 const config = await configManager.getConfig()
+await goBackend.setProxyProtocolForce(config.run_type === 1);
 // 自动同步SSL
 configManager.getSSLStatus().then(async data => {
     if (data.enabled) {

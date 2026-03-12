@@ -16,6 +16,8 @@ import {
 } from "@simplewebauthn/server";
 
 const RP_NAME = "fn-knock";
+const getClientIp = (request: Request): string =>
+  request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "::1";
 
 export const passkeyRoutes = new Elysia({ prefix: "/passkey" })
   .get("/status", async () => {
@@ -46,7 +48,7 @@ export const passkeyRoutes = new Elysia({ prefix: "/passkey" })
     "/auth/verify",
     async ({ body, set, request }) => {
       const { origin, rpID } = getRpInfo(request);
-      const clientIp = request.headers.get("x-real-ip") || "::1";
+      const clientIp = getClientIp(request);
       const userAgent = request.headers.get("user-agent") || "Unknown";
       
       const credential = body.credential;

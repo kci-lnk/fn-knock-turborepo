@@ -19,6 +19,9 @@ import { buildSessionClearCookie } from "../lib/session-cookie";
 
 const ALTCHA_HMAC_KEY = getRequiredEnv("ALTCHA_HMAC_KEY");
 const MAX_NUMBER = 100000;
+const getClientIp = (request: Request): string =>
+  request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "::1";
+
 export const authRoutes = new Elysia({ prefix: "/api/auth" })
   .get("/challenge", () => {
     const salt = randomBytes(12).toString("hex");
@@ -45,7 +48,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
     };
   })
   .get("/ip", async ({ request }) => {
-    const clientIp = request.headers.get("x-real-ip") || "::1";
+    const clientIp = getClientIp(request);
     let ipLocationStr = "";
     
     try {
@@ -70,7 +73,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
     "/login",
     async ({ body, set, request }) => {
       const config = await configManager.getConfig();
-      const clientIp = request.headers.get("x-real-ip") || "::1";
+      const clientIp = getClientIp(request);
       const gate = await loginBackoffService.ensureNotBlocked(clientIp);
       if (!gate.allowed) {
         set.status = 429;
@@ -194,7 +197,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
       await configManager.deleteSession(match[1]);
     }
 
-    const clientIp = request.headers.get("x-real-ip") || "::1";
+    const clientIp = getClientIp(request);
     const userAgent = request.headers.get("user-agent") || "Unknown";
     await whitelistManager.removeRecordsByIP(loginIpFromSession || clientIp, 'auto');
 
@@ -209,7 +212,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
     return redirect("/");
   })
   .head("/preflight", async ({ request, set }) => {
-    const clientIp = request.headers.get("x-real-ip") || "::1";
+    const clientIp = getClientIp(request);
     const isBlacklisted = await scanDetector.isBlacklisted(clientIp);
     if (isBlacklisted) {
       set.headers["X-Option"] = "Deny";
@@ -223,7 +226,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
     set.status = 204;
   })
   .get("/verify", async ({ request, set }) => {
-    const clientIp = request.headers.get("x-real-ip") || "::1";
+    const clientIp = getClientIp(request);
     const isWhitelisted = await whitelistManager.hasValidIP(clientIp);
     if (isWhitelisted) {
       await recentAuthIPsManager.recordVerified(clientIp);

@@ -85,17 +85,20 @@
 
   <!-- 绑定新令牌 Dialog -->
   <Dialog :open="showSetupDialog" @update:open="showSetupDialog = $event; if(!$event) handleCancelSetup()">
-    <DialogContent class="max-w-md !top-[5vh] !translate-y-0 max-h-[85vh] overflow-y-auto">
+    <DialogContent
+      class="max-w-md !top-[5vh] !translate-y-0 max-h-[85vh] overflow-y-auto overscroll-contain max-sm:!inset-x-0 max-sm:!top-auto max-sm:!bottom-0 max-sm:!translate-x-0 max-sm:!translate-y-0 max-sm:!max-w-none max-sm:max-h-[100dvh] max-sm:rounded-b-none max-sm:border-b-0 max-sm:pb-[calc(env(safe-area-inset-bottom)+1rem)]"
+      @focusin="handleDialogFocusIn"
+    >
       <DialogHeader>
         <DialogTitle>绑定新 TOTP 令牌</DialogTitle>
         <DialogDescription>使用身份验证器应用扫描二维码，并输入验证码。</DialogDescription>
       </DialogHeader>
-      <div v-if="setupData && setupStep === 'BIND'" class="flex flex-col items-center gap-6 py-4">
+      <div v-if="setupData && setupStep === 'BIND'" class="flex flex-col items-center gap-6 py-4 max-sm:gap-4 max-sm:py-2">
         <div class="rounded-xl border bg-white p-4">
           <QrcodeVue :value="setupData.uri" :size="200" level="M" />
         </div>
         <div class="w-full space-y-4">
-          <div class="space-y-2 flex flex-col items-center">
+          <div ref="otpInputAreaRef" class="space-y-2 flex flex-col items-center scroll-mt-24">
             <Label class="text-sm text-muted-foreground self-center">输入 6 位验证码以验证并绑定</Label>
             <div class="w-full flex justify-center py-2">
               <InputOTP inputmode="numeric" :maxlength="6" v-model="verifyToken" @complete="handleBind" :disabled="isBinding" :autofocus="true"
@@ -133,7 +136,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableEmpty } from '@/components/ui/table';
@@ -172,6 +175,8 @@ const bindErrorMessage = ref('');
 const setupStep = ref<'BIND' | 'NAME'>('BIND');
 const boundTotpId = ref<string | null>(null);
 const bindingMode = ref<'bind' | 'rename'>('bind');
+const otpInputAreaRef = ref<HTMLElement | null>(null);
+let viewportResizeTimer: ReturnType<typeof window.setTimeout> | null = null;
 const { isPending: isBinding, run: runBindingAction } = useAsyncAction({
   onError: (error) => {
     const fallback = bindingMode.value === 'bind' ? '验证码不正确，请重试' : '更新备注失败';
@@ -200,14 +205,66 @@ const { isPending: isDeleting, run: runDeleteTotp } = useAsyncAction({
 });
 
 onMounted(async () => {
+  window.visualViewport?.addEventListener('resize', handleVisualViewportResize);
   await fetchStatus();
 });
+
+onBeforeUnmount(() => {
+  window.visualViewport?.removeEventListener('resize', handleVisualViewportResize);
+  if (viewportResizeTimer) {
+    window.clearTimeout(viewportResizeTimer);
+    viewportResizeTimer = null;
+  }
+});
+
+watch(
+  () => [showSetupDialog.value, setupStep.value, setupData.value] as const,
+  async ([isOpen, step, setup]) => {
+    if (!isOpen || step !== 'BIND' || !setup) return;
+    await nextTick();
+    scrollOtpIntoView('auto');
+  },
+);
 
 async function fetchStatus() {
   await runLoadStatus(async () => {
     const res = await ConfigAPI.getTOTPStatus();
     credentials.value = res.credentials || [];
   });
+}
+
+function scrollOtpIntoView(behavior: ScrollBehavior = 'smooth') {
+  otpInputAreaRef.value?.scrollIntoView({
+    block: 'center',
+    inline: 'nearest',
+    behavior,
+  });
+}
+
+function handleDialogFocusIn(event: FocusEvent) {
+  if (setupStep.value !== 'BIND') return;
+  const target = event.target as HTMLElement | null;
+  if (!target || !otpInputAreaRef.value?.contains(target)) return;
+  window.setTimeout(() => {
+    scrollOtpIntoView();
+  }, 120);
+}
+
+function handleVisualViewportResize() {
+  if (!showSetupDialog.value || setupStep.value !== 'BIND') return;
+  const viewport = window.visualViewport;
+  if (!viewport) return;
+
+  const keyboardHeight = window.innerHeight - viewport.height;
+  if (keyboardHeight < 120) return;
+
+  if (viewportResizeTimer) {
+    window.clearTimeout(viewportResizeTimer);
+  }
+
+  viewportResizeTimer = window.setTimeout(() => {
+    scrollOtpIntoView();
+  }, 80);
 }
 
 async function openSetupDialog() {

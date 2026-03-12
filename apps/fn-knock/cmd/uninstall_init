@@ -1,5 +1,41 @@
 #!/bin/bash
 
-### This script is called after the user uninstalls the application.
+### This script is called before the user uninstalls the application.
+
+set -u
+
+PKG_VAR_DIR="${TRIM_PKGVAR:-}"
+LOG_FILE="${PKG_VAR_DIR}/info.log"
+CLEAN_SCRIPT="${PKG_VAR_DIR}/clean.sh"
+
+log_msg() {
+    if [ -z "${PKG_VAR_DIR}" ]; then
+        return 0
+    fi
+    mkdir -p "${PKG_VAR_DIR}" 2>/dev/null || true
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - uninstall_init: $1" >> "${LOG_FILE}"
+}
+
+if [ "${TRIM_APP_STATUS:-}" != "UNINSTALL" ]; then
+    log_msg "skip firewall cleanup because status is ${TRIM_APP_STATUS:-<empty>}"
+    exit 0
+fi
+
+if [ ! -f "${CLEAN_SCRIPT}" ]; then
+    log_msg "skip firewall cleanup because ${CLEAN_SCRIPT} does not exist"
+    exit 0
+fi
+
+if [ ! -x "${CLEAN_SCRIPT}" ]; then
+    chmod +x "${CLEAN_SCRIPT}" 2>/dev/null || true
+fi
+
+log_msg "running firewall cleanup script: ${CLEAN_SCRIPT}"
+if "${CLEAN_SCRIPT}" >> "${LOG_FILE}" 2>&1; then
+    log_msg "firewall cleanup completed"
+else
+    exit_code="$?"
+    log_msg "firewall cleanup failed (exit=${exit_code}), continue uninstall"
+fi
 
 exit 0

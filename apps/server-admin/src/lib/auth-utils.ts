@@ -10,23 +10,80 @@ export type PasskeyBindInfo = {
   bind_token?: string;
 };
 
-export const getRpInfo = (request: Request) => {
-  const originHeader = request.headers.get("origin");
-  const refererHeader = request.headers.get("referer");
-  const targetUrl = originHeader || refererHeader || request.url;
-  try {
-    const url = new URL(targetUrl);
-    return {
-      rpID: url.hostname,
-      origin: url.origin,
-    };
-  } catch (e) {
-    const fallback = new URL(request.url);
-    return {
-      rpID: fallback.hostname,
-      origin: fallback.origin,
-    };
+const takeFirstHeaderValue = (value: string | null): string | null => {
+  if (!value) return null;
+  const first = value.split(",")[0]?.trim();
+  return first || null;
+};
+
+const parseForwardedHeader = (
+  value: string | null,
+): { host?: string; proto?: string } => {
+  if (!value) return {};
+  const firstPart = value.split(",")[0]?.trim();
+  if (!firstPart) return {};
+
+  const result: { host?: string; proto?: string } = {};
+  for (const segment of firstPart.split(";")) {
+    const [rawKey, ...rawValue] = segment.split("=");
+    if (!rawKey || rawValue.length === 0) continue;
+    const key = rawKey.trim().toLowerCase();
+    const val = rawValue.join("=").trim().replace(/^"|"$/g, "");
+    if (!val) continue;
+    if (key === "host") result.host = val;
+    if (key === "proto") result.proto = val;
   }
+
+  return result;
+};
+
+const parseAbsoluteUrl = (value: string | null): URL | null => {
+  if (!value) return null;
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
+};
+
+export const getRpInfo = (request: Request) => {
+  // Prefer browser-provided headers first when available.
+  const fromOrigin = parseAbsoluteUrl(request.headers.get("origin"));
+  if (fromOrigin) {
+    return { rpID: fromOrigin.hostname, origin: fromOrigin.origin };
+  }
+
+  const fromReferer = parseAbsoluteUrl(request.headers.get("referer"));
+  if (fromReferer) {
+    return { rpID: fromReferer.hostname, origin: fromReferer.origin };
+  }
+
+  // run_type=0 proxy mode may strip origin/referer; recover from forwarded/host headers.
+  const forwarded = parseForwardedHeader(request.headers.get("forwarded"));
+  const forwardedHost =
+    forwarded.host ||
+    takeFirstHeaderValue(request.headers.get("x-forwarded-host")) ||
+    takeFirstHeaderValue(request.headers.get("x-original-host")) ||
+    request.headers.get("host");
+  if (forwardedHost) {
+    const rawProto =
+      forwarded.proto ||
+      takeFirstHeaderValue(request.headers.get("x-forwarded-proto")) ||
+      takeFirstHeaderValue(request.headers.get("x-forwarded-scheme"));
+    const requestProto = parseAbsoluteUrl(request.url)?.protocol.replace(":", "");
+    const proto =
+      rawProto?.trim().replace(/:$/, "") || requestProto || "https";
+    const candidate = parseAbsoluteUrl(`${proto}://${forwardedHost}`);
+    if (candidate) {
+      return { rpID: candidate.hostname, origin: candidate.origin };
+    }
+  }
+
+  const fallback = parseAbsoluteUrl(request.url) || new URL("http://127.0.0.1");
+  return {
+    rpID: fallback.hostname,
+    origin: fallback.origin,
+  };
 };
 
 export const bufferToBase64Url = (buffer: Buffer) => {

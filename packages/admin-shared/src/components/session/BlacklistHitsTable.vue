@@ -18,7 +18,7 @@ const props = withDefaults(defineProps<{
 
 <template>
   <div class="border rounded-md overflow-hidden">
-    <Table>
+    <Table class="w-max min-w-full">
       <TableHeader>
         <TableRow>
           <TableHead class="w-[220px]">访问时间</TableHead>

@@ -22,12 +22,10 @@ import PagedTableFooter from '@admin-shared/components/list/PagedTableFooter.vue
 import ConfirmDangerPopover from '@admin-shared/components/common/ConfirmDangerPopover.vue';
 import DetailDialog from '@admin-shared/components/common/DetailDialog.vue';
 import TableSkeletonBlock from '@admin-shared/components/list/TableSkeletonBlock.vue';
-import DetailFieldsGrid from '@admin-shared/components/common/DetailFieldsGrid.vue';
 import BlacklistHitsTable from '@admin-shared/components/session/BlacklistHitsTable.vue';
 import HumanFriendlyTime from '@admin-shared/components/common/HumanFriendlyTime.vue';
 import { extractErrorMessage, useAsyncAction } from '@admin-shared/composables/useAsyncAction';
 import { useDelayedLoading } from '@admin-shared/composables/useDelayedLoading';
-import { buildDetailFields } from '@admin-shared/utils/buildDetailFields';
 import { formatDateTimeSafe } from '@admin-shared/utils/formatDateTimeSafe';
 import ConfigCollapsibleCard from '@admin-shared/components/ConfigCollapsibleCard.vue';
 
@@ -149,10 +147,10 @@ const formatDate = (ts?: number) => {
   return formatDateTimeSafe(ts);
 };
 
-const formatIntervalMinutes = (value: number | null) => {
+const formatIntervalSeconds = (value: number | null) => {
   if (value === null) return '-';
   if (!Number.isFinite(value)) return '-';
-  return `${value.toFixed(2)} 分钟`;
+  return `${(value * 60).toFixed(2)} 秒`;
 };
 
 const detailHits = computed(() => {
@@ -170,26 +168,8 @@ const detailHitRows = computed(() =>
     key: `${hit.createdAt}-${index}`,
     time: formatDate(hit.createdAt),
     path: hit.path,
-    interval: formatIntervalMinutes(hit.intervalMinutes),
+    interval: formatIntervalSeconds(hit.intervalMinutes),
   })),
-);
-
-const detailMetaDefinitions = [
-  { key: 'ip', label: 'IP' },
-  { key: 'blockedAt', label: '封禁时间' },
-  { key: 'windowMinutes', label: '触发窗口' },
-  { key: 'threshold', label: '触发阈值' },
-] as const;
-
-const detailMetaItems = computed(() =>
-  buildDetailFields(detailRecord.value, detailMetaDefinitions, {
-    format: (key, value) => {
-      if (key === 'blockedAt') return formatDate(value);
-      if (key === 'windowMinutes') return `${value} 分钟`;
-      if (key === 'threshold') return `${value} 次`;
-      return value;
-    },
-  }),
 );
 
 onMounted(() => {
@@ -276,7 +256,7 @@ const goToFirewallSettings = () => {
                 <TableHead class="w-[50px]">
                   <Checkbox v-model="isAllSelected" />
                 </TableHead>
-                <TableHead>IP</TableHead>
+                <TableHead>IP / 归属</TableHead>
                 <TableHead>封禁时间</TableHead>
                 <TableHead>窗口</TableHead>
                 <TableHead>阈值</TableHead>
@@ -302,7 +282,12 @@ const goToFirewallSettings = () => {
                     @update:model-value="toggleSelect(record.ip)"
                   />
                 </TableCell>
-                <TableCell class="font-mono text-sm">{{ record.ip }}</TableCell>
+                <TableCell class="font-medium">
+                  <div class="font-mono text-sm">{{ record.ip }}</div>
+                  <div v-if="record.ipLocation" class="text-xs text-muted-foreground mt-0.5 break-all">
+                    {{ record.ipLocation }}
+                  </div>
+                </TableCell>
                 <TableCell class="whitespace-nowrap"><HumanFriendlyTime :value="record.blockedAt" /></TableCell>
                 <TableCell>{{ record.windowMinutes }} 分钟</TableCell>
                 <TableCell>{{ record.threshold }} 次</TableCell>
@@ -353,12 +338,35 @@ const goToFirewallSettings = () => {
       v-model:open="isDetailsModalOpen"
       title="详情"
       description="查看该 IP 的封禁原因与访问路径。"
-      max-width-class="sm:max-w-[700px]"
+      max-width-class="sm:max-w-[700px] max-w-[calc(100vw-1rem)] p-4 sm:p-6"
       :loading="isDetailLoading"
       close-variant="outline"
     >
-      <div v-if="detailRecord" class="space-y-4">
-        <DetailFieldsGrid layout="card" :items="detailMetaItems" />
+      <div v-if="detailRecord" class="space-y-4 max-h-[70vh] overflow-y-auto overflow-x-auto pr-1">
+        <div class="grid gap-3 md:grid-cols-2">
+          <div class="border rounded-lg p-4 space-y-1" :class="detailRecord.ipLocation ? 'md:col-span-2' : ''">
+            <div class="text-sm text-muted-foreground">IP</div>
+            <div class="font-mono text-base break-all">{{ detailRecord.ip }}</div>
+            <div v-if="detailRecord.ipLocation" class="text-xs text-muted-foreground break-all">
+              {{ detailRecord.ipLocation }}
+            </div>
+          </div>
+
+          <div class="border rounded-lg p-4 space-y-2">
+            <div class="text-sm text-muted-foreground">封禁时间</div>
+            <div class="text-base break-all">{{ formatDate(detailRecord.blockedAt) }}</div>
+          </div>
+
+          <div class="border rounded-lg p-4 space-y-2">
+            <div class="text-sm text-muted-foreground">触发窗口</div>
+            <div class="text-base break-all">{{ detailRecord.windowMinutes }} 分钟</div>
+          </div>
+
+          <div class="border rounded-lg p-4 space-y-2">
+            <div class="text-sm text-muted-foreground">触发阈值</div>
+            <div class="text-base break-all">{{ detailRecord.threshold }} 次</div>
+          </div>
+        </div>
 
         <BlacklistHitsTable :rows="detailHitRows" />
       </div>

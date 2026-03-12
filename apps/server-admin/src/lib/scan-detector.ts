@@ -1,4 +1,5 @@
 import { configManager, redis } from "./redis";
+import { ipLocationService } from "./ip-location";
 
 type ScanHit = {
   path: string;
@@ -11,6 +12,7 @@ type BlacklistRecord = {
   windowMinutes: number;
   threshold: number;
   hits: ScanHit[];
+  ipLocation?: string;
 };
 
 type ScannerSettings = {
@@ -46,6 +48,36 @@ class ScanDetector {
     return ip.trim();
   }
 
+  private isLocalAddress(ip: string) {
+    const normalized = this.normalizeIp(ip).toLowerCase();
+    if (!normalized) return false;
+
+    let candidate = normalized;
+    const bracketMatch = candidate.match(/^\[(.+)\](?::\d+)?$/);
+    if (bracketMatch?.[1]) {
+      candidate = bracketMatch[1];
+    }
+
+    if (candidate === "localhost" || candidate.startsWith("localhost:")) return true;
+    if (candidate === "::1" || candidate === "0:0:0:0:0:0:0:1") return true;
+    if (/^127\.\d+\.\d+\.\d+(?::\d+)?$/.test(candidate)) return true;
+
+    const mappedIpv4Match = candidate.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)(?::\d+)?$/);
+    if (mappedIpv4Match?.[1]?.startsWith("127.")) return true;
+
+    return false;
+  }
+
+  private async resolveIpLocation(ip: string): Promise<string> {
+    try {
+      const lookupIp = ip === "::1" ? "127.0.0.1" : ip;
+      const info = await ipLocationService.getIpLocation(lookupIp);
+      return info?.raw || "";
+    } catch {
+      return "";
+    }
+  }
+
   private sanitizeIps(ips: string[]) {
     return [...new Set(
       ips
@@ -77,14 +109,21 @@ class ScanDetector {
   async isCommonPath(path: string) {
     const cleanPath = this.normalizePath(path);
     if (cleanPath === "/__auth__" || cleanPath.startsWith("/__auth__/")) return true;
+    if (cleanPath === "/api/auth/passkey" || cleanPath.startsWith("/api/auth/passkey/")) return true;
     if (cleanPath === "/websocket") return true;
     if (cleanPath === "/cgi/ThirdParty" || cleanPath.startsWith("/cgi/ThirdParty/")) return true;
+    if (cleanPath === "/assets/" || cleanPath.startsWith("/assets/")) return true;
     const common = new Set([
       "/",
       "/index.html",
       "/robots.txt",
       "/sitemap.xml",
       "/favicon.ico",
+      "/favicon.svg",
+      '/api/auth/ip',
+      '/api/auth/verify',
+      '/api/auth/passkey/status',
+      '/trimcon',
       "/.well-known/ai-plugin.json",
       "/apple-touch-icon.png",
       "/manifest.json",
@@ -100,7 +139,8 @@ class ScanDetector {
   }
 
   async getSettings(): Promise<ScannerSettings> {
-    const envEnabled = process.env.SCANNER_ENABLED !== "false"; 
+    const envEnabledRaw = String(process.env.SCANNER_ENABLED ?? "").trim().toLowerCase();
+    const envEnabled = envEnabledRaw === "true" || envEnabledRaw === "1";
     const envWindowMinutes = parseIntSafe(process.env.SCANNER_WINDOW_MINUTES, 5);
     const envThreshold = parseIntSafe(process.env.SCANNER_THRESHOLD, 5);
     const envBlacklistTtlDays = parseIntSafe(process.env.SCANNER_BLACKLIST_TTL_DAYS, 90);
@@ -150,9 +190,12 @@ class ScanDetector {
   }
 
   async isBlacklisted(ip: string): Promise<boolean> {
+    const cleanIp = this.normalizeIp(ip);
+    if (!cleanIp || this.isLocalAddress(cleanIp)) return false;
+
     const [settings, exists] = await Promise.all([
       this.getSettings(),
-      redis.exists(this.blacklistDataKey(ip))
+      redis.exists(this.blacklistDataKey(cleanIp))
     ]);
     if (!settings.enabled) return false;
 
@@ -160,13 +203,18 @@ class ScanDetector {
   }
 
   async recordUncommonPath(ip: string, path: string): Promise<{ hitCount: number; blocked: boolean }> {
+    const cleanIp = this.normalizeIp(ip);
+    if (!cleanIp || this.isLocalAddress(cleanIp)) {
+      return { hitCount: 0, blocked: false };
+    }
+
     const settings = await this.getSettings();
     if (!settings.enabled) {
       return { hitCount: 0, blocked: false };
     }
 
     const now = Date.now();
-    const key = this.suspiciousKey(ip);
+    const key = this.suspiciousKey(cleanIp);
     const cleanPath = this.normalizePath(path);
     const hit: ScanHit = { path: cleanPath, createdAt: now };
     const minScore = now - settings.windowSeconds * 1000;
@@ -182,7 +230,7 @@ class ScanDetector {
     const hitCount = typeof countValue === "number" ? countValue : Number(countValue ?? 0);
 
     if (hitCount >= settings.threshold) {
-      const alreadyBlocked = await this.isBlacklisted(ip);
+      const alreadyBlocked = await this.isBlacklisted(cleanIp);
       if (!alreadyBlocked) {
         const hitsRaw = await redis.zrangebyscore(key, windowMinScore, "+inf");
         const hits: ScanHit[] = [];
@@ -192,12 +240,14 @@ class ScanDetector {
             if (parsed?.path && parsed?.createdAt) hits.push(parsed);
           } catch {}
         }
+        const ipLocation = await this.resolveIpLocation(cleanIp);
         await this.addToBlacklist({
-          ip,
+          ip: cleanIp,
           blockedAt: now,
           windowMinutes: settings.windowMinutes,
           threshold: settings.threshold,
           hits,
+          ...(ipLocation ? { ipLocation } : {}),
         }, settings.blacklistTtlSeconds);
         return { hitCount, blocked: true };
       }
@@ -324,6 +374,8 @@ class ScanDetector {
   }
 
   private async addToBlacklist(record: BlacklistRecord, ttlSeconds: number) {
+    if (!record.ip || this.isLocalAddress(record.ip)) return;
+
     const indexMinScore = record.blockedAt - ttlSeconds * 1000;
     const pipeline = redis.pipeline();
     pipeline.set(this.blacklistDataKey(record.ip), JSON.stringify(record), "EX", ttlSeconds);

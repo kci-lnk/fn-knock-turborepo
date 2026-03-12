@@ -223,6 +223,7 @@ export type ScannerBlacklistHit = {
 
 export type ScannerBlacklistRecord = {
     ip: string;
+    ipLocation?: string;
     blockedAt: number;
     windowMinutes: number;
     threshold: number;

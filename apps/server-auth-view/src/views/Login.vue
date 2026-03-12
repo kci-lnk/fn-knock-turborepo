@@ -80,7 +80,7 @@
             </DialogContent>
           </Dialog>
           <Dialog :open="showPasskeyBindDialog" @update:open="showPasskeyBindDialog = $event">
-            <DialogContent :show-close-button="false">
+            <DialogContent :show-close-button="false" overlay-class="bg-black/50 backdrop-blur-sm">
               <DialogHeader>
                 <DialogTitle>开启 Passkey 一键登录</DialogTitle>
                 <DialogDescription>
@@ -108,18 +108,21 @@
       </CardContent>
     </Card>
 
-    <div 
-      v-if="clientIp" 
-      class="absolute bottom-6 flex items-center gap-1.5 text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors duration-300 select-none"
+    <div
+      v-if="clientIp"
+      class="absolute bottom-6 left-0 right-0 px-4 flex justify-center text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors duration-300 select-none"
     >
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5">
-        <circle cx="12" cy="12" r="10"/>
-        <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
-        <path d="M2 12h20"/>
-      </svg>
-      <span>{{ clientIp }}</span>
-      <span v-if="ipLocation" class="mx-0.5 opacity-50">|</span>
-      <span v-if="ipLocation">{{ ipLocation }}</span>
+      <div class="w-full max-w-sm flex flex-col items-center gap-1 sm:flex-row sm:flex-wrap sm:justify-center sm:gap-x-1.5 sm:gap-y-1">
+        <span class="inline-flex items-center gap-1.5 min-w-0 sm:shrink-0">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5 shrink-0">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
+            <path d="M2 12h20"/>
+          </svg>
+          <span class="break-all text-center sm:break-normal sm:whitespace-nowrap">{{ clientIp }}</span>
+        </span>
+        <span v-if="ipLocation" class="text-center break-words sm:break-normal sm:whitespace-nowrap sm:shrink-0">{{ ipLocation }}</span>
+      </div>
     </div>
   </div>
 </template>
@@ -211,6 +214,11 @@ async function fetchIpInfo() {
 }
 
 onMounted(async () => {
+  const isAlreadyAuthenticated = await redirectIfAuthenticated();
+  if (isAlreadyAuthenticated) {
+    return;
+  }
+
   canUseNativeAltcha.value = typeof window !== 'undefined'
     && window.isSecureContext
     && typeof window.crypto !== 'undefined'
@@ -219,6 +227,19 @@ onMounted(async () => {
   fetchIpInfo();
   await initPasskeySupport();
 });
+
+async function redirectIfAuthenticated() {
+  try {
+    const res = await apiClient.get('/verify');
+    if (res.data?.success) {
+      await router.replace('/');
+      return true;
+    }
+  } catch {
+    // ignore verify errors here, continue with login flow
+  }
+  return false;
+}
 
 function hashAltchaInput(algorithm: AltchaAlgorithm, input: string): string {
   switch (algorithm) {

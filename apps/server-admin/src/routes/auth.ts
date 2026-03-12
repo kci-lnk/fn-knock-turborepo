@@ -215,14 +215,24 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
   })
   .head("/preflight", async ({ request, set }) => {
     const clientIp = getClientIp(request);
-    const isBlacklisted = await scanDetector.isBlacklisted(clientIp);
-    if (isBlacklisted) {
-      set.headers["X-Option"] = "Deny";
-    } else {
-      const forwardedPath = request.headers.get("x-forwarded-path") || "";
-      const isRecent = await recentAuthIPsManager.isActive(clientIp);
-      if (!isRecent && forwardedPath && !(await scanDetector.isCommonPath(forwardedPath))) {
-        await scanDetector.recordUncommonPath(clientIp, forwardedPath);
+    const config = await configManager.getConfig();
+    const isMatchedRoute = (request.headers.get("x-match") || "").toLowerCase() === "true";
+    const forwardedPath = request.headers.get("x-forwarded-path") || "";
+
+    if (config.run_type !== 0) {
+      // Only deny unmatched scans. Matched routes should not be hard-blocked here,
+      // otherwise false positives can lock out legitimate traffic.
+      if (!isMatchedRoute) {
+        const isBlacklisted = await scanDetector.isBlacklisted(clientIp);
+        if (isBlacklisted) {
+          set.headers["X-Option"] = "Deny";
+        }
+      }
+      if (!isMatchedRoute) {
+        const isRecent = await recentAuthIPsManager.isActive(clientIp);
+        if (!isRecent && forwardedPath && !(await scanDetector.isCommonPath(forwardedPath))) {
+          await scanDetector.recordUncommonPath(clientIp, forwardedPath);
+        }
       }
     }
     set.status = 204;

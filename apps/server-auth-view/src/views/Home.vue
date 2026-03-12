@@ -1,6 +1,17 @@
 <template>
   <div class="min-h-screen flex items-center justify-center bg-muted/40 p-4">
-    <Card class="w-full max-w-sm">
+    <Card v-if="isCheckingAuth" class="w-full max-w-sm">
+      <CardHeader>
+        <Skeleton class="h-8 w-44 mx-auto" />
+        <Skeleton class="h-4 w-48 mx-auto mt-2" />
+      </CardHeader>
+      <CardContent class="flex flex-col gap-4">
+        <Skeleton class="h-4 w-full" />
+        <Skeleton class="h-9 w-full rounded-md" />
+      </CardContent>
+    </Card>
+
+    <Card v-else class="w-full max-w-sm">
       <CardHeader>
         <CardTitle class="text-2xl text-center">安全验证已通过</CardTitle>
         <CardDescription class="text-center">
@@ -33,6 +44,7 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
     normalizeCreationOptions,
     serializeCredential,
@@ -45,22 +57,30 @@ const isPasskeySupported = ref(false);
 const isPasskeyAvailable = ref(false);
 const isPasskeyBinding = ref(false);
 const passkeyError = ref('');
+const isCheckingAuth = ref(true);
 
 async function checkAuth() {
     try {
         const res = await apiClient.get('/verify');
         if (!res.data || res.data.success !== true) {
             console.warn('验证失败:', res.data?.message || '未知错误');
-            router.push('/login');
-            return;
+            await router.replace('/login');
+            return false;
         }
+        return true;
     } catch (e: any) {
         console.error('身份验证请求异常:', e);
-        router.push('/login');
+        await router.replace('/login');
+        return false;
+    } finally {
+        isCheckingAuth.value = false;
     }
 }
 onMounted(async () => {
-    await checkAuth();
+    const isAuthenticated = await checkAuth();
+    if (!isAuthenticated) {
+        return;
+    }
     await initPasskeySupport();
 });
 

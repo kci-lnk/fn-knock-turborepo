@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { existsSync, readFileSync } from "node:fs";
 import { createServer, type IncomingHttpHeaders, type IncomingMessage, type ServerResponse } from "node:http";
 import { Readable } from "node:stream";
+import { setTimeout as sleep } from "node:timers/promises";
 import { adminRoutes } from "./routes/admin";
 import { sslRoutes } from "./routes/ssl";
 import { authRoutes } from "./routes/auth";
@@ -36,6 +37,7 @@ import { updatePlugin } from "./plugins/update";
 import { updateRoutes } from "./routes/update";
 import { updateManager } from "./lib/update-manager";
 import { createStaticFilesPlugin } from "./plugins/static-files";
+import { firewallService } from "./lib/firewall-service";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -283,17 +285,21 @@ authApp.get("*", ({ path }) => {
 });
 
 const config = await configManager.getConfig()
-await goBackend.setProxyProtocolForce(config.run_type === 1);
+if (config.run_type === 0) {
+    await firewallService.applyRunTypeConfig(1);
+    await sleep(500);
+    await firewallService.applyRunTypeConfig(0);
+} else {
+    await firewallService.applyRunTypeConfig(config.run_type);
+}
 // 自动同步SSL
 configManager.getSSLStatus().then(async data => {
     if (data.enabled) {
         goBackend.setSSL(config.ssl.cert, config.ssl.key);
+    } else {
+        goBackend.clearSSL();
     }
 });
-if (config.run_type === 1) {
-    await goBackend.setRules(config.proxy_mappings);
-    await goBackend.setDefaultRoute(config.default_route);
-}
 await restoreFrpcOnBoot();
 await restoreCloudflaredOnBoot();
 

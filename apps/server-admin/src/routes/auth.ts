@@ -213,23 +213,38 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
     set.headers["Location"] = "/";
     return "";
   })
-  .head("/preflight", async ({ request, set }) => {
+  .head("/preflight", async ({ request }) => {
     const clientIp = getClientIp(request);
-    const config = await configManager.getConfig();
-    if (config.run_type !== 0) {
-      const isBlacklisted = await scanDetector.isBlacklisted(clientIp);
-      if (isBlacklisted) {
-        set.headers["X-Option"] = "Deny";
-      } else {
-        const forwardedPath = request.headers.get("x-forwarded-path") || "";
-        const isRecent = await recentAuthIPsManager.isActive(clientIp);
-        if (!isRecent && forwardedPath && !(await scanDetector.isCommonPath(forwardedPath))) {
-          await scanDetector.recordUncommonPath(clientIp, forwardedPath);
+    const forwardedPath = request.headers.get("x-forwarded-path") || "";
+    const headers = new Headers();
+
+    try {
+      const config = await configManager.getConfig();
+      if (config.run_type !== 0) {
+        const isBlacklisted = await scanDetector.isBlacklisted(clientIp);
+        if (isBlacklisted) {
+          headers.set("X-Option", "Deny");
+        } else {
+          const isRecent = await recentAuthIPsManager.isActive(clientIp);
+          if (!isRecent && forwardedPath && !(await scanDetector.isCommonPath(forwardedPath))) {
+            await scanDetector.recordUncommonPath(clientIp, forwardedPath);
+          }
         }
       }
+    } catch (error) {
+      console.error("[auth][preflight] failed:", {
+        error,
+        clientIp,
+        forwardedPath,
+        xForwardedFor: request.headers.get("x-forwarded-for"),
+        xRealIp: request.headers.get("x-real-ip"),
+      });
     }
 
-    set.status = 204;
+    return new Response(null, {
+      status: 204,
+      headers,
+    });
   })
   .get("/verify", async ({ request, set }) => {
     const clientIp = getClientIp(request);

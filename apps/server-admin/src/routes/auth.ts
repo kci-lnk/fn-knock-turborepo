@@ -1,0 +1,245 @@
+import { Elysia, redirect, t } from "elysia";
+import { configManager } from "../lib/redis";
+import { verifySync } from "otplib";
+import { randomBytes, createHmac, createHash } from "node:crypto";
+import { ipLocationService } from "../lib/ip-location";
+import {
+  buildPasskeyBindInfo,
+  handleLoginSuccess,
+} from "../lib/auth-utils";
+import { passkeyRoutes } from "./auth/passkey";
+import { whitelistManager } from "../lib/whitelist-manager";
+import { authLogManager } from "../lib/auth-log";
+import { loginBackoffService } from "../lib/login-backoff";
+import { recentAuthIPsManager } from "../lib/recent-auth-ips";
+import { scanDetector } from "../lib/scan-detector";
+import { getRequiredEnv } from "../lib/env";
+import { safeEqualString } from "../lib/security";
+import { buildSessionClearCookie } from "../lib/session-cookie";
+
+const ALTCHA_HMAC_KEY = getRequiredEnv("ALTCHA_HMAC_KEY");
+const MAX_NUMBER = 100000;
+export const authRoutes = new Elysia({ prefix: "/api/auth" })
+  .get("/challenge", () => {
+    const salt = randomBytes(12).toString("hex");
+    // Expires in 5 minutes
+    const expires = Math.floor(Date.now() / 1000) + 300;
+    const saltWithParams = `${salt}?expires=${expires}`;
+
+    const secret_number = Math.floor(Math.random() * MAX_NUMBER);
+
+    const hash = createHash("sha256");
+    hash.update(saltWithParams + secret_number.toString());
+    const challenge = hash.digest("hex");
+
+    const hmac = createHmac("sha256", ALTCHA_HMAC_KEY);
+    hmac.update(challenge);
+    const signature = hmac.digest("hex");
+
+    return {
+      algorithm: "SHA-256",
+      challenge,
+      maxnumber: MAX_NUMBER,
+      salt: saltWithParams,
+      signature,
+    };
+  })
+  .get("/ip", async ({ request }) => {
+    const clientIp = request.headers.get("x-real-ip") || "::1";
+    let ipLocationStr = "";
+    
+    try {
+      const ipAddr = clientIp === '::1' ? '127.0.0.1' : clientIp;
+      const ipInfo = await ipLocationService.getIpLocation(ipAddr);
+      if (ipInfo) {
+        ipLocationStr = ipInfo.raw;
+      }
+    } catch (err) {
+      console.error("Failed to query IP location:", err);
+    }
+
+    return {
+      success: true,
+      data: {
+        ip: clientIp,
+        location: ipLocationStr
+      }
+    };
+  })
+  .post(
+    "/login",
+    async ({ body, set, request }) => {
+      const config = await configManager.getConfig();
+      const clientIp = request.headers.get("x-real-ip") || "::1";
+      const gate = await loginBackoffService.ensureNotBlocked(clientIp);
+      if (!gate.allowed) {
+        set.status = 429;
+        if (gate.retryAfter) set.headers["Retry-After"] = String(gate.retryAfter);
+        return { success: false, message: "尝试过于频繁，请稍后重试", retryAfter: gate.retryAfter };
+      }
+      try {
+        const payloadDecoded = Buffer.from(body.altcha, "base64").toString(
+          "utf-8",
+        );
+        const data = JSON.parse(payloadDecoded);
+
+        if (data.algorithm !== "SHA-256") {
+          throw new Error("Invalid algorithm");
+        }
+
+        const expectedChallenge = createHash("sha256")
+          .update(data.salt + data.number.toString())
+          .digest("hex");
+        if (!safeEqualString(String(data.challenge || "").toLowerCase(), expectedChallenge)) {
+          throw new Error("Invalid challenge");
+        }
+
+        const expectedSignature = createHmac("sha256", ALTCHA_HMAC_KEY)
+          .update(data.challenge)
+          .digest("hex");
+        if (!safeEqualString(String(data.signature || "").toLowerCase(), expectedSignature)) {
+          throw new Error("Invalid signature");
+        }
+
+        const expiresMatch = data.salt.match(/expires=(\d+)/);
+        if (expiresMatch) {
+          const expires = parseInt(expiresMatch[1], 10);
+          if (Date.now() / 1000 > expires) {
+            throw new Error("Challenge expired");
+          }
+        }
+
+        const isNewChallenge = await configManager.setNonceIfNotExists(
+          data.challenge,
+          86400,
+        );
+        if (!isNewChallenge) {
+          throw new Error("Challenge has already been used");
+        }
+      } catch (e: any) {
+        set.status = 400;
+        return {
+          success: false,
+          message: e.message,
+        };
+      }
+      const totpCredentials = await configManager.getTOTPCredentials();
+      if (totpCredentials.length === 0) {
+        set.status = 400;
+        return { success: false, message: "服务器尚未配置登录凭据" };
+      }
+
+      let matchedTotpId: string | null = null;
+      for (const totp of totpCredentials) {
+        const { valid } = verifySync({
+          strategy: "totp",
+          token: body.token,
+          secret: totp.secret,
+        });
+        if (valid) {
+          matchedTotpId = totp.id;
+          break;
+        }
+      }
+
+      if (!matchedTotpId) {
+        const userAgent = request.headers.get("user-agent") || "Unknown";
+        await authLogManager.recordLog({
+          type: "login",
+          method: "TOTP",
+          ip: clientIp,
+          userAgent,
+          success: false,
+          credentialName: "! Unknown TOTP",
+        });
+        const rf = await loginBackoffService.registerFailure(clientIp);
+        set.status = 429;
+        set.headers["Retry-After"] = String(rf.retryAfter);
+        return { success: false, message: `验证码不正确，请在 ${rf.retryAfter} 秒后重试`, retryAfter: rf.retryAfter };
+      }
+      const passkeyInfo = await buildPasskeyBindInfo(matchedTotpId);
+      const userAgent = request.headers.get("user-agent") || "Unknown";
+      const credentialName = totpCredentials.find((t) => t.id === matchedTotpId)?.comment || "Unknown TOTP";
+
+      await loginBackoffService.reset(clientIp);
+      return await handleLoginSuccess({
+        config,
+        clientIp,
+        userAgent,
+        authMethod: "TOTP",
+        credentialId: matchedTotpId,
+        credentialName,
+        rememberMe: body.rememberMe,
+        set,
+        totpId: matchedTotpId,
+        passkeyInfo,
+      });
+    },
+    {
+      body: t.Object({
+        token: t.String(),
+        altcha: t.String(),
+        rememberMe: t.Boolean(),
+      }),
+    },
+  )
+  .use(passkeyRoutes)
+  .get("/logout", async ({ request, set }) => {
+    const cookieHeader = request.headers.get("cookie") || "";
+    const match = cookieHeader.match(/x-go-reauth-proxy-session-id=([^;]+)/);
+    let loginIpFromSession: string | null = null;
+    if (match && match[1]) {
+      const session = await configManager.getSession(match[1]);
+      loginIpFromSession = session?.ip || null;
+      await configManager.deleteSession(match[1]);
+    }
+
+    const clientIp = request.headers.get("x-real-ip") || "::1";
+    const userAgent = request.headers.get("user-agent") || "Unknown";
+    await whitelistManager.removeRecordsByIP(loginIpFromSession || clientIp, 'auto');
+
+    await authLogManager.recordLog({
+      type: "logout",
+      ip: clientIp,
+      userAgent,
+      success: true,
+    });
+
+    set.headers["Set-Cookie"] = buildSessionClearCookie();
+    return redirect("/");
+  })
+  .head("/preflight", async ({ request, set }) => {
+    const clientIp = request.headers.get("x-real-ip") || "::1";
+    const isBlacklisted = await scanDetector.isBlacklisted(clientIp);
+    if (isBlacklisted) {
+      set.headers["X-Option"] = "Deny";
+    } else {
+      const forwardedPath = request.headers.get("x-forwarded-path") || "";
+      const isRecent = await recentAuthIPsManager.isActive(clientIp);
+      if (!isRecent && forwardedPath && !(await scanDetector.isCommonPath(forwardedPath))) {
+        await scanDetector.recordUncommonPath(clientIp, forwardedPath);
+      }
+    }
+    set.status = 204;
+  })
+  .get("/verify", async ({ request, set }) => {
+    const clientIp = request.headers.get("x-real-ip") || "::1";
+    const isWhitelisted = await whitelistManager.hasValidIP(clientIp);
+    if (isWhitelisted) {
+      await recentAuthIPsManager.recordVerified(clientIp);
+      return { success: true, message: "Authorized by IP whitelist" };
+    }
+
+    const cookieHeader = request.headers.get("cookie") || "";
+    const match = cookieHeader.match(/x-go-reauth-proxy-session-id=([^;]+)/);
+
+    if (match && match[1]) {
+      const isValid = await configManager.isValidSession(match[1]);
+      if (isValid) {
+        await recentAuthIPsManager.recordVerified(clientIp);
+        return { success: true, message: "Authorized" };
+      }
+    }
+    set.status = 401;
+    return { success: false, message: "Unauthorized" };
+  });

@@ -1,0 +1,28 @@
+{
+    "data-share":
+    {
+        "shares":
+        [
+            {
+                "name": "fn-knock",
+                "permission":
+                {
+                    "rw":
+                    [
+                        "fn-knock"
+                    ]
+                }
+            },
+            {
+                "name": "fn-knock/data",
+                "permission":
+                {
+                    "rw":
+                    [
+                        "fn-knock"
+                    ]
+                }
+            }
+        ]
+    }
+}

@@ -1,0 +1,18 @@
+{
+  ".url": {
+    "fn-knock.Application": {
+      "noDisplay": false,
+      "allUsers": false,
+      "fileTypes": [],
+      "control": {
+        "accessPerm": "readonly"
+      },
+      "protocol": "http",
+      "title": "敲门knock",
+      "icon": "images/ICON.PNG",
+      "type": "iframe",
+
+      "url": "/cgi/ThirdParty/fn-knock/index.cgi/"
+    }
+  }
+}

@@ -1,0 +1,75 @@
+[
+  {
+    "stepTitle": "运行端口设置",
+    "items": [
+      {
+        "type": "tips",
+        "helpText": "修改后会写入环境变量，并在服务运行中自动重启以应用新端口。"
+      },
+      {
+        "type": "text",
+        "field": "wizard_backend_port",
+        "label": "管理后端端口 (BACKEND_PORT)",
+        "initValue": "7998",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入管理后端端口"
+          },
+          {
+            "pattern": "^[0-9]+$",
+            "message": "端口必须是数字"
+          }
+        ]
+      },
+      {
+        "type": "text",
+        "field": "wizard_auth_port",
+        "label": "认证端口 (AUTH_PORT)",
+        "initValue": "7997",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入认证端口"
+          },
+          {
+            "pattern": "^[0-9]+$",
+            "message": "端口必须是数字"
+          }
+        ]
+      },
+      {
+        "type": "text",
+        "field": "wizard_go_backend_port",
+        "label": "Go 管理端口 (GO_BACKEND_PORT)",
+        "initValue": "7996",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入 Go 管理端口"
+          },
+          {
+            "pattern": "^[0-9]+$",
+            "message": "端口必须是数字"
+          }
+        ]
+      },
+      {
+        "type": "text",
+        "field": "wizard_go_reproxy_port",
+        "label": "Go 代理端口 (GO_REPROXY_PORT)",
+        "initValue": "7999",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入 Go 代理端口"
+          },
+          {
+            "pattern": "^[0-9]+$",
+            "message": "端口必须是数字"
+          }
+        ]
+      }
+    ]
+  }
+]

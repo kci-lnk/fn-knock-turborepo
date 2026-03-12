@@ -1,0 +1,16 @@
+appname=fn-knock
+version=0.0.4
+display_name=敲门knock
+desc="""敲门knock是一款针对飞牛OS的安全防护软件，内置了防火墙控制和反代安全"""
+platform=x86
+source=thirdparty
+maintainer=kci-lnk
+distributor=kci-lnk
+distributor_url=https://github.com/kci-lnk
+ctl_stop=true
+install_type=root
+install_dep_apps=nodejs_v20:redis
+desktop_uidir=ui
+desktop_applaunchname=fn-knock.Application
+service_port=7999
+checkport=false

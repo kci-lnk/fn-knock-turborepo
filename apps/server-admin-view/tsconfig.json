@@ -1,0 +1,18 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
+  ],
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/components/ui": ["../../packages/ui-vue/src/components/ui/index.ts"],
+      "@/components/ui/*": ["../../packages/ui-vue/src/components/ui/*"],
+      "@/lib/utils": ["../../packages/ui-vue/src/lib/utils.ts"],
+      "@frontend-core/*": ["../../packages/frontend-core/src/*"],
+      "@admin-shared/*": ["../../packages/admin-shared/src/*"],
+      "@/*": ["./src/*"]
+    }
+  }
+}

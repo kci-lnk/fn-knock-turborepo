@@ -1,0 +1,30 @@
+{
+  "name": "fn-knock-turborepo",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "check-types": "turbo run check-types",
+    "fn-knock:build-package": "./apps/fn-knock/scripts/build-package.sh",
+    "fn-knock:fpk:copy-back": "./apps/fn-knock/scripts/build-package.sh copy-fpk",
+    "fn-knock:fpk:remote": "bash ./scripts/fn-knock-deploy.sh pack-remote",
+    "fn-knock:install:remote": "bash ./scripts/fn-knock-deploy.sh install-remote",
+    "fn-knock:verify:remote": "bash ./scripts/fn-knock-deploy.sh verify-remote",
+    "fn-knock:deploy": "bash ./scripts/fn-knock-deploy.sh deploy"
+  },
+  "devDependencies": {
+    "prettier": "^3.7.4",
+    "turbo": "^2.8.12",
+    "typescript": "5.9.2"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "packageManager": "npm@10.8.2",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}

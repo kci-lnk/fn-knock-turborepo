@@ -1,0 +1,58 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "task: server-admin",
+			"type": "shell",
+			"isBackground": true,
+			"command": "npm run dev --workspace server-admin",
+			"options": {
+				"env": {
+					"BACKEND_PORT": "7998",
+					"AUTH_PORT": "7997",
+					"GO_BACKEND_PORT": "7996",
+					"GO_REPROXY_PORT": "7999",
+					"NODE_ENV": "developer"
+				}
+			},
+			"presentation": {
+				"group": "output",
+				"panel": "new",
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "task: server-admin-view",
+			"type": "shell",
+			"isBackground": true,
+			"command": "npm run dev --workspace server-admin-view -- --port 5173",
+			"presentation": {
+				"group": "output",
+				"panel": "new"
+			}
+		},
+		{
+			"label": "task: server-auth-view",
+			"type": "shell",
+			"isBackground": true,
+			"command": "npm run dev --workspace server-auth-view -- --port 5174",
+			"presentation": {
+				"group": "output"
+			}
+		},
+		{
+			"label": "🚀 Start Full Dev Stack",
+			"dependsOrder": "parallel",
+			"dependsOn": [
+				"task: server-admin",
+				"task: server-admin-view",
+				"task: server-auth-view"
+			],
+			"problemMatcher": [],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			}
+		}
+	]
+}

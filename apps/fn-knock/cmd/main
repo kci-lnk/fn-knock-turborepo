@@ -1,0 +1,470 @@
+#!/bin/bash
+
+set -u
+
+PKG_VAR_DIR="${TRIM_PKGVAR:-}"
+LOG_FILE="${PKG_VAR_DIR}/info.log"
+BACKEND_PID_FILE="${PKG_VAR_DIR}/backend.pid"
+GATEWAY_PID_FILE="${PKG_VAR_DIR}/gateway.pid"
+
+APP_HOME="${TRIM_APPDEST:-}"
+NODE_BIN="${NODE_BIN:-/var/apps/nodejs_v20/target/bin/node}"
+BACKEND_ENTRY="${APP_HOME}/server/server-admin/index.js"
+GATEWAY_BIN="${APP_HOME}/server/go-reauth-proxy-linux-amd64"
+
+ADMIN_STATIC_PATH="${APP_HOME}/ui/www"
+AUTH_STATIC_PATH="${APP_HOME}/server-auth-view/dist"
+TOKEN_FILE="/tmp/fn-knock_token.secret"
+ACME_BUNDLE_ZIP="${APP_HOME}/server/server-admin/resources/acmesh.zip"
+PORT_PATTERN='^([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$'
+
+BACKEND_PORT=""
+AUTH_PORT=""
+GO_BACKEND_PORT=""
+GO_REPROXY_PORT=""
+
+log_msg() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "${LOG_FILE}"
+}
+
+log_debug_cmd() {
+    local title="$1"
+    local cmd="$2"
+    local output=""
+
+    output="$(sh -c "${cmd}" 2>&1 || true)"
+    if [ -z "${output}" ]; then
+        log_msg "[debug] ${title}: <empty>"
+        return 0
+    fi
+
+    while IFS= read -r line; do
+        log_msg "[debug] ${title}: ${line}"
+    done <<< "${output}"
+}
+
+log_backend_failure_debug() {
+    local pid="$1"
+
+    log_msg "[debug] backend-failure diagnostics begin"
+    log_msg "[debug] pid_file=${BACKEND_PID_FILE}"
+    log_msg "[debug] pid_value=${pid:-<empty>}"
+    log_msg "[debug] app_home=${APP_HOME}"
+    log_msg "[debug] data_dir=${PKG_VAR_DIR}"
+    log_msg "[debug] ports backend=${BACKEND_PORT} auth=${AUTH_PORT} go_admin=${GO_BACKEND_PORT} go_proxy=${GO_REPROXY_PORT}"
+
+    if [ -f "${BACKEND_PID_FILE}" ]; then
+        log_debug_cmd "pid_file_stat" "ls -l \"${BACKEND_PID_FILE}\""
+    else
+        log_msg "[debug] pid_file_stat: missing"
+    fi
+
+    log_debug_cmd "runtime_dir_stat" "ls -ld \"${PKG_VAR_DIR}\" \"${PKG_VAR_DIR}/frp\" \"${PKG_VAR_DIR}/cloudflared\" \"${PKG_VAR_DIR}/updates\""
+    log_debug_cmd "path_stat" "ls -ld \"${APP_HOME}\" \"${ADMIN_STATIC_PATH}\" \"${AUTH_STATIC_PATH}\""
+    log_debug_cmd "binary_stat" "ls -l \"${NODE_BIN}\" \"${BACKEND_ENTRY}\" \"${GATEWAY_BIN}\""
+    log_debug_cmd "data_dir_writable" "test -w \"${PKG_VAR_DIR}\" && echo writable || echo not-writable"
+    log_debug_cmd "env_subset" "env | grep -E '^(TRIM_|BACKEND_PORT|AUTH_PORT|GO_BACKEND_PORT|GO_REPROXY_PORT|NODE_ENV|PATH)=' | sort"
+    log_debug_cmd "ulimit" "ulimit -a"
+
+    if [ -n "${pid}" ]; then
+        log_debug_cmd "process_snapshot" "ps -p \"${pid}\" -o pid,ppid,user,stat,etime,args"
+        if wait "${pid}" 2>/dev/null; then
+            log_msg "[debug] wait_result: exited with code 0"
+        else
+            log_msg "[debug] wait_result: exited with code $?"
+        fi
+    fi
+
+    if command -v ss >/dev/null 2>&1; then
+        log_debug_cmd "port_occupy" "ss -lntp 2>/dev/null | grep -E \":(${BACKEND_PORT}|${AUTH_PORT}|${GO_BACKEND_PORT}|${GO_REPROXY_PORT})\\b\" || true"
+    elif command -v netstat >/dev/null 2>&1; then
+        log_debug_cmd "port_occupy" "netstat -lntp 2>/dev/null | grep -E \":(${BACKEND_PORT}|${AUTH_PORT}|${GO_BACKEND_PORT}|${GO_REPROXY_PORT})\\b\" || true"
+    else
+        log_msg "[debug] port_occupy: ss/netstat unavailable"
+    fi
+
+    log_debug_cmd "recent_log_tail" "tail -n 80 \"${LOG_FILE}\""
+    log_msg "[debug] backend-failure diagnostics end"
+}
+
+fail_backend_start() {
+    local reason="$1"
+    local pid="${2:-}"
+    log_msg "Backend failed to start: ${reason}"
+    log_backend_failure_debug "${pid}"
+    rm -f "${BACKEND_PID_FILE}"
+    return 1
+}
+
+ensure_runtime_layout() {
+    if [ -z "${PKG_VAR_DIR}" ]; then
+        echo "TRIM_PKGVAR is empty; cannot start fn-knock" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
+        return 1
+    fi
+
+    if [ -z "${APP_HOME}" ]; then
+        echo "TRIM_APPDEST is empty; cannot start fn-knock" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
+        return 1
+    fi
+
+    if ! mkdir -p "${PKG_VAR_DIR}" "${PKG_VAR_DIR}/frp" "${PKG_VAR_DIR}/cloudflared" "${PKG_VAR_DIR}/updates" >/dev/null 2>&1; then
+        echo "failed to create runtime directories under ${PKG_VAR_DIR}" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
+        return 1
+    fi
+
+    if [ ! -w "${PKG_VAR_DIR}" ]; then
+        echo "runtime directory is not writable: ${PKG_VAR_DIR}" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
+        return 1
+    fi
+
+    return 0
+}
+
+resolve_port() {
+    local explicit_key="$1"
+    local wizard_key="$2"
+    local fallback="$3"
+
+    local value="${!explicit_key:-}"
+    if [ -z "${value}" ]; then
+        value="${!wizard_key:-}"
+    fi
+    if [ -z "${value}" ]; then
+        value="${fallback}"
+    fi
+
+    echo "${value}"
+}
+
+load_runtime_ports() {
+    local default_proxy_port="${TRIM_SERVICE_PORT:-7999}"
+    BACKEND_PORT="$(resolve_port "BACKEND_PORT" "wizard_backend_port" "7998")"
+    AUTH_PORT="$(resolve_port "AUTH_PORT" "wizard_auth_port" "7997")"
+    GO_BACKEND_PORT="$(resolve_port "GO_BACKEND_PORT" "wizard_go_backend_port" "7996")"
+    GO_REPROXY_PORT="$(resolve_port "GO_REPROXY_PORT" "wizard_go_reproxy_port" "${default_proxy_port}")"
+}
+
+validate_port() {
+    local name="$1"
+    local value="$2"
+    if [[ "${value}" =~ ${PORT_PATTERN} ]]; then
+        return 0
+    fi
+
+    local message="Invalid ${name}: ${value}. expected integer between 1 and 65535."
+    log_msg "${message}"
+    echo "${message}" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
+    return 1
+}
+
+validate_runtime_ports() {
+    validate_port "BACKEND_PORT" "${BACKEND_PORT}" || return 1
+    validate_port "AUTH_PORT" "${AUTH_PORT}" || return 1
+    validate_port "GO_BACKEND_PORT" "${GO_BACKEND_PORT}" || return 1
+    validate_port "GO_REPROXY_PORT" "${GO_REPROXY_PORT}" || return 1
+
+    if [ "${BACKEND_PORT}" = "${AUTH_PORT}" ] ||
+       [ "${BACKEND_PORT}" = "${GO_BACKEND_PORT}" ] ||
+       [ "${BACKEND_PORT}" = "${GO_REPROXY_PORT}" ] ||
+       [ "${AUTH_PORT}" = "${GO_BACKEND_PORT}" ] ||
+       [ "${AUTH_PORT}" = "${GO_REPROXY_PORT}" ] ||
+       [ "${GO_BACKEND_PORT}" = "${GO_REPROXY_PORT}" ]; then
+        local message="Invalid port configuration: BACKEND_PORT, AUTH_PORT, GO_BACKEND_PORT and GO_REPROXY_PORT must be different."
+        log_msg "${message}"
+        echo "${message}" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
+        return 1
+    fi
+
+    return 0
+}
+
+check_process() {
+    local pid="$1"
+    if [ -z "${pid}" ]; then
+        return 1
+    fi
+    if kill -0 "${pid}" 2>/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+stop_pid() {
+    local pid="$1"
+    local name="$2"
+
+    if [ -z "${pid}" ]; then
+        return 0
+    fi
+    if ! check_process "${pid}"; then
+        return 0
+    fi
+    if [ "${pid}" = "$$" ]; then
+        return 0
+    fi
+
+    log_msg "Stopping ${name} (PID: ${pid})..."
+    kill -TERM "${pid}" 2>>"${LOG_FILE}" || true
+    for _ in $(seq 1 20); do
+        if ! check_process "${pid}"; then
+            break
+        fi
+        sleep 0.5
+    done
+    if check_process "${pid}"; then
+        kill -KILL "${pid}" 2>>"${LOG_FILE}" || true
+    fi
+}
+
+list_pids_by_keyword() {
+    local keyword="$1"
+
+    if command -v pgrep >/dev/null 2>&1; then
+        pgrep -f "${keyword}" 2>/dev/null || true
+        return 0
+    fi
+
+    ps -eo pid=,args= 2>/dev/null | awk -v kw="${keyword}" 'index($0, kw) > 0 { print $1 }'
+}
+
+stop_matching_processes() {
+    local keyword="$1"
+    local name="$2"
+    local pids=""
+    local matched=0
+
+    pids="$(list_pids_by_keyword "${keyword}")"
+    if [ -z "${pids}" ]; then
+        return 0
+    fi
+
+    for pid in ${pids}; do
+        if [ -z "${pid}" ]; then
+            continue
+        fi
+        if [ "${pid}" = "$$" ]; then
+            continue
+        fi
+        stop_pid "${pid}" "${name}"
+        matched=1
+    done
+
+    if [ "${matched}" -eq 1 ]; then
+        log_msg "${name} cleanup finished by keyword: ${keyword}"
+    fi
+}
+
+stop_service() {
+    local pid_file="$1"
+    local name="$2"
+
+    if [ ! -f "${pid_file}" ]; then
+        return 0
+    fi
+
+    local pid
+    pid="$(cat "${pid_file}" 2>/dev/null || true)"
+    if [ -z "${pid}" ]; then
+        rm -f "${pid_file}"
+        return 0
+    fi
+
+    stop_pid "${pid}" "${name}"
+
+    rm -f "${pid_file}"
+    log_msg "${name} stopped."
+}
+
+stop_external_resources() {
+    local frpc_config="${PKG_VAR_DIR}/frp/frpc.toml"
+    local cloudflared_bin="${PKG_VAR_DIR}/cloudflared/cloudflared"
+
+    # FRP client managed by server-admin route (/api/admin/frpc/start)
+    stop_matching_processes "${frpc_config}" "FRPC"
+    # Cloudflared managed by server-admin route (/api/admin/cloudflared/start)
+    stop_matching_processes "${cloudflared_bin}" "Cloudflared"
+    # Go reauth proxy fallback cleanup (in case PID file is stale/missing)
+    stop_matching_processes "${GATEWAY_BIN}" "Gateway"
+}
+
+start_gateway() {
+    if [ -f "${GATEWAY_PID_FILE}" ]; then
+        local pid
+        pid="$(cat "${GATEWAY_PID_FILE}" 2>/dev/null || true)"
+        if check_process "${pid}"; then
+            log_msg "Gateway already running (PID: ${pid})"
+            return 0
+        fi
+        rm -f "${GATEWAY_PID_FILE}"
+    fi
+
+    if [ ! -x "${GATEWAY_BIN}" ]; then
+        chmod +x "${GATEWAY_BIN}" 2>/dev/null || true
+    fi
+    if [ ! -x "${GATEWAY_BIN}" ]; then
+        log_msg "Gateway binary is missing or not executable: ${GATEWAY_BIN}"
+        return 1
+    fi
+
+    log_msg "Starting Go Reauth Proxy (admin-port=${GO_BACKEND_PORT}, proxy-port=${GO_REPROXY_PORT})..."
+    "${GATEWAY_BIN}" \
+        -admin-port "${GO_BACKEND_PORT}" \
+        -proxy-port "${GO_REPROXY_PORT}" \
+        >/dev/null 2>&1 &
+
+    echo "$!" > "${GATEWAY_PID_FILE}"
+    sleep 1
+    local pid
+    pid="$(cat "${GATEWAY_PID_FILE}")"
+    if ! check_process "${pid}"; then
+        log_msg "Gateway failed to start."
+        rm -f "${GATEWAY_PID_FILE}"
+        return 1
+    fi
+    log_msg "Gateway started with PID: ${pid}"
+    return 0
+}
+
+start_backend() {
+    if [ -f "${BACKEND_PID_FILE}" ]; then
+        local pid
+        pid="$(cat "${BACKEND_PID_FILE}" 2>/dev/null || true)"
+        if check_process "${pid}"; then
+            log_msg "Backend already running (PID: ${pid})"
+            return 0
+        fi
+        rm -f "${BACKEND_PID_FILE}"
+    fi
+
+    if [ ! -x "${NODE_BIN}" ]; then
+        NODE_BIN="$(command -v node 2>/dev/null || true)"
+    fi
+    if [ -z "${NODE_BIN}" ] || [ ! -x "${NODE_BIN}" ]; then
+        fail_backend_start "Node.js binary not found: /var/apps/nodejs/target/bin/node (or node in PATH)" ""
+        return 1
+    fi
+    if [ ! -f "${BACKEND_ENTRY}" ]; then
+        fail_backend_start "Backend entry not found: ${BACKEND_ENTRY}" ""
+        return 1
+    fi
+    if [ ! -d "${ADMIN_STATIC_PATH}" ]; then
+        fail_backend_start "Admin static path missing: ${ADMIN_STATIC_PATH}" ""
+        return 1
+    fi
+    if [ ! -d "${AUTH_STATIC_PATH}" ]; then
+        fail_backend_start "Auth static path missing: ${AUTH_STATIC_PATH}" ""
+        return 1
+    fi
+
+    log_msg "Starting Node.js backend (backend-port=${BACKEND_PORT}, auth-port=${AUTH_PORT})..."
+    (
+        cd "${APP_HOME}" && \
+        ADMIN_STATIC_PATH="${ADMIN_STATIC_PATH}" \
+        AUTH_STATIC_PATH="${AUTH_STATIC_PATH}" \
+        FN_KNOCK_DATA_DIR="${PKG_VAR_DIR}" \
+        ACME_BUNDLE_ZIP="${ACME_BUNDLE_ZIP}" \
+        INTERNAL_TOKEN_FILE="${TOKEN_FILE}" \
+        BACKEND_PORT="${BACKEND_PORT}" \
+        AUTH_PORT="${AUTH_PORT}" \
+        GO_BACKEND_PORT="${GO_BACKEND_PORT}" \
+        GO_REPROXY_PORT="${GO_REPROXY_PORT}" \
+        "${NODE_BIN}" "${BACKEND_ENTRY}"
+    ) >> "${LOG_FILE}" 2>&1 &
+
+    echo "$!" > "${BACKEND_PID_FILE}"
+    sleep 1
+    if [ ! -s "${BACKEND_PID_FILE}" ]; then
+        fail_backend_start "Backend pid file missing or empty after start: ${BACKEND_PID_FILE}" ""
+        return 1
+    fi
+    local pid
+    pid="$(cat "${BACKEND_PID_FILE}" 2>/dev/null || true)"
+    if ! check_process "${pid}"; then
+        fail_backend_start "process exited early (pid=${pid:-<empty>})" "${pid}"
+        return 1
+    fi
+    log_msg "Backend started with PID: ${pid}"
+    return 0
+}
+
+start() {
+    if ! ensure_runtime_layout; then
+        return 1
+    fi
+    load_runtime_ports
+    if ! validate_runtime_ports; then
+        return 1
+    fi
+    log_msg "=== fn-knock start ==="
+    log_msg "Port config: backend=${BACKEND_PORT}, auth=${AUTH_PORT}, go-admin=${GO_BACKEND_PORT}, go-proxy=${GO_REPROXY_PORT}"
+
+    if ! start_gateway; then
+        echo "fn-knock gateway start failed" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
+        return 1
+    fi
+    if ! start_backend; then
+        stop_service "${GATEWAY_PID_FILE}" "Gateway"
+        echo "fn-knock backend start failed" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
+        return 1
+    fi
+    return 0
+}
+
+stop() {
+    log_msg "=== fn-knock stop ==="
+    stop_service "${BACKEND_PID_FILE}" "Backend"
+    stop_service "${GATEWAY_PID_FILE}" "Gateway"
+    stop_external_resources
+    return 0
+}
+
+status() {
+    local backend_running=1
+    local gateway_running=1
+
+    if [ -f "${BACKEND_PID_FILE}" ]; then
+        if check_process "$(cat "${BACKEND_PID_FILE}" 2>/dev/null || true)"; then
+            backend_running=0
+        else
+            rm -f "${BACKEND_PID_FILE}"
+        fi
+    fi
+
+    if [ -f "${GATEWAY_PID_FILE}" ]; then
+        if check_process "$(cat "${GATEWAY_PID_FILE}" 2>/dev/null || true)"; then
+            gateway_running=0
+        else
+            rm -f "${GATEWAY_PID_FILE}"
+        fi
+    fi
+
+    if [ "${backend_running}" -eq 0 ] && [ "${gateway_running}" -eq 0 ]; then
+        return 0
+    fi
+    return 1
+}
+
+case "${1:-}" in
+start)
+    if start; then
+        exit 0
+    fi
+    exit 1
+    ;;
+stop)
+    if stop; then
+        exit 0
+    fi
+    exit 1
+    ;;
+status)
+    if status; then
+        exit 0
+    else
+        exit 3
+    fi
+    ;;
+*)
+    exit 1
+    ;;
+esac

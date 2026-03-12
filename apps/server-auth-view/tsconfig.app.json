@@ -1,0 +1,33 @@
+{
+  "extends": "@vue/tsconfig/tsconfig.dom.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "types": ["vite/client"],
+    "baseUrl": ".",
+    "paths": {
+      "@/components/ui": ["../../packages/ui-vue/src/components/ui/index.ts"],
+      "@/components/ui/*": ["../../packages/ui-vue/src/components/ui/*"],
+      "@/lib/utils": ["../../packages/ui-vue/src/lib/utils.ts"],
+      "@frontend-core/*": ["../../packages/frontend-core/src/*"],
+      "@/*": [
+        "./src/*"
+      ]
+    },
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.vue",
+    "../../packages/ui-vue/src/**/*.ts",
+    "../../packages/ui-vue/src/**/*.vue",
+    "../../packages/frontend-core/src/**/*.ts"
+  ]
+}

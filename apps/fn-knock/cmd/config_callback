@@ -1,0 +1,38 @@
+#!/bin/bash
+
+### This script is called after the user change environment variables in application setting page.
+
+set -u
+
+LOG_FILE="${TRIM_PKGVAR}/info.log"
+MAIN_SCRIPT="$(dirname "$0")/main"
+
+log_msg() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "${LOG_FILE}"
+}
+
+if [ ! -x "${MAIN_SCRIPT}" ]; then
+    chmod +x "${MAIN_SCRIPT}" 2>/dev/null || true
+fi
+
+if "${MAIN_SCRIPT}" status >/dev/null 2>&1; then
+    log_msg "config_callback: runtime env changed, restarting fn-knock."
+
+    if ! "${MAIN_SCRIPT}" stop; then
+        echo "fn-knock stop failed after config change" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
+        exit 1
+    fi
+
+    sleep 1
+
+    if ! "${MAIN_SCRIPT}" start; then
+        echo "fn-knock start failed after config change" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
+        exit 1
+    fi
+
+    log_msg "config_callback: restart completed."
+else
+    log_msg "config_callback: runtime env changed while service is stopped, skip restart."
+fi
+
+exit 0

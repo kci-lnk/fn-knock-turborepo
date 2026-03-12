@@ -1,0 +1,127 @@
+import type { Elysia } from "elysia";
+import { cron } from "@elysiajs/cron";
+import { randomUUID } from "node:crypto";
+import { acmeService } from "../plugins/acme";
+import { configManager } from "../lib/redis";
+import { goBackend } from "../lib/go-backend";
+
+const parseIntSafe = (value: string | undefined, fallback: number) => {
+  const v = Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(v)) return fallback;
+  return v;
+};
+
+const isExpiringSoon = (validTo: string | undefined, thresholdMs: number) => {
+  if (!validTo) return false;
+  const t = Date.parse(validTo);
+  if (!Number.isFinite(t)) return false;
+  return t - Date.now() <= thresholdMs;
+};
+
+export const registerAcmeRenewCron = (app: Elysia) => {
+  const renewDays = Math.max(1, Math.min(90, parseIntSafe(process.env.ACME_RENEW_DAYS, 30)));
+  const thresholdMs = renewDays * 24 * 60 * 60 * 1000;
+  const pattern = process.env.ACME_RENEW_CRON || "0 */6 * * *";
+  const lockTtlSeconds = Math.max(60, Math.min(6 * 60 * 60, parseIntSafe(process.env.ACME_RENEW_LOCK_TTL, 3600)));
+
+  app.use(
+    cron({
+      name: "acme-auto-renew",
+      pattern,
+      async run() {
+        const acquired = await configManager.setLockIfNotExists("acme-renew", lockTtlSeconds);
+        if (!acquired) return;
+
+        try {
+          const settings = await configManager.getAcmeSettings();
+          if (!settings?.domains?.length) return;
+
+          await acmeService.checkInstalled();
+          if (acmeService.getState().status !== "installed") return;
+
+          const primaryDomain = settings.domains[0]!;
+          let storedPair = await configManager.getAcmeCert(primaryDomain);
+          if (!storedPair) {
+            const loaded = await configManager.saveAcmeCertFromFS(primaryDomain);
+            if (!loaded) return;
+            storedPair = await configManager.getAcmeCert(primaryDomain);
+            if (!storedPair) return;
+          }
+
+          const config = await configManager.getConfig();
+          const isSslEnabled = !!(config.ssl?.cert && config.ssl?.key);
+          if (!isSslEnabled) return;
+
+          const isManaged = config.ssl.cert === storedPair.cert && config.ssl.key === storedPair.key;
+          if (!isManaged) return;
+
+          const sslStatus = await configManager.getSSLStatus();
+          const shouldRenew = isExpiringSoon(sslStatus.certInfo?.validTo, thresholdMs);
+          if (!shouldRenew) return;
+
+          const jobId = randomUUID();
+          await configManager.createAcmeJob({
+            id: jobId,
+            domains: settings.domains,
+            method: "dns",
+            provider: settings.dnsType,
+            createdAt: new Date().toISOString(),
+            status: "running",
+            progress: 5,
+            message: "running",
+          });
+          await configManager.clearAcmeLogs(jobId);
+          await configManager.appendAcmeLog(jobId, `[cron] renew start: ${primaryDomain}`);
+
+          const logRing: string[] = [];
+          const pushLog = (line: string) => {
+            const v = String(line ?? "");
+            if (!v) return;
+            logRing.push(v);
+            if (logRing.length > 40) logRing.shift();
+          };
+
+          try {
+            await acmeService.issueCertificate({
+              domains: settings.domains,
+              method: "dns",
+              dnsType: settings.dnsType,
+              envVars: settings.credentials,
+              onLog: async (line: string) => {
+                pushLog(line);
+                await configManager.appendAcmeLog(jobId, line);
+              },
+            });
+
+            await configManager.updateAcmeJob(jobId, { progress: 80, message: "saving" });
+            const saved = await configManager.saveAcmeCertFromFS(primaryDomain, { forceInstall: true });
+            if (!saved) throw new Error("证书签发成功，但读取证书文件失败");
+
+            const nextPair = await configManager.getAcmeCert(primaryDomain);
+            if (!nextPair) throw new Error("读取新证书失败");
+
+            const validation = configManager.validateSSLCert(nextPair.cert, nextPair.key);
+            if (!validation.valid) throw new Error(validation.error || "证书或私钥无效");
+
+            await configManager.updateSSLConfig({ cert: nextPair.cert, key: nextPair.key });
+            const resp = await goBackend.setSSL(nextPair.cert, nextPair.key);
+            if (!resp.success) throw new Error(resp.message || "部署失败");
+
+            await configManager.appendAcmeLog(jobId, "[cron] renew succeeded");
+            await configManager.updateAcmeJob(jobId, { status: "succeeded", progress: 100, message: "succeeded" });
+          } catch (e: any) {
+            const msg = e?.message || String(e);
+            const tail = logRing.slice(-10).join("\n");
+            if (tail) await configManager.appendAcmeLog(jobId, `[cron] last logs:\n${tail}`);
+            await configManager.appendAcmeLog(jobId, `[cron] renew failed: ${msg}`);
+            await configManager.updateAcmeJob(jobId, { status: "failed", progress: 100, message: msg });
+          }
+        } catch (e: any) {
+          console.error("[ACME][cron] renew task error:", e?.message || String(e));
+        }
+      },
+    })
+  );
+
+  return app;
+};

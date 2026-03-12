@@ -33,38 +33,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { ArrowUpRight, Github, Globe } from 'lucide-vue-next';
+import { onMounted, ref } from 'vue';
+import { Github } from 'lucide-vue-next';
 import { apiClient } from '@/lib/api';
 
 const APP_GITHUB_URL = 'https://github.com/kci-lnk/fn-knock-turborepo';
 
 const clientIp = ref('');
 const ipLocation = ref('');
-
-const projectEntryHref = computed(() => {
-  if (typeof window === 'undefined') return '/';
-
-  const pathname = window.location.pathname || '/';
-
-  if (pathname === '/__auth__' || pathname === '/__auth__/') {
-    return '/';
-  }
-
-  if (pathname.startsWith('/__auth__/')) {
-    return pathname.replace(/^\/__auth__/, '') || '/';
-  }
-
-  if (pathname === '/auth' || pathname === '/auth/') {
-    return '/';
-  }
-
-  if (pathname.startsWith('/auth/')) {
-    return pathname.replace(/^\/auth/, '') || '/';
-  }
-
-  return '/';
-});
 
 async function fetchIpInfo() {
   try {

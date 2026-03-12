@@ -102,7 +102,7 @@ class ScanDetector {
   async getSettings(): Promise<ScannerSettings> {
     const envEnabled = process.env.SCANNER_ENABLED !== "false"; 
     const envWindowMinutes = parseIntSafe(process.env.SCANNER_WINDOW_MINUTES, 5);
-    const envThreshold = parseIntSafe(process.env.SCANNER_THRESHOLD, 3);
+    const envThreshold = parseIntSafe(process.env.SCANNER_THRESHOLD, 5);
     const envBlacklistTtlDays = parseIntSafe(process.env.SCANNER_BLACKLIST_TTL_DAYS, 90);
 
     let enabled = envEnabled;

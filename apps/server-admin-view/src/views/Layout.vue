@@ -21,59 +21,68 @@
         <div class="flex h-full flex-col">
           <div class="border-b px-4 py-3 text-sm font-semibold">导航菜单</div>
           <nav class="flex-1 space-y-2 overflow-y-auto p-3">
-            <Button
-              v-for="item in navItems"
-              :key="item.path"
-              :variant="isNavActive(item.path) ? 'default' : 'ghost'"
-              class="w-full justify-start gap-3"
-              @click="navigateTo(item.path)"
-            >
+            <Button v-for="item in navItems" :key="item.path" :variant="isNavActive(item.path) ? 'default' : 'ghost'"
+              class="w-full justify-start gap-3" @click="navigateTo(item.path)">
               <component :is="item.icon" class="h-4 w-4" />
               <span>{{ item.name }}</span>
             </Button>
           </nav>
-          <div class="flex justify-center border-t p-3">
-            <Button variant="secondary" class="w-auto min-w-28 justify-center px-5" @click="navigateTo('/about')">
-              系统更新
-            </Button>
+          <div class="border-t p-3">
+            <p class="mb-2 text-center text-[11px] font-medium tracking-[0.12em] text-primary/70">
+              <a :href="APP_GITHUB_URL" target="_blank" rel="noopener noreferrer"
+                class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 transition-colors hover:text-foreground hover:bg-background/70"
+                title="打开 GitHub 项目页">
+                <Github class="h-3.5 w-3.5" />
+                <span>{{ currentVersionLabel }}</span>
+              </a>
+            </p>
+            <div class="flex justify-center pb-10">
+              <Button variant="secondary" class="w-auto min-w-28 justify-center px-5" @click="navigateTo('/about')">
+                系统更新
+              </Button>
+            </div>
           </div>
         </div>
       </SheetContent>
     </Sheet>
 
-    <div class="mx-auto flex w-full max-w-7xl flex-1 min-h-0 flex-col gap-4 px-4 py-4 sm:flex-row sm:gap-6 sm:px-6 sm:py-6">
+    <div
+      class="mx-auto flex w-full max-w-7xl flex-1 min-h-0 flex-col gap-4 px-4 py-4 sm:flex-row sm:gap-6 sm:px-6 sm:py-6">
       <aside class="hidden w-[136px] shrink-0 sm:sticky sm:top-6 sm:block sm:h-[calc(100dvh-3rem)]">
         <div class="flex h-full min-h-0 flex-col gap-3">
           <nav class="flex min-h-0 flex-1 flex-col items-center gap-2 overflow-y-auto">
-            <Button
-              v-for="item in navItems"
-              :key="item.path"
-              :variant="isNavActive(item.path) ? 'default' : 'ghost'"
-              class="w-[92%] justify-start gap-1.5 px-2"
-              @click="navigateTo(item.path)"
-            >
+            <Button v-for="item in navItems" :key="item.path" :variant="isNavActive(item.path) ? 'default' : 'ghost'"
+              class="w-[92%] justify-start gap-1.5 px-2" @click="navigateTo(item.path)">
               <component :is="item.icon" class="h-4 w-4" />
               <span>{{ item.name }}</span>
             </Button>
           </nav>
-          <div class="flex justify-center">
-            <Button variant="secondary" class="h-8 w-auto min-w-0 justify-center px-2.5" @click="navigateTo('/about')">
-              系统更新
-            </Button>
+          <div>
+            <p class="mb-2 text-center text-[11px] font-medium tracking-[0.12em] text-primary/70">
+              <a :href="APP_GITHUB_URL" target="_blank" rel="noopener noreferrer"
+                class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 transition-colors hover:text-foreground hover:bg-background/70"
+                title="打开 GitHub 项目页">
+                <Github class="h-3.5 w-3.5" />
+                <span>{{ currentVersionLabel }}</span>
+              </a>
+            </p>
+            <div class="flex justify-center">
+              <Button variant="secondary" class="h-8 w-auto min-w-0 justify-center px-2.5"
+                @click="navigateTo('/about')">
+                系统更新
+              </Button>
+            </div>
           </div>
         </div>
       </aside>
 
       <main class="flex-1 w-full min-h-0 overflow-y-auto">
-        <div
-          v-if="updateStore.shouldShowBanner && updateStore.status"
-          :class="[
-            'mx-auto mt-3 mb-6 w-full max-w-7xl rounded-lg border px-4 py-3',
-            updateStore.isForceUpdate
-              ? 'border-red-300 bg-red-50 text-red-800'
-              : 'border-amber-300 bg-amber-50 text-amber-900',
-          ]"
-        >
+        <div v-if="updateStore.shouldShowBanner && updateStore.status" :class="[
+          'mx-auto mt-3 mb-6 w-full max-w-7xl rounded-lg border px-4 py-3',
+          updateStore.isForceUpdate
+            ? 'border-red-300 bg-red-50 text-red-800'
+            : 'border-amber-300 bg-amber-50 text-amber-900',
+        ]">
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div class="space-y-1">
               <p class="text-sm font-semibold">
@@ -87,11 +96,8 @@
               <Button variant="outline" size="sm" class="bg-white/80" @click="goToAbout">
                 查看详情
               </Button>
-              <Button
-                size="sm"
-                :variant="updateStore.isForceUpdate ? 'destructive' : 'default'"
-                @click="startUpdateFromBanner"
-              >
+              <Button size="sm" :variant="updateStore.isForceUpdate ? 'destructive' : 'default'"
+                @click="startUpdateFromBanner">
                 立即更新
               </Button>
             </div>
@@ -113,6 +119,7 @@ import { useConfigStore } from '../store/config';
 import { useUpdateStore } from '../store/update';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+const APP_GITHUB_URL = 'https://github.com/kci-lnk/fn-knock-turborepo';
 import {
   LayoutDashboard,
   ShieldCheck,
@@ -120,6 +127,7 @@ import {
   Route as RouteIcon,
   Cable,
   Key,
+  Github,
   FileText,
   Settings,
   Users,
@@ -193,5 +201,10 @@ const navItems = computed(() => {
 const currentNavLabel = computed(() => {
   const activeItem = navItems.value.find((item) => isNavActive(item.path));
   return activeItem?.name ?? '管理后台';
+});
+
+const currentVersionLabel = computed(() => {
+  const version = updateStore.status?.localVersion?.trim();
+  return version ? `v${version}` : '';
 });
 </script>

@@ -7,6 +7,7 @@ import FrpSettings from './system-settings/FrpSettings.vue'
 import CloudflaredSettings from './system-settings/CloudflaredSettings.vue'
 import AcmeSSL from './system-settings/AcmeSSL.vue'
 import ScannerFirewallSettings from './system-settings/ScannerFirewallSettings.vue'
+import FnosSettings from './system-settings/FnosSettings.vue'
 import { useSyncedQueryTab } from '@admin-shared/composables/useSyncedQueryTab'
 
 const router = useRouter()
@@ -19,6 +20,7 @@ const allowedTabs = new Set([
   'frp',
   'cloudflared',
   'acme-ssl',
+  'fnos',
   'scanner-firewall',
 ])
 const { currentTab, navigateTo } = useSyncedQueryTab({
@@ -32,14 +34,17 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
 <template>
   <div class="h-full flex flex-col gap-4">
     <Tabs :model-value="currentTab" @update:model-value="navigateTo" class="w-full">
-      <TabsList>
-        <TabsTrigger value="run-mode">模式</TabsTrigger>
-        <TabsTrigger value="ip-location">IP归属</TabsTrigger>
-        <TabsTrigger value="frp">FRP</TabsTrigger>
-        <TabsTrigger value="cloudflared">Cloudflared</TabsTrigger>
-        <TabsTrigger value="acme-ssl">ACME</TabsTrigger>
-        <TabsTrigger value="scanner-firewall">扫描拦截</TabsTrigger>
-      </TabsList>
+      <div class="w-full overflow-x-auto pb-1">
+        <TabsList class="min-w-max justify-start">
+          <TabsTrigger value="run-mode" class="flex-none shrink-0 px-3">模式</TabsTrigger>
+          <TabsTrigger value="ip-location" class="flex-none shrink-0 px-3">IP归属</TabsTrigger>
+          <TabsTrigger value="frp" class="flex-none shrink-0 px-3">FRP</TabsTrigger>
+          <TabsTrigger value="cloudflared" class="flex-none shrink-0 px-3">Cloudflared</TabsTrigger>
+          <TabsTrigger value="acme-ssl" class="flex-none shrink-0 px-3">ACME</TabsTrigger>
+          <TabsTrigger value="fnos" class="flex-none shrink-0 px-3">飞牛</TabsTrigger>
+          <TabsTrigger value="scanner-firewall" class="flex-none shrink-0 px-3">拦截</TabsTrigger>
+        </TabsList>
+      </div>
       <TabsContent value="run-mode" class="pt-2">
         <RunModeSettings />
       </TabsContent>
@@ -54,6 +59,9 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
       </TabsContent>
       <TabsContent value="acme-ssl" class="pt-2">
         <AcmeSSL />
+      </TabsContent>
+      <TabsContent value="fnos" class="pt-2">
+        <FnosSettings />
       </TabsContent>
       <TabsContent value="scanner-firewall" class="pt-2">
         <ScannerFirewallSettings />

@@ -1,4 +1,4 @@
-import type { AppConfig, ProxyMapping, SSLConfig, SSLStatus, PasskeyCredential, TOTPCredential, SessionRecord, ProxyProtocolForce, TrafficStats, DashboardStats, ThreatOverview } from '../types';
+import type { AppConfig, ProxyMapping, SSLConfig, SSLStatus, PasskeyCredential, TOTPCredential, SessionRecord, ProxyProtocolForce, TrafficStats, DashboardStats, ThreatOverview, FnosShareBypassConfig } from '../types';
 import { createSignedApiClient } from '@frontend-core/api/createSignedApiClient';
 
 const resolveAppRelativePath = (relativePath: string) => {
@@ -296,6 +296,16 @@ export const SystemAPI = {
         payload: Partial<RunModePromptPreferences>,
     ): Promise<RunModePromptPreferences> {
         const res = await apiClient.post('/config/run_mode_prompt_preferences', payload);
+        return res.data.data;
+    },
+    async getFnosShareBypassConfig(): Promise<FnosShareBypassConfig> {
+        const res = await apiClient.get('/config/fnos_share_bypass');
+        return res.data.data;
+    },
+    async updateFnosShareBypassConfig(
+        payload: Partial<FnosShareBypassConfig>,
+    ): Promise<FnosShareBypassConfig> {
+        const res = await apiClient.post('/config/fnos_share_bypass', payload);
         return res.data.data;
     },
     async getIpLocationStatus() {

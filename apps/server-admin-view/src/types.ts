@@ -26,12 +26,21 @@ export interface SSLStatus {
     certInfo?: SSLCertInfo;
 }
 
+export interface FnosShareBypassConfig {
+    enabled: boolean;
+    upstream_timeout_ms: number;
+    validation_cache_ttl_seconds: number;
+    validation_lock_ttl_seconds: number;
+    session_ttl_seconds: number;
+}
+
 export interface AppConfig {
     run_type: 0 | 1;
     whitelist_ips: string[];
     default_route: string;
     proxy_mappings: ProxyMapping[];
     default_tunnel?: 'frp' | 'cloudflared';
+    fnos_share_bypass?: FnosShareBypassConfig;
     ssl: { enabled: boolean };
     login: {
         nonce_list: string[];

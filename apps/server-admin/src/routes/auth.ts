@@ -16,12 +16,32 @@ import { recentAuthIPsManager } from "../lib/recent-auth-ips";
 import { scanDetector } from "../lib/scan-detector";
 import { getRequiredEnv } from "../lib/env";
 import { safeEqualString } from "../lib/security";
-import { buildSessionClearCookie } from "../lib/session-cookie";
+import {
+  buildFnosShareSessionClearCookie,
+  buildSessionClearCookie,
+} from "../lib/session-cookie";
+import { fnosShareBypassService } from "../lib/fnos-share-bypass";
 
 const ALTCHA_HMAC_KEY = getRequiredEnv("ALTCHA_HMAC_KEY");
 const MAX_NUMBER = 100000;
 const getClientIp = (request: Request): string =>
   request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "::1";
+
+const hasNormalAccessContext = async (
+  request: Request,
+  clientIp: string,
+): Promise<boolean> => {
+  if (await whitelistManager.hasValidIP(clientIp)) {
+    return true;
+  }
+
+  const identity = authMobilitySessionManager.inspectRequest(request);
+  if (identity.sessionId) {
+    return configManager.isValidSession(identity.sessionId);
+  }
+
+  return false;
+};
 
 export const authRoutes = new Elysia({ prefix: "/api/auth" })
   .get("/challenge", () => {
@@ -211,10 +231,15 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
       success: true,
     });
 
-    set.headers["Set-Cookie"] = buildSessionClearCookie();
-    set.status = 302;
-    set.headers["Location"] = "/";
-    return "";
+    const headers = new Headers({
+      Location: "/",
+    });
+    headers.append("Set-Cookie", buildSessionClearCookie());
+    headers.append("Set-Cookie", buildFnosShareSessionClearCookie());
+    return new Response("", {
+      status: 302,
+      headers,
+    });
   })
   .head("/preflight", async ({ request }) => {
     const clientIp = getClientIp(request);
@@ -223,13 +248,32 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
 
     try {
       const config = await configManager.getConfig();
+      let shareDecision: Awaited<
+        ReturnType<typeof fnosShareBypassService.resolvePreflight>
+      > | null = null;
+
+      if (!(await hasNormalAccessContext(request, clientIp))) {
+        shareDecision = await fnosShareBypassService.resolvePreflight(request);
+        if (shareDecision.redirectLocation) {
+          headers.set(
+            "X-Reauth-Redirect-Location",
+            shareDecision.redirectLocation,
+          );
+        }
+      }
+
       if (config.run_type !== 0) {
         const isBlacklisted = await scanDetector.isBlacklisted(clientIp);
         if (isBlacklisted) {
           headers.set("X-Option", "Deny");
         } else {
           const isRecent = await recentAuthIPsManager.isActive(clientIp);
-          if (!isRecent && forwardedPath && !(await scanDetector.isCommonPath(forwardedPath))) {
+          if (
+            !isRecent &&
+            !shareDecision?.handled &&
+            forwardedPath &&
+            !(await scanDetector.isCommonPath(forwardedPath))
+          ) {
             await scanDetector.recordUncommonPath(clientIp, forwardedPath);
           }
         }
@@ -262,6 +306,20 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
     if (restored.success) {
       await recentAuthIPsManager.recordVerified(clientIp);
       return { success: true, message: restored.message || "Authorized" };
+    }
+
+    const shareAuth = await fnosShareBypassService.authorize(request);
+    const [shareCookie] = shareAuth.setCookies ?? [];
+    if (shareCookie) {
+      set.headers["Set-Cookie"] = shareCookie;
+    }
+    if ("responseHeaders" in shareAuth && shareAuth.responseHeaders) {
+      for (const [key, value] of Object.entries(shareAuth.responseHeaders)) {
+        set.headers[key] = value;
+      }
+    }
+    if (shareAuth.authorized) {
+      return { success: true, message: "Authorized by fnos share link" };
     }
 
     set.status = 401;

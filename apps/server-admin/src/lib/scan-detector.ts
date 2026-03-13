@@ -113,6 +113,7 @@ class ScanDetector {
     if (cleanPath === "/websocket") return true;
     if (cleanPath === "/cgi/ThirdParty" || cleanPath.startsWith("/cgi/ThirdParty/")) return true;
     if (cleanPath === "/assets/" || cleanPath.startsWith("/assets/")) return true;
+    if (cleanPath === "/s/" || cleanPath.startsWith("/s/")) return true;
     const common = new Set([
       "/",
       "/index.html",

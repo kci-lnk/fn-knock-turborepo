@@ -107,9 +107,20 @@ const toRequest = (req: IncomingMessage): Request => {
 
 const writeResponse = async (res: ServerResponse, response: Response): Promise<void> => {
     res.statusCode = response.status;
+    const getSetCookie = (response.headers as Headers & {
+        getSetCookie?: () => string[];
+    }).getSetCookie;
+    const setCookies = typeof getSetCookie === "function" ? getSetCookie.call(response.headers) : [];
+
     response.headers.forEach((value, key) => {
+        if (key.toLowerCase() === "set-cookie" && setCookies.length > 0) {
+            return;
+        }
         res.setHeader(key, value);
     });
+    if (setCookies.length > 0) {
+        res.setHeader("set-cookie", setCookies);
+    }
     if (!response.body) {
         res.end();
         return;

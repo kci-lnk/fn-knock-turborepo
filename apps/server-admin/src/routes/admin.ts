@@ -75,6 +75,22 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
             reverseProxyToDirect: t.Optional(t.Boolean()),
         })
     })
+    .get("/config/fnos_share_bypass", async () => {
+        const settings = await configManager.getFnosShareBypassConfig();
+        return { success: true, data: settings };
+    })
+    .post("/config/fnos_share_bypass", async ({ body }) => {
+        const next = await configManager.updateFnosShareBypassConfig(body);
+        return { success: true, data: next };
+    }, {
+        body: t.Object({
+            enabled: t.Optional(t.Boolean()),
+            upstream_timeout_ms: t.Optional(t.Number()),
+            validation_cache_ttl_seconds: t.Optional(t.Number()),
+            validation_lock_ttl_seconds: t.Optional(t.Number()),
+            session_ttl_seconds: t.Optional(t.Number()),
+        })
+    })
     .get("/config/default_route", async () => {
         const config = await configManager.getConfig();
         return { success: true, data: { default_route: config.default_route } };

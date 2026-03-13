@@ -46,6 +46,14 @@ export interface SSLStatus {
     certInfo?: SSLCertInfo;
 }
 
+export interface FnosShareBypassConfig {
+    enabled: boolean;
+    upstream_timeout_ms: number;
+    validation_cache_ttl_seconds: number;
+    validation_lock_ttl_seconds: number;
+    session_ttl_seconds: number;
+}
+
 export type AcmeJobStatus = 'queued' | 'running' | 'succeeded' | 'failed';
 export type AcmeJobMethod = 'dns' | 'http' | 'https';
 export type AcmeJob = {
@@ -85,6 +93,7 @@ export interface AppConfig {
     ssl: SSLConfig;
     default_route: string;
     default_tunnel?: 'frp' | 'cloudflared';
+    fnos_share_bypass?: FnosShareBypassConfig;
 }
 
 export interface RunModePromptPreferences {
@@ -120,11 +129,66 @@ const DEFAULT_CONFIG: AppConfig = {
     },
     default_route: '/__select__',
     default_tunnel: 'frp',
+    fnos_share_bypass: {
+        enabled: false,
+        upstream_timeout_ms: 2500,
+        validation_cache_ttl_seconds: 30,
+        validation_lock_ttl_seconds: 5,
+        session_ttl_seconds: 300,
+    },
 };
 
 const DEFAULT_RUN_MODE_PROMPT_PREFERENCES: RunModePromptPreferences = {
     directToReverseProxy: false,
     reverseProxyToDirect: false,
+};
+
+const DEFAULT_FNOS_SHARE_BYPASS_CONFIG: FnosShareBypassConfig = {
+    enabled: false,
+    upstream_timeout_ms: 2500,
+    validation_cache_ttl_seconds: 30,
+    validation_lock_ttl_seconds: 5,
+    session_ttl_seconds: 300,
+};
+
+const normalizePositiveInt = (
+    value: unknown,
+    fallback: number,
+    { min = 1, max = Number.MAX_SAFE_INTEGER }: { min?: number; max?: number } = {},
+): number => {
+    const parsed = Number.parseInt(String(value ?? ''), 10);
+    if (!Number.isFinite(parsed)) return fallback;
+    return Math.min(max, Math.max(min, parsed));
+};
+
+const normalizeFnosShareBypassConfig = (
+    value?: Partial<FnosShareBypassConfig> | null,
+): FnosShareBypassConfig => {
+    const raw = value ?? {};
+
+    return {
+        enabled: raw.enabled === true,
+        upstream_timeout_ms: normalizePositiveInt(
+            raw.upstream_timeout_ms,
+            DEFAULT_FNOS_SHARE_BYPASS_CONFIG.upstream_timeout_ms,
+            { min: 500, max: 15000 },
+        ),
+        validation_cache_ttl_seconds: normalizePositiveInt(
+            raw.validation_cache_ttl_seconds,
+            DEFAULT_FNOS_SHARE_BYPASS_CONFIG.validation_cache_ttl_seconds,
+            { min: 5, max: 300 },
+        ),
+        validation_lock_ttl_seconds: normalizePositiveInt(
+            raw.validation_lock_ttl_seconds,
+            DEFAULT_FNOS_SHARE_BYPASS_CONFIG.validation_lock_ttl_seconds,
+            { min: 1, max: 30 },
+        ),
+        session_ttl_seconds: normalizePositiveInt(
+            raw.session_ttl_seconds,
+            DEFAULT_FNOS_SHARE_BYPASS_CONFIG.session_ttl_seconds,
+            { min: 30, max: 3600 },
+        ),
+    };
 };
 
 export class ConfigManager {
@@ -150,12 +214,16 @@ export class ConfigManager {
                 const parsed = JSON.parse(data) as AppConfig;
                 if (!parsed.default_route) parsed.default_route = '/__select__';
                 if (!parsed.default_tunnel) parsed.default_tunnel = 'frp';
+                parsed.fnos_share_bypass = normalizeFnosShareBypassConfig(parsed.fnos_share_bypass);
                 return parsed;
             }
         } catch (e) {
             console.error("Failed to parse config from redis", e);
         }
-        return DEFAULT_CONFIG;
+        return {
+            ...DEFAULT_CONFIG,
+            fnos_share_bypass: { ...DEFAULT_FNOS_SHARE_BYPASS_CONFIG },
+        };
     }
 
     /**
@@ -471,6 +539,24 @@ export class ConfigManager {
             ...patch,
         };
         await this.redis.set(this.runModePromptPreferencesKey, JSON.stringify(next));
+        return next;
+    }
+
+    async getFnosShareBypassConfig(): Promise<FnosShareBypassConfig> {
+        const config = await this.getConfig();
+        return normalizeFnosShareBypassConfig(config.fnos_share_bypass);
+    }
+
+    async updateFnosShareBypassConfig(
+        patch: Partial<FnosShareBypassConfig>,
+    ): Promise<FnosShareBypassConfig> {
+        const config = await this.getConfig();
+        const next = normalizeFnosShareBypassConfig({
+            ...config.fnos_share_bypass,
+            ...patch,
+        });
+        config.fnos_share_bypass = next;
+        await this.saveConfig(config);
         return next;
     }
 

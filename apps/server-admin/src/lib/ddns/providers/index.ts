@@ -3,6 +3,7 @@ import { alidnsProvider, alidnsUpdate } from "./alidns";
 import { baiduProvider, baiduUpdate } from "./baidu";
 import { cloudflareProvider, cloudflareUpdate } from "./cloudflare";
 import { dnspodProvider, dnspodUpdate } from "./dnspod";
+import { duckdnsProvider, duckdnsUpdate } from "./duckdns";
 import { dynv6Provider, dynv6Update } from "./dynv6";
 import { godaddyProvider, godaddyUpdate } from "./godaddy";
 import { huaweiProvider, huaweiUpdate } from "./huawei";
@@ -13,6 +14,7 @@ export const providerDefinitions: DDNSProviderDefinition[] = [
   baiduProvider,
   cloudflareProvider,
   dnspodProvider,
+  duckdnsProvider,
   dynv6Provider,
   godaddyProvider,
   huaweiProvider,
@@ -24,6 +26,7 @@ export const providerUpdaters: Record<string, DDNSProviderUpdater> = {
   baiducloud: baiduUpdate,
   cloudflare: cloudflareUpdate,
   dnspod: dnspodUpdate,
+  duckdns: duckdnsUpdate,
   dynv6: dynv6Update,
   godaddy: godaddyUpdate,
   huaweicloud: huaweiUpdate,

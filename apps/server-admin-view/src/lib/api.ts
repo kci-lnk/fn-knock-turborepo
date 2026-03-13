@@ -241,6 +241,11 @@ export type AccessEntryInfo = {
     isDefault: boolean;
 };
 
+export type RunModePromptPreferences = {
+    directToReverseProxy: boolean;
+    reverseProxyToDirect: boolean;
+};
+
 export type UpdateDownloadStatus = 'idle' | 'downloading' | 'verifying' | 'downloaded' | 'installing' | 'error';
 
 export type UpdateLatestPayload = {
@@ -281,6 +286,16 @@ export type UpdateConfirmPayload = {
 export const SystemAPI = {
     async getAccessEntry(): Promise<AccessEntryInfo> {
         const res = await apiClient.get('/system/access-entry');
+        return res.data.data;
+    },
+    async getRunModePromptPreferences(): Promise<RunModePromptPreferences> {
+        const res = await apiClient.get('/config/run_mode_prompt_preferences');
+        return res.data.data;
+    },
+    async updateRunModePromptPreferences(
+        payload: Partial<RunModePromptPreferences>,
+    ): Promise<RunModePromptPreferences> {
+        const res = await apiClient.post('/config/run_mode_prompt_preferences', payload);
         return res.data.data;
     },
     async getIpLocationStatus() {

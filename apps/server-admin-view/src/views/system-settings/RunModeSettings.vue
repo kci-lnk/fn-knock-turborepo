@@ -65,6 +65,53 @@
       </Button>
     </CardFooter>
   </Card>
+
+  <Dialog :open="isConfirmDialogOpen" @update:open="handleConfirmDialogOpenChange">
+    <DialogContent class="overflow-hidden border-zinc-200 bg-white p-0 shadow-xl sm:max-w-[760px]">
+      <div class="px-8 pt-8 pb-6">
+        <DialogHeader class="space-y-3 text-left">
+          <p class="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500">运行模式切换</p>
+          <DialogTitle class="text-2xl font-semibold tracking-tight text-zinc-950">
+            {{ confirmDialogContent.title }}
+          </DialogTitle>
+          <DialogDescription class="max-w-[56ch] text-sm leading-6 text-zinc-600">
+            {{ confirmDialogContent.description }}
+          </DialogDescription>
+        </DialogHeader>
+
+        <ul class="mt-8 divide-y divide-zinc-200 border-y border-zinc-200">
+          <li
+            v-for="(item, index) in confirmDialogContent.items"
+            :key="item"
+            class="grid grid-cols-[auto_1fr] items-start gap-x-4 py-4"
+          >
+            <span class="pt-0.5 font-mono text-[11px] tracking-[0.18em] text-zinc-400">
+              {{ String(index + 1).padStart(2, '0') }}
+            </span>
+            <p class="text-sm leading-6 text-zinc-800">
+              {{ item }}
+            </p>
+          </li>
+        </ul>
+
+        <label class="mt-6 flex items-center gap-3 text-sm text-zinc-600">
+          <Checkbox
+            :model-value="dontShowAgainChecked"
+            @update:model-value="dontShowAgainChecked = $event === true"
+          />
+          <span>不再提示</span>
+        </label>
+      </div>
+
+      <DialogFooter class="border-t border-zinc-200 bg-zinc-50/60 px-8 py-4">
+        <Button variant="outline" @click="isConfirmDialogOpen = false">取消</Button>
+        <Button @click="confirmSave" :disabled="isSaving">
+          <span v-if="isSaving" class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
+          确认切换
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 </template>
 
 <script setup lang="ts">
@@ -73,13 +120,23 @@ import { Info } from 'lucide-vue-next';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from '@admin-shared/utils/toast';
 import { useConfigStore } from '../../store/config';
 import { extractErrorMessage, useAsyncAction } from '@admin-shared/composables/useAsyncAction';
-import { SystemAPI } from '../../lib/api';
+import { CloudflaredAPI, FrpcAPI, SystemAPI, type RunModePromptPreferences } from '../../lib/api';
 
 const configStore = useConfigStore();
 const mode = ref<0 | 1>(1);
+const pendingMode = ref<0 | 1 | null>(null);
+const pendingPromptKey = ref<keyof RunModePromptPreferences | null>(null);
+const isConfirmDialogOpen = ref(false);
+const dontShowAgainChecked = ref(false);
+const runModePromptPreferences = ref<RunModePromptPreferences>({
+  directToReverseProxy: false,
+  reverseProxyToDirect: false,
+});
 const accessEntry = ref({
   port: '7999',
   env: 'GO_REPROXY_PORT' as const,
@@ -105,6 +162,7 @@ onMounted(() => {
     mode.value = configStore.config.run_type;
   }
   loadAccessEntry();
+  loadRunModePromptPreferences();
 });
 
 watch(() => configStore.config?.run_type, (newVal) => {
@@ -120,9 +178,34 @@ function reset() {
 }
 
 async function save() {
-  await runSaveMode(async () => {
-    await configStore.setRunType(mode.value);
-    toast.success('运行模式已更新');
+  const currentMode = configStore.config?.run_type;
+  if (currentMode === undefined || currentMode === mode.value) return;
+
+  const promptKey = getPromptPreferenceKey(currentMode, mode.value);
+  if (promptKey && !runModePromptPreferences.value[promptKey]) {
+    pendingMode.value = mode.value;
+    pendingPromptKey.value = promptKey;
+    dontShowAgainChecked.value = false;
+    isConfirmDialogOpen.value = true;
+    return;
+  }
+
+  await applyRunModeChange(mode.value);
+}
+
+async function confirmSave() {
+  if (pendingMode.value === null) return;
+  const nextMode = pendingMode.value;
+
+  await applyRunModeChange(nextMode, {
+    promptPreferenceKey: pendingPromptKey.value,
+    disablePrompt: dontShowAgainChecked.value,
+    onSuccess: () => {
+      isConfirmDialogOpen.value = false;
+      pendingMode.value = null;
+      pendingPromptKey.value = null;
+      dontShowAgainChecked.value = false;
+    },
   });
 }
 
@@ -134,4 +217,104 @@ async function loadAccessEntry() {
     console.warn('load access entry failed:', error);
   }
 }
+
+async function loadRunModePromptPreferences() {
+  try {
+    runModePromptPreferences.value = await SystemAPI.getRunModePromptPreferences();
+  } catch (error) {
+    console.warn('load run mode prompt preferences failed:', error);
+  }
+}
+
+async function applyRunModeChange(
+  nextMode: 0 | 1,
+  options?: {
+    promptPreferenceKey?: keyof RunModePromptPreferences | null;
+    disablePrompt?: boolean;
+    onSuccess?: () => void;
+  },
+) {
+  await runSaveMode(async () => {
+    if (nextMode === 0) {
+      await ensureTunnelsStoppedForDirectMode();
+    }
+
+    if (options?.promptPreferenceKey && options.disablePrompt) {
+      const nextPreferences = await SystemAPI.updateRunModePromptPreferences({
+        [options.promptPreferenceKey]: true,
+      });
+      runModePromptPreferences.value = nextPreferences;
+    }
+
+    await configStore.setRunType(nextMode);
+    options?.onSuccess?.();
+    toast.success('运行模式已更新');
+  });
+}
+
+async function ensureTunnelsStoppedForDirectMode() {
+  const [frpcStatus, cloudflaredStatus] = await Promise.all([
+    FrpcAPI.getStatus(),
+    CloudflaredAPI.getStatus(),
+  ]);
+
+  const runningTunnels = [
+    frpcStatus.running ? { key: 'frp', label: 'FRP', stop: () => FrpcAPI.stop() } : null,
+    cloudflaredStatus.running ? { key: 'cloudflared', label: 'Cloudflared', stop: () => CloudflaredAPI.stop() } : null,
+  ].filter((item): item is { key: 'frp' | 'cloudflared'; label: string; stop: () => Promise<void> } => item !== null);
+
+  if (runningTunnels.length === 0) return;
+
+  await Promise.all(runningTunnels.map((item) => item.stop()));
+  toast.success('已关闭隧道服务', {
+    description: `${runningTunnels.map((item) => item.label).join('、')} 已停止，正在切换到直连模式`,
+  });
+}
+
+function handleConfirmDialogOpenChange(nextOpen: boolean) {
+  isConfirmDialogOpen.value = nextOpen;
+  if (!nextOpen) {
+    pendingMode.value = null;
+    pendingPromptKey.value = null;
+    dontShowAgainChecked.value = false;
+  }
+}
+
+function getPromptPreferenceKey(
+  currentMode: 0 | 1,
+  nextMode: 0 | 1,
+): keyof RunModePromptPreferences | null {
+  if (currentMode === 0 && nextMode === 1) return 'directToReverseProxy';
+  if (currentMode === 1 && nextMode === 0) return 'reverseProxyToDirect';
+  return null;
+}
+
+const confirmDialogContent = computed(() => {
+  const port = accessEntry.value.port;
+
+  if (pendingPromptKey.value === 'reverseProxyToDirect') {
+    return {
+      title: '切换到直连模式',
+      description: '请确认你已经理解直连模式的访问方式和风险变化。',
+      items: [
+        `直连模式通过设置防火墙来实现，默认屏蔽所有端口，除 ${port}`,
+        `${port} 端口会仅起到一个登录入口的作用，登录成功后对该 IP 开放所有端口`,
+        '多入口，登录后可使用 5666 等端口访问飞牛等服务',
+        '不会屏蔽局域网的访问',
+        '不要在这个模式内网穿透',
+      ],
+    };
+  }
+
+  return {
+    title: '切换到反代模式',
+    description: '请确认你已经理解反代模式会如何调整对外入口。',
+    items: [
+      '集中入口访问',
+      '会清空 Linux 自带的防火墙配置',
+      `所有的入口都在 ${port}，可内网穿透本地 ${port} 到外部任意端口，任何访问都需要先登录`,
+      '登录后通过路径来访问子服务',
+    ],
+  };
+});
 </script>

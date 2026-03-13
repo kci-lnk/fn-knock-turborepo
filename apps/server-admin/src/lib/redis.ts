@@ -87,6 +87,11 @@ export interface AppConfig {
     default_tunnel?: 'frp' | 'cloudflared';
 }
 
+export interface RunModePromptPreferences {
+    directToReverseProxy: boolean;
+    reverseProxyToDirect: boolean;
+}
+
 export type TOTPCredential = {
     id: string;
     secret: string;
@@ -117,6 +122,11 @@ const DEFAULT_CONFIG: AppConfig = {
     default_tunnel: 'frp',
 };
 
+const DEFAULT_RUN_MODE_PROMPT_PREFERENCES: RunModePromptPreferences = {
+    directToReverseProxy: false,
+    reverseProxyToDirect: false,
+};
+
 export class ConfigManager {
     private redis: Redis;
     private configKey = 'fn_knock:config';
@@ -126,6 +136,7 @@ export class ConfigManager {
     private acmeCertKey = 'fn_knock:acme:cert:';
     private acmeSettingsKey = 'fn_knock:acme:settings';
     private onboardingCompletedKey = 'fn_knock:onboarding:completed';
+    private runModePromptPreferencesKey = 'fn_knock:run-mode:prompt-preferences';
 
     constructor() {
         this.redis = redis;
@@ -436,9 +447,33 @@ export class ConfigManager {
         config.run_type = run_type;
         await this.saveConfig(config);
     }
-    
 
-    
+    async getRunModePromptPreferences(): Promise<RunModePromptPreferences> {
+        const raw = await this.redis.get(this.runModePromptPreferencesKey);
+        if (!raw) return DEFAULT_RUN_MODE_PROMPT_PREFERENCES;
+
+        try {
+            const parsed = JSON.parse(raw) as Partial<RunModePromptPreferences>;
+            return {
+                directToReverseProxy: parsed.directToReverseProxy === true,
+                reverseProxyToDirect: parsed.reverseProxyToDirect === true,
+            };
+        } catch {
+            return DEFAULT_RUN_MODE_PROMPT_PREFERENCES;
+        }
+    }
+
+    async updateRunModePromptPreferences(
+        patch: Partial<RunModePromptPreferences>,
+    ): Promise<RunModePromptPreferences> {
+        const next = {
+            ...(await this.getRunModePromptPreferences()),
+            ...patch,
+        };
+        await this.redis.set(this.runModePromptPreferencesKey, JSON.stringify(next));
+        return next;
+    }
+
     async updateProxyMappings(mappings: ProxyMapping[]): Promise<void> {
          const config = await this.getConfig();
          config.proxy_mappings = mappings;

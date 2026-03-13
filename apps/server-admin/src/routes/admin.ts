@@ -1,5 +1,5 @@
 import { Elysia, t } from "elysia";
-import { configManager, type ProxyMapping, type SSLConfig, type SSLStatus } from "../lib/redis";
+import { configManager, type ProxyMapping, type RunModePromptPreferences, type SSLConfig, type SSLStatus } from "../lib/redis";
 import { generateSecret, generateURI, verifySync } from "otplib";
 import { goBackend } from "../lib/go-backend";
 import { firewallService } from "../lib/firewall-service";
@@ -51,6 +51,28 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
     }, {
         body: t.Object({
             run_type: t.Union([t.Literal(0), t.Literal(1)])
+        })
+    })
+    .get("/config/run_mode_prompt_preferences", async () => {
+        const preferences = await configManager.getRunModePromptPreferences();
+        return { success: true, data: preferences };
+    })
+    .post("/config/run_mode_prompt_preferences", async ({ body }) => {
+        const patch: Partial<RunModePromptPreferences> = {};
+
+        if (body.directToReverseProxy !== undefined) {
+            patch.directToReverseProxy = body.directToReverseProxy;
+        }
+        if (body.reverseProxyToDirect !== undefined) {
+            patch.reverseProxyToDirect = body.reverseProxyToDirect;
+        }
+
+        const preferences = await configManager.updateRunModePromptPreferences(patch);
+        return { success: true, data: preferences };
+    }, {
+        body: t.Object({
+            directToReverseProxy: t.Optional(t.Boolean()),
+            reverseProxyToDirect: t.Optional(t.Boolean()),
         })
     })
     .get("/config/default_route", async () => {

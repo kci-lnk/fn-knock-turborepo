@@ -5,7 +5,7 @@ import { goBackend } from "../lib/go-backend";
 import { firewallService } from "../lib/firewall-service";
 import { randomBytes } from "node:crypto";
 import { authLogManager } from "../lib/auth-log";
-import { whitelistManager } from "../lib/whitelist-manager";
+import { authMobilitySessionManager } from "../lib/auth-mobility-session";
 import { scanDetector } from "../lib/scan-detector";
 
 const parseIntSafe = (value: string | undefined, fallback: number) => {
@@ -258,8 +258,8 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
     .delete("/sessions/:id", async ({ params }) => {
         const sess = await configManager.getSession(params.id);
         if (sess) {
+            await authMobilitySessionManager.destroySession(params.id);
             await configManager.deleteSession(params.id);
-            await whitelistManager.removeRecordsByIP(sess.ip, 'auto');
             await authLogManager.recordLog({
                 type: "logout",
                 ip: sess.ip,

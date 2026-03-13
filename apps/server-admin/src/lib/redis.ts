@@ -388,7 +388,7 @@ export class ConfigManager {
                     installedKeyPath,
                     '--fullchain-file',
                     installedFullchainPath,
-                ], { stdout: 'pipe', stderr: 'pipe' });
+                ], { stdio: ['ignore', 'pipe', 'pipe'] });
                 const installExitPromise = waitForProcessExit(installProc);
 
                 const [, , exitCode] = await Promise.all([
@@ -638,6 +638,32 @@ export class ConfigManager {
 
     async deleteSession(sessionId: string): Promise<void> {
         await this.redis.del(`fn_knock:session:${sessionId}`);
+    }
+
+    async updateSession(sessionId: string, updates: Partial<LoginSession>): Promise<LoginSession | null> {
+        const key = `fn_knock:session:${sessionId}`;
+        const [raw, ttl] = await Promise.all([
+            this.redis.get(key),
+            this.redis.ttl(key)
+        ]);
+        if (!raw) return null;
+
+        try {
+            const current = JSON.parse(raw) as LoginSession;
+            const next: LoginSession = {
+                ...current,
+                ...updates
+            };
+
+            if (ttl > 0) {
+                await this.redis.set(key, JSON.stringify(next), 'EX', ttl);
+            } else {
+                await this.redis.set(key, JSON.stringify(next));
+            }
+            return next;
+        } catch {
+            return null;
+        }
     }
 
     async isValidSession(sessionId: string): Promise<boolean> {

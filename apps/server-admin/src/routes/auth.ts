@@ -7,6 +7,7 @@ import {
   buildPasskeyBindInfo,
   handleLoginSuccess,
 } from "../lib/auth-utils";
+import { authMobilitySessionManager } from "../lib/auth-mobility-session";
 import { passkeyRoutes } from "./auth/passkey";
 import { whitelistManager } from "../lib/whitelist-manager";
 import { authLogManager } from "../lib/auth-log";
@@ -188,18 +189,20 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
   )
   .use(passkeyRoutes)
   .get("/logout", async ({ request, set }) => {
-    const cookieHeader = request.headers.get("cookie") || "";
-    const match = cookieHeader.match(/x-go-reauth-proxy-session-id=([^;]+)/);
+    const { sessionId } = authMobilitySessionManager.inspectRequest(request);
     let loginIpFromSession: string | null = null;
-    if (match && match[1]) {
-      const session = await configManager.getSession(match[1]);
+    if (sessionId) {
+      const session = await configManager.getSession(sessionId);
       loginIpFromSession = session?.ip || null;
-      await configManager.deleteSession(match[1]);
+      await authMobilitySessionManager.destroySession(sessionId);
+      await configManager.deleteSession(sessionId);
     }
 
     const clientIp = getClientIp(request);
     const userAgent = request.headers.get("user-agent") || "Unknown";
-    await whitelistManager.removeRecordsByIP(loginIpFromSession || clientIp, 'auto');
+    if (!sessionId) {
+      await whitelistManager.removeRecordsByIP(loginIpFromSession || clientIp, 'auto');
+    }
 
     await authLogManager.recordLog({
       type: "logout",
@@ -250,20 +253,17 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
     const clientIp = getClientIp(request);
     const isWhitelisted = await whitelistManager.hasValidIP(clientIp);
     if (isWhitelisted) {
+      await authMobilitySessionManager.syncTrustedRequest(request, clientIp);
       await recentAuthIPsManager.recordVerified(clientIp);
       return { success: true, message: "Authorized by IP whitelist" };
     }
 
-    const cookieHeader = request.headers.get("cookie") || "";
-    const match = cookieHeader.match(/x-go-reauth-proxy-session-id=([^;]+)/);
-
-    if (match && match[1]) {
-      const isValid = await configManager.isValidSession(match[1]);
-      if (isValid) {
-        await recentAuthIPsManager.recordVerified(clientIp);
-        return { success: true, message: "Authorized" };
-      }
+    const restored = await authMobilitySessionManager.tryRestoreAccess(request, clientIp);
+    if (restored.success) {
+      await recentAuthIPsManager.recordVerified(clientIp);
+      return { success: true, message: restored.message || "Authorized" };
     }
+
     set.status = 401;
     return { success: false, message: "Unauthorized" };
   });

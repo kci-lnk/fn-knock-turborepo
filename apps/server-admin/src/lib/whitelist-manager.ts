@@ -35,6 +35,16 @@ export class IPTablesWhiteListManager {
     return `${PREFIX}:ip_records:${ip}`;
   }
 
+  async getRecordById(id: string): Promise<WhiteListRecord | null> {
+    const raw = await this.redis.hget(KEYS.RECORDS, id);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as WhiteListRecord;
+    } catch {
+      return null;
+    }
+  }
+
   private async findRecordsByIPWithScan(ip: string, rebuildIndex: boolean): Promise<WhiteListRecord[]> {
     const allRecords = await this.redis.hgetall(KEYS.RECORDS);
     const records: WhiteListRecord[] = [];
@@ -302,6 +312,73 @@ export class IPTablesWhiteListManager {
 
     records.sort((a, b) => b.createdAt - a.createdAt);
     return records;
+  }
+
+  async getActiveRecordsByIP(ip: string, source?: 'manual' | 'auto'): Promise<WhiteListRecord[]> {
+    const records = await this.findRecordsByIP(ip);
+    const now = Math.floor(Date.now() / 1000);
+    return records.filter((record) => {
+      if (record.status !== 'active') return false;
+      if (record.expireAt && record.expireAt <= now) return false;
+      if (source && record.source !== source) return false;
+      return true;
+    });
+  }
+
+  async getLatestActiveRecordByIP(ip: string, source?: 'manual' | 'auto'): Promise<WhiteListRecord | null> {
+    const records = await this.getActiveRecordsByIP(ip, source);
+    return records[0] || null;
+  }
+
+  async moveRecordToIP(id: string, newIp: string): Promise<WhiteListRecord | null> {
+    const record = await this.getRecordById(id);
+    if (!record || record.status !== 'active') return null;
+
+    const now = Math.floor(Date.now() / 1000);
+    if (record.expireAt && record.expireAt <= now) return null;
+
+    const oldIp = record.ip;
+    if (oldIp === newIp) {
+      return record;
+    }
+
+    let ipLocationStr = "";
+    try {
+      const ipAddr = newIp === '::1' ? '127.0.0.1' : newIp;
+      const info = await ipLocationService.getIpLocation(ipAddr);
+      if (info) ipLocationStr = info.raw;
+    } catch {}
+
+    const nextRecord: WhiteListRecord = {
+      ...record,
+      ip: newIp,
+      ...(ipLocationStr ? { ipLocation: ipLocationStr } : {}),
+    };
+
+    const oldIpKey = this.getIPRecordsKey(oldIp);
+    const newIpKey = this.getIPRecordsKey(newIp);
+    const pipeline = this.redis.pipeline();
+    pipeline.hset(KEYS.RECORDS, id, JSON.stringify(nextRecord));
+    pipeline.srem(oldIpKey, id);
+    pipeline.sadd(newIpKey, id);
+    pipeline.sadd(KEYS.IPS, newIp);
+    await pipeline.exec();
+
+    const config = await configManager.getConfig();
+    if (config.run_type === 0) {
+      await goBackend.allowIP(newIp);
+    }
+
+    const remainingOldRecords = await this.findRecordsByIP(oldIp);
+    if (remainingOldRecords.length === 0) {
+      await this.redis.srem(KEYS.IPS, oldIp);
+      await this.redis.del(oldIpKey);
+      if (config.run_type === 0) {
+        await goBackend.removeIP(oldIp);
+      }
+    }
+
+    return nextRecord;
   }
 
   /**

@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { authMobilitySessionManager } from "./auth-mobility-session";
 import { configManager } from "./redis";
 import { whitelistManager } from "./whitelist-manager";
 import { authLogManager } from "./auth-log";
@@ -159,7 +160,7 @@ export const handleLoginSuccess = async ({
   const expireAt = Math.floor(Date.now() / 1000) + durationSeconds;
   const expiresAtISO = new Date(expireAt * 1000).toISOString();
 
-  await whitelistManager.addWhiteList({
+  const whitelistRecordId = await whitelistManager.addWhiteList({
     ip: clientIpStr,
     expireAt,
     source: 'auto',
@@ -186,6 +187,12 @@ export const handleLoginSuccess = async ({
     expiresAt: expiresAtISO,
     ...(ipLocationStr ? { ipLocation: ipLocationStr } : {}),
   }, maxAge);
+  await authMobilitySessionManager.registerLoginSession({
+    sessionId,
+    ip: clientIpStr,
+    whitelistRecordId,
+    expireAt,
+  });
   set.headers["Set-Cookie"] = buildSessionCookie(sessionId, maxAge);
   return {
     success: true,

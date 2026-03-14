@@ -28,7 +28,7 @@ class CloudflaredManager {
   private progress: Status['progress'] = { status: 'idle', percent: 0 };
 
   private downloadUrlForPlatform(platform: Status['platform']): string | null {
-    const mirrorBase = 'https://hongkong-10009423.cos.ap-shanghai.myqcloud.com';
+    const mirrorBase = 'https://fn-knock.cdn.wxlnk.com/alldata/cloudflared/';
     switch (platform) {
       case 'linux-amd64':
         return `${mirrorBase}/cloudflared-linux-amd64`;

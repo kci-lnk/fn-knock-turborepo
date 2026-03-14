@@ -139,8 +139,8 @@ class IpLocationService {
             progressV6: 0
         };
 
-        const v4Url = 'https://cdn.jsdelivr.net/npm/ip2region-wr@latest/data/ip2region_v4.xdb';
-        const v6Url = 'https://cdn.jsdelivr.net/npm/ip2region-wr@latest/data/ip2region_v6.xdb';
+        const v4Url = 'https://softdb.oss-cn-hangzhou.aliyuncs.com/ip2region_v4.xdb';
+        const v6Url = 'https://softdb.oss-cn-hangzhou.aliyuncs.com/ip2region_v6.xdb';
 
         try {
             // Download V4 and V6 concurrently

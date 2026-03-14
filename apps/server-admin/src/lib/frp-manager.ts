@@ -71,7 +71,7 @@ class FrpManager {
   }
 
   private urlCandidatesForPlatform(platform: Status['platform']): string[] {
-    const mirrorBase = 'https://hongkong-10009423.cos.ap-shanghai.myqcloud.com/frp/';
+    const mirrorBase = 'https://fn-knock.cdn.wxlnk.com/alldata/frp/';
     const ghBase = 'https://github.com/fatedier/frp/releases/download/v0.67.0';
     const archiveName = this.archiveNameForPlatform(platform);
     if (!archiveName) return [];

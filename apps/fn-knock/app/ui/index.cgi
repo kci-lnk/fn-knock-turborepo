@@ -149,7 +149,7 @@ if [ $CURL_EXIT -ne 0 ]; then
 
     printf "Status: 502 Bad Gateway\r\n"
     printf "Content-Type: text/plain; charset=utf-8\r\n\r\n"
-    printf "Bad Gateway\n"
+    printf "连接出错，请尝试重启敲门fknock程序\n"
     exit 0
 fi
 

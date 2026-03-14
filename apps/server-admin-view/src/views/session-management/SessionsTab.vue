@@ -70,12 +70,6 @@ const middleEllipsis = (text: string, max = 16) => {
   return `${text.slice(0, head)}……${text.slice(text.length - tail)}`;
 };
 
-const formatSourceLabel = (source: 'proxy-session' | 'fnos-token' | null | undefined) => {
-  if (source === 'fnos-token') return '飞牛指纹续接';
-  if (source === 'proxy-session') return '会话漂移续接';
-  return '未发生变化';
-};
-
 async function fetchSessions() {
   await runLoadSessions(async () => {
     sessions.value = await SessionAPI.list();

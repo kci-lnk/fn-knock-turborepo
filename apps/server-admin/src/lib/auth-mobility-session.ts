@@ -62,6 +62,7 @@ type DriftRestoreResult = {
 
 const PREFIX = "fn_knock:auth_mobility";
 const FNOS_ACTIVITY_WINDOW_SECONDS = 12 * 3600;
+const MAX_TIMELINE_EVENTS = 100;
 
 const parseCookieValue = (cookieHeader: string, name: string): string | null => {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -124,15 +125,20 @@ export class AuthMobilitySessionManager {
     });
 
     const pipeline = this.r.pipeline();
+    const loginEvent = this.buildTimelineLoginEvent({
+      ip: args.ip,
+      ipLocation: args.ipLocation,
+    });
     pipeline.set(this.bindingKey("proxy-session", args.sessionId), JSON.stringify(binding), "EX", ttlSeconds);
     pipeline.set(
       this.timelineKey(args.sessionId),
-      JSON.stringify([
-        this.buildTimelineLoginEvent({
-          ip: args.ip,
-          ipLocation: args.ipLocation,
-        }),
-      ] satisfies MobilityTimelineEvent[]),
+      JSON.stringify([loginEvent] satisfies MobilityTimelineEvent[]),
+      "EX",
+      ttlSeconds,
+    );
+    pipeline.set(
+      this.summaryKey(args.sessionId),
+      JSON.stringify(this.buildMobilitySummary([loginEvent])),
       "EX",
       ttlSeconds,
     );
@@ -194,6 +200,7 @@ export class AuthMobilitySessionManager {
     const pipeline = this.r.pipeline();
     pipeline.del(this.bindingKey("proxy-session", sessionId));
     pipeline.del(this.timelineKey(sessionId));
+    pipeline.del(this.summaryKey(sessionId));
     if (subjectKeys.length > 0) {
       pipeline.del(...subjectKeys);
     }
@@ -228,15 +235,21 @@ export class AuthMobilitySessionManager {
 
   async getSessionMobilitySummary(sessionId: string): Promise<SessionMobilitySummary> {
     const session = await configManager.getSession(sessionId);
-    const events = await this.resolveTimelineEvents(sessionId, session);
-    return this.buildMobilitySummary(events);
+    const [events, storedSummary] = await Promise.all([
+      this.resolveTimelineEvents(sessionId, session),
+      this.getStoredSummary(sessionId),
+    ]);
+    return storedSummary ?? this.buildMobilitySummary(events);
   }
 
   async getSessionMobilityDetails(sessionId: string): Promise<SessionMobilityDetails> {
     const session = await configManager.getSession(sessionId);
-    const events = await this.resolveTimelineEvents(sessionId, session);
+    const [events, storedSummary] = await Promise.all([
+      this.resolveTimelineEvents(sessionId, session),
+      this.getStoredSummary(sessionId),
+    ]);
     return {
-      summary: this.buildMobilitySummary(events),
+      summary: storedSummary ?? this.buildMobilitySummary(events),
       events,
     };
   }
@@ -548,6 +561,10 @@ export class AuthMobilitySessionManager {
     return `${PREFIX}:timeline:${sessionId}`;
   }
 
+  private summaryKey(sessionId: string): string {
+    return `${PREFIX}:summary:${sessionId}`;
+  }
+
   private sessionIndexKey(sessionId: string): string {
     return `${PREFIX}:session:${sessionId}`;
   }
@@ -586,6 +603,27 @@ export class AuthMobilitySessionManager {
     }
   }
 
+  private async getStoredSummary(sessionId: string): Promise<SessionMobilitySummary | null> {
+    const raw = await this.r.get(this.summaryKey(sessionId));
+    if (!raw) return null;
+
+    try {
+      const parsed = JSON.parse(raw) as SessionMobilitySummary;
+      if (
+        typeof parsed === "object" &&
+        parsed !== null &&
+        typeof parsed.hasHistory === "boolean" &&
+        typeof parsed.driftCount === "number"
+      ) {
+        return parsed;
+      }
+    } catch {
+      return null;
+    }
+
+    return null;
+  }
+
   private async resolveTimelineEvents(
     sessionId: string,
     fallbackSession: LoginSession | null,
@@ -608,21 +646,71 @@ export class AuthMobilitySessionManager {
     fallbackTtlSeconds: number | null,
     seedLoginEvent?: MobilityTimelineEvent,
   ): Promise<void> {
-    const key = this.timelineKey(sessionId);
-    const [events, currentTtl] = await Promise.all([this.getTimelineEvents(sessionId), this.r.ttl(key)]);
-    const nextEvents = events.length === 0 && seedLoginEvent ? [seedLoginEvent, event] : [...events, event];
+    const timelineKey = this.timelineKey(sessionId);
+    const summaryKey = this.summaryKey(sessionId);
+    const [events, storedSummary, currentTimelineTtl, currentSummaryTtl] = await Promise.all([
+      this.getTimelineEvents(sessionId),
+      this.getStoredSummary(sessionId),
+      this.r.ttl(timelineKey),
+      this.r.ttl(summaryKey),
+    ]);
 
-    if (currentTtl > 0) {
-      await this.r.set(key, JSON.stringify(nextEvents), "EX", currentTtl);
-      return;
+    const nextEvents = this.limitTimelineEvents(
+      events.length === 0 && seedLoginEvent ? [seedLoginEvent, event] : [...events, event],
+    );
+    const nextSummary = this.nextSummaryFromEvent(events, storedSummary, event, seedLoginEvent);
+    const ttlSeconds = this.resolveStorageTTL(currentTimelineTtl, currentSummaryTtl, fallbackTtlSeconds);
+    const pipeline = this.r.pipeline();
+
+    if (ttlSeconds) {
+      pipeline.set(timelineKey, JSON.stringify(nextEvents), "EX", ttlSeconds);
+      pipeline.set(summaryKey, JSON.stringify(nextSummary), "EX", ttlSeconds);
+    } else {
+      pipeline.set(timelineKey, JSON.stringify(nextEvents));
+      pipeline.set(summaryKey, JSON.stringify(nextSummary));
     }
 
-    if (fallbackTtlSeconds && fallbackTtlSeconds > 0) {
-      await this.r.set(key, JSON.stringify(nextEvents), "EX", fallbackTtlSeconds);
-      return;
+    await pipeline.exec();
+  }
+
+  private limitTimelineEvents(events: MobilityTimelineEvent[]): MobilityTimelineEvent[] {
+    if (events.length <= MAX_TIMELINE_EVENTS) return events;
+
+    const firstEvent = events[0];
+    if (firstEvent?.kind === "login") {
+      const tailCount = Math.max(0, MAX_TIMELINE_EVENTS - 1);
+      return [firstEvent, ...events.slice(-tailCount)];
     }
 
-    await this.r.set(key, JSON.stringify(nextEvents));
+    return events.slice(-MAX_TIMELINE_EVENTS);
+  }
+
+  private nextSummaryFromEvent(
+    events: MobilityTimelineEvent[],
+    storedSummary: SessionMobilitySummary | null,
+    event: MobilityTimelineEvent,
+    seedLoginEvent?: MobilityTimelineEvent,
+  ): SessionMobilitySummary {
+    const baseline =
+      storedSummary ??
+      this.buildMobilitySummary(events.length === 0 && seedLoginEvent ? [seedLoginEvent] : events);
+
+    if (event.kind !== "drift") {
+      return baseline;
+    }
+
+    return {
+      hasHistory: true,
+      driftCount: baseline.driftCount + 1,
+      lastDriftAt: event.happenedAt,
+      lastDriftSource: event.source,
+    };
+  }
+
+  private resolveStorageTTL(...ttls: Array<number | null | undefined>): number | null {
+    const positives = ttls.filter((ttl): ttl is number => typeof ttl === "number" && ttl > 0);
+    if (positives.length === 0) return null;
+    return Math.max(...positives);
   }
 
   private async ensureSessionIndexTTL(sessionId: string, ttlSeconds: number): Promise<void> {

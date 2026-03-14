@@ -7,7 +7,7 @@ import { redis } from "./redis";
 import { APP_GITHUB_URL, APP_LOCAL_VERSION } from "./app-version";
 import { waitForProcessExit } from "./runtime";
 
-const OTA_LATEST_URL = "https://ota.fnknock.cn/latest.json";
+const OTA_LATEST_URL = "https://fn-knock.cdn.wxlnk.com/latest.json";
 const UPDATE_PENDING_KEY = "fn_knock:update:pending";
 const UPDATE_CONFIRM_KEY = "fn_knock:update:confirm";
 const UPDATE_PENDING_TTL_SECONDS = 7 * 24 * 60 * 60;

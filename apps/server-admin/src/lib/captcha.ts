@@ -138,7 +138,7 @@ class PowCaptchaProvider implements CaptchaProviderAdapter {
         }
 
         const expiresMatch = String(data.salt || "").match(/expires=(\d+)/);
-        if (expiresMatch) {
+        if (expiresMatch && typeof expiresMatch[1] === "string") {
             const expires = parseInt(expiresMatch[1], 10);
             if (Date.now() / 1000 > expires) {
                 throw new Error("Challenge expired");

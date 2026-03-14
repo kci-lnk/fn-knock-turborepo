@@ -277,10 +277,13 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
     // Session management
     .get("/sessions", async () => {
         const list = await configManager.listSessions();
-        const mapped = list.map(({ id, data }) => ({
-            id,
-            ...data
-        }));
+        const mapped = await Promise.all(
+            list.map(async ({ id, data }) => ({
+                id,
+                ...data,
+                mobility: await authMobilitySessionManager.getSessionMobilitySummary(id),
+            }))
+        );
         return { success: true, data: mapped };
     })
     .get("/sessions/:id", async ({ params, set }) => {
@@ -290,6 +293,19 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
             return { success: false, message: "Session not found" };
         }
         return { success: true, data: { id: params.id, ...sess } };
+    }, {
+        params: t.Object({ id: t.String() })
+    })
+    .get("/sessions/:id/mobility", async ({ params, set }) => {
+        const sess = await configManager.getSession(params.id);
+        if (!sess) {
+            set.status = 404;
+            return { success: false, message: "Session not found" };
+        }
+        return {
+            success: true,
+            data: await authMobilitySessionManager.getSessionMobilityDetails(params.id),
+        };
     }, {
         params: t.Object({ id: t.String() })
     })

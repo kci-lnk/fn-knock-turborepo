@@ -65,6 +65,11 @@ const router = createRouter({
           component: () => import('../views/SessionManagement.vue')
         },
         {
+          path: 'sessions/mobility/:id',
+          name: 'SessionMobility',
+          component: () => import('../views/session-management/mobility/SessionMobilityPage.vue')
+        },
+        {
           path: 'tunnel',
           name: 'IntranetTunnel',
           component: () => import('../views/Tunnel.vue')

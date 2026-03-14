@@ -190,6 +190,7 @@ export const handleLoginSuccess = async ({
   await authMobilitySessionManager.registerLoginSession({
     sessionId,
     ip: clientIpStr,
+    ...(ipLocationStr ? { ipLocation: ipLocationStr } : {}),
     whitelistRecordId,
     expireAt,
   });

@@ -22,6 +22,53 @@ class LoginBackoffService {
   private maxAttempts = 8;
   private jitterFactor = 0.4;
   private ttlSeconds = 86400;
+  private registerFailureScript = `
+local key = KEYS[1]
+local ip = ARGV[1]
+local now = tonumber(ARGV[2])
+local ttlSeconds = tonumber(ARGV[3])
+local baseDelay = tonumber(ARGV[4])
+local maxDelay = tonumber(ARGV[5])
+local jitterFactor = tonumber(ARGV[6])
+
+local attempts = 0
+local raw = redis.call('GET', key)
+if raw then
+  local ok, decoded = pcall(cjson.decode, raw)
+  if ok and type(decoded) == 'table' and tonumber(decoded.attempts) then
+    attempts = tonumber(decoded.attempts)
+  end
+end
+
+attempts = attempts + 1
+
+local expDelay = math.pow(2, attempts - 1) * baseDelay
+local seed = ip .. ':' .. tostring(attempts) .. ':' .. tostring(now)
+local hash = 0
+for i = 1, #seed do
+  hash = (hash * 33 + string.byte(seed, i)) % 1000003
+end
+local ratio = (hash % 10000) / 10000
+local jitter = ((ratio * 2) - 1) * (expDelay * jitterFactor)
+local backoffMs = math.floor(expDelay + jitter)
+if backoffMs < 0 then
+  backoffMs = 0
+end
+if backoffMs > maxDelay then
+  backoffMs = maxDelay
+end
+
+local blockedUntil = now + backoffMs
+local nextState = cjson.encode({
+  ip = ip,
+  attempts = attempts,
+  lastAttempt = now,
+  blockedUntil = blockedUntil,
+})
+
+redis.call('SET', key, nextState, 'EX', ttlSeconds)
+return {attempts, math.ceil(backoffMs / 1000), blockedUntil}
+`;
 
   private key(ip: string) {
     return `${this.keyPrefix}${ip}`;
@@ -39,18 +86,6 @@ class LoginBackoffService {
 
   private async set(ip: string, state: AttemptState) {
     await redis.set(this.key(ip), JSON.stringify(state), "EX", this.ttlSeconds);
-  }
-
-  private jitter(delay: number) {
-    const max = delay * this.jitterFactor;
-    return (Math.random() * 2 - 1) * max;
-  }
-
-  private calcBackoff(attempts: number) {
-    if (attempts <= 0) return 0;
-    const exp = Math.pow(2, attempts - 1) * this.baseDelay;
-    const v = exp + this.jitter(exp);
-    return Math.min(Math.max(0, Math.floor(v)), this.maxDelay);
   }
 
   async getStatus(ip: string): Promise<BackoffStatus> {
@@ -71,15 +106,21 @@ class LoginBackoffService {
   }
 
   async registerFailure(ip: string): Promise<{ retryAfter: number }> {
-    const existing = await this.get(ip);
     const now = Date.now();
-    const next: AttemptState = existing
-      ? { ...existing, attempts: existing.attempts + 1, lastAttempt: now }
-      : { ip, attempts: 1, lastAttempt: now };
-    const backoffMs = this.calcBackoff(next.attempts);
-    next.blockedUntil = now + backoffMs;
-    await this.set(ip, next);
-    return { retryAfter: Math.ceil(backoffMs / 1000) };
+    const result = await redis.eval(
+      this.registerFailureScript,
+      1,
+      this.key(ip),
+      ip,
+      String(now),
+      String(this.ttlSeconds),
+      String(this.baseDelay),
+      String(this.maxDelay),
+      String(this.jitterFactor),
+    );
+    const [, retryAfterRaw] = Array.isArray(result) ? result : [0, 0];
+    const retryAfter = Number(retryAfterRaw);
+    return { retryAfter: Number.isFinite(retryAfter) ? retryAfter : 0 };
   }
 
   async reset(ip: string): Promise<void> {

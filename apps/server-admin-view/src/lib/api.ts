@@ -1,4 +1,4 @@
-import type { AppConfig, ProxyMapping, SSLConfig, SSLStatus, PasskeyCredential, TOTPCredential, SessionRecord, ProxyProtocolForce, TrafficStats, DashboardStats, ThreatOverview, FnosShareBypassConfig } from '../types';
+import type { AppConfig, ProxyMapping, SSLConfig, SSLStatus, PasskeyCredential, TOTPCredential, SessionRecord, ProxyProtocolForce, TrafficStats, DashboardStats, ThreatOverview, FnosShareBypassConfig, SessionMobilityDetails } from '../types';
 import { createSignedApiClient } from '@frontend-core/api/createSignedApiClient';
 
 const resolveAppRelativePath = (relativePath: string) => {
@@ -521,6 +521,10 @@ export const SessionAPI = {
     },
     async get(id: string): Promise<SessionRecord> {
         const res = await apiClient.get(`/sessions/${encodeURIComponent(id)}`);
+        return res.data.data;
+    },
+    async getMobility(id: string): Promise<SessionMobilityDetails> {
+        const res = await apiClient.get(`/sessions/${encodeURIComponent(id)}/mobility`);
         return res.data.data;
     },
     async kick(id: string): Promise<void> {

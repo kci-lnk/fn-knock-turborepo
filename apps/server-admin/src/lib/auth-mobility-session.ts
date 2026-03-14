@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type Redis from "ioredis";
-import { configManager, redis } from "./redis";
+import { configManager, redis, type LoginSession } from "./redis";
 import { whitelistManager } from "./whitelist-manager";
 
 type MobilitySubjectType = "proxy-session" | "fnos-token";
@@ -15,6 +15,38 @@ type MobilityBinding = {
   ownerSessionId?: string;
   createdAt: string;
   lastSeenAt: string;
+};
+
+type MobilityTimelineEvent =
+  | {
+      version: 1;
+      kind: "login";
+      happenedAt: string;
+      source: "login";
+      toIp: string;
+      toIpLocation?: string;
+    }
+  | {
+      version: 1;
+      kind: "drift";
+      happenedAt: string;
+      source: MobilitySubjectType;
+      fromIp: string;
+      fromIpLocation?: string;
+      toIp: string;
+      toIpLocation?: string;
+    };
+
+export type SessionMobilitySummary = {
+  hasHistory: boolean;
+  driftCount: number;
+  lastDriftAt: string | null;
+  lastDriftSource: MobilitySubjectType | null;
+};
+
+export type SessionMobilityDetails = {
+  summary: SessionMobilitySummary;
+  events: MobilityTimelineEvent[];
 };
 
 type RequestIdentity = {
@@ -75,6 +107,7 @@ export class AuthMobilitySessionManager {
   async registerLoginSession(args: {
     sessionId: string;
     ip: string;
+    ipLocation?: string;
     whitelistRecordId: string;
     expireAt: number | null;
   }): Promise<void> {
@@ -92,6 +125,17 @@ export class AuthMobilitySessionManager {
 
     const pipeline = this.r.pipeline();
     pipeline.set(this.bindingKey("proxy-session", args.sessionId), JSON.stringify(binding), "EX", ttlSeconds);
+    pipeline.set(
+      this.timelineKey(args.sessionId),
+      JSON.stringify([
+        this.buildTimelineLoginEvent({
+          ip: args.ip,
+          ipLocation: args.ipLocation,
+        }),
+      ] satisfies MobilityTimelineEvent[]),
+      "EX",
+      ttlSeconds,
+    );
     pipeline.sadd(this.sessionIndexKey(args.sessionId), this.bindingKey("proxy-session", args.sessionId));
     pipeline.expire(this.sessionIndexKey(args.sessionId), ttlSeconds);
     pipeline.set(this.whitelistOwnerKey(args.whitelistRecordId), args.sessionId, "EX", ttlSeconds);
@@ -149,6 +193,7 @@ export class AuthMobilitySessionManager {
 
     const pipeline = this.r.pipeline();
     pipeline.del(this.bindingKey("proxy-session", sessionId));
+    pipeline.del(this.timelineKey(sessionId));
     if (subjectKeys.length > 0) {
       pipeline.del(...subjectKeys);
     }
@@ -179,6 +224,21 @@ export class AuthMobilitySessionManager {
     if (session.ip !== clientIp) {
       await configManager.updateSession(sessionId, { ip: clientIp });
     }
+  }
+
+  async getSessionMobilitySummary(sessionId: string): Promise<SessionMobilitySummary> {
+    const session = await configManager.getSession(sessionId);
+    const events = await this.resolveTimelineEvents(sessionId, session);
+    return this.buildMobilitySummary(events);
+  }
+
+  async getSessionMobilityDetails(sessionId: string): Promise<SessionMobilityDetails> {
+    const session = await configManager.getSession(sessionId);
+    const events = await this.resolveTimelineEvents(sessionId, session);
+    return {
+      summary: this.buildMobilitySummary(events),
+      events,
+    };
   }
 
   private async refreshFnosBinding(
@@ -299,6 +359,8 @@ export class AuthMobilitySessionManager {
     const ttlSeconds = this.resolveFnosTTL(movedRecord.expireAt);
     if (!ttlSeconds) return false;
 
+    const previousIp = ownerSession.ip;
+    const previousIpLocation = ownerSession.ipLocation;
     binding.currentIp = clientIp;
     binding.expireAt = movedRecord.expireAt;
     binding.lastSeenAt = new Date().toISOString();
@@ -312,6 +374,25 @@ export class AuthMobilitySessionManager {
     if (updatedSession && sessionTtl) {
       await this.ensureSessionIndexTTL(binding.ownerSessionId, sessionTtl);
       await this.r.sadd(this.sessionIndexKey(binding.ownerSessionId), this.bindingKey("fnos-token", fnosToken));
+    }
+
+    if (previousIp !== clientIp) {
+      await this.appendTimelineEvent(
+        binding.ownerSessionId,
+        this.buildTimelineDriftEvent({
+          source: "fnos-token",
+          fromIp: previousIp,
+          fromIpLocation: previousIpLocation,
+          toIp: clientIp,
+          toIpLocation: movedRecord.ipLocation,
+        }),
+        sessionTtl ?? ttlSeconds,
+        this.buildTimelineLoginEvent({
+          ip: previousIp,
+          ipLocation: previousIpLocation,
+          happenedAt: ownerSession.loginTime,
+        }),
+      );
     }
 
     return true;
@@ -329,6 +410,8 @@ export class AuthMobilitySessionManager {
     const movedRecord = await whitelistManager.moveRecordToIP(binding.whitelistRecordId, clientIp);
     if (!movedRecord) return false;
 
+    const previousIp = session.ip;
+    const previousIpLocation = session.ipLocation;
     binding.currentIp = clientIp;
     binding.expireAt = movedRecord.expireAt ?? toUnixSeconds(session.expiresAt);
     binding.lastSeenAt = new Date().toISOString();
@@ -338,6 +421,25 @@ export class AuthMobilitySessionManager {
       ip: clientIp,
       ...(movedRecord.ipLocation ? { ipLocation: movedRecord.ipLocation } : {}),
     });
+
+    if (previousIp !== clientIp) {
+      await this.appendTimelineEvent(
+        sessionId,
+        this.buildTimelineDriftEvent({
+          source: "proxy-session",
+          fromIp: previousIp,
+          fromIpLocation: previousIpLocation,
+          toIp: clientIp,
+          toIpLocation: movedRecord.ipLocation,
+        }),
+        this.resolveProxySessionTTL(toUnixSeconds(session.expiresAt)),
+        this.buildTimelineLoginEvent({
+          ip: previousIp,
+          ipLocation: previousIpLocation,
+          happenedAt: session.loginTime,
+        }),
+      );
+    }
 
     return true;
   }
@@ -361,6 +463,53 @@ export class AuthMobilitySessionManager {
       ownerSessionId: args.ownerSessionId,
       createdAt: nowIso,
       lastSeenAt: nowIso,
+    };
+  }
+
+  private buildTimelineLoginEvent(args: {
+    ip: string;
+    ipLocation?: string;
+    happenedAt?: string;
+  }): MobilityTimelineEvent {
+    return {
+      version: 1,
+      kind: "login",
+      happenedAt: args.happenedAt || new Date().toISOString(),
+      source: "login",
+      toIp: args.ip,
+      ...(args.ipLocation ? { toIpLocation: args.ipLocation } : {}),
+    };
+  }
+
+  private buildTimelineDriftEvent(args: {
+    source: MobilitySubjectType;
+    fromIp: string;
+    fromIpLocation?: string;
+    toIp: string;
+    toIpLocation?: string;
+  }): MobilityTimelineEvent {
+    return {
+      version: 1,
+      kind: "drift",
+      happenedAt: new Date().toISOString(),
+      source: args.source,
+      fromIp: args.fromIp,
+      ...(args.fromIpLocation ? { fromIpLocation: args.fromIpLocation } : {}),
+      toIp: args.toIp,
+      ...(args.toIpLocation ? { toIpLocation: args.toIpLocation } : {}),
+    };
+  }
+
+  private buildMobilitySummary(events: MobilityTimelineEvent[]): SessionMobilitySummary {
+    const driftEvents = events.filter(
+      (event): event is Extract<MobilityTimelineEvent, { kind: "drift" }> => event.kind === "drift",
+    );
+    const lastDrift = driftEvents[driftEvents.length - 1];
+    return {
+      hasHistory: events.length > 0,
+      driftCount: driftEvents.length,
+      lastDriftAt: lastDrift?.happenedAt ?? null,
+      lastDriftSource: lastDrift?.source ?? null,
     };
   }
 
@@ -395,6 +544,10 @@ export class AuthMobilitySessionManager {
     return `${PREFIX}:binding:${subjectType}:${this.hash(subjectType, subjectKey)}`;
   }
 
+  private timelineKey(sessionId: string): string {
+    return `${PREFIX}:timeline:${sessionId}`;
+  }
+
   private sessionIndexKey(sessionId: string): string {
     return `${PREFIX}:session:${sessionId}`;
   }
@@ -416,6 +569,60 @@ export class AuthMobilitySessionManager {
     } catch {
       return null;
     }
+  }
+
+  private async getTimelineEvents(sessionId: string): Promise<MobilityTimelineEvent[]> {
+    const raw = await this.r.get(this.timelineKey(sessionId));
+    if (!raw) return [];
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .filter((event): event is MobilityTimelineEvent => typeof event === "object" && event !== null)
+        .sort((a, b) => (Date.parse(a.happenedAt) || 0) - (Date.parse(b.happenedAt) || 0));
+    } catch {
+      return [];
+    }
+  }
+
+  private async resolveTimelineEvents(
+    sessionId: string,
+    fallbackSession: LoginSession | null,
+  ): Promise<MobilityTimelineEvent[]> {
+    const events = await this.getTimelineEvents(sessionId);
+    if (events.length > 0) return events;
+    if (!fallbackSession) return [];
+    return [
+      this.buildTimelineLoginEvent({
+        ip: fallbackSession.ip,
+        ipLocation: fallbackSession.ipLocation,
+        happenedAt: fallbackSession.loginTime,
+      }),
+    ];
+  }
+
+  private async appendTimelineEvent(
+    sessionId: string,
+    event: MobilityTimelineEvent,
+    fallbackTtlSeconds: number | null,
+    seedLoginEvent?: MobilityTimelineEvent,
+  ): Promise<void> {
+    const key = this.timelineKey(sessionId);
+    const [events, currentTtl] = await Promise.all([this.getTimelineEvents(sessionId), this.r.ttl(key)]);
+    const nextEvents = events.length === 0 && seedLoginEvent ? [seedLoginEvent, event] : [...events, event];
+
+    if (currentTtl > 0) {
+      await this.r.set(key, JSON.stringify(nextEvents), "EX", currentTtl);
+      return;
+    }
+
+    if (fallbackTtlSeconds && fallbackTtlSeconds > 0) {
+      await this.r.set(key, JSON.stringify(nextEvents), "EX", fallbackTtlSeconds);
+      return;
+    }
+
+    await this.r.set(key, JSON.stringify(nextEvents));
   }
 
   private async ensureSessionIndexTTL(sessionId: string, ttlSeconds: number): Promise<void> {

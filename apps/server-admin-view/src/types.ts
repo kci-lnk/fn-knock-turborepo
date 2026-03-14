@@ -78,7 +78,42 @@ export type LoginSession = {
     ipLocation?: string;
 };
 
-export type SessionRecord = LoginSession & { id: string };
+export type SessionMobilitySummary = {
+    hasHistory: boolean;
+    driftCount: number;
+    lastDriftAt: string | null;
+    lastDriftSource: "proxy-session" | "fnos-token" | null;
+};
+
+export type SessionMobilityEvent =
+    | {
+        version: 1;
+        kind: "login";
+        happenedAt: string;
+        source: "login";
+        toIp: string;
+        toIpLocation?: string;
+    }
+    | {
+        version: 1;
+        kind: "drift";
+        happenedAt: string;
+        source: "proxy-session" | "fnos-token";
+        fromIp: string;
+        fromIpLocation?: string;
+        toIp: string;
+        toIpLocation?: string;
+    };
+
+export type SessionMobilityDetails = {
+    summary: SessionMobilitySummary;
+    events: SessionMobilityEvent[];
+};
+
+export type SessionRecord = LoginSession & {
+    id: string;
+    mobility?: SessionMobilitySummary;
+};
 
 export type ProxyProtocolForce = {
     proxy_protocol_force: boolean;

@@ -5,9 +5,33 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 REMOTE_HOST="${FN_KNOCK_REMOTE_HOST:-root@192.168.31.98}"
 REMOTE_DIR="${FN_KNOCK_REMOTE_DIR:-/tmp/fn-knock-fpk}"
 LOCAL_FPK_PATH="${FN_KNOCK_LOCAL_FPK_PATH:-apps/fn-knock/dist/fn-knock.fpk}"
-REMOTE_FPK_PATH="${REMOTE_DIR}/fn-knock.fpk"
+APP_NAME="${FN_KNOCK_APP_NAME:-fn-knock}"
+REMOTE_FPK_AMD64_PATH="${REMOTE_DIR}/${APP_NAME}-amd64.fpk"
+REMOTE_FPK_ARM64_PATH="${REMOTE_DIR}/${APP_NAME}-arm64.fpk"
 VERSION_FILE="${ROOT_DIR}/apps/server-admin/src/lib/app-version.ts"
 MANIFEST_FILE="${ROOT_DIR}/apps/fn-knock/manifest"
+
+derive_arch_fpk_path() {
+  local base_path="$1"
+  local arch="$2"
+  local dir_name
+  local file_name
+  local file_stem
+
+  dir_name="$(dirname "${base_path}")"
+  file_name="$(basename "${base_path}")"
+  file_stem="${file_name%.fpk}"
+
+  if [ "${file_stem}" = "${file_name}" ]; then
+    echo "${dir_name}/${file_name}-${arch}.fpk"
+    return 0
+  fi
+
+  echo "${dir_name}/${file_stem}-${arch}.fpk"
+}
+
+LOCAL_FPK_AMD64_PATH="$(derive_arch_fpk_path "${LOCAL_FPK_PATH}" "amd64")"
+LOCAL_FPK_ARM64_PATH="$(derive_arch_fpk_path "${LOCAL_FPK_PATH}" "arm64")"
 
 sync_manifest_version() {
   if [ ! -f "${VERSION_FILE}" ]; then
@@ -102,10 +126,12 @@ build_package_assets() {
 
 copy_remote_fpk() {
   cd "${ROOT_DIR}"
-  mkdir -p "$(dirname "${LOCAL_FPK_PATH}")"
-  echo "[fn-knock] Pulling remote FPK: ${REMOTE_HOST}:${REMOTE_FPK_PATH} -> ${LOCAL_FPK_PATH}"
-  scp "${REMOTE_HOST}:${REMOTE_FPK_PATH}" "${LOCAL_FPK_PATH}"
-  echo "[fn-knock] FPK copied to ${LOCAL_FPK_PATH}"
+  mkdir -p "$(dirname "${LOCAL_FPK_AMD64_PATH}")"
+  echo "[fn-knock] Pulling remote FPK: ${REMOTE_HOST}:${REMOTE_FPK_AMD64_PATH} -> ${LOCAL_FPK_AMD64_PATH}"
+  scp "${REMOTE_HOST}:${REMOTE_FPK_AMD64_PATH}" "${LOCAL_FPK_AMD64_PATH}"
+  echo "[fn-knock] Pulling remote FPK: ${REMOTE_HOST}:${REMOTE_FPK_ARM64_PATH} -> ${LOCAL_FPK_ARM64_PATH}"
+  scp "${REMOTE_HOST}:${REMOTE_FPK_ARM64_PATH}" "${LOCAL_FPK_ARM64_PATH}"
+  echo "[fn-knock] FPK copied to ${LOCAL_FPK_AMD64_PATH} and ${LOCAL_FPK_ARM64_PATH}"
 }
 
 usage() {
@@ -115,7 +141,7 @@ Usage:
 
 Commands:
   build-assets  Build and sync package assets (default)
-  copy-fpk      Copy packaged FPK from remote host to local dist path
+  copy-fpk      Copy amd64/arm64 packaged FPKs from remote host to local dist paths
 EOF
 }
 

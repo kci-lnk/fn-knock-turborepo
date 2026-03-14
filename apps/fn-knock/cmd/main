@@ -10,7 +10,8 @@ GATEWAY_PID_FILE="${PKG_VAR_DIR}/gateway.pid"
 APP_HOME="${TRIM_APPDEST:-}"
 NODE_BIN="${NODE_BIN:-/var/apps/nodejs_v20/target/bin/node}"
 BACKEND_ENTRY="${APP_HOME}/server/server-admin/index.js"
-GATEWAY_BIN="${APP_HOME}/server/go-reauth-proxy-linux-amd64"
+GATEWAY_BIN_DIR="${APP_HOME}/server"
+GATEWAY_BIN="${GATEWAY_BIN_DIR}/go-reauth-proxy-linux-amd64"
 
 ADMIN_STATIC_PATH="${APP_HOME}/ui/www"
 AUTH_STATIC_PATH="${APP_HOME}/server-auth-view/dist"
@@ -116,6 +117,31 @@ ensure_runtime_layout() {
         return 1
     fi
 
+    return 0
+}
+
+resolve_gateway_bin() {
+    local raw_arch=""
+    local normalized_arch=""
+
+    raw_arch="$(uname -m 2>/dev/null || true)"
+    case "${raw_arch}" in
+        x86_64|amd64)
+            normalized_arch="amd64"
+            ;;
+        aarch64|arm64)
+            normalized_arch="arm64"
+            ;;
+        *)
+            local message="Unsupported system architecture: ${raw_arch:-unknown}"
+            log_msg "${message}"
+            echo "${message}" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
+            return 1
+            ;;
+    esac
+
+    GATEWAY_BIN="${GATEWAY_BIN_DIR}/go-reauth-proxy-linux-${normalized_arch}"
+    log_msg "Detected system architecture ${raw_arch}, using gateway binary: ${GATEWAY_BIN}"
     return 0
 }
 
@@ -389,6 +415,9 @@ start() {
     if ! ensure_runtime_layout; then
         return 1
     fi
+    if ! resolve_gateway_bin; then
+        return 1
+    fi
     load_runtime_ports
     if ! validate_runtime_ports; then
         return 1
@@ -410,6 +439,7 @@ start() {
 
 stop() {
     log_msg "=== fn-knock stop ==="
+    resolve_gateway_bin >/dev/null 2>&1 || true
     stop_service "${BACKEND_PID_FILE}" "Backend"
     stop_service "${GATEWAY_PID_FILE}" "Gateway"
     stop_external_resources

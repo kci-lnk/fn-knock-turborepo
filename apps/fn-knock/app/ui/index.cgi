@@ -129,6 +129,24 @@ curl "$@" -D "$HEADER_FILE" -o "$BODY_FILE" "$TARGET_URL" >/dev/null 2>&1
 CURL_EXIT=$?
 
 if [ $CURL_EXIT -ne 0 ]; then
+    ARCH=$(uname -m)
+    case "$ARCH" in
+        arm*|aarch64)
+            if [ ! -x "/usr/bin/redis-server" ] &&[ ! -x "/usr/local/bin/redis-server" ]; then
+                printf "Status: 502 Bad Gateway\r\n"
+                printf "Content-Type: text/html; charset=utf-8\r\n\r\n"
+                printf '<div style="text-align: center; margin-top: 50px; font-family: sans-serif;">\n'
+                printf '  <h2 style="color: #d9534f;">启动失败：未检测到 Redis 服务</h2>\n'
+                printf '  <p>arm版飞牛OS：REDIS未安装所以程序无法启动，请在终端执行下列命令完成安装，完成后请重新启用一下敲门knock程序</p>\n'
+                printf '  <pre style="text-align: left; display: inline-block; background: #f7f7f7; padding: 10px; border-radius: 5px;">\n'
+                printf '    sudo sh -c '\''apt update && apt install redis-server -y && systemctl start redis-server && systemctl enable redis-server && echo "Redis安装完成，请重新启用knock程序"'\''\n'
+                printf '  </pre>\n'
+                printf '</div>\n'
+                exit 0
+            fi
+            ;;
+    esac
+
     printf "Status: 502 Bad Gateway\r\n"
     printf "Content-Type: text/plain; charset=utf-8\r\n\r\n"
     printf "Bad Gateway\n"

@@ -7,7 +7,7 @@ import BinaryDownloadCard from '@admin-shared/components/system/BinaryDownloadCa
 import { extractErrorMessage, useAsyncAction } from '@admin-shared/composables/useAsyncAction';
 
 const supported = ref(false);
-const platform = ref<'darwin' | 'linux-amd64' | 'unsupported'>('unsupported');
+const platform = ref<'darwin' | 'linux-amd64' | 'linux-arm64' | 'linux-arm' | 'unsupported'>('unsupported');
 const downloaded = ref(false);
 const status = ref<'idle' | 'downloading' | 'completed' | 'error'>('idle');
 const percent = ref(0);
@@ -92,7 +92,7 @@ const cancelDownload = async () => {
     :percent="percent"
     :error="error"
     :is-cancelling="isCancelling"
-    :allow-manage="platform === 'linux-amd64'"
+    :allow-manage="platform === 'linux-amd64' || platform === 'linux-arm64' || platform === 'linux-arm'"
     ready-label="已就绪"
     pending-label="未就绪"
     download-button-text="下载资源"

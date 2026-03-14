@@ -7,7 +7,7 @@ import BinaryDownloadCard from '@admin-shared/components/system/BinaryDownloadCa
 import { extractErrorMessage, useAsyncAction } from '@admin-shared/composables/useAsyncAction';
 
 const supported = ref(false);
-const platform = ref<'darwin-arm64' | 'linux-amd64' | 'unsupported'>('unsupported');
+const platform = ref<'darwin-arm64' | 'linux-amd64' | 'linux-arm64' | 'linux-arm' | 'unsupported'>('unsupported');
 const downloaded = ref(false);
 const status = ref<'idle' | 'downloading' | 'completed' | 'error'>('idle');
 const percent = ref(0);

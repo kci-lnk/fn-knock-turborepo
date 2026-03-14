@@ -14,6 +14,7 @@ const UPDATE_PENDING_TTL_SECONDS = 7 * 24 * 60 * 60;
 const UPDATE_CONFIRM_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 type DownloadStatus = "idle" | "downloading" | "verifying" | "downloaded" | "installing" | "error";
+type UpdateArchitecture = "amd64" | "arm64";
 
 type OtaLatestManifest = {
   version: string;
@@ -21,7 +22,15 @@ type OtaLatestManifest = {
   force_update: boolean;
   download_url: string;
   sha256: string;
+  download_url_arm64: string;
+  sha256_arm64: string;
   release_notes: string;
+};
+
+type ResolvedUpdatePackage = {
+  architecture: UpdateArchitecture;
+  downloadUrl: string;
+  sha256: string;
 };
 
 type UpdatePendingPayload = {
@@ -45,6 +54,8 @@ type DownloadState = {
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
+
+const SHA256_HEX_RE = /^[a-f0-9]{64}$/;
 
 const normalizeVersion = (version: string): number[] => {
   return version
@@ -76,15 +87,29 @@ const toErrorMessage = (error: unknown, fallback: string): string => {
   return fallback;
 };
 
+const getManifestString = (value: Record<string, unknown>, key: string): string => {
+  return typeof value[key] === "string" ? value[key].trim() : "";
+};
+
+const ensureSha256 = (value: string, field: string): string => {
+  const normalized = value.trim().toLowerCase();
+  if (!SHA256_HEX_RE.test(normalized)) {
+    throw new Error(`更新信息 ${field} 无效`);
+  }
+  return normalized;
+};
+
 const parseManifest = (value: unknown): OtaLatestManifest => {
   if (!isRecord(value)) {
     throw new Error("更新信息格式错误");
   }
-  const version = typeof value.version === "string" ? value.version.trim() : "";
+  const version = getManifestString(value, "version");
   const updateAvailable = value.update_available;
   const forceUpdate = value.force_update;
-  const downloadUrl = typeof value.download_url === "string" ? value.download_url.trim() : "";
-  const sha256 = typeof value.sha256 === "string" ? value.sha256.trim().toLowerCase() : "";
+  const downloadUrl = getManifestString(value, "download_url");
+  const sha256 = ensureSha256(getManifestString(value, "sha256"), "sha256");
+  const downloadUrlArm64 = getManifestString(value, "download_url_arm64");
+  const sha256Arm64Raw = getManifestString(value, "sha256_arm64");
   const releaseNotes = typeof value.release_notes === "string" ? value.release_notes : "";
   if (!version) {
     throw new Error("更新信息缺少 version");
@@ -98,15 +123,18 @@ const parseManifest = (value: unknown): OtaLatestManifest => {
   if (!downloadUrl) {
     throw new Error("更新信息缺少 download_url");
   }
-  if (!/^[a-f0-9]{64}$/.test(sha256)) {
-    throw new Error("更新信息 sha256 无效");
+  if ((downloadUrlArm64 && !sha256Arm64Raw) || (!downloadUrlArm64 && sha256Arm64Raw)) {
+    throw new Error("更新信息 ARM64 下载字段不完整");
   }
+  const sha256Arm64 = sha256Arm64Raw ? ensureSha256(sha256Arm64Raw, "sha256_arm64") : "";
   return {
     version,
     update_available: updateAvailable,
     force_update: forceUpdate,
     download_url: downloadUrl,
     sha256,
+    download_url_arm64: downloadUrlArm64,
+    sha256_arm64: sha256Arm64,
     release_notes: releaseNotes,
   };
 };
@@ -150,6 +178,37 @@ export class UpdateManager {
     const url = new URL(OTA_LATEST_URL);
     url.searchParams.set("t", `${Date.now()}`);
     return url.toString();
+  }
+
+  private detectArchitecture(): UpdateArchitecture | null {
+    if (process.arch === "x64") return "amd64";
+    if (process.arch === "arm64") return "arm64";
+    return null;
+  }
+
+  private resolveManifestPackage(manifest: OtaLatestManifest): ResolvedUpdatePackage {
+    const architecture = this.detectArchitecture();
+    if (!architecture) {
+      throw new Error(`当前系统架构暂不支持自动更新: ${process.arch}`);
+    }
+    if (architecture === "arm64") {
+      if (!manifest.download_url_arm64) {
+        throw new Error("更新信息缺少 ARM64 下载地址");
+      }
+      if (!manifest.sha256_arm64) {
+        throw new Error("更新信息缺少 ARM64 校验值");
+      }
+      return {
+        architecture,
+        downloadUrl: manifest.download_url_arm64,
+        sha256: manifest.sha256_arm64,
+      };
+    }
+    return {
+      architecture,
+      downloadUrl: manifest.download_url,
+      sha256: manifest.sha256,
+    };
   }
 
   private resetDownloadState() {
@@ -198,8 +257,8 @@ export class UpdateManager {
     return hash.digest("hex");
   }
 
-  private buildPackagePath(version: string) {
-    return path.join(this.packageDownloadDir, `fn-knock-${version}.fpk`);
+  private buildPackagePath(version: string, architecture: UpdateArchitecture) {
+    return path.join(this.packageDownloadDir, `fn-knock-${version}-${architecture}.fpk`);
   }
 
   private resolveInstallPort(envKeys: string[], fallback: string): string {
@@ -308,11 +367,15 @@ export class UpdateManager {
   private async checkNowInternal(reason: string): Promise<void> {
     try {
       const manifest = await this.fetchManifestFromRemote();
+      const hasUpdate = manifest.update_available === true && compareVersion(manifest.version, APP_LOCAL_VERSION) > 0;
+      if (hasUpdate) {
+        this.resolveManifestPackage(manifest);
+      }
       this.latestManifest = manifest;
       this.lastCheckedAt = Date.now();
       this.checkError = null;
       this.updateEnabled = manifest.update_available === true;
-      this.hasUpdate = this.updateEnabled && compareVersion(manifest.version, APP_LOCAL_VERSION) > 0;
+      this.hasUpdate = hasUpdate;
       this.forceUpdate = this.hasUpdate && manifest.force_update;
 
       // 来源变更后，清理过时的下载状态
@@ -353,8 +416,9 @@ export class UpdateManager {
     }
 
     const targetVersion = this.latestManifest.version;
-    const targetSha256 = this.latestManifest.sha256;
-    const targetPath = this.buildPackagePath(targetVersion);
+    const targetPackage = this.resolveManifestPackage(this.latestManifest);
+    const targetSha256 = targetPackage.sha256;
+    const targetPath = this.buildPackagePath(targetVersion, targetPackage.architecture);
 
     if (
       this.downloadState.status === "downloaded" &&
@@ -365,7 +429,7 @@ export class UpdateManager {
       return;
     }
 
-    this.downloadPromise = this.downloadInternal(this.latestManifest, targetPath)
+    this.downloadPromise = this.downloadInternal(targetPackage, this.latestManifest, targetPath)
       .catch((error) => {
         console.error("[update] download failed:", error);
       })
@@ -374,7 +438,11 @@ export class UpdateManager {
       });
   }
 
-  private async downloadInternal(manifest: OtaLatestManifest, targetPath: string): Promise<void> {
+  private async downloadInternal(
+    targetPackage: ResolvedUpdatePackage,
+    manifest: OtaLatestManifest,
+    targetPath: string,
+  ): Promise<void> {
     const tempPath = `${targetPath}.tmp`;
     const stream = fs.createWriteStream(tempPath);
     this.downloadState = {
@@ -387,7 +455,7 @@ export class UpdateManager {
     };
 
     try {
-      const response = await fetch(manifest.download_url, {
+      const response = await fetch(targetPackage.downloadUrl, {
         signal: AbortSignal.timeout(300_000),
         headers: {
           "Cache-Control": "no-cache",
@@ -432,8 +500,8 @@ export class UpdateManager {
         percent: 100,
       };
       const sha256 = (await this.computeFileSha256(tempPath)).toLowerCase();
-      if (sha256 !== manifest.sha256.toLowerCase()) {
-        throw new Error(`校验失败: 期望 ${manifest.sha256}，实际 ${sha256}`);
+      if (sha256 !== targetPackage.sha256.toLowerCase()) {
+        throw new Error(`校验失败: 期望 ${targetPackage.sha256}，实际 ${sha256}`);
       }
 
       fs.renameSync(tempPath, targetPath);
@@ -475,8 +543,9 @@ export class UpdateManager {
       throw new Error("更新包不存在，请重新下载");
     }
 
+    const targetPackage = this.resolveManifestPackage(this.latestManifest);
     const currentSha256 = (await this.computeFileSha256(this.downloadedPath)).toLowerCase();
-    if (currentSha256 !== this.latestManifest.sha256.toLowerCase()) {
+    if (currentSha256 !== targetPackage.sha256.toLowerCase()) {
       this.resetDownloadState();
       throw new Error("更新包校验失败，请重新下载");
     }
@@ -528,8 +597,7 @@ else
   nohup /bin/sh "${escapedScriptPath}" > "${escapedLogPath}" 2>&1 < /dev/null &
 fi`;
     const run = spawn("/bin/sh", ["-c", launcher], {
-      stdout: "ignore",
-      stderr: "ignore",
+      stdio: "ignore",
     });
     const exitCode = await waitForProcessExit(run);
     if (exitCode !== 0) {

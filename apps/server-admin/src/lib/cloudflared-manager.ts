@@ -1,6 +1,5 @@
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
 import { spawnSync } from "node:child_process";
 import { dataPath } from './AppDirManager';
 
@@ -8,7 +7,7 @@ type DownloadState = 'idle' | 'downloading' | 'completed' | 'error';
 
 type Status = {
   supported: boolean;
-  platform: 'darwin' | 'linux-amd64' | 'unsupported';
+  platform: 'darwin' | 'linux-amd64' | 'linux-arm64' | 'linux-arm' | 'unsupported';
   downloaded: boolean;
   progress: {
     status: DownloadState;
@@ -28,11 +27,27 @@ class CloudflaredManager {
   private abortController: AbortController | null = null;
   private progress: Status['progress'] = { status: 'idle', percent: 0 };
 
+  private downloadUrlForPlatform(platform: Status['platform']): string | null {
+    const mirrorBase = 'https://hongkong-10009423.cos.ap-shanghai.myqcloud.com';
+    switch (platform) {
+      case 'linux-amd64':
+        return `${mirrorBase}/cloudflared-linux-amd64`;
+      case 'linux-arm64':
+        return `${mirrorBase}/cloudflared-linux-arm64`;
+      case 'linux-arm':
+        return `${mirrorBase}/cloudflared-linux-arm`;
+      default:
+        return null;
+    }
+  }
+
   private detectPlatform(): Status['platform'] {
     const p = process.platform;
     const a = process.arch;
     if (p === 'darwin') return 'darwin';
     if (p === 'linux' && a === 'x64') return 'linux-amd64';
+    if (p === 'linux' && a === 'arm64') return 'linux-arm64';
+    if (p === 'linux' && a === 'arm') return 'linux-arm';
     return 'unsupported';
   }
 
@@ -48,7 +63,7 @@ class CloudflaredManager {
       } catch {
         downloaded = false;
       }
-    } else if (platform === 'linux-amd64') {
+    } else if (platform === 'linux-amd64' || platform === 'linux-arm64' || platform === 'linux-arm') {
       downloaded = fs.existsSync(BIN_PATH);
     }
 
@@ -69,12 +84,11 @@ class CloudflaredManager {
         return;
     }
     
-    if (platform !== 'linux-amd64') {
+    const url = this.downloadUrlForPlatform(platform);
+    if (!url) {
       this.progress = { status: 'error', percent: 0, error: '当前平台不受支持' };
       return;
     }
-
-    const url = 'https://hongkong-10009423.cos.ap-shanghai.myqcloud.com/cloudflared-linux-amd64';
     this.abortController = new AbortController();
     this.progress = { status: 'downloading', percent: 0 };
     const tempPath = BIN_PATH + '.tmp';
@@ -160,7 +174,7 @@ class CloudflaredManager {
         // ignore
       }
       throw new Error('Cloudflared 未安装，请先通过 brew install cloudflared 安装');
-    } else if (platform === 'linux-amd64') {
+    } else if (platform === 'linux-amd64' || platform === 'linux-arm64' || platform === 'linux-arm') {
       if (fs.existsSync(BIN_PATH)) {
         return BIN_PATH;
       }

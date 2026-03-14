@@ -254,6 +254,8 @@ export type UpdateLatestPayload = {
     force_update: boolean;
     download_url: string;
     sha256: string;
+    download_url_arm64: string;
+    sha256_arm64: string;
     release_notes: string;
 };
 

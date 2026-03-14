@@ -94,8 +94,7 @@ export class AcmeService {
 
   private async runAcmeCommand(args: string[], extraEnv?: Record<string, string>): Promise<AcmeCommandResult> {
     const proc = spawn(this.acmePath, args, {
-      stdout: "pipe",
-      stderr: "pipe",
+      stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, ...(extraEnv || {}) },
     });
     const exitPromise = waitForProcessExit(proc);
@@ -181,8 +180,7 @@ export class AcmeService {
 
     try {
       const unzipProc = spawn("unzip", ["-oq", bundleZipPath, "-d", tmpDir], {
-        stdout: "pipe",
-        stderr: "pipe",
+        stdio: ["ignore", "pipe", "pipe"],
       });
       const unzipExitPromise = waitForProcessExit(unzipProc);
 
@@ -303,8 +301,7 @@ export class AcmeService {
     }
     
     const issueProc = spawn(args[0]!, args.slice(1), {
-      stdout: "pipe",
-      stderr: "pipe",
+      stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, ...(envVars || {}) }
     });
     const issueExitPromise = waitForProcessExit(issueProc);

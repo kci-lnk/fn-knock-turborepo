@@ -1,6 +1,5 @@
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
 import { spawn } from "node:child_process";
 import { dataPath } from './AppDirManager';
 import { waitForProcessExit } from "./runtime";
@@ -9,7 +8,7 @@ type DownloadState = 'idle' | 'downloading' | 'completed' | 'error';
 
 type Status = {
   supported: boolean;
-  platform: 'darwin-arm64' | 'linux-amd64' | 'unsupported';
+  platform: 'darwin-arm64' | 'linux-amd64' | 'linux-arm64' | 'linux-arm' | 'unsupported';
   downloaded: boolean;
   progress: {
     status: DownloadState;
@@ -30,10 +29,23 @@ class FrpManager {
   private abortController: AbortController | null = null;
   private progress: Status['progress'] = { status: 'idle', percent: 0 };
 
+  private archiveNameForPlatform(platform: Status['platform']): string | null {
+    switch (platform) {
+      case 'linux-amd64':
+        return `frp_${VERSION}_linux_amd64`;
+      case 'linux-arm64':
+        return `frp_${VERSION}_linux_arm64`;
+      case 'linux-arm':
+        return `frp_${VERSION}_linux_arm`;
+      case 'darwin-arm64':
+        return `frp_${VERSION}_darwin_arm64`;
+      default:
+        return null;
+    }
+  }
+
   private dirNameForPlatform(platform: Status['platform']): string | null {
-    if (platform === 'linux-amd64') return `frp_${VERSION}_linux_amd64`;
-    if (platform === 'darwin-arm64') return `frp_${VERSION}_darwin_arm64`;
-    return null;
+    return this.archiveNameForPlatform(platform);
   }
 
   private extractedDir(platform: Status['platform']): string | null {
@@ -53,25 +65,21 @@ class FrpManager {
     const a = process.arch;
     if (p === 'darwin' && a === 'arm64') return 'darwin-arm64';
     if (p === 'linux' && a === 'x64') return 'linux-amd64';
+    if (p === 'linux' && a === 'arm64') return 'linux-arm64';
+    if (p === 'linux' && a === 'arm') return 'linux-arm';
     return 'unsupported';
   }
 
   private urlCandidatesForPlatform(platform: Status['platform']): string[] {
     const mirrorBase = 'https://hongkong-10009423.cos.ap-shanghai.myqcloud.com/frp/';
     const ghBase = 'https://github.com/fatedier/frp/releases/download/v0.67.0';
-    if (platform === 'linux-amd64') {
-      return [
-        `${mirrorBase}/frp_${VERSION}_linux_amd64.tar.gz`,
-        `${ghBase}/frp_${VERSION}_linux_amd64.tar.gz`
-      ];
-    }
-    if (platform === 'darwin-arm64') {
-      return [
-        `${mirrorBase}/frp_${VERSION}_darwin_arm64.tar.gz`,
-        `${ghBase}/frp_${VERSION}_darwin_arm64.tar.gz`
-      ];
-    }
-    return [];
+    const archiveName = this.archiveNameForPlatform(platform);
+    if (!archiveName) return [];
+
+    return [
+      `${mirrorBase}/${archiveName}.tar.gz`,
+      `${ghBase}/${archiveName}.tar.gz`
+    ];
   }
 
   getStatus(): Status {

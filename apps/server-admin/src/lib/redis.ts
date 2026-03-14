@@ -54,6 +54,22 @@ export interface FnosShareBypassConfig {
     session_ttl_seconds: number;
 }
 
+export type CaptchaProvider = 'pow' | 'turnstile';
+
+export type CaptchaWidgetMode = 'normal';
+
+export type TurnstileCaptchaConfig = {
+    site_key: string;
+    secret_key: string;
+};
+
+export type CaptchaSettings = {
+    provider: CaptchaProvider;
+    widget_mode: CaptchaWidgetMode;
+    pow: Record<string, never>;
+    turnstile: TurnstileCaptchaConfig;
+};
+
 export type AcmeJobStatus = 'queued' | 'running' | 'succeeded' | 'failed';
 export type AcmeJobMethod = 'dns' | 'http' | 'https';
 export type AcmeJob = {
@@ -151,6 +167,16 @@ const DEFAULT_FNOS_SHARE_BYPASS_CONFIG: FnosShareBypassConfig = {
     session_ttl_seconds: 300,
 };
 
+const DEFAULT_CAPTCHA_SETTINGS: CaptchaSettings = {
+    provider: 'pow',
+    widget_mode: 'normal',
+    pow: {},
+    turnstile: {
+        site_key: '',
+        secret_key: '',
+    },
+};
+
 const normalizePositiveInt = (
     value: unknown,
     fallback: number,
@@ -191,9 +217,28 @@ const normalizeFnosShareBypassConfig = (
     };
 };
 
+const normalizeCaptchaSettings = (
+    value?: Partial<CaptchaSettings> | null,
+): CaptchaSettings => {
+    const raw = value ?? {};
+    const provider = raw.provider === 'turnstile' ? 'turnstile' : 'pow';
+    const turnstileRaw = raw.turnstile ?? {};
+
+    return {
+        provider,
+        widget_mode: 'normal',
+        pow: {},
+        turnstile: {
+            site_key: typeof turnstileRaw.site_key === 'string' ? turnstileRaw.site_key.trim() : '',
+            secret_key: typeof turnstileRaw.secret_key === 'string' ? turnstileRaw.secret_key.trim() : '',
+        },
+    };
+};
+
 export class ConfigManager {
     private redis: Redis;
     private configKey = 'fn_knock:config';
+    private captchaSettingsKey = 'fn_knock:captcha:settings';
     private caHostsKey = 'fn_knock:ca:hosts';
     private acmeJobKey = 'fn_knock:acme:job:';
     private acmeLogsKey = 'fn_knock:acme:logs:';
@@ -557,6 +602,34 @@ export class ConfigManager {
         });
         config.fnos_share_bypass = next;
         await this.saveConfig(config);
+        return next;
+    }
+
+    async getCaptchaSettings(): Promise<CaptchaSettings> {
+        const raw = await this.redis.get(this.captchaSettingsKey);
+        if (!raw) return DEFAULT_CAPTCHA_SETTINGS;
+
+        try {
+            const parsed = JSON.parse(raw) as Partial<CaptchaSettings>;
+            return normalizeCaptchaSettings(parsed);
+        } catch {
+            return DEFAULT_CAPTCHA_SETTINGS;
+        }
+    }
+
+    async updateCaptchaSettings(
+        patch: Partial<CaptchaSettings>,
+    ): Promise<CaptchaSettings> {
+        const current = await this.getCaptchaSettings();
+        const next = normalizeCaptchaSettings({
+            ...current,
+            ...patch,
+            turnstile: {
+                ...current.turnstile,
+                ...(patch.turnstile ?? {}),
+            },
+        });
+        await this.redis.set(this.captchaSettingsKey, JSON.stringify(next));
         return next;
     }
 

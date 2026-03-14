@@ -4,7 +4,7 @@
       <Card class="w-full max-w-sm">
         <CardHeader>
           <CardTitle class="text-2xl text-center">安全验证</CardTitle>
-          <CardDescription class="text-center" v-if="!isAltchaVerified">
+          <CardDescription class="text-center" v-if="!isCaptchaVerified">
             请先完成下方的人机验证
           </CardDescription>
           <CardDescription class="text-center" v-else>
@@ -14,8 +14,11 @@
 
         <CardContent>
           <form @submit.prevent="handleLogin" class="flex flex-col gap-6 items-center" autocomplete="off">
-            <div v-if="!isAltchaVerified && canUseNativeAltcha" class="w-full flex justify-center mt-2">
-              <altcha-widget ref="altchaWidgetRef" :challengeurl="challengeUrl" @statechange="onAltchaStateChange"
+            <div
+              v-if="!isCaptchaVerified && activeCaptchaProvider === 'pow' && isCaptchaProviderAvailable && canUseNativePow"
+              class="w-full flex justify-center mt-2"
+            >
+              <altcha-widget ref="powWidgetRef" :challengeurl="powChallengeUrl" @statechange="onPowStateChange"
                 hidefooter hidelogo class="w-full"
                 style="--altcha-color-border:pink;--altcha-border-width:3px;--altcha-border-radius:8px; --altcha-max-width: 360px;"
                 :strings="JSON.stringify({
@@ -27,16 +30,50 @@
                 })">
               </altcha-widget>
             </div>
-            <div v-else-if="!isAltchaVerified" class="w-full mt-2 space-y-3">
-              <Button type="button" class="w-full" :disabled="isAltchaFallbackLoading" @click="handleAltchaFallbackVerify">
-                <span v-if="isAltchaFallbackLoading"
+            <div v-else-if="!isCaptchaVerified && isCaptchaConfigLoading" class="w-full mt-2 space-y-3">
+              <Skeleton class="h-11 w-full rounded-md" />
+              <Skeleton class="h-4 w-2/3 rounded-md mx-auto" />
+            </div>
+            <div
+              v-else-if="!isCaptchaVerified && activeCaptchaProvider === 'pow' && isCaptchaProviderAvailable"
+              class="w-full mt-2 space-y-3"
+            >
+              <Button type="button" class="w-full" :disabled="isPowFallbackLoading" @click="handlePowFallbackVerify">
+                <span v-if="isPowFallbackLoading"
                   class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
-                {{ isAltchaFallbackLoading ? '正在验证...' : '我不是机器人' }}
+                {{ isPowFallbackLoading ? '正在验证...' : '我不是机器人' }}
               </Button>
+            </div>
+            <div
+              v-else-if="!isCaptchaVerified && activeCaptchaProvider === 'turnstile' && isCaptchaProviderAvailable"
+              class="w-full mt-2 space-y-3"
+            >
+              <TurnstileWidget
+                v-if="hasTurnstileSiteKey"
+                ref="turnstileWidgetRef"
+                :site-key="captchaConfig?.turnstile.site_key || ''"
+                :disabled="isLoading || isPasskeyLoading"
+                @verified="handleTurnstileVerified"
+                @expired="handleCaptchaReset"
+                @reset="handleCaptchaReset"
+                @error="handleTurnstileError"
+              />
+              <div
+                v-else
+                class="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+              >
+                当前 Turnstile 未完成配置，请联系管理员填写 site key。
+              </div>
+            </div>
+            <div
+              v-else-if="!isCaptchaVerified"
+              class="w-full rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+            >
+              {{ captchaUnavailableReason }}
             </div>
 
             <div class="w-full" v-if="isPasskeySupported && isPasskeyAvailable">
-              <Button type="button" :variant="isAltchaVerified ? 'secondary' : 'default'" class="w-full"
+              <Button type="button" :variant="isCaptchaVerified ? 'secondary' : 'default'" class="w-full"
                 :disabled="isPasskeyLoading" @click="handlePasskeyLogin">
                 <span v-if="isPasskeyLoading"
                   class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
@@ -44,7 +81,7 @@
               </Button>
             </div>
 
-            <div class="w-full flex justify-center" v-if="isAltchaVerified">
+            <div class="w-full flex justify-center" v-if="isCaptchaVerified">
               <InputOTP inputmode="numeric" :maxlength="6" v-model="token" :disabled="isLoading" :autofocus="true"
                 autocomplete="off" data-form-type="other" data-1p-ignore="true" data-lpignore="true" data-bwignore="true">
                 <InputOTPGroup>
@@ -53,7 +90,7 @@
               </InputOTP>
             </div>
 
-            <div class="w-full flex justify-center" v-if="isAltchaVerified">
+            <div class="w-full flex justify-center" v-if="isCaptchaVerified">
               <div
                 class="flex items-center justify-center space-x-3 py-2 px-4 rounded-lg transition-colors hover:bg-muted/50 cursor-pointer group">
                 <Checkbox id="rememberMe" v-model:checked="rememberMe"
@@ -97,7 +134,7 @@
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-            <Button type="submit" class="w-full" :disabled="isLoading" v-if="isAltchaVerified">
+            <Button type="submit" class="w-full" :disabled="isLoading" v-if="isCaptchaVerified">
               <span v-if="isLoading"
                 class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
               立即验证
@@ -112,12 +149,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Dialog,
   DialogContent,
@@ -131,9 +169,11 @@ import {
   normalizeRequestOptions,
   serializeCredential,
 } from '@frontend-core/passkey/utils';
-import CryptoJS from 'crypto-js';
-import { apiClient, buildAuthApiPath } from '@/lib/api';
+import type { CaptchaPublicSettings, CaptchaSubmission } from '@frontend-core/captcha/types';
+import { apiClient, buildAuthApiPath, CaptchaAPI } from '@/lib/api';
+import { buildPowSubmission, normalizePowChallenge, solvePowChallenge } from '@/lib/captcha';
 import AuthFooter from '@/components/AuthFooter.vue';
+import TurnstileWidget from '@/components/captcha/TurnstileWidget.vue';
 
 import 'altcha';
 
@@ -153,33 +193,31 @@ const passkeyBindError = ref('');
 const passkeyBindToken = ref('');
 const pendingRunType = ref<0 | 1 | null>(null);
 
-const altchaWidgetRef = ref<any>(null);
-const isAltchaVerified = ref(false);
-const altchaPayload = ref('');
-const canUseNativeAltcha = ref(true);
-const isAltchaFallbackLoading = ref(false);
+const captchaConfig = ref<CaptchaPublicSettings | null>(null);
+const powWidgetRef = ref<any>(null);
+const turnstileWidgetRef = ref<InstanceType<typeof TurnstileWidget> | null>(null);
+const isCaptchaVerified = ref(false);
+const captchaSubmission = ref<CaptchaSubmission | null>(null);
+const canUseNativePow = ref(true);
+const isPowFallbackLoading = ref(false);
+const isCaptchaConfigLoading = ref(true);
 
-const ALTCHA_HASH_BATCH_SIZE = 2000;
-const SUPPORTED_ALTCHA_ALGORITHMS = ['SHA-256', 'SHA-384', 'SHA-512'] as const;
-const challengeUrl = buildAuthApiPath('/challenge');
+const powChallengeUrl = buildAuthApiPath('/challenge');
+const activeCaptchaProvider = computed(() => captchaConfig.value?.provider ?? null);
+const isCaptchaProviderAvailable = computed(() => captchaConfig.value?.available ?? false);
+const captchaUnavailableReason = computed(() => captchaConfig.value?.unavailable_reason || '验证码配置加载失败，请刷新页面后重试。');
+const hasTurnstileSiteKey = computed(() => !!captchaConfig.value?.turnstile.site_key.trim());
 
-type AltchaAlgorithm = (typeof SUPPORTED_ALTCHA_ALGORITHMS)[number];
-type AltchaChallenge = {
-  algorithm: AltchaAlgorithm;
-  challenge: string;
-  maxnumber: number;
-  salt: string;
-  signature: string;
-};
-
-function onAltchaStateChange(ev: CustomEvent) {
+function onPowStateChange(ev: CustomEvent) {
   if (ev.detail.state === 'verified') {
-    isAltchaVerified.value = true;
-    altchaPayload.value = ev.detail.payload;
+    isCaptchaVerified.value = true;
+    captchaSubmission.value = {
+      provider: 'pow',
+      proof: ev.detail.payload,
+    };
     errorMessage.value = '';
   } else {
-    isAltchaVerified.value = false;
-    altchaPayload.value = '';
+    handleCaptchaReset();
   }
 }
 
@@ -189,11 +227,12 @@ onMounted(async () => {
     return;
   }
 
-  canUseNativeAltcha.value = typeof window !== 'undefined'
+  canUseNativePow.value = typeof window !== 'undefined'
     && window.isSecureContext
     && typeof window.crypto !== 'undefined'
     && !!window.crypto.subtle
     && typeof window.crypto.subtle.digest === 'function';
+  await loadCaptchaConfig();
   await initPasskeySupport();
 });
 
@@ -210,81 +249,53 @@ async function redirectIfAuthenticated() {
   return false;
 }
 
-function hashAltchaInput(algorithm: AltchaAlgorithm, input: string): string {
-  switch (algorithm) {
-    case 'SHA-256':
-      return CryptoJS.SHA256(input).toString(CryptoJS.enc.Hex);
-    case 'SHA-384':
-      return CryptoJS.SHA384(input).toString(CryptoJS.enc.Hex);
-    case 'SHA-512':
-      return CryptoJS.SHA512(input).toString(CryptoJS.enc.Hex);
-    default:
-      throw new Error(`Unsupported ALTCHA algorithm: ${algorithm}`);
+async function loadCaptchaConfig() {
+  try {
+    captchaConfig.value = await CaptchaAPI.getConfig();
+  } catch (e: any) {
+    errorMessage.value = e?.response?.data?.message || e?.message || '验证码配置加载失败，请刷新页面后重试';
+    showErrorDialog.value = true;
+  } finally {
+    isCaptchaConfigLoading.value = false;
   }
 }
 
-function normalizeAltchaChallenge(payload: any): AltchaChallenge {
-  const algorithmRaw = String(payload?.algorithm || 'SHA-256').toUpperCase();
-  if (!SUPPORTED_ALTCHA_ALGORITHMS.includes(algorithmRaw as AltchaAlgorithm)) {
-    throw new Error('不支持的 ALTCHA 算法');
-  }
-  const challenge = String(payload?.challenge || '').toLowerCase();
-  const salt = String(payload?.salt || '');
-  const signature = String(payload?.signature || '');
-  const maxnumber = Number(payload?.maxnumber);
-  if (!challenge || !salt || !signature || !Number.isFinite(maxnumber) || maxnumber < 0) {
-    throw new Error('ALTCHA challenge 数据无效');
-  }
-  return {
-    algorithm: algorithmRaw as AltchaAlgorithm,
-    challenge,
-    maxnumber: Math.floor(maxnumber),
-    salt,
-    signature,
-  };
-}
-
-async function solveAltchaChallenge(challenge: AltchaChallenge): Promise<number> {
-  for (let number = 0; number <= challenge.maxnumber; number += 1) {
-    const digest = hashAltchaInput(challenge.algorithm, `${challenge.salt}${number}`).toLowerCase();
-    if (digest === challenge.challenge) {
-      return number;
-    }
-    if (number > 0 && number % ALTCHA_HASH_BATCH_SIZE === 0) {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    }
-  }
-  throw new Error('人机验证求解失败，请刷新页面后重试');
-}
-
-function buildAltchaPayload(challenge: AltchaChallenge, number: number): string {
-  return btoa(JSON.stringify({
-    algorithm: challenge.algorithm,
-    challenge: challenge.challenge,
-    number,
-    salt: challenge.salt,
-    signature: challenge.signature,
-  }));
-}
-
-async function handleAltchaFallbackVerify() {
-  if (isAltchaFallbackLoading.value) return;
-  isAltchaFallbackLoading.value = true;
+async function handlePowFallbackVerify() {
+  if (isPowFallbackLoading.value) return;
+  isPowFallbackLoading.value = true;
   errorMessage.value = '';
   try {
-    const res = await apiClient.get('/challenge');
-    const challenge = normalizeAltchaChallenge(res.data);
-    const number = await solveAltchaChallenge(challenge);
-    altchaPayload.value = buildAltchaPayload(challenge, number);
-    isAltchaVerified.value = true;
+    const challenge = normalizePowChallenge(await CaptchaAPI.getPowChallenge());
+    const number = await solvePowChallenge(challenge);
+    captchaSubmission.value = buildPowSubmission(challenge, number);
+    isCaptchaVerified.value = true;
   } catch (e: any) {
-    isAltchaVerified.value = false;
-    altchaPayload.value = '';
+    handleCaptchaReset();
     errorMessage.value = e?.response?.data?.message || e?.message || '人机验证失败，请重试';
     showErrorDialog.value = true;
   } finally {
-    isAltchaFallbackLoading.value = false;
+    isPowFallbackLoading.value = false;
   }
+}
+
+function handleTurnstileVerified(token: string) {
+  isCaptchaVerified.value = true;
+  captchaSubmission.value = {
+    provider: 'turnstile',
+    token,
+  };
+  errorMessage.value = '';
+}
+
+function handleTurnstileError(message: string) {
+  handleCaptchaReset();
+  errorMessage.value = message;
+  showErrorDialog.value = true;
+}
+
+function handleCaptchaReset() {
+  isCaptchaVerified.value = false;
+  captchaSubmission.value = null;
 }
 
 async function initPasskeySupport() {
@@ -307,7 +318,7 @@ async function handleLogin() {
     showErrorDialog.value = true;
     return;
   }
-  if (!isAltchaVerified.value || !altchaPayload.value) {
+  if (!isCaptchaVerified.value || !captchaSubmission.value) {
     errorMessage.value = '请先完成人机验证';
     showErrorDialog.value = true;
     return;
@@ -319,7 +330,7 @@ async function handleLogin() {
   try {
     const res = await apiClient.post('/login', {
       token: token.value,
-      altcha: altchaPayload.value,
+      captcha: captchaSubmission.value,
       rememberMe: rememberMe.value
     });
 
@@ -441,10 +452,12 @@ function skipPasskeyBind() {
 
 function resetLoginState() {
   token.value = '';
-  isAltchaVerified.value = false;
-  altchaPayload.value = '';
-  if (canUseNativeAltcha.value && altchaWidgetRef.value) {
-    altchaWidgetRef.value.reset();
+  handleCaptchaReset();
+  if (activeCaptchaProvider.value === 'pow' && canUseNativePow.value && powWidgetRef.value) {
+    powWidgetRef.value.reset();
+  }
+  if (activeCaptchaProvider.value === 'turnstile' && turnstileWidgetRef.value) {
+    turnstileWidgetRef.value.reset();
   }
 }
 </script>

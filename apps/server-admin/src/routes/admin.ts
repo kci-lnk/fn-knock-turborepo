@@ -91,6 +91,37 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
             session_ttl_seconds: t.Optional(t.Number()),
         })
     })
+    .get("/config/captcha", async () => {
+        const settings = await configManager.getCaptchaSettings();
+        return { success: true, data: settings };
+    })
+    .post("/config/captcha", async ({ body, set }) => {
+        if (body.provider === 'turnstile') {
+            const siteKey = body.turnstile?.site_key?.trim() || '';
+            const secretKey = body.turnstile?.secret_key?.trim() || '';
+            if (!siteKey || !secretKey) {
+                set.status = 400;
+                return {
+                    success: false,
+                    message: '启用 Cloudflare Turnstile 时，site_key 和 secret_key 都必须填写',
+                };
+            }
+        }
+
+        const next = await configManager.updateCaptchaSettings({
+            provider: body.provider,
+            turnstile: body.turnstile,
+        });
+        return { success: true, data: next };
+    }, {
+        body: t.Object({
+            provider: t.Union([t.Literal('pow'), t.Literal('turnstile')]),
+            turnstile: t.Object({
+                site_key: t.String(),
+                secret_key: t.String(),
+            }),
+        })
+    })
     .get("/config/default_route", async () => {
         const config = await configManager.getConfig();
         return { success: true, data: { default_route: config.default_route } };

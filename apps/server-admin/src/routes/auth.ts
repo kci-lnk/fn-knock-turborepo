@@ -1,7 +1,6 @@
 import { Elysia, t } from "elysia";
 import { configManager } from "../lib/redis";
 import { verifySync } from "otplib";
-import { randomBytes, createHmac, createHash } from "node:crypto";
 import { ipLocationService } from "../lib/ip-location";
 import {
   buildPasskeyBindInfo,
@@ -14,16 +13,12 @@ import { authLogManager } from "../lib/auth-log";
 import { loginBackoffService } from "../lib/login-backoff";
 import { recentAuthIPsManager } from "../lib/recent-auth-ips";
 import { scanDetector } from "../lib/scan-detector";
-import { getRequiredEnv } from "../lib/env";
-import { safeEqualString } from "../lib/security";
 import {
   buildFnosShareSessionClearCookie,
   buildSessionClearCookie,
 } from "../lib/session-cookie";
 import { fnosShareBypassService } from "../lib/fnos-share-bypass";
-
-const ALTCHA_HMAC_KEY = getRequiredEnv("ALTCHA_HMAC_KEY");
-const MAX_NUMBER = 100000;
+import { captchaService } from "../lib/captcha";
 const getClientIp = (request: Request): string =>
   request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "::1";
 
@@ -44,29 +39,20 @@ const hasNormalAccessContext = async (
 };
 
 export const authRoutes = new Elysia({ prefix: "/api/auth" })
-  .get("/challenge", () => {
-    const salt = randomBytes(12).toString("hex");
-    // Expires in 5 minutes
-    const expires = Math.floor(Date.now() / 1000) + 300;
-    const saltWithParams = `${salt}?expires=${expires}`;
-
-    const secret_number = Math.floor(Math.random() * MAX_NUMBER);
-
-    const hash = createHash("sha256");
-    hash.update(saltWithParams + secret_number.toString());
-    const challenge = hash.digest("hex");
-
-    const hmac = createHmac("sha256", ALTCHA_HMAC_KEY);
-    hmac.update(challenge);
-    const signature = hmac.digest("hex");
-
-    return {
-      algorithm: "SHA-256",
-      challenge,
-      maxnumber: MAX_NUMBER,
-      salt: saltWithParams,
-      signature,
-    };
+  .get("/captcha/config", async () => {
+    const settings = await captchaService.getPublicSettings();
+    return { success: true, data: settings };
+  })
+  .get("/challenge", async ({ set }) => {
+    try {
+      return await captchaService.createChallenge();
+    } catch (error: any) {
+      set.status = 503;
+      return {
+        success: false,
+        message: error?.message || "验证码服务暂时不可用",
+      };
+    }
   })
   .get("/ip", async ({ request }) => {
     const clientIp = getClientIp(request);
@@ -102,44 +88,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
         return { success: false, message: "尝试过于频繁，请稍后重试", retryAfter: gate.retryAfter };
       }
       try {
-        const payloadDecoded = Buffer.from(body.altcha, "base64").toString(
-          "utf-8",
-        );
-        const data = JSON.parse(payloadDecoded);
-
-        if (data.algorithm !== "SHA-256") {
-          throw new Error("Invalid algorithm");
-        }
-
-        const expectedChallenge = createHash("sha256")
-          .update(data.salt + data.number.toString())
-          .digest("hex");
-        if (!safeEqualString(String(data.challenge || "").toLowerCase(), expectedChallenge)) {
-          throw new Error("Invalid challenge");
-        }
-
-        const expectedSignature = createHmac("sha256", ALTCHA_HMAC_KEY)
-          .update(data.challenge)
-          .digest("hex");
-        if (!safeEqualString(String(data.signature || "").toLowerCase(), expectedSignature)) {
-          throw new Error("Invalid signature");
-        }
-
-        const expiresMatch = data.salt.match(/expires=(\d+)/);
-        if (expiresMatch) {
-          const expires = parseInt(expiresMatch[1], 10);
-          if (Date.now() / 1000 > expires) {
-            throw new Error("Challenge expired");
-          }
-        }
-
-        const isNewChallenge = await configManager.setNonceIfNotExists(
-          data.challenge,
-          86400,
-        );
-        if (!isNewChallenge) {
-          throw new Error("Challenge has already been used");
-        }
+        await captchaService.verify(body.captcha, { clientIp });
       } catch (e: any) {
         set.status = 400;
         return {
@@ -202,7 +151,16 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
     {
       body: t.Object({
         token: t.String(),
-        altcha: t.String(),
+        captcha: t.Union([
+          t.Object({
+            provider: t.Literal("pow"),
+            proof: t.String(),
+          }),
+          t.Object({
+            provider: t.Literal("turnstile"),
+            token: t.String(),
+          }),
+        ]),
         rememberMe: t.Boolean(),
       }),
     },

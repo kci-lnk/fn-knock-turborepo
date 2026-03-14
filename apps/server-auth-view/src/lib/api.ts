@@ -1,4 +1,5 @@
 import { createSignedApiClient } from '@frontend-core/api/createSignedApiClient';
+import type { CaptchaPublicSettings } from '@frontend-core/captcha/types';
 
 const detectAppBasePrefix = () => {
     if (typeof window === 'undefined') return '';
@@ -55,3 +56,14 @@ export const apiClient = createSignedApiClient({
     hmacSecret,
     getHmacSecret: fetchRuntimeHmacSecret,
 });
+
+export const CaptchaAPI = {
+    async getConfig(): Promise<CaptchaPublicSettings> {
+        const res = await apiClient.get('/captcha/config');
+        return res.data.data;
+    },
+    async getPowChallenge() {
+        const res = await apiClient.get('/challenge');
+        return res.data;
+    },
+};

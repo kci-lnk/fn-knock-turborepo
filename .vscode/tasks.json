@@ -12,7 +12,8 @@
 					"AUTH_PORT": "7997",
 					"GO_BACKEND_PORT": "7996",
 					"GO_REPROXY_PORT": "7999",
-					"NODE_ENV": "developer"
+					"NODE_ENV": "developer",
+					"ALTCHA_HMAC_KEY": "77c15a04-6b00-4ecc-8986-d8697780434b"
 				}
 			},
 			"presentation": {

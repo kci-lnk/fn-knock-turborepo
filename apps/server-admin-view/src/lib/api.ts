@@ -1,5 +1,6 @@
 import type { AppConfig, ProxyMapping, SSLConfig, SSLStatus, PasskeyCredential, TOTPCredential, SessionRecord, ProxyProtocolForce, TrafficStats, DashboardStats, ThreatOverview, FnosShareBypassConfig, SessionMobilityDetails } from '../types';
 import { createSignedApiClient } from '@frontend-core/api/createSignedApiClient';
+import type { CaptchaSettings } from '@frontend-core/captcha/types';
 
 const resolveAppRelativePath = (relativePath: string) => {
     if (typeof window === 'undefined') return relativePath;
@@ -358,6 +359,17 @@ export const SystemAPI = {
         const res = await apiClient.get('/traffic');
         return res.data.data;
     }
+};
+
+export const CaptchaAPI = {
+    async getSettings(): Promise<CaptchaSettings> {
+        const res = await apiClient.get('/config/captcha');
+        return res.data.data;
+    },
+    async updateSettings(payload: CaptchaSettings): Promise<CaptchaSettings> {
+        const res = await apiClient.post('/config/captcha', payload);
+        return res.data.data;
+    },
 };
 
 export const UpdateAPI = {

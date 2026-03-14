@@ -8,6 +8,7 @@ import CloudflaredSettings from './system-settings/CloudflaredSettings.vue'
 import AcmeSSL from './system-settings/AcmeSSL.vue'
 import ScannerFirewallSettings from './system-settings/ScannerFirewallSettings.vue'
 import FnosSettings from './system-settings/FnosSettings.vue'
+import CaptchaSettings from './system-settings/CaptchaSettings.vue'
 import { useSyncedQueryTab } from '@admin-shared/composables/useSyncedQueryTab'
 
 const router = useRouter()
@@ -22,6 +23,7 @@ const allowedTabs = new Set([
   'acme-ssl',
   'fnos',
   'scanner-firewall',
+  'captcha',
 ])
 const { currentTab, navigateTo } = useSyncedQueryTab({
   route,
@@ -43,6 +45,7 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
           <TabsTrigger value="acme-ssl" class="flex-none shrink-0 px-3">ACME</TabsTrigger>
           <TabsTrigger value="fnos" class="flex-none shrink-0 px-3">飞牛</TabsTrigger>
           <TabsTrigger value="scanner-firewall" class="flex-none shrink-0 px-3">拦截</TabsTrigger>
+          <TabsTrigger value="captcha" class="flex-none shrink-0 px-3">验证码</TabsTrigger>
         </TabsList>
       </div>
       <TabsContent value="run-mode" class="pt-2">
@@ -65,6 +68,9 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
       </TabsContent>
       <TabsContent value="scanner-firewall" class="pt-2">
         <ScannerFirewallSettings />
+      </TabsContent>
+      <TabsContent value="captcha" class="pt-2">
+        <CaptchaSettings />
       </TabsContent>
     </Tabs>
   </div>

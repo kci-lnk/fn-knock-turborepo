@@ -6,6 +6,7 @@ PKG_VAR_DIR="${TRIM_PKGVAR:-}"
 LOG_FILE="${PKG_VAR_DIR}/info.log"
 BACKEND_PID_FILE="${PKG_VAR_DIR}/backend.pid"
 GATEWAY_PID_FILE="${PKG_VAR_DIR}/gateway.pid"
+ALTCHA_HMAC_KEY_FILE="${PKG_VAR_DIR}/altcha_hmac_key"
 
 APP_HOME="${TRIM_APPDEST:-}"
 NODE_BIN="${NODE_BIN:-/var/apps/nodejs_v20/target/bin/node}"
@@ -22,9 +23,21 @@ BACKEND_PORT=""
 AUTH_PORT=""
 GO_BACKEND_PORT=""
 GO_REPROXY_PORT=""
+ALTCHA_HMAC_KEY="${ALTCHA_HMAC_KEY:-}"
 
 log_msg() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "${LOG_FILE}"
+}
+
+generate_random_hex() {
+    local bytes="${1:-32}"
+
+    if command -v openssl >/dev/null 2>&1; then
+        openssl rand -hex "${bytes}" 2>/dev/null
+        return $?
+    fi
+
+    od -An -v -N "${bytes}" -tx1 /dev/urandom 2>/dev/null | tr -d ' \n'
 }
 
 log_debug_cmd() {
@@ -117,6 +130,41 @@ ensure_runtime_layout() {
         return 1
     fi
 
+    return 0
+}
+
+resolve_altcha_hmac_key() {
+    local existing=""
+    local generated=""
+
+    if [ -n "${ALTCHA_HMAC_KEY:-}" ]; then
+        return 0
+    fi
+
+    existing="$(cat "${ALTCHA_HMAC_KEY_FILE}" 2>/dev/null || true)"
+    existing="$(printf '%s' "${existing}" | tr -d '\r\n')"
+    if [ -n "${existing}" ]; then
+        ALTCHA_HMAC_KEY="${existing}"
+        return 0
+    fi
+
+    generated="$(generate_random_hex 32)"
+    generated="$(printf '%s' "${generated}" | tr -d '\r\n')"
+    if [ -z "${generated}" ]; then
+        log_msg "Failed to generate ALTCHA_HMAC_KEY"
+        echo "failed to generate ALTCHA_HMAC_KEY" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
+        return 1
+    fi
+
+    if ! printf '%s' "${generated}" > "${ALTCHA_HMAC_KEY_FILE}"; then
+        log_msg "Failed to persist ALTCHA_HMAC_KEY to ${ALTCHA_HMAC_KEY_FILE}"
+        echo "failed to persist ALTCHA_HMAC_KEY" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
+        return 1
+    fi
+    chmod 600 "${ALTCHA_HMAC_KEY_FILE}" 2>/dev/null || true
+
+    ALTCHA_HMAC_KEY="${generated}"
+    log_msg "Generated runtime ALTCHA_HMAC_KEY at ${ALTCHA_HMAC_KEY_FILE}"
     return 0
 }
 
@@ -380,6 +428,10 @@ start_backend() {
         fail_backend_start "Auth static path missing: ${AUTH_STATIC_PATH}" ""
         return 1
     fi
+    if ! resolve_altcha_hmac_key; then
+        fail_backend_start "ALTCHA_HMAC_KEY is unavailable" ""
+        return 1
+    fi
 
     log_msg "Starting Node.js backend (backend-port=${BACKEND_PORT}, auth-port=${AUTH_PORT})..."
     (
@@ -392,6 +444,7 @@ start_backend() {
         AUTH_PORT="${AUTH_PORT}" \
         GO_BACKEND_PORT="${GO_BACKEND_PORT}" \
         GO_REPROXY_PORT="${GO_REPROXY_PORT}" \
+        ALTCHA_HMAC_KEY="${ALTCHA_HMAC_KEY}" \
         "${NODE_BIN}" "${BACKEND_ENTRY}"
     ) >> "${LOG_FILE}" 2>&1 &
 

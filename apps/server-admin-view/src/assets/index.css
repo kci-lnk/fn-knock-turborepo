@@ -5,8 +5,7 @@
 
 @custom-variant dark (&:is(.dark *));
 
-.w-side
-{
+.w-side {
   width: 148px;
 }
 
@@ -124,6 +123,28 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+#nprogress {
+  pointer-events: none;
+}
+
+#nprogress .bar {
+  background: linear-gradient(
+    90deg,
+    oklch(0.59 0.18 252),
+    oklch(0.68 0.16 215),
+    oklch(0.73 0.19 168)
+  );
+  height: 3px;
+  box-shadow: 0 0 14px
+    color-mix(in oklab, var(--color-primary) 28%, transparent);
+}
+
+#nprogress .peg {
+  box-shadow:
+    0 0 10px color-mix(in oklab, var(--color-primary) 40%, transparent),
+    0 0 6px color-mix(in oklab, var(--color-primary) 26%, transparent);
 }
 
 .driver-popover.driverjs-theme {

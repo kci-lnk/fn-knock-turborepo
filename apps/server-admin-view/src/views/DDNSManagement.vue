@@ -397,6 +397,37 @@ function formatTime(iso: string | null): string {
   return formatDateTimeSafe(iso, { locale: 'zh-CN', emptyText: '从未' })
 }
 
+async function copyTextToClipboard(text: string) {
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text)
+    return
+  }
+
+  if (typeof document === 'undefined') {
+    throw new Error('Clipboard API unavailable')
+  }
+
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', '')
+  textarea.style.position = 'fixed'
+  textarea.style.top = '0'
+  textarea.style.left = '0'
+  textarea.style.opacity = '0'
+
+  document.body.appendChild(textarea)
+  textarea.focus()
+  textarea.select()
+  textarea.setSelectionRange(0, textarea.value.length)
+
+  const copied = document.execCommand('copy')
+  document.body.removeChild(textarea)
+
+  if (!copied) {
+    throw new Error('execCommand copy failed')
+  }
+}
+
 async function copyIpAddress(versionLabel: 'IPv4' | 'IPv6', value: string | null) {
   const address = value?.trim()
   if (!address) {
@@ -405,12 +436,14 @@ async function copyIpAddress(versionLabel: 'IPv4' | 'IPv6', value: string | null
   }
 
   try {
-    await navigator.clipboard.writeText(address)
+    await copyTextToClipboard(address)
     toast.success(`${versionLabel} 地址已复制`, { description: address })
   }
   catch (error) {
     console.error('copyIpAddress:', error)
-    toast.error(`复制 ${versionLabel} 地址失败`)
+    toast.error(`复制 ${versionLabel} 地址失败`, {
+      description: '当前页面可能运行在受限 iframe 中，请手动复制。',
+    })
   }
 }
 

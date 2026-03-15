@@ -3,11 +3,12 @@ import { onMounted, onUnmounted, ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { CloudflaredAPI, SystemAPI, ConfigAPI } from '../../lib/api'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { EyeIcon, EyeOffIcon, Trash2 } from 'lucide-vue-next'
+import { EyeIcon, EyeOffIcon, TriangleAlert, Trash2 } from 'lucide-vue-next'
 import { toast } from '@admin-shared/utils/toast'
 import LogViewer from '@admin-shared/components/LogViewer.vue'
 import ConfigCollapsibleCard from '@admin-shared/components/ConfigCollapsibleCard.vue'
@@ -15,15 +16,30 @@ import { extractErrorMessage, useAsyncAction } from '@admin-shared/composables/u
 import { DEFAULT_LOG_WINDOW_SIZE, mergePollingLogWindow } from '@admin-shared/utils/log-window'
 import { useTargetPolling } from '../../composables/useTargetPolling'
 
+type CloudflaredLogAnalysis = {
+  reason: 'origin_tls_hostname_mismatch'
+  requestedHost: string
+  certificateHosts: string[]
+  originUrl?: string
+  originHost?: string
+  evidence: string
+}
+
+const ORIGIN_TLS_HOSTNAME_MISMATCH_REGEX =
+  /tls:\s*failed to verify certificate:\s*x509:\s*certificate is valid for\s+(.+),\s*not\s+([^\s"]+)/i
+const DESTINATION_URL_REGEX = /\bdest=(https?:\/\/[^\s"]+)/i
+
 const router = useRouter()
 
 const isInit = ref<boolean>(false)
 const running = ref<boolean>(false)
 const pid = ref<number | null>(null)
 const logs = ref<string[]>([])
+const cloudflaredLogAnalysis = ref<CloudflaredLogAnalysis | null>(null)
 const showInitDialog = ref(false)
 const showToken = ref(true)
 const configLoaded = ref(false)
+const hasCloudflaredLogBaseline = ref(false)
 
 const token = ref<string>('')
 const { isPending: isSaving, run: runSaveConfig } = useAsyncAction({
@@ -64,6 +80,55 @@ watch(token, (newVal) => {
 
 const canStart = computed(() => isInit.value && !running.value && token.value)
 const canStop = computed(() => running.value)
+const cloudflaredLogAnalysisMessage = computed(() => {
+  const analysis = cloudflaredLogAnalysis.value
+  if (!analysis) return ''
+
+  const certificateTargets = analysis.certificateHosts.join('、')
+  const originTarget = analysis.originHost
+    ? `当前 Tunnel 正在回源到 ${analysis.originHost}`
+    : '当前 Tunnel 回源时'
+
+  return `${originTarget}，日志里的 “certificate is valid for” 表示证书只适用于 ${certificateTargets}，但 cloudflared 实际校验的主机名是 ${analysis.requestedHost}。这通常说明源站证书配置不正确。`
+})
+
+function analyzeCloudflaredLogs(lines: string[]): CloudflaredLogAnalysis | null {
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index]?.trim()
+    if (!line) continue
+
+    const mismatchMatch = line.match(ORIGIN_TLS_HOSTNAME_MISMATCH_REGEX)
+    if (!mismatchMatch) continue
+
+    const certificateHosts = mismatchMatch[1]
+      ?.split(',')
+      .map((item) => item.trim())
+      .filter(Boolean) ?? []
+    const requestedHost = mismatchMatch[2]?.trim()
+    if (!certificateHosts.length || !requestedHost) continue
+
+    const originUrl = line.match(DESTINATION_URL_REGEX)?.[1]
+    let originHost: string | undefined
+    if (originUrl) {
+      try {
+        originHost = new URL(originUrl).hostname
+      } catch {
+        originHost = undefined
+      }
+    }
+
+    return {
+      reason: 'origin_tls_hostname_mismatch',
+      requestedHost,
+      certificateHosts,
+      originUrl,
+      originHost,
+      evidence: line,
+    }
+  }
+
+  return null
+}
 
 async function loadStatus() {
   await runLoadStatus(async () => {
@@ -149,6 +214,7 @@ async function onClearLogsClick() {
     {
       onSuccess: () => {
         logs.value = []
+        cloudflaredLogAnalysis.value = null
         cloudflaredPolling.resetCursor()
         void cloudflaredPolling.refresh()
         toast.success('日志已清空')
@@ -173,6 +239,16 @@ const cloudflaredPolling = useTargetPolling({
 
     running.value = payload.status.running
     pid.value = payload.status.pid
+
+    if (!hasCloudflaredLogBaseline.value) {
+      hasCloudflaredLogBaseline.value = true
+      return
+    }
+
+    const nextAnalysis = analyzeCloudflaredLogs(payload.logs)
+    if (nextAnalysis) {
+      cloudflaredLogAnalysis.value = nextAnalysis
+    }
   },
 })
 
@@ -272,6 +348,22 @@ onUnmounted(() => {
               '未运行' }}</span></span>
           <span v-if="pid">PID：{{ pid }}</span>
         </div>
+        <Alert v-if="cloudflaredLogAnalysis" variant="destructive" class="mb-4 items-start rounded-xl">
+          <TriangleAlert class="h-4 w-4" />
+          <AlertTitle>检测到源站 TLS 证书域名不匹配</AlertTitle>
+          <AlertDescription>
+            <div class="grid gap-2">
+              <p>{{ cloudflaredLogAnalysisMessage }}</p>
+              <ul class="list-disc space-y-1 pl-5">
+                <li>建议在 Cloudflare Tunnel 中关闭 TLS 验证，避免 cloudflared 继续校验源站证书。</li>
+                <li>也可以选择删除证书，并在 Cloudflare 的 Tunnel 配置里将回源协议改为 HTTP。</li>
+              </ul>
+              <div class="rounded-md border border-current/15 bg-background/60 px-3 py-2 font-mono text-xs break-all">
+                {{ cloudflaredLogAnalysis.evidence }}
+              </div>
+            </div>
+          </AlertDescription>
+        </Alert>
         <LogViewer :logs="logs" reversed wrap :show-header="false" />
       </CardContent>
     </Card>

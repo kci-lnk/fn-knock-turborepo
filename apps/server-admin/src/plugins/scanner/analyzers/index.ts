@@ -9,6 +9,7 @@ import { homeAssistantRule } from "./rules/homeassistant";
 import { webdavRule } from "./rules/webdav";
 import { xunleiRule } from "./rules/xunlei";
 import { miniDLNARule } from "./rules/minidlna";
+import { sunPanelRule } from "./rules/sun-panel";
 
 const rules: AnalyzerRule[] = [
   mongoExpressRule,
@@ -20,6 +21,7 @@ const rules: AnalyzerRule[] = [
   alistRule,
   openListRule,
   homeAssistantRule,
+  sunPanelRule,
   webdavRule,
   xunleiRule,
   miniDLNARule

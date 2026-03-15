@@ -1,5 +1,7 @@
-import { networkInterfaces } from "node:os";
-import { Agent } from "undici";
+import { spawn } from "node:child_process";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { networkInterfaces, tmpdir } from "node:os";
+import { join } from "node:path";
 import type { DDNSHttpClient, DDNSNetworkInterfaceAddress, DDNSNetworkInterfaceOption } from "./types";
 
 export const DDNS_NETWORK_INTERFACE_FIELD = "network_interface";
@@ -11,13 +13,6 @@ type DDNSFetchInit = RequestInit & {
   networkInterface?: string | null;
   preferredFamily?: DDNSAddressFamily;
 };
-
-type DDNSBinding = {
-  family: DDNSAddressFamily;
-  localAddress: string;
-};
-
-const agentCache = new Map<string, Agent>();
 
 function isUsableIPv4(address: string): boolean {
   return !(address.startsWith("127.") || address.startsWith("169.254."));
@@ -107,60 +102,221 @@ export function listDDNSNetworkInterfaces(): DDNSNetworkInterfaceOption[] {
     .sort((left, right) => left.name.localeCompare(right.name));
 }
 
-function getBindingCandidates(
-  interfaceName: string,
-  preferredFamily?: DDNSAddressFamily,
-): DDNSBinding[] {
+function ensureNetworkInterfaceExists(interfaceName: string): void {
   const selected = listDDNSNetworkInterfaces().find((item) => item.name === interfaceName);
   if (!selected) {
     throw new Error(`未找到可用网卡: ${interfaceName}`);
   }
-
-  const ipv4 = selected.addresses.find((item) => item.family === "ipv4")?.address ?? null;
-  const ipv6 = selected.addresses.find((item) => item.family === "ipv6")?.address ?? null;
-
-  const bindings: DDNSBinding[] = [];
-  const pushBinding = (family: DDNSAddressFamily, localAddress: string | null) => {
-    if (!localAddress) {
-      return;
-    }
-    if (bindings.some((item) => item.family === family && item.localAddress === localAddress)) {
-      return;
-    }
-    bindings.push({ family, localAddress });
-  };
-
-  if (preferredFamily === 4) {
-    pushBinding(4, ipv4);
-    pushBinding(6, ipv6);
-  } else if (preferredFamily === 6) {
-    pushBinding(6, ipv6);
-    pushBinding(4, ipv4);
-  } else {
-    pushBinding(4, ipv4);
-    pushBinding(6, ipv6);
-  }
-
-  if (bindings.length === 0) {
-    throw new Error(`网卡 ${interfaceName} 没有可用于 DDNS 出站请求的地址`);
-  }
-
-  return bindings;
 }
 
-function getAgent(localAddress: string): Agent {
-  const cached = agentCache.get(localAddress);
-  if (cached) {
-    return cached;
+function getPreferredFamilyArgs(preferredFamily?: DDNSAddressFamily): string[] {
+  if (preferredFamily === 4) {
+    return ["-4"];
+  }
+  if (preferredFamily === 6) {
+    return ["-6"];
+  }
+  return [];
+}
+
+function parseStatusLine(line: string): { status: number; statusText: string } {
+  const match = line.match(/^HTTP\/\S+\s+(\d{3})(?:\s+(.*))?$/i);
+  if (!match) {
+    throw new Error(`无法解析 curl 响应状态行: ${line}`);
   }
 
-  const agent = new Agent({
-    connect: {
-      localAddress,
-    },
+  return {
+    status: Number(match[1]),
+    statusText: (match[2] || "").trim(),
+  };
+}
+
+function parseCurlHeaders(rawHeaders: string): {
+  status: number;
+  statusText: string;
+  headers: Headers;
+} {
+  const normalized = rawHeaders.replace(/\r\n/g, "\n").trim();
+  if (!normalized) {
+    throw new Error("curl 未返回任何响应头");
+  }
+
+  const blocks = normalized
+    .split(/\n\n(?=HTTP\/)/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const finalBlock = blocks.at(-1) || normalized;
+  const lines = finalBlock.split("\n");
+  const { status, statusText } = parseStatusLine(lines[0] || "");
+  const headers = new Headers();
+
+  for (const line of lines.slice(1)) {
+    if (!line) {
+      continue;
+    }
+    const separatorIndex = line.indexOf(":");
+    if (separatorIndex <= 0) {
+      continue;
+    }
+    const key = line.slice(0, separatorIndex).trim();
+    const value = line.slice(separatorIndex + 1).trim();
+    headers.append(key, value);
+  }
+
+  return { status, statusText, headers };
+}
+
+function createAbortError(signal: AbortSignal | null | undefined): Error {
+  const reason = signal?.reason;
+  if (reason instanceof Error) {
+    return reason;
+  }
+  if (typeof reason === "string" && reason) {
+    return new Error(reason);
+  }
+  return new Error("请求已取消");
+}
+
+async function readRequestBody(request: Request): Promise<Buffer | null> {
+  if (!request.body) {
+    return null;
+  }
+
+  const body = Buffer.from(await request.arrayBuffer());
+  return body.length > 0 ? body : null;
+}
+
+async function executeCurl(
+  args: string[],
+  body: Buffer | null,
+  signal: AbortSignal | null | undefined,
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn("curl", args, {
+      stdio: ["pipe", "ignore", "pipe"],
+    });
+    let stderr = "";
+    let settled = false;
+    let killTimer: NodeJS.Timeout | null = null;
+
+    const cleanup = () => {
+      if (killTimer) {
+        clearTimeout(killTimer);
+        killTimer = null;
+      }
+      signal?.removeEventListener("abort", onAbort);
+    };
+
+    const finish = (callback: () => void) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      callback();
+    };
+
+    const onAbort = () => {
+      child.kill("SIGTERM");
+      killTimer = setTimeout(() => {
+        child.kill("SIGKILL");
+      }, 250);
+      killTimer.unref();
+      finish(() => reject(createAbortError(signal)));
+    };
+
+    if (signal?.aborted) {
+      onAbort();
+      return;
+    }
+
+    signal?.addEventListener("abort", onAbort, { once: true });
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+
+    child.on("error", (error) => {
+      finish(() => reject(error));
+    });
+
+    child.on("close", (code, closeSignal) => {
+      finish(() => {
+        if (code === 0) {
+          resolve();
+          return;
+        }
+        const detail = stderr.trim() || closeSignal || `exit ${code ?? "unknown"}`;
+        reject(new Error(`curl 请求失败: ${detail}`));
+      });
+    });
+
+    if (body) {
+      child.stdin.end(body);
+      return;
+    }
+
+    child.stdin.end();
   });
-  agentCache.set(localAddress, agent);
-  return agent;
+}
+
+async function fetchViaCurl(
+  request: Request,
+  options: {
+    networkInterface?: string;
+    preferredFamily?: DDNSAddressFamily;
+  },
+): Promise<Response> {
+  const tempDir = await mkdtemp(join(tmpdir(), "ddns-curl-"));
+  const headerPath = join(tempDir, "headers.txt");
+  const bodyPath = join(tempDir, "body.bin");
+
+  try {
+    const requestForCurl = request.clone();
+    const body = await readRequestBody(requestForCurl);
+    const args = [
+      "--silent",
+      "--show-error",
+      "--location",
+      ...getPreferredFamilyArgs(options.preferredFamily),
+      "--dump-header",
+      headerPath,
+      "--output",
+      bodyPath,
+      "--request",
+      request.method,
+    ];
+
+    if (options.networkInterface) {
+      args.push("--interface", options.networkInterface);
+    }
+
+    request.headers.forEach((value, key) => {
+      args.push("--header", `${key}: ${value}`);
+    });
+
+    if (body) {
+      args.push("--data-binary", "@-");
+    }
+
+    args.push(request.url);
+
+    await executeCurl(args, body, request.signal);
+
+    const [rawHeaders, responseBody] = await Promise.all([
+      readFile(headerPath, "utf8"),
+      readFile(bodyPath).catch(() => Buffer.alloc(0)),
+    ]);
+    const { status, statusText, headers } = parseCurlHeaders(rawHeaders);
+
+    return new Response(responseBody, {
+      status,
+      statusText,
+      headers,
+    });
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
 }
 
 export async function ddnsFetch(
@@ -171,26 +327,14 @@ export async function ddnsFetch(
   const normalizedInterface = normalizeNetworkInterface(networkInterface);
   const request = new Request(input, requestInit);
 
-  if (!normalizedInterface) {
-    return fetch(request);
+  if (normalizedInterface) {
+    ensureNetworkInterfaceExists(normalizedInterface);
   }
 
-  const candidates = getBindingCandidates(normalizedInterface, preferredFamily);
-  let lastError: unknown = null;
-
-  for (const candidate of candidates) {
-    try {
-      return await fetch(request.clone(), {
-        dispatcher: getAgent(candidate.localAddress),
-      } as RequestInit & { dispatcher: Agent });
-    } catch (error) {
-      lastError = error;
-    }
-  }
-
-  const message = lastError instanceof Error ? lastError.message : String(lastError);
-  const tried = candidates.map((item) => item.localAddress).join(", ");
-  throw new Error(`网卡 ${normalizedInterface} 出站请求失败（已尝试: ${tried}）: ${message}`);
+  return fetchViaCurl(request, {
+    networkInterface: normalizedInterface || undefined,
+    preferredFamily,
+  });
 }
 
 export function createDDNSHttpClient(options: {

@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
-import type { DDNSUpdateResult, DDNSUpdateScope } from "../types";
+import type { DDNSHttpClient, DDNSUpdateResult, DDNSUpdateScope } from "../types";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 export const DDNS_UPDATE_SCOPE_FIELD = "update_scope";
@@ -25,6 +25,16 @@ export function applyUpdateScope(
   return {
     ipv4: scope === "ipv6_only" ? null : ipv4,
     ipv6: scope === "ipv4_only" ? null : ipv6,
+  };
+}
+
+export function getUpdateScopeDetectionOptions(scope: DDNSUpdateScope): {
+  enableIPv4: boolean;
+  enableIPv6: boolean;
+} {
+  return {
+    enableIPv4: scope !== "ipv6_only",
+    enableIPv6: scope !== "ipv4_only",
   };
 }
 
@@ -328,9 +338,10 @@ type AliyunAcs3Response = {
 };
 
 export async function requestAliyunAcs3Json<T extends AliyunAcs3Response>(
+  http: DDNSHttpClient,
   options: AliyunAcs3RequestOptions,
 ): Promise<T> {
-  const response = await fetch(buildAliyunAcs3Request(options));
+  const response = await http.fetch(buildAliyunAcs3Request(options));
   const data = await parseJsonResponse<T>(response);
 
   if (!response.ok || data.Code) {

@@ -1,4 +1,4 @@
-import type { DDNSProviderDefinition, DDNSUpdateResult } from "../types";
+import type { DDNSProviderContext, DDNSProviderDefinition, DDNSUpdateResult } from "../types";
 import {
   getTimeoutMs,
   parseJsonResponse,
@@ -37,16 +37,17 @@ export const dnspodProvider: DDNSProviderDefinition = {
 
 async function dnspodRequest(
   api: string,
-  config: Record<string, string>,
+  context: DDNSProviderContext,
   params: Record<string, string>,
 ): Promise<DnspodResponse> {
+  const { config, http } = context;
   const form = new URLSearchParams({
     login_token: `${config.token_id},${config.token_key}`,
     format: "json",
     ...params,
   });
 
-  const response = await fetch(api, {
+  const response = await http.fetch(api, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -59,10 +60,11 @@ async function dnspodRequest(
 }
 
 export async function dnspodUpdate(
-  config: Record<string, string>,
+  context: DDNSProviderContext,
   ipv4: string | null,
   ipv6: string | null,
 ): Promise<DDNSUpdateResult> {
+  const { config } = context;
   const { token_id, token_key, root_domain, domain } = config;
   if (!token_id || !token_key || !root_domain || !domain) {
     return { success: false, message: "DNSPod 配置不完整" };
@@ -73,7 +75,7 @@ export async function dnspodUpdate(
   const recordLine = config.record_line || "默认";
 
   return updateDualStack("DNSPod", ipv4, ipv6, async (recordType, ip) => {
-    const list = await dnspodRequest(DNSPOD_RECORD_LIST_API, config, {
+    const list = await dnspodRequest(DNSPOD_RECORD_LIST_API, context, {
       domain: parsed.rootDomain,
       sub_domain: parsed.recordName,
       record_type: recordType,
@@ -90,7 +92,7 @@ export async function dnspodUpdate(
         return;
       }
 
-      const result = await dnspodRequest(DNSPOD_RECORD_MODIFY_API, config, {
+      const result = await dnspodRequest(DNSPOD_RECORD_MODIFY_API, context, {
         domain: parsed.rootDomain,
         sub_domain: parsed.recordName,
         record_type: recordType,
@@ -106,7 +108,7 @@ export async function dnspodUpdate(
       return;
     }
 
-    const result = await dnspodRequest(DNSPOD_RECORD_CREATE_API, config, {
+    const result = await dnspodRequest(DNSPOD_RECORD_CREATE_API, context, {
       domain: parsed.rootDomain,
       sub_domain: parsed.recordName,
       record_type: recordType,

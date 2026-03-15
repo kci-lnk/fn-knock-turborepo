@@ -1,4 +1,4 @@
-import type { DDNSProviderDefinition, DDNSUpdateResult } from "../types";
+import type { DDNSProviderContext, DDNSProviderDefinition, DDNSUpdateResult } from "../types";
 import {
   getTimeoutMs,
   parseJsonResponse,
@@ -32,11 +32,12 @@ export const porkbunProvider: DDNSProviderDefinition = {
 };
 
 async function porkbunRequest(
-  config: Record<string, string>,
+  context: DDNSProviderContext,
   path: string,
   body: Record<string, unknown>,
 ): Promise<PorkbunResponse> {
-  const response = await fetch(`${PORKBUN_ENDPOINT}${path}`, {
+  const { config, http } = context;
+  const response = await http.fetch(`${PORKBUN_ENDPOINT}${path}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -53,10 +54,11 @@ async function porkbunRequest(
 }
 
 export async function porkbunUpdate(
-  config: Record<string, string>,
+  context: DDNSProviderContext,
   ipv4: string | null,
   ipv6: string | null,
 ): Promise<DDNSUpdateResult> {
+  const { config } = context;
   const { api_key, secret_api_key, root_domain, domain } = config;
   if (!api_key || !secret_api_key || !root_domain || !domain) {
     return { success: false, message: "Porkbun 配置不完整" };
@@ -67,7 +69,7 @@ export async function porkbunUpdate(
 
   return updateDualStack("Porkbun", ipv4, ipv6, async (recordType, ip) => {
     const list = await porkbunRequest(
-      config,
+      context,
       `/retrieveByNameType/${encodeURIComponent(parsed.rootDomain)}/${encodeURIComponent(recordType)}/${encodeURIComponent(parsed.recordName)}`,
       {},
     );
@@ -83,7 +85,7 @@ export async function porkbunUpdate(
       }
 
       const result = await porkbunRequest(
-        config,
+        context,
         `/editByNameType/${encodeURIComponent(parsed.rootDomain)}/${encodeURIComponent(recordType)}/${encodeURIComponent(parsed.recordName)}`,
         {
           content: ip,
@@ -97,7 +99,7 @@ export async function porkbunUpdate(
       return;
     }
 
-    const result = await porkbunRequest(config, `/create/${encodeURIComponent(parsed.rootDomain)}`, {
+    const result = await porkbunRequest(context, `/create/${encodeURIComponent(parsed.rootDomain)}`, {
       name: parsed.recordName,
       type: recordType,
       content: ip,

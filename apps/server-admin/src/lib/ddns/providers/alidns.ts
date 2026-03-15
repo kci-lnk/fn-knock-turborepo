@@ -1,4 +1,4 @@
-import type { DDNSProviderDefinition, DDNSUpdateResult } from "../types";
+import type { DDNSProviderContext, DDNSProviderDefinition, DDNSUpdateResult } from "../types";
 import {
   buildAliyunSignedParams,
   getTimeoutMs,
@@ -47,9 +47,10 @@ export const alidnsProvider: DDNSProviderDefinition = {
 };
 
 async function alidnsRequest<T>(
-  config: Record<string, string>,
+  context: DDNSProviderContext,
   params: Record<string, string>,
 ): Promise<T> {
+  const { config, http } = context;
   const accessKeyId = config.access_key_id?.trim();
   const accessKeySecret = config.access_key_secret?.trim();
   if (!accessKeyId || !accessKeySecret) {
@@ -57,7 +58,7 @@ async function alidnsRequest<T>(
   }
 
   const body = buildAliyunSignedParams(accessKeyId, accessKeySecret, params, "POST");
-  const response = await fetch(ALIDNS_ENDPOINT, {
+  const response = await http.fetch(ALIDNS_ENDPOINT, {
     body,
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -69,10 +70,11 @@ async function alidnsRequest<T>(
 }
 
 export async function alidnsUpdate(
-  config: Record<string, string>,
+  context: DDNSProviderContext,
   ipv4: string | null,
   ipv6: string | null,
 ): Promise<DDNSUpdateResult> {
+  const { config } = context;
   const accessKeyId = config.access_key_id?.trim();
   const accessKeySecret = config.access_key_secret?.trim();
   const rootDomain = config.root_domain?.trim();
@@ -86,7 +88,7 @@ export async function alidnsUpdate(
   const line = (config.line || "default").trim() || "default";
 
   return updateDualStack("阿里云 DNS", ipv4, ipv6, async (recordType, ip) => {
-    const records = await alidnsRequest<AlidnsDescribeResponse>(config, {
+    const records = await alidnsRequest<AlidnsDescribeResponse>(context, {
       Action: "DescribeSubDomainRecords",
       DomainName: parsed.rootDomain,
       Line: line,
@@ -111,7 +113,7 @@ export async function alidnsUpdate(
           continue;
         }
 
-        const result = await alidnsRequest<AlidnsChangeResponse>(config, {
+        const result = await alidnsRequest<AlidnsChangeResponse>(context, {
           Action: "UpdateDomainRecord",
           Line: line,
           RR: parsed.recordName,
@@ -128,7 +130,7 @@ export async function alidnsUpdate(
       return;
     }
 
-    const result = await alidnsRequest<AlidnsChangeResponse>(config, {
+    const result = await alidnsRequest<AlidnsChangeResponse>(context, {
       Action: "AddDomainRecord",
       DomainName: parsed.rootDomain,
       Line: line,

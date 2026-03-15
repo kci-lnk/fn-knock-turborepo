@@ -674,6 +674,7 @@ export type DDNSStatusPayload = {
     enabled: boolean;
     provider: string | null;
     updateScope: 'dual_stack' | 'ipv6_only' | 'ipv4_only';
+    networkInterface: string;
     lastIP: {
         ipv4: string | null;
         ipv6: string | null;
@@ -684,6 +685,20 @@ export type DDNSStatusPayload = {
         outcome: 'updated' | 'noop' | 'skipped' | 'error' | null;
         message: string | null;
     };
+};
+
+export type DDNSNetworkInterfacePayload = {
+    name: string;
+    label: string;
+    summary: string;
+    hasIpv4: boolean;
+    hasIpv6: boolean;
+    addresses: Array<{
+        family: 'ipv4' | 'ipv6';
+        address: string;
+        cidr: string | null;
+        internal: boolean;
+    }>;
 };
 
 export type DDNSPollPayload = {
@@ -738,6 +753,10 @@ export const DDNSAPI = {
     },
     async getProviders(): Promise<Array<{ name: string; label: string; fields: Array<{ key: string; label: string; type: string; placeholder?: string; required?: boolean; options?: Array<{ label: string; value: string }>; description?: string }> }>> {
         const res = await apiClient.get('/ddns/providers');
+        return res.data.data;
+    },
+    async getNetworkInterfaces(): Promise<DDNSNetworkInterfacePayload[]> {
+        const res = await apiClient.get('/ddns/interfaces');
         return res.data.data;
     },
     async setProvider(provider: string): Promise<void> {

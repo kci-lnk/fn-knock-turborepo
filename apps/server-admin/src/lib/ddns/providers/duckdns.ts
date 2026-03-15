@@ -1,4 +1,4 @@
-import type { DDNSProviderDefinition, DDNSUpdateResult } from "../types";
+import type { DDNSProviderContext, DDNSProviderDefinition, DDNSUpdateResult } from "../types";
 import { getTimeoutMs, parseTextResponse } from "./helpers";
 
 const DUCKDNS_ENDPOINT = "https://ddns.duckdns.fnknock.cn/";
@@ -27,7 +27,7 @@ export const duckdnsProvider: DDNSProviderDefinition = {
 };
 
 export async function duckdnsUpdate(
-  config: Record<string, string>,
+  { config, http }: DDNSProviderContext,
   ipv4: string | null,
   ipv6: string | null,
 ): Promise<DDNSUpdateResult> {
@@ -52,7 +52,7 @@ export async function duckdnsUpdate(
   const timeoutMs = getTimeoutMs();
 
   try {
-    const response = await fetch(DUCKDNS_ENDPOINT, {
+    const response = await http.fetch(DUCKDNS_ENDPOINT, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

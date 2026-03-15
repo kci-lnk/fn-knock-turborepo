@@ -17,6 +17,7 @@ import { extractErrorMessage, useAsyncAction } from '@admin-shared/composables/u
 import { formatDateTimeSafe } from '@admin-shared/utils/formatDateTimeSafe'
 import { DEFAULT_LOG_WINDOW_SIZE, mergePollingLogWindow } from '@admin-shared/utils/log-window'
 import { useTargetPolling } from '../composables/useTargetPolling'
+import type { DDNSNetworkInterfacePayload } from '../lib/api'
 
 interface ProviderField {
   key: string
@@ -55,6 +56,8 @@ interface LastCheck {
 type DDNSUpdateScope = 'dual_stack' | 'ipv6_only' | 'ipv4_only'
 
 const UPDATE_SCOPE_KEY = 'update_scope'
+const NETWORK_INTERFACE_KEY = 'network_interface'
+const NETWORK_INTERFACE_AUTO_VALUE = '__auto__'
 const DEFAULT_DDNS_UPDATE_SCOPE: DDNSUpdateScope = 'dual_stack'
 const UPDATE_SCOPE_OPTIONS: Array<{ label: string; value: DDNSUpdateScope }> = [
   { label: 'IPv4 & IPv6', value: 'dual_stack' },
@@ -67,6 +70,14 @@ const normalizeUpdateScope = (value: string | null | undefined): DDNSUpdateScope
     return value
   }
   return DEFAULT_DDNS_UPDATE_SCOPE
+}
+
+const normalizeNetworkInterface = (value: string | null | undefined) => {
+  return value?.trim() || ''
+}
+
+const toNetworkInterfaceSelectValue = (value: string | null | undefined) => {
+  return normalizeNetworkInterface(value) || NETWORK_INTERFACE_AUTO_VALUE
 }
 
 const getUpdateScopeLabel = (value: string | null | undefined) => {
@@ -83,6 +94,8 @@ const lastIP = ref<LastIP>({ ipv4: null, ipv6: null, updated_at: null })
 const lastCheck = ref<LastCheck>({ checked_at: null, outcome: null, message: null })
 const logs = ref<LogEntry[]>([])
 const statusUpdateScope = ref<DDNSUpdateScope>(DEFAULT_DDNS_UPDATE_SCOPE)
+const statusNetworkInterface = ref('')
+const networkInterfaces = ref<DDNSNetworkInterfacePayload[]>([])
 
 const { isPending: isSaving, run: runSaveConfig } = useAsyncAction({
   rethrow: true,
@@ -118,6 +131,11 @@ const { run: runLoadStatus } = useAsyncAction({
 const { run: runLoadProviders } = useAsyncAction({
   onError: (error) => {
     console.error('loadProviders:', extractErrorMessage(error, '加载提供商失败'))
+  },
+})
+const { run: runLoadNetworkInterfaces } = useAsyncAction({
+  onError: (error) => {
+    console.error('loadNetworkInterfaces:', extractErrorMessage(error, '加载网卡列表失败'))
   },
 })
 const { run: runLoadConfig } = useAsyncAction({
@@ -178,6 +196,34 @@ const currentUpdateScopeLabel = computed(() => {
   return getUpdateScopeLabel(providerConfig.value[UPDATE_SCOPE_KEY] || statusUpdateScope.value)
 })
 
+const selectedNetworkInterface = computed(() => {
+  return normalizeNetworkInterface(providerConfig.value[NETWORK_INTERFACE_KEY] || statusNetworkInterface.value)
+})
+
+const resolvedNetworkInterfaces = computed(() => {
+  const items = [...networkInterfaces.value]
+  const selected = selectedNetworkInterface.value
+  if (selected && !items.some(item => item.name === selected)) {
+    items.push({
+      name: selected,
+      label: `${selected}（当前配置，暂不可用）`,
+      summary: '当前配置中的网卡已不可用或没有可用地址',
+      hasIpv4: false,
+      hasIpv6: false,
+      addresses: [],
+    })
+  }
+  return items
+})
+
+const currentNetworkInterfaceLabel = computed(() => {
+  const selected = selectedNetworkInterface.value
+  if (!selected) {
+    return '自动选择'
+  }
+  return resolvedNetworkInterfaces.value.find(item => item.name === selected)?.label || selected
+})
+
 const effectiveUpdateScope = computed<DDNSUpdateScope>(() => {
   return normalizeUpdateScope(providerConfig.value[UPDATE_SCOPE_KEY] || statusUpdateScope.value)
 })
@@ -195,6 +241,7 @@ async function loadStatus() {
     lastIP.value = status.lastIP
     lastCheck.value = status.lastCheck
     statusUpdateScope.value = normalizeUpdateScope(status.updateScope)
+    statusNetworkInterface.value = normalizeNetworkInterface(status.networkInterface)
   })
 }
 
@@ -208,6 +255,12 @@ async function loadProviders() {
   })
 }
 
+async function loadNetworkInterfaces() {
+  await runLoadNetworkInterfaces(async () => {
+    networkInterfaces.value = await DDNSAPI.getNetworkInterfaces()
+  })
+}
+
 async function loadConfig() {
   if (!selectedProvider.value) return
   await runLoadConfig(async () => {
@@ -215,6 +268,7 @@ async function loadConfig() {
     const def = currentProviderDef.value
     const merged: Record<string, string> = {
       [UPDATE_SCOPE_KEY]: normalizeUpdateScope(config[UPDATE_SCOPE_KEY]),
+      [NETWORK_INTERFACE_KEY]: normalizeNetworkInterface(config[NETWORK_INTERFACE_KEY]),
     }
 
     fieldEditReady.value = {}
@@ -245,6 +299,7 @@ const ddnsPolling = useTargetPolling({
     lastIP.value = status.lastIP
     lastCheck.value = status.lastCheck
     statusUpdateScope.value = normalizeUpdateScope(status.updateScope)
+    statusNetworkInterface.value = normalizeNetworkInterface(status.networkInterface)
     if (status.provider) {
       selectedProvider.value = status.provider
     }
@@ -332,7 +387,7 @@ const logLines = computed(() =>
 
 onMounted(async () => {
   const initialized = await runInitialize(async () => {
-    await Promise.all([loadProviders(), loadStatus()])
+    await Promise.all([loadProviders(), loadStatus(), loadNetworkInterfaces()])
     enabledInitialized = true
     await loadConfig()
     return true
@@ -353,7 +408,7 @@ onUnmounted(() => {
       <h2 class="text-xl font-semibold">DDNS 管理</h2>
       <div class="flex items-center gap-3">
         <span class="text-sm text-muted-foreground">{{ enabled ? '已开启自动更新' : '已关闭自动更新' }}</span>
-        <Switch v-model="enabled" :disabled="isTogglingEnabled || isLoading" />
+        <Switch v-model="enabled" :disabled="isTogglingEnabled.value || isLoading" />
       </div>
     </div>
 
@@ -427,6 +482,18 @@ onUnmounted(() => {
                 <p class="text-sm font-medium">{{ currentUpdateScopeLabel }}</p>
               </div>
             </div>
+
+            <div class="flex items-center gap-4 shrink-0">
+              <div class="p-2.5 rounded-xl">
+                <Wifi class="h-5 w-5" />
+              </div>
+              <div class="space-y-1 max-w-[240px]">
+                <p class="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">出站网卡</p>
+                <p class="text-sm font-medium truncate" :title="currentNetworkInterfaceLabel">
+                  {{ currentNetworkInterfaceLabel }}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -448,7 +515,7 @@ onUnmounted(() => {
             </div>
             <div class="w-full max-w-md">
               <Select :modelValue="selectedProvider"
-                :disabled="isSwitchingProvider || isLoading"
+                :disabled="isSwitchingProvider.value || isLoading"
                 @update:modelValue="(val: any) => onProviderChange(String(val ?? ''))">
                 <SelectTrigger class="w-full" id="ddns-provider">
                   <SelectValue placeholder="选择提供商" />
@@ -459,6 +526,40 @@ onUnmounted(() => {
                   </SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+
+          <div v-if="selectedProvider"
+            class="p-4 sm:p-6 grid gap-2 sm:grid-cols-[200px_1fr] md:grid-cols-[240px_1fr] items-start transition-colors hover:bg-muted/10">
+            <div class="space-y-1 mt-1.5">
+              <Label for="ddns-network-interface" class="text-sm font-medium">出站网卡</Label>
+              <p class="text-xs text-muted-foreground hidden sm:block pr-4">
+                测试更新和自动更新都会优先从这里选择的网卡发起请求
+              </p>
+            </div>
+            <div class="w-full max-w-md space-y-2">
+              <Select
+                :modelValue="toNetworkInterfaceSelectValue(providerConfig[NETWORK_INTERFACE_KEY])"
+                @update:modelValue="(val: any) => providerConfig[NETWORK_INTERFACE_KEY] = val === NETWORK_INTERFACE_AUTO_VALUE ? '' : String(val ?? '')">
+                <SelectTrigger class="w-full" id="ddns-network-interface">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem :value="NETWORK_INTERFACE_AUTO_VALUE">
+                    自动选择
+                  </SelectItem>
+                  <SelectItem
+                    v-for="networkInterface in resolvedNetworkInterfaces"
+                    :key="networkInterface.name"
+                    :value="networkInterface.name">
+                    {{ networkInterface.label }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+
+              <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
+                测试更新和自动更新都会优先从这里选择的网卡发起请求
+              </p>
             </div>
           </div>
 

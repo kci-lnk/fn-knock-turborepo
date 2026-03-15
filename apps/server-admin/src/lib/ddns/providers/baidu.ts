@@ -1,4 +1,4 @@
-import type { DDNSProviderDefinition, DDNSUpdateResult } from "../types";
+import type { DDNSProviderContext, DDNSProviderDefinition, DDNSUpdateResult } from "../types";
 import {
   applyBaiduBceAuth,
   getTimeoutMs,
@@ -39,10 +39,11 @@ export const baiduProvider: DDNSProviderDefinition = {
 };
 
 async function baiduRequest<T>(
-  config: Record<string, string>,
+  context: DDNSProviderContext,
   path: string,
   body: Record<string, unknown>,
 ): Promise<T> {
+  const { config, http } = context;
   const accessKeyId = config.access_key_id;
   const secretAccessKey = config.secret_access_key;
   if (!accessKeyId || !secretAccessKey) {
@@ -59,16 +60,17 @@ async function baiduRequest<T>(
   });
 
   applyBaiduBceAuth(request, accessKeyId, secretAccessKey);
-  const response = await fetch(request);
+  const response = await http.fetch(request);
   const data = await parseJsonResponse<T>(response);
   return data;
 }
 
 export async function baiduUpdate(
-  config: Record<string, string>,
+  context: DDNSProviderContext,
   ipv4: string | null,
   ipv6: string | null,
 ): Promise<DDNSUpdateResult> {
+  const { config } = context;
   const { access_key_id, secret_access_key, root_domain, domain } = config;
   if (!access_key_id || !secret_access_key || !root_domain || !domain) {
     return { success: false, message: "百度云 DNS 配置不完整" };
@@ -78,7 +80,7 @@ export async function baiduUpdate(
   const parsed = splitDomain(domain, root_domain);
 
   return updateDualStack("百度云 DNS", ipv4, ipv6, async (recordType, ip) => {
-    const list = await baiduRequest<BaiduRecordListResponse>(config, "/v1/domain/resolve/list", {
+    const list = await baiduRequest<BaiduRecordListResponse>(context, "/v1/domain/resolve/list", {
       domain: parsed.rootDomain,
       pageNum: 1,
       pageSize: 1000,
@@ -94,7 +96,7 @@ export async function baiduUpdate(
         return;
       }
 
-      const result = await baiduRequest<BaiduRecordListResponse>(config, "/v1/domain/resolve/edit", {
+      const result = await baiduRequest<BaiduRecordListResponse>(context, "/v1/domain/resolve/edit", {
         recordId: existing.recordId,
         domain: existing.domain,
         view: existing.view,
@@ -110,7 +112,7 @@ export async function baiduUpdate(
       return;
     }
 
-    const result = await baiduRequest<BaiduRecordListResponse>(config, "/v1/domain/resolve/add", {
+    const result = await baiduRequest<BaiduRecordListResponse>(context, "/v1/domain/resolve/add", {
       domain: parsed.recordName,
       rdType: recordType,
       ttl,

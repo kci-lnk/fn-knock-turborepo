@@ -1,7 +1,7 @@
 import { IPDetector } from "../../plugins/ip-detector";
 import { configManager } from "../redis";
 import { ddnsManager } from ".";
-import { applyUpdateScope, getUpdateScopeUnavailableMessage } from "./providers/helpers";
+import { applyUpdateScope, getUpdateScopeDetectionOptions, getUpdateScopeUnavailableMessage } from "./providers/helpers";
 
 const DDNS_UPDATE_LOCK_NAME = "ddns-update";
 const DDNS_UPDATE_LOCK_TTL_SECONDS = 120;
@@ -65,7 +65,15 @@ export const runAutomaticDDNSCheck = async (
     }
 
     const updateScope = await ddnsManager.getUpdateScope(provider);
-    const ips = await IPDetector.getCurrentIPs();
+    const networkInterface = await ddnsManager.getNetworkInterface(provider);
+    const detectionOptions = getUpdateScopeDetectionOptions(updateScope);
+    const ips = await IPDetector.getCurrentIPs({ networkInterface, ...detectionOptions });
+    if (detectionOptions.enableIPv4 && ips.errors.ipv4 && ips.ipv6) {
+      await ddnsManager.appendLog("warn", `${triggerLabel}: IPv4 获取失败，将继续使用 IPv6 (${ips.errors.ipv4})`);
+    }
+    if (detectionOptions.enableIPv6 && ips.errors.ipv6 && ips.ipv4) {
+      await ddnsManager.appendLog("warn", `${triggerLabel}: IPv6 获取失败，将继续使用 IPv4 (${ips.errors.ipv6})`);
+    }
     if (!ips.ipv4 && !ips.ipv6) {
       const message = `${triggerLabel}: 无法获取公网 IP，已跳过`;
       await ddnsManager.setLastCheck("error", message);

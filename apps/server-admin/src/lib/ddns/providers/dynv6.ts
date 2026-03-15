@@ -1,4 +1,4 @@
-import type { DDNSProviderDefinition, DDNSUpdateResult } from "../types";
+import type { DDNSProviderContext, DDNSProviderDefinition, DDNSUpdateResult } from "../types";
 import { getTimeoutMs } from "./helpers";
 
 export const dynv6Provider: DDNSProviderDefinition = {
@@ -11,7 +11,7 @@ export const dynv6Provider: DDNSProviderDefinition = {
   ],
 };
 
-export const dynv6Update = async (config: Record<string, string>, ipv4: string | null, ipv6: string | null): Promise<DDNSUpdateResult> => {
+export const dynv6Update = async ({ config, http }: DDNSProviderContext, ipv4: string | null, ipv6: string | null): Promise<DDNSUpdateResult> => {
   const { token, zone, ipv6prefix } = config;
   if (!token || !zone) {
     return { success: false, message: "dynv6 配置不完整" };
@@ -26,7 +26,7 @@ export const dynv6Update = async (config: Record<string, string>, ipv4: string |
   const timeoutMs = getTimeoutMs();
 
   try {
-    const res = await fetch(url, {
+    const res = await http.fetch(url, {
       signal: AbortSignal.timeout(timeoutMs),
     });
 

@@ -1,4 +1,4 @@
-import type { DDNSProviderDefinition, DDNSUpdateResult } from "../types";
+import type { DDNSProviderContext, DDNSProviderDefinition, DDNSUpdateResult } from "../types";
 import {
   normalizeDomain,
   requestAliyunAcs3Json,
@@ -92,7 +92,7 @@ export const esaProvider: DDNSProviderDefinition = {
 };
 
 async function esaRequest<T extends { Code?: string; Message?: string }>(
-  config: Record<string, string>,
+  context: DDNSProviderContext,
   action: string,
   method: "GET" | "POST",
   options: {
@@ -100,13 +100,14 @@ async function esaRequest<T extends { Code?: string; Message?: string }>(
     formData?: Record<string, unknown>;
   } = {},
 ): Promise<T> {
+  const { config, http } = context;
   const accessKeyId = config.access_key_id?.trim();
   const accessKeySecret = config.access_key_secret?.trim();
   if (!accessKeyId || !accessKeySecret) {
     throw new Error("阿里云 ESA DNS 配置不完整");
   }
 
-  return requestAliyunAcs3Json<T>({
+  return requestAliyunAcs3Json<T>(http, {
     accessKeyId,
     accessKeySecret,
     action,
@@ -118,7 +119,8 @@ async function esaRequest<T extends { Code?: string; Message?: string }>(
   });
 }
 
-async function resolveSiteId(config: Record<string, string>): Promise<string> {
+async function resolveSiteId(context: DDNSProviderContext): Promise<string> {
+  const { config } = context;
   const siteId = config.site_id?.trim();
   if (siteId) {
     return siteId;
@@ -129,7 +131,7 @@ async function resolveSiteId(config: Record<string, string>): Promise<string> {
     throw new Error("阿里云 ESA DNS 缺少站点名称");
   }
 
-  const result = await esaRequest<EsaListSitesResponse>(config, "ListSites", "GET", {
+  const result = await esaRequest<EsaListSitesResponse>(context, "ListSites", "GET", {
     query: {
       PageNumber: 1,
       PageSize: 100,
@@ -163,10 +165,11 @@ function buildRecordPayload(
 }
 
 export async function esaUpdate(
-  config: Record<string, string>,
+  context: DDNSProviderContext,
   ipv4: string | null,
   ipv6: string | null,
 ): Promise<DDNSUpdateResult> {
+  const { config } = context;
   const domain = normalizeDomain(config.domain || "");
   const siteName = normalizeDomain(config.site_name || "");
   const accessKeyId = config.access_key_id?.trim();
@@ -178,10 +181,10 @@ export async function esaUpdate(
   const ttl = toPositiveInt(config.ttl, 30);
   const proxied = config.proxied === "true";
   const bizName = proxied ? (config.biz_name?.trim() || "web") : undefined;
-  const siteId = await resolveSiteId(config);
+  const siteId = await resolveSiteId(context);
 
   return updateDualStack("阿里云 ESA DNS", ipv4, ipv6, async (recordType, ip) => {
-    const records = await esaRequest<EsaListRecordsResponse>(config, "ListRecords", "GET", {
+    const records = await esaRequest<EsaListRecordsResponse>(context, "ListRecords", "GET", {
       query: {
         PageNumber: 1,
         PageSize: 100,
@@ -198,7 +201,7 @@ export async function esaUpdate(
     });
 
     if (existingRecords.length === 0) {
-      const result = await esaRequest<EsaCreateRecordResponse>(config, "CreateRecord", "POST", {
+      const result = await esaRequest<EsaCreateRecordResponse>(context, "CreateRecord", "POST", {
         query: {
           RecordName: domain,
           SiteId: siteId,
@@ -232,7 +235,7 @@ export async function esaUpdate(
         throw new Error("UpdateFailed: 记录缺少 RecordId");
       }
 
-      await esaRequest<EsaUpdateRecordResponse>(config, "UpdateRecord", "POST", {
+      await esaRequest<EsaUpdateRecordResponse>(context, "UpdateRecord", "POST", {
         query: {
           RecordId: record.RecordId,
           ...buildRecordPayload(recordType, ip, ttl, proxied, bizName),

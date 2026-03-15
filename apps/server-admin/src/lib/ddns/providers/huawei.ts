@@ -1,4 +1,4 @@
-import type { DDNSProviderDefinition, DDNSUpdateResult } from "../types";
+import type { DDNSProviderContext, DDNSProviderDefinition, DDNSUpdateResult } from "../types";
 import {
   applyHuaweiSdkAuth,
   getTimeoutMs,
@@ -43,11 +43,12 @@ export const huaweiProvider: DDNSProviderDefinition = {
 };
 
 async function huaweiRequest<T>(
-  config: Record<string, string>,
+  context: DDNSProviderContext,
   path: string,
   method: "GET" | "POST" | "PUT",
   body?: Record<string, unknown>,
 ): Promise<T> {
+  const { config, http } = context;
   const accessKeyId = config.access_key_id;
   const secretAccessKey = config.secret_access_key;
   if (!accessKeyId || !secretAccessKey) {
@@ -65,15 +66,16 @@ async function huaweiRequest<T>(
   });
 
   applyHuaweiSdkAuth(request, accessKeyId, secretAccessKey, payload);
-  const response = await fetch(request);
+  const response = await http.fetch(request);
   return parseJsonResponse<T>(response);
 }
 
 export async function huaweiUpdate(
-  config: Record<string, string>,
+  context: DDNSProviderContext,
   ipv4: string | null,
   ipv6: string | null,
 ): Promise<DDNSUpdateResult> {
+  const { config } = context;
   const { access_key_id, secret_access_key, root_domain, domain } = config;
   if (!access_key_id || !secret_access_key || !root_domain || !domain) {
     return { success: false, message: "华为云 DNS 配置不完整" };
@@ -84,7 +86,7 @@ export async function huaweiUpdate(
   const fqdnWithDot = `${parsed.fqdn}.`;
 
   const zoneResponse = await huaweiRequest<HuaweiZoneResponse>(
-    config,
+    context,
     `/v2/zones?name=${encodeURIComponent(parsed.rootDomain)}`,
     "GET",
   );
@@ -98,7 +100,7 @@ export async function huaweiUpdate(
 
   return updateDualStack("华为云 DNS", ipv4, ipv6, async (recordType, ip) => {
     const records = await huaweiRequest<HuaweiRecordsetListResponse>(
-      config,
+      context,
       `/v2/recordsets?type=${encodeURIComponent(recordType)}&name=${encodeURIComponent(fqdnWithDot)}`,
       "GET",
     );
@@ -110,7 +112,7 @@ export async function huaweiUpdate(
       }
 
       await huaweiRequest<HuaweiRecordset>(
-        config,
+        context,
         `/v2/zones/${encodeURIComponent(existing.zone_id)}/recordsets/${encodeURIComponent(existing.id)}`,
         "PUT",
         {
@@ -122,7 +124,7 @@ export async function huaweiUpdate(
     }
 
     await huaweiRequest<HuaweiRecordset>(
-      config,
+      context,
       `/v2/zones/${encodeURIComponent(zone.id)}/recordsets`,
       "POST",
       {

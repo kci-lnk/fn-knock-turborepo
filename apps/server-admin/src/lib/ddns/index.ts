@@ -1,8 +1,9 @@
 import { redis } from "../redis";
 import { DEFAULT_REDIS_LOG_BUFFER_MAX_LEN, RedisLogBuffer } from "../redis-log-buffer";
-import type { DDNSLastCheck, DDNSLastIP, DDNSLogEntry, DDNSProviderDefinition, DDNSProviderField, DDNSStatus, DDNSUpdateResult, DDNSUpdateScope } from "./types";
+import type { DDNSLastCheck, DDNSLastIP, DDNSLogEntry, DDNSNetworkInterfaceOption, DDNSProviderDefinition, DDNSProviderField, DDNSStatus, DDNSUpdateResult, DDNSUpdateScope } from "./types";
 import { providerDefinitions, providerUpdaters } from "./providers";
 import { applyUpdateScope, DDNS_UPDATE_SCOPE_FIELD, DEFAULT_DDNS_UPDATE_SCOPE, getUpdateScopeUnavailableMessage, normalizeUpdateScope } from "./providers/helpers";
+import { createDDNSHttpClient, DDNS_NETWORK_INTERFACE_FIELD, DEFAULT_DDNS_NETWORK_INTERFACE, listDDNSNetworkInterfaces, normalizeNetworkInterface } from "./network";
 import { runWithRetry } from "./retry";
 
 const KEYS = {
@@ -58,6 +59,7 @@ export class DDNSManager {
     return {
       ...(data || {}),
       [DDNS_UPDATE_SCOPE_FIELD]: normalizeUpdateScope(data?.[DDNS_UPDATE_SCOPE_FIELD]),
+      [DDNS_NETWORK_INTERFACE_FIELD]: normalizeNetworkInterface(data?.[DDNS_NETWORK_INTERFACE_FIELD]),
     };
   }
 
@@ -66,6 +68,7 @@ export class DDNSManager {
     const normalizedConfig = {
       ...config,
       [DDNS_UPDATE_SCOPE_FIELD]: normalizeUpdateScope(config[DDNS_UPDATE_SCOPE_FIELD]),
+      [DDNS_NETWORK_INTERFACE_FIELD]: normalizeNetworkInterface(config[DDNS_NETWORK_INTERFACE_FIELD]),
     };
     await redis.del(key);
     if (Object.keys(normalizedConfig).length > 0) {
@@ -108,6 +111,16 @@ export class DDNSManager {
     return normalizeUpdateScope(config[DDNS_UPDATE_SCOPE_FIELD]);
   }
 
+  async getNetworkInterface(providerName?: string | null): Promise<string> {
+    const resolvedProviderName = providerName ?? await this.getProvider();
+    if (!resolvedProviderName) {
+      return DEFAULT_DDNS_NETWORK_INTERFACE;
+    }
+
+    const config = await this.getConfig(resolvedProviderName);
+    return normalizeNetworkInterface(config[DDNS_NETWORK_INTERFACE_FIELD]);
+  }
+
   async getLastCheck(): Promise<DDNSLastCheck> {
     const data = await redis.hgetall(KEYS.lastCheck);
     const rawOutcome = data?.outcome;
@@ -142,8 +155,15 @@ export class DDNSManager {
       this.getLastIP(),
       this.getLastCheck(),
     ]);
-    const updateScope = await this.getUpdateScope(provider);
-    return { enabled, provider, updateScope, lastIP, lastCheck };
+    const [updateScope, networkInterface] = await Promise.all([
+      this.getUpdateScope(provider),
+      this.getNetworkInterface(provider),
+    ]);
+    return { enabled, provider, updateScope, networkInterface, lastIP, lastCheck };
+  }
+
+  listNetworkInterfaces(): DDNSNetworkInterfaceOption[] {
+    return listDDNSNetworkInterfaces();
   }
 
   async appendLog(level: DDNSLogEntry["level"], message: string): Promise<void> {
@@ -183,10 +203,13 @@ export class DDNSManager {
     const retryCount = Number(process.env.DDNS_RETRY_COUNT || "1");
     const maxAttempts = Math.max(1, retryCount + 1);
     const delayMs = Number(process.env.DDNS_RETRY_DELAY_MS || "600");
+    const http = createDDNSHttpClient({
+      networkInterface: config[DDNS_NETWORK_INTERFACE_FIELD],
+    });
 
     try {
       return await runWithRetry(
-        () => updater(config, scopedIPs.ipv4, scopedIPs.ipv6),
+        () => updater({ config, http }, scopedIPs.ipv4, scopedIPs.ipv6),
         { maxAttempts, delayMs },
       );
     } catch (e: any) {
@@ -215,6 +238,7 @@ export type {
   DDNSLastCheck,
   DDNSLastIP,
   DDNSLogEntry,
+  DDNSNetworkInterfaceOption,
   DDNSProviderDefinition,
   DDNSProviderField,
   DDNSStatus,

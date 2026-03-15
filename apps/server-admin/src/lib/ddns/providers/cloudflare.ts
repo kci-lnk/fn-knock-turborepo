@@ -1,4 +1,4 @@
-import type { DDNSProviderDefinition, DDNSUpdateResult } from "../types";
+import type { DDNSProviderContext, DDNSProviderDefinition, DDNSUpdateResult } from "../types";
 import { getTimeoutMs, parseJsonResponse } from "./helpers";
 
 export const cloudflareProvider: DDNSProviderDefinition = {
@@ -12,7 +12,7 @@ export const cloudflareProvider: DDNSProviderDefinition = {
   ],
 };
 
-export const cloudflareUpdate = async (config: Record<string, string>, ipv4: string | null, ipv6: string | null): Promise<DDNSUpdateResult> => {
+export const cloudflareUpdate = async ({ config, http }: DDNSProviderContext, ipv4: string | null, ipv6: string | null): Promise<DDNSUpdateResult> => {
   const { api_token, zone_id, domain, proxied } = config;
   if (!api_token || !zone_id || !domain) {
     return { success: false, message: "Cloudflare 配置不完整" };
@@ -29,7 +29,7 @@ export const cloudflareUpdate = async (config: Record<string, string>, ipv4: str
   let ipv6Updated = false;
   const errors: string[] = [];
   const requestJson = async (url: string, init?: RequestInit) => {
-    const response = await fetch(url, {
+    const response = await http.fetch(url, {
       ...init,
       signal: AbortSignal.timeout(getTimeoutMs()),
     });

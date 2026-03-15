@@ -1,4 +1,4 @@
-import type { DDNSProviderDefinition, DDNSUpdateResult } from "../types";
+import type { DDNSProviderContext, DDNSProviderDefinition, DDNSUpdateResult } from "../types";
 import { getTimeoutMs, splitDomain, toPositiveInt, updateDualStack } from "./helpers";
 
 export const godaddyProvider: DDNSProviderDefinition = {
@@ -14,7 +14,7 @@ export const godaddyProvider: DDNSProviderDefinition = {
 };
 
 export async function godaddyUpdate(
-  config: Record<string, string>,
+  { config, http }: DDNSProviderContext,
   ipv4: string | null,
   ipv6: string | null,
 ): Promise<DDNSUpdateResult> {
@@ -27,7 +27,7 @@ export async function godaddyUpdate(
   const parsed = splitDomain(domain, root_domain);
 
   return updateDualStack("GoDaddy", ipv4, ipv6, async (recordType, ip) => {
-    const response = await fetch(
+    const response = await http.fetch(
       `https://api.godaddy.com/v1/domains/${encodeURIComponent(parsed.rootDomain)}/records/${recordType}/${encodeURIComponent(parsed.recordName)}`,
       {
         method: "PUT",

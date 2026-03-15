@@ -13,6 +13,7 @@ import { toast } from '@admin-shared/utils/toast'
 import LogViewer from '@admin-shared/components/LogViewer.vue'
 import ConfigCollapsibleCard from '@admin-shared/components/ConfigCollapsibleCard.vue'
 import HumanFriendlyTime from '@admin-shared/components/common/HumanFriendlyTime.vue'
+import OverflowTooltipText from '@admin-shared/components/common/OverflowTooltipText.vue'
 import { extractErrorMessage, useAsyncAction } from '@admin-shared/composables/useAsyncAction'
 import { formatDateTimeSafe } from '@admin-shared/utils/formatDateTimeSafe'
 import { DEFAULT_LOG_WINDOW_SIZE, mergePollingLogWindow } from '@admin-shared/utils/log-window'
@@ -200,6 +201,10 @@ const selectedNetworkInterface = computed(() => {
   return normalizeNetworkInterface(providerConfig.value[NETWORK_INTERFACE_KEY] || statusNetworkInterface.value)
 })
 
+const configuredNetworkInterface = computed(() => {
+  return normalizeNetworkInterface(providerConfig.value[NETWORK_INTERFACE_KEY])
+})
+
 const resolvedNetworkInterfaces = computed(() => {
   const items = [...networkInterfaces.value]
   const selected = selectedNetworkInterface.value
@@ -224,12 +229,26 @@ const currentNetworkInterfaceLabel = computed(() => {
   return resolvedNetworkInterfaces.value.find(item => item.name === selected)?.label || selected
 })
 
+const configuredNetworkInterfaceLabel = computed(() => {
+  const selected = configuredNetworkInterface.value
+  if (!selected) {
+    return '自动选择'
+  }
+  return resolvedNetworkInterfaces.value.find(item => item.name === selected)?.label || selected
+})
+
+const selectedNetworkInterfaceDetail = computed(() => {
+  return configuredNetworkInterface.value ? configuredNetworkInterfaceLabel.value : ''
+})
+
 const effectiveUpdateScope = computed<DDNSUpdateScope>(() => {
   return normalizeUpdateScope(providerConfig.value[UPDATE_SCOPE_KEY] || statusUpdateScope.value)
 })
 
 const showIPv4Status = computed(() => effectiveUpdateScope.value !== 'ipv6_only')
 const showIPv6Status = computed(() => effectiveUpdateScope.value !== 'ipv4_only')
+const isEnabledSwitchDisabled = computed(() => isTogglingEnabled.value || isLoading.value)
+const isProviderSelectDisabled = computed(() => isSwitchingProvider.value || isLoading.value)
 
 async function loadStatus() {
   await runLoadStatus(async () => {
@@ -378,6 +397,23 @@ function formatTime(iso: string | null): string {
   return formatDateTimeSafe(iso, { locale: 'zh-CN', emptyText: '从未' })
 }
 
+async function copyIpAddress(versionLabel: 'IPv4' | 'IPv6', value: string | null) {
+  const address = value?.trim()
+  if (!address) {
+    toast.error(`${versionLabel} 地址不可用`)
+    return
+  }
+
+  try {
+    await navigator.clipboard.writeText(address)
+    toast.success(`${versionLabel} 地址已复制`, { description: address })
+  }
+  catch (error) {
+    console.error('copyIpAddress:', error)
+    toast.error(`复制 ${versionLabel} 地址失败`)
+  }
+}
+
 const logLines = computed(() =>
   logs.value.map((e) => {
     const tag = e.level === 'error' ? '[错误]' : e.level === 'warn' ? '[警告]' : '[信息]'
@@ -408,7 +444,7 @@ onUnmounted(() => {
       <h2 class="text-xl font-semibold">DDNS 管理</h2>
       <div class="flex items-center gap-3">
         <span class="text-sm text-muted-foreground">{{ enabled ? '已开启自动更新' : '已关闭自动更新' }}</span>
-        <Switch v-model="enabled" :disabled="isTogglingEnabled.value || isLoading" />
+        <Switch v-model="enabled" :disabled="isEnabledSwitchDisabled" />
       </div>
     </div>
 
@@ -442,7 +478,14 @@ onUnmounted(() => {
               </div>
               <div class="space-y-1">
                 <p class="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">IPv4地址</p>
-                <p class="text-sm font-mono font-medium">{{ lastIP.ipv4 || '---.---.---.---' }}</p>
+                <button
+                  type="button"
+                  class="block text-left text-sm font-mono font-medium transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm disabled:pointer-events-none disabled:text-foreground"
+                  :disabled="!lastIP.ipv4"
+                  @click="copyIpAddress('IPv4', lastIP.ipv4)"
+                >
+                  {{ lastIP.ipv4 || '---.---.---.---' }}
+                </button>
               </div>
             </div>
 
@@ -455,9 +498,18 @@ onUnmounted(() => {
               </div>
               <div class="space-y-1 overflow-hidden w-full">
                 <p class="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">IPv6地址</p>
-                <p class="text-sm font-mono font-medium truncate" :title="lastIP.ipv6 || ''">
-                  {{ lastIP.ipv6 || '未检测到地址' }}
-                </p>
+                <button
+                  type="button"
+                  class="block min-w-0 max-w-full rounded-sm text-left transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:text-foreground"
+                  :disabled="!lastIP.ipv6"
+                  @click="copyIpAddress('IPv6', lastIP.ipv6)"
+                >
+                  <OverflowTooltipText
+                    as="span"
+                    :text="lastIP.ipv6 || '未检测到地址'"
+                    class="text-sm font-mono font-medium"
+                  />
+                </button>
               </div>
             </div>
           </div>
@@ -489,9 +541,11 @@ onUnmounted(() => {
               </div>
               <div class="space-y-1 max-w-[240px]">
                 <p class="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">出站网卡</p>
-                <p class="text-sm font-medium truncate" :title="currentNetworkInterfaceLabel">
-                  {{ currentNetworkInterfaceLabel }}
-                </p>
+                <OverflowTooltipText
+                  as="p"
+                  :text="currentNetworkInterfaceLabel"
+                  class="text-sm font-medium"
+                />
               </div>
             </div>
           </div>
@@ -515,7 +569,7 @@ onUnmounted(() => {
             </div>
             <div class="w-full max-w-md">
               <Select :modelValue="selectedProvider"
-                :disabled="isSwitchingProvider.value || isLoading"
+                :disabled="isProviderSelectDisabled"
                 @update:modelValue="(val: any) => onProviderChange(String(val ?? ''))">
                 <SelectTrigger class="w-full" id="ddns-provider">
                   <SelectValue placeholder="选择提供商" />
@@ -541,10 +595,16 @@ onUnmounted(() => {
               <Select
                 :modelValue="toNetworkInterfaceSelectValue(providerConfig[NETWORK_INTERFACE_KEY])"
                 @update:modelValue="(val: any) => providerConfig[NETWORK_INTERFACE_KEY] = val === NETWORK_INTERFACE_AUTO_VALUE ? '' : String(val ?? '')">
-                <SelectTrigger class="w-full" id="ddns-network-interface">
-                  <SelectValue />
+                <SelectTrigger
+                  class="w-full overflow-hidden"
+                  id="ddns-network-interface">
+                  <SelectValue :placeholder="'自动选择'">
+                    <span class="block min-w-0 max-w-full truncate">
+                      {{ configuredNetworkInterfaceLabel }}
+                    </span>
+                  </SelectValue>
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent class="w-[var(--reka-select-trigger-width)] max-w-[min(32rem,calc(100vw-2rem))]">
                   <SelectItem :value="NETWORK_INTERFACE_AUTO_VALUE">
                     自动选择
                   </SelectItem>
@@ -552,10 +612,24 @@ onUnmounted(() => {
                     v-for="networkInterface in resolvedNetworkInterfaces"
                     :key="networkInterface.name"
                     :value="networkInterface.name">
-                    {{ networkInterface.label }}
+                    <div class="min-w-0 flex-1 pr-5">
+                      <OverflowTooltipText
+                        :text="networkInterface.label"
+                        class="text-sm"
+                        tooltip-align="start"
+                        tooltip-side="right"
+                      />
+                    </div>
                   </SelectItem>
                 </SelectContent>
               </Select>
+
+              <p
+                v-if="selectedNetworkInterfaceDetail"
+                class="text-[11px] leading-5 text-muted-foreground break-all"
+              >
+                {{ selectedNetworkInterfaceDetail }}
+              </p>
 
               <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
                 测试更新和自动更新都会优先从这里选择的网卡发起请求

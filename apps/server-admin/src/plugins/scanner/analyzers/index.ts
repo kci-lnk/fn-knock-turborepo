@@ -4,7 +4,7 @@ import { redisInsightRule } from "./rules/redis-insight";
 import { go2rtcRule } from "./rules/go2trc";
 import { fnosRule } from "./rules/fnos";
 import { luckyRule } from "./rules/lucky";
-import { alistRule } from "./rules/alist";
+import { alistRule, openListRule, xiaoyaRule } from "./rules/alist";
 import { homeAssistantRule } from "./rules/homeassistant";
 import { webdavRule } from "./rules/webdav";
 import { xunleiRule } from "./rules/xunlei";
@@ -16,7 +16,9 @@ const rules: AnalyzerRule[] = [
   go2rtcRule,
   fnosRule,
   luckyRule,
+  xiaoyaRule,
   alistRule,
+  openListRule,
   homeAssistantRule,
   webdavRule,
   xunleiRule,

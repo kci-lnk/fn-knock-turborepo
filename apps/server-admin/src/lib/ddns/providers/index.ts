@@ -8,6 +8,7 @@ import { dynv6Provider, dynv6Update } from "./dynv6";
 import { esaProvider, esaUpdate } from "./esa";
 import { godaddyProvider, godaddyUpdate } from "./godaddy";
 import { huaweiProvider, huaweiUpdate } from "./huawei";
+import { noipProvider, noipUpdate } from "./noip";
 import { porkbunProvider, porkbunUpdate } from "./porkbun";
 import { tencentcloudProvider, tencentcloudUpdate } from "./tencentcloud";
 
@@ -21,6 +22,7 @@ export const providerDefinitions: DDNSProviderDefinition[] = [
   esaProvider,
   godaddyProvider,
   huaweiProvider,
+  noipProvider,
   porkbunProvider,
   tencentcloudProvider,
 ];
@@ -35,6 +37,7 @@ export const providerUpdaters: Record<string, DDNSProviderUpdater> = {
   esa: esaUpdate,
   godaddy: godaddyUpdate,
   huaweicloud: huaweiUpdate,
+  noip: noipUpdate,
   porkbun: porkbunUpdate,
   tencentcloud: tencentcloudUpdate,
 };

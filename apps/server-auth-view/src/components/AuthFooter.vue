@@ -2,17 +2,17 @@
   <footer class="flex justify-center px-4 pt-6 pb-2 text-xs text-muted-foreground/60">
     <div class="w-full max-w-sm flex flex-col items-center gap-2">
       <div
-        v-if="clientIp"
+        v-if="props.clientIp"
         class="w-full flex flex-col items-center gap-1 text-center sm:flex-row sm:flex-wrap sm:justify-center sm:gap-x-1.5 sm:gap-y-1"
       >
         <span class="inline-flex items-center gap-1.5 min-w-0 sm:shrink-0">
-          <span class="break-all text-center sm:break-normal sm:whitespace-nowrap">{{ clientIp }}</span>
+          <span class="break-all text-center sm:break-normal sm:whitespace-nowrap">{{ props.clientIp }}</span>
         </span>
         <span
-          v-if="ipLocation"
+          v-if="props.ipLocation"
           class="break-words sm:break-normal sm:whitespace-nowrap sm:shrink-0"
         >
-          {{ ipLocation }}
+          {{ props.ipLocation }}
         </span>
       </div>
 
@@ -33,28 +33,14 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
 import { Github } from 'lucide-vue-next';
-import { apiClient } from '@/lib/api';
 
 const APP_GITHUB_URL = 'https://github.com/kci-lnk/fn-knock-turborepo';
-
-const clientIp = ref('');
-const ipLocation = ref('');
-
-async function fetchIpInfo() {
-  try {
-    const res = await apiClient.get('/ip');
-    if (res.data?.success) {
-      clientIp.value = res.data.data.ip;
-      ipLocation.value = res.data.data.location;
-    }
-  } catch (error) {
-    console.error('Failed to fetch IP info:', error);
-  }
-}
-
-onMounted(() => {
-  void fetchIpInfo();
+const props = withDefaults(defineProps<{
+  clientIp?: string;
+  ipLocation?: string;
+}>(), {
+  clientIp: '',
+  ipLocation: '',
 });
 </script>

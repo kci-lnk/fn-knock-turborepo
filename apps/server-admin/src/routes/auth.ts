@@ -1,12 +1,17 @@
 import { Elysia, t } from "elysia";
 import { configManager } from "../lib/redis";
 import { verifySync } from "otplib";
-import { ipLocationService } from "../lib/ip-location";
 import {
   buildPasskeyBindInfo,
   handleLoginSuccess,
 } from "../lib/auth-utils";
+import {
+  applyAuthResponseHeaders,
+  hasNormalAccessContext,
+  resolveAuthAccess,
+} from "../lib/auth-access";
 import { authMobilitySessionManager } from "../lib/auth-mobility-session";
+import { buildClientInfo, getClientIp } from "../lib/auth-request";
 import { passkeyRoutes } from "./auth/passkey";
 import { whitelistManager } from "../lib/whitelist-manager";
 import { authLogManager } from "../lib/auth-log";
@@ -19,26 +24,64 @@ import {
 } from "../lib/session-cookie";
 import { fnosShareBypassService } from "../lib/fnos-share-bypass";
 import { captchaService } from "../lib/captcha";
-const getClientIp = (request: Request): string =>
-  request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "::1";
 
-const hasNormalAccessContext = async (
-  request: Request,
-  clientIp: string,
-): Promise<boolean> => {
-  if (await whitelistManager.hasValidIP(clientIp)) {
-    return true;
-  }
-
-  const identity = authMobilitySessionManager.inspectRequest(request);
-  if (identity.sessionId) {
-    return configManager.isValidSession(identity.sessionId);
-  }
-
-  return false;
+const buildPasskeyStatus = async () => {
+  const passkeys = await configManager.getPasskeys();
+  return { available: passkeys.length > 0 };
 };
 
 export const authRoutes = new Elysia({ prefix: "/api/auth" })
+  .get("/bootstrap", async ({ request, set }) => {
+    const clientIp = getClientIp(request);
+    const [auth, client, captcha, passkey] = await Promise.all([
+      resolveAuthAccess(request, clientIp),
+      buildClientInfo(clientIp),
+      captchaService.getPublicSettings(),
+      buildPasskeyStatus(),
+    ]);
+
+    applyAuthResponseHeaders(set, auth);
+
+    return {
+      success: true,
+      data: {
+        auth: {
+          authenticated: auth.authorized,
+          message: auth.message,
+        },
+        client,
+        captcha,
+        passkey,
+      },
+    };
+  })
+  .get("/session", async ({ request, set }) => {
+    const clientIp = getClientIp(request);
+    const auth = await resolveAuthAccess(request, clientIp);
+    applyAuthResponseHeaders(set, auth);
+
+    if (!auth.authorized) {
+      set.status = 401;
+      return { success: false, message: auth.message };
+    }
+
+    const [client, passkey] = await Promise.all([
+      buildClientInfo(clientIp),
+      buildPasskeyStatus(),
+    ]);
+
+    return {
+      success: true,
+      data: {
+        auth: {
+          authenticated: true,
+          message: auth.message,
+        },
+        client,
+        passkey,
+      },
+    };
+  })
   .get("/captcha/config", async () => {
     const settings = await captchaService.getPublicSettings();
     return { success: true, data: settings };
@@ -56,24 +99,14 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
   })
   .get("/ip", async ({ request }) => {
     const clientIp = getClientIp(request);
-    let ipLocationStr = "";
-
-    try {
-      const ipAddr = clientIp === '::1' ? '127.0.0.1' : clientIp;
-      const ipInfo = await ipLocationService.getIpLocation(ipAddr);
-      if (ipInfo) {
-        ipLocationStr = ipInfo.raw;
-      }
-    } catch (err) {
-      console.error("Failed to query IP location:", err);
-    }
+    const client = await buildClientInfo(clientIp);
 
     return {
       success: true,
       data: {
-        ip: clientIp,
-        location: ipLocationStr
-      }
+        ip: client.ip,
+        location: client.location,
+      },
     };
   })
   .post(
@@ -252,34 +285,12 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
     });
   })
   .get("/verify", async ({ request, set }) => {
-    const clientIp = getClientIp(request);
-    const isWhitelisted = await whitelistManager.hasValidIP(clientIp);
-    if (isWhitelisted) {
-      await authMobilitySessionManager.syncTrustedRequest(request, clientIp);
-      await recentAuthIPsManager.recordVerified(clientIp);
-      return { success: true, message: "Authorized by IP whitelist" };
-    }
-
-    const restored = await authMobilitySessionManager.tryRestoreAccess(request, clientIp);
-    if (restored.success) {
-      await recentAuthIPsManager.recordVerified(clientIp);
-      return { success: true, message: restored.message || "Authorized" };
-    }
-
-    const shareAuth = await fnosShareBypassService.authorize(request);
-    const [shareCookie] = shareAuth.setCookies ?? [];
-    if (shareCookie) {
-      set.headers["Set-Cookie"] = shareCookie;
-    }
-    if ("responseHeaders" in shareAuth && shareAuth.responseHeaders) {
-      for (const [key, value] of Object.entries(shareAuth.responseHeaders)) {
-        set.headers[key] = value;
-      }
-    }
-    if (shareAuth.authorized) {
-      return { success: true, message: "Authorized by fnos share link" };
+    const auth = await resolveAuthAccess(request);
+    applyAuthResponseHeaders(set, auth);
+    if (auth.authorized) {
+      return { success: true, message: auth.message };
     }
 
     set.status = 401;
-    return { success: false, message: "Unauthorized" };
+    return { success: false, message: auth.message };
   });

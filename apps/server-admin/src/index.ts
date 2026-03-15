@@ -12,6 +12,7 @@ import { authRoutes } from "./routes/auth";
 import { systemRoutes } from "./routes/system";
 import { backoffRoutes } from "./routes/backoff";
 import { scannerRoutes } from "./routes/scanner";
+import { authRateLimitMiddleware } from "./middleware/auth-rate-limit";
 import { hmacMiddleware } from "./middleware/hmac";
 import { frpcRoutes, restoreFrpcOnBoot } from "./routes/frpc";
 import { goBackend } from "./lib/go-backend";
@@ -192,6 +193,7 @@ const normalizeAuthPath = (path: string) => {
 };
 
 authApp.use(cors());
+authApp.use(authRateLimitMiddleware);
 authApp.use(hmacMiddleware);
 authApp.use(authRoutes);
 authApp.use(new Elysia({ prefix: AUTH_PUBLIC_PREFIX }).use(authRoutes));

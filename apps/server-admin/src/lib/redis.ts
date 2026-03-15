@@ -222,7 +222,7 @@ const normalizeCaptchaSettings = (
 ): CaptchaSettings => {
     const raw = value ?? {};
     const provider = raw.provider === 'turnstile' ? 'turnstile' : 'pow';
-    const turnstileRaw = raw.turnstile ?? {};
+    const turnstileRaw: Partial<TurnstileCaptchaConfig> = raw.turnstile ?? {};
 
     return {
         provider,

@@ -39,7 +39,7 @@
       </Card>
     </div>
 
-    <AuthFooter />
+    <AuthFooter :client-ip="clientIp" :ip-location="ipLocation" />
   </div>
 </template>
 
@@ -53,7 +53,7 @@ import {
     normalizeCreationOptions,
     serializeCredential,
 } from '@frontend-core/passkey/utils';
-import { apiClient } from '@/lib/api';
+import { apiClient, AuthAPI } from '@/lib/api';
 import AuthFooter from '@/components/AuthFooter.vue';
 
 const router = useRouter();
@@ -63,15 +63,19 @@ const isPasskeyAvailable = ref(false);
 const isPasskeyBinding = ref(false);
 const passkeyError = ref('');
 const isCheckingAuth = ref(true);
+const clientIp = ref('');
+const ipLocation = ref('');
 
-async function checkAuth() {
+function initPasskeySupport() {
+    isPasskeySupported.value = typeof window !== 'undefined' && !!window.PublicKeyCredential;
+}
+
+async function loadSession() {
     try {
-        const res = await apiClient.get('/verify');
-        if (!res.data || res.data.success !== true) {
-            console.warn('验证失败:', res.data?.message || '未知错误');
-            await router.replace('/login');
-            return false;
-        }
+        const session = await AuthAPI.getSession();
+        clientIp.value = session.client.ip;
+        ipLocation.value = session.client.location;
+        isPasskeyAvailable.value = !!session.passkey.available;
         return true;
     } catch (e: any) {
         console.error('身份验证请求异常:', e);
@@ -82,26 +86,12 @@ async function checkAuth() {
     }
 }
 onMounted(async () => {
-    const isAuthenticated = await checkAuth();
+    initPasskeySupport();
+    const isAuthenticated = await loadSession();
     if (!isAuthenticated) {
         return;
     }
-    await initPasskeySupport();
 });
-
-async function initPasskeySupport() {
-    if (typeof window === 'undefined' || !window.PublicKeyCredential) {
-        isPasskeySupported.value = false;
-        return;
-    }
-    isPasskeySupported.value = true;
-    try {
-        const res = await apiClient.get('/passkey/status');
-        isPasskeyAvailable.value = !!res.data?.data?.available;
-    } catch {
-        isPasskeyAvailable.value = false;
-    }
-}
 
 async function handleLogout() {
     isLoading.value = true;

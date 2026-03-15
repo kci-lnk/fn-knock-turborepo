@@ -1,4 +1,5 @@
 import { createSignedApiClient } from '@frontend-core/api/createSignedApiClient';
+import type { AuthBootstrapData, AuthSessionData } from '@frontend-core/auth/types';
 import type { CaptchaPublicSettings } from '@frontend-core/captcha/types';
 
 const detectAppBasePrefix = () => {
@@ -65,5 +66,16 @@ export const CaptchaAPI = {
     async getPowChallenge() {
         const res = await apiClient.get('/challenge');
         return res.data;
+    },
+};
+
+export const AuthAPI = {
+    async getBootstrap(): Promise<AuthBootstrapData> {
+        const res = await apiClient.get('/bootstrap');
+        return res.data.data;
+    },
+    async getSession(): Promise<AuthSessionData> {
+        const res = await apiClient.get('/session');
+        return res.data.data;
     },
 };

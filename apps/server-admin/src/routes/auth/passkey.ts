@@ -7,6 +7,7 @@ import {
   getRpInfo,
   handleLoginSuccess,
 } from "../../lib/auth-utils";
+import { getClientIp } from "../../lib/auth-request";
 import { authLogManager } from "../../lib/auth-log";
 import {
   generateAuthenticationOptions,
@@ -16,8 +17,6 @@ import {
 } from "@simplewebauthn/server";
 
 const RP_NAME = "fn-knock";
-const getClientIp = (request: Request): string =>
-  request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "::1";
 
 export const passkeyRoutes = new Elysia({ prefix: "/passkey" })
   .get("/status", async () => {

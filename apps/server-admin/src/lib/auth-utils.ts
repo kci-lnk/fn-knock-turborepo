@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { authMobilitySessionManager } from "./auth-mobility-session";
+import { resolveClientLocation } from "./auth-request";
 import { configManager } from "./redis";
 import { whitelistManager } from "./whitelist-manager";
 import { authLogManager } from "./auth-log";
@@ -149,13 +150,7 @@ export const handleLoginSuccess = async ({
   const maxAge = rememberMe ? 365 * 24 * 3600 : 24 * 3600;
 
   const clientIpStr = clientIp || "::1";
-  let ipLocationStr = "";
-  try {
-    const { ipLocationService } = await import("./ip-location");
-    const ipAddr = clientIpStr === "::1" ? "127.0.0.1" : clientIpStr;
-    const ipInfo = await ipLocationService.getIpLocation(ipAddr);
-    if (ipInfo) ipLocationStr = ipInfo.raw;
-  } catch {}
+  const ipLocationStr = await resolveClientLocation(clientIpStr);
   const durationSeconds = rememberMe ? 365 * 24 * 3600 : 24 * 3600;
   const expireAt = Math.floor(Date.now() / 1000) + durationSeconds;
   const expiresAtISO = new Date(expireAt * 1000).toISOString();

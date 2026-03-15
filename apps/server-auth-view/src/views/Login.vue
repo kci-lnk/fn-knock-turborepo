@@ -13,7 +13,7 @@
         </CardHeader>
 
         <CardContent>
-          <form @submit.prevent="handleLogin" class="flex flex-col gap-6 items-center" autocomplete="off">
+          <form class="flex flex-col gap-6 items-center" autocomplete="off">
             <div
               v-if="!isCaptchaVerified && activeCaptchaProvider === 'pow' && isCaptchaProviderAvailable && canUseNativePow"
               class="w-full flex justify-center mt-2"
@@ -82,7 +82,7 @@
             </div>
 
             <div class="w-full flex justify-center" v-if="isCaptchaVerified">
-              <InputOTP inputmode="numeric" :maxlength="6" v-model="token" :disabled="isLoading" :autofocus="true"
+              <InputOTP inputmode="numeric" :maxlength="6" v-model="token" @complete="handleOtpComplete" :disabled="isLoading" :autofocus="true"
                 autocomplete="off" data-form-type="other" data-1p-ignore="true" data-lpignore="true" data-bwignore="true">
                 <InputOTPGroup>
                   <InputOTPSlot v-for="i in 6" :key="i - 1" :index="i - 1" />
@@ -134,7 +134,7 @@
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-            <Button type="submit" class="w-full" :disabled="isLoading" v-if="isCaptchaVerified">
+            <Button type="button" class="w-full" :disabled="isLoading" v-if="isCaptchaVerified" @click="handleLogin">
               <span v-if="isLoading"
                 class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
               立即验证
@@ -144,7 +144,7 @@
       </Card>
     </div>
 
-    <AuthFooter />
+    <AuthFooter :client-ip="clientIp" :ip-location="ipLocation" />
   </div>
 </template>
 
@@ -170,7 +170,7 @@ import {
   serializeCredential,
 } from '@frontend-core/passkey/utils';
 import type { CaptchaPublicSettings, CaptchaSubmission } from '@frontend-core/captcha/types';
-import { apiClient, buildAuthApiPath, CaptchaAPI } from '@/lib/api';
+import { apiClient, AuthAPI, buildAuthApiPath, CaptchaAPI } from '@/lib/api';
 import { buildPowSubmission, normalizePowChallenge, solvePowChallenge } from '@/lib/captcha';
 import AuthFooter from '@/components/AuthFooter.vue';
 import TurnstileWidget from '@/components/captcha/TurnstileWidget.vue';
@@ -192,6 +192,9 @@ const isBindingPasskey = ref(false);
 const passkeyBindError = ref('');
 const passkeyBindToken = ref('');
 const pendingRunType = ref<0 | 1 | null>(null);
+const clientIp = ref('');
+const ipLocation = ref('');
+let lastLoginAttemptAt = 0;
 
 const captchaConfig = ref<CaptchaPublicSettings | null>(null);
 const powWidgetRef = ref<any>(null);
@@ -222,36 +225,30 @@ function onPowStateChange(ev: CustomEvent) {
 }
 
 onMounted(async () => {
-  const isAlreadyAuthenticated = await redirectIfAuthenticated();
-  if (isAlreadyAuthenticated) {
-    return;
-  }
+  initBrowserCapabilities();
+  await loadBootstrap();
+});
 
+function initBrowserCapabilities() {
+  isPasskeySupported.value = typeof window !== 'undefined' && !!window.PublicKeyCredential;
   canUseNativePow.value = typeof window !== 'undefined'
     && window.isSecureContext
     && typeof window.crypto !== 'undefined'
     && !!window.crypto.subtle
     && typeof window.crypto.subtle.digest === 'function';
-  await loadCaptchaConfig();
-  await initPasskeySupport();
-});
-
-async function redirectIfAuthenticated() {
-  try {
-    const res = await apiClient.get('/verify');
-    if (res.data?.success) {
-      await router.replace('/');
-      return true;
-    }
-  } catch {
-    // ignore verify errors here, continue with login flow
-  }
-  return false;
 }
 
-async function loadCaptchaConfig() {
+async function loadBootstrap() {
   try {
-    captchaConfig.value = await CaptchaAPI.getConfig();
+    const bootstrap = await AuthAPI.getBootstrap();
+    clientIp.value = bootstrap.client.ip;
+    ipLocation.value = bootstrap.client.location;
+    captchaConfig.value = bootstrap.captcha;
+    isPasskeyAvailable.value = !!bootstrap.passkey.available;
+    if (bootstrap.auth.authenticated) {
+      await router.replace('/');
+      return;
+    }
   } catch (e: any) {
     errorMessage.value = e?.response?.data?.message || e?.message || '验证码配置加载失败，请刷新页面后重试';
     showErrorDialog.value = true;
@@ -298,21 +295,14 @@ function handleCaptchaReset() {
   captchaSubmission.value = null;
 }
 
-async function initPasskeySupport() {
-  if (typeof window === 'undefined' || !window.PublicKeyCredential) {
-    isPasskeySupported.value = false;
-    return;
-  }
-  isPasskeySupported.value = true;
-  try {
-    const res = await apiClient.get('/passkey/status');
-    isPasskeyAvailable.value = !!res.data?.data?.available;
-  } catch {
-    isPasskeyAvailable.value = false;
-  }
+function handleOtpComplete() {
+  void handleLogin();
 }
 
 async function handleLogin() {
+  if (isLoading.value) {
+    return;
+  }
   if (token.value.length !== 6) {
     errorMessage.value = '请输入完整的 6 位身份验证码';
     showErrorDialog.value = true;
@@ -323,6 +313,12 @@ async function handleLogin() {
     showErrorDialog.value = true;
     return;
   }
+
+  const now = Date.now();
+  if (now - lastLoginAttemptAt < 400) {
+    return;
+  }
+  lastLoginAttemptAt = now;
 
   isLoading.value = true;
   errorMessage.value = '';

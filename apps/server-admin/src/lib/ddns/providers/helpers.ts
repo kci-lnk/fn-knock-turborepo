@@ -1,5 +1,9 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
-import type { DDNSHttpClient, DDNSUpdateResult, DDNSUpdateScope } from "../types";
+import type {
+  DDNSHttpClient,
+  DDNSUpdateResult,
+  DDNSUpdateScope,
+} from "../types";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 export const DDNS_UPDATE_SCOPE_FIELD = "update_scope";
@@ -10,8 +14,14 @@ export function getTimeoutMs(): number {
   return Number.isFinite(value) && value > 0 ? value : DEFAULT_TIMEOUT_MS;
 }
 
-export function normalizeUpdateScope(value: string | null | undefined): DDNSUpdateScope {
-  if (value === "ipv6_only" || value === "ipv4_only" || value === "dual_stack") {
+export function normalizeUpdateScope(
+  value: string | null | undefined,
+): DDNSUpdateScope {
+  if (
+    value === "ipv6_only" ||
+    value === "ipv4_only" ||
+    value === "dual_stack"
+  ) {
     return value;
   }
   return DEFAULT_DDNS_UPDATE_SCOPE;
@@ -38,7 +48,9 @@ export function getUpdateScopeDetectionOptions(scope: DDNSUpdateScope): {
   };
 }
 
-export function getUpdateScopeUnavailableMessage(scope: DDNSUpdateScope): string {
+export function getUpdateScopeUnavailableMessage(
+  scope: DDNSUpdateScope,
+): string {
   if (scope === "ipv6_only") {
     return "当前更新范围为仅更新 IPv6，但未检测到可用的 IPv6 地址";
   }
@@ -48,7 +60,10 @@ export function getUpdateScopeUnavailableMessage(scope: DDNSUpdateScope): string
   return "当前更新范围内没有可用的 IPv4 或 IPv6 地址";
 }
 
-export function toPositiveInt(value: string | undefined, fallback: number): number {
+export function toPositiveInt(
+  value: string | undefined,
+  fallback: number,
+): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
 }
@@ -57,7 +72,10 @@ export function normalizeDomain(value: string): string {
   return value.trim().replace(/\.+$/, "");
 }
 
-export function splitDomain(fullDomain: string, rootDomain: string): {
+export function splitDomain(
+  fullDomain: string,
+  rootDomain: string,
+): {
   fqdn: string;
   rootDomain: string;
   recordName: string;
@@ -153,19 +171,29 @@ export function formatError(prefix: string, error: unknown): string {
 }
 
 export function rfc3986Encode(value: string): string {
-  return encodeURIComponent(value)
-    .replace(/[!'()*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
+  return encodeURIComponent(value).replace(
+    /[!'()*]/g,
+    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
 }
 
 export function sha256Hex(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
-export function hmacHex(algorithm: "sha1" | "sha256", key: string, value: string): string {
+export function hmacHex(
+  algorithm: "sha1" | "sha256",
+  key: string,
+  value: string,
+): string {
   return createHmac(algorithm, key).update(value).digest("hex");
 }
 
-export function hmacBase64(algorithm: "sha1" | "sha256", key: string, value: string): string {
+export function hmacBase64(
+  algorithm: "sha1" | "sha256",
+  key: string,
+  value: string,
+): string {
   return createHmac(algorithm, key).update(value).digest("base64");
 }
 
@@ -174,7 +202,10 @@ export function formatIso8601Utc(date: Date): string {
 }
 
 export function formatCompactUtc(date: Date): string {
-  return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+  return date
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}Z$/, "Z");
 }
 
 function compareAscii(a: string, b: string): number {
@@ -203,10 +234,12 @@ function buildAliyunParamEntries(
   }
 
   if (typeof value === "object") {
-    return Object.entries(value as Record<string, unknown>).flatMap(([key, item]) => {
-      const nextPrefix = prefix ? `${prefix}.${key}` : key;
-      return buildAliyunParamEntries(item, nextPrefix);
-    });
+    return Object.entries(value as Record<string, unknown>).flatMap(
+      ([key, item]) => {
+        const nextPrefix = prefix ? `${prefix}.${key}` : key;
+        return buildAliyunParamEntries(item, nextPrefix);
+      },
+    );
   }
 
   if (!prefix) {
@@ -216,7 +249,9 @@ function buildAliyunParamEntries(
   return [[prefix, String(value)]];
 }
 
-function buildAliyunCanonicalParamString(params: Record<string, unknown>): string {
+function buildAliyunCanonicalParamString(
+  params: Record<string, unknown>,
+): string {
   return Object.entries(params)
     .flatMap(([key, value]) => buildAliyunParamEntries(value, key))
     .sort(([aKey, aValue], [bKey, bValue]) => {
@@ -254,7 +289,10 @@ export function buildAliyunSignedParams(
   const stringToSign = `${method}&${rfc3986Encode("/")}&${rfc3986Encode(canonicalized)}`;
   const signature = hmacBase64("sha1", `${accessKeySecret}&`, stringToSign);
 
-  const signedParams: Array<[string, string]> = [...sorted, ["Signature", signature]];
+  const signedParams: Array<[string, string]> = [
+    ...sorted,
+    ["Signature", signature],
+  ];
   return signedParams
     .map(([key, value]) => `${rfc3986Encode(key)}=${rfc3986Encode(value)}`)
     .join("&");
@@ -272,11 +310,15 @@ type AliyunAcs3RequestOptions = {
   version: string;
 };
 
-export function buildAliyunAcs3Request(options: AliyunAcs3RequestOptions): Request {
+export function buildAliyunAcs3Request(
+  options: AliyunAcs3RequestOptions,
+): Request {
   const url = new URL(options.endpoint);
   const method = options.method.toUpperCase() as "GET" | "POST";
   const queryString = buildAliyunCanonicalParamString(options.query || {});
-  const bodyString = options.formData ? buildAliyunCanonicalParamString(options.formData) : "";
+  const bodyString = options.formData
+    ? buildAliyunCanonicalParamString(options.formData)
+    : "";
   const payloadHash = sha256Hex(bodyString);
 
   if (queryString) {
@@ -345,10 +387,142 @@ export async function requestAliyunAcs3Json<T extends AliyunAcs3Response>(
   const data = await parseJsonResponse<T>(response);
 
   if (!response.ok || data.Code) {
-    throw new Error(`${data.Code || `HTTP ${response.status}`}: ${data.Message || "请求失败"}`);
+    throw new Error(
+      `${data.Code || `HTTP ${response.status}`}: ${data.Message || "请求失败"}`,
+    );
   }
 
   return data;
+}
+
+type TencentCloudTc3RequestOptions = {
+  action: string;
+  host: string;
+  payload?: Record<string, unknown>;
+  region?: string;
+  secretId: string;
+  secretKey: string;
+  securityToken?: string;
+  service: string;
+  version: string;
+};
+
+type TencentCloudApiError = {
+  Code?: string;
+  Message?: string;
+};
+
+type TencentCloudApiEnvelope<T> = {
+  Response?: T & {
+    Error?: TencentCloudApiError;
+    RequestId?: string;
+  };
+};
+
+function hmacBuffer(key: Buffer | string, value: string): Buffer {
+  return createHmac("sha256", key).update(value).digest();
+}
+
+export function buildTencentCloudTc3Request(
+  options: TencentCloudTc3RequestOptions,
+): Request {
+  const timestamp = Math.floor(Date.now() / 1000);
+  const date = new Date(timestamp * 1000).toISOString().slice(0, 10);
+  const payload = JSON.stringify(options.payload || {});
+  const headers = new Headers({
+    "Content-Type": "application/json; charset=utf-8",
+    Host: options.host,
+    "X-TC-Action": options.action,
+    "X-TC-Timestamp": String(timestamp),
+    "X-TC-Version": options.version,
+  });
+
+  if (options.region) {
+    headers.set("X-TC-Region", options.region);
+  }
+  if (options.securityToken) {
+    headers.set("X-TC-Token", options.securityToken);
+  }
+
+  const signedHeaders: Array<[string, string]> = [];
+  headers.forEach((value, key) => {
+    const normalizedKey = key.toLowerCase();
+    if (
+      normalizedKey === "content-type" ||
+      normalizedKey === "host" ||
+      normalizedKey === "x-tc-action"
+    ) {
+      signedHeaders.push([normalizedKey, value.trim().toLowerCase()]);
+    }
+  });
+  signedHeaders.sort(([a], [b]) => compareAscii(a, b));
+
+  const canonicalHeaders = `${signedHeaders
+    .map(([key, value]) => `${key}:${value}`)
+    .join("\n")}\n`;
+  const signedHeaderNames = signedHeaders.map(([key]) => key).join(";");
+  const hashedPayload = sha256Hex(payload);
+  const canonicalRequest = [
+    "POST",
+    "/",
+    "",
+    canonicalHeaders,
+    signedHeaderNames,
+    hashedPayload,
+  ].join("\n");
+  const credentialScope = `${date}/${options.service}/tc3_request`;
+  const stringToSign = [
+    "TC3-HMAC-SHA256",
+    String(timestamp),
+    credentialScope,
+    sha256Hex(canonicalRequest),
+  ].join("\n");
+
+  const secretDate = hmacBuffer(`TC3${options.secretKey}`, date);
+  const secretService = hmacBuffer(secretDate, options.service);
+  const secretSigning = hmacBuffer(secretService, "tc3_request");
+  const signature = createHmac("sha256", secretSigning)
+    .update(stringToSign)
+    .digest("hex");
+
+  headers.set(
+    "Authorization",
+    `TC3-HMAC-SHA256 Credential=${options.secretId}/${credentialScope}, SignedHeaders=${signedHeaderNames}, Signature=${signature}`,
+  );
+
+  return new Request(`https://${options.host}/`, {
+    body: payload,
+    headers,
+    method: "POST",
+    signal: AbortSignal.timeout(getTimeoutMs()),
+  });
+}
+
+export async function requestTencentCloudJson<T>(
+  http: DDNSHttpClient,
+  options: TencentCloudTc3RequestOptions,
+): Promise<T> {
+  const response = await http.fetch(buildTencentCloudTc3Request(options));
+  const data = await parseJsonResponse<TencentCloudApiEnvelope<T>>(response);
+  const payload = data.Response;
+
+  if (!payload) {
+    throw new Error(`HTTP ${response.status}: 腾讯云 API 响应缺少 Response`);
+  }
+
+  if (!response.ok) {
+    const errorCode = payload.Error?.Code || `HTTP ${response.status}`;
+    const errorMessage = payload.Error?.Message || "请求失败";
+    throw new Error(`${errorCode}: ${errorMessage}`);
+  }
+
+  if (payload.Error?.Code) {
+    throw new Error(
+      `${payload.Error.Code}: ${payload.Error.Message || "请求失败"}`,
+    );
+  }
+
+  return payload;
 }
 
 function buildCanonicalQuery(params: URLSearchParams): string {
@@ -378,13 +552,18 @@ export function applyBaiduBceAuth(
   const signedHeaderNames = ["content-type", "host", "x-bce-date"];
   const canonicalHeaders = signedHeaderNames
     .map((name) => {
-      const value = request.headers.get(name) ?? request.headers.get(name.toLowerCase()) ?? "";
+      const value =
+        request.headers.get(name) ??
+        request.headers.get(name.toLowerCase()) ??
+        "";
       return `${name}:${rfc3986Encode(value.trim())}`;
     })
     .join("\n");
 
   const authStringPrefix = `bce-auth-v1/${accessKeyId}/${timestamp}/1800`;
-  const signingKey = createHmac("sha256", secretAccessKey).update(authStringPrefix).digest("hex");
+  const signingKey = createHmac("sha256", secretAccessKey)
+    .update(authStringPrefix)
+    .digest("hex");
   const canonicalRequest = [
     request.method.toUpperCase(),
     url.pathname || "/",
@@ -451,6 +630,12 @@ export function parseHeaderLines(value: string): Record<string, string> {
   return headers;
 }
 
-export function applyTemplate(template: string, values: Record<string, string>): string {
-  return template.replace(/#\{([^}]+)\}/g, (_, key: string) => values[key] ?? "");
+export function applyTemplate(
+  template: string,
+  values: Record<string, string>,
+): string {
+  return template.replace(
+    /#\{([^}]+)\}/g,
+    (_, key: string) => values[key] ?? "",
+  );
 }

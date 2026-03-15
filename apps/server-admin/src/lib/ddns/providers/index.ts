@@ -9,6 +9,7 @@ import { esaProvider, esaUpdate } from "./esa";
 import { godaddyProvider, godaddyUpdate } from "./godaddy";
 import { huaweiProvider, huaweiUpdate } from "./huawei";
 import { porkbunProvider, porkbunUpdate } from "./porkbun";
+import { tencentcloudProvider, tencentcloudUpdate } from "./tencentcloud";
 
 export const providerDefinitions: DDNSProviderDefinition[] = [
   alidnsProvider,
@@ -21,6 +22,7 @@ export const providerDefinitions: DDNSProviderDefinition[] = [
   godaddyProvider,
   huaweiProvider,
   porkbunProvider,
+  tencentcloudProvider,
 ];
 
 export const providerUpdaters: Record<string, DDNSProviderUpdater> = {
@@ -34,4 +36,5 @@ export const providerUpdaters: Record<string, DDNSProviderUpdater> = {
   godaddy: godaddyUpdate,
   huaweicloud: huaweiUpdate,
   porkbun: porkbunUpdate,
+  tencentcloud: tencentcloudUpdate,
 };

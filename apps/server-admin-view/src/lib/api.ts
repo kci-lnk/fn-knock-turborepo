@@ -678,6 +678,11 @@ export type DDNSStatusPayload = {
         ipv6: string | null;
         updated_at: string | null;
     };
+    lastCheck: {
+        checked_at: string | null;
+        outcome: 'updated' | 'noop' | 'skipped' | 'error' | null;
+        message: string | null;
+    };
 };
 
 export type DDNSPollPayload = {

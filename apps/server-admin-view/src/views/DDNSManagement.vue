@@ -46,6 +46,12 @@ interface LastIP {
   updated_at: string | null
 }
 
+interface LastCheck {
+  checked_at: string | null
+  outcome: 'updated' | 'noop' | 'skipped' | 'error' | null
+  message: string | null
+}
+
 // ─── State ─────────────────────────────────────────────────────
 const isInitialized = ref(false)
 const enabled = ref(true)
@@ -53,6 +59,7 @@ const selectedProvider = ref<string>('')
 const providers = ref<Provider[]>([])
 const providerConfig = ref<Record<string, string>>({})
 const lastIP = ref<LastIP>({ ipv4: null, ipv6: null, updated_at: null })
+const lastCheck = ref<LastCheck>({ checked_at: null, outcome: null, message: null })
 const logs = ref<LogEntry[]>([])
 
 const { isPending: isSaving, run: runSaveConfig } = useAsyncAction({
@@ -151,6 +158,7 @@ async function loadStatus() {
       selectedProvider.value = status.provider
     }
     lastIP.value = status.lastIP
+    lastCheck.value = status.lastCheck
   })
 }
 
@@ -197,6 +205,7 @@ const ddnsPolling = useTargetPolling({
 
     const status = payload.status
     lastIP.value = status.lastIP
+    lastCheck.value = status.lastCheck
     if (status.provider) {
       selectedProvider.value = status.provider
     }
@@ -286,9 +295,6 @@ onMounted(async () => {
   const initialized = await runInitialize(async () => {
     await Promise.all([loadProviders(), loadStatus()])
     enabledInitialized = true
-    if (!selectedProvider.value && providers.value.length > 0) {
-      selectedProvider.value = providers.value[0]!.name
-    }
     await loadConfig()
     return true
   })
@@ -363,12 +369,13 @@ onUnmounted(() => {
               <RefreshCw class="h-5 w-5" :class="{ 'animate-spin': isTesting }" />
             </div>
             <div class="space-y-1">
-              <p class="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">最后同步时间</p>
+              <p class="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">最后成功更新</p>
               <p class="text-sm font-medium"><HumanFriendlyTime :value="lastIP.updated_at" empty-text="从未" /></p>
             </div>
           </div>
 
         </div>
+
       </CardContent>
     </Card>
 
@@ -460,7 +467,7 @@ onUnmounted(() => {
       <template #actions="{ collapse }">
         <div class="p-4 sm:px-6 sm:py-4 bg-muted/30 border-t flex items-center justify-end gap-3 rounded-b-lg">
           <Button variant="outline" @click="collapse">折叠</Button>
-          <Button :disabled="isTesting || isSaving" @click="onTest" class="min-w-[100px] shadow-sm">
+          <Button :disabled="isTesting || isSaving || !selectedProvider" @click="onTest" class="min-w-[100px] shadow-sm">
             <RefreshCw v-if="isTesting" class="w-4 h-4 mr-2 animate-spin" />
             {{ isTesting ? '更新中...' : '保存并更新' }}
           </Button>

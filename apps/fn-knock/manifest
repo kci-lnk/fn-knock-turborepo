@@ -1,5 +1,5 @@
 appname=fn-knock
-version=1.0.1
+version=1.0.2
 display_name=敲门knock
 desc="""敲门knock是一款针对飞牛OS的安全防护软件，内置了防火墙控制和反代安全"""
 platform=x86

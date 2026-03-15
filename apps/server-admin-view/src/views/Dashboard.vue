@@ -102,6 +102,11 @@ const ddnsStatus = ref<{
     ipv6: string | null;
     updated_at: string | null;
   };
+  lastCheck: {
+    checked_at: string | null;
+    outcome: 'updated' | 'noop' | 'skipped' | 'error' | null;
+    message: string | null;
+  };
 } | null>(null);
 const isDdnsInitializing = ref(true);
 const { isPending: isDdnsPending, run: runLoadDdnsStatus } = useAsyncAction();
@@ -524,9 +529,9 @@ const ddnsCards = computed(() => [
     icon: Globe,
   },
   {
-    label: "最后同步",
-    value: ddnsStatus.value?.lastIP?.updated_at ?? null,
-    hint: "同步时间",
+    label: "最近检查",
+    value: ddnsStatus.value?.lastCheck?.checked_at ?? null,
+    hint: "自动检查时间",
     icon: Clock,
     isTime: true,
   },

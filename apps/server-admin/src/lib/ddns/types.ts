@@ -33,10 +33,17 @@ export type DDNSLastIP = {
   updated_at: string | null;
 };
 
+export type DDNSLastCheck = {
+  checked_at: string | null;
+  outcome: "updated" | "noop" | "skipped" | "error" | null;
+  message: string | null;
+};
+
 export type DDNSStatus = {
   enabled: boolean;
   provider: string | null;
   lastIP: DDNSLastIP;
+  lastCheck: DDNSLastCheck;
 };
 
 export type DDNSProviderUpdater = (

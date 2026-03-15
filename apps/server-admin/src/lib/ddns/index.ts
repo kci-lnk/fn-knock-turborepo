@@ -1,6 +1,6 @@
 import { redis } from "../redis";
 import { DEFAULT_REDIS_LOG_BUFFER_MAX_LEN, RedisLogBuffer } from "../redis-log-buffer";
-import type { DDNSLastIP, DDNSLogEntry, DDNSProviderDefinition, DDNSProviderField, DDNSStatus, DDNSUpdateResult } from "./types";
+import type { DDNSLastCheck, DDNSLastIP, DDNSLogEntry, DDNSProviderDefinition, DDNSProviderField, DDNSStatus, DDNSUpdateResult } from "./types";
 import { providerDefinitions, providerUpdaters } from "./providers";
 import { runWithRetry } from "./retry";
 
@@ -9,6 +9,7 @@ const KEYS = {
   provider: "fn_knock:ddns:provider",
   configPrefix: "fn_knock:ddns:config:",
   lastIP: "fn_knock:ddns:last_ip",
+  lastCheck: "fn_knock:ddns:last_check",
   logs: "fn_knock:ddns:logs",
   logSeq: "fn_knock:ddns:logs:seq",
 } as const;
@@ -82,13 +83,41 @@ export class DDNSManager {
     await redis.hmset(KEYS.lastIP, map);
   }
 
+  async getLastCheck(): Promise<DDNSLastCheck> {
+    const data = await redis.hgetall(KEYS.lastCheck);
+    const rawOutcome = data?.outcome;
+    const outcome = rawOutcome === "updated" || rawOutcome === "noop" || rawOutcome === "skipped" || rawOutcome === "error"
+      ? rawOutcome
+      : null;
+
+    return {
+      checked_at: data?.checked_at || null,
+      outcome,
+      message: data?.message || null,
+    };
+  }
+
+  async setLastCheck(
+    outcome: NonNullable<DDNSLastCheck["outcome"]>,
+    message: string,
+  ): Promise<void> {
+    const map = {
+      checked_at: new Date().toISOString(),
+      outcome,
+      message,
+    };
+    await redis.del(KEYS.lastCheck);
+    await redis.hmset(KEYS.lastCheck, map);
+  }
+
   async getStatus(): Promise<DDNSStatus> {
-    const [enabled, provider, lastIP] = await Promise.all([
+    const [enabled, provider, lastIP, lastCheck] = await Promise.all([
       this.isEnabled(),
       this.getProvider(),
       this.getLastIP(),
+      this.getLastCheck(),
     ]);
-    return { enabled, provider, lastIP };
+    return { enabled, provider, lastIP, lastCheck };
   }
 
   async appendLog(level: DDNSLogEntry["level"], message: string): Promise<void> {
@@ -148,6 +177,7 @@ export const ddnsManager = new DDNSManager();
 export { ddnsLogBuffer };
 
 export type {
+  DDNSLastCheck,
   DDNSLastIP,
   DDNSLogEntry,
   DDNSProviderDefinition,

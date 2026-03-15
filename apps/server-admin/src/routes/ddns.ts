@@ -1,5 +1,6 @@
 import { Elysia, t } from "elysia";
 import { ddnsLogBuffer, ddnsManager } from "../lib/ddns";
+import { runAutomaticDDNSCheck } from "../lib/ddns/auto-check";
 import { IPDetector } from "../plugins/ip-detector";
 
 const parseDDNSLogEntries = (raw: string[]) =>
@@ -17,7 +18,17 @@ export const ddnsRoutes = new Elysia({ prefix: "/api/admin/ddns" })
 
   // ── Toggle ────────────────────────────────────────────────────
   .post("/toggle", async ({ body }) => {
+    const wasEnabled = await ddnsManager.isEnabled();
     await ddnsManager.setEnabled(body.enabled);
+
+    if (body.enabled && !wasEnabled) {
+      void runAutomaticDDNSCheck({
+        trigger: "enable",
+        emitSkipLog: true,
+        emitNoopLog: true,
+      });
+    }
+
     return { success: true };
   }, {
     body: t.Object({ enabled: t.Boolean() }),

@@ -467,7 +467,7 @@ onUnmounted(() => {
             <div class="space-y-1 mt-1.5">
               <Label for="ddns-update-scope" class="text-sm font-medium">更新范围</Label>
               <p class="text-xs text-muted-foreground hidden sm:block pr-4">
-                公共选项，对所有 DDNS 提供商生效，用来决定更新 IPv4、IPv6，或同时更新两者。
+                更新 IPv4、IPv6，或同时更新两者
               </p>
             </div>
             <div class="w-full max-w-md space-y-2">
@@ -485,7 +485,7 @@ onUnmounted(() => {
               </Select>
 
               <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
-                公共选项，对所有 DDNS 提供商生效，用来决定更新 IPv4、IPv6，或同时更新两者。
+                更新 IPv4、IPv6，或同时更新两者
               </p>
             </div>
           </div>

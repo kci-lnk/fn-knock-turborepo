@@ -12,6 +12,9 @@ const ALIDNS_ENDPOINT = "https://alidns.aliyuncs.com/";
 
 type AlidnsRecord = {
   RecordId: string;
+  Line?: string;
+  RR?: string;
+  Type?: string;
   Value: string;
 };
 
@@ -38,6 +41,7 @@ export const alidnsProvider: DDNSProviderDefinition = {
     { key: "access_key_secret", label: "AccessKey Secret", type: "password", placeholder: "阿里云 AccessKey Secret", required: true },
     { key: "root_domain", label: "根域名", type: "text", placeholder: "example.com", required: true, description: "用于确定 Zone，例如 example.com" },
     { key: "domain", label: "完整域名", type: "text", placeholder: "home.example.com", required: true, description: "要更新的完整主机名" },
+    { key: "line", label: "线路", type: "text", placeholder: "default", required: false, description: "默认使用阿里云“default”线路" },
     { key: "ttl", label: "TTL", type: "text", placeholder: "600", required: false, description: "默认 600 秒" },
   ],
 };
@@ -46,18 +50,22 @@ async function alidnsRequest<T>(
   config: Record<string, string>,
   params: Record<string, string>,
 ): Promise<T> {
-  const accessKeyId = config.access_key_id;
-  const accessKeySecret = config.access_key_secret;
+  const accessKeyId = config.access_key_id?.trim();
+  const accessKeySecret = config.access_key_secret?.trim();
   if (!accessKeyId || !accessKeySecret) {
     throw new Error("阿里云 DNS 配置不完整");
   }
 
-  const query = buildAliyunSignedParams(accessKeyId, accessKeySecret, params);
-  const response = await fetch(`${ALIDNS_ENDPOINT}?${query.toString()}`, {
+  const body = buildAliyunSignedParams(accessKeyId, accessKeySecret, params, "POST");
+  const response = await fetch(ALIDNS_ENDPOINT, {
+    body,
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    method: "POST",
     signal: AbortSignal.timeout(getTimeoutMs()),
   });
-  const data = await parseJsonResponse<T>(response);
-  return data;
+  return parseJsonResponse<T>(response);
 }
 
 export async function alidnsUpdate(
@@ -65,18 +73,24 @@ export async function alidnsUpdate(
   ipv4: string | null,
   ipv6: string | null,
 ): Promise<DDNSUpdateResult> {
-  const { access_key_id, access_key_secret, root_domain, domain } = config;
-  if (!access_key_id || !access_key_secret || !root_domain || !domain) {
+  const accessKeyId = config.access_key_id?.trim();
+  const accessKeySecret = config.access_key_secret?.trim();
+  const rootDomain = config.root_domain?.trim();
+  const domain = config.domain?.trim();
+  if (!accessKeyId || !accessKeySecret || !rootDomain || !domain) {
     return { success: false, message: "阿里云 DNS 配置不完整" };
   }
 
   const ttl = String(toPositiveInt(config.ttl, 600));
-  const parsed = splitDomain(domain, root_domain);
+  const parsed = splitDomain(domain, rootDomain);
+  const line = (config.line || "default").trim() || "default";
 
   return updateDualStack("阿里云 DNS", ipv4, ipv6, async (recordType, ip) => {
     const records = await alidnsRequest<AlidnsDescribeResponse>(config, {
       Action: "DescribeSubDomainRecords",
       DomainName: parsed.rootDomain,
+      Line: line,
+      PageSize: "100",
       SubDomain: parsed.fqdn,
       Type: recordType,
     });
@@ -85,23 +99,31 @@ export async function alidnsUpdate(
       throw new Error(`${records.Code}: ${records.Message || "请求失败"}`);
     }
 
-    const existing = records.DomainRecords?.Record?.[0];
-    if (existing) {
-      if (existing.Value === ip) {
-        return;
-      }
+    const existingRecords = (records.DomainRecords?.Record || []).filter((record) => {
+      return (record.RR || parsed.recordName) === parsed.recordName
+        && (record.Type || recordType) === recordType
+        && (record.Line || "default") === line;
+    });
 
-      const result = await alidnsRequest<AlidnsChangeResponse>(config, {
-        Action: "UpdateDomainRecord",
-        RR: parsed.recordName,
-        RecordId: existing.RecordId,
-        Type: recordType,
-        Value: ip,
-        TTL: ttl,
-      });
+    if (existingRecords.length > 0) {
+      for (const record of existingRecords) {
+        if (record.Value === ip) {
+          continue;
+        }
 
-      if (result.Code || !result.RecordId) {
-        throw new Error(`${result.Code || "UpdateFailed"}: ${result.Message || "更新失败"}`);
+        const result = await alidnsRequest<AlidnsChangeResponse>(config, {
+          Action: "UpdateDomainRecord",
+          Line: line,
+          RR: parsed.recordName,
+          RecordId: record.RecordId,
+          TTL: ttl,
+          Type: recordType,
+          Value: ip,
+        });
+
+        if (result.Code || !result.RecordId) {
+          throw new Error(`${result.Code || "UpdateFailed"}: ${result.Message || "更新失败"}`);
+        }
       }
       return;
     }
@@ -109,10 +131,11 @@ export async function alidnsUpdate(
     const result = await alidnsRequest<AlidnsChangeResponse>(config, {
       Action: "AddDomainRecord",
       DomainName: parsed.rootDomain,
+      Line: line,
       RR: parsed.recordName,
+      TTL: ttl,
       Type: recordType,
       Value: ip,
-      TTL: ttl,
     });
 
     if (result.Code || !result.RecordId) {

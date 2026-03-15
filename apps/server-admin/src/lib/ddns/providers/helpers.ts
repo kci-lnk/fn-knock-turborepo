@@ -167,11 +167,62 @@ export function formatCompactUtc(date: Date): string {
   return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 }
 
+function compareAscii(a: string, b: string): number {
+  if (a < b) {
+    return -1;
+  }
+  if (a > b) {
+    return 1;
+  }
+  return 0;
+}
+
+function buildAliyunParamEntries(
+  value: unknown,
+  prefix = "",
+): Array<[string, string]> {
+  if (value === null || value === undefined) {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((item, index) => {
+      const nextPrefix = prefix ? `${prefix}.${index + 1}` : String(index + 1);
+      return buildAliyunParamEntries(item, nextPrefix);
+    });
+  }
+
+  if (typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>).flatMap(([key, item]) => {
+      const nextPrefix = prefix ? `${prefix}.${key}` : key;
+      return buildAliyunParamEntries(item, nextPrefix);
+    });
+  }
+
+  if (!prefix) {
+    throw new Error("阿里云请求参数缺少键名");
+  }
+
+  return [[prefix, String(value)]];
+}
+
+function buildAliyunCanonicalParamString(params: Record<string, unknown>): string {
+  return Object.entries(params)
+    .flatMap(([key, value]) => buildAliyunParamEntries(value, key))
+    .sort(([aKey, aValue], [bKey, bValue]) => {
+      const keyOrder = compareAscii(aKey, bKey);
+      return keyOrder !== 0 ? keyOrder : compareAscii(aValue, bValue);
+    })
+    .map(([key, value]) => `${rfc3986Encode(key)}=${rfc3986Encode(value)}`)
+    .join("&");
+}
+
 export function buildAliyunSignedParams(
   accessKeyId: string,
   accessKeySecret: string,
   extraParams: Record<string, string>,
-): URLSearchParams {
+  method: "GET" | "POST" = "GET",
+): string {
   const params = new Map<string, string>([
     ["AccessKeyId", accessKeyId],
     ["Format", "JSON"],
@@ -186,26 +237,114 @@ export function buildAliyunSignedParams(
     params.set(key, value);
   }
 
-  const sorted = [...params.entries()].sort(([a], [b]) => a.localeCompare(b));
+  const sorted = [...params.entries()].sort(([a], [b]) => compareAscii(a, b));
   const canonicalized = sorted
     .map(([key, value]) => `${rfc3986Encode(key)}=${rfc3986Encode(value)}`)
     .join("&");
-  const stringToSign = `GET&${rfc3986Encode("/")}&${rfc3986Encode(canonicalized)}`;
+  const stringToSign = `${method}&${rfc3986Encode("/")}&${rfc3986Encode(canonicalized)}`;
   const signature = hmacBase64("sha1", `${accessKeySecret}&`, stringToSign);
 
-  const search = new URLSearchParams();
-  for (const [key, value] of sorted) {
-    search.set(key, value);
+  const signedParams: Array<[string, string]> = [...sorted, ["Signature", signature]];
+  return signedParams
+    .map(([key, value]) => `${rfc3986Encode(key)}=${rfc3986Encode(value)}`)
+    .join("&");
+}
+
+type AliyunAcs3RequestOptions = {
+  accessKeyId: string;
+  accessKeySecret: string;
+  action: string;
+  endpoint: string;
+  method: "GET" | "POST";
+  query?: Record<string, unknown>;
+  formData?: Record<string, unknown>;
+  securityToken?: string;
+  version: string;
+};
+
+export function buildAliyunAcs3Request(options: AliyunAcs3RequestOptions): Request {
+  const url = new URL(options.endpoint);
+  const method = options.method.toUpperCase() as "GET" | "POST";
+  const queryString = buildAliyunCanonicalParamString(options.query || {});
+  const bodyString = options.formData ? buildAliyunCanonicalParamString(options.formData) : "";
+  const payloadHash = sha256Hex(bodyString);
+
+  if (queryString) {
+    url.search = queryString;
   }
-  search.set("Signature", signature);
-  return search;
+
+  const headers = new Headers({
+    host: url.host,
+    "x-acs-action": options.action,
+    "x-acs-content-sha256": payloadHash,
+    "x-acs-date": formatIso8601Utc(new Date()),
+    "x-acs-signature-nonce": randomUUID(),
+    "x-acs-version": options.version,
+  });
+
+  if (bodyString) {
+    headers.set("content-type", "application/x-www-form-urlencoded");
+  }
+  if (options.securityToken) {
+    headers.set("x-acs-security-token", options.securityToken);
+  }
+
+  const signedHeaders: Array<[string, string]> = [];
+  headers.forEach((value, key) => {
+    signedHeaders.push([key.toLowerCase(), value.trim()]);
+  });
+  signedHeaders.sort(([a], [b]) => compareAscii(a, b));
+  const canonicalHeaders = `${signedHeaders
+    .map(([key, value]) => `${key}:${value}`)
+    .join("\n")}\n`;
+  const signedHeaderNames = signedHeaders.map(([key]) => key).join(";");
+  const canonicalRequest = [
+    method,
+    url.pathname || "/",
+    queryString,
+    canonicalHeaders,
+    signedHeaderNames,
+    payloadHash,
+  ].join("\n");
+  const stringToSign = `ACS3-HMAC-SHA256\n${sha256Hex(canonicalRequest)}`;
+  const signature = hmacHex("sha256", options.accessKeySecret, stringToSign);
+
+  headers.set(
+    "authorization",
+    `ACS3-HMAC-SHA256 Credential=${options.accessKeyId},SignedHeaders=${signedHeaderNames},Signature=${signature}`,
+  );
+
+  return new Request(url.toString(), {
+    body: bodyString || undefined,
+    headers,
+    method,
+    signal: AbortSignal.timeout(getTimeoutMs()),
+  });
+}
+
+type AliyunAcs3Response = {
+  Code?: string;
+  Message?: string;
+};
+
+export async function requestAliyunAcs3Json<T extends AliyunAcs3Response>(
+  options: AliyunAcs3RequestOptions,
+): Promise<T> {
+  const response = await fetch(buildAliyunAcs3Request(options));
+  const data = await parseJsonResponse<T>(response);
+
+  if (!response.ok || data.Code) {
+    throw new Error(`${data.Code || `HTTP ${response.status}`}: ${data.Message || "请求失败"}`);
+  }
+
+  return data;
 }
 
 function buildCanonicalQuery(params: URLSearchParams): string {
   return [...params.entries()]
     .sort(([aKey, aValue], [bKey, bValue]) => {
-      const keyOrder = aKey.localeCompare(bKey);
-      return keyOrder !== 0 ? keyOrder : aValue.localeCompare(bValue);
+      const keyOrder = compareAscii(aKey, bKey);
+      return keyOrder !== 0 ? keyOrder : compareAscii(aValue, bValue);
     })
     .map(([key, value]) => `${rfc3986Encode(key)}=${rfc3986Encode(value)}`)
     .join("&");

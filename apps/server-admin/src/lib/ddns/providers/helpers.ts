@@ -1,11 +1,41 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
-import type { DDNSUpdateResult } from "../types";
+import type { DDNSUpdateResult, DDNSUpdateScope } from "../types";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
+export const DDNS_UPDATE_SCOPE_FIELD = "update_scope";
+export const DEFAULT_DDNS_UPDATE_SCOPE: DDNSUpdateScope = "dual_stack";
 
 export function getTimeoutMs(): number {
   const value = Number(process.env.DDNS_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
   return Number.isFinite(value) && value > 0 ? value : DEFAULT_TIMEOUT_MS;
+}
+
+export function normalizeUpdateScope(value: string | null | undefined): DDNSUpdateScope {
+  if (value === "ipv6_only" || value === "ipv4_only" || value === "dual_stack") {
+    return value;
+  }
+  return DEFAULT_DDNS_UPDATE_SCOPE;
+}
+
+export function applyUpdateScope(
+  scope: DDNSUpdateScope,
+  ipv4: string | null,
+  ipv6: string | null,
+): { ipv4: string | null; ipv6: string | null } {
+  return {
+    ipv4: scope === "ipv6_only" ? null : ipv4,
+    ipv6: scope === "ipv4_only" ? null : ipv6,
+  };
+}
+
+export function getUpdateScopeUnavailableMessage(scope: DDNSUpdateScope): string {
+  if (scope === "ipv6_only") {
+    return "当前更新范围为仅更新 IPv6，但未检测到可用的 IPv6 地址";
+  }
+  if (scope === "ipv4_only") {
+    return "当前更新范围为仅更新 IPv4，但未检测到可用的 IPv4 地址";
+  }
+  return "当前更新范围内没有可用的 IPv4 或 IPv6 地址";
 }
 
 export function toPositiveInt(value: string | undefined, fallback: number): number {

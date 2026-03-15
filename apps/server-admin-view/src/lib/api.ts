@@ -673,6 +673,7 @@ export type DDNSLogEntry = {
 export type DDNSStatusPayload = {
     enabled: boolean;
     provider: string | null;
+    updateScope: 'dual_stack' | 'ipv6_only' | 'ipv4_only';
     lastIP: {
         ipv4: string | null;
         ipv6: string | null;

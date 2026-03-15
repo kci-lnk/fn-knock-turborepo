@@ -1,7 +1,8 @@
 import { redis } from "../redis";
 import { DEFAULT_REDIS_LOG_BUFFER_MAX_LEN, RedisLogBuffer } from "../redis-log-buffer";
-import type { DDNSLastCheck, DDNSLastIP, DDNSLogEntry, DDNSProviderDefinition, DDNSProviderField, DDNSStatus, DDNSUpdateResult } from "./types";
+import type { DDNSLastCheck, DDNSLastIP, DDNSLogEntry, DDNSProviderDefinition, DDNSProviderField, DDNSStatus, DDNSUpdateResult, DDNSUpdateScope } from "./types";
 import { providerDefinitions, providerUpdaters } from "./providers";
+import { applyUpdateScope, DDNS_UPDATE_SCOPE_FIELD, DEFAULT_DDNS_UPDATE_SCOPE, getUpdateScopeUnavailableMessage, normalizeUpdateScope } from "./providers/helpers";
 import { runWithRetry } from "./retry";
 
 const KEYS = {
@@ -54,14 +55,21 @@ export class DDNSManager {
 
   async getConfig(providerName: string): Promise<Record<string, string>> {
     const data = await redis.hgetall(KEYS.configPrefix + providerName);
-    return data || {};
+    return {
+      ...(data || {}),
+      [DDNS_UPDATE_SCOPE_FIELD]: normalizeUpdateScope(data?.[DDNS_UPDATE_SCOPE_FIELD]),
+    };
   }
 
   async saveConfig(providerName: string, config: Record<string, string>): Promise<void> {
     const key = KEYS.configPrefix + providerName;
+    const normalizedConfig = {
+      ...config,
+      [DDNS_UPDATE_SCOPE_FIELD]: normalizeUpdateScope(config[DDNS_UPDATE_SCOPE_FIELD]),
+    };
     await redis.del(key);
-    if (Object.keys(config).length > 0) {
-      await redis.hmset(key, config);
+    if (Object.keys(normalizedConfig).length > 0) {
+      await redis.hmset(key, normalizedConfig);
     }
   }
 
@@ -74,13 +82,30 @@ export class DDNSManager {
     };
   }
 
-  async setLastIP(ipv4: string | null, ipv6: string | null): Promise<void> {
+  async setLastIP(
+    ipv4: string | null,
+    ipv6: string | null,
+    options: { merge?: boolean } = {},
+  ): Promise<void> {
     const now = new Date().toISOString();
     const map: Record<string, string> = { updated_at: now };
-    if (ipv4) map.ipv4 = ipv4;
-    if (ipv6) map.ipv6 = ipv6;
+    const previous = options.merge ? await this.getLastIP() : null;
+    const nextIpv4 = ipv4 ?? previous?.ipv4 ?? null;
+    const nextIpv6 = ipv6 ?? previous?.ipv6 ?? null;
+    if (nextIpv4) map.ipv4 = nextIpv4;
+    if (nextIpv6) map.ipv6 = nextIpv6;
     await redis.del(KEYS.lastIP);
     await redis.hmset(KEYS.lastIP, map);
+  }
+
+  async getUpdateScope(providerName?: string | null): Promise<DDNSUpdateScope> {
+    const resolvedProviderName = providerName ?? await this.getProvider();
+    if (!resolvedProviderName) {
+      return DEFAULT_DDNS_UPDATE_SCOPE;
+    }
+
+    const config = await this.getConfig(resolvedProviderName);
+    return normalizeUpdateScope(config[DDNS_UPDATE_SCOPE_FIELD]);
   }
 
   async getLastCheck(): Promise<DDNSLastCheck> {
@@ -117,7 +142,8 @@ export class DDNSManager {
       this.getLastIP(),
       this.getLastCheck(),
     ]);
-    return { enabled, provider, lastIP, lastCheck };
+    const updateScope = await this.getUpdateScope(provider);
+    return { enabled, provider, updateScope, lastIP, lastCheck };
   }
 
   async appendLog(level: DDNSLogEntry["level"], message: string): Promise<void> {
@@ -148,12 +174,21 @@ export class DDNSManager {
     }
 
     const config = await this.getConfig(providerName);
+    const updateScope = normalizeUpdateScope(config[DDNS_UPDATE_SCOPE_FIELD]);
+    const scopedIPs = applyUpdateScope(updateScope, ipv4, ipv6);
+    if (!scopedIPs.ipv4 && !scopedIPs.ipv6) {
+      return { success: false, message: getUpdateScopeUnavailableMessage(updateScope) };
+    }
+
     const retryCount = Number(process.env.DDNS_RETRY_COUNT || "1");
     const maxAttempts = Math.max(1, retryCount + 1);
     const delayMs = Number(process.env.DDNS_RETRY_DELAY_MS || "600");
 
     try {
-      return await runWithRetry(() => updater(config, ipv4, ipv6), { maxAttempts, delayMs });
+      return await runWithRetry(
+        () => updater(config, scopedIPs.ipv4, scopedIPs.ipv6),
+        { maxAttempts, delayMs },
+      );
     } catch (e: any) {
       const message = e?.message || String(e);
       return { success: false, message };
@@ -184,4 +219,5 @@ export type {
   DDNSProviderField,
   DDNSStatus,
   DDNSUpdateResult,
+  DDNSUpdateScope,
 } from "./types";

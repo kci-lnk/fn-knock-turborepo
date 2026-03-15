@@ -1,6 +1,7 @@
 import { IPDetector } from "../../plugins/ip-detector";
 import { configManager } from "../redis";
 import { ddnsManager } from ".";
+import { applyUpdateScope, getUpdateScopeUnavailableMessage } from "./providers/helpers";
 
 const DDNS_UPDATE_LOCK_NAME = "ddns-update";
 const DDNS_UPDATE_LOCK_TTL_SECONDS = 120;
@@ -63,6 +64,7 @@ export const runAutomaticDDNSCheck = async (
       return;
     }
 
+    const updateScope = await ddnsManager.getUpdateScope(provider);
     const ips = await IPDetector.getCurrentIPs();
     if (!ips.ipv4 && !ips.ipv6) {
       const message = `${triggerLabel}: 无法获取公网 IP，已跳过`;
@@ -71,9 +73,17 @@ export const runAutomaticDDNSCheck = async (
       return;
     }
 
+    const scopedIPs = applyUpdateScope(updateScope, ips.ipv4, ips.ipv6);
+    if (!scopedIPs.ipv4 && !scopedIPs.ipv6) {
+      const message = `${triggerLabel}: ${getUpdateScopeUnavailableMessage(updateScope)}，已跳过`;
+      await ddnsManager.setLastCheck("skipped", message);
+      await ddnsManager.appendLog("warn", message);
+      return;
+    }
+
     const lastIP = await ddnsManager.getLastIP();
-    const ipv4Changed = ips.ipv4 !== lastIP.ipv4;
-    const ipv6Changed = ips.ipv6 !== lastIP.ipv6;
+    const ipv4Changed = !!scopedIPs.ipv4 && scopedIPs.ipv4 !== lastIP.ipv4;
+    const ipv6Changed = !!scopedIPs.ipv6 && scopedIPs.ipv6 !== lastIP.ipv6;
 
     if (!ipv4Changed && !ipv6Changed) {
       const message = `${triggerLabel}: 公网 IP 未变化，无需更新`;
@@ -85,14 +95,14 @@ export const runAutomaticDDNSCheck = async (
     }
 
     const changes: string[] = [];
-    if (ipv4Changed) changes.push(`IPv4: ${lastIP.ipv4 || "无"} -> ${ips.ipv4 || "无"}`);
-    if (ipv6Changed) changes.push(`IPv6: ${lastIP.ipv6 || "无"} -> ${ips.ipv6 || "无"}`);
+    if (ipv4Changed) changes.push(`IPv4: ${lastIP.ipv4 || "无"} -> ${scopedIPs.ipv4 || "无"}`);
+    if (ipv6Changed) changes.push(`IPv6: ${lastIP.ipv6 || "无"} -> ${scopedIPs.ipv6 || "无"}`);
     await ddnsManager.appendLog("info", `${triggerLabel}: 检测到 IP 变化: ${changes.join(", ")}`);
 
     const result = await ddnsManager.executeUpdate(ips.ipv4, ips.ipv6);
     if (result.success) {
       const message = `${triggerLabel}: DNS 更新成功 [${provider}]: ${result.message}`;
-      await ddnsManager.setLastIP(ips.ipv4, ips.ipv6);
+      await ddnsManager.setLastIP(scopedIPs.ipv4, scopedIPs.ipv6, { merge: true });
       await ddnsManager.setLastCheck("updated", message);
       await ddnsManager.appendLog("info", message);
       return;

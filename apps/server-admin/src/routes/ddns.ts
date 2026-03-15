@@ -1,6 +1,7 @@
 import { Elysia, t } from "elysia";
 import { ddnsLogBuffer, ddnsManager } from "../lib/ddns";
 import { runAutomaticDDNSCheck } from "../lib/ddns/auto-check";
+import { applyUpdateScope, getUpdateScopeUnavailableMessage } from "../lib/ddns/providers/helpers";
 import { IPDetector } from "../plugins/ip-detector";
 
 const parseDDNSLogEntries = (raw: string[]) =>
@@ -93,10 +94,19 @@ export const ddnsRoutes = new Elysia({ prefix: "/api/admin/ddns" })
         return { success: false, message: "无法获取公网 IP" };
       }
 
+      const updateScope = await ddnsManager.getUpdateScope(provider);
+      const scopedIPs = applyUpdateScope(updateScope, ips.ipv4, ips.ipv6);
+      if (!scopedIPs.ipv4 && !scopedIPs.ipv6) {
+        const message = getUpdateScopeUnavailableMessage(updateScope);
+        await ddnsManager.appendLog("error", `${message}，测试中止`);
+        set.status = 400;
+        return { success: false, message };
+      }
+
       const result = await ddnsManager.executeUpdate(ips.ipv4, ips.ipv6);
 
       if (result.success) {
-        await ddnsManager.setLastIP(ips.ipv4, ips.ipv6);
+        await ddnsManager.setLastIP(scopedIPs.ipv4, scopedIPs.ipv6, { merge: true });
         await ddnsManager.appendLog("info", `更新成功: ${result.message}`);
       } else {
         await ddnsManager.appendLog("error", `更新失败: ${result.message}`);

@@ -52,6 +52,27 @@ interface LastCheck {
   message: string | null
 }
 
+type DDNSUpdateScope = 'dual_stack' | 'ipv6_only' | 'ipv4_only'
+
+const UPDATE_SCOPE_KEY = 'update_scope'
+const DEFAULT_DDNS_UPDATE_SCOPE: DDNSUpdateScope = 'dual_stack'
+const UPDATE_SCOPE_OPTIONS: Array<{ label: string; value: DDNSUpdateScope }> = [
+  { label: 'IPv4 & IPv6', value: 'dual_stack' },
+  { label: '仅更新 IPv6', value: 'ipv6_only' },
+  { label: '仅更新 IPv4', value: 'ipv4_only' },
+]
+
+const normalizeUpdateScope = (value: string | null | undefined): DDNSUpdateScope => {
+  if (value === 'dual_stack' || value === 'ipv6_only' || value === 'ipv4_only') {
+    return value
+  }
+  return DEFAULT_DDNS_UPDATE_SCOPE
+}
+
+const getUpdateScopeLabel = (value: string | null | undefined) => {
+  return UPDATE_SCOPE_OPTIONS.find(option => option.value === normalizeUpdateScope(value))?.label || 'IPv4 & IPv6'
+}
+
 // ─── State ─────────────────────────────────────────────────────
 const isInitialized = ref(false)
 const enabled = ref(true)
@@ -61,6 +82,7 @@ const providerConfig = ref<Record<string, string>>({})
 const lastIP = ref<LastIP>({ ipv4: null, ipv6: null, updated_at: null })
 const lastCheck = ref<LastCheck>({ checked_at: null, outcome: null, message: null })
 const logs = ref<LogEntry[]>([])
+const statusUpdateScope = ref<DDNSUpdateScope>(DEFAULT_DDNS_UPDATE_SCOPE)
 
 const { isPending: isSaving, run: runSaveConfig } = useAsyncAction({
   rethrow: true,
@@ -147,8 +169,21 @@ const currentProviderDef = computed(() => {
 })
 
 const hasProviderConfig = computed(() => {
-  return Object.values(providerConfig.value).some((value) => value?.toString().trim() !== '')
+  const def = currentProviderDef.value
+  if (!def) return false
+  return def.fields.some((field) => providerConfig.value[field.key]?.toString().trim() !== '')
 })
+
+const currentUpdateScopeLabel = computed(() => {
+  return getUpdateScopeLabel(providerConfig.value[UPDATE_SCOPE_KEY] || statusUpdateScope.value)
+})
+
+const effectiveUpdateScope = computed<DDNSUpdateScope>(() => {
+  return normalizeUpdateScope(providerConfig.value[UPDATE_SCOPE_KEY] || statusUpdateScope.value)
+})
+
+const showIPv4Status = computed(() => effectiveUpdateScope.value !== 'ipv6_only')
+const showIPv6Status = computed(() => effectiveUpdateScope.value !== 'ipv4_only')
 
 async function loadStatus() {
   await runLoadStatus(async () => {
@@ -159,6 +194,7 @@ async function loadStatus() {
     }
     lastIP.value = status.lastIP
     lastCheck.value = status.lastCheck
+    statusUpdateScope.value = normalizeUpdateScope(status.updateScope)
   })
 }
 
@@ -177,7 +213,9 @@ async function loadConfig() {
   await runLoadConfig(async () => {
     const config = await DDNSAPI.getConfig(selectedProvider.value)
     const def = currentProviderDef.value
-    const merged: Record<string, string> = {}
+    const merged: Record<string, string> = {
+      [UPDATE_SCOPE_KEY]: normalizeUpdateScope(config[UPDATE_SCOPE_KEY]),
+    }
 
     fieldEditReady.value = {}
 
@@ -206,6 +244,7 @@ const ddnsPolling = useTargetPolling({
     const status = payload.status
     lastIP.value = status.lastIP
     lastCheck.value = status.lastCheck
+    statusUpdateScope.value = normalizeUpdateScope(status.updateScope)
     if (status.provider) {
       selectedProvider.value = status.provider
     }
@@ -340,40 +379,55 @@ onUnmounted(() => {
       </CardHeader>
 
       <CardContent>
-        <div class="flex flex-col md:flex-row gap-4 md:gap-6 items-start md:items-center">
-
-          <div class="flex items-center gap-4 shrink-0">
-            <div class="p-2.5 rounded-xl">
-              <Wifi class="h-5 w-5" />
+        <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:gap-6">
+          <div class="flex min-w-0 flex-col gap-4 md:flex-1 md:flex-row md:items-center md:gap-6">
+            <div v-if="showIPv4Status" class="flex items-center gap-4 shrink-0">
+              <div class="p-2.5 rounded-xl">
+                <Wifi class="h-5 w-5" />
+              </div>
+              <div class="space-y-1">
+                <p class="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">IPv4地址</p>
+                <p class="text-sm font-mono font-medium">{{ lastIP.ipv4 || '---.---.---.---' }}</p>
+              </div>
             </div>
-            <div class="space-y-1">
-              <p class="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">IPv4地址</p>
-              <p class="text-sm font-mono font-medium">{{ lastIP.ipv4 || '---.---.---.---' }}</p>
+
+            <div
+              v-if="showIPv6Status"
+              class="flex min-w-0 items-center gap-4"
+              :class="showIPv4Status ? 'md:border-l md:pl-6' : ''">
+              <div class="p-2.5 rounded-xl shrink-0">
+                <Globe class="h-5 w-5" />
+              </div>
+              <div class="space-y-1 overflow-hidden w-full">
+                <p class="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">IPv6地址</p>
+                <p class="text-sm font-mono font-medium truncate" :title="lastIP.ipv6 || ''">
+                  {{ lastIP.ipv6 || '未检测到地址' }}
+                </p>
+              </div>
             </div>
           </div>
 
-          <div class="flex items-center gap-4 flex-1 md:border-x md:px-6 min-w-0">
-            <div class="p-2.5 rounded-xl shrink-0">
-              <Globe class="h-5 w-5" />
+          <div class="flex flex-wrap items-center gap-4 md:ml-auto md:flex-nowrap md:gap-6 md:border-l md:pl-6">
+            <div class="flex items-center gap-4 shrink-0">
+              <div class="p-2.5 rounded-xl">
+                <RefreshCw class="h-5 w-5" :class="{ 'animate-spin': isTesting }" />
+              </div>
+              <div class="space-y-1">
+                <p class="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">最后成功更新</p>
+                <p class="text-sm font-medium"><HumanFriendlyTime :value="lastIP.updated_at" empty-text="从未" /></p>
+              </div>
             </div>
-            <div class="space-y-1 overflow-hidden w-full">
-              <p class="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">IPv6地址</p>
-              <p class="text-sm font-mono font-medium truncate" :title="lastIP.ipv6 || ''">
-                {{ lastIP.ipv6 || '未检测到地址' }}
-              </p>
+
+            <div class="flex items-center gap-4 shrink-0">
+              <div class="p-2.5 rounded-xl">
+                <Globe class="h-5 w-5" />
+              </div>
+              <div class="space-y-1">
+                <p class="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">更新范围</p>
+                <p class="text-sm font-medium">{{ currentUpdateScopeLabel }}</p>
+              </div>
             </div>
           </div>
-
-          <div class="flex items-center gap-4 shrink-0">
-            <div class="p-2.5 rounded-xl">
-              <RefreshCw class="h-5 w-5" :class="{ 'animate-spin': isTesting }" />
-            </div>
-            <div class="space-y-1">
-              <p class="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">最后成功更新</p>
-              <p class="text-sm font-medium"><HumanFriendlyTime :value="lastIP.updated_at" empty-text="从未" /></p>
-            </div>
-          </div>
-
         </div>
 
       </CardContent>
@@ -405,6 +459,34 @@ onUnmounted(() => {
                   </SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+
+          <div v-if="selectedProvider"
+            class="p-4 sm:p-6 grid gap-2 sm:grid-cols-[200px_1fr] md:grid-cols-[240px_1fr] items-start transition-colors hover:bg-muted/10">
+            <div class="space-y-1 mt-1.5">
+              <Label for="ddns-update-scope" class="text-sm font-medium">更新范围</Label>
+              <p class="text-xs text-muted-foreground hidden sm:block pr-4">
+                公共选项，对所有 DDNS 提供商生效，用来决定更新 IPv4、IPv6，或同时更新两者。
+              </p>
+            </div>
+            <div class="w-full max-w-md space-y-2">
+              <Select
+                :modelValue="providerConfig[UPDATE_SCOPE_KEY] || DEFAULT_DDNS_UPDATE_SCOPE"
+                @update:modelValue="(val: any) => providerConfig[UPDATE_SCOPE_KEY] = normalizeUpdateScope(String(val ?? ''))">
+                <SelectTrigger class="w-full" id="ddns-update-scope">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem v-for="option in UPDATE_SCOPE_OPTIONS" :key="option.value" :value="option.value">
+                    {{ option.label }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+
+              <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
+                公共选项，对所有 DDNS 提供商生效，用来决定更新 IPv4、IPv6，或同时更新两者。
+              </p>
             </div>
           </div>
 

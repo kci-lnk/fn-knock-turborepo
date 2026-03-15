@@ -97,6 +97,7 @@ const isTunnelLoading = computed(
 const ddnsStatus = ref<{
   enabled: boolean;
   provider: string | null;
+  updateScope: 'dual_stack' | 'ipv6_only' | 'ipv4_only';
   lastIP: {
     ipv4: string | null;
     ipv6: string | null;
@@ -117,6 +118,11 @@ const showMainSkeleton = useDelayedLoading(isInitializing);
 const showDdnsSkeleton = useDelayedLoading(() => isDdnsLoading.value);
 const showTunnelSkeleton = useDelayedLoading(() => isTunnelLoading.value);
 const ddnsError = ref("");
+const ddnsUpdateScopeLabels = {
+  dual_stack: "IPv4 & IPv6",
+  ipv6_only: "仅更新 IPv6",
+  ipv4_only: "仅更新 IPv4",
+} as const;
 
 const loadTunnelStatus = async () => {
   await runLoadTunnelStatus(
@@ -527,6 +533,12 @@ const ddnsCards = computed(() => [
     value: ddnsStatus.value?.lastIP?.ipv6 || "未检测到地址",
     hint: "最近上报地址",
     icon: Globe,
+  },
+  {
+    label: "更新范围",
+    value: ddnsStatus.value ? ddnsUpdateScopeLabels[ddnsStatus.value.updateScope] : "IPv4 & IPv6",
+    hint: "当前生效策略",
+    icon: Network,
   },
   {
     label: "最近检查",

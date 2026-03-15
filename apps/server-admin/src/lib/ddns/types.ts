@@ -21,6 +21,8 @@ export type DDNSUpdateResult = {
   ipv6Updated?: boolean;
 };
 
+export type DDNSUpdateScope = "dual_stack" | "ipv6_only" | "ipv4_only";
+
 export type DDNSLogEntry = {
   time: string;
   level: "info" | "error" | "warn";
@@ -42,6 +44,7 @@ export type DDNSLastCheck = {
 export type DDNSStatus = {
   enabled: boolean;
   provider: string | null;
+  updateScope: DDNSUpdateScope;
   lastIP: DDNSLastIP;
   lastCheck: DDNSLastCheck;
 };

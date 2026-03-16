@@ -3,7 +3,6 @@ import {
   normalizeDomain,
   requestAliyunAcs3Json,
   toPositiveInt,
-  updateDualStack,
 } from "./helpers";
 
 const ESA_ENDPOINT = "https://esa.cn-hangzhou.aliyuncs.com/";
@@ -149,19 +148,36 @@ async function resolveSiteId(context: DDNSProviderContext): Promise<string> {
 }
 
 function buildRecordPayload(
-  recordType: "A" | "AAAA",
-  ip: string,
+  value: string,
   ttl: number,
   proxied: boolean,
   bizName?: string,
 ): Record<string, unknown> {
   return {
     BizName: proxied ? (bizName || "web") : undefined,
-    Data: JSON.stringify({ Value: ip }),
+    Data: JSON.stringify({ Value: value }),
     Proxied: proxied,
     Ttl: ttl,
-    Type: recordType,
+    Type: "A/AAAA",
   };
+}
+
+function normalizeRecordValues(value: string | undefined): string[] {
+  return (value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .sort();
+}
+
+function isSameRecordValues(left: string | undefined, right: string): boolean {
+  const leftValues = normalizeRecordValues(left);
+  const rightValues = normalizeRecordValues(right);
+  if (leftValues.length !== rightValues.length) {
+    return false;
+  }
+
+  return leftValues.every((value, index) => value === rightValues[index]);
 }
 
 export async function esaUpdate(
@@ -182,65 +198,83 @@ export async function esaUpdate(
   const proxied = config.proxied === "true";
   const bizName = proxied ? (config.biz_name?.trim() || "web") : undefined;
   const siteId = await resolveSiteId(context);
+  const recordValue = [ipv4, ipv6]
+    .filter((item): item is string => Boolean(item))
+    .join(",");
 
-  return updateDualStack("阿里云 ESA DNS", ipv4, ipv6, async (recordType, ip) => {
-    const records = await esaRequest<EsaListRecordsResponse>(context, "ListRecords", "GET", {
+  if (!recordValue) {
+    return { success: false, message: "阿里云 ESA DNS 缺少可更新的 IP 地址" };
+  }
+
+  const records = await esaRequest<EsaListRecordsResponse>(context, "ListRecords", "GET", {
+    query: {
+      PageNumber: 1,
+      PageSize: 100,
+      RecordMatchType: "exact",
+      RecordName: domain,
+      SiteId: siteId,
+      Type: "A/AAAA",
+    },
+  });
+
+  const existingRecords = (records.Records || []).filter((record) => {
+    return normalizeDomain(record.RecordName || "") === domain
+      && (record.RecordType || "").toUpperCase() === "A/AAAA";
+  });
+
+  if (existingRecords.length === 0) {
+    const result = await esaRequest<EsaCreateRecordResponse>(context, "CreateRecord", "POST", {
       query: {
-        PageNumber: 1,
-        PageSize: 100,
-        RecordMatchType: "exact",
         RecordName: domain,
         SiteId: siteId,
-        Type: recordType,
+        ...buildRecordPayload(recordValue, ttl, proxied, bizName),
       },
     });
 
-    const existingRecords = (records.Records || []).filter((record) => {
-      return normalizeDomain(record.RecordName || "") === domain
-        && (record.RecordType || "").toUpperCase() === recordType;
+    if (!result.RecordId) {
+      throw new Error("CreateFailed: 创建记录失败");
+    }
+
+    return {
+      success: true,
+      message: "阿里云 ESA DNS 更新成功",
+      ipv4Updated: Boolean(ipv4),
+      ipv6Updated: Boolean(ipv6),
+    };
+  }
+
+  for (const record of existingRecords) {
+    const currentValue = record.Data?.Value || "";
+    const currentTtl = record.Ttl ?? ttl;
+    const currentProxied = record.Proxied ?? false;
+    const currentBizName = record.BizName || "";
+    const desiredBizName = bizName || "";
+
+    if (
+      isSameRecordValues(currentValue, recordValue)
+      && currentTtl === ttl
+      && currentProxied === proxied
+      && currentBizName === desiredBizName
+    ) {
+      continue;
+    }
+
+    if (!record.RecordId) {
+      throw new Error("UpdateFailed: 记录缺少 RecordId");
+    }
+
+    await esaRequest<EsaUpdateRecordResponse>(context, "UpdateRecord", "POST", {
+      query: {
+        RecordId: record.RecordId,
+        ...buildRecordPayload(recordValue, ttl, proxied, bizName),
+      },
     });
+  }
 
-    if (existingRecords.length === 0) {
-      const result = await esaRequest<EsaCreateRecordResponse>(context, "CreateRecord", "POST", {
-        query: {
-          RecordName: domain,
-          SiteId: siteId,
-          ...buildRecordPayload(recordType, ip, ttl, proxied, bizName),
-        },
-      });
-
-      if (!result.RecordId) {
-        throw new Error("CreateFailed: 创建记录失败");
-      }
-      return;
-    }
-
-    for (const record of existingRecords) {
-      const currentValue = record.Data?.Value || "";
-      const currentTtl = record.Ttl ?? ttl;
-      const currentProxied = record.Proxied ?? false;
-      const currentBizName = record.BizName || "";
-      const desiredBizName = bizName || "";
-
-      if (
-        currentValue === ip
-        && currentTtl === ttl
-        && currentProxied === proxied
-        && currentBizName === desiredBizName
-      ) {
-        continue;
-      }
-
-      if (!record.RecordId) {
-        throw new Error("UpdateFailed: 记录缺少 RecordId");
-      }
-
-      await esaRequest<EsaUpdateRecordResponse>(context, "UpdateRecord", "POST", {
-        query: {
-          RecordId: record.RecordId,
-          ...buildRecordPayload(recordType, ip, ttl, proxied, bizName),
-        },
-      });
-    }
-  });
+  return {
+    success: true,
+    message: "阿里云 ESA DNS 更新成功",
+    ipv4Updated: Boolean(ipv4),
+    ipv6Updated: Boolean(ipv6),
+  };
 }

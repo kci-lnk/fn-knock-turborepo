@@ -93,7 +93,7 @@
             <div class="w-full flex justify-center" v-if="isCaptchaVerified">
               <div
                 class="flex items-center justify-center space-x-3 py-2 px-4 rounded-lg transition-colors hover:bg-muted/50 cursor-pointer group">
-                <Checkbox id="rememberMe" v-model:checked="rememberMe"
+                <Checkbox id="rememberMe" v-model="rememberMe"
                   class="data-[state=checked]:bg-primary data-[state=checked]:border-primary" />
                 <label for="rememberMe"
                   class="text-sm font-medium leading-none cursor-pointer select-none text-muted-foreground group-hover:text-foreground transition-colors">

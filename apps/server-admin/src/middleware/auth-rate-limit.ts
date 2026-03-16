@@ -4,7 +4,7 @@ import { redis } from "../lib/redis";
 import { getClientIp } from "../lib/auth-request";
 
 const AUTH_RATE_LIMIT_WINDOW_MS = 1000;
-const AUTH_RATE_LIMIT_MAX_REQUESTS = 6;
+const AUTH_RATE_LIMIT_MAX_REQUESTS = 8;
 const AUTH_RATE_LIMIT_KEY_PREFIX = "fn_knock:rate_limit:auth:";
 
 const AUTH_RATE_LIMIT_SCRIPT = `
@@ -36,8 +36,9 @@ redis.call('PEXPIRE', key, windowMs)
 return {1, current + 1, 0}
 `;
 
-const normalizeAuthApiPath = (path: string) =>
-  path.startsWith("/auth/api") ? path.replace("/auth/api", "/api/auth") : path;
+const isAuthApiPath = (path: string) => {
+  return path.startsWith('/api/auth/')
+};
 
 const buildAuthRateLimitKey = (clientIp: string) =>
   `${AUTH_RATE_LIMIT_KEY_PREFIX}${clientIp}`;
@@ -96,11 +97,9 @@ const shouldBypassRateLimit = (clientIp: string) => {
 
 export const authRateLimitMiddleware = new Elysia({ name: "auth-rate-limit" })
   .onBeforeHandle({ as: "global" }, async ({ request, path, set }) => {
-    const normalizedPath = normalizeAuthApiPath(path);
-    if (!normalizedPath.startsWith("/api/auth")) {
-      return;
+    if (!isAuthApiPath(path)) {
+      return; 
     }
-
     const clientIp = getClientIp(request);
     if (shouldBypassRateLimit(clientIp)) {
       return;

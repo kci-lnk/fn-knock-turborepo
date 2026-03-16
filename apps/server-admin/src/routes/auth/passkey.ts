@@ -29,7 +29,7 @@ export const passkeyRoutes = new Elysia({ prefix: "/passkey" })
       set.status = 404;
       return { success: false, message: "No passkey available" };
     }
-    const { rpID } = getRpInfo(request);
+    const { rpID } = await getRpInfo(request);
     const allowCredentials = passkeys.map((passkey) => ({
       id: passkey.id,
       type: "public-key" as const,
@@ -46,7 +46,7 @@ export const passkeyRoutes = new Elysia({ prefix: "/passkey" })
   .post(
     "/auth/verify",
     async ({ body, set, request }) => {
-      const { origin, rpID } = getRpInfo(request);
+      const { origin, rpID } = await getRpInfo(request);
       const clientIp = getClientIp(request);
       const userAgent = request.headers.get("user-agent") || "Unknown";
       
@@ -166,7 +166,7 @@ export const passkeyRoutes = new Elysia({ prefix: "/passkey" })
         set.status = 401;
         return { success: false, message: "绑定凭证已失效" };
       }
-      const { rpID } = getRpInfo(request);
+      const { rpID } = await getRpInfo(request);
       const passkeys = await configManager.getPasskeys();
       const options = await generateRegistrationOptions({
         rpName: RP_NAME,
@@ -214,7 +214,7 @@ export const passkeyRoutes = new Elysia({ prefix: "/passkey" })
         set.status = 400;
         return { success: false, message: "Passkey challenge expired" };
       }
-      const { origin, rpID } = getRpInfo(request);
+      const { origin, rpID } = await getRpInfo(request);
       let verification;
       try {
         verification = await verifyRegistrationResponse({

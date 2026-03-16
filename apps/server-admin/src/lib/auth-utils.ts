@@ -48,43 +48,101 @@ const parseAbsoluteUrl = (value: string | null): URL | null => {
   }
 };
 
-export const getRpInfo = (request: Request) => {
-  // Prefer browser-provided headers first when available.
-  const fromOrigin = parseAbsoluteUrl(request.headers.get("origin"));
-  if (fromOrigin) {
-    return { rpID: fromOrigin.hostname, origin: fromOrigin.origin };
-  }
+const isLoopbackHostname = (hostname: string): boolean => {
+  const normalized = hostname.trim().toLowerCase();
+  return (
+    normalized === "localhost" ||
+    normalized === "::1" ||
+    normalized === "[::1]" ||
+    normalized === "0.0.0.0" ||
+    normalized === "[::]" ||
+    normalized.startsWith("127.")
+  );
+};
 
-  const fromReferer = parseAbsoluteUrl(request.headers.get("referer"));
-  if (fromReferer) {
-    return { rpID: fromReferer.hostname, origin: fromReferer.origin };
-  }
+const buildAbsoluteUrlFromHost = (
+  host: string | null,
+  proto: string,
+): URL | null => {
+  if (!host) return null;
+  return parseAbsoluteUrl(`${proto}://${host.trim()}`);
+};
 
-  // run_type=0 proxy mode may strip origin/referer; recover from forwarded/host headers.
+const pickPreferredUrl = (candidates: Array<URL | null>): URL | null => {
+  const urls = candidates.filter((candidate): candidate is URL => candidate instanceof URL);
+  return (
+    urls.find((candidate) => !isLoopbackHostname(candidate.hostname)) ||
+    urls[0] ||
+    null
+  );
+};
+
+const getConfiguredRpHost = async (): Promise<string | null> => {
+  const [caHosts, acmeSettings] = await Promise.all([
+    configManager.getCAHosts(),
+    configManager.getAcmeSettings(),
+  ]);
+
+  const configuredHosts = [...caHosts, ...(acmeSettings?.domains || [])]
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  return configuredHosts.find((host) => {
+    const candidate = buildAbsoluteUrlFromHost(host, "https");
+    return candidate && !isLoopbackHostname(candidate.hostname);
+  }) || null;
+};
+
+export const getRpInfo = async (request: Request) => {
+  const requestUrl = parseAbsoluteUrl(request.url) || new URL("http://127.0.0.1");
   const forwarded = parseForwardedHeader(request.headers.get("forwarded"));
+  const rawProto =
+    forwarded.proto ||
+    takeFirstHeaderValue(request.headers.get("x-forwarded-proto")) ||
+    takeFirstHeaderValue(request.headers.get("x-forwarded-scheme"));
+  const proto =
+    rawProto?.trim().replace(/:$/, "") ||
+    requestUrl.protocol.replace(":", "") ||
+    "https";
+
   const forwardedHost =
     forwarded.host ||
     takeFirstHeaderValue(request.headers.get("x-forwarded-host")) ||
-    takeFirstHeaderValue(request.headers.get("x-original-host")) ||
-    request.headers.get("host");
-  if (forwardedHost) {
-    const rawProto =
-      forwarded.proto ||
-      takeFirstHeaderValue(request.headers.get("x-forwarded-proto")) ||
-      takeFirstHeaderValue(request.headers.get("x-forwarded-scheme"));
-    const requestProto = parseAbsoluteUrl(request.url)?.protocol.replace(":", "");
-    const proto =
-      rawProto?.trim().replace(/:$/, "") || requestProto || "https";
-    const candidate = parseAbsoluteUrl(`${proto}://${forwardedHost}`);
-    if (candidate) {
-      return { rpID: candidate.hostname, origin: candidate.origin };
+    takeFirstHeaderValue(request.headers.get("x-original-host"));
+
+  const directHost =
+    takeFirstHeaderValue(request.headers.get("host")) ||
+    requestUrl.host;
+
+  const selectedUrl = pickPreferredUrl([
+    parseAbsoluteUrl(request.headers.get("origin")),
+    parseAbsoluteUrl(request.headers.get("referer")),
+    buildAbsoluteUrlFromHost(forwardedHost, proto),
+    buildAbsoluteUrlFromHost(directHost, proto),
+    requestUrl,
+  ]);
+
+  if (selectedUrl && !isLoopbackHostname(selectedUrl.hostname)) {
+    return {
+      rpID: selectedUrl.hostname,
+      origin: selectedUrl.origin,
+    };
+  }
+
+  const configuredHost = await getConfiguredRpHost();
+  if (configuredHost) {
+    const configuredUrl = buildAbsoluteUrlFromHost(configuredHost, proto);
+    if (configuredUrl) {
+      return {
+        rpID: configuredUrl.hostname,
+        origin: configuredUrl.origin,
+      };
     }
   }
 
-  const fallback = parseAbsoluteUrl(request.url) || new URL("http://127.0.0.1");
   return {
-    rpID: fallback.hostname,
-    origin: fallback.origin,
+    rpID: requestUrl.hostname,
+    origin: requestUrl.origin,
   };
 };
 

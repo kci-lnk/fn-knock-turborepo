@@ -14,6 +14,18 @@
         >
           {{ props.ipLocation }}
         </span>
+        <span
+          v-else-if="props.ipLocationStatus === 'queued' || props.ipLocationStatus === 'processing'"
+          class="break-words sm:break-normal sm:whitespace-nowrap sm:shrink-0"
+        >
+          归属地解析中...
+        </span>
+        <span
+          v-else-if="props.ipLocationStatus === 'failed'"
+          class="break-words sm:break-normal sm:whitespace-nowrap sm:shrink-0"
+        >
+          归属地暂未获取
+        </span>
       </div>
 
       <div class="flex items-center justify-center gap-2">
@@ -34,13 +46,16 @@
 
 <script setup lang="ts">
 import { Github } from 'lucide-vue-next';
+import type { AuthClientLocationStatus } from '@frontend-core/auth/types';
 
 const APP_GITHUB_URL = 'https://github.com/kci-lnk/fn-knock-turborepo';
 const props = withDefaults(defineProps<{
   clientIp?: string;
   ipLocation?: string;
+  ipLocationStatus?: AuthClientLocationStatus;
 }>(), {
   clientIp: '',
   ipLocation: '',
+  ipLocationStatus: 'idle',
 });
 </script>

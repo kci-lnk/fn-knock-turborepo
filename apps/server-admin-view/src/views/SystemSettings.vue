@@ -2,7 +2,6 @@
 import { useRoute, useRouter } from 'vue-router'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import RunModeSettings from './system-settings/RunModeSettings.vue'
-import IpLocationSettings from './system-settings/IpLocationSettings.vue'
 import FrpSettings from './system-settings/FrpSettings.vue'
 import CloudflaredSettings from './system-settings/CloudflaredSettings.vue'
 import AcmeSSL from './system-settings/AcmeSSL.vue'
@@ -17,7 +16,6 @@ const route = useRoute()
 const defaultTab = 'run-mode'
 const allowedTabs = new Set([
   'run-mode',
-  'ip-location',
   'frp',
   'cloudflared',
   'acme-ssl',
@@ -39,7 +37,6 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
       <div class="w-full overflow-x-auto pb-1">
         <TabsList class="min-w-max justify-start">
           <TabsTrigger value="run-mode" class="flex-none shrink-0 px-3">模式</TabsTrigger>
-          <TabsTrigger value="ip-location" class="flex-none shrink-0 px-3">IP归属</TabsTrigger>
           <TabsTrigger value="frp" class="flex-none shrink-0 px-3">FRP</TabsTrigger>
           <TabsTrigger value="cloudflared" class="flex-none shrink-0 px-3">Cloudflared</TabsTrigger>
           <TabsTrigger value="acme-ssl" class="flex-none shrink-0 px-3">ACME</TabsTrigger>
@@ -50,9 +47,6 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
       </div>
       <TabsContent value="run-mode" class="pt-2">
         <RunModeSettings />
-      </TabsContent>
-      <TabsContent value="ip-location" class="pt-2">
-        <IpLocationSettings />
       </TabsContent>
       <TabsContent value="frp" class="pt-2">
         <FrpSettings />

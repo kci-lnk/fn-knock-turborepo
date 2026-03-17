@@ -1,5 +1,5 @@
 import { createSignedApiClient } from '@frontend-core/api/createSignedApiClient';
-import type { AuthBootstrapData, AuthSessionData } from '@frontend-core/auth/types';
+import type { AuthBootstrapData, AuthClientLocationData, AuthSessionData } from '@frontend-core/auth/types';
 import type { CaptchaPublicSettings } from '@frontend-core/captcha/types';
 
 const detectAppBasePrefix = () => {
@@ -76,6 +76,10 @@ export const AuthAPI = {
     },
     async getSession(): Promise<AuthSessionData> {
         const res = await apiClient.get('/session');
+        return res.data.data;
+    },
+    async getClientLocation(): Promise<AuthClientLocationData> {
+        const res = await apiClient.get('/ip/location');
         return res.data.data;
     },
 };

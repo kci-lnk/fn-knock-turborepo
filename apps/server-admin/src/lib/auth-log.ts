@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type Redis from "ioredis";
+import { ipLocationRefs, ipLocationService } from "./ip-location";
 import { redis } from "./redis";
 
 export interface AuthLog {
@@ -30,20 +31,8 @@ export class AuthLogManager {
     const id = randomUUID();
     const time = new Date().toISOString();
     const timestamp = Date.now();
-    
-    // Attempt to get IP location
-    let ipLocationStr = "";
-    try {
-      const { ipLocationService } = await import("./ip-location");
-      const ipAddr = logData.ip == '::1' ? '127.0.0.1' : logData.ip
-      const ipInfo = await ipLocationService.getIpLocation(ipAddr);
-      if (ipInfo) {
-        ipLocationStr = ipInfo.raw;
-      }
-    } catch (err) {
-      console.error("Failed to query IP location:", err);
-    }
-    
+    const ipLocationStr = await ipLocationService.getCachedLocation(logData.ip);
+
     const log: AuthLog = {
       id,
       time,
@@ -61,6 +50,7 @@ export class AuthLogManager {
     pipeline.set(logKey, JSON.stringify(log), "EX", ttlSeconds);
     pipeline.zadd(this.logsIndexKey, timestamp, id);
     await pipeline.exec();
+    await ipLocationService.registerUsage(logData.ip, [ipLocationRefs.authLog(id)]);
   }
 
   /**
@@ -153,6 +143,9 @@ export class AuthLogManager {
       }
     });
 
+    await ipLocationService.hydrateIpLocationRecords(logs, (log) =>
+      ipLocationRefs.authLog(log.id),
+    );
     return { logs, staleIds };
   }
 

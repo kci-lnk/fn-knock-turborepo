@@ -2,7 +2,23 @@ import type { CaptchaPublicSettings } from "../captcha/types";
 
 export type AuthClientInfo = {
   ip: string;
+};
+
+export type AuthClientLocationStatus =
+  | "idle"
+  | "queued"
+  | "processing"
+  | "success"
+  | "failed"
+  | "skipped";
+
+export type AuthClientLocationData = {
+  ip: string;
   location: string;
+  status: AuthClientLocationStatus;
+  attempts: number;
+  maxAttempts: number;
+  error?: string;
 };
 
 export type AuthAccessState = {

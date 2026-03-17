@@ -1,5 +1,5 @@
 import { configManager, redis } from "./redis";
-import { ipLocationService } from "./ip-location";
+import { ipLocationRefs, ipLocationService } from "./ip-location";
 
 type ScanHit = {
   path: string;
@@ -69,13 +69,7 @@ class ScanDetector {
   }
 
   private async resolveIpLocation(ip: string): Promise<string> {
-    try {
-      const lookupIp = ip === "::1" ? "127.0.0.1" : ip;
-      const info = await ipLocationService.getIpLocation(lookupIp);
-      return info?.raw || "";
-    } catch {
-      return "";
-    }
+    return ipLocationService.getCachedLocation(ip);
   }
 
   private sanitizeIps(ips: string[]) {
@@ -126,6 +120,7 @@ class ScanDetector {
       "/api/auth/challenge",
       "/api/auth/login",
       '/api/auth/ip',
+      "/api/auth/ip/location",
       "/api/auth/session",
       '/api/auth/verify',
       '/api/auth/passkey/status',
@@ -255,6 +250,9 @@ class ScanDetector {
           hits,
           ...(ipLocation ? { ipLocation } : {}),
         }, settings.blacklistTtlSeconds);
+        await ipLocationService.registerUsage(cleanIp, [
+          ipLocationRefs.scannerBlacklist(cleanIp),
+        ]);
         return { hitCount, blocked: true };
       }
     }
@@ -307,7 +305,11 @@ class ScanDetector {
     if (!raw) return null;
     try {
       const parsed = JSON.parse(raw) as BlacklistRecord;
-      return { ...parsed, ip: parsed.ip || ip };
+      const record = { ...parsed, ip: parsed.ip || ip };
+      await ipLocationService.hydrateIpLocationRecords([record], (item) =>
+        ipLocationRefs.scannerBlacklist(item.ip),
+      );
+      return record;
     } catch {
       return null;
     }
@@ -376,6 +378,9 @@ class ScanDetector {
       await redis.zrem(this.blacklistIndexKey, ...missingIps);
     }
 
+    await ipLocationService.hydrateIpLocationRecords(records, (record) =>
+      ipLocationRefs.scannerBlacklist(record.ip),
+    );
     return records;
   }
 

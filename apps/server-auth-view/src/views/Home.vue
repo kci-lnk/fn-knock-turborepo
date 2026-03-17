@@ -42,7 +42,11 @@
       </Card>
     </div>
 
-    <AuthFooter :client-ip="clientIp" :ip-location="ipLocation" />
+    <AuthFooter
+      :client-ip="clientIp"
+      :ip-location="ipLocation"
+      :ip-location-status="ipLocationStatus"
+    />
   </div>
 
   <Dialog :open="showLogoutConfirmDialog" @update:open="showLogoutConfirmDialog = $event">
@@ -85,6 +89,7 @@ import {
     serializeCredential,
 } from '@frontend-core/passkey/utils';
 import { apiClient, AuthAPI } from '@/lib/api';
+import { useClientIpLocation } from '@/lib/client-ip-location';
 import { consumePendingLogoutDelay, POST_LOGIN_LOGOUT_DELAY_MS } from '@/lib/post-login';
 import AuthFooter from '@/components/AuthFooter.vue';
 
@@ -95,8 +100,7 @@ const isPasskeyAvailable = ref(false);
 const isPasskeyBinding = ref(false);
 const passkeyError = ref('');
 const isCheckingAuth = ref(true);
-const clientIp = ref('');
-const ipLocation = ref('');
+const { clientIp, ipLocation, ipLocationStatus, startLocationPolling } = useClientIpLocation();
 const canShowLogoutButton = ref(true);
 const logoutDelayRemainingSeconds = ref(0);
 const showLogoutConfirmDialog = ref(false);
@@ -152,8 +156,7 @@ function initLogoutAvailability() {
 async function loadSession() {
     try {
         const session = await AuthAPI.getSession();
-        clientIp.value = session.client.ip;
-        ipLocation.value = session.client.location;
+        startLocationPolling(session.client);
         isPasskeyAvailable.value = !!session.passkey.available;
         return true;
     } catch (e: any) {

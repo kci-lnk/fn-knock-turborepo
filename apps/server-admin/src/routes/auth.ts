@@ -18,6 +18,7 @@ import { authLogManager } from "../lib/auth-log";
 import { loginBackoffService } from "../lib/login-backoff";
 import { recentAuthIPsManager } from "../lib/recent-auth-ips";
 import { scanDetector } from "../lib/scan-detector";
+import { ipLocationService } from "../lib/ip-location";
 import {
   buildFnosShareSessionClearCookie,
   buildSessionClearCookie,
@@ -33,9 +34,12 @@ const buildPasskeyStatus = async () => {
 export const authRoutes = new Elysia({ prefix: "/api/auth" })
   .get("/bootstrap", async ({ request, set }) => {
     const clientIp = getClientIp(request);
+    ipLocationService.ensureEnqueued(clientIp).catch((error) => {
+      console.error("[auth][bootstrap] failed to enqueue ip lookup:", error);
+    });
     const [auth, client, captcha, passkey] = await Promise.all([
       resolveAuthAccess(request, clientIp),
-      buildClientInfo(clientIp),
+      Promise.resolve(buildClientInfo(clientIp)),
       captchaService.getPublicSettings(),
       buildPasskeyStatus(),
     ]);
@@ -65,8 +69,11 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
       return { success: false, message: auth.message };
     }
 
+    ipLocationService.ensureEnqueued(clientIp).catch((error) => {
+      console.error("[auth][session] failed to enqueue ip lookup:", error);
+    });
     const [client, passkey] = await Promise.all([
-      buildClientInfo(clientIp),
+      Promise.resolve(buildClientInfo(clientIp)),
       buildPasskeyStatus(),
     ]);
 
@@ -99,13 +106,28 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
   })
   .get("/ip", async ({ request }) => {
     const clientIp = getClientIp(request);
-    const client = await buildClientInfo(clientIp);
+    const client = buildClientInfo(clientIp);
 
     return {
       success: true,
       data: {
         ip: client.ip,
-        location: client.location,
+      },
+    };
+  })
+  .get("/ip/location", async ({ request }) => {
+    const clientIp = getClientIp(request);
+    const snapshot = await ipLocationService.ensureEnqueued(clientIp);
+
+    return {
+      success: true,
+      data: {
+        ip: clientIp,
+        location: snapshot.location,
+        status: snapshot.status,
+        attempts: snapshot.attempts,
+        maxAttempts: snapshot.maxAttempts,
+        error: snapshot.error,
       },
     };
   })

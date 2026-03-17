@@ -1,5 +1,4 @@
 import { Elysia } from "elysia";
-import { ipLocationService } from "../lib/ip-location";
 import { frpManager } from "../lib/frp-manager";
 import { cloudflaredManager } from "../lib/cloudflared-manager";
 
@@ -14,17 +13,6 @@ export const systemRoutes = new Elysia({ prefix: "/api/admin/system" })
                 isDefault: !process.env.GO_REPROXY_PORT,
             },
         };
-    })
-    .get("/ip-location/status", () => {
-        return { success: true, data: ipLocationService.getStatus() };
-    })
-    .post("/ip-location/download", () => {
-        ipLocationService.startDownload(); // non-blocking execution
-        return { success: true, message: "Download started" };
-    })
-    .post("/ip-location/cancel", () => {
-        ipLocationService.cancelDownload();
-        return { success: true, message: "Download cancelled" };
     })
     .get("/cloudflared/status", () => {
         return { success: true, data: cloudflaredManager.getStatus() };

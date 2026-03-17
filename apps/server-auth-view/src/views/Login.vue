@@ -144,7 +144,11 @@
       </Card>
     </div>
 
-    <AuthFooter :client-ip="clientIp" :ip-location="ipLocation" />
+    <AuthFooter
+      :client-ip="clientIp"
+      :ip-location="ipLocation"
+      :ip-location-status="ipLocationStatus"
+    />
   </div>
 </template>
 
@@ -171,6 +175,7 @@ import {
 } from '@frontend-core/passkey/utils';
 import type { CaptchaPublicSettings, CaptchaSubmission } from '@frontend-core/captcha/types';
 import { apiClient, AuthAPI, buildAuthApiPath, CaptchaAPI } from '@/lib/api';
+import { useClientIpLocation } from '@/lib/client-ip-location';
 import { buildPowSubmission, normalizePowChallenge, solvePowChallenge } from '@/lib/captcha';
 import { markPendingLogoutDelay } from '@/lib/post-login';
 import AuthFooter from '@/components/AuthFooter.vue';
@@ -193,8 +198,7 @@ const isBindingPasskey = ref(false);
 const passkeyBindError = ref('');
 const passkeyBindToken = ref('');
 const pendingRunType = ref<0 | 1 | null>(null);
-const clientIp = ref('');
-const ipLocation = ref('');
+const { clientIp, ipLocation, ipLocationStatus, startLocationPolling } = useClientIpLocation();
 let lastLoginAttemptAt = 0;
 
 const captchaConfig = ref<CaptchaPublicSettings | null>(null);
@@ -242,8 +246,7 @@ function initBrowserCapabilities() {
 async function loadBootstrap() {
   try {
     const bootstrap = await AuthAPI.getBootstrap();
-    clientIp.value = bootstrap.client.ip;
-    ipLocation.value = bootstrap.client.location;
+    startLocationPolling(bootstrap.client);
     captchaConfig.value = bootstrap.captcha;
     isPasskeyAvailable.value = !!bootstrap.passkey.available;
     if (bootstrap.auth.authenticated) {

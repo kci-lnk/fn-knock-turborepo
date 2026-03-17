@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type Redis from "ioredis";
+import { ipLocationRefs, ipLocationService } from "./ip-location";
 import { configManager, redis, type LoginSession } from "./redis";
 import { whitelistManager } from "./whitelist-manager";
 
@@ -230,6 +231,10 @@ export class AuthMobilitySessionManager {
     await this.r.set(this.bindingKey("proxy-session", sessionId), JSON.stringify(existing), "KEEPTTL");
     if (session.ip !== clientIp) {
       await configManager.updateSession(sessionId, { ip: clientIp });
+      await ipLocationService.registerUsage(clientIp, [
+        ipLocationRefs.session(sessionId),
+        ipLocationRefs.sessionTimeline(sessionId),
+      ]);
     }
   }
 
@@ -407,6 +412,10 @@ export class AuthMobilitySessionManager {
         }),
       );
     }
+    await ipLocationService.registerUsage(clientIp, [
+      ipLocationRefs.session(binding.ownerSessionId),
+      ipLocationRefs.sessionTimeline(binding.ownerSessionId),
+    ]);
 
     return true;
   }
@@ -453,6 +462,10 @@ export class AuthMobilitySessionManager {
         }),
       );
     }
+    await ipLocationService.registerUsage(clientIp, [
+      ipLocationRefs.session(sessionId),
+      ipLocationRefs.sessionTimeline(sessionId),
+    ]);
 
     return true;
   }

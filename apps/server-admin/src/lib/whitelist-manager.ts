@@ -2,7 +2,7 @@ import type Redis from 'ioredis';
 import { v4 as uuidv4 } from 'uuid';
 import { goBackend } from './go-backend';
 import { configManager, redis } from "./redis";
-import { ipLocationService } from "./ip-location";
+import { ipLocationRefs, ipLocationService } from "./ip-location";
 
 export interface WhiteListRecord {
   id: string;
@@ -79,12 +79,7 @@ export class IPTablesWhiteListManager {
     await this.removeRecordsByIP(record.ip);
     const id = `whitelist:${uuidv4()}`;
     const now = Math.floor(Date.now() / 1000);
-    let ipLocationStr = "";
-    try {
-      const ipAddr = record.ip === '::1' ? '127.0.0.1' : record.ip;
-      const info = await ipLocationService.getIpLocation(ipAddr);
-      if (info) ipLocationStr = info.raw;
-    } catch {}
+    const ipLocationStr = await ipLocationService.getCachedLocation(record.ip);
     const fullRecord: WhiteListRecord = {
       ...record,
       id,
@@ -105,6 +100,7 @@ export class IPTablesWhiteListManager {
     }
 
     await pipeline.exec();
+    await ipLocationService.registerUsage(record.ip, [ipLocationRefs.whitelist(id)]);
     const config = await configManager.getConfig();
     if (config.run_type == 0) {
       await goBackend.allowIP(record.ip);
@@ -209,6 +205,9 @@ export class IPTablesWhiteListManager {
       await pipeline.exec();
     }
 
+    await ipLocationService.hydrateIpLocationRecords(activeRecords, (record) =>
+      ipLocationRefs.whitelist(record.id),
+    );
     return activeRecords;
   }
 
@@ -236,6 +235,9 @@ export class IPTablesWhiteListManager {
       }
       await pipeline.exec();
     }
+    await ipLocationService.hydrateIpLocationRecords(activeRecords, (record) =>
+      ipLocationRefs.whitelist(record.id),
+    );
     return activeRecords;
   }
 
@@ -342,12 +344,7 @@ export class IPTablesWhiteListManager {
       return record;
     }
 
-    let ipLocationStr = "";
-    try {
-      const ipAddr = newIp === '::1' ? '127.0.0.1' : newIp;
-      const info = await ipLocationService.getIpLocation(ipAddr);
-      if (info) ipLocationStr = info.raw;
-    } catch {}
+    const ipLocationStr = await ipLocationService.getCachedLocation(newIp);
 
     const nextRecord: WhiteListRecord = {
       ...record,
@@ -363,6 +360,7 @@ export class IPTablesWhiteListManager {
     pipeline.sadd(newIpKey, id);
     pipeline.sadd(KEYS.IPS, newIp);
     await pipeline.exec();
+    await ipLocationService.registerUsage(newIp, [ipLocationRefs.whitelist(id)]);
 
     const config = await configManager.getConfig();
     if (config.run_type === 0) {

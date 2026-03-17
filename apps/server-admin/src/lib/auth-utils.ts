@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { authMobilitySessionManager } from "./auth-mobility-session";
-import { resolveClientLocation } from "./auth-request";
+import { ipLocationRefs, ipLocationService } from "./ip-location";
 import { configManager } from "./redis";
 import { whitelistManager } from "./whitelist-manager";
 import { authLogManager } from "./auth-log";
@@ -208,7 +208,7 @@ export const handleLoginSuccess = async ({
   const maxAge = rememberMe ? 365 * 24 * 3600 : 24 * 3600;
 
   const clientIpStr = clientIp || "::1";
-  const ipLocationStr = await resolveClientLocation(clientIpStr);
+  const ipLocationStr = await ipLocationService.getCachedLocation(clientIpStr);
   const durationSeconds = rememberMe ? 365 * 24 * 3600 : 24 * 3600;
   const expireAt = Math.floor(Date.now() / 1000) + durationSeconds;
   const expiresAtISO = new Date(expireAt * 1000).toISOString();
@@ -247,6 +247,10 @@ export const handleLoginSuccess = async ({
     whitelistRecordId,
     expireAt,
   });
+  await ipLocationService.registerUsage(clientIpStr, [
+    ipLocationRefs.session(sessionId),
+    ipLocationRefs.sessionTimeline(sessionId),
+  ]);
   set.headers["Set-Cookie"] = buildSessionCookie(sessionId, maxAge);
   return {
     success: true,

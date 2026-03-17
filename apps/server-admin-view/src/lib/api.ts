@@ -311,18 +311,6 @@ export const SystemAPI = {
         const res = await apiClient.post('/config/fnos_share_bypass', payload);
         return res.data.data;
     },
-    async getIpLocationStatus() {
-        const res = await apiClient.get('/system/ip-location/status');
-        return res.data;
-    },
-    async startIpLocationDownload() {
-        const res = await apiClient.post('/system/ip-location/download');
-        return res.data;
-    },
-    async cancelIpLocationDownload() {
-        const res = await apiClient.post('/system/ip-location/cancel');
-        return res.data;
-    },
     async getFrpStatus() {
         const res = await apiClient.get('/system/frp/status');
         return res.data;

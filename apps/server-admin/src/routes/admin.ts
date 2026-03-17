@@ -6,6 +6,7 @@ import { firewallService } from "../lib/firewall-service";
 import { randomBytes } from "node:crypto";
 import { authLogManager } from "../lib/auth-log";
 import { authMobilitySessionManager } from "../lib/auth-mobility-session";
+import { ipLocationRefs, ipLocationService } from "../lib/ip-location";
 import { scanDetector } from "../lib/scan-detector";
 
 const parseIntSafe = (value: string | undefined, fallback: number) => {
@@ -315,6 +316,9 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
                 mobility: await authMobilitySessionManager.getSessionMobilitySummary(id),
             }))
         );
+        await ipLocationService.hydrateIpLocationRecords(mapped, (session) =>
+            ipLocationRefs.session(session.id),
+        );
         return { success: true, data: mapped };
     })
     .get("/sessions/:id", async ({ params, set }) => {
@@ -323,7 +327,11 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
             set.status = 404;
             return { success: false, message: "Session not found" };
         }
-        return { success: true, data: { id: params.id, ...sess } };
+        const record = { id: params.id, ...sess };
+        await ipLocationService.hydrateIpLocationRecords([record], (session) =>
+            ipLocationRefs.session(session.id),
+        );
+        return { success: true, data: record };
     }, {
         params: t.Object({ id: t.String() })
     })
@@ -333,9 +341,11 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
             set.status = 404;
             return { success: false, message: "Session not found" };
         }
+        const details = await authMobilitySessionManager.getSessionMobilityDetails(params.id);
+        await ipLocationService.hydrateMobilityEvents(details.events, params.id);
         return {
             success: true,
-            data: await authMobilitySessionManager.getSessionMobilityDetails(params.id),
+            data: details,
         };
     }, {
         params: t.Object({ id: t.String() })

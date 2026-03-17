@@ -1,78 +1,71 @@
 <template>
-  <div class="grid gap-4">
-    <div class="grid gap-2">
-      <Label for="cert-input">SSL 证书 (.crt / .pem)</Label>
-      <div class="flex gap-2 mb-1">
-        <Input 
-          type="file" 
-          accept=".crt,.pem" 
-          @change="handleFileUpload($event, 'cert')" 
-          class="flex-1" 
-        />
-      </div>
-      <Textarea
-        id="cert-input"
-        :model-value="cert"
-        @update:model-value="(v) => $emit('update:cert', String(v))"
-        placeholder="-----BEGIN CERTIFICATE-----\n..."
-        class="font-mono text-sm h-28"
-      />
-    </div>
+  <div class="grid gap-5">
+    <CertSourceField
+      id="cert-input"
+      field-key="cert"
+      label="SSL 证书"
+      :value="cert"
+      accept=".crt,.pem"
+      :supported-file-types="['.crt', '.pem']"
+      placeholder="-----BEGIN CERTIFICATE-----\n..."
+      :share-name="shareName"
+      :shared-files="sharedFiles"
+      :shared-files-available="sharedFilesAvailable"
+      :shared-files-loading="sharedFilesLoading"
+      :shared-files-error="sharedFilesError"
+      :shared-file-selecting="sharedFileSelecting"
+      @update:value="(value) => emit('update:cert', value)"
+      @request-shared-files="(payload) => emit('request-shared-files', payload)"
+      @select-shared-file="(payload) => emit('select-shared-file', payload)"
+    />
 
-    <div class="grid gap-2">
-      <Label for="key-input">私钥 (.key / .pem)</Label>
-      <div class="flex gap-2 mb-1">
-        <Input 
-          type="file" 
-          accept=".key,.pem" 
-          @change="handleFileUpload($event, 'sslKey')" 
-          class="flex-1" 
-        />
-      </div>
-      <Textarea
-        id="key-input"
-        :model-value="sslKey"
-        @update:model-value="(v) => $emit('update:sslKey', String(v))"
-        placeholder="-----BEGIN PRIVATE KEY-----\n..."
-        class="font-mono text-sm h-28"
-      />
-    </div>
+    <CertSourceField
+      id="key-input"
+      field-key="sslKey"
+      label="私钥"
+      :value="sslKey"
+      accept=".key,.pem"
+      :supported-file-types="['.key', '.pem']"
+      placeholder="-----BEGIN PRIVATE KEY-----\n..."
+      :share-name="shareName"
+      :shared-files="sharedFiles"
+      :shared-files-available="sharedFilesAvailable"
+      :shared-files-loading="sharedFilesLoading"
+      :shared-files-error="sharedFilesError"
+      :shared-file-selecting="sharedFileSelecting"
+      @update:value="(value) => emit('update:sslKey', value)"
+      @request-shared-files="(payload) => emit('request-shared-files', payload)"
+      @select-shared-file="(payload) => emit('select-shared-file', payload)"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import CertSourceField from './CertSourceField.vue';
 
-// 定义 Props
+interface SharedDataFileEntry {
+  name: string;
+  relativePath: string;
+  extension: string;
+  size: number;
+  modifiedAt: string;
+}
+
 defineProps<{
   cert: string;
   sslKey: string;
+  shareName?: string;
+  sharedFiles?: SharedDataFileEntry[];
+  sharedFilesAvailable?: boolean;
+  sharedFilesLoading?: boolean;
+  sharedFilesError?: string;
+  sharedFileSelecting?: boolean;
 }>();
 
-// 使用 Vue 3.3+ 更简洁且对 TS 更友好的 emit 定义方式
 const emit = defineEmits<{
   'update:cert': [value: string];
   'update:sslKey': [value: string];
+  'request-shared-files': [payload: { field: 'cert' | 'sslKey'; force?: boolean }];
+  'select-shared-file': [payload: { field: 'cert' | 'sslKey'; relativePath: string }];
 }>();
-
-function handleFileUpload(event: Event, type: 'cert' | 'sslKey') {
-  const target = event.target as HTMLInputElement;
-  const file = target.files?.[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const result = e.target?.result;
-    if (typeof result === 'string') {
-      if (type === 'cert') {
-        emit('update:cert', result);
-      } else {
-        emit('update:sslKey', result);
-      }
-    }
-  };
-  reader.readAsText(file);
-}
 </script>

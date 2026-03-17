@@ -1,6 +1,7 @@
 import { Elysia, t } from "elysia";
 import { goBackend } from "../lib/go-backend";
 import { clearCA, existsCA, getCAInfo, initRootCA, issueServerCert, readCACert } from "../lib/ca-store";
+import { listSSLSharedFiles, readSSLSharedFile } from "../lib/fnos-data-share";
 import { configManager } from "../lib/redis";
 
 function crc32(buf: Uint8Array) {
@@ -107,6 +108,30 @@ export const sslRoutes = new Elysia({ prefix: "/api/admin/ssl" })
     .get("/status", async () => {
         const status = await configManager.getSSLStatus();
         return { success: true, data: status };
+    })
+    .get("/shared-files", async () => {
+        const files = await listSSLSharedFiles();
+        return { success: true, data: files };
+    })
+    .get("/shared-files/content", async ({ query, set }) => {
+        try {
+            const data = await readSSLSharedFile(query.path);
+            return { success: true, data };
+        } catch (error: any) {
+            const message = error?.message ?? "读取共享目录文件失败";
+            if (error?.code === "ENOENT" || message.includes("未找到")) {
+                set.status = 404;
+            } else if (error?.code === "EACCES") {
+                set.status = 403;
+            } else {
+                set.status = 400;
+            }
+            return { success: false, message };
+        }
+    }, {
+        query: t.Object({
+            path: t.String(),
+        }),
     })
     .get("/ca/status", async () => {
         const initialized = await existsCA();

@@ -24,6 +24,7 @@ AUTH_PORT=""
 GO_BACKEND_PORT=""
 GO_REPROXY_PORT=""
 ALTCHA_HMAC_KEY="${ALTCHA_HMAC_KEY:-}"
+ROOT_SHARE_DIR="${FN_KNOCK_ROOT_SHARE_DIR:-${FN_KNOCK_CERT_SHARE_DIR:-}}"
 
 log_msg() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "${LOG_FILE}"
@@ -64,6 +65,7 @@ log_backend_failure_debug() {
     log_msg "[debug] pid_value=${pid:-<empty>}"
     log_msg "[debug] app_home=${APP_HOME}"
     log_msg "[debug] data_dir=${PKG_VAR_DIR}"
+    log_msg "[debug] root_share_dir=${ROOT_SHARE_DIR:-<empty>}"
     log_msg "[debug] ports backend=${BACKEND_PORT} auth=${AUTH_PORT} go_admin=${GO_BACKEND_PORT} go_proxy=${GO_REPROXY_PORT}"
 
     if [ -f "${BACKEND_PID_FILE}" ]; then
@@ -76,7 +78,7 @@ log_backend_failure_debug() {
     log_debug_cmd "path_stat" "ls -ld \"${APP_HOME}\" \"${ADMIN_STATIC_PATH}\" \"${AUTH_STATIC_PATH}\""
     log_debug_cmd "binary_stat" "ls -l \"${NODE_BIN}\" \"${BACKEND_ENTRY}\" \"${GATEWAY_BIN}\""
     log_debug_cmd "data_dir_writable" "test -w \"${PKG_VAR_DIR}\" && echo writable || echo not-writable"
-    log_debug_cmd "env_subset" "env | grep -E '^(TRIM_|BACKEND_PORT|AUTH_PORT|GO_BACKEND_PORT|GO_REPROXY_PORT|NODE_ENV|PATH)=' | sort"
+    log_debug_cmd "env_subset" "env | grep -E '^(TRIM_|FN_KNOCK_ROOT_SHARE_DIR|FN_KNOCK_CERT_SHARE_DIR|BACKEND_PORT|AUTH_PORT|GO_BACKEND_PORT|GO_REPROXY_PORT|NODE_ENV|PATH)=' | sort"
     log_debug_cmd "ulimit" "ulimit -a"
 
     if [ -n "${pid}" ]; then
@@ -165,6 +167,39 @@ resolve_altcha_hmac_key() {
 
     ALTCHA_HMAC_KEY="${generated}"
     log_msg "Generated runtime ALTCHA_HMAC_KEY at ${ALTCHA_HMAC_KEY_FILE}"
+    return 0
+}
+
+resolve_root_share_dir() {
+    local share_paths=""
+    local selected_path=""
+    local candidate=""
+    local old_ifs="${IFS}"
+
+    if [ -n "${ROOT_SHARE_DIR:-}" ]; then
+        return 0
+    fi
+
+    share_paths="${TRIM_DATA_SHARE_PATHS:-}"
+    if [ -z "${share_paths}" ]; then
+        return 0
+    fi
+
+    IFS=':'
+    for candidate in ${share_paths}; do
+        if [ -z "${candidate}" ]; then
+            continue
+        fi
+        if [ -z "${selected_path}" ] || [ "${#candidate}" -lt "${#selected_path}" ]; then
+            selected_path="${candidate}"
+        fi
+    done
+    IFS="${old_ifs}"
+
+    if [ -n "${selected_path}" ]; then
+        ROOT_SHARE_DIR="${selected_path}"
+    fi
+
     return 0
 }
 
@@ -432,6 +467,7 @@ start_backend() {
         fail_backend_start "ALTCHA_HMAC_KEY is unavailable" ""
         return 1
     fi
+    resolve_root_share_dir
 
     log_msg "Starting Node.js backend (backend-port=${BACKEND_PORT}, auth-port=${AUTH_PORT})..."
     (
@@ -439,6 +475,7 @@ start_backend() {
         ADMIN_STATIC_PATH="${ADMIN_STATIC_PATH}" \
         AUTH_STATIC_PATH="${AUTH_STATIC_PATH}" \
         FN_KNOCK_DATA_DIR="${PKG_VAR_DIR}" \
+        FN_KNOCK_ROOT_SHARE_DIR="${ROOT_SHARE_DIR}" \
         ACME_BUNDLE_ZIP="${ACME_BUNDLE_ZIP}" \
         BACKEND_PORT="${BACKEND_PORT}" \
         AUTH_PORT="${AUTH_PORT}" \

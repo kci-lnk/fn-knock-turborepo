@@ -7,6 +7,25 @@
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
+    "server-admin-view#build": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*",
+        "../../packages/admin-shared/src/**",
+        "../../packages/frontend-core/src/**",
+        "../../packages/icons/**",
+        "../../packages/ui-vue/src/**"
+      ]
+    },
+    "server-auth-view#build": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        ".env*",
+        "../../packages/frontend-core/src/**",
+        "../../packages/icons/**",
+        "../../packages/ui-vue/src/**"
+      ]
+    },
     "lint": {
       "dependsOn": ["^lint"]
     },

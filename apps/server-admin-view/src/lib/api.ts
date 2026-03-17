@@ -1,4 +1,4 @@
-import type { AppConfig, ProxyMapping, SSLConfig, SSLStatus, PasskeyCredential, TOTPCredential, SessionRecord, ProxyProtocolForce, TrafficStats, DashboardStats, ThreatOverview, FnosShareBypassConfig, SessionMobilityDetails } from '../types';
+import type { AppConfig, ProxyMapping, SSLConfig, SSLStatus, PasskeyCredential, TOTPCredential, SessionRecord, ProxyProtocolForce, TrafficStats, DashboardStats, ThreatOverview, FnosShareBypassConfig, SessionMobilityDetails, SSLSharedFilesPayload, SharedDataFileEntry } from '../types';
 import { createSignedApiClient } from '@frontend-core/api/createSignedApiClient';
 import type { CaptchaSettings } from '@frontend-core/captcha/types';
 
@@ -67,6 +67,14 @@ export const ConfigAPI = {
     // SSL
     async getSSLStatus(): Promise<SSLStatus> {
         const res = await apiClient.get('/ssl/status');
+        return res.data.data;
+    },
+    async getSSLSharedFiles(): Promise<SSLSharedFilesPayload> {
+        const res = await apiClient.get('/ssl/shared-files');
+        return res.data.data;
+    },
+    async readSSLSharedFile(path: string): Promise<{ file: SharedDataFileEntry; content: string }> {
+        const res = await apiClient.get('/ssl/shared-files/content', { params: { path } });
         return res.data.data;
     },
     // CA

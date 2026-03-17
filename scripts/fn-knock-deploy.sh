@@ -67,6 +67,10 @@ resolve_remote_ui_index() {
   ssh "${REMOTE_HOST}" "for p in '${REMOTE_UI_INDEX}' '/usr/local/apps/@appcenter/${APP_NAME}/app/ui/index.cgi'; do if [ -f \"\$p\" ]; then echo \"\$p\"; exit 0; fi; done; exit 1"
 }
 
+resolve_remote_www_index() {
+  ssh "${REMOTE_HOST}" "for p in '/usr/local/apps/@appcenter/${APP_NAME}/ui/www/index.html' '/usr/local/apps/@appcenter/${APP_NAME}/app/ui/www/index.html'; do if [ -f \"\$p\" ]; then echo \"\$p\"; exit 0; fi; done; exit 1"
+}
+
 run_local_package() {
   log "Step 1/4: Build package assets locally"
   ./apps/fn-knock/scripts/build-package.sh
@@ -209,6 +213,63 @@ run_remote_verify() {
     echo "ERROR: installed index.cgi does not match local package file" >&2
     exit 1
   fi
+
+  log "Step 4/4: Verify installed ui/www/index.html hash"
+  local local_www_index
+  local remote_www_index
+  local local_www_hash
+  local remote_www_hash
+  local_www_index="${LOCAL_APP_DIR}/app/ui/www/index.html"
+  remote_www_index="$(resolve_remote_www_index)" || {
+    echo "ERROR: unable to locate remote ui/www/index.html for '${APP_NAME}'" >&2
+    exit 1
+  }
+  local_www_hash="$(shasum -a 256 "${local_www_index}" | awk '{print $1}')"
+  remote_www_hash="$(ssh "${REMOTE_HOST}" "shasum -a 256 '${remote_www_index}' | awk '{print \$1}'")"
+  echo "local index.html  sha256: ${local_www_hash}"
+  echo "remote index.html sha256: ${remote_www_hash}"
+  echo "remote index.html path: ${remote_www_index}"
+
+  if [ "${local_www_hash}" != "${remote_www_hash}" ]; then
+    echo "ERROR: installed ui/www/index.html does not match local package file" >&2
+    exit 1
+  fi
+
+  log "Step 4/4: Verify installed SSLSettings assets"
+  local local_assets_dir
+  local remote_assets_dir
+  local local_ssl_assets
+  local remote_ssl_assets
+  local asset_name
+  local asset_local_hash
+  local asset_remote_hash
+  local_assets_dir="${LOCAL_APP_DIR}/app/ui/www/assets"
+  remote_assets_dir="$(dirname "${remote_www_index}")/assets"
+  local_ssl_assets="$(find "${local_assets_dir}" -maxdepth 1 -type f -name 'SSLSettings-*.js' | sed 's|.*/||' | sort)"
+  remote_ssl_assets="$(ssh "${REMOTE_HOST}" "find '${remote_assets_dir}' -maxdepth 1 -type f -name 'SSLSettings-*.js' | sed 's|.*/||' | sort")"
+  echo "local SSLSettings assets:"
+  printf '%s\n' "${local_ssl_assets}"
+  echo "remote SSLSettings assets:"
+  printf '%s\n' "${remote_ssl_assets}"
+
+  if [ "${local_ssl_assets}" != "${remote_ssl_assets}" ]; then
+    echo "ERROR: installed SSLSettings assets do not match local package files" >&2
+    exit 1
+  fi
+
+  while IFS= read -r asset_name; do
+    [ -n "${asset_name}" ] || continue
+    asset_local_hash="$(shasum -a 256 "${local_assets_dir}/${asset_name}" | awk '{print $1}')"
+    asset_remote_hash="$(ssh "${REMOTE_HOST}" "shasum -a 256 '${remote_assets_dir}/${asset_name}' | awk '{print \$1}'")"
+    echo "local ${asset_name}  sha256: ${asset_local_hash}"
+    echo "remote ${asset_name} sha256: ${asset_remote_hash}"
+    if [ "${asset_local_hash}" != "${asset_remote_hash}" ]; then
+      echo "ERROR: installed ${asset_name} does not match local package file" >&2
+      exit 1
+    fi
+  done <<EOF
+${local_ssl_assets}
+EOF
 
   log "Step 4/4: Show key section from remote index.cgi"
   ssh "${REMOTE_HOST}" "sed -n '170,280p' '${remote_ui_index}'"

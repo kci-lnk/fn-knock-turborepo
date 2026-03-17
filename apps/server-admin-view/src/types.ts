@@ -26,6 +26,20 @@ export interface SSLStatus {
     certInfo?: SSLCertInfo;
 }
 
+export interface SharedDataFileEntry {
+    name: string;
+    relativePath: string;
+    extension: string;
+    size: number;
+    modifiedAt: string;
+}
+
+export interface SSLSharedFilesPayload {
+    shareName: string;
+    available: boolean;
+    files: SharedDataFileEntry[];
+}
+
 export interface FnosShareBypassConfig {
     enabled: boolean;
     upstream_timeout_ms: number;

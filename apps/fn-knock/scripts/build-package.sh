@@ -86,8 +86,10 @@ build_package_assets() {
   echo "[fn-knock] Syncing manifest version from server-admin app version..."
   sync_manifest_version
 
-  echo "[fn-knock] Building frontend apps..."
-  npx turbo run build --filter=server-admin-view --filter=server-auth-view
+  # These frontend apps import workspace source via Vite aliases.
+  # Force rebuild here so packaging never reuses a stale Turbo cache entry.
+  echo "[fn-knock] Building frontend apps (force rebuild to avoid stale workspace alias cache)..."
+  npx turbo run build --filter=server-admin-view --filter=server-auth-view --force
 
   echo "[fn-knock] Building server-admin..."
   npm run build --workspace server-admin

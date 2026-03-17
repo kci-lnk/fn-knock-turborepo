@@ -10,7 +10,7 @@
     </CardHeader>
     <CardContent class="grid gap-4">
       <div class="rounded-lg border bg-muted/30 p-4 grid gap-3">
-        <div class="grid grid-cols-[100px_1fr] gap-y-3 text-sm">
+        <div class="grid grid-cols-[88px_minmax(0,1fr)] gap-y-3 text-sm sm:grid-cols-[100px_minmax(0,1fr)]">
           <Skeleton class="h-4 w-16" />
           <Skeleton class="h-4 w-56" />
           <Skeleton class="h-4 w-16" />
@@ -44,15 +44,15 @@
     </CardHeader>
     <CardContent class="grid gap-4">
       <div v-if="sslStatus.certInfo" class="rounded-lg border bg-muted/30 p-4 grid gap-3">
-        <div class="grid grid-cols-[100px_1fr] gap-y-3 text-sm">
+        <div class="grid grid-cols-[88px_minmax(0,1fr)] gap-y-3 text-sm sm:grid-cols-[100px_minmax(0,1fr)]">
           <span class="text-muted-foreground font-medium">签发者</span>
-          <span class="font-mono text-xs break-all">{{ formatDN(sslStatus.certInfo.issuer) }}</span>
+          <span class="min-w-0 font-mono text-xs break-all">{{ formatDN(sslStatus.certInfo.issuer) }}</span>
           
           <span class="text-muted-foreground font-medium">签发给</span>
-          <span class="font-mono text-xs break-all">{{ formatDN(sslStatus.certInfo.subject) }}</span>
+          <span class="min-w-0 font-mono text-xs break-all">{{ formatDN(sslStatus.certInfo.subject) }}</span>
           
           <span class="text-muted-foreground font-medium">有效期</span>
-          <span class="text-xs">
+          <span class="min-w-0 text-xs">
             <span>{{ formatDate(sslStatus.certInfo.validFrom) }}</span>
             <span class="mx-1 text-muted-foreground">至</span>
             <span :class="isExpired ? 'text-destructive font-semibold' : ''">{{ formatDate(sslStatus.certInfo.validTo) }}</span>
@@ -61,17 +61,17 @@
           </span>
 
           <span class="text-muted-foreground font-medium">域名</span>
-          <div class="flex flex-wrap gap-1.5">
+          <div class="min-w-0 flex flex-wrap gap-1.5">
             <Badge v-for="dns in sslStatus.certInfo.dnsNames" :key="dns" variant="secondary" class="font-mono text-xs">{{ dns }}</Badge>
             <span v-if="!sslStatus.certInfo.dnsNames.length" class="text-xs text-muted-foreground">无</span>
           </div>
 
           <span class="text-muted-foreground font-medium">序列号</span>
-          <span class="font-mono text-xs text-muted-foreground break-all">{{ sslStatus.certInfo.serialNumber }}</span>
+          <span class="min-w-0 font-mono text-xs text-muted-foreground break-all">{{ sslStatus.certInfo.serialNumber }}</span>
         </div>
       </div>
     </CardContent>
-    <CardFooter class="flex justify-end gap-2">
+    <CardFooter class="flex flex-wrap justify-end gap-2">
       <ConfirmDangerPopover
         title="确认清除 SSL 证书"
         description="清除后将禁用 HTTPS，所有连接将回退到 HTTP。"
@@ -100,13 +100,24 @@
       <CardDescription>上传或粘贴您的 SSL 证书和私钥以启用 HTTPS。</CardDescription>
     </CardHeader>
     <CardContent class="grid gap-6">
-      <CertForm v-model:cert="formData.cert" v-model:sslKey="formData.key" />
+      <CertForm
+        v-model:cert="formData.cert"
+        v-model:sslKey="formData.key"
+        :share-name="sslSharedFiles.shareName"
+        :shared-files="sslSharedFiles.files"
+        :shared-files-available="sslSharedFiles.available"
+        :shared-files-loading="isLoadingSharedFiles"
+        :shared-files-error="sharedFilesError"
+        :shared-file-selecting="isReadingSharedFile"
+        @request-shared-files="handleSharedFilesRequest"
+        @select-shared-file="handleCreateSharedFileSelect"
+      />
       <Alert v-if="errorMessage" variant="destructive">
         <AlertTitle>证书验证失败</AlertTitle>
         <AlertDescription>{{ errorMessage }}</AlertDescription>
       </Alert>
     </CardContent>
-    <CardFooter class="flex justify-end">
+    <CardFooter class="flex flex-wrap justify-end">
       <Button @click="handleSave" :disabled="isSaving || !formData.cert || !formData.key">
         <span v-if="isSaving" class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
         保存证书
@@ -114,53 +125,92 @@
     </CardFooter>
   </Card>
 
-  <Dialog v-model:open="showEditDialog">
-    <DialogContent class="sm:max-w-[600px]">
-      <DialogHeader>
-        <DialogTitle>修改 SSL 证书</DialogTitle>
-        <DialogDescription>上传或粘贴新的 SSL 证书和私钥来替换当前证书。</DialogDescription>
-      </DialogHeader>
-      <div class="grid gap-6 py-2">
-        <CertForm v-model:cert="editFormData.cert" v-model:sslKey="editFormData.key" />
+  <component
+    :is="isMobileViewport ? Sheet : Dialog"
+    :open="showEditDialog"
+    @update:open="showEditDialog = $event"
+  >
+    <component
+      :is="isMobileViewport ? SheetContent : DialogContent"
+      v-bind="isMobileViewport ? { side: 'bottom' } : {}"
+      :class="isMobileViewport
+        ? 'flex h-[92vh] flex-col gap-0 rounded-t-[10px] border-x-0 border-b-0 bg-background px-0 pb-0'
+        : 'flex max-h-[90vh] flex-col border-border/60 bg-background sm:max-w-[600px]'"
+    >
+      <component
+        :is="isMobileViewport ? SheetHeader : DialogHeader"
+        class="px-6 pb-0 pt-6"
+      >
+        <component :is="isMobileViewport ? SheetTitle : DialogTitle">修改 SSL 证书</component>
+        <component :is="isMobileViewport ? SheetDescription : DialogDescription">
+          上传或粘贴新的 SSL 证书和私钥来替换当前证书。
+        </component>
+      </component>
+      <div class="grid min-h-0 flex-1 gap-6 overflow-y-auto px-6 py-4">
+        <CertForm
+          v-model:cert="editFormData.cert"
+          v-model:sslKey="editFormData.key"
+          :share-name="sslSharedFiles.shareName"
+          :shared-files="sslSharedFiles.files"
+          :shared-files-available="sslSharedFiles.available"
+          :shared-files-loading="isLoadingSharedFiles"
+          :shared-files-error="sharedFilesError"
+          :shared-file-selecting="isReadingSharedFile"
+          @request-shared-files="handleSharedFilesRequest"
+          @select-shared-file="handleEditSharedFileSelect"
+        />
         <Alert v-if="editErrorMessage" variant="destructive">
           <AlertTitle>证书验证失败</AlertTitle>
           <AlertDescription>{{ editErrorMessage }}</AlertDescription>
         </Alert>
       </div>
-      <DialogFooter>
+      <component
+        :is="isMobileViewport ? SheetFooter : DialogFooter"
+        class="border-t border-border/50 bg-background px-6 py-4"
+      >
         <Button variant="outline" @click="showEditDialog = false">取消</Button>
         <Button @click="handleEdit" :disabled="isSaving || !editFormData.cert || !editFormData.key">
           <span v-if="isSaving" class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
           保存修改
         </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+      </component>
+    </component>
+  </component>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onBeforeUnmount, onMounted } from 'vue';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
 import CertForm from '@admin-shared/components/ssl/CertForm.vue';
 import ConfirmDangerPopover from '@admin-shared/components/common/ConfirmDangerPopover.vue';
 import { extractErrorMessage, useAsyncAction } from '@admin-shared/composables/useAsyncAction';
 import { useDelayedLoading } from '@admin-shared/composables/useDelayedLoading';
 import { ConfigAPI } from '../../lib/api';
-import type { SSLStatus } from '../../types';
+import type { SSLSharedFilesPayload, SSLStatus } from '../../types';
 import { toast } from '@admin-shared/utils/toast';
 
 const sslStatus = ref<SSLStatus | null>(null);
 const errorMessage = ref('');
 const editErrorMessage = ref('');
 const showEditDialog = ref(false);
+const sharedFilesError = ref('');
+const isMobileViewport = ref(false);
 
 const formData = ref({ cert: '', key: '' });
 const editFormData = ref({ cert: '', key: '' });
+const defaultSSLSharedFiles: SSLSharedFilesPayload = {
+  shareName: 'fn-knock',
+  available: false,
+  files: [],
+};
+const sslSharedFiles = ref<SSLSharedFilesPayload>(defaultSSLSharedFiles);
+const hasLoadedSharedFiles = ref(false);
 const saveMode = ref<'create' | 'edit'>('create');
 const { isPending: isSaving, run: runSaveSSL } = useAsyncAction({
   onError: (error) => {
@@ -183,7 +233,22 @@ const { isPending: isLoading, run: runLoadSSLStatus } = useAsyncAction({
     console.error('Failed to load SSL status:', error);
   },
 });
+const { isPending: isLoadingSharedFiles, run: runLoadSharedFiles } = useAsyncAction({
+  onError: (error) => {
+    const message = extractErrorMessage(error, '读取飞牛共享目录失败');
+    sharedFilesError.value = message;
+    toast.error(message);
+  },
+});
+const { isPending: isReadingSharedFile, run: runReadSharedFile } = useAsyncAction({
+  onError: (error) => {
+    toast.error(extractErrorMessage(error, '读取共享文件失败'));
+  },
+});
 const showLoadingSkeleton = useDelayedLoading(isLoading);
+
+let viewportQuery: MediaQueryList | null = null;
+let viewportQueryListener: ((event: MediaQueryListEvent) => void) | null = null;
 
 const isExpired = computed(() => {
   if (!sslStatus.value?.certInfo?.validTo) return false;
@@ -199,8 +264,37 @@ const isExpiringSoon = computed(() => {
 });
 
 onMounted(() => {
+  if (typeof window !== 'undefined') {
+    viewportQuery = window.matchMedia('(max-width: 768px)');
+    isMobileViewport.value = viewportQuery.matches;
+
+    viewportQueryListener = (event: MediaQueryListEvent) => {
+      isMobileViewport.value = event.matches;
+    };
+
+    if (typeof viewportQuery.addEventListener === 'function') {
+      viewportQuery.addEventListener('change', viewportQueryListener);
+    } else {
+      viewportQuery.addListener(viewportQueryListener);
+    }
+  }
+
   loadSSLStatus();
 });
+
+onBeforeUnmount(() => {
+  if (!viewportQuery || !viewportQueryListener) {
+    return;
+  }
+
+  if (typeof viewportQuery.removeEventListener === 'function') {
+    viewportQuery.removeEventListener('change', viewportQueryListener);
+    return;
+  }
+
+  viewportQuery.removeListener(viewportQueryListener);
+});
+
 async function loadSSLStatus() {
   await runLoadSSLStatus(async () => {
     sslStatus.value = await ConfigAPI.getSSLStatus();
@@ -236,6 +330,52 @@ async function handleClear() {
     await loadSSLStatus();
     toast.success('证书清除成功');
   });
+}
+
+async function loadSharedFiles(force = false) {
+  if (hasLoadedSharedFiles.value && !force) {
+    return;
+  }
+
+  sharedFilesError.value = '';
+  const nextFiles = await runLoadSharedFiles(async () => ConfigAPI.getSSLSharedFiles());
+  if (!nextFiles) {
+    return;
+  }
+
+  sslSharedFiles.value = nextFiles;
+  hasLoadedSharedFiles.value = true;
+}
+
+async function handleSharedFilesRequest(payload: { field: 'cert' | 'sslKey'; force?: boolean }) {
+  await loadSharedFiles(Boolean(payload.force));
+}
+
+async function applySharedFileSelection(
+  target: { cert: string; key: string },
+  payload: { field: 'cert' | 'sslKey'; relativePath: string },
+) {
+  const result = await runReadSharedFile(async () => ConfigAPI.readSSLSharedFile(payload.relativePath));
+  if (!result) {
+    return;
+  }
+
+  if (payload.field === 'cert') {
+    target.cert = result.content;
+  } else {
+    target.key = result.content;
+  }
+
+  const label = payload.field === 'cert' ? '证书' : '私钥';
+  toast.success(`已从飞牛目录载入${label}文件：${result.file.name}`);
+}
+
+async function handleCreateSharedFileSelect(payload: { field: 'cert' | 'sslKey'; relativePath: string }) {
+  await applySharedFileSelection(formData.value, payload);
+}
+
+async function handleEditSharedFileSelect(payload: { field: 'cert' | 'sslKey'; relativePath: string }) {
+  await applySharedFileSelection(editFormData.value, payload);
 }
 
 function formatDN(dn: string): string {

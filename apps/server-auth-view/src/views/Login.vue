@@ -172,6 +172,7 @@ import {
 import type { CaptchaPublicSettings, CaptchaSubmission } from '@frontend-core/captcha/types';
 import { apiClient, AuthAPI, buildAuthApiPath, CaptchaAPI } from '@/lib/api';
 import { buildPowSubmission, normalizePowChallenge, solvePowChallenge } from '@/lib/captcha';
+import { markPendingLogoutDelay } from '@/lib/post-login';
 import AuthFooter from '@/components/AuthFooter.vue';
 import TurnstileWidget from '@/components/captcha/TurnstileWidget.vue';
 
@@ -357,6 +358,7 @@ async function handleLogin() {
 
 function completeLogin(runType: 0 | 1) {
   pendingRunType.value = null;
+  markPendingLogoutDelay();
   if (runType === 0) {
     router.push('/');
   } else {

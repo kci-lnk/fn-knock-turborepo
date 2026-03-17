@@ -31,7 +31,10 @@
             <p class="text-xs text-center text-muted-foreground">当前浏览器支持 Passkey，但尚未绑定</p>
           </div>
           <p v-if="passkeyError" class="text-xs text-center text-destructive">{{ passkeyError }}</p>
-          <Button variant="destructive" @click="handleLogout" class="w-full" :disabled="isLoading">
+          <p v-if="!canShowLogoutButton" class="text-xs text-center text-muted-foreground">
+            退出登录按钮将在 {{ logoutDelayRemainingSeconds }} 秒后显示
+          </p>
+          <Button v-else variant="destructive" @click="openLogoutConfirm" class="w-full" :disabled="isLoading">
             <span v-if="isLoading" class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
             退出登录
           </Button>
@@ -41,19 +44,48 @@
 
     <AuthFooter :client-ip="clientIp" :ip-location="ipLocation" />
   </div>
+
+  <Dialog :open="showLogoutConfirmDialog" @update:open="showLogoutConfirmDialog = $event">
+    <DialogContent :show-close-button="false">
+      <DialogHeader>
+        <DialogTitle>确认退出登录</DialogTitle>
+        <DialogDescription>
+          退出后将撤销当前访问授权，需要重新验证后才能再次进入。
+        </DialogDescription>
+      </DialogHeader>
+      <DialogFooter class="gap-2">
+        <Button variant="outline" @click="showLogoutConfirmDialog = false" :disabled="isLoading">
+          取消
+        </Button>
+        <Button variant="destructive" @click="handleLogout" :disabled="isLoading">
+          <span v-if="isLoading" class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
+          确认退出
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import {
     normalizeCreationOptions,
     serializeCredential,
 } from '@frontend-core/passkey/utils';
 import { apiClient, AuthAPI } from '@/lib/api';
+import { consumePendingLogoutDelay, POST_LOGIN_LOGOUT_DELAY_MS } from '@/lib/post-login';
 import AuthFooter from '@/components/AuthFooter.vue';
 
 const router = useRouter();
@@ -65,9 +97,56 @@ const passkeyError = ref('');
 const isCheckingAuth = ref(true);
 const clientIp = ref('');
 const ipLocation = ref('');
+const canShowLogoutButton = ref(true);
+const logoutDelayRemainingSeconds = ref(0);
+const showLogoutConfirmDialog = ref(false);
+
+let logoutDelayTimer: ReturnType<typeof window.setTimeout> | null = null;
+let logoutDelayCountdownTimer: ReturnType<typeof window.setInterval> | null = null;
 
 function initPasskeySupport() {
     isPasskeySupported.value = typeof window !== 'undefined' && !!window.PublicKeyCredential;
+}
+
+function clearLogoutDelayTimers() {
+    if (logoutDelayTimer) {
+        window.clearTimeout(logoutDelayTimer);
+        logoutDelayTimer = null;
+    }
+    if (logoutDelayCountdownTimer) {
+        window.clearInterval(logoutDelayCountdownTimer);
+        logoutDelayCountdownTimer = null;
+    }
+}
+
+function initLogoutAvailability() {
+    if (!consumePendingLogoutDelay()) {
+        canShowLogoutButton.value = true;
+        logoutDelayRemainingSeconds.value = 0;
+        return;
+    }
+
+    canShowLogoutButton.value = false;
+    logoutDelayRemainingSeconds.value = Math.ceil(POST_LOGIN_LOGOUT_DELAY_MS / 1000);
+
+    logoutDelayCountdownTimer = window.setInterval(() => {
+        if (logoutDelayRemainingSeconds.value <= 1) {
+            logoutDelayRemainingSeconds.value = 0;
+            if (logoutDelayCountdownTimer) {
+                window.clearInterval(logoutDelayCountdownTimer);
+                logoutDelayCountdownTimer = null;
+            }
+            return;
+        }
+
+        logoutDelayRemainingSeconds.value -= 1;
+    }, 1000);
+
+    logoutDelayTimer = window.setTimeout(() => {
+        canShowLogoutButton.value = true;
+        logoutDelayRemainingSeconds.value = 0;
+        clearLogoutDelayTimers();
+    }, POST_LOGIN_LOGOUT_DELAY_MS);
 }
 
 async function loadSession() {
@@ -91,11 +170,22 @@ onMounted(async () => {
     if (!isAuthenticated) {
         return;
     }
+
+    initLogoutAvailability();
 });
+
+onBeforeUnmount(() => {
+    clearLogoutDelayTimers();
+});
+
+function openLogoutConfirm() {
+    showLogoutConfirmDialog.value = true;
+}
 
 async function handleLogout() {
     isLoading.value = true;
     try {
+        showLogoutConfirmDialog.value = false;
         await apiClient.get('/logout');
         router.push('/login');
     } catch (e) {

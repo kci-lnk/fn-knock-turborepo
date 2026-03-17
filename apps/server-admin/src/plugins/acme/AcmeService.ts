@@ -233,7 +233,7 @@ export class AcmeService {
       this.state = {
         status: "installed",
         progress: 100,
-        message: `acme.sh 已就绪 (${this.acmePath})`,
+        message: `acme.sh 已就绪`,
         executablePath: this.acmePath,
       };
       return true;

@@ -373,8 +373,8 @@ async function applyRunModeChange(
   },
 ) {
   await runSaveMode(async () => {
-    if (nextMode === 0) {
-      await ensureTunnelsStoppedForDirectMode();
+    if (nextMode !== 1) {
+      await ensureTunnelsStoppedForTargetMode(nextMode);
     }
 
     if (options?.promptPreferenceKey && options.disablePrompt) {
@@ -390,7 +390,7 @@ async function applyRunModeChange(
   });
 }
 
-async function ensureTunnelsStoppedForDirectMode() {
+async function ensureTunnelsStoppedForTargetMode(nextMode: 0 | 1 | 3) {
   const [frpcStatus, cloudflaredStatus] = await Promise.all([
     FrpcAPI.getStatus(),
     CloudflaredAPI.getStatus(),
@@ -421,8 +421,14 @@ async function ensureTunnelsStoppedForDirectMode() {
 
   await Promise.all(runningTunnels.map((item) => item.stop()));
   toast.success("已关闭隧道服务", {
-    description: `${runningTunnels.map((item) => item.label).join("、")} 已停止，正在切换到直连模式`,
+    description: `${runningTunnels.map((item) => item.label).join("、")} 已停止，正在切换到${getRunModeLabel(nextMode)}`,
   });
+}
+
+function getRunModeLabel(targetMode: 0 | 1 | 3) {
+  if (targetMode === 0) return "直连模式";
+  if (targetMode === 1) return "反代模式";
+  return "子域名模式";
 }
 
 function handleConfirmDialogOpenChange(nextOpen: boolean) {

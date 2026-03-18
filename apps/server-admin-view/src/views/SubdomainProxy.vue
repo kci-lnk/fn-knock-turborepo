@@ -562,7 +562,11 @@
             v-else-if="discoveredData && discoveredData.services.length === 0"
             class="text-center py-16 text-muted-foreground"
           >
-            未探测到任何可代理的服务。
+            {{
+              discoveredData.foundServices > 0
+                ? "本次扫描到的服务都已添加到 Host 映射中。"
+                : "未探测到任何可代理的服务。"
+            }}
           </div>
 
           <div
@@ -651,7 +655,7 @@
             </template>
           </span>
           <div class="space-x-2">
-            <Button variant="outline" @click="closeDiscoverDialog(true)">
+            <Button variant="outline" @click="dismissDiscoverDialog">
               取消
             </Button>
             <Button
@@ -721,6 +725,7 @@ import {
 } from "@/components/ui/table";
 import { toast } from "@admin-shared/utils/toast";
 import { useDiscoverServicesSelection } from "@admin-shared/composables/useDiscoverServicesSelection";
+import { extractPortFromTarget } from "@admin-shared/utils/extractPortFromTarget";
 import { useConfigStore } from "../store/config";
 import {
   ConfigAPI,
@@ -848,6 +853,18 @@ const canManageNewMappings = computed(
   () => Boolean(savedRootDomain.value) && !isRootDomainPendingSave.value,
 );
 const allMappings = computed(() => configStore.config?.host_mappings ?? []);
+const existingMappingPorts = computed(() => {
+  const ports = new Set<number>();
+
+  for (const mapping of allMappings.value) {
+    const port = extractPortFromTarget(mapping.target);
+    if (port !== null) {
+      ports.add(port);
+    }
+  }
+
+  return ports;
+});
 const authServiceMapping = computed(
   () => allMappings.value.find((mapping) => mapping.service_role === "auth") ?? null,
 );
@@ -1214,9 +1231,14 @@ const onToggleAllDiscoverSelect = (event: Event) => {
   setAllSelected(checked);
 };
 
+function dismissDiscoverDialog() {
+  setDiscoveredData(null);
+  closeDiscoverDialog(true);
+}
+
 const handleDiscoverDialogOpenChange = (nextOpen: boolean) => {
   if (!nextOpen) {
-    closeDiscoverDialog(true);
+    dismissDiscoverDialog();
   }
 };
 
@@ -1242,14 +1264,16 @@ async function triggerScan() {
     onSuccess: (data) => {
       const nextData: DiscoveredHostResponse = {
         ...data,
-        services: data.services.map((service) => ({
-          ...service,
-          detail: {
-            ...service.detail,
-            rule: { ...service.detail.rule },
-          },
-          suggestedSubdomain: buildSuggestedSubdomain(service),
-        })),
+        services: data.services
+          .map((service) => ({
+            ...service,
+            detail: {
+              ...service.detail,
+              rule: { ...service.detail.rule },
+            },
+            suggestedSubdomain: buildSuggestedSubdomain(service),
+          }))
+          .filter((service) => !existingMappingPorts.value.has(service.port)),
       };
       setDiscoveredData(nextData);
       selectedServices.value = nextData.services.filter((service) =>
@@ -1313,7 +1337,7 @@ async function saveDiscoveredServices() {
 
     await configStore.saveHostMappings(next);
     toast.success(`已添加 ${selectedServices.value.length} 条 Host 映射`);
-    closeDiscoverDialog(true);
+    dismissDiscoverDialog();
   });
 }
 

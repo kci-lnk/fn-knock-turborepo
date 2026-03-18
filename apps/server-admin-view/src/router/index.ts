@@ -40,6 +40,11 @@ const router = createRouter({
           component: () => import("../views/ReverseProxy.vue"),
         },
         {
+          path: "subdomains",
+          name: "SubdomainProxy",
+          component: () => import("../views/SubdomainProxy.vue"),
+        },
+        {
           path: "ssl",
           name: "SSLSettings",
           component: () => import("../views/SSLSettings.vue"),

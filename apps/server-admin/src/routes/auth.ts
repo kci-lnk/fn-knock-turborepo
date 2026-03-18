@@ -3,12 +3,14 @@ import { configManager } from "../lib/redis";
 import { verifySync } from "otplib";
 import {
   buildPasskeyBindInfo,
+  getRpInfo,
   handleLoginSuccess,
 } from "../lib/auth-utils";
 import {
   applyAuthResponseHeaders,
   hasNormalAccessContext,
   resolveAuthAccess,
+  resolveRequestedAccessMode,
 } from "../lib/auth-access";
 import { authMobilitySessionManager } from "../lib/auth-mobility-session";
 import { buildClientInfo, getClientIp } from "../lib/auth-request";
@@ -25,15 +27,25 @@ import {
 } from "../lib/session-cookie";
 import { fnosShareBypassService } from "../lib/fnos-share-bypass";
 import { captchaService } from "../lib/captcha";
+import {
+  resolveCookieDomain,
+  resolveSafeRedirectUri,
+} from "../lib/subdomain-mode";
 
-const buildPasskeyStatus = async () => {
+const buildPasskeyStatus = async (request: Request) => {
   const passkeys = await configManager.getPasskeys();
-  return { available: passkeys.length > 0 };
+  const rpInfo = await getRpInfo(request);
+  return {
+    available: passkeys.length > 0,
+    mode: rpInfo.mode,
+    rp_id: rpInfo.rpID,
+  };
 };
 
 export const authRoutes = new Elysia({ prefix: "/api/auth" })
   .get("/bootstrap", async ({ request, set }) => {
     const clientIp = getClientIp(request);
+    const config = await configManager.getConfig();
     ipLocationService.ensureEnqueued(clientIp).catch((error) => {
       console.error("[auth][bootstrap] failed to enqueue ip lookup:", error);
     });
@@ -41,10 +53,17 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
       resolveAuthAccess(request, clientIp),
       Promise.resolve(buildClientInfo(clientIp)),
       captchaService.getPublicSettings(),
-      buildPasskeyStatus(),
+      buildPasskeyStatus(request),
     ]);
 
     applyAuthResponseHeaders(set, auth);
+    const redirectTo = auth.authorized
+      ? resolveSafeRedirectUri({
+          config,
+          request,
+          redirectUri: new URL(request.url).searchParams.get("redirect_uri"),
+        })
+      : null;
 
     return {
       success: true,
@@ -56,6 +75,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
         client,
         captcha,
         passkey,
+        redirect_to: redirectTo || undefined,
       },
     };
   })
@@ -74,7 +94,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
     });
     const [client, passkey] = await Promise.all([
       Promise.resolve(buildClientInfo(clientIp)),
-      buildPasskeyStatus(),
+      buildPasskeyStatus(request),
     ]);
 
     return {
@@ -139,8 +159,13 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
       const gate = await loginBackoffService.ensureNotBlocked(clientIp);
       if (!gate.allowed) {
         set.status = 429;
-        if (gate.retryAfter) set.headers["Retry-After"] = String(gate.retryAfter);
-        return { success: false, message: "尝试过于频繁，请稍后重试", retryAfter: gate.retryAfter };
+        if (gate.retryAfter)
+          set.headers["Retry-After"] = String(gate.retryAfter);
+        return {
+          success: false,
+          message: "尝试过于频繁，请稍后重试",
+          retryAfter: gate.retryAfter,
+        };
       }
       try {
         await captchaService.verify(body.captcha, { clientIp });
@@ -183,13 +208,24 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
         const rf = await loginBackoffService.registerFailure(clientIp);
         set.status = 429;
         set.headers["Retry-After"] = String(rf.retryAfter);
-        return { success: false, message: `验证码不正确，请在 ${rf.retryAfter} 秒后重试`, retryAfter: rf.retryAfter };
+        return {
+          success: false,
+          message: `验证码不正确，请在 ${rf.retryAfter} 秒后重试`,
+          retryAfter: rf.retryAfter,
+        };
       }
       const passkeyInfo = await buildPasskeyBindInfo(matchedTotpId);
       const userAgent = request.headers.get("user-agent") || "Unknown";
-      const credentialName = totpCredentials.find((t) => t.id === matchedTotpId)?.comment || "Unknown TOTP";
+      const credentialName =
+        totpCredentials.find((t) => t.id === matchedTotpId)?.comment ||
+        "Unknown TOTP";
 
       await loginBackoffService.reset(clientIp);
+      const redirectTo = resolveSafeRedirectUri({
+        config,
+        request,
+        redirectUri: body.redirect_uri,
+      });
       return await handleLoginSuccess({
         config,
         clientIp,
@@ -201,6 +237,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
         set,
         totpId: matchedTotpId,
         passkeyInfo,
+        redirectTo,
       });
     },
     {
@@ -217,11 +254,14 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
           }),
         ]),
         rememberMe: t.Boolean(),
+        redirect_uri: t.Optional(t.String()),
       }),
     },
   )
   .use(passkeyRoutes)
   .get("/logout", async ({ request, set }) => {
+    const config = await configManager.getConfig();
+    const cookieDomain = resolveCookieDomain(config);
     const { sessionId } = authMobilitySessionManager.inspectRequest(request);
     let loginIpFromSession: string | null = null;
     if (sessionId) {
@@ -234,7 +274,10 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
     const clientIp = getClientIp(request);
     const userAgent = request.headers.get("user-agent") || "Unknown";
     if (!sessionId) {
-      await whitelistManager.removeRecordsByIP(loginIpFromSession || clientIp, 'auto');
+      await whitelistManager.removeRecordsByIP(
+        loginIpFromSession || clientIp,
+        "auto",
+      );
     }
 
     await authLogManager.recordLog({
@@ -247,8 +290,14 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
     const headers = new Headers({
       Location: "/",
     });
-    headers.append("Set-Cookie", buildSessionClearCookie());
-    headers.append("Set-Cookie", buildFnosShareSessionClearCookie());
+    headers.append(
+      "Set-Cookie",
+      buildSessionClearCookie({ domain: cookieDomain }),
+    );
+    headers.append(
+      "Set-Cookie",
+      buildFnosShareSessionClearCookie({ domain: cookieDomain }),
+    );
     return new Response("", {
       status: 302,
       headers,
@@ -258,6 +307,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
     const clientIp = getClientIp(request);
     const forwardedPath = request.headers.get("x-forwarded-path") || "";
     const headers = new Headers();
+    const accessMode = resolveRequestedAccessMode(request);
 
     try {
       const config = await configManager.getConfig();
@@ -265,7 +315,14 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
         ReturnType<typeof fnosShareBypassService.resolvePreflight>
       > | null = null;
 
-      if (!(await hasNormalAccessContext(request, clientIp))) {
+      if (
+        accessMode === "strict_whitelist" &&
+        !(await whitelistManager.hasValidIP(clientIp))
+      ) {
+        headers.set("X-Option", "Deny");
+      } else if (
+        !(await hasNormalAccessContext(request, clientIp, accessMode))
+      ) {
         shareDecision = await fnosShareBypassService.resolvePreflight(request);
         if (shareDecision.redirectLocation) {
           headers.set(

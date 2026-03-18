@@ -2,8 +2,9 @@ import { Elysia, t } from "elysia";
 import { acmePlugin } from "../plugins/acme";
 import { configManager } from "../lib/redis";
 import { randomUUID } from "node:crypto";
-import { goBackend } from "../lib/go-backend";
+import { syncSSLDeploymentToGateway } from "../lib/ssl-gateway";
 import { DEFAULT_REDIS_LOG_BUFFER_MAX_LEN } from "../lib/redis-log-buffer";
+import { buildSubdomainCertificateRecommendation } from "../lib/subdomain-mode";
 
 type DnsProvider = {
   dnsType: string;
@@ -327,6 +328,13 @@ export const acmeRoutes = new Elysia({ prefix: "/api/admin/acme" })
     const cfg = await configManager.getAcmeSettings();
     return { success: true, data: cfg };
   })
+  .get("/subdomain-recommendation", async () => {
+    const config = await configManager.getConfig();
+    return {
+      success: true,
+      data: buildSubdomainCertificateRecommendation(config),
+    };
+  })
   .get("/dns-providers", () => {
     return { success: true, data: dnsProviders };
   })
@@ -483,19 +491,18 @@ export const acmeRoutes = new Elysia({ prefix: "/api/admin/acme" })
   })
   .delete("/certs/:domain", async ({ params }) => {
     const domain = params.domain;
-    const pair = await configManager.getAcmeCert(domain);
     await configManager.deleteAcmeCert(domain);
+    const deletedFromLibrary = await configManager.deleteSSLCertificatesBySource(
+      "acme",
+      domain,
+    );
 
     const { join } = await import("node:path");
     const { rm } = await import("node:fs/promises");
     await rm(join(process.cwd(), "data", "ssl", domain), { recursive: true, force: true });
 
-    if (pair) {
-      const config = await configManager.getConfig();
-      if (config.ssl?.cert === pair.cert && config.ssl?.key === pair.key) {
-        await configManager.clearSSL();
-        await goBackend.clearSSL();
-      }
+    if (deletedFromLibrary.removedActive) {
+      await syncSSLDeploymentToGateway();
     }
 
     return { success: true };
@@ -527,7 +534,18 @@ export const acmeRoutes = new Elysia({ prefix: "/api/admin/acme" })
     if (!validation.valid) {
       return { success: false, message: validation.error || "证书或私钥无效" };
     }
-    await configManager.updateSSLConfig({ cert: pair.cert, key: pair.key });
-    const resp = await goBackend.setSSL(pair.cert, pair.key);
-    return { success: resp.success, message: resp.message || "成功" };
+    await configManager.saveSSLCertificate({
+      label: params.domain,
+      source: "acme",
+      primary_domain: params.domain,
+      cert: pair.cert,
+      key: pair.key,
+      activate: true,
+      matchBy: {
+        source: "acme",
+        primary_domain: params.domain,
+      },
+    });
+    await syncSSLDeploymentToGateway();
+    return { success: true, message: "成功" };
   });

@@ -5,6 +5,8 @@ import { configManager } from "./redis";
 import { whitelistManager } from "./whitelist-manager";
 import { getClientIp } from "./auth-request";
 
+export type RequestedAccessMode = "login_first" | "strict_whitelist";
+
 export type AuthAccessDecision = {
   authorized: boolean;
   clientIp: string;
@@ -13,12 +15,27 @@ export type AuthAccessDecision = {
   responseHeaders: Record<string, string>;
 };
 
+export const resolveRequestedAccessMode = (
+  request: Request,
+): RequestedAccessMode => {
+  const mode = request.headers
+    .get("x-reauth-access-mode")
+    ?.trim()
+    .toLowerCase();
+  return mode === "strict_whitelist" ? "strict_whitelist" : "login_first";
+};
+
 export const hasNormalAccessContext = async (
   request: Request,
   clientIp = getClientIp(request),
+  accessMode = resolveRequestedAccessMode(request),
 ): Promise<boolean> => {
   if (await whitelistManager.hasValidIP(clientIp)) {
     return true;
+  }
+
+  if (accessMode === "strict_whitelist") {
+    return false;
   }
 
   const identity = authMobilitySessionManager.inspectRequest(request);
@@ -32,6 +49,7 @@ export const hasNormalAccessContext = async (
 export const resolveAuthAccess = async (
   request: Request,
   clientIp = getClientIp(request),
+  accessMode = resolveRequestedAccessMode(request),
 ): Promise<AuthAccessDecision> => {
   if (await whitelistManager.hasValidIP(clientIp)) {
     await authMobilitySessionManager.syncTrustedRequest(request, clientIp);
@@ -45,7 +63,20 @@ export const resolveAuthAccess = async (
     };
   }
 
-  const restored = await authMobilitySessionManager.tryRestoreAccess(request, clientIp);
+  if (accessMode === "strict_whitelist") {
+    return {
+      authorized: false,
+      clientIp,
+      message: "Unauthorized by strict whitelist",
+      setCookies: [],
+      responseHeaders: {},
+    };
+  }
+
+  const restored = await authMobilitySessionManager.tryRestoreAccess(
+    request,
+    clientIp,
+  );
   if (restored.success) {
     await recentAuthIPsManager.recordVerified(clientIp);
     return {

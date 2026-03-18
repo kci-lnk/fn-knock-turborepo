@@ -1,23 +1,38 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
-import { useRouter } from 'vue-router';
-import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { toast } from '@admin-shared/utils/toast';
-import type { SessionRecord } from '../../types';
-import { SessionAPI } from '../../lib/api';
-import { Eye, GitBranch, Trash2 } from 'lucide-vue-next';
-import RefreshButton from '@/components/RefreshButton.vue';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useConfigStore } from '../../store/config';
-import ConfirmDangerPopover from '@admin-shared/components/common/ConfirmDangerPopover.vue';
-import DetailDialog from '@admin-shared/components/common/DetailDialog.vue';
-import DetailFieldsGrid from '@admin-shared/components/common/DetailFieldsGrid.vue';
-import HumanFriendlyTime from '@admin-shared/components/common/HumanFriendlyTime.vue';
-import { extractErrorMessage, useAsyncAction } from '@admin-shared/composables/useAsyncAction';
-import { buildDetailFields } from '@admin-shared/utils/buildDetailFields';
-import { formatDateTimeSafe } from '@admin-shared/utils/formatDateTimeSafe';
+import { ref, computed, watch } from "vue";
+import { useRouter } from "vue-router";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "@admin-shared/utils/toast";
+import type { SessionRecord } from "../../types";
+import { SessionAPI } from "../../lib/api";
+import { Eye, GitBranch, Trash2 } from "lucide-vue-next";
+import RefreshButton from "@/components/RefreshButton.vue";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useConfigStore } from "../../store/config";
+import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
+import DetailDialog from "@admin-shared/components/common/DetailDialog.vue";
+import DetailFieldsGrid from "@admin-shared/components/common/DetailFieldsGrid.vue";
+import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
+import {
+  extractErrorMessage,
+  useAsyncAction,
+} from "@admin-shared/composables/useAsyncAction";
+import { buildDetailFields } from "@admin-shared/utils/buildDetailFields";
+import { formatDateTimeSafe } from "@admin-shared/utils/formatDateTimeSafe";
 
 const router = useRouter();
 const sessions = ref<SessionRecord[]>([]);
@@ -26,27 +41,31 @@ const detailSession = ref<SessionRecord | null>(null);
 
 const { isPending: isLoading, run: runLoadSessions } = useAsyncAction({
   onError: (error) => {
-    toast.error('加载失败', { description: extractErrorMessage(error, '加载失败') });
+    toast.error("加载失败", {
+      description: extractErrorMessage(error, "加载失败"),
+    });
   },
 });
 
 const { isPending: isKicking, run: runKickSession } = useAsyncAction({
   onError: (error) => {
-    toast.error('踢出失败', { description: extractErrorMessage(error, '操作失败') });
+    toast.error("踢出失败", {
+      description: extractErrorMessage(error, "操作失败"),
+    });
   },
 });
 
 const configStore = useConfigStore();
 
 const detailFieldDefinitions = [
-  { key: 'id', label: '会话 ID' },
-  { key: 'method', label: '登录方式' },
-  { key: 'credentialName', label: '凭证名称' },
-  { key: 'ip', label: '当前 IP' },
-  { key: 'ipLocation', label: '归属信息' },
-  { key: 'userAgent', label: 'User-Agent' },
-  { key: 'loginTime', label: '登录时间' },
-  { key: 'expiresAt', label: '过期时间' },
+  { key: "id", label: "会话 ID" },
+  { key: "method", label: "登录方式" },
+  { key: "credentialName", label: "凭证名称" },
+  { key: "ip", label: "当前 IP" },
+  { key: "ipLocation", label: "归属信息" },
+  { key: "userAgent", label: "User-Agent" },
+  { key: "loginTime", label: "登录时间" },
+  { key: "expiresAt", label: "过期时间" },
 ] as const;
 
 const hasSessions = computed(() => sessions.value.length > 0);
@@ -54,8 +73,10 @@ const hasSessions = computed(() => sessions.value.length > 0);
 const detailItems = computed(() => {
   return buildDetailFields(detailSession.value, detailFieldDefinitions, {
     format: (key, value) => {
-      if (key === 'loginTime' || key === 'expiresAt') {
-        return formatDateTimeSafe(value as string | number | Date | null | undefined);
+      if (key === "loginTime" || key === "expiresAt") {
+        return formatDateTimeSafe(
+          value as string | number | Date | null | undefined,
+        );
       }
       return value;
     },
@@ -63,7 +84,7 @@ const detailItems = computed(() => {
 });
 
 const middleEllipsis = (text: string, max = 16) => {
-  if (!text) return '';
+  if (!text) return "";
   if (text.length <= max) return text;
   const head = Math.ceil((max - 1) / 2);
   const tail = Math.floor((max - 1) / 2);
@@ -86,21 +107,18 @@ function openMobility(session: SessionRecord) {
 }
 
 async function kickSession(sessionId: string) {
-  await runKickSession(
-    () => SessionAPI.kick(sessionId),
-    {
-      onSuccess: async () => {
-        toast.success('已踢出会话');
-        await fetchSessions();
-      },
+  await runKickSession(() => SessionAPI.kick(sessionId), {
+    onSuccess: async () => {
+      toast.success("已踢出会话");
+      await fetchSessions();
     },
-  );
+  });
 }
 
 watch(
   () => configStore.config?.run_type,
   (runType) => {
-    if (runType === 1) {
+    if (runType === 1 || runType === 3) {
       void fetchSessions();
     }
   },
@@ -111,8 +129,14 @@ watch(
 <template>
   <div class="space-y-3">
     <div class="flex items-center justify-between">
-      <div class="text-sm text-muted-foreground">当前活跃会话 {{ sessions.length }} 个</div>
-      <RefreshButton :loading="isLoading" :disabled="isLoading" @click="fetchSessions" />
+      <div class="text-sm text-muted-foreground">
+        当前活跃会话 {{ sessions.length }} 个
+      </div>
+      <RefreshButton
+        :loading="isLoading"
+        :disabled="isLoading"
+        @click="fetchSessions"
+      />
     </div>
 
     <div class="overflow-hidden rounded-md border">
@@ -135,7 +159,9 @@ watch(
               <TableCell>
                 <Tooltip>
                   <TooltipTrigger as-child>
-                    <div class="cursor-help font-mono text-xs">{{ middleEllipsis(session.id, 16) }}</div>
+                    <div class="cursor-help font-mono text-xs">
+                      {{ middleEllipsis(session.id, 16) }}
+                    </div>
                   </TooltipTrigger>
                   <TooltipContent>
                     <p class="break-all font-mono text-xs">{{ session.id }}</p>
@@ -153,7 +179,10 @@ watch(
 
               <TableCell>
                 <div class="font-mono text-sm">{{ session.ip }}</div>
-                <div v-if="session.ipLocation" class="line-clamp-1 text-xs text-muted-foreground">
+                <div
+                  v-if="session.ipLocation"
+                  class="line-clamp-1 text-xs text-muted-foreground"
+                >
                   {{ session.ipLocation }}
                 </div>
               </TableCell>
@@ -172,11 +201,21 @@ watch(
 
               <TableCell class="text-right">
                 <div class="flex justify-end gap-2">
-                  <Button variant="outline" size="sm" class="gap-1.5" @click="openMobility(session)">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    class="gap-1.5"
+                    @click="openMobility(session)"
+                  >
                     <GitBranch class="h-4 w-4" />
                     轨迹
                   </Button>
-                  <Button variant="outline" size="sm" class="gap-1.5" @click="openDetail(session)">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    class="gap-1.5"
+                    @click="openDetail(session)"
+                  >
                     <Eye class="h-4 w-4" />
                     详情
                   </Button>
@@ -189,7 +228,12 @@ watch(
                     :on-confirm="() => kickSession(session.id)"
                   >
                     <template #trigger>
-                      <Button variant="destructive" size="sm" :disabled="isKicking" class="gap-1.5">
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        :disabled="isKicking"
+                        class="gap-1.5"
+                      >
                         <Trash2 class="h-4 w-4" />
                         踢出
                       </Button>
@@ -202,7 +246,10 @@ watch(
 
           <TableBody v-else>
             <TableRow>
-              <TableCell colspan="8" class="py-6 text-center text-muted-foreground">
+              <TableCell
+                colspan="8"
+                class="py-6 text-center text-muted-foreground"
+              >
                 暂无会话
               </TableCell>
             </TableRow>

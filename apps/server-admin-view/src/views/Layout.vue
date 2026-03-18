@@ -281,7 +281,10 @@ const navItems = computed(() => {
     { name: "IP白名单", path: "/whitelist", icon: ShieldCheck },
     { name: "SSL证书", path: "/ssl", icon: Lock },
   ];
-  if (configStore.config?.run_type === 1) {
+  if (
+    configStore.config?.run_type === 1 ||
+    configStore.config?.run_type === 3
+  ) {
     items.unshift({ name: "控制台", path: "/", icon: LayoutDashboard });
   }
   items.push({ name: "动态域名", path: "/ddns", icon: Globe });
@@ -289,6 +292,13 @@ const navItems = computed(() => {
     items.splice(1, 0, { name: "映射管理", path: "/proxy", icon: RouteIcon });
     items.splice(2, 0, { name: "会话管理", path: "/sessions", icon: Users });
     items.splice(2, 0, { name: "内网穿透", path: "/tunnel", icon: Cable });
+  } else if (configStore.config?.run_type === 3) {
+    items.splice(1, 0, {
+      name: "子域映射",
+      path: "/subdomains",
+      icon: RouteIcon,
+    });
+    items.splice(2, 0, { name: "会话管理", path: "/sessions", icon: Users });
   }
   items.push({ name: "认证配置", path: "/auth", icon: Key });
   items.push({ name: "登录日志", path: "/logs", icon: FileText });

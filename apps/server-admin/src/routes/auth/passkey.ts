@@ -15,13 +15,22 @@ import {
   verifyAuthenticationResponse,
   verifyRegistrationResponse,
 } from "@simplewebauthn/server";
+import { resolveSafeRedirectUri } from "../../lib/subdomain-mode";
 
 const RP_NAME = "fn-knock";
 
 export const passkeyRoutes = new Elysia({ prefix: "/passkey" })
-  .get("/status", async () => {
+  .get("/status", async ({ request }) => {
     const passkeys = await configManager.getPasskeys();
-    return { success: true, data: { available: passkeys.length > 0 } };
+    const rpInfo = await getRpInfo(request);
+    return {
+      success: true,
+      data: {
+        available: passkeys.length > 0,
+        mode: rpInfo.mode,
+        rp_id: rpInfo.rpID,
+      },
+    };
   })
   .post("/auth/options", async ({ set, request }) => {
     const passkeys = await configManager.getPasskeys();
@@ -49,7 +58,7 @@ export const passkeyRoutes = new Elysia({ prefix: "/passkey" })
       const { origin, rpID } = await getRpInfo(request);
       const clientIp = getClientIp(request);
       const userAgent = request.headers.get("user-agent") || "Unknown";
-      
+
       const credential = body.credential;
       const challenge = extractChallenge(credential?.response?.clientDataJSON);
       if (!challenge) {
@@ -115,6 +124,11 @@ export const passkeyRoutes = new Elysia({ prefix: "/passkey" })
         new Date().toISOString(),
       );
       const config = await configManager.getConfig();
+      const redirectTo = resolveSafeRedirectUri({
+        config,
+        request,
+        redirectUri: body.redirect_uri,
+      });
       return await handleLoginSuccess({
         config,
         clientIp,
@@ -125,12 +139,14 @@ export const passkeyRoutes = new Elysia({ prefix: "/passkey" })
         rememberMe: body.rememberMe,
         set,
         totpId: matched.totpId,
+        redirectTo,
       });
     },
     {
       body: t.Object({
         credential: t.Any(),
         rememberMe: t.Boolean(),
+        redirect_uri: t.Optional(t.String()),
       }),
     },
   )
@@ -148,7 +164,7 @@ export const passkeyRoutes = new Elysia({ prefix: "/passkey" })
     }
 
     const passkeys = await configManager.getPasskeys();
-    const boundPasskeys = passkeys.filter(pk => pk.totpId === totpId);
+    const boundPasskeys = passkeys.filter((pk) => pk.totpId === totpId);
     if (boundPasskeys.length > 0) {
       set.status = 409;
       return { success: false, message: "Passkey already bound" };
@@ -193,9 +209,7 @@ export const passkeyRoutes = new Elysia({ prefix: "/passkey" })
   .post(
     "/register/verify",
     async ({ body, set, request }) => {
-      const totpId = await configManager.consumePasskeyBindToken(
-        body.token,
-      );
+      const totpId = await configManager.consumePasskeyBindToken(body.token);
       if (!totpId) {
         set.status = 401;
         return { success: false, message: "绑定凭证已失效" };

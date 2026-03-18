@@ -3,7 +3,7 @@ import { cron } from "@elysiajs/cron";
 import { randomUUID } from "node:crypto";
 import { acmeService } from "../plugins/acme";
 import { configManager } from "../lib/redis";
-import { goBackend } from "../lib/go-backend";
+import { syncSSLDeploymentToGateway } from "../lib/ssl-gateway";
 
 const parseIntSafe = (value: string | undefined, fallback: number) => {
   const v = Number.parseInt(String(value ?? ""), 10);
@@ -45,15 +45,17 @@ export const registerAcmeRenewCron = (app: Elysia) => {
             const loaded = await configManager.saveAcmeCertFromFS(primaryDomain);
             if (!loaded) return;
             storedPair = await configManager.getAcmeCert(primaryDomain);
-            if (!storedPair) return;
+          if (!storedPair) return;
           }
 
-          const config = await configManager.getConfig();
-          const isSslEnabled = !!(config.ssl?.cert && config.ssl?.key);
-          if (!isSslEnabled) return;
-
-          const isManaged = config.ssl.cert === storedPair.cert && config.ssl.key === storedPair.key;
-          if (!isManaged) return;
+          const activeCertificate = await configManager.getActiveSSLCertificate();
+          if (!activeCertificate) return;
+          if (
+            activeCertificate.source !== "acme" ||
+            activeCertificate.primary_domain !== primaryDomain
+          ) {
+            return;
+          }
 
           const sslStatus = await configManager.getSSLStatus();
           const shouldRenew = isExpiringSoon(sslStatus.certInfo?.validTo, thresholdMs);
@@ -103,9 +105,20 @@ export const registerAcmeRenewCron = (app: Elysia) => {
             const validation = configManager.validateSSLCert(nextPair.cert, nextPair.key);
             if (!validation.valid) throw new Error(validation.error || "证书或私钥无效");
 
-            await configManager.updateSSLConfig({ cert: nextPair.cert, key: nextPair.key });
-            const resp = await goBackend.setSSL(nextPair.cert, nextPair.key);
-            if (!resp.success) throw new Error(resp.message || "部署失败");
+            await configManager.saveSSLCertificate({
+              id: activeCertificate.id,
+              label: activeCertificate.label,
+              source: "acme",
+              primary_domain: primaryDomain,
+              cert: nextPair.cert,
+              key: nextPair.key,
+              activate: true,
+              matchBy: {
+                source: "acme",
+                primary_domain: primaryDomain,
+              },
+            });
+            await syncSSLDeploymentToGateway();
 
             await configManager.appendAcmeLog(jobId, "[cron] renew succeeded");
             await configManager.updateAcmeJob(jobId, { status: "succeeded", progress: 100, message: "succeeded" });

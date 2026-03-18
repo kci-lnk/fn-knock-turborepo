@@ -28,6 +28,8 @@ export type AuthAccessState = {
 
 export type AuthPasskeyState = {
   available: boolean;
+  mode?: "auth_host" | "parent_domain";
+  rp_id?: string;
 };
 
 export type AuthBootstrapData = {
@@ -35,6 +37,7 @@ export type AuthBootstrapData = {
   client: AuthClientInfo;
   captcha: CaptchaPublicSettings;
   passkey: AuthPasskeyState;
+  redirect_to?: string;
 };
 
 export type AuthSessionData = {

@@ -3,6 +3,11 @@ import { goBackend } from "../lib/go-backend";
 import { clearCA, existsCA, getCAInfo, initRootCA, issueServerCert, readCACert } from "../lib/ca-store";
 import { listSSLSharedFiles, readSSLSharedFile } from "../lib/fnos-data-share";
 import { configManager } from "../lib/redis";
+import { syncSSLDeploymentToGateway } from "../lib/ssl-gateway";
+import {
+    buildSubdomainCertificateCoverage,
+    buildSubdomainCertificateInventoryCoverage,
+} from "../lib/subdomain-mode";
 
 function crc32(buf: Uint8Array) {
     let c = ~0 >>> 0;
@@ -104,10 +109,73 @@ function createZip(entries: { name: string; data: Uint8Array }[]) {
     return new Uint8Array([...filesBlob, ...centralDir, ...eocd]);
 }
 
+async function buildSSLStatusPayload() {
+    const [status, config, gatewayStatusResp] = await Promise.all([
+        configManager.getSSLStatus(),
+        configManager.getConfig(),
+        goBackend.getSSLStatus(),
+    ]);
+    const gatewayStatus =
+        gatewayStatusResp.success && gatewayStatusResp.data
+            ? gatewayStatusResp.data
+            : null;
+    const effectiveDeploymentMode =
+        gatewayStatus?.deployment_mode === "multi_sni"
+            ? "multi_sni"
+            : status.deploymentMode;
+
+    const certificates = status.certificates.map((certificate) => ({
+        ...certificate,
+        coverage: buildSubdomainCertificateCoverage({
+            config,
+            certificateDomains: certificate.certInfo?.dnsNames || [],
+        }),
+    }));
+
+    return {
+        ...status,
+        enabled: gatewayStatus?.enabled ?? status.enabled,
+        certificates,
+        subdomain_coverage: buildSubdomainCertificateCoverage({
+            config,
+            certificateDomains: status.certInfo?.dnsNames || [],
+        }),
+        library_coverage: buildSubdomainCertificateInventoryCoverage({
+            config,
+            certificates: certificates.map((certificate) => ({
+                id: certificate.id,
+                certificateDomains: certificate.certInfo?.dnsNames || [],
+            })),
+            activeCertificateId: status.activeCertId,
+            deploymentMode: effectiveDeploymentMode,
+        }),
+        configuredDeploymentMode: status.deploymentMode,
+        deploymentMode: effectiveDeploymentMode,
+        gateway_status: gatewayStatus
+            ? {
+                enabled: gatewayStatus.enabled,
+                deployment_mode:
+                    gatewayStatus.deployment_mode === "multi_sni"
+                        ? "multi_sni"
+                        : "single_active",
+                certificates: gatewayStatus.certificates || [],
+                sync_error: undefined,
+            }
+            : {
+                enabled: false,
+                deployment_mode: "single_active",
+                certificates: [],
+                sync_error: gatewayStatusResp.message || "无法读取网关 SSL 状态",
+            },
+    };
+}
+
 export const sslRoutes = new Elysia({ prefix: "/api/admin/ssl" })
     .get("/status", async () => {
-        const status = await configManager.getSSLStatus();
-        return { success: true, data: status };
+        return {
+            success: true,
+            data: await buildSSLStatusPayload(),
+        };
     })
     .get("/shared-files", async () => {
         const files = await listSSLSharedFiles();
@@ -236,10 +304,20 @@ export const sslRoutes = new Elysia({ prefix: "/api/admin/ssl" })
                 set.status = 400;
                 return { success: false, message: validation.error || "证书或私钥无效" };
             }
-            await configManager.updateSSLConfig({ cert: certPem, key: keyPem });
+            await configManager.saveSSLCertificate({
+                label: hosts[0] || "本地 CA 证书",
+                source: "ca",
+                cert: certPem,
+                key: keyPem,
+                activate: true,
+                matchBy: {
+                    cert: certPem,
+                    key: keyPem,
+                },
+            });
             console.info(`[SSL] Issued and stored server certificate for ${hosts.length} host(s).`);
-            const resp = await goBackend.setSSL(certPem, keyPem);
-            return { success: resp.success, message: resp.message || "成功" };
+            await syncSSLDeploymentToGateway();
+            return { success: true, message: "成功" };
         } catch (e: any) {
             set.status = 500;
             return { success: false, message: e?.message ?? String(e) };
@@ -273,6 +351,52 @@ export const sslRoutes = new Elysia({ prefix: "/api/admin/ssl" })
             }
         });
     })
+    .post("/certificates", async ({ body, set }) => {
+        const { cert, key } = body;
+        const validation = configManager.validateSSLCert(cert, key);
+        if (!validation.valid) {
+            set.status = 400;
+            return { success: false, message: validation.error };
+        }
+
+        const saved = await configManager.saveSSLCertificate({
+            id: body.id,
+            label: body.label,
+            source: body.source,
+            primary_domain: body.primary_domain,
+            cert,
+            key,
+            activate: body.activate !== false,
+            matchBy: {
+                cert,
+                key,
+            },
+        });
+
+        const currentConfig = await configManager.getConfig();
+        if (
+            body.activate !== false ||
+            currentConfig.ssl.deployment_mode === "multi_sni"
+        ) {
+            await syncSSLDeploymentToGateway(currentConfig);
+        }
+
+        return { success: true, data: { id: saved.id } };
+    }, {
+        body: t.Object({
+            id: t.Optional(t.String()),
+            label: t.Optional(t.String()),
+            source: t.Optional(t.Union([
+                t.Literal("manual"),
+                t.Literal("acme"),
+                t.Literal("ca"),
+            ])),
+            primary_domain: t.Optional(t.String()),
+            cert: t.String(),
+            key: t.String(),
+            activate: t.Optional(t.Boolean()),
+        })
+    })
     .post("/", async ({ body, set }) => {
         const { cert, key } = body.ssl;
         const validation = configManager.validateSSLCert(cert, key);
@@ -280,8 +404,19 @@ export const sslRoutes = new Elysia({ prefix: "/api/admin/ssl" })
             set.status = 400;
             return { success: false, message: validation.error };
         }
-        await configManager.updateSSLConfig({ cert, key });
-        await goBackend.setSSL(cert, key);
+
+        await configManager.saveSSLCertificate({
+            label: "手动上传证书",
+            source: "manual",
+            cert,
+            key,
+            activate: true,
+            matchBy: {
+                cert,
+                key,
+            },
+        });
+        await syncSSLDeploymentToGateway();
         return { success: true };
     }, {
         body: t.Object({
@@ -291,8 +426,81 @@ export const sslRoutes = new Elysia({ prefix: "/api/admin/ssl" })
             })
         })
     })
+    .post("/activate", async ({ body, set }) => {
+        const active = await configManager.activateSSLCertificate(body.id);
+        if (!active) {
+            set.status = 404;
+            return { success: false, message: "证书不存在" };
+        }
+
+        await syncSSLDeploymentToGateway();
+        return { success: true };
+    }, {
+        body: t.Object({
+            id: t.String(),
+        }),
+    })
+    .post("/deployment-mode", async ({ body, set }) => {
+        const previousConfig = await configManager.getConfig();
+        const nextConfig = structuredClone(previousConfig);
+        nextConfig.ssl = {
+            ...nextConfig.ssl,
+            deployment_mode:
+                body.deployment_mode === "multi_sni" ? "multi_sni" : "single_active",
+        };
+
+        if (
+            nextConfig.ssl.deployment_mode === "multi_sni" &&
+            !nextConfig.ssl.active_cert_id &&
+            nextConfig.ssl.certificates?.length
+        ) {
+            const fallback = nextConfig.ssl.certificates[0];
+            if (fallback) {
+                nextConfig.ssl.active_cert_id = fallback.id;
+                nextConfig.ssl.cert = fallback.cert;
+                nextConfig.ssl.key = fallback.key;
+            }
+        }
+
+        await configManager.saveConfig(nextConfig);
+        try {
+            await syncSSLDeploymentToGateway(nextConfig);
+        } catch (error) {
+            await configManager.saveConfig(previousConfig);
+            throw error;
+        }
+
+        return {
+            success: true,
+            data: await buildSSLStatusPayload(),
+        };
+    }, {
+        body: t.Object({
+            deployment_mode: t.Union([
+                t.Literal("single_active"),
+                t.Literal("multi_sni"),
+            ]),
+        }),
+    })
+    .delete("/certificates/:id", async ({ params, set }) => {
+        const result = await configManager.deleteSSLCertificate(params.id);
+        if (!result.removed) {
+            set.status = 404;
+            return { success: false, message: "证书不存在" };
+        }
+
+        const currentConfig = await configManager.getConfig();
+        if (
+            result.removedActive ||
+            currentConfig.ssl.deployment_mode === "multi_sni"
+        ) {
+            await syncSSLDeploymentToGateway(currentConfig);
+        }
+
+        return { success: true };
+    })
     .delete("/", async () => {
         await configManager.clearSSL();
-        await goBackend.clearSSL();
+        await syncSSLDeploymentToGateway();
         return { success: true };
     });

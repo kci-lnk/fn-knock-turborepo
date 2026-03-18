@@ -13,8 +13,7 @@ import { backoffRoutes } from "./routes/backoff";
 import { scannerRoutes } from "./routes/scanner";
 import { hmacMiddleware } from "./middleware/hmac";
 import { frpcRoutes, restoreFrpcOnBoot } from "./routes/frpc";
-import { goBackend } from "./lib/go-backend";
-import { configManager, type ProxyMapping, type SSLConfig, type SSLStatus } from "./lib/redis";
+import { configManager } from "./lib/redis";
 import { whitelistRoutes } from "./routes/whitelist";
 import { whitelistManager } from "./lib/whitelist-manager";
 import { portScannerPlugin } from "./plugins/scanner";
@@ -37,6 +36,7 @@ import { updateRoutes } from "./routes/update";
 import { updateManager } from "./lib/update-manager";
 import { createStaticFilesPlugin } from "./plugins/static-files";
 import { firewallService } from "./lib/firewall-service";
+import { syncSSLDeploymentToGateway } from "./lib/ssl-gateway";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -297,12 +297,8 @@ authApp.get("*", ({ path }) => {
 const config = await configManager.getConfig()
 await firewallService.applyRunTypeConfig(config.run_type);
 // 自动同步SSL
-configManager.getSSLStatus().then(async data => {
-    if (data.enabled) {
-        goBackend.setSSL(config.ssl.cert, config.ssl.key);
-    } else {
-        goBackend.clearSSL();
-    }
+syncSSLDeploymentToGateway(config).catch((error) => {
+    console.error("[SSL] failed to sync gateway deployment on boot:", error);
 });
 await restoreFrpcOnBoot();
 await restoreCloudflaredOnBoot();

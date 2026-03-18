@@ -15,37 +15,73 @@
         <CardContent>
           <form class="flex flex-col gap-6 items-center" autocomplete="off">
             <div
-              v-if="!isCaptchaVerified && activeCaptchaProvider === 'pow' && isCaptchaProviderAvailable && canUseNativePow"
+              v-if="
+                !isCaptchaVerified &&
+                activeCaptchaProvider === 'pow' &&
+                isCaptchaProviderAvailable &&
+                canUseNativePow
+              "
               class="w-full flex justify-center mt-2"
             >
-              <altcha-widget ref="powWidgetRef" :challengeurl="powChallengeUrl" @statechange="onPowStateChange"
-                hidefooter hidelogo class="w-full"
-                style="--altcha-color-border:pink;--altcha-border-width:3px;--altcha-border-radius:8px; --altcha-max-width: 360px;"
-                :strings="JSON.stringify({
-                  label: '我不是机器人',
-                  verified: '验证通过',
-                  verifying: '正在验证...',
-                  wait: '请稍候...',
-                  error: '验证错误'
-                })">
+              <altcha-widget
+                ref="powWidgetRef"
+                :challengeurl="powChallengeUrl"
+                @statechange="onPowStateChange"
+                hidefooter
+                hidelogo
+                class="w-full"
+                style="
+                  --altcha-color-border: pink;
+                  --altcha-border-width: 3px;
+                  --altcha-border-radius: 8px;
+                  --altcha-max-width: 360px;
+                "
+                :strings="
+                  JSON.stringify({
+                    label: '我不是机器人',
+                    verified: '验证通过',
+                    verifying: '正在验证...',
+                    wait: '请稍候...',
+                    error: '验证错误',
+                  })
+                "
+              >
               </altcha-widget>
             </div>
-            <div v-else-if="!isCaptchaVerified && isCaptchaConfigLoading" class="w-full mt-2 space-y-3">
+            <div
+              v-else-if="!isCaptchaVerified && isCaptchaConfigLoading"
+              class="w-full mt-2 space-y-3"
+            >
               <Skeleton class="h-11 w-full rounded-md" />
               <Skeleton class="h-4 w-2/3 rounded-md mx-auto" />
             </div>
             <div
-              v-else-if="!isCaptchaVerified && activeCaptchaProvider === 'pow' && isCaptchaProviderAvailable"
+              v-else-if="
+                !isCaptchaVerified &&
+                activeCaptchaProvider === 'pow' &&
+                isCaptchaProviderAvailable
+              "
               class="w-full mt-2 space-y-3"
             >
-              <Button type="button" class="w-full" :disabled="isPowFallbackLoading" @click="handlePowFallbackVerify">
-                <span v-if="isPowFallbackLoading"
-                  class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
-                {{ isPowFallbackLoading ? '正在验证...' : '我不是机器人' }}
+              <Button
+                type="button"
+                class="w-full"
+                :disabled="isPowFallbackLoading"
+                @click="handlePowFallbackVerify"
+              >
+                <span
+                  v-if="isPowFallbackLoading"
+                  class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+                ></span>
+                {{ isPowFallbackLoading ? "正在验证..." : "我不是机器人" }}
               </Button>
             </div>
             <div
-              v-else-if="!isCaptchaVerified && activeCaptchaProvider === 'turnstile' && isCaptchaProviderAvailable"
+              v-else-if="
+                !isCaptchaVerified &&
+                activeCaptchaProvider === 'turnstile' &&
+                isCaptchaProviderAvailable
+              "
               class="w-full mt-2 space-y-3"
             >
               <TurnstileWidget
@@ -73,17 +109,35 @@
             </div>
 
             <div class="w-full" v-if="isPasskeySupported && isPasskeyAvailable">
-              <Button type="button" :variant="isCaptchaVerified ? 'secondary' : 'default'" class="w-full"
-                :disabled="isPasskeyLoading" @click="handlePasskeyLogin">
-                <span v-if="isPasskeyLoading"
-                  class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
+              <Button
+                type="button"
+                :variant="isCaptchaVerified ? 'secondary' : 'default'"
+                class="w-full"
+                :disabled="isPasskeyLoading"
+                @click="handlePasskeyLogin"
+              >
+                <span
+                  v-if="isPasskeyLoading"
+                  class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+                ></span>
                 Passkey 一键登录
               </Button>
             </div>
 
             <div class="w-full flex justify-center" v-if="isCaptchaVerified">
-              <InputOTP inputmode="numeric" :maxlength="6" v-model="token" @complete="handleOtpComplete" :disabled="isLoading" :autofocus="true"
-                autocomplete="off" data-form-type="other" data-1p-ignore="true" data-lpignore="true" data-bwignore="true">
+              <InputOTP
+                inputmode="numeric"
+                :maxlength="6"
+                v-model="token"
+                @complete="handleOtpComplete"
+                :disabled="isLoading"
+                :autofocus="true"
+                autocomplete="off"
+                data-form-type="other"
+                data-1p-ignore="true"
+                data-lpignore="true"
+                data-bwignore="true"
+              >
                 <InputOTPGroup>
                   <InputOTPSlot v-for="i in 6" :key="i - 1" :index="i - 1" />
                 </InputOTPGroup>
@@ -92,17 +146,26 @@
 
             <div class="w-full flex justify-center" v-if="isCaptchaVerified">
               <div
-                class="flex items-center justify-center space-x-3 py-2 px-4 rounded-lg transition-colors hover:bg-muted/50 cursor-pointer group">
-                <Checkbox id="rememberMe" v-model="rememberMe"
-                  class="data-[state=checked]:bg-primary data-[state=checked]:border-primary" />
-                <label for="rememberMe"
-                  class="text-sm font-medium leading-none cursor-pointer select-none text-muted-foreground group-hover:text-foreground transition-colors">
+                class="flex items-center justify-center space-x-3 py-2 px-4 rounded-lg transition-colors hover:bg-muted/50 cursor-pointer group"
+              >
+                <Checkbox
+                  id="rememberMe"
+                  v-model="rememberMe"
+                  class="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                />
+                <label
+                  for="rememberMe"
+                  class="text-sm font-medium leading-none cursor-pointer select-none text-muted-foreground group-hover:text-foreground transition-colors"
+                >
                   记住我
                 </label>
               </div>
             </div>
 
-            <Dialog :open="showErrorDialog" @update:open="showErrorDialog = $event">
+            <Dialog
+              :open="showErrorDialog"
+              @update:open="showErrorDialog = $event"
+            >
               <DialogContent :show-close-button="false">
                 <DialogHeader>
                   <DialogTitle>提示</DialogTitle>
@@ -115,28 +178,51 @@
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-            <Dialog :open="showPasskeyBindDialog" @update:open="showPasskeyBindDialog = $event">
-              <DialogContent :show-close-button="false" overlay-class="bg-black/50 backdrop-blur-sm">
+            <Dialog
+              :open="showPasskeyBindDialog"
+              @update:open="showPasskeyBindDialog = $event"
+            >
+              <DialogContent
+                :show-close-button="false"
+                overlay-class="bg-black/50 backdrop-blur-sm"
+              >
                 <DialogHeader>
                   <DialogTitle>开启 Passkey 一键登录</DialogTitle>
                   <DialogDescription>
                     是否在当前设备上绑定 Passkey？绑定后可直接一键登录。
                   </DialogDescription>
                 </DialogHeader>
-                <div v-if="passkeyBindError" class="text-sm text-destructive">{{ passkeyBindError }}</div>
+                <div v-if="passkeyBindError" class="text-sm text-destructive">
+                  {{ passkeyBindError }}
+                </div>
                 <DialogFooter class="gap-2">
-                  <Button variant="outline" @click="skipPasskeyBind">稍后再说</Button>
-                  <Button :disabled="isBindingPasskey" @click="handlePasskeyBind">
-                    <span v-if="isBindingPasskey"
-                      class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
+                  <Button variant="outline" @click="skipPasskeyBind"
+                    >稍后再说</Button
+                  >
+                  <Button
+                    :disabled="isBindingPasskey"
+                    @click="handlePasskeyBind"
+                  >
+                    <span
+                      v-if="isBindingPasskey"
+                      class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+                    ></span>
                     立即开启
                   </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-            <Button type="button" class="w-full" :disabled="isLoading" v-if="isCaptchaVerified" @click="handleLogin">
-              <span v-if="isLoading"
-                class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
+            <Button
+              type="button"
+              class="w-full"
+              :disabled="isLoading"
+              v-if="isCaptchaVerified"
+              @click="handleLogin"
+            >
+              <span
+                v-if="isLoading"
+                class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+              ></span>
               立即验证
             </Button>
           </form>
@@ -153,13 +239,23 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
-import { Skeleton } from '@/components/ui/skeleton';
+import { computed, ref, onMounted } from "vue";
+import { useRouter } from "vue-router";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -167,27 +263,34 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 import {
   normalizeCreationOptions,
   normalizeRequestOptions,
   serializeCredential,
-} from '@frontend-core/passkey/utils';
-import type { CaptchaPublicSettings, CaptchaSubmission } from '@frontend-core/captcha/types';
-import { apiClient, AuthAPI, buildAuthApiPath, CaptchaAPI } from '@/lib/api';
-import { useClientIpLocation } from '@/lib/client-ip-location';
-import { buildPowSubmission, normalizePowChallenge, solvePowChallenge } from '@/lib/captcha';
-import { markPendingLogoutDelay } from '@/lib/post-login';
-import AuthFooter from '@/components/AuthFooter.vue';
-import TurnstileWidget from '@/components/captcha/TurnstileWidget.vue';
+} from "@frontend-core/passkey/utils";
+import type {
+  CaptchaPublicSettings,
+  CaptchaSubmission,
+} from "@frontend-core/captcha/types";
+import { apiClient, AuthAPI, buildAuthApiPath, CaptchaAPI } from "@/lib/api";
+import { useClientIpLocation } from "@/lib/client-ip-location";
+import {
+  buildPowSubmission,
+  normalizePowChallenge,
+  solvePowChallenge,
+} from "@/lib/captcha";
+import { markPendingLogoutDelay } from "@/lib/post-login";
+import AuthFooter from "@/components/AuthFooter.vue";
+import TurnstileWidget from "@/components/captcha/TurnstileWidget.vue";
 
-import 'altcha';
+import "altcha";
 
 const router = useRouter();
 
-const token = ref('');
+const token = ref("");
 const rememberMe = ref(false);
-const errorMessage = ref('');
+const errorMessage = ref("");
 const showErrorDialog = ref(false);
 const isLoading = ref(false);
 const isPasskeySupported = ref(false);
@@ -195,35 +298,53 @@ const isPasskeyAvailable = ref(false);
 const isPasskeyLoading = ref(false);
 const showPasskeyBindDialog = ref(false);
 const isBindingPasskey = ref(false);
-const passkeyBindError = ref('');
-const passkeyBindToken = ref('');
-const pendingRunType = ref<0 | 1 | null>(null);
-const { clientIp, ipLocation, ipLocationStatus, startLocationPolling } = useClientIpLocation();
+const passkeyBindError = ref("");
+const passkeyBindToken = ref("");
+const pendingRunType = ref<0 | 1 | 3 | null>(null);
+const pendingRedirectTo = ref<string | null>(null);
+const { clientIp, ipLocation, ipLocationStatus, startLocationPolling } =
+  useClientIpLocation();
 let lastLoginAttemptAt = 0;
 
 const captchaConfig = ref<CaptchaPublicSettings | null>(null);
 const powWidgetRef = ref<any>(null);
-const turnstileWidgetRef = ref<InstanceType<typeof TurnstileWidget> | null>(null);
+const turnstileWidgetRef = ref<InstanceType<typeof TurnstileWidget> | null>(
+  null,
+);
 const isCaptchaVerified = ref(false);
 const captchaSubmission = ref<CaptchaSubmission | null>(null);
 const canUseNativePow = ref(true);
 const isPowFallbackLoading = ref(false);
 const isCaptchaConfigLoading = ref(true);
 
-const powChallengeUrl = buildAuthApiPath('/challenge');
-const activeCaptchaProvider = computed(() => captchaConfig.value?.provider ?? null);
-const isCaptchaProviderAvailable = computed(() => captchaConfig.value?.available ?? false);
-const captchaUnavailableReason = computed(() => captchaConfig.value?.unavailable_reason || '验证码配置加载失败，请刷新页面后重试。');
-const hasTurnstileSiteKey = computed(() => !!captchaConfig.value?.turnstile.site_key.trim());
+const powChallengeUrl = buildAuthApiPath("/challenge");
+const activeCaptchaProvider = computed(
+  () => captchaConfig.value?.provider ?? null,
+);
+const isCaptchaProviderAvailable = computed(
+  () => captchaConfig.value?.available ?? false,
+);
+const captchaUnavailableReason = computed(
+  () =>
+    captchaConfig.value?.unavailable_reason ||
+    "验证码配置加载失败，请刷新页面后重试。",
+);
+const hasTurnstileSiteKey = computed(
+  () => !!captchaConfig.value?.turnstile.site_key.trim(),
+);
+const redirectUri =
+  typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("redirect_uri")
+    : null;
 
 function onPowStateChange(ev: CustomEvent) {
-  if (ev.detail.state === 'verified') {
+  if (ev.detail.state === "verified") {
     isCaptchaVerified.value = true;
     captchaSubmission.value = {
-      provider: 'pow',
+      provider: "pow",
       proof: ev.detail.payload,
     };
-    errorMessage.value = '';
+    errorMessage.value = "";
   } else {
     handleCaptchaReset();
   }
@@ -235,26 +356,35 @@ onMounted(async () => {
 });
 
 function initBrowserCapabilities() {
-  isPasskeySupported.value = typeof window !== 'undefined' && !!window.PublicKeyCredential;
-  canUseNativePow.value = typeof window !== 'undefined'
-    && window.isSecureContext
-    && typeof window.crypto !== 'undefined'
-    && !!window.crypto.subtle
-    && typeof window.crypto.subtle.digest === 'function';
+  isPasskeySupported.value =
+    typeof window !== "undefined" && !!window.PublicKeyCredential;
+  canUseNativePow.value =
+    typeof window !== "undefined" &&
+    window.isSecureContext &&
+    typeof window.crypto !== "undefined" &&
+    !!window.crypto.subtle &&
+    typeof window.crypto.subtle.digest === "function";
 }
 
 async function loadBootstrap() {
   try {
-    const bootstrap = await AuthAPI.getBootstrap();
+    const bootstrap = await AuthAPI.getBootstrap(redirectUri);
     startLocationPolling(bootstrap.client);
     captchaConfig.value = bootstrap.captcha;
     isPasskeyAvailable.value = !!bootstrap.passkey.available;
     if (bootstrap.auth.authenticated) {
-      await router.replace('/');
+      if (bootstrap.redirect_to) {
+        window.location.href = bootstrap.redirect_to;
+        return;
+      }
+      await router.replace("/");
       return;
     }
   } catch (e: any) {
-    errorMessage.value = e?.response?.data?.message || e?.message || '验证码配置加载失败，请刷新页面后重试';
+    errorMessage.value =
+      e?.response?.data?.message ||
+      e?.message ||
+      "验证码配置加载失败，请刷新页面后重试";
     showErrorDialog.value = true;
   } finally {
     isCaptchaConfigLoading.value = false;
@@ -264,7 +394,7 @@ async function loadBootstrap() {
 async function handlePowFallbackVerify() {
   if (isPowFallbackLoading.value) return;
   isPowFallbackLoading.value = true;
-  errorMessage.value = '';
+  errorMessage.value = "";
   try {
     const challenge = normalizePowChallenge(await CaptchaAPI.getPowChallenge());
     const number = await solvePowChallenge(challenge);
@@ -272,7 +402,8 @@ async function handlePowFallbackVerify() {
     isCaptchaVerified.value = true;
   } catch (e: any) {
     handleCaptchaReset();
-    errorMessage.value = e?.response?.data?.message || e?.message || '人机验证失败，请重试';
+    errorMessage.value =
+      e?.response?.data?.message || e?.message || "人机验证失败，请重试";
     showErrorDialog.value = true;
   } finally {
     isPowFallbackLoading.value = false;
@@ -282,10 +413,10 @@ async function handlePowFallbackVerify() {
 function handleTurnstileVerified(token: string) {
   isCaptchaVerified.value = true;
   captchaSubmission.value = {
-    provider: 'turnstile',
+    provider: "turnstile",
     token,
   };
-  errorMessage.value = '';
+  errorMessage.value = "";
 }
 
 function handleTurnstileError(message: string) {
@@ -308,12 +439,12 @@ async function handleLogin() {
     return;
   }
   if (token.value.length !== 6) {
-    errorMessage.value = '请输入完整的 6 位身份验证码';
+    errorMessage.value = "请输入完整的 6 位身份验证码";
     showErrorDialog.value = true;
     return;
   }
   if (!isCaptchaVerified.value || !captchaSubmission.value) {
-    errorMessage.value = '请先完成人机验证';
+    errorMessage.value = "请先完成人机验证";
     showErrorDialog.value = true;
     return;
   }
@@ -325,33 +456,43 @@ async function handleLogin() {
   lastLoginAttemptAt = now;
 
   isLoading.value = true;
-  errorMessage.value = '';
+  errorMessage.value = "";
 
   try {
-    const res = await apiClient.post('/login', {
+    const res = await apiClient.post("/login", {
       token: token.value,
       captcha: captchaSubmission.value,
-      rememberMe: rememberMe.value
+      rememberMe: rememberMe.value,
+      redirect_uri: redirectUri || undefined,
     });
 
     if (res.data.success) {
-      const runType = res.data.data?.run_type;
+      const runType = (res.data.data?.run_type ?? 1) as 0 | 1 | 3;
       const passkey = res.data.data?.passkey;
-      if (isPasskeySupported.value && passkey?.can_bind && passkey?.bind_token) {
+      const redirectTo =
+        typeof res.data.data?.redirect_to === "string"
+          ? res.data.data.redirect_to
+          : null;
+      if (
+        isPasskeySupported.value &&
+        passkey?.can_bind &&
+        passkey?.bind_token
+      ) {
         passkeyBindToken.value = passkey.bind_token;
         pendingRunType.value = runType;
+        pendingRedirectTo.value = redirectTo;
         showPasskeyBindDialog.value = true;
         return;
       }
-      completeLogin(runType);
+      completeLogin(runType, redirectTo);
     } else {
-      errorMessage.value = res.data.message || '验证失败，请重试';
+      errorMessage.value = res.data.message || "验证失败，请重试";
       showErrorDialog.value = true;
       resetLoginState();
     }
   } catch (e: any) {
-    console.error('Login error:', e);
-    errorMessage.value = e?.response?.data?.message || '验证失败，请重试';
+    console.error("Login error:", e);
+    errorMessage.value = e?.response?.data?.message || "验证失败，请重试";
     showErrorDialog.value = true;
     resetLoginState();
   } finally {
@@ -359,41 +500,53 @@ async function handleLogin() {
   }
 }
 
-function completeLogin(runType: 0 | 1) {
+function completeLogin(runType: 0 | 1 | 3, redirectTo?: string | null) {
   pendingRunType.value = null;
+  pendingRedirectTo.value = null;
   markPendingLogoutDelay();
+  if (redirectTo) {
+    window.location.href = redirectTo;
+    return;
+  }
   if (runType === 0) {
-    router.push('/');
+    router.push("/");
   } else {
-    window.location.href = '/';
+    window.location.href = "/";
   }
 }
 
 async function handlePasskeyLogin() {
   if (!isPasskeySupported.value || !isPasskeyAvailable.value) return;
   isPasskeyLoading.value = true;
-  errorMessage.value = '';
+  errorMessage.value = "";
   try {
-    const optionsRes = await apiClient.post('/passkey/auth/options');
+    const optionsRes = await apiClient.post("/passkey/auth/options");
     const requestOptions = normalizeRequestOptions(optionsRes.data.data);
     const credential = await navigator.credentials.get({
       publicKey: requestOptions,
     });
     if (!credential) {
-      throw new Error('未获取到 Passkey 响应');
+      throw new Error("未获取到 Passkey 响应");
     }
     const payload = serializeCredential(credential as PublicKeyCredential);
-    const verifyRes = await apiClient.post('/passkey/auth/verify', {
+    const verifyRes = await apiClient.post("/passkey/auth/verify", {
       credential: payload,
       rememberMe: rememberMe.value,
+      redirect_uri: redirectUri || undefined,
     });
     if (verifyRes.data.success) {
-      completeLogin(verifyRes.data.data?.run_type);
+      completeLogin(
+        (verifyRes.data.data?.run_type ?? 1) as 0 | 1 | 3,
+        typeof verifyRes.data.data?.redirect_to === "string"
+          ? verifyRes.data.data.redirect_to
+          : null,
+      );
       return;
     }
-    throw new Error(verifyRes.data.message || 'Passkey 验证失败');
+    throw new Error(verifyRes.data.message || "Passkey 验证失败");
   } catch (e: any) {
-    errorMessage.value = e?.response?.data?.message || e?.message || 'Passkey 登录失败，请重试';
+    errorMessage.value =
+      e?.response?.data?.message || e?.message || "Passkey 登录失败，请重试";
     showErrorDialog.value = true;
   } finally {
     isPasskeyLoading.value = false;
@@ -402,13 +555,13 @@ async function handlePasskeyLogin() {
 
 async function handlePasskeyBind() {
   if (!passkeyBindToken.value) {
-    passkeyBindError.value = '绑定凭证无效，请重新登录';
+    passkeyBindError.value = "绑定凭证无效，请重新登录";
     return;
   }
   isBindingPasskey.value = true;
-  passkeyBindError.value = '';
+  passkeyBindError.value = "";
   try {
-    const optionsRes = await apiClient.post('/passkey/register/options', {
+    const optionsRes = await apiClient.post("/passkey/register/options", {
       token: passkeyBindToken.value,
     });
     const creationOptions = normalizeCreationOptions(optionsRes.data.data);
@@ -416,11 +569,14 @@ async function handlePasskeyBind() {
       publicKey: creationOptions,
     });
     if (!credential) {
-      throw new Error('未获取到 Passkey 响应');
+      throw new Error("未获取到 Passkey 响应");
     }
-    const deviceName = (navigator as any).userAgentData?.platform || navigator.platform || 'Unknown Device';
+    const deviceName =
+      (navigator as any).userAgentData?.platform ||
+      navigator.platform ||
+      "Unknown Device";
     const payload = serializeCredential(credential as PublicKeyCredential);
-    const verifyRes = await apiClient.post('/passkey/register/verify', {
+    const verifyRes = await apiClient.post("/passkey/register/verify", {
       token: passkeyBindToken.value,
       deviceName,
       credential: payload,
@@ -428,15 +584,16 @@ async function handlePasskeyBind() {
     if (verifyRes.data.success) {
       isPasskeyAvailable.value = true;
       showPasskeyBindDialog.value = false;
-      passkeyBindToken.value = '';
+      passkeyBindToken.value = "";
       if (pendingRunType.value !== null) {
-        completeLogin(pendingRunType.value);
+        completeLogin(pendingRunType.value, pendingRedirectTo.value);
       }
       return;
     }
-    throw new Error(verifyRes.data.message || 'Passkey 绑定失败');
+    throw new Error(verifyRes.data.message || "Passkey 绑定失败");
   } catch (e: any) {
-    passkeyBindError.value = e?.response?.data?.message || e?.message || 'Passkey 绑定失败';
+    passkeyBindError.value =
+      e?.response?.data?.message || e?.message || "Passkey 绑定失败";
   } finally {
     isBindingPasskey.value = false;
   }
@@ -444,20 +601,24 @@ async function handlePasskeyBind() {
 
 function skipPasskeyBind() {
   showPasskeyBindDialog.value = false;
-  passkeyBindToken.value = '';
-  passkeyBindError.value = '';
+  passkeyBindToken.value = "";
+  passkeyBindError.value = "";
   if (pendingRunType.value !== null) {
-    completeLogin(pendingRunType.value);
+    completeLogin(pendingRunType.value, pendingRedirectTo.value);
   }
 }
 
 function resetLoginState() {
-  token.value = '';
+  token.value = "";
   handleCaptchaReset();
-  if (activeCaptchaProvider.value === 'pow' && canUseNativePow.value && powWidgetRef.value) {
+  if (
+    activeCaptchaProvider.value === "pow" &&
+    canUseNativePow.value &&
+    powWidgetRef.value
+  ) {
     powWidgetRef.value.reset();
   }
-  if (activeCaptchaProvider.value === 'turnstile' && turnstileWidgetRef.value) {
+  if (activeCaptchaProvider.value === "turnstile" && turnstileWidgetRef.value) {
     turnstileWidgetRef.value.reset();
   }
 }

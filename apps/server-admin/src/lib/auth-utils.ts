@@ -5,6 +5,7 @@ import { configManager } from "./redis";
 import { whitelistManager } from "./whitelist-manager";
 import { authLogManager } from "./auth-log";
 import { buildSessionCookie } from "./session-cookie";
+import { resolveCookieDomain, resolvePublicAuthBaseUrl } from "./subdomain-mode";
 
 export type PasskeyBindInfo = {
   available: boolean;
@@ -68,8 +69,18 @@ const buildAbsoluteUrlFromHost = (
   return parseAbsoluteUrl(`${proto}://${host.trim()}`);
 };
 
+const normalizeHostLike = (value: string | null | undefined): string =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/^[a-z]+:\/\//i, "")
+    .replace(/\/.*$/, "")
+    .replace(/\.+$/, "");
+
 const pickPreferredUrl = (candidates: Array<URL | null>): URL | null => {
-  const urls = candidates.filter((candidate): candidate is URL => candidate instanceof URL);
+  const urls = candidates.filter(
+    (candidate): candidate is URL => candidate instanceof URL,
+  );
   return (
     urls.find((candidate) => !isLoopbackHostname(candidate.hostname)) ||
     urls[0] ||
@@ -87,14 +98,18 @@ const getConfiguredRpHost = async (): Promise<string | null> => {
     .map((value) => value.trim())
     .filter(Boolean);
 
-  return configuredHosts.find((host) => {
-    const candidate = buildAbsoluteUrlFromHost(host, "https");
-    return candidate && !isLoopbackHostname(candidate.hostname);
-  }) || null;
+  return (
+    configuredHosts.find((host) => {
+      const candidate = buildAbsoluteUrlFromHost(host, "https");
+      return candidate && !isLoopbackHostname(candidate.hostname);
+    }) || null
+  );
 };
 
 export const getRpInfo = async (request: Request) => {
-  const requestUrl = parseAbsoluteUrl(request.url) || new URL("http://127.0.0.1");
+  const config = await configManager.getConfig();
+  const requestUrl =
+    parseAbsoluteUrl(request.url) || new URL("http://127.0.0.1");
   const forwarded = parseForwardedHeader(request.headers.get("forwarded"));
   const rawProto =
     forwarded.proto ||
@@ -111,21 +126,46 @@ export const getRpInfo = async (request: Request) => {
     takeFirstHeaderValue(request.headers.get("x-original-host"));
 
   const directHost =
-    takeFirstHeaderValue(request.headers.get("host")) ||
-    requestUrl.host;
+    takeFirstHeaderValue(request.headers.get("host")) || requestUrl.host;
 
+  const configuredAuthBaseUrl = resolvePublicAuthBaseUrl(config);
+  const configuredAuthUrl = parseAbsoluteUrl(configuredAuthBaseUrl);
   const selectedUrl = pickPreferredUrl([
     parseAbsoluteUrl(request.headers.get("origin")),
     parseAbsoluteUrl(request.headers.get("referer")),
     buildAbsoluteUrlFromHost(forwardedHost, proto),
     buildAbsoluteUrlFromHost(directHost, proto),
+    configuredAuthUrl,
     requestUrl,
   ]);
+
+  const effectiveOriginUrl =
+    selectedUrl ||
+    configuredAuthUrl ||
+    buildAbsoluteUrlFromHost(directHost, proto) ||
+    requestUrl;
+
+  const passkeyMode =
+    config.subdomain_mode?.passkey_rp_mode === "parent_domain"
+      ? "parent_domain"
+      : "auth_host";
+  const configuredParentRpId = normalizeHostLike(
+    config.subdomain_mode?.passkey_rp_id || config.subdomain_mode?.root_domain,
+  );
+
+  if (passkeyMode === "parent_domain" && configuredParentRpId) {
+    return {
+      rpID: configuredParentRpId,
+      origin: effectiveOriginUrl.origin,
+      mode: passkeyMode,
+    };
+  }
 
   if (selectedUrl && !isLoopbackHostname(selectedUrl.hostname)) {
     return {
       rpID: selectedUrl.hostname,
-      origin: selectedUrl.origin,
+      origin: effectiveOriginUrl.origin,
+      mode: passkeyMode,
     };
   }
 
@@ -135,14 +175,16 @@ export const getRpInfo = async (request: Request) => {
     if (configuredUrl) {
       return {
         rpID: configuredUrl.hostname,
-        origin: configuredUrl.origin,
+        origin: effectiveOriginUrl.origin,
+        mode: passkeyMode,
       };
     }
   }
 
   return {
     rpID: requestUrl.hostname,
-    origin: requestUrl.origin,
+    origin: effectiveOriginUrl.origin,
+    mode: passkeyMode,
   };
 };
 
@@ -171,9 +213,11 @@ export const extractChallenge = (clientDataJSON: string): string | null => {
   }
 };
 
-export const buildPasskeyBindInfo = async (totpId: string): Promise<PasskeyBindInfo> => {
+export const buildPasskeyBindInfo = async (
+  totpId: string,
+): Promise<PasskeyBindInfo> => {
   const passkeys = await configManager.getPasskeys();
-  const boundPasskeys = passkeys.filter(pk => pk.totpId === totpId);
+  const boundPasskeys = passkeys.filter((pk) => pk.totpId === totpId);
   if (boundPasskeys.length > 0) {
     return { available: true, can_bind: false };
   }
@@ -192,6 +236,7 @@ export const handleLoginSuccess = async ({
   set,
   totpId,
   passkeyInfo,
+  redirectTo,
 }: {
   config: Awaited<ReturnType<typeof configManager.getConfig>>;
   clientIp: string | null;
@@ -203,6 +248,7 @@ export const handleLoginSuccess = async ({
   set: any;
   totpId: string;
   passkeyInfo?: PasskeyBindInfo;
+  redirectTo?: string | null;
 }) => {
   const sessionId = randomBytes(16).toString("hex");
   const maxAge = rememberMe ? 365 * 24 * 3600 : 24 * 3600;
@@ -216,8 +262,8 @@ export const handleLoginSuccess = async ({
   const whitelistRecordId = await whitelistManager.addWhiteList({
     ip: clientIpStr,
     expireAt,
-    source: 'auto',
-    comment: '登录后自动放行'
+    source: "auto",
+    comment: "登录后自动放行",
   });
 
   await authLogManager.recordLog({
@@ -229,17 +275,21 @@ export const handleLoginSuccess = async ({
     success: true,
   });
 
-  await configManager.addSession(sessionId, {
-    totpId,
-    method: authMethod,
-    credentialId,
-    credentialName,
-    ip: clientIpStr,
-    userAgent,
-    loginTime: new Date().toISOString(),
-    expiresAt: expiresAtISO,
-    ...(ipLocationStr ? { ipLocation: ipLocationStr } : {}),
-  }, maxAge);
+  await configManager.addSession(
+    sessionId,
+    {
+      totpId,
+      method: authMethod,
+      credentialId,
+      credentialName,
+      ip: clientIpStr,
+      userAgent,
+      loginTime: new Date().toISOString(),
+      expiresAt: expiresAtISO,
+      ...(ipLocationStr ? { ipLocation: ipLocationStr } : {}),
+    },
+    maxAge,
+  );
   await authMobilitySessionManager.registerLoginSession({
     sessionId,
     ip: clientIpStr,
@@ -251,10 +301,16 @@ export const handleLoginSuccess = async ({
     ipLocationRefs.session(sessionId),
     ipLocationRefs.sessionTimeline(sessionId),
   ]);
-  set.headers["Set-Cookie"] = buildSessionCookie(sessionId, maxAge);
+  set.headers["Set-Cookie"] = buildSessionCookie(sessionId, maxAge, {
+    domain: resolveCookieDomain(config),
+  });
   return {
     success: true,
     message: "Login successful",
-    data: { run_type: 1, passkey: passkeyInfo },
+    data: {
+      run_type: config.run_type,
+      passkey: passkeyInfo,
+      redirect_to: redirectTo || undefined,
+    },
   };
 };

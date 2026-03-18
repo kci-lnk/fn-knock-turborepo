@@ -654,6 +654,21 @@ export class ConfigManager {
             dnsNames.push(value);
           }
         });
+      const subjectCommonName =
+        x509.subject
+          .split("\n")
+          .map((entry) => entry.trim())
+          .find((entry) => /^CN\s*=/.test(entry))
+          ?.replace(/^CN\s*=\s*/i, "")
+          .trim() || "";
+      if (
+        subjectCommonName &&
+        !dnsNames.some(
+          (entry) => entry.toLowerCase() === subjectCommonName.toLowerCase(),
+        )
+      ) {
+        dnsNames.push(subjectCommonName);
+      }
 
       return {
         issuer: x509.issuer,

@@ -422,7 +422,7 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
               applied: true,
               certificate_id: candidate.id,
               label: candidate.label,
-              message: "已自动切换到更适合当前子域名模式的证书。",
+              message: "已自动切换到更适合当前子域模式的证书。",
             };
           } catch (error: any) {
             await configManager.activateSSLCertificate(previousActiveId);

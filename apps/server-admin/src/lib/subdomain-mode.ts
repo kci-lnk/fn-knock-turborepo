@@ -223,7 +223,7 @@ export const buildSubdomainCertificateRecommendation = (
     summary = `尚未配置根域名，当前仅能推荐为鉴权服务 ${authHost} 申请单域名证书。`;
     warnings.push("如果后续要统一覆盖多个业务子域，建议先补充根域名后再申请 wildcard 证书。");
   } else {
-    warnings.push("请先在子域名模式里配置根域名，或在 Host 映射中指定一条鉴权服务。");
+    warnings.push("请先在子域模式里配置根域名，或在 Host 映射中指定一条鉴权服务。");
   }
 
   if (!authHost) {
@@ -268,6 +268,14 @@ export const buildSubdomainCertificateCoverage = ({
   const allHosts = uniqStrings(
     (config.host_mappings || []).map((mapping) => mapping.host || ""),
   );
+  const concreteRequirements = uniqStrings([
+    recommendation.auth_host || "",
+    ...allHosts,
+  ]);
+  const effectiveRequirements =
+    concreteRequirements.length > 0
+      ? concreteRequirements
+      : recommendation.recommended_domains;
   const coveredRecommendedDomains = recommendation.recommended_domains.filter(
     (domain) =>
       isRequirementCoveredByCertificateDomains(domain, currentCertificateDomains),
@@ -290,6 +298,20 @@ export const buildSubdomainCertificateCoverage = ({
   const coversAuthHost = authHost
     ? isRequirementCoveredByCertificateDomains(authHost, currentCertificateDomains)
     : false;
+  const coveredRequirements = effectiveRequirements.filter((requirement) =>
+    isRequirementCoveredByCertificateDomains(
+      requirement,
+      currentCertificateDomains,
+    ),
+  );
+  const uncoveredRequirements = effectiveRequirements.filter(
+    (requirement) =>
+      !isRequirementCoveredByCertificateDomains(
+        requirement,
+        currentCertificateDomains,
+      ),
+  );
+  const hasConcreteRequirements = concreteRequirements.length > 0;
 
   let status: SubdomainCertificateCoverage["status"] = "missing";
   let summary = "当前未启用 SSL 证书，鉴权服务与业务子域尚未被 HTTPS 覆盖。";
@@ -299,24 +321,37 @@ export const buildSubdomainCertificateCoverage = ({
     if (!recommendation.can_autofill) {
       summary = recommendation.summary;
     }
-  } else if (
-    uncoveredRecommendedDomains.length === 0 &&
-    uncoveredHosts.length === 0
-  ) {
+  } else if (uncoveredRequirements.length === 0) {
     status = "ready";
-    summary = "当前已部署证书覆盖了推荐域名，并匹配所有已配置 Host 映射。";
-  } else if (coveredRecommendedDomains.length > 0 || coveredHosts.length > 0) {
+    summary = hasConcreteRequirements
+      ? "当前已部署证书覆盖了鉴权服务和所有已配置 Host 映射。"
+      : "当前已部署证书满足子域模式当前的建议覆盖范围。";
+  } else if (coveredRequirements.length > 0) {
     status = "partial";
-    summary =
-      "当前证书只覆盖了部分子域名模式所需域名，鉴权服务或部分业务 Host 仍可能出现证书不匹配。";
+    summary = hasConcreteRequirements
+      ? "当前证书只覆盖了部分子域模式所需域名，鉴权服务或部分业务 Host 仍可能出现证书不匹配。"
+      : "当前证书只覆盖了部分建议域名，后续启用子域模式时仍可能出现证书不匹配。";
   } else {
-    summary =
-      "当前已部署证书与子域名模式不匹配，鉴权服务和业务 Host 仍未被正确覆盖。";
+    summary = hasConcreteRequirements
+      ? "当前已部署证书与子域模式不匹配，鉴权服务和业务 Host 仍未被正确覆盖。"
+      : "当前已部署证书尚未覆盖子域模式建议的域名范围。";
   }
 
-  if (currentCertificateDomains.length > 0 && uncoveredRecommendedDomains.length > 0) {
+  if (
+    currentCertificateDomains.length > 0 &&
+    hasConcreteRequirements &&
+    uncoveredRequirements.length > 0
+  ) {
     warnings.push(
-      `当前证书还缺少 ${uncoveredRecommendedDomains.length} 个推荐域名覆盖项，建议重新申请或替换证书。`,
+      `当前证书还缺少 ${uncoveredRequirements.length} 个必需覆盖项，建议重新申请或替换证书。`,
+    );
+  } else if (
+    currentCertificateDomains.length > 0 &&
+    !hasConcreteRequirements &&
+    uncoveredRecommendedDomains.length > 0
+  ) {
+    warnings.push(
+      `当前证书还缺少 ${uncoveredRecommendedDomains.length} 个建议域名覆盖项，后续如需使用这些域名，建议重新申请或替换证书。`,
     );
   }
 
@@ -357,10 +392,14 @@ export const buildSubdomainCertificateInventoryCoverage = ({
   const allHosts = uniqStrings(
     (config.host_mappings || []).map((mapping) => mapping.host || ""),
   );
-  const requirements = uniqStrings([
-    ...recommendation.recommended_domains,
+  const concreteRequirements = uniqStrings([
+    recommendation.auth_host || "",
     ...allHosts,
   ]);
+  const requirements =
+    concreteRequirements.length > 0
+      ? concreteRequirements
+      : recommendation.recommended_domains;
 
   const analyses = certificates.map((certificate) => {
     const normalizedDomains = uniqStrings(certificate.certificateDomains || []);
@@ -421,34 +460,34 @@ export const buildSubdomainCertificateInventoryCoverage = ({
     requirements.length > 0 && uncoveredRequirements.size === 0;
 
   let status: SubdomainCertificateInventoryCoverage["status"] = "missing";
-  let summary = "证书库中还没有可用于子域名模式的证书。";
+  let summary = "证书库中还没有可用于子域模式的证书。";
   const warnings: string[] = [];
 
   if (activeAnalysis?.coverage.status === "ready") {
     status = "ready";
-    summary = "当前活动证书已经完整覆盖子域名模式所需域名。";
+    summary = "当前活动证书已经完整覆盖子域模式所需域名。";
   } else if (fullyCovering.length === 1) {
     status = "ready";
-    summary = "证书库中有 1 张证书可完整覆盖子域名模式，可以直接切换为活动证书。";
+    summary = "证书库中有 1 张证书可完整覆盖子域模式，可以直接切换为活动证书。";
   } else if (fullyCovering.length > 1) {
     status = "ready";
-    summary = `证书库中有 ${fullyCovering.length} 张证书各自都能完整覆盖当前子域名模式。`;
+    summary = `证书库中有 ${fullyCovering.length} 张证书各自都能完整覆盖当前子域模式。`;
   } else if (combinedReady && deploymentMode === "multi_sni") {
     status = "ready";
     summary =
       combinedCoveringCertificateIds.length > 1
         ? "证书库组合后已经具备完整覆盖能力。"
-        : "证书库中已有可覆盖当前子域名模式的候选证书。";
+        : "证书库中已有可覆盖当前子域模式的候选证书。";
   } else if (combinedReady) {
     status = "partial";
     summary =
-      "证书库组合后已经可以覆盖当前子域名模式，但当前网关仍是单活动证书模式，暂时不能同时生效。";
+      "证书库组合后已经可以覆盖当前子域模式，但当前网关仍是单活动证书模式，暂时不能同时生效。";
   } else if (partiallyCovering.length > 0) {
     status = "partial";
     summary =
       "证书库里已有部分候选证书，但还不能完整覆盖鉴权服务和全部 Host 映射。";
   } else if (recommendation.can_autofill) {
-    summary = "当前还没有证书能够覆盖子域名模式推荐域名。";
+    summary = "当前还没有证书能够覆盖子域模式推荐域名。";
   } else {
     summary = recommendation.summary;
   }
@@ -468,7 +507,7 @@ export const buildSubdomainCertificateInventoryCoverage = ({
     activeAnalysis.coverage.status !== "ready" &&
     fullyCovering.length === 1
   ) {
-    warnings.push("当前活动证书与子域名模式不完全匹配，建议切换到推荐证书。");
+    warnings.push("当前活动证书与子域模式不完全匹配，建议切换到推荐证书。");
   }
 
   if (

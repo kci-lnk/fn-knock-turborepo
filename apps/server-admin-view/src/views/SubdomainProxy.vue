@@ -1,7 +1,7 @@
 <template>
   <div class="space-y-6">
     <ConfigCollapsibleCard
-      title="子域名模式配置"
+      title="子域模式配置"
       :configured="isSubdomainModeConfigured"
       :ready="!configStore.isLoading"
       edit-label="编辑配置"
@@ -24,9 +24,9 @@
         <div class="divide-y divide-border">
           <div class="p-4 sm:p-6">
             <div class="space-y-1">
-              <h3 class="text-base font-semibold">子域名模式配置</h3>
+              <h3 class="text-base font-semibold">子域模式配置</h3>
               <p class="text-sm text-muted-foreground">
-                这里只保留子域名模式最常用的配置。你通常只需要先填好根域名，再在下方映射里指定一个“鉴权服务”即可。
+                这里只保留子域模式最常用的配置。你通常只需要先填好根域名，再在下方映射里指定一个“鉴权服务”即可。
               </p>
             </div>
           </div>
@@ -974,7 +974,7 @@ const isMappingValid = computed(() => {
 const { isPending: isSavingMode, run: runSaveMode } = useAsyncAction({
   onError: (error) => {
     toast.error("保存失败", {
-      description: extractErrorMessage(error, "子域名模式配置保存失败"),
+      description: extractErrorMessage(error, "子域模式配置保存失败"),
     });
   },
 });
@@ -1062,7 +1062,7 @@ async function saveMode() {
       public_auth_base_url: modeForm.public_auth_base_url.trim(),
       passkey_rp_id: (modeForm.passkey_rp_id || "").trim().toLowerCase(),
     });
-    toast.success("子域名模式配置已保存");
+    toast.success("子域模式配置已保存");
     if (result?.ssl_auto_selection?.message) {
       if (result.ssl_auto_selection.applied) {
         toast.success(result.ssl_auto_selection.message, {

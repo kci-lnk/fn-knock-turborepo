@@ -67,7 +67,7 @@
             libraryCoverage.status === 'missing' ? 'destructive' : 'default'
           "
         >
-          <AlertTitle>子域名模式闭环提示</AlertTitle>
+          <AlertTitle>子域模式闭环提示</AlertTitle>
           <AlertDescription class="grid gap-2">
             <p>{{ libraryCoverage.summary }}</p>
             <p

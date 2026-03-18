@@ -118,7 +118,7 @@
         </div>
         <div class="flex-1 space-y-2">
           <div class="flex items-center gap-2">
-            <p class="text-base font-semibold leading-none">子域名模式</p>
+            <p class="text-base font-semibold leading-none">子域模式</p>
             <span
               class="inline-flex items-center rounded-md border border-zinc-300 bg-white px-2 py-0.5 text-xs font-medium text-zinc-700"
             >
@@ -126,8 +126,7 @@
             </span>
           </div>
           <p class="text-sm text-muted-foreground">
-            使用 `auth.example.com` 与多个业务子域统一接入 Go 网关，不依赖
-            iptables，适合公网 Web 服务入口保护。
+            与多个业务子域统一接入网关，不依赖iptables，是升级版的直连模式
           </p>
         </div>
       </div>
@@ -428,7 +427,7 @@ async function ensureTunnelsStoppedForTargetMode(nextMode: 0 | 1 | 3) {
 function getRunModeLabel(targetMode: 0 | 1 | 3) {
   if (targetMode === 0) return "直连模式";
   if (targetMode === 1) return "反代模式";
-  return "子域名模式";
+  return "子域模式";
 }
 
 function handleConfirmDialogOpenChange(nextOpen: boolean) {

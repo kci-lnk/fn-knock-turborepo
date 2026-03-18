@@ -144,9 +144,7 @@
                         :name="`acme-credential-${index}`"
                         autocomplete="new-password"
                         :readonly="!isCredentialEditReady(k)"
-                        :disabled="
-                          !isAcmeInstalled || isSubmitting || isSaving
-                        "
+                        :disabled="!isAcmeInstalled || isSubmitting || isSaving"
                         @focus="enableCredentialEditing(k)"
                         @pointerdown="enableCredentialEditing(k)"
                       />
@@ -166,12 +164,17 @@
               @click="refresh"
             />
             <Button variant="outline" @click="collapse">折叠</Button>
-            <Button variant="outline" :disabled="isSubmitting" @click="resetForm"
+            <Button
+              variant="outline"
+              :disabled="isSubmitting"
+              @click="resetForm"
               >清空</Button
             >
             <Button
               variant="secondary"
-              :disabled="!isAcmeInstalled || !canSubmit || isSubmitting || isSaving"
+              :disabled="
+                !isAcmeInstalled || !canSubmit || isSubmitting || isSaving
+              "
               @click="save"
             >
               <span
@@ -181,7 +184,9 @@
               保存
             </Button>
             <Button
-              :disabled="!isAcmeInstalled || !canSubmit || isSubmitting || isSaving"
+              :disabled="
+                !isAcmeInstalled || !canSubmit || isSubmitting || isSaving
+              "
               @click="submit"
             >
               <span
@@ -204,10 +209,7 @@
           </CardContent>
         </Card>
 
-        <Card
-          v-else-if="!isAcmeInstalled"
-          class="border-border/80 shadow-sm"
-        >
+        <Card v-else-if="!isAcmeInstalled" class="border-border/80 shadow-sm">
           <CardHeader>
             <CardTitle>ACME.sh 未就绪</CardTitle>
             <CardDescription>
@@ -337,7 +339,9 @@
               :disabled="isDownloading"
               >下载证书</Button
             >
-            <Button @click="deploy" :disabled="isDeploying">一键部署</Button>
+            <Button @click="deploy" :disabled="isDeploying"
+              >设为当前证书</Button
+            >
             <Button variant="outline" @click="reapply">重新申请</Button>
           </CardFooter>
         </Card>
@@ -364,7 +368,7 @@
               </Badge>
             </CardTitle>
             <CardDescription>
-              已签发并保存到服务器，可下载或部署。
+              已签发并保存到服务器，并会自动加入证书库；如需立即生效，可将它设为当前证书。
             </CardDescription>
           </CardHeader>
           <CardContent class="grid gap-2 text-sm">
@@ -398,7 +402,7 @@
             <Button variant="secondary" @click="download" :disabled="isDeleting"
               >下载证书</Button
             >
-            <Button @click="deploy" :disabled="isDeleting">一键部署</Button>
+            <Button @click="deploy" :disabled="isDeleting">设为当前证书</Button>
             <ConfirmDangerPopover
               title="确认删除 ACME 证书"
               description="删除后将移除服务器保存的证书与私钥文件，且可能会禁用当前正在使用的同一份证书。"
@@ -545,7 +549,7 @@ const { isPending: isDownloading, run: runDownloadCert } = useAsyncAction({
 });
 const { isPending: isDeploying, run: runDeployCert } = useAsyncAction({
   onError: (error) => {
-    toast.error(extractErrorMessage(error, "部署失败"));
+    toast.error(extractErrorMessage(error, "设置当前证书失败"));
   },
 });
 const { run: runLoadSavedConfig } = useAsyncAction();
@@ -929,7 +933,7 @@ async function deploy() {
   if (!primaryDomain) return;
   await runDeployCert(async () => {
     await AcmeAPI.deploy(primaryDomain);
-    toast.success("已保存到证书库并设为当前证书");
+    toast.success("已设为当前证书");
   });
 }
 

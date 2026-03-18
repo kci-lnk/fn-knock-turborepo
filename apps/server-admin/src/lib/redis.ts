@@ -465,7 +465,8 @@ const mirrorActiveSSLCertificate = (
   const normalized = normalizeSSLConfig(ssl);
   const active =
     activeCertId && activeCertId.trim()
-      ? normalized.certificates?.find((item) => item.id === activeCertId) || null
+      ? normalized.certificates?.find((item) => item.id === activeCertId) ||
+        null
       : null;
 
   return {
@@ -757,8 +758,9 @@ export class ConfigManager {
     const activeId = config.ssl.active_cert_id?.trim();
     if (!activeId) return null;
     return (
-      config.ssl.certificates?.find((certificate) => certificate.id === activeId) ||
-      null
+      config.ssl.certificates?.find(
+        (certificate) => certificate.id === activeId,
+      ) || null
     );
   }
 
@@ -841,15 +843,54 @@ export class ConfigManager {
     return nextRecord;
   }
 
+  async saveAcmeCertificateToLibrary(
+    domain: string,
+    opts?: {
+      id?: string;
+      label?: string;
+      activate?: boolean;
+    },
+  ): Promise<SSLManagedCertificate> {
+    const normalizedDomain = domain.trim().toLowerCase();
+    if (!normalizedDomain) {
+      throw new Error("域名不能为空");
+    }
+
+    const pair = await this.getAcmeCert(normalizedDomain);
+    if (!pair) {
+      throw new Error("证书不存在");
+    }
+
+    const validation = this.validateSSLCert(pair.cert, pair.key);
+    if (!validation.valid) {
+      throw new Error(validation.error || "证书或私钥无效");
+    }
+
+    return this.saveSSLCertificate({
+      id: opts?.id,
+      label: opts?.label || normalizedDomain,
+      source: "acme",
+      primary_domain: normalizedDomain,
+      cert: pair.cert,
+      key: pair.key,
+      activate: opts?.activate === true,
+      matchBy: {
+        source: "acme",
+        primary_domain: normalizedDomain,
+      },
+    });
+  }
+
   async activateSSLCertificate(
     id: string | null | undefined,
   ): Promise<SSLManagedCertificate | null> {
     const config = await this.getConfig();
     const normalizedId = typeof id === "string" ? id.trim() : "";
-    const active =
-      normalizedId
-        ? config.ssl.certificates?.find((certificate) => certificate.id === normalizedId)
-        : null;
+    const active = normalizedId
+      ? config.ssl.certificates?.find(
+          (certificate) => certificate.id === normalizedId,
+        )
+      : null;
 
     config.ssl = mirrorActiveSSLCertificate(config.ssl, active?.id || null);
     await this.saveConfig(config);

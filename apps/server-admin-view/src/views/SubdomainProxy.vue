@@ -26,7 +26,7 @@
             <div class="space-y-1">
               <h3 class="text-base font-semibold">子域模式配置</h3>
               <p class="text-sm text-muted-foreground">
-                这里只保留子域模式最常用的配置。你通常只需要先填好根域名，再在下方映射里指定一个“鉴权服务”即可。
+                这里只保留子域模式最常用的配置。你通常只需要填好根域名
               </p>
             </div>
           </div>
@@ -266,8 +266,7 @@
             {{ editingHost ? "编辑 Host 映射" : "添加 Host 映射" }}
           </DialogTitle>
           <DialogDescription>
-            普通业务域名默认会走统一登录流程；当 Target
-            指向鉴权端口时，该域名会自动成为统一登录入口并保持公开可达。
+            业务域名默认会走统一登录流程
           </DialogDescription>
         </DialogHeader>
         <div class="grid gap-4 py-4">
@@ -312,10 +311,6 @@
               v-model="mappingForm.target"
               placeholder="http://127.0.0.1:5173"
             />
-            <p class="text-xs text-muted-foreground">
-              如果这里使用的是鉴权端口
-              {{ authServicePort }}，系统会自动把它识别为鉴权服务。
-            </p>
           </div>
 
           <div

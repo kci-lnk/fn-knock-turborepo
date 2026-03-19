@@ -46,6 +46,7 @@ export interface HostMapping {
   target: string;
   use_auth: boolean;
   access_mode: HostAccessMode;
+  suppress_toolbar: boolean;
   preserve_host: boolean;
   service_role: HostServiceRole;
 }
@@ -501,6 +502,8 @@ const normalizeHostMapping = (
       serviceRole === "auth"
         ? "login_first"
         : normalizeHostAccessMode(raw.access_mode),
+    suppress_toolbar:
+      serviceRole === "auth" ? false : raw.suppress_toolbar === true,
     preserve_host: raw.preserve_host !== false,
     service_role: serviceRole,
   };

@@ -31,6 +31,7 @@ export interface HostRule {
   target: string;
   use_auth: boolean;
   access_mode?: "login_first" | "strict_whitelist";
+  suppress_toolbar?: boolean;
   preserve_host?: boolean;
 }
 

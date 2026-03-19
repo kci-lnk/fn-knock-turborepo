@@ -35,6 +35,7 @@ const validateHostMappings = (
     target: string;
     use_auth: boolean;
     access_mode: "login_first" | "strict_whitelist";
+    suppress_toolbar?: boolean;
     service_role?: "app" | "auth";
   }>,
 ) => {
@@ -343,6 +344,7 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
               t.Literal("login_first"),
               t.Literal("strict_whitelist"),
             ]),
+            suppress_toolbar: t.Boolean(),
             preserve_host: t.Boolean(),
             service_role: t.Optional(
               t.Union([t.Literal("app"), t.Literal("auth")]),

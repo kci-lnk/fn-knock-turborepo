@@ -17,6 +17,7 @@ export interface HostMapping {
   target: string;
   use_auth: boolean;
   access_mode: HostAccessMode;
+  suppress_toolbar: boolean;
   preserve_host: boolean;
   service_role: HostServiceRole;
 }

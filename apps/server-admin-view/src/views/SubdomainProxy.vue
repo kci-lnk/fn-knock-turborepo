@@ -33,14 +33,14 @@
 
           <div class="grid gap-4 p-4 sm:p-6">
             <div class="max-w-xs space-y-2">
-              <Label for="root-domain">根域名</Label>
+              <Label for="root-domain">域名</Label>
               <Input
                 id="root-domain"
                 v-model="modeForm.root_domain"
                 placeholder="example.com"
               />
               <p class="text-xs text-muted-foreground">
-                后续新增映射时，你只需要填写子域名前缀，系统会自动拼接到这个根域名下面。
+                如填写 example.com 后，后续新增映射时，你只需要填写子域名前缀，系统会自动拼接到这个根域名下面，比如 fnos.example.com
               </p>
             </div>
             <div class="rounded-lg border px-4 py-3">
@@ -189,8 +189,8 @@
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Host</TableHead>
-                <TableHead>Target</TableHead>
+                <TableHead>子域名</TableHead>
+                <TableHead>目标</TableHead>
                 <TableHead>状态</TableHead>
                 <TableHead class="text-right">操作</TableHead>
               </TableRow>
@@ -211,9 +211,9 @@
               >
                 <TableCell class="font-medium">{{ mapping.host }}</TableCell>
                 <TableCell>{{ mapping.target }}</TableCell>
-                <TableCell>
+                <TableCell class="min-w-[3rem]">
                   <div
-                    class="flex flex-wrap gap-2 text-xs text-muted-foreground"
+                    class="flex min-w-[3rem] flex-wrap items-center gap-2 text-xs text-muted-foreground"
                   >
                     <Badge
                       v-if="isAuthServiceTarget(mapping.target)"
@@ -221,9 +221,9 @@
                     >
                       鉴权服务
                     </Badge>
-                    <Badge variant="secondary">
-                      {{ mapping.use_auth ? "需鉴权" : "公开访问" }}
-                    </Badge>
+                    <ShieldCheck v-if="mapping.use_auth" class="h-3.5 w-3.5" />
+                    <Badge v-else variant="secondary">公开访问</Badge>
+                    <PanelsTopLeft v-if="mapping.use_auth && !mapping.suppress_toolbar" class="h-3.5 w-3.5" />
                   </div>
                 </TableCell>
                 <TableCell class="text-right">
@@ -300,7 +300,7 @@
           </div>
 
           <div class="space-y-2">
-            <Label for="mapping-target">Target</Label>
+            <Label for="mapping-target">目标</Label>
             <Input
               id="mapping-target"
               v-model="mappingForm.target"
@@ -316,9 +316,9 @@
             class="flex items-center justify-between rounded-lg border px-4 py-3"
           >
             <div class="space-y-1">
-              <Label for="mapping-auth">要求认证</Label>
+              <Label for="mapping-auth">要求登录</Label>
               <p class="text-xs text-muted-foreground">
-                未登录时会跳到认证子域，再回到原始业务子域。
+                安全性, 未登录用户会被要求登录才可以访问
               </p>
             </div>
             <Switch
@@ -326,6 +326,18 @@
               v-model="mappingForm.use_auth"
               :disabled="isMappingAuthService"
             />
+          </div>
+
+          <div
+            class="flex items-center justify-between rounded-lg border px-4 py-3"
+          >
+            <div class="space-y-1">
+              <Label for="mapping-toolbar">显示小工具</Label>
+              <p class="text-xs text-muted-foreground">
+                当开启时，在完成登录后，一般在右下角显示一个可以快速切换应用的小图标
+              </p>
+            </div>
+            <Switch id="mapping-toolbar" v-model="showToolbar" />
           </div>
         </div>
         <DialogFooter>
@@ -530,6 +542,7 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import {
   ChevronDown,
+  PanelsTopLeft,
   Plus,
   RefreshCw,
   Search,
@@ -711,6 +724,7 @@ const createDefaultMapping = (): HostMapping => ({
   target: "",
   use_auth: true,
   access_mode: DEFAULT_ACCESS_MODE,
+  suppress_toolbar: false,
   preserve_host: true,
   service_role: "app",
 });
@@ -781,6 +795,12 @@ const isSubdomainModeConfigured = computed(() => {
 const isMappingAuthService = computed(() =>
   isAuthServiceTarget(mappingForm.target),
 );
+const showToolbar = computed({
+  get: () => !mappingForm.suppress_toolbar,
+  set: (value: boolean) => {
+    mappingForm.suppress_toolbar = !value;
+  },
+});
 const isDeleteDialogOpen = computed(() => deleteDialogState.value !== null);
 const deleteDialogTitle = computed(() =>
   deleteDialogState.value?.kind === "auth_service"
@@ -1061,8 +1081,12 @@ function normalizeMapping(input: HostMapping): HostMapping {
     host,
     target: input.target.trim(),
     use_auth: serviceRole === "auth" ? false : input.use_auth,
-    access_mode: DEFAULT_ACCESS_MODE,
-    preserve_host: true,
+    access_mode:
+      serviceRole === "auth"
+        ? DEFAULT_ACCESS_MODE
+        : input.access_mode || DEFAULT_ACCESS_MODE,
+    suppress_toolbar: serviceRole === "auth" ? false : input.suppress_toolbar,
+    preserve_host: input.preserve_host !== false,
     service_role: serviceRole,
   };
 }
@@ -1113,6 +1137,7 @@ async function addAuthService() {
         target,
         use_auth: false,
         access_mode: DEFAULT_ACCESS_MODE,
+        suppress_toolbar: false,
         preserve_host: true,
         service_role: "auth",
       },
@@ -1343,6 +1368,7 @@ async function saveDiscoveredServices() {
         target: `http://127.0.0.1:${service.port}/`,
         use_auth: service.detail.rule.use_auth,
         access_mode: DEFAULT_ACCESS_MODE,
+        suppress_toolbar: false,
         preserve_host: true,
         service_role: "app",
       });

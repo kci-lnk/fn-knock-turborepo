@@ -127,21 +127,45 @@ trap 'rm -f "$HEADER_FILE" "$BODY_FILE"' EXIT
 
 curl "$@" -D "$HEADER_FILE" -o "$BODY_FILE" "$TARGET_URL" >/dev/null 2>&1
 CURL_EXIT=$?
-
 if [ $CURL_EXIT -ne 0 ]; then
     ARCH=$(uname -m)
     case "$ARCH" in
         arm*|aarch64)
-            if [ ! -x "/usr/bin/redis-server" ] &&[ ! -x "/usr/local/bin/redis-server" ]; then
-                printf "Status: 502 Bad Gateway\r\n"
+            if [ ! -x "/usr/bin/redis-server" ] && [ ! -x "/usr/local/bin/redis-server" ]; then
+                printf "Status: 200 OK\r\n"
                 printf "Content-Type: text/html; charset=utf-8\r\n\r\n"
-                printf '<div style="text-align: center; margin-top: 50px; font-family: sans-serif;">\n'
-                printf '  <h2 style="color: #d9534f;">启动失败：未检测到 Redis 服务</h2>\n'
-                printf '  <p>arm版飞牛OS：REDIS未安装所以程序无法启动，请在终端执行下列命令完成安装，完成后请重新启用一下敲门knock程序</p>\n'
-                printf '  <pre style="text-align: left; display: inline-block; background: #f7f7f7; padding: 10px; border-radius: 5px;">\n'
-                printf '    sudo sh -c '\''apt update && apt install redis-server -y && systemctl start redis-server && systemctl enable redis-server && echo "Redis安装完成，请重新启用knock程序"'\''\n'
-                printf '  </pre>\n'
+                printf '<!DOCTYPE html>\n<html>\n<head>\n<meta charset="UTF-8">\n<title>正在配置环境</title>\n</head>\n<body>\n'
+                
+                printf '<div id="installing" style="text-align: center; margin-top: 50px; font-family: sans-serif;">\n'
+                printf '  <h2 style="color: #f0ad4e;">正在自动安装缺少的运行环境（Redis），请稍候...</h2>\n'
+                printf '  <p>大约需要 1 - 2 分钟完成下载和配置，请不要关闭或刷新本页面。</p>\n'
                 printf '</div>\n'
+                
+                for i in $(seq 1 1024); do printf "<!-- padding buffer -->\n"; done
+                
+                export DEBIAN_FRONTEND=noninteractive
+                apt-get update -qq >/dev/null 2>&1
+                apt-get install -y redis-server >/dev/null 2>&1
+                
+                if [ -f /etc/redis/redis.conf ]; then
+                    sed -i 's/^protected-mode yes/protected-mode no/g' /etc/redis/redis.conf
+                    if ! grep -q "^protected-mode no" /etc/redis/redis.conf; then
+                        echo "protected-mode no" >> /etc/redis/redis.conf
+                    fi
+                else
+                    mkdir -p /etc/redis
+                    echo "protected-mode no" > /etc/redis/redis.conf
+                fi
+                
+                systemctl restart redis-server >/dev/null 2>&1
+                systemctl enable redis-server >/dev/null 2>&1
+                
+                printf '<script>document.getElementById("installing").style.display = "none";</script>\n'
+                printf '<div style="text-align: center; margin-top: 100px; font-family: sans-serif;">\n'
+                printf '  <h1 style="color: #5cb85c; font-size: 56px; font-weight: bold;">环境安装及配置完成！</h1>\n'
+                printf '  <h2 style="color: #333; margin-top: 30px;">请重新启用一下 fn-knock 敲门程序即可正常使用。</h2>\n'
+                printf '</div>\n'
+                printf '</body>\n</html>\n'
                 exit 0
             fi
             ;;

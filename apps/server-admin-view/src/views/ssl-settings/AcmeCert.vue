@@ -90,7 +90,7 @@
                 </div>
 
                 <div
-                  v-if="activeProvider?.envKeys?.length"
+                  v-if="activeCredentialFields.length"
                   data-acme="credentials"
                   class="grid gap-4 rounded-xl border bg-muted/15 p-4 sm:p-5"
                 >
@@ -106,6 +106,12 @@
                       </div>
                       <p class="text-xs text-muted-foreground">
                         这些字段只会用于当前 DNS 服务商的域名验证请求。
+                      </p>
+                      <p
+                        v-if="hasMultipleCredentialSchemes"
+                        class="text-xs text-muted-foreground"
+                      >
+                        当前服务商支持多种鉴权方式，填写任意一套即可。
                       </p>
                     </div>
                     <Button
@@ -127,27 +133,97 @@
                   </div>
 
                   <div class="grid gap-3">
-                    <div
-                      v-for="(k, index) in activeProvider.envKeys"
-                      :key="k"
-                      class="grid gap-2"
-                    >
-                      <div class="flex items-center justify-between gap-2">
-                        <span class="text-sm font-mono text-muted-foreground">{{
-                          k
-                        }}</span>
+                    <CredentialTransferHint
+                      v-if="credentialTransferSuggestion"
+                      :action-label="`从 ${transferSourceScopeLabel} 填充`"
+                      :description="credentialTransferDescription"
+                      :fields="
+                        credentialTransferSuggestion.fillableFields.map(
+                          (field) => field.targetKey,
+                        )
+                      "
+                      :loading="isTransferSourceLoading"
+                      :source-label="
+                        `${transferSourceScopeLabel} · ${credentialTransferSuggestion.bridgeLabel}`
+                      "
+                      @apply="applyCredentialTransfer"
+                    />
+
+                    <div class="grid gap-3">
+                      <div
+                        v-for="(scheme, schemeIndex) in activeCredentialSchemes"
+                        :key="scheme.id"
+                        :class="
+                          hasMultipleCredentialSchemes
+                            ? 'grid gap-3 rounded-lg border bg-background/60 p-3'
+                            : 'grid gap-3'
+                        "
+                      >
+                        <div
+                          v-if="
+                            hasMultipleCredentialSchemes || scheme.description
+                          "
+                          class="grid gap-1"
+                        >
+                          <div
+                            v-if="hasMultipleCredentialSchemes"
+                            class="text-xs font-medium text-foreground"
+                          >
+                            {{ scheme.label }}
+                          </div>
+                          <p
+                            v-if="scheme.description"
+                            class="text-[11px] leading-5 text-muted-foreground"
+                          >
+                            {{ scheme.description }}
+                          </p>
+                        </div>
+
+                        <div class="grid gap-3">
+                          <div
+                            v-for="(field, fieldIndex) in scheme.fields"
+                            :key="field.key"
+                            class="grid gap-2"
+                          >
+                            <div
+                              class="flex items-center justify-between gap-2"
+                            >
+                              <span
+                                class="text-sm font-mono text-muted-foreground"
+                              >
+                                {{ field.key }}
+                              </span>
+                              <span
+                                v-if="field.required === false"
+                                class="text-[11px] text-muted-foreground"
+                              >
+                                可选
+                              </span>
+                            </div>
+                            <Input
+                              v-model.trim="credentials[field.key]"
+                              :type="isCredentialsVisible ? 'text' : 'password'"
+                              class="font-mono"
+                              :name="
+                                `acme-credential-${schemeIndex}-${fieldIndex}`
+                              "
+                              autocomplete="new-password"
+                              :readonly="!isCredentialEditReady(field.key)"
+                              :disabled="
+                                !isAcmeInstalled || isSubmitting || isSaving
+                              "
+                              @focus="enableCredentialEditing(field.key)"
+                              @pointerdown="enableCredentialEditing(field.key)"
+                            />
+                            <p
+                              v-if="field.description"
+                              class="text-[11px] leading-5 text-muted-foreground"
+                            >
+                              {{ field.description }}
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                      <Input
-                        v-model.trim="credentials[k]"
-                        :type="isCredentialsVisible ? 'text' : 'password'"
-                        class="font-mono"
-                        :name="`acme-credential-${index}`"
-                        autocomplete="new-password"
-                        :readonly="!isCredentialEditReady(k)"
-                        :disabled="!isAcmeInstalled || isSubmitting || isSaving"
-                        @focus="enableCredentialEditing(k)"
-                        @pointerdown="enableCredentialEditing(k)"
-                      />
                     </div>
                   </div>
                 </div>
@@ -481,9 +557,11 @@ import {
 import { toast } from "@admin-shared/utils/toast";
 import { Eye, EyeOff, TriangleAlert, Info } from "lucide-vue-next";
 import { AcmeAPI } from "../../lib/api";
+import CredentialTransferHint from "@/components/CredentialTransferHint.vue";
 import ConfigCollapsibleCard from "@admin-shared/components/ConfigCollapsibleCard.vue";
 import LogViewer from "@admin-shared/components/LogViewer.vue";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
+import { useDnsCredentialTransfer } from "@/composables/useDnsCredentialTransfer";
 import {
   extractErrorMessage,
   useAsyncAction,
@@ -559,7 +637,21 @@ type DnsProvider = {
   dnsType: string;
   label: string;
   group: string;
-  envKeys: string[];
+  credentialSchemes: DnsCredentialScheme[];
+};
+
+type DnsCredentialField = {
+  key: string;
+  label?: string;
+  description?: string;
+  required?: boolean;
+};
+
+type DnsCredentialScheme = {
+  id: string;
+  label: string;
+  description?: string;
+  fields: DnsCredentialField[];
 };
 
 const dnsProviders = ref<DnsProvider[]>([]);
@@ -583,10 +675,55 @@ const activeDnsType = computed(() => {
   if (dnsType.value === "__custom__") return customDnsType.value.trim();
   return dnsType.value.trim();
 });
+
+const getProviderCredentialFields = (provider: DnsProvider | null) => {
+  if (!provider) return [] as DnsCredentialField[];
+
+  const fields: DnsCredentialField[] = [];
+  const seen = new Set<string>();
+
+  for (const scheme of provider.credentialSchemes) {
+    for (const field of scheme.fields) {
+      if (seen.has(field.key)) continue;
+      seen.add(field.key);
+      fields.push(field);
+    }
+  }
+
+  return fields;
+};
+
+const getSatisfiedCredentialScheme = (
+  provider: DnsProvider | null,
+  values: Record<string, string>,
+) => {
+  if (!provider) return null;
+
+  return (
+    provider.credentialSchemes.find((scheme) =>
+      scheme.fields
+        .filter((field) => field.required !== false)
+        .every((field) => Boolean((values[field.key] || "").trim())),
+    ) || null
+  );
+};
+
+const activeCredentialSchemes = computed(
+  () => activeProvider.value?.credentialSchemes || [],
+);
+const activeCredentialFields = computed(() =>
+  getProviderCredentialFields(activeProvider.value),
+);
+const hasMultipleCredentialSchemes = computed(
+  () => activeCredentialSchemes.value.length > 1,
+);
+const matchedCredentialScheme = computed(() =>
+  getSatisfiedCredentialScheme(activeProvider.value, credentials.value),
+);
 const filledCredentialCount = computed(() => {
-  const keys = activeProvider.value?.envKeys || [];
-  return keys.filter((key) => (credentials.value[key] || "").trim().length > 0)
-    .length;
+  return activeCredentialFields.value.filter(
+    (field) => (credentials.value[field.key] || "").trim().length > 0,
+  ).length;
 });
 const hasCredentialValues = computed(() => filledCredentialCount.value > 0);
 const acmeConfigConfigured = computed(() =>
@@ -600,10 +737,12 @@ const acmeConfigSummary = computed(() => {
     activeDnsType.value ? `DNS ${activeDnsType.value}` : "未选择服务商",
   ];
 
-  if (activeProvider.value?.envKeys?.length) {
+  if (activeCredentialFields.value.length) {
     parts.push(
-      hasCredentialValues.value
-        ? `凭据 ${filledCredentialCount.value}/${activeProvider.value.envKeys.length}`
+      matchedCredentialScheme.value
+        ? `凭据 ${matchedCredentialScheme.value.label}`
+        : hasCredentialValues.value
+        ? `凭据 ${filledCredentialCount.value}/${activeCredentialFields.value.length}`
         : "凭据待填写",
     );
   }
@@ -611,10 +750,18 @@ const acmeConfigSummary = computed(() => {
   return parts.join(" · ");
 });
 const credentialSummary = computed(() => {
-  const keys = activeProvider.value?.envKeys || [];
-  if (!keys.length) return "当前服务商无需额外凭据";
-  if (!hasCredentialValues.value) return `需要填写 ${keys.length} 个字段`;
-  return `已填写 ${filledCredentialCount.value}/${keys.length} 个字段`;
+  if (!activeCredentialFields.value.length) return "当前服务商无需额外凭据";
+  if (matchedCredentialScheme.value)
+    return `已满足 ${matchedCredentialScheme.value.label}`;
+  if (!hasCredentialValues.value) {
+    return hasMultipleCredentialSchemes.value
+      ? `支持 ${activeCredentialSchemes.value.length} 套凭据方案`
+      : `需要填写 ${activeCredentialFields.value.length} 个字段`;
+  }
+  if (hasMultipleCredentialSchemes.value) {
+    return `已填写 ${filledCredentialCount.value} 个字段，满足任一方案即可`;
+  }
+  return `已填写 ${filledCredentialCount.value}/${activeCredentialFields.value.length} 个字段`;
 });
 
 const getCredentialStateKey = (key: string) => `${activeDnsType.value}:${key}`;
@@ -625,6 +772,24 @@ const enableCredentialEditing = (key: string) => {
 
 const isCredentialEditReady = (key: string) =>
   credentialEditReady.value[getCredentialStateKey(key)] === true;
+
+const {
+  applySuggestion: applyTransferredCredentials,
+  isLoadingSource: isTransferSourceLoading,
+  sourceScopeLabel: transferSourceScopeLabel,
+  suggestion: credentialTransferSuggestion,
+} = useDnsCredentialTransfer({
+  target: "acme",
+  providerId: activeDnsType,
+  targetCredentials: credentials,
+});
+
+const credentialTransferDescription = computed(() => {
+  const suggestion = credentialTransferSuggestion.value;
+  if (!suggestion) return "";
+
+  return `发现 ${transferSourceScopeLabel.value} 中已有 ${suggestion.bridgeLabel} 凭据，可补齐 ${suggestion.fillableFields.length} 个字段。`;
+});
 
 const groupedProviders = computed(() => {
   const groupOrder = ["常用", "国内", "国际", "自建/高级"];
@@ -796,6 +961,17 @@ const buildCredentialsPayload = () => {
   }
   return out;
 };
+
+function applyCredentialTransfer() {
+  const result = applyTransferredCredentials();
+  if (!result) return;
+
+  for (const key of result.appliedKeys) {
+    enableCredentialEditing(key);
+  }
+
+  toast.success(`已从 ${transferSourceScopeLabel.value} 填充 ${result.count} 个字段`);
+}
 
 async function save(opts?: { silent?: boolean }) {
   if (!canSubmit.value) return;
@@ -974,8 +1150,9 @@ onUnmounted(() => {
 
 watch(dnsType, () => {
   credentialEditReady.value = {};
-  const next =
-    dnsProviders.value.find((p) => p.dnsType === dnsType.value)?.envKeys || [];
+  const next = getProviderCredentialFields(
+    dnsProviders.value.find((p) => p.dnsType === dnsType.value) || null,
+  ).map((field) => field.key);
   if (!next.length) {
     credentials.value = {};
     isCredentialsVisible.value = false;

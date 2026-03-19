@@ -22,6 +22,7 @@ import {
   Eye,
   EyeOff,
 } from "lucide-vue-next";
+import CredentialTransferHint from "@/components/CredentialTransferHint.vue";
 import LiveStatusBadge from "@/components/LiveStatusBadge.vue";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
 import { toast } from "@admin-shared/utils/toast";
@@ -38,6 +39,7 @@ import {
   DEFAULT_LOG_WINDOW_SIZE,
   mergePollingLogWindow,
 } from "@admin-shared/utils/log-window";
+import { useDnsCredentialTransfer } from "@/composables/useDnsCredentialTransfer";
 import { useTargetPolling } from "../composables/useTargetPolling";
 import type { DDNSNetworkInterfacePayload } from "../lib/api";
 import { useConfigStore } from "../store/config";
@@ -242,6 +244,24 @@ const getFieldAutocomplete = (field: ProviderField) => {
 
 const currentProviderDef = computed(() => {
   return providers.value.find((p) => p.name === selectedProvider.value) || null;
+});
+
+const {
+  applySuggestion: applyTransferredCredentials,
+  isLoadingSource: isTransferSourceLoading,
+  sourceScopeLabel: transferSourceScopeLabel,
+  suggestion: credentialTransferSuggestion,
+} = useDnsCredentialTransfer({
+  target: "ddns",
+  providerId: selectedProvider,
+  targetCredentials: providerConfig,
+});
+
+const credentialTransferDescription = computed(() => {
+  const suggestion = credentialTransferSuggestion.value;
+  if (!suggestion) return "";
+
+  return `发现 ${transferSourceScopeLabel.value} 中已有 ${suggestion.bridgeLabel} 凭据，可补齐 ${suggestion.fillableFields.length} 个字段。`;
 });
 
 const hasProviderConfig = computed(() => {
@@ -473,6 +493,17 @@ async function onSaveConfigSilent() {
     DDNSAPI.saveConfig(selectedProvider.value, providerConfig.value),
   );
   return true;
+}
+
+function applyCredentialTransfer() {
+  const result = applyTransferredCredentials();
+  if (!result) return;
+
+  for (const key of result.appliedKeys) {
+    enableFieldEditing(key);
+  }
+
+  toast.success(`已从 ${transferSourceScopeLabel.value} 填充 ${result.count} 个字段`);
 }
 
 async function onTest() {
@@ -900,6 +931,39 @@ onUnmounted(() => {
           </div>
 
           <template v-if="currentProviderDef">
+            <div
+              v-if="credentialTransferSuggestion"
+              class="p-4 sm:p-6 grid gap-2 sm:grid-cols-[200px_1fr] md:grid-cols-[240px_1fr] items-start transition-colors hover:bg-muted/10"
+            >
+              <div class="space-y-1 mt-1.5">
+                <Label class="text-sm font-medium">可复用凭据</Label>
+                <p class="text-xs text-muted-foreground hidden sm:block pr-4">
+                  检测到另一处已有同供应商凭据，可一键补齐当前为空的字段
+                </p>
+              </div>
+
+              <div class="w-full max-w-2xl space-y-2">
+                <CredentialTransferHint
+                  :action-label="`从 ${transferSourceScopeLabel} 填充`"
+                  :description="credentialTransferDescription"
+                  :fields="
+                    credentialTransferSuggestion.fillableFields.map(
+                      (field) => field.targetKey,
+                    )
+                  "
+                  :loading="isTransferSourceLoading"
+                  :source-label="
+                    `${transferSourceScopeLabel} · ${credentialTransferSuggestion.bridgeLabel}`
+                  "
+                  @apply="applyCredentialTransfer"
+                />
+
+                <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
+                  检测到另一处已有同供应商凭据，可一键补齐当前为空的字段
+                </p>
+              </div>
+            </div>
+
             <div
               v-for="(field, index) in currentProviderDef.fields"
               :key="field.key"

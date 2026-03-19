@@ -774,7 +774,22 @@ export const AcmeAPI = {
     return res.data.data;
   },
   async dnsProviders(): Promise<
-    Array<{ dnsType: string; label: string; group: string; envKeys: string[] }>
+    Array<{
+      dnsType: string;
+      label: string;
+      group: string;
+      credentialSchemes: Array<{
+        id: string;
+        label: string;
+        description?: string;
+        fields: Array<{
+          key: string;
+          label?: string;
+          description?: string;
+          required?: boolean;
+        }>;
+      }>;
+    }>
   > {
     const res = await apiClient.get("/acme/dns-providers");
     return res.data.data || [];

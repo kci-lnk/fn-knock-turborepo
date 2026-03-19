@@ -52,8 +52,10 @@
             </span>
           </div>
           <p class="text-sm text-muted-foreground">
-            使用端口访问你的服务，比如 example.com:7999 登录后可以访问 example.com:5666的飞牛服务。
+            使用端口访问你的服务，比如 example.com:7999 登录后可以访问
+            example.com:5666的飞牛服务。
           </p>
+          <DocsLinkButton :href="docsUrls.runModes.direct" @click.stop />
         </div>
       </div>
 
@@ -91,6 +93,7 @@
           <p class="text-sm text-muted-foreground">
             没有公网IP，通过内网穿透转发请求。
           </p>
+          <DocsLinkButton :href="docsUrls.runModes.reverse" @click.stop />
         </div>
       </div>
 
@@ -126,8 +129,10 @@
             </span>
           </div>
           <p class="text-sm text-muted-foreground">
-            使用子域名访问你的服务，比如 fnos.example.com 访问飞牛，不经过中转和内网穿透，直连
+            使用子域名访问你的服务，比如 fnos.example.com
+            访问飞牛，不经过中转和内网穿透，直连
           </p>
+          <DocsLinkButton :href="docsUrls.runModes.subdomain" @click.stop />
         </div>
       </div>
     </CardContent>
@@ -229,6 +234,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import DocsLinkButton from "@/components/DocsLinkButton.vue";
 import {
   Dialog,
   DialogContent,
@@ -249,6 +255,7 @@ import {
   SystemAPI,
   type RunModePromptPreferences,
 } from "../../lib/api";
+import { docsUrls } from "../../lib/docs";
 
 const configStore = useConfigStore();
 const mode = ref<0 | 1 | 3>(1);

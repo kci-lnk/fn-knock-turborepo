@@ -1,19 +1,30 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
-import { Info } from 'lucide-vue-next';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { Skeleton } from '@/components/ui/skeleton';
-import { toast } from '@admin-shared/utils/toast';
-import { SystemAPI } from '../../lib/api';
-import type { FnosShareBypassConfig } from '../../types';
-import { extractErrorMessage, useAsyncAction } from '@admin-shared/composables/useAsyncAction';
-import { useDelayedLoading } from '@admin-shared/composables/useDelayedLoading';
-import { useConfigStore } from '../../store/config';
+import { computed, onMounted, reactive, ref } from "vue";
+import { Info } from "lucide-vue-next";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Skeleton } from "@/components/ui/skeleton";
+import DocsLinkButton from "@/components/DocsLinkButton.vue";
+import { toast } from "@admin-shared/utils/toast";
+import { SystemAPI } from "../../lib/api";
+import { docsUrls } from "../../lib/docs";
+import type { FnosShareBypassConfig } from "../../types";
+import {
+  extractErrorMessage,
+  useAsyncAction,
+} from "@admin-shared/composables/useAsyncAction";
+import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
+import { useConfigStore } from "../../store/config";
 
 const configStore = useConfigStore();
 const settings = ref<FnosShareBypassConfig | null>(null);
@@ -27,27 +38,36 @@ const form = reactive<FnosShareBypassConfig>({
 
 const { isPending: isLoading, run: runLoadSettings } = useAsyncAction({
   onError: (error) => {
-    toast.error('加载失败', { description: extractErrorMessage(error, '无法获取飞牛设置') });
+    toast.error("加载失败", {
+      description: extractErrorMessage(error, "无法获取飞牛设置"),
+    });
   },
 });
 const showLoadingSkeleton = useDelayedLoading(isLoading);
 const { isPending: isSaving, run: runSaveSettings } = useAsyncAction({
   onError: (error) => {
-    toast.error('保存失败', { description: extractErrorMessage(error, '保存飞牛设置失败') });
+    toast.error("保存失败", {
+      description: extractErrorMessage(error, "保存飞牛设置失败"),
+    });
   },
 });
 const isShareBypassMode = computed(
-  () => configStore.config?.run_type === 1 || configStore.config?.run_type === 3,
+  () =>
+    configStore.config?.run_type === 1 || configStore.config?.run_type === 3,
 );
-const isRestrictedByRunMode = computed(() => configStore.config?.run_type === 0);
+const isRestrictedByRunMode = computed(
+  () => configStore.config?.run_type === 0,
+);
 
 const isDirty = computed(() => {
   if (!settings.value) return false;
   return (
     settings.value.enabled !== form.enabled ||
     settings.value.upstream_timeout_ms !== Number(form.upstream_timeout_ms) ||
-    settings.value.validation_cache_ttl_seconds !== Number(form.validation_cache_ttl_seconds) ||
-    settings.value.validation_lock_ttl_seconds !== Number(form.validation_lock_ttl_seconds) ||
+    settings.value.validation_cache_ttl_seconds !==
+      Number(form.validation_cache_ttl_seconds) ||
+    settings.value.validation_lock_ttl_seconds !==
+      Number(form.validation_lock_ttl_seconds) ||
     settings.value.session_ttl_seconds !== Number(form.session_ttl_seconds)
   );
 });
@@ -83,8 +103,9 @@ const resetForm = () => {
 
 const saveSettings = async () => {
   if (!isShareBypassMode.value) {
-    toast.error('当前运行模式不可用', {
-      description: '此功能仅在反代模式和子域模式下可用。直连模式下，需要完成鉴权后才能开启对应端口供其他人访问。',
+    toast.error("当前运行模式不可用", {
+      description:
+        "此功能仅在反代模式和子域模式下可用。直连模式下，需要完成鉴权后才能开启对应端口供其他人访问。",
     });
     return;
   }
@@ -93,17 +114,29 @@ const saveSettings = async () => {
     () => {
       const payload: FnosShareBypassConfig = {
         enabled: form.enabled,
-        upstream_timeout_ms: Math.max(500, Math.floor(Number(form.upstream_timeout_ms) || 500)),
-        validation_cache_ttl_seconds: Math.max(5, Math.floor(Number(form.validation_cache_ttl_seconds) || 5)),
-        validation_lock_ttl_seconds: Math.max(1, Math.floor(Number(form.validation_lock_ttl_seconds) || 1)),
-        session_ttl_seconds: Math.max(30, Math.floor(Number(form.session_ttl_seconds) || 30)),
+        upstream_timeout_ms: Math.max(
+          500,
+          Math.floor(Number(form.upstream_timeout_ms) || 500),
+        ),
+        validation_cache_ttl_seconds: Math.max(
+          5,
+          Math.floor(Number(form.validation_cache_ttl_seconds) || 5),
+        ),
+        validation_lock_ttl_seconds: Math.max(
+          1,
+          Math.floor(Number(form.validation_lock_ttl_seconds) || 1),
+        ),
+        session_ttl_seconds: Math.max(
+          30,
+          Math.floor(Number(form.session_ttl_seconds) || 30),
+        ),
       };
       return SystemAPI.updateFnosShareBypassConfig(payload);
     },
     {
       onSuccess: (data) => {
         applyFromSettings(data);
-        toast.success('飞牛设置已更新');
+        toast.success("飞牛设置已更新");
       },
     },
   );
@@ -115,10 +148,15 @@ onMounted(fetchSettings);
 <template>
   <Card>
     <CardHeader>
-      <CardTitle class="text-md">飞牛分享直通</CardTitle>
-      <CardDescription class="mt-1.5">
-        你可以直接发送分享链接给别人，他们无需登录即可访问分享内容，但不会引发其他安全风险。反代模式和子域模式都可使用
-      </CardDescription>
+      <div class="flex items-start justify-between gap-3">
+        <div class="space-y-1.5">
+          <CardTitle class="text-md">飞牛分享直通</CardTitle>
+          <CardDescription>
+            你可以直接发送分享链接给别人，他们无需登录即可访问分享内容，但不会引发其他安全风险。反代模式和子域模式都可使用
+          </CardDescription>
+        </div>
+        <DocsLinkButton :href="docsUrls.guides.fnosShareBypass" />
+      </div>
     </CardHeader>
 
     <CardContent v-if="isLoading && showLoadingSkeleton" class="border-t p-0">
@@ -129,8 +167,13 @@ onMounted(fetchSettings);
     </CardContent>
 
     <CardContent v-else-if="!isLoading" class="border-t p-0 divide-y">
-      <div v-if="isRestrictedByRunMode" class="border-b border-zinc-200 bg-zinc-50/40 px-6 py-5">
-        <Alert class="items-start rounded-xl border-zinc-200 bg-zinc-50/70 text-zinc-900 shadow-none">
+      <div
+        v-if="isRestrictedByRunMode"
+        class="border-b border-zinc-200 bg-zinc-50/40 px-6 py-5"
+      >
+        <Alert
+          class="items-start rounded-xl border-zinc-200 bg-zinc-50/70 text-zinc-900 shadow-none"
+        >
           <Info class="mt-0.5 h-4 w-4 shrink-0" />
           <AlertTitle>当前为直连模式，此功能暂不可用</AlertTitle>
           <AlertDescription class="text-sm leading-6 text-zinc-700">
@@ -143,20 +186,37 @@ onMounted(fetchSettings);
         <div class="space-y-1 pr-6">
           <Label
             class="text-base font-medium"
-            :class="isShareBypassMode ? 'cursor-pointer' : 'cursor-not-allowed text-zinc-500'"
+            :class="
+              isShareBypassMode
+                ? 'cursor-pointer'
+                : 'cursor-not-allowed text-zinc-500'
+            "
             @click="toggleEnabled"
           >
             启用飞牛分享直通
           </Label>
-          <div class="text-sm" :class="isShareBypassMode ? 'text-muted-foreground' : 'text-zinc-500'">
+          <div
+            class="text-sm"
+            :class="
+              isShareBypassMode ? 'text-muted-foreground' : 'text-zinc-500'
+            "
+          >
             开启后，使分享变得简单安全
           </div>
         </div>
-        <Switch v-model="form.enabled" :disabled="!isShareBypassMode || isSaving" />
+        <Switch
+          v-model="form.enabled"
+          :disabled="!isShareBypassMode || isSaving"
+        />
       </div>
 
-      <div v-show="form.enabled" class="divide-y animate-in fade-in slide-in-from-top-2 duration-300">
-        <div class="grid gap-3 p-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4">
+      <div
+        v-show="form.enabled"
+        class="divide-y animate-in fade-in slide-in-from-top-2 duration-300"
+      >
+        <div
+          class="grid gap-3 p-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
+        >
           <div class="space-y-1 pr-6">
             <Label class="text-base">上游校验超时</Label>
             <div class="text-sm text-muted-foreground">
@@ -179,7 +239,9 @@ onMounted(fetchSettings);
           </div>
         </div>
 
-        <div class="flex flex-col justify-between gap-4 p-6 sm:flex-row sm:items-center">
+        <div
+          class="flex flex-col justify-between gap-4 p-6 sm:flex-row sm:items-center"
+        >
           <div class="space-y-1 pr-6">
             <Label class="text-base">校验缓存时长</Label>
             <div class="text-sm text-muted-foreground">
@@ -198,7 +260,9 @@ onMounted(fetchSettings);
           </div>
         </div>
 
-        <div class="flex flex-col justify-between gap-4 p-6 sm:flex-row sm:items-center">
+        <div
+          class="flex flex-col justify-between gap-4 p-6 sm:flex-row sm:items-center"
+        >
           <div class="space-y-1 pr-6">
             <Label class="text-base">校验锁时长</Label>
             <div class="text-sm text-muted-foreground">
@@ -217,7 +281,9 @@ onMounted(fetchSettings);
           </div>
         </div>
 
-        <div class="flex flex-col justify-between gap-4 p-6 sm:flex-row sm:items-center">
+        <div
+          class="flex flex-col justify-between gap-4 p-6 sm:flex-row sm:items-center"
+        >
           <div class="space-y-1 pr-6">
             <Label class="text-base">分享会话时长</Label>
             <div class="text-sm text-muted-foreground">
@@ -240,15 +306,28 @@ onMounted(fetchSettings);
 
     <CardContent v-else class="min-h-[200px]" aria-hidden="true" />
 
-    <div class="flex items-center justify-between rounded-b-xl border-t bg-muted/20 p-6">
+    <div
+      class="flex items-center justify-between rounded-b-xl border-t bg-muted/20 p-6"
+    >
       <div class="text-sm text-muted-foreground">
         <span v-if="isDirty">您有未保存的更改</span>
         <span v-else>所有设置已是最新状态</span>
       </div>
       <div class="flex gap-3">
-        <Button variant="ghost" @click="resetForm" :disabled="!isDirty || isSaving || !isShareBypassMode">放弃</Button>
-        <Button :disabled="!isDirty || isSaving || !isShareBypassMode" @click="saveSettings">
-          <span v-if="isSaving" class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
+        <Button
+          variant="ghost"
+          @click="resetForm"
+          :disabled="!isDirty || isSaving || !isShareBypassMode"
+          >放弃</Button
+        >
+        <Button
+          :disabled="!isDirty || isSaving || !isShareBypassMode"
+          @click="saveSettings"
+        >
+          <span
+            v-if="isSaving"
+            class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+          ></span>
           保存更改
         </Button>
       </div>

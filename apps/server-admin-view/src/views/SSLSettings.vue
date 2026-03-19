@@ -1,11 +1,14 @@
 <template>
   <div class="h-full flex flex-col gap-4">
-    <div class="grid gap-1">
-      <h1 class="text-lg font-semibold tracking-tight">SSL / HTTPS</h1>
-      <p class="text-sm text-muted-foreground">
-        已有证书就直接上传；局域网或开发环境可用自签；需要公网自动续期时优先使用
-        ACME。
-      </p>
+    <div class="flex items-start justify-between gap-3">
+      <div class="grid gap-1">
+        <h1 class="text-lg font-semibold tracking-tight">SSL / HTTPS</h1>
+        <p class="text-sm text-muted-foreground">
+          已有证书就直接上传；局域网或开发环境可用自签；需要公网自动续期时优先使用
+          ACME。
+        </p>
+      </div>
+      <DocsLinkButton :href="docsUrls.guides.ssl" />
     </div>
     <Tabs
       :model-value="currentTab"
@@ -33,10 +36,12 @@
 <script setup lang="ts">
 import { useRoute, useRouter } from "vue-router";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import DocsLinkButton from "@/components/DocsLinkButton.vue";
 import CertConfig from "./ssl-settings/CertConfig.vue";
 import SelfSignedCA from "./ssl-settings/SelfSignedCA.vue";
 import AcmeCert from "./ssl-settings/AcmeCert.vue";
 import { useSyncedQueryTab } from "@admin-shared/composables/useSyncedQueryTab";
+import { docsUrls } from "../lib/docs";
 
 const router = useRouter();
 const route = useRoute();

@@ -32,10 +32,15 @@ import DetailDialog from "@admin-shared/components/common/DetailDialog.vue";
 import DetailFieldsGrid from "@admin-shared/components/common/DetailFieldsGrid.vue";
 import TableSkeletonBlock from "@admin-shared/components/list/TableSkeletonBlock.vue";
 import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
-import { extractErrorMessage, useAsyncAction } from "@admin-shared/composables/useAsyncAction";
+import {
+  extractErrorMessage,
+  useAsyncAction,
+} from "@admin-shared/composables/useAsyncAction";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { buildDetailFields } from "@admin-shared/utils/buildDetailFields";
 import { formatDateTimeSafe } from "@admin-shared/utils/formatDateTimeSafe";
+import DocsLinkButton from "@/components/DocsLinkButton.vue";
+import { docsUrls } from "../lib/docs";
 
 const router = useRouter();
 const configStore = useConfigStore();
@@ -165,25 +170,22 @@ const viewDetails = (entry: GatewayLogEntry) => {
 };
 
 const deleteSelectedDate = async () => {
-  await runDelete(
-    () => GatewayLogsAPI.deleteDate(selectedDate.value),
-    {
-      onSuccess: async (data) => {
-        toast.success(
-          data.deleted
-            ? `${selectedDate.value} 日志已删除`
-            : `${selectedDate.value} 没有可删除的日志`,
-        );
-        searchQuery.value = "";
-        currentPage.value = 1;
-        const nextPreferred =
-          data.available_dates.find((item) => item !== selectedDate.value) ||
-          getTodayString();
-        await fetchDates(nextPreferred);
-        await fetchEntries();
-      },
+  await runDelete(() => GatewayLogsAPI.deleteDate(selectedDate.value), {
+    onSuccess: async (data) => {
+      toast.success(
+        data.deleted
+          ? `${selectedDate.value} 日志已删除`
+          : `${selectedDate.value} 没有可删除的日志`,
+      );
+      searchQuery.value = "";
+      currentPage.value = 1;
+      const nextPreferred =
+        data.available_dates.find((item) => item !== selectedDate.value) ||
+        getTodayString();
+      await fetchDates(nextPreferred);
+      await fetchEntries();
     },
-  );
+  });
 };
 
 const goToSettings = () => {
@@ -303,7 +305,8 @@ const detailItems = computed(() =>
         return formatBoolean(Boolean(value));
       }
       if (key === "route_type") return routeTypeLabel(String(value || ""));
-      if (key === "auth_decision") return authDecisionLabel(String(value || ""));
+      if (key === "auth_decision")
+        return authDecisionLabel(String(value || ""));
       if (value === undefined || value === null || value === "") return "-";
       return value;
     },
@@ -318,12 +321,26 @@ onMounted(async () => {
 
 <template>
   <div class="h-full flex flex-col gap-4">
+    <div
+      class="flex flex-col gap-3 rounded-xl border bg-background p-4 sm:flex-row sm:items-start sm:justify-between"
+    >
+      <div class="space-y-1">
+        <h1 class="text-lg font-semibold">请求日志</h1>
+        <p class="text-sm text-muted-foreground">
+          按日期查看网关收到的请求，并快速判断认证、路由和上游返回结果。
+        </p>
+      </div>
+      <DocsLinkButton :href="docsUrls.guides.requestLogs" />
+    </div>
+
     <Alert
       v-if="!isLoggingEnabled"
       class="items-start rounded-xl border-zinc-200 bg-zinc-50/70 text-zinc-900 shadow-none"
     >
       <Info class="mt-0.5 h-4 w-4 shrink-0" />
-      <div class="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div
+        class="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+      >
         <div>
           <AlertTitle>请求日志当前未启用</AlertTitle>
           <AlertDescription class="text-sm leading-6 text-zinc-700">
@@ -341,7 +358,10 @@ onMounted(async () => {
       <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Label class="text-sm font-medium">日期</Label>
-          <Select :model-value="selectedDate" @update:model-value="handleDateChange">
+          <Select
+            :model-value="selectedDate"
+            @update:model-value="handleDateChange"
+          >
             <SelectTrigger class="w-full sm:w-[220px]">
               <SelectValue placeholder="选择日期" />
             </SelectTrigger>
@@ -367,7 +387,11 @@ onMounted(async () => {
         <div class="flex-1"></div>
 
         <div class="flex items-center gap-2">
-          <RefreshButton :loading="loading" :disabled="loading" @click="refreshAll" />
+          <RefreshButton
+            :loading="loading"
+            :disabled="loading"
+            @click="refreshAll"
+          />
           <ConfirmDangerPopover
             :title="`确认删除 ${selectedDate} 的请求日志？`"
             description="删除后当天日志文件将不可恢复。"
@@ -390,30 +414,64 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div class="border rounded-md overflow-hidden bg-background flex-1 flex flex-col">
+    <div
+      class="border rounded-md overflow-hidden bg-background flex-1 flex flex-col"
+    >
       <div class="flex-1 w-full overflow-hidden">
         <div class="h-full overflow-auto">
           <Table v-if="!(loading && entries.length === 0)">
-            <TableHeader class="sticky top-0 z-10 bg-background/95 backdrop-blur">
+            <TableHeader
+              class="sticky top-0 z-10 bg-background/95 backdrop-blur"
+            >
               <TableRow>
-                <TableHead class="h-11 text-[11px] font-medium text-muted-foreground">时间</TableHead>
-                <TableHead class="h-11 text-[11px] font-medium text-muted-foreground">请求</TableHead>
-                <TableHead class="h-11 text-[11px] font-medium text-muted-foreground">状态</TableHead>
-                <TableHead class="h-11 text-[11px] font-medium text-muted-foreground">登录</TableHead>
-                <TableHead class="h-11 text-[11px] font-medium text-muted-foreground">来源 IP</TableHead>
-                <TableHead class="h-11 text-[11px] font-medium text-muted-foreground">路由</TableHead>
-                <TableHead class="h-11 text-[11px] font-medium text-muted-foreground">耗时</TableHead>
-                <TableHead class="h-11 pr-6 text-right text-[11px] font-medium text-muted-foreground">操作</TableHead>
+                <TableHead
+                  class="h-11 text-[11px] font-medium text-muted-foreground"
+                  >时间</TableHead
+                >
+                <TableHead
+                  class="h-11 text-[11px] font-medium text-muted-foreground"
+                  >请求</TableHead
+                >
+                <TableHead
+                  class="h-11 text-[11px] font-medium text-muted-foreground"
+                  >状态</TableHead
+                >
+                <TableHead
+                  class="h-11 text-[11px] font-medium text-muted-foreground"
+                  >登录</TableHead
+                >
+                <TableHead
+                  class="h-11 text-[11px] font-medium text-muted-foreground"
+                  >来源 IP</TableHead
+                >
+                <TableHead
+                  class="h-11 text-[11px] font-medium text-muted-foreground"
+                  >路由</TableHead
+                >
+                <TableHead
+                  class="h-11 text-[11px] font-medium text-muted-foreground"
+                  >耗时</TableHead
+                >
+                <TableHead
+                  class="h-11 pr-6 text-right text-[11px] font-medium text-muted-foreground"
+                  >操作</TableHead
+                >
               </TableRow>
             </TableHeader>
             <TableBody>
               <TableRow v-if="loading">
-                <TableCell colspan="8" class="text-center py-10 text-muted-foreground">
+                <TableCell
+                  colspan="8"
+                  class="text-center py-10 text-muted-foreground"
+                >
                   加载中...
                 </TableCell>
               </TableRow>
               <TableRow v-else-if="entries.length === 0">
-                <TableCell colspan="8" class="text-center py-10 text-muted-foreground">
+                <TableCell
+                  colspan="8"
+                  class="text-center py-10 text-muted-foreground"
+                >
                   暂无请求日志
                 </TableCell>
               </TableRow>
@@ -428,13 +486,19 @@ onMounted(async () => {
                 </TableCell>
                 <TableCell class="min-w-[320px] py-3">
                   <div class="space-y-1">
-                    <div class="flex items-center gap-2 text-sm text-foreground">
-                      <span class="font-mono text-[11px] tracking-[0.12em] text-muted-foreground">
+                    <div
+                      class="flex items-center gap-2 text-sm text-foreground"
+                    >
+                      <span
+                        class="font-mono text-[11px] tracking-[0.12em] text-muted-foreground"
+                      >
                         {{ entry.method || "-" }}
                       </span>
                       <span class="truncate">{{ entry.host || "-" }}</span>
                     </div>
-                    <div class="break-all font-mono text-[12px] leading-5 text-muted-foreground">
+                    <div
+                      class="break-all font-mono text-[12px] leading-5 text-muted-foreground"
+                    >
                       {{ entry.request_uri || entry.path || "-" }}
                     </div>
                     <div
@@ -450,7 +514,10 @@ onMounted(async () => {
                     class="flex items-center gap-2 font-mono text-sm"
                     :class="statusTextClass(entry.status)"
                   >
-                    <span class="h-1.5 w-1.5 rounded-full" :class="statusDotClass(entry.status)"></span>
+                    <span
+                      class="h-1.5 w-1.5 rounded-full"
+                      :class="statusDotClass(entry.status)"
+                    ></span>
                     <span>{{ entry.status }}</span>
                   </div>
                 </TableCell>
@@ -463,18 +530,24 @@ onMounted(async () => {
                   </div>
                 </TableCell>
                 <TableCell class="min-w-[140px] py-3">
-                  <div class="font-mono text-sm text-foreground">{{ entry.remote_ip || "-" }}</div>
+                  <div class="font-mono text-sm text-foreground">
+                    {{ entry.remote_ip || "-" }}
+                  </div>
                   <div class="mt-1 text-[11px] text-muted-foreground">
                     {{ entry.x_forwarded_for || entry.x_real_ip || "-" }}
                   </div>
                 </TableCell>
                 <TableCell class="min-w-[140px] py-3">
-                  <div class="text-sm text-foreground">{{ routeTypeLabel(entry.route_type) }}</div>
+                  <div class="text-sm text-foreground">
+                    {{ routeTypeLabel(entry.route_type) }}
+                  </div>
                   <div class="mt-1 break-all text-[11px] text-muted-foreground">
                     {{ entry.route_key || "-" }}
                   </div>
                 </TableCell>
-                <TableCell class="whitespace-nowrap py-3 font-mono text-sm text-muted-foreground">
+                <TableCell
+                  class="whitespace-nowrap py-3 font-mono text-sm text-muted-foreground"
+                >
                   {{ formatDuration(entry.duration_ms) }}
                 </TableCell>
                 <TableCell class="py-3 text-right pr-6">
@@ -492,8 +565,26 @@ onMounted(async () => {
           </Table>
           <TableSkeletonBlock
             v-else-if="showTableSkeleton"
-            :header-widths="['w-24', 'w-40', 'w-16', 'w-16', 'w-20', 'w-20', 'w-16', 'w-10']"
-            :row-widths="['w-28', 'w-56', 'w-12', 'w-20', 'w-24', 'w-24', 'w-16', 'w-10']"
+            :header-widths="[
+              'w-24',
+              'w-40',
+              'w-16',
+              'w-16',
+              'w-20',
+              'w-20',
+              'w-16',
+              'w-10',
+            ]"
+            :row-widths="[
+              'w-28',
+              'w-56',
+              'w-12',
+              'w-20',
+              'w-24',
+              'w-24',
+              'w-16',
+              'w-10',
+            ]"
           />
           <div v-else class="h-[380px]" aria-hidden="true"></div>
         </div>

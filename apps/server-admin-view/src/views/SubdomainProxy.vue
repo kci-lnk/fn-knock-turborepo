@@ -40,7 +40,9 @@
                 placeholder="example.com"
               />
               <p class="text-xs text-muted-foreground">
-                如填写 example.com 后，后续新增映射时，你只需要填写子域名前缀，系统会自动拼接到这个根域名下面，比如 fnos.example.com
+                如填写 example.com
+                后，后续新增映射时，你只需要填写子域名前缀，系统会自动拼接到这个根域名下面，比如
+                fnos.example.com
               </p>
             </div>
             <div class="rounded-lg border px-4 py-3">
@@ -102,6 +104,7 @@
         <CardTitle class="flex items-center justify-between">
           <span>映射管理</span>
           <div class="flex items-center gap-2">
+            <DocsLinkButton :href="docsUrls.guides.subdomainProxy" />
             <Button
               v-if="!authServiceMapping"
               :disabled="!canManageNewMappings || isSavingMappings"
@@ -223,7 +226,10 @@
                     </Badge>
                     <ShieldCheck v-if="mapping.use_auth" class="h-3.5 w-3.5" />
                     <Badge v-else variant="secondary">公开访问</Badge>
-                    <PanelsTopLeft v-if="mapping.use_auth && !mapping.suppress_toolbar" class="h-3.5 w-3.5" />
+                    <PanelsTopLeft
+                      v-if="mapping.use_auth && !mapping.suppress_toolbar"
+                      class="h-3.5 w-3.5"
+                    />
                   </div>
                 </TableCell>
                 <TableCell class="text-right">
@@ -555,6 +561,7 @@ import {
 } from "lucide-vue-next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import DocsLinkButton from "@/components/DocsLinkButton.vue";
 import {
   Card,
   CardContent,
@@ -599,6 +606,7 @@ import {
   type DiscoveredServiceInfo,
   type ScanDiscoverResponse,
 } from "../lib/api";
+import { docsUrls } from "../lib/docs";
 import type { HostMapping, SubdomainModeConfig } from "../types";
 import {
   extractErrorMessage,

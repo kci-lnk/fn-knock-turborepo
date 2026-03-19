@@ -2,11 +2,13 @@
 import { computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import DocsLinkButton from "@/components/DocsLinkButton.vue";
 import SessionsTab from "./session-management/SessionsTab.vue";
 import LoginBackoffTab from "./session-management/LoginBackoffTab.vue";
 import IpBlacklistTab from "./session-management/IpBlacklistTab.vue";
 import { useConfigStore } from "../store/config";
 import { useSyncedQueryTab } from "@admin-shared/composables/useSyncedQueryTab";
+import { docsUrls } from "../lib/docs";
 
 const router = useRouter();
 const route = useRoute();
@@ -30,10 +32,25 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
   defaultTab,
   allowedTabs,
 });
+
+const currentDocsHref = computed(() =>
+  currentTab.value === "sessions"
+    ? docsUrls.guides.sessionManagement
+    : docsUrls.guides.security,
+);
 </script>
 
 <template>
   <div class="h-full flex flex-col gap-4">
+    <div class="flex items-start justify-between gap-3">
+      <div class="space-y-1">
+        <h1 class="text-lg font-semibold tracking-tight">会话与安全</h1>
+        <p class="text-sm text-muted-foreground">
+          查看在线会话、异常登录退避和扫描器黑名单。
+        </p>
+      </div>
+      <DocsLinkButton :href="currentDocsHref" />
+    </div>
     <Tabs
       :model-value="currentTab"
       @update:model-value="navigateTo"

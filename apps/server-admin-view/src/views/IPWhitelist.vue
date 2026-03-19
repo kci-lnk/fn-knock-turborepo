@@ -3,21 +3,36 @@
     <CardHeader>
       <CardTitle class="flex justify-between items-center">
         <span>IP白名单管理</span>
-        <Button @click="showAddDialog = true">添加 IP</Button>
+        <div class="flex items-center gap-2">
+          <DocsLinkButton :href="docsUrls.guides.whitelist" />
+          <Button @click="showAddDialog = true">添加 IP</Button>
+        </div>
       </CardTitle>
       <CardDescription>管理直连模式下允许连接的IP地址。</CardDescription>
     </CardHeader>
     <CardContent>
       <div class="flex items-center mb-4 space-x-2" v-if="!isInitializing">
-         <SearchInput v-model="searchQuery" placeholder="搜索IP地址或备注..." class="max-w-xs" />
-         <RefreshButton icon-only :loading="loading" :disabled="loading" @click="fetchRecords" />
+        <SearchInput
+          v-model="searchQuery"
+          placeholder="搜索IP地址或备注..."
+          class="max-w-xs"
+        />
+        <RefreshButton
+          icon-only
+          :loading="loading"
+          :disabled="loading"
+          @click="fetchRecords"
+        />
       </div>
-      <div v-else-if="showInitializingSkeleton" class="flex items-center mb-4 space-x-2">
+      <div
+        v-else-if="showInitializingSkeleton"
+        class="flex items-center mb-4 space-x-2"
+      >
         <Skeleton class="h-9 w-60" />
         <Skeleton class="h-9 w-9 rounded-md" />
       </div>
-      <div v-else class="h-9 mb-4" aria-hidden="true" ></div>
-      
+      <div v-else class="h-9 mb-4" aria-hidden="true"></div>
+
       <div class="border rounded-md" v-if="!isInitializing">
         <Table>
           <TableHeader>
@@ -32,36 +47,58 @@
           </TableHeader>
           <TableBody>
             <TableRow v-if="loading && records.length === 0">
-              <TableCell colspan="6" class="text-center text-muted-foreground py-6">
+              <TableCell
+                colspan="6"
+                class="text-center text-muted-foreground py-6"
+              >
                 加载中...
               </TableCell>
             </TableRow>
             <TableRow v-else-if="paginatedRecords.length === 0">
-              <TableCell colspan="6" class="text-center text-muted-foreground py-6">
+              <TableCell
+                colspan="6"
+                class="text-center text-muted-foreground py-6"
+              >
                 未找到记录。
               </TableCell>
             </TableRow>
             <TableRow v-for="record in paginatedRecords" :key="record.id">
               <TableCell class="font-medium">
                 <div>{{ record.ip }}</div>
-                <div v-if="record.ipLocation" class="text-xs text-muted-foreground mt-0.5">{{ record.ipLocation }}</div>
+                <div
+                  v-if="record.ipLocation"
+                  class="text-xs text-muted-foreground mt-0.5"
+                >
+                  {{ record.ipLocation }}
+                </div>
               </TableCell>
               <TableCell>
-                <div v-if="!record.expireAt" class="flex items-center text-green-600">
+                <div
+                  v-if="!record.expireAt"
+                  class="flex items-center text-green-600"
+                >
                   <ShieldCheck class="w-4 h-4 mr-1" />
                   永久
                 </div>
                 <div v-else class="flex flex-col">
                   <span>{{ formatRemaining(record.expireAt) }}</span>
-                  <span class="text-xs text-muted-foreground">过期于: <HumanFriendlyTime :value="record.expireAt * 1000" /></span>
+                  <span class="text-xs text-muted-foreground"
+                    >过期于: <HumanFriendlyTime :value="record.expireAt * 1000"
+                  /></span>
                 </div>
               </TableCell>
               <TableCell>
-                <Badge :variant="record.source === 'manual' ? 'default' : 'secondary'">
-                  {{ record.source === 'manual' ? '手动' : '自动' }}
+                <Badge
+                  :variant="
+                    record.source === 'manual' ? 'default' : 'secondary'
+                  "
+                >
+                  {{ record.source === "manual" ? "手动" : "自动" }}
                 </Badge>
               </TableCell>
-              <TableCell class="text-xs text-muted-foreground whitespace-nowrap">
+              <TableCell
+                class="text-xs text-muted-foreground whitespace-nowrap"
+              >
                 <HumanFriendlyTime :value="record.createdAt * 1000" />
               </TableCell>
               <TableCell>
@@ -114,12 +151,14 @@
               <TableCell><Skeleton class="h-4 w-14" /></TableCell>
               <TableCell><Skeleton class="h-4 w-28" /></TableCell>
               <TableCell><Skeleton class="h-4 w-32" /></TableCell>
-              <TableCell class="text-right"><Skeleton class="h-8 w-20 rounded-md ml-auto" /></TableCell>
+              <TableCell class="text-right"
+                ><Skeleton class="h-8 w-20 rounded-md ml-auto"
+              /></TableCell>
             </TableRow>
           </TableBody>
         </Table>
       </div>
-      <div v-else class="h-[320px]" aria-hidden="true" ></div>
+      <div v-else class="h-[320px]" aria-hidden="true"></div>
 
       <PagedTableFooter
         class="mt-4 border rounded-md"
@@ -144,9 +183,14 @@
       <div class="grid gap-4 py-4">
         <div class="grid grid-cols-4 items-center gap-4">
           <Label for="ip" class="text-right">IP地址</Label>
-          <Input id="ip" v-model="newRecord.ip" placeholder="例如：192.168.1.100" class="col-span-3" />
+          <Input
+            id="ip"
+            v-model="newRecord.ip"
+            placeholder="例如：192.168.1.100"
+            class="col-span-3"
+          />
         </div>
-        
+
         <div class="grid grid-cols-4 items-center gap-4">
           <Label for="duration" class="text-right">有效期</Label>
           <Select v-model="durationSetting">
@@ -162,50 +206,99 @@
             </SelectContent>
           </Select>
         </div>
-        
-        <div v-if="durationSetting === 'custom'" class="grid grid-cols-4 items-center gap-4">
+
+        <div
+          v-if="durationSetting === 'custom'"
+          class="grid grid-cols-4 items-center gap-4"
+        >
           <Label for="customHours" class="text-right">自定义小时</Label>
-          <Input id="customHours" type="number" min="1" v-model.number="customHours" placeholder="输入小时数" class="col-span-3" />
+          <Input
+            id="customHours"
+            type="number"
+            min="1"
+            v-model.number="customHours"
+            placeholder="输入小时数"
+            class="col-span-3"
+          />
         </div>
 
         <div class="grid grid-cols-4 items-center gap-4">
           <Label for="comment" class="text-right">备注 (可选)</Label>
-          <Input id="comment" v-model="newRecord.comment" placeholder="输入用途说明..." class="col-span-3" @keyup.enter="addRecord" />
+          <Input
+            id="comment"
+            v-model="newRecord.comment"
+            placeholder="输入用途说明..."
+            class="col-span-3"
+            @keyup.enter="addRecord"
+          />
         </div>
       </div>
       <DialogFooter>
         <Button variant="outline" @click="showAddDialog = false">取消</Button>
-        <Button @click="addRecord" :disabled="!newRecord.ip || isSaving">保存</Button>
+        <Button @click="addRecord" :disabled="!newRecord.ip || isSaving"
+          >保存</Button
+        >
       </DialogFooter>
     </DialogContent>
   </Dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
-import InlineCommentEditor from '@admin-shared/components/InlineCommentEditor.vue';
-import SearchInput from '@admin-shared/components/SearchInput.vue';
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ShieldCheck, Trash2 } from 'lucide-vue-next';
-import RefreshButton from '@/components/RefreshButton.vue';
-import { toast } from '@admin-shared/utils/toast';
-import ConfirmDangerPopover from '@admin-shared/components/common/ConfirmDangerPopover.vue';
-import PagedTableFooter from '@admin-shared/components/list/PagedTableFooter.vue';
-import HumanFriendlyTime from '@admin-shared/components/common/HumanFriendlyTime.vue';
-import { extractErrorMessage, useAsyncAction } from '@admin-shared/composables/useAsyncAction';
-import { useLocalPagedList } from '@admin-shared/composables/useLocalPagedList';
-import { useDelayedLoading } from '@admin-shared/composables/useDelayedLoading';
+import { ref, onMounted, onUnmounted } from "vue";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import InlineCommentEditor from "@admin-shared/components/InlineCommentEditor.vue";
+import SearchInput from "@admin-shared/components/SearchInput.vue";
+import {
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ShieldCheck, Trash2 } from "lucide-vue-next";
+import RefreshButton from "@/components/RefreshButton.vue";
+import DocsLinkButton from "@/components/DocsLinkButton.vue";
+import { toast } from "@admin-shared/utils/toast";
+import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
+import PagedTableFooter from "@admin-shared/components/list/PagedTableFooter.vue";
+import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
+import {
+  extractErrorMessage,
+  useAsyncAction,
+} from "@admin-shared/composables/useAsyncAction";
+import { useLocalPagedList } from "@admin-shared/composables/useLocalPagedList";
+import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
+import { docsUrls } from "../lib/docs";
 
 // 引入统一封装的 API 和类型
-import { WhitelistAPI, type WhiteListRecord } from '../lib/api';
+import { WhitelistAPI, type WhiteListRecord } from "../lib/api";
 
 const records = ref<WhiteListRecord[]>([]);
 const isInitializing = ref(true);
@@ -214,7 +307,9 @@ const showInitializingSkeleton = useDelayedLoading(isInitializing);
 const removingId = ref<string | null>(null);
 const { run: runRemoveRecord } = useAsyncAction({
   onError: (error) => {
-    toast.error('删除发生网络错误', { description: extractErrorMessage(error, '删除失败') });
+    toast.error("删除发生网络错误", {
+      description: extractErrorMessage(error, "删除失败"),
+    });
   },
 });
 const { run: runSaveComment } = useAsyncAction({
@@ -222,7 +317,9 @@ const { run: runSaveComment } = useAsyncAction({
 });
 const { isPending: loading, run: runFetchRecords } = useAsyncAction({
   onError: (error) => {
-    toast.error('加载白名单发生网络错误', { description: extractErrorMessage(error, '加载白名单失败') });
+    toast.error("加载白名单发生网络错误", {
+      description: extractErrorMessage(error, "加载白名单失败"),
+    });
   },
 });
 
@@ -230,29 +327,34 @@ const { isPending: loading, run: runFetchRecords } = useAsyncAction({
 const showAddDialog = ref(false);
 const { isPending: isSaving, run: runAddRecord } = useAsyncAction({
   onError: (error) => {
-    toast.error('添加发生网络错误', { description: extractErrorMessage(error, '添加失败') });
+    toast.error("添加发生网络错误", {
+      description: extractErrorMessage(error, "添加失败"),
+    });
   },
 });
-const durationSetting = ref('permanent');
+const durationSetting = ref("permanent");
 const customHours = ref(24);
 const newRecord = ref({
-  ip: '',
-  comment: ''
+  ip: "",
+  comment: "",
 });
 
 const fetchRecords = async () => {
-  await runFetchRecords(async () => {
-    const res = await WhitelistAPI.getRecords();
-    if (res.success) {
-      records.value = res.data;
-    } else {
-      toast.error('获取白名单失败', { description: res.message });
-    }
-  }, {
-    onFinally: () => {
-      isInitializing.value = false;
+  await runFetchRecords(
+    async () => {
+      const res = await WhitelistAPI.getRecords();
+      if (res.success) {
+        records.value = res.data;
+      } else {
+        toast.error("获取白名单失败", { description: res.message });
+      }
     },
-  });
+    {
+      onFinally: () => {
+        isInitializing.value = false;
+      },
+    },
+  );
 };
 
 let refreshIntervalId: ReturnType<typeof setInterval> | null = null;
@@ -283,25 +385,26 @@ const {
   items: records,
   normalizeQuery: (q) => q.toLowerCase(),
   filter: (record, query) =>
-    record.ip.includes(query) || Boolean(record.comment?.toLowerCase().includes(query)),
+    record.ip.includes(query) ||
+    Boolean(record.comment?.toLowerCase().includes(query)),
 });
 
 const formatRemaining = (expireAt: number) => {
   const now = Math.floor(Date.now() / 1000);
   const diff = expireAt - now;
-  
-  if (diff <= 0) return '已过期';
-  
+
+  if (diff <= 0) return "已过期";
+
   const days = Math.floor(diff / 86400);
   const hours = Math.floor((diff % 86400) / 3600);
   const mins = Math.floor((diff % 3600) / 60);
-  
+
   const parts = [];
   if (days > 0) parts.push(`${days}天`);
   if (hours > 0) parts.push(`${hours}小时`);
   if (mins > 0 || (days === 0 && hours === 0)) parts.push(`${mins}分钟`);
-  
-  return `剩余 ${parts.join('')}`;
+
+  return `剩余 ${parts.join("")}`;
 };
 
 // Actions
@@ -312,80 +415,88 @@ const addRecord = async () => {
   let expireAt: number | null = null;
   const now = Math.floor(Date.now() / 1000);
 
-  if (durationSetting.value !== 'permanent') {
+  if (durationSetting.value !== "permanent") {
     let addHours = 0;
-    switch(durationSetting.value) {
-      case '1h': addHours = 1; break;
-      case '24h': addHours = 24; break;
-      case '7d': addHours = 24 * 7; break;
-      case 'custom': addHours = customHours.value || 1; break;
+    switch (durationSetting.value) {
+      case "1h":
+        addHours = 1;
+        break;
+      case "24h":
+        addHours = 24;
+        break;
+      case "7d":
+        addHours = 24 * 7;
+        break;
+      case "custom":
+        addHours = customHours.value || 1;
+        break;
     }
-    expireAt = now + (addHours * 3600);
+    expireAt = now + addHours * 3600;
   }
 
   await runAddRecord(async () => {
     const res = await WhitelistAPI.addRecord({
       ip,
       expireAt,
-      source: 'manual',
-      comment: newRecord.value.comment.trim() || undefined
+      source: "manual",
+      comment: newRecord.value.comment.trim() || undefined,
     });
-    
+
     if (res.success) {
-      toast.success('已成功添加白名单');
+      toast.success("已成功添加白名单");
       showAddDialog.value = false;
-      newRecord.value = { ip: '', comment: '' };
-      durationSetting.value = 'permanent';
+      newRecord.value = { ip: "", comment: "" };
+      durationSetting.value = "permanent";
       currentPage.value = 1;
-      searchQuery.value = '';
+      searchQuery.value = "";
       await fetchRecords();
     } else {
-      toast.error('添加失败', { description: res.message });
+      toast.error("添加失败", { description: res.message });
     }
   });
 };
 
 const removeRecord = async (id: string) => {
   removingId.value = id;
-  await runRemoveRecord(async () => {
-    const res = await WhitelistAPI.deleteRecord(id);
-    if (res.success) {
-      toast.success('已删除白名单记录');
-      await fetchRecords();
-      if (paginatedRecords.value.length === 1 && currentPage.value > 1) {
-        currentPage.value--;
-      }
-    } else {
-      toast.error('删除失败', { description: res.message });
-    }
-  }, {
-    onFinally: () => {
-      removingId.value = null;
-    },
-  });
-};
-
-const saveComment = async (id: string, newComment: string) => {
-  const record = records.value.find(r => r.id === id);
-  
-  if (record && (record.comment || '') === newComment) {
-    return;
-  }
-
-  await runSaveComment(
-    () => WhitelistAPI.updateComment(id, newComment),
-    {
-      onSuccess: (res) => {
-        if (!res.success) {
-          throw new Error(res.message || '更新备注失败');
+  await runRemoveRecord(
+    async () => {
+      const res = await WhitelistAPI.deleteRecord(id);
+      if (res.success) {
+        toast.success("已删除白名单记录");
+        await fetchRecords();
+        if (paginatedRecords.value.length === 1 && currentPage.value > 1) {
+          currentPage.value--;
         }
-        if (record) record.comment = newComment;
-        toast.success('备注已更新');
-      },
-      onError: (error) => {
-        throw new Error(extractErrorMessage(error, '更新备注失败'));
+      } else {
+        toast.error("删除失败", { description: res.message });
+      }
+    },
+    {
+      onFinally: () => {
+        removingId.value = null;
       },
     },
   );
+};
+
+const saveComment = async (id: string, newComment: string) => {
+  const record = records.value.find((r) => r.id === id);
+
+  if (record && (record.comment || "") === newComment) {
+    return;
+  }
+
+  await runSaveComment(() => WhitelistAPI.updateComment(id, newComment), {
+    onSuccess: (res) => {
+      if (!res.success) {
+        throw new Error(res.message || "更新备注失败");
+      }
+      if (record) record.comment = newComment;
+      toast.success("备注已更新");
+    },
+    onError: (error) => {
+      throw new Error(extractErrorMessage(error, "更新备注失败"));
+    },
+  });
 };
 </script>

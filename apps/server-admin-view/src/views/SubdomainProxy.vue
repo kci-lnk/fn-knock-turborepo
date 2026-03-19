@@ -384,9 +384,11 @@
       :open="isDiscoverDialogOpen"
       @update:open="handleDiscoverDialogOpenChange"
     >
-      <DialogContent class="sm:max-w-[820px] max-h-[85vh] flex flex-col">
+      <DialogContent class="flex max-h-[85vh] flex-col sm:max-w-[820px]">
         <DialogHeader>
-          <div class="flex items-center justify-between gap-4">
+          <div
+            class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+          >
             <div class="space-y-1">
               <DialogTitle>一键发现本地服务</DialogTitle>
               <DialogDescription>
@@ -395,6 +397,7 @@
               </DialogDescription>
             </div>
             <Button
+              class="w-full sm:w-auto"
               variant="outline"
               :disabled="isDiscovering"
               @click="triggerScan"
@@ -408,7 +411,7 @@
           </div>
         </DialogHeader>
 
-        <div class="flex-1 overflow-auto py-2">
+        <div class="flex-1 overflow-y-auto overflow-x-hidden py-2">
           <div
             v-if="isDiscovering"
             class="flex flex-col items-center justify-center py-16 space-y-4"
@@ -430,11 +433,8 @@
             }}
           </div>
 
-          <div
-            v-else-if="discoveredData"
-            class="border rounded-md overflow-hidden"
-          >
-            <Table>
+          <div v-else-if="discoveredData" class="rounded-md border">
+            <Table class="min-w-[42rem]">
               <TableHeader>
                 <TableRow>
                   <TableHead class="w-[50px] text-center">
@@ -447,8 +447,10 @@
                   </TableHead>
                   <TableHead class="w-[80px]">端口</TableHead>
                   <TableHead class="w-[100px]">状态</TableHead>
-                  <TableHead>服务标识</TableHead>
-                  <TableHead class="w-[260px]">建议子域名</TableHead>
+                  <TableHead class="min-w-[10rem]">服务标识</TableHead>
+                  <TableHead class="w-[260px] min-w-[18rem]">
+                    建议子域名
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -479,11 +481,13 @@
                       {{ svc.httpStatus }}
                     </span>
                   </TableCell>
-                  <TableCell class="text-sm">
+                  <TableCell class="min-w-[10rem] text-sm">
                     {{ svc.detail.label || svc.detail.name || "未知服务" }}
                   </TableCell>
-                  <TableCell>
-                    <div class="flex items-stretch rounded-md border">
+                  <TableCell class="min-w-[18rem]">
+                    <div
+                      class="flex min-w-[18rem] items-stretch rounded-md border"
+                    >
                       <Input
                         v-model="svc.suggestedSubdomain"
                         placeholder="service"
@@ -495,7 +499,7 @@
                         }"
                       />
                       <div
-                        class="flex items-center border-l bg-muted/30 px-3 text-xs text-muted-foreground"
+                        class="flex shrink-0 items-center border-l bg-muted/30 px-3 text-xs text-muted-foreground"
                       >
                         .{{ savedRootDomain }}
                       </div>

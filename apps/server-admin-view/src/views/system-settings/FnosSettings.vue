@@ -36,7 +36,9 @@ const { isPending: isSaving, run: runSaveSettings } = useAsyncAction({
     toast.error('保存失败', { description: extractErrorMessage(error, '保存飞牛设置失败') });
   },
 });
-const isReverseProxyMode = computed(() => configStore.config?.run_type === 1);
+const isShareBypassMode = computed(
+  () => configStore.config?.run_type === 1 || configStore.config?.run_type === 3,
+);
 const isRestrictedByRunMode = computed(() => configStore.config?.run_type === 0);
 
 const isDirty = computed(() => {
@@ -55,7 +57,7 @@ const normalizedTimeoutSeconds = computed(() =>
 );
 
 const toggleEnabled = () => {
-  if (!isReverseProxyMode.value) return;
+  if (!isShareBypassMode.value) return;
   form.enabled = !form.enabled;
 };
 
@@ -80,9 +82,9 @@ const resetForm = () => {
 };
 
 const saveSettings = async () => {
-  if (!isReverseProxyMode.value) {
+  if (!isShareBypassMode.value) {
     toast.error('当前运行模式不可用', {
-      description: '此功能只有在反代模式下可用。直连模式下，需要完成鉴权后才能开启对应端口供其他人访问。',
+      description: '此功能仅在反代模式和子域模式下可用。直连模式下，需要完成鉴权后才能开启对应端口供其他人访问。',
     });
     return;
   }
@@ -115,7 +117,7 @@ onMounted(fetchSettings);
     <CardHeader>
       <CardTitle class="text-md">飞牛分享直通</CardTitle>
       <CardDescription class="mt-1.5">
-        你可以直接发送分享链接给别人，他们无需登录即可访问分享内容，但不会引发其他安全风险。只能在反代模式下使用
+        你可以直接发送分享链接给别人，他们无需登录即可访问分享内容，但不会引发其他安全风险。反代模式和子域模式都可使用
       </CardDescription>
     </CardHeader>
 
@@ -132,7 +134,7 @@ onMounted(fetchSettings);
           <Info class="mt-0.5 h-4 w-4 shrink-0" />
           <AlertTitle>当前为直连模式，此功能暂不可用</AlertTitle>
           <AlertDescription class="text-sm leading-6 text-zinc-700">
-            此功能只有在反代模式下可用。在直连模式下，需要先完成鉴权，再开启对应端口供其他人访问。
+            此功能仅在反代模式和子域模式下可用。在直连模式下，需要先完成鉴权，再开启对应端口供其他人访问。
           </AlertDescription>
         </Alert>
       </div>
@@ -141,16 +143,16 @@ onMounted(fetchSettings);
         <div class="space-y-1 pr-6">
           <Label
             class="text-base font-medium"
-            :class="isReverseProxyMode ? 'cursor-pointer' : 'cursor-not-allowed text-zinc-500'"
+            :class="isShareBypassMode ? 'cursor-pointer' : 'cursor-not-allowed text-zinc-500'"
             @click="toggleEnabled"
           >
             启用飞牛分享直通
           </Label>
-          <div class="text-sm" :class="isReverseProxyMode ? 'text-muted-foreground' : 'text-zinc-500'">
+          <div class="text-sm" :class="isShareBypassMode ? 'text-muted-foreground' : 'text-zinc-500'">
             开启后，使分享变得简单安全
           </div>
         </div>
-        <Switch v-model="form.enabled" :disabled="!isReverseProxyMode || isSaving" />
+        <Switch v-model="form.enabled" :disabled="!isShareBypassMode || isSaving" />
       </div>
 
       <div v-show="form.enabled" class="divide-y animate-in fade-in slide-in-from-top-2 duration-300">
@@ -168,7 +170,7 @@ onMounted(fetchSettings);
               min="500"
               step="100"
               class="w-28 text-center"
-              :disabled="!isReverseProxyMode || isSaving"
+              :disabled="!isShareBypassMode || isSaving"
             />
             <span class="w-16 text-sm text-muted-foreground">毫秒</span>
           </div>
@@ -190,7 +192,7 @@ onMounted(fetchSettings);
               type="number"
               min="5"
               class="w-24 text-center"
-              :disabled="!isReverseProxyMode || isSaving"
+              :disabled="!isShareBypassMode || isSaving"
             />
             <span class="w-12 text-sm text-muted-foreground">秒</span>
           </div>
@@ -209,7 +211,7 @@ onMounted(fetchSettings);
               type="number"
               min="1"
               class="w-24 text-center"
-              :disabled="!isReverseProxyMode || isSaving"
+              :disabled="!isShareBypassMode || isSaving"
             />
             <span class="w-12 text-sm text-muted-foreground">秒</span>
           </div>
@@ -228,7 +230,7 @@ onMounted(fetchSettings);
               type="number"
               min="30"
               class="w-24 text-center"
-              :disabled="!isReverseProxyMode || isSaving"
+              :disabled="!isShareBypassMode || isSaving"
             />
             <span class="w-12 text-sm text-muted-foreground">秒</span>
           </div>
@@ -244,8 +246,8 @@ onMounted(fetchSettings);
         <span v-else>所有设置已是最新状态</span>
       </div>
       <div class="flex gap-3">
-        <Button variant="ghost" @click="resetForm" :disabled="!isDirty || isSaving || !isReverseProxyMode">放弃</Button>
-        <Button :disabled="!isDirty || isSaving || !isReverseProxyMode" @click="saveSettings">
+        <Button variant="ghost" @click="resetForm" :disabled="!isDirty || isSaving || !isShareBypassMode">放弃</Button>
+        <Button :disabled="!isDirty || isSaving || !isShareBypassMode" @click="saveSettings">
           <span v-if="isSaving" class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
           保存更改
         </Button>

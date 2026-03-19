@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { setTimeout as sleep } from "node:timers/promises";
+import { isAuthServiceMapping, parseTargetPort } from "./auth-service";
 import { buildFnosShareSessionClearCookie, buildFnosShareSessionCookie, FNOS_SHARE_SESSION_COOKIE_NAME } from "./session-cookie";
 import { configManager, redis, type AppConfig, type FnosShareBypassConfig } from "./redis";
 
@@ -54,6 +55,8 @@ const SHARE_SCRIPT_REGEX =
 const CACHE_KEY_PREFIX = "fn_knock:fnos-share:validation:";
 const SESSION_KEY_PREFIX = "fn_knock:fnos-share:session:";
 const LOCK_KEY_PREFIX = "fn_knock:lock:fnos-share:validation:";
+const FNOS_PRIMARY_PORT = 5666;
+const FNOS_LEGACY_PORT = 8000;
 
 const parseCookie = (cookieHeader: string, name: string): string | null => {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -147,6 +150,30 @@ type ResolvedFnosShareBypassConfig = {
   matchedTarget: string | null;
 };
 
+const toUpstreamOrigin = (target: string): URL | null => {
+  try {
+    const targetUrl = new URL(target);
+    if (targetUrl.protocol !== "http:" && targetUrl.protocol !== "https:") {
+      return null;
+    }
+    return new URL(targetUrl.origin);
+  } catch {
+    return null;
+  }
+};
+
+const scoreFnosHostMapping = (
+  mapping: Pick<AppConfig["host_mappings"][number], "host" | "target">,
+): number => {
+  const port = parseTargetPort(mapping.target);
+  const normalizedHost = mapping.host.trim().toLowerCase();
+
+  if (port === FNOS_PRIMARY_PORT) return 100;
+  if (port === FNOS_LEGACY_PORT) return 90;
+  if (normalizedHost.includes("fnos")) return 20;
+  return 0;
+};
+
 class FnosShareBypassService {
   private async getConfig(): Promise<ResolvedFnosShareBypassConfig> {
     const appConfig = await configManager.getConfig();
@@ -154,34 +181,43 @@ class FnosShareBypassService {
     const matchedMapping = appConfig.proxy_mappings.find(
       (item) => item.path === defaultRoute,
     );
+    const fallbackHostMapping = this.resolveFnosHostMapping(appConfig);
+    const matchedTarget = matchedMapping?.target || fallbackHostMapping?.target || null;
     return {
       policy: appConfig.fnos_share_bypass ?? (await configManager.getFnosShareBypassConfig()),
       upstreamBaseUrl: this.resolveUpstreamBaseUrl(appConfig),
       defaultRoute,
-      matchedTarget: matchedMapping?.target || null,
+      matchedTarget,
     };
   }
 
   private resolveUpstreamBaseUrl(appConfig: AppConfig): URL | null {
     const defaultRoute = appConfig.default_route;
-    if (!defaultRoute || defaultRoute === "/__select__") {
-      return null;
-    }
-
-    const mapping = appConfig.proxy_mappings.find((item) => item.path === defaultRoute);
-    if (!mapping?.target) {
-      return null;
-    }
-
-    try {
-      const targetUrl = new URL(mapping.target);
-      if (targetUrl.protocol !== "http:" && targetUrl.protocol !== "https:") {
-        return null;
+    if (defaultRoute && defaultRoute !== "/__select__") {
+      const mapping = appConfig.proxy_mappings.find((item) => item.path === defaultRoute);
+      if (mapping?.target) {
+        const upstream = toUpstreamOrigin(mapping.target);
+        if (upstream) return upstream;
       }
-      return new URL(targetUrl.origin);
-    } catch {
-      return null;
     }
+
+    const hostMapping = this.resolveFnosHostMapping(appConfig);
+    return hostMapping?.target ? toUpstreamOrigin(hostMapping.target) : null;
+  }
+
+  private resolveFnosHostMapping(
+    appConfig: Pick<AppConfig, "host_mappings">,
+  ): AppConfig["host_mappings"][number] | null {
+    const candidates = appConfig.host_mappings
+      .filter((mapping) => mapping.target && !isAuthServiceMapping(mapping))
+      .map((mapping) => ({
+        mapping,
+        score: scoreFnosHostMapping(mapping),
+      }))
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score);
+
+    return candidates[0]?.mapping ?? null;
   }
 
   async resolvePreflight(request: Request): Promise<FnosSharePreflightDecision> {

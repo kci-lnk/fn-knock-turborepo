@@ -710,7 +710,6 @@ class IpLocationService {
         return;
       case "whitelist":
         await this.syncRedisHashRecord("fn_knock:whitelist:records", id, result);
-        await this.syncRedisHashRecord("fn_knock:whitelist:deleted", id, result);
         return;
       case "scanner-blacklist":
         await this.syncRedisJsonKey(`fn_knock:scanner:blacklist:data:${id}`, result);

@@ -21,6 +21,8 @@ const KEYS = {
   RECORD_ORDER: `${PREFIX}:record_order`,
   EXPIRY: `${PREFIX}:expiry`,
   IPS: `${PREFIX}:ips`,
+  // Legacy tombstone hash. We no longer retain deleted whitelist records here,
+  // but still clean up any historical entries during delete operations.
   DELETED: `${PREFIX}:deleted`
 };
 
@@ -119,12 +121,10 @@ export class IPTablesWhiteListManager {
     const ipKey = this.getIPRecordsKey(record.ip);
     const pipeline = this.redis.pipeline();
     pipeline.hdel(KEYS.RECORDS, id);
+    pipeline.hdel(KEYS.DELETED, id);
     pipeline.zrem(KEYS.RECORD_ORDER, id);
     pipeline.zrem(KEYS.EXPIRY, id);
     pipeline.srem(ipKey, id);
-
-    record.status = 'deleted';
-    pipeline.hset(KEYS.DELETED, id, JSON.stringify(record));
     await pipeline.exec();
 
     const remaining = await this.findRecordsByIP(record.ip);

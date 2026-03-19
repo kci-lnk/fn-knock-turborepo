@@ -7,6 +7,7 @@ LOG_FILE="${PKG_VAR_DIR}/info.log"
 BACKEND_PID_FILE="${PKG_VAR_DIR}/backend.pid"
 GATEWAY_PID_FILE="${PKG_VAR_DIR}/gateway.pid"
 ALTCHA_HMAC_KEY_FILE="${PKG_VAR_DIR}/altcha_hmac_key"
+GATEWAY_CONFIG_DIR="/usr/local/etc/fn-knock/"
 
 APP_HOME="${TRIM_APPDEST:-}"
 NODE_BIN="${NODE_BIN:-/var/apps/nodejs_v20/target/bin/node}"
@@ -129,6 +130,21 @@ ensure_runtime_layout() {
 
     if [ ! -w "${PKG_VAR_DIR}" ]; then
         echo "runtime directory is not writable: ${PKG_VAR_DIR}" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
+        return 1
+    fi
+
+    return 0
+}
+
+ensure_gateway_config_dir() {
+    if [ -d "${GATEWAY_CONFIG_DIR}" ]; then
+        return 0
+    fi
+
+    if ! mkdir -p "${GATEWAY_CONFIG_DIR}" >/dev/null 2>&1; then
+        local message="failed to create gateway config directory: ${GATEWAY_CONFIG_DIR}"
+        log_msg "${message}"
+        echo "${message}" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
         return 1
     fi
 
@@ -416,6 +432,7 @@ start_gateway() {
 
     log_msg "Starting Go Reauth Proxy (admin-port=${GO_BACKEND_PORT}, proxy-port=${GO_REPROXY_PORT})..."
     "${GATEWAY_BIN}" \
+        -c "${GATEWAY_CONFIG_DIR}" \
         -admin-port "${GO_BACKEND_PORT}" \
         -proxy-port "${GO_REPROXY_PORT}" \
         >/dev/null 2>&1 &
@@ -506,6 +523,9 @@ start() {
         return 1
     fi
     if ! resolve_gateway_bin; then
+        return 1
+    fi
+    if ! ensure_gateway_config_dir; then
         return 1
     fi
     load_runtime_ports

@@ -138,8 +138,25 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
     return { success: true };
   })
   .get("/config", async () => {
-    const config = await configManager.getConfigSafe();
-    return { success: true, data: config };
+    const [config, gatewayLogging] = await Promise.all([
+      configManager.getConfigSafe(),
+      goBackend.getGatewayLoggingConfig(),
+    ]);
+
+    return {
+      success: true,
+      data: {
+        ...config,
+        gateway_logging:
+          gatewayLogging.success && gatewayLogging.data
+            ? gatewayLogging.data
+            : {
+                enabled: false,
+                max_days: 7,
+                logs_dir: "",
+              },
+      },
+    };
   })
   .post(
     "/config/run_type",

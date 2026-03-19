@@ -141,6 +141,67 @@ export interface FnosShareBypassConfig {
   session_ttl_seconds: number;
 }
 
+export interface GatewayLoggingConfig {
+  enabled: boolean;
+  max_days: number;
+  logs_dir: string;
+}
+
+export interface GatewayLogEntry {
+  time?: string;
+  level?: string;
+  method?: string;
+  scheme?: string;
+  host?: string;
+  path?: string;
+  query?: string;
+  request_uri?: string;
+  protocol?: string;
+  status: number;
+  duration_ms: number;
+  remote_ip?: string;
+  remote_addr?: string;
+  user_agent?: string;
+  referer?: string;
+  logged_in: boolean;
+  auth_required: boolean;
+  auth_decision?: string;
+  access_mode?: string;
+  route_type?: string;
+  route_key?: string;
+  upstream?: string;
+  matched: boolean;
+  bytes_in: number;
+  bytes_out: number;
+  tls: boolean;
+  websocket: boolean;
+  x_forwarded_for?: string;
+  x_real_ip?: string;
+}
+
+export interface GatewayLogDatesPayload {
+  today: string;
+  logs_dir: string;
+  dates: string[];
+}
+
+export interface GatewayLogEntriesPayload {
+  date: string;
+  logs_dir: string;
+  available_dates: string[];
+  page: number;
+  limit: number;
+  total: number;
+  items: GatewayLogEntry[];
+}
+
+export interface GatewayLogDeletePayload {
+  date: string;
+  logs_dir: string;
+  deleted: boolean;
+  available_dates: string[];
+}
+
 export interface AppConfig {
   run_type: RunType;
   whitelist_ips: string[];
@@ -150,6 +211,7 @@ export interface AppConfig {
   subdomain_mode: SubdomainModeConfig;
   default_tunnel?: "frp" | "cloudflared";
   fnos_share_bypass?: FnosShareBypassConfig;
+  gateway_logging?: GatewayLoggingConfig;
   ssl: {
     enabled: boolean;
     active_cert_id?: string;

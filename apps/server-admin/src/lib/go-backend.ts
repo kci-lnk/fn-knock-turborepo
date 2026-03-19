@@ -89,6 +89,71 @@ export interface TrafficStats {
   error_5xx: number;
 }
 
+export interface GatewayLoggingConfig {
+  enabled: boolean;
+  max_days: number;
+  logs_dir?: string;
+}
+
+export interface GatewayLoggingDirectory {
+  logs_dir: string;
+}
+
+export interface GatewayLogDates {
+  today: string;
+  logs_dir: string;
+  dates: string[];
+}
+
+export interface GatewayLogEntry {
+  time?: string;
+  level?: string;
+  method?: string;
+  scheme?: string;
+  host?: string;
+  path?: string;
+  query?: string;
+  request_uri?: string;
+  protocol?: string;
+  status: number;
+  duration_ms: number;
+  remote_ip?: string;
+  remote_addr?: string;
+  user_agent?: string;
+  referer?: string;
+  logged_in: boolean;
+  auth_required: boolean;
+  auth_decision?: string;
+  access_mode?: string;
+  route_type?: string;
+  route_key?: string;
+  upstream?: string;
+  matched: boolean;
+  bytes_in: number;
+  bytes_out: number;
+  tls: boolean;
+  websocket: boolean;
+  x_forwarded_for?: string;
+  x_real_ip?: string;
+}
+
+export interface GatewayLogEntriesResponse {
+  date: string;
+  logs_dir: string;
+  available_dates: string[];
+  page: number;
+  limit: number;
+  total: number;
+  items: GatewayLogEntry[];
+}
+
+export interface GatewayLogDeleteResponse {
+  date: string;
+  logs_dir: string;
+  deleted: boolean;
+  available_dates: string[];
+}
+
 export interface IptablesInitRequest {
   chain_name?: string;
   parent_chain?: string[];
@@ -272,6 +337,55 @@ export class GoBackendService {
     }
 
     return resp;
+  }
+
+  async getGatewayLoggingConfig(): Promise<GoResponse<GatewayLoggingConfig>> {
+    return this.request<GatewayLoggingConfig>("/api/logging");
+  }
+
+  async setGatewayLoggingConfig(
+    config: Pick<GatewayLoggingConfig, "enabled" | "max_days">,
+  ): Promise<GoResponse<GatewayLoggingConfig>> {
+    return this.request<GatewayLoggingConfig>("/api/logging", "POST", config);
+  }
+
+  async getGatewayLoggingDirectory(): Promise<
+    GoResponse<GatewayLoggingDirectory>
+  > {
+    return this.request<GatewayLoggingDirectory>("/api/logging/directory");
+  }
+
+  async getGatewayLogDates(): Promise<GoResponse<GatewayLogDates>> {
+    return this.request<GatewayLogDates>("/api/logging/dates");
+  }
+
+  async getGatewayLogEntries(params: {
+    date?: string;
+    page?: string | number;
+    limit?: string | number;
+    search?: string;
+  }): Promise<GoResponse<GatewayLogEntriesResponse>> {
+    const searchParams = new URLSearchParams();
+    if (params.date) searchParams.set("date", params.date);
+    if (params.page !== undefined) searchParams.set("page", String(params.page));
+    if (params.limit !== undefined) {
+      searchParams.set("limit", String(params.limit));
+    }
+    if (params.search) searchParams.set("search", params.search);
+    const query = searchParams.toString();
+    return this.request<GatewayLogEntriesResponse>(
+      `/api/logging/entries${query ? `?${query}` : ""}`,
+    );
+  }
+
+  async deleteGatewayLogEntries(
+    date: string,
+  ): Promise<GoResponse<GatewayLogDeleteResponse>> {
+    return this.request<GatewayLogDeleteResponse>(
+      "/api/logging/entries",
+      "DELETE",
+      { date },
+    );
   }
 
   async getRules(): Promise<GoResponse<Rule[]>> {

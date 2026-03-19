@@ -22,6 +22,7 @@ import { assetsRoutes } from "./routes/assets";
 import { acmeRoutes } from "./routes/acme";
 import { cloudflaredRoutes, restoreCloudflaredOnBoot } from "./routes/cloudflared";
 import { ddnsRoutes } from "./routes/ddns";
+import { gatewayLogsRoutes } from "./routes/gateway-logs";
 import { registerAcmeRenewCron } from "./cron/acme-renew";
 import { registerTrafficCleanupCron, registerTrafficCollectCron } from "./cron/traffic";
 import { registerDDNSCron } from "./cron/ddns";
@@ -220,6 +221,7 @@ app.use(frpcRoutes);
 app.use(cloudflaredRoutes);
 app.use(scannerRoutes);
 app.use(ddnsRoutes);
+app.use(gatewayLogsRoutes);
 app.use(updateRoutes);
 
 app.get("/__fn-knock/runtime-hmac-secret", ({ set }) => {

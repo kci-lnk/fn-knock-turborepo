@@ -9,6 +9,7 @@ import AcmeSSL from './system-settings/AcmeSSL.vue'
 import ScannerFirewallSettings from './system-settings/ScannerFirewallSettings.vue'
 import FnosSettings from './system-settings/FnosSettings.vue'
 import CaptchaSettings from './system-settings/CaptchaSettings.vue'
+import GatewayLoggingSettings from './system-settings/GatewayLoggingSettings.vue'
 import { useSyncedQueryTab } from '@admin-shared/composables/useSyncedQueryTab'
 import { useConfigStore } from '../store/config'
 
@@ -24,6 +25,7 @@ const allowedTabs = computed(() => {
     'acme-ssl',
     'fnos',
     'scanner-firewall',
+    'gateway-logging',
     'captcha',
   ]
   if (showTunnelTabs.value) {
@@ -50,6 +52,7 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
           <TabsTrigger value="acme-ssl" class="flex-none shrink-0 px-3">ACME</TabsTrigger>
           <TabsTrigger value="fnos" class="flex-none shrink-0 px-3">飞牛</TabsTrigger>
           <TabsTrigger value="scanner-firewall" class="flex-none shrink-0 px-3">拦截</TabsTrigger>
+          <TabsTrigger value="gateway-logging" class="flex-none shrink-0 px-3">日志</TabsTrigger>
           <TabsTrigger value="captcha" class="flex-none shrink-0 px-3">验证码</TabsTrigger>
         </TabsList>
       </div>
@@ -70,6 +73,9 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
       </TabsContent>
       <TabsContent value="scanner-firewall" class="pt-2">
         <ScannerFirewallSettings />
+      </TabsContent>
+      <TabsContent value="gateway-logging" class="pt-2">
+        <GatewayLoggingSettings />
       </TabsContent>
       <TabsContent value="captcha" class="pt-2">
         <CaptchaSettings />

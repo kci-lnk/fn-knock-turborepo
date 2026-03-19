@@ -17,6 +17,10 @@ import type {
   DashboardStats,
   ThreatOverview,
   FnosShareBypassConfig,
+  GatewayLogDatesPayload,
+  GatewayLogDeletePayload,
+  GatewayLogEntriesPayload,
+  GatewayLoggingConfig,
 } from "../types";
 import { createSignedApiClient } from "@frontend-core/api/createSignedApiClient";
 import type { CaptchaSettings } from "@frontend-core/captcha/types";
@@ -310,6 +314,44 @@ export const AuthLogsAPI = {
   async deleteLogs(ids: string[]) {
     const res = await apiClient.delete("/logs", { data: { ids } });
     return res.data;
+  },
+};
+
+export const GatewayLogsAPI = {
+  async getConfig(): Promise<GatewayLoggingConfig> {
+    const res = await apiClient.get("/gateway-logs/config");
+    return res.data.data;
+  },
+  async updateConfig(
+    payload: Pick<GatewayLoggingConfig, "enabled" | "max_days">,
+  ): Promise<GatewayLoggingConfig> {
+    const res = await apiClient.post("/gateway-logs/config", payload);
+    return res.data.data;
+  },
+  async getDirectory(): Promise<{ logs_dir: string }> {
+    const res = await apiClient.get("/gateway-logs/directory");
+    return res.data.data;
+  },
+  async getDates(): Promise<GatewayLogDatesPayload> {
+    const res = await apiClient.get("/gateway-logs/dates");
+    return res.data.data;
+  },
+  async getEntries(
+    date: string,
+    page: number,
+    limit: string,
+    search: string,
+  ): Promise<GatewayLogEntriesPayload> {
+    const res = await apiClient.get("/gateway-logs/entries", {
+      params: { date, page, limit, search },
+    });
+    return res.data.data;
+  },
+  async deleteDate(date: string): Promise<GatewayLogDeletePayload> {
+    const res = await apiClient.delete("/gateway-logs/entries", {
+      data: { date },
+    });
+    return res.data.data;
   },
 };
 

@@ -132,14 +132,6 @@ onMounted(fetchSettings);
         </div>
       </div>
 
-      <div class="grid gap-2 p-6">
-        <Label class="text-base">日志目录</Label>
-        <Input :model-value="form.logs_dir || '-'" readonly disabled />
-        <div class="text-xs text-muted-foreground">
-          后台会直接从这个目录读取和删除按天日志文件。
-        </div>
-      </div>
-
       <div class="flex items-center justify-end gap-3 p-6">
         <Button variant="outline" :disabled="!isDirty || isSaving" @click="resetForm">
           重置

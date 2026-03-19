@@ -19,6 +19,7 @@ import { formatDateTimeSafe } from '@admin-shared/utils/formatDateTimeSafe'
 import { DEFAULT_LOG_WINDOW_SIZE, mergePollingLogWindow } from '@admin-shared/utils/log-window'
 import { useTargetPolling } from '../composables/useTargetPolling'
 import type { DDNSNetworkInterfacePayload } from '../lib/api'
+import { useConfigStore } from '../store/config'
 
 interface ProviderField {
   key: string
@@ -87,6 +88,7 @@ const getUpdateScopeLabel = (value: string | null | undefined) => {
 
 // ─── State ─────────────────────────────────────────────────────
 const isInitialized = ref(false)
+const configStore = useConfigStore()
 const enabled = ref(true)
 const selectedProvider = ref<string>('')
 const providers = ref<Provider[]>([])
@@ -249,6 +251,18 @@ const showIPv4Status = computed(() => effectiveUpdateScope.value !== 'ipv6_only'
 const showIPv6Status = computed(() => effectiveUpdateScope.value !== 'ipv4_only')
 const isEnabledSwitchDisabled = computed(() => isTogglingEnabled.value || isLoading.value)
 const isProviderSelectDisabled = computed(() => isSwitchingProvider.value || isLoading.value)
+const isSubdomainMode = computed(() => configStore.config?.run_type === 3)
+
+const getFieldDescription = (field: ProviderField) => {
+  const description = field.description?.trim() || ''
+
+  if (isSubdomainMode.value && field.key === 'domain' && field.label === '完整域名') {
+    const wildcardHint = '子域模式下可填写如 *.example.com，使用星号可设置泛解析。'
+    return description ? `${description} ${wildcardHint}` : wildcardHint
+  }
+
+  return description
+}
 
 async function loadStatus() {
   await runLoadStatus(async () => {
@@ -707,8 +721,8 @@ onUnmounted(() => {
                   {{ field.label }}
                   <span v-if="field.required !== false" class="text-destructive">*</span>
                 </Label>
-                <p v-if="field.description" class="text-xs text-muted-foreground leading-relaxed hidden sm:block pr-4">
-                  {{ field.description }}
+                <p v-if="getFieldDescription(field)" class="text-xs text-muted-foreground leading-relaxed hidden sm:block pr-4">
+                  {{ getFieldDescription(field) }}
                 </p>
               </div>
 
@@ -744,8 +758,8 @@ onUnmounted(() => {
                   :readonly="!isFieldEditReady(field.key)" v-model="providerConfig[field.key]"
                   @focus="enableFieldEditing(field.key)" @pointerdown="enableFieldEditing(field.key)" />
 
-                <p v-if="field.description" class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
-                  {{ field.description }}
+                <p v-if="getFieldDescription(field)" class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
+                  {{ getFieldDescription(field) }}
                 </p>
               </div>
             </div>

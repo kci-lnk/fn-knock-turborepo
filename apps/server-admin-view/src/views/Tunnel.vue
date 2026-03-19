@@ -1,15 +1,16 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { extractErrorMessage, useAsyncAction } from '@admin-shared/composables/useAsyncAction'
 import { useSyncedQueryTab } from '@admin-shared/composables/useSyncedQueryTab'
-import { ConfigAPI } from '../lib/api'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import FrpTunnel from './tunnel/FrpTunnel.vue'
 import CloudflareTunnel from './tunnel/CloudflareTunnel.vue'
+import { useConfigStore } from '../store/config'
 
 const router = useRouter()
 const route = useRoute()
+const configStore = useConfigStore()
 
 const defaultTunnel = ref<string>('frp')
 const allowedTabs = new Set(['frp', 'cloudflared'])
@@ -19,6 +20,15 @@ const { isPending: isLoading, run: runLoadConfig } = useAsyncAction({
     console.error('Failed to load tunnel config:', extractErrorMessage(error, '加载隧道配置失败'))
   },
 })
+
+watch(
+  () => configStore.config?.run_type,
+  (runType) => {
+    if (runType !== undefined && runType !== 1) {
+      void router.replace({ path: '/system' })
+    }
+  },
+)
 
 const { currentTab, navigateTo, syncFromRoute } = useSyncedQueryTab({
   route,
@@ -30,11 +40,21 @@ const { currentTab, navigateTo, syncFromRoute } = useSyncedQueryTab({
 
 async function loadConfig() {
   await runLoadConfig(async () => {
-    const config = await ConfigAPI.getConfig()
+    if (!configStore.config) {
+      await configStore.loadConfig()
+    }
+    const config = configStore.config
+    if (!config || config.run_type !== 1) {
+      await router.replace({ path: '/system' })
+      return
+    }
     const rawDefault = config.default_tunnel || 'frp'
     const def = allowedTabs.has(rawDefault) ? rawDefault : 'frp'
     defaultTunnel.value = def
   })
+  if (route.path !== '/tunnel') {
+    return
+  }
   isInitialized.value = true
   syncFromRoute()
 }

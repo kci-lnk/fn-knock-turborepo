@@ -40,6 +40,7 @@ import { useAsyncAction } from "@admin-shared/composables/useAsyncAction";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
 import { useTargetPolling } from "../composables/useTargetPolling";
+import { useConfigStore } from "../store/config";
 import VChart from "vue-echarts";
 import type { EChartsOption } from "echarts";
 import { use } from "echarts/core";
@@ -77,6 +78,7 @@ let lastRealtimeSample: {
 } | null = null;
 
 const router = useRouter();
+const configStore = useConfigStore();
 
 type TunnelStatus = {
   running: boolean;
@@ -118,6 +120,7 @@ const showMainSkeleton = useDelayedLoading(isInitializing);
 const showDdnsSkeleton = useDelayedLoading(() => isDdnsLoading.value);
 const showTunnelSkeleton = useDelayedLoading(() => isTunnelLoading.value);
 const ddnsError = ref("");
+const showTunnelSection = computed(() => configStore.config?.run_type === 1);
 const ddnsUpdateScopeLabels = {
   dual_stack: "IPv4 & IPv6",
   ipv6_only: "仅更新 IPv6",
@@ -125,6 +128,14 @@ const ddnsUpdateScopeLabels = {
 } as const;
 
 const loadTunnelStatus = async () => {
+  if (!showTunnelSection.value) {
+    frpStatus.value = null;
+    cfStatus.value = null;
+    defaultTunnel.value = "frp";
+    isTunnelInitializing.value = false;
+    return;
+  }
+
   await runLoadTunnelStatus(
     () =>
       Promise.all([
@@ -397,7 +408,11 @@ const load = async () => {
       },
     },
   );
-  void loadTunnelStatus();
+  if (showTunnelSection.value) {
+    void loadTunnelStatus();
+  } else {
+    isTunnelInitializing.value = false;
+  }
   void loadDdnsStatus();
 };
 
@@ -415,6 +430,19 @@ const startAutoRefresh = () => {
 
 watch(rangeKey, () => {
   void load();
+});
+
+watch(showTunnelSection, (visible) => {
+  if (visible) {
+    isTunnelInitializing.value = true;
+    void loadTunnelStatus();
+    return;
+  }
+
+  frpStatus.value = null;
+  cfStatus.value = null;
+  defaultTunnel.value = "frp";
+  isTunnelInitializing.value = false;
 });
 
 watch(isAutoRefresh, () => {
@@ -549,6 +577,14 @@ const ddnsCards = computed(() => [
   },
 ]);
 
+const entryStatusCardTitle = computed(() =>
+  showTunnelSection.value ? "入口与隧道" : "入口状态",
+);
+
+const entryStatusCardDescription = computed(() =>
+  showTunnelSection.value ? "DDNS与穿透状态" : "DDNS 状态",
+);
+
 const tunnelCards = computed(() => [
   {
     key: "frp" as const,
@@ -653,8 +689,8 @@ const tunnelCards = computed(() => [
           <CardHeader class="pb-3">
             <div class="flex items-start justify-between">
               <div>
-                <CardTitle class="text-lg">入口与隧道</CardTitle>
-                <CardDescription class="mt-1">DDNS与穿透状态</CardDescription>
+                <CardTitle class="text-lg">{{ entryStatusCardTitle }}</CardTitle>
+                <CardDescription class="mt-1">{{ entryStatusCardDescription }}</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -688,7 +724,7 @@ const tunnelCards = computed(() => [
               <div v-else class="h-[68px]" aria-hidden="true"></div>
             </div>
 
-            <div>
+            <div v-if="showTunnelSection">
               <div class="mb-3 text-sm font-medium">隧道入口</div>
               <div v-if="isTunnelLoading && showTunnelSkeleton" class="grid gap-3">
                 <Skeleton class="h-[60px] w-full rounded-xl" />

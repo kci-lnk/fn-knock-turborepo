@@ -52,7 +52,7 @@
             </span>
           </div>
           <p class="text-sm text-muted-foreground">
-            服务直接对外开放，仅允许白名单 IP 访问
+            使用端口访问你的服务，比如 example.com:7999 登录后可以访问 example.com:5666的飞牛服务。
           </p>
         </div>
       </div>
@@ -89,7 +89,7 @@
             </span>
           </div>
           <p class="text-sm text-muted-foreground">
-            没有公网IP，通过内网穿透转发请求。支持路径映射、转发与页面重写等增强能力。
+            没有公网IP，通过内网穿透转发请求。
           </p>
         </div>
       </div>
@@ -126,7 +126,7 @@
             </span>
           </div>
           <p class="text-sm text-muted-foreground">
-            与多个业务子域统一接入网关，不依赖iptables，是升级版的直连模式
+            使用子域名访问你的服务，比如 fnos.example.com 访问飞牛，不经过中转和内网穿透，直连
           </p>
         </div>
       </div>

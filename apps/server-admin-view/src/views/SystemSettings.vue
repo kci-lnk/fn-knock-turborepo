@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import RunModeSettings from './system-settings/RunModeSettings.vue'
@@ -9,20 +10,27 @@ import ScannerFirewallSettings from './system-settings/ScannerFirewallSettings.v
 import FnosSettings from './system-settings/FnosSettings.vue'
 import CaptchaSettings from './system-settings/CaptchaSettings.vue'
 import { useSyncedQueryTab } from '@admin-shared/composables/useSyncedQueryTab'
+import { useConfigStore } from '../store/config'
 
 const router = useRouter()
 const route = useRoute()
+const configStore = useConfigStore()
 
 const defaultTab = 'run-mode'
-const allowedTabs = new Set([
-  'run-mode',
-  'frp',
-  'cloudflared',
-  'acme-ssl',
-  'fnos',
-  'scanner-firewall',
-  'captcha',
-])
+const showTunnelTabs = computed(() => configStore.config?.run_type === 1)
+const allowedTabs = computed(() => {
+  const tabs = [
+    'run-mode',
+    'acme-ssl',
+    'fnos',
+    'scanner-firewall',
+    'captcha',
+  ]
+  if (showTunnelTabs.value) {
+    tabs.splice(1, 0, 'frp', 'cloudflared')
+  }
+  return tabs
+})
 const { currentTab, navigateTo } = useSyncedQueryTab({
   route,
   router,
@@ -37,8 +45,8 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
       <div class="w-full overflow-x-auto pb-1">
         <TabsList class="min-w-max justify-start">
           <TabsTrigger value="run-mode" class="flex-none shrink-0 px-3">模式</TabsTrigger>
-          <TabsTrigger value="frp" class="flex-none shrink-0 px-3">FRP</TabsTrigger>
-          <TabsTrigger value="cloudflared" class="flex-none shrink-0 px-3">Cloudflared</TabsTrigger>
+          <TabsTrigger v-if="showTunnelTabs" value="frp" class="flex-none shrink-0 px-3">FRP</TabsTrigger>
+          <TabsTrigger v-if="showTunnelTabs" value="cloudflared" class="flex-none shrink-0 px-3">Cloudflared</TabsTrigger>
           <TabsTrigger value="acme-ssl" class="flex-none shrink-0 px-3">ACME</TabsTrigger>
           <TabsTrigger value="fnos" class="flex-none shrink-0 px-3">飞牛</TabsTrigger>
           <TabsTrigger value="scanner-firewall" class="flex-none shrink-0 px-3">拦截</TabsTrigger>
@@ -48,10 +56,10 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
       <TabsContent value="run-mode" class="pt-2">
         <RunModeSettings />
       </TabsContent>
-      <TabsContent value="frp" class="pt-2">
+      <TabsContent v-if="showTunnelTabs" value="frp" class="pt-2">
         <FrpSettings />
       </TabsContent>
-      <TabsContent value="cloudflared" class="pt-2">
+      <TabsContent v-if="showTunnelTabs" value="cloudflared" class="pt-2">
         <CloudflaredSettings />
       </TabsContent>
       <TabsContent value="acme-ssl" class="pt-2">

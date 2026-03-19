@@ -196,6 +196,9 @@ export const ConfigAPI = {
   async deleteSSLCertificate(id: string): Promise<void> {
     await apiClient.delete(`/ssl/certificates/${encodeURIComponent(id)}`);
   },
+  async clearSSLCertificateLibrary(): Promise<void> {
+    await apiClient.delete("/ssl/certificates");
+  },
   async updateDefaultRoute(path: string): Promise<void> {
     await apiClient.post("/config/default_route", { path });
   },

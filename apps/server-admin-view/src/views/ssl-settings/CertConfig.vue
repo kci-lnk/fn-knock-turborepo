@@ -707,6 +707,23 @@
       </template>
 
       <template #actions="{ collapse }">
+        <ConfirmDangerPopover
+          title="确认清空证书库"
+          description="清空后会删除证书库中的所有证书，并同步清空 Go 网关当前已下发的证书。HTTPS 将一并停用。"
+          confirm-text="确认清空"
+          :loading="isClearingLibrary"
+          :disabled="isClearingLibrary"
+          :on-confirm="handleClearLibrary"
+        >
+          <template #trigger>
+            <Button
+              variant="destructive"
+              :disabled="isClearingLibrary"
+            >
+              清空证书库
+            </Button>
+          </template>
+        </ConfirmDangerPopover>
         <Button variant="outline" @click="collapse">折叠</Button>
       </template>
     </ConfigCollapsibleCard>
@@ -818,6 +835,12 @@ const { isPending: isDeleting, run: runDeleteSSL } = useAsyncAction({
     toast.error(extractErrorMessage(error, "删除证书失败"));
   },
 });
+const { isPending: isClearingLibrary, run: runClearSSLLibrary } =
+  useAsyncAction({
+    onError: (error) => {
+      toast.error(extractErrorMessage(error, "清空证书库失败"));
+    },
+  });
 const { isPending: isUpdatingDeploymentMode, run: runUpdateDeploymentMode } =
   useAsyncAction({
     onError: (error) => {
@@ -1085,6 +1108,14 @@ async function deleteCertificate(id: string) {
     toast.success("证书已删除");
   });
   deletingCertificateId.value = null;
+}
+
+async function handleClearLibrary() {
+  await runClearSSLLibrary(async () => {
+    await ConfigAPI.clearSSLCertificateLibrary();
+    await loadSSLStatus();
+    toast.success("证书库已清空，Go 网关证书也已同步清除");
+  });
 }
 
 async function loadSharedFiles(force = false) {

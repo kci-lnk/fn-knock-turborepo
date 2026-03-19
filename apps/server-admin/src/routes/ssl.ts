@@ -499,6 +499,11 @@ export const sslRoutes = new Elysia({ prefix: "/api/admin/ssl" })
 
         return { success: true };
     })
+    .delete("/certificates", async () => {
+        await configManager.clearSSLCertificateLibrary();
+        await syncSSLDeploymentToGateway();
+        return { success: true };
+    })
     .delete("/", async () => {
         await configManager.clearSSL();
         await syncSSLDeploymentToGateway();

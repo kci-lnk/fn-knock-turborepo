@@ -763,6 +763,18 @@ export class ConfigManager {
     await this.saveConfig(config);
   }
 
+  async clearSSLCertificateLibrary(): Promise<number> {
+    const config = await this.getConfig();
+    const removedCount = config.ssl.certificates?.length || 0;
+    config.ssl = {
+      ...config.ssl,
+      certificates: [],
+    };
+    config.ssl = mirrorActiveSSLCertificate(config.ssl, null);
+    await this.saveConfig(config);
+    return removedCount;
+  }
+
   async saveConfig(config: AppConfig): Promise<void> {
     await this.redis.set(this.configKey, JSON.stringify(config));
   }

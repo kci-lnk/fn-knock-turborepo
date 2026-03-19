@@ -31,8 +31,8 @@
             </div>
           </div>
 
-          <div class="grid gap-4 p-4 sm:p-6 md:grid-cols-2">
-            <div class="space-y-2">
+          <div class="grid gap-4 p-4 sm:p-6">
+            <div class="max-w-xs space-y-2">
               <Label for="root-domain">根域名</Label>
               <Input
                 id="root-domain"
@@ -43,13 +43,12 @@
                 后续新增映射时，你只需要填写子域名前缀，系统会自动拼接到这个根域名下面。
               </p>
             </div>
-            <div class="rounded-lg border px-4 py-3 md:col-span-2">
-              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div class="rounded-lg border px-4 py-3">
+              <div
+                class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+              >
                 <div class="space-y-1">
                   <Label>当前鉴权服务</Label>
-                  <p class="text-xs text-muted-foreground">
-                    通过下方 Host 映射选择一条特殊服务作为统一登录入口。
-                  </p>
                 </div>
                 <Badge :variant="authServiceMapping ? 'secondary' : 'outline'">
                   {{ authServiceMapping ? "已配置" : "未配置" }}
@@ -57,149 +56,19 @@
               </div>
               <div class="mt-3 text-sm">
                 <template v-if="authServiceMapping">
-                  <div class="break-all font-medium">{{ authServiceMapping.host }}</div>
+                  <div class="break-all font-medium">
+                    {{ authServiceMapping.host }}
+                  </div>
                   <div class="break-all text-muted-foreground">
                     {{ authServiceMapping.target }}
                   </div>
                   <div class="mt-1 text-xs text-muted-foreground">
-                    对外入口默认按
-                    <code>https://{{ authServiceMapping.host }}</code> 生成。
+                    在尚未登录时，会自动跳转到
+                    <code>https://{{ authServiceMapping.host }}</code>
+                    完成登录。
                   </div>
                 </template>
-                <p v-else class="text-muted-foreground">
-                  还没有指定鉴权服务。添加或编辑一条 Host 映射后，打开“作为鉴权服务”即可。
-                </p>
-              </div>
-            </div>
-            <div class="rounded-lg border px-4 py-3 md:col-span-2">
-              <div class="space-y-1">
-                <div class="space-y-1">
-                  <Label>常用设置</Label>
-                  <p class="text-xs text-muted-foreground">
-                    下面两项会作为新映射的默认值。大多数场景直接保持推荐值即可。
-                  </p>
-                </div>
-              </div>
-              <div class="mt-3 flex flex-wrap gap-2 text-xs">
-                <Badge variant="secondary" class="max-w-full whitespace-normal">
-                  新映射默认：
-                  {{
-                    modeForm.default_access_mode === "strict_whitelist"
-                      ? "严格白名单"
-                      : "登录优先"
-                  }}
-                </Badge>
-                <Badge
-                  variant="outline"
-                  class="max-w-full whitespace-normal break-all"
-                >
-                  {{
-                    modeForm.cookie_domain.trim()
-                      ? `Cookie 范围：${modeForm.cookie_domain}`
-                      : "Cookie 范围自动推导"
-                  }}
-                </Badge>
-                <Badge
-                  variant="outline"
-                  class="max-w-full whitespace-normal break-all"
-                >
-                  {{
-                    effectivePasskeyRpId
-                      ? `Passkey RP：${passkeyRpModeLabel} · ${effectivePasskeyRpId}`
-                      : `Passkey RP：${passkeyRpModeLabel}`
-                  }}
-                </Badge>
-              </div>
-            </div>
-            <div class="space-y-2 md:col-span-2">
-              <div class="space-y-2">
-                <Label for="cookie-domain">跨子域 Cookie 范围</Label>
-                <Input
-                  id="cookie-domain"
-                  v-model="modeForm.cookie_domain"
-                  placeholder=".example.com"
-                />
-                <p class="text-xs text-muted-foreground">
-                  一般留空即可，系统会自动处理；只有你明确需要把登录态固定到某个父域时再填写。
-                </p>
-              </div>
-              <div
-                class="flex flex-col gap-4 rounded-lg border px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div class="space-y-1">
-                  <Label for="default-access-mode">新映射默认访问方式</Label>
-                  <p class="text-xs text-muted-foreground">
-                    这里只影响后续“新添加映射”的默认值，不会改动已经存在的映射。
-                  </p>
-                  <p class="text-xs text-muted-foreground">
-                    登录优先：未登录先跳转登录。严格白名单：不在白名单的来源会被直接拦截。
-                  </p>
-                </div>
-                <div
-                  class="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end"
-                >
-                  <span class="text-sm text-muted-foreground">
-                    {{
-                      modeForm.default_access_mode === "strict_whitelist"
-                        ? "严格白名单"
-                        : "登录优先"
-                    }}
-                  </span>
-                  <Switch
-                    id="default-access-mode"
-                    :model-value="modeForm.default_access_mode === 'strict_whitelist'"
-                    @update:model-value="
-                      modeForm.default_access_mode = $event
-                        ? 'strict_whitelist'
-                        : 'login_first'
-                    "
-                  />
-                </div>
-              </div>
-            </div>
-            <div class="md:col-span-2">
-              <div class="grid gap-4 rounded-lg border px-4 py-3">
-                <div class="space-y-1">
-                  <Label>Passkey RP 配置</Label>
-                  <p class="text-xs text-muted-foreground">
-                    用于控制 WebAuthn/Passkey 注册与登录时使用的 RP ID。默认跟随鉴权域名；如果你希望同一父域下的多个子域共享凭证，可切到父域 RP。
-                  </p>
-                </div>
-
-                <div class="grid gap-4 md:grid-cols-2">
-                  <div class="space-y-2">
-                    <Label for="passkey-rp-mode">RP 模式</Label>
-                    <Select v-model="modeForm.passkey_rp_mode">
-                      <SelectTrigger id="passkey-rp-mode" class="w-full">
-                        <SelectValue placeholder="选择 RP 模式" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="auth_host">鉴权域名</SelectItem>
-                        <SelectItem value="parent_domain">父域 RP ID</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p class="text-xs text-muted-foreground">
-                      {{
-                        modeForm.passkey_rp_mode === "parent_domain"
-                          ? "适合同一父域下多个站点复用同一组 passkey。"
-                          : "注册和登录都绑定在当前鉴权服务域名上，兼容性最好。"
-                      }}
-                    </p>
-                  </div>
-
-                  <div class="space-y-2">
-                    <Label for="passkey-rp-id">父域 RP ID</Label>
-                    <Input
-                      id="passkey-rp-id"
-                      v-model="modeForm.passkey_rp_id"
-                      :disabled="modeForm.passkey_rp_mode !== 'parent_domain'"
-                      placeholder="example.com"
-                    />
-                    <p class="text-xs text-muted-foreground">
-                      {{ passkeyRpHint }}
-                    </p>
-                  </div>
-                </div>
+                <p v-else class="text-muted-foreground">还没有鉴权服务。</p>
               </div>
             </div>
           </div>
@@ -232,46 +101,71 @@
       <CardHeader>
         <CardTitle class="flex items-center justify-between">
           <span>映射管理</span>
-          <div class="flex">
+          <div class="flex items-center gap-2">
             <Button
-              :disabled="!canManageNewMappings || isDiscovering"
-              class="rounded-r-none"
-              @click="openDiscoverDialog"
+              v-if="!authServiceMapping"
+              :disabled="!canManageNewMappings || isSavingMappings"
+              variant="default"
+              @click="addAuthService"
             >
-              <Search class="mr-2 h-4 w-4" />
-              {{ isDiscovering ? "发现中..." : "一键发现" }}
+              <ShieldCheck class="mr-2 h-4 w-4" />
+              添加鉴权服务
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger as-child>
-                <Button
-                  variant="default"
-                  size="icon"
-                  class="rounded-l-none border-l border-primary-foreground/20 px-2"
-                >
-                  <ChevronDown class="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  :disabled="!canManageNewMappings"
-                  @click="openCreateDialog"
-                >
-                  <Plus class="mr-2 h-4 w-4" />
-                  添加映射
-                </DropdownMenuItem>
-                <DropdownMenuItem @click="syncRoutes" :disabled="isSyncing">
-                  <RefreshCw
-                    class="mr-2 h-4 w-4"
-                    :class="{ 'animate-spin': isSyncing }"
-                  />
-                  {{ isSyncing ? "同步中..." : "同步路由" }}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div v-if="authServiceMapping" class="flex items-center">
+              <Button
+                :variant="discoverButtonVariant"
+                :disabled="!canManageNewMappings || isDiscovering"
+                class="rounded-r-none"
+                @click="openDiscoverDialog"
+              >
+                <Search class="mr-2 h-4 w-4" />
+                {{ isDiscovering ? "发现中..." : "一键发现" }}
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger as-child>
+                  <Button
+                    :variant="discoverButtonVariant"
+                    size="icon"
+                    :class="[
+                      'rounded-l-none border-l px-2',
+                      discoverButtonDividerClass,
+                    ]"
+                  >
+                    <ChevronDown class="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    v-if="authServiceMapping"
+                    variant="destructive"
+                    :disabled="isSavingMappings"
+                    @select="openDeleteAuthServiceDialog"
+                  >
+                    <Trash2 class="mr-2 h-4 w-4" />
+                    删除鉴权服务
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    :disabled="!canManageNewMappings"
+                    @click="openCreateDialog"
+                  >
+                    <Plus class="mr-2 h-4 w-4" />
+                    添加映射
+                  </DropdownMenuItem>
+                  <DropdownMenuItem @click="syncRoutes" :disabled="isSyncing">
+                    <RefreshCw
+                      class="mr-2 h-4 w-4"
+                      :class="{ 'animate-spin': isSyncing }"
+                    />
+                    {{ isSyncing ? "同步中..." : "同步路由" }}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </CardTitle>
         <CardDescription>
-          每个子域名都会直接映射到一个本地 HTTP 服务。新增时只需要填写子域名前缀，根域名会自动补齐。
+          每个子域名都会直接映射到一个本地 HTTP
+          服务。新增时只需要填写子域名前缀，根域名会自动补齐。
         </CardDescription>
       </CardHeader>
       <CardContent class="space-y-4">
@@ -297,7 +191,7 @@
               <TableRow>
                 <TableHead>Host</TableHead>
                 <TableHead>Target</TableHead>
-                <TableHead>访问策略</TableHead>
+                <TableHead>状态</TableHead>
                 <TableHead class="text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
@@ -318,25 +212,17 @@
                 <TableCell class="font-medium">{{ mapping.host }}</TableCell>
                 <TableCell>{{ mapping.target }}</TableCell>
                 <TableCell>
-                  <div class="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                  <div
+                    class="flex flex-wrap gap-2 text-xs text-muted-foreground"
+                  >
                     <Badge
-                      v-if="mapping.service_role === 'auth'"
+                      v-if="isAuthServiceTarget(mapping.target)"
                       variant="default"
                     >
                       鉴权服务
                     </Badge>
                     <Badge variant="secondary">
                       {{ mapping.use_auth ? "需鉴权" : "公开访问" }}
-                    </Badge>
-                    <Badge variant="outline">
-                      {{ mapping.preserve_host ? "保留 Host" : "改写 Host" }}
-                    </Badge>
-                    <Badge variant="outline">
-                      {{
-                        mapping.access_mode === "strict_whitelist"
-                          ? "严格白名单"
-                          : "登录优先"
-                      }}
                     </Badge>
                   </div>
                 </TableCell>
@@ -349,25 +235,15 @@
                     >
                       编辑
                     </Button>
-                    <ConfirmDangerPopover
-                      title="确认删除?"
-                      :description="`您即将删除 Host 映射 ${mapping.host}，此操作不可逆转。`"
-                      :loading="isSavingMappings"
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      class="text-destructive hover:bg-destructive/10 hover:text-destructive"
                       :disabled="isSavingMappings"
-                      :on-confirm="() => removeMapping(mapping.host)"
-                      content-class="w-60 text-left"
+                      @click="openDeleteMappingDialog(mapping.host)"
                     >
-                      <template #trigger>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          class="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                          :disabled="isSavingMappings"
-                        >
-                          删除
-                        </Button>
-                      </template>
-                    </ConfirmDangerPopover>
+                      删除
+                    </Button>
                   </div>
                 </TableCell>
               </TableRow>
@@ -384,7 +260,8 @@
             {{ editingHost ? "编辑 Host 映射" : "添加 Host 映射" }}
           </DialogTitle>
           <DialogDescription>
-            普通业务域名可选择“登录优先”或“严格白名单”；如果标记为鉴权服务，该域名会成为统一登录入口并保持公开可达。
+            普通业务域名默认会走统一登录流程；当 Target
+            指向鉴权端口时，该域名会自动成为统一登录入口并保持公开可达。
           </DialogDescription>
         </DialogHeader>
         <div class="grid gap-4 py-4">
@@ -429,30 +306,10 @@
               v-model="mappingForm.target"
               placeholder="http://127.0.0.1:5173"
             />
-          </div>
-
-          <div
-            v-if="showAuthServiceToggle"
-            class="flex items-center justify-between rounded-lg border px-4 py-3"
-          >
-            <div class="space-y-1">
-              <Label for="mapping-auth-service">作为鉴权服务</Label>
-              <p class="text-xs text-muted-foreground">
-                标记后，这个子域会成为统一登录入口，系统会自动保持其公开访问。
-              </p>
-            </div>
-            <Switch
-              id="mapping-auth-service"
-              :model-value="mappingForm.service_role === 'auth'"
-              @update:model-value="setMappingAuthServiceRole"
-            />
-          </div>
-          <div
-            v-else
-            class="rounded-lg border px-4 py-3 text-sm text-muted-foreground"
-          >
-            当前已由 {{ existingAuthServiceOtherThanCurrent?.host }} 作为鉴权服务。
-            如需更换，请先编辑那条映射。
+            <p class="text-xs text-muted-foreground">
+              如果这里使用的是鉴权端口
+              {{ authServicePort }}，系统会自动把它识别为鉴权服务。
+            </p>
           </div>
 
           <div
@@ -467,43 +324,7 @@
             <Switch
               id="mapping-auth"
               v-model="mappingForm.use_auth"
-              :disabled="mappingForm.service_role === 'auth'"
-            />
-          </div>
-
-          <div
-            class="flex items-center justify-between rounded-lg border px-4 py-3"
-          >
-            <div class="space-y-1">
-              <Label for="mapping-preserve-host">保留原始 Host</Label>
-              <p class="text-xs text-muted-foreground">
-                推荐保持开启，让上游服务感知真实业务域名。
-              </p>
-            </div>
-            <Switch
-              id="mapping-preserve-host"
-              v-model="mappingForm.preserve_host"
-            />
-          </div>
-
-          <div
-            class="flex items-center justify-between rounded-lg border px-4 py-3"
-          >
-            <div class="space-y-1">
-              <Label for="mapping-access-mode">严格白名单</Label>
-              <p class="text-xs text-muted-foreground">
-                开启后，未在白名单中的来源 IP 会被网关直接拦截，不再跳转到登录页。
-              </p>
-            </div>
-            <Switch
-              id="mapping-access-mode"
-              :model-value="mappingForm.access_mode === 'strict_whitelist'"
-              :disabled="mappingForm.service_role === 'auth'"
-              @update:model-value="
-                mappingForm.access_mode = $event
-                  ? 'strict_whitelist'
-                  : 'login_first'
-              "
+              :disabled="isMappingAuthService"
             />
           </div>
         </div>
@@ -514,6 +335,34 @@
             @click="saveMapping"
           >
             保存映射
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog
+      :open="isDeleteDialogOpen"
+      @update:open="handleDeleteDialogOpenChange"
+    >
+      <DialogContent class="sm:max-w-[440px]">
+        <DialogHeader>
+          <DialogTitle>{{ deleteDialogTitle }}</DialogTitle>
+          <DialogDescription>
+            {{ deleteDialogDescription }}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" @click="closeDeleteDialog">取消</Button>
+          <Button
+            variant="destructive"
+            :disabled="isSavingMappings"
+            @click="confirmDelete"
+          >
+            <span
+              v-if="isSavingMappings"
+              class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+            ></span>
+            {{ deleteDialogConfirmLabel }}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -650,7 +499,8 @@
           <span class="text-sm text-muted-foreground">
             <template v-if="discoveredData">
               已扫描 {{ discoveredData.totalPortsScanned }} 个端口，选中
-              {{ selectedServices.length }} / {{ discoveredData.services.length }}
+              {{ selectedServices.length }} /
+              {{ discoveredData.services.length }}
               项
             </template>
           </span>
@@ -678,7 +528,14 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
-import { ChevronDown, Plus, RefreshCw, Search } from "lucide-vue-next";
+import {
+  ChevronDown,
+  Plus,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Trash2,
+} from "lucide-vue-next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -704,15 +561,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import ConfigCollapsibleCard from "@admin-shared/components/ConfigCollapsibleCard.vue";
 import SearchInput from "@admin-shared/components/SearchInput.vue";
 import {
@@ -748,6 +597,16 @@ type DiscoveredHostService = DiscoveredServiceInfo & {
 type DiscoveredHostResponse = Omit<ScanDiscoverResponse, "services"> & {
   services: DiscoveredHostService[];
 };
+
+type DeleteDialogState =
+  | {
+      kind: "auth_service";
+      host: string;
+    }
+  | {
+      kind: "mapping";
+      host: string;
+    };
 
 const configStore = useConfigStore();
 
@@ -808,6 +667,30 @@ const buildSuggestedSubdomain = (service: DiscoveredServiceInfo): string => {
   return `app-${service.port}`;
 };
 
+const parseTargetPort = (target: string): number | null => {
+  const normalizedTarget = target.trim();
+  if (!normalizedTarget) return null;
+
+  const explicitPort = extractPortFromTarget(normalizedTarget);
+  if (
+    explicitPort !== null &&
+    Number.isFinite(explicitPort) &&
+    explicitPort > 0
+  ) {
+    return explicitPort;
+  }
+
+  try {
+    const parsed = new URL(normalizedTarget);
+    if (parsed.protocol === "https:") return 443;
+    if (parsed.protocol === "http:") return 80;
+  } catch {
+    // ignore
+  }
+
+  return null;
+};
+
 const createDefaultModeForm = (): SubdomainModeConfig => ({
   root_domain: "",
   auth_host: "",
@@ -820,17 +703,21 @@ const createDefaultModeForm = (): SubdomainModeConfig => ({
   passkey_rp_id: "",
 });
 
+const DEFAULT_AUTH_SUBDOMAIN = "auth";
+const DEFAULT_ACCESS_MODE: HostMapping["access_mode"] = "login_first";
+
 const createDefaultMapping = (): HostMapping => ({
   host: "",
   target: "",
   use_auth: true,
-  access_mode: "login_first",
+  access_mode: DEFAULT_ACCESS_MODE,
   preserve_host: true,
   service_role: "app",
 });
 
 const searchQuery = ref("");
 const isDialogOpen = ref(false);
+const deleteDialogState = ref<DeleteDialogState | null>(null);
 const editingHost = ref<string | null>(null);
 const mappingInputMode = ref<MappingInputMode>("subdomain");
 const mappingSubdomain = ref("");
@@ -840,6 +727,11 @@ const mappingForm = reactive<HostMapping>(createDefaultMapping());
 const currentModeConfig = computed(
   () => configStore.config?.subdomain_mode ?? createDefaultModeForm(),
 );
+const authServicePort = computed(
+  () => parseTargetPort(currentModeConfig.value.auth_target) ?? 7997,
+);
+const isAuthServiceTarget = (target: string): boolean =>
+  parseTargetPort(target) === authServicePort.value;
 const savedRootDomain = computed(() =>
   normalizeRootDomainValue(currentModeConfig.value.root_domain),
 );
@@ -866,65 +758,68 @@ const existingMappingPorts = computed(() => {
   return ports;
 });
 const authServiceMapping = computed(
-  () => allMappings.value.find((mapping) => mapping.service_role === "auth") ?? null,
+  () =>
+    allMappings.value.find((mapping) => isAuthServiceTarget(mapping.target)) ??
+    null,
+);
+const discoverButtonVariant = computed(() =>
+  authServiceMapping.value ? "default" : "secondary",
+);
+const discoverButtonDividerClass = computed(() =>
+  authServiceMapping.value
+    ? "border-primary-foreground/20"
+    : "border-border/70",
 );
 const isSubdomainModeConfigured = computed(() => {
   const config = currentModeConfig.value;
   return Boolean(
     savedRootDomain.value ||
-      normalizeHostLike(config.auth_host) ||
-      config.cookie_domain.trim() ||
-      config.public_auth_base_url.trim() ||
-      authServiceMapping.value,
+    normalizeHostLike(config.auth_host) ||
+    authServiceMapping.value,
   );
 });
-const passkeyRpModeLabel = computed(() =>
-  modeForm.passkey_rp_mode === "parent_domain" ? "父域" : "鉴权域名",
+const isMappingAuthService = computed(() =>
+  isAuthServiceTarget(mappingForm.target),
 );
-const effectivePasskeyRpId = computed(() => {
-  if (modeForm.passkey_rp_mode === "parent_domain") {
-    return normalizeHostLike((modeForm.passkey_rp_id || "") || modeForm.root_domain);
+const isDeleteDialogOpen = computed(() => deleteDialogState.value !== null);
+const deleteDialogTitle = computed(() =>
+  deleteDialogState.value?.kind === "auth_service"
+    ? "确认删除鉴权服务？"
+    : "确认删除 Host 映射？",
+);
+const deleteDialogDescription = computed(() => {
+  const target = deleteDialogState.value;
+  if (!target) return "";
+
+  if (target.kind === "auth_service") {
+    return `将删除 ${target.host} 对应的鉴权映射。删除后需要重新添加鉴权服务`;
   }
 
-  return normalizeHostLike(authServiceMapping.value?.host || modeForm.auth_host);
+  return `您即将删除 Host 映射 ${target.host}，此操作不可逆转。`;
 });
-const passkeyRpHint = computed(() => {
-  if (modeForm.passkey_rp_mode !== "parent_domain") {
-    return effectivePasskeyRpId.value
-      ? `当前会跟随鉴权服务域名 ${effectivePasskeyRpId.value}。`
-      : "保存鉴权服务后，Passkey RP ID 会自动跟随该域名。";
-  }
-
-  if ((modeForm.passkey_rp_id || "").trim()) {
-    return `当前父域 RP ID 为 ${normalizeHostLike(modeForm.passkey_rp_id || "")}。`;
-  }
-
-  if (modeForm.root_domain.trim()) {
-    return `未单独填写时，会回退到根域名 ${normalizeRootDomainValue(modeForm.root_domain)}。`;
-  }
-
-  return "启用父域 RP 时，请填写一个父域 RP ID，或先设置根域名。";
-});
-const existingAuthServiceOtherThanCurrent = computed(() => {
-  const authMapping = authServiceMapping.value;
-  if (!authMapping) return null;
-  if (editingHost.value && authMapping.host === editingHost.value) return null;
-  return authMapping;
-});
-const showAuthServiceToggle = computed(
-  () => existingAuthServiceOtherThanCurrent.value === null,
+const deleteDialogConfirmLabel = computed(() =>
+  deleteDialogState.value?.kind === "auth_service"
+    ? "删除鉴权服务"
+    : "删除映射",
 );
 const composedPreviewHost = computed(() => {
   if (mappingInputMode.value === "full_host") {
     return normalizeHostLike(mappingSubdomain.value) || "";
   }
-  return composeHostFromSubdomain(mappingSubdomain.value, savedRootDomain.value);
+  return composeHostFromSubdomain(
+    mappingSubdomain.value,
+    savedRootDomain.value,
+  );
 });
 
 const filteredMappings = computed(() => {
   const query = searchQuery.value.trim().toLowerCase();
-  if (!query) return allMappings.value;
-  return allMappings.value.filter(
+  const visibleMappings = allMappings.value.filter(
+    (mapping) => !isAuthServiceTarget(mapping.target),
+  );
+
+  if (!query) return visibleMappings;
+  return visibleMappings.filter(
     (mapping) =>
       mapping.host.toLowerCase().includes(query) ||
       mapping.target.toLowerCase().includes(query),
@@ -1053,9 +948,11 @@ const {
   setDiscoveredData,
   openDialog: openDiscoverDialogState,
   closeDialog: closeDiscoverDialog,
-} = useDiscoverServicesSelection<DiscoveredHostService, DiscoveredHostResponse>({
-  getPath: (service) => service.suggestedSubdomain,
-});
+} = useDiscoverServicesSelection<DiscoveredHostService, DiscoveredHostResponse>(
+  {
+    getPath: (service) => service.suggestedSubdomain,
+  },
+);
 
 onMounted(async () => {
   if (!configStore.config) {
@@ -1109,10 +1006,7 @@ function openCreateDialog() {
   editingHost.value = null;
   mappingInputMode.value = "subdomain";
   mappingSubdomain.value = "";
-  Object.assign(mappingForm, {
-    ...createDefaultMapping(),
-    access_mode: currentModeConfig.value.default_access_mode,
-  });
+  Object.assign(mappingForm, createDefaultMapping());
   isDialogOpen.value = true;
 }
 
@@ -1132,15 +1026,6 @@ function openEditDialog(mapping: HostMapping) {
   isDialogOpen.value = true;
 }
 
-function setMappingAuthServiceRole(nextValue: boolean) {
-  mappingForm.service_role = nextValue ? "auth" : "app";
-  if (nextValue) {
-    mappingForm.use_auth = false;
-    mappingForm.access_mode = "login_first";
-    mappingForm.target = resolveDefaultAuthServiceTarget();
-  }
-}
-
 function closeDialog() {
   isDialogOpen.value = false;
   editingHost.value = null;
@@ -1149,14 +1034,24 @@ function closeDialog() {
   Object.assign(mappingForm, createDefaultMapping());
 }
 
+function closeDeleteDialog() {
+  deleteDialogState.value = null;
+}
+
 function handleDialogOpenChange(nextOpen: boolean) {
   if (!nextOpen) {
     closeDialog();
   }
 }
 
+function handleDeleteDialogOpenChange(nextOpen: boolean) {
+  if (!nextOpen) {
+    closeDeleteDialog();
+  }
+}
+
 function normalizeMapping(input: HostMapping): HostMapping {
-  const serviceRole = input.service_role === "auth" ? "auth" : "app";
+  const serviceRole = isAuthServiceTarget(input.target.trim()) ? "auth" : "app";
   const host =
     mappingInputMode.value === "full_host"
       ? normalizeHostLike(mappingSubdomain.value)
@@ -1166,10 +1061,109 @@ function normalizeMapping(input: HostMapping): HostMapping {
     host,
     target: input.target.trim(),
     use_auth: serviceRole === "auth" ? false : input.use_auth,
-    access_mode: serviceRole === "auth" ? "login_first" : input.access_mode,
-    preserve_host: input.preserve_host,
+    access_mode: DEFAULT_ACCESS_MODE,
+    preserve_host: true,
     service_role: serviceRole,
   };
+}
+
+async function addAuthService() {
+  if (!canManageNewMappings.value) {
+    toast.error("暂时无法添加鉴权服务", {
+      description: !savedRootDomain.value
+        ? "请先保存根域名配置。"
+        : "根域名有未保存修改，请先保存后再添加鉴权服务。",
+    });
+    return;
+  }
+
+  if (authServiceMapping.value) {
+    toast.error("鉴权服务已存在", {
+      description: `当前已配置 ${authServiceMapping.value.host} 作为鉴权服务。`,
+    });
+    return;
+  }
+
+  const host = composeHostFromSubdomain(
+    DEFAULT_AUTH_SUBDOMAIN,
+    savedRootDomain.value,
+  );
+  const target = resolveDefaultAuthServiceTarget();
+
+  if (!host) {
+    toast.error("默认鉴权服务生成失败", {
+      description: "请先确认根域名已正确保存。",
+    });
+    return;
+  }
+
+  const duplicateHost = allMappings.value.find((item) => item.host === host);
+  if (duplicateHost) {
+    toast.error("默认鉴权子域已存在", {
+      description: `${host} 已存在，请将该映射的 Target 调整到鉴权端口。`,
+    });
+    return;
+  }
+
+  await runSaveMappings(async () => {
+    await configStore.saveHostMappings([
+      ...allMappings.value,
+      {
+        host,
+        target,
+        use_auth: false,
+        access_mode: DEFAULT_ACCESS_MODE,
+        preserve_host: true,
+        service_role: "auth",
+      },
+    ]);
+
+    toast.success("鉴权服务已添加", {
+      description: `${host} -> ${target}`,
+    });
+  });
+}
+
+function openDeleteAuthServiceDialog() {
+  if (!authServiceMapping.value) {
+    toast.error("当前没有鉴权服务");
+    return;
+  }
+
+  deleteDialogState.value = {
+    kind: "auth_service",
+    host: authServiceMapping.value.host,
+  };
+}
+
+function openDeleteMappingDialog(host: string) {
+  deleteDialogState.value = {
+    kind: "mapping",
+    host,
+  };
+}
+
+async function removeAuthService(): Promise<boolean> {
+  if (!authServiceMapping.value) {
+    toast.error("当前没有鉴权服务");
+    return false;
+  }
+
+  const authHost = authServiceMapping.value.host;
+
+  const removed = await runSaveMappings(async () => {
+    await configStore.saveHostMappings(
+      allMappings.value.filter((item) => !isAuthServiceTarget(item.target)),
+    );
+
+    toast.success("鉴权服务已删除", {
+      description: authHost,
+    });
+
+    return true;
+  });
+
+  return removed === true;
 }
 
 async function saveMapping() {
@@ -1187,7 +1181,8 @@ async function saveMapping() {
   }
 
   const duplicateAuthService = allMappings.value.find(
-    (item) => item.service_role === "auth" && item.host !== editingHost.value,
+    (item) =>
+      isAuthServiceTarget(item.target) && item.host !== editingHost.value,
   );
   if (normalized.service_role === "auth" && duplicateAuthService) {
     toast.error("鉴权服务已存在", {
@@ -1214,16 +1209,34 @@ async function saveMapping() {
   });
 }
 
-async function removeMapping(host: string) {
+async function removeMapping(host: string): Promise<boolean> {
   const target = allMappings.value.find((item) => item.host === host);
-  if (!target) return;
+  if (!target) return false;
 
-  await runSaveMappings(async () => {
+  const removed = await runSaveMappings(async () => {
     await configStore.saveHostMappings(
       allMappings.value.filter((item) => item.host !== host),
     );
     toast.success("Host 映射已删除");
+
+    return true;
   });
+
+  return removed === true;
+}
+
+async function confirmDelete() {
+  const target = deleteDialogState.value;
+  if (!target) return;
+
+  const removed =
+    target.kind === "auth_service"
+      ? await removeAuthService()
+      : await removeMapping(target.host);
+
+  if (removed) {
+    closeDeleteDialog();
+  }
 }
 
 const onToggleAllDiscoverSelect = (event: Event) => {
@@ -1329,7 +1342,7 @@ async function saveDiscoveredServices() {
         ),
         target: `http://127.0.0.1:${service.port}/`,
         use_auth: service.detail.rule.use_auth,
-        access_mode: currentModeConfig.value.default_access_mode,
+        access_mode: DEFAULT_ACCESS_MODE,
         preserve_host: true,
         service_role: "app",
       });

@@ -17,6 +17,7 @@ import {
   buildSubdomainCertificateInventoryCoverage,
   getAuthHostMapping,
 } from "../lib/subdomain-mode";
+import { isAuthServiceTarget } from "../lib/auth-service";
 import { syncSSLDeploymentToGateway } from "../lib/ssl-gateway";
 
 const parseIntSafe = (value: string | undefined, fallback: number) => {
@@ -31,24 +32,24 @@ const clamp = (value: number, min: number, max: number) =>
 const validateHostMappings = (
   mappings: Array<{
     host: string;
+    target: string;
     use_auth: boolean;
     access_mode: "login_first" | "strict_whitelist";
     service_role?: "app" | "auth";
   }>,
 ) => {
-  const authMappings = mappings.filter(
-    (mapping) => mapping.service_role === "auth",
+  const authMappings = mappings.filter((mapping) =>
+    isAuthServiceTarget(mapping.target),
   );
   if (authMappings.length > 1) {
     return {
       valid: false as const,
-      message: "只能有一个 Host 映射被标记为鉴权服务",
+      message: "只能有一个 Host 映射指向 AUTH_PORT 作为鉴权服务",
     };
   }
 
   const invalidAuthMapping = authMappings.find(
-    (mapping) =>
-      mapping.use_auth || mapping.access_mode === "strict_whitelist",
+    (mapping) => mapping.use_auth || mapping.access_mode === "strict_whitelist",
   );
   if (invalidAuthMapping) {
     return {
@@ -68,7 +69,9 @@ const normalizeHostLike = (value: string | undefined | null): string =>
     .replace(/\/.*$/, "")
     .replace(/\.+$/, "");
 
-const validatePasskeyRpConfig = (config: Awaited<ReturnType<typeof configManager.getConfig>>) => {
+const validatePasskeyRpConfig = (
+  config: Awaited<ReturnType<typeof configManager.getConfig>>,
+) => {
   const mode =
     config.subdomain_mode?.passkey_rp_mode === "parent_domain"
       ? "parent_domain"
@@ -307,9 +310,9 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         ...config,
         host_mappings: body.mappings.map((mapping) => ({
           ...mapping,
-          service_role: (mapping.service_role === "auth" ? "auth" : "app") as
-            | "auth"
-            | "app",
+          service_role: (isAuthServiceTarget(mapping.target)
+            ? "auth"
+            : "app") as "auth" | "app",
         })),
       };
       const passkeyValidation = validatePasskeyRpConfig(nextConfig);
@@ -397,14 +400,12 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         deploymentMode: sslStatus.deploymentMode,
       });
 
-      let sslAutoSelection:
-        | {
-            applied: boolean;
-            certificate_id?: string;
-            label?: string;
-            message: string;
-          }
-        | null = null;
+      let sslAutoSelection: {
+        applied: boolean;
+        certificate_id?: string;
+        label?: string;
+        message: string;
+      } | null = null;
 
       if (
         inventoryCoverage.can_auto_activate &&
@@ -433,7 +434,8 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
               certificate_id: candidate.id,
               label: candidate.label,
               message:
-                error?.message || "已找到推荐证书，但同步到网关失败，未自动切换。",
+                error?.message ||
+                "已找到推荐证书，但同步到网关失败，未自动切换。",
             };
           }
         }

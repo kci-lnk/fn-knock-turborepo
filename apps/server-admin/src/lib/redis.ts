@@ -14,6 +14,7 @@ import {
   RedisLogBuffer,
 } from "./redis-log-buffer";
 import { collectStreamOutput, fileExists, waitForProcessExit } from "./runtime";
+import { isAuthServiceTarget } from "./auth-service";
 
 const REDIS_CONFIG = {
   host: process.env.REDIS_HOST || "127.0.0.1",
@@ -487,11 +488,14 @@ const normalizeHostMapping = (
   value?: Partial<HostMapping> | null,
 ): HostMapping => {
   const raw = value ?? {};
-  const serviceRole = normalizeHostServiceRole(raw.service_role);
+  const target = typeof raw.target === "string" ? raw.target.trim() : "";
+  const serviceRole = isAuthServiceTarget(target)
+    ? "auth"
+    : normalizeHostServiceRole(raw.service_role);
 
   return {
     host: normalizeHost(raw.host),
-    target: typeof raw.target === "string" ? raw.target.trim() : "",
+    target,
     use_auth: serviceRole === "auth" ? false : raw.use_auth !== false,
     access_mode:
       serviceRole === "auth"

@@ -1,5 +1,10 @@
 import type { AuthConfig } from "./go-backend";
 import type { AppConfig, HostMapping } from "./redis";
+import {
+  isAuthServiceMapping,
+  parseTargetPort,
+  resolveAuthServicePort,
+} from "./auth-service";
 
 const trimTrailingSlash = (value: string): string => value.replace(/\/+$/, "");
 
@@ -29,22 +34,6 @@ const resolveForwardedHost = (request: Request): string => {
   } catch {
     return request.headers.get("host")?.trim() || "";
   }
-};
-
-const parseInternalPortFromTarget = (target: string): number | null => {
-  try {
-    const parsed = new URL(target);
-    const port = Number.parseInt(parsed.port, 10);
-    if (Number.isFinite(port) && port > 0) {
-      return port;
-    }
-    if (parsed.protocol === "https:") return 443;
-    if (parsed.protocol === "http:") return 80;
-  } catch {
-    // ignore and fallback below
-  }
-
-  return null;
 };
 
 const resolveDefaultPublicGatewayPort = (): number | null => {
@@ -101,7 +90,11 @@ const doesPatternCoverConcreteHost = (
 ): boolean => {
   const normalizedHost = normalizeDomainName(concreteHost);
   const normalizedPattern = normalizeDomainName(pattern);
-  if (!normalizedHost || !normalizedPattern || isWildcardDomain(normalizedHost)) {
+  if (
+    !normalizedHost ||
+    !normalizedPattern ||
+    isWildcardDomain(normalizedHost)
+  ) {
     return false;
   }
 
@@ -179,8 +172,8 @@ export type SubdomainCertificateInventoryCoverage = {
 export const getAuthHostMapping = (
   config: Pick<AppConfig, "host_mappings">,
 ): HostMapping | null => {
-  const authMapping = config.host_mappings.find(
-    (mapping) => mapping.service_role === "auth",
+  const authMapping = config.host_mappings.find((mapping) =>
+    isAuthServiceMapping(mapping),
   );
   return authMapping || null;
 };
@@ -221,9 +214,13 @@ export const buildSubdomainCertificateRecommendation = (
     mode = "single_host";
     recommendedDomains = [authHost];
     summary = `尚未配置根域名，当前仅能推荐为鉴权服务 ${authHost} 申请单域名证书。`;
-    warnings.push("如果后续要统一覆盖多个业务子域，建议先补充根域名后再申请 wildcard 证书。");
+    warnings.push(
+      "如果后续要统一覆盖多个业务子域，建议先补充根域名后再申请 wildcard 证书。",
+    );
   } else {
-    warnings.push("请先在子域模式里配置根域名，或在 Host 映射中指定一条鉴权服务。");
+    warnings.push(
+      "请先在子域模式里配置根域名，或在 Host 映射中指定一条鉴权服务。",
+    );
   }
 
   if (!authHost) {
@@ -234,7 +231,8 @@ export const buildSubdomainCertificateRecommendation = (
     isRequirementCoveredByCertificateDomains(host, recommendedDomains),
   );
   const uncoveredHosts = allHosts.filter(
-    (host) => !isRequirementCoveredByCertificateDomains(host, recommendedDomains),
+    (host) =>
+      !isRequirementCoveredByCertificateDomains(host, recommendedDomains),
   );
 
   if (uncoveredHosts.length > 0 && recommendedDomains.length > 0) {
@@ -278,7 +276,10 @@ export const buildSubdomainCertificateCoverage = ({
       : recommendation.recommended_domains;
   const coveredRecommendedDomains = recommendation.recommended_domains.filter(
     (domain) =>
-      isRequirementCoveredByCertificateDomains(domain, currentCertificateDomains),
+      isRequirementCoveredByCertificateDomains(
+        domain,
+        currentCertificateDomains,
+      ),
   );
   const uncoveredRecommendedDomains = recommendation.recommended_domains.filter(
     (domain) =>
@@ -292,11 +293,17 @@ export const buildSubdomainCertificateCoverage = ({
   );
   const uncoveredHosts = allHosts.filter(
     (host) =>
-      !isRequirementCoveredByCertificateDomains(host, currentCertificateDomains),
+      !isRequirementCoveredByCertificateDomains(
+        host,
+        currentCertificateDomains,
+      ),
   );
   const authHost = recommendation.auth_host;
   const coversAuthHost = authHost
-    ? isRequirementCoveredByCertificateDomains(authHost, currentCertificateDomains)
+    ? isRequirementCoveredByCertificateDomains(
+        authHost,
+        currentCertificateDomains,
+      )
     : false;
   const coveredRequirements = effectiveRequirements.filter((requirement) =>
     isRequirementCoveredByCertificateDomains(
@@ -523,7 +530,9 @@ export const buildSubdomainCertificateInventoryCoverage = ({
     deployment_mode: deploymentMode,
     active_certificate_id: activeAnalysis?.id,
     fully_covering_certificate_ids: fullyCovering.map((item) => item.id),
-    partially_covering_certificate_ids: partiallyCovering.map((item) => item.id),
+    partially_covering_certificate_ids: partiallyCovering.map(
+      (item) => item.id,
+    ),
     combined_covering_certificate_ids: combinedCoveringCertificateIds,
     suggested_certificate_id:
       activeAnalysis?.coverage.status === "ready" || fullyCovering.length !== 1
@@ -568,12 +577,14 @@ export const resolveCookieDomain = (
 export const buildGatewayAuthConfig = (
   config: Pick<AppConfig, "subdomain_mode" | "host_mappings">,
 ): AuthConfig => {
-  const defaultAuthPort = Number.parseInt(process.env.AUTH_PORT || "7997", 10);
+  const defaultAuthPort = resolveAuthServicePort();
   const authMapping = getAuthHostMapping(config);
   const authTarget =
-    authMapping?.target?.trim() || config.subdomain_mode?.auth_target?.trim() || "";
+    authMapping?.target?.trim() ||
+    config.subdomain_mode?.auth_target?.trim() ||
+    "";
   const authPort =
-    parseInternalPortFromTarget(authTarget) ??
+    parseTargetPort(authTarget) ??
     (Number.isFinite(defaultAuthPort) && defaultAuthPort > 0
       ? defaultAuthPort
       : 7997);

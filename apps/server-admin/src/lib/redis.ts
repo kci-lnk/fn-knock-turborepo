@@ -59,6 +59,8 @@ export interface SubdomainModeConfig {
   auth_target: string;
   cookie_domain: string;
   public_auth_base_url: string;
+  public_http_port?: number;
+  public_https_port?: number;
   default_access_mode: HostAccessMode;
   auto_add_whitelist_on_login: boolean;
   passkey_rp_mode: PasskeyRpMode;
@@ -217,6 +219,8 @@ const DEFAULT_CONFIG: AppConfig = {
     auth_target: `http://localhost:${process.env.AUTH_PORT || "7997"}`,
     cookie_domain: "",
     public_auth_base_url: "",
+    public_http_port: 0,
+    public_https_port: 0,
     default_access_mode: "login_first",
     auto_add_whitelist_on_login: true,
     passkey_rp_mode: "auth_host",
@@ -522,6 +526,14 @@ const normalizeSubdomainModeConfig = (
   value?: Partial<SubdomainModeConfig> | null,
 ): SubdomainModeConfig => {
   const raw = value ?? {};
+  const normalizePublicPort = (input: unknown): number => {
+    const port =
+      typeof input === "number"
+        ? input
+        : Number.parseInt(String(input ?? ""), 10);
+    if (!Number.isFinite(port) || port <= 0) return 0;
+    return Math.floor(port);
+  };
 
   return {
     root_domain:
@@ -539,6 +551,8 @@ const normalizeSubdomainModeConfig = (
       typeof raw.public_auth_base_url === "string"
         ? raw.public_auth_base_url.trim().replace(/\/+$/, "")
         : "",
+    public_http_port: normalizePublicPort(raw.public_http_port),
+    public_https_port: normalizePublicPort(raw.public_https_port),
     default_access_mode: normalizeHostAccessMode(raw.default_access_mode),
     auto_add_whitelist_on_login: raw.auto_add_whitelist_on_login !== false,
     passkey_rp_mode:

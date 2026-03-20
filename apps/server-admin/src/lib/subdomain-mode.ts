@@ -42,6 +42,24 @@ const resolveDefaultPublicGatewayPort = (): number | null => {
   return parsed;
 };
 
+const parseExplicitUrlPort = (
+  rawUrl: string,
+  scheme: "http" | "https",
+): number | null => {
+  const normalized = rawUrl.trim();
+  if (!normalized) return null;
+
+  try {
+    const parsed = new URL(normalized);
+    if (parsed.protocol !== `${scheme}:` || !parsed.port) return null;
+    const port = Number.parseInt(parsed.port, 10);
+    if (!Number.isFinite(port) || port <= 0) return null;
+    return port;
+  } catch {
+    return null;
+  }
+};
+
 const formatDerivedPublicAuthBaseUrl = (
   host: string,
   scheme: "http" | "https" = "https",
@@ -579,6 +597,21 @@ export const buildGatewayAuthConfig = (
 ): AuthConfig => {
   const defaultAuthPort = resolveAuthServicePort();
   const authMapping = getAuthHostMapping(config);
+  const configuredPublicHttpPort =
+    typeof config.subdomain_mode?.public_http_port === "number" &&
+    Number.isFinite(config.subdomain_mode.public_http_port) &&
+    config.subdomain_mode.public_http_port > 0
+      ? config.subdomain_mode.public_http_port
+      : undefined;
+  const configuredPublicHttpsPort =
+    typeof config.subdomain_mode?.public_https_port === "number" &&
+    Number.isFinite(config.subdomain_mode.public_https_port) &&
+    config.subdomain_mode.public_https_port > 0
+      ? config.subdomain_mode.public_https_port
+      : undefined;
+  const explicitPublicAuthBaseUrl = trimTrailingSlash(
+    config.subdomain_mode?.public_auth_base_url?.trim() || "",
+  );
   const authTarget =
     authMapping?.target?.trim() ||
     config.subdomain_mode?.auth_target?.trim() ||
@@ -588,7 +621,14 @@ export const buildGatewayAuthConfig = (
     (Number.isFinite(defaultAuthPort) && defaultAuthPort > 0
       ? defaultAuthPort
       : 7997);
-  const publicAuthBaseUrl = resolvePublicAuthBaseUrl(config);
+  const publicAuthBaseUrl =
+    explicitPublicAuthBaseUrl || resolvePublicAuthBaseUrl(config);
+  const publicHttpsPort =
+    configuredPublicHttpsPort ??
+    parseExplicitUrlPort(publicAuthBaseUrl, "https") ??
+    (!explicitPublicAuthBaseUrl
+      ? (resolveDefaultPublicGatewayPort() ?? undefined)
+      : undefined);
   const authHost =
     authMapping?.host?.trim() || config.subdomain_mode?.auth_host?.trim() || "";
 
@@ -599,6 +639,8 @@ export const buildGatewayAuthConfig = (
     logout_url: "/api/auth/logout",
     preflight_url: "/api/auth/preflight",
     public_auth_base_url: publicAuthBaseUrl || undefined,
+    public_http_port: configuredPublicHttpPort,
+    public_https_port: publicHttpsPort,
     auth_host: authHost || undefined,
   };
 };

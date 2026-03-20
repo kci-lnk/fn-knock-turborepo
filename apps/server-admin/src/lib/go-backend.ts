@@ -14,6 +14,8 @@ export interface AuthConfig {
   preflight_url?: string;
   auth_cache_expire?: number;
   public_auth_base_url?: string;
+  public_http_port?: number;
+  public_https_port?: number;
   auth_host?: string;
 }
 
@@ -162,6 +164,11 @@ export interface IptablesInitRequest {
 
 export interface IpRequest {
   ip: string;
+}
+
+export interface TcpRedirectRequest {
+  listen_port: number;
+  target_port: number;
 }
 
 export class GoBackendService {
@@ -444,6 +451,26 @@ export class GoBackendService {
 
   async cleanIptables(): Promise<GoResponse> {
     return this.request("/api/iptables/clean", "POST");
+  }
+
+  async ensureTCPRedirect(
+    listenPort: number,
+    targetPort: number,
+  ): Promise<GoResponse> {
+    return this.request("/api/iptables/tcp-redirect", "POST", {
+      listen_port: listenPort,
+      target_port: targetPort,
+    } satisfies TcpRedirectRequest);
+  }
+
+  async clearTCPRedirect(
+    listenPort: number,
+    targetPort: number,
+  ): Promise<GoResponse> {
+    return this.request("/api/iptables/tcp-redirect", "DELETE", {
+      listen_port: listenPort,
+      target_port: targetPort,
+    } satisfies TcpRedirectRequest);
   }
 
   async allowIP(ip: string): Promise<GoResponse> {

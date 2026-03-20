@@ -475,6 +475,8 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         auth_target: t.Optional(t.String()),
         cookie_domain: t.Optional(t.String()),
         public_auth_base_url: t.Optional(t.String()),
+        public_http_port: t.Optional(t.Number()),
+        public_https_port: t.Optional(t.Number()),
         default_access_mode: t.Optional(
           t.Union([t.Literal("login_first"), t.Literal("strict_whitelist")]),
         ),

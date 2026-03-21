@@ -5,6 +5,7 @@ import { mkdir, open, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { v4 as uuidv4 } from "uuid";
 import { dataPath } from "./AppDirManager";
+import { homedir } from "node:os";
 import { configManager } from "./redis";
 import { collectStreamOutput, sleep, waitForProcessExit } from "./runtime";
 import { terminalStore } from "./terminal-store";
@@ -22,6 +23,8 @@ import {
   normalizeTerminalAttachmentRecord,
   normalizeTerminalSessionRecord,
 } from "./terminal-shared";
+
+const DEFAULT_CWD = homedir();
 
 const DEFAULT_SHELL = process.env.SHELL || "/bin/sh";
 const TMUX_TARGET_PANE_SUFFIX = ":0.0";
@@ -460,12 +463,20 @@ class TerminalManager {
   }
 
   private async resolveCwd(cwd?: string): Promise<string> {
-    const config = await this.getFeatureConfig();
-    const nextCwd = (cwd || config.default_cwd).trim();
-    if (!nextCwd) return config.default_cwd;
-    await this.ensureDirectoryExists(nextCwd);
-    return nextCwd;
-  }
+  const config = await this.getFeatureConfig();
+  const configuredCwd = (config.default_cwd || "").trim();
+  const nextCwd = (cwd || configuredCwd).trim();
+
+  const resolvedCwd =
+    !nextCwd || nextCwd === "~"
+      ? DEFAULT_CWD
+      : nextCwd.startsWith("~/")
+        ? join(DEFAULT_CWD, nextCwd.slice(2))
+        : nextCwd;
+
+  await this.ensureDirectoryExists(resolvedCwd);
+  return resolvedCwd;
+}
 
   private async refreshSessionExpiry(
     session: TerminalSessionRecord,

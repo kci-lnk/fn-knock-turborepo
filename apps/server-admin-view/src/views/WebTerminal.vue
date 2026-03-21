@@ -1403,7 +1403,7 @@ onBeforeUnmount(() => {
               :title="terminalWindowSubtitle"
             >
               <div
-                class="relative flex h-[31px] shrink-0 items-center border-b border-black/28 bg-[linear-gradient(180deg,rgba(58,58,61,0.94)_0%,rgba(45,45,48,0.94)_100%)] px-3 backdrop-blur-xl"
+                class="relative flex h-[31px] shrink-0 items-center border-b border-black/28 bg-[linear-gradient(180deg,rgba(58,58,61,0.94)_0%,rgba(45,45,48,0.94)_100%)] px-3 backdrop-blur-xl rounded-t-[18px]"
               >
                 <div
                   class="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/10"

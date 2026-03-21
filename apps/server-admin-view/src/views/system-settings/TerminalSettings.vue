@@ -17,7 +17,6 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import {
-  ShieldAlert,
   TerminalSquare,
   TriangleAlert,
 } from "lucide-vue-next";
@@ -53,7 +52,7 @@ const form = reactive<TerminalFeatureConfig>({
 const createEmptyTmuxInstallState = (): TerminalTmuxInstallState => ({
   status: "uninstalled",
   progress: 0,
-  message: "未检测到 tmux，请先安装 Debian tmux 环境",
+  message: "未检测到 tmux，请先安装 tmux 环境",
   executablePath: "",
   detectionSource: null,
   version: "",
@@ -113,7 +112,7 @@ const tmuxStatusVariant = computed(() => {
 });
 const showBlockedAlert = computed(() => {
   const reason = runtimeStatus.value?.blockedReason?.trim() || "";
-  return Boolean(reason) && reason !== "网页终端功能尚未启用";
+  return Boolean(reason) && reason !== "Web终端功能尚未启用";
 });
 const isDirty = computed(() => {
   if (!settings.value) return false;
@@ -263,20 +262,6 @@ onMounted(loadSettings);
           }}</AlertDescription>
         </Alert>
 
-        <Alert
-          v-else-if="
-            runtimeStatus?.runningAsRoot && form.dangerously_run_as_current_user
-          "
-          class="border-amber-500/30 bg-amber-50 text-amber-950"
-        >
-          <ShieldAlert class="h-4 w-4" />
-          <AlertTitle>当前进程以 root 运行</AlertTitle>
-          <AlertDescription>
-            当前默认配置会让 Web 终端继承当前进程用户权限。由于后台是 root，
-            启用后终端也会拥有 root 权限，请确认这是你期望的行为。
-          </AlertDescription>
-        </Alert>
-
         <div class="grid gap-4 md:grid-cols-1">
           <div class="rounded-lg border bg-muted/20 p-4">
             <div class="mb-2 flex items-center gap-2 text-sm font-medium">
@@ -303,9 +288,7 @@ onMounted(loadSettings);
             <div class="space-y-1">
               <div class="text-sm font-medium">安装 tmux</div>
               <p class="text-sm text-muted-foreground">
-                检测到当前 Debian 环境未就绪时，可直接执行
-                <code>apt-get update</code> 与
-                <code>apt-get install -y tmux</code> 完成安装。
+                检测到当前环境未安装 tmux，无法使用 Web 终端功能。请点击下方按钮安装 tmux，安装过程中请勿关闭应用或刷新页面。安装完成后会自动刷新状态。
               </p>
             </div>
             <Badge :variant="tmuxStatusVariant">{{ tmuxStatusLabel }}</Badge>

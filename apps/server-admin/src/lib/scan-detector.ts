@@ -60,10 +60,21 @@ class ScanDetector {
 
     if (candidate === "localhost" || candidate.startsWith("localhost:")) return true;
     if (candidate === "::1" || candidate === "0:0:0:0:0:0:0:1") return true;
+    if (candidate.startsWith("fc") || candidate.startsWith("fd")) return true;
+    if (candidate.startsWith("fe80:")) return true;
     if (/^127\.\d+\.\d+\.\d+(?::\d+)?$/.test(candidate)) return true;
+    if (/^10\.\d+\.\d+\.\d+(?::\d+)?$/.test(candidate)) return true;
+    if (/^192\.168\.\d+\.\d+(?::\d+)?$/.test(candidate)) return true;
+    if (/^172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+(?::\d+)?$/.test(candidate)) return true;
 
     const mappedIpv4Match = candidate.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)(?::\d+)?$/);
-    if (mappedIpv4Match?.[1]?.startsWith("127.")) return true;
+    if (mappedIpv4Match?.[1]) {
+      const mappedIpv4 = mappedIpv4Match[1];
+      if (mappedIpv4.startsWith("127.")) return true;
+      if (mappedIpv4.startsWith("10.")) return true;
+      if (mappedIpv4.startsWith("192.168.")) return true;
+      if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(mappedIpv4)) return true;
+    }
 
     return false;
   }

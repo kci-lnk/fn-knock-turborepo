@@ -17,6 +17,10 @@ export const terminalRoutes = new Elysia({ prefix: "/api/admin/terminal" })
     const status = await terminalManager.getRuntimeStatus();
     return { success: true, data: status };
   })
+  .post("/tmux/install", async () => {
+    const state = await terminalManager.startTmuxInstall();
+    return { success: true, data: state };
+  })
   .get("/sessions", async () => {
     const sessions = await terminalManager.listSessions();
     return { success: true, data: sessions };

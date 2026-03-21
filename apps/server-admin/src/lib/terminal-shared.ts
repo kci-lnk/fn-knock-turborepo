@@ -3,12 +3,27 @@ import { dataPath } from "./AppDirManager";
 
 export type TerminalResumeBackend = "tmux";
 export type TerminalTransport = "http-polling";
+export type TerminalTmuxDetectionSource = "env-path" | "absolute-path";
+export type TerminalTmuxInstallStatus =
+  | "uninstalled"
+  | "installing"
+  | "installed"
+  | "error";
 export type TerminalSessionStatus =
   | "created"
   | "attached"
   | "detached"
   | "stopped"
   | "error";
+
+export interface TerminalTmuxInstallState {
+  status: TerminalTmuxInstallStatus;
+  progress: number;
+  message: string;
+  executablePath: string;
+  detectionSource: TerminalTmuxDetectionSource | null;
+  version: string;
+}
 
 export interface TerminalFeatureConfig {
   enabled: boolean;
@@ -62,6 +77,10 @@ export interface TerminalOutputChunk {
 export interface TerminalRuntimeStatus {
   enabled: boolean;
   tmuxAvailable: boolean;
+  tmuxExecutablePath: string;
+  tmuxDetectionSource: TerminalTmuxDetectionSource | null;
+  tmuxVersion: string;
+  tmuxInstallState: TerminalTmuxInstallState;
   httpPollingAvailable: boolean;
   runningAsRoot: boolean;
   blockedReason: string;
@@ -79,7 +98,7 @@ export const DEFAULT_TERMINAL_FEATURE_CONFIG: TerminalFeatureConfig = {
   idle_timeout_seconds: 24 * 60 * 60,
   resume_backend: "tmux",
   allow_mobile_toolbar: true,
-  dangerously_run_as_current_user: false,
+  dangerously_run_as_current_user: true,
 };
 
 const clampInteger = (
@@ -137,7 +156,9 @@ export const normalizeTerminalFeatureConfig = (
         ? raw.allow_mobile_toolbar === true
         : DEFAULT_TERMINAL_FEATURE_CONFIG.allow_mobile_toolbar,
     dangerously_run_as_current_user:
-      raw.dangerously_run_as_current_user === true,
+      raw.dangerously_run_as_current_user !== undefined
+        ? raw.dangerously_run_as_current_user === true
+        : DEFAULT_TERMINAL_FEATURE_CONFIG.dangerously_run_as_current_user,
   };
 };
 

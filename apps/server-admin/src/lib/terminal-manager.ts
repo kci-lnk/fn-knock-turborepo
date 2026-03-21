@@ -17,6 +17,8 @@ import {
   TerminalOutputChunk,
   TerminalRuntimeStatus,
   TerminalSessionRecord,
+  TerminalTmuxDetectionSource,
+  TerminalTmuxInstallState,
   normalizeTerminalAttachmentRecord,
   normalizeTerminalSessionRecord,
 } from "./terminal-shared";
@@ -29,6 +31,8 @@ const INPUT_SESSION_TOUCH_THROTTLE_MS = 5_000;
 const INPUT_PIPE_OPEN_FLAGS =
   fsConstants.O_WRONLY | (fsConstants.O_NONBLOCK ?? 0);
 const DEFAULT_SESSION_TITLE_PREFIX = "会话-";
+const TMUX_ABSOLUTE_FALLBACK_PATH = "/usr/bin/tmux";
+const DEBIAN_APT_GET_PATH = "/usr/bin/apt-get";
 const TERMINAL_RELAY_NODE_SCRIPT = [
   "const fs=require('node:fs');",
   "const [logPath,inputPath]=process.argv.slice(-2);",
@@ -56,6 +60,12 @@ type CreateSessionInput = {
   rows?: number;
 };
 
+type TmuxExecutableInfo = {
+  path: string;
+  detectionSource: TerminalTmuxDetectionSource;
+  version: string;
+};
+
 const parseTmuxNumber = (value: string, fallback: number): number => {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -76,7 +86,17 @@ const shellQuote = (value: string): string =>
   `'${value.replace(/'/g, `'\"'\"'`)}'`;
 
 class TerminalManager {
-  private tmuxVersionPromise: Promise<string | null> | null = null;
+  private tmuxExecutableInfoPromise: Promise<TmuxExecutableInfo | null> | null =
+    null;
+  private tmuxInstallPromise: Promise<void> | null = null;
+  private tmuxInstallState: TerminalTmuxInstallState = {
+    status: "uninstalled",
+    progress: 0,
+    message: "未检测到 tmux，请先安装 Debian tmux 环境",
+    executablePath: "",
+    detectionSource: null,
+    version: "",
+  };
   private readonly inputPipeWriterHandles = new Map<
     string,
     Promise<FileHandle>
@@ -109,7 +129,199 @@ class TerminalManager {
   }
 
   private async runTmux(args: string[]): Promise<ExecResult> {
-    return this.runProcess("tmux", args);
+    const tmuxInfo = await this.detectTmuxExecutable();
+    return this.runProcess(tmuxInfo?.path || "tmux", args);
+  }
+
+  private resetTmuxProbeCache(): void {
+    this.tmuxExecutableInfoPromise = null;
+  }
+
+  private summarizeProcessOutput(result: ExecResult): string {
+    const detail = `${result.stderr}\n${result.stdout}`.trim();
+    if (!detail) return "";
+    const lines = detail
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    return lines.slice(-8).join(" | ").slice(0, 500);
+  }
+
+  private async ensureProcessSucceeded(
+    command: string,
+    args: string[],
+    failureMessage: string,
+  ): Promise<ExecResult> {
+    const result = await this.runProcess(command, args, { trimOutput: false });
+    if (result.code === 0) {
+      return {
+        ...result,
+        stdout: result.stdout.trimEnd(),
+        stderr: result.stderr.trimEnd(),
+      };
+    }
+
+    const detail = this.summarizeProcessOutput(result);
+    throw new Error(detail ? `${failureMessage}: ${detail}` : failureMessage);
+  }
+
+  private async detectTmuxExecutable(): Promise<TmuxExecutableInfo | null> {
+    if (!this.tmuxExecutableInfoPromise) {
+      this.tmuxExecutableInfoPromise = (async () => {
+        const candidates: Array<{
+          path: string;
+          detectionSource: TerminalTmuxDetectionSource;
+        }> = [
+          { path: "tmux", detectionSource: "env-path" },
+          {
+            path: TMUX_ABSOLUTE_FALLBACK_PATH,
+            detectionSource: "absolute-path",
+          },
+        ];
+
+        for (const candidate of candidates) {
+          try {
+            const result = await this.runProcess(candidate.path, ["-V"]);
+            if (result.code !== 0) {
+              continue;
+            }
+
+            return {
+              path: candidate.path,
+              detectionSource: candidate.detectionSource,
+              version: result.stdout || "tmux",
+            };
+          } catch {
+            continue;
+          }
+        }
+
+        return null;
+      })();
+    }
+
+    const tmuxInfo = await this.tmuxExecutableInfoPromise;
+    if (!tmuxInfo) {
+      this.tmuxExecutableInfoPromise = null;
+    }
+    return tmuxInfo;
+  }
+
+  private async getTmuxInstallState(): Promise<TerminalTmuxInstallState> {
+    if (this.tmuxInstallState.status === "installing") {
+      return this.tmuxInstallState;
+    }
+
+    const tmuxInfo = await this.detectTmuxExecutable();
+    if (tmuxInfo) {
+      this.tmuxInstallState = {
+        status: "installed",
+        progress: 100,
+        message: `tmux 已就绪：${tmuxInfo.version}`,
+        executablePath: tmuxInfo.path,
+        detectionSource: tmuxInfo.detectionSource,
+        version: tmuxInfo.version,
+      };
+      return this.tmuxInstallState;
+    }
+
+    if (this.tmuxInstallState.status === "error") {
+      return this.tmuxInstallState;
+    }
+
+    this.tmuxInstallState = {
+      status: "uninstalled",
+      progress: 0,
+      message: "未检测到 tmux，请先安装 Debian tmux 环境",
+      executablePath: "",
+      detectionSource: null,
+      version: "",
+    };
+    return this.tmuxInstallState;
+  }
+
+  private async installTmuxInBackground(): Promise<void> {
+    try {
+      this.tmuxInstallState = {
+        status: "installing",
+        progress: 15,
+        message: "正在刷新 Debian 软件源...",
+        executablePath: "",
+        detectionSource: null,
+        version: "",
+      };
+      await this.ensureProcessSucceeded(
+        DEBIAN_APT_GET_PATH,
+        ["update"],
+        "apt-get update 执行失败",
+      );
+
+      this.tmuxInstallState = {
+        status: "installing",
+        progress: 60,
+        message: "正在安装 tmux...",
+        executablePath: "",
+        detectionSource: null,
+        version: "",
+      };
+      await this.ensureProcessSucceeded(
+        DEBIAN_APT_GET_PATH,
+        ["install", "-y", "tmux"],
+        "apt-get install tmux 执行失败",
+      );
+
+      this.tmuxInstallState = {
+        status: "installing",
+        progress: 90,
+        message: "正在验证 tmux 安装结果...",
+        executablePath: "",
+        detectionSource: null,
+        version: "",
+      };
+      this.resetTmuxProbeCache();
+
+      const tmuxInfo = await this.detectTmuxExecutable();
+      if (!tmuxInfo) {
+        throw new Error("安装完成后仍未检测到 tmux");
+      }
+
+      this.tmuxInstallState = {
+        status: "installed",
+        progress: 100,
+        message: `tmux 安装完成：${tmuxInfo.version}`,
+        executablePath: tmuxInfo.path,
+        detectionSource: tmuxInfo.detectionSource,
+        version: tmuxInfo.version,
+      };
+    } catch (error) {
+      this.resetTmuxProbeCache();
+      this.tmuxInstallState = {
+        status: "error",
+        progress: 0,
+        message:
+          error instanceof Error && error.message.trim()
+            ? error.message.trim()
+            : "tmux 安装失败",
+        executablePath: "",
+        detectionSource: null,
+        version: "",
+      };
+    }
+  }
+
+  async startTmuxInstall(): Promise<TerminalTmuxInstallState> {
+    const current = await this.getTmuxInstallState();
+    if (current.status === "installed" || current.status === "installing") {
+      return current;
+    }
+
+    if (!this.tmuxInstallPromise) {
+      this.tmuxInstallPromise = this.installTmuxInBackground().finally(() => {
+        this.tmuxInstallPromise = null;
+      });
+    }
+
+    return this.tmuxInstallState;
   }
 
   private async ensureDirectoryExists(path: string): Promise<void> {
@@ -188,17 +400,23 @@ class TerminalManager {
   }
 
   async getRuntimeStatus(): Promise<TerminalRuntimeStatus> {
-    const [config, tmuxAvailable] = await Promise.all([
+    const [config, tmuxInstallState] = await Promise.all([
       this.getFeatureConfig(),
-      this.isTmuxAvailable(),
+      this.getTmuxInstallState(),
     ]);
+    const tmuxAvailable = tmuxInstallState.status === "installed";
     const runningAsRoot = (process.getuid?.() ?? -1) === 0;
 
     let blockedReason = "";
     if (!config.enabled) {
       blockedReason = "网页终端功能尚未启用";
+    } else if (tmuxInstallState.status === "installing") {
+      blockedReason = "tmux 安装中，请等待安装完成";
     } else if (!tmuxAvailable) {
-      blockedReason = "未检测到 tmux，无法创建可恢复终端会话";
+      blockedReason =
+        tmuxInstallState.status === "error"
+          ? `tmux 状态异常：${tmuxInstallState.message}`
+          : "未检测到 tmux，无法创建可恢复终端会话";
     } else if (runningAsRoot && !config.dangerously_run_as_current_user) {
       blockedReason =
         "当前进程以 root 运行，需在设置中显式开启高危运行开关后才能创建终端";
@@ -207,6 +425,10 @@ class TerminalManager {
     return {
       enabled: config.enabled,
       tmuxAvailable,
+      tmuxExecutablePath: tmuxInstallState.executablePath,
+      tmuxDetectionSource: tmuxInstallState.detectionSource,
+      tmuxVersion: tmuxInstallState.version,
+      tmuxInstallState,
       httpPollingAvailable: true,
       runningAsRoot,
       blockedReason,
@@ -214,23 +436,13 @@ class TerminalManager {
   }
 
   async isTmuxAvailable(): Promise<boolean> {
-    const version = await this.getTmuxVersion();
-    return Boolean(version);
+    const tmuxInfo = await this.detectTmuxExecutable();
+    return Boolean(tmuxInfo);
   }
 
   async getTmuxVersion(): Promise<string | null> {
-    if (!this.tmuxVersionPromise) {
-      this.tmuxVersionPromise = (async () => {
-        try {
-          const result = await this.runTmux(["-V"]);
-          if (result.code !== 0) return null;
-          return result.stdout || null;
-        } catch {
-          return null;
-        }
-      })();
-    }
-    return this.tmuxVersionPromise;
+    const tmuxInfo = await this.detectTmuxExecutable();
+    return tmuxInfo?.version || null;
   }
 
   private async assertCreateAllowed(): Promise<void> {

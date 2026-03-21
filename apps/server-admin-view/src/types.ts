@@ -213,6 +213,22 @@ export interface TerminalFeatureConfig {
   dangerously_run_as_current_user: boolean;
 }
 
+export type TerminalTmuxDetectionSource = "env-path" | "absolute-path";
+export type TerminalTmuxInstallStatus =
+  | "uninstalled"
+  | "installing"
+  | "installed"
+  | "error";
+
+export interface TerminalTmuxInstallState {
+  status: TerminalTmuxInstallStatus;
+  progress: number;
+  message: string;
+  executablePath: string;
+  detectionSource: TerminalTmuxDetectionSource | null;
+  version: string;
+}
+
 export type TerminalTransport = "http-polling";
 export type TerminalSessionStatus =
   | "created"
@@ -262,6 +278,10 @@ export interface TerminalOutputChunk {
 export interface TerminalRuntimeStatus {
   enabled: boolean;
   tmuxAvailable: boolean;
+  tmuxExecutablePath: string;
+  tmuxDetectionSource: TerminalTmuxDetectionSource | null;
+  tmuxVersion: string;
+  tmuxInstallState: TerminalTmuxInstallState;
   httpPollingAvailable: boolean;
   runningAsRoot: boolean;
   blockedReason: string;

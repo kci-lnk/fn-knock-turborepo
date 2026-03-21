@@ -26,6 +26,7 @@ import type {
   TerminalOutputChunk,
   TerminalRuntimeStatus,
   TerminalSessionRecord,
+  TerminalTmuxInstallState,
 } from "../types";
 import { createSignedApiClient } from "@frontend-core/api/createSignedApiClient";
 import type { CaptchaSettings } from "@frontend-core/captcha/types";
@@ -371,6 +372,10 @@ export const GatewayLogsAPI = {
 export const TerminalAPI = {
   async getStatus(): Promise<TerminalRuntimeStatus> {
     const res = await apiClient.get("/terminal/status");
+    return res.data.data;
+  },
+  async installTmux(): Promise<TerminalTmuxInstallState> {
+    const res = await apiClient.post("/terminal/tmux/install");
     return res.data.data;
   },
   async listSessions(): Promise<TerminalSessionRecord[]> {

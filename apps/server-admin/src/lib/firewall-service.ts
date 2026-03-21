@@ -3,21 +3,15 @@ import { goBackend } from "./go-backend";
 import { buildGatewayAuthConfig } from "./subdomain-mode";
 
 export class FirewallService {
-  private readonly redirectedHttpPorts = [80, 443] as const;
+  private readonly legacyRedirectedHttpPorts = [80, 443] as const;
 
   private resolveGatewayPort(): number {
     const parsed = Number.parseInt(process.env.GO_REPROXY_PORT || "7999", 10);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 7999;
   }
 
-  private async ensureGatewayRedirects(targetPort: number) {
-    for (const listenPort of this.redirectedHttpPorts) {
-      await goBackend.ensureTCPRedirect(listenPort, targetPort);
-    }
-  }
-
-  private async clearGatewayRedirects(targetPort: number) {
-    for (const listenPort of this.redirectedHttpPorts) {
+  private async clearLegacyGatewayRedirects(targetPort: number) {
+    for (const listenPort of this.legacyRedirectedHttpPorts) {
       await goBackend.clearTCPRedirect(listenPort, targetPort);
     }
   }
@@ -37,7 +31,7 @@ export class FirewallService {
     await goBackend.setAuthConfig(buildGatewayAuthConfig(config));
 
     if (runType === 1) {
-      await this.clearGatewayRedirects(gatewayPort);
+      await this.clearLegacyGatewayRedirects(gatewayPort);
       await goBackend.setProxyProtocolForce(true);
       await goBackend.cleanIptables();
       await goBackend.flushHostRules();
@@ -49,14 +43,14 @@ export class FirewallService {
     if (runType === 3) {
       await goBackend.setProxyProtocolForce(false);
       await this.initDefaultFirewall();
-      await this.ensureGatewayRedirects(gatewayPort);
+      await this.clearLegacyGatewayRedirects(gatewayPort);
       await goBackend.flushRules();
       await goBackend.setHostRules(config.host_mappings);
       await goBackend.setDefaultRoute(config.default_route);
       return;
     }
 
-    await this.clearGatewayRedirects(gatewayPort);
+    await this.clearLegacyGatewayRedirects(gatewayPort);
     await goBackend.setProxyProtocolForce(false);
     await goBackend.flushHostRules();
     await this.initDefaultFirewall();

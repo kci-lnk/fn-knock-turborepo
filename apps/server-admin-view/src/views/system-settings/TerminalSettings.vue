@@ -47,14 +47,14 @@ const form = reactive<TerminalFeatureConfig>({
 const { isPending: isLoading, run: runLoad } = useAsyncAction({
   onError: (error) => {
     toast.error("加载失败", {
-      description: extractErrorMessage(error, "无法获取网页终端设置"),
+      description: extractErrorMessage(error, "无法获取Tmux终端设置"),
     });
   },
 });
 const { isPending: isSaving, run: runSave } = useAsyncAction({
   onError: (error) => {
     toast.error("保存失败", {
-      description: extractErrorMessage(error, "网页终端设置保存失败"),
+      description: extractErrorMessage(error, "Web终端设置保存失败"),
     });
   },
 });
@@ -108,7 +108,7 @@ const saveSettings = async () => {
       onSuccess: async (data) => {
         applyFromSettings(data);
         await Promise.all([configStore.loadConfig(), loadData()]);
-        toast.success("网页终端设置已更新");
+        toast.success("Web终端设置已更新");
       },
     },
   );
@@ -126,7 +126,7 @@ onMounted(loadData);
     <CardHeader>
       <div class="flex items-start justify-between gap-3">
         <div class="space-y-1.5">
-          <CardTitle class="text-md">网页终端</CardTitle>
+          <CardTitle class="text-md">Web终端</CardTitle>
           <CardDescription>
             基于 <code>tmux</code> 持久化终端会话，默认使用 HTTP
             长轮询同步屏幕状态。
@@ -165,7 +165,7 @@ onMounted(loadData);
           <ShieldAlert class="h-4 w-4" />
           <AlertTitle>当前进程以 root 运行</AlertTitle>
           <AlertDescription>
-            若启用“以当前进程用户运行”，网页终端将拥有系统级权限，请谨慎开放。
+            若启用“以当前进程用户运行”，Web终端将拥有系统级权限，请谨慎开放。
           </AlertDescription>
         </Alert>
 
@@ -211,10 +211,10 @@ onMounted(loadData);
               class="cursor-pointer text-base font-medium"
               @click="form.enabled = !form.enabled"
             >
-              启用网页终端
+              启用Tmux终端
             </Label>
             <p class="text-sm text-muted-foreground">
-              开启后会在侧边导航显示“网页终端”，并允许创建可恢复会话。
+              开启后会在侧边导航显示“Web终端”，并允许创建可恢复会话。
             </p>
           </div>
           <Switch v-model="form.enabled" :disabled="isSaving" />

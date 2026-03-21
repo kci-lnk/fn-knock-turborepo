@@ -152,7 +152,7 @@ export const normalizeTerminalSessionRecord = (
 
   return {
     id: normalizeString(value.id),
-    title: normalizeString(value.title, basename(cwd) || "网页终端"),
+    title: normalizeString(value.title, basename(cwd) || "Web终端"),
     status:
       value.status === "attached" ||
       value.status === "detached" ||

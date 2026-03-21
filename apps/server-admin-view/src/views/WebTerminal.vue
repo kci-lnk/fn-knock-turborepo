@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from "vue";
 import { useRouter } from "vue-router";
 import { init as initGhostty, Terminal, FitAddon } from "ghostty-web";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
@@ -56,7 +63,8 @@ const INPUT_BATCH_MAX_BYTES = 1024;
 const RESIZE_BATCH_WINDOW_MS = 320;
 const DEFAULT_TERMINAL_HEIGHT_PX = 460;
 const MAX_TERMINAL_HEIGHT_DESKTOP_PX = 780;
-const MAX_TERMINAL_HEIGHT_MOBILE_PX = 680;
+const MOBILE_TERMINAL_BOTTOM_GAP_PX = 12;
+const DESKTOP_TERMINAL_BOTTOM_GAP_PX = 24;
 const DEFAULT_TERMINAL_FONT_SIZE = 14;
 const DEFAULT_TERMINAL_FONT_SIZE_MOBILE = 12;
 const MIN_TERMINAL_FONT_SIZE = 13;
@@ -103,6 +111,9 @@ const activeTransport = ref<TerminalTransport | null>(null);
 const activeAttachment = ref<TerminalAttachmentRecord | null>(null);
 const terminalMountRef = ref<HTMLElement | null>(null);
 const terminalShellRef = ref<HTMLElement | null>(null);
+const terminalFrameRef = ref<HTMLElement | null>(null);
+const mobileAccessoryBarRef = ref<HTMLElement | null>(null);
+const terminalStatusRef = ref<HTMLElement | null>(null);
 const terminalHeight = ref(`${DEFAULT_TERMINAL_HEIGHT_PX}px`);
 const compactViewport = ref(false);
 const terminalFontSize = ref(DEFAULT_TERMINAL_FONT_SIZE);
@@ -141,7 +152,7 @@ const selectedSession = computed(
     null,
 );
 const terminalWindowTitle = computed(
-  () => selectedSession.value?.title?.trim() || "网页终端",
+  () => selectedSession.value?.title?.trim() || "Web终端",
 );
 const terminalWindowSubtitle = computed(() => {
   const session = selectedSession.value;
@@ -177,6 +188,16 @@ const showMobileAccessoryBar = computed(() => compactViewport.value);
 const toolbarDisabled = computed(() => !activeAttachment.value);
 const armedModifierLabel = computed(() =>
   armedModifier.value ? toolbarModifierLabels[armedModifier.value] : "",
+);
+const terminalFrameStyle = computed(() =>
+  compactViewport.value
+    ? {
+        height: terminalHeight.value,
+        minHeight: terminalHeight.value,
+      }
+    : {
+        maxHeight: terminalHeight.value,
+      },
 );
 
 const statusTone = computed(() => {
@@ -546,19 +567,30 @@ const applyOutputChunk = (chunk: TerminalOutputChunk) => {
 
 const syncViewportHeight = () => {
   compactViewport.value = detectCompactViewport();
-  if (!terminalShellRef.value) return;
-  const rect = terminalShellRef.value.getBoundingClientRect();
+  const measurementTarget = terminalFrameRef.value || terminalShellRef.value;
+  if (!measurementTarget) return;
+
+  const rect = measurementTarget.getBoundingClientRect();
   const viewport = window.visualViewport?.height || window.innerHeight;
+  const accessoryHeight =
+    compactViewport.value && showMobileAccessoryBar.value
+      ? (mobileAccessoryBarRef.value?.getBoundingClientRect().height ?? 0)
+      : 0;
+  const statusHeight =
+    terminalStatusRef.value?.getBoundingClientRect().height ?? 0;
+  const bottomGap = compactViewport.value
+    ? MOBILE_TERMINAL_BOTTOM_GAP_PX
+    : DESKTOP_TERMINAL_BOTTOM_GAP_PX;
+  const reservedHeight = Math.ceil(accessoryHeight + statusHeight + bottomGap);
   const available = Math.floor(
-    viewport - rect.top - (compactViewport.value ? 12 : 24),
+    viewport - rect.top - reservedHeight,
   );
-  const maxHeight = compactViewport.value
-    ? MAX_TERMINAL_HEIGHT_MOBILE_PX
-    : MAX_TERMINAL_HEIGHT_DESKTOP_PX;
   const nextHeight =
     available > 0
-      ? Math.min(maxHeight, available)
-      : Math.min(maxHeight, DEFAULT_TERMINAL_HEIGHT_PX);
+      ? compactViewport.value
+        ? available
+        : Math.min(MAX_TERMINAL_HEIGHT_DESKTOP_PX, available)
+      : DEFAULT_TERMINAL_HEIGHT_PX;
   terminalHeight.value = `${nextHeight}px`;
   fitAddon?.fit();
 };
@@ -1140,6 +1172,20 @@ onMounted(async () => {
   window.visualViewport?.addEventListener("scroll", syncViewportHeight);
 });
 
+watch(
+  [
+    () => sessions.value.length,
+    connectionState,
+    connectionError,
+    showMobileAccessoryBar,
+  ],
+  () => {
+    void nextTick().then(() => {
+      syncViewportHeight();
+    });
+  },
+);
+
 onBeforeUnmount(() => {
   unbindTerminalTouchGestures();
   window.removeEventListener("resize", syncViewportHeight);
@@ -1154,7 +1200,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="flex h-full min-w-0 flex-col gap-4">
+  <div class="flex h-full min-w-0 flex-col gap-3 sm:gap-4">
     <Alert v-if="!terminalEnabled" class="border-border/60">
       <AlertTriangle class="h-4 w-4" />
       <AlertTitle>网页终端尚未启用</AlertTitle>
@@ -1176,11 +1222,13 @@ onBeforeUnmount(() => {
       <AlertDescription>{{ runtimeStatus.blockedReason }}</AlertDescription>
     </Alert>
 
-    <div v-else ref="terminalShellRef" class="min-h-0 min-w-0 flex-1">
-      <Card class="min-h-0 min-w-0 h-full">
-        <CardContent class="flex h-full min-h-0 min-w-0 flex-col gap-3">
+    <div v-else ref="terminalShellRef" class="min-h-[80vh] min-w-0">
+      <Card class="min-h-0 min-w-0 h-full py-3 sm:py-6">
+        <CardContent
+          class="flex h-full min-h-0 min-w-0 flex-col gap-2.5 px-3 sm:gap-3 sm:px-6"
+        >
           <div
-            class="shrink-0 flex flex-col gap-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] lg:flex-row lg:items-center"
+            class="shrink-0 flex flex-col gap-2.5 lg:flex-row lg:items-center"
           >
             <div class="flex flex-wrap items-center gap-2">
               <div class="flex items-center gap-2 pl-2">
@@ -1339,15 +1387,19 @@ onBeforeUnmount(() => {
             <AlertDescription>{{ connectionError }}</AlertDescription>
           </Alert>
 
-          <div v-if="!isBooting && sessions.length > 0" class="flex min-h-0 flex-1 flex-col gap-3">
+          <div
+            v-if="!isBooting && sessions.length > 0"
+            class="flex min-h-0 flex-1 flex-col gap-2.5 sm:gap-3"
+          >
             <div
+              ref="terminalFrameRef"
               :class="[
                 'relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[18px] border bg-[#1d1d1f] shadow-[0_14px_34px_rgba(15,23,42,0.18)] transition-[box-shadow,border-color] duration-200',
                 isPinchZooming
                   ? 'border-cyan-400/65 shadow-[0_0_0_1px_rgba(34,211,238,0.26),0_16px_38px_rgba(8,145,178,0.14)]'
                   : 'border-white/8',
               ]"
-              :style="{ maxHeight: terminalHeight }"
+              :style="terminalFrameStyle"
               :title="terminalWindowSubtitle"
             >
               <div
@@ -1392,45 +1444,16 @@ onBeforeUnmount(() => {
 
             <div
               v-if="showMobileAccessoryBar"
-              class="shrink-0 rounded-2xl border border-border/70 bg-muted/15 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]"
+              ref="mobileAccessoryBarRef"
+              class="shrink-0 rounded-2xl border border-border/70 bg-muted/15 p-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] sm:p-2.5 sm:pb-2.5"
             >
               <div
                 class="flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               >
-                <div
-                  class="flex shrink-0 items-center gap-1.5 rounded-2xl border border-border/60 bg-background/75 p-1.5 shadow-xs"
-                >
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    class="h-9 rounded-xl px-3 text-[13px] font-semibold"
-                    @pointerdown.prevent="keepTerminalFocused"
-                    @click="nudgeTerminalFontSize(-1)"
-                  >
-                    A-
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    class="h-9 min-w-[64px] rounded-xl px-3 font-mono text-[12px] text-muted-foreground"
-                    @pointerdown.prevent="keepTerminalFocused"
-                    @click="resetTerminalFontSize"
-                  >
-                    {{ terminalFontSize }}px
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    class="h-9 rounded-xl px-3 text-[13px] font-semibold"
-                    @pointerdown.prevent="keepTerminalFocused"
-                    @click="nudgeTerminalFontSize(1)"
-                  >
-                    A+
-                  </Button>
-                </div>
+                
 
                 <template v-if="showMobileToolbar">
-                  <div class="h-8 w-px shrink-0 bg-border/70" />
+                  
 
                   <Button
                     v-for="item in toolbarPrimaryShortcuts"
@@ -1477,6 +1500,42 @@ onBeforeUnmount(() => {
                     {{ item.label }}
                   </Button>
 
+
+                  <div class="h-8 w-px shrink-0 bg-border/70" />
+
+
+                  <div
+                  class="flex shrink-0 items-center gap-1.5"
+                >
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    class="h-9 rounded-xl px-3 text-[13px] font-semibold"
+                    @pointerdown.prevent="keepTerminalFocused"
+                    @click="nudgeTerminalFontSize(-1)"
+                  >
+                    A-
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    class="h-9 min-w-[64px] rounded-xl px-3 font-mono text-[12px] text-muted-foreground"
+                    @pointerdown.prevent="keepTerminalFocused"
+                    @click="resetTerminalFontSize"
+                  >
+                    {{ terminalFontSize }}px
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    class="h-9 rounded-xl px-3 text-[13px] font-semibold"
+                    @pointerdown.prevent="keepTerminalFocused"
+                    @click="nudgeTerminalFontSize(1)"
+                  >
+                    A+
+                  </Button>
+                </div>
+
                   <div
                     v-if="armedModifier"
                     class="shrink-0 rounded-xl border border-primary/35 bg-primary/10 px-3 py-2 text-[11px] font-medium text-primary"
@@ -1488,6 +1547,7 @@ onBeforeUnmount(() => {
             </div>
 
             <div
+              ref="terminalStatusRef"
               class="shrink-0 flex flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between"
             >
               <span

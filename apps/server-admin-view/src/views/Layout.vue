@@ -308,7 +308,7 @@ const navItems = computed(() => {
     items.push({ name: "请求日志", path: "/request-logs", icon: ScrollText });
   }
   if (configStore.config?.terminal_feature?.enabled) {
-    items.push({ name: "网页终端", path: "/terminal", icon: Terminal });
+    items.push({ name: "Web终端", path: "/terminal", icon: Terminal });
   }
   items.push({ name: "系统设置", path: "/system", icon: Settings });
   return items;

@@ -1,5 +1,6 @@
 import { basename } from "node:path";
 import { dataPath } from "./AppDirManager";
+import { homedir } from "node:os";
 
 export type TerminalResumeBackend = "tmux";
 export type TerminalTransport = "http-polling";
@@ -92,8 +93,8 @@ export const DEFAULT_TERMINAL_ATTACHMENT_TTL_SECONDS = 120;
 
 export const DEFAULT_TERMINAL_FEATURE_CONFIG: TerminalFeatureConfig = {
   enabled: false,
-  default_shell: "",
-  default_cwd: dataPath,
+  default_shell: "/bin/bash",
+  default_cwd: "~",
   max_sessions: 3,
   idle_timeout_seconds: 24 * 60 * 60,
   resume_backend: "tmux",
@@ -186,7 +187,7 @@ export const normalizeTerminalSessionRecord = (
     last_attached_at: normalizeIsoString(value.last_attached_at),
     last_detached_at: normalizeIsoString(value.last_detached_at),
     last_client_ip: normalizeString(value.last_client_ip),
-    shell: normalizeString(value.shell, process.env.SHELL || "/bin/sh"),
+    shell: normalizeString(value.shell, process.env.SHELL || "/bin/bash"),
     cwd,
     cols: clampInteger(value.cols, 120, 20, 400),
     rows: clampInteger(value.rows, 32, 8, 200),

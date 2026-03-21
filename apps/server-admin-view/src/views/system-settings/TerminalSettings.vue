@@ -7,7 +7,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import RefreshButton from "@/components/RefreshButton.vue";
@@ -18,7 +17,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import {
   TerminalSquare,
-  TriangleAlert,
 } from "lucide-vue-next";
 import { toast } from "@admin-shared/utils/toast";
 import { ConfigAPI, TerminalAPI } from "../../lib/api";
@@ -109,10 +107,6 @@ const tmuxStatusVariant = computed(() => {
   if (status === "installing") return "secondary";
   if (status === "error") return "destructive";
   return "outline";
-});
-const showBlockedAlert = computed(() => {
-  const reason = runtimeStatus.value?.blockedReason?.trim() || "";
-  return Boolean(reason) && reason !== "Web终端功能尚未启用";
 });
 const isDirty = computed(() => {
   if (!settings.value) return false;
@@ -250,17 +244,6 @@ onMounted(loadSettings);
 
     <CardContent v-else class="border-t p-0">
       <div class="space-y-6 p-6">
-        <Alert
-          v-if="showBlockedAlert"
-          variant="destructive"
-          class="border-destructive/40"
-        >
-          <TriangleAlert class="h-4 w-4" />
-          <AlertTitle>当前不可创建终端</AlertTitle>
-          <AlertDescription>{{
-            runtimeStatus?.blockedReason
-          }}</AlertDescription>
-        </Alert>
 
         <div class="grid gap-4 md:grid-cols-1">
           <div class="rounded-lg border bg-muted/20 p-4">
@@ -287,9 +270,6 @@ onMounted(loadSettings);
           <div class="flex items-start justify-between gap-4">
             <div class="space-y-1">
               <div class="text-sm font-medium">安装 tmux</div>
-              <p class="text-sm text-muted-foreground">
-                检测到当前环境未安装 tmux，无法使用 Web 终端功能。请点击下方按钮安装 tmux，安装过程中请勿关闭应用或刷新页面。安装完成后会自动刷新状态。
-              </p>
             </div>
             <Badge :variant="tmuxStatusVariant">{{ tmuxStatusLabel }}</Badge>
           </div>

@@ -26,7 +26,7 @@ import {
 
 const DEFAULT_CWD = homedir();
 
-const DEFAULT_SHELL = process.env.SHELL || "/bin/sh";
+const DEFAULT_SHELL = process.env.SHELL || "/bin/bash";
 const TMUX_TARGET_PANE_SUFFIX = ":0.0";
 const TERMINAL_STREAM_DIR_NAME = "terminal-streams";
 const TERMINAL_STREAM_CHUNK_MAX_BYTES = 256 * 1024;
@@ -95,7 +95,7 @@ class TerminalManager {
   private tmuxInstallState: TerminalTmuxInstallState = {
     status: "uninstalled",
     progress: 0,
-    message: "未检测到 tmux，请先安装 Debian tmux 环境",
+    message: "未检测到 tmux，请先安装 tmux 环境",
     executablePath: "",
     detectionSource: null,
     version: "",
@@ -235,7 +235,7 @@ class TerminalManager {
     this.tmuxInstallState = {
       status: "uninstalled",
       progress: 0,
-      message: "未检测到 tmux，请先安装 Debian tmux 环境",
+      message: "未检测到 tmux，请先安装 tmux 环境",
       executablePath: "",
       detectionSource: null,
       version: "",

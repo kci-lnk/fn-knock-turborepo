@@ -58,16 +58,20 @@ class ScanDetector {
       candidate = bracketMatch[1];
     }
 
-    if (candidate === "localhost" || candidate.startsWith("localhost:")) return true;
+    if (candidate === "localhost" || candidate.startsWith("localhost:"))
+      return true;
     if (candidate === "::1" || candidate === "0:0:0:0:0:0:0:1") return true;
     if (candidate.startsWith("fc") || candidate.startsWith("fd")) return true;
     if (candidate.startsWith("fe80:")) return true;
     if (/^127\.\d+\.\d+\.\d+(?::\d+)?$/.test(candidate)) return true;
     if (/^10\.\d+\.\d+\.\d+(?::\d+)?$/.test(candidate)) return true;
     if (/^192\.168\.\d+\.\d+(?::\d+)?$/.test(candidate)) return true;
-    if (/^172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+(?::\d+)?$/.test(candidate)) return true;
+    if (/^172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+(?::\d+)?$/.test(candidate))
+      return true;
 
-    const mappedIpv4Match = candidate.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)(?::\d+)?$/);
+    const mappedIpv4Match = candidate.match(
+      /^::ffff:(\d+\.\d+\.\d+\.\d+)(?::\d+)?$/,
+    );
     if (mappedIpv4Match?.[1]) {
       const mappedIpv4 = mappedIpv4Match[1];
       if (mappedIpv4.startsWith("127.")) return true;
@@ -84,12 +88,22 @@ class ScanDetector {
   }
 
   private sanitizeIps(ips: string[]) {
-    return [...new Set(
-      ips
-        .filter((ip): ip is string => typeof ip === "string")
-        .map((ip) => this.normalizeIp(ip))
-        .filter(Boolean)
-    )];
+    return [
+      ...new Set(
+        ips
+          .filter((ip): ip is string => typeof ip === "string")
+          .map((ip) => this.normalizeIp(ip))
+          .filter(Boolean),
+      ),
+    ];
+  }
+
+  private async ensureMinimumTtl(key: string, ttlSeconds: number) {
+    if (ttlSeconds <= 0) return;
+    const currentTtl = await redis.ttl(key);
+    if (currentTtl === -2 || currentTtl === -1 || currentTtl < ttlSeconds) {
+      await redis.expire(key, ttlSeconds);
+    }
   }
 
   private normalizePath(path: string) {
@@ -113,11 +127,26 @@ class ScanDetector {
 
   async isCommonPath(path: string) {
     const cleanPath = this.normalizePath(path);
-    if (cleanPath === "/__auth__" || cleanPath.startsWith("/__auth__/")) return true;
-    if (cleanPath === "/api/auth/passkey" || cleanPath.startsWith("/api/auth/passkey/")) return true;
+    if (cleanPath === "/__auth__" || cleanPath.startsWith("/__auth__/"))
+      return true;
+    if (
+      cleanPath === "/api/auth/passkey" ||
+      cleanPath.startsWith("/api/auth/passkey/")
+    )
+      return true;
     if (cleanPath === "/websocket") return true;
-    if (cleanPath === "/cgi/ThirdParty" || cleanPath.startsWith("/cgi/ThirdParty/")) return true;
-    if (cleanPath === "/assets/" || cleanPath.startsWith("/assets/")) return true;
+    if (
+      cleanPath === "/api/admin/terminal" ||
+      cleanPath.startsWith("/api/admin/terminal/")
+    )
+      return true;
+    if (
+      cleanPath === "/cgi/ThirdParty" ||
+      cleanPath.startsWith("/cgi/ThirdParty/")
+    )
+      return true;
+    if (cleanPath === "/assets/" || cleanPath.startsWith("/assets/"))
+      return true;
     if (cleanPath === "/s/" || cleanPath.startsWith("/s/")) return true;
     const common = new Set([
       "/",
@@ -130,12 +159,12 @@ class ScanDetector {
       "/api/auth/captcha/config",
       "/api/auth/challenge",
       "/api/auth/login",
-      '/api/auth/ip',
+      "/api/auth/ip",
       "/api/auth/ip/location",
       "/api/auth/session",
-      '/api/auth/verify',
-      '/api/auth/passkey/status',
-      '/trimcon',
+      "/api/auth/verify",
+      "/api/auth/passkey/status",
+      "/trimcon",
       "/.well-known/ai-plugin.json",
       "/apple-touch-icon.png",
       "/manifest.json",
@@ -151,11 +180,19 @@ class ScanDetector {
   }
 
   async getSettings(): Promise<ScannerSettings> {
-    const envEnabledRaw = String(process.env.SCANNER_ENABLED ?? "").trim().toLowerCase();
+    const envEnabledRaw = String(process.env.SCANNER_ENABLED ?? "")
+      .trim()
+      .toLowerCase();
     const envEnabled = envEnabledRaw === "true" || envEnabledRaw === "1";
-    const envWindowMinutes = parseIntSafe(process.env.SCANNER_WINDOW_MINUTES, 5);
+    const envWindowMinutes = parseIntSafe(
+      process.env.SCANNER_WINDOW_MINUTES,
+      5,
+    );
     const envThreshold = parseIntSafe(process.env.SCANNER_THRESHOLD, 5);
-    const envBlacklistTtlDays = parseIntSafe(process.env.SCANNER_BLACKLIST_TTL_DAYS, 90);
+    const envBlacklistTtlDays = parseIntSafe(
+      process.env.SCANNER_BLACKLIST_TTL_DAYS,
+      90,
+    );
 
     let enabled = envEnabled;
     let windowMinutes = envWindowMinutes;
@@ -167,8 +204,10 @@ class ScanDetector {
       try {
         const parsed = JSON.parse(raw) as Partial<ScannerSettings>;
         if (typeof parsed.enabled === "boolean") enabled = parsed.enabled;
-        if (parsed.windowMinutes && parsed.windowMinutes > 0) windowMinutes = parsed.windowMinutes;
-        if (parsed.threshold && parsed.threshold > 0) threshold = parsed.threshold;
+        if (parsed.windowMinutes && parsed.windowMinutes > 0)
+          windowMinutes = parsed.windowMinutes;
+        if (parsed.threshold && parsed.threshold > 0)
+          threshold = parsed.threshold;
         if (parsed.blacklistTtlSeconds && parsed.blacklistTtlSeconds > 0) {
           blacklistTtlSeconds = parsed.blacklistTtlSeconds;
         }
@@ -195,7 +234,10 @@ class ScanDetector {
       enabled: payload.enabled,
       windowMinutes: Math.max(1, Math.floor(payload.windowMinutes)),
       threshold: Math.max(1, Math.floor(payload.threshold)),
-      blacklistTtlSeconds: Math.max(60, Math.floor(payload.blacklistTtlSeconds)),
+      blacklistTtlSeconds: Math.max(
+        60,
+        Math.floor(payload.blacklistTtlSeconds),
+      ),
     };
     await redis.set(this.settingsKey, JSON.stringify(next));
     return this.getSettings();
@@ -207,14 +249,17 @@ class ScanDetector {
 
     const [settings, exists] = await Promise.all([
       this.getSettings(),
-      redis.exists(this.blacklistDataKey(cleanIp))
+      redis.exists(this.blacklistDataKey(cleanIp)),
     ]);
     if (!settings.enabled) return false;
 
     return exists === 1;
   }
 
-  async recordUncommonPath(ip: string, path: string): Promise<{ hitCount: number; blocked: boolean }> {
+  async recordUncommonPath(
+    ip: string,
+    path: string,
+  ): Promise<{ hitCount: number; blocked: boolean }> {
     const cleanIp = this.normalizeIp(ip);
     if (!cleanIp || this.isLocalAddress(cleanIp)) {
       return { hitCount: 0, blocked: false };
@@ -239,7 +284,8 @@ class ScanDetector {
     pipeline.zcount(key, windowMinScore, "+inf");
     const result = await pipeline.exec();
     const countValue = result?.[3]?.[1];
-    const hitCount = typeof countValue === "number" ? countValue : Number(countValue ?? 0);
+    const hitCount =
+      typeof countValue === "number" ? countValue : Number(countValue ?? 0);
 
     if (hitCount >= settings.threshold) {
       const alreadyBlocked = await this.isBlacklisted(cleanIp);
@@ -253,14 +299,17 @@ class ScanDetector {
           } catch {}
         }
         const ipLocation = await this.resolveIpLocation(cleanIp);
-        await this.addToBlacklist({
-          ip: cleanIp,
-          blockedAt: now,
-          windowMinutes: settings.windowMinutes,
-          threshold: settings.threshold,
-          hits,
-          ...(ipLocation ? { ipLocation } : {}),
-        }, settings.blacklistTtlSeconds);
+        await this.addToBlacklist(
+          {
+            ip: cleanIp,
+            blockedAt: now,
+            windowMinutes: settings.windowMinutes,
+            threshold: settings.threshold,
+            hits,
+            ...(ipLocation ? { ipLocation } : {}),
+          },
+          settings.blacklistTtlSeconds,
+        );
         await ipLocationService.registerUsage(cleanIp, [
           ipLocationRefs.scannerBlacklist(cleanIp),
         ]);
@@ -270,7 +319,11 @@ class ScanDetector {
     return { hitCount, blocked: false };
   }
 
-  async listBlacklist(payload: { page: number; limit: number; search?: string }) {
+  async listBlacklist(payload: {
+    page: number;
+    limit: number;
+    search?: string;
+  }) {
     const page = Math.max(1, Math.floor(payload.page || 1));
     const limit = Math.max(1, Math.min(Math.floor(payload.limit || 20), 200));
     const search = payload.search?.trim() || "";
@@ -286,7 +339,11 @@ class ScanDetector {
       let offset = 0;
 
       while (true) {
-        const chunk = await redis.zrevrange(this.blacklistIndexKey, offset, offset + chunkSize - 1);
+        const chunk = await redis.zrevrange(
+          this.blacklistIndexKey,
+          offset,
+          offset + chunkSize - 1,
+        );
         if (chunk.length === 0) break;
         offset += chunk.length;
 
@@ -326,8 +383,16 @@ class ScanDetector {
     }
   }
 
-  async listBlacklistByRange(fromMs: number, toMs: number): Promise<Array<{ ip: string; blockedAt: number }>> {
-    const pairs = await redis.zrangebyscore(this.blacklistIndexKey, fromMs, toMs, "WITHSCORES");
+  async listBlacklistByRange(
+    fromMs: number,
+    toMs: number,
+  ): Promise<Array<{ ip: string; blockedAt: number }>> {
+    const pairs = await redis.zrangebyscore(
+      this.blacklistIndexKey,
+      fromMs,
+      toMs,
+      "WITHSCORES",
+    );
     if (!pairs.length) return [];
     const items: Array<{ ip: string; blockedAt: number }> = [];
     for (let i = 0; i < pairs.length; i += 2) {
@@ -400,11 +465,16 @@ class ScanDetector {
 
     const indexMinScore = record.blockedAt - ttlSeconds * 1000;
     const pipeline = redis.pipeline();
-    pipeline.set(this.blacklistDataKey(record.ip), JSON.stringify(record), "EX", ttlSeconds);
+    pipeline.set(
+      this.blacklistDataKey(record.ip),
+      JSON.stringify(record),
+      "EX",
+      ttlSeconds,
+    );
     pipeline.zadd(this.blacklistIndexKey, record.blockedAt, record.ip);
     pipeline.zremrangebyscore(this.blacklistIndexKey, 0, indexMinScore);
-    pipeline.expire(this.blacklistIndexKey, ttlSeconds);
     await pipeline.exec();
+    await this.ensureMinimumTtl(this.blacklistIndexKey, ttlSeconds);
   }
 }
 

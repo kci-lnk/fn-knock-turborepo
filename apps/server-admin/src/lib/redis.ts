@@ -15,6 +15,11 @@ import {
 } from "./redis-log-buffer";
 import { collectStreamOutput, fileExists, waitForProcessExit } from "./runtime";
 import { isAuthServiceTarget } from "./auth-service";
+import {
+  DEFAULT_TERMINAL_FEATURE_CONFIG,
+  type TerminalFeatureConfig,
+  normalizeTerminalFeatureConfig,
+} from "./terminal-shared";
 
 const REDIS_CONFIG = {
   host: process.env.REDIS_HOST || "127.0.0.1",
@@ -183,6 +188,7 @@ export interface AppConfig {
   default_route: string;
   default_tunnel?: "frp" | "cloudflared";
   fnos_share_bypass?: FnosShareBypassConfig;
+  terminal_feature?: TerminalFeatureConfig;
 }
 
 export interface RunModePromptPreferences {
@@ -241,6 +247,9 @@ const DEFAULT_CONFIG: AppConfig = {
     validation_cache_ttl_seconds: 30,
     validation_lock_ttl_seconds: 5,
     session_ttl_seconds: 300,
+  },
+  terminal_feature: {
+    ...DEFAULT_TERMINAL_FEATURE_CONFIG,
   },
 };
 
@@ -621,6 +630,9 @@ export class ConfigManager {
         parsed.fnos_share_bypass = normalizeFnosShareBypassConfig(
           parsed.fnos_share_bypass,
         );
+        parsed.terminal_feature = normalizeTerminalFeatureConfig(
+          parsed.terminal_feature,
+        );
         return parsed;
       }
     } catch (e) {
@@ -632,6 +644,7 @@ export class ConfigManager {
       subdomain_mode: { ...DEFAULT_CONFIG.subdomain_mode },
       ssl: normalizeSSLConfig(DEFAULT_CONFIG.ssl),
       fnos_share_bypass: { ...DEFAULT_FNOS_SHARE_BYPASS_CONFIG },
+      terminal_feature: { ...DEFAULT_TERMINAL_FEATURE_CONFIG },
     };
   }
 
@@ -649,6 +662,7 @@ export class ConfigManager {
         deployment_mode: ssl.deployment_mode || "single_active",
         certificate_count: ssl.certificates?.length || 0,
       },
+      terminal_feature: normalizeTerminalFeatureConfig(config.terminal_feature),
     };
   }
 
@@ -1261,6 +1275,24 @@ export class ConfigManager {
       ...patch,
     });
     config.fnos_share_bypass = next;
+    await this.saveConfig(config);
+    return next;
+  }
+
+  async getTerminalFeatureConfig(): Promise<TerminalFeatureConfig> {
+    const config = await this.getConfig();
+    return normalizeTerminalFeatureConfig(config.terminal_feature);
+  }
+
+  async updateTerminalFeatureConfig(
+    patch: Partial<TerminalFeatureConfig>,
+  ): Promise<TerminalFeatureConfig> {
+    const config = await this.getConfig();
+    const next = normalizeTerminalFeatureConfig({
+      ...config.terminal_feature,
+      ...patch,
+    });
+    config.terminal_feature = next;
     await this.saveConfig(config);
     return next;
   }

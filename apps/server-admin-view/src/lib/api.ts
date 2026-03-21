@@ -21,6 +21,11 @@ import type {
   GatewayLogDeletePayload,
   GatewayLogEntriesPayload,
   GatewayLoggingConfig,
+  TerminalAttachmentRecord,
+  TerminalFeatureConfig,
+  TerminalOutputChunk,
+  TerminalRuntimeStatus,
+  TerminalSessionRecord,
 } from "../types";
 import { createSignedApiClient } from "@frontend-core/api/createSignedApiClient";
 import type { CaptchaSettings } from "@frontend-core/captcha/types";
@@ -88,6 +93,16 @@ export const ConfigAPI = {
   async updateRunType(run_type: RunType): Promise<void> {
     await apiClient.post("/config/run_type", { run_type });
   },
+  async getTerminalFeature(): Promise<TerminalFeatureConfig> {
+    const res = await apiClient.get("/config/terminal_feature");
+    return res.data.data;
+  },
+  async updateTerminalFeature(
+    payload: Partial<TerminalFeatureConfig>,
+  ): Promise<TerminalFeatureConfig> {
+    const res = await apiClient.post("/config/terminal_feature", payload);
+    return res.data.data;
+  },
   async updateDefaultTunnel(tunnel: "frp" | "cloudflared"): Promise<void> {
     await apiClient.post("/config/default_tunnel", { tunnel });
   },
@@ -106,9 +121,7 @@ export const ConfigAPI = {
     const res = await apiClient.get("/config/subdomain_mode");
     return res.data.data;
   },
-  async updateSubdomainMode(
-    config: Partial<SubdomainModeConfig>,
-  ): Promise<
+  async updateSubdomainMode(config: Partial<SubdomainModeConfig>): Promise<
     SubdomainModeConfig & {
       ssl_auto_selection?: {
         applied: boolean;
@@ -352,6 +365,84 @@ export const GatewayLogsAPI = {
       data: { date },
     });
     return res.data.data;
+  },
+};
+
+export const TerminalAPI = {
+  async getStatus(): Promise<TerminalRuntimeStatus> {
+    const res = await apiClient.get("/terminal/status");
+    return res.data.data;
+  },
+  async listSessions(): Promise<TerminalSessionRecord[]> {
+    const res = await apiClient.get("/terminal/sessions");
+    return res.data.data;
+  },
+  async getSession(id: string): Promise<TerminalSessionRecord> {
+    const res = await apiClient.get(
+      `/terminal/sessions/${encodeURIComponent(id)}`,
+    );
+    return res.data.data;
+  },
+  async createSession(payload: {
+    title?: string;
+    shell?: string;
+    cwd?: string;
+    cols?: number;
+    rows?: number;
+  }): Promise<TerminalSessionRecord> {
+    const res = await apiClient.post("/terminal/sessions", payload);
+    return res.data.data;
+  },
+  async updateSessionTitle(
+    id: string,
+    title: string,
+  ): Promise<TerminalSessionRecord> {
+    const res = await apiClient.patch(
+      `/terminal/sessions/${encodeURIComponent(id)}`,
+      { title },
+    );
+    return res.data.data;
+  },
+  async deleteSession(id: string): Promise<void> {
+    await apiClient.delete(`/terminal/sessions/${encodeURIComponent(id)}`);
+  },
+  async createAttachment(sessionId: string): Promise<TerminalAttachmentRecord> {
+    const res = await apiClient.post(
+      `/terminal/sessions/${encodeURIComponent(sessionId)}/attachments`,
+    );
+    return res.data.data;
+  },
+  async pollAttachment(
+    attachmentId: string,
+    params: { cursor?: number; timeout_ms?: number } = {},
+  ): Promise<{ changed: boolean; chunk: TerminalOutputChunk | null }> {
+    const res = await apiClient.get(
+      `/terminal/attachments/${encodeURIComponent(attachmentId)}/poll`,
+      { params },
+    );
+    return res.data.data;
+  },
+  async sendInput(attachmentId: string, dataBase64: string): Promise<void> {
+    await apiClient.post(
+      `/terminal/attachments/${encodeURIComponent(attachmentId)}/input`,
+      { dataBase64 },
+    );
+  },
+  async resizeAttachment(
+    attachmentId: string,
+    cols: number,
+    rows: number,
+  ): Promise<TerminalSessionRecord> {
+    const res = await apiClient.post(
+      `/terminal/attachments/${encodeURIComponent(attachmentId)}/resize`,
+      { cols, rows },
+    );
+    return res.data.data;
+  },
+  async detachAttachment(attachmentId: string): Promise<void> {
+    await apiClient.delete(
+      `/terminal/attachments/${encodeURIComponent(attachmentId)}`,
+    );
   },
 };
 
@@ -839,9 +930,7 @@ export const AcmeAPI = {
     const res = await apiClient.post("/acme/request", payload);
     return res.data.data;
   },
-  async job(
-    id: string,
-  ): Promise<{
+  async job(id: string): Promise<{
     id: string;
     domains: string[];
     method: string;

@@ -202,6 +202,71 @@ export interface GatewayLogDeletePayload {
   available_dates: string[];
 }
 
+export interface TerminalFeatureConfig {
+  enabled: boolean;
+  default_shell: string;
+  default_cwd: string;
+  max_sessions: number;
+  idle_timeout_seconds: number;
+  resume_backend: "tmux";
+  allow_mobile_toolbar: boolean;
+  dangerously_run_as_current_user: boolean;
+}
+
+export type TerminalTransport = "http-polling";
+export type TerminalSessionStatus =
+  | "created"
+  | "attached"
+  | "detached"
+  | "stopped"
+  | "error";
+
+export interface TerminalSessionRecord {
+  id: string;
+  title: string;
+  status: TerminalSessionStatus;
+  created_at: string;
+  updated_at: string;
+  last_attached_at: string;
+  last_detached_at: string;
+  last_client_ip: string;
+  shell: string;
+  cwd: string;
+  cols: number;
+  rows: number;
+  resume_backend: "tmux";
+  backend_session_name: string;
+  pane_tty_path: string;
+  input_pipe_path: string;
+  output_log_path: string;
+  expires_at: string;
+  last_frame_revision?: string;
+}
+
+export interface TerminalAttachmentRecord {
+  id: string;
+  session_id: string;
+  transport: TerminalTransport;
+  created_at: string;
+  updated_at: string;
+  expires_at: string;
+}
+
+export interface TerminalOutputChunk {
+  cursor: number;
+  data_base64: string;
+  reset: boolean;
+  updatedAt: string;
+}
+
+export interface TerminalRuntimeStatus {
+  enabled: boolean;
+  tmuxAvailable: boolean;
+  httpPollingAvailable: boolean;
+  runningAsRoot: boolean;
+  blockedReason: string;
+}
+
 export interface AppConfig {
   run_type: RunType;
   whitelist_ips: string[];
@@ -212,6 +277,7 @@ export interface AppConfig {
   default_tunnel?: "frp" | "cloudflared";
   fnos_share_bypass?: FnosShareBypassConfig;
   gateway_logging?: GatewayLoggingConfig;
+  terminal_feature?: TerminalFeatureConfig;
   ssl: {
     enabled: boolean;
     active_cert_id?: string;

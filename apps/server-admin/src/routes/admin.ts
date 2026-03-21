@@ -256,6 +256,29 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       }),
     },
   )
+  .get("/config/terminal_feature", async () => {
+    const settings = await configManager.getTerminalFeatureConfig();
+    return { success: true, data: settings };
+  })
+  .post(
+    "/config/terminal_feature",
+    async ({ body }) => {
+      const next = await configManager.updateTerminalFeatureConfig(body);
+      return { success: true, data: next };
+    },
+    {
+      body: t.Object({
+        enabled: t.Optional(t.Boolean()),
+        default_shell: t.Optional(t.String()),
+        default_cwd: t.Optional(t.String()),
+        max_sessions: t.Optional(t.Number()),
+        idle_timeout_seconds: t.Optional(t.Number()),
+        resume_backend: t.Optional(t.Literal("tmux")),
+        allow_mobile_toolbar: t.Optional(t.Boolean()),
+        dangerously_run_as_current_user: t.Optional(t.Boolean()),
+      }),
+    },
+  )
   .get("/config/default_route", async () => {
     const config = await configManager.getConfig();
     return { success: true, data: { default_route: config.default_route } };

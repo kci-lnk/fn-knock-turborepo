@@ -71,7 +71,7 @@
     </Sheet>
 
     <div
-      class="mx-auto flex w-full max-w-7xl flex-1 min-h-0 flex-col gap-4 px-4 py-4 sm:flex-row sm:gap-6 sm:px-6 sm:py-6"
+      class="mx-auto flex w-full max-w-7xl min-w-0 flex-1 min-h-0 flex-col gap-4 px-4 py-4 sm:flex-row sm:gap-6 sm:px-6 sm:py-6"
     >
       <aside
         class="hidden w-[136px] shrink-0 sm:sticky sm:top-6 sm:block sm:h-[calc(100dvh-3rem)]"
@@ -125,7 +125,7 @@
       </aside>
 
       <main
-        class="flex-1 w-full min-h-0 overflow-y-auto"
+        class="flex-1 w-full min-w-0 min-h-0 overflow-y-auto"
         :aria-busy="isRouteNavigating"
       >
         <div
@@ -224,6 +224,7 @@ import {
   FileText,
   ScrollText,
   Settings,
+  Terminal,
   Users,
   Globe,
   Menu,
@@ -305,6 +306,9 @@ const navItems = computed(() => {
   items.push({ name: "登录日志", path: "/logs", icon: FileText });
   if (configStore.config?.gateway_logging?.enabled) {
     items.push({ name: "请求日志", path: "/request-logs", icon: ScrollText });
+  }
+  if (configStore.config?.terminal_feature?.enabled) {
+    items.push({ name: "网页终端", path: "/terminal", icon: Terminal });
   }
   items.push({ name: "系统设置", path: "/system", icon: Settings });
   return items;

@@ -92,6 +92,11 @@ const router = createRouter({
             import("../views/session-management/mobility/SessionMobilityPage.vue"),
         },
         {
+          path: "terminal",
+          name: "WebTerminal",
+          component: () => import("../views/WebTerminal.vue"),
+        },
+        {
           path: "tunnel",
           name: "IntranetTunnel",
           component: () => import("../views/Tunnel.vue"),

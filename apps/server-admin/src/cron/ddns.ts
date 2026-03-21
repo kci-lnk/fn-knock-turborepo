@@ -10,7 +10,11 @@ export const registerDDNSCron = (app: Elysia) => {
       name: "ddns-update",
       pattern,
       async run() {
-        await runAutomaticDDNSCheck();
+        await runAutomaticDDNSCheck({
+          trigger: "cron",
+          emitSkipLog: true,
+          emitNoopLog: true,
+        });
       },
     })
   );

@@ -127,6 +127,7 @@ const enabled = ref(true);
 const selectedProvider = ref<string>("");
 const providers = ref<Provider[]>([]);
 const providerConfig = ref<Record<string, string>>({});
+const savedProviderConfig = ref<Record<string, string>>({});
 const lastIP = ref<LastIP>({ ipv4: null, ipv6: null, updated_at: null });
 const lastCheck = ref<LastCheck>({
   checked_at: null,
@@ -272,6 +273,14 @@ const hasProviderConfig = computed(() => {
   );
 });
 
+const hasSavedProviderConfig = computed(() => {
+  const def = currentProviderDef.value;
+  if (!def) return false;
+  return def.fields.some(
+    (field) => savedProviderConfig.value[field.key]?.toString().trim() !== "",
+  );
+});
+
 const currentUpdateScopeLabel = computed(() => {
   return getUpdateScopeLabel(
     providerConfig.value[UPDATE_SCOPE_KEY] || statusUpdateScope.value,
@@ -404,7 +413,11 @@ async function loadNetworkInterfaces() {
 }
 
 async function loadConfig() {
-  if (!selectedProvider.value) return;
+  if (!selectedProvider.value) {
+    providerConfig.value = {};
+    savedProviderConfig.value = {};
+    return;
+  }
   await runLoadConfig(async () => {
     const config = await DDNSAPI.getConfig(selectedProvider.value);
     const def = currentProviderDef.value;
@@ -427,6 +440,7 @@ async function loadConfig() {
       }
     }
     providerConfig.value = merged;
+    savedProviderConfig.value = { ...merged };
   });
 }
 
@@ -492,6 +506,7 @@ async function onSaveConfigSilent() {
   await runSaveConfig(() =>
     DDNSAPI.saveConfig(selectedProvider.value, providerConfig.value),
   );
+  savedProviderConfig.value = { ...providerConfig.value };
   return true;
 }
 
@@ -776,6 +791,17 @@ onUnmounted(() => {
     >
       <template #summary>
         当前提供商: {{ currentProviderDef?.label || "未配置" }}
+      </template>
+
+      <template v-if="hasSavedProviderConfig" #collapsed-actions>
+        <Button
+          variant="outline"
+          :disabled="isTesting || isSaving || !selectedProvider"
+          @click="onTest"
+        >
+          <RefreshCw v-if="isTesting" class="w-4 h-4 mr-2 animate-spin" />
+          {{ isTesting ? "更新中..." : "立即刷新" }}
+        </Button>
       </template>
 
       <template #default>

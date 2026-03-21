@@ -154,7 +154,17 @@ watch(
                 <slot name="summary" />
               </div>
             </div>
-            <Button variant="secondary" @click.stop="expand">{{ editLabel }}</Button>
+            <div class="flex items-center gap-2 shrink-0" @click.stop>
+              <slot
+                v-if="slots['collapsed-actions']"
+                name="collapsed-actions"
+                :open="open"
+                :expand="expand"
+                :collapse="collapse"
+                :toggle="toggle"
+              />
+              <Button variant="secondary" @click="expand">{{ editLabel }}</Button>
+            </div>
           </CardContent>
         </div>
 

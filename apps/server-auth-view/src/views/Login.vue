@@ -180,7 +180,7 @@
             </Dialog>
             <Dialog
               :open="showPasskeyBindDialog"
-              @update:open="showPasskeyBindDialog = $event"
+              @update:open="handlePasskeyBindDialogOpenChange"
             >
               <DialogContent
                 :show-close-button="false"
@@ -194,6 +194,19 @@
                 </DialogHeader>
                 <div v-if="passkeyBindError" class="text-sm text-destructive">
                   {{ passkeyBindError }}
+                </div>
+                <div class="flex items-center space-x-3 rounded-lg border bg-muted/40 px-3 py-2">
+                  <Checkbox
+                    id="skipPasskeyBindPrompt"
+                    v-model="skipPasskeyBindPrompt"
+                    :disabled="isBindingPasskey"
+                  />
+                  <label
+                    for="skipPasskeyBindPrompt"
+                    class="cursor-pointer select-none text-sm text-muted-foreground"
+                  >
+                    不再提醒
+                  </label>
                 </div>
                 <DialogFooter class="gap-2">
                   <Button variant="outline" @click="skipPasskeyBind"
@@ -300,11 +313,14 @@ const showPasskeyBindDialog = ref(false);
 const isBindingPasskey = ref(false);
 const passkeyBindError = ref("");
 const passkeyBindToken = ref("");
+const skipPasskeyBindPrompt = ref(false);
 const pendingRunType = ref<0 | 1 | 3 | null>(null);
 const pendingRedirectTo = ref<string | null>(null);
 const { clientIp, ipLocation, ipLocationStatus, startLocationPolling } =
   useClientIpLocation();
 let lastLoginAttemptAt = 0;
+const PASSKEY_BIND_PROMPT_STORAGE_KEY =
+  "server-auth-view:passkey-bind-prompt-dismissed";
 
 const captchaConfig = ref<CaptchaPublicSettings | null>(null);
 const powWidgetRef = ref<any>(null);
@@ -434,6 +450,39 @@ function handleOtpComplete() {
   void handleLogin();
 }
 
+function isPasskeyBindPromptDismissed() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  return window.localStorage.getItem(PASSKEY_BIND_PROMPT_STORAGE_KEY) === "1";
+}
+
+function persistPasskeyBindPromptPreference() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (skipPasskeyBindPrompt.value) {
+    window.localStorage.setItem(PASSKEY_BIND_PROMPT_STORAGE_KEY, "1");
+    return;
+  }
+
+  window.localStorage.removeItem(PASSKEY_BIND_PROMPT_STORAGE_KEY);
+}
+
+function handlePasskeyBindDialogOpenChange(open: boolean) {
+  if (open) {
+    showPasskeyBindDialog.value = true;
+    return;
+  }
+
+  if (!showPasskeyBindDialog.value) {
+    return;
+  }
+
+  skipPasskeyBind();
+}
+
 async function handleLogin() {
   if (isLoading.value) {
     return;
@@ -478,9 +527,15 @@ async function handleLogin() {
         passkey?.can_bind &&
         passkey?.bind_token
       ) {
+        if (isPasskeyBindPromptDismissed()) {
+          completeLogin(runType, redirectTo);
+          return;
+        }
+
         passkeyBindToken.value = passkey.bind_token;
         pendingRunType.value = runType;
         pendingRedirectTo.value = redirectTo;
+        skipPasskeyBindPrompt.value = false;
         showPasskeyBindDialog.value = true;
         return;
       }
@@ -585,6 +640,7 @@ async function handlePasskeyBind() {
       isPasskeyAvailable.value = true;
       showPasskeyBindDialog.value = false;
       passkeyBindToken.value = "";
+      skipPasskeyBindPrompt.value = false;
       if (pendingRunType.value !== null) {
         completeLogin(pendingRunType.value, pendingRedirectTo.value);
       }
@@ -600,9 +656,11 @@ async function handlePasskeyBind() {
 }
 
 function skipPasskeyBind() {
+  persistPasskeyBindPromptPreference();
   showPasskeyBindDialog.value = false;
   passkeyBindToken.value = "";
   passkeyBindError.value = "";
+  skipPasskeyBindPrompt.value = false;
   if (pendingRunType.value !== null) {
     completeLogin(pendingRunType.value, pendingRedirectTo.value);
   }

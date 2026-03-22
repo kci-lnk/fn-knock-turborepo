@@ -98,7 +98,8 @@ const middleEllipsis = (text: string, max = 16) => {
 
 async function fetchSessions() {
   await runLoadSessions(async () => {
-    sessions.value = await SessionAPI.list();
+    const nextSessions = await SessionAPI.list();
+    sessions.value = Array.isArray(nextSessions) ? nextSessions : [];
   });
 }
 
@@ -114,6 +115,11 @@ function openMobility(session: SessionRecord) {
 async function kickSession(sessionId: string) {
   await runKickSession(() => SessionAPI.kick(sessionId), {
     onSuccess: async () => {
+      sessions.value = sessions.value.filter((session) => session.id !== sessionId);
+      if (detailSession.value?.id === sessionId) {
+        detailSession.value = null;
+        showDetail.value = false;
+      }
       toast.success("已踢出会话");
       await fetchSessions();
     },

@@ -829,7 +829,7 @@ export const PollingAPI = {
 export const SessionAPI = {
   async list(): Promise<SessionRecord[]> {
     const res = await apiClient.get("/sessions");
-    return res.data.data;
+    return Array.isArray(res.data?.data) ? res.data.data : [];
   },
   async get(id: string): Promise<SessionRecord> {
     const res = await apiClient.get(`/sessions/${encodeURIComponent(id)}`);

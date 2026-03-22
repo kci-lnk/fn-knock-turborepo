@@ -17,6 +17,8 @@ import type {
   DashboardStats,
   ThreatOverview,
   FnosShareBypassConfig,
+  FnKnockBackupImportArchiveRequest,
+  FnKnockBackupImportResult,
   GatewayLogDatesPayload,
   GatewayLogDeletePayload,
   GatewayLogEntriesPayload,
@@ -379,6 +381,21 @@ export const GatewayLogsAPI = {
     const res = await apiClient.delete("/gateway-logs/entries", {
       data: { date },
     });
+    return res.data.data;
+  },
+};
+
+export const MaintenanceAPI = {
+  async downloadBackup(): Promise<Blob> {
+    const res = await apiClient.get("/maintenance/backup/export", {
+      responseType: "blob",
+    });
+    return res.data;
+  },
+  async importBackup(
+    payload: FnKnockBackupImportArchiveRequest,
+  ): Promise<FnKnockBackupImportResult> {
+    const res = await apiClient.post("/maintenance/backup/import", payload);
     return res.data.data;
   },
 };

@@ -207,6 +207,18 @@ export interface GatewayLogDeletePayload {
   available_dates: string[];
 }
 
+export interface FnKnockBackupImportArchiveRequest {
+  filename?: string;
+  archive_base64: string;
+}
+
+export interface FnKnockBackupImportResult {
+  cleared_keys: number;
+  imported_keys: number;
+  warnings: string[];
+  synced_steps: string[];
+}
+
 export interface TerminalFeatureConfig {
   enabled: boolean;
   default_shell: string;

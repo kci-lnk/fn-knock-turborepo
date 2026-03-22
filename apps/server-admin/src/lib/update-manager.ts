@@ -4,7 +4,11 @@ import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { dataPath } from "./AppDirManager";
 import { redis } from "./redis";
-import { APP_GITHUB_URL, APP_LOCAL_VERSION } from "./app-version";
+import {
+  APP_GITHUB_URL,
+  APP_LOCAL_VERSION,
+  compareVersion,
+} from "./app-version";
 import { waitForProcessExit } from "./runtime";
 
 const OTA_LATEST_URL = "https://fn-knock.cdn.wxlnk.com/latest.json";
@@ -56,29 +60,6 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
 const SHA256_HEX_RE = /^[a-f0-9]{64}$/;
-
-const normalizeVersion = (version: string): number[] => {
-  return version
-    .trim()
-    .split(".")
-    .map((part) => {
-      const match = part.match(/\d+/);
-      return match ? Number.parseInt(match[0], 10) : 0;
-    });
-};
-
-const compareVersion = (a: string, b: string): number => {
-  const pa = normalizeVersion(a);
-  const pb = normalizeVersion(b);
-  const max = Math.max(pa.length, pb.length, 3);
-  for (let i = 0; i < max; i += 1) {
-    const av = pa[i] ?? 0;
-    const bv = pb[i] ?? 0;
-    if (av > bv) return 1;
-    if (av < bv) return -1;
-  }
-  return 0;
-};
 
 const toErrorMessage = (error: unknown, fallback: string): string => {
   if (error instanceof Error && error.message.trim()) {

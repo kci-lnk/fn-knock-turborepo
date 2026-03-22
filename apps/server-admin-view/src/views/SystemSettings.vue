@@ -12,6 +12,7 @@ import CaptchaSettings from "./system-settings/CaptchaSettings.vue";
 import GatewayLoggingSettings from "./system-settings/GatewayLoggingSettings.vue";
 import TerminalSettings from "./system-settings/TerminalSettings.vue";
 import CredentialSettings from "./system-settings/CredentialSettings.vue";
+import MaintenanceSettings from "./system-settings/MaintenanceSettings.vue";
 import { useSyncedQueryTab } from "@admin-shared/composables/useSyncedQueryTab";
 import { useConfigStore } from "../store/config";
 
@@ -31,6 +32,7 @@ const allowedTabs = computed(() => {
     "terminal",
     "credentials",
     "captcha",
+    "maintenance",
   ];
   if (showTunnelTabs.value) {
     tabs.splice(1, 0, "frp", "cloudflared");
@@ -90,6 +92,9 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
           <TabsTrigger value="captcha" class="flex-none shrink-0 px-3"
             >验证码</TabsTrigger
           >
+          <TabsTrigger value="maintenance" class="flex-none shrink-0 px-3"
+            >维护</TabsTrigger
+          >
         </TabsList>
       </div>
       <TabsContent value="run-mode" class="pt-2">
@@ -121,6 +126,9 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
       </TabsContent>
       <TabsContent value="captcha" class="pt-2">
         <CaptchaSettings />
+      </TabsContent>
+      <TabsContent value="maintenance" class="pt-2">
+        <MaintenanceSettings />
       </TabsContent>
     </Tabs>
   </div>

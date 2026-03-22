@@ -22,6 +22,10 @@ import {
 import { isAuthServiceTarget } from "../lib/auth-service";
 import { getGatewayLoggingConfigForResponse } from "../lib/gateway-logging";
 import { syncSSLDeploymentToGateway } from "../lib/ssl-gateway";
+import {
+  MaintenanceBackupError,
+  maintenanceBackupService,
+} from "../lib/maintenance-backup";
 
 const parseIntSafe = (value: string | undefined, fallback: number) => {
   const v = Number.parseInt(String(value ?? ""), 10);
@@ -721,6 +725,50 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       return { success: false, message: e?.message ?? String(e) };
     }
   })
+  .get("/maintenance/backup/export", async () => {
+    const archive = await maintenanceBackupService.exportBackupArchive();
+    const body = new Blob([Uint8Array.from(archive.buffer)], {
+      type: "application/octet-stream",
+    });
+
+    return new Response(body, {
+      headers: {
+        "Content-Type": "application/octet-stream",
+        "Content-Disposition": `attachment; filename="${archive.filename}"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  })
+  .post(
+    "/maintenance/backup/import",
+    async ({ body, set }) => {
+      try {
+        const result = await maintenanceBackupService.importBackupArchive(body);
+        return {
+          success: true,
+          data: result,
+          message:
+            result.warnings.length > 0
+              ? "备份已导入，但部分运行态同步失败"
+              : "备份已导入并完成运行态同步",
+        };
+      } catch (error: any) {
+        const status =
+          error instanceof MaintenanceBackupError ? error.status : 500;
+        set.status = status;
+        return {
+          success: false,
+          message: error?.message || "导入备份失败",
+        };
+      }
+    },
+    {
+      body: t.Object({
+        filename: t.Optional(t.String()),
+        archive_base64: t.String(),
+      }),
+    },
+  )
   .get(
     "/logs",
     async ({ query }) => {

@@ -504,10 +504,12 @@ const stripLegacyTitleSequences = (value: string): string => {
 const clearTerminal = () => {
   resetOutputState();
   if (!term) return;
-  term.reset();
+
+  term.clear?.(); 
+  term.reset(); 
+  term.write("\u001b[2J\u001b[3J\u001b[H");
   term.focus();
 };
-
 const focusTerminal = () => {
   term?.focus();
   void nextTick(() => term?.focus());
@@ -605,8 +607,6 @@ const refreshSessions = async () => {
   }
 };
 
-// Coalesce bursty terminal input into short, ordered batches instead of
-// sending one HTTP request for every onData event.
 const shouldFlushInputImmediately = (data: string): boolean =>
   data.includes("\r") ||
   data.includes("\n") ||

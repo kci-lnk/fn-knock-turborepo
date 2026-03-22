@@ -69,6 +69,7 @@ const DEFAULT_TERMINAL_FONT_SIZE = 14;
 const DEFAULT_TERMINAL_FONT_SIZE_MOBILE = 12;
 const MIN_TERMINAL_FONT_SIZE = 13;
 const MAX_TERMINAL_FONT_SIZE = 20;
+const TERMINAL_TOUCH_DRAG_THRESHOLD_PX = 10;
 type ArmedModifier = "ctrl" | "alt";
 type ToolbarShortcut = {
   id: string;
@@ -140,9 +141,19 @@ let pendingResizeTarget: { cols: number; rows: number } | null = null;
 let lastSyncedResizeKey = "";
 let lastRequestedResizeKey = "";
 let resizeSendQueue: Promise<void> = Promise.resolve();
+let terminalFitFrame: number | null = null;
+let terminalFitTimer: number | null = null;
+let terminalFitAttemptsRemaining = 0;
 let pinchStartDistance = 0;
 let pinchStartFontSize = DEFAULT_TERMINAL_FONT_SIZE;
 let pinchZoomDirty = false;
+let trackedTerminalTouchId: number | null = null;
+let trackedTerminalTouchStartX = 0;
+let trackedTerminalTouchStartY = 0;
+let trackedTerminalTouchLastY = 0;
+let trackedTerminalTouchRemainder = 0;
+let trackedTerminalTouchMoved = false;
+let trackedTerminalTouchScrolling = false;
 let outputTextDecoder = new TextDecoder();
 let pendingLegacyTitleSequence = "";
 
@@ -315,7 +326,7 @@ const applyTerminalFontSize = (
 
   if (!term) return;
   term.options.fontSize = nextFontSize;
-  fitAddon?.fit();
+  scheduleTerminalFit();
 };
 
 const nudgeTerminalFontSize = (delta: number) => {
@@ -340,29 +351,202 @@ const getTouchDistance = (touches: TouchList): number | null => {
   );
 };
 
+const touchListIncludesIdentifier = (
+  touches: TouchList,
+  identifier: number,
+): boolean => {
+  for (let index = 0; index < touches.length; index += 1) {
+    if (touches.item(index)?.identifier === identifier) {
+      return true;
+    }
+  }
+  return false;
+};
+
+const getTrackedTerminalTouch = (touches: TouchList): Touch | null => {
+  if (trackedTerminalTouchId === null) return null;
+  for (let index = 0; index < touches.length; index += 1) {
+    const touch = touches.item(index);
+    if (touch?.identifier === trackedTerminalTouchId) {
+      return touch;
+    }
+  }
+  return null;
+};
+
+const resetTrackedTerminalTouch = () => {
+  trackedTerminalTouchId = null;
+  trackedTerminalTouchStartX = 0;
+  trackedTerminalTouchStartY = 0;
+  trackedTerminalTouchLastY = 0;
+  trackedTerminalTouchRemainder = 0;
+  trackedTerminalTouchMoved = false;
+  trackedTerminalTouchScrolling = false;
+};
+
+const getTerminalTouchRowHeight = (): number => {
+  if (!term || !terminalMountRef.value) {
+    return DEFAULT_TERMINAL_FONT_SIZE_MOBILE * 1.6;
+  }
+
+  return Math.max(
+    1,
+    terminalMountRef.value.clientHeight / Math.max(term.rows, 1),
+  );
+};
+
+const applyTerminalFit = () => {
+  if (!term || !fitAddon) return;
+
+  const dimensions = fitAddon.proposeDimensions();
+  if (!dimensions) return;
+  if (dimensions.cols === term.cols && dimensions.rows === term.rows) return;
+
+  term.resize(dimensions.cols, dimensions.rows);
+};
+
+const hasTerminalCanvasHeightGap = (): boolean => {
+  if (!terminalMountRef.value) return false;
+
+  const canvas = terminalMountRef.value.querySelector("canvas");
+  if (!(canvas instanceof HTMLCanvasElement)) return false;
+
+  const mountHeight = terminalMountRef.value.clientHeight;
+  const canvasHeight = Math.round(canvas.getBoundingClientRect().height);
+  if (mountHeight <= 0 || canvasHeight <= 0) return false;
+
+  return Math.abs(mountHeight - canvasHeight) > 24;
+};
+
+const runTerminalFitAttempt = () => {
+  applyTerminalFit();
+
+  if (
+    terminalFitAttemptsRemaining <= 0 ||
+    !hasTerminalCanvasHeightGap() ||
+    typeof window === "undefined"
+  ) {
+    terminalFitAttemptsRemaining = 0;
+    return;
+  }
+
+  terminalFitAttemptsRemaining -= 1;
+  terminalFitTimer = window.setTimeout(() => {
+    terminalFitTimer = null;
+    runTerminalFitAttempt();
+  }, 120);
+};
+
+const scheduleTerminalFit = () => {
+  if (typeof window === "undefined") return;
+
+  if (terminalFitFrame !== null) {
+    window.cancelAnimationFrame(terminalFitFrame);
+  }
+  if (terminalFitTimer !== null) {
+    window.clearTimeout(terminalFitTimer);
+    terminalFitTimer = null;
+  }
+  terminalFitAttemptsRemaining = 8;
+
+  void nextTick(() => {
+    terminalFitFrame = window.requestAnimationFrame(() => {
+      terminalFitFrame = null;
+      runTerminalFitAttempt();
+    });
+  });
+};
+
 const handleTerminalTouchStart = (event: TouchEvent) => {
-  if (event.touches.length !== 2 || !compactViewport.value) return;
-  const distance = getTouchDistance(event.touches);
-  if (!distance) return;
-  pinchStartDistance = distance;
-  pinchStartFontSize = terminalFontSize.value;
-  pinchZoomDirty = false;
-  isPinchZooming.value = true;
+  if (!compactViewport.value) return;
+
+  if (event.touches.length === 2) {
+    resetTrackedTerminalTouch();
+    const distance = getTouchDistance(event.touches);
+    if (!distance) return;
+    pinchStartDistance = distance;
+    pinchStartFontSize = terminalFontSize.value;
+    pinchZoomDirty = false;
+    isPinchZooming.value = true;
+    return;
+  }
+
+  if (event.touches.length !== 1 || isPinchZooming.value) return;
+
+  const touch = event.touches.item(0);
+  if (!touch) return;
+  trackedTerminalTouchId = touch.identifier;
+  trackedTerminalTouchStartX = touch.clientX;
+  trackedTerminalTouchStartY = touch.clientY;
+  trackedTerminalTouchLastY = touch.clientY;
+  trackedTerminalTouchRemainder = 0;
+  trackedTerminalTouchMoved = false;
+  trackedTerminalTouchScrolling = false;
 };
 
 const handleTerminalTouchMove = (event: TouchEvent) => {
-  if (!isPinchZooming.value || event.touches.length !== 2) return;
-  const distance = getTouchDistance(event.touches);
-  if (!distance || pinchStartDistance <= 0) return;
+  if (isPinchZooming.value && event.touches.length === 2) {
+    const distance = getTouchDistance(event.touches);
+    if (!distance || pinchStartDistance <= 0) return;
+
+    event.preventDefault();
+    const nextFontSize = clampTerminalFontSize(
+      pinchStartFontSize * (distance / pinchStartDistance),
+    );
+    if (nextFontSize === terminalFontSize.value) return;
+
+    pinchZoomDirty = true;
+    applyTerminalFontSize(nextFontSize, { persist: false });
+    return;
+  }
+
+  if (
+    !compactViewport.value ||
+    !term ||
+    trackedTerminalTouchId === null ||
+    event.touches.length !== 1
+  ) {
+    return;
+  }
+
+  const touch = getTrackedTerminalTouch(event.touches);
+  if (!touch) return;
+
+  const totalDeltaX = touch.clientX - trackedTerminalTouchStartX;
+  const totalDeltaY = touch.clientY - trackedTerminalTouchStartY;
+  if (
+    !trackedTerminalTouchMoved &&
+    (Math.abs(totalDeltaX) >= TERMINAL_TOUCH_DRAG_THRESHOLD_PX ||
+      Math.abs(totalDeltaY) >= TERMINAL_TOUCH_DRAG_THRESHOLD_PX)
+  ) {
+    trackedTerminalTouchMoved = true;
+  }
+
+  if (!trackedTerminalTouchScrolling) {
+    if (
+      Math.abs(totalDeltaY) < TERMINAL_TOUCH_DRAG_THRESHOLD_PX ||
+      Math.abs(totalDeltaY) <= Math.abs(totalDeltaX)
+    ) {
+      trackedTerminalTouchLastY = touch.clientY;
+      return;
+    }
+    trackedTerminalTouchScrolling = true;
+  }
 
   event.preventDefault();
-  const nextFontSize = clampTerminalFontSize(
-    pinchStartFontSize * (distance / pinchStartDistance),
-  );
-  if (nextFontSize === terminalFontSize.value) return;
+  const deltaY = touch.clientY - trackedTerminalTouchLastY;
+  trackedTerminalTouchLastY = touch.clientY;
+  trackedTerminalTouchRemainder += deltaY;
 
-  pinchZoomDirty = true;
-  applyTerminalFontSize(nextFontSize, { persist: false });
+  const rowHeight = getTerminalTouchRowHeight();
+  const lines =
+    trackedTerminalTouchRemainder > 0
+      ? Math.floor(trackedTerminalTouchRemainder / rowHeight)
+      : Math.ceil(trackedTerminalTouchRemainder / rowHeight);
+  if (lines === 0) return;
+
+  term.scrollLines(-lines);
+  trackedTerminalTouchRemainder -= lines * rowHeight;
 };
 
 const finishTerminalPinchZoom = () => {
@@ -376,23 +560,49 @@ const finishTerminalPinchZoom = () => {
   pinchZoomDirty = false;
 };
 
+const handleTerminalTouchEnd = (event: TouchEvent) => {
+  const wasPinchZooming = isPinchZooming.value;
+  const trackedTouchEnded =
+    trackedTerminalTouchId !== null &&
+    touchListIncludesIdentifier(event.changedTouches, trackedTerminalTouchId);
+  const shouldSuppressGhosttyFocus =
+    wasPinchZooming || (trackedTouchEnded && trackedTerminalTouchMoved);
+
+  if (shouldSuppressGhosttyFocus) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation?.();
+  }
+
+  if (trackedTouchEnded) {
+    resetTrackedTerminalTouch();
+  }
+
+  finishTerminalPinchZoom();
+};
+
 const bindTerminalTouchGestures = () => {
   if (!terminalMountRef.value) return;
   terminalMountRef.value.addEventListener(
     "touchstart",
     handleTerminalTouchStart,
+    { capture: true },
   );
   terminalMountRef.value.addEventListener(
     "touchmove",
     handleTerminalTouchMove,
     {
+      capture: true,
       passive: false,
     },
   );
-  terminalMountRef.value.addEventListener("touchend", finishTerminalPinchZoom);
+  terminalMountRef.value.addEventListener("touchend", handleTerminalTouchEnd, {
+    capture: true,
+  });
   terminalMountRef.value.addEventListener(
     "touchcancel",
-    finishTerminalPinchZoom,
+    handleTerminalTouchEnd,
+    { capture: true },
   );
 };
 
@@ -401,18 +611,22 @@ const unbindTerminalTouchGestures = () => {
   terminalMountRef.value.removeEventListener(
     "touchstart",
     handleTerminalTouchStart,
+    true,
   );
   terminalMountRef.value.removeEventListener(
     "touchmove",
     handleTerminalTouchMove,
+    true,
   );
   terminalMountRef.value.removeEventListener(
     "touchend",
-    finishTerminalPinchZoom,
+    handleTerminalTouchEnd,
+    true,
   );
   terminalMountRef.value.removeEventListener(
     "touchcancel",
-    finishTerminalPinchZoom,
+    handleTerminalTouchEnd,
+    true,
   );
 };
 
@@ -505,8 +719,8 @@ const clearTerminal = () => {
   resetOutputState();
   if (!term) return;
 
-  term.clear?.(); 
-  term.reset(); 
+  term.clear?.();
+  term.reset();
   term.write("\u001b[2J\u001b[3J\u001b[H");
   term.focus();
 };
@@ -516,6 +730,9 @@ const focusTerminal = () => {
 };
 
 const keepTerminalFocused = (event: Event) => {
+  if (event instanceof PointerEvent && event.pointerType !== "mouse") {
+    return;
+  }
   event.preventDefault();
   focusTerminal();
 };
@@ -594,7 +811,7 @@ const syncViewportHeight = () => {
         : Math.min(MAX_TERMINAL_HEIGHT_DESKTOP_PX, available)
       : DEFAULT_TERMINAL_HEIGHT_PX;
   terminalHeight.value = `${nextHeight}px`;
-  fitAddon?.fit();
+  scheduleTerminalFit();
 };
 
 const refreshSessions = async () => {
@@ -1078,8 +1295,9 @@ const initializeTerminal = async () => {
   term.loadAddon(fitAddon);
   term.open(terminalMountRef.value);
   bindTerminalTouchGestures();
-  fitAddon.fit();
+  applyTerminalFit();
   fitAddon.observeResize();
+  scheduleTerminalFit();
   term.focus();
   term.onData((data) => {
     queueTerminalInput(applyArmedModifierToInput(data));
@@ -1191,6 +1409,15 @@ onBeforeUnmount(() => {
   window.removeEventListener("resize", syncViewportHeight);
   window.visualViewport?.removeEventListener("resize", syncViewportHeight);
   window.visualViewport?.removeEventListener("scroll", syncViewportHeight);
+  if (terminalFitFrame !== null) {
+    window.cancelAnimationFrame(terminalFitFrame);
+    terminalFitFrame = null;
+  }
+  if (terminalFitTimer !== null) {
+    window.clearTimeout(terminalFitTimer);
+    terminalFitTimer = null;
+  }
+  terminalFitAttemptsRemaining = 0;
   void stopCurrentConnection();
   fitAddon?.dispose();
   term?.dispose();
@@ -1287,7 +1514,7 @@ onBeforeUnmount(() => {
                   "
                   aria-label="重连终端"
                   title="重连"
-                  @pointerdown.prevent="keepTerminalFocused"
+                  @pointerdown="keepTerminalFocused"
                   @click="reconnectSession"
                 >
                   <RefreshCcw class="h-4 w-4" />
@@ -1437,7 +1664,7 @@ onBeforeUnmount(() => {
                 />
                 <div
                   ref="terminalMountRef"
-                  class="relative box-border h-full w-full min-h-0 min-w-0 max-w-full overflow-hidden px-1.5 py-2.5 sm:px-2.5 sm:py-3"
+                  class="absolute inset-0 box-border min-h-0 min-w-0 overflow-hidden px-1.5 py-2.5 sm:px-2.5 sm:py-3"
                 />
               </div>
             </div>
@@ -1462,7 +1689,7 @@ onBeforeUnmount(() => {
                     variant="outline"
                     class="h-9 shrink-0 rounded-xl border-border/70 bg-background/80 px-3 shadow-none"
                     :disabled="toolbarDisabled"
-                    @pointerdown.prevent="keepTerminalFocused"
+                    @pointerdown="keepTerminalFocused"
                     @click="sendToolbarShortcut(item.value)"
                   >
                     {{ item.label }}
@@ -1481,7 +1708,7 @@ onBeforeUnmount(() => {
                     "
                     :aria-pressed="armedModifier === modifier"
                     :disabled="toolbarDisabled"
-                    @pointerdown.prevent="keepTerminalFocused"
+                    @pointerdown="keepTerminalFocused"
                     @click="toggleArmedModifier(modifier as ArmedModifier)"
                   >
                     {{ toolbarModifierLabels[modifier as ArmedModifier] }}
@@ -1494,7 +1721,7 @@ onBeforeUnmount(() => {
                     variant="outline"
                     class="h-9 shrink-0 rounded-xl border-border/70 bg-background/80 px-3 shadow-none"
                     :disabled="toolbarDisabled"
-                    @pointerdown.prevent="keepTerminalFocused"
+                    @pointerdown="keepTerminalFocused"
                     @click="sendToolbarShortcut(item.value)"
                   >
                     {{ item.label }}
@@ -1511,7 +1738,7 @@ onBeforeUnmount(() => {
                     size="sm"
                     variant="ghost"
                     class="h-9 rounded-xl px-3 text-[13px] font-semibold"
-                    @pointerdown.prevent="keepTerminalFocused"
+                    @pointerdown="keepTerminalFocused"
                     @click="nudgeTerminalFontSize(-1)"
                   >
                     A-
@@ -1520,7 +1747,7 @@ onBeforeUnmount(() => {
                     size="sm"
                     variant="ghost"
                     class="h-9 min-w-[64px] rounded-xl px-3 font-mono text-[12px] text-muted-foreground"
-                    @pointerdown.prevent="keepTerminalFocused"
+                    @pointerdown="keepTerminalFocused"
                     @click="resetTerminalFontSize"
                   >
                     {{ terminalFontSize }}px
@@ -1529,7 +1756,7 @@ onBeforeUnmount(() => {
                     size="sm"
                     variant="ghost"
                     class="h-9 rounded-xl px-3 text-[13px] font-semibold"
-                    @pointerdown.prevent="keepTerminalFocused"
+                    @pointerdown="keepTerminalFocused"
                     @click="nudgeTerminalFontSize(1)"
                   >
                     A+

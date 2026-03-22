@@ -20,6 +20,7 @@ import {
   getAuthHostMapping,
 } from "../lib/subdomain-mode";
 import { isAuthServiceTarget } from "../lib/auth-service";
+import { getGatewayLoggingConfigForResponse } from "../lib/gateway-logging";
 import { syncSSLDeploymentToGateway } from "../lib/ssl-gateway";
 
 const parseIntSafe = (value: string | undefined, fallback: number) => {
@@ -186,21 +187,14 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
   .get("/config", async () => {
     const [config, gatewayLogging] = await Promise.all([
       configManager.getConfigSafe(),
-      goBackend.getGatewayLoggingConfig(),
+      getGatewayLoggingConfigForResponse(),
     ]);
 
     return {
       success: true,
       data: {
         ...config,
-        gateway_logging:
-          gatewayLogging.success && gatewayLogging.data
-            ? gatewayLogging.data
-            : {
-                enabled: false,
-                max_days: 7,
-                logs_dir: "",
-              },
+        gateway_logging: gatewayLogging,
       },
     };
   })
@@ -682,23 +676,35 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
   .post("/sync-routes", async ({ set }) => {
     try {
       const config = await configManager.getConfig();
-      const [rulesResult, hostRulesResult, routeResult, authResult] =
-        await Promise.all([
-          goBackend.setRules(config.proxy_mappings),
-          goBackend.setHostRules(config.host_mappings),
-          goBackend.setDefaultRoute(config.default_route),
-          goBackend.setAuthConfig(buildGatewayAuthConfig(config)),
-        ]);
+      const [
+        rulesResult,
+        hostRulesResult,
+        routeResult,
+        authResult,
+        loggingResult,
+      ] = await Promise.all([
+        goBackend.setRules(config.proxy_mappings),
+        goBackend.setHostRules(config.host_mappings),
+        goBackend.setDefaultRoute(config.default_route),
+        goBackend.setAuthConfig(buildGatewayAuthConfig(config)),
+        goBackend.setGatewayLoggingConfig(
+          config.gateway_logging ?? {
+            enabled: false,
+            max_days: 7,
+          },
+        ),
+      ]);
       if (
         !rulesResult.success ||
         !hostRulesResult.success ||
         !routeResult.success ||
-        !authResult.success
+        !authResult.success ||
+        !loggingResult.success
       ) {
         set.status = 502;
         return {
           success: false,
-          message: `同步部分失败: rules=${rulesResult.success}, host_rules=${hostRulesResult.success}, default_route=${routeResult.success}, auth=${authResult.success}`,
+          message: `同步部分失败: rules=${rulesResult.success}, host_rules=${hostRulesResult.success}, default_route=${routeResult.success}, auth=${authResult.success}, gateway_logging=${loggingResult.success}`,
         };
       }
       return {
@@ -706,8 +712,9 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         data: {
           synced_rules: config.proxy_mappings.length,
           synced_host_rules: config.host_mappings.length,
+          synced_gateway_logging: true,
         },
-        message: `成功同步 ${config.proxy_mappings.length} 条路径路由与 ${config.host_mappings.length} 条 Host 路由`,
+        message: `成功同步 ${config.proxy_mappings.length} 条路径路由、${config.host_mappings.length} 条 Host 路由和请求日志配置`,
       };
     } catch (e: any) {
       set.status = 500;

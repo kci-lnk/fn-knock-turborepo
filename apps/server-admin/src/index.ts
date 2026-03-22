@@ -48,6 +48,7 @@ import { updateRoutes } from "./routes/update";
 import { updateManager } from "./lib/update-manager";
 import { createStaticFilesPlugin } from "./plugins/static-files";
 import { firewallService } from "./lib/firewall-service";
+import { syncGatewayLoggingToGateway } from "./lib/gateway-logging";
 import { syncSSLDeploymentToGateway } from "./lib/ssl-gateway";
 import { terminalRoutes } from "./routes/terminal";
 import { terminalManager } from "./lib/terminal-manager";
@@ -358,6 +359,12 @@ authApp.get("*", ({ path }) => {
 
 const config = await configManager.getConfig();
 await firewallService.applyRunTypeConfig(config.run_type);
+syncGatewayLoggingToGateway(config.gateway_logging).catch((error) => {
+  console.error(
+    "[gateway-logging] failed to sync logging config on boot:",
+    error,
+  );
+});
 syncSSLDeploymentToGateway(config).catch((error) => {
   console.error("[SSL] failed to sync gateway deployment on boot:", error);
 });

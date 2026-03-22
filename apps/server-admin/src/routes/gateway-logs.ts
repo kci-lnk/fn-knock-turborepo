@@ -1,8 +1,13 @@
 import { Elysia, t } from "elysia";
 import { goBackend } from "../lib/go-backend";
+import {
+  getGatewayLoggingConfigForResponse,
+  syncGatewayLoggingToGateway,
+} from "../lib/gateway-logging";
+import { configManager } from "../lib/redis";
 
 const toFailure = (
-  set: { status?: number },
+  set: { status?: number | string },
   message: string,
   status = 502,
 ) => {
@@ -16,21 +21,30 @@ const toFailure = (
 export const gatewayLogsRoutes = new Elysia({
   prefix: "/api/admin/gateway-logs",
 })
-  .get("/config", async ({ set }) => {
-    const response = await goBackend.getGatewayLoggingConfig();
-    if (!response.success || !response.data) {
-      return toFailure(set, response.message || "读取网关日志配置失败");
-    }
-    return { success: true, data: response.data };
+  .get("/config", async () => {
+    const settings = await configManager.getGatewayLoggingConfig();
+    return {
+      success: true,
+      data: await getGatewayLoggingConfigForResponse(settings),
+    };
   })
   .post(
     "/config",
     async ({ body, set }) => {
-      const response = await goBackend.setGatewayLoggingConfig(body);
-      if (!response.success || !response.data) {
-        return toFailure(set, response.message || "保存网关日志配置失败", 400);
+      const settings = await configManager.updateGatewayLoggingConfig({
+        enabled: body.enabled,
+        max_days: body.max_days,
+      });
+
+      try {
+        const data = await syncGatewayLoggingToGateway(settings);
+        return { success: true, data };
+      } catch (error: any) {
+        return toFailure(
+          set,
+          error?.message || "请求日志设置已保存，但同步到网关失败",
+        );
       }
-      return { success: true, data: response.data };
     },
     {
       body: t.Object({

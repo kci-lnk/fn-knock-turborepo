@@ -135,6 +135,11 @@ export interface FnosShareBypassConfig {
   session_ttl_seconds: number;
 }
 
+export interface GatewayLoggingSettings {
+  enabled: boolean;
+  max_days: number;
+}
+
 export type CaptchaProvider = "pow" | "turnstile";
 
 export type CaptchaWidgetMode = "normal";
@@ -199,6 +204,7 @@ export interface AppConfig {
   default_route: string;
   default_tunnel?: "frp" | "cloudflared";
   fnos_share_bypass?: FnosShareBypassConfig;
+  gateway_logging?: GatewayLoggingSettings;
   auth_credential_settings?: AuthCredentialSettings;
   terminal_feature?: TerminalFeatureConfig;
 }
@@ -216,6 +222,11 @@ export interface AuthCredentialSettings {
 export const DEFAULT_AUTH_CREDENTIAL_SETTINGS: AuthCredentialSettings = {
   session_ttl_seconds: 24 * 3600,
   remember_me_ttl_seconds: 365 * 24 * 3600,
+};
+
+const DEFAULT_GATEWAY_LOGGING_SETTINGS: GatewayLoggingSettings = {
+  enabled: false,
+  max_days: 7,
 };
 
 export type TOTPCredential = {
@@ -270,6 +281,9 @@ const DEFAULT_CONFIG: AppConfig = {
     validation_lock_ttl_seconds: 5,
     session_ttl_seconds: 300,
   },
+  gateway_logging: {
+    ...DEFAULT_GATEWAY_LOGGING_SETTINGS,
+  },
   auth_credential_settings: {
     ...DEFAULT_AUTH_CREDENTIAL_SETTINGS,
   },
@@ -289,6 +303,20 @@ const DEFAULT_FNOS_SHARE_BYPASS_CONFIG: FnosShareBypassConfig = {
   validation_cache_ttl_seconds: 30,
   validation_lock_ttl_seconds: 5,
   session_ttl_seconds: 300,
+};
+
+const normalizeGatewayLoggingSettings = (
+  value?: Partial<GatewayLoggingSettings> | null,
+): GatewayLoggingSettings => {
+  const raw = value ?? {};
+
+  return {
+    enabled: raw.enabled === true,
+    max_days: normalizePositiveInt(
+      raw.max_days,
+      DEFAULT_GATEWAY_LOGGING_SETTINGS.max_days,
+    ),
+  };
 };
 
 const DEFAULT_CAPTCHA_SETTINGS: CaptchaSettings = {
@@ -677,6 +705,9 @@ export class ConfigManager {
         parsed.fnos_share_bypass = normalizeFnosShareBypassConfig(
           parsed.fnos_share_bypass,
         );
+        parsed.gateway_logging = normalizeGatewayLoggingSettings(
+          parsed.gateway_logging,
+        );
         parsed.auth_credential_settings = normalizeAuthCredentialSettings(
           parsed.auth_credential_settings,
         );
@@ -694,6 +725,7 @@ export class ConfigManager {
       subdomain_mode: { ...DEFAULT_CONFIG.subdomain_mode },
       ssl: normalizeSSLConfig(DEFAULT_CONFIG.ssl),
       fnos_share_bypass: { ...DEFAULT_FNOS_SHARE_BYPASS_CONFIG },
+      gateway_logging: { ...DEFAULT_GATEWAY_LOGGING_SETTINGS },
       auth_credential_settings: { ...DEFAULT_AUTH_CREDENTIAL_SETTINGS },
       terminal_feature: { ...DEFAULT_TERMINAL_FEATURE_CONFIG },
     };
@@ -1181,7 +1213,9 @@ export class ConfigManager {
             : undefined,
         ),
         updatedAt:
-          typeof obj.updatedAt === "string" ? obj.updatedAt : new Date().toISOString(),
+          typeof obj.updatedAt === "string"
+            ? obj.updatedAt
+            : new Date().toISOString(),
       };
     } catch {
       return null;
@@ -1360,6 +1394,11 @@ export class ConfigManager {
     return normalizeFnosShareBypassConfig(config.fnos_share_bypass);
   }
 
+  async getGatewayLoggingConfig(): Promise<GatewayLoggingSettings> {
+    const config = await this.getConfig();
+    return normalizeGatewayLoggingSettings(config.gateway_logging);
+  }
+
   async updateFnosShareBypassConfig(
     patch: Partial<FnosShareBypassConfig>,
   ): Promise<FnosShareBypassConfig> {
@@ -1369,6 +1408,19 @@ export class ConfigManager {
       ...patch,
     });
     config.fnos_share_bypass = next;
+    await this.saveConfig(config);
+    return next;
+  }
+
+  async updateGatewayLoggingConfig(
+    patch: Partial<GatewayLoggingSettings>,
+  ): Promise<GatewayLoggingSettings> {
+    const config = await this.getConfig();
+    const next = normalizeGatewayLoggingSettings({
+      ...config.gateway_logging,
+      ...patch,
+    });
+    config.gateway_logging = next;
     await this.saveConfig(config);
     return next;
   }

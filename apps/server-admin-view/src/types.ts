@@ -22,6 +22,12 @@ export interface HostMapping {
   service_role: HostServiceRole;
 }
 
+export interface StreamMapping {
+  listen_port: number;
+  target: string;
+  use_auth: boolean;
+}
+
 export type PasskeyRpMode = "auth_host" | "parent_domain";
 
 export interface SubdomainModeConfig {
@@ -310,6 +316,7 @@ export interface AppConfig {
   default_route: string;
   proxy_mappings: ProxyMapping[];
   host_mappings: HostMapping[];
+  stream_mappings: StreamMapping[];
   subdomain_mode: SubdomainModeConfig;
   default_tunnel?: "frp" | "cloudflared";
   fnos_share_bypass?: FnosShareBypassConfig;

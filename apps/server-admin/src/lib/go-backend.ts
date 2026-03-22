@@ -37,6 +37,12 @@ export interface HostRule {
   preserve_host?: boolean;
 }
 
+export interface StreamRule {
+  listen_port: number;
+  target: string;
+  use_auth: boolean;
+}
+
 export interface SSLRequest {
   cert: string;
   key: string;
@@ -374,7 +380,8 @@ export class GoBackendService {
   }): Promise<GoResponse<GatewayLogEntriesResponse>> {
     const searchParams = new URLSearchParams();
     if (params.date) searchParams.set("date", params.date);
-    if (params.page !== undefined) searchParams.set("page", String(params.page));
+    if (params.page !== undefined)
+      searchParams.set("page", String(params.page));
     if (params.limit !== undefined) {
       searchParams.set("limit", String(params.limit));
     }
@@ -417,6 +424,18 @@ export class GoBackendService {
 
   async flushHostRules(): Promise<GoResponse> {
     return this.request("/api/host-rules", "DELETE");
+  }
+
+  async getStreamRules(): Promise<GoResponse<StreamRule[]>> {
+    return this.request<StreamRule[]>("/api/stream-rules");
+  }
+
+  async setStreamRules(rules: StreamRule[]): Promise<GoResponse<StreamRule[]>> {
+    return this.request<StreamRule[]>("/api/stream-rules", "POST", rules);
+  }
+
+  async flushStreamRules(): Promise<GoResponse> {
+    return this.request("/api/stream-rules", "DELETE");
   }
 
   async getSSLStatus(): Promise<GoResponse<SSLInfo>> {

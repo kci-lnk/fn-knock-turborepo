@@ -229,6 +229,7 @@ import {
   Users,
   Globe,
   Menu,
+  Server,
 } from "lucide-vue-next";
 
 const router = useRouter();
@@ -300,15 +301,16 @@ const navItems = computed(() => {
   items.push({ name: "动态域名", path: "/ddns", icon: Globe });
   if (configStore.config?.run_type === 1) {
     items.splice(1, 0, { name: "映射管理", path: "/proxy", icon: RouteIcon });
-    items.splice(2, 0, { name: "会话管理", path: "/sessions", icon: Users });
     items.splice(2, 0, { name: "内网穿透", path: "/tunnel", icon: Cable });
+    items.splice(3, 0, { name: "会话管理", path: "/sessions", icon: Users });
   } else if (configStore.config?.run_type === 3) {
     items.splice(1, 0, {
       name: "子域映射",
       path: "/subdomains",
       icon: RouteIcon,
     });
-    items.splice(2, 0, { name: "会话管理", path: "/sessions", icon: Users });
+    items.splice(2, 0, { name: "TCP映射", path: "/streams", icon: Server });
+    items.splice(3, 0, { name: "会话管理", path: "/sessions", icon: Users });
   }
   items.push({ name: "认证配置", path: "/auth", icon: Key });
   items.push({ name: "登录日志", path: "/logs", icon: FileText });

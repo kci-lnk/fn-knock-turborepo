@@ -61,6 +61,12 @@ export interface HostMapping {
   service_role: HostServiceRole;
 }
 
+export interface StreamMapping {
+  listen_port: number;
+  target: string;
+  use_auth: boolean;
+}
+
 export type PasskeyRpMode = "auth_host" | "parent_domain";
 
 export interface SubdomainModeConfig {
@@ -199,6 +205,7 @@ export interface AppConfig {
   whitelist_ips: string[];
   proxy_mappings: ProxyMapping[];
   host_mappings: HostMapping[];
+  stream_mappings: StreamMapping[];
   subdomain_mode: SubdomainModeConfig;
   ssl: SSLConfig;
   default_route: string;
@@ -252,6 +259,7 @@ const DEFAULT_CONFIG: AppConfig = {
   whitelist_ips: [],
   proxy_mappings: [],
   host_mappings: [],
+  stream_mappings: [],
   subdomain_mode: {
     root_domain: "",
     auth_host: "",
@@ -605,6 +613,30 @@ const normalizeHostMappings = (
     .filter((item) => item.host && item.target);
 };
 
+const normalizeStreamMapping = (
+  value?: Partial<StreamMapping> | null,
+): StreamMapping => {
+  const raw = value ?? {};
+
+  return {
+    listen_port: normalizePositiveInt(raw.listen_port, 0, {
+      min: 1,
+      max: 65535,
+    }),
+    target: typeof raw.target === "string" ? raw.target.trim() : "",
+    use_auth: raw.use_auth !== false,
+  };
+};
+
+const normalizeStreamMappings = (
+  value?: Array<Partial<StreamMapping>> | null,
+): StreamMapping[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => normalizeStreamMapping(item))
+    .filter((item) => item.listen_port > 0 && item.target);
+};
+
 const normalizeSubdomainModeConfig = (
   value?: Partial<SubdomainModeConfig> | null,
 ): SubdomainModeConfig => {
@@ -698,6 +730,9 @@ export class ConfigManager {
         if (!parsed.default_route) parsed.default_route = "/__select__";
         if (!parsed.default_tunnel) parsed.default_tunnel = "frp";
         parsed.host_mappings = normalizeHostMappings(parsed.host_mappings);
+        parsed.stream_mappings = normalizeStreamMappings(
+          parsed.stream_mappings,
+        );
         parsed.subdomain_mode = normalizeSubdomainModeConfig(
           parsed.subdomain_mode,
         );
@@ -722,6 +757,7 @@ export class ConfigManager {
     return {
       ...DEFAULT_CONFIG,
       host_mappings: [],
+      stream_mappings: [],
       subdomain_mode: { ...DEFAULT_CONFIG.subdomain_mode },
       ssl: normalizeSSLConfig(DEFAULT_CONFIG.ssl),
       fnos_share_bypass: { ...DEFAULT_FNOS_SHARE_BYPASS_CONFIG },
@@ -1500,6 +1536,14 @@ export class ConfigManager {
   ): Promise<void> {
     const config = await this.getConfig();
     config.host_mappings = normalizeHostMappings(mappings);
+    await this.saveConfig(config);
+  }
+
+  async updateStreamMappings(
+    mappings: Array<Partial<StreamMapping>>,
+  ): Promise<void> {
+    const config = await this.getConfig();
+    config.stream_mappings = normalizeStreamMappings(mappings);
     await this.saveConfig(config);
   }
 

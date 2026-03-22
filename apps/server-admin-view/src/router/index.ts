@@ -46,6 +46,11 @@ const router = createRouter({
           component: () => import("../views/SubdomainProxy.vue"),
         },
         {
+          path: "streams",
+          name: "StreamMappings",
+          component: () => import("../views/StreamMappings.vue"),
+        },
+        {
           path: "ssl",
           name: "SSLSettings",
           component: () => import("../views/SSLSettings.vue"),
@@ -125,7 +130,7 @@ router.beforeEach(async (to, from) => {
     NProgress.start();
   }
 
-  if (to.path !== "/" && to.path !== "/dashboard") {
+  if (to.path !== "/" && to.path !== "/dashboard" && to.path !== "/streams") {
     return true;
   }
 
@@ -135,7 +140,17 @@ router.beforeEach(async (to, from) => {
   }
 
   if (configStore.config?.run_type === 0) {
+    if (to.path === "/streams") {
+      return "/whitelist";
+    }
     return "/whitelist";
+  }
+
+  if (to.path === "/streams" && configStore.config?.run_type !== 3) {
+    if (configStore.config?.run_type === 1) {
+      return "/proxy";
+    }
+    return "/";
   }
 
   return true;

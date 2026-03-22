@@ -5,6 +5,7 @@ import { configManager, DEFAULT_AUTH_CREDENTIAL_SETTINGS } from "./redis";
 import { whitelistManager } from "./whitelist-manager";
 import { authLogManager } from "./auth-log";
 import { buildSessionCookie } from "./session-cookie";
+import { normalizeIp } from "./ip-normalize";
 import {
   resolveCookieDomain,
   resolvePublicAuthBaseUrl,
@@ -261,23 +262,32 @@ export const handleLoginSuccess = async ({
     : credentialSettings.session_ttl_seconds;
   const maxAge = durationSeconds;
 
-  const clientIpStr = clientIp || "::1";
-  const ipLocationStr = await ipLocationService.getCachedLocation(clientIpStr);
+  const normalizedClientIp = normalizeIp(clientIp);
+  const clientIpStr = normalizedClientIp || "unknown";
+  const ipLocationStr = normalizedClientIp
+    ? await ipLocationService.getCachedLocation(normalizedClientIp)
+    : "";
   const expireAt = Math.floor(Date.now() / 1000) + durationSeconds;
   const expiresAtISO = new Date(expireAt * 1000).toISOString();
   const autoWhitelistComment = "登录后自动放行";
 
-  const whitelistRecordId = await whitelistManager.addWhiteList({
-    ip: clientIpStr,
-    expireAt,
-    source: "auto",
-    comment: autoWhitelistComment,
-  });
-  const whitelistRecord = await whitelistManager.getRecordById(whitelistRecordId);
-  const sessionComment =
-    whitelistRecord?.comment !== undefined
-      ? whitelistRecord.comment
-      : autoWhitelistComment;
+  let whitelistRecordId: string | null = null;
+  let sessionComment: string | undefined;
+
+  if (normalizedClientIp) {
+    whitelistRecordId = await whitelistManager.addWhiteList({
+      ip: normalizedClientIp,
+      expireAt,
+      source: "auto",
+      comment: autoWhitelistComment,
+    });
+    const whitelistRecord =
+      await whitelistManager.getRecordById(whitelistRecordId);
+    sessionComment =
+      whitelistRecord?.comment !== undefined
+        ? whitelistRecord.comment
+        : autoWhitelistComment;
+  }
 
   await authLogManager.recordLog({
     type: "login",
@@ -304,17 +314,19 @@ export const handleLoginSuccess = async ({
     },
     maxAge,
   );
-  await authMobilitySessionManager.registerLoginSession({
-    sessionId,
-    ip: clientIpStr,
-    ...(ipLocationStr ? { ipLocation: ipLocationStr } : {}),
-    whitelistRecordId,
-    expireAt,
-  });
-  await ipLocationService.registerUsage(clientIpStr, [
-    ipLocationRefs.session(sessionId),
-    ipLocationRefs.sessionTimeline(sessionId),
-  ]);
+  if (normalizedClientIp && whitelistRecordId) {
+    await authMobilitySessionManager.registerLoginSession({
+      sessionId,
+      ip: normalizedClientIp,
+      ...(ipLocationStr ? { ipLocation: ipLocationStr } : {}),
+      whitelistRecordId,
+      expireAt,
+    });
+    await ipLocationService.registerUsage(normalizedClientIp, [
+      ipLocationRefs.session(sessionId),
+      ipLocationRefs.sessionTimeline(sessionId),
+    ]);
+  }
   set.headers["Set-Cookie"] = buildSessionCookie(sessionId, maxAge, {
     domain: resolveCookieDomain(config),
   });

@@ -1,9 +1,11 @@
 import { Elysia, t } from "elysia";
 import {
+  type AppConfig,
   configManager,
   type LoginSession,
   type ProxyMapping,
   type RunModePromptPreferences,
+  type StreamMapping,
 } from "../lib/redis";
 import { generateSecret, generateURI, verifySync } from "otplib";
 import { goBackend } from "../lib/go-backend";
@@ -64,6 +66,57 @@ const validateHostMappings = (
       valid: false as const,
       message: `鉴权服务 ${invalidAuthMapping.host} 必须保持公开入口，不能开启自身鉴权或严格白名单，否则会导致登录入口不可达`,
     };
+  }
+
+  return { valid: true as const };
+};
+
+const isValidStreamTarget = (target: string): boolean => {
+  const trimmed = target.trim();
+  if (!trimmed) return false;
+
+  try {
+    const parsed = new URL(`tcp://${trimmed}`);
+    const port = Number.parseInt(parsed.port, 10);
+    if (!parsed.hostname) return false;
+    if (!Number.isFinite(port) || port <= 0 || port > 65535) return false;
+    if (parsed.pathname && parsed.pathname !== "/") return false;
+    if (parsed.search || parsed.hash) return false;
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const validateStreamMappings = (mappings: StreamMapping[]) => {
+  const seenPorts = new Set<number>();
+
+  for (const mapping of mappings) {
+    if (!Number.isInteger(mapping.listen_port)) {
+      return {
+        valid: false as const,
+        message: `监听端口 ${mapping.listen_port} 不是有效整数`,
+      };
+    }
+    if (mapping.listen_port <= 0 || mapping.listen_port > 65535) {
+      return {
+        valid: false as const,
+        message: `监听端口 ${mapping.listen_port} 超出有效范围`,
+      };
+    }
+    if (seenPorts.has(mapping.listen_port)) {
+      return {
+        valid: false as const,
+        message: `监听端口 ${mapping.listen_port} 重复，请保持唯一`,
+      };
+    }
+    if (!isValidStreamTarget(mapping.target)) {
+      return {
+        valid: false as const,
+        message: `目标地址 ${mapping.target} 必须是 host:port 形式`,
+      };
+    }
+    seenPorts.add(mapping.listen_port);
   }
 
   return { valid: true as const };
@@ -156,6 +209,27 @@ const ensureSessionComment = async (
   );
 };
 
+const rollbackConfigAndRuntime = async (
+  previousConfig: AppConfig,
+): Promise<string | null> => {
+  try {
+    await configManager.saveConfig(previousConfig);
+  } catch (error: any) {
+    return error?.message || "恢复之前的配置失败";
+  }
+
+  try {
+    await firewallService.applyRunTypeConfig(
+      previousConfig.run_type,
+      previousConfig.run_type,
+    );
+  } catch (error: any) {
+    return error?.message || "恢复之前的运行态失败";
+  }
+
+  return null;
+};
+
 const buildCountSeries = (
   timestamps: number[],
   fromMs: number,
@@ -204,11 +278,24 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
   })
   .post(
     "/config/run_type",
-    async ({ body }) => {
+    async ({ body, set }) => {
       const config = await configManager.getConfig();
       const previousRunType = config.run_type;
       await configManager.updateRunType(body.run_type);
-      await firewallService.applyRunTypeConfig(body.run_type, previousRunType);
+
+      try {
+        await firewallService.applyRunTypeConfig(body.run_type, previousRunType);
+      } catch (error: any) {
+        const rollbackError = await rollbackConfigAndRuntime(config);
+        set.status = 502;
+        return {
+          success: false,
+          message: rollbackError
+            ? `${error?.message || "切换运行模式失败"}；回滚失败：${rollbackError}`
+            : error?.message || "切换运行模式失败，已回滚配置",
+        };
+      }
+
       return { success: true };
     },
     {
@@ -455,6 +542,55 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       }),
     },
   )
+  .get("/config/stream_mappings", async () => {
+    const config = await configManager.getConfig();
+    return { success: true, data: config.stream_mappings };
+  })
+  .post(
+    "/config/stream_mappings",
+    async ({ body, set }) => {
+      const validation = validateStreamMappings(body.mappings);
+      if (!validation.valid) {
+        set.status = 400;
+        return {
+          success: false,
+          message: validation.message,
+        };
+      }
+
+      const previousConfig = await configManager.getConfig();
+      await configManager.updateStreamMappings(body.mappings);
+      const updatedConfig = await configManager.getConfig();
+      try {
+        await firewallService.applyRunTypeConfig(
+          updatedConfig.run_type,
+          updatedConfig.run_type,
+        );
+      } catch (error: any) {
+        const rollbackError = await rollbackConfigAndRuntime(previousConfig);
+        set.status = 502;
+        return {
+          success: false,
+          message: rollbackError
+            ? `${error?.message || "同步 TCP 映射与网关端口放行规则失败"}；回滚失败：${rollbackError}`
+            : error?.message || "同步 TCP 映射与网关端口放行规则失败，已回滚配置",
+        };
+      }
+
+      return { success: true };
+    },
+    {
+      body: t.Object({
+        mappings: t.Array(
+          t.Object({
+            listen_port: t.Number(),
+            target: t.String(),
+            use_auth: t.Boolean(),
+          }),
+        ),
+      }),
+    },
+  )
   .get("/config/subdomain_mode", async () => {
     const config = await configManager.getConfig();
     return { success: true, data: config.subdomain_mode };
@@ -680,45 +816,41 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
   .post("/sync-routes", async ({ set }) => {
     try {
       const config = await configManager.getConfig();
-      const [
-        rulesResult,
-        hostRulesResult,
-        routeResult,
-        authResult,
-        loggingResult,
-      ] = await Promise.all([
-        goBackend.setRules(config.proxy_mappings),
-        goBackend.setHostRules(config.host_mappings),
-        goBackend.setDefaultRoute(config.default_route),
-        goBackend.setAuthConfig(buildGatewayAuthConfig(config)),
-        goBackend.setGatewayLoggingConfig(
-          config.gateway_logging ?? {
-            enabled: false,
-            max_days: 7,
-          },
-        ),
-      ]);
-      if (
-        !rulesResult.success ||
-        !hostRulesResult.success ||
-        !routeResult.success ||
-        !authResult.success ||
-        !loggingResult.success
-      ) {
+      await firewallService.applyRunTypeConfig(
+        config.run_type,
+        config.run_type,
+      );
+
+      const loggingResult = await goBackend.setGatewayLoggingConfig(
+        config.gateway_logging ?? {
+          enabled: false,
+          max_days: 7,
+        },
+      );
+      if (!loggingResult.success) {
         set.status = 502;
         return {
           success: false,
-          message: `同步部分失败: rules=${rulesResult.success}, host_rules=${hostRulesResult.success}, default_route=${routeResult.success}, auth=${authResult.success}, gateway_logging=${loggingResult.success}`,
+          message: `同步部分失败: gateway_logging=${loggingResult.success}`,
         };
       }
+
+      const syncedRules =
+        config.run_type === 1 ? config.proxy_mappings.length : 0;
+      const syncedHostRules =
+        config.run_type === 3 ? config.host_mappings.length : 0;
+      const syncedStreamRules =
+        config.run_type === 3 ? config.stream_mappings.length : 0;
+
       return {
         success: true,
         data: {
-          synced_rules: config.proxy_mappings.length,
-          synced_host_rules: config.host_mappings.length,
+          synced_rules: syncedRules,
+          synced_host_rules: syncedHostRules,
+          synced_stream_rules: syncedStreamRules,
           synced_gateway_logging: true,
         },
-        message: `成功同步 ${config.proxy_mappings.length} 条路径路由、${config.host_mappings.length} 条 Host 路由和请求日志配置`,
+        message: `已按当前运行模式同步 ${syncedRules} 条路径路由、${syncedHostRules} 条 Host 路由、${syncedStreamRules} 条 TCP 映射与请求日志配置`,
       };
     } catch (e: any) {
       set.status = 500;

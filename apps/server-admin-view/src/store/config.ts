@@ -5,6 +5,7 @@ import type {
   HostMapping,
   ProxyMapping,
   RunType,
+  StreamMapping,
   SubdomainModeConfig,
 } from "../types";
 import { ConfigAPI } from "../lib/api";
@@ -49,6 +50,11 @@ export const useConfigStore = defineStore("config", () => {
     await loadConfig();
   }
 
+  async function saveStreamMappings(mappings: StreamMapping[]) {
+    await ConfigAPI.updateStreamMappings(mappings);
+    await loadConfig();
+  }
+
   async function saveSubdomainMode(next: Partial<SubdomainModeConfig>) {
     const result = await ConfigAPI.updateSubdomainMode(next);
     await loadConfig();
@@ -63,6 +69,7 @@ export const useConfigStore = defineStore("config", () => {
     setRunType,
     saveProxyMappings,
     saveHostMappings,
+    saveStreamMappings,
     saveSubdomainMode,
     saveDefaultRoute,
   };

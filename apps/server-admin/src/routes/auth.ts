@@ -8,6 +8,7 @@ import {
 } from "../lib/auth-utils";
 import {
   applyAuthResponseHeaders,
+  hasWhitelistAccess,
   hasNormalAccessContext,
   resolveAuthAccess,
   resolveRequestedAccessMode,
@@ -317,7 +318,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
 
       if (
         accessMode === "strict_whitelist" &&
-        !(await whitelistManager.hasValidIP(clientIp))
+        !(await hasWhitelistAccess(clientIp))
       ) {
         headers.set("X-Option", "Deny");
       } else if (
@@ -364,8 +365,10 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
     });
   })
   .get("/verify", async ({ request, set }) => {
-    const auth = await resolveAuthAccess(request);
+    const clientIp = getClientIp(request);
+    const auth = await resolveAuthAccess(request, clientIp);
     applyAuthResponseHeaders(set, auth);
+
     if (auth.authorized) {
       return { success: true, message: auth.message };
     }

@@ -5,6 +5,7 @@ import type {
   ProxyMapping,
   ProxyProtocolForce,
   RunType,
+  StreamMapping,
   SessionMobilityDetails,
   SessionRecord,
   SharedDataFileEntry,
@@ -133,6 +134,13 @@ export const ConfigAPI = {
   },
   async updateHostMappings(mappings: HostMapping[]): Promise<void> {
     await apiClient.post("/config/host_mappings", { mappings });
+  },
+  async getStreamMappings(): Promise<StreamMapping[]> {
+    const res = await apiClient.get("/config/stream_mappings");
+    return res.data.data;
+  },
+  async updateStreamMappings(mappings: StreamMapping[]): Promise<void> {
+    await apiClient.post("/config/stream_mappings", { mappings });
   },
   async getSubdomainMode(): Promise<SubdomainModeConfig> {
     const res = await apiClient.get("/config/subdomain_mode");
@@ -289,7 +297,11 @@ export const ConfigAPI = {
   async syncRoutes(): Promise<{
     success: boolean;
     message?: string;
-    data?: { synced_rules: number; synced_host_rules?: number };
+    data?: {
+      synced_rules: number;
+      synced_host_rules?: number;
+      synced_stream_rules?: number;
+    };
   }> {
     const res = await apiClient.post("/sync-routes");
     return res.data;

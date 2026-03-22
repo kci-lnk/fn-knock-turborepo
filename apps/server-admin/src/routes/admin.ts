@@ -1,6 +1,7 @@
 import { Elysia, t } from "elysia";
 import {
   configManager,
+  type LoginSession,
   type ProxyMapping,
   type RunModePromptPreferences,
 } from "../lib/redis";
@@ -12,6 +13,7 @@ import { authLogManager } from "../lib/auth-log";
 import { authMobilitySessionManager } from "../lib/auth-mobility-session";
 import { ipLocationRefs, ipLocationService } from "../lib/ip-location";
 import { scanDetector } from "../lib/scan-detector";
+import { whitelistManager } from "../lib/whitelist-manager";
 import {
   buildGatewayAuthConfig,
   buildSubdomainCertificateInventoryCoverage,
@@ -103,6 +105,50 @@ const validatePasskeyRpConfig = (
   }
 
   return { valid: true as const };
+};
+
+const resolveSessionDefaultComment = async (
+  sessionId: string,
+  session: LoginSession,
+): Promise<string | undefined> => {
+  const whitelistRecordId =
+    await authMobilitySessionManager.getSessionWhitelistRecordId(sessionId);
+  const boundRecord = whitelistRecordId
+    ? await whitelistManager.getRecordById(whitelistRecordId)
+    : null;
+  if (boundRecord?.status === "active" && boundRecord.comment !== undefined) {
+    return boundRecord.comment;
+  }
+
+  const latestRecord = await whitelistManager.getLatestActiveRecordByIP(
+    session.ip,
+  );
+  if (!latestRecord || latestRecord.comment === undefined) {
+    return undefined;
+  }
+
+  return latestRecord.comment;
+};
+
+const ensureSessionComment = async (
+  sessionId: string,
+  session: LoginSession,
+): Promise<LoginSession> => {
+  if (session.comment !== undefined) {
+    return session;
+  }
+
+  const comment = await resolveSessionDefaultComment(sessionId, session);
+  if (comment === undefined) {
+    return session;
+  }
+
+  return (
+    (await configManager.updateSession(sessionId, { comment })) ?? {
+      ...session,
+      comment,
+    }
+  );
 };
 
 const buildCountSeries = (
@@ -756,12 +802,15 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
   .get("/sessions", async () => {
     const list = await configManager.listSessions();
     const mapped = await Promise.all(
-      list.map(async ({ id, data }) => ({
-        id,
-        ...data,
-        mobility:
-          await authMobilitySessionManager.getSessionMobilitySummary(id),
-      })),
+      list.map(async ({ id, data }) => {
+        const session = await ensureSessionComment(id, data);
+        return {
+          id,
+          ...session,
+          mobility:
+            await authMobilitySessionManager.getSessionMobilitySummary(id),
+        };
+      }),
     );
     await ipLocationService.hydrateIpLocationRecords(mapped, (session) =>
       ipLocationRefs.session(session.id),
@@ -776,7 +825,8 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         set.status = 404;
         return { success: false, message: "Session not found" };
       }
-      const record = { id: params.id, ...sess };
+      const session = await ensureSessionComment(params.id, sess);
+      const record = { id: params.id, ...session };
       await ipLocationService.hydrateIpLocationRecords([record], (session) =>
         ipLocationRefs.session(session.id),
       );
@@ -784,6 +834,40 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
     },
     {
       params: t.Object({ id: t.String() }),
+    },
+  )
+  .patch(
+    "/sessions/:id/comment",
+    async ({ params, body, set }) => {
+      const sess = await configManager.getSession(params.id);
+      if (!sess) {
+        set.status = 404;
+        return { success: false, message: "Session not found" };
+      }
+
+      const updated = await configManager.updateSession(params.id, {
+        comment: body.comment,
+      });
+      if (!updated) {
+        set.status = 404;
+        return { success: false, message: "Session not found" };
+      }
+
+      const whitelistRecordId =
+        await authMobilitySessionManager.getSessionWhitelistRecordId(params.id);
+      if (whitelistRecordId) {
+        await whitelistManager.updateComment(whitelistRecordId, body.comment);
+      }
+
+      const record = { id: params.id, ...updated };
+      await ipLocationService.hydrateIpLocationRecords([record], (session) =>
+        ipLocationRefs.session(session.id),
+      );
+      return { success: true, data: record };
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      body: t.Object({ comment: t.String() }),
     },
   )
   .get(

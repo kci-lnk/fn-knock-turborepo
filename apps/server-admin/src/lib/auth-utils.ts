@@ -265,13 +265,19 @@ export const handleLoginSuccess = async ({
   const ipLocationStr = await ipLocationService.getCachedLocation(clientIpStr);
   const expireAt = Math.floor(Date.now() / 1000) + durationSeconds;
   const expiresAtISO = new Date(expireAt * 1000).toISOString();
+  const autoWhitelistComment = "登录后自动放行";
 
   const whitelistRecordId = await whitelistManager.addWhiteList({
     ip: clientIpStr,
     expireAt,
     source: "auto",
-    comment: "登录后自动放行",
+    comment: autoWhitelistComment,
   });
+  const whitelistRecord = await whitelistManager.getRecordById(whitelistRecordId);
+  const sessionComment =
+    whitelistRecord?.comment !== undefined
+      ? whitelistRecord.comment
+      : autoWhitelistComment;
 
   await authLogManager.recordLog({
     type: "login",
@@ -289,6 +295,7 @@ export const handleLoginSuccess = async ({
       method: authMethod,
       credentialId,
       credentialName,
+      comment: sessionComment,
       ip: clientIpStr,
       userAgent,
       loginTime: new Date().toISOString(),

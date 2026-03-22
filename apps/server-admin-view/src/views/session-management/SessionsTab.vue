@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import { useRouter } from "vue-router";
+import InlineCommentEditor from "@admin-shared/components/InlineCommentEditor.vue";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -10,7 +11,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "@admin-shared/utils/toast";
 import type { SessionRecord } from "../../types";
 import { SessionAPI } from "../../lib/api";
@@ -55,12 +55,17 @@ const { isPending: isKicking, run: runKickSession } = useAsyncAction({
   },
 });
 
+const { run: runUpdateComment } = useAsyncAction({
+  rethrow: true,
+});
+
 const configStore = useConfigStore();
 
 const detailFieldDefinitions = [
   { key: "id", label: "会话 ID" },
   { key: "method", label: "登录方式" },
   { key: "credentialName", label: "凭证名称" },
+  { key: "comment", label: "备注" },
   { key: "ip", label: "当前 IP" },
   { key: "ipLocation", label: "归属信息" },
   { key: "userAgent", label: "User-Agent" },
@@ -115,6 +120,31 @@ async function kickSession(sessionId: string) {
   });
 }
 
+async function updateComment(sessionId: string, comment: string) {
+  const target = sessions.value.find((session) => session.id === sessionId);
+  if (target && (target.comment ?? "") === comment) {
+    return;
+  }
+
+  await runUpdateComment(() => SessionAPI.updateComment(sessionId, comment), {
+    onSuccess: (updated) => {
+      if (target) {
+        Object.assign(target, updated);
+      }
+      if (detailSession.value?.id === sessionId) {
+        detailSession.value = {
+          ...detailSession.value,
+          ...updated,
+        };
+      }
+      toast.success("备注已更新");
+    },
+    onError: (error) => {
+      throw new Error(extractErrorMessage(error, "更新备注失败"));
+    },
+  });
+}
+
 watch(
   () => configStore.config?.run_type,
   (runType) => {
@@ -145,8 +175,8 @@ watch(
           <TableHeader>
             <TableRow>
               <TableHead class="w-[150px]">会话 ID</TableHead>
-              <TableHead>登录方式</TableHead>
               <TableHead>凭证</TableHead>
+              <TableHead>备注</TableHead>
               <TableHead>当前 IP</TableHead>
               <TableHead>登录时间</TableHead>
               <TableHead>过期时间</TableHead>
@@ -170,15 +200,27 @@ watch(
               </TableCell>
 
               <TableCell>
-                <Badge variant="secondary">{{ session.method }}</Badge>
-              </TableCell>
-
-              <TableCell>
                 <div class="text-sm">{{ session.credentialName }}</div>
               </TableCell>
 
+              <TableCell class="min-w-[180px]">
+                <InlineCommentEditor
+                  :text="session.comment"
+                  :save="(value) => updateComment(session.id, value)"
+                />
+              </TableCell>
+
               <TableCell>
-                <div class="font-mono text-sm">{{ session.ip }}</div>
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <div class="cursor-help font-mono text-sm">
+                      {{ middleEllipsis(session.ip, 24) }}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p class="break-all font-mono text-xs">{{ session.ip }}</p>
+                  </TooltipContent>
+                </Tooltip>
                 <div
                   v-if="session.ipLocation"
                   class="line-clamp-1 text-xs text-muted-foreground"

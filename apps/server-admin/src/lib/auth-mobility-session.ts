@@ -216,6 +216,11 @@ export class AuthMobilitySessionManager {
     }
   }
 
+  async getSessionWhitelistRecordId(sessionId: string): Promise<string | null> {
+    const binding = await this.getBinding("proxy-session", sessionId);
+    return binding?.whitelistRecordId ?? null;
+  }
+
   private async refreshProxySessionBinding(sessionId: string, clientIp: string): Promise<void> {
     const session = await configManager.getSession(sessionId);
     if (!session) return;

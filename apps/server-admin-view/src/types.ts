@@ -339,6 +339,7 @@ export type LoginSession = {
   method: "TOTP" | "PASSKEY";
   credentialId: string;
   credentialName: string;
+  comment?: string;
   ip: string;
   userAgent: string;
   loginTime: string;

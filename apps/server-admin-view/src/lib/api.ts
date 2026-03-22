@@ -841,6 +841,13 @@ export const SessionAPI = {
     );
     return res.data.data;
   },
+  async updateComment(id: string, comment: string): Promise<SessionRecord> {
+    const res = await apiClient.patch(
+      `/sessions/${encodeURIComponent(id)}/comment`,
+      { comment },
+    );
+    return res.data.data;
+  },
   async kick(id: string): Promise<void> {
     await apiClient.delete(`/sessions/${encodeURIComponent(id)}`);
   },

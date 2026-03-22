@@ -74,18 +74,18 @@
       class="mx-auto flex w-full max-w-7xl min-w-0 flex-1 min-h-0 flex-col gap-4 px-4 py-4 sm:flex-row sm:gap-6 sm:px-6 sm:py-6"
     >
       <aside
-        class="hidden w-[136px] shrink-0 sm:sticky sm:top-6 sm:block sm:h-[calc(100dvh-3rem)]"
+        class="hidden shrink-0 sm:sticky sm:top-6 sm:block sm:h-[calc(100dvh-3rem)] sm:w-[128px] md:w-[132px] xl:w-[136px]"
       >
         <div class="flex h-full min-h-0 flex-col gap-3">
           <nav
-            class="flex min-h-0 flex-1 flex-col items-center gap-2 overflow-y-auto"
+            class="flex min-h-0 flex-1 flex-col items-stretch gap-1.5 overflow-y-auto"
           >
             <Button
               v-for="item in navItems"
               :key="item.path"
               :variant="isNavActive(item.path) ? 'default' : 'ghost'"
               :class="[
-                'w-[92%] justify-start gap-1.5 px-2 transition-[transform,box-shadow,background-color,color] duration-150',
+                'min-w-0 w-full justify-start gap-1 overflow-hidden px-1.5 transition-[transform,box-shadow,background-color,color] duration-150',
                 isNavActive(item.path)
                   ? 'shadow-sm shadow-primary/15'
                   : 'hover:-translate-y-[1px]',
@@ -93,7 +93,7 @@
               @click="navigateTo(item.path)"
             >
               <component :is="item.icon" class="h-4 w-4" />
-              <span>{{ item.name }}</span>
+              <span class="min-w-0 truncate">{{ item.name }}</span>
             </Button>
           </nav>
           <div>

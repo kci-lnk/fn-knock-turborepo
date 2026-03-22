@@ -172,8 +172,14 @@
                   还没有配置任何 Host 映射。
                 </TableCell>
               </TableRow>
-              <TableRow v-for="mapping in filteredMappings" :key="mapping.host" class="group">
-                <TableCell class="font-medium">{{ mapping.host }}</TableCell>
+              <TableRow
+                v-for="mapping in filteredMappings"
+                :key="mapping.host"
+                class="group"
+              >
+                <TableCell class="break-all font-medium">
+                  {{ formatHostWithAccessEntryPort(mapping.host) }}
+                </TableCell>
                 <TableCell>{{ mapping.target }}</TableCell>
                 <TableCell class="min-w-[3rem]">
                   <div class="flex min-w-[3rem] flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -463,6 +469,7 @@ import { useConfigStore } from "../store/config";
 import {
   ConfigAPI,
   ScanAPI,
+  SystemAPI,
   type DiscoveredServiceInfo,
   type ScanDiscoverResponse,
 } from "../lib/api";
@@ -607,6 +614,7 @@ const deleteDialogState = ref<DeleteDialogState | null>(null);
 const editingHost = ref<string | null>(null);
 const mappingInputMode = ref<MappingInputMode>("subdomain");
 const mappingSubdomain = ref("");
+const accessEntryPort = ref("7999");
 const modeForm = reactive<SubdomainModeConfig>(createDefaultModeForm());
 const mappingForm = reactive<HostMapping>(createDefaultMapping());
 
@@ -703,6 +711,11 @@ const composedPreviewHost = computed(() => {
     savedRootDomain.value,
   );
 });
+const displayAccessEntryPort = computed(
+  () => accessEntryPort.value.trim() || "7999",
+);
+const formatHostWithAccessEntryPort = (host: string): string =>
+  `${host}:${displayAccessEntryPort.value}`;
 
 const filteredMappings = computed(() => {
   const query = searchQuery.value.trim().toLowerCase();
@@ -713,6 +726,9 @@ const filteredMappings = computed(() => {
   if (!query) return visibleMappings;
   return visibleMappings.filter(
     (mapping) =>
+      formatHostWithAccessEntryPort(mapping.host)
+        .toLowerCase()
+        .includes(query) ||
       mapping.host.toLowerCase().includes(query) ||
       mapping.target.toLowerCase().includes(query),
   );
@@ -850,7 +866,17 @@ onMounted(async () => {
   if (!configStore.config) {
     await configStore.loadConfig();
   }
+  void loadAccessEntryPort();
 });
+
+async function loadAccessEntryPort() {
+  try {
+    const info = await SystemAPI.getAccessEntry();
+    accessEntryPort.value = info.port.trim() || "7999";
+  } catch (error) {
+    console.warn("load access entry port failed:", error);
+  }
+}
 
 function resetModeForm() {
   applyModeForm(currentModeConfig.value);

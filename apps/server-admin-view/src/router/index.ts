@@ -4,6 +4,7 @@ import Layout from "../views/Layout.vue";
 import { useConfigStore } from "../store/config";
 import { pinia } from "../store";
 import { isRouteNavigating, pendingNavPath } from "./navigation-state";
+import { toast } from "@admin-shared/utils/toast";
 
 NProgress.configure({
   showSpinner: false,
@@ -146,10 +147,22 @@ router.afterEach(() => {
   NProgress.done();
 });
 
-router.onError(() => {
+router.onError((error) => {
   isRouteNavigating.value = false;
   pendingNavPath.value = null;
   NProgress.done();
+
+  const message = error instanceof Error ? error.message : "";
+  const isDynamicImportFailure =
+    message.includes("Failed to fetch dynamically imported module") ||
+    message.includes("Importing a module script failed");
+
+  if (import.meta.env.DEV && isDynamicImportFailure) {
+    toast.info("检测到开发环境依赖缓存已过期，正在刷新页面...");
+    window.setTimeout(() => {
+      window.location.reload();
+    }, 120);
+  }
 });
 
 export default router;

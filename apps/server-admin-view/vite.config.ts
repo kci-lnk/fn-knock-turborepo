@@ -10,6 +10,9 @@ export default defineConfig({
     vue(),
     tailwindcss(),
   ],
+  optimizeDeps: {
+    exclude: ['qrcode.vue'],
+  },
   build: {
     rolldownOptions: {
       output: {

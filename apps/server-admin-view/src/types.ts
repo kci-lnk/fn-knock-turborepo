@@ -147,6 +147,11 @@ export interface GatewayLoggingConfig {
   logs_dir: string;
 }
 
+export interface AuthCredentialSettings {
+  session_ttl_seconds: number;
+  remember_me_ttl_seconds: number;
+}
+
 export interface GatewayLogEntry {
   time?: string;
   level?: string;
@@ -297,6 +302,7 @@ export interface AppConfig {
   default_tunnel?: "frp" | "cloudflared";
   fnos_share_bypass?: FnosShareBypassConfig;
   gateway_logging?: GatewayLoggingConfig;
+  auth_credential_settings?: AuthCredentialSettings;
   terminal_feature?: TerminalFeatureConfig;
   ssl: {
     enabled: boolean;

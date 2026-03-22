@@ -1,11 +1,14 @@
 import { randomBytes } from "node:crypto";
 import { authMobilitySessionManager } from "./auth-mobility-session";
 import { ipLocationRefs, ipLocationService } from "./ip-location";
-import { configManager } from "./redis";
+import { configManager, DEFAULT_AUTH_CREDENTIAL_SETTINGS } from "./redis";
 import { whitelistManager } from "./whitelist-manager";
 import { authLogManager } from "./auth-log";
 import { buildSessionCookie } from "./session-cookie";
-import { resolveCookieDomain, resolvePublicAuthBaseUrl } from "./subdomain-mode";
+import {
+  resolveCookieDomain,
+  resolvePublicAuthBaseUrl,
+} from "./subdomain-mode";
 
 export type PasskeyBindInfo = {
   available: boolean;
@@ -251,11 +254,15 @@ export const handleLoginSuccess = async ({
   redirectTo?: string | null;
 }) => {
   const sessionId = randomBytes(16).toString("hex");
-  const maxAge = rememberMe ? 365 * 24 * 3600 : 24 * 3600;
+  const credentialSettings =
+    config.auth_credential_settings ?? DEFAULT_AUTH_CREDENTIAL_SETTINGS;
+  const durationSeconds = rememberMe
+    ? credentialSettings.remember_me_ttl_seconds
+    : credentialSettings.session_ttl_seconds;
+  const maxAge = durationSeconds;
 
   const clientIpStr = clientIp || "::1";
   const ipLocationStr = await ipLocationService.getCachedLocation(clientIpStr);
-  const durationSeconds = rememberMe ? 365 * 24 * 3600 : 24 * 3600;
   const expireAt = Math.floor(Date.now() / 1000) + durationSeconds;
   const expiresAtISO = new Date(expireAt * 1000).toISOString();
 

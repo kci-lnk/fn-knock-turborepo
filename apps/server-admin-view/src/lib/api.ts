@@ -21,6 +21,7 @@ import type {
   GatewayLogDeletePayload,
   GatewayLogEntriesPayload,
   GatewayLoggingConfig,
+  AuthCredentialSettings,
   TerminalAttachmentRecord,
   TerminalFeatureConfig,
   TerminalOutputChunk,
@@ -96,6 +97,19 @@ export const ConfigAPI = {
   },
   async getTerminalFeature(): Promise<TerminalFeatureConfig> {
     const res = await apiClient.get("/config/terminal_feature");
+    return res.data.data;
+  },
+  async getAuthCredentialSettings(): Promise<AuthCredentialSettings> {
+    const res = await apiClient.get("/config/auth_credential_settings");
+    return res.data.data;
+  },
+  async updateAuthCredentialSettings(
+    payload: Partial<AuthCredentialSettings>,
+  ): Promise<AuthCredentialSettings> {
+    const res = await apiClient.post(
+      "/config/auth_credential_settings",
+      payload,
+    );
     return res.data.data;
   },
   async updateTerminalFeature(

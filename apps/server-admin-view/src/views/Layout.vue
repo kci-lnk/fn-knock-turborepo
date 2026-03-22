@@ -206,6 +206,7 @@ import { useConfigStore } from "../store/config";
 import { useUpdateStore } from "../store/update";
 import { isRouteNavigating, pendingNavPath } from "../router/navigation-state";
 import { Button } from "@/components/ui/button";
+import { toast } from "@admin-shared/utils/toast";
 import {
   Sheet,
   SheetContent,
@@ -249,9 +250,16 @@ const navigateTo = async (path: string) => {
   isMobileNavOpen.value = false;
   if (route.path === path) return;
   pendingNavPath.value = path;
-  const failure = await router.push(path);
-  if (isNavigationFailure(failure)) {
+  try {
+    const failure = await router.push(path);
+    if (isNavigationFailure(failure)) {
+      pendingNavPath.value = null;
+    }
+  } catch (error) {
     pendingNavPath.value = null;
+    const message =
+      error instanceof Error ? error.message : "页面加载失败，请稍后重试";
+    toast.error("页面跳转失败", { description: message });
   }
 };
 

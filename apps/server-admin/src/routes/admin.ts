@@ -260,6 +260,23 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
     const settings = await configManager.getTerminalFeatureConfig();
     return { success: true, data: settings };
   })
+  .get("/config/auth_credential_settings", async () => {
+    const settings = await configManager.getAuthCredentialSettings();
+    return { success: true, data: settings };
+  })
+  .post(
+    "/config/auth_credential_settings",
+    async ({ body }) => {
+      const next = await configManager.updateAuthCredentialSettings(body);
+      return { success: true, data: next };
+    },
+    {
+      body: t.Object({
+        session_ttl_seconds: t.Optional(t.Number()),
+        remember_me_ttl_seconds: t.Optional(t.Number()),
+      }),
+    },
+  )
   .post(
     "/config/terminal_feature",
     async ({ body }) => {

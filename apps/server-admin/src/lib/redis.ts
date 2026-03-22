@@ -188,6 +188,7 @@ export interface AppConfig {
   default_route: string;
   default_tunnel?: "frp" | "cloudflared";
   fnos_share_bypass?: FnosShareBypassConfig;
+  auth_credential_settings?: AuthCredentialSettings;
   terminal_feature?: TerminalFeatureConfig;
 }
 
@@ -195,6 +196,16 @@ export interface RunModePromptPreferences {
   directToReverseProxy: boolean;
   reverseProxyToDirect: boolean;
 }
+
+export interface AuthCredentialSettings {
+  session_ttl_seconds: number;
+  remember_me_ttl_seconds: number;
+}
+
+export const DEFAULT_AUTH_CREDENTIAL_SETTINGS: AuthCredentialSettings = {
+  session_ttl_seconds: 24 * 3600,
+  remember_me_ttl_seconds: 365 * 24 * 3600,
+};
 
 export type TOTPCredential = {
   id: string;
@@ -247,6 +258,9 @@ const DEFAULT_CONFIG: AppConfig = {
     validation_cache_ttl_seconds: 30,
     validation_lock_ttl_seconds: 5,
     session_ttl_seconds: 300,
+  },
+  auth_credential_settings: {
+    ...DEFAULT_AUTH_CREDENTIAL_SETTINGS,
   },
   terminal_feature: {
     ...DEFAULT_TERMINAL_FEATURE_CONFIG,
@@ -316,6 +330,27 @@ const normalizeFnosShareBypassConfig = (
       DEFAULT_FNOS_SHARE_BYPASS_CONFIG.session_ttl_seconds,
       { min: 30, max: 3600 },
     ),
+  };
+};
+
+const normalizeAuthCredentialSettings = (
+  value?: Partial<AuthCredentialSettings> | null,
+): AuthCredentialSettings => {
+  const raw = value ?? {};
+  const sessionTtlSeconds = normalizePositiveInt(
+    raw.session_ttl_seconds,
+    DEFAULT_AUTH_CREDENTIAL_SETTINGS.session_ttl_seconds,
+    { min: 60, max: 5 * 365 * 24 * 3600 },
+  );
+  const rememberMeTtlSeconds = normalizePositiveInt(
+    raw.remember_me_ttl_seconds,
+    DEFAULT_AUTH_CREDENTIAL_SETTINGS.remember_me_ttl_seconds,
+    { min: sessionTtlSeconds, max: 5 * 365 * 24 * 3600 },
+  );
+
+  return {
+    session_ttl_seconds: sessionTtlSeconds,
+    remember_me_ttl_seconds: rememberMeTtlSeconds,
   };
 };
 
@@ -630,6 +665,9 @@ export class ConfigManager {
         parsed.fnos_share_bypass = normalizeFnosShareBypassConfig(
           parsed.fnos_share_bypass,
         );
+        parsed.auth_credential_settings = normalizeAuthCredentialSettings(
+          parsed.auth_credential_settings,
+        );
         parsed.terminal_feature = normalizeTerminalFeatureConfig(
           parsed.terminal_feature,
         );
@@ -644,6 +682,7 @@ export class ConfigManager {
       subdomain_mode: { ...DEFAULT_CONFIG.subdomain_mode },
       ssl: normalizeSSLConfig(DEFAULT_CONFIG.ssl),
       fnos_share_bypass: { ...DEFAULT_FNOS_SHARE_BYPASS_CONFIG },
+      auth_credential_settings: { ...DEFAULT_AUTH_CREDENTIAL_SETTINGS },
       terminal_feature: { ...DEFAULT_TERMINAL_FEATURE_CONFIG },
     };
   }
@@ -1282,6 +1321,24 @@ export class ConfigManager {
   async getTerminalFeatureConfig(): Promise<TerminalFeatureConfig> {
     const config = await this.getConfig();
     return normalizeTerminalFeatureConfig(config.terminal_feature);
+  }
+
+  async getAuthCredentialSettings(): Promise<AuthCredentialSettings> {
+    const config = await this.getConfig();
+    return normalizeAuthCredentialSettings(config.auth_credential_settings);
+  }
+
+  async updateAuthCredentialSettings(
+    patch: Partial<AuthCredentialSettings>,
+  ): Promise<AuthCredentialSettings> {
+    const config = await this.getConfig();
+    const next = normalizeAuthCredentialSettings({
+      ...config.auth_credential_settings,
+      ...patch,
+    });
+    config.auth_credential_settings = next;
+    await this.saveConfig(config);
+    return next;
   }
 
   async updateTerminalFeatureConfig(

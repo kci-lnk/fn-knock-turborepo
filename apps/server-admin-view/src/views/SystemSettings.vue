@@ -11,6 +11,7 @@ import FnosSettings from "./system-settings/FnosSettings.vue";
 import CaptchaSettings from "./system-settings/CaptchaSettings.vue";
 import GatewayLoggingSettings from "./system-settings/GatewayLoggingSettings.vue";
 import TerminalSettings from "./system-settings/TerminalSettings.vue";
+import CredentialSettings from "./system-settings/CredentialSettings.vue";
 import { useSyncedQueryTab } from "@admin-shared/composables/useSyncedQueryTab";
 import { useConfigStore } from "../store/config";
 
@@ -28,6 +29,7 @@ const allowedTabs = computed(() => {
     "scanner-firewall",
     "gateway-logging",
     "terminal",
+    "credentials",
     "captcha",
   ];
   if (showTunnelTabs.value) {
@@ -82,6 +84,9 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
           <TabsTrigger value="terminal" class="flex-none shrink-0 px-3"
             >终端</TabsTrigger
           >
+          <TabsTrigger value="credentials" class="flex-none shrink-0 px-3"
+            >凭据</TabsTrigger
+          >
           <TabsTrigger value="captcha" class="flex-none shrink-0 px-3"
             >验证码</TabsTrigger
           >
@@ -110,6 +115,9 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
       </TabsContent>
       <TabsContent value="terminal" class="pt-2">
         <TerminalSettings />
+      </TabsContent>
+      <TabsContent value="credentials" class="pt-2">
+        <CredentialSettings />
       </TabsContent>
       <TabsContent value="captcha" class="pt-2">
         <CaptchaSettings />

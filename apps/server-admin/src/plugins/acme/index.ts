@@ -1,5 +1,6 @@
 import { Elysia, t } from "elysia";
 import { AcmeService } from "./AcmeService";
+import { configManager } from "../../lib/redis";
 
 export const acmeService = new AcmeService();
 
@@ -16,7 +17,7 @@ export const acmePlugin = new Elysia()
     return acme.getState();
   })
 
-  .post("/install", ({ acme, set }) => {
+  .post("/install", async ({ acme, set }) => {
     const currentState = acme.getState();
     
     if (currentState.status === "installed") {
@@ -28,7 +29,10 @@ export const acmePlugin = new Elysia()
       return { error: "安装任务正在进行中" };
     }
 
-    acme.startInstall();
+    const clientSettings = await configManager.ensureAcmeClientSettings(
+      await acme.getDefaultCertificateAuthority(),
+    );
+    void acme.startInstall(undefined, clientSettings.certificateAuthority);
     
     return { 
       message: "安装任务已提交", 
@@ -39,11 +43,15 @@ export const acmePlugin = new Elysia()
   // 新增：触发证书签发接口 (支持各类 DNS)
   .post("/issue", async ({ acme, set, body }) => {
     try {
+      const clientSettings = await configManager.ensureAcmeClientSettings(
+        await acme.getDefaultCertificateAuthority(),
+      );
       await acme.issueCertificate({
         domains: body.domains,
         method: "dns",
         dnsType: body.dnsType,
-        envVars: body.envVars
+        envVars: body.envVars,
+        certificateAuthority: clientSettings.certificateAuthority,
       });
       return { message: "证书签发成功" };
     } catch (error: any) {

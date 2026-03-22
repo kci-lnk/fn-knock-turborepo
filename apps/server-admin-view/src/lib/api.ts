@@ -876,6 +876,17 @@ export const BackoffAPI = {
 };
 
 export const AcmeAPI = {
+  async updateClientSettings(payload: {
+    certificateAuthority: "zerossl" | "letsencrypt";
+  }): Promise<{
+    certificateAuthority: "zerossl" | "letsencrypt";
+    updatedAt: string;
+    synced: boolean;
+    accountEmail?: string;
+  }> {
+    const res = await apiClient.post("/acme/client-settings", payload);
+    return res.data.data;
+  },
   async getSubdomainRecommendation(): Promise<{
     mode: "wildcard_parent" | "single_host" | "manual";
     root_domain?: string;
@@ -915,6 +926,8 @@ export const AcmeAPI = {
     status: "uninstalled" | "installing" | "installed" | "error";
     progress: number;
     message: string;
+    certificateAuthority: "zerossl" | "letsencrypt";
+    certificateAuthorityUpdatedAt?: string;
     acmeCert?: { primaryDomain: string; info: any } | null;
   }> {
     const res = await apiClient.get("/acme/status");

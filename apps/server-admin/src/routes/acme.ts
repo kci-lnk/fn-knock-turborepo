@@ -611,6 +611,9 @@ export const acmeRoutes = new Elysia({ prefix: "/api/admin/acme" })
   .get("/status", async ({ acme }) => {
     await acme.checkInstalled();
     const state = acme.getState();
+    const clientSettings = await configManager.ensureAcmeClientSettings(
+      await acme.getDefaultCertificateAuthority(),
+    );
     const settings = await configManager.getAcmeSettings();
     const primaryDomain = settings?.domains?.[0] || null;
     let acmeCert: { primaryDomain: string; info: any } | null = null;
@@ -646,7 +649,15 @@ export const acmeRoutes = new Elysia({ prefix: "/api/admin/acme" })
         acmeCert = { primaryDomain, info };
       }
     }
-    return { success: true, data: { ...state, acmeCert } };
+    return {
+      success: true,
+      data: {
+        ...state,
+        acmeCert,
+        certificateAuthority: clientSettings.certificateAuthority,
+        certificateAuthorityUpdatedAt: clientSettings.updatedAt,
+      },
+    };
   })
   .get("/config", async () => {
     const cfg = await configManager.getAcmeSettings();
@@ -677,15 +688,77 @@ export const acmeRoutes = new Elysia({ prefix: "/api/admin/acme" })
       return { success: false, message: e?.message || String(e) };
     }
   })
-  .post("/init", ({ acme }) => {
-    acme.startInstall();
+  .post("/init", async ({ acme }) => {
+    const clientSettings = await configManager.ensureAcmeClientSettings(
+      await acme.getDefaultCertificateAuthority(),
+    );
+    void acme.startInstall(undefined, clientSettings.certificateAuthority);
     return {
       success: true,
       data: {
         executablePath: acme.getState().executablePath,
+        certificateAuthority: clientSettings.certificateAuthority,
       },
     };
   })
+  .post(
+    "/client-settings",
+    async ({ acme, body, set }) => {
+      await acme.checkInstalled();
+      const state = acme.getState();
+      if (state.status === "installing") {
+        set.status = 409;
+        return { success: false, message: "acme.sh 安装中，暂时无法切换证书颁发机构" };
+      }
+
+      const previous = await configManager.ensureAcmeClientSettings(
+        await acme.getDefaultCertificateAuthority(),
+      );
+      const next = await configManager.saveAcmeClientSettings({
+        certificateAuthority: body.certificateAuthority,
+      });
+
+      if (state.status !== "installed") {
+        return {
+          success: true,
+          data: {
+            ...next,
+            synced: false,
+          },
+        };
+      }
+
+      try {
+        const accountEmail = await acme.switchCertificateAuthority(
+          body.certificateAuthority,
+        );
+        await acme.checkInstalled();
+        return {
+          success: true,
+          data: {
+            ...next,
+            synced: true,
+            accountEmail,
+            state: acme.getState(),
+          },
+        };
+      } catch (e: any) {
+        await configManager.saveAcmeClientSettings({
+          certificateAuthority: previous.certificateAuthority,
+        });
+        set.status = 500;
+        return { success: false, message: e?.message || String(e) };
+      }
+    },
+    {
+      body: t.Object({
+        certificateAuthority: t.Union([
+          t.Literal("zerossl"),
+          t.Literal("letsencrypt"),
+        ]),
+      }),
+    },
+  )
   .post(
     "/config",
     async ({ body, set }) => {
@@ -725,6 +798,9 @@ export const acmeRoutes = new Elysia({ prefix: "/api/admin/acme" })
           provider: body.provider,
           credentials: body.credentials,
         });
+        const clientSettings = await configManager.ensureAcmeClientSettings(
+          await acme.getDefaultCertificateAuthority(),
+        );
         const jobId = randomUUID();
         const primaryDomain = normalized.domains[0]!;
         await configManager.saveAcmeSettings({
@@ -754,6 +830,7 @@ export const acmeRoutes = new Elysia({ prefix: "/api/admin/acme" })
               domains: normalized.domains,
               method: "dns",
               dnsType: normalized.dnsType,
+              certificateAuthority: clientSettings.certificateAuthority,
               envVars: normalized.credentials,
               onLog: async (line: string) => {
                 await configManager.appendAcmeLog(jobId, line);

@@ -10,6 +10,11 @@ import { spawn } from "node:child_process";
 import { dataPath } from "./AppDirManager";
 import { ACME_EXECUTABLE_PATH, ACME_HOME_DIR } from "./acme-paths";
 import {
+  DEFAULT_ACME_CERTIFICATE_AUTHORITY,
+  normalizeAcmeCertificateAuthority,
+  type AcmeCertificateAuthority,
+} from "./acme-certificate-authority";
+import {
   DEFAULT_REDIS_LOG_BUFFER_MAX_LEN,
   RedisLogBuffer,
 } from "./redis-log-buffer";
@@ -163,6 +168,11 @@ export type AcmeSettings = {
   domains: string[];
   dnsType: string;
   credentials: Record<string, string>;
+  updatedAt: string;
+};
+
+export type AcmeClientSettings = {
+  certificateAuthority: AcmeCertificateAuthority;
   updatedAt: string;
 };
 
@@ -642,6 +652,7 @@ export class ConfigManager {
   private acmeLogsKey = "fn_knock:acme:logs:";
   private acmeCertKey = "fn_knock:acme:cert:";
   private acmeSettingsKey = "fn_knock:acme:settings";
+  private acmeClientSettingsKey = "fn_knock:acme:client-settings";
   private onboardingCompletedKey = "fn_knock:onboarding:completed";
   private runModePromptPreferencesKey = "fn_knock:run-mode:prompt-preferences";
 
@@ -1142,6 +1153,49 @@ export class ConfigManager {
     } catch {
       return null;
     }
+  }
+
+  async saveAcmeClientSettings(
+    value: Pick<AcmeClientSettings, "certificateAuthority">,
+  ): Promise<AcmeClientSettings> {
+    const next: AcmeClientSettings = {
+      certificateAuthority: normalizeAcmeCertificateAuthority(
+        value.certificateAuthority,
+      ),
+      updatedAt: new Date().toISOString(),
+    };
+    await this.redis.set(this.acmeClientSettingsKey, JSON.stringify(next));
+    return next;
+  }
+
+  async getAcmeClientSettings(): Promise<AcmeClientSettings | null> {
+    const raw = await this.redis.get(this.acmeClientSettingsKey);
+    if (!raw) return null;
+    try {
+      const obj = JSON.parse(raw);
+      if (!obj || typeof obj !== "object") return null;
+      return {
+        certificateAuthority: normalizeAcmeCertificateAuthority(
+          typeof obj.certificateAuthority === "string"
+            ? obj.certificateAuthority
+            : undefined,
+        ),
+        updatedAt:
+          typeof obj.updatedAt === "string" ? obj.updatedAt : new Date().toISOString(),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  async ensureAcmeClientSettings(
+    fallbackCertificateAuthority: AcmeCertificateAuthority = DEFAULT_ACME_CERTIFICATE_AUTHORITY,
+  ): Promise<AcmeClientSettings> {
+    const existing = await this.getAcmeClientSettings();
+    if (existing) return existing;
+    return this.saveAcmeClientSettings({
+      certificateAuthority: fallbackCertificateAuthority,
+    });
   }
 
   async saveAcmeCert(

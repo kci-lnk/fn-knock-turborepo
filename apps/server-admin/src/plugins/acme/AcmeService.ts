@@ -4,6 +4,10 @@ import { chmod, cp, mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import { ACME_EXECUTABLE_PATH, ACME_HOME_DIR, resolveBundledAcmeZipPath } from "../../lib/acme-paths";
+import {
+  DEFAULT_ACME_CERTIFICATE_AUTHORITY,
+  type AcmeCertificateAuthority,
+} from "../../lib/acme-certificate-authority";
 import { collectStreamOutput, fileExists, waitForProcessExit } from "../../lib/runtime";
 
 export type AcmeStatus = "uninstalled" | "installing" | "installed" | "error";
@@ -21,6 +25,7 @@ export type IssueCertParams = {
   method: VerifyMethod;
   dnsType?: string;
   envVars?: Record<string, string>;
+  certificateAuthority?: AcmeCertificateAuthority;
   jobId?: string;
   onLog?: (line: string) => Promise<void> | void;
 };
@@ -92,6 +97,17 @@ export class AcmeService {
     return null;
   }
 
+  private async readAccountConfValue(key: string): Promise<string | null> {
+    const confPath = join(this.acmeDir, "account.conf");
+    const exists = await fileExists(confPath);
+    if (!exists) return null;
+    const content = await readFile(confPath, "utf-8").catch(() => "");
+    const matched = content.match(
+      new RegExp(`^${key}=(['"]?)([^\\n'"]+)\\1$`, "m"),
+    );
+    return matched?.[2]?.trim() || null;
+  }
+
   private async runAcmeCommand(args: string[], extraEnv?: Record<string, string>): Promise<AcmeCommandResult> {
     const proc = spawn(this.acmePath, args, {
       stdio: ["ignore", "pipe", "pipe"],
@@ -107,21 +123,49 @@ export class AcmeService {
     return { exitCode, stdout, stderr };
   }
 
-  private async registerAccount(email?: string): Promise<string> {
-    if (!email) {
-      const existing = await this.getExistingAccountEmail();
-      if (existing) return existing;
-    }
+  private buildSharedArgs(certificateAuthority?: AcmeCertificateAuthority): string[] {
+    const args = ["--home", this.acmeDir, "--config-home", this.acmeDir];
+    if (certificateAuthority) args.push("--server", certificateAuthority);
+    return args;
+  }
 
-    const accountEmail = this.resolveAccountEmail(email);
+  private async setDefaultCertificateAuthority(
+    certificateAuthority: AcmeCertificateAuthority,
+  ): Promise<void> {
+    const result = await this.runAcmeCommand([
+      "--set-default-ca",
+      "--server",
+      certificateAuthority,
+      ...this.buildSharedArgs(),
+      "--debug",
+    ]);
+
+    if (result.exitCode === 0) return;
+
+    const brief = (result.stderr || result.stdout || "")
+      .trim()
+      .split("\n")
+      .slice(-3)
+      .join(" | ");
+    throw new Error(
+      `设置默认证书颁发机构失败（退出码: ${result.exitCode}）${
+        brief ? `: ${brief}` : ""
+      }`,
+    );
+  }
+
+  async registerAccount(options?: {
+    email?: string;
+    certificateAuthority?: AcmeCertificateAuthority;
+  }): Promise<string> {
+    const accountEmail = this.resolveAccountEmail(
+      options?.email || (await this.getExistingAccountEmail()) || undefined,
+    );
     const result = await this.runAcmeCommand([
       "--register-account",
       "-m",
       accountEmail,
-      "--home",
-      this.acmeDir,
-      "--config-home",
-      this.acmeDir,
+      ...this.buildSharedArgs(options?.certificateAuthority),
       "--debug",
     ]);
 
@@ -247,18 +291,49 @@ export class AcmeService {
     return this.state;
   }
 
-  async startInstall(email?: string): Promise<void> {
+  async getDefaultCertificateAuthority(): Promise<AcmeCertificateAuthority> {
+    const configured = (
+      await this.readAccountConfValue("DEFAULT_ACME_SERVER")
+    )?.toLowerCase();
+    if (configured?.includes("letsencrypt")) return "letsencrypt";
+    if (configured?.includes("zerossl")) return "zerossl";
+    return DEFAULT_ACME_CERTIFICATE_AUTHORITY;
+  }
+
+  async startInstall(
+    email?: string,
+    certificateAuthority?: AcmeCertificateAuthority,
+  ): Promise<void> {
     if (this.state.status === "installing" || this.state.status === "installed") return;
     this.state = { status: "installing", progress: 10, message: "正在初始化内置 acme.sh...", executablePath: this.acmePath };
 
     try {
       const executablePath = await this.installFromBundledZip();
       this.state = { status: "installing", progress: 90, message: "正在注册 ACME 账号...", executablePath: this.acmePath };
-      const accountEmail = await this.registerAccount(email);
+      const accountEmail = await this.registerAccount({
+        email,
+        certificateAuthority,
+      });
+      this.state = { status: "installing", progress: 95, message: "正在保存默认证书颁发机构...", executablePath: this.acmePath };
+      if (certificateAuthority) {
+        await this.setDefaultCertificateAuthority(certificateAuthority);
+      }
       this.state = { status: "installed", progress: 100, message: `安装成功，账号邮箱: ${accountEmail}`, executablePath };
     } catch (error: any) {
       this.state = { status: "error", progress: 0, message: `安装失败: ${error.message}`, executablePath: this.acmePath };
     }
+  }
+
+  async switchCertificateAuthority(
+    certificateAuthority: AcmeCertificateAuthority,
+  ): Promise<string> {
+    if (this.state.status !== "installed") {
+      throw new Error("请先安装 acme.sh");
+    }
+
+    const accountEmail = await this.registerAccount({ certificateAuthority });
+    await this.setDefaultCertificateAuthority(certificateAuthority);
+    return accountEmail;
   }
 
   async uninstall(): Promise<void> {
@@ -275,7 +350,14 @@ export class AcmeService {
     }
   }
 
-  async issueCertificate({ domains, method, dnsType, envVars, onLog }: IssueCertParams) {
+  async issueCertificate({
+    domains,
+    method,
+    dnsType,
+    envVars,
+    onLog,
+    certificateAuthority,
+  }: IssueCertParams) {
     if (this.state.status !== "installed") {
       throw new Error("请先安装 acme.sh");
     }
@@ -284,10 +366,13 @@ export class AcmeService {
       throw new Error("域名列表不能为空");
     }
 
-    await this.registerAccount();
+    await this.registerAccount({ certificateAuthority });
 
     const args: string[] = [this.acmePath, "--issue"];
     args.push("--home", this.acmeDir, "--config-home", this.acmeDir);
+    if (certificateAuthority) {
+      args.push("--server", certificateAuthority);
+    }
     if (method === "dns") {
       if (!dnsType) throw new Error("缺少 DNS 验证类型");
       args.push("--dns", dnsType);

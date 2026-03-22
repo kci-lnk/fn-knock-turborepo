@@ -44,6 +44,9 @@ export const registerAcmeRenewCron = (app: Elysia) => {
         try {
           const settings = await configManager.getAcmeSettings();
           if (!settings?.domains?.length) return;
+          const clientSettings = await configManager.ensureAcmeClientSettings(
+            await acmeService.getDefaultCertificateAuthority(),
+          );
 
           await acmeService.checkInstalled();
           if (acmeService.getState().status !== "installed") return;
@@ -105,6 +108,7 @@ export const registerAcmeRenewCron = (app: Elysia) => {
               domains: settings.domains,
               method: "dns",
               dnsType: settings.dnsType,
+              certificateAuthority: clientSettings.certificateAuthority,
               envVars: settings.credentials,
               onLog: async (line: string) => {
                 pushLog(line);

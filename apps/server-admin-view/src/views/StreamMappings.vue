@@ -37,7 +37,7 @@
         </CardTitle>
         <CardDescription>
           每条规则都会把一个外部 TCP 或 UDP 端口转发到指定目标地址，适合
-          MySQL、Redis、DNS 等业务
+          SSH、MySQL、Redis、DNS 等业务
         </CardDescription>
       </CardHeader>
 

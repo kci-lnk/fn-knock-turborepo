@@ -50,6 +50,12 @@ export const useConfigStore = defineStore("config", () => {
     await loadConfig();
   }
 
+  async function refreshAllHostMappingTitles() {
+    const result = await ConfigAPI.refreshAllHostMappingTitles();
+    await loadConfig();
+    return result;
+  }
+
   async function saveStreamMappings(mappings: StreamMapping[]) {
     await ConfigAPI.updateStreamMappings(mappings);
     await loadConfig();
@@ -69,6 +75,7 @@ export const useConfigStore = defineStore("config", () => {
     setRunType,
     saveProxyMappings,
     saveHostMappings,
+    refreshAllHostMappingTitles,
     saveStreamMappings,
     saveSubdomainMode,
     saveDefaultRoute,

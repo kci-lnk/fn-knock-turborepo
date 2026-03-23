@@ -60,6 +60,9 @@ export interface HostMapping {
   suppress_toolbar: boolean;
   preserve_host: boolean;
   service_role: HostServiceRole;
+  title: string;
+  title_override: string;
+  favicon: string;
 }
 
 export interface StreamMapping {
@@ -630,6 +633,10 @@ const normalizeHostMapping = (
       serviceRole === "auth" ? false : raw.suppress_toolbar === true,
     preserve_host: raw.preserve_host === true,
     service_role: serviceRole,
+    title: typeof raw.title === "string" ? raw.title.trim() : "",
+    title_override:
+      typeof raw.title_override === "string" ? raw.title_override.trim() : "",
+    favicon: typeof raw.favicon === "string" ? raw.favicon.trim() : "",
   };
 };
 

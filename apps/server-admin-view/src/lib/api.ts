@@ -1,6 +1,7 @@
 import type {
   AppConfig,
   HostMapping,
+  HostMappingRefreshSummary,
   PasskeyCredential,
   ProxyMapping,
   ProxyProtocolForce,
@@ -137,6 +138,10 @@ export const ConfigAPI = {
   },
   async updateHostMappings(mappings: HostMapping[]): Promise<void> {
     await apiClient.post("/config/host_mappings", { mappings });
+  },
+  async refreshAllHostMappingTitles(): Promise<HostMappingRefreshSummary> {
+    const res = await apiClient.post("/config/host_mappings/refresh_titles");
+    return res.data.data;
   },
   async getStreamMappings(): Promise<StreamMapping[]> {
     const res = await apiClient.get("/config/stream_mappings");

@@ -422,7 +422,18 @@ export class GoBackendService {
   }
 
   async setHostRules(rules: HostRule[]): Promise<GoResponse<HostRule[]>> {
-    return this.request<HostRule[]>("/api/host-rules", "POST", rules);
+    return this.request<HostRule[]>(
+      "/api/host-rules",
+      "POST",
+      rules.map((rule) => ({
+        host: rule.host,
+        target: rule.target,
+        use_auth: rule.use_auth,
+        access_mode: rule.access_mode,
+        suppress_toolbar: rule.suppress_toolbar,
+        preserve_host: rule.preserve_host,
+      })),
+    );
   }
 
   async flushHostRules(): Promise<GoResponse> {

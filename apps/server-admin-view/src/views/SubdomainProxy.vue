@@ -1,9 +1,14 @@
 <template>
   <div class="space-y-6">
-    <ConfigCollapsibleCard title="子域模式配置" :configured="isSubdomainModeConfigured" :ready="!configStore.isLoading"
-      edit-label="编辑配置" summary-class="text-xs text-muted-foreground truncate max-w-full"
+    <ConfigCollapsibleCard
+      title="子域模式配置"
+      :configured="isSubdomainModeConfigured"
+      :ready="!configStore.isLoading"
+      edit-label="编辑配置"
+      summary-class="text-xs text-muted-foreground truncate max-w-full"
       expanded-content-class="p-0 sm:p-0"
-      actions-class="border-t bg-muted/30 px-4 py-4 sm:px-6 flex flex-col-reverse items-stretch gap-2 rounded-b-lg sm:flex-row sm:items-center sm:justify-end">
+      actions-class="border-t bg-muted/30 px-4 py-4 sm:px-6 flex flex-col-reverse items-stretch gap-2 rounded-b-lg sm:flex-row sm:items-center sm:justify-end"
+    >
       <template #summary>
         <template v-if="savedRootDomain">
           根域名 {{ savedRootDomain }}
@@ -29,7 +34,11 @@
           <div class="grid gap-4 p-4 sm:p-6">
             <div class="max-w-xs space-y-2">
               <Label for="root-domain">域名</Label>
-              <Input id="root-domain" v-model="modeForm.root_domain" placeholder="example.com" />
+              <Input
+                id="root-domain"
+                v-model="modeForm.root_domain"
+                placeholder="example.com"
+              />
               <p class="text-xs text-muted-foreground">
                 如填写 example.com
                 后，后续新增映射时，你只需要填写子域名前缀，系统会自动拼接到这个根域名下面，比如
@@ -37,7 +46,9 @@
               </p>
             </div>
             <div class="rounded-lg border px-4 py-3">
-              <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div
+                class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+              >
                 <div class="space-y-1">
                   <Label>当前鉴权服务</Label>
                   <div class="text-sm">
@@ -59,18 +70,29 @@
                 </div>
 
                 <div class="flex flex-col items-end gap-2">
-                  <Badge :variant="authServiceMapping ? 'secondary' : 'outline'">
+                  <Badge
+                    :variant="authServiceMapping ? 'secondary' : 'outline'"
+                  >
                     {{ authServiceMapping ? "已配置" : "未配置" }}
                   </Badge>
 
-                  <ConfirmDangerPopover v-if="authServiceMapping" title="确认删除鉴权服务？"
-                    :description="`将删除 ${authServiceMapping.host} 对应的鉴权映射。删除后需要重新添加鉴权服务。`" confirm-text="删除鉴权服务"
-                    :loading="isSavingMappings" :disabled="isSavingMappings"
-                    :on-confirm="async () => void (await removeAuthService())" content-class="w-72 text-left">
+                  <ConfirmDangerPopover
+                    v-if="authServiceMapping"
+                    title="确认删除鉴权服务？"
+                    :description="`将删除 ${authServiceMapping.host} 对应的鉴权映射。删除后需要重新添加鉴权服务。`"
+                    confirm-text="删除鉴权服务"
+                    :loading="isSavingMappings"
+                    :disabled="isSavingMappings"
+                    :on-confirm="async () => void (await removeAuthService())"
+                    content-class="w-72 text-left"
+                  >
                     <template #trigger>
-                      <Button variant="ghost" size="sm"
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         class="h-auto p-0 text-destructive hover:bg-transparent hover:text-destructive/90"
-                        :disabled="isSavingMappings">
+                        :disabled="isSavingMappings"
+                      >
                         删除鉴权服务
                       </Button>
                     </template>
@@ -78,19 +100,27 @@
                 </div>
               </div>
             </div>
-
           </div>
         </div>
       </template>
 
       <template #actions="{ collapse }">
         <Button variant="outline" @click="collapse">折叠</Button>
-        <Button variant="outline" :disabled="isSavingMode || !isModeDirty" @click="resetModeForm">
+        <Button
+          variant="outline"
+          :disabled="isSavingMode || !isModeDirty"
+          @click="resetModeForm"
+        >
           放弃更改
         </Button>
-        <Button :disabled="isSavingMode || !isModeValid || !isModeDirty" @click="saveMode">
-          <span v-if="isSavingMode"
-            class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
+        <Button
+          :disabled="isSavingMode || !isModeValid || !isModeDirty"
+          @click="saveMode"
+        >
+          <span
+            v-if="isSavingMode"
+            class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+          ></span>
           保存配置
         </Button>
       </template>
@@ -102,39 +132,71 @@
           <span>映射管理</span>
           <div class="flex items-center gap-2">
             <DocsLinkButton :href="docsUrls.guides.subdomainProxy" />
-            <Button v-if="!authServiceMapping" :disabled="!canManageNewMappings || isSavingMappings" variant="default"
-              @click="addAuthService">
+            <Button
+              v-if="!authServiceMapping"
+              :disabled="!canManageNewMappings || isSavingMappings"
+              variant="default"
+              @click="addAuthService"
+            >
               <ShieldCheck class="mr-2 h-4 w-4" />
               添加鉴权服务
             </Button>
             <div v-if="authServiceMapping" class="flex items-center">
-              <Button :variant="discoverButtonVariant" :disabled="!canManageNewMappings || isDiscovering"
-                class="rounded-r-none" @click="openDiscoverDialog">
+              <Button
+                :variant="discoverButtonVariant"
+                :disabled="!canManageNewMappings || isDiscovering"
+                class="rounded-r-none"
+                @click="openDiscoverDialog"
+              >
                 <Search class="mr-2 h-4 w-4" />
                 {{ isDiscovering ? "发现中..." : "一键发现" }}
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger as-child>
-                  <Button :variant="discoverButtonVariant" size="icon" :class="[
-                    'rounded-l-none border-l px-2',
-                    discoverButtonDividerClass,
-                  ]">
+                  <Button
+                    :variant="discoverButtonVariant"
+                    size="icon"
+                    :class="[
+                      'rounded-l-none border-l px-2',
+                      discoverButtonDividerClass,
+                    ]"
+                  >
                     <ChevronDown class="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem v-if="authServiceMapping" variant="destructive" :disabled="isSavingMappings"
-                    @select="openDeleteAuthServiceDialog">
+                  <DropdownMenuItem
+                    v-if="authServiceMapping"
+                    variant="destructive"
+                    :disabled="isSavingMappings"
+                    @select="openDeleteAuthServiceDialog"
+                  >
                     <Trash2 class="mr-2 h-4 w-4" />
                     删除鉴权服务
                   </DropdownMenuItem>
-                  <DropdownMenuItem :disabled="!canManageNewMappings" @click="openCreateDialog">
+                  <DropdownMenuItem
+                    :disabled="!canManageNewMappings"
+                    @click="openCreateDialog"
+                  >
                     <Plus class="mr-2 h-4 w-4" />
                     添加映射
                   </DropdownMenuItem>
                   <DropdownMenuItem @click="syncRoutes" :disabled="isSyncing">
-                    <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': isSyncing }" />
+                    <RefreshCw
+                      class="mr-2 h-4 w-4"
+                      :class="{ 'animate-spin': isSyncing }"
+                    />
                     {{ isSyncing ? "同步中..." : "同步路由" }}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    :disabled="isRefreshingTitles || allMappings.length === 0"
+                    @select="refreshAllTitles"
+                  >
+                    <RefreshCw
+                      class="mr-2 h-4 w-4"
+                      :class="{ 'animate-spin': isRefreshingTitles }"
+                    />
+                    {{ isRefreshingTitles ? "刷新中..." : "刷新所有标题" }}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -147,8 +209,15 @@
         </CardDescription>
       </CardHeader>
       <CardContent class="space-y-4">
-        <SearchInput v-model="searchQuery" placeholder="搜索子域名或目标地址..." class="max-w-xs" />
-        <p v-if="!savedRootDomain || isRootDomainPendingSave" class="text-xs text-amber-600">
+        <SearchInput
+          v-model="searchQuery"
+          placeholder="搜索标题、子域名或目标地址..."
+          class="max-w-xs"
+        />
+        <p
+          v-if="!savedRootDomain || isRootDomainPendingSave"
+          class="text-xs text-amber-600"
+        >
           {{
             !savedRootDomain
               ? "请先在上方保存根域名，再添加或发现 Host 映射。"
@@ -160,7 +229,9 @@
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>子域名</TableHead>
+                <TableHead class="w-[22px]">Icon</TableHead>
+                <TableHead class="min-w-[12rem]">标题</TableHead>
+                <TableHead>域名</TableHead>
                 <TableHead>目标</TableHead>
                 <TableHead>状态</TableHead>
                 <TableHead class="text-right">操作</TableHead>
@@ -168,7 +239,10 @@
             </TableHeader>
             <TableBody>
               <TableRow v-if="filteredMappings.length === 0">
-                <TableCell colspan="4" class="py-8 text-center text-muted-foreground">
+                <TableCell
+                  colspan="6"
+                  class="py-8 text-center text-muted-foreground"
+                >
                   还没有配置任何 Host 映射。
                 </TableCell>
               </TableRow>
@@ -177,28 +251,67 @@
                 :key="mapping.host"
                 class="group"
               >
+                <TableCell class="w-[22px]">
+                  <img
+                    v-if="mapping.favicon && !isFaviconBroken(mapping)"
+                    :src="mapping.favicon"
+                    :alt="`${getMappingTitleForDisplay(mapping)} favicon`"
+                    class="h-4 w-4 object-contain"
+                    @error="markFaviconBroken(mapping)"
+                  />
+                </TableCell>
+                <TableCell
+                  class="max-w-[16rem] truncate text-sm"
+                  :title="getMappingTitleForDisplay(mapping)"
+                >
+                  <span
+                    :class="
+                      getMappingDisplayTitle(mapping)
+                        ? 'text-foreground'
+                        : 'text-muted-foreground'
+                    "
+                  >
+                    {{ getMappingTitleForDisplay(mapping) }}
+                  </span>
+                </TableCell>
                 <TableCell class="break-all font-medium">
                   {{ formatHostWithAccessEntryPort(mapping.host) }}
                 </TableCell>
                 <TableCell>{{ mapping.target }}</TableCell>
                 <TableCell class="min-w-[3rem]">
-                  <div class="flex min-w-[3rem] flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <Badge v-if="isAuthServiceTarget(mapping.target)" variant="default">
+                  <div
+                    class="flex min-w-[3rem] flex-wrap items-center gap-2 text-xs text-muted-foreground"
+                  >
+                    <Badge
+                      v-if="isAuthServiceTarget(mapping.target)"
+                      variant="default"
+                    >
                       鉴权服务
                     </Badge>
                     <ShieldCheck v-if="mapping.use_auth" class="h-3.5 w-3.5" />
                     <Badge v-else variant="secondary">公开访问</Badge>
-                    <PanelsTopLeft v-if="mapping.use_auth && !mapping.suppress_toolbar" class="h-3.5 w-3.5" />
+                    <PanelsTopLeft
+                      v-if="mapping.use_auth && !mapping.suppress_toolbar"
+                      class="h-3.5 w-3.5"
+                    />
                   </div>
                 </TableCell>
                 <TableCell class="text-right">
                   <div class="flex justify-end gap-2">
-                    <Button variant="ghost" size="sm" @click="openEditDialog(mapping)">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      @click="openEditDialog(mapping)"
+                    >
                       编辑
                     </Button>
-                    <Button variant="ghost" size="sm"
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       class="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                      :disabled="isSavingMappings" @click="openDeleteMappingDialog(mapping.host)">
+                      :disabled="isSavingMappings"
+                      @click="openDeleteMappingDialog(mapping.host)"
+                    >
                       删除
                     </Button>
                   </div>
@@ -216,9 +329,7 @@
           <DialogTitle>
             {{ editingHost ? "编辑 Host 映射" : "添加 Host 映射" }}
           </DialogTitle>
-          <DialogDescription>
-            业务域名默认会走统一登录流程
-          </DialogDescription>
+          <DialogDescription> 业务域名默认会走统一登录流程 </DialogDescription>
         </DialogHeader>
         <div class="grid gap-4 py-4">
           <div class="space-y-2">
@@ -227,9 +338,15 @@
             </Label>
             <template v-if="mappingInputMode === 'subdomain'">
               <div class="flex items-stretch rounded-md border">
-                <Input id="mapping-subdomain" v-model="mappingSubdomain" placeholder="redis"
-                  class="rounded-none border-0 shadow-none focus-visible:ring-0" />
-                <div class="flex items-center border-l bg-muted/30 px-3 text-sm text-muted-foreground">
+                <Input
+                  id="mapping-subdomain"
+                  v-model="mappingSubdomain"
+                  placeholder="redis"
+                  class="rounded-none border-0 shadow-none focus-visible:ring-0"
+                />
+                <div
+                  class="flex items-center border-l bg-muted/30 px-3 text-sm text-muted-foreground"
+                >
                   .{{ savedRootDomain }}
                 </div>
               </div>
@@ -238,7 +355,11 @@
               </p>
             </template>
             <template v-else>
-              <Input id="mapping-subdomain" v-model="mappingSubdomain" placeholder="auth.other-domain.example" />
+              <Input
+                id="mapping-subdomain"
+                v-model="mappingSubdomain"
+                placeholder="auth.other-domain.example"
+              />
               <p class="text-xs text-amber-600">
                 当前映射不在已固定根域名下，编辑时暂按完整 Host 处理。
               </p>
@@ -247,20 +368,49 @@
 
           <div class="space-y-2">
             <Label for="mapping-target">目标</Label>
-            <Input id="mapping-target" v-model="mappingForm.target" placeholder="http://127.0.0.1:5173" />
+            <Input
+              id="mapping-target"
+              v-model="mappingForm.target"
+              placeholder="http://127.0.0.1:5173"
+            />
           </div>
 
-          <div class="flex items-center justify-between rounded-lg border px-4 py-3">
+          <div class="space-y-2">
+            <Label for="mapping-display-title">展示标题</Label>
+            <Input
+              id="mapping-display-title"
+              v-model="mappingForm.title_override"
+              placeholder="为空时自动使用抓取到的页面标题"
+            />
+            <p class="text-xs text-muted-foreground">
+              保存时会自动抓取目标页面的标题和图标。这里修改的是当前系统内的展示标题，不会改动目标服务本身。
+              <span
+                v-if="mappingForm.title && !mappingForm.title_override.trim()"
+              >
+                当前抓取标题：{{ mappingForm.title }}
+              </span>
+            </p>
+          </div>
+
+          <div
+            class="flex items-center justify-between rounded-lg border px-4 py-3"
+          >
             <div class="space-y-1">
               <Label for="mapping-auth">要求登录</Label>
               <p class="text-xs text-muted-foreground">
                 安全性, 未登录用户会被要求登录才可以访问
               </p>
             </div>
-            <Switch id="mapping-auth" v-model="mappingForm.use_auth" :disabled="isMappingAuthService" />
+            <Switch
+              id="mapping-auth"
+              v-model="mappingForm.use_auth"
+              :disabled="isMappingAuthService"
+            />
           </div>
 
-          <div class="flex items-center justify-between rounded-lg border px-4 py-3">
+          <div
+            class="flex items-center justify-between rounded-lg border px-4 py-3"
+          >
             <div class="space-y-1">
               <Label for="mapping-toolbar">显示小工具</Label>
               <p class="text-xs text-muted-foreground">
@@ -272,14 +422,20 @@
         </div>
         <DialogFooter>
           <Button variant="outline" @click="closeDialog">取消</Button>
-          <Button :disabled="!isMappingValid || isSavingMappings" @click="saveMapping">
+          <Button
+            :disabled="!isMappingValid || isSavingMappings"
+            @click="saveMapping"
+          >
             保存映射
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
 
-    <Dialog :open="isDeleteDialogOpen" @update:open="handleDeleteDialogOpenChange">
+    <Dialog
+      :open="isDeleteDialogOpen"
+      @update:open="handleDeleteDialogOpenChange"
+    >
       <DialogContent class="sm:max-w-[440px]">
         <DialogHeader>
           <DialogTitle>{{ deleteDialogTitle }}</DialogTitle>
@@ -289,19 +445,30 @@
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" @click="closeDeleteDialog">取消</Button>
-          <Button variant="destructive" :disabled="isSavingMappings" @click="confirmDelete">
-            <span v-if="isSavingMappings"
-              class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
+          <Button
+            variant="destructive"
+            :disabled="isSavingMappings"
+            @click="confirmDelete"
+          >
+            <span
+              v-if="isSavingMappings"
+              class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+            ></span>
             {{ deleteDialogConfirmLabel }}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
 
-    <Dialog :open="isDiscoverDialogOpen" @update:open="handleDiscoverDialogOpenChange">
+    <Dialog
+      :open="isDiscoverDialogOpen"
+      @update:open="handleDiscoverDialogOpenChange"
+    >
       <DialogContent class="flex max-h-[85vh] flex-col sm:max-w-[820px]">
         <DialogHeader>
-          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div
+            class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+          >
             <div class="space-y-1">
               <DialogTitle>一键发现本地服务</DialogTitle>
               <DialogDescription>
@@ -309,23 +476,36 @@
                 <code>.{{ savedRootDomain }}</code> 下。
               </DialogDescription>
             </div>
-            <Button class="w-full sm:w-auto" variant="outline" :disabled="isDiscovering" @click="triggerScan">
-              <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': isDiscovering }" />
+            <Button
+              class="w-full sm:w-auto"
+              variant="outline"
+              :disabled="isDiscovering"
+              @click="triggerScan"
+            >
+              <RefreshCw
+                class="mr-2 h-4 w-4"
+                :class="{ 'animate-spin': isDiscovering }"
+              />
               {{ isDiscovering ? "扫描中..." : "刷新服务" }}
             </Button>
           </div>
         </DialogHeader>
 
         <div class="flex-1 overflow-y-auto overflow-x-hidden py-2">
-          <div v-if="isDiscovering" class="flex flex-col items-center justify-center py-16 space-y-4">
+          <div
+            v-if="isDiscovering"
+            class="flex flex-col items-center justify-center py-16 space-y-4"
+          >
             <RefreshCw class="h-8 w-8 animate-spin text-muted-foreground" />
             <p class="text-sm text-muted-foreground">
               正在探测端口服务，这可能需要几秒钟...
             </p>
           </div>
 
-          <div v-else-if="discoveredData && discoveredData.services.length === 0"
-            class="text-center py-16 text-muted-foreground">
+          <div
+            v-else-if="discoveredData && discoveredData.services.length === 0"
+            class="text-center py-16 text-muted-foreground"
+          >
             {{
               discoveredData.foundServices > 0
                 ? "本次扫描到的服务都已添加到 Host 映射中。"
@@ -338,8 +518,12 @@
               <TableHeader>
                 <TableRow>
                   <TableHead class="w-[50px] text-center">
-                    <input type="checkbox" class="h-4 w-4 cursor-pointer" :checked="isAllSelected"
-                      @change="onToggleAllDiscoverSelect" />
+                    <input
+                      type="checkbox"
+                      class="h-4 w-4 cursor-pointer"
+                      :checked="isAllSelected"
+                      @change="onToggleAllDiscoverSelect"
+                    />
                   </TableHead>
                   <TableHead class="w-[80px]">端口</TableHead>
                   <TableHead class="w-[100px]">状态</TableHead>
@@ -350,17 +534,30 @@
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableRow v-for="(svc, index) in discoveredData.services" :key="`${svc.port}-${index}`">
+                <TableRow
+                  v-for="(svc, index) in discoveredData.services"
+                  :key="`${svc.port}-${index}`"
+                >
                   <TableCell class="text-center">
-                    <input type="checkbox" class="h-4 w-4 cursor-pointer" :value="svc" v-model="selectedServices" />
+                    <input
+                      type="checkbox"
+                      class="h-4 w-4 cursor-pointer"
+                      :value="svc"
+                      v-model="selectedServices"
+                    />
                   </TableCell>
                   <TableCell class="font-medium">{{ svc.port }}</TableCell>
                   <TableCell>
-                    <span v-if="svc.httpStatus === 401"
-                      class="text-amber-600 bg-amber-500/10 text-xs px-2 py-0.5 rounded">
+                    <span
+                      v-if="svc.httpStatus === 401"
+                      class="text-amber-600 bg-amber-500/10 text-xs px-2 py-0.5 rounded"
+                    >
                       需认证
                     </span>
-                    <span v-else class="text-green-600 bg-green-500/10 text-xs px-2 py-0.5 rounded">
+                    <span
+                      v-else
+                      class="text-green-600 bg-green-500/10 text-xs px-2 py-0.5 rounded"
+                    >
                       {{ svc.httpStatus }}
                     </span>
                   </TableCell>
@@ -368,14 +565,22 @@
                     {{ svc.detail.label || svc.detail.name || "未知服务" }}
                   </TableCell>
                   <TableCell class="min-w-[18rem]">
-                    <div class="flex min-w-[18rem] items-stretch rounded-md border">
-                      <Input v-model="svc.suggestedSubdomain" placeholder="service"
-                        class="h-8 rounded-none border-0 text-sm shadow-none focus-visible:ring-0" :class="{
+                    <div
+                      class="flex min-w-[18rem] items-stretch rounded-md border"
+                    >
+                      <Input
+                        v-model="svc.suggestedSubdomain"
+                        placeholder="service"
+                        class="h-8 rounded-none border-0 text-sm shadow-none focus-visible:ring-0"
+                        :class="{
                           'border-destructive focus-visible:ring-destructive':
                             selectedServices.includes(svc) &&
                             !svc.suggestedSubdomain.trim(),
-                        }" />
-                      <div class="flex shrink-0 items-center border-l bg-muted/30 px-3 text-xs text-muted-foreground">
+                        }"
+                      />
+                      <div
+                        class="flex shrink-0 items-center border-l bg-muted/30 px-3 text-xs text-muted-foreground"
+                      >
                         .{{ savedRootDomain }}
                       </div>
                     </div>
@@ -399,11 +604,15 @@
             <Button variant="outline" @click="dismissDiscoverDialog">
               取消
             </Button>
-            <Button :disabled="isDiscovering ||
-              selectedServices.length === 0 ||
-              !isDiscoverSelectionValid ||
-              isSavingMappings
-              " @click="saveDiscoveredServices">
+            <Button
+              :disabled="
+                isDiscovering ||
+                selectedServices.length === 0 ||
+                !isDiscoverSelectionValid ||
+                isSavingMappings
+              "
+              @click="saveDiscoveredServices"
+            >
               添加选中项
             </Button>
           </div>
@@ -492,13 +701,13 @@ type DiscoveredHostResponse = Omit<ScanDiscoverResponse, "services"> & {
 
 type DeleteDialogState =
   | {
-    kind: "auth_service";
-    host: string;
-  }
+      kind: "auth_service";
+      host: string;
+    }
   | {
-    kind: "mapping";
-    host: string;
-  };
+      kind: "mapping";
+      host: string;
+    };
 
 const configStore = useConfigStore();
 
@@ -606,6 +815,9 @@ const createDefaultMapping = (): HostMapping => ({
   suppress_toolbar: false,
   preserve_host: false,
   service_role: "app",
+  title: "",
+  title_override: "",
+  favicon: "",
 });
 
 const searchQuery = ref("");
@@ -615,6 +827,7 @@ const editingHost = ref<string | null>(null);
 const mappingInputMode = ref<MappingInputMode>("subdomain");
 const mappingSubdomain = ref("");
 const accessEntryPort = ref("7999");
+const brokenFaviconKeys = ref(new Set<string>());
 const modeForm = reactive<SubdomainModeConfig>(createDefaultModeForm());
 const mappingForm = reactive<HostMapping>(createDefaultMapping());
 
@@ -716,16 +929,29 @@ const displayAccessEntryPort = computed(
 );
 const formatHostWithAccessEntryPort = (host: string): string =>
   `${host}:${displayAccessEntryPort.value}`;
+const getMappingDisplayTitle = (mapping: HostMapping): string =>
+  mapping.title_override.trim() || mapping.title.trim();
+const getMappingTitleForDisplay = (mapping: HostMapping): string =>
+  getMappingDisplayTitle(mapping) || "未获取";
+const getFaviconKey = (mapping: HostMapping): string =>
+  `${mapping.host}::${mapping.favicon}`;
+const isFaviconBroken = (mapping: HostMapping): boolean =>
+  brokenFaviconKeys.value.has(getFaviconKey(mapping));
+const markFaviconBroken = (mapping: HostMapping) => {
+  const next = new Set(brokenFaviconKeys.value);
+  next.add(getFaviconKey(mapping));
+  brokenFaviconKeys.value = next;
+};
+const visibleMappings = computed(() =>
+  allMappings.value.filter((mapping) => !isAuthServiceTarget(mapping.target)),
+);
 
 const filteredMappings = computed(() => {
   const query = searchQuery.value.trim().toLowerCase();
-  const visibleMappings = allMappings.value.filter(
-    (mapping) => !isAuthServiceTarget(mapping.target),
-  );
-
-  if (!query) return visibleMappings;
-  return visibleMappings.filter(
+  if (!query) return visibleMappings.value;
+  return visibleMappings.value.filter(
     (mapping) =>
+      getMappingDisplayTitle(mapping).toLowerCase().includes(query) ||
       formatHostWithAccessEntryPort(mapping.host)
         .toLowerCase()
         .includes(query) ||
@@ -814,6 +1040,16 @@ const { isPending: isSyncing, run: runSyncRoutes } = useAsyncAction({
     });
   },
 });
+
+const { isPending: isRefreshingTitles, run: runRefreshTitles } = useAsyncAction(
+  {
+    onError: (error) => {
+      toast.error("刷新失败", {
+        description: extractErrorMessage(error, "批量刷新标题失败"),
+      });
+    },
+  },
+);
 
 const { isPending: isDiscovering, run: runDiscoverServices } = useAsyncAction({
   onError: (error) => {
@@ -986,6 +1222,9 @@ function normalizeMapping(input: HostMapping): HostMapping {
     suppress_toolbar: serviceRole === "auth" ? false : input.suppress_toolbar,
     preserve_host: input.preserve_host === true,
     service_role: serviceRole,
+    title: input.title.trim(),
+    title_override: input.title_override.trim(),
+    favicon: input.favicon.trim(),
   };
 }
 
@@ -1038,6 +1277,9 @@ async function addAuthService() {
         suppress_toolbar: false,
         preserve_host: false,
         service_role: "auth",
+        title: "",
+        title_override: "",
+        favicon: "",
       },
     ]);
 
@@ -1269,6 +1511,9 @@ async function saveDiscoveredServices() {
         suppress_toolbar: false,
         preserve_host: false,
         service_role: "app",
+        title: "",
+        title_override: "",
+        favicon: "",
       });
     }
 
@@ -1290,6 +1535,17 @@ async function syncRoutes() {
       toast.error("同步失败", {
         description: result.message || "网关未返回成功结果",
       });
+    },
+  });
+}
+
+async function refreshAllTitles() {
+  await runRefreshTitles(() => configStore.refreshAllHostMappingTitles(), {
+    onSuccess: (summary) => {
+      toast.success("标题刷新完成", {
+        description: `更新 ${summary.updated} 条，失败 ${summary.failed} 条，跳过 ${summary.skipped} 条。`,
+      });
+      brokenFaviconKeys.value = new Set();
     },
   });
 }

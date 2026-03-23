@@ -21,6 +21,15 @@ export interface HostMapping {
   suppress_toolbar: boolean;
   preserve_host: boolean;
   service_role: HostServiceRole;
+  title: string;
+  title_override: string;
+  favicon: string;
+}
+
+export interface HostMappingRefreshSummary {
+  updated: number;
+  failed: number;
+  skipped: number;
 }
 
 export interface StreamMapping {

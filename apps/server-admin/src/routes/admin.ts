@@ -2,6 +2,7 @@ import { Elysia, t } from "elysia";
 import {
   type AppConfig,
   configManager,
+  type HostMapping,
   type LoginSession,
   type ProtocolMappingFeatureConfig,
   type ProxyMapping,
@@ -23,6 +24,10 @@ import {
   getAuthHostMapping,
 } from "../lib/subdomain-mode";
 import { isAuthServiceTarget } from "../lib/auth-service";
+import {
+  enrichHostMappingsMetadataOnSave,
+  refreshAllHostMappingTitles,
+} from "../lib/host-mapping-metadata";
 import { getGatewayLoggingConfigForResponse } from "../lib/gateway-logging";
 import { syncSSLDeploymentToGateway } from "../lib/ssl-gateway";
 import {
@@ -607,7 +612,13 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         };
       }
 
-      await configManager.updateHostMappings(body.mappings);
+      const { mappings: enrichedMappings } =
+        await enrichHostMappingsMetadataOnSave(
+          body.mappings as HostMapping[],
+          config.host_mappings,
+        );
+
+      await configManager.updateHostMappings(enrichedMappings);
       const updatedConfig = await configManager.getConfig();
       await Promise.all([
         goBackend.setHostRules(updatedConfig.host_mappings),
@@ -631,11 +642,27 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
             service_role: t.Optional(
               t.Union([t.Literal("app"), t.Literal("auth")]),
             ),
+            title: t.Optional(t.String()),
+            title_override: t.Optional(t.String()),
+            favicon: t.Optional(t.String()),
           }),
         ),
       }),
     },
   )
+  .post("/config/host_mappings/refresh_titles", async () => {
+    const config = await configManager.getConfig();
+    const { mappings, summary } = await refreshAllHostMappingTitles(
+      config.host_mappings,
+    );
+
+    await configManager.updateHostMappings(mappings);
+
+    return {
+      success: true,
+      data: summary,
+    };
+  })
   .get("/config/stream_mappings", async () => {
     const config = await configManager.getConfig();
     return { success: true, data: config.stream_mappings };

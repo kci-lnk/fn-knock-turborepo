@@ -1,5 +1,5 @@
-import axios, { type InternalAxiosRequestConfig } from 'axios';
-import CryptoJS from 'crypto-js';
+import axios, { type InternalAxiosRequestConfig } from "axios";
+import CryptoJS from "crypto-js";
 
 export interface SignedApiClientOptions {
   baseURL: string;
@@ -27,23 +27,48 @@ export function createSignedApiClient(options: SignedApiClientOptions) {
 
   let cachedSecret = options.hmacSecret;
 
-  apiClient.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
-    if (!cachedSecret && options.getHmacSecret) {
-      cachedSecret = await options.getHmacSecret();
-    }
-    if (!cachedSecret) {
-      throw new Error("Missing HMAC secret for signed API request");
-    }
-    const { timestamp, nonce, signature } = buildRequestSignature(
-      cachedSecret,
-    );
+  apiClient.interceptors.request.use(
+    async (config: InternalAxiosRequestConfig) => {
+      if (!cachedSecret && options.getHmacSecret) {
+        cachedSecret = await options.getHmacSecret();
+      }
+      if (!cachedSecret) {
+        throw new Error("Missing HMAC secret for signed API request");
+      }
+      const { timestamp, nonce, signature } =
+        buildRequestSignature(cachedSecret);
 
-    config.headers['x-timestamp'] = timestamp;
-    config.headers['x-nonce'] = nonce;
-    config.headers['x-signature'] = signature;
+      config.headers["x-timestamp"] = timestamp;
+      config.headers["x-nonce"] = nonce;
+      config.headers["x-signature"] = signature;
 
-    return config;
-  });
+      return config;
+    },
+  );
+
+  apiClient.interceptors.response.use(
+    (response) => response,
+    (error) => {
+      if (axios.isAxiosError(error)) {
+        const payload = error.response?.data as
+          | { message?: unknown }
+          | string
+          | undefined;
+        const responseMessage =
+          typeof payload === "string"
+            ? payload.trim()
+            : typeof payload?.message === "string"
+              ? payload.message.trim()
+              : "";
+
+        if (responseMessage) {
+          error.message = responseMessage;
+        }
+      }
+
+      return Promise.reject(error);
+    },
+  );
 
   return apiClient;
 }

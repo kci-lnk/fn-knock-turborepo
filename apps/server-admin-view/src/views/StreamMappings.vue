@@ -254,6 +254,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import SearchInput from "@admin-shared/components/SearchInput.vue";
+import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
 import {
   Table,
@@ -473,7 +474,7 @@ async function saveMapping() {
     closeDialog();
   } catch (error: any) {
     toast.error("保存失败", {
-      description: error?.message || "请稍后重试",
+      description: extractErrorMessage(error, "请稍后重试"),
     });
   } finally {
     isSaving.value = false;
@@ -491,7 +492,7 @@ async function removeMapping(mapping: StreamMapping) {
     toast.success(`已移除端口 ${mapping.listen_port} 的 TCP 映射`);
   } catch (error: any) {
     toast.error("删除失败", {
-      description: error?.message || "请稍后重试",
+      description: extractErrorMessage(error, "请稍后重试"),
     });
   } finally {
     removingPort.value = null;
@@ -514,7 +515,7 @@ async function syncRoutes() {
     });
   } catch (error: any) {
     toast.error("同步失败", {
-      description: error?.message || "请稍后重试",
+      description: extractErrorMessage(error, "请稍后重试"),
     });
   } finally {
     isSyncing.value = false;

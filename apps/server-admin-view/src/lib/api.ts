@@ -539,6 +539,8 @@ export type AccessEntryInfo = {
 export type RunModePromptPreferences = {
   directToReverseProxy: boolean;
   reverseProxyToDirect: boolean;
+  switchToSubdomain: boolean;
+  subdomainToReverseProxy: boolean;
 };
 
 export type UpdateDownloadStatus =

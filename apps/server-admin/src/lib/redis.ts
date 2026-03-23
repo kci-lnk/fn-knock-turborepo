@@ -221,6 +221,8 @@ export interface AppConfig {
 export interface RunModePromptPreferences {
   directToReverseProxy: boolean;
   reverseProxyToDirect: boolean;
+  switchToSubdomain: boolean;
+  subdomainToReverseProxy: boolean;
 }
 
 export interface AuthCredentialSettings {
@@ -256,6 +258,8 @@ export type PasskeyCredential = {
   lastUsedAt?: string;
 };
 
+const DEFAULT_ROUTE_PLACEHOLDER = "/__select__";
+
 const DEFAULT_CONFIG: AppConfig = {
   run_type: 1,
   whitelist_ips: [],
@@ -282,7 +286,7 @@ const DEFAULT_CONFIG: AppConfig = {
     deployment_mode: "single_active",
     certificates: [],
   },
-  default_route: "/__select__",
+  default_route: DEFAULT_ROUTE_PLACEHOLDER,
   default_tunnel: "frp",
   fnos_share_bypass: {
     enabled: false,
@@ -305,6 +309,8 @@ const DEFAULT_CONFIG: AppConfig = {
 const DEFAULT_RUN_MODE_PROMPT_PREFERENCES: RunModePromptPreferences = {
   directToReverseProxy: false,
   reverseProxyToDirect: false,
+  switchToSubdomain: false,
+  subdomainToReverseProxy: false,
 };
 
 const DEFAULT_FNOS_SHARE_BYPASS_CONFIG: FnosShareBypassConfig = {
@@ -1399,6 +1405,17 @@ export class ConfigManager {
   async updateRunType(run_type: RunType): Promise<void> {
     const config = await this.getConfig();
     config.run_type = run_type;
+
+    if (run_type === 3) {
+      config.proxy_mappings = [];
+      config.default_route = DEFAULT_ROUTE_PLACEHOLDER;
+    }
+
+    if (run_type === 1) {
+      config.host_mappings = [];
+      config.stream_mappings = [];
+    }
+
     await this.saveConfig(config);
   }
 
@@ -1411,6 +1428,8 @@ export class ConfigManager {
       return {
         directToReverseProxy: parsed.directToReverseProxy === true,
         reverseProxyToDirect: parsed.reverseProxyToDirect === true,
+        switchToSubdomain: parsed.switchToSubdomain === true,
+        subdomainToReverseProxy: parsed.subdomainToReverseProxy === true,
       };
     } catch {
       return DEFAULT_RUN_MODE_PROMPT_PREFERENCES;

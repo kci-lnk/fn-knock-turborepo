@@ -258,6 +258,7 @@ import {
 import { docsUrls } from "../../lib/docs";
 
 const configStore = useConfigStore();
+const DEFAULT_ROUTE_PLACEHOLDER = "/__select__";
 const mode = ref<0 | 1 | 3>(1);
 const pendingMode = ref<0 | 1 | 3 | null>(null);
 const pendingPromptKey = ref<keyof RunModePromptPreferences | null>(null);
@@ -266,6 +267,8 @@ const dontShowAgainChecked = ref(false);
 const runModePromptPreferences = ref<RunModePromptPreferences>({
   directToReverseProxy: false,
   reverseProxyToDirect: false,
+  switchToSubdomain: false,
+  subdomainToReverseProxy: false,
 });
 const accessEntry = ref({
   port: "7999",
@@ -295,6 +298,20 @@ const accessAlertDescription = computed(() => {
     return `将 ${port} 端口通过反向代理或内网穿透映射到外部入口，从对外域名或入口地址访问。`;
   }
   return `将根域名及其子域名统一解析到 ${port} 端口，由网关按 Host 将请求转发到本地服务。`;
+});
+
+const proxyMappingsCount = computed(
+  () => configStore.config?.proxy_mappings?.length ?? 0,
+);
+const hostMappingsCount = computed(
+  () => configStore.config?.host_mappings?.length ?? 0,
+);
+const streamMappingsCount = computed(
+  () => configStore.config?.stream_mappings?.length ?? 0,
+);
+const hasCustomDefaultRoute = computed(() => {
+  const defaultRoute = configStore.config?.default_route?.trim() || "";
+  return defaultRoute !== "" && defaultRoute !== DEFAULT_ROUTE_PLACEHOLDER;
 });
 
 onMounted(() => {
@@ -379,6 +396,8 @@ async function applyRunModeChange(
   },
 ) {
   await runSaveMode(async () => {
+    const successDescription = buildRunModeChangeSuccessDescription(nextMode);
+
     if (nextMode !== 1) {
       await ensureTunnelsStoppedForTargetMode(nextMode);
     }
@@ -392,7 +411,9 @@ async function applyRunModeChange(
 
     await configStore.setRunType(nextMode);
     options?.onSuccess?.();
-    toast.success("运行模式已更新");
+    toast.success("运行模式已更新", {
+      description: successDescription,
+    });
   });
 }
 
@@ -452,7 +473,61 @@ function getPromptPreferenceKey(
 ): keyof RunModePromptPreferences | null {
   if (currentMode === 0 && nextMode === 1) return "directToReverseProxy";
   if (currentMode === 1 && nextMode === 0) return "reverseProxyToDirect";
+  if (nextMode === 3) return "switchToSubdomain";
+  if (currentMode === 3 && nextMode === 1) return "subdomainToReverseProxy";
   return null;
+}
+
+function buildRunModeChangeSuccessDescription(nextMode: 0 | 1 | 3) {
+  if (nextMode === 3) {
+    if (proxyMappingsCount.value > 0) {
+      return `已清空 ${proxyMappingsCount.value} 条路径映射${hasCustomDefaultRoute.value ? "，并重置默认路径入口" : ""}。`;
+    }
+    return "已进入子域模式，路径映射入口已停用。";
+  }
+
+  if (nextMode === 1) {
+    const clearedItems: string[] = [];
+    if (hostMappingsCount.value > 0) {
+      clearedItems.push(`${hostMappingsCount.value} 条子域映射`);
+    }
+    if (streamMappingsCount.value > 0) {
+      clearedItems.push(`${streamMappingsCount.value} 条协议映射`);
+    }
+
+    if (clearedItems.length > 0) {
+      return `已清空 ${clearedItems.join("、")}。`;
+    }
+
+    return "已进入反代模式，子域映射与协议映射入口已停用。";
+  }
+
+  return "入口规则已按目标模式重新生效。";
+}
+
+function buildSubdomainResetMessage() {
+  if (proxyMappingsCount.value === 0) {
+    return "切换后不再使用“路径映射”，当前没有需要清理的路径规则。";
+  }
+
+  return `将清空现有 ${proxyMappingsCount.value} 条“路径映射”${hasCustomDefaultRoute.value ? "，并重置默认路径入口" : ""}。`;
+}
+
+function buildReverseProxyResetMessage() {
+  const clearedItems: string[] = [];
+
+  if (hostMappingsCount.value > 0) {
+    clearedItems.push(`${hostMappingsCount.value} 条子域映射`);
+  }
+  if (streamMappingsCount.value > 0) {
+    clearedItems.push(`${streamMappingsCount.value} 条协议映射`);
+  }
+
+  if (clearedItems.length === 0) {
+    return "切换后将不再使用子域映射和协议映射，当前没有需要清理的历史规则。";
+  }
+
+  return `将清空现有 ${clearedItems.join("、")}。`;
 }
 
 const confirmDialogContent = computed(() => {
@@ -472,13 +547,31 @@ const confirmDialogContent = computed(() => {
     };
   }
 
-  if (pendingMode.value === 3) {
+  if (
+    pendingPromptKey.value === "directToReverseProxy" ||
+    pendingPromptKey.value === "subdomainToReverseProxy"
+  ) {
+    return {
+      title: "切换到反代模式",
+      description:
+        "请确认你已经理解反代模式会如何调整对外入口，以及切换时会清理子域相关配置。",
+      items: [
+        buildReverseProxyResetMessage(),
+        "会清空 Linux 自带的防火墙配置",
+        `所有的入口都在 ${port}，可内网穿透本地 ${port} 到外部任意端口，任何访问都需要先登录`,
+        "登录后通过路径来访问子服务；如需继续使用子域或协议转发，需要切回子域模式后重新配置",
+      ],
+    };
+  }
+
+  if (pendingPromptKey.value === "switchToSubdomain") {
     return {
       title: "切换到子域名模式",
       description:
-        "请确认你已经准备好根域名、认证子域名和业务子域名的解析与上游监听方式。",
+        "请确认你已经准备好根域名、认证子域名和业务子域名的解析与上游监听方式，切换时会清理路径映射配置。",
       items: [
-        `所有入口仍通过 ${port} 暴露，但访问心智从“路径映射”变为“子域映射”`,
+        buildSubdomainResetMessage(),
+        `所有入口仍通过 ${port} 暴露，但访问心智会从“路径映射”切换为“子域映射”`,
         "业务服务应尽量只监听 127.0.0.1，避免绕过网关直连",
         "推荐先配置 auth.example.com 作为统一登录入口，再逐步接入业务子域",
         "此模式默认不依赖 iptables，适合公网 Web 服务网关化保护",
@@ -490,8 +583,8 @@ const confirmDialogContent = computed(() => {
     title: "切换到反代模式",
     description: "请确认你已经理解反代模式会如何调整对外入口。",
     items: [
+      buildReverseProxyResetMessage(),
       "集中入口访问",
-      "会清空 Linux 自带的防火墙配置",
       `所有的入口都在 ${port}，可内网穿透本地 ${port} 到外部任意端口，任何访问都需要先登录`,
       "登录后通过路径来访问子服务",
     ],

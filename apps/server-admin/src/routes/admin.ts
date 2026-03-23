@@ -324,6 +324,12 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       if (body.reverseProxyToDirect !== undefined) {
         patch.reverseProxyToDirect = body.reverseProxyToDirect;
       }
+      if (body.switchToSubdomain !== undefined) {
+        patch.switchToSubdomain = body.switchToSubdomain;
+      }
+      if (body.subdomainToReverseProxy !== undefined) {
+        patch.subdomainToReverseProxy = body.subdomainToReverseProxy;
+      }
 
       const preferences =
         await configManager.updateRunModePromptPreferences(patch);
@@ -333,6 +339,8 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       body: t.Object({
         directToReverseProxy: t.Optional(t.Boolean()),
         reverseProxyToDirect: t.Optional(t.Boolean()),
+        switchToSubdomain: t.Optional(t.Boolean()),
+        subdomainToReverseProxy: t.Optional(t.Boolean()),
       }),
     },
   )

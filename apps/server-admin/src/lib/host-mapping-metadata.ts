@@ -94,6 +94,7 @@ export const refreshAllHostMappingTitles = async (
       return {
         ...mapping,
         title: metadata.data.title,
+        favicon: metadata.data.favicon,
       };
     }),
   );

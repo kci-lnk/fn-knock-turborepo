@@ -188,15 +188,28 @@
                     />
                     {{ isSyncing ? "同步中..." : "同步路由" }}
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem
                     :disabled="isRefreshingTitles || allMappings.length === 0"
                     @select="refreshAllTitles"
                   >
-                    <RefreshCw
+                    <Image
                       class="mr-2 h-4 w-4"
-                      :class="{ 'animate-spin': isRefreshingTitles }"
+                      :class="{ 'animate-pulse': isRefreshingTitles }"
                     />
-                    {{ isRefreshingTitles ? "刷新中..." : "刷新所有标题" }}
+                    {{ isRefreshingTitles ? "刷新中..." : "刷新图标和标题" }}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    :disabled="
+                      isExportingBookmarks || visibleMappings.length === 0
+                    "
+                    @select="exportBookmarks"
+                  >
+                    <Download
+                      class="mr-2 h-4 w-4"
+                      :class="{ 'animate-pulse': isExportingBookmarks }"
+                    />
+                    {{ isExportingBookmarks ? "导出中..." : "导出为书签" }}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -253,8 +266,10 @@
               >
                 <TableCell class="w-[22px]">
                   <img
-                    v-if="mapping.favicon && !isFaviconBroken(mapping)"
-                    :src="mapping.favicon"
+                    v-if="
+                      getMappingFaviconSrc(mapping) && !isFaviconBroken(mapping)
+                    "
+                    :src="getMappingFaviconSrc(mapping)"
                     :alt="`${getMappingTitleForDisplay(mapping)} favicon`"
                     class="h-4 w-4 object-contain"
                     @error="markFaviconBroken(mapping)"
@@ -626,6 +641,8 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import {
   ChevronDown,
+  Download,
+  Image,
   PanelsTopLeft,
   Plus,
   RefreshCw,
@@ -655,6 +672,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -688,6 +706,7 @@ import {
   extractErrorMessage,
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
+import { downloadBlob } from "@admin-shared/utils/downloadBlob";
 
 type MappingInputMode = "subdomain" | "full_host";
 
@@ -929,12 +948,75 @@ const displayAccessEntryPort = computed(
 );
 const formatHostWithAccessEntryPort = (host: string): string =>
   `${host}:${displayAccessEntryPort.value}`;
+const buildBookmarkExportFilename = (rootDomain: string): string => {
+  const normalizedRootDomain = rootDomain
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9.-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return normalizedRootDomain
+    ? `fn-knock-bookmarks-${normalizedRootDomain}.html`
+    : "fn-knock-bookmarks.html";
+};
 const getMappingDisplayTitle = (mapping: HostMapping): string =>
   mapping.title_override.trim() || mapping.title.trim();
 const getMappingTitleForDisplay = (mapping: HostMapping): string =>
   getMappingDisplayTitle(mapping) || "未获取";
+const getHttpOrigin = (value: string): string => {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return "";
+    }
+    return parsed.origin;
+  } catch {
+    return "";
+  }
+};
+const resolveMappedFaviconPath = (value: string): string => {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (/^data:image\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  try {
+    const parsed = new URL(trimmed, "https://favicon-placeholder.local");
+    return `${parsed.pathname}${parsed.search}${parsed.hash}` || "/favicon.ico";
+  } catch {
+    return trimmed.startsWith("/")
+      ? trimmed
+      : `/${trimmed.replace(/^\/+/, "")}`;
+  }
+};
+const getMappingFaviconSrc = (mapping: HostMapping): string => {
+  const favicon = mapping.favicon.trim();
+  if (!favicon) return "";
+  if (/^data:image\//i.test(favicon)) {
+    return favicon;
+  }
+
+  const targetOrigin = getHttpOrigin(mapping.target);
+  const faviconOrigin = getHttpOrigin(favicon);
+  if (faviconOrigin && targetOrigin && faviconOrigin !== targetOrigin) {
+    return favicon;
+  }
+
+  const faviconPath = resolveMappedFaviconPath(favicon);
+  if (!faviconPath) return "";
+  if (/^data:image\//i.test(faviconPath)) {
+    return faviconPath;
+  }
+
+  return `//${formatHostWithAccessEntryPort(mapping.host)}${faviconPath}`;
+};
 const getFaviconKey = (mapping: HostMapping): string =>
-  `${mapping.host}::${mapping.favicon}`;
+  `${mapping.host}::${getMappingFaviconSrc(mapping)}`;
 const isFaviconBroken = (mapping: HostMapping): boolean =>
   brokenFaviconKeys.value.has(getFaviconKey(mapping));
 const markFaviconBroken = (mapping: HostMapping) => {
@@ -1045,11 +1127,20 @@ const { isPending: isRefreshingTitles, run: runRefreshTitles } = useAsyncAction(
   {
     onError: (error) => {
       toast.error("刷新失败", {
-        description: extractErrorMessage(error, "批量刷新标题失败"),
+        description: extractErrorMessage(error, "批量刷新图标和标题失败"),
       });
     },
   },
 );
+
+const { isPending: isExportingBookmarks, run: runExportBookmarks } =
+  useAsyncAction({
+    onError: (error) => {
+      toast.error("导出失败", {
+        description: extractErrorMessage(error, "导出书签失败"),
+      });
+    },
+  });
 
 const { isPending: isDiscovering, run: runDiscoverServices } = useAsyncAction({
   onError: (error) => {
@@ -1542,10 +1633,21 @@ async function syncRoutes() {
 async function refreshAllTitles() {
   await runRefreshTitles(() => configStore.refreshAllHostMappingTitles(), {
     onSuccess: (summary) => {
-      toast.success("标题刷新完成", {
+      toast.success("图标和标题刷新完成", {
         description: `更新 ${summary.updated} 条，失败 ${summary.failed} 条，跳过 ${summary.skipped} 条。`,
       });
       brokenFaviconKeys.value = new Set();
+    },
+  });
+}
+
+async function exportBookmarks() {
+  await runExportBookmarks(() => ConfigAPI.downloadHostMappingBookmarks(), {
+    onSuccess: (blob) => {
+      downloadBlob(blob, buildBookmarkExportFilename(savedRootDomain.value));
+      toast.success("书签已导出", {
+        description: `共导出 ${visibleMappings.value.length} 条子域映射。`,
+      });
     },
   });
 }

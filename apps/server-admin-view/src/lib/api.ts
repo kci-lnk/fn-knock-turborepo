@@ -143,6 +143,12 @@ export const ConfigAPI = {
     const res = await apiClient.post("/config/host_mappings/refresh_titles");
     return res.data.data;
   },
+  async downloadHostMappingBookmarks(): Promise<Blob> {
+    const res = await apiClient.get("/config/host_mappings/bookmarks/export", {
+      responseType: "blob",
+    });
+    return res.data;
+  },
   async getStreamMappings(): Promise<StreamMapping[]> {
     const res = await apiClient.get("/config/stream_mappings");
     return res.data.data;

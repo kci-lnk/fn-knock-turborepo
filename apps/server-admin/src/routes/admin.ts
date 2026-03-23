@@ -28,6 +28,10 @@ import {
   enrichHostMappingsMetadataOnSave,
   refreshAllHostMappingTitles,
 } from "../lib/host-mapping-metadata";
+import {
+  buildHostMappingsBookmarkFilename,
+  buildHostMappingsBookmarksDocument,
+} from "../lib/host-mapping-bookmarks";
 import { getGatewayLoggingConfigForResponse } from "../lib/gateway-logging";
 import { syncSSLDeploymentToGateway } from "../lib/ssl-gateway";
 import {
@@ -147,6 +151,25 @@ const normalizeHostLike = (value: string | undefined | null): string =>
     .replace(/^[a-z]+:\/\//i, "")
     .replace(/\/.*$/, "")
     .replace(/\.+$/, "");
+
+const resolveRequestScheme = (
+  request: Request,
+): "http" | "https" => {
+  const forwarded = request.headers
+    .get("x-forwarded-proto")
+    ?.split(",")[0]
+    ?.trim()
+    .toLowerCase();
+  if (forwarded === "http" || forwarded === "https") {
+    return forwarded;
+  }
+
+  try {
+    return new URL(request.url).protocol === "http:" ? "http" : "https";
+  } catch {
+    return "https";
+  }
+};
 
 const validatePasskeyRpConfig = (
   config: Awaited<ReturnType<typeof configManager.getConfig>>,
@@ -594,14 +617,16 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       }
 
       const config = await configManager.getConfig();
+      const normalizedMappings: HostMapping[] = body.mappings.map((mapping) => ({
+        ...mapping,
+        service_role: isAuthServiceTarget(mapping.target) ? "auth" : "app",
+        title: mapping.title ?? "",
+        title_override: mapping.title_override ?? "",
+        favicon: mapping.favicon ?? "",
+      }));
       const nextConfig = {
         ...config,
-        host_mappings: body.mappings.map((mapping) => ({
-          ...mapping,
-          service_role: (isAuthServiceTarget(mapping.target)
-            ? "auth"
-            : "app") as "auth" | "app",
-        })),
+        host_mappings: normalizedMappings,
       };
       const passkeyValidation = validatePasskeyRpConfig(nextConfig);
       if (!passkeyValidation.valid) {
@@ -614,7 +639,7 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
 
       const { mappings: enrichedMappings } =
         await enrichHostMappingsMetadataOnSave(
-          body.mappings as HostMapping[],
+          normalizedMappings,
           config.host_mappings,
         );
 
@@ -662,6 +687,31 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       success: true,
       data: summary,
     };
+  })
+  .get("/config/host_mappings/bookmarks/export", async ({ request }) => {
+    const config = await configManager.getConfig();
+    const document = buildHostMappingsBookmarksDocument({
+      mappings: config.host_mappings,
+      scheme: resolveRequestScheme(request),
+      accessEntryPort: process.env.GO_REPROXY_PORT || "7999",
+      folderTitle: config.subdomain_mode?.root_domain?.trim()
+        ? `${config.subdomain_mode.root_domain.trim()} 子域映射`
+        : "fn-knock 子域映射",
+    });
+    const filename = buildHostMappingsBookmarkFilename(
+      config.subdomain_mode?.root_domain,
+    );
+    const body = new Blob([document], {
+      type: "text/html;charset=UTF-8",
+    });
+
+    return new Response(body, {
+      headers: {
+        "Content-Type": "text/html; charset=UTF-8",
+        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Cache-Control": "no-store",
+      },
+    });
   })
   .get("/config/stream_mappings", async () => {
     const config = await configManager.getConfig();

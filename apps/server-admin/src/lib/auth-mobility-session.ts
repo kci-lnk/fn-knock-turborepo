@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type Redis from "ioredis";
 import { ipLocationRefs, ipLocationService } from "./ip-location";
 import { configManager, redis, type LoginSession } from "./redis";
-import { whitelistManager } from "./whitelist-manager";
+import { whitelistManager, type WhiteListRecord } from "./whitelist-manager";
 
 type MobilitySubjectType = "proxy-session" | "fnos-token";
 
@@ -59,6 +59,12 @@ type RequestIdentity = {
 type DriftRestoreResult = {
   success: boolean;
   message?: string;
+};
+
+type BootstrapOwnerResolution = {
+  ownerSessionId: string;
+  ownerSession: LoginSession;
+  whitelistRecord: WhiteListRecord;
 };
 
 const PREFIX = "fn_knock:auth_mobility";
@@ -269,11 +275,24 @@ export class AuthMobilitySessionManager {
     clientIp: string,
     sessionId: string | null,
   ): Promise<void> {
+    const storageKey = this.bindingKey("fnos-token", fnosToken);
     const existing = await this.getBinding("fnos-token", fnosToken);
     if (!sessionId) {
       if (existing?.ownerSessionId) {
         const ownerSession = await configManager.getSession(existing.ownerSessionId);
-        if (!ownerSession) return;
+        if (!ownerSession) {
+          const orphanedBinding: MobilityBinding = {
+            ...existing,
+            ownerSessionId: undefined,
+            lastSeenAt: new Date().toISOString(),
+          };
+          const pipeline = this.r.pipeline();
+          pipeline.set(storageKey, JSON.stringify(orphanedBinding), "KEEPTTL");
+          pipeline.srem(this.sessionIndexKey(existing.ownerSessionId), storageKey);
+          pipeline.del(this.whitelistOwnerKey(existing.whitelistRecordId));
+          await pipeline.exec();
+          return;
+        }
 
         const record = await whitelistManager.getRecordById(existing.whitelistRecordId);
         if (!record || record.status !== "active" || record.ip !== clientIp) return;
@@ -284,8 +303,8 @@ export class AuthMobilitySessionManager {
         existing.currentIp = clientIp;
         existing.expireAt = record.expireAt;
         existing.lastSeenAt = new Date().toISOString();
-        await this.r.set(this.bindingKey("fnos-token", fnosToken), JSON.stringify(existing), "EX", ttlSeconds);
-        await this.r.sadd(this.sessionIndexKey(existing.ownerSessionId), this.bindingKey("fnos-token", fnosToken));
+        await this.r.set(storageKey, JSON.stringify(existing), "EX", ttlSeconds);
+        await this.r.sadd(this.sessionIndexKey(existing.ownerSessionId), storageKey);
         await this.ensureSessionIndexTTL(
           existing.ownerSessionId,
           this.resolveProxySessionTTL(toUnixSeconds(ownerSession.expiresAt)) || ttlSeconds,
@@ -293,17 +312,12 @@ export class AuthMobilitySessionManager {
         return;
       }
 
-      const records = await whitelistManager.getActiveRecordsByIP(clientIp, "auto");
-      if (records.length !== 1) return;
+      if (existing) return;
 
-      const bootstrapRecord = records[0];
-      if (!bootstrapRecord) return;
+      const bootstrap = await this.resolveBootstrapOwner(clientIp);
+      if (!bootstrap) return;
 
-      const ownerSessionId = await this.r.get(this.whitelistOwnerKey(bootstrapRecord.id));
-      if (!ownerSessionId) return;
-
-      const ownerSession = await configManager.getSession(ownerSessionId);
-      if (!ownerSession) return;
+      const { ownerSessionId, ownerSession, whitelistRecord: bootstrapRecord } = bootstrap;
 
       const sessionTtl = this.resolveProxySessionTTL(toUnixSeconds(ownerSession.expiresAt));
       const fnosTtl = this.resolveFnosTTL(bootstrapRecord.expireAt);
@@ -336,6 +350,7 @@ export class AuthMobilitySessionManager {
     if (existing?.ownerSessionId && existing.ownerSessionId !== sessionId) {
       const existingOwner = await configManager.getSession(existing.ownerSessionId);
       if (existingOwner) return;
+      await this.r.srem(this.sessionIndexKey(existing.ownerSessionId), storageKey);
     }
 
     const ttlSeconds = this.resolveFnosTTL(record.expireAt);
@@ -359,12 +374,74 @@ export class AuthMobilitySessionManager {
           ownerSessionId: sessionId,
         });
 
-    await this.r.set(this.bindingKey("fnos-token", fnosToken), JSON.stringify(binding), "EX", ttlSeconds);
-    await this.r.sadd(this.sessionIndexKey(sessionId), this.bindingKey("fnos-token", fnosToken));
+    await this.r.set(storageKey, JSON.stringify(binding), "EX", ttlSeconds);
+    await this.r.sadd(this.sessionIndexKey(sessionId), storageKey);
     const sessionTtl = this.resolveProxySessionTTL(toUnixSeconds(session.expiresAt));
     if (sessionTtl) {
       await this.ensureSessionIndexTTL(sessionId, sessionTtl);
     }
+  }
+
+  private async resolveBootstrapOwner(
+    clientIp: string,
+  ): Promise<BootstrapOwnerResolution | null> {
+    const records = await whitelistManager.getActiveRecordsByIP(clientIp);
+    if (records.length !== 1) return null;
+
+    const whitelistRecord = records[0];
+    if (!whitelistRecord) return null;
+
+    const mappedOwnerSessionId = await this.r.get(this.whitelistOwnerKey(whitelistRecord.id));
+    if (mappedOwnerSessionId) {
+      const ownerSession = await configManager.getSession(mappedOwnerSessionId);
+      if (ownerSession) {
+        return {
+          ownerSessionId: mappedOwnerSessionId,
+          ownerSession,
+          whitelistRecord,
+        };
+      }
+    }
+
+    const candidateSessions = (await configManager.listSessions()).filter(
+      (session) => session.data.ip === clientIp,
+    );
+    if (candidateSessions.length !== 1) return null;
+
+    const [candidate] = candidateSessions;
+    if (!candidate) return null;
+
+    const proxyBinding = await this.getBinding("proxy-session", candidate.id);
+    if (!proxyBinding) return null;
+
+    const sessionTtl = this.resolveProxySessionTTL(
+      toUnixSeconds(candidate.data.expiresAt),
+    );
+    if (!sessionTtl) return null;
+
+    const previousWhitelistRecordId = proxyBinding.whitelistRecordId;
+    proxyBinding.currentIp = clientIp;
+    proxyBinding.whitelistRecordId = whitelistRecord.id;
+    proxyBinding.expireAt = whitelistRecord.expireAt;
+    proxyBinding.lastSeenAt = new Date().toISOString();
+
+    const pipeline = this.r.pipeline();
+    pipeline.set(
+      this.bindingKey("proxy-session", candidate.id),
+      JSON.stringify(proxyBinding),
+      "KEEPTTL",
+    );
+    pipeline.set(this.whitelistOwnerKey(whitelistRecord.id), candidate.id, "EX", sessionTtl);
+    if (previousWhitelistRecordId !== whitelistRecord.id) {
+      pipeline.del(this.whitelistOwnerKey(previousWhitelistRecordId));
+    }
+    await pipeline.exec();
+
+    return {
+      ownerSessionId: candidate.id,
+      ownerSession: candidate.data,
+      whitelistRecord,
+    };
   }
 
   private async restoreFnosToken(fnosToken: string, clientIp: string): Promise<boolean> {

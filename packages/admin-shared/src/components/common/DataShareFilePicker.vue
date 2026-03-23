@@ -96,13 +96,17 @@ const normalizedSupportedTypes = computed(() =>
     .filter(Boolean),
 );
 
+const selectableFiles = computed(() =>
+  props.files.filter((file) => isSelectable(file)),
+);
+
 const filteredFiles = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase();
   if (!keyword) {
-    return props.files;
+    return selectableFiles.value;
   }
 
-  return props.files.filter((file) =>
+  return selectableFiles.value.filter((file) =>
     `${file.name} ${file.relativePath}`.toLowerCase().includes(keyword),
   );
 });
@@ -132,7 +136,7 @@ watch(filteredFiles, () => {
     return;
   }
 
-  if (!selectedFile.value || !isSelectable(selectedFile.value)) {
+  if (!selectedFile.value) {
     selectFirstAvailableFile();
   }
 });
@@ -190,10 +194,7 @@ function isSelectable(file: SharedDataFileEntry) {
 }
 
 function selectFirstAvailableFile() {
-  const firstSelectable = filteredFiles.value.find((file) =>
-    isSelectable(file),
-  );
-  selectedRelativePath.value = firstSelectable?.relativePath ?? "";
+  selectedRelativePath.value = filteredFiles.value[0]?.relativePath ?? "";
 }
 
 function formatFileSize(size: number) {
@@ -222,7 +223,7 @@ function formatDateTime(dateValue: string) {
 }
 
 function confirmSelection() {
-  if (!selectedFile.value || !isSelectable(selectedFile.value)) {
+  if (!selectedFile.value) {
     return;
   }
 
@@ -281,7 +282,8 @@ function setOpen(value: boolean) {
             <p class="mt-1 text-xs leading-5 text-muted-foreground">
               {{
                 available
-                  ? availableDescription || `已找到 ${files.length} 个文件`
+                  ? availableDescription ||
+                    `已找到 ${selectableFiles.length} 个可用文件`
                   : unavailableDescription
               }}
             </p>
@@ -322,17 +324,17 @@ function setOpen(value: boolean) {
               </div>
               <p class="text-sm font-medium">
                 {{
-                  files.length
+                  selectableFiles.length
                     ? "没有匹配的文件"
-                    : emptyTitle || "共享目录中还没有文件"
+                    : emptyTitle || "共享目录中还没有可用文件"
                 }}
               </p>
               <p class="text-sm leading-6 text-muted-foreground">
                 {{
-                  files.length
+                  selectableFiles.length
                     ? "换一个关键词试试，或刷新目录列表。"
                     : emptyDescription ||
-                      "先把证书或私钥放入飞牛应用目录，再回来选择即可。"
+                      "当前目录里没有符合条件的文件，请放入支持的文件类型后再来选择。"
                 }}
               </p>
             </div>
@@ -343,15 +345,13 @@ function setOpen(value: boolean) {
               v-for="file in filteredFiles"
               :key="file.relativePath"
               type="button"
-              :disabled="!isSelectable(file) || selecting"
+              :disabled="selecting"
               :class="
                 cn(
                   'w-full rounded-[22px] border px-4 py-3 text-left transition-colors',
                   selectedRelativePath === file.relativePath
                     ? 'border-foreground/15 bg-muted/20'
                     : 'border-border/60 bg-background hover:bg-muted/10',
-                  !isSelectable(file) &&
-                    'cursor-not-allowed opacity-40 hover:bg-background',
                 )
               "
               @click="selectedRelativePath = file.relativePath"
@@ -366,12 +366,6 @@ function setOpen(value: boolean) {
                     >
                       {{ file.extension || "无后缀" }}
                     </Badge>
-                    <Badge
-                      variant="outline"
-                      class="rounded-full text-[10px] text-muted-foreground"
-                    >
-                      {{ isSelectable(file) ? "可选" : "不支持" }}
-                    </Badge>
                   </div>
                   <p
                     class="mt-1 break-all text-xs leading-5 text-muted-foreground"
@@ -380,10 +374,7 @@ function setOpen(value: boolean) {
                   </p>
                 </div>
                 <CheckCircle2
-                  v-if="
-                    selectedRelativePath === file.relativePath &&
-                    isSelectable(file)
-                  "
+                  v-if="selectedRelativePath === file.relativePath"
                   class="mt-0.5 h-4 w-4 shrink-0 text-foreground/80"
                 />
               </div>
@@ -415,7 +406,7 @@ function setOpen(value: boolean) {
         <Button
           type="button"
           class="rounded-full"
-          :disabled="!selectedFile || !isSelectable(selectedFile) || selecting"
+          :disabled="!selectedFile || selecting"
           @click="confirmSelection"
         >
           <RefreshCw v-if="selecting" class="mr-2 h-4 w-4 animate-spin" />

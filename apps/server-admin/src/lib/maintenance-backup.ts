@@ -27,6 +27,7 @@ const SCAN_COUNT = 200;
 const PIPELINE_BATCH_SIZE = 100;
 const TEMP_DIR_PREFIX = "fn-knock-backup-";
 const KNOCK_BACKUP_PASSWORD = "890eced0-4561-4044-8d6b-def83b5c6016";
+const DEBIAN_APT_GET_PATH = "/usr/bin/apt-get";
 const BASE64_PATTERN =
   /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 const SUPPORTED_BACKUP_IMPORT_VERSION_RANGE = formatVersionRange(
@@ -39,6 +40,27 @@ type CommandResult = {
   stdout: string;
   stderr: string;
 };
+
+type ArchiveCommandName = "zip" | "unzip";
+
+type ArchiveCommandSpec = {
+  command: ArchiveCommandName;
+  packageName: string;
+  probeArgs: string[];
+};
+
+const ARCHIVE_COMMAND_SPECS: ArchiveCommandSpec[] = [
+  {
+    command: "zip",
+    packageName: "zip",
+    probeArgs: ["-v"],
+  },
+  {
+    command: "unzip",
+    packageName: "unzip",
+    probeArgs: ["-v"],
+  },
+];
 
 type RedisZSetEntry = {
   member: string;
@@ -137,6 +159,9 @@ export class MaintenanceBackupError extends Error {
 }
 
 class MaintenanceBackupService {
+  private archiveCommandsReady = false;
+  private archiveCommandSetupPromise: Promise<void> | null = null;
+
   private async withTempDir<T>(
     task: (tempDir: string) => Promise<T>,
   ): Promise<T> {
@@ -179,6 +204,108 @@ class MaintenanceBackupService {
         500,
       );
     }
+  }
+
+  private async isCommandAvailable(
+    command: string,
+    args: string[] = ["-v"],
+  ): Promise<boolean> {
+    try {
+      const proc = spawn(command, args, {
+        stdio: ["ignore", "ignore", "ignore"],
+      });
+      await waitForProcessExit(proc);
+      return true;
+    } catch (error: any) {
+      if (error?.code === "ENOENT") {
+        return false;
+      }
+
+      throw new MaintenanceBackupError(
+        error?.message || `检测 ${command} 命令失败`,
+        500,
+      );
+    }
+  }
+
+  private async findMissingArchiveCommands(): Promise<ArchiveCommandSpec[]> {
+    const checks = await Promise.all(
+      ARCHIVE_COMMAND_SPECS.map(async (spec) => ({
+        spec,
+        available: await this.isCommandAvailable(spec.command, spec.probeArgs),
+      })),
+    );
+
+    return checks
+      .filter((item) => !item.available)
+      .map((item) => item.spec);
+  }
+
+  private async installArchiveCommandsIfNeeded(): Promise<void> {
+    const missingCommands = await this.findMissingArchiveCommands();
+    if (missingCommands.length === 0) {
+      return;
+    }
+
+    const missingNames = missingCommands.map((item) => item.command).join(", ");
+    const canUseAptGet = await this.isCommandAvailable(DEBIAN_APT_GET_PATH, [
+      "--version",
+    ]);
+    if (!canUseAptGet) {
+      throw new MaintenanceBackupError(
+        `系统环境缺少 ${missingNames} 命令，且未找到 Debian apt-get，无法自动安装`,
+        500,
+      );
+    }
+
+    const updateResult = await this.runCommand(DEBIAN_APT_GET_PATH, ["update"]);
+    if (updateResult.exitCode !== 0) {
+      throw this.createCommandError("apt-get update 执行失败", updateResult, 500);
+    }
+
+    const packages = [
+      ...new Set(missingCommands.map((item) => item.packageName)),
+    ];
+    const installResult = await this.runCommand(DEBIAN_APT_GET_PATH, [
+      "install",
+      "-y",
+      ...packages,
+    ]);
+    if (installResult.exitCode !== 0) {
+      throw this.createCommandError(
+        `安装 ${packages.join(", ")} 失败`,
+        installResult,
+        500,
+      );
+    }
+
+    const remainingCommands = await this.findMissingArchiveCommands();
+    if (remainingCommands.length > 0) {
+      throw new MaintenanceBackupError(
+        `自动安装完成后仍未检测到 ${remainingCommands
+          .map((item) => item.command)
+          .join(", ")} 命令`,
+        500,
+      );
+    }
+  }
+
+  private async ensureArchiveCommandsReady(): Promise<void> {
+    if (this.archiveCommandsReady) {
+      return;
+    }
+
+    if (!this.archiveCommandSetupPromise) {
+      this.archiveCommandSetupPromise = this.installArchiveCommandsIfNeeded()
+        .then(() => {
+          this.archiveCommandsReady = true;
+        })
+        .finally(() => {
+          this.archiveCommandSetupPromise = null;
+        });
+    }
+
+    return this.archiveCommandSetupPromise;
   }
 
   private createCommandError(
@@ -294,6 +421,7 @@ class MaintenanceBackupService {
   }
 
   async exportBackupArchive(): Promise<FnKnockBackupArchive> {
+    await this.ensureArchiveCommandsReady();
     const payload = await this.exportBackupPayload();
 
     return this.withTempDir(async (tempDir) => {
@@ -734,6 +862,7 @@ class MaintenanceBackupService {
       throw new MaintenanceBackupError("备份归档内容为空", 400);
     }
 
+    await this.ensureArchiveCommandsReady();
     const payload = await this.extractPayloadFromArchive(archiveBuffer);
     const clearedKeys = await this.clearPrefixKeys();
     await this.restoreEntries(payload.entries);

@@ -89,34 +89,44 @@ const isValidStreamTarget = (target: string): boolean => {
   }
 };
 
-const validateStreamMappings = (mappings: Array<Partial<StreamMapping>>) => {
+type StreamMappingInput = Pick<
+  StreamMapping,
+  "listen_port" | "target" | "use_auth"
+> & {
+  protocol?: StreamMapping["protocol"];
+};
+
+const validateStreamMappings = (mappings: StreamMappingInput[]) => {
   const seenMappings = new Set<string>();
 
   for (const mapping of mappings) {
     const protocol = mapping.protocol === "udp" ? "udp" : "tcp";
-    if (!Number.isInteger(mapping.listen_port)) {
+    const listenPort = mapping.listen_port;
+    const target = mapping.target;
+
+    if (!Number.isInteger(listenPort)) {
       return {
         valid: false as const,
-        message: `监听端口 ${mapping.listen_port} 不是有效整数`,
+        message: `监听端口 ${listenPort} 不是有效整数`,
       };
     }
-    if (mapping.listen_port <= 0 || mapping.listen_port > 65535) {
+    if (listenPort <= 0 || listenPort > 65535) {
       return {
         valid: false as const,
-        message: `监听端口 ${mapping.listen_port} 超出有效范围`,
+        message: `监听端口 ${listenPort} 超出有效范围`,
       };
     }
-    const mappingKey = `${protocol}:${mapping.listen_port}`;
+    const mappingKey = `${protocol}:${listenPort}`;
     if (seenMappings.has(mappingKey)) {
       return {
         valid: false as const,
-        message: `${protocol.toUpperCase()} 监听端口 ${mapping.listen_port} 重复，请保持协议 + 端口唯一`,
+        message: `${protocol.toUpperCase()} 监听端口 ${listenPort} 重复，请保持协议 + 端口唯一`,
       };
     }
-    if (!isValidStreamTarget(mapping.target)) {
+    if (!isValidStreamTarget(target)) {
       return {
         valid: false as const,
-        message: `目标地址 ${mapping.target} 必须是 host:port 形式`,
+        message: `目标地址 ${target} 必须是 host:port 形式`,
       };
     }
     seenMappings.add(mappingKey);

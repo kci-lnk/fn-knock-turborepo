@@ -148,6 +148,10 @@ export interface GatewayLoggingSettings {
   max_days: number;
 }
 
+export interface ProtocolMappingFeatureConfig {
+  enabled: boolean;
+}
+
 export type CaptchaProvider = "pow" | "turnstile";
 
 export type CaptchaWidgetMode = "normal";
@@ -238,6 +242,10 @@ export const DEFAULT_AUTH_CREDENTIAL_SETTINGS: AuthCredentialSettings = {
 const DEFAULT_GATEWAY_LOGGING_SETTINGS: GatewayLoggingSettings = {
   enabled: false,
   max_days: 7,
+};
+
+const DEFAULT_PROTOCOL_MAPPING_FEATURE_CONFIG: ProtocolMappingFeatureConfig = {
+  enabled: false,
 };
 
 export type TOTPCredential = {
@@ -332,6 +340,16 @@ const normalizeGatewayLoggingSettings = (
       raw.max_days,
       DEFAULT_GATEWAY_LOGGING_SETTINGS.max_days,
     ),
+  };
+};
+
+const normalizeProtocolMappingFeatureConfig = (
+  value?: Partial<ProtocolMappingFeatureConfig> | null,
+): ProtocolMappingFeatureConfig => {
+  const raw = value ?? {};
+
+  return {
+    enabled: raw.enabled === true,
   };
 };
 
@@ -719,6 +737,7 @@ export class ConfigManager {
   private redis: Redis;
   private configKey = "fn_knock:config";
   private captchaSettingsKey = "fn_knock:captcha:settings";
+  private protocolMappingFeatureKey = "fn_knock:protocol-mapping:feature";
   private caHostsKey = "fn_knock:ca:hosts";
   private acmeJobKey = "fn_knock:acme:job:";
   private acmeLogsKey = "fn_knock:acme:logs:";
@@ -783,10 +802,14 @@ export class ConfigManager {
    * 返回不含 SSL cert/key 原文的配置（供 /api/admin/config 使用）
    */
   async getConfigSafe(): Promise<any> {
-    const config = await this.getConfig();
+    const [config, protocolMappingFeature] = await Promise.all([
+      this.getConfig(),
+      this.getProtocolMappingFeatureConfig(),
+    ]);
     const { ssl, ...rest } = config;
     return {
       ...rest,
+      protocol_mapping_feature: protocolMappingFeature,
       ssl: {
         enabled: !!(ssl.cert && ssl.key),
         active_cert_id: ssl.active_cert_id || undefined,
@@ -1447,6 +1470,29 @@ export class ConfigManager {
       this.runModePromptPreferencesKey,
       JSON.stringify(next),
     );
+    return next;
+  }
+
+  async getProtocolMappingFeatureConfig(): Promise<ProtocolMappingFeatureConfig> {
+    const raw = await this.redis.get(this.protocolMappingFeatureKey);
+    if (!raw) return DEFAULT_PROTOCOL_MAPPING_FEATURE_CONFIG;
+
+    try {
+      const parsed = JSON.parse(raw) as Partial<ProtocolMappingFeatureConfig>;
+      return normalizeProtocolMappingFeatureConfig(parsed);
+    } catch {
+      return DEFAULT_PROTOCOL_MAPPING_FEATURE_CONFIG;
+    }
+  }
+
+  async updateProtocolMappingFeatureConfig(
+    patch: Partial<ProtocolMappingFeatureConfig>,
+  ): Promise<ProtocolMappingFeatureConfig> {
+    const next = normalizeProtocolMappingFeatureConfig({
+      ...(await this.getProtocolMappingFeatureConfig()),
+      ...patch,
+    });
+    await this.redis.set(this.protocolMappingFeatureKey, JSON.stringify(next));
     return next;
   }
 

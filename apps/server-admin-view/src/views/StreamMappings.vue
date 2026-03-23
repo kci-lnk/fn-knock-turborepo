@@ -61,7 +61,7 @@
         >
           <SearchInput
             v-model="searchQuery"
-            placeholder="搜索协议、对外端口、目标地址或鉴权状态..."
+            placeholder="搜索协议、对外端口、目标地址..."
             class="max-w-xs"
           />
         </div>

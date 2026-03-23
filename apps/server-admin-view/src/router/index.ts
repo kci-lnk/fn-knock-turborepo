@@ -146,9 +146,21 @@ router.beforeEach(async (to, from) => {
     return "/whitelist";
   }
 
-  if (to.path === "/streams" && configStore.config?.run_type !== 3) {
+  const isProtocolMappingVisible =
+    configStore.config?.run_type === 3 &&
+    configStore.config?.protocol_mapping_feature?.enabled === true;
+
+  if (to.path === "/streams" && !isProtocolMappingVisible) {
     if (configStore.config?.run_type === 1) {
       return "/proxy";
+    }
+    if (configStore.config?.run_type === 3) {
+      return {
+        path: "/system",
+        query: {
+          tab: "features",
+        },
+      };
     }
     return "/";
   }

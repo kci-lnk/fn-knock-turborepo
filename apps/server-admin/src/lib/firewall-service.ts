@@ -45,10 +45,13 @@ export class FirewallService {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 7999;
   }
 
-  private resolveExemptPorts(config: AppConfig): string[] {
+  private resolveExemptPorts(
+    config: AppConfig,
+    protocolMappingEnabled: boolean,
+  ): string[] {
     const ports = new Set<string>([String(this.resolveGatewayPort())]);
 
-    if (config.run_type === 3) {
+    if (config.run_type === 3 && protocolMappingEnabled) {
       for (const mapping of config.stream_mappings ?? []) {
         if (
           Number.isInteger(mapping.listen_port) &&
@@ -73,12 +76,15 @@ export class FirewallService {
     }
   }
 
-  private async initDefaultFirewall(config: AppConfig) {
+  private async initDefaultFirewall(
+    config: AppConfig,
+    protocolMappingEnabled: boolean,
+  ) {
     await this.runGoBackend(
       goBackend.initIptables({
         chain_name: "FN-KNOCK-FW",
         parent_chain: ["INPUT", "DOCKER-USER"],
-        exempt_ports: this.resolveExemptPorts(config),
+        exempt_ports: this.resolveExemptPorts(config, protocolMappingEnabled),
       }),
       "初始化默认防火墙规则失败",
     );
@@ -86,7 +92,12 @@ export class FirewallService {
 
   async applyRunTypeConfig(runType: 0 | 1 | 3, previousRunType?: 0 | 1 | 3) {
     void previousRunType;
-    const config = await configManager.getConfig();
+    const [config, protocolMappingFeature] = await Promise.all([
+      configManager.getConfig(),
+      configManager.getProtocolMappingFeatureConfig(),
+    ]);
+    const protocolMappingEnabled =
+      runType === 3 && protocolMappingFeature.enabled === true;
     const gatewayPort = this.resolveGatewayPort();
     await this.runGoBackend(
       goBackend.setAuthConfig(buildGatewayAuthConfig(config)),
@@ -121,17 +132,24 @@ export class FirewallService {
         goBackend.setProxyProtocolForce(false),
         "关闭 Proxy Protocol 强制模式失败",
       );
-      await this.initDefaultFirewall(config);
+      await this.initDefaultFirewall(config, protocolMappingEnabled);
       await this.clearLegacyGatewayRedirects(gatewayPort);
       await this.runGoBackend(goBackend.flushRules(), "清空路径路由失败");
       await this.runGoBackend(
         goBackend.setHostRules(config.host_mappings),
         "同步 Host 路由失败",
       );
-      await this.runGoBackend(
-        goBackend.setStreamRules(config.stream_mappings),
-        "同步 协议映射失败",
-      );
+      if (protocolMappingEnabled) {
+        await this.runGoBackend(
+          goBackend.setStreamRules(config.stream_mappings),
+          "同步 协议映射失败",
+        );
+      } else {
+        await this.runGoBackend(
+          goBackend.flushStreamRules(),
+          "关闭 协议映射监听失败",
+        );
+      }
       await this.runGoBackend(
         goBackend.setDefaultRoute(config.default_route),
         "同步默认路由失败",
@@ -149,7 +167,7 @@ export class FirewallService {
       goBackend.flushStreamRules(),
       "关闭 协议映射监听失败",
     );
-    await this.initDefaultFirewall(config);
+    await this.initDefaultFirewall(config, false);
 
     if (runType === 0) {
       const records = await whitelistManager.getAllActiveRecords();

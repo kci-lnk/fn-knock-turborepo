@@ -304,13 +304,21 @@ const navItems = computed(() => {
     items.splice(2, 0, { name: "内网穿透", path: "/tunnel", icon: Cable });
     items.splice(3, 0, { name: "会话管理", path: "/sessions", icon: Users });
   } else if (configStore.config?.run_type === 3) {
+    const isProtocolMappingVisible =
+      configStore.config?.protocol_mapping_feature?.enabled === true;
     items.splice(1, 0, {
       name: "子域映射",
       path: "/subdomains",
       icon: RouteIcon,
     });
-    items.splice(2, 0, { name: "协议映射", path: "/streams", icon: Server });
-    items.splice(3, 0, { name: "会话管理", path: "/sessions", icon: Users });
+    if (isProtocolMappingVisible) {
+      items.splice(2, 0, { name: "协议映射", path: "/streams", icon: Server });
+    }
+    items.splice(isProtocolMappingVisible ? 3 : 2, 0, {
+      name: "会话管理",
+      path: "/sessions",
+      icon: Users,
+    });
   }
   items.push({ name: "认证配置", path: "/auth", icon: Key });
   items.push({ name: "登录日志", path: "/logs", icon: FileText });

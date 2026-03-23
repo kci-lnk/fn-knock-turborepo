@@ -3,6 +3,7 @@ import {
   type AppConfig,
   configManager,
   type LoginSession,
+  type ProtocolMappingFeatureConfig,
   type ProxyMapping,
   type RunModePromptPreferences,
   type StreamMapping,
@@ -232,6 +233,34 @@ const rollbackConfigAndRuntime = async (
   return null;
 };
 
+const rollbackProtocolMappingFeatureAndRuntime = async (
+  previousSettings: ProtocolMappingFeatureConfig,
+  previousConfig: AppConfig,
+): Promise<string | null> => {
+  try {
+    await configManager.saveConfig(previousConfig);
+  } catch (error: any) {
+    return error?.message || "恢复协议映射配置失败";
+  }
+
+  try {
+    await configManager.updateProtocolMappingFeatureConfig(previousSettings);
+  } catch (error: any) {
+    return error?.message || "恢复协议映射功能开关失败";
+  }
+
+  try {
+    await firewallService.applyRunTypeConfig(
+      previousConfig.run_type,
+      previousConfig.run_type,
+    );
+  } catch (error: any) {
+    return error?.message || "恢复协议映射运行态失败";
+  }
+
+  return null;
+};
+
 const buildCountSeries = (
   timestamps: number[],
   fromMs: number,
@@ -341,6 +370,47 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         reverseProxyToDirect: t.Optional(t.Boolean()),
         switchToSubdomain: t.Optional(t.Boolean()),
         subdomainToReverseProxy: t.Optional(t.Boolean()),
+      }),
+    },
+  )
+  .get("/config/protocol_mapping_feature", async () => {
+    const settings = await configManager.getProtocolMappingFeatureConfig();
+    return { success: true, data: settings };
+  })
+  .post(
+    "/config/protocol_mapping_feature",
+    async ({ body, set }) => {
+      const [previousConfig, previousSettings] = await Promise.all([
+        configManager.getConfig(),
+        configManager.getProtocolMappingFeatureConfig(),
+      ]);
+      try {
+        const next = await configManager.updateProtocolMappingFeatureConfig(body);
+        if (next.enabled === false) {
+          await configManager.updateStreamMappings([]);
+        }
+        await firewallService.applyRunTypeConfig(
+          previousConfig.run_type,
+          previousConfig.run_type,
+        );
+        return { success: true, data: next };
+      } catch (error: any) {
+        const rollbackError = await rollbackProtocolMappingFeatureAndRuntime(
+          previousSettings,
+          previousConfig,
+        );
+        set.status = 502;
+        return {
+          success: false,
+          message: rollbackError
+            ? `${error?.message || "更新协议映射功能开关失败"}；回滚失败：${rollbackError}`
+            : error?.message || "更新协议映射功能开关失败，已回滚配置",
+        };
+      }
+    },
+    {
+      body: t.Object({
+        enabled: t.Optional(t.Boolean()),
       }),
     },
   )
@@ -830,7 +900,10 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
   )
   .post("/sync-routes", async ({ set }) => {
     try {
-      const config = await configManager.getConfig();
+      const [config, protocolMappingFeature] = await Promise.all([
+        configManager.getConfig(),
+        configManager.getProtocolMappingFeatureConfig(),
+      ]);
       await firewallService.applyRunTypeConfig(
         config.run_type,
         config.run_type,
@@ -855,7 +928,9 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       const syncedHostRules =
         config.run_type === 3 ? config.host_mappings.length : 0;
       const syncedStreamRules =
-        config.run_type === 3 ? config.stream_mappings.length : 0;
+        config.run_type === 3 && protocolMappingFeature.enabled === true
+          ? config.stream_mappings.length
+          : 0;
 
       return {
         success: true,

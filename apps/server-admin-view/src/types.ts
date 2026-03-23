@@ -155,6 +155,10 @@ export interface GatewayLoggingConfig {
   logs_dir: string;
 }
 
+export interface ProtocolMappingFeatureConfig {
+  enabled: boolean;
+}
+
 export interface AuthCredentialSettings {
   session_ttl_seconds: number;
   remember_me_ttl_seconds: number;
@@ -323,6 +327,7 @@ export interface AppConfig {
   default_tunnel?: "frp" | "cloudflared";
   fnos_share_bypass?: FnosShareBypassConfig;
   gateway_logging?: GatewayLoggingConfig;
+  protocol_mapping_feature?: ProtocolMappingFeatureConfig;
   auth_credential_settings?: AuthCredentialSettings;
   terminal_feature?: TerminalFeatureConfig;
   ssl: {

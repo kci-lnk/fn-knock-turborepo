@@ -24,6 +24,7 @@ import type {
   GatewayLogDeletePayload,
   GatewayLogEntriesPayload,
   GatewayLoggingConfig,
+  ProtocolMappingFeatureConfig,
   AuthCredentialSettings,
   TerminalAttachmentRecord,
   TerminalFeatureConfig,
@@ -604,6 +605,16 @@ export const SystemAPI = {
       "/config/run_mode_prompt_preferences",
       payload,
     );
+    return res.data.data;
+  },
+  async getProtocolMappingFeatureConfig(): Promise<ProtocolMappingFeatureConfig> {
+    const res = await apiClient.get("/config/protocol_mapping_feature");
+    return res.data.data;
+  },
+  async updateProtocolMappingFeatureConfig(
+    payload: Partial<ProtocolMappingFeatureConfig>,
+  ): Promise<ProtocolMappingFeatureConfig> {
+    const res = await apiClient.post("/config/protocol_mapping_feature", payload);
     return res.data.data;
   },
   async getFnosShareBypassConfig(): Promise<FnosShareBypassConfig> {

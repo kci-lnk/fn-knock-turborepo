@@ -628,7 +628,7 @@ const normalizeHostMapping = (
         : normalizeHostAccessMode(raw.access_mode),
     suppress_toolbar:
       serviceRole === "auth" ? false : raw.suppress_toolbar === true,
-    preserve_host: raw.preserve_host !== false,
+    preserve_host: raw.preserve_host === true,
     service_role: serviceRole,
   };
 };

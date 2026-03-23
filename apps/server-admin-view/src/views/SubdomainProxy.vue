@@ -604,7 +604,7 @@ const createDefaultMapping = (): HostMapping => ({
   use_auth: true,
   access_mode: DEFAULT_ACCESS_MODE,
   suppress_toolbar: false,
-  preserve_host: true,
+  preserve_host: false,
   service_role: "app",
 });
 
@@ -984,7 +984,7 @@ function normalizeMapping(input: HostMapping): HostMapping {
         ? DEFAULT_ACCESS_MODE
         : input.access_mode || DEFAULT_ACCESS_MODE,
     suppress_toolbar: serviceRole === "auth" ? false : input.suppress_toolbar,
-    preserve_host: input.preserve_host !== false,
+    preserve_host: input.preserve_host === true,
     service_role: serviceRole,
   };
 }
@@ -1036,7 +1036,7 @@ async function addAuthService() {
         use_auth: false,
         access_mode: DEFAULT_ACCESS_MODE,
         suppress_toolbar: false,
-        preserve_host: true,
+        preserve_host: false,
         service_role: "auth",
       },
     ]);
@@ -1267,7 +1267,7 @@ async function saveDiscoveredServices() {
         use_auth: service.detail.rule.use_auth,
         access_mode: DEFAULT_ACCESS_MODE,
         suppress_toolbar: false,
-        preserve_host: true,
+        preserve_host: false,
         service_role: "app",
       });
     }

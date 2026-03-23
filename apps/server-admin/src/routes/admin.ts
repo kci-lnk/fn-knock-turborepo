@@ -395,7 +395,8 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         configManager.getProtocolMappingFeatureConfig(),
       ]);
       try {
-        const next = await configManager.updateProtocolMappingFeatureConfig(body);
+        const next =
+          await configManager.updateProtocolMappingFeatureConfig(body);
         if (next.enabled === false) {
           await configManager.updateStreamMappings([]);
         }
@@ -971,6 +972,39 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       },
     });
   })
+  .get("/maintenance/backup/files", async ({ set }) => {
+    try {
+      return {
+        success: true,
+        data: await maintenanceBackupService.listBackupDirectoryFiles(),
+      };
+    } catch (error: any) {
+      set.status = 500;
+      return {
+        success: false,
+        message: error?.message || "读取飞牛备份目录失败",
+      };
+    }
+  })
+  .post("/maintenance/backup/export/fnos", async ({ set }) => {
+    try {
+      const result =
+        await maintenanceBackupService.exportBackupArchiveToDirectory();
+      return {
+        success: true,
+        data: result,
+        message: "备份已导出到飞牛目录",
+      };
+    } catch (error: any) {
+      const status =
+        error instanceof MaintenanceBackupError ? error.status : 500;
+      set.status = status;
+      return {
+        success: false,
+        message: error?.message || "导出到飞牛目录失败",
+      };
+    }
+  })
   .post(
     "/maintenance/backup/import",
     async ({ body, set }) => {
@@ -998,6 +1032,44 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       body: t.Object({
         filename: t.Optional(t.String()),
         archive_base64: t.String(),
+      }),
+    },
+  )
+  .post(
+    "/maintenance/backup/import/fnos",
+    async ({ body, set }) => {
+      try {
+        const result =
+          await maintenanceBackupService.importBackupArchiveFromDirectory(
+            body.path,
+          );
+        return {
+          success: true,
+          data: result,
+          message:
+            result.warnings.length > 0
+              ? "飞牛备份已导入，但部分运行态同步失败"
+              : "飞牛备份已导入并完成运行态同步",
+        };
+      } catch (error: any) {
+        const message = error?.message || "从飞牛导入备份失败";
+        const status =
+          error instanceof MaintenanceBackupError ? error.status : 500;
+        set.status =
+          error?.code === "ENOENT"
+            ? 404
+            : error?.code === "EACCES"
+              ? 403
+              : status;
+        return {
+          success: false,
+          message,
+        };
+      }
+    },
+    {
+      body: t.Object({
+        path: t.String(),
       }),
     },
   )

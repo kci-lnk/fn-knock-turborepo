@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { Button } from "@/components/ui/button";
+import DataShareFilePicker from "@admin-shared/components/common/DataShareFilePicker.vue";
 import {
   Dialog,
   DialogContent,
@@ -9,7 +10,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Download, Upload } from "lucide-vue-next";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  ChevronDown,
+  Download,
+  FolderTree,
+  Laptop,
+  Upload,
+} from "lucide-vue-next";
 import { toast } from "@admin-shared/utils/toast";
 import {
   buildKnockBackupFilename,
@@ -20,13 +33,31 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { MaintenanceAPI } from "../../lib/api";
-import type { FnKnockBackupImportResult } from "../../types";
+import type {
+  BackupDirectoryFilesPayload,
+  FnKnockBackupImportResult,
+  SharedDataFileEntry,
+} from "../../types";
 import { useConfigStore } from "../../store/config";
+
+type BackupSelectionSource = "local" | "fnos";
 
 const configStore = useConfigStore();
 const fileInputRef = ref<HTMLInputElement | null>(null);
-const selectedFile = ref<File | null>(null);
+const selectedLocalFile = ref<File | null>(null);
+const selectedFnosFile = ref<SharedDataFileEntry | null>(null);
+const selectedSource = ref<BackupSelectionSource | null>(null);
 const isImportDialogOpen = ref(false);
+const isBackupPickerOpen = ref(false);
+const backupFilesError = ref("");
+const hasLoadedBackupFiles = ref(false);
+
+const defaultBackupFiles: BackupDirectoryFilesPayload = {
+  shareName: "fn-knock / backup",
+  available: false,
+  files: [],
+};
+const backupFiles = ref<BackupDirectoryFilesPayload>(defaultBackupFiles);
 
 const { isPending: isExporting, run: runExport } = useAsyncAction({
   onError: (error) => {
@@ -44,17 +75,48 @@ const { isPending: isImporting, run: runImport } = useAsyncAction({
   },
 });
 
-const hasSelectedBackup = computed(() => selectedFile.value !== null);
+const { isPending: isLoadingBackupFiles, run: runLoadBackupFiles } =
+  useAsyncAction({
+    onError: (error) => {
+      const message = extractErrorMessage(error, "读取飞牛备份目录失败");
+      backupFilesError.value = message;
+      toast.error("读取飞牛目录失败", {
+        description: message,
+      });
+    },
+  });
+
+const isBusy = computed(() => isExporting.value || isImporting.value);
+const hasSelectedBackup = computed(() => {
+  if (selectedSource.value === "local") {
+    return selectedLocalFile.value !== null;
+  }
+  if (selectedSource.value === "fnos") {
+    return selectedFnosFile.value !== null;
+  }
+  return false;
+});
 
 const selectedSummary = computed(() => {
-  if (!selectedFile.value) {
-    return null;
+  if (selectedSource.value === "local" && selectedLocalFile.value) {
+    return {
+      name: selectedLocalFile.value.name,
+      size: formatFileSize(selectedLocalFile.value.size),
+      sourceLabel: "本机文件",
+      location: "",
+    };
   }
 
-  return {
-    name: selectedFile.value.name,
-    size: formatFileSize(selectedFile.value.size),
-  };
+  if (selectedSource.value === "fnos" && selectedFnosFile.value) {
+    return {
+      name: selectedFnosFile.value.name,
+      size: formatFileSize(selectedFnosFile.value.size),
+      sourceLabel: "飞牛 backup",
+      location: selectedFnosFile.value.relativePath,
+    };
+  }
+
+  return null;
 });
 
 function formatFileSize(size: number): string {
@@ -72,14 +134,19 @@ function buildDownloadFilename(): string {
 }
 
 function resetSelectedBackup() {
-  selectedFile.value = null;
+  selectedLocalFile.value = null;
+  selectedFnosFile.value = null;
+  selectedSource.value = null;
   if (fileInputRef.value) {
     fileInputRef.value.value = "";
   }
 }
 
-function triggerFilePicker() {
-  if (isImporting.value) return;
+function triggerLocalFilePicker() {
+  if (isBusy.value) return;
+  if (fileInputRef.value) {
+    fileInputRef.value.value = "";
+  }
   fileInputRef.value?.click();
 }
 
@@ -88,7 +155,6 @@ async function handleFileChange(event: Event) {
   const file = input?.files?.[0] ?? null;
 
   if (!file) {
-    resetSelectedBackup();
     return;
   }
 
@@ -100,10 +166,44 @@ async function handleFileChange(event: Event) {
     return;
   }
 
-  selectedFile.value = file;
+  selectedLocalFile.value = file;
+  selectedFnosFile.value = null;
+  selectedSource.value = "local";
 }
 
-async function exportBackup() {
+async function loadBackupFiles(force = false) {
+  if (hasLoadedBackupFiles.value && !force) return;
+
+  backupFilesError.value = "";
+  const nextFiles = await runLoadBackupFiles(async () =>
+    MaintenanceAPI.getBackupDirectoryFiles(),
+  );
+  if (!nextFiles) return;
+
+  backupFiles.value = nextFiles;
+  hasLoadedBackupFiles.value = true;
+}
+
+async function openFnosBackupPicker() {
+  if (isBusy.value) return;
+  await loadBackupFiles();
+  if (backupFilesError.value) return;
+  isBackupPickerOpen.value = true;
+}
+
+async function refreshBackupFiles() {
+  await loadBackupFiles(true);
+}
+
+function handleFnosFileSelect(file: SharedDataFileEntry) {
+  selectedFnosFile.value = file;
+  selectedLocalFile.value = null;
+  selectedSource.value = "fnos";
+  isBackupPickerOpen.value = false;
+  toast.success(`已选择飞牛备份：${file.name}`);
+}
+
+async function exportBackupToLocal() {
   await runExport(async () => {
     const blob = await MaintenanceAPI.downloadBackup();
     const downloadUrl = URL.createObjectURL(blob);
@@ -115,6 +215,18 @@ async function exportBackup() {
     anchor.remove();
     URL.revokeObjectURL(downloadUrl);
     toast.success("备份文件已开始下载");
+  });
+}
+
+async function exportBackupToFnos() {
+  await runExport(async () => {
+    const result = await MaintenanceAPI.exportBackupToFnos();
+    if (hasLoadedBackupFiles.value) {
+      await loadBackupFiles(true);
+    }
+    toast.success("备份已导出到飞牛", {
+      description: `已写入 ${result.relativePath}`,
+    });
   });
 }
 
@@ -163,14 +275,20 @@ async function readFileAsBase64(file: File): Promise<string> {
 async function importBackup() {
   await runImport(
     async () => {
-      if (!selectedFile.value) {
-        throw new Error("请先选择备份文件");
+      if (selectedSource.value === "fnos" && selectedFnosFile.value) {
+        return MaintenanceAPI.importBackupFromFnos(
+          selectedFnosFile.value.relativePath,
+        );
       }
 
-      return MaintenanceAPI.importBackup({
-        filename: selectedFile.value.name,
-        archive_base64: await readFileAsBase64(selectedFile.value),
-      });
+      if (selectedSource.value === "local" && selectedLocalFile.value) {
+        return MaintenanceAPI.importBackup({
+          filename: selectedLocalFile.value.name,
+          archive_base64: await readFileAsBase64(selectedLocalFile.value),
+        });
+      }
+
+      throw new Error("请先选择备份文件");
     },
     {
       onSuccess: async (result) => {
@@ -230,16 +348,33 @@ async function importBackup() {
             </p>
           </div>
 
-          <Button
-            variant="default"
-            size="default"
-            class="min-w-[168px]"
-            :disabled="isExporting || isImporting"
-            @click="exportBackup"
-          >
-            <Download class="mr-2 h-4 w-4" />
-            {{ isExporting ? "导出中..." : "导出备份" }}
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <Button
+                variant="default"
+                size="default"
+                class="min-w-[168px]"
+                :disabled="isBusy"
+              >
+                <Download class="mr-2 h-4 w-4" />
+                {{ isExporting ? "导出中..." : "导出备份" }}
+                <ChevronDown class="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem :disabled="isBusy" @select="exportBackupToFnos">
+                <FolderTree class="mr-2 h-4 w-4" />
+                导出到飞牛
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                :disabled="isBusy"
+                @select="exportBackupToLocal"
+              >
+                <Laptop class="mr-2 h-4 w-4" />
+                导出到本机
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         <div class="px-6 py-6 sm:px-8">
@@ -261,23 +396,48 @@ async function importBackup() {
                   <span>导入备份</span>
                 </div>
                 <p class="text-sm text-muted-foreground">
-                  从已有归档恢复系统设置。
+                  先选择来源，再从已有归档恢复系统设置。
+                </p>
+                <p class="text-xs leading-5 text-muted-foreground">
+                  飞牛导入会读取与 SSL 导入相同的飞牛共享根目录下的
+                  <code>backup</code>
+                  文件夹，本机导入则直接读取当前设备中的
+                  <code>{{ KNOCK_BACKUP_EXTENSION }}</code>
+                  文件。
                 </p>
               </div>
 
               <div class="flex flex-wrap gap-3 lg:justify-end">
-                <Button
-                  variant="outline"
-                  :disabled="isImporting"
-                  @click="triggerFilePicker"
-                >
-                  选择文件
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger as-child>
+                    <Button variant="outline" :disabled="isBusy">
+                      <Upload class="mr-2 h-4 w-4" />
+                      {{ selectedSummary ? "重新选择来源" : "导入备份" }}
+                      <ChevronDown class="ml-2 h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      :disabled="isBusy"
+                      @select="openFnosBackupPicker"
+                    >
+                      <FolderTree class="mr-2 h-4 w-4" />
+                      从飞牛导入
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      :disabled="isBusy"
+                      @select="triggerLocalFilePicker"
+                    >
+                      <Laptop class="mr-2 h-4 w-4" />
+                      从本机选择
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <Button
                   variant="default"
                   size="default"
                   class="min-w-[168px]"
-                  :disabled="!hasSelectedBackup || isImporting || isExporting"
+                  :disabled="!hasSelectedBackup || isBusy"
                   @click="openImportDialog"
                 >
                   <Upload class="mr-2 h-4 w-4" />
@@ -286,7 +446,9 @@ async function importBackup() {
               </div>
             </div>
 
-            <div class="w-full rounded-xl border bg-muted/[0.12] px-4 py-3 text-sm">
+            <div
+              class="w-full rounded-xl border bg-muted/[0.12] px-4 py-3 text-sm"
+            >
               <div class="space-y-1">
                 <div
                   v-if="selectedSummary"
@@ -299,9 +461,15 @@ async function importBackup() {
                     {{ selectedSummary.size }}
                   </span>
                   <span class="text-muted-foreground">
-                    {{ KNOCK_BACKUP_EXTENSION }}
+                    {{ selectedSummary.sourceLabel }}
                   </span>
                 </div>
+                <p
+                  v-if="selectedSummary?.location"
+                  class="break-all text-xs text-muted-foreground"
+                >
+                  {{ selectedSummary.location }}
+                </p>
                 <p v-else class="w-full text-muted-foreground">
                   未选择备份文件
                 </p>
@@ -311,6 +479,28 @@ async function importBackup() {
         </div>
       </div>
     </section>
+
+    <DataShareFilePicker
+      v-model:open="isBackupPickerOpen"
+      title="从飞牛中选择备份"
+      description="从文件管理->应用数据->fn-knock->backup 文件夹中选择一个 .knock 备份文件。"
+      directory-label="飞牛备份目录"
+      :share-name="backupFiles.shareName"
+      :files="backupFiles.files"
+      :supported-file-types="[KNOCK_BACKUP_EXTENSION]"
+      :available="backupFiles.available"
+      :loading="isLoadingBackupFiles"
+      :selecting="isImporting"
+      :error-message="backupFilesError"
+      alert-title="备份目录读取失败"
+      available-description="从文件管理->应用数据->fn-knock->backup 中读取现有的 .knock 备份。"
+      unavailable-description="备份目录暂不可访问，请确认飞牛共享目录已正确挂载。"
+      empty-title="backup 目录里还没有备份"
+      empty-description="先导出一份备份到飞牛，或将已有 .knock 文件放入飞牛应用数据->fnknock的 backup 文件夹。"
+      confirm-text="使用这个备份"
+      @refresh="refreshBackupFiles"
+      @select="handleFnosFileSelect"
+    />
 
     <Dialog
       :open="isImportDialogOpen"
@@ -330,7 +520,13 @@ async function importBackup() {
         >
           <p class="font-medium text-foreground">{{ selectedSummary.name }}</p>
           <p class="mt-1 text-muted-foreground">
-            {{ selectedSummary.size }} · {{ KNOCK_BACKUP_EXTENSION }}
+            {{ selectedSummary.size }} · {{ selectedSummary.sourceLabel }}
+          </p>
+          <p
+            v-if="selectedSummary.location"
+            class="mt-1 break-all text-xs text-muted-foreground"
+          >
+            {{ selectedSummary.location }}
           </p>
         </div>
 

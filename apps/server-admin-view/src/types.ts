@@ -231,6 +231,20 @@ export interface FnKnockBackupImportResult {
   synced_steps: string[];
 }
 
+export interface BackupDirectoryFilesPayload {
+  shareName: string;
+  available: boolean;
+  files: SharedDataFileEntry[];
+}
+
+export interface FnKnockBackupExportToDirectoryResult {
+  filename: string;
+  relativePath: string;
+  filePath: string;
+  size: number;
+  exportedAt: string;
+}
+
 export interface TerminalFeatureConfig {
   enabled: boolean;
   default_shell: string;

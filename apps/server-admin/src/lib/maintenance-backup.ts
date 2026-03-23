@@ -1,7 +1,15 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, extname, join, relative, resolve } from "node:path";
 import {
   APP_BACKUP_IMPORT_VERSION_RANGE,
   APP_BACKUP_SCHEMA_VERSION,
@@ -9,6 +17,7 @@ import {
   formatVersionRange,
   isBackupAppVersionSupported,
 } from "./app-version";
+import { getConfiguredShareDirectory } from "./fnos-data-share";
 import { goBackend } from "./go-backend";
 import { firewallService } from "./firewall-service";
 import { configManager, redis } from "./redis";
@@ -28,6 +37,10 @@ const PIPELINE_BATCH_SIZE = 100;
 const TEMP_DIR_PREFIX = "fn-knock-backup-";
 const KNOCK_BACKUP_PASSWORD = "890eced0-4561-4044-8d6b-def83b5c6016";
 const DEBIAN_APT_GET_PATH = "/usr/bin/apt-get";
+const BACKUP_DIRECTORY_NAME = "backup";
+const MAX_BACKUP_DIRECTORY_SCAN_DEPTH = 5;
+const MAX_BACKUP_DIRECTORY_FILES = 500;
+const MAX_BACKUP_ARCHIVE_SIZE = 128 * 1024 * 1024;
 const BASE64_PATTERN =
   /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 const SUPPORTED_BACKUP_IMPORT_VERSION_RANGE = formatVersionRange(
@@ -126,6 +139,28 @@ export type FnKnockBackupImportResult = {
   synced_steps: string[];
 };
 
+export type BackupDirectoryFileEntry = {
+  name: string;
+  relativePath: string;
+  extension: string;
+  size: number;
+  modifiedAt: string;
+};
+
+export type BackupDirectoryFilesPayload = {
+  shareName: string;
+  available: boolean;
+  files: BackupDirectoryFileEntry[];
+};
+
+export type FnKnockBackupExportToDirectoryResult = {
+  filename: string;
+  relativePath: string;
+  filePath: string;
+  size: number;
+  exportedAt: string;
+};
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -147,6 +182,12 @@ const chunk = <T>(items: T[], size: number): T[][] => {
 
 const normalizeTtlMs = (ttlMs: number): number | null =>
   Number.isFinite(ttlMs) && ttlMs > 0 ? ttlMs : null;
+
+const normalizeExtension = (value: string): string =>
+  extname(value).toLowerCase();
+
+const isBackupArchiveFile = (value: string): boolean =>
+  normalizeExtension(value) === KNOCK_BACKUP_EXTENSION;
 
 export class MaintenanceBackupError extends Error {
   status: number;
@@ -236,9 +277,7 @@ class MaintenanceBackupService {
       })),
     );
 
-    return checks
-      .filter((item) => !item.available)
-      .map((item) => item.spec);
+    return checks.filter((item) => !item.available).map((item) => item.spec);
   }
 
   private async installArchiveCommandsIfNeeded(): Promise<void> {
@@ -260,7 +299,11 @@ class MaintenanceBackupService {
 
     const updateResult = await this.runCommand(DEBIAN_APT_GET_PATH, ["update"]);
     if (updateResult.exitCode !== 0) {
-      throw this.createCommandError("apt-get update 执行失败", updateResult, 500);
+      throw this.createCommandError(
+        "apt-get update 执行失败",
+        updateResult,
+        500,
+      );
     }
 
     const packages = [
@@ -324,6 +367,109 @@ class MaintenanceBackupService {
       `${message}（退出码: ${result.exitCode}）${detail ? `: ${detail}` : ""}`,
       status,
     );
+  }
+
+  private getBackupDirectoryPath(): string {
+    const shareDirectory = getConfiguredShareDirectory();
+    return shareDirectory ? join(shareDirectory, BACKUP_DIRECTORY_NAME) : "";
+  }
+
+  private getRequiredBackupDirectoryPath(): string {
+    const directoryPath = this.getBackupDirectoryPath();
+    if (!directoryPath) {
+      throw new MaintenanceBackupError(
+        "未找到飞牛共享目录，请确认应用资源已正确配置",
+        404,
+      );
+    }
+    return directoryPath;
+  }
+
+  private async ensureBackupDirectory(): Promise<string> {
+    const directoryPath = this.getRequiredBackupDirectoryPath();
+    await mkdir(directoryPath, { recursive: true });
+    return directoryPath;
+  }
+
+  private resolveBackupArchivePath(relativePath: string): string {
+    const directoryPath = this.getRequiredBackupDirectoryPath();
+    const sanitized = relativePath.replace(/\\/g, "/").trim();
+    const resolvedPath = resolve(directoryPath, sanitized);
+    const relativeToRoot = relative(directoryPath, resolvedPath);
+
+    if (
+      !sanitized ||
+      sanitized.startsWith("/") ||
+      relativeToRoot.startsWith("..") ||
+      resolvedPath === directoryPath
+    ) {
+      throw new MaintenanceBackupError("非法的备份文件路径", 400);
+    }
+
+    return resolvedPath;
+  }
+
+  private toBackupDirectoryEntry(
+    directoryPath: string,
+    filePath: string,
+    size: number,
+    modifiedAt: Date,
+  ): BackupDirectoryFileEntry {
+    return {
+      name: basename(filePath),
+      relativePath: relative(directoryPath, filePath).split("\\").join("/"),
+      extension: normalizeExtension(filePath),
+      size,
+      modifiedAt: modifiedAt.toISOString(),
+    };
+  }
+
+  private async collectBackupDirectoryFiles(
+    currentPath: string,
+    directoryPath: string,
+    bucket: BackupDirectoryFileEntry[],
+    depth: number,
+  ): Promise<void> {
+    if (bucket.length >= MAX_BACKUP_DIRECTORY_FILES) {
+      return;
+    }
+
+    const entries = await readdir(currentPath, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (bucket.length >= MAX_BACKUP_DIRECTORY_FILES) {
+        return;
+      }
+
+      const entryPath = join(currentPath, entry.name);
+
+      if (entry.isDirectory()) {
+        if (depth >= MAX_BACKUP_DIRECTORY_SCAN_DEPTH) {
+          continue;
+        }
+        await this.collectBackupDirectoryFiles(
+          entryPath,
+          directoryPath,
+          bucket,
+          depth + 1,
+        );
+        continue;
+      }
+
+      if (!entry.isFile() || !isBackupArchiveFile(entry.name)) {
+        continue;
+      }
+
+      const entryStats = await stat(entryPath);
+      bucket.push(
+        this.toBackupDirectoryEntry(
+          directoryPath,
+          entryPath,
+          entryStats.size,
+          entryStats.mtime,
+        ),
+      );
+    }
   }
 
   private async scanKeys(prefix = KNOCK_BACKUP_PREFIX): Promise<string[]> {
@@ -458,6 +604,70 @@ class MaintenanceBackupService {
         );
       }
     });
+  }
+
+  async listBackupDirectoryFiles(): Promise<BackupDirectoryFilesPayload> {
+    const directoryPath = this.getBackupDirectoryPath();
+    if (!directoryPath) {
+      return {
+        shareName: "fn-knock / backup",
+        available: false,
+        files: [],
+      };
+    }
+
+    await mkdir(directoryPath, { recursive: true });
+    const files: BackupDirectoryFileEntry[] = [];
+
+    await this.collectBackupDirectoryFiles(
+      directoryPath,
+      directoryPath,
+      files,
+      0,
+    );
+    files.sort((left, right) => {
+      const timeDiff =
+        new Date(right.modifiedAt).getTime() -
+        new Date(left.modifiedAt).getTime();
+      if (timeDiff !== 0) {
+        return timeDiff;
+      }
+      return left.relativePath.localeCompare(right.relativePath, "zh-CN");
+    });
+
+    return {
+      shareName: "fn-knock / backup",
+      available: true,
+      files,
+    };
+  }
+
+  async exportBackupArchiveToDirectory(): Promise<FnKnockBackupExportToDirectoryResult> {
+    const [archive, directoryPath] = await Promise.all([
+      this.exportBackupArchive(),
+      this.ensureBackupDirectory(),
+    ]);
+    const filePath = join(directoryPath, archive.filename);
+
+    await writeFile(filePath, archive.buffer);
+
+    const fileStats = await stat(filePath);
+    return {
+      filename: archive.filename,
+      relativePath: archive.filename,
+      filePath,
+      size: fileStats.size,
+      exportedAt: archive.exported_at,
+    };
+  }
+
+  private validateBackupFilename(filename: string) {
+    if (filename && !filename.toLowerCase().endsWith(KNOCK_BACKUP_EXTENSION)) {
+      throw new MaintenanceBackupError(
+        `备份文件扩展名必须为 ${KNOCK_BACKUP_EXTENSION}`,
+        400,
+      );
+    }
   }
 
   private parseStringArray(value: unknown, label: string): string[] {
@@ -831,33 +1041,9 @@ class MaintenanceBackupService {
     return { warnings, syncedSteps };
   }
 
-  async importBackupArchive(
-    request: FnKnockBackupImportArchiveRequest,
+  private async importBackupArchiveBuffer(
+    archiveBuffer: Buffer,
   ): Promise<FnKnockBackupImportResult> {
-    const archiveBase64 = request.archive_base64?.trim() || "";
-    if (!archiveBase64) {
-      throw new MaintenanceBackupError("缺少备份归档内容", 400);
-    }
-
-    if (!BASE64_PATTERN.test(archiveBase64)) {
-      throw new MaintenanceBackupError("备份归档不是有效的 Base64 数据", 400);
-    }
-
-    const filename = request.filename?.trim() || "";
-    if (filename && !filename.toLowerCase().endsWith(KNOCK_BACKUP_EXTENSION)) {
-      throw new MaintenanceBackupError(
-        `备份文件扩展名必须为 ${KNOCK_BACKUP_EXTENSION}`,
-        400,
-      );
-    }
-
-    let archiveBuffer: Buffer;
-    try {
-      archiveBuffer = Buffer.from(archiveBase64, "base64");
-    } catch {
-      throw new MaintenanceBackupError("备份归档不是有效的 Base64 数据", 400);
-    }
-
     if (archiveBuffer.length === 0) {
       throw new MaintenanceBackupError("备份归档内容为空", 400);
     }
@@ -874,6 +1060,53 @@ class MaintenanceBackupService {
       warnings: syncResult.warnings,
       synced_steps: syncResult.syncedSteps,
     };
+  }
+
+  async importBackupArchiveFromDirectory(
+    relativePath: string,
+  ): Promise<FnKnockBackupImportResult> {
+    const filePath = this.resolveBackupArchivePath(relativePath);
+    const fileStats = await stat(filePath);
+
+    if (!fileStats.isFile()) {
+      throw new MaintenanceBackupError("只能导入备份目录中的文件", 400);
+    }
+    if (!isBackupArchiveFile(filePath)) {
+      throw new MaintenanceBackupError(
+        `仅支持导入 ${KNOCK_BACKUP_EXTENSION} 备份文件`,
+        400,
+      );
+    }
+    if (fileStats.size > MAX_BACKUP_ARCHIVE_SIZE) {
+      throw new MaintenanceBackupError("备份文件过大，无法从飞牛目录导入", 400);
+    }
+
+    return this.importBackupArchiveBuffer(await readFile(filePath));
+  }
+
+  async importBackupArchive(
+    request: FnKnockBackupImportArchiveRequest,
+  ): Promise<FnKnockBackupImportResult> {
+    const archiveBase64 = request.archive_base64?.trim() || "";
+    if (!archiveBase64) {
+      throw new MaintenanceBackupError("缺少备份归档内容", 400);
+    }
+
+    if (!BASE64_PATTERN.test(archiveBase64)) {
+      throw new MaintenanceBackupError("备份归档不是有效的 Base64 数据", 400);
+    }
+
+    const filename = request.filename?.trim() || "";
+    this.validateBackupFilename(filename);
+
+    let archiveBuffer: Buffer;
+    try {
+      archiveBuffer = Buffer.from(archiveBase64, "base64");
+    } catch {
+      throw new MaintenanceBackupError("备份归档不是有效的 Base64 数据", 400);
+    }
+
+    return this.importBackupArchiveBuffer(archiveBuffer);
   }
 }
 

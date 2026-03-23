@@ -20,6 +20,8 @@ import type {
   FnosShareBypassConfig,
   FnKnockBackupImportArchiveRequest,
   FnKnockBackupImportResult,
+  BackupDirectoryFilesPayload,
+  FnKnockBackupExportToDirectoryResult,
   GatewayLogDatesPayload,
   GatewayLogDeletePayload,
   GatewayLogEntriesPayload,
@@ -405,10 +407,24 @@ export const MaintenanceAPI = {
     });
     return res.data;
   },
+  async getBackupDirectoryFiles(): Promise<BackupDirectoryFilesPayload> {
+    const res = await apiClient.get("/maintenance/backup/files");
+    return res.data.data;
+  },
+  async exportBackupToFnos(): Promise<FnKnockBackupExportToDirectoryResult> {
+    const res = await apiClient.post("/maintenance/backup/export/fnos");
+    return res.data.data;
+  },
   async importBackup(
     payload: FnKnockBackupImportArchiveRequest,
   ): Promise<FnKnockBackupImportResult> {
     const res = await apiClient.post("/maintenance/backup/import", payload);
+    return res.data.data;
+  },
+  async importBackupFromFnos(path: string): Promise<FnKnockBackupImportResult> {
+    const res = await apiClient.post("/maintenance/backup/import/fnos", {
+      path,
+    });
     return res.data.data;
   },
 };
@@ -614,7 +630,10 @@ export const SystemAPI = {
   async updateProtocolMappingFeatureConfig(
     payload: Partial<ProtocolMappingFeatureConfig>,
   ): Promise<ProtocolMappingFeatureConfig> {
-    const res = await apiClient.post("/config/protocol_mapping_feature", payload);
+    const res = await apiClient.post(
+      "/config/protocol_mapping_feature",
+      payload,
+    );
     return res.data.data;
   },
   async getFnosShareBypassConfig(): Promise<FnosShareBypassConfig> {

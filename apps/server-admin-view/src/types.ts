@@ -11,6 +11,7 @@ export type RunType = 0 | 1 | 3;
 
 export type HostAccessMode = "login_first" | "strict_whitelist";
 export type HostServiceRole = "app" | "auth";
+export type StreamMappingProtocol = "tcp" | "udp";
 
 export interface HostMapping {
   host: string;
@@ -23,6 +24,7 @@ export interface HostMapping {
 }
 
 export interface StreamMapping {
+  protocol: StreamMappingProtocol;
   listen_port: number;
   target: string;
   use_auth: boolean;

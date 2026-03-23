@@ -50,6 +50,7 @@ export type RunType = 0 | 1 | 3;
 
 export type HostAccessMode = "login_first" | "strict_whitelist";
 export type HostServiceRole = "app" | "auth";
+export type StreamMappingProtocol = "tcp" | "udp";
 
 export interface HostMapping {
   host: string;
@@ -62,6 +63,7 @@ export interface HostMapping {
 }
 
 export interface StreamMapping {
+  protocol: StreamMappingProtocol;
   listen_port: number;
   target: string;
   use_auth: boolean;
@@ -580,6 +582,9 @@ const normalizeHostAccessMode = (value: unknown): HostAccessMode =>
 const normalizeHostServiceRole = (value: unknown): HostServiceRole =>
   value === "auth" ? "auth" : "app";
 
+const normalizeStreamProtocol = (value: unknown): StreamMappingProtocol =>
+  value === "udp" ? "udp" : "tcp";
+
 const normalizeHostMapping = (
   value?: Partial<HostMapping> | null,
 ): HostMapping => {
@@ -619,6 +624,7 @@ const normalizeStreamMapping = (
   const raw = value ?? {};
 
   return {
+    protocol: normalizeStreamProtocol(raw.protocol),
     listen_port: normalizePositiveInt(raw.listen_port, 0, {
       min: 1,
       max: 65535,

@@ -18,7 +18,13 @@ export class FirewallService {
         success: true,
       } satisfies GoResponse<T>;
     }
-    throw new Error(result.message || fallbackMessage);
+    console.error(`Go 后端接口调用失败: ${fallbackMessage}`, result);
+    // throw new Error(fallbackMessage);
+    return {
+      success: false,
+      code: result.code,
+      message: fallbackMessage,
+    } satisfies GoResponse<T>;
   }
 
   private async runGoBackend<T>(
@@ -97,7 +103,7 @@ export class FirewallService {
       await this.runGoBackend(goBackend.flushHostRules(), "清空 Host 路由失败");
       await this.runGoBackend(
         goBackend.flushStreamRules(),
-        "关闭 TCP 映射监听失败",
+        "关闭 协议映射监听失败",
       );
       await this.runGoBackend(
         goBackend.setRules(config.proxy_mappings),
@@ -124,7 +130,7 @@ export class FirewallService {
       );
       await this.runGoBackend(
         goBackend.setStreamRules(config.stream_mappings),
-        "同步 TCP 映射失败",
+        "同步 协议映射失败",
       );
       await this.runGoBackend(
         goBackend.setDefaultRoute(config.default_route),
@@ -141,7 +147,7 @@ export class FirewallService {
     await this.runGoBackend(goBackend.flushHostRules(), "清空 Host 路由失败");
     await this.runGoBackend(
       goBackend.flushStreamRules(),
-      "关闭 TCP 映射监听失败",
+      "关闭 协议映射监听失败",
     );
     await this.initDefaultFirewall(config);
 

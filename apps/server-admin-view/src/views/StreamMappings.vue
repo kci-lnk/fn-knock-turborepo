@@ -5,7 +5,7 @@
         <CardTitle
           class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
         >
-          <span>TCP 映射</span>
+          <span>协议映射</span>
           <div class="flex flex-wrap items-center gap-2">
             <div class="flex">
               <Button class="rounded-r-none" @click="openCreateDialog">
@@ -36,8 +36,8 @@
           </div>
         </CardTitle>
         <CardDescription>
-          每条规则都会把一个外部 TCP 端口转发到指定目标地址，适合
-          MySQL、Redis等业务
+          每条规则都会把一个外部 TCP 或 UDP 端口转发到指定目标地址，适合
+          MySQL、Redis、DNS 等业务
         </CardDescription>
       </CardHeader>
 
@@ -61,7 +61,7 @@
         >
           <SearchInput
             v-model="searchQuery"
-            placeholder="搜索对外端口、目标地址或鉴权状态..."
+            placeholder="搜索协议、对外端口、目标地址或鉴权状态..."
             class="max-w-xs"
           />
         </div>
@@ -70,6 +70,7 @@
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>协议</TableHead>
                 <TableHead>对外端口</TableHead>
                 <TableHead>目标地址</TableHead>
                 <TableHead>鉴权状态</TableHead>
@@ -79,17 +80,25 @@
             <TableBody>
               <TableRow v-if="filteredMappings.length === 0">
                 <TableCell
-                  colspan="4"
+                  colspan="5"
                   class="py-8 text-center text-muted-foreground"
                 >
-                  还没有配置任何 TCP 映射。
+                  还没有配置任何 协议映射。
                 </TableCell>
               </TableRow>
               <TableRow
                 v-for="mapping in filteredMappings"
-                :key="mapping.listen_port"
+                :key="getMappingKey(mapping)"
                 class="group"
               >
+                <TableCell>
+                  <Badge
+                    variant="outline"
+                    class="font-mono uppercase tracking-[0.16em]"
+                  >
+                    {{ mapping.protocol }}
+                  </Badge>
+                </TableCell>
                 <TableCell class="font-medium">
                   <div
                     class="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm"
@@ -120,10 +129,10 @@
                       编辑
                     </Button>
                     <ConfirmDangerPopover
-                      title="确认删除 TCP 映射？"
-                      :description="`将停止对外端口 ${mapping.listen_port}，并移除到 ${mapping.target} 的转发规则。`"
-                      :loading="removingPort === mapping.listen_port"
-                      :disabled="removingPort === mapping.listen_port"
+                      :title="`确认删除 ${formatProtocolLabel(mapping.protocol)} 协议映射？`"
+                      :description="`将停止 ${formatMappingLabel(mapping)}，并移除到 ${mapping.target} 的转发规则。`"
+                      :loading="removingMappingKey === getMappingKey(mapping)"
+                      :disabled="removingMappingKey === getMappingKey(mapping)"
                       :on-confirm="() => removeMapping(mapping)"
                       content-class="w-72 text-left"
                     >
@@ -132,7 +141,9 @@
                           variant="ghost"
                           size="sm"
                           class="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                          :disabled="removingPort === mapping.listen_port"
+                          :disabled="
+                            removingMappingKey === getMappingKey(mapping)
+                          "
                         >
                           删除
                         </Button>
@@ -151,14 +162,30 @@
       <DialogContent class="sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle>
-            {{ editingPort === null ? "添加 TCP 映射" : "编辑 TCP 映射" }}
+            {{ isEditing ? "编辑 协议映射" : "添加 协议映射" }}
           </DialogTitle>
           <DialogDescription>
-            保存后会更新管理配置，并同步到网关刷新对应的 TCP 对外入口。
+            保存后会更新管理配置，并同步到网关刷新对应的 TCP 或 UDP 对外入口。
           </DialogDescription>
         </DialogHeader>
 
         <div class="grid gap-4 py-4">
+          <div class="space-y-2">
+            <Label for="stream-protocol">传输协议</Label>
+            <Select v-model="form.protocol">
+              <SelectTrigger id="stream-protocol">
+                <SelectValue placeholder="选择协议" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="tcp">TCP</SelectItem>
+                <SelectItem value="udp">UDP</SelectItem>
+              </SelectContent>
+            </Select>
+            <p class="text-xs text-muted-foreground">
+              同一个对外端口可以分别配置一条 TCP 和一条 UDP 规则。
+            </p>
+          </div>
+
           <div class="space-y-2">
             <Label for="stream-listen-port">对外端口</Label>
             <Input
@@ -251,6 +278,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import SearchInput from "@admin-shared/components/SearchInput.vue";
@@ -266,34 +300,37 @@ import {
 } from "@/components/ui/table";
 import { ConfigAPI } from "../lib/api";
 import { useConfigStore } from "../store/config";
-import type { StreamMapping } from "../types";
+import type { StreamMapping, StreamMappingProtocol } from "../types";
 
 const configStore = useConfigStore();
+const DEFAULT_STREAM_PROTOCOL: StreamMappingProtocol = "tcp";
 
 const searchQuery = ref("");
 const isDialogOpen = ref(false);
 const isSaving = ref(false);
 const isSyncing = ref(false);
-const editingPort = ref<number | null>(null);
-const removingPort = ref<number | null>(null);
+const editingMappingKey = ref<string | null>(null);
+const removingMappingKey = ref<string | null>(null);
 const hasAttemptedSubmit = ref(false);
 const hasPortBlurred = ref(false);
 const hasTargetBlurred = ref(false);
 
 const form = reactive<{
+  protocol: StreamMappingProtocol;
   listen_port: string;
   target: string;
   use_auth: boolean;
 }>({
+  protocol: DEFAULT_STREAM_PROTOCOL,
   listen_port: "",
   target: "",
   use_auth: true,
 });
 
 const allMappings = computed(() =>
-  [...(configStore.config?.stream_mappings ?? [])].sort(
-    (a, b) => a.listen_port - b.listen_port,
-  ),
+  [...(configStore.config?.stream_mappings ?? [])]
+    .map(normalizeStreamMapping)
+    .sort(compareStreamMappings),
 );
 
 const filteredMappings = computed(() => {
@@ -301,26 +338,33 @@ const filteredMappings = computed(() => {
   if (!query) return allMappings.value;
 
   return allMappings.value.filter((mapping) => {
+    const authStatus = mapping.use_auth ? "需要鉴权" : "公开访问";
     return (
+      mapping.protocol.includes(query) ||
+      formatProtocolLabel(mapping.protocol).toLowerCase().includes(query) ||
       String(mapping.listen_port).includes(query) ||
-      mapping.target.toLowerCase().includes(query)
+      mapping.target.toLowerCase().includes(query) ||
+      authStatus.includes(query)
     );
   });
 });
 
+const isEditing = computed(() => editingMappingKey.value !== null);
 const parsedListenPort = computed(() => {
   const value = Number.parseInt(form.listen_port.trim(), 10);
   if (!Number.isFinite(value)) return null;
   return value;
 });
 
-const duplicatePort = computed(() => {
+const duplicateMapping = computed(() => {
   const port = parsedListenPort.value;
   if (port === null) return false;
+  const nextKey = createMappingKey(form.protocol, port);
 
   return allMappings.value.some(
     (mapping) =>
-      mapping.listen_port === port && mapping.listen_port !== editingPort.value,
+      getMappingKey(mapping) === nextKey &&
+      getMappingKey(mapping) !== editingMappingKey.value,
   );
 });
 
@@ -337,8 +381,8 @@ function getPortValidationMessage(showRequired: boolean): string {
   if (port <= 0 || port > 65535) {
     return "对外端口必须位于 1 到 65535 之间。";
   }
-  if (duplicatePort.value) {
-    return `对外端口 ${port} 已存在，请保持唯一。`;
+  if (duplicateMapping.value) {
+    return `${formatProtocolLabel(form.protocol)} 对外端口 ${port} 已存在，请保持协议 + 端口唯一。`;
   }
   return "";
 }
@@ -402,11 +446,54 @@ function isValidStreamTarget(target: string): boolean {
   }
 }
 
+function normalizeProtocol(
+  protocol?: StreamMappingProtocol | string | null,
+): StreamMappingProtocol {
+  return protocol === "udp" ? "udp" : DEFAULT_STREAM_PROTOCOL;
+}
+
+function normalizeStreamMapping(mapping: StreamMapping): StreamMapping {
+  return {
+    ...mapping,
+    protocol: normalizeProtocol(mapping.protocol),
+  };
+}
+
+function createMappingKey(
+  protocol: StreamMappingProtocol,
+  listenPort: number,
+): string {
+  return `${protocol}:${listenPort}`;
+}
+
+function getMappingKey(mapping: StreamMapping): string {
+  return createMappingKey(
+    normalizeProtocol(mapping.protocol),
+    mapping.listen_port,
+  );
+}
+
+function compareStreamMappings(a: StreamMapping, b: StreamMapping): number {
+  if (a.listen_port !== b.listen_port) {
+    return a.listen_port - b.listen_port;
+  }
+  return a.protocol.localeCompare(b.protocol);
+}
+
+function formatProtocolLabel(protocol: StreamMappingProtocol): string {
+  return protocol.toUpperCase();
+}
+
+function formatMappingLabel(mapping: StreamMapping): string {
+  return `${formatProtocolLabel(normalizeProtocol(mapping.protocol))}/${mapping.listen_port}`;
+}
+
 function resetForm() {
+  form.protocol = DEFAULT_STREAM_PROTOCOL;
   form.listen_port = "";
   form.target = "";
   form.use_auth = true;
-  editingPort.value = null;
+  editingMappingKey.value = null;
   hasAttemptedSubmit.value = false;
   hasPortBlurred.value = false;
   hasTargetBlurred.value = false;
@@ -424,10 +511,12 @@ function openCreateDialog() {
 }
 
 function openEditDialog(mapping: StreamMapping) {
+  const normalized = normalizeStreamMapping(mapping);
+  form.protocol = normalized.protocol;
   form.listen_port = String(mapping.listen_port);
   form.target = mapping.target;
   form.use_auth = mapping.use_auth;
-  editingPort.value = mapping.listen_port;
+  editingMappingKey.value = getMappingKey(normalized);
   isDialogOpen.value = true;
 }
 
@@ -449,6 +538,7 @@ async function saveMapping() {
   if (submitValidationMessage.value || parsedListenPort.value === null) return;
 
   const nextMapping: StreamMapping = {
+    protocol: form.protocol,
     listen_port: parsedListenPort.value,
     target: form.target.trim(),
     use_auth: form.use_auth,
@@ -458,7 +548,7 @@ async function saveMapping() {
   try {
     const next = [...allMappings.value];
     const existingIndex = next.findIndex(
-      (mapping) => mapping.listen_port === editingPort.value,
+      (mapping) => getMappingKey(mapping) === editingMappingKey.value,
     );
 
     if (existingIndex >= 0) {
@@ -468,9 +558,7 @@ async function saveMapping() {
     }
 
     await configStore.saveStreamMappings(next);
-    toast.success(
-      editingPort.value === null ? "已添加 TCP 映射" : "已更新 TCP 映射",
-    );
+    toast.success(isEditing.value ? "已更新 协议映射" : "已添加 协议映射");
     closeDialog();
   } catch (error: any) {
     toast.error("保存失败", {
@@ -482,20 +570,20 @@ async function saveMapping() {
 }
 
 async function removeMapping(mapping: StreamMapping) {
-  removingPort.value = mapping.listen_port;
+  removingMappingKey.value = getMappingKey(mapping);
   try {
     await configStore.saveStreamMappings(
       allMappings.value.filter(
-        (item) => item.listen_port !== mapping.listen_port,
+        (item) => getMappingKey(item) !== getMappingKey(mapping),
       ),
     );
-    toast.success(`已移除端口 ${mapping.listen_port} 的 TCP 映射`);
+    toast.success(`已移除 ${formatMappingLabel(mapping)} 协议映射`);
   } catch (error: any) {
     toast.error("删除失败", {
       description: extractErrorMessage(error, "请稍后重试"),
     });
   } finally {
-    removingPort.value = null;
+    removingMappingKey.value = null;
   }
 }
 
@@ -505,7 +593,7 @@ async function syncRoutes() {
     const result = await ConfigAPI.syncRoutes();
     if (result.success) {
       toast.success("已同步到网关", {
-        description: `路径路由 ${result.data?.synced_rules ?? 0} 条，Host 路由 ${result.data?.synced_host_rules ?? 0} 条，TCP 映射 ${result.data?.synced_stream_rules ?? 0} 条。`,
+        description: `路径路由 ${result.data?.synced_rules ?? 0} 条，Host 路由 ${result.data?.synced_host_rules ?? 0} 条，协议映射 ${result.data?.synced_stream_rules ?? 0} 条。`,
       });
       return;
     }

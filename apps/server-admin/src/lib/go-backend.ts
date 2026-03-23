@@ -37,7 +37,10 @@ export interface HostRule {
   preserve_host?: boolean;
 }
 
+export type StreamMappingProtocol = "tcp" | "udp";
+
 export interface StreamRule {
+  protocol?: StreamMappingProtocol;
   listen_port: number;
   target: string;
   use_auth: boolean;

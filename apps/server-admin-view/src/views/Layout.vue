@@ -309,7 +309,7 @@ const navItems = computed(() => {
       path: "/subdomains",
       icon: RouteIcon,
     });
-    items.splice(2, 0, { name: "TCP映射", path: "/streams", icon: Server });
+    items.splice(2, 0, { name: "协议映射", path: "/streams", icon: Server });
     items.splice(3, 0, { name: "会话管理", path: "/sessions", icon: Users });
   }
   items.push({ name: "认证配置", path: "/auth", icon: Key });

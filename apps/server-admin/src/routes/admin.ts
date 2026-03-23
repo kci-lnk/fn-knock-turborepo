@@ -88,10 +88,11 @@ const isValidStreamTarget = (target: string): boolean => {
   }
 };
 
-const validateStreamMappings = (mappings: StreamMapping[]) => {
-  const seenPorts = new Set<number>();
+const validateStreamMappings = (mappings: Array<Partial<StreamMapping>>) => {
+  const seenMappings = new Set<string>();
 
   for (const mapping of mappings) {
+    const protocol = mapping.protocol === "udp" ? "udp" : "tcp";
     if (!Number.isInteger(mapping.listen_port)) {
       return {
         valid: false as const,
@@ -104,10 +105,11 @@ const validateStreamMappings = (mappings: StreamMapping[]) => {
         message: `监听端口 ${mapping.listen_port} 超出有效范围`,
       };
     }
-    if (seenPorts.has(mapping.listen_port)) {
+    const mappingKey = `${protocol}:${mapping.listen_port}`;
+    if (seenMappings.has(mappingKey)) {
       return {
         valid: false as const,
-        message: `监听端口 ${mapping.listen_port} 重复，请保持唯一`,
+        message: `${protocol.toUpperCase()} 监听端口 ${mapping.listen_port} 重复，请保持协议 + 端口唯一`,
       };
     }
     if (!isValidStreamTarget(mapping.target)) {
@@ -116,7 +118,7 @@ const validateStreamMappings = (mappings: StreamMapping[]) => {
         message: `目标地址 ${mapping.target} 必须是 host:port 形式`,
       };
     }
-    seenPorts.add(mapping.listen_port);
+    seenMappings.add(mappingKey);
   }
 
   return { valid: true as const };
@@ -284,7 +286,10 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       await configManager.updateRunType(body.run_type);
 
       try {
-        await firewallService.applyRunTypeConfig(body.run_type, previousRunType);
+        await firewallService.applyRunTypeConfig(
+          body.run_type,
+          previousRunType,
+        );
       } catch (error: any) {
         const rollbackError = await rollbackConfigAndRuntime(config);
         set.status = 502;
@@ -572,8 +577,9 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         return {
           success: false,
           message: rollbackError
-            ? `${error?.message || "同步 TCP 映射与网关端口放行规则失败"}；回滚失败：${rollbackError}`
-            : error?.message || "同步 TCP 映射与网关端口放行规则失败，已回滚配置",
+            ? `${error?.message || "同步 协议映射与网关端口放行规则失败"}；回滚失败：${rollbackError}`
+            : error?.message ||
+              "同步 协议映射与网关端口放行规则失败，已回滚配置",
         };
       }
 
@@ -583,6 +589,7 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       body: t.Object({
         mappings: t.Array(
           t.Object({
+            protocol: t.Optional(t.Union([t.Literal("tcp"), t.Literal("udp")])),
             listen_port: t.Number(),
             target: t.String(),
             use_auth: t.Boolean(),
@@ -850,7 +857,7 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
           synced_stream_rules: syncedStreamRules,
           synced_gateway_logging: true,
         },
-        message: `已按当前运行模式同步 ${syncedRules} 条路径路由、${syncedHostRules} 条 Host 路由、${syncedStreamRules} 条 TCP 映射与请求日志配置`,
+        message: `已按当前运行模式同步 ${syncedRules} 条路径路由、${syncedHostRules} 条 Host 路由、${syncedStreamRules} 条 协议映射与请求日志配置`,
       };
     } catch (e: any) {
       set.status = 500;

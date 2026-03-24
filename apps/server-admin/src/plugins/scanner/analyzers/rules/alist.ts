@@ -58,7 +58,7 @@ export const xiaoyaRule: AnalyzerRule = {
   name: "xiaoya",
   label: "小雅Alist",
   rule: {
-    path: "/xiaoya",
+    path: "/xy",
     rewrite_html: false,
     use_auth: true,
     use_root_mode: true,
@@ -94,7 +94,7 @@ export const openListRule: AnalyzerRule = {
   name: "openlist",
   label: "OpenList",
   rule: {
-    path: "/openlist",
+    path: "/op",
     rewrite_html: false,
     use_auth: true,
     use_root_mode: true,

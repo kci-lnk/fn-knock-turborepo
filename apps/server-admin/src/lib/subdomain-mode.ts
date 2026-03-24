@@ -593,8 +593,9 @@ export const resolveCookieDomain = (
 };
 
 export const buildGatewayAuthConfig = (
-  config: Pick<AppConfig, "subdomain_mode" | "host_mappings">,
+  config: Pick<AppConfig, "subdomain_mode" | "host_mappings" | "run_type">,
 ): AuthConfig => {
+  const isSubdomainModeActive = config.run_type === 3;
   const defaultAuthPort = resolveAuthServicePort();
   const authMapping = getAuthHostMapping(config);
   const configuredPublicHttpPort =
@@ -609,9 +610,11 @@ export const buildGatewayAuthConfig = (
     config.subdomain_mode.public_https_port > 0
       ? config.subdomain_mode.public_https_port
       : undefined;
-  const explicitPublicAuthBaseUrl = trimTrailingSlash(
-    config.subdomain_mode?.public_auth_base_url?.trim() || "",
-  );
+  const explicitPublicAuthBaseUrl = isSubdomainModeActive
+    ? trimTrailingSlash(
+        config.subdomain_mode?.public_auth_base_url?.trim() || "",
+      )
+    : "";
   const authTarget =
     authMapping?.target?.trim() ||
     config.subdomain_mode?.auth_target?.trim() ||
@@ -621,16 +624,24 @@ export const buildGatewayAuthConfig = (
     (Number.isFinite(defaultAuthPort) && defaultAuthPort > 0
       ? defaultAuthPort
       : 7997);
-  const publicAuthBaseUrl =
-    explicitPublicAuthBaseUrl || resolvePublicAuthBaseUrl(config);
-  const publicHttpsPort =
-    configuredPublicHttpsPort ??
-    parseExplicitUrlPort(publicAuthBaseUrl, "https") ??
-    (!explicitPublicAuthBaseUrl
-      ? (resolveDefaultPublicGatewayPort() ?? undefined)
-      : undefined);
-  const authHost =
-    authMapping?.host?.trim() || config.subdomain_mode?.auth_host?.trim() || "";
+  const publicAuthBaseUrl = isSubdomainModeActive
+    ? explicitPublicAuthBaseUrl || resolvePublicAuthBaseUrl(config)
+    : "";
+  const publicHttpPort = isSubdomainModeActive
+    ? (configuredPublicHttpPort ?? 0)
+    : 0;
+  const publicHttpsPort = isSubdomainModeActive
+    ? (configuredPublicHttpsPort ??
+      parseExplicitUrlPort(publicAuthBaseUrl, "https") ??
+      (!explicitPublicAuthBaseUrl
+        ? (resolveDefaultPublicGatewayPort() ?? 0)
+        : 0))
+    : 0;
+  const authHost = isSubdomainModeActive
+    ? authMapping?.host?.trim() ||
+      config.subdomain_mode?.auth_host?.trim() ||
+      ""
+    : "";
 
   return {
     auth_port: authPort,
@@ -638,14 +649,13 @@ export const buildGatewayAuthConfig = (
     login_url: "/#/login",
     logout_url: "/api/auth/logout",
     preflight_url: "/api/auth/preflight",
-    auth_cache_ttl_seconds:
-      config.subdomain_mode?.auth_cache_ttl_seconds ?? 1,
+    auth_cache_ttl_seconds: config.subdomain_mode?.auth_cache_ttl_seconds ?? 1,
     auth_cache_unauthorized_ttl_seconds:
       config.subdomain_mode?.auth_cache_unauthorized_ttl_seconds ?? 1,
-    public_auth_base_url: publicAuthBaseUrl || undefined,
-    public_http_port: configuredPublicHttpPort,
+    public_auth_base_url: publicAuthBaseUrl,
+    public_http_port: publicHttpPort,
     public_https_port: publicHttpsPort,
-    auth_host: authHost || undefined,
+    auth_host: authHost,
   };
 };
 

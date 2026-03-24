@@ -48,6 +48,12 @@ const parseIntSafe = (value: string | undefined, fallback: number) => {
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
+const getRunTypeLabel = (runType: 0 | 1 | 3) => {
+  if (runType === 0) return "直连模式";
+  if (runType === 1) return "反代模式";
+  return "子域模式";
+};
+
 const validateHostMappings = (
   mappings: Array<{
     host: string;
@@ -152,9 +158,7 @@ const normalizeHostLike = (value: string | undefined | null): string =>
     .replace(/\/.*$/, "")
     .replace(/\.+$/, "");
 
-const resolveRequestScheme = (
-  request: Request,
-): "http" | "https" => {
+const resolveRequestScheme = (request: Request): "http" | "https" => {
   const forwarded = request.headers
     .get("x-forwarded-proto")
     ?.split(",")[0]
@@ -376,6 +380,57 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       }),
     },
   )
+  .post(
+    "/firewall/reset",
+    async ({ body, set }) => {
+      try {
+        const result = await firewallService.resetFirewallForRunType(
+          body.run_type,
+        );
+        const whitelistMessage =
+          body.run_type === 0
+            ? `，并同步 ${result.whitelistSynced} 条白名单 IP`
+            : "";
+        const exemptPortsMessage =
+          body.run_type === 0 || body.run_type === 3
+            ? `，保留入口端口 ${result.exemptPorts.join("、")}`
+            : "";
+
+        return {
+          success: true,
+          data: result,
+          message: `已按${getRunTypeLabel(body.run_type)}重设防火墙${whitelistMessage}${exemptPortsMessage}`,
+        };
+      } catch (error: any) {
+        set.status = 502;
+        return {
+          success: false,
+          message: error?.message || "重设防火墙失败",
+        };
+      }
+    },
+    {
+      body: t.Object({
+        run_type: t.Union([t.Literal(0), t.Literal(1), t.Literal(3)]),
+      }),
+    },
+  )
+  .post("/firewall/clear", async ({ set }) => {
+    try {
+      const result = await firewallService.clearFirewall();
+      return {
+        success: true,
+        data: result,
+        message: `已清空防火墙规则，并移除 ${result.gatewayPort} 端口相关的历史重定向`,
+      };
+    } catch (error: any) {
+      set.status = 502;
+      return {
+        success: false,
+        message: error?.message || "清空防火墙失败",
+      };
+    }
+  })
   .get("/config/run_mode_prompt_preferences", async () => {
     const preferences = await configManager.getRunModePromptPreferences();
     return { success: true, data: preferences };
@@ -617,13 +672,15 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       }
 
       const config = await configManager.getConfig();
-      const normalizedMappings: HostMapping[] = body.mappings.map((mapping) => ({
-        ...mapping,
-        service_role: isAuthServiceTarget(mapping.target) ? "auth" : "app",
-        title: mapping.title ?? "",
-        title_override: mapping.title_override ?? "",
-        favicon: mapping.favicon ?? "",
-      }));
+      const normalizedMappings: HostMapping[] = body.mappings.map(
+        (mapping) => ({
+          ...mapping,
+          service_role: isAuthServiceTarget(mapping.target) ? "auth" : "app",
+          title: mapping.title ?? "",
+          title_override: mapping.title_override ?? "",
+          favicon: mapping.favicon ?? "",
+        }),
+      );
       const nextConfig = {
         ...config,
         host_mappings: normalizedMappings,

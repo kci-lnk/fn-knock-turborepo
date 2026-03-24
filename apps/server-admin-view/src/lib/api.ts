@@ -621,6 +621,21 @@ export const SystemAPI = {
     const res = await apiClient.get("/system/access-entry");
     return res.data.data;
   },
+  async resetFirewallByRunType(run_type: RunType): Promise<{
+    runType: RunType;
+    gatewayPort: number;
+    exemptPorts: string[];
+    whitelistSynced: number;
+  }> {
+    const res = await apiClient.post("/firewall/reset", { run_type });
+    return res.data.data;
+  },
+  async clearFirewall(): Promise<{
+    gatewayPort: number;
+  }> {
+    const res = await apiClient.post("/firewall/clear");
+    return res.data.data;
+  },
   async getRunModePromptPreferences(): Promise<RunModePromptPreferences> {
     const res = await apiClient.get("/config/run_mode_prompt_preferences");
     return res.data.data;

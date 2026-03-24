@@ -44,6 +44,22 @@ export class FirewallService {
     );
   }
 
+  private async runGoBackendOrThrow<T>(
+    promise: Promise<GoResponse<T>>,
+    fallbackMessage: string,
+    acceptableCodes: number[] = [],
+  ): Promise<GoResponse<T>> {
+    const result = await this.runGoBackend(
+      promise,
+      fallbackMessage,
+      acceptableCodes,
+    );
+    if (!result.success) {
+      throw new Error(result.message || fallbackMessage);
+    }
+    return result;
+  }
+
   private resolveGatewayPort(): number {
     const parsed = Number.parseInt(process.env.GO_REPROXY_PORT || "7999", 10);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 7999;
@@ -52,10 +68,11 @@ export class FirewallService {
   private resolveExemptPorts(
     config: AppConfig,
     protocolMappingEnabled: boolean,
+    runType: 0 | 1 | 3 = config.run_type,
   ): string[] {
     const ports = new Set<string>([String(this.resolveGatewayPort())]);
 
-    if (config.run_type === 3 && protocolMappingEnabled) {
+    if (runType === 3 && protocolMappingEnabled) {
       for (const mapping of config.stream_mappings ?? []) {
         if (
           Number.isInteger(mapping.listen_port) &&
@@ -70,11 +87,24 @@ export class FirewallService {
     return [...ports];
   }
 
-  private async clearLegacyGatewayRedirects(targetPort: number) {
+  private async clearLegacyGatewayRedirects(
+    targetPort: number,
+    strict = false,
+  ) {
     for (const listenPort of this.legacyRedirectedHttpPorts) {
+      const fallbackMessage = `清理历史 TCP 重定向 ${listenPort} -> ${targetPort} 失败`;
+      if (strict) {
+        await this.runGoBackendOrThrow(
+          goBackend.clearTCPRedirect(listenPort, targetPort),
+          fallbackMessage,
+          [404],
+        );
+        continue;
+      }
+
       await this.runGoBackend(
         goBackend.clearTCPRedirect(listenPort, targetPort),
-        `清理历史 TCP 重定向 ${listenPort} -> ${targetPort} 失败`,
+        fallbackMessage,
         [404],
       );
     }
@@ -83,15 +113,103 @@ export class FirewallService {
   private async initDefaultFirewall(
     config: AppConfig,
     protocolMappingEnabled: boolean,
+    runType: 0 | 1 | 3 = config.run_type,
+    strict = false,
   ) {
-    await this.runGoBackend(
-      goBackend.initIptables({
-        chain_name: "FN-KNOCK-FW",
-        parent_chain: ["INPUT", "DOCKER-USER"],
-        exempt_ports: this.resolveExemptPorts(config, protocolMappingEnabled),
-      }),
-      "初始化默认防火墙规则失败",
+    const request = goBackend.initIptables({
+      chain_name: "FN-KNOCK-FW",
+      parent_chain: ["INPUT", "DOCKER-USER"],
+      exempt_ports: this.resolveExemptPorts(
+        config,
+        protocolMappingEnabled,
+        runType,
+      ),
+    });
+
+    if (strict) {
+      await this.runGoBackendOrThrow(request, "初始化默认防火墙规则失败");
+      return;
+    }
+
+    await this.runGoBackend(request, "初始化默认防火墙规则失败");
+  }
+
+  private async syncActiveWhitelistRecords(strict = false): Promise<number> {
+    const records = await whitelistManager.getAllActiveRecords();
+
+    for (const record of records) {
+      const fallbackMessage = `同步白名单 IP ${record.ip} 失败`;
+      if (strict) {
+        await this.runGoBackendOrThrow(
+          goBackend.allowIP(record.ip),
+          fallbackMessage,
+        );
+        continue;
+      }
+
+      await this.runGoBackend(goBackend.allowIP(record.ip), fallbackMessage);
+    }
+
+    return records.length;
+  }
+
+  async resetFirewallForRunType(runType: 0 | 1 | 3) {
+    const [config, protocolMappingFeature] = await Promise.all([
+      configManager.getConfig(),
+      configManager.getProtocolMappingFeatureConfig(),
+    ]);
+    const protocolMappingEnabled =
+      runType === 3 && protocolMappingFeature.enabled === true;
+    const gatewayPort = this.resolveGatewayPort();
+
+    await this.clearLegacyGatewayRedirects(gatewayPort, true);
+    await this.runGoBackendOrThrow(
+      goBackend.cleanIptables(),
+      "清理防火墙规则失败",
     );
+
+    if (runType === 1) {
+      return {
+        runType,
+        gatewayPort,
+        exemptPorts: [] as string[],
+        whitelistSynced: 0,
+      };
+    }
+
+    await this.initDefaultFirewall(
+      config,
+      protocolMappingEnabled,
+      runType,
+      true,
+    );
+
+    const whitelistSynced =
+      runType === 0 ? await this.syncActiveWhitelistRecords(true) : 0;
+
+    return {
+      runType,
+      gatewayPort,
+      exemptPorts: this.resolveExemptPorts(
+        config,
+        protocolMappingEnabled,
+        runType,
+      ),
+      whitelistSynced,
+    };
+  }
+
+  async clearFirewall() {
+    const gatewayPort = this.resolveGatewayPort();
+    await this.clearLegacyGatewayRedirects(gatewayPort, true);
+    await this.runGoBackendOrThrow(
+      goBackend.cleanIptables(),
+      "清理防火墙规则失败",
+    );
+
+    return {
+      gatewayPort,
+    };
   }
 
   async applyRunTypeConfig(runType: 0 | 1 | 3, previousRunType?: 0 | 1 | 3) {
@@ -142,7 +260,7 @@ export class FirewallService {
         goBackend.setProxyProtocolForce(false),
         "关闭 Proxy Protocol 强制模式失败",
       );
-      await this.initDefaultFirewall(config, protocolMappingEnabled);
+      await this.initDefaultFirewall(config, protocolMappingEnabled, runType);
       await this.clearLegacyGatewayRedirects(gatewayPort);
       await this.runGoBackend(goBackend.flushRules(), "清空路径路由失败");
       await this.runGoBackend(
@@ -177,16 +295,10 @@ export class FirewallService {
       goBackend.flushStreamRules(),
       "关闭 协议映射监听失败",
     );
-    await this.initDefaultFirewall(config, false);
+    await this.initDefaultFirewall(config, false, runType);
 
     if (runType === 0) {
-      const records = await whitelistManager.getAllActiveRecords();
-      for (const record of records) {
-        await this.runGoBackend(
-          goBackend.allowIP(record.ip),
-          `同步白名单 IP ${record.ip} 失败`,
-        );
-      }
+      await this.syncActiveWhitelistRecords();
       if (config.proxy_mappings) {
         await this.runGoBackend(
           goBackend.setRules(config.proxy_mappings),

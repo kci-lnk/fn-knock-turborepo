@@ -137,11 +137,42 @@
       </div>
     </CardContent>
     <CardFooter class="flex justify-end gap-2">
-      <Button variant="outline" @click="reset">放弃更改</Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <Button variant="outline" class="w-24 gap-2" :disabled="isBusy">
+            <Loader2
+              v-if="isFirewallActionPending"
+              class="h-4 w-4 animate-spin"
+            />
+            <span>操作</span>
+            <ChevronDown class="h-4 w-4 text-muted-foreground" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" class="w-56">
+          <DropdownMenuItem
+            :disabled="isBusy"
+            @select="resetFirewallBySelectedMode"
+          >
+            <RefreshCw class="h-4 w-4" />
+            按所选模式重设防火墙
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            variant="destructive"
+            :disabled="isBusy"
+            @select="clearFirewallRules"
+          >
+            <Trash2 class="h-4 w-4" />
+            清空防火墙
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Button variant="outline" class="w-24" @click="reset" :disabled="isBusy">
+        放弃更改
+      </Button>
       <Button
         data-guide-run-mode-save
         @click="save"
-        :disabled="isSaving || configStore.config?.run_type === mode"
+        :disabled="isBusy || configStore.config?.run_type === mode"
       >
         <span
           v-if="isSaving"
@@ -222,7 +253,7 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted, watch } from "vue";
-import { Info } from "lucide-vue-next";
+import { ChevronDown, Info, Loader2, RefreshCw, Trash2 } from "lucide-vue-next";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Card,
@@ -234,6 +265,12 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
 import {
   Dialog,
@@ -282,6 +319,15 @@ const { isPending: isSaving, run: runSaveMode } = useAsyncAction({
     });
   },
 });
+const { isPending: isFirewallActionPending, run: runFirewallAction } =
+  useAsyncAction({
+    onError: (error) => {
+      toast.error("防火墙操作失败", {
+        description: extractErrorMessage(error, "操作失败"),
+      });
+    },
+  });
+const isBusy = computed(() => isSaving.value || isFirewallActionPending.value);
 
 const accessAlertTitle = computed(() => {
   if (mode.value === 0) return "直连模式访问说明";
@@ -417,6 +463,24 @@ async function applyRunModeChange(
   });
 }
 
+async function resetFirewallBySelectedMode() {
+  await runFirewallAction(async () => {
+    const result = await SystemAPI.resetFirewallByRunType(mode.value);
+    toast.success("防火墙已重设", {
+      description: `${buildFirewallResetSuccessDescription(result)}${buildUnsavedModeNotice()}`,
+    });
+  });
+}
+
+async function clearFirewallRules() {
+  await runFirewallAction(async () => {
+    const result = await SystemAPI.clearFirewall();
+    toast.success("防火墙已清空", {
+      description: `已清理 Linux 防火墙规则，并移除 ${result.gatewayPort} 端口相关的历史重定向。当前配置未变更，后续切换模式或同步运行配置时会重新写入规则。`,
+    });
+  });
+}
+
 async function ensureTunnelsStoppedForTargetMode(nextMode: 0 | 1 | 3) {
   const [frpcStatus, cloudflaredStatus] = await Promise.all([
     FrpcAPI.getStatus(),
@@ -456,6 +520,35 @@ function getRunModeLabel(targetMode: 0 | 1 | 3) {
   if (targetMode === 0) return "直连模式";
   if (targetMode === 1) return "反代模式";
   return "子域模式";
+}
+
+function buildFirewallResetSuccessDescription(result: {
+  runType: 0 | 1 | 3;
+  gatewayPort: number;
+  exemptPorts: string[];
+  whitelistSynced: number;
+}) {
+  if (result.runType === 1) {
+    return "已按反代模式清理 Linux 防火墙规则。";
+  }
+
+  const exemptPortsLabel = result.exemptPorts.join("、");
+
+  if (result.runType === 0) {
+    const whitelistDescription =
+      result.whitelistSynced > 0
+        ? `，并同步 ${result.whitelistSynced} 条白名单 IP`
+        : "，当前没有需要重新放行的白名单 IP";
+    return `已按直连模式重建防火墙，仅保留 ${exemptPortsLabel} 端口作为登录入口${whitelistDescription}。`;
+  }
+
+  return `已按子域模式重建防火墙，保留 ${exemptPortsLabel} 端口供网关与协议映射使用。`;
+}
+
+function buildUnsavedModeNotice() {
+  const currentMode = configStore.config?.run_type;
+  if (currentMode === undefined || currentMode === mode.value) return "";
+  return ` 当前保存的运行模式仍是${getRunModeLabel(currentMode)}，如需长期按${getRunModeLabel(mode.value)}生效，请点击“保存修改”。`;
 }
 
 function handleConfirmDialogOpenChange(nextOpen: boolean) {

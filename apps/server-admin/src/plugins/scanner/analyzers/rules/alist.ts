@@ -14,8 +14,8 @@ function hasListTitle(body?: string): boolean {
   if (!body) return false;
 
   const match = body.match(/<title[^>]*>(.*?)<\/title>/i);
-  const title = match?.[1]?.trim() ?? "";
-  return title.includes("List");
+  const title = match?.[1]?.trim().toLowerCase() ?? "";
+  return title.includes("list");
 }
 
 async function getPublicSettings(result: ScanResult): Promise<PublicSettingsResponse | null> {
@@ -68,7 +68,7 @@ export const xiaoyaRule: AnalyzerRule = {
   isDefault: false,
   match: async (result) => {
     const settings = await getPublicSettings(result);
-    return settings?.data?.site_title === "AList" && settings.data.version?.includes("小雅") === true;
+    return settings?.data?.site_title === "小雅的分类 Alist";
   },
 };
 
@@ -86,7 +86,7 @@ export const alistRule: AnalyzerRule = {
   isDefault: false,
   match: async (result) => {
     const settings = await getPublicSettings(result);
-    return settings?.data?.site_title === "AList" && !settings.data.version?.includes("小雅");
+    return settings?.data?.site_title === "Alist";
   },
 };
 

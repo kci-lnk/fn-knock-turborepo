@@ -10,6 +10,7 @@ import { webdavRule } from "./rules/webdav";
 import { xunleiRule } from "./rules/xunlei";
 import { miniDLNARule } from "./rules/minidlna";
 import { sunPanelRule } from "./rules/sun-panel";
+import { nowenRule } from "./rules/nowen";
 
 const rules: AnalyzerRule[] = [
   mongoExpressRule,
@@ -24,7 +25,8 @@ const rules: AnalyzerRule[] = [
   sunPanelRule,
   webdavRule,
   xunleiRule,
-  miniDLNARule
+  miniDLNARule,
+  nowenRule,
 ];
 
 function extractTitle(body?: string): string {

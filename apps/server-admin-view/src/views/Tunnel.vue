@@ -29,6 +29,10 @@ const { isPending: isLoading, run: runLoadConfig } = useAsyncAction({
   },
 });
 
+function resolveDefaultTunnel(value: string | null | undefined) {
+  return value && allowedTabs.has(value) ? value : "frp";
+}
+
 watch(
   () => configStore.config?.run_type,
   (runType) => {
@@ -36,6 +40,14 @@ watch(
       void router.replace({ path: "/system" });
     }
   },
+);
+
+watch(
+  () => configStore.config?.default_tunnel,
+  (value) => {
+    defaultTunnel.value = resolveDefaultTunnel(value);
+  },
+  { immediate: true },
 );
 
 const { currentTab, navigateTo, syncFromRoute } = useSyncedQueryTab({
@@ -56,9 +68,6 @@ async function loadConfig() {
       await router.replace({ path: "/system" });
       return;
     }
-    const rawDefault = config.default_tunnel || "frp";
-    const def = allowedTabs.has(rawDefault) ? rawDefault : "frp";
-    defaultTunnel.value = def;
   });
   if (route.path !== "/tunnel") {
     return;

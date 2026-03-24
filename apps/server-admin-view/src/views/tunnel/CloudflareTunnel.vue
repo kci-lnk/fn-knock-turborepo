@@ -15,6 +15,7 @@ import ConfigCollapsibleCard from '@admin-shared/components/ConfigCollapsibleCar
 import { extractErrorMessage, useAsyncAction } from '@admin-shared/composables/useAsyncAction'
 import { DEFAULT_LOG_WINDOW_SIZE, mergePollingLogWindow } from '@admin-shared/utils/log-window'
 import { useTargetPolling } from '../../composables/useTargetPolling'
+import { useConfigStore } from '../../store/config'
 
 type CloudflaredLogAnalysis = {
   reason: 'origin_tls_hostname_mismatch'
@@ -30,6 +31,7 @@ const ORIGIN_TLS_HOSTNAME_MISMATCH_REGEX =
 const DESTINATION_URL_REGEX = /\bdest=(https?:\/\/[^\s"]+)/i
 
 const router = useRouter()
+const configStore = useConfigStore()
 
 const isInit = ref<boolean>(false)
 const running = ref<boolean>(false)
@@ -181,6 +183,9 @@ async function startCloudflared(options?: { silent?: boolean }) {
         pid.value = res.pid
         running.value = true
         await ConfigAPI.updateDefaultTunnel('cloudflared')
+        if (configStore.config) {
+          configStore.config.default_tunnel = 'cloudflared'
+        }
         if (!options?.silent) toast.success('启动成功')
       },
       onError: (error) => {

@@ -14,8 +14,10 @@ import ConfigCollapsibleCard from '@admin-shared/components/ConfigCollapsibleCar
 import { extractErrorMessage, useAsyncAction } from '@admin-shared/composables/useAsyncAction'
 import { DEFAULT_LOG_WINDOW_SIZE, mergePollingLogWindow } from '@admin-shared/utils/log-window'
 import { useTargetPolling } from '../../composables/useTargetPolling'
+import { useConfigStore } from '../../store/config'
 
 const router = useRouter()
+const configStore = useConfigStore()
 
 const isInit = ref<boolean>(false)
 const running = ref<boolean>(false)
@@ -179,6 +181,9 @@ async function startFrpc(options?: { silent?: boolean }) {
           expireAt: Date.now() + START_ERROR_WATCH_MS,
         }
         await ConfigAPI.updateDefaultTunnel('frp')
+        if (configStore.config) {
+          configStore.config.default_tunnel = 'frp'
+        }
         if (!options?.silent) toast.success('启动成功')
       },
       onError: (error) => {

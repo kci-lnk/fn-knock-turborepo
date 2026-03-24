@@ -107,6 +107,13 @@ export interface GatewayLoggingConfig {
   logs_dir?: string;
 }
 
+export interface ReverseProxyThrottleConfig {
+  enabled: boolean;
+  requests_per_second: number;
+  burst: number;
+  block_seconds: number;
+}
+
 export interface GatewayLoggingDirectory {
   logs_dir: string;
 }
@@ -307,6 +314,24 @@ export class GoBackendService {
       "/api/config/proxy-protocol",
       "POST",
       { proxy_protocol_force } satisfies ProxyProtocolForceRequest,
+    );
+  }
+
+  async getReverseProxyThrottle(): Promise<
+    GoResponse<ReverseProxyThrottleConfig>
+  > {
+    return this.request<ReverseProxyThrottleConfig>(
+      "/api/config/reverse-proxy-throttle",
+    );
+  }
+
+  async setReverseProxyThrottle(
+    config: ReverseProxyThrottleConfig,
+  ): Promise<GoResponse<ReverseProxyThrottleConfig>> {
+    return this.request<ReverseProxyThrottleConfig>(
+      "/api/config/reverse-proxy-throttle",
+      "POST",
+      config,
     );
   }
 

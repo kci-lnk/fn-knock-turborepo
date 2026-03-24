@@ -352,6 +352,7 @@ export interface AppConfig {
   default_tunnel?: "frp" | "cloudflared";
   fnos_share_bypass?: FnosShareBypassConfig;
   gateway_logging?: GatewayLoggingConfig;
+  reverse_proxy_throttle?: ReverseProxyThrottleConfig;
   protocol_mapping_feature?: ProtocolMappingFeatureConfig;
   auth_credential_settings?: AuthCredentialSettings;
   terminal_feature?: TerminalFeatureConfig;
@@ -437,6 +438,13 @@ export type SessionRecord = LoginSession & {
 
 export type ProxyProtocolForce = {
   proxy_protocol_force: boolean;
+};
+
+export type ReverseProxyThrottleConfig = {
+  enabled: boolean;
+  requests_per_second: number;
+  burst: number;
+  block_seconds: number;
 };
 
 export type TrafficStats = {

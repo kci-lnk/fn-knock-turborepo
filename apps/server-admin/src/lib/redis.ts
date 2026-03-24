@@ -153,6 +153,13 @@ export interface GatewayLoggingSettings {
   max_days: number;
 }
 
+export interface ReverseProxyThrottleConfig {
+  enabled: boolean;
+  requests_per_second: number;
+  burst: number;
+  block_seconds: number;
+}
+
 export interface ProtocolMappingFeatureConfig {
   enabled: boolean;
 }
@@ -223,6 +230,7 @@ export interface AppConfig {
   default_tunnel?: "frp" | "cloudflared";
   fnos_share_bypass?: FnosShareBypassConfig;
   gateway_logging?: GatewayLoggingSettings;
+  reverse_proxy_throttle?: ReverseProxyThrottleConfig;
   auth_credential_settings?: AuthCredentialSettings;
   terminal_feature?: TerminalFeatureConfig;
 }
@@ -248,6 +256,14 @@ const DEFAULT_GATEWAY_LOGGING_SETTINGS: GatewayLoggingSettings = {
   enabled: false,
   max_days: 7,
 };
+
+export const DEFAULT_REVERSE_PROXY_THROTTLE_CONFIG: ReverseProxyThrottleConfig =
+  {
+    enabled: true,
+    requests_per_second: 20,
+    burst: 50,
+    block_seconds: 30,
+  };
 
 const DEFAULT_PROTOCOL_MAPPING_FEATURE_CONFIG: ProtocolMappingFeatureConfig = {
   enabled: false,
@@ -313,6 +329,9 @@ const DEFAULT_CONFIG: AppConfig = {
   gateway_logging: {
     ...DEFAULT_GATEWAY_LOGGING_SETTINGS,
   },
+  reverse_proxy_throttle: {
+    ...DEFAULT_REVERSE_PROXY_THROTTLE_CONFIG,
+  },
   auth_credential_settings: {
     ...DEFAULT_AUTH_CREDENTIAL_SETTINGS,
   },
@@ -346,6 +365,31 @@ const normalizeGatewayLoggingSettings = (
     max_days: normalizePositiveInt(
       raw.max_days,
       DEFAULT_GATEWAY_LOGGING_SETTINGS.max_days,
+    ),
+  };
+};
+
+const normalizeReverseProxyThrottleConfig = (
+  value?: Partial<ReverseProxyThrottleConfig> | null,
+): ReverseProxyThrottleConfig => {
+  const raw = value ?? {};
+
+  return {
+    enabled:
+      typeof raw.enabled === "boolean"
+        ? raw.enabled
+        : DEFAULT_REVERSE_PROXY_THROTTLE_CONFIG.enabled,
+    requests_per_second: normalizePositiveInt(
+      raw.requests_per_second,
+      DEFAULT_REVERSE_PROXY_THROTTLE_CONFIG.requests_per_second,
+    ),
+    burst: normalizePositiveInt(
+      raw.burst,
+      DEFAULT_REVERSE_PROXY_THROTTLE_CONFIG.burst,
+    ),
+    block_seconds: normalizePositiveInt(
+      raw.block_seconds,
+      DEFAULT_REVERSE_PROXY_THROTTLE_CONFIG.block_seconds,
     ),
   };
 };
@@ -801,6 +845,9 @@ export class ConfigManager {
         parsed.gateway_logging = normalizeGatewayLoggingSettings(
           parsed.gateway_logging,
         );
+        parsed.reverse_proxy_throttle = normalizeReverseProxyThrottleConfig(
+          parsed.reverse_proxy_throttle,
+        );
         parsed.auth_credential_settings = normalizeAuthCredentialSettings(
           parsed.auth_credential_settings,
         );
@@ -820,6 +867,7 @@ export class ConfigManager {
       ssl: normalizeSSLConfig(DEFAULT_CONFIG.ssl),
       fnos_share_bypass: { ...DEFAULT_FNOS_SHARE_BYPASS_CONFIG },
       gateway_logging: { ...DEFAULT_GATEWAY_LOGGING_SETTINGS },
+      reverse_proxy_throttle: { ...DEFAULT_REVERSE_PROXY_THROTTLE_CONFIG },
       auth_credential_settings: { ...DEFAULT_AUTH_CREDENTIAL_SETTINGS },
       terminal_feature: { ...DEFAULT_TERMINAL_FEATURE_CONFIG },
     };

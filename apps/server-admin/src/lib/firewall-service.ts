@@ -1,4 +1,8 @@
-import { configManager, type AppConfig } from "./redis";
+import {
+  configManager,
+  DEFAULT_REVERSE_PROXY_THROTTLE_CONFIG,
+  type AppConfig,
+} from "./redis";
 import { goBackend, type GoResponse } from "./go-backend";
 import { buildGatewayAuthConfig } from "./subdomain-mode";
 import { whitelistManager } from "./whitelist-manager";
@@ -102,6 +106,12 @@ export class FirewallService {
     await this.runGoBackend(
       goBackend.setAuthConfig(buildGatewayAuthConfig(config)),
       "同步鉴权网关配置失败",
+    );
+    await this.runGoBackend(
+      goBackend.setReverseProxyThrottle(
+        config.reverse_proxy_throttle ?? DEFAULT_REVERSE_PROXY_THROTTLE_CONFIG,
+      ),
+      "同步反代节流配置失败",
     );
 
     if (runType === 1) {

@@ -1128,7 +1128,7 @@ const startHttpPolling = async (attachment: TerminalAttachmentRecord) => {
     try {
       const result = await TerminalAPI.pollAttachment(attachment.id, {
         cursor: lastOutputCursor,
-        timeout_ms: 15_000,
+        timeout_ms: 4500,
       });
       if (
         generation !== pollGeneration ||

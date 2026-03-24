@@ -82,6 +82,8 @@ export interface SubdomainModeConfig {
   public_auth_base_url: string;
   public_http_port?: number;
   public_https_port?: number;
+  auth_cache_ttl_seconds: number;
+  auth_cache_unauthorized_ttl_seconds: number;
   default_access_mode: HostAccessMode;
   auto_add_whitelist_on_login: boolean;
   passkey_rp_mode: PasskeyRpMode;
@@ -285,6 +287,8 @@ const DEFAULT_CONFIG: AppConfig = {
     public_auth_base_url: "",
     public_http_port: 0,
     public_https_port: 0,
+    auth_cache_ttl_seconds: 1,
+    auth_cache_unauthorized_ttl_seconds: 1,
     default_access_mode: "login_first",
     auto_add_whitelist_on_login: true,
     passkey_rp_mode: "auth_host",
@@ -686,6 +690,14 @@ const normalizeSubdomainModeConfig = (
     if (!Number.isFinite(port) || port <= 0) return 0;
     return Math.floor(port);
   };
+  const normalizeCacheTTL = (input: unknown, fallback: number): number => {
+    const ttl =
+      typeof input === "number"
+        ? input
+        : Number.parseInt(String(input ?? ""), 10);
+    if (!Number.isFinite(ttl) || ttl < 0) return fallback;
+    return Math.floor(ttl);
+  };
 
   return {
     root_domain:
@@ -705,6 +717,14 @@ const normalizeSubdomainModeConfig = (
         : "",
     public_http_port: normalizePublicPort(raw.public_http_port),
     public_https_port: normalizePublicPort(raw.public_https_port),
+    auth_cache_ttl_seconds: normalizeCacheTTL(
+      raw.auth_cache_ttl_seconds,
+      DEFAULT_CONFIG.subdomain_mode.auth_cache_ttl_seconds,
+    ),
+    auth_cache_unauthorized_ttl_seconds: normalizeCacheTTL(
+      raw.auth_cache_unauthorized_ttl_seconds,
+      DEFAULT_CONFIG.subdomain_mode.auth_cache_unauthorized_ttl_seconds,
+    ),
     default_access_mode: normalizeHostAccessMode(raw.default_access_mode),
     auto_add_whitelist_on_login: raw.auto_add_whitelist_on_login !== false,
     passkey_rp_mode:

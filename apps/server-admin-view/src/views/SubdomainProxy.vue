@@ -817,6 +817,8 @@ const createDefaultModeForm = (): SubdomainModeConfig => ({
   auth_target: "http://localhost:7997",
   cookie_domain: "",
   public_auth_base_url: "",
+  auth_cache_ttl_seconds: 1,
+  auth_cache_unauthorized_ttl_seconds: 1,
   default_access_mode: "login_first",
   auto_add_whitelist_on_login: true,
   passkey_rp_mode: "auth_host",
@@ -1156,6 +1158,9 @@ const applyModeForm = (next: SubdomainModeConfig) => {
   modeForm.auth_target = next.auth_target;
   modeForm.cookie_domain = next.cookie_domain;
   modeForm.public_auth_base_url = next.public_auth_base_url;
+  modeForm.auth_cache_ttl_seconds = next.auth_cache_ttl_seconds;
+  modeForm.auth_cache_unauthorized_ttl_seconds =
+    next.auth_cache_unauthorized_ttl_seconds;
   modeForm.default_access_mode = next.default_access_mode;
   modeForm.auto_add_whitelist_on_login = next.auto_add_whitelist_on_login;
   modeForm.passkey_rp_mode = next.passkey_rp_mode;
@@ -1219,6 +1224,14 @@ async function saveMode() {
       auth_target: modeForm.auth_target.trim(),
       cookie_domain: modeForm.cookie_domain.trim(),
       public_auth_base_url: modeForm.public_auth_base_url.trim(),
+      auth_cache_ttl_seconds: Math.max(
+        0,
+        Math.floor(Number(modeForm.auth_cache_ttl_seconds) || 0),
+      ),
+      auth_cache_unauthorized_ttl_seconds: Math.max(
+        0,
+        Math.floor(Number(modeForm.auth_cache_unauthorized_ttl_seconds) || 0),
+      ),
       passkey_rp_id: (modeForm.passkey_rp_id || "").trim().toLowerCase(),
     });
     toast.success("子域模式配置已保存");

@@ -12,7 +12,8 @@ export interface AuthConfig {
   login_url?: string;
   logout_url?: string;
   preflight_url?: string;
-  auth_cache_expire?: number;
+  auth_cache_ttl_seconds?: number;
+  auth_cache_unauthorized_ttl_seconds?: number;
   public_auth_base_url?: string;
   public_http_port?: number;
   public_https_port?: number;

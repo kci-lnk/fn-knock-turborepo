@@ -638,6 +638,10 @@ export const buildGatewayAuthConfig = (
     login_url: "/#/login",
     logout_url: "/api/auth/logout",
     preflight_url: "/api/auth/preflight",
+    auth_cache_ttl_seconds:
+      config.subdomain_mode?.auth_cache_ttl_seconds ?? 1,
+    auth_cache_unauthorized_ttl_seconds:
+      config.subdomain_mode?.auth_cache_unauthorized_ttl_seconds ?? 1,
     public_auth_base_url: publicAuthBaseUrl || undefined,
     public_http_port: configuredPublicHttpPort,
     public_https_port: publicHttpsPort,

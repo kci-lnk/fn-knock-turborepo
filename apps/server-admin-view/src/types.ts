@@ -47,6 +47,8 @@ export interface SubdomainModeConfig {
   auth_target: string;
   cookie_domain: string;
   public_auth_base_url: string;
+  auth_cache_ttl_seconds: number;
+  auth_cache_unauthorized_ttl_seconds: number;
   default_access_mode: HostAccessMode;
   auto_add_whitelist_on_login: boolean;
   passkey_rp_mode: PasskeyRpMode;

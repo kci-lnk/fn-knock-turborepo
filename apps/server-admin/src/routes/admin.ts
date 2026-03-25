@@ -364,17 +364,27 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
   .post(
     "/config/run_type",
     async ({ body, set }) => {
-      const config = await configManager.getConfig();
+      const [config, previousProtocolMappingFeature] = await Promise.all([
+        configManager.getConfig(),
+        configManager.getProtocolMappingFeatureConfig(),
+      ]);
       const previousRunType = config.run_type;
-      await configManager.updateRunType(body.run_type);
-
       try {
+        await configManager.updateRunType(body.run_type);
+        if (body.run_type !== 3) {
+          await configManager.updateProtocolMappingFeatureConfig({
+            enabled: false,
+          });
+        }
         await firewallService.applyRunTypeConfig(
           body.run_type,
           previousRunType,
         );
       } catch (error: any) {
-        const rollbackError = await rollbackConfigAndRuntime(config);
+        const rollbackError = await rollbackProtocolMappingFeatureAndRuntime(
+          previousProtocolMappingFeature,
+          config,
+        );
         set.status = 502;
         return {
           success: false,
@@ -489,6 +499,13 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         configManager.getConfig(),
         configManager.getProtocolMappingFeatureConfig(),
       ]);
+      if (body.enabled === true && previousConfig.run_type !== 3) {
+        set.status = 400;
+        return {
+          success: false,
+          message: "协议映射仅可在子域模式下启用",
+        };
+      }
       try {
         const next =
           await configManager.updateProtocolMappingFeatureConfig(body);

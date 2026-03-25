@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import {
   Card,
   CardContent,
@@ -26,6 +26,11 @@ const settings = ref<ProtocolMappingFeatureConfig | null>(null);
 const form = reactive<ProtocolMappingFeatureConfig>({
   enabled: false,
 });
+const runTypeLabelMap = {
+  0: "直连模式",
+  1: "反代模式",
+  3: "子域模式",
+} as const;
 
 const { isPending: isLoading, run: runLoadSettings } = useAsyncAction({
   onError: (error) => {
@@ -42,15 +47,36 @@ const { isPending: isSaving, run: runSaveSettings } = useAsyncAction({
     });
   },
 });
+const isProtocolMappingAvailable = computed(
+  () => configStore.config?.run_type === 3,
+);
+const currentRunTypeLabel = computed(() => {
+  const runType = configStore.config?.run_type;
+  if (runType === 0 || runType === 1 || runType === 3) {
+    return runTypeLabelMap[runType];
+  }
+  return "当前模式";
+});
+const protocolMappingDisabledReason = computed(() => {
+  if (isProtocolMappingAvailable.value) return "";
+  return `仅子域模式可开启，当前为${currentRunTypeLabel.value}。`;
+});
 
 const isDirty = computed(() => {
   if (!settings.value) return false;
   return settings.value.enabled !== form.enabled;
 });
 
+const syncFormEnabledWithAvailability = () => {
+  if (!settings.value) return;
+  form.enabled = isProtocolMappingAvailable.value
+    ? settings.value.enabled
+    : false;
+};
+
 const applyFromSettings = (data: ProtocolMappingFeatureConfig) => {
   settings.value = data;
-  form.enabled = data.enabled;
+  syncFormEnabledWithAvailability();
 };
 
 const fetchSettings = async () => {
@@ -62,6 +88,11 @@ const fetchSettings = async () => {
 
 const resetForm = () => {
   if (settings.value) applyFromSettings(settings.value);
+};
+
+const toggleEnabled = () => {
+  if (!isProtocolMappingAvailable.value) return;
+  form.enabled = !form.enabled;
 };
 
 const saveSettings = async () => {
@@ -81,6 +112,13 @@ const saveSettings = async () => {
 };
 
 onMounted(fetchSettings);
+
+watch(
+  () => configStore.config?.run_type,
+  () => {
+    syncFormEnabledWithAvailability();
+  },
+);
 </script>
 
 <template>
@@ -105,17 +143,39 @@ onMounted(fetchSettings);
       <div class="flex items-center justify-between bg-muted/10 p-6">
         <div class="space-y-1 pr-6">
           <Label
-            class="cursor-pointer text-base font-medium"
-            @click="form.enabled = !form.enabled"
+            class="text-base font-medium"
+            :class="
+              isProtocolMappingAvailable
+                ? 'cursor-pointer'
+                : 'cursor-not-allowed text-zinc-500'
+            "
+            @click="toggleEnabled"
           >
             协议映射
           </Label>
-          <div class="text-sm text-muted-foreground">
+          <div
+            class="text-sm"
+            :class="
+              isProtocolMappingAvailable
+                ? 'text-muted-foreground'
+                : 'text-zinc-500'
+            "
+          >
             开启后，显示“协议映射”入口并启用 TCP/UDP
             转发
           </div>
+          <div
+            v-if="!isProtocolMappingAvailable"
+            class="text-xs leading-5 text-zinc-500"
+          >
+            {{ protocolMappingDisabledReason }}
+          </div>
         </div>
-        <Switch v-model="form.enabled" :disabled="isSaving" />
+        <Switch
+          :model-value="isProtocolMappingAvailable ? form.enabled : false"
+          :disabled="!isProtocolMappingAvailable || isSaving"
+          @update:model-value="form.enabled = $event === true"
+        />
       </div>
 
       <div class="flex items-center justify-end gap-3 p-6">

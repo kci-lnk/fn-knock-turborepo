@@ -265,6 +265,18 @@ export const DEFAULT_REVERSE_PROXY_THROTTLE_CONFIG: ReverseProxyThrottleConfig =
     block_seconds: 30,
   };
 
+const LEGACY_REVERSE_PROXY_THROTTLE_PATCH_FLAG_KEY =
+  "fn_knock:patch:reverse-proxy-throttle:v1";
+
+const LEGACY_REVERSE_PROXY_THROTTLE_CONFIG: Pick<
+  ReverseProxyThrottleConfig,
+  "requests_per_second" | "burst" | "block_seconds"
+> = {
+  requests_per_second: 20,
+  burst: 50,
+  block_seconds: 30,
+};
+
 const DEFAULT_PROTOCOL_MAPPING_FEATURE_CONFIG: ProtocolMappingFeatureConfig = {
   enabled: false,
 };
@@ -817,9 +829,62 @@ export class ConfigManager {
   private acmeClientSettingsKey = "fn_knock:acme:client-settings";
   private onboardingCompletedKey = "fn_knock:onboarding:completed";
   private runModePromptPreferencesKey = "fn_knock:run-mode:prompt-preferences";
+  private reverseProxyThrottlePatchFlagKey =
+    LEGACY_REVERSE_PROXY_THROTTLE_PATCH_FLAG_KEY;
 
   constructor() {
     this.redis = redis;
+  }
+
+  async applyLegacyReverseProxyThrottlePatchIfNeeded(): Promise<{
+    applied: boolean;
+    config: AppConfig;
+  }> {
+    const [config, patchFlag] = await Promise.all([
+      this.getConfig(),
+      this.redis.get(this.reverseProxyThrottlePatchFlagKey),
+    ]);
+
+    if (patchFlag === "1") {
+      return { applied: false, config };
+    }
+
+    const currentThrottle = normalizeReverseProxyThrottleConfig(
+      config.reverse_proxy_throttle,
+    );
+    const shouldPatch =
+      currentThrottle.requests_per_second ===
+        LEGACY_REVERSE_PROXY_THROTTLE_CONFIG.requests_per_second &&
+      currentThrottle.burst === LEGACY_REVERSE_PROXY_THROTTLE_CONFIG.burst &&
+      currentThrottle.block_seconds ===
+        LEGACY_REVERSE_PROXY_THROTTLE_CONFIG.block_seconds;
+
+    if (!shouldPatch) {
+      await this.redis.set(this.reverseProxyThrottlePatchFlagKey, "1");
+      return { applied: false, config };
+    }
+
+    const nextConfig: AppConfig = {
+      ...config,
+      reverse_proxy_throttle: {
+        ...currentThrottle,
+        requests_per_second:
+          DEFAULT_REVERSE_PROXY_THROTTLE_CONFIG.requests_per_second,
+        burst: DEFAULT_REVERSE_PROXY_THROTTLE_CONFIG.burst,
+        block_seconds: DEFAULT_REVERSE_PROXY_THROTTLE_CONFIG.block_seconds,
+      },
+    };
+
+    await this.redis
+      .multi()
+      .set(this.configKey, JSON.stringify(nextConfig))
+      .set(this.reverseProxyThrottlePatchFlagKey, "1")
+      .exec();
+
+    return {
+      applied: true,
+      config: nextConfig,
+    };
   }
 
   async getConfig(): Promise<AppConfig> {

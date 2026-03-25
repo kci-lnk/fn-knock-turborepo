@@ -357,7 +357,13 @@ authApp.get("*", ({ path }) => {
   return serveInjectedIndex(AUTH_STATIC_PATH);
 });
 
-const config = await configManager.getConfig();
+const { applied: reverseProxyThrottlePatchApplied, config } =
+  await configManager.applyLegacyReverseProxyThrottlePatchIfNeeded();
+if (reverseProxyThrottlePatchApplied) {
+  console.log(
+    "[gateway-throttle] applied legacy reverse proxy throttle patch (20/50/30 -> 100/200/30)",
+  );
+}
 await firewallService.applyRunTypeConfig(config.run_type);
 syncGatewayLoggingToGateway(config.gateway_logging).catch((error) => {
   console.error(

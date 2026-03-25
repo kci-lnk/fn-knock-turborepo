@@ -2,7 +2,7 @@
   <Card class="mb-6">
     <CardHeader>
       <CardTitle class="flex justify-between items-center">
-        <span>映射管理</span>
+        <span>路径映射</span>
         <div class="flex items-center gap-2">
           <DocsLinkButton :href="docsUrls.guides.reverseProxy" />
           <div class="flex">

@@ -307,7 +307,7 @@ const navItems = computed(() => {
     items.splice(1, 0, {
       name: isReverseProxySubdomainMode(configStore.config)
         ? "子域映射"
-        : "映射管理",
+        : "路径映射",
       path: isReverseProxySubdomainMode(configStore.config)
         ? "/subdomains"
         : "/proxy",

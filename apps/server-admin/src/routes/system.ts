@@ -1,17 +1,15 @@
 import { Elysia } from "elysia";
 import { frpManager } from "../lib/frp-manager";
 import { cloudflaredManager } from "../lib/cloudflared-manager";
+import { configManager } from "../lib/redis";
+import { resolveAccessEntryInfo } from "../lib/access-entry";
 
 export const systemRoutes = new Elysia({ prefix: "/api/admin/system" })
-    .get("/access-entry", () => {
-        const goReproxyPort = process.env.GO_REPROXY_PORT || "7999";
+    .get("/access-entry", async () => {
+        const config = await configManager.getConfig();
         return {
             success: true,
-            data: {
-                env: "GO_REPROXY_PORT",
-                port: goReproxyPort,
-                isDefault: !process.env.GO_REPROXY_PORT,
-            },
+            data: resolveAccessEntryInfo(config),
         };
     })
     .get("/cloudflared/status", () => {

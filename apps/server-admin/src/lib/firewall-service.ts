@@ -6,6 +6,9 @@ import {
 import { goBackend, type GoResponse } from "./go-backend";
 import { buildGatewayAuthConfig } from "./subdomain-mode";
 import { whitelistManager } from "./whitelist-manager";
+import { isReverseProxySubdomainMode } from "./reverse-proxy-submode";
+
+const DISABLED_DEFAULT_ROUTE = "/__select__";
 
 export class FirewallService {
   private readonly legacyRedirectedHttpPorts = [80, 443] as const;
@@ -239,11 +242,25 @@ export class FirewallService {
         "开启 Proxy Protocol 强制模式失败",
       );
       await this.runGoBackend(goBackend.cleanIptables(), "清理防火墙规则失败");
-      await this.runGoBackend(goBackend.flushHostRules(), "清空 Host 路由失败");
       await this.runGoBackend(
         goBackend.flushStreamRules(),
         "关闭 协议映射监听失败",
       );
+
+      if (isReverseProxySubdomainMode(config)) {
+        await this.runGoBackend(goBackend.flushRules(), "清空路径路由失败");
+        await this.runGoBackend(
+          goBackend.setHostRules(config.host_mappings),
+          "同步 Host 路由失败",
+        );
+        await this.runGoBackend(
+          goBackend.setDefaultRoute(DISABLED_DEFAULT_ROUTE),
+          "同步默认路由失败",
+        );
+        return;
+      }
+
+      await this.runGoBackend(goBackend.flushHostRules(), "清空 Host 路由失败");
       await this.runGoBackend(
         goBackend.setRules(config.proxy_mappings),
         "同步路径路由失败",

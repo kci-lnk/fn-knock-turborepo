@@ -8,6 +8,7 @@ export interface ProxyMapping {
 }
 
 export type RunType = 0 | 1 | 3;
+export type ReverseProxySubmode = "path" | "subdomain";
 
 export type HostAccessMode = "login_first" | "strict_whitelist";
 export type HostServiceRole = "app" | "auth";
@@ -347,6 +348,7 @@ export interface TerminalRuntimeStatus {
 
 export interface AppConfig {
   run_type: RunType;
+  reverse_proxy_submode: ReverseProxySubmode;
   whitelist_ips: string[];
   default_route: string;
   proxy_mappings: ProxyMapping[];

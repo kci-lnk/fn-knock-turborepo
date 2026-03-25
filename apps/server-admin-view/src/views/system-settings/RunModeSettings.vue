@@ -94,6 +94,42 @@
             没有公网IP，通过内网穿透转发请求。
           </p>
           <DocsLinkButton :href="docsUrls.runModes.reverse" @click.stop />
+          <div
+            v-if="mode === 1"
+            class="grid gap-3 pt-2 sm:grid-cols-2"
+            @click.stop
+          >
+            <button
+              type="button"
+              class="rounded-lg border px-3 py-3 text-left transition-colors"
+              :class="
+                reverseProxySubmode === 'path'
+                  ? 'border-zinc-900 bg-white shadow-sm'
+                  : 'border-zinc-200 bg-white/80 hover:border-zinc-400'
+              "
+              @click="reverseProxySubmode = 'path'"
+            >
+              <p class="text-sm font-medium text-zinc-900">路径映射</p>
+              <p class="mt-1 text-xs leading-5 text-muted-foreground">
+                继续使用当前路径映射入口，可搭配 FRP 或 Cloudflared。
+              </p>
+            </button>
+            <button
+              type="button"
+              class="rounded-lg border px-3 py-3 text-left transition-colors"
+              :class="
+                reverseProxySubmode === 'subdomain'
+                  ? 'border-zinc-900 bg-white shadow-sm'
+                  : 'border-zinc-200 bg-white/80 hover:border-zinc-400'
+              "
+              @click="reverseProxySubmode = 'subdomain'"
+            >
+              <p class="text-sm font-medium text-zinc-900">子域映射</p>
+              <p class="mt-1 text-xs leading-5 text-muted-foreground">
+                隐藏路径映射并展示子域映射，且该子模式仅支持 FRP。
+              </p>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -172,7 +208,7 @@
       <Button
         data-guide-run-mode-save
         @click="save"
-        :disabled="isBusy || configStore.config?.run_type === mode"
+        :disabled="isBusy || isModeUnchanged"
       >
         <span
           v-if="isSaving"
@@ -290,14 +326,24 @@ import {
   CloudflaredAPI,
   FrpcAPI,
   SystemAPI,
+  type AccessEntryInfo,
   type RunModePromptPreferences,
 } from "../../lib/api";
 import { docsUrls } from "../../lib/docs";
+import {
+  DEFAULT_REVERSE_PROXY_SUBMODE,
+  resolveReverseProxySubmode,
+} from "../../lib/reverse-proxy-submode";
+import type { ReverseProxySubmode } from "../../types";
 
 const configStore = useConfigStore();
 const DEFAULT_ROUTE_PLACEHOLDER = "/__select__";
 const mode = ref<0 | 1 | 3>(1);
+const reverseProxySubmode = ref<ReverseProxySubmode>(
+  DEFAULT_REVERSE_PROXY_SUBMODE,
+);
 const pendingMode = ref<0 | 1 | 3 | null>(null);
+const pendingSubmode = ref<ReverseProxySubmode | null>(null);
 const pendingPromptKey = ref<keyof RunModePromptPreferences | null>(null);
 const isConfirmDialogOpen = ref(false);
 const dontShowAgainChecked = ref(false);
@@ -307,7 +353,7 @@ const runModePromptPreferences = ref<RunModePromptPreferences>({
   switchToSubdomain: false,
   subdomainToReverseProxy: false,
 });
-const accessEntry = ref({
+const accessEntry = ref<AccessEntryInfo>({
   port: "7999",
   env: "GO_REPROXY_PORT" as const,
   isDefault: true,
@@ -328,10 +374,25 @@ const { isPending: isFirewallActionPending, run: runFirewallAction } =
     },
   });
 const isBusy = computed(() => isSaving.value || isFirewallActionPending.value);
+const savedReverseProxySubmode = computed(() =>
+  resolveReverseProxySubmode(configStore.config),
+);
+const isModeUnchanged = computed(() => {
+  const currentMode = configStore.config?.run_type;
+  if (currentMode === undefined) return true;
+  if (currentMode !== mode.value) return false;
+  if (mode.value !== 1) return true;
+  return savedReverseProxySubmode.value === reverseProxySubmode.value;
+});
+const selectedReverseProxySubmodeLabel = computed(() =>
+  reverseProxySubmode.value === "subdomain" ? "子域映射" : "路径映射",
+);
 
 const accessAlertTitle = computed(() => {
   if (mode.value === 0) return "直连模式访问说明";
-  if (mode.value === 1) return "反代模式访问说明";
+  if (mode.value === 1) {
+    return `反代模式 / ${selectedReverseProxySubmodeLabel.value}访问说明`;
+  }
   return "子域名模式访问说明";
 });
 
@@ -341,6 +402,9 @@ const accessAlertDescription = computed(() => {
     return `请让用户直接访问服务器的 ${port} 端口。`;
   }
   if (mode.value === 1) {
+    if (reverseProxySubmode.value === "subdomain") {
+      return `将 ${port} 端口通过 FRP 映射到外部入口，再通过不同子域名访问服务，网关会按 Host 转发到本地服务。`;
+    }
     return `将 ${port} 端口通过反向代理或内网穿透映射到外部入口，从对外域名或入口地址访问。`;
   }
   return `将根域名及其子域名统一解析到 ${port} 端口，由网关按 Host 将请求转发到本地服务。`;
@@ -363,16 +427,21 @@ const hasCustomDefaultRoute = computed(() => {
 onMounted(() => {
   if (configStore.config) {
     mode.value = configStore.config.run_type;
+    reverseProxySubmode.value = savedReverseProxySubmode.value;
   }
   loadAccessEntry();
   loadRunModePromptPreferences();
 });
 
 watch(
-  () => configStore.config?.run_type,
-  (newVal) => {
-    if (newVal !== undefined) {
-      mode.value = newVal;
+  () => ({
+    runType: configStore.config?.run_type,
+    submode: configStore.config?.reverse_proxy_submode,
+  }),
+  ({ runType: nextMode }) => {
+    if (nextMode !== undefined) {
+      mode.value = nextMode;
+      reverseProxySubmode.value = savedReverseProxySubmode.value;
     }
   },
 );
@@ -380,35 +449,49 @@ watch(
 function reset() {
   if (configStore.config) {
     mode.value = configStore.config.run_type;
+    reverseProxySubmode.value = savedReverseProxySubmode.value;
   }
 }
 
 async function save() {
   const currentMode = configStore.config?.run_type;
-  if (currentMode === undefined || currentMode === mode.value) return;
+  const currentSubmode = savedReverseProxySubmode.value;
+  if (
+    currentMode === undefined ||
+    (currentMode === mode.value &&
+      (mode.value !== 1 || currentSubmode === reverseProxySubmode.value))
+  ) {
+    return;
+  }
 
   const promptKey = getPromptPreferenceKey(currentMode, mode.value);
   if (promptKey && !runModePromptPreferences.value[promptKey]) {
     pendingMode.value = mode.value;
+    pendingSubmode.value = mode.value === 1 ? reverseProxySubmode.value : null;
     pendingPromptKey.value = promptKey;
     dontShowAgainChecked.value = false;
     isConfirmDialogOpen.value = true;
     return;
   }
 
-  await applyRunModeChange(mode.value);
+  await applyRunModeChange(
+    mode.value,
+    mode.value === 1 ? reverseProxySubmode.value : null,
+  );
 }
 
 async function confirmSave() {
   if (pendingMode.value === null) return;
   const nextMode = pendingMode.value;
+  const nextSubmode = pendingSubmode.value;
 
-  await applyRunModeChange(nextMode, {
+  await applyRunModeChange(nextMode, nextMode === 1 ? nextSubmode : null, {
     promptPreferenceKey: pendingPromptKey.value,
     disablePrompt: dontShowAgainChecked.value,
     onSuccess: () => {
       isConfirmDialogOpen.value = false;
       pendingMode.value = null;
+      pendingSubmode.value = null;
       pendingPromptKey.value = null;
       dontShowAgainChecked.value = false;
     },
@@ -435,6 +518,7 @@ async function loadRunModePromptPreferences() {
 
 async function applyRunModeChange(
   nextMode: 0 | 1 | 3,
+  nextSubmode: ReverseProxySubmode | null,
   options?: {
     promptPreferenceKey?: keyof RunModePromptPreferences | null;
     disablePrompt?: boolean;
@@ -442,11 +526,12 @@ async function applyRunModeChange(
   },
 ) {
   await runSaveMode(async () => {
-    const successDescription = buildRunModeChangeSuccessDescription(nextMode);
+    const successDescription = buildRunModeChangeSuccessDescription(
+      nextMode,
+      nextSubmode,
+    );
 
-    if (nextMode !== 1) {
-      await ensureTunnelsStoppedForTargetMode(nextMode);
-    }
+    await ensureTunnelsStoppedForTargetMode(nextMode, nextSubmode);
 
     if (options?.promptPreferenceKey && options.disablePrompt) {
       const nextPreferences = await SystemAPI.updateRunModePromptPreferences({
@@ -455,7 +540,7 @@ async function applyRunModeChange(
       runModePromptPreferences.value = nextPreferences;
     }
 
-    await configStore.setRunType(nextMode);
+    await configStore.setRunType(nextMode, nextSubmode ?? undefined);
     options?.onSuccess?.();
     toast.success("运行模式已更新", {
       description: successDescription,
@@ -467,7 +552,10 @@ async function resetFirewallBySelectedMode() {
   await runFirewallAction(async () => {
     const result = await SystemAPI.resetFirewallByRunType(mode.value);
     toast.success("防火墙已重设", {
-      description: `${buildFirewallResetSuccessDescription(result)}${buildUnsavedModeNotice()}`,
+      description: `${buildFirewallResetSuccessDescription(
+        result,
+        mode.value === 1 ? reverseProxySubmode.value : null,
+      )}${buildUnsavedModeNotice()}`,
     });
   });
 }
@@ -481,7 +569,10 @@ async function clearFirewallRules() {
   });
 }
 
-async function ensureTunnelsStoppedForTargetMode(nextMode: 0 | 1 | 3) {
+async function ensureTunnelsStoppedForTargetMode(
+  nextMode: 0 | 1 | 3,
+  nextSubmode: ReverseProxySubmode | null,
+) {
   const [frpcStatus, cloudflaredStatus] = await Promise.all([
     FrpcAPI.getStatus(),
     CloudflaredAPI.getStatus(),
@@ -507,29 +598,45 @@ async function ensureTunnelsStoppedForTargetMode(nextMode: 0 | 1 | 3) {
       stop: () => Promise<void>;
     } => item !== null,
   );
+  const tunnelsToStop =
+    nextMode === 1 && nextSubmode === "subdomain"
+      ? runningTunnels.filter((item) => item.key === "cloudflared")
+      : nextMode === 1
+        ? []
+        : runningTunnels;
 
-  if (runningTunnels.length === 0) return;
+  if (tunnelsToStop.length === 0) return;
 
-  await Promise.all(runningTunnels.map((item) => item.stop()));
+  await Promise.all(tunnelsToStop.map((item) => item.stop()));
   toast.success("已关闭隧道服务", {
-    description: `${runningTunnels.map((item) => item.label).join("、")} 已停止，正在切换到${getRunModeLabel(nextMode)}`,
+    description: `${tunnelsToStop.map((item) => item.label).join("、")} 已停止，正在切换到${getRunModeLabel(nextMode, nextSubmode ?? undefined)}`,
   });
 }
 
-function getRunModeLabel(targetMode: 0 | 1 | 3) {
+function getRunModeLabel(
+  targetMode: 0 | 1 | 3,
+  targetSubmode: ReverseProxySubmode = reverseProxySubmode.value,
+) {
   if (targetMode === 0) return "直连模式";
-  if (targetMode === 1) return "反代模式";
+  if (targetMode === 1) {
+    return `反代模式 / ${targetSubmode === "subdomain" ? "子域映射" : "路径映射"}`;
+  }
   return "子域模式";
 }
 
-function buildFirewallResetSuccessDescription(result: {
-  runType: 0 | 1 | 3;
-  gatewayPort: number;
-  exemptPorts: string[];
-  whitelistSynced: number;
-}) {
+function buildFirewallResetSuccessDescription(
+  result: {
+    runType: 0 | 1 | 3;
+    gatewayPort: number;
+    exemptPorts: string[];
+    whitelistSynced: number;
+  },
+  selectedSubmode: ReverseProxySubmode | null,
+) {
   if (result.runType === 1) {
-    return "已按反代模式清理 Linux 防火墙规则。";
+    return selectedSubmode === "subdomain"
+      ? "已按反代模式 / 子域映射清理 Linux 防火墙规则。"
+      : "已按反代模式 / 路径映射清理 Linux 防火墙规则。";
   }
 
   const exemptPortsLabel = result.exemptPorts.join("、");
@@ -547,14 +654,20 @@ function buildFirewallResetSuccessDescription(result: {
 
 function buildUnsavedModeNotice() {
   const currentMode = configStore.config?.run_type;
-  if (currentMode === undefined || currentMode === mode.value) return "";
-  return ` 当前保存的运行模式仍是${getRunModeLabel(currentMode)}，如需长期按${getRunModeLabel(mode.value)}生效，请点击“保存修改”。`;
+  const currentSubmode = savedReverseProxySubmode.value;
+  if (currentMode === undefined) return "";
+  const hasChanges =
+    currentMode !== mode.value ||
+    (mode.value === 1 && currentSubmode !== reverseProxySubmode.value);
+  if (!hasChanges) return "";
+  return ` 当前保存的运行模式仍是${getRunModeLabel(currentMode, currentSubmode)}，如需长期按${getRunModeLabel(mode.value, reverseProxySubmode.value)}生效，请点击“保存修改”。`;
 }
 
 function handleConfirmDialogOpenChange(nextOpen: boolean) {
   isConfirmDialogOpen.value = nextOpen;
   if (!nextOpen) {
     pendingMode.value = null;
+    pendingSubmode.value = null;
     pendingPromptKey.value = null;
     dontShowAgainChecked.value = false;
   }
@@ -571,7 +684,10 @@ function getPromptPreferenceKey(
   return null;
 }
 
-function buildRunModeChangeSuccessDescription(nextMode: 0 | 1 | 3) {
+function buildRunModeChangeSuccessDescription(
+  nextMode: 0 | 1 | 3,
+  nextSubmode: ReverseProxySubmode | null,
+) {
   if (nextMode === 3) {
     if (proxyMappingsCount.value > 0) {
       return `已清空 ${proxyMappingsCount.value} 条路径映射${hasCustomDefaultRoute.value ? "，并重置默认路径入口" : ""}。`;
@@ -580,19 +696,26 @@ function buildRunModeChangeSuccessDescription(nextMode: 0 | 1 | 3) {
   }
 
   if (nextMode === 1) {
-    const clearedItems: string[] = [];
+    if (nextSubmode === "subdomain") {
+      if (proxyMappingsCount.value > 0) {
+        return `已切换到反代模式 / 子域映射，现有 ${proxyMappingsCount.value} 条路径映射会保留，但入口已隐藏，且仅保留 FRP。`;
+      }
+      return "已切换到反代模式 / 子域映射，路径映射入口已隐藏，且仅保留 FRP。";
+    }
+
+    const preservedItems: string[] = [];
     if (hostMappingsCount.value > 0) {
-      clearedItems.push(`${hostMappingsCount.value} 条子域映射`);
+      preservedItems.push(`${hostMappingsCount.value} 条子域映射`);
     }
     if (streamMappingsCount.value > 0) {
-      clearedItems.push(`${streamMappingsCount.value} 条协议映射`);
+      preservedItems.push(`${streamMappingsCount.value} 条协议映射`);
     }
 
-    if (clearedItems.length > 0) {
-      return `已清空 ${clearedItems.join("、")}。`;
+    if (preservedItems.length > 0) {
+      return `已切换到反代模式 / 路径映射，现有 ${preservedItems.join("、")} 会保留，但当前子模式下不显示。`;
     }
 
-    return "已进入反代模式，子域映射与协议映射入口已停用。";
+    return "已切换到反代模式 / 路径映射，可继续使用 FRP 或 Cloudflared。";
   }
 
   return "入口规则已按目标模式重新生效。";
@@ -606,25 +729,34 @@ function buildSubdomainResetMessage() {
   return `将清空现有 ${proxyMappingsCount.value} 条“路径映射”${hasCustomDefaultRoute.value ? "，并重置默认路径入口" : ""}。`;
 }
 
-function buildReverseProxyResetMessage() {
-  const clearedItems: string[] = [];
+function buildReverseProxyCompatibilityMessage(
+  targetSubmode: ReverseProxySubmode,
+) {
+  if (targetSubmode === "subdomain") {
+    if (proxyMappingsCount.value === 0) {
+      return "路径映射入口会隐藏；当前没有需要额外说明的路径规则。";
+    }
+    return `现有 ${proxyMappingsCount.value} 条路径映射会继续保留，但在该子模式下不会显示。`;
+  }
 
+  const preservedItems: string[] = [];
   if (hostMappingsCount.value > 0) {
-    clearedItems.push(`${hostMappingsCount.value} 条子域映射`);
+    preservedItems.push(`${hostMappingsCount.value} 条子域映射`);
   }
   if (streamMappingsCount.value > 0) {
-    clearedItems.push(`${streamMappingsCount.value} 条协议映射`);
+    preservedItems.push(`${streamMappingsCount.value} 条协议映射`);
   }
 
-  if (clearedItems.length === 0) {
-    return "切换后将不再使用子域映射和协议映射，当前没有需要清理的历史规则。";
+  if (preservedItems.length === 0) {
+    return "子域映射入口会隐藏，但当前没有需要额外说明的历史配置。";
   }
 
-  return `将清空现有 ${clearedItems.join("、")}。`;
+  return `现有 ${preservedItems.join("、")} 会继续保留，但在该子模式下不会显示。`;
 }
 
 const confirmDialogContent = computed(() => {
   const port = accessEntry.value.port;
+  const targetSubmode = pendingSubmode.value ?? reverseProxySubmode.value;
 
   if (pendingPromptKey.value === "reverseProxyToDirect") {
     return {
@@ -645,14 +777,20 @@ const confirmDialogContent = computed(() => {
     pendingPromptKey.value === "subdomainToReverseProxy"
   ) {
     return {
-      title: "切换到反代模式",
+      title: `切换到${getRunModeLabel(1, targetSubmode)}`,
       description:
-        "请确认你已经理解反代模式会如何调整对外入口，以及切换时会清理子域相关配置。",
+        targetSubmode === "subdomain"
+          ? "请确认你已经理解这个反代子模式会改为按子域名转发，并且只支持 FRP。"
+          : "请确认你已经理解这个反代子模式会继续按路径访问，并且可以继续使用 FRP 或 Cloudflared。",
       items: [
-        buildReverseProxyResetMessage(),
+        buildReverseProxyCompatibilityMessage(targetSubmode),
         "会清空 Linux 自带的防火墙配置",
-        `所有的入口都在 ${port}，可内网穿透本地 ${port} 到外部任意端口，任何访问都需要先登录`,
-        "登录后通过路径来访问子服务；如需继续使用子域或协议转发，需要切回子域模式后重新配置",
+        targetSubmode === "subdomain"
+          ? `所有的入口都在 ${port}，通过 FRP 暴露到外部后，登录后按子域名访问不同服务`
+          : `所有的入口都在 ${port}，可内网穿透本地 ${port} 到外部任意端口，任何访问都需要先登录`,
+        targetSubmode === "subdomain"
+          ? "路径映射入口会隐藏，改为显示子域映射，且不会影响现有的 run_type=3"
+          : "登录后通过路径来访问子服务，FRP 与 Cloudflared 都可继续使用",
       ],
     };
   }
@@ -673,13 +811,17 @@ const confirmDialogContent = computed(() => {
   }
 
   return {
-    title: "切换到反代模式",
+    title: `切换到${getRunModeLabel(1, targetSubmode)}`,
     description: "请确认你已经理解反代模式会如何调整对外入口。",
     items: [
-      buildReverseProxyResetMessage(),
+      buildReverseProxyCompatibilityMessage(targetSubmode),
       "集中入口访问",
-      `所有的入口都在 ${port}，可内网穿透本地 ${port} 到外部任意端口，任何访问都需要先登录`,
-      "登录后通过路径来访问子服务",
+      targetSubmode === "subdomain"
+        ? `所有的入口都在 ${port}，通过 FRP 暴露到外部后，登录后按子域名访问不同服务`
+        : `所有的入口都在 ${port}，可内网穿透本地 ${port} 到外部任意端口，任何访问都需要先登录`,
+      targetSubmode === "subdomain"
+        ? "该子模式仅支持 FRP，并且完全不影响现有的子域模式"
+        : "登录后通过路径来访问子服务",
     ],
   };
 });

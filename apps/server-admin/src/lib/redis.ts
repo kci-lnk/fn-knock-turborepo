@@ -25,6 +25,11 @@ import {
   type TerminalFeatureConfig,
   normalizeTerminalFeatureConfig,
 } from "./terminal-shared";
+import {
+  DEFAULT_REVERSE_PROXY_SUBMODE,
+  normalizeReverseProxySubmode,
+  type ReverseProxySubmode,
+} from "./reverse-proxy-submode";
 
 const REDIS_CONFIG = {
   host: process.env.REDIS_HOST || "127.0.0.1",
@@ -220,6 +225,7 @@ export type LoginSession = {
 
 export interface AppConfig {
   run_type: RunType;
+  reverse_proxy_submode: ReverseProxySubmode;
   whitelist_ips: string[];
   proxy_mappings: ProxyMapping[];
   host_mappings: HostMapping[];
@@ -303,6 +309,7 @@ const DEFAULT_ROUTE_PLACEHOLDER = "/__select__";
 
 const DEFAULT_CONFIG: AppConfig = {
   run_type: 1,
+  reverse_proxy_submode: DEFAULT_REVERSE_PROXY_SUBMODE,
   whitelist_ips: [],
   proxy_mappings: [],
   host_mappings: [],
@@ -894,6 +901,9 @@ export class ConfigManager {
         // 处理已有数据缺少 default_route 的兼容情况
         const parsed = JSON.parse(data) as AppConfig;
         if (![0, 1, 3].includes(parsed.run_type)) parsed.run_type = 1;
+        parsed.reverse_proxy_submode = normalizeReverseProxySubmode(
+          parsed.reverse_proxy_submode,
+        );
         if (!parsed.default_route) parsed.default_route = "/__select__";
         if (!parsed.default_tunnel) parsed.default_tunnel = "frp";
         parsed.host_mappings = normalizeHostMappings(parsed.host_mappings);
@@ -1565,20 +1575,33 @@ export class ConfigManager {
     }
   }
 
-  async updateRunType(run_type: RunType): Promise<void> {
+  async updateRunType(
+    run_type: RunType,
+    reverse_proxy_submode?: ReverseProxySubmode,
+  ): Promise<void> {
     const config = await this.getConfig();
     config.run_type = run_type;
+    if (run_type === 1 && reverse_proxy_submode !== undefined) {
+      config.reverse_proxy_submode = normalizeReverseProxySubmode(
+        reverse_proxy_submode,
+      );
+    }
 
     if (run_type === 3) {
       config.proxy_mappings = [];
       config.default_route = DEFAULT_ROUTE_PLACEHOLDER;
     }
 
-    if (run_type === 1) {
-      config.host_mappings = [];
-      config.stream_mappings = [];
-    }
+    await this.saveConfig(config);
+  }
 
+  async updateReverseProxySubmode(
+    reverse_proxy_submode: ReverseProxySubmode,
+  ): Promise<void> {
+    const config = await this.getConfig();
+    config.reverse_proxy_submode = normalizeReverseProxySubmode(
+      reverse_proxy_submode,
+    );
     await this.saveConfig(config);
   }
 

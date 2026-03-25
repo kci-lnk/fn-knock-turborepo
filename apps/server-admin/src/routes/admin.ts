@@ -36,6 +36,11 @@ import {
 import { getGatewayLoggingConfigForResponse } from "../lib/gateway-logging";
 import { syncSSLDeploymentToGateway } from "../lib/ssl-gateway";
 import {
+  isAnySubdomainRoutingMode,
+  isReverseProxySubdomainMode,
+} from "../lib/reverse-proxy-submode";
+import { resolveAccessEntryInfo } from "../lib/access-entry";
+import {
   MaintenanceBackupError,
   maintenanceBackupService,
 } from "../lib/maintenance-backup";
@@ -370,7 +375,10 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       ]);
       const previousRunType = config.run_type;
       try {
-        await configManager.updateRunType(body.run_type);
+        await configManager.updateRunType(
+          body.run_type,
+          body.reverse_proxy_submode,
+        );
         if (body.run_type !== 3) {
           await configManager.updateProtocolMappingFeatureConfig({
             enabled: false,
@@ -399,6 +407,9 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
     {
       body: t.Object({
         run_type: t.Union([t.Literal(0), t.Literal(1), t.Literal(3)]),
+        reverse_proxy_submode: t.Optional(
+          t.Union([t.Literal("path"), t.Literal("subdomain")]),
+        ),
       }),
     },
   )
@@ -867,7 +878,7 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
     const document = buildHostMappingsBookmarksDocument({
       mappings: config.host_mappings,
       scheme: resolveRequestScheme(request),
-      accessEntryPort: process.env.GO_REPROXY_PORT || "7999",
+      accessEntryPort: resolveAccessEntryInfo(config).port,
       folderTitle: config.subdomain_mode?.root_domain?.trim()
         ? `${config.subdomain_mode.root_domain.trim()} 子域映射`
         : "fn-knock 子域映射",
@@ -1188,9 +1199,12 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       }
 
       const syncedRules =
-        config.run_type === 1 ? config.proxy_mappings.length : 0;
-      const syncedHostRules =
-        config.run_type === 3 ? config.host_mappings.length : 0;
+        config.run_type === 1 && !isReverseProxySubdomainMode(config)
+          ? config.proxy_mappings.length
+          : 0;
+      const syncedHostRules = isAnySubdomainRoutingMode(config)
+        ? config.host_mappings.length
+        : 0;
       const syncedStreamRules =
         config.run_type === 3 && protocolMappingFeature.enabled === true
           ? config.stream_mappings.length

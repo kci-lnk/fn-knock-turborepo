@@ -5,6 +5,7 @@ import type {
   PasskeyCredential,
   ProxyMapping,
   ProxyProtocolForce,
+  ReverseProxySubmode,
   RunType,
   StreamMapping,
   SessionMobilityDetails,
@@ -100,8 +101,11 @@ export const ConfigAPI = {
     const res = await apiClient.get("/config");
     return res.data.data;
   },
-  async updateRunType(run_type: RunType): Promise<void> {
-    await apiClient.post("/config/run_type", { run_type });
+  async updateRunType(payload: {
+    run_type: RunType;
+    reverse_proxy_submode?: ReverseProxySubmode;
+  }): Promise<void> {
+    await apiClient.post("/config/run_type", payload);
   },
   async getTerminalFeature(): Promise<TerminalFeatureConfig> {
     const res = await apiClient.get("/config/terminal_feature");
@@ -574,7 +578,7 @@ export type ScannerBlacklistList = {
 };
 
 export type AccessEntryInfo = {
-  env: "GO_REPROXY_PORT";
+  env: "GO_REPROXY_PORT" | "FRP_REMOTE_PORT";
   port: string;
   isDefault: boolean;
 };

@@ -950,8 +950,14 @@ const composedPreviewHost = computed(() => {
 const displayAccessEntryPort = computed(
   () => accessEntryPort.value.trim() || "7999",
 );
+const shouldOmitAccessEntryPort = computed(() => {
+  const parsedPort = Number.parseInt(displayAccessEntryPort.value, 10);
+  return parsedPort === 80 || parsedPort === 443;
+});
 const formatHostWithAccessEntryPort = (host: string): string =>
-  `${host}:${displayAccessEntryPort.value}`;
+  shouldOmitAccessEntryPort.value
+    ? host
+    : `${host}:${displayAccessEntryPort.value}`;
 const buildBookmarkExportFilename = (rootDomain: string): string => {
   const normalizedRootDomain = rootDomain
     .trim()

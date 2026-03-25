@@ -43,6 +43,7 @@ import { useDnsCredentialTransfer } from "@/composables/useDnsCredentialTransfer
 import { useTargetPolling } from "../composables/useTargetPolling";
 import type { DDNSNetworkInterfacePayload } from "../lib/api";
 import { useConfigStore } from "../store/config";
+import { isAnySubdomainRoutingMode } from "../lib/reverse-proxy-submode";
 import { docsUrls } from "../lib/docs";
 
 interface ProviderField {
@@ -359,7 +360,9 @@ const isEnabledSwitchDisabled = computed(
 const isProviderSelectDisabled = computed(
   () => isSwitchingProvider.value || isLoading.value,
 );
-const isSubdomainMode = computed(() => configStore.config?.run_type === 3);
+const isSubdomainMode = computed(() =>
+  isAnySubdomainRoutingMode(configStore.config),
+);
 
 const getFieldDescription = (field: ProviderField) => {
   const description = field.description?.trim() || "";
@@ -518,7 +521,9 @@ function applyCredentialTransfer() {
     enableFieldEditing(key);
   }
 
-  toast.success(`已从 ${transferSourceScopeLabel.value} 填充 ${result.count} 个字段`);
+  toast.success(
+    `已从 ${transferSourceScopeLabel.value} 填充 ${result.count} 个字段`,
+  );
 }
 
 async function onTest() {
@@ -978,9 +983,7 @@ onUnmounted(() => {
                     )
                   "
                   :loading="isTransferSourceLoading"
-                  :source-label="
-                    `${transferSourceScopeLabel} · ${credentialTransferSuggestion.bridgeLabel}`
-                  "
+                  :source-label="`${transferSourceScopeLabel} · ${credentialTransferSuggestion.bridgeLabel}`"
                   @apply="applyCredentialTransfer"
                 />
 

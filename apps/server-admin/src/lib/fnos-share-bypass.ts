@@ -1,8 +1,18 @@
 import { randomBytes } from "node:crypto";
 import { setTimeout as sleep } from "node:timers/promises";
 import { isAuthServiceMapping, parseTargetPort } from "./auth-service";
-import { buildFnosShareSessionClearCookie, buildFnosShareSessionCookie, FNOS_SHARE_SESSION_COOKIE_NAME } from "./session-cookie";
-import { configManager, redis, type AppConfig, type FnosShareBypassConfig } from "./redis";
+import {
+  buildFnosShareSessionClearCookie,
+  buildFnosShareSessionCookie,
+  FNOS_SHARE_SESSION_COOKIE_NAME,
+} from "./session-cookie";
+import {
+  configManager,
+  redis,
+  type AppConfig,
+  type FnosShareBypassConfig,
+} from "./redis";
+import { isAnySubdomainRoutingMode } from "./reverse-proxy-submode";
 
 type ShareValidationCacheRecord = {
   version: 1;
@@ -80,7 +90,9 @@ const parseRequestUrl = (rawPath: string | null): URL | null => {
   }
 };
 
-const extractShareEntry = (requestUrl: URL): { shareId: string; cleanPath: string; isClean: boolean } | null => {
+const extractShareEntry = (
+  requestUrl: URL,
+): { shareId: string; cleanPath: string; isClean: boolean } | null => {
   const match = requestUrl.pathname.match(SHARE_ENTRY_REGEX);
   if (!match?.[1]) return null;
 
@@ -105,8 +117,10 @@ const isSessionResourcePath = (
   const thumbPath = `/s/thumb/${shareId}`;
   if (pathname.startsWith(`${cleanPath}/`)) return true;
   if (pathname.startsWith("/s/static/")) return true;
-  if (pathname === previewPath || pathname.startsWith(`${previewPath}/`)) return true;
-  if (pathname === thumbPath || pathname.startsWith(`${thumbPath}/`)) return true;
+  if (pathname === previewPath || pathname.startsWith(`${previewPath}/`))
+    return true;
+  if (pathname === thumbPath || pathname.startsWith(`${thumbPath}/`))
+    return true;
   return false;
 };
 
@@ -137,7 +151,8 @@ const normalizeShareValidation = (
         : "invalid",
   shareId: value.shareId,
   cleanPath: value.cleanPath,
-  token: typeof value.token === "string" && value.token.trim() ? value.token : null,
+  token:
+    typeof value.token === "string" && value.token.trim() ? value.token : null,
   name: typeof value.name === "string" && value.name.trim() ? value.name : null,
   type: typeof value.type === "number" ? value.type : null,
   checkedAt: value.checkedAt,
@@ -177,14 +192,21 @@ const scoreFnosHostMapping = (
 class FnosShareBypassService {
   private async getConfig(): Promise<ResolvedFnosShareBypassConfig> {
     const appConfig = await configManager.getConfig();
-    const defaultRoute = appConfig.default_route || null;
-    const matchedMapping = appConfig.proxy_mappings.find(
-      (item) => item.path === defaultRoute,
-    );
     const fallbackHostMapping = this.resolveFnosHostMapping(appConfig);
-    const matchedTarget = matchedMapping?.target || fallbackHostMapping?.target || null;
+    const isSubdomainRouting = isAnySubdomainRoutingMode(appConfig);
+    const defaultRoute = isSubdomainRouting
+      ? null
+      : appConfig.default_route || null;
+    const matchedMapping = defaultRoute
+      ? appConfig.proxy_mappings.find((item) => item.path === defaultRoute)
+      : null;
+    const matchedTarget = isSubdomainRouting
+      ? fallbackHostMapping?.target || null
+      : matchedMapping?.target || fallbackHostMapping?.target || null;
     return {
-      policy: appConfig.fnos_share_bypass ?? (await configManager.getFnosShareBypassConfig()),
+      policy:
+        appConfig.fnos_share_bypass ??
+        (await configManager.getFnosShareBypassConfig()),
       upstreamBaseUrl: this.resolveUpstreamBaseUrl(appConfig),
       defaultRoute,
       matchedTarget,
@@ -192,12 +214,16 @@ class FnosShareBypassService {
   }
 
   private resolveUpstreamBaseUrl(appConfig: AppConfig): URL | null {
-    const defaultRoute = appConfig.default_route;
-    if (defaultRoute && defaultRoute !== "/__select__") {
-      const mapping = appConfig.proxy_mappings.find((item) => item.path === defaultRoute);
-      if (mapping?.target) {
-        const upstream = toUpstreamOrigin(mapping.target);
-        if (upstream) return upstream;
+    if (!isAnySubdomainRoutingMode(appConfig)) {
+      const defaultRoute = appConfig.default_route;
+      if (defaultRoute && defaultRoute !== "/__select__") {
+        const mapping = appConfig.proxy_mappings.find(
+          (item) => item.path === defaultRoute,
+        );
+        if (mapping?.target) {
+          const upstream = toUpstreamOrigin(mapping.target);
+          if (upstream) return upstream;
+        }
       }
     }
 
@@ -220,7 +246,9 @@ class FnosShareBypassService {
     return candidates[0]?.mapping ?? null;
   }
 
-  async resolvePreflight(request: Request): Promise<FnosSharePreflightDecision> {
+  async resolvePreflight(
+    request: Request,
+  ): Promise<FnosSharePreflightDecision> {
     const config = await this.getConfig();
     if (!config.policy.enabled) {
       return { handled: false };
@@ -233,7 +261,10 @@ class FnosShareBypassService {
 
     const shareEntry = extractShareEntry(requestUrl);
     if (shareEntry) {
-      const validation = await this.validateShareLink(shareEntry.shareId, config);
+      const validation = await this.validateShareLink(
+        shareEntry.shareId,
+        config,
+      );
       if (!validation.valid) {
         return {
           handled: true,
@@ -289,14 +320,20 @@ class FnosShareBypassService {
     }
 
     const cookieHeader = request.headers.get("cookie") || "";
-    const shareSessionId = parseCookie(cookieHeader, FNOS_SHARE_SESSION_COOKIE_NAME);
+    const shareSessionId = parseCookie(
+      cookieHeader,
+      FNOS_SHARE_SESSION_COOKIE_NAME,
+    );
     const currentSession = shareSessionId
       ? await this.getShareSession(shareSessionId)
       : null;
 
     const shareEntry = extractShareEntry(requestUrl);
     if (shareEntry) {
-      const validation = await this.validateShareLink(shareEntry.shareId, config);
+      const validation = await this.validateShareLink(
+        shareEntry.shareId,
+        config,
+      );
       if (!validation.valid) {
         return shareSessionId
           ? {
@@ -319,7 +356,10 @@ class FnosShareBypassService {
         return {
           authorized: true,
           setCookies: [
-            buildFnosShareSessionCookie(shareSessionId!, config.policy.session_ttl_seconds),
+            buildFnosShareSessionCookie(
+              shareSessionId!,
+              config.policy.session_ttl_seconds,
+            ),
           ],
           responseHeaders: {
             "X-Reauth-Access-Mode": "fnos-share",
@@ -338,11 +378,20 @@ class FnosShareBypassService {
         issuedAt: new Date().toISOString(),
         lastSeenAt: new Date().toISOString(),
       };
-      await this.saveShareSession(sessionId, session, config.policy.session_ttl_seconds);
+      await this.saveShareSession(
+        sessionId,
+        session,
+        config.policy.session_ttl_seconds,
+      );
 
       return {
         authorized: true,
-        setCookies: [buildFnosShareSessionCookie(sessionId, config.policy.session_ttl_seconds)],
+        setCookies: [
+          buildFnosShareSessionCookie(
+            sessionId,
+            config.policy.session_ttl_seconds,
+          ),
+        ],
         responseHeaders: {
           "X-Reauth-Access-Mode": "fnos-share",
         },
@@ -385,7 +434,10 @@ class FnosShareBypassService {
     return {
       authorized: true,
       setCookies: [
-        buildFnosShareSessionCookie(shareSessionId!, config.policy.session_ttl_seconds),
+        buildFnosShareSessionCookie(
+          shareSessionId!,
+          config.policy.session_ttl_seconds,
+        ),
       ],
       responseHeaders: {
         "X-Reauth-Access-Mode": "fnos-share",
@@ -424,7 +476,11 @@ class FnosShareBypassService {
       if (waited) return waited;
       const fallback = await this.fetchValidation(shareId, config);
       if (fallback.cacheable) {
-        await this.cacheValidation(cacheKey, fallback.data, config.policy.validation_cache_ttl_seconds);
+        await this.cacheValidation(
+          cacheKey,
+          fallback.data,
+          config.policy.validation_cache_ttl_seconds,
+        );
       }
       return fallback.data;
     }
@@ -432,7 +488,11 @@ class FnosShareBypassService {
     try {
       const fresh = await this.fetchValidation(shareId, config);
       if (fresh.cacheable) {
-        await this.cacheValidation(cacheKey, fresh.data, config.policy.validation_cache_ttl_seconds);
+        await this.cacheValidation(
+          cacheKey,
+          fresh.data,
+          config.policy.validation_cache_ttl_seconds,
+        );
       }
       return fresh.data;
     } finally {
@@ -462,7 +522,10 @@ class FnosShareBypassService {
     }
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), config.policy.upstream_timeout_ms);
+    const timer = setTimeout(
+      () => controller.abort(),
+      config.policy.upstream_timeout_ms,
+    );
 
     try {
       const targetUrl = new URL(cleanPath, config.upstreamBaseUrl);
@@ -579,7 +642,9 @@ class FnosShareBypassService {
     );
   }
 
-  private async getShareSession(sessionId: string): Promise<ShareSessionRecord | null> {
+  private async getShareSession(
+    sessionId: string,
+  ): Promise<ShareSessionRecord | null> {
     const raw = await redis.get(toSessionKey(sessionId));
     if (!raw) return null;
 
@@ -589,8 +654,14 @@ class FnosShareBypassService {
         version: 1,
         shareId: parsed.shareId,
         cleanPath: parsed.cleanPath,
-        token: typeof parsed.token === "string" && parsed.token.trim() ? parsed.token : null,
-        name: typeof parsed.name === "string" && parsed.name.trim() ? parsed.name : null,
+        token:
+          typeof parsed.token === "string" && parsed.token.trim()
+            ? parsed.token
+            : null,
+        name:
+          typeof parsed.name === "string" && parsed.name.trim()
+            ? parsed.name
+            : null,
         type: typeof parsed.type === "number" ? parsed.type : null,
         issuedAt: parsed.issuedAt,
         lastSeenAt: parsed.lastSeenAt,
@@ -609,7 +680,12 @@ class FnosShareBypassService {
       ...session,
       lastSeenAt: new Date().toISOString(),
     };
-    await redis.set(toSessionKey(sessionId), JSON.stringify(nextSession), "EX", ttlSeconds);
+    await redis.set(
+      toSessionKey(sessionId),
+      JSON.stringify(nextSession),
+      "EX",
+      ttlSeconds,
+    );
   }
 }
 

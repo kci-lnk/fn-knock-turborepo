@@ -11,6 +11,7 @@ import {
   SecurityAPI,
 } from "../lib/api";
 import type { DashboardStats, TrafficStats, ThreatOverview } from "../types";
+import { isCloudflaredTunnelAvailable } from "../lib/reverse-proxy-submode";
 import {
   Card,
   CardContent,
@@ -47,9 +48,15 @@ import { use } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 import { LineChart } from "echarts/charts";
 import { GridComponent, TooltipComponent } from "echarts/components";
-import { LegendComponent } from 'echarts/components';
+import { LegendComponent } from "echarts/components";
 
-use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, LegendComponent]);
+use([
+  CanvasRenderer,
+  LineChart,
+  GridComponent,
+  TooltipComponent,
+  LegendComponent,
+]);
 
 const ranges = [
   { key: "15m", label: "15分钟", sec: 15 * 60 },
@@ -99,7 +106,7 @@ const isTunnelLoading = computed(
 const ddnsStatus = ref<{
   enabled: boolean;
   provider: string | null;
-  updateScope: 'dual_stack' | 'ipv6_only' | 'ipv4_only';
+  updateScope: "dual_stack" | "ipv6_only" | "ipv4_only";
   lastIP: {
     ipv4: string | null;
     ipv6: string | null;
@@ -107,7 +114,7 @@ const ddnsStatus = ref<{
   };
   lastCheck: {
     checked_at: string | null;
-    outcome: 'updated' | 'noop' | 'skipped' | 'error' | null;
+    outcome: "updated" | "noop" | "skipped" | "error" | null;
     message: string | null;
   };
 } | null>(null);
@@ -121,6 +128,9 @@ const showDdnsSkeleton = useDelayedLoading(() => isDdnsLoading.value);
 const showTunnelSkeleton = useDelayedLoading(() => isTunnelLoading.value);
 const ddnsError = ref("");
 const showTunnelSection = computed(() => configStore.config?.run_type === 1);
+const showCloudflaredTunnel = computed(() =>
+  isCloudflaredTunnelAvailable(configStore.config),
+);
 const ddnsUpdateScopeLabels = {
   dual_stack: "IPv4 & IPv6",
   ipv6_only: "仅更新 IPv6",
@@ -157,7 +167,13 @@ const loadTunnelStatus = async () => {
             pid: cf.pid,
             initialized: cf.initialized,
           };
-        if (config) defaultTunnel.value = config.default_tunnel || "frp";
+        if (config) {
+          defaultTunnel.value =
+            config.default_tunnel === "cloudflared" &&
+            !isCloudflaredTunnelAvailable(config)
+              ? "frp"
+              : config.default_tunnel || "frp";
+        }
       },
       onFinally: () => {
         isTunnelInitializing.value = false;
@@ -564,7 +580,9 @@ const ddnsCards = computed(() => [
   },
   {
     label: "更新范围",
-    value: ddnsStatus.value ? ddnsUpdateScopeLabels[ddnsStatus.value.updateScope] : "IPv4 & IPv6",
+    value: ddnsStatus.value
+      ? ddnsUpdateScopeLabels[ddnsStatus.value.updateScope]
+      : "IPv4 & IPv6",
     hint: "当前生效策略",
     icon: Network,
   },
@@ -592,30 +610,48 @@ const tunnelCards = computed(() => [
     status: frpStatus.value,
     isDefault: defaultTunnel.value === "frp",
   },
-  {
-    key: "cloudflared" as const,
-    label: "Cloudflared",
-    status: cfStatus.value,
-    isDefault: defaultTunnel.value === "cloudflared",
-  },
+  ...(showCloudflaredTunnel.value
+    ? [
+        {
+          key: "cloudflared" as const,
+          label: "Cloudflared",
+          status: cfStatus.value,
+          isDefault: defaultTunnel.value === "cloudflared",
+        },
+      ]
+    : []),
 ]);
 </script>
 
 <template>
   <div class="h-full flex flex-col gap-6">
-    <section class="flex flex-col xl:flex-row xl:items-baseline xl:justify-between gap-6" data-guide-onboarding-done>
+    <section
+      class="flex flex-col xl:flex-row xl:items-baseline xl:justify-between gap-6"
+      data-guide-onboarding-done
+    >
       <div class="space-y-2 min-w-0">
-        <div class="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">
+        <div
+          class="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground"
+        >
           <span>范围: {{ titleRangeText }}</span>
           <span class="text-border">|</span>
-          <span class="font-medium text-foreground">在线: {{ formatNumber(onlineNow ? onlineNow : 0) }}</span>
+          <span class="font-medium text-foreground"
+            >在线: {{ formatNumber(onlineNow ? onlineNow : 0) }}</span
+          >
         </div>
       </div>
 
-      <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+      <div
+        class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3"
+      >
         <Tabs v-model="rangeKey" class="w-full sm:w-auto">
           <TabsList class="grid w-full grid-cols-5 sm:w-auto">
-            <TabsTrigger v-for="r in ranges" :key="r.key" :value="r.key" class="px-3 text-xs sm:text-sm">
+            <TabsTrigger
+              v-for="r in ranges"
+              :key="r.key"
+              :value="r.key"
+              class="px-3 text-xs sm:text-sm"
+            >
               {{ r.label }}
             </TabsTrigger>
           </TabsList>
@@ -624,7 +660,11 @@ const tunnelCards = computed(() => [
     </section>
 
     <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <div v-for="item in liveMetricCards" :key="item.label" class="rounded-xl border bg-card p-5 shadow-none">
+      <div
+        v-for="item in liveMetricCards"
+        :key="item.label"
+        class="rounded-xl border bg-card p-5 shadow-none"
+      >
         <div class="flex items-start justify-between gap-3">
           <div>
             <div class="text-sm font-medium text-muted-foreground">
@@ -634,7 +674,11 @@ const tunnelCards = computed(() => [
               {{ item.value }}
             </div>
           </div>
-          <component :is="item.icon" class="h-4 w-4" :style="{ color: item.iconTone.color }" />
+          <component
+            :is="item.icon"
+            class="h-4 w-4"
+            :style="{ color: item.iconTone.color }"
+          />
         </div>
         <div class="mt-3 text-xs text-muted-foreground">{{ item.hint }}</div>
       </div>
@@ -647,7 +691,9 @@ const tunnelCards = computed(() => [
     </Alert>
 
     <div class="space-y-4">
-      <div class="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,24rem),1fr))]">
+      <div
+        class="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,24rem),1fr))]"
+      >
         <Card class="border bg-card shadow-none rounded-xl">
           <CardHeader class="pb-3">
             <div class="flex items-start justify-between gap-3">
@@ -667,8 +713,14 @@ const tunnelCards = computed(() => [
             </div>
             <div v-else-if="!isInitializing" class="space-y-4">
               <div class="grid gap-3 sm:grid-cols-2">
-                <div v-for="item in securityCards" :key="item.label" class="rounded-xl border bg-muted/20 px-4 py-3">
-                  <div class="flex items-center justify-between gap-3 text-sm font-medium text-muted-foreground">
+                <div
+                  v-for="item in securityCards"
+                  :key="item.label"
+                  class="rounded-xl border bg-muted/20 px-4 py-3"
+                >
+                  <div
+                    class="flex items-center justify-between gap-3 text-sm font-medium text-muted-foreground"
+                  >
                     {{ item.label }}
                     <component :is="item.icon" class="h-4 w-4" />
                   </div>
@@ -678,7 +730,11 @@ const tunnelCards = computed(() => [
                 </div>
               </div>
               <div class="h-[180px] w-full">
-                <VChart :option="threatOption" autoresize class="h-full w-full" />
+                <VChart
+                  :option="threatOption"
+                  autoresize
+                  class="h-full w-full"
+                />
               </div>
             </div>
             <div v-else class="h-[310px]" aria-hidden="true"></div>
@@ -689,8 +745,12 @@ const tunnelCards = computed(() => [
           <CardHeader class="pb-3">
             <div class="flex items-start justify-between">
               <div>
-                <CardTitle class="text-lg">{{ entryStatusCardTitle }}</CardTitle>
-                <CardDescription class="mt-1">{{ entryStatusCardDescription }}</CardDescription>
+                <CardTitle class="text-lg">{{
+                  entryStatusCardTitle
+                }}</CardTitle>
+                <CardDescription class="mt-1">{{
+                  entryStatusCardDescription
+                }}</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -699,24 +759,50 @@ const tunnelCards = computed(() => [
               <div class="mb-3 flex items-center justify-between">
                 <div class="flex items-center gap-2">
                   <div class="text-sm font-medium">DDNS 状态</div>
-                  <LiveStatusBadge :active="ddnsState.active" :active-label="ddnsState.label"
-                    :inactive-label="ddnsState.label" class="mt-px" />
+                  <LiveStatusBadge
+                    :active="ddnsState.active"
+                    :active-label="ddnsState.label"
+                    :inactive-label="ddnsState.label"
+                    class="mt-px"
+                  />
                 </div>
-                <Button variant="ghost" size="sm" class="h-7 text-xs" @click="gotoDdns">管理</Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  class="h-7 text-xs"
+                  @click="gotoDdns"
+                  >管理</Button
+                >
               </div>
-              <div v-if="isDdnsLoading && showDdnsSkeleton" class="grid gap-3 sm:grid-cols-2">
+              <div
+                v-if="isDdnsLoading && showDdnsSkeleton"
+                class="grid gap-3 sm:grid-cols-2"
+              >
                 <Skeleton class="h-[68px] w-full rounded-xl" />
                 <Skeleton class="h-[68px] w-full rounded-xl" />
               </div>
               <div v-else-if="!isDdnsLoading" class="grid gap-3 sm:grid-cols-2">
-                <div v-for="item in ddnsCards" :key="item.label" class="rounded-xl border bg-muted/20 px-3 py-2.5">
-                  <div class="flex items-center gap-2 text-xs text-muted-foreground">
+                <div
+                  v-for="item in ddnsCards"
+                  :key="item.label"
+                  class="rounded-xl border bg-muted/20 px-3 py-2.5"
+                >
+                  <div
+                    class="flex items-center gap-2 text-xs text-muted-foreground"
+                  >
                     <component :is="item.icon" class="h-3.5 w-3.5" />
                     {{ item.label }}
                   </div>
-                  <div class="mt-1 truncate text-sm font-medium" :title="item.value ?? undefined">
-                    <HumanFriendlyTime v-if="item.isTime" :value="item.value" empty-text="从未"
-                      :keep-invalid-raw-text="false" />
+                  <div
+                    class="mt-1 truncate text-sm font-medium"
+                    :title="item.value ?? undefined"
+                  >
+                    <HumanFriendlyTime
+                      v-if="item.isTime"
+                      :value="item.value"
+                      empty-text="从未"
+                      :keep-invalid-raw-text="false"
+                    />
                     <template v-else>{{ item.value }}</template>
                   </div>
                 </div>
@@ -726,29 +812,52 @@ const tunnelCards = computed(() => [
 
             <div v-if="showTunnelSection">
               <div class="mb-3 text-sm font-medium">隧道入口</div>
-              <div v-if="isTunnelLoading && showTunnelSkeleton" class="grid gap-3">
+              <div
+                v-if="isTunnelLoading && showTunnelSkeleton"
+                class="grid gap-3"
+              >
                 <Skeleton class="h-[60px] w-full rounded-xl" />
                 <Skeleton class="h-[60px] w-full rounded-xl" />
               </div>
               <div v-else-if="!isTunnelLoading" class="grid gap-3">
-                <button v-for="item in tunnelCards" :key="item.key" type="button"
+                <button
+                  v-for="item in tunnelCards"
+                  :key="item.key"
+                  type="button"
                   class="group flex items-center justify-between rounded-xl border bg-muted/20 px-4 py-3 text-left transition-colors hover:bg-muted/50"
-                  @click="gotoTunnel(item.key)">
+                  @click="gotoTunnel(item.key)"
+                >
                   <div>
                     <div class="flex items-center gap-2">
                       <div class="text-sm font-medium">{{ item.label }}</div>
-                      <Badge v-if="item.isDefault" variant="outline" class="rounded-sm px-1.5 py-0 text-[10px]">
+                      <Badge
+                        v-if="item.isDefault"
+                        variant="outline"
+                        class="rounded-sm px-1.5 py-0 text-[10px]"
+                      >
                         默认
                       </Badge>
                     </div>
-                    <div class="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
-                      <LiveStatusBadge :active="Boolean(item.status?.running)" active-label="运行中" inactive-label="未运行"
-                        size="xs" />
-                      <span>{{ item.status?.running ? "运行中" : "未运行" }}</span>
-                      <span v-if="item.status?.running && item.status.pid">PID {{ item.status.pid }}</span>
+                    <div
+                      class="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground"
+                    >
+                      <LiveStatusBadge
+                        :active="Boolean(item.status?.running)"
+                        active-label="运行中"
+                        inactive-label="未运行"
+                        size="xs"
+                      />
+                      <span>{{
+                        item.status?.running ? "运行中" : "未运行"
+                      }}</span>
+                      <span v-if="item.status?.running && item.status.pid"
+                        >PID {{ item.status.pid }}</span
+                      >
                     </div>
                   </div>
-                  <ArrowRight class="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                  <ArrowRight
+                    class="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                  />
                 </button>
               </div>
               <div v-else class="h-[60px]" aria-hidden="true"></div>

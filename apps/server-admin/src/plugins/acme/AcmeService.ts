@@ -65,7 +65,7 @@ export class AcmeService {
 
   private generateFallbackEmail(): string {
     const suffix = `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
-    return `acme-${suffix}@example.com`;
+    return `acme-${suffix}@fnknock.com`;
   }
 
   private resolveAccountEmail(email?: string): string {

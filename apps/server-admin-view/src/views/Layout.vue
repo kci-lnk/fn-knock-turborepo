@@ -205,6 +205,10 @@ import { isNavigationFailure, useRoute, useRouter } from "vue-router";
 import { useConfigStore } from "../store/config";
 import { useUpdateStore } from "../store/update";
 import { isRouteNavigating, pendingNavPath } from "../router/navigation-state";
+import {
+  isAnySubdomainRoutingMode,
+  isReverseProxySubdomainMode,
+} from "../lib/reverse-proxy-submode";
 import { Button } from "@/components/ui/button";
 import { toast } from "@admin-shared/utils/toast";
 import {
@@ -300,10 +304,18 @@ const navItems = computed(() => {
   }
   items.push({ name: "动态域名", path: "/ddns", icon: Globe });
   if (configStore.config?.run_type === 1) {
-    items.splice(1, 0, { name: "映射管理", path: "/proxy", icon: RouteIcon });
+    items.splice(1, 0, {
+      name: isReverseProxySubdomainMode(configStore.config)
+        ? "子域映射"
+        : "映射管理",
+      path: isReverseProxySubdomainMode(configStore.config)
+        ? "/subdomains"
+        : "/proxy",
+      icon: RouteIcon,
+    });
     items.splice(2, 0, { name: "内网穿透", path: "/tunnel", icon: Cable });
     items.splice(3, 0, { name: "会话管理", path: "/sessions", icon: Users });
-  } else if (configStore.config?.run_type === 3) {
+  } else if (isAnySubdomainRoutingMode(configStore.config)) {
     const isProtocolMappingVisible =
       configStore.config?.protocol_mapping_feature?.enabled === true;
     items.splice(1, 0, {

@@ -5,6 +5,11 @@ import {
   parseTargetPort,
   resolveAuthServicePort,
 } from "./auth-service";
+import {
+  isAnySubdomainRoutingMode,
+  isReverseProxySubdomainMode,
+} from "./reverse-proxy-submode";
+import { resolvePublicGatewayPort } from "./access-entry";
 
 const trimTrailingSlash = (value: string): string => value.replace(/\/+$/, "");
 
@@ -36,12 +41,6 @@ const resolveForwardedHost = (request: Request): string => {
   }
 };
 
-const resolveDefaultPublicGatewayPort = (): number | null => {
-  const parsed = Number.parseInt(process.env.GO_REPROXY_PORT || "", 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return parsed;
-};
-
 const parseExplicitUrlPort = (
   rawUrl: string,
   scheme: "http" | "https",
@@ -62,12 +61,13 @@ const parseExplicitUrlPort = (
 
 const formatDerivedPublicAuthBaseUrl = (
   host: string,
+  config?: Pick<AppConfig, "run_type" | "reverse_proxy_submode"> | null,
   scheme: "http" | "https" = "https",
 ): string => {
   const normalizedHost = host.trim().toLowerCase();
   if (!normalizedHost) return "";
 
-  const port = resolveDefaultPublicGatewayPort();
+  const port = resolvePublicGatewayPort(config);
   if (!port) return `${scheme}://${normalizedHost}`;
 
   const isDefaultPort =
@@ -564,20 +564,23 @@ export const buildSubdomainCertificateInventoryCoverage = ({
 };
 
 export const resolvePublicAuthBaseUrl = (
-  config: Pick<AppConfig, "subdomain_mode" | "host_mappings">,
+  config: Pick<
+    AppConfig,
+    "subdomain_mode" | "host_mappings" | "run_type" | "reverse_proxy_submode"
+  >,
 ): string => {
-  const explicit = trimTrailingSlash(
-    config.subdomain_mode?.public_auth_base_url?.trim() || "",
-  );
+  const explicit = isReverseProxySubdomainMode(config)
+    ? ""
+    : trimTrailingSlash(config.subdomain_mode?.public_auth_base_url?.trim() || "");
   if (explicit) return explicit;
 
   const authMapping = getAuthHostMapping(config);
   if (authMapping?.host) {
-    return formatDerivedPublicAuthBaseUrl(authMapping.host);
+    return formatDerivedPublicAuthBaseUrl(authMapping.host, config);
   }
 
   const authHost = config.subdomain_mode?.auth_host?.trim();
-  if (authHost) return formatDerivedPublicAuthBaseUrl(authHost);
+  if (authHost) return formatDerivedPublicAuthBaseUrl(authHost, config);
 
   return "";
 };
@@ -593,27 +596,39 @@ export const resolveCookieDomain = (
 };
 
 export const buildGatewayAuthConfig = (
-  config: Pick<AppConfig, "subdomain_mode" | "host_mappings" | "run_type">,
+  config: Pick<
+    AppConfig,
+    | "subdomain_mode"
+    | "host_mappings"
+    | "run_type"
+    | "reverse_proxy_submode"
+    | "default_tunnel"
+  >,
 ): AuthConfig => {
-  const isSubdomainModeActive = config.run_type === 3;
+  const isSubdomainModeActive = isAnySubdomainRoutingMode(config);
+  const isReverseSubdomainMode = isReverseProxySubdomainMode(config);
   const defaultAuthPort = resolveAuthServicePort();
   const authMapping = getAuthHostMapping(config);
   const configuredPublicHttpPort =
+    !isReverseSubdomainMode &&
     typeof config.subdomain_mode?.public_http_port === "number" &&
     Number.isFinite(config.subdomain_mode.public_http_port) &&
     config.subdomain_mode.public_http_port > 0
       ? config.subdomain_mode.public_http_port
       : undefined;
   const configuredPublicHttpsPort =
+    !isReverseSubdomainMode &&
     typeof config.subdomain_mode?.public_https_port === "number" &&
     Number.isFinite(config.subdomain_mode.public_https_port) &&
     config.subdomain_mode.public_https_port > 0
       ? config.subdomain_mode.public_https_port
       : undefined;
   const explicitPublicAuthBaseUrl = isSubdomainModeActive
-    ? trimTrailingSlash(
-        config.subdomain_mode?.public_auth_base_url?.trim() || "",
-      )
+    ? isReverseSubdomainMode
+      ? ""
+      : trimTrailingSlash(
+          config.subdomain_mode?.public_auth_base_url?.trim() || "",
+        )
     : "";
   const authTarget =
     authMapping?.target?.trim() ||
@@ -634,7 +649,7 @@ export const buildGatewayAuthConfig = (
     ? (configuredPublicHttpsPort ??
       parseExplicitUrlPort(publicAuthBaseUrl, "https") ??
       (!explicitPublicAuthBaseUrl
-        ? (resolveDefaultPublicGatewayPort() ?? 0)
+        ? (resolvePublicGatewayPort(config) ?? 0)
         : 0))
     : 0;
   const authHost = isSubdomainModeActive

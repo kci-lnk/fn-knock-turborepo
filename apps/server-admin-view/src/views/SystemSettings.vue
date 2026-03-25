@@ -17,6 +17,7 @@ import CredentialSettings from "./system-settings/CredentialSettings.vue";
 import MaintenanceSettings from "./system-settings/MaintenanceSettings.vue";
 import { useSyncedQueryTab } from "@admin-shared/composables/useSyncedQueryTab";
 import { useConfigStore } from "../store/config";
+import { isCloudflaredTunnelAvailable } from "../lib/reverse-proxy-submode";
 
 const router = useRouter();
 const route = useRoute();
@@ -24,6 +25,9 @@ const configStore = useConfigStore();
 
 const defaultTab = "run-mode";
 const showTunnelTabs = computed(() => configStore.config?.run_type === 1);
+const showCloudflaredTab = computed(() =>
+  isCloudflaredTunnelAvailable(configStore.config),
+);
 const allowedTabs = computed(() => {
   const tabs = [
     "run-mode",
@@ -39,7 +43,10 @@ const allowedTabs = computed(() => {
     "maintenance",
   ];
   if (showTunnelTabs.value) {
-    tabs.splice(1, 0, "frp", "cloudflared");
+    tabs.splice(1, 0, "frp");
+    if (showCloudflaredTab.value) {
+      tabs.splice(2, 0, "cloudflared");
+    }
   }
   return tabs;
 });
@@ -70,7 +77,7 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
             >FRP</TabsTrigger
           >
           <TabsTrigger
-            v-if="showTunnelTabs"
+            v-if="showTunnelTabs && showCloudflaredTab"
             value="cloudflared"
             class="flex-none shrink-0 px-3"
             >Cloudflared</TabsTrigger
@@ -113,7 +120,11 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
       <TabsContent v-if="showTunnelTabs" value="frp" class="pt-2">
         <FrpSettings />
       </TabsContent>
-      <TabsContent v-if="showTunnelTabs" value="cloudflared" class="pt-2">
+      <TabsContent
+        v-if="showTunnelTabs && showCloudflaredTab"
+        value="cloudflared"
+        class="pt-2"
+      >
         <CloudflaredSettings />
       </TabsContent>
       <TabsContent value="acme-ssl" class="pt-2">

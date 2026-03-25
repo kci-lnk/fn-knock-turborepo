@@ -5,6 +5,10 @@ import { useConfigStore } from "../store/config";
 import { pinia } from "../store";
 import { isRouteNavigating, pendingNavPath } from "./navigation-state";
 import { toast } from "@admin-shared/utils/toast";
+import {
+  isAnySubdomainRoutingMode,
+  isReverseProxySubdomainMode,
+} from "../lib/reverse-proxy-submode";
 
 NProgress.configure({
   showSpinner: false,
@@ -130,7 +134,14 @@ router.beforeEach(async (to, from) => {
     NProgress.start();
   }
 
-  if (to.path !== "/" && to.path !== "/dashboard" && to.path !== "/streams") {
+  if (
+    to.path !== "/" &&
+    to.path !== "/dashboard" &&
+    to.path !== "/streams" &&
+    to.path !== "/proxy" &&
+    to.path !== "/subdomains" &&
+    to.path !== "/tunnel"
+  ) {
     return true;
   }
 
@@ -146,13 +157,36 @@ router.beforeEach(async (to, from) => {
     return "/whitelist";
   }
 
+  const isSubdomainRoutingMode = isAnySubdomainRoutingMode(configStore.config);
+
+  if (to.path === "/proxy" && configStore.config?.run_type === 1) {
+    if (isReverseProxySubdomainMode(configStore.config)) {
+      return "/subdomains";
+    }
+    return true;
+  }
+
+  if (to.path === "/proxy") {
+    return isSubdomainRoutingMode ? "/subdomains" : "/whitelist";
+  }
+
+  if (to.path === "/subdomains" && !isSubdomainRoutingMode) {
+    return configStore.config?.run_type === 1 ? "/proxy" : "/whitelist";
+  }
+
+  if (to.path === "/tunnel" && configStore.config?.run_type !== 1) {
+    return "/system";
+  }
+
   const isProtocolMappingVisible =
     configStore.config?.run_type === 3 &&
     configStore.config?.protocol_mapping_feature?.enabled === true;
 
   if (to.path === "/streams" && !isProtocolMappingVisible) {
     if (configStore.config?.run_type === 1) {
-      return "/proxy";
+      return isReverseProxySubdomainMode(configStore.config)
+        ? "/subdomains"
+        : "/proxy";
     }
     if (configStore.config?.run_type === 3) {
       return {

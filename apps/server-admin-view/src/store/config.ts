@@ -4,6 +4,7 @@ import type {
   AppConfig,
   HostMapping,
   ProxyMapping,
+  ReverseProxySubmode,
   RunType,
   StreamMapping,
   SubdomainModeConfig,
@@ -34,9 +35,20 @@ export const useConfigStore = defineStore("config", () => {
     await loadConfig();
   }
 
-  async function setRunType(type: RunType) {
-    await ConfigAPI.updateRunType(type);
-    if (config.value) config.value.run_type = type;
+  async function setRunType(
+    type: RunType,
+    reverseProxySubmode?: ReverseProxySubmode,
+  ) {
+    await ConfigAPI.updateRunType({
+      run_type: type,
+      reverse_proxy_submode: reverseProxySubmode,
+    });
+    if (config.value) {
+      config.value.run_type = type;
+      if (type === 1 && reverseProxySubmode) {
+        config.value.reverse_proxy_submode = reverseProxySubmode;
+      }
+    }
     await loadConfig(); // refresh to be safe
   }
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   extractErrorMessage,
@@ -12,13 +12,19 @@ import CloudflareTunnel from "./tunnel/CloudflareTunnel.vue";
 import { useConfigStore } from "../store/config";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
 import { docsUrls } from "../lib/docs";
+import { isCloudflaredTunnelAvailable } from "../lib/reverse-proxy-submode";
 
 const router = useRouter();
 const route = useRoute();
 const configStore = useConfigStore();
 
 const defaultTunnel = ref<string>("frp");
-const allowedTabs = new Set(["frp", "cloudflared"]);
+const allowedTabs = computed(() =>
+  isCloudflaredTunnelAvailable(configStore.config)
+    ? ["frp", "cloudflared"]
+    : ["frp"],
+);
+const showTabSwitcher = computed(() => allowedTabs.value.length > 1);
 const isInitialized = ref(false);
 const { isPending: isLoading, run: runLoadConfig } = useAsyncAction({
   onError: (error) => {
@@ -30,12 +36,16 @@ const { isPending: isLoading, run: runLoadConfig } = useAsyncAction({
 });
 
 function resolveDefaultTunnel(value: string | null | undefined) {
-  return value && allowedTabs.has(value) ? value : "frp";
+  const availableTabs = new Set(allowedTabs.value);
+  return value && availableTabs.has(value) ? value : "frp";
 }
 
 watch(
-  () => configStore.config?.run_type,
-  (runType) => {
+  () => [
+    configStore.config?.run_type,
+    configStore.config?.reverse_proxy_submode,
+  ],
+  ([runType]) => {
     if (runType !== undefined && runType !== 1) {
       void router.replace({ path: "/system" });
     }
@@ -88,10 +98,18 @@ onMounted(() => {
       @update:model-value="navigateTo"
       class="w-full"
     >
-      <div class="flex items-center justify-between w-full">
-        <TabsList>
+      <div
+        class="flex items-center w-full"
+        :class="showTabSwitcher ? 'justify-between' : 'justify-end'"
+      >
+        <TabsList v-if="showTabSwitcher">
           <TabsTrigger value="frp">FRP</TabsTrigger>
-          <TabsTrigger value="cloudflared">Cloudflared</TabsTrigger>
+          <TabsTrigger
+            v-if="allowedTabs.includes('cloudflared')"
+            value="cloudflared"
+          >
+            Cloudflared
+          </TabsTrigger>
         </TabsList>
         <DocsLinkButton :href="docsUrls.guides.tunnel" />
       </div>
@@ -99,7 +117,11 @@ onMounted(() => {
       <TabsContent value="frp" class="pt-2">
         <FrpTunnel />
       </TabsContent>
-      <TabsContent value="cloudflared" class="pt-2">
+      <TabsContent
+        v-if="allowedTabs.includes('cloudflared')"
+        value="cloudflared"
+        class="pt-2"
+      >
         <CloudflareTunnel />
       </TabsContent>
     </Tabs>

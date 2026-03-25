@@ -383,10 +383,11 @@
 
           <div class="space-y-2">
             <Label for="mapping-target">目标</Label>
-            <Input
-              id="mapping-target"
+            <ProxyTargetInputField
               v-model="mappingForm.target"
-              placeholder="http://127.0.0.1:5173"
+              input-id="mapping-target"
+              protocol-id="mapping-target-protocol"
+              placeholder="127.0.0.1:5173"
             />
           </div>
 
@@ -680,6 +681,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import ConfigCollapsibleCard from "@admin-shared/components/ConfigCollapsibleCard.vue";
+import ProxyTargetInputField from "@admin-shared/components/common/ProxyTargetInputField.vue";
 import SearchInput from "@admin-shared/components/SearchInput.vue";
 import {
   Table,

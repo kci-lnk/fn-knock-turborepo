@@ -260,8 +260,8 @@ const DEFAULT_GATEWAY_LOGGING_SETTINGS: GatewayLoggingSettings = {
 export const DEFAULT_REVERSE_PROXY_THROTTLE_CONFIG: ReverseProxyThrottleConfig =
   {
     enabled: true,
-    requests_per_second: 20,
-    burst: 50,
+    requests_per_second: 100,
+    burst: 200,
     block_seconds: 30,
   };
 

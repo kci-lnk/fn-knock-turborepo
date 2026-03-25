@@ -29,8 +29,8 @@ const form = reactive<GatewaySettings>({
   auth_cache_unauthorized_ttl_seconds: 1,
   reverse_proxy_throttle: {
     enabled: true,
-    requests_per_second: 20,
-    burst: 50,
+    requests_per_second: 100,
+    burst: 200,
     block_seconds: 30,
   },
 });
@@ -130,9 +130,9 @@ const saveSettings = async () => {
           enabled: form.reverse_proxy_throttle.enabled,
           requests_per_second: clampPositiveInt(
             form.reverse_proxy_throttle.requests_per_second,
-            20,
+            100,
           ),
-          burst: clampPositiveInt(form.reverse_proxy_throttle.burst, 50),
+          burst: clampPositiveInt(form.reverse_proxy_throttle.burst, 200),
           block_seconds: clampPositiveInt(
             form.reverse_proxy_throttle.block_seconds,
             30,

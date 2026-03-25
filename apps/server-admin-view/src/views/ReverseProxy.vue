@@ -199,12 +199,13 @@
             class="col-span-3"
           />
         </div>
-        <div class="grid grid-cols-4 items-center gap-4">
-          <Label for="target" class="text-right">目标地址</Label>
-          <Input
-            id="target"
+        <div class="grid grid-cols-4 items-start gap-4">
+          <Label for="target-endpoint" class="pt-2 text-right">目标地址</Label>
+          <ProxyTargetInputField
             v-model="newMapping.target"
-            placeholder="例如：http://localhost:8080"
+            input-id="target-endpoint"
+            protocol-id="target-protocol"
+            placeholder="例如：127.0.0.1:8080"
             class="col-span-3"
           />
         </div>
@@ -232,7 +233,9 @@
         </div>
       </div>
       <DialogFooter>
-        <Button variant="outline" @click="closeMappingDialog">取消</Button>
+        <Button variant="outline" @click="closeMappingDialog(true)"
+          >取消</Button
+        >
         <Button @click="saveMapping" :disabled="!isValid || isSaving"
           >保存设置</Button
         >
@@ -469,6 +472,7 @@ import { ConfigAPI, ScanAPI, SystemAPI } from "../lib/api";
 import type { ProxyMapping } from "../types";
 import type { ScanDiscoverResponse, DiscoveredServiceInfo } from "../lib/api";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
+import ProxyTargetInputField from "@admin-shared/components/common/ProxyTargetInputField.vue";
 import PagedTableFooter from "@admin-shared/components/list/PagedTableFooter.vue";
 import { useAsyncAction } from "@admin-shared/composables/useAsyncAction";
 import { useDiscoverServicesSelection } from "@admin-shared/composables/useDiscoverServicesSelection";

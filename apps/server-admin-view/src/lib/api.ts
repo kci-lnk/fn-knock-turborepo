@@ -403,14 +403,18 @@ export const GatewayLogsAPI = {
     const res = await apiClient.get("/gateway-logs/dates");
     return res.data.data;
   },
-  async getEntries(
-    date: string,
-    page: number,
-    limit: string,
-    search: string,
-  ): Promise<GatewayLogEntriesPayload> {
+  async getEntries(params: {
+    date: string;
+    pagination: "page" | "cursor";
+    limit: string;
+    cursor?: string;
+    search?: string;
+    status?: string;
+    logged_in?: string;
+    page?: number;
+  }): Promise<GatewayLogEntriesPayload> {
     const res = await apiClient.get("/gateway-logs/entries", {
-      params: { date, page, limit, search },
+      params,
     });
     return res.data.data;
   },

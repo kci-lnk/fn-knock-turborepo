@@ -160,9 +160,13 @@ export interface GatewayLogEntriesResponse {
   date: string;
   logs_dir: string;
   available_dates: string[];
+  pagination: "page" | "cursor";
   page: number;
   limit: number;
   total: number;
+  cursor?: string;
+  next_cursor?: string;
+  has_more: boolean;
   items: GatewayLogEntry[];
 }
 
@@ -403,18 +407,26 @@ export class GoBackendService {
 
   async getGatewayLogEntries(params: {
     date?: string;
+    pagination?: string;
     page?: string | number;
     limit?: string | number;
+    cursor?: string;
     search?: string;
+    status?: string;
+    logged_in?: string;
   }): Promise<GoResponse<GatewayLogEntriesResponse>> {
     const searchParams = new URLSearchParams();
     if (params.date) searchParams.set("date", params.date);
+    if (params.pagination) searchParams.set("pagination", params.pagination);
     if (params.page !== undefined)
       searchParams.set("page", String(params.page));
     if (params.limit !== undefined) {
       searchParams.set("limit", String(params.limit));
     }
+    if (params.cursor) searchParams.set("cursor", params.cursor);
     if (params.search) searchParams.set("search", params.search);
+    if (params.status) searchParams.set("status", params.status);
+    if (params.logged_in) searchParams.set("logged_in", params.logged_in);
     const query = searchParams.toString();
     return this.request<GatewayLogEntriesResponse>(
       `/api/logging/entries${query ? `?${query}` : ""}`,

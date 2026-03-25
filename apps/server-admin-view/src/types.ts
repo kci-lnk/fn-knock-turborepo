@@ -217,9 +217,13 @@ export interface GatewayLogEntriesPayload {
   date: string;
   logs_dir: string;
   available_dates: string[];
+  pagination: "page" | "cursor";
   page: number;
   limit: number;
   total: number;
+  cursor?: string;
+  next_cursor?: string;
+  has_more: boolean;
   items: GatewayLogEntry[];
 }
 

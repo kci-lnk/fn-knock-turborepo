@@ -79,9 +79,13 @@ export const gatewayLogsRoutes = new Elysia({
     {
       query: t.Object({
         date: t.Optional(t.String()),
+        pagination: t.Optional(t.String()),
         page: t.Optional(t.String()),
         limit: t.Optional(t.String()),
+        cursor: t.Optional(t.String()),
         search: t.Optional(t.String()),
+        status: t.Optional(t.String()),
+        logged_in: t.Optional(t.String()),
       }),
     },
   )

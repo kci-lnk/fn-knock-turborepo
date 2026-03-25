@@ -168,11 +168,11 @@
                   <DropdownMenuItem
                     v-if="authServiceMapping"
                     variant="destructive"
-                    :disabled="isSavingMappings"
-                    @select="openDeleteAuthServiceDialog"
+                    :disabled="isSavingMappings || isClearingAllSubdomainConfig"
+                    @select="openClearAllConfigDialog"
                   >
                     <Trash2 class="mr-2 h-4 w-4" />
-                    删除鉴权服务
+                    清空所有配置
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     :disabled="!canManageNewMappings"
@@ -463,11 +463,11 @@
           <Button variant="outline" @click="closeDeleteDialog">取消</Button>
           <Button
             variant="destructive"
-            :disabled="isSavingMappings"
+            :disabled="isSavingMappings || isClearingAllSubdomainConfig"
             @click="confirmDelete"
           >
             <span
-              v-if="isSavingMappings"
+              v-if="isSavingMappings || isClearingAllSubdomainConfig"
               class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
             ></span>
             {{ deleteDialogConfirmLabel }}
@@ -726,6 +726,10 @@ type DeleteDialogState =
       host: string;
     }
   | {
+      kind: "clear_all";
+      step: 1 | 2;
+    }
+  | {
       kind: "mapping";
       host: string;
     };
@@ -918,11 +922,20 @@ const showToolbar = computed({
   },
 });
 const isDeleteDialogOpen = computed(() => deleteDialogState.value !== null);
-const deleteDialogTitle = computed(() =>
-  deleteDialogState.value?.kind === "auth_service"
-    ? "确认删除鉴权服务？"
-    : "确认删除 Host 映射？",
-);
+const deleteDialogTitle = computed(() => {
+  const target = deleteDialogState.value;
+  if (!target) return "";
+
+  if (target.kind === "auth_service") {
+    return "确认删除鉴权服务？";
+  }
+
+  if (target.kind === "clear_all") {
+    return target.step === 1 ? "确认清空所有配置？" : "请再次确认清空所有配置";
+  }
+
+  return "确认删除 Host 映射？";
+});
 const deleteDialogDescription = computed(() => {
   const target = deleteDialogState.value;
   if (!target) return "";
@@ -931,13 +944,29 @@ const deleteDialogDescription = computed(() => {
     return `将删除 ${target.host} 对应的鉴权映射。删除后需要重新添加鉴权服务`;
   }
 
+  if (target.kind === "clear_all") {
+    const mappingsCount = allMappings.value.length;
+    return target.step === 1
+      ? `这会删除鉴权服务和 ${mappingsCount} 条 Host 映射。根域名及其他子域模式配置会保留。点击“继续确认”后，还需要再确认一次。`
+      : "这是最后一次确认。确认后会立即清空鉴权服务和全部子域映射，但不会修改子域模式配置，此操作不可恢复。";
+  }
+
   return `您即将删除 Host 映射 ${target.host}，此操作不可逆转。`;
 });
-const deleteDialogConfirmLabel = computed(() =>
-  deleteDialogState.value?.kind === "auth_service"
-    ? "删除鉴权服务"
-    : "删除映射",
-);
+const deleteDialogConfirmLabel = computed(() => {
+  const target = deleteDialogState.value;
+  if (!target) return "确认";
+
+  if (target.kind === "auth_service") {
+    return "删除鉴权服务";
+  }
+
+  if (target.kind === "clear_all") {
+    return target.step === 1 ? "继续确认" : "确认清空";
+  }
+
+  return "删除映射";
+});
 const composedPreviewHost = computed(() => {
   if (mappingInputMode.value === "full_host") {
     return normalizeHostLike(mappingSubdomain.value) || "";
@@ -1121,6 +1150,17 @@ const { isPending: isSavingMappings, run: runSaveMappings } = useAsyncAction({
   onError: (error) => {
     toast.error("保存失败", {
       description: extractErrorMessage(error, "Host 映射保存失败"),
+    });
+  },
+});
+
+const {
+  isPending: isClearingAllSubdomainConfig,
+  run: runClearAllSubdomainConfig,
+} = useAsyncAction({
+  onError: (error) => {
+    toast.error("清空失败", {
+      description: extractErrorMessage(error, "清空子域配置失败"),
     });
   },
 });
@@ -1401,15 +1441,15 @@ async function addAuthService() {
   });
 }
 
-function openDeleteAuthServiceDialog() {
-  if (!authServiceMapping.value) {
-    toast.error("当前没有鉴权服务");
+function openClearAllConfigDialog() {
+  if (allMappings.value.length === 0) {
+    toast.error("当前没有可清空的子域映射");
     return;
   }
 
   deleteDialogState.value = {
-    kind: "auth_service",
-    host: authServiceMapping.value.host,
+    kind: "clear_all",
+    step: 1,
   };
 }
 
@@ -1441,6 +1481,25 @@ async function removeAuthService(): Promise<boolean> {
   });
 
   return removed === true;
+}
+
+async function clearAllSubdomainConfig(): Promise<boolean> {
+  const mappingsCount = allMappings.value.length;
+
+  const cleared = await runClearAllSubdomainConfig(async () => {
+    await configStore.saveHostMappings([]);
+
+    toast.success("鉴权服务和子域映射已清空", {
+      description:
+        mappingsCount > 0
+          ? `已清理 ${mappingsCount} 条 Host 映射，子域模式配置保持不变。`
+          : "子域模式配置保持不变。",
+    });
+
+    return true;
+  });
+
+  return cleared === true;
 }
 
 async function saveMapping() {
@@ -1505,6 +1564,22 @@ async function removeMapping(host: string): Promise<boolean> {
 async function confirmDelete() {
   const target = deleteDialogState.value;
   if (!target) return;
+
+  if (target.kind === "clear_all") {
+    if (target.step === 1) {
+      deleteDialogState.value = {
+        kind: "clear_all",
+        step: 2,
+      };
+      return;
+    }
+
+    const cleared = await clearAllSubdomainConfig();
+    if (cleared) {
+      closeDeleteDialog();
+    }
+    return;
+  }
 
   const removed =
     target.kind === "auth_service"

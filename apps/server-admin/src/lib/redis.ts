@@ -1581,6 +1581,11 @@ export class ConfigManager {
     return normalizeGatewayLoggingSettings(config.gateway_logging);
   }
 
+  async getReverseProxyThrottleConfig(): Promise<ReverseProxyThrottleConfig> {
+    const config = await this.getConfig();
+    return normalizeReverseProxyThrottleConfig(config.reverse_proxy_throttle);
+  }
+
   async updateFnosShareBypassConfig(
     patch: Partial<FnosShareBypassConfig>,
   ): Promise<FnosShareBypassConfig> {
@@ -1603,6 +1608,19 @@ export class ConfigManager {
       ...patch,
     });
     config.gateway_logging = next;
+    await this.saveConfig(config);
+    return next;
+  }
+
+  async updateReverseProxyThrottleConfig(
+    patch: Partial<ReverseProxyThrottleConfig>,
+  ): Promise<ReverseProxyThrottleConfig> {
+    const config = await this.getConfig();
+    const next = normalizeReverseProxyThrottleConfig({
+      ...config.reverse_proxy_throttle,
+      ...patch,
+    });
+    config.reverse_proxy_throttle = next;
     await this.saveConfig(config);
     return next;
   }

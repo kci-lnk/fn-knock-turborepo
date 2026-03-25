@@ -11,6 +11,7 @@ import FeaturesSettings from "./system-settings/FeaturesSettings.vue";
 import FnosSettings from "./system-settings/FnosSettings.vue";
 import CaptchaSettings from "./system-settings/CaptchaSettings.vue";
 import GatewayLoggingSettings from "./system-settings/GatewayLoggingSettings.vue";
+import GatewaySettings from "./system-settings/GatewaySettings.vue";
 import TerminalSettings from "./system-settings/TerminalSettings.vue";
 import CredentialSettings from "./system-settings/CredentialSettings.vue";
 import MaintenanceSettings from "./system-settings/MaintenanceSettings.vue";
@@ -30,6 +31,7 @@ const allowedTabs = computed(() => {
     "fnos",
     "scanner-firewall",
     "features",
+    "gateway",
     "gateway-logging",
     "terminal",
     "credentials",
@@ -85,6 +87,9 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
           <TabsTrigger value="features" class="flex-none shrink-0 px-3"
             >功能</TabsTrigger
           >
+          <TabsTrigger value="gateway" class="flex-none shrink-0 px-3"
+            >网关</TabsTrigger
+          >
           <TabsTrigger value="gateway-logging" class="flex-none shrink-0 px-3"
             >日志</TabsTrigger
           >
@@ -122,6 +127,9 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
       </TabsContent>
       <TabsContent value="features" class="pt-2">
         <FeaturesSettings />
+      </TabsContent>
+      <TabsContent value="gateway" class="pt-2">
+        <GatewaySettings />
       </TabsContent>
       <TabsContent value="gateway-logging" class="pt-2">
         <GatewayLoggingSettings />

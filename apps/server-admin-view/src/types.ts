@@ -447,6 +447,12 @@ export type ReverseProxyThrottleConfig = {
   block_seconds: number;
 };
 
+export type GatewaySettings = {
+  auth_cache_ttl_seconds: number;
+  auth_cache_unauthorized_ttl_seconds: number;
+  reverse_proxy_throttle: ReverseProxyThrottleConfig;
+};
+
 export type TrafficStats = {
   total_in: number;
   total_out: number;

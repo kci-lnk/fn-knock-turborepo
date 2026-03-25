@@ -19,6 +19,7 @@ import type {
   DashboardStats,
   ThreatOverview,
   FnosShareBypassConfig,
+  GatewaySettings,
   FnKnockBackupImportArchiveRequest,
   FnKnockBackupImportResult,
   BackupDirectoryFilesPayload,
@@ -257,6 +258,16 @@ export const ConfigAPI = {
   },
   async updateDefaultRoute(path: string): Promise<void> {
     await apiClient.post("/config/default_route", { path });
+  },
+  async getGatewaySettings(): Promise<GatewaySettings> {
+    const res = await apiClient.get("/config/gateway");
+    return res.data.data;
+  },
+  async updateGatewaySettings(
+    payload: Partial<GatewaySettings>,
+  ): Promise<GatewaySettings> {
+    const res = await apiClient.post("/config/gateway", payload);
+    return res.data.data;
   },
   async getProxyProtocolForce(): Promise<ProxyProtocolForce> {
     const res = await apiClient.get("/config/proxy_protocol_force");

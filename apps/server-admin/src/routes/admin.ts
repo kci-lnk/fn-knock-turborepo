@@ -2,6 +2,7 @@ import { Elysia, t } from "elysia";
 import {
   type AppConfig,
   configManager,
+  DEFAULT_REVERSE_PROXY_THROTTLE_CONFIG,
   type HostMapping,
   type LoginSession,
   type ProtocolMappingFeatureConfig,
@@ -303,6 +304,17 @@ const rollbackProtocolMappingFeatureAndRuntime = async (
   return null;
 };
 
+const buildGatewaySettingsResponse = (
+  config: Pick<AppConfig, "subdomain_mode" | "reverse_proxy_throttle">,
+) => ({
+  auth_cache_ttl_seconds: config.subdomain_mode?.auth_cache_ttl_seconds ?? 1,
+  auth_cache_unauthorized_ttl_seconds:
+    config.subdomain_mode?.auth_cache_unauthorized_ttl_seconds ?? 1,
+  reverse_proxy_throttle: config.reverse_proxy_throttle ?? {
+    ...DEFAULT_REVERSE_PROXY_THROTTLE_CONFIG,
+  },
+});
+
 const buildCountSeries = (
   timestamps: number[],
   fromMs: number,
@@ -525,6 +537,94 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         validation_cache_ttl_seconds: t.Optional(t.Number()),
         validation_lock_ttl_seconds: t.Optional(t.Number()),
         session_ttl_seconds: t.Optional(t.Number()),
+      }),
+    },
+  )
+  .get("/config/gateway", async () => {
+    const config = await configManager.getConfig();
+    return {
+      success: true,
+      data: buildGatewaySettingsResponse(config),
+    };
+  })
+  .post(
+    "/config/gateway",
+    async ({ body, set }) => {
+      const previousConfig = await configManager.getConfig();
+
+      try {
+        const nextAuthConfigPatch: Partial<AppConfig["subdomain_mode"]> = {};
+        if (body.auth_cache_ttl_seconds !== undefined) {
+          nextAuthConfigPatch.auth_cache_ttl_seconds =
+            body.auth_cache_ttl_seconds;
+        }
+        if (body.auth_cache_unauthorized_ttl_seconds !== undefined) {
+          nextAuthConfigPatch.auth_cache_unauthorized_ttl_seconds =
+            body.auth_cache_unauthorized_ttl_seconds;
+        }
+
+        if (Object.keys(nextAuthConfigPatch).length > 0) {
+          await configManager.updateSubdomainModeConfig(nextAuthConfigPatch);
+        }
+
+        if (body.reverse_proxy_throttle) {
+          await configManager.updateReverseProxyThrottleConfig(
+            body.reverse_proxy_throttle,
+          );
+        }
+
+        const updatedConfig = await configManager.getConfig();
+        const [authConfigResult, reverseProxyThrottleResult] =
+          await Promise.all([
+            goBackend.setAuthConfig(buildGatewayAuthConfig(updatedConfig)),
+            goBackend.setReverseProxyThrottle(
+              updatedConfig.reverse_proxy_throttle ??
+                DEFAULT_REVERSE_PROXY_THROTTLE_CONFIG,
+            ),
+          ]);
+
+        const syncErrors: string[] = [];
+        if (!authConfigResult.success) {
+          syncErrors.push(
+            authConfigResult.message || "同步鉴权缓存配置到网关失败",
+          );
+        }
+        if (!reverseProxyThrottleResult.success) {
+          syncErrors.push(
+            reverseProxyThrottleResult.message || "同步网关节流配置到网关失败",
+          );
+        }
+        if (syncErrors.length > 0) {
+          throw new Error(syncErrors.join("；"));
+        }
+
+        return {
+          success: true,
+          data: buildGatewaySettingsResponse(updatedConfig),
+        };
+      } catch (error: any) {
+        const rollbackError = await rollbackConfigAndRuntime(previousConfig);
+        set.status = 502;
+        return {
+          success: false,
+          message: rollbackError
+            ? `${error?.message || "更新网关配置失败"}；回滚失败：${rollbackError}`
+            : error?.message || "更新网关配置失败，已回滚配置",
+        };
+      }
+    },
+    {
+      body: t.Object({
+        auth_cache_ttl_seconds: t.Optional(t.Number()),
+        auth_cache_unauthorized_ttl_seconds: t.Optional(t.Number()),
+        reverse_proxy_throttle: t.Optional(
+          t.Object({
+            enabled: t.Optional(t.Boolean()),
+            requests_per_second: t.Optional(t.Number()),
+            burst: t.Optional(t.Number()),
+            block_seconds: t.Optional(t.Number()),
+          }),
+        ),
       }),
     },
   )

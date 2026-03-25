@@ -66,14 +66,16 @@
       </div>
 
       <div v-if="isInstalled" class="rounded-lg border bg-muted/20 p-4">
-        <div class="flex items-start justify-between gap-4">
-          <div class="grid gap-1">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+          <div class="grid min-w-0 gap-1">
             <div class="text-sm font-medium">证书颁发机构</div>
             <div class="text-xs text-muted-foreground">
               切换后会影响后续证书申请和自动续期，不会立即替换当前已部署证书。
             </div>
           </div>
-          <Badge variant="outline">{{ currentCertificateAuthorityLabel }}</Badge>
+          <Badge variant="outline" class="shrink-0 self-start whitespace-nowrap">
+            {{ currentCertificateAuthorityLabel }}
+          </Badge>
         </div>
 
         <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -90,14 +92,14 @@
             ]"
             @click="switchCertificateAuthority(option.value)"
           >
-            <div class="flex items-start justify-between gap-3">
-              <div class="grid gap-1">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div class="grid min-w-0 gap-1">
                 <div class="text-sm font-medium">{{ option.label }}</div>
                 <div class="text-xs text-muted-foreground">{{ option.description }}</div>
               </div>
               <span
                 :class="[
-                  'rounded-full border px-2 py-0.5 text-[11px] font-medium',
+                  'self-start shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium',
                   currentCertificateAuthority === option.value
                     ? 'border-primary/20 bg-primary/10 text-primary'
                     : 'border-border text-muted-foreground',

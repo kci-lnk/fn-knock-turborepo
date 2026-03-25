@@ -111,11 +111,11 @@ onMounted(() => {
             Cloudflared
           </TabsTrigger>
         </TabsList>
-        <DocsLinkButton :href="docsUrls.guides.tunnel" />
+        <DocsLinkButton v-if="showTabSwitcher" :href="docsUrls.guides.tunnel" />
       </div>
 
       <TabsContent value="frp" class="pt-2">
-        <FrpTunnel />
+        <FrpTunnel :show-docs-button="!showTabSwitcher" />
       </TabsContent>
       <TabsContent
         v-if="allowedTabs.includes('cloudflared')"

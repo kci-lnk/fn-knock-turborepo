@@ -16,6 +16,13 @@ type RunState = {
   pid?: number;
 };
 
+class FrpcConfigValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "FrpcConfigValidationError";
+  }
+}
+
 const LOG_KEY = "fn_knock:frpc:logs";
 const LOG_TTL_SEC = 24 * 3600;
 const logBuffer = new RedisLogBuffer(redis, {
@@ -93,12 +100,16 @@ const extractTomlNumber = (content: string, key: string): number | null => {
   return parsed;
 };
 
-const runCommand = async (args: string[]): Promise<{ exitCode: number; stdout: string; stderr: string }> => {
+const runCommand = async (
+  args: string[],
+  options?: { cwd?: string },
+): Promise<{ exitCode: number; stdout: string; stderr: string }> => {
   const [command, ...commandArgs] = args;
   if (!command) {
     throw new Error("missing command");
   }
   const proc = spawn(command, commandArgs, {
+    cwd: options?.cwd,
     stdio: ["ignore", "pipe", "pipe"],
   });
   // Attach process error/exit listeners immediately to catch ENOENT and similar spawn failures.
@@ -312,47 +323,61 @@ async function writeConfig(content: string): Promise<void> {
   fs.writeFileSync(FRPC_TOML, content, "utf-8");
 }
 
-function sanitizeFrpcTomlForLoad(content: string): { content: string; removed: string[] } {
-  const removed: string[] = [];
-  let next = content;
+const normalizeVerifyOutput = (value: string): string => {
+  const normalized = value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join("\n");
+  if (normalized.length <= 4000) return normalized;
+  return `${normalized.slice(0, 4000)}...`;
+};
 
-  const rules: Array<{ key: string; pattern: RegExp }> = [
-    {
-      key: "transport.useEncryption",
-      pattern: /^[ \t]*transport\.useEncryption[ \t]*=[ \t]*true[ \t]*(?:#.*)?(?:\r?\n|$)/gm,
-    },
-    {
-      key: "transport.useCompression",
-      pattern: /^[ \t]*transport\.useCompression[ \t]*=[ \t]*true[ \t]*(?:#.*)?(?:\r?\n|$)/gm,
-    },
-  ];
+const formatVerifyFailureMessage = (result: { exitCode: number; stdout: string; stderr: string }): string => {
+  const detail = [result.stderr, result.stdout]
+    .map(normalizeVerifyOutput)
+    .filter(Boolean)
+    .join("\n");
+  if (detail) {
+    return `frpc verify 校验失败：${detail}`;
+  }
+  return `frpc verify 校验失败，退出码 ${result.exitCode}`;
+};
 
-  for (const rule of rules) {
-    let hit = false;
-    next = next.replace(rule.pattern, () => {
-      hit = true;
-      return "";
-    });
-    if (hit) removed.push(rule.key);
+async function verifyFrpcConfig(content: string): Promise<void> {
+  let bin: string;
+  try {
+    bin = frpManager.getExecutable("frpc");
+  } catch {
+    throw new FrpcConfigValidationError("FRP 未初始化，无法校验 frpc.toml，请先在系统设置中下载 FRP 资源。");
   }
 
-  return { content: next, removed };
-}
+  if (!fs.existsSync(FRPC_DIR)) fs.mkdirSync(FRPC_DIR, { recursive: true });
 
-async function sanitizeFrpcConfigBeforeLoad(): Promise<void> {
-  const current = await readConfig();
-  const sanitized = sanitizeFrpcTomlForLoad(current);
-  if (!sanitized.removed.length) return;
-
-  await writeConfig(sanitized.content);
-  await appendLogs([`preflight: 已移除不兼容配置项 ${sanitized.removed.join(", ")}`]);
+  const tempPath = path.join(FRPC_DIR, `frpc.verify.${randomUUID()}.toml`);
+  try {
+    fs.writeFileSync(tempPath, content, "utf-8");
+    const result = await runCommand([bin, "verify", "-c", tempPath], { cwd: FRPC_DIR });
+    if (result.exitCode !== 0) {
+      throw new FrpcConfigValidationError(formatVerifyFailureMessage(result));
+    }
+  } catch (error) {
+    if (error instanceof FrpcConfigValidationError) {
+      throw error;
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    throw new FrpcConfigValidationError(`frpc verify 校验失败：${message}`);
+  } finally {
+    try {
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    } catch {}
+  }
 }
 
 async function startFrpc(opts?: { releaseWebPort?: boolean }): Promise<{ pid: number }> {
   if (runState.running && runState.proc && runState.proc.exitCode === null && !runState.proc.killed) {
     return { pid: runState.proc.pid ?? 0 };
   }
-  await sanitizeFrpcConfigBeforeLoad();
   if (opts?.releaseWebPort) {
     await releaseFrpcWebPortIfNeeded();
   }
@@ -507,9 +532,16 @@ export const frpcRoutes = new Elysia({ prefix: "/api/admin/frpc" })
     const content = await readConfig();
     return { success: true, data: { content } };
   })
-  .post("/config", async ({ body }) => {
-    await writeConfig(body.content);
-    return { success: true };
+  .post("/config", async ({ body, set }) => {
+    try {
+      await verifyFrpcConfig(body.content);
+      await writeConfig(body.content);
+      return { success: true };
+    } catch (e: any) {
+      const message = e?.message || "保存配置失败";
+      set.status = e instanceof FrpcConfigValidationError ? 400 : 500;
+      return { success: false, message };
+    }
   }, {
     body: t.Object({ content: t.String() })
   })

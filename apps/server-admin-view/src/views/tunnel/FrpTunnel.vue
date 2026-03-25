@@ -15,6 +15,20 @@ import { extractErrorMessage, useAsyncAction } from '@admin-shared/composables/u
 import { DEFAULT_LOG_WINDOW_SIZE, mergePollingLogWindow } from '@admin-shared/utils/log-window'
 import { useTargetPolling } from '../../composables/useTargetPolling'
 import { useConfigStore } from '../../store/config'
+import TomlCodeEditor from '../../components/TomlCodeEditor.vue'
+import DocsLinkButton from '../../components/DocsLinkButton.vue'
+import {
+  extractVisualFieldsFromToml,
+  mergeVisualFieldsIntoToml,
+  type FrpcVisualFields,
+} from '../../lib/frpc-config-editor'
+import { docsUrls } from '../../lib/docs'
+
+withDefaults(defineProps<{
+  showDocsButton?: boolean
+}>(), {
+  showDocsButton: false,
+})
 
 const router = useRouter()
 const configStore = useConfigStore()
@@ -23,6 +37,9 @@ const isInit = ref<boolean>(false)
 const running = ref<boolean>(false)
 const pid = ref<number | null>(null)
 const frpcContent = ref<string>('')
+const customToml = ref<string>('')
+const editorMode = ref<'visual' | 'custom'>('visual')
+const visualSyncError = ref<string | null>(null)
 const logs = ref<string[]>([])
 const showInitDialog = ref(false)
 const defaults = ref<{ local_port: string }>({ local_port: '7999' })
@@ -78,47 +95,82 @@ const CONNECTION_REFUSED_REGEX = /\bconnection refused\b/i
 
 const canStart = computed(() => isInit.value && !running.value)
 const canStop = computed(() => running.value)
+const isCustomMode = computed(() => editorMode.value === 'custom')
+const currentModeLabel = computed(() => isCustomMode.value ? '源码模式' : '表单模式')
+const currentModeDescription = computed(() =>
+  isCustomMode.value
+    ? '直接编辑 frpc.toml，保存前会执行 frpc verify。再次点击“自定义”可尝试回到可视化表单。'
+    : '可视化模式只覆盖当前已支持字段，其他 TOML 字段会继续保留，不会被清空。',
+)
 
-function parseConfig(raw: string) {
-  const get = (key: RegExp, fallback: string) => {
-    const m = raw.match(key)
-    return m && m[1] ? m[1] : fallback
+function getVisualDefaults() {
+  return {
+    localPort: defaults.value.local_port,
   }
-  // 新版键优先，兼容旧版键作为回退
-  serverAddr.value = get(/serverAddr\s*=\s*"?([^"\n]+)"?/, get(/server_addr\s*=\s*"?([^"\n]+)"?/, '')).trim()
-  serverPort.value = get(/serverPort\s*=\s*([0-9]+)/, get(/server_port\s*=\s*([0-9]+)/, '7000'))
-  serverToken.value = get(/(?:^\[auth\][\s\S]*?token\s*=\s*"?([^"\n]+)"?)|(?:token\s*=\s*"?([^"\n]+)"?)/m, '').trim()
-  webUser.value = get(/webServer\.user\s*=\s*"([^"\n]+)"/, 'admin').trim() || 'admin'
-  webPassword.value = get(/webServer\.password\s*=\s*"([^"\n]+)"/, '').trim()
-  localPort.value = get(/localPort\s*=\s*([0-9]+)/, get(/local_port\s*=\s*([0-9]+)/, defaults.value.local_port))
-  remotePort.value = get(/remotePort\s*=\s*([0-9]+)/, get(/remote_port\s*=\s*([0-9]+)/, '0'))
 }
 
-function buildConfig(): string {
-  const nextWebPassword = webPassword.value.trim() || (crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`)
-  webPassword.value = nextWebPassword
-  return [
-    `serverAddr = "${serverAddr.value.trim()}"`,
-    `serverPort = ${serverPort.value || '7000'}`,
-    "",
-    `webServer.addr = "127.0.0.1"`,
-    `webServer.port = 7995`,
-    `webServer.user = "${webUser.value.trim() || 'admin'}"`,
-    `webServer.password = "${nextWebPassword}"`,
-    "",
-    `[auth]`,
-    `method = "token"`,
-    `token = "${serverToken.value.trim()}"`,
-    "",
-    `[[proxies]]`,
-    `name = "reproxy"`,
-    `type = "tcp"`,
-    `localIP = "127.0.0.1"`,
-    `localPort = ${localPort.value || defaults.value.local_port}`,
-    `remotePort = ${remotePort.value || '7999'}`,
-    `transport.proxyProtocolVersion = "v2"`,
-    ""
-  ].join("\n")
+function getVisualFields(): FrpcVisualFields {
+  return {
+    serverAddr: serverAddr.value,
+    serverPort: serverPort.value,
+    serverToken: serverToken.value,
+    webUser: webUser.value,
+    webPassword: webPassword.value,
+    localPort: localPort.value,
+    remotePort: remotePort.value,
+  }
+}
+
+function applyVisualFields(fields: FrpcVisualFields) {
+  serverAddr.value = fields.serverAddr
+  serverPort.value = fields.serverPort
+  serverToken.value = fields.serverToken
+  webUser.value = fields.webUser
+  webPassword.value = fields.webPassword
+  localPort.value = fields.localPort
+  remotePort.value = fields.remotePort
+}
+
+function syncVisualFieldsFromRaw(raw: string) {
+  applyVisualFields(extractVisualFieldsFromToml(raw, getVisualDefaults()))
+  visualSyncError.value = null
+}
+
+function buildVisualConfig(baseRaw = customToml.value || frpcContent.value): string {
+  return mergeVisualFieldsIntoToml(baseRaw, getVisualFields(), getVisualDefaults())
+}
+
+function enterCustomMode() {
+  try {
+    customToml.value = buildVisualConfig(customToml.value || frpcContent.value)
+    editorMode.value = 'custom'
+    visualSyncError.value = null
+  } catch (error) {
+    toast.error('无法进入自定义模式', {
+      description: extractErrorMessage(error, '当前配置无法转换为可编辑的 TOML'),
+    })
+  }
+}
+
+function exitCustomMode() {
+  try {
+    syncVisualFieldsFromRaw(customToml.value)
+    editorMode.value = 'visual'
+  } catch (error) {
+    const message = extractErrorMessage(error, '当前 TOML 语法有误')
+    visualSyncError.value = message
+    toast.error('无法返回可视化模式', {
+      description: `${message}。请先修复自定义内容后再切换。`,
+    })
+  }
+}
+
+function toggleCustomMode() {
+  if (isCustomMode.value) {
+    exitCustomMode()
+    return
+  }
+  enterCustomMode()
 }
 
 async function loadStatus() {
@@ -142,7 +194,17 @@ async function loadConfig() {
     async () => {
       const raw = await FrpcAPI.getConfig()
       frpcContent.value = raw
-      parseConfig(raw)
+      customToml.value = raw
+      try {
+        syncVisualFieldsFromRaw(raw)
+        editorMode.value = 'visual'
+      } catch (error) {
+        editorMode.value = 'custom'
+        visualSyncError.value = extractErrorMessage(error, '当前 frpc.toml 无法映射到可视化表单')
+        toast.info('已切换到自定义模式', {
+          description: `${visualSyncError.value}。你可以先在编辑器里修复或继续手动维护配置。`,
+        })
+      }
     },
     {
       onFinally: () => {
@@ -154,9 +216,16 @@ async function loadConfig() {
 
 async function saveConfig() {
   await runSaveConfig(async () => {
-    const content = buildConfig()
+    const content = isCustomMode.value ? customToml.value : buildVisualConfig()
     await FrpcAPI.saveConfig(content)
     frpcContent.value = content
+    customToml.value = content
+    try {
+      syncVisualFieldsFromRaw(content)
+    } catch (error) {
+      visualSyncError.value = extractErrorMessage(error, '配置已保存，但暂时无法映射到可视化表单')
+      editorMode.value = 'custom'
+    }
     const shouldRestart = running.value
     if (shouldRestart) {
       await stopFrpc({ silent: true })
@@ -295,7 +364,13 @@ onUnmounted(() => {
   <div class="space-y-6">
     <div class="flex items-center justify-between">
       <h2 class="text-xl font-semibold">FRP穿透</h2>
-      <div class="flex gap-2">
+      <div class="flex items-center gap-3">
+        <DocsLinkButton
+          v-if="showDocsButton"
+          :href="docsUrls.guides.tunnel"
+          size="default"
+          class="shrink-0"
+        />
         <Button v-if="!running" :disabled="!canStart || isStarting" @click="startFrpc">启动</Button>
         <Button v-else variant="destructive" :disabled="!canStop || isStopping" @click="stopFrpc">停止</Button>
       </div>
@@ -315,95 +390,127 @@ onUnmounted(() => {
         </template>
 
         <template #default>
-          <div class="divide-y divide-border">
-            <div class="p-4 sm:p-6 grid gap-2 sm:grid-cols-[200px_1fr] md:grid-cols-[240px_1fr] items-start transition-colors hover:bg-muted/10">
-              <div class="space-y-1 mt-1.5">
-                <Label for="frp-server-addr" class="text-sm font-medium flex items-center gap-1">
-                  FRP 服务器地址
-                  <span class="text-destructive">*</span>
-                </Label>
-                <p class="text-xs text-muted-foreground leading-relaxed hidden sm:block pr-4">
-                  FRP 服务端域名或 IP。
-                </p>
-              </div>
-              <div class="w-full max-w-md space-y-2">
-                <Input id="frp-server-addr" v-model.trim="serverAddr" placeholder="example.com" autocomplete="off"
-                  autocapitalize="off" autocorrect="off" :spellcheck="false" data-form-type="other"
-                  data-1p-ignore="true" data-lpignore="true" data-bwignore="true" />
-                <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
-                  FRP 服务端域名或 IP。
-                </p>
+          <div>
+            <div class="border-b bg-linear-to-r from-muted/40 via-muted/15 to-transparent px-4 py-4 sm:px-6 sm:py-5">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div class="space-y-1">
+                  <div class="text-sm font-medium tracking-tight">配置编辑方式</div>
+                  <p class="max-w-2xl text-xs leading-relaxed text-muted-foreground">
+                    {{ currentModeDescription }}
+                  </p>
+                </div>
+                <div
+                  class="inline-flex w-fit items-center rounded-full border px-2.5 py-1 text-[11px] font-medium"
+                  :class="isCustomMode ? 'border-primary/20 bg-primary/5 text-primary' : 'border-border bg-background/80 text-muted-foreground'"
+                >
+                  {{ currentModeLabel }}
+                </div>
               </div>
             </div>
 
-            <div class="p-4 sm:p-6 grid gap-2 sm:grid-cols-[200px_1fr] md:grid-cols-[240px_1fr] items-start transition-colors hover:bg-muted/10">
-              <div class="space-y-1 mt-1.5">
-                <Label for="frp-server-port" class="text-sm font-medium flex items-center gap-1">
-                  FRP 服务器端口
-                  <span class="text-destructive">*</span>
-                </Label>
+            <div v-if="isCustomMode" class="space-y-4 p-4 sm:p-6">
+              <div
+                v-if="visualSyncError"
+                class="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm leading-relaxed text-destructive"
+              >
+                当前内容还不能切回可视化模式：{{ visualSyncError }}
               </div>
-              <div class="w-full max-w-md">
-                <Input id="frp-server-port" v-model="serverPort" type="number" autocomplete="off" autocapitalize="off"
-                  autocorrect="off" :spellcheck="false" data-form-type="other" data-1p-ignore="true"
-                  data-lpignore="true" data-bwignore="true" />
+              <div class="rounded-xl border border-dashed border-border/80 bg-muted/20 px-4 py-3 text-xs leading-relaxed text-muted-foreground">
+                这里会直接编辑 <code>frpc.toml</code> 原文。保存时会先执行 <code>frpc verify</code>，可视化模式只管理已支持字段。
               </div>
+              <TomlCodeEditor v-model="customToml" />
             </div>
 
-            <div class="p-4 sm:p-6 grid gap-2 sm:grid-cols-[200px_1fr] md:grid-cols-[240px_1fr] items-start transition-colors hover:bg-muted/10">
-              <div class="space-y-1 mt-1.5">
-                <Label for="frp-server-token" class="text-sm font-medium">Token</Label>
-                <p class="text-xs text-muted-foreground leading-relaxed hidden sm:block pr-4">
-                  可选，需与服务端配置一致。
-                </p>
+            <div v-else class="divide-y divide-border">
+              <div class="p-4 sm:p-6 grid gap-2 sm:grid-cols-[200px_1fr] md:grid-cols-[240px_1fr] items-start transition-colors hover:bg-muted/10">
+                <div class="space-y-1 mt-1.5">
+                  <Label for="frp-server-addr" class="text-sm font-medium flex items-center gap-1">
+                    FRP 服务器地址
+                    <span class="text-destructive">*</span>
+                  </Label>
+                  <p class="text-xs text-muted-foreground leading-relaxed hidden sm:block pr-4">
+                    FRP 服务端域名或 IP。
+                  </p>
+                </div>
+                <div class="w-full max-w-md space-y-2">
+                  <Input id="frp-server-addr" v-model.trim="serverAddr" placeholder="example.com" autocomplete="off"
+                    autocapitalize="off" autocorrect="off" :spellcheck="false" data-form-type="other"
+                    data-1p-ignore="true" data-lpignore="true" data-bwignore="true" />
+                  <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
+                    FRP 服务端域名或 IP。
+                  </p>
+                </div>
               </div>
-              <div class="w-full max-w-md space-y-2">
-                <Input id="frp-server-token" v-model.trim="serverToken" placeholder="可选" autocomplete="off"
-                  autocapitalize="off" autocorrect="off" :spellcheck="false" data-form-type="other"
-                  data-1p-ignore="true" data-lpignore="true" data-bwignore="true" />
-                <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
-                  可选，需与服务端配置一致。
-                </p>
-              </div>
-            </div>
 
-            <div class="p-4 sm:p-6 grid gap-2 sm:grid-cols-[200px_1fr] md:grid-cols-[240px_1fr] items-start transition-colors hover:bg-muted/10">
-              <div class="space-y-1 mt-1.5">
-                <Label for="frp-local-port" class="text-sm font-medium flex items-center gap-1">
-                  本地端口
-                  <span class="text-destructive">*</span>
-                </Label>
-                <p class="text-xs text-muted-foreground leading-relaxed hidden sm:block pr-4">
-                  本机服务监听端口，默认 {{ defaults.local_port }}。
-                </p>
+              <div class="p-4 sm:p-6 grid gap-2 sm:grid-cols-[200px_1fr] md:grid-cols-[240px_1fr] items-start transition-colors hover:bg-muted/10">
+                <div class="space-y-1 mt-1.5">
+                  <Label for="frp-server-port" class="text-sm font-medium flex items-center gap-1">
+                    FRP 服务器端口
+                    <span class="text-destructive">*</span>
+                  </Label>
+                </div>
+                <div class="w-full max-w-md">
+                  <Input id="frp-server-port" v-model="serverPort" type="number" autocomplete="off" autocapitalize="off"
+                    autocorrect="off" :spellcheck="false" data-form-type="other" data-1p-ignore="true"
+                    data-lpignore="true" data-bwignore="true" />
+                </div>
               </div>
-              <div class="w-full max-w-md space-y-2">
-                <Input id="frp-local-port" v-model="localPort" type="number" :placeholder="defaults.local_port"
-                  autocomplete="off" autocapitalize="off" autocorrect="off" :spellcheck="false"
-                  data-form-type="other" data-1p-ignore="true" data-lpignore="true" data-bwignore="true" />
-                <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
-                  默认 {{ defaults.local_port }}。
-                </p>
-              </div>
-            </div>
 
-            <div class="p-4 sm:p-6 grid gap-2 sm:grid-cols-[200px_1fr] md:grid-cols-[240px_1fr] items-start transition-colors hover:bg-muted/10">
-              <div class="space-y-1 mt-1.5">
-                <Label for="frp-remote-port" class="text-sm font-medium flex items-center gap-1">
-                  出网端口
-                  <span class="text-destructive">*</span>
-                </Label>
-                <p class="text-xs text-muted-foreground leading-relaxed hidden sm:block pr-4">
-                  需要映射到外网访问的目标端口。
-                </p>
+              <div class="p-4 sm:p-6 grid gap-2 sm:grid-cols-[200px_1fr] md:grid-cols-[240px_1fr] items-start transition-colors hover:bg-muted/10">
+                <div class="space-y-1 mt-1.5">
+                  <Label for="frp-server-token" class="text-sm font-medium">Token</Label>
+                  <p class="text-xs text-muted-foreground leading-relaxed hidden sm:block pr-4">
+                    可选，需与服务端配置一致。
+                  </p>
+                </div>
+                <div class="w-full max-w-md space-y-2">
+                  <Input id="frp-server-token" v-model.trim="serverToken" placeholder="可选" autocomplete="off"
+                    autocapitalize="off" autocorrect="off" :spellcheck="false" data-form-type="other"
+                    data-1p-ignore="true" data-lpignore="true" data-bwignore="true" />
+                  <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
+                    可选，需与服务端配置一致。
+                  </p>
+                </div>
               </div>
-              <div class="w-full max-w-md space-y-2">
-                <Input id="frp-remote-port" v-model="remotePort" type="number" autocomplete="off" autocapitalize="off"
-                  autocorrect="off" :spellcheck="false" data-form-type="other" data-1p-ignore="true"
-                  data-lpignore="true" data-bwignore="true" />
-                <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
-                  需要映射到外网访问的目标端口。
-                </p>
+
+              <div class="p-4 sm:p-6 grid gap-2 sm:grid-cols-[200px_1fr] md:grid-cols-[240px_1fr] items-start transition-colors hover:bg-muted/10">
+                <div class="space-y-1 mt-1.5">
+                  <Label for="frp-local-port" class="text-sm font-medium flex items-center gap-1">
+                    本地端口
+                    <span class="text-destructive">*</span>
+                  </Label>
+                  <p class="text-xs text-muted-foreground leading-relaxed hidden sm:block pr-4">
+                    本机服务监听端口，默认 {{ defaults.local_port }}。
+                  </p>
+                </div>
+                <div class="w-full max-w-md space-y-2">
+                  <Input id="frp-local-port" v-model="localPort" type="number" :placeholder="defaults.local_port"
+                    autocomplete="off" autocapitalize="off" autocorrect="off" :spellcheck="false"
+                    data-form-type="other" data-1p-ignore="true" data-lpignore="true" data-bwignore="true" />
+                  <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
+                    默认 {{ defaults.local_port }}。
+                  </p>
+                </div>
+              </div>
+
+              <div class="p-4 sm:p-6 grid gap-2 sm:grid-cols-[200px_1fr] md:grid-cols-[240px_1fr] items-start transition-colors hover:bg-muted/10">
+                <div class="space-y-1 mt-1.5">
+                  <Label for="frp-remote-port" class="text-sm font-medium flex items-center gap-1">
+                    出网端口
+                    <span class="text-destructive">*</span>
+                  </Label>
+                  <p class="text-xs text-muted-foreground leading-relaxed hidden sm:block pr-4">
+                    需要映射到外网访问的目标端口。
+                  </p>
+                </div>
+                <div class="w-full max-w-md space-y-2">
+                  <Input id="frp-remote-port" v-model="remotePort" type="number" autocomplete="off" autocapitalize="off"
+                    autocorrect="off" :spellcheck="false" data-form-type="other" data-1p-ignore="true"
+                    data-lpignore="true" data-bwignore="true" />
+                  <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
+                    需要映射到外网访问的目标端口。
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -412,6 +519,14 @@ onUnmounted(() => {
         <template #actions="{ collapse }">
           <div class="p-4 sm:px-6 sm:py-4 bg-muted/30 border-t flex items-center justify-end gap-3 rounded-b-lg">
             <Button variant="outline" @click="collapse">折叠</Button>
+            <Button
+              variant="outline"
+              :disabled="isSaving"
+              :class="isCustomMode ? 'border-primary bg-primary/5 text-primary hover:bg-primary/10' : ''"
+              @click="toggleCustomMode"
+            >
+              自定义
+            </Button>
             <Button :disabled="isSaving" @click="saveConfig" class="min-w-[100px] shadow-sm">保存</Button>
           </div>
         </template>

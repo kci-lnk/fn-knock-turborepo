@@ -1,13 +1,19 @@
 import { join } from "node:path";
 import { promises as fs } from "node:fs";
 import { X509Certificate, randomBytes } from "node:crypto";
-import forge from "node-forge";
-import { dataPath } from './AppDirManager';
+import { dataPath } from "./AppDirManager";
+
 const DATA_DIR = dataPath;
 const CA_DIR = join(DATA_DIR, "ssl");
 const CA_CERT_PATH = join(CA_DIR, "rootCA.pem");
 const CA_KEY_PATH = join(CA_DIR, "rootCA.key.pem");
 const CA_HOSTS_PATH = join(CA_DIR, "hosts.json");
+let forgePromise: Promise<any> | undefined;
+
+const loadForge = async () => {
+    forgePromise ??= import("node-forge").then((mod) => mod.default ?? mod);
+    return forgePromise;
+};
 
 export type CAInfo = {
     subject: string;
@@ -69,6 +75,7 @@ export async function initRootCA(config: {
     keySize: number;
 }): Promise<CAInfo> {
     await ensureDir(CA_DIR);
+    const forge = await loadForge();
     const keys = forge.pki.rsa.generateKeyPair({ bits: config.keySize, workers: -1 });
     const cert = forge.pki.createCertificate();
     cert.publicKey = keys.publicKey;
@@ -124,6 +131,7 @@ export async function issueServerCert(hosts: string[], years: number): Promise<{
     }
     const caCertPem = await readCACert();
     const caKeyPem = await readCAKey();
+    const forge = await loadForge();
     const caCert = forge.pki.certificateFromPem(caCertPem);
     const caKey = forge.pki.privateKeyFromPem(caKeyPem);
 

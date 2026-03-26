@@ -13,7 +13,7 @@
   "scripts": {
     "dev": "node ./node_modules/tsx/dist/cli.mjs watch src/index.ts",
     "debug:scanner": "node ./node_modules/tsx/dist/cli.mjs src/scripts/debug-scanner-analyzer.ts",
-    "build": "./node_modules/esbuild/bin/esbuild src/index.ts --bundle --platform=node --target=node20 --format=esm --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\" --outfile=dist/index.js",
+    "build": "rm -rf dist && ./node_modules/esbuild/bin/esbuild src/index.ts --bundle --splitting --minify --platform=node --target=node20 --format=esm --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\" --outdir=dist --entry-names=[name] --chunk-names=chunks/[name]-[hash]",
     "start": "node dist/index.js"
   },
   "peerDependencies": {

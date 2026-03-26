@@ -9,15 +9,17 @@ import {
 } from "../../lib/auth-utils";
 import { getClientIp } from "../../lib/auth-request";
 import { authLogManager } from "../../lib/auth-log";
-import {
-  generateAuthenticationOptions,
-  generateRegistrationOptions,
-  verifyAuthenticationResponse,
-  verifyRegistrationResponse,
-} from "@simplewebauthn/server";
 import { resolveSafeRedirectUri } from "../../lib/subdomain-mode";
 
 const RP_NAME = "fn-knock";
+let simpleWebAuthnServerPromise:
+  | Promise<typeof import("@simplewebauthn/server")>
+  | undefined;
+
+const loadSimpleWebAuthnServer = () => {
+  simpleWebAuthnServerPromise ??= import("@simplewebauthn/server");
+  return simpleWebAuthnServerPromise;
+};
 
 export const passkeyRoutes = new Elysia({ prefix: "/passkey" })
   .get("/status", async ({ request }) => {
@@ -38,6 +40,7 @@ export const passkeyRoutes = new Elysia({ prefix: "/passkey" })
       set.status = 404;
       return { success: false, message: "No passkey available" };
     }
+    const { generateAuthenticationOptions } = await loadSimpleWebAuthnServer();
     const { rpID } = await getRpInfo(request);
     const allowCredentials = passkeys.map((passkey) => ({
       id: passkey.id,
@@ -91,6 +94,8 @@ export const passkeyRoutes = new Elysia({ prefix: "/passkey" })
 
       let verification;
       try {
+        const { verifyAuthenticationResponse } =
+          await loadSimpleWebAuthnServer();
         const storedCredential = {
           id: matched.id,
           publicKey: new Uint8Array(base64UrlToBuffer(matched.publicKey)),
@@ -182,6 +187,7 @@ export const passkeyRoutes = new Elysia({ prefix: "/passkey" })
         set.status = 401;
         return { success: false, message: "绑定凭证已失效" };
       }
+      const { generateRegistrationOptions } = await loadSimpleWebAuthnServer();
       const { rpID } = await getRpInfo(request);
       const passkeys = await configManager.getPasskeys();
       const options = await generateRegistrationOptions({
@@ -231,6 +237,8 @@ export const passkeyRoutes = new Elysia({ prefix: "/passkey" })
       const { origin, rpID } = await getRpInfo(request);
       let verification;
       try {
+        const { verifyRegistrationResponse } =
+          await loadSimpleWebAuthnServer();
         verification = await verifyRegistrationResponse({
           response: credential,
           expectedChallenge: challenge,

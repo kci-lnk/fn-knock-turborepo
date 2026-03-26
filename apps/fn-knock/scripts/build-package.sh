@@ -110,9 +110,10 @@ build_package_assets() {
   echo "[fn-knock] Syncing server-auth-view dist -> app/server-auth-view/dist"
   rsync -a --delete "${ROOT_DIR}/apps/server-auth-view/dist/" "${AUTH_DIST_DIR}/"
 
-  echo "[fn-knock] Copying server-admin bundle -> app/server/server-admin/index.js"
-  cp "${ROOT_DIR}/apps/server-admin/dist/index.js" "${SERVER_ADMIN_DIR}/index.js"
-  rm -f "${SERVER_ADMIN_DIR}/index.cjs"
+  echo "[fn-knock] Syncing server-admin dist -> app/server/server-admin"
+  find "${SERVER_ADMIN_DIR}" -maxdepth 1 -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.cjs' -o -name '*.map' \) -delete
+  rm -rf "${SERVER_ADMIN_DIR}/chunks"
+  rsync -a "${ROOT_DIR}/apps/server-admin/dist/" "${SERVER_ADMIN_DIR}/"
 
   if [ ! -f "${ACME_RESOURCE_SRC}" ]; then
     echo "[fn-knock] Missing acme resource: ${ACME_RESOURCE_SRC}" >&2

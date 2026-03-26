@@ -175,7 +175,7 @@
                     清空所有配置
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    :disabled="!canManageNewMappings"
+                    :disabled="configStore.isLoading"
                     @click="openCreateDialog"
                   >
                     <Plus class="mr-2 h-4 w-4" />
@@ -411,9 +411,30 @@
           </div>
 
           <div class="space-y-2">
-            <Label for="mapping-subdomain">
-              {{ mappingInputMode === "subdomain" ? "子域名" : "Host" }}
-            </Label>
+            <div
+              class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"
+            >
+              <div class="space-y-1">
+                <Label for="mapping-subdomain">
+                  {{ mappingInputLabel }}
+                </Label>
+                <p class="text-xs text-muted-foreground">
+                  {{ mappingModeDescription }}
+                </p>
+              </div>
+              <div
+                class="flex items-center justify-between rounded-md border bg-muted/20 px-3 py-2 sm:w-auto sm:justify-start sm:gap-2 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0"
+              >
+                <span class="whitespace-nowrap text-xs text-muted-foreground">
+                  固定后缀
+                </span>
+                <Switch
+                  id="mapping-use-root-domain"
+                  v-model="isUsingRootDomainSuffix"
+                  :disabled="!canUseRootDomainSuffix"
+                />
+              </div>
+            </div>
             <template v-if="mappingInputMode === 'subdomain'">
               <div class="flex items-stretch rounded-md border">
                 <Input
@@ -438,8 +459,8 @@
                 v-model="mappingSubdomain"
                 placeholder="auth.other-domain.example"
               />
-              <p class="text-xs text-amber-600">
-                当前映射不在已固定根域名下，编辑时暂按完整 Host 处理。
+              <p class="text-xs text-muted-foreground">
+                {{ fullHostInputHint }}
               </p>
             </template>
           </div>
@@ -817,6 +838,37 @@ const composeHostFromSubdomain = (
   return `${normalizedSubdomain}.${normalizedRoot}`;
 };
 
+const extractSubdomainFromHost = (
+  value: string,
+  rootDomain: string,
+): string | null => {
+  const normalizedHost = normalizeHostLike(value);
+  const normalizedRoot = normalizeRootDomainValue(rootDomain);
+  if (!normalizedHost || !normalizedRoot) return null;
+  if (!normalizedHost.endsWith(`.${normalizedRoot}`)) return null;
+
+  const subdomain = normalizedHost.slice(0, -1 * (normalizedRoot.length + 1));
+  return subdomain || null;
+};
+
+const resolveMappingEditorState = (
+  host: string,
+  rootDomain: string,
+): { mode: MappingInputMode; value: string } => {
+  const subdomain = extractSubdomainFromHost(host, rootDomain);
+  if (subdomain) {
+    return {
+      mode: "subdomain",
+      value: subdomain,
+    };
+  }
+
+  return {
+    mode: "full_host",
+    value: normalizeHostLike(host),
+  };
+};
+
 const buildSuggestedSubdomain = (service: DiscoveredServiceInfo): string => {
   const candidates = [
     service.detail.rule.path,
@@ -926,6 +978,9 @@ const currentDraftRootDomain = computed(() =>
 const isRootDomainPendingSave = computed(
   () => currentDraftRootDomain.value !== savedRootDomain.value,
 );
+const canUseRootDomainSuffix = computed(
+  () => Boolean(savedRootDomain.value) && !isRootDomainPendingSave.value,
+);
 const canManageNewMappings = computed(
   () => Boolean(savedRootDomain.value) && !isRootDomainPendingSave.value,
 );
@@ -1033,6 +1088,38 @@ const deleteDialogConfirmLabel = computed(() => {
   }
 
   return "删除映射";
+});
+const isUsingRootDomainSuffix = computed({
+  get: () =>
+    mappingInputMode.value === "subdomain" && canUseRootDomainSuffix.value,
+  set: (value: boolean) => {
+    setMappingInputMode(value ? "subdomain" : "full_host");
+  },
+});
+const mappingModeDescription = computed(() => {
+  if (mappingInputMode.value === "subdomain" && canUseRootDomainSuffix.value) {
+    return `当前使用固定后缀 .${savedRootDomain.value}。`;
+  }
+
+  if (canUseRootDomainSuffix.value) {
+    return `当前为自定义完整域名，不会自动拼接 .${savedRootDomain.value}。`;
+  }
+
+  if (!savedRootDomain.value) {
+    return "当前没有已保存的固定后缀，只能输入完整域名。";
+  }
+
+  return "根域名有未保存修改，暂时只能输入完整域名。";
+});
+const mappingInputLabel = computed(() =>
+  mappingInputMode.value === "subdomain" ? "子域名前缀" : "完整域名",
+);
+const fullHostInputHint = computed(() => {
+  if (canUseRootDomainSuffix.value) {
+    return `按输入的 Host 直接保存，不自动拼接 .${savedRootDomain.value}。`;
+  }
+
+  return "按输入的 Host 直接保存。";
 });
 const composedPreviewHost = computed(() => {
   if (mappingInputMode.value === "full_host") {
@@ -1150,7 +1237,7 @@ const isMappingValid = computed(() => {
   const target = mappingForm.target.trim();
 
   if (!host || !target) return false;
-  if (mappingInputMode.value === "subdomain" && !savedRootDomain.value) {
+  if (mappingInputMode.value === "subdomain" && !canUseRootDomainSuffix.value) {
     return false;
   }
 
@@ -1305,6 +1392,40 @@ function resetModeForm() {
   applyModeForm(currentModeConfig.value);
 }
 
+function setMappingInputMode(nextMode: MappingInputMode) {
+  if (nextMode === "subdomain" && !canUseRootDomainSuffix.value) {
+    mappingInputMode.value = "full_host";
+    return;
+  }
+
+  if (nextMode === mappingInputMode.value) return;
+
+  const currentValue = mappingSubdomain.value;
+  if (nextMode === "full_host") {
+    mappingSubdomain.value =
+      mappingInputMode.value === "subdomain"
+        ? composeHostFromSubdomain(currentValue, savedRootDomain.value) ||
+          normalizeHostLike(currentValue)
+        : normalizeHostLike(currentValue);
+    mappingInputMode.value = "full_host";
+    return;
+  }
+
+  const extractedSubdomain = extractSubdomainFromHost(
+    currentValue,
+    savedRootDomain.value,
+  );
+
+  mappingInputMode.value = "subdomain";
+  mappingSubdomain.value = extractedSubdomain ?? "";
+
+  if (currentValue.trim() && !extractedSubdomain) {
+    toast.info("已切换为固定后缀模式", {
+      description: `当前完整域名不在 .${savedRootDomain.value} 下，请重新填写子域名前缀。`,
+    });
+  }
+}
+
 async function saveMode() {
   if (!isModeValid.value || !isModeDirty.value) return;
   await runSaveMode(async () => {
@@ -1343,17 +1464,10 @@ async function saveMode() {
 }
 
 function openCreateDialog() {
-  if (!canManageNewMappings.value) {
-    toast.error("暂时无法添加映射", {
-      description: !savedRootDomain.value
-        ? "请先保存根域名配置。"
-        : "根域名有未保存修改，请先保存后再添加映射。",
-    });
-    return;
-  }
-
   editingHost.value = null;
-  mappingInputMode.value = "subdomain";
+  mappingInputMode.value = canUseRootDomainSuffix.value
+    ? "subdomain"
+    : "full_host";
   mappingSubdomain.value = "";
   mappingMetadataTarget.value = "";
   Object.assign(mappingForm, createDefaultMapping());
@@ -1362,15 +1476,12 @@ function openCreateDialog() {
 
 function openEditDialog(mapping: HostMapping) {
   editingHost.value = mapping.host;
-
-  const stripped = stripRootDomainSuffix(mapping.host, savedRootDomain.value);
-  if (savedRootDomain.value && stripped) {
-    mappingInputMode.value = "subdomain";
-    mappingSubdomain.value = stripped;
-  } else {
-    mappingInputMode.value = "full_host";
-    mappingSubdomain.value = mapping.host;
-  }
+  const editorState = resolveMappingEditorState(
+    mapping.host,
+    canUseRootDomainSuffix.value ? savedRootDomain.value : "",
+  );
+  mappingInputMode.value = editorState.mode;
+  mappingSubdomain.value = editorState.value;
 
   Object.assign(mappingForm, { ...mapping });
   mappingMetadataTarget.value = mapping.target.trim();
@@ -1380,7 +1491,9 @@ function openEditDialog(mapping: HostMapping) {
 function closeDialog() {
   isDialogOpen.value = false;
   editingHost.value = null;
-  mappingInputMode.value = "subdomain";
+  mappingInputMode.value = canUseRootDomainSuffix.value
+    ? "subdomain"
+    : "full_host";
   mappingSubdomain.value = "";
   mappingMetadataTarget.value = "";
   Object.assign(mappingForm, createDefaultMapping());

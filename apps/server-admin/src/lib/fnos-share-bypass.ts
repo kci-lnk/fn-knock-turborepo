@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { setTimeout as sleep } from "node:timers/promises";
-import { isAuthServiceMapping, parseTargetPort } from "./auth-service";
+import { isAuthServiceMapping, isAuthServiceTarget } from "./auth-service";
 import {
   buildFnosShareSessionClearCookie,
   buildFnosShareSessionCookie,
@@ -65,8 +65,14 @@ const SHARE_SCRIPT_REGEX =
 const CACHE_KEY_PREFIX = "fn_knock:fnos-share:validation:";
 const SESSION_KEY_PREFIX = "fn_knock:fnos-share:session:";
 const LOCK_KEY_PREFIX = "fn_knock:lock:fnos-share:validation:";
-const FNOS_PRIMARY_PORT = 5666;
-const FNOS_LEGACY_PORT = 8000;
+const FNOS_DETECTION_PATH = "/locales/zh-CN/os.json";
+const FNOS_DETECTION_CACHE_TTL_MS = 30_000;
+const FNOS_DETECTION_TIMEOUT_MS = 1_000;
+
+type FnosTargetProbeCacheRecord = {
+  isFnos: boolean;
+  expiresAt: number;
+};
 
 const parseCookie = (cookieHeader: string, name: string): string | null => {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -177,73 +183,165 @@ const toUpstreamOrigin = (target: string): URL | null => {
   }
 };
 
-const scoreFnosHostMapping = (
-  mapping: Pick<AppConfig["host_mappings"][number], "host" | "target">,
-): number => {
-  const port = parseTargetPort(mapping.target);
-  const normalizedHost = mapping.host.trim().toLowerCase();
-
-  if (port === FNOS_PRIMARY_PORT) return 100;
-  if (port === FNOS_LEGACY_PORT) return 90;
-  if (normalizedHost.includes("fnos")) return 20;
-  return 0;
-};
-
 class FnosShareBypassService {
+  // Cache probe outcomes for 30 seconds so repeated share checks stay cheap.
+  private readonly fnosTargetProbeCache = new Map<
+    string,
+    FnosTargetProbeCacheRecord
+  >();
+
+  private readonly fnosTargetProbeInflight = new Map<
+    string,
+    Promise<boolean | null>
+  >();
+
   private async getConfig(): Promise<ResolvedFnosShareBypassConfig> {
     const appConfig = await configManager.getConfig();
-    const fallbackHostMapping = this.resolveFnosHostMapping(appConfig);
     const isSubdomainRouting = isAnySubdomainRoutingMode(appConfig);
     const defaultRoute = isSubdomainRouting
       ? null
       : appConfig.default_route || null;
-    const matchedMapping = defaultRoute
-      ? appConfig.proxy_mappings.find((item) => item.path === defaultRoute)
-      : null;
-    const matchedTarget = isSubdomainRouting
-      ? fallbackHostMapping?.target || null
-      : matchedMapping?.target || fallbackHostMapping?.target || null;
+    const matchedTarget = await this.resolveFnosTarget(appConfig);
     return {
       policy:
         appConfig.fnos_share_bypass ??
         (await configManager.getFnosShareBypassConfig()),
-      upstreamBaseUrl: this.resolveUpstreamBaseUrl(appConfig),
+      upstreamBaseUrl: matchedTarget ? toUpstreamOrigin(matchedTarget) : null,
       defaultRoute,
       matchedTarget,
     };
   }
 
-  private resolveUpstreamBaseUrl(appConfig: AppConfig): URL | null {
-    if (!isAnySubdomainRoutingMode(appConfig)) {
+  private async resolveFnosTarget(
+    appConfig: AppConfig,
+  ): Promise<string | null> {
+    const candidates = this.collectFnosTargetCandidates(appConfig);
+    if (candidates.length === 0) {
+      return null;
+    }
+
+    for (const candidate of candidates) {
+      if (this.getCachedFnosTargetProbe(candidate) === true) {
+        return candidate;
+      }
+    }
+
+    const uncachedCandidates = candidates.filter(
+      (candidate) => this.getCachedFnosTargetProbe(candidate) === null,
+    );
+    if (uncachedCandidates.length > 0) {
+      await Promise.all(
+        uncachedCandidates.map((candidate) =>
+          this.getOrProbeFnosTarget(candidate),
+        ),
+      );
+    }
+
+    for (const candidate of candidates) {
+      if (this.getCachedFnosTargetProbe(candidate) === true) {
+        return candidate;
+      }
+    }
+
+    return null;
+  }
+
+  private collectFnosTargetCandidates(appConfig: AppConfig): string[] {
+    const rawTargets: string[] = [];
+    const isSubdomainRouting = isAnySubdomainRoutingMode(appConfig);
+
+    if (!isSubdomainRouting) {
       const defaultRoute = appConfig.default_route;
       if (defaultRoute && defaultRoute !== "/__select__") {
         const mapping = appConfig.proxy_mappings.find(
           (item) => item.path === defaultRoute,
         );
-        if (mapping?.target) {
-          const upstream = toUpstreamOrigin(mapping.target);
-          if (upstream) return upstream;
+        if (mapping?.target && !isAuthServiceTarget(mapping.target)) {
+          rawTargets.push(mapping.target);
         }
       }
     }
 
-    const hostMapping = this.resolveFnosHostMapping(appConfig);
-    return hostMapping?.target ? toUpstreamOrigin(hostMapping.target) : null;
+    for (const mapping of appConfig.host_mappings) {
+      if (mapping.target && !isAuthServiceMapping(mapping)) {
+        rawTargets.push(mapping.target);
+      }
+    }
+
+    const seenOrigins = new Set<string>();
+    const candidates: string[] = [];
+    for (const target of rawTargets) {
+      const origin = toUpstreamOrigin(target)?.origin;
+      if (!origin || seenOrigins.has(origin)) continue;
+      seenOrigins.add(origin);
+      candidates.push(origin);
+    }
+
+    return candidates;
   }
 
-  private resolveFnosHostMapping(
-    appConfig: Pick<AppConfig, "host_mappings">,
-  ): AppConfig["host_mappings"][number] | null {
-    const candidates = appConfig.host_mappings
-      .filter((mapping) => mapping.target && !isAuthServiceMapping(mapping))
-      .map((mapping) => ({
-        mapping,
-        score: scoreFnosHostMapping(mapping),
-      }))
-      .filter((item) => item.score > 0)
-      .sort((a, b) => b.score - a.score);
+  private getCachedFnosTargetProbe(origin: string): boolean | null {
+    const cached = this.fnosTargetProbeCache.get(origin);
+    if (!cached) return null;
+    if (cached.expiresAt <= Date.now()) {
+      this.fnosTargetProbeCache.delete(origin);
+      return null;
+    }
+    return cached.isFnos;
+  }
 
-    return candidates[0]?.mapping ?? null;
+  private setCachedFnosTargetProbe(origin: string, isFnos: boolean): void {
+    this.fnosTargetProbeCache.set(origin, {
+      isFnos,
+      expiresAt: Date.now() + FNOS_DETECTION_CACHE_TTL_MS,
+    });
+  }
+
+  private async getOrProbeFnosTarget(origin: string): Promise<boolean | null> {
+    const cached = this.getCachedFnosTargetProbe(origin);
+    if (cached !== null) {
+      return cached;
+    }
+
+    const inflight = this.fnosTargetProbeInflight.get(origin);
+    if (inflight) {
+      return inflight;
+    }
+
+    const probePromise = this.probeFnosTarget(origin).finally(() => {
+      this.fnosTargetProbeInflight.delete(origin);
+    });
+    this.fnosTargetProbeInflight.set(origin, probePromise);
+    return probePromise;
+  }
+
+  private async probeFnosTarget(origin: string): Promise<boolean | null> {
+    const controller = new AbortController();
+    const timer = setTimeout(
+      () => controller.abort(),
+      FNOS_DETECTION_TIMEOUT_MS,
+    );
+
+    try {
+      const response = await fetch(new URL(FNOS_DETECTION_PATH, origin), {
+        method: "HEAD",
+        redirect: "manual",
+        signal: controller.signal,
+        headers: {
+          Accept: "application/json",
+        },
+      });
+      const contentType =
+        response.headers.get("content-type")?.toLowerCase() || "";
+      const isFnos =
+        response.status === 200 && contentType.includes("application/json");
+      this.setCachedFnosTargetProbe(origin, isFnos);
+      return isFnos;
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   async resolvePreflight(

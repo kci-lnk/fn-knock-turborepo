@@ -2,21 +2,17 @@ import { Elysia } from "elysia";
 import { isIP } from "node:net";
 import { ddnsFetch } from "../../lib/ddns/network";
 
+const IP_DETECTION_TIMEOUT_MS = 7000;
+
 export class IPDetector {
   private static readonly V4_SOURCES = [
-    "https://api4.ipify.org?format=json",
-    "https://v4.ident.me/.json",
-    "https://ipv4.icanhazip.com",
-    "https://4.ipw.cn",
-    "https://4.fnknock.cn"
+    "http://ipv4.icanhazip.com",
+    "http://4.ipw.cn",
   ];
 
   private static readonly V6_SOURCES = [
-    "https://api6.ipify.org?format=json",
-    "https://v6.ident.me/.json",
-    "https://ipv6.icanhazip.com",
-    "https://6.ipw.cn",
-    "https://6.fnknock.cn"
+    "http://6.ipw.cn",
+    "http://6.fnknock.cn"
   ];
 
   private static parseDetectedIP(value: unknown, family: 4 | 6): string | null {
@@ -32,7 +28,7 @@ export class IPDetector {
       const res = await ddnsFetch(url, {
         networkInterface: options.networkInterface,
         preferredFamily: options.preferredFamily,
-        signal: AbortSignal.timeout(3000),
+        signal: AbortSignal.timeout(IP_DETECTION_TIMEOUT_MS),
         headers: { Accept: 'application/json, text/plain' },
       });
 

@@ -58,8 +58,17 @@ export const useConfigStore = defineStore("config", () => {
   }
 
   async function saveHostMappings(mappings: HostMapping[]) {
-    await ConfigAPI.updateHostMappings(mappings);
-    await loadConfig();
+    const nextMappings = await ConfigAPI.updateHostMappings(mappings);
+    if (!config.value) {
+      await loadConfig();
+      return nextMappings;
+    }
+
+    config.value = {
+      ...config.value,
+      host_mappings: nextMappings,
+    };
+    return nextMappings;
   }
 
   async function refreshAllHostMappingTitles() {

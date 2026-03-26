@@ -42,6 +42,17 @@ import type {
 import { createSignedApiClient } from "@frontend-core/api/createSignedApiClient";
 import type { CaptchaSettings } from "@frontend-core/captcha/types";
 
+type HostMappingUpdatePayload = Pick<
+  HostMapping,
+  | "host"
+  | "target"
+  | "use_auth"
+  | "access_mode"
+  | "suppress_toolbar"
+  | "preserve_host"
+  | "title_override"
+>;
+
 const resolveAppRelativePath = (relativePath: string) => {
   if (typeof window === "undefined") return relativePath;
   const basePath = window.location.pathname.endsWith("/")
@@ -88,6 +99,18 @@ export const apiClient = createSignedApiClient({
   baseURL: adminApiBasePath,
   hmacSecret,
   getHmacSecret: fetchRuntimeHmacSecret,
+});
+
+const toHostMappingUpdatePayload = (
+  mapping: HostMapping,
+): HostMappingUpdatePayload => ({
+  host: mapping.host,
+  target: mapping.target,
+  use_auth: mapping.use_auth,
+  access_mode: mapping.access_mode,
+  suppress_toolbar: mapping.suppress_toolbar,
+  preserve_host: mapping.preserve_host,
+  title_override: mapping.title_override.trim(),
 });
 
 export const ConfigAPI = {
@@ -142,8 +165,11 @@ export const ConfigAPI = {
     const res = await apiClient.get("/config/host_mappings");
     return res.data.data;
   },
-  async updateHostMappings(mappings: HostMapping[]): Promise<void> {
-    await apiClient.post("/config/host_mappings", { mappings });
+  async updateHostMappings(mappings: HostMapping[]): Promise<HostMapping[]> {
+    const res = await apiClient.post("/config/host_mappings", {
+      mappings: mappings.map(toHostMappingUpdatePayload),
+    });
+    return res.data.data;
   },
   async refreshAllHostMappingTitles(): Promise<HostMappingRefreshSummary> {
     const res = await apiClient.post("/config/host_mappings/refresh_titles");

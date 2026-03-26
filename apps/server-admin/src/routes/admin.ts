@@ -26,7 +26,6 @@ import {
 } from "../lib/subdomain-mode";
 import { isAuthServiceTarget } from "../lib/auth-service";
 import {
-  enrichHostMappingsMetadataOnSave,
   refreshAllHostMappingTitles,
 } from "../lib/host-mapping-metadata";
 import { fetchUrlMetadata } from "../lib/url-metadata";
@@ -93,6 +92,42 @@ const validateHostMappings = (
 
   return { valid: true as const };
 };
+
+const normalizeHostMappingLookupKey = (value: string): string =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/^[a-z]+:\/\//i, "")
+    .replace(/\/.*$/, "");
+
+const toHostRuleSyncPayload = (
+  mapping: Pick<
+    HostMapping,
+    | "host"
+    | "target"
+    | "use_auth"
+    | "access_mode"
+    | "suppress_toolbar"
+    | "preserve_host"
+  >,
+) => ({
+  host: normalizeHostMappingLookupKey(mapping.host),
+  target: mapping.target.trim(),
+  use_auth: mapping.use_auth,
+  access_mode: mapping.access_mode,
+  suppress_toolbar: mapping.suppress_toolbar,
+  preserve_host: mapping.preserve_host,
+});
+
+const haveSyncedHostRulesChanged = (
+  previousMappings: HostMapping[],
+  nextMappings: HostMapping[],
+): boolean =>
+  JSON.stringify(previousMappings.map(toHostRuleSyncPayload)) !==
+  JSON.stringify(nextMappings.map(toHostRuleSyncPayload));
+
+const isSameJsonValue = (left: unknown, right: unknown): boolean =>
+  JSON.stringify(left) === JSON.stringify(right);
 
 const isValidStreamTarget = (target: string): boolean => {
   const trimmed = target.trim();
@@ -801,14 +836,45 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       }
 
       const config = await configManager.getConfig();
+      const previousByHost = new Map(
+        config.host_mappings.map((mapping) => [
+          normalizeHostMappingLookupKey(mapping.host),
+          mapping,
+        ]),
+      );
       const normalizedMappings: HostMapping[] = body.mappings.map(
-        (mapping) => ({
-          ...mapping,
-          service_role: isAuthServiceTarget(mapping.target) ? "auth" : "app",
-          title: mapping.title ?? "",
-          title_override: mapping.title_override ?? "",
-          favicon: mapping.favicon ?? "",
-        }),
+        (mapping) => {
+          const previous = previousByHost.get(
+            normalizeHostMappingLookupKey(mapping.host),
+          );
+          const normalizedTarget = mapping.target.trim();
+          const canReusePreviousMetadata =
+            previous?.target.trim() === normalizedTarget;
+
+          return {
+            ...mapping,
+            target: normalizedTarget,
+            service_role: isAuthServiceTarget(normalizedTarget)
+              ? "auth"
+              : "app",
+            title:
+              typeof mapping.title === "string"
+                ? mapping.title.trim()
+                : canReusePreviousMetadata
+                  ? previous?.title ?? ""
+                  : "",
+            title_override:
+              typeof mapping.title_override === "string"
+                ? mapping.title_override.trim()
+                : previous?.title_override ?? "",
+            favicon:
+              typeof mapping.favicon === "string"
+                ? mapping.favicon.trim()
+                : canReusePreviousMetadata
+                  ? previous?.favicon ?? ""
+                  : "",
+          };
+        },
       );
       const nextConfig = {
         ...config,
@@ -823,19 +889,31 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         };
       }
 
-      const { mappings: enrichedMappings } =
-        await enrichHostMappingsMetadataOnSave(
-          normalizedMappings,
-          config.host_mappings,
-        );
+      const updatedConfig = {
+        ...config,
+        host_mappings: normalizedMappings,
+      };
+      const previousGatewayAuthConfig = buildGatewayAuthConfig(config);
+      const nextGatewayAuthConfig = buildGatewayAuthConfig(updatedConfig);
 
-      await configManager.updateHostMappings(enrichedMappings);
-      const updatedConfig = await configManager.getConfig();
-      await Promise.all([
-        goBackend.setHostRules(updatedConfig.host_mappings),
-        goBackend.setAuthConfig(buildGatewayAuthConfig(updatedConfig)),
-      ]);
-      return { success: true };
+      await configManager.saveConfig(updatedConfig);
+
+      const syncTasks: Array<Promise<unknown>> = [];
+      if (
+        haveSyncedHostRulesChanged(config.host_mappings, normalizedMappings)
+      ) {
+        syncTasks.push(goBackend.setHostRules(normalizedMappings));
+      }
+      if (
+        !isSameJsonValue(previousGatewayAuthConfig, nextGatewayAuthConfig)
+      ) {
+        syncTasks.push(goBackend.setAuthConfig(nextGatewayAuthConfig));
+      }
+      if (syncTasks.length > 0) {
+        await Promise.all(syncTasks);
+      }
+
+      return { success: true, data: normalizedMappings };
     },
     {
       body: t.Object({

@@ -7,6 +7,7 @@ LOG_FILE="${PKG_VAR_DIR}/info.log"
 BACKEND_PID_FILE="${PKG_VAR_DIR}/backend.pid"
 GATEWAY_PID_FILE="${PKG_VAR_DIR}/gateway.pid"
 ALTCHA_HMAC_KEY_FILE="${PKG_VAR_DIR}/altcha_hmac_key"
+RUNTIME_PORT_FILE=""
 GATEWAY_CONFIG_DIR="/usr/local/etc/fn-knock/"
 
 APP_HOME="${TRIM_APPDEST:-}"
@@ -132,6 +133,8 @@ ensure_runtime_layout() {
         echo "runtime directory is not writable: ${PKG_VAR_DIR}" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
         return 1
     fi
+
+    RUNTIME_PORT_FILE="${PKG_VAR_DIR}/runtime-ports.env"
 
     return 0
 }
@@ -266,6 +269,29 @@ load_runtime_ports() {
     AUTH_PORT="$(resolve_port "AUTH_PORT" "wizard_auth_port" "7997")"
     GO_BACKEND_PORT="$(resolve_port "GO_BACKEND_PORT" "wizard_go_backend_port" "7996")"
     GO_REPROXY_PORT="$(resolve_port "GO_REPROXY_PORT" "wizard_go_reproxy_port" "${default_proxy_port}")"
+}
+
+write_runtime_ports_file() {
+    if [ -z "${RUNTIME_PORT_FILE}" ]; then
+        log_msg "runtime port file path is empty"
+        echo "runtime port file path is empty" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
+        return 1
+    fi
+
+    if ! (
+        umask 077
+        printf '%s\n' \
+            "BACKEND_PORT=${BACKEND_PORT}" \
+            "AUTH_PORT=${AUTH_PORT}" \
+            "GO_BACKEND_PORT=${GO_BACKEND_PORT}" \
+            "GO_REPROXY_PORT=${GO_REPROXY_PORT}" > "${RUNTIME_PORT_FILE}"
+    ); then
+        log_msg "failed to write runtime port file: ${RUNTIME_PORT_FILE}"
+        echo "failed to write runtime port file" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
+        return 1
+    fi
+
+    return 0
 }
 
 validate_port() {
@@ -530,6 +556,9 @@ start() {
     fi
     load_runtime_ports
     if ! validate_runtime_ports; then
+        return 1
+    fi
+    if ! write_runtime_ports_file; then
         return 1
     fi
     log_msg "=== fn-knock start ==="

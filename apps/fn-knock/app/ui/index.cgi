@@ -1,5 +1,24 @@
 #!/bin/sh
 
+RUNTIME_PORT_FILE=""
+
+if [ -n "${TRIM_PKGVAR:-}" ]; then
+    RUNTIME_PORT_FILE="${TRIM_PKGVAR}/runtime-ports.env"
+elif [ -n "${cgiName:-}" ]; then
+    RUNTIME_PORT_FILE="/var/apps/${cgiName}/var/runtime-ports.env"
+elif [ -n "${SCRIPT_FILENAME:-}" ]; then
+    case "${SCRIPT_FILENAME}" in
+        */target/ui/index.cgi)
+            RUNTIME_PORT_FILE="${SCRIPT_FILENAME%/target/ui/index.cgi}/var/runtime-ports.env"
+            ;;
+    esac
+fi
+
+if [ -n "${RUNTIME_PORT_FILE}" ] && [ -r "${RUNTIME_PORT_FILE}" ]; then
+    # Values are written by cmd/main after port validation.
+    . "${RUNTIME_PORT_FILE}"
+fi
+
 TARGET_HOST=${ADMIN_TARGET_HOST:-"127.0.0.1"}
 
 if [ -n "$ADMIN_TARGET_PORT" ]; then

@@ -29,6 +29,7 @@ import {
   enrichHostMappingsMetadataOnSave,
   refreshAllHostMappingTitles,
 } from "../lib/host-mapping-metadata";
+import { fetchUrlMetadata } from "../lib/url-metadata";
 import {
   buildHostMappingsBookmarkFilename,
   buildHostMappingsBookmarksDocument,
@@ -857,6 +858,29 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
             favicon: t.Optional(t.String()),
           }),
         ),
+      }),
+    },
+  )
+  .post(
+    "/config/host_mappings/metadata",
+    async ({ body, set }) => {
+      const metadata = await fetchUrlMetadata(body.target);
+      if (!metadata.ok) {
+        set.status = 400;
+        return {
+          success: false,
+          message: metadata.error || "目标地址标题刷新失败",
+        };
+      }
+
+      return {
+        success: true,
+        data: metadata.data,
+      };
+    },
+    {
+      body: t.Object({
+        target: t.String(),
       }),
     },
   )

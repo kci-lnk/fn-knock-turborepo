@@ -33,6 +33,12 @@ export interface HostMappingRefreshSummary {
   skipped: number;
 }
 
+export interface UrlMetadataPreview {
+  title: string;
+  favicon: string;
+  finalUrl: string;
+}
+
 export interface StreamMapping {
   protocol: StreamMappingProtocol;
   listen_port: number;

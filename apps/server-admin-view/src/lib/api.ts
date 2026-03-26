@@ -2,6 +2,7 @@ import type {
   AppConfig,
   HostMapping,
   HostMappingRefreshSummary,
+  UrlMetadataPreview,
   PasskeyCredential,
   ProxyMapping,
   ProxyProtocolForce,
@@ -146,6 +147,12 @@ export const ConfigAPI = {
   },
   async refreshAllHostMappingTitles(): Promise<HostMappingRefreshSummary> {
     const res = await apiClient.post("/config/host_mappings/refresh_titles");
+    return res.data.data;
+  },
+  async fetchHostMappingMetadata(target: string): Promise<UrlMetadataPreview> {
+    const res = await apiClient.post("/config/host_mappings/metadata", {
+      target,
+    });
     return res.data.data;
   },
   async downloadHostMappingBookmarks(): Promise<Blob> {

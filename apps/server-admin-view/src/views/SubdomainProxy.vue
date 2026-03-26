@@ -228,6 +228,12 @@
           class="max-w-xs"
         />
         <p
+          v-if="visibleMappings.length > 1"
+          class="text-xs text-muted-foreground"
+        >
+          拖动左侧把手可调整显示顺序
+        </p>
+        <p
           v-if="!savedRootDomain || isRootDomainPendingSave"
           class="text-xs text-amber-600"
         >
@@ -242,6 +248,7 @@
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead class="w-[36px]"></TableHead>
                 <TableHead class="w-[22px]">Icon</TableHead>
                 <TableHead class="min-w-[12rem]">标题</TableHead>
                 <TableHead>域名</TableHead>
@@ -250,20 +257,40 @@
                 <TableHead class="text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
+            <VueDraggable
+              v-model="draggableVisibleMappings"
+              tag="tbody"
+              class="[&_tr:last-child]:border-0"
+              handle=".mapping-drag-handle"
+              ghost-class="bg-muted/60"
+              chosen-class="bg-muted/80"
+              :animation="180"
+              :disabled="isSavingMappings || filteredMappings.length < 2"
+              @end="saveMappingOrder"
+            >
               <TableRow v-if="filteredMappings.length === 0">
                 <TableCell
-                  colspan="6"
+                  colspan="7"
                   class="py-8 text-center text-muted-foreground"
                 >
                   还没有配置任何 Host 映射。
                 </TableCell>
               </TableRow>
               <TableRow
-                v-for="mapping in filteredMappings"
+                v-for="mapping in draggableVisibleMappings"
                 :key="mapping.host"
                 class="group"
               >
+                <TableCell class="w-[36px]">
+                  <button
+                    type="button"
+                    class="mapping-drag-handle -ml-1 inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                    :disabled="isSavingMappings || filteredMappings.length < 2"
+                    aria-label="拖动排序"
+                  >
+                    <GripVertical class="h-4 w-4" />
+                  </button>
+                </TableCell>
                 <TableCell class="w-[22px]">
                   <img
                     v-if="
@@ -276,18 +303,19 @@
                   />
                 </TableCell>
                 <TableCell
-                  class="max-w-[16rem] truncate text-sm"
+                  class="max-w-[16rem] text-sm"
                   :title="getMappingTitleForDisplay(mapping)"
                 >
-                  <span
-                    :class="
-                      getMappingDisplayTitle(mapping)
-                        ? 'text-foreground'
-                        : 'text-muted-foreground'
-                    "
-                  >
-                    {{ getMappingTitleForDisplay(mapping) }}
-                  </span>
+                  <div class="max-w-[16rem]">
+                    <InlineCommentEditor
+                      :text="getMappingDisplayTitle(mapping)"
+                      placeholder="输入展示标题..."
+                      empty-text="未获取"
+                      :save="
+                        (value) => saveMappingTitleOverride(mapping, value)
+                      "
+                    />
+                  </div>
                 </TableCell>
                 <TableCell class="break-all font-medium">
                   {{ formatHostWithAccessEntryPort(mapping.host) }}
@@ -332,7 +360,7 @@
                   </div>
                 </TableCell>
               </TableRow>
-            </TableBody>
+            </VueDraggable>
           </Table>
         </div>
       </CardContent>
@@ -347,6 +375,41 @@
           <DialogDescription> 业务域名默认会走统一登录流程 </DialogDescription>
         </DialogHeader>
         <div class="grid gap-4 py-4">
+          <div class="space-y-2">
+            <div class="flex items-center justify-between gap-3">
+              <Label for="mapping-display-title">展示标题</Label>
+              <Button
+                variant="link"
+                size="sm"
+                class="h-auto p-0 text-xs"
+                :disabled="
+                  !canRefreshMappingMetadata || isRefreshingMappingMetadata
+                "
+                @click="refreshMappingMetadata"
+              >
+                <RefreshCw
+                  v-if="isRefreshingMappingMetadata"
+                  class="mr-1 h-3.5 w-3.5 animate-spin"
+                />
+                {{ isRefreshingMappingMetadata ? "刷新中..." : "刷新标题" }}
+              </Button>
+            </div>
+            <Input
+              id="mapping-display-title"
+              v-model="mappingForm.title_override"
+              placeholder="为空时自动使用抓取到的页面标题"
+            />
+            <p class="text-xs text-muted-foreground">
+              这里只修改当前系统内的展示标题，不会改动目标服务本身。留空时自动使用抓取到的页面标题。
+              <span v-if="mappingResolvedTitle">
+                当前抓取标题：{{ mappingResolvedTitle }}
+              </span>
+              <span v-else-if="mappingForm.target.trim()">
+                当前还没有抓取到标题，可点击右侧刷新。
+              </span>
+            </p>
+          </div>
+
           <div class="space-y-2">
             <Label for="mapping-subdomain">
               {{ mappingInputMode === "subdomain" ? "子域名" : "Host" }}
@@ -389,23 +452,6 @@
               protocol-id="mapping-target-protocol"
               placeholder="127.0.0.1:5173"
             />
-          </div>
-
-          <div class="space-y-2">
-            <Label for="mapping-display-title">展示标题</Label>
-            <Input
-              id="mapping-display-title"
-              v-model="mappingForm.title_override"
-              placeholder="为空时自动使用抓取到的页面标题"
-            />
-            <p class="text-xs text-muted-foreground">
-              保存时会自动抓取目标页面的标题和图标。这里修改的是当前系统内的展示标题，不会改动目标服务本身。
-              <span
-                v-if="mappingForm.title && !mappingForm.title_override.trim()"
-              >
-                当前抓取标题：{{ mappingForm.title }}
-              </span>
-            </p>
           </div>
 
           <div
@@ -643,6 +689,7 @@ import { computed, onMounted, reactive, ref, watch } from "vue";
 import {
   ChevronDown,
   Download,
+  GripVertical,
   Image,
   PanelsTopLeft,
   Plus,
@@ -679,8 +726,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { VueDraggable } from "vue-draggable-plus";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import ConfigCollapsibleCard from "@admin-shared/components/ConfigCollapsibleCard.vue";
+import InlineCommentEditor from "@admin-shared/components/InlineCommentEditor.vue";
 import ProxyTargetInputField from "@admin-shared/components/common/ProxyTargetInputField.vue";
 import SearchInput from "@admin-shared/components/SearchInput.vue";
 import {
@@ -855,6 +904,8 @@ const mappingInputMode = ref<MappingInputMode>("subdomain");
 const mappingSubdomain = ref("");
 const accessEntryPort = ref("7999");
 const brokenFaviconKeys = ref(new Set<string>());
+const draggableVisibleMappings = ref<HostMapping[]>([]);
+const mappingMetadataTarget = ref("");
 const modeForm = reactive<SubdomainModeConfig>(createDefaultModeForm());
 const mappingForm = reactive<HostMapping>(createDefaultMapping());
 
@@ -915,6 +966,22 @@ const isSubdomainModeConfigured = computed(() => {
 const isMappingAuthService = computed(() =>
   isAuthServiceTarget(mappingForm.target),
 );
+const mappingResolvedTitle = computed(() =>
+  mappingMetadataTarget.value === mappingForm.target.trim()
+    ? mappingForm.title.trim()
+    : "",
+);
+const canRefreshMappingMetadata = computed(() => {
+  const target = mappingForm.target.trim();
+  if (!target) return false;
+
+  try {
+    const parsed = new URL(target);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+});
 const showToolbar = computed({
   get: () => !mappingForm.suppress_toolbar,
   set: (value: boolean) => {
@@ -1003,56 +1070,9 @@ const getMappingDisplayTitle = (mapping: HostMapping): string =>
   mapping.title_override.trim() || mapping.title.trim();
 const getMappingTitleForDisplay = (mapping: HostMapping): string =>
   getMappingDisplayTitle(mapping) || "未获取";
-const getHttpOrigin = (value: string): string => {
-  const trimmed = value.trim();
-  if (!trimmed) return "";
-
-  try {
-    const parsed = new URL(trimmed);
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return "";
-    }
-    return parsed.origin;
-  } catch {
-    return "";
-  }
-};
-const resolveMappedFaviconPath = (value: string): string => {
-  const trimmed = value.trim();
-  if (!trimmed) return "";
-  if (/^data:image\//i.test(trimmed)) {
-    return trimmed;
-  }
-
-  try {
-    const parsed = new URL(trimmed, "https://favicon-placeholder.local");
-    return `${parsed.pathname}${parsed.search}${parsed.hash}` || "/favicon.ico";
-  } catch {
-    return trimmed.startsWith("/")
-      ? trimmed
-      : `/${trimmed.replace(/^\/+/, "")}`;
-  }
-};
 const getMappingFaviconSrc = (mapping: HostMapping): string => {
   const favicon = mapping.favicon.trim();
-  if (!favicon) return "";
-  if (/^data:image\//i.test(favicon)) {
-    return favicon;
-  }
-
-  const targetOrigin = getHttpOrigin(mapping.target);
-  const faviconOrigin = getHttpOrigin(favicon);
-  if (faviconOrigin && targetOrigin && faviconOrigin !== targetOrigin) {
-    return favicon;
-  }
-
-  const faviconPath = resolveMappedFaviconPath(favicon);
-  if (!faviconPath) return "";
-  if (/^data:image\//i.test(faviconPath)) {
-    return faviconPath;
-  }
-
-  return `//${formatHostWithAccessEntryPort(mapping.host)}${faviconPath}`;
+  return /^data:image\//i.test(favicon) ? favicon : "";
 };
 const getFaviconKey = (mapping: HostMapping): string =>
   `${mapping.host}::${getMappingFaviconSrc(mapping)}`;
@@ -1080,6 +1100,10 @@ const filteredMappings = computed(() => {
       mapping.target.toLowerCase().includes(query),
   );
 });
+
+const syncDraggableVisibleMappings = () => {
+  draggableVisibleMappings.value = [...filteredMappings.value];
+};
 
 const isModeValid = computed(() => true);
 
@@ -1183,6 +1207,17 @@ const { isPending: isRefreshingTitles, run: runRefreshTitles } = useAsyncAction(
   },
 );
 
+const {
+  isPending: isRefreshingMappingMetadata,
+  run: runRefreshMappingMetadata,
+} = useAsyncAction({
+  onError: (error) => {
+    toast.error("刷新失败", {
+      description: extractErrorMessage(error, "目标地址标题刷新失败"),
+    });
+  },
+});
+
 const { isPending: isExportingBookmarks, run: runExportBookmarks } =
   useAsyncAction({
     onError: (error) => {
@@ -1221,6 +1256,14 @@ watch(
     if (next) {
       applyModeForm(next);
     }
+  },
+  { immediate: true },
+);
+
+watch(
+  filteredMappings,
+  () => {
+    syncDraggableVisibleMappings();
   },
   { immediate: true },
 );
@@ -1312,6 +1355,7 @@ function openCreateDialog() {
   editingHost.value = null;
   mappingInputMode.value = "subdomain";
   mappingSubdomain.value = "";
+  mappingMetadataTarget.value = "";
   Object.assign(mappingForm, createDefaultMapping());
   isDialogOpen.value = true;
 }
@@ -1329,6 +1373,7 @@ function openEditDialog(mapping: HostMapping) {
   }
 
   Object.assign(mappingForm, { ...mapping });
+  mappingMetadataTarget.value = mapping.target.trim();
   isDialogOpen.value = true;
 }
 
@@ -1337,6 +1382,7 @@ function closeDialog() {
   editingHost.value = null;
   mappingInputMode.value = "subdomain";
   mappingSubdomain.value = "";
+  mappingMetadataTarget.value = "";
   Object.assign(mappingForm, createDefaultMapping());
 }
 
@@ -1357,7 +1403,9 @@ function handleDeleteDialogOpenChange(nextOpen: boolean) {
 }
 
 function normalizeMapping(input: HostMapping): HostMapping {
-  const serviceRole = isAuthServiceTarget(input.target.trim()) ? "auth" : "app";
+  const normalizedTarget = input.target.trim();
+  const hasFreshMetadata = mappingMetadataTarget.value === normalizedTarget;
+  const serviceRole = isAuthServiceTarget(normalizedTarget) ? "auth" : "app";
   const host =
     mappingInputMode.value === "full_host"
       ? normalizeHostLike(mappingSubdomain.value)
@@ -1365,7 +1413,7 @@ function normalizeMapping(input: HostMapping): HostMapping {
 
   return {
     host,
-    target: input.target.trim(),
+    target: normalizedTarget,
     use_auth: serviceRole === "auth" ? false : input.use_auth,
     access_mode:
       serviceRole === "auth"
@@ -1374,10 +1422,107 @@ function normalizeMapping(input: HostMapping): HostMapping {
     suppress_toolbar: serviceRole === "auth" ? false : input.suppress_toolbar,
     preserve_host: input.preserve_host === true,
     service_role: serviceRole,
-    title: input.title.trim(),
+    title: hasFreshMetadata ? input.title.trim() : "",
     title_override: input.title_override.trim(),
-    favicon: input.favicon.trim(),
+    favicon: hasFreshMetadata ? input.favicon.trim() : "",
   };
+}
+
+const hasSameMappingOrder = (left: HostMapping[], right: HostMapping[]) =>
+  left.length === right.length &&
+  left.every((mapping, index) => mapping.host === right[index]?.host);
+
+const mergeFilteredMappingsOrder = (
+  nextFiltered: HostMapping[],
+): HostMapping[] => {
+  const filteredHostSet = new Set(
+    filteredMappings.value.map((item) => item.host),
+  );
+  let nextFilteredIndex = 0;
+  const nextVisible = visibleMappings.value.map((mapping) =>
+    filteredHostSet.has(mapping.host)
+      ? (nextFiltered[nextFilteredIndex++] ?? mapping)
+      : mapping,
+  );
+
+  let nextVisibleIndex = 0;
+  return allMappings.value.map((mapping) =>
+    isAuthServiceTarget(mapping.target)
+      ? mapping
+      : (nextVisible[nextVisibleIndex++] ?? mapping),
+  );
+};
+
+async function saveMappingOrder() {
+  const next = mergeFilteredMappingsOrder(draggableVisibleMappings.value);
+  if (hasSameMappingOrder(next, allMappings.value)) {
+    syncDraggableVisibleMappings();
+    return;
+  }
+
+  const saved = await runSaveMappings(async () => {
+    await configStore.saveHostMappings(next);
+    toast.success("子域映射顺序已更新");
+    return true;
+  });
+
+  if (saved !== true) {
+    syncDraggableVisibleMappings();
+  }
+}
+
+async function saveMappingTitleOverride(mapping: HostMapping, value: string) {
+  const nextTitleOverride = value.trim();
+  const currentTitleOverride = mapping.title_override.trim();
+  const currentFetchedTitle = mapping.title.trim();
+  if (
+    nextTitleOverride === currentTitleOverride ||
+    (!currentTitleOverride &&
+      (nextTitleOverride === currentFetchedTitle || !nextTitleOverride))
+  ) {
+    return;
+  }
+
+  if (isSavingMappings.value) {
+    throw new Error("当前有其他映射正在保存，请稍后重试");
+  }
+
+  try {
+    await configStore.saveHostMappings(
+      allMappings.value.map((item) =>
+        item.host === mapping.host
+          ? { ...item, title_override: nextTitleOverride }
+          : item,
+      ),
+    );
+    toast.success("展示标题已更新");
+  } catch (error) {
+    toast.error("保存失败", {
+      description: extractErrorMessage(error, "展示标题保存失败"),
+    });
+    throw error;
+  }
+}
+
+async function refreshMappingMetadata() {
+  if (!canRefreshMappingMetadata.value) return;
+
+  await runRefreshMappingMetadata(
+    () => ConfigAPI.fetchHostMappingMetadata(mappingForm.target.trim()),
+    {
+      onSuccess: (metadata) => {
+        mappingMetadataTarget.value = mappingForm.target.trim();
+        mappingForm.title = metadata.title.trim();
+        mappingForm.favicon = metadata.favicon.trim();
+        brokenFaviconKeys.value = new Set();
+        toast.success("目标地址标题已刷新", {
+          description: metadata.title.trim()
+            ? `当前抓取标题：${metadata.title.trim()}`
+            : "目标地址未返回可用标题，已仅更新抓取结果。",
+        });
+      },
+    },
+  );
 }
 
 async function addAuthService() {

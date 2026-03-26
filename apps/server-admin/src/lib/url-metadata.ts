@@ -1,5 +1,9 @@
+import { Buffer } from "node:buffer";
+
 const DEFAULT_REQUEST_TIMEOUT_MS = 5000;
 const MAX_HTML_LENGTH = 256 * 1024;
+const MAX_FAVICON_BYTES = 128 * 1024;
+const METADATA_USER_AGENT = "fn-knock-server-admin/1.0";
 
 export interface UrlMetadata {
   title: string;
@@ -159,21 +163,88 @@ export const extractFaviconFromHtml = (
 const fetchWithTimeout = async (
   input: string,
   timeoutMs: number,
+  init?: RequestInit,
 ): Promise<Response> => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     return await fetch(input, {
+      ...init,
       headers: {
-        Accept: "text/html,application/xhtml+xml,*/*;q=0.8",
-        "User-Agent": "fn-knock-server-admin/1.0",
+        "User-Agent": METADATA_USER_AGENT,
+        ...(init?.headers ?? {}),
       },
-      redirect: "follow",
+      redirect: init?.redirect ?? "follow",
       signal: controller.signal,
     });
   } finally {
     clearTimeout(timer);
+  }
+};
+
+const resolveImageContentType = (value: string, response: Response): string => {
+  const headerValue = response.headers
+    .get("content-type")
+    ?.split(";")[0]
+    ?.trim()
+    ?.toLowerCase();
+  if (headerValue?.startsWith("image/")) {
+    return headerValue;
+  }
+
+  try {
+    const { pathname } = new URL(value);
+    const normalizedPath = pathname.toLowerCase();
+    if (normalizedPath.endsWith(".svg")) return "image/svg+xml";
+    if (normalizedPath.endsWith(".png")) return "image/png";
+    if (normalizedPath.endsWith(".jpg") || normalizedPath.endsWith(".jpeg")) {
+      return "image/jpeg";
+    }
+    if (normalizedPath.endsWith(".gif")) return "image/gif";
+    if (normalizedPath.endsWith(".webp")) return "image/webp";
+    if (normalizedPath.endsWith(".ico")) return "image/x-icon";
+  } catch {
+    // ignore
+  }
+
+  return "";
+};
+
+const fetchFaviconAsDataUrl = async (
+  faviconUrl: string,
+  timeoutMs: number,
+): Promise<string> => {
+  const normalizedUrl = normalizeHttpUrl(faviconUrl);
+  if (!normalizedUrl) return "";
+
+  try {
+    const response = await fetchWithTimeout(normalizedUrl, timeoutMs, {
+      headers: {
+        Accept: "image/*,*/*;q=0.8",
+      },
+    });
+    if (!response.ok) return "";
+
+    const contentType = resolveImageContentType(normalizedUrl, response);
+    if (!contentType) return "";
+
+    const declaredLength = Number.parseInt(
+      response.headers.get("content-length") ?? "",
+      10,
+    );
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_FAVICON_BYTES) {
+      return "";
+    }
+
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (bytes.byteLength === 0 || bytes.byteLength > MAX_FAVICON_BYTES) {
+      return "";
+    }
+
+    return `data:${contentType};base64,${bytes.toString("base64")}`;
+  } catch {
+    return "";
   }
 };
 
@@ -197,15 +268,29 @@ export const fetchUrlMetadata = async (
   }
 
   try {
-    const response = await fetchWithTimeout(normalizedUrl, timeoutMs);
+    const response = await fetchWithTimeout(normalizedUrl, timeoutMs, {
+      headers: {
+        Accept: "text/html,application/xhtml+xml,*/*;q=0.8",
+      },
+    });
+    if (!response.ok) {
+      return {
+        ok: false,
+        data: fallbackData,
+        error: `Upstream responded with ${response.status}`,
+      };
+    }
+
     const finalUrl = response.url || normalizedUrl;
     const html = (await response.text()).slice(0, MAX_HTML_LENGTH);
+    const faviconUrl = extractFaviconFromHtml(html, finalUrl);
+    const favicon = await fetchFaviconAsDataUrl(faviconUrl, timeoutMs);
 
     return {
       ok: true,
       data: {
         title: extractTitleFromHtml(html),
-        favicon: extractFaviconFromHtml(html, finalUrl),
+        favicon,
         finalUrl,
       },
     };

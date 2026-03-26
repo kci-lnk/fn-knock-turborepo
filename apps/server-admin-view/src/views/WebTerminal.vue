@@ -65,6 +65,7 @@ const DEFAULT_TERMINAL_HEIGHT_PX = 460;
 const MAX_TERMINAL_HEIGHT_DESKTOP_PX = 780;
 const MOBILE_TERMINAL_BOTTOM_GAP_PX = 12;
 const DESKTOP_TERMINAL_BOTTOM_GAP_PX = 24;
+const MOBILE_KEYBOARD_INSET_THRESHOLD_PX = 120;
 const DEFAULT_TERMINAL_FONT_SIZE = 14;
 const DEFAULT_TERMINAL_FONT_SIZE_MOBILE = 12;
 const MIN_TERMINAL_FONT_SIZE = 13;
@@ -284,6 +285,30 @@ const detectCompactViewport = (): boolean => {
   return (
     window.matchMedia("(pointer: coarse)").matches || window.innerWidth < 768
   );
+};
+
+const getVisualViewportMetrics = () => {
+  if (typeof window === "undefined") {
+    return {
+      height: 0,
+      offsetTop: 0,
+      visibleBottom: 0,
+      keyboardInset: 0,
+    };
+  }
+
+  const viewport = window.visualViewport;
+  const height = viewport?.height ?? window.innerHeight;
+  const offsetTop = viewport?.offsetTop ?? 0;
+  const visibleBottom = offsetTop + height;
+  const keyboardInset = Math.max(0, window.innerHeight - visibleBottom);
+
+  return {
+    height,
+    offsetTop,
+    visibleBottom,
+    keyboardInset,
+  };
 };
 
 const clampTerminalFontSize = (value: number): number =>
@@ -722,9 +747,60 @@ const clearTerminal = () => {
   term.clear?.();
   term.reset();
   term.write("\u001b[2J\u001b[3J\u001b[H");
-  term.focus();
+  focusTerminal();
 };
+
+const getTerminalTextInput = (): HTMLTextAreaElement | null => {
+  const input = terminalMountRef.value?.querySelector("textarea");
+  return input instanceof HTMLTextAreaElement ? input : null;
+};
+
+const focusElementWithoutScroll = (element: HTMLElement) => {
+  try {
+    element.focus({ preventScroll: true });
+  } catch {
+    element.focus();
+  }
+};
+
+const syncTerminalTextInputAnchor = () => {
+  const textInput = getTerminalTextInput();
+  if (!textInput) return;
+
+  textInput.style.position = compactViewport.value ? "fixed" : "absolute";
+  textInput.style.left = "0";
+  textInput.style.top = "0";
+  textInput.style.width = "1px";
+  textInput.style.height = "1px";
+  textInput.style.padding = "0";
+  textInput.style.border = "none";
+  textInput.style.margin = "0";
+  textInput.style.opacity = "0";
+  textInput.style.clipPath = "inset(50%)";
+  textInput.style.overflow = "hidden";
+  textInput.style.whiteSpace = "nowrap";
+  textInput.style.resize = "none";
+  textInput.style.pointerEvents = "none";
+  textInput.style.fontSize = "16px";
+};
+
 const focusTerminal = () => {
+  syncTerminalTextInputAnchor();
+
+  if (compactViewport.value) {
+    const textInput = getTerminalTextInput();
+    if (textInput) {
+      focusElementWithoutScroll(textInput);
+      void nextTick(() => {
+        const nextInput = getTerminalTextInput();
+        if (nextInput) {
+          focusElementWithoutScroll(nextInput);
+        }
+      });
+      return;
+    }
+  }
+
   term?.focus();
   void nextTick(() => term?.focus());
 };
@@ -781,16 +857,19 @@ const applyOutputChunk = (chunk: TerminalOutputChunk) => {
   }
 
   lastOutputCursor = chunk.cursor;
-  nextTick(() => term?.focus());
+  void nextTick(() => {
+    focusTerminal();
+  });
 };
 
 const syncViewportHeight = () => {
   compactViewport.value = detectCompactViewport();
+  syncTerminalTextInputAnchor();
   const measurementTarget = terminalFrameRef.value || terminalShellRef.value;
   if (!measurementTarget) return;
 
   const rect = measurementTarget.getBoundingClientRect();
-  const viewport = window.visualViewport?.height || window.innerHeight;
+  const viewportMetrics = getVisualViewportMetrics();
   const accessoryHeight =
     compactViewport.value && showMobileAccessoryBar.value
       ? (mobileAccessoryBarRef.value?.getBoundingClientRect().height ?? 0)
@@ -802,7 +881,7 @@ const syncViewportHeight = () => {
     : DESKTOP_TERMINAL_BOTTOM_GAP_PX;
   const reservedHeight = Math.ceil(accessoryHeight + statusHeight + bottomGap);
   const available = Math.floor(
-    viewport - rect.top - reservedHeight,
+    viewportMetrics.visibleBottom - rect.top - reservedHeight,
   );
   const nextHeight =
     available > 0
@@ -812,6 +891,25 @@ const syncViewportHeight = () => {
       : DEFAULT_TERMINAL_HEIGHT_PX;
   terminalHeight.value = `${nextHeight}px`;
   scheduleTerminalFit();
+
+  if (
+    compactViewport.value &&
+    viewportMetrics.keyboardInset >= MOBILE_KEYBOARD_INSET_THRESHOLD_PX
+  ) {
+    void nextTick(() => {
+      const frameRect = terminalFrameRef.value?.getBoundingClientRect();
+      if (!frameRect) return;
+
+      const visibleTop = viewportMetrics.offsetTop + 8;
+      const visibleBottom = viewportMetrics.visibleBottom - 8;
+      if (frameRect.top < visibleTop || frameRect.bottom > visibleBottom) {
+        terminalFrameRef.value?.scrollIntoView({
+          block: "nearest",
+          inline: "nearest",
+        });
+      }
+    });
+  }
 };
 
 const refreshSessions = async () => {
@@ -908,12 +1006,15 @@ const queueTerminalInput = (
   }
 
   if (!activeAttachment.value && pendingInputBuffer.length === 0) {
-    console.warn("[terminal] buffering early input before attachment is ready", {
-      connectionState: connectionState.value,
-      selectedSessionId: selectedSessionId.value || null,
-      byteLength: getInputByteLength(data),
-      immediate: options?.immediate === true,
-    });
+    console.warn(
+      "[terminal] buffering early input before attachment is ready",
+      {
+        connectionState: connectionState.value,
+        selectedSessionId: selectedSessionId.value || null,
+        byteLength: getInputByteLength(data),
+        immediate: options?.immediate === true,
+      },
+    );
   }
 
   pendingInputBuffer += data;
@@ -1175,10 +1276,13 @@ const connectToSession = async (session: TerminalSessionRecord) => {
     attachment = await TerminalAPI.createAttachment(session.id);
   } catch (error) {
     if (pendingInputBuffer) {
-      console.warn("[terminal] clearing buffered input after attachment failed", {
-        sessionId: session.id,
-        bufferedBytes: pendingInputBytes,
-      });
+      console.warn(
+        "[terminal] clearing buffered input after attachment failed",
+        {
+          sessionId: session.id,
+          bufferedBytes: pendingInputBytes,
+        },
+      );
     }
     clearPendingInput();
     throw error;
@@ -1294,11 +1398,12 @@ const initializeTerminal = async () => {
   fitAddon = new FitAddon();
   term.loadAddon(fitAddon);
   term.open(terminalMountRef.value);
+  syncTerminalTextInputAnchor();
   bindTerminalTouchGestures();
   applyTerminalFit();
   fitAddon.observeResize();
   scheduleTerminalFit();
-  term.focus();
+  focusTerminal();
   term.onData((data) => {
     queueTerminalInput(applyArmedModifierToInput(data));
   });
@@ -1449,7 +1554,7 @@ onBeforeUnmount(() => {
       <AlertDescription>{{ runtimeStatus.blockedReason }}</AlertDescription>
     </Alert>
 
-    <div v-else ref="terminalShellRef" class="min-h-[80vh] min-w-0">
+    <div v-else ref="terminalShellRef" class="min-h-0 min-w-0 md:min-h-[80vh]">
       <Card class="min-h-0 min-w-0 h-full py-3 sm:py-6">
         <CardContent
           class="flex h-full min-h-0 min-w-0 flex-col gap-2.5 px-3 sm:gap-3 sm:px-6"
@@ -1677,11 +1782,7 @@ onBeforeUnmount(() => {
               <div
                 class="flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               >
-                
-
                 <template v-if="showMobileToolbar">
-                  
-
                   <Button
                     v-for="item in toolbarPrimaryShortcuts"
                     :key="item.id"
@@ -1727,41 +1828,37 @@ onBeforeUnmount(() => {
                     {{ item.label }}
                   </Button>
 
-
                   <div class="h-8 w-px shrink-0 bg-border/70" />
 
-
-                  <div
-                  class="flex shrink-0 items-center gap-1.5"
-                >
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    class="h-9 rounded-xl px-3 text-[13px] font-semibold"
-                    @pointerdown="keepTerminalFocused"
-                    @click="nudgeTerminalFontSize(-1)"
-                  >
-                    A-
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    class="h-9 min-w-[64px] rounded-xl px-3 font-mono text-[12px] text-muted-foreground"
-                    @pointerdown="keepTerminalFocused"
-                    @click="resetTerminalFontSize"
-                  >
-                    {{ terminalFontSize }}px
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    class="h-9 rounded-xl px-3 text-[13px] font-semibold"
-                    @pointerdown="keepTerminalFocused"
-                    @click="nudgeTerminalFontSize(1)"
-                  >
-                    A+
-                  </Button>
-                </div>
+                  <div class="flex shrink-0 items-center gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      class="h-9 rounded-xl px-3 text-[13px] font-semibold"
+                      @pointerdown="keepTerminalFocused"
+                      @click="nudgeTerminalFontSize(-1)"
+                    >
+                      A-
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      class="h-9 min-w-[64px] rounded-xl px-3 font-mono text-[12px] text-muted-foreground"
+                      @pointerdown="keepTerminalFocused"
+                      @click="resetTerminalFontSize"
+                    >
+                      {{ terminalFontSize }}px
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      class="h-9 rounded-xl px-3 text-[13px] font-semibold"
+                      @pointerdown="keepTerminalFocused"
+                      @click="nudgeTerminalFontSize(1)"
+                    >
+                      A+
+                    </Button>
+                  </div>
 
                   <div
                     v-if="armedModifier"

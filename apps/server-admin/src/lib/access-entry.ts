@@ -18,7 +18,9 @@ const resolveLocalGatewayPort = (): AccessEntryInfo => {
 };
 
 export const resolveAccessEntryInfo = (
-  config?: Pick<AppConfig, "run_type" | "reverse_proxy_submode"> | null,
+  config?: Partial<
+    Pick<AppConfig, "run_type" | "reverse_proxy_submode">
+  > | null,
 ): AccessEntryInfo => {
   if (isReverseProxySubdomainMode(config)) {
     const frpRemotePort = resolveFrpcRemotePort();
@@ -35,7 +37,9 @@ export const resolveAccessEntryInfo = (
 };
 
 export const resolvePublicGatewayPort = (
-  config?: Pick<AppConfig, "run_type" | "reverse_proxy_submode"> | null,
+  config?: Partial<
+    Pick<AppConfig, "run_type" | "reverse_proxy_submode">
+  > | null,
 ): number | null => {
   const parsed = Number.parseInt(resolveAccessEntryInfo(config).port, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;

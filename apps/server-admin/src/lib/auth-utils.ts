@@ -93,14 +93,12 @@ const pickPreferredUrl = (candidates: Array<URL | null>): URL | null => {
 };
 
 const getConfiguredRpHost = async (): Promise<string | null> => {
-  const [caHosts, acmeSettings] = await Promise.all([
-    configManager.getCAHosts(),
-    configManager.getAcmeSettings(),
-  ]);
-
-  const configuredHosts = [...caHosts, ...(acmeSettings?.domains || [])]
+  const caHosts = await configManager.getCAHosts();
+  // ACME applications are operational certificate data and must not
+  // implicitly change the WebAuthn RP ID used for passkeys.
+  const configuredHosts = [...new Set(caHosts)]
     .map((value) => value.trim())
-    .filter(Boolean);
+    .filter((value) => value && !value.includes("*"));
 
   return (
     configuredHosts.find((host) => {

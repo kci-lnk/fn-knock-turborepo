@@ -1,618 +1,405 @@
 <template>
   <div class="grid gap-4">
-    <div class="grid gap-4">
-      <div class="grid gap-4">
-        <ConfigCollapsibleCard
-          v-if="!isAcmeInitializing"
-          title="申请配置"
-          :configured="acmeConfigConfigured"
-          :ready="!isAcmeInitializing"
-          edit-label="编辑配置"
-          collapsed-content-class="min-h-[76px] flex flex-col items-start gap-3 sm:h-[40px] sm:flex-row sm:items-center sm:justify-between"
-          summary-class="text-xs text-muted-foreground max-w-full whitespace-normal break-words sm:truncate"
-          expanded-content-class="p-0 sm:p-0"
-          actions-class="border-t bg-muted/30 px-4 py-4 sm:px-6 flex flex-col-reverse gap-2 rounded-b-lg sm:flex-row sm:items-center sm:justify-end"
+    <Card class="border-border/80 shadow-sm">
+      <CardHeader>
+        <div
+          class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"
         >
-          <template #summary>
-            {{ acmeConfigSummary }}
-          </template>
-
-          <template #default>
-            <div class="divide-y divide-border">
-              <div class="p-4 sm:p-6 grid gap-6">
-                <div class="grid gap-2">
-                  <div class="flex items-center justify-between gap-3">
-                    <label class="text-sm text-muted-foreground">域名</label>
-                    <span class="text-xs text-muted-foreground"
-                      >支持一次申请多个域名</span
-                    >
-                  </div>
-                  <TagsInput
-                    v-model="domains"
-                    add-on-blur
-                    class="min-h-[65px]"
-                    :disabled="!isAcmeInstalled || isSubmitting || isSaving"
-                  >
-                    <TagsInputItem
-                      v-for="item in domains"
-                      :key="item"
-                      :value="item"
-                    >
-                      <TagsInputItemText />
-                      <TagsInputItemDelete />
-                    </TagsInputItem>
-                    <TagsInputInput
-                      :disabled="!isAcmeInstalled || isSubmitting || isSaving"
-                      placeholder="输入域名后按回车或离开输入框添加多个 (例如: example.com)"
-                    />
-                  </TagsInput>
-                </div>
-
-                <div class="grid gap-2">
-                  <div class="flex items-center justify-between gap-3">
-                    <label class="text-sm text-muted-foreground"
-                      >DNS 服务商</label
-                    >
-                    <span
-                      v-if="activeDnsType"
-                      class="text-xs font-mono text-muted-foreground"
-                      >{{ activeDnsType }}</span
-                    >
-                  </div>
-                  <Select
-                    v-model="dnsType"
-                    :disabled="!isAcmeInstalled || isSubmitting || isSaving"
-                  >
-                    <SelectTrigger class="w-full">
-                      <SelectValue placeholder="选择 DNS 服务商" />
-                    </SelectTrigger>
-                    <SelectContent class="max-h-[320px]">
-                      <SelectGroup v-for="g in groupedProviders" :key="g.group">
-                        <SelectLabel>{{ g.group }}</SelectLabel>
-                        <SelectItem
-                          v-for="p in g.items"
-                          :key="p.dnsType"
-                          :value="p.dnsType"
-                        >
-                          <div
-                            class="flex w-full items-center justify-between gap-3"
-                          >
-                            <span class="truncate">{{ p.label }}</span>
-                            <span
-                              class="shrink-0 font-mono text-xs text-muted-foreground"
-                              >{{ p.dnsType }}</span
-                            >
-                          </div>
-                        </SelectItem>
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div
-                  v-if="activeCredentialFields.length"
-                  data-acme="credentials"
-                  class="grid gap-4 rounded-xl border bg-muted/15 p-4 sm:p-5"
-                >
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="grid gap-0.5">
-                      <div class="flex flex-wrap items-center gap-2">
-                        <div class="text-sm font-medium">DNS API 凭据</div>
-                        <span
-                          class="rounded-full border bg-background px-2 py-0.5 text-[11px] text-muted-foreground"
-                        >
-                          {{ credentialSummary }}
-                        </span>
-                      </div>
-                      <p class="text-xs text-muted-foreground">
-                        这些字段只会用于当前 DNS 服务商的域名验证请求。
-                      </p>
-                      <p
-                        v-if="hasMultipleCredentialSchemes"
-                        class="text-xs text-muted-foreground"
-                      >
-                        当前服务商支持多种鉴权方式，填写任意一套即可。
-                      </p>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      class="text-muted-foreground hover:text-foreground"
-                      :title="isCredentialsVisible ? '隐藏' : '显示'"
-                      :aria-label="
-                        isCredentialsVisible ? '隐藏凭据' : '显示凭据'
-                      "
-                      @click="isCredentialsVisible = !isCredentialsVisible"
-                    >
-                      <component
-                        :is="isCredentialsVisible ? EyeOff : Eye"
-                        class="h-4 w-4"
-                      />
-                    </Button>
-                  </div>
-
-                  <div class="grid gap-3">
-                    <CredentialTransferHint
-                      v-if="credentialTransferSuggestion"
-                      :action-label="`从 ${transferSourceScopeLabel} 填充`"
-                      :description="credentialTransferDescription"
-                      :fields="
-                        credentialTransferSuggestion.fillableFields.map(
-                          (field) => field.targetKey,
-                        )
-                      "
-                      :loading="isTransferSourceLoading"
-                      :source-label="
-                        `${transferSourceScopeLabel} · ${credentialTransferSuggestion.bridgeLabel}`
-                      "
-                      @apply="applyCredentialTransfer"
-                    />
-
-                    <div class="grid gap-3">
-                      <div
-                        v-for="(scheme, schemeIndex) in activeCredentialSchemes"
-                        :key="scheme.id"
-                        :class="
-                          hasMultipleCredentialSchemes
-                            ? 'grid gap-3 rounded-lg border bg-background/60 p-3'
-                            : 'grid gap-3'
-                        "
-                      >
-                        <div
-                          v-if="
-                            hasMultipleCredentialSchemes || scheme.description
-                          "
-                          class="grid gap-1"
-                        >
-                          <div
-                            v-if="hasMultipleCredentialSchemes"
-                            class="text-xs font-medium text-foreground"
-                          >
-                            {{ scheme.label }}
-                          </div>
-                          <p
-                            v-if="scheme.description"
-                            class="text-[11px] leading-5 text-muted-foreground"
-                          >
-                            {{ scheme.description }}
-                          </p>
-                        </div>
-
-                        <div class="grid gap-3">
-                          <div
-                            v-for="(field, fieldIndex) in scheme.fields"
-                            :key="field.key"
-                            class="grid gap-2"
-                          >
-                            <div
-                              class="flex items-center justify-between gap-2"
-                            >
-                              <span
-                                class="text-sm font-mono text-muted-foreground"
-                              >
-                                {{ field.key }}
-                              </span>
-                              <span
-                                v-if="field.required === false"
-                                class="text-[11px] text-muted-foreground"
-                              >
-                                可选
-                              </span>
-                            </div>
-                            <Input
-                              v-model.trim="credentials[field.key]"
-                              :type="isCredentialsVisible ? 'text' : 'password'"
-                              class="font-mono"
-                              :name="
-                                `acme-credential-${schemeIndex}-${fieldIndex}`
-                              "
-                              autocomplete="new-password"
-                              :readonly="!isCredentialEditReady(field.key)"
-                              :disabled="
-                                !isAcmeInstalled || isSubmitting || isSaving
-                              "
-                              @focus="enableCredentialEditing(field.key)"
-                              @pointerdown="enableCredentialEditing(field.key)"
-                            />
-                            <p
-                              v-if="field.description"
-                              class="text-[11px] leading-5 text-muted-foreground"
-                            >
-                              {{ field.description }}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </template>
-
-          <template #actions="{ collapse }">
-            <RefreshButton
-              :loading="isLoadingProviders || isAcmeFetching"
-              :disabled="
-                isLoadingProviders || isAcmeFetching || isAcmeInitializing
-              "
-              @click="refresh"
-            />
-            <Button variant="outline" @click="collapse">折叠</Button>
-            <Button
-              variant="outline"
-              :disabled="isSubmitting"
-              @click="resetForm"
-              >清空</Button
-            >
-            <Button
-              variant="secondary"
-              :disabled="
-                !isAcmeInstalled || !canSubmit || isSubmitting || isSaving
-              "
-              @click="save"
-            >
-              <span
-                v-if="isSaving"
-                class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
-              ></span>
-              保存
-            </Button>
-            <Button
-              :disabled="
-                !isAcmeInstalled || !canSubmit || isSubmitting || isSaving
-              "
-              @click="submit"
-            >
-              <span
-                v-if="isSubmitting"
-                class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
-              ></span>
-              申请证书
-            </Button>
-          </template>
-        </ConfigCollapsibleCard>
-      </div>
-
-      <div class="grid gap-4">
-        <Card v-if="isAcmeInitializing" class="border-border/80 shadow-sm">
-          <CardContent class="grid gap-3 p-6">
-            <Skeleton class="h-5 w-28" />
-            <Skeleton class="h-4 w-full" />
-            <Skeleton class="h-4 w-4/5" />
-            <Skeleton class="h-24 w-full rounded-xl" />
-          </CardContent>
-        </Card>
-
-        <Card v-else-if="!isAcmeInstalled" class="border-border/80 shadow-sm">
-          <CardHeader>
-            <CardTitle>ACME.sh 未就绪</CardTitle>
-            <CardDescription>
-              申请证书前需要先安装并初始化 acme.sh。
-            </CardDescription>
-          </CardHeader>
-          <CardContent class="grid gap-2 text-sm text-muted-foreground">
-            <div v-if="acmeState?.status === 'installing'">安装中，请稍候…</div>
-            <div v-else-if="acmeState?.status === 'error'">
-              错误：{{ acmeState?.message || "未知错误" }}
-            </div>
-            <div v-else-if="acmeState?.status === 'uninstalled'">
-              当前未检测到 acme.sh，请先完成安装。
-            </div>
-            <div v-else>无法获取 acme.sh 状态，请检查服务是否正常。</div>
-          </CardContent>
-          <CardFooter class="flex justify-end gap-2 border-t pt-6">
-            <RefreshButton
-              label="刷新状态"
-              :loading="isAcmeFetching"
-              :disabled="isAcmeFetching"
-              @click="fetchAcmeStatus"
-            />
-            <Button @click="gotoAcmeSsl">{{ acmeDialogActionLabel }}</Button>
-          </CardFooter>
-        </Card>
-
-        <Card v-else-if="job" class="border-border/80 shadow-sm">
-          <CardHeader>
-            <div class="flex items-start justify-between gap-4">
-              <div class="grid gap-1">
-                <CardTitle class="flex items-center gap-2">
-                  签发任务
-                  <Badge :variant="jobBadgeVariant">{{ jobStatusLabel }}</Badge>
-                </CardTitle>
-                <CardDescription
-                  class="flex flex-wrap items-center gap-x-2 gap-y-1"
-                >
-                  <span class="font-mono text-xs">{{
-                    job.domains?.join(", ")
-                  }}</span>
-                  <span class="text-xs text-muted-foreground">·</span>
-                  <span class="font-mono text-xs text-muted-foreground">{{
-                    job.provider || "-"
-                  }}</span>
-                </CardDescription>
-              </div>
-              <RefreshButton
-                label="刷新日志"
-                :loading="isRefreshingLogs"
-                :disabled="!job || isRefreshingLogs"
-                @click="refreshLogs"
-              />
-            </div>
-          </CardHeader>
-          <CardContent class="grid gap-4">
-            <Alert v-if="analysis" :variant="analysisVariant">
-              <component :is="analysisIcon" class="h-4 w-4" />
-              <AlertTitle>{{ analysisTitle }}</AlertTitle>
-              <AlertDescription>
-                <div class="grid gap-2">
-                  <p>{{ analysis.message }}</p>
-                  <div class="flex flex-wrap items-center gap-2">
-                    <Button
-                      v-if="
-                        analysis.reason === 'dns_credentials_invalid' ||
-                        analysis.reason === 'dns_credentials_invalid_email'
-                      "
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      @click="focusCredentials"
-                    >
-                      检查 DNS 凭据
-                    </Button>
-                    <Button
-                      v-if="analysis.evidence?.length"
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      class="px-2"
-                      @click="isAnalysisOpen = !isAnalysisOpen"
-                    >
-                      {{ isAnalysisOpen ? "收起" : "查看" }}
-                    </Button>
-                  </div>
-
-                  <Collapsible
-                    v-if="analysis.evidence?.length"
-                    v-model:open="isAnalysisOpen"
-                  >
-                    <CollapsibleContent>
-                      <div
-                        class="rounded-md border bg-muted/20 p-2 font-mono text-xs text-muted-foreground w-full min-w-0"
-                      >
-                        <div
-                          v-for="(line, idx) in analysis.evidence"
-                          :key="idx"
-                          class="whitespace-pre-wrap break-all"
-                        >
-                          {{ line }}
-                        </div>
-                      </div>
-                    </CollapsibleContent>
-                  </Collapsible>
-                </div>
-              </AlertDescription>
-            </Alert>
-            <div class="grid gap-2">
-              <div class="flex items-center justify-between">
-                <span class="text-xs text-muted-foreground">进度</span>
-                <span class="text-xs font-mono text-muted-foreground"
-                  >{{ jobProgress }}%</span
-                >
-              </div>
-              <Progress :model-value="jobProgress" />
-            </div>
-            <LogViewer :logs="logs" />
-          </CardContent>
-          <CardFooter
-            v-if="job.status === 'succeeded'"
-            class="flex flex-wrap gap-2 justify-end border-t pt-6"
-          >
-            <Button
-              variant="secondary"
-              @click="download"
-              :disabled="isDownloading"
-              >下载证书</Button
-            >
-            <Button @click="deploy" :disabled="isDeploying"
-              >设为当前证书</Button
-            >
-            <Button variant="outline" @click="reapply">重新申请</Button>
-          </CardFooter>
-        </Card>
-
-        <Card v-if="certInfo" class="border-border/80 shadow-sm">
-          <CardHeader>
-            <CardTitle
-              >证书信息
-              <Badge variant="default" class="bg-green-600 hover:bg-green-600">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="mr-1 h-3 w-3"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                  <path d="m9 12 2 2 4-4" />
-                </svg>
-                已申请
+          <div class="grid gap-1">
+            <CardTitle class="flex flex-wrap items-center gap-2">
+              ACME 证书申请
+              <Badge :variant="acmeStatusBadgeVariant">{{
+                acmeStatusLabel
+              }}</Badge>
+              <Badge v-if="isTableLocked" variant="outline">
+                {{ lockReasonLabel }}
               </Badge>
             </CardTitle>
             <CardDescription>
-              已签发并保存到服务器，并会自动加入证书库；如需立即生效，可将它设为当前证书。
+              管理多个 ACME 申请项、签发证书和证书库关联状态。
             </CardDescription>
-          </CardHeader>
-          <CardContent class="grid gap-2 text-sm">
-            <div
-              class="grid gap-3 sm:grid-cols-[120px_minmax(0,1fr)] sm:gap-x-4 sm:gap-y-2"
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <RefreshButton
+              :loading="isOverviewLoading || isProvidersLoading"
+              :disabled="isOverviewLoading || isProvidersLoading"
+              @click="refresh"
+            />
+            <Button
+              :disabled="
+                isTableLocked || isDialogSubmitting || !dnsProviders.length
+              "
+              @click="openCreateDialog"
             >
-              <span class="text-muted-foreground">主域名</span>
-              <span class="font-mono text-xs break-all">{{
-                certInfo.primaryDomain
-              }}</span>
-              <span class="text-muted-foreground">发行者</span>
-              <span class="font-mono text-xs break-all">{{
-                certInfo.info?.issuer
-              }}</span>
-              <span class="text-muted-foreground">有效期</span>
-              <span class="font-mono text-xs break-all"
-                >{{ formatDate(certInfo.info?.validFrom) }} ~
-                {{ formatDate(certInfo.info?.validTo) }}</span
-              >
-              <span class="text-muted-foreground">包含名称</span>
-              <span class="font-mono text-xs break-words">{{
-                (certInfo.info?.dnsNames || []).join(", ")
-              }}</span>
-              <span class="text-muted-foreground">序列号</span>
-              <span class="font-mono text-xs break-all text-muted-foreground">{{
-                certInfo.info?.serialNumber
-              }}</span>
-            </div>
-          </CardContent>
-          <CardFooter class="flex flex-wrap justify-end gap-2 border-t pt-6">
-            <Button variant="secondary" @click="download" :disabled="isDeleting"
-              >下载证书</Button
-            >
-            <Button @click="deploy" :disabled="isDeleting">设为当前证书</Button>
-            <ConfirmDangerPopover
-              title="确认删除 ACME 证书"
-              description="删除后将移除服务器保存的证书与私钥文件，且可能会禁用当前正在使用的同一份证书。"
-              :loading="isDeleting"
-              :disabled="isDeleting"
-              :on-confirm="confirmDelete"
-              content-class="w-96 text-left"
-            >
-              <template #trigger>
-                <Button variant="destructive" :disabled="isDeleting"
-                  >删除</Button
-                >
-              </template>
-            </ConfirmDangerPopover>
-          </CardFooter>
-        </Card>
-      </div>
-    </div>
-  </div>
+              新申请
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+    </Card>
 
-  <Dialog v-model:open="showAcmeInstallDialog">
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle>{{ acmeDialogTitle }}</DialogTitle>
-      </DialogHeader>
-      <p class="text-sm text-muted-foreground">{{ acmeDialogDescription }}</p>
-      <DialogFooter>
-        <Button @click="gotoAcmeSsl">{{ acmeDialogActionLabel }}</Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+    <Card class="border-border/80 shadow-sm">
+      <CardHeader>
+        <CardTitle>申请项列表</CardTitle>
+        <CardDescription>
+          列表中的每一行对应一条独立的 ACME 申请配置和它当前的证书状态。
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div class="relative">
+          <div
+            v-if="isTableLocked"
+            class="absolute inset-0 z-10 flex items-center justify-center rounded-lg border bg-background/80 backdrop-blur-sm"
+          >
+            <div class="max-w-md text-center">
+              <div class="text-sm font-medium">{{ lockMessageTitle }}</div>
+              <div class="mt-1 text-xs text-muted-foreground">
+                {{ lockMessageDescription }}
+              </div>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto rounded-lg border">
+            <Table class="table-fixed">
+              <TableHeader>
+                <TableRow>
+                  <TableHead class="w-[100px] whitespace-normal">
+                    DNS 服务商
+                  </TableHead>
+                  <TableHead class="w-[120px] whitespace-normal">域名</TableHead>
+                  <TableHead class="w-[180px] whitespace-normal">
+                    状态概览
+                  </TableHead>
+                  <TableHead class="w-[150px] whitespace-normal"
+                    >有效期</TableHead
+                  >
+                  <TableHead class="w-[108px] whitespace-normal text-right">
+                    操作
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+
+              <TableBody>
+                <template v-if="isOverviewLoading && !applications.length">
+                  <TableRow v-for="index in 4" :key="index">
+                    <TableCell class="align-top whitespace-normal">
+                      <Skeleton class="h-4 w-16" />
+                    </TableCell>
+                    <TableCell class="align-top whitespace-normal">
+                      <Skeleton class="h-4 w-36" />
+                    </TableCell>
+                    <TableCell class="align-top whitespace-normal">
+                      <Skeleton class="h-4 w-24" />
+                    </TableCell>
+                    <TableCell class="align-top whitespace-normal">
+                      <Skeleton class="h-4 w-24" />
+                    </TableCell>
+                    <TableCell class="align-top whitespace-normal text-right">
+                      <div class="ml-auto inline-flex">
+                        <Skeleton class="h-8 w-16 rounded-r-none" />
+                        <Skeleton class="h-8 w-8 rounded-l-none border-l" />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                </template>
+
+                <TableRow v-else-if="!applications.length">
+                  <TableCell
+                    colspan="5"
+                    class="py-10 text-center text-muted-foreground"
+                  >
+                    还没有 ACME 申请项，点击右上角“新申请”开始创建。
+                  </TableCell>
+                </TableRow>
+
+                <TableRow
+                  v-for="application in applications"
+                  :key="application.id"
+                >
+                  <TableCell class="align-top whitespace-normal break-words">
+                    <div class="grid gap-1">
+                      <div class="font-medium">
+                        {{ application.providerLabel }}
+                      </div>
+                      <div class="font-mono text-xs text-muted-foreground">
+                        {{ application.dnsType }}
+                      </div>
+                    </div>
+                  </TableCell>
+
+                  <TableCell class="align-top whitespace-normal break-all">
+                    <div class="grid gap-1">
+                      <div class="font-medium">
+                        {{ application.name || application.primaryDomain }}
+                      </div>
+                      <div
+                        class="font-mono text-xs text-muted-foreground break-all"
+                      >
+                        {{ application.domains.join(", ") }}
+                      </div>
+                      <div class="text-xs text-muted-foreground">
+                        {{
+                          application.renewEnabled
+                            ? "已启用自动续期"
+                            : "未启用自动续期"
+                        }}
+                      </div>
+                    </div>
+                  </TableCell>
+
+                  <TableCell class="align-top whitespace-normal break-words">
+                    <div class="grid gap-1">
+                      <div class="flex flex-wrap gap-1">
+                        <Badge :variant="certificateBadgeVariant(application)">
+                          {{ certificateStatusLabel(application) }}
+                        </Badge>
+                        <Badge :variant="libraryBadgeVariant(application)">
+                          {{ libraryStatusLabel(application) }}
+                        </Badge>
+                        <Badge
+                          :variant="
+                            jobBadgeVariant(application.latestJob?.status)
+                          "
+                        >
+                          {{ latestJobLabel(application) }}
+                        </Badge>
+                      </div>
+                      <div
+                        v-if="application.certificate?.exists"
+                        class="text-xs text-muted-foreground break-all"
+                      >
+                        {{ application.certificate?.issuer || "未知签发者" }}
+                      </div>
+                    </div>
+                  </TableCell>
+
+                  <TableCell
+                    class="align-top whitespace-normal break-words text-xs leading-5 text-muted-foreground"
+                  >
+                    {{ formatCertificateRange(application) }}
+                  </TableCell>
+
+                  <TableCell class="align-top whitespace-normal text-right">
+                    <div class="inline-flex">
+                      <Button
+                        type="button"
+                        size="sm"
+                        class="rounded-r-none"
+                        :disabled="isActionBlocked()"
+                        @click="requestCertificate(application.id)"
+                      >
+                        {{ primaryActionLabel(application) }}
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger as-child>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="default"
+                            class="rounded-l-none border-l border-primary-foreground/20 px-2"
+                            :disabled="isSecondaryActionDisabled(application)"
+                          >
+                            <ChevronDown class="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" class="w-44">
+                          <DropdownMenuItem
+                            :disabled="isActionBlocked()"
+                            @select="openEditDialog(application.id)"
+                          >
+                            编辑申请项
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            v-if="application.latestJob?.id"
+                            @select="viewJob(application.latestJob.id)"
+                          >
+                            查看日志
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            v-if="application.certificate?.exists"
+                            :disabled="isActionBlocked()"
+                            @select="downloadCertificate(application)"
+                          >
+                            下载证书
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            v-if="application.certificate?.exists"
+                            :disabled="isActionBlocked()"
+                            @select="syncLibrary(application)"
+                          >
+                            {{
+                              application.library?.linked
+                                ? "更新到证书库"
+                                : "添加到证书库"
+                            }}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            v-if="application.certificate?.exists"
+                            :disabled="isActionBlocked()"
+                            @select="deployCertificate(application)"
+                          >
+                            设为当前证书
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator
+                            v-if="application.certificate?.exists"
+                          />
+                          <DropdownMenuItem
+                            v-if="application.certificate?.exists"
+                            variant="destructive"
+                            :disabled="isActionBlocked()"
+                            @select="openDeleteDialog(application)"
+                          >
+                            删除证书
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+
+    <AcmeJobPanel
+      v-if="job"
+      :job="job"
+      :logs="logs"
+      :analysis="analysis"
+      :application-label="selectedApplicationLabel"
+      :is-refreshing="isRefreshingLogs"
+      @refresh="refreshLogs"
+      @focus-credentials="focusCredentialsFromJob"
+    />
+
+    <AcmeApplicationDialog
+      v-model:open="isDialogOpen"
+      :mode="dialogMode"
+      :initial-value="editingApplication"
+      :dns-providers="dnsProviders"
+      :pending="isDialogSubmitting"
+      @submit="submitDialog"
+    />
+
+    <Dialog
+      :open="Boolean(deleteCandidate)"
+      @update:open="handleDeleteDialogOpenChange"
+    >
+      <DialogContent class="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>确认删除 ACME 证书</DialogTitle>
+          <DialogDescription class="leading-6">
+            删除后会移除
+            <span class="font-medium text-foreground">
+              {{ deleteCandidateLabel || "当前申请项" }}
+            </span>
+            当前保存的证书和相关证书库关联，但会保留申请项配置。
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            :disabled="isMutating"
+            @click="closeDeleteDialog"
+          >
+            取消
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            :disabled="isActionBlocked() || !deleteCandidate"
+            @click="confirmDeleteCandidate"
+          >
+            确认删除
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from "vue";
-import { useRouter } from "vue-router";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter,
-} from "@/components/ui/card";
+  AcmeAPI,
+  type AcmeApplicationOverviewItem,
+  type AcmeApplicationPayload,
+  type AcmeApplicationRecord,
+  type AcmeDnsProvider,
+  type AcmeJobData,
+  type AcmeLogAnalysis,
+  type AcmeOverview,
+} from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import RefreshButton from "@/components/RefreshButton.vue";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
-import { Input } from "@/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Progress } from "@/components/ui/progress";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  TagsInput,
-  TagsInputInput,
-  TagsInputItem,
-  TagsInputItemDelete,
-  TagsInputItemText,
-} from "@/components/ui/tags-input";
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import RefreshButton from "@/components/RefreshButton.vue";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { toast } from "@admin-shared/utils/toast";
-import { Eye, EyeOff, TriangleAlert, Info } from "lucide-vue-next";
-import { AcmeAPI } from "../../lib/api";
-import CredentialTransferHint from "@/components/CredentialTransferHint.vue";
-import ConfigCollapsibleCard from "@admin-shared/components/ConfigCollapsibleCard.vue";
-import LogViewer from "@admin-shared/components/LogViewer.vue";
-import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
-import { useDnsCredentialTransfer } from "@/composables/useDnsCredentialTransfer";
+import { downloadBlob } from "@admin-shared/utils/downloadBlob";
 import {
   extractErrorMessage,
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
-import { downloadBlob } from "@admin-shared/utils/downloadBlob";
+import AcmeApplicationDialog from "./AcmeApplicationDialog.vue";
+import AcmeJobPanel from "./AcmeJobPanel.vue";
+import { ChevronDown } from "lucide-vue-next";
 
-type AcmeState = {
-  status: "uninstalled" | "installing" | "installed" | "error";
-  progress: number;
-  message: string;
-};
-type AcmeLogAnalysis = {
-  reason:
-    | "dns_credentials_invalid"
-    | "dns_credentials_invalid_email"
-    | "dns_api_rate_limited"
-    | "acme_frequency_limited"
-    | "unknown";
-  provider?: string;
-  message: string;
-  evidence?: string[];
-};
-
-const router = useRouter();
-
-const acmeState = ref<AcmeState | null>(null);
-const isAcmeInitializing = ref(true);
-const showAcmeInstallDialog = ref(false);
-
-const domains = ref<string[]>([]);
-const credentials = ref<Record<string, string>>({});
-const isCredentialsVisible = ref(false);
-const credentialEditReady = ref<Record<string, boolean>>({});
-const job = ref<any>(null);
+const overview = ref<AcmeOverview | null>(null);
+const dnsProviders = ref<AcmeDnsProvider[]>([]);
+const isDialogOpen = ref(false);
+const dialogMode = ref<"create" | "edit">("create");
+const editingApplication = ref<AcmeApplicationRecord | null>(null);
+const deleteCandidate = ref<AcmeApplicationOverviewItem | null>(null);
+const selectedJobId = ref("");
+const job = ref<AcmeJobData | null>(null);
 const logs = ref<string[]>([]);
 const analysis = ref<AcmeLogAnalysis | null>(null);
-const isAnalysisOpen = ref(false);
-let timer: any = null;
-let savePromise: Promise<void> | null = null;
-const certInfo = ref<{ primaryDomain: string; info: any } | null>(null);
-const { isPending: isSaving, run: runSaveConfig } = useAsyncAction({
-  rethrow: true,
-});
-const { isPending: isSubmitting, run: runSubmitRequest } = useAsyncAction({
+let pollingTimer: ReturnType<typeof setInterval> | null = null;
+
+const { isPending: isOverviewLoading, run: runLoadOverview } = useAsyncAction();
+const { isPending: isProvidersLoading, run: runLoadProviders } =
+  useAsyncAction();
+const { isPending: isDialogSubmitting, run: runDialogSubmit } = useAsyncAction({
   onError: (error) => {
-    toast.error(extractErrorMessage(error, "提交失败"));
+    toast.error(extractErrorMessage(error, "保存申请项失败"));
   },
 });
-const { isPending: isDeleting, run: runDeleteCert } = useAsyncAction({
+const { isPending: isMutating, run: runMutating } = useAsyncAction({
   onError: (error) => {
-    toast.error(extractErrorMessage(error, "删除失败"));
+    toast.error(extractErrorMessage(error, "操作失败"));
   },
 });
 const { isPending: isRefreshingLogs, run: runRefreshLogs } = useAsyncAction({
@@ -620,559 +407,385 @@ const { isPending: isRefreshingLogs, run: runRefreshLogs } = useAsyncAction({
     toast.error(extractErrorMessage(error, "刷新日志失败"));
   },
 });
-const { isPending: isDownloading, run: runDownloadCert } = useAsyncAction({
+const { isPending: isDownloading, run: runDownload } = useAsyncAction({
   onError: (error) => {
     toast.error(extractErrorMessage(error, "下载失败"));
   },
 });
-const { isPending: isDeploying, run: runDeployCert } = useAsyncAction({
+const { run: runLoadApplication } = useAsyncAction({
   onError: (error) => {
-    toast.error(extractErrorMessage(error, "设置当前证书失败"));
+    toast.error(extractErrorMessage(error, "加载申请项失败"));
   },
 });
-const { run: runLoadSavedConfig } = useAsyncAction();
-const { isPending: isAcmeFetching, run: runFetchAcmeStatus } = useAsyncAction();
 
-type DnsProvider = {
-  dnsType: string;
-  label: string;
-  group: string;
-  credentialSchemes: DnsCredentialScheme[];
-};
-
-type DnsCredentialField = {
-  key: string;
-  label?: string;
-  description?: string;
-  required?: boolean;
-};
-
-type DnsCredentialScheme = {
-  id: string;
-  label: string;
-  description?: string;
-  fields: DnsCredentialField[];
-};
-
-const dnsProviders = ref<DnsProvider[]>([]);
-const { isPending: isLoadingProviders, run: runLoadProviders } = useAsyncAction(
-  {
-    onError: (error) => {
-      toast.error(extractErrorMessage(error, "加载 DNS 服务商失败"));
-      dnsProviders.value = [];
-    },
-  },
-);
-const dnsType = ref<string>("");
-const customDnsType = ref("");
-
-const activeProvider = computed(() => {
-  if (!dnsType.value || dnsType.value === "__custom__") return null;
-  return dnsProviders.value.find((p) => p.dnsType === dnsType.value) || null;
-});
-
-const activeDnsType = computed(() => {
-  if (dnsType.value === "__custom__") return customDnsType.value.trim();
-  return dnsType.value.trim();
-});
-
-const getProviderCredentialFields = (provider: DnsProvider | null) => {
-  if (!provider) return [] as DnsCredentialField[];
-
-  const fields: DnsCredentialField[] = [];
-  const seen = new Set<string>();
-
-  for (const scheme of provider.credentialSchemes) {
-    for (const field of scheme.fields) {
-      if (seen.has(field.key)) continue;
-      seen.add(field.key);
-      fields.push(field);
-    }
-  }
-
-  return fields;
-};
-
-const getSatisfiedCredentialScheme = (
-  provider: DnsProvider | null,
-  values: Record<string, string>,
-) => {
-  if (!provider) return null;
-
-  return (
-    provider.credentialSchemes.find((scheme) =>
-      scheme.fields
-        .filter((field) => field.required !== false)
-        .every((field) => Boolean((values[field.key] || "").trim())),
-    ) || null
-  );
-};
-
-const activeCredentialSchemes = computed(
-  () => activeProvider.value?.credentialSchemes || [],
-);
-const activeCredentialFields = computed(() =>
-  getProviderCredentialFields(activeProvider.value),
-);
-const hasMultipleCredentialSchemes = computed(
-  () => activeCredentialSchemes.value.length > 1,
-);
-const matchedCredentialScheme = computed(() =>
-  getSatisfiedCredentialScheme(activeProvider.value, credentials.value),
-);
-const filledCredentialCount = computed(() => {
-  return activeCredentialFields.value.filter(
-    (field) => (credentials.value[field.key] || "").trim().length > 0,
-  ).length;
-});
-const hasCredentialValues = computed(() => filledCredentialCount.value > 0);
-const acmeConfigConfigured = computed(() =>
-  Boolean(
-    domains.value.length || activeDnsType.value || hasCredentialValues.value,
-  ),
-);
-const acmeConfigSummary = computed(() => {
-  const parts = [
-    domains.value.length ? `域名 ${domains.value.length} 个` : "未填写域名",
-    activeDnsType.value ? `DNS ${activeDnsType.value}` : "未选择服务商",
-  ];
-
-  if (activeCredentialFields.value.length) {
-    parts.push(
-      matchedCredentialScheme.value
-        ? `凭据 ${matchedCredentialScheme.value.label}`
-        : hasCredentialValues.value
-        ? `凭据 ${filledCredentialCount.value}/${activeCredentialFields.value.length}`
-        : "凭据待填写",
-    );
-  }
-
-  return parts.join(" · ");
-});
-const credentialSummary = computed(() => {
-  if (!activeCredentialFields.value.length) return "当前服务商无需额外凭据";
-  if (matchedCredentialScheme.value)
-    return `已满足 ${matchedCredentialScheme.value.label}`;
-  if (!hasCredentialValues.value) {
-    return hasMultipleCredentialSchemes.value
-      ? `支持 ${activeCredentialSchemes.value.length} 套凭据方案`
-      : `需要填写 ${activeCredentialFields.value.length} 个字段`;
-  }
-  if (hasMultipleCredentialSchemes.value) {
-    return `已填写 ${filledCredentialCount.value} 个字段，满足任一方案即可`;
-  }
-  return `已填写 ${filledCredentialCount.value}/${activeCredentialFields.value.length} 个字段`;
-});
-
-const getCredentialStateKey = (key: string) => `${activeDnsType.value}:${key}`;
-
-const enableCredentialEditing = (key: string) => {
-  credentialEditReady.value[getCredentialStateKey(key)] = true;
-};
-
-const isCredentialEditReady = (key: string) =>
-  credentialEditReady.value[getCredentialStateKey(key)] === true;
-
-const {
-  applySuggestion: applyTransferredCredentials,
-  isLoadingSource: isTransferSourceLoading,
-  sourceScopeLabel: transferSourceScopeLabel,
-  suggestion: credentialTransferSuggestion,
-} = useDnsCredentialTransfer({
-  target: "acme",
-  providerId: activeDnsType,
-  targetCredentials: credentials,
-});
-
-const credentialTransferDescription = computed(() => {
-  const suggestion = credentialTransferSuggestion.value;
-  if (!suggestion) return "";
-
-  return `发现 ${transferSourceScopeLabel.value} 中已有 ${suggestion.bridgeLabel} 凭据，可补齐 ${suggestion.fillableFields.length} 个字段。`;
-});
-
-const groupedProviders = computed(() => {
-  const groupOrder = ["常用", "国内", "国际", "自建/高级"];
-  const bucket = new Map<string, DnsProvider[]>();
-  for (const p of dnsProviders.value) {
-    const g = p.group || "其他";
-    if (!bucket.has(g)) bucket.set(g, []);
-    bucket.get(g)!.push(p);
-  }
-
-  const groups = Array.from(bucket.entries()).map(([group, items]) => ({
-    group,
-    items: items
-      .slice()
-      .sort((a, b) => a.label.localeCompare(b.label, "zh-Hans-CN")),
-  }));
-
-  groups.sort((a, b) => {
-    const ai = groupOrder.indexOf(a.group);
-    const bi = groupOrder.indexOf(b.group);
-    if (ai === -1 && bi === -1)
-      return a.group.localeCompare(b.group, "zh-Hans-CN");
-    if (ai === -1) return 1;
-    if (bi === -1) return -1;
-    return ai - bi;
-  });
-
-  return groups;
-});
-
+const applications = computed(() => overview.value?.applications || []);
+const acmeState = computed(() => overview.value?.acmeState || null);
 const isAcmeInstalled = computed(() => acmeState.value?.status === "installed");
-
-const analysisVariant = computed(() => {
-  if (!analysis.value) return "default";
-  if (analysis.value.reason === "unknown") return "default";
-  return "destructive";
+const isTableLocked = computed(() => overview.value?.lock.locked === true);
+const lockedApplication = computed(() => {
+  const applicationId = overview.value?.lock.applicationId;
+  if (!applicationId) return null;
+  return applications.value.find((item) => item.id === applicationId) || null;
 });
 
-const analysisIcon = computed(() => {
-  if (!analysis.value) return Info;
-  if (analysisVariant.value === "destructive") return TriangleAlert;
-  return Info;
+const acmeStatusLabel = computed(() => {
+  const status = acmeState.value?.status;
+  if (status === "installed") return "已就绪";
+  if (status === "installing") return "安装中";
+  if (status === "error") return "异常";
+  return "未安装";
 });
 
-const analysisTitle = computed(() => {
-  const a = analysis.value;
-  if (!a) return "";
-  if (
-    a.reason === "dns_credentials_invalid" ||
-    a.reason === "dns_credentials_invalid_email"
-  )
-    return "DNS 凭据可能有问题";
-  if (a.reason === "dns_api_rate_limited") return "DNS API 触发限流";
-  if (a.reason === "acme_frequency_limited") return "申请频率受限";
-  return "检测到异常信息";
-});
-
-const acmeDialogTitle = computed(() => {
-  const s = acmeState.value?.status;
-  if (s === "installing") return "ACME.sh 安装中";
-  if (s === "error") return "ACME.sh 状态异常";
-  if (s === "installed") return "ACME.sh 已安装";
-  return "ACME.sh 未安装";
-});
-
-const acmeDialogDescription = computed(() => {
-  const s = acmeState.value?.status;
-  if (s === "installing")
-    return "正在安装 acme.sh，请稍候或前往系统设置查看进度。";
-  if (s === "error")
-    return (
-      acmeState.value?.message || "acme.sh 状态异常，请前往系统设置重新安装。"
-    );
-  if (!s) return "无法获取 acme.sh 状态，请检查服务是否正常。";
-  return "请先在 系统设置 → ACME SSL 页面完成安装，安装完成后返回此页继续申请证书。";
-});
-
-const acmeDialogActionLabel = computed(() => {
-  const s = acmeState.value?.status;
-  if (s === "installing") return "查看进度";
-  if (s === "error") return "前往处理";
-  return "前往安装";
-});
-
-function gotoAcmeSsl() {
-  showAcmeInstallDialog.value = false;
-  router.push({ path: "/system", query: { tab: "acme-ssl" } });
-}
-
-async function fetchAcmeStatus(opts?: { silent?: boolean }) {
-  await runFetchAcmeStatus(
-    async () => {
-      const st = await AcmeAPI.status();
-      acmeState.value = st;
-      if (!job.value) certInfo.value = st.acmeCert ?? null;
-    },
-    {
-      onError: (error) => {
-        acmeState.value = null;
-        if (!opts?.silent) {
-          toast.error(extractErrorMessage(error, "获取 ACME.sh 状态失败"));
-        }
-      },
-      onFinally: () => {
-        isAcmeInitializing.value = false;
-      },
-    },
-  );
-
-  if (acmeState.value?.status === "uninstalled") {
-    showAcmeInstallDialog.value = true;
-  }
-}
-
-async function refresh() {
-  await fetchAcmeStatus();
-  if (isAcmeInstalled.value) await loadProviders();
-}
-
-async function loadProviders() {
-  if (!isAcmeInstalled.value) {
-    showAcmeInstallDialog.value = true;
-    return;
-  }
-  await runLoadProviders(() => AcmeAPI.dnsProviders(), {
-    onSuccess: (providers) => {
-      dnsProviders.value = providers;
-    },
-  });
-}
-
-const canSubmit = computed(() => {
-  if (domains.value.length === 0) return false;
-  const v = activeDnsType.value;
-  if (!v) return false;
-  if (!/^dns_[a-z0-9_]+$/i.test(v)) return false;
-  return true;
-});
-
-const jobProgress = computed(() => {
-  const v = Number(job.value?.progress ?? 0);
-  if (!Number.isFinite(v)) return 0;
-  return Math.max(0, Math.min(100, Math.round(v)));
-});
-
-const jobStatusLabel = computed(() => {
-  const s = String(job.value?.status || "");
-  if (s === "queued") return "排队中";
-  if (s === "running") return "执行中";
-  if (s === "succeeded") return "已完成";
-  if (s === "failed") return "失败";
-  return s || "未知";
-});
-
-const jobBadgeVariant = computed(() => {
-  const s = String(job.value?.status || "");
-  if (s === "succeeded") return "secondary";
-  if (s === "failed") return "destructive";
-  if (s === "running") return "default";
+const acmeStatusBadgeVariant = computed(() => {
+  const status = acmeState.value?.status;
+  if (status === "installed") return "secondary";
+  if (status === "error") return "destructive";
+  if (status === "installing") return "default";
   return "outline";
 });
 
-const buildCredentialsPayload = () => {
-  const out: Record<string, string> = {};
-  for (const [k, v] of Object.entries(credentials.value || {})) {
-    const kk = k.trim();
-    const vv = (v ?? "").toString().trim();
-    if (kk && vv) out[kk] = vv;
+const lockReasonLabel = computed(() => {
+  const reason = overview.value?.lock.reason;
+  return reason === "auto_renew" ? "自动续期中" : "任务执行中";
+});
+
+const lockMessageTitle = computed(() => {
+  const target =
+    lockedApplication.value?.name || lockedApplication.value?.primaryDomain;
+  if (!target) {
+    return overview.value?.lock.reason === "auto_renew"
+      ? "正在自动续期证书"
+      : "正在申请证书";
   }
-  return out;
+  return overview.value?.lock.reason === "auto_renew"
+    ? `正在为 ${target} 自动续期证书`
+    : `正在为 ${target} 申请证书`;
+});
+
+const lockMessageDescription = computed(() => {
+  return "任务执行期间会锁定列表操作，你仍然可以查看列表内容和下方日志。";
+});
+
+const selectedApplicationLabel = computed(() => {
+  const applicationId = job.value?.applicationId;
+  if (!applicationId) return "";
+  const application = applications.value.find(
+    (item) => item.id === applicationId,
+  );
+  return application?.name || application?.primaryDomain || "";
+});
+
+const deleteCandidateLabel = computed(() => {
+  return (
+    deleteCandidate.value?.name || deleteCandidate.value?.primaryDomain || ""
+  );
+});
+
+const refresh = async () => {
+  await Promise.all([fetchOverview(), loadProviders()]);
 };
 
-function applyCredentialTransfer() {
-  const result = applyTransferredCredentials();
-  if (!result) return;
-
-  for (const key of result.appliedKeys) {
-    enableCredentialEditing(key);
-  }
-
-  toast.success(`已从 ${transferSourceScopeLabel.value} 填充 ${result.count} 个字段`);
-}
-
-async function save(opts?: { silent?: boolean }) {
-  if (!canSubmit.value) return;
-  if (savePromise) return await savePromise;
-
-  const action = runSaveConfig(
+const fetchOverview = async (opts?: {
+  silent?: boolean;
+  preserveSelection?: boolean;
+}) => {
+  await runLoadOverview(
     async () => {
-      await AcmeAPI.saveConfig({
-        domains: domains.value,
-        dnsType: activeDnsType.value,
-        credentials: buildCredentialsPayload(),
-      });
+      const data = await AcmeAPI.overview();
+      overview.value = data;
+
+      const runningJobId = data.runningJob?.id || data.lock.jobId || "";
+      if (runningJobId) {
+        await selectJob(runningJobId, true);
+        return;
+      }
+
+      if (!opts?.preserveSelection && !selectedJobId.value) {
+        const latestFailedJob = data.applications.find(
+          (application) => application.latestJob?.status === "failed",
+        );
+        if (latestFailedJob?.latestJob?.id) {
+          await selectJob(latestFailedJob.latestJob.id, false);
+        }
+      }
     },
     {
-      onSuccess: () => {
-        if (!opts?.silent) toast.success("已保存");
-      },
       onError: (error) => {
-        if (!opts?.silent) toast.error(extractErrorMessage(error, "保存失败"));
+        if (!opts?.silent) {
+          toast.error(extractErrorMessage(error, "加载 ACME 概览失败"));
+        }
       },
     },
   );
-  if (!action) return;
-  savePromise = action;
-  try {
-    await savePromise;
-  } finally {
-    savePromise = null;
+};
+
+const loadProviders = async () => {
+  await runLoadProviders(
+    async () => {
+      dnsProviders.value = await AcmeAPI.dnsProviders();
+    },
+    {
+      onError: (error) => {
+        toast.error(extractErrorMessage(error, "加载 DNS 服务商失败"));
+        dnsProviders.value = [];
+      },
+    },
+  );
+};
+
+const stopPolling = () => {
+  if (pollingTimer) {
+    clearInterval(pollingTimer);
+    pollingTimer = null;
   }
-}
+};
 
-async function loadSavedConfig() {
-  await runLoadSavedConfig(async () => {
-    const cfg = await AcmeAPI.getConfig();
-    if (cfg) {
-      domains.value = Array.isArray(cfg.domains) ? cfg.domains : [];
-      dnsType.value = String(cfg.dnsType || "");
-      credentials.value = { ...(cfg.credentials || {}) };
-    } else {
-      domains.value = [];
-      dnsType.value = "";
-      credentials.value = {};
-    }
-  });
-}
-
-async function submit() {
-  if (!canSubmit.value) return;
-  await runSubmitRequest(async () => {
-    logs.value = [];
-    job.value = null;
-    analysis.value = null;
-    isAnalysisOpen.value = false;
-    certInfo.value = null;
-    if (timer) clearInterval(timer);
-    await save({ silent: true });
-    const { jobId } = await AcmeAPI.request({
-      domains: domains.value,
-      dnsType: activeDnsType.value,
-      credentials: buildCredentialsPayload(),
-    });
-    toast.success("任务已提交");
-    await pollOnce(jobId);
-    startPolling(jobId);
-  });
-}
-
-async function pollOnce(id: string) {
-  const data = await AcmeAPI.poll(id, { limit: 500, order: "desc" });
+const pollJobOnce = async (jobId: string) => {
+  const data = await AcmeAPI.poll(jobId, { limit: 500, order: "desc" });
   job.value = data.job;
   logs.value = data.logs;
   analysis.value = data.analysis ?? null;
-  if (!analysis.value) isAnalysisOpen.value = false;
-}
 
-async function refreshLogs() {
-  if (!job.value) return;
-  await runRefreshLogs(() => pollOnce(job.value.id));
-}
+  if (data.job.status === "succeeded" || data.job.status === "failed") {
+    stopPolling();
+    await fetchOverview({ silent: true, preserveSelection: true });
+  }
+};
 
-function startPolling(id: string) {
-  clearInterval(timer);
-  timer = setInterval(async () => {
+const startPolling = (jobId: string) => {
+  stopPolling();
+  pollingTimer = setInterval(async () => {
     try {
-      await pollOnce(id);
-      if (job.value?.status === "succeeded" || job.value?.status === "failed") {
-        clearInterval(timer);
-        if (job.value?.status === "succeeded") {
-          const primaryDomain = job.value.domains[0];
-          certInfo.value = {
-            primaryDomain,
-            info: await AcmeAPI.certInfo(primaryDomain).then((res) => res.info),
-          };
-        }
-      }
-    } catch {}
+      await pollJobOnce(jobId);
+    } catch {
+      // Ignore polling errors and keep the last visible state.
+    }
   }, 2000);
-}
+};
 
-function resetForm() {
-  domains.value = [];
-  dnsType.value = "";
-  customDnsType.value = "";
-  credentials.value = {};
-  credentialEditReady.value = {};
-  isCredentialsVisible.value = false;
-  logs.value = [];
-  job.value = null;
-  analysis.value = null;
-  isAnalysisOpen.value = false;
-  certInfo.value = null;
-  clearInterval(timer);
-}
+const selectJob = async (jobId: string, autoPoll: boolean) => {
+  if (!jobId) return;
+  selectedJobId.value = jobId;
+  await pollJobOnce(jobId);
+  if (
+    autoPoll &&
+    (job.value?.status === "queued" || job.value?.status === "running")
+  ) {
+    startPolling(jobId);
+  } else {
+    stopPolling();
+  }
+};
 
-async function focusCredentials() {
-  isCredentialsVisible.value = true;
-  await nextTick();
-  const el = document.querySelector(
-    '[data-acme="credentials"]',
-  ) as HTMLElement | null;
-  el?.scrollIntoView({ behavior: "smooth", block: "start" });
-}
+const viewJob = async (jobId: string) => {
+  await selectJob(jobId, false);
+};
 
-async function download() {
-  const primaryDomain = resolvePrimaryDomain();
-  if (!primaryDomain) return;
-  await runDownloadCert(async () => {
-    const blob = await AcmeAPI.download(primaryDomain);
-    downloadBlob(blob, `${primaryDomain}.zip`);
+const openCreateDialog = () => {
+  dialogMode.value = "create";
+  editingApplication.value = null;
+  isDialogOpen.value = true;
+};
+
+const openEditDialog = async (applicationId: string) => {
+  await runLoadApplication(async () => {
+    const application = await AcmeAPI.getApplication(applicationId);
+    dialogMode.value = "edit";
+    editingApplication.value = application;
+    isDialogOpen.value = true;
   });
-}
+};
 
-async function deploy() {
-  const primaryDomain = resolvePrimaryDomain();
-  if (!primaryDomain) return;
-  await runDeployCert(async () => {
-    await AcmeAPI.deploy(primaryDomain);
+const openDeleteDialog = (application: AcmeApplicationOverviewItem) => {
+  deleteCandidate.value = application;
+};
+
+const closeDeleteDialog = () => {
+  if (isMutating.value) return;
+  deleteCandidate.value = null;
+};
+
+const handleDeleteDialogOpenChange = (open: boolean) => {
+  if (!open) {
+    closeDeleteDialog();
+  }
+};
+
+const submitDialog = async (payload: AcmeApplicationPayload) => {
+  await runDialogSubmit(async () => {
+    const response =
+      dialogMode.value === "edit" && editingApplication.value
+        ? await AcmeAPI.updateApplication(editingApplication.value.id, payload)
+        : await AcmeAPI.createApplication(payload);
+
+    toast.success(payload.submitNow ? "任务已提交" : "已保存");
+    isDialogOpen.value = false;
+    editingApplication.value = null;
+    await fetchOverview({ silent: true, preserveSelection: true });
+
+    if (response.job?.id) {
+      await selectJob(response.job.id, true);
+    }
+  });
+};
+
+const requestCertificate = async (applicationId: string) => {
+  await runMutating(async () => {
+    const response = await AcmeAPI.requestApplication(applicationId);
+    toast.success("任务已提交");
+    await fetchOverview({ silent: true, preserveSelection: true });
+    await selectJob(response.job.id, true);
+  });
+};
+
+const syncLibrary = async (application: AcmeApplicationOverviewItem) => {
+  await runMutating(async () => {
+    await AcmeAPI.syncApplicationLibrary(application.id);
+    toast.success(
+      application.library?.linked ? "已更新到证书库" : "已添加到证书库",
+    );
+    await fetchOverview({ silent: true, preserveSelection: true });
+  });
+};
+
+const deployCertificate = async (application: AcmeApplicationOverviewItem) => {
+  await runMutating(async () => {
+    await AcmeAPI.deployApplication(application.id);
     toast.success("已设为当前证书");
+    await fetchOverview({ silent: true, preserveSelection: true });
   });
-}
+};
 
-function resolvePrimaryDomain() {
-  const d1 = job.value?.domains?.[0];
-  if (typeof d1 === "string" && d1) return d1;
-  const d2 = certInfo.value?.primaryDomain;
-  if (typeof d2 === "string" && d2) return d2;
-  return null;
-}
-
-async function confirmDelete() {
-  const primaryDomain = resolvePrimaryDomain();
-  if (!primaryDomain) return;
-  await runDeleteCert(async () => {
-    await AcmeAPI.deleteCert(primaryDomain);
-    certInfo.value = null;
-    if (job.value?.domains?.[0] === primaryDomain) job.value = null;
+const deleteCertificate = async (application: AcmeApplicationOverviewItem) => {
+  await runMutating(async () => {
+    await AcmeAPI.deleteApplicationCertificate(application.id);
     toast.success("已删除证书");
-    await fetchAcmeStatus({ silent: true });
+    await fetchOverview({ silent: true, preserveSelection: true });
+    if (
+      job.value?.applicationId === application.id &&
+      job.value.status !== "running"
+    ) {
+      job.value = null;
+      logs.value = [];
+      analysis.value = null;
+      selectedJobId.value = "";
+    }
   });
-}
+};
 
-async function reapply() {
-  await submit();
-}
+const confirmDeleteCandidate = async () => {
+  if (!deleteCandidate.value) return;
+  const application = deleteCandidate.value;
+  await deleteCertificate(application);
+  if (deleteCandidate.value?.id === application.id) {
+    deleteCandidate.value = null;
+  }
+};
 
-function formatDate(v: string) {
-  if (!v) return "";
-  const date = new Date(v);
-  if (Number.isNaN(date.getTime())) return v;
+const downloadCertificate = async (
+  application: AcmeApplicationOverviewItem,
+) => {
+  await runDownload(async () => {
+    const blob = await AcmeAPI.download(application.primaryDomain);
+    downloadBlob(blob, `${application.primaryDomain}.zip`);
+  });
+};
+
+const refreshLogs = async () => {
+  if (!selectedJobId.value) return;
+  await runRefreshLogs(() => pollJobOnce(selectedJobId.value));
+};
+
+const focusCredentialsFromJob = async () => {
+  const applicationId = job.value?.applicationId;
+  if (!applicationId) return;
+  await openEditDialog(applicationId);
+};
+
+const isActionBlocked = () => {
+  if (!isAcmeInstalled.value) return true;
+  if (isTableLocked.value) return true;
+  if (isMutating.value || isDialogSubmitting.value || isDownloading.value) {
+    return true;
+  }
+  return false;
+};
+
+const primaryActionLabel = (application: AcmeApplicationOverviewItem) => {
+  return application.certificate?.exists ? "重申请" : "申请";
+};
+
+const isSecondaryActionDisabled = (
+  application: AcmeApplicationOverviewItem,
+) => {
+  return isActionBlocked() && !application.latestJob?.id;
+};
+
+const certificateStatusLabel = (application: AcmeApplicationOverviewItem) => {
+  if (!application.certificate?.exists) return "无证书";
+  const validTo = Date.parse(application.certificate.validTo || "");
+  if (!Number.isFinite(validTo)) return "证书异常";
+  if (validTo <= Date.now()) return "已过期";
+  if (validTo - Date.now() <= 30 * 24 * 60 * 60 * 1000) return "即将过期";
+  return "有证书";
+};
+
+const certificateBadgeVariant = (application: AcmeApplicationOverviewItem) => {
+  const label = certificateStatusLabel(application);
+  if (label === "无证书") return "outline";
+  if (label === "有证书") return "secondary";
+  return "destructive";
+};
+
+const formatCertificateRange = (application: AcmeApplicationOverviewItem) => {
+  if (!application.certificate?.exists) return "未签发";
+  const validFrom = application.certificate.validFrom || "";
+  const validTo = application.certificate.validTo || "";
+  if (!validFrom || !validTo) return "证书信息异常";
+  return `${formatDate(validFrom)} ~ ${formatDate(validTo)}`;
+};
+
+const latestJobLabel = (application: AcmeApplicationOverviewItem) => {
+  const status = application.latestJob?.status;
+  if (!status || status === "idle") return "未运行";
+  if (status === "queued") return "排队中";
+  if (status === "running") return "执行中";
+  if (status === "succeeded") return "最近成功";
+  if (status === "failed") return "最近失败";
+  return status;
+};
+
+const jobBadgeVariant = (status?: string | null) => {
+  if (!status || status === "idle") return "outline";
+  if (status === "queued") return "outline";
+  if (status === "running") return "default";
+  if (status === "succeeded") return "secondary";
+  return "destructive";
+};
+
+const libraryStatusLabel = (application: AcmeApplicationOverviewItem) => {
+  if (application.library?.isActive) return "当前使用中";
+  if (application.library?.linked) return "已加入";
+  return "未加入";
+};
+
+const libraryBadgeVariant = (application: AcmeApplicationOverviewItem) => {
+  if (application.library?.isActive) return "default";
+  if (application.library?.linked) return "secondary";
+  return "outline";
+};
+
+const formatDate = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString();
-}
-
-onUnmounted(() => {
-  if (timer) clearInterval(timer);
-});
-
-watch(dnsType, () => {
-  credentialEditReady.value = {};
-  const next = getProviderCredentialFields(
-    dnsProviders.value.find((p) => p.dnsType === dnsType.value) || null,
-  ).map((field) => field.key);
-  if (!next.length) {
-    credentials.value = {};
-    isCredentialsVisible.value = false;
-    return;
-  }
-  const prev = { ...(credentials.value || {}) };
-  const out: Record<string, string> = {};
-  for (const k of next) {
-    const v = prev[k];
-    out[k] = typeof v === "string" ? v : "";
-  }
-  credentials.value = out;
-  isCredentialsVisible.value = false;
-});
+};
 
 onMounted(async () => {
-  await fetchAcmeStatus({ silent: true });
-  if (isAcmeInstalled.value) {
-    await loadProviders();
-  }
-  await loadSavedConfig();
+  await Promise.all([fetchOverview({ silent: true }), loadProviders()]);
+});
+
+onUnmounted(() => {
+  stopPolling();
 });
 </script>

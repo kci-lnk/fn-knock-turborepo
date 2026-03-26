@@ -37,6 +37,16 @@ const REDIS_CONFIG = {
   password: process.env.REDIS_PASSWORD,
 };
 
+const parseEnvInt = (value: string | undefined, fallback: number): number => {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const ACME_RUNTIME_LOCK_TTL_SECONDS = Math.max(
+  300,
+  Math.min(6 * 60 * 60, parseEnvInt(process.env.ACME_RUNTIME_LOCK_TTL, 900)),
+);
+
 export const redis = new Redis(REDIS_CONFIG);
 redis.on("error", (err) => {
   console.error("Redis connection error:", err);
@@ -120,6 +130,7 @@ export interface SSLManagedCertificate {
   label: string;
   source: SSLCertificateSource;
   primary_domain?: string;
+  source_ref_id?: string;
   cert: string;
   key: string;
   created_at: string;
@@ -131,6 +142,7 @@ export interface SSLCertificateSummary {
   label: string;
   source: SSLCertificateSource;
   primary_domain?: string;
+  source_ref_id?: string;
   created_at: string;
   updated_at: string;
   certInfo?: SSLCertInfo;
@@ -187,15 +199,70 @@ export type CaptchaSettings = {
 
 export type AcmeJobStatus = "queued" | "running" | "succeeded" | "failed";
 export type AcmeJobMethod = "dns" | "http" | "https";
+export type AcmeJobTrigger = "manual_request" | "auto_renew";
+export type AcmeApplicationLatestJobStatus = AcmeJobStatus | "idle";
 export type AcmeJob = {
   id: string;
+  applicationId?: string;
   domains: string[];
   method: AcmeJobMethod;
   provider: string | null;
+  trigger?: AcmeJobTrigger;
   createdAt: string;
+  startedAt?: string;
+  finishedAt?: string;
   status: AcmeJobStatus;
   progress: number;
   message?: string;
+};
+
+export type AcmeApplication = {
+  id: string;
+  name?: string;
+  domains: string[];
+  primaryDomain: string;
+  dnsType: string;
+  credentials: Record<string, string>;
+  renewEnabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+  latestJobId?: string;
+  latestJobStatus?: AcmeApplicationLatestJobStatus;
+  latestJobTrigger?: AcmeJobTrigger;
+  latestJobAt?: string;
+  lastError?: string;
+};
+
+export type AcmeIssuedCertificate = {
+  applicationId: string;
+  primaryDomain: string;
+  cert: string;
+  key: string;
+  certInfo: SSLCertInfo;
+  createdAt: string;
+  updatedAt: string;
+  libraryCertificateId?: string;
+  libraryLinkedAt?: string;
+};
+
+export type AcmeRuntimeLock = {
+  locked: boolean;
+  lockId?: string;
+  jobId?: string;
+  applicationId?: string;
+  reason?: AcmeJobTrigger;
+  startedAt?: string;
+  heartbeatAt?: string;
+  expiresAt?: string;
+};
+
+export type AcmeApplicationSaveResult = {
+  application: AcmeApplication;
+  certificateInvalidated: boolean;
+  deletedIssuedCertificate: AcmeIssuedCertificate | null;
+  removedLibraryCertificates: SSLManagedCertificate[];
+  removedActiveLibraryCertificate: boolean;
+  removedDomains: string[];
 };
 
 export type AcmeSettings = {
@@ -514,6 +581,76 @@ const normalizeTimestamp = (value: unknown): string => {
   return Number.isFinite(parsed) ? new Date(parsed).toISOString() : "";
 };
 
+const normalizeStringRecord = (value: unknown): Record<string, string> => {
+  if (!value || typeof value !== "object") return {};
+  const next: Record<string, string> = {};
+  for (const [key, rawValue] of Object.entries(
+    value as Record<string, unknown>,
+  )) {
+    const normalizedKey = String(key ?? "").trim();
+    const normalizedValue = String(rawValue ?? "").trim();
+    if (!normalizedKey || !normalizedValue) continue;
+    next[normalizedKey] = normalizedValue;
+  }
+  return next;
+};
+
+const normalizeDomainList = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  const domains: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of value) {
+    const domain = String(raw ?? "")
+      .trim()
+      .toLowerCase();
+    if (!domain || seen.has(domain)) continue;
+    seen.add(domain);
+    domains.push(domain);
+  }
+  return domains;
+};
+
+const buildNormalizedDomainSignature = (domains: string[]): string =>
+  [...normalizeDomainList(domains)]
+    .sort((a, b) => a.localeCompare(b))
+    .join("\n");
+
+const hasSameNormalizedDomainSet = (left: string[], right: string[]): boolean =>
+  buildNormalizedDomainSignature(left) ===
+  buildNormalizedDomainSignature(right);
+
+const normalizeOptionalString = (value: unknown): string | undefined => {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim();
+  return normalized || undefined;
+};
+
+const normalizeSSLCertInfoValue = (value: unknown): SSLCertInfo | null => {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Partial<SSLCertInfo>;
+  const issuer = typeof raw.issuer === "string" ? raw.issuer.trim() : "";
+  const subject = typeof raw.subject === "string" ? raw.subject.trim() : "";
+  const validFrom =
+    typeof raw.validFrom === "string" ? raw.validFrom.trim() : "";
+  const validTo = typeof raw.validTo === "string" ? raw.validTo.trim() : "";
+  const serialNumber =
+    typeof raw.serialNumber === "string" ? raw.serialNumber.trim() : "";
+  const dnsNames = normalizeDomainList(raw.dnsNames);
+
+  if (!issuer || !subject || !validFrom || !validTo || !serialNumber) {
+    return null;
+  }
+
+  return {
+    issuer,
+    subject,
+    validFrom,
+    validTo,
+    dnsNames,
+    serialNumber,
+  };
+};
+
 const normalizeSSLCertificateSource = (
   value: unknown,
 ): SSLCertificateSource => {
@@ -578,10 +715,162 @@ const normalizeManagedSSLCertificate = (
     }),
     source,
     primary_domain: primaryDomain || undefined,
+    source_ref_id: normalizeOptionalString(raw.source_ref_id),
     cert,
     key,
     created_at: createdAt,
     updated_at: updatedAt,
+  };
+};
+
+const normalizeAcmeJobTrigger = (
+  value: unknown,
+): AcmeJobTrigger | undefined => {
+  if (value === "manual_request") return "manual_request";
+  if (value === "auto_renew") return "auto_renew";
+  return undefined;
+};
+
+const normalizeAcmeApplicationLatestJobStatus = (
+  value: unknown,
+): AcmeApplicationLatestJobStatus | undefined => {
+  if (value === "idle") return "idle";
+  if (value === "queued") return "queued";
+  if (value === "running") return "running";
+  if (value === "succeeded") return "succeeded";
+  if (value === "failed") return "failed";
+  return undefined;
+};
+
+const normalizeAcmeJob = (value: unknown): AcmeJob | null => {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Partial<AcmeJob>;
+  const id = typeof raw.id === "string" ? raw.id.trim() : "";
+  const domains = normalizeDomainList(raw.domains);
+  const createdAt = normalizeTimestamp(raw.createdAt);
+  const status =
+    raw.status === "queued" ||
+    raw.status === "running" ||
+    raw.status === "succeeded" ||
+    raw.status === "failed"
+      ? raw.status
+      : undefined;
+  if (!id || !domains.length || !createdAt || !status) return null;
+
+  return {
+    id,
+    applicationId: normalizeOptionalString(raw.applicationId),
+    domains,
+    method:
+      raw.method === "http" || raw.method === "https" ? raw.method : "dns",
+    provider:
+      typeof raw.provider === "string" && raw.provider.trim()
+        ? raw.provider.trim()
+        : null,
+    trigger: normalizeAcmeJobTrigger(raw.trigger),
+    createdAt,
+    startedAt: normalizeOptionalString(raw.startedAt),
+    finishedAt: normalizeOptionalString(raw.finishedAt),
+    status,
+    progress:
+      typeof raw.progress === "number" && Number.isFinite(raw.progress)
+        ? Math.max(0, Math.min(100, Math.round(raw.progress)))
+        : 0,
+    message: normalizeOptionalString(raw.message),
+  };
+};
+
+const normalizeAcmeApplication = (value: unknown): AcmeApplication | null => {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Partial<AcmeApplication>;
+  const id = typeof raw.id === "string" ? raw.id.trim() : "";
+  const domains = normalizeDomainList(raw.domains);
+  const primaryDomain =
+    typeof raw.primaryDomain === "string"
+      ? raw.primaryDomain.trim().toLowerCase()
+      : domains[0] || "";
+  const dnsType = typeof raw.dnsType === "string" ? raw.dnsType.trim() : "";
+  const createdAt = normalizeTimestamp(raw.createdAt);
+  const updatedAt = normalizeTimestamp(raw.updatedAt) || createdAt;
+
+  if (!id || !domains.length || !primaryDomain || !dnsType || !createdAt) {
+    return null;
+  }
+
+  return {
+    id,
+    name: normalizeOptionalString(raw.name),
+    domains,
+    primaryDomain,
+    dnsType,
+    credentials: normalizeStringRecord(raw.credentials),
+    renewEnabled: raw.renewEnabled !== false,
+    createdAt,
+    updatedAt,
+    latestJobId: normalizeOptionalString(raw.latestJobId),
+    latestJobStatus: normalizeAcmeApplicationLatestJobStatus(
+      raw.latestJobStatus,
+    ),
+    latestJobTrigger: normalizeAcmeJobTrigger(raw.latestJobTrigger),
+    latestJobAt: normalizeOptionalString(raw.latestJobAt),
+    lastError: normalizeOptionalString(raw.lastError),
+  };
+};
+
+const normalizeAcmeIssuedCertificate = (
+  value: unknown,
+): AcmeIssuedCertificate | null => {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Partial<AcmeIssuedCertificate>;
+  const applicationId =
+    typeof raw.applicationId === "string" ? raw.applicationId.trim() : "";
+  const primaryDomain =
+    typeof raw.primaryDomain === "string"
+      ? raw.primaryDomain.trim().toLowerCase()
+      : "";
+  const cert = typeof raw.cert === "string" ? raw.cert.trim() : "";
+  const key = typeof raw.key === "string" ? raw.key.trim() : "";
+  const createdAt = normalizeTimestamp(raw.createdAt);
+  const updatedAt = normalizeTimestamp(raw.updatedAt) || createdAt;
+  const certInfo = normalizeSSLCertInfoValue(raw.certInfo);
+
+  if (
+    !applicationId ||
+    !primaryDomain ||
+    !cert ||
+    !key ||
+    !createdAt ||
+    !certInfo
+  ) {
+    return null;
+  }
+
+  return {
+    applicationId,
+    primaryDomain,
+    cert,
+    key,
+    certInfo,
+    createdAt,
+    updatedAt,
+    libraryCertificateId: normalizeOptionalString(raw.libraryCertificateId),
+    libraryLinkedAt: normalizeOptionalString(raw.libraryLinkedAt),
+  };
+};
+
+const normalizeAcmeRuntimeLock = (value: unknown): AcmeRuntimeLock => {
+  if (!value || typeof value !== "object") return { locked: false };
+  const raw = value as Partial<AcmeRuntimeLock>;
+  if (raw.locked !== true) return { locked: false };
+  return {
+    locked: true,
+    lockId: normalizeOptionalString(raw.lockId),
+    jobId: normalizeOptionalString(raw.jobId),
+    applicationId: normalizeOptionalString(raw.applicationId),
+    reason: normalizeAcmeJobTrigger(raw.reason),
+    startedAt: normalizeOptionalString(raw.startedAt),
+    heartbeatAt: normalizeOptionalString(raw.heartbeatAt),
+    expiresAt: normalizeOptionalString(raw.expiresAt),
   };
 };
 
@@ -832,6 +1121,10 @@ export class ConfigManager {
   private acmeJobKey = "fn_knock:acme:job:";
   private acmeLogsKey = "fn_knock:acme:logs:";
   private acmeCertKey = "fn_knock:acme:cert:";
+  private acmeApplicationsKey = "fn_knock:acme:applications";
+  private acmeIssuedCertificatesKey = "fn_knock:acme:issued-certificates";
+  private acmeRuntimeLockKey = "fn_knock:acme:runtime-lock";
+  private acmeMigrationVersionKey = "fn_knock:acme:migration:v1";
   private acmeSettingsKey = "fn_knock:acme:settings";
   private acmeClientSettingsKey = "fn_knock:acme:client-settings";
   private onboardingCompletedKey = "fn_knock:onboarding:completed";
@@ -841,6 +1134,186 @@ export class ConfigManager {
 
   constructor() {
     this.redis = redis;
+  }
+
+  getAcmeRuntimeLockTtlSeconds(): number {
+    return ACME_RUNTIME_LOCK_TTL_SECONDS;
+  }
+
+  private buildAcmeRuntimeLockLease(
+    lock: AcmeRuntimeLock,
+    ttlSeconds: number = this.getAcmeRuntimeLockTtlSeconds(),
+  ): AcmeRuntimeLock {
+    const now = new Date();
+    const next = normalizeAcmeRuntimeLock({
+      ...lock,
+      locked: true,
+      lockId:
+        normalizeOptionalString(lock.lockId) || randomBytes(16).toString("hex"),
+      heartbeatAt: now.toISOString(),
+      expiresAt: new Date(now.getTime() + ttlSeconds * 1000).toISOString(),
+    });
+
+    return {
+      ...next,
+      locked: true,
+    };
+  }
+
+  private async readAcmeRuntimeLockRecord(): Promise<{
+    lock: AcmeRuntimeLock;
+    raw: string | null;
+    ttlMs: number;
+  }> {
+    const [raw, ttlMs] = await Promise.all([
+      this.redis.get(this.acmeRuntimeLockKey),
+      this.redis.pttl(this.acmeRuntimeLockKey),
+    ]);
+
+    if (!raw) {
+      return { lock: { locked: false }, raw: null, ttlMs: -2 };
+    }
+
+    try {
+      return {
+        lock: normalizeAcmeRuntimeLock(JSON.parse(raw)),
+        raw,
+        ttlMs,
+      };
+    } catch {
+      return {
+        lock: { locked: false },
+        raw,
+        ttlMs,
+      };
+    }
+  }
+
+  private async clearAcmeRuntimeLockIfRawMatches(
+    expectedRaw: string,
+  ): Promise<boolean> {
+    const result = await this.redis.eval(
+      `
+        local raw = redis.call("GET", KEYS[1])
+        if not raw or raw ~= ARGV[1] then
+          return 0
+        end
+        redis.call("DEL", KEYS[1])
+        return 1
+      `,
+      1,
+      this.acmeRuntimeLockKey,
+      expectedRaw,
+    );
+
+    return result === 1;
+  }
+
+  private async updateAcmeRuntimeLockLeaseIfOwned(
+    lockId: string,
+    next: AcmeRuntimeLock,
+    ttlSeconds: number,
+  ): Promise<boolean> {
+    const result = await this.redis.eval(
+      `
+        local raw = redis.call("GET", KEYS[1])
+        if not raw then
+          return 0
+        end
+        local ok, decoded = pcall(cjson.decode, raw)
+        if not ok or type(decoded) ~= "table" or decoded["lockId"] ~= ARGV[1] then
+          return 0
+        end
+        redis.call("SET", KEYS[1], ARGV[2], "EX", tonumber(ARGV[3]))
+        return 1
+      `,
+      1,
+      this.acmeRuntimeLockKey,
+      lockId,
+      JSON.stringify(next),
+      String(ttlSeconds),
+    );
+
+    return result === 1;
+  }
+
+  private async clearAcmeRuntimeLockIfOwned(lockId: string): Promise<boolean> {
+    const result = await this.redis.eval(
+      `
+        local raw = redis.call("GET", KEYS[1])
+        if not raw then
+          return 0
+        end
+        local ok, decoded = pcall(cjson.decode, raw)
+        if not ok or type(decoded) ~= "table" or decoded["lockId"] ~= ARGV[1] then
+          return 0
+        end
+        redis.call("DEL", KEYS[1])
+        return 1
+      `,
+      1,
+      this.acmeRuntimeLockKey,
+      lockId,
+    );
+
+    return result === 1;
+  }
+
+  private isAcmeRuntimeLockExpired(
+    lock: AcmeRuntimeLock,
+    ttlMs: number,
+  ): boolean {
+    if (!lock.locked) return false;
+    if (ttlMs >= 0) return false;
+
+    const expiresAtMs = Date.parse(lock.expiresAt || "");
+    if (Number.isFinite(expiresAtMs)) {
+      return expiresAtMs <= Date.now();
+    }
+
+    const startedAtMs = Date.parse(lock.heartbeatAt || lock.startedAt || "");
+    if (!Number.isFinite(startedAtMs)) {
+      return true;
+    }
+
+    return (
+      startedAtMs + this.getAcmeRuntimeLockTtlSeconds() * 1000 <= Date.now()
+    );
+  }
+
+  isAcmeIssuedCertificateCompatible(
+    application:
+      | Pick<AcmeApplication, "domains" | "primaryDomain">
+      | null
+      | undefined,
+    issuedCertificate:
+      | Pick<AcmeIssuedCertificate, "primaryDomain" | "certInfo">
+      | null
+      | undefined,
+  ): boolean {
+    if (!application || !issuedCertificate) return false;
+    if (issuedCertificate.primaryDomain !== application.primaryDomain) {
+      return false;
+    }
+    return hasSameNormalizedDomainSet(
+      application.domains,
+      issuedCertificate.certInfo.dnsNames,
+    );
+  }
+
+  async getUsableAcmeIssuedCertificate(
+    applicationId: string,
+  ): Promise<AcmeIssuedCertificate | null> {
+    const [application, issuedCertificate] = await Promise.all([
+      this.getAcmeApplication(applicationId),
+      this.getAcmeIssuedCertificate(applicationId),
+    ]);
+    if (
+      !this.isAcmeIssuedCertificateCompatible(application, issuedCertificate)
+    ) {
+      return null;
+    }
+    return issuedCertificate;
   }
 
   async applyLegacyReverseProxyThrottlePatchIfNeeded(): Promise<{
@@ -1037,6 +1510,7 @@ export class ConfigManager {
         label: item.label,
         source: item.source,
         primary_domain: item.primary_domain,
+        source_ref_id: item.source_ref_id,
         created_at: item.created_at,
         updated_at: item.updated_at,
         certInfo: certInfo || undefined,
@@ -1135,12 +1609,14 @@ export class ConfigManager {
     label?: string;
     source?: SSLCertificateSource;
     primary_domain?: string;
+    source_ref_id?: string;
     cert: string;
     key: string;
     activate?: boolean;
     matchBy?: {
       source?: SSLCertificateSource;
       primary_domain?: string;
+      source_ref_id?: string;
       cert?: string;
       key?: string;
     };
@@ -1154,6 +1630,19 @@ export class ConfigManager {
       (input.id
         ? certificates.find((certificate) => certificate.id === input.id)
         : undefined) || null;
+
+    if (
+      !existing &&
+      input.matchBy?.source &&
+      input.matchBy?.source_ref_id?.trim()
+    ) {
+      existing =
+        certificates.find(
+          (certificate) =>
+            certificate.source === input.matchBy?.source &&
+            certificate.source_ref_id === input.matchBy?.source_ref_id?.trim(),
+        ) || null;
+    }
 
     if (
       !existing &&
@@ -1182,6 +1671,7 @@ export class ConfigManager {
       label: input.label || existing?.label,
       source: input.source || existing?.source || "manual",
       primary_domain: input.primary_domain || existing?.primary_domain,
+      source_ref_id: input.source_ref_id || existing?.source_ref_id,
       cert: input.cert,
       key: input.key,
       created_at: existing?.created_at || now,
@@ -1222,6 +1712,15 @@ export class ConfigManager {
       throw new Error("域名不能为空");
     }
 
+    const application =
+      await this.getAcmeApplicationByPrimaryDomain(normalizedDomain);
+    if (application) {
+      return this.saveAcmeCertificateToLibraryByApplication(
+        application.id,
+        opts,
+      );
+    }
+
     const pair = await this.getAcmeCert(normalizedDomain);
     if (!pair) {
       throw new Error("证书不存在");
@@ -1245,6 +1744,22 @@ export class ConfigManager {
         primary_domain: normalizedDomain,
       },
     });
+  }
+
+  async getSSLCertificateBySourceRef(
+    source: SSLCertificateSource,
+    sourceRefId: string,
+  ): Promise<SSLManagedCertificate | null> {
+    const normalizedSourceRefId = sourceRefId.trim();
+    if (!normalizedSourceRefId) return null;
+    const config = await this.getConfig();
+    return (
+      config.ssl.certificates?.find(
+        (certificate) =>
+          certificate.source === source &&
+          certificate.source_ref_id === normalizedSourceRefId,
+      ) || null
+    );
   }
 
   async activateSSLCertificate(
@@ -1323,21 +1838,771 @@ export class ConfigManager {
     return { removed, removedActive };
   }
 
+  async deleteSSLCertificatesBySourceRef(
+    source: SSLCertificateSource,
+    sourceRefId: string,
+  ): Promise<{
+    removed: SSLManagedCertificate[];
+    removedActive: boolean;
+  }> {
+    const normalizedSourceRefId = sourceRefId.trim();
+    if (!normalizedSourceRefId) {
+      return { removed: [], removedActive: false };
+    }
+
+    const config = await this.getConfig();
+    const removed = (config.ssl.certificates || []).filter(
+      (certificate) =>
+        certificate.source === source &&
+        certificate.source_ref_id === normalizedSourceRefId,
+    );
+
+    if (removed.length === 0) {
+      return { removed: [], removedActive: false };
+    }
+
+    const removedIds = new Set(removed.map((certificate) => certificate.id));
+    const removedActive = removedIds.has(config.ssl.active_cert_id || "");
+    config.ssl = {
+      ...config.ssl,
+      certificates: (config.ssl.certificates || []).filter(
+        (certificate) => !removedIds.has(certificate.id),
+      ),
+    };
+    config.ssl = mirrorActiveSSLCertificate(
+      config.ssl,
+      removedActive ? null : config.ssl.active_cert_id,
+    );
+    await this.saveConfig(config);
+    return { removed, removedActive };
+  }
+
+  private buildAcmeApplicationId(seed?: string): string {
+    const normalizedSeed = seed?.trim().toLowerCase();
+    if (normalizedSeed) {
+      return `acme_app_${createHash("sha256")
+        .update(normalizedSeed)
+        .digest("hex")
+        .slice(0, 16)}`;
+    }
+
+    return `acme_app_${randomBytes(8).toString("hex")}`;
+  }
+
+  private async readAcmeApplicationsStore(): Promise<AcmeApplication[]> {
+    const raw = await this.redis.get(this.acmeApplicationsKey);
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .map((item) => normalizeAcmeApplication(item))
+        .filter((item): item is AcmeApplication => item !== null);
+    } catch {
+      return [];
+    }
+  }
+
+  private async writeAcmeApplicationsStore(
+    applications: AcmeApplication[],
+  ): Promise<void> {
+    await this.redis.set(
+      this.acmeApplicationsKey,
+      JSON.stringify(applications),
+    );
+  }
+
+  private async readAcmeIssuedCertificatesStore(): Promise<
+    AcmeIssuedCertificate[]
+  > {
+    const raw = await this.redis.get(this.acmeIssuedCertificatesKey);
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .map((item) => normalizeAcmeIssuedCertificate(item))
+        .filter((item): item is AcmeIssuedCertificate => item !== null);
+    } catch {
+      return [];
+    }
+  }
+
+  private async writeAcmeIssuedCertificatesStore(
+    issuedCertificates: AcmeIssuedCertificate[],
+  ): Promise<void> {
+    await this.redis.set(
+      this.acmeIssuedCertificatesKey,
+      JSON.stringify(issuedCertificates),
+    );
+  }
+
+  private async reconcileAcmeLibraryLinks(
+    applications: AcmeApplication[],
+    issuedCertificates: AcmeIssuedCertificate[],
+  ): Promise<AcmeIssuedCertificate[]> {
+    if (!applications.length) return issuedCertificates;
+
+    const config = await this.getConfig();
+    const certificates = [...(config.ssl.certificates || [])];
+    const nextIssuedCertificates = issuedCertificates.map((item) => ({
+      ...item,
+    }));
+    let configChanged = false;
+    let issuedChanged = false;
+
+    for (const application of applications) {
+      const certificateIndex = certificates.findIndex((certificate) => {
+        if (certificate.source !== "acme") return false;
+        if (certificate.source_ref_id === application.id) return true;
+        return (
+          !certificate.source_ref_id &&
+          certificate.primary_domain === application.primaryDomain
+        );
+      });
+
+      if (certificateIndex === -1) continue;
+
+      const libraryCertificate = certificates[certificateIndex]!;
+      if (libraryCertificate.source_ref_id !== application.id) {
+        certificates[certificateIndex] = {
+          ...libraryCertificate,
+          source_ref_id: application.id,
+        };
+        configChanged = true;
+      }
+
+      const issuedIndex = nextIssuedCertificates.findIndex(
+        (item) => item.applicationId === application.id,
+      );
+      if (issuedIndex === -1) continue;
+
+      const issuedCertificate = nextIssuedCertificates[issuedIndex]!;
+      if (
+        issuedCertificate.libraryCertificateId !== libraryCertificate.id ||
+        !issuedCertificate.libraryLinkedAt
+      ) {
+        nextIssuedCertificates[issuedIndex] = {
+          ...issuedCertificate,
+          libraryCertificateId: libraryCertificate.id,
+          libraryLinkedAt:
+            issuedCertificate.libraryLinkedAt || libraryCertificate.updated_at,
+        };
+        issuedChanged = true;
+      }
+    }
+
+    for (const [index, issuedCertificate] of nextIssuedCertificates.entries()) {
+      if (!issuedCertificate.libraryCertificateId) continue;
+      const stillExists = certificates.some(
+        (certificate) =>
+          certificate.source === "acme" &&
+          certificate.id === issuedCertificate.libraryCertificateId,
+      );
+      if (stillExists) continue;
+      nextIssuedCertificates[index] = {
+        ...issuedCertificate,
+        libraryCertificateId: undefined,
+        libraryLinkedAt: undefined,
+      };
+      issuedChanged = true;
+    }
+
+    if (configChanged) {
+      config.ssl = {
+        ...config.ssl,
+        certificates,
+      };
+      config.ssl = mirrorActiveSSLCertificate(
+        config.ssl,
+        config.ssl.active_cert_id,
+      );
+      await this.saveConfig(config);
+    }
+
+    if (issuedChanged) {
+      await this.writeAcmeIssuedCertificatesStore(nextIssuedCertificates);
+    }
+
+    return nextIssuedCertificates;
+  }
+
+  async ensureAcmeDataMigrated(): Promise<void> {
+    const migrationVersion = await this.redis.get(this.acmeMigrationVersionKey);
+    const existingApplications = await this.readAcmeApplicationsStore();
+
+    if (existingApplications.length > 0) {
+      const issuedCertificates = await this.readAcmeIssuedCertificatesStore();
+      await this.reconcileAcmeLibraryLinks(
+        existingApplications,
+        issuedCertificates,
+      );
+      if (migrationVersion !== "1") {
+        await this.redis.set(this.acmeMigrationVersionKey, "1");
+      }
+      return;
+    }
+
+    const legacySettings = await this.getAcmeSettingsLegacy();
+    if (!legacySettings?.domains?.length) {
+      if (migrationVersion !== "1") {
+        await this.redis.set(this.acmeMigrationVersionKey, "1");
+      }
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const primaryDomain = legacySettings.domains[0]!;
+    const application: AcmeApplication = {
+      id: this.buildAcmeApplicationId(primaryDomain),
+      domains: legacySettings.domains,
+      primaryDomain,
+      dnsType: legacySettings.dnsType,
+      credentials: { ...legacySettings.credentials },
+      renewEnabled: true,
+      createdAt: legacySettings.updatedAt || now,
+      updatedAt: legacySettings.updatedAt || now,
+      latestJobStatus: "idle",
+    };
+
+    const issuedCertificates: AcmeIssuedCertificate[] = [];
+    const pair = await this.getAcmeCert(primaryDomain);
+    if (pair) {
+      const certInfo = this.parseCertInfo(pair.cert);
+      if (certInfo) {
+        issuedCertificates.push({
+          applicationId: application.id,
+          primaryDomain,
+          cert: pair.cert,
+          key: pair.key,
+          certInfo,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+    }
+
+    await this.writeAcmeApplicationsStore([application]);
+    await this.writeAcmeIssuedCertificatesStore(issuedCertificates);
+    await this.reconcileAcmeLibraryLinks([application], issuedCertificates);
+    await this.redis.set(this.acmeMigrationVersionKey, "1");
+  }
+
+  async listAcmeApplications(): Promise<AcmeApplication[]> {
+    await this.ensureAcmeDataMigrated();
+    const applications = await this.readAcmeApplicationsStore();
+    return applications.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
+  async getAcmeApplication(id: string): Promise<AcmeApplication | null> {
+    await this.ensureAcmeDataMigrated();
+    const applications = await this.readAcmeApplicationsStore();
+    return applications.find((item) => item.id === id) || null;
+  }
+
+  async getAcmeApplicationByPrimaryDomain(
+    primaryDomain: string,
+  ): Promise<AcmeApplication | null> {
+    await this.ensureAcmeDataMigrated();
+    const normalizedPrimaryDomain = primaryDomain.trim().toLowerCase();
+    if (!normalizedPrimaryDomain) return null;
+    const applications = await this.readAcmeApplicationsStore();
+    return (
+      applications.find(
+        (item) => item.primaryDomain === normalizedPrimaryDomain,
+      ) || null
+    );
+  }
+
+  async saveAcmeApplication(input: {
+    id?: string;
+    name?: string;
+    domains: string[];
+    dnsType: string;
+    credentials: Record<string, string>;
+    renewEnabled?: boolean;
+  }): Promise<AcmeApplication> {
+    const result = await this.saveAcmeApplicationWithEffects(input);
+    return result.application;
+  }
+
+  async saveAcmeApplicationWithEffects(input: {
+    id?: string;
+    name?: string;
+    domains: string[];
+    dnsType: string;
+    credentials: Record<string, string>;
+    renewEnabled?: boolean;
+  }): Promise<AcmeApplicationSaveResult> {
+    await this.ensureAcmeDataMigrated();
+    const applications = await this.readAcmeApplicationsStore();
+    const normalizedDomains = normalizeDomainList(input.domains);
+    const primaryDomain = normalizedDomains[0] || "";
+    const dnsType = input.dnsType.trim();
+
+    if (!normalizedDomains.length) {
+      throw new Error("域名列表不能为空");
+    }
+    if (!dnsType) {
+      throw new Error("DNS 服务商不能为空");
+    }
+
+    const existing = input.id
+      ? applications.find((item) => item.id === input.id) || null
+      : null;
+    const duplicated = applications.find(
+      (item) =>
+        item.primaryDomain === primaryDomain && item.id !== existing?.id,
+    );
+    if (duplicated) {
+      throw new Error(`主域名 ${primaryDomain} 已存在于其他申请项中`);
+    }
+
+    const now = new Date().toISOString();
+    const next: AcmeApplication = {
+      id: existing?.id || this.buildAcmeApplicationId(),
+      name:
+        input.name !== undefined
+          ? normalizeOptionalString(input.name)
+          : existing?.name,
+      domains: normalizedDomains,
+      primaryDomain,
+      dnsType,
+      credentials: normalizeStringRecord(input.credentials),
+      renewEnabled: input.renewEnabled ?? existing?.renewEnabled ?? true,
+      createdAt: existing?.createdAt || now,
+      updatedAt: now,
+      latestJobId: existing?.latestJobId,
+      latestJobStatus: existing?.latestJobStatus || "idle",
+      latestJobTrigger: existing?.latestJobTrigger,
+      latestJobAt: existing?.latestJobAt,
+      lastError: existing?.lastError,
+    };
+
+    const nextApplications = applications.filter((item) => item.id !== next.id);
+    nextApplications.unshift(next);
+    await this.writeAcmeApplicationsStore(nextApplications);
+
+    const domainChanged =
+      !!existing &&
+      (!hasSameNormalizedDomainSet(existing.domains, next.domains) ||
+        existing.primaryDomain !== next.primaryDomain);
+
+    if (!domainChanged) {
+      return {
+        application: next,
+        certificateInvalidated: false,
+        deletedIssuedCertificate: null,
+        removedLibraryCertificates: [],
+        removedActiveLibraryCertificate: false,
+        removedDomains: [],
+      };
+    }
+
+    const deletedIssuedCertificate = await this.deleteAcmeIssuedCertificate(
+      next.id,
+    );
+    const deletedBySourceRef = await this.deleteSSLCertificatesBySourceRef(
+      "acme",
+      next.id,
+    );
+    const deletedByPrimaryDomain = await this.deleteSSLCertificatesBySource(
+      "acme",
+      existing.primaryDomain,
+    );
+    const removedLibraryCertificates = [
+      ...deletedBySourceRef.removed,
+      ...deletedByPrimaryDomain.removed.filter(
+        (certificate) =>
+          !deletedBySourceRef.removed.some(
+            (item) => item.id === certificate.id,
+          ),
+      ),
+    ];
+    const removedDomains = Array.from(
+      new Set(
+        [
+          existing.primaryDomain,
+          deletedIssuedCertificate?.primaryDomain,
+        ].filter((value): value is string => Boolean(value)),
+      ),
+    );
+
+    if (removedDomains.length > 0) {
+      const { join } = await import("node:path");
+      const { rm } = await import("node:fs/promises");
+      for (const domain of removedDomains) {
+        await this.deleteAcmeCert(domain);
+        await rm(join(process.cwd(), "data", "ssl", domain), {
+          recursive: true,
+          force: true,
+        });
+      }
+    }
+
+    return {
+      application: next,
+      certificateInvalidated: true,
+      deletedIssuedCertificate,
+      removedLibraryCertificates,
+      removedActiveLibraryCertificate:
+        deletedBySourceRef.removedActive ||
+        deletedByPrimaryDomain.removedActive,
+      removedDomains,
+    };
+  }
+
+  async updateAcmeApplicationJobState(
+    applicationId: string,
+    job: Pick<
+      AcmeJob,
+      | "id"
+      | "status"
+      | "trigger"
+      | "createdAt"
+      | "startedAt"
+      | "finishedAt"
+      | "message"
+    >,
+  ): Promise<AcmeApplication | null> {
+    await this.ensureAcmeDataMigrated();
+    const applications = await this.readAcmeApplicationsStore();
+    const index = applications.findIndex((item) => item.id === applicationId);
+    if (index === -1) return null;
+
+    const existing = applications[index]!;
+    const latestJobAt =
+      job.finishedAt ||
+      job.startedAt ||
+      job.createdAt ||
+      new Date().toISOString();
+
+    const next: AcmeApplication = {
+      ...existing,
+      latestJobId: job.id,
+      latestJobStatus: job.status,
+      latestJobTrigger: job.trigger,
+      latestJobAt,
+      lastError:
+        job.status === "failed"
+          ? normalizeOptionalString(job.message)
+          : undefined,
+    };
+
+    applications[index] = next;
+    await this.writeAcmeApplicationsStore(applications);
+    return next;
+  }
+
+  async listAcmeIssuedCertificates(): Promise<AcmeIssuedCertificate[]> {
+    await this.ensureAcmeDataMigrated();
+    return this.readAcmeIssuedCertificatesStore();
+  }
+
+  async getAcmeIssuedCertificate(
+    applicationId: string,
+  ): Promise<AcmeIssuedCertificate | null> {
+    await this.ensureAcmeDataMigrated();
+    const issuedCertificates = await this.readAcmeIssuedCertificatesStore();
+    return (
+      issuedCertificates.find((item) => item.applicationId === applicationId) ||
+      null
+    );
+  }
+
+  async getAcmeIssuedCertificateByPrimaryDomain(
+    primaryDomain: string,
+  ): Promise<AcmeIssuedCertificate | null> {
+    await this.ensureAcmeDataMigrated();
+    const normalizedPrimaryDomain = primaryDomain.trim().toLowerCase();
+    if (!normalizedPrimaryDomain) return null;
+    const issuedCertificates = await this.readAcmeIssuedCertificatesStore();
+    return (
+      issuedCertificates.find(
+        (item) => item.primaryDomain === normalizedPrimaryDomain,
+      ) || null
+    );
+  }
+
+  async saveAcmeIssuedCertificate(input: {
+    applicationId: string;
+    primaryDomain: string;
+    cert: string;
+    key: string;
+    certInfo: SSLCertInfo;
+    libraryCertificateId?: string;
+  }): Promise<AcmeIssuedCertificate> {
+    await this.ensureAcmeDataMigrated();
+    const issuedCertificates = await this.readAcmeIssuedCertificatesStore();
+    const existing =
+      issuedCertificates.find(
+        (item) => item.applicationId === input.applicationId,
+      ) || null;
+    const now = new Date().toISOString();
+
+    const next: AcmeIssuedCertificate = {
+      applicationId: input.applicationId.trim(),
+      primaryDomain: input.primaryDomain.trim().toLowerCase(),
+      cert: input.cert.trim(),
+      key: input.key.trim(),
+      certInfo: input.certInfo,
+      createdAt: existing?.createdAt || now,
+      updatedAt: now,
+      libraryCertificateId:
+        normalizeOptionalString(input.libraryCertificateId) ||
+        existing?.libraryCertificateId,
+      libraryLinkedAt: normalizeOptionalString(input.libraryCertificateId)
+        ? now
+        : existing?.libraryLinkedAt,
+    };
+
+    const nextIssuedCertificates = issuedCertificates.filter(
+      (item) => item.applicationId !== next.applicationId,
+    );
+    nextIssuedCertificates.unshift(next);
+    await this.writeAcmeIssuedCertificatesStore(nextIssuedCertificates);
+    await this.saveAcmeCert(next.primaryDomain, next.cert, next.key);
+    return next;
+  }
+
+  async linkAcmeIssuedCertificateToLibrary(
+    applicationId: string,
+    libraryCertificateId?: string | null,
+  ): Promise<AcmeIssuedCertificate | null> {
+    await this.ensureAcmeDataMigrated();
+    const issuedCertificates = await this.readAcmeIssuedCertificatesStore();
+    const index = issuedCertificates.findIndex(
+      (item) => item.applicationId === applicationId,
+    );
+    if (index === -1) return null;
+
+    const existing = issuedCertificates[index]!;
+    issuedCertificates[index] = {
+      ...existing,
+      updatedAt: new Date().toISOString(),
+      libraryCertificateId:
+        normalizeOptionalString(libraryCertificateId) || undefined,
+      libraryLinkedAt: libraryCertificateId
+        ? new Date().toISOString()
+        : undefined,
+    };
+    await this.writeAcmeIssuedCertificatesStore(issuedCertificates);
+    return issuedCertificates[index]!;
+  }
+
+  async deleteAcmeIssuedCertificate(
+    applicationId: string,
+  ): Promise<AcmeIssuedCertificate | null> {
+    await this.ensureAcmeDataMigrated();
+    const issuedCertificates = await this.readAcmeIssuedCertificatesStore();
+    const existing =
+      issuedCertificates.find((item) => item.applicationId === applicationId) ||
+      null;
+    if (!existing) return null;
+
+    const nextIssuedCertificates = issuedCertificates.filter(
+      (item) => item.applicationId !== applicationId,
+    );
+    await this.writeAcmeIssuedCertificatesStore(nextIssuedCertificates);
+    await this.deleteAcmeCert(existing.primaryDomain);
+    return existing;
+  }
+
+  async saveAcmeIssuedCertFromFS(
+    applicationId: string,
+    primaryDomain: string,
+    opts?: { forceInstall?: boolean },
+  ): Promise<boolean> {
+    const saved = await this.saveAcmeCertFromFS(primaryDomain, opts);
+    if (!saved) return false;
+
+    const pair = await this.getAcmeCert(primaryDomain);
+    if (!pair) return false;
+
+    const certInfo = this.parseCertInfo(pair.cert);
+    if (!certInfo) return false;
+
+    const existing = await this.getAcmeIssuedCertificate(applicationId);
+    await this.saveAcmeIssuedCertificate({
+      applicationId,
+      primaryDomain,
+      cert: pair.cert,
+      key: pair.key,
+      certInfo,
+      libraryCertificateId: existing?.libraryCertificateId,
+    });
+    return true;
+  }
+
+  async getAcmeRuntimeLock(): Promise<AcmeRuntimeLock> {
+    const { lock } = await this.readAcmeRuntimeLockRecord();
+    return lock;
+  }
+
+  async tryAcquireAcmeRuntimeLock(
+    lock: AcmeRuntimeLock,
+    ttlSeconds: number = this.getAcmeRuntimeLockTtlSeconds(),
+  ): Promise<AcmeRuntimeLock | null> {
+    const next = this.buildAcmeRuntimeLockLease(lock, ttlSeconds);
+    const result = await this.redis.set(
+      this.acmeRuntimeLockKey,
+      JSON.stringify(next),
+      "EX",
+      ttlSeconds,
+      "NX",
+    );
+    return result === "OK" ? next : null;
+  }
+
+  async refreshAcmeRuntimeLock(
+    lock: AcmeRuntimeLock,
+    ttlSeconds: number = this.getAcmeRuntimeLockTtlSeconds(),
+  ): Promise<AcmeRuntimeLock | null> {
+    const lockId = normalizeOptionalString(lock.lockId);
+    if (!lockId) return null;
+
+    const next = this.buildAcmeRuntimeLockLease(lock, ttlSeconds);
+    const updated = await this.updateAcmeRuntimeLockLeaseIfOwned(
+      lockId,
+      next,
+      ttlSeconds,
+    );
+    return updated ? next : null;
+  }
+
+  async setAcmeRuntimeLock(lock: AcmeRuntimeLock): Promise<AcmeRuntimeLock> {
+    const next = this.buildAcmeRuntimeLockLease(lock);
+    await this.redis.set(
+      this.acmeRuntimeLockKey,
+      JSON.stringify(next),
+      "EX",
+      this.getAcmeRuntimeLockTtlSeconds(),
+    );
+    return next;
+  }
+
+  async releaseAcmeRuntimeLock(
+    lock: AcmeRuntimeLock | string | null | undefined,
+  ): Promise<boolean> {
+    const lockId =
+      typeof lock === "string"
+        ? normalizeOptionalString(lock)
+        : normalizeOptionalString(lock?.lockId);
+    if (lockId) {
+      return this.clearAcmeRuntimeLockIfOwned(lockId);
+    }
+    return false;
+  }
+
+  async clearAcmeRuntimeLock(): Promise<void> {
+    await this.redis.del(this.acmeRuntimeLockKey);
+  }
+
+  async getActiveAcmeRuntimeLock(): Promise<AcmeRuntimeLock> {
+    const { lock, raw, ttlMs } = await this.readAcmeRuntimeLockRecord();
+    if (!lock.locked || !lock.jobId) {
+      if (raw) {
+        await this.clearAcmeRuntimeLockIfRawMatches(raw);
+      }
+      return { locked: false };
+    }
+    if (this.isAcmeRuntimeLockExpired(lock, ttlMs)) {
+      if (lock.lockId) {
+        await this.releaseAcmeRuntimeLock(lock.lockId);
+      } else if (raw) {
+        await this.clearAcmeRuntimeLockIfRawMatches(raw);
+      }
+      return { locked: false };
+    }
+    const job = await this.getAcmeJob(lock.jobId);
+    if (!job || job.status === "succeeded" || job.status === "failed") {
+      if (lock.lockId) {
+        await this.releaseAcmeRuntimeLock(lock.lockId);
+      } else if (raw) {
+        await this.clearAcmeRuntimeLockIfRawMatches(raw);
+      }
+      return { locked: false };
+    }
+    return lock;
+  }
+
+  async getActiveAcmeJobFromLock(): Promise<AcmeJob | null> {
+    const lock = await this.getActiveAcmeRuntimeLock();
+    if (!lock.locked || !lock.jobId) return null;
+    return this.getAcmeJob(lock.jobId);
+  }
+
+  async saveAcmeCertificateToLibraryByApplication(
+    applicationId: string,
+    opts?: {
+      id?: string;
+      label?: string;
+      activate?: boolean;
+    },
+  ): Promise<SSLManagedCertificate> {
+    const [application, issuedCertificate] = await Promise.all([
+      this.getAcmeApplication(applicationId),
+      this.getAcmeIssuedCertificate(applicationId),
+    ]);
+    if (!application) {
+      throw new Error("申请项不存在");
+    }
+    if (
+      !this.isAcmeIssuedCertificateCompatible(application, issuedCertificate)
+    ) {
+      throw new Error("当前申请项还没有与域名配置匹配的已签发证书");
+    }
+    if (!issuedCertificate) {
+      throw new Error("证书不存在");
+    }
+
+    const validation = this.validateSSLCert(
+      issuedCertificate.cert,
+      issuedCertificate.key,
+    );
+    if (!validation.valid) {
+      throw new Error(validation.error || "证书或私钥无效");
+    }
+
+    const saved = await this.saveSSLCertificate({
+      id: opts?.id || issuedCertificate.libraryCertificateId,
+      label: opts?.label || issuedCertificate.primaryDomain,
+      source: "acme",
+      primary_domain: issuedCertificate.primaryDomain,
+      source_ref_id: applicationId,
+      cert: issuedCertificate.cert,
+      key: issuedCertificate.key,
+      activate: opts?.activate === true,
+      matchBy: {
+        source: "acme",
+        source_ref_id: applicationId,
+      },
+    });
+
+    await this.linkAcmeIssuedCertificateToLibrary(applicationId, saved.id);
+    return saved;
+  }
+
   async createAcmeJob(job: AcmeJob): Promise<void> {
     const key = `${this.acmeJobKey}${job.id}`;
-    await this.redis.set(key, JSON.stringify(job), "EX", 86400);
+    const normalized = normalizeAcmeJob(job);
+    if (!normalized) {
+      throw new Error("ACME 任务数据无效");
+    }
+    await this.redis.set(key, JSON.stringify(normalized), "EX", 86400);
   }
 
   async updateAcmeJob(id: string, patch: Partial<AcmeJob>): Promise<void> {
     const key = `${this.acmeJobKey}${id}`;
     const raw = await this.redis.get(key);
     if (!raw) return;
-    let obj: AcmeJob;
+    let obj: AcmeJob | null = null;
     try {
-      obj = JSON.parse(raw) as AcmeJob;
+      obj = normalizeAcmeJob(JSON.parse(raw));
     } catch {
       return;
     }
+    if (!obj) return;
     const next = { ...obj, ...patch };
     await this.redis.set(key, JSON.stringify(next), "EX", 86400);
   }
@@ -1346,7 +2611,7 @@ export class ConfigManager {
     const raw = await this.redis.get(`${this.acmeJobKey}${id}`);
     if (!raw) return null;
     try {
-      return JSON.parse(raw) as AcmeJob;
+      return normalizeAcmeJob(JSON.parse(raw));
     } catch {
       return null;
     }
@@ -1379,18 +2644,7 @@ export class ConfigManager {
     return order === "desc" ? arr.reverse() : arr;
   }
 
-  async saveAcmeSettings(
-    value: Omit<AcmeSettings, "updatedAt">,
-  ): Promise<AcmeSettings> {
-    const next: AcmeSettings = {
-      ...value,
-      updatedAt: new Date().toISOString(),
-    };
-    await this.redis.set(this.acmeSettingsKey, JSON.stringify(next));
-    return next;
-  }
-
-  async getAcmeSettings(): Promise<AcmeSettings | null> {
+  private async getAcmeSettingsLegacy(): Promise<AcmeSettings | null> {
     const raw = await this.redis.get(this.acmeSettingsKey);
     if (!raw) return null;
     try {
@@ -1402,10 +2656,65 @@ export class ConfigManager {
         typeof obj.credentials !== "object"
       )
         return null;
-      return obj as AcmeSettings;
+      return {
+        domains: normalizeDomainList(obj.domains),
+        dnsType: String(obj.dnsType || "").trim(),
+        credentials: normalizeStringRecord(obj.credentials),
+        updatedAt:
+          normalizeTimestamp(obj.updatedAt) || new Date().toISOString(),
+      };
     } catch {
       return null;
     }
+  }
+
+  async saveAcmeSettings(
+    value: Omit<AcmeSettings, "updatedAt">,
+  ): Promise<AcmeSettings> {
+    await this.ensureAcmeDataMigrated();
+    const applications = await this.readAcmeApplicationsStore();
+    const normalizedDomains = normalizeDomainList(value.domains);
+    const primaryDomain = normalizedDomains[0] || "";
+    const targetApplication =
+      applications.find((item) => item.primaryDomain === primaryDomain) ||
+      (applications.length === 1 ? applications[0]! : null);
+
+    if (!targetApplication && applications.length > 1) {
+      throw new Error("当前已存在多个申请项，请使用新接口管理 ACME 申请项");
+    }
+
+    const savedApplication = await this.saveAcmeApplication({
+      id: targetApplication?.id,
+      domains: normalizedDomains,
+      dnsType: value.dnsType,
+      credentials: value.credentials,
+      renewEnabled: targetApplication?.renewEnabled ?? true,
+      name: targetApplication?.name,
+    });
+
+    const next: AcmeSettings = {
+      domains: savedApplication.domains,
+      dnsType: savedApplication.dnsType,
+      credentials: savedApplication.credentials,
+      updatedAt: savedApplication.updatedAt,
+    };
+    await this.redis.set(this.acmeSettingsKey, JSON.stringify(next));
+    return next;
+  }
+
+  async getAcmeSettings(): Promise<AcmeSettings | null> {
+    await this.ensureAcmeDataMigrated();
+    const applications = await this.readAcmeApplicationsStore();
+    const application = applications[0];
+    if (application) {
+      return {
+        domains: application.domains,
+        dnsType: application.dnsType,
+        credentials: application.credentials,
+        updatedAt: application.updatedAt,
+      };
+    }
+    return this.getAcmeSettingsLegacy();
   }
 
   async saveAcmeClientSettings(

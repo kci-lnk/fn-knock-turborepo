@@ -988,11 +988,142 @@ export const BackoffAPI = {
   },
 };
 
+export type AcmeCertificateAuthority = "zerossl" | "letsencrypt";
+export type AcmeJobStatus = "queued" | "running" | "succeeded" | "failed";
+export type AcmeJobTrigger = "manual_request" | "auto_renew";
+
+export type AcmeDnsProvider = {
+  dnsType: string;
+  label: string;
+  group: string;
+  credentialSchemes: Array<{
+    id: string;
+    label: string;
+    description?: string;
+    fields: Array<{
+      key: string;
+      label?: string;
+      description?: string;
+      required?: boolean;
+    }>;
+  }>;
+};
+
+export type AcmeLogAnalysis = {
+  reason:
+    | "dns_credentials_invalid"
+    | "dns_credentials_invalid_email"
+    | "dns_api_rate_limited"
+    | "acme_frequency_limited"
+    | "unknown";
+  provider?: string;
+  message: string;
+  evidence?: string[];
+};
+
+export type AcmeJobData = {
+  id: string;
+  applicationId?: string;
+  domains: string[];
+  method: string;
+  provider: string | null;
+  trigger?: AcmeJobTrigger;
+  createdAt: string;
+  startedAt?: string;
+  finishedAt?: string;
+  status: AcmeJobStatus;
+  progress: number;
+  message?: string;
+};
+
+export type AcmeApplicationRecord = {
+  id: string;
+  name?: string;
+  domains: string[];
+  primaryDomain: string;
+  dnsType: string;
+  credentials: Record<string, string>;
+  renewEnabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+  latestJobId?: string;
+  latestJobStatus?: "idle" | AcmeJobStatus;
+  latestJobTrigger?: AcmeJobTrigger;
+  latestJobAt?: string;
+  lastError?: string;
+};
+
+export type AcmeApplicationOverviewItem = {
+  id: string;
+  name?: string;
+  primaryDomain: string;
+  domains: string[];
+  dnsType: string;
+  providerLabel: string;
+  renewEnabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+  latestJob?: {
+    id: string;
+    status: "idle" | AcmeJobStatus;
+    trigger: AcmeJobTrigger;
+    createdAt: string;
+    message?: string;
+  } | null;
+  certificate?: {
+    exists: boolean;
+    validFrom?: string;
+    validTo?: string;
+    dnsNames?: string[];
+    issuer?: string;
+  } | null;
+  library?: {
+    linked: boolean;
+    certificateId?: string;
+    isActive?: boolean;
+  } | null;
+};
+
+export type AcmeOverview = {
+  acmeState: {
+    status: "uninstalled" | "installing" | "installed" | "error";
+    progress: number;
+    message: string;
+  };
+  clientSettings: {
+    certificateAuthority: AcmeCertificateAuthority;
+    updatedAt: string;
+  };
+  lock: {
+    locked: boolean;
+    jobId?: string;
+    applicationId?: string;
+    reason?: AcmeJobTrigger;
+    startedAt?: string;
+  };
+  applications: AcmeApplicationOverviewItem[];
+  runningJob?: {
+    id: string;
+    applicationId?: string;
+    status: AcmeJobStatus;
+    progress: number;
+  } | null;
+};
+
+export type AcmeApplicationPayload = {
+  name?: string;
+  domains: string[];
+  dnsType: string;
+  credentials?: Record<string, string>;
+  renewEnabled?: boolean;
+  submitNow?: boolean;
+};
+
 export const AcmeAPI = {
   async updateClientSettings(payload: {
-    certificateAuthority: "zerossl" | "letsencrypt";
+    certificateAuthority: AcmeCertificateAuthority;
   }): Promise<{
-    certificateAuthority: "zerossl" | "letsencrypt";
+    certificateAuthority: AcmeCertificateAuthority;
     updatedAt: string;
     synced: boolean;
     accountEmail?: string;
@@ -1014,32 +1145,19 @@ export const AcmeAPI = {
     const res = await apiClient.get("/acme/subdomain-recommendation");
     return res.data.data;
   },
-  async dnsProviders(): Promise<
-    Array<{
-      dnsType: string;
-      label: string;
-      group: string;
-      credentialSchemes: Array<{
-        id: string;
-        label: string;
-        description?: string;
-        fields: Array<{
-          key: string;
-          label?: string;
-          description?: string;
-          required?: boolean;
-        }>;
-      }>;
-    }>
-  > {
+  async dnsProviders(): Promise<AcmeDnsProvider[]> {
     const res = await apiClient.get("/acme/dns-providers");
     return res.data.data || [];
+  },
+  async overview(): Promise<AcmeOverview> {
+    const res = await apiClient.get("/acme/overview");
+    return res.data.data;
   },
   async status(): Promise<{
     status: "uninstalled" | "installing" | "installed" | "error";
     progress: number;
     message: string;
-    certificateAuthority: "zerossl" | "letsencrypt";
+    certificateAuthority: AcmeCertificateAuthority;
     certificateAuthorityUpdatedAt?: string;
     acmeCert?: { primaryDomain: string; info: any } | null;
   }> {
@@ -1074,6 +1192,63 @@ export const AcmeAPI = {
   async uninstall(): Promise<void> {
     await apiClient.delete("/acme");
   },
+  async getApplications(): Promise<AcmeApplicationRecord[]> {
+    const res = await apiClient.get("/acme/applications");
+    return res.data.data || [];
+  },
+  async getApplication(id: string): Promise<AcmeApplicationRecord> {
+    const res = await apiClient.get(
+      `/acme/applications/${encodeURIComponent(id)}`,
+    );
+    return res.data.data;
+  },
+  async createApplication(payload: AcmeApplicationPayload): Promise<{
+    application: AcmeApplicationRecord;
+    job?: AcmeJobData;
+    lock?: AcmeOverview["lock"];
+  }> {
+    const res = await apiClient.post("/acme/applications", payload);
+    return res.data.data;
+  },
+  async updateApplication(
+    id: string,
+    payload: AcmeApplicationPayload,
+  ): Promise<{
+    application: AcmeApplicationRecord;
+    job?: AcmeJobData;
+    lock?: AcmeOverview["lock"];
+  }> {
+    const res = await apiClient.patch(
+      `/acme/applications/${encodeURIComponent(id)}`,
+      payload,
+    );
+    return res.data.data;
+  },
+  async requestApplication(id: string): Promise<{
+    job: AcmeJobData;
+    lock: AcmeOverview["lock"];
+  }> {
+    const res = await apiClient.post(
+      `/acme/applications/${encodeURIComponent(id)}/request`,
+    );
+    return res.data.data;
+  },
+  async deleteApplicationCertificate(id: string): Promise<void> {
+    await apiClient.delete(
+      `/acme/applications/${encodeURIComponent(id)}/certificate`,
+    );
+  },
+  async syncApplicationLibrary(
+    id: string,
+  ): Promise<{ certificateId: string; linked: boolean }> {
+    const res = await apiClient.post(
+      `/acme/applications/${encodeURIComponent(id)}/library/sync`,
+    );
+    return res.data.data;
+  },
+  async deployApplication(id: string): Promise<void> {
+    await apiClient.post(`/acme/applications/${encodeURIComponent(id)}/deploy`);
+  },
   async request(payload: {
     domains: string[];
     dnsType: string;
@@ -1082,15 +1257,7 @@ export const AcmeAPI = {
     const res = await apiClient.post("/acme/request", payload);
     return res.data.data;
   },
-  async job(id: string): Promise<{
-    id: string;
-    domains: string[];
-    method: string;
-    provider: string | null;
-    status: string;
-    progress: number;
-    message?: string;
-  }> {
+  async job(id: string): Promise<AcmeJobData> {
     const res = await apiClient.get(`/acme/jobs/${encodeURIComponent(id)}`);
     return res.data.data;
   },
@@ -1104,27 +1271,9 @@ export const AcmeAPI = {
     id: string,
     opts?: { limit?: number; order?: "asc" | "desc" },
   ): Promise<{
-    job: {
-      id: string;
-      domains: string[];
-      method: string;
-      provider: string | null;
-      status: string;
-      progress: number;
-      message?: string;
-    };
+    job: AcmeJobData;
     logs: string[];
-    analysis?: {
-      reason:
-        | "dns_credentials_invalid"
-        | "dns_credentials_invalid_email"
-        | "dns_api_rate_limited"
-        | "acme_frequency_limited"
-        | "unknown";
-      provider?: string;
-      message: string;
-      evidence?: string[];
-    } | null;
+    analysis?: AcmeLogAnalysis | null;
   }> {
     const res = await apiClient.get(
       `/acme/jobs/${encodeURIComponent(id)}/poll`,

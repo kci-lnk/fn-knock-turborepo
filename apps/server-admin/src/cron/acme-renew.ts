@@ -1,9 +1,8 @@
 import type { Elysia } from "elysia";
 import { cron } from "@elysiajs/cron";
-import { randomUUID } from "node:crypto";
 import { acmeService } from "../plugins/acme";
 import { configManager } from "../lib/redis";
-import { syncSSLDeploymentToGateway } from "../lib/ssl-gateway";
+import { startAcmeApplicationJob } from "../lib/acme-job-runner";
 
 const parseIntSafe = (value: string | undefined, fallback: number) => {
   const v = Number.parseInt(String(value ?? ""), 10);
@@ -42,120 +41,58 @@ export const registerAcmeRenewCron = (app: Elysia) => {
         if (!acquired) return;
 
         try {
-          const settings = await configManager.getAcmeSettings();
-          if (!settings?.domains?.length) return;
-          const clientSettings = await configManager.ensureAcmeClientSettings(
-            await acmeService.getDefaultCertificateAuthority(),
-          );
-
           await acmeService.checkInstalled();
           if (acmeService.getState().status !== "installed") return;
+          const activeLock = await configManager.getActiveAcmeRuntimeLock();
+          if (activeLock.locked) return;
 
-          const primaryDomain = settings.domains[0]!;
-          let storedPair = await configManager.getAcmeCert(primaryDomain);
-          if (!storedPair) {
-            const loaded =
-              await configManager.saveAcmeCertFromFS(primaryDomain);
-            if (!loaded) return;
-            storedPair = await configManager.getAcmeCert(primaryDomain);
-            if (!storedPair) return;
-          }
+          const applications = await configManager.listAcmeApplications();
+          const renewableEntries: Array<{
+            validToMs: number;
+            application: (typeof applications)[number];
+          }> = [];
 
-          const activeCertificate =
-            await configManager.getActiveSSLCertificate();
-          if (!activeCertificate) return;
-          if (
-            activeCertificate.source !== "acme" ||
-            activeCertificate.primary_domain !== primaryDomain
-          ) {
-            return;
-          }
-
-          const sslStatus = await configManager.getSSLStatus();
-          const shouldRenew = isExpiringSoon(
-            sslStatus.certInfo?.validTo,
-            thresholdMs,
-          );
-          if (!shouldRenew) return;
-
-          const jobId = randomUUID();
-          await configManager.createAcmeJob({
-            id: jobId,
-            domains: settings.domains,
-            method: "dns",
-            provider: settings.dnsType,
-            createdAt: new Date().toISOString(),
-            status: "running",
-            progress: 5,
-            message: "running",
-          });
-          await configManager.clearAcmeLogs(jobId);
-          await configManager.appendAcmeLog(
-            jobId,
-            `[cron] renew start: ${primaryDomain}`,
-          );
-
-          const logRing: string[] = [];
-          const pushLog = (line: string) => {
-            const v = String(line ?? "");
-            if (!v) return;
-            logRing.push(v);
-            if (logRing.length > 40) logRing.shift();
-          };
-
-          try {
-            await acmeService.issueCertificate({
-              domains: settings.domains,
-              method: "dns",
-              dnsType: settings.dnsType,
-              certificateAuthority: clientSettings.certificateAuthority,
-              envVars: settings.credentials,
-              onLog: async (line: string) => {
-                pushLog(line);
-                await configManager.appendAcmeLog(jobId, line);
-              },
-            });
-
-            await configManager.updateAcmeJob(jobId, {
-              progress: 80,
-              message: "saving",
-            });
-            const saved = await configManager.saveAcmeCertFromFS(
-              primaryDomain,
-              { forceInstall: true },
-            );
-            if (!saved) throw new Error("证书签发成功，但读取证书文件失败");
-
-            await configManager.saveAcmeCertificateToLibrary(primaryDomain, {
-              id: activeCertificate.id,
-              label: activeCertificate.label,
-              activate: true,
-            });
-            await syncSSLDeploymentToGateway();
-
-            await configManager.appendAcmeLog(jobId, "[cron] renew succeeded");
-            await configManager.updateAcmeJob(jobId, {
-              status: "succeeded",
-              progress: 100,
-              message: "succeeded",
-            });
-          } catch (e: any) {
-            const msg = e?.message || String(e);
-            const tail = logRing.slice(-10).join("\n");
-            if (tail)
-              await configManager.appendAcmeLog(
-                jobId,
-                `[cron] last logs:\n${tail}`,
+          for (const application of applications) {
+            if (!application.renewEnabled) continue;
+            const issuedCertificate =
+              await configManager.getUsableAcmeIssuedCertificate(
+                application.id,
               );
-            await configManager.appendAcmeLog(
-              jobId,
-              `[cron] renew failed: ${msg}`,
-            );
-            await configManager.updateAcmeJob(jobId, {
-              status: "failed",
-              progress: 100,
-              message: msg,
+            if (!issuedCertificate) continue;
+
+            const validToMs = Date.parse(issuedCertificate.certInfo.validTo);
+            if (!Number.isFinite(validToMs)) continue;
+            if (
+              !isExpiringSoon(issuedCertificate.certInfo.validTo, thresholdMs)
+            )
+              continue;
+
+            renewableEntries.push({
+              validToMs,
+              application,
             });
+          }
+
+          renewableEntries.sort((a, b) => a.validToMs - b.validToMs);
+
+          for (const entry of renewableEntries) {
+            try {
+              await startAcmeApplicationJob({
+                acme: acmeService,
+                application: entry.application,
+                trigger: "auto_renew",
+                wait: true,
+              });
+            } catch (error: any) {
+              const message = error?.message || String(error);
+              if (/当前已有 ACME 任务正在执行/.test(message)) {
+                return;
+              }
+              console.error(
+                `[ACME][cron] renew failed for ${entry.application.primaryDomain}:`,
+                message,
+              );
+            }
           }
         } catch (e: any) {
           console.error(

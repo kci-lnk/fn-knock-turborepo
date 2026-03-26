@@ -61,7 +61,9 @@ const parseExplicitUrlPort = (
 
 const formatDerivedPublicAuthBaseUrl = (
   host: string,
-  config?: Pick<AppConfig, "run_type" | "reverse_proxy_submode"> | null,
+  config?: Partial<
+    Pick<AppConfig, "run_type" | "reverse_proxy_submode">
+  > | null,
   scheme: "http" | "https" = "https",
 ): string => {
   const normalizedHost = host.trim().toLowerCase();
@@ -564,14 +566,14 @@ export const buildSubdomainCertificateInventoryCoverage = ({
 };
 
 export const resolvePublicAuthBaseUrl = (
-  config: Pick<
-    AppConfig,
-    "subdomain_mode" | "host_mappings" | "run_type" | "reverse_proxy_submode"
-  >,
+  config: Pick<AppConfig, "subdomain_mode" | "host_mappings"> &
+    Partial<Pick<AppConfig, "run_type" | "reverse_proxy_submode">>,
 ): string => {
   const explicit = isReverseProxySubdomainMode(config)
     ? ""
-    : trimTrailingSlash(config.subdomain_mode?.public_auth_base_url?.trim() || "");
+    : trimTrailingSlash(
+        config.subdomain_mode?.public_auth_base_url?.trim() || "",
+      );
   if (explicit) return explicit;
 
   const authMapping = getAuthHostMapping(config);

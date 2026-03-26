@@ -726,6 +726,16 @@ export const resolveSafeRedirectUri = ({
     }
   }
 
+  const targetHostname = normalizeDomainName(target.hostname);
+  const configuredHosts = new Set(
+    (config.host_mappings || [])
+      .map((mapping) => normalizeDomainName(mapping.host))
+      .filter(Boolean),
+  );
+  if (configuredHosts.has(targetHostname)) {
+    return target.toString();
+  }
+
   const authBaseUrl = resolvePublicAuthBaseUrl(config);
   if (authBaseUrl) {
     try {

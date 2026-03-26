@@ -44,6 +44,7 @@ import {
   MaintenanceBackupError,
   maintenanceBackupService,
 } from "../lib/maintenance-backup";
+import { isValidHostPort } from "../../../../packages/admin-shared/src/utils/parseHostPort";
 
 const parseIntSafe = (value: string | undefined, fallback: number) => {
   const v = Number.parseInt(String(value ?? ""), 10);
@@ -130,20 +131,7 @@ const isSameJsonValue = (left: unknown, right: unknown): boolean =>
   JSON.stringify(left) === JSON.stringify(right);
 
 const isValidStreamTarget = (target: string): boolean => {
-  const trimmed = target.trim();
-  if (!trimmed) return false;
-
-  try {
-    const parsed = new URL(`tcp://${trimmed}`);
-    const port = Number.parseInt(parsed.port, 10);
-    if (!parsed.hostname) return false;
-    if (!Number.isFinite(port) || port <= 0 || port > 65535) return false;
-    if (parsed.pathname && parsed.pathname !== "/") return false;
-    if (parsed.search || parsed.hash) return false;
-    return true;
-  } catch {
-    return false;
-  }
+  return isValidHostPort(target);
 };
 
 type StreamMappingInput = Pick<

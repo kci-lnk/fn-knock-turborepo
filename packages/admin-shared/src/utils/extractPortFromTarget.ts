@@ -1,3 +1,5 @@
+import { parseHostPort } from "./parseHostPort";
+
 export const extractPortFromTarget = (target: string): number | null => {
   const normalizedTarget = target.trim();
   if (!normalizedTarget) return null;
@@ -7,8 +9,7 @@ export const extractPortFromTarget = (target: string): number | null => {
     const parsed = new URL(normalizedTarget);
     return parsed.port ? Number(parsed.port) : null;
   } catch {
-    // Fallback for host:port or host:port/path patterns without protocol.
-    const match = normalizedTarget.match(/:(\d+)(?:\/|$)/);
-    return match ? Number(match[1]) : null;
+    // Fallback for host:port without protocol.
+    return parseHostPort(normalizedTarget)?.port ?? null;
   }
 };

@@ -289,6 +289,7 @@ import { Switch } from "@/components/ui/switch";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import SearchInput from "@admin-shared/components/SearchInput.vue";
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
+import { isValidHostPort } from "@admin-shared/utils/parseHostPort";
 import { toast } from "@admin-shared/utils/toast";
 import {
   Table,
@@ -430,20 +431,7 @@ const submitValidationMessage = computed(() => {
 });
 
 function isValidStreamTarget(target: string): boolean {
-  const trimmed = target.trim();
-  if (!trimmed) return false;
-
-  try {
-    const parsed = new URL(`tcp://${trimmed}`);
-    const port = Number.parseInt(parsed.port, 10);
-    if (!parsed.hostname) return false;
-    if (!Number.isFinite(port) || port <= 0 || port > 65535) return false;
-    if (parsed.pathname && parsed.pathname !== "/") return false;
-    if (parsed.search || parsed.hash) return false;
-    return true;
-  } catch {
-    return false;
-  }
+  return isValidHostPort(target);
 }
 
 function normalizeProtocol(

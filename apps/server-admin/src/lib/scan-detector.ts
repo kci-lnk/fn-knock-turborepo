@@ -168,6 +168,14 @@ class ScanDetector {
       "/.well-known/ai-plugin.json",
       "/apple-touch-icon.png",
       "/manifest.json",
+      '/login',
+      '/locales/zh-CN/os.json',
+      '/license/v1/device/baseInfo',
+      '/locales/zh-CN/apps/setting.json',
+      '/app-center/v1/check-update?language=zh-CN',
+      '/sac/rpcproxy/v1/new-user-guide/status',
+      '/locales/zh-CN/pages/login.json',
+      '/static/bg/wallpaper-1.webp'
     ]);
     if (common.has(cleanPath)) return true;
 

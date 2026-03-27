@@ -123,6 +123,7 @@ const isSessionResourcePath = (
   const thumbPath = `/s/thumb/${shareId}`;
   if (pathname.startsWith(`${cleanPath}/`)) return true;
   if (pathname.startsWith("/s/static/")) return true;
+  if (pathname.startsWith("/s/busstatic/")) return true;
   if (pathname === previewPath || pathname.startsWith(`${previewPath}/`))
     return true;
   if (pathname === thumbPath || pathname.startsWith(`${thumbPath}/`))

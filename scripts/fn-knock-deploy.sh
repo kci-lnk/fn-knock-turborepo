@@ -101,7 +101,7 @@ case "${arch}" in
   arm64)
     keep_bin="go-reauth-proxy-linux-arm64"
     remove_bin="go-reauth-proxy-linux-amd64"
-    install_dep_apps="nodejs_v20"
+    install_dep_apps=""
     manifest_platform="arm"
     ;;
   *)

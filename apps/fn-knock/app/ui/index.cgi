@@ -20,6 +20,8 @@ if [ -n "${RUNTIME_PORT_FILE}" ] && [ -r "${RUNTIME_PORT_FILE}" ]; then
 fi
 
 TARGET_HOST=${ADMIN_TARGET_HOST:-"127.0.0.1"}
+NODE_BIN_V20="/var/apps/nodejs_v20/target/bin/node"
+NODE_BIN_V24="/var/apps/nodejs_v24/target/bin/node"
 
 if [ -n "$ADMIN_TARGET_PORT" ]; then
     TARGET_PORT="$ADMIN_TARGET_PORT"
@@ -32,6 +34,31 @@ else
 fi
 
 TARGET_SCHEME=${ADMIN_TARGET_SCHEME:-"http"}
+
+has_node_runtime() {
+    if [ -x "$NODE_BIN_V20" ] || [ -x "$NODE_BIN_V24" ]; then
+        return 0
+    fi
+
+    if command -v node >/dev/null 2>&1; then
+        return 0
+    fi
+
+    return 1
+}
+
+render_missing_node_page() {
+    printf "Status: 200 OK\r\n"
+    printf "Content-Type: text/html; charset=utf-8\r\n\r\n"
+    printf '<!DOCTYPE html>\n<html>\n<head>\n<meta charset="UTF-8">\n<title>缺少 Node.js 运行环境</title>\n</head>\n<body>\n'
+    printf '<div style="max-width: 760px; margin: 80px auto; padding: 0 24px; font-family: sans-serif; text-align: center;">\n'
+    printf '  <h1 style="color: #d9534f; font-size: 42px; font-weight: bold; margin-bottom: 24px;">当前无法启动 fn-knock</h1>\n'
+    printf '  <p style="color: #333; font-size: 20px; line-height: 1.8; margin: 0 0 16px;">检测到当前设备为 ARM 架构，且系统中不存在可用的 Node.js 运行环境。</p>\n'
+    printf '  <p style="color: #333; font-size: 20px; line-height: 1.8; margin: 0 0 16px;">请先前往应用商店安装 <strong>nodejs_v24</strong> 版本，安装完成后重新启用 fn-knock。</p>\n'
+    printf '  <p style="color: #666; font-size: 16px; line-height: 1.8; margin: 0;">如果已经安装，请确认应用已成功启用后再刷新当前页面。</p>\n'
+    printf '</div>\n'
+    printf '</body>\n</html>\n'
+}
 
 guess_content_type() {
     case "$1" in
@@ -150,6 +177,10 @@ if [ $CURL_EXIT -ne 0 ]; then
     ARCH=$(uname -m)
     case "$ARCH" in
         arm*|aarch64)
+            if ! has_node_runtime; then
+                render_missing_node_page
+                exit 0
+            fi
             if [ ! -x "/usr/bin/redis-server" ] && [ ! -x "/usr/local/bin/redis-server" ]; then
                 printf "Status: 200 OK\r\n"
                 printf "Content-Type: text/html; charset=utf-8\r\n\r\n"

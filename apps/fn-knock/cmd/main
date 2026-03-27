@@ -11,7 +11,9 @@ RUNTIME_PORT_FILE=""
 GATEWAY_CONFIG_DIR="/usr/local/etc/fn-knock/"
 
 APP_HOME="${TRIM_APPDEST:-}"
-NODE_BIN="${NODE_BIN:-/var/apps/nodejs_v20/target/bin/node}"
+NODE_BIN_V20="/var/apps/nodejs_v20/target/bin/node"
+NODE_BIN_V24="/var/apps/nodejs_v24/target/bin/node"
+NODE_BIN="${NODE_BIN:-}"
 BACKEND_ENTRY="${APP_HOME}/server/server-admin/index.js"
 GATEWAY_BIN_DIR="${APP_HOME}/server"
 GATEWAY_BIN="${GATEWAY_BIN_DIR}/go-reauth-proxy-linux-amd64"
@@ -110,6 +112,62 @@ fail_backend_start() {
     log_msg "Backend failed to start: ${reason}"
     log_backend_failure_debug "${pid}"
     rm -f "${BACKEND_PID_FILE}"
+    return 1
+}
+
+write_temp_log() {
+    local message="$1"
+    echo "${message}" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
+}
+
+temp_log_has_message() {
+    if [ -n "${TRIM_TEMP_LOGFILE:-}" ] && [ -s "${TRIM_TEMP_LOGFILE}" ]; then
+        return 0
+    fi
+
+    return 1
+}
+
+handle_missing_node_runtime() {
+    local message="当前未检测到可用的 Node.js 运行环境，请先前往应用商店安装 nodejs_v24 后重新启用 fn-knock"
+    log_msg "${message}"
+    write_temp_log "${message}"
+    rm -f "${BACKEND_PID_FILE}"
+    return 1
+}
+
+resolve_node_bin() {
+    local explicit_node_bin="${NODE_BIN:-}"
+
+    if [ -n "${explicit_node_bin}" ] && [ -x "${explicit_node_bin}" ]; then
+        NODE_BIN="${explicit_node_bin}"
+        log_msg "Using NODE_BIN from environment: ${NODE_BIN}"
+        return 0
+    fi
+
+    if [ -n "${explicit_node_bin}" ]; then
+        log_msg "NODE_BIN from environment is not executable: ${explicit_node_bin}; falling back to bundled Node.js runtimes"
+    fi
+
+    if [ -x "${NODE_BIN_V20}" ]; then
+        NODE_BIN="${NODE_BIN_V20}"
+        log_msg "Using bundled Node.js runtime: ${NODE_BIN}"
+        return 0
+    fi
+
+    if [ -x "${NODE_BIN_V24}" ]; then
+        NODE_BIN="${NODE_BIN_V24}"
+        log_msg "Using bundled Node.js runtime: ${NODE_BIN}"
+        return 0
+    fi
+
+    NODE_BIN="$(command -v node 2>/dev/null || true)"
+    if [ -n "${NODE_BIN}" ] && [ -x "${NODE_BIN}" ]; then
+        log_msg "Using Node.js from PATH: ${NODE_BIN}"
+        return 0
+    fi
+
+    NODE_BIN=""
     return 1
 }
 
@@ -487,11 +545,8 @@ start_backend() {
         rm -f "${BACKEND_PID_FILE}"
     fi
 
-    if [ ! -x "${NODE_BIN}" ]; then
-        NODE_BIN="$(command -v node 2>/dev/null || true)"
-    fi
-    if [ -z "${NODE_BIN}" ] || [ ! -x "${NODE_BIN}" ]; then
-        fail_backend_start "Node.js binary not found: /var/apps/nodejs/target/bin/node (or node in PATH)" ""
+    if ! resolve_node_bin; then
+        handle_missing_node_runtime
         return 1
     fi
     if [ ! -f "${BACKEND_ENTRY}" ]; then
@@ -512,7 +567,7 @@ start_backend() {
     fi
     resolve_root_share_dir
 
-    log_msg "Starting Node.js backend (backend-port=${BACKEND_PORT}, auth-port=${AUTH_PORT})..."
+    log_msg "Starting Node.js backend (node-bin=${NODE_BIN}, backend-port=${BACKEND_PORT}, auth-port=${AUTH_PORT})..."
     (
         cd "${APP_HOME}" && \
         ADMIN_STATIC_PATH="${ADMIN_STATIC_PATH}" \
@@ -564,13 +619,20 @@ start() {
     log_msg "=== fn-knock start ==="
     log_msg "Port config: backend=${BACKEND_PORT}, auth=${AUTH_PORT}, go-admin=${GO_BACKEND_PORT}, go-proxy=${GO_REPROXY_PORT}"
 
+    if ! resolve_node_bin; then
+        handle_missing_node_runtime
+        return 1
+    fi
+
     if ! start_gateway; then
-        echo "fn-knock gateway start failed" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
+        write_temp_log "fn-knock gateway start failed"
         return 1
     fi
     if ! start_backend; then
         stop_service "${GATEWAY_PID_FILE}" "Gateway"
-        echo "fn-knock backend start failed" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
+        if ! temp_log_has_message; then
+            write_temp_log "fn-knock backend start failed"
+        fi
         return 1
     fi
     return 0

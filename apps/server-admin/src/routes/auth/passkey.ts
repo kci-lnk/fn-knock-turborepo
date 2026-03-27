@@ -21,6 +21,29 @@ const loadSimpleWebAuthnServer = () => {
   return simpleWebAuthnServerPromise;
 };
 
+const parseCookieValue = (
+  cookieHeader: string,
+  name: string,
+): string | null => {
+  const segments = cookieHeader.split(";");
+  let lastValue: string | null = null;
+
+  for (const segment of segments) {
+    const [rawKey, ...rest] = segment.split("=");
+    if (!rawKey || rest.length === 0) continue;
+    if (rawKey.trim() !== name) continue;
+    const raw = rest.join("=").trim().replace(/^"|"$/g, "");
+    if (!raw) continue;
+    try {
+      lastValue = decodeURIComponent(raw);
+    } catch {
+      lastValue = raw;
+    }
+  }
+
+  return lastValue;
+};
+
 export const passkeyRoutes = new Elysia({ prefix: "/passkey" })
   .get("/status", async ({ request }) => {
     const passkeys = await configManager.getPasskeys();
@@ -136,6 +159,7 @@ export const passkeyRoutes = new Elysia({ prefix: "/passkey" })
       });
       return await handleLoginSuccess({
         config,
+        request,
         clientIp,
         userAgent,
         authMethod: "PASSKEY",
@@ -157,10 +181,13 @@ export const passkeyRoutes = new Elysia({ prefix: "/passkey" })
   )
   .post("/bind-token", async ({ set, request }) => {
     const cookieHeader = request.headers.get("cookie") || "";
-    const match = cookieHeader.match(/x-go-reauth-proxy-session-id=([^;]+)/);
+    const sessionId = parseCookieValue(
+      cookieHeader,
+      "x-go-reauth-proxy-session-id",
+    );
     let totpId = "";
-    if (match && match[1]) {
-      const session = await configManager.getSession(match[1]);
+    if (sessionId) {
+      const session = await configManager.getSession(sessionId);
       totpId = session?.totpId || "";
     }
     if (!totpId) {
@@ -237,8 +264,7 @@ export const passkeyRoutes = new Elysia({ prefix: "/passkey" })
       const { origin, rpID } = await getRpInfo(request);
       let verification;
       try {
-        const { verifyRegistrationResponse } =
-          await loadSimpleWebAuthnServer();
+        const { verifyRegistrationResponse } = await loadSimpleWebAuthnServer();
         verification = await verifyRegistrationResponse({
           response: credential,
           expectedChallenge: challenge,

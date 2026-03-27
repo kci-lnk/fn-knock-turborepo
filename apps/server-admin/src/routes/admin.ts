@@ -25,9 +25,7 @@ import {
   getAuthHostMapping,
 } from "../lib/subdomain-mode";
 import { isAuthServiceTarget } from "../lib/auth-service";
-import {
-  refreshAllHostMappingTitles,
-} from "../lib/host-mapping-metadata";
+import { refreshAllHostMappingTitles } from "../lib/host-mapping-metadata";
 import { fetchUrlMetadata } from "../lib/url-metadata";
 import {
   buildHostMappingsBookmarkFilename,
@@ -244,6 +242,16 @@ const resolveSessionDefaultComment = async (
   sessionId: string,
   session: LoginSession,
 ): Promise<string | undefined> => {
+  const sessionGrantRecord = session.postLoginIpGrantRecordId
+    ? await whitelistManager.getRecordById(session.postLoginIpGrantRecordId)
+    : null;
+  if (
+    sessionGrantRecord?.status === "active" &&
+    sessionGrantRecord.comment !== undefined
+  ) {
+    return sessionGrantRecord.comment;
+  }
+
   const whitelistRecordId =
     await authMobilitySessionManager.getSessionWhitelistRecordId(sessionId);
   const boundRecord = whitelistRecordId
@@ -412,6 +420,16 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
           body.run_type,
           previousRunType,
         );
+        if (body.run_type === 0) {
+          try {
+            await whitelistManager.removeRecordsBySource("auto");
+          } catch (cleanupError) {
+            console.error(
+              "[admin][run_type] failed to clear login IP grants after switching to direct mode:",
+              cleanupError,
+            );
+          }
+        }
       } catch (error: any) {
         const rollbackError = await rollbackProtocolMappingFeatureAndRuntime(
           previousProtocolMappingFeature,
@@ -734,6 +752,16 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       body: t.Object({
         session_ttl_seconds: t.Optional(t.Number()),
         remember_me_ttl_seconds: t.Optional(t.Number()),
+        post_login_ip_grant_mode: t.Optional(
+          t.Union([
+            t.Literal("follow_session"),
+            t.Literal("disabled"),
+            t.Literal("custom"),
+          ]),
+        ),
+        post_login_ip_grant_ttl_seconds: t.Optional(
+          t.Union([t.Number(), t.Null()]),
+        ),
       }),
     },
   )
@@ -830,40 +858,36 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
           mapping,
         ]),
       );
-      const normalizedMappings: HostMapping[] = body.mappings.map(
-        (mapping) => {
-          const previous = previousByHost.get(
-            normalizeHostMappingLookupKey(mapping.host),
-          );
-          const normalizedTarget = mapping.target.trim();
-          const canReusePreviousMetadata =
-            previous?.target.trim() === normalizedTarget;
+      const normalizedMappings: HostMapping[] = body.mappings.map((mapping) => {
+        const previous = previousByHost.get(
+          normalizeHostMappingLookupKey(mapping.host),
+        );
+        const normalizedTarget = mapping.target.trim();
+        const canReusePreviousMetadata =
+          previous?.target.trim() === normalizedTarget;
 
-          return {
-            ...mapping,
-            target: normalizedTarget,
-            service_role: isAuthServiceTarget(normalizedTarget)
-              ? "auth"
-              : "app",
-            title:
-              typeof mapping.title === "string"
-                ? mapping.title.trim()
-                : canReusePreviousMetadata
-                  ? previous?.title ?? ""
-                  : "",
-            title_override:
-              typeof mapping.title_override === "string"
-                ? mapping.title_override.trim()
-                : previous?.title_override ?? "",
-            favicon:
-              typeof mapping.favicon === "string"
-                ? mapping.favicon.trim()
-                : canReusePreviousMetadata
-                  ? previous?.favicon ?? ""
-                  : "",
-          };
-        },
-      );
+        return {
+          ...mapping,
+          target: normalizedTarget,
+          service_role: isAuthServiceTarget(normalizedTarget) ? "auth" : "app",
+          title:
+            typeof mapping.title === "string"
+              ? mapping.title.trim()
+              : canReusePreviousMetadata
+                ? (previous?.title ?? "")
+                : "",
+          title_override:
+            typeof mapping.title_override === "string"
+              ? mapping.title_override.trim()
+              : (previous?.title_override ?? ""),
+          favicon:
+            typeof mapping.favicon === "string"
+              ? mapping.favicon.trim()
+              : canReusePreviousMetadata
+                ? (previous?.favicon ?? "")
+                : "",
+        };
+      });
       const nextConfig = {
         ...config,
         host_mappings: normalizedMappings,
@@ -892,9 +916,7 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
       ) {
         syncTasks.push(goBackend.setHostRules(normalizedMappings));
       }
-      if (
-        !isSameJsonValue(previousGatewayAuthConfig, nextGatewayAuthConfig)
-      ) {
+      if (!isSameJsonValue(previousGatewayAuthConfig, nextGatewayAuthConfig)) {
         syncTasks.push(goBackend.setAuthConfig(nextGatewayAuthConfig));
       }
       if (syncTasks.length > 0) {
@@ -1569,9 +1591,18 @@ export const adminRoutes = new Elysia({ prefix: "/api/admin" })
         return { success: false, message: "Session not found" };
       }
 
-      const whitelistRecordId =
+      const whitelistRecordIds = new Set<string>();
+      if (updated.postLoginIpGrantRecordId) {
+        whitelistRecordIds.add(updated.postLoginIpGrantRecordId);
+      }
+
+      const mobilityWhitelistRecordId =
         await authMobilitySessionManager.getSessionWhitelistRecordId(params.id);
-      if (whitelistRecordId) {
+      if (mobilityWhitelistRecordId) {
+        whitelistRecordIds.add(mobilityWhitelistRecordId);
+      }
+
+      for (const whitelistRecordId of whitelistRecordIds) {
         await whitelistManager.updateComment(whitelistRecordId, body.comment);
       }
 

@@ -138,7 +138,7 @@ export class FirewallService {
   }
 
   private async syncActiveWhitelistRecords(strict = false): Promise<number> {
-    const records = await whitelistManager.getAllActiveRecords();
+    const records = await whitelistManager.getAllActiveRecords("manual");
 
     for (const record of records) {
       const fallbackMessage = `同步白名单 IP ${record.ip} 失败`;

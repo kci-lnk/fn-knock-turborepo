@@ -282,6 +282,9 @@ export type LoginSession = {
   method: "TOTP" | "PASSKEY";
   credentialId: string;
   credentialName: string;
+  grantType?: "browser_session" | "login_ip_grant";
+  postLoginIpGrantMode?: PostLoginIpGrantMode | null;
+  postLoginIpGrantRecordId?: string | null;
   comment?: string;
   ip: string;
   userAgent: string;
@@ -315,14 +318,20 @@ export interface RunModePromptPreferences {
   subdomainToReverseProxy: boolean;
 }
 
+export type PostLoginIpGrantMode = "follow_session" | "disabled" | "custom";
+
 export interface AuthCredentialSettings {
   session_ttl_seconds: number;
   remember_me_ttl_seconds: number;
+  post_login_ip_grant_mode: PostLoginIpGrantMode;
+  post_login_ip_grant_ttl_seconds: number | null;
 }
 
 export const DEFAULT_AUTH_CREDENTIAL_SETTINGS: AuthCredentialSettings = {
   session_ttl_seconds: 24 * 3600,
   remember_me_ttl_seconds: 365 * 24 * 3600,
+  post_login_ip_grant_mode: "follow_session",
+  post_login_ip_grant_ttl_seconds: 3600,
 };
 
 const DEFAULT_GATEWAY_LOGGING_SETTINGS: GatewayLoggingSettings = {
@@ -543,8 +552,30 @@ const normalizeFnosShareBypassConfig = (
   };
 };
 
+const normalizePostLoginIpGrantMode = (
+  value: unknown,
+  legacyAutoAddWhitelistOnLogin?: boolean | null,
+): PostLoginIpGrantMode => {
+  if (
+    value === "follow_session" ||
+    value === "disabled" ||
+    value === "custom"
+  ) {
+    return value;
+  }
+
+  if (legacyAutoAddWhitelistOnLogin === false) {
+    return "disabled";
+  }
+
+  return DEFAULT_AUTH_CREDENTIAL_SETTINGS.post_login_ip_grant_mode;
+};
+
 const normalizeAuthCredentialSettings = (
   value?: Partial<AuthCredentialSettings> | null,
+  options?: {
+    legacyAutoAddWhitelistOnLogin?: boolean | null;
+  },
 ): AuthCredentialSettings => {
   const raw = value ?? {};
   const sessionTtlSeconds = normalizePositiveInt(
@@ -557,10 +588,22 @@ const normalizeAuthCredentialSettings = (
     DEFAULT_AUTH_CREDENTIAL_SETTINGS.remember_me_ttl_seconds,
     { min: sessionTtlSeconds, max: 5 * 365 * 24 * 3600 },
   );
+  const postLoginIpGrantMode = normalizePostLoginIpGrantMode(
+    raw.post_login_ip_grant_mode,
+    options?.legacyAutoAddWhitelistOnLogin,
+  );
+  const postLoginIpGrantTtlSeconds = normalizePositiveInt(
+    raw.post_login_ip_grant_ttl_seconds,
+    DEFAULT_AUTH_CREDENTIAL_SETTINGS.post_login_ip_grant_ttl_seconds ?? 3600,
+    { min: 60, max: 5 * 365 * 24 * 3600 },
+  );
 
   return {
     session_ttl_seconds: sessionTtlSeconds,
     remember_me_ttl_seconds: rememberMeTtlSeconds,
+    post_login_ip_grant_mode: postLoginIpGrantMode,
+    post_login_ip_grant_ttl_seconds:
+      postLoginIpGrantMode === "custom" ? postLoginIpGrantTtlSeconds : null,
   };
 };
 
@@ -1398,6 +1441,10 @@ export class ConfigManager {
         );
         parsed.auth_credential_settings = normalizeAuthCredentialSettings(
           parsed.auth_credential_settings,
+          {
+            legacyAutoAddWhitelistOnLogin:
+              parsed.subdomain_mode?.auto_add_whitelist_on_login,
+          },
         );
         parsed.terminal_feature = normalizeTerminalFeatureConfig(
           parsed.terminal_feature,
@@ -3029,17 +3076,26 @@ export class ConfigManager {
 
   async getAuthCredentialSettings(): Promise<AuthCredentialSettings> {
     const config = await this.getConfig();
-    return normalizeAuthCredentialSettings(config.auth_credential_settings);
+    return normalizeAuthCredentialSettings(config.auth_credential_settings, {
+      legacyAutoAddWhitelistOnLogin:
+        config.subdomain_mode?.auto_add_whitelist_on_login,
+    });
   }
 
   async updateAuthCredentialSettings(
     patch: Partial<AuthCredentialSettings>,
   ): Promise<AuthCredentialSettings> {
     const config = await this.getConfig();
-    const next = normalizeAuthCredentialSettings({
-      ...config.auth_credential_settings,
-      ...patch,
-    });
+    const next = normalizeAuthCredentialSettings(
+      {
+        ...config.auth_credential_settings,
+        ...patch,
+      },
+      {
+        legacyAutoAddWhitelistOnLogin:
+          config.subdomain_mode?.auto_add_whitelist_on_login,
+      },
+    );
     config.auth_credential_settings = next;
     await this.saveConfig(config);
     return next;

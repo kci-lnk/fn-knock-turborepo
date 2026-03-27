@@ -21,9 +21,19 @@ export type AuthClientLocationData = {
   error?: string;
 };
 
+export type AuthGrantType =
+  | "local_exempt"
+  | "manual_whitelist"
+  | "login_ip_grant"
+  | "browser_session"
+  | "session_migration"
+  | "fnos_fingerprint_session"
+  | "fnos_share";
+
 export type AuthAccessState = {
   authenticated: boolean;
   message: string;
+  grant_type?: AuthGrantType;
 };
 
 export type AuthPasskeyState = {

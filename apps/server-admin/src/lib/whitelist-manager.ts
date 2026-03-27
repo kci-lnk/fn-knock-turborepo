@@ -1,6 +1,6 @@
-import type Redis from 'ioredis';
-import { v4 as uuidv4 } from 'uuid';
-import { goBackend } from './go-backend';
+import type Redis from "ioredis";
+import { v4 as uuidv4 } from "uuid";
+import { goBackend } from "./go-backend";
 import { configManager, redis } from "./redis";
 import { ipLocationRefs, ipLocationService } from "./ip-location";
 import { normalizeIp } from "./ip-normalize";
@@ -9,20 +9,20 @@ export interface WhiteListRecord {
   id: string;
   ip: string;
   expireAt: number | null;
-  source: 'manual' | 'auto';
+  source: "manual" | "auto";
   createdAt: number;
   comment?: string;
-  status: 'active' | 'expired' | 'deleted';
+  status: "active" | "expired" | "deleted";
   ipLocation?: string;
 }
 
-const PREFIX = 'fn_knock:whitelist';
+const PREFIX = "fn_knock:whitelist";
 const KEYS = {
   RECORDS: `${PREFIX}:records`,
   RECORD_ORDER: `${PREFIX}:record_order`,
   EXPIRY: `${PREFIX}:expiry`,
   IPS: `${PREFIX}:ips`,
-  DELETED: `${PREFIX}:deleted`
+  DELETED: `${PREFIX}:deleted`,
 };
 
 export class IPTablesWhiteListManager {
@@ -47,7 +47,10 @@ export class IPTablesWhiteListManager {
     }
   }
 
-  private async findRecordsByIPWithScan(ip: string, rebuildIndex: boolean): Promise<WhiteListRecord[]> {
+  private async findRecordsByIPWithScan(
+    ip: string,
+    rebuildIndex: boolean,
+  ): Promise<WhiteListRecord[]> {
     const normalizedIp = normalizeIp(ip) || String(ip || "").trim();
     const allRecords = await this.redis.hgetall(KEYS.RECORDS);
     const records: WhiteListRecord[] = [];
@@ -58,7 +61,7 @@ export class IPTablesWhiteListManager {
         const record = JSON.parse(raw) as WhiteListRecord;
         if (
           normalizeIp(record.ip || "") === normalizedIp &&
-          record.status === 'active'
+          record.status === "active"
         ) {
           records.push(record);
           ids.push(id);
@@ -81,19 +84,29 @@ export class IPTablesWhiteListManager {
     return records;
   }
 
-  async addWhiteList(record: Omit<WhiteListRecord, 'id' | 'createdAt' | 'status'>): Promise<string> {
-    const normalizedIp = normalizeIp(record.ip) || String(record.ip || "").trim();
-    await this.removeRecordsByIP(normalizedIp);
+  async addWhiteList(
+    record: Omit<WhiteListRecord, "id" | "createdAt" | "status">,
+    options?: { replaceSource?: "manual" | "auto" | "all" },
+  ): Promise<string> {
+    const normalizedIp =
+      normalizeIp(record.ip) || String(record.ip || "").trim();
+    const replaceSource = options?.replaceSource ?? record.source;
+    if (replaceSource === "all") {
+      await this.removeRecordsByIP(normalizedIp);
+    } else {
+      await this.removeRecordsByIP(normalizedIp, replaceSource);
+    }
     const id = `whitelist:${uuidv4()}`;
     const now = Math.floor(Date.now() / 1000);
-    const ipLocationStr = await ipLocationService.getCachedLocation(normalizedIp);
+    const ipLocationStr =
+      await ipLocationService.getCachedLocation(normalizedIp);
     const fullRecord: WhiteListRecord = {
       ...record,
       ip: normalizedIp,
       id,
       createdAt: now,
-      status: 'active',
-      ...(ipLocationStr ? { ipLocation: ipLocationStr } : {})
+      status: "active",
+      ...(ipLocationStr ? { ipLocation: ipLocationStr } : {}),
     };
 
     const ipKey = this.getIPRecordsKey(normalizedIp);
@@ -108,7 +121,9 @@ export class IPTablesWhiteListManager {
     }
 
     await pipeline.exec();
-    await ipLocationService.registerUsage(normalizedIp, [ipLocationRefs.whitelist(id)]);
+    await ipLocationService.registerUsage(normalizedIp, [
+      ipLocationRefs.whitelist(id),
+    ]);
     const config = await configManager.getConfig();
     if (config.run_type == 0) {
       await goBackend.allowIP(normalizedIp);
@@ -163,10 +178,15 @@ export class IPTablesWhiteListManager {
   /**
    * Get all active whitelist records
    */
-  async getAllActiveRecords(): Promise<WhiteListRecord[]> {
+  async getAllActiveRecords(
+    source?: "manual" | "auto",
+  ): Promise<WhiteListRecord[]> {
     const ids = await this.redis.zrevrange(KEYS.RECORD_ORDER, 0, -1);
     if (ids.length === 0) {
-      return this.rebuildRecordOrderIndex();
+      const rebuilt = await this.rebuildRecordOrderIndex();
+      return source
+        ? rebuilt.filter((record) => record.source === source)
+        : rebuilt;
     }
 
     const raws = await this.redis.hmget(KEYS.RECORDS, ...ids);
@@ -185,7 +205,7 @@ export class IPTablesWhiteListManager {
       }
       try {
         const record = JSON.parse(raw) as WhiteListRecord;
-        if (record.status === 'active') {
+        if (record.status === "active") {
           activeRecords.push(record);
           return;
         }
@@ -214,7 +234,9 @@ export class IPTablesWhiteListManager {
     await ipLocationService.hydrateIpLocationRecords(activeRecords, (record) =>
       ipLocationRefs.whitelist(record.id),
     );
-    return activeRecords;
+    return source
+      ? activeRecords.filter((record) => record.source === source)
+      : activeRecords;
   }
 
   private async rebuildRecordOrderIndex(): Promise<WhiteListRecord[]> {
@@ -224,7 +246,7 @@ export class IPTablesWhiteListManager {
     for (const raw of Object.values(allRecords)) {
       try {
         const record = JSON.parse(raw) as WhiteListRecord;
-        if (record.status === 'active') {
+        if (record.status === "active") {
           activeRecords.push(record);
         }
       } catch {
@@ -253,7 +275,7 @@ export class IPTablesWhiteListManager {
   async isIPWhitelisted(ip: string): Promise<boolean> {
     const normalizedIp = normalizeIp(ip) || String(ip || "").trim();
     if (!normalizedIp) return false;
-    return await this.redis.sismember(KEYS.IPS, normalizedIp) === 1;
+    return (await this.redis.sismember(KEYS.IPS, normalizedIp)) === 1;
   }
 
   /**
@@ -263,12 +285,12 @@ export class IPTablesWhiteListManager {
     const normalizedIp = normalizeIp(ip) || String(ip || "").trim();
     if (!normalizedIp) return false;
 
-    const isMember = await this.redis.sismember(KEYS.IPS, normalizedIp) === 1;
+    const isMember = (await this.redis.sismember(KEYS.IPS, normalizedIp)) === 1;
     const records = await this.findRecordsByIP(normalizedIp);
     if (!isMember && records.length === 0) return false;
 
     const now = Math.floor(Date.now() / 1000);
-    return records.some(r => !r.expireAt || r.expireAt > now);
+    return records.some((r) => !r.expireAt || r.expireAt > now);
   }
 
   private async findRecordsByIP(ip: string): Promise<WhiteListRecord[]> {
@@ -299,7 +321,7 @@ export class IPTablesWhiteListManager {
           removeFromSetOnly.push(id);
           return;
         }
-        if (record.status !== 'active') {
+        if (record.status !== "active") {
           removeFromAllIndexes.push(id);
           return;
         }
@@ -330,25 +352,34 @@ export class IPTablesWhiteListManager {
     return records;
   }
 
-  async getActiveRecordsByIP(ip: string, source?: 'manual' | 'auto'): Promise<WhiteListRecord[]> {
+  async getActiveRecordsByIP(
+    ip: string,
+    source?: "manual" | "auto",
+  ): Promise<WhiteListRecord[]> {
     const records = await this.findRecordsByIP(ip);
     const now = Math.floor(Date.now() / 1000);
     return records.filter((record) => {
-      if (record.status !== 'active') return false;
+      if (record.status !== "active") return false;
       if (record.expireAt && record.expireAt <= now) return false;
       if (source && record.source !== source) return false;
       return true;
     });
   }
 
-  async getLatestActiveRecordByIP(ip: string, source?: 'manual' | 'auto'): Promise<WhiteListRecord | null> {
+  async getLatestActiveRecordByIP(
+    ip: string,
+    source?: "manual" | "auto",
+  ): Promise<WhiteListRecord | null> {
     const records = await this.getActiveRecordsByIP(ip, source);
     return records[0] || null;
   }
 
-  async moveRecordToIP(id: string, newIp: string): Promise<WhiteListRecord | null> {
+  async moveRecordToIP(
+    id: string,
+    newIp: string,
+  ): Promise<WhiteListRecord | null> {
     const record = await this.getRecordById(id);
-    if (!record || record.status !== 'active') return null;
+    if (!record || record.status !== "active") return null;
 
     const now = Math.floor(Date.now() / 1000);
     if (record.expireAt && record.expireAt <= now) return null;
@@ -361,7 +392,8 @@ export class IPTablesWhiteListManager {
       return record;
     }
 
-    const ipLocationStr = await ipLocationService.getCachedLocation(normalizedNewIp);
+    const ipLocationStr =
+      await ipLocationService.getCachedLocation(normalizedNewIp);
 
     const nextRecord: WhiteListRecord = {
       ...record,
@@ -377,7 +409,9 @@ export class IPTablesWhiteListManager {
     pipeline.sadd(newIpKey, id);
     pipeline.sadd(KEYS.IPS, normalizedNewIp);
     await pipeline.exec();
-    await ipLocationService.registerUsage(normalizedNewIp, [ipLocationRefs.whitelist(id)]);
+    await ipLocationService.registerUsage(normalizedNewIp, [
+      ipLocationRefs.whitelist(id),
+    ]);
 
     const config = await configManager.getConfig();
     if (config.run_type === 0) {
@@ -399,7 +433,10 @@ export class IPTablesWhiteListManager {
   /**
    * Remove whitelist records by IP (optionally filtered by source)
    */
-  async removeRecordsByIP(ip: string, source?: 'manual' | 'auto'): Promise<boolean> {
+  async removeRecordsByIP(
+    ip: string,
+    source?: "manual" | "auto",
+  ): Promise<boolean> {
     const normalizedIp = normalizeIp(ip) || String(ip || "").trim();
     const records = await this.findRecordsByIP(normalizedIp);
     let removed = false;
@@ -410,6 +447,19 @@ export class IPTablesWhiteListManager {
       }
     }
     return removed;
+  }
+
+  async removeRecordsBySource(source: "manual" | "auto"): Promise<number> {
+    const records = await this.getAllActiveRecords(source);
+    let removedCount = 0;
+
+    for (const record of records) {
+      if (await this.removeWhiteList(record.id)) {
+        removedCount += 1;
+      }
+    }
+
+    return removedCount;
   }
 
   async findExpiredRecords(): Promise<WhiteListRecord[]> {
@@ -430,7 +480,7 @@ export class IPTablesWhiteListManager {
       }
       try {
         const record = JSON.parse(raw) as WhiteListRecord;
-        if (record.status !== 'active') {
+        if (record.status !== "active") {
           staleIds.push(id);
           return;
         }
@@ -455,7 +505,7 @@ export class IPTablesWhiteListManager {
       const pipeline = this.redis.pipeline();
 
       for (const record of expiredRecords) {
-        record.status = 'expired';
+        record.status = "expired";
         touchedIps.add(record.ip);
         const ipKey = this.getIPRecordsKey(record.ip);
         pipeline.hset(KEYS.RECORDS, record.id, JSON.stringify(record));
@@ -477,7 +527,7 @@ export class IPTablesWhiteListManager {
         }
       }
     } catch (error) {
-      console.error('Error processing expired records:', error);
+      console.error("Error processing expired records:", error);
     }
   }
 

@@ -47,6 +47,7 @@ export interface StreamMapping {
 }
 
 export type PasskeyRpMode = "auth_host" | "parent_domain";
+export type PostLoginIpGrantMode = "follow_session" | "disabled" | "custom";
 
 export interface SubdomainModeConfig {
   root_domain: string;
@@ -180,6 +181,8 @@ export interface ProtocolMappingFeatureConfig {
 export interface AuthCredentialSettings {
   session_ttl_seconds: number;
   remember_me_ttl_seconds: number;
+  post_login_ip_grant_mode: PostLoginIpGrantMode;
+  post_login_ip_grant_ttl_seconds: number | null;
 }
 
 export interface GatewayLogEntry {

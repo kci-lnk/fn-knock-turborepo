@@ -7,6 +7,7 @@ import { authLogManager } from "./auth-log";
 import { buildSessionCookie } from "./session-cookie";
 import { normalizeIp } from "./ip-normalize";
 import {
+  canBrowserSessionReachRedirectUri,
   resolveCookieDomain,
   resolvePublicAuthBaseUrl,
 } from "./subdomain-mode";
@@ -229,6 +230,7 @@ export const buildPasskeyBindInfo = async (
 
 export const handleLoginSuccess = async ({
   config,
+  request,
   clientIp,
   userAgent,
   authMethod,
@@ -241,6 +243,7 @@ export const handleLoginSuccess = async ({
   redirectTo,
 }: {
   config: Awaited<ReturnType<typeof configManager.getConfig>>;
+  request: Request;
   clientIp: string | null;
   userAgent: string;
   authMethod: "TOTP" | "PASSKEY";
@@ -267,24 +270,40 @@ export const handleLoginSuccess = async ({
     : "";
   const expireAt = Math.floor(Date.now() / 1000) + durationSeconds;
   const expiresAtISO = new Date(expireAt * 1000).toISOString();
-  const autoWhitelistComment = "登录后自动放行";
+  const autoWhitelistComment = "登录后自动授权";
+  const postLoginIpGrantMode =
+    config.run_type === 0
+      ? "disabled"
+      : credentialSettings.post_login_ip_grant_mode;
 
   let whitelistRecordId: string | null = null;
   let sessionComment: string | undefined;
+  let grantType: "browser_session" | "login_ip_grant" = "browser_session";
 
-  if (normalizedClientIp) {
-    whitelistRecordId = await whitelistManager.addWhiteList({
-      ip: normalizedClientIp,
-      expireAt,
-      source: "auto",
-      comment: autoWhitelistComment,
-    });
+  if (normalizedClientIp && postLoginIpGrantMode !== "disabled") {
+    const grantExpireAt =
+      postLoginIpGrantMode === "custom"
+        ? Math.floor(Date.now() / 1000) +
+          (credentialSettings.post_login_ip_grant_ttl_seconds ?? 3600)
+        : expireAt;
+    whitelistRecordId = await whitelistManager.addWhiteList(
+      {
+        ip: normalizedClientIp,
+        expireAt: grantExpireAt,
+        source: "auto",
+        comment: autoWhitelistComment,
+      },
+      {
+        replaceSource: "auto",
+      },
+    );
     const whitelistRecord =
       await whitelistManager.getRecordById(whitelistRecordId);
     sessionComment =
       whitelistRecord?.comment !== undefined
         ? whitelistRecord.comment
         : autoWhitelistComment;
+    grantType = "login_ip_grant";
   }
 
   await authLogManager.recordLog({
@@ -303,6 +322,11 @@ export const handleLoginSuccess = async ({
       method: authMethod,
       credentialId,
       credentialName,
+      grantType,
+      postLoginIpGrantMode:
+        grantType === "login_ip_grant" ? postLoginIpGrantMode : null,
+      postLoginIpGrantRecordId:
+        grantType === "login_ip_grant" ? whitelistRecordId : null,
       comment: sessionComment,
       ip: clientIpStr,
       userAgent,
@@ -312,7 +336,11 @@ export const handleLoginSuccess = async ({
     },
     maxAge,
   );
-  if (normalizedClientIp && whitelistRecordId) {
+  if (
+    normalizedClientIp &&
+    whitelistRecordId &&
+    postLoginIpGrantMode === "follow_session"
+  ) {
     await authMobilitySessionManager.registerLoginSession({
       sessionId,
       ip: normalizedClientIp,
@@ -326,15 +354,25 @@ export const handleLoginSuccess = async ({
     ]);
   }
   set.headers["Set-Cookie"] = buildSessionCookie(sessionId, maxAge, {
-    domain: resolveCookieDomain(config),
+    domain: resolveCookieDomain(config, request),
   });
+  const effectiveRedirectTo =
+    grantType === "browser_session" &&
+    !canBrowserSessionReachRedirectUri({
+      config,
+      request,
+      redirectUri: redirectTo,
+    })
+      ? undefined
+      : (redirectTo || undefined);
   return {
     success: true,
     message: "Login successful",
     data: {
       run_type: config.run_type,
+      grant_type: grantType,
       passkey: passkeyInfo,
-      redirect_to: redirectTo || undefined,
+      redirect_to: effectiveRedirectTo,
     },
   };
 };

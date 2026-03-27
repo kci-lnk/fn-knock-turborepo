@@ -10,6 +10,12 @@
           <CardDescription class="text-center" v-else>
             请输入您的六位数动态密码完成登录
           </CardDescription>
+          <div
+            v-if="logoutNotice"
+            class="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700"
+          >
+            {{ logoutNotice }}
+          </div>
         </CardHeader>
 
         <CardContent>
@@ -282,6 +288,7 @@ import {
   normalizeRequestOptions,
   serializeCredential,
 } from "@frontend-core/passkey/utils";
+import type { AuthGrantType } from "@frontend-core/auth/types";
 import type {
   CaptchaPublicSettings,
   CaptchaSubmission,
@@ -348,10 +355,29 @@ const captchaUnavailableReason = computed(
 const hasTurnstileSiteKey = computed(
   () => !!captchaConfig.value?.turnstile.site_key.trim(),
 );
-const redirectUri =
+const queryParams =
   typeof window !== "undefined"
-    ? new URLSearchParams(window.location.search).get("redirect_uri")
+    ? new URLSearchParams(window.location.search)
     : null;
+const redirectUri = queryParams?.get("redirect_uri") ?? null;
+const suppressAutoRedirect = queryParams?.get("logged_out") === "1";
+const bootstrapGrantType = ref<AuthGrantType | undefined>(undefined);
+const logoutNotice = computed(() => {
+  if (!suppressAutoRedirect) {
+    return "";
+  }
+
+  switch (bootstrapGrantType.value) {
+    case "login_ip_grant":
+      return "当前浏览器会话已退出，登录时授予的当前 IP 访问权限也已撤销。";
+    case "manual_whitelist":
+      return "当前浏览器会话已退出。管理员白名单仍然有效。";
+    case "local_exempt":
+      return "当前浏览器会话已退出。当前网络仍属于免白名单范围。";
+    default:
+      return "当前浏览器会话已退出，请重新验证。";
+  }
+});
 
 function onPowStateChange(ev: CustomEvent) {
   if (ev.detail.state === "verified") {
@@ -388,11 +414,12 @@ async function loadBootstrap() {
     startLocationPolling(bootstrap.client);
     captchaConfig.value = bootstrap.captcha;
     isPasskeyAvailable.value = !!bootstrap.passkey.available;
-    if (bootstrap.auth.authenticated) {
-      if (bootstrap.redirect_to) {
-        window.location.href = bootstrap.redirect_to;
-        return;
-      }
+    bootstrapGrantType.value = bootstrap.auth.grant_type;
+    if (bootstrap.redirect_to && !suppressAutoRedirect) {
+      window.location.replace(bootstrap.redirect_to);
+      return;
+    }
+    if (bootstrap.auth.authenticated && !suppressAutoRedirect) {
       await router.replace("/");
       return;
     }
@@ -560,13 +587,13 @@ function completeLogin(runType: 0 | 1 | 3, redirectTo?: string | null) {
   pendingRedirectTo.value = null;
   markPendingLogoutDelay();
   if (redirectTo) {
-    window.location.href = redirectTo;
+    window.location.replace(redirectTo);
     return;
   }
   if (runType === 0) {
-    router.push("/");
+    router.replace("/");
   } else {
-    window.location.href = "/";
+    window.location.replace("/");
   }
 }
 

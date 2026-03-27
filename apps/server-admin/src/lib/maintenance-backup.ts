@@ -1023,7 +1023,7 @@ class MaintenanceBackupService {
 
     if (config.run_type === 0) {
       await attempt("直连模式白名单", async () => {
-        const records = await whitelistManager.getAllActiveRecords();
+        const records = await whitelistManager.getAllActiveRecords("manual");
         for (const record of records) {
           await goBackend.allowIP(record.ip);
         }

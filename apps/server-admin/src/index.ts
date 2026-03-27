@@ -209,6 +209,7 @@ const AUTH_STATIC_PATH_FROM_ENV = process.env.AUTH_STATIC_PATH?.trim();
 const AUTH_DEV_STATIC_PATH = join(__dirname, "../../server-auth-view/dist");
 const AUTH_PROD_STATIC_PATH = join(__dirname, "../../../server-auth-view/dist");
 const AUTH_PUBLIC_PREFIX = "/auth";
+const AUTH_LOCAL_PREFIX = "/__auth__";
 const AUTH_STATIC_PATH =
   AUTH_STATIC_PATH_FROM_ENV ||
   (existsSync(AUTH_DEV_STATIC_PATH)
@@ -227,10 +228,20 @@ if (!existsSync(AUTH_STATIC_PATH)) {
 }
 console.log(`Serving auth static files from: ${AUTH_STATIC_PATH}`);
 const normalizeAuthPath = (path: string) => {
-  if (path === AUTH_PUBLIC_PREFIX || path === `${AUTH_PUBLIC_PREFIX}/`)
+  if (
+    path === AUTH_PUBLIC_PREFIX ||
+    path === `${AUTH_PUBLIC_PREFIX}/` ||
+    path === AUTH_LOCAL_PREFIX ||
+    path === `${AUTH_LOCAL_PREFIX}/`
+  ) {
     return "/";
-  if (path.startsWith(`${AUTH_PUBLIC_PREFIX}/`))
+  }
+  if (path.startsWith(`${AUTH_PUBLIC_PREFIX}/`)) {
     return path.slice(AUTH_PUBLIC_PREFIX.length);
+  }
+  if (path.startsWith(`${AUTH_LOCAL_PREFIX}/`)) {
+    return path.slice(AUTH_LOCAL_PREFIX.length);
+  }
   return path;
 };
 
@@ -238,6 +249,7 @@ authApp.use(cors());
 authApp.use(hmacMiddleware);
 authApp.use(authRoutes);
 authApp.use(new Elysia({ prefix: AUTH_PUBLIC_PREFIX }).use(authRoutes));
+authApp.use(new Elysia({ prefix: AUTH_LOCAL_PREFIX }).use(authRoutes));
 
 const isRoot = process.getuid && process.getuid() === 0;
 
@@ -330,6 +342,9 @@ authApp.get("/index.html", () => serveInjectedIndex(AUTH_STATIC_PATH));
 authApp.get("/auth", () => serveInjectedIndex(AUTH_STATIC_PATH));
 authApp.get("/auth/", () => serveInjectedIndex(AUTH_STATIC_PATH));
 authApp.get("/auth/index.html", () => serveInjectedIndex(AUTH_STATIC_PATH));
+authApp.get("/__auth__", () => serveInjectedIndex(AUTH_STATIC_PATH));
+authApp.get("/__auth__/", () => serveInjectedIndex(AUTH_STATIC_PATH));
+authApp.get("/__auth__/index.html", () => serveInjectedIndex(AUTH_STATIC_PATH));
 authApp.get("/__fn-knock/runtime-hmac-secret", ({ set }) => {
   if (!EXPOSE_RUNTIME_HMAC_SECRET) {
     set.status = 404;
@@ -344,10 +359,17 @@ authApp.get("/auth/__fn-knock/runtime-hmac-secret", ({ set }) => {
   }
   return { success: true, data: { hmacSecret: RUNTIME_HMAC_SECRET } };
 });
+authApp.get("/__auth__/__fn-knock/runtime-hmac-secret", ({ set }) => {
+  if (!EXPOSE_RUNTIME_HMAC_SECRET) {
+    set.status = 404;
+    return { success: false, message: "Not found" };
+  }
+  return { success: true, data: { hmacSecret: RUNTIME_HMAC_SECRET } };
+});
 authApp.use(
   createStaticFilesPlugin({
     root: AUTH_STATIC_PATH,
-    mountPrefixes: ["/", "/auth"],
+    mountPrefixes: ["/", "/auth", "/__auth__"],
   }),
 );
 

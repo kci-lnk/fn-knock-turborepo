@@ -8,7 +8,7 @@
           <Button @click="showAddDialog = true">添加 IP</Button>
         </div>
       </CardTitle>
-      <CardDescription>管理直连模式下允许连接的IP地址。</CardDescription>
+      <CardDescription>{{ pageDescription }}</CardDescription>
     </CardHeader>
     <CardContent>
       <div class="flex items-center mb-4 space-x-2" v-if="!isInitializing">
@@ -93,7 +93,7 @@
                     record.source === 'manual' ? 'default' : 'secondary'
                   "
                 >
-                  {{ record.source === "manual" ? "手动" : "自动" }}
+                  {{ record.source === "manual" ? "手动" : "登录授权" }}
                 </Badge>
               </TableCell>
               <TableCell
@@ -244,7 +244,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import {
   Card,
   CardHeader,
@@ -296,13 +296,24 @@ import {
 import { useLocalPagedList } from "@admin-shared/composables/useLocalPagedList";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { docsUrls } from "../lib/docs";
+import { useConfigStore } from "../store/config";
 
 // 引入统一封装的 API 和类型
 import { WhitelistAPI, type WhiteListRecord } from "../lib/api";
 
 const records = ref<WhiteListRecord[]>([]);
+const configStore = useConfigStore();
 const isInitializing = ref(true);
 const showInitializingSkeleton = useDelayedLoading(isInitializing);
+const showsLoginGrantRecords = computed(
+  () =>
+    configStore.config?.run_type === 1 || configStore.config?.run_type === 3,
+);
+const pageDescription = computed(() =>
+  showsLoginGrantRecords.value
+    ? "查看手动白名单与登录后自动授权记录。自动记录会随会话策略或 TTL 变化。"
+    : "管理直连模式下允许连接的 IP 地址。",
+);
 
 const removingId = ref<string | null>(null);
 const { run: runRemoveRecord } = useAsyncAction({

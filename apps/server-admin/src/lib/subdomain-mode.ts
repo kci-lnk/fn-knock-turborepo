@@ -84,7 +84,32 @@ const normalizeDomainName = (value: string | undefined | null): string =>
   String(value ?? "")
     .trim()
     .toLowerCase()
+    .replace(/^\./, "")
     .replace(/\.$/, "");
+
+const extractHostname = (value: string | undefined | null): string => {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) return "";
+
+  try {
+    return new URL(`https://${normalized}`).hostname.toLowerCase();
+  } catch {
+    return normalizeDomainName(normalized.replace(/:\d+$/, ""));
+  }
+};
+
+const isHostWithinDomain = (host: string, domain: string): boolean => {
+  const normalizedHost = normalizeDomainName(host);
+  const normalizedDomain = normalizeDomainName(domain);
+  if (!normalizedHost || !normalizedDomain) return false;
+  return (
+    normalizedHost === normalizedDomain ||
+    normalizedHost.endsWith(`.${normalizedDomain}`)
+  );
+};
+
+export const resolveRequestHostname = (request: Request): string =>
+  extractHostname(resolveForwardedHost(request));
 
 const isWildcardDomain = (value: string): boolean =>
   normalizeDomainName(value).startsWith("*.");
@@ -588,13 +613,177 @@ export const resolvePublicAuthBaseUrl = (
 };
 
 export const resolveCookieDomain = (
-  config?: Pick<AppConfig, "subdomain_mode"> | null,
+  config?: Pick<
+    AppConfig,
+    "subdomain_mode" | "run_type" | "reverse_proxy_submode"
+  > | null,
+  request?: Request | null,
 ): string | undefined => {
+  const requestHost = request ? resolveRequestHostname(request) : "";
+  const canUseCookieDomain = (candidate: string): boolean =>
+    !requestHost || isHostWithinDomain(requestHost, candidate);
+
   const fromConfig = config?.subdomain_mode?.cookie_domain?.trim();
-  if (fromConfig) return fromConfig;
+  if (fromConfig && canUseCookieDomain(fromConfig)) return fromConfig;
 
   const fromEnv = process.env.SESSION_COOKIE_DOMAIN?.trim();
-  return fromEnv || undefined;
+  if (fromEnv && canUseCookieDomain(fromEnv)) return fromEnv;
+
+  if (isAnySubdomainRoutingMode(config)) {
+    const rootDomain = normalizeDomainName(config?.subdomain_mode?.root_domain);
+    if (rootDomain && requestHost && isHostWithinDomain(requestHost, rootDomain)) {
+      return rootDomain;
+    }
+  }
+
+  return undefined;
+};
+
+const buildSharedAuthLoginUrl = ({
+  authBaseUrl,
+  redirectUri,
+}: {
+  authBaseUrl: string;
+  redirectUri?: string | null;
+}): string | null => {
+  const normalizedBase = trimTrailingSlash(authBaseUrl);
+  if (!normalizedBase) return null;
+
+  try {
+    const loginUrl = new URL(`${normalizedBase}/#/login`);
+    if (redirectUri) {
+      loginUrl.searchParams.set("redirect_uri", redirectUri);
+    }
+    return loginUrl.toString();
+  } catch {
+    return null;
+  }
+};
+
+export const resolveSharedAuthLoginRedirect = ({
+  config,
+  request,
+  redirectUri,
+}: {
+  config: Pick<
+    AppConfig,
+    "subdomain_mode" | "host_mappings" | "run_type" | "reverse_proxy_submode"
+  >;
+  request: Request;
+  redirectUri?: string | null;
+}): string | null => {
+  if (!isAnySubdomainRoutingMode(config)) {
+    return null;
+  }
+
+  const sharedAuthBaseUrl = resolvePublicAuthBaseUrl(config);
+  if (!sharedAuthBaseUrl) {
+    return null;
+  }
+
+  let sharedAuthUrl: URL;
+  try {
+    sharedAuthUrl = new URL(sharedAuthBaseUrl);
+  } catch {
+    return null;
+  }
+
+  const requestProto = resolveForwardedProto(request);
+  const requestHost = resolveForwardedHost(request);
+  if (!requestHost) {
+    return null;
+  }
+
+  const currentOrigin = `${requestProto}://${requestHost}`;
+  try {
+    if (sharedAuthUrl.origin === new URL(currentOrigin).origin) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+
+  const sharedAuthRequest = new Request(sharedAuthUrl.toString());
+  if (
+    !canBrowserSessionReachRedirectUri({
+      config,
+      request: sharedAuthRequest,
+      redirectUri: currentOrigin,
+    })
+  ) {
+    return null;
+  }
+
+  const safeRedirectUri = resolveSafeRedirectUri({
+    config,
+    request,
+    redirectUri,
+  });
+
+  return buildSharedAuthLoginUrl({
+    authBaseUrl: sharedAuthBaseUrl,
+    redirectUri: safeRedirectUri,
+  });
+};
+
+export const canBrowserSessionReachRedirectUri = ({
+  config,
+  request,
+  redirectUri,
+}: {
+  config?: Pick<
+    AppConfig,
+    "subdomain_mode" | "run_type" | "reverse_proxy_submode"
+  > | null;
+  request: Request;
+  redirectUri?: string | null;
+}): boolean => {
+  const raw = redirectUri?.trim();
+  if (!raw || raw.startsWith("/")) return true;
+
+  let target: URL;
+  try {
+    target = new URL(raw);
+  } catch {
+    return false;
+  }
+
+  const targetHost = normalizeDomainName(target.hostname);
+  if (!targetHost) return false;
+
+  const cookieDomain = resolveCookieDomain(config, request);
+  if (cookieDomain) {
+    return isHostWithinDomain(targetHost, cookieDomain);
+  }
+
+  const requestHost = resolveRequestHostname(request);
+  return normalizeDomainName(requestHost) === targetHost;
+};
+
+export const listCookieScopeIncompatibleHosts = (
+  config: Pick<
+    AppConfig,
+    "host_mappings" | "subdomain_mode" | "run_type" | "reverse_proxy_submode"
+  >,
+): string[] => {
+  if (!isAnySubdomainRoutingMode(config)) {
+    return [];
+  }
+
+  const sharedCookieDomain = normalizeDomainName(
+    config.subdomain_mode?.cookie_domain?.trim() ||
+      process.env.SESSION_COOKIE_DOMAIN?.trim() ||
+      config.subdomain_mode?.root_domain?.trim(),
+  );
+
+  return (config.host_mappings || [])
+    .filter((mapping) => mapping.use_auth && !isAuthServiceMapping(mapping))
+    .map((mapping) => normalizeDomainName(mapping.host))
+    .filter(
+      (host): host is string =>
+        Boolean(host) &&
+        (!sharedCookieDomain || !isHostWithinDomain(host, sharedCookieDomain)),
+    );
 };
 
 export const buildGatewayAuthConfig = (
@@ -663,13 +852,13 @@ export const buildGatewayAuthConfig = (
   return {
     auth_port: authPort,
     auth_url: "/api/auth/verify",
-    login_url: "/#/login",
+    login_url: "/login",
     logout_url: "/api/auth/logout",
     preflight_url: "/api/auth/preflight",
     auth_cache_ttl_seconds: config.subdomain_mode?.auth_cache_ttl_seconds ?? 1,
     auth_cache_unauthorized_ttl_seconds:
       config.subdomain_mode?.auth_cache_unauthorized_ttl_seconds ?? 1,
-    public_auth_base_url: publicAuthBaseUrl,
+    public_auth_base_url: "",
     public_http_port: publicHttpPort,
     public_https_port: publicHttpsPort,
     auth_host: authHost,

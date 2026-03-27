@@ -10,6 +10,7 @@ import {
   applyAuthResponseHeaders,
   hasWhitelistAccess,
   hasNormalAccessContext,
+  reliesOnBrowserSessionCookie,
   resolveAuthAccess,
   resolveRequestedAccessMode,
 } from "../lib/auth-access";
@@ -29,19 +30,60 @@ import {
 import { fnosShareBypassService } from "../lib/fnos-share-bypass";
 import { captchaService } from "../lib/captcha";
 import {
+  canBrowserSessionReachRedirectUri,
   resolveCookieDomain,
+  resolvePublicAuthBaseUrl,
+  resolveRequestHostname,
+  resolveSharedAuthLoginRedirect,
   resolveSafeRedirectUri,
 } from "../lib/subdomain-mode";
 
 const buildPasskeyStatus = async (request: Request) => {
+  const config = await configManager.getConfig();
   const passkeys = await configManager.getPasskeys();
   const rpInfo = await getRpInfo(request);
+  const requestHost = resolveRequestHostname(request);
+  const parentRpId = rpInfo.rpID.trim().toLowerCase();
+  const sharedAuthBaseUrl = resolvePublicAuthBaseUrl(config);
+  let sharedAuthHost = "";
+  if (sharedAuthBaseUrl) {
+    try {
+      sharedAuthHost = new URL(sharedAuthBaseUrl).hostname.toLowerCase();
+    } catch {
+      sharedAuthHost = "";
+    }
+  }
+  const isPasskeyAvailableOnCurrentHost =
+    rpInfo.mode === "parent_domain"
+      ? !!parentRpId &&
+        (requestHost === parentRpId ||
+          requestHost.endsWith(`.${parentRpId}`))
+      : !sharedAuthHost || requestHost === sharedAuthHost;
   return {
-    available: passkeys.length > 0,
+    available: passkeys.length > 0 && isPasskeyAvailableOnCurrentHost,
     mode: rpInfo.mode,
     rp_id: rpInfo.rpID,
   };
 };
+
+const resolveAuthUiBasePrefix = (request: Request): string => {
+  const pathname = new URL(request.url).pathname;
+  if (pathname === "/__auth__" || pathname.startsWith("/__auth__/")) {
+    return "/__auth__";
+  }
+  if (pathname === "/auth" || pathname.startsWith("/auth/")) {
+    return "/auth";
+  }
+  return "";
+};
+
+const buildPostLogoutLocation = (request: Request): string => {
+  const basePrefix = resolveAuthUiBasePrefix(request);
+  const params = new URLSearchParams({ logged_out: "1" });
+  return `${basePrefix}/login?${params.toString()}`;
+};
+
+const AUTO_IP_GRANT_COMMENT = "登录后自动授权";
 
 export const authRoutes = new Elysia({ prefix: "/api/auth" })
   .get("/bootstrap", async ({ request, set }) => {
@@ -58,13 +100,31 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
     ]);
 
     applyAuthResponseHeaders(set, auth);
+    const requestedRedirectUri = new URL(request.url).searchParams.get(
+      "redirect_uri",
+    );
     const redirectTo = auth.authorized
       ? resolveSafeRedirectUri({
           config,
           request,
-          redirectUri: new URL(request.url).searchParams.get("redirect_uri"),
+          redirectUri: requestedRedirectUri,
         })
-      : null;
+      : resolveSharedAuthLoginRedirect({
+          config,
+          request,
+          redirectUri: requestedRedirectUri,
+        });
+    const reachableRedirectTo =
+      auth.authorized &&
+      redirectTo &&
+      reliesOnBrowserSessionCookie(auth.grantType) &&
+      !canBrowserSessionReachRedirectUri({
+        config,
+        request,
+        redirectUri: redirectTo,
+      })
+        ? null
+        : redirectTo;
 
     return {
       success: true,
@@ -72,11 +132,12 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
         auth: {
           authenticated: auth.authorized,
           message: auth.message,
+          grant_type: auth.grantType,
         },
         client,
         captcha,
         passkey,
-        redirect_to: redirectTo || undefined,
+        redirect_to: reachableRedirectTo || undefined,
       },
     };
   })
@@ -104,6 +165,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
         auth: {
           authenticated: true,
           message: auth.message,
+          grant_type: auth.grantType,
         },
         client,
         passkey,
@@ -229,6 +291,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
       });
       return await handleLoginSuccess({
         config,
+        request,
         clientIp,
         userAgent,
         authMethod: "TOTP",
@@ -262,12 +325,26 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
   .use(passkeyRoutes)
   .get("/logout", async ({ request, set }) => {
     const config = await configManager.getConfig();
-    const cookieDomain = resolveCookieDomain(config);
+    const cookieDomain = resolveCookieDomain(config, request);
     const { sessionId } = authMobilitySessionManager.inspectRequest(request);
     let loginIpFromSession: string | null = null;
+    let loginIpGrantRecordIdFromSession: string | null = null;
+    let shouldRevokeAutoIpGrant = false;
     if (sessionId) {
       const session = await configManager.getSession(sessionId);
       loginIpFromSession = session?.ip || null;
+      loginIpGrantRecordIdFromSession =
+        session?.postLoginIpGrantRecordId || null;
+      shouldRevokeAutoIpGrant =
+        session?.grantType === "login_ip_grant" &&
+        session?.postLoginIpGrantMode === "custom";
+      if (
+        !shouldRevokeAutoIpGrant &&
+        session?.comment === AUTO_IP_GRANT_COMMENT &&
+        config.auth_credential_settings?.post_login_ip_grant_mode === "custom"
+      ) {
+        shouldRevokeAutoIpGrant = true;
+      }
       await authMobilitySessionManager.destroySession(sessionId);
       await configManager.deleteSession(sessionId);
     }
@@ -279,6 +356,15 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
         loginIpFromSession || clientIp,
         "auto",
       );
+    } else if (shouldRevokeAutoIpGrant) {
+      if (loginIpGrantRecordIdFromSession) {
+        await whitelistManager.removeWhiteList(loginIpGrantRecordIdFromSession);
+      } else {
+        await whitelistManager.removeRecordsByIP(
+          loginIpFromSession || clientIp,
+          "auto",
+        );
+      }
     }
 
     await authLogManager.recordLog({
@@ -289,7 +375,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
     });
 
     const headers = new Headers({
-      Location: "/",
+      Location: buildPostLogoutLocation(request),
     });
     headers.append(
       "Set-Cookie",

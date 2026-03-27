@@ -15,7 +15,11 @@ const IGNORED_PATHS = new Set([
 
 export const hmacMiddleware = new Elysia({ name: 'hmac-middleware' })
     .onBeforeHandle({ as: 'global' }, async ({ request, path, set }) => {
-        const normalizedPath = path.startsWith("/auth/api") ? path.slice("/auth".length) : path;
+        const normalizedPath = path.startsWith("/auth/api")
+            ? path.slice("/auth".length)
+            : path.startsWith("/__auth__/api")
+                ? path.slice("/__auth__".length)
+                : path;
         if (!normalizedPath.startsWith("/api") || IGNORED_PATHS.has(normalizedPath)) {
             return;
         }

@@ -30,6 +30,8 @@ const EVENT_LABELS: Record<SystemEventEnvelope["type"], string> = {
   FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED: "Cloudflared 已断开",
 };
 
+const APP_UPDATE_RELEASE_NOTES_PREVIEW_LENGTH = 360;
+
 export const formatNotificationEventLabel = (
   type: SystemEventEnvelope["type"],
 ) => EVENT_LABELS[type] || type;
@@ -716,7 +718,7 @@ const buildNotificationDetails = (args: {
         ] || readPayloadValue(event, "check_reason");
       const releaseNotes = truncateText(
         readPayloadValue(event, "release_notes"),
-        160,
+        APP_UPDATE_RELEASE_NOTES_PREVIEW_LENGTH,
       );
 
       summary = `发现新版本 ${latestVersion}`;

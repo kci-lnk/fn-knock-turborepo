@@ -17,6 +17,7 @@ import {
   type WAFConfig as GatewayWAFConfig,
   type WAFStatus,
 } from "../go-backend";
+import { syncCommonAuthLocationExemptionsToGateway } from "../common-auth-locations";
 import {
   configManager,
   DEFAULT_WAF_CONFIG,
@@ -156,6 +157,7 @@ export type WAFConfigPatch = Partial<
     WAFConfig,
     | "enabled"
     | "system_rules_auto_update_enabled"
+    | "common_location_exempt_enabled"
     | "paranoia_level"
     | "executing_paranoia_level"
   >
@@ -1046,6 +1048,15 @@ export const applyWAFConfig = async (
   if (shouldApplyToGateway) {
     await applyWAFConfigToGateway(saved);
   }
+  if (
+    shouldApplyToGateway ||
+    Object.prototype.hasOwnProperty.call(
+      patch,
+      "common_location_exempt_enabled",
+    )
+  ) {
+    await syncCommonAuthLocationExemptionsToGateway();
+  }
   return getWAFDetails();
 };
 
@@ -1072,6 +1083,7 @@ export const syncWAFToGatewayOnBoot = async (): Promise<void> => {
   }
 
   await syncWAFConfigToGateway(config);
+  await syncCommonAuthLocationExemptionsToGateway();
   if (config.enabled) {
     const response = await goBackend.reloadWAFRules(toGatewayWAFConfig(config));
     if (!response.success) {

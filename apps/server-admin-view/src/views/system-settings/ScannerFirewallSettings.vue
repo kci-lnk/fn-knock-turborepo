@@ -29,6 +29,7 @@ const { isPending: isSaving, run: runSaveSettings } = useAsyncAction({
 
 const form = reactive({
   enabled: true,
+  commonLocationExemptEnabled: false,
   windowMinutes: 5,
   threshold: 3,
   blacklistTtlDays: 90,
@@ -40,6 +41,8 @@ const isDirty = computed(() => {
   const compareDays = Math.ceil(settings.value.blacklistTtlSeconds / 86400);
   return (
     settings.value.enabled !== form.enabled ||
+    settings.value.commonLocationExemptEnabled !==
+      form.commonLocationExemptEnabled ||
     settings.value.windowMinutes !== Number(form.windowMinutes) ||
     settings.value.threshold !== Number(form.threshold) ||
     compareDays !== Number(form.blacklistTtlDays)
@@ -49,6 +52,7 @@ const isDirty = computed(() => {
 const applyFromSettings = (data: ScannerSettings) => {
   settings.value = data;
   form.enabled = data.enabled;
+  form.commonLocationExemptEnabled = data.commonLocationExemptEnabled === true;
   form.windowMinutes = data.windowMinutes;
   form.threshold = data.threshold;
   form.blacklistTtlDays = Math.max(1, Math.ceil(data.blacklistTtlSeconds / 86400));
@@ -70,6 +74,7 @@ const saveSettings = async () => {
     () => {
       const payload = {
         enabled: form.enabled,
+        commonLocationExemptEnabled: form.commonLocationExemptEnabled,
         windowMinutes: Math.max(1, Number(form.windowMinutes) || 1),
         threshold: Math.max(1, Number(form.threshold) || 1),
         blacklistTtlSeconds: Math.max(60, Math.floor((Number(form.blacklistTtlDays) || 1) * 86400)),
@@ -129,6 +134,18 @@ const goToBlacklist = () => {
       </div>
 
       <div v-show="form.enabled" class="divide-y animate-in fade-in slide-in-from-top-2 duration-300">
+        <div class="flex items-center justify-between p-6 gap-4">
+          <div class="space-y-1 pr-6">
+            <Label class="text-base font-medium cursor-pointer" @click="form.commonLocationExemptEnabled = !form.commonLocationExemptEnabled">
+              常用地豁免
+            </Label>
+            <div class="text-sm text-muted-foreground">
+              来自最近登录常用地区的请求不会触发扫描器黑名单拦截。
+            </div>
+          </div>
+          <Switch v-model="form.commonLocationExemptEnabled" />
+        </div>
+
         
         <div class="flex flex-col sm:flex-row sm:items-center justify-between p-6 gap-4">
           <div class="space-y-1 pr-6">

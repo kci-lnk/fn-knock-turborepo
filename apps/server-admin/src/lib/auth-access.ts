@@ -2,6 +2,7 @@ import { authMobilitySessionManager } from "./auth-mobility-session";
 import { fnosShareBypassService } from "./fnos-share-bypass";
 import { ipLocationService } from "./ip-location";
 import { recentAuthIPsManager } from "./recent-auth-ips";
+import { scheduleCommonAuthLocationsRebuild } from "./common-auth-locations";
 import { configManager } from "./redis";
 import { whitelistManager } from "./whitelist-manager";
 import { getClientIp } from "./auth-request";
@@ -104,6 +105,11 @@ export const hasWhitelistAccess = async (
   return whitelistManager.hasValidIP(clientIp);
 };
 
+const recordRecentVerifiedIP = async (clientIp: string): Promise<void> => {
+  await recentAuthIPsManager.recordVerified(clientIp);
+  scheduleCommonAuthLocationsRebuild({ reason: "recent-auth-ip" });
+};
+
 export const resolveAuthAccess = async (
   request: Request,
   clientIp = getClientIp(request),
@@ -112,7 +118,7 @@ export const resolveAuthAccess = async (
   const whitelistExempt = isWhitelistExemptIp(clientIp);
   if (whitelistExempt) {
     await authMobilitySessionManager.syncTrustedRequest(request, clientIp);
-    await recentAuthIPsManager.recordVerified(clientIp);
+    await recordRecentVerifiedIP(clientIp);
     return {
       authorized: true,
       clientIp,
@@ -126,7 +132,7 @@ export const resolveAuthAccess = async (
   const ipGrantType = await resolveIpGrantType(clientIp);
   if (ipGrantType) {
     await authMobilitySessionManager.syncTrustedRequest(request, clientIp);
-    await recentAuthIPsManager.recordVerified(clientIp);
+    await recordRecentVerifiedIP(clientIp);
     return {
       authorized: true,
       clientIp,
@@ -155,7 +161,7 @@ export const resolveAuthAccess = async (
     clientIp,
   );
   if (browserSessionDecision.authorized) {
-    await recentAuthIPsManager.recordVerified(clientIp);
+    await recordRecentVerifiedIP(clientIp);
     return {
       authorized: true,
       clientIp,

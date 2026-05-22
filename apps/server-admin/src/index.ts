@@ -100,6 +100,7 @@ import {
 } from "./lib/docker-admin-panel";
 import { autoHttpsRedirectManager } from "./lib/auto-https-redirect";
 import { goBackend } from "./lib/go-backend";
+import { rebuildCommonAuthLocationsRuntimeState } from "./lib/common-auth-locations";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const runtimeProfile = getRuntimeProfile();
@@ -710,6 +711,21 @@ app.use(
 
 app.use(
   cron({
+    name: "common-auth-locations-reconcile",
+    pattern: "*/5 * * * *",
+    run() {
+      void rebuildCommonAuthLocationsRuntimeState().catch((error) => {
+        console.error(
+          "[common-auth-locations] periodic reconcile failed:",
+          error,
+        );
+      });
+    },
+  }),
+);
+
+app.use(
+  cron({
     name: "terminal-session-cleanup",
     pattern: "* * * * *",
     run() {
@@ -900,6 +916,9 @@ syncWAFToGatewayOnBoot()
     startWAFSystemRulesAutoUpdate();
     wafCollector.start();
   });
+void rebuildCommonAuthLocationsRuntimeState().catch((error) => {
+  console.error("[common-auth-locations] failed to rebuild on boot:", error);
+});
 syncSSLDeploymentToGateway(config).catch((error) => {
   console.error("[SSL] failed to sync gateway deployment on boot:", error);
 });

@@ -65,6 +65,7 @@ export const wafRoutes = new Elysia({
       body: t.Object({
         enabled: t.Optional(t.Boolean()),
         system_rules_auto_update_enabled: t.Optional(t.Boolean()),
+        common_location_exempt_enabled: t.Optional(t.Boolean()),
         paranoia_level: t.Optional(t.Number()),
         executing_paranoia_level: t.Optional(t.Number()),
       }),

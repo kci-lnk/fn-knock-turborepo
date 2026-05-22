@@ -218,6 +218,7 @@ export type WAFMode = "off" | "detection" | "blocking";
 export interface WAFConfig {
   enabled: boolean;
   system_rules_auto_update_enabled: boolean;
+  common_location_exempt_enabled: boolean;
   mode: WAFMode;
   active_bundle_id: string;
   rules_dir: string;

@@ -43,6 +43,7 @@ export const scannerRoutes = new Elysia({
         windowMinutes: body.windowMinutes,
         threshold: body.threshold,
         blacklistTtlSeconds: body.blacklistTtlSeconds,
+        commonLocationExemptEnabled: body.commonLocationExemptEnabled,
       });
       return { success: true, data: settings };
     },
@@ -52,6 +53,7 @@ export const scannerRoutes = new Elysia({
         windowMinutes: t.Number(),
         threshold: t.Number(),
         blacklistTtlSeconds: t.Number(),
+        commonLocationExemptEnabled: t.Optional(t.Boolean()),
       }),
     }),
   )

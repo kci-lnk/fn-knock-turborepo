@@ -168,6 +168,13 @@ export interface ReverseProxyThrottleExemptIPsRuntime {
   updated_at?: string | null;
 }
 
+export interface CommonLocationExemptionsRuntime {
+  enabled: boolean;
+  waf_enabled: boolean;
+  cidrs: string[];
+  updated_at?: string | null;
+}
+
 export interface GatewayLoggingDirectory {
   logs_dir: string;
 }
@@ -633,6 +640,18 @@ export class GoBackendService {
   ): Promise<GoResponse<ReverseProxyThrottleExemptIPsRuntime>> {
     return this.request<ReverseProxyThrottleExemptIPsRuntime>(
       "/api/runtime/reverse-proxy-throttle-exempt-ips",
+      "POST",
+      config,
+      this.requestTimeoutMs,
+      { suppressStatusLog: [404] },
+    );
+  }
+
+  async setCommonLocationExemptions(
+    config: CommonLocationExemptionsRuntime,
+  ): Promise<GoResponse<CommonLocationExemptionsRuntime>> {
+    return this.request<CommonLocationExemptionsRuntime>(
+      "/api/runtime/common-location-exemptions",
       "POST",
       config,
       this.requestTimeoutMs,

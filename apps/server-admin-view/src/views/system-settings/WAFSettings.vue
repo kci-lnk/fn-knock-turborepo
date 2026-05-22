@@ -91,6 +91,7 @@ const activeRulePreview = ref<WAFRuleFileContent | null>(null);
 const form = reactive({
   enabled: false,
   system_rules_auto_update_enabled: true,
+  common_location_exempt_enabled: false,
   paranoia_level: 1,
   executing_paranoia_level: 1,
 });
@@ -211,6 +212,8 @@ const applyFromDetails = (data: WAFDetails) => {
   form.enabled = data.config.enabled === true;
   form.system_rules_auto_update_enabled =
     data.config.system_rules_auto_update_enabled !== false;
+  form.common_location_exempt_enabled =
+    data.config.common_location_exempt_enabled === true;
   const level = clampLevel(data.config.paranoia_level, 1);
   form.paranoia_level = level;
   form.executing_paranoia_level = level;
@@ -237,6 +240,7 @@ const saveSettings = async (successMessage = "WAF 设置已更新") => {
       WAFAPI.updateConfig({
         enabled: form.enabled,
         system_rules_auto_update_enabled: form.system_rules_auto_update_enabled,
+        common_location_exempt_enabled: form.common_location_exempt_enabled,
         paranoia_level: form.paranoia_level,
         executing_paranoia_level: form.executing_paranoia_level,
       }),
@@ -273,6 +277,7 @@ const handleEnabledChange = async (enabled: boolean) => {
       return WAFAPI.updateConfig({
         enabled,
         system_rules_auto_update_enabled: form.system_rules_auto_update_enabled,
+        common_location_exempt_enabled: form.common_location_exempt_enabled,
         paranoia_level: form.paranoia_level,
         executing_paranoia_level: form.executing_paranoia_level,
       });
@@ -289,6 +294,28 @@ const handleEnabledChange = async (enabled: boolean) => {
       },
       onError: () => {
         form.enabled = previousEnabled;
+        if (details.value) applyFromDetails(details.value);
+      },
+    },
+  );
+};
+
+const handleCommonLocationExemptChange = async (enabled: boolean) => {
+  if (form.common_location_exempt_enabled === enabled || isBusy.value) return;
+  const previousEnabled = form.common_location_exempt_enabled;
+  form.common_location_exempt_enabled = enabled;
+  await runSaveSettings(
+    () =>
+      WAFAPI.updateConfig({
+        common_location_exempt_enabled: enabled,
+      }),
+    {
+      onSuccess: (data) => {
+        applyFromDetails(data);
+        toast.success(enabled ? "常用地豁免已开启" : "常用地豁免已关闭");
+      },
+      onError: () => {
+        form.common_location_exempt_enabled = previousEnabled;
         if (details.value) applyFromDetails(details.value);
       },
     },
@@ -575,6 +602,34 @@ onMounted(fetchDetails);
             :disabled="isBusy"
             @update:model-value="
               (value) => handleAutoUpdateChange(value === true)
+            "
+          />
+        </section>
+
+        <section
+          v-if="form.enabled"
+          class="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div class="space-y-1 pr-6">
+            <Label
+              class="cursor-pointer text-base font-medium"
+              @click="
+                handleCommonLocationExemptChange(
+                  !form.common_location_exempt_enabled,
+                )
+              "
+            >
+              常用地豁免
+            </Label>
+            <div class="text-sm text-muted-foreground">
+              来自最近登录常用地区的请求会跳过 WAF 检查。
+            </div>
+          </div>
+          <Switch
+            :model-value="form.common_location_exempt_enabled"
+            :disabled="isBusy"
+            @update:model-value="
+              (value) => handleCommonLocationExemptChange(value === true)
             "
           />
         </section>

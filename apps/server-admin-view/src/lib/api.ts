@@ -852,6 +852,7 @@ export const WAFAPI = {
         WAFConfig,
         | "enabled"
         | "system_rules_auto_update_enabled"
+        | "common_location_exempt_enabled"
         | "paranoia_level"
         | "executing_paranoia_level"
       >
@@ -1081,6 +1082,7 @@ export type ScannerSettings = {
   threshold: number;
   windowSeconds: number;
   blacklistTtlSeconds: number;
+  commonLocationExemptEnabled: boolean;
 };
 
 export type ScannerBlacklistHit = {
@@ -1434,6 +1436,7 @@ export const ScannerAPI = {
     windowMinutes: number;
     threshold: number;
     blacklistTtlSeconds: number;
+    commonLocationExemptEnabled?: boolean;
   }): Promise<ScannerSettings> {
     const res = await apiClient.post("/scanner/settings", payload);
     return res.data.data;

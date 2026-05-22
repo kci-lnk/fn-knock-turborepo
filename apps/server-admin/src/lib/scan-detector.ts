@@ -8,6 +8,7 @@ import {
 } from "./redis";
 import { ipLocationRefs, ipLocationService } from "./ip-location";
 import { emitScannerBlockedEvent } from "./system-events/helpers";
+import { isCommonAuthLocationExemptIP } from "./common-auth-locations";
 
 type ScanHit = {
   path: string;
@@ -29,6 +30,7 @@ type ScannerSettings = {
   threshold: number;
   windowSeconds: number;
   blacklistTtlSeconds: number;
+  commonLocationExemptEnabled: boolean;
 };
 
 const parseIntSafe = (value: string | undefined, fallback: number) => {
@@ -462,6 +464,7 @@ class ScanDetector {
     let windowMinutes = envWindowMinutes;
     let threshold = envThreshold;
     let blacklistTtlSeconds = envBlacklistTtlDays * 24 * 3600;
+    let commonLocationExemptEnabled = false;
 
     const raw = await redis.get(this.settingsKey);
     if (raw) {
@@ -475,6 +478,9 @@ class ScanDetector {
         if (parsed.blacklistTtlSeconds && parsed.blacklistTtlSeconds > 0) {
           blacklistTtlSeconds = parsed.blacklistTtlSeconds;
         }
+        if (typeof parsed.commonLocationExemptEnabled === "boolean") {
+          commonLocationExemptEnabled = parsed.commonLocationExemptEnabled;
+        }
       } catch {}
     }
 
@@ -485,6 +491,7 @@ class ScanDetector {
       threshold,
       windowSeconds,
       blacklistTtlSeconds,
+      commonLocationExemptEnabled,
     };
   }
 
@@ -493,6 +500,7 @@ class ScanDetector {
     windowMinutes: number;
     threshold: number;
     blacklistTtlSeconds: number;
+    commonLocationExemptEnabled?: boolean;
   }): Promise<ScannerSettings> {
     const next = {
       enabled: payload.enabled,
@@ -502,6 +510,8 @@ class ScanDetector {
         60,
         Math.floor(payload.blacklistTtlSeconds),
       ),
+      commonLocationExemptEnabled:
+        payload.commonLocationExemptEnabled === true,
     };
     await redis.set(this.settingsKey, JSON.stringify(next));
     return this.getSettings();
@@ -511,12 +521,16 @@ class ScanDetector {
     const cleanIp = this.normalizeIp(ip);
     if (!cleanIp || this.isLocalAddress(cleanIp)) return false;
 
-    const [settings, exists] = await Promise.all([
-      this.getSettings(),
-      redis.exists(this.blacklistDataKey(cleanIp)),
-    ]);
+    const settings = await this.getSettings();
     if (!settings.enabled) return false;
+    if (
+      settings.commonLocationExemptEnabled &&
+      (await isCommonAuthLocationExemptIP(cleanIp))
+    ) {
+      return false;
+    }
 
+    const exists = await redis.exists(this.blacklistDataKey(cleanIp));
     return exists === 1;
   }
 
@@ -531,6 +545,12 @@ class ScanDetector {
 
     const settings = await this.getSettings();
     if (!settings.enabled) {
+      return { hitCount: 0, blocked: false };
+    }
+    if (
+      settings.commonLocationExemptEnabled &&
+      (await isCommonAuthLocationExemptIP(cleanIp))
+    ) {
       return { hitCount: 0, blocked: false };
     }
 

@@ -89,6 +89,8 @@ export interface SubdomainModeConfig {
   aliyun_esa_enabled: boolean;
   tencent_edgeone_enabled: boolean;
   public_auth_base_url: string;
+  public_http_port?: number;
+  public_https_port?: number;
   auth_cache_ttl_seconds: number;
   auth_cache_unauthorized_ttl_seconds: number;
   default_access_mode: HostAccessMode;

@@ -58,14 +58,16 @@
                     <template v-if="authServiceMapping">
                       <div class="break-all font-medium">
                         {{
-                          formatHostWithAccessEntryPort(authServiceMapping.host)
+                          formatAuthServiceHostWithPublicPort(
+                            authServiceMapping.host,
+                          )
                         }}
                       </div>
                       <div class="mt-1 text-xs text-muted-foreground">
                         在尚未登录时，会自动跳转到
                         <code>
                           https://{{
-                            formatHostWithAccessEntryPort(
+                            formatAuthServiceHostWithPublicPort(
                               authServiceMapping.host,
                             )
                           }}
@@ -106,6 +108,28 @@
                     </template>
                   </ConfirmDangerPopover>
                 </div>
+              </div>
+              <div
+                v-if="!modeForm.edge_client_ip_enabled"
+                class="mt-4 grid gap-3 border-t pt-4 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-end"
+              >
+                <div class="space-y-1">
+                  <Label for="auth-service-public-port">
+                    鉴权服务所使用的端口
+                  </Label>
+                  <p class="text-xs leading-5 text-muted-foreground">
+                    路由器 10012 → 7999 时填写 10012；未修改时使用当前入口端口。
+                  </p>
+                </div>
+                <Input
+                  id="auth-service-public-port"
+                  v-model.number="authServicePublicPort"
+                  type="number"
+                  min="1"
+                  max="65535"
+                  inputmode="numeric"
+                  class="sm:max-w-48"
+                />
               </div>
             </div>
             <div class="rounded-lg border px-4 py-4">
@@ -1210,6 +1234,61 @@ const parseTargetPort = (target: string): number | null => {
   return null;
 };
 
+const normalizePublicPort = (value: unknown): number => {
+  const port =
+    typeof value === "number"
+      ? value
+      : Number.parseInt(String(value ?? "").trim(), 10);
+  if (!Number.isFinite(port) || port <= 0) return 0;
+  return Math.floor(port);
+};
+
+const parsePublicAuthBaseUrlPort = (
+  value: string | undefined,
+  scheme?: "http" | "https",
+): number => {
+  const trimmed = value?.trim();
+  if (!trimmed) return 0;
+
+  try {
+    const parsed = new URL(trimmed);
+    if (scheme && parsed.protocol !== `${scheme}:`) return 0;
+    return normalizePublicPort(parsed.port);
+  } catch {
+    return 0;
+  }
+};
+
+const syncPublicAuthBaseUrlPort = (
+  value: string | undefined,
+  port: number,
+): string => {
+  const trimmed = value?.trim();
+  if (!trimmed || !port) return trimmed || "";
+
+  try {
+    const parsed = new URL(trimmed);
+    const scheme =
+      parsed.protocol === "https:"
+        ? "https"
+        : parsed.protocol === "http:"
+          ? "http"
+          : null;
+    if (!scheme) return "";
+
+    const isDefaultPort =
+      (scheme === "https" && port === 443) ||
+      (scheme === "http" && port === 80);
+    parsed.port = isDefaultPort ? "" : String(port);
+    parsed.pathname = parsed.pathname.replace(/\/+$/, "") || "/";
+    parsed.search = "";
+    parsed.hash = "";
+    return parsed.toString().replace(/\/$/, "");
+  } catch {
+    return "";
+  }
+};
+
 const createDefaultModeForm = (): SubdomainModeConfig => ({
   root_domain: "",
   auth_host: "",
@@ -1219,6 +1298,8 @@ const createDefaultModeForm = (): SubdomainModeConfig => ({
   aliyun_esa_enabled: false,
   tencent_edgeone_enabled: false,
   public_auth_base_url: "",
+  public_http_port: 0,
+  public_https_port: 0,
   auth_cache_ttl_seconds: 1,
   auth_cache_unauthorized_ttl_seconds: 1,
   default_access_mode: "login_first",
@@ -1440,9 +1521,66 @@ const composedPreviewHost = computed(() => {
     savedRootDomain.value,
   );
 });
-const displayAccessEntryPort = computed(
-  () => accessEntryPort.value.trim() || "7999",
+const defaultAuthServicePublicPort = computed(
+  () => normalizePublicPort(accessEntryPort.value) || 7999,
 );
+const authServicePublicPort = computed({
+  get: () => {
+    const explicitHttpsPort = parsePublicAuthBaseUrlPort(
+      modeForm.public_auth_base_url,
+      "https",
+    );
+    const explicitHttpPort = parsePublicAuthBaseUrlPort(
+      modeForm.public_auth_base_url,
+      "http",
+    );
+    const configuredHttpsPort = normalizePublicPort(modeForm.public_https_port);
+    const configuredHttpPort = normalizePublicPort(modeForm.public_http_port);
+    return (
+      explicitHttpsPort ||
+      explicitHttpPort ||
+      configuredHttpsPort ||
+      configuredHttpPort ||
+      defaultAuthServicePublicPort.value
+    );
+  },
+  set: (value: number | string) => {
+    const port = normalizePublicPort(value);
+    modeForm.public_https_port = port || 0;
+    modeForm.public_http_port = 0;
+    modeForm.public_auth_base_url = syncPublicAuthBaseUrlPort(
+      modeForm.public_auth_base_url,
+      port,
+    );
+  },
+});
+const draftAuthServicePublicPort = computed(() =>
+  String(authServicePublicPort.value || defaultAuthServicePublicPort.value),
+);
+const displayAccessEntryPort = computed(() => {
+  const explicitHttpsPort = parsePublicAuthBaseUrlPort(
+    currentModeConfig.value.public_auth_base_url,
+    "https",
+  );
+  const explicitHttpPort = parsePublicAuthBaseUrlPort(
+    currentModeConfig.value.public_auth_base_url,
+    "http",
+  );
+  const configuredHttpsPort = normalizePublicPort(
+    currentModeConfig.value.public_https_port,
+  );
+  const configuredHttpPort = normalizePublicPort(
+    currentModeConfig.value.public_http_port,
+  );
+  const configuredPort =
+    explicitHttpsPort ||
+    configuredHttpsPort ||
+    explicitHttpPort ||
+    configuredHttpPort;
+  return configuredPort > 0
+    ? String(configuredPort)
+    : accessEntryPort.value.trim() || "7999";
+});
 const isEdgeClientIPModeEditable = computed(
   () => configStore.config?.run_type === 3,
 );
@@ -1465,6 +1603,17 @@ const formatHostWithAccessEntryPort = (host: string): string =>
   shouldOmitAccessEntryPort.value
     ? host
     : `${host}:${displayAccessEntryPort.value}`;
+const shouldOmitDraftAuthServicePublicPort = computed(() => {
+  if (isEdgeClientIPActive.value) {
+    return true;
+  }
+  const parsedPort = normalizePublicPort(authServicePublicPort.value);
+  return parsedPort === 80 || parsedPort === 443;
+});
+const formatAuthServiceHostWithPublicPort = (host: string): string =>
+  shouldOmitDraftAuthServicePublicPort.value
+    ? host
+    : `${host}:${draftAuthServicePublicPort.value}`;
 const buildBookmarkExportFilename = (rootDomain: string): string => {
   const normalizedRootDomain = rootDomain
     .trim()
@@ -1735,6 +1884,8 @@ const applyModeForm = (next: SubdomainModeConfig) => {
   modeForm.aliyun_esa_enabled = next.aliyun_esa_enabled;
   modeForm.tencent_edgeone_enabled = next.tencent_edgeone_enabled;
   modeForm.public_auth_base_url = next.public_auth_base_url;
+  modeForm.public_http_port = normalizePublicPort(next.public_http_port);
+  modeForm.public_https_port = normalizePublicPort(next.public_https_port);
   modeForm.auth_cache_ttl_seconds = next.auth_cache_ttl_seconds;
   modeForm.auth_cache_unauthorized_ttl_seconds =
     next.auth_cache_unauthorized_ttl_seconds;
@@ -2003,6 +2154,8 @@ async function saveMode() {
       aliyun_esa_enabled: modeForm.aliyun_esa_enabled,
       tencent_edgeone_enabled: modeForm.tencent_edgeone_enabled,
       public_auth_base_url: modeForm.public_auth_base_url.trim(),
+      public_http_port: normalizePublicPort(modeForm.public_http_port),
+      public_https_port: normalizePublicPort(modeForm.public_https_port),
       auth_cache_ttl_seconds: Math.max(
         0,
         Math.floor(Number(modeForm.auth_cache_ttl_seconds) || 0),

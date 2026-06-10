@@ -41,6 +41,7 @@ import {
   buildGatewayAuthConfig,
   buildSubdomainCertificateInventoryCoverage,
   getAuthHostMapping,
+  resolvePublicPortForScheme,
 } from "../lib/subdomain-mode";
 import { isAuthServiceTarget } from "../lib/auth-service";
 import {
@@ -2247,10 +2248,16 @@ export const adminRoutes = new Elysia({
     "/config/host_mappings/bookmarks/export",
     async () => {
       const config = await configManager.getConfig();
+      const scheme = resolveBookmarkScheme(config);
       const document = buildHostMappingsBookmarksDocument({
         mappings: config.host_mappings,
-        scheme: resolveBookmarkScheme(config),
-        accessEntryPort: resolveAccessEntryInfo(config).port,
+        scheme,
+        accessEntryPort:
+          resolvePublicPortForScheme(
+            config,
+            scheme,
+            config.subdomain_mode?.public_auth_base_url || "",
+          ) ?? resolveAccessEntryInfo(config).port,
         omitAccessEntryPort: isEdgeClientIpBookmarkMode(config),
         folderTitle: config.subdomain_mode?.root_domain?.trim()
           ? `${config.subdomain_mode.root_domain.trim()} 子域映射`

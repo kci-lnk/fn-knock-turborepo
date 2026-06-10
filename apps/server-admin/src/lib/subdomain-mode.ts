@@ -102,6 +102,83 @@ const shouldOmitDerivedGatewayPort = (
   (config.subdomain_mode?.aliyun_esa_enabled === true ||
     config.subdomain_mode?.tencent_edgeone_enabled === true);
 
+const resolveConfiguredPublicPort = (
+  config:
+    | Partial<Pick<AppConfig, "reverse_proxy_submode" | "subdomain_mode">>
+    | null
+    | undefined,
+  scheme: "http" | "https",
+): number | null => {
+  if (isReverseProxySubdomainMode(config)) return null;
+  const value =
+    scheme === "https"
+      ? config?.subdomain_mode?.public_https_port
+      : config?.subdomain_mode?.public_http_port;
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+  return Math.floor(value);
+};
+
+export const resolvePublicPortForScheme = (
+  config:
+    | Partial<
+        Pick<AppConfig, "run_type" | "reverse_proxy_submode" | "subdomain_mode">
+      >
+    | null
+    | undefined,
+  scheme: "http" | "https",
+  rawPublicBaseUrl = "",
+  options: { gatewayFallback?: boolean } = {},
+): number | null => {
+  const { gatewayFallback = true } = options;
+  const explicitUrlPort = parseExplicitUrlPort(rawPublicBaseUrl, scheme);
+  if (explicitUrlPort) return explicitUrlPort;
+
+  const configuredPort = resolveConfiguredPublicPort(config, scheme);
+  if (configuredPort) return configuredPort;
+
+  if (shouldOmitDerivedGatewayPort(config)) return null;
+  if (!gatewayFallback) return null;
+
+  return resolvePublicGatewayPort(config);
+};
+
+const isDefaultSchemePort = (scheme: "http" | "https", port: number): boolean =>
+  (scheme === "https" && port === 443) || (scheme === "http" && port === 80);
+
+const applyPublicPortToBaseUrl = (
+  rawBaseUrl: string,
+  config?: Partial<
+    Pick<AppConfig, "run_type" | "reverse_proxy_submode" | "subdomain_mode">
+  > | null,
+): string => {
+  const trimmed = trimTrailingSlash(rawBaseUrl.trim());
+  if (!trimmed) return "";
+
+  try {
+    const parsed = new URL(trimmed);
+    const scheme =
+      parsed.protocol === "https:"
+        ? "https"
+        : parsed.protocol === "http:"
+          ? "http"
+          : null;
+    if (!scheme) return trimmed;
+
+    const port = resolvePublicPortForScheme(config, scheme, trimmed);
+    if (port && !parsed.port && !isDefaultSchemePort(scheme, port)) {
+      parsed.port = String(port);
+    }
+    parsed.pathname = parsed.pathname.replace(/\/+$/, "") || "/";
+    parsed.search = "";
+    parsed.hash = "";
+    return trimTrailingSlash(parsed.toString());
+  } catch {
+    return trimmed;
+  }
+};
+
 const formatDerivedPublicAuthBaseUrl = (
   host: string,
   config?: Partial<
@@ -116,13 +193,10 @@ const formatDerivedPublicAuthBaseUrl = (
     return `${scheme}://${normalizedHost}`;
   }
 
-  const port = resolvePublicGatewayPort(config);
+  const port = resolvePublicPortForScheme(config, scheme);
   if (!port) return `${scheme}://${normalizedHost}`;
 
-  const isDefaultPort =
-    (scheme === "https" && port === 443) || (scheme === "http" && port === 80);
-
-  return isDefaultPort
+  return isDefaultSchemePort(scheme, port)
     ? `${scheme}://${normalizedHost}`
     : `${scheme}://${normalizedHost}:${port}`;
 };
@@ -689,8 +763,9 @@ export const resolvePublicAuthBaseUrl = (
 ): string => {
   const explicit = isReverseProxySubdomainMode(config)
     ? ""
-    : trimTrailingSlash(
+    : applyPublicPortToBaseUrl(
         config.subdomain_mode?.public_auth_base_url?.trim() || "",
+        config,
       );
   if (explicit) return explicit;
 
@@ -897,25 +972,12 @@ export const buildGatewayAuthConfig = (
   const isReverseSubdomainMode = isReverseProxySubdomainMode(config);
   const defaultAuthPort = resolveAuthServicePort();
   const authMapping = getAuthHostMapping(config);
-  const configuredPublicHttpPort =
-    !isReverseSubdomainMode &&
-    typeof config.subdomain_mode?.public_http_port === "number" &&
-    Number.isFinite(config.subdomain_mode.public_http_port) &&
-    config.subdomain_mode.public_http_port > 0
-      ? config.subdomain_mode.public_http_port
-      : undefined;
-  const configuredPublicHttpsPort =
-    !isReverseSubdomainMode &&
-    typeof config.subdomain_mode?.public_https_port === "number" &&
-    Number.isFinite(config.subdomain_mode.public_https_port) &&
-    config.subdomain_mode.public_https_port > 0
-      ? config.subdomain_mode.public_https_port
-      : undefined;
   const explicitPublicAuthBaseUrl = isSubdomainModeActive
     ? isReverseSubdomainMode
       ? ""
-      : trimTrailingSlash(
+      : applyPublicPortToBaseUrl(
           config.subdomain_mode?.public_auth_base_url?.trim() || "",
+          config,
         )
     : "";
   const authTarget =
@@ -941,15 +1003,12 @@ export const buildGatewayAuthConfig = (
     !tencentEdgeOneEnabled &&
     config.subdomain_mode?.aliyun_esa_enabled === true;
   const publicHttpPort = isSubdomainModeActive
-    ? (configuredPublicHttpPort ?? 0)
+    ? (resolvePublicPortForScheme(config, "http", publicAuthBaseUrl, {
+        gatewayFallback: false,
+      }) ?? 0)
     : 0;
   const publicHttpsPort = isSubdomainModeActive
-    ? (configuredPublicHttpsPort ??
-      parseExplicitUrlPort(publicAuthBaseUrl, "https") ??
-      (!explicitPublicAuthBaseUrl &&
-      !(edgeClientIPEnabled && (aliyunESAEnabled || tencentEdgeOneEnabled))
-        ? (resolvePublicGatewayPort(config) ?? 0)
-        : 0))
+    ? (resolvePublicPortForScheme(config, "https", publicAuthBaseUrl) ?? 0)
     : 0;
   const authHost = isSubdomainModeActive
     ? authMapping?.host?.trim() ||

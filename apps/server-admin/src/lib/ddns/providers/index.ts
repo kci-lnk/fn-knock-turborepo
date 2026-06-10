@@ -4,6 +4,7 @@ import { baiduProvider, baiduUpdate } from "./baidu";
 import { cloudflareProvider, cloudflareUpdate } from "./cloudflare";
 import { dnspodProvider, dnspodUpdate } from "./dnspod";
 import { duckdnsProvider, duckdnsUpdate } from "./duckdns";
+import { dynuProvider, dynuUpdate } from "./dynu";
 import { dynv6Provider, dynv6Update } from "./dynv6";
 import { edgeoneCnameProvider, edgeoneCnameUpdate } from "./edgeone-cname";
 import { edgeoneProvider, edgeoneUpdate } from "./edgeone";
@@ -20,6 +21,7 @@ export const providerDefinitions: DDNSProviderDefinition[] = [
   cloudflareProvider,
   dnspodProvider,
   duckdnsProvider,
+  dynuProvider,
   dynv6Provider,
   edgeoneCnameProvider,
   edgeoneProvider,
@@ -37,6 +39,7 @@ export const providerUpdaters: Record<string, DDNSProviderUpdater> = {
   cloudflare: cloudflareUpdate,
   dnspod: dnspodUpdate,
   duckdns: duckdnsUpdate,
+  dynu: dynuUpdate,
   dynv6: dynv6Update,
   edgeone_cname: edgeoneCnameUpdate,
   edgeone: edgeoneUpdate,

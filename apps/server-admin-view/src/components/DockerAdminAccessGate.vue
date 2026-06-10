@@ -52,6 +52,18 @@
               {{ actionLabel }}
             </Button>
 
+            <div v-if="showForgotPassword" class="flex justify-center">
+              <Button
+                type="button"
+                variant="link"
+                class="h-auto px-0 py-0 text-xs text-muted-foreground hover:text-foreground"
+                :disabled="loading"
+                @click="showResetDialog = true"
+              >
+                忘记密码？
+              </Button>
+            </div>
+
             <Button
               v-if="showRetry"
               type="button"
@@ -66,6 +78,55 @@
         </CardContent>
       </Card>
     </div>
+
+    <Dialog :open="showResetDialog" @update:open="showResetDialog = $event">
+      <DialogContent
+        class="max-h-[calc(100vh-2rem)] min-w-0 overflow-y-auto sm:max-w-[560px]"
+      >
+        <DialogHeader>
+          <DialogTitle>重设管理面板密码</DialogTitle>
+          <DialogDescription>
+            需要在 Docker
+            主机或容器外执行重置命令。该操作只会清除面板密码、面板会话和登录退避状态，不会删除业务配置。
+          </DialogDescription>
+        </DialogHeader>
+
+        <div class="min-w-0 space-y-4">
+          <div
+            class="rounded-lg border border-border/70 bg-muted/40 px-3 py-3 text-sm leading-6"
+          >
+            清理完成后，下次访问 Docker 管理入口会重新进入“首次设置密码”流程。
+          </div>
+
+          <div class="min-w-0 space-y-2">
+            <p class="text-sm font-medium">1. 先登录 Docker 主机</p>
+            <pre
+              class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
+            ><code>{{ resetCommands.ssh }}</code></pre>
+          </div>
+
+          <div class="min-w-0 space-y-2">
+            <p class="text-sm font-medium">2. 推荐：在 compose 部署目录执行</p>
+            <pre
+              class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
+            ><code>{{ resetCommands.compose }}</code></pre>
+          </div>
+
+          <div class="min-w-0 space-y-2">
+            <p class="text-sm font-medium">
+              3. 如果只知道容器在跑 Docker，可直接执行
+            </p>
+            <pre
+              class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
+            ><code>{{ resetCommands.dockerExec }}</code></pre>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button type="button" @click="showResetDialog = false">知道了</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
 
@@ -79,7 +140,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { dockerAdminPanelResetCommands } from "../lib/docker-admin-panel-reset";
 
 const props = defineProps<{
   mode: "setup" | "login";
@@ -94,6 +164,8 @@ const emit = defineEmits<{
 }>();
 
 const password = ref("");
+const showResetDialog = ref(false);
+const resetCommands = dockerAdminPanelResetCommands;
 
 const title = computed(() =>
   props.mode === "setup" ? "设置管理面板密码" : "登录管理面板",
@@ -104,9 +176,7 @@ const description = computed(() =>
     : "请输入管理密码继续访问 Docker 管理后台。",
 );
 const helperText = computed(() =>
-  props.mode === "setup"
-    ? "至少 6 位，并同时包含字母和数字。"
-    : "",
+  props.mode === "setup" ? "至少 6 位，并同时包含字母和数字。" : "",
 );
 const actionLabel = computed(() =>
   props.mode === "setup" ? "设置并进入" : "登录并进入",
@@ -117,6 +187,7 @@ const placeholder = computed(() =>
 const autocomplete = computed(() =>
   props.mode === "setup" ? "new-password" : "current-password",
 );
+const showForgotPassword = computed(() => props.mode === "login");
 
 const submit = () => {
   emit("submit", password.value);

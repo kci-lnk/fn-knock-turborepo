@@ -18,6 +18,7 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { ConfigAPI } from "../../lib/api";
+import { dockerAdminPanelResetCommands } from "../../lib/docker-admin-panel-reset";
 import { useConfigStore } from "../../store/config";
 import { useDockerAdminAuthStore } from "../../store/dockerAdminAuth";
 
@@ -27,11 +28,7 @@ const dockerAdminAuthStore = useDockerAdminAuthStore();
 const newPassword = ref("");
 const confirmPassword = ref("");
 
-const sshCommand = "ssh root@<docker-host>";
-const composeResetCommand =
-  "cd /opt/fn-knock-docker && docker compose exec -T fn-knock fn-knock-reset-panel-password";
-const dockerExecResetCommand =
-  "docker exec -it \"$(docker ps --filter label=com.docker.compose.service=fn-knock --format '{{.Names}}' | head -n 1)\" fn-knock-reset-panel-password";
+const resetCommands = dockerAdminPanelResetCommands;
 
 const isDockerMode = computed(() => configStore.isDockerDeployment);
 const isFormFilled = computed(
@@ -158,15 +155,15 @@ const savePassword = async () => {
         <div class="space-y-2">
           <p class="text-sm font-medium">1. 先登录 Docker 主机</p>
           <pre
-            class="overflow-x-auto rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
-          ><code>{{ sshCommand }}</code></pre>
+            class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
+          ><code>{{ resetCommands.ssh }}</code></pre>
         </div>
 
         <div class="space-y-2">
           <p class="text-sm font-medium">2. 推荐：在 compose 部署目录执行</p>
           <pre
-            class="overflow-x-auto rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
-          ><code>{{ composeResetCommand }}</code></pre>
+            class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
+          ><code>{{ resetCommands.compose }}</code></pre>
         </div>
 
         <div class="space-y-2">
@@ -174,8 +171,8 @@ const savePassword = async () => {
             3. 如果只知道容器在跑 Docker，可直接执行
           </p>
           <pre
-            class="overflow-x-auto rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
-          ><code>{{ dockerExecResetCommand }}</code></pre>
+            class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
+          ><code>{{ resetCommands.dockerExec }}</code></pre>
         </div>
       </CardContent>
     </Card>

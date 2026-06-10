@@ -172,17 +172,12 @@
         <div class="grid gap-4 py-4">
           <div class="space-y-2">
             <Label for="stream-protocol">传输协议</Label>
-            <Select v-model="form.protocol">
-              <SelectTrigger id="stream-protocol">
-                <SelectValue placeholder="选择协议" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="tcp">TCP</SelectItem>
-                <SelectItem value="udp">UDP</SelectItem>
-              </SelectContent>
-            </Select>
+            <StreamProtocolMultiSelect
+              id="stream-protocol"
+              v-model="form.protocols"
+            />
             <p class="text-xs text-muted-foreground">
-              同一个对外端口可以分别配置一条 TCP 和一条 UDP 规则。
+              同一个对外端口会按已选协议分别保存规则。
             </p>
           </div>
 
@@ -278,13 +273,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import SearchInput from "@admin-shared/components/SearchInput.vue";
@@ -302,9 +290,11 @@ import {
 import { ConfigAPI } from "../lib/api";
 import { useConfigStore } from "../store/config";
 import type { StreamMapping, StreamMappingProtocol } from "../types";
+import StreamProtocolMultiSelect from "../components/StreamProtocolMultiSelect.vue";
 
 const configStore = useConfigStore();
 const DEFAULT_STREAM_PROTOCOL: StreamMappingProtocol = "tcp";
+const STREAM_PROTOCOLS: StreamMappingProtocol[] = ["tcp", "udp"];
 
 const searchQuery = ref("");
 const isDialogOpen = ref(false);
@@ -317,12 +307,12 @@ const hasPortBlurred = ref(false);
 const hasTargetBlurred = ref(false);
 
 const form = reactive<{
-  protocol: StreamMappingProtocol;
+  protocols: StreamMappingProtocol[];
   listen_port: string;
   target: string;
   use_auth: boolean;
 }>({
-  protocol: DEFAULT_STREAM_PROTOCOL,
+  protocols: [DEFAULT_STREAM_PROTOCOL],
   listen_port: "",
   target: "",
   use_auth: true,
@@ -356,16 +346,20 @@ const parsedListenPort = computed(() => {
   if (!Number.isFinite(value)) return null;
   return value;
 });
+const selectedProtocols = computed(() =>
+  normalizeProtocolSelection(form.protocols),
+);
 
-const duplicateMapping = computed(() => {
+const duplicateProtocols = computed(() => {
   const port = parsedListenPort.value;
-  if (port === null) return false;
-  const nextKey = createMappingKey(form.protocol, port);
+  if (port === null) return [];
 
-  return allMappings.value.some(
-    (mapping) =>
-      getMappingKey(mapping) === nextKey &&
-      getMappingKey(mapping) !== editingMappingKey.value,
+  return selectedProtocols.value.filter((protocol) =>
+    allMappings.value.some(
+      (mapping) =>
+        getMappingKey(mapping) === createMappingKey(protocol, port) &&
+        getMappingKey(mapping) !== editingMappingKey.value,
+    ),
   );
 });
 
@@ -382,8 +376,8 @@ function getPortValidationMessage(showRequired: boolean): string {
   if (port <= 0 || port > 65535) {
     return "对外端口必须位于 1 到 65535 之间。";
   }
-  if (duplicateMapping.value) {
-    return `${formatProtocolLabel(form.protocol)} 对外端口 ${port} 已存在，请保持协议 + 端口唯一。`;
+  if (duplicateProtocols.value.length > 0) {
+    return `${formatProtocolList(duplicateProtocols.value)} 对外端口 ${port} 已存在，请保持协议 + 端口唯一。`;
   }
   return "";
 }
@@ -425,6 +419,9 @@ const validationMessage = computed(() => {
 
 const showValidation = computed(() => Boolean(validationMessage.value));
 const submitValidationMessage = computed(() => {
+  if (selectedProtocols.value.length === 0) {
+    return "请至少选择一种传输协议。";
+  }
   const portMessage = getPortValidationMessage(true);
   if (portMessage) return portMessage;
   return getTargetValidationMessage(true);
@@ -438,6 +435,18 @@ function normalizeProtocol(
   protocol?: StreamMappingProtocol | string | null,
 ): StreamMappingProtocol {
   return protocol === "udp" ? "udp" : DEFAULT_STREAM_PROTOCOL;
+}
+
+function normalizeProtocolSelection(
+  protocols: StreamMappingProtocol[] | undefined,
+): StreamMappingProtocol[] {
+  const selected = new Set(
+    (protocols ?? []).map((protocol) => normalizeProtocol(protocol)),
+  );
+  const normalized = STREAM_PROTOCOLS.filter((protocol) =>
+    selected.has(protocol),
+  );
+  return normalized.length > 0 ? normalized : [DEFAULT_STREAM_PROTOCOL];
 }
 
 function normalizeStreamMapping(mapping: StreamMapping): StreamMapping {
@@ -472,12 +481,16 @@ function formatProtocolLabel(protocol: StreamMappingProtocol): string {
   return protocol.toUpperCase();
 }
 
+function formatProtocolList(protocols: StreamMappingProtocol[]): string {
+  return protocols.map(formatProtocolLabel).join("、");
+}
+
 function formatMappingLabel(mapping: StreamMapping): string {
   return `${formatProtocolLabel(normalizeProtocol(mapping.protocol))}/${mapping.listen_port}`;
 }
 
 function resetForm() {
-  form.protocol = DEFAULT_STREAM_PROTOCOL;
+  form.protocols = [DEFAULT_STREAM_PROTOCOL];
   form.listen_port = "";
   form.target = "";
   form.use_auth = true;
@@ -500,7 +513,7 @@ function openCreateDialog() {
 
 function openEditDialog(mapping: StreamMapping) {
   const normalized = normalizeStreamMapping(mapping);
-  form.protocol = normalized.protocol;
+  form.protocols = [normalized.protocol];
   form.listen_port = String(mapping.listen_port);
   form.target = mapping.target;
   form.use_auth = mapping.use_auth;
@@ -525,12 +538,14 @@ async function saveMapping() {
   hasAttemptedSubmit.value = true;
   if (submitValidationMessage.value || parsedListenPort.value === null) return;
 
-  const nextMapping: StreamMapping = {
-    protocol: form.protocol,
-    listen_port: parsedListenPort.value,
-    target: form.target.trim(),
-    use_auth: form.use_auth,
-  };
+  const nextMappings: StreamMapping[] = selectedProtocols.value.map(
+    (protocol) => ({
+      protocol,
+      listen_port: parsedListenPort.value!,
+      target: form.target.trim(),
+      use_auth: form.use_auth,
+    }),
+  );
 
   isSaving.value = true;
   try {
@@ -540,13 +555,13 @@ async function saveMapping() {
     );
 
     if (existingIndex >= 0) {
-      next.splice(existingIndex, 1, nextMapping);
+      next.splice(existingIndex, 1, ...nextMappings);
     } else {
-      next.push(nextMapping);
+      next.push(...nextMappings);
     }
 
     await configStore.saveStreamMappings(next);
-    toast.success(isEditing.value ? "已更新 协议映射" : "已添加 协议映射");
+    toast.success(getSaveSuccessMessage(nextMappings.length));
     closeDialog();
   } catch (error: any) {
     toast.error("保存失败", {
@@ -555,6 +570,13 @@ async function saveMapping() {
   } finally {
     isSaving.value = false;
   }
+}
+
+function getSaveSuccessMessage(savedCount: number): string {
+  const action = isEditing.value ? "更新" : "添加";
+  return savedCount > 1
+    ? `已${action} ${savedCount} 条协议映射`
+    : `已${action}协议映射`;
 }
 
 async function removeMapping(mapping: StreamMapping) {

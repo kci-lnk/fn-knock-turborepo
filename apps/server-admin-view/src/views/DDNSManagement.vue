@@ -124,6 +124,9 @@ const INTERFACE_IPV6_INDEX_KEY = "interface_ipv6_index";
 const NETWORK_INTERFACE_AUTO_VALUE = "__auto__";
 const DEFAULT_DDNS_UPDATE_SCOPE: DDNSUpdateScope = "dual_stack";
 const DEFAULT_DDNS_IP_SOURCE: DDNSIpSource = "public";
+const DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES = 10;
+const MIN_DDNS_UPDATE_INTERVAL_MINUTES = 5;
+const MAX_DDNS_UPDATE_INTERVAL_MINUTES = 1440;
 const UPDATE_SCOPE_OPTIONS: Array<{ label: string; value: DDNSUpdateScope }> = [
   { label: "IPv4 & IPv6", value: "dual_stack" },
   { label: "仅更新 IPv6", value: "ipv6_only" },
@@ -167,6 +170,19 @@ const normalizeInterfaceAddressIndex = (value: string | null | undefined) => {
   }
 
   return String(parsed);
+};
+
+const normalizeUpdateIntervalMinutes = (value: unknown) => {
+  const parsed = Number(value);
+  if (
+    Number.isInteger(parsed) &&
+    parsed >= MIN_DDNS_UPDATE_INTERVAL_MINUTES &&
+    parsed <= MAX_DDNS_UPDATE_INTERVAL_MINUTES
+  ) {
+    return parsed;
+  }
+
+  return DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES;
 };
 
 const toNetworkInterfaceSelectValue = (value: string | null | undefined) => {
@@ -247,6 +263,8 @@ const lastCheck = ref<LastCheck>({
   outcome: null,
   message: null,
 });
+const updateIntervalMinutes = ref(DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES);
+const updateIntervalDraft = ref(String(DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES));
 const logs = ref<LogEntry[]>([]);
 const statusUpdateScope = ref<DDNSUpdateScope>(DEFAULT_DDNS_UPDATE_SCOPE);
 const statusIpSource = ref<DDNSIpSource>(DEFAULT_DDNS_IP_SOURCE);
@@ -254,6 +272,7 @@ const statusNetworkInterface = ref("");
 const networkInterfaces = ref<DDNSNetworkInterfacePayload[]>([]);
 const targetSummaries = ref<DDNSTargetSummaryPayload[]>([]);
 const showTargetDialog = ref(false);
+const showUpdateIntervalDialog = ref(false);
 const showClearPrimaryConfigDialog = ref(false);
 const targetDialogMode = ref<"create" | "edit">("create");
 const targetDialogState = ref<TargetDialogState>({
@@ -352,6 +371,14 @@ const { isPending: isSavingTarget, run: runSaveTarget } = useAsyncAction({
     });
   },
 });
+const { isPending: isSavingUpdateInterval, run: runSaveUpdateInterval } =
+  useAsyncAction({
+    onError: (error) => {
+      toast.error("保存自动同步频率失败", {
+        description: extractErrorMessage(error, "保存自动同步频率失败"),
+      });
+    },
+  });
 const { run: runDeleteTarget } = useAsyncAction({
   onError: (error) => {
     toast.error("删除更多域失败", {
@@ -717,6 +744,9 @@ const isProviderSelectDisabled = computed(
 const isSubdomainMode = computed(() =>
   isAnySubdomainRoutingMode(configStore.config),
 );
+const updateIntervalLabel = computed(
+  () => `每 ${updateIntervalMinutes.value} 分钟自动同步`,
+);
 
 const getFieldDescription = (field: ProviderField) => {
   const description = field.description?.trim() || "";
@@ -741,6 +771,9 @@ async function loadStatus() {
     selectedProvider.value = status.provider || "";
     lastIP.value = status.lastIP;
     lastCheck.value = status.lastCheck;
+    updateIntervalMinutes.value = normalizeUpdateIntervalMinutes(
+      status.updateIntervalMinutes,
+    );
     statusUpdateScope.value = normalizeUpdateScope(status.updateScope);
     statusIpSource.value = normalizeIpSource(status.ipSource);
     statusNetworkInterface.value = normalizeNetworkInterface(
@@ -820,6 +853,9 @@ const ddnsPolling = useTargetPolling({
     const status = payload.status;
     lastIP.value = status.lastIP;
     lastCheck.value = status.lastCheck;
+    updateIntervalMinutes.value = normalizeUpdateIntervalMinutes(
+      status.updateIntervalMinutes,
+    );
     statusUpdateScope.value = normalizeUpdateScope(status.updateScope);
     statusIpSource.value = normalizeIpSource(status.ipSource);
     statusNetworkInterface.value = normalizeNetworkInterface(
@@ -855,6 +891,53 @@ watch(enabled, async (val) => {
     },
   });
 });
+
+function openUpdateIntervalDialog() {
+  updateIntervalDraft.value = String(updateIntervalMinutes.value);
+  showUpdateIntervalDialog.value = true;
+}
+
+function parseUpdateIntervalDraft() {
+  const trimmed = String(updateIntervalDraft.value ?? "").trim();
+  if (!/^\d+$/.test(trimmed)) {
+    return null;
+  }
+
+  const parsed = Number(trimmed);
+  if (
+    !Number.isInteger(parsed) ||
+    parsed < MIN_DDNS_UPDATE_INTERVAL_MINUTES ||
+    parsed > MAX_DDNS_UPDATE_INTERVAL_MINUTES
+  ) {
+    return null;
+  }
+
+  return parsed;
+}
+
+async function saveUpdateInterval() {
+  const next = parseUpdateIntervalDraft();
+  if (next === null) {
+    toast.error("同步频率无效", {
+      description: `请输入 ${MIN_DDNS_UPDATE_INTERVAL_MINUTES}-${MAX_DDNS_UPDATE_INTERVAL_MINUTES} 之间的整数分钟数。`,
+    });
+    return;
+  }
+
+  await runSaveUpdateInterval(
+    () => DDNSAPI.saveSettings({ updateIntervalMinutes: next }),
+    {
+      onSuccess: (settings) => {
+        updateIntervalMinutes.value = normalizeUpdateIntervalMinutes(
+          settings.updateIntervalMinutes,
+        );
+        updateIntervalDraft.value = String(updateIntervalMinutes.value);
+        showUpdateIntervalDialog.value = false;
+        toast.success("自动同步频率已更新");
+      },
+    },
+  );
+}
 
 async function onProviderChange(val: string) {
   if (!val || val === selectedProvider.value) return;
@@ -1402,13 +1485,16 @@ onUnmounted(() => {
             />
           </CardTitle>
 
-          <div
+          <button
             v-if="enabled"
-            class="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded-md"
+            type="button"
+            class="inline-flex items-center gap-1.5 rounded-md bg-muted/50 px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            :aria-label="`设置 DDNS 自动同步频率，当前${updateIntervalLabel}`"
+            @click="openUpdateIntervalDialog"
           >
             <Clock class="h-3.5 w-3.5" />
-            <span>每 10 分钟自动同步</span>
-          </div>
+            <span>{{ updateIntervalLabel }}</span>
+          </button>
         </div>
       </CardHeader>
 
@@ -2783,6 +2869,68 @@ onUnmounted(() => {
               class="mr-1.5 h-4 w-4 animate-spin"
             />
             {{ isSavingTarget ? "保存中..." : "保存" }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog
+      :open="showUpdateIntervalDialog"
+      @update:open="showUpdateIntervalDialog = $event"
+    >
+      <DialogContent class="sm:max-w-[420px]">
+        <DialogHeader>
+          <DialogTitle>自动同步频率</DialogTitle>
+          <DialogDescription>
+            设置 DDNS 自动检查并同步解析记录的间隔时间。
+          </DialogDescription>
+        </DialogHeader>
+
+        <div class="grid gap-2 py-2">
+          <Label for="ddns-update-interval">间隔分钟数</Label>
+          <div class="relative">
+            <Input
+              id="ddns-update-interval"
+              v-model="updateIntervalDraft"
+              type="number"
+              inputmode="numeric"
+              :min="MIN_DDNS_UPDATE_INTERVAL_MINUTES"
+              :max="MAX_DDNS_UPDATE_INTERVAL_MINUTES"
+              step="1"
+              class="pr-14"
+              @keydown.enter.prevent="saveUpdateInterval"
+            />
+            <span
+              class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground"
+            >
+              分钟
+            </span>
+          </div>
+          <p class="text-xs text-muted-foreground">
+            可设置为 {{ MIN_DDNS_UPDATE_INTERVAL_MINUTES }}-{{
+              MAX_DDNS_UPDATE_INTERVAL_MINUTES
+            }}
+            分钟，保存后从下一轮自动同步开始生效。
+          </p>
+        </div>
+
+        <DialogFooter class="gap-2">
+          <Button
+            variant="outline"
+            :disabled="isSavingUpdateInterval"
+            @click="showUpdateIntervalDialog = false"
+          >
+            取消
+          </Button>
+          <Button
+            :disabled="isSavingUpdateInterval"
+            @click="saveUpdateInterval"
+          >
+            <RefreshCw
+              v-if="isSavingUpdateInterval"
+              class="mr-1.5 h-4 w-4 animate-spin"
+            />
+            {{ isSavingUpdateInterval ? "保存中..." : "保存" }}
           </Button>
         </DialogFooter>
       </DialogContent>

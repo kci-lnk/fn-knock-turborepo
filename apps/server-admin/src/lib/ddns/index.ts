@@ -12,6 +12,7 @@ import type {
   DDNSNetworkInterfaceOption,
   DDNSProviderDefinition,
   DDNSProviderField,
+  DDNSSettings,
   DDNSStatus,
   DDNSTargetList,
   DDNSTargetMeta,
@@ -53,9 +54,13 @@ import {
 import { runWithRetry } from "./retry";
 
 const PRIMARY_TARGET_ID = "primary";
+export const DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES = 10;
+export const MIN_DDNS_UPDATE_INTERVAL_MINUTES = 5;
+export const MAX_DDNS_UPDATE_INTERVAL_MINUTES = 1440;
 
 const KEYS = {
   enabled: "fn_knock:ddns:enabled",
+  settings: "fn_knock:ddns:settings",
   legacyProvider: "fn_knock:ddns:provider",
   legacyConfigPrefix: "fn_knock:ddns:config:",
   legacyLastIP: "fn_knock:ddns:last_ip",
@@ -98,6 +103,84 @@ const normalizeOutcome = (
     : null;
 };
 
+const normalizeUpdateIntervalMinutes = (
+  value: unknown,
+  fallback = DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES,
+): number => {
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value.trim())
+        : NaN;
+
+  if (
+    Number.isInteger(parsed) &&
+    parsed >= MIN_DDNS_UPDATE_INTERVAL_MINUTES &&
+    parsed <= MAX_DDNS_UPDATE_INTERVAL_MINUTES
+  ) {
+    return parsed;
+  }
+
+  return fallback;
+};
+
+const parseUpdateIntervalMinutesInput = (value: unknown): number | null => {
+  if (typeof value === "string" && !/^\d+$/.test(value.trim())) {
+    return null;
+  }
+
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (
+    Number.isInteger(parsed) &&
+    parsed >= MIN_DDNS_UPDATE_INTERVAL_MINUTES &&
+    parsed <= MAX_DDNS_UPDATE_INTERVAL_MINUTES
+  ) {
+    return parsed;
+  }
+
+  return null;
+};
+
+const parseLegacyDDNSCronIntervalMinutes = (
+  pattern: string | null | undefined,
+): number | null => {
+  const parts = pattern?.trim().split(/\s+/).filter(Boolean) || [];
+  if (parts.length !== 5 && parts.length !== 6) {
+    return null;
+  }
+
+  const minutePart = parts.length === 6 ? parts[1] : parts[0];
+  const otherParts = parts.length === 6 ? parts.slice(2) : parts.slice(1);
+  if (parts.length === 6 && parts[0] !== "0") {
+    return null;
+  }
+
+  if (!otherParts.every((part) => part === "*")) {
+    return null;
+  }
+
+  const match = minutePart.match(/^\*\/(\d+)$/);
+  if (!match) {
+    return null;
+  }
+
+  const minutes = Number.parseInt(match[1], 10);
+  if (
+    !Number.isInteger(minutes) ||
+    minutes < MIN_DDNS_UPDATE_INTERVAL_MINUTES ||
+    minutes > MAX_DDNS_UPDATE_INTERVAL_MINUTES
+  ) {
+    return null;
+  }
+
+  return minutes;
+};
+
+const getDefaultUpdateIntervalMinutes = () =>
+  parseLegacyDDNSCronIntervalMinutes(process.env.DDNS_CRON) ??
+  DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES;
+
 const targetMetaKey = (id: string) => `${KEYS.targetPrefix}${id}:meta`;
 const targetConfigKey = (id: string) => `${KEYS.targetPrefix}${id}:config`;
 const targetLastIPKey = (id: string) => `${KEYS.targetPrefix}${id}:last_ip`;
@@ -112,6 +195,44 @@ export class DDNSManager {
   getProviderFields(name: string): DDNSProviderField[] | null {
     const provider = providerDefinitions.find((item) => item.name === name);
     return provider ? provider.fields : null;
+  }
+
+  async getSettings(): Promise<DDNSSettings> {
+    const raw = await redis.get(KEYS.settings);
+    if (!raw) {
+      return {
+        updateIntervalMinutes: getDefaultUpdateIntervalMinutes(),
+      };
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as Partial<DDNSSettings>;
+      return {
+        updateIntervalMinutes: normalizeUpdateIntervalMinutes(
+          parsed.updateIntervalMinutes,
+        ),
+      };
+    } catch {
+      return {
+        updateIntervalMinutes: DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES,
+      };
+    }
+  }
+
+  async updateSettings(input: {
+    updateIntervalMinutes: number;
+  }): Promise<DDNSSettings> {
+    const updateIntervalMinutes = parseUpdateIntervalMinutesInput(
+      input.updateIntervalMinutes,
+    );
+    if (updateIntervalMinutes === null) {
+      throw new Error(
+        `自动同步频率必须是 ${MIN_DDNS_UPDATE_INTERVAL_MINUTES}-${MAX_DDNS_UPDATE_INTERVAL_MINUTES} 之间的整数分钟数`,
+      );
+    }
+
+    await redis.set(KEYS.settings, JSON.stringify({ updateIntervalMinutes }));
+    return this.getSettings();
   }
 
   private getProviderDefinition(
@@ -1126,15 +1247,17 @@ export class DDNSManager {
   }
 
   async getStatus(): Promise<DDNSStatus> {
-    const [enabled, primaryTarget, overview] = await Promise.all([
+    const [enabled, primaryTarget, overview, settings] = await Promise.all([
       this.isEnabled(),
       this.getPrimaryTarget(),
       this.getTargetsOverview(),
+      this.getSettings(),
     ]);
 
     return {
       enabled,
       provider: primaryTarget.provider,
+      updateIntervalMinutes: settings.updateIntervalMinutes,
       updateScope: normalizeUpdateScope(
         primaryTarget.config[DDNS_UPDATE_SCOPE_FIELD],
       ),
@@ -1458,6 +1581,7 @@ export type {
   DDNSNetworkInterfaceOption,
   DDNSProviderDefinition,
   DDNSProviderField,
+  DDNSSettings,
   DDNSStatus,
   DDNSTargetList,
   DDNSTargetMeta,

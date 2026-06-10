@@ -1,22 +1,10 @@
 import type { Elysia } from "elysia";
-import { cron } from "@elysiajs/cron";
-import { runAutomaticDDNSCheck } from "../lib/ddns/auto-check";
+import { ddnsIntervalScheduler } from "../lib/ddns/scheduler";
 
 export const registerDDNSCron = (app: Elysia) => {
-  const pattern = process.env.DDNS_CRON || "*/10 * * * *";
-
-  app.use(
-    cron({
-      name: "ddns-update",
-      pattern,
-      async run() {
-        await runAutomaticDDNSCheck({
-          trigger: "cron",
-          emitSkipLog: true,
-        });
-      },
-    })
-  );
+  void ddnsIntervalScheduler.start().catch((error) => {
+    console.error("[ddns][scheduler] start error:", error);
+  });
 
   return app;
 };

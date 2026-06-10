@@ -2174,6 +2174,7 @@ export type DDNSLogEntry = {
 export type DDNSStatusPayload = {
   enabled: boolean;
   provider: string | null;
+  updateIntervalMinutes: number;
   updateScope: "dual_stack" | "ipv6_only" | "ipv4_only";
   ipSource: "public" | "interface";
   networkInterface: string;
@@ -2191,6 +2192,10 @@ export type DDNSStatusPayload = {
   extraTargetCount: number;
   enabledExtraTargetCount: number;
   targets: DDNSTargetSummaryPayload[];
+};
+
+export type DDNSSettingsPayload = {
+  updateIntervalMinutes: number;
 };
 
 export type DDNSTargetSummaryPayload = {
@@ -2352,6 +2357,16 @@ export const DDNSAPI = {
   },
   async toggle(enabled: boolean): Promise<void> {
     await apiClient.post("/ddns/toggle", { enabled });
+  },
+  async getSettings(): Promise<DDNSSettingsPayload> {
+    const res = await apiClient.get("/ddns/settings");
+    return res.data.data;
+  },
+  async saveSettings(payload: {
+    updateIntervalMinutes: number;
+  }): Promise<DDNSSettingsPayload> {
+    const res = await apiClient.post("/ddns/settings", payload);
+    return res.data.data;
   },
   async getProviders(): Promise<
     Array<{

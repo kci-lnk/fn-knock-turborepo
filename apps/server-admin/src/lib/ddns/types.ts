@@ -43,6 +43,10 @@ export type DDNSUpdateResult = {
 export type DDNSUpdateScope = "dual_stack" | "ipv6_only" | "ipv4_only";
 export type DDNSIpSource = "public" | "interface";
 
+export type DDNSSettings = {
+  updateIntervalMinutes: number;
+};
+
 export type DDNSLogEntry = {
   time: string;
   level: "info" | "error" | "warn";
@@ -68,6 +72,7 @@ export type DDNSLastCheck = {
 export type DDNSStatus = {
   enabled: boolean;
   provider: string | null;
+  updateIntervalMinutes: number;
   updateScope: DDNSUpdateScope;
   ipSource: DDNSIpSource;
   networkInterface: string;

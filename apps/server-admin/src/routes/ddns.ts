@@ -1,6 +1,7 @@
 import { Elysia, t } from "elysia";
 import { ddnsLogBuffer, ddnsManager } from "../lib/ddns";
 import { runAutomaticDDNSCheck } from "../lib/ddns/auto-check";
+import { ddnsIntervalScheduler } from "../lib/ddns/scheduler";
 import {
   DDNS_INTERFACE_IPV4_INDEX_FIELD,
   DDNS_INTERFACE_IPV6_INDEX_FIELD,
@@ -228,6 +229,34 @@ export const ddnsRoutes = new Elysia({
       return { success: true, data: ddnsManager.getProviders() };
     },
     routeDoc("获取 DDNS 提供商列表"),
+  )
+  .get(
+    "/settings",
+    async () => {
+      return { success: true, data: await ddnsManager.getSettings() };
+    },
+    routeDoc("获取 DDNS 自动同步设置"),
+  )
+  .post(
+    "/settings",
+    async ({ body, set }) => {
+      try {
+        const settings = await ddnsManager.updateSettings({
+          updateIntervalMinutes: body.updateIntervalMinutes,
+        });
+        await ddnsIntervalScheduler.reload();
+        return { success: true, data: settings };
+      } catch (error: any) {
+        set.status = 400;
+        return {
+          success: false,
+          message: error?.message || "保存 DDNS 自动同步设置失败",
+        };
+      }
+    },
+    withRouteDoc("更新 DDNS 自动同步设置", {
+      body: t.Object({ updateIntervalMinutes: t.Number() }),
+    }),
   )
   .get(
     "/interfaces",

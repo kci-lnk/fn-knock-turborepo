@@ -28,8 +28,9 @@ import {
 import { wafCollector } from "./collector";
 
 const MANIFEST_URL = "https://fn-knock.cdn.wxlnk.com/waf/manifest.json";
-const MANIFEST_REFRESH_MS = 24 * 60 * 60 * 1000;
-const SYSTEM_RULES_AUTO_UPDATE_MS = 10 * 60 * 1000;
+const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
+const MANIFEST_REFRESH_MS = TWO_DAYS_MS;
+const SYSTEM_RULES_AUTO_UPDATE_MS = TWO_DAYS_MS;
 const SYSTEM_RULES_AUTO_UPDATE_LOCK_TTL_SECONDS = 10 * 60;
 const MAX_RULE_FILE_BYTES = 1024 * 1024;
 const MAX_ZIP_BYTES = 20 * 1024 * 1024;

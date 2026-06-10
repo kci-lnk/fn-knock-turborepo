@@ -4,7 +4,7 @@ import { configManager } from "../lib/redis";
 import { updateManager } from "../lib/update-manager";
 
 export const registerUpdateCron = (app: Elysia) => {
-  const pattern = process.env.UPDATE_CRON || "0 */2 * * *";
+  const pattern = process.env.UPDATE_CRON || "0 0 */2 * *";
   const lockTtlSeconds = 600;
 
   app.use(

@@ -100,6 +100,7 @@ type HostMappingUpdatePayload = Pick<
   | "suppress_toolbar"
   | "preserve_host"
   | "basic_auth"
+  | "locations"
   | "title_override"
 >;
 
@@ -150,6 +151,20 @@ const toHostMappingUpdatePayload = (
     username: mapping.basic_auth.username.trim(),
     password: mapping.basic_auth.password,
   },
+  locations: (mapping.locations ?? []).map((location) => ({
+    path: location.path.trim(),
+    match: location.match,
+    action: location.action,
+    target: location.target.trim(),
+    strip_path: location.strip_path,
+    rewrite_html: location.rewrite_html,
+    response: {
+      status: location.response.status,
+      content_type: location.response.content_type.trim(),
+      headers: { ...location.response.headers },
+      body: location.response.body,
+    },
+  })),
   title_override: mapping.title_override.trim(),
 });
 

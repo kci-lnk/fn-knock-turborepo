@@ -127,6 +127,13 @@ const hostResponseDisabledReason = computed(() => {
   if (isHostResponseAvailable.value) return "";
   return `仅子域映射模式可用，当前为${currentRunTypeLabel.value}。`;
 });
+const isLocationsAvailable = computed(() =>
+  isAnySubdomainRoutingMode(configStore.config),
+);
+const locationsDisabledReason = computed(() => {
+  if (isLocationsAvailable.value) return "";
+  return `仅子域映射模式可用，当前为${currentRunTypeLabel.value}。`;
+});
 
 const openVisibilityEditor = () => {
   void router.push("/system/gateway-visibility");
@@ -146,6 +153,14 @@ const openHostResponseEditor = () => {
   }
 
   void router.push("/system/gateway-host-response");
+};
+
+const openLocationsEditor = () => {
+  if (!isLocationsAvailable.value) {
+    return;
+  }
+
+  void router.push("/system/gateway-locations");
 };
 
 const toggleThrottleEnabled = () => {
@@ -478,6 +493,46 @@ onMounted(fetchSettings);
             @click="openHostResponseEditor"
           >
             编辑Host响应
+          </Button>
+        </div>
+      </div>
+
+      <div
+        class="grid gap-4 p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
+      >
+        <div class="space-y-3">
+          <div class="flex flex-wrap items-center gap-2">
+            <Label
+              class="text-base"
+              :class="isLocationsAvailable ? '' : 'text-zinc-500'"
+            >
+              路径响应
+            </Label>
+          </div>
+          <div
+            class="text-sm leading-6"
+            :class="
+              isLocationsAvailable
+                ? 'text-muted-foreground'
+                : 'text-zinc-500'
+            "
+          >
+            为指定 Host 配置路径级反代或固定响应
+          </div>
+          <div
+            v-if="!isLocationsAvailable"
+            class="text-xs leading-5 text-zinc-500"
+          >
+            {{ locationsDisabledReason }}
+          </div>
+        </div>
+        <div class="flex justify-start lg:justify-end">
+          <Button
+            variant="outline"
+            :disabled="!isLocationsAvailable"
+            @click="openLocationsEditor"
+          >
+            编辑路径响应
           </Button>
         </div>
       </div>

@@ -92,6 +92,26 @@ export interface HostMappingBasicAuth {
   password: string;
 }
 
+export type HostLocationMatch = "exact" | "prefix";
+export type HostLocationAction = "proxy" | "response";
+
+export interface HostLocationResponse {
+  status: number;
+  content_type: string;
+  headers: Record<string, string>;
+  body: string;
+}
+
+export interface HostLocation {
+  path: string;
+  match: HostLocationMatch;
+  action: HostLocationAction;
+  target: string;
+  strip_path: boolean;
+  rewrite_html: boolean;
+  response: HostLocationResponse;
+}
+
 export interface HostMapping {
   host: string;
   target: string;
@@ -100,6 +120,7 @@ export interface HostMapping {
   suppress_toolbar: boolean;
   preserve_host: boolean;
   basic_auth: HostMappingBasicAuth;
+  locations: HostLocation[];
   service_role: HostServiceRole;
   title: string;
   title_override: string;
@@ -2072,6 +2093,130 @@ const normalizeHostBasicAuth = (
   };
 };
 
+const DEFAULT_HOST_LOCATION_RESPONSE_CONTENT_TYPE =
+  "text/plain; charset=utf-8";
+
+const forbiddenHostLocationResponseHeaders = new Set([
+  "connection",
+  "keep-alive",
+  "proxy-connection",
+  "proxy-authenticate",
+  "proxy-authorization",
+  "te",
+  "trailer",
+  "transfer-encoding",
+  "upgrade",
+  "content-length",
+  "content-type",
+]);
+
+const normalizeHostLocationMatch = (value: unknown): HostLocationMatch =>
+  value === "exact" ? "exact" : "prefix";
+
+const normalizeHostLocationAction = (value: unknown): HostLocationAction =>
+  value === "response" ? "response" : "proxy";
+
+const isValidHTTPHeaderName = (value: string): boolean =>
+  /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(value);
+
+const cleanHostLocationPath = (value: string): string => {
+  const raw = value.trim();
+  if (!raw.startsWith("/")) return raw;
+
+  const segments: string[] = [];
+  for (const segment of raw.split("/")) {
+    if (!segment || segment === ".") continue;
+    if (segment === "..") {
+      segments.pop();
+      continue;
+    }
+    segments.push(segment);
+  }
+
+  return `/${segments.join("/")}`;
+};
+
+const normalizeHostLocationResponseHeaders = (
+  value?: Record<string, unknown> | null,
+): Record<string, string> => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+
+  const headers: Record<string, string> = {};
+  for (const [rawName, rawValue] of Object.entries(value)) {
+    const name = rawName.trim();
+    if (
+      !name ||
+      !isValidHTTPHeaderName(name) ||
+      forbiddenHostLocationResponseHeaders.has(name.toLowerCase())
+    ) {
+      continue;
+    }
+    headers[name] = typeof rawValue === "string" ? rawValue : String(rawValue);
+  }
+  return headers;
+};
+
+const normalizeHostLocationResponse = (
+  value?: Partial<HostLocationResponse> | null,
+): HostLocationResponse => {
+  const raw = value ?? {};
+  const status = Math.floor(Number(raw.status) || 200);
+  return {
+    status: status >= 100 && status <= 599 ? status : 200,
+    content_type:
+      typeof raw.content_type === "string" && raw.content_type.trim()
+        ? raw.content_type.trim()
+        : DEFAULT_HOST_LOCATION_RESPONSE_CONTENT_TYPE,
+    headers: normalizeHostLocationResponseHeaders(raw.headers),
+    body: typeof raw.body === "string" ? raw.body : "",
+  };
+};
+
+const normalizeHostLocation = (
+  value?: Partial<HostLocation> | null,
+): HostLocation | null => {
+  const raw = value ?? {};
+  const path =
+    typeof raw.path === "string" ? cleanHostLocationPath(raw.path) : "";
+  if (!path || !path.startsWith("/") || path === "/") return null;
+  if (path.startsWith("/__") || path === "/s" || path === "/s/") return null;
+
+  const action = normalizeHostLocationAction(raw.action);
+  const target = typeof raw.target === "string" ? raw.target.trim() : "";
+  if (action === "proxy" && !target) return null;
+
+  return {
+    path,
+    match: normalizeHostLocationMatch(raw.match),
+    action,
+    target: action === "proxy" ? target : "",
+    strip_path: action === "proxy" ? raw.strip_path !== false : false,
+    rewrite_html: action === "proxy" ? raw.rewrite_html !== false : false,
+    response:
+      action === "response"
+        ? normalizeHostLocationResponse(raw.response)
+        : normalizeHostLocationResponse(null),
+  };
+};
+
+const normalizeHostLocations = (
+  value?: Array<Partial<HostLocation>> | null,
+): HostLocation[] => {
+  if (!Array.isArray(value)) return [];
+
+  const locations: HostLocation[] = [];
+  const seen = new Set<string>();
+  for (const item of value) {
+    const normalized = normalizeHostLocation(item);
+    if (!normalized) continue;
+    const key = `${normalized.match}\0${normalized.path}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    locations.push(normalized);
+  }
+  return locations;
+};
+
 const normalizeHostMapping = (
   value?: Partial<HostMapping> | null,
 ): HostMapping => {
@@ -2096,6 +2241,8 @@ const normalizeHostMapping = (
       serviceRole === "auth"
         ? createDisabledHostBasicAuth()
         : normalizeHostBasicAuth(raw.basic_auth),
+    locations:
+      serviceRole === "auth" ? [] : normalizeHostLocations(raw.locations),
     service_role: serviceRole,
     title: typeof raw.title === "string" ? raw.title.trim() : "",
     title_override:

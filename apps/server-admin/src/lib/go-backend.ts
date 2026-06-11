@@ -44,6 +44,22 @@ export interface HostRule {
     username: string;
     password: string;
   };
+  locations?: HostLocation[];
+}
+
+export interface HostLocation {
+  path: string;
+  match: "exact" | "prefix";
+  action: "proxy" | "response";
+  target?: string;
+  strip_path?: boolean;
+  rewrite_html?: boolean;
+  response?: {
+    status: number;
+    content_type: string;
+    headers: Record<string, string>;
+    body: string;
+  };
 }
 
 export type StreamMappingProtocol = "tcp" | "udp";
@@ -865,6 +881,15 @@ export class GoBackendService {
         suppress_toolbar: rule.suppress_toolbar,
         preserve_host: rule.preserve_host,
         basic_auth: rule.basic_auth,
+        locations: (rule.locations ?? []).map((location) => ({
+          path: location.path,
+          match: location.match,
+          action: location.action,
+          target: location.target,
+          strip_path: location.strip_path,
+          rewrite_html: location.rewrite_html,
+          response: location.response,
+        })),
       })),
     );
   }

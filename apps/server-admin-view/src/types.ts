@@ -51,6 +51,26 @@ export interface HostMappingBasicAuth {
   password: string;
 }
 
+export type HostLocationMatch = "exact" | "prefix";
+export type HostLocationAction = "proxy" | "response";
+
+export interface HostLocationResponse {
+  status: number;
+  content_type: string;
+  headers: Record<string, string>;
+  body: string;
+}
+
+export interface HostLocation {
+  path: string;
+  match: HostLocationMatch;
+  action: HostLocationAction;
+  target: string;
+  strip_path: boolean;
+  rewrite_html: boolean;
+  response: HostLocationResponse;
+}
+
 export interface HostMapping {
   host: string;
   target: string;
@@ -59,6 +79,7 @@ export interface HostMapping {
   suppress_toolbar: boolean;
   preserve_host: boolean;
   basic_auth: HostMappingBasicAuth;
+  locations: HostLocation[];
   service_role: HostServiceRole;
   title: string;
   title_override: string;

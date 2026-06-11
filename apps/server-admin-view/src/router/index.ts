@@ -129,6 +129,12 @@ const router = createRouter({
             import("../views/system-settings/GatewayHostResponseSettings.vue"),
         },
         {
+          path: "system/gateway-locations",
+          name: "GatewayLocationsSettings",
+          component: () =>
+            import("../views/system-settings/GatewayLocationsSettings.vue"),
+        },
+        {
           path: "system/smart-connect",
           name: "SmartConnectSettings",
           component: () =>

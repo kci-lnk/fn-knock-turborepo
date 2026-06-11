@@ -141,6 +141,23 @@ const getRunTypeLabel = (runType: 0 | 1 | 3) => {
   return "子域模式";
 };
 
+type HostLocationResponseInput = {
+  status?: unknown;
+  content_type?: unknown;
+  headers?: Record<string, unknown> | null;
+  body?: unknown;
+};
+
+type HostLocationInput = {
+  path?: unknown;
+  match?: unknown;
+  action?: unknown;
+  target?: unknown;
+  strip_path?: unknown;
+  rewrite_html?: unknown;
+  response?: HostLocationResponseInput | null;
+};
+
 const validateHostMappings = (
   mappings: Array<{
     host: string;
@@ -150,6 +167,7 @@ const validateHostMappings = (
     suppress_toolbar?: boolean;
     basic_auth?: Partial<HostMapping["basic_auth"]> | null;
     service_role?: "app" | "auth";
+    locations?: HostLocationInput[] | null;
   }>,
 ) => {
   const authMappings = mappings.filter((mapping) =>
@@ -201,7 +219,195 @@ const validateHostMappings = (
     };
   }
 
+  const invalidLocation = validateHostMappingLocations(mappings);
+  if (invalidLocation) {
+    return {
+      valid: false as const,
+      message: invalidLocation,
+    };
+  }
+
   return { valid: true as const };
+};
+
+const forbiddenHostLocationResponseHeaders = new Set([
+  "connection",
+  "keep-alive",
+  "proxy-connection",
+  "proxy-authenticate",
+  "proxy-authorization",
+  "te",
+  "trailer",
+  "transfer-encoding",
+  "upgrade",
+  "content-length",
+  "content-type",
+]);
+
+const isValidHTTPHeaderName = (value: string): boolean =>
+  /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(value);
+
+const cleanHostLocationPath = (value: string): string => {
+  const raw = value.trim();
+  if (!raw.startsWith("/")) return raw;
+
+  const segments: string[] = [];
+  for (const segment of raw.split("/")) {
+    if (!segment || segment === ".") continue;
+    if (segment === "..") {
+      segments.pop();
+      continue;
+    }
+    segments.push(segment);
+  }
+
+  return `/${segments.join("/")}`;
+};
+
+const validateHostMappingLocations = (
+  mappings: Array<{
+    host: string;
+    target: string;
+    locations?: HostLocationInput[] | null;
+  }>,
+): string | null => {
+  for (const mapping of mappings) {
+    if (isAuthServiceTarget(mapping.target.trim())) {
+      continue;
+    }
+    const locations = Array.isArray(mapping.locations) ? mapping.locations : [];
+    const seen = new Set<string>();
+    for (const location of locations) {
+      const locationPath =
+        typeof location.path === "string" ? location.path.trim() : "";
+      if (!locationPath) {
+        return `Host 映射 ${mapping.host} 的路径规则需要填写路径`;
+      }
+      if (!locationPath.startsWith("/")) {
+        return `Host 映射 ${mapping.host} 的路径规则 ${locationPath} 必须以 / 开头`;
+      }
+      const cleanPath = cleanHostLocationPath(locationPath);
+      if (cleanPath === "/") {
+        return `Host 映射 ${mapping.host} 不允许配置根路径 / 作为路径规则`;
+      }
+      if (
+        cleanPath.startsWith("/__") ||
+        cleanPath === "/s" ||
+        cleanPath === "/s/"
+      ) {
+        return `Host 映射 ${mapping.host} 的路径规则 ${locationPath} 使用了保留路径`;
+      }
+      const match = location.match === "exact" ? "exact" : "prefix";
+      const duplicateKey = `${match}\0${cleanPath}`;
+      if (seen.has(duplicateKey)) {
+        return `Host 映射 ${mapping.host} 存在重复路径规则 ${locationPath}`;
+      }
+      seen.add(duplicateKey);
+
+      const action = location.action === "response" ? "response" : "proxy";
+      if (action === "proxy") {
+        const target =
+          typeof location.target === "string" ? location.target.trim() : "";
+        if (!target) {
+          return `Host 映射 ${mapping.host} 的路径规则 ${locationPath} 需要填写目标`;
+        }
+      } else {
+        const response = (location.response ?? {}) as Partial<
+          HostMapping["locations"][number]["response"]
+        >;
+        const status = Math.floor(Number(response.status) || 200);
+        if (status < 100 || status > 599) {
+          return `Host 映射 ${mapping.host} 的路径规则 ${locationPath} 响应状态码必须在 100 到 599 之间`;
+        }
+        const headers =
+          response.headers &&
+          typeof response.headers === "object" &&
+          !Array.isArray(response.headers)
+            ? response.headers
+            : {};
+        for (const rawName of Object.keys(headers)) {
+          const name = rawName.trim();
+          if (!name || !isValidHTTPHeaderName(name)) {
+            return `Host 映射 ${mapping.host} 的路径规则 ${locationPath} 包含非法响应头 ${rawName}`;
+          }
+          if (forbiddenHostLocationResponseHeaders.has(name.toLowerCase())) {
+            return `Host 映射 ${mapping.host} 的路径规则 ${locationPath} 不能自定义响应头 ${name}`;
+          }
+        }
+      }
+    }
+  }
+
+  return null;
+};
+
+const DEFAULT_HOST_LOCATION_RESPONSE_CONTENT_TYPE =
+  "text/plain; charset=utf-8";
+
+const normalizeHostLocationResponseHeaders = (
+  value?: Record<string, unknown> | null,
+): Record<string, string> => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+
+  const headers: Record<string, string> = {};
+  for (const [rawName, rawValue] of Object.entries(value)) {
+    const name = rawName.trim();
+    if (
+      !name ||
+      !isValidHTTPHeaderName(name) ||
+      forbiddenHostLocationResponseHeaders.has(name.toLowerCase())
+    ) {
+      continue;
+    }
+    headers[name] = typeof rawValue === "string" ? rawValue : String(rawValue);
+  }
+  return headers;
+};
+
+const normalizeHostMappingLocationsForRoute = (
+  locations?: HostLocationInput[] | null,
+): HostMapping["locations"] => {
+  if (!Array.isArray(locations)) return [];
+
+  return locations.map((location) => {
+    const action = location.action === "response" ? "response" : "proxy";
+    const response = (location.response ?? {}) as Partial<
+      HostMapping["locations"][number]["response"]
+    >;
+    const status = Math.floor(Number(response.status) || 200);
+    return {
+      path:
+        typeof location.path === "string"
+          ? cleanHostLocationPath(location.path)
+          : "",
+      match: location.match === "exact" ? "exact" : "prefix",
+      action,
+      target:
+        action === "proxy" && typeof location.target === "string"
+          ? location.target.trim()
+          : "",
+      strip_path: action === "proxy" ? location.strip_path !== false : false,
+      rewrite_html: action === "proxy" ? location.rewrite_html !== false : false,
+      response:
+        action === "response"
+          ? {
+              status: status >= 100 && status <= 599 ? status : 200,
+              content_type:
+                typeof response.content_type === "string" &&
+                response.content_type.trim()
+                  ? response.content_type.trim()
+                  : DEFAULT_HOST_LOCATION_RESPONSE_CONTENT_TYPE,
+              headers: normalizeHostLocationResponseHeaders(response.headers),
+              body: typeof response.body === "string" ? response.body : "",
+            }
+          : {
+              status: 200,
+              content_type: DEFAULT_HOST_LOCATION_RESPONSE_CONTENT_TYPE,
+              headers: {},
+              body: "",
+            },
+    };
+  });
 };
 
 const normalizeHostMappingLookupKey = (value: string): string =>
@@ -250,6 +456,7 @@ const toHostRuleSyncPayload = (
     | "suppress_toolbar"
     | "preserve_host"
     | "basic_auth"
+    | "locations"
   >,
 ) => ({
   host: normalizeHostMappingLookupKey(mapping.host),
@@ -259,6 +466,7 @@ const toHostRuleSyncPayload = (
   suppress_toolbar: mapping.suppress_toolbar,
   preserve_host: mapping.preserve_host,
   basic_auth: normalizeHostBasicAuth(mapping.basic_auth),
+  locations: mapping.locations ?? [],
 });
 
 const haveSyncedHostRulesChanged = (
@@ -2187,12 +2395,17 @@ export const adminRoutes = new Elysia({
             : normalizeHostBasicAuth(
                 mapping.basic_auth ?? previous?.basic_auth,
               );
+        const normalizedLocations =
+          serviceRole === "auth"
+            ? []
+            : normalizeHostMappingLocationsForRoute(mapping.locations);
 
         return {
           ...mapping,
           target: normalizedTarget,
           service_role: serviceRole,
           basic_auth: normalizedBasicAuth,
+          locations: normalizedLocations,
           title:
             typeof mapping.title === "string"
               ? mapping.title.trim()
@@ -2271,6 +2484,29 @@ export const adminRoutes = new Elysia({
                 username: t.String(),
                 password: t.String(),
               }),
+            ),
+            locations: t.Optional(
+              t.Array(
+                t.Object({
+                  path: t.String(),
+                  match: t.Union([t.Literal("exact"), t.Literal("prefix")]),
+                  action: t.Union([
+                    t.Literal("proxy"),
+                    t.Literal("response"),
+                  ]),
+                  target: t.Optional(t.String()),
+                  strip_path: t.Optional(t.Boolean()),
+                  rewrite_html: t.Optional(t.Boolean()),
+                  response: t.Optional(
+                    t.Object({
+                      status: t.Optional(t.Number()),
+                      content_type: t.Optional(t.String()),
+                      headers: t.Optional(t.Record(t.String(), t.String())),
+                      body: t.Optional(t.String()),
+                    }),
+                  ),
+                }),
+              ),
             ),
             service_role: t.Optional(
               t.Union([t.Literal("app"), t.Literal("auth")]),

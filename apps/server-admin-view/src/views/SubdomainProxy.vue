@@ -393,7 +393,9 @@
                 <TableHead class="w-[7rem] min-w-[7rem] max-w-[7rem]">
                   流量
                 </TableHead>
-                <TableHead>状态</TableHead>
+                <TableHead class="w-[5.5rem] min-w-[5.5rem]">
+                  状态
+                </TableHead>
                 <TableHead class="text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
@@ -544,9 +546,9 @@
                     :timestamp="trafficRealtimeStats?.timestamp ?? null"
                   />
                 </TableCell>
-                <TableCell class="min-w-[3rem]">
+                <TableCell class="w-[5.5rem] min-w-[5.5rem]">
                   <div
-                    class="flex min-w-[3rem] flex-wrap items-center gap-2 text-xs text-muted-foreground"
+                    class="flex min-w-max flex-nowrap items-center gap-2 text-xs text-muted-foreground"
                   >
                     <Badge
                       v-if="isAuthServiceTarget(mapping.target)"
@@ -554,12 +556,45 @@
                     >
                       鉴权服务
                     </Badge>
-                    <ShieldCheck v-if="mapping.use_auth" class="h-3.5 w-3.5" />
+                    <ShieldCheck
+                      v-if="mapping.use_auth"
+                      class="h-3.5 w-3.5 shrink-0"
+                    />
                     <Badge v-else variant="secondary">公开访问</Badge>
                     <PanelsTopLeft
                       v-if="mapping.use_auth && !mapping.suppress_toolbar"
-                      class="h-3.5 w-3.5"
+                      class="h-3.5 w-3.5 shrink-0"
                     />
+                    <TooltipProvider
+                      v-if="getLocationRulesCount(mapping) > 0"
+                    >
+                      <Tooltip
+                        :open="isLocationRulesTooltipOpen(mapping.host)"
+                        @update:open="
+                          (nextOpen) =>
+                            handleLocationRulesTooltipOpenChange(
+                              mapping.host,
+                              nextOpen,
+                            )
+                        "
+                      >
+                        <TooltipTrigger as-child>
+                          <button
+                            type="button"
+                            class="inline-flex h-5 w-5 shrink-0 cursor-help items-center justify-center rounded-md transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                            :aria-label="`${formatHostWithAccessEntryPort(mapping.host)} 有 ${getLocationRulesCount(mapping)} 条路径规则`"
+                            @click="handleLocationRulesTooltipTriggerClick(mapping.host)"
+                          >
+                            <RouteIcon class="h-3.5 w-3.5" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" align="center">
+                          <p>
+                            已配置 {{ getLocationRulesCount(mapping) }} 条路径规则
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </div>
                 </TableCell>
                 <TableCell class="text-right">
@@ -570,6 +605,14 @@
                       @click="openEditDialog(mapping)"
                     >
                       编辑
+                    </Button>
+                    <Button
+                      v-if="!isAuthServiceTarget(mapping.target)"
+                      variant="ghost"
+                      size="sm"
+                      @click="openGatewayLocations(mapping.host)"
+                    >
+                      路径
                     </Button>
                     <Button
                       variant="ghost"
@@ -1200,6 +1243,7 @@ import {
   ref,
   watch,
 } from "vue";
+import { useRouter } from "vue-router";
 import {
   CircleAlert,
   ChevronDown,
@@ -1211,6 +1255,7 @@ import {
   PanelsTopLeft,
   Plus,
   RefreshCw,
+  Route as RouteIcon,
   Search,
   Settings,
   ShieldCheck,
@@ -1250,6 +1295,12 @@ import {
   PopoverContent,
 } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { VueDraggable } from "vue-draggable-plus";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import ConfigCollapsibleCard from "@admin-shared/components/ConfigCollapsibleCard.vue";
@@ -1615,6 +1666,7 @@ const createDefaultMapping = (): HostMapping => ({
   suppress_toolbar: false,
   preserve_host: true,
   basic_auth: createDisabledMappingBasicAuth(),
+  locations: [],
   service_role: "app",
   title: "",
   title_override: "",
@@ -1622,6 +1674,7 @@ const createDefaultMapping = (): HostMapping => ({
 });
 
 const searchQuery = ref("");
+const router = useRouter();
 const isDialogOpen = ref(false);
 const mappingDialogView = ref<MappingDialogView>("basic");
 const mappingDialogMotionDirection =
@@ -1649,6 +1702,8 @@ let isTrafficRealtimeLoading = false;
 let mappingDialogKeyboardScrollTimer: number | null = null;
 const mappingMetadataTarget = ref("");
 const openProtocolHeadersWarningHost = ref<string | null>(null);
+const openLocationRulesTooltipHost = ref<string | null>(null);
+const isTouchInteraction = ref(false);
 const sendProxyHeaders = ref(true);
 const preserveHost = ref(true);
 const sendProxyHeadersTouched = ref(false);
@@ -1662,6 +1717,7 @@ const modeForm = reactive<SubdomainModeConfig>(createDefaultModeForm());
 const mappingForm = reactive<HostMapping>(createDefaultMapping());
 let basicAuthProbeTimer: number | null = null;
 let basicAuthProbeRequestId = 0;
+let interactionMediaQuery: MediaQueryList | null = null;
 
 const currentModeConfig = computed(
   () => configStore.config?.subdomain_mode ?? createDefaultModeForm(),
@@ -1671,6 +1727,10 @@ const authServicePort = computed(
 );
 const isAuthServiceTarget = (target: string): boolean =>
   parseTargetPort(target) === authServicePort.value;
+const getLocationRulesCount = (mapping: HostMapping): number =>
+  mapping.locations?.length ?? 0;
+const isLocationRulesTooltipOpen = (host: string): boolean =>
+  openLocationRulesTooltipHost.value === host;
 const savedRootDomain = computed(() =>
   normalizeRootDomainValue(currentModeConfig.value.root_domain),
 );
@@ -2440,7 +2500,50 @@ const showDiscoverHostColumn = computed(() => {
   return hosts.size > 1;
 });
 
+function updateInteractionMode() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  isTouchInteraction.value = window.matchMedia(
+    "(hover: none), (pointer: coarse)",
+  ).matches;
+}
+
+function handleLocationRulesTooltipOpenChange(
+  host: string,
+  nextOpen: boolean,
+) {
+  if (nextOpen) {
+    openLocationRulesTooltipHost.value = host;
+    return;
+  }
+
+  if (openLocationRulesTooltipHost.value === host) {
+    openLocationRulesTooltipHost.value = null;
+  }
+}
+
+function handleLocationRulesTooltipTriggerClick(host: string) {
+  if (!isTouchInteraction.value) {
+    return;
+  }
+
+  openLocationRulesTooltipHost.value =
+    openLocationRulesTooltipHost.value === host ? null : host;
+}
+
 onMounted(async () => {
+  interactionMediaQuery = window.matchMedia(
+    "(hover: none), (pointer: coarse)",
+  );
+  updateInteractionMode();
+  if (typeof interactionMediaQuery.addEventListener === "function") {
+    interactionMediaQuery.addEventListener("change", updateInteractionMode);
+  } else {
+    interactionMediaQuery.addListener(updateInteractionMode);
+  }
+
   window.visualViewport?.addEventListener(
     "resize",
     handleMappingDialogViewportResize,
@@ -2467,6 +2570,14 @@ onUnmounted(() => {
   );
   clearMappingDialogKeyboardScrollTimer();
   clearBasicAuthProbeTimer();
+  if (interactionMediaQuery) {
+    if (typeof interactionMediaQuery.removeEventListener === "function") {
+      interactionMediaQuery.removeEventListener("change", updateInteractionMode);
+    } else {
+      interactionMediaQuery.removeListener(updateInteractionMode);
+    }
+    interactionMediaQuery = null;
+  }
   basicAuthProbeRequestId += 1;
   stopTrafficRealtimePolling();
 });
@@ -3129,6 +3240,7 @@ function normalizeMapping(input: HostMapping): HostMapping {
     basic_auth: basicAuth.enabled
       ? basicAuth
       : createDisabledMappingBasicAuth(),
+    locations: serviceRole === "auth" ? [] : [...(input.locations ?? [])],
     service_role: serviceRole,
     title: hasFreshMetadata ? input.title.trim() : "",
     title_override: input.title_override.trim(),
@@ -3198,6 +3310,13 @@ async function copyMappingHost(mapping: HostMapping) {
       description: "当前页面可能运行在受限环境中，请手动复制。",
     });
   }
+}
+
+function openGatewayLocations(host: string) {
+  void router.push({
+    path: "/system/gateway-locations",
+    query: { host },
+  });
 }
 
 async function saveMappingTitleOverride(mapping: HostMapping, value: string) {
@@ -3303,6 +3422,7 @@ async function addAuthService() {
         suppress_toolbar: false,
         preserve_host: true,
         basic_auth: createDisabledMappingBasicAuth(),
+        locations: [],
         service_role: "auth",
         title: "",
         title_override: "",
@@ -3694,6 +3814,7 @@ async function saveDiscoveredServices() {
         suppress_toolbar: false,
         preserve_host: true,
         basic_auth: createDisabledMappingBasicAuth(),
+        locations: [],
         service_role: "app",
         title: "",
         title_override: "",

@@ -663,18 +663,39 @@
                     </p>
                   </div>
                   <div
-                    class="flex items-center justify-between rounded-md border bg-muted/20 px-3 py-2 sm:w-auto sm:justify-start sm:gap-2 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0"
+                    role="radiogroup"
+                    aria-label="Host 输入模式"
+                    class="grid w-full grid-cols-2 rounded-lg bg-muted p-[3px] text-muted-foreground sm:w-[216px]"
                   >
-                    <span
-                      class="whitespace-nowrap text-xs text-muted-foreground"
+                    <button
+                      type="button"
+                      role="radio"
+                      :aria-checked="mappingInputMode === 'subdomain'"
+                      :disabled="!canUseRootDomainSuffix"
+                      class="inline-flex h-8 items-center justify-center rounded-md px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                      :class="
+                        mappingInputMode === 'subdomain'
+                          ? 'bg-background text-foreground shadow-sm'
+                          : 'hover:text-foreground'
+                      "
+                      @click="handleMappingInputModeChange('subdomain')"
                     >
                       固定后缀
-                    </span>
-                    <Switch
-                      id="mapping-use-root-domain"
-                      v-model="isUsingRootDomainSuffix"
-                      :disabled="!canUseRootDomainSuffix"
-                    />
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      :aria-checked="mappingInputMode === 'full_host'"
+                      class="inline-flex h-8 items-center justify-center rounded-md px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      :class="
+                        mappingInputMode === 'full_host'
+                          ? 'bg-background text-foreground shadow-sm'
+                          : 'hover:text-foreground'
+                      "
+                      @click="handleMappingInputModeChange('full_host')"
+                    >
+                      完整域名
+                    </button>
                   </div>
                 </div>
                 <template v-if="mappingInputMode === 'subdomain'">
@@ -739,21 +760,36 @@
             </div>
 
             <div v-else key="mapping-advanced" class="space-y-4 py-4">
-              <div class="flex items-start gap-3">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  class="-ml-2 mt-0.5"
-                  @click="returnMappingBasicView"
-                >
-                  <ChevronLeft class="h-4 w-4" />
-                </Button>
-                <div class="min-w-0 space-y-1">
-                  <h3 class="text-sm font-semibold">高级配置</h3>
-                  <p class="text-xs leading-5 text-muted-foreground">
-                    这些选项会随“保存映射”一起提交。
-                  </p>
+              <div class="space-y-3">
+                <div>
+                  <button
+                    type="button"
+                    class="-mx-2 inline-flex w-[calc(100%+1rem)] items-center gap-3 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    aria-label="返回基础信息"
+                    @click="returnMappingBasicView"
+                  >
+                    <ChevronLeft class="h-4 w-4 shrink-0" />
+                    <span class="text-sm font-semibold">高级配置</span>
+                  </button>
+                </div>
+
+                <div class="rounded-lg border bg-muted/20 px-4 py-2.5">
+                  <div
+                    class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
+                  >
+                    <div class="min-w-0 space-y-1">
+                      <p class="text-xs text-muted-foreground">Host</p>
+                      <p class="truncate text-sm font-medium">
+                        {{ mappingAdvancedHostLabel }}
+                      </p>
+                    </div>
+                    <div class="min-w-0 space-y-1">
+                      <p class="text-xs text-muted-foreground">目标</p>
+                      <p class="truncate text-sm">
+                        {{ mappingAdvancedTargetLabel }}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -778,7 +814,7 @@
                   class="flex items-center justify-between gap-4 rounded-lg border px-4 py-3"
                 >
                   <div class="min-w-0 space-y-1">
-                    <Label for="mapping-toolbar">显示小工具</Label>
+                    <Label for="mapping-toolbar">显示传送门</Label>
                     <p class="text-xs leading-5 text-muted-foreground">
                       完成登录后显示快速切换应用的小图标。
                     </p>
@@ -1676,27 +1712,20 @@ const deleteDialogConfirmLabel = computed(() => {
 
   return "删除映射";
 });
-const isUsingRootDomainSuffix = computed({
-  get: () =>
-    mappingInputMode.value === "subdomain" && canUseRootDomainSuffix.value,
-  set: (value: boolean) => {
-    setMappingInputMode(value ? "subdomain" : "full_host");
-  },
-});
 const mappingModeDescription = computed(() => {
   if (mappingInputMode.value === "subdomain" && canUseRootDomainSuffix.value) {
-    return `当前使用固定后缀 .${savedRootDomain.value}。`;
+    return `只填写前缀，保存时会自动拼接 .${savedRootDomain.value}。`;
   }
 
   if (canUseRootDomainSuffix.value) {
-    return `当前为自定义完整域名，不会自动拼接 .${savedRootDomain.value}。`;
+    return `输入完整 Host，不会自动拼接 .${savedRootDomain.value}。`;
   }
 
   if (!savedRootDomain.value) {
-    return "当前没有已保存的固定后缀，只能输入完整域名。";
+    return "保存根域名后可使用固定后缀；当前需要输入完整域名。";
   }
 
-  return "根域名有未保存修改，暂时只能输入完整域名。";
+  return "根域名有未保存修改，保存后可使用固定后缀。";
 });
 const mappingInputLabel = computed(() =>
   mappingInputMode.value === "subdomain" ? "子域名前缀" : "完整域名",
@@ -1718,6 +1747,12 @@ const composedPreviewHost = computed(() => {
   );
 });
 const mappingDraftHost = computed(() => composedPreviewHost.value);
+const mappingAdvancedHostLabel = computed(
+  () => mappingDraftHost.value || "未填写 Host",
+);
+const mappingAdvancedTargetLabel = computed(
+  () => mappingForm.target.trim() || "未填写目标",
+);
 const isGatewayAdvancedAvailableByMode = computed(() =>
   isAnySubdomainRoutingMode(configStore.config),
 );
@@ -1756,7 +1791,7 @@ const gatewayHostResponseBlockedReason = computed(() => {
 const mappingAdvancedSummary = computed(() => {
   const items = [
     mappingUseAuth.value ? "要求登录" : "公开访问",
-    showToolbar.value ? "显示小工具" : "隐藏小工具",
+    showToolbar.value ? "显示传送门" : "隐藏传送门",
   ];
 
   if (isMappingAuthService.value) {
@@ -2599,6 +2634,10 @@ function setMappingInputMode(nextMode: MappingInputMode) {
       description: `当前完整域名不在 .${savedRootDomain.value} 下，请重新填写子域名前缀。`,
     });
   }
+}
+
+function handleMappingInputModeChange(nextMode: MappingInputMode) {
+  setMappingInputMode(nextMode);
 }
 
 async function saveMode() {

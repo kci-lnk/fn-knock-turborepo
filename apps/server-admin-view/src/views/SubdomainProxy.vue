@@ -590,143 +590,256 @@
     </Card>
 
     <Dialog :open="isDialogOpen" @update:open="handleDialogOpenChange">
-      <DialogContent class="sm:max-w-[520px]">
-        <DialogHeader>
+      <DialogContent
+        class="flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[520px]"
+      >
+        <DialogHeader class="shrink-0 px-6 pt-6">
           <DialogTitle>
             {{ editingHost ? "编辑 Host 映射" : "添加 Host 映射" }}
           </DialogTitle>
           <DialogDescription> 业务域名默认会走统一登录流程 </DialogDescription>
         </DialogHeader>
-        <div class="grid gap-4 py-4">
-          <div class="space-y-2">
-            <div class="flex items-center justify-between gap-3">
-              <Label for="mapping-display-title">展示标题</Label>
-              <Button
-                variant="link"
-                size="sm"
-                class="h-auto p-0 text-xs"
-                :disabled="
-                  !canRefreshMappingMetadata || isRefreshingMappingMetadata
-                "
-                @click="refreshMappingMetadata"
-              >
-                <RefreshCw
-                  v-if="isRefreshingMappingMetadata"
-                  class="mr-1 h-3.5 w-3.5 animate-spin"
-                />
-                {{ isRefreshingMappingMetadata ? "刷新中..." : "刷新标题" }}
-              </Button>
-            </div>
-            <Input
-              id="mapping-display-title"
-              v-model="mappingForm.title_override"
-              placeholder="为空时自动使用抓取到的页面标题"
-            />
-            <p class="text-xs text-muted-foreground">
-              这里只修改当前系统内的展示标题，不会改动目标服务本身。留空时自动使用抓取到的页面标题。
-              <span v-if="mappingResolvedTitle">
-                当前抓取标题：{{ mappingResolvedTitle }}
-              </span>
-              <span v-else-if="mappingForm.target.trim()">
-                当前还没有抓取到标题，可点击右侧刷新。
-              </span>
-            </p>
-          </div>
-
-          <div class="space-y-2">
+        <div class="relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-6">
+          <Transition
+            :enter-active-class="mappingViewTransitionEnterActiveClass"
+            :leave-active-class="mappingViewTransitionLeaveActiveClass"
+            :enter-from-class="mappingViewTransitionEnterFromClass"
+            enter-to-class="translate-x-0 opacity-100"
+            leave-from-class="translate-x-0 opacity-100"
+            :leave-to-class="mappingViewTransitionLeaveToClass"
+          >
             <div
-              class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"
+              v-if="mappingDialogView === 'basic'"
+              key="mapping-basic"
+              class="grid gap-4 py-4"
             >
-              <div class="space-y-1">
-                <Label for="mapping-subdomain">
-                  {{ mappingInputLabel }}
-                </Label>
+              <div class="space-y-2">
+                <div class="flex items-center justify-between gap-3">
+                  <Label for="mapping-display-title">展示标题</Label>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    class="h-auto p-0 text-xs"
+                    :disabled="
+                      !canRefreshMappingMetadata || isRefreshingMappingMetadata
+                    "
+                    @click="refreshMappingMetadata"
+                  >
+                    <RefreshCw
+                      v-if="isRefreshingMappingMetadata"
+                      class="mr-1 h-3.5 w-3.5 animate-spin"
+                    />
+                    {{
+                      isRefreshingMappingMetadata ? "刷新中..." : "刷新标题"
+                    }}
+                  </Button>
+                </div>
+                <Input
+                  id="mapping-display-title"
+                  v-model="mappingForm.title_override"
+                  placeholder="为空时自动使用抓取到的页面标题"
+                />
                 <p class="text-xs text-muted-foreground">
-                  {{ mappingModeDescription }}
+                  这里只修改当前系统内的展示标题，不会改动目标服务本身。留空时自动使用抓取到的页面标题。
+                  <span v-if="mappingResolvedTitle">
+                    当前抓取标题：{{ mappingResolvedTitle }}
+                  </span>
+                  <span v-else-if="mappingForm.target.trim()">
+                    当前还没有抓取到标题，可点击右侧刷新。
+                  </span>
                 </p>
               </div>
-              <div
-                class="flex items-center justify-between rounded-md border bg-muted/20 px-3 py-2 sm:w-auto sm:justify-start sm:gap-2 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0"
-              >
-                <span class="whitespace-nowrap text-xs text-muted-foreground">
-                  固定后缀
-                </span>
-                <Switch
-                  id="mapping-use-root-domain"
-                  v-model="isUsingRootDomainSuffix"
-                  :disabled="!canUseRootDomainSuffix"
+
+              <div class="space-y-2">
+                <div
+                  class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"
+                >
+                  <div class="space-y-1">
+                    <Label for="mapping-subdomain">
+                      {{ mappingInputLabel }}
+                    </Label>
+                    <p class="text-xs text-muted-foreground">
+                      {{ mappingModeDescription }}
+                    </p>
+                  </div>
+                  <div
+                    class="flex items-center justify-between rounded-md border bg-muted/20 px-3 py-2 sm:w-auto sm:justify-start sm:gap-2 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0"
+                  >
+                    <span
+                      class="whitespace-nowrap text-xs text-muted-foreground"
+                    >
+                      固定后缀
+                    </span>
+                    <Switch
+                      id="mapping-use-root-domain"
+                      v-model="isUsingRootDomainSuffix"
+                      :disabled="!canUseRootDomainSuffix"
+                    />
+                  </div>
+                </div>
+                <template v-if="mappingInputMode === 'subdomain'">
+                  <div class="flex items-stretch rounded-md border">
+                    <Input
+                      id="mapping-subdomain"
+                      v-model="mappingSubdomain"
+                      placeholder="redis"
+                      class="rounded-none border-0 shadow-none focus-visible:ring-0"
+                    />
+                    <div
+                      class="flex items-center border-l bg-muted/30 px-3 text-sm text-muted-foreground"
+                    >
+                      .{{ savedRootDomain }}
+                    </div>
+                  </div>
+                  <p class="text-xs text-muted-foreground">
+                    最终地址：{{ composedPreviewHost || "未填写" }}
+                  </p>
+                </template>
+                <template v-else>
+                  <Input
+                    id="mapping-subdomain"
+                    v-model="mappingSubdomain"
+                    placeholder="auth.other-domain.example"
+                  />
+                  <p class="text-xs text-muted-foreground">
+                    {{ fullHostInputHint }}
+                  </p>
+                </template>
+              </div>
+
+              <div class="space-y-2">
+                <Label for="mapping-target">目标</Label>
+                <ProxyTargetInputField
+                  v-model="mappingForm.target"
+                  input-id="mapping-target"
+                  protocol-id="mapping-target-protocol"
+                  placeholder="127.0.0.1:5173"
                 />
               </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                class="h-auto w-full justify-between gap-3 px-4 py-3 text-left"
+                @click="openMappingAdvancedView"
+              >
+                <span class="flex min-w-0 items-start gap-3">
+                  <Settings class="mt-0.5 h-4 w-4 text-muted-foreground" />
+                  <span class="min-w-0 space-y-1">
+                    <span class="block text-sm font-medium">高级配置</span>
+                    <span
+                      class="block truncate text-xs font-normal text-muted-foreground"
+                    >
+                      {{ mappingAdvancedSummary }}
+                    </span>
+                  </span>
+                </span>
+                <ChevronRight class="h-4 w-4 text-muted-foreground" />
+              </Button>
             </div>
-            <template v-if="mappingInputMode === 'subdomain'">
-              <div class="flex items-stretch rounded-md border">
-                <Input
-                  id="mapping-subdomain"
-                  v-model="mappingSubdomain"
-                  placeholder="redis"
-                  class="rounded-none border-0 shadow-none focus-visible:ring-0"
-                />
-                <div
-                  class="flex items-center border-l bg-muted/30 px-3 text-sm text-muted-foreground"
+
+            <div v-else key="mapping-advanced" class="space-y-4 py-4">
+              <div class="flex items-start gap-3">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  class="-ml-2 mt-0.5"
+                  @click="returnMappingBasicView"
                 >
-                  .{{ savedRootDomain }}
+                  <ChevronLeft class="h-4 w-4" />
+                </Button>
+                <div class="min-w-0 space-y-1">
+                  <h3 class="text-sm font-semibold">高级配置</h3>
+                  <p class="text-xs leading-5 text-muted-foreground">
+                    这些选项会随“保存映射”一起提交。
+                  </p>
                 </div>
               </div>
-              <p class="text-xs text-muted-foreground">
-                最终地址：{{ composedPreviewHost || "未填写" }}
-              </p>
-            </template>
-            <template v-else>
-              <Input
-                id="mapping-subdomain"
-                v-model="mappingSubdomain"
-                placeholder="auth.other-domain.example"
-              />
-              <p class="text-xs text-muted-foreground">
-                {{ fullHostInputHint }}
-              </p>
-            </template>
-          </div>
 
-          <div class="space-y-2">
-            <Label for="mapping-target">目标</Label>
-            <ProxyTargetInputField
-              v-model="mappingForm.target"
-              input-id="mapping-target"
-              protocol-id="mapping-target-protocol"
-              placeholder="127.0.0.1:5173"
-            />
-          </div>
+              <div class="space-y-3">
+                <div
+                  class="flex items-center justify-between gap-4 rounded-lg border px-4 py-3"
+                >
+                  <div class="min-w-0 space-y-1">
+                    <Label for="mapping-auth">要求登录</Label>
+                    <p class="text-xs leading-5 text-muted-foreground">
+                      安全性，未登录用户会被要求登录才可以访问。
+                    </p>
+                  </div>
+                  <Switch
+                    id="mapping-auth"
+                    v-model="mappingUseAuth"
+                    :disabled="isMappingAuthService"
+                  />
+                </div>
 
-          <div
-            class="flex items-center justify-between rounded-lg border px-4 py-3"
-          >
-            <div class="space-y-1">
-              <Label for="mapping-auth">要求登录</Label>
-              <p class="text-xs text-muted-foreground">
-                安全性, 未登录用户会被要求登录才可以访问
-              </p>
+                <div
+                  class="flex items-center justify-between gap-4 rounded-lg border px-4 py-3"
+                >
+                  <div class="min-w-0 space-y-1">
+                    <Label for="mapping-toolbar">显示小工具</Label>
+                    <p class="text-xs leading-5 text-muted-foreground">
+                      完成登录后显示快速切换应用的小图标。
+                    </p>
+                  </div>
+                  <Switch id="mapping-toolbar" v-model="showToolbar" />
+                </div>
+
+                <div
+                  class="flex items-center justify-between gap-4 rounded-lg border px-4 py-3"
+                >
+                  <div class="min-w-0 space-y-1">
+                    <Label for="mapping-proxy-headers">协议头</Label>
+                    <p class="text-xs leading-5 text-muted-foreground">
+                      <template v-if="gatewayProxyHeadersBlockedReason">
+                        {{ gatewayProxyHeadersBlockedReason }}
+                      </template>
+                      <template v-else>
+                        开启后向上游发送
+                        <code>X-Forwarded-*</code>
+                        等代理头。
+                      </template>
+                    </p>
+                  </div>
+                  <Switch
+                    id="mapping-proxy-headers"
+                    v-model="sendProxyHeadersModel"
+                    :disabled="
+                      isSavingMappings || !!gatewayProxyHeadersBlockedReason
+                    "
+                  />
+                </div>
+
+                <div
+                  class="flex items-center justify-between gap-4 rounded-lg border px-4 py-3"
+                >
+                  <div class="min-w-0 space-y-1">
+                    <Label for="mapping-host-response">Host响应</Label>
+                    <p class="text-xs leading-5 text-muted-foreground">
+                      <template v-if="gatewayHostResponseBlockedReason">
+                        {{ gatewayHostResponseBlockedReason }}
+                      </template>
+                      <template v-else>
+                        开启后向上游保留用户访问时的
+                        <code>Host</code>
+                        。
+                      </template>
+                    </p>
+                  </div>
+                  <Switch
+                    id="mapping-host-response"
+                    v-model="preserveHostModel"
+                    :disabled="
+                      isSavingMappings || !!gatewayHostResponseBlockedReason
+                    "
+                  />
+                </div>
+              </div>
             </div>
-            <Switch
-              id="mapping-auth"
-              v-model="mappingForm.use_auth"
-              :disabled="isMappingAuthService"
-            />
-          </div>
-
-          <div
-            class="flex items-center justify-between rounded-lg border px-4 py-3"
-          >
-            <div class="space-y-1">
-              <Label for="mapping-toolbar">显示小工具</Label>
-              <p class="text-xs text-muted-foreground">
-                当开启时，在完成登录后，一般在右下角显示一个可以快速切换应用的小图标
-              </p>
-            </div>
-            <Switch id="mapping-toolbar" v-model="showToolbar" />
-          </div>
+          </Transition>
         </div>
-        <DialogFooter>
+        <DialogFooter class="shrink-0 border-t px-6 py-4">
           <Button variant="outline" @click="closeDialog">取消</Button>
           <Button
             :disabled="!isMappingValid || isSavingMappings"
@@ -996,6 +1109,8 @@ import {
 import {
   CircleAlert,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Download,
   GripVertical,
   Image,
@@ -1003,6 +1118,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Settings,
   ShieldCheck,
   SlidersHorizontal,
   Trash2,
@@ -1061,6 +1177,7 @@ import { useDiscoverServicesSelection } from "@admin-shared/composables/useDisco
 import { extractPortFromTarget } from "@admin-shared/utils/extractPortFromTarget";
 import { copyTextToClipboard } from "@admin-shared/utils/copyTextToClipboard";
 import { useConfigStore } from "../store/config";
+import { isAnySubdomainRoutingMode } from "../lib/reverse-proxy-submode";
 import {
   ConfigAPI,
   DashboardAPI,
@@ -1071,6 +1188,7 @@ import {
 } from "../lib/api";
 import { docsUrls } from "../lib/docs";
 import type {
+  GatewayHostResponseDetails,
   GatewayProxyHeadersDetails,
   HostTrafficStats,
   HostMapping,
@@ -1084,6 +1202,8 @@ import {
 import { downloadBlob } from "@admin-shared/utils/downloadBlob";
 
 type MappingInputMode = "subdomain" | "full_host";
+type MappingDialogView = "basic" | "advanced";
+type MappingDialogMotionDirection = "forward" | "back";
 
 type DiscoveredHostService = DiscoveredServiceInfo & {
   suggestedSubdomain: string;
@@ -1367,6 +1487,9 @@ const createDefaultMapping = (): HostMapping => ({
 
 const searchQuery = ref("");
 const isDialogOpen = ref(false);
+const mappingDialogView = ref<MappingDialogView>("basic");
+const mappingDialogMotionDirection =
+  ref<MappingDialogMotionDirection>("forward");
 const deleteDialogState = ref<DeleteDialogState | null>(null);
 const editingHost = ref<string | null>(null);
 const mappingInputMode = ref<MappingInputMode>("subdomain");
@@ -1375,12 +1498,25 @@ const accessEntryPort = ref("7999");
 const brokenFaviconKeys = ref(new Set<string>());
 const draggableVisibleMappings = ref<HostMapping[]>([]);
 const gatewayProxyHeadersDetails = ref<GatewayProxyHeadersDetails | null>(null);
+const gatewayHostResponseDetails = ref<GatewayHostResponseDetails | null>(
+  null,
+);
+const isLoadingGatewayProxyHeaders = ref(false);
+const isLoadingGatewayHostResponse = ref(false);
+const gatewayProxyHeadersLoadError = ref("");
+const gatewayHostResponseLoadError = ref("");
 const trafficRealtimeStats = ref<TrafficStats | null>(null);
 let gatewayProxyHeadersRequestId = 0;
+let gatewayHostResponseRequestId = 0;
 let trafficRealtimeTimer: number | null = null;
 let isTrafficRealtimeLoading = false;
 const mappingMetadataTarget = ref("");
 const openProtocolHeadersWarningHost = ref<string | null>(null);
+const sendProxyHeaders = ref(true);
+const preserveHost = ref(true);
+const sendProxyHeadersTouched = ref(false);
+const preserveHostTouched = ref(false);
+const mappingAdvancedCleanupHosts = ref<string[]>([]);
 const modeForm = reactive<SubdomainModeConfig>(createDefaultModeForm());
 const mappingForm = reactive<HostMapping>(createDefaultMapping());
 
@@ -1474,6 +1610,26 @@ const showToolbar = computed({
     mappingForm.suppress_toolbar = !value;
   },
 });
+const mappingUseAuth = computed({
+  get: () => !isMappingAuthService.value && mappingForm.use_auth,
+  set: (value: boolean) => {
+    mappingForm.use_auth = value;
+  },
+});
+const sendProxyHeadersModel = computed({
+  get: () => sendProxyHeaders.value,
+  set: (value: boolean) => {
+    sendProxyHeadersTouched.value = true;
+    sendProxyHeaders.value = value;
+  },
+});
+const preserveHostModel = computed({
+  get: () => preserveHost.value,
+  set: (value: boolean) => {
+    preserveHostTouched.value = true;
+    preserveHost.value = value;
+  },
+});
 const isDeleteDialogOpen = computed(() => deleteDialogState.value !== null);
 const deleteDialogTitle = computed(() => {
   const target = deleteDialogState.value;
@@ -1561,6 +1717,71 @@ const composedPreviewHost = computed(() => {
     savedRootDomain.value,
   );
 });
+const mappingDraftHost = computed(() => composedPreviewHost.value);
+const isGatewayAdvancedAvailableByMode = computed(() =>
+  isAnySubdomainRoutingMode(configStore.config),
+);
+const gatewayProxyHeadersBlockedReason = computed(() => {
+  if (isMappingAuthService.value) return "鉴权服务不参与协议头配置。";
+  if (isLoadingGatewayProxyHeaders.value) return "正在加载协议头配置。";
+  if (gatewayProxyHeadersLoadError.value) {
+    return gatewayProxyHeadersLoadError.value;
+  }
+  if (gatewayProxyHeadersDetails.value) {
+    return gatewayProxyHeadersDetails.value.availability.available
+      ? ""
+      : gatewayProxyHeadersDetails.value.availability.reason;
+  }
+  if (!isGatewayAdvancedAvailableByMode.value) {
+    return "协议头仅可在子域映射模式下编辑。";
+  }
+  return "";
+});
+const gatewayHostResponseBlockedReason = computed(() => {
+  if (isMappingAuthService.value) return "鉴权服务不参与 Host 响应配置。";
+  if (isLoadingGatewayHostResponse.value) return "正在加载 Host 响应配置。";
+  if (gatewayHostResponseLoadError.value) {
+    return gatewayHostResponseLoadError.value;
+  }
+  if (gatewayHostResponseDetails.value) {
+    return gatewayHostResponseDetails.value.availability.available
+      ? ""
+      : gatewayHostResponseDetails.value.availability.reason;
+  }
+  if (!isGatewayAdvancedAvailableByMode.value) {
+    return "Host 响应仅可在子域映射模式下编辑。";
+  }
+  return "";
+});
+const mappingAdvancedSummary = computed(() => {
+  const items = [
+    mappingUseAuth.value ? "要求登录" : "公开访问",
+    showToolbar.value ? "显示小工具" : "隐藏小工具",
+  ];
+
+  if (isMappingAuthService.value) {
+    items.push("鉴权入口");
+  } else {
+    items.push(sendProxyHeaders.value ? "发送协议头" : "关闭协议头");
+    items.push(preserveHost.value ? "保留 Host" : "使用上游 Host");
+  }
+
+  return items.join(" · ");
+});
+const mappingViewTransitionEnterActiveClass =
+  "motion-safe:transition-[opacity,transform] motion-safe:duration-200 motion-safe:ease-out motion-safe:will-change-transform motion-reduce:transition-none";
+const mappingViewTransitionLeaveActiveClass =
+  "absolute inset-x-6 top-0 motion-safe:transition-[opacity,transform] motion-safe:duration-200 motion-safe:ease-out motion-safe:will-change-transform motion-reduce:hidden";
+const mappingViewTransitionEnterFromClass = computed(() =>
+  mappingDialogMotionDirection.value === "forward"
+    ? "opacity-0 motion-safe:translate-x-6"
+    : "opacity-0 motion-safe:-translate-x-6",
+);
+const mappingViewTransitionLeaveToClass = computed(() =>
+  mappingDialogMotionDirection.value === "forward"
+    ? "opacity-0 motion-safe:-translate-x-6"
+    : "opacity-0 motion-safe:translate-x-6",
+);
 const defaultAuthServicePublicPort = computed(
   () => normalizePublicPort(accessEntryPort.value) || 7999,
 );
@@ -1823,10 +2044,7 @@ const resolveDefaultAuthServiceTarget = (): string => {
 };
 
 const isMappingValid = computed(() => {
-  const host =
-    mappingInputMode.value === "full_host"
-      ? normalizeHostLike(mappingSubdomain.value)
-      : composeHostFromSubdomain(mappingSubdomain.value, savedRootDomain.value);
+  const host = mappingDraftHost.value;
   const target = mappingForm.target.trim();
 
   if (!host || !target) return false;
@@ -1990,6 +2208,19 @@ watch(
   { immediate: true },
 );
 
+watch(
+  [
+    mappingDraftHost,
+    gatewayProxyHeadersDetails,
+    gatewayHostResponseDetails,
+  ],
+  () => {
+    if (isDialogOpen.value) {
+      applyMappingGatewayDraftFromConfig();
+    }
+  },
+);
+
 const {
   open: isDiscoverDialogOpen,
   discoveredData,
@@ -2113,12 +2344,144 @@ function handleProtocolHeadersWarningOpenChange(
   }
 }
 
-async function loadGatewayProxyHeadersDetails() {
+const normalizeDisabledHosts = (hosts: string[] | undefined | null): string[] =>
+  [...new Set((hosts ?? []).map(normalizeHostLike).filter(Boolean))];
+
+const hasSameDisabledHosts = (left: string[], right: string[]): boolean => {
+  const leftHosts = normalizeDisabledHosts(left);
+  const rightHosts = normalizeDisabledHosts(right);
+  return (
+    leftHosts.length === rightHosts.length &&
+    leftHosts.every((host, index) => host === rightHosts[index])
+  );
+};
+
+function cancelGatewayProxyHeadersLoad() {
+  gatewayProxyHeadersRequestId += 1;
+  isLoadingGatewayProxyHeaders.value = false;
+}
+
+function cancelGatewayHostResponseLoad() {
+  gatewayHostResponseRequestId += 1;
+  isLoadingGatewayHostResponse.value = false;
+}
+
+const resolveSendProxyHeadersForHost = (host: string): boolean => {
+  const normalizedHost = normalizeHostLike(host);
+  if (!normalizedHost) return true;
+
+  const disabledHosts = new Set(
+    normalizeDisabledHosts(
+      gatewayProxyHeadersDetails.value?.config.disabled_hosts ??
+        configStore.config?.gateway_proxy_headers?.disabled_hosts,
+    ),
+  );
+  return !disabledHosts.has(normalizedHost);
+};
+
+const resolvePreserveHostForHost = (host: string): boolean => {
+  const normalizedHost = normalizeHostLike(host);
+  if (!normalizedHost) return true;
+
+  const disabledHosts = new Set(
+    normalizeDisabledHosts(
+      gatewayHostResponseDetails.value?.config.disabled_hosts ??
+        configStore.config?.gateway_host_response?.disabled_hosts,
+    ),
+  );
+  return !disabledHosts.has(normalizedHost);
+};
+
+function applyGatewayProxyHeadersDetails(details: GatewayProxyHeadersDetails) {
+  gatewayProxyHeadersDetails.value = details;
+  if (configStore.config) {
+    configStore.config = {
+      ...configStore.config,
+      gateway_proxy_headers: {
+        disabled_hosts: [...details.config.disabled_hosts],
+      },
+    };
+  }
+  applyMappingGatewayDraftFromConfig();
+}
+
+function applyGatewayHostResponseDetails(details: GatewayHostResponseDetails) {
+  gatewayHostResponseDetails.value = details;
+  if (configStore.config) {
+    configStore.config = {
+      ...configStore.config,
+      gateway_host_response: {
+        disabled_hosts: [...details.config.disabled_hosts],
+      },
+    };
+  }
+  applyMappingGatewayDraftFromConfig();
+}
+
+function applyMappingGatewayDraftFromConfig(host = mappingDraftHost.value) {
+  const normalizedHost = normalizeHostLike(host);
+  if (!sendProxyHeadersTouched.value) {
+    sendProxyHeaders.value = resolveSendProxyHeadersForHost(normalizedHost);
+  }
+  if (!preserveHostTouched.value) {
+    preserveHost.value = resolvePreserveHostForHost(normalizedHost);
+  }
+}
+
+function resetMappingAdvancedState(host = "") {
+  mappingDialogView.value = "basic";
+  mappingDialogMotionDirection.value = "forward";
+  mappingAdvancedCleanupHosts.value = [];
+  sendProxyHeadersTouched.value = false;
+  preserveHostTouched.value = false;
+  sendProxyHeaders.value = resolveSendProxyHeadersForHost(host);
+  preserveHost.value = resolvePreserveHostForHost(host);
+  gatewayProxyHeadersLoadError.value = "";
+  gatewayHostResponseLoadError.value = "";
+}
+
+function openMappingAdvancedView() {
+  mappingDialogMotionDirection.value = "forward";
+  mappingDialogView.value = "advanced";
+  void loadGatewayAdvancedDetails();
+}
+
+function returnMappingBasicView() {
+  mappingDialogMotionDirection.value = "back";
+  mappingDialogView.value = "basic";
+}
+
+function addMappingAdvancedCleanupHost(host: string | null) {
+  const normalizedHost = host ? normalizeHostLike(host) : "";
+  if (!normalizedHost) return;
+  if (mappingAdvancedCleanupHosts.value.includes(normalizedHost)) return;
+  mappingAdvancedCleanupHosts.value = [
+    ...mappingAdvancedCleanupHosts.value,
+    normalizedHost,
+  ];
+}
+
+const collectMappingAdvancedCleanupHosts = (
+  previousHost: string | null,
+): string[] =>
+  normalizeDisabledHosts([
+    ...mappingAdvancedCleanupHosts.value,
+    ...(previousHost ? [previousHost] : []),
+  ]);
+
+async function loadGatewayProxyHeadersDetails(
+  options: { force?: boolean; trackLoading?: boolean } = {},
+) {
   const requestId = ++gatewayProxyHeadersRequestId;
 
-  if (!hasProtocolHeadersSensitiveMappings.value) {
+  if (!options.force && !hasProtocolHeadersSensitiveMappings.value) {
     gatewayProxyHeadersDetails.value = null;
     return;
+  }
+
+  if (options.trackLoading) {
+    isLoadingGatewayProxyHeaders.value = true;
+    gatewayProxyHeadersLoadError.value = "";
   }
 
   try {
@@ -2126,13 +2489,70 @@ async function loadGatewayProxyHeadersDetails() {
     if (requestId !== gatewayProxyHeadersRequestId) {
       return;
     }
-    gatewayProxyHeadersDetails.value = details;
+    applyGatewayProxyHeadersDetails(details);
   } catch (error) {
     if (requestId !== gatewayProxyHeadersRequestId) {
       return;
     }
+    if (options.trackLoading) {
+      gatewayProxyHeadersLoadError.value = extractErrorMessage(
+        error,
+        "加载协议头配置失败",
+      );
+    }
     console.warn("load gateway proxy headers failed:", error);
+  } finally {
+    if (
+      options.trackLoading &&
+      requestId === gatewayProxyHeadersRequestId
+    ) {
+      isLoadingGatewayProxyHeaders.value = false;
+    }
   }
+}
+
+async function loadGatewayHostResponseDetails(
+  options: { trackLoading?: boolean } = {},
+) {
+  const requestId = ++gatewayHostResponseRequestId;
+
+  if (options.trackLoading) {
+    isLoadingGatewayHostResponse.value = true;
+    gatewayHostResponseLoadError.value = "";
+  }
+
+  try {
+    const details = await ConfigAPI.getGatewayHostResponse();
+    if (requestId !== gatewayHostResponseRequestId) {
+      return;
+    }
+    applyGatewayHostResponseDetails(details);
+  } catch (error) {
+    if (requestId !== gatewayHostResponseRequestId) {
+      return;
+    }
+    if (options.trackLoading) {
+      gatewayHostResponseLoadError.value = extractErrorMessage(
+        error,
+        "加载 Host 响应配置失败",
+      );
+    }
+    console.warn("load gateway host response failed:", error);
+  } finally {
+    if (
+      options.trackLoading &&
+      requestId === gatewayHostResponseRequestId
+    ) {
+      isLoadingGatewayHostResponse.value = false;
+    }
+  }
+}
+
+async function loadGatewayAdvancedDetails() {
+  await Promise.all([
+    loadGatewayProxyHeadersDetails({ force: true, trackLoading: true }),
+    loadGatewayHostResponseDetails({ trackLoading: true }),
+  ]);
 }
 
 function resetModeForm() {
@@ -2231,7 +2651,9 @@ function openCreateDialog() {
   mappingSubdomain.value = "";
   mappingMetadataTarget.value = "";
   Object.assign(mappingForm, createDefaultMapping());
+  resetMappingAdvancedState("");
   isDialogOpen.value = true;
+  void loadGatewayAdvancedDetails();
 }
 
 function openEditDialog(mapping: HostMapping) {
@@ -2245,7 +2667,9 @@ function openEditDialog(mapping: HostMapping) {
 
   Object.assign(mappingForm, { ...mapping });
   mappingMetadataTarget.value = mapping.target.trim();
+  resetMappingAdvancedState(mapping.host);
   isDialogOpen.value = true;
+  void loadGatewayAdvancedDetails();
 }
 
 function closeDialog() {
@@ -2257,6 +2681,7 @@ function closeDialog() {
   mappingSubdomain.value = "";
   mappingMetadataTarget.value = "";
   Object.assign(mappingForm, createDefaultMapping());
+  resetMappingAdvancedState("");
 }
 
 function closeDeleteDialog() {
@@ -2279,10 +2704,7 @@ function normalizeMapping(input: HostMapping): HostMapping {
   const normalizedTarget = input.target.trim();
   const hasFreshMetadata = mappingMetadataTarget.value === normalizedTarget;
   const serviceRole = isAuthServiceTarget(normalizedTarget) ? "auth" : "app";
-  const host =
-    mappingInputMode.value === "full_host"
-      ? normalizeHostLike(mappingSubdomain.value)
-      : composeHostFromSubdomain(mappingSubdomain.value, savedRootDomain.value);
+  const host = mappingDraftHost.value;
 
   return {
     host,
@@ -2541,6 +2963,83 @@ async function clearAllSubdomainConfig(): Promise<boolean> {
   return cleared === true;
 }
 
+const mergeGatewayDisabledHostsForMapping = (
+  currentDisabledHosts: string[],
+  previousHosts: string[],
+  nextHost: string,
+  enabledForNextHost: boolean,
+): string[] => {
+  const disabledHosts = new Set(normalizeDisabledHosts(currentDisabledHosts));
+  const normalizedNextHost = normalizeHostLike(nextHost);
+
+  for (const host of normalizeDisabledHosts(previousHosts)) {
+    disabledHosts.delete(host);
+  }
+
+  if (normalizedNextHost) {
+    if (enabledForNextHost) {
+      disabledHosts.delete(normalizedNextHost);
+    } else {
+      disabledHosts.add(normalizedNextHost);
+    }
+  }
+
+  return [...disabledHosts];
+};
+
+async function saveMappingGatewayAdvanced(
+  normalized: HostMapping,
+  previousHost: string | null,
+) {
+  const nextConfigHost =
+    normalized.service_role === "auth" ? "" : normalized.host;
+  const cleanupHosts = collectMappingAdvancedCleanupHosts(previousHost);
+  const currentProxyDisabledHosts = normalizeDisabledHosts(
+    gatewayProxyHeadersDetails.value?.config.disabled_hosts ??
+      configStore.config?.gateway_proxy_headers?.disabled_hosts,
+  );
+  const currentHostResponseDisabledHosts = normalizeDisabledHosts(
+    gatewayHostResponseDetails.value?.config.disabled_hosts ??
+      configStore.config?.gateway_host_response?.disabled_hosts,
+  );
+  const nextProxyDisabledHosts = mergeGatewayDisabledHostsForMapping(
+    currentProxyDisabledHosts,
+    cleanupHosts,
+    nextConfigHost,
+    normalized.service_role === "auth" ? true : sendProxyHeaders.value,
+  );
+  const nextHostResponseDisabledHosts = mergeGatewayDisabledHostsForMapping(
+    currentHostResponseDisabledHosts,
+    cleanupHosts,
+    nextConfigHost,
+    normalized.service_role === "auth" ? true : preserveHost.value,
+  );
+  const shouldUpdateProxyHeaders = !hasSameDisabledHosts(
+    currentProxyDisabledHosts,
+    nextProxyDisabledHosts,
+  );
+  const shouldUpdateHostResponse = !hasSameDisabledHosts(
+    currentHostResponseDisabledHosts,
+    nextHostResponseDisabledHosts,
+  );
+
+  if (shouldUpdateProxyHeaders) {
+    cancelGatewayProxyHeadersLoad();
+    const details = await ConfigAPI.updateGatewayProxyHeaders({
+      disabled_hosts: nextProxyDisabledHosts,
+    });
+    applyGatewayProxyHeadersDetails(details);
+  }
+
+  if (shouldUpdateHostResponse) {
+    cancelGatewayHostResponseLoad();
+    const details = await ConfigAPI.updateGatewayHostResponse({
+      disabled_hosts: nextHostResponseDisabledHosts,
+    });
+    applyGatewayHostResponseDetails(details);
+  }
+}
+
 async function saveMapping() {
   if (!isMappingValid.value) return;
 
@@ -2568,6 +3067,7 @@ async function saveMapping() {
 
   await runSaveMappings(async () => {
     const next = [...allMappings.value];
+    const previousHost = editingHost.value;
     const index = editingHost.value
       ? next.findIndex((item) => item.host === editingHost.value)
       : -1;
@@ -2579,6 +3079,23 @@ async function saveMapping() {
     }
 
     await configStore.saveHostMappings(next);
+    if (previousHost !== normalized.host) {
+      addMappingAdvancedCleanupHost(previousHost);
+    }
+    editingHost.value = normalized.host;
+    Object.assign(mappingForm, normalized);
+
+    try {
+      await saveMappingGatewayAdvanced(normalized, previousHost);
+    } catch (error) {
+      mappingDialogMotionDirection.value = "forward";
+      mappingDialogView.value = "advanced";
+      toast.error("Host 映射已保存，高级配置保存失败", {
+        description: extractErrorMessage(error, "高级配置保存失败"),
+      });
+      return;
+    }
+
     toast.success(index >= 0 ? "Host 映射已更新" : "Host 映射已添加");
     closeDialog();
   });

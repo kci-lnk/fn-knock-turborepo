@@ -39,6 +39,11 @@ export interface HostRule {
   access_mode?: "login_first" | "strict_whitelist";
   suppress_toolbar?: boolean;
   preserve_host?: boolean;
+  basic_auth?: {
+    enabled: boolean;
+    username: string;
+    password: string;
+  };
 }
 
 export type StreamMappingProtocol = "tcp" | "udp";
@@ -705,7 +710,9 @@ export class GoBackendService {
     return resp;
   }
 
-  async getHostActiveIPs(host: string): Promise<GoResponse<HostActiveIPsStats>> {
+  async getHostActiveIPs(
+    host: string,
+  ): Promise<GoResponse<HostActiveIPsStats>> {
     const fallback: HostActiveIPsStats = {
       host,
       window_seconds: 120,
@@ -857,6 +864,7 @@ export class GoBackendService {
         access_mode: rule.access_mode,
         suppress_toolbar: rule.suppress_toolbar,
         preserve_host: rule.preserve_host,
+        basic_auth: rule.basic_auth,
       })),
     );
   }

@@ -44,6 +44,7 @@ export class ScannerService {
           host: result.host,
           port: result.port,
           httpStatus: result.httpStatus,
+          ...(result.requiresBasicAuth ? { requiresBasicAuth: true } : {}),
           detail: rule,
         };
       }),

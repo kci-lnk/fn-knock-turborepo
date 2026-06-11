@@ -49,6 +49,7 @@ import {
   scheduleHostMappingsMetadataRefresh,
 } from "../lib/host-mapping-metadata";
 import { fetchUrlMetadata } from "../lib/url-metadata";
+import { probeBasicAuthTarget } from "../lib/basic-auth-probe";
 import {
   buildHostMappingsBookmarkFilename,
   buildHostMappingsBookmarksDocument,
@@ -147,6 +148,7 @@ const validateHostMappings = (
     use_auth: boolean;
     access_mode: "login_first" | "strict_whitelist";
     suppress_toolbar?: boolean;
+    basic_auth?: Partial<HostMapping["basic_auth"]> | null;
     service_role?: "app" | "auth";
   }>,
 ) => {
@@ -170,6 +172,35 @@ const validateHostMappings = (
     };
   }
 
+  const authMappingWithBasicAuth = authMappings.find(
+    (mapping) => mapping.basic_auth?.enabled === true,
+  );
+  if (authMappingWithBasicAuth) {
+    return {
+      valid: false as const,
+      message: `鉴权服务 ${authMappingWithBasicAuth.host} 不能开启凭证注入`,
+    };
+  }
+
+  const invalidBasicAuthMapping = mappings.find((mapping) => {
+    if (mapping.basic_auth?.enabled !== true) return false;
+    const username =
+      typeof mapping.basic_auth.username === "string"
+        ? mapping.basic_auth.username.trim()
+        : "";
+    const password =
+      typeof mapping.basic_auth.password === "string"
+        ? mapping.basic_auth.password
+        : "";
+    return !username || !password || username.includes(":");
+  });
+  if (invalidBasicAuthMapping) {
+    return {
+      valid: false as const,
+      message: `Host 映射 ${invalidBasicAuthMapping.host} 的凭证注入需要填写用户名和密码，且用户名不能包含冒号`,
+    };
+  }
+
   return { valid: true as const };
 };
 
@@ -180,6 +211,35 @@ const normalizeHostMappingLookupKey = (value: string): string =>
     .replace(/^[a-z]+:\/\//i, "")
     .replace(/\/.*$/, "");
 
+const createDisabledHostBasicAuth = (): HostMapping["basic_auth"] => ({
+  enabled: false,
+  username: "",
+  password: "",
+});
+
+const normalizeHostBasicAuth = (
+  value?: Partial<HostMapping["basic_auth"]> | null,
+): HostMapping["basic_auth"] => {
+  const raw = value ?? {};
+  const username = typeof raw.username === "string" ? raw.username.trim() : "";
+  const password = typeof raw.password === "string" ? raw.password : "";
+
+  if (
+    raw.enabled !== true ||
+    !username ||
+    !password ||
+    username.includes(":")
+  ) {
+    return createDisabledHostBasicAuth();
+  }
+
+  return {
+    enabled: true,
+    username,
+    password,
+  };
+};
+
 const toHostRuleSyncPayload = (
   mapping: Pick<
     HostMapping,
@@ -189,6 +249,7 @@ const toHostRuleSyncPayload = (
     | "access_mode"
     | "suppress_toolbar"
     | "preserve_host"
+    | "basic_auth"
   >,
 ) => ({
   host: normalizeHostMappingLookupKey(mapping.host),
@@ -197,6 +258,7 @@ const toHostRuleSyncPayload = (
   access_mode: mapping.access_mode,
   suppress_toolbar: mapping.suppress_toolbar,
   preserve_host: mapping.preserve_host,
+  basic_auth: normalizeHostBasicAuth(mapping.basic_auth),
 });
 
 const haveSyncedHostRulesChanged = (
@@ -2114,13 +2176,23 @@ export const adminRoutes = new Elysia({
           normalizeHostMappingLookupKey(mapping.host),
         );
         const normalizedTarget = mapping.target.trim();
+        const serviceRole = isAuthServiceTarget(normalizedTarget)
+          ? "auth"
+          : "app";
         const canReusePreviousMetadata =
           previous?.target.trim() === normalizedTarget;
+        const normalizedBasicAuth =
+          serviceRole === "auth"
+            ? createDisabledHostBasicAuth()
+            : normalizeHostBasicAuth(
+                mapping.basic_auth ?? previous?.basic_auth,
+              );
 
         return {
           ...mapping,
           target: normalizedTarget,
-          service_role: isAuthServiceTarget(normalizedTarget) ? "auth" : "app",
+          service_role: serviceRole,
+          basic_auth: normalizedBasicAuth,
           title:
             typeof mapping.title === "string"
               ? mapping.title.trim()
@@ -2193,6 +2265,13 @@ export const adminRoutes = new Elysia({
             ]),
             suppress_toolbar: t.Boolean(),
             preserve_host: t.Boolean(),
+            basic_auth: t.Optional(
+              t.Object({
+                enabled: t.Boolean(),
+                username: t.String(),
+                password: t.String(),
+              }),
+            ),
             service_role: t.Optional(
               t.Union([t.Literal("app"), t.Literal("auth")]),
             ),
@@ -2201,6 +2280,21 @@ export const adminRoutes = new Elysia({
             favicon: t.Optional(t.String()),
           }),
         ),
+      }),
+    }),
+  )
+  .post(
+    "/config/host_mappings/basic_auth_probe",
+    async ({ body }) => {
+      const result = await probeBasicAuthTarget(body.target);
+      return {
+        success: true,
+        data: result,
+      };
+    },
+    withRouteDoc("探测目标 Basic Auth", {
+      body: t.Object({
+        target: t.String(),
       }),
     }),
   )

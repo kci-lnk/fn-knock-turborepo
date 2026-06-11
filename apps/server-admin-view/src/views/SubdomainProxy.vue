@@ -591,15 +591,30 @@
 
     <Dialog :open="isDialogOpen" @update:open="handleDialogOpenChange">
       <DialogContent
-        class="flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[520px]"
+        class="flex max-h-[85vh] flex-col gap-0 overflow-hidden overscroll-contain p-0 sm:max-w-[520px] max-sm:!inset-x-0 max-sm:!bottom-[var(--mapping-dialog-keyboard-inset)] max-sm:!top-auto max-sm:!max-w-none max-sm:!translate-x-0 max-sm:!translate-y-0 max-sm:max-h-[var(--mapping-dialog-mobile-max-height)] max-sm:rounded-b-none max-sm:border-b-0"
+        :style="mappingDialogContentStyle"
+        :show-close-button="false"
       >
-        <DialogHeader class="shrink-0 px-6 pt-6">
-          <DialogTitle>
-            {{ editingHost ? "编辑 Host 映射" : "添加 Host 映射" }}
-          </DialogTitle>
-          <DialogDescription> 业务域名默认会走统一登录流程 </DialogDescription>
-        </DialogHeader>
-        <div class="relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-6">
+        <div
+          v-if="mappingDialogView === 'advanced'"
+          class="shrink-0 border-b bg-background px-6 pb-3 pt-8"
+        >
+          <button
+            type="button"
+            class="-mx-2 inline-flex w-[calc(100%+1rem)] items-center gap-3 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="返回基础信息"
+            @click="returnMappingBasicView"
+          >
+            <ChevronLeft class="h-4 w-4 shrink-0" />
+            <span class="text-sm font-semibold">高级配置</span>
+          </button>
+        </div>
+        <div
+          ref="mappingDialogScrollRef"
+          class="relative min-h-0 flex-1 overscroll-contain overflow-x-hidden overflow-y-auto px-6 [overflow-anchor:none]"
+          :style="mappingDialogScrollStyle"
+          @focusin="handleMappingDialogFocusIn"
+        >
           <Transition
             :enter-active-class="mappingViewTransitionEnterActiveClass"
             :leave-active-class="mappingViewTransitionLeaveActiveClass"
@@ -611,7 +626,7 @@
             <div
               v-if="mappingDialogView === 'basic'"
               key="mapping-basic"
-              class="grid gap-4 py-4"
+              class="grid gap-4 pb-4 pt-6"
             >
               <div class="space-y-2">
                 <div class="flex items-center justify-between gap-3">
@@ -629,9 +644,7 @@
                       v-if="isRefreshingMappingMetadata"
                       class="mr-1 h-3.5 w-3.5 animate-spin"
                     />
-                    {{
-                      isRefreshingMappingMetadata ? "刷新中..." : "刷新标题"
-                    }}
+                    {{ isRefreshingMappingMetadata ? "刷新中..." : "刷新标题" }}
                   </Button>
                 </div>
                 <Input
@@ -744,35 +757,23 @@
                 class="h-auto w-full justify-between gap-3 px-4 py-3 text-left"
                 @click="openMappingAdvancedView"
               >
-                <span class="flex min-w-0 items-start gap-3">
+                <span class="flex min-w-0 flex-1 items-start gap-3">
                   <Settings class="mt-0.5 h-4 w-4 text-muted-foreground" />
-                  <span class="min-w-0 space-y-1">
+                  <span class="min-w-0 flex-1 space-y-1">
                     <span class="block text-sm font-medium">高级配置</span>
                     <span
-                      class="block truncate text-xs font-normal text-muted-foreground"
+                      class="block whitespace-normal break-words text-xs font-normal leading-5 text-muted-foreground"
                     >
                       {{ mappingAdvancedSummary }}
                     </span>
                   </span>
                 </span>
-                <ChevronRight class="h-4 w-4 text-muted-foreground" />
+                <ChevronRight class="h-4 w-4 shrink-0 text-muted-foreground" />
               </Button>
             </div>
 
-            <div v-else key="mapping-advanced" class="space-y-4 py-4">
+            <div v-else key="mapping-advanced" class="space-y-4 pb-4 pt-4">
               <div class="space-y-3">
-                <div>
-                  <button
-                    type="button"
-                    class="-mx-2 inline-flex w-[calc(100%+1rem)] items-center gap-3 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    aria-label="返回基础信息"
-                    @click="returnMappingBasicView"
-                  >
-                    <ChevronLeft class="h-4 w-4 shrink-0" />
-                    <span class="text-sm font-semibold">高级配置</span>
-                  </button>
-                </div>
-
                 <div class="rounded-lg border bg-muted/20 px-4 py-2.5">
                   <div
                     class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
@@ -820,6 +821,55 @@
                     </p>
                   </div>
                   <Switch id="mapping-toolbar" v-model="showToolbar" />
+                </div>
+
+                <div
+                  v-if="canShowBasicAuthInjection"
+                  class="space-y-3 rounded-lg border px-4 py-3"
+                >
+                  <div class="flex items-center justify-between gap-4">
+                    <div class="min-w-0 space-y-1">
+                      <Label for="mapping-basic-auth">过登录弹窗</Label>
+                      <p class="text-xs leading-5 text-muted-foreground">
+                        开启并填写用户名和密码后，访问时会自动带上这组登录信息，避免每次打开都弹出浏览器自带的登录框。
+                      </p>
+                    </div>
+                    <Switch
+                      id="mapping-basic-auth"
+                      v-model="basicAuthInjectionModel"
+                      :disabled="isMappingAuthService"
+                    />
+                  </div>
+
+                  <div
+                    v-if="basicAuthInjectionModel"
+                    class="grid gap-3 sm:grid-cols-2"
+                  >
+                    <div class="space-y-2">
+                      <Label for="mapping-basic-auth-username">用户名</Label>
+                      <Input
+                        id="mapping-basic-auth-username"
+                        v-model="mappingForm.basic_auth.username"
+                        autocomplete="username"
+                        placeholder="admin"
+                      />
+                    </div>
+                    <div class="space-y-2">
+                      <Label for="mapping-basic-auth-password">密码</Label>
+                      <Input
+                        id="mapping-basic-auth-password"
+                        v-model="mappingForm.basic_auth.password"
+                        type="password"
+                        autocomplete="new-password"
+                      />
+                    </div>
+                    <p
+                      v-if="basicAuthValidationMessage"
+                      class="sm:col-span-2 text-xs text-destructive"
+                    >
+                      {{ basicAuthValidationMessage }}
+                    </p>
+                  </div>
                 </div>
 
                 <div
@@ -875,7 +925,9 @@
             </div>
           </Transition>
         </div>
-        <DialogFooter class="shrink-0 border-t px-6 py-4">
+        <DialogFooter
+          class="shrink-0 border-t px-6 py-4 max-sm:pb-[calc(env(safe-area-inset-bottom)+1rem)]"
+        >
           <Button variant="outline" @click="closeDialog">取消</Button>
           <Button
             :disabled="!isMappingValid || isSavingMappings"
@@ -1036,7 +1088,13 @@
                     <TableCell class="font-medium">{{ svc.port }}</TableCell>
                     <TableCell>
                       <span
-                        v-if="svc.httpStatus === 401"
+                        v-if="svc.requiresBasicAuth"
+                        class="text-amber-600 bg-amber-500/10 text-xs px-2 py-0.5 rounded"
+                      >
+                        Basic Auth
+                      </span>
+                      <span
+                        v-else-if="svc.httpStatus === 401"
                         class="text-amber-600 bg-amber-500/10 text-xs px-2 py-0.5 rounded"
                       >
                         需认证
@@ -1220,6 +1278,7 @@ import {
   ScanAPI,
   SystemAPI,
   type DiscoveredServiceInfo,
+  type HostMappingBasicAuthProbeResult,
   type ScanDiscoverResponse,
 } from "../lib/api";
 import { docsUrls } from "../lib/docs";
@@ -1508,6 +1567,46 @@ const DEFAULT_AUTH_SUBDOMAIN = "auth";
 const DEFAULT_ACCESS_MODE: HostMapping["access_mode"] = "login_first";
 const HOME_ASSISTANT_TARGET_PORT = 8123;
 
+const createDisabledMappingBasicAuth = (): HostMapping["basic_auth"] => ({
+  enabled: false,
+  username: "",
+  password: "",
+});
+
+const normalizeMappingBasicAuth = (
+  value?: Partial<HostMapping["basic_auth"]> | null,
+): HostMapping["basic_auth"] => {
+  const raw = value ?? {};
+  const username = typeof raw.username === "string" ? raw.username.trim() : "";
+  const password = typeof raw.password === "string" ? raw.password : "";
+
+  if (raw.enabled !== true) {
+    return createDisabledMappingBasicAuth();
+  }
+
+  return {
+    enabled: true,
+    username,
+    password,
+  };
+};
+
+const normalizeBasicAuthProbeTarget = (value: string): string => {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return "";
+    }
+    parsed.hash = "";
+    return parsed.toString();
+  } catch {
+    return "";
+  }
+};
+
 const createDefaultMapping = (): HostMapping => ({
   host: "",
   target: "",
@@ -1515,6 +1614,7 @@ const createDefaultMapping = (): HostMapping => ({
   access_mode: DEFAULT_ACCESS_MODE,
   suppress_toolbar: false,
   preserve_host: true,
+  basic_auth: createDisabledMappingBasicAuth(),
   service_role: "app",
   title: "",
   title_override: "",
@@ -1534,18 +1634,19 @@ const accessEntryPort = ref("7999");
 const brokenFaviconKeys = ref(new Set<string>());
 const draggableVisibleMappings = ref<HostMapping[]>([]);
 const gatewayProxyHeadersDetails = ref<GatewayProxyHeadersDetails | null>(null);
-const gatewayHostResponseDetails = ref<GatewayHostResponseDetails | null>(
-  null,
-);
+const gatewayHostResponseDetails = ref<GatewayHostResponseDetails | null>(null);
 const isLoadingGatewayProxyHeaders = ref(false);
 const isLoadingGatewayHostResponse = ref(false);
 const gatewayProxyHeadersLoadError = ref("");
 const gatewayHostResponseLoadError = ref("");
 const trafficRealtimeStats = ref<TrafficStats | null>(null);
+const mappingDialogScrollRef = ref<HTMLElement | null>(null);
+const mappingDialogKeyboardInset = ref(0);
 let gatewayProxyHeadersRequestId = 0;
 let gatewayHostResponseRequestId = 0;
 let trafficRealtimeTimer: number | null = null;
 let isTrafficRealtimeLoading = false;
+let mappingDialogKeyboardScrollTimer: number | null = null;
 const mappingMetadataTarget = ref("");
 const openProtocolHeadersWarningHost = ref<string | null>(null);
 const sendProxyHeaders = ref(true);
@@ -1553,8 +1654,14 @@ const preserveHost = ref(true);
 const sendProxyHeadersTouched = ref(false);
 const preserveHostTouched = ref(false);
 const mappingAdvancedCleanupHosts = ref<string[]>([]);
+const basicAuthProbeCache = ref(
+  new Map<string, HostMappingBasicAuthProbeResult>(),
+);
+const isLoadingBasicAuthProbe = ref(false);
 const modeForm = reactive<SubdomainModeConfig>(createDefaultModeForm());
 const mappingForm = reactive<HostMapping>(createDefaultMapping());
+let basicAuthProbeTimer: number | null = null;
+let basicAuthProbeRequestId = 0;
 
 const currentModeConfig = computed(
   () => configStore.config?.subdomain_mode ?? createDefaultModeForm(),
@@ -1640,6 +1747,14 @@ const canRefreshMappingMetadata = computed(() => {
     return false;
   }
 });
+const basicAuthProbeTargetKey = computed(() =>
+  normalizeBasicAuthProbeTarget(mappingForm.target),
+);
+const currentBasicAuthProbeResult = computed(() => {
+  const target = basicAuthProbeTargetKey.value;
+  if (!target) return null;
+  return basicAuthProbeCache.value.get(target) ?? null;
+});
 const showToolbar = computed({
   get: () => !mappingForm.suppress_toolbar,
   set: (value: boolean) => {
@@ -1652,6 +1767,41 @@ const mappingUseAuth = computed({
     mappingForm.use_auth = value;
   },
 });
+const basicAuthInjectionModel = computed({
+  get: () => !isMappingAuthService.value && mappingForm.basic_auth.enabled,
+  set: (value: boolean) => {
+    mappingForm.basic_auth.enabled = value;
+    if (!value) {
+      mappingForm.basic_auth.username = "";
+      mappingForm.basic_auth.password = "";
+    }
+  },
+});
+const basicAuthValidationMessage = computed(() => {
+  if (!basicAuthInjectionModel.value) return "";
+  const username = mappingForm.basic_auth.username.trim();
+  if (!username || !mappingForm.basic_auth.password) {
+    return "请填写用户名和密码，才能自动跳过浏览器登录框。";
+  }
+  if (username.includes(":")) {
+    return "用户名不能包含英文冒号（:）。";
+  }
+  return "";
+});
+const canShowBasicAuthInjection = computed(
+  () =>
+    !isMappingAuthService.value &&
+    (basicAuthInjectionModel.value ||
+    currentBasicAuthProbeResult.value?.requiresBasicAuth === true),
+);
+const mappingDialogContentStyle = computed(() => ({
+  "--mapping-dialog-keyboard-inset": `${mappingDialogKeyboardInset.value}px`,
+  "--mapping-dialog-mobile-max-height": `calc(88dvh - ${mappingDialogKeyboardInset.value}px)`,
+}));
+const mappingDialogScrollStyle = computed(() => ({
+  scrollPaddingTop: "96px",
+  scrollPaddingBottom: `${Math.max(mappingDialogKeyboardInset.value, 96)}px`,
+}));
 const sendProxyHeadersModel = computed({
   get: () => sendProxyHeaders.value,
   set: (value: boolean) => {
@@ -1797,6 +1947,9 @@ const mappingAdvancedSummary = computed(() => {
   if (isMappingAuthService.value) {
     items.push("鉴权入口");
   } else {
+    if (basicAuthInjectionModel.value) {
+      items.push("注入凭证");
+    }
     items.push(sendProxyHeaders.value ? "发送协议头" : "关闭协议头");
     items.push(preserveHost.value ? "保留 Host" : "使用上游 Host");
   }
@@ -2089,7 +2242,10 @@ const isMappingValid = computed(() => {
 
   try {
     const parsed = new URL(target);
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return false;
+    }
+    return !basicAuthValidationMessage.value;
   } catch {
     return false;
   }
@@ -2244,15 +2400,18 @@ watch(
 );
 
 watch(
-  [
-    mappingDraftHost,
-    gatewayProxyHeadersDetails,
-    gatewayHostResponseDetails,
-  ],
+  [mappingDraftHost, gatewayProxyHeadersDetails, gatewayHostResponseDetails],
   () => {
     if (isDialogOpen.value) {
       applyMappingGatewayDraftFromConfig();
     }
+  },
+);
+
+watch(
+  [() => isDialogOpen.value, basicAuthProbeTargetKey, isMappingAuthService],
+  () => {
+    scheduleBasicAuthProbe();
   },
 );
 
@@ -2282,6 +2441,14 @@ const showDiscoverHostColumn = computed(() => {
 });
 
 onMounted(async () => {
+  window.visualViewport?.addEventListener(
+    "resize",
+    handleMappingDialogViewportResize,
+  );
+  window.visualViewport?.addEventListener(
+    "scroll",
+    handleMappingDialogViewportResize,
+  );
   if (!configStore.config) {
     await configStore.loadConfig();
   }
@@ -2290,6 +2457,17 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  window.visualViewport?.removeEventListener(
+    "resize",
+    handleMappingDialogViewportResize,
+  );
+  window.visualViewport?.removeEventListener(
+    "scroll",
+    handleMappingDialogViewportResize,
+  );
+  clearMappingDialogKeyboardScrollTimer();
+  clearBasicAuthProbeTimer();
+  basicAuthProbeRequestId += 1;
   stopTrafficRealtimePolling();
 });
 
@@ -2379,8 +2557,11 @@ function handleProtocolHeadersWarningOpenChange(
   }
 }
 
-const normalizeDisabledHosts = (hosts: string[] | undefined | null): string[] =>
-  [...new Set((hosts ?? []).map(normalizeHostLike).filter(Boolean))];
+const normalizeDisabledHosts = (
+  hosts: string[] | undefined | null,
+): string[] => [
+  ...new Set((hosts ?? []).map(normalizeHostLike).filter(Boolean)),
+];
 
 const hasSameDisabledHosts = (left: string[], right: string[]): boolean => {
   const leftHosts = normalizeDisabledHosts(left);
@@ -2475,6 +2656,193 @@ function resetMappingAdvancedState(host = "") {
   gatewayHostResponseLoadError.value = "";
 }
 
+function setBasicAuthProbeCacheResult(
+  target: string,
+  result: HostMappingBasicAuthProbeResult,
+) {
+  const next = new Map(basicAuthProbeCache.value);
+  next.set(target, result);
+  basicAuthProbeCache.value = next;
+}
+
+function clearBasicAuthProbeTimer() {
+  if (basicAuthProbeTimer === null) return;
+  window.clearTimeout(basicAuthProbeTimer);
+  basicAuthProbeTimer = null;
+}
+
+function clearMappingDialogKeyboardScrollTimer() {
+  if (mappingDialogKeyboardScrollTimer === null) return;
+  window.clearTimeout(mappingDialogKeyboardScrollTimer);
+  mappingDialogKeyboardScrollTimer = null;
+}
+
+function resolveMappingDialogKeyboardInset(): number {
+  const viewport = window.visualViewport;
+  if (!viewport) return 0;
+  const inset = window.innerHeight - viewport.height - viewport.offsetTop;
+  return inset > 80 ? Math.ceil(inset) : 0;
+}
+
+function updateMappingDialogKeyboardInset() {
+  mappingDialogKeyboardInset.value = isDialogOpen.value
+    ? resolveMappingDialogKeyboardInset()
+    : 0;
+}
+
+function isMappingDialogKeyboardInput(
+  target: Element | null,
+): target is HTMLElement {
+  if (!(target instanceof HTMLElement)) return false;
+  const tagName = target.tagName.toLowerCase();
+  if (tagName !== "input" && tagName !== "textarea") return false;
+  return mappingDialogScrollRef.value?.contains(target) === true;
+}
+
+function scrollMappingDialogInputIntoView(
+  target: HTMLElement,
+  behavior: ScrollBehavior = "smooth",
+) {
+  updateMappingDialogKeyboardInset();
+
+  const container = mappingDialogScrollRef.value;
+  if (!container) {
+    target.scrollIntoView({ block: "center", inline: "nearest", behavior });
+    return;
+  }
+
+  const targetRect = target.getBoundingClientRect();
+  const containerRect = container.getBoundingClientRect();
+  const viewport = window.visualViewport;
+  const viewportTop = viewport?.offsetTop ?? 0;
+  const viewportBottom = viewport
+    ? viewport.offsetTop + viewport.height
+    : window.innerHeight;
+  const visibleTop = Math.max(containerRect.top, viewportTop + 12);
+  const visibleBottom = Math.min(containerRect.bottom, viewportBottom - 16);
+  const visibleHeight = visibleBottom - visibleTop;
+
+  if (visibleHeight <= 0) {
+    target.scrollIntoView({ block: "center", inline: "nearest", behavior });
+    return;
+  }
+
+  const desiredCenter = visibleTop + visibleHeight / 2;
+  const targetCenter = targetRect.top + targetRect.height / 2;
+  const maxScrollTop = Math.max(
+    0,
+    container.scrollHeight - container.clientHeight,
+  );
+  const nextScrollTop = Math.min(
+    maxScrollTop,
+    Math.max(0, container.scrollTop + targetCenter - desiredCenter),
+  );
+
+  container.scrollTo({
+    top: nextScrollTop,
+    behavior,
+  });
+
+  window.setTimeout(() => {
+    target.scrollIntoView({
+      block: "center",
+      inline: "nearest",
+      behavior,
+    });
+  }, 0);
+}
+
+function scheduleMappingDialogInputScrollIntoView(target: HTMLElement) {
+  clearMappingDialogKeyboardScrollTimer();
+
+  let attempts = 0;
+  const run = () => {
+    scrollMappingDialogInputIntoView(target, attempts === 0 ? "auto" : "smooth");
+    attempts += 1;
+    if (attempts >= 4) {
+      mappingDialogKeyboardScrollTimer = null;
+      return;
+    }
+    mappingDialogKeyboardScrollTimer = window.setTimeout(
+      run,
+      attempts === 1 ? 120 : 240,
+    );
+  };
+
+  run();
+}
+
+function handleMappingDialogFocusIn(event: FocusEvent) {
+  const target = event.target as Element | null;
+  if (!isMappingDialogKeyboardInput(target)) return;
+  scheduleMappingDialogInputScrollIntoView(target);
+}
+
+function handleMappingDialogViewportResize() {
+  updateMappingDialogKeyboardInset();
+  if (!isDialogOpen.value) return;
+  const activeElement = document.activeElement;
+  if (!isMappingDialogKeyboardInput(activeElement)) return;
+
+  scheduleMappingDialogInputScrollIntoView(activeElement);
+}
+
+async function runBasicAuthProbe(target: string) {
+  const normalizedTarget = normalizeBasicAuthProbeTarget(target);
+  if (!normalizedTarget) {
+    isLoadingBasicAuthProbe.value = false;
+    return;
+  }
+  if (basicAuthProbeCache.value.has(normalizedTarget)) {
+    isLoadingBasicAuthProbe.value = false;
+    return;
+  }
+
+  const requestId = ++basicAuthProbeRequestId;
+  isLoadingBasicAuthProbe.value = true;
+
+  try {
+    const result =
+      await ConfigAPI.probeHostMappingBasicAuth(normalizedTarget);
+    setBasicAuthProbeCacheResult(normalizedTarget, result);
+  } catch (error) {
+    setBasicAuthProbeCacheResult(normalizedTarget, {
+      requiresBasicAuth: false,
+      httpStatus: null,
+      error: extractErrorMessage(error, "Basic Auth 探测失败"),
+    });
+  } finally {
+    if (
+      requestId === basicAuthProbeRequestId &&
+      basicAuthProbeTargetKey.value === normalizedTarget
+    ) {
+      isLoadingBasicAuthProbe.value = false;
+    }
+  }
+}
+
+function scheduleBasicAuthProbe() {
+  clearBasicAuthProbeTimer();
+
+  const target = basicAuthProbeTargetKey.value;
+  if (
+    !isDialogOpen.value ||
+    isMappingAuthService.value ||
+    !target ||
+    basicAuthProbeCache.value.has(target)
+  ) {
+    basicAuthProbeRequestId += 1;
+    isLoadingBasicAuthProbe.value = false;
+    return;
+  }
+
+  isLoadingBasicAuthProbe.value = true;
+  basicAuthProbeTimer = window.setTimeout(() => {
+    basicAuthProbeTimer = null;
+    void runBasicAuthProbe(target);
+  }, 450);
+}
+
 function openMappingAdvancedView() {
   mappingDialogMotionDirection.value = "forward";
   mappingDialogView.value = "advanced";
@@ -2537,10 +2905,7 @@ async function loadGatewayProxyHeadersDetails(
     }
     console.warn("load gateway proxy headers failed:", error);
   } finally {
-    if (
-      options.trackLoading &&
-      requestId === gatewayProxyHeadersRequestId
-    ) {
+    if (options.trackLoading && requestId === gatewayProxyHeadersRequestId) {
       isLoadingGatewayProxyHeaders.value = false;
     }
   }
@@ -2574,10 +2939,7 @@ async function loadGatewayHostResponseDetails(
     }
     console.warn("load gateway host response failed:", error);
   } finally {
-    if (
-      options.trackLoading &&
-      requestId === gatewayHostResponseRequestId
-    ) {
+    if (options.trackLoading && requestId === gatewayHostResponseRequestId) {
       isLoadingGatewayHostResponse.value = false;
     }
   }
@@ -2704,7 +3066,10 @@ function openEditDialog(mapping: HostMapping) {
   mappingInputMode.value = editorState.mode;
   mappingSubdomain.value = editorState.value;
 
-  Object.assign(mappingForm, { ...mapping });
+  Object.assign(mappingForm, {
+    ...mapping,
+    basic_auth: normalizeMappingBasicAuth(mapping.basic_auth),
+  });
   mappingMetadataTarget.value = mapping.target.trim();
   resetMappingAdvancedState(mapping.host);
   isDialogOpen.value = true;
@@ -2712,6 +3077,8 @@ function openEditDialog(mapping: HostMapping) {
 }
 
 function closeDialog() {
+  clearMappingDialogKeyboardScrollTimer();
+  mappingDialogKeyboardInset.value = 0;
   isDialogOpen.value = false;
   editingHost.value = null;
   mappingInputMode.value = canUseRootDomainSuffix.value
@@ -2744,6 +3111,10 @@ function normalizeMapping(input: HostMapping): HostMapping {
   const hasFreshMetadata = mappingMetadataTarget.value === normalizedTarget;
   const serviceRole = isAuthServiceTarget(normalizedTarget) ? "auth" : "app";
   const host = mappingDraftHost.value;
+  const basicAuth =
+    serviceRole === "auth"
+      ? createDisabledMappingBasicAuth()
+      : normalizeMappingBasicAuth(input.basic_auth);
 
   return {
     host,
@@ -2755,6 +3126,9 @@ function normalizeMapping(input: HostMapping): HostMapping {
         : input.access_mode || DEFAULT_ACCESS_MODE,
     suppress_toolbar: serviceRole === "auth" ? false : input.suppress_toolbar,
     preserve_host: input.preserve_host === true,
+    basic_auth: basicAuth.enabled
+      ? basicAuth
+      : createDisabledMappingBasicAuth(),
     service_role: serviceRole,
     title: hasFreshMetadata ? input.title.trim() : "",
     title_override: input.title_override.trim(),
@@ -2928,6 +3302,7 @@ async function addAuthService() {
         access_mode: DEFAULT_ACCESS_MODE,
         suppress_toolbar: false,
         preserve_host: true,
+        basic_auth: createDisabledMappingBasicAuth(),
         service_role: "auth",
         title: "",
         title_override: "",
@@ -3318,6 +3693,7 @@ async function saveDiscoveredServices() {
         access_mode: DEFAULT_ACCESS_MODE,
         suppress_toolbar: false,
         preserve_host: true,
+        basic_auth: createDisabledMappingBasicAuth(),
         service_role: "app",
         title: "",
         title_override: "",

@@ -45,6 +45,12 @@ export type HostAccessMode = "login_first" | "strict_whitelist";
 export type HostServiceRole = "app" | "auth";
 export type StreamMappingProtocol = "tcp" | "udp";
 
+export interface HostMappingBasicAuth {
+  enabled: boolean;
+  username: string;
+  password: string;
+}
+
 export interface HostMapping {
   host: string;
   target: string;
@@ -52,6 +58,7 @@ export interface HostMapping {
   access_mode: HostAccessMode;
   suppress_toolbar: boolean;
   preserve_host: boolean;
+  basic_auth: HostMappingBasicAuth;
   service_role: HostServiceRole;
   title: string;
   title_override: string;

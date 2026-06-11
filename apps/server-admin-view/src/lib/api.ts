@@ -99,8 +99,15 @@ type HostMappingUpdatePayload = Pick<
   | "access_mode"
   | "suppress_toolbar"
   | "preserve_host"
+  | "basic_auth"
   | "title_override"
 >;
+
+export interface HostMappingBasicAuthProbeResult {
+  requiresBasicAuth: boolean;
+  httpStatus: number | null;
+  error?: string;
+}
 
 const resolveAppRelativePath = (relativePath: string) => {
   if (typeof window === "undefined") return relativePath;
@@ -138,6 +145,11 @@ const toHostMappingUpdatePayload = (
   access_mode: mapping.access_mode,
   suppress_toolbar: mapping.suppress_toolbar,
   preserve_host: mapping.preserve_host,
+  basic_auth: {
+    enabled: mapping.basic_auth.enabled,
+    username: mapping.basic_auth.username.trim(),
+    password: mapping.basic_auth.password,
+  },
   title_override: mapping.title_override.trim(),
 });
 
@@ -248,6 +260,14 @@ export const ConfigAPI = {
   },
   async fetchHostMappingMetadata(target: string): Promise<UrlMetadataPreview> {
     const res = await apiClient.post("/config/host_mappings/metadata", {
+      target,
+    });
+    return res.data.data;
+  },
+  async probeHostMappingBasicAuth(
+    target: string,
+  ): Promise<HostMappingBasicAuthProbeResult> {
+    const res = await apiClient.post("/config/host_mappings/basic_auth_probe", {
       target,
     });
     return res.data.data;
@@ -2134,6 +2154,7 @@ export interface DiscoveredServiceInfo {
   host?: string;
   port: number;
   httpStatus: number;
+  requiresBasicAuth?: boolean;
   detail: {
     name: string;
     label: string;

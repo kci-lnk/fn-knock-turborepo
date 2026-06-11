@@ -86,6 +86,12 @@ export type HostAccessMode = "login_first" | "strict_whitelist";
 export type HostServiceRole = "app" | "auth";
 export type StreamMappingProtocol = "tcp" | "udp";
 
+export interface HostMappingBasicAuth {
+  enabled: boolean;
+  username: string;
+  password: string;
+}
+
 export interface HostMapping {
   host: string;
   target: string;
@@ -93,6 +99,7 @@ export interface HostMapping {
   access_mode: HostAccessMode;
   suppress_toolbar: boolean;
   preserve_host: boolean;
+  basic_auth: HostMappingBasicAuth;
   service_role: HostServiceRole;
   title: string;
   title_override: string;
@@ -2036,6 +2043,35 @@ const normalizeHostServiceRole = (value: unknown): HostServiceRole =>
 const normalizeStreamProtocol = (value: unknown): StreamMappingProtocol =>
   value === "udp" ? "udp" : "tcp";
 
+const createDisabledHostBasicAuth = (): HostMappingBasicAuth => ({
+  enabled: false,
+  username: "",
+  password: "",
+});
+
+const normalizeHostBasicAuth = (
+  value?: Partial<HostMappingBasicAuth> | null,
+): HostMappingBasicAuth => {
+  const raw = value ?? {};
+  const username = typeof raw.username === "string" ? raw.username.trim() : "";
+  const password = typeof raw.password === "string" ? raw.password : "";
+
+  if (
+    raw.enabled !== true ||
+    !username ||
+    !password ||
+    username.includes(":")
+  ) {
+    return createDisabledHostBasicAuth();
+  }
+
+  return {
+    enabled: true,
+    username,
+    password,
+  };
+};
+
 const normalizeHostMapping = (
   value?: Partial<HostMapping> | null,
 ): HostMapping => {
@@ -2056,6 +2092,10 @@ const normalizeHostMapping = (
     suppress_toolbar:
       serviceRole === "auth" ? false : raw.suppress_toolbar === true,
     preserve_host: true,
+    basic_auth:
+      serviceRole === "auth"
+        ? createDisabledHostBasicAuth()
+        : normalizeHostBasicAuth(raw.basic_auth),
     service_role: serviceRole,
     title: typeof raw.title === "string" ? raw.title.trim() : "",
     title_override:

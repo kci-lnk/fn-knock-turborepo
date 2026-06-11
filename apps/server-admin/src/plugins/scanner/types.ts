@@ -14,6 +14,7 @@ export interface ScanResult {
   open: boolean;
   httpStatus?: number;
   headers?: Record<string, string>;
+  requiresBasicAuth?: boolean;
   body?: string;
   error?: string;
   serviceIdentity?: string;

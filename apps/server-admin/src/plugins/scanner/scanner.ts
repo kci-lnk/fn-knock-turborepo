@@ -1,5 +1,6 @@
 import { ScanOptions, ScanResult } from "./types";
 import net from "node:net";
+import { headersRequireBasicAuth } from "../../lib/basic-auth-probe";
 
 export const buildScanPortList = (options: ScanOptions): number[] => {
   let portsToScan: number[] = [];
@@ -74,6 +75,7 @@ export class ScannerLogic {
       return {
         httpStatus: response.status,
         headers,
+        requiresBasicAuth: headersRequireBasicAuth(headers),
         body,
       };
     } catch (error) {

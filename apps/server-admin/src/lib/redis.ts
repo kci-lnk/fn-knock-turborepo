@@ -328,6 +328,11 @@ export interface SmartConnectConfig {
   selected_ipv4: string;
 }
 
+export interface ScanDiscoveryConfig {
+  custom_cidrs: string[];
+  selected_cidrs: string[];
+}
+
 export interface SmartConnectRuntimeState {
   selected_ipv4: string;
   synced_domains: string[];
@@ -501,6 +506,7 @@ export interface AppConfig {
   dashboard_display?: DashboardDisplayConfig;
   auto_https?: AutoHttpsConfig;
   smart_connect?: SmartConnectConfig;
+  scan_discovery?: ScanDiscoveryConfig;
   auth_credential_settings?: AuthCredentialSettings;
   event_system?: EventSystemConfig;
   terminal_feature?: TerminalFeatureConfig;
@@ -727,6 +733,11 @@ export const DEFAULT_SMART_CONNECT_CONFIG: SmartConnectConfig = {
   selected_ipv4: "",
 };
 
+export const DEFAULT_SCAN_DISCOVERY_CONFIG: ScanDiscoveryConfig = {
+  custom_cidrs: [],
+  selected_cidrs: [],
+};
+
 const DEFAULT_SMART_CONNECT_RUNTIME_STATE: SmartConnectRuntimeState = {
   selected_ipv4: "",
   synced_domains: [],
@@ -834,6 +845,11 @@ const DEFAULT_CONFIG: AppConfig = {
   },
   smart_connect: {
     ...DEFAULT_SMART_CONNECT_CONFIG,
+  },
+  scan_discovery: {
+    ...DEFAULT_SCAN_DISCOVERY_CONFIG,
+    custom_cidrs: [],
+    selected_cidrs: [],
   },
   auth_credential_settings: {
     ...DEFAULT_AUTH_CREDENTIAL_SETTINGS,
@@ -991,8 +1007,7 @@ export const normalizeWAFConfig = (
       typeof raw.system_rules_auto_update_enabled === "boolean"
         ? raw.system_rules_auto_update_enabled
         : DEFAULT_WAF_CONFIG.system_rules_auto_update_enabled,
-    common_location_exempt_enabled:
-      raw.common_location_exempt_enabled === true,
+    common_location_exempt_enabled: raw.common_location_exempt_enabled === true,
     mode: normalizeWAFMode(raw.mode),
     active_bundle_id: "local",
     rules_dir: DEFAULT_WAF_CONFIG.rules_dir,
@@ -1398,6 +1413,25 @@ const normalizeSmartConnectConfig = (
   return {
     enabled: raw.enabled === true,
     selected_ipv4: normalizeOptionalString(raw.selected_ipv4) ?? "",
+  };
+};
+
+export const normalizeScanDiscoveryConfig = (
+  value?: Partial<ScanDiscoveryConfig> | null,
+): ScanDiscoveryConfig => {
+  const raw = value ?? {};
+
+  return {
+    custom_cidrs: normalizeCidrLines(
+      Array.isArray(raw.custom_cidrs)
+        ? raw.custom_cidrs.map((cidr) => String(cidr))
+        : [],
+    ),
+    selected_cidrs: normalizeCidrLines(
+      Array.isArray(raw.selected_cidrs)
+        ? raw.selected_cidrs.map((cidr) => String(cidr))
+        : [],
+    ),
   };
 };
 
@@ -2576,6 +2610,9 @@ return actual
         parsed.smart_connect = normalizeSmartConnectConfig(
           parsed.smart_connect,
         );
+        parsed.scan_discovery = normalizeScanDiscoveryConfig(
+          parsed.scan_discovery,
+        );
         parsed.auth_credential_settings = normalizeAuthCredentialSettings(
           parsed.auth_credential_settings,
           {
@@ -2629,6 +2666,11 @@ return actual
       },
       smart_connect: {
         ...DEFAULT_SMART_CONNECT_CONFIG,
+      },
+      scan_discovery: {
+        ...DEFAULT_SCAN_DISCOVERY_CONFIG,
+        custom_cidrs: [],
+        selected_cidrs: [],
       },
       auth_credential_settings: { ...DEFAULT_AUTH_CREDENTIAL_SETTINGS },
       event_system: normalizeEventSystemConfig(DEFAULT_CONFIG.event_system),
@@ -4562,6 +4604,24 @@ return actual
       ...patch,
     });
     config.smart_connect = next;
+    await this.saveConfig(config);
+    return next;
+  }
+
+  async getScanDiscoveryConfig(): Promise<ScanDiscoveryConfig> {
+    const config = await this.getConfig();
+    return normalizeScanDiscoveryConfig(config.scan_discovery);
+  }
+
+  async updateScanDiscoveryConfig(
+    patch: Partial<ScanDiscoveryConfig>,
+  ): Promise<ScanDiscoveryConfig> {
+    const config = await this.getConfig();
+    const next = normalizeScanDiscoveryConfig({
+      ...config.scan_discovery,
+      ...patch,
+    });
+    config.scan_discovery = next;
     await this.saveConfig(config);
     return next;
   }

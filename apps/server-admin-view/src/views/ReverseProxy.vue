@@ -251,19 +251,35 @@
       class="sm:max-w-[800px] max-h-[85vh] flex flex-col overflow-hidden"
     >
       <DialogHeader class="shrink-0">
-        <div class="flex items-center justify-between">
+        <div
+          class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+        >
           <DialogTitle>一键发现本地服务</DialogTitle>
-          <RefreshButton
-            class="mr-6"
-            label="刷新服务"
-            :loading="isDiscovering"
-            :disabled="isDiscovering"
-            @click="triggerScan"
-          />
+          <div class="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              :disabled="isDiscovering"
+              @click="toggleDiscoverSettings"
+            >
+              <SlidersHorizontal class="h-4 w-4" />
+            </Button>
+            <RefreshButton
+              label="刷新服务"
+              :loading="isDiscovering"
+              :disabled="isDiscovering"
+              @click="triggerScan"
+            />
+          </div>
         </div>
         <DialogDescription>
           扫描本地端口的运行服务，快速选择并添加至反向代理映射。
         </DialogDescription>
+        <ScanDiscoveryTargetsSettings
+          ref="discoverTargetsSettingsRef"
+          v-show="isDiscoverSettingsOpen"
+          class="mt-3"
+        />
       </DialogHeader>
 
       <div class="flex-1 min-h-0 overflow-auto">
@@ -385,9 +401,18 @@
             已扫描 {{ discoveredData.totalPortsScanned }} 个端口，选中
             {{ selectedServices.length }} /
             {{ discoveredData.services.length }} 项
+            <template v-if="discoveredData.scanCidrs?.length">
+              ，覆盖 {{ discoveredData.scanCidrs.length }} 个网段 /
+              {{
+                discoveredData.scanHostCount || discoveredData.scannedHosts || 0
+              }}
+              台主机
+            </template>
             <template
               v-if="
-                discoveredData.scannedHosts && discoveredData.scannedHosts > 1
+                !discoveredData.scanCidrs?.length &&
+                discoveredData.scannedHosts &&
+                discoveredData.scannedHosts > 1
               "
             >
               ，覆盖
@@ -453,7 +478,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, nextTick, onMounted } from "vue";
 import {
   Card,
   CardHeader,
@@ -464,6 +489,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import RefreshButton from "@/components/RefreshButton.vue";
+import ScanDiscoveryTargetsSettings from "@/components/ScanDiscoveryTargetsSettings.vue";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
 import { Input } from "@/components/ui/input";
 import SearchInput from "@admin-shared/components/SearchInput.vue";
@@ -491,7 +517,13 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
-import { ChevronDown, RefreshCw, Plus, Search } from "lucide-vue-next";
+import {
+  ChevronDown,
+  RefreshCw,
+  Plus,
+  Search,
+  SlidersHorizontal,
+} from "lucide-vue-next";
 import { toast } from "@admin-shared/utils/toast";
 import { useConfigStore } from "../store/config";
 import { ConfigAPI, ScanAPI, SystemAPI } from "../lib/api";
@@ -528,6 +560,10 @@ import {
 } from "@admin-shared/utils/validateProxyMappingDuplicates";
 
 const currentHostname = window.location.hostname;
+const discoverTargetsSettingsRef = ref<InstanceType<
+  typeof ScanDiscoveryTargetsSettings
+> | null>(null);
+const isDiscoverSettingsOpen = ref(false);
 
 const isDefaultRoute = (path: string) => {
   return configStore.config?.default_route === path;
@@ -840,6 +876,7 @@ const onToggleAllDiscoverSelect = (e: Event) => {
 const handleDiscoverDialogOpenChange = (nextOpen: boolean) => {
   if (!nextOpen) {
     closeDiscoverDialog(true);
+    isDiscoverSettingsOpen.value = false;
   }
 };
 
@@ -847,20 +884,39 @@ function openDiscoverDialog() {
   openDiscoverDialogState();
   // 仅当首次或者未扫描时主动触发，也可以每次打开都触发
   if (!discoveredData.value) {
-    triggerScan();
+    void nextTick().then(() => triggerScan());
+  }
+}
+
+async function toggleDiscoverSettings() {
+  isDiscoverSettingsOpen.value = !isDiscoverSettingsOpen.value;
+  if (isDiscoverSettingsOpen.value) {
+    await nextTick();
+    void discoverTargetsSettingsRef.value?.loadTargets();
   }
 }
 
 async function triggerScan() {
+  let targetCidrs: string[] | undefined;
+  try {
+    await nextTick();
+    targetCidrs = await discoverTargetsSettingsRef.value?.ensureSaved();
+  } catch {
+    return;
+  }
+
   resetDiscoverSelection();
-  await runDiscoverServices(() => ScanAPI.discover(), {
-    onSuccess: (data) => {
-      setDiscoveredData(data);
-      selectedServices.value = data.services.filter((svc) =>
-        Boolean(svc.detail.rule.path?.trim()),
-      );
+  await runDiscoverServices(
+    () => ScanAPI.discover({ target_cidrs: targetCidrs }),
+    {
+      onSuccess: (data) => {
+        setDiscoveredData(data);
+        selectedServices.value = data.services.filter((svc) =>
+          Boolean(svc.detail.rule.path?.trim()),
+        );
+      },
     },
-  });
+  );
 }
 
 async function saveDiscoveredServices() {

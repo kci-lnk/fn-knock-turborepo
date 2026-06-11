@@ -5,51 +5,28 @@ import { portScannerPlugin } from "../plugins/scanner";
 import { acmePlugin } from "../plugins/acme";
 import { ConfigManager } from "../lib/redis";
 import { DOCKER_ADMIN_DISCOVER_IP_HEADER_NAME } from "../lib/docker-admin-panel";
-import { isPrivateIpv4Address } from "../lib/local-network";
-import { routeDoc } from "../lib/openapi";
+import { routeDoc, withRouteDoc } from "../lib/openapi";
 import { getRuntimeProfile } from "../lib/runtime-profile";
+import {
+  DISCOVER_COMMON_PORTS,
+  SCAN_DISCOVERY_LIMITS,
+  ScanDiscoveryValidationError,
+  buildCustomDiscoverTargets,
+  buildDockerDiscoverTarget,
+  buildInterfaceDiscoverTargets,
+  buildLoopbackDiscoverTarget,
+  buildMappingDiscoverTargets,
+  buildSavedDiscoverTargets,
+  buildScanScope,
+  buildSingletonPortRanges,
+  dedupeTargets,
+  expandScanCidrs,
+  isAllowedScanIpv4,
+  normalizeAllowedScanCidrs,
+  validateScanCidrs,
+} from "../lib/scan-discovery";
 
 const runtimeProfile = getRuntimeProfile();
-const DOCKER_DISCOVER_PORTS = [
-  80,
-  81,
-  88,
-  443,
-  3000,
-  3001,
-  5000,
-  5001,
-  5666,
-  6688,
-  7000,
-  7001,
-  7080,
-  7443,
-  8000,
-  8001,
-  8080,
-  8081,
-  8082,
-  8086,
-  8088,
-  8090,
-  8091,
-  8096,
-  8097,
-  8123,
-  8443,
-  8888,
-  9000,
-  9001,
-  9090,
-  9091,
-  9443,
-  10000,
-  12345,
-  16601,
-  18080,
-  19999,
-] as const;
 
 const normalizeHostLike = (value: string): string => {
   const trimmed = value.trim();
@@ -58,18 +35,12 @@ const normalizeHostLike = (value: string): string => {
   try {
     return new URL(`http://${trimmed}`).hostname.trim().toLowerCase();
   } catch {
-    return trimmed
-      .replace(/^\[/, "")
-      .replace(/\]$/, "")
-      .trim()
-      .toLowerCase();
+    return trimmed.replace(/^\[/, "").replace(/\]$/, "").trim().toLowerCase();
   }
 };
 
 const isUsablePrivateIpv4 = (value: string): boolean =>
-  isIP(value) === 4 &&
-  isPrivateIpv4Address(value) &&
-  !value.startsWith("127.");
+  isIP(value) === 4 && isAllowedScanIpv4(value) && !value.startsWith("127.");
 
 const DOCKER_DISCOVER_LAN_IP = (() => {
   const raw = process.env.DOCKER_DISCOVER_LAN_IP?.trim() || "";
@@ -143,38 +114,185 @@ const resolveDockerDiscoverTargetHost = async (
   return null;
 };
 
-const buildDockerDiscoverHosts = (value: string): string[] => {
-  const parts = value.split(".");
-  if (parts.length !== 4) {
-    return [];
-  }
+const buildAutomaticDiscoverTargets = async (
+  request: Request,
+  config: Awaited<ReturnType<ConfigManager["getConfig"]>>,
+) => {
+  const primaryTarget = runtimeProfile.is_docker
+    ? buildDockerDiscoverTarget(await resolveDockerDiscoverTargetHost(request))
+    : buildLoopbackDiscoverTarget();
 
-  const octets = parts.map((item) => Number.parseInt(item, 10));
-  if (octets.some((item) => !Number.isInteger(item) || item < 0 || item > 255)) {
-    return [];
-  }
-
-  const [a, b, c] = octets;
-  return Array.from({ length: 254 }, (_, index) => `${a}.${b}.${c}.${index + 1}`);
+  return dedupeTargets([
+    primaryTarget,
+    ...buildInterfaceDiscoverTargets(),
+    ...buildMappingDiscoverTargets(config),
+  ]);
 };
 
-const buildDockerDiscoverScope = (value: string): string | null => {
-  const parts = value.split(".");
-  if (parts.length !== 4) {
-    return null;
-  }
+const buildDiscoverTargetsPayload = async (
+  request: Request,
+  config: Awaited<ReturnType<ConfigManager["getConfig"]>>,
+) => {
+  const automaticTargets = await buildAutomaticDiscoverTargets(request, config);
+  const scanDiscovery = config.scan_discovery;
+  const customTargets = buildCustomDiscoverTargets(
+    scanDiscovery?.custom_cidrs || [],
+  );
+  const savedSelectedCidrs = normalizeAllowedScanCidrs(
+    scanDiscovery?.selected_cidrs || [],
+  );
+  const automaticCidrs = automaticTargets.map((target) => target.cidr);
+  const selectionMode: "automatic" | "custom" =
+    savedSelectedCidrs.length > 0 ? "custom" : "automatic";
+  const selectedCidrs =
+    savedSelectedCidrs.length > 0 ? savedSelectedCidrs : automaticCidrs;
+  const effectiveCidrs =
+    selectedCidrs.length > 0 ? selectedCidrs : automaticCidrs;
+  const selectedTargets = buildSavedDiscoverTargets(effectiveCidrs);
 
-  const octets = parts.map((item) => Number.parseInt(item, 10));
-  if (octets.some((item) => !Number.isInteger(item) || item < 0 || item > 255)) {
-    return null;
-  }
-
-  const [a, b, c] = octets;
-  return `${a}.${b}.${c}.0/24`;
+  return {
+    automaticTargets,
+    customTargets,
+    selectedTargets,
+    selectionMode,
+    selectedCidrs: effectiveCidrs,
+    effectiveCidrs,
+    limits: SCAN_DISCOVERY_LIMITS,
+  };
 };
 
-const buildSingletonPortRanges = (ports: readonly number[]) =>
-  ports.map((port) => ({ start: port, end: port }));
+const resolveScanCidrs = async (
+  request: Request,
+  config: Awaited<ReturnType<ConfigManager["getConfig"]>>,
+  targetCidrs?: string[],
+): Promise<string[]> => {
+  if (targetCidrs !== undefined) {
+    return validateScanCidrs(targetCidrs);
+  }
+
+  const payload = await buildDiscoverTargetsPayload(request, config);
+  return validateScanCidrs(payload.effectiveCidrs);
+};
+
+const collectExcludedPorts = (
+  config: Awaited<ReturnType<ConfigManager["getConfig"]>>,
+): number[] => {
+  const envPorts = [
+    parseInt(process.env.ADMIN_VIEW_PORT || "7991", 10),
+    parseInt(process.env.BACKEND_PORT || "7998", 10),
+    parseInt(process.env.AUTH_PORT || "7997", 10),
+    parseInt(process.env.GO_BACKEND_PORT || "7996", 10),
+    parseInt(process.env.GO_REPROXY_PORT || "7999", 10),
+    7995,
+    8000,
+  ];
+
+  const mappingPorts: number[] = [];
+  for (const mapping of config.proxy_mappings || []) {
+    if (mapping.target) {
+      try {
+        const parsedUrl = new URL(mapping.target);
+        if (parsedUrl.port) {
+          mappingPorts.push(parseInt(parsedUrl.port, 10));
+        } else if (parsedUrl.protocol === "http:") {
+          mappingPorts.push(80);
+        } else if (parsedUrl.protocol === "https:") {
+          mappingPorts.push(443);
+        }
+      } catch (e) {
+        console.warn(`[扫描警告] 无法解析代理映射的 URL: ${mapping.target}`);
+      }
+    }
+  }
+
+  return Array.from(
+    new Set([...envPorts, ...mappingPorts, 8200, 30661, 30662]),
+  );
+};
+
+const handleDiscover = async (
+  {
+    request,
+    scannerService,
+    set,
+  }: {
+    request: Request;
+    scannerService: {
+      scanAndAnalyzeMany: (
+        hosts: string[],
+        options?: Record<string, unknown>,
+      ) => Promise<any>;
+      scanAndAnalyze: (
+        host: string,
+        options?: Record<string, unknown>,
+      ) => Promise<any>;
+    };
+    set: { status?: number | string };
+  },
+  targetCidrs?: string[],
+) => {
+  const configManager = new ConfigManager();
+  const config = await configManager.getConfig();
+  const excludePorts = collectExcludedPorts(config);
+  console.log("准备跳过的端口:", excludePorts);
+
+  try {
+    const scanCidrs = await resolveScanCidrs(request, config, targetCidrs);
+    if (scanCidrs.length === 0) {
+      set.status = 400;
+      return {
+        success: false,
+        message: "请选择至少一个本地 IPv4 扫描网段",
+      };
+    }
+
+    const scanHosts = expandScanCidrs(scanCidrs);
+    const scanScope = buildScanScope(scanCidrs);
+    const useFullLocalhostScan =
+      !runtimeProfile.is_docker &&
+      scanCidrs.length === 1 &&
+      scanCidrs[0] === "127.0.0.1/32";
+
+    console.log(
+      `[扫描] scope=${scanScope} hosts=${scanHosts.length} ports=${
+        useFullLocalhostScan ? "1000-60000" : DISCOVER_COMMON_PORTS.length
+      }`,
+    );
+
+    const scanResult = useFullLocalhostScan
+      ? await scannerService.scanAndAnalyze(scanHosts[0] || "127.0.0.1", {
+          skipPorts: excludePorts,
+          maxConcurrent: 200,
+        })
+      : await scannerService.scanAndAnalyzeMany(scanHosts, {
+          skipPorts: excludePorts,
+          timeout: 80,
+          maxConcurrent: 64,
+          hostConcurrency: 6,
+          portRanges: buildSingletonPortRanges(DISCOVER_COMMON_PORTS),
+        });
+
+    return {
+      success: true,
+      data: {
+        ...scanResult,
+        host: scanHosts[0] || "",
+        scannedHosts: scanHosts.length,
+        scanHostCount: scanHosts.length,
+        scanScope,
+        scanCidrs,
+      },
+    };
+  } catch (error) {
+    if (error instanceof ScanDiscoveryValidationError) {
+      set.status = 400;
+    }
+    return {
+      success: false,
+      message: (error as Error).message,
+    };
+  }
+};
 
 export const assetsRoutes = new Elysia({
   prefix: "/api/admin/scan",
@@ -183,96 +301,72 @@ export const assetsRoutes = new Elysia({
   .use(portScannerPlugin)
   .use(acmePlugin)
   .get(
-    "/discover",
-    async ({ request, scannerService, set }) => {
+    "/discover-targets",
+    async ({ request }) => {
       const configManager = new ConfigManager();
       const config = await configManager.getConfig();
-      const proxy_mappings = config.proxy_mappings || [];
-
-      const targetIp = runtimeProfile.is_docker
-        ? await resolveDockerDiscoverTargetHost(request)
-        : "127.0.0.1";
-      if (!targetIp) {
-        set.status = 400;
-        return {
-          success: false,
-          message:
-            "Docker 模式下未能识别当前机器的局域网 IP。若当前是通过第三方反向代理访问，请改用会透传局域网提示的代理链路，或临时设置 DOCKER_DISCOVER_LAN_IP 后重试。",
-        };
-      }
-      const envPorts = [
-        parseInt(process.env.ADMIN_VIEW_PORT || "7991", 10),
-        parseInt(process.env.BACKEND_PORT || "7998", 10),
-        parseInt(process.env.AUTH_PORT || "7997", 10),
-        parseInt(process.env.GO_BACKEND_PORT || "7996", 10),
-        parseInt(process.env.GO_REPROXY_PORT || "7999", 10),
-        7995,
-        8000, // 旧的飞牛端口
-      ];
-
-      const mappingPorts: number[] = [];
-      for (const mapping of proxy_mappings) {
-        if (mapping.target) {
-          try {
-            const parsedUrl = new URL(mapping.target);
-            if (parsedUrl.port) {
-              mappingPorts.push(parseInt(parsedUrl.port, 10));
-            } else if (parsedUrl.protocol === "http:") {
-              mappingPorts.push(80);
-            } else if (parsedUrl.protocol === "https:") {
-              mappingPorts.push(443);
-            }
-          } catch (e) {
-            console.warn(
-              `[扫描警告] 无法解析代理映射的 URL: ${mapping.target}`,
-            );
-          }
-        }
-      }
-
-      const excludePorts = Array.from(new Set([...envPorts, ...mappingPorts, 8200, 30661, 30662]));
-      console.log("准备跳过的端口:", excludePorts);
+      return {
+        success: true,
+        data: await buildDiscoverTargetsPayload(request, config),
+      };
+    },
+    routeDoc("获取服务发现扫描网段"),
+  )
+  .post(
+    "/discover-targets",
+    async ({ body, request, set }) => {
+      const configManager = new ConfigManager();
+      const customCidrs = normalizeAllowedScanCidrs(body.custom_cidrs || []);
+      const selectedCidrs = normalizeAllowedScanCidrs(
+        body.selected_cidrs || [],
+      );
 
       try {
-        const scanHosts = runtimeProfile.is_docker
-          ? buildDockerDiscoverHosts(targetIp)
-          : [targetIp];
-        const scanScope = runtimeProfile.is_docker
-          ? buildDockerDiscoverScope(targetIp)
-          : targetIp;
-
-        if (runtimeProfile.is_docker) {
-          console.log(
-            `[扫描] Docker 模式按网段发现: scope=${scanScope} hosts=${scanHosts.length} ports=${DOCKER_DISCOVER_PORTS.length}`,
-          );
+        if (selectedCidrs.length > 0) {
+          validateScanCidrs(selectedCidrs);
         }
-
-        const scanResult = runtimeProfile.is_docker
-          ? await scannerService.scanAndAnalyzeMany(scanHosts, {
-              skipPorts: excludePorts,
-              timeout: 80,
-              maxConcurrent: 64,
-              hostConcurrency: 6,
-              portRanges: buildSingletonPortRanges(DOCKER_DISCOVER_PORTS),
-            })
-          : await scannerService.scanAndAnalyze(targetIp, {
-              skipPorts: excludePorts,
-              maxConcurrent: 200,
-            });
-        return {
-          success: true,
-          data: {
-            ...scanResult,
-            host: targetIp,
-            scanScope,
-          },
-        };
       } catch (error) {
+        if (error instanceof ScanDiscoveryValidationError) {
+          set.status = 400;
+        }
         return {
           success: false,
           message: (error as Error).message,
         };
       }
+
+      const config = await configManager.getConfig();
+      config.scan_discovery = {
+        custom_cidrs: customCidrs,
+        selected_cidrs: selectedCidrs,
+      };
+      await configManager.saveConfig(config);
+
+      return {
+        success: true,
+        data: await buildDiscoverTargetsPayload(request, config),
+      };
     },
+    withRouteDoc("保存服务发现扫描网段", {
+      body: t.Object({
+        custom_cidrs: t.Optional(t.Array(t.String())),
+        selected_cidrs: t.Optional(t.Array(t.String())),
+      }),
+    }),
+  )
+  .get(
+    "/discover",
+    async ({ request, scannerService, set }) =>
+      handleDiscover({ request, scannerService, set }),
     routeDoc("扫描可发现服务"),
+  )
+  .post(
+    "/discover",
+    async ({ body, request, scannerService, set }) =>
+      handleDiscover({ request, scannerService, set }, body.target_cidrs),
+    withRouteDoc("按网段扫描可发现服务", {
+      body: t.Object({
+        target_cidrs: t.Optional(t.Array(t.String())),
+      }),
+    }),
   );

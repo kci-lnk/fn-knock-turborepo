@@ -451,6 +451,11 @@ export interface SmartConnectConfig {
   selected_ipv4: string;
 }
 
+export interface ScanDiscoveryConfig {
+  custom_cidrs: string[];
+  selected_cidrs: string[];
+}
+
 export interface SmartConnectRuntimeState {
   selected_ipv4: string;
   synced_domains: string[];
@@ -711,6 +716,7 @@ export interface AppConfig {
   auto_https?: AutoHttpsConfig;
   dashboard_display?: DashboardDisplayConfig;
   smart_connect?: SmartConnectConfig;
+  scan_discovery?: ScanDiscoveryConfig;
   auth_credential_settings?: AuthCredentialSettings;
   terminal_feature?: TerminalFeatureConfig;
   ssh_security?: SSHSecurityConfig;

@@ -2154,13 +2154,66 @@ export interface ScanDiscoverResponse {
   totalPortsScanned: number;
   foundServices: number;
   scannedHosts?: number;
+  scanHostCount?: number;
   scanScope?: string | null;
+  scanCidrs?: string[];
   services: DiscoveredServiceInfo[];
 }
 
+export type ScanDiscoveryTargetSource =
+  | "docker"
+  | "loopback"
+  | "interface"
+  | "mapping"
+  | "custom"
+  | "saved";
+
+export interface ScanDiscoveryTarget {
+  cidr: string;
+  label: string;
+  source: ScanDiscoveryTargetSource;
+  hostCount: number;
+  isAutomatic: boolean;
+}
+
+export interface ScanDiscoveryTargetsResponse {
+  automaticTargets: ScanDiscoveryTarget[];
+  customTargets: ScanDiscoveryTarget[];
+  selectedTargets?: ScanDiscoveryTarget[];
+  selectionMode?: "automatic" | "custom";
+  selectedCidrs: string[];
+  effectiveCidrs: string[];
+  limits: {
+    maxCidrs: number;
+    maxHosts: number;
+  };
+}
+
+export interface ScanDiscoverRequest {
+  target_cidrs?: string[];
+}
+
+export interface ScanDiscoveryTargetsSaveRequest {
+  custom_cidrs?: string[];
+  selected_cidrs?: string[];
+}
+
 export const ScanAPI = {
-  async discover(): Promise<ScanDiscoverResponse> {
-    const res = await apiClient.get("/scan/discover");
+  async discover(payload?: ScanDiscoverRequest): Promise<ScanDiscoverResponse> {
+    const res =
+      payload && "target_cidrs" in payload
+        ? await apiClient.post("/scan/discover", payload)
+        : await apiClient.get("/scan/discover");
+    return res.data.data;
+  },
+  async getDiscoverTargets(): Promise<ScanDiscoveryTargetsResponse> {
+    const res = await apiClient.get("/scan/discover-targets");
+    return res.data.data;
+  },
+  async saveDiscoverTargets(
+    payload: ScanDiscoveryTargetsSaveRequest,
+  ): Promise<ScanDiscoveryTargetsResponse> {
+    const res = await apiClient.post("/scan/discover-targets", payload);
     return res.data.data;
   },
 };

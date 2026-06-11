@@ -784,19 +784,34 @@
                 <code>.{{ savedRootDomain }}</code> 下。
               </DialogDescription>
             </div>
-            <Button
-              class="w-full sm:w-auto"
-              variant="outline"
-              :disabled="isDiscovering"
-              @click="triggerScan"
-            >
-              <RefreshCw
-                class="mr-2 h-4 w-4"
-                :class="{ 'animate-spin': isDiscovering }"
-              />
-              {{ isDiscovering ? "扫描中..." : "刷新服务" }}
-            </Button>
+            <div class="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                :disabled="isDiscovering"
+                @click="toggleDiscoverSettings"
+              >
+                <SlidersHorizontal class="h-4 w-4" />
+              </Button>
+              <Button
+                class="w-full sm:w-auto"
+                variant="outline"
+                :disabled="isDiscovering"
+                @click="triggerScan"
+              >
+                <RefreshCw
+                  class="mr-2 h-4 w-4"
+                  :class="{ 'animate-spin': isDiscovering }"
+                />
+                {{ isDiscovering ? "扫描中..." : "刷新服务" }}
+              </Button>
+            </div>
           </div>
+          <ScanDiscoveryTargetsSettings
+            ref="discoverTargetsSettingsRef"
+            v-show="isDiscoverSettingsOpen"
+            class="mt-3"
+          />
         </DialogHeader>
 
         <div class="flex-1 min-h-0 overflow-auto">
@@ -922,9 +937,20 @@
               {{ selectedServices.length }} /
               {{ discoveredData.services.length }}
               项
+              <template v-if="discoveredData.scanCidrs?.length">
+                ，覆盖 {{ discoveredData.scanCidrs.length }} 个网段 /
+                {{
+                  discoveredData.scanHostCount ||
+                  discoveredData.scannedHosts ||
+                  0
+                }}
+                台主机
+              </template>
               <template
                 v-if="
-                  discoveredData.scannedHosts && discoveredData.scannedHosts > 1
+                  !discoveredData.scanCidrs?.length &&
+                  discoveredData.scannedHosts &&
+                  discoveredData.scannedHosts > 1
                 "
               >
                 ，覆盖
@@ -958,7 +984,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from "vue";
+import {
+  computed,
+  nextTick,
+  onMounted,
+  onUnmounted,
+  reactive,
+  ref,
+  watch,
+} from "vue";
 import {
   CircleAlert,
   ChevronDown,
@@ -970,6 +1004,7 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  SlidersHorizontal,
   Trash2,
 } from "lucide-vue-next";
 import { Badge } from "@/components/ui/badge";
@@ -1011,6 +1046,7 @@ import ConfigCollapsibleCard from "@admin-shared/components/ConfigCollapsibleCar
 import HostTrafficActivity from "@/components/HostTrafficActivity.vue";
 import InlineCommentEditor from "@admin-shared/components/InlineCommentEditor.vue";
 import ProxyTargetInputField from "@admin-shared/components/common/ProxyTargetInputField.vue";
+import ScanDiscoveryTargetsSettings from "@/components/ScanDiscoveryTargetsSettings.vue";
 import SearchInput from "@admin-shared/components/SearchInput.vue";
 import {
   Table,
@@ -1074,6 +1110,10 @@ type DeleteDialogState =
     };
 
 const configStore = useConfigStore();
+const discoverTargetsSettingsRef = ref<InstanceType<
+  typeof ScanDiscoveryTargetsSettings
+> | null>(null);
+const isDiscoverSettingsOpen = ref(false);
 
 const normalizeHostLike = (value: string): string =>
   value
@@ -2598,6 +2638,7 @@ const onToggleAllDiscoverSelect = (event: Event) => {
 function dismissDiscoverDialog() {
   setDiscoveredData(null);
   closeDiscoverDialog(true);
+  isDiscoverSettingsOpen.value = false;
 }
 
 const handleDiscoverDialogOpenChange = (nextOpen: boolean) => {
@@ -2618,33 +2659,52 @@ function openDiscoverDialog() {
 
   openDiscoverDialogState();
   if (!discoveredData.value) {
-    void triggerScan();
+    void nextTick().then(() => triggerScan());
+  }
+}
+
+async function toggleDiscoverSettings() {
+  isDiscoverSettingsOpen.value = !isDiscoverSettingsOpen.value;
+  if (isDiscoverSettingsOpen.value) {
+    await nextTick();
+    void discoverTargetsSettingsRef.value?.loadTargets();
   }
 }
 
 async function triggerScan() {
+  let targetCidrs: string[] | undefined;
+  try {
+    await nextTick();
+    targetCidrs = await discoverTargetsSettingsRef.value?.ensureSaved();
+  } catch {
+    return;
+  }
+
   resetSelection();
-  await runDiscoverServices(() => ScanAPI.discover(), {
-    onSuccess: (data) => {
-      const nextData: DiscoveredHostResponse = {
-        ...data,
-        services: data.services
-          .map((service) => ({
-            ...service,
-            detail: {
-              ...service.detail,
-              rule: { ...service.detail.rule },
-            },
-            suggestedSubdomain: buildSuggestedSubdomain(service),
-          }))
-          .filter((service) => !existingMappingPorts.value.has(service.port)),
-      };
-      setDiscoveredData(nextData);
-      selectedServices.value = nextData.services.filter((service) =>
-        Boolean(service.suggestedSubdomain.trim()),
-      );
+  await runDiscoverServices(
+    () => ScanAPI.discover({ target_cidrs: targetCidrs }),
+    {
+      onSuccess: (data) => {
+        const nextData: DiscoveredHostResponse = {
+          ...data,
+          services: data.services
+            .map((service) => ({
+              ...service,
+              detail: {
+                ...service.detail,
+                rule: { ...service.detail.rule },
+              },
+              suggestedSubdomain: buildSuggestedSubdomain(service),
+            }))
+            .filter((service) => !existingMappingPorts.value.has(service.port)),
+        };
+        setDiscoveredData(nextData);
+        selectedServices.value = nextData.services.filter((service) =>
+          Boolean(service.suggestedSubdomain.trim()),
+        );
+      },
     },
-  });
+  );
 }
 
 const collectDuplicateValues = (values: string[]): string[] => {

@@ -288,16 +288,21 @@ function findDynuRecord(
   const matchingType = records.filter(
     (record) => record.recordType?.toUpperCase() === recordType,
   );
+  const exactHostname = matchingType.find(
+    (record) => buildRecordHostname(record) === normalizedDomain,
+  );
+  if (exactHostname) {
+    return exactHostname;
+  }
+
+  if (!normalizedNodeName) {
+    return null;
+  }
 
   return (
     matchingType.find(
-      (record) => buildRecordHostname(record) === normalizedDomain,
-    ) ||
-    matchingType.find(
       (record) => normalizeNodeName(record.nodeName) === normalizedNodeName,
-    ) ||
-    matchingType[0] ||
-    null
+    ) || null
   );
 }
 

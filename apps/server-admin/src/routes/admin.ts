@@ -2500,7 +2500,10 @@ export const adminRoutes = new Elysia({
         };
       }
 
-      scheduleHostMappingsMetadataRefresh(normalizedMappings);
+      scheduleHostMappingsMetadataRefresh(
+        normalizedMappings,
+        config.host_mappings,
+      );
       scheduleSmartConnectSyncAfterHostMappingsChange(updatedConfig);
 
       return { success: true, data: normalizedMappings };
@@ -2577,7 +2580,9 @@ export const adminRoutes = new Elysia({
   .post(
     "/config/host_mappings/metadata",
     async ({ body, set }) => {
-      const metadata = await fetchUrlMetadata(body.target);
+      const metadata = await fetchUrlMetadata(body.target, {
+        basicAuth: normalizeHostBasicAuth(body.basic_auth),
+      });
       if (!metadata.ok) {
         set.status = 400;
         return {
@@ -2594,6 +2599,13 @@ export const adminRoutes = new Elysia({
     withRouteDoc("抓取目标地址元数据", {
       body: t.Object({
         target: t.String(),
+        basic_auth: t.Optional(
+          t.Object({
+            enabled: t.Boolean(),
+            username: t.String(),
+            password: t.String(),
+          }),
+        ),
       }),
     }),
   )

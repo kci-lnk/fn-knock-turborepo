@@ -19,50 +19,152 @@ const cloneSummary = (): HostMappingMetadataRefreshSummary => ({
 });
 
 const cloneHostMappings = (mappings: HostMapping[]): HostMapping[] =>
-  mappings.map((mapping) => ({ ...mapping }));
+  mappings.map((mapping) => ({
+    ...mapping,
+    basic_auth: { ...mapping.basic_auth },
+  }));
 
-const shouldBackfillHostMappingMetadata = (
-  mapping: Pick<HostMapping, "target" | "title" | "favicon">,
-): boolean =>
-  Boolean(mapping.target.trim()) &&
-  (!mapping.title.trim() || !mapping.favicon.trim());
+const createDisabledHostBasicAuth = (): HostMapping["basic_auth"] => ({
+  enabled: false,
+  username: "",
+  password: "",
+});
+
+const normalizeComparableBasicAuth = (
+  value: HostMapping["basic_auth"],
+): HostMapping["basic_auth"] => {
+  const username = value.username.trim();
+  const password = value.password;
+  if (
+    value.enabled !== true ||
+    !username ||
+    !password ||
+    username.includes(":")
+  ) {
+    return createDisabledHostBasicAuth();
+  }
+
+  return {
+    enabled: true,
+    username,
+    password,
+  };
+};
+
+const hasUsableBasicAuth = (value: HostMapping["basic_auth"]): boolean =>
+  normalizeComparableBasicAuth(value).enabled;
+
+const basicAuthMatches = (
+  left: HostMapping["basic_auth"],
+  right: HostMapping["basic_auth"],
+): boolean => {
+  const normalizedLeft = normalizeComparableBasicAuth(left);
+  const normalizedRight = normalizeComparableBasicAuth(right);
+  return (
+    normalizedLeft.enabled === normalizedRight.enabled &&
+    normalizedLeft.username === normalizedRight.username &&
+    normalizedLeft.password === normalizedRight.password
+  );
+};
+
+const hostKey = (value: string): string => value.trim().toLowerCase();
 
 const targetMatches = (left: string, right: string): boolean =>
   left.trim() === right.trim();
 
-const enrichMissingHostMappingsMetadata = async (
-  mappings: HostMapping[],
-): Promise<{
+type HostMappingMetadataRefreshItem = {
+  mapping: HostMapping;
+  refreshTitle: boolean;
+  refreshFavicon: boolean;
+};
+
+type QueuedHostMappingsMetadataRefresh = {
   mappings: HostMapping[];
+  previousMappings: HostMapping[] | null;
+};
+
+const toPreviousMappingsByHost = (
+  previousMappings: HostMapping[] | null,
+): Map<string, HostMapping> | null =>
+  previousMappings
+    ? new Map(
+        previousMappings.map((mapping) => [hostKey(mapping.host), mapping]),
+      )
+    : null;
+
+const resolveMetadataRefreshDecision = (
+  mapping: HostMapping,
+  previousByHost: Map<string, HostMapping> | null,
+): { refreshTitle: boolean; refreshFavicon: boolean } => {
+  const target = mapping.target.trim();
+  if (!target) {
+    return {
+      refreshTitle: false,
+      refreshFavicon: false,
+    };
+  }
+
+  const previous = previousByHost?.get(hostKey(mapping.host));
+  const targetChanged =
+    previousByHost !== null &&
+    (!previous || !targetMatches(previous.target, mapping.target));
+  const basicAuthChanged =
+    previousByHost !== null &&
+    hasUsableBasicAuth(mapping.basic_auth) &&
+    (!previous || !basicAuthMatches(previous.basic_auth, mapping.basic_auth));
+
+  return {
+    refreshTitle: targetChanged || basicAuthChanged || !mapping.title.trim(),
+    refreshFavicon:
+      targetChanged || basicAuthChanged || !mapping.favicon.trim(),
+  };
+};
+
+const enrichHostMappingsMetadata = async (
+  mappings: HostMapping[],
+  previousByHost: Map<string, HostMapping> | null,
+): Promise<{
+  items: HostMappingMetadataRefreshItem[];
   summary: HostMappingMetadataRefreshSummary;
 }> => {
   const summary = cloneSummary();
 
-  const nextMappings = await Promise.all(
+  const items = await Promise.all(
     mappings.map(async (mapping) => {
-      if (!shouldBackfillHostMappingMetadata(mapping)) {
+      const decision = resolveMetadataRefreshDecision(mapping, previousByHost);
+      if (!decision.refreshTitle && !decision.refreshFavicon) {
         summary.skipped += 1;
-        return mapping;
+        return null;
       }
 
-      const metadata = await fetchUrlMetadata(mapping.target);
+      const metadata = await fetchUrlMetadata(mapping.target, {
+        basicAuth: mapping.basic_auth,
+      });
       if (!metadata.ok) {
         summary.failed += 1;
-        return mapping;
+        return null;
       }
 
       summary.updated += 1;
 
       return {
-        ...mapping,
-        title: mapping.title.trim() || metadata.data.title,
-        favicon: mapping.favicon.trim() || metadata.data.favicon,
+        mapping: {
+          ...mapping,
+          title: decision.refreshTitle ? metadata.data.title : mapping.title,
+          favicon: decision.refreshFavicon
+            ? metadata.data.favicon
+            : mapping.favicon,
+        },
+        refreshTitle: decision.refreshTitle,
+        refreshFavicon: decision.refreshFavicon,
       };
     }),
   );
 
   return {
-    mappings: nextMappings,
+    items: items.filter((item): item is HostMappingMetadataRefreshItem =>
+      Boolean(item),
+    ),
     summary,
   };
 };
@@ -74,46 +176,18 @@ export const enrichHostMappingsMetadataOnSave = async (
   mappings: HostMapping[];
   summary: HostMappingMetadataRefreshSummary;
 }> => {
-  const previousByHost = new Map(
-    previousMappings.map((item) => [item.host, item]),
+  const { items, summary } = await enrichHostMappingsMetadata(
+    mappings,
+    toPreviousMappingsByHost(previousMappings),
   );
-  const summary = cloneSummary();
-
-  const nextMappings = await Promise.all(
-    mappings.map(async (mapping) => {
-      const previous = previousByHost.get(mapping.host);
-      const shouldRefreshTitle =
-        !previous ||
-        previous.target !== mapping.target ||
-        !mapping.title.trim();
-      const shouldRefreshFavicon =
-        !previous ||
-        previous.target !== mapping.target ||
-        !mapping.favicon.trim();
-
-      if (!shouldRefreshTitle && !shouldRefreshFavicon) {
-        summary.skipped += 1;
-        return mapping;
-      }
-
-      const metadata = await fetchUrlMetadata(mapping.target);
-      if (!metadata.ok) {
-        summary.failed += 1;
-        return mapping;
-      }
-
-      summary.updated += 1;
-
-      return {
-        ...mapping,
-        title: shouldRefreshTitle ? metadata.data.title : mapping.title,
-        favicon: shouldRefreshFavicon ? metadata.data.favicon : mapping.favicon,
-      };
-    }),
+  const refreshedByHost = new Map(
+    items.map((item) => [hostKey(item.mapping.host), item.mapping]),
   );
 
   return {
-    mappings: nextMappings,
+    mappings: mappings.map(
+      (mapping) => refreshedByHost.get(hostKey(mapping.host)) ?? mapping,
+    ),
     summary,
   };
 };
@@ -133,7 +207,9 @@ export const refreshAllHostMappingTitles = async (
         return mapping;
       }
 
-      const metadata = await fetchUrlMetadata(mapping.target);
+      const metadata = await fetchUrlMetadata(mapping.target, {
+        basicAuth: mapping.basic_auth,
+      });
       if (!metadata.ok) {
         summary.failed += 1;
         return mapping;
@@ -155,29 +231,38 @@ export const refreshAllHostMappingTitles = async (
   };
 };
 
-let queuedHostMappingsMetadataRefresh: HostMapping[] | null = null;
+let queuedHostMappingsMetadataRefresh: QueuedHostMappingsMetadataRefresh | null =
+  null;
 let hostMappingsMetadataRefreshPromise: Promise<void> | null = null;
 
 const mergeMetadataIntoCurrentMappings = (
   currentMappings: HostMapping[],
-  refreshedMappings: HostMapping[],
+  refreshedItems: HostMappingMetadataRefreshItem[],
 ): {
   changed: boolean;
   mappings: HostMapping[];
 } => {
   const refreshedByHost = new Map(
-    refreshedMappings.map((mapping) => [mapping.host, mapping]),
+    refreshedItems.map((item) => [hostKey(item.mapping.host), item]),
   );
   let changed = false;
 
   const nextMappings = currentMappings.map((mapping) => {
-    const refreshed = refreshedByHost.get(mapping.host);
-    if (!refreshed || !targetMatches(mapping.target, refreshed.target)) {
+    const refreshed = refreshedByHost.get(hostKey(mapping.host));
+    if (
+      !refreshed ||
+      !targetMatches(mapping.target, refreshed.mapping.target) ||
+      !basicAuthMatches(mapping.basic_auth, refreshed.mapping.basic_auth)
+    ) {
       return mapping;
     }
 
-    const nextTitle = mapping.title.trim() || refreshed.title.trim();
-    const nextFavicon = mapping.favicon.trim() || refreshed.favicon.trim();
+    const nextTitle = refreshed.refreshTitle
+      ? refreshed.mapping.title.trim()
+      : mapping.title.trim();
+    const nextFavicon = refreshed.refreshFavicon
+      ? refreshed.mapping.favicon.trim()
+      : mapping.favicon.trim();
     if (
       nextTitle === mapping.title.trim() &&
       nextFavicon === mapping.favicon.trim()
@@ -209,8 +294,10 @@ const ensureHostMappingsMetadataRefreshWorker = (): void => {
       const snapshot = queuedHostMappingsMetadataRefresh;
       queuedHostMappingsMetadataRefresh = null;
 
-      const { mappings, summary } =
-        await enrichMissingHostMappingsMetadata(snapshot);
+      const { items, summary } = await enrichHostMappingsMetadata(
+        snapshot.mappings,
+        toPreviousMappingsByHost(snapshot.previousMappings),
+      );
       if (summary.updated === 0) {
         continue;
       }
@@ -218,7 +305,7 @@ const ensureHostMappingsMetadataRefreshWorker = (): void => {
       const currentConfig = await configManager.getConfig();
       const merged = mergeMetadataIntoCurrentMappings(
         currentConfig.host_mappings,
-        mappings,
+        items,
       );
 
       if (!merged.changed) {
@@ -257,7 +344,13 @@ const ensureHostMappingsMetadataRefreshWorker = (): void => {
 
 export const scheduleHostMappingsMetadataRefresh = (
   mappings: HostMapping[],
+  previousMappings?: HostMapping[],
 ): void => {
-  queuedHostMappingsMetadataRefresh = cloneHostMappings(mappings);
+  queuedHostMappingsMetadataRefresh = {
+    mappings: cloneHostMappings(mappings),
+    previousMappings: previousMappings
+      ? cloneHostMappings(previousMappings)
+      : null,
+  };
   ensureHostMappingsMetadataRefreshWorker();
 };

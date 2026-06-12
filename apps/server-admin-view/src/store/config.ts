@@ -22,12 +22,74 @@ export const useConfigStore = defineStore("config", () => {
   let hostMappingsFollowUpRefreshTimer: number | null = null;
   let hostMappingsFollowUpRefreshAttempts = 0;
 
-  const hasPendingHostMappingMetadata = (mappings: HostMapping[]): boolean =>
-    mappings.some(
-      (mapping) =>
-        Boolean(mapping.target.trim()) &&
-        (!mapping.title.trim() || !mapping.favicon.trim()),
+  const normalizeComparableBasicAuth = (
+    value: HostMapping["basic_auth"],
+  ): HostMapping["basic_auth"] => {
+    const username = value.username.trim();
+    const password = value.password;
+    if (
+      value.enabled !== true ||
+      !username ||
+      !password ||
+      username.includes(":")
+    ) {
+      return {
+        enabled: false,
+        username: "",
+        password: "",
+      };
+    }
+
+    return {
+      enabled: true,
+      username,
+      password,
+    };
+  };
+
+  const hasUsableBasicAuth = (value: HostMapping["basic_auth"]): boolean =>
+    normalizeComparableBasicAuth(value).enabled;
+
+  const basicAuthMatches = (
+    left: HostMapping["basic_auth"],
+    right: HostMapping["basic_auth"],
+  ): boolean => {
+    const normalizedLeft = normalizeComparableBasicAuth(left);
+    const normalizedRight = normalizeComparableBasicAuth(right);
+    return (
+      normalizedLeft.enabled === normalizedRight.enabled &&
+      normalizedLeft.username === normalizedRight.username &&
+      normalizedLeft.password === normalizedRight.password
     );
+  };
+
+  const hostKey = (value: string): string => value.trim().toLowerCase();
+
+  const hasPendingHostMappingMetadata = (
+    mappings: HostMapping[],
+    previousMappings: HostMapping[] | null = null,
+  ): boolean => {
+    const previousByHost = previousMappings
+      ? new Map(
+          previousMappings.map((mapping) => [hostKey(mapping.host), mapping]),
+        )
+      : null;
+
+    return mappings.some((mapping) => {
+      if (!mapping.target.trim()) return false;
+      if (!mapping.title.trim() || !mapping.favicon.trim()) return true;
+      if (!previousByHost || !hasUsableBasicAuth(mapping.basic_auth)) {
+        return false;
+      }
+
+      const previous = previousByHost.get(hostKey(mapping.host));
+      return (
+        !previous ||
+        previous.target.trim() !== mapping.target.trim() ||
+        !basicAuthMatches(previous.basic_auth, mapping.basic_auth)
+      );
+    });
+  };
 
   const refreshHostMappingsOnly = async () => {
     const nextMappings = await ConfigAPI.getHostMappings();
@@ -50,12 +112,15 @@ export const useConfigStore = defineStore("config", () => {
     hostMappingsFollowUpRefreshAttempts = 0;
   };
 
-  const scheduleHostMappingsFollowUpRefresh = (mappings: HostMapping[]) => {
+  const scheduleHostMappingsFollowUpRefresh = (
+    mappings: HostMapping[],
+    previousMappings: HostMapping[] | null = null,
+  ) => {
     if (typeof window === "undefined") {
       return;
     }
 
-    if (!hasPendingHostMappingMetadata(mappings)) {
+    if (!hasPendingHostMappingMetadata(mappings, previousMappings)) {
       clearHostMappingsFollowUpRefresh();
       return;
     }
@@ -70,7 +135,7 @@ export const useConfigStore = defineStore("config", () => {
         const nextMappings = await refreshHostMappingsOnly();
         if (
           hostMappingsFollowUpRefreshAttempts > 0 &&
-          hasPendingHostMappingMetadata(nextMappings)
+          hasPendingHostMappingMetadata(nextMappings, previousMappings)
         ) {
           hostMappingsFollowUpRefreshAttempts -= 1;
           hostMappingsFollowUpRefreshTimer = window.setTimeout(() => {
@@ -151,11 +216,12 @@ export const useConfigStore = defineStore("config", () => {
       return nextMappings;
     }
 
+    const previousMappings = config.value.host_mappings;
     config.value = {
       ...config.value,
       host_mappings: nextMappings,
     };
-    scheduleHostMappingsFollowUpRefresh(nextMappings);
+    scheduleHostMappingsFollowUpRefresh(nextMappings, previousMappings);
     return nextMappings;
   }
 

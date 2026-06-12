@@ -7,6 +7,8 @@ const MAX_MANIFEST_LENGTH = 64 * 1024;
 const MAX_MANIFEST_ICONS_TO_TRY = 4;
 const MAX_FAVICON_BYTES = 128 * 1024;
 const METADATA_USER_AGENT = "fn-knock-server-admin/1.0";
+const MAX_METADATA_REDIRECTS = 20;
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
 export interface UrlMetadata {
   title: string;
@@ -19,6 +21,22 @@ export interface UrlMetadataResult {
   data: UrlMetadata;
   error?: string;
 }
+
+export interface UrlMetadataBasicAuth {
+  enabled?: boolean;
+  username?: string;
+  password?: string;
+}
+
+export interface FetchUrlMetadataOptions {
+  timeoutMs?: number;
+  basicAuth?: UrlMetadataBasicAuth | null;
+}
+
+type BasicAuthRequestContext = {
+  origin: string;
+  authorization: string;
+};
 
 const collapseWhitespace = (value: string): string =>
   value.replace(/\s+/g, " ").trim();
@@ -207,24 +225,131 @@ const extractManifestFromHtml = (html: string, baseUrl: string): string => {
   return "";
 };
 
+const normalizeRequestTimeout = (value: unknown): number =>
+  typeof value === "number" && Number.isFinite(value) && value > 0
+    ? value
+    : DEFAULT_REQUEST_TIMEOUT_MS;
+
+const normalizeFetchUrlMetadataOptions = (
+  options?: number | FetchUrlMetadataOptions,
+): Required<Pick<FetchUrlMetadataOptions, "timeoutMs">> &
+  Pick<FetchUrlMetadataOptions, "basicAuth"> => {
+  if (typeof options === "number") {
+    return {
+      timeoutMs: normalizeRequestTimeout(options),
+      basicAuth: null,
+    };
+  }
+
+  return {
+    timeoutMs: normalizeRequestTimeout(options?.timeoutMs),
+    basicAuth: options?.basicAuth ?? null,
+  };
+};
+
+const createBasicAuthRequestContext = (
+  value: UrlMetadataBasicAuth | null | undefined,
+  targetUrl: string,
+): BasicAuthRequestContext | null => {
+  const username =
+    typeof value?.username === "string" ? value.username.trim() : "";
+  const password = typeof value?.password === "string" ? value.password : "";
+  if (
+    value?.enabled !== true ||
+    !username ||
+    !password ||
+    username.includes(":")
+  ) {
+    return null;
+  }
+
+  try {
+    return {
+      origin: new URL(targetUrl).origin,
+      authorization: `Basic ${Buffer.from(
+        `${username}:${password}`,
+        "utf8",
+      ).toString("base64")}`,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const hasSameOrigin = (value: string, origin: string): boolean => {
+  try {
+    return new URL(value).origin === origin;
+  } catch {
+    return false;
+  }
+};
+
+const createMetadataRequestHeaders = (
+  input: string,
+  initHeaders: HeadersInit | undefined,
+  basicAuthContext: BasicAuthRequestContext | null,
+): Headers => {
+  const headers = new Headers(initHeaders);
+  headers.set("User-Agent", METADATA_USER_AGENT);
+  if (
+    basicAuthContext &&
+    hasSameOrigin(input, basicAuthContext.origin) &&
+    !headers.has("Authorization")
+  ) {
+    headers.set("Authorization", basicAuthContext.authorization);
+  }
+  return headers;
+};
+
 const fetchWithTimeout = async (
   input: string,
   timeoutMs: number,
   init?: RequestInit,
+  basicAuthContext: BasicAuthRequestContext | null = null,
 ): Promise<Response> => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    return await fetchWithRelaxedTls(input, {
-      ...init,
-      headers: {
-        "User-Agent": METADATA_USER_AGENT,
-        ...(init?.headers ?? {}),
-      },
-      redirect: init?.redirect ?? "follow",
-      signal: controller.signal,
-    });
+    if (!basicAuthContext) {
+      return await fetchWithRelaxedTls(input, {
+        ...init,
+        headers: createMetadataRequestHeaders(input, init?.headers, null),
+        redirect: init?.redirect ?? "follow",
+        signal: controller.signal,
+      });
+    }
+
+    let requestUrl = input;
+    for (let redirectCount = 0; ; redirectCount += 1) {
+      const response = await fetchWithRelaxedTls(requestUrl, {
+        ...init,
+        headers: createMetadataRequestHeaders(
+          requestUrl,
+          init?.headers,
+          basicAuthContext,
+        ),
+        redirect: "manual",
+        signal: controller.signal,
+      });
+
+      const location = response.headers.get("location");
+      if (!REDIRECT_STATUSES.has(response.status) || !location) {
+        return response;
+      }
+
+      if (init?.redirect === "error") {
+        throw new TypeError(`Redirect received from ${requestUrl}`);
+      }
+      if (init?.redirect === "manual") {
+        return response;
+      }
+      if (redirectCount >= MAX_METADATA_REDIRECTS) {
+        throw new TypeError("Maximum redirect reached");
+      }
+
+      requestUrl = new URL(location, requestUrl).toString();
+    }
   } finally {
     clearTimeout(timer);
   }
@@ -261,6 +386,7 @@ const resolveImageContentType = (value: string, response: Response): string => {
 const fetchFaviconAsDataUrl = async (
   faviconUrl: string,
   timeoutMs: number,
+  basicAuthContext: BasicAuthRequestContext | null,
 ): Promise<string> => {
   const trimmedUrl = faviconUrl.trim();
   if (/^data:image\//i.test(trimmedUrl)) {
@@ -273,11 +399,16 @@ const fetchFaviconAsDataUrl = async (
   if (!normalizedUrl) return "";
 
   try {
-    const response = await fetchWithTimeout(normalizedUrl, timeoutMs, {
-      headers: {
-        Accept: "image/*,*/*;q=0.8",
+    const response = await fetchWithTimeout(
+      normalizedUrl,
+      timeoutMs,
+      {
+        headers: {
+          Accept: "image/*,*/*;q=0.8",
+        },
       },
-    });
+      basicAuthContext,
+    );
     if (!response.ok) return "";
 
     const contentType = resolveImageContentType(normalizedUrl, response);
@@ -407,16 +538,22 @@ const extractManifestIconUrls = (
 const fetchManifestIconUrls = async (
   manifestUrl: string,
   timeoutMs: number,
+  basicAuthContext: BasicAuthRequestContext | null,
 ): Promise<string[]> => {
   const normalizedUrl = normalizeHttpUrl(manifestUrl);
   if (!normalizedUrl) return [];
 
   try {
-    const response = await fetchWithTimeout(normalizedUrl, timeoutMs, {
-      headers: {
-        Accept: "application/manifest+json,application/json,*/*;q=0.8",
+    const response = await fetchWithTimeout(
+      normalizedUrl,
+      timeoutMs,
+      {
+        headers: {
+          Accept: "application/manifest+json,application/json,*/*;q=0.8",
+        },
       },
-    });
+      basicAuthContext,
+    );
     if (!response.ok) return [];
 
     const declaredLength = Number.parseInt(
@@ -444,6 +581,7 @@ const fetchManifestIconUrls = async (
 const fetchFirstFaviconAsDataUrl = async (
   faviconUrls: string[],
   timeoutMs: number,
+  basicAuthContext: BasicAuthRequestContext | null,
 ): Promise<string> => {
   const seen = new Set<string>();
 
@@ -452,7 +590,11 @@ const fetchFirstFaviconAsDataUrl = async (
     if (!normalized || seen.has(normalized)) continue;
 
     seen.add(normalized);
-    const favicon = await fetchFaviconAsDataUrl(normalized, timeoutMs);
+    const favicon = await fetchFaviconAsDataUrl(
+      normalized,
+      timeoutMs,
+      basicAuthContext,
+    );
     if (favicon) return favicon;
   }
 
@@ -461,8 +603,9 @@ const fetchFirstFaviconAsDataUrl = async (
 
 export const fetchUrlMetadata = async (
   inputUrl: string,
-  timeoutMs: number = DEFAULT_REQUEST_TIMEOUT_MS,
+  options?: number | FetchUrlMetadataOptions,
 ): Promise<UrlMetadataResult> => {
+  const { timeoutMs, basicAuth } = normalizeFetchUrlMetadataOptions(options);
   const normalizedUrl = normalizeHttpUrl(inputUrl);
   const fallbackData: UrlMetadata = {
     title: "",
@@ -478,12 +621,22 @@ export const fetchUrlMetadata = async (
     };
   }
 
+  const basicAuthContext = createBasicAuthRequestContext(
+    basicAuth,
+    normalizedUrl,
+  );
+
   try {
-    const response = await fetchWithTimeout(normalizedUrl, timeoutMs, {
-      headers: {
-        Accept: "text/html,application/xhtml+xml,*/*;q=0.8",
+    const response = await fetchWithTimeout(
+      normalizedUrl,
+      timeoutMs,
+      {
+        headers: {
+          Accept: "text/html,application/xhtml+xml,*/*;q=0.8",
+        },
       },
-    });
+      basicAuthContext,
+    );
     if (!response.ok) {
       return {
         ok: false,
@@ -497,18 +650,28 @@ export const fetchUrlMetadata = async (
     const explicitFaviconUrl = extractExplicitFaviconFromHtml(html, finalUrl);
     const manifestUrl = extractManifestFromHtml(html, finalUrl);
     let favicon = explicitFaviconUrl
-      ? await fetchFaviconAsDataUrl(explicitFaviconUrl, timeoutMs)
+      ? await fetchFaviconAsDataUrl(
+          explicitFaviconUrl,
+          timeoutMs,
+          basicAuthContext,
+        )
       : "";
     if (!favicon && manifestUrl) {
       favicon = await fetchFirstFaviconAsDataUrl(
-        await fetchManifestIconUrls(manifestUrl, timeoutMs),
+        await fetchManifestIconUrls(
+          manifestUrl,
+          timeoutMs,
+          basicAuthContext,
+        ),
         timeoutMs,
+        basicAuthContext,
       );
     }
     if (!favicon) {
       favicon = await fetchFaviconAsDataUrl(
         resolveDefaultFaviconUrl(finalUrl),
         timeoutMs,
+        basicAuthContext,
       );
     }
 

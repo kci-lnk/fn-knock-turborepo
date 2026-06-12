@@ -872,9 +872,9 @@
                 >
                   <div class="flex items-center justify-between gap-4">
                     <div class="min-w-0 space-y-1">
-                      <Label for="mapping-basic-auth">过登录弹窗</Label>
+                      <Label for="mapping-basic-auth">Basic Auth 跳过</Label>
                       <p class="text-xs leading-5 text-muted-foreground">
-                        开启并填写用户名和密码后，访问时会自动带上这组登录信息，避免每次打开都弹出浏览器自带的登录框。
+                        开启并填写用户名和密码后，访问时会自动带上这组登录信息，避免每次打开都弹出浏览器自带的Basic Auth登录框。
                       </p>
                     </div>
                     <Switch
@@ -3352,11 +3352,24 @@ async function saveMappingTitleOverride(mapping: HostMapping, value: string) {
   }
 }
 
+function getMappingMetadataBasicAuth(): HostMapping["basic_auth"] | null {
+  if (!basicAuthInjectionModel.value || basicAuthValidationMessage.value) {
+    return null;
+  }
+
+  const basicAuth = normalizeMappingBasicAuth(mappingForm.basic_auth);
+  return basicAuth.enabled ? basicAuth : null;
+}
+
 async function refreshMappingMetadata() {
   if (!canRefreshMappingMetadata.value) return;
 
   await runRefreshMappingMetadata(
-    () => ConfigAPI.fetchHostMappingMetadata(mappingForm.target.trim()),
+    () =>
+      ConfigAPI.fetchHostMappingMetadata(
+        mappingForm.target.trim(),
+        getMappingMetadataBasicAuth(),
+      ),
     {
       onSuccess: (metadata) => {
         mappingMetadataTarget.value = mappingForm.target.trim();

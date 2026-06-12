@@ -1,6 +1,7 @@
 import type {
   AppConfig,
   HostMapping,
+  HostMappingBasicAuth,
   HostMappingRefreshSummary,
   HostActiveIpsPayload,
   UrlMetadataPreview,
@@ -137,6 +138,14 @@ apiClient.interceptors.response.use(
   },
 );
 
+const toHostMappingBasicAuthPayload = (
+  basicAuth: HostMappingBasicAuth,
+): HostMappingBasicAuth => ({
+  enabled: basicAuth.enabled,
+  username: basicAuth.username.trim(),
+  password: basicAuth.password,
+});
+
 const toHostMappingUpdatePayload = (
   mapping: HostMapping,
 ): HostMappingUpdatePayload => ({
@@ -146,11 +155,7 @@ const toHostMappingUpdatePayload = (
   access_mode: mapping.access_mode,
   suppress_toolbar: mapping.suppress_toolbar,
   preserve_host: mapping.preserve_host,
-  basic_auth: {
-    enabled: mapping.basic_auth.enabled,
-    username: mapping.basic_auth.username.trim(),
-    password: mapping.basic_auth.password,
-  },
+  basic_auth: toHostMappingBasicAuthPayload(mapping.basic_auth),
   locations: (mapping.locations ?? []).map((location) => ({
     path: location.path.trim(),
     match: location.match,
@@ -273,9 +278,15 @@ export const ConfigAPI = {
     const res = await apiClient.post("/config/host_mappings/refresh_titles");
     return res.data.data;
   },
-  async fetchHostMappingMetadata(target: string): Promise<UrlMetadataPreview> {
+  async fetchHostMappingMetadata(
+    target: string,
+    basicAuth?: HostMappingBasicAuth | null,
+  ): Promise<UrlMetadataPreview> {
     const res = await apiClient.post("/config/host_mappings/metadata", {
       target,
+      ...(basicAuth
+        ? { basic_auth: toHostMappingBasicAuthPayload(basicAuth) }
+        : {}),
     });
     return res.data.data;
   },

@@ -336,7 +336,7 @@ const handleAutoUpdateChange = async (enabled: boolean) => {
         applyFromDetails(data);
         toast.success(enabled ? "自动更新已开启" : "自动更新已关闭", {
           description: enabled
-            ? "后端会每 10 分钟检查一次系统规则，有更新才下载同步。"
+            ? "后端会自动维护 WAF 系统规则更新。"
             : "后端不会再自动检查 WAF 系统规则更新。",
         });
       },
@@ -594,7 +594,7 @@ onMounted(fetchDetails);
               规则自动更新
             </Label>
             <div class="text-sm text-muted-foreground">
-              每 10 分钟检查一次系统规则；有更新才下载同步，失败后继续等待下一轮检查。
+              开启后会自动维护 WAF 系统规则更新，失败后后续会继续尝试。
             </div>
           </div>
           <Switch

@@ -15,8 +15,7 @@
       :disabled="isSaving"
       :placeholder="placeholder"
       autofocus
-      @keyup.enter="saveEdit"
-      @keyup.esc="cancelEdit"
+      @keyup="handleKeyup"
     />
 
     <div
@@ -100,6 +99,17 @@ async function startEdit() {
 function cancelEdit() {
   isEditing.value = false;
   draft.value = '';
+}
+
+function handleKeyup(event: KeyboardEvent) {
+  if (event.key === 'Enter') {
+    void saveEdit();
+    return;
+  }
+
+  if (event.key === 'Escape') {
+    cancelEdit();
+  }
 }
 
 async function saveEdit() {

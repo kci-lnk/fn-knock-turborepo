@@ -1322,7 +1322,10 @@ import { useDiscoverServicesSelection } from "@admin-shared/composables/useDisco
 import { extractPortFromTarget } from "@admin-shared/utils/extractPortFromTarget";
 import { copyTextToClipboard } from "@admin-shared/utils/copyTextToClipboard";
 import { useConfigStore } from "../store/config";
-import { isAnySubdomainRoutingMode } from "../lib/reverse-proxy-submode";
+import {
+  isAnySubdomainRoutingMode,
+  shouldOmitPublicAccessEntryPort,
+} from "../lib/reverse-proxy-submode";
 import {
   ConfigAPI,
   DashboardAPI,
@@ -2033,24 +2036,28 @@ const mappingViewTransitionLeaveToClass = computed(() =>
 const defaultAuthServicePublicPort = computed(
   () => normalizePublicPort(accessEntryPort.value) || 7999,
 );
+const configuredAuthServicePublicPort = computed(() => {
+  const explicitHttpsPort = parsePublicAuthBaseUrlPort(
+    modeForm.public_auth_base_url,
+    "https",
+  );
+  const explicitHttpPort = parsePublicAuthBaseUrlPort(
+    modeForm.public_auth_base_url,
+    "http",
+  );
+  const configuredHttpsPort = normalizePublicPort(modeForm.public_https_port);
+  const configuredHttpPort = normalizePublicPort(modeForm.public_http_port);
+  return (
+    explicitHttpsPort ||
+    explicitHttpPort ||
+    configuredHttpsPort ||
+    configuredHttpPort
+  );
+});
 const authServicePublicPort = computed({
   get: () => {
-    const explicitHttpsPort = parsePublicAuthBaseUrlPort(
-      modeForm.public_auth_base_url,
-      "https",
-    );
-    const explicitHttpPort = parsePublicAuthBaseUrlPort(
-      modeForm.public_auth_base_url,
-      "http",
-    );
-    const configuredHttpsPort = normalizePublicPort(modeForm.public_https_port);
-    const configuredHttpPort = normalizePublicPort(modeForm.public_http_port);
     return (
-      explicitHttpsPort ||
-      explicitHttpPort ||
-      configuredHttpsPort ||
-      configuredHttpPort ||
-      defaultAuthServicePublicPort.value
+      configuredAuthServicePublicPort.value || defaultAuthServicePublicPort.value
     );
   },
   set: (value: number | string) => {
@@ -2066,7 +2073,7 @@ const authServicePublicPort = computed({
 const draftAuthServicePublicPort = computed(() =>
   String(authServicePublicPort.value || defaultAuthServicePublicPort.value),
 );
-const displayAccessEntryPort = computed(() => {
+const configuredAccessEntryPort = computed(() => {
   const explicitHttpsPort = parsePublicAuthBaseUrlPort(
     currentModeConfig.value.public_auth_base_url,
     "https",
@@ -2086,10 +2093,13 @@ const displayAccessEntryPort = computed(() => {
     configuredHttpsPort ||
     explicitHttpPort ||
     configuredHttpPort;
-  return configuredPort > 0
-    ? String(configuredPort)
-    : accessEntryPort.value.trim() || "7999";
+  return configuredPort > 0 ? configuredPort : 0;
 });
+const displayAccessEntryPort = computed(() =>
+  configuredAccessEntryPort.value > 0
+    ? String(configuredAccessEntryPort.value)
+    : accessEntryPort.value.trim() || "7999",
+);
 const isEdgeClientIPModeEditable = computed(
   () => configStore.config?.run_type === 3,
 );
@@ -2102,7 +2112,10 @@ const isEdgeClientIPActive = computed(
     activeEdgeClientIpProvider.value !== null,
 );
 const shouldOmitAccessEntryPort = computed(() => {
-  if (isEdgeClientIPActive.value) {
+  if (
+    shouldOmitPublicAccessEntryPort(configStore.config) &&
+    configuredAccessEntryPort.value <= 0
+  ) {
     return true;
   }
   const parsedPort = Number.parseInt(displayAccessEntryPort.value, 10);
@@ -2113,7 +2126,11 @@ const formatHostWithAccessEntryPort = (host: string): string =>
     ? host
     : `${host}:${displayAccessEntryPort.value}`;
 const shouldOmitDraftAuthServicePublicPort = computed(() => {
-  if (isEdgeClientIPActive.value) {
+  if (
+    (isEdgeClientIPActive.value ||
+      shouldOmitPublicAccessEntryPort(configStore.config)) &&
+    configuredAuthServicePublicPort.value <= 0
+  ) {
     return true;
   }
   const parsedPort = normalizePublicPort(authServicePublicPort.value);

@@ -21,6 +21,7 @@ export interface AuthConfig {
   public_http_port?: number;
   public_https_port?: number;
   auth_host?: string;
+  trust_forwarded_proto?: boolean;
 }
 
 export interface Rule {

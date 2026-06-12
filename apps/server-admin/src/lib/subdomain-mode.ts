@@ -9,7 +9,11 @@ import {
   isAnySubdomainRoutingMode,
   isReverseProxySubdomainMode,
 } from "./reverse-proxy-submode";
-import { resolvePublicGatewayPort } from "./access-entry";
+import {
+  isCloudflaredReverseProxySubdomainMode,
+  resolvePublicGatewayPort,
+  shouldOmitPublicAccessEntryPort,
+} from "./access-entry";
 
 const trimTrailingSlash = (value: string): string => value.replace(/\/+$/, "");
 
@@ -94,14 +98,6 @@ const parseExplicitUrlPort = (
   }
 };
 
-const shouldOmitDerivedGatewayPort = (
-  config?: Partial<Pick<AppConfig, "run_type" | "subdomain_mode">> | null,
-): boolean =>
-  config?.run_type === 3 &&
-  config.subdomain_mode?.edge_client_ip_enabled === true &&
-  (config.subdomain_mode?.aliyun_esa_enabled === true ||
-    config.subdomain_mode?.tencent_edgeone_enabled === true);
-
 const resolveConfiguredPublicPort = (
   config:
     | Partial<Pick<AppConfig, "reverse_proxy_submode" | "subdomain_mode">>
@@ -123,7 +119,10 @@ const resolveConfiguredPublicPort = (
 export const resolvePublicPortForScheme = (
   config:
     | Partial<
-        Pick<AppConfig, "run_type" | "reverse_proxy_submode" | "subdomain_mode">
+        Pick<
+          AppConfig,
+          "run_type" | "reverse_proxy_submode" | "subdomain_mode" | "default_tunnel"
+        >
       >
     | null
     | undefined,
@@ -138,7 +137,7 @@ export const resolvePublicPortForScheme = (
   const configuredPort = resolveConfiguredPublicPort(config, scheme);
   if (configuredPort) return configuredPort;
 
-  if (shouldOmitDerivedGatewayPort(config)) return null;
+  if (shouldOmitPublicAccessEntryPort(config)) return null;
   if (!gatewayFallback) return null;
 
   return resolvePublicGatewayPort(config);
@@ -150,7 +149,10 @@ const isDefaultSchemePort = (scheme: "http" | "https", port: number): boolean =>
 const applyPublicPortToBaseUrl = (
   rawBaseUrl: string,
   config?: Partial<
-    Pick<AppConfig, "run_type" | "reverse_proxy_submode" | "subdomain_mode">
+    Pick<
+      AppConfig,
+      "run_type" | "reverse_proxy_submode" | "subdomain_mode" | "default_tunnel"
+    >
   > | null,
 ): string => {
   const trimmed = trimTrailingSlash(rawBaseUrl.trim());
@@ -182,18 +184,21 @@ const applyPublicPortToBaseUrl = (
 const formatDerivedPublicAuthBaseUrl = (
   host: string,
   config?: Partial<
-    Pick<AppConfig, "run_type" | "reverse_proxy_submode" | "subdomain_mode">
+    Pick<
+      AppConfig,
+      "run_type" | "reverse_proxy_submode" | "subdomain_mode" | "default_tunnel"
+    >
   > | null,
   scheme: "http" | "https" = "https",
 ): string => {
   const normalizedHost = host.trim().toLowerCase();
   if (!normalizedHost) return "";
 
-  if (shouldOmitDerivedGatewayPort(config)) {
-    return `${scheme}://${normalizedHost}`;
-  }
-
-  const port = resolvePublicPortForScheme(config, scheme);
+  const port = resolvePublicPortForScheme(
+    config,
+    scheme,
+    config?.subdomain_mode?.public_auth_base_url?.trim() || "",
+  );
   if (!port) return `${scheme}://${normalizedHost}`;
 
   return isDefaultSchemePort(scheme, port)
@@ -759,7 +764,7 @@ export const buildSubdomainCertificateInventoryCoverage = ({
 
 export const resolvePublicAuthBaseUrl = (
   config: Pick<AppConfig, "subdomain_mode" | "host_mappings"> &
-    Partial<Pick<AppConfig, "run_type" | "reverse_proxy_submode">>,
+    Partial<Pick<AppConfig, "run_type" | "reverse_proxy_submode" | "default_tunnel">>,
 ): string => {
   const explicit = isReverseProxySubdomainMode(config)
     ? ""
@@ -1033,6 +1038,7 @@ export const buildGatewayAuthConfig = (
     public_http_port: publicHttpPort,
     public_https_port: publicHttpsPort,
     auth_host: authHost,
+    trust_forwarded_proto: isCloudflaredReverseProxySubdomainMode(config),
   };
 };
 

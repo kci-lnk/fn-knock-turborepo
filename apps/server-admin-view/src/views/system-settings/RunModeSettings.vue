@@ -140,7 +140,7 @@
             >
               <p class="text-sm font-medium text-zinc-900">子域映射</p>
               <p class="mt-1 text-xs leading-5 text-muted-foreground">
-                隐藏路径映射并展示子域映射，且该子模式仅支持 FRP。
+                隐藏路径映射并展示子域映射，可搭配 FRP 或 Cloudflared。
               </p>
             </button>
           </div>
@@ -480,7 +480,7 @@ const accessAlertDescription = computed(() => {
   }
   if (mode.value === 1) {
     if (reverseProxySubmode.value === "subdomain") {
-      return `将 ${port} 端口通过 FRP 映射到外部入口，再通过不同子域名访问服务，网关会按 Host 转发到本地服务。`;
+      return `将 ${port} 端口通过 FRP 或 Cloudflared 映射到外部入口，再通过不同子域名访问服务，网关会按 Host 转发到本地服务。`;
     }
     return `将 ${port} 端口通过反向代理或内网穿透映射到外部入口，从对外域名或入口地址访问。`;
   }
@@ -751,11 +751,7 @@ async function ensureTunnelsStoppedForTargetMode(
     } => item !== null,
   );
   const tunnelsToStop =
-    nextMode === 1 && nextSubmode === "subdomain"
-      ? runningTunnels.filter((item) => item.key === "cloudflared")
-      : nextMode === 1
-        ? []
-        : runningTunnels;
+    nextMode === 1 ? [] : runningTunnels;
 
   if (tunnelsToStop.length === 0) return;
 
@@ -850,9 +846,9 @@ function buildRunModeChangeSuccessDescription(
   if (nextMode === 1) {
     if (nextSubmode === "subdomain") {
       if (proxyMappingsCount.value > 0) {
-        return `已切换到反代模式 / 子域映射，现有 ${proxyMappingsCount.value} 条路径映射会保留，但入口已隐藏，且仅保留 FRP。`;
+        return `已切换到反代模式 / 子域映射，现有 ${proxyMappingsCount.value} 条路径映射会保留，但入口已隐藏，可继续使用 FRP 或 Cloudflared。`;
       }
-      return "已切换到反代模式 / 子域映射，路径映射入口已隐藏，且仅保留 FRP。";
+      return "已切换到反代模式 / 子域映射，路径映射入口已隐藏，可继续使用 FRP 或 Cloudflared。";
     }
 
     const preservedItems: string[] = [];
@@ -932,13 +928,13 @@ const confirmDialogContent = computed(() => {
       title: `切换到${getRunModeLabel(1, targetSubmode)}`,
       description:
         targetSubmode === "subdomain"
-          ? "请确认你已经理解这个反代子模式会改为按子域名转发，并且只支持 FRP。"
+          ? "请确认你已经理解这个反代子模式会改为按子域名转发，并且可以继续使用 FRP 或 Cloudflared。"
           : "请确认你已经理解这个反代子模式会继续按路径访问，并且可以继续使用 FRP 或 Cloudflared。",
       items: [
         buildReverseProxyCompatibilityMessage(targetSubmode),
         "会清空 Linux 自带的防火墙配置",
         targetSubmode === "subdomain"
-          ? `所有的入口都在 ${port}，通过 FRP 暴露到外部后，登录后按子域名访问不同服务`
+          ? `所有的入口都在 ${port}，通过 FRP 或 Cloudflared 暴露到外部后，登录后按子域名访问不同服务`
           : `所有的入口都在 ${port}，可内网穿透本地 ${port} 到外部任意端口，任何访问都需要先登录`,
         targetSubmode === "subdomain"
           ? "路径映射入口会隐藏，改为显示子域映射，且不会影响现有的 run_type=3"
@@ -969,10 +965,10 @@ const confirmDialogContent = computed(() => {
       buildReverseProxyCompatibilityMessage(targetSubmode),
       "集中入口访问",
       targetSubmode === "subdomain"
-        ? `所有的入口都在 ${port}，通过 FRP 暴露到外部后，登录后按子域名访问不同服务`
+        ? `所有的入口都在 ${port}，通过 FRP 或 Cloudflared 暴露到外部后，登录后按子域名访问不同服务`
         : `所有的入口都在 ${port}，可内网穿透本地 ${port} 到外部任意端口，任何访问都需要先登录`,
       targetSubmode === "subdomain"
-        ? "该子模式仅支持 FRP，并且完全不影响现有的子域模式"
+        ? "该子模式支持 FRP 或 Cloudflared，并且完全不影响现有的子域模式"
         : "登录后通过路径来访问子服务",
     ],
   };

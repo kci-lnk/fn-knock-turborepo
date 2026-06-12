@@ -30,7 +30,10 @@ import {
 } from "@/components/ui/table";
 import { toast } from "@admin-shared/utils/toast";
 import { ConfigAPI, SystemAPI } from "../../lib/api";
-import { isAnySubdomainRoutingMode } from "../../lib/reverse-proxy-submode";
+import {
+  resolveExplicitPublicAccessEntryPort,
+  shouldOmitPublicAccessEntryPort,
+} from "../../lib/reverse-proxy-submode";
 import { useConfigStore } from "../../store/config";
 import type {
   GatewayProxyHeadersDetails,
@@ -116,18 +119,19 @@ const disabledHosts = computed(() =>
     .filter((item) => item.send_proxy_headers === false)
     .map((item) => item.host),
 );
-const displayAccessEntryPort = computed(
-  () => accessEntryPort.value.trim() || "7999",
+const explicitAccessEntryPort = computed(() =>
+  resolveExplicitPublicAccessEntryPort(configStore.config),
 );
-const isEdgeClientIPEnabled = computed(
-  () =>
-    isAnySubdomainRoutingMode(configStore.config) &&
-    configStore.config?.subdomain_mode?.edge_client_ip_enabled === true &&
-    (configStore.config?.subdomain_mode?.aliyun_esa_enabled === true ||
-      configStore.config?.subdomain_mode?.tencent_edgeone_enabled === true),
+const displayAccessEntryPort = computed(() =>
+  explicitAccessEntryPort.value
+    ? String(explicitAccessEntryPort.value)
+    : accessEntryPort.value.trim() || "7999",
 );
 const shouldOmitAccessEntryPort = computed(() => {
-  if (isEdgeClientIPEnabled.value) {
+  if (
+    shouldOmitPublicAccessEntryPort(configStore.config) &&
+    !explicitAccessEntryPort.value
+  ) {
     return true;
   }
   const parsedPort = Number.parseInt(displayAccessEntryPort.value, 10);

@@ -1699,6 +1699,13 @@ export const FrpcAPI = {
   },
 };
 
+export type CloudflaredProtocol = "auto" | "http2" | "quic";
+
+export type CloudflaredConfig = {
+  token: string;
+  protocol: CloudflaredProtocol;
+};
+
 export const CloudflaredAPI = {
   async getStatus(): Promise<{
     initialized: boolean;
@@ -1709,12 +1716,12 @@ export const CloudflaredAPI = {
     const res = await apiClient.get("/cloudflared/status");
     return res.data.data;
   },
-  async getConfig(): Promise<{ token: string }> {
+  async getConfig(): Promise<CloudflaredConfig> {
     const res = await apiClient.get("/cloudflared/config");
     return res.data.data;
   },
-  async saveConfig(token: string): Promise<void> {
-    await apiClient.post("/cloudflared/config", { token });
+  async saveConfig(config: CloudflaredConfig): Promise<void> {
+    await apiClient.post("/cloudflared/config", config);
   },
   async start(): Promise<{ pid: number }> {
     const res = await apiClient.post("/cloudflared/start");

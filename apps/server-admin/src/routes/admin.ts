@@ -94,7 +94,10 @@ import {
   isAnySubdomainRoutingMode,
   isReverseProxySubdomainMode,
 } from "../lib/reverse-proxy-submode";
-import { resolveAccessEntryInfo } from "../lib/access-entry";
+import {
+  resolveAccessEntryInfo,
+  shouldOmitPublicAccessEntryPort,
+} from "../lib/access-entry";
 import {
   MaintenanceBackupError,
   maintenanceBackupService,
@@ -587,14 +590,6 @@ const normalizeHostLike = (value: string | undefined | null): string =>
     .replace(/^[a-z]+:\/\//i, "")
     .replace(/\/.*$/, "")
     .replace(/\.+$/, "");
-
-const isEdgeClientIpBookmarkMode = (
-  config: Pick<AppConfig, "run_type" | "subdomain_mode">,
-): boolean =>
-  config.run_type === 3 &&
-  config.subdomain_mode?.edge_client_ip_enabled === true &&
-  (config.subdomain_mode.aliyun_esa_enabled === true ||
-    config.subdomain_mode.tencent_edgeone_enabled === true);
 
 const resolveBookmarkScheme = (
   config: Pick<AppConfig, "ssl">,
@@ -2637,16 +2632,18 @@ export const adminRoutes = new Elysia({
     async () => {
       const config = await configManager.getConfig();
       const scheme = resolveBookmarkScheme(config);
+      const accessEntryPort =
+        resolvePublicPortForScheme(
+          config,
+          scheme,
+          config.subdomain_mode?.public_auth_base_url || "",
+        ) ?? null;
       const document = buildHostMappingsBookmarksDocument({
         mappings: config.host_mappings,
         scheme,
-        accessEntryPort:
-          resolvePublicPortForScheme(
-            config,
-            scheme,
-            config.subdomain_mode?.public_auth_base_url || "",
-          ) ?? resolveAccessEntryInfo(config).port,
-        omitAccessEntryPort: isEdgeClientIpBookmarkMode(config),
+        accessEntryPort: accessEntryPort ?? resolveAccessEntryInfo(config).port,
+        omitAccessEntryPort:
+          shouldOmitPublicAccessEntryPort(config) && accessEntryPort === null,
         folderTitle: config.subdomain_mode?.root_domain?.trim()
           ? `${config.subdomain_mode.root_domain.trim()} 子域映射`
           : "fn-knock 子域映射",

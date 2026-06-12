@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { CloudflaredAPI, SystemAPI, ConfigAPI } from '../../lib/api'
+import { CloudflaredAPI, SystemAPI, ConfigAPI, type CloudflaredProtocol } from '../../lib/api'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { EyeIcon, EyeOffIcon, TriangleAlert, Trash2 } from 'lucide-vue-next'
 import { toast } from '@admin-shared/utils/toast'
@@ -30,6 +31,32 @@ const ORIGIN_TLS_HOSTNAME_MISMATCH_REGEX =
   /tls:\s*failed to verify certificate:\s*x509:\s*certificate is valid for\s+(.+),\s*not\s+([^\s"]+)/i
 const DESTINATION_URL_REGEX = /\bdest=(https?:\/\/[^\s"]+)/i
 
+type CloudflaredProtocolOption = {
+  value: CloudflaredProtocol
+  label: string
+  description: string
+}
+
+const defaultCloudflaredProtocolOption: CloudflaredProtocolOption = {
+  value: 'auto',
+  label: '自动（推荐）',
+  description: '使用 cloudflared 默认策略，优先 QUIC，失败时尝试 HTTP2。',
+}
+
+const cloudflaredProtocolOptions: CloudflaredProtocolOption[] = [
+  defaultCloudflaredProtocolOption,
+  {
+    value: 'http2',
+    label: 'HTTP2',
+    description: '适合 UDP/7844 不稳定、被拦截或 QUIC 连接超时的网络。',
+  },
+  {
+    value: 'quic',
+    label: 'QUIC',
+    description: '适合明确允许 UDP/7844，且希望固定使用 QUIC 的网络。',
+  },
+]
+
 const router = useRouter()
 const configStore = useConfigStore()
 
@@ -42,8 +69,10 @@ const showInitDialog = ref(false)
 const showToken = ref(true)
 const configLoaded = ref(false)
 const hasCloudflaredLogBaseline = ref(false)
+const accessEntryPort = ref('7999')
 
 const token = ref<string>('')
+const protocol = ref<CloudflaredProtocol>('auto')
 const { isPending: isSaving, run: runSaveConfig } = useAsyncAction({
   onError: (error) => {
     toast.error('保存失败', { description: extractErrorMessage(error, '保存失败') })
@@ -82,6 +111,41 @@ watch(token, (newVal) => {
 
 const canStart = computed(() => isInit.value && !running.value && token.value)
 const canStop = computed(() => running.value)
+const isReverseProxySubdomainMode = computed(
+  () =>
+    configStore.config?.run_type === 1 &&
+    configStore.config?.reverse_proxy_submode === 'subdomain',
+)
+const rootDomain = computed(
+  () => configStore.config?.subdomain_mode?.root_domain?.trim().toLowerCase() || '',
+)
+const publicWildcardHostname = computed(() =>
+  rootDomain.value ? `*.${rootDomain.value}` : '*.example.com',
+)
+const authServiceHost = computed(() => {
+  const authMapping = configStore.config?.host_mappings?.find(
+    (mapping) => mapping.service_role === 'auth',
+  )
+  return (
+    authMapping?.host?.trim() ||
+    configStore.config?.subdomain_mode?.auth_host?.trim() ||
+    ''
+  )
+})
+const displayAccessEntryPort = computed(() => accessEntryPort.value.trim() || '7999')
+const cloudflaredOriginServiceUrl = computed(
+  () => `http://127.0.0.1:${displayAccessEntryPort.value}`,
+)
+const hasSubdomainRoot = computed(() => Boolean(rootDomain.value))
+const cloudflaredProtocolOption = computed(
+  () =>
+    cloudflaredProtocolOptions.find((option) => option.value === protocol.value) ??
+    defaultCloudflaredProtocolOption,
+)
+const cloudflaredProtocolLabel = computed(() => cloudflaredProtocolOption.value.label)
+const cloudflaredProtocolDescription = computed(
+  () => cloudflaredProtocolOption.value.description,
+)
 const cloudflaredLogAnalysisMessage = computed(() => {
   const analysis = cloudflaredLogAnalysis.value
   if (!analysis) return ''
@@ -152,6 +216,7 @@ async function loadConfig() {
     async () => {
       const res = await CloudflaredAPI.getConfig()
       token.value = res.token || ''
+      protocol.value = res.protocol || 'auto'
     },
     {
       onFinally: () => {
@@ -161,9 +226,21 @@ async function loadConfig() {
   )
 }
 
+async function loadAccessEntryPort() {
+  try {
+    const info = await SystemAPI.getAccessEntry()
+    accessEntryPort.value = info.port.trim() || '7999'
+  } catch (error) {
+    console.warn('load cloudflared access entry port failed:', error)
+  }
+}
+
 async function saveConfig() {
   await runSaveConfig(async () => {
-    await CloudflaredAPI.saveConfig(token.value.trim())
+    await CloudflaredAPI.saveConfig({
+      token: token.value.trim(),
+      protocol: protocol.value,
+    })
     const shouldRestart = running.value
     if (shouldRestart) {
       await stopCloudflared({ silent: true })
@@ -258,8 +335,12 @@ const cloudflaredPolling = useTargetPolling({
 })
 
 onMounted(async () => {
-  await loadStatus()
-  await loadConfig()
+  await Promise.all([
+    loadStatus(),
+    loadConfig(),
+    loadAccessEntryPort(),
+    configStore.config ? Promise.resolve() : configStore.loadConfig(),
+  ])
   cloudflaredPolling.start()
 })
 onUnmounted(() => {
@@ -285,7 +366,7 @@ onUnmounted(() => {
         expanded-content-class="p-0 sm:p-0"
       >
         <template #summary>
-          Token: {{ token ? '********' : '未配置' }}
+          Token: {{ token ? '********' : '未配置' }}，协议: {{ cloudflaredProtocolLabel }}
         </template>
 
         <template #default>
@@ -324,6 +405,71 @@ onUnmounted(() => {
                   <p>进入 <strong>Networks → Tunnels</strong>，新建一个 <strong>Cloudflared</strong> 类型的 Tunnel。</p>
                   <p>在安装页面复制命令中的 Token（<code>--token</code> 后面的随机长字符串）并粘贴到此处。</p>
                 </div>
+              </div>
+            </div>
+            <div class="p-4 sm:p-6 grid gap-2 sm:grid-cols-[200px_1fr] md:grid-cols-[240px_1fr] items-start transition-colors hover:bg-muted/10">
+              <div class="space-y-1 mt-1.5">
+                <Label for="cloudflared-protocol" class="text-sm font-medium">传输协议</Label>
+                <p class="text-xs text-muted-foreground leading-relaxed hidden sm:block pr-4">
+                  控制 cloudflared 连接 Cloudflare 边缘网络的方式。
+                </p>
+              </div>
+
+              <div class="w-full max-w-md space-y-2">
+                <Select v-model="protocol">
+                  <SelectTrigger id="cloudflared-protocol" class="w-full">
+                    <SelectValue placeholder="选择传输协议" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem
+                      v-for="option in cloudflaredProtocolOptions"
+                      :key="option.value"
+                      :value="option.value"
+                    >
+                      {{ option.label }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p class="text-xs text-muted-foreground leading-relaxed">
+                  {{ cloudflaredProtocolDescription }}
+                </p>
+              </div>
+            </div>
+            <div v-if="isReverseProxySubdomainMode" class="p-4 sm:p-6 space-y-4">
+              <div class="space-y-1">
+                <h3 class="text-sm font-semibold">反代子域模式配置清单</h3>
+                <p class="text-xs leading-relaxed text-muted-foreground">
+                  在 Cloudflare Zero Trust 的 Tunnel Public Hostname 中填写以下内容，本地 Host 映射会继续分发到对应服务。
+                </p>
+              </div>
+
+              <Alert v-if="!hasSubdomainRoot" variant="destructive" class="items-start rounded-xl">
+                <TriangleAlert class="h-4 w-4" />
+                <AlertTitle>还未配置根域名</AlertTitle>
+                <AlertDescription>
+                  先在子域映射配置里填写根域名；未填写前，下方使用 example.com 作为示例。
+                </AlertDescription>
+              </Alert>
+
+              <div class="grid gap-3 lg:grid-cols-3">
+                <div class="rounded-md border bg-muted/20 p-3">
+                  <div class="text-xs font-medium text-muted-foreground">1. Public Hostname</div>
+                  <code class="mt-1 block break-all text-sm">{{ publicWildcardHostname }}</code>
+                </div>
+                <div class="rounded-md border bg-muted/20 p-3">
+                  <div class="text-xs font-medium text-muted-foreground">2. Service</div>
+                  <code class="mt-1 block break-all text-sm">{{ cloudflaredOriginServiceUrl }}</code>
+                </div>
+                <div class="rounded-md border bg-muted/20 p-3">
+                  <div class="text-xs font-medium text-muted-foreground">3. 本地鉴权 Host</div>
+                  <code class="mt-1 block break-all text-sm">{{ authServiceHost || '未配置' }}</code>
+                </div>
+              </div>
+
+              <div class="space-y-2 text-xs leading-relaxed text-muted-foreground">
+                <p>
+                  Service 建议使用 HTTP 回源到本机网关。保存后访问任意已配置的子域名，请求会先进入 Tunnel，再由本地 Host 映射转到对应服务。
+                </p>
               </div>
             </div>
           </div>

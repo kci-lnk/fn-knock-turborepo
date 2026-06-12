@@ -17,6 +17,27 @@ const resolveLocalGatewayPort = (): AccessEntryInfo => {
   };
 };
 
+export const isCloudflaredReverseProxySubdomainMode = (
+  config?: Partial<
+    Pick<AppConfig, "run_type" | "reverse_proxy_submode" | "default_tunnel">
+  > | null,
+): boolean =>
+  isReverseProxySubdomainMode(config) && config?.default_tunnel === "cloudflared";
+
+export const shouldOmitPublicAccessEntryPort = (
+  config?: Partial<
+    Pick<
+      AppConfig,
+      "run_type" | "reverse_proxy_submode" | "default_tunnel" | "subdomain_mode"
+    >
+  > | null,
+): boolean =>
+  isCloudflaredReverseProxySubdomainMode(config) ||
+  (config?.run_type === 3 &&
+    config.subdomain_mode?.edge_client_ip_enabled === true &&
+    (config.subdomain_mode?.aliyun_esa_enabled === true ||
+      config.subdomain_mode?.tencent_edgeone_enabled === true));
+
 export const resolveAccessEntryInfo = (
   config?: Partial<
     Pick<AppConfig, "run_type" | "reverse_proxy_submode">

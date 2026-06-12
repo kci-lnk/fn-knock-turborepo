@@ -119,32 +119,67 @@ const buildCloudflaredStatus = () => ({
 const CLOUDFLARED_DIR = path.join(dataPath, "cloudflared");
 const CLOUDFLARED_JSON = path.join(CLOUDFLARED_DIR, "cloudflared.json");
 
-async function readConfig(): Promise<string> {
+const CLOUDFLARED_PROTOCOLS = ["auto", "http2", "quic"] as const;
+type CloudflaredProtocol = (typeof CLOUDFLARED_PROTOCOLS)[number];
+type CloudflaredConfig = {
+  token: string;
+  protocol: CloudflaredProtocol;
+};
+
+const DEFAULT_CLOUDFLARED_CONFIG: CloudflaredConfig = {
+  token: "",
+  protocol: "auto",
+};
+
+const isCloudflaredProtocol = (
+  value: unknown,
+): value is CloudflaredProtocol =>
+  typeof value === "string" &&
+  CLOUDFLARED_PROTOCOLS.includes(value as CloudflaredProtocol);
+
+const normalizeCloudflaredConfig = (raw: unknown): CloudflaredConfig => {
+  if (!raw || typeof raw !== "object") return { ...DEFAULT_CLOUDFLARED_CONFIG };
+  const obj = raw as Record<string, unknown>;
+  return {
+    token: typeof obj.token === "string" ? obj.token : "",
+    protocol: isCloudflaredProtocol(obj.protocol) ? obj.protocol : "auto",
+  };
+};
+
+const buildCloudflaredArgs = (config: CloudflaredConfig): string[] => {
+  const args = ["tunnel", "--no-autoupdate"];
+  if (config.protocol !== "auto") {
+    args.push("--protocol", config.protocol);
+  }
+  args.push("run", "--token", config.token);
+  return args;
+};
+
+async function readConfig(): Promise<CloudflaredConfig> {
   if (!fs.existsSync(CLOUDFLARED_DIR))
     fs.mkdirSync(CLOUDFLARED_DIR, { recursive: true });
   if (!fs.existsSync(CLOUDFLARED_JSON)) {
-    const defaultTemplate = { token: "" };
     fs.writeFileSync(
       CLOUDFLARED_JSON,
-      JSON.stringify(defaultTemplate, null, 2),
+      JSON.stringify(DEFAULT_CLOUDFLARED_CONFIG, null, 2),
       "utf-8",
     );
-    return defaultTemplate.token;
+    return { ...DEFAULT_CLOUDFLARED_CONFIG };
   }
   try {
     const data = JSON.parse(fs.readFileSync(CLOUDFLARED_JSON, "utf-8"));
-    return data.token || "";
+    return normalizeCloudflaredConfig(data);
   } catch {
-    return "";
+    return { ...DEFAULT_CLOUDFLARED_CONFIG };
   }
 }
 
-async function writeConfig(token: string): Promise<void> {
+async function writeConfig(config: CloudflaredConfig): Promise<void> {
   if (!fs.existsSync(CLOUDFLARED_DIR))
     fs.mkdirSync(CLOUDFLARED_DIR, { recursive: true });
   fs.writeFileSync(
     CLOUDFLARED_JSON,
-    JSON.stringify({ token }, null, 2),
+    JSON.stringify(normalizeCloudflaredConfig(config), null, 2),
     "utf-8",
   );
 }
@@ -159,20 +194,16 @@ async function startCloudflared(): Promise<{ pid: number }> {
     return { pid: runState.proc.pid ?? 0 };
   }
   connectionState.stopRequested = false;
-  const token = await readConfig();
-  if (!token) {
+  const config = await readConfig();
+  if (!config.token) {
     throw new Error("请先配置 Cloudflare Token");
   }
 
   const bin = cloudflaredManager.getExecutable();
-  const proc = spawn(
-    bin,
-    ["tunnel", "--no-autoupdate", "run", "--token", token],
-    {
-      cwd: CLOUDFLARED_DIR,
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
+  const proc = spawn(bin, buildCloudflaredArgs(config), {
+    cwd: CLOUDFLARED_DIR,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
   const exitPromise = waitForProcessExit(proc);
   if (!proc.pid) {
     let detail = "spawn failed";
@@ -314,19 +345,27 @@ export const cloudflaredRoutes = new Elysia({
   .get(
     "/config",
     async () => {
-      const token = await readConfig();
-      return { success: true, data: { token } };
+      const config = await readConfig();
+      return { success: true, data: config };
     },
     routeDoc("获取 Cloudflared 配置"),
   )
   .post(
     "/config",
     async ({ body }) => {
-      await writeConfig(body.token);
+      await writeConfig({
+        token: body.token,
+        protocol: body.protocol ?? "auto",
+      });
       return { success: true };
     },
     withRouteDoc("保存 Cloudflared 配置", {
-      body: t.Object({ token: t.String() }),
+      body: t.Object({
+        token: t.String(),
+        protocol: t.Optional(
+          t.Union([t.Literal("auto"), t.Literal("http2"), t.Literal("quic")]),
+        ),
+      }),
     }),
   )
   .post(

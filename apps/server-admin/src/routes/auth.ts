@@ -49,6 +49,7 @@ import {
   resolveSharedAuthLoginRedirect,
   resolveSafeRedirectUri,
 } from "../lib/subdomain-mode";
+import { routeDoc, withRouteDoc } from "../lib/openapi";
 
 const buildPasskeyStatus = async (request: Request) => {
   const config = await configManager.getConfig();
@@ -137,162 +138,185 @@ const appendSetCookieHeader = (
     : [String(current), cookie];
 };
 
-export const authRoutes = new Elysia({ prefix: "/api/auth" })
+export const authRoutes = new Elysia({ prefix: "/api/auth", tags: ["Auth"] })
   .onBeforeHandle(({ set }) => {
     applyNoStoreHeaders(set.headers);
   })
-  .get("/bootstrap", async ({ request, set }) => {
-    const clientIp = getClientIp(request);
-    const config = await configManager.getConfig();
-    ipLocationService.ensureEnqueued(clientIp).catch((error) => {
-      console.error("[auth][bootstrap] failed to enqueue ip lookup:", error);
-    });
-    const [auth, client, captcha, passkey, oidc] = await Promise.all([
-      resolveAuthAccess(request, clientIp),
-      Promise.resolve(buildClientInfo(clientIp)),
-      captchaService.getPublicSettings(),
-      buildPasskeyStatus(request),
-      buildOidcStatus(),
-    ]);
+  .get(
+    "/bootstrap",
+    async ({ request, set }) => {
+      const clientIp = getClientIp(request);
+      const config = await configManager.getConfig();
+      ipLocationService.ensureEnqueued(clientIp).catch((error) => {
+        console.error("[auth][bootstrap] failed to enqueue ip lookup:", error);
+      });
+      const [auth, client, captcha, passkey, oidc] = await Promise.all([
+        resolveAuthAccess(request, clientIp),
+        Promise.resolve(buildClientInfo(clientIp)),
+        captchaService.getPublicSettings(),
+        buildPasskeyStatus(request),
+        buildOidcStatus(),
+      ]);
 
-    applyAuthResponseHeaders(set, auth);
-    const requestedRedirectUri = new URL(request.url).searchParams.get(
-      "redirect_uri",
-    );
-    const oidcLoginErrorTicket = readCookieValue(
-      request.headers.get("cookie"),
-      OIDC_LOGIN_ERROR_COOKIE_NAME,
-    );
-    const redirectTo = auth.authorized
-      ? resolveSafeRedirectUri({
-          config,
-          request,
-          redirectUri: requestedRedirectUri,
-        })
-      : resolveSharedAuthLoginRedirect({
-          config,
-          request,
-          redirectUri: requestedRedirectUri,
-        });
-    const reachableRedirectTo =
-      auth.authorized &&
-      redirectTo &&
-      reliesOnBrowserSessionCookie(auth.grantType) &&
-      !canBrowserSessionReachRedirectUri({
-        config,
-        request,
-        redirectUri: redirectTo,
-      })
-        ? null
-        : redirectTo;
-    const oidcLoginError = await oidcAuthService.consumeLoginErrorNotice(
-      oidcLoginErrorTicket,
-    );
-
-    if (oidcLoginErrorTicket) {
-      appendSetCookieHeader(
-        set,
-        buildOidcLoginErrorClearCookie({
-          domain: resolveCookieDomain(config, request),
-          path: resolveAuthUiBasePrefix(request) || "/",
-        }),
+      applyAuthResponseHeaders(set, auth);
+      const requestedRedirectUri = new URL(request.url).searchParams.get(
+        "redirect_uri",
       );
-    }
+      const oidcLoginErrorTicket = readCookieValue(
+        request.headers.get("cookie"),
+        OIDC_LOGIN_ERROR_COOKIE_NAME,
+      );
+      const redirectTo = auth.authorized
+        ? resolveSafeRedirectUri({
+            config,
+            request,
+            redirectUri: requestedRedirectUri,
+          })
+        : resolveSharedAuthLoginRedirect({
+            config,
+            request,
+            redirectUri: requestedRedirectUri,
+          });
+      const reachableRedirectTo =
+        auth.authorized &&
+        redirectTo &&
+        reliesOnBrowserSessionCookie(auth.grantType) &&
+        !canBrowserSessionReachRedirectUri({
+          config,
+          request,
+          redirectUri: redirectTo,
+        })
+          ? null
+          : redirectTo;
+      const oidcLoginError =
+        await oidcAuthService.consumeLoginErrorNotice(oidcLoginErrorTicket);
 
-    return {
-      success: true,
-      data: {
-        auth: {
-          authenticated: auth.authorized,
-          message: auth.message,
-          grant_type: auth.grantType,
-        },
-        client,
-        captcha,
-        passkey,
-        oidc: {
-          ...oidc,
-          ...(oidcLoginError ? { login_error: oidcLoginError } : {}),
-        },
-        redirect_to: reachableRedirectTo || undefined,
-      },
-    };
-  })
-  .get("/session", async ({ request, set }) => {
-    const clientIp = getClientIp(request);
-    const auth = await resolveAuthAccess(request, clientIp);
-    applyAuthResponseHeaders(set, auth);
+      if (oidcLoginErrorTicket) {
+        appendSetCookieHeader(
+          set,
+          buildOidcLoginErrorClearCookie({
+            domain: resolveCookieDomain(config, request),
+            path: resolveAuthUiBasePrefix(request) || "/",
+          }),
+        );
+      }
 
-    if (!auth.authorized) {
-      set.status = 401;
-      return { success: false, message: auth.message };
-    }
-
-    ipLocationService.ensureEnqueued(clientIp).catch((error) => {
-      console.error("[auth][session] failed to enqueue ip lookup:", error);
-    });
-    const [client, passkey, oidc] = await Promise.all([
-      Promise.resolve(buildClientInfo(clientIp)),
-      buildPasskeyStatus(request),
-      buildOidcStatus(),
-    ]);
-
-    return {
-      success: true,
-      data: {
-        auth: {
-          authenticated: true,
-          message: auth.message,
-          grant_type: auth.grantType,
-        },
-        client,
-        passkey,
-        oidc,
-      },
-    };
-  })
-  .get("/captcha/config", async ({ set }) => {
-    const settings = await captchaService.getPublicSettings();
-    return { success: true, data: settings };
-  })
-  .get("/challenge", async ({ set }) => {
-    try {
-      return await captchaService.createChallenge();
-    } catch (error: any) {
-      set.status = 503;
       return {
-        success: false,
-        message: error?.message || "验证码服务暂时不可用",
+        success: true,
+        data: {
+          auth: {
+            authenticated: auth.authorized,
+            message: auth.message,
+            grant_type: auth.grantType,
+          },
+          client,
+          captcha,
+          passkey,
+          oidc: {
+            ...oidc,
+            ...(oidcLoginError ? { login_error: oidcLoginError } : {}),
+          },
+          redirect_to: reachableRedirectTo || undefined,
+        },
       };
-    }
-  })
-  .get("/ip", async ({ request, set }) => {
-    const clientIp = getClientIp(request);
-    const client = buildClientInfo(clientIp);
+    },
+    routeDoc("获取认证页引导信息"),
+  )
+  .get(
+    "/session",
+    async ({ request, set }) => {
+      const clientIp = getClientIp(request);
+      const auth = await resolveAuthAccess(request, clientIp);
+      applyAuthResponseHeaders(set, auth);
 
-    return {
-      success: true,
-      data: {
-        ip: client.ip,
-      },
-    };
-  })
-  .get("/ip/location", async ({ request, set }) => {
-    const clientIp = getClientIp(request);
-    const snapshot = await ipLocationService.ensureEnqueued(clientIp);
+      if (!auth.authorized) {
+        set.status = 401;
+        return { success: false, message: auth.message };
+      }
 
-    return {
-      success: true,
-      data: {
-        ip: clientIp,
-        location: snapshot.location,
-        status: snapshot.status,
-        attempts: snapshot.attempts,
-        maxAttempts: snapshot.maxAttempts,
-        error: snapshot.error,
-      },
-    };
-  })
+      ipLocationService.ensureEnqueued(clientIp).catch((error) => {
+        console.error("[auth][session] failed to enqueue ip lookup:", error);
+      });
+      const [client, passkey, oidc] = await Promise.all([
+        Promise.resolve(buildClientInfo(clientIp)),
+        buildPasskeyStatus(request),
+        buildOidcStatus(),
+      ]);
+
+      return {
+        success: true,
+        data: {
+          auth: {
+            authenticated: true,
+            message: auth.message,
+            grant_type: auth.grantType,
+          },
+          client,
+          passkey,
+          oidc,
+        },
+      };
+    },
+    routeDoc("获取当前认证会话"),
+  )
+  .get(
+    "/captcha/config",
+    async ({ set }) => {
+      const settings = await captchaService.getPublicSettings();
+      return { success: true, data: settings };
+    },
+    routeDoc("获取验证码公开配置"),
+  )
+  .get(
+    "/challenge",
+    async ({ set }) => {
+      try {
+        return await captchaService.createChallenge();
+      } catch (error: any) {
+        set.status = 503;
+        return {
+          success: false,
+          message: error?.message || "验证码服务暂时不可用",
+        };
+      }
+    },
+    routeDoc("创建登录验证码挑战"),
+  )
+  .get(
+    "/ip",
+    async ({ request, set }) => {
+      const clientIp = getClientIp(request);
+      const client = buildClientInfo(clientIp);
+
+      return {
+        success: true,
+        data: {
+          ip: client.ip,
+        },
+      };
+    },
+    routeDoc("获取当前客户端 IP"),
+  )
+  .get(
+    "/ip/location",
+    async ({ request, set }) => {
+      const clientIp = getClientIp(request);
+      const snapshot = await ipLocationService.ensureEnqueued(clientIp);
+
+      return {
+        success: true,
+        data: {
+          ip: clientIp,
+          location: snapshot.location,
+          status: snapshot.status,
+          attempts: snapshot.attempts,
+          maxAttempts: snapshot.maxAttempts,
+          error: snapshot.error,
+        },
+      };
+    },
+    routeDoc("获取当前客户端 IP 属地"),
+  )
   .post(
     "/login",
     async ({ body, set, request }) => {
@@ -387,7 +411,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
         redirectTo,
       });
     },
-    {
+    withRouteDoc("使用 TOTP 登录", {
       body: t.Object({
         token: t.String(),
         captcha: t.Union([
@@ -403,161 +427,174 @@ export const authRoutes = new Elysia({ prefix: "/api/auth" })
         rememberMe: t.Boolean(),
         redirect_uri: t.Optional(t.String()),
       }),
-    },
+    }),
   )
   .use(passkeyRoutes)
   .use(oidcRoutes)
-  .get("/logout", async ({ request, set }) => {
-    const config = await configManager.getConfig();
-    const cookieDomain = resolveCookieDomain(config, request);
-    const { sessionId } = authMobilitySessionManager.inspectRequest(request);
-    let session: Awaited<ReturnType<typeof configManager.getSession>> = null;
-    let loginIpFromSession: string | null = null;
-    if (sessionId) {
-      session = await configManager.getSession(sessionId);
-      loginIpFromSession = session?.ip || null;
-      await authMobilitySessionManager.destroySession(sessionId);
-      await configManager.deleteSession(sessionId);
-    }
-
-    const clientIp = getClientIp(request);
-    if (!sessionId) {
-      await whitelistManager.removeRecordsByIP(
-        loginIpFromSession || clientIp,
-        "auto",
-      );
-    } else {
-      await revokeCustomPostLoginIpGrant(
-        session,
-        config,
-        loginIpFromSession || clientIp,
-      );
-    }
-
-    scheduleSyncReverseProxyTrustedIPs({ reason: "logout" });
-    if (sessionId && session) {
-      await emitLogoutEvent({
-        sessionId,
-        authMethod: session.method,
-        credentialId: session.credentialId,
-        credentialName: session.credentialName,
-        ...(session.linkedTotpName
-          ? { linkedTotpName: session.linkedTotpName }
-          : {}),
-        ...(session.comment ? { sessionComment: session.comment } : {}),
-        ip: session.ip,
-        ...(session.ipLocation ? { ipLocation: session.ipLocation } : {}),
-        userAgent: session.userAgent,
-        ...(session.loginTime ? { loginTime: session.loginTime } : {}),
-        logoutSource: "user_logout",
-      });
-    }
-
-    const headers = new Headers({
-      Location: buildPostLogoutLocation(request),
-    });
-    applyNoStoreHeaders(headers);
-    headers.append(
-      "Set-Cookie",
-      buildSessionClearCookie({ domain: cookieDomain }),
-    );
-    headers.append(
-      "Set-Cookie",
-      buildFnosShareSessionClearCookie({ domain: cookieDomain }),
-    );
-    return new Response("", {
-      status: 302,
-      headers,
-    });
-  })
-  .head("/preflight", async ({ request }) => {
-    const clientIp = getClientIp(request);
-    const forwardedPath = request.headers.get("x-forwarded-path") || "";
-    const headers = new Headers();
-    applyNoStoreHeaders(headers);
-    const accessMode = resolveRequestedAccessMode(request);
-    let config: Awaited<ReturnType<typeof configManager.getConfig>> | null =
-      null;
-
-    try {
-      config = await configManager.getConfig();
-      let shareDecision: Awaited<
-        ReturnType<typeof fnosShareBypassService.resolvePreflight>
-      > | null = null;
-
-      if (
-        accessMode === "strict_whitelist" &&
-        !(await hasWhitelistAccess(clientIp))
-      ) {
-        headers.set("X-Option", "Deny");
-      } else if (
-        !(await hasNormalAccessContext(request, clientIp, accessMode))
-      ) {
-        shareDecision = await fnosShareBypassService.resolvePreflight(request);
-        if (shareDecision.redirectLocation) {
-          headers.set(
-            "X-Reauth-Redirect-Location",
-            shareDecision.redirectLocation,
-          );
-        }
+  .get(
+    "/logout",
+    async ({ request, set }) => {
+      const config = await configManager.getConfig();
+      const cookieDomain = resolveCookieDomain(config, request);
+      const { sessionId } = authMobilitySessionManager.inspectRequest(request);
+      let session: Awaited<ReturnType<typeof configManager.getSession>> = null;
+      let loginIpFromSession: string | null = null;
+      if (sessionId) {
+        session = await configManager.getSession(sessionId);
+        loginIpFromSession = session?.ip || null;
+        await authMobilitySessionManager.destroySession(sessionId);
+        await configManager.deleteSession(sessionId);
       }
 
-      const isScannerExemptRequest = scanDetector.isRequestExemptFromScan(
-        request,
-        config,
-      );
+      const clientIp = getClientIp(request);
+      if (!sessionId) {
+        await whitelistManager.removeRecordsByIP(
+          loginIpFromSession || clientIp,
+          "auto",
+        );
+      } else {
+        await revokeCustomPostLoginIpGrant(
+          session,
+          config,
+          loginIpFromSession || clientIp,
+        );
+      }
 
-      if (config.run_type !== 0 && !isScannerExemptRequest) {
-        const isBlacklisted = await scanDetector.isBlacklisted(clientIp);
-        if (isBlacklisted) {
+      scheduleSyncReverseProxyTrustedIPs({ reason: "logout" });
+      if (sessionId && session) {
+        await emitLogoutEvent({
+          sessionId,
+          authMethod: session.method,
+          credentialId: session.credentialId,
+          credentialName: session.credentialName,
+          ...(session.linkedTotpName
+            ? { linkedTotpName: session.linkedTotpName }
+            : {}),
+          ...(session.comment ? { sessionComment: session.comment } : {}),
+          ip: session.ip,
+          ...(session.ipLocation ? { ipLocation: session.ipLocation } : {}),
+          userAgent: session.userAgent,
+          ...(session.loginTime ? { loginTime: session.loginTime } : {}),
+          logoutSource: "user_logout",
+        });
+      }
+
+      const headers = new Headers({
+        Location: buildPostLogoutLocation(request),
+      });
+      applyNoStoreHeaders(headers);
+      headers.append(
+        "Set-Cookie",
+        buildSessionClearCookie({ domain: cookieDomain }),
+      );
+      headers.append(
+        "Set-Cookie",
+        buildFnosShareSessionClearCookie({ domain: cookieDomain }),
+      );
+      return new Response("", {
+        status: 302,
+        headers,
+      });
+    },
+    routeDoc("退出当前认证会话"),
+  )
+  .head(
+    "/preflight",
+    async ({ request }) => {
+      const clientIp = getClientIp(request);
+      const forwardedPath = request.headers.get("x-forwarded-path") || "";
+      const headers = new Headers();
+      applyNoStoreHeaders(headers);
+      const accessMode = resolveRequestedAccessMode(request);
+      let config: Awaited<ReturnType<typeof configManager.getConfig>> | null =
+        null;
+
+      try {
+        config = await configManager.getConfig();
+        let shareDecision: Awaited<
+          ReturnType<typeof fnosShareBypassService.resolvePreflight>
+        > | null = null;
+
+        if (
+          accessMode === "strict_whitelist" &&
+          !(await hasWhitelistAccess(clientIp))
+        ) {
           headers.set("X-Option", "Deny");
-        } else {
-          const isRecent = await recentAuthIPsManager.isActive(clientIp);
-          if (
-            !isRecent &&
-            !shareDecision?.handled &&
-            forwardedPath &&
-            !(await scanDetector.isCommonPath(forwardedPath))
-          ) {
-            await scanDetector.recordUncommonPath(clientIp, forwardedPath);
+        } else if (
+          !(await hasNormalAccessContext(request, clientIp, accessMode))
+        ) {
+          shareDecision =
+            await fnosShareBypassService.resolvePreflight(request);
+          if (shareDecision.redirectLocation) {
+            headers.set(
+              "X-Reauth-Redirect-Location",
+              shareDecision.redirectLocation,
+            );
           }
         }
+
+        const isScannerExemptRequest = scanDetector.isRequestExemptFromScan(
+          request,
+          config,
+        );
+
+        if (config.run_type !== 0 && !isScannerExemptRequest) {
+          const isBlacklisted = await scanDetector.isBlacklisted(clientIp);
+          if (isBlacklisted) {
+            headers.set("X-Option", "Deny");
+          } else {
+            const isRecent = await recentAuthIPsManager.isActive(clientIp);
+            if (
+              !isRecent &&
+              !shareDecision?.handled &&
+              forwardedPath &&
+              !(await scanDetector.isCommonPath(forwardedPath))
+            ) {
+              await scanDetector.recordUncommonPath(clientIp, forwardedPath);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("[auth][preflight] failed:", {
+          error,
+          clientIp,
+          forwardedPath,
+          edgeClientIPEnabled:
+            config?.run_type === 3 &&
+            config.subdomain_mode?.edge_client_ip_enabled === true,
+          aliyunESAEnabled:
+            config?.run_type === 3 &&
+            config.subdomain_mode?.aliyun_esa_enabled === true,
+          tencentEdgeOneEnabled:
+            config?.run_type === 3 &&
+            config.subdomain_mode?.tencent_edgeone_enabled === true,
+          eoConnectingIp: request.headers.get("eo-connecting-ip"),
+          aliRealClientIp: request.headers.get("ali-real-client-ip"),
+          xForwardedFor: request.headers.get("x-forwarded-for"),
+          xRealIp: request.headers.get("x-real-ip"),
+        });
       }
-    } catch (error) {
-      console.error("[auth][preflight] failed:", {
-        error,
-        clientIp,
-        forwardedPath,
-        edgeClientIPEnabled:
-          config?.run_type === 3 &&
-          config.subdomain_mode?.edge_client_ip_enabled === true,
-        aliyunESAEnabled:
-          config?.run_type === 3 &&
-          config.subdomain_mode?.aliyun_esa_enabled === true,
-        tencentEdgeOneEnabled:
-          config?.run_type === 3 &&
-          config.subdomain_mode?.tencent_edgeone_enabled === true,
-        eoConnectingIp: request.headers.get("eo-connecting-ip"),
-        aliRealClientIp: request.headers.get("ali-real-client-ip"),
-        xForwardedFor: request.headers.get("x-forwarded-for"),
-        xRealIp: request.headers.get("x-real-ip"),
+
+      return new Response(null, {
+        status: 204,
+        headers,
       });
-    }
+    },
+    routeDoc("认证反代预检"),
+  )
+  .get(
+    "/verify",
+    async ({ request, set }) => {
+      const clientIp = getClientIp(request);
+      const auth = await resolveAuthAccess(request, clientIp);
+      applyAuthResponseHeaders(set, auth);
 
-    return new Response(null, {
-      status: 204,
-      headers,
-    });
-  })
-  .get("/verify", async ({ request, set }) => {
-    const clientIp = getClientIp(request);
-    const auth = await resolveAuthAccess(request, clientIp);
-    applyAuthResponseHeaders(set, auth);
+      if (auth.authorized) {
+        return { success: true, message: auth.message };
+      }
 
-    if (auth.authorized) {
-      return { success: true, message: auth.message };
-    }
-
-    set.status = 401;
-    return { success: false, message: auth.message };
-  });
+      set.status = 401;
+      return { success: false, message: auth.message };
+    },
+    routeDoc("校验当前认证状态"),
+  );

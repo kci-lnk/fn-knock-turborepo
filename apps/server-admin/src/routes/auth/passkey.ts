@@ -17,6 +17,7 @@ import {
 import { applyNoStoreHeaders } from "../../lib/auth-access";
 import { loginBackoffService } from "../../lib/login-backoff";
 import { resolveSafeRedirectUri } from "../../lib/subdomain-mode";
+import { routeDoc, withRouteDoc } from "../../lib/openapi";
 
 const RP_NAME = "fn-knock";
 let simpleWebAuthnServerPromise:
@@ -51,43 +52,55 @@ const parseCookieValue = (
   return lastValue;
 };
 
-export const passkeyRoutes = new Elysia({ prefix: "/passkey" })
+export const passkeyRoutes = new Elysia({
+  prefix: "/passkey",
+  tags: ["Auth - Passkey"],
+})
   .onBeforeHandle(({ set }) => {
     applyNoStoreHeaders(set.headers);
   })
-  .get("/status", async ({ request, set }) => {
-    const passkeys = await configManager.getPasskeys();
-    const rpInfo = await getRpInfo(request);
-    return {
-      success: true,
-      data: {
-        available: passkeys.length > 0,
-        mode: rpInfo.mode,
-        rp_id: rpInfo.rpID,
-      },
-    };
-  })
-  .post("/auth/options", async ({ set, request }) => {
-    const passkeys = await configManager.getPasskeys();
-    if (passkeys.length === 0) {
-      set.status = 404;
-      return { success: false, message: "No passkey available" };
-    }
-    const { generateAuthenticationOptions } = await loadSimpleWebAuthnServer();
-    const { rpID } = await getRpInfo(request);
-    const allowCredentials = passkeys.map((passkey) => ({
-      id: passkey.id,
-      type: "public-key" as const,
-      transports: passkey.transports as any,
-    }));
-    const options = await generateAuthenticationOptions({
-      rpID,
-      allowCredentials,
-      userVerification: "preferred",
-    });
-    await configManager.setPasskeyChallenge(options.challenge, "auth");
-    return { success: true, data: options };
-  })
+  .get(
+    "/status",
+    async ({ request, set }) => {
+      const passkeys = await configManager.getPasskeys();
+      const rpInfo = await getRpInfo(request);
+      return {
+        success: true,
+        data: {
+          available: passkeys.length > 0,
+          mode: rpInfo.mode,
+          rp_id: rpInfo.rpID,
+        },
+      };
+    },
+    routeDoc("获取 Passkey 登录状态"),
+  )
+  .post(
+    "/auth/options",
+    async ({ set, request }) => {
+      const passkeys = await configManager.getPasskeys();
+      if (passkeys.length === 0) {
+        set.status = 404;
+        return { success: false, message: "No passkey available" };
+      }
+      const { generateAuthenticationOptions } =
+        await loadSimpleWebAuthnServer();
+      const { rpID } = await getRpInfo(request);
+      const allowCredentials = passkeys.map((passkey) => ({
+        id: passkey.id,
+        type: "public-key" as const,
+        transports: passkey.transports as any,
+      }));
+      const options = await generateAuthenticationOptions({
+        rpID,
+        allowCredentials,
+        userVerification: "preferred",
+      });
+      await configManager.setPasskeyChallenge(options.challenge, "auth");
+      return { success: true, data: options };
+    },
+    routeDoc("创建 Passkey 登录选项"),
+  )
   .post(
     "/auth/verify",
     async ({ body, set, request }) => {
@@ -226,31 +239,35 @@ export const passkeyRoutes = new Elysia({ prefix: "/passkey" })
         redirectTo,
       });
     },
-    {
+    withRouteDoc("校验 Passkey 登录", {
       body: t.Object({
         credential: t.Any(),
         rememberMe: t.Boolean(),
         redirect_uri: t.Optional(t.String()),
       }),
-    },
+    }),
   )
-  .post("/bind-token", async ({ set, request }) => {
-    const cookieHeader = request.headers.get("cookie") || "";
-    const sessionId = parseCookieValue(
-      cookieHeader,
-      "x-go-reauth-proxy-session-id",
-    );
-    let totpId = "";
-    if (sessionId) {
-      const session = await configManager.getSession(sessionId);
-      totpId = session?.totpId || "";
-    }
-    if (!totpId) {
-      set.status = 401;
-      return { success: false, message: "Unauthorized or missing TOTP ID" };
-    }
-    return { success: true, data: await buildPasskeyBindInfo(totpId) };
-  })
+  .post(
+    "/bind-token",
+    async ({ set, request }) => {
+      const cookieHeader = request.headers.get("cookie") || "";
+      const sessionId = parseCookieValue(
+        cookieHeader,
+        "x-go-reauth-proxy-session-id",
+      );
+      let totpId = "";
+      if (sessionId) {
+        const session = await configManager.getSession(sessionId);
+        totpId = session?.totpId || "";
+      }
+      if (!totpId) {
+        set.status = 401;
+        return { success: false, message: "Unauthorized or missing TOTP ID" };
+      }
+      return { success: true, data: await buildPasskeyBindInfo(totpId) };
+    },
+    routeDoc("获取 Passkey 绑定令牌信息"),
+  )
   .post(
     "/register/options",
     async ({ body, set, request }) => {
@@ -280,11 +297,11 @@ export const passkeyRoutes = new Elysia({ prefix: "/passkey" })
       await configManager.setPasskeyChallenge(options.challenge, "register");
       return { success: true, data: options };
     },
-    {
+    withRouteDoc("创建 Passkey 注册选项", {
       body: t.Object({
         token: t.String(),
       }),
-    },
+    }),
   )
   .post(
     "/register/verify",
@@ -345,11 +362,11 @@ export const passkeyRoutes = new Elysia({ prefix: "/passkey" })
       await configManager.addPasskey(passkey);
       return { success: true };
     },
-    {
+    withRouteDoc("校验并保存 Passkey 注册", {
       body: t.Object({
         token: t.String(),
         deviceName: t.Optional(t.String()),
         credential: t.Any(),
       }),
-    },
+    }),
   );

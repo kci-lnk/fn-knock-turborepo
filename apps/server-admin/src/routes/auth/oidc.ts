@@ -27,6 +27,7 @@ import {
   buildOidcLoginErrorCookie,
   readCookieValue,
 } from "../../lib/session-cookie";
+import { routeDoc, withRouteDoc } from "../../lib/openapi";
 
 const resolveAuthViewPrefix = (request: Request) => {
   const pathname = new URL(request.url).pathname;
@@ -294,16 +295,23 @@ const buildBindProviderSelectionResponse = (
   );
 };
 
-export const oidcRoutes = new Elysia({ prefix: "/oidc" })
+export const oidcRoutes = new Elysia({
+  prefix: "/oidc",
+  tags: ["Auth - OIDC"],
+})
   .onBeforeHandle(({ set }) => {
     applyNoStoreHeaders(set.headers);
   })
-  .get("/providers", async () => ({
-    success: true,
-    data: {
-      providers: await oidcAuthService.listPublicProviders(),
-    },
-  }))
+  .get(
+    "/providers",
+    async () => ({
+      success: true,
+      data: {
+        providers: await oidcAuthService.listPublicProviders(),
+      },
+    }),
+    routeDoc("获取公开外部登录提供商"),
+  )
   .get(
     "/invite",
     async ({ query, set }) => {
@@ -319,11 +327,11 @@ export const oidcRoutes = new Elysia({ prefix: "/oidc" })
       }
       return { success: true, data: invite };
     },
-    {
+    withRouteDoc("检查外部账号绑定邀请", {
       query: t.Object({
         token: t.Optional(t.String()),
       }),
-    },
+    }),
   )
   .get(
     "/bind",
@@ -389,12 +397,12 @@ export const oidcRoutes = new Elysia({ prefix: "/oidc" })
         );
       }
     },
-    {
+    withRouteDoc("发起外部账号绑定跳转", {
       query: t.Object({
         token: t.Optional(t.String()),
         provider_id: t.Optional(t.String()),
       }),
-    },
+    }),
   )
   .post(
     "/start",
@@ -432,7 +440,7 @@ export const oidcRoutes = new Elysia({ prefix: "/oidc" })
         };
       }
     },
-    {
+    withRouteDoc("发起外部登录授权", {
       body: t.Object({
         provider_id: t.String(),
         mode: t.Optional(t.Union([t.Literal("login"), t.Literal("bind")])),
@@ -440,7 +448,7 @@ export const oidcRoutes = new Elysia({ prefix: "/oidc" })
         redirect_uri: t.Optional(t.String()),
         rememberMe: t.Optional(t.Boolean()),
       }),
-    },
+    }),
   )
   .get(
     "/callback/:providerId",
@@ -602,7 +610,7 @@ export const oidcRoutes = new Elysia({ prefix: "/oidc" })
         });
       }
     },
-    {
+    withRouteDoc("处理外部登录回调", {
       params: t.Object({
         providerId: t.String(),
       }),
@@ -612,5 +620,5 @@ export const oidcRoutes = new Elysia({ prefix: "/oidc" })
         error: t.Optional(t.String()),
         error_description: t.Optional(t.String()),
       }),
-    },
+    }),
   );

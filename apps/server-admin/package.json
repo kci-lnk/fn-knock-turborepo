@@ -13,6 +13,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "debug:scanner": "tsx src/scripts/debug-scanner-analyzer.ts",
+    "docs:check": "node scripts/check-openapi-docs.mjs",
     "build": "rm -rf dist && esbuild src/index.ts src/reset-docker-admin-panel.ts --bundle --splitting --minify --platform=node --target=node20 --format=esm --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\" --outdir=dist --entry-names=[name] --chunk-names=chunks/[name]-[hash]",
     "start": "node dist/index.js"
   },

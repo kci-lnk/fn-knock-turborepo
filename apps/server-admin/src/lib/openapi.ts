@@ -120,6 +120,10 @@ export const adminOpenApiTags = [
     description: "Web 终端会话与附件接口。",
   },
   {
+    name: "SSH Security",
+    description: "SSH 登录日志、防火墙封锁同步和封锁解除接口。",
+  },
+  {
     name: "CIDR",
     description: "CIDR 地域数据与查询接口。",
   },
@@ -130,5 +134,20 @@ export const adminOpenApiTags = [
   {
     name: "Update",
     description: "更新检查、下载、安装与确认接口。",
+  },
+] as const;
+
+export const authOpenApiTags = [
+  {
+    name: "Auth",
+    description: "认证引导、验证码、TOTP 登录、会话校验与登出接口。",
+  },
+  {
+    name: "Auth - Passkey",
+    description: "Passkey 登录、绑定令牌、注册选项与注册校验接口。",
+  },
+  {
+    name: "Auth - OIDC",
+    description: "外部登录提供商、授权跳转、绑定邀请与 OIDC 回调接口。",
   },
 ] as const;

@@ -331,6 +331,12 @@ export interface GatewayHostResponseRuntimeState {
   updated_at: string | null;
 }
 
+export type GatewayPortalDisplayStyle = "domain" | "title";
+
+export interface GatewayPortalConfig {
+  display_style: GatewayPortalDisplayStyle;
+}
+
 export interface ReverseProxyTrustedIPRuntimeItem {
   ip: string;
   sources: string[];
@@ -531,6 +537,7 @@ export interface AppConfig {
   gateway_visibility?: GatewayVisibilityConfig;
   gateway_proxy_headers?: GatewayProxyHeadersConfig;
   gateway_host_response?: GatewayHostResponseConfig;
+  gateway_portal?: GatewayPortalConfig;
   dashboard_display?: DashboardDisplayConfig;
   auto_https?: AutoHttpsConfig;
   smart_connect?: SmartConnectConfig;
@@ -624,6 +631,10 @@ const DEFAULT_GATEWAY_PROXY_HEADERS_RUNTIME_STATE: GatewayProxyHeadersRuntimeSta
 
 export const DEFAULT_GATEWAY_HOST_RESPONSE_CONFIG: GatewayHostResponseConfig = {
   disabled_hosts: [],
+};
+
+export const DEFAULT_GATEWAY_PORTAL_CONFIG: GatewayPortalConfig = {
+  display_style: "domain",
 };
 
 export const DEFAULT_DASHBOARD_DISPLAY_CONFIG: DashboardDisplayConfig = {
@@ -864,6 +875,9 @@ const DEFAULT_CONFIG: AppConfig = {
   gateway_host_response: {
     ...DEFAULT_GATEWAY_HOST_RESPONSE_CONFIG,
     disabled_hosts: [],
+  },
+  gateway_portal: {
+    ...DEFAULT_GATEWAY_PORTAL_CONFIG,
   },
   dashboard_display: {
     ...DEFAULT_DASHBOARD_DISPLAY_CONFIG,
@@ -1345,6 +1359,20 @@ const normalizeGatewayHostResponseConfig = (
           ...new Set(raw.disabled_hosts.map((item) => normalizeHost(item))),
         ].filter(Boolean)
       : [],
+  };
+};
+
+const normalizeGatewayPortalDisplayStyle = (
+  value: unknown,
+): GatewayPortalDisplayStyle => (value === "title" ? "title" : "domain");
+
+const normalizeGatewayPortalConfig = (
+  value?: Partial<GatewayPortalConfig> | null,
+): GatewayPortalConfig => {
+  const raw = value ?? {};
+
+  return {
+    display_style: normalizeGatewayPortalDisplayStyle(raw.display_style),
   };
 };
 
@@ -2790,6 +2818,9 @@ return actual
         parsed.gateway_host_response = normalizeGatewayHostResponseConfig(
           parsed.gateway_host_response,
         );
+        parsed.gateway_portal = normalizeGatewayPortalConfig(
+          parsed.gateway_portal,
+        );
         parsed.dashboard_display = normalizeDashboardDisplayConfig(
           parsed.dashboard_display,
         );
@@ -2844,6 +2875,9 @@ return actual
       gateway_host_response: {
         ...DEFAULT_GATEWAY_HOST_RESPONSE_CONFIG,
         disabled_hosts: [],
+      },
+      gateway_portal: {
+        ...DEFAULT_GATEWAY_PORTAL_CONFIG,
       },
       dashboard_display: {
         ...DEFAULT_DASHBOARD_DISPLAY_CONFIG,
@@ -4693,6 +4727,11 @@ return actual
     return normalizeGatewayHostResponseConfig(config.gateway_host_response);
   }
 
+  async getGatewayPortalConfig(): Promise<GatewayPortalConfig> {
+    const config = await this.getConfig();
+    return normalizeGatewayPortalConfig(config.gateway_portal);
+  }
+
   async getDashboardDisplayConfig(): Promise<DashboardDisplayConfig> {
     const config = await this.getConfig();
     return normalizeDashboardDisplayConfig(config.dashboard_display);
@@ -4928,6 +4967,19 @@ return actual
     const config = await this.getConfig();
     const next = normalizeGatewayHostResponseConfig(nextValue);
     config.gateway_host_response = next;
+    await this.saveConfig(config);
+    return next;
+  }
+
+  async updateGatewayPortalConfig(
+    patch: Partial<GatewayPortalConfig>,
+  ): Promise<GatewayPortalConfig> {
+    const config = await this.getConfig();
+    const next = normalizeGatewayPortalConfig({
+      ...config.gateway_portal,
+      ...patch,
+    });
+    config.gateway_portal = next;
     await this.saveConfig(config);
     return next;
   }

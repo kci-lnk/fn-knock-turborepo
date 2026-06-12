@@ -5,6 +5,7 @@ import {
   type AppConfig,
   configManager,
   DEFAULT_GATEWAY_PROXY_HEADERS_CONFIG,
+  DEFAULT_GATEWAY_PORTAL_CONFIG,
   DEFAULT_GATEWAY_VISIBILITY_CONFIG,
   DEFAULT_REVERSE_PROXY_THROTTLE_CONFIG,
   type GatewayHostResponseRuntimeState,
@@ -45,9 +46,15 @@ import {
 } from "../lib/subdomain-mode";
 import { isAuthServiceTarget } from "../lib/auth-service";
 import {
+  resolveHostMappingDisplayTitle,
   refreshAllHostMappingTitles,
   scheduleHostMappingsMetadataRefresh,
 } from "../lib/host-mapping-metadata";
+import {
+  applyGatewayPortalTitleHostRulesPatchIfNeeded,
+  syncGatewayPortalHostRulesIfTitleMode,
+  syncGatewayPortalToGateway,
+} from "../lib/gateway-portal";
 import { fetchUrlMetadata } from "../lib/url-metadata";
 import { probeBasicAuthTarget } from "../lib/basic-auth-probe";
 import {
@@ -457,6 +464,8 @@ const toHostRuleSyncPayload = (
     | "preserve_host"
     | "basic_auth"
     | "locations"
+    | "title"
+    | "title_override"
   >,
 ) => ({
   host: normalizeHostMappingLookupKey(mapping.host),
@@ -465,6 +474,7 @@ const toHostRuleSyncPayload = (
   access_mode: mapping.access_mode,
   suppress_toolbar: mapping.suppress_toolbar,
   preserve_host: mapping.preserve_host,
+  title: resolveHostMappingDisplayTitle(mapping),
   basic_auth: normalizeHostBasicAuth(mapping.basic_auth),
   locations: mapping.locations ?? [],
 });
@@ -832,6 +842,7 @@ const buildGatewaySettingsResponse = (
     | "gateway_visibility"
     | "gateway_proxy_headers"
     | "gateway_host_response"
+    | "gateway_portal"
     | "host_mappings"
   >,
   visibilityRuntime: GatewayVisibilityRuntimeState,
@@ -874,6 +885,7 @@ const buildGatewaySettingsResponse = (
     ).items,
     hostResponseRuntime,
   ),
+  portal: config.gateway_portal ?? DEFAULT_GATEWAY_PORTAL_CONFIG,
 });
 
 const syncHostMappingsRuntime = async (
@@ -1671,6 +1683,10 @@ export const adminRoutes = new Elysia({
           );
         }
 
+        if (body.portal) {
+          await configManager.updateGatewayPortalConfig(body.portal);
+        }
+
         const updatedConfig = await configManager.getConfig();
         const [
           visibilityRuntime,
@@ -1716,6 +1732,11 @@ export const adminRoutes = new Elysia({
           throw error;
         }
 
+        await syncGatewayPortalToGateway(
+          updatedConfig.gateway_portal ?? DEFAULT_GATEWAY_PORTAL_CONFIG,
+        );
+        await applyGatewayPortalTitleHostRulesPatchIfNeeded(updatedConfig);
+
         return {
           success: true,
           data: buildGatewaySettingsResponse(
@@ -1727,11 +1748,23 @@ export const adminRoutes = new Elysia({
         };
       } catch (error: any) {
         const rollbackError = await rollbackConfigAndRuntime(previousConfig);
+        let portalRollbackError: string | null = null;
+        try {
+          await syncGatewayPortalToGateway(
+            previousConfig.gateway_portal ?? DEFAULT_GATEWAY_PORTAL_CONFIG,
+          );
+        } catch (innerError: any) {
+          portalRollbackError =
+            innerError?.message || "恢复传送门显示运行态失败";
+        }
         set.status = 502;
+        const extraRollbackError = [rollbackError, portalRollbackError]
+          .filter(Boolean)
+          .join("；");
         return {
           success: false,
-          message: rollbackError
-            ? `${error?.message || "更新网关配置失败"}；回滚失败：${rollbackError}`
+          message: extraRollbackError
+            ? `${error?.message || "更新网关配置失败"}；回滚失败：${extraRollbackError}`
             : error?.message || "更新网关配置失败，已回滚配置",
         };
       }
@@ -1746,6 +1779,13 @@ export const adminRoutes = new Elysia({
             requests_per_second: t.Optional(t.Number()),
             burst: t.Optional(t.Number()),
             block_seconds: t.Optional(t.Number()),
+          }),
+        ),
+        portal: t.Optional(
+          t.Object({
+            display_style: t.Optional(
+              t.Union([t.Literal("domain"), t.Literal("title")]),
+            ),
           }),
         ),
       }),
@@ -2566,6 +2606,12 @@ export const adminRoutes = new Elysia({
       );
 
       await configManager.updateHostMappings(mappings);
+      await syncGatewayPortalHostRulesIfTitleMode({
+        run_type: config.run_type,
+        reverse_proxy_submode: config.reverse_proxy_submode,
+        gateway_portal: config.gateway_portal,
+        host_mappings: mappings,
+      });
 
       return {
         success: true,

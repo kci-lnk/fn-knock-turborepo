@@ -1,4 +1,5 @@
 import { configManager, type HostMapping } from "./redis";
+import { syncGatewayPortalHostRulesIfTitleMode } from "./gateway-portal";
 import { fetchUrlMetadata } from "./url-metadata";
 
 export interface HostMappingMetadataRefreshSummary {
@@ -225,6 +226,19 @@ const ensureHostMappingsMetadataRefreshWorker = (): void => {
       }
 
       await configManager.updateHostMappings(merged.mappings);
+      try {
+        await syncGatewayPortalHostRulesIfTitleMode({
+          run_type: currentConfig.run_type,
+          reverse_proxy_submode: currentConfig.reverse_proxy_submode,
+          gateway_portal: currentConfig.gateway_portal,
+          host_mappings: merged.mappings,
+        });
+      } catch (error) {
+        console.error(
+          "[host-mappings] failed to sync refreshed titles to gateway:",
+          error,
+        );
+      }
     }
   })()
     .catch((error) => {

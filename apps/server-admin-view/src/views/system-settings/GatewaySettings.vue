@@ -16,7 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@admin-shared/utils/toast";
 import { ConfigAPI } from "../../lib/api";
-import type { GatewaySettings } from "../../types";
+import type { GatewayPortalDisplayStyle, GatewaySettings } from "../../types";
 import {
   extractErrorMessage,
   useAsyncAction,
@@ -31,12 +31,16 @@ type GatewaySettingsForm = Pick<
   GatewaySettings,
   | "auth_cache_ttl_seconds"
   | "auth_cache_unauthorized_ttl_seconds"
+  | "portal"
   | "reverse_proxy_throttle"
 >;
 const settings = ref<GatewaySettings | null>(null);
 const form = reactive<GatewaySettingsForm>({
   auth_cache_ttl_seconds: 1,
   auth_cache_unauthorized_ttl_seconds: 1,
+  portal: {
+    display_style: "domain",
+  },
   reverse_proxy_throttle: {
     enabled: true,
     requests_per_second: 100,
@@ -60,6 +64,16 @@ const { isPending: isSaving, run: runSaveSettings } = useAsyncAction({
     });
   },
 });
+const { isPending: isSavingPortal, run: runSavePortal } = useAsyncAction({
+  onError: (error) => {
+    toast.error("保存失败", {
+      description: extractErrorMessage(error, "保存传送门显示失败"),
+    });
+  },
+});
+const isGatewaySettingsBusy = computed(
+  () => isSaving.value || isSavingPortal.value,
+);
 
 const clampCacheTtl = (value: unknown) =>
   Math.max(0, Math.floor(Number(value) || 0));
@@ -164,23 +178,39 @@ const openLocationsEditor = () => {
 };
 
 const toggleThrottleEnabled = () => {
+  if (isGatewaySettingsBusy.value) return;
   form.reverse_proxy_throttle.enabled = !form.reverse_proxy_throttle.enabled;
 };
 
+const buildSettingsSnapshot = (data: GatewaySettings): GatewaySettings => ({
+  ...data,
+  portal: { display_style: data.portal?.display_style ?? "domain" },
+  reverse_proxy_throttle: { ...data.reverse_proxy_throttle },
+});
+
+const applySettingsSnapshot = (data: GatewaySettings) => {
+  const snapshot = buildSettingsSnapshot(data);
+  settings.value = snapshot;
+  return snapshot;
+};
+
 const applyFromSettings = (data: GatewaySettings) => {
-  settings.value = {
-    ...data,
-    reverse_proxy_throttle: { ...data.reverse_proxy_throttle },
-  };
+  const snapshot = applySettingsSnapshot(data);
   form.auth_cache_ttl_seconds = data.auth_cache_ttl_seconds;
   form.auth_cache_unauthorized_ttl_seconds =
     data.auth_cache_unauthorized_ttl_seconds;
+  form.portal.display_style = snapshot.portal.display_style;
   form.reverse_proxy_throttle.enabled = data.reverse_proxy_throttle.enabled;
   form.reverse_proxy_throttle.requests_per_second =
     data.reverse_proxy_throttle.requests_per_second;
   form.reverse_proxy_throttle.burst = data.reverse_proxy_throttle.burst;
   form.reverse_proxy_throttle.block_seconds =
     data.reverse_proxy_throttle.block_seconds;
+};
+
+const applyPortalFromSettings = (data: GatewaySettings) => {
+  const snapshot = applySettingsSnapshot(data);
+  form.portal.display_style = snapshot.portal.display_style;
 };
 
 const fetchSettings = async () => {
@@ -192,6 +222,40 @@ const fetchSettings = async () => {
 
 const resetForm = () => {
   if (settings.value) applyFromSettings(settings.value);
+};
+
+const savePortalDisplayStyle = async (style: GatewayPortalDisplayStyle) => {
+  if (isGatewaySettingsBusy.value) return;
+
+  const previousSavedStyle = settings.value?.portal.display_style ?? "domain";
+  if (
+    form.portal.display_style === style &&
+    previousSavedStyle === style
+  ) {
+    return;
+  }
+
+  form.portal.display_style = style;
+  const data = await runSavePortal(() =>
+    ConfigAPI.updateGatewaySettings({
+      portal: {
+        display_style: style,
+      },
+    }),
+  );
+
+  if (!data) {
+    form.portal.display_style = previousSavedStyle;
+    return;
+  }
+
+  applyPortalFromSettings(data);
+  try {
+    await configStore.loadConfig();
+  } catch (error) {
+    console.error("[gateway-settings] failed to refresh config store:", error);
+  }
+  toast.success("传送门显示已更新");
 };
 
 const saveSettings = async () => {
@@ -267,7 +331,7 @@ onMounted(fetchSettings);
             min="0"
             step="1"
             class="w-24 text-center"
-            :disabled="isSaving"
+            :disabled="isGatewaySettingsBusy"
           />
           <span class="w-12 text-sm text-muted-foreground">秒</span>
         </div>
@@ -293,12 +357,49 @@ onMounted(fetchSettings);
             min="0"
             step="1"
             class="w-24 text-center"
-            :disabled="isSaving"
+            :disabled="isGatewaySettingsBusy"
           />
           <span class="w-12 text-sm text-muted-foreground">秒</span>
         </div>
         <div class="sm:col-span-2 -mt-1 text-xs text-muted-foreground">
           {{ authCacheFailHint }}
+        </div>
+      </div>
+
+      <div
+        class="grid gap-3 p-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
+      >
+        <div class="space-y-1 pr-6">
+          <Label class="text-base">传送门显示</Label>
+          <div class="text-sm text-muted-foreground">
+            Host 类入口在传送门中显示域名或站点标题；标题为空时显示域名。
+          </div>
+        </div>
+        <div class="inline-flex w-fit rounded-md border bg-background p-1">
+          <Button
+            type="button"
+            size="sm"
+            :variant="
+              form.portal.display_style === 'domain' ? 'default' : 'ghost'
+            "
+            class="h-8 px-3"
+            :disabled="isGatewaySettingsBusy"
+            @click="savePortalDisplayStyle('domain')"
+          >
+            域名
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            :variant="
+              form.portal.display_style === 'title' ? 'default' : 'ghost'
+            "
+            class="h-8 px-3"
+            :disabled="isGatewaySettingsBusy"
+            @click="savePortalDisplayStyle('title')"
+          >
+            标题
+          </Button>
         </div>
       </div>
 
@@ -317,7 +418,7 @@ onMounted(fetchSettings);
         </div>
         <Switch
           v-model="form.reverse_proxy_throttle.enabled"
-          :disabled="isSaving"
+          :disabled="isGatewaySettingsBusy"
         />
       </div>
 
@@ -341,7 +442,7 @@ onMounted(fetchSettings);
               min="1"
               step="1"
               class="w-24 text-center"
-              :disabled="isSaving"
+              :disabled="isGatewaySettingsBusy"
             />
             <span class="w-16 text-sm text-muted-foreground">req/s</span>
           </div>
@@ -363,7 +464,7 @@ onMounted(fetchSettings);
               min="1"
               step="1"
               class="w-24 text-center"
-              :disabled="isSaving"
+              :disabled="isGatewaySettingsBusy"
             />
             <span class="w-16 text-sm text-muted-foreground">tokens</span>
           </div>
@@ -386,7 +487,7 @@ onMounted(fetchSettings);
               min="1"
               step="1"
               class="w-24 text-center"
-              :disabled="isSaving"
+              :disabled="isGatewaySettingsBusy"
             />
             <span class="w-12 text-sm text-muted-foreground">秒</span>
           </div>
@@ -540,12 +641,15 @@ onMounted(fetchSettings);
       <div class="flex items-center justify-end gap-3 p-6">
         <Button
           variant="outline"
-          :disabled="!isDirty || isSaving"
+          :disabled="!isDirty || isGatewaySettingsBusy"
           @click="resetForm"
         >
           重置
         </Button>
-        <Button :disabled="!isDirty || isSaving" @click="saveSettings">
+        <Button
+          :disabled="!isDirty || isGatewaySettingsBusy"
+          @click="saveSettings"
+        >
           保存设置
         </Button>
       </div>

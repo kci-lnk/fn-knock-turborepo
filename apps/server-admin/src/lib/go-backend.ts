@@ -39,6 +39,8 @@ export interface HostRule {
   access_mode?: "login_first" | "strict_whitelist";
   suppress_toolbar?: boolean;
   preserve_host?: boolean;
+  title?: string;
+  title_override?: string;
   basic_auth?: {
     enabled: boolean;
     username: string;
@@ -175,6 +177,12 @@ export interface PreserveHostConfig {
   enabled: boolean;
   omit_targets: string[];
   updated_at?: string | null;
+}
+
+export type GatewayPortalDisplayStyle = "domain" | "title";
+
+export interface GatewayPortalConfig {
+  display_style: GatewayPortalDisplayStyle;
 }
 
 export interface FnosPortIconHijackConfig {
@@ -403,6 +411,15 @@ export interface SSHFirewallClearRequest {
   parent_chain?: string[];
 }
 
+const resolveHostRuleTitle = (
+  rule: Pick<HostRule, "title" | "title_override">,
+): string => {
+  const override =
+    typeof rule.title_override === "string" ? rule.title_override.trim() : "";
+  if (override) return override;
+  return typeof rule.title === "string" ? rule.title.trim() : "";
+};
+
 export class GoBackendService {
   private baseUrl: string;
   private requestTimeoutMs: number;
@@ -619,6 +636,18 @@ export class GoBackendService {
       "POST",
       payload,
     );
+  }
+
+  async getGatewayPortalConfig(): Promise<GoResponse<GatewayPortalConfig>> {
+    return this.request<GatewayPortalConfig>("/api/config/portal");
+  }
+
+  async setGatewayPortalConfig(
+    config: GatewayPortalConfig,
+  ): Promise<GoResponse<GatewayPortalConfig>> {
+    return this.request<GatewayPortalConfig>("/api/config/portal", "POST", {
+      display_style: config.display_style === "title" ? "title" : "domain",
+    } satisfies GatewayPortalConfig);
   }
 
   async getFnosPortIconHijackConfig(): Promise<
@@ -880,6 +909,7 @@ export class GoBackendService {
         access_mode: rule.access_mode,
         suppress_toolbar: rule.suppress_toolbar,
         preserve_host: rule.preserve_host,
+        title: resolveHostRuleTitle(rule),
         basic_auth: rule.basic_auth,
         locations: (rule.locations ?? []).map((location) => ({
           path: location.path,

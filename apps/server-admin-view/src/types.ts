@@ -740,6 +740,7 @@ export interface AppConfig {
   reverse_proxy_throttle?: ReverseProxyThrottleConfig;
   gateway_proxy_headers?: GatewayProxyHeadersConfig;
   gateway_host_response?: GatewayHostResponseConfig;
+  gateway_portal?: GatewayPortalConfig;
   protocol_mapping_feature?: ProtocolMappingFeatureConfig;
   auto_https?: AutoHttpsConfig;
   dashboard_display?: DashboardDisplayConfig;
@@ -1100,6 +1101,12 @@ export type GatewayHostResponseDetails = {
   summary: GatewayHostResponseSummary;
 };
 
+export type GatewayPortalDisplayStyle = "domain" | "title";
+
+export type GatewayPortalConfig = {
+  display_style: GatewayPortalDisplayStyle;
+};
+
 export type GatewaySettings = {
   auth_cache_ttl_seconds: number;
   auth_cache_unauthorized_ttl_seconds: number;
@@ -1107,6 +1114,7 @@ export type GatewaySettings = {
   visibility: GatewayVisibilitySummary;
   proxy_headers: GatewayProxyHeadersSummary;
   host_response: GatewayHostResponseSummary;
+  portal: GatewayPortalConfig;
 };
 
 export type TrafficStats = {

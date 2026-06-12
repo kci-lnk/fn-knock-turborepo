@@ -308,17 +308,32 @@ export const handleLoginSuccess = async ({
         ? Math.floor(Date.now() / 1000) +
           (credentialSettings.post_login_ip_grant_ttl_seconds ?? 3600)
         : expireAt;
-    whitelistRecordId = await whitelistManager.addWhiteList(
-      {
-        ip: normalizedClientIp,
-        expireAt: grantExpireAt,
-        source: "auto",
-        comment: autoWhitelistComment,
-      },
-      {
-        replaceSource: "auto",
-      },
-    );
+    if (
+      postLoginIpGrantMode === "follow_session" &&
+      credentialSettings.session_ip_mobility_enabled
+    ) {
+      const whitelistRecord = await whitelistManager.ensureSessionAutoWhiteList(
+        {
+          ownerKey: `auth-mobility:login:${sessionId}:${normalizedClientIp}`,
+          ip: normalizedClientIp,
+          expireAt: grantExpireAt,
+          comment: autoWhitelistComment,
+        },
+      );
+      whitelistRecordId = whitelistRecord.id;
+    } else {
+      whitelistRecordId = await whitelistManager.addWhiteList(
+        {
+          ip: normalizedClientIp,
+          expireAt: grantExpireAt,
+          source: "auto",
+          comment: autoWhitelistComment,
+        },
+        {
+          replaceSource: "auto",
+        },
+      );
+    }
     const whitelistRecord =
       await whitelistManager.getRecordById(whitelistRecordId);
     sessionComment =
@@ -370,6 +385,12 @@ export const handleLoginSuccess = async ({
       ipLocationRefs.session(sessionId),
       ipLocationRefs.sessionTimeline(sessionId),
     ]);
+  } else if (normalizedClientIp) {
+    await authMobilitySessionManager.recordBrowserSessionLogin({
+      sessionId,
+      ip: normalizedClientIp,
+      ...(ipLocationStr ? { ipLocation: ipLocationStr } : {}),
+    });
   }
   set.headers["Set-Cookie"] = buildSessionCookie(sessionId, maxAge, {
     domain: resolveCookieDomain(config, request),

@@ -562,6 +562,8 @@ export interface AuthCredentialSettings {
   remember_me_ttl_seconds: number;
   post_login_ip_grant_mode: PostLoginIpGrantMode;
   post_login_ip_grant_ttl_seconds: number | null;
+  session_ip_mobility_enabled: boolean;
+  session_ip_mobility_window_seconds: number;
   passkey_bind_prompt_enabled: boolean;
 }
 
@@ -570,6 +572,8 @@ export const DEFAULT_AUTH_CREDENTIAL_SETTINGS: AuthCredentialSettings = {
   remember_me_ttl_seconds: 365 * 24 * 3600,
   post_login_ip_grant_mode: "follow_session",
   post_login_ip_grant_ttl_seconds: 3600,
+  session_ip_mobility_enabled: false,
+  session_ip_mobility_window_seconds: 20 * 60,
   passkey_bind_prompt_enabled: true,
 };
 
@@ -1659,6 +1663,11 @@ const normalizeAuthCredentialSettings = (
     DEFAULT_AUTH_CREDENTIAL_SETTINGS.post_login_ip_grant_ttl_seconds ?? 3600,
     { min: 60, max: 5 * 365 * 24 * 3600 },
   );
+  const sessionIpMobilityWindowSeconds = normalizePositiveInt(
+    raw.session_ip_mobility_window_seconds,
+    DEFAULT_AUTH_CREDENTIAL_SETTINGS.session_ip_mobility_window_seconds,
+    { min: 60, max: 24 * 3600 },
+  );
 
   return {
     session_ttl_seconds: sessionTtlSeconds,
@@ -1666,12 +1675,32 @@ const normalizeAuthCredentialSettings = (
     post_login_ip_grant_mode: postLoginIpGrantMode,
     post_login_ip_grant_ttl_seconds:
       postLoginIpGrantMode === "custom" ? postLoginIpGrantTtlSeconds : null,
+    session_ip_mobility_enabled:
+      typeof raw.session_ip_mobility_enabled === "boolean"
+        ? raw.session_ip_mobility_enabled
+        : DEFAULT_AUTH_CREDENTIAL_SETTINGS.session_ip_mobility_enabled,
+    session_ip_mobility_window_seconds: sessionIpMobilityWindowSeconds,
     passkey_bind_prompt_enabled:
       typeof raw.passkey_bind_prompt_enabled === "boolean"
         ? raw.passkey_bind_prompt_enabled
         : DEFAULT_AUTH_CREDENTIAL_SETTINGS.passkey_bind_prompt_enabled,
   };
 };
+
+const normalizeAuthCredentialSettingsPatch = (
+  config: AppConfig,
+  patch: Partial<AuthCredentialSettings>,
+): AuthCredentialSettings =>
+  normalizeAuthCredentialSettings(
+    {
+      ...config.auth_credential_settings,
+      ...patch,
+    },
+    {
+      legacyAutoAddWhitelistOnLogin:
+        config.subdomain_mode?.auto_add_whitelist_on_login,
+    },
+  );
 
 const normalizeHost = (value: unknown): string => {
   if (typeof value !== "string") return "";
@@ -2121,8 +2150,7 @@ const normalizeHostBasicAuth = (
   };
 };
 
-const DEFAULT_HOST_LOCATION_RESPONSE_CONTENT_TYPE =
-  "text/plain; charset=utf-8";
+const DEFAULT_HOST_LOCATION_RESPONSE_CONTENT_TYPE = "text/plain; charset=utf-8";
 
 const forbiddenHostLocationResponseHeaders = new Set([
   "connection",
@@ -5072,20 +5100,18 @@ return actual
     });
   }
 
+  async previewAuthCredentialSettingsUpdate(
+    patch: Partial<AuthCredentialSettings>,
+  ): Promise<AuthCredentialSettings> {
+    const config = await this.getConfig();
+    return normalizeAuthCredentialSettingsPatch(config, patch);
+  }
+
   async updateAuthCredentialSettings(
     patch: Partial<AuthCredentialSettings>,
   ): Promise<AuthCredentialSettings> {
     const config = await this.getConfig();
-    const next = normalizeAuthCredentialSettings(
-      {
-        ...config.auth_credential_settings,
-        ...patch,
-      },
-      {
-        legacyAutoAddWhitelistOnLogin:
-          config.subdomain_mode?.auto_add_whitelist_on_login,
-      },
-    );
+    const next = normalizeAuthCredentialSettingsPatch(config, patch);
     config.auth_credential_settings = next;
     await this.saveConfig(config);
     return next;

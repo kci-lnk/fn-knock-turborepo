@@ -1,4 +1,5 @@
 import type Redis from "ioredis";
+import { createHash } from "node:crypto";
 import { resolve4, resolve6 } from "node:dns/promises";
 import { v4 as uuidv4 } from "uuid";
 import { goBackend } from "./go-backend";
@@ -40,13 +41,18 @@ export interface WhiteListConcreteTargetRecord {
   targetType: "ip" | "cidr";
 }
 
-type WhiteListAddInput = Pick<
-  WhiteListRecord,
-  "ip" | "expireAt" | "source"
-> &
+type WhiteListAddInput = Pick<WhiteListRecord, "ip" | "expireAt" | "source"> &
   Partial<
     Pick<WhiteListRecord, "comment" | "targetType" | "checkIntervalMinutes">
   >;
+
+type SessionAutoWhiteListInput = {
+  ownerKey: string;
+  ip: string;
+  expireAt: number | null;
+  comment?: string;
+  existingRecordId?: string | null;
+};
 
 type CnameRefreshResult = {
   record: WhiteListRecord;
@@ -129,7 +135,8 @@ const toOptionalTimestamp = (value: unknown): number | null => {
 
 const getCnameResolvedTargets = (
   record: Partial<Pick<WhiteListRecord, "resolvedTargets" | "targetType">>,
-): string[] => (isCNAMERecord(record) ? normalizeResolvedTargets(record.resolvedTargets) : []);
+): string[] =>
+  isCNAMERecord(record) ? normalizeResolvedTargets(record.resolvedTargets) : [];
 
 const getConcreteIPTargets = (
   record: Partial<
@@ -261,6 +268,13 @@ export class IPTablesWhiteListManager {
     return `${PREFIX}:ip_records:${normalizedIp}`;
   }
 
+  private getAutoOwnerRecordKey(ownerKey: string) {
+    const digest = createHash("sha256")
+      .update(String(ownerKey || "").trim())
+      .digest("hex");
+    return `${PREFIX}:auto_owner:${digest}`;
+  }
+
   private getNow(): number {
     return Math.floor(Date.now() / 1000);
   }
@@ -291,7 +305,9 @@ export class IPTablesWhiteListManager {
   private formatResolveError(label: "A" | "AAAA", error: unknown): string {
     const code = String((error as any)?.code || "").trim();
     const message = (error as any)?.message || String(error);
-    return code ? `${label} 记录查询失败 (${code}): ${message}` : `${label} 记录查询失败: ${message}`;
+    return code
+      ? `${label} 记录查询失败 (${code}): ${message}`
+      : `${label} 记录查询失败: ${message}`;
   }
 
   private async resolveCnameTargets(domain: string): Promise<string[]> {
@@ -324,10 +340,15 @@ export class IPTablesWhiteListManager {
       throw new Error(hardErrors.join("；"));
     }
 
-    return [...resolvedTargets].sort((left, right) => left.localeCompare(right));
+    return [...resolvedTargets].sort((left, right) =>
+      left.localeCompare(right),
+    );
   }
 
-  private isCnameRefreshDue(record: WhiteListRecord, now = this.getNow()): boolean {
+  private isCnameRefreshDue(
+    record: WhiteListRecord,
+    now = this.getNow(),
+  ): boolean {
     if (!isCNAMERecord(record) || record.status !== "active") {
       return false;
     }
@@ -353,7 +374,10 @@ export class IPTablesWhiteListManager {
     const uniqueTargets = new Map<string, "ip" | "cidr">();
     for (const entry of targets) {
       if (!entry.target) continue;
-      uniqueTargets.set(`${entry.targetType}:${entry.target}`, entry.targetType);
+      uniqueTargets.set(
+        `${entry.targetType}:${entry.target}`,
+        entry.targetType,
+      );
     }
 
     for (const [key, targetType] of uniqueTargets.entries()) {
@@ -682,6 +706,168 @@ export class IPTablesWhiteListManager {
 
     await this.syncAllowedTarget(target);
     return id;
+  }
+
+  async ensureSessionAutoWhiteList(
+    input: SessionAutoWhiteListInput,
+  ): Promise<WhiteListRecord> {
+    const ownerKey = String(input.ownerKey || "").trim();
+    if (!ownerKey) {
+      throw new Error("缺少自动白名单归属标识");
+    }
+
+    const { target, targetType } = this.normalizeTargetInput(
+      input.ip,
+      "auto",
+      "ip",
+    );
+    const ownerRecordKey = this.getAutoOwnerRecordKey(ownerKey);
+    const ownerRecordId = await this.redis.get(ownerRecordKey);
+    const candidateIds = [
+      input.existingRecordId || "",
+      ownerRecordId || "",
+    ].filter((id, index, all) => id && all.indexOf(id) === index);
+
+    for (const candidateId of candidateIds) {
+      const existing = await this.getRecordById(candidateId);
+      if (!existing || existing.source !== "auto" || !isIPRecord(existing)) {
+        continue;
+      }
+
+      const now = this.getNow();
+      if (
+        existing.status !== "active" ||
+        (existing.expireAt && existing.expireAt <= now)
+      ) {
+        await this.removeWhiteList(candidateId);
+        continue;
+      }
+
+      const updated = await this.updateSessionAutoWhiteListRecord(existing, {
+        ip: target,
+        expireAt: input.expireAt,
+        ...(input.comment !== undefined ? { comment: input.comment } : {}),
+      });
+      await this.saveAutoOwnerRecordId(
+        ownerRecordKey,
+        updated.id,
+        input.expireAt,
+      );
+      return updated;
+    }
+
+    const id = `whitelist:${uuidv4()}`;
+    const now = this.getNow();
+    const ipLocationStr = await ipLocationService.getCachedLocation(target);
+    const fullRecord: WhiteListRecord = {
+      ip: target,
+      targetType,
+      expireAt: input.expireAt,
+      source: "auto",
+      id,
+      createdAt: now,
+      status: "active",
+      ...(input.comment !== undefined ? { comment: input.comment } : {}),
+      ...(ipLocationStr ? { ipLocation: ipLocationStr } : {}),
+    };
+
+    const pipeline = this.redis.pipeline();
+    pipeline.hset(KEYS.RECORDS, id, JSON.stringify(fullRecord));
+    pipeline.zadd(KEYS.RECORD_ORDER, now, id);
+    pipeline.sadd(KEYS.IPS, target);
+    pipeline.sadd(this.getIPRecordsKey(target), id);
+    if (input.expireAt) {
+      pipeline.zadd(KEYS.EXPIRY, input.expireAt, id);
+    }
+    this.queueAutoOwnerRecordId(pipeline, ownerRecordKey, id, input.expireAt);
+    await pipeline.exec();
+    await ipLocationService.registerUsage(target, [
+      ipLocationRefs.whitelist(id),
+    ]);
+    await this.syncAllowedTarget(target);
+    return fullRecord;
+  }
+
+  private queueAutoOwnerRecordId(
+    pipeline: ReturnType<Redis["pipeline"]>,
+    ownerRecordKey: string,
+    recordId: string,
+    expireAt: number | null,
+  ) {
+    const ttl = expireAt ? expireAt - this.getNow() : 0;
+    if (ttl > 0) {
+      pipeline.set(ownerRecordKey, recordId, "EX", ttl);
+      return;
+    }
+    pipeline.set(ownerRecordKey, recordId);
+  }
+
+  private async saveAutoOwnerRecordId(
+    ownerRecordKey: string,
+    recordId: string,
+    expireAt: number | null,
+  ): Promise<void> {
+    const ttl = expireAt ? expireAt - this.getNow() : 0;
+    if (ttl > 0) {
+      await this.redis.set(ownerRecordKey, recordId, "EX", ttl);
+      return;
+    }
+    await this.redis.set(ownerRecordKey, recordId);
+  }
+
+  private async updateSessionAutoWhiteListRecord(
+    record: WhiteListRecord,
+    updates: Pick<WhiteListRecord, "ip" | "expireAt"> &
+      Partial<Pick<WhiteListRecord, "comment">>,
+  ): Promise<WhiteListRecord> {
+    const oldConcreteTargets = this.buildConcreteTargetRecords(record).map(
+      (entry) => ({ target: entry.target, targetType: entry.targetType }),
+    );
+    const oldIp = normalizeIp(record.ip) || record.ip;
+    const normalizedIp =
+      normalizeIp(updates.ip) || String(updates.ip || "").trim();
+    const ipLocationStr =
+      await ipLocationService.getCachedLocation(normalizedIp);
+    const nextRecord: WhiteListRecord = {
+      ...record,
+      ip: normalizedIp,
+      targetType: "ip",
+      expireAt: updates.expireAt,
+      ...(updates.comment !== undefined ? { comment: updates.comment } : {}),
+      ...(ipLocationStr ? { ipLocation: ipLocationStr } : {}),
+    };
+    const nextConcreteTargets = this.buildConcreteTargetRecords(nextRecord).map(
+      (entry) => ({ target: entry.target, targetType: entry.targetType }),
+    );
+
+    const pipeline = this.redis.pipeline();
+    pipeline.hset(KEYS.RECORDS, record.id, JSON.stringify(nextRecord));
+    if (updates.expireAt) {
+      pipeline.zadd(KEYS.EXPIRY, updates.expireAt, record.id);
+    } else {
+      pipeline.zrem(KEYS.EXPIRY, record.id);
+    }
+    if (oldIp !== normalizedIp) {
+      pipeline.srem(this.getIPRecordsKey(oldIp), record.id);
+      pipeline.sadd(KEYS.IPS, normalizedIp);
+      pipeline.sadd(this.getIPRecordsKey(normalizedIp), record.id);
+    }
+    await pipeline.exec();
+    await ipLocationService.registerUsage(normalizedIp, [
+      ipLocationRefs.whitelist(record.id),
+    ]);
+    await this.syncAllowedTarget(normalizedIp);
+    await this.cleanupUnusedConcreteTargets(
+      oldConcreteTargets.filter(
+        (oldTarget) =>
+          !nextConcreteTargets.some(
+            (nextTarget) =>
+              nextTarget.targetType === oldTarget.targetType &&
+              nextTarget.target === oldTarget.target,
+          ),
+      ),
+    );
+    return nextRecord;
   }
 
   async removeWhiteList(id: string): Promise<boolean> {
@@ -1071,7 +1257,9 @@ export class IPTablesWhiteListManager {
 
       const changed =
         resolvedTargets.length !== previousTargets.length ||
-        resolvedTargets.some((target, index) => target !== previousTargets[index]);
+        resolvedTargets.some(
+          (target, index) => target !== previousTargets[index],
+        );
       const nextRecord: WhiteListRecord = {
         ...record,
         resolvedTargets,
@@ -1089,7 +1277,9 @@ export class IPTablesWhiteListManager {
       const nextTargets = getConcreteIPTargets(nextRecord);
       const previousTargetSet = new Set(previousTargets);
       const nextTargetSet = new Set(nextTargets);
-      const addedTargets = nextTargets.filter((target) => !previousTargetSet.has(target));
+      const addedTargets = nextTargets.filter(
+        (target) => !previousTargetSet.has(target),
+      );
       const removedTargets = previousTargets.filter(
         (target) => !nextTargetSet.has(target),
       );
@@ -1119,7 +1309,8 @@ export class IPTablesWhiteListManager {
           })),
         );
       } catch (error: any) {
-        syncError = error?.message || "域名解析结果已更新，但同步系统放行状态失败";
+        syncError =
+          error?.message || "域名解析结果已更新，但同步系统放行状态失败";
         console.error(
           `[whitelist] failed to sync concrete targets for ${record.ip}:`,
           error,
@@ -1240,8 +1431,10 @@ export class IPTablesWhiteListManager {
       const expiredRecords = await this.findExpiredRecords();
       if (expiredRecords.length === 0) return false;
 
-      const touchedTargets: Array<{ target: string; targetType: "ip" | "cidr" }> =
-        [];
+      const touchedTargets: Array<{
+        target: string;
+        targetType: "ip" | "cidr";
+      }> = [];
       const pipeline = this.redis.pipeline();
 
       for (const record of expiredRecords) {

@@ -351,8 +351,7 @@ const validateHostMappingLocations = (
   return null;
 };
 
-const DEFAULT_HOST_LOCATION_RESPONSE_CONTENT_TYPE =
-  "text/plain; charset=utf-8";
+const DEFAULT_HOST_LOCATION_RESPONSE_CONTENT_TYPE = "text/plain; charset=utf-8";
 
 const normalizeHostLocationResponseHeaders = (
   value?: Record<string, unknown> | null,
@@ -397,7 +396,8 @@ const normalizeHostMappingLocationsForRoute = (
           ? location.target.trim()
           : "",
       strip_path: action === "proxy" ? location.strip_path !== false : false,
-      rewrite_html: action === "proxy" ? location.rewrite_html !== false : false,
+      rewrite_html:
+        action === "proxy" ? location.rewrite_html !== false : false,
       response:
         action === "response"
           ? {
@@ -645,8 +645,8 @@ const resolveSessionDefaultComment = async (
     return sessionGrantRecord.comment;
   }
 
-  const whitelistRecordId =
-    await authMobilitySessionManager.getSessionWhitelistRecordId(sessionId);
+  const [whitelistRecordId] =
+    await authMobilitySessionManager.listSessionWhitelistRecordIds(sessionId);
   const boundRecord = whitelistRecordId
     ? await whitelistManager.getRecordById(whitelistRecordId)
     : null;
@@ -2230,8 +2230,51 @@ export const adminRoutes = new Elysia({
   .post(
     "/config/auth_credential_settings",
     async ({ body }) => {
-      const next = await configManager.updateAuthCredentialSettings(body);
-      return { success: true, data: next };
+      const previous = await configManager.getAuthCredentialSettings();
+      const next = await configManager.previewAuthCredentialSettingsUpdate(body);
+      const sessionIpMobilityChanged =
+        previous.session_ip_mobility_enabled !==
+          next.session_ip_mobility_enabled ||
+        previous.session_ip_mobility_window_seconds !==
+          next.session_ip_mobility_window_seconds;
+      if (sessionIpMobilityChanged) {
+        await authMobilitySessionManager.reconcileSessionIpMobilityPolicy(
+          previous,
+          next,
+          { scheduleSync: false },
+        );
+      }
+      let saved = next;
+      try {
+        saved = await configManager.updateAuthCredentialSettings(body);
+      } catch (error) {
+        if (sessionIpMobilityChanged) {
+          try {
+            await authMobilitySessionManager.reconcileSessionIpMobilityPolicy(
+              next,
+              previous,
+              { scheduleSync: false },
+            );
+            scheduleSyncReverseProxyTrustedIPs({
+              reason: "session-ip-mobility-config-rollback",
+              delayMs: 0,
+            });
+          } catch (rollbackError) {
+            console.error(
+              "[auth-mobility] failed to rollback session IP mobility reconciliation after config save failure:",
+              rollbackError,
+            );
+          }
+        }
+        throw error;
+      }
+      if (sessionIpMobilityChanged) {
+        scheduleSyncReverseProxyTrustedIPs({
+          reason: "session-ip-mobility-config-updated",
+          delayMs: 0,
+        });
+      }
+      return { success: true, data: saved };
     },
     withRouteDoc("更新认证凭据配置", {
       body: t.Object({
@@ -2247,6 +2290,8 @@ export const adminRoutes = new Elysia({
         post_login_ip_grant_ttl_seconds: t.Optional(
           t.Union([t.Number(), t.Null()]),
         ),
+        session_ip_mobility_enabled: t.Optional(t.Boolean()),
+        session_ip_mobility_window_seconds: t.Optional(t.Number()),
         passkey_bind_prompt_enabled: t.Optional(t.Boolean()),
       }),
     }),
@@ -2528,10 +2573,7 @@ export const adminRoutes = new Elysia({
                 t.Object({
                   path: t.String(),
                   match: t.Union([t.Literal("exact"), t.Literal("prefix")]),
-                  action: t.Union([
-                    t.Literal("proxy"),
-                    t.Literal("response"),
-                  ]),
+                  action: t.Union([t.Literal("proxy"), t.Literal("response")]),
                   target: t.Optional(t.String()),
                   strip_path: t.Optional(t.Boolean()),
                   rewrite_html: t.Optional(t.Boolean()),
@@ -3308,9 +3350,9 @@ export const adminRoutes = new Elysia({
         whitelistRecordIds.add(updated.postLoginIpGrantRecordId);
       }
 
-      const mobilityWhitelistRecordId =
-        await authMobilitySessionManager.getSessionWhitelistRecordId(params.id);
-      if (mobilityWhitelistRecordId) {
+      for (const mobilityWhitelistRecordId of await authMobilitySessionManager.listSessionWhitelistRecordIds(
+        params.id,
+      )) {
         whitelistRecordIds.add(mobilityWhitelistRecordId);
       }
 

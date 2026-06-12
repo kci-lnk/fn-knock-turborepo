@@ -2,14 +2,18 @@ import { createHash } from "node:crypto";
 import type Redis from "ioredis";
 import { ipLocationRefs, ipLocationService } from "./ip-location";
 import { scheduleSyncReverseProxyTrustedIPs } from "./reverse-proxy-trusted-ips";
-import { configManager, redis, type LoginSession } from "./redis";
+import {
+  DEFAULT_AUTH_CREDENTIAL_SETTINGS,
+  configManager,
+  redis,
+  type AuthCredentialSettings,
+  type LoginSession,
+} from "./redis";
 import { emitSessionIpDriftEvent } from "./system-events/helpers";
+import { normalizeIp } from "./ip-normalize";
 import { whitelistManager } from "./whitelist-manager";
 
-type MobilitySubjectType =
-  | "proxy-session"
-  | "fnos-token"
-  | "trim-media-token";
+type MobilitySubjectType = "proxy-session" | "fnos-token" | "trim-media-token";
 type MobilityDriftSource =
   | "proxy-session"
   | "fnos-token"
@@ -47,6 +51,28 @@ type MobilityTimelineEvent =
       toIp: string;
       toIpLocation?: string;
     };
+
+type SessionActiveIpSource = MobilityDriftSource | "login";
+
+type SessionActiveIpDetail = {
+  version: 1;
+  ip: string;
+  firstSeenAt: number;
+  lastSeenAt: number;
+  source: SessionActiveIpSource;
+  ipLocation?: string;
+  whitelistRecordId?: string;
+};
+
+export type SessionActiveIpEntry = {
+  ip: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  expiresAt: string;
+  source: SessionActiveIpSource;
+  ipLocation?: string;
+  whitelistRecordId?: string;
+};
 
 export type SessionMobilitySummary = {
   hasHistory: boolean;
@@ -93,6 +119,7 @@ type BootstrapOwnerResolution = {
 
 const PREFIX = "fn_knock:auth_mobility";
 const MAX_TIMELINE_EVENTS = 100;
+const MAX_SESSION_ACTIVE_IPS = 32;
 
 const parseCookieValue = (
   cookieHeader: string,
@@ -286,6 +313,29 @@ export class AuthMobilitySessionManager {
       ttlSeconds,
     );
     await pipeline.exec();
+
+    await this.recordSessionActiveIp({
+      sessionId: args.sessionId,
+      clientIp: args.ip,
+      source: "login",
+      ...(args.ipLocation ? { ipLocation: args.ipLocation } : {}),
+      whitelistRecordId: args.whitelistRecordId,
+      syncReason: "mobility-login-session",
+    });
+  }
+
+  async recordBrowserSessionLogin(args: {
+    sessionId: string;
+    ip: string;
+    ipLocation?: string;
+  }): Promise<void> {
+    await this.recordSessionActiveIp({
+      sessionId: args.sessionId,
+      clientIp: args.ip,
+      source: "login",
+      ...(args.ipLocation ? { ipLocation: args.ipLocation } : {}),
+      syncReason: "browser-session-login",
+    });
   }
 
   async syncTrustedRequest(request: Request, clientIp: string): Promise<void> {
@@ -432,6 +482,7 @@ export class AuthMobilitySessionManager {
     const subjectKeys = await this.r.smembers(sessionKey);
     const uniqueWhitelistRecordIds = new Set<string>();
     const proxyBinding = await this.getBinding("proxy-session", sessionId);
+    const activeIpDetails = await this.getAllSessionActiveIpDetails(sessionId);
 
     if (proxyBinding?.whitelistRecordId) {
       uniqueWhitelistRecordIds.add(proxyBinding.whitelistRecordId);
@@ -443,11 +494,18 @@ export class AuthMobilitySessionManager {
         uniqueWhitelistRecordIds.add(binding.whitelistRecordId);
       }
     }
+    for (const detail of activeIpDetails) {
+      if (detail.whitelistRecordId) {
+        uniqueWhitelistRecordIds.add(detail.whitelistRecordId);
+      }
+    }
 
     const pipeline = this.r.pipeline();
     pipeline.del(this.bindingKey("proxy-session", sessionId));
     pipeline.del(this.timelineKey(sessionId));
     pipeline.del(this.summaryKey(sessionId));
+    pipeline.del(this.activeIpZsetKey(sessionId));
+    pipeline.del(this.activeIpDetailsKey(sessionId));
     if (subjectKeys.length > 0) {
       pipeline.del(...subjectKeys);
     }
@@ -467,6 +525,20 @@ export class AuthMobilitySessionManager {
     return binding?.whitelistRecordId ?? null;
   }
 
+  async listSessionWhitelistRecordIds(sessionId: string): Promise<string[]> {
+    const recordIds = new Set<string>();
+    const binding = await this.getBinding("proxy-session", sessionId);
+    if (binding?.whitelistRecordId) {
+      recordIds.add(binding.whitelistRecordId);
+    }
+    for (const detail of await this.getAllSessionActiveIpDetails(sessionId)) {
+      if (detail.whitelistRecordId) {
+        recordIds.add(detail.whitelistRecordId);
+      }
+    }
+    return [...recordIds];
+  }
+
   async syncSessionIp(args: {
     sessionId: string;
     clientIp: string;
@@ -480,12 +552,23 @@ export class AuthMobilitySessionManager {
 
     const previousIp = session.ip;
     const previousIpLocation = session.ipLocation;
+    const settings = await configManager.getAuthCredentialSettings();
+    const normalizedPreviousIp =
+      normalizeIp(previousIp) || String(previousIp || "").trim();
+    const normalizedClientIp =
+      normalizeIp(args.clientIp) || String(args.clientIp || "").trim();
+    const ipChanged =
+      normalizedPreviousIp && normalizedClientIp
+        ? normalizedPreviousIp !== normalizedClientIp
+        : previousIp !== args.clientIp;
+    const shouldEmitIpDriftEvent =
+      ipChanged && settings.session_ip_mobility_enabled !== true;
     const nextSessionPatch: Partial<LoginSession> = {
       ...args.sessionPatch,
       ip: args.clientIp,
     };
 
-    if (previousIp !== args.clientIp) {
+    if (ipChanged) {
       nextSessionPatch.ipLocation =
         args.ipLocation && args.ipLocation.trim().length > 0
           ? args.ipLocation
@@ -501,7 +584,7 @@ export class AuthMobilitySessionManager {
     );
     if (!nextSession) return null;
 
-    if (previousIp !== args.clientIp) {
+    if (shouldEmitIpDriftEvent) {
       await this.appendTimelineEvent(
         args.sessionId,
         this.buildTimelineDriftEvent({
@@ -539,6 +622,16 @@ export class AuthMobilitySessionManager {
       });
     }
 
+    await this.recordSessionActiveIp({
+      sessionId: args.sessionId,
+      session: nextSession,
+      clientIp: args.clientIp,
+      source: args.source,
+      ...(args.ipLocation ? { ipLocation: args.ipLocation } : {}),
+      settings,
+      syncReason: args.syncReason,
+    });
+
     await ipLocationService.registerUsage(args.clientIp, [
       ipLocationRefs.session(args.sessionId),
       ipLocationRefs.sessionTimeline(args.sessionId),
@@ -556,6 +649,18 @@ export class AuthMobilitySessionManager {
 
     const existing = await this.getBinding("proxy-session", sessionId);
     if (!existing) {
+      if (await this.isSessionIpMobilityEnabled()) {
+        const nextIpLocation = clientIp
+          ? await ipLocationService.getCachedLocation(clientIp)
+          : "";
+        await this.syncSessionIp({
+          sessionId,
+          clientIp,
+          source: "session-refresh",
+          ...(nextIpLocation ? { ipLocation: nextIpLocation } : {}),
+          syncReason: "mobility-session-refresh",
+        });
+      }
       return;
     }
 
@@ -579,6 +684,14 @@ export class AuthMobilitySessionManager {
         syncReason: "mobility-session-refresh",
       });
     }
+
+    await this.recordSessionActiveIp({
+      sessionId,
+      session,
+      clientIp,
+      source: "session-refresh",
+      syncReason: "mobility-session-refresh",
+    });
   }
 
   async getSessionMobilitySummary(
@@ -949,12 +1062,38 @@ export class AuthMobilitySessionManager {
   private async listActiveSessionsByIp(
     clientIp: string,
   ): Promise<BootstrapOwnerResolution[]> {
-    return (await configManager.listSessions())
-      .filter((session) => session.data.ip === clientIp)
-      .map((session) => ({
-        ownerSessionId: session.id,
-        ownerSession: session.data,
-      }));
+    const normalizedIp = normalizeIp(clientIp) || String(clientIp || "").trim();
+    if (!normalizedIp) return [];
+
+    const settings = await configManager.getAuthCredentialSettings();
+    const sessions = await configManager.listSessions();
+    if (!settings.session_ip_mobility_enabled) {
+      return sessions
+        .filter((session) => session.data.ip === normalizedIp)
+        .map((session) => ({
+          ownerSessionId: session.id,
+          ownerSession: session.data,
+        }));
+    }
+
+    const resolved = await Promise.all(
+      sessions.map(async (session) => {
+        const active = await this.isSessionActiveAtIp(
+          session.id,
+          session.data,
+          normalizedIp,
+          settings,
+        );
+        if (!active) return null;
+        return {
+          ownerSessionId: session.id,
+          ownerSession: session.data,
+        } satisfies BootstrapOwnerResolution;
+      }),
+    );
+    return resolved.filter(
+      (entry): entry is BootstrapOwnerResolution => entry !== null,
+    );
   }
 
   private async hasActiveSessionAtIp(clientIp: string): Promise<boolean> {
@@ -1251,6 +1390,37 @@ export class AuthMobilitySessionManager {
     if (!session) return false;
 
     let binding = await this.getBinding("proxy-session", sessionId);
+    const mobilityEnabled = await this.isSessionIpMobilityEnabled();
+    if (mobilityEnabled) {
+      if (session.ip === clientIp) {
+        return false;
+      }
+
+      const nextIpLocation = clientIp
+        ? await ipLocationService.getCachedLocation(clientIp)
+        : "";
+      if (binding) {
+        binding.currentIp = clientIp;
+        binding.expireAt = toUnixSeconds(session.expiresAt);
+        binding.lastSeenAt = new Date().toISOString();
+        await this.r.set(
+          this.bindingKey("proxy-session", sessionId),
+          JSON.stringify(binding),
+          "KEEPTTL",
+        );
+      }
+
+      await this.syncSessionIp({
+        sessionId,
+        clientIp,
+        source: "proxy-session",
+        ...(nextIpLocation ? { ipLocation: nextIpLocation } : {}),
+        syncReason: "proxy-session-restore",
+      });
+
+      return true;
+    }
+
     if (!binding) {
       return false;
     }
@@ -1283,6 +1453,570 @@ export class AuthMobilitySessionManager {
     });
 
     return true;
+  }
+
+  async isSessionIpMobilityEnabled(): Promise<boolean> {
+    const settings = await configManager.getAuthCredentialSettings();
+    return settings.session_ip_mobility_enabled === true;
+  }
+
+  async listEffectiveSessionIps(
+    sessionId: string,
+    session: LoginSession,
+  ): Promise<string[]> {
+    const settings = await configManager.getAuthCredentialSettings();
+    if (!settings.session_ip_mobility_enabled) {
+      const currentIp =
+        normalizeIp(session.ip) || String(session.ip || "").trim();
+      return currentIp ? [currentIp] : [];
+    }
+
+    const entries = await this.listSessionActiveIpDetails(
+      sessionId,
+      session,
+      settings,
+    );
+    const ips = new Set(entries.map((entry) => entry.ip).filter(Boolean));
+    return [...ips].sort((left, right) => left.localeCompare(right));
+  }
+
+  async listSessionActiveIpEntries(
+    sessionId: string,
+    session?: LoginSession | null,
+  ): Promise<SessionActiveIpEntry[]> {
+    const settings = await configManager.getAuthCredentialSettings();
+    if (!settings.session_ip_mobility_enabled) {
+      return [];
+    }
+
+    const resolvedSession =
+      session ?? (await configManager.getSession(sessionId));
+    const details = await this.listSessionActiveIpDetails(
+      sessionId,
+      resolvedSession,
+      settings,
+    );
+    const windowSeconds = this.getSessionIpMobilityWindowSeconds(settings);
+    const sessionExpireAt = toUnixSeconds(resolvedSession?.expiresAt);
+
+    return details.map((detail) => {
+      const expiresAt = Math.min(
+        sessionExpireAt ?? detail.lastSeenAt + windowSeconds,
+        detail.lastSeenAt + windowSeconds,
+      );
+      return {
+        ip: detail.ip,
+        firstSeenAt: new Date(detail.firstSeenAt * 1000).toISOString(),
+        lastSeenAt: new Date(detail.lastSeenAt * 1000).toISOString(),
+        expiresAt: new Date(expiresAt * 1000).toISOString(),
+        source: detail.source,
+        ...(detail.ipLocation ? { ipLocation: detail.ipLocation } : {}),
+        ...(detail.whitelistRecordId
+          ? { whitelistRecordId: detail.whitelistRecordId }
+          : {}),
+      };
+    });
+  }
+
+  async reconcileSessionIpMobilityPolicy(
+    previous: AuthCredentialSettings,
+    next: AuthCredentialSettings,
+    options: { scheduleSync?: boolean } = {},
+  ): Promise<void> {
+    const shouldScheduleSync = options.scheduleSync !== false;
+    const sessions = await configManager.listSessions();
+    if (!next.session_ip_mobility_enabled) {
+      for (const session of sessions) {
+        await this.cleanupSessionActiveIpState(session.id, session.data, {
+          preserveLegacySingleSlot: true,
+        });
+      }
+      if (shouldScheduleSync) {
+        scheduleSyncReverseProxyTrustedIPs({
+          reason: "session-ip-mobility-disabled",
+          delayMs: 0,
+        });
+      }
+      return;
+    }
+
+    const shouldSeedCurrentIp =
+      previous.session_ip_mobility_enabled !== true &&
+      next.session_ip_mobility_enabled === true;
+
+    for (const session of sessions) {
+      const currentIp =
+        normalizeIp(session.data.ip) || String(session.data.ip || "").trim();
+      if (shouldSeedCurrentIp && currentIp) {
+        await this.recordSessionActiveIp({
+          sessionId: session.id,
+          session: session.data,
+          clientIp: currentIp,
+          source: "session-refresh",
+          ...(session.data.ipLocation
+            ? { ipLocation: session.data.ipLocation }
+            : {}),
+          whitelistRecordId: session.data.postLoginIpGrantRecordId || undefined,
+          settings: next,
+          syncReason: "session-ip-mobility-reconcile",
+          scheduleSync: shouldScheduleSync,
+        });
+      }
+      await this.pruneSessionActiveIps(
+        session.id,
+        session.data,
+        next,
+        undefined,
+        { scheduleSync: shouldScheduleSync },
+      );
+    }
+
+    if (shouldScheduleSync) {
+      scheduleSyncReverseProxyTrustedIPs({
+        reason: "session-ip-mobility-enabled",
+        delayMs: 0,
+      });
+    }
+  }
+
+  async maintainSessionActiveIps(): Promise<boolean> {
+    const settings = await configManager.getAuthCredentialSettings();
+    if (!settings.session_ip_mobility_enabled) {
+      return false;
+    }
+
+    const now = nowSeconds();
+    const sessions = await configManager.listSessions();
+    let changed = false;
+    for (const session of sessions) {
+      const removedCount = await this.pruneSessionActiveIps(
+        session.id,
+        session.data,
+        settings,
+        now,
+        { scheduleSync: false },
+      );
+      changed = changed || removedCount > 0;
+    }
+
+    if (changed) {
+      scheduleSyncReverseProxyTrustedIPs({
+        reason: "session-active-ip-maintenance",
+        delayMs: 50,
+      });
+    }
+
+    return changed;
+  }
+
+  private async recordSessionActiveIp(args: {
+    sessionId: string;
+    session?: LoginSession | null;
+    clientIp: string;
+    source: SessionActiveIpSource;
+    ipLocation?: string;
+    whitelistRecordId?: string | null;
+    settings?: AuthCredentialSettings;
+    syncReason: string;
+    scheduleSync?: boolean;
+  }): Promise<SessionActiveIpDetail | null> {
+    const settings =
+      args.settings ?? (await configManager.getAuthCredentialSettings());
+    if (!settings.session_ip_mobility_enabled) {
+      return null;
+    }
+
+    const normalizedIp =
+      normalizeIp(args.clientIp) || String(args.clientIp || "").trim();
+    if (!normalizedIp) return null;
+
+    const session =
+      args.session ?? (await configManager.getSession(args.sessionId));
+    if (!session) return null;
+
+    const windowSeconds = this.getSessionIpMobilityWindowSeconds(settings);
+    const now = nowSeconds();
+    const sessionExpireAt = toUnixSeconds(session.expiresAt);
+    const storageTtl =
+      this.resolveProxySessionTTL(sessionExpireAt) ?? windowSeconds;
+    if (storageTtl <= 0) return null;
+
+    await this.pruneSessionActiveIps(args.sessionId, session, settings, now, {
+      scheduleSync: args.scheduleSync,
+    });
+
+    const existing = this.parseActiveIpDetail(
+      await this.r.hget(this.activeIpDetailsKey(args.sessionId), normalizedIp),
+    );
+    const activeExpireAt = Math.min(
+      sessionExpireAt ?? now + windowSeconds,
+      now + windowSeconds,
+    );
+    let whitelistRecordId =
+      existing?.whitelistRecordId || args.whitelistRecordId || undefined;
+
+    if (this.isFollowSessionAutoGrant(session)) {
+      const record = await whitelistManager.ensureSessionAutoWhiteList({
+        ownerKey: this.activeIpWhitelistOwnerKey(args.sessionId, normalizedIp),
+        ip: normalizedIp,
+        expireAt: activeExpireAt,
+        comment: session.comment ?? "登录后自动授权",
+        existingRecordId: whitelistRecordId,
+      });
+      whitelistRecordId = record.id;
+      await this.r.set(
+        this.whitelistOwnerKey(record.id),
+        args.sessionId,
+        "EX",
+        storageTtl,
+      );
+    } else {
+      whitelistRecordId = undefined;
+    }
+
+    const detail: SessionActiveIpDetail = {
+      version: 1,
+      ip: normalizedIp,
+      firstSeenAt: existing?.firstSeenAt || now,
+      lastSeenAt: now,
+      source: args.source,
+      ...(args.ipLocation
+        ? { ipLocation: args.ipLocation }
+        : existing?.ipLocation
+          ? { ipLocation: existing.ipLocation }
+          : {}),
+      ...(whitelistRecordId ? { whitelistRecordId } : {}),
+    };
+
+    const pipeline = this.r.pipeline();
+    pipeline.zadd(this.activeIpZsetKey(args.sessionId), now, normalizedIp);
+    pipeline.hset(
+      this.activeIpDetailsKey(args.sessionId),
+      normalizedIp,
+      JSON.stringify(detail),
+    );
+    pipeline.expire(this.activeIpZsetKey(args.sessionId), storageTtl);
+    pipeline.expire(this.activeIpDetailsKey(args.sessionId), storageTtl);
+    await pipeline.exec();
+
+    const removedCount = await this.pruneSessionActiveIps(
+      args.sessionId,
+      session,
+      settings,
+      now,
+      {
+        keepIp: normalizedIp,
+        scheduleSync: false,
+      },
+    );
+
+    if (args.scheduleSync !== false && (!existing || removedCount > 0)) {
+      scheduleSyncReverseProxyTrustedIPs({
+        reason: args.syncReason,
+      });
+    }
+
+    return detail;
+  }
+
+  private async listSessionActiveIpDetails(
+    sessionId: string,
+    session: LoginSession | null,
+    settings: AuthCredentialSettings,
+  ): Promise<SessionActiveIpDetail[]> {
+    const windowSeconds = this.getSessionIpMobilityWindowSeconds(settings);
+    const now = nowSeconds();
+    if (session) {
+      await this.pruneSessionActiveIps(sessionId, session, settings, now);
+    }
+
+    const activeIps = await this.r.zrangebyscore(
+      this.activeIpZsetKey(sessionId),
+      now - windowSeconds + 1,
+      "+inf",
+    );
+    if (activeIps.length === 0) return [];
+
+    const raws = await this.r.hmget(
+      this.activeIpDetailsKey(sessionId),
+      ...activeIps,
+    );
+    return raws
+      .map((raw) => this.parseActiveIpDetail(raw))
+      .filter((detail): detail is SessionActiveIpDetail => detail !== null)
+      .sort((left, right) => right.lastSeenAt - left.lastSeenAt);
+  }
+
+  private async getAllSessionActiveIpDetails(
+    sessionId: string,
+  ): Promise<SessionActiveIpDetail[]> {
+    const details = await this.r.hgetall(this.activeIpDetailsKey(sessionId));
+    return Object.values(details)
+      .map((raw) => this.parseActiveIpDetail(raw))
+      .filter((detail): detail is SessionActiveIpDetail => detail !== null)
+      .sort((left, right) => right.lastSeenAt - left.lastSeenAt);
+  }
+
+  private parseActiveIpDetail(
+    raw: string | null | undefined,
+  ): SessionActiveIpDetail | null {
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw) as Partial<SessionActiveIpDetail>;
+      const ip = normalizeIp(parsed.ip || "") || String(parsed.ip || "").trim();
+      if (!ip) return null;
+      const firstSeenAt = Number.parseInt(String(parsed.firstSeenAt ?? 0), 10);
+      const lastSeenAt = Number.parseInt(String(parsed.lastSeenAt ?? 0), 10);
+      if (!Number.isFinite(firstSeenAt) || !Number.isFinite(lastSeenAt)) {
+        return null;
+      }
+      const source = this.normalizeActiveIpSource(parsed.source);
+      return {
+        version: 1,
+        ip,
+        firstSeenAt,
+        lastSeenAt,
+        source,
+        ...(typeof parsed.ipLocation === "string" && parsed.ipLocation
+          ? { ipLocation: parsed.ipLocation }
+          : {}),
+        ...(typeof parsed.whitelistRecordId === "string" &&
+        parsed.whitelistRecordId
+          ? { whitelistRecordId: parsed.whitelistRecordId }
+          : {}),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private normalizeActiveIpSource(value: unknown): SessionActiveIpSource {
+    if (
+      value === "login" ||
+      value === "proxy-session" ||
+      value === "fnos-token" ||
+      value === "session-refresh" ||
+      value === "browser-session"
+    ) {
+      return value;
+    }
+    return "session-refresh";
+  }
+
+  private async isSessionActiveAtIp(
+    sessionId: string,
+    session: LoginSession,
+    clientIp: string,
+    settings: AuthCredentialSettings,
+  ): Promise<boolean> {
+    const normalizedIp = normalizeIp(clientIp) || String(clientIp || "").trim();
+    if (!normalizedIp) return false;
+    const entries = await this.listSessionActiveIpDetails(
+      sessionId,
+      session,
+      settings,
+    );
+    if (entries.length === 0) {
+      return false;
+    }
+    return entries.some((entry) => entry.ip === normalizedIp);
+  }
+
+  private async pruneSessionActiveIps(
+    sessionId: string,
+    session: LoginSession,
+    settings: AuthCredentialSettings,
+    now = nowSeconds(),
+    options: {
+      keepIp?: string;
+      scheduleSync?: boolean;
+    } = {},
+  ): Promise<number> {
+    const windowSeconds = this.getSessionIpMobilityWindowSeconds(settings);
+    const cutoff = now - windowSeconds;
+    const activeIpKey = this.activeIpZsetKey(sessionId);
+    const detailKey = this.activeIpDetailsKey(sessionId);
+    const normalizedKeepIp = options.keepIp
+      ? normalizeIp(options.keepIp) || String(options.keepIp || "").trim()
+      : "";
+    const [expiredIps, allIps] = await Promise.all([
+      this.r.zrangebyscore(activeIpKey, 0, cutoff),
+      this.r.zrange(activeIpKey, 0, -1),
+    ]);
+    const removeIps = new Set(expiredIps);
+    const remainingIps = allIps.filter((ip) => !removeIps.has(ip));
+    const overflowCount = remainingIps.length - MAX_SESSION_ACTIVE_IPS;
+    if (overflowCount > 0) {
+      const overflowIps = remainingIps
+        .filter((ip) => ip !== normalizedKeepIp)
+        .slice(0, overflowCount);
+      for (const ip of overflowIps) {
+        removeIps.add(ip);
+      }
+    }
+
+    const ipsToRemove = [...removeIps];
+    if (ipsToRemove.length === 0) return 0;
+
+    const raws = await this.r.hmget(detailKey, ...ipsToRemove);
+    const details = raws
+      .map((raw) => this.parseActiveIpDetail(raw))
+      .filter((detail): detail is SessionActiveIpDetail => detail !== null);
+
+    const pipeline = this.r.pipeline();
+    pipeline.zrem(activeIpKey, ...ipsToRemove);
+    pipeline.hdel(detailKey, ...ipsToRemove);
+    await pipeline.exec();
+
+    for (const detail of details) {
+      if (detail.whitelistRecordId) {
+        await whitelistManager.removeWhiteList(detail.whitelistRecordId);
+      }
+    }
+
+    if (options.scheduleSync !== false) {
+      scheduleSyncReverseProxyTrustedIPs({
+        reason: "session-active-ip-pruned",
+      });
+    }
+
+    const ttl = this.resolveProxySessionTTL(toUnixSeconds(session.expiresAt));
+    if (ttl) {
+      await Promise.all([
+        this.r.expire(activeIpKey, ttl),
+        this.r.expire(detailKey, ttl),
+      ]);
+    }
+
+    return ipsToRemove.length;
+  }
+
+  private async cleanupSessionActiveIpState(
+    sessionId: string,
+    session: LoginSession,
+    options: { preserveLegacySingleSlot: boolean },
+  ): Promise<void> {
+    const details = await this.getAllSessionActiveIpDetails(sessionId);
+    let preserveRecordId: string | null = null;
+
+    if (
+      options.preserveLegacySingleSlot &&
+      this.isFollowSessionAutoGrant(session)
+    ) {
+      const currentIp =
+        normalizeIp(session.ip) || String(session.ip || "").trim();
+      const currentDetail = details.find((detail) => detail.ip === currentIp);
+      if (currentIp) {
+        const record = await whitelistManager.ensureSessionAutoWhiteList({
+          ownerKey: this.legacyWhitelistOwnerKey(sessionId),
+          ip: currentIp,
+          expireAt: toUnixSeconds(session.expiresAt),
+          comment: session.comment ?? "登录后自动授权",
+          existingRecordId:
+            session.postLoginIpGrantRecordId ||
+            currentDetail?.whitelistRecordId ||
+            undefined,
+        });
+        preserveRecordId = record.id;
+        await this.ensureLegacyProxyBinding({
+          sessionId,
+          session,
+          currentIp,
+          whitelistRecordId: record.id,
+        });
+        if (session.postLoginIpGrantRecordId !== record.id) {
+          await configManager.updateSession(sessionId, {
+            postLoginIpGrantRecordId: record.id,
+          });
+        }
+      }
+    }
+
+    await this.r.del(
+      this.activeIpZsetKey(sessionId),
+      this.activeIpDetailsKey(sessionId),
+    );
+
+    for (const detail of details) {
+      if (
+        detail.whitelistRecordId &&
+        detail.whitelistRecordId !== preserveRecordId
+      ) {
+        await whitelistManager.removeWhiteList(detail.whitelistRecordId);
+      }
+    }
+  }
+
+  private async ensureLegacyProxyBinding(args: {
+    sessionId: string;
+    session: LoginSession;
+    currentIp: string;
+    whitelistRecordId: string;
+  }): Promise<void> {
+    const expireAt = toUnixSeconds(args.session.expiresAt);
+    const ttlSeconds = this.resolveProxySessionTTL(expireAt);
+    if (!ttlSeconds) return;
+
+    const existing = await this.getBinding("proxy-session", args.sessionId);
+    const nextBinding: MobilityBinding = existing
+      ? {
+          ...existing,
+          currentIp: args.currentIp,
+          whitelistRecordId: args.whitelistRecordId,
+          expireAt,
+          lastSeenAt: new Date().toISOString(),
+        }
+      : this.buildBinding({
+          subjectType: "proxy-session",
+          subjectKey: args.sessionId,
+          currentIp: args.currentIp,
+          whitelistRecordId: args.whitelistRecordId,
+          expireAt,
+          ownerSessionId: args.sessionId,
+        });
+
+    const pipeline = this.r.pipeline();
+    pipeline.set(
+      this.bindingKey("proxy-session", args.sessionId),
+      JSON.stringify(nextBinding),
+      "EX",
+      ttlSeconds,
+    );
+    pipeline.sadd(
+      this.sessionIndexKey(args.sessionId),
+      this.bindingKey("proxy-session", args.sessionId),
+    );
+    pipeline.expire(this.sessionIndexKey(args.sessionId), ttlSeconds);
+    pipeline.set(
+      this.whitelistOwnerKey(args.whitelistRecordId),
+      args.sessionId,
+      "EX",
+      ttlSeconds,
+    );
+    await pipeline.exec();
+  }
+
+  private isFollowSessionAutoGrant(session: LoginSession): boolean {
+    return (
+      session.grantType === "login_ip_grant" &&
+      session.postLoginIpGrantMode === "follow_session"
+    );
+  }
+
+  private getSessionIpMobilityWindowSeconds(
+    settings: Pick<
+      AuthCredentialSettings,
+      "session_ip_mobility_window_seconds"
+    >,
+  ): number {
+    const parsed = Number.parseInt(
+      String(settings.session_ip_mobility_window_seconds ?? ""),
+      10,
+    );
+    if (!Number.isFinite(parsed)) {
+      return DEFAULT_AUTH_CREDENTIAL_SETTINGS.session_ip_mobility_window_seconds;
+    }
+    return Math.min(24 * 3600, Math.max(60, parsed));
   }
 
   private buildBinding(args: {
@@ -1395,6 +2129,22 @@ export class AuthMobilitySessionManager {
 
   private summaryKey(sessionId: string): string {
     return `${PREFIX}:summary:${sessionId}`;
+  }
+
+  private activeIpZsetKey(sessionId: string): string {
+    return `${PREFIX}:active_ips:${sessionId}`;
+  }
+
+  private activeIpDetailsKey(sessionId: string): string {
+    return `${PREFIX}:active_ip_details:${sessionId}`;
+  }
+
+  private activeIpWhitelistOwnerKey(sessionId: string, ip: string): string {
+    return `auth-mobility:active-ip:${sessionId}:${ip}`;
+  }
+
+  private legacyWhitelistOwnerKey(sessionId: string): string {
+    return `auth-mobility:legacy:${sessionId}`;
   }
 
   private sessionIndexKey(sessionId: string): string {

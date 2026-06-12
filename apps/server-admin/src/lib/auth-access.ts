@@ -33,8 +33,7 @@ export type AuthAccessDecision = {
 };
 
 const NO_STORE_RESPONSE_HEADERS = {
-  "Cache-Control":
-    "private, no-store, no-cache, max-age=0, must-revalidate",
+  "Cache-Control": "private, no-store, no-cache, max-age=0, must-revalidate",
   Pragma: "no-cache",
   Expires: "0",
   "CDN-Cache-Control": "private, no-store",
@@ -42,9 +41,7 @@ const NO_STORE_RESPONSE_HEADERS = {
 } as const;
 
 export const applyNoStoreHeaders = (
-  headers:
-    | Headers
-    | Record<string, string | number | boolean | undefined>,
+  headers: Headers | Record<string, string | number | boolean | undefined>,
 ) => {
   for (const [key, value] of Object.entries(NO_STORE_RESPONSE_HEADERS)) {
     if (headers instanceof Headers) {
@@ -261,6 +258,15 @@ const authorizeBrowserSession = async (
   }
 
   if (session.ip === clientIp) {
+    if (await authMobilitySessionManager.isSessionIpMobilityEnabled()) {
+      await authMobilitySessionManager.syncSessionIp({
+        sessionId: identity.sessionId,
+        clientIp,
+        source: "browser-session",
+        ...(session.ipLocation ? { ipLocation: session.ipLocation } : {}),
+        syncReason: "browser-session-ip-refresh",
+      });
+    }
     return {
       authorized: true,
       message: "Authorized by browser session",

@@ -46,27 +46,44 @@ const toGatewayPayload = (
 export const compileReverseProxyTrustedIPsRuntimeState = async (
   config?: Pick<AppConfig, "reverse_proxy_throttle">,
 ): Promise<ReverseProxyTrustedIPRuntimeState> => {
-  const [reverseProxyThrottle, sessions, whitelistTargets] = await Promise.all([
-    config?.reverse_proxy_throttle
-      ? Promise.resolve(config.reverse_proxy_throttle)
-      : configManager.getReverseProxyThrottleConfig(),
-    configManager.listSessions(),
-    whitelistManager.getAllActiveConcreteTargets(),
-  ]);
+  const [reverseProxyThrottle, sessions, whitelistTargets, authSettings] =
+    await Promise.all([
+      config?.reverse_proxy_throttle
+        ? Promise.resolve(config.reverse_proxy_throttle)
+        : configManager.getReverseProxyThrottleConfig(),
+      configManager.listSessions(),
+      whitelistManager.getAllActiveConcreteTargets(),
+      configManager.getAuthCredentialSettings(),
+    ]);
   const sourceMap = new Map<string, Set<string>>();
   const sessionLinkedAutoWhitelistFinalIpByRecordId = new Map<string, string>();
   const cidrs: string[] = [];
+  const mobilityEnabled = authSettings.session_ip_mobility_enabled === true;
+  const mobilityManager = mobilityEnabled
+    ? (await import("./auth-mobility-session")).authMobilitySessionManager
+    : null;
 
   for (const session of sessions) {
-    const finalIp = normalizeIp(session.data.ip);
-    if (finalIp) {
-      addSourceForIp(sourceMap, finalIp, `session:${session.id}`);
-      if (session.data.postLoginIpGrantRecordId) {
-        sessionLinkedAutoWhitelistFinalIpByRecordId.set(
-          session.data.postLoginIpGrantRecordId,
-          finalIp,
-        );
+    if (mobilityManager) {
+      const activeIps = await mobilityManager.listEffectiveSessionIps(
+        session.id,
+        session.data,
+      );
+      for (const activeIp of activeIps) {
+        addSourceForIp(sourceMap, activeIp, `session:${session.id}`);
       }
+      continue;
+    }
+
+    const finalIp = normalizeIp(session.data.ip);
+    if (!finalIp) continue;
+
+    addSourceForIp(sourceMap, finalIp, `session:${session.id}`);
+    if (session.data.postLoginIpGrantRecordId) {
+      sessionLinkedAutoWhitelistFinalIpByRecordId.set(
+        session.data.postLoginIpGrantRecordId,
+        finalIp,
+      );
     }
   }
 
@@ -77,7 +94,9 @@ export const compileReverseProxyTrustedIPsRuntimeState = async (
     }
 
     const compiledIp =
-      entry.source === "auto" && entry.recordTargetType === "ip"
+      !mobilityEnabled &&
+      entry.source === "auto" &&
+      entry.recordTargetType === "ip"
         ? (sessionLinkedAutoWhitelistFinalIpByRecordId.get(entry.recordId) ??
           entry.target)
         : entry.target;

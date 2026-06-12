@@ -78,6 +78,7 @@ import { eventRoutes } from "./routes/events";
 import { notificationRoutes } from "./routes/notifications";
 import { oidcAdminRoutes } from "./routes/auth-oidc-admin";
 import { systemNotificationRuntime } from "./lib/system-notifications/runtime";
+import { authMobilitySessionManager } from "./lib/auth-mobility-session";
 import { systemClockManager } from "./lib/system-clock-manager";
 import { adminOpenApiTags, hideFromDocs } from "./lib/openapi";
 import { APP_LOCAL_VERSION } from "./lib/app-version";
@@ -690,6 +691,23 @@ app.use(
             error,
           );
         });
+    },
+  }),
+);
+
+app.use(
+  cron({
+    name: "session-active-ip-maintenance",
+    pattern: "* * * * *",
+    run() {
+      void authMobilitySessionManager.maintainSessionActiveIps().catch(
+        (error) => {
+          console.error(
+            "[auth-mobility] failed to maintain session active IPs:",
+            error,
+          );
+        },
+      );
     },
   }),
 );

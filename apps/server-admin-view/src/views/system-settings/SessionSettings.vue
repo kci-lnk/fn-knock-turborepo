@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "@admin-shared/utils/toast";
 import {
   extractErrorMessage,
@@ -62,6 +63,9 @@ const ipGrantDurationUnits = durationUnits.filter(
   (unit) =>
     unit.value === "second" || unit.value === "minute" || unit.value === "hour",
 );
+const mobilityWindowDurationUnits = durationUnits.filter(
+  (unit) => unit.value === "minute" || unit.value === "hour",
+);
 
 const durationUnitMap = Object.fromEntries(
   durationUnits.map((item) => [item.value, item.seconds]),
@@ -72,6 +76,8 @@ const form = reactive<{
   rememberMe: DurationField;
   postLoginIpGrantMode: PostLoginIpGrantMode;
   customGrant: DurationField;
+  sessionIpMobilityEnabled: boolean;
+  sessionIpMobilityWindow: DurationField;
 }>({
   session: {
     value: 24,
@@ -85,6 +91,11 @@ const form = reactive<{
   customGrant: {
     value: 1,
     unit: "hour",
+  },
+  sessionIpMobilityEnabled: false,
+  sessionIpMobilityWindow: {
+    value: 20,
+    unit: "minute",
   },
 });
 
@@ -100,13 +111,14 @@ const postLoginIpGrantModeOptions: Array<{
   },
   {
     value: "disabled",
-    title: "不自动白名单IP",
-    description: "只保留当前浏览器会话，同 IP 的新浏览器仍需重新登录。",
+    title: "不自动授权 IP",
+    description: "只保留当前浏览器会话，不额外给当前 IP 放行。",
   },
   {
     value: "custom",
     title: "自定义",
-    description: "给当前 IP 签发固定时长授权；到期前可继续访问，但主动退出登录时会立即撤销。",
+    description:
+      "给当前 IP 签发固定时长授权；到期前可继续访问，但主动退出登录时会立即撤销。",
   },
 ];
 
@@ -199,6 +211,9 @@ const incompatibleCookieScopeHosts = computed(() => {
 const sessionTtlSeconds = computed(() => toSeconds(form.session));
 const rememberMeTtlSeconds = computed(() => toSeconds(form.rememberMe));
 const customGrantTtlSeconds = computed(() => toSeconds(form.customGrant));
+const sessionIpMobilityWindowSeconds = computed(() =>
+  toSeconds(form.sessionIpMobilityWindow),
+);
 
 const isDirty = computed(() => {
   if (!settings.value) return false;
@@ -210,6 +225,10 @@ const isDirty = computed(() => {
     settings.value.session_ttl_seconds !== sessionTtlSeconds.value ||
     settings.value.remember_me_ttl_seconds !== rememberMeTtlSeconds.value ||
     settings.value.post_login_ip_grant_mode !== form.postLoginIpGrantMode ||
+    settings.value.session_ip_mobility_enabled !==
+      form.sessionIpMobilityEnabled ||
+    settings.value.session_ip_mobility_window_seconds !==
+      sessionIpMobilityWindowSeconds.value ||
     (shouldCompareCustomGrantTtl &&
       storedGrantTtl !== customGrantTtlSeconds.value)
   );
@@ -231,6 +250,17 @@ const grantModeSummary = computed(() => {
   }
 });
 
+const sessionIpMobilitySummary = computed(() => {
+  if (!form.sessionIpMobilityEnabled) {
+    return "关闭后只信任会话当前 IP。";
+  }
+
+  return `最近 ${formatDuration(
+    sessionIpMobilityWindowSeconds.value,
+    mobilityWindowDurationUnits,
+  )} 内出现过的 IP 会被视为同一会话的可信来源，不会延长或缩短登录会话。`;
+});
+
 const applyFromSettings = (data: AuthCredentialSettings) => {
   settings.value = data;
   Object.assign(form.session, splitDuration(data.session_ttl_seconds));
@@ -241,6 +271,14 @@ const applyFromSettings = (data: AuthCredentialSettings) => {
     splitDuration(
       data.post_login_ip_grant_ttl_seconds ?? 3600,
       ipGrantDurationUnits,
+    ),
+  );
+  form.sessionIpMobilityEnabled = data.session_ip_mobility_enabled === true;
+  Object.assign(
+    form.sessionIpMobilityWindow,
+    splitDuration(
+      data.session_ip_mobility_window_seconds ?? 20 * 60,
+      mobilityWindowDurationUnits,
     ),
   );
 };
@@ -260,6 +298,7 @@ const saveSettings = async () => {
   const nextSessionTtl = sessionTtlSeconds.value;
   const nextRememberMeTtl = rememberMeTtlSeconds.value;
   const nextCustomGrantTtl = customGrantTtlSeconds.value;
+  const nextMobilityWindowSeconds = sessionIpMobilityWindowSeconds.value;
 
   if (nextSessionTtl < 60 || nextRememberMeTtl < 60) {
     toast.error("时长过短", {
@@ -282,6 +321,16 @@ const saveSettings = async () => {
     return;
   }
 
+  if (
+    form.sessionIpMobilityEnabled &&
+    (nextMobilityWindowSeconds < 60 || nextMobilityWindowSeconds > 24 * 3600)
+  ) {
+    toast.error("设置不合理", {
+      description: "宽松的会话可信 IP 的保留时间需要在 1 分钟到 24 小时之间。",
+    });
+    return;
+  }
+
   await runSaveSettings(
     () =>
       ConfigAPI.updateAuthCredentialSettings({
@@ -290,6 +339,8 @@ const saveSettings = async () => {
         post_login_ip_grant_mode: form.postLoginIpGrantMode,
         post_login_ip_grant_ttl_seconds:
           form.postLoginIpGrantMode === "custom" ? nextCustomGrantTtl : null,
+        session_ip_mobility_enabled: form.sessionIpMobilityEnabled,
+        session_ip_mobility_window_seconds: nextMobilityWindowSeconds,
       }),
     {
       onSuccess: async (data) => {
@@ -309,8 +360,7 @@ onMounted(fetchSettings);
     <CardHeader>
       <CardTitle class="text-md">凭据与会话</CardTitle>
       <CardDescription class="mt-1.5">
-        统一管理登录凭据签发后的会话时长，以及登录成功后是否自动给当前
-        IP 授权。
+        统一管理登录凭据签发后的会话时长，以及登录成功后是否自动给当前 IP 授权。
       </CardDescription>
     </CardHeader>
 
@@ -418,7 +468,8 @@ onMounted(fetchSettings);
         >
           <div class="text-sm font-medium text-zinc-900">当前为直连模式</div>
           <div class="mt-1 text-sm leading-6 text-zinc-700">
-            这里的设置会直接决定登录后是否把当前 IP 自动加入白名单；通常建议保持“跟随会话”，在退出、踢出或过期时一并撤销。
+            这里的设置会直接决定登录后是否把当前 IP
+            自动加入白名单；通常建议保持“跟随会话”，在退出、踢出或过期时一并撤销。
           </div>
         </div>
 
@@ -459,7 +510,9 @@ onMounted(fetchSettings);
           <div class="space-y-1 pr-6">
             <Label class="text-base">自定义授权时长</Label>
             <div class="text-sm text-muted-foreground">
-              当前 IP 在这段时间内可继续访问；若主动点击退出登录，会同时撤销这份登录后 IP 授权。
+              当前 IP
+              在这段时间内可继续访问；若主动点击退出登录，会同时撤销这份登录后
+              IP 授权。
             </div>
           </div>
           <div class="flex items-center gap-2 shrink-0">
@@ -471,10 +524,7 @@ onMounted(fetchSettings);
               class="w-24 text-center"
               :disabled="isSaving"
             />
-            <Select
-              v-model="form.customGrant.unit"
-              :disabled="isSaving"
-            >
+            <Select v-model="form.customGrant.unit" :disabled="isSaving">
               <SelectTrigger class="w-[110px]">
                 <SelectValue />
               </SelectTrigger>
@@ -495,6 +545,72 @@ onMounted(fetchSettings);
           class="rounded-lg bg-muted/20 px-4 py-3 text-sm text-muted-foreground"
         >
           {{ grantModeSummary }}
+        </div>
+
+        <div class="border-t border-border/60 pt-5">
+          <div
+            class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
+          >
+            <div class="space-y-1 pr-6">
+              <Label class="text-base">宽松的会话可信 IP</Label>
+              <div class="text-sm leading-6 text-muted-foreground">
+                允许同一登录会话在短时间内使用多个可信 IP，适合移动网络或
+                IPv4/IPv6 切换。
+              </div>
+            </div>
+
+            <Switch
+              class="shrink-0 sm:justify-self-end"
+              :model-value="form.sessionIpMobilityEnabled"
+              :disabled="isSaving"
+              @update:model-value="
+                form.sessionIpMobilityEnabled = $event === true
+              "
+            />
+          </div>
+
+          <div
+            v-if="form.sessionIpMobilityEnabled"
+            class="mt-4 grid gap-3 rounded-xl border bg-muted/15 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+          >
+            <div class="space-y-1 pr-6">
+              <Label class="text-base">IP 保留时间</Label>
+              <div class="text-sm leading-6 text-muted-foreground">
+                控制某个 IP 被保留多久；不会改变登录会话本身有效期。
+              </div>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              <Input
+                v-model.number="form.sessionIpMobilityWindow.value"
+                type="number"
+                min="1"
+                step="1"
+                class="w-24 text-center"
+                :disabled="isSaving"
+              />
+              <Select
+                v-model="form.sessionIpMobilityWindow.unit"
+                :disabled="isSaving"
+              >
+                <SelectTrigger class="w-[110px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem
+                    v-for="unit in mobilityWindowDurationUnits"
+                    :key="unit.value"
+                    :value="unit.value"
+                  >
+                    {{ unit.label }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div class="mt-3 text-sm leading-6 text-muted-foreground">
+            {{ sessionIpMobilitySummary }}
+          </div>
         </div>
 
         <div

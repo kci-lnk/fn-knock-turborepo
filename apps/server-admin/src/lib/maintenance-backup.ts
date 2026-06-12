@@ -1266,13 +1266,16 @@ class MaintenanceBackupService {
 
     await this.ensureArchiveCommandsReady();
     const payload = await this.extractPayloadFromArchive(archiveBuffer);
+    const importableEntries = payload.entries.filter((entry) =>
+      shouldExportBackupKey(entry.key),
+    );
     const clearedKeys = await this.clearPrefixKeys();
-    await this.restoreEntries(payload.entries);
+    await this.restoreEntries(importableEntries);
     const syncResult = await this.syncRuntimeAfterImport();
 
     return {
       cleared_keys: clearedKeys,
-      imported_keys: payload.entries.length,
+      imported_keys: importableEntries.length,
       warnings: syncResult.warnings,
       synced_steps: syncResult.syncedSteps,
     };

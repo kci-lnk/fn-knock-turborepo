@@ -22,6 +22,14 @@ import {
   type FrpcInstanceSummary,
   type FrpcInstancesOverview,
 } from "./types";
+import {
+  isFrpcProcessArgsForConfig,
+  parseProcessCommandLine,
+} from "./process-command";
+import {
+  mergeDetectedFrpcRuntime,
+  shouldPersistDetectedFrpcRuntime,
+} from "./runtime-reconcile";
 
 const FRPC_DIR = path.join(dataPath, "frp");
 const FRPC_INSTANCES_DIR = path.join(FRPC_DIR, "instances");
@@ -97,7 +105,8 @@ const getLogBuffer = (id: string) => {
     key: logKey(id),
     seqKey: `${logKey(id)}:seq`,
     ttlSeconds: LOG_TTL_SEC,
-    maxLen: id === FRPC_PRIMARY_INSTANCE_ID ? PRIMARY_LOG_MAX_LEN : EXTRA_LOG_MAX_LEN,
+    maxLen:
+      id === FRPC_PRIMARY_INSTANCE_ID ? PRIMARY_LOG_MAX_LEN : EXTRA_LOG_MAX_LEN,
   });
   logBuffers.set(id, buffer);
   return buffer;
@@ -146,7 +155,9 @@ const readInstanceIds = async (): Promise<string[]> => {
   const parsed = safeJsonParse(await redis.get(INSTANCE_IDS_KEY));
   if (!Array.isArray(parsed)) return [];
   const ids = parsed
-    .map((value) => (typeof value === "string" ? sanitizeInstanceId(value) : null))
+    .map((value) =>
+      typeof value === "string" ? sanitizeInstanceId(value) : null,
+    )
     .filter((value): value is string => Boolean(value));
   return [...new Set(ids)];
 };
@@ -157,18 +168,26 @@ const writeInstanceIds = async (ids: string[]) => {
   await redis.set(PRIMARY_INSTANCE_ID_KEY, FRPC_PRIMARY_INSTANCE_ID);
 };
 
-const normalizeMeta = (raw: unknown, fallback: FrpcInstanceMeta): FrpcInstanceMeta => {
+const normalizeMeta = (
+  raw: unknown,
+  fallback: FrpcInstanceMeta,
+): FrpcInstanceMeta => {
   if (!raw || typeof raw !== "object") return fallback;
   const obj = raw as Record<string, unknown>;
   return {
     id: typeof obj.id === "string" ? obj.id : fallback.id,
     name: typeof obj.name === "string" ? obj.name : fallback.name,
-    isPrimary: typeof obj.isPrimary === "boolean" ? obj.isPrimary : fallback.isPrimary,
-    configPath: typeof obj.configPath === "string" ? obj.configPath : fallback.configPath,
+    isPrimary:
+      typeof obj.isPrimary === "boolean" ? obj.isPrimary : fallback.isPrimary,
+    configPath:
+      typeof obj.configPath === "string" ? obj.configPath : fallback.configPath,
     workDir: typeof obj.workDir === "string" ? obj.workDir : fallback.workDir,
-    createdAt: typeof obj.createdAt === "string" ? obj.createdAt : fallback.createdAt,
-    updatedAt: typeof obj.updatedAt === "string" ? obj.updatedAt : fallback.updatedAt,
-    sortOrder: typeof obj.sortOrder === "number" ? obj.sortOrder : fallback.sortOrder,
+    createdAt:
+      typeof obj.createdAt === "string" ? obj.createdAt : fallback.createdAt,
+    updatedAt:
+      typeof obj.updatedAt === "string" ? obj.updatedAt : fallback.updatedAt,
+    sortOrder:
+      typeof obj.sortOrder === "number" ? obj.sortOrder : fallback.sortOrder,
   };
 };
 
@@ -292,10 +311,13 @@ const ensurePrimaryInstance = async () => {
 const getAllMetas = async (): Promise<FrpcInstanceMeta[]> => {
   await ensurePrimaryInstance();
   const ids = await readInstanceIds();
-  const metas = (
-    await Promise.all(ids.map((id) => readMeta(id)))
-  ).filter((value): value is FrpcInstanceMeta => Boolean(value));
-  return metas.sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt));
+  const metas = (await Promise.all(ids.map((id) => readMeta(id)))).filter(
+    (value): value is FrpcInstanceMeta => Boolean(value),
+  );
+  return metas.sort(
+    (a, b) =>
+      a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt),
+  );
 };
 
 const getMetaOrThrow = async (id: string): Promise<FrpcInstanceMeta> => {
@@ -310,7 +332,10 @@ const getMetaOrThrow = async (id: string): Promise<FrpcInstanceMeta> => {
 const readPidFile = (pidPath: string): number | null => {
   try {
     if (!fs.existsSync(pidPath)) return null;
-    const parsed = Number.parseInt(fs.readFileSync(pidPath, "utf-8").trim(), 10);
+    const parsed = Number.parseInt(
+      fs.readFileSync(pidPath, "utf-8").trim(),
+      10,
+    );
     if (!Number.isFinite(parsed) || parsed <= 0) return null;
     return parsed;
   } catch {
@@ -358,9 +383,27 @@ const runCommand = async (
   return { exitCode, stdout, stderr };
 };
 
+const readProcCmdlineArgs = (pid: number): string[] | null => {
+  try {
+    const args = parseProcessCommandLine(
+      fs.readFileSync(`/proc/${pid}/cmdline`),
+    );
+    return args.length > 0 ? args : null;
+  } catch {
+    return null;
+  }
+};
+
 const readProcessCommand = async (pid: number): Promise<string | null> => {
   try {
-    const result = await runCommand(["ps", "-p", String(pid), "-o", "command="]);
+    const result = await runCommand([
+      "ps",
+      "-ww",
+      "-p",
+      String(pid),
+      "-o",
+      "args=",
+    ]);
     if (result.exitCode !== 0) return null;
     return result.stdout.trim() || null;
   } catch {
@@ -368,14 +411,56 @@ const readProcessCommand = async (pid: number): Promise<string | null> => {
   }
 };
 
+const readProcessArgs = async (pid: number): Promise<string[] | null> => {
+  const procArgs = readProcCmdlineArgs(pid);
+  if (procArgs) return procArgs;
+  const command = await readProcessCommand(pid);
+  if (!command) return null;
+  const args = parseProcessCommandLine(command);
+  return args.length > 0 ? args : null;
+};
+
 const isOwnedFrpcPid = async (
   pid: number | null | undefined,
   configPath: string,
 ): Promise<boolean> => {
   if (!pid || !isProcessAlive(pid)) return false;
-  const command = await readProcessCommand(pid);
-  if (!command) return false;
-  return /\bfrpc(\s|$)/.test(command) && command.includes(configPath);
+  const args = await readProcessArgs(pid);
+  return Boolean(args && isFrpcProcessArgsForConfig(args, configPath));
+};
+
+const isAttachedProcessAlive = (
+  meta: FrpcInstanceMeta,
+  pid?: number | null,
+): boolean => {
+  const proc = attachedProcesses.get(meta.id)?.proc;
+  if (!proc?.pid) return false;
+  if (pid && proc.pid !== pid) return false;
+  return proc.exitCode === null && !proc.killed && isProcessAlive(proc.pid);
+};
+
+const findFrpcPidByConfigPath = async (
+  configPath: string,
+): Promise<number | null> => {
+  let entries: string[];
+  try {
+    entries = fs.readdirSync("/proc");
+  } catch {
+    return null;
+  }
+
+  for (const entry of entries) {
+    if (!/^\d+$/.test(entry)) continue;
+    const pid = Number.parseInt(entry, 10);
+    if (!Number.isFinite(pid) || pid <= 0 || pid === process.pid) continue;
+    const args = readProcCmdlineArgs(pid);
+    if (!args) continue;
+    if (isFrpcProcessArgsForConfig(args, configPath) && isProcessAlive(pid)) {
+      return pid;
+    }
+  }
+
+  return null;
 };
 
 const appendLogs = async (
@@ -403,7 +488,10 @@ const FRPC_DISCONNECTED_PATTERNS = [
 ] as const;
 
 const normalizeTunnelEventMessage = (line: string) => {
-  const normalized = line.replace(/^\[ERR\]\s*/i, "").replace(/\s+/g, " ").trim();
+  const normalized = line
+    .replace(/^\[ERR\]\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
   if (!normalized) return "";
   if (normalized.length <= 240) return normalized;
   return `${normalized.slice(0, 240).trim()}...`;
@@ -453,12 +541,22 @@ const handleFrpcRuntimeSignals = async (
     if (!line) continue;
 
     if (FRPC_CONNECTED_PATTERNS.some((pattern) => pattern.test(line))) {
-      await emitFrpcConnectivity(meta, true, line, attachedProcesses.get(meta.id)?.proc.pid ?? null);
+      await emitFrpcConnectivity(
+        meta,
+        true,
+        line,
+        attachedProcesses.get(meta.id)?.proc.pid ?? null,
+      );
       continue;
     }
 
     if (FRPC_DISCONNECTED_PATTERNS.some((pattern) => pattern.test(line))) {
-      await emitFrpcConnectivity(meta, false, line, attachedProcesses.get(meta.id)?.proc.pid ?? null);
+      await emitFrpcConnectivity(
+        meta,
+        false,
+        line,
+        attachedProcesses.get(meta.id)?.proc.pid ?? null,
+      );
     }
   }
 };
@@ -466,7 +564,10 @@ const handleFrpcRuntimeSignals = async (
 const extractTomlValue = (content: string, key: string): string | null => {
   const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = content.match(
-    new RegExp(`^\\s*${escaped}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|(\\d+))\\s*$`, "m"),
+    new RegExp(
+      `^\\s*${escaped}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|(\\d+))\\s*$`,
+      "m",
+    ),
   );
   return match?.[1] ?? match?.[2] ?? match?.[3] ?? null;
 };
@@ -487,16 +588,29 @@ const firstProxyBlock = (content: string): string => {
 const buildSummary = (content: string): FrpcInstanceSummary => {
   const proxy = firstProxyBlock(content);
   return {
-    serverAddr: extractTomlValue(content, "serverAddr") ?? extractTomlValue(content, "server_addr") ?? "",
-    serverPort: extractTomlValue(content, "serverPort") ?? extractTomlValue(content, "server_port") ?? "7000",
-    localPort: extractTomlValue(proxy, "localPort") ?? extractTomlValue(proxy, "local_port") ?? "",
-    remotePort: extractTomlValue(proxy, "remotePort") ?? extractTomlValue(proxy, "remote_port") ?? "",
+    serverAddr:
+      extractTomlValue(content, "serverAddr") ??
+      extractTomlValue(content, "server_addr") ??
+      "",
+    serverPort:
+      extractTomlValue(content, "serverPort") ??
+      extractTomlValue(content, "server_port") ??
+      "7000",
+    localPort:
+      extractTomlValue(proxy, "localPort") ??
+      extractTomlValue(proxy, "local_port") ??
+      "",
+    remotePort:
+      extractTomlValue(proxy, "remotePort") ??
+      extractTomlValue(proxy, "remote_port") ??
+      "",
   };
 };
 
 const readConfigForMeta = async (meta: FrpcInstanceMeta): Promise<string> => {
   ensureFrpcLayout();
-  if (!fs.existsSync(meta.workDir)) fs.mkdirSync(meta.workDir, { recursive: true });
+  if (!fs.existsSync(meta.workDir))
+    fs.mkdirSync(meta.workDir, { recursive: true });
   if (!fs.existsSync(meta.configPath)) {
     const content = defaultFrpcTemplate();
     fs.writeFileSync(meta.configPath, content, "utf-8");
@@ -507,7 +621,8 @@ const readConfigForMeta = async (meta: FrpcInstanceMeta): Promise<string> => {
 
 const writeConfigForMeta = async (meta: FrpcInstanceMeta, content: string) => {
   ensureFrpcLayout();
-  if (!fs.existsSync(meta.workDir)) fs.mkdirSync(meta.workDir, { recursive: true });
+  if (!fs.existsSync(meta.workDir))
+    fs.mkdirSync(meta.workDir, { recursive: true });
   fs.writeFileSync(meta.configPath, content, "utf-8");
 };
 
@@ -547,7 +662,8 @@ const verifyFrpcConfigForMeta = async (
     );
   }
 
-  if (!fs.existsSync(meta.workDir)) fs.mkdirSync(meta.workDir, { recursive: true });
+  if (!fs.existsSync(meta.workDir))
+    fs.mkdirSync(meta.workDir, { recursive: true });
   const tempPath = path.join(meta.workDir, `frpc.verify.${randomUUID()}.toml`);
   try {
     fs.writeFileSync(tempPath, content, "utf-8");
@@ -573,11 +689,16 @@ const readCandidatePid = async (
   runtime: FrpcInstanceRuntime,
 ): Promise<number | null> => {
   const attachedPid = attachedProcesses.get(meta.id)?.proc.pid ?? null;
-  if (attachedPid && (await isOwnedFrpcPid(attachedPid, meta.configPath))) return attachedPid;
-  if (runtime.pid && (await isOwnedFrpcPid(runtime.pid, meta.configPath))) return runtime.pid;
+  if (attachedPid && isAttachedProcessAlive(meta, attachedPid))
+    return attachedPid;
+  if (attachedPid && (await isOwnedFrpcPid(attachedPid, meta.configPath)))
+    return attachedPid;
+  if (runtime.pid && (await isOwnedFrpcPid(runtime.pid, meta.configPath)))
+    return runtime.pid;
   const filePid = readPidFile(getPidPath(meta));
-  if (filePid && (await isOwnedFrpcPid(filePid, meta.configPath))) return filePid;
-  return null;
+  if (filePid && (await isOwnedFrpcPid(filePid, meta.configPath)))
+    return filePid;
+  return findFrpcPidByConfigPath(meta.configPath);
 };
 
 const reconcileRuntime = async (
@@ -585,13 +706,14 @@ const reconcileRuntime = async (
 ): Promise<FrpcInstanceRuntime & { running: boolean; attached: boolean }> => {
   const runtime = await readRuntime(meta.id);
   const pid = await readCandidatePid(meta, runtime);
-  const attached = Boolean(pid && attachedProcesses.get(meta.id)?.proc.pid === pid);
+  const attached = Boolean(pid && isAttachedProcessAlive(meta, pid));
   if (pid) {
-    if (runtime.pid !== pid) {
-      await writeRuntime(meta.id, { ...runtime, pid });
+    const next = mergeDetectedFrpcRuntime(runtime, pid, nowIso);
+    if (shouldPersistDetectedFrpcRuntime(runtime, next)) {
+      await writeRuntime(meta.id, next);
     }
     writePidFile(getPidPath(meta), pid);
-    return { ...runtime, pid, running: true, attached };
+    return { ...next, running: true, attached };
   }
 
   const hadPid = Boolean(runtime.pid || readPidFile(getPidPath(meta)));
@@ -609,7 +731,9 @@ const reconcileRuntime = async (
   return { ...runtime, running: false, attached: false };
 };
 
-const buildStatus = async (meta: FrpcInstanceMeta): Promise<FrpcInstanceStatus> => {
+const buildStatus = async (
+  meta: FrpcInstanceMeta,
+): Promise<FrpcInstanceStatus> => {
   const runtime = await reconcileRuntime(meta);
   const content = await readConfigForMeta(meta);
   return {
@@ -671,7 +795,10 @@ const attachProcessStreams = (meta: FrpcInstanceMeta, proc: ChildProcess) => {
         buf += chunk.toString();
         const parts = buf.split(/\r?\n/);
         buf = parts.pop() || "";
-        await appendLogs(meta, parts.map((line) => `[ERR] ${line}`));
+        await appendLogs(
+          meta,
+          parts.map((line) => `[ERR] ${line}`),
+        );
       }
       if (buf) await appendLogs(meta, [`[ERR] ${buf}`]);
     } catch (error) {
@@ -825,7 +952,10 @@ export const frpcInstanceManager = {
     let nextMeta = { ...meta, updatedAt: nowIso() };
     if (typeof payload.name === "string") {
       const name = payload.name.trim();
-      nextMeta = { ...nextMeta, name: name || (meta.isPrimary ? "主 FRP" : "FRP 实例") };
+      nextMeta = {
+        ...nextMeta,
+        name: name || (meta.isPrimary ? "主 FRP" : "FRP 实例"),
+      };
     }
     if (typeof payload.content === "string") {
       await verifyFrpcConfigForMeta(nextMeta, payload.content);
@@ -835,7 +965,10 @@ export const frpcInstanceManager = {
     return buildStatus(nextMeta);
   },
 
-  async createInstance(payload: { name?: string; content?: string }): Promise<FrpcInstanceStatus> {
+  async createInstance(payload: {
+    name?: string;
+    content?: string;
+  }): Promise<FrpcInstanceStatus> {
     await ensurePrimaryInstance();
     const metas = await getAllMetas();
     const extraCount = metas.filter((meta) => !meta.isPrimary).length;
@@ -864,11 +997,14 @@ export const frpcInstanceManager = {
       await writeMeta(meta);
       await writeRuntime(meta.id, defaultRuntime());
       await writeInstanceIds([...metas.map((item) => item.id), meta.id]);
-      await appendLogs(meta, ["frpc instance created"], { inspectSignals: false });
+      await appendLogs(meta, ["frpc instance created"], {
+        inspectSignals: false,
+      });
       return buildStatus(meta);
     } catch (error) {
       try {
-        if (fs.existsSync(meta.workDir)) fs.rmSync(meta.workDir, { recursive: true, force: true });
+        if (fs.existsSync(meta.workDir))
+          fs.rmSync(meta.workDir, { recursive: true, force: true });
       } catch {}
       await redis.del(
         instanceKey(meta.id, "meta"),
@@ -897,7 +1033,8 @@ export const frpcInstanceManager = {
     const ids = await readInstanceIds();
     await writeInstanceIds(ids.filter((item) => item !== meta.id));
     try {
-      if (fs.existsSync(meta.workDir)) fs.rmSync(meta.workDir, { recursive: true, force: true });
+      if (fs.existsSync(meta.workDir))
+        fs.rmSync(meta.workDir, { recursive: true, force: true });
     } catch {}
     logBuffers.delete(meta.id);
   },
@@ -912,7 +1049,11 @@ export const frpcInstanceManager = {
     const current = await buildStatus(meta);
     if (current.running && current.pid) {
       const runtime = await readRuntime(meta.id);
-      await writeRuntime(meta.id, { ...runtime, desiredRunning: true, pid: current.pid });
+      await writeRuntime(meta.id, {
+        ...runtime,
+        desiredRunning: true,
+        pid: current.pid,
+      });
       return { pid: current.pid };
     }
 
@@ -1024,7 +1165,11 @@ export const frpcInstanceManager = {
 
   async poll(id: string, cursor?: number | string | null) {
     const meta = await getMetaOrThrow(id);
-    const { cursor: nextCursor, reset, items } = await getLogBuffer(meta.id).poll(cursor);
+    const {
+      cursor: nextCursor,
+      reset,
+      items,
+    } = await getLogBuffer(meta.id).poll(cursor);
     const status = await buildStatus(meta);
     return { cursor: nextCursor, reset, logs: items, status };
   },
@@ -1045,13 +1190,19 @@ export const frpcInstanceManager = {
       const status = await buildStatus(meta);
       if (!status.desiredRunning || status.running) continue;
       try {
-        await appendLogs(meta, ["resume: 检测到该 FRP 实例上次为开启状态，正在自动恢复..."], {
-          inspectSignals: false,
-        });
+        await appendLogs(
+          meta,
+          ["resume: 检测到该 FRP 实例上次为开启状态，正在自动恢复..."],
+          {
+            inspectSignals: false,
+          },
+        );
         await this.start(meta.id);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        await appendLogs(meta, [`resume error: ${message}`], { inspectSignals: false });
+        await appendLogs(meta, [`resume error: ${message}`], {
+          inspectSignals: false,
+        });
       }
     }
     await updateAggregateTunnelState();

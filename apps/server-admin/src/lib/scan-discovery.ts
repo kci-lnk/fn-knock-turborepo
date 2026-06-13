@@ -49,14 +49,24 @@ export class ScanDiscoveryValidationError extends Error {
 
 const IPV4_SEGMENT_RE = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/;
 
-const ALLOWED_LOCAL_RANGES: Array<[number, number]> = [
+const ALLOWED_LOCAL_RANGE_BOUNDS = [
   ["127.0.0.0", "127.255.255.255"],
   ["10.0.0.0", "10.255.255.255"],
   ["172.16.0.0", "172.31.255.255"],
   ["192.168.0.0", "192.168.255.255"],
   ["100.64.0.0", "100.127.255.255"],
   ["169.254.0.0", "169.254.255.255"],
-].map(([start, end]) => [ipv4ToNumber(start)!, ipv4ToNumber(end)!]);
+] as const;
+
+const ALLOWED_LOCAL_RANGES: Array<[number, number]> =
+  ALLOWED_LOCAL_RANGE_BOUNDS.map(([start, end]) => {
+    const startNumber = ipv4ToNumber(start);
+    const endNumber = ipv4ToNumber(end);
+    if (startNumber === null || endNumber === null) {
+      throw new Error("Invalid built-in local network range");
+    }
+    return [startNumber, endNumber];
+  });
 
 export function ipv4ToNumber(value: string): number | null {
   const parts = value.trim().split(".");

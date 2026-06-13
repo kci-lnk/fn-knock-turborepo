@@ -152,6 +152,9 @@ const parseLegacyDDNSCronIntervalMinutes = (
 
   const minutePart = parts.length === 6 ? parts[1] : parts[0];
   const otherParts = parts.length === 6 ? parts.slice(2) : parts.slice(1);
+  if (!minutePart) {
+    return null;
+  }
   if (parts.length === 6 && parts[0] !== "0") {
     return null;
   }
@@ -165,7 +168,12 @@ const parseLegacyDDNSCronIntervalMinutes = (
     return null;
   }
 
-  const minutes = Number.parseInt(match[1], 10);
+  const interval = match[1];
+  if (!interval) {
+    return null;
+  }
+
+  const minutes = Number.parseInt(interval, 10);
   if (
     !Number.isInteger(minutes) ||
     minutes < MIN_DDNS_UPDATE_INTERVAL_MINUTES ||
@@ -532,7 +540,10 @@ export class DDNSManager {
       this.saveTargetLastIPRaw(target.id, emptyLastIP),
       this.saveTargetLastCheckRaw(target.id, emptyLastCheck),
       ...(target.isPrimary
-        ? [this.writeLegacyLastIP(emptyLastIP), this.writeLegacyLastCheck(emptyLastCheck)]
+        ? [
+            this.writeLegacyLastIP(emptyLastIP),
+            this.writeLegacyLastCheck(emptyLastCheck),
+          ]
         : []),
     ]);
   }

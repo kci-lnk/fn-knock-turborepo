@@ -214,7 +214,7 @@ export const sendMagicPushMessage = async (args: {
           content,
           type: "text",
         };
-  const headers =
+  const headers: Record<string, string> =
     deliveryMode === "inbound"
       ? {
           "content-type": "application/json; charset=utf-8",

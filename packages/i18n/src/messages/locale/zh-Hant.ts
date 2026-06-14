@@ -6,6 +6,7 @@ export const zhHantLocale = {
   zhCN: "中文简体",
   zhHant: "中文正體",
   en: "English",
+  koKR: "한국어",
   saved: "語言設定已更新",
   saveFailed: "語言設定儲存失敗",
   invalid: "不支援的語言",

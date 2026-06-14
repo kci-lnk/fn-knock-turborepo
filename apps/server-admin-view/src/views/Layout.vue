@@ -317,7 +317,7 @@
               {{ option.label }}
             </span>
             <span
-              class="grid h-6 w-8 shrink-0 place-items-center overflow-hidden rounded-[5px] shadow-sm ring-1 ring-black/10"
+              class="grid h-6 w-8 shrink-0 place-items-center overflow-hidden rounded-[5px] bg-white shadow-sm ring-1 ring-black/10"
               aria-hidden="true"
             >
               <svg
@@ -374,6 +374,33 @@
                   <use href="#locale-flag-hk-petal" transform="rotate(216)" />
                   <use href="#locale-flag-hk-petal" transform="rotate(288)" />
                   <circle r="0.85" />
+                </g>
+              </svg>
+              <svg
+                v-else-if="option.value === 'ko-KR'"
+                viewBox="-72 -48 144 96"
+                class="h-6 w-8"
+              >
+                <path fill="#fff" d="M-72 -48h144v96H-72z" />
+                <g fill="none" stroke="#000" stroke-width="4">
+                  <path
+                    transform="rotate(33.69006752598)"
+                    d="M-50 -12v24m6 0v-24m6 0v24m76 0V1m0 -2v-11m6 0v11m0 2v11m6 0V1m0 -2v-11"
+                  />
+                  <path
+                    transform="rotate(-33.69006752598)"
+                    d="M-50 -12v24m6 0V1m0 -2v-11m6 0v24m76 0V1m0 -2v-11m6 0v24m6 0V1m0 -2v-11"
+                  />
+                </g>
+                <g transform="rotate(33.69006752598)">
+                  <path
+                    fill="#cd2e3a"
+                    d="M12 0a18 18 0 1 1 -36 0 24 24 0 1 1 48 0"
+                  />
+                  <path
+                    fill="#0047a0"
+                    d="M0 0a12 12 0 1 1 24 0 24 24 0 1 1 -48 0 12 12 0 1 0 24 0"
+                  />
                 </g>
               </svg>
               <svg v-else viewBox="0 0 32 24" class="h-6 w-8">

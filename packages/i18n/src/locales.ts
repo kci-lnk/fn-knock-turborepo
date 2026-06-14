@@ -1,1 +1,8 @@
-export { en, messages, zhCN, zhHant, type I18nMessageSchema } from "./messages";
+export {
+  en,
+  koKR,
+  messages,
+  zhCN,
+  zhHant,
+  type I18nMessageSchema,
+} from "./messages";

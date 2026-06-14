@@ -7,6 +7,7 @@ const adminLocaleLoaders: LocaleLoaderMap = {
   "zh-CN": () => import("./messages/scopes/admin/zh-CN"),
   "zh-Hant": () => import("./messages/scopes/admin/zh-Hant"),
   en: () => import("./messages/scopes/admin/en"),
+  "ko-KR": () => import("./messages/scopes/admin/ko-KR"),
 };
 
 registerScopedLocaleLoaders("admin", adminLocaleLoaders);

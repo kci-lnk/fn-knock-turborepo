@@ -158,6 +158,7 @@ async function buildSSLStatusPayload(t?: RequestTranslator) {
     coverage: buildSubdomainCertificateCoverage({
       config,
       certificateDomains: certificate.certInfo?.dnsNames || [],
+      t,
     }),
   }));
 
@@ -168,6 +169,7 @@ async function buildSSLStatusPayload(t?: RequestTranslator) {
     subdomain_coverage: buildSubdomainCertificateCoverage({
       config,
       certificateDomains: status.certInfo?.dnsNames || [],
+      t,
     }),
     library_coverage: buildSubdomainCertificateInventoryCoverage({
       config,
@@ -177,6 +179,7 @@ async function buildSSLStatusPayload(t?: RequestTranslator) {
       })),
       activeCertificateId: status.activeCertId,
       deploymentMode: effectiveDeploymentMode,
+      t,
     }),
     configuredDeploymentMode: status.deploymentMode,
     deploymentMode: effectiveDeploymentMode,

@@ -1383,6 +1383,7 @@ export const adminRoutes = new Elysia({
           t.Literal("zh-CN"),
           t.Literal("zh-Hant"),
           t.Literal("en"),
+          t.Literal("ko-KR"),
         ]),
       }),
     }),
@@ -3089,6 +3090,7 @@ export const adminRoutes = new Elysia({
         })),
         activeCertificateId: sslStatus.activeCertId,
         deploymentMode: sslStatus.deploymentMode,
+        t,
       });
 
       let sslAutoSelection: {

@@ -16,12 +16,21 @@ import {
 } from "./access-entry";
 import { tDefault } from "./i18n";
 
+type SubdomainMessageParams = Record<
+  string,
+  string | number | boolean | null | undefined
+>;
+type SubdomainMessageTranslator = (
+  key: string,
+  params?: SubdomainMessageParams,
+) => string;
+
 const trimTrailingSlash = (value: string): string => value.replace(/\/+$/, "");
 
-const subdomainT = (
-  key: string,
-  params?: Record<string, string | number | boolean | null | undefined>,
-): string => tDefault(`server.subdomainMode.${key}`, params);
+const createSubdomainT =
+  (t: SubdomainMessageTranslator = tDefault) =>
+  (key: string, params?: SubdomainMessageParams): string =>
+    t(`server.subdomainMode.${key}`, params);
 
 const takeFirstHeaderValue = (value: string | null): string | null => {
   if (!value) return null;
@@ -403,7 +412,9 @@ export const getAuthHostMapping = (
 
 export const buildSubdomainCertificateRecommendation = (
   config: Pick<AppConfig, "subdomain_mode" | "host_mappings">,
+  t: SubdomainMessageTranslator = tDefault,
 ): SubdomainCertificateRecommendation => {
+  const translate = createSubdomainT(t);
   const rootDomain =
     config.subdomain_mode?.root_domain?.trim().toLowerCase() || "";
   const authHost =
@@ -415,14 +426,14 @@ export const buildSubdomainCertificateRecommendation = (
   );
 
   let mode: SubdomainCertificateRecommendation["mode"] = "manual";
-  let summary = subdomainT("recommendationMissingBase");
+  let summary = translate("recommendationMissingBase");
   const warnings: string[] = [];
   let recommendedDomains: string[] = [];
 
   if (rootDomain) {
     mode = "wildcard_parent";
     recommendedDomains = uniqStrings([rootDomain, `*.${rootDomain}`]);
-    summary = subdomainT("recommendationWildcardSummary", { rootDomain });
+    summary = translate("recommendationWildcardSummary", { rootDomain });
 
     if (
       authHost &&
@@ -430,20 +441,20 @@ export const buildSubdomainCertificateRecommendation = (
     ) {
       recommendedDomains = uniqStrings([...recommendedDomains, authHost]);
       warnings.push(
-        subdomainT("authOutOfRootWarning", { authHost, rootDomain }),
+        translate("authOutOfRootWarning", { authHost, rootDomain }),
       );
     }
   } else if (authHost) {
     mode = "single_host";
     recommendedDomains = [authHost];
-    summary = subdomainT("recommendationSingleHostSummary", { authHost });
-    warnings.push(subdomainT("wildcardSuggestion"));
+    summary = translate("recommendationSingleHostSummary", { authHost });
+    warnings.push(translate("wildcardSuggestion"));
   } else {
-    warnings.push(subdomainT("configureRootOrAuth"));
+    warnings.push(translate("configureRootOrAuth"));
   }
 
   if (!authHost) {
-    warnings.push(subdomainT("authMissingWarning"));
+    warnings.push(translate("authMissingWarning"));
   }
 
   const coveredHosts = allHosts.filter((host) =>
@@ -456,7 +467,7 @@ export const buildSubdomainCertificateRecommendation = (
 
   if (uncoveredHosts.length > 0 && recommendedDomains.length > 0) {
     warnings.push(
-      subdomainT("uncoveredHostMappingsWarning", {
+      translate("uncoveredHostMappingsWarning", {
         count: uncoveredHosts.length,
       }),
     );
@@ -478,11 +489,14 @@ export const buildSubdomainCertificateRecommendation = (
 export const buildSubdomainCertificateCoverage = ({
   config,
   certificateDomains,
+  t = tDefault,
 }: {
   config: Pick<AppConfig, "subdomain_mode" | "host_mappings">;
   certificateDomains?: string[] | null;
+  t?: SubdomainMessageTranslator;
 }): SubdomainCertificateCoverage => {
-  const recommendation = buildSubdomainCertificateRecommendation(config);
+  const translate = createSubdomainT(t);
+  const recommendation = buildSubdomainCertificateRecommendation(config, t);
   const currentCertificateDomains = uniqStrings(certificateDomains || []);
   const allHosts = uniqStrings(
     (config.host_mappings || []).map((mapping) => mapping.host || ""),
@@ -542,7 +556,7 @@ export const buildSubdomainCertificateCoverage = ({
   const hasConcreteRequirements = concreteRequirements.length > 0;
 
   let status: SubdomainCertificateCoverage["status"] = "missing";
-  let summary = subdomainT("coverageNoSsl");
+  let summary = translate("coverageNoSsl");
   const warnings = [...recommendation.warnings];
 
   if (currentCertificateDomains.length === 0) {
@@ -552,17 +566,17 @@ export const buildSubdomainCertificateCoverage = ({
   } else if (uncoveredRequirements.length === 0) {
     status = "ready";
     summary = hasConcreteRequirements
-      ? subdomainT("coverageReadyConcrete")
-      : subdomainT("coverageReadyRecommended");
+      ? translate("coverageReadyConcrete")
+      : translate("coverageReadyRecommended");
   } else if (coveredRequirements.length > 0) {
     status = "partial";
     summary = hasConcreteRequirements
-      ? subdomainT("coveragePartialConcrete")
-      : subdomainT("coveragePartialRecommended");
+      ? translate("coveragePartialConcrete")
+      : translate("coveragePartialRecommended");
   } else {
     summary = hasConcreteRequirements
-      ? subdomainT("coverageMismatchConcrete")
-      : subdomainT("coverageMismatchRecommended");
+      ? translate("coverageMismatchConcrete")
+      : translate("coverageMismatchRecommended");
   }
 
   if (
@@ -571,7 +585,7 @@ export const buildSubdomainCertificateCoverage = ({
     uncoveredRequirements.length > 0
   ) {
     warnings.push(
-      subdomainT("coverageMissingRequiredWarning", {
+      translate("coverageMissingRequiredWarning", {
         count: uncoveredRequirements.length,
       }),
     );
@@ -581,14 +595,14 @@ export const buildSubdomainCertificateCoverage = ({
     uncoveredRecommendedDomains.length > 0
   ) {
     warnings.push(
-      subdomainT("coverageMissingRecommendedWarning", {
+      translate("coverageMissingRecommendedWarning", {
         count: uncoveredRecommendedDomains.length,
       }),
     );
   }
 
   if (currentCertificateDomains.length > 0 && authHost && !coversAuthHost) {
-    warnings.push(subdomainT("coverageAuthHostMissingWarning", { authHost }));
+    warnings.push(translate("coverageAuthHostMissingWarning", { authHost }));
   }
 
   return {
@@ -611,6 +625,7 @@ export const buildSubdomainCertificateInventoryCoverage = ({
   certificates,
   activeCertificateId,
   deploymentMode = "single_active",
+  t = tDefault,
 }: {
   config: Pick<AppConfig, "subdomain_mode" | "host_mappings">;
   certificates: Array<{
@@ -619,8 +634,10 @@ export const buildSubdomainCertificateInventoryCoverage = ({
   }>;
   activeCertificateId?: string | null;
   deploymentMode?: "single_active" | "multi_sni";
+  t?: SubdomainMessageTranslator;
 }): SubdomainCertificateInventoryCoverage => {
-  const recommendation = buildSubdomainCertificateRecommendation(config);
+  const translate = createSubdomainT(t);
+  const recommendation = buildSubdomainCertificateRecommendation(config, t);
   const allHosts = uniqStrings(
     (config.host_mappings || []).map((mapping) => mapping.host || ""),
   );
@@ -638,6 +655,7 @@ export const buildSubdomainCertificateInventoryCoverage = ({
     const coverage = buildSubdomainCertificateCoverage({
       config,
       certificateDomains: normalizedDomains,
+      t,
     });
     const coveredRequirements = requirements.filter((requirement) =>
       isRequirementCoveredByCertificateDomains(requirement, normalizedDomains),
@@ -692,34 +710,34 @@ export const buildSubdomainCertificateInventoryCoverage = ({
     requirements.length > 0 && uncoveredRequirements.size === 0;
 
   let status: SubdomainCertificateInventoryCoverage["status"] = "missing";
-  let summary = subdomainT("inventoryEmpty");
+  let summary = translate("inventoryEmpty");
   const warnings: string[] = [];
 
   if (activeAnalysis?.coverage.status === "ready") {
     status = "ready";
-    summary = subdomainT("inventoryActiveReady");
+    summary = translate("inventoryActiveReady");
   } else if (fullyCovering.length === 1) {
     status = "ready";
-    summary = subdomainT("inventoryOneReady");
+    summary = translate("inventoryOneReady");
   } else if (fullyCovering.length > 1) {
     status = "ready";
-    summary = subdomainT("inventoryMultipleReady", {
+    summary = translate("inventoryMultipleReady", {
       count: fullyCovering.length,
     });
   } else if (combinedReady && deploymentMode === "multi_sni") {
     status = "ready";
     summary =
       combinedCoveringCertificateIds.length > 1
-        ? subdomainT("inventoryCombinedReady")
-        : subdomainT("inventoryCandidateReady");
+        ? translate("inventoryCombinedReady")
+        : translate("inventoryCandidateReady");
   } else if (combinedReady) {
     status = "partial";
-    summary = subdomainT("inventoryCombinedNeedsMultiSni");
+    summary = translate("inventoryCombinedNeedsMultiSni");
   } else if (partiallyCovering.length > 0) {
     status = "partial";
-    summary = subdomainT("inventoryPartialCandidates");
+    summary = translate("inventoryPartialCandidates");
   } else if (recommendation.can_autofill) {
-    summary = subdomainT("inventoryNoCertificateCoversRecommendation");
+    summary = translate("inventoryNoCertificateCoversRecommendation");
   } else {
     summary = recommendation.summary;
   }
@@ -729,7 +747,7 @@ export const buildSubdomainCertificateInventoryCoverage = ({
     combinedCoveringCertificateIds.length > 1 &&
     deploymentMode !== "multi_sni"
   ) {
-    warnings.push(subdomainT("inventoryMultiCertRequiresSniWarning"));
+    warnings.push(translate("inventoryMultiCertRequiresSniWarning"));
   }
 
   if (
@@ -737,7 +755,7 @@ export const buildSubdomainCertificateInventoryCoverage = ({
     activeAnalysis.coverage.status !== "ready" &&
     fullyCovering.length === 1
   ) {
-    warnings.push(subdomainT("inventorySwitchRecommendedWarning"));
+    warnings.push(translate("inventorySwitchRecommendedWarning"));
   }
 
   if (
@@ -745,7 +763,7 @@ export const buildSubdomainCertificateInventoryCoverage = ({
     fullyCovering.length === 0 &&
     combinedCoveringCertificateIds.length > 1
   ) {
-    warnings.push(subdomainT("inventoryBetterForSniWarning"));
+    warnings.push(translate("inventoryBetterForSniWarning"));
   }
 
   return {

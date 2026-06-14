@@ -24,7 +24,7 @@ export interface AuthConfig {
   trust_forwarded_proto?: boolean;
 }
 
-export type LocaleCode = "zh-CN" | "zh-Hant" | "en";
+export type LocaleCode = "zh-CN" | "zh-Hant" | "en" | "ko-KR";
 
 export interface LocaleConfig {
   default_locale: LocaleCode;
@@ -550,7 +550,9 @@ export class GoBackendService {
     return this.request<LocaleConfig>("/api/config/locale");
   }
 
-  async setLocaleConfig(config: LocaleConfig): Promise<GoResponse<LocaleConfig>> {
+  async setLocaleConfig(
+    config: LocaleConfig,
+  ): Promise<GoResponse<LocaleConfig>> {
     return this.request<LocaleConfig>("/api/config/locale", "POST", config);
   }
 

@@ -21,12 +21,23 @@ const acmeServiceT = (
   params?: Record<string, string | number | boolean | null | undefined>,
 ) => tDefault(`server.acmeService.${key}`, params);
 
+type AcmeMessageParams = Record<
+  string,
+  string | number | boolean | null | undefined
+>;
+type AcmeMessageTranslator = (
+  key: string,
+  params?: AcmeMessageParams,
+) => string;
+
 export type AcmeStatus = "uninstalled" | "installing" | "installed" | "error";
 
 export interface AcmeState {
   status: AcmeStatus;
   progress: number;
   message: string;
+  messageKey?: string;
+  messageParams?: AcmeMessageParams;
   executablePath?: string;
 }
 
@@ -60,12 +71,11 @@ export class AcmeService {
   private readonly legacyAcmePath = join(this.legacyAcmeDir, "acme.sh");
   private readonly activeAcmeProcesses = new Set<ChildProcess>();
 
-  private state: AcmeState = {
+  private state: AcmeState = this.createState({
     status: "uninstalled",
     progress: 0,
-    message: acmeServiceT("waiting"),
-    executablePath: ACME_EXECUTABLE_PATH,
-  };
+    messageKey: "waiting",
+  });
 
   private get acmeDir() {
     return ACME_HOME_DIR;
@@ -73,6 +83,29 @@ export class AcmeService {
 
   private get acmePath() {
     return ACME_EXECUTABLE_PATH;
+  }
+
+  private createState({
+    status,
+    progress,
+    messageKey,
+    messageParams,
+    executablePath = this.acmePath,
+  }: {
+    status: AcmeStatus;
+    progress: number;
+    messageKey: string;
+    messageParams?: AcmeMessageParams;
+    executablePath?: string;
+  }): AcmeState {
+    return {
+      status,
+      progress,
+      message: acmeServiceT(messageKey, messageParams),
+      messageKey,
+      messageParams,
+      executablePath,
+    };
   }
 
   private trackAcmeProcess(proc: ChildProcess): ChildProcess {
@@ -358,7 +391,11 @@ export class AcmeService {
       throw new Error(acmeServiceT("bundledZipMissing"));
     }
 
-    this.state = { status: "installing", progress: 35, message: acmeServiceT("extractingBundled"), executablePath: this.acmePath };
+    this.state = this.createState({
+      status: "installing",
+      progress: 35,
+      messageKey: "extractingBundled",
+    });
 
     const tmpDir = join(this.acmeDir, "..", `.acme-extract-${Date.now()}-${Math.random().toString(16).slice(2)}`);
     await mkdir(tmpDir, { recursive: true });
@@ -383,7 +420,11 @@ export class AcmeService {
         throw new Error(acmeServiceT("extractedAcmeMissing"));
       }
 
-      this.state = { status: "installing", progress: 70, message: acmeServiceT("writingDataDir"), executablePath: this.acmePath };
+      this.state = this.createState({
+        status: "installing",
+        progress: 70,
+        messageKey: "writingDataDir",
+      });
       await rm(this.acmeDir, { recursive: true, force: true });
       await mkdir(this.acmeDir, { recursive: true });
       await cp(extractedRoot, this.acmeDir, { recursive: true, force: true });
@@ -405,33 +446,45 @@ export class AcmeService {
     try {
       await this.migrateLegacyInstallIfNeeded();
     } catch (e: any) {
-      this.state = {
+      this.state = this.createState({
         status: "error",
         progress: 0,
-        message: acmeServiceT("checkInstallFailed", {
+        messageKey: "checkInstallFailed",
+        messageParams: {
           detail: e?.message || String(e),
-        }),
-        executablePath: this.acmePath,
-      };
+        },
+      });
       return false;
     }
     const exists = await fileExists(this.acmePath);
     if (exists) {
-      this.state = {
+      this.state = this.createState({
         status: "installed",
         progress: 100,
-        message: acmeServiceT("ready"),
-        executablePath: this.acmePath,
-      };
+        messageKey: "ready",
+      });
       return true;
     }
 
-    this.state = { status: "uninstalled", progress: 0, message: acmeServiceT("notInstalled"), executablePath: this.acmePath };
+    this.state = this.createState({
+      status: "uninstalled",
+      progress: 0,
+      messageKey: "notInstalled",
+    });
     return false;
   }
 
   getState(): AcmeState {
     return this.state;
+  }
+
+  getLocalizedState(t: AcmeMessageTranslator): AcmeState {
+    const state = this.getState();
+    if (!state.messageKey) return state;
+    return {
+      ...state,
+      message: t(`server.acmeService.${state.messageKey}`, state.messageParams),
+    };
   }
 
   async getDefaultCertificateAuthority(): Promise<AcmeCertificateAuthority> {
@@ -447,23 +500,47 @@ export class AcmeService {
     email?: string,
     certificateAuthority?: AcmeCertificateAuthority,
   ): Promise<void> {
-    if (this.state.status === "installing" || this.state.status === "installed") return;
-    this.state = { status: "installing", progress: 10, message: acmeServiceT("initializingBundled"), executablePath: this.acmePath };
+    if (this.state.status === "installing" || this.state.status === "installed")
+      return;
+    this.state = this.createState({
+      status: "installing",
+      progress: 10,
+      messageKey: "initializingBundled",
+    });
 
     try {
       const executablePath = await this.installFromBundledZip();
-      this.state = { status: "installing", progress: 90, message: acmeServiceT("registeringAccount"), executablePath: this.acmePath };
+      this.state = this.createState({
+        status: "installing",
+        progress: 90,
+        messageKey: "registeringAccount",
+      });
       const accountEmail = await this.registerAccount({
         email,
         certificateAuthority,
       });
-      this.state = { status: "installing", progress: 95, message: acmeServiceT("savingDefaultCa"), executablePath: this.acmePath };
+      this.state = this.createState({
+        status: "installing",
+        progress: 95,
+        messageKey: "savingDefaultCa",
+      });
       if (certificateAuthority) {
         await this.setDefaultCertificateAuthority(certificateAuthority);
       }
-      this.state = { status: "installed", progress: 100, message: acmeServiceT("installSuccess", { email: accountEmail }), executablePath };
+      this.state = this.createState({
+        status: "installed",
+        progress: 100,
+        messageKey: "installSuccess",
+        messageParams: { email: accountEmail },
+        executablePath,
+      });
     } catch (error: any) {
-      this.state = { status: "error", progress: 0, message: acmeServiceT("installFailed", { detail: error.message }), executablePath: this.acmePath };
+      this.state = this.createState({
+        status: "error",
+        progress: 0,
+        messageKey: "installFailed",
+        messageParams: { detail: error.message },
+      });
     }
   }
 
@@ -486,9 +563,18 @@ export class AcmeService {
 
     try {
       await rm(this.acmeDir, { recursive: true, force: true });
-      this.state = { status: "uninstalled", progress: 0, message: acmeServiceT("deleted"), executablePath: this.acmePath };
+      this.state = this.createState({
+        status: "uninstalled",
+        progress: 0,
+        messageKey: "deleted",
+      });
     } catch (error: any) {
-      this.state = { status: "error", progress: 0, message: acmeServiceT("deleteFailed", { detail: error?.message || String(error) }), executablePath: this.acmePath };
+      this.state = this.createState({
+        status: "error",
+        progress: 0,
+        messageKey: "deleteFailed",
+        messageParams: { detail: error?.message || String(error) },
+      });
       throw error;
     }
   }

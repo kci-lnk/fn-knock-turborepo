@@ -664,16 +664,16 @@ export const acmeRoutes = new Elysia({
   .use(acmePlugin)
   .get(
     "/status",
-    async ({ acme }) => {
+    async ({ acme, request }) => {
+      const t = await getAcmeRouteTranslator(request);
       await acme.checkInstalled();
-      const state = acme.getState();
       const clientSettings = await configManager.ensureAcmeClientSettings(
         await acme.getDefaultCertificateAuthority(),
       );
       return {
         success: true,
         data: {
-          ...state,
+          ...acme.getLocalizedState(t),
           acmeCert: await getStatusCertificate(),
           certificateAuthority: clientSettings.certificateAuthority,
           certificateAuthorityUpdatedAt: clientSettings.updatedAt,
@@ -700,7 +700,7 @@ export const acmeRoutes = new Elysia({
       return {
         success: true,
         data: {
-          acmeState: acme.getState(),
+          acmeState: acme.getLocalizedState(t),
           clientSettings,
           lock,
           applications,
@@ -748,11 +748,12 @@ export const acmeRoutes = new Elysia({
   )
   .get(
     "/subdomain-recommendation",
-    async () => {
+    async ({ request }) => {
+      const t = await getAcmeRouteTranslator(request);
       const config = await configManager.getConfig();
       return {
         success: true,
-        data: buildSubdomainCertificateRecommendation(config),
+        data: buildSubdomainCertificateRecommendation(config, t),
       };
     },
     routeDoc("获取子域证书推荐"),
@@ -780,7 +781,7 @@ export const acmeRoutes = new Elysia({
         }
         await acme.uninstall();
         await acme.checkInstalled();
-        return { success: true, data: acme.getState() };
+        return { success: true, data: acme.getLocalizedState(t) };
       } catch (e: any) {
         set.status = 500;
         return { success: false, message: e?.message || String(e) };
@@ -847,7 +848,7 @@ export const acmeRoutes = new Elysia({
             ...next,
             synced: true,
             accountEmail,
-            state: acme.getState(),
+            state: acme.getLocalizedState(t),
           },
         };
       } catch (e: any) {

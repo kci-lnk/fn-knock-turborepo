@@ -9,7 +9,7 @@ export interface ProxyMapping {
 
 export type RunType = 0 | 1 | 3;
 export type ReverseProxySubmode = "path" | "subdomain";
-export type LocaleCode = "zh-CN" | "zh-Hant" | "en";
+export type LocaleCode = "zh-CN" | "zh-Hant" | "en" | "ko-KR";
 
 export interface LocaleConfig {
   default_locale: LocaleCode;

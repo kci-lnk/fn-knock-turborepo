@@ -1,6 +1,6 @@
 export { LOCALE_DISPLAY_NAMES, LOCALE_OPTIONS } from "./locale-options";
 
-export const SUPPORTED_LOCALES = ["zh-CN", "zh-Hant", "en"] as const;
+export const SUPPORTED_LOCALES = ["zh-CN", "zh-Hant", "en", "ko-KR"] as const;
 export type LocaleCode = (typeof SUPPORTED_LOCALES)[number];
 
 export interface LocaleConfig {
@@ -29,6 +29,8 @@ const localeAliases: Record<string, LocaleCode> = {
   en: "en",
   "en-us": "en",
   "en-gb": "en",
+  ko: "ko-KR",
+  "ko-kr": "ko-KR",
 };
 
 export const normalizeLocale = (
@@ -41,6 +43,7 @@ export const normalizeLocale = (
   const lower = raw.replace(/_/g, "-").toLowerCase();
   if (localeAliases[lower]) return localeAliases[lower];
   if (lower.startsWith("en-")) return "en";
+  if (lower.startsWith("ko-")) return "ko-KR";
   if (lower.startsWith("zh-hant")) return "zh-Hant";
   if (lower.startsWith("zh-")) return "zh-CN";
   return null;

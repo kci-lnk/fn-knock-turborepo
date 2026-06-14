@@ -1,5 +1,5 @@
 import type { CaptchaPublicSettings } from "../captcha/types";
-import type { LocaleConfig } from "@fn-knock/i18n";
+import type { LocaleConfig } from "@fn-knock/i18n/core";
 
 export type AuthClientInfo = {
   ip: string;

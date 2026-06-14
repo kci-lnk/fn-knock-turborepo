@@ -5,7 +5,10 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./vue": "./src/vue.ts"
+    "./core": "./src/core.ts",
+    "./vue": "./src/vue.ts",
+    "./vue/admin": "./src/vue-admin.ts",
+    "./vue/auth": "./src/vue-auth.ts"
   },
   "peerDependencies": {
     "vue": "^3.5.25",

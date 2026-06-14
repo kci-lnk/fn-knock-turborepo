@@ -1,5 +1,5 @@
-import { DEFAULT_LOCALE, type LocaleConfig } from "@fn-knock/i18n";
-import { browserT } from "@fn-knock/i18n/vue";
+import { DEFAULT_LOCALE, type LocaleConfig } from "@fn-knock/i18n/core";
+import { browserT } from "@fn-knock/i18n/vue/admin";
 import type {
   DockerAdminBootstrapState,
   RuntimeCapabilities,

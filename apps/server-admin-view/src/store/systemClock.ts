@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
-import { browserT } from "@fn-knock/i18n/vue";
+import { browserT } from "@fn-knock/i18n/vue/admin";
 import { SystemAPI, type SystemClockStatus } from "../lib/api";
 
 const POLL_HEALTHY_MS = 10 * 60 * 1000;

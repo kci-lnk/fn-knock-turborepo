@@ -431,8 +431,8 @@ import {
   SUPPORTED_LOCALES,
   type LocaleCode,
   normalizeLocale,
-} from "@fn-knock/i18n";
-import { applyDocumentLocale } from "@fn-knock/i18n/vue";
+} from "@fn-knock/i18n/core";
+import { setFnKnockLocale } from "@fn-knock/i18n/vue/admin";
 import {
   Dialog,
   DialogContent,
@@ -477,7 +477,8 @@ const updateStore = useUpdateStore();
 const isMobileNavOpen = ref(false);
 const isLocaleDialogOpen = ref(false);
 const isSavingLocale = ref(false);
-const { t, locale } = useI18n();
+const i18n = useI18n();
+const { t, locale } = i18n;
 const selectedLocale = ref<LocaleCode>(
   normalizeLocale(String(locale.value)) ?? "zh-CN",
 );
@@ -519,11 +520,9 @@ const navigateTo = async (path: string) => {
   }
 };
 
-const applySystemLocale = (value: string | null | undefined) => {
-  const next = normalizeLocale(value) ?? "zh-CN";
-  locale.value = next;
+const applySystemLocale = async (value: string | null | undefined) => {
+  const next = await setFnKnockLocale(i18n, value);
   selectedLocale.value = next;
-  applyDocumentLocale(next);
   return next;
 };
 
@@ -544,7 +543,7 @@ const handleLocaleSelect = async (value: LocaleCode) => {
   isSavingLocale.value = true;
   try {
     const saved = await configStore.saveLocaleConfig({ default_locale: next });
-    applySystemLocale(saved.default_locale);
+    await applySystemLocale(saved.default_locale);
     isLocaleDialogOpen.value = false;
     toast.success(t("locale.saved"));
   } catch (error) {
@@ -578,7 +577,9 @@ watch(
   () => configStore.config?.locale?.default_locale,
   (next) => {
     if (!next) return;
-    applySystemLocale(next);
+    void applySystemLocale(next).catch((error) => {
+      console.error("Failed to apply system locale", error);
+    });
   },
   { immediate: true },
 );

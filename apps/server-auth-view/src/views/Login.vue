@@ -405,13 +405,13 @@ import {
 import { markPendingLogoutDelay } from "@/lib/post-login";
 import AuthFooter from "@/components/AuthFooter.vue";
 import TurnstileWidget from "@/components/captcha/TurnstileWidget.vue";
-import { normalizeLocale } from "@fn-knock/i18n";
-import { applyDocumentLocale } from "@fn-knock/i18n/vue";
+import { setFnKnockLocale } from "@fn-knock/i18n/vue/auth";
 
 import "altcha";
 
 const router = useRouter();
-const { t, locale } = useI18n();
+const i18n = useI18n();
+const { t } = i18n;
 
 const token = ref("");
 const rememberMe = ref(false);
@@ -471,10 +471,8 @@ const hasTurnstileSiteKey = computed(
   () => !!captchaConfig.value?.turnstile.site_key.trim(),
 );
 const isLoginCoolingDown = computed(() => loginCooldownSeconds.value > 0);
-const applySystemLocale = (value: string | null | undefined) => {
-  const next = normalizeLocale(value) ?? "zh-CN";
-  locale.value = next;
-  applyDocumentLocale(next);
+const applySystemLocale = async (value: string | null | undefined) => {
+  await setFnKnockLocale(i18n, value);
 };
 const powWidgetStrings = computed(() =>
   JSON.stringify({
@@ -587,7 +585,7 @@ function initBrowserCapabilities() {
 async function loadBootstrap() {
   try {
     const bootstrap = await AuthAPI.getBootstrap(redirectUri);
-    applySystemLocale(bootstrap.locale.default_locale);
+    await applySystemLocale(bootstrap.locale.default_locale);
     startLocationPolling(bootstrap.client);
     captchaConfig.value = bootstrap.captcha;
     isPasskeyAvailable.value = !!bootstrap.passkey.available;

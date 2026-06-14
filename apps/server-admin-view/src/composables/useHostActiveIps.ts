@@ -12,7 +12,7 @@ import type {
   IpLocationLookupStatus,
   IpLocationSnapshot,
 } from "../types";
-import { browserT } from "@fn-knock/i18n/vue";
+import { browserT } from "@fn-knock/i18n/vue/admin";
 import { useIpLocationBatch } from "./useIpLocationBatch";
 
 type HostSource = string | Ref<string> | (() => string);

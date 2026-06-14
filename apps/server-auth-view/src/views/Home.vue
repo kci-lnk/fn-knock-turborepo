@@ -148,11 +148,11 @@ import {
   POST_LOGIN_LOGOUT_DELAY_MS,
 } from "@/lib/post-login";
 import AuthFooter from "@/components/AuthFooter.vue";
-import { normalizeLocale } from "@fn-knock/i18n";
-import { applyDocumentLocale } from "@fn-knock/i18n/vue";
+import { setFnKnockLocale } from "@fn-knock/i18n/vue/auth";
 
 const router = useRouter();
-const { t, locale } = useI18n();
+const i18n = useI18n();
+const { t } = i18n;
 const isLoading = ref(false);
 const isPasskeySupported = ref(false);
 const isPasskeyAvailable = ref(false);
@@ -166,10 +166,8 @@ const logoutDelayRemainingSeconds = ref(0);
 const showLogoutConfirmDialog = ref(false);
 const authGrantType = ref<AuthGrantType | undefined>(undefined);
 
-const applySystemLocale = (value: string | null | undefined) => {
-  const next = normalizeLocale(value) ?? "zh-CN";
-  locale.value = next;
-  applyDocumentLocale(next);
+const applySystemLocale = async (value: string | null | undefined) => {
+  await setFnKnockLocale(i18n, value);
 };
 
 const resolveGrantKey = (grantType?: AuthGrantType) => {
@@ -269,7 +267,7 @@ function initLogoutAvailability() {
 async function loadSession() {
   try {
     const session = await AuthAPI.getSession();
-    applySystemLocale(session.locale.default_locale);
+    await applySystemLocale(session.locale.default_locale);
     startLocationPolling(session.client);
     isPasskeyAvailable.value = !!session.passkey.available;
     authGrantType.value = session.auth.grant_type;

@@ -21,6 +21,8 @@ export default defineConfig({
       '@/components/ui': path.resolve(__dirname, '../../packages/ui-vue/src/components/ui'),
       '@/lib/utils': path.resolve(__dirname, '../../packages/ui-vue/src/lib/utils.ts'),
       '@frontend-core': path.resolve(__dirname, '../../packages/frontend-core/src'),
+      '@fn-knock/i18n/core': path.resolve(__dirname, '../../packages/i18n/src/core.ts'),
+      '@fn-knock/i18n/vue/auth': path.resolve(__dirname, '../../packages/i18n/src/vue-auth.ts'),
       '@fn-knock/i18n/vue': path.resolve(__dirname, '../../packages/i18n/src/vue.ts'),
       '@fn-knock/i18n': path.resolve(__dirname, '../../packages/i18n/src/index.ts'),
       '@': path.resolve(__dirname, './src'),

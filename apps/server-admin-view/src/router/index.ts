@@ -6,7 +6,7 @@ import { useDockerAdminAuthStore } from "../store/dockerAdminAuth";
 import { pinia } from "../store";
 import { isRouteNavigating, pendingNavPath } from "./navigation-state";
 import { toast } from "@admin-shared/utils/toast";
-import { browserT } from "@fn-knock/i18n/vue";
+import { browserT } from "@fn-knock/i18n/vue/admin";
 import {
   isAnySubdomainRoutingMode,
   isReverseProxySubdomainMode,

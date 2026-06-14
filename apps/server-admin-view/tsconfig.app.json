@@ -10,6 +10,8 @@
       "@frontend-core/*": ["../../packages/frontend-core/src/*"],
       "@admin-shared/*": ["../../packages/admin-shared/src/*"],
       "@fn-knock/i18n": ["../../packages/i18n/src/index.ts"],
+      "@fn-knock/i18n/core": ["../../packages/i18n/src/core.ts"],
+      "@fn-knock/i18n/vue/admin": ["../../packages/i18n/src/vue-admin.ts"],
       "@fn-knock/i18n/vue": ["../../packages/i18n/src/vue.ts"],
       "@/*": [
         "./src/*"

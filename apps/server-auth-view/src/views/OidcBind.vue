@@ -64,8 +64,8 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api";
-import { normalizeLocale, type LocaleConfig } from "@fn-knock/i18n";
-import { applyDocumentLocale } from "@fn-knock/i18n/vue";
+import type { LocaleConfig } from "@fn-knock/i18n/core";
+import { setFnKnockLocale } from "@fn-knock/i18n/vue/auth";
 
 type InviteDetails = {
   locale: LocaleConfig;
@@ -85,12 +85,11 @@ const errorMessage = ref("");
 const isLoading = ref(true);
 const isStarting = ref(false);
 const activeProviderId = ref("");
-const { t, locale } = useI18n();
+const i18n = useI18n();
+const { t } = i18n;
 
-const applySystemLocale = (value: string | null | undefined) => {
-  const next = normalizeLocale(value) ?? "zh-CN";
-  locale.value = next;
-  applyDocumentLocale(next);
+const applySystemLocale = async (value: string | null | undefined) => {
+  await setFnKnockLocale(i18n, value);
 };
 
 const description = computed(() => {
@@ -110,12 +109,12 @@ async function loadInvite() {
       params: { token },
     });
     invite.value = res.data.data;
-    applySystemLocale(invite.value?.locale?.default_locale);
+    await applySystemLocale(invite.value?.locale?.default_locale);
     if (!invite.value?.providers.length) {
       throw new Error(t("auth.oidcBind.noProviders"));
     }
   } catch (error: any) {
-    applySystemLocale(error?.response?.data?.data?.locale?.default_locale);
+    await applySystemLocale(error?.response?.data?.data?.locale?.default_locale);
     errorMessage.value =
       error?.response?.data?.message ||
       error?.message ||

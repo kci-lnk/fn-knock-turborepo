@@ -3,7 +3,7 @@ import { computed, ref } from 'vue';
 import { UpdateAPI, type UpdateStatusPayload } from '../lib/api';
 import { toast } from '@admin-shared/utils/toast';
 import { extractErrorMessage } from '@admin-shared/composables/useAsyncAction';
-import { browserT } from '@fn-knock/i18n/vue';
+import { browserT } from '@fn-knock/i18n/vue/admin';
 
 const POLL_IDLE_MS = 15_000;
 const POLL_BUSY_MS = 1_000;

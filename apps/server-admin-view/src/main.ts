@@ -4,12 +4,16 @@ import "nprogress/nprogress.css";
 import App from "./App.vue";
 import router from "./router";
 import { pinia } from "./store";
-import { createFnKnockI18n } from "@fn-knock/i18n/vue";
+import { createFnKnockI18n } from "@fn-knock/i18n/vue/admin";
 
-const app = createApp(App);
-const i18n = createFnKnockI18n();
-app.use(pinia);
-app.use(router);
-app.use(i18n);
+const bootstrap = async () => {
+  const app = createApp(App);
+  const i18n = await createFnKnockI18n({ scope: "admin" });
+  app.use(pinia);
+  app.use(router);
+  app.use(i18n);
 
-app.mount("#app");
+  app.mount("#app");
+};
+
+void bootstrap();

@@ -78,6 +78,8 @@ export default defineConfig({
       '@/lib/utils': path.resolve(__dirname, '../../packages/ui-vue/src/lib/utils.ts'),
       '@frontend-core': path.resolve(__dirname, '../../packages/frontend-core/src'),
       '@admin-shared': path.resolve(__dirname, '../../packages/admin-shared/src'),
+      '@fn-knock/i18n/core': path.resolve(__dirname, '../../packages/i18n/src/core.ts'),
+      '@fn-knock/i18n/vue/admin': path.resolve(__dirname, '../../packages/i18n/src/vue-admin.ts'),
       '@fn-knock/i18n/vue': path.resolve(__dirname, '../../packages/i18n/src/vue.ts'),
       '@fn-knock/i18n': path.resolve(__dirname, '../../packages/i18n/src/index.ts'),
       '@': path.resolve(__dirname, './src'),

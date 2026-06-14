@@ -9,12 +9,12 @@ import DockerAdminAccessGate from "./components/DockerAdminAccessGate.vue";
 import WelcomeScreen from "./components/WelcomeScreen.vue";
 import { ConfigAPI } from "./lib/api";
 import { useDockerAdminAuthStore } from "./store/dockerAdminAuth";
-import { normalizeLocale } from "@fn-knock/i18n";
-import { applyDocumentLocale } from "@fn-knock/i18n/vue";
+import { setFnKnockLocale } from "@fn-knock/i18n/vue/admin";
 
 const WELCOME_GUIDE_STORAGE_KEY = "fn_knock:welcome-guide:completed";
 const dockerAdminAuthStore = useDockerAdminAuthStore();
-const { t, locale } = useI18n();
+const i18n = useI18n();
+const { t } = i18n;
 
 const readWelcomeGuideLocalFlag = () => {
   if (typeof window === "undefined") return false;
@@ -62,10 +62,8 @@ const toastOptions = {
   duration: 2500
 };
 
-const applySystemLocale = (value: string | null | undefined) => {
-  const next = normalizeLocale(value) ?? "zh-CN";
-  locale.value = next;
-  applyDocumentLocale(next);
+const applySystemLocale = async (value: string | null | undefined) => {
+  await setFnKnockLocale(i18n, value);
 };
 
 const loadWelcomeGuideStatus = async () => {
@@ -204,7 +202,11 @@ watch(
 watch(
   () => dockerAdminAuthStore.state?.locale?.default_locale,
   (next) => {
-    if (next) applySystemLocale(next);
+    if (next) {
+      void applySystemLocale(next).catch((error) => {
+        console.error("Failed to apply system locale", error);
+      });
+    }
   },
   { immediate: true },
 );

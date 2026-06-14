@@ -1,6 +1,6 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
-import { browserT } from "@fn-knock/i18n/vue";
+import { browserT } from "@fn-knock/i18n/vue/admin";
 import type { DockerAdminBootstrapState } from "../types";
 import { ConfigAPI } from "../lib/api";
 import {

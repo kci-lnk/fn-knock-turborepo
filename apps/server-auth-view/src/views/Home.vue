@@ -1,7 +1,7 @@
 <template>
-  <div class="auth-safe-shell flex flex-col bg-muted/40">
+  <div class="auth-safe-shell auth-visual-shell flex flex-col">
     <div class="flex flex-1 items-center justify-center">
-      <Card v-if="isCheckingAuth" class="w-full max-w-sm">
+      <Card v-if="isCheckingAuth" class="auth-glass-card w-full max-w-sm">
         <CardHeader>
           <Skeleton class="h-8 w-44 mx-auto" />
           <Skeleton class="h-4 w-48 mx-auto mt-2" />
@@ -12,7 +12,7 @@
         </CardContent>
       </Card>
 
-      <Card v-else class="w-full max-w-sm">
+      <Card v-else class="auth-glass-card w-full max-w-sm">
         <CardHeader>
           <CardTitle class="text-2xl text-center">{{ statusTitle }}</CardTitle>
           <CardDescription class="text-center">

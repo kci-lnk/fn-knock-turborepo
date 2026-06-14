@@ -7,7 +7,7 @@
 .theme-grid-background {
   background-color: var(--background);
   background-image: radial-gradient(
-    color-mix(in oklch, var(--foreground) 12%, transparent) 1px,
+    color-mix(in oklch, var(--foreground) 16%, transparent) 1px,
     transparent 1px
   );
   background-size: 16px 16px;
@@ -137,5 +137,75 @@
     padding-right: calc(env(safe-area-inset-right) + 1rem);
     padding-bottom: calc(env(safe-area-inset-bottom) + 1rem);
     padding-left: calc(env(safe-area-inset-left) + 1rem);
+  }
+
+  .auth-visual-shell {
+    position: relative;
+    isolation: isolate;
+    background:
+      radial-gradient(
+        circle at 28% 18%,
+        color-mix(in oklch, var(--primary) 12%, transparent),
+        transparent 28rem
+      ),
+      radial-gradient(
+        circle at 76% 72%,
+        color-mix(in oklch, var(--foreground) 7%, transparent),
+        transparent 30rem
+      );
+  }
+
+  .auth-glass-card {
+    position: relative;
+    overflow: hidden;
+    border-color: color-mix(in oklch, var(--foreground) 14%, transparent);
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in oklch, var(--card) 64%, transparent),
+        color-mix(in oklch, var(--card) 46%, transparent)
+      );
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklch, var(--foreground) 13%, transparent),
+      0 24px 80px color-mix(in oklch, var(--foreground) 13%, transparent);
+    backdrop-filter: blur(28px) saturate(170%);
+    -webkit-backdrop-filter: blur(28px) saturate(170%);
+  }
+
+  .auth-glass-card::before {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(
+        135deg,
+        color-mix(in oklch, var(--foreground) 10%, transparent),
+        transparent 42%
+      ),
+      radial-gradient(
+        circle at 18% 0%,
+        color-mix(in oklch, var(--background) 55%, transparent),
+        transparent 28rem
+      );
+    opacity: 0.46;
+  }
+
+  .auth-glass-card > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .dark .auth-glass-card {
+    border-color: color-mix(in oklch, var(--foreground) 15%, transparent);
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in oklch, var(--card) 58%, transparent),
+        color-mix(in oklch, var(--card) 40%, transparent)
+      );
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklch, var(--foreground) 10%, transparent),
+      0 24px 88px rgb(0 0 0 / 34%);
   }
 }

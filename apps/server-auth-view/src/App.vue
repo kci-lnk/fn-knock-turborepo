@@ -1,6 +1,5 @@
 <template>
-  <div class="theme-grid-background absolute inset-0 -z-10 h-full w-full">
-  </div>
+  <div class="theme-grid-background fixed inset-0 -z-20 h-screen w-screen"></div>
   <div
     class="fixed right-[calc(env(safe-area-inset-right)+1rem)] top-[calc(env(safe-area-inset-top)+1rem)] z-30"
   >

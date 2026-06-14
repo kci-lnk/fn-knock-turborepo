@@ -1,7 +1,7 @@
 <template>
-  <div class="auth-safe-shell flex flex-col bg-muted/40">
+  <div class="auth-safe-shell auth-visual-shell flex flex-col">
     <div class="flex flex-1 items-center justify-center">
-      <Card class="w-full max-w-sm">
+      <Card class="auth-glass-card w-full max-w-sm">
         <CardHeader>
           <CardTitle class="text-2xl text-center">
             {{ t("auth.oidcBind.title") }}

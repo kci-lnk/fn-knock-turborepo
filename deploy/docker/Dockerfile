@@ -13,6 +13,7 @@ COPY apps/server-auth-view/package.json ./apps/server-auth-view/package.json
 COPY packages/admin-shared/package.json ./packages/admin-shared/package.json
 COPY packages/eslint-config/package.json ./packages/eslint-config/package.json
 COPY packages/frontend-core/package.json ./packages/frontend-core/package.json
+COPY packages/i18n/package.json ./packages/i18n/package.json
 COPY packages/typescript-config/package.json ./packages/typescript-config/package.json
 COPY packages/ui-vue/package.json ./packages/ui-vue/package.json
 

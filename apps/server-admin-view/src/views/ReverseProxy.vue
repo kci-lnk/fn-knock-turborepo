@@ -2,12 +2,13 @@
   <Card class="mb-6">
     <CardHeader>
       <CardTitle class="flex justify-between items-center">
-        <span>路径映射</span>
+        <span>{{ t("admin.reverseProxy.title") }}</span>
         <div class="flex items-center gap-2">
           <DocsLinkButton :href="docsUrls.guides.reverseProxy" />
           <div class="flex">
             <Button @click="openDiscoverDialog" class="rounded-r-none">
-              <Search class="mr-2 w-4 h-4" /> 一键发现
+              <Search class="mr-2 w-4 h-4" />
+              {{ t("admin.reverseProxy.discover") }}
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger as-child>
@@ -21,31 +22,34 @@
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem @click="openAddDialog">
-                  <Plus class="mr-2 h-4 w-4" /> 添加映射
+                  <Plus class="mr-2 h-4 w-4" />
+                  {{ t("admin.reverseProxy.addMapping") }}
                 </DropdownMenuItem>
                 <DropdownMenuItem @click="syncRoutes" :disabled="isSyncing">
                   <RefreshCw
                     class="mr-2 h-4 w-4"
                     :class="{ 'animate-spin': isSyncing }"
                   />
-                  {{ isSyncing ? "同步中..." : "同步路由" }}
+                  {{
+                    isSyncing
+                      ? t("admin.reverseProxy.syncing")
+                      : t("admin.reverseProxy.syncRoutes")
+                  }}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </div>
       </CardTitle>
-      <CardDescription
-        >配置路径映射以将请求路由到后端服务。用户访问端口：{{
-          accessEntryPort
-        }}。</CardDescription
-      >
+      <CardDescription>{{
+        t("admin.reverseProxy.description", { port: accessEntryPort })
+      }}</CardDescription>
     </CardHeader>
     <CardContent>
       <div class="flex items-center mb-4 space-x-2">
         <SearchInput
           v-model="searchQuery"
-          placeholder="搜索路径或目标地址..."
+          :placeholder="t('admin.reverseProxy.searchPlaceholder')"
           class="max-w-xs"
         />
       </div>
@@ -54,10 +58,12 @@
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>触发路径</TableHead>
-              <TableHead>目标地址</TableHead>
-              <TableHead>选项配置</TableHead>
-              <TableHead class="text-right">操作</TableHead>
+              <TableHead>{{ t("admin.reverseProxy.columns.path") }}</TableHead>
+              <TableHead>{{ t("admin.reverseProxy.columns.target") }}</TableHead>
+              <TableHead>{{ t("admin.reverseProxy.columns.options") }}</TableHead>
+              <TableHead class="text-right">{{
+                t("admin.reverseProxy.columns.actions")
+              }}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -66,7 +72,7 @@
                 colspan="4"
                 class="text-center text-muted-foreground py-6"
               >
-                未找到反代映射。
+                {{ t("admin.reverseProxy.empty") }}
               </TableCell>
             </TableRow>
             <TableRow
@@ -85,27 +91,27 @@
                     variant="secondary"
                     class="border border-emerald-500/30 bg-emerald-500/10 text-emerald-700"
                   >
-                    默认路由
+                    {{ t("admin.reverseProxy.defaultRoute") }}
                   </Badge>
                   <span
                     v-if="mapping.rewrite_html"
                     class="px-2 py-0.5 bg-muted rounded"
-                    >重写HTML</span
+                    >{{ t("admin.reverseProxy.rewriteHtml") }}</span
                   >
                   <span
                     v-if="mapping.use_auth"
                     class="px-2 py-0.5 bg-muted rounded"
-                    >需鉴权</span
+                    >{{ t("admin.reverseProxy.authRequiredShort") }}</span
                   >
                   <span
                     v-if="mapping.use_root_mode"
                     class="px-2 py-0.5 bg-muted rounded"
-                    >根目录模式</span
+                    >{{ t("admin.reverseProxy.rootMode") }}</span
                   >
                   <span
                     v-if="mapping.strip_path"
                     class="px-2 py-0.5 bg-muted rounded"
-                    >去除前缀</span
+                    >{{ t("admin.reverseProxy.stripPath") }}</span
                   >
                 </div>
               </TableCell>
@@ -118,7 +124,7 @@
                     class="border-border text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity mr-2"
                     @click="requestClearDefaultRoute(mapping)"
                   >
-                    清除默认路由
+                    {{ t("admin.reverseProxy.clearDefaultRoute") }}
                   </Button>
                   <Button
                     v-else
@@ -127,7 +133,7 @@
                     class="opacity-0 group-hover:opacity-100 transition-opacity mr-2"
                     @click="requestSetDefaultRoute(mapping)"
                   >
-                    设为默认路由
+                    {{ t("admin.reverseProxy.setDefaultRoute") }}
                   </Button>
 
                   <Button
@@ -135,12 +141,16 @@
                     size="sm"
                     @click="openEditDialog(mapping)"
                   >
-                    编辑
+                    {{ t("admin.reverseProxy.edit") }}
                   </Button>
 
                   <ConfirmDangerPopover
-                    title="确认删除?"
-                    :description="`您即将删除代理路径 ${mapping.path}，此操作不可逆转。`"
+                    :title="t('admin.reverseProxy.deleteConfirmTitle')"
+                    :description="
+                      t('admin.reverseProxy.deleteDescription', {
+                        path: mapping.path,
+                      })
+                    "
                     :loading="removingPath === mapping.path"
                     :disabled="removingPath === mapping.path"
                     :on-confirm="() => removeMapping(mapping)"
@@ -153,7 +163,7 @@
                         class="text-destructive hover:bg-destructive/10 hover:text-destructive"
                         :disabled="removingPath === mapping.path"
                       >
-                        删除
+                        {{ t("admin.reverseProxy.delete") }}
                       </Button>
                     </template>
                   </ConfirmDangerPopover>
@@ -183,61 +193,77 @@
     <DialogContent class="sm:max-w-[425px]">
       <DialogHeader>
         <DialogTitle>{{
-          isEditing ? "编辑反向代理" : "添加反向代理"
+          isEditing
+            ? t("admin.reverseProxy.editTitle")
+            : t("admin.reverseProxy.addTitle")
         }}</DialogTitle>
         <DialogDescription>
-          {{ isEditing ? "修改现有的路径映射配置。" : "配置新的路径映射。" }}
+          {{
+            isEditing
+              ? t("admin.reverseProxy.editDescription")
+              : t("admin.reverseProxy.addDescription")
+          }}
         </DialogDescription>
       </DialogHeader>
       <div class="grid gap-4 py-4">
         <div class="grid grid-cols-4 items-center gap-4">
-          <Label for="path" class="text-right">触发路径</Label>
+          <Label for="path" class="text-right">{{
+            t("admin.reverseProxy.pathLabel")
+          }}</Label>
           <Input
             id="path"
             v-model="newMapping.path"
-            placeholder="例如：/api"
+            :placeholder="t('admin.reverseProxy.pathPlaceholder')"
             class="col-span-3"
           />
         </div>
         <div class="grid grid-cols-4 items-start gap-4">
-          <Label for="target-endpoint" class="pt-2 text-right">目标地址</Label>
+          <Label for="target-endpoint" class="pt-2 text-right">{{
+            t("admin.reverseProxy.targetLabel")
+          }}</Label>
           <ProxyTargetInputField
             v-model="newMapping.target"
             input-id="target-endpoint"
             protocol-id="target-protocol"
-            placeholder="例如：127.0.0.1:8080"
+            :placeholder="t('admin.reverseProxy.targetPlaceholder')"
             class="col-span-3"
           />
         </div>
 
         <div class="grid grid-cols-4 items-center gap-4">
-          <Label class="text-right">配置选项</Label>
+          <Label class="text-right">{{
+            t("admin.reverseProxy.optionsLabel")
+          }}</Label>
           <div class="col-span-3 space-y-2">
             <div class="flex items-center space-x-2">
               <Switch id="rewrite" v-model="newMapping.rewrite_html" />
-              <Label for="rewrite">重写 HTML 内容</Label>
+              <Label for="rewrite">{{
+                t("admin.reverseProxy.rewriteHtmlContent")
+              }}</Label>
             </div>
             <div class="flex items-center space-x-2">
               <Switch id="auth" v-model="newMapping.use_auth" />
-              <Label for="auth">要求身份认证 (鉴权)</Label>
+              <Label for="auth">{{ t("admin.reverseProxy.requireAuth") }}</Label>
             </div>
             <div class="flex items-center space-x-2">
               <Switch id="root" v-model="newMapping.use_root_mode" />
-              <Label for="root">使用根目录模式</Label>
+              <Label for="root">{{ t("admin.reverseProxy.useRootMode") }}</Label>
             </div>
             <div class="flex items-center space-x-2">
               <Switch id="strip" v-model="newMapping.strip_path" />
-              <Label for="strip">去除请求前缀</Label>
+              <Label for="strip">{{
+                t("admin.reverseProxy.stripRequestPrefix")
+              }}</Label>
             </div>
           </div>
         </div>
       </div>
       <DialogFooter>
-        <Button variant="outline" @click="closeMappingDialog(true)"
-          >取消</Button
-        >
+        <Button variant="outline" @click="closeMappingDialog(true)">
+          {{ t("admin.reverseProxy.cancel") }}
+        </Button>
         <Button @click="saveMapping" :disabled="!isValid || isSaving"
-          >保存设置</Button
+          >{{ t("admin.reverseProxy.saveSettings") }}</Button
         >
       </DialogFooter>
     </DialogContent>
@@ -254,7 +280,7 @@
         <div
           class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
         >
-          <DialogTitle>一键发现本地服务</DialogTitle>
+          <DialogTitle>{{ t("admin.reverseProxy.discoverTitle") }}</DialogTitle>
           <div class="flex items-center gap-2">
             <Button
               variant="outline"
@@ -265,7 +291,7 @@
               <SlidersHorizontal class="h-4 w-4" />
             </Button>
             <RefreshButton
-              label="刷新服务"
+              :label="t('admin.reverseProxy.refreshServices')"
               :loading="isDiscovering"
               :disabled="isDiscovering"
               @click="triggerScan"
@@ -273,7 +299,7 @@
           </div>
         </div>
         <DialogDescription>
-          扫描本地端口的运行服务，快速选择并添加至反向代理映射。
+          {{ t("admin.reverseProxy.discoverDescription") }}
         </DialogDescription>
         <ScanDiscoveryTargetsSettings
           ref="discoverTargetsSettingsRef"
@@ -290,7 +316,7 @@
           >
             <RefreshCw class="h-8 w-8 animate-spin text-muted-foreground" />
             <p class="text-sm text-muted-foreground">
-              正在探测端口服务，这可能需要两秒钟...
+              {{ t("admin.reverseProxy.probing") }}
             </p>
           </div>
 
@@ -298,7 +324,7 @@
             v-else-if="discoveredData && discoveredData.services.length === 0"
             class="text-center py-16 text-muted-foreground"
           >
-            未探测到任何可代理的服务。
+            {{ t("admin.reverseProxy.discoverEmpty") }}
           </div>
 
           <div
@@ -319,12 +345,20 @@
                     />
                   </TableHead>
                   <TableHead v-if="showDiscoverHostColumn" class="w-[140px]">
-                    主机
+                    {{ t("admin.reverseProxy.discoverColumns.host") }}
                   </TableHead>
-                  <TableHead class="w-[80px]">端口</TableHead>
-                  <TableHead class="w-[100px]">状态</TableHead>
-                  <TableHead>服务标识</TableHead>
-                  <TableHead class="w-[200px]">建议路径</TableHead>
+                  <TableHead class="w-[80px]">{{
+                    t("admin.reverseProxy.discoverColumns.port")
+                  }}</TableHead>
+                  <TableHead class="w-[100px]">{{
+                    t("admin.reverseProxy.discoverColumns.status")
+                  }}</TableHead>
+                  <TableHead>{{
+                    t("admin.reverseProxy.discoverColumns.serviceId")
+                  }}</TableHead>
+                  <TableHead class="w-[200px]">{{
+                    t("admin.reverseProxy.discoverColumns.suggestedPath")
+                  }}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -351,7 +385,7 @@
                       :href="`http://${resolveDiscoveredServiceHost(svc)}:${svc.port}`"
                       target="_blank"
                       class="text-primary hover:underline hover:text-primary/80 transition-colors"
-                      title="在新窗口打开"
+                      :title="t('admin.reverseProxy.openNewWindow')"
                     >
                       {{ svc.port }}
                     </a>
@@ -360,7 +394,7 @@
                     <span
                       v-if="svc.httpStatus === 401"
                       class="text-amber-600 bg-amber-500/10 text-xs px-2 py-0.5 rounded"
-                      >需认证</span
+                      >{{ t("admin.reverseProxy.authRequiredShort") }}</span
                     >
                     <span
                       v-else
@@ -373,13 +407,13 @@
                       svc.detail.label
                     }}</span>
                     <span v-else class="text-red-500 text-sm font-medium"
-                      >未知服务</span
+                      >{{ t("admin.reverseProxy.unknownService") }}</span
                     >
                   </TableCell>
                   <TableCell>
                     <Input
                       v-model="svc.detail.rule.path"
-                      placeholder="必填，例如 /app"
+                      :placeholder="t('admin.reverseProxy.requiredPathPlaceholder')"
                       class="h-8 text-sm"
                       :class="{
                         'border-destructive focus-visible:ring-destructive':
@@ -398,15 +432,25 @@
       <DialogFooter class="mt-2 shrink-0 items-center sm:justify-between">
         <span class="text-sm text-muted-foreground">
           <template v-if="discoveredData">
-            已扫描 {{ discoveredData.totalPortsScanned }} 个端口，选中
-            {{ selectedServices.length }} /
-            {{ discoveredData.services.length }} 项
+            {{
+              t("admin.reverseProxy.scannedPorts", {
+                count: discoveredData.totalPortsScanned,
+              })
+            }}，{{
+              t("admin.reverseProxy.selectedItems", {
+                count: `${selectedServices.length} / ${discoveredData.services.length}`,
+              })
+            }}
             <template v-if="discoveredData.scanCidrs?.length">
-              ，覆盖 {{ discoveredData.scanCidrs.length }} 个网段 /
-              {{
-                discoveredData.scanHostCount || discoveredData.scannedHosts || 0
+              ，{{
+                t("admin.reverseProxy.coveredCidrsHosts", {
+                  cidrs: discoveredData.scanCidrs.length,
+                  hosts:
+                    discoveredData.scanHostCount ||
+                    discoveredData.scannedHosts ||
+                    0,
+                })
               }}
-              台主机
             </template>
             <template
               v-if="
@@ -415,18 +459,18 @@
                 discoveredData.scannedHosts > 1
               "
             >
-              ，覆盖
               {{
-                discoveredData.scanScope ||
-                `${discoveredData.scannedHosts} 台主机`
+                t("admin.reverseProxy.coveredHosts", {
+                  hosts: discoveredData.scanScope || discoveredData.scannedHosts,
+                })
               }}
             </template>
           </template>
         </span>
         <div class="space-x-2">
-          <Button variant="outline" @click="closeDiscoverDialog(true)"
-            >取消</Button
-          >
+          <Button variant="outline" @click="closeDiscoverDialog(true)">
+            {{ t("admin.reverseProxy.cancel") }}
+          </Button>
           <Button
             @click="saveDiscoveredServices"
             :disabled="
@@ -436,7 +480,7 @@
               isSaving
             "
           >
-            添加选中项
+            {{ t("admin.reverseProxy.addSelected") }}
           </Button>
         </div>
       </DialogFooter>
@@ -453,7 +497,7 @@
         <DialogDescription class="space-y-2 text-left">
           <p>{{ defaultRouteDialogDescription }}</p>
           <p v-if="showDefaultRouteFnosHint" class="text-amber-600">
-            当前默认路由为飞牛 OS，建议保留 5666 端口对应路由作为默认路由。
+            {{ t("admin.reverseProxy.fnosDefaultRouteHint") }}
           </p>
         </DialogDescription>
       </DialogHeader>
@@ -463,14 +507,18 @@
           :disabled="isSavingDefaultRoute"
           @click="closeDefaultRouteConfirm"
         >
-          取消
+          {{ t("admin.reverseProxy.cancel") }}
         </Button>
         <Button
           variant="destructive"
           :disabled="isSavingDefaultRoute"
           @click="confirmDefaultRouteChange"
         >
-          {{ isSavingDefaultRoute ? "处理中..." : "继续操作" }}
+          {{
+            isSavingDefaultRoute
+              ? t("admin.reverseProxy.processing")
+              : t("admin.reverseProxy.continueAction")
+          }}
         </Button>
       </DialogFooter>
     </DialogContent>
@@ -479,6 +527,7 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted } from "vue";
+import { useI18n } from "vue-i18n";
 import {
   Card,
   CardHeader,
@@ -549,7 +598,7 @@ import {
   DEFAULT_PROXY_MAPPING_FLAGS,
 } from "@admin-shared/utils/proxyMapping";
 import {
-  REVERSE_PROXY_MESSAGES,
+  createReverseProxyMessages,
   showReverseProxyActionError,
   showReverseProxyBooleanResultToast,
   showReverseProxyDuplicateItemsError,
@@ -560,6 +609,8 @@ import {
 } from "@admin-shared/utils/validateProxyMappingDuplicates";
 
 const currentHostname = window.location.hostname;
+const { t } = useI18n();
+const reverseProxyMessages = createReverseProxyMessages(t);
 const discoverTargetsSettingsRef = ref<InstanceType<
   typeof ScanDiscoveryTargetsSettings
 > | null>(null);
@@ -578,9 +629,9 @@ const removingPath = ref<string | null>(null);
 const { run: runRemoveMapping } = useAsyncAction({
   onError: (error) => {
     showReverseProxyActionError(
-      REVERSE_PROXY_MESSAGES.deleteFailed,
+      reverseProxyMessages.deleteFailed,
       error,
-      REVERSE_PROXY_MESSAGES.unknownError,
+      reverseProxyMessages.unknownError,
     );
   },
 });
@@ -588,9 +639,9 @@ const { run: runRemoveMapping } = useAsyncAction({
 const { isPending: isSaving, run: runSaveAction } = useAsyncAction({
   onError: (error) => {
     showReverseProxyActionError(
-      REVERSE_PROXY_MESSAGES.saveFailed,
+      reverseProxyMessages.saveFailed,
       error,
-      REVERSE_PROXY_MESSAGES.unknownError,
+      reverseProxyMessages.unknownError,
     );
   },
 });
@@ -614,9 +665,9 @@ const handleMappingDialogOpenChange = (nextOpen: boolean) => {
 const { isPending: isSyncing, run: runSyncRoutes } = useAsyncAction({
   onError: (error) => {
     showReverseProxyActionError(
-      REVERSE_PROXY_MESSAGES.syncFailed,
+      reverseProxyMessages.syncFailed,
       error,
-      REVERSE_PROXY_MESSAGES.networkError,
+      reverseProxyMessages.networkError,
     );
   },
 });
@@ -624,9 +675,9 @@ const { isPending: isSavingDefaultRoute, run: runSaveDefaultRoute } =
   useAsyncAction({
     onError: (error) => {
       showReverseProxyActionError(
-        REVERSE_PROXY_MESSAGES.defaultRouteUpdateFailed,
+        reverseProxyMessages.defaultRouteUpdateFailed,
         error,
-        REVERSE_PROXY_MESSAGES.unknownError,
+        reverseProxyMessages.unknownError,
       );
     },
   });
@@ -743,7 +794,7 @@ async function removeMapping(mapping: ProxyMapping) {
         currentPage.value--;
       }
 
-      toast.success(REVERSE_PROXY_MESSAGES.deleteSuccess);
+      toast.success(reverseProxyMessages.deleteSuccess);
     },
     {
       onFinally: () => {
@@ -772,11 +823,11 @@ async function saveMapping() {
   );
 
   if (duplicatePath) {
-    toast.error(REVERSE_PROXY_MESSAGES.duplicatePath(trimmedPath));
+    toast.error(reverseProxyMessages.duplicatePath(trimmedPath));
     return;
   }
   if (duplicateTarget) {
-    toast.error(REVERSE_PROXY_MESSAGES.duplicateTarget(trimmedTarget));
+    toast.error(reverseProxyMessages.duplicateTarget(trimmedTarget));
     return;
   }
 
@@ -815,8 +866,8 @@ async function saveMapping() {
 
     toast.success(
       isCreate
-        ? REVERSE_PROXY_MESSAGES.createSuccess
-        : REVERSE_PROXY_MESSAGES.updateSuccess,
+        ? reverseProxyMessages.createSuccess
+        : reverseProxyMessages.updateSuccess,
     );
   });
 }
@@ -825,10 +876,11 @@ async function syncRoutes() {
   await runSyncRoutes(() => ConfigAPI.syncRoutes(), {
     onSuccess: (result) => {
       showReverseProxyBooleanResultToast(result, {
-        successText: REVERSE_PROXY_MESSAGES.syncSuccess(
+        successText: reverseProxyMessages.syncSuccess(
           result.data?.synced_rules ?? 0,
         ),
-        errorText: REVERSE_PROXY_MESSAGES.syncFailed,
+        errorText: reverseProxyMessages.syncFailed,
+        unknownErrorText: reverseProxyMessages.unknownError,
       });
     },
   });
@@ -837,9 +889,9 @@ async function syncRoutes() {
 const { isPending: isDiscovering, run: runDiscoverServices } = useAsyncAction({
   onError: (error) => {
     showReverseProxyActionError(
-      REVERSE_PROXY_MESSAGES.scanFailed,
+      reverseProxyMessages.scanFailed,
       error,
-      REVERSE_PROXY_MESSAGES.unknownError,
+      reverseProxyMessages.unknownError,
     );
   },
 });
@@ -882,7 +934,7 @@ const handleDiscoverDialogOpenChange = (nextOpen: boolean) => {
 
 function openDiscoverDialog() {
   openDiscoverDialogState();
-  // 仅当首次或者未扫描时主动触发，也可以每次打开都触发
+  // Trigger the initial scan only when no previous scan data exists.
   if (!discoveredData.value) {
     void nextTick().then(() => triggerScan());
   }
@@ -931,11 +983,21 @@ async function saveDiscoveredServices() {
   );
 
   if (duplicatePaths.length > 0) {
-    showReverseProxyDuplicateItemsError("路径", duplicatePaths);
+    showReverseProxyDuplicateItemsError(
+      reverseProxyMessages.duplicateItems(
+        t("admin.reverseProxy.duplicatePathLabel"),
+        duplicatePaths,
+      ),
+    );
     return;
   }
   if (duplicateTargets.length > 0) {
-    showReverseProxyDuplicateItemsError("目标地址", duplicateTargets);
+    showReverseProxyDuplicateItemsError(
+      reverseProxyMessages.duplicateItems(
+        t("admin.reverseProxy.duplicateTargetLabel"),
+        duplicateTargets,
+      ),
+    );
     return;
   }
 
@@ -959,7 +1021,6 @@ async function saveDiscoveredServices() {
       newList.push(newMap);
       addedCount++;
 
-      // 如果数据中标识该服务应作为默认服务
       if (svc.detail.isDefault) {
         defaultRouteToSet = newMap.path;
       }
@@ -981,7 +1042,7 @@ async function saveDiscoveredServices() {
         defaultRoutePath: defaultRouteToSet,
         resetPage: true,
         onAfterPersist: () => {
-          toast.success(REVERSE_PROXY_MESSAGES.discoverSaveSuccess(addedCount));
+          toast.success(reverseProxyMessages.discoverSaveSuccess(addedCount));
           closeDiscoverDialog(true);
         },
       },

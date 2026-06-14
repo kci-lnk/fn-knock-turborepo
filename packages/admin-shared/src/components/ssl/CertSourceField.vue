@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -47,6 +48,7 @@ const emit = defineEmits<{
   'select-shared-file': [payload: { field: CertFieldKey; relativePath: string }];
 }>();
 
+const { t } = useI18n();
 const localFileInput = ref<HTMLInputElement | null>(null);
 const sourceChooserOpen = ref(false);
 const pickerOpen = ref(false);
@@ -56,7 +58,11 @@ let viewportQuery: MediaQueryList | null = null;
 let viewportQueryListener: ((event: MediaQueryListEvent) => void) | null = null;
 let overlayTimer: ReturnType<typeof window.setTimeout> | null = null;
 
-const uploadLabel = computed(() => (isMobileViewport.value ? '从手机上传' : '从电脑上传'));
+const uploadLabel = computed(() =>
+  isMobileViewport.value
+    ? t('shared.certSourceField.uploadFromPhone')
+    : t('shared.certSourceField.uploadFromComputer'),
+);
 const supportedTypesLabel = computed(() => props.supportedFileTypes.join(' / '));
 
 onMounted(() => {
@@ -195,7 +201,7 @@ function setSourceChooserOpen(value: boolean) {
         @click="openSourceChooser"
       >
         <Upload class="mr-2 h-4 w-4" />
-        上传文件
+        {{ t('shared.certSourceField.uploadFile') }}
       </Button>
     </div>
 
@@ -225,9 +231,11 @@ function setSourceChooserOpen(value: boolean) {
           :is="isMobileViewport ? SheetHeader : DialogHeader"
           class="px-6 pb-0 pt-6"
         >
-          <component :is="isMobileViewport ? SheetTitle : DialogTitle">选择文件来源</component>
+          <component :is="isMobileViewport ? SheetTitle : DialogTitle">
+            {{ t('shared.certSourceField.chooseSourceTitle') }}
+          </component>
           <component :is="isMobileViewport ? SheetDescription : DialogDescription">
-            先选择导入方式，再读取 {{ label }} 文件。
+            {{ t('shared.certSourceField.chooseSourceDescription', { label }) }}
           </component>
         </component>
 
@@ -245,7 +253,11 @@ function setSourceChooserOpen(value: boolean) {
               <div class="grid gap-1">
                 <span class="text-sm font-medium">{{ uploadLabel }}</span>
                 <span class="text-xs leading-5 text-muted-foreground">
-                  从设备中选择 {{ supportedTypesLabel }} 文件并自动读取
+                  {{
+                    t('shared.certSourceField.localFileDescription', {
+                      types: supportedTypesLabel,
+                    })
+                  }}
                 </span>
               </div>
             </div>
@@ -260,9 +272,15 @@ function setSourceChooserOpen(value: boolean) {
             <div class="flex min-w-0 items-start gap-3">
               <FolderTree class="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
               <div class="grid gap-1">
-                <span class="text-sm font-medium">从飞牛中选择</span>
+                <span class="text-sm font-medium">
+                  {{ t('shared.certSourceField.chooseFromFnos') }}
+                </span>
                 <span class="text-xs leading-5 text-muted-foreground">
-                  从 {{ shareName }} 根目录及三层以内读取已有文件
+                  {{
+                    t('shared.certSourceField.sharedFileDescription', {
+                      shareName,
+                    })
+                  }}
                 </span>
               </div>
             </div>
@@ -274,15 +292,17 @@ function setSourceChooserOpen(value: boolean) {
           :is="isMobileViewport ? SheetFooter : DialogFooter"
           class="border-t border-border/50 bg-background/95 px-6 py-4"
         >
-          <Button type="button" variant="outline" @click="sourceChooserOpen = false">取消</Button>
+          <Button type="button" variant="outline" @click="sourceChooserOpen = false">
+            {{ t('common.cancel') }}
+          </Button>
         </component>
       </component>
     </component>
 
     <DataShareFilePicker
       v-model:open="pickerOpen"
-      :title="`从飞牛中选择${label}`"
-      :description="`请先将证书文件移动到 应用数据-> fn-knock目录下`"
+      :title="t('shared.certSourceField.pickerTitle', { label })"
+      :description="t('shared.certSourceField.pickerDescription')"
       :share-name="shareName"
       :files="sharedFiles"
       :supported-file-types="supportedFileTypes"
@@ -290,7 +310,7 @@ function setSourceChooserOpen(value: boolean) {
       :loading="sharedFilesLoading"
       :selecting="sharedFileSelecting"
       :error-message="sharedFilesError"
-      confirm-text="读取此文件"
+      :confirm-text="t('shared.certSourceField.readFile')"
       @refresh="refreshSharedFiles"
       @select="handleSharedFileSelect"
     />

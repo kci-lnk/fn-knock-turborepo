@@ -32,8 +32,13 @@ import {
   getCapabilityUnavailableMessage,
   getRuntimeCapabilities,
 } from "../runtime-profile";
+import { tDefault } from "../i18n";
 
 type CIDRMatcher = ReturnType<typeof buildCIDRMatcher>;
+const sshSecurityT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.sshSecurity.${key}`, params);
 
 const normalizePage = (value: unknown): number => {
   const parsed = Number.parseInt(String(value ?? ""), 10);
@@ -173,7 +178,7 @@ export class SSHSecurityService {
     if (logSource === "unavailable") {
       return {
         available: false,
-        reason: "当前系统未发现 journalctl 或 /var/log/auth.log",
+        reason: sshSecurityT("logSourceUnavailable"),
         log_source: logSource,
       };
     }
@@ -192,7 +197,7 @@ export class SSHSecurityService {
     if (compiled.config.enabled) {
       const availability = await this.getAvailability();
       if (!availability.available) {
-        throw new Error(availability.reason || "当前环境不可启用 SSH 安全");
+        throw new Error(availability.reason || sshSecurityT("enableUnavailable"));
       }
     }
 
@@ -372,7 +377,7 @@ export class SSHSecurityService {
   async syncFirewallBlocks(): Promise<SSHSecurityFirewallSyncResult> {
     const availability = await this.getAvailability();
     if (!availability.available) {
-      throw new Error(availability.reason || "当前环境不可同步 SSH 防火墙");
+      throw new Error(availability.reason || sshSecurityT("syncFirewallUnavailable"));
     }
 
     await this.reconcileExpiredBlocks();
@@ -407,7 +412,7 @@ export class SSHSecurityService {
   async clearFirewall(): Promise<SSHSecurityFirewallClearResult> {
     const availability = await this.getAvailability();
     if (!availability.available) {
-      throw new Error(availability.reason || "当前环境不可清空 SSH 防火墙");
+      throw new Error(availability.reason || sshSecurityT("clearFirewallUnavailable"));
     }
 
     const active = await sshSecurityStore.getActiveBlocks(0);
@@ -493,7 +498,7 @@ export class SSHSecurityService {
         }),
       );
       if (!handle) {
-        throw new Error("SSH 日志源不可用");
+        throw new Error(sshSecurityT("logSourceUnavailableShort"));
       }
       this.followHandle = handle;
       console.log(`[ssh-security] watcher started with ${handle.source}`);

@@ -8,6 +8,7 @@ import type {
   DDNSNetworkInterfaceAddress,
   DDNSNetworkInterfaceOption,
 } from "./types";
+import { ddnsTranslate } from "./providers/helpers";
 
 export const DDNS_NETWORK_INTERFACE_FIELD = "network_interface";
 export const DEFAULT_DDNS_NETWORK_INTERFACE = "";
@@ -34,6 +35,8 @@ const DOCKER_HOST_INTERFACE_PREFIX = "docker-host:";
 const DEFAULT_DOCKER_HOST_IF_INET6_PATH = "/host/proc/net/if_inet6";
 const HOST_IF_INET6_PATH =
   process.env.DDNS_HOST_IF_INET6_PATH || DEFAULT_DOCKER_HOST_IF_INET6_PATH;
+
+const ddnsT = ddnsTranslate;
 
 const IFA_F_TEMPORARY = 0x01;
 const IFA_F_DEPRECATED = 0x20;
@@ -253,13 +256,7 @@ function parseHostIfInet6(content: string): DDNSNetworkInterfaceOption[] {
     const [addressHex, , prefixHex, scopeHex, flagsHex, interfaceName] = line
       .trim()
       .split(/\s+/);
-    if (
-      !addressHex ||
-      !prefixHex ||
-      !scopeHex ||
-      !flagsHex ||
-      !interfaceName
-    ) {
+    if (!addressHex || !prefixHex || !scopeHex || !flagsHex || !interfaceName) {
       continue;
     }
 
@@ -295,8 +292,7 @@ function parseHostIfInet6(content: string): DDNSNetworkInterfaceOption[] {
     .map(([hostName, addresses]) => {
       const sortedAddresses = [...addresses]
         .sort((left, right) => {
-          const scoreDelta =
-            hostIPv6SortScore(left) - hostIPv6SortScore(right);
+          const scoreDelta = hostIPv6SortScore(left) - hostIPv6SortScore(right);
           if (scoreDelta !== 0) return scoreDelta;
           return left.address.localeCompare(right.address);
         })
@@ -307,7 +303,7 @@ function parseHostIfInet6(content: string): DDNSNetworkInterfaceOption[] {
       const summary = formatAddressSummary(sortedAddresses);
       return {
         name: `${DOCKER_HOST_INTERFACE_PREFIX}${hostName}`,
-        label: `宿主机 ${hostName} (${summary})`,
+        label: ddnsT("dockerHostInterfaceLabel", { name: hostName, summary }),
         summary,
         source: "docker_host" as const,
         hasIpv4: false,
@@ -383,7 +379,7 @@ export function listSelectableDDNSInterfaceAddresses(
 function ensureNetworkInterfaceExists(interfaceName: string): void {
   const selected = findDDNSNetworkInterface(interfaceName);
   if (!selected) {
-    throw new Error(`未找到可用网卡: ${interfaceName}`);
+    throw new Error(ddnsT("interfaceNotFound", { name: interfaceName }));
   }
 }
 
@@ -400,7 +396,7 @@ function getPreferredFamilyArgs(preferredFamily?: DDNSAddressFamily): string[] {
 function parseStatusLine(line: string): { status: number; statusText: string } {
   const match = line.match(/^HTTP\/\S+\s+(\d{3})(?:\s+(.*))?$/i);
   if (!match) {
-    throw new Error(`无法解析 curl 响应状态行: ${line}`);
+    throw new Error(ddnsT("curlStatusLineParseFailed", { line }));
   }
 
   return {
@@ -416,7 +412,7 @@ function parseCurlHeaders(rawHeaders: string): {
 } {
   const normalized = rawHeaders.replace(/\r\n/g, "\n").trim();
   if (!normalized) {
-    throw new Error("curl 未返回任何响应头");
+    throw new Error(ddnsT("curlNoHeaders"));
   }
 
   const blocks = normalized
@@ -452,7 +448,7 @@ function createAbortError(signal: AbortSignal | null | undefined): Error {
   if (typeof reason === "string" && reason) {
     return new Error(reason);
   }
-  return new Error("请求已取消");
+  return new Error(ddnsT("requestCanceled"));
 }
 
 async function readRequestBody(request: Request): Promise<Buffer | null> {
@@ -532,7 +528,7 @@ async function executeCurl(
         }
         const detail =
           stderr.trim() || closeSignal || `exit ${code ?? "unknown"}`;
-        reject(new Error(`curl 请求失败: ${detail}`));
+        reject(new Error(ddnsT("curlRequestFailed", { detail })));
       });
     });
 

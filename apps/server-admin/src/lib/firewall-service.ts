@@ -17,8 +17,13 @@ import {
   getCapabilityUnavailableMessage,
   getRuntimeCapabilities,
 } from "./runtime-profile";
+import { tDefault } from "./i18n";
 
 const DISABLED_DEFAULT_ROUTE = "/__select__";
+const firewallT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.firewall.${key}`, params);
 
 export class FirewallService {
   private readonly legacyRedirectedHttpPorts = [80, 443] as const;
@@ -49,7 +54,10 @@ export class FirewallService {
         success: true,
       } satisfies GoResponse<T>;
     }
-    console.error(`Go 后端接口调用失败: ${fallbackMessage}`, result);
+    console.error(
+      firewallT("goBackendCallFailed", { message: fallbackMessage }),
+      result,
+    );
     // throw new Error(fallbackMessage);
     return {
       success: false,
@@ -127,7 +135,10 @@ export class FirewallService {
     strict = false,
   ) {
     for (const listenPort of this.legacyRedirectedHttpPorts) {
-      const fallbackMessage = `清理历史 TCP 重定向 ${listenPort} -> ${targetPort} 失败`;
+      const fallbackMessage = firewallT("clearLegacyTcpRedirectFailed", {
+        listenPort,
+        targetPort,
+      });
       if (strict) {
         await this.runGoBackendOrThrow(
           goBackend.clearTCPRedirect(listenPort, targetPort),
@@ -162,11 +173,14 @@ export class FirewallService {
     });
 
     if (strict) {
-      await this.runGoBackendOrThrow(request, "初始化默认防火墙规则失败");
+      await this.runGoBackendOrThrow(
+        request,
+        firewallT("initDefaultRulesFailed"),
+      );
       return;
     }
 
-    await this.runGoBackend(request, "初始化默认防火墙规则失败");
+    await this.runGoBackend(request, firewallT("initDefaultRulesFailed"));
   }
 
   private async syncActiveWhitelistRecords(
@@ -176,7 +190,9 @@ export class FirewallService {
     const records = await whitelistManager.getAllActiveConcreteTargets(source);
 
     for (const record of records) {
-      const fallbackMessage = `同步白名单目标 ${record.target} 失败`;
+      const fallbackMessage = firewallT("syncWhitelistTargetFailed", {
+        target: record.target,
+      });
       if (strict) {
         await this.runGoBackendOrThrow(
           goBackend.allowIP(record.target),
@@ -208,7 +224,7 @@ export class FirewallService {
     await this.clearLegacyGatewayRedirects(gatewayPort, true);
     await this.runGoBackendOrThrow(
       goBackend.cleanIptables(),
-      "清理防火墙规则失败",
+      firewallT("cleanRulesFailed"),
     );
 
     if (runType === 1) {
@@ -248,7 +264,7 @@ export class FirewallService {
     await this.clearLegacyGatewayRedirects(gatewayPort, true);
     await this.runGoBackendOrThrow(
       goBackend.cleanIptables(),
-      "清理防火墙规则失败",
+      firewallT("cleanRulesFailed"),
     );
 
     return {
@@ -263,13 +279,13 @@ export class FirewallService {
   ) {
     await this.runGoBackend(
       goBackend.setAuthConfig(buildGatewayAuthConfig(config)),
-      "同步鉴权网关配置失败",
+      firewallT("syncAuthGatewayConfigFailed"),
     );
     await this.runGoBackend(
       goBackend.setReverseProxyThrottle(
         config.reverse_proxy_throttle ?? DEFAULT_REVERSE_PROXY_THROTTLE_CONFIG,
       ),
-      "同步反代节流配置失败",
+      firewallT("syncReverseProxyThrottleFailed"),
     );
     await syncReverseProxyTrustedIPsNow({ config }).catch((error) => {
       console.error(
@@ -280,103 +296,130 @@ export class FirewallService {
     try {
       await syncGatewayVisibilityToGateway();
     } catch (error) {
-      console.error("Go 后端接口调用失败: 同步网关可见性配置失败", error);
+      console.error(
+        firewallT("goBackendCallFailed", {
+          message: firewallT("syncGatewayVisibilityConfigFailed"),
+        }),
+        error,
+      );
     }
     try {
       await syncGatewayProxyHeadersRuntimeForConfig(config);
     } catch (error) {
-      console.error("Go 后端接口调用失败: 同步网关协议头配置失败", error);
+      console.error(
+        firewallT("goBackendCallFailed", {
+          message: firewallT("syncGatewayProxyHeadersConfigFailed"),
+        }),
+        error,
+      );
     }
     try {
       await syncGatewayHostResponseRuntimeForConfig(config);
     } catch (error) {
-      console.error("Go 后端接口调用失败: 同步网关 Host 响应配置失败", error);
+      console.error(
+        firewallT("goBackendCallFailed", {
+          message: firewallT("syncGatewayHostResponseConfigFailed"),
+        }),
+        error,
+      );
     }
 
     if (runType === 1) {
       await this.runGoBackend(
         goBackend.setProxyProtocolForce(true),
-        "开启 Proxy Protocol 强制模式失败",
+        firewallT("enableProxyProtocolForceFailed"),
       );
       await this.runGoBackend(
         goBackend.flushStreamRules(),
-        "关闭 协议映射监听失败",
+        firewallT("disableStreamRulesFailed"),
       );
 
       if (isReverseProxySubdomainMode(config)) {
-        await this.runGoBackend(goBackend.flushRules(), "清空路径路由失败");
+        await this.runGoBackend(
+          goBackend.flushRules(),
+          firewallT("flushPathRoutesFailed"),
+        );
         await this.runGoBackend(
           goBackend.setHostRules(config.host_mappings),
-          "同步 Host 路由失败",
+          firewallT("syncHostRoutesFailed"),
         );
         await this.runGoBackend(
           goBackend.setDefaultRoute(DISABLED_DEFAULT_ROUTE),
-          "同步默认路由失败",
+          firewallT("syncDefaultRouteFailed"),
         );
         return;
       }
 
-      await this.runGoBackend(goBackend.flushHostRules(), "清空 Host 路由失败");
+      await this.runGoBackend(
+        goBackend.flushHostRules(),
+        firewallT("flushHostRoutesFailed"),
+      );
       await this.runGoBackend(
         goBackend.setRules(config.proxy_mappings),
-        "同步路径路由失败",
+        firewallT("syncPathRoutesFailed"),
       );
       await this.runGoBackend(
         goBackend.setDefaultRoute(config.default_route),
-        "同步默认路由失败",
+        firewallT("syncDefaultRouteFailed"),
       );
       return;
     }
 
     if (runType === 3) {
+    await this.runGoBackend(
+      goBackend.setProxyProtocolForce(false),
+      firewallT("disableProxyProtocolForceFailed"),
+    );
+    await this.runGoBackend(
+      goBackend.flushRules(),
+      firewallT("flushPathRoutesFailed"),
+    );
+    await this.runGoBackend(
+      goBackend.setHostRules(config.host_mappings),
+      firewallT("syncHostRoutesFailed"),
+    );
+    if (protocolMappingEnabled) {
       await this.runGoBackend(
-        goBackend.setProxyProtocolForce(false),
-        "关闭 Proxy Protocol 强制模式失败",
+        goBackend.setStreamRules(config.stream_mappings),
+        firewallT("syncStreamRulesFailed"),
       );
-      await this.runGoBackend(goBackend.flushRules(), "清空路径路由失败");
+    } else {
       await this.runGoBackend(
-        goBackend.setHostRules(config.host_mappings),
-        "同步 Host 路由失败",
+        goBackend.flushStreamRules(),
+        firewallT("disableStreamRulesFailed"),
       );
-      if (protocolMappingEnabled) {
-        await this.runGoBackend(
-          goBackend.setStreamRules(config.stream_mappings),
-          "同步 协议映射失败",
-        );
-      } else {
-        await this.runGoBackend(
-          goBackend.flushStreamRules(),
-          "关闭 协议映射监听失败",
-        );
-      }
-      await this.runGoBackend(
-        goBackend.setDefaultRoute(config.default_route),
-        "同步默认路由失败",
-      );
+    }
+    await this.runGoBackend(
+      goBackend.setDefaultRoute(config.default_route),
+      firewallT("syncDefaultRouteFailed"),
+    );
       return;
     }
 
     await this.runGoBackend(
       goBackend.setProxyProtocolForce(false),
-      "关闭 Proxy Protocol 强制模式失败",
+      firewallT("disableProxyProtocolForceFailed"),
     );
-    await this.runGoBackend(goBackend.flushHostRules(), "清空 Host 路由失败");
+    await this.runGoBackend(
+      goBackend.flushHostRules(),
+      firewallT("flushHostRoutesFailed"),
+    );
     await this.runGoBackend(
       goBackend.flushStreamRules(),
-      "关闭 协议映射监听失败",
+      firewallT("disableStreamRulesFailed"),
     );
 
     if (runType === 0) {
       if (config.proxy_mappings) {
         await this.runGoBackend(
           goBackend.setRules(config.proxy_mappings),
-          "同步路径路由失败",
+          firewallT("syncPathRoutesFailed"),
         );
       }
       if (config.default_route) {
         await this.runGoBackend(
           goBackend.setDefaultRoute(config.default_route),
-          "同步默认路由失败",
+          firewallT("syncDefaultRouteFailed"),
         );
       }
       await this.runGoBackend(
@@ -390,11 +433,11 @@ export class FirewallService {
             strip_path: false,
           },
         ]),
-        "同步鉴权入口路由失败",
+        firewallT("syncAuthEntryRouteFailed"),
       );
       await this.runGoBackend(
         goBackend.setDefaultRoute("/auth"),
-        "同步鉴权默认路由失败",
+        firewallT("syncAuthDefaultRouteFailed"),
       );
     }
   }
@@ -413,7 +456,10 @@ export class FirewallService {
 
     if (runType === 1) {
       await this.clearLegacyGatewayRedirects(gatewayPort);
-      await this.runGoBackend(goBackend.cleanIptables(), "清理防火墙规则失败");
+      await this.runGoBackend(
+        goBackend.cleanIptables(),
+        firewallT("cleanRulesFailed"),
+      );
       return;
     }
 

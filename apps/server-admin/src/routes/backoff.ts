@@ -2,6 +2,11 @@ import { Elysia, t } from "elysia";
 import { resetAuthFailureTracking } from "../lib/auth-failure";
 import { loginBackoffService } from "../lib/login-backoff";
 import { routeDoc, withRouteDoc } from "../lib/openapi";
+import { configManager } from "../lib/redis";
+import { createRequestTranslator } from "../lib/i18n";
+
+const getBackoffTranslator = async (request: Request) =>
+  createRequestTranslator(request, await configManager.getLocaleConfig());
 
 export const backoffRoutes = new Elysia({
   prefix: "/api/admin/backoff",
@@ -17,11 +22,12 @@ export const backoffRoutes = new Elysia({
   )
   .get(
     "/status",
-    async ({ query, set }) => {
+    async ({ request, query, set }) => {
+      const { t } = await getBackoffTranslator(request);
       const ip = query.ip as string | undefined;
       if (!ip) {
         set.status = 400;
-        return { success: false, message: "ip 参数缺失" };
+        return { success: false, message: t("server.backoffRoutes.ipRequired") };
       }
       const st = await loginBackoffService.getStatus(ip);
       return { success: true, data: st };

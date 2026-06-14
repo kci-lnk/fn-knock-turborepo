@@ -9,6 +9,12 @@ import {
   type HostMapping,
 } from "./redis";
 import { isAnySubdomainRoutingMode } from "./reverse-proxy-submode";
+import { tDefault } from "./i18n";
+
+const gatewayProxyHeadersT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.gatewayProxyHeaders.${key}`, params);
 
 export interface GatewayProxyHeadersItem {
   host: string;
@@ -44,9 +50,9 @@ const normalizeHostLike = (value: string | undefined | null): string =>
     .replace(/\.+$/, "");
 
 const getRunTypeLabel = (runType: 0 | 1 | 3) => {
-  if (runType === 0) return "直连模式";
-  if (runType === 1) return "反代模式";
-  return "子域模式";
+  if (runType === 0) return gatewayProxyHeadersT("runTypes.direct");
+  if (runType === 1) return gatewayProxyHeadersT("runTypes.reverseProxy");
+  return gatewayProxyHeadersT("runTypes.subdomain");
 };
 
 const getVisibleHostMappings = (
@@ -95,7 +101,9 @@ export const buildGatewayProxyHeadersAvailability = (
 
   return {
     available: false,
-    reason: `仅子域模式可用，当前为${getRunTypeLabel(config.run_type)}。`,
+    reason: gatewayProxyHeadersT("unavailableReason", {
+      mode: getRunTypeLabel(config.run_type),
+    }),
   };
 };
 
@@ -198,7 +206,7 @@ export const syncGatewayProxyHeadersToGateway = async (
   const response = await goBackend.setForwardedHeadersConfig(nextRuntime);
 
   if (!response.success) {
-    throw new Error(response.message || "同步网关协议头配置失败");
+    throw new Error(response.message || gatewayProxyHeadersT("syncFailed"));
   }
 
   return nextRuntime;

@@ -1,8 +1,9 @@
 import { AnalyzerRule } from "../../types";
+import { scannerServiceLabel } from "../labels";
 
 export const kuakeRule: AnalyzerRule = {
   name: "Kuake",
-  label: '夸克自动转存',
+  label: scannerServiceLabel("kuake"),
   rule: {
     path: '/kuake',
     rewrite_html: false,

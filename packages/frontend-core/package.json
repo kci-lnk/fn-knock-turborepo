@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "dependencies": {
+    "@fn-knock/i18n": "^0.0.0",
     "axios": "^1.13.5",
     "crypto-js": "^4.2.0"
   },

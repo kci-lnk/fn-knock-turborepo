@@ -12,12 +12,19 @@ import {
   truncateText,
   truncateUtf8ByBytes,
 } from "./shared";
+import { tDefault } from "../../i18n";
+
+const serverchanT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) =>
+  tDefault(`server.notifications.providers.catalog.serverchan.${key}`, params);
 
 const SERVERCHAN_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   {
     key: "server_url",
-    label: "服务地址",
-    description: "官方接口保持默认值即可。",
+    label: serverchanT("fields.server_url.label"),
+    description: serverchanT("fields.server_url.description"),
     placeholder: "https://sctapi.ftqq.com",
     type: "string",
     required: true,
@@ -26,7 +33,7 @@ const SERVERCHAN_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   {
     key: "sendkey",
     label: "SendKey",
-    description: "Server酱·Turbo 提供的 SendKey，请妥善保管。",
+    description: serverchanT("fields.sendkey.description"),
     placeholder: "SCTxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     type: "string",
     required: true,
@@ -34,7 +41,7 @@ const SERVERCHAN_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   },
   {
     key: "timeout_seconds",
-    label: "超时秒数",
+    label: serverchanT("fields.timeout_seconds.label"),
     type: "number",
     required: true,
     default_value: 5,
@@ -46,32 +53,29 @@ const SERVERCHAN_CONNECTION_SCHEMA: NotificationSchemaField[] = [
 const SERVERCHAN_TARGET_SCHEMA: NotificationSchemaField[] = [
   {
     key: "channel",
-    label: "消息通道",
-    description:
-      "可选。动态指定本次推送的通道，最多两个值，使用 | 分隔，例如 9|66。",
+    label: serverchanT("fields.channel.label"),
+    description: serverchanT("fields.channel.description"),
     placeholder: "9|66",
     type: "string",
   },
   {
     key: "openid",
     label: "OpenID / UID",
-    description:
-      "可选。测试号使用 openid，企业微信应用消息使用接收人的 UID；多个值请按 Server酱 文档格式填写。",
-    placeholder: "openid1,openid2 或 uid1|uid2",
+    description: serverchanT("fields.openid.description"),
+    placeholder: serverchanT("fields.openid.placeholder"),
     type: "string",
   },
   {
     key: "short",
-    label: "卡片摘要",
-    description:
-      "可选。消息卡片的简短摘要，最长 64 个字符；留空时由 Server酱 自动截取正文。",
-    placeholder: "登录异常，请尽快处理",
+    label: serverchanT("fields.short.label"),
+    description: serverchanT("fields.short.description"),
+    placeholder: serverchanT("fields.short.placeholder"),
     type: "string",
   },
   {
     key: "noip",
-    label: "隐藏调用 IP",
-    description: "启用后本次推送不会展示调用来源 IP。",
+    label: serverchanT("fields.noip.label"),
+    description: serverchanT("fields.noip.description"),
     type: "boolean",
     default_value: false,
   },
@@ -79,9 +83,8 @@ const SERVERCHAN_TARGET_SCHEMA: NotificationSchemaField[] = [
 
 export const serverchanProviderDefinition: NotificationProviderDefinition = {
   type: "serverchan",
-  label: "Server酱",
-  description:
-    "通过 Server酱·Turbo 发送 Markdown 通知，可复用网站中配置好的默认接收通道。",
+  label: serverchanT("label"),
+  description: serverchanT("description"),
   connection_schema: SERVERCHAN_CONNECTION_SCHEMA,
   target_schema: SERVERCHAN_TARGET_SCHEMA,
   sensitive_fields: ["sendkey"],
@@ -170,7 +173,7 @@ export const sendServerChanMessage = async (args: {
     return {
       success: false,
       retryable: false,
-      reason: "Missing Server酱 SendKey",
+      reason: serverchanT("errors.missingSendKey"),
     };
   }
 
@@ -178,7 +181,9 @@ export const sendServerChanMessage = async (args: {
   const urlToSend = `${baseUrl.replace(/\/+$/, "")}/${sendkey}.send`;
   const title = truncateText(
     toTrimmedString(
-      args.message.title || args.message.summary || "fn-knock 通知",
+      args.message.title ||
+        args.message.summary ||
+        serverchanT("message.fallbackTitle"),
     ),
     32,
   );
@@ -192,7 +197,7 @@ export const sendServerChanMessage = async (args: {
   const noip = Boolean(targetConfig.noip);
 
   const body = new URLSearchParams({
-    title: title || "fn-knock 通知",
+    title: title || serverchanT("message.fallbackTitle"),
     ...(desp ? { desp } : {}),
     ...(short ? { short } : {}),
     ...(channel ? { channel } : {}),
@@ -240,7 +245,8 @@ export const sendServerChanMessage = async (args: {
         !succeeded && (response.status >= 500 || response.status === 429),
       reason: succeeded
         ? undefined
-        : apiMessage || `Server酱 returned ${response.status}`,
+        : apiMessage ||
+          serverchanT("errors.requestReturned", { status: response.status }),
       request_summary: {
         method: "POST",
         endpoint: baseUrl,
@@ -266,7 +272,9 @@ export const sendServerChanMessage = async (args: {
       success: false,
       retryable: true,
       reason:
-        error instanceof Error ? error.message : "Server酱 request failed",
+        error instanceof Error
+          ? error.message
+          : serverchanT("errors.requestFailed"),
       request_summary: {
         method: "POST",
         endpoint: baseUrl,

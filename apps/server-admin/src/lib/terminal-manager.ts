@@ -8,6 +8,7 @@ import { dataPath } from "./AppDirManager";
 import { homedir } from "node:os";
 import { configManager } from "./redis";
 import { collectStreamOutput, sleep, waitForProcessExit } from "./runtime";
+import { tDefault } from "./i18n";
 import { terminalStore } from "./terminal-store";
 import {
   DEFAULT_TERMINAL_ATTACHMENT_TTL_SECONDS,
@@ -26,6 +27,11 @@ import {
 
 const DEFAULT_CWD = homedir();
 
+const terminalT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+): string => tDefault(`server.terminal.${key}`, params);
+
 const TMUX_TARGET_PANE_SUFFIX = ":0.0";
 const TERMINAL_STREAM_DIR_NAME = "terminal-streams";
 const TERMINAL_STREAM_CHUNK_MAX_BYTES = 256 * 1024;
@@ -33,7 +39,7 @@ const TERMINAL_SNAPSHOT_SCROLLBACK_ROWS = 200;
 const INPUT_SESSION_TOUCH_THROTTLE_MS = 5_000;
 const INPUT_PIPE_OPEN_FLAGS =
   fsConstants.O_WRONLY | (fsConstants.O_NONBLOCK ?? 0);
-const DEFAULT_SESSION_TITLE_PREFIX = "会话-";
+const DEFAULT_SESSION_TITLE_PREFIX = terminalT("defaultSessionTitlePrefix");
 const TMUX_ABSOLUTE_FALLBACK_PATH = "/usr/bin/tmux";
 const DEBIAN_APT_GET_PATH = "/usr/bin/apt-get";
 const ZSH_SHELL_CANDIDATES = ["zsh", "/bin/zsh", "/usr/bin/zsh"];
@@ -96,8 +102,13 @@ const parseOutputCursor = (
 
 const shellQuote = (value: string): string =>
   `'${value.replace(/'/g, `'\"'\"'`)}'`;
+const escapeRegExp = (value: string): string =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const dedupeStrings = (values: string[]): string[] =>
   Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+const DEFAULT_SESSION_TITLE_PATTERN = new RegExp(
+  `^${escapeRegExp(DEFAULT_SESSION_TITLE_PREFIX)}(\\d+)$`,
+);
 
 class TerminalManager {
   private tmuxExecutableInfoPromise: Promise<TmuxExecutableInfo | null> | null =
@@ -106,7 +117,7 @@ class TerminalManager {
   private tmuxInstallState: TerminalTmuxInstallState = {
     status: "uninstalled",
     progress: 0,
-    message: "未检测到 tmux，请先安装 tmux 环境",
+    message: terminalT("tmuxNotDetectedInstallFirst"),
     executablePath: "",
     detectionSource: null,
     version: "",
@@ -238,7 +249,9 @@ class TerminalManager {
       this.tmuxInstallState = {
         status: "installed",
         progress: 100,
-        message: `tmux 已就绪：${tmuxInfo.version}`,
+        message: terminalT("tmuxReadyWithVersion", {
+          version: tmuxInfo.version,
+        }),
         executablePath: tmuxInfo.path,
         detectionSource: tmuxInfo.detectionSource,
         version: tmuxInfo.version,
@@ -253,7 +266,7 @@ class TerminalManager {
     this.tmuxInstallState = {
       status: "uninstalled",
       progress: 0,
-      message: "未检测到 tmux，请先安装 tmux 环境",
+      message: terminalT("tmuxNotDetectedInstallFirst"),
       executablePath: "",
       detectionSource: null,
       version: "",
@@ -266,7 +279,7 @@ class TerminalManager {
       this.tmuxInstallState = {
         status: "installing",
         progress: 15,
-        message: "正在刷新 Debian 软件源...",
+        message: terminalT("refreshingApt"),
         executablePath: "",
         detectionSource: null,
         version: "",
@@ -274,13 +287,13 @@ class TerminalManager {
       await this.ensureProcessSucceeded(
         DEBIAN_APT_GET_PATH,
         ["update"],
-        "apt-get update 执行失败",
+        terminalT("aptUpdateFailed"),
       );
 
       this.tmuxInstallState = {
         status: "installing",
         progress: 60,
-        message: "正在安装 tmux...",
+        message: terminalT("installingTmux"),
         executablePath: "",
         detectionSource: null,
         version: "",
@@ -288,13 +301,13 @@ class TerminalManager {
       await this.ensureProcessSucceeded(
         DEBIAN_APT_GET_PATH,
         ["install", "-y", "tmux"],
-        "apt-get install tmux 执行失败",
+        terminalT("aptInstallTmuxFailed"),
       );
 
       this.tmuxInstallState = {
         status: "installing",
         progress: 90,
-        message: "正在验证 tmux 安装结果...",
+        message: terminalT("verifyingTmuxInstall"),
         executablePath: "",
         detectionSource: null,
         version: "",
@@ -303,13 +316,15 @@ class TerminalManager {
 
       const tmuxInfo = await this.detectTmuxExecutable();
       if (!tmuxInfo) {
-        throw new Error("安装完成后仍未检测到 tmux");
+        throw new Error(terminalT("tmuxMissingAfterInstall"));
       }
 
       this.tmuxInstallState = {
         status: "installed",
         progress: 100,
-        message: `tmux 安装完成：${tmuxInfo.version}`,
+        message: terminalT("tmuxInstallCompleteWithVersion", {
+          version: tmuxInfo.version,
+        }),
         executablePath: tmuxInfo.path,
         detectionSource: tmuxInfo.detectionSource,
         version: tmuxInfo.version,
@@ -322,7 +337,7 @@ class TerminalManager {
         message:
           error instanceof Error && error.message.trim()
             ? error.message.trim()
-            : "tmux 安装失败",
+            : terminalT("tmuxInstallFailed"),
         executablePath: "",
         detectionSource: null,
         version: "",
@@ -348,7 +363,7 @@ class TerminalManager {
   private async ensureDirectoryExists(path: string): Promise<void> {
     const info = await stat(path).catch(() => null);
     if (!info?.isDirectory()) {
-      throw new Error(`工作目录不存在或不可访问: ${path}`);
+      throw new Error(terminalT("cwdUnavailable", { path }));
     }
   }
 
@@ -382,7 +397,7 @@ class TerminalManager {
   ): string {
     const usedIndexes = new Set<number>();
     for (const session of existingSessions) {
-      const match = session.title.trim().match(/^会话-(\d+)$/);
+      const match = session.title.trim().match(DEFAULT_SESSION_TITLE_PATTERN);
       if (!match) continue;
       const parsed = Number.parseInt(match[1]!, 10);
       if (Number.isFinite(parsed) && parsed > 0) {
@@ -430,17 +445,18 @@ class TerminalManager {
 
     let blockedReason = "";
     if (!config.enabled) {
-      blockedReason = "网页终端功能尚未启用";
+      blockedReason = terminalT("webTerminalDisabled");
     } else if (tmuxInstallState.status === "installing") {
-      blockedReason = "tmux 安装中，请等待安装完成";
+      blockedReason = terminalT("tmuxInstallingWait");
     } else if (!tmuxAvailable) {
       blockedReason =
         tmuxInstallState.status === "error"
-          ? `tmux 状态异常：${tmuxInstallState.message}`
-          : "未检测到 tmux，无法创建可恢复终端会话";
+          ? terminalT("tmuxStatusError", {
+              message: tmuxInstallState.message,
+            })
+          : terminalT("tmuxMissingCannotCreate");
     } else if (runningAsRoot && !config.dangerously_run_as_current_user) {
-      blockedReason =
-        "当前进程以 root 运行，需在设置中显式开启高危运行开关后才能创建终端";
+      blockedReason = terminalT("rootRunRequiresDangerToggle");
     }
 
     return {
@@ -515,7 +531,9 @@ class TerminalManager {
         requestedShell,
       ]);
       if (!resolvedRequestedShell) {
-        throw new Error(`请求的 shell 不可用: ${requestedShell}`);
+        throw new Error(
+          terminalT("requestedShellUnavailable", { shell: requestedShell }),
+        );
       }
       return resolvedRequestedShell;
     }
@@ -527,7 +545,7 @@ class TerminalManager {
       return autoDetectedShell;
     }
 
-    throw new Error("未检测到可用 shell，请确认系统已安装 zsh、bash 或 sh");
+    throw new Error(terminalT("noShellDetected"));
   }
 
   private buildSessionShellCommand(shell: string): string {
@@ -695,7 +713,7 @@ class TerminalManager {
       "#{pane_tty}\t#{pane_width}\t#{pane_height}",
     ]);
     if (paneResult.code !== 0) {
-      throw new Error(paneResult.stderr || "无法读取终端 pane 元数据");
+      throw new Error(paneResult.stderr || terminalT("paneMetadataReadFailed"));
     }
 
     const [paneTtyPathRaw = "", colsRaw = "", rowsRaw = ""] = (
@@ -703,7 +721,7 @@ class TerminalManager {
     ).split("\t");
     const paneTtyPath = paneTtyPathRaw.trim();
     if (!paneTtyPath) {
-      throw new Error("无法解析终端 pane tty");
+      throw new Error(terminalT("paneTtyParseFailed"));
     }
 
     return {
@@ -753,7 +771,7 @@ class TerminalManager {
 
     const result = await this.runProcess("mkfifo", [inputPipePath]);
     if (result.code !== 0) {
-      throw new Error(result.stderr || "无法创建终端输入管道");
+      throw new Error(result.stderr || terminalT("inputPipeCreateFailed"));
     }
     return inputPipePath;
   }
@@ -772,7 +790,7 @@ class TerminalManager {
       this.buildRelayCommand(outputLogPath, inputPipePath),
     ]);
     if (result.code !== 0) {
-      throw new Error(result.stderr || "无法建立终端 IO 中继");
+      throw new Error(result.stderr || terminalT("ioRelayCreateFailed"));
     }
   }
 
@@ -851,7 +869,9 @@ class TerminalManager {
     const config = await this.getFeatureConfig();
     const existing = await terminalStore.listSessions();
     if (existing.length >= config.max_sessions) {
-      throw new Error(`终端会话已达到上限（${config.max_sessions}）`);
+      throw new Error(
+        terminalT("sessionLimitReached", { count: config.max_sessions }),
+      );
     }
 
     const shell = await this.resolveShell(input.shell);
@@ -879,7 +899,7 @@ class TerminalManager {
       this.buildSessionShellCommand(shell),
     ]);
     if (createResult.code !== 0) {
-      throw new Error(createResult.stderr || "tmux 会话创建失败");
+      throw new Error(createResult.stderr || terminalT("tmuxSessionCreateFailed"));
     }
 
     const session = normalizeTerminalSessionRecord({
@@ -923,7 +943,7 @@ class TerminalManager {
 
     const sanitizedTitle = this.sanitizeTitle(title);
     if (!sanitizedTitle) {
-      throw new Error("会话名称不能为空");
+      throw new Error(terminalT("sessionTitleRequired"));
     }
 
     return terminalStore.saveSession(
@@ -969,15 +989,15 @@ class TerminalManager {
   ): Promise<TerminalAttachmentRecord> {
     const session = await this.getSession(sessionId);
     if (!session) {
-      throw new Error("终端会话不存在或已失效");
+      throw new Error(terminalT("sessionMissingOrExpired"));
     }
 
     const status = await this.getRuntimeStatus();
     if (!status.enabled) {
-      throw new Error("网页终端功能尚未启用");
+      throw new Error(terminalT("webTerminalDisabled"));
     }
     if (!status.tmuxAvailable) {
-      throw new Error("未检测到 tmux，无法附着终端会话");
+      throw new Error(terminalT("tmuxMissingCannotAttach"));
     }
 
     // Keep the existing relay/log pipeline when it is already healthy.
@@ -1045,7 +1065,7 @@ class TerminalManager {
 
     throw lastError instanceof Error
       ? lastError
-      : new Error("终端输入管道尚未就绪");
+      : new Error(terminalT("inputPipeNotReady"));
   }
 
   private async getInputPipeWriter(
@@ -1079,7 +1099,7 @@ class TerminalManager {
         null,
       );
       if (bytesWritten <= 0) {
-        throw new Error("终端输入写入被中断");
+        throw new Error(terminalT("inputWriteInterrupted"));
       }
       offset += bytesWritten;
     }
@@ -1088,11 +1108,11 @@ class TerminalManager {
   async sendInput(attachmentId: string, dataBase64: string): Promise<void> {
     const attachment = await terminalStore.getAttachment(attachmentId);
     if (!attachment) {
-      throw new Error("终端附着已失效");
+      throw new Error(terminalT("attachmentExpired"));
     }
     const session = await terminalStore.getSession(attachment.session_id);
     if (!session) {
-      throw new Error("终端会话不存在或已失效");
+      throw new Error(terminalT("sessionMissingOrExpired"));
     }
 
     const data = Buffer.from(String(dataBase64 || ""), "base64");
@@ -1107,13 +1127,15 @@ class TerminalManager {
       await this.closeInputPipeWriter(runtimeSession.id);
       const confirmedSession = await this.getSession(runtimeSession.id);
       if (!confirmedSession) {
-        throw new Error("终端会话不存在或已失效");
+        throw new Error(terminalT("sessionMissingOrExpired"));
       }
       runtimeSession = await this.configureSessionRuntime(confirmedSession);
       try {
         await this.writeToInputPipe(runtimeSession, data);
       } catch (retryError) {
-        throw new Error(this.formatIoError("终端输入发送失败", retryError));
+        throw new Error(
+          this.formatIoError(terminalT("inputSendFailed"), retryError),
+        );
       }
       console.warn(
         "[terminal] input pipe write recovered after runtime refresh",
@@ -1135,11 +1157,11 @@ class TerminalManager {
   ): Promise<TerminalSessionRecord> {
     const attachment = await terminalStore.refreshAttachment(attachmentId);
     if (!attachment) {
-      throw new Error("终端附着已失效");
+      throw new Error(terminalT("attachmentExpired"));
     }
     const session = await this.getSession(attachment.session_id);
     if (!session) {
-      throw new Error("终端会话不存在或已失效");
+      throw new Error(terminalT("sessionMissingOrExpired"));
     }
 
     const nextCols = Math.min(
@@ -1161,7 +1183,7 @@ class TerminalManager {
       String(nextRows),
     ]);
     if (resizeResult.code !== 0) {
-      throw new Error(resizeResult.stderr || "终端尺寸调整失败");
+      throw new Error(resizeResult.stderr || terminalT("resizeFailed"));
     }
 
     return this.refreshSessionExpiry(
@@ -1270,12 +1292,12 @@ class TerminalManager {
   ): Promise<{ changed: boolean; chunk: TerminalOutputChunk | null }> {
     const attachment = await terminalStore.refreshAttachment(attachmentId);
     if (!attachment) {
-      throw new Error("终端附着已失效");
+      throw new Error(terminalT("attachmentExpired"));
     }
 
     const session = await this.getSession(attachment.session_id);
     if (!session) {
-      throw new Error("终端会话不存在或已失效");
+      throw new Error(terminalT("sessionMissingOrExpired"));
     }
 
     const runtimeSession = await this.ensureSessionRuntime(session);

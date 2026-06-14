@@ -6,11 +6,16 @@ import type {
   SSHSecurityRuntimeState,
 } from "./types";
 import { normalizeSSHSecurityRuntimeState } from "./config";
+import { tDefault } from "../i18n";
 
 const PREFIX = "fn_knock:ssh_security";
 const PROCESSED_TTL_SECONDS = 7 * 24 * 3600;
 const BLOCK_RECORD_RETENTION_SECONDS = 90 * 24 * 3600;
 const MAX_BLOCK_RECORD_TTL_SECONDS = (365 + 90) * 24 * 3600;
+const sshSecurityT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.sshSecurity.${key}`, params);
 
 const KEYS = {
   runtime: `${PREFIX}:runtime`,
@@ -214,7 +219,7 @@ export class SSHSecurityStore {
   ): Promise<SSHSecurityBlockRecord> {
     const normalized = normalizeBlockRecord(record);
     if (!normalized) {
-      throw new Error("封锁记录格式不正确");
+      throw new Error(sshSecurityT("blockRecordInvalid"));
     }
 
     const expiresAtMs = Date.parse(normalized.expires_at);

@@ -3,11 +3,16 @@ import type {
   DDNSProviderDefinition,
   DDNSUpdateResult,
 } from "../types";
-import { normalizeDomain } from "./helpers";
+import { ddnsProviderT, normalizeDomain } from "./helpers";
 import {
   EDGEONE_OVERSEAS_ACCESS_MODE_FIELD,
   requestEdgeOneJson,
 } from "./edgeone-shared";
+
+const edgeoneCnameT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => ddnsProviderT("edgeone_cname", key, params);
 
 type EdgeOneOriginDetail = {
   HostHeader?: string | null;
@@ -27,7 +32,7 @@ type EdgeOneDescribeAccelerationDomainsResponse = {
 
 export const edgeoneCnameProvider: DDNSProviderDefinition = {
   name: "edgeone_cname",
-  label: "腾讯云 EdgeOne（CNAME 接入）",
+  label: edgeoneCnameT("label"),
   fields: [
     {
       key: "secret_id",
@@ -40,7 +45,7 @@ export const edgeoneCnameProvider: DDNSProviderDefinition = {
       key: "secret_key",
       label: "SecretKey",
       type: "password",
-      placeholder: "腾讯云 SecretKey",
+      placeholder: edgeoneCnameT("fields.secret_key.placeholder"),
       required: true,
     },
     {
@@ -49,28 +54,32 @@ export const edgeoneCnameProvider: DDNSProviderDefinition = {
       type: "text",
       placeholder: "zone-xxxxxxxx",
       required: true,
-      description: "EdgeOne 站点 ID，用于定位加速域名所属的站点",
+      description: edgeoneCnameT("fields.zone_id.description"),
     },
     {
       key: "domain",
-      label: "加速域名",
+      label: edgeoneCnameT("fields.domain.label"),
       type: "text",
       placeholder: "home.example.com",
       required: true,
-      description:
-        "已在 EdgeOne 中创建的加速域名；仅支持当前源站类型为 IP_DOMAIN，且一次只能更新一个源站地址",
+      description: edgeoneCnameT("fields.domain.description"),
     },
     {
       key: EDGEONE_OVERSEAS_ACCESS_MODE_FIELD,
-      label: "海外访问控制",
+      label: edgeoneCnameT("fields.overseas_access.label"),
       type: "select",
       required: false,
       options: [
-        { label: "不使用", value: "off" },
-        { label: "屏蔽海外IP", value: "block_overseas" },
+        {
+          label: edgeoneCnameT("fields.overseas_access.options.off"),
+          value: "off",
+        },
+        {
+          label: edgeoneCnameT("fields.overseas_access.options.blockOverseas"),
+          value: "block_overseas",
+        },
       ],
-      description:
-        "当开启时，将调用 EdgeOne 安全策略 API 屏蔽海外 IP 访问；港澳台不属于海外。该设置只会在配置变更时同步一次，不会随每次 DDNS 更新重复执行。",
+      description: edgeoneCnameT("fields.overseas_access.description"),
     },
     {
       key: "endpoint",
@@ -78,16 +87,15 @@ export const edgeoneCnameProvider: DDNSProviderDefinition = {
       type: "text",
       placeholder: "https://teo.tencentcloudapi.com",
       required: false,
-      description:
-        "默认国内版，可改为 https://teo.intl.tencentcloudapi.com 或地域接入域名",
+      description: edgeoneCnameT("fields.endpoint.description"),
     },
     {
       key: "region",
       label: "Region",
       type: "text",
-      placeholder: "留空",
+      placeholder: edgeoneCnameT("fields.region.placeholder"),
       required: false,
-      description: "可选；大多数场景可留空",
+      description: edgeoneCnameT("fields.region.description"),
     },
   ],
 };
@@ -101,7 +109,7 @@ async function edgeOneCnameRequest<T>(
   const secretId = config.secret_id?.trim();
   const secretKey = config.secret_key?.trim();
   if (!secretId || !secretKey) {
-    throw new Error("腾讯云 EdgeOne（CNAME 接入）配置不完整");
+    throw new Error(edgeoneCnameT("configIncomplete"));
   }
 
   return requestEdgeOneJson<T>(context, action, payload);
@@ -112,9 +120,7 @@ function resolveDesiredOrigin(
   ipv6: string | null,
 ): { family: "ipv4" | "ipv6"; value: string } {
   if (ipv4 && ipv6) {
-    throw new Error(
-      "腾讯云 EdgeOne（CNAME 接入）一次只能更新一个源站地址，请将 DDNS 更新范围设置为“仅更新 IPv4”或“仅更新 IPv6”",
-    );
+    throw new Error(edgeoneCnameT("singleAddressOnly"));
   }
 
   if (ipv4) {
@@ -125,7 +131,7 @@ function resolveDesiredOrigin(
     return { family: "ipv6", value: ipv6 };
   }
 
-  throw new Error("腾讯云 EdgeOne（CNAME 接入）缺少可更新的 IP 地址");
+  throw new Error(edgeoneCnameT("noIpAvailable"));
 }
 
 function isValidCustomHostHeader(value: string | undefined): boolean {
@@ -193,7 +199,7 @@ export async function edgeoneCnameUpdate(
   if (!secretId || !secretKey || !zoneId || !domain) {
     return {
       success: false,
-      message: "腾讯云 EdgeOne（CNAME 接入）配置不完整",
+      message: edgeoneCnameT("configIncomplete"),
     };
   }
 
@@ -233,7 +239,7 @@ export async function edgeoneCnameUpdate(
   if (!existing) {
     return {
       success: false,
-      message: `未找到 EdgeOne 加速域名: ${domain}`,
+      message: edgeoneCnameT("domainNotFound", { domain }),
     };
   }
 
@@ -243,7 +249,7 @@ export async function edgeoneCnameUpdate(
   if (originType && originType !== "IP_DOMAIN") {
     return {
       success: false,
-      message: `当前加速域名源站类型为 ${originType}，仅支持 IP_DOMAIN 类型的加速域名进行 DDNS 更新`,
+      message: edgeoneCnameT("unsupportedOriginType", { originType }),
     };
   }
 
@@ -257,7 +263,7 @@ export async function edgeoneCnameUpdate(
   if (currentOrigin === desiredOrigin.value) {
     return {
       success: true,
-      message: "腾讯云 EdgeOne（CNAME 接入）源站已是最新，无需更新",
+      message: edgeoneCnameT("originUnchanged"),
       ipv4Updated: desiredOrigin.family === "ipv4",
       ipv6Updated: desiredOrigin.family === "ipv6",
     };
@@ -284,8 +290,8 @@ export async function edgeoneCnameUpdate(
   return {
     success: true,
     message: ignoredInvalidHostHeader
-      ? "腾讯云 EdgeOne（CNAME 接入）源站更新成功 (1)"
-      : "腾讯云 EdgeOne（CNAME 接入）源站更新成功",
+      ? edgeoneCnameT("successWithInvalidHostHeaderIgnored")
+      : edgeoneCnameT("success"),
     ipv4Updated: desiredOrigin.family === "ipv4",
     ipv6Updated: desiredOrigin.family === "ipv6",
   };

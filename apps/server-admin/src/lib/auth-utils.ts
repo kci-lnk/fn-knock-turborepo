@@ -9,6 +9,10 @@ import { buildSessionCookie } from "./session-cookie";
 import { normalizeIp } from "./ip-normalize";
 import { emitLoginSuccessEvent } from "./system-events/helpers";
 import {
+  getAutoIpGrantComment,
+  normalizeAutoIpGrantComment,
+} from "./post-login-ip-grant";
+import {
   canBrowserSessionReachRedirectUri,
   resolveCookieDomain,
   resolvePublicAuthBaseUrl,
@@ -291,7 +295,9 @@ export const handleLoginSuccess = async ({
     : "";
   const expireAt = Math.floor(Date.now() / 1000) + durationSeconds;
   const expiresAtISO = new Date(expireAt * 1000).toISOString();
-  const autoWhitelistComment = "登录后自动授权";
+  const autoWhitelistComment = getAutoIpGrantComment(
+    config.locale?.default_locale,
+  );
   const postLoginIpGrantMode = credentialSettings.post_login_ip_grant_mode;
   const resolvedLinkedTotpName =
     authMethod !== "TOTP"
@@ -338,7 +344,10 @@ export const handleLoginSuccess = async ({
       await whitelistManager.getRecordById(whitelistRecordId);
     sessionComment =
       whitelistRecord?.comment !== undefined
-        ? whitelistRecord.comment
+        ? normalizeAutoIpGrantComment(
+            whitelistRecord.comment,
+            config.locale?.default_locale,
+          )
         : autoWhitelistComment;
     grantType = "login_ip_grant";
   }

@@ -1,5 +1,6 @@
 import type { DDNSProviderContext, DDNSProviderDefinition, DDNSUpdateResult } from "../types";
 import {
+  ddnsProviderT,
   getTimeoutMs,
   parseJsonResponse,
   splitDomain,
@@ -9,6 +10,14 @@ import {
 
 const HUAWEI_DNS_ENDPOINT = "https://dns.myhuaweicloud.com";
 const HUAWEI_AUTH_ALGORITHM = "SDK-HMAC-SHA256";
+const huaweiT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => ddnsProviderT("huawei", key, params);
+const commonT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => ddnsProviderT("common", key, params);
 
 type HuaweiZoneResponse = {
   zones?: Array<{
@@ -66,7 +75,7 @@ function safeJsonStringify(value: unknown): string {
 
 function getCrypto(): Crypto {
   if (!globalThis.crypto?.subtle) {
-    throw new Error("当前运行环境不支持 Web Crypto，无法生成华为云 AK/SK 签名");
+    throw new Error(huaweiT("webCryptoUnsupported"));
   }
   return globalThis.crypto;
 }
@@ -184,13 +193,13 @@ async function applyHuaweiSdkAuth(
 
 export const huaweiProvider: DDNSProviderDefinition = {
   name: "huaweicloud",
-  label: "华为云 DNS",
+  label: huaweiT("label"),
   fields: [
-    { key: "access_key_id", label: "Access Key", type: "text", placeholder: "华为云 AK", required: true },
-    { key: "secret_access_key", label: "Secret Key", type: "password", placeholder: "华为云 SK", required: true },
-    { key: "root_domain", label: "根域名", type: "text", placeholder: "example.com", required: true },
-    { key: "domain", label: "完整域名", type: "text", placeholder: "home.example.com", required: true },
-    { key: "ttl", label: "TTL", type: "text", placeholder: "300", required: false, description: "默认 300 秒" },
+    { key: "access_key_id", label: "Access Key", type: "text", placeholder: huaweiT("fields.access_key_id.placeholder"), required: true },
+    { key: "secret_access_key", label: "Secret Key", type: "password", placeholder: huaweiT("fields.secret_access_key.placeholder"), required: true },
+    { key: "root_domain", label: commonT("fields.root_domain.label"), type: "text", placeholder: "example.com", required: true },
+    { key: "domain", label: commonT("fields.domain.label"), type: "text", placeholder: "home.example.com", required: true },
+    { key: "ttl", label: "TTL", type: "text", placeholder: "300", required: false, description: commonT("fields.ttl.description", { seconds: 300 }) },
   ],
 };
 
@@ -204,7 +213,7 @@ async function huaweiRequest<T>(
   const accessKeyId = config.access_key_id;
   const secretAccessKey = config.secret_access_key;
 
-  if (!accessKeyId || !secretAccessKey) throw new Error("华为云 DNS 配置不完整");
+  if (!accessKeyId || !secretAccessKey) throw new Error(huaweiT("configIncomplete"));
 
   const payload = body ? JSON.stringify(body) : "";
   const request = new Request(`${HUAWEI_DNS_ENDPOINT}${path}`, {
@@ -219,7 +228,13 @@ async function huaweiRequest<T>(
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`华为云 DNS 请求失败: HTTP ${response.status} ${response.statusText}, ${safeJsonStringify(safeJsonParse(text))}`);
+    throw new Error(
+      huaweiT("requestFailed", {
+        status: response.status,
+        statusText: response.statusText,
+        detail: safeJsonStringify(safeJsonParse(text)),
+      }),
+    );
   }
 
   return parseJsonResponse<T>(response);
@@ -234,7 +249,7 @@ export async function huaweiUpdate(
   const { access_key_id, secret_access_key, root_domain, domain } = config;
 
   if (!access_key_id || !secret_access_key || !root_domain || !domain) {
-    return { success: false, message: "华为云 DNS 配置不完整" };
+    return { success: false, message: huaweiT("configIncomplete") };
   }
 
   const ttl = toPositiveInt(config.ttl, 300);
@@ -250,9 +265,9 @@ export async function huaweiUpdate(
     "GET"
   );
   const zone = zoneResponse.zones?.find((item) => item.name === expectedZoneName);
-  if (!zone) return { success: false, message: `未找到华为云 Zone: ${expectedZoneName}` };
+  if (!zone) return { success: false, message: huaweiT("zoneNotFound", { zone: expectedZoneName }) };
 
-  return updateDualStack("华为云 DNS", ipv4, ipv6, async (recordType, ip) => {
+  return updateDualStack(huaweiT("label"), ipv4, ipv6, async (recordType, ip) => {
     const recordsetPath = `/v2/zones/${encodeURIComponent(zone.id)}/recordsets?search_mode=equal&type=${recordType}&name=${fqdnWithDot}&limit=500`;
     const records = await huaweiRequest<HuaweiRecordsetListResponse>(context, recordsetPath, "GET");
     const existing = (records.recordsets || []).find(

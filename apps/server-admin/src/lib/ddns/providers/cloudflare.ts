@@ -1,21 +1,30 @@
 import type { DDNSProviderContext, DDNSProviderDefinition, DDNSUpdateResult } from "../types";
-import { getTimeoutMs, parseJsonResponse } from "./helpers";
+import { ddnsProviderT, getTimeoutMs, parseJsonResponse } from "./helpers";
+
+const cloudflareT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => ddnsProviderT("cloudflare", key, params);
+const commonT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => ddnsProviderT("common", key, params);
 
 export const cloudflareProvider: DDNSProviderDefinition = {
   name: "cloudflare",
   label: "Cloudflare",
   fields: [
-    { key: "api_token", label: "API 令牌", type: "password", placeholder: "Cloudflare API Token", required: true, description: "需要 Zone.DNS 编辑权限" },
-    { key: "zone_id", label: "Zone ID", type: "text", placeholder: "Zone ID", required: true, description: "在 Cloudflare 域名页, 点击三个点, 选择复制区域ID" },
-    { key: "domain", label: "域名", type: "text", placeholder: "home.example.com", required: true, description: "要更新的完整域名" },
-    { key: "proxied", label: "Cloudflare 代理", type: "select", required: false, options: [{ label: "仅解析", value: "false" }, { label: "橙色云朵", value: "true" }], description: "是否启用 Cloudflare 代理（橙色云朵）" },
+    { key: "api_token", label: cloudflareT("fields.api_token.label"), type: "password", placeholder: "Cloudflare API Token", required: true, description: cloudflareT("fields.api_token.description") },
+    { key: "zone_id", label: "Zone ID", type: "text", placeholder: "Zone ID", required: true, description: cloudflareT("fields.zone_id.description") },
+    { key: "domain", label: commonT("fields.domain.shortLabel"), type: "text", placeholder: "home.example.com", required: true, description: commonT("fields.domain.description") },
+    { key: "proxied", label: cloudflareT("fields.proxied.label"), type: "select", required: false, options: [{ label: cloudflareT("fields.proxied.options.dnsOnly"), value: "false" }, { label: cloudflareT("fields.proxied.options.orangeCloud"), value: "true" }], description: cloudflareT("fields.proxied.description") },
   ],
 };
 
 export const cloudflareUpdate = async ({ config, http }: DDNSProviderContext, ipv4: string | null, ipv6: string | null): Promise<DDNSUpdateResult> => {
   const { api_token, zone_id, domain, proxied } = config;
   if (!api_token || !zone_id || !domain) {
-    return { success: false, message: "Cloudflare 配置不完整" };
+    return { success: false, message: cloudflareT("configIncomplete") };
   }
 
   const isProxied = proxied === "true";
@@ -45,7 +54,7 @@ export const cloudflareUpdate = async ({ config, http }: DDNSProviderContext, ip
       );
 
       if (!searchRes.ok || !searchData.success) {
-        errors.push(`查询 A 记录失败: ${JSON.stringify(searchData.errors)}`);
+        errors.push(cloudflareT("searchRecordFailed", { type: "A", detail: JSON.stringify(searchData.errors) }));
       } else {
         const existing = searchData.result?.[0];
         if (existing) {
@@ -57,7 +66,7 @@ export const cloudflareUpdate = async ({ config, http }: DDNSProviderContext, ip
           if (updateRes.ok && updateData.success) {
             ipv4Updated = true;
           } else {
-            errors.push(`更新 A 记录失败: ${JSON.stringify(updateData.errors)}`);
+            errors.push(cloudflareT("updateRecordFailed", { type: "A", detail: JSON.stringify(updateData.errors) }));
           }
         } else {
           const { response: createRes, data: createData } = await requestJson(baseUrl, {
@@ -68,12 +77,12 @@ export const cloudflareUpdate = async ({ config, http }: DDNSProviderContext, ip
           if (createRes.ok && createData.success) {
             ipv4Updated = true;
           } else {
-            errors.push(`创建 A 记录失败: ${JSON.stringify(createData.errors)}`);
+            errors.push(cloudflareT("createRecordFailed", { type: "A", detail: JSON.stringify(createData.errors) }));
           }
         }
       }
     } catch (e: any) {
-      throw new Error(`A 记录操作异常: ${e?.message || String(e)}`);
+      throw new Error(cloudflareT("recordOperationError", { type: "A", detail: e?.message || String(e) }));
     }
   }
 
@@ -85,7 +94,7 @@ export const cloudflareUpdate = async ({ config, http }: DDNSProviderContext, ip
       );
 
       if (!searchRes.ok || !searchData.success) {
-        errors.push(`查询 AAAA 记录失败: ${JSON.stringify(searchData.errors)}`);
+        errors.push(cloudflareT("searchRecordFailed", { type: "AAAA", detail: JSON.stringify(searchData.errors) }));
       } else {
         const existing = searchData.result?.[0];
         if (existing) {
@@ -97,7 +106,7 @@ export const cloudflareUpdate = async ({ config, http }: DDNSProviderContext, ip
           if (updateRes.ok && updateData.success) {
             ipv6Updated = true;
           } else {
-            errors.push(`更新 AAAA 记录失败: ${JSON.stringify(updateData.errors)}`);
+            errors.push(cloudflareT("updateRecordFailed", { type: "AAAA", detail: JSON.stringify(updateData.errors) }));
           }
         } else {
           const { response: createRes, data: createData } = await requestJson(baseUrl, {
@@ -108,17 +117,17 @@ export const cloudflareUpdate = async ({ config, http }: DDNSProviderContext, ip
           if (createRes.ok && createData.success) {
             ipv6Updated = true;
           } else {
-            errors.push(`创建 AAAA 记录失败: ${JSON.stringify(createData.errors)}`);
+            errors.push(cloudflareT("createRecordFailed", { type: "AAAA", detail: JSON.stringify(createData.errors) }));
           }
         }
       }
     } catch (e: any) {
-      throw new Error(`AAAA 记录操作异常: ${e?.message || String(e)}`);
+      throw new Error(cloudflareT("recordOperationError", { type: "AAAA", detail: e?.message || String(e) }));
     }
   }
 
   if (errors.length) {
     return { success: false, message: errors.join("; "), ipv4Updated, ipv6Updated };
   }
-  return { success: true, message: "Cloudflare DNS 更新成功", ipv4Updated, ipv6Updated };
+  return { success: true, message: cloudflareT("success"), ipv4Updated, ipv6Updated };
 };

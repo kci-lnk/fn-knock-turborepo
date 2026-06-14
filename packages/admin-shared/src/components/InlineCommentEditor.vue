@@ -13,7 +13,7 @@
       v-model="draft"
       class="h-7 min-w-0 flex-1 px-2 py-1 text-sm"
       :disabled="isSaving"
-      :placeholder="placeholder"
+      :placeholder="placeholderText"
       autofocus
       @keyup="handleKeyup"
     />
@@ -26,8 +26,8 @@
         variant="ghost"
         size="icon"
         class="h-6 w-6"
-        title="编辑备注"
-        aria-label="编辑备注"
+        :title="editLabel"
+        :aria-label="editLabel"
         @click="startEdit"
       >
         <Pencil class="h-3 w-3" />
@@ -39,6 +39,8 @@
         size="icon"
         class="h-6 w-6 text-green-600"
         :disabled="isSaving"
+        :aria-label="saveLabel"
+        :title="saveLabel"
         @click="saveEdit"
       >
         <Check class="h-3 w-3" />
@@ -48,6 +50,8 @@
         size="icon"
         class="h-6 w-6 text-red-600"
         :disabled="isSaving"
+        :aria-label="cancelLabel"
+        :title="cancelLabel"
         @click="cancelEdit"
       >
         <X class="h-3 w-3" />
@@ -58,6 +62,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { Pencil, Check, X } from 'lucide-vue-next';
 import { toast } from '@admin-shared/utils/toast';
 import { Button } from '@/components/ui/button';
@@ -75,11 +80,11 @@ const props = withDefaults(defineProps<{
   save: SaveFn;
 }>(), {
   text: '',
-  placeholder: '输入备注...',
-  emptyText: '-',
   allowEmpty: true,
   validate: undefined,
 });
+
+const { t } = useI18n();
 
 const isEditing = ref(false);
 const isSaving = ref(false);
@@ -87,7 +92,11 @@ const draft = ref('');
 const inputRef = ref<InstanceType<typeof Input> | null>(null);
 
 const normalizedText = computed(() => props.text ?? '');
-const displayText = computed(() => normalizedText.value || props.emptyText);
+const displayText = computed(() => normalizedText.value || props.emptyText || '-');
+const placeholderText = computed(() => props.placeholder ?? t('shared.inlineCommentEditor.placeholder'));
+const editLabel = computed(() => t('shared.inlineCommentEditor.edit'));
+const saveLabel = computed(() => t('shared.inlineCommentEditor.save'));
+const cancelLabel = computed(() => t('shared.inlineCommentEditor.cancel'));
 
 async function startEdit() {
   draft.value = normalizedText.value;
@@ -121,7 +130,7 @@ async function saveEdit() {
   }
 
   if (!props.allowEmpty && !nextValue) {
-    toast.error('备注名称不能为空');
+    toast.error(t('shared.inlineCommentEditor.required'));
     return;
   }
 
@@ -136,7 +145,7 @@ async function saveEdit() {
     await props.save(nextValue);
     cancelEdit();
   } catch (error: any) {
-    const message = error?.message || '更新备注失败';
+    const message = error?.message || t('shared.inlineCommentEditor.updateFailed');
     toast.error(message);
   } finally {
     isSaving.value = false;

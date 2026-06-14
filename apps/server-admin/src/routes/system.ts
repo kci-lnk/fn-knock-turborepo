@@ -10,6 +10,12 @@ import {
   getCapabilityUnavailableMessage,
   getRuntimeCapabilities,
 } from "../lib/runtime-profile";
+import { createRequestTranslator } from "../lib/i18n";
+
+const getSystemRouteTranslator = async (request: Request) => {
+  const config = await configManager.getConfig();
+  return createRequestTranslator(request, config.locale);
+};
 
 export const systemRoutes = new Elysia({
   prefix: "/api/admin/system",
@@ -17,40 +23,49 @@ export const systemRoutes = new Elysia({
 })
   .get(
     "/clock/status",
-    () => {
-      return { success: true, data: systemClockManager.getStatus() };
+    async ({ request }) => {
+      const { locale } = await getSystemRouteTranslator(request);
+      return { success: true, data: systemClockManager.getStatus(locale) };
     },
     routeDoc("获取系统时间同步状态"),
   )
   .post(
     "/clock/check",
-    async () => {
-      const data = await systemClockManager.checkNow();
+    async ({ request }) => {
+      const { locale } = await getSystemRouteTranslator(request);
+      const data = await systemClockManager.checkNow(locale);
       return { success: true, data };
     },
     routeDoc("立即检查系统时间"),
   )
   .post(
     "/clock/sync",
-    async ({ set }) => {
+    async ({ set, request }) => {
+      const { locale, t } = await getSystemRouteTranslator(request);
+
       if (!getRuntimeCapabilities().system_clock_sync_available) {
         set.status = 403;
         return {
           success: false,
           message: getCapabilityUnavailableMessage(
             "system_clock_sync_available",
+            undefined,
+            locale,
           ),
         };
       }
 
       try {
-        const result = await systemClockManager.syncNow();
+        const result = await systemClockManager.syncNow(locale);
         return { success: true, message: result.message, data: result.data };
       } catch (error) {
         set.status = 400;
         return {
           success: false,
-          message: error instanceof Error ? error.message : "系统时间同步失败",
+          message:
+            error instanceof Error
+              ? error.message
+              : t("server.systemClock.syncFailed"),
         };
       }
     },

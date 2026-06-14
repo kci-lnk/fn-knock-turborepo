@@ -6,13 +6,19 @@ import type {
   NotificationSendResult,
 } from "../types";
 import { truncateText } from "./shared";
+import { tDefault } from "../../i18n";
+
+const pushdeerT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) =>
+  tDefault(`server.notifications.providers.catalog.pushdeer.${key}`, params);
 
 const PUSHDEER_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   {
     key: "server_url",
-    label: "服务地址",
-    description:
-      "官方在线版保持默认值即可；如果你使用自建 PushDeer，则填写自建服务根地址。",
+    label: pushdeerT("fields.server_url.label"),
+    description: pushdeerT("fields.server_url.description"),
     placeholder: "https://api2.pushdeer.com",
     type: "string",
     required: true,
@@ -21,8 +27,7 @@ const PUSHDEER_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   {
     key: "pushkey",
     label: "PushKey",
-    description:
-      "PushDeer 客户端中生成的 PushKey。可填写多个 key，并用英文逗号分隔。",
+    description: pushdeerT("fields.pushkey.description"),
     placeholder: "PDUxxxx,PDUyyyy",
     type: "string",
     required: true,
@@ -30,7 +35,7 @@ const PUSHDEER_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   },
   {
     key: "timeout_seconds",
-    label: "超时秒数",
+    label: pushdeerT("fields.timeout_seconds.label"),
     type: "number",
     required: true,
     default_value: 5,
@@ -44,8 +49,7 @@ const PUSHDEER_TARGET_SCHEMA: NotificationSchemaField[] = [];
 export const pushdeerProviderDefinition: NotificationProviderDefinition = {
   type: "pushdeer",
   label: "PushDeer",
-  description:
-    "通过 PushDeer 官方在线版或自建服务向已绑定设备发送 Markdown 通知。",
+  description: pushdeerT("description"),
   connection_schema: PUSHDEER_CONNECTION_SCHEMA,
   target_schema: PUSHDEER_TARGET_SCHEMA,
   sensitive_fields: ["pushkey"],
@@ -119,13 +123,16 @@ export const sendPushDeerMessage = async (args: {
     return {
       success: false,
       retryable: false,
-      reason: "Missing PushDeer pushkey",
+      reason: pushdeerT("errors.missingPushKey"),
     };
   }
 
   const body = new URLSearchParams({
     pushkey,
-    text: args.message.title || args.message.summary || "fn-knock 通知",
+    text:
+      args.message.title ||
+      args.message.summary ||
+      pushdeerT("message.fallbackTitle"),
     desp: buildPushDeerMarkdownBody(args.message),
     type: "markdown",
   });
@@ -179,7 +186,9 @@ export const sendPushDeerMessage = async (args: {
       return {
         success: false,
         retryable: response.status >= 500 || response.status === 429,
-        reason: `PushDeer returned ${response.status}`,
+        reason: pushdeerT("errors.requestReturned", {
+          status: response.status,
+        }),
         request_summary: requestSummary,
         response_summary: responseSummary,
       };
@@ -191,7 +200,9 @@ export const sendPushDeerMessage = async (args: {
         retryable: false,
         reason:
           parsedResponse?.error ||
-          `PushDeer API returned code ${String(parsedResponse?.code ?? "unknown")}`,
+          pushdeerT("errors.apiReturnedCode", {
+            code: String(parsedResponse?.code ?? "unknown"),
+          }),
         request_summary: requestSummary,
         response_summary: responseSummary,
       };
@@ -208,7 +219,9 @@ export const sendPushDeerMessage = async (args: {
       success: false,
       retryable: true,
       reason:
-        error instanceof Error ? error.message : "PushDeer request failed",
+        error instanceof Error
+          ? error.message
+          : pushdeerT("errors.requestFailed"),
       request_summary: {
         method: "POST",
         url,

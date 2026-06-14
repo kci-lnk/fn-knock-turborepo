@@ -1,8 +1,9 @@
 import { AnalyzerRule } from "../../types";
+import { scannerServiceLabel } from "../labels";
 
 export const xunleiRule: AnalyzerRule = {
   name: "xunlei",
-  label: '迅雷',
+  label: scannerServiceLabel("xunlei"),
   rule: {
     path: '/xunlei',
     rewrite_html: true,

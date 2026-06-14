@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ArrowLeftRight } from "lucide-vue-next";
+import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
 
 defineProps<{
@@ -13,6 +14,8 @@ defineProps<{
 const emit = defineEmits<{
   apply: [];
 }>();
+
+const { t } = useI18n();
 </script>
 
 <template>
@@ -23,11 +26,15 @@ const emit = defineEmits<{
       <div class="min-w-0 grid gap-1.5">
         <div class="flex items-center gap-2 text-[11px] text-muted-foreground">
           <ArrowLeftRight class="h-3.5 w-3.5" />
-          <span>可复用凭据</span>
+          <span>{{ t("admin.components.credentialTransferHint.title") }}</span>
         </div>
         <p class="text-sm leading-6 text-foreground/90">{{ description }}</p>
         <p class="text-xs text-muted-foreground">
-          来源：{{ sourceLabel }}。仅填充当前为空的字段。
+          {{
+            t("admin.components.credentialTransferHint.sourceHint", {
+              source: sourceLabel,
+            })
+          }}
         </p>
         <div class="flex flex-wrap gap-1.5">
           <span
@@ -48,7 +55,11 @@ const emit = defineEmits<{
         :disabled="loading"
         @click="emit('apply')"
       >
-        {{ loading ? "处理中..." : actionLabel }}
+        {{
+          loading
+            ? t("admin.components.credentialTransferHint.processing")
+            : actionLabel
+        }}
       </Button>
     </div>
   </div>

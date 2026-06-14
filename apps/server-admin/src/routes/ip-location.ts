@@ -1,20 +1,27 @@
 import { Elysia, t } from "elysia";
 import { ipLocationService } from "../lib/ip-location";
 import { withRouteDoc } from "../lib/openapi";
+import { configManager } from "../lib/redis";
+import { createRequestTranslator } from "../lib/i18n";
 
 const IP_LOCATION_BATCH_LIMIT = 20;
+const getIpLocationRouteTranslator = async (request: Request) =>
+  createRequestTranslator(request, await configManager.getLocaleConfig());
 
 export const ipLocationRoutes = new Elysia({
   prefix: "/api/admin/ip-location",
   tags: ["IP Location"],
 }).post(
   "/batch",
-  async ({ body, set }) => {
+  async ({ request, body, set }) => {
+    const { t } = await getIpLocationRouteTranslator(request);
     if (body.ips.length > IP_LOCATION_BATCH_LIMIT) {
       set.status = 400;
       return {
         success: false,
-        message: `单次最多查询 ${IP_LOCATION_BATCH_LIMIT} 个 IP`,
+        message: t("server.ipLocationRoutes.batchLimit", {
+          max: IP_LOCATION_BATCH_LIMIT,
+        }),
       };
     }
 

@@ -5,10 +5,17 @@ import {
   NOTIFICATION_TRIGGER_STATUSES,
 } from "../lib/system-notifications/types";
 import { routeDoc, withRouteDoc } from "../lib/openapi";
+import { configManager } from "../lib/redis";
+import { createRequestTranslator } from "../lib/i18n";
 
 const parsePositiveInt = (value: string | undefined, fallback: number) => {
   const parsed = Number.parseInt(String(value ?? ""), 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const getNotificationRouteTranslator = async (request: Request) => {
+  const config = await configManager.getConfig();
+  return createRequestTranslator(request, config.locale);
 };
 
 const providerCreateBody = t.Object({
@@ -99,12 +106,15 @@ export const notificationRoutes = new Elysia({
 })
   .get(
     "/providers/catalog",
-    () => ({
-      success: true,
-      data: {
-        providers: systemNotificationService.listProviderCatalog(),
-      },
-    }),
+    async ({ request }) => {
+      const { locale } = await getNotificationRouteTranslator(request);
+      return {
+        success: true,
+        data: {
+          providers: systemNotificationService.listProviderCatalog(locale),
+        },
+      };
+    },
     routeDoc("获取通知提供商目录"),
   )
   .get(
@@ -119,16 +129,19 @@ export const notificationRoutes = new Elysia({
   )
   .post(
     "/providers",
-    async ({ body, set }) => {
+    async ({ body, set, request }) => {
       try {
         const provider = await systemNotificationService.createProvider(body);
         return { success: true, data: provider };
       } catch (error) {
+        const { t } = await getNotificationRouteTranslator(request);
         set.status = 400;
         return {
           success: false,
           message:
-            error instanceof Error ? error.message : "创建通知提供商失败",
+            error instanceof Error
+              ? error.message
+              : t("server.notifications.routes.createProviderFailed"),
         };
       }
     },
@@ -136,15 +149,18 @@ export const notificationRoutes = new Elysia({
   )
   .post(
     "/providers/test",
-    async ({ body, set }) => {
+    async ({ body, set, request }) => {
       try {
         return await systemNotificationService.testProviderDraft(body);
       } catch (error) {
+        const { t } = await getNotificationRouteTranslator(request);
         set.status = 400;
         return {
           success: false,
           message:
-            error instanceof Error ? error.message : "测试通知提供商失败",
+            error instanceof Error
+              ? error.message
+              : t("server.notifications.routes.testProviderFailed"),
         };
       }
     },
@@ -152,16 +168,19 @@ export const notificationRoutes = new Elysia({
   )
   .get(
     "/providers/:id",
-    async ({ params, set }) => {
+    async ({ params, set, request }) => {
       try {
         const provider = await systemNotificationService.getProvider(params.id);
         return { success: true, data: provider };
       } catch (error) {
+        const { t } = await getNotificationRouteTranslator(request);
         set.status = 400;
         return {
           success: false,
           message:
-            error instanceof Error ? error.message : "获取通知提供商失败",
+            error instanceof Error
+              ? error.message
+              : t("server.notifications.routes.getProviderFailed"),
         };
       }
     },
@@ -169,7 +188,7 @@ export const notificationRoutes = new Elysia({
   )
   .patch(
     "/providers/:id",
-    async ({ params, body, set }) => {
+    async ({ params, body, set, request }) => {
       try {
         const provider = await systemNotificationService.updateProvider(
           params.id,
@@ -177,11 +196,14 @@ export const notificationRoutes = new Elysia({
         );
         return { success: true, data: provider };
       } catch (error) {
+        const { t } = await getNotificationRouteTranslator(request);
         set.status = 400;
         return {
           success: false,
           message:
-            error instanceof Error ? error.message : "更新通知提供商失败",
+            error instanceof Error
+              ? error.message
+              : t("server.notifications.routes.updateProviderFailed"),
         };
       }
     },
@@ -189,16 +211,19 @@ export const notificationRoutes = new Elysia({
   )
   .delete(
     "/providers/:id",
-    async ({ params, set }) => {
+    async ({ params, set, request }) => {
       try {
         await systemNotificationService.deleteProvider(params.id);
         return { success: true };
       } catch (error) {
+        const { t } = await getNotificationRouteTranslator(request);
         set.status = 400;
         return {
           success: false,
           message:
-            error instanceof Error ? error.message : "删除通知提供商失败",
+            error instanceof Error
+              ? error.message
+              : t("server.notifications.routes.deleteProviderFailed"),
         };
       }
     },
@@ -206,15 +231,18 @@ export const notificationRoutes = new Elysia({
   )
   .post(
     "/providers/:id/test",
-    async ({ params, set }) => {
+    async ({ params, set, request }) => {
       try {
         return await systemNotificationService.testProvider(params.id);
       } catch (error) {
+        const { t } = await getNotificationRouteTranslator(request);
         set.status = 400;
         return {
           success: false,
           message:
-            error instanceof Error ? error.message : "测试通知提供商失败",
+            error instanceof Error
+              ? error.message
+              : t("server.notifications.routes.testProviderFailed"),
         };
       }
     },
@@ -232,15 +260,19 @@ export const notificationRoutes = new Elysia({
   )
   .post(
     "/rules",
-    async ({ body, set }) => {
+    async ({ body, set, request }) => {
       try {
         const rule = await systemNotificationService.createRule(body);
         return { success: true, data: rule };
       } catch (error) {
+        const { t } = await getNotificationRouteTranslator(request);
         set.status = 400;
         return {
           success: false,
-          message: error instanceof Error ? error.message : "创建通知规则失败",
+          message:
+            error instanceof Error
+              ? error.message
+              : t("server.notifications.routes.createRuleFailed"),
         };
       }
     },
@@ -248,7 +280,7 @@ export const notificationRoutes = new Elysia({
   )
   .patch(
     "/rules/:id",
-    async ({ params, body, set }) => {
+    async ({ params, body, set, request }) => {
       try {
         const rule = await systemNotificationService.updateRule(
           params.id,
@@ -256,10 +288,14 @@ export const notificationRoutes = new Elysia({
         );
         return { success: true, data: rule };
       } catch (error) {
+        const { t } = await getNotificationRouteTranslator(request);
         set.status = 400;
         return {
           success: false,
-          message: error instanceof Error ? error.message : "更新通知规则失败",
+          message:
+            error instanceof Error
+              ? error.message
+              : t("server.notifications.routes.updateRuleFailed"),
         };
       }
     },
@@ -267,15 +303,19 @@ export const notificationRoutes = new Elysia({
   )
   .delete(
     "/rules/:id",
-    async ({ params, set }) => {
+    async ({ params, set, request }) => {
       try {
         await systemNotificationService.deleteRule(params.id);
         return { success: true };
       } catch (error) {
+        const { t } = await getNotificationRouteTranslator(request);
         set.status = 400;
         return {
           success: false,
-          message: error instanceof Error ? error.message : "删除通知规则失败",
+          message:
+            error instanceof Error
+              ? error.message
+              : t("server.notifications.routes.deleteRuleFailed"),
         };
       }
     },
@@ -337,14 +377,15 @@ export const notificationRoutes = new Elysia({
   )
   .delete(
     "/deliveries",
-    async ({ body, set }) => {
+    async ({ body, set, request }) => {
+      const { t } = await getNotificationRouteTranslator(request);
       const status = body.status?.trim();
 
       if (status && !NOTIFICATION_DELIVERY_STATUSES.includes(status as any)) {
         set.status = 400;
         return {
           success: false,
-          message: "Unsupported delivery status",
+          message: t("server.notifications.routes.unsupportedDeliveryStatus"),
         };
       }
 
@@ -370,7 +411,10 @@ export const notificationRoutes = new Elysia({
         set.status = 400;
         return {
           success: false,
-          message: error instanceof Error ? error.message : "清空投递记录失败",
+          message:
+            error instanceof Error
+              ? error.message
+              : t("server.notifications.routes.clearDeliveriesFailed"),
         };
       }
     },

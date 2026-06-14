@@ -13,6 +13,7 @@ import {
   normalizeWhiteListTarget,
   type WhiteListTargetType,
 } from "./whitelist-target";
+import { tDefault } from "./i18n";
 
 export interface WhiteListRecord {
   id: string;
@@ -73,6 +74,10 @@ const KEYS = {
   CIDR_RECORDS: `${PREFIX}:cidr_records`,
   DELETED: `${PREFIX}:deleted`,
 };
+const whitelistManagerT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.whitelistManager.${key}`, params);
 
 const getRecordTargetType = (
   record: Partial<Pick<WhiteListRecord, "targetType">>,
@@ -306,8 +311,12 @@ export class IPTablesWhiteListManager {
     const code = String((error as any)?.code || "").trim();
     const message = (error as any)?.message || String(error);
     return code
-      ? `${label} 记录查询失败 (${code}): ${message}`
-      : `${label} 记录查询失败: ${message}`;
+      ? whitelistManagerT("dnsRecordQueryFailedWithCode", {
+          label,
+          code,
+          message,
+        })
+      : whitelistManagerT("dnsRecordQueryFailed", { label, message });
   }
 
   private async resolveCnameTargets(domain: string): Promise<string[]> {
@@ -419,20 +428,20 @@ export class IPTablesWhiteListManager {
   ): { target: string; targetType: WhiteListTargetType } {
     const inferredType = targetType ?? inferWhiteListTargetType(value);
     if (!inferredType) {
-      throw new Error("IP、CIDR 或域名格式不正确");
+      throw new Error(whitelistManagerT("targetFormatInvalid"));
     }
     if (source === "auto" && inferredType !== "ip") {
-      throw new Error("登录自动授权仅支持单个 IP");
+      throw new Error(whitelistManagerT("autoGrantIpOnly"));
     }
 
     const target = normalizeWhiteListTarget(value, inferredType);
     if (!target) {
       throw new Error(
         inferredType === "cidr"
-          ? "CIDR 格式不正确"
+          ? whitelistManagerT("cidrInvalid")
           : inferredType === "cname"
-            ? "域名格式不正确"
-            : "IP 格式不正确",
+            ? whitelistManagerT("domainInvalid")
+            : whitelistManagerT("ipInvalid"),
       );
     }
 
@@ -713,7 +722,7 @@ export class IPTablesWhiteListManager {
   ): Promise<WhiteListRecord> {
     const ownerKey = String(input.ownerKey || "").trim();
     if (!ownerKey) {
-      throw new Error("缺少自动白名单归属标识");
+      throw new Error(whitelistManagerT("autoOwnerMissing"));
     }
 
     const { target, targetType } = this.normalizeTargetInput(
@@ -1233,7 +1242,7 @@ export class IPTablesWhiteListManager {
           ),
           lastCheckedAt: now,
           resolveStatus: "error",
-          resolveMessage: error?.message || "域名解析失败",
+          resolveMessage: error?.message || whitelistManagerT("domainResolveFailed"),
         };
         const pipeline = this.redis.pipeline();
         pipeline.hset(KEYS.RECORDS, id, JSON.stringify(nextRecord));
@@ -1271,8 +1280,10 @@ export class IPTablesWhiteListManager {
         resolveStatus: resolvedTargets.length > 0 ? "resolved" : "empty",
         resolveMessage:
           resolvedTargets.length > 0
-            ? `已解析 ${resolvedTargets.length} 个 IP`
-            : "当前未解析到 A / AAAA 记录",
+            ? whitelistManagerT("resolvedIpCount", {
+                count: resolvedTargets.length,
+              })
+            : whitelistManagerT("noAaaaRecords"),
       };
       const nextTargets = getConcreteIPTargets(nextRecord);
       const previousTargetSet = new Set(previousTargets);
@@ -1310,7 +1321,7 @@ export class IPTablesWhiteListManager {
         );
       } catch (error: any) {
         syncError =
-          error?.message || "域名解析结果已更新，但同步系统放行状态失败";
+          error?.message || whitelistManagerT("syncAllowedStateFailed");
         console.error(
           `[whitelist] failed to sync concrete targets for ${record.ip}:`,
           error,

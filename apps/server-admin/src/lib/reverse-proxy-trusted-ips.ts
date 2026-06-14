@@ -10,8 +10,13 @@ import {
   type ReverseProxyTrustedIPRuntimeState,
 } from "./redis";
 import { whitelistManager } from "./whitelist-manager";
+import { tDefault } from "./i18n";
 
 const SYNC_DEBOUNCE_MS = 150;
+const reverseProxyTrustedIpsT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.reverseProxyTrustedIps.${key}`, params);
 
 let scheduledSyncTimer: ReturnType<typeof setTimeout> | null = null;
 let scheduledSyncReason = "scheduled";
@@ -140,7 +145,7 @@ export const syncReverseProxyTrustedIPsToGateway = async (
       return nextRuntime;
     }
 
-    throw new Error(response.message || "同步反代节流豁免 IP 失败");
+    throw new Error(response.message || reverseProxyTrustedIpsT("syncFailed"));
   }
 
   runtimeEndpointUnavailableLogged = false;

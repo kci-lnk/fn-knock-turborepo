@@ -82,8 +82,9 @@ export const buildSchemaPayload = (args: {
 export const buildNextSequentialName = (
   baseLabel: string,
   existingNames: string[],
+  fallbackLabel = "Untitled",
 ) => {
-  const normalizedBase = baseLabel.trim() || "未命名";
+  const normalizedBase = baseLabel.trim() || fallbackLabel;
   const pattern = new RegExp(`^${escapeRegExp(normalizedBase)}\\s+(\\d+)$`);
   const usedIndexes = new Set<number>();
 

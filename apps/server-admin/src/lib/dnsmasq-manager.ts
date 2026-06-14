@@ -10,6 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { collectStreamOutput, fileExists, waitForProcessExit } from "./runtime";
+import { tDefault } from "./i18n";
 
 export const SMART_CONNECT_DNS_PORT = 53;
 export const SMART_CONNECT_LOCAL_TTL_SECONDS = 30;
@@ -47,6 +48,11 @@ type DnsmasqExecutableInfo = {
   version: string;
 };
 
+const dnsmasqT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.dnsmasq.${key}`, params);
+
 const DNSMASQ_EXECUTABLE_CANDIDATES = [
   "dnsmasq",
   "/usr/sbin/dnsmasq",
@@ -63,7 +69,7 @@ const DNSMASQ_INIT_SCRIPT_PATH = "/etc/init.d/dnsmasq";
 const createDefaultInstallState = (): DnsmasqInstallState => ({
   status: "uninstalled",
   progress: 0,
-  message: "未检测到 dnsmasq，请先完成安装",
+  message: dnsmasqT("notDetectedInstallFirst"),
 });
 
 class DnsmasqManager {
@@ -125,8 +131,8 @@ class DnsmasqManager {
       lower.includes("permission denied")
     ) {
       return detail
-        ? `DNS 53 端口不可用，请先释放端口后重试：${detail}`
-        : "DNS 53 端口不可用，请先释放端口后重试";
+        ? dnsmasqT("dnsPortUnavailableWithDetail", { detail })
+        : dnsmasqT("dnsPortUnavailable");
     }
 
     return detail || fallback;
@@ -232,11 +238,11 @@ class DnsmasqManager {
       progress: 100,
       message: hasServiceDefinition
         ? version
-          ? `dnsmasq 已检测到：${version}，等待初始化或启动服务`
-          : "dnsmasq 已检测到，等待初始化或启动服务"
+          ? dnsmasqT("detectedWithVersion", { version })
+          : dnsmasqT("detected")
         : version
-          ? `缺少系统服务，初始化时会自动补全`
-          : "缺少系统服务，初始化时会自动补全",
+          ? dnsmasqT("missingServiceAutoComplete")
+          : dnsmasqT("missingServiceAutoComplete"),
     };
   }
 
@@ -246,31 +252,29 @@ class DnsmasqManager {
     }
 
     if (!(await fileExists(DEBIAN_APT_GET_PATH))) {
-      throw new Error(
-        "检测到 dnsmasq 可执行文件，但未安装系统服务，请先安装 dnsmasq 软件包",
-      );
+      throw new Error(dnsmasqT("servicePackageMissing"));
     }
 
     this.installState = {
       status: "installing",
       progress: 58,
-      message: "正在补全 dnsmasq 系统服务...",
+      message: dnsmasqT("completingService"),
     };
     await this.ensureProcessSucceeded(
       DEBIAN_APT_GET_PATH,
       ["install", "-y", "dnsmasq"],
-      "补全 dnsmasq 系统服务失败",
+      dnsmasqT("completeServiceFailed"),
     );
 
     if (!(await this.hasServiceDefinition())) {
-      throw new Error("dnsmasq 服务安装完成后仍未检测到可用的系统服务定义");
+      throw new Error(dnsmasqT("serviceDefinitionMissingAfterInstall"));
     }
   }
 
   private async validateConfigContent(content: string): Promise<void> {
     const executable = await this.detectExecutable();
     if (!executable) {
-      throw new Error("未检测到 dnsmasq 可执行文件");
+      throw new Error(dnsmasqT("executableMissing"));
     }
 
     const tempDir = await mkdtemp(join(tmpdir(), "fn-knock-dnsmasq-"));
@@ -281,7 +285,7 @@ class DnsmasqManager {
       await this.ensureProcessSucceeded(
         executable.path,
         ["--test", `--conf-file=${tempConfPath}`],
-        "dnsmasq 配置校验失败",
+        dnsmasqT("configTestFailed"),
       );
     } finally {
       await rm(tempDir, { recursive: true, force: true });
@@ -339,7 +343,7 @@ class DnsmasqManager {
         await this.ensureProcessSucceeded(
           "systemctl",
           ["restart", "dnsmasq"],
-          "重启 dnsmasq 失败",
+          dnsmasqT("restartFailed"),
         );
         return;
       } catch (error) {
@@ -354,7 +358,7 @@ class DnsmasqManager {
         await this.ensureProcessSucceeded(
           "service",
           ["dnsmasq", "restart"],
-          "重启 dnsmasq 失败",
+          dnsmasqT("restartFailed"),
         );
         return;
       } catch (error) {
@@ -365,13 +369,11 @@ class DnsmasqManager {
     }
 
     if (errors.length === 0) {
-      throw new Error(
-        "未检测到 dnsmasq 系统服务定义，请先完成初始化补全服务环境",
-      );
+      throw new Error(dnsmasqT("serviceDefinitionMissing"));
     }
 
     throw new Error(
-      this.normalizeDnsmasqError(errors.join(" | "), "重启 dnsmasq 失败"),
+      this.normalizeDnsmasqError(errors.join(" | "), dnsmasqT("restartFailed")),
     );
   }
 
@@ -416,7 +418,9 @@ class DnsmasqManager {
     return {
       status: "installed",
       progress: 100,
-      message: version ? `dnsmasq 已就绪：${version}` : "dnsmasq 已就绪",
+      message: version
+        ? dnsmasqT("readyWithVersion", { version })
+        : dnsmasqT("ready"),
     };
   }
 
@@ -579,43 +583,43 @@ class DnsmasqManager {
       this.installState = {
         status: "installing",
         progress: 15,
-        message: "正在刷新 Debian 软件源...",
+        message: dnsmasqT("refreshingApt"),
       };
       await this.ensureProcessSucceeded(
         DEBIAN_APT_GET_PATH,
         ["update"],
-        "apt-get update 执行失败",
+        dnsmasqT("aptUpdateFailed"),
       );
 
       this.installState = {
         status: "installing",
         progress: 55,
-        message: "正在安装 dnsmasq...",
+        message: dnsmasqT("installing"),
       };
       await this.ensureProcessSucceeded(
         DEBIAN_APT_GET_PATH,
         ["install", "-y", "dnsmasq"],
-        "apt-get install dnsmasq 执行失败",
+        dnsmasqT("aptInstallFailed"),
       );
 
       this.installState = {
         status: "installing",
         progress: 78,
-        message: "正在启用 dnsmasq 服务...",
+        message: dnsmasqT("enablingService"),
       };
       await this.enableServiceOnBoot();
 
       this.installState = {
         status: "installing",
         progress: 90,
-        message: "正在验证 dnsmasq 服务...",
+        message: dnsmasqT("verifyingService"),
       };
       this.resetExecutableProbeCache();
       await this.restartService();
 
       const executable = await this.detectExecutable();
       if (!executable) {
-        throw new Error("安装完成后仍未检测到 dnsmasq");
+        throw new Error(dnsmasqT("installMissingAfterComplete"));
       }
 
       this.installState = this.getInstalledState(executable.version);
@@ -627,7 +631,7 @@ class DnsmasqManager {
         message:
           error instanceof Error && error.message.trim()
             ? error.message.trim()
-            : "dnsmasq 安装失败",
+            : dnsmasqT("installFailed"),
       };
     }
   }
@@ -637,18 +641,18 @@ class DnsmasqManager {
       this.installState = {
         status: "installing",
         progress: 20,
-        message: "正在检查 dnsmasq 环境...",
+        message: dnsmasqT("checkingEnvironment"),
       };
       this.resetExecutableProbeCache();
       const executable = await this.detectExecutable();
       if (!executable) {
-        throw new Error("未检测到 dnsmasq，请先完成安装");
+        throw new Error(dnsmasqT("notDetectedInstallFirst"));
       }
 
       this.installState = {
         status: "installing",
         progress: 45,
-        message: "正在校验 dnsmasq 配置...",
+        message: dnsmasqT("validatingConfig"),
       };
       await this.ensureServicePackageInstalled();
       await this.ensureManagedDirectory();
@@ -657,14 +661,14 @@ class DnsmasqManager {
       this.installState = {
         status: "installing",
         progress: 72,
-        message: "正在启用 dnsmasq 服务...",
+        message: dnsmasqT("enablingService"),
       };
       await this.enableServiceOnBoot();
 
       this.installState = {
         status: "installing",
         progress: 90,
-        message: "正在启动 dnsmasq 服务...",
+        message: dnsmasqT("startingService"),
       };
       await this.restartService();
 
@@ -677,7 +681,7 @@ class DnsmasqManager {
         message:
           error instanceof Error && error.message.trim()
             ? error.message.trim()
-            : "dnsmasq 初始化失败",
+            : dnsmasqT("initializeFailed"),
       };
     }
   }

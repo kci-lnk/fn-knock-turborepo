@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { toast } from "@admin-shared/utils/toast";
 import {
@@ -61,11 +62,27 @@ use([
 ]);
 
 const ranges = [
-  { key: "15m", label: "15分钟", sec: 15 * 60 },
-  { key: "1h", label: "1小时", sec: 60 * 60 },
-  { key: "6h", label: "6小时", sec: 6 * 60 * 60 },
-  { key: "1d", label: "24小时", sec: 24 * 60 * 60 },
-  { key: "7d", label: "7天", sec: 7 * 24 * 60 * 60 },
+  {
+    key: "15m",
+    labelKey: "admin.dashboard.ranges.fifteenMinutes",
+    sec: 15 * 60,
+  },
+  { key: "1h", labelKey: "admin.dashboard.ranges.oneHour", sec: 60 * 60 },
+  {
+    key: "6h",
+    labelKey: "admin.dashboard.ranges.sixHours",
+    sec: 6 * 60 * 60,
+  },
+  {
+    key: "1d",
+    labelKey: "admin.dashboard.ranges.twentyFourHours",
+    sec: 24 * 60 * 60,
+  },
+  {
+    key: "7d",
+    labelKey: "admin.dashboard.ranges.sevenDays",
+    sec: 7 * 24 * 60 * 60,
+  },
 ] as const;
 
 const rangeKey = ref<(typeof ranges)[number]["key"]>("1h");
@@ -88,6 +105,7 @@ let lastRealtimeSample: {
 
 const router = useRouter();
 const configStore = useConfigStore();
+const { locale, t } = useI18n();
 
 type TunnelStatus = {
   running: boolean;
@@ -146,11 +164,28 @@ const showEntryStatusModule = computed(
 const showCloudflaredTunnel = computed(() =>
   isCloudflaredTunnelAvailable(configStore.config),
 );
-const ddnsUpdateScopeLabels = {
-  dual_stack: "IPv4 & IPv6",
-  ipv6_only: "仅更新 IPv6",
-  ipv4_only: "仅更新 IPv4",
+const ddnsUpdateScopeLabelKeys = {
+  dual_stack: "admin.dashboard.ddns.updateScopes.dualStack",
+  ipv6_only: "admin.dashboard.ddns.updateScopes.ipv6Only",
+  ipv4_only: "admin.dashboard.ddns.updateScopes.ipv4Only",
 } as const;
+
+const trafficSeriesLabelKeys: Record<string, string> = {
+  "\u5165\u7AD9": "admin.dashboard.traffic.ingressSeries",
+  "\u51FA\u7AD9": "admin.dashboard.traffic.egressSeries",
+};
+
+const getDdnsTimestampLabels = () => ({
+  lastSuccessfulUpdate: t("admin.ddns.lastSuccessfulUpdate"),
+  lastCheck: t("admin.ddns.lastCheck"),
+  never: t("admin.ddns.never"),
+});
+
+const translateTrafficSeriesName = (name: unknown) => {
+  const value = String(name ?? "");
+  const key = trafficSeriesLabelKeys[value];
+  return key ? t(key) : value;
+};
 
 const loadTunnelStatus = async () => {
   if (!showTunnelSection.value) {
@@ -228,7 +263,7 @@ const formatNumber = (value: number | null | undefined, fallback = "-") => {
   if (value === null || value === undefined) return fallback;
   const v = Number(value);
   if (!Number.isFinite(v)) return fallback;
-  return new Intl.NumberFormat("zh-CN").format(Math.round(v));
+  return new Intl.NumberFormat(String(locale.value)).format(Math.round(v));
 };
 
 const onlineNow = computed(
@@ -237,16 +272,17 @@ const onlineNow = computed(
 
 const trafficOption = computed<EChartsOption>(() => {
   const base = (stats.value?.traffic.echarts ?? {}) as any;
-  const colors = ["#171717", "#a3a3a3"]; // 黑白灰色调
+  const colors = ["#171717", "#a3a3a3"];
 
   const series = (Array.isArray(base?.series) ? base.series : []).map(
     (s: any, idx: number) => ({
       ...s,
+      name: translateTrafficSeriesName(s?.name),
       type: "line",
       smooth: true,
       symbol: "none",
       lineStyle: { width: 2 },
-      areaStyle: { opacity: 0.05, color: colors[idx % colors.length] }, // 极淡的底色
+      areaStyle: { opacity: 0.05, color: colors[idx % colors.length] },
       emphasis: { focus: "series" },
     }),
   );
@@ -255,6 +291,12 @@ const trafficOption = computed<EChartsOption>(() => {
     ...base,
     color: colors,
     animationDuration: 420,
+    legend: {
+      ...(base?.legend ?? {}),
+      data: Array.isArray(base?.legend?.data)
+        ? base.legend.data.map(translateTrafficSeriesName)
+        : base?.legend?.data,
+    },
     tooltip: {
       trigger: "axis",
       axisPointer: { type: "cross" },
@@ -329,7 +371,7 @@ const threatOption = computed<EChartsOption>(() => {
     },
     series: [
       {
-        name: "登录失败",
+        name: t("admin.dashboard.security.failedLogins"),
         type: "line",
         smooth: true,
         symbol: "none",
@@ -338,7 +380,7 @@ const threatOption = computed<EChartsOption>(() => {
         data: failedSeries,
       },
       {
-        name: "扫描器",
+        name: t("admin.dashboard.security.scanners"),
         type: "line",
         smooth: true,
         symbol: "none",
@@ -403,7 +445,10 @@ const loadDdnsStatus = async () => {
       ddnsStatus.value = status;
     },
     onError: (err: any) => {
-      const msg = err?.response?.data?.message || err?.message || "加载失败";
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        t("admin.dashboard.errors.loadFailed");
       ddnsError.value = msg;
       ddnsStatus.value = null;
     },
@@ -429,9 +474,11 @@ const load = async () => {
         const msg =
           (statsRes.reason as any)?.response?.data?.message ||
           (statsRes.reason as any)?.message ||
-          "加载失败";
+          t("admin.dashboard.errors.loadFailed");
         errorMessage.value = msg;
-        toast.error("Dashboard 加载失败", { description: msg });
+        toast.error(t("admin.dashboard.errors.dashboardLoadFailed"), {
+          description: msg,
+        });
       }
 
       if (threatRes.status === "fulfilled") {
@@ -440,9 +487,14 @@ const load = async () => {
     },
     {
       onError: (err: any) => {
-        const msg = err?.response?.data?.message || err?.message || "加载失败";
+        const msg =
+          err?.response?.data?.message ||
+          err?.message ||
+          t("admin.dashboard.errors.loadFailed");
         errorMessage.value = msg;
-        toast.error("Dashboard 加载失败", { description: msg });
+        toast.error(t("admin.dashboard.errors.dashboardLoadFailed"), {
+          description: msg,
+        });
       },
       onFinally: () => {
         isInitializing.value = false;
@@ -504,9 +556,19 @@ onUnmounted(() => {
 
 const titleRangeText = computed(() => {
   const sec = stats.value?.rangeSec ?? activeRange.value.sec;
-  if (sec < 3600) return `${Math.round(sec / 60)} 分钟`;
-  if (sec < 24 * 3600) return `${Math.round(sec / 3600)} 小时`;
-  return `${Math.round(sec / 86400)} 天`;
+  if (sec < 3600) {
+    return t("admin.dashboard.duration.minutes", {
+      count: Math.round(sec / 60),
+    });
+  }
+  if (sec < 24 * 3600) {
+    return t("admin.dashboard.duration.hours", {
+      count: Math.round(sec / 3600),
+    });
+  }
+  return t("admin.dashboard.duration.days", {
+    count: Math.round(sec / 86400),
+  });
 });
 
 const metricIconTones = {
@@ -526,31 +588,35 @@ const metricIconTones = {
 
 const liveMetricCards = computed(() => [
   {
-    label: "实时入站",
+    label: t("admin.dashboard.metrics.liveIngress"),
     value: realtimeInBps.value === null ? "-" : formatBps(realtimeInBps.value),
-    hint: "当前接收速率",
+    hint: t("admin.dashboard.metrics.currentReceiveRate"),
     icon: ArrowDownLeft,
     iconTone: metricIconTones.liveIngress,
   },
   {
-    label: "实时出站",
+    label: t("admin.dashboard.metrics.liveEgress"),
     value:
       realtimeOutBps.value === null ? "-" : formatBps(realtimeOutBps.value),
-    hint: "当前发送速率",
+    hint: t("admin.dashboard.metrics.currentSendRate"),
     icon: ArrowUpRight,
     iconTone: metricIconTones.liveEgress,
   },
   {
-    label: "累计入站",
+    label: t("admin.dashboard.metrics.totalIngress"),
     value: formatBytes(stats.value?.totals?.inBytes),
-    hint: `${titleRangeText.value} 内接收总量`,
+    hint: t("admin.dashboard.metrics.rangeReceiveTotal", {
+      range: titleRangeText.value,
+    }),
     icon: ArrowDownLeft,
     iconTone: metricIconTones.totalIngress,
   },
   {
-    label: "累计出站",
+    label: t("admin.dashboard.metrics.totalEgress"),
     value: formatBytes(stats.value?.totals?.outBytes),
-    hint: `${titleRangeText.value} 内发送总量`,
+    hint: t("admin.dashboard.metrics.rangeSendTotal", {
+      range: titleRangeText.value,
+    }),
     icon: ArrowUpRight,
     iconTone: metricIconTones.totalEgress,
   },
@@ -558,21 +624,21 @@ const liveMetricCards = computed(() => [
 
 const securityCards = computed(() => [
   {
-    label: "登录失败",
+    label: t("admin.dashboard.security.failedLogins"),
     value: formatNumber(threatOverview.value?.totals?.failedLogins),
-    hint: "每次登录失败都会记录",
+    hint: t("admin.dashboard.security.failedLoginsHint"),
     icon: ShieldAlert,
   },
   {
-    label: "扫描器",
+    label: t("admin.dashboard.security.scanners"),
     value: formatNumber(threatOverview.value?.totals?.blockedScanners),
-    hint: "已被加入黑名单",
+    hint: t("admin.dashboard.security.scannersHint"),
     icon: Ban,
   },
   {
     label: "WAF",
     value: formatNumber(threatOverview.value?.totals?.wafEvents),
-    hint: "检测与拦截事件",
+    hint: t("admin.dashboard.security.wafHint"),
     icon: TriangleAlert,
   },
 ]);
@@ -581,81 +647,96 @@ const ddnsState = computed(() => {
   if (ddnsStatus.value?.enabled) {
     return {
       active: true,
-      label: "DDNS 活跃同步",
+      label: t("admin.dashboard.ddns.activeSync"),
     };
   }
   return {
     active: false,
-    label: "DDNS 已暂停",
+    label: t("admin.dashboard.ddns.paused"),
   };
 });
 
 const ddnsCards = computed(() => [
   {
-    label: "提供商",
-    value: ddnsStatus.value?.provider || "未配置",
+    label: t("admin.dashboard.ddns.provider"),
+    value: ddnsStatus.value?.provider || t("admin.dashboard.ddns.notConfigured"),
     hint:
       (ddnsStatus.value?.extraTargetCount || 0) > 0
-        ? `主域动态解析服务 · +${ddnsStatus.value?.extraTargetCount || 0} 个额外域`
-        : "主域动态解析服务",
+        ? t("admin.dashboard.ddns.primaryDynamicServiceWithExtra", {
+            count: ddnsStatus.value?.extraTargetCount || 0,
+          })
+        : t("admin.dashboard.ddns.primaryDynamicService"),
     icon: Network,
   },
   {
     label: "IPv4",
     value: ddnsStatus.value?.lastIP?.ipv4 || "---.---.---.---",
-    hint: "最近上报地址",
+    hint: t("admin.dashboard.ddns.lastReportedAddress"),
     icon: Wifi,
   },
   {
     label: "IPv6",
-    value: ddnsStatus.value?.lastIP?.ipv6 || "未检测到地址",
-    hint: "最近上报地址",
+    value:
+      ddnsStatus.value?.lastIP?.ipv6 ||
+      t("admin.dashboard.ddns.noAddressDetected"),
+    hint: t("admin.dashboard.ddns.lastReportedAddress"),
     icon: Globe,
   },
   {
-    label: "更新范围",
+    label: t("admin.dashboard.ddns.updateScope"),
     value: ddnsStatus.value
-      ? ddnsUpdateScopeLabels[ddnsStatus.value.updateScope]
+      ? t(ddnsUpdateScopeLabelKeys[ddnsStatus.value.updateScope])
       : "IPv4 & IPv6",
-    hint: "当前生效策略",
+    hint: t("admin.dashboard.ddns.activePolicy"),
     icon: RouteIcon,
   },
   {
-    label: "最后检查",
+    label: t("admin.dashboard.ddns.lastCheck"),
     value: ddnsStatus.value?.lastCheck?.checked_at ?? null,
-    hint: "自动检查时间",
+    hint: t("admin.dashboard.ddns.autoCheckTime"),
     icon: Clock,
     isTime: true,
     tooltipLines: buildDDNSTimestampTooltipLines({
       updatedAt: ddnsStatus.value?.lastIP?.updated_at,
       checkedAt: ddnsStatus.value?.lastCheck?.checked_at,
+      locale: String(locale.value),
+      labels: getDdnsTimestampLabels(),
     }),
   },
   {
-    label: "更多域",
+    label: t("admin.dashboard.ddns.extraDomains"),
     value: String(ddnsStatus.value?.extraTargetCount || 0),
     hint:
       (ddnsStatus.value?.targets || []).filter(
         (target) => !target.isPrimary && target.lastCheck.outcome === "error",
       ).length > 0
-        ? `${(ddnsStatus.value?.targets || []).filter((target) => !target.isPrimary && target.lastCheck.outcome === "error").length} 个额外域异常`
-        : "额外 DDNS 条目数量",
+        ? t("admin.dashboard.ddns.extraDomainsError", {
+            count: (ddnsStatus.value?.targets || []).filter(
+              (target) =>
+                !target.isPrimary && target.lastCheck.outcome === "error",
+            ).length,
+          })
+        : t("admin.dashboard.ddns.extraDomainsCount"),
     icon: Globe,
   },
 ]);
 
 const entryStatusCardTitle = computed(() =>
-  showTunnelSection.value ? "入口与隧道" : "入口状态",
+  showTunnelSection.value
+    ? t("admin.dashboard.entry.entryAndTunnel")
+    : t("admin.dashboard.entry.entryStatus"),
 );
 
 const entryStatusCardDescription = computed(() =>
-  showTunnelSection.value ? "DDNS与穿透状态" : "DDNS 状态",
+  showTunnelSection.value
+    ? t("admin.dashboard.entry.ddnsAndTunnelStatus")
+    : t("admin.dashboard.entry.ddnsStatus"),
 );
 
 const tunnelCards = computed(() => [
   {
     key: "frp" as const,
-    label: "FRP 穿透",
+    label: t("admin.dashboard.tunnel.frp"),
     status: frpStatus.value,
     isDefault: defaultTunnel.value === "frp",
   },
@@ -681,10 +762,11 @@ const tunnelCards = computed(() => [
         <div
           class="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground"
         >
-          <span>范围: {{ titleRangeText }}</span>
+          <span>{{ t("admin.dashboard.labels.range") }}: {{ titleRangeText }}</span>
           <span class="text-border">|</span>
           <span class="font-medium text-foreground"
-            >在线: {{ formatNumber(onlineNow ? onlineNow : 0) }}</span
+            >{{ t("admin.dashboard.labels.online") }}:
+            {{ formatNumber(onlineNow ? onlineNow : 0) }}</span
           >
         </div>
       </div>
@@ -700,7 +782,7 @@ const tunnelCards = computed(() => [
               :value="r.key"
               class="px-3 text-xs sm:text-sm"
             >
-              {{ r.label }}
+              {{ t(r.labelKey) }}
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -734,7 +816,7 @@ const tunnelCards = computed(() => [
 
     <Alert v-if="errorMessage" variant="destructive" class="rounded-xl">
       <TriangleAlert class="h-4 w-4" />
-      <AlertTitle>加载失败</AlertTitle>
+      <AlertTitle>{{ t("admin.dashboard.errors.loadFailed") }}</AlertTitle>
       <AlertDescription>{{ errorMessage }}</AlertDescription>
     </Alert>
 
@@ -746,8 +828,12 @@ const tunnelCards = computed(() => [
           <CardHeader class="pb-3">
             <div class="flex items-start justify-between gap-3">
               <div>
-                <CardTitle class="text-lg">安全拦截</CardTitle>
-                <CardDescription class="mt-1">扫描与异常活动</CardDescription>
+                <CardTitle class="text-lg">{{
+                  t("admin.dashboard.security.title")
+                }}</CardTitle>
+                <CardDescription class="mt-1">{{
+                  t("admin.dashboard.security.description")
+                }}</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -810,7 +896,9 @@ const tunnelCards = computed(() => [
             <div>
               <div class="mb-3 flex items-center justify-between">
                 <div class="flex items-center gap-2">
-                  <div class="text-sm font-medium">DDNS 状态</div>
+                  <div class="text-sm font-medium">
+                    {{ t("admin.dashboard.ddns.statusTitle") }}
+                  </div>
                   <LiveStatusBadge
                     :active="ddnsState.active"
                     :active-label="ddnsState.label"
@@ -823,7 +911,7 @@ const tunnelCards = computed(() => [
                   size="sm"
                   class="h-7 text-xs"
                   @click="gotoDdns"
-                  >管理</Button
+                  >{{ t("admin.dashboard.labels.manage") }}</Button
                 >
               </div>
               <div
@@ -852,7 +940,7 @@ const tunnelCards = computed(() => [
                     <HumanFriendlyTime
                       v-if="item.isTime"
                       :value="item.value"
-                      empty-text="从未"
+                      :empty-text="t('admin.ddns.never')"
                       :keep-invalid-raw-text="false"
                       :tooltip-lines="item.tooltipLines"
                     />
@@ -864,7 +952,9 @@ const tunnelCards = computed(() => [
             </div>
 
             <div v-if="showTunnelSection">
-              <div class="mb-3 text-sm font-medium">隧道入口</div>
+              <div class="mb-3 text-sm font-medium">
+                {{ t("admin.dashboard.tunnel.title") }}
+              </div>
               <div
                 v-if="isTunnelLoading && showTunnelSkeleton"
                 class="grid gap-3"
@@ -888,7 +978,7 @@ const tunnelCards = computed(() => [
                         variant="outline"
                         class="rounded-sm px-1.5 py-0 text-[10px]"
                       >
-                        默认
+                        {{ t("admin.dashboard.tunnel.default") }}
                       </Badge>
                     </div>
                     <div
@@ -896,12 +986,14 @@ const tunnelCards = computed(() => [
                     >
                       <LiveStatusBadge
                         :active="Boolean(item.status?.running)"
-                        active-label="运行中"
-                        inactive-label="未运行"
+                        :active-label="t('admin.dashboard.tunnel.running')"
+                        :inactive-label="t('admin.dashboard.tunnel.notRunning')"
                         size="xs"
                       />
                       <span>{{
-                        item.status?.running ? "运行中" : "未运行"
+                        item.status?.running
+                          ? t("admin.dashboard.tunnel.running")
+                          : t("admin.dashboard.tunnel.notRunning")
                       }}</span>
                       <span v-if="item.status?.running && item.status.pid"
                         >PID {{ item.status.pid }}</span
@@ -923,8 +1015,12 @@ const tunnelCards = computed(() => [
         <CardHeader class="pb-3">
           <div class="flex items-center justify-between">
             <div>
-              <CardTitle class="text-lg">网络流量走势</CardTitle>
-              <CardDescription class="mt-1">时间序列的吞吐变化</CardDescription>
+              <CardTitle class="text-lg">{{
+                t("admin.dashboard.traffic.title")
+              }}</CardTitle>
+              <CardDescription class="mt-1">{{
+                t("admin.dashboard.traffic.description")
+              }}</CardDescription>
             </div>
           </div>
         </CardHeader>

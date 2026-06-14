@@ -1,6 +1,12 @@
 import { basename } from "node:path";
 import { dataPath } from "./AppDirManager";
 import { homedir } from "node:os";
+import { tDefault } from "./i18n";
+
+const terminalT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.terminal.${key}`, params);
 
 export type TerminalResumeBackend = "tmux";
 export type TerminalTransport = "http-polling";
@@ -171,7 +177,7 @@ export const normalizeTerminalSessionRecord = (
 
   return {
     id: normalizeString(value.id),
-    title: normalizeString(value.title, basename(cwd) || "Web终端"),
+    title: normalizeString(value.title, basename(cwd) || terminalT("defaultTitle")),
     status:
       value.status === "attached" ||
       value.status === "detached" ||

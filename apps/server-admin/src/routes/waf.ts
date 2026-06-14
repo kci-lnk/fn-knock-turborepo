@@ -13,6 +13,13 @@ import {
 } from "../lib/waf/service";
 import { wafLogStore } from "../lib/waf/log-store";
 import { routeDoc, withRouteDoc } from "../lib/openapi";
+import { configManager } from "../lib/redis";
+import { createRequestTranslator } from "../lib/i18n";
+
+const getWAFRouteTranslator = async (request: Request) => {
+  const config = await configManager.getConfig();
+  return createRequestTranslator(request, config.locale);
+};
 
 const toFailure = (
   set: { status?: number | string },
@@ -40,10 +47,15 @@ export const wafRoutes = new Elysia({
   )
   .get(
     "/status",
-    async ({ set }) => {
+    async ({ set, request }) => {
+      const { t } = await getWAFRouteTranslator(request);
       const response = await goBackend.getWAFStatus();
       if (!response.success || !response.data) {
-        return toFailure(set, response.message || "读取 WAF 状态失败", 502);
+        return toFailure(
+          set,
+          response.message || t("server.waf.statusReadFailed"),
+          502,
+        );
       }
       return { success: true, data: response.data };
     },
@@ -51,14 +63,19 @@ export const wafRoutes = new Elysia({
   )
   .post(
     "/config",
-    async ({ body, set }) => {
+    async ({ body, set, request }) => {
+      const { t } = await getWAFRouteTranslator(request);
       try {
         return {
           success: true,
           data: await applyWAFConfig(body as any),
         };
       } catch (error: any) {
-        return toFailure(set, error?.message || "WAF 设置保存或加载失败", 400);
+        return toFailure(
+          set,
+          error?.message || t("server.waf.configSaveOrLoadFailed"),
+          400,
+        );
       }
     },
     withRouteDoc("保存 WAF 开关、防护强度、规则自动更新并按需加载当前规则", {
@@ -73,7 +90,8 @@ export const wafRoutes = new Elysia({
   )
   .post(
     "/manifest/refresh",
-    async ({ set }) => {
+    async ({ set, request }) => {
+      const { t } = await getWAFRouteTranslator(request);
       try {
         await refreshSystemManifestCache();
         return {
@@ -81,35 +99,49 @@ export const wafRoutes = new Elysia({
           data: await getWAFDetails(),
         };
       } catch (error: any) {
-        return toFailure(set, error?.message || "系统规则清单刷新失败", 502);
+        return toFailure(
+          set,
+          error?.message || t("server.waf.manifestRefreshFailed"),
+          502,
+        );
       }
     },
     routeDoc("刷新系统 WAF 规则清单"),
   )
   .post(
     "/system/sync",
-    async ({ set }) => {
+    async ({ set, request }) => {
+      const { t } = await getWAFRouteTranslator(request);
       try {
         return {
           success: true,
           data: await syncSystemWAFRules(),
         };
       } catch (error: any) {
-        return toFailure(set, error?.message || "系统规则同步失败", 502);
+        return toFailure(
+          set,
+          error?.message || t("server.waf.systemRulesSyncFailed"),
+          502,
+        );
       }
     },
     routeDoc("下载并同步系统 WAF 规则"),
   )
   .post(
     "/rules/enabled",
-    async ({ body, set }) => {
+    async ({ body, set, request }) => {
+      const { t } = await getWAFRouteTranslator(request);
       try {
         return {
           success: true,
           data: await setWAFRuleEnabled(body as any),
         };
       } catch (error: any) {
-        return toFailure(set, error?.message || "WAF 规则启停失败", 400);
+        return toFailure(
+          set,
+          error?.message || t("server.waf.ruleToggleFailed"),
+          400,
+        );
       }
     },
     withRouteDoc("批量启用或停用 WAF 规则文件", {
@@ -122,7 +154,8 @@ export const wafRoutes = new Elysia({
   )
   .get(
     "/rules/:source/:filename",
-    async ({ params, set }) => {
+    async ({ params, set, request }) => {
+      const { t } = await getWAFRouteTranslator(request);
       try {
         return {
           success: true,
@@ -132,7 +165,11 @@ export const wafRoutes = new Elysia({
           ),
         };
       } catch (error: any) {
-        return toFailure(set, error?.message || "读取 WAF 规则失败", 404);
+        return toFailure(
+          set,
+          error?.message || t("server.waf.ruleReadFailed"),
+          404,
+        );
       }
     },
     withRouteDoc("读取 WAF 规则文件内容", {
@@ -144,14 +181,19 @@ export const wafRoutes = new Elysia({
   )
   .post(
     "/custom/upload",
-    async ({ body, set }) => {
+    async ({ body, set, request }) => {
+      const { t } = await getWAFRouteTranslator(request);
       try {
         return {
           success: true,
           data: await uploadCustomWAFRules(body as any),
         };
       } catch (error: any) {
-        return toFailure(set, error?.message || "自定义规则上传失败", 400);
+        return toFailure(
+          set,
+          error?.message || t("server.waf.customRuleUploadFailed"),
+          400,
+        );
       }
     },
     withRouteDoc("上传自定义 WAF 规则文件", {
@@ -167,14 +209,19 @@ export const wafRoutes = new Elysia({
   )
   .delete(
     "/custom/:filename",
-    async ({ params, set }) => {
+    async ({ params, set, request }) => {
+      const { t } = await getWAFRouteTranslator(request);
       try {
         return {
           success: true,
           data: await deleteCustomWAFRule(params.filename),
         };
       } catch (error: any) {
-        return toFailure(set, error?.message || "自定义规则删除失败", 400);
+        return toFailure(
+          set,
+          error?.message || t("server.waf.customRuleDeleteFailed"),
+          400,
+        );
       }
     },
     withRouteDoc("删除自定义 WAF 规则文件", {
@@ -183,28 +230,38 @@ export const wafRoutes = new Elysia({
   )
   .post(
     "/events/drain",
-    async ({ set }) => {
+    async ({ set, request }) => {
+      const { t } = await getWAFRouteTranslator(request);
       try {
         return {
           success: true,
           data: await drainWAFEventsNow(),
         };
       } catch (error: any) {
-        return toFailure(set, error?.message || "拉取 WAF 事件失败", 502);
+        return toFailure(
+          set,
+          error?.message || t("server.waf.eventsDrainFailed"),
+          502,
+        );
       }
     },
     routeDoc("立即拉取并持久化 Go WAF 事件"),
   )
   .get(
     "/logs",
-    async ({ query, set }) => {
+    async ({ query, set, request }) => {
+      const { t } = await getWAFRouteTranslator(request);
       try {
         return {
           success: true,
           data: await wafLogStore.query(query),
         };
       } catch (error: any) {
-        return toFailure(set, error?.message || "查询 WAF 日志失败", 400);
+        return toFailure(
+          set,
+          error?.message || t("server.waf.logsQueryFailed"),
+          400,
+        );
       }
     },
     withRouteDoc("查询 WAF 日志", {
@@ -224,9 +281,10 @@ export const wafRoutes = new Elysia({
   )
   .get(
     "/logs/:traceId",
-    async ({ params, set }) => {
+    async ({ params, set, request }) => {
+      const { t } = await getWAFRouteTranslator(request);
       const event = await wafLogStore.getEvent(params.traceId);
-      if (!event) return toFailure(set, "WAF 日志不存在", 404);
+      if (!event) return toFailure(set, t("server.waf.logNotFound"), 404);
       return { success: true, data: event };
     },
     withRouteDoc("按 trace ID 获取 WAF 日志详情", {
@@ -237,14 +295,19 @@ export const wafRoutes = new Elysia({
   )
   .delete(
     "/logs",
-    async ({ body, set }) => {
+    async ({ body, set, request }) => {
+      const { t } = await getWAFRouteTranslator(request);
       try {
         return {
           success: true,
           data: await wafLogStore.deleteDate(body.date),
         };
       } catch (error: any) {
-        return toFailure(set, error?.message || "删除 WAF 日志失败", 400);
+        return toFailure(
+          set,
+          error?.message || t("server.waf.logsDeleteFailed"),
+          400,
+        );
       }
     },
     withRouteDoc("按日期删除 WAF 日志", {

@@ -1,51 +1,66 @@
 <template>
   <div class="space-y-6">
     <ConfigCollapsibleCard
-      title="子域模式配置"
+      :title="t('admin.subdomainProxy.configTitle')"
       :configured="isSubdomainModeConfigured"
       :ready="!configStore.isLoading"
-      edit-label="编辑配置"
+      :edit-label="t('admin.subdomainProxy.editConfig')"
       summary-class="text-xs text-muted-foreground truncate max-w-full"
       expanded-content-class="p-0 sm:p-0"
       actions-class="border-t bg-muted/30 px-4 py-4 sm:px-6 flex flex-col-reverse items-stretch gap-2 rounded-b-lg sm:flex-row sm:items-center sm:justify-end"
     >
       <template #summary>
         <template v-if="savedRootDomain">
-          根域名 {{ savedRootDomain }}
+          {{
+            t("admin.subdomainProxy.rootDomainSummary", {
+              domain: savedRootDomain,
+            })
+          }}
           <span v-if="authServiceMapping">
-            · 鉴权服务 {{ authServiceMapping.host }}
+            ·
+            {{
+              t("admin.subdomainProxy.authServiceSummary", {
+                host: authServiceMapping.host,
+              })
+            }}
           </span>
-          <span v-else> · 鉴权服务未配置 </span>
+          <span v-else>
+            · {{ t("admin.subdomainProxy.authServiceMissingSummary") }}
+          </span>
           <span v-if="savedEdgeClientIpProviderLabel">
             · {{ savedEdgeClientIpProviderLabel }}
           </span>
         </template>
-        <template v-else>还未完成根域名配置</template>
+        <template v-else>{{
+          t("admin.subdomainProxy.notConfiguredSummary")
+        }}</template>
       </template>
 
       <template #default>
         <div class="divide-y divide-border">
           <div class="p-4 sm:p-6">
             <div class="space-y-1">
-              <h3 class="text-base font-semibold">子域模式配置</h3>
+              <h3 class="text-base font-semibold">
+                {{ t("admin.subdomainProxy.configTitle") }}
+              </h3>
               <p class="text-sm text-muted-foreground">
-                这里只保留子域模式最常用的配置。你通常只需要填好根域名
+                {{ t("admin.subdomainProxy.sectionDescription") }}
               </p>
             </div>
           </div>
 
           <div class="grid gap-4 p-4 sm:p-6">
             <div class="max-w-xs space-y-2">
-              <Label for="root-domain">域名</Label>
+              <Label for="root-domain">{{
+                t("admin.subdomainProxy.domainLabel")
+              }}</Label>
               <Input
                 id="root-domain"
                 v-model="modeForm.root_domain"
                 placeholder="example.com"
               />
               <p class="text-xs text-muted-foreground">
-                如填写 example.com
-                后，后续新增映射时，你只需要填写子域名前缀，系统会自动拼接到这个根域名下面，比如
-                fnos.example.com
+                {{ t("admin.subdomainProxy.domainHint") }}
               </p>
             </div>
             <div class="rounded-lg border px-4 py-3">
@@ -53,7 +68,7 @@
                 class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div class="space-y-1">
-                  <Label>当前鉴权服务</Label>
+                  <Label>{{ t("admin.subdomainProxy.currentAuthService") }}</Label>
                   <div class="text-sm">
                     <template v-if="authServiceMapping">
                       <div class="break-all font-medium">
@@ -64,18 +79,18 @@
                         }}
                       </div>
                       <div class="mt-1 text-xs text-muted-foreground">
-                        在尚未登录时，会自动跳转到
-                        <code>
-                          https://{{
-                            formatAuthServiceHostWithPublicPort(
+                        {{
+                          t("admin.subdomainProxy.authRedirectHint", {
+                            url: `https://${formatAuthServiceHostWithPublicPort(
                               authServiceMapping.host,
-                            )
-                          }}
-                        </code>
-                        完成登录。
+                            )}`,
+                          })
+                        }}
                       </div>
                     </template>
-                    <p v-else class="text-muted-foreground">还没有鉴权服务。</p>
+                    <p v-else class="text-muted-foreground">
+                      {{ t("admin.subdomainProxy.noAuthService") }}
+                    </p>
                   </div>
                 </div>
 
@@ -83,14 +98,22 @@
                   <Badge
                     :variant="authServiceMapping ? 'secondary' : 'outline'"
                   >
-                    {{ authServiceMapping ? "已配置" : "未配置" }}
+                    {{
+                      authServiceMapping
+                        ? t("admin.subdomainProxy.configured")
+                        : t("admin.subdomainProxy.notConfigured")
+                    }}
                   </Badge>
 
                   <ConfirmDangerPopover
                     v-if="authServiceMapping"
-                    title="确认删除鉴权服务？"
-                    :description="`将删除 ${authServiceMapping.host} 对应的鉴权映射。删除后需要重新添加鉴权服务。`"
-                    confirm-text="删除鉴权服务"
+                    :title="t('admin.subdomainProxy.deleteAuthTitle')"
+                    :description="
+                      t('admin.subdomainProxy.deleteAuthDescription', {
+                        host: authServiceMapping.host,
+                      })
+                    "
+                    :confirm-text="t('admin.subdomainProxy.deleteAuthAction')"
                     :loading="isSavingMappings"
                     :disabled="isSavingMappings"
                     :on-confirm="async () => void (await removeAuthService())"
@@ -103,7 +126,7 @@
                         class="h-auto p-0 text-destructive hover:bg-transparent hover:text-destructive/90"
                         :disabled="isSavingMappings"
                       >
-                        删除鉴权服务
+                        {{ t("admin.subdomainProxy.deleteAuthAction") }}
                       </Button>
                     </template>
                   </ConfirmDangerPopover>
@@ -115,10 +138,10 @@
               >
                 <div class="space-y-1">
                   <Label for="auth-service-public-port">
-                    鉴权服务所使用的端口
+                    {{ t("admin.subdomainProxy.authServicePort") }}
                   </Label>
                   <p class="text-xs leading-5 text-muted-foreground">
-                    路由器 10012 → 7999 时填写 10012；未修改时使用当前入口端口。
+                    {{ t("admin.subdomainProxy.authServicePortHint") }}
                   </p>
                 </div>
                 <Input
@@ -137,21 +160,21 @@
                 <div class="flex items-start justify-between gap-4">
                   <div class="space-y-1">
                     <Label for="edge-client-ip-enabled"
-                      >边缘网络真实 IP 识别</Label
+                      >{{ t("admin.subdomainProxy.edgeClientIpTitle") }}</Label
                     >
                     <p class="text-xs text-muted-foreground">
-                      仅对子域模式生效。开启后，公开鉴权地址不再自动补访问端口。
+                      {{ t("admin.subdomainProxy.edgeClientIpDescription") }}
                     </p>
                     <p class="text-xs text-muted-foreground">
-                      你可以在下方选择真实 IP
-                      头来源供应商，网关会按当前选择识别真实 IP，并通过
-                      X-Forwarded-For 传给鉴权服务。
+                      {{
+                        t("admin.subdomainProxy.edgeClientIpProviderDescription")
+                      }}
                     </p>
                     <p
                       v-if="!isEdgeClientIPModeEditable"
                       class="text-xs text-amber-600"
                     >
-                      当前运行模式不是子域模式，这组设置暂时不会生效。
+                      {{ t("admin.subdomainProxy.edgeClientIpNotEditable") }}
                     </p>
                   </div>
                   <Switch
@@ -204,8 +227,8 @@
                         >
                           {{
                             activeEdgeClientIpProvider === option.value
-                              ? "当前"
-                              : "切换"
+                              ? t("admin.subdomainProxy.current")
+                              : t("admin.subdomainProxy.switch")
                           }}
                         </span>
                       </div>
@@ -219,13 +242,15 @@
       </template>
 
       <template #actions="{ collapse }">
-        <Button variant="outline" @click="collapse">折叠</Button>
+        <Button variant="outline" @click="collapse">{{
+          t("admin.subdomainProxy.collapse")
+        }}</Button>
         <Button
           variant="outline"
           :disabled="isSavingMode || !isModeDirty"
           @click="resetModeForm"
         >
-          放弃更改
+          {{ t("admin.subdomainProxy.discardChanges") }}
         </Button>
         <Button
           :disabled="isSavingMode || !isModeValid || !isModeDirty"
@@ -235,7 +260,7 @@
             v-if="isSavingMode"
             class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
           ></span>
-          保存配置
+          {{ t("admin.subdomainProxy.saveConfig") }}
         </Button>
       </template>
     </ConfigCollapsibleCard>
@@ -243,7 +268,7 @@
     <Card>
       <CardHeader>
         <CardTitle class="flex items-center justify-between">
-          <span>映射管理</span>
+          <span>{{ t("admin.subdomainProxy.mappingsTitle") }}</span>
           <div class="flex items-center gap-2">
             <DocsLinkButton :href="docsUrls.guides.subdomainProxy" />
             <Button
@@ -253,7 +278,7 @@
               @click="addAuthService"
             >
               <ShieldCheck class="mr-2 h-4 w-4" />
-              添加鉴权服务
+              {{ t("admin.subdomainProxy.addAuthService") }}
             </Button>
             <div v-if="authServiceMapping" class="flex items-center">
               <Button
@@ -263,7 +288,11 @@
                 @click="openDiscoverDialog"
               >
                 <Search class="mr-2 h-4 w-4" />
-                {{ isDiscovering ? "发现中..." : "一键发现" }}
+                {{
+                  isDiscovering
+                    ? t("admin.subdomainProxy.discovering")
+                    : t("admin.subdomainProxy.discover")
+                }}
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger as-child>
@@ -286,21 +315,25 @@
                     @select="openClearAllConfigDialog"
                   >
                     <Trash2 class="mr-2 h-4 w-4" />
-                    清空所有配置
+                    {{ t("admin.subdomainProxy.clearAllConfig") }}
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     :disabled="configStore.isLoading"
                     @click="openCreateDialog"
                   >
                     <Plus class="mr-2 h-4 w-4" />
-                    添加映射
+                    {{ t("admin.subdomainProxy.addMapping") }}
                   </DropdownMenuItem>
                   <DropdownMenuItem @click="syncRoutes" :disabled="isSyncing">
                     <RefreshCw
                       class="mr-2 h-4 w-4"
                       :class="{ 'animate-spin': isSyncing }"
                     />
-                    {{ isSyncing ? "同步中..." : "同步路由" }}
+                    {{
+                      isSyncing
+                        ? t("admin.subdomainProxy.syncing")
+                        : t("admin.subdomainProxy.syncRoutes")
+                    }}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
@@ -311,7 +344,11 @@
                       class="mr-2 h-4 w-4"
                       :class="{ 'animate-pulse': isRefreshingTitles }"
                     />
-                    {{ isRefreshingTitles ? "刷新中..." : "刷新图标和标题" }}
+                    {{
+                      isRefreshingTitles
+                        ? t("admin.subdomainProxy.refreshing")
+                        : t("admin.subdomainProxy.refreshIconsTitles")
+                    }}
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     :disabled="
@@ -323,7 +360,11 @@
                       class="mr-2 h-4 w-4"
                       :class="{ 'animate-pulse': isExportingBookmarks }"
                     />
-                    {{ isExportingBookmarks ? "导出中..." : "导出为书签" }}
+                    {{
+                      isExportingBookmarks
+                        ? t("admin.subdomainProxy.exporting")
+                        : t("admin.subdomainProxy.exportBookmarks")
+                    }}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -331,33 +372,32 @@
           </div>
         </CardTitle>
         <CardDescription>
-          每个子域名都会直接映射到一个本地 HTTP
-          服务。新增时只需要填写子域名前缀，根域名会自动补齐。
+          {{ t("admin.subdomainProxy.mappingsDescription") }}
         </CardDescription>
       </CardHeader>
       <CardContent class="space-y-4">
         <SearchInput
           v-model="searchQuery"
-          placeholder="搜索标题、子域名或目标地址..."
+          :placeholder="t('admin.subdomainProxy.searchPlaceholder')"
           class="max-w-xs"
         />
         <p
           v-if="visibleMappings.length > 1"
           class="text-xs text-muted-foreground"
         >
-          拖动左侧把手可调整显示顺序 ，如果发现无法反代，可以尝试
+          {{ t("admin.subdomainProxy.orderHintPrefix") }}
           <a
             href="#/system/gateway-proxy-headers"
             class="underline underline-offset-2 hover:text-foreground"
           >
-            关闭代理头 </a
-          >，亦或尝试
+            {{ t("admin.subdomainProxy.disableProxyHeaders") }} </a
+          >{{ t("admin.subdomainProxy.orderHintMiddle") }}
 
           <a
             href="#/system/gateway-host-response"
             class="underline underline-offset-2 hover:text-foreground"
           >
-            关闭Host头
+            {{ t("admin.subdomainProxy.disableHostHeader") }}
           </a>
         </p>
         <p
@@ -366,8 +406,8 @@
         >
           {{
             !savedRootDomain
-              ? "请先在上方保存根域名，再添加或发现 Host 映射。"
-              : "根域名有未保存的修改，请先保存后再添加或发现 Host 映射。"
+              ? t("admin.subdomainProxy.rootDomainRequired")
+              : t("admin.subdomainProxy.rootDomainDirty")
           }}
         </p>
 
@@ -386,17 +426,23 @@
                 <TableHead
                   class="mapping-sticky-cell mapping-sticky-cell-3 mapping-title-cell"
                 >
-                  标题
+                  {{ t("admin.subdomainProxy.columns.title") }}
                 </TableHead>
-                <TableHead>域名</TableHead>
-                <TableHead>目标</TableHead>
+                <TableHead>{{
+                  t("admin.subdomainProxy.columns.domain")
+                }}</TableHead>
+                <TableHead>{{
+                  t("admin.subdomainProxy.columns.target")
+                }}</TableHead>
                 <TableHead class="w-[7rem] min-w-[7rem] max-w-[7rem]">
-                  流量
+                  {{ t("admin.subdomainProxy.columns.traffic") }}
                 </TableHead>
                 <TableHead class="w-[5.5rem] min-w-[5.5rem]">
-                  状态
+                  {{ t("admin.subdomainProxy.columns.status") }}
                 </TableHead>
-                <TableHead class="text-right">操作</TableHead>
+                <TableHead class="text-right">{{
+                  t("admin.subdomainProxy.columns.actions")
+                }}</TableHead>
               </TableRow>
             </TableHeader>
             <VueDraggable
@@ -415,7 +461,7 @@
                   colspan="8"
                   class="py-8 text-center text-muted-foreground"
                 >
-                  还没有配置任何 Host 映射。
+                  {{ t("admin.subdomainProxy.emptyMappings") }}
                 </TableCell>
               </TableRow>
               <TableRow
@@ -430,7 +476,7 @@
                     type="button"
                     class="mapping-drag-handle -ml-1 inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
                     :disabled="isSavingMappings || filteredMappings.length < 2"
-                    aria-label="拖动排序"
+                    :aria-label="t('admin.subdomainProxy.dragSortAria')"
                   >
                     <GripVertical class="h-4 w-4" />
                   </button>
@@ -473,7 +519,11 @@
                               mapping.host,
                             ),
                           }"
-                          :aria-label="`${formatHostWithAccessEntryPort(mapping.host)} 的 Home Assistant 需要关闭协议头`"
+                          :aria-label="
+                            t('admin.subdomainProxy.homeAssistantWarningAria', {
+                              host: formatHostWithAccessEntryPort(mapping.host),
+                            })
+                          "
                           @mouseenter="openProtocolHeadersWarning(mapping.host)"
                           @mouseleave="
                             scheduleCloseProtocolHeadersWarning(mapping.host)
@@ -497,19 +547,26 @@
                             <div class="flex items-center gap-2">
                               <CircleAlert class="h-4 w-4 text-destructive" />
                               <p class="text-sm font-medium">
-                                Home Assistant 需要关闭协议头
+                                {{
+                                  t(
+                                    "admin.subdomainProxy.homeAssistantWarningTitle",
+                                  )
+                                }}
                               </p>
                             </div>
                             <p class="text-xs leading-5 text-muted-foreground">
-                              检测到该应用是 Home Assistant。Home Assistant
-                              在开启协议头时可能无法正常访问，建议前往“协议头”页面将该应用关闭。
+                              {{
+                                t(
+                                  "admin.subdomainProxy.homeAssistantWarningDescription",
+                                )
+                              }}
                             </p>
                           </div>
                           <a
                             href="#/system/gateway-proxy-headers"
                             class="inline-flex rounded-md border border-destructive/20 bg-destructive/5 px-2.5 py-1.5 text-xs font-medium text-destructive transition hover:bg-destructive/10"
                           >
-                            去关闭协议头
+                            {{ t("admin.subdomainProxy.goDisableProtocolHeaders") }}
                           </a>
                         </div>
                       </PopoverContent>
@@ -517,8 +574,8 @@
                     <div class="min-w-0 flex-1">
                       <InlineCommentEditor
                         :text="getMappingDisplayTitle(mapping)"
-                        placeholder="输入展示标题..."
-                        empty-text="未获取"
+                        :placeholder="t('admin.subdomainProxy.titlePlaceholder')"
+                        :empty-text="t('admin.subdomainProxy.notFetched')"
                         :save="
                           (value) => saveMappingTitleOverride(mapping, value)
                         "
@@ -530,8 +587,16 @@
                   <button
                     type="button"
                     class="break-all rounded-sm text-left transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    :title="`点击复制 ${formatHostWithAccessEntryPort(mapping.host)}`"
-                    :aria-label="`复制域名 ${formatHostWithAccessEntryPort(mapping.host)}`"
+                    :title="
+                      t('admin.subdomainProxy.copyHostTitle', {
+                        host: formatHostWithAccessEntryPort(mapping.host),
+                      })
+                    "
+                    :aria-label="
+                      t('admin.subdomainProxy.copyHostAria', {
+                        host: formatHostWithAccessEntryPort(mapping.host),
+                      })
+                    "
                     @click="copyMappingHost(mapping)"
                   >
                     {{ formatHostWithAccessEntryPort(mapping.host) }}
@@ -554,13 +619,15 @@
                       v-if="isAuthServiceTarget(mapping.target)"
                       variant="default"
                     >
-                      鉴权服务
+                      {{ t("admin.subdomainProxy.authServiceBadge") }}
                     </Badge>
                     <ShieldCheck
                       v-if="mapping.use_auth"
                       class="h-3.5 w-3.5 shrink-0"
                     />
-                    <Badge v-else variant="secondary">公开访问</Badge>
+                    <Badge v-else variant="secondary">{{
+                      t("admin.subdomainProxy.publicAccess")
+                    }}</Badge>
                     <PanelsTopLeft
                       v-if="mapping.use_auth && !mapping.suppress_toolbar"
                       class="h-3.5 w-3.5 shrink-0"
@@ -582,7 +649,14 @@
                           <button
                             type="button"
                             class="inline-flex h-5 w-5 shrink-0 cursor-help items-center justify-center rounded-md transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-                            :aria-label="`${formatHostWithAccessEntryPort(mapping.host)} 有 ${getLocationRulesCount(mapping)} 条路径规则`"
+                            :aria-label="
+                              t('admin.subdomainProxy.locationRulesAria', {
+                                host: formatHostWithAccessEntryPort(
+                                  mapping.host,
+                                ),
+                                count: getLocationRulesCount(mapping),
+                              })
+                            "
                             @click="handleLocationRulesTooltipTriggerClick(mapping.host)"
                           >
                             <RouteIcon class="h-3.5 w-3.5" />
@@ -590,7 +664,11 @@
                         </TooltipTrigger>
                         <TooltipContent side="top" align="center">
                           <p>
-                            已配置 {{ getLocationRulesCount(mapping) }} 条路径规则
+                            {{
+                              t("admin.subdomainProxy.locationRulesCount", {
+                                count: getLocationRulesCount(mapping),
+                              })
+                            }}
                           </p>
                         </TooltipContent>
                       </Tooltip>
@@ -604,7 +682,7 @@
                       size="sm"
                       @click="openEditDialog(mapping)"
                     >
-                      编辑
+                      {{ t("admin.subdomainProxy.edit") }}
                     </Button>
                     <Button
                       v-if="!isAuthServiceTarget(mapping.target)"
@@ -612,7 +690,7 @@
                       size="sm"
                       @click="openGatewayLocations(mapping.host)"
                     >
-                      路径
+                      {{ t("admin.subdomainProxy.paths") }}
                     </Button>
                     <Button
                       variant="ghost"
@@ -621,7 +699,7 @@
                       :disabled="isSavingMappings"
                       @click="openDeleteMappingDialog(mapping.host)"
                     >
-                      删除
+                      {{ t("admin.subdomainProxy.delete") }}
                     </Button>
                   </div>
                 </TableCell>
@@ -645,11 +723,13 @@
           <button
             type="button"
             class="-mx-2 inline-flex w-[calc(100%+1rem)] items-center gap-3 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label="返回基础信息"
+            :aria-label="t('admin.subdomainProxy.backToBasicAria')"
             @click="returnMappingBasicView"
           >
             <ChevronLeft class="h-4 w-4 shrink-0" />
-            <span class="text-sm font-semibold">高级配置</span>
+            <span class="text-sm font-semibold">{{
+              t("admin.subdomainProxy.advancedConfig")
+            }}</span>
           </button>
         </div>
         <div
@@ -673,7 +753,9 @@
             >
               <div class="space-y-2">
                 <div class="flex items-center justify-between gap-3">
-                  <Label for="mapping-display-title">展示标题</Label>
+                  <Label for="mapping-display-title">{{
+                    t("admin.subdomainProxy.displayTitle")
+                  }}</Label>
                   <Button
                     variant="link"
                     size="sm"
@@ -687,21 +769,29 @@
                       v-if="isRefreshingMappingMetadata"
                       class="mr-1 h-3.5 w-3.5 animate-spin"
                     />
-                    {{ isRefreshingMappingMetadata ? "刷新中..." : "刷新标题" }}
+                    {{
+                      isRefreshingMappingMetadata
+                        ? t("admin.subdomainProxy.refreshing")
+                        : t("admin.subdomainProxy.refreshTitle")
+                    }}
                   </Button>
                 </div>
                 <Input
                   id="mapping-display-title"
                   v-model="mappingForm.title_override"
-                  placeholder="为空时自动使用抓取到的页面标题"
+                  :placeholder="t('admin.subdomainProxy.titleAutoPlaceholder')"
                 />
                 <p class="text-xs text-muted-foreground">
-                  这里只修改当前系统内的展示标题，不会改动目标服务本身。留空时自动使用抓取到的页面标题。
+                  {{ t("admin.subdomainProxy.titleHelp") }}
                   <span v-if="mappingResolvedTitle">
-                    当前抓取标题：{{ mappingResolvedTitle }}
+                    {{
+                      t("admin.subdomainProxy.fetchedTitle", {
+                        title: mappingResolvedTitle,
+                      })
+                    }}
                   </span>
                   <span v-else-if="mappingForm.target.trim()">
-                    当前还没有抓取到标题，可点击右侧刷新。
+                    {{ t("admin.subdomainProxy.noFetchedTitle") }}
                   </span>
                 </p>
               </div>
@@ -720,7 +810,7 @@
                   </div>
                   <div
                     role="radiogroup"
-                    aria-label="Host 输入模式"
+                    :aria-label="t('admin.subdomainProxy.hostInputModeAria')"
                     class="grid w-full grid-cols-2 rounded-lg bg-muted p-[3px] text-muted-foreground sm:w-[216px]"
                   >
                     <button
@@ -736,7 +826,7 @@
                       "
                       @click="handleMappingInputModeChange('subdomain')"
                     >
-                      固定后缀
+                      {{ t("admin.subdomainProxy.fixedSuffix") }}
                     </button>
                     <button
                       type="button"
@@ -750,7 +840,7 @@
                       "
                       @click="handleMappingInputModeChange('full_host')"
                     >
-                      完整域名
+                      {{ t("admin.subdomainProxy.fullHost") }}
                     </button>
                   </div>
                 </div>
@@ -769,7 +859,13 @@
                     </div>
                   </div>
                   <p class="text-xs text-muted-foreground">
-                    最终地址：{{ composedPreviewHost || "未填写" }}
+                    {{
+                      t("admin.subdomainProxy.finalHost", {
+                        host:
+                          composedPreviewHost ||
+                          t("admin.subdomainProxy.notFilled"),
+                      })
+                    }}
                   </p>
                 </template>
                 <template v-else>
@@ -785,7 +881,9 @@
               </div>
 
               <div class="space-y-2">
-                <Label for="mapping-target">目标</Label>
+                <Label for="mapping-target">{{
+                  t("admin.subdomainProxy.targetLabel")
+                }}</Label>
                 <ProxyTargetInputField
                   v-model="mappingForm.target"
                   input-id="mapping-target"
@@ -803,7 +901,9 @@
                 <span class="flex min-w-0 flex-1 items-start gap-3">
                   <Settings class="mt-0.5 h-4 w-4 text-muted-foreground" />
                   <span class="min-w-0 flex-1 space-y-1">
-                    <span class="block text-sm font-medium">高级配置</span>
+                    <span class="block text-sm font-medium">{{
+                      t("admin.subdomainProxy.advancedConfig")
+                    }}</span>
                     <span
                       class="block whitespace-normal break-words text-xs font-normal leading-5 text-muted-foreground"
                     >
@@ -828,7 +928,9 @@
                       </p>
                     </div>
                     <div class="min-w-0 space-y-1">
-                      <p class="text-xs text-muted-foreground">目标</p>
+                      <p class="text-xs text-muted-foreground">
+                        {{ t("admin.subdomainProxy.targetLabel") }}
+                      </p>
                       <p class="truncate text-sm">
                         {{ mappingAdvancedTargetLabel }}
                       </p>
@@ -842,9 +944,11 @@
                   class="flex items-center justify-between gap-4 rounded-lg border px-4 py-3"
                 >
                   <div class="min-w-0 space-y-1">
-                    <Label for="mapping-auth">要求登录</Label>
+                    <Label for="mapping-auth">{{
+                      t("admin.subdomainProxy.authRequired")
+                    }}</Label>
                     <p class="text-xs leading-5 text-muted-foreground">
-                      安全性，未登录用户会被要求登录才可以访问。
+                      {{ t("admin.subdomainProxy.authRequiredDescription") }}
                     </p>
                   </div>
                   <Switch
@@ -858,9 +962,11 @@
                   class="flex items-center justify-between gap-4 rounded-lg border px-4 py-3"
                 >
                   <div class="min-w-0 space-y-1">
-                    <Label for="mapping-toolbar">显示传送门</Label>
+                    <Label for="mapping-toolbar">{{
+                      t("admin.subdomainProxy.toolbar")
+                    }}</Label>
                     <p class="text-xs leading-5 text-muted-foreground">
-                      完成登录后显示快速切换应用的小图标。
+                      {{ t("admin.subdomainProxy.toolbarDescription") }}
                     </p>
                   </div>
                   <Switch id="mapping-toolbar" v-model="showToolbar" />
@@ -872,9 +978,13 @@
                 >
                   <div class="flex items-center justify-between gap-4">
                     <div class="min-w-0 space-y-1">
-                      <Label for="mapping-basic-auth">Basic Auth 跳过</Label>
+                      <Label for="mapping-basic-auth">{{
+                        t("admin.subdomainProxy.basicAuthSkip")
+                      }}</Label>
                       <p class="text-xs leading-5 text-muted-foreground">
-                        开启并填写用户名和密码后，访问时会自动带上这组登录信息，避免每次打开都弹出浏览器自带的Basic Auth登录框。
+                        {{
+                          t("admin.subdomainProxy.basicAuthSkipDescription")
+                        }}
                       </p>
                     </div>
                     <Switch
@@ -889,7 +999,9 @@
                     class="grid gap-3 sm:grid-cols-2"
                   >
                     <div class="space-y-2">
-                      <Label for="mapping-basic-auth-username">用户名</Label>
+                      <Label for="mapping-basic-auth-username">{{
+                        t("admin.subdomainProxy.username")
+                      }}</Label>
                       <Input
                         id="mapping-basic-auth-username"
                         v-model="mappingForm.basic_auth.username"
@@ -898,7 +1010,9 @@
                       />
                     </div>
                     <div class="space-y-2">
-                      <Label for="mapping-basic-auth-password">密码</Label>
+                      <Label for="mapping-basic-auth-password">{{
+                        t("admin.subdomainProxy.password")
+                      }}</Label>
                       <Input
                         id="mapping-basic-auth-password"
                         v-model="mappingForm.basic_auth.password"
@@ -919,15 +1033,15 @@
                   class="flex items-center justify-between gap-4 rounded-lg border px-4 py-3"
                 >
                   <div class="min-w-0 space-y-1">
-                    <Label for="mapping-proxy-headers">协议头</Label>
+                    <Label for="mapping-proxy-headers">{{
+                      t("admin.subdomainProxy.proxyHeaders")
+                    }}</Label>
                     <p class="text-xs leading-5 text-muted-foreground">
                       <template v-if="gatewayProxyHeadersBlockedReason">
                         {{ gatewayProxyHeadersBlockedReason }}
                       </template>
                       <template v-else>
-                        开启后向上游发送
-                        <code>X-Forwarded-*</code>
-                        等代理头。
+                        {{ t("admin.subdomainProxy.proxyHeadersDescription") }}
                       </template>
                     </p>
                   </div>
@@ -944,15 +1058,15 @@
                   class="flex items-center justify-between gap-4 rounded-lg border px-4 py-3"
                 >
                   <div class="min-w-0 space-y-1">
-                    <Label for="mapping-host-response">Host响应</Label>
+                    <Label for="mapping-host-response">{{
+                      t("admin.subdomainProxy.hostResponse")
+                    }}</Label>
                     <p class="text-xs leading-5 text-muted-foreground">
                       <template v-if="gatewayHostResponseBlockedReason">
                         {{ gatewayHostResponseBlockedReason }}
                       </template>
                       <template v-else>
-                        开启后向上游保留用户访问时的
-                        <code>Host</code>
-                        。
+                        {{ t("admin.subdomainProxy.hostResponseDescription") }}
                       </template>
                     </p>
                   </div>
@@ -971,12 +1085,14 @@
         <DialogFooter
           class="shrink-0 border-t px-6 py-4 max-sm:pb-[calc(env(safe-area-inset-bottom)+1rem)]"
         >
-          <Button variant="outline" @click="closeDialog">取消</Button>
+          <Button variant="outline" @click="closeDialog">{{
+            t("admin.subdomainProxy.cancel")
+          }}</Button>
           <Button
             :disabled="!isMappingValid || isSavingMappings"
             @click="saveMapping"
           >
-            保存映射
+            {{ t("admin.subdomainProxy.saveMapping") }}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -994,7 +1110,9 @@
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" @click="closeDeleteDialog">取消</Button>
+          <Button variant="outline" @click="closeDeleteDialog">{{
+            t("admin.subdomainProxy.cancel")
+          }}</Button>
           <Button
             variant="destructive"
             :disabled="isSavingMappings || isClearingAllSubdomainConfig"
@@ -1022,10 +1140,13 @@
             class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
           >
             <div class="space-y-1">
-              <DialogTitle>一键发现本地服务</DialogTitle>
+              <DialogTitle>{{ t("admin.subdomainProxy.discoverTitle") }}</DialogTitle>
               <DialogDescription>
-                扫描本地端口并生成建议子域名，最终会自动拼接到
-                <code>.{{ savedRootDomain }}</code> 下。
+                {{
+                  t("admin.subdomainProxy.discoverDescription", {
+                    domain: savedRootDomain,
+                  })
+                }}
               </DialogDescription>
             </div>
             <div class="flex items-center gap-2">
@@ -1047,7 +1168,11 @@
                   class="mr-2 h-4 w-4"
                   :class="{ 'animate-spin': isDiscovering }"
                 />
-                {{ isDiscovering ? "扫描中..." : "刷新服务" }}
+                {{
+                  isDiscovering
+                    ? t("admin.subdomainProxy.scanning")
+                    : t("admin.subdomainProxy.refreshServices")
+                }}
               </Button>
             </div>
           </div>
@@ -1066,7 +1191,7 @@
             >
               <RefreshCw class="h-8 w-8 animate-spin text-muted-foreground" />
               <p class="text-sm text-muted-foreground">
-                正在探测端口服务，这可能需要几秒钟...
+                {{ t("admin.subdomainProxy.probing") }}
               </p>
             </div>
 
@@ -1076,8 +1201,8 @@
             >
               {{
                 discoveredData.foundServices > 0
-                  ? "本次扫描到的服务都已添加到 Host 映射中。"
-                  : "未探测到任何可代理的服务。"
+                  ? t("admin.subdomainProxy.discoverAllAdded")
+                  : t("admin.subdomainProxy.discoverEmpty")
               }}
             </div>
 
@@ -1099,13 +1224,23 @@
                       />
                     </TableHead>
                     <TableHead v-if="showDiscoverHostColumn" class="w-[140px]">
-                      主机
+                      {{ t("admin.subdomainProxy.discoverColumns.host") }}
                     </TableHead>
-                    <TableHead class="w-[80px]">端口</TableHead>
-                    <TableHead class="w-[100px]">状态</TableHead>
-                    <TableHead class="min-w-[10rem]">服务标识</TableHead>
+                    <TableHead class="w-[80px]">{{
+                      t("admin.subdomainProxy.discoverColumns.port")
+                    }}</TableHead>
+                    <TableHead class="w-[100px]">{{
+                      t("admin.subdomainProxy.discoverColumns.status")
+                    }}</TableHead>
+                    <TableHead class="min-w-[10rem]">{{
+                      t("admin.subdomainProxy.discoverColumns.serviceId")
+                    }}</TableHead>
                     <TableHead class="w-[260px] min-w-[18rem]">
-                      建议子域名
+                      {{
+                        t(
+                          "admin.subdomainProxy.discoverColumns.suggestedSubdomain",
+                        )
+                      }}
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1140,7 +1275,7 @@
                         v-else-if="svc.httpStatus === 401"
                         class="text-amber-600 bg-amber-500/10 text-xs px-2 py-0.5 rounded"
                       >
-                        需认证
+                        {{ t("admin.subdomainProxy.authRequiredShort") }}
                       </span>
                       <span
                         v-else
@@ -1150,7 +1285,11 @@
                       </span>
                     </TableCell>
                     <TableCell class="min-w-[10rem] text-sm">
-                      {{ svc.detail.label || svc.detail.name || "未知服务" }}
+                      {{
+                        svc.detail.label ||
+                        svc.detail.name ||
+                        t("admin.subdomainProxy.unknownService")
+                      }}
                     </TableCell>
                     <TableCell class="min-w-[18rem]">
                       <div
@@ -1183,18 +1322,25 @@
         <DialogFooter class="mt-2 shrink-0 items-center sm:justify-between">
           <span class="text-sm text-muted-foreground">
             <template v-if="discoveredData">
-              已扫描 {{ discoveredData.totalPortsScanned }} 个端口，选中
-              {{ selectedServices.length }} /
-              {{ discoveredData.services.length }}
-              项
+              {{
+                t("admin.subdomainProxy.discoveredScannedPorts", {
+                  count: discoveredData.totalPortsScanned,
+                })
+              }}，{{
+                t("admin.subdomainProxy.selectedItems", {
+                  count: `${selectedServices.length} / ${discoveredData.services.length}`,
+                })
+              }}
               <template v-if="discoveredData.scanCidrs?.length">
-                ，覆盖 {{ discoveredData.scanCidrs.length }} 个网段 /
-                {{
-                  discoveredData.scanHostCount ||
-                  discoveredData.scannedHosts ||
-                  0
+                ，{{
+                  t("admin.subdomainProxy.coveredCidrsHosts", {
+                    cidrs: discoveredData.scanCidrs.length,
+                    hosts:
+                      discoveredData.scanHostCount ||
+                      discoveredData.scannedHosts ||
+                      0,
+                  })
                 }}
-                台主机
               </template>
               <template
                 v-if="
@@ -1203,17 +1349,17 @@
                   discoveredData.scannedHosts > 1
                 "
               >
-                ，覆盖
                 {{
-                  discoveredData.scanScope ||
-                  `${discoveredData.scannedHosts} 台主机`
+                  t("admin.subdomainProxy.coveredHosts", {
+                    hosts: discoveredData.scanScope || discoveredData.scannedHosts,
+                  })
                 }}
               </template>
             </template>
           </span>
           <div class="space-x-2">
             <Button variant="outline" @click="dismissDiscoverDialog">
-              取消
+              {{ t("admin.subdomainProxy.cancel") }}
             </Button>
             <Button
               :disabled="
@@ -1224,7 +1370,7 @@
               "
               @click="saveDiscoveredServices"
             >
-              添加选中项
+              {{ t("admin.subdomainProxy.addSelected") }}
             </Button>
           </div>
         </DialogFooter>
@@ -1243,6 +1389,7 @@ import {
   ref,
   watch,
 } from "vue";
+import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import {
   CircleAlert,
@@ -1379,6 +1526,7 @@ type DeleteDialogState =
     };
 
 const configStore = useConfigStore();
+const { t } = useI18n();
 const discoverTargetsSettingsRef = ref<InstanceType<
   typeof ScanDiscoveryTargetsSettings
 > | null>(null);
@@ -1472,28 +1620,33 @@ const buildSuggestedSubdomain = (service: DiscoveredServiceInfo): string => {
   return `app-${service.port}`;
 };
 
-const edgeClientIpProviderOptions: Array<{
+const edgeClientIpProviderOptions = computed<Array<{
   value: EdgeClientIpProvider;
   label: string;
   description: string;
   headerHint: string;
-}> = [
+}>>(() => [
   {
     value: "tencent_edgeone",
-    label: "腾讯 EdgeOne",
-    description:
-      "适合腾讯 EdgeOne 回源场景，由网关识别 EO 头并回填真实客户端 IP。",
-    headerHint: "网关读取 EO-Connecting-IP，并转发到 X-Forwarded-For",
+    label: t("admin.subdomainProxy.edgeProviders.tencentEdgeOne.label"),
+    description: t(
+      "admin.subdomainProxy.edgeProviders.tencentEdgeOne.description",
+    ),
+    headerHint: t(
+      "admin.subdomainProxy.edgeProviders.tencentEdgeOne.headerHint",
+    ),
   },
   {
     value: "aliyun_esa",
-    label: "阿里云 ESA",
-    description:
-      "适合阿里云 ESA 回源场景，由网关识别 ESA 真实 IP 头并回填客户端 IP。",
-    headerHint:
-      "网关读取 Ali-Real-Client-IP，并转发到 X-Forwarded-For；请开启 ESA 托管转换请求头选项",
+    label: t("admin.subdomainProxy.edgeProviders.aliyunEsa.label"),
+    description: t(
+      "admin.subdomainProxy.edgeProviders.aliyunEsa.description",
+    ),
+    headerHint: t(
+      "admin.subdomainProxy.edgeProviders.aliyunEsa.headerHint",
+    ),
   },
-];
+]);
 
 const resolveEdgeClientIpProvider = (
   value: Pick<
@@ -1510,8 +1663,10 @@ const resolveEdgeClientIpProvider = (
 const getEdgeClientIpProviderLabel = (
   provider: EdgeClientIpProvider | null,
 ): string => {
-  if (provider === "tencent_edgeone") return "腾讯 EdgeOne";
-  if (provider === "aliyun_esa") return "阿里云 ESA";
+  if (provider === "tencent_edgeone")
+    return t("admin.subdomainProxy.edgeProviders.tencentEdgeOne.label");
+  if (provider === "aliyun_esa")
+    return t("admin.subdomainProxy.edgeProviders.aliyunEsa.label");
   return "";
 };
 
@@ -1742,7 +1897,9 @@ const savedEdgeClientIpProvider = computed(() =>
 );
 const savedEdgeClientIpProviderLabel = computed(() =>
   savedEdgeClientIpProvider.value
-    ? `${getEdgeClientIpProviderLabel(savedEdgeClientIpProvider.value)} 真实 IP`
+    ? t("admin.subdomainProxy.edgeRealIpSummary", {
+        provider: getEdgeClientIpProviderLabel(savedEdgeClientIpProvider.value),
+      })
     : "",
 );
 const currentDraftRootDomain = computed(() =>
@@ -1844,10 +2001,10 @@ const basicAuthValidationMessage = computed(() => {
   if (!basicAuthInjectionModel.value) return "";
   const username = mappingForm.basic_auth.username.trim();
   if (!username || !mappingForm.basic_auth.password) {
-    return "请填写用户名和密码，才能自动跳过浏览器登录框。";
+    return t("admin.subdomainProxy.basicAuthMissing");
   }
   if (username.includes(":")) {
-    return "用户名不能包含英文冒号（:）。";
+    return t("admin.subdomainProxy.basicAuthUsernameColon");
   }
   return "";
 });
@@ -1885,70 +2042,88 @@ const deleteDialogTitle = computed(() => {
   if (!target) return "";
 
   if (target.kind === "auth_service") {
-    return "确认删除鉴权服务？";
+    return t("admin.subdomainProxy.deleteAuthTitle");
   }
 
   if (target.kind === "clear_all") {
-    return target.step === 1 ? "确认清空所有配置？" : "请再次确认清空所有配置";
+    return target.step === 1
+      ? t("admin.subdomainProxy.clearAllTitle")
+      : t("admin.subdomainProxy.clearAllSecondTitle");
   }
 
-  return "确认删除 Host 映射？";
+  return t("admin.subdomainProxy.deleteMappingTitle");
 });
 const deleteDialogDescription = computed(() => {
   const target = deleteDialogState.value;
   if (!target) return "";
 
   if (target.kind === "auth_service") {
-    return `将删除 ${target.host} 对应的鉴权映射。删除后需要重新添加鉴权服务`;
+    return t("admin.subdomainProxy.deleteAuthDescriptionPlain", {
+      host: target.host,
+    });
   }
 
   if (target.kind === "clear_all") {
     const mappingsCount = allMappings.value.length;
     return target.step === 1
-      ? `这会删除鉴权服务和 ${mappingsCount} 条 Host 映射。根域名及其他子域模式配置会保留。点击“继续确认”后，还需要再确认一次。`
-      : "这是最后一次确认。确认后会立即清空鉴权服务和全部子域映射，但不会修改子域模式配置，此操作不可恢复。";
+      ? t("admin.subdomainProxy.clearAllDescriptionFirst", {
+          count: mappingsCount,
+        })
+      : t("admin.subdomainProxy.clearAllDescriptionSecond");
   }
 
-  return `您即将删除 Host 映射 ${target.host}，此操作不可逆转。`;
+  return t("admin.subdomainProxy.deleteMappingDescription", {
+    host: target.host,
+  });
 });
 const deleteDialogConfirmLabel = computed(() => {
   const target = deleteDialogState.value;
-  if (!target) return "确认";
+  if (!target) return t("admin.subdomainProxy.confirm");
 
   if (target.kind === "auth_service") {
-    return "删除鉴权服务";
+    return t("admin.subdomainProxy.deleteAuthAction");
   }
 
   if (target.kind === "clear_all") {
-    return target.step === 1 ? "继续确认" : "确认清空";
+    return target.step === 1
+      ? t("admin.subdomainProxy.continueConfirm")
+      : t("admin.subdomainProxy.confirmClear");
   }
 
-  return "删除映射";
+  return t("admin.subdomainProxy.deleteMapping");
 });
 const mappingModeDescription = computed(() => {
   if (mappingInputMode.value === "subdomain" && canUseRootDomainSuffix.value) {
-    return `只填写前缀，保存时会自动拼接 .${savedRootDomain.value}。`;
+    return t("admin.subdomainProxy.subdomainModeDescription", {
+      domain: savedRootDomain.value,
+    });
   }
 
   if (canUseRootDomainSuffix.value) {
-    return `输入完整 Host，不会自动拼接 .${savedRootDomain.value}。`;
+    return t("admin.subdomainProxy.fullHostModeDescription", {
+      domain: savedRootDomain.value,
+    });
   }
 
   if (!savedRootDomain.value) {
-    return "保存根域名后可使用固定后缀；当前需要输入完整域名。";
+    return t("admin.subdomainProxy.suffixAfterSavingRoot");
   }
 
-  return "根域名有未保存修改，保存后可使用固定后缀。";
+  return t("admin.subdomainProxy.suffixAfterSavingChanges");
 });
 const mappingInputLabel = computed(() =>
-  mappingInputMode.value === "subdomain" ? "子域名前缀" : "完整域名",
+  mappingInputMode.value === "subdomain"
+    ? t("admin.subdomainProxy.subdomainPrefix")
+    : t("admin.subdomainProxy.fullHost"),
 );
 const fullHostInputHint = computed(() => {
   if (canUseRootDomainSuffix.value) {
-    return `按输入的 Host 直接保存，不自动拼接 .${savedRootDomain.value}。`;
+    return t("admin.subdomainProxy.fullHostInputHintWithRoot", {
+      domain: savedRootDomain.value,
+    });
   }
 
-  return "按输入的 Host 直接保存。";
+  return t("admin.subdomainProxy.fullHostInputHint");
 });
 const composedPreviewHost = computed(() => {
   if (mappingInputMode.value === "full_host") {
@@ -1961,17 +2136,19 @@ const composedPreviewHost = computed(() => {
 });
 const mappingDraftHost = computed(() => composedPreviewHost.value);
 const mappingAdvancedHostLabel = computed(
-  () => mappingDraftHost.value || "未填写 Host",
+  () => mappingDraftHost.value || t("admin.subdomainProxy.missingHost"),
 );
 const mappingAdvancedTargetLabel = computed(
-  () => mappingForm.target.trim() || "未填写目标",
+  () => mappingForm.target.trim() || t("admin.subdomainProxy.missingTarget"),
 );
 const isGatewayAdvancedAvailableByMode = computed(() =>
   isAnySubdomainRoutingMode(configStore.config),
 );
 const gatewayProxyHeadersBlockedReason = computed(() => {
-  if (isMappingAuthService.value) return "鉴权服务不参与协议头配置。";
-  if (isLoadingGatewayProxyHeaders.value) return "正在加载协议头配置。";
+  if (isMappingAuthService.value)
+    return t("admin.subdomainProxy.proxyHeadersAuthBlocked");
+  if (isLoadingGatewayProxyHeaders.value)
+    return t("admin.subdomainProxy.proxyHeadersLoading");
   if (gatewayProxyHeadersLoadError.value) {
     return gatewayProxyHeadersLoadError.value;
   }
@@ -1981,13 +2158,15 @@ const gatewayProxyHeadersBlockedReason = computed(() => {
       : gatewayProxyHeadersDetails.value.availability.reason;
   }
   if (!isGatewayAdvancedAvailableByMode.value) {
-    return "协议头仅可在子域映射模式下编辑。";
+    return t("admin.subdomainProxy.proxyHeadersModeBlocked");
   }
   return "";
 });
 const gatewayHostResponseBlockedReason = computed(() => {
-  if (isMappingAuthService.value) return "鉴权服务不参与 Host 响应配置。";
-  if (isLoadingGatewayHostResponse.value) return "正在加载 Host 响应配置。";
+  if (isMappingAuthService.value)
+    return t("admin.subdomainProxy.hostResponseAuthBlocked");
+  if (isLoadingGatewayHostResponse.value)
+    return t("admin.subdomainProxy.hostResponseLoading");
   if (gatewayHostResponseLoadError.value) {
     return gatewayHostResponseLoadError.value;
   }
@@ -1997,24 +2176,36 @@ const gatewayHostResponseBlockedReason = computed(() => {
       : gatewayHostResponseDetails.value.availability.reason;
   }
   if (!isGatewayAdvancedAvailableByMode.value) {
-    return "Host 响应仅可在子域映射模式下编辑。";
+    return t("admin.subdomainProxy.hostResponseModeBlocked");
   }
   return "";
 });
 const mappingAdvancedSummary = computed(() => {
   const items = [
-    mappingUseAuth.value ? "要求登录" : "公开访问",
-    showToolbar.value ? "显示传送门" : "隐藏传送门",
+    mappingUseAuth.value
+      ? t("admin.subdomainProxy.authRequired")
+      : t("admin.subdomainProxy.publicAccess"),
+    showToolbar.value
+      ? t("admin.subdomainProxy.toolbar")
+      : t("admin.subdomainProxy.hideToolbar"),
   ];
 
   if (isMappingAuthService.value) {
-    items.push("鉴权入口");
+    items.push(t("admin.subdomainProxy.authEntry"));
   } else {
     if (basicAuthInjectionModel.value) {
-      items.push("注入凭证");
+      items.push(t("admin.subdomainProxy.injectCredentials"));
     }
-    items.push(sendProxyHeaders.value ? "发送协议头" : "关闭协议头");
-    items.push(preserveHost.value ? "保留 Host" : "使用上游 Host");
+    items.push(
+      sendProxyHeaders.value
+        ? t("admin.subdomainProxy.sendProxyHeaders")
+        : t("admin.subdomainProxy.disableProxyHeaders"),
+    );
+    items.push(
+      preserveHost.value
+        ? t("admin.subdomainProxy.preserveHost")
+        : t("admin.subdomainProxy.useUpstreamHost"),
+    );
   }
 
   return items.join(" · ");
@@ -2155,7 +2346,7 @@ const buildBookmarkExportFilename = (rootDomain: string): string => {
 const getMappingDisplayTitle = (mapping: HostMapping): string =>
   mapping.title_override.trim() || mapping.title.trim();
 const getMappingTitleForDisplay = (mapping: HostMapping): string =>
-  getMappingDisplayTitle(mapping) || "未获取";
+  getMappingDisplayTitle(mapping) || t("admin.subdomainProxy.notFetched");
 const getMappingFaviconSrc = (mapping: HostMapping): string => {
   const favicon = mapping.favicon.trim();
   return /^data:image\//i.test(favicon) ? favicon : "";
@@ -2330,16 +2521,22 @@ const isMappingValid = computed(() => {
 
 const { isPending: isSavingMode, run: runSaveMode } = useAsyncAction({
   onError: (error) => {
-    toast.error("保存失败", {
-      description: extractErrorMessage(error, "子域模式配置保存失败"),
+    toast.error(t("admin.subdomainProxy.saveFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.subdomainProxy.saveModeFailed"),
+      ),
     });
   },
 });
 
 const { isPending: isSavingMappings, run: runSaveMappings } = useAsyncAction({
   onError: (error) => {
-    toast.error("保存失败", {
-      description: extractErrorMessage(error, "Host 映射保存失败"),
+    toast.error(t("admin.subdomainProxy.saveFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.subdomainProxy.saveMappingFailed"),
+      ),
     });
   },
 });
@@ -2349,16 +2546,22 @@ const {
   run: runClearAllSubdomainConfig,
 } = useAsyncAction({
   onError: (error) => {
-    toast.error("清空失败", {
-      description: extractErrorMessage(error, "清空子域配置失败"),
+    toast.error(t("admin.subdomainProxy.clearFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.subdomainProxy.clearConfigFailed"),
+      ),
     });
   },
 });
 
 const { isPending: isSyncing, run: runSyncRoutes } = useAsyncAction({
   onError: (error) => {
-    toast.error("同步失败", {
-      description: extractErrorMessage(error, "同步网关配置失败"),
+    toast.error(t("admin.subdomainProxy.syncFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.subdomainProxy.syncGatewayFailed"),
+      ),
     });
   },
 });
@@ -2366,8 +2569,11 @@ const { isPending: isSyncing, run: runSyncRoutes } = useAsyncAction({
 const { isPending: isRefreshingTitles, run: runRefreshTitles } = useAsyncAction(
   {
     onError: (error) => {
-      toast.error("刷新失败", {
-        description: extractErrorMessage(error, "批量刷新图标和标题失败"),
+      toast.error(t("admin.subdomainProxy.refreshFailed"), {
+        description: extractErrorMessage(
+          error,
+          t("admin.subdomainProxy.refreshAllTitlesFailed"),
+        ),
       });
     },
   },
@@ -2378,8 +2584,11 @@ const {
   run: runRefreshMappingMetadata,
 } = useAsyncAction({
   onError: (error) => {
-    toast.error("刷新失败", {
-      description: extractErrorMessage(error, "目标地址标题刷新失败"),
+    toast.error(t("admin.subdomainProxy.refreshFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.subdomainProxy.refreshMetadataFailed"),
+      ),
     });
   },
 });
@@ -2387,16 +2596,22 @@ const {
 const { isPending: isExportingBookmarks, run: runExportBookmarks } =
   useAsyncAction({
     onError: (error) => {
-      toast.error("导出失败", {
-        description: extractErrorMessage(error, "导出书签失败"),
+      toast.error(t("admin.subdomainProxy.exportFailed"), {
+        description: extractErrorMessage(
+          error,
+          t("admin.subdomainProxy.exportBookmarksFailed"),
+        ),
       });
     },
   });
 
 const { isPending: isDiscovering, run: runDiscoverServices } = useAsyncAction({
   onError: (error) => {
-    toast.error("发现失败", {
-      description: extractErrorMessage(error, "本地服务扫描失败"),
+    toast.error(t("admin.subdomainProxy.discoverFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.subdomainProxy.discoverServicesFailed"),
+      ),
     });
   },
 });
@@ -2937,7 +3152,10 @@ async function runBasicAuthProbe(target: string) {
     setBasicAuthProbeCacheResult(normalizedTarget, {
       requiresBasicAuth: false,
       httpStatus: null,
-      error: extractErrorMessage(error, "Basic Auth 探测失败"),
+      error: extractErrorMessage(
+        error,
+        t("admin.subdomainProxy.basicAuthProbeFailed"),
+      ),
     });
   } finally {
     if (
@@ -3028,7 +3246,7 @@ async function loadGatewayProxyHeadersDetails(
     if (options.trackLoading) {
       gatewayProxyHeadersLoadError.value = extractErrorMessage(
         error,
-        "加载协议头配置失败",
+        t("admin.subdomainProxy.proxyHeadersLoadFailed"),
       );
     }
     console.warn("load gateway proxy headers failed:", error);
@@ -3062,7 +3280,7 @@ async function loadGatewayHostResponseDetails(
     if (options.trackLoading) {
       gatewayHostResponseLoadError.value = extractErrorMessage(
         error,
-        "加载 Host 响应配置失败",
+        t("admin.subdomainProxy.hostResponseLoadFailed"),
       );
     }
     console.warn("load gateway host response failed:", error);
@@ -3120,8 +3338,10 @@ function setMappingInputMode(nextMode: MappingInputMode) {
   mappingSubdomain.value = extractedSubdomain ?? "";
 
   if (currentValue.trim() && !extractedSubdomain) {
-    toast.info("已切换为固定后缀模式", {
-      description: `当前完整域名不在 .${savedRootDomain.value} 下，请重新填写子域名前缀。`,
+    toast.info(t("admin.subdomainProxy.switchedToSuffixMode"), {
+      description: t("admin.subdomainProxy.switchedToSuffixDescription", {
+        domain: savedRootDomain.value,
+      }),
     });
   }
 }
@@ -3155,16 +3375,18 @@ async function saveMode() {
       ),
       passkey_rp_id: (modeForm.passkey_rp_id || "").trim().toLowerCase(),
     });
-    toast.success("子域模式配置已保存");
+    toast.success(t("admin.subdomainProxy.modeSaved"));
     if (result?.ssl_auto_selection?.message) {
       if (result.ssl_auto_selection.applied) {
         toast.success(result.ssl_auto_selection.message, {
           description: result.ssl_auto_selection.label
-            ? `已切换到证书：${result.ssl_auto_selection.label}`
+            ? t("admin.subdomainProxy.switchedCertificate", {
+                label: result.ssl_auto_selection.label,
+              })
             : undefined,
         });
       } else {
-        toast.error("SSL 自动切换未完成", {
+        toast.error(t("admin.subdomainProxy.sslAutoSwitchIncomplete"), {
           description: result.ssl_auto_selection.message,
         });
       }
@@ -3299,7 +3521,7 @@ async function saveMappingOrder() {
 
   const saved = await runSaveMappings(async () => {
     await configStore.saveHostMappings(next);
-    toast.success("子域映射顺序已更新");
+    toast.success(t("admin.subdomainProxy.orderUpdated"));
     return true;
   });
 
@@ -3315,16 +3537,16 @@ async function copyMappingHost(mapping: HostMapping) {
   try {
     const result = await copyTextToClipboard(host);
     if (result.verified) {
-      toast.success("域名已复制", { description: host });
+      toast.success(t("admin.subdomainProxy.hostCopied"), { description: host });
       return;
     }
 
-    toast.info("已尝试复制域名", {
+    toast.info(t("admin.subdomainProxy.copyAttempted"), {
       description: host,
     });
   } catch {
-    toast.error("复制域名失败", {
-      description: "当前页面可能运行在受限环境中，请手动复制。",
+    toast.error(t("admin.subdomainProxy.copyFailed"), {
+      description: t("admin.subdomainProxy.copyRestricted"),
     });
   }
 }
@@ -3349,7 +3571,7 @@ async function saveMappingTitleOverride(mapping: HostMapping, value: string) {
   }
 
   if (isSavingMappings.value) {
-    throw new Error("当前有其他映射正在保存，请稍后重试");
+    throw new Error(t("admin.subdomainProxy.concurrentSave"));
   }
 
   try {
@@ -3360,10 +3582,13 @@ async function saveMappingTitleOverride(mapping: HostMapping, value: string) {
           : item,
       ),
     );
-    toast.success("展示标题已更新");
+    toast.success(t("admin.subdomainProxy.titleUpdated"));
   } catch (error) {
-    toast.error("保存失败", {
-      description: extractErrorMessage(error, "展示标题保存失败"),
+    toast.error(t("admin.subdomainProxy.saveFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.subdomainProxy.titleSaveFailed"),
+      ),
     });
     throw error;
   }
@@ -3393,10 +3618,12 @@ async function refreshMappingMetadata() {
         mappingForm.title = metadata.title.trim();
         mappingForm.favicon = metadata.favicon.trim();
         brokenFaviconKeys.value = new Set();
-        toast.success("目标地址标题已刷新", {
+        toast.success(t("admin.subdomainProxy.metadataRefreshed"), {
           description: metadata.title.trim()
-            ? `当前抓取标题：${metadata.title.trim()}`
-            : "目标地址未返回可用标题，已仅更新抓取结果。",
+            ? t("admin.subdomainProxy.fetchedTitle", {
+                title: metadata.title.trim(),
+              })
+            : t("admin.subdomainProxy.metadataNoTitle"),
         });
       },
     },
@@ -3405,17 +3632,19 @@ async function refreshMappingMetadata() {
 
 async function addAuthService() {
   if (!canManageNewMappings.value) {
-    toast.error("暂时无法添加鉴权服务", {
+    toast.error(t("admin.subdomainProxy.cannotAddAuthService"), {
       description: !savedRootDomain.value
-        ? "请先保存根域名配置。"
-        : "根域名有未保存修改，请先保存后再添加鉴权服务。",
+        ? t("admin.subdomainProxy.saveRootFirst")
+        : t("admin.subdomainProxy.rootDirtyAddAuth"),
     });
     return;
   }
 
   if (authServiceMapping.value) {
-    toast.error("鉴权服务已存在", {
-      description: `当前已配置 ${authServiceMapping.value.host} 作为鉴权服务。`,
+    toast.error(t("admin.subdomainProxy.authServiceExists"), {
+      description: t("admin.subdomainProxy.authServiceExistsDescription", {
+        host: authServiceMapping.value.host,
+      }),
     });
     return;
   }
@@ -3427,16 +3656,19 @@ async function addAuthService() {
   const target = resolveDefaultAuthServiceTarget();
 
   if (!host) {
-    toast.error("默认鉴权服务生成失败", {
-      description: "请先确认根域名已正确保存。",
+    toast.error(t("admin.subdomainProxy.defaultAuthGenerateFailed"), {
+      description: t("admin.subdomainProxy.confirmRootSaved"),
     });
     return;
   }
 
   const duplicateHost = allMappings.value.find((item) => item.host === host);
   if (duplicateHost) {
-    toast.error("默认鉴权子域已存在", {
-      description: `${host} 已存在，请将该映射的 Target 调整到鉴权端口。`,
+    toast.error(t("admin.subdomainProxy.defaultAuthSubdomainExists"), {
+      description: t(
+        "admin.subdomainProxy.defaultAuthSubdomainExistsDescription",
+        { host },
+      ),
     });
     return;
   }
@@ -3460,7 +3692,7 @@ async function addAuthService() {
       },
     ]);
 
-    toast.success("鉴权服务已添加", {
+    toast.success(t("admin.subdomainProxy.authServiceAdded"), {
       description: `${host} -> ${target}`,
     });
   });
@@ -3468,7 +3700,7 @@ async function addAuthService() {
 
 function openClearAllConfigDialog() {
   if (allMappings.value.length === 0) {
-    toast.error("当前没有可清空的子域映射");
+    toast.error(t("admin.subdomainProxy.noClearableMappings"));
     return;
   }
 
@@ -3487,7 +3719,7 @@ function openDeleteMappingDialog(host: string) {
 
 async function removeAuthService(): Promise<boolean> {
   if (!authServiceMapping.value) {
-    toast.error("当前没有鉴权服务");
+    toast.error(t("admin.subdomainProxy.noCurrentAuthService"));
     return false;
   }
 
@@ -3498,7 +3730,7 @@ async function removeAuthService(): Promise<boolean> {
       allMappings.value.filter((item) => !isAuthServiceTarget(item.target)),
     );
 
-    toast.success("鉴权服务已删除", {
+    toast.success(t("admin.subdomainProxy.authServiceDeleted"), {
       description: authHost,
     });
 
@@ -3514,11 +3746,13 @@ async function clearAllSubdomainConfig(): Promise<boolean> {
   const cleared = await runClearAllSubdomainConfig(async () => {
     await configStore.saveHostMappings([]);
 
-    toast.success("鉴权服务和子域映射已清空", {
+    toast.success(t("admin.subdomainProxy.allCleared"), {
       description:
         mappingsCount > 0
-          ? `已清理 ${mappingsCount} 条 Host 映射，子域模式配置保持不变。`
-          : "子域模式配置保持不变。",
+          ? t("admin.subdomainProxy.clearedMappingsDescription", {
+              count: mappingsCount,
+            })
+          : t("admin.subdomainProxy.modeConfigKept"),
     });
 
     return true;
@@ -3612,8 +3846,10 @@ async function saveMapping() {
     (item) => item.host === normalized.host && item.host !== editingHost.value,
   );
   if (duplicateHost) {
-    toast.error("Host 已存在", {
-      description: `${normalized.host} 已经配置过映射。`,
+    toast.error(t("admin.subdomainProxy.hostExists"), {
+      description: t("admin.subdomainProxy.hostExistsDescription", {
+        host: normalized.host,
+      }),
     });
     return;
   }
@@ -3623,8 +3859,10 @@ async function saveMapping() {
       isAuthServiceTarget(item.target) && item.host !== editingHost.value,
   );
   if (normalized.service_role === "auth" && duplicateAuthService) {
-    toast.error("鉴权服务已存在", {
-      description: `当前已配置 ${duplicateAuthService.host} 作为鉴权服务，请先调整那条映射。`,
+    toast.error(t("admin.subdomainProxy.authServiceExists"), {
+      description: t("admin.subdomainProxy.duplicateAuthServiceDescription", {
+        host: duplicateAuthService.host,
+      }),
     });
     return;
   }
@@ -3654,13 +3892,20 @@ async function saveMapping() {
     } catch (error) {
       mappingDialogMotionDirection.value = "forward";
       mappingDialogView.value = "advanced";
-      toast.error("Host 映射已保存，高级配置保存失败", {
-        description: extractErrorMessage(error, "高级配置保存失败"),
+      toast.error(t("admin.subdomainProxy.advancedSaveFailed"), {
+        description: extractErrorMessage(
+          error,
+          t("admin.subdomainProxy.advancedConfigSaveFailed"),
+        ),
       });
       return;
     }
 
-    toast.success(index >= 0 ? "Host 映射已更新" : "Host 映射已添加");
+    toast.success(
+      index >= 0
+        ? t("admin.subdomainProxy.mappingUpdated")
+        : t("admin.subdomainProxy.mappingAdded"),
+    );
     closeDialog();
   });
 }
@@ -3673,7 +3918,7 @@ async function removeMapping(host: string): Promise<boolean> {
     await configStore.saveHostMappings(
       allMappings.value.filter((item) => item.host !== host),
     );
-    toast.success("Host 映射已删除");
+    toast.success(t("admin.subdomainProxy.mappingDeleted"));
 
     return true;
   });
@@ -3730,10 +3975,10 @@ const handleDiscoverDialogOpenChange = (nextOpen: boolean) => {
 
 function openDiscoverDialog() {
   if (!canManageNewMappings.value) {
-    toast.error("暂时无法发现服务", {
+    toast.error(t("admin.subdomainProxy.cannotDiscover"), {
       description: !savedRootDomain.value
-        ? "请先保存根域名配置。"
-        : "根域名有未保存修改，请先保存后再发现服务。",
+        ? t("admin.subdomainProxy.saveRootFirst")
+        : t("admin.subdomainProxy.rootDirtyDiscover"),
     });
     return;
   }
@@ -3823,8 +4068,8 @@ async function saveDiscoveredServices() {
   ];
 
   if (duplicateHosts.length > 0) {
-    toast.error("发现结果包含重复 Host", {
-      description: duplicateHosts.join("、"),
+    toast.error(t("admin.subdomainProxy.duplicateDiscoverHosts"), {
+      description: duplicateHosts.join(", "),
     });
     return;
   }
@@ -3853,7 +4098,11 @@ async function saveDiscoveredServices() {
     }
 
     await configStore.saveHostMappings(next);
-    toast.success(`已添加 ${selectedServices.value.length} 条 Host 映射`);
+    toast.success(
+      t("admin.subdomainProxy.addedMappings", {
+        count: selectedServices.value.length,
+      }),
+    );
     dismissDiscoverDialog();
   });
 }
@@ -3862,13 +4111,16 @@ async function syncRoutes() {
   await runSyncRoutes(() => ConfigAPI.syncRoutes(), {
     onSuccess: (result) => {
       if (result.success) {
-        toast.success("已同步到网关", {
-          description: `路径路由 ${result.data?.synced_rules ?? 0} 条，Host 路由 ${result.data?.synced_host_rules ?? 0} 条。`,
+        toast.success(t("admin.subdomainProxy.syncedGateway"), {
+          description: t("admin.subdomainProxy.syncedGatewayDescription", {
+            pathRules: result.data?.synced_rules ?? 0,
+            hostRules: result.data?.synced_host_rules ?? 0,
+          }),
         });
         return;
       }
-      toast.error("同步失败", {
-        description: result.message || "网关未返回成功结果",
+      toast.error(t("admin.subdomainProxy.syncFailed"), {
+        description: result.message || t("admin.subdomainProxy.syncNoSuccess"),
       });
     },
   });
@@ -3877,8 +4129,12 @@ async function syncRoutes() {
 async function refreshAllTitles() {
   await runRefreshTitles(() => configStore.refreshAllHostMappingTitles(), {
     onSuccess: (summary) => {
-      toast.success("图标和标题刷新完成", {
-        description: `更新 ${summary.updated} 条，失败 ${summary.failed} 条，跳过 ${summary.skipped} 条。`,
+      toast.success(t("admin.subdomainProxy.titlesRefreshDone"), {
+        description: t("admin.subdomainProxy.titlesRefreshDescription", {
+          updated: summary.updated,
+          failed: summary.failed,
+          skipped: summary.skipped,
+        }),
       });
       brokenFaviconKeys.value = new Set();
     },
@@ -3889,8 +4145,10 @@ async function exportBookmarks() {
   await runExportBookmarks(() => ConfigAPI.downloadHostMappingBookmarks(), {
     onSuccess: (blob) => {
       downloadBlob(blob, buildBookmarkExportFilename(savedRootDomain.value));
-      toast.success("书签已导出", {
-        description: `共导出 ${visibleMappings.value.length} 条子域映射。`,
+      toast.success(t("admin.subdomainProxy.bookmarksExported"), {
+        description: t("admin.subdomainProxy.bookmarksExportDescription", {
+          count: visibleMappings.value.length,
+        }),
       });
     },
   });

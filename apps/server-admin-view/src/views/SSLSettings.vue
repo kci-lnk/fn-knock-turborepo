@@ -2,10 +2,11 @@
   <div class="h-full flex flex-col gap-4">
     <div class="flex items-start justify-between gap-3">
       <div class="grid gap-1">
-        <h1 class="text-lg font-semibold tracking-tight">SSL / HTTPS</h1>
+        <h1 class="text-lg font-semibold tracking-tight">
+          {{ t("admin.sslSettings.title") }}
+        </h1>
         <p class="text-sm text-muted-foreground">
-          已有证书就直接上传；局域网或开发环境可用自签；需要公网自动续期时优先使用
-          ACME。
+          {{ t("admin.sslSettings.description") }}
         </p>
       </div>
       <DocsLinkButton :href="docsUrls.guides.ssl" />
@@ -16,9 +17,15 @@
       class="w-full"
     >
       <TabsList>
-        <TabsTrigger value="cert-config">证书配置</TabsTrigger>
-        <TabsTrigger value="self-signed">自签证书</TabsTrigger>
-        <TabsTrigger value="acme-cert">ACME证书</TabsTrigger>
+        <TabsTrigger value="cert-config">{{
+          t("admin.sslSettings.certConfig")
+        }}</TabsTrigger>
+        <TabsTrigger value="self-signed">{{
+          t("admin.sslSettings.selfSigned")
+        }}</TabsTrigger>
+        <TabsTrigger value="acme-cert">{{
+          t("admin.sslSettings.acme")
+        }}</TabsTrigger>
       </TabsList>
       <TabsContent value="cert-config" class="pt-2">
         <CertConfig />
@@ -34,6 +41,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
@@ -45,6 +53,7 @@ import { docsUrls } from "../lib/docs";
 
 const router = useRouter();
 const route = useRoute();
+const { t } = useI18n();
 
 const defaultTab = "cert-config";
 const allowedTabs = new Set([defaultTab, "self-signed", "acme-cert"]);

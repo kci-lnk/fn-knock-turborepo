@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-vue-next';
@@ -28,14 +29,8 @@ const props = withDefaults(
     description: '',
     maxWidthClass: 'sm:max-w-[700px]',
     loading: false,
-    closeText: '关闭',
     closeVariant: 'outline',
     showFooter: true,
-    copyLabel: '复制日志',
-    copySuccessText: '日志已复制',
-    copyUnverifiedText: '已尝试复制日志',
-    copyUnverifiedDescription: '日志已复制',
-    copyErrorText: '复制日志失败',
     copyDisabled: false,
   },
 );
@@ -43,6 +38,8 @@ const props = withDefaults(
 const emit = defineEmits<{
   'update:open': [value: boolean];
 }>();
+
+const { t } = useI18n();
 
 const modelOpen = computed({
   get: () => props.open,
@@ -57,6 +54,16 @@ const showCopyButton = computed(() => props.copyText !== undefined);
 const canCopy = computed(
   () => !props.copyDisabled && String(props.copyText ?? '').length > 0,
 );
+const closeText = computed(() => props.closeText ?? t('shared.detailDialog.close'));
+const copyLabel = computed(() => props.copyLabel ?? t('shared.detailDialog.copyLog'));
+const copySuccessText = computed(() => props.copySuccessText ?? t('shared.detailDialog.copySuccess'));
+const copyUnverifiedText = computed(
+  () => props.copyUnverifiedText ?? t('shared.detailDialog.copyUnverified'),
+);
+const copyUnverifiedDescription = computed(
+  () => props.copyUnverifiedDescription ?? t('shared.detailDialog.copyUnverifiedDescription'),
+);
+const copyErrorText = computed(() => props.copyErrorText ?? t('shared.detailDialog.copyFailed'));
 
 const copyDetailText = async () => {
   const text = String(props.copyText ?? '');
@@ -66,16 +73,16 @@ const copyDetailText = async () => {
     const result = await copyTextToClipboard(text);
 
     if (result.verified) {
-      toast.success(props.copySuccessText);
+      toast.success(copySuccessText.value);
       return;
     }
 
-    toast.info(props.copyUnverifiedText, {
-      description: props.copyUnverifiedDescription,
+    toast.info(copyUnverifiedText.value, {
+      description: copyUnverifiedDescription.value,
     });
   } catch {
-    toast.error(props.copyErrorText, {
-      description: '当前页面可能运行在受限环境中，请手动复制。',
+    toast.error(copyErrorText.value, {
+      description: t('shared.detailDialog.manualCopyHint'),
     });
   }
 };
@@ -110,9 +117,9 @@ const copyDetailText = async () => {
           :disabled="!canCopy"
           @click="copyDetailText"
         >
-          {{ props.copyLabel }}
+          {{ copyLabel }}
         </Button>
-        <Button :variant="props.closeVariant" @click="close">{{ props.closeText }}</Button>
+        <Button :variant="props.closeVariant" @click="close">{{ closeText }}</Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>

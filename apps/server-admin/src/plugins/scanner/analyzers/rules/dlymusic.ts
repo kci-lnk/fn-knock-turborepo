@@ -1,8 +1,9 @@
 import { AnalyzerRule } from "../../types";
+import { scannerServiceLabel } from "../labels";
 
 export const dlymusicRule: AnalyzerRule = {
   name: "DLYMusic",
-  label: '道理鱼音乐管理',
+  label: scannerServiceLabel("dlymusic"),
   rule: {
     path: '/music',
     rewrite_html: false,

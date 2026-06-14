@@ -3,13 +3,13 @@
     <Breadcrumb>
       <BreadcrumbList>
         <BreadcrumbItem>
-          <BreadcrumbLink href="#/sessions?tab=sessions"
-            >会话管理</BreadcrumbLink
-          >
+          <BreadcrumbLink href="#/sessions?tab=sessions">
+            {{ t("admin.nav.sessions") }}
+          </BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />
         <BreadcrumbItem>
-          <BreadcrumbPage>IP 漂移轨迹</BreadcrumbPage>
+          <BreadcrumbPage>{{ t("admin.sessions.mobilityPage.title") }}</BreadcrumbPage>
         </BreadcrumbItem>
       </BreadcrumbList>
     </Breadcrumb>
@@ -21,8 +21,9 @@
             <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
               <CardTitle
                 class="break-words text-xl font-semibold tracking-[0.02em] sm:text-[1.65rem]"
-                >IP 漂移轨迹</CardTitle
               >
+                {{ t("admin.sessions.mobilityPage.title") }}
+              </CardTitle>
               <Badge
                 v-if="session"
                 variant="secondary"
@@ -64,14 +65,16 @@
           <span
             class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"
           ></span>
-          正在加载轨迹...
+          {{ t("admin.sessions.mobilityPage.loading") }}
         </div>
 
         <div
           v-else-if="loadError"
           class="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-5"
         >
-          <div class="text-sm font-medium text-destructive">轨迹加载失败</div>
+          <div class="text-sm font-medium text-destructive">
+            {{ t("admin.sessions.mobilityPage.loadFailed") }}
+          </div>
           <div class="mt-1 text-sm text-muted-foreground">{{ loadError }}</div>
         </div>
 
@@ -85,7 +88,7 @@
               <div
                 class="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground/90"
               >
-                当前会话
+                {{ t("admin.sessions.mobilityPage.currentSession") }}
               </div>
               <div class="mt-3 break-words text-sm font-medium text-foreground">
                 {{ session.credentialName }}
@@ -96,7 +99,10 @@
               <div
                 class="mt-1 break-words text-xs leading-6 text-muted-foreground"
               >
-                {{ session.ipLocation || "暂无归属信息" }}
+                {{
+                  session.ipLocation ||
+                  t("admin.sessions.mobilityPage.noLocation")
+                }}
               </div>
             </div>
 
@@ -106,7 +112,7 @@
               <div
                 class="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground/90"
               >
-                恢复次数
+                {{ t("admin.sessions.mobilityPage.recoveryCount") }}
               </div>
               <div class="mt-3 text-xl font-semibold text-foreground">
                 {{ mobilitySummary?.driftCount ?? 0 }}
@@ -124,7 +130,7 @@
               <div
                 class="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground/90"
               >
-                轨迹跨度
+                {{ t("admin.sessions.mobilityPage.timelineSpan") }}
               </div>
               <div
                 class="mt-3 break-words text-sm font-semibold text-foreground"
@@ -144,7 +150,7 @@
               <div
                 class="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground/90"
               >
-                最近变化
+                {{ t("admin.sessions.mobilityPage.latestChange") }}
               </div>
               <div
                 class="mt-3 break-words text-sm font-semibold text-foreground"
@@ -152,6 +158,7 @@
                 <HumanFriendlyTime
                   v-if="lastEventTimeValue"
                   :value="lastEventTimeValue"
+                  :locale="locale"
                 />
                 <template v-else>{{ lastEventTimeLabel }}</template>
               </div>
@@ -183,7 +190,7 @@
                     v-if="entry.id === latestEntryId"
                     active
                     :pulse="false"
-                    active-label="最新状态"
+                    :active-label="t('admin.sessions.mobilityPage.latestStatus')"
                     size="sm"
                     class="block"
                   />
@@ -208,8 +215,8 @@
                         >
                           {{
                             entry.event.kind === "login"
-                              ? "登录建立"
-                              : "IP 恢复"
+                              ? t("admin.sessions.mobilityPage.loginEstablished")
+                              : t("admin.sessions.mobilityPage.ipRecovered")
                           }}
                         </Badge>
                         <span
@@ -227,7 +234,10 @@
                       class="text-left text-xs leading-6 text-muted-foreground sm:shrink-0 sm:pl-6 sm:text-right"
                     >
                       <div>
-                        <HumanFriendlyTime :value="entry.event.happenedAt" />
+                        <HumanFriendlyTime
+                          :value="entry.event.happenedAt"
+                          :locale="locale"
+                        />
                       </div>
                       <div v-if="entry.gapLabel" class="mt-1">
                         {{ entry.gapLabel }}
@@ -244,7 +254,8 @@
                     }}</span>
                     <span class="text-muted-foreground/70">·</span>
                     <span class="break-words text-muted-foreground">{{
-                      entry.event.toIpLocation || "暂无归属信息"
+                      entry.event.toIpLocation ||
+                      t("admin.sessions.mobilityPage.noLocation")
                     }}</span>
                   </div>
 
@@ -256,7 +267,7 @@
                       <div
                         class="text-[11px] uppercase tracking-[0.16em] text-muted-foreground/85"
                       >
-                        漂移前
+                        {{ t("admin.sessions.mobilityPage.beforeDrift") }}
                       </div>
                       <div class="mt-2 break-all font-mono text-foreground">
                         {{ entry.event.fromIp }}
@@ -264,7 +275,10 @@
                       <div
                         class="mt-1 break-words text-xs leading-6 text-muted-foreground"
                       >
-                        {{ entry.event.fromIpLocation || "暂无归属信息" }}
+                        {{
+                          entry.event.fromIpLocation ||
+                          t("admin.sessions.mobilityPage.noLocation")
+                        }}
                       </div>
                     </div>
                     <div class="flex justify-center text-muted-foreground/70">
@@ -274,7 +288,7 @@
                       <div
                         class="text-[11px] uppercase tracking-[0.16em] text-muted-foreground/85"
                       >
-                        漂移后
+                        {{ t("admin.sessions.mobilityPage.afterDrift") }}
                       </div>
                       <div class="mt-2 break-all font-mono text-foreground">
                         {{ entry.event.toIp }}
@@ -282,7 +296,10 @@
                       <div
                         class="mt-1 break-words text-xs leading-6 text-muted-foreground"
                       >
-                        {{ entry.event.toIpLocation || "暂无归属信息" }}
+                        {{
+                          entry.event.toIpLocation ||
+                          t("admin.sessions.mobilityPage.noLocation")
+                        }}
                       </div>
                     </div>
                   </div>
@@ -295,7 +312,7 @@
             v-else
             class="border-t border-border/35 px-4 py-12 text-center text-sm text-muted-foreground"
           >
-            当前会话没有可展示的轨迹记录。
+            {{ t("admin.sessions.mobilityPage.empty") }}
           </div>
         </template>
       </CardContent>
@@ -305,6 +322,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import { ArrowRight, ArrowUpDown } from "lucide-vue-next";
 import {
@@ -349,6 +367,7 @@ type TimelineEntry = {
 };
 
 const route = useRoute();
+const { t, locale } = useI18n();
 
 const session = ref<SessionRecord | null>(null);
 const mobility = ref<SessionMobilityDetails | null>(null);
@@ -357,7 +376,10 @@ const sortOrder = ref<SortOrder>("desc");
 
 const { isPending: isLoading, run: runLoad } = useAsyncAction({
   onError: (error) => {
-    loadError.value = extractErrorMessage(error, "加载轨迹失败");
+    loadError.value = extractErrorMessage(
+      error,
+      t("admin.sessions.mobilityPage.loadFailedFallback"),
+    );
   },
 });
 
@@ -367,20 +389,25 @@ const mobilitySummary = computed(
 );
 const sortToggleLabel = computed(() => {
   return sortOrder.value === "desc"
-    ? "当前为倒序，点击切换为正序"
-    : "当前为正序，点击切换为倒序";
+    ? t("admin.sessions.mobilityPage.sortDesc")
+    : t("admin.sessions.mobilityPage.sortAsc");
 });
 
 const headerDescription = computed(() => {
-  if (!session.value) return "查看会话在使用期间的 IP 变化与恢复过程。";
-  return `${session.value.credentialName} · 会话 ${middleEllipsis(session.value.id, 20)}`;
+  if (!session.value) {
+    return t("admin.sessions.mobilityPage.defaultDescription");
+  }
+  return t("admin.sessions.mobilityPage.sessionDescription", {
+    name: session.value.credentialName,
+    id: middleEllipsis(session.value.id, 20),
+  });
 });
 
 const driftCountDescription = computed(() => {
   const count = mobilitySummary.value?.driftCount ?? 0;
-  if (count === 0) return "会话期间未发生 IP 变化";
-  if (count === 1) return "已完成 1 次自动恢复";
-  return `已完成 ${count} 次自动恢复`;
+  if (count === 0) return t("admin.sessions.mobilityPage.driftCountZero");
+  if (count === 1) return t("admin.sessions.mobilityPage.driftCountOne");
+  return t("admin.sessions.mobilityPage.driftCountMany", { count });
 });
 
 const chronologicalEntries = computed<TimelineEntry[]>(() => {
@@ -399,8 +426,8 @@ const chronologicalEntries = computed<TimelineEntry[]>(() => {
       return {
         id: `login-${event.happenedAt}-${index}`,
         event,
-        title: "建立登录会话",
-        subtitle: "记录首次通过认证时的来源 IP",
+        title: t("admin.sessions.mobilityPage.loginTitle"),
+        subtitle: t("admin.sessions.mobilityPage.loginSubtitle"),
         gapLabel: null,
         happenedAtMs,
       };
@@ -410,8 +437,13 @@ const chronologicalEntries = computed<TimelineEntry[]>(() => {
       id: `drift-${event.happenedAt}-${index}`,
       event,
       title: formatSourceLabel(event.source),
-      subtitle: "检测到来源 IP 变化后完成会话续接",
-      gapLabel: gapMs > 0 ? `距上一节点 ${formatDuration(gapMs)}` : null,
+      subtitle: t("admin.sessions.mobilityPage.driftSubtitle"),
+      gapLabel:
+        gapMs > 0
+          ? t("admin.sessions.mobilityPage.gapLabel", {
+              duration: formatDuration(gapMs),
+            })
+          : null,
       happenedAtMs,
     };
   });
@@ -436,14 +468,14 @@ const timelineSpanMs = computed(() => {
 });
 
 const timelineSpanLabel = computed(() => {
-  if (timelineSpanMs.value <= 0) return "暂无跨度";
+  if (timelineSpanMs.value <= 0) return t("admin.sessions.mobilityPage.noSpan");
   return formatDuration(timelineSpanMs.value);
 });
 
 const timelineSpanDescription = computed(() => {
   const count = chronologicalEntries.value.length;
-  if (count <= 1) return "当前仅有登录起点记录";
-  return "从首次登录到最近一次变化";
+  if (count <= 1) return t("admin.sessions.mobilityPage.onlyLoginStart");
+  return t("admin.sessions.mobilityPage.spanDescription");
 });
 
 const lastEvent = computed(() => {
@@ -452,8 +484,10 @@ const lastEvent = computed(() => {
 });
 
 const lastEventTimeLabel = computed(() => {
-  if (!lastEvent.value) return "暂无记录";
-  if (lastEvent.value.event.kind === "login") return "仅有登录记录";
+  if (!lastEvent.value) return t("admin.sessions.mobilityPage.noRecord");
+  if (lastEvent.value.event.kind === "login") {
+    return t("admin.sessions.mobilityPage.loginOnlyRecord");
+  }
   return "";
 });
 
@@ -463,9 +497,13 @@ const lastEventTimeValue = computed(() => {
 });
 
 const lastEventSourceLabel = computed(() => {
-  if (!lastEvent.value) return "尚无变化来源";
-  if (lastEvent.value.event.kind === "login") return "尚未发生 IP 变化";
-  return `来源：${formatSourceLabel(lastEvent.value.event.source)}`;
+  if (!lastEvent.value) return t("admin.sessions.mobilityPage.noChangeSource");
+  if (lastEvent.value.event.kind === "login") {
+    return t("admin.sessions.mobilityPage.noIpChangeYet");
+  }
+  return t("admin.sessions.mobilityPage.sourcePrefix", {
+    source: formatSourceLabel(lastEvent.value.event.source),
+  });
 });
 
 function middleEllipsis(text: string, max = 16) {
@@ -484,11 +522,17 @@ function formatSourceLabel(
     | "session-refresh"
     | "browser-session",
 ) {
-  if (source === "login") return "登录建立";
-  if (source === "fnos-token") return "飞牛指纹续接恢复";
-  if (source === "session-refresh") return "会话绑定刷新漂移";
-  if (source === "browser-session") return "浏览器会话漂移";
-  return "会话漂移续接恢复";
+  if (source === "login") return t("admin.sessions.mobilityPage.source.login");
+  if (source === "fnos-token") {
+    return t("admin.sessions.mobilityPage.source.fnosToken");
+  }
+  if (source === "session-refresh") {
+    return t("admin.sessions.mobilityPage.source.sessionRefresh");
+  }
+  if (source === "browser-session") {
+    return t("admin.sessions.mobilityPage.source.browserSession");
+  }
+  return t("admin.sessions.mobilityPage.source.proxySession");
 }
 
 function formatDuration(ms: number) {
@@ -498,15 +542,22 @@ function formatDuration(ms: number) {
   const minutes = totalMinutes % 60;
 
   if (days > 0) {
-    return hours > 0 ? `${days}天 ${hours}小时` : `${days}天`;
+    return hours > 0
+      ? t("admin.sessions.mobilityPage.duration.daysHours", { days, hours })
+      : t("admin.sessions.mobilityPage.duration.days", { days });
   }
   if (hours > 0) {
-    return minutes > 0 ? `${hours}小时 ${minutes}分钟` : `${hours}小时`;
+    return minutes > 0
+      ? t("admin.sessions.mobilityPage.duration.hoursMinutes", {
+          hours,
+          minutes,
+        })
+      : t("admin.sessions.mobilityPage.duration.hours", { hours });
   }
   if (minutes > 0) {
-    return `${minutes}分钟`;
+    return t("admin.sessions.mobilityPage.duration.minutes", { minutes });
   }
-  return "不足 1 分钟";
+  return t("admin.sessions.mobilityPage.duration.lessThanMinute");
 }
 
 async function fetchData() {

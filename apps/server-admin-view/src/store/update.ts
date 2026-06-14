@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { UpdateAPI, type UpdateStatusPayload } from '../lib/api';
 import { toast } from '@admin-shared/utils/toast';
 import { extractErrorMessage } from '@admin-shared/composables/useAsyncAction';
+import { browserT } from '@fn-knock/i18n/vue';
 
 const POLL_IDLE_MS = 15_000;
 const POLL_BUSY_MS = 1_000;
@@ -65,8 +66,8 @@ export const useUpdateStore = defineStore('update', () => {
       status.value = await UpdateAPI.getStatus();
     } catch (error) {
       if (!silent) {
-        toast.error('加载更新状态失败', {
-          description: extractErrorMessage(error, '请稍后重试'),
+        toast.error(browserT('admin.update.loadStatusFailed'), {
+          description: extractErrorMessage(error, browserT('common.tryLater')),
         });
       }
     } finally {
@@ -81,18 +82,22 @@ export const useUpdateStore = defineStore('update', () => {
       status.value = await UpdateAPI.checkNow();
       if (showToast) {
         if (status.value.hasUpdate) {
-          toast.success(`检测到新版本 ${status.value.latest?.version || ''}`);
+          toast.success(
+            browserT('admin.update.newVersionDetected', {
+              version: status.value.latest?.version || '',
+            }),
+          );
         } else if (status.value.updateEnabled) {
-          toast.success('当前已是最新版本');
+          toast.success(browserT('admin.update.alreadyLatest'));
         } else {
-          toast.info('更新功能暂未启用');
+          toast.info(browserT('admin.update.disabled'));
         }
       }
       return true;
     } catch (error) {
       if (showToast) {
-        toast.error('检查更新失败', {
-          description: extractErrorMessage(error, '请稍后重试'),
+        toast.error(browserT('admin.update.checkFailed'), {
+          description: extractErrorMessage(error, browserT('common.tryLater')),
         });
       }
       return false;
@@ -109,7 +114,9 @@ export const useUpdateStore = defineStore('update', () => {
     try {
       const res = await UpdateAPI.checkAndDownload();
       if (!res.success) {
-        toast.error('启动更新失败', { description: res.message || '请稍后重试' });
+        toast.error(browserT('admin.update.startUpdateFailed'), {
+          description: res.message || browserT('common.tryLater'),
+        });
         return false;
       }
       if (res.data) {
@@ -121,11 +128,11 @@ export const useUpdateStore = defineStore('update', () => {
         shouldAutoInstallAfterDownload.value = true;
         await maybeAutoInstall();
       }
-      toast.success(res.message || '已开始下载更新包');
+      toast.success(res.message || browserT('admin.update.downloadStarted'));
       return true;
     } catch (error) {
-      toast.error('启动更新失败', {
-        description: extractErrorMessage(error, '请稍后重试'),
+      toast.error(browserT('admin.update.startUpdateFailed'), {
+        description: extractErrorMessage(error, browserT('common.tryLater')),
       });
       return false;
     } finally {
@@ -139,7 +146,9 @@ export const useUpdateStore = defineStore('update', () => {
     try {
       const res = await UpdateAPI.startDownload();
       if (!res.success) {
-        toast.error('启动下载失败', { description: res.message || '请稍后重试' });
+        toast.error(browserT('admin.update.startDownloadFailed'), {
+          description: res.message || browserT('common.tryLater'),
+        });
         return false;
       }
       if (res.data) {
@@ -147,11 +156,11 @@ export const useUpdateStore = defineStore('update', () => {
       }
       await loadStatus(true);
       schedulePoll();
-      toast.success(res.message || '已开始下载更新包');
+      toast.success(res.message || browserT('admin.update.downloadStarted'));
       return true;
     } catch (error) {
-      toast.error('启动下载失败', {
-        description: extractErrorMessage(error, '请稍后重试'),
+      toast.error(browserT('admin.update.startDownloadFailed'), {
+        description: extractErrorMessage(error, browserT('common.tryLater')),
       });
       return false;
     } finally {
@@ -174,7 +183,9 @@ export const useUpdateStore = defineStore('update', () => {
 
       const res = await UpdateAPI.startInstall();
       if (!res.success) {
-        toast.error('启动安装失败', { description: res.message || '请稍后重试' });
+        toast.error(browserT('admin.update.startInstallFailed'), {
+          description: res.message || browserT('common.tryLater'),
+        });
         await loadStatus(true);
         schedulePoll();
         return false;
@@ -183,8 +194,8 @@ export const useUpdateStore = defineStore('update', () => {
       schedulePoll();
       return true;
     } catch (error) {
-      toast.error('启动安装失败', {
-        description: extractErrorMessage(error, '请稍后重试'),
+      toast.error(browserT('admin.update.startInstallFailed'), {
+        description: extractErrorMessage(error, browserT('common.tryLater')),
       });
       await loadStatus(true);
       schedulePoll();
@@ -199,7 +210,9 @@ export const useUpdateStore = defineStore('update', () => {
     try {
       const confirm = await UpdateAPI.consumeConfirm();
       if (!confirm?.version) return;
-      toast.success(`更新完成到 ${confirm.version}`);
+      toast.success(
+        browserT('admin.update.completed', { version: confirm.version }),
+      );
     } catch {
       // ignore confirm errors
     }

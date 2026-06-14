@@ -14,8 +14,14 @@ import {
   resolvePublicGatewayPort,
   shouldOmitPublicAccessEntryPort,
 } from "./access-entry";
+import { tDefault } from "./i18n";
 
 const trimTrailingSlash = (value: string): string => value.replace(/\/+$/, "");
+
+const subdomainT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+): string => tDefault(`server.subdomainMode.${key}`, params);
 
 const takeFirstHeaderValue = (value: string | null): string | null => {
   if (!value) return null;
@@ -409,14 +415,14 @@ export const buildSubdomainCertificateRecommendation = (
   );
 
   let mode: SubdomainCertificateRecommendation["mode"] = "manual";
-  let summary = "尚未配置根域名或鉴权服务，暂时无法生成推荐证书域名。";
+  let summary = subdomainT("recommendationMissingBase");
   const warnings: string[] = [];
   let recommendedDomains: string[] = [];
 
   if (rootDomain) {
     mode = "wildcard_parent";
     recommendedDomains = uniqStrings([rootDomain, `*.${rootDomain}`]);
-    summary = `推荐申请 ${rootDomain} 与 *.${rootDomain}，用于覆盖根域名、鉴权服务和同一父域下的业务子域。`;
+    summary = subdomainT("recommendationWildcardSummary", { rootDomain });
 
     if (
       authHost &&
@@ -424,24 +430,20 @@ export const buildSubdomainCertificateRecommendation = (
     ) {
       recommendedDomains = uniqStrings([...recommendedDomains, authHost]);
       warnings.push(
-        `当前鉴权服务 ${authHost} 不在根域名 ${rootDomain} 下，已额外加入精确域名；请确认所选 DNS 服务商能够管理这些域名。`,
+        subdomainT("authOutOfRootWarning", { authHost, rootDomain }),
       );
     }
   } else if (authHost) {
     mode = "single_host";
     recommendedDomains = [authHost];
-    summary = `尚未配置根域名，当前仅能推荐为鉴权服务 ${authHost} 申请单域名证书。`;
-    warnings.push(
-      "如果后续要统一覆盖多个业务子域，建议先补充根域名后再申请 wildcard 证书。",
-    );
+    summary = subdomainT("recommendationSingleHostSummary", { authHost });
+    warnings.push(subdomainT("wildcardSuggestion"));
   } else {
-    warnings.push(
-      "请先在子域模式里配置根域名，或在 Host 映射中指定一条鉴权服务。",
-    );
+    warnings.push(subdomainT("configureRootOrAuth"));
   }
 
   if (!authHost) {
-    warnings.push("尚未指定鉴权服务，当前推荐结果只基于根域名推导。");
+    warnings.push(subdomainT("authMissingWarning"));
   }
 
   const coveredHosts = allHosts.filter((host) =>
@@ -454,7 +456,9 @@ export const buildSubdomainCertificateRecommendation = (
 
   if (uncoveredHosts.length > 0 && recommendedDomains.length > 0) {
     warnings.push(
-      `当前有 ${uncoveredHosts.length} 个 Host 映射不在推荐证书的覆盖范围内，如需对外暴露，仍需额外证书或调整域名规划。`,
+      subdomainT("uncoveredHostMappingsWarning", {
+        count: uncoveredHosts.length,
+      }),
     );
   }
 
@@ -538,7 +542,7 @@ export const buildSubdomainCertificateCoverage = ({
   const hasConcreteRequirements = concreteRequirements.length > 0;
 
   let status: SubdomainCertificateCoverage["status"] = "missing";
-  let summary = "当前未启用 SSL 证书，鉴权服务与业务子域尚未被 HTTPS 覆盖。";
+  let summary = subdomainT("coverageNoSsl");
   const warnings = [...recommendation.warnings];
 
   if (currentCertificateDomains.length === 0) {
@@ -548,17 +552,17 @@ export const buildSubdomainCertificateCoverage = ({
   } else if (uncoveredRequirements.length === 0) {
     status = "ready";
     summary = hasConcreteRequirements
-      ? "当前已部署证书覆盖了鉴权服务和所有已配置 Host 映射。"
-      : "当前已部署证书满足子域模式当前的建议覆盖范围。";
+      ? subdomainT("coverageReadyConcrete")
+      : subdomainT("coverageReadyRecommended");
   } else if (coveredRequirements.length > 0) {
     status = "partial";
     summary = hasConcreteRequirements
-      ? "当前证书只覆盖了部分子域模式所需域名，鉴权服务或部分业务 Host 仍可能出现证书不匹配。"
-      : "当前证书只覆盖了部分建议域名，后续启用子域模式时仍可能出现证书不匹配。";
+      ? subdomainT("coveragePartialConcrete")
+      : subdomainT("coveragePartialRecommended");
   } else {
     summary = hasConcreteRequirements
-      ? "当前已部署证书与子域模式不匹配，鉴权服务和业务 Host 仍未被正确覆盖。"
-      : "当前已部署证书尚未覆盖子域模式建议的域名范围。";
+      ? subdomainT("coverageMismatchConcrete")
+      : subdomainT("coverageMismatchRecommended");
   }
 
   if (
@@ -567,7 +571,9 @@ export const buildSubdomainCertificateCoverage = ({
     uncoveredRequirements.length > 0
   ) {
     warnings.push(
-      `当前证书还缺少 ${uncoveredRequirements.length} 个必需覆盖项，建议重新申请或替换证书。`,
+      subdomainT("coverageMissingRequiredWarning", {
+        count: uncoveredRequirements.length,
+      }),
     );
   } else if (
     currentCertificateDomains.length > 0 &&
@@ -575,12 +581,14 @@ export const buildSubdomainCertificateCoverage = ({
     uncoveredRecommendedDomains.length > 0
   ) {
     warnings.push(
-      `当前证书还缺少 ${uncoveredRecommendedDomains.length} 个建议域名覆盖项，后续如需使用这些域名，建议重新申请或替换证书。`,
+      subdomainT("coverageMissingRecommendedWarning", {
+        count: uncoveredRecommendedDomains.length,
+      }),
     );
   }
 
   if (currentCertificateDomains.length > 0 && authHost && !coversAuthHost) {
-    warnings.push(`当前证书未覆盖鉴权服务 ${authHost}。`);
+    warnings.push(subdomainT("coverageAuthHostMissingWarning", { authHost }));
   }
 
   return {
@@ -684,34 +692,34 @@ export const buildSubdomainCertificateInventoryCoverage = ({
     requirements.length > 0 && uncoveredRequirements.size === 0;
 
   let status: SubdomainCertificateInventoryCoverage["status"] = "missing";
-  let summary = "证书库中还没有可用于子域模式的证书。";
+  let summary = subdomainT("inventoryEmpty");
   const warnings: string[] = [];
 
   if (activeAnalysis?.coverage.status === "ready") {
     status = "ready";
-    summary = "当前活动证书已经完整覆盖子域模式所需域名。";
+    summary = subdomainT("inventoryActiveReady");
   } else if (fullyCovering.length === 1) {
     status = "ready";
-    summary = "证书库中有 1 张证书可完整覆盖子域模式，可以直接切换为活动证书。";
+    summary = subdomainT("inventoryOneReady");
   } else if (fullyCovering.length > 1) {
     status = "ready";
-    summary = `证书库中有 ${fullyCovering.length} 张证书各自都能完整覆盖当前子域模式。`;
+    summary = subdomainT("inventoryMultipleReady", {
+      count: fullyCovering.length,
+    });
   } else if (combinedReady && deploymentMode === "multi_sni") {
     status = "ready";
     summary =
       combinedCoveringCertificateIds.length > 1
-        ? "证书库组合后已经具备完整覆盖能力。"
-        : "证书库中已有可覆盖当前子域模式的候选证书。";
+        ? subdomainT("inventoryCombinedReady")
+        : subdomainT("inventoryCandidateReady");
   } else if (combinedReady) {
     status = "partial";
-    summary =
-      "证书库组合后已经可以覆盖当前子域模式，但当前网关仍是单活动证书模式，暂时不能同时生效。";
+    summary = subdomainT("inventoryCombinedNeedsMultiSni");
   } else if (partiallyCovering.length > 0) {
     status = "partial";
-    summary =
-      "证书库里已有部分候选证书，但还不能完整覆盖鉴权服务和全部 Host 映射。";
+    summary = subdomainT("inventoryPartialCandidates");
   } else if (recommendation.can_autofill) {
-    summary = "当前还没有证书能够覆盖子域模式推荐域名。";
+    summary = subdomainT("inventoryNoCertificateCoversRecommendation");
   } else {
     summary = recommendation.summary;
   }
@@ -721,9 +729,7 @@ export const buildSubdomainCertificateInventoryCoverage = ({
     combinedCoveringCertificateIds.length > 1 &&
     deploymentMode !== "multi_sni"
   ) {
-    warnings.push(
-      "当前证书库需要多张证书联合覆盖，但网关仍处于单活动证书模式，暂时无法一次性全部生效。",
-    );
+    warnings.push(subdomainT("inventoryMultiCertRequiresSniWarning"));
   }
 
   if (
@@ -731,7 +737,7 @@ export const buildSubdomainCertificateInventoryCoverage = ({
     activeAnalysis.coverage.status !== "ready" &&
     fullyCovering.length === 1
   ) {
-    warnings.push("当前活动证书与子域模式不完全匹配，建议切换到推荐证书。");
+    warnings.push(subdomainT("inventorySwitchRecommendedWarning"));
   }
 
   if (
@@ -739,7 +745,7 @@ export const buildSubdomainCertificateInventoryCoverage = ({
     fullyCovering.length === 0 &&
     combinedCoveringCertificateIds.length > 1
   ) {
-    warnings.push("现有证书库更适合后续多证书/SNI 部署。");
+    warnings.push(subdomainT("inventoryBetterForSniWarning"));
   }
 
   return {

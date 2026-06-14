@@ -3,7 +3,7 @@
     :id="id"
     class="grid grid-cols-2 gap-2"
     role="group"
-    :aria-label="ariaLabel"
+    :aria-label="resolvedAriaLabel"
   >
     <button
       v-for="option in protocolOptions"
@@ -43,6 +43,7 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import { Check } from "lucide-vue-next";
 import { cn } from "@/lib/utils";
 import type { StreamMappingProtocol } from "../types";
@@ -65,14 +66,17 @@ const props = withDefaults(
     disabled?: boolean;
     ariaLabel?: string;
   }>(),
-  {
-    ariaLabel: "传输协议",
-  },
+  {},
 );
+
+const { t } = useI18n();
 
 const modelValue = defineModel<StreamMappingProtocol[]>({
   default: () => ["tcp"],
 });
+const resolvedAriaLabel = computed(
+  () => props.ariaLabel ?? t("shared.streamProtocolMultiSelect.ariaLabel"),
+);
 
 const selectedProtocols = computed(() =>
   normalizeProtocolSelection(modelValue.value),

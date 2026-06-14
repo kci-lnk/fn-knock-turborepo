@@ -1,5 +1,20 @@
 import type { DDNSProviderContext, DDNSProviderDefinition, DDNSUpdateResult } from "../types";
-import { getTimeoutMs, splitDomain, toPositiveInt, updateDualStack } from "./helpers";
+import {
+  ddnsProviderT,
+  getTimeoutMs,
+  splitDomain,
+  toPositiveInt,
+  updateDualStack,
+} from "./helpers";
+
+const godaddyT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => ddnsProviderT("godaddy", key, params);
+const commonT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => ddnsProviderT("common", key, params);
 
 export const godaddyProvider: DDNSProviderDefinition = {
   name: "godaddy",
@@ -7,9 +22,9 @@ export const godaddyProvider: DDNSProviderDefinition = {
   fields: [
     { key: "api_key", label: "API Key", type: "text", placeholder: "GoDaddy API Key", required: true },
     { key: "api_secret", label: "API Secret", type: "password", placeholder: "GoDaddy API Secret", required: true },
-    { key: "root_domain", label: "根域名", type: "text", placeholder: "example.com", required: true },
-    { key: "domain", label: "完整域名", type: "text", placeholder: "home.example.com", required: true },
-    { key: "ttl", label: "TTL", type: "text", placeholder: "600", required: false, description: "默认 600 秒" },
+    { key: "root_domain", label: commonT("fields.root_domain.label"), type: "text", placeholder: "example.com", required: true },
+    { key: "domain", label: commonT("fields.domain.label"), type: "text", placeholder: "home.example.com", required: true },
+    { key: "ttl", label: "TTL", type: "text", placeholder: "600", required: false, description: commonT("fields.ttl.description", { seconds: 600 }) },
   ],
 };
 
@@ -20,7 +35,7 @@ export async function godaddyUpdate(
 ): Promise<DDNSUpdateResult> {
   const { api_key, api_secret, root_domain, domain } = config;
   if (!api_key || !api_secret || !root_domain || !domain) {
-    return { success: false, message: "GoDaddy 配置不完整" };
+    return { success: false, message: godaddyT("configIncomplete") };
   }
 
   const ttl = toPositiveInt(config.ttl, 600);
@@ -49,7 +64,12 @@ export async function godaddyUpdate(
 
     if (!response.ok) {
       const text = await response.text();
-      throw new Error(`[${response.status}] ${text || "更新失败"}`);
+      throw new Error(
+        godaddyT("updateFailedWithStatus", {
+          status: response.status,
+          detail: text || godaddyT("updateFailed"),
+        }),
+      );
     }
   });
 }

@@ -1,9 +1,19 @@
 import { Elysia, t } from "elysia";
-import { CidrServiceError, cidrService } from "../lib/cidr";
+import { CidrServiceError, cidrService, withCidrLocale } from "../lib/cidr";
 import { routeDoc, withRouteDoc } from "../lib/openapi";
+import { configManager } from "../lib/redis";
+import { createRequestTranslator } from "../lib/i18n";
+
+type RequestTranslator = ReturnType<typeof createRequestTranslator>["t"];
+
+const getCidrRouteTranslator = async (request: Request) => {
+  const config = await configManager.getConfig();
+  return createRequestTranslator(request, config.locale);
+};
 
 const handleCidrError = (
   error: unknown,
+  t: RequestTranslator,
 ): { status: number; message: string } => {
   if (error instanceof CidrServiceError) {
     return {
@@ -14,7 +24,8 @@ const handleCidrError = (
 
   return {
     status: 500,
-    message: error instanceof Error ? error.message : "CIDR 服务异常",
+    message:
+      error instanceof Error ? error.message : t("server.cidr.serviceError"),
   };
 };
 
@@ -24,12 +35,15 @@ export const cidrRoutes = new Elysia({
 })
   .get(
     "/provinces",
-    async ({ set }) => {
+    async ({ request, set }) => {
+      const { locale, t } = await getCidrRouteTranslator(request);
       try {
-        const payload = await cidrService.getProvinces();
+        const payload = await withCidrLocale(locale, () =>
+          cidrService.getProvinces(),
+        );
         return { success: true, data: payload };
       } catch (error) {
-        const handled = handleCidrError(error);
+        const handled = handleCidrError(error, t);
         set.status = handled.status;
         return { success: false, message: handled.message };
       }
@@ -38,12 +52,15 @@ export const cidrRoutes = new Elysia({
   )
   .get(
     "/cities",
-    async ({ query, set }) => {
+    async ({ query, request, set }) => {
+      const { locale, t } = await getCidrRouteTranslator(request);
       try {
-        const payload = await cidrService.getCities(query.province);
+        const payload = await withCidrLocale(locale, () =>
+          cidrService.getCities(query.province),
+        );
         return { success: true, data: payload };
       } catch (error) {
-        const handled = handleCidrError(error);
+        const handled = handleCidrError(error, t);
         set.status = handled.status;
         return { success: false, message: handled.message };
       }
@@ -56,12 +73,15 @@ export const cidrRoutes = new Elysia({
   )
   .get(
     "/selector",
-    async ({ query, set }) => {
+    async ({ query, request, set }) => {
+      const { locale, t } = await getCidrRouteTranslator(request);
       try {
-        const payload = await cidrService.getSelector(query.province);
+        const payload = await withCidrLocale(locale, () =>
+          cidrService.getSelector(query.province),
+        );
         return { success: true, data: payload };
       } catch (error) {
-        const handled = handleCidrError(error);
+        const handled = handleCidrError(error, t);
         set.status = handled.status;
         return { success: false, message: handled.message };
       }
@@ -74,15 +94,18 @@ export const cidrRoutes = new Elysia({
   )
   .get(
     "/cidrs",
-    async ({ query, set }) => {
+    async ({ query, request, set }) => {
+      const { locale, t } = await getCidrRouteTranslator(request);
       try {
-        const payload = await cidrService.getCidrs({
-          province: query.province,
-          city: query.city,
-        });
+        const payload = await withCidrLocale(locale, () =>
+          cidrService.getCidrs({
+            province: query.province,
+            city: query.city,
+          }),
+        );
         return { success: true, data: payload };
       } catch (error) {
-        const handled = handleCidrError(error);
+        const handled = handleCidrError(error, t);
         set.status = handled.status;
         return { success: false, message: handled.message };
       }

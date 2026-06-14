@@ -8,80 +8,158 @@ import type {
 
 export const SYSTEM_EVENT_TYPE_OPTIONS: Array<{
   value: SystemEventType;
-  label: string;
+  labelKey: string;
 }> = [
-  { value: "FN_EVENT_AUTH_LOGIN_SUCCESS", label: "登录成功" },
-  { value: "FN_EVENT_AUTH_LOGOUT", label: "退出登录" },
-  { value: "FN_EVENT_AUTH_LOGIN_FAILURE", label: "登录失败" },
-  { value: "FN_EVENT_AUTH_SESSION_IP_DRIFT", label: "会话 IP 漂移" },
-  { value: "FN_EVENT_SECURITY_SCANNER_BLOCKED", label: "扫描器拦截" },
-  { value: "FN_EVENT_DDNS_UPDATE_COMPLETED", label: "DDNS 更新" },
-  { value: "FN_EVENT_GATEWAY_THROTTLE_BLOCKED", label: "网关节流封锁" },
-  { value: "FN_EVENT_WAF_BLOCKED", label: "WAF 阻断" },
-  { value: "FN_EVENT_SSH_LOGIN_SUCCESS", label: "SSH 登录成功" },
-  { value: "FN_EVENT_SSH_LOGIN_FAILURE", label: "SSH 登录失败" },
-  { value: "FN_EVENT_SSH_IP_BLOCKED", label: "SSH IP 封锁" },
-  { value: "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE", label: "应用更新提示" },
-  { value: "FN_EVENT_SYSTEM_CPU_ALERT", label: "CPU 告警" },
-  { value: "FN_EVENT_SYSTEM_CPU_RECOVERED", label: "CPU 恢复" },
-  { value: "FN_EVENT_SYSTEM_MEMORY_ALERT", label: "内存告警" },
-  { value: "FN_EVENT_SYSTEM_MEMORY_RECOVERED", label: "内存恢复" },
-  { value: "FN_EVENT_TUNNEL_FRP_CONNECTED", label: "FRP 已连上" },
-  { value: "FN_EVENT_TUNNEL_FRP_DISCONNECTED", label: "FRP 已断开" },
+  {
+    value: "FN_EVENT_AUTH_LOGIN_SUCCESS",
+    labelKey: "admin.eventCenter.eventTypes.FN_EVENT_AUTH_LOGIN_SUCCESS",
+  },
+  {
+    value: "FN_EVENT_AUTH_LOGOUT",
+    labelKey: "admin.eventCenter.eventTypes.FN_EVENT_AUTH_LOGOUT",
+  },
+  {
+    value: "FN_EVENT_AUTH_LOGIN_FAILURE",
+    labelKey: "admin.eventCenter.eventTypes.FN_EVENT_AUTH_LOGIN_FAILURE",
+  },
+  {
+    value: "FN_EVENT_AUTH_SESSION_IP_DRIFT",
+    labelKey: "admin.eventCenter.eventTypes.FN_EVENT_AUTH_SESSION_IP_DRIFT",
+  },
+  {
+    value: "FN_EVENT_SECURITY_SCANNER_BLOCKED",
+    labelKey: "admin.eventCenter.eventTypes.FN_EVENT_SECURITY_SCANNER_BLOCKED",
+  },
+  {
+    value: "FN_EVENT_DDNS_UPDATE_COMPLETED",
+    labelKey: "admin.eventCenter.eventTypes.FN_EVENT_DDNS_UPDATE_COMPLETED",
+  },
+  {
+    value: "FN_EVENT_GATEWAY_THROTTLE_BLOCKED",
+    labelKey:
+      "admin.eventCenter.eventTypes.FN_EVENT_GATEWAY_THROTTLE_BLOCKED",
+  },
+  {
+    value: "FN_EVENT_WAF_BLOCKED",
+    labelKey: "admin.eventCenter.eventTypes.FN_EVENT_WAF_BLOCKED",
+  },
+  {
+    value: "FN_EVENT_SSH_LOGIN_SUCCESS",
+    labelKey: "admin.eventCenter.eventTypes.FN_EVENT_SSH_LOGIN_SUCCESS",
+  },
+  {
+    value: "FN_EVENT_SSH_LOGIN_FAILURE",
+    labelKey: "admin.eventCenter.eventTypes.FN_EVENT_SSH_LOGIN_FAILURE",
+  },
+  {
+    value: "FN_EVENT_SSH_IP_BLOCKED",
+    labelKey: "admin.eventCenter.eventTypes.FN_EVENT_SSH_IP_BLOCKED",
+  },
+  {
+    value: "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE",
+    labelKey:
+      "admin.eventCenter.eventTypes.FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE",
+  },
+  {
+    value: "FN_EVENT_SYSTEM_CPU_ALERT",
+    labelKey: "admin.eventCenter.eventTypes.FN_EVENT_SYSTEM_CPU_ALERT",
+  },
+  {
+    value: "FN_EVENT_SYSTEM_CPU_RECOVERED",
+    labelKey: "admin.eventCenter.eventTypes.FN_EVENT_SYSTEM_CPU_RECOVERED",
+  },
+  {
+    value: "FN_EVENT_SYSTEM_MEMORY_ALERT",
+    labelKey: "admin.eventCenter.eventTypes.FN_EVENT_SYSTEM_MEMORY_ALERT",
+  },
+  {
+    value: "FN_EVENT_SYSTEM_MEMORY_RECOVERED",
+    labelKey:
+      "admin.eventCenter.eventTypes.FN_EVENT_SYSTEM_MEMORY_RECOVERED",
+  },
+  {
+    value: "FN_EVENT_TUNNEL_FRP_CONNECTED",
+    labelKey: "admin.eventCenter.eventTypes.FN_EVENT_TUNNEL_FRP_CONNECTED",
+  },
+  {
+    value: "FN_EVENT_TUNNEL_FRP_DISCONNECTED",
+    labelKey:
+      "admin.eventCenter.eventTypes.FN_EVENT_TUNNEL_FRP_DISCONNECTED",
+  },
   {
     value: "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED",
-    label: "Cloudflared 已连上",
+    labelKey:
+      "admin.eventCenter.eventTypes.FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED",
   },
   {
     value: "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED",
-    label: "Cloudflared 已断开",
+    labelKey:
+      "admin.eventCenter.eventTypes.FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED",
   },
 ];
 
 export const SYSTEM_EVENT_TYPE_FILTER_OPTIONS: Array<{
   value: SystemEventType | "all";
-  label: string;
-}> = [{ value: "all", label: "全部事件" }, ...SYSTEM_EVENT_TYPE_OPTIONS];
+  labelKey: string;
+}> = [
+  { value: "all", labelKey: "admin.eventCenter.filters.allEvents" },
+  ...SYSTEM_EVENT_TYPE_OPTIONS,
+];
 
 export const SYSTEM_EVENT_LEVEL_OPTIONS: Array<{
   value: SystemEventLevel;
-  label: string;
+  labelKey: string;
 }> = [
-  { value: "INFO", label: "信息" },
-  { value: "WARN", label: "注意" },
-  { value: "ERROR", label: "错误" },
-  { value: "CRITICAL", label: "严重" },
+  { value: "INFO", labelKey: "admin.eventCenter.levels.INFO" },
+  { value: "WARN", labelKey: "admin.eventCenter.levels.WARN" },
+  { value: "ERROR", labelKey: "admin.eventCenter.levels.ERROR" },
+  { value: "CRITICAL", labelKey: "admin.eventCenter.levels.CRITICAL" },
 ];
 
 export const SYSTEM_EVENT_LEVEL_FILTER_OPTIONS: Array<{
   value: SystemEventLevel | "all";
-  label: string;
-}> = [{ value: "all", label: "全部级别" }, ...SYSTEM_EVENT_LEVEL_OPTIONS];
+  labelKey: string;
+}> = [
+  { value: "all", labelKey: "admin.eventCenter.filters.allLevels" },
+  ...SYSTEM_EVENT_LEVEL_OPTIONS,
+];
 
 export const SYSTEM_EVENT_SOURCE_OPTIONS: Array<{
   value: SystemEventSource;
-  label: string;
+  labelKey: string;
 }> = [
-  { value: "SERVER_ADMIN", label: "管理后台" },
-  { value: "GO_REAUTH_PROXY", label: "认证代理" },
-  { value: "SYSTEM_MONITOR", label: "系统监控" },
+  {
+    value: "SERVER_ADMIN",
+    labelKey: "admin.eventCenter.sources.SERVER_ADMIN",
+  },
+  {
+    value: "GO_REAUTH_PROXY",
+    labelKey: "admin.eventCenter.sources.GO_REAUTH_PROXY",
+  },
+  {
+    value: "SYSTEM_MONITOR",
+    labelKey: "admin.eventCenter.sources.SYSTEM_MONITOR",
+  },
 ];
 
 export const SYSTEM_EVENT_SOURCE_FILTER_OPTIONS: Array<{
   value: SystemEventSource | "all";
-  label: string;
-}> = [{ value: "all", label: "全部系统" }, ...SYSTEM_EVENT_SOURCE_OPTIONS];
+  labelKey: string;
+}> = [
+  { value: "all", labelKey: "admin.eventCenter.filters.allSystems" },
+  ...SYSTEM_EVENT_SOURCE_OPTIONS,
+];
 
 export const NOTIFICATION_GROUP_BY_OPTIONS: Array<{
   value: NotificationGroupBy;
-  label: string;
+  labelKey: string;
 }> = [
-  { value: "GLOBAL", label: "全局" },
-  { value: "IP", label: "IP" },
-  { value: "SESSION", label: "会话" },
-  { value: "SUBJECT", label: "主题对象" },
-  { value: "HOSTNAME", label: "主机名" },
-  { value: "PROVIDER", label: "提供商" },
+  { value: "GLOBAL", labelKey: "admin.eventCenter.groupBy.GLOBAL" },
+  { value: "IP", labelKey: "admin.eventCenter.groupBy.IP" },
+  { value: "SESSION", labelKey: "admin.eventCenter.groupBy.SESSION" },
+  { value: "SUBJECT", labelKey: "admin.eventCenter.groupBy.SUBJECT" },
+  { value: "HOSTNAME", labelKey: "admin.eventCenter.groupBy.HOSTNAME" },
+  { value: "PROVIDER", labelKey: "admin.eventCenter.groupBy.PROVIDER" },
 ];
 
 export const DEFAULT_GROUP_BY_BY_EVENT_TYPE: Record<
@@ -112,32 +190,34 @@ export const DEFAULT_GROUP_BY_BY_EVENT_TYPE: Record<
 
 export const NOTIFICATION_DELIVERY_STATUS_OPTIONS: Array<{
   value: NotificationDeliveryStatus | "all";
-  label: string;
+  labelKey: string;
 }> = [
-  { value: "all", label: "全部状态" },
-  { value: "queued", label: "排队中" },
-  { value: "sending", label: "发送中" },
-  { value: "success", label: "成功" },
-  { value: "failed", label: "失败待重试" },
-  { value: "gave_up", label: "失败放弃" },
-  { value: "skipped", label: "已跳过" },
+  { value: "all", labelKey: "admin.eventCenter.deliveryStatus.all" },
+  { value: "queued", labelKey: "admin.eventCenter.deliveryStatus.queued" },
+  { value: "sending", labelKey: "admin.eventCenter.deliveryStatus.sending" },
+  { value: "success", labelKey: "admin.eventCenter.deliveryStatus.success" },
+  { value: "failed", labelKey: "admin.eventCenter.deliveryStatus.failed" },
+  { value: "gave_up", labelKey: "admin.eventCenter.deliveryStatus.gave_up" },
+  { value: "skipped", labelKey: "admin.eventCenter.deliveryStatus.skipped" },
 ];
 
 export const formatSystemEventTypeLabel = (type: SystemEventType) =>
-  SYSTEM_EVENT_TYPE_OPTIONS.find((item) => item.value === type)?.label || type;
+  SYSTEM_EVENT_TYPE_OPTIONS.find((item) => item.value === type)?.labelKey ||
+  type;
 
 export const formatSystemEventLevelLabel = (level: SystemEventLevel) =>
-  SYSTEM_EVENT_LEVEL_OPTIONS.find((item) => item.value === level)?.label ||
+  SYSTEM_EVENT_LEVEL_OPTIONS.find((item) => item.value === level)?.labelKey ||
   level;
 
 export const formatSystemEventSourceLabel = (source: SystemEventSource) =>
-  SYSTEM_EVENT_SOURCE_OPTIONS.find((item) => item.value === source)?.label ||
+  SYSTEM_EVENT_SOURCE_OPTIONS.find((item) => item.value === source)?.labelKey ||
   source;
 
 export const formatNotificationGroupByLabel = (value: NotificationGroupBy) =>
-  NOTIFICATION_GROUP_BY_OPTIONS.find((item) => item.value === value)?.label ||
+  NOTIFICATION_GROUP_BY_OPTIONS.find((item) => item.value === value)
+    ?.labelKey ||
   value;
 
 export const formatDeliveryStatusLabel = (value: NotificationDeliveryStatus) =>
   NOTIFICATION_DELIVERY_STATUS_OPTIONS.find((item) => item.value === value)
-    ?.label || value;
+    ?.labelKey || value;

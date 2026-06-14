@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { toast } from "@admin-shared/utils/toast";
 import {
   useAsyncAction,
@@ -54,6 +55,7 @@ import type {
   GatewayVisibilitySelection,
 } from "../../types";
 
+const { t } = useI18n();
 const settings = ref<GatewayVisibilityDetails | null>(null);
 const provinces = ref<CidrProvinceOption[]>([]);
 const cityOptions = ref<CidrCityOption[]>([]);
@@ -102,11 +104,13 @@ const selectedCityOption = computed(
 const citySelectKey = computed(() => draft.province || "empty");
 
 const citySelectPlaceholder = computed(() => {
-  if (cityOptionsLoading.value) return "正在加载...";
-  if (!draft.province) return "先选择省份";
+  if (cityOptionsLoading.value)
+    return t("admin.gatewayVisibilitySettings.loading");
+  if (!draft.province)
+    return t("admin.gatewayVisibilitySettings.selectProvinceFirst");
   return cityOptions.value.some((option) => option.isProvinceWide)
-    ? "选择城市或全省"
-    : "选择城市";
+    ? t("admin.gatewayVisibilitySettings.selectCityOrProvinceWide")
+    : t("admin.gatewayVisibilitySettings.selectCity");
 });
 
 const pendingSelectionExists = computed(() => {
@@ -153,24 +157,30 @@ const isDirty = computed(() => formSnapshot.value !== savedSnapshot.value);
 
 const saveBlockedReason = computed(() => {
   if (invalidCustomCidrs.value.length > 0) {
-    return "请先修正自定义 CIDR 中的格式错误";
+    return t("admin.gatewayVisibilitySettings.fixCustomCidrs");
   }
   if (form.enabled && !hasVisibleTargets.value) {
-    return "启用可见性后，至少需要一个地区或一条自定义 CIDR";
+    return t("admin.gatewayVisibilitySettings.ruleRequired");
   }
   return "";
 });
 
 const { isPending: isLoading, run: runLoad } = useAsyncAction({
   onError: (error) => {
-    loadError.value = extractErrorMessage(error, "加载可见性配置失败");
+    loadError.value = extractErrorMessage(
+      error,
+      t("admin.gatewayVisibilitySettings.loadFailedDescription"),
+    );
   },
 });
 
 const { isPending: isSaving, run: runSave } = useAsyncAction({
   onError: (error) => {
-    toast.error("保存失败", {
-      description: extractErrorMessage(error, "保存可见性配置失败"),
+    toast.error(t("admin.gatewayVisibilitySettings.saveFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.gatewayVisibilitySettings.saveFailedDescription"),
+      ),
     });
   },
 });
@@ -252,8 +262,11 @@ const loadCityOptions = async (province: string) => {
     if (token !== cityRequestToken) return;
     cityOptions.value = [];
     draft.cityValue = "";
-    toast.error("地区列表加载失败", {
-      description: extractErrorMessage(error, "无法获取省份下的城市列表"),
+    toast.error(t("admin.gatewayVisibilitySettings.cityLoadFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.gatewayVisibilitySettings.cityLoadFailedDescription"),
+      ),
     });
   } finally {
     if (token === cityRequestToken) {
@@ -335,15 +348,17 @@ const removeSelection = (selection: GatewayVisibilitySelection) => {
 
 const saveSettings = async () => {
   if (invalidCustomCidrs.value.length > 0) {
-    toast.error("CIDR 校验未通过", {
-      description: `请修正这些条目：${invalidCustomCidrs.value.join("、")}`,
+    toast.error(t("admin.gatewayVisibilitySettings.cidrValidationFailed"), {
+      description: t("admin.gatewayVisibilitySettings.fixEntries", {
+        items: invalidCustomCidrs.value.join("、"),
+      }),
     });
     return;
   }
 
   if (form.enabled && !hasVisibleTargets.value) {
-    toast.error("至少需要一条可见性规则", {
-      description: "启用可见性后，至少需要一个地区或一条自定义 CIDR。",
+    toast.error(t("admin.gatewayVisibilitySettings.ruleRequiredTitle"), {
+      description: t("admin.gatewayVisibilitySettings.ruleRequiredDescription"),
     });
     return;
   }
@@ -361,7 +376,7 @@ const saveSettings = async () => {
     {
       onSuccess: async (details) => {
         applyDetails(details);
-        toast.success("网关可见性已更新");
+        toast.success(t("admin.gatewayVisibilitySettings.updated"));
       },
     },
   );
@@ -377,15 +392,21 @@ onMounted(() => {
     <Breadcrumb>
       <BreadcrumbList>
         <BreadcrumbItem>
-          <BreadcrumbLink href="#/system">系统设置</BreadcrumbLink>
+          <BreadcrumbLink href="#/system">{{
+            t("admin.gatewayVisibilitySettings.systemSettings")
+          }}</BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />
         <BreadcrumbItem>
-          <BreadcrumbLink href="#/system?tab=gateway">网关</BreadcrumbLink>
+          <BreadcrumbLink href="#/system?tab=gateway">{{
+            t("admin.gatewayVisibilitySettings.gateway")
+          }}</BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />
         <BreadcrumbItem>
-          <BreadcrumbPage>可见性</BreadcrumbPage>
+          <BreadcrumbPage>{{
+            t("admin.gatewayVisibilitySettings.title")
+          }}</BreadcrumbPage>
         </BreadcrumbItem>
       </BreadcrumbList>
     </Breadcrumb>
@@ -393,9 +414,11 @@ onMounted(() => {
     <Card class="border-border/60 shadow-none">
       <CardHeader class="space-y-3">
         <div class="space-y-1.5">
-          <CardTitle class="text-xl">可见性</CardTitle>
+          <CardTitle class="text-xl">{{
+            t("admin.gatewayVisibilitySettings.title")
+          }}</CardTitle>
           <CardDescription class="max-w-3xl leading-6">
-            选择允许访问网关的地区范围，启用后，不在名单范围内的请求将被直接阻断
+            {{ t("admin.gatewayVisibilitySettings.description") }}
           </CardDescription>
         </div>
       </CardHeader>
@@ -405,7 +428,7 @@ onMounted(() => {
           v-if="isLoading"
           class="rounded-xl border border-border/60 bg-muted/20 px-5 py-12 text-center text-sm text-muted-foreground"
         >
-          正在加载可见性配置...
+          {{ t("admin.gatewayVisibilitySettings.loadingConfig") }}
         </div>
 
         <div
@@ -420,7 +443,9 @@ onMounted(() => {
             <div class="flex items-start justify-between gap-4">
               <div class="min-w-0 space-y-2">
                 <div class="flex flex-wrap items-center gap-2">
-                  <Label class="text-base font-medium">可见性约束</Label>
+                  <Label class="text-base font-medium">{{
+                    t("admin.gatewayVisibilitySettings.visibilityConstraint")
+                  }}</Label>
                 </div>
               </div>
 
@@ -439,9 +464,11 @@ onMounted(() => {
                   class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
                 >
                   <div class="space-y-1">
-                    <Label class="text-base">地区范围</Label>
+                    <Label class="text-base">{{
+                      t("admin.gatewayVisibilitySettings.regionScope")
+                    }}</Label>
                     <p class="text-sm leading-6 text-muted-foreground">
-                      按省市添加允许访问的地区，保存时再解析为最终 CIDR。
+                      {{ t("admin.gatewayVisibilitySettings.regionScopeHint") }}
                     </p>
                   </div>
 
@@ -453,7 +480,7 @@ onMounted(() => {
                     "
                     @click="openSelectionDialog"
                   >
-                    添加地区
+                    {{ t("admin.gatewayVisibilitySettings.addRegion") }}
                   </Button>
                 </div>
 
@@ -483,7 +510,7 @@ onMounted(() => {
                     </template>
 
                     <div v-else class="px-1 py-1 text-sm text-muted-foreground">
-                      还没有添加任何地区。
+                      {{ t("admin.gatewayVisibilitySettings.noRegions") }}
                     </div>
                   </TagsInput>
                 </div>
@@ -491,10 +518,15 @@ onMounted(() => {
 
               <section class="space-y-4 border-t border-border/60 p-5">
                 <div class="space-y-1">
-                  <Label class="text-base">自定义 CIDR</Label>
+                  <Label class="text-base">{{
+                    t("admin.gatewayVisibilitySettings.customCidrs")
+                  }}</Label>
                   <p class="text-sm leading-6 text-muted-foreground">
-                    每行一条，例如 <code>1.2.3.0/24</code> 或
-                    <code>2408:8000::/24</code>。
+                    {{ t("admin.gatewayVisibilitySettings.customCidrsHintBefore") }}
+                    <code>1.2.3.0/24</code>
+                    {{ t("admin.gatewayVisibilitySettings.customCidrsHintBetween") }}
+                    <code>2408:8000::/24</code>
+                    {{ t("admin.gatewayVisibilitySettings.customCidrsHintAfter") }}
                   </p>
                 </div>
 
@@ -502,21 +534,29 @@ onMounted(() => {
                   v-model="form.customCidrsText"
                   :disabled="visibilityInputsDisabled"
                   class="min-h-36 font-mono text-sm"
-                  placeholder="每行一个 CIDR"
+                  :placeholder="t('admin.gatewayVisibilitySettings.cidrPlaceholder')"
                 />
 
                 <div class="flex flex-wrap gap-x-4 gap-y-2 text-sm">
                   <span class="text-muted-foreground">
-                    已识别 {{ customCidrCount }} 条自定义 CIDR
+                    {{
+                      t("admin.gatewayVisibilitySettings.customCidrsRecognized", {
+                        count: customCidrCount,
+                      })
+                    }}
                   </span>
                   <span
                     v-if="invalidCustomCidrs.length > 0"
                     class="text-destructive"
                   >
-                    格式错误：{{ invalidCustomCidrs.join("、") }}
+                    {{
+                      t("admin.gatewayVisibilitySettings.invalidCidrs", {
+                        items: invalidCustomCidrs.join("、"),
+                      })
+                    }}
                   </span>
                   <span v-else class="text-emerald-600">
-                    当前输入格式校验通过
+                    {{ t("admin.gatewayVisibilitySettings.cidrValid") }}
                   </span>
                 </div>
               </section>
@@ -529,7 +569,7 @@ onMounted(() => {
                   :disabled="!isDirty || isSaving"
                   @click="resetForm"
                 >
-                  重置
+                  {{ t("admin.gatewayVisibilitySettings.reset") }}
                 </Button>
                 <Button
                   :disabled="!isDirty || isSaving || Boolean(saveBlockedReason)"
@@ -539,7 +579,11 @@ onMounted(() => {
                     v-if="isSaving"
                     class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
                   ></span>
-                  {{ isSaving ? "保存并同步中..." : "保存并同步" }}
+                  {{
+                    isSaving
+                      ? t("admin.gatewayVisibilitySettings.savingAndSyncing")
+                      : t("admin.gatewayVisibilitySettings.saveAndSync")
+                  }}
                 </Button>
               </div>
             </section>
@@ -558,10 +602,10 @@ onMounted(() => {
         <div class="px-6 pt-6 pb-2">
           <DialogHeader class="space-y-2 text-left">
             <DialogTitle class="text-xl font-semibold tracking-tight">
-              添加地区
+              {{ t("admin.gatewayVisibilitySettings.addRegion") }}
             </DialogTitle>
             <DialogDescription class="text-sm leading-6 text-muted-foreground">
-              选择省份和城市范围。
+              {{ t("admin.gatewayVisibilitySettings.addRegionDescription") }}
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -569,13 +613,17 @@ onMounted(() => {
         <div class="space-y-4 border-t border-border/60 px-6 py-5">
           <div class="grid gap-4 sm:grid-cols-2">
             <div class="space-y-2">
-              <Label class="text-sm font-medium">省份</Label>
+              <Label class="text-sm font-medium">{{
+                t("admin.gatewayVisibilitySettings.province")
+              }}</Label>
               <Select v-model="draft.province">
                 <SelectTrigger
                   class="h-11 w-full rounded-lg border-border/70 bg-background px-3 shadow-none"
                   :disabled="isSaving || provinces.length === 0"
                 >
-                  <SelectValue placeholder="选择省份" />
+                  <SelectValue
+                    :placeholder="t('admin.gatewayVisibilitySettings.selectProvince')"
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem
@@ -590,7 +638,9 @@ onMounted(() => {
             </div>
 
             <div class="space-y-2">
-              <Label class="text-sm font-medium">范围</Label>
+              <Label class="text-sm font-medium">{{
+                t("admin.gatewayVisibilitySettings.scope")
+              }}</Label>
               <Select :key="citySelectKey" v-model="draft.cityValue">
                 <SelectTrigger
                   class="h-11 w-full rounded-lg border-border/70 bg-background px-3 shadow-none"
@@ -628,13 +678,13 @@ onMounted(() => {
             variant="outline"
             @click="handleSelectionDialogOpenChange(false)"
           >
-            取消
+            {{ t("common.cancel") }}
           </Button>
           <Button
             :disabled="!canAddSelection || isSaving"
             @click="addSelection"
           >
-            添加
+            {{ t("admin.gatewayVisibilitySettings.add") }}
           </Button>
         </DialogFooter>
       </DialogContent>

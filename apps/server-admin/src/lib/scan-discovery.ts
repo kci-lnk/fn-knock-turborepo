@@ -1,6 +1,7 @@
 import { isIP } from "node:net";
 import type { AppConfig } from "./redis";
 import { listPrivateIpv4Candidates } from "./local-network";
+import { tDefault } from "./i18n";
 
 export const DISCOVER_COMMON_PORTS = [
   80, 81, 88, 443, 3000, 3001, 5000, 5001, 5666, 6688, 7000, 7001, 7080, 7443,
@@ -12,6 +13,10 @@ export const SCAN_DISCOVERY_LIMITS = {
   maxCidrs: 16,
   maxHosts: 1024,
 } as const;
+const scanDiscoveryT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.scanDiscovery.${key}`, params);
 
 export type ScanDiscoveryTargetSource =
   | "docker"
@@ -188,20 +193,27 @@ export function validateScanCidrs(values: Iterable<string>): string[] {
 
   if (invalid.length > 0) {
     throw new ScanDiscoveryValidationError(
-      `扫描网段仅支持本地 IPv4 CIDR：${invalid.slice(0, 3).join("、")}`,
+      scanDiscoveryT("localIpv4CidrOnly", {
+        cidrs: invalid.slice(0, 3).join(", "),
+      }),
     );
   }
 
   if (result.length > SCAN_DISCOVERY_LIMITS.maxCidrs) {
     throw new ScanDiscoveryValidationError(
-      `单次最多选择 ${SCAN_DISCOVERY_LIMITS.maxCidrs} 个扫描网段`,
+      scanDiscoveryT("maxCidrsExceeded", {
+        max: SCAN_DISCOVERY_LIMITS.maxCidrs,
+      }),
     );
   }
 
   const hostCount = countScanHosts(result);
   if (hostCount > SCAN_DISCOVERY_LIMITS.maxHosts) {
     throw new ScanDiscoveryValidationError(
-      `单次最多扫描 ${SCAN_DISCOVERY_LIMITS.maxHosts} 台主机，当前为 ${hostCount} 台`,
+      scanDiscoveryT("maxHostsExceededWithCurrent", {
+        max: SCAN_DISCOVERY_LIMITS.maxHosts,
+        current: hostCount,
+      }),
     );
   }
 
@@ -222,7 +234,9 @@ export function expandScanCidrs(cidrs: Iterable<string>): string[] {
       hosts.push(numberToIpv4(host));
       if (hosts.length > SCAN_DISCOVERY_LIMITS.maxHosts) {
         throw new ScanDiscoveryValidationError(
-          `单次最多扫描 ${SCAN_DISCOVERY_LIMITS.maxHosts} 台主机`,
+          scanDiscoveryT("maxHostsExceeded", {
+            max: SCAN_DISCOVERY_LIMITS.maxHosts,
+          }),
         );
       }
     }
@@ -280,14 +294,19 @@ export function buildDockerDiscoverTarget(
   if (!ip || !isAllowedScanIpv4(ip)) return null;
   const cidr = buildIpv4Cidr(ip, 24);
   return cidr
-    ? toTarget(cidr, `${cidr}（Docker 宿主机局域网）`, "docker", true)
+    ? toTarget(
+        cidr,
+        scanDiscoveryT("targetLabels.docker", { cidr }),
+        "docker",
+        true,
+      )
     : null;
 }
 
 export function buildLoopbackDiscoverTarget(): ScanDiscoveryTarget {
   return toTarget(
     "127.0.0.1/32",
-    "127.0.0.1/32（本机回环）",
+    scanDiscoveryT("targetLabels.loopback", { cidr: "127.0.0.1/32" }),
     "loopback",
     true,
   )!;
@@ -298,7 +317,15 @@ export function buildInterfaceDiscoverTargets(): ScanDiscoveryTarget[] {
     listPrivateIpv4Candidates().map((candidate) => {
       const cidr = buildIpv4Cidr(candidate.value, 24);
       return cidr
-        ? toTarget(cidr, `${cidr}（${candidate.interface}）`, "interface", true)
+        ? toTarget(
+            cidr,
+            scanDiscoveryT("targetLabels.interface", {
+              cidr,
+              name: candidate.interface,
+            }),
+            "interface",
+            true,
+          )
         : null;
     }),
   );
@@ -338,7 +365,12 @@ export function buildMappingDiscoverTargets(
       if (!ip) return null;
       const cidr = buildIpv4Cidr(ip, ip.startsWith("127.") ? 32 : 24);
       return cidr
-        ? toTarget(cidr, `${cidr}（已有映射目标）`, "mapping", true)
+        ? toTarget(
+            cidr,
+            scanDiscoveryT("targetLabels.mapping", { cidr }),
+            "mapping",
+            true,
+          )
         : null;
     }),
   );
@@ -348,7 +380,9 @@ export function buildCustomDiscoverTargets(
   cidrs: Iterable<string>,
 ): ScanDiscoveryTarget[] {
   return normalizeAllowedScanCidrs(cidrs)
-    .map((cidr) => toTarget(cidr, `${cidr}（自定义）`, "custom", false))
+    .map((cidr) =>
+      toTarget(cidr, scanDiscoveryT("targetLabels.custom", { cidr }), "custom", false),
+    )
     .filter((target): target is ScanDiscoveryTarget => Boolean(target));
 }
 
@@ -356,7 +390,9 @@ export function buildSavedDiscoverTargets(
   cidrs: Iterable<string>,
 ): ScanDiscoveryTarget[] {
   return normalizeAllowedScanCidrs(cidrs)
-    .map((cidr) => toTarget(cidr, `${cidr}（已保存）`, "saved", false))
+    .map((cidr) =>
+      toTarget(cidr, scanDiscoveryT("targetLabels.saved", { cidr }), "saved", false),
+    )
     .filter((target): target is ScanDiscoveryTarget => Boolean(target));
 }
 

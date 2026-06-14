@@ -1,6 +1,6 @@
 import { Elysia, t } from "elysia";
 import { routeDoc, withRouteDoc } from "../lib/openapi";
-import { redis } from "../lib/redis";
+import { configManager, redis } from "../lib/redis";
 import { cloudflaredManager } from "../lib/cloudflared-manager";
 import path from "node:path";
 import fs from "node:fs";
@@ -17,6 +17,48 @@ import {
 } from "../lib/redis-log-buffer";
 import { waitForProcessExit } from "../lib/runtime";
 import { emitTunnelConnectivityEvent } from "../lib/system-events/helpers";
+import { createRequestTranslator } from "../lib/i18n";
+import {
+  DEFAULT_LOCALE,
+  type LocaleCode,
+  normalizeLocale,
+  translate,
+} from "../../../../packages/i18n/src";
+
+type MessageParams = Record<
+  string,
+  string | number | boolean | null | undefined
+>;
+type CloudflaredTranslator = (key: string, params?: MessageParams) => string;
+
+const resolveCloudflaredLocale = (
+  locale: string | null | undefined,
+): LocaleCode => normalizeLocale(locale) ?? DEFAULT_LOCALE;
+
+const cloudflaredT = (
+  key: string,
+  params?: MessageParams,
+  locale?: string | null,
+) =>
+  translate(
+    resolveCloudflaredLocale(locale),
+    `server.cloudflared.${key}`,
+    params,
+  );
+
+const getCloudflaredRouteTranslator = async (request: Request) => {
+  const config = await configManager.getConfig();
+  const { t } = createRequestTranslator(request, config.locale);
+  return (key: string, params?: MessageParams) =>
+    t(`server.cloudflared.${key}`, params);
+};
+
+const getCloudflaredRuntimeTranslator =
+  async (): Promise<CloudflaredTranslator> => {
+    const config = await configManager.getConfig();
+    return (key: string, params?: MessageParams) =>
+      cloudflaredT(key, params, config.locale?.default_locale);
+  };
 
 type RunState = {
   proc?: ReturnType<typeof spawn>;
@@ -131,9 +173,7 @@ const DEFAULT_CLOUDFLARED_CONFIG: CloudflaredConfig = {
   protocol: "auto",
 };
 
-const isCloudflaredProtocol = (
-  value: unknown,
-): value is CloudflaredProtocol =>
+const isCloudflaredProtocol = (value: unknown): value is CloudflaredProtocol =>
   typeof value === "string" &&
   CLOUDFLARED_PROTOCOLS.includes(value as CloudflaredProtocol);
 
@@ -184,7 +224,9 @@ async function writeConfig(config: CloudflaredConfig): Promise<void> {
   );
 }
 
-async function startCloudflared(): Promise<{ pid: number }> {
+async function startCloudflared(
+  t: CloudflaredTranslator = cloudflaredT,
+): Promise<{ pid: number }> {
   if (
     runState.running &&
     runState.proc &&
@@ -196,7 +238,7 @@ async function startCloudflared(): Promise<{ pid: number }> {
   connectionState.stopRequested = false;
   const config = await readConfig();
   if (!config.token) {
-    throw new Error("请先配置 Cloudflare Token");
+    throw new Error(t("missingToken"));
   }
 
   const bin = cloudflaredManager.getExecutable();
@@ -212,7 +254,7 @@ async function startCloudflared(): Promise<{ pid: number }> {
     } catch (e: any) {
       detail = e?.message || String(e);
     }
-    throw new Error(`启动 cloudflared 失败: ${detail}`);
+    throw new Error(t("startFailedWithDetail", { detail }));
   }
   runState.proc = proc;
   runState.running = true;
@@ -256,13 +298,16 @@ async function startCloudflared(): Promise<{ pid: number }> {
   })();
 
   void (async () => {
-    let exitMessage = "cloudflared 进程已退出";
+    const t = await getCloudflaredRuntimeTranslator();
+    let exitMessage = t("processExited");
     try {
       const code = await exitPromise;
-      exitMessage = `cloudflared 进程已退出（退出码 ${code}）`;
+      exitMessage = t("processExitedWithCode", { code });
       await appendLogs([`cloudflared exited with code ${code}`]);
     } catch (e: any) {
-      exitMessage = `cloudflared 进程异常退出：${e?.message || String(e)}`;
+      exitMessage = t("processCrashed", {
+        message: e?.message || String(e),
+      });
       await appendLogs([
         `cloudflared process error: ${e?.message || String(e)}`,
       ]);
@@ -311,13 +356,12 @@ async function stopCloudflared(): Promise<void> {
 export async function restoreCloudflaredOnBoot(): Promise<void> {
   const shouldResume = await shouldResumeTunnel("cloudflared");
   if (!shouldResume) return;
+  const t = await getCloudflaredRuntimeTranslator();
   try {
-    await appendLogs([
-      "resume: 检测到 Cloudflared 上次为开启状态，正在自动恢复...",
-    ]);
+    await appendLogs([t("resumeOnBoot")]);
     await startCloudflared();
   } catch (e: any) {
-    const msg = e?.message || String(e) || "未知错误";
+    const msg = e?.message || String(e) || t("unknownError");
     await appendLogs([`resume error: ${msg}`]);
   }
 }
@@ -370,17 +414,18 @@ export const cloudflaredRoutes = new Elysia({
   )
   .post(
     "/start",
-    async ({ set }) => {
+    async ({ set, request }) => {
+      const t = await getCloudflaredRouteTranslator(request);
       const st = cloudflaredManager.getStatus();
       if (!st.downloaded) {
         set.status = 400;
-        return { success: false, message: "Cloudflared 未初始化" };
+        return { success: false, message: t("notInitialized") };
       }
       try {
-        const { pid } = await startCloudflared();
+        const { pid } = await startCloudflared(t);
         return { success: true, data: { pid } };
       } catch (e: any) {
-        const msg = e?.message || "启动失败";
+        const msg = e?.message || t("startFailed");
         await appendLogs([`start error: ${msg}`]);
         set.status = 500;
         return { success: false, message: msg };

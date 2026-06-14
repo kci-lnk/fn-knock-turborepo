@@ -3,14 +3,19 @@
     <div class="flex flex-1 items-center justify-center">
       <Card class="w-full max-w-sm">
         <CardHeader>
-          <CardTitle class="text-2xl text-center">绑定外部账号</CardTitle>
+          <CardTitle class="text-2xl text-center">
+            {{ t("auth.oidcBind.title") }}
+          </CardTitle>
           <CardDescription class="text-center">
             {{ description }}
           </CardDescription>
         </CardHeader>
         <CardContent class="space-y-4">
-          <div v-if="isLoading" class="py-8 text-center text-sm text-muted-foreground">
-            正在检查邀请链接...
+          <div
+            v-if="isLoading"
+            class="py-8 text-center text-sm text-muted-foreground"
+          >
+            {{ t("auth.oidcBind.checkingInvite") }}
           </div>
           <div
             v-else-if="errorMessage"
@@ -20,7 +25,9 @@
           </div>
           <div v-else class="space-y-4">
             <div class="rounded-lg border bg-muted/40 px-3 py-2 text-sm">
-              <div class="text-muted-foreground">绑定到</div>
+              <div class="text-muted-foreground">
+                {{ t("auth.oidcBind.bindTo") }}
+              </div>
               <div class="font-medium">{{ invite?.totp.comment || "TOTP" }}</div>
             </div>
             <Button
@@ -36,7 +43,7 @@
                 v-if="activeProviderId === provider.id && isStarting"
                 class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"
               ></span>
-              使用 {{ provider.name }} 绑定
+              {{ t("auth.oidcBind.useProvider", { provider: provider.name }) }}
             </Button>
           </div>
         </CardContent>
@@ -47,6 +54,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import {
   Card,
   CardContent,
@@ -56,8 +64,11 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api";
+import { normalizeLocale, type LocaleConfig } from "@fn-knock/i18n";
+import { applyDocumentLocale } from "@fn-knock/i18n/vue";
 
 type InviteDetails = {
+  locale: LocaleConfig;
   totp: { id: string; comment: string };
   provider_id?: string;
   expires_at: string;
@@ -74,11 +85,18 @@ const errorMessage = ref("");
 const isLoading = ref(true);
 const isStarting = ref(false);
 const activeProviderId = ref("");
+const { t, locale } = useI18n();
+
+const applySystemLocale = (value: string | null | undefined) => {
+  const next = normalizeLocale(value) ?? "zh-CN";
+  locale.value = next;
+  applyDocumentLocale(next);
+};
 
 const description = computed(() => {
-  if (errorMessage.value) return "邀请链接不可用";
-  if (!invite.value) return "请稍候";
-  return "选择一个提供商完成登录并绑定";
+  if (errorMessage.value) return t("auth.oidcBind.invalidInvite");
+  if (!invite.value) return t("auth.oidcBind.wait");
+  return t("auth.oidcBind.selectProvider");
 });
 
 onMounted(loadInvite);
@@ -87,17 +105,21 @@ async function loadInvite() {
   isLoading.value = true;
   errorMessage.value = "";
   try {
-    if (!token) throw new Error("邀请链接缺少 token");
+    if (!token) throw new Error(t("auth.oidcBind.missingToken"));
     const res = await apiClient.get("/oidc/invite", {
       params: { token },
     });
     invite.value = res.data.data;
+    applySystemLocale(invite.value?.locale?.default_locale);
     if (!invite.value?.providers.length) {
-      throw new Error("当前没有可用的外部登录提供商");
+      throw new Error(t("auth.oidcBind.noProviders"));
     }
   } catch (error: any) {
+    applySystemLocale(error?.response?.data?.data?.locale?.default_locale);
     errorMessage.value =
-      error?.response?.data?.message || error?.message || "邀请链接已失效";
+      error?.response?.data?.message ||
+      error?.message ||
+      t("auth.oidcBind.inviteExpired");
   } finally {
     isLoading.value = false;
   }
@@ -117,14 +139,14 @@ async function startBind(providerId: string) {
     });
     const authorizationUrl = res.data?.data?.authorization_url;
     if (!authorizationUrl) {
-      throw new Error(res.data?.message || "无法发起外部账号绑定");
+      throw new Error(res.data?.message || t("auth.oidcBind.startFailed"));
     }
     window.location.assign(authorizationUrl);
   } catch (error: any) {
     errorMessage.value =
       error?.response?.data?.message ||
       error?.message ||
-      "外部账号绑定失败，请重试";
+      t("auth.oidcBind.bindFailed");
     isStarting.value = false;
     activeProviderId.value = "";
   }

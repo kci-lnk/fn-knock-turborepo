@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -12,6 +13,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { NotificationSchemaField } from "../../../types";
+
+const { t } = useI18n();
 
 const props = withDefaults(
   defineProps<{
@@ -58,7 +61,7 @@ const resolvePlaceholder = (field: NotificationSchemaField) => {
     configuredSensitiveFieldSet.value.has(field.key) &&
     !props.modelValue[field.key]
   ) {
-    return "已配置，留空则保持不变";
+    return t("admin.notifications.schema.sensitiveConfigured");
   }
   return field.placeholder || "";
 };
@@ -127,7 +130,11 @@ const resolvePlaceholder = (field: NotificationSchemaField) => {
         class="flex items-center justify-between rounded-md border border-border/60 px-3 py-2"
       >
         <div class="text-sm text-muted-foreground">
-          {{ Boolean(readFieldValue(field)) ? "已启用" : "已禁用" }}
+          {{
+            Boolean(readFieldValue(field))
+              ? t("admin.notifications.schema.enabled")
+              : t("admin.notifications.schema.disabled")
+          }}
         </div>
         <Switch
           :model-value="Boolean(readFieldValue(field))"

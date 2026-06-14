@@ -1,8 +1,9 @@
 import { AnalyzerRule } from "../../types";
+import { scannerServiceLabel } from "../labels";
 
 export const fnosRule: AnalyzerRule = {
   name: "fnos",
-  label: '飞牛OS',
+  label: scannerServiceLabel("fnos"),
   rule: {
     path: '/fnos',
     rewrite_html: false,

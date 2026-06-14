@@ -2,6 +2,14 @@ import { Elysia, t } from "elysia";
 import { scheduleSyncReverseProxyTrustedIPs } from "../lib/reverse-proxy-trusted-ips";
 import { whitelistManager } from "../lib/whitelist-manager";
 import { routeDoc, withRouteDoc } from "../lib/openapi";
+import { configManager } from "../lib/redis";
+import { createRequestTranslator } from "../lib/i18n";
+import { normalizeAutoIpGrantComment } from "../lib/post-login-ip-grant";
+
+const getWhitelistRouteTranslator = async (request: Request) => {
+  const config = await configManager.getConfig();
+  return createRequestTranslator(request, config.locale);
+};
 
 export const whitelistRoutes = new Elysia({
   prefix: "/api/admin/whitelist",
@@ -9,15 +17,27 @@ export const whitelistRoutes = new Elysia({
 })
   .get(
     "/",
-    async () => {
+    async ({ request }) => {
+      const { locale } = await getWhitelistRouteTranslator(request);
       const records = await whitelistManager.getAllActiveRecords();
-      return { success: true, data: records };
+      return {
+        success: true,
+        data: records.map((record) => ({
+          ...record,
+          ...(record.comment !== undefined
+            ? {
+                comment: normalizeAutoIpGrantComment(record.comment, locale),
+              }
+            : {}),
+        })),
+      };
     },
     routeDoc("获取白名单列表"),
   )
   .post(
     "/",
-    async ({ body, set }) => {
+    async ({ body, set, request }) => {
+      const { t } = await getWhitelistRouteTranslator(request);
       try {
         const id = await whitelistManager.addWhiteList({
           ip: body.ip,
@@ -33,7 +53,7 @@ export const whitelistRoutes = new Elysia({
         set.status = 400;
         return {
           success: false,
-          message: error?.message || "新增白名单记录失败",
+          message: error?.message || t("server.whitelist.addFailed"),
         };
       }
     },
@@ -52,11 +72,15 @@ export const whitelistRoutes = new Elysia({
   )
   .delete(
     "/:id",
-    async ({ params, set }) => {
+    async ({ params, set, request }) => {
+      const { t } = await getWhitelistRouteTranslator(request);
       const deleted = await whitelistManager.removeWhiteList(params.id);
       if (!deleted) {
         set.status = 404;
-        return { success: false, message: "Record not found" };
+        return {
+          success: false,
+          message: t("server.whitelist.recordNotFound"),
+        };
       }
       scheduleSyncReverseProxyTrustedIPs({ reason: "whitelist-remove" });
       return { success: true };
@@ -69,14 +93,18 @@ export const whitelistRoutes = new Elysia({
   )
   .patch(
     "/:id/comment",
-    async ({ params, body, set }) => {
+    async ({ params, body, set, request }) => {
+      const { t } = await getWhitelistRouteTranslator(request);
       const updated = await whitelistManager.updateComment(
         params.id,
         body.comment,
       );
       if (!updated) {
         set.status = 404;
-        return { success: false, message: "Record not found" };
+        return {
+          success: false,
+          message: t("server.whitelist.recordNotFound"),
+        };
       }
       return { success: true };
     },
@@ -91,14 +119,18 @@ export const whitelistRoutes = new Elysia({
   )
   .post(
     "/:id/refresh",
-    async ({ params, set }) => {
+    async ({ params, set, request }) => {
+      const { t } = await getWhitelistRouteTranslator(request);
       try {
         const result = await whitelistManager.refreshCnameRecord(params.id, {
           force: true,
         });
         if (!result) {
           set.status = 404;
-          return { success: false, message: "Record not found" };
+          return {
+            success: false,
+            message: t("server.whitelist.recordNotFound"),
+          };
         }
 
         if (result.changed) {
@@ -107,7 +139,9 @@ export const whitelistRoutes = new Elysia({
         if (result.record.resolveStatus === "error") {
           return {
             success: false,
-            message: result.record.resolveMessage || "域名解析失败",
+            message:
+              result.record.resolveMessage ||
+              t("server.whitelist.domainResolveFailed"),
             data: result,
           };
         }
@@ -126,7 +160,7 @@ export const whitelistRoutes = new Elysia({
         set.status = 400;
         return {
           success: false,
-          message: error?.message || "立即更新白名单记录失败",
+          message: error?.message || t("server.whitelist.refreshFailed"),
         };
       }
     },

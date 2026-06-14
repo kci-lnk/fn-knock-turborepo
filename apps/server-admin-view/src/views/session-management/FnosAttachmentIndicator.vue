@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import {
   Popover,
   PopoverAnchor,
@@ -9,24 +10,17 @@ import fnosIconUrl from "@/assets/fnos.png";
 import type { SessionAppAttachmentRecord } from "../../types";
 import { formatHumanFriendlyTime } from "@admin-shared/utils/formatHumanFriendlyTime";
 
-const props = withDefaults(
-  defineProps<{
-    attachments: SessionAppAttachmentRecord[];
-    iconUrl?: string;
-    iconAlt?: string;
-    title?: string;
-    triggerLabel?: string;
-    itemLabel?: string;
-    footerText?: string;
-  }>(),
-  {
-    iconAlt: "飞牛",
-    title: "附着的飞牛token",
-    triggerLabel: "飞牛token",
-    itemLabel: "token",
-    footerText: "包括网页与飞牛App的会话附着都会在此显示",
-  },
-);
+const props = defineProps<{
+  attachments: SessionAppAttachmentRecord[];
+  iconUrl?: string;
+  iconAlt?: string;
+  title?: string;
+  triggerLabel?: string;
+  itemLabel?: string;
+  footerText?: string;
+}>();
+
+const { t, locale } = useI18n();
 
 const open = ref(false);
 const isTouchInteraction = ref(false);
@@ -45,6 +39,21 @@ const orderedAttachments = computed(() => {
 const attachmentCount = computed(() => orderedAttachments.value.length);
 
 const resolvedIconUrl = computed(() => props.iconUrl || fnosIconUrl);
+const resolvedIconAlt = computed(
+  () => props.iconAlt || t("admin.sessions.attachments.fnosIconAlt"),
+);
+const resolvedTitle = computed(
+  () => props.title || t("admin.sessions.attachments.fnosTitle"),
+);
+const resolvedTriggerLabel = computed(
+  () => props.triggerLabel || t("admin.sessions.attachments.fnosTriggerLabel"),
+);
+const resolvedItemLabel = computed(
+  () => props.itemLabel || t("admin.sessions.attachments.tokenItemLabel"),
+);
+const resolvedFooterText = computed(
+  () => props.footerText || t("admin.sessions.attachments.fnosFooter"),
+);
 
 const updateInteractionMode = () => {
   if (typeof window === "undefined") {
@@ -139,10 +148,9 @@ const handleTriggerClick = () => {
 const formatRelativeTime = (
   value: string | null | undefined,
   emptyText = "-",
-  locale = "zh-CN",
 ) => {
   return formatHumanFriendlyTime(value, {
-    locale,
+    locale: locale.value,
     emptyText,
   });
 };
@@ -194,7 +202,12 @@ onUnmounted(() => {
       <button
         type="button"
         class="relative inline-flex h-7 w-7 shrink-0 items-center justify-center transition hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 touch-manipulation"
-        :aria-label="`查看已 attach 的${props.triggerLabel}（${attachmentCount} 个）`"
+        :aria-label="
+          t('admin.sessions.attachments.viewAttachedAria', {
+            label: resolvedTriggerLabel,
+            count: attachmentCount,
+          })
+        "
         :aria-expanded="open"
         @mouseenter="handleTriggerEnter"
         @mouseleave="handleTriggerLeave"
@@ -202,7 +215,7 @@ onUnmounted(() => {
       >
         <img
           :src="resolvedIconUrl"
-          :alt="props.iconAlt"
+          :alt="resolvedIconAlt"
           class="h-4 w-4 rounded-[4px] object-contain"
         />
         <span
@@ -224,12 +237,12 @@ onUnmounted(() => {
       <div class="flex items-center gap-2">
         <img
           :src="resolvedIconUrl"
-          :alt="props.iconAlt"
+          :alt="resolvedIconAlt"
           class="h-4 w-4 rounded-[4px] object-contain"
         />
-        <div class="text-sm font-medium">{{ props.title }}</div>
+        <div class="text-sm font-medium">{{ resolvedTitle }}</div>
         <div class="ml-auto text-xs text-muted-foreground">
-          {{ attachmentCount }} 个
+          {{ t("admin.sessions.attachments.count", { count: attachmentCount }) }}
         </div>
       </div>
 
@@ -241,10 +254,14 @@ onUnmounted(() => {
         >
           <div class="flex items-center justify-between gap-2">
             <div class="text-xs font-medium">
-              {{ props.itemLabel }} {{ index + 1 }}
+              {{ resolvedItemLabel }} {{ index + 1 }}
             </div>
             <div class="text-[11px] text-muted-foreground">
-              活跃 {{ formatRelativeTime(attachment.lastSeenAt) }}
+              {{
+                t("admin.sessions.attachments.activeTime", {
+                  time: formatRelativeTime(attachment.lastSeenAt),
+                })
+              }}
             </div>
           </div>
 
@@ -266,10 +283,10 @@ onUnmounted(() => {
       </div>
 
       <div
-        v-if="props.footerText"
+        v-if="resolvedFooterText"
         class="mt-2 border-t border-border/60 pt-2 text-[11px] text-muted-foreground"
       >
-        {{ props.footerText }}
+        {{ resolvedFooterText }}
       </div>
     </PopoverContent>
   </Popover>

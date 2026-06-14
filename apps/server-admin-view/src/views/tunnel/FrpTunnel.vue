@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import {
   ConfigAPI,
@@ -47,6 +48,7 @@ type FrpcEditorExpose = {
 
 const router = useRouter()
 const configStore = useConfigStore()
+const { t } = useI18n()
 
 const overview = ref<FrpcInstancesOverview | null>(null)
 const primaryConfig = ref('')
@@ -76,24 +78,24 @@ const primarySummary = computed(() =>
 
 const { isPending: isSaving, run: runSaveConfig } = useAsyncAction({
   onError: (error) => {
-    toast.error('保存失败', { description: extractErrorMessage(error, '保存失败') })
+    toast.error(t('admin.frpTunnel.saveFailed'), { description: extractErrorMessage(error, t('admin.frpTunnel.saveFailed')) })
   },
 })
 const { isPending: isStarting, run: runStartFrpc } = useAsyncAction()
 const { isPending: isStopping, run: runStopFrpc } = useAsyncAction()
 const { isPending: isClearingLogs, run: runClearLogs } = useAsyncAction({
   onError: (error) => {
-    toast.error('清空日志失败', { description: extractErrorMessage(error, '清空日志失败') })
+    toast.error(t('admin.frpTunnel.clearLogsFailed'), { description: extractErrorMessage(error, t('admin.frpTunnel.clearLogsFailed')) })
   },
 })
 const { run: runLoadStatus } = useAsyncAction({
   onError: (error) => {
-    toast.error('加载状态失败', { description: extractErrorMessage(error, '加载状态失败') })
+    toast.error(t('admin.frpTunnel.loadStatusFailed'), { description: extractErrorMessage(error, t('admin.frpTunnel.loadStatusFailed')) })
   },
 })
 const { run: runLoadConfig } = useAsyncAction({
   onError: (error) => {
-    toast.error('加载配置失败', { description: extractErrorMessage(error, '加载配置失败') })
+    toast.error(t('admin.frpTunnel.loadConfigFailed'), { description: extractErrorMessage(error, t('admin.frpTunnel.loadConfigFailed')) })
   },
 })
 
@@ -125,18 +127,18 @@ function summarizeContent(raw: string): FrpcInstanceSummary {
 }
 
 function formatSummary(summary: FrpcInstanceSummary) {
-  const server = summary.serverAddr ? `${summary.serverAddr}:${summary.serverPort || '7000'}` : '未配置'
+  const server = summary.serverAddr ? `${summary.serverAddr}:${summary.serverPort || '7000'}` : t('admin.frpTunnel.notConfigured')
   const local = summary.localPort || defaults.value.local_port
   const remote = summary.remotePort || '0'
-  return `${server} · 本地 ${local} → 远端 ${remote}`
+  return t('admin.frpTunnel.summary', { server, local, remote })
 }
 
 function getInstanceDisplayName(instance: FrpcInstanceStatus | null | undefined) {
-  if (!instance) return 'FRP 实例'
+  if (!instance) return t('admin.frpTunnel.instance')
   const name = instance.name.trim()
   if (name) return name
   if (instance.summary.serverAddr) return `${instance.summary.serverAddr}:${instance.summary.serverPort || '7000'}`
-  return instance.isPrimary ? '主 FRP' : 'FRP 实例'
+  return instance.isPrimary ? t('admin.frpTunnel.primaryFrp') : t('admin.frpTunnel.instance')
 }
 
 function updateOverviewItem(item: FrpcInstanceStatus) {
@@ -204,9 +206,9 @@ async function saveConfig() {
         markerSeen: false,
         expireAt: Date.now() + START_ERROR_WATCH_MS,
       }
-      toast.success('重启成功')
+      toast.success(t('admin.frpTunnel.restartSuccess'))
     } else {
-      toast.success('保存成功')
+      toast.success(t('admin.frpTunnel.saveSuccess'))
     }
     await loadStatus()
   })
@@ -227,16 +229,16 @@ async function startFrpc(options?: { silent?: boolean }) {
           configStore.config.default_tunnel = 'frp'
         }
         await loadStatus()
-        if (!options?.silent) toast.success('启动成功')
+        if (!options?.silent) toast.success(t('admin.frpTunnel.startSuccess'))
       },
       onError: (error) => {
         if (options?.silent) return
-        const message = extractErrorMessage(error, '启动失败')
+        const message = extractErrorMessage(error, t('admin.frpTunnel.startFailed'))
         if (CONNECTION_REFUSED_REGEX.test(message)) {
-          toast.error('启动失败', { description: '无法连接到 FRP 服务端（connection refused），请检查服务端地址、端口和服务状态。' })
+          toast.error(t('admin.frpTunnel.startFailed'), { description: t('admin.frpTunnel.connectionRefused') })
           return
         }
-        toast.error('启动失败', { description: message })
+        toast.error(t('admin.frpTunnel.startFailed'), { description: message })
       },
     },
   )
@@ -248,11 +250,11 @@ async function stopFrpc(options?: { silent?: boolean }) {
     {
       onSuccess: async () => {
         await loadStatus()
-        if (!options?.silent) toast.success('停止成功')
+        if (!options?.silent) toast.success(t('admin.frpTunnel.stopSuccess'))
       },
       onError: (error) => {
         if (options?.silent) return
-        toast.error('停止失败', { description: extractErrorMessage(error, '停止失败') })
+        toast.error(t('admin.frpTunnel.stopFailed'), { description: extractErrorMessage(error, t('admin.frpTunnel.stopFailed')) })
       },
     },
   )
@@ -266,7 +268,7 @@ async function onClearLogsClick() {
         primaryLogs.value = []
         frpcPolling.resetCursor()
         void frpcPolling.refresh()
-        toast.success('日志已清空')
+        toast.success(t('admin.frpTunnel.logsCleared'))
       },
     },
   )
@@ -281,10 +283,10 @@ async function startInstance(instance: FrpcInstanceStatus) {
     if (configStore.config) {
       configStore.config.default_tunnel = 'frp'
     }
-    toast.success('启动成功')
+    toast.success(t('admin.frpTunnel.startSuccess'))
     await loadStatus()
   } catch (error) {
-    toast.error('启动失败', { description: extractErrorMessage(error, '启动失败') })
+    toast.error(t('admin.frpTunnel.startFailed'), { description: extractErrorMessage(error, t('admin.frpTunnel.startFailed')) })
   } finally {
     startingInstanceId.value = null
   }
@@ -295,10 +297,10 @@ async function stopInstance(instance: FrpcInstanceStatus) {
   stoppingInstanceId.value = instance.id
   try {
     await FrpcAPI.stopInstance(instance.id)
-    toast.success('停止成功')
+    toast.success(t('admin.frpTunnel.stopSuccess'))
     await loadStatus()
   } catch (error) {
-    toast.error('停止失败', { description: extractErrorMessage(error, '停止失败') })
+    toast.error(t('admin.frpTunnel.stopFailed'), { description: extractErrorMessage(error, t('admin.frpTunnel.stopFailed')) })
   } finally {
     stoppingInstanceId.value = null
   }
@@ -309,10 +311,10 @@ async function deleteInstance(instance: FrpcInstanceStatus) {
   deletingInstanceId.value = instance.id
   try {
     await FrpcAPI.deleteInstance(instance.id)
-    toast.success('FRP 实例已删除')
+    toast.success(t('admin.frpTunnel.instanceDeleted'))
     await loadStatus()
   } catch (error) {
-    toast.error('删除失败', { description: extractErrorMessage(error, '删除失败') })
+    toast.error(t('admin.frpTunnel.deleteFailed'), { description: extractErrorMessage(error, t('admin.frpTunnel.deleteFailed')) })
   } finally {
     deletingInstanceId.value = null
   }
@@ -340,7 +342,7 @@ function handleStartFailureLogs(lines: string[]) {
     }
     if (!trace.markerSeen) continue
     if (!CONNECTION_REFUSED_REGEX.test(text)) continue
-    toast.error('启动失败', { description: '无法连接到 FRP 服务端（connection refused），请检查服务端地址、端口和服务状态。' })
+    toast.error(t('admin.frpTunnel.startFailed'), { description: t('admin.frpTunnel.connectionRefused') })
     startErrorTrace.value = null
     return
   }
@@ -378,9 +380,9 @@ onUnmounted(() => {
   <div class="space-y-6">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div class="space-y-1">
-        <h2 class="text-xl font-semibold">FRP穿透</h2>
+        <h2 class="text-xl font-semibold">{{ t('admin.frpTunnel.title') }}</h2>
         <p class="text-sm text-muted-foreground">
-          运行中 {{ overview?.runningCount ?? 0 }} / 共 {{ overview?.total ?? 0 }}
+          {{ t('admin.frpTunnel.runningSummary', { running: overview?.runningCount ?? 0, total: overview?.total ?? 0 }) }}
         </p>
       </div>
       <div class="flex flex-wrap items-center gap-3">
@@ -392,17 +394,17 @@ onUnmounted(() => {
         />
         <Button v-if="!running" :disabled="!canStart || isStarting" @click="startFrpc">
           <Play class="mr-1.5 h-4 w-4" />
-          启动
+          {{ t('admin.frpTunnel.start') }}
         </Button>
         <Button v-else variant="destructive" :disabled="!canStop || isStopping" @click="stopFrpc">
           <Square class="mr-1.5 h-4 w-4" />
-          停止
+          {{ t('admin.frpTunnel.stop') }}
         </Button>
       </div>
     </div>
 
     <ConfigCollapsibleCard
-      title="主 FRP 配置"
+      :title="t('admin.frpTunnel.primaryConfigTitle')"
       :configured="Boolean(primarySummary.serverAddr)"
       :ready="configLoaded"
       summary-class="text-xs text-muted-foreground"
@@ -423,8 +425,8 @@ onUnmounted(() => {
 
       <template #actions="{ collapse }">
         <div class="p-4 sm:px-6 sm:py-4 bg-muted/30 border-t flex items-center justify-end gap-3 rounded-b-lg">
-          <Button variant="outline" @click="collapse">折叠</Button>
-          <Button :disabled="isSaving" @click="saveConfig" class="min-w-[100px] shadow-sm">保存</Button>
+          <Button variant="outline" @click="collapse">{{ t('admin.frpTunnel.collapse') }}</Button>
+          <Button :disabled="isSaving" @click="saveConfig" class="min-w-[100px] shadow-sm">{{ t('common.save') }}</Button>
         </div>
       </template>
     </ConfigCollapsibleCard>
@@ -432,21 +434,21 @@ onUnmounted(() => {
     <Card>
       <CardHeader>
         <div class="flex items-center justify-between gap-3">
-          <CardTitle class="text-base">主实例连接信息</CardTitle>
+          <CardTitle class="text-base">{{ t('admin.frpTunnel.primaryConnectionInfo') }}</CardTitle>
           <Button variant="outline" size="sm" :disabled="isClearingLogs || primaryLogs.length === 0" @click="onClearLogsClick">
             <Trash2 class="h-3.5 w-3.5 mr-1" />
-            清空
+            {{ t('admin.frpTunnel.clear') }}
           </Button>
         </div>
       </CardHeader>
       <CardContent class="space-y-4">
         <div class="grid gap-3 text-sm sm:grid-cols-3">
           <div>
-            <div class="text-xs text-muted-foreground">状态</div>
+            <div class="text-xs text-muted-foreground">{{ t('admin.frpTunnel.status') }}</div>
             <div class="mt-1 flex items-center gap-2">
               <LiveStatusBadge :active="running" />
               <span :class="running ? 'text-green-600' : 'text-muted-foreground'">
-                {{ running ? '运行中' : '未运行' }}
+                {{ running ? t('common.active') : t('admin.frpTunnel.notRunning') }}
               </span>
             </div>
           </div>
@@ -455,8 +457,8 @@ onUnmounted(() => {
             <div class="mt-1 font-mono">{{ pid ?? '-' }}</div>
           </div>
           <div>
-            <div class="text-xs text-muted-foreground">日志接管</div>
-            <div class="mt-1">{{ primaryInstance?.attached ? '当前进程' : '历史缓冲' }}</div>
+            <div class="text-xs text-muted-foreground">{{ t('admin.frpTunnel.logAttachment') }}</div>
+            <div class="mt-1">{{ primaryInstance?.attached ? t('admin.frpTunnel.currentProcess') : t('admin.frpTunnel.historyBuffer') }}</div>
           </div>
         </div>
         <LogViewer :logs="primaryLogs" reversed :show-header="false" />
@@ -467,14 +469,14 @@ onUnmounted(() => {
       <CardHeader>
         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div class="space-y-1">
-            <CardTitle class="text-base">更多 FRP</CardTitle>
+            <CardTitle class="text-base">{{ t('admin.frpTunnel.moreFrp') }}</CardTitle>
             <p class="text-sm text-muted-foreground">
-              额外加入的 FRP 客户端实例，不影响主 FRP 配置。
+              {{ t('admin.frpTunnel.moreFrpDescription') }}
             </p>
           </div>
           <Button size="sm" @click="gotoInstanceCreate">
             <Plus class="mr-1.5 h-4 w-4" />
-            新增 FRP
+            {{ t('admin.frpTunnel.addFrp') }}
           </Button>
         </div>
       </CardHeader>
@@ -483,7 +485,7 @@ onUnmounted(() => {
           v-if="extraInstances.length === 0"
           class="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground"
         >
-          暂无更多 FRP。新增后可让多个 frpc 进程独立运行。
+          {{ t('admin.frpTunnel.emptyExtra') }}
         </div>
 
         <div v-else class="space-y-3">
@@ -498,7 +500,7 @@ onUnmounted(() => {
                   <p class="text-sm font-medium">{{ getInstanceDisplayName(instance) }}</p>
                   <span class="inline-flex items-center gap-1.5 text-xs" :class="instance.running ? 'text-green-600' : 'text-muted-foreground'">
                     <LiveStatusBadge :active="instance.running" size="xs" />
-                    {{ instance.running ? '运行中' : '未运行' }}
+                    {{ instance.running ? t('common.active') : t('admin.frpTunnel.notRunning') }}
                   </span>
                 </div>
                 <p class="text-sm text-muted-foreground break-all">
@@ -515,14 +517,14 @@ onUnmounted(() => {
                   <p class="mt-1 font-mono text-sm">{{ instance.pid ?? '-' }}</p>
                 </div>
                 <div class="rounded-lg px-3 py-2">
-                  <p class="text-[10px] uppercase tracking-wider text-muted-foreground">最近启动</p>
+                  <p class="text-[10px] uppercase tracking-wider text-muted-foreground">{{ t('admin.frpTunnel.lastStarted') }}</p>
                   <p class="mt-1 text-sm">
                     <HumanFriendlyTime :value="instance.startedAt" />
                   </p>
                 </div>
                 <div class="rounded-lg px-3 py-2">
-                  <p class="text-[10px] uppercase tracking-wider text-muted-foreground">日志</p>
-                  <p class="mt-1 text-sm">{{ instance.attached ? '实时接管' : '历史缓冲' }}</p>
+                  <p class="text-[10px] uppercase tracking-wider text-muted-foreground">{{ t('admin.frpTunnel.logs') }}</p>
+                  <p class="mt-1 text-sm">{{ instance.attached ? t('admin.frpTunnel.liveAttached') : t('admin.frpTunnel.historyBuffer') }}</p>
                 </div>
               </div>
             </div>
@@ -530,7 +532,7 @@ onUnmounted(() => {
             <div class="mt-4 flex flex-wrap justify-end gap-2">
               <Button variant="outline" size="sm" @click="gotoInstanceDetail(instance, 'config')">
                 <Pencil class="mr-1.5 h-3.5 w-3.5" />
-                编辑
+                {{ t('admin.frpTunnel.edit') }}
               </Button>
               <Button
                 v-if="!instance.running"
@@ -540,7 +542,7 @@ onUnmounted(() => {
                 @click="startInstance(instance)"
               >
                 <Play class="mr-1.5 h-3.5 w-3.5" />
-                {{ startingInstanceId === instance.id ? '启动中...' : '启动' }}
+                {{ startingInstanceId === instance.id ? t('admin.frpTunnel.starting') : t('admin.frpTunnel.start') }}
               </Button>
               <Button
                 v-else
@@ -550,19 +552,19 @@ onUnmounted(() => {
                 @click="stopInstance(instance)"
               >
                 <Square class="mr-1.5 h-3.5 w-3.5" />
-                {{ stoppingInstanceId === instance.id ? '停止中...' : '停止' }}
+                {{ stoppingInstanceId === instance.id ? t('admin.frpTunnel.stopping') : t('admin.frpTunnel.stop') }}
               </Button>
               <Button variant="outline" size="sm" @click="gotoInstanceDetail(instance, 'logs')">
                 <ScrollText class="mr-1.5 h-3.5 w-3.5" />
-                日志
+                {{ t('admin.frpTunnel.logs') }}
               </Button>
               <Button variant="outline" size="sm" @click="gotoInstanceDetail(instance)">
                 <Info class="mr-1.5 h-3.5 w-3.5" />
-                查看更多
+                {{ t('admin.frpTunnel.viewMore') }}
               </Button>
               <ConfirmDangerPopover
-                title="确认删除 FRP 实例？"
-                :description="`删除会先停止 ${getInstanceDisplayName(instance)}，并移除该实例配置与日志缓冲。`"
+                :title="t('admin.frpTunnel.deleteTitle')"
+                :description="t('admin.frpTunnel.deleteDescription', { name: getInstanceDisplayName(instance) })"
                 :loading="deletingInstanceId === instance.id"
                 :disabled="deletingInstanceId === instance.id"
                 :on-confirm="() => deleteInstance(instance)"
@@ -576,7 +578,7 @@ onUnmounted(() => {
                     class="text-destructive hover:text-destructive"
                   >
                     <Trash2 class="mr-1.5 h-3.5 w-3.5" />
-                    {{ deletingInstanceId === instance.id ? '删除中...' : '删除' }}
+                    {{ deletingInstanceId === instance.id ? t('admin.frpTunnel.deleting') : t('admin.frpTunnel.delete') }}
                   </Button>
                 </template>
               </ConfirmDangerPopover>
@@ -589,11 +591,11 @@ onUnmounted(() => {
     <Dialog v-model:open="showInitDialog">
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>FRP 未初始化</DialogTitle>
+          <DialogTitle>{{ t('admin.frpTunnel.notInitializedTitle') }}</DialogTitle>
         </DialogHeader>
-        <p class="text-sm text-muted-foreground">请先在 系统设置 → FRP资源 中完成初始化。</p>
+        <p class="text-sm text-muted-foreground">{{ t('admin.frpTunnel.notInitializedDescription') }}</p>
         <DialogFooter>
-          <Button @click="gotoFrpResources">前往初始化</Button>
+          <Button @click="gotoFrpResources">{{ t('admin.frpTunnel.goInitialize') }}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

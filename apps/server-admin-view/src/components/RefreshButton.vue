@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { HTMLAttributes } from 'vue';
 import type { ButtonVariants } from '@/components/ui/button';
 import { Button } from '@/components/ui/button';
@@ -17,7 +18,6 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   loading: false,
   disabled: false,
-  label: '刷新',
   size: 'sm',
   iconOnly: false,
 });
@@ -27,6 +27,7 @@ defineEmits<{
 }>();
 
 const MIN_SPIN_DURATION_MS = 500;
+const { t } = useI18n();
 
 const animationActive = ref(props.loading);
 const spinStartedAt = ref<number | null>(props.loading ? Date.now() : null);
@@ -73,6 +74,9 @@ const iconClass = computed(() => ({
   'mr-1.5': !props.iconOnly,
   'animate-spin': animationActive.value,
 }));
+const resolvedLabel = computed(
+  () => props.label || t('admin.components.refreshButton.label'),
+);
 </script>
 
 <template>
@@ -81,13 +85,13 @@ const iconClass = computed(() => ({
     :size="props.size"
     :disabled="props.disabled"
     :class="props.class"
-    :aria-label="props.label"
+    :aria-label="resolvedLabel"
     @click="$emit('click')"
   >
     <RefreshCw
       class="h-4 w-4"
       :class="iconClass"
     />
-    <span v-if="!props.iconOnly">{{ props.label }}</span>
+    <span v-if="!props.iconOnly">{{ resolvedLabel }}</span>
   </Button>
 </template>

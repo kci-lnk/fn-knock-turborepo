@@ -1,6 +1,6 @@
 import { ref } from 'vue';
 
-export function extractErrorMessage(error: unknown, fallback = '操作失败') {
+export function extractErrorMessage(error: unknown, fallback = 'Operation failed') {
   if (error && typeof error === 'object') {
     const maybeResponse = error as { response?: { data?: { message?: unknown } } };
     const responseMessage = maybeResponse.response?.data?.message;

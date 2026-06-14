@@ -11,12 +11,17 @@ import {
 } from "./app-version";
 import { waitForProcessExit } from "./runtime";
 import { emitAppUpdateAvailableEvent } from "./system-events/helpers";
+import { tDefault } from "./i18n";
 
 const OTA_LATEST_URL = "https://fn-knock.cdn.wxlnk.com/latest.json";
 const UPDATE_PENDING_KEY = "fn_knock:update:pending";
 const UPDATE_CONFIRM_KEY = "fn_knock:update:confirm";
 const UPDATE_PENDING_TTL_SECONDS = 7 * 24 * 60 * 60;
 const UPDATE_CONFIRM_TTL_SECONDS = 7 * 24 * 60 * 60;
+const updateManagerT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.updateManager.${key}`, params);
 
 type DownloadStatus = "idle" | "downloading" | "verifying" | "downloaded" | "installing" | "error";
 type UpdateArchitecture = "amd64" | "arm64";
@@ -76,14 +81,14 @@ const getManifestString = (value: Record<string, unknown>, key: string): string 
 const ensureSha256 = (value: string, field: string): string => {
   const normalized = value.trim().toLowerCase();
   if (!SHA256_HEX_RE.test(normalized)) {
-    throw new Error(`更新信息 ${field} 无效`);
+    throw new Error(updateManagerT("manifestFieldInvalid", { field }));
   }
   return normalized;
 };
 
 const parseManifest = (value: unknown): OtaLatestManifest => {
   if (!isRecord(value)) {
-    throw new Error("更新信息格式错误");
+    throw new Error(updateManagerT("manifestFormatInvalid"));
   }
   const version = getManifestString(value, "version");
   const updateAvailable = value.update_available;
@@ -94,19 +99,19 @@ const parseManifest = (value: unknown): OtaLatestManifest => {
   const sha256Arm64Raw = getManifestString(value, "sha256_arm64");
   const releaseNotes = typeof value.release_notes === "string" ? value.release_notes : "";
   if (!version) {
-    throw new Error("更新信息缺少 version");
+    throw new Error(updateManagerT("manifestMissingVersion"));
   }
   if (typeof updateAvailable !== "boolean") {
-    throw new Error("更新信息缺少 update_available");
+    throw new Error(updateManagerT("manifestMissingUpdateAvailable"));
   }
   if (typeof forceUpdate !== "boolean") {
-    throw new Error("更新信息缺少 force_update");
+    throw new Error(updateManagerT("manifestMissingForceUpdate"));
   }
   if (!downloadUrl) {
-    throw new Error("更新信息缺少 download_url");
+    throw new Error(updateManagerT("manifestMissingDownloadUrl"));
   }
   if ((downloadUrlArm64 && !sha256Arm64Raw) || (!downloadUrlArm64 && sha256Arm64Raw)) {
-    throw new Error("更新信息 ARM64 下载字段不完整");
+    throw new Error(updateManagerT("manifestArm64FieldsIncomplete"));
   }
   const sha256Arm64 = sha256Arm64Raw ? ensureSha256(sha256Arm64Raw, "sha256_arm64") : "";
   return {
@@ -171,14 +176,16 @@ export class UpdateManager {
   private resolveManifestPackage(manifest: OtaLatestManifest): ResolvedUpdatePackage {
     const architecture = this.detectArchitecture();
     if (!architecture) {
-      throw new Error(`当前系统架构暂不支持自动更新: ${process.arch}`);
+      throw new Error(
+        updateManagerT("architectureUnsupported", { arch: process.arch }),
+      );
     }
     if (architecture === "arm64") {
       if (!manifest.download_url_arm64) {
-        throw new Error("更新信息缺少 ARM64 下载地址");
+        throw new Error(updateManagerT("manifestMissingArm64DownloadUrl"));
       }
       if (!manifest.sha256_arm64) {
-        throw new Error("更新信息缺少 ARM64 校验值");
+        throw new Error(updateManagerT("manifestMissingArm64Checksum"));
       }
       return {
         architecture,
@@ -224,7 +231,7 @@ export class UpdateManager {
       },
     });
     if (!res.ok) {
-      throw new Error(`更新检查失败: HTTP ${res.status}`);
+      throw new Error(updateManagerT("checkHttpFailed", { status: res.status }));
     }
     const payload = await res.json().catch(() => null);
     return parseManifest(payload);
@@ -362,7 +369,7 @@ export class UpdateManager {
       this.hasUpdate = hasUpdate;
       this.forceUpdate = this.hasUpdate && manifest.force_update;
 
-      // 来源变更后，清理过时的下载状态
+      // Clear stale download state when the update source changes.
       if (
         this.downloadState.targetVersion &&
         this.downloadState.targetVersion !== manifest.version &&
@@ -385,7 +392,7 @@ export class UpdateManager {
         });
       }
     } catch (error) {
-      this.checkError = toErrorMessage(error, "更新检查失败");
+      this.checkError = toErrorMessage(error, updateManagerT("checkFailed"));
       this.lastCheckedAt = Date.now();
       console.error(`[update] check failed (${reason}):`, error);
     }
@@ -403,13 +410,13 @@ export class UpdateManager {
       await this.checkNow("download-bootstrap");
     }
     if (!this.latestManifest) {
-      throw new Error("尚未获取到更新信息");
+      throw new Error(updateManagerT("noUpdateInfo"));
     }
     if (!this.updateEnabled) {
-      throw new Error("更新功能当前未启用");
+      throw new Error(updateManagerT("featureDisabled"));
     }
     if (!this.hasUpdate) {
-      throw new Error("当前已是最新版本");
+      throw new Error(updateManagerT("alreadyLatest"));
     }
 
     const targetVersion = this.latestManifest.version;
@@ -460,13 +467,15 @@ export class UpdateManager {
         },
       });
       if (!response.ok) {
-        throw new Error(`下载失败: HTTP ${response.status}`);
+        throw new Error(
+          updateManagerT("downloadHttpFailed", { status: response.status }),
+        );
       }
       const totalHeader = response.headers.get("content-length");
       const totalBytes = totalHeader ? Number.parseInt(totalHeader, 10) : 0;
       const reader = response.body?.getReader();
       if (!reader) {
-        throw new Error("下载失败: 响应流不可读");
+        throw new Error(updateManagerT("responseBodyUnreadable"));
       }
 
       let loadedBytes = 0;
@@ -498,7 +507,12 @@ export class UpdateManager {
       };
       const sha256 = (await this.computeFileSha256(tempPath)).toLowerCase();
       if (sha256 !== targetPackage.sha256.toLowerCase()) {
-        throw new Error(`校验失败: 期望 ${targetPackage.sha256}，实际 ${sha256}`);
+        throw new Error(
+          updateManagerT("checksumFailed", {
+            expected: targetPackage.sha256,
+            actual: sha256,
+          }),
+        );
       }
 
       fs.renameSync(tempPath, targetPath);
@@ -520,7 +534,7 @@ export class UpdateManager {
       } catch {
         // ignore cleanup error
       }
-      this.setDownloadError(toErrorMessage(error, "下载失败"));
+      this.setDownloadError(toErrorMessage(error, updateManagerT("downloadFailed")));
       throw error;
     }
   }
@@ -530,21 +544,21 @@ export class UpdateManager {
       return;
     }
     if (!this.latestManifest || !this.updateEnabled || !this.hasUpdate) {
-      throw new Error("当前没有可安装更新");
+      throw new Error(updateManagerT("noInstallableUpdate"));
     }
     if (this.downloadState.status !== "downloaded" || !this.downloadedPath) {
-      throw new Error("请先完成更新包下载并校验");
+      throw new Error(updateManagerT("downloadPackageFirst"));
     }
     if (!fs.existsSync(this.downloadedPath)) {
       this.resetDownloadState();
-      throw new Error("更新包不存在，请重新下载");
+      throw new Error(updateManagerT("packageMissing"));
     }
 
     const targetPackage = this.resolveManifestPackage(this.latestManifest);
     const currentSha256 = (await this.computeFileSha256(this.downloadedPath)).toLowerCase();
     if (currentSha256 !== targetPackage.sha256.toLowerCase()) {
       this.resetDownloadState();
-      throw new Error("更新包校验失败，请重新下载");
+      throw new Error(updateManagerT("packageChecksumFailed"));
     }
 
     const pendingPayload: UpdatePendingPayload = {
@@ -620,8 +634,8 @@ fi`;
     });
     const exitCode = await waitForProcessExit(run);
     if (exitCode !== 0) {
-      this.setDownloadError("启动更新安装流程失败");
-      throw new Error("启动更新安装流程失败");
+      this.setDownloadError(updateManagerT("installStartFailed"));
+      throw new Error(updateManagerT("installStartFailed"));
     }
   }
 

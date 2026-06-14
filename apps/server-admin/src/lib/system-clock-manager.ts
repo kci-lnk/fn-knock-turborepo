@@ -1,6 +1,13 @@
 import fs from "node:fs";
 import { spawn } from "node:child_process";
 import { collectStreamOutput, sleep } from "./runtime";
+import {
+  DEFAULT_LOCALE,
+  type LocaleCode,
+  type MessageParams,
+  normalizeLocale,
+  translate,
+} from "../../../../packages/i18n/src";
 
 const EXPECTED_TIME_ZONE = "Asia/Shanghai";
 const TIME_DRIFT_THRESHOLD_MS = 90_000;
@@ -15,6 +22,15 @@ const NETWORK_TIME_SOURCES = [
   { label: "QQ HTTP", url: "http://www.qq.com/" },
   { label: "Aliyun HTTP", url: "http://www.aliyun.com/" },
 ] as const;
+
+const resolveClockLocale = (locale: string | null | undefined): LocaleCode =>
+  normalizeLocale(locale) ?? DEFAULT_LOCALE;
+
+const clockT = (
+  locale: string | null | undefined,
+  key: string,
+  params?: MessageParams,
+) => translate(resolveClockLocale(locale), `server.systemClock.${key}`, params);
 
 export type SystemClockIssueCode = "timezone_mismatch" | "time_mismatch";
 
@@ -53,17 +69,6 @@ type NetworkTimeResult = {
   source: string;
 };
 
-const BEIJING_TIME_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
-  timeZone: EXPECTED_TIME_ZONE,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-  hour12: false,
-});
-
 const toErrorMessage = (error: unknown, fallback: string) => {
   if (error instanceof Error && error.message.trim()) {
     return error.message;
@@ -71,19 +76,28 @@ const toErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
-const formatBeijingTime = (epochMs: number | null) => {
+const formatBeijingTime = (epochMs: number | null, locale?: string | null) => {
   if (!Number.isFinite(epochMs)) return null;
-  return BEIJING_TIME_FORMATTER.format(new Date(epochMs as number));
+  return new Intl.DateTimeFormat(resolveClockLocale(locale), {
+    timeZone: EXPECTED_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(new Date(epochMs as number));
 };
 
-const formatDrift = (driftMs: number) => {
+const formatDrift = (driftMs: number, locale?: string | null) => {
   const totalSeconds = Math.max(1, Math.round(Math.abs(driftMs) / 1000));
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
 
-  if (minutes <= 0) return `${seconds} 秒`;
-  if (seconds === 0) return `${minutes} 分钟`;
-  return `${minutes} 分 ${seconds} 秒`;
+  if (minutes <= 0) return clockT(locale, "duration.seconds", { seconds });
+  if (seconds === 0) return clockT(locale, "duration.minutes", { minutes });
+  return clockT(locale, "duration.minutesSeconds", { minutes, seconds });
 };
 
 const createInitialStatus = (): SystemClockStatus => ({
@@ -124,15 +138,51 @@ export class SystemClockManager {
     void this.checkNow();
   }
 
-  getStatus(): SystemClockStatus {
+  private buildIssues(
+    status: Pick<
+      SystemClockStatus,
+      "timezoneMismatch" | "timeMismatch" | "systemTimeZone" | "driftMs"
+    >,
+    locale?: string | null,
+  ): SystemClockIssue[] {
+    const issues: SystemClockIssue[] = [];
+
+    if (status.timezoneMismatch) {
+      issues.push({
+        code: "timezone_mismatch",
+        title: clockT(locale, "issues.timezone.title"),
+        message: clockT(locale, "issues.timezone.message", {
+          timezone: status.systemTimeZone || clockT(locale, "unknown"),
+          expected: EXPECTED_TIME_ZONE,
+        }),
+      });
+    }
+
+    if (status.timeMismatch && status.driftMs !== null) {
+      issues.push({
+        code: "time_mismatch",
+        title: clockT(locale, "issues.timeMismatch.title"),
+        message: clockT(locale, "issues.timeMismatch.message", {
+          drift: formatDrift(status.driftMs, locale),
+        }),
+      });
+    }
+
+    return issues;
+  }
+
+  getStatus(locale?: string | null): SystemClockStatus {
     return {
       ...this.status,
-      issues: [...this.status.issues],
+      systemBeijingTime: formatBeijingTime(this.status.systemTimeMs, locale),
+      remoteBeijingTime: formatBeijingTime(this.status.remoteTimeMs, locale),
+      issues: this.buildIssues(this.status, locale),
     };
   }
 
-  async checkNow(): Promise<SystemClockStatus> {
+  async checkNow(locale?: string | null): Promise<SystemClockStatus> {
     if (this.checkPromise) return this.checkPromise;
+    const resolvedLocale = resolveClockLocale(locale);
 
     this.status = {
       ...this.status,
@@ -147,9 +197,12 @@ export class SystemClockManager {
       let lastCheckError: string | null = null;
 
       try {
-        remote = await this.fetchNetworkTime();
+        remote = await this.fetchNetworkTime(resolvedLocale);
       } catch (error) {
-        lastCheckError = toErrorMessage(error, "联网检查系统时间失败");
+        lastCheckError = toErrorMessage(
+          error,
+          clockT(resolvedLocale, "networkCheckFailed"),
+        );
       }
 
       const remoteTimeMs = remote?.epochMs ?? null;
@@ -158,23 +211,10 @@ export class SystemClockManager {
       const timeMismatch =
         driftMs !== null && Math.abs(driftMs) > TIME_DRIFT_THRESHOLD_MS;
       const timezoneMismatch = systemTimeZone !== EXPECTED_TIME_ZONE;
-      const issues: SystemClockIssue[] = [];
-
-      if (timezoneMismatch) {
-        issues.push({
-          code: "timezone_mismatch",
-          title: "系统时区不是北京时间",
-          message: `当前系统时区为 ${systemTimeZone || "未知"}，应设置为 ${EXPECTED_TIME_ZONE}。`,
-        });
-      }
-
-      if (timeMismatch && driftMs !== null) {
-        issues.push({
-          code: "time_mismatch",
-          title: "系统时间与联网校验结果不一致",
-          message: `当前系统时间与联网校验结果相差约 ${formatDrift(driftMs)}。`,
-        });
-      }
+      const issues = this.buildIssues(
+        { timezoneMismatch, timeMismatch, systemTimeZone, driftMs },
+        resolvedLocale,
+      );
 
       this.status = {
         ...this.status,
@@ -185,8 +225,8 @@ export class SystemClockManager {
         lastCheckError,
         systemTimeMs,
         remoteTimeMs,
-        systemBeijingTime: formatBeijingTime(systemTimeMs),
-        remoteBeijingTime: formatBeijingTime(remoteTimeMs),
+        systemBeijingTime: formatBeijingTime(systemTimeMs, resolvedLocale),
+        remoteBeijingTime: formatBeijingTime(remoteTimeMs, resolvedLocale),
         driftMs,
         driftThresholdMs: TIME_DRIFT_THRESHOLD_MS,
         timeMismatch,
@@ -196,7 +236,7 @@ export class SystemClockManager {
         checking: false,
       };
 
-      return this.getStatus();
+      return this.getStatus(resolvedLocale);
     })().finally(() => {
       this.checkPromise = null;
     });
@@ -204,8 +244,11 @@ export class SystemClockManager {
     return this.checkPromise;
   }
 
-  async syncNow(): Promise<{ message: string; data: SystemClockStatus }> {
+  async syncNow(
+    locale?: string | null,
+  ): Promise<{ message: string; data: SystemClockStatus }> {
     if (this.syncPromise) return this.syncPromise;
+    const resolvedLocale = resolveClockLocale(locale);
 
     this.status = {
       ...this.status,
@@ -217,10 +260,10 @@ export class SystemClockManager {
       const actions: string[] = [];
 
       try {
-        const statusBeforeSync = await this.checkNow();
+        const statusBeforeSync = await this.checkNow(resolvedLocale);
 
         if (statusBeforeSync.systemTimeZone !== EXPECTED_TIME_ZONE) {
-          actions.push(await this.setSystemTimeZone());
+          actions.push(await this.setSystemTimeZone(resolvedLocale));
         }
 
         if (
@@ -232,18 +275,22 @@ export class SystemClockManager {
             : Date.now();
           const elapsedMs = Math.max(0, Date.now() - checkedAtMs);
           const targetEpochMs = statusBeforeSync.remoteTimeMs + elapsedMs;
-          actions.push(await this.setSystemClock(targetEpochMs));
+          actions.push(
+            await this.setSystemClock(targetEpochMs, resolvedLocale),
+          );
         }
 
-        const ntpMessage = await this.enableNetworkTimeSync();
+        const ntpMessage = await this.enableNetworkTimeSync(resolvedLocale);
         if (ntpMessage) {
           actions.push(ntpMessage);
         }
 
         await sleep(1_500);
-        const nextStatus = await this.checkNow();
+        const nextStatus = await this.checkNow(resolvedLocale);
         const message =
-          actions.length > 0 ? actions.join("；") : "系统时间状态已刷新";
+          actions.length > 0
+            ? actions.join(clockT(resolvedLocale, "actionSeparator"))
+            : clockT(resolvedLocale, "statusRefreshed");
 
         this.status = {
           ...nextStatus,
@@ -255,10 +302,13 @@ export class SystemClockManager {
 
         return {
           message,
-          data: this.getStatus(),
+          data: this.getStatus(resolvedLocale),
         };
       } catch (error) {
-        const message = toErrorMessage(error, "系统时间同步失败");
+        const message = toErrorMessage(
+          error,
+          clockT(resolvedLocale, "syncFailed"),
+        );
         this.status = {
           ...this.status,
           syncInProgress: false,
@@ -294,14 +344,23 @@ export class SystemClockManager {
     }
   }
 
-  private async fetchNetworkTime(): Promise<NetworkTimeResult> {
-    let lastError = "未能从网络获取标准时间";
+  private async fetchNetworkTime(
+    locale?: string | null,
+  ): Promise<NetworkTimeResult> {
+    let lastError = clockT(locale, "networkTimeUnavailable");
 
     for (const source of NETWORK_TIME_SOURCES) {
       try {
-        return await this.fetchNetworkTimeFromSource(source.url, source.label);
+        return await this.fetchNetworkTimeFromSource(
+          source.url,
+          source.label,
+          locale,
+        );
       } catch (error) {
-        lastError = toErrorMessage(error, `从 ${source.label} 获取时间失败`);
+        lastError = toErrorMessage(
+          error,
+          clockT(locale, "sourceFetchFailed", { source: source.label }),
+        );
       }
     }
 
@@ -311,6 +370,7 @@ export class SystemClockManager {
   private async fetchNetworkTimeFromSource(
     url: string,
     label: string,
+    locale?: string | null,
   ): Promise<NetworkTimeResult> {
     const requestStartedAt = Date.now();
     let response = await fetch(url, {
@@ -339,12 +399,12 @@ export class SystemClockManager {
     }
 
     if (!dateHeader) {
-      throw new Error(`${label} 未返回可用的 Date 响应头`);
+      throw new Error(clockT(locale, "missingDateHeader", { source: label }));
     }
 
     const remoteTimeMs = Date.parse(dateHeader);
     if (!Number.isFinite(remoteTimeMs)) {
-      throw new Error(`${label} 返回了无法解析的时间`);
+      throw new Error(clockT(locale, "invalidDateHeader", { source: label }));
     }
 
     const latencyMs = Math.max(0, Date.now() - requestStartedAt);
@@ -355,7 +415,11 @@ export class SystemClockManager {
     };
   }
 
-  private async runCommand(command: string, args: string[]) {
+  private async runCommand(
+    command: string,
+    args: string[],
+    locale?: string | null,
+  ) {
     const proc = spawn(command, args, {
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -372,7 +436,11 @@ export class SystemClockManager {
     ]);
 
     if (exitCode !== 0) {
-      throw new Error(stderr.trim() || stdout.trim() || `执行 ${command} 失败`);
+      throw new Error(
+        stderr.trim() ||
+          stdout.trim() ||
+          clockT(locale, "commandFailed", { command }),
+      );
     }
 
     return {
@@ -381,26 +449,33 @@ export class SystemClockManager {
     };
   }
 
-  private async tryRunCommand(command: string, args: string[]) {
+  private async tryRunCommand(
+    command: string,
+    args: string[],
+    locale?: string | null,
+  ) {
     try {
-      await this.runCommand(command, args);
+      await this.runCommand(command, args, locale);
       return true;
     } catch {
       return false;
     }
   }
 
-  private async setSystemTimeZone() {
+  private async setSystemTimeZone(locale?: string | null) {
     try {
-      await this.runCommand("timedatectl", [
-        "set-timezone",
-        EXPECTED_TIME_ZONE,
-      ]);
-      return `已设置系统时区为 ${EXPECTED_TIME_ZONE}`;
+      await this.runCommand(
+        "timedatectl",
+        ["set-timezone", EXPECTED_TIME_ZONE],
+        locale,
+      );
+      return clockT(locale, "timezoneSet", { timezone: EXPECTED_TIME_ZONE });
     } catch {
       const zoneinfoPath = `/usr/share/zoneinfo/${EXPECTED_TIME_ZONE}`;
       if (!fs.existsSync(zoneinfoPath)) {
-        throw new Error(`系统缺少时区文件 ${zoneinfoPath}`);
+        throw new Error(
+          clockT(locale, "missingZoneinfoFile", { path: zoneinfoPath }),
+        );
       }
 
       try {
@@ -416,32 +491,36 @@ export class SystemClockManager {
       }
 
       fs.writeFileSync("/etc/timezone", `${EXPECTED_TIME_ZONE}\n`, "utf-8");
-      return `已写入系统时区 ${EXPECTED_TIME_ZONE}`;
+      return clockT(locale, "timezoneWritten", {
+        timezone: EXPECTED_TIME_ZONE,
+      });
     }
   }
 
-  private async setSystemClock(targetEpochMs: number) {
+  private async setSystemClock(targetEpochMs: number, locale?: string | null) {
     const targetSeconds = Math.floor(targetEpochMs / 1000);
-    await this.runCommand("date", ["-u", "-s", `@${targetSeconds}`]);
-    await this.tryRunCommand("hwclock", ["--systohc"]);
-    return "已校准系统时间";
+    await this.runCommand("date", ["-u", "-s", `@${targetSeconds}`], locale);
+    await this.tryRunCommand("hwclock", ["--systohc"], locale);
+    return clockT(locale, "clockAdjusted");
   }
 
-  private async enableNetworkTimeSync() {
+  private async enableNetworkTimeSync(locale?: string | null) {
     const actions: string[] = [];
 
-    if (await this.tryRunCommand("timedatectl", ["set-ntp", "true"])) {
-      actions.push("已启用 NTP 自动校时");
+    if (await this.tryRunCommand("timedatectl", ["set-ntp", "true"], locale)) {
+      actions.push(clockT(locale, "ntpEnabled"));
     }
 
     for (const service of ["systemd-timesyncd", "chrony", "chronyd", "ntp"]) {
-      if (await this.tryRunCommand("systemctl", ["restart", service])) {
-        actions.push(`已重启 ${service} 服务`);
+      if (await this.tryRunCommand("systemctl", ["restart", service], locale)) {
+        actions.push(clockT(locale, "serviceRestarted", { service }));
         break;
       }
     }
 
-    return actions.length > 0 ? actions.join("，") : null;
+    return actions.length > 0
+      ? actions.join(clockT(locale, "listSeparator"))
+      : null;
   }
 }
 

@@ -60,7 +60,7 @@
                 :disabled="loading"
                 @click="showResetDialog = true"
               >
-                忘记密码？
+                {{ t("admin.components.dockerAdminGate.forgotPassword") }}
               </Button>
             </div>
 
@@ -72,7 +72,7 @@
               :disabled="loading"
               @click="$emit('retry')"
             >
-              重新检测状态
+              {{ t("admin.components.dockerAdminGate.retry") }}
             </Button>
           </form>
         </CardContent>
@@ -84,10 +84,11 @@
         class="max-h-[calc(100vh-2rem)] min-w-0 overflow-y-auto sm:max-w-[560px]"
       >
         <DialogHeader>
-          <DialogTitle>重设管理面板密码</DialogTitle>
+          <DialogTitle>{{
+            t("admin.components.dockerAdminGate.resetTitle")
+          }}</DialogTitle>
           <DialogDescription>
-            需要在 Docker
-            主机或容器外执行重置命令。该操作只会清除面板密码、面板会话和登录退避状态，不会删除业务配置。
+            {{ t("admin.components.dockerAdminGate.resetDescription") }}
           </DialogDescription>
         </DialogHeader>
 
@@ -95,18 +96,22 @@
           <div
             class="rounded-lg border border-border/70 bg-muted/40 px-3 py-3 text-sm leading-6"
           >
-            清理完成后，下次访问 Docker 管理入口会重新进入“首次设置密码”流程。
+            {{ t("admin.components.dockerAdminGate.resetNotice") }}
           </div>
 
           <div class="min-w-0 space-y-2">
-            <p class="text-sm font-medium">1. 先登录 Docker 主机</p>
+            <p class="text-sm font-medium">
+              {{ t("admin.components.dockerAdminGate.resetStepSsh") }}
+            </p>
             <pre
               class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
             ><code>{{ resetCommands.ssh }}</code></pre>
           </div>
 
           <div class="min-w-0 space-y-2">
-            <p class="text-sm font-medium">2. 推荐：在 compose 部署目录执行</p>
+            <p class="text-sm font-medium">
+              {{ t("admin.components.dockerAdminGate.resetStepCompose") }}
+            </p>
             <pre
               class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
             ><code>{{ resetCommands.compose }}</code></pre>
@@ -114,7 +119,7 @@
 
           <div class="min-w-0 space-y-2">
             <p class="text-sm font-medium">
-              3. 如果只知道容器在跑 Docker，可直接执行
+              {{ t("admin.components.dockerAdminGate.resetStepDockerExec") }}
             </p>
             <pre
               class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
@@ -123,7 +128,9 @@
         </div>
 
         <DialogFooter>
-          <Button type="button" @click="showResetDialog = false">知道了</Button>
+          <Button type="button" @click="showResetDialog = false">{{
+            t("admin.components.dockerAdminGate.acknowledge")
+          }}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -132,6 +139,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -166,23 +174,32 @@ const emit = defineEmits<{
 const password = ref("");
 const showResetDialog = ref(false);
 const resetCommands = dockerAdminPanelResetCommands;
+const { t } = useI18n();
 
 const title = computed(() =>
-  props.mode === "setup" ? "设置管理面板密码" : "登录管理面板",
+  props.mode === "setup"
+    ? t("admin.components.dockerAdminGate.setupTitle")
+    : t("admin.components.dockerAdminGate.loginTitle"),
 );
 const description = computed(() =>
   props.mode === "setup"
-    ? "首次进入需要先设置一个管理密码。"
-    : "请输入管理密码继续访问 Docker 管理后台。",
+    ? t("admin.components.dockerAdminGate.setupDescription")
+    : t("admin.components.dockerAdminGate.loginDescription"),
 );
 const helperText = computed(() =>
-  props.mode === "setup" ? "至少 6 位，并同时包含字母和数字。" : "",
+  props.mode === "setup"
+    ? t("admin.components.dockerAdminGate.setupHelper")
+    : "",
 );
 const actionLabel = computed(() =>
-  props.mode === "setup" ? "设置并进入" : "登录并进入",
+  props.mode === "setup"
+    ? t("admin.components.dockerAdminGate.setupAction")
+    : t("admin.components.dockerAdminGate.loginAction"),
 );
 const placeholder = computed(() =>
-  props.mode === "setup" ? "设置管理面板密码" : "输入管理面板密码",
+  props.mode === "setup"
+    ? t("admin.components.dockerAdminGate.setupPlaceholder")
+    : t("admin.components.dockerAdminGate.loginPlaceholder"),
 );
 const autocomplete = computed(() =>
   props.mode === "setup" ? "new-password" : "current-password",

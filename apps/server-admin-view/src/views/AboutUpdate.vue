@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -20,12 +21,13 @@ import {
 
 const updateStore = useUpdateStore();
 const configStore = useConfigStore();
+const { t } = useI18n();
 const showInstallingOverlay = ref(false);
 
 const status = computed(() => updateStore.status);
 const canSelfUpdate = computed(() => configStore.canSelfUpdate);
 const releaseNotesHtml = computed(() => {
-  const raw = status.value?.latest?.release_notes || "暂无更新说明";
+  const raw = status.value?.latest?.release_notes || t("admin.aboutUpdate.noReleaseNotes");
   let html = raw
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -69,10 +71,10 @@ const oneClickLabel = computed(() => {
     downloadState.value === "verifying" ||
     downloadState.value === "installing"
   ) {
-    return "更新进行中...";
+    return t("admin.aboutUpdate.updateInProgress");
   }
-  if (updateStore.canInstall) return "一键更新 (安装并重启)";
-  return "一键更新";
+  if (updateStore.canInstall) return t("admin.aboutUpdate.oneClickInstall");
+  return t("admin.aboutUpdate.oneClickUpdate");
 });
 
 const showOneClickUpdateButton = computed(
@@ -94,16 +96,20 @@ const isUpdateModalVisible = computed(() => {
 });
 
 const modalTitle = computed(() => {
-  if (downloadState.value === "downloading") return "正在下载更新文件";
-  if (downloadState.value === "verifying") return "正在校验文件完整性";
-  return "正在执行更新";
+  if (downloadState.value === "downloading") {
+    return t("admin.aboutUpdate.modalDownloading");
+  }
+  if (downloadState.value === "verifying") {
+    return t("admin.aboutUpdate.modalVerifying");
+  }
+  return t("admin.aboutUpdate.modalInstalling");
 });
 
 const modalDescription = computed(() => {
   if (isDownloadingOrVerifying.value) {
-    return "请保持网络畅通，耐心等待下载完成...";
+    return t("admin.aboutUpdate.modalDownloadDescription");
   }
-  return "系统正在安装更新，请勿关闭此页面。<br>稍后桌面会重新出现“敲门 knock”应用。";
+  return t("admin.aboutUpdate.modalInstallDescription");
 });
 
 const checkNow = async () => {
@@ -150,12 +156,14 @@ onMounted(() => {
       <CardContent class="space-y-8">
         <div class="flex items-center justify-between px-1">
           <div>
-            <h2 class="text-2xl font-semibold tracking-tight">版本与更新</h2>
+            <h2 class="text-2xl font-semibold tracking-tight">
+              {{ t("admin.aboutUpdate.title") }}
+            </h2>
             <p class="text-sm text-muted-foreground mt-1">
               {{
                 canSelfUpdate
-                  ? "管理 Fn-Knock 的版本与升级"
-                  : "查看版本信息与 Docker 升级方式"
+                  ? t("admin.aboutUpdate.subtitleSelfUpdate")
+                  : t("admin.aboutUpdate.subtitleDocker")
               }}
             </p>
           </div>
@@ -164,7 +172,7 @@ onMounted(() => {
             size="icon"
             class="rounded-full hover:bg-muted"
             :disabled="!status?.githubUrl"
-            title="打开 GitHub 项目页"
+            :title="t('admin.aboutUpdate.openGithub')"
             @click="openGithub"
           >
             <Github class="h-5 w-5" />
@@ -176,10 +184,9 @@ onMounted(() => {
           class="rounded-xl border-zinc-200 bg-zinc-50 text-zinc-900"
         >
           <AlertCircle class="w-4 h-4" />
-          <AlertTitle>当前部署不支持应用内更新</AlertTitle>
+          <AlertTitle>{{ t("admin.aboutUpdate.selfUpdateUnsupportedTitle") }}</AlertTitle>
           <AlertDescription>
-            Docker
-            部署请通过拉取新镜像并重建容器升级，页面仍可用于检查最新版本和查看发布说明。
+            {{ t("admin.aboutUpdate.selfUpdateUnsupportedDescription") }}
           </AlertDescription>
         </Alert>
 
@@ -188,7 +195,7 @@ onMounted(() => {
         >
           <div class="flex flex-col items-center flex-1 space-y-1">
             <span class="text-sm font-medium text-muted-foreground"
-              >当前版本</span
+              >{{ t("admin.aboutUpdate.currentVersion") }}</span
             >
             <span
               class="text-2xl text-gray-600 font-bold font-mono tracking-tight text-foreground"
@@ -203,7 +210,7 @@ onMounted(() => {
 
           <div class="flex flex-col items-center flex-1 space-y-1">
             <span class="text-sm font-medium text-muted-foreground"
-              >最新版本</span
+              >{{ t("admin.aboutUpdate.latestVersion") }}</span
             >
             <span
               class="text-2xl font-bold font-mono tracking-tight"
@@ -235,24 +242,24 @@ onMounted(() => {
                 {{
                   status?.hasUpdate
                     ? canSelfUpdate
-                      ? "发现新版本，建议立即更新"
-                      : "发现新版本，请通过更新镜像升级"
+                      ? t("admin.aboutUpdate.newVersionSelfUpdate")
+                      : t("admin.aboutUpdate.newVersionDocker")
                     : canSelfUpdate
                       ? status?.updateEnabled
-                        ? "当前已是最新版本"
-                        : "更新功能暂未启用"
-                      : "当前部署仅提供版本检查"
+                        ? t("admin.aboutUpdate.alreadyLatest")
+                        : t("admin.aboutUpdate.updateDisabled")
+                      : t("admin.aboutUpdate.versionCheckOnly")
                 }}
               </p>
               <p class="text-xs text-muted-foreground">
                 {{
                   status?.hasUpdate
                     ? canSelfUpdate
-                      ? "一键获取最新特性与修复。"
-                      : "拉取新镜像后重新创建容器即可升级。"
+                      ? t("admin.aboutUpdate.newVersionSelfUpdateHint")
+                      : t("admin.aboutUpdate.newVersionDockerHint")
                     : canSelfUpdate
-                      ? "感谢使用最新版本。"
-                      : "可继续检查最新发布与更新说明。"
+                      ? t("admin.aboutUpdate.latestHint")
+                      : t("admin.aboutUpdate.versionCheckHint")
                 }}
               </p>
             </div>
@@ -269,7 +276,7 @@ onMounted(() => {
                 class="mr-2 h-4 w-4"
                 :class="updateStore.isChecking ? 'animate-spin' : ''"
               />
-              检查更新
+              {{ t("admin.aboutUpdate.checkUpdate") }}
             </Button>
             <Button
               v-if="showOneClickUpdateButton"
@@ -280,7 +287,7 @@ onMounted(() => {
             >
               <Rocket class="mr-2 h-4 w-4" />
               <span class="sm:hidden">{{
-                updateStore.canInstall ? "安装重启" : oneClickLabel
+                updateStore.canInstall ? t("admin.aboutUpdate.installRestart") : oneClickLabel
               }}</span>
               <span class="hidden sm:inline">{{ oneClickLabel }}</span>
             </Button>
@@ -293,7 +300,7 @@ onMounted(() => {
           class="rounded-xl"
         >
           <AlertCircle class="w-4 h-4" />
-          <AlertTitle>更新检查失败</AlertTitle>
+          <AlertTitle>{{ t("admin.aboutUpdate.checkFailed") }}</AlertTitle>
           <AlertDescription>{{ status.check.error }}</AlertDescription>
         </Alert>
 
@@ -303,7 +310,7 @@ onMounted(() => {
           class="rounded-xl"
         >
           <AlertCircle class="w-4 h-4" />
-          <AlertTitle>更新失败</AlertTitle>
+          <AlertTitle>{{ t("admin.aboutUpdate.updateFailed") }}</AlertTitle>
           <AlertDescription>{{ status.download.error }}</AlertDescription>
         </Alert>
 
@@ -315,7 +322,7 @@ onMounted(() => {
             class="text-sm font-medium flex items-center gap-2 mb-4 text-foreground"
           >
             <Terminal class="w-4 h-4 text-muted-foreground" />
-            版本更新说明
+            {{ t("admin.aboutUpdate.releaseNotes") }}
           </h3>
           <div class="p-5 rounded-2xl bg-muted/30 border border-border/40">
             <div

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import {
   Card,
   CardContent,
@@ -32,6 +33,7 @@ import { usePollingResourceStatus } from "@admin-shared/composables/usePollingRe
 import { useConfigStore } from "../../store/config";
 
 const configStore = useConfigStore();
+const { t } = useI18n();
 const settings = ref<TerminalFeatureConfig | null>(null);
 const runtimeStatus = ref<TerminalRuntimeStatus | null>(null);
 const form = reactive<TerminalFeatureConfig>({
@@ -47,7 +49,7 @@ const form = reactive<TerminalFeatureConfig>({
 const createEmptyTmuxInstallState = (): TerminalTmuxInstallState => ({
   status: "uninstalled",
   progress: 0,
-  message: "未检测到 tmux，请先安装 tmux 环境",
+  message: t("admin.terminalSettings.emptyTmuxMessage"),
   executablePath: "",
   detectionSource: null,
   version: "",
@@ -55,23 +57,32 @@ const createEmptyTmuxInstallState = (): TerminalTmuxInstallState => ({
 
 const { isPending: isLoadingConfig, run: runLoadConfig } = useAsyncAction({
   onError: (error) => {
-    toast.error("加载失败", {
-      description: extractErrorMessage(error, "无法获取 Web 终端设置"),
+    toast.error(t("admin.terminalSettings.loadFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.terminalSettings.loadConfigDescription"),
+      ),
     });
   },
 });
 const { isPending: isFetchingStatus, run: runFetchStatus } = useAsyncAction();
 const { isPending: isSaving, run: runSave } = useAsyncAction({
   onError: (error) => {
-    toast.error("保存失败", {
-      description: extractErrorMessage(error, "Web 终端设置保存失败"),
+    toast.error(t("admin.terminalSettings.saveFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.terminalSettings.saveDescription"),
+      ),
     });
   },
 });
 const { isPending: isStartingInstall, run: runStartInstall } = useAsyncAction({
   onError: async (error) => {
-    toast.error("安装失败", {
-      description: extractErrorMessage(error, "无法启动 tmux 安装"),
+    toast.error(t("admin.terminalSettings.installFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.terminalSettings.installDescription"),
+      ),
     });
     await refreshStatus();
   },
@@ -93,10 +104,10 @@ const tmuxProgress = computed(() => {
 });
 const tmuxStatusLabel = computed(() => {
   const status = tmuxInstallState.value.status;
-  if (status === "installed") return "已安装";
-  if (status === "installing") return "安装中";
-  if (status === "error") return "错误";
-  return "未安装";
+  if (status === "installed") return t("admin.terminalSettings.statusInstalled");
+  if (status === "installing") return t("admin.terminalSettings.statusInstalling");
+  if (status === "error") return t("admin.terminalSettings.statusError");
+  return t("admin.terminalSettings.statusUninstalled");
 });
 const tmuxStatusVariant = computed(() => {
   const status = tmuxInstallState.value.status;
@@ -111,8 +122,8 @@ const isDirty = computed(() => {
 });
 const terminalDescription = computed(() =>
   configStore.isDockerDeployment
-    ? "使用 tmux 承载可恢复的 Web 终端会话。Docker 部署下连接的是当前应用容器，而不是宿主机。"
-    : "使用 tmux 承载可恢复的 Web 终端会话。",
+    ? t("admin.terminalSettings.descriptionDocker")
+    : t("admin.terminalSettings.description"),
 );
 
 const { isInitializing: isInitializingStatus, refresh: refreshStatus } =
@@ -127,8 +138,11 @@ const { isInitializing: isInitializingStatus, refresh: refreshStatus } =
     isDownloading: (data) => data?.tmuxInstallState?.status === "installing",
     onError: (error) => {
       if (!runtimeStatus.value) {
-        toast.error("加载失败", {
-          description: extractErrorMessage(error, "无法获取 tmux 环境状态"),
+        toast.error(t("admin.terminalSettings.loadFailed"), {
+          description: extractErrorMessage(
+            error,
+            t("admin.terminalSettings.loadTmuxDescription"),
+          ),
         });
       }
     },
@@ -182,7 +196,7 @@ const saveSettings = async () => {
           loadSettings(),
           refreshStatus(),
         ]);
-        toast.success("Web 终端设置已更新");
+        toast.success(t("admin.terminalSettings.updated"));
       },
     },
   );
@@ -199,7 +213,9 @@ const startTmuxInstall = async () => {
   await runStartInstall(() => TerminalAPI.installTmux(), {
     onSuccess: async (state) => {
       toast.success(
-        state.status === "installed" ? "tmux 已就绪" : "已开始安装 tmux",
+        state.status === "installed"
+          ? t("admin.terminalSettings.tmuxReady")
+          : t("admin.terminalSettings.tmuxInstallStarted"),
       );
       await refreshStatus();
     },
@@ -215,7 +231,7 @@ onMounted(loadSettings);
       <div class="flex items-start justify-between gap-4">
         <div class="grid gap-1">
           <CardTitle class="flex items-center gap-2 text-md">
-            <span>Web终端</span>
+            <span>{{ t("admin.terminalSettings.title") }}</span>
             <Badge :variant="tmuxStatusVariant">{{ tmuxStatusLabel }}</Badge>
           </CardTitle>
           <CardDescription>{{ terminalDescription }}</CardDescription>
@@ -245,14 +261,18 @@ onMounted(loadSettings);
           <div class="rounded-lg border bg-muted/20 p-4">
             <div class="mb-2 flex items-center gap-2 text-sm font-medium">
               <TerminalSquare class="h-4 w-4" />
-              <span>Tmux 环境</span>
+              <span>{{ t("admin.terminalSettings.tmuxEnvironment") }}</span>
             </div>
             <div class="space-y-2 text-sm text-muted-foreground">
               <p>
-                <span class="text-foreground">状态：</span>{{ tmuxStatusLabel }}
+                <span class="text-foreground">{{
+                  t("admin.terminalSettings.statusLabel")
+                }}</span>{{ tmuxStatusLabel }}
               </p>
               <p>
-                <span class="text-foreground">版本：</span>
+                <span class="text-foreground">{{
+                  t("admin.terminalSettings.versionLabel")
+                }}</span>
                 {{
                   runtimeStatus?.tmuxVersion || tmuxInstallState.version || "-"
                 }}
@@ -264,7 +284,9 @@ onMounted(loadSettings);
         <div v-if="!isTmuxInstalled" class="rounded-lg border bg-muted/10 p-4">
           <div class="flex items-start justify-between gap-4">
             <div class="space-y-1">
-              <div class="text-sm font-medium">安装 tmux</div>
+              <div class="text-sm font-medium">
+                {{ t("admin.terminalSettings.installTmuxTitle") }}
+              </div>
             </div>
             <Badge :variant="tmuxStatusVariant">{{ tmuxStatusLabel }}</Badge>
           </div>
@@ -292,8 +314,8 @@ onMounted(loadSettings);
               ></span>
               {{
                 tmuxInstallState.status === "error"
-                  ? "重新安装 tmux"
-                  : "安装 tmux"
+                  ? t("admin.terminalSettings.reinstallTmux")
+                  : t("admin.terminalSettings.installTmux")
               }}
             </Button>
           </div>
@@ -308,10 +330,10 @@ onMounted(loadSettings);
                 class="cursor-pointer text-base font-medium"
                 @click="form.enabled = !form.enabled"
               >
-                启用 Web终端
+                {{ t("admin.terminalSettings.enableLabel") }}
               </Label>
               <p class="text-sm text-muted-foreground">
-                开启后会在侧边导航显示“Web终端”，并允许创建可恢复会话。
+                {{ t("admin.terminalSettings.enableDescription") }}
               </p>
             </div>
             <Switch v-model="form.enabled" :disabled="isSaving" />
@@ -319,7 +341,9 @@ onMounted(loadSettings);
 
           <div class="grid gap-4 md:grid-cols-2">
             <div class="space-y-2">
-              <Label for="terminal-max-sessions">最大会话数</Label>
+              <Label for="terminal-max-sessions">
+                {{ t("admin.terminalSettings.maxSessions") }}
+              </Label>
               <Input
                 id="terminal-max-sessions"
                 v-model.number="form.max_sessions"
@@ -331,7 +355,9 @@ onMounted(loadSettings);
             </div>
 
             <div class="space-y-2">
-              <Label for="terminal-idle-timeout">空闲清理时间（秒）</Label>
+              <Label for="terminal-idle-timeout">
+                {{ t("admin.terminalSettings.idleTimeout") }}
+              </Label>
               <Input
                 id="terminal-idle-timeout"
                 v-model.number="form.idle_timeout_seconds"
@@ -349,10 +375,10 @@ onMounted(loadSettings);
               :disabled="!isDirty || isSaving"
               @click="resetForm"
             >
-              重置
+              {{ t("admin.terminalSettings.reset") }}
             </Button>
             <Button :disabled="!isDirty || isSaving" @click="saveSettings">
-              保存设置
+              {{ t("admin.terminalSettings.saveSettings") }}
             </Button>
           </div>
         </template>

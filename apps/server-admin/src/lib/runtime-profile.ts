@@ -1,4 +1,9 @@
 import { existsSync, readFileSync } from "node:fs";
+import { tWithFallback } from "./i18n";
+import {
+  DEFAULT_LOCALE,
+  type LocaleCode,
+} from "../../../../packages/i18n/src";
 
 export type DeploymentTarget = "fpk" | "docker" | "dev";
 
@@ -126,53 +131,113 @@ export const getRuntimeCapabilities = (
 export const getCapabilityUnavailableMessage = (
   capability: RuntimeCapabilityKey,
   profile: RuntimeProfile = getRuntimeProfile(),
+  locale: LocaleCode = DEFAULT_LOCALE,
 ): string => {
+  const message = (reason: string, fallback: string) =>
+    tWithFallback(
+      locale,
+      `server.runtimeProfile.capabilities.${capability}.${reason}`,
+      fallback,
+    );
+
   switch (capability) {
     case "direct_mode_available":
       if (profile.is_docker) {
-        return "Docker 部署不支持宿主机直连防火墙模式";
+        return message(
+          "docker",
+          "Docker deployments do not support host direct firewall mode",
+        );
       }
       if (!profile.is_linux) {
-        return "当前运行环境不支持宿主机直连防火墙模式";
+        return message(
+          "platform",
+          "The current runtime does not support host direct firewall mode",
+        );
       }
-      return "当前进程没有宿主机直连防火墙能力";
+      return message(
+        "permission",
+        "The current process does not have host direct firewall capability",
+      );
     case "host_firewall_available":
       if (profile.is_docker) {
-        return "Docker 部署不支持宿主机防火墙管理";
+        return message(
+          "docker",
+          "Docker deployments do not support host firewall management",
+        );
       }
       if (!profile.is_linux) {
-        return "当前运行环境不支持宿主机防火墙管理";
+        return message(
+          "platform",
+          "The current runtime does not support host firewall management",
+        );
       }
-      return "当前进程没有宿主机防火墙管理能力";
+      return message(
+        "permission",
+        "The current process does not have host firewall management capability",
+      );
     case "smart_connect_available":
       if (profile.is_docker) {
-        return "Docker 部署暂不支持 Smart Connect，它依赖宿主机 dnsmasq 与 53 端口";
+        return message(
+          "docker",
+          "Docker deployments do not support Smart Connect yet. It depends on host dnsmasq and port 53",
+        );
       }
       if (!profile.is_linux) {
-        return "当前运行环境暂不支持 Smart Connect";
+        return message(
+          "platform",
+          "The current runtime does not support Smart Connect yet",
+        );
       }
-      return "当前进程没有 Smart Connect 所需的宿主机管理能力";
+      return message(
+        "permission",
+        "The current process does not have the host management capability required by Smart Connect",
+      );
     case "system_clock_sync_available":
       if (profile.is_docker) {
-        return "Docker 部署不支持宿主机系统时间同步";
+        return message(
+          "docker",
+          "Docker deployments do not support host system time sync",
+        );
       }
       if (!profile.is_linux) {
-        return "当前运行环境不支持系统时间同步";
+        return message(
+          "platform",
+          "The current runtime does not support system time sync",
+        );
       }
-      return "当前进程没有系统时间同步所需的宿主机权限";
+      return message(
+        "permission",
+        "The current process does not have the host permission required for system time sync",
+      );
     case "self_update_available":
       if (profile.is_docker) {
-        return "Docker 部署不支持应用内 FPK 更新，请通过拉取新镜像升级";
+        return message(
+          "docker",
+          "Docker deployments do not support in-app FPK updates. Upgrade by pulling a new image",
+        );
       }
-      return "当前部署形态不支持应用内更新";
+      return message(
+        "deployment",
+        "The current deployment type does not support in-app updates",
+      );
     case "terminal_available":
       if (profile.is_docker) {
-        return "Docker 部署不支持 Web 终端";
+        return message("docker", "Docker deployments do not support Web terminal");
       }
-      return "当前运行环境不支持 Web 终端";
+      return message(
+        "platform",
+        "The current runtime does not support Web terminal",
+      );
     case "shared_root_available":
-      return "当前运行环境没有可用的共享目录挂载";
+      return message(
+        "missing",
+        "No shared directory mount is available in the current runtime",
+      );
     default:
-      return "当前运行环境不支持该能力";
+      return tWithFallback(
+        locale,
+        "server.runtimeProfile.capabilities.default",
+        "The current runtime does not support this capability",
+      );
   }
 };

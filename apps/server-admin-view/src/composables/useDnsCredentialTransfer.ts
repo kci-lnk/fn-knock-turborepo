@@ -1,4 +1,5 @@
 import { computed, ref, watch, type Ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { AcmeAPI, DDNSAPI } from "@/lib/api";
 import {
   buildDnsCredentialTransferSuggestion,
@@ -17,6 +18,7 @@ export const useDnsCredentialTransfer = ({
   providerId,
   targetCredentials,
 }: UseDnsCredentialTransferOptions) => {
+  const { t } = useI18n();
   const isLoadingSource = ref(false);
   const sourceCredentials = ref<Record<string, string>>({});
   let requestId = 0;
@@ -68,6 +70,7 @@ export const useDnsCredentialTransfer = ({
       providerId: providerId.value,
       sourceCredentials: sourceCredentials.value,
       targetCredentials: targetCredentials.value,
+      translateBridgeLabel: t,
     });
   });
 

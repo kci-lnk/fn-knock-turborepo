@@ -12,7 +12,11 @@
             <DialogDescription class="space-y-1 text-left">
               <span class="block break-all font-medium">{{ host }}</span>
               <span class="block text-xs">
-                {{ activeWindowText }}活跃过的客户端 IP
+                {{
+                  t("admin.hostTraffic.activeIpDialog.description", {
+                    range: activeWindowText,
+                  })
+                }}
               </span>
             </DialogDescription>
           </div>
@@ -27,7 +31,7 @@
               class="h-3.5 w-3.5"
               :class="{ 'animate-spin': loading }"
             />
-            刷新
+            {{ t("admin.hostTraffic.activeIpDialog.refresh") }}
           </Button>
         </div>
       </DialogHeader>
@@ -36,10 +40,14 @@
         <div
           class="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground"
         >
-          <span>共 {{ items.length }} 个 IP</span>
+          <span>{{
+            t("admin.hostTraffic.activeIpDialog.total", {
+              count: items.length,
+            })
+          }}</span>
           <span v-if="updatedAt" class="inline-flex items-center gap-1">
-            更新于
-            <HumanFriendlyTime :value="updatedAt" />
+            {{ t("admin.hostTraffic.activeIpDialog.updatedAt") }}
+            <HumanFriendlyTime :value="updatedAt" :locale="locale" />
           </span>
         </div>
 
@@ -63,7 +71,7 @@
           v-else-if="items.length === 0"
           class="rounded-md border px-3 py-8 text-center text-sm text-muted-foreground"
         >
-          暂无活跃 IP
+          {{ t("admin.hostTraffic.activeIpDialog.empty") }}
         </div>
 
         <div v-else class="overflow-hidden rounded-md border">
@@ -71,10 +79,14 @@
             <TableHeader>
               <TableRow class="bg-muted/30">
                 <TableHead class="w-[190px] text-xs">IP</TableHead>
-                <TableHead class="text-xs">归属地</TableHead>
-                <TableHead class="w-[120px] text-xs">最近活跃</TableHead>
+                <TableHead class="text-xs">{{
+                  t("admin.hostTraffic.activeIpDialog.location")
+                }}</TableHead>
+                <TableHead class="w-[120px] text-xs">{{
+                  t("admin.hostTraffic.activeIpDialog.lastActive")
+                }}</TableHead>
                 <TableHead class="w-[88px] text-right text-xs">
-                  连接
+                  {{ t("admin.hostTraffic.activeIpDialog.connections") }}
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -91,7 +103,10 @@
                   </div>
                 </TableCell>
                 <TableCell class="whitespace-nowrap py-2.5 text-xs">
-                  <HumanFriendlyTime :value="item.last_seen_at" />
+                  <HumanFriendlyTime
+                    :value="item.last_seen_at"
+                    :locale="locale"
+                  />
                 </TableCell>
                 <TableCell class="py-2.5 text-right">
                   <span
@@ -111,6 +126,7 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import { RefreshCw } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import {
@@ -157,13 +173,28 @@ const emit = defineEmits<{
   refresh: [];
 }>();
 
-const displayTitle = computed(() => props.title?.trim() || "活跃 IP");
+const { t, locale } = useI18n();
+const displayTitle = computed(
+  () => props.title?.trim() || t("admin.hostTraffic.activeIpDialog.title"),
+);
 
 const activeWindowText = computed(() => {
   const seconds = Math.max(1, Number(props.windowSeconds || 120));
-  if (seconds < 60) return `近 ${seconds} 秒`;
-  if (seconds < 3600) return `近 ${Math.round(seconds / 60)} 分钟`;
-  if (seconds < 86400) return `近 ${Math.round(seconds / 3600)} 小时`;
-  return `近 ${Math.round(seconds / 86400)} 天`;
+  if (seconds < 60) {
+    return t("admin.hostTraffic.rangeSeconds", { count: seconds });
+  }
+  if (seconds < 3600) {
+    return t("admin.hostTraffic.rangeMinutes", {
+      count: Math.round(seconds / 60),
+    });
+  }
+  if (seconds < 86400) {
+    return t("admin.hostTraffic.rangeHours", {
+      count: Math.round(seconds / 3600),
+    });
+  }
+  return t("admin.hostTraffic.rangeDays", {
+    count: Math.round(seconds / 86400),
+  });
 });
 </script>

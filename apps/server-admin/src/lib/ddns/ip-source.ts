@@ -5,7 +5,10 @@ import {
   listSelectableDDNSInterfaceAddresses,
   normalizeNetworkInterface,
 } from "./network";
-import { getUpdateScopeDetectionOptions } from "./providers/helpers";
+import {
+  ddnsTranslate,
+  getUpdateScopeDetectionOptions,
+} from "./providers/helpers";
 import type { DDNSIpSource, DDNSUpdateScope } from "./types";
 
 export const DDNS_IP_SOURCE_FIELD = "ip_source";
@@ -13,6 +16,8 @@ export const DDNS_INTERFACE_IPV4_INDEX_FIELD = "interface_ipv4_index";
 export const DDNS_INTERFACE_IPV6_INDEX_FIELD = "interface_ipv6_index";
 export const DEFAULT_DDNS_IP_SOURCE: DDNSIpSource = "public";
 export const DEFAULT_DDNS_INTERFACE_ADDRESS_INDEX = "";
+
+const ddnsT = ddnsTranslate;
 
 export type DDNSResolvedTargetIPs = {
   ipv4: string | null;
@@ -50,10 +55,12 @@ export function getDDNSIpSourceLabel(
 ): string {
   if (source === "interface") {
     const normalizedInterface = normalizeNetworkInterface(networkInterface);
-    return normalizedInterface ? `网卡 ${normalizedInterface}` : "所选网卡";
+    return normalizedInterface
+      ? ddnsT("interfaceSourceLabel", { name: normalizedInterface })
+      : ddnsT("selectedInterfaceSourceLabel");
   }
 
-  return "公网";
+  return ddnsT("publicSourceLabel");
 }
 
 export function getDDNSTargetIPUnavailableMessage(
@@ -62,21 +69,21 @@ export function getDDNSTargetIPUnavailableMessage(
 ): string {
   if (source === "interface") {
     if (scope === "ipv6_only") {
-      return "当前获取方式为从网卡直接获取，但所选网卡上没有可用的 IPv6 地址";
+      return ddnsT("interfaceIpv6Unavailable");
     }
     if (scope === "ipv4_only") {
-      return "当前获取方式为从网卡直接获取，但所选网卡上没有可用的 IPv4 地址";
+      return ddnsT("interfaceIpv4Unavailable");
     }
-    return "当前获取方式为从网卡直接获取，但所选网卡上没有可用的 IPv4 或 IPv6 地址";
+    return ddnsT("interfaceDualStackUnavailable");
   }
 
   if (scope === "ipv6_only") {
-    return "当前获取方式为从公网获取，但未获取到可用的 IPv6 地址";
+    return ddnsT("publicIpv6Unavailable");
   }
   if (scope === "ipv4_only") {
-    return "当前获取方式为从公网获取，但未获取到可用的 IPv4 地址";
+    return ddnsT("publicIpv4Unavailable");
   }
-  return "当前获取方式为从公网获取，但未获取到可用的 IPv4 或 IPv6 地址";
+  return ddnsT("publicDualStackUnavailable");
 }
 
 function resolveInterfaceAddress(
@@ -95,14 +102,19 @@ function resolveInterfaceAddress(
   const normalizedIndex = normalizeInterfaceAddressIndex(index);
   if (!normalizedIndex) {
     throw new Error(
-      `从网卡直接获取时，请先选择一个 ${family === "ipv4" ? "IPv4" : "IPv6"} 地址`,
+      ddnsT("selectInterfaceAddress", {
+        family: family === "ipv4" ? "IPv4" : "IPv6",
+      }),
     );
   }
 
   const selected = candidates[Number(normalizedIndex)];
   if (!selected) {
     throw new Error(
-      `所选网卡的第 ${Number(normalizedIndex) + 1} 个 ${family === "ipv4" ? "IPv4" : "IPv6"} 地址已不可用，请重新选择`,
+      ddnsT("selectedInterfaceAddressUnavailable", {
+        index: Number(normalizedIndex) + 1,
+        family: family === "ipv4" ? "IPv4" : "IPv6",
+      }),
     );
   }
 
@@ -146,28 +158,25 @@ export async function resolveDDNSTargetIPs(options: {
     if (detectionOptions.enableIPv4 && ips.errors.ipv4) {
       warnings.push(
         ips.ipv6
-          ? `IPv4 获取失败，将继续使用 IPv6 (${ips.errors.ipv4})`
-          : `IPv4 获取失败 (${ips.errors.ipv4})`,
+          ? ddnsT("ipv4FailedContinueIpv6", { error: ips.errors.ipv4 })
+          : ddnsT("ipv4Failed", { error: ips.errors.ipv4 }),
       );
     }
     if (detectionOptions.enableIPv6 && ips.errors.ipv6) {
       warnings.push(
         ips.ipv4
-          ? `IPv6 获取失败，将继续使用 IPv4 (${ips.errors.ipv6})`
-          : `IPv6 获取失败 (${ips.errors.ipv6})`,
+          ? ddnsT("ipv6FailedContinueIpv4", { error: ips.errors.ipv6 })
+          : ddnsT("ipv6Failed", { error: ips.errors.ipv6 }),
       );
     }
     if (detectionOptions.enableIPv6 && ips.ipv6) {
-      const knownIPv6Addresses = listKnownSelectableIPv6Addresses(
-        normalizedInterface,
-      );
+      const knownIPv6Addresses =
+        listKnownSelectableIPv6Addresses(normalizedInterface);
       if (
         knownIPv6Addresses.length > 0 &&
         !knownIPv6Addresses.includes(ips.ipv6)
       ) {
-        warnings.push(
-          `公网探测得到的 IPv6 (${ips.ipv6}) 不在本机或 Docker 宿主机的可选网卡地址中；如果外网无法访问该地址，请改用“从网卡直接获取”并选择宿主机公网 IPv6`,
-        );
+        warnings.push(ddnsT("publicIpv6NotSelectable", { ip: ips.ipv6 }));
       }
     }
 
@@ -181,12 +190,12 @@ export async function resolveDDNSTargetIPs(options: {
   }
 
   if (!normalizedInterface) {
-    throw new Error("从网卡直接获取时，必须先明确选择一张出站网卡");
+    throw new Error(ddnsT("interfaceRequired"));
   }
 
   const selectedInterface = findDDNSNetworkInterface(normalizedInterface);
   if (!selectedInterface) {
-    throw new Error(`未找到可用网卡: ${normalizedInterface}`);
+    throw new Error(ddnsT("interfaceNotFound", { name: normalizedInterface }));
   }
 
   return {

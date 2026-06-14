@@ -25,7 +25,11 @@
 
         <div class="action-box" :class="{ 'show-btn': showButton }">
           <button class="ios-btn" :disabled="pending" @click="handleStart">
-            {{ pending ? "正在进入..." : "开始使用" }}
+            {{
+              pending
+                ? t("admin.welcomeScreen.entering")
+                : t("admin.welcomeScreen.start")
+            }}
           </button>
         </div>
       </div>
@@ -35,6 +39,7 @@
 
 <script setup lang="ts">
 import { onUnmounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 
 const props = withDefaults(
   defineProps<{
@@ -51,6 +56,7 @@ const emit = defineEmits<{
   start: [];
 }>();
 
+const { t } = useI18n();
 const showButton = ref(false);
 let revealButtonTimer: number | null = null;
 

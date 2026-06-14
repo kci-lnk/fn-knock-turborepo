@@ -5,12 +5,12 @@
         <CardTitle
           class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
         >
-          <span>协议映射</span>
+          <span>{{ t("admin.streamMappings.title") }}</span>
           <div class="flex flex-wrap items-center gap-2">
             <div class="flex">
               <Button class="rounded-r-none" @click="openCreateDialog">
                 <Plus class="mr-2 h-4 w-4" />
-                添加映射
+                {{ t("admin.streamMappings.addMapping") }}
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger as-child>
@@ -28,7 +28,11 @@
                       class="mr-2 h-4 w-4"
                       :class="{ 'animate-spin': isSyncing }"
                     />
-                    {{ isSyncing ? "同步中..." : "同步网关" }}
+                    {{
+                      isSyncing
+                        ? t("admin.streamMappings.syncing")
+                        : t("admin.streamMappings.syncGateway")
+                    }}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -36,8 +40,7 @@
           </div>
         </CardTitle>
         <CardDescription>
-          每条规则都会把一个外部 TCP 或 UDP 端口转发到指定目标地址，适合
-          SSH、MySQL、Redis、DNS 等业务
+          {{ t("admin.streamMappings.description") }}
         </CardDescription>
       </CardHeader>
 
@@ -47,11 +50,9 @@
         >
           <Info class="mt-0.5 h-4 w-4 shrink-0" />
           <div class="space-y-1">
-            <AlertTitle>外部访问方式</AlertTitle>
+            <AlertTitle>{{ t("admin.streamMappings.accessTitle") }}</AlertTitle>
             <AlertDescription class="text-sm leading-6 text-zinc-700">
-              使用任意一个解析到本机的域名，加上这里配置的对外端口即可访问，
-              例如 <code>demo.example.com:3306</code>如果映射开启了鉴权，
-              需要先在网页端完成登录，否则连接会被直接拒绝。
+              {{ t("admin.streamMappings.accessDescription") }}
             </AlertDescription>
           </div>
         </Alert>
@@ -61,7 +62,7 @@
         >
           <SearchInput
             v-model="searchQuery"
-            placeholder="搜索协议、对外端口、目标地址..."
+            :placeholder="t('admin.streamMappings.searchPlaceholder')"
             class="max-w-xs"
           />
         </div>
@@ -70,11 +71,17 @@
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>协议</TableHead>
-                <TableHead>对外端口</TableHead>
-                <TableHead>目标地址</TableHead>
-                <TableHead>鉴权状态</TableHead>
-                <TableHead class="text-right">操作</TableHead>
+                <TableHead>{{ t("admin.streamMappings.protocol") }}</TableHead>
+                <TableHead>{{
+                  t("admin.streamMappings.listenPort")
+                }}</TableHead>
+                <TableHead>{{ t("admin.streamMappings.target") }}</TableHead>
+                <TableHead>{{
+                  t("admin.streamMappings.authStatus")
+                }}</TableHead>
+                <TableHead class="text-right">{{
+                  t("admin.sessions.table.actions")
+                }}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -83,7 +90,7 @@
                   colspan="5"
                   class="py-8 text-center text-muted-foreground"
                 >
-                  还没有配置任何 协议映射。
+                  {{ t("admin.streamMappings.empty") }}
                 </TableCell>
               </TableRow>
               <TableRow
@@ -114,9 +121,11 @@
                     class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground"
                   >
                     <Badge v-if="mapping.use_auth" variant="default">
-                      需要鉴权
+                      {{ t("admin.streamMappings.authRequired") }}
                     </Badge>
-                    <Badge v-else variant="secondary">公开访问</Badge>
+                    <Badge v-else variant="secondary">{{
+                      t("admin.streamMappings.publicAccess")
+                    }}</Badge>
                   </div>
                 </TableCell>
                 <TableCell class="text-right">
@@ -126,11 +135,20 @@
                       size="sm"
                       @click="openEditDialog(mapping)"
                     >
-                      编辑
+                      {{ t("admin.streamMappings.edit") }}
                     </Button>
                     <ConfirmDangerPopover
-                      :title="`确认删除 ${formatProtocolLabel(mapping.protocol)} 协议映射？`"
-                      :description="`将停止 ${formatMappingLabel(mapping)}，并移除到 ${mapping.target} 的转发规则。`"
+                      :title="
+                        t('admin.streamMappings.deleteTitle', {
+                          protocol: formatProtocolLabel(mapping.protocol),
+                        })
+                      "
+                      :description="
+                        t('admin.streamMappings.deleteDescription', {
+                          mapping: formatMappingLabel(mapping),
+                          target: mapping.target,
+                        })
+                      "
                       :loading="removingMappingKey === getMappingKey(mapping)"
                       :disabled="removingMappingKey === getMappingKey(mapping)"
                       :on-confirm="() => removeMapping(mapping)"
@@ -145,7 +163,7 @@
                             removingMappingKey === getMappingKey(mapping)
                           "
                         >
-                          删除
+                          {{ t("admin.streamMappings.delete") }}
                         </Button>
                       </template>
                     </ConfirmDangerPopover>
@@ -162,50 +180,59 @@
       <DialogContent class="sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle>
-            {{ isEditing ? "编辑 协议映射" : "添加 协议映射" }}
+            {{
+              isEditing
+                ? t("admin.streamMappings.editTitle")
+                : t("admin.streamMappings.createTitle")
+            }}
           </DialogTitle>
           <DialogDescription>
-            保存后会更新管理配置，并同步到网关刷新对应的 TCP 或 UDP 对外入口。
+            {{ t("admin.streamMappings.dialogDescription") }}
           </DialogDescription>
         </DialogHeader>
 
         <div class="grid gap-4 py-4">
           <div class="space-y-2">
-            <Label for="stream-protocol">传输协议</Label>
+            <Label for="stream-protocol">{{
+              t("admin.streamMappings.transportProtocol")
+            }}</Label>
             <StreamProtocolMultiSelect
               id="stream-protocol"
               v-model="form.protocols"
             />
             <p class="text-xs text-muted-foreground">
-              同一个对外端口会按已选协议分别保存规则。
+              {{ t("admin.streamMappings.protocolHint") }}
             </p>
           </div>
 
           <div class="space-y-2">
-            <Label for="stream-listen-port">对外端口</Label>
+            <Label for="stream-listen-port">{{
+              t("admin.streamMappings.listenPort")
+            }}</Label>
             <Input
               id="stream-listen-port"
               v-model="form.listen_port"
               inputmode="numeric"
-              placeholder="例如 3306"
+              :placeholder="t('admin.streamMappings.listenPortPlaceholder')"
               @blur="markPortBlurred"
             />
             <p class="text-xs text-muted-foreground">
-              外部客户端将直接访问这个端口。
+              {{ t("admin.streamMappings.listenPortHint") }}
             </p>
           </div>
 
           <div class="space-y-2">
-            <Label for="stream-target">目标地址</Label>
+            <Label for="stream-target">{{
+              t("admin.streamMappings.target")
+            }}</Label>
             <Input
               id="stream-target"
               v-model="form.target"
-              placeholder="例如 127.0.0.1:3306"
+              :placeholder="t('admin.streamMappings.targetPlaceholder')"
               @blur="markTargetBlurred"
             />
             <p class="text-xs text-muted-foreground">
-              只支持 <code>host:port</code>，不需要填写
-              <code>http://</code> 或其他协议前缀。
+              {{ t("admin.streamMappings.targetHint") }}
             </p>
           </div>
 
@@ -213,9 +240,11 @@
             class="flex items-center justify-between rounded-lg border px-4 py-3"
           >
             <div class="space-y-1">
-              <Label for="stream-auth">要求鉴权</Label>
+              <Label for="stream-auth">{{
+                t("admin.streamMappings.authRequiredLabel")
+              }}</Label>
               <p class="text-xs text-muted-foreground">
-                开启后会先按来源 IP 调用鉴权服务，未通过则直接断开连接。
+                {{ t("admin.streamMappings.authRequiredHint") }}
               </p>
             </div>
             <Switch id="stream-auth" v-model="form.use_auth" />
@@ -230,13 +259,15 @@
         </div>
 
         <DialogFooter>
-          <Button variant="outline" @click="closeDialog">取消</Button>
+          <Button variant="outline" @click="closeDialog">{{
+            t("common.cancel")
+          }}</Button>
           <Button :disabled="isSaving" @click="saveMapping">
             <span
               v-if="isSaving"
               class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
             ></span>
-            保存映射
+            {{ t("admin.streamMappings.saveMapping") }}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -246,6 +277,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { ChevronDown, Info, Plus, RefreshCw } from "lucide-vue-next";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -293,6 +325,7 @@ import type { StreamMapping, StreamMappingProtocol } from "../types";
 import StreamProtocolMultiSelect from "../components/StreamProtocolMultiSelect.vue";
 
 const configStore = useConfigStore();
+const { t, locale } = useI18n();
 const DEFAULT_STREAM_PROTOCOL: StreamMappingProtocol = "tcp";
 const STREAM_PROTOCOLS: StreamMappingProtocol[] = ["tcp", "udp"];
 
@@ -329,7 +362,9 @@ const filteredMappings = computed(() => {
   if (!query) return allMappings.value;
 
   return allMappings.value.filter((mapping) => {
-    const authStatus = mapping.use_auth ? "需要鉴权" : "公开访问";
+    const authStatus = mapping.use_auth
+      ? t("admin.streamMappings.authRequired")
+      : t("admin.streamMappings.publicAccess");
     return (
       mapping.protocol.includes(query) ||
       formatProtocolLabel(mapping.protocol).toLowerCase().includes(query) ||
@@ -368,16 +403,19 @@ const isTargetValid = computed(() => isValidStreamTarget(form.target));
 function getPortValidationMessage(showRequired: boolean): string {
   const rawPort = form.listen_port.trim();
   if (!rawPort) {
-    return showRequired ? "对外端口不能为空。" : "";
+    return showRequired ? t("admin.streamMappings.portRequired") : "";
   }
 
   const port = parsedListenPort.value;
-  if (port === null) return "对外端口必须是 1 到 65535 的整数。";
+  if (port === null) return t("admin.streamMappings.portInteger");
   if (port <= 0 || port > 65535) {
-    return "对外端口必须位于 1 到 65535 之间。";
+    return t("admin.streamMappings.portRange");
   }
   if (duplicateProtocols.value.length > 0) {
-    return `${formatProtocolList(duplicateProtocols.value)} 对外端口 ${port} 已存在，请保持协议 + 端口唯一。`;
+    return t("admin.streamMappings.duplicatePort", {
+      protocols: formatProtocolList(duplicateProtocols.value),
+      port,
+    });
   }
   return "";
 }
@@ -385,10 +423,10 @@ function getPortValidationMessage(showRequired: boolean): string {
 function getTargetValidationMessage(showRequired: boolean): string {
   const rawTarget = form.target.trim();
   if (!rawTarget) {
-    return showRequired ? "目标地址不能为空。" : "";
+    return showRequired ? t("admin.streamMappings.targetRequired") : "";
   }
   if (!isTargetValid.value) {
-    return "目标地址必须使用 host:port 格式，例如 127.0.0.1:3306。";
+    return t("admin.streamMappings.targetInvalid");
   }
   return "";
 }
@@ -420,7 +458,7 @@ const validationMessage = computed(() => {
 const showValidation = computed(() => Boolean(validationMessage.value));
 const submitValidationMessage = computed(() => {
   if (selectedProtocols.value.length === 0) {
-    return "请至少选择一种传输协议。";
+    return t("admin.streamMappings.protocolRequired");
   }
   const portMessage = getPortValidationMessage(true);
   if (portMessage) return portMessage;
@@ -482,7 +520,8 @@ function formatProtocolLabel(protocol: StreamMappingProtocol): string {
 }
 
 function formatProtocolList(protocols: StreamMappingProtocol[]): string {
-  return protocols.map(formatProtocolLabel).join("、");
+  const separator = String(locale.value).startsWith("en") ? ", " : "、";
+  return protocols.map(formatProtocolLabel).join(separator);
 }
 
 function formatMappingLabel(mapping: StreamMapping): string {
@@ -564,8 +603,8 @@ async function saveMapping() {
     toast.success(getSaveSuccessMessage(nextMappings.length));
     closeDialog();
   } catch (error: any) {
-    toast.error("保存失败", {
-      description: extractErrorMessage(error, "请稍后重试"),
+    toast.error(t("admin.streamMappings.saveFailed"), {
+      description: extractErrorMessage(error, t("common.tryLater")),
     });
   } finally {
     isSaving.value = false;
@@ -573,10 +612,12 @@ async function saveMapping() {
 }
 
 function getSaveSuccessMessage(savedCount: number): string {
-  const action = isEditing.value ? "更新" : "添加";
+  const action = isEditing.value
+    ? t("admin.streamMappings.actionUpdate")
+    : t("admin.streamMappings.actionCreate");
   return savedCount > 1
-    ? `已${action} ${savedCount} 条协议映射`
-    : `已${action}协议映射`;
+    ? t("admin.streamMappings.saveMany", { action, count: savedCount })
+    : t("admin.streamMappings.saveOne", { action });
 }
 
 async function removeMapping(mapping: StreamMapping) {
@@ -587,10 +628,14 @@ async function removeMapping(mapping: StreamMapping) {
         (item) => getMappingKey(item) !== getMappingKey(mapping),
       ),
     );
-    toast.success(`已移除 ${formatMappingLabel(mapping)} 协议映射`);
+    toast.success(
+      t("admin.streamMappings.removeSuccess", {
+        mapping: formatMappingLabel(mapping),
+      }),
+    );
   } catch (error: any) {
-    toast.error("删除失败", {
-      description: extractErrorMessage(error, "请稍后重试"),
+    toast.error(t("admin.streamMappings.deleteFailed"), {
+      description: extractErrorMessage(error, t("common.tryLater")),
     });
   } finally {
     removingMappingKey.value = null;
@@ -602,18 +647,22 @@ async function syncRoutes() {
   try {
     const result = await ConfigAPI.syncRoutes();
     if (result.success) {
-      toast.success("已同步到网关", {
-        description: `路径路由 ${result.data?.synced_rules ?? 0} 条，Host 路由 ${result.data?.synced_host_rules ?? 0} 条，协议映射 ${result.data?.synced_stream_rules ?? 0} 条。`,
+      toast.success(t("admin.streamMappings.syncSuccess"), {
+        description: t("admin.streamMappings.syncDescription", {
+          pathRules: result.data?.synced_rules ?? 0,
+          hostRules: result.data?.synced_host_rules ?? 0,
+          streamRules: result.data?.synced_stream_rules ?? 0,
+        }),
       });
       return;
     }
 
-    toast.error("同步失败", {
-      description: result.message || "网关未返回成功结果",
+    toast.error(t("admin.streamMappings.syncFailed"), {
+      description: result.message || t("admin.streamMappings.syncNoSuccess"),
     });
   } catch (error: any) {
-    toast.error("同步失败", {
-      description: extractErrorMessage(error, "请稍后重试"),
+    toast.error(t("admin.streamMappings.syncFailed"), {
+      description: extractErrorMessage(error, t("common.tryLater")),
     });
   } finally {
     isSyncing.value = false;

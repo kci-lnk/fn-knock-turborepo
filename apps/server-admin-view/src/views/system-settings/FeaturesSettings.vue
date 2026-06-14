@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import {
   Card,
@@ -29,30 +30,37 @@ import { useConfigStore } from "../../store/config";
 
 const router = useRouter();
 const configStore = useConfigStore();
+const { t } = useI18n();
 const protocolMappingEnabled = ref(false);
 const passkeyBindPromptEnabled = ref(true);
 const showEntryStatusModule = ref(true);
 const autoHttpsDetails = ref<AutoHttpsDetails | null>(null);
 const sshSecurityEnabled = ref(false);
 const sshSecurityUnavailableReason = ref("");
-const runTypeLabelMap = {
-  0: "直连模式",
-  1: "反代模式",
-  3: "子域模式",
+const runTypeLabelKeyMap = {
+  0: "admin.featuresSettings.runTypes.direct",
+  1: "admin.featuresSettings.runTypes.reverse",
+  3: "admin.featuresSettings.runTypes.subdomain",
 } as const;
 
 const { isPending: isLoading, run: runLoadSettings } = useAsyncAction({
   onError: (error) => {
-    toast.error("加载失败", {
-      description: extractErrorMessage(error, "无法获取功能设置"),
+    toast.error(t("admin.featuresSettings.loadFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.featuresSettings.loadFailedDescription"),
+      ),
     });
   },
 });
 const showLoadingSkeleton = useDelayedLoading(isLoading);
 const { isPending: isSaving, run: runSaveSettings } = useAsyncAction({
   onError: (error) => {
-    toast.error("更新失败", {
-      description: extractErrorMessage(error, "功能设置更新失败"),
+    toast.error(t("admin.featuresSettings.updateFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.featuresSettings.updateFailedDescription"),
+      ),
     });
   },
 });
@@ -69,22 +77,26 @@ const isDashboardDisplaySwitchDisabled = computed(
 const currentRunTypeLabel = computed(() => {
   const runType = configStore.config?.run_type;
   if (runType === 0 || runType === 1 || runType === 3) {
-    return runTypeLabelMap[runType];
+    return t(runTypeLabelKeyMap[runType]);
   }
-  return "当前模式";
+  return t("admin.featuresSettings.runTypes.current");
 });
 const protocolMappingDisabledReason = computed(() => {
   if (isProtocolMappingAvailable.value) return "";
-  return `仅子域模式可开启，当前为${currentRunTypeLabel.value}。`;
+  return t("admin.featuresSettings.subdomainOnlyEnableReason", {
+    mode: currentRunTypeLabel.value,
+  });
 });
 const smartConnectDisabledReason = computed(() => {
   if (isSmartConnectAvailable.value) return "";
   if (!configStore.canUseSmartConnect) {
     return configStore.isDockerDeployment
-      ? "Docker 部署暂不支持 Smart Connect，它依赖宿主机 dnsmasq 与 53 端口。"
-      : "当前运行环境暂不支持 Smart Connect。";
+      ? t("admin.featuresSettings.smartConnectDockerUnsupported")
+      : t("admin.featuresSettings.smartConnectEnvironmentUnsupported");
   }
-  return `仅子域模式可用，当前为${currentRunTypeLabel.value}。`;
+  return t("admin.featuresSettings.subdomainOnlyReason", {
+    mode: currentRunTypeLabel.value,
+  });
 });
 const autoHttpsEnabled = computed(
   () => autoHttpsDetails.value?.enabled === true,
@@ -92,7 +104,7 @@ const autoHttpsEnabled = computed(
 const autoHttpsRuntimeError = computed(() => {
   const runtime = autoHttpsDetails.value?.runtime;
   if (runtime?.status !== "error") return "";
-  return runtime.last_error || "自动 HTTPS 未能监听 80 端口";
+  return runtime.last_error || t("admin.featuresSettings.autoHttpsListenFailed");
 });
 const showAutoHttpsEntry = computed(() => !configStore.isDockerDeployment);
 const showSSHSecurityEntry = computed(() => !configStore.isDockerDeployment);
@@ -104,7 +116,7 @@ const sshSecurityDisabledReason = computed(() => {
   if (isSSHSecurityAvailable.value) return "";
   return (
     sshSecurityUnavailableReason.value ||
-    "当前运行环境暂不支持宿主机 SSH 防火墙管理。"
+    t("admin.featuresSettings.sshFirewallUnsupported")
   );
 });
 
@@ -186,7 +198,7 @@ const saveProtocolMappingEnabled = async (nextValue: boolean) => {
     {
       onSuccess: async (data) => {
         applyProtocolMappingSettings(data);
-        toast.success("功能设置已更新");
+        toast.success(t("admin.featuresSettings.updated"));
         await configStore.loadConfig();
       },
     },
@@ -213,7 +225,7 @@ const saveShowEntryStatusModule = async (nextValue: boolean) => {
     {
       onSuccess: async (data) => {
         applyDashboardDisplaySettings(data);
-        toast.success("功能设置已更新");
+        toast.success(t("admin.featuresSettings.updated"));
         await configStore.loadConfig();
       },
     },
@@ -240,7 +252,7 @@ const savePasskeyBindPromptEnabled = async (nextValue: boolean) => {
     {
       onSuccess: async (data) => {
         applyAuthCredentialSettings(data);
-        toast.success("功能设置已更新");
+        toast.success(t("admin.featuresSettings.updated"));
         await configStore.loadConfig();
       },
     },
@@ -281,13 +293,13 @@ const saveAutoHttpsEnabled = async (nextValue: boolean) => {
       onSuccess: async (data) => {
         applyAutoHttpsDetails(data);
         if (data.runtime.status === "error") {
-          toast.error("自动 HTTPS 启动失败", {
+          toast.error(t("admin.featuresSettings.autoHttpsStartFailed"), {
             description:
               data.runtime.last_error ||
-              "80 端口无法监听，请检查权限或占用情况",
+              t("admin.featuresSettings.port80ListenFailed"),
           });
         } else {
-          toast.success("功能设置已更新");
+          toast.success(t("admin.featuresSettings.updated"));
         }
         await configStore.loadConfig();
       },
@@ -315,7 +327,7 @@ const saveSSHSecurityEnabled = async (nextValue: boolean) => {
     {
       onSuccess: async (data) => {
         applySSHSecurityDetails(data);
-        toast.success("功能设置已更新");
+        toast.success(t("admin.featuresSettings.updated"));
         await configStore.loadConfig();
       },
     },
@@ -364,8 +376,12 @@ watch(
   <Card>
     <CardHeader>
       <div class="space-y-1.5">
-        <CardTitle class="text-md">功能开关</CardTitle>
-        <CardDescription>控制可选功能的启用状态。</CardDescription>
+        <CardTitle class="text-md">{{
+          t("admin.featuresSettings.title")
+        }}</CardTitle>
+        <CardDescription>{{
+          t("admin.featuresSettings.description")
+        }}</CardDescription>
       </div>
     </CardHeader>
 
@@ -383,10 +399,10 @@ watch(
             class="cursor-pointer text-base font-medium"
             @click="saveShowEntryStatusModule(!showEntryStatusModule)"
           >
-            在首页显示入口状态模块
+            {{ t("admin.featuresSettings.showEntryStatusModule") }}
           </Label>
           <div class="text-sm text-muted-foreground">
-            关闭后，首页的“入口状态”卡片将隐藏
+            {{ t("admin.featuresSettings.showEntryStatusModuleHint") }}
           </div>
         </div>
         <Switch
@@ -402,10 +418,10 @@ watch(
             class="cursor-pointer text-base font-medium"
             @click="savePasskeyBindPromptEnabled(!passkeyBindPromptEnabled)"
           >
-            登录后提示绑定 Passkey
+            {{ t("admin.featuresSettings.passkeyBindPrompt") }}
           </Label>
           <div class="text-sm text-muted-foreground">
-            关闭后，AUTH 登录成功后将不再弹出 Passkey 绑定提示
+            {{ t("admin.featuresSettings.passkeyBindPromptHint") }}
           </div>
         </div>
         <Switch
@@ -425,7 +441,7 @@ watch(
             :class="autoHttpsRuntimeError ? 'text-red-600' : ''"
             @click="saveAutoHttpsEnabled(!autoHttpsEnabled)"
           >
-            自动HTTPS
+            {{ t("admin.featuresSettings.autoHttps") }}
           </Label>
           <div
             class="text-sm"
@@ -433,8 +449,7 @@ watch(
               autoHttpsRuntimeError ? 'text-red-600' : 'text-muted-foreground'
             "
           >
-            如果80，443没有被运营商封锁，应用设置，Go 代理端口
-            (GO_REPROXY_PORT)可改为443，然后开启此开关即可自动跳HTTPS
+            {{ t("admin.featuresSettings.autoHttpsHint") }}
           </div>
           <div
             v-if="autoHttpsRuntimeError"
@@ -464,7 +479,7 @@ watch(
             "
             @click="saveSSHSecurityEnabled(!sshSecurityEnabled)"
           >
-            SSH安全
+            {{ t("admin.featuresSettings.sshSecurity") }}
           </Label>
           <div
             class="text-sm"
@@ -472,7 +487,7 @@ watch(
               isSSHSecurityAvailable ? 'text-muted-foreground' : 'text-zinc-500'
             "
           >
-            开启后显示“SSH安全”入口，并根据 SSH 登录日志自动封锁异常来源
+            {{ t("admin.featuresSettings.sshSecurityHint") }}
           </div>
           <div
             v-if="!isSSHSecurityAvailable"
@@ -499,7 +514,7 @@ watch(
             "
             @click="saveProtocolMappingEnabled(!protocolMappingEnabled)"
           >
-            协议映射
+            {{ t("admin.featuresSettings.protocolMapping") }}
           </Label>
           <div
             class="text-sm"
@@ -509,7 +524,7 @@ watch(
                 : 'text-zinc-500'
             "
           >
-            开启后，显示“协议映射”入口并启用 TCP/UDP 转发
+            {{ t("admin.featuresSettings.protocolMappingHint") }}
           </div>
           <div
             v-if="!isProtocolMappingAvailable"
@@ -546,7 +561,7 @@ watch(
               isSmartConnectAvailable ? 'text-foreground' : 'text-zinc-500'
             "
           >
-            智能连接
+            {{ t("admin.featuresSettings.smartConnect") }}
           </div>
           <div
             class="text-sm"
@@ -556,7 +571,7 @@ watch(
                 : 'text-zinc-500'
             "
           >
-            根据网络环境自动选择局域网或公网访问
+            {{ t("admin.featuresSettings.smartConnectHint") }}
           </div>
           <div
             v-if="!isSmartConnectAvailable"

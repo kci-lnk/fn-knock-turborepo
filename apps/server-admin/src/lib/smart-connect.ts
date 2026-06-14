@@ -14,6 +14,12 @@ import {
   getCapabilityUnavailableMessage,
   getRuntimeCapabilities,
 } from "./runtime-profile";
+import {
+  DEFAULT_LOCALE,
+  type LocaleCode,
+  normalizeLocale,
+  translate,
+} from "../../../../packages/i18n/src";
 
 export interface SmartConnectAvailability {
   available: boolean;
@@ -30,11 +36,26 @@ export interface SmartConnectDetails {
   local_ip_options: LocalIpv4Candidate[];
 }
 
-const RUN_TYPE_LABELS = {
-  0: "直连模式",
-  1: "反代模式",
-  3: "子域模式",
+const RUN_TYPE_LABEL_KEYS = {
+  0: "runTypes.direct",
+  1: "runTypes.reverseProxy",
+  3: "runTypes.subdomain",
 } as const;
+
+const resolveSmartConnectLocale = (
+  locale: string | null | undefined,
+): LocaleCode => normalizeLocale(locale) ?? DEFAULT_LOCALE;
+
+const smartConnectT = (
+  locale: string | null | undefined,
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) =>
+  translate(
+    resolveSmartConnectLocale(locale),
+    `server.smartConnect.${key}`,
+    params,
+  );
 
 const normalizeHost = (value: string): string =>
   value
@@ -61,12 +82,19 @@ const isPrivateIpv4 = (value: string): boolean => {
   return false;
 };
 
-const getAvailability = (config: AppConfig): SmartConnectAvailability => {
+const getAvailability = (
+  config: AppConfig,
+  locale?: string | null,
+): SmartConnectAvailability => {
   const runtimeCapabilities = getRuntimeCapabilities();
   if (!runtimeCapabilities.smart_connect_available) {
     return {
       available: false,
-      reason: getCapabilityUnavailableMessage("smart_connect_available"),
+      reason: getCapabilityUnavailableMessage(
+        "smart_connect_available",
+        undefined,
+        resolveSmartConnectLocale(locale),
+      ),
     };
   }
 
@@ -77,9 +105,15 @@ const getAvailability = (config: AppConfig): SmartConnectAvailability => {
     };
   }
 
+  const modeKey =
+    RUN_TYPE_LABEL_KEYS[config.run_type as keyof typeof RUN_TYPE_LABEL_KEYS];
   return {
     available: false,
-    reason: `仅子域模式可用，当前为${RUN_TYPE_LABELS[config.run_type] ?? "当前模式"}。`,
+    reason: smartConnectT(locale, "unavailableReason", {
+      mode: modeKey
+        ? smartConnectT(locale, modeKey)
+        : smartConnectT(locale, "currentMode"),
+    }),
   };
 };
 
@@ -128,20 +162,24 @@ export const listSmartConnectDomains = (config: AppConfig): string[] => {
   return [...authHosts, ...appHosts];
 };
 
-export const compileSmartConnectState = (config: AppConfig) => {
+export const compileSmartConnectState = (
+  config: AppConfig,
+  locale?: string | null,
+) => {
   const smartConnectConfig = getSmartConnectConfigValue(config);
   return {
     config: smartConnectConfig,
-    availability: getAvailability(config),
+    availability: getAvailability(config, locale),
     domains: listSmartConnectDomains(config),
   };
 };
 
 export const getSmartConnectDetails = async (
   configInput?: AppConfig,
+  locale?: string | null,
 ): Promise<SmartConnectDetails> => {
   const config = configInput ?? (await configManager.getConfig());
-  const compiled = compileSmartConnectState(config);
+  const compiled = compileSmartConnectState(config, locale);
   const [runtime, dnsmasqStatus] = await Promise.all([
     configManager.getSmartConnectRuntimeState(),
     dnsmasqManager.getStatus(),
@@ -175,13 +213,14 @@ const saveSyncErrorRuntime = async (
 
 export const syncSmartConnect = async (
   configInput?: AppConfig,
+  locale?: string | null,
 ): Promise<SmartConnectDetails> => {
   const config = configInput ?? (await configManager.getConfig());
   const {
     config: smartConnectConfig,
     availability,
     domains,
-  } = compileSmartConnectState(config);
+  } = compileSmartConnectState(config, locale);
   const now = new Date().toISOString();
 
   try {
@@ -201,23 +240,23 @@ export const syncSmartConnect = async (
         }),
       );
 
-      return getSmartConnectDetails(config);
+      return getSmartConnectDetails(config, locale);
     }
 
     if (!smartConnectConfig.selected_ipv4) {
-      throw new Error("请选择本机局域网 IP");
+      throw new Error(smartConnectT(locale, "selectLocalIp"));
     }
 
     if (!isPrivateIpv4(smartConnectConfig.selected_ipv4)) {
-      throw new Error("请选择有效的本机局域网 IPv4 地址");
+      throw new Error(smartConnectT(locale, "selectValidLocalIpv4"));
     }
 
     const dnsmasqStatus = await dnsmasqManager.getStatus();
     if (!dnsmasqStatus.installed) {
-      throw new Error("未检测到 dnsmasq，请先完成安装");
+      throw new Error(smartConnectT(locale, "dnsmasqNotInstalled"));
     }
     if (!dnsmasqStatus.initialized) {
-      throw new Error("dnsmasq 尚未初始化完成，请先完成环境初始化");
+      throw new Error(smartConnectT(locale, "dnsmasqNotInitialized"));
     }
 
     await dnsmasqManager.applyManagedConfig({
@@ -235,12 +274,12 @@ export const syncSmartConnect = async (
       }),
     );
 
-    return getSmartConnectDetails(config);
+    return getSmartConnectDetails(config, locale);
   } catch (error) {
     const message =
       error instanceof Error && error.message.trim()
         ? error.message.trim()
-        : "智能连接同步失败";
+        : smartConnectT(locale, "syncFailed");
     await saveSyncErrorRuntime(config, message);
     throw new Error(message);
   }

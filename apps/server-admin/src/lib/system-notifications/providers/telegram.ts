@@ -13,13 +13,19 @@ import {
   toTrimmedString,
   truncateText,
 } from "./shared";
+import { tDefault } from "../../i18n";
+
+const telegramT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) =>
+  tDefault(`server.notifications.providers.catalog.telegram.${key}`, params);
 
 const TELEGRAM_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   {
     key: "server_url",
-    label: "Bot API 地址",
-    description:
-      "官方 Bot API 保持默认值即可；如果由于网络因素无法访问官方地址，可以填写 https://tgapi.fnknock.cn 代为转发；如果你使用自建 Local Bot API Server，也可以填写其根地址。",
+    label: telegramT("fields.server_url.label"),
+    description: telegramT("fields.server_url.description"),
     placeholder: "https://api.telegram.org",
     type: "string",
     required: true,
@@ -28,7 +34,7 @@ const TELEGRAM_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   {
     key: "bot_token",
     label: "Bot Token",
-    description: "通过 @BotFather 创建机器人后获取的 Bot Token。",
+    description: telegramT("fields.bot_token.description"),
     placeholder: "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
     type: "string",
     required: true,
@@ -37,15 +43,14 @@ const TELEGRAM_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   {
     key: "chat_id",
     label: "Chat ID",
-    description:
-      "目标聊天 ID，或频道用户名（如 @channelusername）。可以先向 @UserIdzhBot 发送消息来获取 Chat ID；测试发送也会使用这个目标。",
+    description: telegramT("fields.chat_id.description"),
     placeholder: "-1001234567890",
     type: "string",
     required: true,
   },
   {
     key: "timeout_seconds",
-    label: "超时秒数",
+    label: telegramT("fields.timeout_seconds.label"),
     type: "number",
     required: true,
     default_value: 5,
@@ -58,15 +63,14 @@ const TELEGRAM_TARGET_SCHEMA: NotificationSchemaField[] = [
   {
     key: "message_thread_id",
     label: "Topic ID",
-    description:
-      "可选。发送到群组话题时填写对应的话题 ID（message_thread_id）。",
+    description: telegramT("fields.message_thread_id.description"),
     type: "number",
     min: 1,
   },
   {
     key: "disable_notification",
-    label: "静默发送",
-    description: "启用后 Telegram 会静默投递，不播放提示音。",
+    label: telegramT("fields.disable_notification.label"),
+    description: telegramT("fields.disable_notification.description"),
     type: "boolean",
     default_value: false,
   },
@@ -75,8 +79,7 @@ const TELEGRAM_TARGET_SCHEMA: NotificationSchemaField[] = [
 export const telegramProviderDefinition: NotificationProviderDefinition = {
   type: "telegram",
   label: "Telegram",
-  description:
-    "通过 Telegram Bot API 向指定聊天或频道发送文本通知，并附带内联操作按钮。",
+  description: telegramT("description"),
   connection_schema: TELEGRAM_CONNECTION_SCHEMA,
   target_schema: TELEGRAM_TARGET_SCHEMA,
   sensitive_fields: ["bot_token"],
@@ -100,7 +103,9 @@ const resolveTelegramBaseUrl = (provider: NotificationProvider) => {
 const buildTelegramText = (message: NotificationMessage) => {
   const plainSections: string[] = [];
   const richSections: string[] = [];
-  const title = toTrimmedString(message.title || "fn-knock 通知");
+  const title = toTrimmedString(
+    message.title || telegramT("message.fallbackTitle"),
+  );
   const summary = toTrimmedString(message.summary);
   const bodyText = toTrimmedString(message.body_text);
 
@@ -181,14 +186,14 @@ export const sendTelegramMessage = async (args: {
     return {
       success: false,
       retryable: false,
-      reason: "Missing Telegram bot token",
+      reason: telegramT("errors.missingBotToken"),
     };
   }
   if (!chatId) {
     return {
       success: false,
       retryable: false,
-      reason: "Missing Telegram chat id",
+      reason: telegramT("errors.missingChatId"),
     };
   }
 
@@ -202,7 +207,7 @@ export const sendTelegramMessage = async (args: {
   const url = `${baseUrl}/bot${botToken}/sendMessage`;
   const requestBody = {
     chat_id: chatId,
-    text: text || "fn-knock 通知",
+    text: text || telegramT("message.fallbackTitle"),
     parse_mode: "HTML",
     ...(messageThreadId ? { message_thread_id: messageThreadId } : {}),
     ...(disableNotification ? { disable_notification: true } : {}),
@@ -259,7 +264,8 @@ export const sendTelegramMessage = async (args: {
       retryable,
       reason: success
         ? undefined
-        : parsedResponse?.description || `Telegram returned ${response.status}`,
+        : parsedResponse?.description ||
+          telegramT("errors.requestReturned", { status: response.status }),
       request_summary: {
         method: "POST",
         url: `${baseUrl}/bot<redacted>/sendMessage`,
@@ -285,7 +291,9 @@ export const sendTelegramMessage = async (args: {
       success: false,
       retryable: true,
       reason:
-        error instanceof Error ? error.message : "Telegram request failed",
+        error instanceof Error
+          ? error.message
+          : telegramT("errors.requestFailed"),
       request_summary: {
         method: "POST",
         url: `${baseUrl}/bot<redacted>/sendMessage`,

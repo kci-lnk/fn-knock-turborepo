@@ -7,6 +7,7 @@ import {
   ref,
   watch,
 } from "vue";
+import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import {
   Info,
@@ -61,6 +62,7 @@ import { useIpLocationBatch } from "../composables/useIpLocationBatch";
 
 const router = useRouter();
 const configStore = useConfigStore();
+const { t, locale } = useI18n();
 
 const getTodayString = () => {
   const now = new Date();
@@ -70,28 +72,29 @@ const getTodayString = () => {
   return `${year}-${month}-${day}`;
 };
 
+const LIMIT_OPTIONS = ["10", "20", "50", "100"] as const;
 const STATUS_FILTER_OPTIONS = [
-  { value: "all", label: "全部状态" },
-  { value: "2xx", label: "2xx 成功" },
-  { value: "3xx", label: "3xx 重定向" },
-  { value: "4xx", label: "4xx 客户端错误" },
-  { value: "5xx", label: "5xx 服务端错误" },
-  { value: "401", label: "401 未授权" },
-  { value: "403", label: "403 禁止" },
-  { value: "404", label: "404 未找到" },
-  { value: "500", label: "500 服务异常" },
-  { value: "502", label: "502 网关错误" },
-  { value: "503", label: "503 服务不可用" },
+  { value: "all", labelKey: "admin.gatewayRequestLogs.statusFilters.all" },
+  { value: "2xx", labelKey: "admin.gatewayRequestLogs.statusFilters.success2xx" },
+  { value: "3xx", labelKey: "admin.gatewayRequestLogs.statusFilters.redirect3xx" },
+  { value: "4xx", labelKey: "admin.gatewayRequestLogs.statusFilters.client4xx" },
+  { value: "5xx", labelKey: "admin.gatewayRequestLogs.statusFilters.server5xx" },
+  { value: "401", labelKey: "admin.gatewayRequestLogs.statusFilters.unauthorized401" },
+  { value: "403", labelKey: "admin.gatewayRequestLogs.statusFilters.forbidden403" },
+  { value: "404", labelKey: "admin.gatewayRequestLogs.statusFilters.notFound404" },
+  { value: "500", labelKey: "admin.gatewayRequestLogs.statusFilters.serverError500" },
+  { value: "502", labelKey: "admin.gatewayRequestLogs.statusFilters.badGateway502" },
+  { value: "503", labelKey: "admin.gatewayRequestLogs.statusFilters.unavailable503" },
 ] as const;
 const LOGIN_FILTER_OPTIONS = [
-  { value: "all", label: "全部登录状态" },
-  { value: "true", label: "已登录" },
-  { value: "false", label: "未登录" },
+  { value: "all", labelKey: "admin.gatewayRequestLogs.loginFilters.all" },
+  { value: "true", labelKey: "admin.gatewayRequestLogs.loginFilters.loggedIn" },
+  { value: "false", labelKey: "admin.gatewayRequestLogs.loginFilters.notLoggedIn" },
 ] as const;
 const WAF_FILTER_OPTIONS = [
-  { value: "all", label: "全部WAF" },
-  { value: "has_waf", label: "有 WAF" },
-  { value: "none", label: "无 WAF" },
+  { value: "all", labelKey: "admin.gatewayRequestLogs.wafFilters.all" },
+  { value: "has_waf", labelKey: "admin.gatewayRequestLogs.wafFilters.hasWaf" },
+  { value: "none", labelKey: "admin.gatewayRequestLogs.wafFilters.none" },
 ] as const;
 
 const entries = ref<GatewayLogEntry[]>([]);
@@ -136,18 +139,24 @@ const normalizedWAFStatusQuery = computed(() =>
 );
 const activeStatusLabel = computed(
   () =>
-    STATUS_FILTER_OPTIONS.find((item) => item.value === selectedStatus.value)
-      ?.label || "全部状态",
+    t(
+      STATUS_FILTER_OPTIONS.find((item) => item.value === selectedStatus.value)
+        ?.labelKey || "admin.gatewayRequestLogs.statusFilters.all",
+    ),
 );
 const activeLoggedInLabel = computed(
   () =>
-    LOGIN_FILTER_OPTIONS.find((item) => item.value === selectedLoggedIn.value)
-      ?.label || "全部登录状态",
+    t(
+      LOGIN_FILTER_OPTIONS.find((item) => item.value === selectedLoggedIn.value)
+        ?.labelKey || "admin.gatewayRequestLogs.loginFilters.all",
+    ),
 );
 const activeWAFStatusLabel = computed(
   () =>
-    WAF_FILTER_OPTIONS.find((item) => item.value === selectedWAFStatus.value)
-      ?.label || "全部 WAF",
+    t(
+      WAF_FILTER_OPTIONS.find((item) => item.value === selectedWAFStatus.value)
+        ?.labelKey || "admin.gatewayRequestLogs.wafFilters.all",
+    ),
 );
 const hasHorizontalOverflow = computed(
   () => tableContentWidth.value > tableViewportWidth.value + 1,
@@ -164,7 +173,10 @@ const canScrollRight = computed(
 const canLoadNewer = computed(() => cursorHistory.value.length > 0);
 const canLoadOlder = computed(() => Boolean(nextCursor.value));
 const cursorPageLabel = computed(
-  () => `第 ${cursorHistory.value.length + 1} 段`,
+  () =>
+    t("admin.gatewayRequestLogs.cursorPage", {
+      page: cursorHistory.value.length + 1,
+    }),
 );
 
 let resizeObserver: ResizeObserver | null = null;
@@ -172,8 +184,11 @@ let isSyncingHorizontalScroll = false;
 
 const { isPending: isDeleting, run: runDelete } = useAsyncAction({
   onError: (error) => {
-    toast.error("删除失败", {
-      description: extractErrorMessage(error, "删除请求日志失败"),
+    toast.error(t("admin.gatewayRequestLogs.deleteFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.gatewayRequestLogs.deleteFailedDescription"),
+      ),
     });
   },
 });
@@ -225,8 +240,11 @@ const fetchEntries = async () => {
     entries.value = [];
     trackIps([]);
     nextCursor.value = "";
-    toast.error("加载失败", {
-      description: extractErrorMessage(error, "请求日志加载失败"),
+    toast.error(t("admin.gatewayRequestLogs.loadFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.gatewayRequestLogs.loadFailedDescription"),
+      ),
     });
   } finally {
     loading.value = false;
@@ -373,8 +391,12 @@ const deleteSelectedDate = async () => {
     onSuccess: async (data) => {
       toast.success(
         data.deleted
-          ? `${selectedDate.value} 日志已删除`
-          : `${selectedDate.value} 没有可删除的日志`,
+          ? t("admin.gatewayRequestLogs.deletedForDate", {
+              date: selectedDate.value,
+            })
+          : t("admin.gatewayRequestLogs.noDeletedForDate", {
+              date: selectedDate.value,
+            }),
       );
       searchQuery.value = "";
       selectedStatus.value = "all";
@@ -403,12 +425,25 @@ const wafActionLabel = (value?: string) => {
   switch (value) {
     case "block":
     case "deny":
-      return "阻断";
+      return t("admin.wafLogs.actions.block");
     case "log":
     case "detect":
-      return "记录";
+      return t("admin.wafLogs.actions.record");
     case "pass":
-      return "放行";
+      return t("admin.wafLogs.actions.pass");
+    default:
+      return value || "-";
+  }
+};
+
+const wafModeLabel = (value?: string) => {
+  switch (value) {
+    case "detection":
+      return t("admin.wafLogs.modes.detection");
+    case "blocking":
+      return t("admin.wafLogs.modes.blocking");
+    case "off":
+      return t("admin.wafLogs.modes.off");
     default:
       return value || "-";
   }
@@ -433,11 +468,12 @@ const isWAFBlocked = (entry: GatewayLogEntry) =>
   getWAFAction(entry) === "deny";
 
 const wafBadgeLabel = (entry: GatewayLogEntry) => {
-  if (isWAFBlocked(entry)) return "WAF 阻断";
+  if (isWAFBlocked(entry)) return t("admin.gatewayRequestLogs.wafBadges.blocked");
   const action = getWAFAction(entry);
-  if (action === "pass") return "WAF 放行";
-  if (action === "log" || action === "detect") return "WAF 记录";
-  return "WAF 命中";
+  if (action === "pass") return t("admin.gatewayRequestLogs.wafBadges.pass");
+  if (action === "log" || action === "detect")
+    return t("admin.gatewayRequestLogs.wafBadges.record");
+  return t("admin.gatewayRequestLogs.wafBadges.hit");
 };
 
 const wafBadgeClass = (entry: GatewayLogEntry) => {
@@ -461,9 +497,18 @@ const wafBadgeTitle = (entry: GatewayLogEntry) => {
   const parts = [wafBadgeLabel(entry)];
   if (entry.waf_trace_id) parts.push(`Trace: ${entry.waf_trace_id}`);
   if (entry.waf_rule_ids?.length) {
-    parts.push(`规则: ${entry.waf_rule_ids.join(", ")}`);
+    parts.push(
+      t("admin.gatewayRequestLogs.wafBadges.rules", {
+        rules: entry.waf_rule_ids.join(", "),
+      }),
+    );
   }
-  if (entry.waf_bundle) parts.push(`规则包: ${entry.waf_bundle}`);
+  if (entry.waf_bundle)
+    parts.push(
+      t("admin.gatewayRequestLogs.wafBadges.bundle", {
+        bundle: entry.waf_bundle,
+      }),
+    );
   return parts.join(" · ");
 };
 
@@ -482,21 +527,21 @@ const statusDotClass = (status: number) => {
 const routeTypeLabel = (value?: string) => {
   switch (value) {
     case "path_rule":
-      return "路径规则";
+      return t("admin.wafLogs.routeTypes.pathRule");
     case "host_rule":
-      return "Host 规则";
+      return t("admin.wafLogs.routeTypes.hostRule");
     case "auth_proxy":
-      return "鉴权代理";
+      return t("admin.wafLogs.routeTypes.authProxy");
     case "select":
-      return "选择页";
+      return t("admin.wafLogs.routeTypes.select");
     case "preflight":
-      return "预检";
+      return t("admin.wafLogs.routeTypes.preflight");
     case "slash_redirect":
-      return "补斜杠";
+      return t("admin.wafLogs.routeTypes.slashRedirect");
     case "favicon":
-      return "图标";
+      return t("admin.wafLogs.routeTypes.favicon");
     case "not_found":
-      return "未命中";
+      return t("admin.wafLogs.routeTypes.notFound");
     default:
       return value || "-";
   }
@@ -505,19 +550,19 @@ const routeTypeLabel = (value?: string) => {
 const authDecisionLabel = (value?: string) => {
   switch (value) {
     case "passed":
-      return "已通过";
+      return t("admin.gatewayRequestLogs.authDecisions.passed");
     case "redirected":
-      return "已跳转";
+      return t("admin.gatewayRequestLogs.authDecisions.redirected");
     case "denied":
-      return "已拒绝";
+      return t("admin.gatewayRequestLogs.authDecisions.denied");
     case "root_mode_redirect":
-      return "根路径跳转";
+      return t("admin.gatewayRequestLogs.authDecisions.rootModeRedirect");
     case "not_required":
-      return "无需鉴权";
+      return t("admin.gatewayRequestLogs.authDecisions.notRequired");
     case "proxy":
-      return "代理转发";
+      return t("admin.gatewayRequestLogs.authDecisions.proxy");
     case "error":
-      return "鉴权异常";
+      return t("admin.gatewayRequestLogs.authDecisions.error");
     default:
       return value || "-";
   }
@@ -529,10 +574,13 @@ const formatDuration = (value?: number) => {
 };
 
 const formatBoolean = (value?: boolean) => {
-  return value ? "是" : "否";
+  return value
+    ? t("admin.gatewayRequestLogs.boolean.yes")
+    : t("admin.gatewayRequestLogs.boolean.no");
 };
 
-const formatDate = (value?: string) => formatDateTimeSafe(value);
+const formatDate = (value?: string) =>
+  formatDateTimeSafe(value, { locale: locale.value });
 
 const getEntryClientIp = (entry: GatewayLogEntry) =>
   entry.client_ip || entry.remote_ip || "";
@@ -549,11 +597,11 @@ const getEntryIpLocationText = (entry: GatewayLogEntry) => {
   if (location) return location;
 
   if (snapshot?.status === "queued" || snapshot?.status === "processing") {
-    return "属地解析中...";
+    return t("admin.hostActiveIps.resolving");
   }
 
   if (snapshot?.status === "failed") {
-    return "属地暂未获取";
+    return t("admin.hostActiveIps.unavailable");
   }
 
   return "";
@@ -582,7 +630,7 @@ const getConnectionSourceText = (entry: GatewayLogEntry) => {
   const clientIp = getEntryClientIp(entry);
   const remoteIp = entry.remote_ip || "";
   if (!remoteIp || remoteIp === clientIp) return "";
-  return `连接来源: ${remoteIp}`;
+  return t("admin.gatewayRequestLogs.connectionSource", { ip: remoteIp });
 };
 
 const displayedEntries = computed(() =>
@@ -604,48 +652,103 @@ const activeEntryWithIpLocation = computed(() =>
 );
 
 const detailFields = [
-  { key: "time", label: "时间" },
-  { key: "method", label: "方法" },
-  { key: "scheme", label: "协议" },
+  { key: "time", labelKey: "admin.gatewayRequestLogs.detailFields.time" },
+  { key: "method", labelKey: "admin.gatewayRequestLogs.detailFields.method" },
+  { key: "scheme", labelKey: "admin.gatewayRequestLogs.detailFields.scheme" },
   { key: "host", label: "Host" },
-  { key: "path", label: "路径" },
+  { key: "path", labelKey: "admin.gatewayRequestLogs.detailFields.path" },
   { key: "query", label: "Query" },
-  { key: "request_uri", label: "请求地址" },
-  { key: "protocol", label: "HTTP 协议" },
-  { key: "status", label: "状态码" },
-  { key: "duration_ms", label: "耗时" },
-  { key: "client_ip", label: "客户端 IP" },
-  { key: "ipLocation", label: "属地" },
-  { key: "remote_ip", label: "连接来源 IP" },
-  { key: "remote_addr", label: "连接来源地址" },
+  {
+    key: "request_uri",
+    labelKey: "admin.gatewayRequestLogs.detailFields.requestUri",
+  },
+  { key: "protocol", labelKey: "admin.gatewayRequestLogs.detailFields.protocol" },
+  { key: "status", labelKey: "admin.gatewayRequestLogs.detailFields.status" },
+  {
+    key: "duration_ms",
+    labelKey: "admin.gatewayRequestLogs.detailFields.duration",
+  },
+  {
+    key: "client_ip",
+    labelKey: "admin.gatewayRequestLogs.detailFields.clientIp",
+  },
+  {
+    key: "ipLocation",
+    labelKey: "admin.gatewayRequestLogs.detailFields.ipLocation",
+  },
+  {
+    key: "remote_ip",
+    labelKey: "admin.gatewayRequestLogs.detailFields.remoteIp",
+  },
+  {
+    key: "remote_addr",
+    labelKey: "admin.gatewayRequestLogs.detailFields.remoteAddr",
+  },
   { key: "user_agent", label: "User-Agent" },
   { key: "referer", label: "Referer" },
-  { key: "logged_in", label: "已登录" },
-  { key: "auth_required", label: "需要鉴权" },
-  { key: "auth_decision", label: "鉴权结果" },
-  { key: "access_mode", label: "访问模式" },
-  { key: "route_type", label: "路由类型" },
-  { key: "route_key", label: "路由键" },
-  { key: "upstream", label: "上游目标" },
-  { key: "matched", label: "命中规则" },
-  { key: "bytes_in", label: "请求字节" },
-  { key: "bytes_out", label: "响应字节" },
+  {
+    key: "logged_in",
+    labelKey: "admin.gatewayRequestLogs.detailFields.loggedIn",
+  },
+  {
+    key: "auth_required",
+    labelKey: "admin.gatewayRequestLogs.detailFields.authRequired",
+  },
+  {
+    key: "auth_decision",
+    labelKey: "admin.gatewayRequestLogs.detailFields.authDecision",
+  },
+  {
+    key: "access_mode",
+    labelKey: "admin.gatewayRequestLogs.detailFields.accessMode",
+  },
+  {
+    key: "route_type",
+    labelKey: "admin.gatewayRequestLogs.detailFields.routeType",
+  },
+  {
+    key: "route_key",
+    labelKey: "admin.gatewayRequestLogs.detailFields.routeKey",
+  },
+  { key: "upstream", labelKey: "admin.gatewayRequestLogs.detailFields.upstream" },
+  { key: "matched", labelKey: "admin.gatewayRequestLogs.detailFields.matched" },
+  { key: "bytes_in", labelKey: "admin.gatewayRequestLogs.detailFields.bytesIn" },
+  { key: "bytes_out", labelKey: "admin.gatewayRequestLogs.detailFields.bytesOut" },
   { key: "tls", label: "TLS" },
   { key: "websocket", label: "WebSocket" },
   { key: "eo_connecting_ip", label: "EO-Connecting-IP" },
   { key: "ali_real_client_ip", label: "Ali-Real-Client-IP" },
   { key: "x_forwarded_for", label: "X-Forwarded-For" },
   { key: "x_real_ip", label: "X-Real-IP" },
-  { key: "waf_blocked", label: "WAF 已阻断" },
+  {
+    key: "waf_blocked",
+    labelKey: "admin.gatewayRequestLogs.detailFields.wafBlocked",
+  },
   { key: "waf_trace_id", label: "WAF Trace ID" },
-  { key: "waf_mode", label: "WAF 模式" },
-  { key: "waf_action", label: "WAF 动作" },
-  { key: "waf_rule_ids", label: "WAF 规则 ID" },
-  { key: "waf_bundle", label: "WAF 规则包" },
+  { key: "waf_mode", labelKey: "admin.gatewayRequestLogs.detailFields.wafMode" },
+  {
+    key: "waf_action",
+    labelKey: "admin.gatewayRequestLogs.detailFields.wafAction",
+  },
+  {
+    key: "waf_rule_ids",
+    labelKey: "admin.gatewayRequestLogs.detailFields.wafRuleIds",
+  },
+  {
+    key: "waf_bundle",
+    labelKey: "admin.gatewayRequestLogs.detailFields.wafBundle",
+  },
 ] as const;
 
+const localizedDetailFields = computed(() =>
+  detailFields.map((field) => ({
+    key: field.key,
+    label: "label" in field ? field.label : t(field.labelKey),
+  })),
+);
+
 const detailItems = computed(() =>
-  buildDetailFields(activeEntryWithIpLocation.value, detailFields, {
+  buildDetailFields(activeEntryWithIpLocation.value, localizedDetailFields.value, {
     format: (key, value) => {
       if (key === "time") return formatDate(value);
       if (key === "duration_ms") return formatDuration(value);
@@ -663,6 +766,7 @@ const detailItems = computed(() =>
       if (key === "auth_decision")
         return authDecisionLabel(String(value || ""));
       if (key === "waf_action") return wafActionLabel(String(value || ""));
+      if (key === "waf_mode") return wafModeLabel(String(value || ""));
       if (key === "waf_rule_ids") return formatRuleIds(value as number[]);
       if (value === undefined || value === null || value === "") return "-";
       return value;
@@ -672,7 +776,7 @@ const detailItems = computed(() =>
 
 const detailCopyText = computed(() =>
   detailItems.value
-    .map((item) => `${item.label}：${String(item.value)}`)
+    .map((item) => `${item.label}: ${String(item.value)}`)
     .join("\n"),
 );
 
@@ -705,11 +809,13 @@ onBeforeUnmount(() => {
     >
       <div class="space-y-1">
         <div class="flex items-center gap-2">
-          <h1 class="text-lg font-semibold tracking-tight">请求日志</h1>
+          <h1 class="text-lg font-semibold tracking-tight">
+            {{ t("admin.gatewayRequestLogs.title") }}
+          </h1>
           <span class="text-xs text-muted-foreground">{{ selectedDate }}</span>
         </div>
         <p class="text-sm text-muted-foreground">
-          按天筛选，快速看认证、路由和状态。
+          {{ t("admin.gatewayRequestLogs.description") }}
         </p>
       </div>
 
@@ -721,8 +827,12 @@ onBeforeUnmount(() => {
           @click="refreshAll"
         />
         <ConfirmDangerPopover
-          :title="`确认删除 ${selectedDate} 的请求日志？`"
-          description="删除后当天日志文件将不可恢复。"
+          :title="
+            t('admin.gatewayRequestLogs.deleteDateTitle', {
+              date: selectedDate,
+            })
+          "
+          :description="t('admin.gatewayRequestLogs.deleteDateDescription')"
           :loading="isDeleting"
           :disabled="isDeleting"
           :on-confirm="deleteSelectedDate"
@@ -734,7 +844,7 @@ onBeforeUnmount(() => {
               :disabled="isDeleting"
             >
               <Trash2 class="mr-2 h-4 w-4" />
-              删除当天
+              {{ t("admin.gatewayRequestLogs.deleteDateAction") }}
             </Button>
           </template>
         </ConfirmDangerPopover>
@@ -750,11 +860,11 @@ onBeforeUnmount(() => {
         class="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
       >
         <p class="text-sm text-muted-foreground">
-          当前未记录新请求，仍可查看历史日志。
+          {{ t("admin.gatewayRequestLogs.disabledNotice") }}
         </p>
         <Button variant="ghost" class="shrink-0" @click="goToSettings">
           <Settings class="mr-2 h-4 w-4" />
-          去设置
+          {{ t("admin.gatewayRequestLogs.goSettings") }}
         </Button>
       </div>
     </Alert>
@@ -766,7 +876,7 @@ onBeforeUnmount(() => {
         <div class="flex flex-col gap-2 xl:flex-row xl:items-center">
           <SearchInput
             v-model="searchQuery"
-            placeholder="搜索 IP、Host、路径、状态码、UA、上游目标..."
+            :placeholder="t('admin.gatewayRequestLogs.searchPlaceholder')"
             class="w-full xl:w-[320px] xl:max-w-[320px]"
             @search="handleSearch"
           />
@@ -778,7 +888,9 @@ onBeforeUnmount(() => {
             >
               <div class="w-[148px]">
                 <SelectTrigger>
-                  <SelectValue placeholder="日期" />
+                  <SelectValue
+                    :placeholder="t('admin.gatewayRequestLogs.datePlaceholder')"
+                  />
                 </SelectTrigger>
               </div>
               <SelectContent>
@@ -798,7 +910,11 @@ onBeforeUnmount(() => {
             >
               <div class="w-[156px]">
                 <SelectTrigger>
-                  <SelectValue placeholder="状态码" />
+                  <SelectValue
+                    :placeholder="
+                      t('admin.gatewayRequestLogs.statusPlaceholder')
+                    "
+                  />
                 </SelectTrigger>
               </div>
               <SelectContent>
@@ -807,7 +923,7 @@ onBeforeUnmount(() => {
                   :key="option.value"
                   :value="option.value"
                 >
-                  {{ option.label }}
+                  {{ t(option.labelKey) }}
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -818,7 +934,9 @@ onBeforeUnmount(() => {
             >
               <div class="w-[156px]">
                 <SelectTrigger>
-                  <SelectValue placeholder="登录状态" />
+                  <SelectValue
+                    :placeholder="t('admin.gatewayRequestLogs.loginPlaceholder')"
+                  />
                 </SelectTrigger>
               </div>
               <SelectContent>
@@ -827,7 +945,7 @@ onBeforeUnmount(() => {
                   :key="option.value"
                   :value="option.value"
                 >
-                  {{ option.label }}
+                  {{ t(option.labelKey) }}
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -838,7 +956,9 @@ onBeforeUnmount(() => {
             >
               <div class="w-[148px]">
                 <SelectTrigger>
-                  <SelectValue placeholder="WAF 状态" />
+                  <SelectValue
+                    :placeholder="t('admin.gatewayRequestLogs.wafPlaceholder')"
+                  />
                 </SelectTrigger>
               </div>
               <SelectContent>
@@ -847,7 +967,7 @@ onBeforeUnmount(() => {
                   :key="option.value"
                   :value="option.value"
                 >
-                  {{ option.label }}
+                  {{ t(option.labelKey) }}
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -857,14 +977,29 @@ onBeforeUnmount(() => {
         <div
           class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground"
         >
-          <span>{{ cursorPageLabel }} · {{ entries.length }} 条</span>
+          <span>
+            {{ cursorPageLabel }} ·
+            {{
+              t("admin.gatewayRequestLogs.rowsCount", {
+                count: entries.length,
+              })
+            }}
+          </span>
           <span>{{ activeStatusLabel }}</span>
           <span>{{ activeLoggedInLabel }}</span>
           <span>{{ activeWAFStatusLabel }}</span>
           <span v-if="searchQuery.trim()"
-            >关键词：{{ searchQuery.trim() }}</span
+            >{{
+              t("admin.gatewayRequestLogs.keywordFilter", {
+                keyword: searchQuery.trim(),
+              })
+            }}</span
           >
-          <span class="break-all">目录：{{ logsDir || "-" }}</span>
+          <span class="break-all">{{
+            t("admin.gatewayRequestLogs.directoryLabel", {
+              directory: logsDir || "-",
+            })
+          }}</span>
         </div>
       </div>
 
@@ -908,31 +1043,35 @@ onBeforeUnmount(() => {
               <TableRow>
                 <TableHead
                   class="h-10 w-[320px] min-w-[320px] max-w-[320px] text-[11px] font-medium text-muted-foreground"
-                  >请求</TableHead
+                  >{{ t("admin.gatewayRequestLogs.columns.request") }}</TableHead
                 >
                 <TableHead
                   class="h-10 text-[11px] font-medium text-muted-foreground"
-                  >状态</TableHead
+                  >{{ t("admin.gatewayRequestLogs.columns.status") }}</TableHead
                 >
                 <TableHead
                   class="h-10 text-[11px] font-medium text-muted-foreground"
-                  >登录</TableHead
+                  >{{ t("admin.gatewayRequestLogs.columns.login") }}</TableHead
                 >
                 <TableHead
                   class="h-10 text-[11px] font-medium text-muted-foreground"
-                  >客户端 IP</TableHead
+                  >{{
+                    t("admin.gatewayRequestLogs.columns.clientIp")
+                  }}</TableHead
                 >
                 <TableHead
                   class="h-10 text-[11px] font-medium text-muted-foreground"
-                  >路由</TableHead
+                  >{{ t("admin.gatewayRequestLogs.columns.route") }}</TableHead
                 >
                 <TableHead
                   class="h-10 text-[11px] font-medium text-muted-foreground"
-                  >耗时</TableHead
+                  >{{
+                    t("admin.gatewayRequestLogs.columns.duration")
+                  }}</TableHead
                 >
                 <TableHead
                   class="sticky right-0 z-20 h-10 bg-background/95 pr-4 text-right text-[11px] font-medium text-muted-foreground"
-                  >操作</TableHead
+                  >{{ t("admin.gatewayRequestLogs.columns.actions") }}</TableHead
                 >
               </TableRow>
             </TableHeader>
@@ -942,7 +1081,7 @@ onBeforeUnmount(() => {
                   colspan="7"
                   class="py-10 text-center text-muted-foreground"
                 >
-                  加载中...
+                  {{ t("admin.gatewayRequestLogs.loading") }}
                 </TableCell>
               </TableRow>
               <TableRow v-else-if="entries.length === 0">
@@ -950,7 +1089,7 @@ onBeforeUnmount(() => {
                   colspan="7"
                   class="py-10 text-center text-muted-foreground"
                 >
-                  暂无请求日志
+                  {{ t("admin.gatewayRequestLogs.empty") }}
                 </TableCell>
               </TableRow>
               <TableRow
@@ -967,7 +1106,7 @@ onBeforeUnmount(() => {
                       <div
                         class="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium leading-5 text-muted-foreground"
                       >
-                        <HumanFriendlyTime :value="entry.time" />
+                        <HumanFriendlyTime :value="entry.time" :locale="locale" />
                       </div>
                       <div class="min-w-0 flex-1">
                         <div
@@ -1034,7 +1173,11 @@ onBeforeUnmount(() => {
                 </TableCell>
                 <TableCell class="py-2.5">
                   <div class="text-sm text-foreground">
-                    {{ entry.logged_in ? "已登录" : "未登录" }}
+                    {{
+                      entry.logged_in
+                        ? t("admin.gatewayRequestLogs.loggedIn")
+                        : t("admin.gatewayRequestLogs.notLoggedIn")
+                    }}
                   </div>
                   <div class="text-[11px] text-muted-foreground">
                     {{ authDecisionLabel(entry.auth_decision) }}
@@ -1084,6 +1227,7 @@ onBeforeUnmount(() => {
                     variant="ghost"
                     size="icon"
                     class="h-8 w-8 text-muted-foreground hover:text-foreground"
+                    :aria-label="t('common.viewDetails')"
                     @click="viewDetails(entry)"
                   >
                     <Eye class="h-4 w-4" />
@@ -1126,7 +1270,9 @@ onBeforeUnmount(() => {
           >
             <span>{{ cursorPageLabel }}</span>
             <span>{{
-              canLoadOlder ? "可继续翻到更早记录" : "已经是最后一页"
+              canLoadOlder
+                ? t("admin.gatewayRequestLogs.canLoadOlder")
+                : t("admin.gatewayRequestLogs.lastPage")
             }}</span>
           </div>
 
@@ -1138,7 +1284,7 @@ onBeforeUnmount(() => {
               @click="handleLoadFirst"
             >
               <ChevronsLeft class="mr-1.5 h-4 w-4" />
-              首页
+              {{ t("admin.gatewayRequestLogs.firstPage") }}
             </Button>
             <Button
               variant="outline"
@@ -1147,21 +1293,21 @@ onBeforeUnmount(() => {
               @click="handleLoadNewer"
             >
               <ChevronLeft class="mr-1.5 h-4 w-4" />
-              上一页
+              {{ t("admin.gatewayRequestLogs.previousPage") }}
             </Button>
             <Button
               class="h-8 px-3"
               :disabled="loading || !canLoadOlder"
               @click="handleLoadOlder"
             >
-              下一页
+              {{ t("admin.gatewayRequestLogs.nextPage") }}
               <ChevronRight class="ml-1.5 h-4 w-4" />
             </Button>
 
             <div
               class="ml-1 flex items-center gap-2 text-xs text-muted-foreground"
             >
-              <span>每页显示</span>
+              <span>{{ t("admin.gatewayRequestLogs.pageSize") }}</span>
               <Select
                 :model-value="limit"
                 @update:model-value="handleLimitChange"
@@ -1172,10 +1318,17 @@ onBeforeUnmount(() => {
                   </SelectTrigger>
                 </div>
                 <SelectContent>
-                  <SelectItem value="10">10 条</SelectItem>
-                  <SelectItem value="20">20 条</SelectItem>
-                  <SelectItem value="50">50 条</SelectItem>
-                  <SelectItem value="100">100 条</SelectItem>
+                  <SelectItem
+                    v-for="option in LIMIT_OPTIONS"
+                    :key="option"
+                    :value="option"
+                  >
+                    {{
+                      t("admin.gatewayRequestLogs.pageSizeOption", {
+                        count: option,
+                      })
+                    }}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1186,8 +1339,8 @@ onBeforeUnmount(() => {
 
     <DetailDialog
       v-model:open="isDetailsOpen"
-      title="请求日志详情"
-      description="查看此条网关请求日志的完整字段。"
+      :title="t('admin.gatewayRequestLogs.detailTitle')"
+      :description="t('admin.gatewayRequestLogs.detailDescription')"
       max-width-class="sm:max-w-[640px]"
       close-variant="default"
       :copy-text="detailCopyText"

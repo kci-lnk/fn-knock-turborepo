@@ -16,6 +16,21 @@ import {
   buildSubdomainCertificateInventoryCoverage,
 } from "../lib/subdomain-mode";
 import { routeDoc, withRouteDoc } from "../lib/openapi";
+import { createRequestTranslator, tDefault } from "../lib/i18n";
+
+type RequestTranslator = ReturnType<typeof createRequestTranslator>["t"];
+
+const getSslTranslator = async (request: Request) =>
+  createRequestTranslator(request, await configManager.getLocaleConfig());
+const sslRouteT = (
+  t: RequestTranslator,
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => t(`server.sslRoutes.${key}`, params);
+const sslDefaultT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.sslRoutes.${key}`, params);
 
 function crc32(buf: Uint8Array) {
   let c = ~0 >>> 0;
@@ -123,7 +138,7 @@ function createZip(entries: { name: string; data: Uint8Array }[]) {
   return new Uint8Array([...filesBlob, ...centralDir, ...eocd]);
 }
 
-async function buildSSLStatusPayload() {
+async function buildSSLStatusPayload(t?: RequestTranslator) {
   const [status, config, gatewayStatusResp] = await Promise.all([
     configManager.getSSLStatus(),
     configManager.getConfig(),
@@ -179,7 +194,11 @@ async function buildSSLStatusPayload() {
           enabled: false,
           deployment_mode: "single_active",
           certificates: [],
-          sync_error: gatewayStatusResp.message || "无法读取网关 SSL 状态",
+          sync_error:
+            gatewayStatusResp.message ||
+            (t
+              ? sslRouteT(t, "gatewayStatusReadFailed")
+              : sslDefaultT("gatewayStatusReadFailed")),
         },
   };
 }
@@ -190,10 +209,11 @@ export const sslRoutes = new Elysia({
 })
   .get(
     "/status",
-    async () => {
+    async ({ request }) => {
+      const { t } = await getSslTranslator(request);
       return {
         success: true,
-        data: await buildSSLStatusPayload(),
+        data: await buildSSLStatusPayload(t),
       };
     },
     routeDoc("获取 SSL 状态"),
@@ -208,13 +228,17 @@ export const sslRoutes = new Elysia({
   )
   .get(
     "/shared-files/content",
-    async ({ query, set }) => {
+    async ({ request, query, set }) => {
+      const { t: rt } = await getSslTranslator(request);
       try {
         const data = await readSSLSharedFile(query.path);
         return { success: true, data };
       } catch (error: any) {
-        const message = error?.message ?? "读取共享目录文件失败";
-        if (error?.code === "ENOENT" || message.includes("未找到")) {
+        const message = error?.message ?? sslRouteT(rt, "readSharedFileFailed");
+        if (
+          error?.code === "ENOENT" ||
+          message === rt("server.fnosDataShare.shareMissing")
+        ) {
           set.status = 404;
         } else if (error?.code === "EACCES") {
           set.status = 403;
@@ -278,12 +302,13 @@ export const sslRoutes = new Elysia({
   )
   .get(
     "/ca/server-cert.zip",
-    async ({ set }) => {
+    async ({ request, set }) => {
+      const { t: rt } = await getSslTranslator(request);
       try {
         const hosts = await configManager.getCAHosts();
         if (!hosts.length) {
           set.status = 400;
-          return { success: false, message: "域名列表为空，请先添加域名或 IP" };
+          return { success: false, message: sslRouteT(rt, "emptyDomains") };
         }
         const { certPem, keyPem } = await issueServerCert(hosts, 20);
         const validation = configManager.validateSSLCert(certPem, keyPem);
@@ -291,7 +316,7 @@ export const sslRoutes = new Elysia({
           set.status = 400;
           return {
             success: false,
-            message: validation.error || "证书或私钥无效",
+            message: validation.error || sslRouteT(rt, "certOrKeyInvalid"),
           };
         }
         const entries = [
@@ -322,11 +347,12 @@ export const sslRoutes = new Elysia({
   )
   .post(
     "/ca/hosts",
-    async ({ body, set }) => {
+    async ({ request, body, set }) => {
+      const { t: rt } = await getSslTranslator(request);
       const value = body.value?.trim?.();
       if (!value) {
         set.status = 400;
-        return { success: false, message: "host 不能为空" };
+        return { success: false, message: sslRouteT(rt, "hostRequired") };
       }
       const hosts = await configManager.addCAHost(value);
       return { success: true, data: hosts };
@@ -360,12 +386,13 @@ export const sslRoutes = new Elysia({
   )
   .post(
     "/ca/issue",
-    async ({ set }) => {
+    async ({ request, set }) => {
+      const { t: rt } = await getSslTranslator(request);
       try {
         const hosts = await configManager.getCAHosts();
         if (!hosts.length) {
           set.status = 400;
-          return { success: false, message: "域名列表为空，请先添加域名或 IP" };
+          return { success: false, message: sslRouteT(rt, "emptyDomains") };
         }
         const { certPem, keyPem } = await issueServerCert(hosts, 20);
         const validation = configManager.validateSSLCert(certPem, keyPem);
@@ -373,11 +400,11 @@ export const sslRoutes = new Elysia({
           set.status = 400;
           return {
             success: false,
-            message: validation.error || "证书或私钥无效",
+            message: validation.error || sslRouteT(rt, "certOrKeyInvalid"),
           };
         }
         await configManager.saveSSLCertificate({
-          label: hosts[0] || "本地 CA 证书",
+          label: hosts[0] || sslRouteT(rt, "localCaCertificateLabel"),
           source: "ca",
           cert: certPem,
           key: keyPem,
@@ -391,7 +418,7 @@ export const sslRoutes = new Elysia({
           `[SSL] Issued and stored server certificate for ${hosts.length} host(s).`,
         );
         await syncSSLDeploymentToGateway();
-        return { success: true, message: "成功" };
+        return { success: true, message: sslRouteT(rt, "success") };
       } catch (e: any) {
         set.status = 500;
         return { success: false, message: e?.message ?? String(e) };
@@ -401,11 +428,12 @@ export const sslRoutes = new Elysia({
   )
   .get(
     "/cert.pem",
-    async ({ set }) => {
+    async ({ request, set }) => {
+      const { t: rt } = await getSslTranslator(request);
       const config = await configManager.getConfig();
       if (!config.ssl?.cert) {
         set.status = 404;
-        return { success: false, message: "未安装证书" };
+        return { success: false, message: sslRouteT(rt, "certNotInstalled") };
       }
       set.headers["content-type"] = "application/x-pem-file; charset=utf-8";
       set.headers["content-disposition"] =
@@ -416,11 +444,12 @@ export const sslRoutes = new Elysia({
   )
   .get(
     "/cert.zip",
-    async ({ set }) => {
+    async ({ request, set }) => {
+      const { t: rt } = await getSslTranslator(request);
       const config = await configManager.getConfig();
       if (!config.ssl?.cert || !config.ssl?.key) {
         set.status = 404;
-        return { success: false, message: "未安装证书" };
+        return { success: false, message: sslRouteT(rt, "certNotInstalled") };
       }
       const entries = [
         {
@@ -494,7 +523,8 @@ export const sslRoutes = new Elysia({
   )
   .post(
     "/",
-    async ({ body, set }) => {
+    async ({ request, body, set }) => {
+      const { t: rt } = await getSslTranslator(request);
       const { cert, key } = body.ssl;
       const validation = configManager.validateSSLCert(cert, key);
       if (!validation.valid) {
@@ -503,7 +533,7 @@ export const sslRoutes = new Elysia({
       }
 
       await configManager.saveSSLCertificate({
-        label: "手动上传证书",
+        label: sslRouteT(rt, "manualCertificateLabel"),
         source: "manual",
         cert,
         key,
@@ -527,11 +557,12 @@ export const sslRoutes = new Elysia({
   )
   .post(
     "/activate",
-    async ({ body, set }) => {
+    async ({ request, body, set }) => {
+      const { t: rt } = await getSslTranslator(request);
       const active = await configManager.activateSSLCertificate(body.id);
       if (!active) {
         set.status = 404;
-        return { success: false, message: "证书不存在" };
+        return { success: false, message: sslRouteT(rt, "certNotFound") };
       }
 
       await syncSSLDeploymentToGateway();
@@ -545,7 +576,8 @@ export const sslRoutes = new Elysia({
   )
   .post(
     "/deployment-mode",
-    async ({ body, set }) => {
+    async ({ body, request, set }) => {
+      const { t: rt } = await getSslTranslator(request);
       const previousConfig = await configManager.getConfig();
       const nextConfig = structuredClone(previousConfig);
       nextConfig.ssl = {
@@ -577,7 +609,7 @@ export const sslRoutes = new Elysia({
 
       return {
         success: true,
-        data: await buildSSLStatusPayload(),
+        data: await buildSSLStatusPayload(rt),
       };
     },
     withRouteDoc("切换 SSL 部署模式", {
@@ -591,11 +623,12 @@ export const sslRoutes = new Elysia({
   )
   .delete(
     "/certificates/:id",
-    async ({ params, set }) => {
+    async ({ request, params, set }) => {
+      const { t: rt } = await getSslTranslator(request);
       const result = await configManager.deleteSSLCertificate(params.id);
       if (!result.removed) {
         set.status = 404;
-        return { success: false, message: "证书不存在" };
+        return { success: false, message: sslRouteT(rt, "certNotFound") };
       }
 
       const currentConfig = await configManager.getConfig();

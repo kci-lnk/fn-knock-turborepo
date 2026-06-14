@@ -1,5 +1,6 @@
 import type { DDNSProviderContext, DDNSProviderDefinition, DDNSUpdateResult } from "../types";
 import {
+  ddnsProviderT,
   getTimeoutMs,
   parseJsonResponse,
   splitDomain,
@@ -8,6 +9,14 @@ import {
 } from "./helpers";
 
 const PORKBUN_ENDPOINT = "https://porkbun.com/api/json/v3/dns";
+const porkbunT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => ddnsProviderT("porkbun", key, params);
+const commonT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => ddnsProviderT("common", key, params);
 
 type PorkbunRecord = {
   content: string;
@@ -25,9 +34,9 @@ export const porkbunProvider: DDNSProviderDefinition = {
   fields: [
     { key: "api_key", label: "API Key", type: "text", placeholder: "Porkbun API Key", required: true },
     { key: "secret_api_key", label: "Secret API Key", type: "password", placeholder: "Porkbun Secret API Key", required: true },
-    { key: "root_domain", label: "根域名", type: "text", placeholder: "example.com", required: true },
-    { key: "domain", label: "完整域名", type: "text", placeholder: "home.example.com", required: true },
-    { key: "ttl", label: "TTL", type: "text", placeholder: "600", required: false, description: "默认 600 秒" },
+    { key: "root_domain", label: commonT("fields.root_domain.label"), type: "text", placeholder: "example.com", required: true },
+    { key: "domain", label: commonT("fields.domain.label"), type: "text", placeholder: "home.example.com", required: true },
+    { key: "ttl", label: "TTL", type: "text", placeholder: "600", required: false, description: commonT("fields.ttl.description", { seconds: 600 }) },
   ],
 };
 
@@ -61,7 +70,7 @@ export async function porkbunUpdate(
   const { config } = context;
   const { api_key, secret_api_key, root_domain, domain } = config;
   if (!api_key || !secret_api_key || !root_domain || !domain) {
-    return { success: false, message: "Porkbun 配置不完整" };
+    return { success: false, message: porkbunT("configIncomplete") };
   }
 
   const ttl = String(toPositiveInt(config.ttl, 600));
@@ -75,7 +84,7 @@ export async function porkbunUpdate(
     );
 
     if (list.status !== "SUCCESS") {
-      throw new Error(list.message || "查询记录失败");
+      throw new Error(list.message || porkbunT("queryRecordFailed"));
     }
 
     const record = list.records?.[0];
@@ -94,7 +103,7 @@ export async function porkbunUpdate(
       );
 
       if (result.status !== "SUCCESS") {
-        throw new Error(result.message || "更新记录失败");
+        throw new Error(result.message || porkbunT("updateRecordFailed"));
       }
       return;
     }
@@ -107,7 +116,7 @@ export async function porkbunUpdate(
     });
 
     if (result.status !== "SUCCESS") {
-      throw new Error(result.message || "创建记录失败");
+      throw new Error(result.message || porkbunT("createRecordFailed"));
     }
   });
 }

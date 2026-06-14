@@ -1,8 +1,9 @@
 import { AnalyzerRule } from "../../types";
+import { scannerServiceLabel } from "../labels";
 
 export const fnysRule: AnalyzerRule = {
   name: "fnys",
-  label: '飞牛影视',
+  label: scannerServiceLabel("fnys"),
   rule: {
     path: '/v',
     rewrite_html: false,

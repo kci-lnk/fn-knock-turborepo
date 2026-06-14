@@ -4,6 +4,7 @@ import type {
   DDNSUpdateResult,
 } from "../types";
 import {
+  ddnsProviderT,
   requestTencentCloudJson,
   splitDomain,
   toPositiveInt,
@@ -13,6 +14,15 @@ import {
 const TENCENTCLOUD_DNSPOD_HOST = "dnspod.tencentcloudapi.com";
 const TENCENTCLOUD_DNSPOD_SERVICE = "dnspod";
 const TENCENTCLOUD_DNSPOD_VERSION = "2021-03-23";
+const TENCENTCLOUD_DEFAULT_LINE = "\u9ed8\u8ba4";
+const tencentcloudT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => ddnsProviderT("tencentcloud", key, params);
+const commonT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => ddnsProviderT("common", key, params);
 
 type TencentCloudDescribeRecordListResponse = {
   RecordList?: Array<{
@@ -32,7 +42,7 @@ type TencentCloudRecordChangeResponse = {
 
 export const tencentcloudProvider: DDNSProviderDefinition = {
   name: "tencentcloud",
-  label: "腾讯云 DNS",
+  label: tencentcloudT("label"),
   fields: [
     {
       key: "secret_id",
@@ -45,40 +55,40 @@ export const tencentcloudProvider: DDNSProviderDefinition = {
       key: "secret_key",
       label: "SecretKey",
       type: "password",
-      placeholder: "腾讯云 SecretKey",
+      placeholder: tencentcloudT("fields.secret_key.placeholder"),
       required: true,
     },
     {
       key: "root_domain",
-      label: "根域名",
+      label: commonT("fields.root_domain.label"),
       type: "text",
       placeholder: "example.com",
       required: true,
-      description: "用于确定 Zone，例如 example.com",
+      description: commonT("fields.root_domain.description"),
     },
     {
       key: "domain",
-      label: "完整域名",
+      label: commonT("fields.domain.label"),
       type: "text",
       placeholder: "home.example.com",
       required: true,
-      description: "要更新的完整主机名",
+      description: commonT("fields.domain.hostDescription"),
     },
     {
       key: "record_line",
-      label: "线路",
+      label: tencentcloudT("fields.record_line.label"),
       type: "text",
-      placeholder: "默认",
+      placeholder: tencentcloudT("defaultLine"),
       required: false,
-      description: "默认使用“默认”线路",
+      description: tencentcloudT("fields.record_line.description"),
     },
     {
       key: "record_line_id",
-      label: "线路 ID",
+      label: tencentcloudT("fields.record_line_id.label"),
       type: "text",
       placeholder: "0",
       required: false,
-      description: "可选；如填写将优先使用线路 ID",
+      description: tencentcloudT("fields.record_line_id.description"),
     },
     {
       key: "ttl",
@@ -86,7 +96,7 @@ export const tencentcloudProvider: DDNSProviderDefinition = {
       type: "text",
       placeholder: "600",
       required: false,
-      description: "默认 600 秒",
+      description: commonT("fields.ttl.description", { seconds: 600 }),
     },
   ],
 };
@@ -100,7 +110,7 @@ async function tencentcloudRequest<T>(
   const secretId = config.secret_id?.trim();
   const secretKey = config.secret_key?.trim();
   if (!secretId || !secretKey) {
-    throw new Error("腾讯云 DNS 配置不完整");
+    throw new Error(tencentcloudT("configIncomplete"));
   }
 
   return requestTencentCloudJson<T>(http, {
@@ -144,15 +154,15 @@ export async function tencentcloudUpdate(
   const rootDomain = config.root_domain?.trim();
   const domain = config.domain?.trim();
   if (!secretId || !secretKey || !rootDomain || !domain) {
-    return { success: false, message: "腾讯云 DNS 配置不完整" };
+    return { success: false, message: tencentcloudT("configIncomplete") };
   }
 
   const ttl = toPositiveInt(config.ttl, 600);
   const parsed = splitDomain(domain, rootDomain);
-  const recordLine = config.record_line?.trim() || "默认";
+  const recordLine = config.record_line?.trim() || TENCENTCLOUD_DEFAULT_LINE;
   const recordLineId = config.record_line_id?.trim();
 
-  return updateDualStack("腾讯云 DNS", ipv4, ipv6, async (recordType, ip) => {
+  return updateDualStack(tencentcloudT("label"), ipv4, ipv6, async (recordType, ip) => {
     const basePayload: Record<string, unknown> = {
       Domain: parsed.rootDomain,
       RecordType: recordType,
@@ -181,7 +191,7 @@ export async function tencentcloudUpdate(
       if (recordLineId) {
         return (record.LineId || "") === recordLineId;
       }
-      return (record.Line || "默认") === recordLine;
+      return (record.Line || TENCENTCLOUD_DEFAULT_LINE) === recordLine;
     });
 
     if (existing) {
@@ -203,7 +213,7 @@ export async function tencentcloudUpdate(
         );
 
       if (!result.RecordId) {
-        throw new Error("腾讯云未返回更新后的 RecordId");
+        throw new Error(tencentcloudT("missingUpdatedRecordId"));
       }
       return;
     }
@@ -220,7 +230,7 @@ export async function tencentcloudUpdate(
     );
 
     if (!result.RecordId) {
-      throw new Error("腾讯云未返回创建后的 RecordId");
+      throw new Error(tencentcloudT("missingCreatedRecordId"));
     }
   });
 }

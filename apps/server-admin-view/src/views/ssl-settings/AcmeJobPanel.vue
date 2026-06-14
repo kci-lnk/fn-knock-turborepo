@@ -4,7 +4,7 @@
       <div class="flex items-start justify-between gap-4">
         <div class="grid gap-1">
           <CardTitle class="flex items-center gap-2">
-            任务日志
+            {{ t("admin.acmeJobPanel.title") }}
             <Badge :variant="jobBadgeVariant">{{ jobStatusLabel }}</Badge>
           </CardTitle>
           <CardDescription class="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -29,9 +29,9 @@
         <div class="flex flex-wrap items-center justify-end gap-2">
           <ConfirmDangerPopover
             v-if="props.canStop"
-            title="确认停止当前 ACME 任务？"
-            description="停止后会终止所有正在运行的 acme.sh 进程，当前申请会标记为已停止，需要重新发起申请。"
-            confirm-text="停止任务"
+            :title="t('admin.acmeJobPanel.confirmStopTitle')"
+            :description="t('admin.acmeJobPanel.confirmStopDescription')"
+            :confirm-text="t('admin.acmeJobPanel.stopTask')"
             :loading="props.isStopping"
             :disabled="props.isStopping"
             :on-confirm="props.stopAction || (() => undefined)"
@@ -44,7 +44,7 @@
                 size="sm"
                 :disabled="props.isStopping"
               >
-                停止任务
+                {{ t("admin.acmeJobPanel.stopTask") }}
               </Button>
             </template>
           </ConfirmDangerPopover>
@@ -55,7 +55,7 @@
             :disabled="props.isRefreshing"
             @click="emit('refresh')"
           >
-            刷新日志
+            {{ t("admin.acmeJobPanel.refreshLogs") }}
           </Button>
         </div>
       </div>
@@ -79,7 +79,7 @@
                 size="sm"
                 @click="emit('focus-credentials')"
               >
-                检查 DNS 凭据
+                {{ t("admin.acmeJobPanel.checkDnsCredentials") }}
               </Button>
               <Button
                 v-if="props.analysis.evidence?.length"
@@ -89,7 +89,11 @@
                 class="px-2"
                 @click="isAnalysisOpen = !isAnalysisOpen"
               >
-                {{ isAnalysisOpen ? "收起" : "查看" }}
+                {{
+                  isAnalysisOpen
+                    ? t("admin.acmeJobPanel.collapse")
+                    : t("admin.acmeJobPanel.view")
+                }}
               </Button>
             </div>
 
@@ -117,7 +121,9 @@
 
       <div class="grid gap-2">
         <div class="flex items-center justify-between">
-          <span class="text-xs text-muted-foreground">进度</span>
+          <span class="text-xs text-muted-foreground">
+            {{ t("admin.acmeJobPanel.progress") }}
+          </span>
           <span class="text-xs font-mono text-muted-foreground"
             >{{ jobProgress }}%</span
           >
@@ -132,6 +138,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { TriangleAlert, Info } from "lucide-vue-next";
 import type { AcmeJobData, AcmeLogAnalysis } from "@/lib/api";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -148,6 +155,8 @@ import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { Progress } from "@/components/ui/progress";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import LogViewer from "@admin-shared/components/LogViewer.vue";
+
+const { t } = useI18n();
 
 const props = defineProps<{
   job: AcmeJobData;
@@ -183,12 +192,12 @@ const jobProgress = computed(() => {
 });
 
 const jobStatusLabel = computed(() => {
-  if (props.job.status === "queued") return "排队中";
-  if (props.job.status === "running") return "执行中";
-  if (props.job.status === "succeeded") return "已完成";
-  if (props.job.status === "failed") return "失败";
-  if (props.job.status === "stopped") return "已停止";
-  return props.job.status || "未知";
+  if (props.job.status === "queued") return t("admin.acmeJobPanel.queued");
+  if (props.job.status === "running") return t("admin.acmeJobPanel.running");
+  if (props.job.status === "succeeded") return t("admin.acmeJobPanel.succeeded");
+  if (props.job.status === "failed") return t("admin.acmeJobPanel.failed");
+  if (props.job.status === "stopped") return t("admin.acmeJobPanel.stopped");
+  return props.job.status || t("admin.acmeJobPanel.unknown");
 });
 
 const jobBadgeVariant = computed(() => {
@@ -216,10 +225,14 @@ const analysisTitle = computed(() => {
     analysis.reason === "dns_credentials_invalid" ||
     analysis.reason === "dns_credentials_invalid_email"
   ) {
-    return "DNS 凭据可能有问题";
+    return t("admin.acmeJobPanel.analysis.dnsCredentials");
   }
-  if (analysis.reason === "dns_api_rate_limited") return "DNS API 触发限流";
-  if (analysis.reason === "acme_frequency_limited") return "申请频率受限";
-  return "检测到异常信息";
+  if (analysis.reason === "dns_api_rate_limited") {
+    return t("admin.acmeJobPanel.analysis.dnsRateLimited");
+  }
+  if (analysis.reason === "acme_frequency_limited") {
+    return t("admin.acmeJobPanel.analysis.acmeFrequencyLimited");
+  }
+  return t("admin.acmeJobPanel.analysis.generic");
 });
 </script>

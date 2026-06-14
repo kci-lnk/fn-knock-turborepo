@@ -2,6 +2,7 @@ import { Elysia, t } from "elysia";
 import { AcmeService } from "./AcmeService";
 import { configManager } from "../../lib/redis";
 import { hideFromDocs } from "../../lib/openapi";
+import { createRequestTranslator } from "../../lib/i18n";
 
 export const acmeService = new AcmeService();
 
@@ -10,7 +11,9 @@ export const acmePlugin = new Elysia()
 
   .onStart(async () => {
     await acmeService.checkInstalled();
-    console.log(`[Acme Plugin] 初始状态: ${acmeService.getState().status}`);
+    console.log(
+      `[Acme Plugin] initial status: ${acmeService.getState().status}`,
+    );
   })
 
   .get(
@@ -24,16 +27,20 @@ export const acmePlugin = new Elysia()
 
   .post(
     "/install",
-    async ({ acme, set }) => {
+    async ({ acme, request, set }) => {
+      const { t } = createRequestTranslator(
+        request,
+        await configManager.getLocaleConfig(),
+      );
       const currentState = acme.getState();
 
       if (currentState.status === "installed") {
         set.status = 400;
-        return { error: "acme.sh 已经安装过了" };
+        return { error: t("server.acme.alreadyInstalled") };
       }
       if (currentState.status === "installing") {
         set.status = 409;
-        return { error: "安装任务正在进行中" };
+        return { error: t("server.acme.installInProgress") };
       }
 
       const clientSettings = await configManager.ensureAcmeClientSettings(
@@ -42,17 +49,21 @@ export const acmePlugin = new Elysia()
       void acme.startInstall(undefined, clientSettings.certificateAuthority);
 
       return {
-        message: "安装任务已提交",
+        message: t("server.acme.installSubmitted"),
         status: "installing",
       };
     },
     hideFromDocs,
   )
 
-  // 新增：触发证书签发接口 (支持各类 DNS)
+  // Trigger certificate issuance for DNS providers.
   .post(
     "/issue",
-    async ({ acme, set, body }) => {
+    async ({ acme, request, set, body }) => {
+      const { t } = createRequestTranslator(
+        request,
+        await configManager.getLocaleConfig(),
+      );
       try {
         const clientSettings = await configManager.ensureAcmeClientSettings(
           await acme.getDefaultCertificateAuthority(),
@@ -64,7 +75,7 @@ export const acmePlugin = new Elysia()
           envVars: body.envVars,
           certificateAuthority: clientSettings.certificateAuthority,
         });
-        return { message: "证书签发成功" };
+        return { message: t("server.acme.issueSucceeded") };
       } catch (error: any) {
         set.status = 500;
         return { error: error.message };
@@ -73,9 +84,11 @@ export const acmePlugin = new Elysia()
     {
       body: t.Object({
         domains: t.Array(t.String(), { minItems: 1 }),
-        dnsType: t.String({ description: "例如 dns_cf, dns_dp, dns_ali" }),
+        dnsType: t.String({
+          description: "For example: dns_cf, dns_dp, dns_ali",
+        }),
         envVars: t.Record(t.String(), t.String(), {
-          description: "注入给 API 的环境变量配置",
+          description: "Environment variable configuration injected into API",
         }),
       }),
       ...hideFromDocs,

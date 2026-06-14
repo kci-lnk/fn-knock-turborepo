@@ -3,11 +3,15 @@
     <Breadcrumb>
       <BreadcrumbList>
         <BreadcrumbItem>
-          <BreadcrumbLink href="#/auth">TOTP 管理</BreadcrumbLink>
+          <BreadcrumbLink href="#/auth">{{
+            t("admin.oidcProviders.breadcrumbTotp")
+          }}</BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />
         <BreadcrumbItem>
-          <BreadcrumbPage>外部账号登录</BreadcrumbPage>
+          <BreadcrumbPage>{{
+            t("admin.oidcProviders.breadcrumbExternalLogin")
+          }}</BreadcrumbPage>
         </BreadcrumbItem>
       </BreadcrumbList>
     </Breadcrumb>
@@ -17,9 +21,9 @@
         class="gap-4 sm:flex sm:flex-row sm:items-start sm:justify-between"
       >
         <div class="space-y-1.5">
-          <CardTitle>OIDC提供商</CardTitle>
+          <CardTitle>{{ t("admin.oidcProviders.title") }}</CardTitle>
           <CardDescription>
-            第三方控制台中的回调地址需要与下方 Callback URL 保持一致。
+            {{ t("admin.oidcProviders.description") }}
           </CardDescription>
         </div>
         <Button
@@ -28,7 +32,7 @@
           @click="openCreateDialog"
         >
           <Plus class="h-4 w-4" />
-          添加提供商
+          {{ t("admin.oidcProviders.addProvider") }}
         </Button>
       </CardHeader>
       <CardContent class="space-y-4">
@@ -36,7 +40,7 @@
           v-if="isLoading"
           class="py-10 text-center text-sm text-muted-foreground"
         >
-          正在加载提供商...
+          {{ t("admin.oidcProviders.loading") }}
         </div>
         <Table v-else class="table-fixed" container-class="overflow-hidden">
           <colgroup>
@@ -48,17 +52,21 @@
           </colgroup>
           <TableHeader>
             <TableRow>
-              <TableHead class="whitespace-normal">名称</TableHead>
+              <TableHead class="whitespace-normal">{{
+                t("admin.oidcProviders.columns.name")
+              }}</TableHead>
               <TableHead class="hidden whitespace-normal sm:table-cell"
-                >类型</TableHead
+                >{{ t("admin.oidcProviders.columns.type") }}</TableHead
               >
               <TableHead class="hidden whitespace-normal md:table-cell"
-                >状态</TableHead
+                >{{ t("admin.oidcProviders.columns.status") }}</TableHead
               >
               <TableHead class="min-w-0 whitespace-nowrap">
                 Callback URL
               </TableHead>
-              <TableHead class="text-right">操作</TableHead>
+              <TableHead class="text-right">{{
+                t("admin.oidcProviders.columns.actions")
+              }}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -86,8 +94,16 @@
                     variant="ghost"
                     size="icon-sm"
                     class="size-7 shrink-0 opacity-100 transition-opacity sm:opacity-0 sm:group-hover/callback:opacity-100 sm:focus-visible:opacity-100"
-                    :title="`复制 ${provider.name} Callback URL`"
-                    :aria-label="`复制 ${provider.name} Callback URL`"
+                    :title="
+                      t('admin.oidcProviders.copyCallbackUrl', {
+                        provider: provider.name,
+                      })
+                    "
+                    :aria-label="
+                      t('admin.oidcProviders.copyCallbackUrl', {
+                        provider: provider.name,
+                      })
+                    "
                     @click="copyCallbackUrl(provider.callback_url)"
                   >
                     <Copy class="h-4 w-4" />
@@ -104,16 +120,18 @@
                     size="sm"
                     class="gap-1.5 px-2 2xl:px-2.5"
                     :disabled="isMutating"
-                    title="编辑提供商"
-                    aria-label="编辑提供商"
+                    :title="t('admin.oidcProviders.editProvider')"
+                    :aria-label="t('admin.oidcProviders.editProvider')"
                     @click="openEditDialog(provider)"
                   >
                     <Pencil class="h-4 w-4" />
-                    <span class="hidden 2xl:inline">编辑</span>
+                    <span class="hidden 2xl:inline">{{
+                      t("admin.oidcProviders.edit")
+                    }}</span>
                   </Button>
                   <ConfirmDangerPopover
-                    title="删除提供商"
-                    description="删除后该提供商下的外部账号绑定也会被移除。"
+                    :title="t('admin.oidcProviders.deleteProvider')"
+                    :description="t('admin.oidcProviders.deleteDescription')"
                     :loading="isMutating"
                     :disabled="isMutating"
                     :on-confirm="() => deleteProvider(provider.id)"
@@ -124,11 +142,13 @@
                         size="sm"
                         class="gap-1.5 px-2 2xl:px-2.5"
                         :disabled="isMutating"
-                        title="删除提供商"
-                        aria-label="删除提供商"
+                        :title="t('admin.oidcProviders.deleteProvider')"
+                        :aria-label="t('admin.oidcProviders.deleteProvider')"
                       >
                         <Trash2 class="h-4 w-4" />
-                        <span class="hidden 2xl:inline">删除</span>
+                        <span class="hidden 2xl:inline">{{
+                          t("admin.oidcProviders.delete")
+                        }}</span>
                       </Button>
                     </template>
                   </ConfirmDangerPopover>
@@ -136,7 +156,7 @@
               </TableCell>
             </TableRow>
             <TableEmpty v-if="providers.length === 0" :colspan="5">
-              暂无外部登录提供商
+              {{ t("admin.oidcProviders.empty") }}
             </TableEmpty>
           </TableBody>
         </Table>
@@ -146,20 +166,24 @@
     <Dialog :open="showCreateDialog" @update:open="showCreateDialog = $event">
       <DialogContent class="max-h-[88vh] overflow-y-auto sm:max-w-[640px]">
         <DialogHeader>
-          <DialogTitle>添加外部登录提供商</DialogTitle>
+          <DialogTitle>{{ t("admin.oidcProviders.createTitle") }}</DialogTitle>
           <DialogDescription>
-            配置 Google、Microsoft、GitHub 或自定义 OIDC 提供商。
+            {{ t("admin.oidcProviders.createDescription") }}
           </DialogDescription>
         </DialogHeader>
         <div class="overflow-hidden rounded-lg border divide-y divide-border">
           <div class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5">
-            <Label for="oidc-provider-type">提供商</Label>
+            <Label for="oidc-provider-type">{{
+              t("admin.oidcProviders.provider")
+            }}</Label>
             <Select
               :model-value="form.type"
               @update:model-value="handleCreateProviderTypeChange"
             >
               <SelectTrigger id="oidc-provider-type" class="w-full">
-                <SelectValue placeholder="选择提供商" />
+                <SelectValue
+                  :placeholder="t('admin.oidcProviders.selectProvider')"
+                />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem
@@ -173,11 +197,13 @@
             </Select>
           </div>
           <div class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5">
-            <Label for="oidc-provider-name">显示名称</Label>
+            <Label for="oidc-provider-name">{{
+              t("admin.oidcProviders.displayName")
+            }}</Label>
             <Input
               id="oidc-provider-name"
               v-model="form.name"
-              placeholder="例如：公司 Google"
+              :placeholder="t('admin.oidcProviders.displayNamePlaceholder')"
             />
           </div>
           <div
@@ -234,12 +260,16 @@
             :disabled="isSaving"
             @click="showCreateDialog = false"
           >
-            取消
+            {{ t("admin.oidcProviders.cancel") }}
           </Button>
           <Button :disabled="isSaving" @click="handleCreateProvider">
             <LoaderCircle v-if="isSaving" class="h-4 w-4 animate-spin" />
             <Plus v-else class="h-4 w-4" />
-            {{ isSaving ? "添加中..." : "添加提供商" }}
+            {{
+              isSaving
+                ? t("admin.oidcProviders.adding")
+                : t("admin.oidcProviders.addProvider")
+            }}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -248,14 +278,16 @@
     <Dialog :open="showEditDialog" @update:open="showEditDialog = $event">
       <DialogContent class="max-h-[88vh] overflow-y-auto sm:max-w-[640px]">
         <DialogHeader>
-          <DialogTitle>编辑外部登录提供商</DialogTitle>
+          <DialogTitle>{{ t("admin.oidcProviders.editTitle") }}</DialogTitle>
           <DialogDescription>
-            保存后使用当前 Callback URL 与第三方控制台配置匹配。
+            {{ t("admin.oidcProviders.editDescription") }}
           </DialogDescription>
         </DialogHeader>
         <div class="overflow-hidden rounded-lg border divide-y divide-border">
           <div class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5">
-            <Label for="oidc-edit-provider-type">类型</Label>
+            <Label for="oidc-edit-provider-type">{{
+              t("admin.oidcProviders.columns.type")
+            }}</Label>
             <Input
               id="oidc-edit-provider-type"
               :model-value="providerLabel(editForm.type)"
@@ -263,7 +295,9 @@
             />
           </div>
           <div class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5">
-            <Label for="oidc-edit-provider-name">显示名称</Label>
+            <Label for="oidc-edit-provider-name">{{
+              t("admin.oidcProviders.displayName")
+            }}</Label>
             <Input id="oidc-edit-provider-name" v-model="editForm.name" />
           </div>
           <div
@@ -294,7 +328,7 @@
               v-model="editForm.clientSecret"
               type="password"
               autocomplete="new-password"
-              placeholder="留空则保持不变"
+              :placeholder="t('admin.oidcProviders.keepSecretPlaceholder')"
             />
           </div>
           <div
@@ -319,22 +353,28 @@
           <div
             class="flex items-center justify-between gap-3 p-4 transition-colors hover:bg-muted/10 sm:p-5"
           >
-            <Label class="text-sm font-medium">启用状态</Label>
+            <Label class="text-sm font-medium">{{
+              t("admin.oidcProviders.enabledStatus")
+            }}</Label>
             <div class="flex items-center gap-3">
               <Switch v-model="editForm.enabled" />
               <span class="text-sm text-muted-foreground">
-                {{ editForm.enabled ? "已启用" : "已停用" }}
+                {{
+                  editForm.enabled
+                    ? t("admin.oidcProviders.enabled")
+                    : t("admin.oidcProviders.disabled")
+                }}
               </span>
             </div>
           </div>
         </div>
         <DialogFooter class="gap-2">
           <Button variant="outline" @click="showEditDialog = false">
-            取消
+            {{ t("admin.oidcProviders.cancel") }}
           </Button>
           <Button :disabled="isMutating" @click="saveProviderEdit">
             <LoaderCircle v-if="isMutating" class="h-4 w-4 animate-spin" />
-            保存提供商
+            {{ t("admin.oidcProviders.saveProvider") }}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -344,6 +384,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -408,6 +449,7 @@ import type {
   OIDCProviderView,
 } from "../types";
 
+const { t } = useI18n();
 const catalog = ref<OIDCProviderCatalogItem[]>([]);
 const providers = ref<OIDCProviderView[]>([]);
 const form = reactive({
@@ -439,17 +481,19 @@ const selectedDefinition = computed(() =>
 
 const { isPending: isLoading, run: runLoad } = useAsyncAction({
   onError: (error) => {
-    toast.error(extractErrorMessage(error, "加载外部登录配置失败"));
+    toast.error(extractErrorMessage(error, t("admin.oidcProviders.loadFailed")));
   },
 });
 const { isPending: isSaving, run: runSave } = useAsyncAction({
   onError: (error) => {
-    toast.error(extractErrorMessage(error, "保存外部登录提供商失败"));
+    toast.error(extractErrorMessage(error, t("admin.oidcProviders.saveFailed")));
   },
 });
 const { isPending: isMutating, run: runMutate } = useAsyncAction({
   onError: (error) => {
-    toast.error(extractErrorMessage(error, "操作外部登录提供商失败"));
+    toast.error(
+      extractErrorMessage(error, t("admin.oidcProviders.operationFailed")),
+    );
   },
 });
 
@@ -542,8 +586,11 @@ function providerHasRequiredConfig(provider: OIDCProviderView) {
 }
 
 function providerStatus(provider: OIDCProviderView) {
-  if (!providerHasRequiredConfig(provider)) return "待配置";
-  return provider.enabled ? "已启用" : "已停用";
+  if (!providerHasRequiredConfig(provider))
+    return t("admin.oidcProviders.pendingConfig");
+  return provider.enabled
+    ? t("admin.oidcProviders.enabled")
+    : t("admin.oidcProviders.disabled");
 }
 
 async function copyTextToClipboard(text: string) {
@@ -584,11 +631,13 @@ async function copyTextToClipboard(text: string) {
 async function copyCallbackUrl(url: string) {
   try {
     await copyTextToClipboard(url);
-    toast.success("Callback URL 已复制", { description: url });
+    toast.success(t("admin.oidcProviders.callbackCopied"), {
+      description: url,
+    });
   } catch (error) {
     console.error("copyCallbackUrl:", error);
-    toast.error("复制 Callback URL 失败", {
-      description: "当前页面可能运行在受限环境中，请手动复制。",
+    toast.error(t("admin.oidcProviders.callbackCopyFailed"), {
+      description: t("admin.oidcProviders.copyRestricted"),
     });
   }
 }
@@ -627,7 +676,9 @@ async function handleCreateProvider() {
     form.clientSecret = "";
     showCreateDialog.value = false;
     toast.success(
-      enabled ? "外部登录提供商已添加" : "外部登录提供商草稿已添加",
+      enabled
+        ? t("admin.oidcProviders.providerAdded")
+        : t("admin.oidcProviders.providerDraftAdded"),
     );
     await loadAll();
   });
@@ -669,7 +720,7 @@ async function saveProviderEdit() {
       enabled: editForm.enabled,
       connection_config: connectionConfig,
     });
-    toast.success("外部登录提供商已保存");
+    toast.success(t("admin.oidcProviders.providerSaved"));
     showEditDialog.value = false;
     await loadAll();
   });
@@ -678,7 +729,7 @@ async function saveProviderEdit() {
 async function deleteProvider(id: string) {
   await runMutate(async () => {
     await ConfigAPI.deleteOIDCProvider(id);
-    toast.success("外部登录提供商已删除");
+    toast.success(t("admin.oidcProviders.providerDeleted"));
     await loadAll();
   });
 }

@@ -9,6 +9,11 @@ export interface ProxyMapping {
 
 export type RunType = 0 | 1 | 3;
 export type ReverseProxySubmode = "path" | "subdomain";
+export type LocaleCode = "zh-CN" | "zh-Hant" | "en";
+
+export interface LocaleConfig {
+  default_locale: LocaleCode;
+}
 
 export interface WelcomeGuideStatus {
   completed: boolean;
@@ -39,6 +44,7 @@ export interface DockerAdminBootstrapState {
   password_configured: boolean;
   authenticated: boolean;
   session_expires_at: string | null;
+  locale: LocaleConfig;
 }
 
 export type HostAccessMode = "login_first" | "strict_whitelist";
@@ -751,6 +757,7 @@ export interface AppConfig {
   auth_credential_settings?: AuthCredentialSettings;
   terminal_feature?: TerminalFeatureConfig;
   ssh_security?: SSHSecurityConfig;
+  locale?: LocaleConfig;
   ssl: {
     enabled: boolean;
     active_cert_id?: string;

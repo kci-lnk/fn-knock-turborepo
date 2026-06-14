@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import {
   CheckCircle2,
   ExternalLink,
@@ -34,6 +35,7 @@ const DEFAULT_CUSTOM_IP_LOOKUP_URL = "http://127.0.0.1:30661";
 const DEFAULT_CUSTOM_CIDR_URL = "http://127.0.0.1:30662";
 const ipLookupDockerUrl = "https://hub.docker.com/r/kcilnk/go-ipaddress-api";
 const cidrDockerUrl = "https://hub.docker.com/r/kcilnk/go-cidr-api";
+const { t } = useI18n();
 
 const settings = ref<IpLocationApiConfig | null>(null);
 const form = reactive<
@@ -88,12 +90,12 @@ const isHttpUrl = (value: string) => {
 const validateCustomUrls = (payload: IpLocationApiConfig) => {
   if (payload.ip_lookup_mode === "custom") {
     if (!payload.ip_lookup_url) {
-      toast.error("请填写 IP 识别库地址");
+      toast.error(t("admin.ipLocationSettings.ipLookupUrlRequired"));
       return false;
     }
     if (!isHttpUrl(payload.ip_lookup_url)) {
-      toast.error("IP 识别库地址格式不正确", {
-        description: "请输入以 http:// 或 https:// 开头的服务地址。",
+      toast.error(t("admin.ipLocationSettings.ipLookupUrlInvalid"), {
+        description: t("admin.ipLocationSettings.httpUrlRequired"),
       });
       return false;
     }
@@ -101,12 +103,12 @@ const validateCustomUrls = (payload: IpLocationApiConfig) => {
 
   if (payload.cidr_mode === "custom") {
     if (!payload.cidr_url) {
-      toast.error("请填写 CIDR 地址库地址");
+      toast.error(t("admin.ipLocationSettings.cidrUrlRequired"));
       return false;
     }
     if (!isHttpUrl(payload.cidr_url)) {
-      toast.error("CIDR 地址库地址格式不正确", {
-        description: "请输入以 http:// 或 https:// 开头的服务地址。",
+      toast.error(t("admin.ipLocationSettings.cidrUrlInvalid"), {
+        description: t("admin.ipLocationSettings.httpUrlRequired"),
       });
       return false;
     }
@@ -117,8 +119,11 @@ const validateCustomUrls = (payload: IpLocationApiConfig) => {
 
 const { isPending: isLoading, run: runLoadSettings } = useAsyncAction({
   onError: (error) => {
-    toast.error("加载失败", {
-      description: extractErrorMessage(error, "无法获取属地设置"),
+    toast.error(t("admin.ipLocationSettings.loadFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.ipLocationSettings.loadFailedDescription"),
+      ),
     });
   },
 });
@@ -126,24 +131,33 @@ const showLoadingSkeleton = useDelayedLoading(isLoading);
 
 const { isPending: isSaving, run: runSaveSettings } = useAsyncAction({
   onError: (error) => {
-    toast.error("保存失败", {
-      description: extractErrorMessage(error, "属地设置保存失败"),
+    toast.error(t("admin.ipLocationSettings.saveFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.ipLocationSettings.saveFailedDescription"),
+      ),
     });
   },
 });
 
 const { isPending: isTestingIpLookup, run: runTestIpLookup } = useAsyncAction({
   onError: (error) => {
-    toast.error("连接失败", {
-      description: extractErrorMessage(error, "IP识别库服务不可用"),
+    toast.error(t("admin.ipLocationSettings.connectionFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.ipLocationSettings.ipLookupUnavailable"),
+      ),
     });
   },
 });
 
 const { isPending: isTestingCidr, run: runTestCidr } = useAsyncAction({
   onError: (error) => {
-    toast.error("连接失败", {
-      description: extractErrorMessage(error, "CIDR库服务不可用"),
+    toast.error(t("admin.ipLocationSettings.connectionFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.ipLocationSettings.cidrUnavailable"),
+      ),
     });
   },
 });
@@ -191,12 +205,12 @@ const resetForm = () => {
 const testIpLookupService = async () => {
   const url = normalizeBaseUrl(ipLookupUrlInput.value);
   if (!url) {
-    toast.error("请先输入 IP 识别库地址");
+    toast.error(t("admin.ipLocationSettings.ipLookupUrlInputRequired"));
     return;
   }
   if (!isHttpUrl(url)) {
-    toast.error("IP 识别库地址格式不正确", {
-      description: "请输入以 http:// 或 https:// 开头的服务地址。",
+    toast.error(t("admin.ipLocationSettings.ipLookupUrlInvalid"), {
+      description: t("admin.ipLocationSettings.httpUrlRequired"),
     });
     return;
   }
@@ -204,9 +218,13 @@ const testIpLookupService = async () => {
   await runTestIpLookup(async () => {
     const result = await IpLocationSettingsAPI.testIpLookup(url);
     if (result.success) {
-      toast.success("连接成功", { description: "IP 识别库服务响应正常" });
+      toast.success(t("admin.ipLocationSettings.connectionSuccess"), {
+        description: t("admin.ipLocationSettings.ipLookupHealthy"),
+      });
     } else {
-      toast.error("连接失败", { description: result.message });
+      toast.error(t("admin.ipLocationSettings.connectionFailed"), {
+        description: result.message,
+      });
     }
   });
 };
@@ -214,12 +232,12 @@ const testIpLookupService = async () => {
 const testCidrService = async () => {
   const url = normalizeBaseUrl(cidrUrlInput.value);
   if (!url) {
-    toast.error("请先输入 CIDR 地址库地址");
+    toast.error(t("admin.ipLocationSettings.cidrUrlInputRequired"));
     return;
   }
   if (!isHttpUrl(url)) {
-    toast.error("CIDR 地址库地址格式不正确", {
-      description: "请输入以 http:// 或 https:// 开头的服务地址。",
+    toast.error(t("admin.ipLocationSettings.cidrUrlInvalid"), {
+      description: t("admin.ipLocationSettings.httpUrlRequired"),
     });
     return;
   }
@@ -227,9 +245,13 @@ const testCidrService = async () => {
   await runTestCidr(async () => {
     const result = await IpLocationSettingsAPI.testCidr(url);
     if (result.success) {
-      toast.success("连接成功", { description: "CIDR 地址库服务响应正常" });
+      toast.success(t("admin.ipLocationSettings.connectionSuccess"), {
+        description: t("admin.ipLocationSettings.cidrHealthy"),
+      });
     } else {
-      toast.error("连接失败", { description: result.message });
+      toast.error(t("admin.ipLocationSettings.connectionFailed"), {
+        description: result.message,
+      });
     }
   });
 };
@@ -241,7 +263,7 @@ const saveSettings = async () => {
   await runSaveSettings(() => IpLocationSettingsAPI.updateSettings(payload), {
     onSuccess: (data) => {
       applyFromSettings(data);
-      toast.success("属地设置已更新");
+      toast.success(t("admin.ipLocationSettings.settingsUpdated"));
     },
   });
 };
@@ -295,9 +317,11 @@ onMounted(fetchSettings);
         <div class="border-b bg-muted/10 p-4 sm:p-5">
           <div class="flex gap-3">
             <div class="min-w-0 space-y-1">
-              <h3 class="text-base font-semibold tracking-normal">IP 识别库</h3>
+              <h3 class="text-base font-semibold tracking-normal">
+                {{ t("admin.ipLocationSettings.ipLookupTitle") }}
+              </h3>
               <p class="text-sm leading-6 text-muted-foreground">
-                查询单个 IP 的国家、地区和运营商信息。
+                {{ t("admin.ipLocationSettings.ipLookupDescription") }}
               </p>
             </div>
           </div>
@@ -307,20 +331,26 @@ onMounted(fetchSettings);
           <div class="space-y-2">
             <div class="flex items-center justify-between gap-3">
               <Label for="ip-location-lookup-mode" class="text-sm font-medium">
-                服务来源
+                {{ t("admin.ipLocationSettings.serviceSource") }}
               </Label>
             </div>
             <Select v-model="form.ip_lookup_mode" :disabled="isSaving">
               <SelectTrigger id="ip-location-lookup-mode" class="w-full">
-                <SelectValue placeholder="选择服务来源" />
+                <SelectValue
+                  :placeholder="t('admin.ipLocationSettings.chooseServiceSource')"
+                />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="online">官方在线服务</SelectItem>
-                <SelectItem value="custom">自定义服务</SelectItem>
+                <SelectItem value="online">{{
+                  t("admin.ipLocationSettings.officialOnlineService")
+                }}</SelectItem>
+                <SelectItem value="custom">{{
+                  t("admin.ipLocationSettings.customService")
+                }}</SelectItem>
               </SelectContent>
             </Select>
             <p class="text-sm leading-6 text-muted-foreground">
-              官方服务适合直接使用；自定义服务适合内网、离线或私有化部署。
+              {{ t("admin.ipLocationSettings.ipLookupModeHint") }}
             </p>
           </div>
 
@@ -331,7 +361,9 @@ onMounted(fetchSettings);
             <div class="flex gap-3">
               <CheckCircle2 class="mt-0.5 size-4 shrink-0 text-emerald-600" />
               <div class="min-w-0 space-y-1">
-                <p class="text-sm font-medium">当前使用官方在线服务</p>
+                <p class="text-sm font-medium">
+                  {{ t("admin.ipLocationSettings.usingOfficialService") }}
+                </p>
               </div>
             </div>
           </div>
@@ -343,9 +375,11 @@ onMounted(fetchSettings);
             <div class="rounded-lg border bg-muted/20 p-4">
               <div class="flex gap-3">
                 <div class="space-y-1 text-sm">
-                  <p class="font-medium">自部署服务</p>
+                  <p class="font-medium">
+                    {{ t("admin.ipLocationSettings.selfHostedService") }}
+                  </p>
                   <p class="leading-6 text-muted-foreground">
-                    可使用
+                    {{ t("admin.ipLocationSettings.canUse") }}
                     <a
                       :href="ipLookupDockerUrl"
                       target="_blank"
@@ -355,7 +389,7 @@ onMounted(fetchSettings);
                       go-ipaddress-api
                       <ExternalLink class="size-3.5" />
                     </a>
-                    部署。
+                    {{ t("admin.ipLocationSettings.deploySuffix") }}
                   </p>
                 </div>
               </div>
@@ -370,7 +404,9 @@ onMounted(fetchSettings);
                   <InputGroupInput
                     id="ip-location-lookup-url"
                     v-model="ipLookupUrlInput"
-                    placeholder="比如：http://localhost:30661"
+                    :placeholder="
+                      t('admin.ipLocationSettings.ipLookupPlaceholder')
+                    "
                     :disabled="isSaving"
                   />
                 </InputGroup>
@@ -385,11 +421,15 @@ onMounted(fetchSettings);
                     class="size-4 animate-spin"
                   />
                   <Link2 v-else class="size-4" />
-                  {{ isTestingIpLookup ? "测试中" : "测试连接" }}
+                  {{
+                    isTestingIpLookup
+                      ? t("admin.ipLocationSettings.testing")
+                      : t("admin.ipLocationSettings.testConnection")
+                  }}
                 </Button>
               </div>
               <p class="text-xs text-muted-foreground">
-                填写服务根地址，保存时会自动去掉末尾斜杠。
+                {{ t("admin.ipLocationSettings.baseUrlHint") }}
               </p>
             </div>
           </div>
@@ -400,9 +440,11 @@ onMounted(fetchSettings);
         <div class="border-b bg-muted/10 p-4 sm:p-5">
           <div class="flex gap-3">
             <div class="min-w-0 space-y-1">
-              <h3 class="text-base font-semibold tracking-normal">CIDR 地址库</h3>
+              <h3 class="text-base font-semibold tracking-normal">
+                {{ t("admin.ipLocationSettings.cidrTitle") }}
+              </h3>
               <p class="text-sm leading-6 text-muted-foreground">
-                查询省市级 IP 地址段，供白名单和地区选择器使用。
+                {{ t("admin.ipLocationSettings.cidrDescription") }}
               </p>
             </div>
           </div>
@@ -412,20 +454,26 @@ onMounted(fetchSettings);
           <div class="space-y-2">
             <div class="flex items-center justify-between gap-3">
               <Label for="ip-location-cidr-mode" class="text-sm font-medium">
-                服务来源
+                {{ t("admin.ipLocationSettings.serviceSource") }}
               </Label>
             </div>
             <Select v-model="form.cidr_mode" :disabled="isSaving">
               <SelectTrigger id="ip-location-cidr-mode" class="w-full">
-                <SelectValue placeholder="选择服务来源" />
+                <SelectValue
+                  :placeholder="t('admin.ipLocationSettings.chooseServiceSource')"
+                />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="online">官方在线服务</SelectItem>
-                <SelectItem value="custom">自定义服务</SelectItem>
+                <SelectItem value="online">{{
+                  t("admin.ipLocationSettings.officialOnlineService")
+                }}</SelectItem>
+                <SelectItem value="custom">{{
+                  t("admin.ipLocationSettings.customService")
+                }}</SelectItem>
               </SelectContent>
             </Select>
             <p class="text-sm leading-6 text-muted-foreground">
-              官方服务会自动更新地域数据；自定义服务适合固定数据源或内网部署。
+              {{ t("admin.ipLocationSettings.cidrModeHint") }}
             </p>
           </div>
 
@@ -436,7 +484,9 @@ onMounted(fetchSettings);
             <div class="flex gap-3">
               <CheckCircle2 class="mt-0.5 size-4 shrink-0 text-emerald-600" />
               <div class="min-w-0 space-y-1">
-                <p class="text-sm font-medium">当前使用官方在线服务</p>
+                <p class="text-sm font-medium">
+                  {{ t("admin.ipLocationSettings.usingOfficialService") }}
+                </p>
               </div>
             </div>
           </div>
@@ -448,9 +498,11 @@ onMounted(fetchSettings);
             <div class="rounded-lg border bg-muted/20 p-4">
               <div class="flex gap-3">
                 <div class="space-y-1 text-sm">
-                  <p class="font-medium">自部署服务</p>
+                  <p class="font-medium">
+                    {{ t("admin.ipLocationSettings.selfHostedService") }}
+                  </p>
                   <p class="leading-6 text-muted-foreground">
-                    可使用
+                    {{ t("admin.ipLocationSettings.canUse") }}
                   <a
                     :href="cidrDockerUrl"
                     target="_blank"
@@ -460,7 +512,7 @@ onMounted(fetchSettings);
                     go-cidr-api
                     <ExternalLink class="size-3.5" />
                   </a>
-                  部署。
+                  {{ t("admin.ipLocationSettings.deploySuffix") }}
                   </p>
                 </div>
               </div>
@@ -475,7 +527,7 @@ onMounted(fetchSettings);
                   <InputGroupInput
                     id="ip-location-cidr-url"
                     v-model="cidrUrlInput"
-                    placeholder="比如：http://localhost:30662"
+                    :placeholder="t('admin.ipLocationSettings.cidrPlaceholder')"
                     :disabled="isSaving"
                   />
                 </InputGroup>
@@ -490,11 +542,15 @@ onMounted(fetchSettings);
                     class="size-4 animate-spin"
                   />
                   <Link2 v-else class="size-4" />
-                  {{ isTestingCidr ? "测试中" : "测试连接" }}
+                  {{
+                    isTestingCidr
+                      ? t("admin.ipLocationSettings.testing")
+                      : t("admin.ipLocationSettings.testConnection")
+                  }}
                 </Button>
               </div>
               <p class="text-xs text-muted-foreground">
-                填写服务根地址，保存时会自动去掉末尾斜杠。
+                {{ t("admin.ipLocationSettings.baseUrlHint") }}
               </p>
             </div>
           </div>
@@ -514,7 +570,7 @@ onMounted(fetchSettings);
             :disabled="!isDirty || isSaving"
           >
             <RotateCcw class="size-4" />
-            放弃
+            {{ t("admin.ipLocationSettings.discard") }}
           </Button>
           <Button
             class="flex-1 sm:flex-none"
@@ -523,7 +579,11 @@ onMounted(fetchSettings);
           >
             <LoaderCircle v-if="isSaving" class="size-4 animate-spin" />
             <Save v-else class="size-4" />
-            {{ isSaving ? "保存中" : "保存更改" }}
+            {{
+              isSaving
+                ? t("admin.ipLocationSettings.saving")
+                : t("admin.ipLocationSettings.saveChanges")
+            }}
           </Button>
         </div>
       </div>

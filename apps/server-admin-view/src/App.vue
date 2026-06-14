@@ -3,14 +3,18 @@ import { Toaster } from "@/components/ui/sonner";
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import "vue-sonner/style.css";
 import DockerAdminAccessGate from "./components/DockerAdminAccessGate.vue";
 import WelcomeScreen from "./components/WelcomeScreen.vue";
 import { ConfigAPI } from "./lib/api";
 import { useDockerAdminAuthStore } from "./store/dockerAdminAuth";
+import { normalizeLocale } from "@fn-knock/i18n";
+import { applyDocumentLocale } from "@fn-knock/i18n/vue";
 
 const WELCOME_GUIDE_STORAGE_KEY = "fn_knock:welcome-guide:completed";
 const dockerAdminAuthStore = useDockerAdminAuthStore();
+const { t, locale } = useI18n();
 
 const readWelcomeGuideLocalFlag = () => {
   if (typeof window === "undefined") return false;
@@ -56,6 +60,12 @@ const dockerAdminGateShowRetry = computed(() =>
 const toastOptions = {
   closeButton: false,
   duration: 2500
+};
+
+const applySystemLocale = (value: string | null | undefined) => {
+  const next = normalizeLocale(value) ?? "zh-CN";
+  locale.value = next;
+  applyDocumentLocale(next);
 };
 
 const loadWelcomeGuideStatus = async () => {
@@ -108,8 +118,8 @@ const syncWelcomeGuideCompletion = async (showErrorToast: boolean) => {
   } catch (error) {
     console.error("Failed to save welcome guide status", error);
     if (showErrorToast) {
-      toast.error("保存欢迎向导状态失败", {
-        description: extractErrorMessage(error, "请稍后重试"),
+      toast.error(t("admin.welcomeGuide.saveStatusFailed"), {
+        description: extractErrorMessage(error, t("common.tryLater")),
       });
     }
   } finally {
@@ -189,6 +199,14 @@ watch(
 
     void initializeWelcomeGuide();
   },
+);
+
+watch(
+  () => dockerAdminAuthStore.state?.locale?.default_locale,
+  (next) => {
+    if (next) applySystemLocale(next);
+  },
+  { immediate: true },
 );
 </script>
 

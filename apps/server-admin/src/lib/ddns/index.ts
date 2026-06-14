@@ -25,10 +25,12 @@ import { providerDefinitions, providerUpdaters } from "./providers";
 import { ensureEdgeOneOverseasAccessSynced } from "./providers/edgeone-overseas-access";
 import {
   applyUpdateScope,
+  ddnsTranslate,
   DDNS_UPDATE_SCOPE_FIELD,
   DEFAULT_DDNS_UPDATE_SCOPE,
   getUpdateScopeUnavailableMessage,
   normalizeUpdateScope,
+  withDDNSLocale,
 } from "./providers/helpers";
 import {
   EDGEONE_OVERSEAS_ACCESS_MODE_FIELD,
@@ -73,12 +75,100 @@ const KEYS = {
 } as const;
 
 const LOG_TTL = 7 * 24 * 3600;
+const ddnsT = ddnsTranslate;
 const ddnsLogBuffer = new RedisLogBuffer(redis, {
   key: KEYS.logs,
   ttlSeconds: LOG_TTL,
   maxLen: DEFAULT_REDIS_LOG_BUFFER_MAX_LEN,
   seqKey: KEYS.logSeq,
 });
+
+const DDNS_PROVIDER_I18N_KEYS: Record<string, string> = {
+  baiducloud: "baidu",
+  huaweicloud: "huawei",
+};
+
+const getDDNSProviderI18nKey = (providerName: string): string =>
+  DDNS_PROVIDER_I18N_KEYS[providerName] ?? providerName;
+
+const translateDDNSCatalogText = (
+  key: string,
+  fallback: string | undefined,
+  params?: Record<string, string | number | boolean | null | undefined>,
+): string | undefined => {
+  if (fallback === undefined) return undefined;
+  const fullKey = `server.ddns.${key}`;
+  const translated = ddnsT(key, params);
+  return translated === fullKey ? fallback : translated;
+};
+
+const localizeProviderField = (
+  providerKey: string,
+  field: DDNSProviderField,
+): DDNSProviderField => {
+  const fieldParams =
+    field.key === "ttl"
+      ? {
+          seconds: Number(field.placeholder) || 600,
+        }
+      : undefined;
+  const localizeFieldPart = (
+    part: "label" | "placeholder" | "description",
+    fallback: string | undefined,
+  ) => {
+    const providerValue = translateDDNSCatalogText(
+      `providers.${providerKey}.fields.${field.key}.${part}`,
+      fallback,
+      fieldParams,
+    );
+    if (providerValue !== fallback) return providerValue;
+    return translateDDNSCatalogText(
+      `providers.common.fields.${field.key}.${part}`,
+      fallback,
+      fieldParams,
+    );
+  };
+
+  return {
+    ...field,
+    label: localizeFieldPart("label", field.label) ?? field.label,
+    ...(field.placeholder !== undefined
+      ? { placeholder: localizeFieldPart("placeholder", field.placeholder) }
+      : {}),
+    ...(field.description !== undefined
+      ? { description: localizeFieldPart("description", field.description) }
+      : {}),
+    ...(field.options
+      ? {
+          options: field.options.map((option) => ({
+            ...option,
+            label:
+              translateDDNSCatalogText(
+                `providers.${providerKey}.fields.${field.key}.options.${option.value}`,
+                option.label,
+              ) ?? option.label,
+          })),
+        }
+      : {}),
+  };
+};
+
+const localizeProviderDefinition = (
+  provider: DDNSProviderDefinition,
+): DDNSProviderDefinition => {
+  const providerKey = getDDNSProviderI18nKey(provider.name);
+  return {
+    ...provider,
+    label:
+      translateDDNSCatalogText(
+        `providers.${providerKey}.label`,
+        provider.label,
+      ) ?? provider.label,
+    fields: provider.fields.map((field) =>
+      localizeProviderField(providerKey, field),
+    ),
+  };
+};
 
 const buildEmptyLastIP = (): DDNSLastIP => ({
   ipv4: null,
@@ -196,8 +286,12 @@ const targetLastCheckKey = (id: string) =>
   `${KEYS.targetPrefix}${id}:last_check`;
 
 export class DDNSManager {
-  getProviders(): DDNSProviderDefinition[] {
-    return providerDefinitions;
+  getProviders(locale?: string | null): DDNSProviderDefinition[] {
+    return withDDNSLocale(locale, () =>
+      providerDefinitions.map((provider) =>
+        localizeProviderDefinition(provider),
+      ),
+    );
   }
 
   getProviderFields(name: string): DDNSProviderField[] | null {
@@ -235,7 +329,10 @@ export class DDNSManager {
     );
     if (updateIntervalMinutes === null) {
       throw new Error(
-        `自动同步频率必须是 ${MIN_DDNS_UPDATE_INTERVAL_MINUTES}-${MAX_DDNS_UPDATE_INTERVAL_MINUTES} 之间的整数分钟数`,
+        ddnsT("intervalOutOfRange", {
+          min: MIN_DDNS_UPDATE_INTERVAL_MINUTES,
+          max: MAX_DDNS_UPDATE_INTERVAL_MINUTES,
+        }),
       );
     }
 
@@ -254,7 +351,11 @@ export class DDNSManager {
   }
 
   private getProviderLabel(name: string | null | undefined): string {
-    return this.getProviderDefinition(name)?.label || name?.trim() || "未配置";
+    return (
+      this.getProviderDefinition(name)?.label ||
+      name?.trim() ||
+      ddnsT("notConfigured")
+    );
   }
 
   private normalizeConfig(
@@ -378,7 +479,9 @@ export class DDNSManager {
 
     return {
       id,
-      name: data.name?.trim() || (id === PRIMARY_TARGET_ID ? "主域" : ""),
+      name:
+        data.name?.trim() ||
+        (id === PRIMARY_TARGET_ID ? ddnsT("primaryDomainName") : ""),
       isPrimary: data.is_primary === "true" || id === PRIMARY_TARGET_ID,
       enabled: id === PRIMARY_TARGET_ID ? true : data.enabled !== "false",
       provider: data.provider?.trim() || null,
@@ -655,7 +758,7 @@ export class DDNSManager {
       : null;
     const primaryMeta: DDNSTargetMeta = {
       id: PRIMARY_TARGET_ID,
-      name: "主域",
+      name: ddnsT("primaryDomainName"),
       isPrimary: true,
       enabled: true,
       provider: legacyProvider,
@@ -717,7 +820,7 @@ export class DDNSManager {
       return summary;
     }
 
-    return provider ? "" : "未选择提供商";
+    return provider ? "" : ddnsT("noProviderSelected");
   }
 
   private buildDisplayName(
@@ -730,7 +833,7 @@ export class DDNSManager {
       return explicitName;
     }
     if (meta.isPrimary) {
-      return "主域";
+      return ddnsT("primaryDomainName");
     }
     return domainSummary || providerLabel;
   }
@@ -778,7 +881,7 @@ export class DDNSManager {
       return;
     }
 
-    throw new Error("已存在相同提供商和域名摘要的 DDNS 条目");
+    throw new Error(ddnsT("duplicateTarget"));
   }
 
   private async getPrimaryTargetMeta(): Promise<DDNSTargetMeta> {
@@ -787,7 +890,7 @@ export class DDNSManager {
       (await redis.get(KEYS.primaryTargetId)) || PRIMARY_TARGET_ID;
     const primaryTarget = await this.getTargetMetaRaw(primaryTargetId);
     if (!primaryTarget) {
-      throw new Error("主域 DDNS 条目初始化失败");
+      throw new Error(ddnsT("primaryInitFailed"));
     }
     return primaryTarget;
   }
@@ -846,7 +949,9 @@ export class DDNSManager {
         ? target.domainSummary
         : this.buildDomainSummary(target.provider, config || {});
     const label = domainSummary || target.name || providerLabel;
-    const scope = target.isPrimary ? "主域" : "附加域";
+    const scope = target.isPrimary
+      ? ddnsT("primaryDomainScope")
+      : ddnsT("additionalDomainScope");
     return `[${scope}][${providerLabel}]${label ? `[${label}]` : ""}`;
   }
 
@@ -892,7 +997,7 @@ export class DDNSManager {
   async getTargetConfig(targetId: string): Promise<Record<string, string>> {
     const target = await this.getTarget(targetId);
     if (!target) {
-      throw new Error("未找到 DDNS 条目");
+      throw new Error(ddnsT("targetNotFound"));
     }
     return target.config;
   }
@@ -903,7 +1008,7 @@ export class DDNSManager {
   ): Promise<void> {
     const target = await this.getTarget(targetId);
     if (!target) {
-      throw new Error("未找到 DDNS 条目");
+      throw new Error(ddnsT("targetNotFound"));
     }
 
     const nextConfig = this.normalizeConfig(target.provider, config);
@@ -934,7 +1039,7 @@ export class DDNSManager {
   ): Promise<void> {
     const target = await this.getTarget(targetId);
     if (!target) {
-      throw new Error("未找到 DDNS 条目");
+      throw new Error(ddnsT("targetNotFound"));
     }
 
     const previous = options.merge ? target.lastIP : null;
@@ -961,7 +1066,7 @@ export class DDNSManager {
   ): Promise<void> {
     const target = await this.getTarget(targetId);
     if (!target) {
-      throw new Error("未找到 DDNS 条目");
+      throw new Error(ddnsT("targetNotFound"));
     }
 
     const next: DDNSLastCheck = {
@@ -1008,7 +1113,7 @@ export class DDNSManager {
 
     const providerName = this.getProviderDefinition(input.provider)?.name;
     if (!providerName) {
-      throw new Error(`未知的 DDNS 提供商: ${input.provider}`);
+      throw new Error(ddnsT("unknownProvider", { provider: input.provider }));
     }
 
     const config = this.normalizeConfig(providerName, input.config || {});
@@ -1049,12 +1154,12 @@ export class DDNSManager {
   ): Promise<DDNSTargetRecord> {
     const target = await this.getTarget(targetId);
     if (!target) {
-      throw new Error("未找到 DDNS 条目");
+      throw new Error(ddnsT("targetNotFound"));
     }
 
     const providerName = this.getProviderDefinition(patch.provider)?.name;
     if (!providerName) {
-      throw new Error(`未知的 DDNS 提供商: ${patch.provider}`);
+      throw new Error(ddnsT("unknownProvider", { provider: patch.provider }));
     }
 
     const nextConfig = this.normalizeConfig(providerName, patch.config || {});
@@ -1093,10 +1198,10 @@ export class DDNSManager {
   async deleteTarget(targetId: string): Promise<void> {
     const target = await this.getTarget(targetId);
     if (!target) {
-      throw new Error("未找到 DDNS 条目");
+      throw new Error(ddnsT("targetNotFound"));
     }
     if (target.isPrimary) {
-      throw new Error("主域条目不允许删除");
+      throw new Error(ddnsT("primaryDeleteForbidden"));
     }
 
     await Promise.all([
@@ -1111,10 +1216,10 @@ export class DDNSManager {
   async setTargetEnabled(targetId: string, enabled: boolean): Promise<void> {
     const target = await this.getTarget(targetId);
     if (!target) {
-      throw new Error("未找到 DDNS 条目");
+      throw new Error(ddnsT("targetNotFound"));
     }
     if (target.isPrimary && !enabled) {
-      throw new Error("主域条目不可单独停用");
+      throw new Error(ddnsT("primaryDisableForbidden"));
     }
 
     await this.saveTargetMeta({
@@ -1137,7 +1242,7 @@ export class DDNSManager {
   async setProvider(name: string): Promise<void> {
     const providerName = this.getProviderDefinition(name)?.name;
     if (!providerName) {
-      throw new Error(`未知的 DDNS 提供商: ${name}`);
+      throw new Error(ddnsT("unknownProvider", { provider: name }));
     }
 
     const primary = await this.getPrimaryTarget();
@@ -1183,7 +1288,7 @@ export class DDNSManager {
     const normalizedProviderName =
       this.getProviderDefinition(providerName)?.name;
     if (!normalizedProviderName) {
-      throw new Error(`未知的 DDNS 提供商: ${providerName}`);
+      throw new Error(ddnsT("unknownProvider", { provider: providerName }));
     }
 
     const primary = await this.getPrimaryTarget();
@@ -1430,72 +1535,79 @@ export class DDNSManager {
     targetOrId: string | DDNSTargetRecord,
     ipv4: string | null,
     ipv6: string | null,
+    locale?: string | null,
   ): Promise<DDNSUpdateResult> {
-    const target =
-      typeof targetOrId === "string"
-        ? await this.getTarget(targetOrId)
-        : targetOrId;
+    return withDDNSLocale(locale, async () => {
+      const target =
+        typeof targetOrId === "string"
+          ? await this.getTarget(targetOrId)
+          : targetOrId;
 
-    if (!target) {
-      return { success: false, message: "未找到 DDNS 条目" };
-    }
-    if (!target.provider) {
-      return { success: false, message: "未选择 DDNS 提供商" };
-    }
+      if (!target) {
+        return { success: false, message: ddnsT("targetNotFound") };
+      }
+      if (!target.provider) {
+        return { success: false, message: ddnsT("noProviderSelected") };
+      }
 
-    const updater = providerUpdaters[target.provider];
-    if (!updater) {
-      return { success: false, message: `未知的提供商: ${target.provider}` };
-    }
+      const updater = providerUpdaters[target.provider];
+      if (!updater) {
+        return {
+          success: false,
+          message: ddnsT("unknownProviderShort", { provider: target.provider }),
+        };
+      }
 
-    const http = createDDNSHttpClient({
-      networkInterface: target.config[DDNS_NETWORK_INTERFACE_FIELD],
+      const http = createDDNSHttpClient({
+        networkInterface: target.config[DDNS_NETWORK_INTERFACE_FIELD],
+      });
+      const updateScope = normalizeUpdateScope(
+        target.config[DDNS_UPDATE_SCOPE_FIELD],
+      );
+      const scopedIPs = applyUpdateScope(updateScope, ipv4, ipv6);
+
+      if (!scopedIPs.ipv4 && !scopedIPs.ipv6) {
+        return {
+          success: false,
+          message: getUpdateScopeUnavailableMessage(updateScope),
+        };
+      }
+
+      const retryCount = Number(process.env.DDNS_RETRY_COUNT || "1");
+      const maxAttempts = Math.max(1, retryCount + 1);
+      const delayMs = Number(process.env.DDNS_RETRY_DELAY_MS || "600");
+
+      try {
+        await this.ensureProviderAuxiliaryStateWithContext(
+          target.provider,
+          target.config,
+          http,
+        );
+
+        return await runWithRetry(
+          () =>
+            updater(
+              { config: target.config, http },
+              scopedIPs.ipv4,
+              scopedIPs.ipv6,
+            ),
+          { maxAttempts, delayMs },
+        );
+      } catch (error: any) {
+        return {
+          success: false,
+          message: error?.message || String(error),
+        };
+      }
     });
-    const updateScope = normalizeUpdateScope(
-      target.config[DDNS_UPDATE_SCOPE_FIELD],
-    );
-    const scopedIPs = applyUpdateScope(updateScope, ipv4, ipv6);
-
-    if (!scopedIPs.ipv4 && !scopedIPs.ipv6) {
-      return {
-        success: false,
-        message: getUpdateScopeUnavailableMessage(updateScope),
-      };
-    }
-
-    const retryCount = Number(process.env.DDNS_RETRY_COUNT || "1");
-    const maxAttempts = Math.max(1, retryCount + 1);
-    const delayMs = Number(process.env.DDNS_RETRY_DELAY_MS || "600");
-
-    try {
-      await this.ensureProviderAuxiliaryStateWithContext(
-        target.provider,
-        target.config,
-        http,
-      );
-
-      return await runWithRetry(
-        () =>
-          updater(
-            { config: target.config, http },
-            scopedIPs.ipv4,
-            scopedIPs.ipv6,
-          ),
-        { maxAttempts, delayMs },
-      );
-    } catch (error: any) {
-      return {
-        success: false,
-        message: error?.message || String(error),
-      };
-    }
   }
 
   async executeUpdate(
     ipv4: string | null,
     ipv6: string | null,
+    locale?: string | null,
   ): Promise<DDNSUpdateResult> {
-    return this.executeTargetUpdate(PRIMARY_TARGET_ID, ipv4, ipv6);
+    return this.executeTargetUpdate(PRIMARY_TARGET_ID, ipv4, ipv6, locale);
   }
 
   async isTargetConfigComplete(

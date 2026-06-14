@@ -6,6 +6,13 @@ import {
   FrpcInstanceNotFoundError,
   frpcInstanceManager,
 } from "../lib/frpc/manager";
+import { configManager } from "../lib/redis";
+import { createRequestTranslator } from "../lib/i18n";
+
+const getFrpcRouteTranslator = async (request: Request) => {
+  const config = await configManager.getConfig();
+  return createRequestTranslator(request, config.locale);
+};
 
 const parseLimit = (
   value: unknown,
@@ -96,7 +103,8 @@ export const frpcRoutes = new Elysia({
   )
   .post(
     "/config",
-    async ({ body, set }) => {
+    async ({ body, set, request }) => {
+      const { t } = await getFrpcRouteTranslator(request);
       try {
         await frpcInstanceManager.saveConfig(
           frpcInstanceManager.primaryId,
@@ -104,7 +112,7 @@ export const frpcRoutes = new Elysia({
         );
         return { success: true };
       } catch (error) {
-        return setErrorResponse(set, error, "保存配置失败");
+        return setErrorResponse(set, error, t("server.frpc.routes.saveConfigFailed"));
       }
     },
     withRouteDoc("保存 FRP 配置文件", {
@@ -113,26 +121,28 @@ export const frpcRoutes = new Elysia({
   )
   .post(
     "/start",
-    async ({ set }) => {
+    async ({ set, request }) => {
+      const { t } = await getFrpcRouteTranslator(request);
       try {
         const { pid } = await frpcInstanceManager.start(
           frpcInstanceManager.primaryId,
         );
         return { success: true, data: { pid } };
       } catch (error) {
-        return setErrorResponse(set, error, "启动失败");
+        return setErrorResponse(set, error, t("server.frpc.routes.startFailed"));
       }
     },
     routeDoc("启动 FRP 客户端"),
   )
   .post(
     "/stop",
-    async ({ set }) => {
+    async ({ set, request }) => {
+      const { t } = await getFrpcRouteTranslator(request);
       try {
         await frpcInstanceManager.stop(frpcInstanceManager.primaryId);
         return { success: true };
       } catch (error) {
-        return setErrorResponse(set, error, "停止失败");
+        return setErrorResponse(set, error, t("server.frpc.routes.stopFailed"));
       }
     },
     routeDoc("停止 FRP 客户端"),
@@ -201,7 +211,8 @@ export const frpcRoutes = new Elysia({
   )
   .post(
     "/instances",
-    async ({ body, set }) => {
+    async ({ body, set, request }) => {
+      const { t } = await getFrpcRouteTranslator(request);
       try {
         const item = await frpcInstanceManager.createInstance({
           name: body.name,
@@ -209,7 +220,7 @@ export const frpcRoutes = new Elysia({
         });
         return { success: true, data: item };
       } catch (error) {
-        return setErrorResponse(set, error, "创建实例失败");
+        return setErrorResponse(set, error, t("server.frpc.routes.createInstanceFailed"));
       }
     },
     withRouteDoc("创建 FRP 实例", {
@@ -221,43 +232,47 @@ export const frpcRoutes = new Elysia({
   )
   .post(
     "/instances/:id/start",
-    async ({ params, set }) => {
+    async ({ params, set, request }) => {
+      const { t } = await getFrpcRouteTranslator(request);
       try {
         const { pid } = await frpcInstanceManager.start(params.id);
         return { success: true, data: { pid } };
       } catch (error) {
-        return setErrorResponse(set, error, "启动实例失败");
+        return setErrorResponse(set, error, t("server.frpc.routes.startInstanceFailed"));
       }
     },
     routeDoc("启动指定 FRP 实例"),
   )
   .post(
     "/instances/:id/stop",
-    async ({ params, set }) => {
+    async ({ params, set, request }) => {
+      const { t } = await getFrpcRouteTranslator(request);
       try {
         await frpcInstanceManager.stop(params.id);
         return { success: true };
       } catch (error) {
-        return setErrorResponse(set, error, "停止实例失败");
+        return setErrorResponse(set, error, t("server.frpc.routes.stopInstanceFailed"));
       }
     },
     routeDoc("停止指定 FRP 实例"),
   )
   .post(
     "/instances/:id/restart",
-    async ({ params, set }) => {
+    async ({ params, set, request }) => {
+      const { t } = await getFrpcRouteTranslator(request);
       try {
         const { pid } = await frpcInstanceManager.restart(params.id);
         return { success: true, data: { pid } };
       } catch (error) {
-        return setErrorResponse(set, error, "重启实例失败");
+        return setErrorResponse(set, error, t("server.frpc.routes.restartInstanceFailed"));
       }
     },
     routeDoc("重启指定 FRP 实例"),
   )
   .get(
     "/instances/:id/logs",
-    async ({ params, query, set }) => {
+    async ({ params, query, set, request }) => {
+      const { t } = await getFrpcRouteTranslator(request);
       try {
         const logs = await frpcInstanceManager.listLogs(
           params.id,
@@ -265,31 +280,33 @@ export const frpcRoutes = new Elysia({
         );
         return { success: true, data: logs };
       } catch (error) {
-        return setErrorResponse(set, error, "获取实例日志失败");
+        return setErrorResponse(set, error, t("server.frpc.routes.getInstanceLogsFailed"));
       }
     },
     routeDoc("获取指定 FRP 实例日志"),
   )
   .delete(
     "/instances/:id/logs",
-    async ({ params, set }) => {
+    async ({ params, set, request }) => {
+      const { t } = await getFrpcRouteTranslator(request);
       try {
         await frpcInstanceManager.clearLogs(params.id);
         return { success: true };
       } catch (error) {
-        return setErrorResponse(set, error, "清空实例日志失败");
+        return setErrorResponse(set, error, t("server.frpc.routes.clearInstanceLogsFailed"));
       }
     },
     routeDoc("清空指定 FRP 实例日志"),
   )
   .get(
     "/instances/:id/poll",
-    async ({ params, query, set }) => {
+    async ({ params, query, set, request }) => {
+      const { t } = await getFrpcRouteTranslator(request);
       try {
         const data = await frpcInstanceManager.poll(params.id, query.cursor);
         return { success: true, data };
       } catch (error) {
-        return setErrorResponse(set, error, "轮询实例失败");
+        return setErrorResponse(set, error, t("server.frpc.routes.pollInstanceFailed"));
       }
     },
     withRouteDoc("轮询指定 FRP 实例日志与状态", {
@@ -300,7 +317,8 @@ export const frpcRoutes = new Elysia({
   )
   .get(
     "/instances/:id",
-    async ({ params, query, set }) => {
+    async ({ params, query, set, request }) => {
+      const { t } = await getFrpcRouteTranslator(request);
       try {
         const detail = await frpcInstanceManager.getDetail(
           params.id,
@@ -308,14 +326,15 @@ export const frpcRoutes = new Elysia({
         );
         return { success: true, data: detail };
       } catch (error) {
-        return setErrorResponse(set, error, "获取实例详情失败");
+        return setErrorResponse(set, error, t("server.frpc.routes.getInstanceDetailFailed"));
       }
     },
     routeDoc("获取 FRP 实例详情"),
   )
   .put(
     "/instances/:id",
-    async ({ params, body, set }) => {
+    async ({ params, body, set, request }) => {
+      const { t } = await getFrpcRouteTranslator(request);
       try {
         const item = await frpcInstanceManager.updateInstance(params.id, {
           name: body.name,
@@ -323,7 +342,7 @@ export const frpcRoutes = new Elysia({
         });
         return { success: true, data: item };
       } catch (error) {
-        return setErrorResponse(set, error, "更新实例失败");
+        return setErrorResponse(set, error, t("server.frpc.routes.updateInstanceFailed"));
       }
     },
     withRouteDoc("更新 FRP 实例", {
@@ -335,12 +354,13 @@ export const frpcRoutes = new Elysia({
   )
   .delete(
     "/instances/:id",
-    async ({ params, set }) => {
+    async ({ params, set, request }) => {
+      const { t } = await getFrpcRouteTranslator(request);
       try {
         await frpcInstanceManager.deleteInstance(params.id);
         return { success: true };
       } catch (error) {
-        return setErrorResponse(set, error, "删除实例失败");
+        return setErrorResponse(set, error, t("server.frpc.routes.deleteInstanceFailed"));
       }
     },
     routeDoc("删除 FRP 实例"),

@@ -5,6 +5,13 @@ import {
   getCapabilityUnavailableMessage,
   getRuntimeCapabilities,
 } from "../lib/runtime-profile";
+import { configManager } from "../lib/redis";
+import { createRequestTranslator } from "../lib/i18n";
+
+const getUpdateRouteTranslator = async (request: Request) => {
+  const config = await configManager.getConfig();
+  return createRequestTranslator(request, config.locale);
+};
 
 export const updateRoutes = new Elysia({
   prefix: "/api/admin/update",
@@ -29,24 +36,37 @@ export const updateRoutes = new Elysia({
   )
   .post(
     "/download",
-    async ({ set }) => {
+    async ({ set, request }) => {
+      const { locale, t } = await getUpdateRouteTranslator(request);
+
       if (!getRuntimeCapabilities().self_update_available) {
         set.status = 403;
         return {
           success: false,
-          message: getCapabilityUnavailableMessage("self_update_available"),
+          message: getCapabilityUnavailableMessage(
+            "self_update_available",
+            undefined,
+            locale,
+          ),
         };
       }
 
       try {
         await updateManager.triggerDownload();
         const data = await updateManager.getStatus();
-        return { success: true, message: "已开始下载更新包", data };
+        return {
+          success: true,
+          message: t("server.updateRoutes.downloadStarted"),
+          data,
+        };
       } catch (error) {
         set.status = 400;
         return {
           success: false,
-          message: error instanceof Error ? error.message : "启动下载失败",
+          message:
+            error instanceof Error
+              ? error.message
+              : t("server.updateRoutes.downloadStartFailed"),
         };
       }
     },
@@ -54,23 +74,35 @@ export const updateRoutes = new Elysia({
   )
   .post(
     "/install",
-    async ({ set }) => {
+    async ({ set, request }) => {
+      const { locale, t } = await getUpdateRouteTranslator(request);
+
       if (!getRuntimeCapabilities().self_update_available) {
         set.status = 403;
         return {
           success: false,
-          message: getCapabilityUnavailableMessage("self_update_available"),
+          message: getCapabilityUnavailableMessage(
+            "self_update_available",
+            undefined,
+            locale,
+          ),
         };
       }
 
       try {
         await updateManager.triggerInstall();
-        return { success: true, message: "更新安装流程已启动" };
+        return {
+          success: true,
+          message: t("server.updateRoutes.installStarted"),
+        };
       } catch (error) {
         set.status = 400;
         return {
           success: false,
-          message: error instanceof Error ? error.message : "启动安装失败",
+          message:
+            error instanceof Error
+              ? error.message
+              : t("server.updateRoutes.installStartFailed"),
         };
       }
     },
@@ -78,12 +110,18 @@ export const updateRoutes = new Elysia({
   )
   .post(
     "/check-and-download",
-    async ({ set }) => {
+    async ({ set, request }) => {
+      const { locale, t } = await getUpdateRouteTranslator(request);
+
       if (!getRuntimeCapabilities().self_update_available) {
         set.status = 403;
         return {
           success: false,
-          message: getCapabilityUnavailableMessage("self_update_available"),
+          message: getCapabilityUnavailableMessage(
+            "self_update_available",
+            undefined,
+            locale,
+          ),
         };
       }
 
@@ -91,12 +129,19 @@ export const updateRoutes = new Elysia({
         await updateManager.checkNow("manual-check-and-download");
         await updateManager.triggerDownload();
         const data = await updateManager.getStatus();
-        return { success: true, message: "已发起检查并开始下载", data };
+        return {
+          success: true,
+          message: t("server.updateRoutes.checkAndDownloadStarted"),
+          data,
+        };
       } catch (error) {
         set.status = 400;
         return {
           success: false,
-          message: error instanceof Error ? error.message : "启动失败",
+          message:
+            error instanceof Error
+              ? error.message
+              : t("server.updateRoutes.startFailed"),
         };
       }
     },

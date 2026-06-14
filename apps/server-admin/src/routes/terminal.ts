@@ -5,6 +5,13 @@ import {
   getCapabilityUnavailableMessage,
   getRuntimeCapabilities,
 } from "../lib/runtime-profile";
+import { configManager } from "../lib/redis";
+import { createRequestTranslator } from "../lib/i18n";
+
+const getTerminalRouteTranslator = async (request: Request) => {
+  const config = await configManager.getConfig();
+  return createRequestTranslator(request, config.locale);
+};
 
 const detectClientIp = (request: Request): string => {
   const forwarded = request.headers.get("x-forwarded-for");
@@ -21,15 +28,20 @@ export const terminalRoutes = new Elysia({
   prefix: "/api/admin/terminal",
   tags: ["Terminal"],
 })
-  .onBeforeHandle(({ set }) => {
+  .onBeforeHandle(async ({ set, request }) => {
     if (getRuntimeCapabilities().terminal_available) {
       return;
     }
 
+    const { locale } = await getTerminalRouteTranslator(request);
     set.status = 403;
     return {
       success: false,
-      message: getCapabilityUnavailableMessage("terminal_available"),
+      message: getCapabilityUnavailableMessage(
+        "terminal_available",
+        undefined,
+        locale,
+      ),
     };
   })
   .get(
@@ -58,11 +70,15 @@ export const terminalRoutes = new Elysia({
   )
   .get(
     "/sessions/:id",
-    async ({ params, set }) => {
+    async ({ params, set, request }) => {
+      const { t } = await getTerminalRouteTranslator(request);
       const session = await terminalManager.getSession(params.id);
       if (!session) {
         set.status = 404;
-        return { success: false, message: "终端会话不存在" };
+        return {
+          success: false,
+          message: t("server.terminal.sessionNotFound"),
+        };
       }
       return { success: true, data: session };
     },
@@ -95,14 +111,18 @@ export const terminalRoutes = new Elysia({
   )
   .patch(
     "/sessions/:id",
-    async ({ params, body, set }) => {
+    async ({ params, body, set, request }) => {
+      const { t } = await getTerminalRouteTranslator(request);
       const session = await terminalManager.renameSession(
         params.id,
         body.title,
       );
       if (!session) {
         set.status = 404;
-        return { success: false, message: "终端会话不存在" };
+        return {
+          success: false,
+          message: t("server.terminal.sessionNotFound"),
+        };
       }
       return { success: true, data: session };
     },

@@ -4,19 +4,22 @@ import type {
   DDNSProviderDefinition,
   DDNSUpdateResult,
 } from "../types";
-import { getTimeoutMs, parseTextResponse } from "./helpers";
+import { ddnsProviderT, getTimeoutMs, parseTextResponse } from "./helpers";
 
 const NOIP_ENDPOINT = "https://dynupdate.no-ip.com/nic/update";
 const NOIP_SUCCESS_STATUSES = new Set(["good", "nochg"]);
-
-const NOIP_STATUS_MESSAGES: Record<string, string> = {
-  nohost: "指定的主机名不存在或不属于当前 DDNS Key",
-  badauth: "用户名或密码错误",
-  badagent: "客户端被 NO-IP 禁用，请检查 User-Agent 或客户端状态",
-  "!donator": "当前账号不支持请求中的增强功能",
-  abuse: "该 DDNS Key 因滥用被 NO-IP 封禁",
-  "911": "NO-IP 服务端发生临时故障，官方建议至少 30 分钟后再重试",
-};
+const NOIP_STATUS_CODES = new Set([
+  "nohost",
+  "badauth",
+  "badagent",
+  "!donator",
+  "abuse",
+  "911",
+]);
+const noipT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => ddnsProviderT("noip", key, params);
 
 export const noipProvider: DDNSProviderDefinition = {
   name: "noip",
@@ -28,23 +31,23 @@ export const noipProvider: DDNSProviderDefinition = {
       type: "text",
       placeholder: "home.ddns.net",
       required: true,
-      description: "填写完整主机名，支持逗号分隔多个 hostname",
+      description: noipT("fields.hostname.description"),
     },
     {
       key: "username",
-      label: "用户名",
+      label: noipT("fields.username.label"),
       type: "text",
       placeholder: "DDNS Key Username",
       required: true,
-      description: "建议使用 NO-IP 控制台生成的 DDNS Key 用户名",
+      description: noipT("fields.username.description"),
     },
     {
       key: "password",
-      label: "密码",
+      label: noipT("fields.password.label"),
       type: "password",
       placeholder: "DDNS Key Password",
       required: true,
-      description: "建议使用与 DDNS Key 配套的密码，而不是主账号密码",
+      description: noipT("fields.password.description"),
     },
   ],
 };
@@ -61,8 +64,12 @@ function buildNoipMessage(
     const detail = failures
       .map(({ code, detail: rawDetail }) => {
         const reason =
-          NOIP_STATUS_MESSAGES[code] || rawDetail || `返回未知状态: ${code}`;
-        return rawDetail && NOIP_STATUS_MESSAGES[code]
+          (NOIP_STATUS_CODES.has(code)
+            ? noipT(`statusMessages.${code}`)
+            : "") ||
+          rawDetail ||
+          noipT("unknownStatus", { code });
+        return rawDetail && NOIP_STATUS_CODES.has(code)
           ? `${code} (${reason}; ${rawDetail})`
           : `${code} (${reason})`;
       })
@@ -70,7 +77,7 @@ function buildNoipMessage(
 
     return {
       success: false,
-      message: `NO-IP 更新失败: ${detail}`,
+      message: noipT("updateFailed", { detail }),
       ipv4Updated: false,
       ipv6Updated: false,
     };
@@ -83,8 +90,8 @@ function buildNoipMessage(
   return {
     success: true,
     message: changed
-      ? `NO-IP 更新成功${detailSuffix}`
-      : `NO-IP IP 未变化${detailSuffix}`,
+      ? noipT("updateSuccess", { detail: detailSuffix })
+      : noipT("ipUnchanged", { detail: detailSuffix }),
     ipv4Updated: changed && !!ipv4,
     ipv6Updated: changed && !!ipv6,
   };
@@ -100,13 +107,13 @@ export async function noipUpdate(
   const password = config.password?.trim();
 
   if (!hostname || !username || !password) {
-    return { success: false, message: "NO-IP 配置不完整" };
+    return { success: false, message: noipT("configIncomplete") };
   }
 
   if (!ipv4 && !ipv6) {
     return {
       success: false,
-      message: "NO-IP 更新失败: 没有可用的 IPv4 或 IPv6 地址",
+      message: noipT("noIpAvailable"),
     };
   }
 
@@ -140,7 +147,10 @@ export async function noipUpdate(
     if (!response.ok) {
       return {
         success: false,
-        message: `NO-IP 更新失败 [${response.status}]: ${text || "请求失败"}`,
+        message: noipT("updateFailedWithStatus", {
+          status: response.status,
+          detail: text || noipT("requestFailed"),
+        }),
       };
     }
 
@@ -150,7 +160,7 @@ export async function noipUpdate(
       .filter(Boolean);
 
     if (lines.length === 0) {
-      return { success: false, message: "NO-IP 更新失败: 返回了空响应" };
+      return { success: false, message: noipT("emptyResponse") };
     }
 
     const statuses = lines.map((line) => {
@@ -161,6 +171,6 @@ export async function noipUpdate(
     return buildNoipMessage(statuses, ipv4, ipv6);
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
-    throw new Error(`NO-IP 请求异常: ${err.message}`);
+    throw new Error(noipT("requestError", { detail: err.message }));
   }
 }

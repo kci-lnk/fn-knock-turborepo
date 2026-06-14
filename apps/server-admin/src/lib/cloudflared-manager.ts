@@ -2,6 +2,7 @@ import path from 'path';
 import fs from 'fs';
 import { spawnSync } from "node:child_process";
 import { dataPath } from './AppDirManager';
+import { tDefault } from "./i18n";
 
 type DownloadState = 'idle' | 'downloading' | 'completed' | 'error';
 
@@ -19,6 +20,10 @@ type Status = {
 const DATA_DIR = dataPath;
 const CLOUDFLARED_DIR = path.join(DATA_DIR, 'cloudflared');
 const BIN_PATH = path.join(CLOUDFLARED_DIR, 'cloudflared');
+const cloudflaredManagerT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.tunnelManagers.cloudflared.${key}`, params);
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(CLOUDFLARED_DIR)) fs.mkdirSync(CLOUDFLARED_DIR, { recursive: true });
@@ -80,13 +85,21 @@ class CloudflaredManager {
     const platform = this.detectPlatform();
     
     if (platform === 'darwin') {
-        this.progress = { status: 'error', percent: 0, error: 'MAC平台暂不支持自动下载应用，请手动通过brew install cloudflared安装。' };
+        this.progress = {
+          status: 'error',
+          percent: 0,
+          error: cloudflaredManagerT("macAutoDownloadUnsupported"),
+        };
         return;
     }
     
     const url = this.downloadUrlForPlatform(platform);
     if (!url) {
-      this.progress = { status: 'error', percent: 0, error: '当前平台不受支持' };
+      this.progress = {
+        status: 'error',
+        percent: 0,
+        error: cloudflaredManagerT("platformUnsupported"),
+      };
       return;
     }
     this.abortController = new AbortController();
@@ -103,7 +116,7 @@ class CloudflaredManager {
       const total = totalHeader ? parseInt(totalHeader, 10) : 0;
       let loaded = 0;
       const reader = res.body?.getReader();
-      if (!reader) throw new Error('下载响应体不可读');
+      if (!reader) throw new Error(cloudflaredManagerT("responseBodyUnreadable"));
       
       const stream = fs.createWriteStream(tempPath);
       while (true) {
@@ -129,9 +142,17 @@ class CloudflaredManager {
       this.progress = { status: 'completed', percent: 100 };
     } catch (e: any) {
       if (e.name === 'AbortError' || e.message.includes('abort')) {
-         this.progress = { status: 'idle', percent: 0, error: '下载已取消' };
+         this.progress = {
+          status: 'idle',
+          percent: 0,
+          error: cloudflaredManagerT("downloadCancelled"),
+        };
       } else {
-         this.progress = { status: 'error', percent: 0, error: e?.message || '未知错误' };
+         this.progress = {
+          status: 'error',
+          percent: 0,
+          error: e?.message || cloudflaredManagerT("unknownError"),
+        };
       }
       if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
     } finally {
@@ -150,13 +171,17 @@ class CloudflaredManager {
       const tmp = BIN_PATH + '.tmp';
       if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
     } catch {}
-    this.progress = { status: 'idle', percent: 0, error: '下载已取消' };
+    this.progress = {
+      status: 'idle',
+      percent: 0,
+      error: cloudflaredManagerT("downloadCancelled"),
+    };
   }
 
   async delete(): Promise<void> {
     const platform = this.detectPlatform();
     if (platform === 'darwin') {
-        throw new Error('MAC平台请手动移除cloudflared');
+        throw new Error(cloudflaredManagerT("macManualRemove"));
     }
     if (fs.existsSync(BIN_PATH)) fs.unlinkSync(BIN_PATH);
     this.progress = { status: 'idle', percent: 0 };
@@ -173,14 +198,14 @@ class CloudflaredManager {
       } catch {
         // ignore
       }
-      throw new Error('Cloudflared 未安装，请先通过 brew install cloudflared 安装');
+      throw new Error(cloudflaredManagerT("notInstalledBrew"));
     } else if (platform === 'linux-amd64' || platform === 'linux-arm64' || platform === 'linux-arm') {
       if (fs.existsSync(BIN_PATH)) {
         return BIN_PATH;
       }
-      throw new Error('Cloudflared 未初始化，请先下下载');
+      throw new Error(cloudflaredManagerT("notInitialized"));
     }
-    throw new Error('当前平台不受支持');
+    throw new Error(cloudflaredManagerT("platformUnsupported"));
   }
 }
 

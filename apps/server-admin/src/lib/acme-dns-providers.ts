@@ -1,3 +1,5 @@
+import { tDefault } from "./i18n";
+
 export type DnsProvider = {
   dnsType: string;
   label: string;
@@ -23,7 +25,19 @@ type CredentialSchemeOptions = {
   description?: string;
   optionalKeys?: string[];
   fields?: Partial<Record<string, Omit<DnsCredentialField, "key">>>;
+  defaultCredentialLabel?: string;
 };
+
+type AcmeDnsProviderTranslator = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => string;
+
+const acmeDnsProviderT = (
+  translator: AcmeDnsProviderTranslator,
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => translator(`server.acmeDnsProviders.${key}`, params);
 
 const createCredentialScheme = (
   id: string,
@@ -45,7 +59,7 @@ const createCredentialScheme = (
   };
 };
 
-const createSingleSchemeProvider = (
+const createSingleSchemeProviderBase = (
   dnsType: string,
   label: string,
   group: string,
@@ -56,25 +70,55 @@ const createSingleSchemeProvider = (
   label,
   group,
   credentialSchemes: [
-    createCredentialScheme("default", "默认凭据", envKeys, options),
+    createCredentialScheme(
+      "default",
+      options?.defaultCredentialLabel || "Default credentials",
+      envKeys,
+      options,
+    ),
   ],
 });
 
-export const dnsProviders: DnsProvider[] = [
+export const createAcmeDnsProviders = (
+  translator: AcmeDnsProviderTranslator = tDefault,
+): DnsProvider[] => {
+  const text = (
+    key: string,
+    params?: Record<string, string | number | boolean | null | undefined>,
+  ) => acmeDnsProviderT(translator, key, params);
+  const groups = {
+    common: text("groups.common"),
+    domestic: text("groups.domestic"),
+    international: text("groups.international"),
+    selfHostedAdvanced: text("groups.selfHostedAdvanced"),
+  };
+  const createSingleSchemeProvider = (
+    dnsType: string,
+    label: string,
+    group: string,
+    envKeys: string[],
+    options?: CredentialSchemeOptions,
+  ): DnsProvider =>
+    createSingleSchemeProviderBase(dnsType, label, group, envKeys, {
+      ...options,
+      defaultCredentialLabel: text("credentialSchemes.default"),
+    });
+
+  return [
   {
     dnsType: "dns_cf",
     label: "Cloudflare",
-    group: "常用",
+    group: groups.common,
     credentialSchemes: [
       createCredentialScheme(
         "global-key",
         "Global API Key",
         ["CF_Key", "CF_Email"],
         {
-          description: "兼容 Cloudflare 旧版 Global API Key 方式。",
+          description: text("cloudflare.globalKeyDescription"),
           fields: {
             CF_Key: { label: "Global API Key" },
-            CF_Email: { label: "账户邮箱" },
+            CF_Email: { label: text("fields.accountEmail") },
           },
         },
       ),
@@ -83,8 +127,7 @@ export const dnsProviders: DnsProvider[] = [
         "API Token",
         ["CF_Token", "CF_Zone_ID", "CF_Account_ID"],
         {
-          description:
-            "推荐。仅需填写 Token；如已知 Zone ID 或 Account ID，可一并填写以减少自动探测。",
+          description: text("cloudflare.apiTokenDescription"),
           optionalKeys: ["CF_Zone_ID", "CF_Account_ID"],
           fields: {
             CF_Token: { label: "API Token" },
@@ -95,50 +138,54 @@ export const dnsProviders: DnsProvider[] = [
       ),
     ],
   },
-  createSingleSchemeProvider("dns_ali", "阿里云 DNS", "常用", [
+  createSingleSchemeProvider("dns_ali", text("labels.aliyun"), groups.common, [
     "Ali_Key",
     "Ali_Secret",
   ]),
-  createSingleSchemeProvider("dns_dp", "DNSPod", "常用", ["DP_Id", "DP_Key"]),
+  createSingleSchemeProvider("dns_dp", "DNSPod", groups.common, [
+    "DP_Id",
+    "DP_Key",
+  ]),
   createSingleSchemeProvider(
     "dns_tencent",
-    "腾讯云 DNSPod (TencentCloud)",
-    "常用",
+    text("labels.tencentCloudDnspod"),
+    groups.common,
     ["Tencent_SecretId", "Tencent_SecretKey"],
   ),
-  createSingleSchemeProvider("dns_duckdns", "DuckDNS", "常用", [
+  createSingleSchemeProvider("dns_duckdns", "DuckDNS", groups.common, [
     "DuckDNS_Token",
   ]),
-  createSingleSchemeProvider("dns_gd", "GoDaddy", "常用", [
+  createSingleSchemeProvider("dns_gd", "GoDaddy", groups.common, [
     "GD_Key",
     "GD_Secret",
   ]),
-  createSingleSchemeProvider("dns_dgon", "DigitalOcean", "常用", [
+  createSingleSchemeProvider("dns_dgon", "DigitalOcean", groups.common, [
     "DO_API_KEY",
   ]),
-  createSingleSchemeProvider("dns_netlify", "Netlify", "常用", [
+  createSingleSchemeProvider("dns_netlify", "Netlify", groups.common, [
     "NETLIFY_ACCESS_TOKEN",
   ]),
-  createSingleSchemeProvider("dns_vercel", "Vercel", "常用", ["VERCEL_TOKEN"]),
-  createSingleSchemeProvider("dns_aws", "AWS Route53", "常用", [
+  createSingleSchemeProvider("dns_vercel", "Vercel", groups.common, [
+    "VERCEL_TOKEN",
+  ]),
+  createSingleSchemeProvider("dns_aws", "AWS Route53", groups.common, [
     "AWS_ACCESS_KEY_ID",
     "AWS_SECRET_ACCESS_KEY",
   ]),
   createSingleSchemeProvider(
     "dns_gcloud",
     "Google Cloud DNS (gcloud)",
-    "常用",
+    groups.common,
     ["CLOUDSDK_ACTIVE_CONFIG_NAME"],
     {
-      description:
-        "依赖运行环境中的 gcloud 命令和已授权配置；未填写时使用 gcloud 默认配置。",
+      description: text("gcloud.description"),
       optionalKeys: ["CLOUDSDK_ACTIVE_CONFIG_NAME"],
     },
   ),
   {
     dnsType: "dns_azure",
     label: "Azure DNS",
-    group: "常用",
+    group: groups.common,
     credentialSchemes: [
       createCredentialScheme("service-principal", "Service Principal", [
         "AZUREDNS_SUBSCRIPTIONID",
@@ -155,108 +202,113 @@ export const dnsProviders: DnsProvider[] = [
         "Managed Identity",
         ["AZUREDNS_SUBSCRIPTIONID", "AZUREDNS_MANAGEDIDENTITY"],
         {
-          description: "AZUREDNS_MANAGEDIDENTITY 填写 true。",
+          description: text("azure.managedIdentityDescription"),
         },
       ),
     ],
   },
-  createSingleSchemeProvider("dns_porkbun", "Porkbun", "常用", [
+  createSingleSchemeProvider("dns_porkbun", "Porkbun", groups.common, [
     "PORKBUN_API_KEY",
     "PORKBUN_SECRET_API_KEY",
   ]),
   {
     dnsType: "dns_dynv6",
     label: "dynv6",
-    group: "常用",
+    group: groups.common,
     credentialSchemes: [
       createCredentialScheme("rest-token", "REST API Token", ["DYNV6_TOKEN"]),
       createCredentialScheme("ssh-key", "SSH Key", ["KEY"], {
         fields: {
-          KEY: { label: "SSH 私钥文件路径" },
+          KEY: { label: text("fields.sshPrivateKeyPath") },
         },
       }),
     ],
   },
-  createSingleSchemeProvider("dns_huaweicloud", "华为云 DNS", "国内", [
-    "HUAWEICLOUD_Username",
-    "HUAWEICLOUD_Password",
-    "HUAWEICLOUD_DomainName",
-  ]),
-  createSingleSchemeProvider("dns_jd", "京东云 DNS", "国内", [
+  createSingleSchemeProvider(
+    "dns_huaweicloud",
+    text("labels.huaweiCloudDns"),
+    groups.domestic,
+    [
+      "HUAWEICLOUD_Username",
+      "HUAWEICLOUD_Password",
+      "HUAWEICLOUD_DomainName",
+    ],
+  ),
+  createSingleSchemeProvider("dns_jd", text("labels.jdCloudDns"), groups.domestic, [
     "JD_ACCESS_KEY_ID",
     "JD_ACCESS_KEY_SECRET",
     "JD_REGION",
   ]),
-  createSingleSchemeProvider("dns_la", "DNS.LA", "国内", ["LA_Id", "LA_Sk"]),
-  createSingleSchemeProvider("dns_west_cn", "西部数码", "国内", [
+  createSingleSchemeProvider("dns_la", "DNS.LA", groups.domestic, ["LA_Id", "LA_Sk"]),
+  createSingleSchemeProvider("dns_west_cn", text("labels.westCn"), groups.domestic, [
     "WEST_Username",
     "WEST_Key",
   ]),
-  createSingleSchemeProvider("dns_linode_v4", "Linode", "国际", [
+  createSingleSchemeProvider("dns_linode_v4", "Linode", groups.international, [
     "LINODE_V4_API_KEY",
   ]),
-  createSingleSchemeProvider("dns_vultr", "Vultr", "国际", ["VULTR_API_KEY"]),
+  createSingleSchemeProvider("dns_vultr", "Vultr", groups.international, ["VULTR_API_KEY"]),
   createSingleSchemeProvider(
     "dns_ovh",
     "OVH",
-    "国际",
+    groups.international,
     ["OVH_AK", "OVH_AS", "OVH_CK", "OVH_END_POINT"],
     {
       optionalKeys: ["OVH_END_POINT"],
     },
   ),
-  createSingleSchemeProvider("dns_hetzner", "Hetzner", "国际", [
+  createSingleSchemeProvider("dns_hetzner", "Hetzner", groups.international, [
     "HETZNER_Token",
   ]),
-  createSingleSchemeProvider("dns_namecheap", "Namecheap", "国际", [
+  createSingleSchemeProvider("dns_namecheap", "Namecheap", groups.international, [
     "NAMECHEAP_API_KEY",
     "NAMECHEAP_USERNAME",
     "NAMECHEAP_SOURCEIP",
   ]),
-  createSingleSchemeProvider("dns_namecom", "Name.com", "国际", [
+  createSingleSchemeProvider("dns_namecom", "Name.com", groups.international, [
     "Namecom_Username",
     "Namecom_Token",
   ]),
-  createSingleSchemeProvider("dns_namesilo", "NameSilo", "国际", [
+  createSingleSchemeProvider("dns_namesilo", "NameSilo", groups.international, [
     "Namesilo_Key",
   ]),
-  createSingleSchemeProvider("dns_dreamhost", "DreamHost", "国际", [
+  createSingleSchemeProvider("dns_dreamhost", "DreamHost", groups.international, [
     "DH_API_KEY",
   ]),
-  createSingleSchemeProvider("dns_freedns", "FreeDNS", "国际", [
+  createSingleSchemeProvider("dns_freedns", "FreeDNS", groups.international, [
     "FREEDNS_User",
     "FREEDNS_Password",
   ]),
-  createSingleSchemeProvider("dns_dyn", "Dyn Managed DNS", "国际", [
+  createSingleSchemeProvider("dns_dyn", "Dyn Managed DNS", groups.international, [
     "DYN_Customer",
     "DYN_Username",
     "DYN_Password",
   ]),
-  createSingleSchemeProvider("dns_dynu", "Dynu", "国际", [
+  createSingleSchemeProvider("dns_dynu", "Dynu", groups.international, [
     "Dynu_ClientId",
     "Dynu_Secret",
   ]),
-  createSingleSchemeProvider("dns_bunny", "Bunny DNS", "国际", [
+  createSingleSchemeProvider("dns_bunny", "Bunny DNS", groups.international, [
     "BUNNY_API_KEY",
   ]),
-  createSingleSchemeProvider("dns_desec", "deSEC", "国际", ["DEDYN_TOKEN"]),
-  createSingleSchemeProvider("dns_freemyip", "FreeMyIP", "国际", [
+  createSingleSchemeProvider("dns_desec", "deSEC", groups.international, ["DEDYN_TOKEN"]),
+  createSingleSchemeProvider("dns_freemyip", "FreeMyIP", groups.international, [
     "FREEMYIP_Token",
   ]),
-  createSingleSchemeProvider("dns_ipv64", "IPv64.net", "国际", ["IPv64_Token"]),
-  createSingleSchemeProvider("dns_scaleway", "Scaleway", "国际", [
+  createSingleSchemeProvider("dns_ipv64", "IPv64.net", groups.international, ["IPv64_Token"]),
+  createSingleSchemeProvider("dns_scaleway", "Scaleway", groups.international, [
     "SCALEWAY_API_TOKEN",
   ]),
-  createSingleSchemeProvider("dns_easydns", "easyDNS", "国际", [
+  createSingleSchemeProvider("dns_easydns", "easyDNS", groups.international, [
     "EASYDNS_Token",
     "EASYDNS_Key",
   ]),
-  createSingleSchemeProvider("dns_zoneedit", "ZoneEdit", "国际", [
+  createSingleSchemeProvider("dns_zoneedit", "ZoneEdit", groups.international, [
     "ZONEEDIT_ID",
     "ZONEEDIT_Token",
   ]),
-  createSingleSchemeProvider("dns_zonomi", "Zonomi", "国际", ["ZM_Key"]),
-  createSingleSchemeProvider("dns_dnsexit", "DNSExit", "国际", [
+  createSingleSchemeProvider("dns_zonomi", "Zonomi", groups.international, ["ZM_Key"]),
+  createSingleSchemeProvider("dns_dnsexit", "DNSExit", groups.international, [
     "DNSEXIT_API_KEY",
     "DNSEXIT_AUTH_USER",
     "DNSEXIT_AUTH_PASS",
@@ -264,7 +316,7 @@ export const dnsProviders: DnsProvider[] = [
   {
     dnsType: "dns_yandex360",
     label: "Yandex 360",
-    group: "国际",
+    group: groups.international,
     credentialSchemes: [
       createCredentialScheme(
         "oauth-client",
@@ -284,21 +336,21 @@ export const dnsProviders: DnsProvider[] = [
       ),
     ],
   },
-  createSingleSchemeProvider("dns_mydnsjp", "MyDNS.JP", "国际", [
+  createSingleSchemeProvider("dns_mydnsjp", "MyDNS.JP", groups.international, [
     "MYDNSJP_MasterID",
     "MYDNSJP_Password",
   ]),
-  createSingleSchemeProvider("dns_gandi_livedns", "Gandi LiveDNS", "国际", [
+  createSingleSchemeProvider("dns_gandi_livedns", "Gandi LiveDNS", groups.international, [
     "GANDI_LIVEDNS_KEY",
   ]),
-  createSingleSchemeProvider("dns_nsone", "NS1", "国际", ["NS1_Key"]),
-  createSingleSchemeProvider("dns_dnsimple", "DNSimple", "国际", [
+  createSingleSchemeProvider("dns_nsone", "NS1", groups.international, ["NS1_Key"]),
+  createSingleSchemeProvider("dns_dnsimple", "DNSimple", groups.international, [
     "DNSimple_OAUTH_TOKEN",
   ]),
   {
     dnsType: "dns_cloudns",
     label: "ClouDNS",
-    group: "国际",
+    group: groups.international,
     credentialSchemes: [
       createCredentialScheme("auth-id", "Auth ID", [
         "CLOUDNS_AUTH_ID",
@@ -310,21 +362,21 @@ export const dnsProviders: DnsProvider[] = [
       ]),
     ],
   },
-  createSingleSchemeProvider("dns_he", "Hurricane Electric", "国际", [
+  createSingleSchemeProvider("dns_he", "Hurricane Electric", groups.international, [
     "HE_Username",
     "HE_Password",
   ]),
-  createSingleSchemeProvider("dns_transip", "TransIP", "国际", [
+  createSingleSchemeProvider("dns_transip", "TransIP", groups.international, [
     "TRANSIP_Username",
     "TRANSIP_Key_File",
   ]),
-  createSingleSchemeProvider("dns_doapi", "Domain-Offensive", "国际", [
+  createSingleSchemeProvider("dns_doapi", "Domain-Offensive", groups.international, [
     "DO_LETOKEN",
   ]),
   createSingleSchemeProvider(
     "dns_acmedns",
     "acme-dns",
-    "自建/高级",
+    groups.selfHostedAdvanced,
     [
       "ACMEDNS_USERNAME",
       "ACMEDNS_PASSWORD",
@@ -338,7 +390,7 @@ export const dnsProviders: DnsProvider[] = [
   createSingleSchemeProvider(
     "dns_nsupdate",
     "nsupdate",
-    "自建/高级",
+    groups.selfHostedAdvanced,
     [
       "NSUPDATE_SERVER",
       "NSUPDATE_SERVER_PORT",
@@ -352,7 +404,7 @@ export const dnsProviders: DnsProvider[] = [
   createSingleSchemeProvider(
     "dns_pdns",
     "PowerDNS",
-    "自建/高级",
+    groups.selfHostedAdvanced,
     ["PDNS_Url", "PDNS_ServerId", "PDNS_Token", "PDNS_Ttl"],
     {
       optionalKeys: ["PDNS_Ttl"],
@@ -361,18 +413,18 @@ export const dnsProviders: DnsProvider[] = [
   createSingleSchemeProvider(
     "dns_technitium",
     "Technitium DNS",
-    "自建/高级",
+    groups.selfHostedAdvanced,
     ["Technitium_Server", "Technitium_Token", "Technitium_Expiry_Ttl"],
     {
       optionalKeys: ["Technitium_Expiry_Ttl"],
     },
   ),
-  createSingleSchemeProvider("dns_pleskxml", "Plesk XML API", "自建/高级", [
+  createSingleSchemeProvider("dns_pleskxml", "Plesk XML API", groups.selfHostedAdvanced, [
     "pleskxml_uri",
     "pleskxml_user",
     "pleskxml_pass",
   ]),
-  createSingleSchemeProvider("dns_cpanel", "cPanel", "自建/高级", [
+  createSingleSchemeProvider("dns_cpanel", "cPanel", groups.selfHostedAdvanced, [
     "cPanel_Username",
     "cPanel_Apitoken",
     "cPanel_Hostname",
@@ -380,38 +432,43 @@ export const dnsProviders: DnsProvider[] = [
   createSingleSchemeProvider(
     "dns_da",
     "DirectAdmin",
-    "自建/高级",
+    groups.selfHostedAdvanced,
     ["DA_Api", "DA_Api_Insecure"],
     {
       fields: {
-        DA_Api_Insecure: { description: "填写 0 或 1。" },
+        DA_Api_Insecure: { description: text("descriptions.boolean01") },
       },
     },
   ),
   createSingleSchemeProvider(
     "dns_ispconfig",
     "ISPConfig",
-    "自建/高级",
+    groups.selfHostedAdvanced,
     ["ISPC_User", "ISPC_Password", "ISPC_Api", "ISPC_Api_Insecure"],
     {
       fields: {
-        ISPC_Api_Insecure: { description: "填写 0 或 1。" },
+        ISPC_Api_Insecure: { description: text("descriptions.boolean01") },
       },
     },
   ),
   createSingleSchemeProvider(
     "dns_opnsense",
     "OPNsense",
-    "自建/高级",
+    groups.selfHostedAdvanced,
     ["OPNs_Host", "OPNs_Port", "OPNs_Key", "OPNs_Token", "OPNs_Api_Insecure"],
     {
       optionalKeys: ["OPNs_Port", "OPNs_Api_Insecure"],
       fields: {
-        OPNs_Api_Insecure: { description: "可选，填写 0 或 1。" },
+        OPNs_Api_Insecure: {
+          description: text("descriptions.optionalBoolean01"),
+        },
       },
     },
   ),
-];
+  ];
+};
+
+export const dnsProviders: DnsProvider[] = createAcmeDnsProviders();
 
 const dnsTypeAliases: Record<string, string> = {
   aliyun: "dns_ali",
@@ -482,7 +539,14 @@ export const getSatisfiedCredentialScheme = (
   );
 };
 
-export const formatCredentialRequirements = (provider: DnsProvider) => {
+export const formatCredentialRequirements = (
+  provider: DnsProvider,
+  translator: AcmeDnsProviderTranslator = tDefault,
+) => {
+  const text = (
+    key: string,
+    params?: Record<string, string | number | boolean | null | undefined>,
+  ) => acmeDnsProviderT(translator, key, params);
   if (provider.credentialSchemes.length === 1) {
     const requiredKeys = provider.credentialSchemes[0]!.fields.filter(
       (field) => field.required !== false,
@@ -500,11 +564,13 @@ export const formatCredentialRequirements = (provider: DnsProvider) => {
         .filter((field) => field.required === false)
         .map((field) => field.key);
       const suffix = optionalKeys.length
-        ? `；可选 ${optionalKeys.join(", ")}`
+        ? text("requirements.optionalSuffix", {
+            keys: optionalKeys.join(", "),
+          })
         : "";
       return `${scheme.label}: ${requiredKeys}${suffix}`;
     })
-    .join("；或 ");
+    .join(text("requirements.orSeparator"));
 };
 
 export const normalizeAcmeEnvVars = (
@@ -536,12 +602,17 @@ export const filterAcmeCredentialsForProvider = (
   );
 };
 
-export const getProviderLabel = (dnsType: string | null | undefined) => {
+export const getProviderLabel = (
+  dnsType: string | null | undefined,
+  translator: AcmeDnsProviderTranslator = tDefault,
+) => {
   const normalized =
     normalizeAcmeDnsType(dnsType) || String(dnsType || "").trim();
   if (!normalized) return "-";
   return (
-    dnsProviders.find((provider) => provider.dnsType === normalized)?.label ||
+    createAcmeDnsProviders(translator).find(
+      (provider) => provider.dnsType === normalized,
+    )?.label ||
     normalized
   );
 };

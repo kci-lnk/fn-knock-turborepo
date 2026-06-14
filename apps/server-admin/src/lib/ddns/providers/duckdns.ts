@@ -1,7 +1,11 @@
 import type { DDNSProviderContext, DDNSProviderDefinition, DDNSUpdateResult } from "../types";
-import { getTimeoutMs, parseTextResponse } from "./helpers";
+import { ddnsProviderT, getTimeoutMs, parseTextResponse } from "./helpers";
 
 const DUCKDNS_ENDPOINT = "https://ddns.duckdns.fnknock.cn/";
+const duckdnsT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => ddnsProviderT("duckdns", key, params);
 
 export const duckdnsProvider: DDNSProviderDefinition = {
   name: "duckdns",
@@ -9,11 +13,11 @@ export const duckdnsProvider: DDNSProviderDefinition = {
   fields: [
     {
       key: "domains",
-      label: "子域名",
+      label: duckdnsT("fields.domains.label"),
       type: "text",
       placeholder: "home,lab",
       required: true,
-      description: "只填写 DuckDNS 子域名，不带 .duckdns.org 后缀；支持逗号分隔",
+      description: duckdnsT("fields.domains.description"),
     },
     {
       key: "token",
@@ -21,7 +25,7 @@ export const duckdnsProvider: DDNSProviderDefinition = {
       type: "password",
       placeholder: "DuckDNS Token",
       required: true,
-      description: "在 DuckDNS 控制台首页可以看到账号 token",
+      description: duckdnsT("fields.token.description"),
     },
   ],
 };
@@ -35,11 +39,11 @@ export async function duckdnsUpdate(
   const token = config.token?.trim();
 
   if (!domains || !token) {
-    return { success: false, message: "DuckDNS 配置不完整" };
+    return { success: false, message: duckdnsT("configIncomplete") };
   }
 
   if (!ipv4 && !ipv6) {
-    return { success: false, message: "DuckDNS 更新失败: 没有可用的 IPv4 或 IPv6 地址" };
+    return { success: false, message: duckdnsT("noIpAvailable") };
   }
 
   const payload = {
@@ -65,14 +69,25 @@ export async function duckdnsUpdate(
     const text = await parseTextResponse(response);
 
     if (!response.ok) {
-      return { success: false, message: `DuckDNS 更新失败 [${response.status}]: ${text || "请求失败"}` };
+      return {
+        success: false,
+        message: duckdnsT("updateFailedWithStatus", {
+          status: response.status,
+          detail: text || duckdnsT("requestFailed"),
+        }),
+      };
     }
 
     const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
     const status = lines[0] || text;
 
     if (status !== "OK") {
-      return { success: false, message: `DuckDNS 更新失败: ${text || "返回了非 OK 响应"}` };
+      return {
+        success: false,
+        message: duckdnsT("updateFailed", {
+          detail: text || duckdnsT("nonOkResponse"),
+        }),
+      };
     }
 
     const result = lines[lines.length - 1];
@@ -80,12 +95,12 @@ export async function duckdnsUpdate(
 
     return {
       success: true,
-      message: `DuckDNS 更新成功${detail}`,
+      message: duckdnsT("success", { detail }),
       ipv4Updated: !!ipv4,
       ipv6Updated: !!ipv6,
     };
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
-    throw new Error(`DuckDNS 请求异常: ${err.message}`);
+    throw new Error(duckdnsT("requestError", { detail: err.message }));
   }
 }

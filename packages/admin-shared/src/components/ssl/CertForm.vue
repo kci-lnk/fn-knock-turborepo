@@ -3,7 +3,7 @@
     <CertSourceField
       id="cert-input"
       field-key="cert"
-      label="SSL 证书"
+      :label="t('shared.certForm.sslCert')"
       :value="cert"
       accept=".crt,.pem"
       :supported-file-types="['.crt', '.pem']"
@@ -22,7 +22,7 @@
     <CertSourceField
       id="key-input"
       field-key="sslKey"
-      label="私钥"
+      :label="t('shared.certForm.privateKey')"
       :value="sslKey"
       accept=".key,.pem"
       :supported-file-types="['.key', '.pem']"
@@ -41,6 +41,7 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import CertSourceField from './CertSourceField.vue';
 
 interface SharedDataFileEntry {
@@ -61,6 +62,8 @@ defineProps<{
   sharedFilesError?: string;
   sharedFileSelecting?: boolean;
 }>();
+
+const { t } = useI18n();
 
 const emit = defineEmits<{
   'update:cert': [value: string];

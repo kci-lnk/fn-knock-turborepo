@@ -7,12 +7,18 @@ import type {
   NotificationSendResult,
 } from "../types";
 import { toPlainRecord, truncateText } from "./shared";
+import { tDefault } from "../../i18n";
+
+const webhookT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.notifications.providers.catalog.webhook.${key}`, params);
 
 const WEBHOOK_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   {
     key: "url",
     label: "Webhook URL",
-    description: "接收标准通知 JSON 的目标地址。",
+    description: webhookT("fields.url.description"),
     placeholder: "https://example.com/hooks/fn-knock",
     type: "string",
     required: true,
@@ -20,7 +26,7 @@ const WEBHOOK_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   },
   {
     key: "method",
-    label: "请求方法",
+    label: webhookT("fields.method.label"),
     type: "select",
     required: true,
     default_value: "POST",
@@ -31,7 +37,7 @@ const WEBHOOK_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   },
   {
     key: "timeout_seconds",
-    label: "超时秒数",
+    label: webhookT("fields.timeout_seconds.label"),
     type: "number",
     required: true,
     default_value: 5,
@@ -40,8 +46,8 @@ const WEBHOOK_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   },
   {
     key: "shared_secret",
-    label: "共享密钥",
-    description: "可选。若填写，会通过 X-Fn-Knock-Signature 请求头发送。",
+    label: webhookT("fields.shared_secret.label"),
+    description: webhookT("fields.shared_secret.description"),
     placeholder: "secret",
     type: "string",
     sensitive: true,
@@ -51,22 +57,22 @@ const WEBHOOK_CONNECTION_SCHEMA: NotificationSchemaField[] = [
 const WEBHOOK_TARGET_SCHEMA: NotificationSchemaField[] = [
   {
     key: "endpoint_path",
-    label: "附加路径",
-    description: "可选。将拼接到基础 Webhook URL 后发送。",
+    label: webhookT("fields.endpoint_path.label"),
+    description: webhookT("fields.endpoint_path.description"),
     placeholder: "/alerts",
     type: "string",
   },
   {
     key: "extra_headers_json",
-    label: "额外请求头 JSON",
-    description: '可选，例如 {"X-Env":"prod"}。',
+    label: webhookT("fields.extra_headers_json.label"),
+    description: webhookT("fields.extra_headers_json.description"),
     placeholder: '{"X-Env":"prod"}',
     type: "json",
   },
   {
     key: "extra_body_json",
-    label: "额外请求体 JSON",
-    description: "可选，会挂到 payload.extra_body。",
+    label: webhookT("fields.extra_body_json.label"),
+    description: webhookT("fields.extra_body_json.description"),
     placeholder: '{"service":"gateway"}',
     type: "json",
   },
@@ -75,7 +81,7 @@ const WEBHOOK_TARGET_SCHEMA: NotificationSchemaField[] = [
 export const webhookProviderDefinition: NotificationProviderDefinition = {
   type: "webhook",
   label: "Webhook",
-  description: "向任意支持 HTTP JSON 的地址发送标准通知消息。",
+  description: webhookT("description"),
   connection_schema: WEBHOOK_CONNECTION_SCHEMA,
   target_schema: WEBHOOK_TARGET_SCHEMA,
   sensitive_fields: ["url", "shared_secret"],
@@ -97,7 +103,7 @@ const resolveWebhookUrl = (
 ) => {
   const baseUrl = String(provider.connection_config.url || "").trim();
   if (!baseUrl) {
-    throw new Error("Missing webhook url");
+    throw new Error(webhookT("errors.missingUrl"));
   }
 
   const endpointPath = String(
@@ -208,13 +214,13 @@ export const sendWebhookMessage = async (args: {
     return {
       success: false,
       retryable: response.status >= 500 || response.status === 429,
-      reason: `Webhook returned ${response.status}`,
+      reason: webhookT("errors.requestReturned", { status: response.status }),
       request_summary: requestSummary,
       response_summary: responseSummary,
     };
   } catch (error) {
     const reason =
-      error instanceof Error ? error.message : "Webhook request failed";
+      error instanceof Error ? error.message : webhookT("errors.requestFailed");
     return {
       success: false,
       retryable: true,

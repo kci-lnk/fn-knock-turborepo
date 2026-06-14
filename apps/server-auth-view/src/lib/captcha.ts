@@ -5,6 +5,20 @@ const POW_HASH_BATCH_SIZE = 2000;
 const SUPPORTED_POW_ALGORITHMS = ['SHA-256', 'SHA-384', 'SHA-512'] as const;
 
 type PowAlgorithm = (typeof SUPPORTED_POW_ALGORITHMS)[number];
+export type CaptchaErrorCode =
+    | 'powUnsupportedAlgorithm'
+    | 'powInvalidChallenge'
+    | 'powSolveFailed';
+
+export class CaptchaError extends Error {
+    readonly code: CaptchaErrorCode;
+
+    constructor(code: CaptchaErrorCode) {
+        super(code);
+        this.name = 'CaptchaError';
+        this.code = code;
+    }
+}
 
 export type PowChallenge = {
     algorithm: PowAlgorithm;
@@ -31,7 +45,7 @@ export const normalizePowChallenge = (payload: unknown): PowChallenge => {
     const raw = payload as Partial<PowChallenge> | null;
     const algorithmRaw = String(raw?.algorithm || 'SHA-256').toUpperCase();
     if (!SUPPORTED_POW_ALGORITHMS.includes(algorithmRaw as PowAlgorithm)) {
-        throw new Error('不支持的 PoW 算法');
+        throw new CaptchaError('powUnsupportedAlgorithm');
     }
 
     const challenge = String(raw?.challenge || '').toLowerCase();
@@ -39,7 +53,7 @@ export const normalizePowChallenge = (payload: unknown): PowChallenge => {
     const signature = String(raw?.signature || '');
     const maxnumber = Number(raw?.maxnumber);
     if (!challenge || !salt || !signature || !Number.isFinite(maxnumber) || maxnumber < 0) {
-        throw new Error('PoW challenge 数据无效');
+        throw new CaptchaError('powInvalidChallenge');
     }
 
     return {
@@ -62,7 +76,7 @@ export const solvePowChallenge = async (challenge: PowChallenge): Promise<number
         }
     }
 
-    throw new Error('PoW 求解失败，请刷新页面后重试');
+    throw new CaptchaError('powSolveFailed');
 };
 
 export const buildPowSubmission = (challenge: PowChallenge, number: number): CaptchaSubmission => ({

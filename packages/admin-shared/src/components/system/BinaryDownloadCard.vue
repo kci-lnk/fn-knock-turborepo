@@ -1,9 +1,12 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import ResourceStatusCard from '@admin-shared/components/system/ResourceStatusCard.vue';
+
+const { t } = useI18n();
 
 const props = withDefaults(
   defineProps<{
@@ -31,14 +34,6 @@ const props = withDefaults(
     error: '',
     isCancelling: false,
     allowManage: true,
-    readyLabel: '已就绪',
-    pendingLabel: '未就绪',
-    downloadButtonText: '下载资源',
-    downloadingText: '下载中，请稍候...',
-    redownloadConfirmTitle: '确认重新下载资源？',
-    redownloadConfirmDescription: '此操作会覆盖现有文件。',
-    deleteConfirmTitle: '确认删除资源？',
-    deleteConfirmDescription: '删除后需重新下载才能使用。',
   },
 );
 
@@ -77,15 +72,23 @@ const emit = defineEmits<{
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <div class="border p-4 rounded-lg">
-        <div class="text-sm text-muted-foreground mb-2">当前平台</div>
+        <div class="text-sm text-muted-foreground mb-2">
+          {{ t('shared.binaryDownload.currentPlatform') }}
+        </div>
         <div class="font-medium">{{ props.platform }}</div>
         <div class="mt-2 text-xs" :class="props.supported ? 'text-green-600' : 'text-red-500'">
-          {{ props.supported ? '受支持' : '不受支持' }}
+          {{
+            props.supported
+              ? t('shared.binaryDownload.supported')
+              : t('shared.binaryDownload.unsupported')
+          }}
         </div>
       </div>
       <div class="border p-4 rounded-lg md:col-span-2">
         <div class="flex justify-between items-center">
-          <div class="text-sm text-muted-foreground">资源状态</div>
+          <div class="text-sm text-muted-foreground">
+            {{ t('shared.binaryDownload.resourceStatus') }}
+          </div>
           <div
             :class="[
               'px-2 py-0.5 rounded text-xs font-medium',
@@ -94,12 +97,16 @@ const emit = defineEmits<{
                 : 'bg-yellow-100 text-yellow-700 border border-yellow-200',
             ]"
           >
-            {{ props.downloaded ? props.readyLabel : props.pendingLabel }}
+            {{
+              props.downloaded
+                ? props.readyLabel ?? t('shared.binaryDownload.readyLabel')
+                : props.pendingLabel ?? t('shared.binaryDownload.pendingLabel')
+            }}
           </div>
         </div>
         <div v-if="props.status === 'downloading'" class="mt-4">
           <div class="flex justify-between text-sm mb-2 text-muted-foreground font-medium">
-            <span>下载进度</span>
+            <span>{{ t('shared.binaryDownload.downloadProgress') }}</span>
             <span>{{ props.percent }}%</span>
           </div>
           <Progress :model-value="props.percent" />
@@ -108,7 +115,7 @@ const emit = defineEmits<{
           v-if="props.error"
           class="text-sm bg-destructive/10 text-destructive p-3 rounded-md border border-destructive/20 mt-3"
         >
-          错误：{{ props.error }}
+          {{ t('shared.binaryDownload.errorPrefix') }}{{ props.error }}
         </div>
       </div>
     </div>
@@ -120,19 +127,33 @@ const emit = defineEmits<{
           @click="emit('start')"
           :disabled="!props.supported"
         >
-          {{ props.downloadButtonText }}
+          {{ props.downloadButtonText ?? t('shared.binaryDownload.downloadButton') }}
         </Button>
         <div v-else-if="props.allowManage" class="flex gap-3">
           <Popover v-slot="{ close }">
             <PopoverTrigger as-child>
-              <Button variant="outline">重新下载</Button>
+              <Button variant="outline">
+                {{ t('shared.binaryDownload.redownload') }}
+              </Button>
             </PopoverTrigger>
             <PopoverContent class="w-72 text-left">
               <div class="grid gap-3">
-                <p class="text-sm font-medium">{{ props.redownloadConfirmTitle }}</p>
-                <p class="text-xs text-muted-foreground">{{ props.redownloadConfirmDescription }}</p>
+                <p class="text-sm font-medium">
+                  {{
+                    props.redownloadConfirmTitle ??
+                    t('shared.binaryDownload.redownloadConfirmTitle')
+                  }}
+                </p>
+                <p class="text-xs text-muted-foreground">
+                  {{
+                    props.redownloadConfirmDescription ??
+                    t('shared.binaryDownload.redownloadConfirmDescription')
+                  }}
+                </p>
                 <div class="flex justify-end gap-2">
-                  <Button variant="outline" size="sm" @click="close">取消</Button>
+                  <Button variant="outline" size="sm" @click="close">
+                    {{ t('common.cancel') }}
+                  </Button>
                   <Button
                     size="sm"
                     @click="
@@ -142,7 +163,7 @@ const emit = defineEmits<{
                       }
                     "
                   >
-                    确认重新下载
+                    {{ t('shared.binaryDownload.confirmRedownload') }}
                   </Button>
                 </div>
               </div>
@@ -150,14 +171,28 @@ const emit = defineEmits<{
           </Popover>
           <Popover v-slot="{ close }">
             <PopoverTrigger as-child>
-              <Button variant="destructive">删除</Button>
+              <Button variant="destructive">
+                {{ t('shared.binaryDownload.delete') }}
+              </Button>
             </PopoverTrigger>
             <PopoverContent class="w-72 text-left">
               <div class="grid gap-3">
-                <p class="text-sm font-medium">{{ props.deleteConfirmTitle }}</p>
-                <p class="text-xs text-muted-foreground">{{ props.deleteConfirmDescription }}</p>
+                <p class="text-sm font-medium">
+                  {{
+                    props.deleteConfirmTitle ??
+                    t('shared.binaryDownload.deleteConfirmTitle')
+                  }}
+                </p>
+                <p class="text-xs text-muted-foreground">
+                  {{
+                    props.deleteConfirmDescription ??
+                    t('shared.binaryDownload.deleteConfirmDescription')
+                  }}
+                </p>
                 <div class="flex justify-end gap-2">
-                  <Button variant="outline" size="sm" @click="close">取消</Button>
+                  <Button variant="outline" size="sm" @click="close">
+                    {{ t('common.cancel') }}
+                  </Button>
                   <Button
                     variant="destructive"
                     size="sm"
@@ -168,7 +203,7 @@ const emit = defineEmits<{
                       }
                     "
                   >
-                    确认删除
+                    {{ t('shared.binaryDownload.confirmDelete') }}
                   </Button>
                 </div>
               </div>
@@ -178,10 +213,10 @@ const emit = defineEmits<{
       </template>
       <template v-else>
         <div class="text-sm text-muted-foreground animate-pulse flex items-center h-10 mr-auto">
-          {{ props.downloadingText }}
+          {{ props.downloadingText ?? t('shared.binaryDownload.downloading') }}
         </div>
         <Button variant="destructive" @click="emit('cancel')" :disabled="props.isCancelling">
-          取消任务
+          {{ t('shared.binaryDownload.cancelTask') }}
         </Button>
       </template>
     </template>

@@ -14,12 +14,18 @@ import {
   truncateText,
   truncateUtf8ByBytes,
 } from "./shared";
+import { tDefault } from "../../i18n";
+
+const wecomT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.notifications.providers.catalog.wecom.${key}`, params);
 
 const WECOM_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   {
     key: "webhook_url",
     label: "Webhook URL",
-    description: "企业微信消息推送页面生成的完整 Webhook 地址，请妥善保管。",
+    description: wecomT("fields.webhook_url.description"),
     placeholder:
       "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
     type: "string",
@@ -28,7 +34,7 @@ const WECOM_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   },
   {
     key: "timeout_seconds",
-    label: "超时秒数",
+    label: wecomT("fields.timeout_seconds.label"),
     type: "number",
     required: true,
     default_value: 5,
@@ -40,15 +46,15 @@ const WECOM_CONNECTION_SCHEMA: NotificationSchemaField[] = [
 const WECOM_TARGET_SCHEMA: NotificationSchemaField[] = [
   {
     key: "mentioned_list",
-    label: "提醒成员 UserID",
-    description: "可选。多个值使用英文逗号或换行分隔；支持填写 @all。",
+    label: wecomT("fields.mentioned_list.label"),
+    description: wecomT("fields.mentioned_list.description"),
     placeholder: "zhangsan,@all",
     type: "string",
   },
   {
     key: "mentioned_mobile_list",
-    label: "提醒手机号",
-    description: "可选。多个值使用英文逗号或换行分隔；支持填写 @all。",
+    label: wecomT("fields.mentioned_mobile_list.label"),
+    description: wecomT("fields.mentioned_mobile_list.description"),
     placeholder: "13800001111,@all",
     type: "string",
   },
@@ -56,9 +62,8 @@ const WECOM_TARGET_SCHEMA: NotificationSchemaField[] = [
 
 export const wecomProviderDefinition: NotificationProviderDefinition = {
   type: "wecom",
-  label: "企业微信消息推送",
-  description:
-    "通过企业微信消息推送（群 Webhook）向指定群聊发送 text 或 markdown 通知。",
+  label: wecomT("label"),
+  description: wecomT("description"),
   connection_schema: WECOM_CONNECTION_SCHEMA,
   target_schema: WECOM_TARGET_SCHEMA,
   sensitive_fields: ["webhook_url"],
@@ -100,7 +105,9 @@ const buildWecomMarkdownContent = (
   mentionedList: string[],
 ) => {
   const sections: string[] = [];
-  const title = toTrimmedString(message.title || "fn-knock 通知");
+  const title = toTrimmedString(
+    message.title || wecomT("message.fallbackTitle"),
+  );
   const summary = toTrimmedString(message.summary);
   const bodyText = toTrimmedString(message.body_text);
 
@@ -154,7 +161,9 @@ const buildWecomMarkdownContent = (
 
 const buildWecomTextContent = (message: NotificationMessage) => {
   const sections: string[] = [];
-  const title = toTrimmedString(message.title || "fn-knock 通知");
+  const title = toTrimmedString(
+    message.title || wecomT("message.fallbackTitle"),
+  );
   const summary = toTrimmedString(message.summary);
   const bodyText = toTrimmedString(message.body_text);
 
@@ -212,7 +221,7 @@ export const sendWecomMessage = async (args: {
     return {
       success: false,
       retryable: false,
-      reason: "Missing WeCom webhook url",
+      reason: wecomT("errors.missingWebhookUrl"),
     };
   }
 
@@ -233,7 +242,7 @@ export const sendWecomMessage = async (args: {
         text: {
           content:
             truncateUtf8ByBytes(buildWecomTextContent(args.message), 2048) ||
-            "fn-knock 通知",
+            wecomT("message.fallbackTitle"),
           ...(mentionedList.length > 0
             ? { mentioned_list: mentionedList }
             : {}),
@@ -246,7 +255,8 @@ export const sendWecomMessage = async (args: {
         msgtype: "markdown",
         markdown: {
           content:
-            truncateUtf8ByBytes(markdownContent, 4096) || "fn-knock 通知",
+            truncateUtf8ByBytes(markdownContent, 4096) ||
+            wecomT("message.fallbackTitle"),
         },
       };
 
@@ -284,7 +294,8 @@ export const sendWecomMessage = async (args: {
         !apiSucceeded && (response.status >= 500 || response.status === 429),
       reason: apiSucceeded
         ? undefined
-        : parsedResponse?.errmsg || `WeCom returned ${response.status}`,
+        : parsedResponse?.errmsg ||
+          wecomT("errors.requestReturned", { status: response.status }),
       request_summary: {
         method: "POST",
         url: redactWecomWebhookUrl(webhookUrl),
@@ -304,7 +315,7 @@ export const sendWecomMessage = async (args: {
     return {
       success: false,
       retryable: true,
-      reason: error instanceof Error ? error.message : "WeCom request failed",
+      reason: error instanceof Error ? error.message : wecomT("errors.requestFailed"),
       request_summary: {
         method: "POST",
         url: redactWecomWebhookUrl(webhookUrl),

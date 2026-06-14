@@ -7,6 +7,7 @@ import {
   ref,
   watch,
 } from "vue";
+import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -126,6 +127,7 @@ const toolbarNavigationShortcuts: ToolbarShortcut[] = [
 
 const router = useRouter();
 const configStore = useConfigStore();
+const { t } = useI18n();
 
 const runtimeStatus = ref<TerminalRuntimeStatus | null>(null);
 const sessions = ref<TerminalSessionRecord[]>([]);
@@ -208,7 +210,7 @@ const selectedSession = computed(
     null,
 );
 const terminalWindowTitle = computed(
-  () => selectedSession.value?.title?.trim() || "Web终端",
+  () => selectedSession.value?.title?.trim() || t("admin.webTerminal.title"),
 );
 const terminalWindowSubtitle = computed(() => {
   const session = selectedSession.value;
@@ -223,10 +225,10 @@ const terminalWindowSubtitle = computed(() => {
 const destroySessionDescription = computed(() => {
   const title = selectedSession.value?.title?.trim();
   if (!title) {
-    return "结束后当前网页终端会话会立即断开并删除，此操作不可恢复。";
+    return t("admin.webTerminal.destroyDescription");
   }
 
-  return `结束后会话“${title}”会立即断开并删除，此操作不可恢复。`;
+  return t("admin.webTerminal.destroyDescriptionWithTitle", { title });
 });
 
 const terminalEnabled = computed(
@@ -246,7 +248,9 @@ const armedModifierLabel = computed(() =>
   armedModifier.value ? toolbarModifierLabels[armedModifier.value] : "",
 );
 const terminalFullscreenLabel = computed(() =>
-  isTerminalFullscreen.value ? "退出最大化" : "最大化终端",
+  isTerminalFullscreen.value
+    ? t("admin.webTerminal.exitFullscreen")
+    : t("admin.webTerminal.enterFullscreen"),
 );
 const terminalPanelClass = computed(() =>
   isTerminalFullscreen.value
@@ -286,10 +290,16 @@ const terminalFrameStyle = computed(() => {
 });
 
 const statusTone = computed(() => {
-  if (connectionState.value === "connected") return "已连接";
-  if (connectionState.value === "connecting") return "准备连接";
-  if (connectionState.value === "error") return "连接异常";
-  return "尚未连接";
+  if (connectionState.value === "connected") {
+    return t("admin.webTerminal.statusConnected");
+  }
+  if (connectionState.value === "connecting") {
+    return t("admin.webTerminal.statusConnecting");
+  }
+  if (connectionState.value === "error") {
+    return t("admin.webTerminal.statusError");
+  }
+  return t("admin.webTerminal.statusDisconnected");
 });
 
 const encodeInputToBase64 = (value: string): string => {
@@ -471,7 +481,7 @@ const readTextFromClipboard = async (): Promise<string> => {
     return navigator.clipboard.readText();
   }
 
-  throw new Error("浏览器未开放剪贴板读取权限");
+  throw new Error(t("admin.webTerminal.clipboardPermissionDenied"));
 };
 
 const lockPageScroll = () => {
@@ -1450,18 +1460,20 @@ const copyTerminalSelectionFromMenu = async () => {
   closeTerminalContextMenu();
 
   if (!selectedText.length) {
-    toast.info("当前没有选中内容");
+    toast.info(t("admin.webTerminal.noSelection"));
     focusTerminal();
     return;
   }
 
   try {
     await copyTextToClipboard(selectedText);
-    toast.success("已复制选中内容");
+    toast.success(t("admin.webTerminal.selectionCopied"));
   } catch (error) {
-    toast.error("复制失败", {
+    toast.error(t("admin.webTerminal.copyFailed"), {
       description:
-        error instanceof Error ? error.message : "无法将选中内容复制到剪贴板",
+        error instanceof Error
+          ? error.message
+          : t("admin.webTerminal.copySelectionFailed"),
     });
   } finally {
     focusTerminal();
@@ -1472,7 +1484,7 @@ const pasteClipboardToTerminal = async () => {
   closeTerminalContextMenu();
 
   if (!activeAttachment.value) {
-    toast.error("当前没有可用的终端连接");
+    toast.error(t("admin.webTerminal.noConnection"));
     focusTerminal();
     return;
   }
@@ -1480,7 +1492,7 @@ const pasteClipboardToTerminal = async () => {
   try {
     const text = await readTextFromClipboard();
     if (!text) {
-      toast.info("剪贴板为空");
+      toast.info(t("admin.webTerminal.emptyClipboard"));
       focusTerminal();
       return;
     }
@@ -1652,7 +1664,9 @@ const queueInputPayload = (attachmentId: string, payload: string) => {
       console.error(error);
       connectionState.value = "error";
       connectionError.value =
-        error instanceof Error ? error.message : "终端输入发送失败";
+        error instanceof Error
+          ? error.message
+          : t("admin.webTerminal.inputSendFailed");
     });
   return inputSendQueue;
 };
@@ -1762,7 +1776,7 @@ const sendTerminalPayloadNow = async (payload: string) => {
 
   const attachmentId = activeAttachment.value?.id;
   if (!attachmentId) {
-    throw new Error("当前没有可用的终端连接");
+    throw new Error(t("admin.webTerminal.noConnection"));
   }
 
   try {
@@ -1771,7 +1785,9 @@ const sendTerminalPayloadNow = async (payload: string) => {
     console.error(error);
     connectionState.value = "error";
     connectionError.value =
-      error instanceof Error ? error.message : "终端输入发送失败";
+      error instanceof Error
+        ? error.message
+        : t("admin.webTerminal.inputSendFailed");
     throw error;
   }
 };
@@ -1803,7 +1819,7 @@ const openManualPasteDialog = () => {
   sendDialogPayload.value = "";
   sendDialogOpen.value = true;
   focusSendDialogTextarea();
-  toast.info("浏览器不允许直接读取剪贴板，请在弹窗中粘贴后发送");
+  toast.info(t("admin.webTerminal.manualPasteInfo"));
 };
 
 const openRenameDialog = () => {
@@ -1822,9 +1838,11 @@ const handleSessionTabChange = async (sessionId: string | number) => {
   try {
     await connectToSession(nextSession);
   } catch (error) {
-    toast.error("切换会话失败", {
+    toast.error(t("admin.webTerminal.switchFailed"), {
       description:
-        error instanceof Error ? error.message : "无法切换到所选终端会话",
+        error instanceof Error
+          ? error.message
+          : t("admin.webTerminal.switchFailedDescription"),
     });
   }
 };
@@ -1846,8 +1864,11 @@ const submitRenameDialog = async () => {
     renameDialogOpen.value = false;
     focusTerminal();
   } catch (error) {
-    toast.error("重命名失败", {
-      description: error instanceof Error ? error.message : "无法更新会话名称",
+    toast.error(t("admin.webTerminal.renameFailed"), {
+      description:
+        error instanceof Error
+          ? error.message
+          : t("admin.webTerminal.renameFailedDescription"),
     });
   } finally {
     isRenamingSession.value = false;
@@ -1866,9 +1887,11 @@ const submitSendDialog = async () => {
     sendDialogOpen.value = false;
     focusTerminal();
   } catch (error) {
-    toast.error("发送失败", {
+    toast.error(t("admin.webTerminal.sendFailed"), {
       description:
-        error instanceof Error ? error.message : "无法将内容发送到终端",
+        error instanceof Error
+          ? error.message
+          : t("admin.webTerminal.sendFailedDescription"),
     });
   } finally {
     isSendingDialogPayload.value = false;
@@ -1990,7 +2013,9 @@ const startHttpPolling = async (attachment: TerminalAttachmentRecord) => {
       if (generation !== pollGeneration) return;
       connectionState.value = "error";
       connectionError.value =
-        error instanceof Error ? error.message : "HTTP 长轮询已断开";
+        error instanceof Error
+          ? error.message
+          : t("admin.webTerminal.pollingDisconnected");
       return;
     }
   }
@@ -2001,7 +2026,7 @@ const ensureTerminalReady = async () => {
   await nextTick();
   await initializeTerminal();
   if (!term) {
-    throw new Error("终端视图尚未准备完成");
+    throw new Error(t("admin.webTerminal.notReady"));
   }
 };
 
@@ -2062,12 +2087,15 @@ const createSession = async (
       await connectToSession(session);
     }
     if (toastOnSuccess) {
-      toast.success("终端会话已创建");
+      toast.success(t("admin.webTerminal.sessionCreated"));
     }
     return session;
   } catch (error) {
-    toast.error("创建失败", {
-      description: error instanceof Error ? error.message : "无法创建终端会话",
+    toast.error(t("admin.webTerminal.createFailed"), {
+      description:
+        error instanceof Error
+          ? error.message
+          : t("admin.webTerminal.createFailedDescription"),
     });
     return null;
   } finally {
@@ -2080,8 +2108,11 @@ const reconnectSession = async () => {
   try {
     await connectToSession(selectedSession.value);
   } catch (error) {
-    toast.error("重连失败", {
-      description: error instanceof Error ? error.message : "无法重新附着终端",
+    toast.error(t("admin.webTerminal.reconnectFailed"), {
+      description:
+        error instanceof Error
+          ? error.message
+          : t("admin.webTerminal.reconnectFailedDescription"),
     });
   }
 };
@@ -2101,10 +2132,13 @@ const destroySelectedSession = async () => {
       selectedSessionId.value = "";
       clearTerminal();
     }
-    toast.success("终端会话已结束");
+    toast.success(t("admin.webTerminal.sessionEnded"));
   } catch (error) {
-    toast.error("结束失败", {
-      description: error instanceof Error ? error.message : "无法结束终端会话",
+    toast.error(t("admin.webTerminal.endFailed"), {
+      description:
+        error instanceof Error
+          ? error.message
+          : t("admin.webTerminal.endFailedDescription"),
     });
   } finally {
     isKilling.value = false;
@@ -2224,7 +2258,7 @@ const bootstrapPage = async () => {
   } catch (error) {
     connectionState.value = "error";
     connectionError.value =
-      error instanceof Error ? error.message : "网页终端初始化失败";
+      error instanceof Error ? error.message : t("admin.webTerminal.initFailed");
   } finally {
     isBooting.value = false;
     await nextTick();
@@ -2237,7 +2271,9 @@ const bootstrapPage = async () => {
     } catch (error) {
       connectionState.value = "error";
       connectionError.value =
-        error instanceof Error ? error.message : "网页终端初始化失败";
+        error instanceof Error
+          ? error.message
+          : t("admin.webTerminal.initFailed");
     }
   }
 };
@@ -2300,11 +2336,11 @@ onBeforeUnmount(() => {
   <div class="flex h-full min-w-0 flex-col gap-3 sm:gap-4">
     <Alert v-if="!terminalEnabled" class="border-border/60">
       <AlertTriangle class="h-4 w-4" />
-      <AlertTitle>网页终端尚未启用</AlertTitle>
+      <AlertTitle>{{ t("admin.webTerminal.disabledTitle") }}</AlertTitle>
       <AlertDescription class="space-y-3">
-        <p>请先在系统设置里开启终端功能，再回到这里创建和附着会话。</p>
+        <p>{{ t("admin.webTerminal.disabledDescription") }}</p>
         <Button size="sm" @click="router.push('/system?tab=terminal')">
-          前往系统设置
+          {{ t("admin.webTerminal.goSettings") }}
         </Button>
       </AlertDescription>
     </Alert>
@@ -2315,7 +2351,7 @@ onBeforeUnmount(() => {
       class="border-destructive/40"
     >
       <AlertTriangle class="h-4 w-4" />
-      <AlertTitle>当前不可用</AlertTitle>
+      <AlertTitle>{{ t("admin.webTerminal.unavailableTitle") }}</AlertTitle>
       <AlertDescription>{{ runtimeStatus.blockedReason }}</AlertDescription>
     </Alert>
 
@@ -2332,7 +2368,7 @@ onBeforeUnmount(() => {
                 <LiveStatusBadge
                   v-if="connectionState === 'connected'"
                   :active="true"
-                  active-label="已连接"
+                  :active-label="t('admin.webTerminal.statusConnected')"
                   class="mt-px mr-3"
                 />
                 <span
@@ -2348,8 +2384,8 @@ onBeforeUnmount(() => {
                   size="icon-sm"
                   class="rounded-lg border-border/70 bg-background/85 shadow-none"
                   :disabled="isCreating || isBooting"
-                  aria-label="新建终端会话"
-                  title="新建会话"
+                  :aria-label="t('admin.webTerminal.newSessionAria')"
+                  :title="t('admin.webTerminal.newSession')"
                   @click="createSession"
                 >
                   <LoaderCircle
@@ -2357,15 +2393,17 @@ onBeforeUnmount(() => {
                     class="h-4 w-4 animate-spin"
                   />
                   <Plus v-else class="h-4 w-4" />
-                  <span class="sr-only">新建会话</span>
+                  <span class="sr-only">{{
+                    t("admin.webTerminal.newSession")
+                  }}</span>
                 </Button>
                 <Button
                   variant="outline"
                   size="icon-sm"
                   class="rounded-lg border-border/70 bg-background/85 shadow-none"
                   :disabled="!selectedSession || isRenamingSession"
-                  aria-label="重命名会话"
-                  title="重命名会话"
+                  :aria-label="t('admin.webTerminal.renameSession')"
+                  :title="t('admin.webTerminal.renameSession')"
                   @click="openRenameDialog"
                 >
                   <LoaderCircle
@@ -2373,7 +2411,9 @@ onBeforeUnmount(() => {
                     class="h-4 w-4 animate-spin"
                   />
                   <Pencil v-else class="h-4 w-4" />
-                  <span class="sr-only">重命名会话</span>
+                  <span class="sr-only">{{
+                    t("admin.webTerminal.renameSession")
+                  }}</span>
                 </Button>
                 <Button
                   variant="outline"
@@ -2382,34 +2422,36 @@ onBeforeUnmount(() => {
                   :disabled="
                     !selectedSession || connectionState === 'connecting'
                   "
-                  aria-label="重连终端"
-                  title="重连"
+                  :aria-label="t('admin.webTerminal.reconnectAria')"
+                  :title="t('admin.webTerminal.reconnect')"
                   @pointerdown="keepTerminalFocused"
                   @click="reconnectSession"
                 >
                   <RefreshCcw class="h-4 w-4" />
-                  <span class="sr-only">重连</span>
+                  <span class="sr-only">{{
+                    t("admin.webTerminal.reconnect")
+                  }}</span>
                 </Button>
                 <Button
                   variant="outline"
                   size="icon-sm"
                   class="rounded-lg border-border/70 bg-background/85 shadow-none"
                   :disabled="toolbarDisabled"
-                  aria-label="发送内容到终端"
-                  title="发送"
+                  :aria-label="t('admin.webTerminal.sendAria')"
+                  :title="t('admin.webTerminal.send')"
                   @click="openSendDialog"
                 >
                   <Send class="h-4 w-4" />
-                  <span class="sr-only">发送</span>
+                  <span class="sr-only">{{ t("admin.webTerminal.send") }}</span>
                 </Button>
               </div>
 
               <div class="h-8 w-px shrink-0 bg-border/70" />
 
               <ConfirmDangerPopover
-                title="确认结束会话？"
+                :title="t('admin.webTerminal.endConfirmTitle')"
                 :description="destroySessionDescription"
-                confirm-text="结束会话"
+                :confirm-text="t('admin.webTerminal.endSession')"
                 :loading="isKilling"
                 :disabled="!selectedSession || isKilling"
                 :on-confirm="destroySelectedSession"
@@ -2421,11 +2463,13 @@ onBeforeUnmount(() => {
                     size="icon-sm"
                     class="rounded-lg text-destructive hover:bg-destructive/10 hover:text-destructive"
                     :disabled="!selectedSession || isKilling"
-                    aria-label="结束当前会话"
-                    title="结束会话"
+                    :aria-label="t('admin.webTerminal.endCurrentSession')"
+                    :title="t('admin.webTerminal.endSession')"
                   >
                     <Trash2 class="h-4 w-4" />
-                    <span class="sr-only">结束会话</span>
+                    <span class="sr-only">{{
+                      t("admin.webTerminal.endSession")
+                    }}</span>
                   </Button>
                 </template>
               </ConfirmDangerPopover>
@@ -2470,8 +2514,7 @@ onBeforeUnmount(() => {
             v-else-if="sessions.length === 0"
             class="rounded-xl border border-dashed border-border/80 bg-muted/10 px-4 py-5 text-sm text-muted-foreground"
           >
-            初始化时未能生成默认终端会话。点击左上角加号可重新创建一个可恢复的
-            tmux 会话。
+            {{ t("admin.webTerminal.noDefaultSession") }}
           </div>
 
           <Alert
@@ -2480,7 +2523,7 @@ onBeforeUnmount(() => {
             class="shrink-0 border-destructive/40"
           >
             <AlertTriangle class="h-4 w-4" />
-            <AlertTitle>终端连接异常</AlertTitle>
+            <AlertTitle>{{ t("admin.webTerminal.connectionErrorTitle") }}</AlertTitle>
             <AlertDescription>{{ connectionError }}</AlertDescription>
           </Alert>
 
@@ -2569,7 +2612,7 @@ onBeforeUnmount(() => {
                     @click="copyTerminalSelectionFromMenu"
                   >
                     <Copy class="h-4 w-4" />
-                    <span>复制</span>
+                    <span>{{ t("admin.webTerminal.copy") }}</span>
                   </button>
                   <button
                     type="button"
@@ -2579,7 +2622,7 @@ onBeforeUnmount(() => {
                     @click="pasteClipboardToTerminal"
                   >
                     <ClipboardPaste class="h-4 w-4" />
-                    <span>粘贴</span>
+                    <span>{{ t("admin.webTerminal.paste") }}</span>
                   </button>
                   <button
                     type="button"
@@ -2588,7 +2631,7 @@ onBeforeUnmount(() => {
                     @click="selectAllTerminalText"
                   >
                     <TextSelect class="h-4 w-4" />
-                    <span>全选</span>
+                    <span>{{ t("admin.webTerminal.selectAll") }}</span>
                   </button>
                 </div>
               </div>
@@ -2684,7 +2727,11 @@ onBeforeUnmount(() => {
                     v-if="armedModifier"
                     class="shrink-0 rounded-xl border border-primary/35 bg-primary/10 px-3 py-2 text-[11px] font-medium text-primary"
                   >
-                    {{ armedModifierLabel }} 已锁定
+                    {{
+                      t("admin.webTerminal.modifierLocked", {
+                        modifier: armedModifierLabel,
+                      })
+                    }}
                   </div>
                 </template>
               </div>
@@ -2699,7 +2746,7 @@ onBeforeUnmount(() => {
                 class="inline-flex items-center gap-1.5"
               >
                 <LoaderCircle class="h-3.5 w-3.5 animate-spin" />
-                <span>连接中…</span>
+                <span>{{ t("admin.webTerminal.connecting") }}</span>
               </span>
             </div>
           </div>
@@ -2713,9 +2760,9 @@ onBeforeUnmount(() => {
         @close-auto-focus="focusTerminalAfterDialogClose"
       >
         <DialogHeader>
-          <DialogTitle>发送到终端</DialogTitle>
+          <DialogTitle>{{ t("admin.webTerminal.sendDialogTitle") }}</DialogTitle>
           <DialogDescription>
-            输入要粘贴到当前终端的内容，发送后会按原样写入会话。
+            {{ t("admin.webTerminal.sendDialogDescription") }}
           </DialogDescription>
         </DialogHeader>
 
@@ -2723,7 +2770,7 @@ onBeforeUnmount(() => {
           id="terminal-send-payload"
           v-model="sendDialogPayload"
           class="min-h-[180px] font-mono text-sm"
-          placeholder="输入要发送到终端的内容"
+          :placeholder="t('admin.webTerminal.sendDialogPlaceholder')"
           :disabled="toolbarDisabled || isSendingDialogPayload"
           @keydown.ctrl.enter.prevent="submitSendDialog"
         />
@@ -2734,7 +2781,7 @@ onBeforeUnmount(() => {
             :disabled="isSendingDialogPayload"
             @click="sendDialogOpen = false"
           >
-            取消
+            {{ t("common.cancel") }}
           </Button>
           <Button
             :disabled="
@@ -2748,7 +2795,7 @@ onBeforeUnmount(() => {
               v-if="isSendingDialogPayload"
               class="mr-1.5 h-4 w-4 animate-spin"
             />
-            发送
+            {{ t("admin.webTerminal.send") }}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -2757,15 +2804,15 @@ onBeforeUnmount(() => {
     <Dialog v-model:open="renameDialogOpen">
       <DialogContent class="sm:max-w-[420px]">
         <DialogHeader>
-          <DialogTitle>重命名会话</DialogTitle>
+          <DialogTitle>{{ t("admin.webTerminal.renameSession") }}</DialogTitle>
           <DialogDescription>
-            为当前终端会话设置一个更容易识别的名称。
+            {{ t("admin.webTerminal.renameDialogDescription") }}
           </DialogDescription>
         </DialogHeader>
 
         <Input
           v-model="renameDialogValue"
-          placeholder="输入会话名称"
+          :placeholder="t('admin.webTerminal.renameDialogPlaceholder')"
           :disabled="isRenamingSession"
           @keydown.enter.prevent="submitRenameDialog"
         />
@@ -2776,7 +2823,7 @@ onBeforeUnmount(() => {
             :disabled="isRenamingSession"
             @click="renameDialogOpen = false"
           >
-            取消
+            {{ t("common.cancel") }}
           </Button>
           <Button
             :disabled="!renameDialogValue.trim().length || isRenamingSession"
@@ -2786,7 +2833,7 @@ onBeforeUnmount(() => {
               v-if="isRenamingSession"
               class="mr-1.5 h-4 w-4 animate-spin"
             />
-            保存
+            {{ t("common.save") }}
           </Button>
         </DialogFooter>
       </DialogContent>

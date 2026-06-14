@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -62,6 +63,7 @@ const emit = defineEmits<{
   (event: 'update:modelValue', value: string): void
 }>()
 
+const { t } = useI18n()
 const customMode = ref(false)
 
 function findPreset(value: string) {
@@ -95,15 +97,22 @@ const selectedPreset = computed({
 })
 
 const selectedPresetLabel = computed(() => {
-  if (selectedPreset.value === CUSTOM_CONTENT_TYPE) return '自定义'
-  return findPreset(selectedPreset.value)?.label ?? '自定义'
+  if (selectedPreset.value === CUSTOM_CONTENT_TYPE) {
+    return t('admin.components.responseContentType.custom')
+  }
+  return (
+    findPreset(selectedPreset.value)?.label ??
+    t('admin.components.responseContentType.custom')
+  )
 })
 </script>
 
 <template>
   <div class="grid gap-3 md:grid-cols-[13rem_minmax(0,1fr)]">
     <div class="space-y-2">
-      <Label :for="selectId">常用类型</Label>
+      <Label :for="selectId">{{
+        t('admin.components.responseContentType.commonTypes')
+      }}</Label>
       <Select v-model="selectedPreset">
         <SelectTrigger :id="selectId" class="w-full">
           <span data-slot="select-value" class="truncate">
@@ -123,7 +132,9 @@ const selectedPresetLabel = computed(() => {
               </span>
             </span>
           </SelectItem>
-          <SelectItem :value="CUSTOM_CONTENT_TYPE">自定义</SelectItem>
+          <SelectItem :value="CUSTOM_CONTENT_TYPE">{{
+            t('admin.components.responseContentType.custom')
+          }}</SelectItem>
         </SelectContent>
       </Select>
     </div>

@@ -9,12 +9,17 @@ import {
   normalizeEdgeOneOverseasAccessMode,
   requestEdgeOneJson,
 } from "./edgeone-shared";
+import { ddnsProviderT } from "./helpers";
 
 const EDGEONE_OVERSEAS_ACCESS_STATE_KEY_PREFIX =
   "fn_knock:ddns:edgeone:overseas_access:";
 const EDGEONE_OVERSEAS_ACCESS_RULE_NAME_PREFIX = "fn_knock_block_overseas_";
 const EDGEONE_OVERSEAS_ACCESS_LEGACY_RULE_NAME = "fn_knock_block_overseas";
 const EDGEONE_OVERSEAS_ACCESS_SYNC_VERSION = "edgeone-overseas-console-v1";
+const edgeoneOverseasT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => ddnsProviderT("edgeone", `overseasAccess.${key}`, params);
 
 type EdgeOneManagedRuleScope = "zone_level_domain" | "zone_default_policy";
 
@@ -227,7 +232,18 @@ async function describeCustomRules(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `EdgeOne 海外访问控制读取现有自定义规则失败 (provider_target=${target.domain}, zone_id=${target.zoneId}, endpoint_host=${target.endpointHost}, region=${target.region || "empty"}, entity=${scope === "zone_level_domain" ? "@ZoneLevel@domain" : "ZoneDefaultPolicy"}, scope=${scope}): ${message}`,
+      edgeoneOverseasT("describeRulesFailed", {
+        endpointHost: target.endpointHost,
+        entity:
+          scope === "zone_level_domain"
+            ? "@ZoneLevel@domain"
+            : "ZoneDefaultPolicy",
+        message,
+        region: target.region || "empty",
+        scope,
+        target: target.domain,
+        zoneId: target.zoneId,
+      }),
     );
   }
 }
@@ -256,12 +272,16 @@ async function modifyCustomRules(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `EdgeOne 海外访问控制同步失败 (${buildAttemptLabel({
-        providerName: options.providerName,
-        rule: options.trackedRule,
-        scope: options.scope,
-        target: options.target,
-      })}, submitted_rule_count=${options.rules.length}): ${message}`,
+      edgeoneOverseasT("syncFailedWithAttempt", {
+        attempt: buildAttemptLabel({
+          providerName: options.providerName,
+          rule: options.trackedRule,
+          scope: options.scope,
+          target: options.target,
+        }),
+        count: options.rules.length,
+        message,
+      }),
     );
   }
 }
@@ -372,8 +392,8 @@ export async function ensureEdgeOneOverseasAccessSynced(options: {
     throw new Error(
       [
         desiredMode === "block_overseas"
-          ? "EdgeOne 海外访问控制同步失败：所有规则作用域均尝试失败"
-          : "EdgeOne 海外访问控制清理失败：所有规则作用域均尝试失败",
+          ? edgeoneOverseasT("syncAllScopesFailed")
+          : edgeoneOverseasT("cleanupAllScopesFailed"),
         ...attemptErrors.map((message, index) => `${index + 1}. ${message}`),
       ].join("\n"),
     );
@@ -389,7 +409,7 @@ export async function ensureEdgeOneOverseasAccessSynced(options: {
     changed,
     message:
       desiredMode === "block_overseas"
-        ? "已同步 EdgeOne 海外 IP 屏蔽策略，仅允许中国大陆、香港、澳门、台湾访问"
-        : "已清理 EdgeOne 海外 IP 屏蔽策略",
+        ? edgeoneOverseasT("syncSuccess")
+        : edgeoneOverseasT("cleanupSuccess"),
   };
 }

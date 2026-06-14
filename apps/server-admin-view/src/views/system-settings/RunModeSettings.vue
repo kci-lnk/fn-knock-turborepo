@@ -1,11 +1,8 @@
 <template>
   <Card>
     <CardHeader>
-      <CardTitle>运行模式设置</CardTitle>
-      <CardDescription
-        >按网络环境选择运行方式。直连适合有公网 IP
-        的机器；反代适合内网穿透出去使用的用户</CardDescription
-      >
+      <CardTitle>{{ t("admin.runModeSettings.title") }}</CardTitle>
+      <CardDescription>{{ t("admin.runModeSettings.description") }}</CardDescription>
     </CardHeader>
     <CardContent class="grid gap-6">
       <Alert
@@ -25,7 +22,7 @@
         class="items-start rounded-xl border-zinc-200 bg-zinc-50/70 text-zinc-900"
       >
         <Info class="mt-0.5 h-4 w-4" />
-        <AlertTitle>当前部署不支持宿主机防火墙能力</AlertTitle>
+        <AlertTitle>{{ t("admin.runModeSettings.hostFirewallUnavailableTitle") }}</AlertTitle>
         <AlertDescription>
           <div class="space-y-2 text-sm leading-6">
             <p>{{ hostFirewallUnavailableDescription }}</p>
@@ -58,16 +55,17 @@
         </div>
         <div class="flex-1 space-y-2">
           <div class="flex items-center gap-2">
-            <p class="text-base font-semibold leading-none">直连模式（不推荐）</p>
+            <p class="text-base font-semibold leading-none">
+              {{ t("admin.runModeSettings.directModeTitle") }}
+            </p>
             <span
               class="inline-flex items-center rounded-md border border-zinc-300 bg-white px-2 py-0.5 text-xs font-medium text-zinc-700"
             >
-              端口放行
+              {{ t("admin.runModeSettings.directModeBadge") }}
             </span>
           </div>
           <p class="text-sm text-muted-foreground">
-            使用端口访问你的服务，比如 example.com:7999 登录后可以访问
-            example.com:5666的飞牛服务。
+            {{ t("admin.runModeSettings.directModeDescription") }}
           </p>
           <DocsLinkButton :href="docsUrls.runModes.direct" @click.stop />
         </div>
@@ -97,15 +95,17 @@
         </div>
         <div class="flex-1 space-y-2">
           <div class="flex items-center gap-2">
-            <p class="text-base font-semibold leading-none">反代模式</p>
+            <p class="text-base font-semibold leading-none">
+              {{ t("admin.runModeSettings.reverseModeTitle") }}
+            </p>
             <span
               class="inline-flex items-center rounded-md border border-zinc-300 bg-white px-2 py-0.5 text-xs font-medium text-zinc-700"
             >
-              内网穿透专用
+              {{ t("admin.runModeSettings.reverseModeBadge") }}
             </span>
           </div>
           <p class="text-sm text-muted-foreground">
-            没有公网IP，通过内网穿透转发请求。
+            {{ t("admin.runModeSettings.reverseModeDescription") }}
           </p>
           <DocsLinkButton :href="docsUrls.runModes.reverse" @click.stop />
           <div
@@ -123,9 +123,11 @@
               "
               @click="reverseProxySubmode = 'path'"
             >
-              <p class="text-sm font-medium text-zinc-900">路径映射</p>
+              <p class="text-sm font-medium text-zinc-900">
+                {{ t("admin.runModeSettings.pathMapping") }}
+              </p>
               <p class="mt-1 text-xs leading-5 text-muted-foreground">
-                继续使用当前路径映射入口，可搭配 FRP 或 Cloudflared。
+                {{ t("admin.runModeSettings.pathSubmodeDescription") }}
               </p>
             </button>
             <button
@@ -138,9 +140,11 @@
               "
               @click="reverseProxySubmode = 'subdomain'"
             >
-              <p class="text-sm font-medium text-zinc-900">子域映射</p>
+              <p class="text-sm font-medium text-zinc-900">
+                {{ t("admin.runModeSettings.subdomainMapping") }}
+              </p>
               <p class="mt-1 text-xs leading-5 text-muted-foreground">
-                隐藏路径映射并展示子域映射，可搭配 FRP 或 Cloudflared。
+                {{ t("admin.runModeSettings.subdomainSubmodeDescription") }}
               </p>
             </button>
           </div>
@@ -171,16 +175,17 @@
         </div>
         <div class="flex-1 space-y-2">
           <div class="flex items-center gap-2">
-            <p class="text-base font-semibold leading-none">子域模式</p>
+            <p class="text-base font-semibold leading-none">
+              {{ t("admin.runModeSettings.subdomainModeTitle") }}
+            </p>
             <span
               class="inline-flex items-center rounded-md border border-zinc-300 bg-white px-2 py-0.5 text-xs font-medium text-zinc-700"
             >
-              Host 网关
+              {{ t("admin.runModeSettings.subdomainModeBadge") }}
             </span>
           </div>
           <p class="text-sm text-muted-foreground">
-            使用子域名访问你的服务，比如 fnos.example.com
-            访问飞牛，不经过中转和内网穿透，直连
+            {{ t("admin.runModeSettings.subdomainModeDescription") }}
           </p>
           <DocsLinkButton :href="docsUrls.runModes.subdomain" @click.stop />
         </div>
@@ -201,10 +206,10 @@
         />
         <span class="space-y-1">
           <span class="block font-medium text-zinc-900">
-            自动处理系统防火墙
+            {{ t("admin.runModeSettings.autoFirewallTitle") }}
           </span>
           <span class="block text-xs leading-5 text-muted-foreground">
-            关闭后，切换模式等操作不再自动调整系统防火墙；如需变更，请使用右侧“操作”按钮手动执行。但直连模式会继续处理防火墙。
+            {{ t("admin.runModeSettings.autoFirewallDescription") }}
           </span>
         </span>
         <Loader2
@@ -216,7 +221,7 @@
         v-else-if="!configStore.isDockerDeployment"
         class="w-full text-sm leading-6 text-muted-foreground sm:max-w-xl"
       >
-        宿主机防火墙管理已禁用，自动处理系统防火墙和手动防火墙操作入口不会显示。
+        {{ t("admin.runModeSettings.hostFirewallDisabled") }}
       </div>
 
       <div class="flex w-full justify-end gap-2 sm:w-auto">
@@ -227,7 +232,7 @@
                 v-if="isFirewallActionPending"
                 class="h-4 w-4 animate-spin"
               />
-              <span>操作</span>
+              <span>{{ t("admin.runModeSettings.actions") }}</span>
               <ChevronDown class="h-4 w-4 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
@@ -237,7 +242,7 @@
               @select="resetFirewallBySelectedMode"
             >
               <RefreshCw class="h-4 w-4" />
-              按所选模式重设防火墙
+              {{ t("admin.runModeSettings.resetFirewallByMode") }}
             </DropdownMenuItem>
             <DropdownMenuItem
               variant="destructive"
@@ -245,7 +250,7 @@
               @select="clearFirewallRules"
             >
               <Trash2 class="h-4 w-4" />
-              清空防火墙
+              {{ t("admin.runModeSettings.clearFirewall") }}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -255,14 +260,14 @@
           @click="reset"
           :disabled="isBusy"
         >
-          放弃更改
+          {{ t("admin.runModeSettings.discardChanges") }}
         </Button>
         <Button @click="save" :disabled="isBusy || isModeUnchanged">
           <span
             v-if="isSaving"
             class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
           ></span>
-          保存修改
+          {{ t("admin.runModeSettings.saveChanges") }}
         </Button>
       </div>
     </CardFooter>
@@ -280,7 +285,7 @@
           <p
             class="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500"
           >
-            运行模式切换
+            {{ t("admin.runModeSettings.switchEyebrow") }}
           </p>
           <DialogTitle
             class="text-2xl font-semibold tracking-tight text-zinc-950"
@@ -316,20 +321,20 @@
             :model-value="dontShowAgainChecked"
             @update:model-value="dontShowAgainChecked = $event === true"
           />
-          <span>不再提示</span>
+          <span>{{ t("admin.runModeSettings.dontShowAgain") }}</span>
         </label>
       </div>
 
       <DialogFooter class="border-t border-zinc-200 bg-zinc-50/60 px-8 py-4">
         <Button variant="outline" @click="isConfirmDialogOpen = false"
-          >取消</Button
+          >{{ t("common.cancel") }}</Button
         >
         <Button @click="confirmSave" :disabled="isSaving">
           <span
             v-if="isSaving"
             class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
           ></span>
-          确认切换
+          {{ t("admin.runModeSettings.confirmSwitch") }}
         </Button>
       </DialogFooter>
     </DialogContent>
@@ -338,6 +343,7 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { ChevronDown, Info, Loader2, RefreshCw, Trash2 } from "lucide-vue-next";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -386,6 +392,7 @@ import {
 import type { ReverseProxySubmode } from "../../types";
 
 const configStore = useConfigStore();
+const { locale, t } = useI18n();
 const DEFAULT_ROUTE_PLACEHOLDER = "/__select__";
 const mode = ref<0 | 1 | 3>(1);
 const autoManageFirewall = ref(true);
@@ -408,18 +415,27 @@ const accessEntry = ref<AccessEntryInfo>({
   env: "GO_REPROXY_PORT" as const,
   isDefault: true,
 });
+const formatInlineList = (items: string[]) =>
+  items.join(locale.value === "en" ? ", " : "、");
+
 const { isPending: isSaving, run: runSaveMode } = useAsyncAction({
   onError: (error) => {
-    toast.error("保存失败", {
-      description: extractErrorMessage(error, "操作失败"),
+    toast.error(t("admin.runModeSettings.saveFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.runModeSettings.operationFailed"),
+      ),
     });
   },
 });
 const { isPending: isFirewallActionPending, run: runFirewallAction } =
   useAsyncAction({
     onError: (error) => {
-      toast.error("防火墙操作失败", {
-        description: extractErrorMessage(error, "操作失败"),
+      toast.error(t("admin.runModeSettings.firewallActionFailed"), {
+        description: extractErrorMessage(
+          error,
+          t("admin.runModeSettings.operationFailed"),
+        ),
       });
     },
   });
@@ -428,8 +444,11 @@ const {
   run: runAutoManageFirewallUpdate,
 } = useAsyncAction({
   onError: (error) => {
-    toast.error("更新自动防火墙设置失败", {
-      description: extractErrorMessage(error, "操作失败"),
+    toast.error(t("admin.runModeSettings.autoFirewallUpdateFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.runModeSettings.operationFailed"),
+      ),
     });
   },
 });
@@ -446,10 +465,10 @@ const showHostFirewallUnavailableAlert = computed(
 );
 const hostFirewallUnavailableDescription = computed(() => {
   if (configStore.isDockerDeployment) {
-    return "Docker 部署不支持宿主机直连防火墙模式，也不会执行宿主机防火墙写入、重置或清空操作。";
+    return t("admin.runModeSettings.hostFirewallUnavailableDockerDescription");
   }
 
-  return "当前运行环境没有宿主机防火墙管理能力，因此不会暴露相关设置。";
+  return t("admin.runModeSettings.hostFirewallUnavailableDescription");
 });
 const savedReverseProxySubmode = computed(() =>
   resolveReverseProxySubmode(configStore.config),
@@ -462,29 +481,35 @@ const isModeUnchanged = computed(() => {
   return savedReverseProxySubmode.value === reverseProxySubmode.value;
 });
 const selectedReverseProxySubmodeLabel = computed(() =>
-  reverseProxySubmode.value === "subdomain" ? "子域映射" : "路径映射",
+  reverseProxySubmode.value === "subdomain"
+    ? t("admin.runModeSettings.subdomainMapping")
+    : t("admin.runModeSettings.pathMapping"),
 );
 
 const accessAlertTitle = computed(() => {
-  if (mode.value === 0) return "直连模式访问说明";
+  if (mode.value === 0) return t("admin.runModeSettings.directAccessTitle");
   if (mode.value === 1) {
-    return `反代模式 / ${selectedReverseProxySubmodeLabel.value}访问说明`;
+    return t("admin.runModeSettings.reverseAccessTitle", {
+      submode: selectedReverseProxySubmodeLabel.value,
+    });
   }
-  return "子域名模式访问说明";
+  return t("admin.runModeSettings.subdomainAccessTitle");
 });
 
 const accessAlertDescription = computed(() => {
   const port = accessEntry.value.port;
   if (mode.value === 0) {
-    return `请让用户直接访问服务器的 ${port} 端口。`;
+    return t("admin.runModeSettings.directAccessDescription", { port });
   }
   if (mode.value === 1) {
     if (reverseProxySubmode.value === "subdomain") {
-      return `将 ${port} 端口通过 FRP 或 Cloudflared 映射到外部入口，再通过不同子域名访问服务，网关会按 Host 转发到本地服务。`;
+      return t("admin.runModeSettings.reverseSubdomainAccessDescription", {
+        port,
+      });
     }
-    return `将 ${port} 端口通过反向代理或内网穿透映射到外部入口，从对外域名或入口地址访问。`;
+    return t("admin.runModeSettings.reversePathAccessDescription", { port });
   }
-  return `将根域名及其子域名统一解析到 ${port} 端口，由网关按 Host 将请求转发到本地服务。`;
+  return t("admin.runModeSettings.subdomainAccessDescription", { port });
 });
 
 const proxyMappingsCount = computed(
@@ -568,12 +593,12 @@ async function handleAutoManageFirewallChange(
       autoManageFirewall.value = next.auto_manage_firewall;
       toast.success(
         next.auto_manage_firewall
-          ? "已开启自动处理系统防火墙"
-          : "已关闭自动处理系统防火墙",
+          ? t("admin.runModeSettings.autoFirewallEnabled")
+          : t("admin.runModeSettings.autoFirewallDisabled"),
         {
           description: next.auto_manage_firewall
-            ? "后续切换模式等运行态同步会自动处理系统防火墙。"
-            : "后续切换模式等运行态同步将跳过系统防火墙，右侧“操作”按钮仍可手动执行；直连模式 run_type=0 仍会继续处理。",
+            ? t("admin.runModeSettings.autoFirewallEnabledDescription")
+            : t("admin.runModeSettings.autoFirewallDisabledDescription"),
         },
       );
     } catch (error) {
@@ -585,9 +610,8 @@ async function handleAutoManageFirewallChange(
 
 async function save() {
   if (mode.value === 0 && !canUseDirectMode.value) {
-    toast.error("当前部署不支持直连模式", {
-      description:
-        "Docker 部署不支持宿主机直连防火墙模式，请改用反代模式或子域模式。",
+    toast.error(t("admin.runModeSettings.directUnsupportedTitle"), {
+      description: t("admin.runModeSettings.directUnsupportedDescription"),
     });
     return;
   }
@@ -680,7 +704,7 @@ async function applyRunModeChange(
 
     await configStore.setRunType(nextMode, nextSubmode ?? undefined);
     options?.onSuccess?.();
-    toast.success("运行模式已更新", {
+    toast.success(t("admin.runModeSettings.updated"), {
       description: successDescription,
     });
   });
@@ -688,7 +712,7 @@ async function applyRunModeChange(
 
 async function resetFirewallBySelectedMode() {
   if (!canManageHostFirewall.value) {
-    toast.error("当前部署不支持防火墙操作", {
+    toast.error(t("admin.runModeSettings.firewallUnsupportedTitle"), {
       description: hostFirewallUnavailableDescription.value,
     });
     return;
@@ -696,7 +720,7 @@ async function resetFirewallBySelectedMode() {
 
   await runFirewallAction(async () => {
     const result = await SystemAPI.resetFirewallByRunType(mode.value);
-    toast.success("防火墙已重设", {
+    toast.success(t("admin.runModeSettings.firewallReset"), {
       description: `${buildFirewallResetSuccessDescription(
         result,
         mode.value === 1 ? reverseProxySubmode.value : null,
@@ -707,7 +731,7 @@ async function resetFirewallBySelectedMode() {
 
 async function clearFirewallRules() {
   if (!canManageHostFirewall.value) {
-    toast.error("当前部署不支持防火墙操作", {
+    toast.error(t("admin.runModeSettings.firewallUnsupportedTitle"), {
       description: hostFirewallUnavailableDescription.value,
     });
     return;
@@ -715,8 +739,10 @@ async function clearFirewallRules() {
 
   await runFirewallAction(async () => {
     const result = await SystemAPI.clearFirewall();
-    toast.success("防火墙已清空", {
-      description: `已清理 Linux 防火墙规则，并移除 ${result.gatewayPort} 端口相关的历史重定向。当前配置未变更，后续切换模式或同步运行配置时会重新写入规则。`,
+    toast.success(t("admin.runModeSettings.firewallCleared"), {
+      description: t("admin.runModeSettings.firewallClearedDescription", {
+        port: result.gatewayPort,
+      }),
     });
   });
 }
@@ -756,8 +782,11 @@ async function ensureTunnelsStoppedForTargetMode(
   if (tunnelsToStop.length === 0) return;
 
   await Promise.all(tunnelsToStop.map((item) => item.stop()));
-  toast.success("已关闭隧道服务", {
-    description: `${tunnelsToStop.map((item) => item.label).join("、")} 已停止，正在切换到${getRunModeLabel(nextMode, nextSubmode ?? undefined)}`,
+  toast.success(t("admin.runModeSettings.tunnelsStopped"), {
+    description: t("admin.runModeSettings.tunnelsStoppedDescription", {
+      names: formatInlineList(tunnelsToStop.map((item) => item.label)),
+      mode: getRunModeLabel(nextMode, nextSubmode ?? undefined),
+    }),
   });
 }
 
@@ -765,11 +794,16 @@ function getRunModeLabel(
   targetMode: 0 | 1 | 3,
   targetSubmode: ReverseProxySubmode = reverseProxySubmode.value,
 ) {
-  if (targetMode === 0) return "直连模式";
+  if (targetMode === 0) return t("admin.runModeSettings.directModeName");
   if (targetMode === 1) {
-    return `反代模式 / ${targetSubmode === "subdomain" ? "子域映射" : "路径映射"}`;
+    return t("admin.runModeSettings.reverseModeName", {
+      submode:
+        targetSubmode === "subdomain"
+          ? t("admin.runModeSettings.subdomainMapping")
+          : t("admin.runModeSettings.pathMapping"),
+    });
   }
-  return "子域模式";
+  return t("admin.runModeSettings.subdomainModeName");
 }
 
 function buildFirewallResetSuccessDescription(
@@ -783,21 +817,28 @@ function buildFirewallResetSuccessDescription(
 ) {
   if (result.runType === 1) {
     return selectedSubmode === "subdomain"
-      ? "已按反代模式 / 子域映射清理 Linux 防火墙规则。"
-      : "已按反代模式 / 路径映射清理 Linux 防火墙规则。";
+      ? t("admin.runModeSettings.firewallResetReverseSubdomain")
+      : t("admin.runModeSettings.firewallResetReversePath");
   }
 
-  const exemptPortsLabel = result.exemptPorts.join("、");
+  const exemptPortsLabel = formatInlineList(result.exemptPorts);
 
   if (result.runType === 0) {
     const whitelistDescription =
       result.whitelistSynced > 0
-        ? `，并同步 ${result.whitelistSynced} 条白名单 IP`
-        : "，当前没有需要重新放行的白名单 IP";
-    return `已按直连模式重建防火墙，仅保留 ${exemptPortsLabel} 端口作为登录入口${whitelistDescription}。`;
+        ? t("admin.runModeSettings.firewallResetDirectWhitelistSynced", {
+            count: result.whitelistSynced,
+          })
+        : t("admin.runModeSettings.firewallResetDirectNoWhitelist");
+    return t("admin.runModeSettings.firewallResetDirect", {
+      ports: exemptPortsLabel,
+      whitelist: whitelistDescription,
+    });
   }
 
-  return `已按子域模式重建防火墙，保留 ${exemptPortsLabel} 端口供网关与协议映射使用。`;
+  return t("admin.runModeSettings.firewallResetSubdomain", {
+    ports: exemptPortsLabel,
+  });
 }
 
 function buildUnsavedModeNotice() {
@@ -808,7 +849,10 @@ function buildUnsavedModeNotice() {
     currentMode !== mode.value ||
     (mode.value === 1 && currentSubmode !== reverseProxySubmode.value);
   if (!hasChanges) return "";
-  return ` 当前保存的运行模式仍是${getRunModeLabel(currentMode, currentSubmode)}，如需长期按${getRunModeLabel(mode.value, reverseProxySubmode.value)}生效，请点击“保存修改”。`;
+  return t("admin.runModeSettings.unsavedModeNotice", {
+    current: getRunModeLabel(currentMode, currentSubmode),
+    target: getRunModeLabel(mode.value, reverseProxySubmode.value),
+  });
 }
 
 function handleConfirmDialogOpenChange(nextOpen: boolean) {
@@ -838,43 +882,65 @@ function buildRunModeChangeSuccessDescription(
 ) {
   if (nextMode === 3) {
     if (proxyMappingsCount.value > 0) {
-      return `已清空 ${proxyMappingsCount.value} 条路径映射${hasCustomDefaultRoute.value ? "，并重置默认路径入口" : ""}。`;
+      return t("admin.runModeSettings.successSubdomainClearedMappings", {
+        count: proxyMappingsCount.value,
+        defaultRoute: hasCustomDefaultRoute.value
+          ? t("admin.runModeSettings.successDefaultRouteReset")
+          : "",
+      });
     }
-    return "已进入子域模式，路径映射入口已停用。";
+    return t("admin.runModeSettings.successSubdomainNoMappings");
   }
 
   if (nextMode === 1) {
     if (nextSubmode === "subdomain") {
       if (proxyMappingsCount.value > 0) {
-        return `已切换到反代模式 / 子域映射，现有 ${proxyMappingsCount.value} 条路径映射会保留，但入口已隐藏，可继续使用 FRP 或 Cloudflared。`;
+        return t("admin.runModeSettings.successReverseSubdomainWithMappings", {
+          count: proxyMappingsCount.value,
+        });
       }
-      return "已切换到反代模式 / 子域映射，路径映射入口已隐藏，可继续使用 FRP 或 Cloudflared。";
+      return t("admin.runModeSettings.successReverseSubdomainNoMappings");
     }
 
     const preservedItems: string[] = [];
     if (hostMappingsCount.value > 0) {
-      preservedItems.push(`${hostMappingsCount.value} 条子域映射`);
+      preservedItems.push(
+        t("admin.runModeSettings.hostMappingsCount", {
+          count: hostMappingsCount.value,
+        }),
+      );
     }
     if (streamMappingsCount.value > 0) {
-      preservedItems.push(`${streamMappingsCount.value} 条协议映射`);
+      preservedItems.push(
+        t("admin.runModeSettings.streamMappingsCount", {
+          count: streamMappingsCount.value,
+        }),
+      );
     }
 
     if (preservedItems.length > 0) {
-      return `已切换到反代模式 / 路径映射，现有 ${preservedItems.join("、")} 会保留，但当前子模式下不显示。`;
+      return t("admin.runModeSettings.successReversePathWithPreserved", {
+        items: formatInlineList(preservedItems),
+      });
     }
 
-    return "已切换到反代模式 / 路径映射，可继续使用 FRP 或 Cloudflared。";
+    return t("admin.runModeSettings.successReversePathNoPreserved");
   }
 
-  return "入口规则已按目标模式重新生效。";
+  return t("admin.runModeSettings.successRulesApplied");
 }
 
 function buildSubdomainResetMessage() {
   if (proxyMappingsCount.value === 0) {
-    return "切换后不再使用“路径映射”，当前没有需要清理的路径规则。";
+    return t("admin.runModeSettings.subdomainResetNoMappings");
   }
 
-  return `将清空现有 ${proxyMappingsCount.value} 条“路径映射”${hasCustomDefaultRoute.value ? "，并重置默认路径入口" : ""}。`;
+  return t("admin.runModeSettings.subdomainResetWithMappings", {
+    count: proxyMappingsCount.value,
+    defaultRoute: hasCustomDefaultRoute.value
+      ? t("admin.runModeSettings.successDefaultRouteReset")
+      : "",
+  });
 }
 
 function buildReverseProxyCompatibilityMessage(
@@ -882,24 +948,36 @@ function buildReverseProxyCompatibilityMessage(
 ) {
   if (targetSubmode === "subdomain") {
     if (proxyMappingsCount.value === 0) {
-      return "路径映射入口会隐藏；当前没有需要额外说明的路径规则。";
+      return t("admin.runModeSettings.compatReverseSubdomainNoMappings");
     }
-    return `现有 ${proxyMappingsCount.value} 条路径映射会继续保留，但在该子模式下不会显示。`;
+    return t("admin.runModeSettings.compatReverseSubdomainWithMappings", {
+      count: proxyMappingsCount.value,
+    });
   }
 
   const preservedItems: string[] = [];
   if (hostMappingsCount.value > 0) {
-    preservedItems.push(`${hostMappingsCount.value} 条子域映射`);
+    preservedItems.push(
+      t("admin.runModeSettings.hostMappingsCount", {
+        count: hostMappingsCount.value,
+      }),
+    );
   }
   if (streamMappingsCount.value > 0) {
-    preservedItems.push(`${streamMappingsCount.value} 条协议映射`);
+    preservedItems.push(
+      t("admin.runModeSettings.streamMappingsCount", {
+        count: streamMappingsCount.value,
+      }),
+    );
   }
 
   if (preservedItems.length === 0) {
-    return "子域映射入口会隐藏，但当前没有需要额外说明的历史配置。";
+    return t("admin.runModeSettings.compatReversePathNoPreserved");
   }
 
-  return `现有 ${preservedItems.join("、")} 会继续保留，但在该子模式下不会显示。`;
+  return t("admin.runModeSettings.compatReversePathWithPreserved", {
+    items: formatInlineList(preservedItems),
+  });
 }
 
 const confirmDialogContent = computed(() => {
@@ -908,14 +986,14 @@ const confirmDialogContent = computed(() => {
 
   if (pendingPromptKey.value === "reverseProxyToDirect") {
     return {
-      title: "切换到直连模式",
-      description: "请确认你已经理解直连模式的访问方式和风险变化。",
+      title: t("admin.runModeSettings.promptDirectTitle"),
+      description: t("admin.runModeSettings.promptDirectDescription"),
       items: [
-        `直连模式通过设置防火墙来实现，默认屏蔽所有端口，除 ${port}`,
-        `${port} 端口会仅起到一个登录入口的作用，登录成功后对该 IP 开放所有端口`,
-        "多入口，登录后可使用 5666 等端口访问飞牛等服务",
-        "不会屏蔽局域网的访问",
-        "不要在这个模式内网穿透",
+        t("admin.runModeSettings.promptDirectItemFirewall", { port }),
+        t("admin.runModeSettings.promptDirectItemLoginEntry", { port }),
+        t("admin.runModeSettings.promptDirectItemMultiEntry"),
+        t("admin.runModeSettings.promptDirectItemLan"),
+        t("admin.runModeSettings.promptDirectItemNoTunnel"),
       ],
     };
   }
@@ -925,51 +1003,54 @@ const confirmDialogContent = computed(() => {
     pendingPromptKey.value === "subdomainToReverseProxy"
   ) {
     return {
-      title: `切换到${getRunModeLabel(1, targetSubmode)}`,
+      title: t("admin.runModeSettings.promptSwitchTo", {
+        mode: getRunModeLabel(1, targetSubmode),
+      }),
       description:
         targetSubmode === "subdomain"
-          ? "请确认你已经理解这个反代子模式会改为按子域名转发，并且可以继续使用 FRP 或 Cloudflared。"
-          : "请确认你已经理解这个反代子模式会继续按路径访问，并且可以继续使用 FRP 或 Cloudflared。",
+          ? t("admin.runModeSettings.promptReverseSubdomainDescription")
+          : t("admin.runModeSettings.promptReversePathDescription"),
       items: [
         buildReverseProxyCompatibilityMessage(targetSubmode),
-        "会清空 Linux 自带的防火墙配置",
+        t("admin.runModeSettings.promptReverseItemClearFirewall"),
         targetSubmode === "subdomain"
-          ? `所有的入口都在 ${port}，通过 FRP 或 Cloudflared 暴露到外部后，登录后按子域名访问不同服务`
-          : `所有的入口都在 ${port}，可内网穿透本地 ${port} 到外部任意端口，任何访问都需要先登录`,
+          ? t("admin.runModeSettings.promptReverseItemSubdomainEntry", { port })
+          : t("admin.runModeSettings.promptReverseItemPathEntry", { port }),
         targetSubmode === "subdomain"
-          ? "路径映射入口会隐藏，改为显示子域映射，且不会影响现有的 run_type=3"
-          : "登录后通过路径来访问子服务，FRP 与 Cloudflared 都可继续使用",
+          ? t("admin.runModeSettings.promptReverseItemSubdomainUi")
+          : t("admin.runModeSettings.promptReverseItemPathUi"),
       ],
     };
   }
 
   if (pendingPromptKey.value === "switchToSubdomain") {
     return {
-      title: "切换到子域名模式",
-      description:
-        "请确认你已经准备好根域名、认证子域名和业务子域名的解析与上游监听方式，切换时会清理路径映射配置。",
+      title: t("admin.runModeSettings.promptSubdomainTitle"),
+      description: t("admin.runModeSettings.promptSubdomainDescription"),
       items: [
         buildSubdomainResetMessage(),
-        `所有入口仍通过 ${port} 暴露，但访问心智会从“路径映射”切换为“子域映射”`,
-        "业务服务应尽量只监听 127.0.0.1，避免绕过网关直连",
-        "推荐先配置 auth.example.com 作为统一登录入口，再逐步接入业务子域",
-        "此模式默认不依赖 iptables，适合公网 Web 服务网关化保护",
+        t("admin.runModeSettings.promptSubdomainItemEntry", { port }),
+        t("admin.runModeSettings.promptSubdomainItemBindLocal"),
+        t("admin.runModeSettings.promptSubdomainItemAuth"),
+        t("admin.runModeSettings.promptSubdomainItemIptables"),
       ],
     };
   }
 
   return {
-    title: `切换到${getRunModeLabel(1, targetSubmode)}`,
-    description: "请确认你已经理解反代模式会如何调整对外入口。",
+    title: t("admin.runModeSettings.promptSwitchTo", {
+      mode: getRunModeLabel(1, targetSubmode),
+    }),
+    description: t("admin.runModeSettings.promptReverseGenericDescription"),
     items: [
       buildReverseProxyCompatibilityMessage(targetSubmode),
-      "集中入口访问",
+      t("admin.runModeSettings.promptReverseItemCentralEntry"),
       targetSubmode === "subdomain"
-        ? `所有的入口都在 ${port}，通过 FRP 或 Cloudflared 暴露到外部后，登录后按子域名访问不同服务`
-        : `所有的入口都在 ${port}，可内网穿透本地 ${port} 到外部任意端口，任何访问都需要先登录`,
+        ? t("admin.runModeSettings.promptReverseItemSubdomainEntry", { port })
+        : t("admin.runModeSettings.promptReverseItemPathEntry", { port }),
       targetSubmode === "subdomain"
-        ? "该子模式支持 FRP 或 Cloudflared，并且完全不影响现有的子域模式"
-        : "登录后通过路径来访问子服务",
+        ? t("admin.runModeSettings.promptReverseItemSubdomainCompatible")
+        : t("admin.runModeSettings.promptReverseItemPathServices"),
     ],
   };
 });

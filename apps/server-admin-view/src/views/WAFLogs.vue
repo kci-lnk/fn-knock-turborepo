@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import {
   ChevronLeft,
@@ -64,6 +65,7 @@ const getTodayString = () => {
 const route = useRoute();
 const router = useRouter();
 const configStore = useConfigStore();
+const { t, locale } = useI18n();
 
 const entries = ref<WAFEvent[]>([]);
 const availableDates = ref<string[]>([getTodayString()]);
@@ -84,13 +86,16 @@ const isWAFEnabled = computed(() => configStore.config?.waf?.enabled ?? false);
 const canLoadNewer = computed(() => cursorHistory.value.length > 0);
 const canLoadOlder = computed(() => Boolean(nextCursor.value));
 const cursorPageLabel = computed(
-  () => `第 ${cursorHistory.value.length + 1} 段`,
+  () => t("admin.wafLogs.cursorPage", { page: cursorHistory.value.length + 1 }),
 );
 
 const { isPending: isDeleting, run: runDelete } = useAsyncAction({
   onError: (error) => {
-    toast.error("删除失败", {
-      description: extractErrorMessage(error, "删除 WAF 日志失败"),
+    toast.error(t("admin.wafLogs.deleteFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.wafLogs.deleteFailedDescription"),
+      ),
     });
   },
 });
@@ -120,8 +125,11 @@ const drainEventsSilently = async (silent = true) => {
     await WAFAPI.drainEvents();
   } catch (error) {
     if (!silent) {
-      toast.error("拉取失败", {
-        description: extractErrorMessage(error, "WAF 事件拉取失败"),
+      toast.error(t("admin.wafLogs.drainFailed"), {
+        description: extractErrorMessage(
+          error,
+          t("admin.wafLogs.drainFailedDescription"),
+        ),
       });
     }
   }
@@ -152,8 +160,11 @@ const fetchEntries = async (
     if (!options.silent) {
       entries.value = [];
       nextCursor.value = "";
-      toast.error("加载失败", {
-        description: extractErrorMessage(error, "WAF 日志加载失败"),
+      toast.error(t("admin.wafLogs.loadFailed"), {
+        description: extractErrorMessage(
+          error,
+          t("admin.wafLogs.loadFailedDescription"),
+        ),
       });
     }
   } finally {
@@ -212,8 +223,10 @@ const deleteSelectedDate = async () => {
     onSuccess: async (data) => {
       toast.success(
         data.deleted
-          ? `${selectedDate.value} WAF 日志已删除`
-          : `${selectedDate.value} 没有可删除的 WAF 日志`,
+          ? t("admin.wafLogs.deletedForDate", { date: selectedDate.value })
+          : t("admin.wafLogs.noDeletedForDate", {
+              date: selectedDate.value,
+            }),
       );
       searchQuery.value = "";
       traceFilter.value = "";
@@ -237,12 +250,12 @@ const actionLabel = (value?: string) => {
   switch (value) {
     case "block":
     case "deny":
-      return "阻断";
+      return t("admin.wafLogs.actions.block");
     case "log":
     case "detect":
-      return "记录";
+      return t("admin.wafLogs.actions.record");
     case "pass":
-      return "放行";
+      return t("admin.wafLogs.actions.pass");
     default:
       return value || "-";
   }
@@ -257,11 +270,11 @@ const actionVariant = (value?: string) => {
 const modeLabel = (value?: string) => {
   switch (value) {
     case "detection":
-      return "检测";
+      return t("admin.wafLogs.modes.detection");
     case "blocking":
-      return "阻断";
+      return t("admin.wafLogs.modes.blocking");
     case "off":
-      return "关闭";
+      return t("admin.wafLogs.modes.off");
     default:
       return value || "-";
   }
@@ -270,27 +283,28 @@ const modeLabel = (value?: string) => {
 const routeTypeLabel = (value?: string) => {
   switch (value) {
     case "path_rule":
-      return "路径规则";
+      return t("admin.wafLogs.routeTypes.pathRule");
     case "host_rule":
-      return "Host 规则";
+      return t("admin.wafLogs.routeTypes.hostRule");
     case "auth_proxy":
-      return "鉴权代理";
+      return t("admin.wafLogs.routeTypes.authProxy");
     case "select":
-      return "选择页";
+      return t("admin.wafLogs.routeTypes.select");
     case "preflight":
-      return "预检";
+      return t("admin.wafLogs.routeTypes.preflight");
     case "slash_redirect":
-      return "补斜杠";
+      return t("admin.wafLogs.routeTypes.slashRedirect");
     case "favicon":
-      return "图标";
+      return t("admin.wafLogs.routeTypes.favicon");
     case "not_found":
-      return "未命中";
+      return t("admin.wafLogs.routeTypes.notFound");
     default:
       return value || "-";
   }
 };
 
-const formatDate = (value?: string) => formatDateTimeSafe(value);
+const formatDate = (value?: string) =>
+  formatDateTimeSafe(value, { locale: locale.value });
 const formatRuleIds = (value?: number[]) =>
   value && value.length > 0 ? value.map((id) => `#${id}`).join(", ") : "-";
 
@@ -330,11 +344,11 @@ const getEntryIpLocationText = (event: WAFEvent) => {
   if (location) return location;
 
   if (snapshot?.status === "queued" || snapshot?.status === "processing") {
-    return "属地解析中...";
+    return t("admin.hostActiveIps.resolving");
   }
 
   if (snapshot?.status === "failed") {
-    return "属地暂未获取";
+    return t("admin.hostActiveIps.unavailable");
   }
 
   return "";
@@ -374,7 +388,10 @@ const formatPrimaryRuleId = (event: WAFEvent) => {
   ]);
   const otherCount = Math.max(0, ruleIds.size - 1);
   return otherCount > 0
-    ? `#${primaryRule.id} · 另 ${otherCount} 条`
+    ? t("admin.wafLogs.moreRules", {
+        id: primaryRule.id,
+        count: otherCount,
+      })
     : `#${primaryRule.id}`;
 };
 
@@ -466,36 +483,43 @@ const activeEventWithIpLocation = computed(() =>
 );
 
 const detailFields = [
-  { key: "time", label: "时间" },
+  { key: "time", labelKey: "admin.wafLogs.detailFields.time" },
   { key: "trace_id", label: "Trace ID" },
-  { key: "transaction_id", label: "事务 ID" },
-  { key: "action", label: "动作" },
-  { key: "mode", label: "模式" },
-  { key: "status", label: "状态码" },
-  { key: "client_ip", label: "客户端 IP" },
-  { key: "ipLocation", label: "属地" },
-  { key: "remote_addr", label: "远端地址" },
-  { key: "method", label: "方法" },
-  { key: "scheme", label: "协议" },
+  { key: "transaction_id", labelKey: "admin.wafLogs.detailFields.transactionId" },
+  { key: "action", labelKey: "admin.wafLogs.detailFields.action" },
+  { key: "mode", labelKey: "admin.wafLogs.detailFields.mode" },
+  { key: "status", labelKey: "admin.wafLogs.detailFields.status" },
+  { key: "client_ip", labelKey: "admin.wafLogs.detailFields.clientIp" },
+  { key: "ipLocation", labelKey: "admin.wafLogs.detailFields.ipLocation" },
+  { key: "remote_addr", labelKey: "admin.wafLogs.detailFields.remoteAddr" },
+  { key: "method", labelKey: "admin.wafLogs.detailFields.method" },
+  { key: "scheme", labelKey: "admin.wafLogs.detailFields.scheme" },
   { key: "host", label: "Host" },
-  { key: "path", label: "路径" },
+  { key: "path", labelKey: "admin.wafLogs.detailFields.path" },
   { key: "query", label: "Query" },
-  { key: "request_uri", label: "请求地址" },
+  { key: "request_uri", labelKey: "admin.wafLogs.detailFields.requestUri" },
   { key: "user_agent", label: "User-Agent" },
   { key: "referer", label: "Referer" },
-  { key: "route_type", label: "路由类型" },
-  { key: "route_key", label: "路由键" },
-  { key: "upstream", label: "上游目标" },
-  { key: "bundle_id", label: "规则包" },
+  { key: "route_type", labelKey: "admin.wafLogs.detailFields.routeType" },
+  { key: "route_key", labelKey: "admin.wafLogs.detailFields.routeKey" },
+  { key: "upstream", labelKey: "admin.wafLogs.detailFields.upstream" },
+  { key: "bundle_id", labelKey: "admin.wafLogs.detailFields.bundleId" },
   { key: "bundle_hash", label: "Bundle Hash" },
-  { key: "rule_ids", label: "规则 ID" },
-  { key: "rules", label: "规则详情" },
-  { key: "interruption", label: "阻断信息" },
-  { key: "error", label: "错误" },
+  { key: "rule_ids", labelKey: "admin.wafLogs.detailFields.ruleIds" },
+  { key: "rules", labelKey: "admin.wafLogs.detailFields.rules" },
+  { key: "interruption", labelKey: "admin.wafLogs.detailFields.interruption" },
+  { key: "error", labelKey: "admin.wafLogs.detailFields.error" },
 ] as const;
 
+const localizedDetailFields = computed(() =>
+  detailFields.map((field) => ({
+    key: field.key,
+    label: "label" in field ? field.label : t(field.labelKey),
+  })),
+);
+
 const detailItems = computed(() =>
-  buildDetailFields(activeEventWithIpLocation.value, detailFields, {
+  buildDetailFields(activeEventWithIpLocation.value, localizedDetailFields.value, {
     format: (key, value) => {
       if (key === "time") return formatDate(value);
       if (key === "action") return actionLabel(String(value || ""));
@@ -514,7 +538,7 @@ const detailItems = computed(() =>
 
 const detailCopyText = computed(() =>
   detailItems.value
-    .map((item) => `${item.label}：${String(item.value)}`)
+    .map((item) => `${item.label}: ${String(item.value)}`)
     .join("\n"),
 );
 
@@ -564,11 +588,13 @@ onBeforeUnmount(() => {
     >
       <div class="space-y-1">
         <div class="flex items-center gap-2">
-          <h1 class="text-lg font-semibold tracking-tight">WAF 日志</h1>
+          <h1 class="text-lg font-semibold tracking-tight">
+            {{ t("admin.wafLogs.title") }}
+          </h1>
           <span class="text-xs text-muted-foreground">{{ selectedDate }}</span>
         </div>
         <p class="text-sm text-muted-foreground">
-          查看 Coraza WAF 命中的规则、动作、Trace ID 和请求上下文。
+          {{ t("admin.wafLogs.description") }}
         </p>
       </div>
 
@@ -579,8 +605,8 @@ onBeforeUnmount(() => {
           @click="refreshAll"
         />
         <ConfirmDangerPopover
-          :title="`确认删除 ${selectedDate} 的 WAF 日志？`"
-          description="删除后当天 WAF 事件将不可恢复。"
+          :title="t('admin.wafLogs.deleteDateTitle', { date: selectedDate })"
+          :description="t('admin.wafLogs.deleteDateDescription')"
           :loading="isDeleting"
           :disabled="isDeleting"
           :on-confirm="deleteSelectedDate"
@@ -592,7 +618,7 @@ onBeforeUnmount(() => {
               :disabled="isDeleting"
             >
               <Trash2 class="mr-2 h-4 w-4" />
-              删除当天
+              {{ t("admin.wafLogs.deleteDateAction") }}
             </Button>
           </template>
         </ConfirmDangerPopover>
@@ -608,11 +634,11 @@ onBeforeUnmount(() => {
         class="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
       >
         <p class="text-sm text-muted-foreground">
-          当前未启用 WAF，仍可查看已持久化的历史事件。
+          {{ t("admin.wafLogs.disabledNotice") }}
         </p>
         <Button variant="ghost" class="shrink-0" @click="goToSettings">
           <Settings class="mr-2 h-4 w-4" />
-          去设置
+          {{ t("admin.wafLogs.goSettings") }}
         </Button>
       </div>
     </Alert>
@@ -624,7 +650,7 @@ onBeforeUnmount(() => {
         <div class="flex flex-col gap-2 md:flex-row md:items-center">
           <SearchInput
             v-model="searchQuery"
-            placeholder="搜索 Trace、Host、路径、IP..."
+            :placeholder="t('admin.wafLogs.searchPlaceholder')"
             class="w-full md:w-[320px] md:max-w-[320px]"
             @search="handleSearch"
           />
@@ -636,7 +662,7 @@ onBeforeUnmount(() => {
             >
               <div class="w-[148px]">
                 <SelectTrigger>
-                  <SelectValue placeholder="日期" />
+                  <SelectValue :placeholder="t('admin.wafLogs.datePlaceholder')" />
                 </SelectTrigger>
               </div>
               <SelectContent>
@@ -655,12 +681,21 @@ onBeforeUnmount(() => {
         <div
           class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground"
         >
-          <span>{{ cursorPageLabel }} · {{ entries.length }} 条</span>
+          <span>
+            {{ cursorPageLabel }} ·
+            {{ t("admin.wafLogs.rowsCount", { count: entries.length }) }}
+          </span>
           <span v-if="traceFilter.trim()" class="font-mono"
-            >Trace：{{ traceFilter.trim() }}</span
+            >{{
+              t("admin.wafLogs.traceFilter", { trace: traceFilter.trim() })
+            }}</span
           >
           <span v-if="searchQuery.trim()"
-            >关键词：{{ searchQuery.trim() }}</span
+            >{{
+              t("admin.wafLogs.keywordFilter", {
+                keyword: searchQuery.trim(),
+              })
+            }}</span
           >
         </div>
       </div>
@@ -671,19 +706,19 @@ onBeforeUnmount(() => {
             <TableRow>
               <TableHead
                 class="h-10 w-[320px] min-w-[320px] max-w-[320px] text-[11px] font-medium text-muted-foreground"
-                >请求</TableHead
+                >{{ t("admin.wafLogs.requestColumn") }}</TableHead
               >
               <TableHead
                 class="h-10 text-[11px] font-medium text-muted-foreground"
-                >来源</TableHead
+                >{{ t("admin.wafLogs.sourceColumn") }}</TableHead
               >
               <TableHead
                 class="h-10 min-w-[220px] text-[11px] font-medium text-muted-foreground"
-                >规则</TableHead
+                >{{ t("admin.wafLogs.rulesColumn") }}</TableHead
               >
               <TableHead
                 class="sticky right-0 z-20 h-10 bg-background/95 pr-4 text-right text-[11px] font-medium text-muted-foreground"
-                >操作</TableHead
+                >{{ t("admin.wafLogs.actionColumn") }}</TableHead
               >
             </TableRow>
           </TableHeader>
@@ -693,7 +728,7 @@ onBeforeUnmount(() => {
                 colspan="4"
                 class="py-10 text-center text-muted-foreground"
               >
-                加载中...
+                {{ t("admin.wafLogs.loading") }}
               </TableCell>
             </TableRow>
             <TableRow v-else-if="entries.length === 0">
@@ -701,7 +736,7 @@ onBeforeUnmount(() => {
                 colspan="4"
                 class="py-10 text-center text-muted-foreground"
               >
-                暂无 WAF 日志
+                {{ t("admin.wafLogs.empty") }}
               </TableCell>
             </TableRow>
             <TableRow
@@ -718,7 +753,7 @@ onBeforeUnmount(() => {
                     <div
                       class="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium leading-5 text-muted-foreground"
                     >
-                      <HumanFriendlyTime :value="entry.time" />
+                      <HumanFriendlyTime :value="entry.time" :locale="locale" />
                     </div>
                     <Badge
                       :variant="actionVariant(entry.action)"
@@ -803,6 +838,7 @@ onBeforeUnmount(() => {
                   variant="ghost"
                   size="icon"
                   class="h-8 w-8 text-muted-foreground hover:text-foreground"
+                  :aria-label="t('common.viewDetails')"
                   @click="viewDetails(entry)"
                 >
                   <Eye class="h-4 w-4" />
@@ -822,7 +858,9 @@ onBeforeUnmount(() => {
           >
             <span>{{ cursorPageLabel }}</span>
             <span>{{
-              canLoadOlder ? "可继续翻到更早记录" : "已经是最后一页"
+              canLoadOlder
+                ? t("admin.wafLogs.canLoadOlder")
+                : t("admin.wafLogs.lastPage")
             }}</span>
           </div>
 
@@ -834,7 +872,7 @@ onBeforeUnmount(() => {
               @click="handleLoadFirst"
             >
               <ChevronsLeft class="mr-1.5 h-4 w-4" />
-              首页
+              {{ t("admin.wafLogs.firstPage") }}
             </Button>
             <Button
               variant="outline"
@@ -843,21 +881,21 @@ onBeforeUnmount(() => {
               @click="handleLoadNewer"
             >
               <ChevronLeft class="mr-1.5 h-4 w-4" />
-              上一页
+              {{ t("admin.wafLogs.previousPage") }}
             </Button>
             <Button
               class="h-8 px-3"
               :disabled="loading || !canLoadOlder"
               @click="handleLoadOlder"
             >
-              下一页
+              {{ t("admin.wafLogs.nextPage") }}
               <ChevronRight class="ml-1.5 h-4 w-4" />
             </Button>
 
             <div
               class="ml-1 flex items-center gap-2 text-xs text-muted-foreground"
             >
-              <span>每页显示</span>
+              <span>{{ t("admin.wafLogs.pageSize") }}</span>
               <Select
                 :model-value="limit"
                 @update:model-value="handleLimitChange"
@@ -873,7 +911,7 @@ onBeforeUnmount(() => {
                     :key="option"
                     :value="option"
                   >
-                    {{ option }} 条
+                    {{ t("admin.wafLogs.pageSizeOption", { count: option }) }}
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -885,8 +923,8 @@ onBeforeUnmount(() => {
 
     <DetailDialog
       v-model:open="isDetailsOpen"
-      title="WAF 日志详情"
-      description="查看此条 WAF 事件的完整字段。"
+      :title="t('admin.wafLogs.detailTitle')"
+      :description="t('admin.wafLogs.detailDescription')"
       max-width-class="sm:max-w-[680px]"
       close-variant="default"
       :copy-text="detailCopyText"

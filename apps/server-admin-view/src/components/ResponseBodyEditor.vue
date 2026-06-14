@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -14,6 +15,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   (event: 'update:modelValue', value: string): void
 }>()
+
+const { t } = useI18n()
 
 const textEncoder = new TextEncoder()
 
@@ -86,7 +89,7 @@ const jsonWarning = computed(() => {
     JSON.parse(props.modelValue)
     return ''
   } catch (error) {
-    return error instanceof Error ? error.message : 'JSON 语法有误'
+    return error instanceof Error ? error.message : t('admin.responseBodyEditor.invalidJsonSyntax')
   }
 })
 
@@ -95,8 +98,8 @@ function formatJson() {
     const parsed = JSON.parse(props.modelValue)
     emit('update:modelValue', `${JSON.stringify(parsed, null, 2)}\n`)
   } catch (error) {
-    toast.error('JSON 格式化失败', {
-      description: error instanceof Error ? error.message : '当前 Body 不是合法 JSON',
+    toast.error(t('admin.responseBodyEditor.formatJsonFailed'), {
+      description: error instanceof Error ? error.message : t('admin.responseBodyEditor.invalidBodyJson'),
     })
   }
 }
@@ -119,8 +122,8 @@ function formatJson() {
       <div
         class="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted-foreground"
       >
-        <span>{{ lineCount }} 行</span>
-        <span>{{ charCount }} 字符</span>
+        <span>{{ t('admin.responseBodyEditor.lines', { count: lineCount }) }}</span>
+        <span>{{ t('admin.responseBodyEditor.characters', { count: charCount }) }}</span>
         <span>UTF-8 {{ byteCountLabel }}</span>
         <Button
           v-if="isJsonLanguage"
@@ -130,7 +133,7 @@ function formatJson() {
           class="h-8"
           @click="formatJson"
         >
-          格式化 JSON
+          {{ t('admin.responseBodyEditor.formatJson') }}
         </Button>
       </div>
     </div>
@@ -139,7 +142,7 @@ function formatJson() {
       :model-value="modelValue"
       :language="editorLanguage"
       min-height="280px"
-      aria-label="响应 Body"
+      :aria-label="t('admin.responseBodyEditor.ariaLabel')"
       flush
       @update:model-value="(value) => emit('update:modelValue', value)"
     />
@@ -148,7 +151,7 @@ function formatJson() {
       v-if="jsonWarning"
       class="border-t border-amber-200 bg-amber-50 px-4 py-2 text-xs leading-5 text-amber-800"
     >
-      JSON 语法警告：{{ jsonWarning }}
+      {{ t('admin.responseBodyEditor.jsonSyntaxWarning', { message: jsonWarning }) }}
     </div>
   </div>
 </template>

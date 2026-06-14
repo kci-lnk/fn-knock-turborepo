@@ -13,10 +13,23 @@ import {
   applyUpdateScope,
   DDNS_UPDATE_SCOPE_FIELD,
   normalizeUpdateScope,
+  withDDNSLocale,
 } from "../lib/ddns/providers/helpers";
 import { DDNS_NETWORK_INTERFACE_FIELD } from "../lib/ddns/network";
 import { emitDDNSUpdateCompletedEvent } from "../lib/system-events/helpers";
 import { routeDoc, withRouteDoc } from "../lib/openapi";
+import { configManager } from "../lib/redis";
+import { createRequestTranslator, tDefault } from "../lib/i18n";
+
+const getDDNSRouteTranslator = async (request: Request) => {
+  const config = await configManager.getConfig();
+  return createRequestTranslator(request, config.locale);
+};
+
+type DDNSRouteTranslator = ReturnType<typeof createRequestTranslator>["t"];
+const isTargetNotFoundMessage = (message: string, t: DDNSRouteTranslator) =>
+  message === t("server.ddns.targetNotFound") ||
+  message === tDefault("server.ddns.targetNotFound");
 
 const parseDDNSLogEntries = (raw: string[]) =>
   raw.map((line) => {
@@ -40,156 +53,175 @@ const buildTargetPayload = async (targetId: string) => {
   };
 };
 
-const runTargetManualTest = async (targetId: string) => {
-  const payload = await buildTargetPayload(targetId);
-  if (!payload) {
-    return {
-      status: 404,
-      body: { success: false, message: "未找到 DDNS 条目" },
-    };
-  }
-
-  const { target, summary } = payload;
-  if (!target.provider) {
-    return {
-      status: 400,
-      body: { success: false, message: "请先选择 DDNS 提供商" },
-    };
-  }
-
-  const complete = await ddnsManager.isTargetConfigComplete(target);
-  if (!complete) {
-    return {
-      status: 400,
-      body: {
-        success: false,
-        message: target.isPrimary
-          ? "当前主域配置不完整，请填写所有必填字段"
-          : "当前条目配置不完整，请填写所有必填字段",
-      },
-    };
-  }
-
-  try {
-    await ddnsManager.appendTargetLog(
-      "info",
-      summary,
-      "手动测试开始，正在解析当前目标 IP...",
-    );
-
-    await ddnsManager.ensureTargetAuxiliaryState(target, {
-      emitLog: true,
-      logPrefix: "手动测试",
-    });
-
-    const updateScope = normalizeUpdateScope(
-      target.config[DDNS_UPDATE_SCOPE_FIELD],
-    );
-    const ips = await resolveDDNSTargetIPs({
-      updateScope,
-      ipSource: target.config[DDNS_IP_SOURCE_FIELD],
-      networkInterface: target.config[DDNS_NETWORK_INTERFACE_FIELD],
-      interfaceIpv4Index: target.config[DDNS_INTERFACE_IPV4_INDEX_FIELD],
-      interfaceIpv6Index: target.config[DDNS_INTERFACE_IPV6_INDEX_FIELD],
-    });
-
-    await ddnsManager.appendTargetLog(
-      "info",
-      summary,
-      `当前目标 IP（${ips.sourceLabel}） — IPv4: ${ips.ipv4 || "无"}, IPv6: ${ips.ipv6 || "无"}`,
-    );
-    for (const warning of ips.warnings) {
-      await ddnsManager.appendTargetLog("warn", summary, warning);
+const runTargetManualTest = async (
+  targetId: string,
+  t: DDNSRouteTranslator,
+  locale: string,
+) => {
+  return withDDNSLocale(locale, async () => {
+    const payload = await buildTargetPayload(targetId);
+    if (!payload) {
+      return {
+        status: 404,
+        body: { success: false, message: t("server.ddns.targetNotFound") },
+      };
     }
 
-    const scopedIPs = applyUpdateScope(updateScope, ips.ipv4, ips.ipv6);
-    if (!scopedIPs.ipv4 && !scopedIPs.ipv6) {
-      const message = getDDNSTargetIPUnavailableMessage(
-        ips.source,
-        updateScope,
+    const { target, summary } = payload;
+    if (!target.provider) {
+      return {
+        status: 400,
+        body: { success: false, message: t("server.ddns.selectProviderFirst") },
+      };
+    }
+
+    const complete = await ddnsManager.isTargetConfigComplete(target);
+    if (!complete) {
+      return {
+        status: 400,
+        body: {
+          success: false,
+          message: target.isPrimary
+            ? t("server.ddns.primaryConfigIncomplete")
+            : t("server.ddns.targetConfigIncomplete"),
+        },
+      };
+    }
+
+    try {
+      await ddnsManager.appendTargetLog(
+        "info",
+        summary,
+        t("server.ddns.manualTestStart"),
       );
+
+      await ddnsManager.ensureTargetAuxiliaryState(target, {
+        emitLog: true,
+        logPrefix: t("server.ddns.manualTestPrefix"),
+      });
+
+      const updateScope = normalizeUpdateScope(
+        target.config[DDNS_UPDATE_SCOPE_FIELD],
+      );
+      const ips = await resolveDDNSTargetIPs({
+        updateScope,
+        ipSource: target.config[DDNS_IP_SOURCE_FIELD],
+        networkInterface: target.config[DDNS_NETWORK_INTERFACE_FIELD],
+        interfaceIpv4Index: target.config[DDNS_INTERFACE_IPV4_INDEX_FIELD],
+        interfaceIpv6Index: target.config[DDNS_INTERFACE_IPV6_INDEX_FIELD],
+      });
+
+      await ddnsManager.appendTargetLog(
+        "info",
+        summary,
+        t("server.ddns.currentTargetIp", {
+          source: ips.sourceLabel,
+          ipv4: ips.ipv4 || t("server.ddns.none"),
+          ipv6: ips.ipv6 || t("server.ddns.none"),
+        }),
+      );
+      for (const warning of ips.warnings) {
+        await ddnsManager.appendTargetLog("warn", summary, warning);
+      }
+
+      const scopedIPs = applyUpdateScope(updateScope, ips.ipv4, ips.ipv6);
+      if (!scopedIPs.ipv4 && !scopedIPs.ipv6) {
+        const message = getDDNSTargetIPUnavailableMessage(
+          ips.source,
+          updateScope,
+        );
+        await ddnsManager.setTargetLastCheck(target.id, "error", message);
+        await ddnsManager.appendTargetLog(
+          "error",
+          summary,
+          t("server.ddns.testAborted", { message }),
+        );
+        return {
+          status: 500,
+          body: { success: false, message },
+        };
+      }
+
+      const previousIp = await ddnsManager.getTargetLastIP(target.id);
+      const result = await ddnsManager.executeTargetUpdate(
+        target,
+        ips.ipv4,
+        ips.ipv6,
+        locale,
+      );
+
+      await emitDDNSUpdateCompletedEvent({
+        trigger: "manual_test",
+        targetId: target.id,
+        targetName: summary.name,
+        domainSummary: summary.domainSummary,
+        isPrimary: target.isPrimary,
+        provider: target.provider,
+        success: result.success,
+        message: result.message,
+        updateScope,
+        ipSource: ips.source,
+        previousIpv4: previousIp.ipv4,
+        previousIpv6: previousIp.ipv6,
+        nextIpv4: scopedIPs.ipv4,
+        nextIpv6: scopedIPs.ipv6,
+      });
+
+      if (result.success) {
+        await ddnsManager.setTargetLastIP(
+          target.id,
+          scopedIPs.ipv4,
+          scopedIPs.ipv6,
+          {
+            merge: true,
+          },
+        );
+        await ddnsManager.setTargetLastCheck(
+          target.id,
+          "updated",
+          result.message,
+        );
+        await ddnsManager.appendTargetLog(
+          "info",
+          summary,
+          t("server.ddns.updateSuccess", { message: result.message }),
+        );
+      } else {
+        await ddnsManager.setTargetLastCheck(
+          target.id,
+          "error",
+          result.message,
+        );
+        await ddnsManager.appendTargetLog(
+          "error",
+          summary,
+          t("server.ddns.updateFailed", { message: result.message }),
+        );
+      }
+
+      return {
+        status: result.success ? 200 : 500,
+        body: {
+          success: result.success,
+          message: result.message,
+          data: { ipv4: ips.ipv4, ipv6: ips.ipv6 },
+        },
+      };
+    } catch (error: any) {
+      const message = error?.message || String(error);
+      console.error("[ddns][manual-test] error:", error);
       await ddnsManager.setTargetLastCheck(target.id, "error", message);
       await ddnsManager.appendTargetLog(
         "error",
         summary,
-        `${message}，测试中止`,
+        t("server.ddns.testError", { message }),
       );
       return {
         status: 500,
         body: { success: false, message },
       };
     }
-
-    const previousIp = await ddnsManager.getTargetLastIP(target.id);
-    const result = await ddnsManager.executeTargetUpdate(
-      target,
-      ips.ipv4,
-      ips.ipv6,
-    );
-
-    await emitDDNSUpdateCompletedEvent({
-      trigger: "manual_test",
-      targetId: target.id,
-      targetName: summary.name,
-      domainSummary: summary.domainSummary,
-      isPrimary: target.isPrimary,
-      provider: target.provider,
-      success: result.success,
-      message: result.message,
-      updateScope,
-      ipSource: ips.source,
-      previousIpv4: previousIp.ipv4,
-      previousIpv6: previousIp.ipv6,
-      nextIpv4: scopedIPs.ipv4,
-      nextIpv6: scopedIPs.ipv6,
-    });
-
-    if (result.success) {
-      await ddnsManager.setTargetLastIP(
-        target.id,
-        scopedIPs.ipv4,
-        scopedIPs.ipv6,
-        {
-          merge: true,
-        },
-      );
-      await ddnsManager.setTargetLastCheck(
-        target.id,
-        "updated",
-        result.message,
-      );
-      await ddnsManager.appendTargetLog(
-        "info",
-        summary,
-        `更新成功: ${result.message}`,
-      );
-    } else {
-      await ddnsManager.setTargetLastCheck(target.id, "error", result.message);
-      await ddnsManager.appendTargetLog(
-        "error",
-        summary,
-        `更新失败: ${result.message}`,
-      );
-    }
-
-    return {
-      status: result.success ? 200 : 500,
-      body: {
-        success: result.success,
-        message: result.message,
-        data: { ipv4: ips.ipv4, ipv6: ips.ipv6 },
-      },
-    };
-  } catch (error: any) {
-    const message = error?.message || String(error);
-    console.error("[ddns][manual-test] error:", error);
-    await ddnsManager.setTargetLastCheck(target.id, "error", message);
-    await ddnsManager.appendTargetLog("error", summary, `测试异常: ${message}`);
-    return {
-      status: 500,
-      body: { success: false, message },
-    };
-  }
+  });
 };
 
 export const ddnsRoutes = new Elysia({
@@ -198,8 +230,11 @@ export const ddnsRoutes = new Elysia({
 })
   .get(
     "/status",
-    async () => {
-      const status = await ddnsManager.getStatus();
+    async ({ request }) => {
+      const { locale } = await getDDNSRouteTranslator(request);
+      const status = await withDDNSLocale(locale, () =>
+        ddnsManager.getStatus(),
+      );
       return { success: true, data: status };
     },
     routeDoc("获取 DDNS 当前状态"),
@@ -225,8 +260,9 @@ export const ddnsRoutes = new Elysia({
   )
   .get(
     "/providers",
-    () => {
-      return { success: true, data: ddnsManager.getProviders() };
+    async ({ request }) => {
+      const { locale } = await getDDNSRouteTranslator(request);
+      return { success: true, data: ddnsManager.getProviders(locale) };
     },
     routeDoc("获取 DDNS 提供商列表"),
   )
@@ -239,18 +275,21 @@ export const ddnsRoutes = new Elysia({
   )
   .post(
     "/settings",
-    async ({ body, set }) => {
+    async ({ body, set, request }) => {
+      const { locale, t } = await getDDNSRouteTranslator(request);
       try {
-        const settings = await ddnsManager.updateSettings({
-          updateIntervalMinutes: body.updateIntervalMinutes,
-        });
+        const settings = await withDDNSLocale(locale, () =>
+          ddnsManager.updateSettings({
+            updateIntervalMinutes: body.updateIntervalMinutes,
+          }),
+        );
         await ddnsIntervalScheduler.reload();
         return { success: true, data: settings };
       } catch (error: any) {
         set.status = 400;
         return {
           success: false,
-          message: error?.message || "保存 DDNS 自动同步设置失败",
+          message: error?.message || t("server.ddns.settingsSaveFailed"),
         };
       }
     },
@@ -260,22 +299,29 @@ export const ddnsRoutes = new Elysia({
   )
   .get(
     "/interfaces",
-    () => {
-      return { success: true, data: ddnsManager.listNetworkInterfaces() };
+    async ({ request }) => {
+      const { locale } = await getDDNSRouteTranslator(request);
+      return {
+        success: true,
+        data: withDDNSLocale(locale, () => ddnsManager.listNetworkInterfaces()),
+      };
     },
     routeDoc("获取可用网卡列表"),
   )
   .post(
     "/provider",
-    async ({ body, set }) => {
+    async ({ body, set, request }) => {
+      const { locale, t } = await getDDNSRouteTranslator(request);
       try {
-        await ddnsManager.setProvider(body.provider);
+        await withDDNSLocale(locale, () =>
+          ddnsManager.setProvider(body.provider),
+        );
         return { success: true };
       } catch (error: any) {
         set.status = 400;
         return {
           success: false,
-          message: error?.message || "设置提供商失败",
+          message: error?.message || t("server.ddns.providerSetFailed"),
         };
       }
     },
@@ -293,15 +339,18 @@ export const ddnsRoutes = new Elysia({
   )
   .post(
     "/config/:provider",
-    async ({ params, body, set }) => {
+    async ({ params, body, set, request }) => {
+      const { locale, t } = await getDDNSRouteTranslator(request);
       try {
-        await ddnsManager.saveConfig(params.provider, body.config);
+        await withDDNSLocale(locale, () =>
+          ddnsManager.saveConfig(params.provider, body.config),
+        );
         return { success: true };
       } catch (error: any) {
         set.status = 400;
         return {
           success: false,
-          message: error?.message || "保存 DDNS 配置失败",
+          message: error?.message || t("server.ddns.configSaveFailed"),
         };
       }
     },
@@ -311,18 +360,27 @@ export const ddnsRoutes = new Elysia({
   )
   .get(
     "/targets",
-    async () => {
-      return { success: true, data: await ddnsManager.getTargetsOverview() };
+    async ({ request }) => {
+      const { locale } = await getDDNSRouteTranslator(request);
+      return {
+        success: true,
+        data: await withDDNSLocale(locale, () =>
+          ddnsManager.getTargetsOverview(),
+        ),
+      };
     },
     routeDoc("获取 DDNS 目标列表"),
   )
   .get(
     "/targets/:id",
-    async ({ params, set }) => {
-      const payload = await buildTargetPayload(params.id);
+    async ({ params, set, request }) => {
+      const { locale, t } = await getDDNSRouteTranslator(request);
+      const payload = await withDDNSLocale(locale, () =>
+        buildTargetPayload(params.id),
+      );
       if (!payload) {
         set.status = 404;
-        return { success: false, message: "未找到 DDNS 条目" };
+        return { success: false, message: t("server.ddns.targetNotFound") };
       }
 
       return {
@@ -338,15 +396,19 @@ export const ddnsRoutes = new Elysia({
   )
   .post(
     "/targets",
-    async ({ body, set }) => {
+    async ({ body, set, request }) => {
+      const { locale, t } = await getDDNSRouteTranslator(request);
       try {
-        const target = await ddnsManager.createTarget({
-          name: body.name,
-          provider: body.provider,
-          enabled: body.enabled,
-          config: body.config,
+        const { target, summary } = await withDDNSLocale(locale, async () => {
+          const target = await ddnsManager.createTarget({
+            name: body.name,
+            provider: body.provider,
+            enabled: body.enabled,
+            config: body.config,
+          });
+          const summary = await ddnsManager.buildTargetSummary(target.id);
+          return { target, summary };
         });
-        const summary = await ddnsManager.buildTargetSummary(target.id);
         return {
           success: true,
           data: {
@@ -359,7 +421,7 @@ export const ddnsRoutes = new Elysia({
         set.status = 400;
         return {
           success: false,
-          message: error?.message || "创建 DDNS 条目失败",
+          message: error?.message || t("server.ddns.createTargetFailed"),
         };
       }
     },
@@ -374,15 +436,19 @@ export const ddnsRoutes = new Elysia({
   )
   .put(
     "/targets/:id",
-    async ({ params, body, set }) => {
+    async ({ params, body, set, request }) => {
+      const { locale, t } = await getDDNSRouteTranslator(request);
       try {
-        const target = await ddnsManager.updateTarget(params.id, {
-          name: body.name,
-          provider: body.provider,
-          enabled: body.enabled,
-          config: body.config,
+        const { target, summary } = await withDDNSLocale(locale, async () => {
+          const target = await ddnsManager.updateTarget(params.id, {
+            name: body.name,
+            provider: body.provider,
+            enabled: body.enabled,
+            config: body.config,
+          });
+          const summary = await ddnsManager.buildTargetSummary(target.id);
+          return { target, summary };
         });
-        const summary = await ddnsManager.buildTargetSummary(target.id);
         return {
           success: true,
           data: {
@@ -392,8 +458,8 @@ export const ddnsRoutes = new Elysia({
           },
         };
       } catch (error: any) {
-        const message = error?.message || "更新 DDNS 条目失败";
-        set.status = message.includes("未找到") ? 404 : 400;
+        const message = error?.message || t("server.ddns.updateTargetFailed");
+        set.status = isTargetNotFoundMessage(message, t) ? 404 : 400;
         return { success: false, message };
       }
     },
@@ -408,13 +474,14 @@ export const ddnsRoutes = new Elysia({
   )
   .delete(
     "/targets/:id",
-    async ({ params, set }) => {
+    async ({ params, set, request }) => {
+      const { locale, t } = await getDDNSRouteTranslator(request);
       try {
-        await ddnsManager.deleteTarget(params.id);
+        await withDDNSLocale(locale, () => ddnsManager.deleteTarget(params.id));
         return { success: true };
       } catch (error: any) {
-        const message = error?.message || "删除 DDNS 条目失败";
-        set.status = message.includes("未找到") ? 404 : 400;
+        const message = error?.message || t("server.ddns.deleteTargetFailed");
+        set.status = isTargetNotFoundMessage(message, t) ? 404 : 400;
         return { success: false, message };
       }
     },
@@ -422,13 +489,17 @@ export const ddnsRoutes = new Elysia({
   )
   .post(
     "/targets/:id/enabled",
-    async ({ params, body, set }) => {
+    async ({ params, body, set, request }) => {
+      const { locale, t } = await getDDNSRouteTranslator(request);
       try {
-        await ddnsManager.setTargetEnabled(params.id, body.enabled);
+        await withDDNSLocale(locale, () =>
+          ddnsManager.setTargetEnabled(params.id, body.enabled),
+        );
         return { success: true };
       } catch (error: any) {
-        const message = error?.message || "更新 DDNS 条目启用状态失败";
-        set.status = message.includes("未找到") ? 404 : 400;
+        const message =
+          error?.message || t("server.ddns.updateTargetEnabledFailed");
+        set.status = isTargetNotFoundMessage(message, t) ? 404 : 400;
         return { success: false, message };
       }
     },
@@ -438,9 +509,10 @@ export const ddnsRoutes = new Elysia({
   )
   .post(
     "/test",
-    async ({ set }) => {
+    async ({ set, request }) => {
+      const { locale, t } = await getDDNSRouteTranslator(request);
       const primaryTarget = await ddnsManager.getPrimaryTarget();
-      const result = await runTargetManualTest(primaryTarget.id);
+      const result = await runTargetManualTest(primaryTarget.id, t, locale);
       set.status = result.status;
       return result.body;
     },
@@ -448,8 +520,9 @@ export const ddnsRoutes = new Elysia({
   )
   .post(
     "/targets/:id/test",
-    async ({ params, set }) => {
-      const result = await runTargetManualTest(params.id);
+    async ({ params, set, request }) => {
+      const { locale, t } = await getDDNSRouteTranslator(request);
+      const result = await runTargetManualTest(params.id, t, locale);
       set.status = result.status;
       return result.body;
     },

@@ -31,7 +31,7 @@ function isTomlTable(value: unknown): value is TomlTable {
 function parseTomlDocument(raw: string): TomlTable {
   const parsed = parse(raw.trim() ? raw : '')
   if (!isTomlTable(parsed)) {
-    throw new Error('frpc.toml 必须是一个 TOML 表结构')
+    throw new Error('frpc.toml must be a TOML table')
   }
   return parsed
 }

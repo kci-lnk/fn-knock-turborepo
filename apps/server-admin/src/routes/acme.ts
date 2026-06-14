@@ -16,6 +16,7 @@ import {
   stopActiveAcmeApplicationJob,
 } from "../lib/acme-job-runner";
 import {
+  createAcmeDnsProviders,
   dnsProviders,
   filterAcmeCredentialsForProvider,
   formatCredentialRequirements,
@@ -24,6 +25,63 @@ import {
   normalizeAcmeDnsType,
 } from "../lib/acme-dns-providers";
 import { routeDoc, withRouteDoc } from "../lib/openapi";
+import { createRequestTranslator, tDefault } from "../lib/i18n";
+
+type RequestTranslator = ReturnType<typeof createRequestTranslator>["t"];
+
+const getAcmeRouteTranslator = async (request: Request) =>
+  createRequestTranslator(request, await configManager.getLocaleConfig()).t;
+
+const acmeRouteT = (
+  t: RequestTranslator,
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => t(`server.acmeRoutes.${key}`, params);
+
+const acmeDefaultT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.acmeRoutes.${key}`, params);
+
+const isAcmeConflictMessage = (
+  message: string,
+  t?: RequestTranslator,
+): boolean => {
+  const messages = [
+    acmeDefaultT("installingRetryLater"),
+    acmeDefaultT("installFirst"),
+    tDefault("server.acmeService.installFirst"),
+    tDefault("server.acmeService.installingCannotDelete"),
+    tDefault("server.acmeJobRunner.activeTaskRunning"),
+  ];
+  if (t) {
+    messages.push(
+      acmeRouteT(t, "installingRetryLater"),
+      acmeRouteT(t, "installFirst"),
+      t("server.acmeService.installFirst"),
+      t("server.acmeService.installingCannotDelete"),
+      t("server.acmeJobRunner.activeTaskRunning"),
+    );
+  }
+  return messages.includes(message);
+};
+
+const isAcmeApplicationNotFoundMessage = (
+  message: string,
+  t?: RequestTranslator,
+): boolean => {
+  const messages = [
+    acmeDefaultT("applicationNotFound"),
+    tDefault("server.redis.acme.applicationNotFound"),
+  ];
+  if (t) {
+    messages.push(
+      acmeRouteT(t, "applicationNotFound"),
+      t("server.redis.acme.applicationNotFound"),
+    );
+  }
+  return messages.includes(message);
+};
 
 const normalizeDomains = (domains: string[]) => {
   const out: string[] = [];
@@ -52,19 +110,22 @@ const isValidDomain = (value: string) => {
   return /^(\*\.)?([a-z0-9-]+\.)+[a-z0-9-]+$/i.test(v);
 };
 
-const validateAndNormalizeAcmeRequest = (input: {
-  domains: string[];
-  dnsType?: string;
-  provider?: string;
-  credentials?: Record<string, string>;
-}) => {
+const validateAndNormalizeAcmeRequest = (
+  input: {
+    domains: string[];
+    dnsType?: string;
+    provider?: string;
+    credentials?: Record<string, string>;
+  },
+  t: RequestTranslator,
+) => {
   const domains = normalizeDomains(input.domains);
-  if (domains.length === 0) throw new Error("域名列表不能为空或格式无效");
+  if (domains.length === 0) throw new Error(acmeRouteT(t, "domainsInvalid"));
 
   const dnsType = normalizeAcmeDnsType(input.dnsType ?? input.provider);
-  if (!dnsType) throw new Error("dnsType required");
+  if (!dnsType) throw new Error(acmeRouteT(t, "dnsTypeRequired"));
   const provider = dnsProviders.find((p) => p.dnsType === dnsType) || null;
-  if (!provider) throw new Error("不支持的 DNS 服务商");
+  if (!provider) throw new Error(acmeRouteT(t, "unsupportedDnsProvider"));
 
   const credentials = filterAcmeCredentialsForProvider(
     provider,
@@ -73,7 +134,9 @@ const validateAndNormalizeAcmeRequest = (input: {
   const matchedScheme = getSatisfiedCredentialScheme(provider, credentials);
   if (!matchedScheme) {
     throw new Error(
-      `缺少 DNS API 凭据，请填写以下任一方案: ${formatCredentialRequirements(provider)}`,
+      acmeRouteT(t, "missingDnsCredentials", {
+        requirements: formatCredentialRequirements(provider, t),
+      }),
     );
   }
 
@@ -221,6 +284,7 @@ const pickEvidence = (
 const analyzeAcmeLogs = (
   job: AcmeJobNonNull,
   logs: string[],
+  t: RequestTranslator,
 ): AcmeLogAnalysis | null => {
   if (!logs.length) return null;
   const provider = job.provider || undefined;
@@ -236,7 +300,7 @@ const analyzeAcmeLogs = (
       return {
         reason: "dns_credentials_invalid",
         provider: "dns_cf",
-        message: "Cloudflare API 密钥不正确（X-Auth-Key 格式无效）",
+        message: acmeRouteT(t, "cloudflareInvalidKey"),
         evidence: pickEvidence(
           logs,
           (line) => /X-Auth-Key/i.test(line) || /"code"\s*:\s*6103/i.test(line),
@@ -249,7 +313,7 @@ const analyzeAcmeLogs = (
       return {
         reason: "dns_credentials_invalid_email",
         provider: "dns_cf",
-        message: "Cloudflare 邮箱不正确（X-Auth-Email 格式无效）",
+        message: acmeRouteT(t, "cloudflareInvalidEmail"),
         evidence: pickEvidence(logs, (line) => /X-Auth-Email/i.test(line)),
       };
     }
@@ -260,7 +324,7 @@ const analyzeAcmeLogs = (
       return {
         reason: "dns_credentials_invalid",
         provider: "dns_cf",
-        message: "Cloudflare API 请求头无效，通常是 API 密钥/邮箱不正确导致",
+        message: acmeRouteT(t, "cloudflareInvalidHeaders"),
         evidence: pickEvidence(
           logs,
           (line) =>
@@ -282,7 +346,7 @@ const analyzeAcmeLogs = (
       return {
         reason: "acme_frequency_limited",
         provider,
-        message: `申请频率受限（Retry-After=${seconds} 秒，超过 600 秒将不再重试），请等待后再试`,
+        message: acmeRouteT(t, "acmeFrequencyLimited", { seconds }),
         evidence: pickEvidence(
           logs,
           (line) =>
@@ -298,7 +362,7 @@ const analyzeAcmeLogs = (
     return {
       reason: "dns_api_rate_limited",
       provider,
-      message: "DNS API 触发限流（429/Rate limit），稍后重试",
+      message: acmeRouteT(t, "dnsApiRateLimited"),
       evidence: pickEvidence(logs, (line) =>
         /rate limit|too many requests|429/i.test(line),
       ),
@@ -310,7 +374,7 @@ const analyzeAcmeLogs = (
     return {
       reason: "unknown",
       provider,
-      message: "日志中检测到错误，但未能自动归因",
+      message: acmeRouteT(t, "logUnknownFailure"),
       evidence: pickEvidence(logs, (line) => /failed|invalid/i.test(line)),
     };
   }
@@ -318,17 +382,20 @@ const analyzeAcmeLogs = (
   return null;
 };
 
-const ensureInstalledForRequest = async (acme: {
-  checkInstalled: () => Promise<boolean>;
-  getState: () => { status: string; message: string };
-}) => {
+const ensureInstalledForRequest = async (
+  acme: {
+    checkInstalled: () => Promise<boolean>;
+    getState: () => { status: string; message: string };
+  },
+  t: RequestTranslator,
+) => {
   await acme.checkInstalled();
   const state = acme.getState();
   if (state.status === "installed") return state;
   if (state.status === "installing") {
-    throw new Error("acme.sh 安装中，请稍后再试");
+    throw new Error(acmeRouteT(t, "installingRetryLater"));
   }
-  throw new Error("请先安装 acme.sh");
+  throw new Error(acmeRouteT(t, "installFirst"));
 };
 
 const getUsableIssuedCertificateForApplication = async (
@@ -362,7 +429,10 @@ const getStatusCertificate = async () => {
   return null;
 };
 
-const resolveLegacyApplicationForMutation = async (domains: string[]) => {
+const resolveLegacyApplicationForMutation = async (
+  domains: string[],
+  t: RequestTranslator,
+) => {
   const applications = await configManager.listAcmeApplications();
   const primaryDomain = domains[0] || "";
   const matchedApplication = applications.find(
@@ -371,7 +441,7 @@ const resolveLegacyApplicationForMutation = async (domains: string[]) => {
   if (matchedApplication) return matchedApplication;
   if (applications.length === 1) return applications[0] || null;
   if (applications.length > 1) {
-    throw new Error("当前已存在多个申请项，请使用新接口管理 ACME 申请项");
+    throw new Error(acmeRouteT(t, "multipleApplicationsUseNewApi"));
   }
   return null;
 };
@@ -425,10 +495,13 @@ const syncGatewayIfAcmeApplicationSaveRemovedLibrary = async (
   });
 };
 
-const deleteAcmeApplicationCertificate = async (applicationId: string) => {
+const deleteAcmeApplicationCertificate = async (
+  applicationId: string,
+  t: RequestTranslator,
+) => {
   const application = await configManager.getAcmeApplication(applicationId);
   if (!application) {
-    throw new Error("申请项不存在");
+    throw new Error(acmeRouteT(t, "applicationNotFound"));
   }
 
   const issuedCertificate =
@@ -464,10 +537,13 @@ const deleteAcmeApplicationCertificate = async (applicationId: string) => {
   };
 };
 
-const deleteAcmeApplication = async (applicationId: string) => {
+const deleteAcmeApplication = async (
+  applicationId: string,
+  t: RequestTranslator,
+) => {
   const deleted = await configManager.deleteAcmeApplication(applicationId);
   if (!deleted) {
-    throw new Error("申请项不存在");
+    throw new Error(acmeRouteT(t, "applicationNotFound"));
   }
 
   await syncGatewayIfAcmeLibraryRemoved({
@@ -478,7 +554,7 @@ const deleteAcmeApplication = async (applicationId: string) => {
   return deleted;
 };
 
-const buildApplicationOverview = async () => {
+const buildApplicationOverview = async (t: RequestTranslator) => {
   const [applications, issuedCertificates, sslStatus] = await Promise.all([
     configManager.listAcmeApplications(),
     configManager.listAcmeIssuedCertificates(),
@@ -533,7 +609,7 @@ const buildApplicationOverview = async () => {
       primaryDomain: application.primaryDomain,
       domains: application.domains,
       dnsType: application.dnsType,
-      providerLabel: getProviderLabel(application.dnsType),
+      providerLabel: getProviderLabel(application.dnsType, t),
       renewEnabled: application.renewEnabled,
       createdAt: application.createdAt,
       updatedAt: application.updatedAt,
@@ -608,7 +684,8 @@ export const acmeRoutes = new Elysia({
   )
   .get(
     "/overview",
-    async ({ acme }) => {
+    async ({ acme, request }) => {
+      const t = await getAcmeRouteTranslator(request);
       await acme.checkInstalled();
       const [clientSettings, lock, applications, runningJob] =
         await Promise.all([
@@ -616,7 +693,7 @@ export const acmeRoutes = new Elysia({
             await acme.getDefaultCertificateAuthority(),
           ),
           configManager.getActiveAcmeRuntimeLock(),
-          buildApplicationOverview(),
+          buildApplicationOverview(t),
           configManager.getActiveAcmeJobFromLock(),
         ]);
 
@@ -658,11 +735,12 @@ export const acmeRoutes = new Elysia({
   )
   .get(
     "/applications/:id",
-    async ({ params, set }) => {
+    async ({ params, set, request }) => {
+      const t = await getAcmeRouteTranslator(request);
       const application = await configManager.getAcmeApplication(params.id);
       if (!application) {
         set.status = 404;
-        return { success: false, message: "not found" };
+        return { success: false, message: acmeRouteT(t, "notFound") };
       }
       return { success: true, data: application };
     },
@@ -681,19 +759,24 @@ export const acmeRoutes = new Elysia({
   )
   .get(
     "/dns-providers",
-    () => {
-      return { success: true, data: dnsProviders };
+    async ({ request }) => {
+      const t = await getAcmeRouteTranslator(request);
+      return { success: true, data: createAcmeDnsProviders(t) };
     },
     routeDoc("获取 DNS 提供商目录"),
   )
   .delete(
     "/",
-    async ({ acme, set }) => {
+    async ({ acme, set, request }) => {
+      const t = await getAcmeRouteTranslator(request);
       try {
         const st = acme.getState();
         if (st.status === "installing") {
           set.status = 409;
-          return { success: false, message: "acme.sh 安装中，无法删除" };
+          return {
+            success: false,
+            message: acmeRouteT(t, "installingCannotDelete"),
+          };
         }
         await acme.uninstall();
         await acme.checkInstalled();
@@ -724,14 +807,15 @@ export const acmeRoutes = new Elysia({
   )
   .post(
     "/client-settings",
-    async ({ acme, body, set }) => {
+    async ({ acme, body, set, request }) => {
+      const t = await getAcmeRouteTranslator(request);
       await acme.checkInstalled();
       const state = acme.getState();
       if (state.status === "installing") {
         set.status = 409;
         return {
           success: false,
-          message: "acme.sh 安装中，暂时无法切换证书颁发机构",
+          message: acmeRouteT(t, "installingCannotSwitchCa"),
         };
       }
 
@@ -785,11 +869,13 @@ export const acmeRoutes = new Elysia({
   )
   .post(
     "/config",
-    async ({ body, set }) => {
+    async ({ body, set, request }) => {
+      const t = await getAcmeRouteTranslator(request);
       try {
-        const normalized = validateAndNormalizeAcmeRequest(body);
+        const normalized = validateAndNormalizeAcmeRequest(body, t);
         const targetApplication = await resolveLegacyApplicationForMutation(
           normalized.domains,
+          t,
         );
         const saved = await configManager.saveAcmeApplicationWithEffects({
           id: targetApplication?.id,
@@ -822,9 +908,11 @@ export const acmeRoutes = new Elysia({
   )
   .post(
     "/applications",
-    async ({ acme, body, set }) => {
+    async ({ acme, body, set, request }) => {
+      const t = await getAcmeRouteTranslator(request);
       try {
-        const normalized = validateAndNormalizeAcmeRequest(body);
+        const localeConfig = await configManager.getLocaleConfig();
+        const normalized = validateAndNormalizeAcmeRequest(body, t);
         const saved = await configManager.saveAcmeApplicationWithEffects({
           name: body.name,
           domains: normalized.domains,
@@ -840,11 +928,12 @@ export const acmeRoutes = new Elysia({
           return { success: true, data: { application } };
         }
 
-        await ensureInstalledForRequest(acme);
+        await ensureInstalledForRequest(acme, t);
         const started = await startAcmeApplicationJob({
           acme,
           application,
           trigger: "manual_request",
+          locale: localeConfig.default_locale,
         });
         return {
           success: true,
@@ -856,7 +945,7 @@ export const acmeRoutes = new Elysia({
         };
       } catch (e: any) {
         const message = e?.message || String(e);
-        set.status = /稍后再试|请先安装|安装中/.test(message) ? 409 : 400;
+        set.status = isAcmeConflictMessage(message, t) ? 409 : 400;
         return { success: false, message };
       }
     },
@@ -873,22 +962,24 @@ export const acmeRoutes = new Elysia({
   )
   .patch(
     "/applications/:id",
-    async ({ acme, params, body, set }) => {
+    async ({ acme, params, body, set, request }) => {
+      const t = await getAcmeRouteTranslator(request);
       try {
+        const localeConfig = await configManager.getLocaleConfig();
         const existing = await configManager.getAcmeApplication(params.id);
         if (!existing) {
           set.status = 404;
-          return { success: false, message: "not found" };
+          return { success: false, message: acmeRouteT(t, "notFound") };
         }
 
-        const normalized = validateAndNormalizeAcmeRequest(body);
+        const normalized = validateAndNormalizeAcmeRequest(body, t);
         let reservation: Awaited<
           ReturnType<typeof reserveAcmeApplicationJob>
         > | null = null;
         let reservationHandedOff = false;
 
         if (body.submitNow) {
-          await ensureInstalledForRequest(acme);
+          await ensureInstalledForRequest(acme, t);
           reservation = await reserveAcmeApplicationJob({
             application: buildPendingApplication(existing, {
               name: body.name,
@@ -898,6 +989,7 @@ export const acmeRoutes = new Elysia({
               renewEnabled: body.renewEnabled,
             }),
             trigger: "manual_request",
+            locale: localeConfig.default_locale,
           });
         }
 
@@ -925,11 +1017,13 @@ export const acmeRoutes = new Elysia({
                 trigger: "manual_request",
                 job: reservation.job,
                 lock: reservation.lock,
+                locale: localeConfig.default_locale,
               })
             : await startAcmeApplicationJob({
                 acme,
                 application,
                 trigger: "manual_request",
+                locale: localeConfig.default_locale,
               });
           reservationHandedOff = reservation !== null;
 
@@ -948,16 +1042,17 @@ export const acmeRoutes = new Elysia({
               job: reservation.job,
               lock: reservation.lock,
               message: error?.message || String(error),
+              locale: localeConfig.default_locale,
             });
           }
           throw error;
         }
       } catch (e: any) {
         const message = e?.message || String(e);
-        if (message === "not found") {
+        if (message === acmeRouteT(t, "notFound")) {
           set.status = 404;
         } else {
-          set.status = /稍后再试|请先安装|安装中/.test(message) ? 409 : 400;
+          set.status = isAcmeConflictMessage(message, t) ? 409 : 400;
         }
         return { success: false, message };
       }
@@ -975,19 +1070,22 @@ export const acmeRoutes = new Elysia({
   )
   .post(
     "/applications/:id/request",
-    async ({ acme, params, set }) => {
+    async ({ acme, params, set, request }) => {
+      const t = await getAcmeRouteTranslator(request);
       try {
-        await ensureInstalledForRequest(acme);
+        const localeConfig = await configManager.getLocaleConfig();
+        await ensureInstalledForRequest(acme, t);
         const application = await configManager.getAcmeApplication(params.id);
         if (!application) {
           set.status = 404;
-          return { success: false, message: "not found" };
+          return { success: false, message: acmeRouteT(t, "notFound") };
         }
 
         const started = await startAcmeApplicationJob({
           acme,
           application,
           trigger: "manual_request",
+          locale: localeConfig.default_locale,
         });
         return {
           success: true,
@@ -998,7 +1096,7 @@ export const acmeRoutes = new Elysia({
         };
       } catch (e: any) {
         const message = e?.message || String(e);
-        set.status = /稍后再试|请先安装|安装中/.test(message) ? 409 : 400;
+        set.status = isAcmeConflictMessage(message, t) ? 409 : 400;
         return { success: false, message };
       }
     },
@@ -1006,18 +1104,19 @@ export const acmeRoutes = new Elysia({
   )
   .delete(
     "/applications/:id",
-    async ({ params, set }) => {
+    async ({ params, set, request }) => {
+      const t = await getAcmeRouteTranslator(request);
       try {
         const lock = await configManager.getActiveAcmeRuntimeLock();
         if (lock.locked) {
           set.status = 409;
           return {
             success: false,
-            message: "当前已有 ACME 任务正在执行，请稍后再试",
+            message: t("server.acmeJobRunner.activeTaskRunning"),
           };
         }
 
-        const deleted = await deleteAcmeApplication(params.id);
+        const deleted = await deleteAcmeApplication(params.id, t);
         return {
           success: true,
           data: {
@@ -1026,7 +1125,7 @@ export const acmeRoutes = new Elysia({
         };
       } catch (e: any) {
         const message = e?.message || String(e);
-        set.status = message === "申请项不存在" ? 404 : 400;
+        set.status = isAcmeApplicationNotFoundMessage(message, t) ? 404 : 400;
         return { success: false, message };
       }
     },
@@ -1034,13 +1133,14 @@ export const acmeRoutes = new Elysia({
   )
   .delete(
     "/applications/:id/certificate",
-    async ({ params, set }) => {
+    async ({ params, set, request }) => {
+      const t = await getAcmeRouteTranslator(request);
       try {
-        await deleteAcmeApplicationCertificate(params.id);
+        await deleteAcmeApplicationCertificate(params.id, t);
         return { success: true };
       } catch (e: any) {
         const message = e?.message || String(e);
-        set.status = message === "申请项不存在" ? 404 : 400;
+        set.status = isAcmeApplicationNotFoundMessage(message, t) ? 404 : 400;
         return { success: false, message };
       }
     },
@@ -1048,12 +1148,13 @@ export const acmeRoutes = new Elysia({
   )
   .post(
     "/applications/:id/library/sync",
-    async ({ params, set }) => {
+    async ({ params, set, request }) => {
+      const t = await getAcmeRouteTranslator(request);
       try {
         const application = await configManager.getAcmeApplication(params.id);
         if (!application) {
           set.status = 404;
-          return { success: false, message: "not found" };
+          return { success: false, message: acmeRouteT(t, "notFound") };
         }
 
         const issuedCertificate =
@@ -1062,7 +1163,7 @@ export const acmeRoutes = new Elysia({
           set.status = 400;
           return {
             success: false,
-            message: "当前申请项还没有与域名配置匹配的已签发证书",
+            message: acmeRouteT(t, "noMatchingIssuedCertificate"),
           };
         }
 
@@ -1097,12 +1198,13 @@ export const acmeRoutes = new Elysia({
   )
   .post(
     "/applications/:id/deploy",
-    async ({ params, set }) => {
+    async ({ params, set, request }) => {
+      const t = await getAcmeRouteTranslator(request);
       try {
         const application = await configManager.getAcmeApplication(params.id);
         if (!application) {
           set.status = 404;
-          return { success: false, message: "not found" };
+          return { success: false, message: acmeRouteT(t, "notFound") };
         }
 
         const issuedCertificate =
@@ -1111,7 +1213,7 @@ export const acmeRoutes = new Elysia({
           set.status = 400;
           return {
             success: false,
-            message: "当前申请项还没有与域名配置匹配的已签发证书",
+            message: acmeRouteT(t, "noMatchingIssuedCertificate"),
           };
         }
 
@@ -1123,7 +1225,7 @@ export const acmeRoutes = new Elysia({
           },
         );
         await syncSSLDeploymentToGateway();
-        return { success: true, message: "成功" };
+        return { success: true, message: acmeRouteT(t, "success") };
       } catch (e: any) {
         set.status = 400;
         return { success: false, message: e?.message || String(e) };
@@ -1133,24 +1235,30 @@ export const acmeRoutes = new Elysia({
   )
   .post(
     "/request",
-    async ({ acme, body, set }) => {
+    async ({ acme, body, set, request }) => {
+      const t = await getAcmeRouteTranslator(request);
       try {
         const method = body.method ?? "dns";
         if (method !== "dns") {
           set.status = 400;
-          return { success: false, message: "仅支持 DNS-01 验证方式" };
+          return { success: false, message: acmeRouteT(t, "dns01Only") };
         }
 
-        await ensureInstalledForRequest(acme);
-        const normalized = validateAndNormalizeAcmeRequest({
-          domains: body.domains,
-          dnsType: body.dnsType,
-          provider: body.provider,
-          credentials: body.credentials,
-        });
+        await ensureInstalledForRequest(acme, t);
+        const normalized = validateAndNormalizeAcmeRequest(
+          {
+            domains: body.domains,
+            dnsType: body.dnsType,
+            provider: body.provider,
+            credentials: body.credentials,
+          },
+          t,
+        );
         const targetApplication = await resolveLegacyApplicationForMutation(
           normalized.domains,
+          t,
         );
+        const localeConfig = await configManager.getLocaleConfig();
         let reservation: Awaited<
           ReturnType<typeof reserveAcmeApplicationJob>
         > | null = null;
@@ -1166,6 +1274,7 @@ export const acmeRoutes = new Elysia({
               renewEnabled: targetApplication.renewEnabled,
             }),
             trigger: "manual_request",
+            locale: localeConfig.default_locale,
           });
         }
 
@@ -1191,11 +1300,13 @@ export const acmeRoutes = new Elysia({
                 trigger: "manual_request",
                 job: reservation.job,
                 lock: reservation.lock,
+                locale: localeConfig.default_locale,
               })
             : await startAcmeApplicationJob({
                 acme,
                 application,
                 trigger: "manual_request",
+                locale: localeConfig.default_locale,
               });
           reservationHandedOff = reservation !== null;
         } catch (error: any) {
@@ -1205,6 +1316,7 @@ export const acmeRoutes = new Elysia({
               job: reservation.job,
               lock: reservation.lock,
               message: error?.message || String(error),
+              locale: localeConfig.default_locale,
             });
           }
           throw error;
@@ -1213,7 +1325,7 @@ export const acmeRoutes = new Elysia({
         return { success: true, data: { jobId: started.job.id } };
       } catch (e: any) {
         const message = e?.message || String(e);
-        set.status = /稍后再试|请先安装|安装中/.test(message) ? 409 : 400;
+        set.status = isAcmeConflictMessage(message, t) ? 409 : 400;
         return { success: false, message };
       }
     },
@@ -1233,7 +1345,11 @@ export const acmeRoutes = new Elysia({
     "/jobs/active/stop",
     async ({ acme, set }) => {
       try {
-        const stopped = await stopActiveAcmeApplicationJob({ acme });
+        const localeConfig = await configManager.getLocaleConfig();
+        const stopped = await stopActiveAcmeApplicationJob({
+          acme,
+          locale: localeConfig.default_locale,
+        });
         return { success: true, data: stopped };
       } catch (e: any) {
         set.status = 500;
@@ -1244,11 +1360,12 @@ export const acmeRoutes = new Elysia({
   )
   .get(
     "/jobs/:id/poll",
-    async ({ params, query, set }) => {
+    async ({ params, query, set, request }) => {
+      const t = await getAcmeRouteTranslator(request);
       const job = await configManager.getAcmeJob(params.id);
       if (!job) {
         set.status = 404;
-        return { success: false, message: "not found" };
+        return { success: false, message: acmeRouteT(t, "notFound") };
       }
       const limit = Math.max(
         1,
@@ -1256,7 +1373,7 @@ export const acmeRoutes = new Elysia({
       );
       const order = query.order === "asc" ? "asc" : "desc";
       const logs = await configManager.getAcmeLogs(params.id, limit, order);
-      const analysis = analyzeAcmeLogs(job, logs);
+      const analysis = analyzeAcmeLogs(job, logs, t);
       return { success: true, data: { job, logs, analysis } };
     },
     withRouteDoc("轮询 ACME 任务状态与日志", {
@@ -1268,11 +1385,12 @@ export const acmeRoutes = new Elysia({
   )
   .get(
     "/jobs/:id",
-    async ({ params, set }) => {
+    async ({ params, set, request }) => {
+      const t = await getAcmeRouteTranslator(request);
       const job = await configManager.getAcmeJob(params.id);
       if (!job) {
         set.status = 404;
-        return { success: false, message: "not found" };
+        return { success: false, message: acmeRouteT(t, "notFound") };
       }
       return { success: true, data: job };
     },
@@ -1288,7 +1406,8 @@ export const acmeRoutes = new Elysia({
   )
   .get(
     "/certs/:domain",
-    async ({ params, set }) => {
+    async ({ params, set, request }) => {
+      const t = await getAcmeRouteTranslator(request);
       const application = await configManager.getAcmeApplicationByPrimaryDomain(
         params.domain,
       );
@@ -1297,7 +1416,7 @@ export const acmeRoutes = new Elysia({
           await getUsableIssuedCertificateForApplication(application);
         if (!issuedCertificate) {
           set.status = 404;
-          return { success: false, message: "not found" };
+          return { success: false, message: acmeRouteT(t, "notFound") };
         }
         return {
           success: true,
@@ -1311,7 +1430,7 @@ export const acmeRoutes = new Elysia({
       const cert = await configManager.getAcmeCert(params.domain);
       if (!cert) {
         set.status = 404;
-        return { success: false, message: "not found" };
+        return { success: false, message: acmeRouteT(t, "notFound") };
       }
       const info = await configManager.getAcmeCertInfo(params.domain);
       return { success: true, data: { domain: params.domain, info } };
@@ -1320,12 +1439,13 @@ export const acmeRoutes = new Elysia({
   )
   .delete(
     "/certs/:domain",
-    async ({ params, set }) => {
+    async ({ params, request, set }) => {
+      const t = await getAcmeRouteTranslator(request);
       try {
         const application =
           await configManager.getAcmeApplicationByPrimaryDomain(params.domain);
         if (application) {
-          await deleteAcmeApplicationCertificate(application.id);
+          await deleteAcmeApplicationCertificate(application.id, t);
           return { success: true };
         }
 
@@ -1356,7 +1476,8 @@ export const acmeRoutes = new Elysia({
   )
   .get(
     "/certs/:domain/download",
-    async ({ params, set }) => {
+    async ({ params, set, request }) => {
+      const t = await getAcmeRouteTranslator(request);
       const application = await configManager.getAcmeApplicationByPrimaryDomain(
         params.domain,
       );
@@ -1373,7 +1494,7 @@ export const acmeRoutes = new Elysia({
         : await configManager.getAcmeCert(params.domain);
       if (!pair) {
         set.status = 404;
-        return { success: false, message: "not found" };
+        return { success: false, message: acmeRouteT(t, "notFound") };
       }
       const entries = [
         {
@@ -1397,7 +1518,8 @@ export const acmeRoutes = new Elysia({
   )
   .post(
     "/certs/:domain/deploy",
-    async ({ params, set }) => {
+    async ({ params, set, request }) => {
+      const t = await getAcmeRouteTranslator(request);
       try {
         const application =
           await configManager.getAcmeApplicationByPrimaryDomain(params.domain);
@@ -1408,7 +1530,7 @@ export const acmeRoutes = new Elysia({
             set.status = 400;
             return {
               success: false,
-              message: "当前申请项还没有与域名配置匹配的已签发证书",
+              message: acmeRouteT(t, "noMatchingIssuedCertificate"),
             };
           }
           await configManager.saveAcmeCertificateToLibraryByApplication(
@@ -1416,25 +1538,25 @@ export const acmeRoutes = new Elysia({
             { activate: true },
           );
           await syncSSLDeploymentToGateway();
-          return { success: true, message: "成功" };
+          return { success: true, message: acmeRouteT(t, "success") };
         }
 
         const pair = await configManager.getAcmeCert(params.domain);
         if (!pair) {
-          return { success: false, message: "证书不存在" };
+          return { success: false, message: acmeRouteT(t, "certNotFound") };
         }
         const validation = configManager.validateSSLCert(pair.cert, pair.key);
         if (!validation.valid) {
           return {
             success: false,
-            message: validation.error || "证书或私钥无效",
+            message: validation.error || acmeRouteT(t, "certOrKeyInvalid"),
           };
         }
         await configManager.saveAcmeCertificateToLibrary(params.domain, {
           activate: true,
         });
         await syncSSLDeploymentToGateway();
-        return { success: true, message: "成功" };
+        return { success: true, message: acmeRouteT(t, "success") };
       } catch (e: any) {
         set.status = 400;
         return { success: false, message: e?.message || String(e) };

@@ -102,6 +102,12 @@ import {
 import { autoHttpsRedirectManager } from "./lib/auto-https-redirect";
 import { goBackend } from "./lib/go-backend";
 import { rebuildCommonAuthLocationsRuntimeState } from "./lib/common-auth-locations";
+import {
+  type LocaleCode,
+  normalizeLocaleConfig,
+  translate,
+} from "../../../packages/i18n/src";
+import { createRequestTranslator } from "./lib/i18n";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const runtimeProfile = getRuntimeProfile();
@@ -288,20 +294,35 @@ const inferRequestProtocol = (req: IncomingMessage): "http" | "https" => {
   return "http";
 };
 
+const escapeHtml = (value: string) =>
+  value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+
 const buildDockerAdminDeniedResponse = (
   clientIp: string,
   prefersJson: boolean,
+  locale: LocaleCode,
 ) => {
+  const t = (
+    key: string,
+    params?: Record<string, string | number | boolean | null | undefined>,
+  ) => translate(locale, key, params);
+
   if (prefersJson) {
     return new Response(
       JSON.stringify({
         success: false,
-        message: "Docker 管理面板仅允许内网或可信反代访问",
+        message: t("server.dockerAdminDenied"),
       }),
       {
         status: 403,
         headers: {
           "content-type": "application/json; charset=utf-8",
+          "content-language": locale,
           "cache-control": "no-store",
           "x-content-type-options": "nosniff",
           "x-frame-options": "DENY",
@@ -312,11 +333,11 @@ const buildDockerAdminDeniedResponse = (
   }
 
   const body = `<!doctype html>
-<html lang="zh-CN">
+<html lang="${escapeHtml(locale)}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>拒绝访问</title>
+    <title>${escapeHtml(t("server.dockerAdminDeniedTitle"))}</title>
     <style>
       :root {
         color-scheme: light;
@@ -376,9 +397,9 @@ const buildDockerAdminDeniedResponse = (
   <body>
     <section class="card">
       <div class="badge">!</div>
-      <h1>拒绝访问</h1>
-      <p>Docker 管理面板默认只允许宿主机本地、局域网、VPN 或已配置的可信反向代理访问。公网直连会被拒绝。</p>
-      <div class="meta">当前识别来源 IP：${clientIp || "unknown"}</div>
+      <h1>${escapeHtml(t("server.dockerAdminDeniedTitle"))}</h1>
+      <p>${escapeHtml(t("server.dockerAdminDeniedDescription"))}</p>
+      <div class="meta">${escapeHtml(t("server.dockerAdminCurrentIp", { ip: clientIp || "unknown" }))}</div>
     </section>
   </body>
 </html>`;
@@ -387,6 +408,7 @@ const buildDockerAdminDeniedResponse = (
     status: 403,
     headers: {
       "content-type": "text/html; charset=utf-8",
+      "content-language": locale,
       "cache-control": "no-store",
       "content-security-policy":
         "default-src 'none'; style-src 'unsafe-inline'; img-src 'none'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'",
@@ -416,11 +438,13 @@ const startDockerAdminViewServer = (
         rawUrl.startsWith("/api/") || accepts.includes("application/json");
 
       if (!accessContext.trustedIngress) {
+        const locale = (await configManager.getLocaleConfig()).default_locale;
         await writeResponse(
           res,
           buildDockerAdminDeniedResponse(
             accessContext.socketIp || clientIp,
             prefersJson,
+            locale,
           ),
         );
         return;
@@ -496,10 +520,14 @@ app.onBeforeHandle(async ({ request, set }) => {
   applyNoStoreHeaders(set.headers);
 
   if (!isDockerAdminProxyRequest(request)) {
+    const { t } = createRequestTranslator(
+      request,
+      await configManager.getLocaleConfig(),
+    );
     set.status = 403;
     return {
       success: false,
-      message: "Docker 模式下请通过 7991 管理入口访问后台接口",
+      message: t("server.dockerAdminProxyRequired"),
     };
   }
 
@@ -510,10 +538,14 @@ app.onBeforeHandle(async ({ request, set }) => {
   const session =
     await dockerAdminPanelManager.resolveSessionFromRequest(request);
   if (!session) {
+    const { t } = createRequestTranslator(
+      request,
+      await configManager.getLocaleConfig(),
+    );
     set.status = 401;
     return {
       success: false,
-      message: "请先登录 Docker 管理面板",
+      message: t("server.dockerAdminLoginRequired"),
     };
   }
 });
@@ -906,6 +938,19 @@ syncGatewayLoggingToGateway(config.gateway_logging).catch((error) => {
     error,
   );
 });
+goBackend
+  .setLocaleConfig(normalizeLocaleConfig(config.locale))
+  .then((response) => {
+    if (!response.success && response.code !== 404) {
+      console.error(
+        "[i18n] failed to sync locale config on boot:",
+        response.message || "unknown gateway error",
+      );
+    }
+  })
+  .catch((error) => {
+    console.error("[i18n] failed to sync locale config on boot:", error);
+  });
 goBackend
   .setFnosPortIconHijackConfig(
     config.fnos_port_icon_hijack ?? DEFAULT_FNOS_PORT_ICON_HIJACK_CONFIG,

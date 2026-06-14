@@ -1,8 +1,13 @@
 import { isAuthServiceMapping } from "./auth-service";
 import { resolveHostMappingDisplayTitle } from "./host-mapping-metadata";
 import type { HostMapping } from "./redis";
+import { tDefault } from "./i18n";
 
 const DEFAULT_ACCESS_ENTRY_PORT = "7999";
+const hostMappingBookmarksT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.hostMappingBookmarks.${key}`, params);
 
 export type BookmarkScheme = "http" | "https";
 
@@ -96,7 +101,8 @@ export const buildHostMappingsBookmarksDocument = ({
   exportedAt = new Date(),
 }: HostMappingBookmarksDocumentOptions): string => {
   const addDate = buildBookmarkTimestamp(exportedAt);
-  const resolvedFolderTitle = folderTitle?.trim() || "fn-knock 子域映射";
+  const resolvedFolderTitle =
+    folderTitle?.trim() || hostMappingBookmarksT("defaultFolderTitle");
   const bookmarkLines = mappings
     .filter((mapping) => !isAuthServiceMapping(mapping))
     .map((mapping) => {

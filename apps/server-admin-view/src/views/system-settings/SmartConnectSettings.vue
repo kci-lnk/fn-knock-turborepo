@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import {
   Breadcrumb,
@@ -47,6 +48,7 @@ import { useConfigStore } from "../../store/config";
 
 const router = useRouter();
 const configStore = useConfigStore();
+const { t } = useI18n();
 const details = ref<SmartConnectDetails | null>(null);
 const loadError = ref("");
 const form = reactive<SmartConnectConfig>({
@@ -137,8 +139,11 @@ const applyDetails = (
 
 const { isPending: isSaving, run: runSave } = useAsyncAction({
   onError: (error) => {
-    toast.error("保存失败", {
-      description: extractErrorMessage(error, "智能连接保存失败"),
+    toast.error(t("admin.smartConnectSettings.saveFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.smartConnectSettings.saveFailedDescription"),
+      ),
     });
     void refreshDetails();
   },
@@ -149,14 +154,19 @@ const { isPending: isStartingInstall, run: runStartInstall } = useAsyncAction({
     const installMode = details.value?.dnsmasq.installed
       ? "initialize"
       : "install";
-    toast.error(installMode === "initialize" ? "初始化失败" : "安装失败", {
+    toast.error(
+      installMode === "initialize"
+        ? t("admin.smartConnectSettings.initializeFailed")
+        : t("admin.smartConnectSettings.installFailed"),
+      {
       description: extractErrorMessage(
         error,
         installMode === "initialize"
-          ? "无法启动 dnsmasq 初始化"
-          : "无法启动 dnsmasq 安装",
+          ? t("admin.smartConnectSettings.startInitializeFailed")
+          : t("admin.smartConnectSettings.startInstallFailed"),
       ),
-    });
+      },
+    );
     void refreshDetails();
   },
 });
@@ -174,7 +184,10 @@ const { isInitializing, refresh: refreshDetails } =
     isDownloading: (value) =>
       value.dnsmasq.install_state.status === "installing",
     onError: (error) => {
-      loadError.value = extractErrorMessage(error, "加载智能连接配置失败");
+      loadError.value = extractErrorMessage(
+        error,
+        t("admin.smartConnectSettings.loadFailedDescription"),
+      );
     },
   });
 
@@ -193,9 +206,9 @@ const isDirty = computed(() => {
 const capabilityBlockedReason = computed(() => {
   if (configStore.canUseSmartConnect) return "";
   if (configStore.isDockerDeployment) {
-    return "Docker 部署暂不支持 Smart Connect，它依赖宿主机 dnsmasq、53 端口和网络行为。";
+    return t("admin.smartConnectSettings.dockerUnsupported");
   }
-  return "当前运行环境暂不支持 Smart Connect。";
+  return t("admin.smartConnectSettings.environmentUnsupported");
 });
 const isSmartConnectAvailable = computed(
   () => details.value?.availability.available === true,
@@ -222,8 +235,12 @@ const dnsmasqSummaryText = computed(() => {
   if (!dnsmasq) return "";
 
   const parts = [
-    dnsmasq.service_active ? "服务运行中" : "服务未运行",
-    `管理 ${dnsmasq.runtime.managed_rule_count} 条规则`,
+    dnsmasq.service_active
+      ? t("admin.smartConnectSettings.serviceRunning")
+      : t("admin.smartConnectSettings.serviceStopped"),
+    t("admin.smartConnectSettings.managedRules", {
+      count: dnsmasq.runtime.managed_rule_count,
+    }),
   ];
   return parts.join(" · ");
 });
@@ -234,13 +251,16 @@ const dnsmasqProgress = computed(() => {
 });
 const dnsmasqStatusLabel = computed(() => {
   const dnsmasq = details.value?.dnsmasq;
-  if (!dnsmasq) return "加载中";
-  if (dnsmasq.install_state.status === "installing") return "安装中";
-  if (dnsmasq.install_state.status === "error") return "异常";
-  if (!dnsmasq.installed) return "未安装";
-  if (!dnsmasq.service_active) return "未运行";
-  if (!dnsmasq.initialized) return "待初始化";
-  return "已就绪";
+  if (!dnsmasq) return t("admin.smartConnectSettings.loading");
+  if (dnsmasq.install_state.status === "installing")
+    return t("admin.smartConnectSettings.installing");
+  if (dnsmasq.install_state.status === "error")
+    return t("admin.smartConnectSettings.abnormal");
+  if (!dnsmasq.installed) return t("admin.smartConnectSettings.notInstalled");
+  if (!dnsmasq.service_active) return t("admin.smartConnectSettings.notRunning");
+  if (!dnsmasq.initialized)
+    return t("admin.smartConnectSettings.pendingInitialization");
+  return t("admin.smartConnectSettings.ready");
 });
 const dnsmasqStatusVariant = computed(() => {
   const dnsmasq = details.value?.dnsmasq;
@@ -268,7 +288,7 @@ const showDnsmasqAction = computed(() => {
   );
 });
 const dnsmasqActionLabel = computed(() => {
-  return "初始化";
+  return t("admin.smartConnectSettings.initialize");
 });
 const resolvedIpOptions = computed<SmartConnectLocalIpOption[]>(() => {
   const currentOptions = details.value?.local_ip_options ?? [];
@@ -282,7 +302,9 @@ const resolvedIpOptions = computed<SmartConnectLocalIpOption[]>(() => {
   return [
     ...currentOptions,
     {
-      label: `${form.selected_ipv4} (当前配置，暂未检测到)`,
+      label: t("admin.smartConnectSettings.currentConfiguredIpUnavailable", {
+        ip: form.selected_ipv4,
+      }),
       value: form.selected_ipv4,
       interface: "manual",
     },
@@ -294,16 +316,19 @@ const saveBlockedReason = computed(() => {
   }
   if (!form.enabled) return "";
   if (!isSmartConnectAvailable.value) {
-    return details.value?.availability.reason || "当前模式暂不可用";
+    return (
+      details.value?.availability.reason ||
+      t("admin.smartConnectSettings.currentModeUnavailable")
+    );
   }
   if (!details.value?.dnsmasq.initialized) {
-    return "请先完成 dnsmasq 环境初始化";
+    return t("admin.smartConnectSettings.initializeDnsmasqFirst");
   }
   if (!form.selected_ipv4) {
-    return "请选择本机局域网 IP";
+    return t("admin.smartConnectSettings.selectLocalIpFirst");
   }
   if ((details.value?.domains.length ?? 0) === 0) {
-    return "当前没有可同步的子域映射";
+    return t("admin.smartConnectSettings.noDomainsToSync");
   }
   return "";
 });
@@ -325,11 +350,11 @@ const startDnsmasqInstall = async () => {
       toast.success(
         state.status === "installed"
           ? installMode === "initialize"
-            ? "dnsmasq 已初始化"
-            : "dnsmasq 已就绪"
+            ? t("admin.smartConnectSettings.dnsmasqInitialized")
+            : t("admin.smartConnectSettings.dnsmasqReady")
           : installMode === "initialize"
-            ? "已开始初始化 dnsmasq"
-            : "已开始安装 dnsmasq",
+            ? t("admin.smartConnectSettings.dnsmasqInitializeStarted")
+            : t("admin.smartConnectSettings.dnsmasqInstallStarted"),
       );
       await refreshDetails();
     },
@@ -347,7 +372,7 @@ const cancelAndBack = () => {
 
 const saveSettings = async () => {
   if (saveBlockedReason.value) {
-    toast.error("暂时无法保存", {
+    toast.error(t("admin.smartConnectSettings.cannotSaveNow"), {
       description: saveBlockedReason.value,
     });
     return;
@@ -363,7 +388,7 @@ const saveSettings = async () => {
       onSuccess: async (value) => {
         applyDetails(value);
         await configStore.loadConfig();
-        toast.success("智能连接已更新并完成同步");
+        toast.success(t("admin.smartConnectSettings.updatedAndSynced"));
       },
     },
   );
@@ -375,15 +400,21 @@ const saveSettings = async () => {
     <Breadcrumb>
       <BreadcrumbList>
         <BreadcrumbItem>
-          <BreadcrumbLink href="#/system">系统设置</BreadcrumbLink>
+          <BreadcrumbLink href="#/system">{{
+            t("admin.smartConnectSettings.systemSettings")
+          }}</BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />
         <BreadcrumbItem>
-          <BreadcrumbLink href="#/system?tab=features">功能</BreadcrumbLink>
+          <BreadcrumbLink href="#/system?tab=features">{{
+            t("admin.smartConnectSettings.features")
+          }}</BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />
         <BreadcrumbItem>
-          <BreadcrumbPage>智能连接</BreadcrumbPage>
+          <BreadcrumbPage>{{
+            t("admin.smartConnectSettings.title")
+          }}</BreadcrumbPage>
         </BreadcrumbItem>
       </BreadcrumbList>
     </Breadcrumb>
@@ -395,10 +426,12 @@ const saveSettings = async () => {
         >
           <div class="space-y-1.5">
             <div class="flex flex-wrap items-center gap-2">
-              <CardTitle class="text-xl tracking-tight">智能连接</CardTitle>
+              <CardTitle class="text-xl tracking-tight">{{
+                t("admin.smartConnectSettings.title")
+              }}</CardTitle>
             </div>
             <CardDescription class="max-w-2xl leading-6">
-              回到局域网后，让子域直接回到本机 IP，减少继续绕公网访问。
+              {{ t("admin.smartConnectSettings.description") }}
             </CardDescription>
           </div>
           <RefreshButton
@@ -433,7 +466,9 @@ const saveSettings = async () => {
             {{
               !configStore.canUseSmartConnect
                 ? capabilityBlockedReason
-                : `当前模式暂不可用。${details.availability.reason}`
+                : t("admin.smartConnectSettings.currentModeUnavailableWithReason", {
+                    reason: details.availability.reason,
+                  })
             }}
           </div>
 
@@ -443,7 +478,9 @@ const saveSettings = async () => {
             <div class="flex items-start justify-between gap-4">
               <div class="min-w-0 space-y-2">
                 <div class="flex flex-wrap items-center gap-2">
-                  <Label class="text-base font-medium">智能连接</Label>
+                  <Label class="text-base font-medium">{{
+                    t("admin.smartConnectSettings.title")
+                  }}</Label>
                 </div>
               </div>
 
@@ -468,7 +505,9 @@ const saveSettings = async () => {
                 >
                   <div class="space-y-1">
                     <div class="flex flex-wrap items-center gap-2">
-                      <Label class="text-base">运行环境</Label>
+                      <Label class="text-base">{{
+                        t("admin.smartConnectSettings.runtimeEnvironment")
+                      }}</Label>
                       <Badge :variant="dnsmasqStatusVariant">
                         {{ dnsmasqStatusLabel }}
                       </Badge>
@@ -520,9 +559,11 @@ const saveSettings = async () => {
                     class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)] lg:items-start lg:gap-6"
                   >
                     <div class="space-y-1">
-                      <Label class="text-base">本机局域网 IP</Label>
+                      <Label class="text-base">{{
+                        t("admin.smartConnectSettings.localLanIp")
+                      }}</Label>
                       <p class="text-sm leading-6 text-muted-foreground">
-                        选择客户端回到局域网后应访问的本机地址。
+                        {{ t("admin.smartConnectSettings.localLanIpHint") }}
                       </p>
                     </div>
 
@@ -536,7 +577,11 @@ const saveSettings = async () => {
                         <SelectTrigger
                           class="h-10 w-full rounded-lg border-border/70 bg-background px-3 text-sm shadow-none"
                         >
-                          <SelectValue placeholder="选择一个局域网 IPv4 地址" />
+                          <SelectValue
+                            :placeholder="
+                              t('admin.smartConnectSettings.selectLocalIpv4')
+                            "
+                          />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem
@@ -553,8 +598,7 @@ const saveSettings = async () => {
                         v-if="resolvedIpOptions.length === 0"
                         class="text-sm leading-6 text-muted-foreground"
                       >
-                        当前未检测到合适的私网 IPv4
-                        地址，请检查网卡状态后刷新页面。
+                        {{ t("admin.smartConnectSettings.noPrivateIpv4") }}
                       </p>
                     </div>
                   </div>
@@ -562,9 +606,11 @@ const saveSettings = async () => {
 
                 <section class="space-y-4 border-t border-border/60 p-5">
                   <div class="space-y-1">
-                    <Label class="text-base">同步的子域</Label>
+                    <Label class="text-base">{{
+                      t("admin.smartConnectSettings.syncedDomains")
+                    }}</Label>
                     <p class="text-sm leading-6 text-muted-foreground">
-                      会自动跟随子域变化同步，无需单独维护。
+                      {{ t("admin.smartConnectSettings.syncedDomainsHint") }}
                     </p>
                   </div>
 
@@ -573,7 +619,7 @@ const saveSettings = async () => {
                       v-if="details.domains.length === 0"
                       class="text-sm leading-6 text-muted-foreground"
                     >
-                      当前还没有可同步的子域映射，请先到“子域代理”里添加。
+                      {{ t("admin.smartConnectSettings.noSyncedDomains") }}
                     </div>
                     <div v-else class="flex flex-wrap gap-2">
                       <Badge
@@ -590,18 +636,22 @@ const saveSettings = async () => {
 
                 <section class="space-y-4 border-t border-border/60 p-5">
                   <div class="space-y-1">
-                    <Label class="text-base">说明</Label>
+                    <Label class="text-base">{{
+                      t("admin.smartConnectSettings.notes")
+                    }}</Label>
                     <p class="text-sm leading-6 text-muted-foreground">
-                      要让设备真正生效，请修改路由器DHCP服务器的DNS服务器为
                       {{
-                        form.selected_ipv4 || "本机的局域网IP"
-                      }}，或者在设备上手动设置 DNS 服务器为
-                      {{
-                        form.selected_ipv4 || "本机的局域网IP"
-                      }}。配置好后请重新连接Wi-Fi
+                        t("admin.smartConnectSettings.dnsInstruction", {
+                          ip:
+                            form.selected_ipv4 ||
+                            t("admin.smartConnectSettings.localLanIpFallback"),
+                        })
+                      }}
 
                       <span
-                        >注意：Android版的飞牛App客户端可能存在兼容问题，如遇到无法登录的问题，请关闭此功能</span
+                        >{{
+                          t("admin.smartConnectSettings.androidWarning")
+                        }}</span
                       >
                     </p>
                   </div>
@@ -619,7 +669,10 @@ const saveSettings = async () => {
                 class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
               >
                 <p class="text-sm leading-6 text-muted-foreground">
-                  {{ saveBlockedReason || "保存后会立即同步配置。" }}
+                  {{
+                    saveBlockedReason ||
+                    t("admin.smartConnectSettings.saveSyncHint")
+                  }}
                 </p>
 
                 <div class="flex gap-3 sm:ml-auto">
@@ -628,7 +681,7 @@ const saveSettings = async () => {
                     :disabled="isSaving"
                     @click="cancelAndBack"
                   >
-                    取消
+                    {{ t("common.cancel") }}
                   </Button>
                   <Button
                     :disabled="
@@ -643,7 +696,11 @@ const saveSettings = async () => {
                       v-if="isSaving"
                       class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
                     ></span>
-                    {{ isSaving ? "保存中..." : "保存并同步" }}
+                    {{
+                      isSaving
+                        ? t("admin.smartConnectSettings.saving")
+                        : t("admin.smartConnectSettings.saveAndSync")
+                    }}
                   </Button>
                 </div>
               </div>

@@ -18,6 +18,7 @@ import { applyNoStoreHeaders } from "../../lib/auth-access";
 import { loginBackoffService } from "../../lib/login-backoff";
 import { resolveSafeRedirectUri } from "../../lib/subdomain-mode";
 import { routeDoc, withRouteDoc } from "../../lib/openapi";
+import { createRequestTranslator } from "../../lib/i18n";
 
 const RP_NAME = "fn-knock";
 let simpleWebAuthnServerPromise:
@@ -27,6 +28,11 @@ let simpleWebAuthnServerPromise:
 const loadSimpleWebAuthnServer = () => {
   simpleWebAuthnServerPromise ??= import("@simplewebauthn/server");
   return simpleWebAuthnServerPromise;
+};
+
+const getPasskeyRouteTranslator = async (request: Request) => {
+  const config = await configManager.getConfig();
+  return createRequestTranslator(request, config.locale);
 };
 
 const parseCookieValue = (
@@ -104,6 +110,7 @@ export const passkeyRoutes = new Elysia({
   .post(
     "/auth/verify",
     async ({ body, set, request }) => {
+      const { t } = await getPasskeyRouteTranslator(request);
       const { origin, rpID } = await getRpInfo(request);
       const clientIp = getClientIp(request);
       const userAgent = request.headers.get("user-agent") || "Unknown";
@@ -119,8 +126,10 @@ export const passkeyRoutes = new Elysia({
         return {
           success: false,
           message: gate.retryAfter
-            ? `尝试过于频繁，请在 ${gate.retryAfter} 秒后重试`
-            : "尝试过于频繁，请稍后重试",
+            ? t("server.tooManyAttemptsWithRetry", {
+                seconds: gate.retryAfter,
+              })
+            : t("server.tooManyAttempts"),
           retryAfter: gate.retryAfter,
           blockedUntil: gate.blockedUntil,
         };
@@ -154,7 +163,9 @@ export const passkeyRoutes = new Elysia({
         set.headers["Retry-After"] = String(failure.retryAfter);
         return {
           success: false,
-          message: `Passkey not found，请在 ${failure.retryAfter} 秒后重试`,
+          message: t("server.passkeyRoutes.notFoundWithRetry", {
+            seconds: failure.retryAfter,
+          }),
           retryAfter: failure.retryAfter,
         };
       }
@@ -191,7 +202,9 @@ export const passkeyRoutes = new Elysia({
         set.headers["Retry-After"] = String(failure.retryAfter);
         return {
           success: false,
-          message: `验证失败，请在 ${failure.retryAfter} 秒后重试`,
+          message: t("server.passkeyRoutes.verifyFailedWithRetry", {
+            seconds: failure.retryAfter,
+          }),
           retryAfter: failure.retryAfter,
         };
       }
@@ -208,7 +221,9 @@ export const passkeyRoutes = new Elysia({
         set.headers["Retry-After"] = String(failure.retryAfter);
         return {
           success: false,
-          message: `验证失败，请在 ${failure.retryAfter} 秒后重试`,
+          message: t("server.passkeyRoutes.verifyFailedWithRetry", {
+            seconds: failure.retryAfter,
+          }),
           retryAfter: failure.retryAfter,
         };
       }
@@ -271,12 +286,13 @@ export const passkeyRoutes = new Elysia({
   .post(
     "/register/options",
     async ({ body, set, request }) => {
+      const { t } = await getPasskeyRouteTranslator(request);
       const isTokenValid = await configManager.isPasskeyBindTokenValid(
         body.token,
       );
       if (!isTokenValid) {
         set.status = 401;
-        return { success: false, message: "绑定凭证已失效" };
+        return { success: false, message: t("server.passkeyRoutes.bindTokenExpired") };
       }
       const { generateRegistrationOptions } = await loadSimpleWebAuthnServer();
       const { rpID } = await getRpInfo(request);
@@ -306,10 +322,11 @@ export const passkeyRoutes = new Elysia({
   .post(
     "/register/verify",
     async ({ body, set, request }) => {
+      const { t } = await getPasskeyRouteTranslator(request);
       const totpId = await configManager.consumePasskeyBindToken(body.token);
       if (!totpId) {
         set.status = 401;
-        return { success: false, message: "绑定凭证已失效" };
+        return { success: false, message: t("server.passkeyRoutes.bindTokenExpired") };
       }
       const credential = body.credential;
       const challenge = extractChallenge(credential?.response?.clientDataJSON);

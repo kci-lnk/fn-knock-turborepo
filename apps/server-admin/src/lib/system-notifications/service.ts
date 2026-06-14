@@ -41,6 +41,14 @@ import {
   isSystemEventType,
 } from "../system-events/constants";
 import type { SystemEventEnvelope } from "../system-events/types";
+import { tDefault } from "../i18n";
+import {
+  DEFAULT_LOCALE,
+  normalizeLocale,
+  translate,
+  type LocaleCode,
+} from "../../../../../packages/i18n/src";
+import { configManager } from "../redis";
 
 const DEFAULT_DELIVERY_POLICY: Required<NotificationDeliveryPolicy> = {
   timeout_seconds: 5,
@@ -63,6 +71,22 @@ const createStableId = (prefix: string, ...parts: string[]) =>
 
 const escapeRegExp = (value: string) =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const serviceT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.notifications.service.${key}`, params);
+
+const serviceTForLocale = (
+  locale: string | null | undefined,
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) =>
+  translate(
+    normalizeLocale(locale) ?? DEFAULT_LOCALE,
+    `server.notifications.service.${key}`,
+    params,
+  );
 
 const asPlainRecord = (value: unknown) => {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -129,7 +153,7 @@ const buildNextSequentialName = (
   baseLabel: string,
   existingNames: string[],
 ) => {
-  const normalizedBase = baseLabel.trim() || "未命名";
+  const normalizedBase = baseLabel.trim() || serviceT("unnamed");
   const pattern = new RegExp(`^${escapeRegExp(normalizedBase)}\\s+(\\d+)$`);
   const usedIndexes = new Set<number>();
 
@@ -174,7 +198,7 @@ const normalizeJsonField = (value: unknown, fieldLabel: string) => {
     try {
       return JSON.parse(value) as unknown;
     } catch {
-      throw new Error(`${fieldLabel} 必须是合法 JSON`);
+      throw new Error(serviceT("invalidJson", { field: fieldLabel }));
     }
   }
   return value;
@@ -211,7 +235,9 @@ const normalizeSchemaPatch = (
           field.options?.length &&
           !field.options.some((option) => option.value === value)
         ) {
-          throw new Error(`${field.label} 取值不合法`);
+          throw new Error(
+            serviceT("invalidSelectValue", { field: field.label }),
+          );
         }
         normalized[field.key] = value;
         break;
@@ -253,29 +279,33 @@ const validateRequiredSchemaFields = (
     if (!field.required) continue;
     const value = config[field.key];
     if (value === undefined || value === null || value === "") {
-      throw new Error(`${field.label} 不能为空`);
+      throw new Error(serviceT("fieldRequired", { field: field.label }));
     }
   }
 };
 
-const buildProviderTestMessage = (): NotificationMessage => {
+const buildProviderTestMessage = (
+  locale?: string | null,
+): NotificationMessage => {
   const sentAt = nowIso();
+  const t = (
+    key: string,
+    params?: Record<string, string | number | boolean | null | undefined>,
+  ) => serviceTForLocale(locale, key, params);
 
   return {
-    title: "测试通知",
-    summary: "通知通道配置正常，已成功触发一条测试消息。",
-    body_text:
-      "这是一条由敲门 knock 主动发出的测试通知，用于验证当前提供商的连通性、结构化文案以及展示效果。",
-    body_markdown:
-      "**连通性检查已通过。**\n\n这是一条由敲门 knock 主动发出的测试通知，用于验证当前提供商的连通性、结构化文案以及展示效果。",
+    title: t("testMessage.title"),
+    summary: t("testMessage.summary"),
+    body_text: t("testMessage.bodyText"),
+    body_markdown: t("testMessage.bodyMarkdown"),
     severity: "info",
     facts: [
       {
-        label: "发送类型",
-        value: "提供商测试",
+        label: t("testMessage.sendType"),
+        value: t("testMessage.providerTest"),
       },
       {
-        label: "发送时间",
+        label: t("testMessage.sentAt"),
         value: sentAt,
       },
     ],
@@ -284,9 +314,13 @@ const buildProviderTestMessage = (): NotificationMessage => {
     occurred_at: sentAt,
     metadata: {
       test: true,
+      locale: normalizeLocale(locale) ?? DEFAULT_LOCALE,
     },
   };
 };
+
+const resolveMessageLocale = (message: NotificationMessage) =>
+  normalizeLocale(String(message.metadata?.locale ?? "")) ?? DEFAULT_LOCALE;
 
 const resolveDeliveryPolicy = (
   policy?: NotificationDeliveryPolicy | null,
@@ -324,8 +358,8 @@ const resolveDeliveryReadyAtMs = (delivery: NotificationDelivery) => {
 };
 
 export class SystemNotificationService {
-  listProviderCatalog() {
-    return listNotificationProviderDefinitions();
+  listProviderCatalog(locale?: LocaleCode) {
+    return listNotificationProviderDefinitions(locale);
   }
 
   async listProviders() {
@@ -336,7 +370,7 @@ export class SystemNotificationService {
   async getProvider(id: string) {
     const provider = await redisNotificationStore.getProvider(id);
     if (!provider) {
-      throw new Error("通知提供商不存在");
+      throw new Error(serviceT("providerNotFound"));
     }
 
     return revealNotificationProvider(provider);
@@ -346,12 +380,12 @@ export class SystemNotificationService {
     const requestedName = String(input.name || "").trim();
     const type = String(input.type || "").trim();
     if (!NOTIFICATION_PROVIDER_TYPES.includes(type as any)) {
-      throw new Error("不支持的通知提供商类型");
+      throw new Error(serviceT("unsupportedProviderType"));
     }
 
     const definition = getNotificationProviderDefinition(type);
     if (!definition) {
-      throw new Error("通知提供商定义不存在");
+      throw new Error(serviceT("providerDefinitionMissing"));
     }
 
     const configPatch = normalizeSchemaPatch(
@@ -397,12 +431,12 @@ export class SystemNotificationService {
   async updateProvider(id: string, input: NotificationProviderUpsertInput) {
     const provider = await redisNotificationStore.getProvider(id);
     if (!provider) {
-      throw new Error("通知提供商不存在");
+      throw new Error(serviceT("providerNotFound"));
     }
 
     const definition = getNotificationProviderDefinition(provider.type);
     if (!definition) {
-      throw new Error("通知提供商定义不存在");
+      throw new Error(serviceT("providerDefinitionMissing"));
     }
 
     const patch = normalizeSchemaPatch(
@@ -442,16 +476,25 @@ export class SystemNotificationService {
       rule.targets.some((target) => target.provider_id === id),
     );
     if (referencedByRule) {
-      throw new Error(`该提供商仍被规则「${referencedByRule.name}」引用`);
+      throw new Error(
+        serviceT("providerReferencedByRule", {
+          rule: referencedByRule.name,
+        }),
+      );
     }
 
     await redisNotificationStore.deleteProvider(id);
   }
 
   async testProvider(id: string) {
+    const locale = await configManager.getLocaleConfig();
+    const t = (
+      key: string,
+      params?: Record<string, string | number | boolean | null | undefined>,
+    ) => serviceTForLocale(locale.default_locale, key, params);
     const provider = await redisNotificationStore.getProvider(id);
     if (!provider) {
-      throw new Error("通知提供商不存在");
+      throw new Error(serviceT("providerNotFound"));
     }
 
     const timeoutSeconds = parseNumberField(
@@ -459,20 +502,21 @@ export class SystemNotificationService {
       DEFAULT_DELIVERY_POLICY.timeout_seconds,
       { min: 1, max: 30 },
     );
-    const message = buildProviderTestMessage();
+    const message = buildProviderTestMessage(locale.default_locale);
 
     const result = await sendNotificationWithProvider(
       provider,
       message,
       undefined,
       timeoutSeconds,
+      locale.default_locale,
     );
 
     const updatedProvider: NotificationProvider = {
       ...provider,
       last_test_at: nowIso(),
       last_test_status: result.success ? "success" : "failed",
-      last_error: result.success ? null : result.reason || "测试发送失败",
+      last_error: result.success ? null : result.reason || t("testSendFailed"),
       updated_at: nowIso(),
     };
     await redisNotificationStore.saveProvider(updatedProvider);
@@ -480,8 +524,8 @@ export class SystemNotificationService {
     return {
       success: result.success,
       message: result.success
-        ? "测试发送成功"
-        : result.reason || "测试发送失败",
+        ? t("testSendSuccess")
+        : result.reason || t("testSendFailed"),
       data: {
         provider: maskNotificationProvider(updatedProvider),
         request_summary: result.request_summary,
@@ -491,25 +535,30 @@ export class SystemNotificationService {
   }
 
   async testProviderDraft(input: NotificationProviderDraftTestInput) {
+    const locale = await configManager.getLocaleConfig();
+    const t = (
+      key: string,
+      params?: Record<string, string | number | boolean | null | undefined>,
+    ) => serviceTForLocale(locale.default_locale, key, params);
     const requestedId = String(input.id || "").trim();
     const requestedType = String(input.type || "").trim();
     if (!NOTIFICATION_PROVIDER_TYPES.includes(requestedType as any)) {
-      throw new Error("不支持的通知提供商类型");
+      throw new Error(serviceT("unsupportedProviderType"));
     }
 
     const definition = getNotificationProviderDefinition(requestedType);
     if (!definition) {
-      throw new Error("通知提供商定义不存在");
+      throw new Error(serviceT("providerDefinitionMissing"));
     }
 
     const existingProvider = requestedId
       ? await redisNotificationStore.getProvider(requestedId)
       : null;
     if (requestedId && !existingProvider) {
-      throw new Error("通知提供商不存在");
+      throw new Error(serviceT("providerNotFound"));
     }
     if (existingProvider && existingProvider.type !== definition.type) {
-      throw new Error("提供商类型与已有配置不一致");
+      throw new Error(serviceT("providerTypeMismatch"));
     }
 
     const patch = normalizeSchemaPatch(
@@ -537,7 +586,7 @@ export class SystemNotificationService {
       name:
         input.name?.trim() ||
         existingProvider?.name ||
-        `${definition.label} 测试`,
+        t("providerTestName", { provider: definition.label }),
       type: definition.type,
       enabled: input.enabled ?? existingProvider?.enabled ?? true,
       connection_config: connectionConfig,
@@ -555,24 +604,25 @@ export class SystemNotificationService {
     );
     const result = await sendNotificationWithProvider(
       provider,
-      buildProviderTestMessage(),
+      buildProviderTestMessage(locale.default_locale),
       undefined,
       timeoutSeconds,
+      locale.default_locale,
     );
 
     const testedProvider: NotificationProvider = {
       ...provider,
       last_test_at: nowIso(),
       last_test_status: result.success ? "success" : "failed",
-      last_error: result.success ? null : result.reason || "测试发送失败",
+      last_error: result.success ? null : result.reason || t("testSendFailed"),
       updated_at: nowIso(),
     };
 
     return {
       success: result.success,
       message: result.success
-        ? "测试发送成功"
-        : result.reason || "测试发送失败",
+        ? t("testSendSuccess")
+        : result.reason || t("testSendFailed"),
       data: {
         provider: maskNotificationProvider(testedProvider),
         request_summary: result.request_summary,
@@ -601,12 +651,12 @@ export class SystemNotificationService {
     for (const inputTarget of inputTargets || []) {
       const provider = providerMap.get(inputTarget.provider_id);
       if (!provider) {
-        throw new Error("规则引用了不存在的通知提供商");
+        throw new Error(serviceT("ruleProviderMissing"));
       }
 
       const definition = getNotificationProviderDefinition(provider.type);
       if (!definition) {
-        throw new Error("通知提供商定义不存在");
+        throw new Error(serviceT("providerDefinitionMissing"));
       }
 
       const existingTarget = inputTarget.id
@@ -637,7 +687,7 @@ export class SystemNotificationService {
           templateOverrideMode as any,
         )
       ) {
-        throw new Error("目标模板覆盖模式不合法");
+        throw new Error(serviceT("invalidTemplateOverrideMode"));
       }
 
       targets.push({
@@ -671,41 +721,42 @@ export class SystemNotificationService {
     ).trim();
 
     if (!isSystemEventType(eventType)) {
-      throw new Error("不支持的系统事件类型");
+      throw new Error(serviceT("unsupportedEventType"));
     }
     if (!NOTIFICATION_GROUP_BY_VALUES.includes(groupBy as any)) {
-      throw new Error("聚合维度不合法");
+      throw new Error(serviceT("invalidGroupBy"));
     }
     if (
       !NOTIFICATION_MESSAGE_TEMPLATE_MODES.includes(messageTemplateMode as any)
     ) {
-      throw new Error("消息模板模式不合法");
+      throw new Error(serviceT("invalidMessageTemplateMode"));
     }
 
     const eventLevelFilter = uniqueStrings(input.event_level_filter);
     if (!eventLevelFilter.every((value) => isSystemEventLevel(value))) {
-      throw new Error("事件级别过滤条件不合法");
+      throw new Error(serviceT("invalidEventLevelFilter"));
     }
 
     const eventSourceFilter = uniqueStrings(input.event_source_filter);
     if (!eventSourceFilter.every((value) => isSystemEventSource(value))) {
-      throw new Error("事件来源过滤条件不合法");
+      throw new Error(serviceT("invalidEventSourceFilter"));
     }
 
     const targets = await this.normalizeRuleTargets(input.targets);
     if (!targets.length) {
-      throw new Error("至少需要绑定一个通知目标");
+      throw new Error(serviceT("targetRequired"));
     }
 
     const existingRules = await redisNotificationStore.listRules();
     if (existingRules.some((rule) => rule.event_type === eventType)) {
-      throw new Error("该事件已有通知规则，请先删除原规则");
+      throw new Error(serviceT("duplicateEventRule"));
     }
 
+    const locale = await configManager.getLocaleConfig();
     const now = nowIso();
     const rule: NotificationRule = {
       id: createId("ntfrule"),
-      name: buildNotificationRuleName(eventType),
+      name: buildNotificationRuleName(eventType, locale.default_locale),
       enabled: input.enabled ?? true,
       event_type: eventType,
       ...(eventLevelFilter.length
@@ -751,7 +802,7 @@ export class SystemNotificationService {
   async updateRule(id: string, input: NotificationRuleUpsertInput) {
     const currentRule = await redisNotificationStore.getRule(id);
     if (!currentRule) {
-      throw new Error("通知规则不存在");
+      throw new Error(serviceT("ruleNotFound"));
     }
 
     const eventType = input.event_type
@@ -765,15 +816,15 @@ export class SystemNotificationService {
       : currentRule.message_template_mode;
 
     if (!isSystemEventType(eventType)) {
-      throw new Error("不支持的系统事件类型");
+      throw new Error(serviceT("unsupportedEventType"));
     }
     if (!NOTIFICATION_GROUP_BY_VALUES.includes(groupBy as any)) {
-      throw new Error("聚合维度不合法");
+      throw new Error(serviceT("invalidGroupBy"));
     }
     if (
       !NOTIFICATION_MESSAGE_TEMPLATE_MODES.includes(messageTemplateMode as any)
     ) {
-      throw new Error("消息模板模式不合法");
+      throw new Error(serviceT("invalidMessageTemplateMode"));
     }
 
     const eventLevelFilter =
@@ -781,7 +832,7 @@ export class SystemNotificationService {
         ? uniqueStrings(input.event_level_filter)
         : currentRule.event_level_filter || [];
     if (!eventLevelFilter.every((value) => isSystemEventLevel(value))) {
-      throw new Error("事件级别过滤条件不合法");
+      throw new Error(serviceT("invalidEventLevelFilter"));
     }
 
     const eventSourceFilter =
@@ -789,7 +840,7 @@ export class SystemNotificationService {
         ? uniqueStrings(input.event_source_filter)
         : currentRule.event_source_filter || [];
     if (!eventSourceFilter.every((value) => isSystemEventSource(value))) {
-      throw new Error("事件来源过滤条件不合法");
+      throw new Error(serviceT("invalidEventSourceFilter"));
     }
 
     const targets =
@@ -797,7 +848,7 @@ export class SystemNotificationService {
         ? await this.normalizeRuleTargets(input.targets, currentRule.targets)
         : currentRule.targets;
     if (!targets.length) {
-      throw new Error("至少需要绑定一个通知目标");
+      throw new Error(serviceT("targetRequired"));
     }
 
     if (
@@ -806,12 +857,13 @@ export class SystemNotificationService {
         (rule) => rule.id !== currentRule.id && rule.event_type === eventType,
       )
     ) {
-      throw new Error("该事件已有通知规则，请先删除原规则");
+      throw new Error(serviceT("duplicateEventRule"));
     }
 
+    const locale = await configManager.getLocaleConfig();
     const updatedRule: NotificationRule = {
       ...currentRule,
-      name: buildNotificationRuleName(eventType),
+      name: buildNotificationRuleName(eventType, locale.default_locale),
       enabled: input.enabled ?? currentRule.enabled,
       event_type: eventType,
       event_level_filter: eventLevelFilter.length
@@ -881,6 +933,7 @@ export class SystemNotificationService {
   }
 
   async handleEvent(event: SystemEventEnvelope) {
+    const locale = await configManager.getLocaleConfig();
     const rules = await redisNotificationStore.listRules();
     const matchingRules = rules.filter((rule) =>
       eventMatchesNotificationRule(event, rule),
@@ -924,6 +977,7 @@ export class SystemNotificationService {
             rule,
             matchedCount,
             groupKey,
+            locale: locale.default_locale,
           }),
           rule_snapshot: rule,
           status: "created",
@@ -970,7 +1024,7 @@ export class SystemNotificationService {
               ? maskNotificationProvider(provider)
               : {
                   id: target.provider_id,
-                  name: "已删除提供商",
+                  name: serviceT("deletedProvider"),
                   type: "webhook",
                   enabled: false,
                   created_at: triggerCreatedAt,
@@ -1139,6 +1193,7 @@ export class SystemNotificationService {
         effective_delivery_policy: policy,
       },
       policy.timeout_seconds,
+      resolveMessageLocale(delivery.message_snapshot),
     );
 
     if (result.success) {

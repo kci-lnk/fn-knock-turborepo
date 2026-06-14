@@ -21,23 +21,25 @@ export type ThreatRange = {
 };
 
 export const DEFAULT_THREAT_RANGES: ThreatRange[] = [
-  { key: '15m', label: '15分钟', sec: 15 * 60 },
-  { key: '1h', label: '1小时', sec: 60 * 60 },
-  { key: '6h', label: '6小时', sec: 6 * 60 * 60 },
-  { key: '1d', label: '24小时', sec: 24 * 60 * 60 },
-  { key: '7d', label: '7天', sec: 7 * 24 * 60 * 60 },
+  { key: '15m', label: '15m', sec: 15 * 60 },
+  { key: '1h', label: '1h', sec: 60 * 60 },
+  { key: '6h', label: '6h', sec: 6 * 60 * 60 },
+  { key: '1d', label: '24h', sec: 24 * 60 * 60 },
+  { key: '7d', label: '7d', sec: 7 * 24 * 60 * 60 },
 ];
 
 interface UseThreatOverviewOptions {
   defaultRangeKey: string;
   ranges: ThreatRange[];
   seriesKey: 'failedLogins' | 'blockedScanners';
-  seriesName: string;
+  seriesName: string | (() => string);
   lineColor: string;
   areaStartColor: string;
   areaEndColor: string;
   fetchOverview: (rangeSec: number) => Promise<ThreatOverviewModel>;
   onError: (error: unknown) => void;
+  formatRangeText?: (seconds: number) => string;
+  numberLocale?: string | (() => string);
 }
 
 export function useThreatOverview(options: UseThreatOverviewOptions) {
@@ -59,9 +61,10 @@ export function useThreatOverview(options: UseThreatOverviewOptions) {
 
   const titleRangeText = computed(() => {
     const sec = threatOverview.value?.rangeSec ?? activeRange.value.sec;
-    if (sec < 3600) return `${Math.round(sec / 60)} 分钟`;
-    if (sec < 24 * 3600) return `${Math.round(sec / 3600)} 小时`;
-    return `${Math.round(sec / 86400)} 天`;
+    if (options.formatRangeText) return options.formatRangeText(sec);
+    if (sec < 3600) return `${Math.round(sec / 60)}m`;
+    if (sec < 24 * 3600) return `${Math.round(sec / 3600)}h`;
+    return `${Math.round(sec / 86400)}d`;
   });
 
   const perHour = computed(() => {
@@ -72,14 +75,27 @@ export function useThreatOverview(options: UseThreatOverviewOptions) {
     return total / hours;
   });
 
+  const resolveNumberLocale = () =>
+    typeof options.numberLocale === 'function'
+      ? options.numberLocale()
+      : (options.numberLocale ?? 'zh-CN');
+  const resolveSeriesName = () =>
+    typeof options.seriesName === 'function'
+      ? options.seriesName()
+      : options.seriesName;
+
   const formatNumber = (value: number | null | undefined) => {
     const normalized = Number(value ?? 0);
     if (!Number.isFinite(normalized)) return '-';
-    return new Intl.NumberFormat('zh-CN').format(Math.round(normalized));
+    return new Intl.NumberFormat(resolveNumberLocale()).format(
+      Math.round(normalized),
+    );
   };
 
   const formatRate = (value: number) =>
-    new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 1 }).format(value);
+    new Intl.NumberFormat(resolveNumberLocale(), {
+      maximumFractionDigits: 1,
+    }).format(value);
 
   const trendOption = computed(() => ({
     color: [options.lineColor],
@@ -108,7 +124,7 @@ export function useThreatOverview(options: UseThreatOverviewOptions) {
     },
     series: [
       {
-        name: options.seriesName,
+        name: resolveSeriesName(),
         type: 'line',
         smooth: true,
         symbol: 'none',

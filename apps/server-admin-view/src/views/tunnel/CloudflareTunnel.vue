@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { CloudflaredAPI, SystemAPI, ConfigAPI, type CloudflaredProtocol } from '../../lib/api'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
@@ -30,6 +31,7 @@ type CloudflaredLogAnalysis = {
 const ORIGIN_TLS_HOSTNAME_MISMATCH_REGEX =
   /tls:\s*failed to verify certificate:\s*x509:\s*certificate is valid for\s+(.+),\s*not\s+([^\s"]+)/i
 const DESTINATION_URL_REGEX = /\bdest=(https?:\/\/[^\s"]+)/i
+const { t } = useI18n()
 
 type CloudflaredProtocolOption = {
   value: CloudflaredProtocol
@@ -37,25 +39,32 @@ type CloudflaredProtocolOption = {
   description: string
 }
 
-const defaultCloudflaredProtocolOption: CloudflaredProtocolOption = {
-  value: 'auto',
-  label: '自动（推荐）',
-  description: '使用 cloudflared 默认策略，优先 QUIC，失败时尝试 HTTP2。',
-}
-
-const cloudflaredProtocolOptions: CloudflaredProtocolOption[] = [
-  defaultCloudflaredProtocolOption,
+const cloudflaredProtocolOptions = computed<CloudflaredProtocolOption[]>(() => [
+  {
+    value: 'auto',
+    label: t('admin.cloudflareTunnel.protocol.auto'),
+    description: t('admin.cloudflareTunnel.protocol.autoDescription'),
+  },
   {
     value: 'http2',
     label: 'HTTP2',
-    description: '适合 UDP/7844 不稳定、被拦截或 QUIC 连接超时的网络。',
+    description: t('admin.cloudflareTunnel.protocol.http2Description'),
   },
   {
     value: 'quic',
     label: 'QUIC',
-    description: '适合明确允许 UDP/7844，且希望固定使用 QUIC 的网络。',
+    description: t('admin.cloudflareTunnel.protocol.quicDescription'),
   },
-]
+])
+
+const defaultCloudflaredProtocolOption = computed<CloudflaredProtocolOption>(
+  () =>
+    cloudflaredProtocolOptions.value[0] ?? {
+      value: 'auto',
+      label: t('admin.cloudflareTunnel.protocol.auto'),
+      description: t('admin.cloudflareTunnel.protocol.autoDescription'),
+    },
+)
 
 const router = useRouter()
 const configStore = useConfigStore()
@@ -75,24 +84,24 @@ const token = ref<string>('')
 const protocol = ref<CloudflaredProtocol>('auto')
 const { isPending: isSaving, run: runSaveConfig } = useAsyncAction({
   onError: (error) => {
-    toast.error('保存失败', { description: extractErrorMessage(error, '保存失败') })
+    toast.error(t('admin.cloudflareTunnel.saveFailed'), { description: extractErrorMessage(error, t('admin.cloudflareTunnel.saveFailed')) })
   },
 })
 const { isPending: isStarting, run: runStartCloudflared } = useAsyncAction()
 const { isPending: isStopping, run: runStopCloudflared } = useAsyncAction()
 const { isPending: isClearingLogs, run: runClearLogs } = useAsyncAction({
   onError: (error) => {
-    toast.error('清空日志失败', { description: extractErrorMessage(error, '清空日志失败') })
+    toast.error(t('admin.cloudflareTunnel.clearLogsFailed'), { description: extractErrorMessage(error, t('admin.cloudflareTunnel.clearLogsFailed')) })
   },
 })
 const { run: runLoadStatus } = useAsyncAction({
   onError: (error) => {
-    toast.error('加载状态失败', { description: extractErrorMessage(error, '加载状态失败') })
+    toast.error(t('admin.cloudflareTunnel.loadStatusFailed'), { description: extractErrorMessage(error, t('admin.cloudflareTunnel.loadStatusFailed')) })
   },
 })
 const { run: runLoadConfig } = useAsyncAction({
   onError: (error) => {
-    toast.error('加载配置失败', { description: extractErrorMessage(error, '加载配置失败') })
+    toast.error(t('admin.cloudflareTunnel.loadConfigFailed'), { description: extractErrorMessage(error, t('admin.cloudflareTunnel.loadConfigFailed')) })
   },
 })
 
@@ -104,7 +113,7 @@ watch(token, (newVal) => {
     const extracted = rawTokenMatch[1]
     if (newVal !== extracted) {
       token.value = extracted
-      toast.success('已自动提取 Token')
+      toast.success(t('admin.cloudflareTunnel.tokenExtracted'))
     }
   }
 })
@@ -139,8 +148,8 @@ const cloudflaredOriginServiceUrl = computed(
 const hasSubdomainRoot = computed(() => Boolean(rootDomain.value))
 const cloudflaredProtocolOption = computed(
   () =>
-    cloudflaredProtocolOptions.find((option) => option.value === protocol.value) ??
-    defaultCloudflaredProtocolOption,
+    cloudflaredProtocolOptions.value.find((option) => option.value === protocol.value) ??
+    defaultCloudflaredProtocolOption.value,
 )
 const cloudflaredProtocolLabel = computed(() => cloudflaredProtocolOption.value.label)
 const cloudflaredProtocolDescription = computed(
@@ -150,12 +159,16 @@ const cloudflaredLogAnalysisMessage = computed(() => {
   const analysis = cloudflaredLogAnalysis.value
   if (!analysis) return ''
 
-  const certificateTargets = analysis.certificateHosts.join('、')
+  const certificateTargets = analysis.certificateHosts.join(', ')
   const originTarget = analysis.originHost
-    ? `当前 Tunnel 正在回源到 ${analysis.originHost}`
-    : '当前 Tunnel 回源时'
+    ? t('admin.cloudflareTunnel.analysisOriginHost', { host: analysis.originHost })
+    : t('admin.cloudflareTunnel.analysisOriginGeneric')
 
-  return `${originTarget}，日志里的 “certificate is valid for” 表示证书只适用于 ${certificateTargets}，但 cloudflared 实际校验的主机名是 ${analysis.requestedHost}。这通常说明源站证书配置不正确。`
+  return t('admin.cloudflareTunnel.analysisMessage', {
+    origin: originTarget,
+    certificates: certificateTargets,
+    requested: analysis.requestedHost,
+  })
 })
 
 function analyzeCloudflaredLogs(lines: string[]): CloudflaredLogAnalysis | null {
@@ -245,10 +258,10 @@ async function saveConfig() {
     if (shouldRestart) {
       await stopCloudflared({ silent: true })
       await startCloudflared({ silent: true })
-      toast.success('重启成功')
+      toast.success(t('admin.cloudflareTunnel.restartSuccess'))
       return
     }
-    toast.success('保存成功')
+    toast.success(t('admin.cloudflareTunnel.saveSuccess'))
   })
 }
 
@@ -263,11 +276,11 @@ async function startCloudflared(options?: { silent?: boolean }) {
         if (configStore.config) {
           configStore.config.default_tunnel = 'cloudflared'
         }
-        if (!options?.silent) toast.success('启动成功')
+        if (!options?.silent) toast.success(t('admin.cloudflareTunnel.startSuccess'))
       },
       onError: (error) => {
         if (options?.silent) return
-        toast.error('启动失败', { description: extractErrorMessage(error, '启动失败') })
+        toast.error(t('admin.cloudflareTunnel.startFailed'), { description: extractErrorMessage(error, t('admin.cloudflareTunnel.startFailed')) })
       },
     },
   )
@@ -280,11 +293,11 @@ async function stopCloudflared(options?: { silent?: boolean }) {
       onSuccess: () => {
         running.value = false
         pid.value = null
-        if (!options?.silent) toast.success('停止成功')
+        if (!options?.silent) toast.success(t('admin.cloudflareTunnel.stopSuccess'))
       },
       onError: (error) => {
         if (options?.silent) return
-        toast.error('停止失败', { description: extractErrorMessage(error, '停止失败') })
+        toast.error(t('admin.cloudflareTunnel.stopFailed'), { description: extractErrorMessage(error, t('admin.cloudflareTunnel.stopFailed')) })
       },
     },
   )
@@ -299,7 +312,7 @@ async function onClearLogsClick() {
         cloudflaredLogAnalysis.value = null
         cloudflaredPolling.resetCursor()
         void cloudflaredPolling.refresh()
-        toast.success('日志已清空')
+        toast.success(t('admin.cloudflareTunnel.logsCleared'))
       },
     },
   )
@@ -351,22 +364,22 @@ onUnmounted(() => {
 <template>
   <div class="space-y-6">
     <div class="flex items-center justify-between">
-      <h2 class="text-xl font-semibold">Cloudflared 穿透</h2>
+      <h2 class="text-xl font-semibold">{{ t('admin.cloudflareTunnel.title') }}</h2>
       <div class="flex gap-2">
-        <Button v-if="!running" :disabled="!canStart || isStarting" @click="startCloudflared">启动</Button>
-        <Button v-else variant="destructive" :disabled="!canStop || isStopping" @click="stopCloudflared">停止</Button>
+        <Button v-if="!running" :disabled="!canStart || isStarting" @click="startCloudflared">{{ t('admin.cloudflareTunnel.start') }}</Button>
+        <Button v-else variant="destructive" :disabled="!canStop || isStopping" @click="stopCloudflared">{{ t('admin.cloudflareTunnel.stop') }}</Button>
       </div>
     </div>
 
     <div class="grid grid-cols-1">
       <ConfigCollapsibleCard
-        title="Cloudflared 配置"
+        :title="t('admin.cloudflareTunnel.configTitle')"
         :configured="Boolean(token)"
         :ready="configLoaded"
         expanded-content-class="p-0 sm:p-0"
       >
         <template #summary>
-          Token: {{ token ? '********' : '未配置' }}，协议: {{ cloudflaredProtocolLabel }}
+          {{ t('admin.cloudflareTunnel.configSummary', { token: token ? '********' : t('admin.cloudflareTunnel.notConfigured'), protocol: cloudflaredProtocolLabel }) }}
         </template>
 
         <template #default>
@@ -378,7 +391,7 @@ onUnmounted(() => {
                   <span class="text-destructive">*</span>
                 </Label>
                 <p class="text-xs text-muted-foreground leading-relaxed hidden sm:block pr-4">
-                  Cloudflare Tunnel 的接入密钥。支持粘贴完整命令，系统会自动提取 token。
+                  {{ t('admin.cloudflareTunnel.tokenDescription') }}
                 </p>
               </div>
 
@@ -398,27 +411,27 @@ onUnmounted(() => {
                   </button>
                 </div>
                 <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
-                  Cloudflare Tunnel 的接入密钥。支持粘贴完整命令，系统会自动提取 token。
+                  {{ t('admin.cloudflareTunnel.tokenDescription') }}
                 </p>
                 <div class="text-xs text-muted-foreground mt-2 space-y-1 leading-relaxed">
-                  <p>配置来源: 登录 <a href="https://one.dash.cloudflare.com/" target="_blank" class="text-primary hover:underline font-medium">Cloudflare Zero Trust Dashboard</a></p>
-                  <p>进入 <strong>Networks → Tunnels</strong>，新建一个 <strong>Cloudflared</strong> 类型的 Tunnel。</p>
-                  <p>在安装页面复制命令中的 Token（<code>--token</code> 后面的随机长字符串）并粘贴到此处。</p>
+                  <p>{{ t('admin.cloudflareTunnel.configSourcePrefix') }} <a href="https://one.dash.cloudflare.com/" target="_blank" class="text-primary hover:underline font-medium">Cloudflare Zero Trust Dashboard</a></p>
+                  <p>{{ t('admin.cloudflareTunnel.createTunnelHint') }}</p>
+                  <p>{{ t('admin.cloudflareTunnel.copyTokenHint') }}</p>
                 </div>
               </div>
             </div>
             <div class="p-4 sm:p-6 grid gap-2 sm:grid-cols-[200px_1fr] md:grid-cols-[240px_1fr] items-start transition-colors hover:bg-muted/10">
               <div class="space-y-1 mt-1.5">
-                <Label for="cloudflared-protocol" class="text-sm font-medium">传输协议</Label>
+                <Label for="cloudflared-protocol" class="text-sm font-medium">{{ t('admin.cloudflareTunnel.protocolLabel') }}</Label>
                 <p class="text-xs text-muted-foreground leading-relaxed hidden sm:block pr-4">
-                  控制 cloudflared 连接 Cloudflare 边缘网络的方式。
+                  {{ t('admin.cloudflareTunnel.protocolDescription') }}
                 </p>
               </div>
 
               <div class="w-full max-w-md space-y-2">
                 <Select v-model="protocol">
                   <SelectTrigger id="cloudflared-protocol" class="w-full">
-                    <SelectValue placeholder="选择传输协议" />
+                    <SelectValue :placeholder="t('admin.cloudflareTunnel.protocolPlaceholder')" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem
@@ -437,17 +450,17 @@ onUnmounted(() => {
             </div>
             <div v-if="isReverseProxySubdomainMode" class="p-4 sm:p-6 space-y-4">
               <div class="space-y-1">
-                <h3 class="text-sm font-semibold">反代子域模式配置清单</h3>
+                <h3 class="text-sm font-semibold">{{ t('admin.cloudflareTunnel.subdomainChecklistTitle') }}</h3>
                 <p class="text-xs leading-relaxed text-muted-foreground">
-                  在 Cloudflare Zero Trust 的 Tunnel Public Hostname 中填写以下内容，本地 Host 映射会继续分发到对应服务。
+                  {{ t('admin.cloudflareTunnel.subdomainChecklistDescription') }}
                 </p>
               </div>
 
               <Alert v-if="!hasSubdomainRoot" variant="destructive" class="items-start rounded-xl">
                 <TriangleAlert class="h-4 w-4" />
-                <AlertTitle>还未配置根域名</AlertTitle>
+                <AlertTitle>{{ t('admin.cloudflareTunnel.rootMissingTitle') }}</AlertTitle>
                 <AlertDescription>
-                  先在子域映射配置里填写根域名；未填写前，下方使用 example.com 作为示例。
+                  {{ t('admin.cloudflareTunnel.rootMissingDescription') }}
                 </AlertDescription>
               </Alert>
 
@@ -461,14 +474,14 @@ onUnmounted(() => {
                   <code class="mt-1 block break-all text-sm">{{ cloudflaredOriginServiceUrl }}</code>
                 </div>
                 <div class="rounded-md border bg-muted/20 p-3">
-                  <div class="text-xs font-medium text-muted-foreground">3. 本地鉴权 Host</div>
-                  <code class="mt-1 block break-all text-sm">{{ authServiceHost || '未配置' }}</code>
+                  <div class="text-xs font-medium text-muted-foreground">3. {{ t('admin.cloudflareTunnel.localAuthHost') }}</div>
+                  <code class="mt-1 block break-all text-sm">{{ authServiceHost || t('admin.cloudflareTunnel.notConfigured') }}</code>
                 </div>
               </div>
 
               <div class="space-y-2 text-xs leading-relaxed text-muted-foreground">
                 <p>
-                  Service 建议使用 HTTP 回源到本机网关。保存后访问任意已配置的子域名，请求会先进入 Tunnel，再由本地 Host 映射转到对应服务。
+                  {{ t('admin.cloudflareTunnel.serviceHint') }}
                 </p>
               </div>
             </div>
@@ -477,8 +490,8 @@ onUnmounted(() => {
 
         <template #actions="{ collapse }">
           <div class="p-4 sm:px-6 sm:py-4 bg-muted/30 border-t flex items-center justify-end gap-3 rounded-b-lg">
-            <Button variant="outline" @click="collapse">折叠</Button>
-            <Button :disabled="isSaving" @click="saveConfig" class="min-w-[100px] shadow-sm">保存</Button>
+            <Button variant="outline" @click="collapse">{{ t('admin.cloudflareTunnel.collapse') }}</Button>
+            <Button :disabled="isSaving" @click="saveConfig" class="min-w-[100px] shadow-sm">{{ t('common.save') }}</Button>
           </div>
         </template>
       </ConfigCollapsibleCard>
@@ -486,28 +499,28 @@ onUnmounted(() => {
     <Card>
       <CardHeader>
         <div class="flex items-center justify-between">
-          <CardTitle>运行状态</CardTitle>
+          <CardTitle>{{ t('admin.cloudflareTunnel.runtimeStatus') }}</CardTitle>
           <Button variant="outline" size="sm" :disabled="isClearingLogs || logs.length === 0" @click="onClearLogsClick">
             <Trash2 class="h-3.5 w-3.5 mr-1" />
-            清空
+            {{ t('admin.cloudflareTunnel.clear') }}
           </Button>
         </div>
       </CardHeader>
       <CardContent>
         <div class="text-sm mb-4">
-          <span class="mr-4">状态：<span :class="running ? 'text-green-600' : 'text-muted-foreground'">{{ running ? '运行中' :
-              '未运行' }}</span></span>
+          <span class="mr-4">{{ t('admin.cloudflareTunnel.statusLabel') }}<span :class="running ? 'text-green-600' : 'text-muted-foreground'">{{ running ? t('common.active') :
+              t('admin.cloudflareTunnel.notRunning') }}</span></span>
           <span v-if="pid">PID：{{ pid }}</span>
         </div>
         <Alert v-if="cloudflaredLogAnalysis" variant="destructive" class="mb-4 items-start rounded-xl">
           <TriangleAlert class="h-4 w-4" />
-          <AlertTitle>检测到源站 TLS 证书域名不匹配</AlertTitle>
+          <AlertTitle>{{ t('admin.cloudflareTunnel.tlsMismatchTitle') }}</AlertTitle>
           <AlertDescription>
             <div class="grid gap-2">
               <p>{{ cloudflaredLogAnalysisMessage }}</p>
               <ul class="list-disc space-y-1 pl-5">
-                <li>建议在 Cloudflare Tunnel 中关闭 TLS 验证，避免 cloudflared 继续校验源站证书。</li>
-                <li>也可以选择删除证书，并在 Cloudflare 的 Tunnel 配置里将回源协议改为 HTTP。</li>
+                <li>{{ t('admin.cloudflareTunnel.tlsMismatchAdviceDisableTls') }}</li>
+                <li>{{ t('admin.cloudflareTunnel.tlsMismatchAdviceUseHttp') }}</li>
               </ul>
               <div class="rounded-md border border-current/15 bg-background/60 px-3 py-2 font-mono text-xs break-all">
                 {{ cloudflaredLogAnalysis.evidence }}
@@ -521,11 +534,11 @@ onUnmounted(() => {
     <Dialog v-model:open="showInitDialog">
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Cloudflared 未初始化</DialogTitle>
+          <DialogTitle>{{ t('admin.cloudflareTunnel.notInitializedTitle') }}</DialogTitle>
         </DialogHeader>
-        <p class="text-sm text-muted-foreground">请先在 系统设置 → 其他资源 中完成安装。</p>
+        <p class="text-sm text-muted-foreground">{{ t('admin.cloudflareTunnel.notInitializedDescription') }}</p>
         <DialogFooter>
-          <Button @click="gotoResources">前往初始化</Button>
+          <Button @click="gotoResources">{{ t('admin.cloudflareTunnel.goInitialize') }}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

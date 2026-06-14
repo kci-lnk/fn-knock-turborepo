@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onMounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import {
   extractErrorMessage,
@@ -20,6 +21,7 @@ const CloudflareTunnel = defineAsyncComponent(
 const router = useRouter();
 const route = useRoute();
 const configStore = useConfigStore();
+const { t } = useI18n();
 
 const defaultTunnel = ref<string>("frp");
 const allowedTabs = computed(() =>
@@ -33,7 +35,7 @@ const { isPending: isLoading, run: runLoadConfig } = useAsyncAction({
   onError: (error) => {
     console.error(
       "Failed to load tunnel config:",
-      extractErrorMessage(error, "加载隧道配置失败"),
+      extractErrorMessage(error, t("admin.tunnel.loadConfigFailed")),
     );
   },
 });

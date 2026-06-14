@@ -5,12 +5,10 @@
     >
       <div class="min-w-0 space-y-1.5">
         <div class="flex items-center justify-between gap-3">
-          <CardTitle>TOTP 令牌管理</CardTitle>
+          <CardTitle>{{ t("admin.authSettings.title") }}</CardTitle>
           <DocsLinkButton class="sm:hidden" :href="docsUrls.guides.auth" />
         </div>
-        <CardDescription
-          >管理管理员登录使用的所有 TOTP 双端验证器。</CardDescription
-        >
+        <CardDescription>{{ t("admin.authSettings.description") }}</CardDescription>
       </div>
       <div class="grid w-full gap-2 sm:flex sm:w-auto sm:items-center">
         <DocsLinkButton
@@ -22,11 +20,11 @@
           variant="outline"
           @click="goToOidcProviders"
         >
-          外部账号登录
+          {{ t("admin.authSettings.oidcLogin") }}
         </Button>
-        <Button class="w-full sm:w-auto" @click="openSetupDialog"
-          >绑定新令牌</Button
-        >
+        <Button class="w-full sm:w-auto" @click="openSetupDialog">
+          {{ t("admin.authSettings.bindNewToken") }}
+        </Button>
       </div>
     </CardHeader>
     <CardContent v-if="isLoading && showLoadingSkeleton && !credentials.length">
@@ -40,12 +38,18 @@
           </colgroup>
           <TableHeader>
             <TableRow>
-              <TableHead class="whitespace-normal">备注信息</TableHead>
+              <TableHead class="whitespace-normal">
+                {{ t("admin.authSettings.comment") }}
+              </TableHead>
               <TableHead class="hidden whitespace-normal sm:table-cell"
-                >绑定时间</TableHead
+                >{{ t("admin.authSettings.boundAt") }}</TableHead
               >
-              <TableHead class="whitespace-normal">设备关联</TableHead>
-              <TableHead class="text-right">操作</TableHead>
+              <TableHead class="whitespace-normal">
+                {{ t("admin.authSettings.deviceAssociation") }}
+              </TableHead>
+              <TableHead class="text-right">
+                {{ t("admin.authSettings.actions") }}
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -73,12 +77,18 @@
         </colgroup>
         <TableHeader>
           <TableRow>
-            <TableHead class="whitespace-normal">备注信息</TableHead>
+            <TableHead class="whitespace-normal">
+              {{ t("admin.authSettings.comment") }}
+            </TableHead>
             <TableHead class="hidden whitespace-normal sm:table-cell"
-              >绑定时间</TableHead
+              >{{ t("admin.authSettings.boundAt") }}</TableHead
             >
-            <TableHead class="whitespace-normal">设备关联</TableHead>
-            <TableHead class="text-right">操作</TableHead>
+            <TableHead class="whitespace-normal">
+              {{ t("admin.authSettings.deviceAssociation") }}
+            </TableHead>
+            <TableHead class="text-right">
+              {{ t("admin.authSettings.actions") }}
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -95,19 +105,22 @@
               ><HumanFriendlyTime :value="totp.createdAt"
             /></TableCell>
             <TableCell class="whitespace-normal">
-              <!-- 导航到该 TOTP 的 Passkey 管理子页面 -->
               <Button
                 variant="link"
                 class="h-auto whitespace-normal p-0 text-left"
                 @click="goToPasskeys(totp.id)"
               >
-                管理快捷登录
+                {{ t("admin.authSettings.managePasskey") }}
               </Button>
             </TableCell>
             <TableCell class="text-right">
               <ConfirmDangerPopover
-                title="确认删除"
-                :description="`确定要删除「${totp.comment || '该令牌'}」吗？删除后将无法使用该令牌进行双重验证，且关联的 Passkey 与外部账号绑定也会被删除。`"
+                :title="t('admin.authSettings.deleteTitle')"
+                :description="
+                  t('admin.authSettings.deleteDescription', {
+                    name: totp.comment || t('admin.authSettings.tokenFallback'),
+                  })
+                "
                 :loading="isDeleting"
                 :disabled="isDeleting"
                 :on-confirm="() => handleDelete(totp.id)"
@@ -118,14 +131,14 @@
                     size="sm"
                     :disabled="isDeleting"
                   >
-                    删除
+                    {{ t("admin.authSettings.delete") }}
                   </Button>
                 </template>
               </ConfirmDangerPopover>
             </TableCell>
           </TableRow>
           <TableEmpty v-if="credentials.length === 0" :colspan="4">
-            暂无绑定的 TOTP 令牌
+            {{ t("admin.authSettings.empty") }}
           </TableEmpty>
         </TableBody>
       </Table>
@@ -133,7 +146,6 @@
     <CardContent v-else class="min-h-[180px]" aria-hidden="true"></CardContent>
   </Card>
 
-  <!-- 绑定新令牌 Dialog -->
   <Dialog
     :open="showSetupDialog"
     @update:open="
@@ -146,10 +158,10 @@
       @focusin="handleDialogFocusIn"
     >
       <DialogHeader>
-        <DialogTitle>绑定新 TOTP 令牌</DialogTitle>
-        <DialogDescription
-          >使用身份验证器应用扫描二维码，并输入验证码。</DialogDescription
-        >
+        <DialogTitle>{{ t("admin.authSettings.bindDialogTitle") }}</DialogTitle>
+        <DialogDescription>
+          {{ t("admin.authSettings.bindDialogDescription") }}
+        </DialogDescription>
       </DialogHeader>
       <div
         v-if="setupData && setupStep === 'BIND'"
@@ -164,7 +176,7 @@
             class="space-y-2 flex flex-col items-center scroll-mt-24"
           >
             <Label class="text-sm text-muted-foreground self-center"
-              >输入 6 位验证码以验证并绑定</Label
+              >{{ t("admin.authSettings.otpLabel") }}</Label
             >
             <div class="w-full flex justify-center py-2">
               <InputOTP
@@ -186,7 +198,7 @@
               </InputOTP>
             </div>
             <p v-if="isBinding" class="text-sm text-muted-foreground">
-              正在验证...
+              {{ t("admin.authSettings.verifying") }}
             </p>
             <p v-if="bindErrorMessage" class="text-sm text-destructive">
               {{ bindErrorMessage }}
@@ -196,14 +208,14 @@
       </div>
       <div v-else-if="setupStep === 'NAME'" class="flex flex-col gap-4 py-4">
         <div class="space-y-2">
-          <Label>验证成功！请为该设备命名</Label>
+          <Label>{{ t("admin.authSettings.nameSuccessLabel") }}</Label>
           <Input
             v-model="newTotpComment"
-            placeholder="例如：我的 iPhone"
+            :placeholder="t('admin.authSettings.namePlaceholder')"
             @keyup.enter="handleSaveSetupName"
           />
           <p class="text-xs text-muted-foreground">
-            该名称将用于区分不同的登录设备
+            {{ t("admin.authSettings.nameHelp") }}
           </p>
         </div>
         <p v-if="bindErrorMessage" class="text-sm text-destructive">
@@ -215,7 +227,7 @@
               v-if="isBinding"
               class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
             ></span>
-            保存
+            {{ t("common.save") }}
           </Button>
         </div>
       </div>
@@ -223,7 +235,7 @@
         <span
           class="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full mr-2"
         ></span
-        >正在生成...
+        >{{ t("admin.authSettings.generating") }}
       </div>
     </DialogContent>
   </Dialog>
@@ -231,6 +243,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
+import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import {
   Card,
@@ -279,6 +292,7 @@ import QrcodeVue from "qrcode.vue";
 import { toast } from "@admin-shared/utils/toast";
 import type { TOTPCredential } from "../types";
 
+const { t } = useI18n();
 const router = useRouter();
 
 const credentials = ref<TOTPCredential[]>([]);
@@ -303,7 +317,9 @@ let viewportResizeTimer: ReturnType<typeof window.setTimeout> | null = null;
 const { isPending: isBinding, run: runBindingAction } = useAsyncAction({
   onError: (error) => {
     const fallback =
-      bindingMode.value === "bind" ? "验证码不正确，请重试" : "更新备注失败";
+      bindingMode.value === "bind"
+        ? t("admin.authSettings.bindError")
+        : t("admin.authSettings.renameError");
     bindErrorMessage.value = extractErrorMessage(error, fallback);
     if (bindingMode.value === "bind") {
       verifyToken.value = "";
@@ -313,7 +329,7 @@ const { isPending: isBinding, run: runBindingAction } = useAsyncAction({
 const { run: runSetupInit } = useAsyncAction({
   onError: (error) => {
     console.error("Failed to setup TOTP:", error);
-    bindErrorMessage.value = "生成令牌失败";
+    bindErrorMessage.value = t("admin.authSettings.setupFailed");
     setupData.value = null;
   },
 });
@@ -324,7 +340,7 @@ const { run: runSaveComment } = useAsyncAction({
 // Delete state
 const { isPending: isDeleting, run: runDeleteTotp } = useAsyncAction({
   onError: (error) => {
-    toast.error(extractErrorMessage(error, "删除失败"));
+    toast.error(extractErrorMessage(error, t("admin.authSettings.deleteFailed")));
   },
 });
 
@@ -422,7 +438,7 @@ async function handleBind() {
   bindErrorMessage.value = "";
   await runBindingAction(async () => {
     const randomSuffix = Math.random().toString(36).substring(2, 8);
-    const randomName = "设备-" + randomSuffix;
+    const randomName = t("admin.authSettings.randomDevicePrefix") + randomSuffix;
     await ConfigAPI.bindTOTP(setup.secret, verifyToken.value, randomName);
     await fetchStatus();
 
@@ -439,7 +455,7 @@ async function handleBind() {
 
 async function handleSaveSetupName() {
   if (!newTotpComment.value.trim()) {
-    bindErrorMessage.value = "备注名称不能为空";
+    bindErrorMessage.value = t("admin.authSettings.commentRequired");
     return;
   }
   if (
@@ -447,7 +463,7 @@ async function handleSaveSetupName() {
       (t) => t.comment === newTotpComment.value && t.id !== boundTotpId.value,
     )
   ) {
-    bindErrorMessage.value = "备注名称已存在，请使用其他名称";
+    bindErrorMessage.value = t("admin.authSettings.commentDuplicateDetailed");
     return;
   }
   const totpId = boundTotpId.value;
@@ -459,13 +475,13 @@ async function handleSaveSetupName() {
     await ConfigAPI.updateTOTPComment(totpId, newTotpComment.value);
     showSetupDialog.value = false;
     await fetchStatus();
-    toast.success("设备已绑定并保存备注");
+    toast.success(t("admin.authSettings.deviceSaved"));
   });
 }
 
 function validateComment(newText: string, id: string) {
   if (credentials.value.some((t) => t.comment === newText && t.id !== id)) {
-    return "备注名称已存在";
+    return t("admin.authSettings.commentDuplicate");
   }
 }
 
@@ -476,10 +492,12 @@ async function saveComment(id: string, newText: string) {
       if (target) {
         target.comment = newText;
       }
-      toast.success("备注已更新");
+      toast.success(t("admin.authSettings.commentUpdated"));
     },
     onError: (error) => {
-      throw new Error(extractErrorMessage(error, "更新备注失败"));
+      throw new Error(
+        extractErrorMessage(error, t("admin.authSettings.renameError")),
+      );
     },
   });
 }
@@ -488,7 +506,7 @@ async function handleDelete(totpId: string) {
   await runDeleteTotp(async () => {
     await ConfigAPI.deleteTOTP(totpId);
     await fetchStatus();
-    toast.success("令牌已删除");
+    toast.success(t("admin.authSettings.tokenDeleted"));
   });
 }
 

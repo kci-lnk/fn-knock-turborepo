@@ -26,7 +26,10 @@ import { firewallService } from "../lib/firewall-service";
 import { randomBytes } from "node:crypto";
 import { authMobilitySessionManager } from "../lib/auth-mobility-session";
 import { ipLocationRefs, ipLocationService } from "../lib/ip-location";
-import { revokeCustomPostLoginIpGrant } from "../lib/post-login-ip-grant";
+import {
+  normalizeAutoIpGrantComment,
+  revokeCustomPostLoginIpGrant,
+} from "../lib/post-login-ip-grant";
 import { systemEventManager } from "../lib/system-events/manager";
 import {
   FN_EVENT_AUTH_LOGIN_FAILURE,
@@ -124,6 +127,8 @@ import {
   type AutoHttpsConfig,
 } from "../lib/auto-https-redirect";
 import { oidcAuthService } from "../lib/auth/oidc/service";
+import { normalizeLocaleConfig } from "../../../../packages/i18n/src";
+import { createRequestTranslator } from "../lib/i18n";
 
 const parseIntSafe = (value: string | undefined, fallback: number) => {
   const v = Number.parseInt(String(value ?? ""), 10);
@@ -133,6 +138,23 @@ const parseIntSafe = (value: string | undefined, fallback: number) => {
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
+
+const getAdminRouteTranslator = async (request: Request) => {
+  const config = await configManager.getConfig();
+  return createRequestTranslator(request, config.locale);
+};
+
+type RequestTranslator = ReturnType<typeof createRequestTranslator>["t"];
+type AdminMessageParams = Record<
+  string,
+  string | number | boolean | null | undefined
+>;
+
+const adminT = (
+  t: RequestTranslator,
+  key: string,
+  params?: AdminMessageParams,
+) => t(`server.admin.${key}`, params);
 
 const buildCapabilityBlockedResponse = (
   set: { status?: number | string },
@@ -145,10 +167,10 @@ const buildCapabilityBlockedResponse = (
   };
 };
 
-const getRunTypeLabel = (runType: 0 | 1 | 3) => {
-  if (runType === 0) return "直连模式";
-  if (runType === 1) return "反代模式";
-  return "子域模式";
+const getRunTypeLabel = (t: RequestTranslator, runType: 0 | 1 | 3) => {
+  if (runType === 0) return adminT(t, "runTypes.direct");
+  if (runType === 1) return adminT(t, "runTypes.reverseProxy");
+  return adminT(t, "runTypes.subdomain");
 };
 
 type HostLocationResponseInput = {
@@ -179,6 +201,7 @@ const validateHostMappings = (
     service_role?: "app" | "auth";
     locations?: HostLocationInput[] | null;
   }>,
+  t: RequestTranslator,
 ) => {
   const authMappings = mappings.filter((mapping) =>
     isAuthServiceTarget(mapping.target),
@@ -186,7 +209,7 @@ const validateHostMappings = (
   if (authMappings.length > 1) {
     return {
       valid: false as const,
-      message: "只能有一个 Host 映射指向 AUTH_PORT 作为鉴权服务",
+      message: adminT(t, "hostMappings.singleAuthPortMapping"),
     };
   }
 
@@ -196,7 +219,9 @@ const validateHostMappings = (
   if (invalidAuthMapping) {
     return {
       valid: false as const,
-      message: `鉴权服务 ${invalidAuthMapping.host} 必须保持公开入口，不能开启自身鉴权或严格白名单，否则会导致登录入口不可达`,
+      message: adminT(t, "hostMappings.authMappingMustBePublic", {
+        host: invalidAuthMapping.host,
+      }),
     };
   }
 
@@ -206,7 +231,9 @@ const validateHostMappings = (
   if (authMappingWithBasicAuth) {
     return {
       valid: false as const,
-      message: `鉴权服务 ${authMappingWithBasicAuth.host} 不能开启凭证注入`,
+      message: adminT(t, "hostMappings.authMappingBasicAuthForbidden", {
+        host: authMappingWithBasicAuth.host,
+      }),
     };
   }
 
@@ -225,11 +252,13 @@ const validateHostMappings = (
   if (invalidBasicAuthMapping) {
     return {
       valid: false as const,
-      message: `Host 映射 ${invalidBasicAuthMapping.host} 的凭证注入需要填写用户名和密码，且用户名不能包含冒号`,
+      message: adminT(t, "hostMappings.basicAuthInvalid", {
+        host: invalidBasicAuthMapping.host,
+      }),
     };
   }
 
-  const invalidLocation = validateHostMappingLocations(mappings);
+  const invalidLocation = validateHostMappingLocations(mappings, t);
   if (invalidLocation) {
     return {
       valid: false as const,
@@ -280,6 +309,7 @@ const validateHostMappingLocations = (
     target: string;
     locations?: HostLocationInput[] | null;
   }>,
+  t: RequestTranslator,
 ): string | null => {
   for (const mapping of mappings) {
     if (isAuthServiceTarget(mapping.target.trim())) {
@@ -291,26 +321,39 @@ const validateHostMappingLocations = (
       const locationPath =
         typeof location.path === "string" ? location.path.trim() : "";
       if (!locationPath) {
-        return `Host 映射 ${mapping.host} 的路径规则需要填写路径`;
+        return adminT(t, "hostMappings.locationPathRequired", {
+          host: mapping.host,
+        });
       }
       if (!locationPath.startsWith("/")) {
-        return `Host 映射 ${mapping.host} 的路径规则 ${locationPath} 必须以 / 开头`;
+        return adminT(t, "hostMappings.locationPathMustStartSlash", {
+          host: mapping.host,
+          path: locationPath,
+        });
       }
       const cleanPath = cleanHostLocationPath(locationPath);
       if (cleanPath === "/") {
-        return `Host 映射 ${mapping.host} 不允许配置根路径 / 作为路径规则`;
+        return adminT(t, "hostMappings.locationRootForbidden", {
+          host: mapping.host,
+        });
       }
       if (
         cleanPath.startsWith("/__") ||
         cleanPath === "/s" ||
         cleanPath === "/s/"
       ) {
-        return `Host 映射 ${mapping.host} 的路径规则 ${locationPath} 使用了保留路径`;
+        return adminT(t, "hostMappings.locationReservedPath", {
+          host: mapping.host,
+          path: locationPath,
+        });
       }
       const match = location.match === "exact" ? "exact" : "prefix";
       const duplicateKey = `${match}\0${cleanPath}`;
       if (seen.has(duplicateKey)) {
-        return `Host 映射 ${mapping.host} 存在重复路径规则 ${locationPath}`;
+        return adminT(t, "hostMappings.locationDuplicate", {
+          host: mapping.host,
+          path: locationPath,
+        });
       }
       seen.add(duplicateKey);
 
@@ -319,7 +362,10 @@ const validateHostMappingLocations = (
         const target =
           typeof location.target === "string" ? location.target.trim() : "";
         if (!target) {
-          return `Host 映射 ${mapping.host} 的路径规则 ${locationPath} 需要填写目标`;
+          return adminT(t, "hostMappings.locationTargetRequired", {
+            host: mapping.host,
+            path: locationPath,
+          });
         }
       } else {
         const response = (location.response ?? {}) as Partial<
@@ -327,7 +373,10 @@ const validateHostMappingLocations = (
         >;
         const status = Math.floor(Number(response.status) || 200);
         if (status < 100 || status > 599) {
-          return `Host 映射 ${mapping.host} 的路径规则 ${locationPath} 响应状态码必须在 100 到 599 之间`;
+          return adminT(t, "hostMappings.locationStatusInvalid", {
+            host: mapping.host,
+            path: locationPath,
+          });
         }
         const headers =
           response.headers &&
@@ -338,10 +387,18 @@ const validateHostMappingLocations = (
         for (const rawName of Object.keys(headers)) {
           const name = rawName.trim();
           if (!name || !isValidHTTPHeaderName(name)) {
-            return `Host 映射 ${mapping.host} 的路径规则 ${locationPath} 包含非法响应头 ${rawName}`;
+            return adminT(t, "hostMappings.locationHeaderInvalid", {
+              header: rawName,
+              host: mapping.host,
+              path: locationPath,
+            });
           }
           if (forbiddenHostLocationResponseHeaders.has(name.toLowerCase())) {
-            return `Host 映射 ${mapping.host} 的路径规则 ${locationPath} 不能自定义响应头 ${name}`;
+            return adminT(t, "hostMappings.locationHeaderForbidden", {
+              header: name,
+              host: mapping.host,
+              path: locationPath,
+            });
           }
         }
       }
@@ -507,13 +564,17 @@ const isValidStreamTarget = (target: string): boolean => {
   return isValidHostPort(target);
 };
 
-const validateIpLocationBaseUrl = (value: unknown, label: string) => {
+const validateIpLocationBaseUrl = (
+  value: unknown,
+  label: string,
+  t: RequestTranslator,
+) => {
   const url = normalizeIpLocationServiceUrl(value);
   if (!url) {
     return {
       valid: false as const,
       url,
-      message: `${label}不能为空`,
+      message: adminT(t, "validation.required", { label }),
     };
   }
 
@@ -523,14 +584,14 @@ const validateIpLocationBaseUrl = (value: unknown, label: string) => {
       return {
         valid: false as const,
         url,
-        message: `${label}必须以 http:// 或 https:// 开头`,
+        message: adminT(t, "validation.httpUrlRequired", { label }),
       };
     }
   } catch {
     return {
       valid: false as const,
       url,
-      message: `${label}格式不正确`,
+      message: adminT(t, "validation.invalidFormat", { label }),
     };
   }
 
@@ -544,7 +605,10 @@ type StreamMappingInput = Pick<
   protocol?: StreamMapping["protocol"];
 };
 
-const validateStreamMappings = (mappings: StreamMappingInput[]) => {
+const validateStreamMappings = (
+  mappings: StreamMappingInput[],
+  t: RequestTranslator,
+) => {
   const seenMappings = new Set<string>();
 
   for (const mapping of mappings) {
@@ -555,26 +619,35 @@ const validateStreamMappings = (mappings: StreamMappingInput[]) => {
     if (!Number.isInteger(listenPort)) {
       return {
         valid: false as const,
-        message: `监听端口 ${listenPort} 不是有效整数`,
+        message: adminT(t, "streamMappings.listenPortNotInteger", {
+          port: listenPort,
+        }),
       };
     }
     if (listenPort <= 0 || listenPort > 65535) {
       return {
         valid: false as const,
-        message: `监听端口 ${listenPort} 超出有效范围`,
+        message: adminT(t, "streamMappings.listenPortOutOfRange", {
+          port: listenPort,
+        }),
       };
     }
     const mappingKey = `${protocol}:${listenPort}`;
     if (seenMappings.has(mappingKey)) {
       return {
         valid: false as const,
-        message: `${protocol.toUpperCase()} 监听端口 ${listenPort} 重复，请保持协议 + 端口唯一`,
+        message: adminT(t, "streamMappings.duplicatePort", {
+          port: listenPort,
+          protocol: protocol.toUpperCase(),
+        }),
       };
     }
     if (!isValidStreamTarget(target)) {
       return {
         valid: false as const,
-        message: `目标地址 ${target} 必须是 host:port 形式`,
+        message: adminT(t, "streamMappings.targetMustBeHostPort", {
+          target,
+        }),
       };
     }
     seenMappings.add(mappingKey);
@@ -598,6 +671,7 @@ const resolveBookmarkScheme = (
 
 const validatePasskeyRpConfig = (
   config: Awaited<ReturnType<typeof configManager.getConfig>>,
+  t: RequestTranslator,
 ) => {
   const mode =
     config.subdomain_mode?.passkey_rp_mode === "parent_domain"
@@ -613,8 +687,7 @@ const validatePasskeyRpConfig = (
   if (!rpId) {
     return {
       valid: false as const,
-      message:
-        "启用父域 Passkey RP 时，请先填写根域名，或显式指定一个父域 RP ID。",
+      message: adminT(t, "passkeyRp.parentDomainRequired"),
     };
   }
 
@@ -624,7 +697,7 @@ const validatePasskeyRpConfig = (
   if (authHost && authHost !== rpId && !authHost.endsWith(`.${rpId}`)) {
     return {
       valid: false as const,
-      message: `父域 Passkey RP ID ${rpId} 必须与鉴权服务 ${authHost} 相同，或是它的父域。`,
+      message: adminT(t, "passkeyRp.mustMatchAuthHost", { authHost, rpId }),
     };
   }
 
@@ -634,6 +707,7 @@ const validatePasskeyRpConfig = (
 const resolveSessionDefaultComment = async (
   sessionId: string,
   session: LoginSession,
+  locale?: string | null,
 ): Promise<string | undefined> => {
   const sessionGrantRecord = session.postLoginIpGrantRecordId
     ? await whitelistManager.getRecordById(session.postLoginIpGrantRecordId)
@@ -642,7 +716,7 @@ const resolveSessionDefaultComment = async (
     sessionGrantRecord?.status === "active" &&
     sessionGrantRecord.comment !== undefined
   ) {
-    return sessionGrantRecord.comment;
+    return normalizeAutoIpGrantComment(sessionGrantRecord.comment, locale);
   }
 
   const [whitelistRecordId] =
@@ -651,7 +725,7 @@ const resolveSessionDefaultComment = async (
     ? await whitelistManager.getRecordById(whitelistRecordId)
     : null;
   if (boundRecord?.status === "active" && boundRecord.comment !== undefined) {
-    return boundRecord.comment;
+    return normalizeAutoIpGrantComment(boundRecord.comment, locale);
   }
 
   const latestRecord = await whitelistManager.getLatestActiveRecordByIP(
@@ -661,18 +735,28 @@ const resolveSessionDefaultComment = async (
     return undefined;
   }
 
-  return latestRecord.comment;
+  return normalizeAutoIpGrantComment(latestRecord.comment, locale);
 };
 
 const ensureSessionComment = async (
   sessionId: string,
   session: LoginSession,
+  locale?: string | null,
 ): Promise<LoginSession> => {
   if (session.comment !== undefined) {
-    return session;
+    const comment = normalizeAutoIpGrantComment(session.comment, locale);
+    if (comment === session.comment) return session;
+    return {
+      ...session,
+      comment,
+    };
   }
 
-  const comment = await resolveSessionDefaultComment(sessionId, session);
+  const comment = await resolveSessionDefaultComment(
+    sessionId,
+    session,
+    locale,
+  );
   if (comment === undefined) {
     return session;
   }
@@ -687,17 +771,19 @@ const ensureSessionComment = async (
 
 const rollbackConfigAndRuntime = async (
   previousConfig: AppConfig,
+  t: RequestTranslator,
+  locale?: string,
 ): Promise<string | null> => {
   try {
     await configManager.saveConfig(previousConfig);
   } catch (error: any) {
-    return error?.message || "恢复之前的配置失败";
+    return error?.message || adminT(t, "rollback.restoreConfigFailed");
   }
 
   try {
-    await syncSmartConnect(previousConfig);
+    await syncSmartConnect(previousConfig, locale);
   } catch (error: any) {
-    return error?.message || "恢复之前的智能连接运行态失败";
+    return error?.message || adminT(t, "rollback.restoreSmartConnectFailed");
   }
 
   try {
@@ -706,7 +792,7 @@ const rollbackConfigAndRuntime = async (
       previousConfig.run_type,
     );
   } catch (error: any) {
-    return error?.message || "恢复之前的运行态失败";
+    return error?.message || adminT(t, "rollback.restoreRuntimeFailed");
   }
 
   return null;
@@ -715,23 +801,25 @@ const rollbackConfigAndRuntime = async (
 const rollbackProtocolMappingFeatureAndRuntime = async (
   previousSettings: ProtocolMappingFeatureConfig,
   previousConfig: AppConfig,
+  t: RequestTranslator,
+  locale?: string,
 ): Promise<string | null> => {
   try {
     await configManager.saveConfig(previousConfig);
   } catch (error: any) {
-    return error?.message || "恢复协议映射配置失败";
+    return error?.message || adminT(t, "rollback.restoreProtocolConfigFailed");
   }
 
   try {
     await configManager.updateProtocolMappingFeatureConfig(previousSettings);
   } catch (error: any) {
-    return error?.message || "恢复协议映射功能开关失败";
+    return error?.message || adminT(t, "rollback.restoreProtocolFeatureFailed");
   }
 
   try {
-    await syncSmartConnect(previousConfig);
+    await syncSmartConnect(previousConfig, locale);
   } catch (error: any) {
-    return error?.message || "恢复智能连接运行态失败";
+    return error?.message || adminT(t, "rollback.restoreSmartConnectFailed");
   }
 
   try {
@@ -740,7 +828,7 @@ const rollbackProtocolMappingFeatureAndRuntime = async (
       previousConfig.run_type,
     );
   } catch (error: any) {
-    return error?.message || "恢复协议映射运行态失败";
+    return error?.message || adminT(t, "rollback.restoreProtocolRuntimeFailed");
   }
 
   return null;
@@ -749,23 +837,30 @@ const rollbackProtocolMappingFeatureAndRuntime = async (
 const rollbackGatewayVisibilityConfigAndRuntime = async (
   previousConfig: AppConfig,
   previousRuntime: GatewayVisibilityRuntimeState,
+  t: RequestTranslator,
 ): Promise<string | null> => {
   try {
     await configManager.saveConfig(previousConfig);
   } catch (error: any) {
-    return error?.message || "恢复可见性原始配置失败";
+    return (
+      error?.message || adminT(t, "rollback.restoreVisibilityConfigFailed")
+    );
   }
 
   try {
     await configManager.saveGatewayVisibilityRuntimeState(previousRuntime);
   } catch (error: any) {
-    return error?.message || "恢复可见性运行时 CIDR 失败";
+    return (
+      error?.message || adminT(t, "rollback.restoreVisibilityRuntimeFailed")
+    );
   }
 
   try {
     await syncGatewayVisibilityToGateway(previousRuntime);
   } catch (error: any) {
-    return error?.message || "恢复网关可见性运行态失败";
+    return (
+      error?.message || adminT(t, "rollback.restoreGatewayVisibilityFailed")
+    );
   }
 
   return null;
@@ -782,23 +877,31 @@ const buildAutoHttpsDetails = async (settings?: AutoHttpsConfig) => {
 const rollbackGatewayProxyHeadersConfigAndRuntime = async (
   previousConfig: AppConfig,
   previousRuntime: GatewayProxyHeadersRuntimeState,
+  t: RequestTranslator,
 ): Promise<string | null> => {
   try {
     await configManager.saveConfig(previousConfig);
   } catch (error: any) {
-    return error?.message || "恢复协议头原始配置失败";
+    return (
+      error?.message || adminT(t, "rollback.restoreProxyHeadersConfigFailed")
+    );
   }
 
   try {
     await configManager.saveGatewayProxyHeadersRuntimeState(previousRuntime);
   } catch (error: any) {
-    return error?.message || "恢复协议头运行态失败";
+    return (
+      error?.message || adminT(t, "rollback.restoreProxyHeadersRuntimeFailed")
+    );
   }
 
   try {
     await syncGatewayProxyHeadersToGateway(previousRuntime);
   } catch (error: any) {
-    return error?.message || "恢复网关协议头运行态失败";
+    return (
+      error?.message ||
+      adminT(t, "rollback.restoreGatewayProxyHeadersRuntimeFailed")
+    );
   }
 
   return null;
@@ -807,23 +910,31 @@ const rollbackGatewayProxyHeadersConfigAndRuntime = async (
 const rollbackGatewayHostResponseConfigAndRuntime = async (
   previousConfig: AppConfig,
   previousRuntime: GatewayHostResponseRuntimeState,
+  t: ReturnType<typeof createRequestTranslator>["t"],
 ): Promise<string | null> => {
   try {
     await configManager.saveConfig(previousConfig);
   } catch (error: any) {
-    return error?.message || "恢复 Host 响应原始配置失败";
+    return (
+      error?.message || t("server.gatewayHostResponse.restoreConfigFailed")
+    );
   }
 
   try {
     await configManager.saveGatewayHostResponseRuntimeState(previousRuntime);
   } catch (error: any) {
-    return error?.message || "恢复 Host 响应运行态失败";
+    return (
+      error?.message || t("server.gatewayHostResponse.restoreRuntimeFailed")
+    );
   }
 
   try {
     await syncGatewayHostResponseToGateway(previousRuntime);
   } catch (error: any) {
-    return error?.message || "恢复网关 Host 响应运行态失败";
+    return (
+      error?.message ||
+      t("server.gatewayHostResponse.restoreGatewayRuntimeFailed")
+    );
   }
 
   return null;
@@ -887,6 +998,7 @@ const syncHostMappingsRuntime = async (
   previousConfig: AppConfig,
   nextConfig: AppConfig,
   normalizedMappings: HostMapping[],
+  t: RequestTranslator,
 ): Promise<void> => {
   const previousGatewayAuthConfig = buildGatewayAuthConfig(previousConfig);
   const nextGatewayAuthConfig = buildGatewayAuthConfig(nextConfig);
@@ -896,14 +1008,14 @@ const syncHostMappingsRuntime = async (
   ) {
     ensureGoResponseSuccess(
       await goBackend.setHostRules(normalizedMappings),
-      "同步 Host 路由失败",
+      adminT(t, "hostMappings.syncHostRulesFailed"),
     );
   }
 
   if (!isSameJsonValue(previousGatewayAuthConfig, nextGatewayAuthConfig)) {
     ensureGoResponseSuccess(
       await goBackend.setAuthConfig(nextGatewayAuthConfig),
-      "同步鉴权网关配置失败",
+      adminT(t, "hostMappings.syncAuthConfigFailed"),
     );
   }
 
@@ -945,11 +1057,13 @@ export const adminRoutes = new Elysia({
   .get(
     "/panel/bootstrap",
     async ({ request }) => {
+      const locale = await configManager.getLocaleConfig();
       return {
         success: true,
         data: await dockerAdminPanelManager.buildBootstrapState(
           request,
           getRuntimeProfile().is_docker,
+          locale,
         ),
       };
     },
@@ -958,11 +1072,12 @@ export const adminRoutes = new Elysia({
   .post(
     "/panel/password",
     async ({ request, body, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
       if (!getRuntimeProfile().is_docker) {
         set.status = 400;
         return {
           success: false,
-          message: "当前运行模式不需要设置 Docker 管理面板密码",
+          message: adminT(t, "dockerPanel.passwordNotNeeded"),
         };
       }
 
@@ -973,7 +1088,9 @@ export const adminRoutes = new Elysia({
         return {
           success: false,
           message:
-            error instanceof Error ? error.message : "设置管理面板密码失败",
+            error instanceof Error
+              ? error.message
+              : adminT(t, "dockerPanel.setPasswordFailed"),
         };
       }
 
@@ -981,6 +1098,7 @@ export const adminRoutes = new Elysia({
         ip: getClientIp(request) || "unknown",
         userAgent: request.headers.get("user-agent") || "",
       });
+      const locale = await configManager.getLocaleConfig();
       await dockerAdminPanelManager.resetLoginFailures(getClientIp(request));
       set.headers["set-cookie"] = buildAdminPanelSessionCookie(
         session.id,
@@ -997,6 +1115,7 @@ export const adminRoutes = new Elysia({
           password_configured: true,
           authenticated: true,
           session_expires_at: session.expires_at,
+          locale,
         },
       };
     },
@@ -1009,11 +1128,12 @@ export const adminRoutes = new Elysia({
   .post(
     "/panel/password/change",
     async ({ request, body, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
       if (!getRuntimeProfile().is_docker) {
         set.status = 400;
         return {
           success: false,
-          message: "当前运行模式不支持修改 Docker 管理面板密码",
+          message: adminT(t, "dockerPanel.passwordChangeUnsupported"),
         };
       }
 
@@ -1024,7 +1144,9 @@ export const adminRoutes = new Elysia({
         return {
           success: false,
           message:
-            error instanceof Error ? error.message : "修改管理面板密码失败",
+            error instanceof Error
+              ? error.message
+              : adminT(t, "dockerPanel.changePasswordFailed"),
         };
       }
 
@@ -1032,6 +1154,7 @@ export const adminRoutes = new Elysia({
         ip: getClientIp(request) || "unknown",
         userAgent: request.headers.get("user-agent") || "",
       });
+      const locale = await configManager.getLocaleConfig();
       set.headers["set-cookie"] = buildAdminPanelSessionCookie(
         session.id,
         dockerAdminPanelManager.sessionTtlSeconds,
@@ -1047,6 +1170,7 @@ export const adminRoutes = new Elysia({
           password_configured: true,
           authenticated: true,
           session_expires_at: session.expires_at,
+          locale,
         },
       };
     },
@@ -1059,12 +1183,15 @@ export const adminRoutes = new Elysia({
   .post(
     "/panel/login",
     async ({ request, body, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
+      const locale = await configManager.getLocaleConfig();
       if (!getRuntimeProfile().is_docker) {
         return {
           success: true,
           data: await dockerAdminPanelManager.buildBootstrapState(
             request,
             false,
+            locale,
           ),
         };
       }
@@ -1079,8 +1206,10 @@ export const adminRoutes = new Elysia({
         return {
           success: false,
           message: gate.retryAfter
-            ? `尝试过于频繁，请在 ${gate.retryAfter} 秒后重试`
-            : "尝试过于频繁，请稍后重试",
+            ? adminT(t, "dockerPanel.tooManyAttemptsWithRetry", {
+                seconds: gate.retryAfter,
+              })
+            : adminT(t, "dockerPanel.tooManyAttempts"),
           retryAfter: gate.retryAfter,
           blockedUntil: gate.blockedUntil,
         };
@@ -1092,7 +1221,7 @@ export const adminRoutes = new Elysia({
         set.status = 409;
         return {
           success: false,
-          message: "当前还没有设置管理面板密码，请先完成首次设置",
+          message: adminT(t, "dockerPanel.passwordSetupRequired"),
         };
       }
 
@@ -1106,7 +1235,9 @@ export const adminRoutes = new Elysia({
         set.headers["Retry-After"] = String(failure.retryAfter);
         return {
           success: false,
-          message: `管理面板密码错误，请在 ${failure.retryAfter} 秒后重试`,
+          message: adminT(t, "dockerPanel.passwordIncorrectWithRetry", {
+            seconds: failure.retryAfter,
+          }),
           retryAfter: failure.retryAfter,
           blockedUntil: failure.blockedUntil,
         };
@@ -1132,6 +1263,7 @@ export const adminRoutes = new Elysia({
           password_configured: true,
           authenticated: true,
           session_expires_at: session.expires_at,
+          locale,
         },
       };
     },
@@ -1154,6 +1286,7 @@ export const adminRoutes = new Elysia({
         data: await dockerAdminPanelManager.buildBootstrapState(
           request,
           getRuntimeProfile().is_docker,
+          await configManager.getLocaleConfig(),
         ),
       };
     },
@@ -1222,9 +1355,42 @@ export const adminRoutes = new Elysia({
     },
     routeDoc("获取管理端完整配置"),
   )
+  .get(
+    "/config/locale",
+    async () => {
+      const locale = await configManager.getLocaleConfig();
+      return { success: true, data: locale };
+    },
+    routeDoc("获取语言配置"),
+  )
+  .post(
+    "/config/locale",
+    async ({ body }) => {
+      const next = normalizeLocaleConfig(body);
+      const saved = await configManager.updateLocaleConfig(next);
+      const gatewayResponse = await goBackend.setLocaleConfig(saved);
+      if (!gatewayResponse.success && gatewayResponse.code !== 404) {
+        console.warn(
+          "[i18n] failed to sync locale config to Go gateway:",
+          gatewayResponse.message,
+        );
+      }
+      return { success: true, data: saved };
+    },
+    withRouteDoc("更新语言配置", {
+      body: t.Object({
+        default_locale: t.Union([
+          t.Literal("zh-CN"),
+          t.Literal("zh-Hant"),
+          t.Literal("en"),
+        ]),
+      }),
+    }),
+  )
   .post(
     "/config/run_type",
-    async ({ body, set }) => {
+    async ({ request, body, set }) => {
+      const { locale, t } = await getAdminRouteTranslator(request);
       if (
         body.run_type === 0 &&
         !getRuntimeCapabilities().direct_mode_available
@@ -1247,7 +1413,7 @@ export const adminRoutes = new Elysia({
             enabled: false,
           });
         }
-        await syncSmartConnect(await configManager.getConfig());
+        await syncSmartConnect(await configManager.getConfig(), locale);
         await firewallService.applyRunTypeConfig(
           body.run_type,
           previousRunType,
@@ -1272,13 +1438,18 @@ export const adminRoutes = new Elysia({
         const rollbackError = await rollbackProtocolMappingFeatureAndRuntime(
           previousProtocolMappingFeature,
           config,
+          t,
+          locale,
         );
         set.status = 502;
         return {
           success: false,
           message: rollbackError
-            ? `${error?.message || "切换运行模式失败"}；回滚失败：${rollbackError}`
-            : error?.message || "切换运行模式失败，已回滚配置",
+            ? adminT(t, "rollback.failed", {
+                message: error?.message || adminT(t, "runType.switchFailed"),
+                rollbackError,
+              })
+            : error?.message || adminT(t, "runType.switchFailedRolledBack"),
         };
       }
 
@@ -1318,7 +1489,8 @@ export const adminRoutes = new Elysia({
   )
   .post(
     "/firewall/reset",
-    async ({ body, set }) => {
+    async ({ request, body, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
       if (!getRuntimeCapabilities().host_firewall_available) {
         return buildCapabilityBlockedResponse(set, "host_firewall_available");
       }
@@ -1335,23 +1507,31 @@ export const adminRoutes = new Elysia({
         );
         const whitelistMessage =
           body.run_type === 0
-            ? `，并同步 ${result.whitelistSynced} 条白名单 IP`
+            ? adminT(t, "firewall.whitelistSynced", {
+                count: result.whitelistSynced,
+              })
             : "";
         const exemptPortsMessage =
           body.run_type === 0 || body.run_type === 3
-            ? `，保留入口端口 ${result.exemptPorts.join("、")}`
+            ? adminT(t, "firewall.exemptPorts", {
+                ports: result.exemptPorts.join(", "),
+              })
             : "";
 
         return {
           success: true,
           data: result,
-          message: `已按${getRunTypeLabel(body.run_type)}重设防火墙${whitelistMessage}${exemptPortsMessage}`,
+          message: adminT(t, "firewall.resetSuccess", {
+            exemptPortsMessage,
+            runType: getRunTypeLabel(t, body.run_type),
+            whitelistMessage,
+          }),
         };
       } catch (error: any) {
         set.status = 502;
         return {
           success: false,
-          message: error?.message || "重设防火墙失败",
+          message: error?.message || adminT(t, "firewall.resetFailed"),
         };
       }
     },
@@ -1363,7 +1543,8 @@ export const adminRoutes = new Elysia({
   )
   .post(
     "/firewall/clear",
-    async ({ set }) => {
+    async ({ request, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
       if (!getRuntimeCapabilities().host_firewall_available) {
         return buildCapabilityBlockedResponse(set, "host_firewall_available");
       }
@@ -1373,13 +1554,15 @@ export const adminRoutes = new Elysia({
         return {
           success: true,
           data: result,
-          message: `已清空防火墙规则，并移除 ${result.gatewayPort} 端口相关的历史重定向`,
+          message: adminT(t, "firewall.clearSuccess", {
+            port: result.gatewayPort,
+          }),
         };
       } catch (error: any) {
         set.status = 502;
         return {
           success: false,
-          message: error?.message || "清空防火墙失败",
+          message: error?.message || adminT(t, "firewall.clearFailed"),
         };
       }
     },
@@ -1450,7 +1633,8 @@ export const adminRoutes = new Elysia({
   )
   .post(
     "/config/protocol_mapping_feature",
-    async ({ body, set }) => {
+    async ({ request, body, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
       const [previousConfig, previousSettings] = await Promise.all([
         configManager.getConfig(),
         configManager.getProtocolMappingFeatureConfig(),
@@ -1459,7 +1643,7 @@ export const adminRoutes = new Elysia({
         set.status = 400;
         return {
           success: false,
-          message: "协议映射仅可在子域模式下启用",
+          message: adminT(t, "protocolMapping.subdomainOnly"),
         };
       }
       try {
@@ -1477,13 +1661,20 @@ export const adminRoutes = new Elysia({
         const rollbackError = await rollbackProtocolMappingFeatureAndRuntime(
           previousSettings,
           previousConfig,
+          t,
         );
         set.status = 502;
         return {
           success: false,
           message: rollbackError
-            ? `${error?.message || "更新协议映射功能开关失败"}；回滚失败：${rollbackError}`
-            : error?.message || "更新协议映射功能开关失败，已回滚配置",
+            ? adminT(t, "rollback.failed", {
+                message:
+                  error?.message ||
+                  adminT(t, "protocolMapping.updateFeatureFailed"),
+                rollbackError,
+              })
+            : error?.message ||
+              adminT(t, "protocolMapping.updateFeatureFailedRolledBack"),
         };
       }
     },
@@ -1495,15 +1686,17 @@ export const adminRoutes = new Elysia({
   )
   .get(
     "/config/smart_connect/details",
-    async () => {
-      const details = await getSmartConnectDetails();
+    async ({ request }) => {
+      const { locale } = await getAdminRouteTranslator(request);
+      const details = await getSmartConnectDetails(undefined, locale);
       return { success: true, data: details };
     },
     routeDoc("获取智能连接详情"),
   )
   .post(
     "/config/smart_connect",
-    async ({ body, set }) => {
+    async ({ request, body, set }) => {
+      const { locale, t } = await getAdminRouteTranslator(request);
       if (!getRuntimeCapabilities().smart_connect_available) {
         return buildCapabilityBlockedResponse(set, "smart_connect_available");
       }
@@ -1513,7 +1706,7 @@ export const adminRoutes = new Elysia({
         set.status = 400;
         return {
           success: false,
-          message: "智能连接仅可在子域模式下启用",
+          message: adminT(t, "smartConnect.subdomainOnly"),
         };
       }
 
@@ -1533,20 +1726,29 @@ export const adminRoutes = new Elysia({
 
       try {
         await configManager.saveConfig(nextConfig);
-        const details = await syncSmartConnect(nextConfig);
+        const details = await syncSmartConnect(nextConfig, locale);
         await firewallService.applyRunTypeConfig(
           nextConfig.run_type,
           previousConfig.run_type,
         );
         return { success: true, data: details };
       } catch (error: any) {
-        const rollbackError = await rollbackConfigAndRuntime(previousConfig);
+        const rollbackError = await rollbackConfigAndRuntime(
+          previousConfig,
+          t,
+          locale,
+        );
         set.status = 502;
         return {
           success: false,
           message: rollbackError
-            ? `${error?.message || "更新智能连接失败"}；回滚失败：${rollbackError}`
-            : error?.message || "更新智能连接失败，已回滚配置",
+            ? adminT(t, "rollback.failed", {
+                message:
+                  error?.message || adminT(t, "smartConnect.updateFailed"),
+                rollbackError,
+              })
+            : error?.message ||
+              adminT(t, "smartConnect.updateFailedRolledBack"),
         };
       }
     },
@@ -1591,13 +1793,14 @@ export const adminRoutes = new Elysia({
   )
   .post(
     "/config/fnos_port_icon_hijack",
-    async ({ body, set }) => {
+    async ({ request, body, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
       const previousConfig = await configManager.getConfig();
       const next = await configManager.updateFnosPortIconHijackConfig(body);
       try {
         ensureGoResponseSuccess(
           await goBackend.setFnosPortIconHijackConfig(next),
-          "同步飞牛端口图标接管配置到网关失败",
+          adminT(t, "fnosPortIcon.syncFailed"),
         );
       } catch (error: any) {
         let rollbackError: string | null = null;
@@ -1607,14 +1810,15 @@ export const adminRoutes = new Elysia({
             previousConfig.fnos_port_icon_hijack;
           await configManager.saveConfig(rollbackConfig);
         } catch (innerError: any) {
-          rollbackError = innerError?.message || "恢复之前的配置失败";
+          rollbackError =
+            innerError?.message || adminT(t, "rollback.restoreConfigFailed");
         }
         set.status = 502;
-        const message = error?.message || "同步飞牛端口图标接管配置到网关失败";
+        const message = error?.message || adminT(t, "fnosPortIcon.syncFailed");
         return {
           success: false,
           message: rollbackError
-            ? `${message}；回滚失败：${rollbackError}`
+            ? adminT(t, "rollback.failed", { message, rollbackError })
             : message,
         };
       }
@@ -1654,7 +1858,8 @@ export const adminRoutes = new Elysia({
   )
   .post(
     "/config/gateway",
-    async ({ body, set }) => {
+    async ({ request, body, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
       const previousConfig = await configManager.getConfig();
 
       try {
@@ -1703,16 +1908,18 @@ export const adminRoutes = new Elysia({
         const syncErrors: string[] = [];
         if (!authConfigResult.success) {
           syncErrors.push(
-            authConfigResult.message || "同步鉴权缓存配置到网关失败",
+            authConfigResult.message ||
+              adminT(t, "gateway.syncAuthCacheFailed"),
           );
         }
         if (!reverseProxyThrottleResult.success) {
           syncErrors.push(
-            reverseProxyThrottleResult.message || "同步网关节流配置到网关失败",
+            reverseProxyThrottleResult.message ||
+              adminT(t, "gateway.syncThrottleFailed"),
           );
         }
         if (syncErrors.length > 0) {
-          throw new Error(syncErrors.join("；"));
+          throw new Error(syncErrors.join("; "));
         }
 
         try {
@@ -1742,7 +1949,7 @@ export const adminRoutes = new Elysia({
           ),
         };
       } catch (error: any) {
-        const rollbackError = await rollbackConfigAndRuntime(previousConfig);
+        const rollbackError = await rollbackConfigAndRuntime(previousConfig, t);
         let portalRollbackError: string | null = null;
         try {
           await syncGatewayPortalToGateway(
@@ -1750,7 +1957,7 @@ export const adminRoutes = new Elysia({
           );
         } catch (innerError: any) {
           portalRollbackError =
-            innerError?.message || "恢复传送门显示运行态失败";
+            innerError?.message || adminT(t, "rollback.restorePortalFailed");
         }
         set.status = 502;
         const extraRollbackError = [rollbackError, portalRollbackError]
@@ -1759,8 +1966,11 @@ export const adminRoutes = new Elysia({
         return {
           success: false,
           message: extraRollbackError
-            ? `${error?.message || "更新网关配置失败"}；回滚失败：${extraRollbackError}`
-            : error?.message || "更新网关配置失败，已回滚配置",
+            ? adminT(t, "rollback.failed", {
+                message: error?.message || adminT(t, "gateway.updateFailed"),
+                rollbackError: extraRollbackError,
+              })
+            : error?.message || adminT(t, "gateway.updateFailedRolledBack"),
         };
       }
     },
@@ -1799,7 +2009,8 @@ export const adminRoutes = new Elysia({
   )
   .post(
     "/config/gateway/visibility",
-    async ({ body, set }) => {
+    async ({ request, body, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
       const [previousConfig, previousRuntime] = await Promise.all([
         configManager.getConfig(),
         configManager.getGatewayVisibilityRuntimeState(),
@@ -1830,13 +2041,19 @@ export const adminRoutes = new Elysia({
         const rollbackError = await rollbackGatewayVisibilityConfigAndRuntime(
           previousConfig,
           previousRuntime,
+          t,
         );
         set.status = 502;
         return {
           success: false,
           message: rollbackError
-            ? `${error?.message || "更新网关可见性失败"}；回滚失败：${rollbackError}`
-            : error?.message || "更新网关可见性失败，已回滚配置",
+            ? adminT(t, "rollback.failed", {
+                message:
+                  error?.message || adminT(t, "gatewayVisibility.updateFailed"),
+                rollbackError,
+              })
+            : error?.message ||
+              adminT(t, "gatewayVisibility.updateFailedRolledBack"),
         };
       }
     },
@@ -1866,7 +2083,8 @@ export const adminRoutes = new Elysia({
   )
   .post(
     "/config/gateway/proxy-headers",
-    async ({ body, set }) => {
+    async ({ request, body, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
       const [previousConfig, previousRuntime] = await Promise.all([
         configManager.getConfig(),
         configManager.getGatewayProxyHeadersRuntimeState(),
@@ -1876,7 +2094,7 @@ export const adminRoutes = new Elysia({
         set.status = 400;
         return {
           success: false,
-          message: "协议头仅可在子域映射模式下编辑",
+          message: adminT(t, "gatewayProxyHeaders.subdomainOnly"),
         };
       }
 
@@ -1900,13 +2118,20 @@ export const adminRoutes = new Elysia({
         const rollbackError = await rollbackGatewayProxyHeadersConfigAndRuntime(
           previousConfig,
           previousRuntime,
+          t,
         );
         set.status = 502;
         return {
           success: false,
           message: rollbackError
-            ? `${error?.message || "更新网关协议头失败"}；回滚失败：${rollbackError}`
-            : error?.message || "更新网关协议头失败，已回滚配置",
+            ? adminT(t, "rollback.failed", {
+                message:
+                  error?.message ||
+                  adminT(t, "gatewayProxyHeaders.updateFailed"),
+                rollbackError,
+              })
+            : error?.message ||
+              adminT(t, "gatewayProxyHeaders.updateFailedRolledBack"),
         };
       }
     },
@@ -1918,8 +2143,9 @@ export const adminRoutes = new Elysia({
   )
   .get(
     "/config/gateway/host-response",
-    async () => {
-      const details = await getGatewayHostResponseDetails();
+    async ({ request }) => {
+      const { locale } = await getAdminRouteTranslator(request);
+      const details = await getGatewayHostResponseDetails(locale);
       return {
         success: true,
         data: details,
@@ -1929,17 +2155,21 @@ export const adminRoutes = new Elysia({
   )
   .post(
     "/config/gateway/host-response",
-    async ({ body, set }) => {
+    async ({ body, set, request }) => {
       const [previousConfig, previousRuntime] = await Promise.all([
         configManager.getConfig(),
         configManager.getGatewayHostResponseRuntimeState(),
       ]);
+      const { locale, t } = createRequestTranslator(
+        request,
+        previousConfig.locale,
+      );
 
       if (!isAnySubdomainRoutingMode(previousConfig)) {
         set.status = 400;
         return {
           success: false,
-          message: "Host 响应仅可在子域映射模式下编辑",
+          message: t("server.gatewayHostResponse.editSubdomainOnly"),
         };
       }
 
@@ -1960,19 +2190,26 @@ export const adminRoutes = new Elysia({
 
         return {
           success: true,
-          data: await getGatewayHostResponseDetails(),
+          data: await getGatewayHostResponseDetails(locale),
         };
       } catch (error: any) {
         const rollbackError = await rollbackGatewayHostResponseConfigAndRuntime(
           previousConfig,
           previousRuntime,
+          t,
         );
         set.status = 502;
         return {
           success: false,
           message: rollbackError
-            ? `${error?.message || "更新网关 Host 响应失败"}；回滚失败：${rollbackError}`
-            : error?.message || "更新网关 Host 响应失败，已回滚配置",
+            ? t("server.gatewayHostResponse.updateFailedRollbackFailed", {
+                error:
+                  error?.message ||
+                  t("server.gatewayHostResponse.updateFailed"),
+                rollbackError,
+              })
+            : error?.message ||
+              t("server.gatewayHostResponse.updateFailedRolledBack"),
         };
       }
     },
@@ -1992,7 +2229,8 @@ export const adminRoutes = new Elysia({
   )
   .post(
     "/config/captcha",
-    async ({ body, set }) => {
+    async ({ request, body, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
       if (body.provider === "turnstile") {
         const siteKey = body.turnstile?.site_key?.trim() || "";
         const secretKey = body.turnstile?.secret_key?.trim() || "";
@@ -2000,8 +2238,7 @@ export const adminRoutes = new Elysia({
           set.status = 400;
           return {
             success: false,
-            message:
-              "启用 Cloudflare Turnstile 时，site_key 和 secret_key 都必须填写",
+            message: adminT(t, "captcha.turnstileKeysRequired"),
           };
         }
       }
@@ -2032,19 +2269,28 @@ export const adminRoutes = new Elysia({
   )
   .post(
     "/config/ip_location_api",
-    async ({ body, set }) => {
+    async ({ request, body, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
       const ipLookupMode: IpLocationApiMode = body.ip_lookup_mode;
       const cidrMode: IpLocationApiMode = body.cidr_mode;
       const ipLookupUrl =
         ipLookupMode === "custom"
-          ? validateIpLocationBaseUrl(body.ip_lookup_url, "IP 识别库地址")
+          ? validateIpLocationBaseUrl(
+              body.ip_lookup_url,
+              adminT(t, "ipLocation.ipLookupUrlLabel"),
+              t,
+            )
           : {
               valid: true as const,
               url: DEFAULT_IP_LOCATION_API_CONFIG.ip_lookup_url,
             };
       const cidrUrl =
         cidrMode === "custom"
-          ? validateIpLocationBaseUrl(body.cidr_url, "CIDR 地址库地址")
+          ? validateIpLocationBaseUrl(
+              body.cidr_url,
+              adminT(t, "ipLocation.cidrUrlLabel"),
+              t,
+            )
           : {
               valid: true as const,
               url: DEFAULT_IP_LOCATION_API_CONFIG.cidr_url,
@@ -2078,8 +2324,9 @@ export const adminRoutes = new Elysia({
   )
   .post(
     "/config/ip_location_api/test-ip-lookup",
-    async ({ body, set }) => {
-      const validation = validateIpLocationBaseUrl(body.url, "URL");
+    async ({ request, body, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
+      const validation = validateIpLocationBaseUrl(body.url, "URL", t);
       if (!validation.valid) {
         set.status = 400;
         return { success: false, message: validation.message };
@@ -2103,7 +2350,9 @@ export const adminRoutes = new Elysia({
         if (!response.ok) {
           return {
             success: false,
-            message: `服务返回错误状态码 ${response.status}`,
+            message: adminT(t, "connectionTest.httpStatus", {
+              status: response.status,
+            }),
           };
         }
 
@@ -2115,18 +2364,21 @@ export const adminRoutes = new Elysia({
         if (!data || data.code !== 0 || !data.result) {
           return {
             success: false,
-            message: data?.msg || "服务返回数据异常",
+            message: data?.msg || adminT(t, "connectionTest.invalidData"),
           };
         }
 
-        return { success: true, message: "连接成功" };
+        return { success: true, message: adminT(t, "connectionTest.success") };
       } catch (error: any) {
         if (error?.name === "AbortError") {
-          return { success: false, message: "连接超时" };
+          return {
+            success: false,
+            message: adminT(t, "connectionTest.timeout"),
+          };
         }
         return {
           success: false,
-          message: error?.message || "连接失败",
+          message: error?.message || adminT(t, "connectionTest.failed"),
         };
       }
     },
@@ -2138,8 +2390,9 @@ export const adminRoutes = new Elysia({
   )
   .post(
     "/config/ip_location_api/test-cidr",
-    async ({ body, set }) => {
-      const validation = validateIpLocationBaseUrl(body.url, "URL");
+    async ({ request, body, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
+      const validation = validateIpLocationBaseUrl(body.url, "URL", t);
       if (!validation.valid) {
         set.status = 400;
         return { success: false, message: validation.message };
@@ -2162,7 +2415,9 @@ export const adminRoutes = new Elysia({
         if (!response.ok) {
           return {
             success: false,
-            message: `服务返回错误状态码 ${response.status}`,
+            message: adminT(t, "connectionTest.httpStatus", {
+              status: response.status,
+            }),
           };
         }
 
@@ -2174,18 +2429,21 @@ export const adminRoutes = new Elysia({
         if (!data || data.code !== 0 || !data.data) {
           return {
             success: false,
-            message: data?.message || "服务返回数据异常",
+            message: data?.message || adminT(t, "connectionTest.invalidData"),
           };
         }
 
-        return { success: true, message: "连接成功" };
+        return { success: true, message: adminT(t, "connectionTest.success") };
       } catch (error: any) {
         if (error?.name === "AbortError") {
-          return { success: false, message: "连接超时" };
+          return {
+            success: false,
+            message: adminT(t, "connectionTest.timeout"),
+          };
         }
         return {
           success: false,
-          message: error?.message || "连接失败",
+          message: error?.message || adminT(t, "connectionTest.failed"),
         };
       }
     },
@@ -2231,7 +2489,8 @@ export const adminRoutes = new Elysia({
     "/config/auth_credential_settings",
     async ({ body }) => {
       const previous = await configManager.getAuthCredentialSettings();
-      const next = await configManager.previewAuthCredentialSettingsUpdate(body);
+      const next =
+        await configManager.previewAuthCredentialSettingsUpdate(body);
       const sessionIpMobilityChanged =
         previous.session_ip_mobility_enabled !==
           next.session_ip_mobility_enabled ||
@@ -2310,12 +2569,13 @@ export const adminRoutes = new Elysia({
   )
   .post(
     "/config/auto_https",
-    async ({ body, set }) => {
+    async ({ request, body, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
       if (body.enabled === true && getRuntimeProfile().is_docker) {
         set.status = 403;
         return {
           success: false,
-          message: "Docker 版本不支持自动 HTTPS",
+          message: adminT(t, "autoHttps.dockerUnsupported"),
         };
       }
 
@@ -2334,7 +2594,7 @@ export const adminRoutes = new Elysia({
           },
           message:
             runtime.status === "error"
-              ? runtime.last_error || "自动 HTTPS 启动失败"
+              ? runtime.last_error || adminT(t, "autoHttps.startFailed")
               : undefined,
         };
       }
@@ -2349,7 +2609,7 @@ export const adminRoutes = new Elysia({
         },
         message:
           runtime.status === "error"
-            ? runtime.last_error || "自动 HTTPS 启动失败"
+            ? runtime.last_error || adminT(t, "autoHttps.startFailed")
             : undefined,
       };
     },
@@ -2442,8 +2702,9 @@ export const adminRoutes = new Elysia({
   )
   .post(
     "/config/host_mappings",
-    async ({ body, set }) => {
-      const validation = validateHostMappings(body.mappings);
+    async ({ request, body, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
+      const validation = validateHostMappings(body.mappings, t);
       if (!validation.valid) {
         set.status = 400;
         return {
@@ -2508,7 +2769,7 @@ export const adminRoutes = new Elysia({
         ...config,
         host_mappings: normalizedMappings,
       };
-      const passkeyValidation = validatePasskeyRpConfig(nextConfig);
+      const passkeyValidation = validatePasskeyRpConfig(nextConfig, t);
       if (!passkeyValidation.valid) {
         set.status = 400;
         return {
@@ -2528,15 +2789,21 @@ export const adminRoutes = new Elysia({
           config,
           updatedConfig,
           normalizedMappings,
+          t,
         );
       } catch (error: any) {
-        const rollbackError = await rollbackConfigAndRuntime(config);
+        const rollbackError = await rollbackConfigAndRuntime(config, t);
         set.status = 502;
         return {
           success: false,
           message: rollbackError
-            ? `${error?.message || "更新 Host 映射失败"}；回滚失败：${rollbackError}`
-            : error?.message || "更新 Host 映射失败，已回滚配置",
+            ? adminT(t, "rollback.failed", {
+                message:
+                  error?.message || adminT(t, "hostMappings.updateFailed"),
+                rollbackError,
+              })
+            : error?.message ||
+              adminT(t, "hostMappings.updateFailedRolledBack"),
         };
       }
 
@@ -2616,7 +2883,8 @@ export const adminRoutes = new Elysia({
   )
   .post(
     "/config/host_mappings/metadata",
-    async ({ body, set }) => {
+    async ({ request, body, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
       const metadata = await fetchUrlMetadata(body.target, {
         basicAuth: normalizeHostBasicAuth(body.basic_auth),
       });
@@ -2624,7 +2892,7 @@ export const adminRoutes = new Elysia({
         set.status = 400;
         return {
           success: false,
-          message: metadata.error || "目标地址标题刷新失败",
+          message: metadata.error || adminT(t, "hostMappings.metadataFailed"),
         };
       }
 
@@ -2671,7 +2939,8 @@ export const adminRoutes = new Elysia({
   )
   .get(
     "/config/host_mappings/bookmarks/export",
-    async () => {
+    async ({ request }) => {
+      const { t } = await getAdminRouteTranslator(request);
       const config = await configManager.getConfig();
       const scheme = resolveBookmarkScheme(config);
       const accessEntryPort =
@@ -2687,8 +2956,10 @@ export const adminRoutes = new Elysia({
         omitAccessEntryPort:
           shouldOmitPublicAccessEntryPort(config) && accessEntryPort === null,
         folderTitle: config.subdomain_mode?.root_domain?.trim()
-          ? `${config.subdomain_mode.root_domain.trim()} 子域映射`
-          : "fn-knock 子域映射",
+          ? adminT(t, "hostMappings.bookmarkFolderForRoot", {
+              root: config.subdomain_mode.root_domain.trim(),
+            })
+          : adminT(t, "hostMappings.bookmarkFolderDefault"),
       });
       const filename = buildHostMappingsBookmarkFilename(
         config.subdomain_mode?.root_domain,
@@ -2717,8 +2988,9 @@ export const adminRoutes = new Elysia({
   )
   .post(
     "/config/stream_mappings",
-    async ({ body, set }) => {
-      const validation = validateStreamMappings(body.mappings);
+    async ({ request, body, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
+      const validation = validateStreamMappings(body.mappings, t);
       if (!validation.valid) {
         set.status = 400;
         return {
@@ -2736,14 +3008,18 @@ export const adminRoutes = new Elysia({
           updatedConfig.run_type,
         );
       } catch (error: any) {
-        const rollbackError = await rollbackConfigAndRuntime(previousConfig);
+        const rollbackError = await rollbackConfigAndRuntime(previousConfig, t);
         set.status = 502;
         return {
           success: false,
           message: rollbackError
-            ? `${error?.message || "同步 协议映射与网关端口放行规则失败"}；回滚失败：${rollbackError}`
+            ? adminT(t, "rollback.failed", {
+                message:
+                  error?.message || adminT(t, "streamMappings.syncFailed"),
+                rollbackError,
+              })
             : error?.message ||
-              "同步 协议映射与网关端口放行规则失败，已回滚配置",
+              adminT(t, "streamMappings.syncFailedRolledBack"),
         };
       }
 
@@ -2772,7 +3048,8 @@ export const adminRoutes = new Elysia({
   )
   .post(
     "/config/subdomain_mode",
-    async ({ body, set }) => {
+    async ({ request, body, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
       const config = await configManager.getConfig();
       const nextConfig = {
         ...config,
@@ -2781,7 +3058,7 @@ export const adminRoutes = new Elysia({
           ...body,
         },
       };
-      const validation = validateHostMappings(nextConfig.host_mappings);
+      const validation = validateHostMappings(nextConfig.host_mappings, t);
       if (!validation.valid) {
         set.status = 400;
         return {
@@ -2790,7 +3067,7 @@ export const adminRoutes = new Elysia({
         };
       }
 
-      const passkeyValidation = validatePasskeyRpConfig(nextConfig);
+      const passkeyValidation = validatePasskeyRpConfig(nextConfig, t);
       if (!passkeyValidation.valid) {
         set.status = 400;
         return {
@@ -2837,7 +3114,7 @@ export const adminRoutes = new Elysia({
               applied: true,
               certificate_id: candidate.id,
               label: candidate.label,
-              message: "已自动切换到更适合当前子域模式的证书。",
+              message: adminT(t, "subdomainMode.sslAutoSelected"),
             };
           } catch (error: any) {
             await configManager.activateSSLCertificate(previousActiveId);
@@ -2849,7 +3126,7 @@ export const adminRoutes = new Elysia({
               label: candidate.label,
               message:
                 error?.message ||
-                "已找到推荐证书，但同步到网关失败，未自动切换。",
+                adminT(t, "subdomainMode.sslAutoSelectionSyncFailed"),
             };
           }
         }
@@ -2916,7 +3193,8 @@ export const adminRoutes = new Elysia({
   )
   .post(
     "/totp/bind",
-    async ({ body, set }) => {
+    async ({ request, body, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
       const { valid } = verifySync({
         strategy: "totp",
         token: body.token,
@@ -2924,7 +3202,7 @@ export const adminRoutes = new Elysia({
       });
       if (!valid) {
         set.status = 400;
-        return { success: false, message: "验证码不正确，请重试" };
+        return { success: false, message: adminT(t, "totp.invalidCode") };
       }
       await configManager.addTOTPCredential({
         id: randomBytes(8).toString("hex"),
@@ -2944,11 +3222,12 @@ export const adminRoutes = new Elysia({
   )
   .delete(
     "/totp/:id",
-    async ({ params, set }) => {
+    async ({ request, params, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
       const deleted = await configManager.deleteTOTPCredential(params.id);
       if (!deleted) {
         set.status = 404;
-        return { success: false, message: "TOTP not found" };
+        return { success: false, message: adminT(t, "totp.notFound") };
       }
       await oidcAuthService.deleteBindingsByTotp(params.id);
       return { success: true };
@@ -2959,14 +3238,15 @@ export const adminRoutes = new Elysia({
   )
   .patch(
     "/totp/:id/comment",
-    async ({ params, body, set }) => {
+    async ({ request, params, body, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
       const updated = await configManager.updateTOTPCredential(
         params.id,
         body.comment,
       );
       if (!updated) {
         set.status = 404;
-        return { success: false, message: "TOTP not found" };
+        return { success: false, message: adminT(t, "totp.notFound") };
       }
       return { success: true };
     },
@@ -2988,11 +3268,12 @@ export const adminRoutes = new Elysia({
   )
   .delete(
     "/passkeys/:id",
-    async ({ params, set }) => {
+    async ({ request, params, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
       const deleted = await configManager.deletePasskey(params.id);
       if (!deleted) {
         set.status = 404;
-        return { success: false, message: "Passkey not found" };
+        return { success: false, message: adminT(t, "passkeys.notFound") };
       }
       return { success: true };
     },
@@ -3004,7 +3285,8 @@ export const adminRoutes = new Elysia({
   )
   .post(
     "/sync-routes",
-    async ({ set }) => {
+    async ({ request, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
       try {
         const [config, protocolMappingFeature] = await Promise.all([
           configManager.getConfig(),
@@ -3025,7 +3307,9 @@ export const adminRoutes = new Elysia({
           set.status = 502;
           return {
             success: false,
-            message: `同步部分失败: gateway_logging=${loggingResult.success}`,
+            message: adminT(t, "syncRoutes.partialFailedGatewayLogging", {
+              gatewayLogging: loggingResult.success,
+            }),
           };
         }
 
@@ -3037,7 +3321,10 @@ export const adminRoutes = new Elysia({
           set.status = 502;
           return {
             success: false,
-            message: `同步部分失败: gateway_logging=${loggingResult.success}, waf=${syncedWAF}`,
+            message: adminT(t, "syncRoutes.partialFailedGatewayLoggingWaf", {
+              gatewayLogging: loggingResult.success,
+              waf: syncedWAF,
+            }),
           };
         }
 
@@ -3063,7 +3350,11 @@ export const adminRoutes = new Elysia({
             synced_waf: syncedWAF,
             waf_bundle_id: config.waf?.active_bundle_id || "",
           },
-          message: `已按当前运行模式同步 ${syncedRules} 条路径路由、${syncedHostRules} 条 Host 路由、${syncedStreamRules} 条 协议映射、请求日志配置与 WAF 配置`,
+          message: adminT(t, "syncRoutes.success", {
+            hostRules: syncedHostRules,
+            rules: syncedRules,
+            streamRules: syncedStreamRules,
+          }),
         };
       } catch (e: any) {
         set.status = 500;
@@ -3092,7 +3383,8 @@ export const adminRoutes = new Elysia({
   )
   .get(
     "/maintenance/backup/files",
-    async ({ set }) => {
+    async ({ request, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
       try {
         return {
           success: true,
@@ -3102,7 +3394,8 @@ export const adminRoutes = new Elysia({
         set.status = 500;
         return {
           success: false,
-          message: error?.message || "读取飞牛备份目录失败",
+          message:
+            error?.message || adminT(t, "backup.readFnosDirectoryFailed"),
         };
       }
     },
@@ -3110,14 +3403,15 @@ export const adminRoutes = new Elysia({
   )
   .post(
     "/maintenance/backup/export/fnos",
-    async ({ set }) => {
+    async ({ request, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
       try {
         const result =
           await maintenanceBackupService.exportBackupArchiveToDirectory();
         return {
           success: true,
           data: result,
-          message: "备份已导出到飞牛目录",
+          message: adminT(t, "backup.exportFnosSuccess"),
         };
       } catch (error: any) {
         const status =
@@ -3125,7 +3419,7 @@ export const adminRoutes = new Elysia({
         set.status = status;
         return {
           success: false,
-          message: error?.message || "导出到飞牛目录失败",
+          message: error?.message || adminT(t, "backup.exportFnosFailed"),
         };
       }
     },
@@ -3133,7 +3427,8 @@ export const adminRoutes = new Elysia({
   )
   .post(
     "/maintenance/backup/import",
-    async ({ body, set }) => {
+    async ({ request, body, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
       try {
         const result = await maintenanceBackupService.importBackupArchive(body);
         return {
@@ -3141,8 +3436,8 @@ export const adminRoutes = new Elysia({
           data: result,
           message:
             result.warnings.length > 0
-              ? "备份已导入，但部分运行态同步失败"
-              : "备份已导入并完成运行态同步",
+              ? adminT(t, "backup.importSuccessWithWarnings")
+              : adminT(t, "backup.importSuccess"),
         };
       } catch (error: any) {
         const status =
@@ -3150,7 +3445,7 @@ export const adminRoutes = new Elysia({
         set.status = status;
         return {
           success: false,
-          message: error?.message || "导入备份失败",
+          message: error?.message || adminT(t, "backup.importFailed"),
         };
       }
     },
@@ -3163,7 +3458,8 @@ export const adminRoutes = new Elysia({
   )
   .post(
     "/maintenance/backup/import/fnos",
-    async ({ body, set }) => {
+    async ({ request, body, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
       try {
         const result =
           await maintenanceBackupService.importBackupArchiveFromDirectory(
@@ -3174,11 +3470,11 @@ export const adminRoutes = new Elysia({
           data: result,
           message:
             result.warnings.length > 0
-              ? "飞牛备份已导入，但部分运行态同步失败"
-              : "飞牛备份已导入并完成运行态同步",
+              ? adminT(t, "backup.importFnosSuccessWithWarnings")
+              : adminT(t, "backup.importFnosSuccess"),
         };
       } catch (error: any) {
-        const message = error?.message || "从飞牛导入备份失败";
+        const message = error?.message || adminT(t, "backup.importFnosFailed");
         const status =
           error instanceof MaintenanceBackupError ? error.status : 500;
         set.status =
@@ -3270,11 +3566,12 @@ export const adminRoutes = new Elysia({
   // Session management
   .get(
     "/sessions",
-    async () => {
+    async ({ request }) => {
+      const { locale } = await getAdminRouteTranslator(request);
       const list = await configManager.listSessions();
       const mapped = await Promise.all(
         list.map(async ({ id, data }) => {
-          const session = await ensureSessionComment(id, data);
+          const session = await ensureSessionComment(id, data, locale);
           const [mobility, fnosAttachments, trimMediaAttachments] =
             await Promise.all([
               authMobilitySessionManager.getSessionMobilitySummary(id),
@@ -3299,13 +3596,14 @@ export const adminRoutes = new Elysia({
   )
   .get(
     "/sessions/:id",
-    async ({ params, set }) => {
+    async ({ request, params, set }) => {
+      const { locale, t } = await getAdminRouteTranslator(request);
       const sess = await configManager.getSession(params.id);
       if (!sess) {
         set.status = 404;
-        return { success: false, message: "Session not found" };
+        return { success: false, message: adminT(t, "sessions.notFound") };
       }
-      const session = await ensureSessionComment(params.id, sess);
+      const session = await ensureSessionComment(params.id, sess, locale);
       const [mobility, fnosAttachments, trimMediaAttachments] =
         await Promise.all([
           authMobilitySessionManager.getSessionMobilitySummary(params.id),
@@ -3330,11 +3628,12 @@ export const adminRoutes = new Elysia({
   )
   .patch(
     "/sessions/:id/comment",
-    async ({ params, body, set }) => {
+    async ({ request, params, body, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
       const sess = await configManager.getSession(params.id);
       if (!sess) {
         set.status = 404;
-        return { success: false, message: "Session not found" };
+        return { success: false, message: adminT(t, "sessions.notFound") };
       }
 
       const updated = await configManager.updateSession(params.id, {
@@ -3342,7 +3641,7 @@ export const adminRoutes = new Elysia({
       });
       if (!updated) {
         set.status = 404;
-        return { success: false, message: "Session not found" };
+        return { success: false, message: adminT(t, "sessions.notFound") };
       }
 
       const whitelistRecordIds = new Set<string>();
@@ -3373,11 +3672,12 @@ export const adminRoutes = new Elysia({
   )
   .get(
     "/sessions/:id/mobility",
-    async ({ params, set }) => {
+    async ({ request, params, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
       const sess = await configManager.getSession(params.id);
       if (!sess) {
         set.status = 404;
-        return { success: false, message: "Session not found" };
+        return { success: false, message: adminT(t, "sessions.notFound") };
       }
       const details =
         await authMobilitySessionManager.getSessionMobilityDetails(params.id);
@@ -3397,6 +3697,10 @@ export const adminRoutes = new Elysia({
       const sess = await configManager.getSession(params.id);
       if (sess) {
         const config = await configManager.getConfig();
+        const sessionComment = normalizeAutoIpGrantComment(
+          sess.comment,
+          config.locale?.default_locale,
+        );
         await authMobilitySessionManager.destroySession(params.id);
         await configManager.deleteSession(params.id);
         await revokeCustomPostLoginIpGrant(sess, config, sess.ip);
@@ -3411,7 +3715,7 @@ export const adminRoutes = new Elysia({
           ...(sess.linkedTotpName
             ? { linkedTotpName: sess.linkedTotpName }
             : {}),
-          ...(sess.comment ? { sessionComment: sess.comment } : {}),
+          ...(sessionComment ? { sessionComment } : {}),
           ip: sess.ip,
           ...(sess.ipLocation ? { ipLocation: sess.ipLocation } : {}),
           userAgent: sess.userAgent,

@@ -16,6 +16,7 @@ import {
   toTrimmedString,
   truncateText,
 } from "./shared";
+import { tDefault } from "../../i18n";
 
 type EmailTransportSecurity = "ssl_tls" | "starttls" | "none";
 type EmailAuthMode = "auto" | "plain" | "login" | "none";
@@ -25,6 +26,11 @@ type SmtpResponse = {
   lines: string[];
   message: string;
 };
+
+const emailT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.notifications.providers.catalog.email.${key}`, params);
 
 class SmtpCommandError extends Error {
   readonly retryable: boolean;
@@ -47,16 +53,16 @@ class SmtpCommandError extends Error {
 const EMAIL_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   {
     key: "smtp_host",
-    label: "SMTP 主机",
-    description: "邮件发送服务器地址，例如 smtp.example.com。",
+    label: emailT("fields.smtp_host.label"),
+    description: emailT("fields.smtp_host.description"),
     placeholder: "smtp.example.com",
     type: "string",
     required: true,
   },
   {
     key: "smtp_port",
-    label: "SMTP 端口",
-    description: "常见端口为 465（SSL/TLS）或 587（STARTTLS）。",
+    label: emailT("fields.smtp_port.label"),
+    description: emailT("fields.smtp_port.description"),
     type: "number",
     required: true,
     default_value: 465,
@@ -65,95 +71,93 @@ const EMAIL_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   },
   {
     key: "smtp_security",
-    label: "SMTP 加密方式",
+    label: emailT("fields.smtp_security.label"),
     type: "select",
     required: true,
     default_value: "ssl_tls",
     options: [
       { label: "SSL/TLS", value: "ssl_tls" },
       { label: "STARTTLS", value: "starttls" },
-      { label: "不加密", value: "none" },
+      { label: emailT("fields.smtp_security.options.none"), value: "none" },
     ],
   },
   {
     key: "smtp_auth_mode",
-    label: "SMTP 认证方式",
-    description: "自动优先使用 AUTH PLAIN，不支持时会回退到 AUTH LOGIN。",
+    label: emailT("fields.smtp_auth_mode.label"),
+    description: emailT("fields.smtp_auth_mode.description"),
     type: "select",
     required: true,
     default_value: "auto",
     options: [
-      { label: "自动协商", value: "auto" },
+      { label: emailT("fields.smtp_auth_mode.options.auto"), value: "auto" },
       { label: "AUTH PLAIN", value: "plain" },
       { label: "AUTH LOGIN", value: "login" },
-      { label: "无认证", value: "none" },
+      { label: emailT("fields.smtp_auth_mode.options.none"), value: "none" },
     ],
   },
   {
     key: "smtp_username",
-    label: "SMTP 用户名",
+    label: emailT("fields.smtp_username.label"),
     placeholder: "no-reply@example.com",
     type: "string",
   },
   {
     key: "smtp_password",
-    label: "SMTP 密码",
+    label: emailT("fields.smtp_password.label"),
     placeholder: "password",
     type: "string",
     sensitive: true,
   },
   {
     key: "from_address",
-    label: "发件邮箱",
-    description: "会作为 MAIL FROM 和邮件头中的 From 地址。",
+    label: emailT("fields.from_address.label"),
+    description: emailT("fields.from_address.description"),
     placeholder: "no-reply@example.com",
     type: "string",
     required: true,
   },
   {
     key: "from_name",
-    label: "发件人名称",
+    label: emailT("fields.from_name.label"),
     placeholder: "fn-knock",
     type: "string",
   },
   {
     key: "to_addresses",
-    label: "默认收件人",
-    description:
-      "支持逗号或换行分隔多个邮箱。测试发送会使用这里的收件人，规则也可在 target 中覆盖。",
+    label: emailT("fields.to_addresses.label"),
+    description: emailT("fields.to_addresses.description"),
     placeholder: "ops@example.com, admin@example.com",
     type: "string",
     required: true,
   },
   {
     key: "cc_addresses",
-    label: "默认抄送",
+    label: emailT("fields.cc_addresses.label"),
     placeholder: "audit@example.com",
     type: "string",
   },
   {
     key: "bcc_addresses",
-    label: "默认密送",
+    label: emailT("fields.bcc_addresses.label"),
     placeholder: "archive@example.com",
     type: "string",
   },
   {
     key: "reply_to",
-    label: "默认回复地址",
+    label: emailT("fields.reply_to.label"),
     placeholder: "support@example.com",
     type: "string",
   },
   {
     key: "allow_invalid_tls",
-    label: "允许不校验证书",
-    description:
-      "仅建议在自建邮件服务器或自签名证书调试时开启，生产环境应保持关闭。",
+    label: emailT("fields.allow_invalid_tls.label"),
+    description: emailT("fields.allow_invalid_tls.description"),
     type: "boolean",
     default_value: false,
   },
   {
     key: "timeout_seconds",
-    label: "超时秒数",
+    label: emailT("fields.timeout_seconds.label"),
     type: "number",
     required: true,
     default_value: 10,
@@ -162,15 +166,14 @@ const EMAIL_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   },
   {
     key: "imap_host",
-    label: "IMAP 主机",
-    description:
-      "可选，用于保存收信配置。当前通知发送流程只使用 SMTP，不会主动读取 IMAP。",
+    label: emailT("fields.imap_host.label"),
+    description: emailT("fields.imap_host.description"),
     placeholder: "imap.example.com",
     type: "string",
   },
   {
     key: "imap_port",
-    label: "IMAP 端口",
+    label: emailT("fields.imap_port.label"),
     type: "number",
     default_value: 993,
     min: 1,
@@ -178,31 +181,31 @@ const EMAIL_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   },
   {
     key: "imap_security",
-    label: "IMAP 加密方式",
+    label: emailT("fields.imap_security.label"),
     type: "select",
     default_value: "ssl_tls",
     options: [
       { label: "SSL/TLS", value: "ssl_tls" },
       { label: "STARTTLS", value: "starttls" },
-      { label: "不加密", value: "none" },
+      { label: emailT("fields.imap_security.options.none"), value: "none" },
     ],
   },
   {
     key: "imap_username",
-    label: "IMAP 用户名",
+    label: emailT("fields.imap_username.label"),
     placeholder: "no-reply@example.com",
     type: "string",
   },
   {
     key: "imap_password",
-    label: "IMAP 密码",
+    label: emailT("fields.imap_password.label"),
     placeholder: "password",
     type: "string",
     sensitive: true,
   },
   {
     key: "imap_mailbox",
-    label: "IMAP 邮箱目录",
+    label: emailT("fields.imap_mailbox.label"),
     placeholder: "INBOX",
     type: "string",
     default_value: "INBOX",
@@ -212,43 +215,42 @@ const EMAIL_CONNECTION_SCHEMA: NotificationSchemaField[] = [
 const EMAIL_TARGET_SCHEMA: NotificationSchemaField[] = [
   {
     key: "to_addresses",
-    label: "收件人覆盖",
-    description: "可选。留空则使用提供商默认收件人。",
+    label: emailT("fields.to_addresses.targetLabel"),
+    description: emailT("fields.to_addresses.targetDescription"),
     placeholder: "team@example.com",
     type: "string",
   },
   {
     key: "cc_addresses",
-    label: "抄送覆盖",
+    label: emailT("fields.cc_addresses.targetLabel"),
     placeholder: "audit@example.com",
     type: "string",
   },
   {
     key: "bcc_addresses",
-    label: "密送覆盖",
+    label: emailT("fields.bcc_addresses.targetLabel"),
     placeholder: "archive@example.com",
     type: "string",
   },
   {
     key: "reply_to",
-    label: "回复地址覆盖",
+    label: emailT("fields.reply_to.targetLabel"),
     placeholder: "support@example.com",
     type: "string",
   },
   {
     key: "subject_prefix",
-    label: "主题前缀",
-    description: "可选，例如 [生产环境]。",
-    placeholder: "[生产环境]",
+    label: emailT("fields.subject_prefix.label"),
+    description: emailT("fields.subject_prefix.description"),
+    placeholder: emailT("fields.subject_prefix.placeholder"),
     type: "string",
   },
 ];
 
 export const emailProviderDefinition: NotificationProviderDefinition = {
   type: "email",
-  label: "邮件",
-  description:
-    "通过 SMTP 发送邮件通知，同时支持保存 IMAP 配置项以便统一管理邮箱连接信息。",
+  label: emailT("label"),
+  description: emailT("description"),
   connection_schema: EMAIL_CONNECTION_SCHEMA,
   target_schema: EMAIL_TARGET_SCHEMA,
   sensitive_fields: ["smtp_password", "imap_password"],
@@ -334,7 +336,12 @@ const parseEmailList = (value: unknown, fieldLabel: string) => {
   for (const item of items) {
     const address = extractEmailAddress(item);
     if (!EMAIL_ADDRESS_PATTERN.test(address)) {
-      throw new Error(`${fieldLabel} 中包含无效邮箱地址: ${item}`);
+      throw new Error(
+        emailT("errors.invalidEmailAddress", {
+          field: fieldLabel,
+          value: item,
+        }),
+      );
     }
     result.push(address);
   }
@@ -358,9 +365,12 @@ const buildEmailSubject = (
   message: NotificationMessage,
   subjectPrefix = "",
 ) => {
-  const title = toTrimmedString(message.title || "fn-knock 通知");
+  const title = toTrimmedString(message.title || emailT("message.fallbackTitle"));
   const prefix = toTrimmedString(subjectPrefix);
-  return [prefix, title].filter(Boolean).join(" ").trim() || "fn-knock 通知";
+  return (
+    [prefix, title].filter(Boolean).join(" ").trim() ||
+    emailT("message.fallbackTitle")
+  );
 };
 
 const buildPlainTextBody = (message: NotificationMessage) => {
@@ -379,7 +389,7 @@ const buildPlainTextBody = (message: NotificationMessage) => {
   if (message.facts.length > 0) {
     sections.push(
       [
-        "详情:",
+        emailT("message.details"),
         ...message.facts.map((fact) => `${fact.label}: ${fact.value}`),
       ].join("\n"),
     );
@@ -388,20 +398,25 @@ const buildPlainTextBody = (message: NotificationMessage) => {
   if (message.actions.length > 0) {
     sections.push(
       [
-        "操作链接:",
+        emailT("message.actionLinks"),
         ...message.actions.map((action) => `${action.label}: ${action.url}`),
       ].join("\n"),
     );
   }
 
-  const footer: string[] = [`级别: ${message.severity}`];
+  const footer: string[] = [
+    emailT("message.severity", { value: message.severity }),
+  ];
   if (message.event_id) {
-    footer.push(`事件 ID: ${message.event_id}`);
+    footer.push(emailT("message.eventId", { value: message.event_id }));
   }
-  footer.push(`发生时间: ${message.occurred_at}`);
+  footer.push(emailT("message.occurredAt", { value: message.occurred_at }));
   sections.push(footer.join("\n"));
 
-  return sections.filter(Boolean).join("\n\n").trim() || "fn-knock 通知";
+  return (
+    sections.filter(Boolean).join("\n\n").trim() ||
+    emailT("message.fallbackTitle")
+  );
 };
 
 const normalizeMessageForData = (message: string) =>
@@ -485,7 +500,7 @@ const createLineReader = (socket: Socket | TLSSocket): LineReader => {
   };
 
   const handleClose = () => {
-    rejectAll(new Error("SMTP 连接已关闭"));
+    rejectAll(new Error(emailT("errors.smtpConnectionClosed")));
   };
 
   const handleError = (error: Error) => {
@@ -509,7 +524,7 @@ const createLineReader = (socket: Socket | TLSSocket): LineReader => {
       socket.off("data", handleData);
       socket.off("close", handleClose);
       socket.off("error", handleError);
-      rejectAll(new Error("SMTP 读取器已释放"));
+      rejectAll(new Error(emailT("errors.smtpReaderDisposed")));
     },
   };
 };
@@ -529,7 +544,9 @@ const readSmtpResponse = async (reader: LineReader): Promise<SmtpResponse> => {
   const firstLine = await reader.readLine();
   const code = Number.parseInt(firstLine.slice(0, 3), 10);
   if (!Number.isFinite(code)) {
-    throw new Error(`无法解析 SMTP 响应: ${firstLine}`);
+    throw new Error(
+      emailT("errors.invalidSmtpResponse", { line: firstLine }),
+    );
   }
 
   const lines = [firstLine];
@@ -569,7 +586,7 @@ const connectSocket = async (args: {
       };
 
       socket.setTimeout(timeoutMs, () => {
-        socket.destroy(new Error("SMTP 连接超时"));
+        socket.destroy(new Error(emailT("errors.smtpConnectionTimeout")));
       });
       socket.once("secureConnect", () => {
         socket.off("error", onError);
@@ -586,7 +603,7 @@ const connectSocket = async (args: {
     };
 
     socket.setTimeout(timeoutMs, () => {
-      socket.destroy(new Error("SMTP 连接超时"));
+      socket.destroy(new Error(emailT("errors.smtpConnectionTimeout")));
     });
     socket.once("connect", () => {
       socket.off("error", onError);
@@ -616,7 +633,7 @@ const upgradeSocketToTls = async (args: {
     };
 
     secureSocket.setTimeout(timeoutMs, () => {
-      secureSocket.destroy(new Error("SMTP TLS 握手超时"));
+      secureSocket.destroy(new Error(emailT("errors.smtpTlsHandshakeTimeout")));
     });
     secureSocket.once("secureConnect", () => {
       secureSocket.off("error", onError);
@@ -636,7 +653,11 @@ const expectResponseCode = (
   }
 
   throw new SmtpCommandError(
-    `${fallbackMessage}: ${response.code} ${response.message || "未知响应"}`,
+    emailT("errors.smtpCommandFailed", {
+      message: fallbackMessage,
+      code: response.code,
+      response: response.message || emailT("errors.unknownResponse"),
+    }),
     {
       retryable: response.code >= 400 && response.code < 500,
       response,
@@ -679,13 +700,13 @@ const chooseAuthMechanism = (
   const mechanisms = extractAuthMechanisms(capabilities);
   if (authMode === "plain") {
     if (!mechanisms.includes("PLAIN")) {
-      throw new Error("SMTP 服务器不支持 AUTH PLAIN");
+      throw new Error(emailT("errors.authPlainUnsupported"));
     }
     return "PLAIN";
   }
   if (authMode === "login") {
     if (!mechanisms.includes("LOGIN")) {
-      throw new Error("SMTP 服务器不支持 AUTH LOGIN");
+      throw new Error(emailT("errors.authLoginUnsupported"));
     }
     return "LOGIN";
   }
@@ -694,7 +715,11 @@ const chooseAuthMechanism = (
   if (mechanisms.includes("LOGIN")) return "LOGIN";
   if (mechanisms.length === 0) return null;
 
-  throw new Error(`SMTP 认证方式不受支持: ${mechanisms.join(", ")}`);
+  throw new Error(
+    emailT("errors.unsupportedAuthMechanisms", {
+      mechanisms: mechanisms.join(", "),
+    }),
+  );
 };
 
 const performSmtpAuth = async (args: {
@@ -714,7 +739,7 @@ const performSmtpAuth = async (args: {
       reader: args.reader,
       command: `AUTH PLAIN ${token}`,
       expectedCodes: [235],
-      fallbackMessage: "SMTP 认证失败",
+      fallbackMessage: emailT("errors.authFailed"),
     });
     return;
   }
@@ -724,21 +749,21 @@ const performSmtpAuth = async (args: {
     reader: args.reader,
     command: "AUTH LOGIN",
     expectedCodes: [334],
-    fallbackMessage: "SMTP 认证失败",
+    fallbackMessage: emailT("errors.authFailed"),
   });
   await sendCommand({
     socket: args.socket,
     reader: args.reader,
     command: Buffer.from(args.username, "utf8").toString("base64"),
     expectedCodes: [334],
-    fallbackMessage: "SMTP 用户名认证失败",
+    fallbackMessage: emailT("errors.usernameAuthFailed"),
   });
   await sendCommand({
     socket: args.socket,
     reader: args.reader,
     command: Buffer.from(args.password, "utf8").toString("base64"),
     expectedCodes: [235],
-    fallbackMessage: "SMTP 密码认证失败",
+    fallbackMessage: emailT("errors.passwordAuthFailed"),
   });
 };
 
@@ -752,14 +777,14 @@ const sendDataBlock = async (args: {
     reader: args.reader,
     command: "DATA",
     expectedCodes: [354],
-    fallbackMessage: "SMTP DATA 阶段启动失败",
+    fallbackMessage: emailT("errors.dataStartFailed"),
   });
   await writeToSocket(
     args.socket,
     `${normalizeMessageForData(args.data)}\r\n.\r\n`,
   );
   const response = await readSmtpResponse(args.reader);
-  return expectResponseCode(response, [250], "SMTP 邮件提交失败");
+  return expectResponseCode(response, [250], emailT("errors.submitFailed"));
 };
 
 const resolveEmailTargetConfig = (
@@ -771,29 +796,29 @@ const resolveEmailTargetConfig = (
 
   const to = parseEmailList(
     targetConfig.to_addresses ?? providerConfig.to_addresses,
-    "收件人",
+    emailT("fields.to_addresses.addressLabel"),
   );
   const cc = parseEmailList(
     targetConfig.cc_addresses ?? providerConfig.cc_addresses,
-    "抄送",
+    emailT("fields.cc_addresses.addressLabel"),
   );
   const bcc = parseEmailList(
     targetConfig.bcc_addresses ?? providerConfig.bcc_addresses,
-    "密送",
+    emailT("fields.bcc_addresses.addressLabel"),
   );
   const replyTo = parseEmailList(
     targetConfig.reply_to ?? providerConfig.reply_to,
-    "回复地址",
+    emailT("fields.reply_to.addressLabel"),
   );
   const fromAddress = extractEmailAddress(
     toTrimmedString(providerConfig.from_address),
   );
 
   if (!EMAIL_ADDRESS_PATTERN.test(fromAddress)) {
-    throw new Error("发件邮箱格式不正确");
+    throw new Error(emailT("errors.invalidFromAddress"));
   }
   if (to.length === 0 && cc.length === 0 && bcc.length === 0) {
-    throw new Error("至少需要配置一个收件邮箱");
+    throw new Error(emailT("errors.recipientRequired"));
   }
 
   return {
@@ -826,7 +851,7 @@ export const sendEmailMessage = async (args: {
     return {
       success: false,
       retryable: false,
-      reason: "Missing SMTP host",
+      reason: emailT("errors.missingSmtpHost"),
     };
   }
 
@@ -878,7 +903,7 @@ export const sendEmailMessage = async (args: {
     reader = createLineReader(socket);
 
     lastResponse = await readSmtpResponse(reader);
-    expectResponseCode(lastResponse, [220], "SMTP 服务端握手失败");
+    expectResponseCode(lastResponse, [220], emailT("errors.handshakeFailed"));
 
     const ehloCommand = `EHLO ${resolveClientHostname()}`;
     lastResponse = await sendCommand({
@@ -886,7 +911,7 @@ export const sendEmailMessage = async (args: {
       reader,
       command: ehloCommand,
       expectedCodes: [250],
-      fallbackMessage: "SMTP EHLO 失败",
+      fallbackMessage: emailT("errors.ehloFailed"),
     });
 
     let capabilities = parseEhloCapabilities(lastResponse);
@@ -896,7 +921,7 @@ export const sendEmailMessage = async (args: {
         /^STARTTLS$/i.test(line),
       );
       if (!supportsStartTls) {
-        throw new Error("SMTP 服务器未声明 STARTTLS 能力");
+        throw new Error(emailT("errors.startTlsUnsupported"));
       }
 
       lastResponse = await sendCommand({
@@ -904,7 +929,7 @@ export const sendEmailMessage = async (args: {
         reader,
         command: "STARTTLS",
         expectedCodes: [220],
-        fallbackMessage: "SMTP STARTTLS 失败",
+        fallbackMessage: emailT("errors.startTlsFailed"),
       });
 
       reader.dispose();
@@ -922,7 +947,7 @@ export const sendEmailMessage = async (args: {
         reader,
         command: ehloCommand,
         expectedCodes: [250],
-        fallbackMessage: "SMTP TLS 升级后 EHLO 失败",
+        fallbackMessage: emailT("errors.ehloAfterTlsFailed"),
       });
       capabilities = parseEhloCapabilities(lastResponse);
     }
@@ -930,7 +955,7 @@ export const sendEmailMessage = async (args: {
     const authMechanism = chooseAuthMechanism(smtpAuthMode, capabilities);
     if (authMechanism) {
       if (!smtpUsername || !smtpPassword) {
-        throw new Error("SMTP 用户名和密码不能为空");
+        throw new Error(emailT("errors.credentialsRequired"));
       }
       requestSummary.auth_mechanism = authMechanism;
       await performSmtpAuth({
@@ -941,7 +966,7 @@ export const sendEmailMessage = async (args: {
         password: smtpPassword,
       });
     } else if (smtpAuthMode !== "none" && (smtpUsername || smtpPassword)) {
-      throw new Error("SMTP 服务器未提供可用的认证方式");
+      throw new Error(emailT("errors.noAuthMechanism"));
     }
 
     lastResponse = await sendCommand({
@@ -949,7 +974,7 @@ export const sendEmailMessage = async (args: {
       reader,
       command: `MAIL FROM:<${target.fromAddress}>`,
       expectedCodes: [250],
-      fallbackMessage: "SMTP 发件人设置失败",
+      fallbackMessage: emailT("errors.mailFromFailed"),
     });
 
     for (const recipient of allRecipients) {
@@ -958,7 +983,9 @@ export const sendEmailMessage = async (args: {
         reader,
         command: `RCPT TO:<${recipient}>`,
         expectedCodes: [250, 251],
-        fallbackMessage: `SMTP 收件人 ${recipient} 设置失败`,
+        fallbackMessage: emailT("errors.recipientSetFailed", {
+          recipient,
+        }),
       });
     }
 
@@ -973,7 +1000,7 @@ export const sendEmailMessage = async (args: {
       reader,
       command: "QUIT",
       expectedCodes: [221],
-      fallbackMessage: "SMTP 退出失败",
+      fallbackMessage: emailT("errors.quitFailed"),
     }).catch(() => {});
 
     reader.dispose();
@@ -994,7 +1021,7 @@ export const sendEmailMessage = async (args: {
     const smtpError = error instanceof SmtpCommandError ? error : null;
     const response = smtpError?.response || lastResponse;
     const reason =
-      error instanceof Error ? error.message : "Email delivery failed";
+      error instanceof Error ? error.message : emailT("errors.deliveryFailed");
 
     if (reader) {
       reader.dispose();

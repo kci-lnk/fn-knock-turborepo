@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, computed } from "vue";
+import { useI18n } from "vue-i18n";
 import { DDNSAPI } from "../lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -127,15 +128,22 @@ const DEFAULT_DDNS_IP_SOURCE: DDNSIpSource = "public";
 const DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES = 10;
 const MIN_DDNS_UPDATE_INTERVAL_MINUTES = 5;
 const MAX_DDNS_UPDATE_INTERVAL_MINUTES = 1440;
-const UPDATE_SCOPE_OPTIONS: Array<{ label: string; value: DDNSUpdateScope }> = [
-  { label: "IPv4 & IPv6", value: "dual_stack" },
-  { label: "仅更新 IPv6", value: "ipv6_only" },
-  { label: "仅更新 IPv4", value: "ipv4_only" },
+const UPDATE_SCOPE_OPTIONS: Array<{
+  labelKey: string;
+  value: DDNSUpdateScope;
+}> = [
+  { labelKey: "admin.ddns.updateScope.dualStack", value: "dual_stack" },
+  { labelKey: "admin.ddns.updateScope.ipv6Only", value: "ipv6_only" },
+  { labelKey: "admin.ddns.updateScope.ipv4Only", value: "ipv4_only" },
 ];
-const IP_SOURCE_OPTIONS: Array<{ label: string; value: DDNSIpSource }> = [
-  { label: "从公网获取", value: "public" },
-  { label: "从网卡直接获取", value: "interface" },
+const IP_SOURCE_OPTIONS: Array<{ labelKey: string; value: DDNSIpSource }> = [
+  { labelKey: "admin.ddns.ipSource.public", value: "public" },
+  { labelKey: "admin.ddns.ipSource.interface", value: "interface" },
 ];
+
+const { t, locale } = useI18n();
+
+const formatOptionLabel = (option: { labelKey: string }) => t(option.labelKey);
 
 const normalizeUpdateScope = (
   value: string | null | undefined,
@@ -193,7 +201,13 @@ const getUpdateScopeLabel = (value: string | null | undefined) => {
   return (
     UPDATE_SCOPE_OPTIONS.find(
       (option) => option.value === normalizeUpdateScope(value),
-    )?.label || "IPv4 & IPv6"
+    )
+      ? formatOptionLabel(
+          UPDATE_SCOPE_OPTIONS.find(
+            (option) => option.value === normalizeUpdateScope(value),
+          )!,
+        )
+      : t("admin.ddns.updateScope.dualStack")
   );
 };
 
@@ -238,8 +252,8 @@ const resolveNetworkInterfaceOptions = (
   if (selected && !resolved.some((item) => item.name === selected)) {
     resolved.push({
       name: selected,
-      label: `${selected}（当前配置，暂不可用）`,
-      summary: "当前配置中的网卡已不可用或没有可用地址",
+      label: t("admin.ddns.unavailableInterfaceLabel", { name: selected }),
+      summary: t("admin.ddns.unavailableInterfaceSummary"),
       hasIpv4: false,
       hasIpv6: false,
       addresses: [],
@@ -290,56 +304,65 @@ const pendingPrimaryConfigCollapse = ref<(() => void) | null>(null);
 const { isPending: isSaving, run: runSaveConfig } = useAsyncAction({
   rethrow: true,
   onError: (error) => {
-    toast.error("保存配置失败", {
-      description: extractErrorMessage(error, "保存配置失败"),
+    toast.error(t("admin.ddns.saveConfigFailed"), {
+      description: extractErrorMessage(error, t("admin.ddns.saveConfigFailed")),
     });
   },
 });
 const { isPending: isClearingPrimaryConfig, run: runClearPrimaryConfig } =
   useAsyncAction({
     onError: (error) => {
-      toast.error("清空主域配置失败", {
-        description: extractErrorMessage(error, "清空主域配置失败"),
+      toast.error(t("admin.ddns.clearPrimaryConfigFailed"), {
+        description: extractErrorMessage(
+          error,
+          t("admin.ddns.clearPrimaryConfigFailed"),
+        ),
       });
     },
   });
 const { isPending: isTesting, run: runTestUpdate } = useAsyncAction({
   onError: (error) => {
-    toast.error("更新失败", {
-      description: extractErrorMessage(error, "更新失败"),
+    toast.error(t("admin.ddns.updateFailed"), {
+      description: extractErrorMessage(error, t("admin.ddns.updateFailed")),
     });
   },
 });
 const { isPending: isClearingLogs, run: runClearLogs } = useAsyncAction({
   onError: () => {
-    toast.error("清空日志失败");
+    toast.error(t("admin.ddns.clearLogsFailed"));
   },
 });
 const { isPending: isTogglingEnabled, run: runToggleEnabled } = useAsyncAction({
   onError: (error) => {
-    toast.error("切换失败", {
-      description: extractErrorMessage(error, "切换失败"),
+    toast.error(t("admin.ddns.toggleFailed"), {
+      description: extractErrorMessage(error, t("admin.ddns.toggleFailed")),
     });
   },
 });
 const { isPending: isSwitchingProvider, run: runSwitchProvider } =
   useAsyncAction({
     onError: (error) => {
-      toast.error("切换提供商失败", {
-        description: extractErrorMessage(error, "切换提供商失败"),
+      toast.error(t("admin.ddns.switchProviderFailed"), {
+        description: extractErrorMessage(
+          error,
+          t("admin.ddns.switchProviderFailed"),
+        ),
       });
     },
   });
 const { run: runLoadStatus } = useAsyncAction({
   onError: (error) => {
-    console.error("loadStatus:", extractErrorMessage(error, "加载状态失败"));
+    console.error(
+      "loadStatus:",
+      extractErrorMessage(error, t("admin.ddns.loadStatusFailed")),
+    );
   },
 });
 const { run: runLoadProviders } = useAsyncAction({
   onError: (error) => {
     console.error(
       "loadProviders:",
-      extractErrorMessage(error, "加载提供商失败"),
+      extractErrorMessage(error, t("admin.ddns.loadProvidersFailed")),
     );
   },
 });
@@ -347,56 +370,68 @@ const { run: runLoadNetworkInterfaces } = useAsyncAction({
   onError: (error) => {
     console.error(
       "loadNetworkInterfaces:",
-      extractErrorMessage(error, "加载网卡列表失败"),
+      extractErrorMessage(error, t("admin.ddns.loadInterfacesFailed")),
     );
   },
 });
 const { run: runLoadConfig } = useAsyncAction({
   onError: (error) => {
-    console.error("loadConfig:", extractErrorMessage(error, "加载配置失败"));
+    console.error(
+      "loadConfig:",
+      extractErrorMessage(error, t("admin.ddns.loadConfigFailed")),
+    );
   },
 });
 const { isPending: isLoading, run: runInitialize } = useAsyncAction({
   onError: (error) => {
-    toast.error("初始化失败", {
-      description: extractErrorMessage(error, "加载 DDNS 管理页面失败"),
+    toast.error(t("admin.ddns.initFailed"), {
+      description: extractErrorMessage(error, t("admin.ddns.initLoadFailed")),
     });
   },
 });
 const { isPending: isSavingTarget, run: runSaveTarget } = useAsyncAction({
   rethrow: true,
   onError: (error) => {
-    toast.error("保存更多域失败", {
-      description: extractErrorMessage(error, "保存更多域失败"),
+    toast.error(t("admin.ddns.saveTargetFailed"), {
+      description: extractErrorMessage(error, t("admin.ddns.saveTargetFailed")),
     });
   },
 });
 const { isPending: isSavingUpdateInterval, run: runSaveUpdateInterval } =
   useAsyncAction({
     onError: (error) => {
-      toast.error("保存自动同步频率失败", {
-        description: extractErrorMessage(error, "保存自动同步频率失败"),
+      toast.error(t("admin.ddns.saveIntervalFailed"), {
+        description: extractErrorMessage(
+          error,
+          t("admin.ddns.saveIntervalFailed"),
+        ),
       });
     },
   });
 const { run: runDeleteTarget } = useAsyncAction({
   onError: (error) => {
-    toast.error("删除更多域失败", {
-      description: extractErrorMessage(error, "删除更多域失败"),
+    toast.error(t("admin.ddns.deleteTargetFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.ddns.deleteTargetFailed"),
+      ),
     });
   },
 });
 const { run: runToggleTarget } = useAsyncAction({
   onError: (error) => {
-    toast.error("切换更多域状态失败", {
-      description: extractErrorMessage(error, "切换更多域状态失败"),
+    toast.error(t("admin.ddns.toggleTargetFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.ddns.toggleTargetFailed"),
+      ),
     });
   },
 });
 const { run: runTestTarget } = useAsyncAction({
   onError: (error) => {
-    toast.error("更多域更新失败", {
-      description: extractErrorMessage(error, "更多域更新失败"),
+    toast.error(t("admin.ddns.testTargetFailed"), {
+      description: extractErrorMessage(error, t("admin.ddns.testTargetFailed")),
     });
   },
 });
@@ -464,13 +499,15 @@ const extraTargets = computed(() =>
 const hasExtraTargets = computed(() => extraTargets.value.length > 0);
 
 const targetDialogTitle = computed(() =>
-  targetDialogMode.value === "create" ? "新增域" : "编辑域",
+  targetDialogMode.value === "create"
+    ? t("admin.ddns.targetCreateTitle")
+    : t("admin.ddns.targetEditTitle"),
 );
 
 const targetDialogDescription = computed(() =>
   targetDialogMode.value === "create"
-    ? "额外加入的 DDNS 更新目标，不影响主域配置。"
-    : "修改当前额外 DDNS 条目的 provider、域名和更新策略。",
+    ? t("admin.ddns.targetCreateDescription")
+    : t("admin.ddns.targetEditDescription"),
 );
 
 const targetDialogProviderDef = computed(() =>
@@ -491,7 +528,7 @@ const targetDialogNetworkInterfaceLabel = computed(() => {
     targetDialogState.value.config[NETWORK_INTERFACE_KEY],
   );
   if (!selected) {
-    return "自动选择";
+    return t("admin.ddns.autoSelect");
   }
   return (
     targetDialogResolvedNetworkInterfaces.value.find(
@@ -538,6 +575,12 @@ const getTargetLastCheckTooltipLines = (target: DDNSTargetSummaryPayload) =>
   buildDDNSTimestampTooltipLines({
     updatedAt: target.lastIP.updated_at,
     checkedAt: target.lastCheck.checked_at,
+    locale: String(locale.value),
+    labels: {
+      lastSuccessfulUpdate: t("admin.ddns.lastSuccessfulUpdate"),
+      lastCheck: t("admin.ddns.lastCheck"),
+      never: t("admin.ddns.never"),
+    },
   });
 
 const targetDialogIPv4Options = computed(() => {
@@ -545,7 +588,11 @@ const targetDialogIPv4Options = computed(() => {
     .filter((item) => item.family === "ipv4")
     .map((item, index) => ({
       value: String(index),
-      label: `第 ${index + 1} 个 IPv4: ${item.address}`,
+      label: t("admin.ddns.addressOptionLabel", {
+        index: index + 1,
+        family: "IPv4",
+        address: item.address,
+      }),
     }));
 });
 
@@ -554,7 +601,11 @@ const targetDialogIPv6Options = computed(() => {
     .filter((item) => item.family === "ipv6")
     .map((item, index) => ({
       value: String(index),
-      label: `第 ${index + 1} 个 IPv6: ${item.address}`,
+      label: t("admin.ddns.addressOptionLabel", {
+        index: index + 1,
+        family: "IPv6",
+        address: item.address,
+      }),
     }));
 });
 
@@ -573,7 +624,11 @@ const credentialTransferDescription = computed(() => {
   const suggestion = credentialTransferSuggestion.value;
   if (!suggestion) return "";
 
-  return `发现 ${transferSourceScopeLabel.value} 中已有 ${suggestion.bridgeLabel} 凭据，可补齐 ${suggestion.fillableFields.length} 个字段。`;
+  return t("admin.ddns.credentialTransferDescription", {
+    scope: transferSourceScopeLabel.value,
+    bridge: suggestion.bridgeLabel,
+    count: suggestion.fillableFields.length,
+  });
 });
 
 const hasProviderConfig = computed(() => {
@@ -603,8 +658,11 @@ const currentIpSourceLabel = computed(() => {
     providerConfig.value[IP_SOURCE_KEY] || statusIpSource.value,
   );
   return (
-    IP_SOURCE_OPTIONS.find((option) => option.value === ipSource)?.label ||
-    "从公网获取"
+    IP_SOURCE_OPTIONS.find((option) => option.value === ipSource)
+      ? formatOptionLabel(
+          IP_SOURCE_OPTIONS.find((option) => option.value === ipSource)!,
+        )
+      : t("admin.ddns.ipSource.public")
   );
 });
 
@@ -624,8 +682,8 @@ const resolvedNetworkInterfaces = computed(() => {
   if (selected && !items.some((item) => item.name === selected)) {
     items.push({
       name: selected,
-      label: `${selected}（当前配置，暂不可用）`,
-      summary: "当前配置中的网卡已不可用或没有可用地址",
+      label: t("admin.ddns.unavailableInterfaceLabel", { name: selected }),
+      summary: t("admin.ddns.unavailableInterfaceSummary"),
       hasIpv4: false,
       hasIpv6: false,
       addresses: [],
@@ -638,7 +696,7 @@ const resolvedNetworkInterfaces = computed(() => {
 const currentNetworkInterfaceLabel = computed(() => {
   const selected = selectedNetworkInterface.value;
   if (!selected) {
-    return "自动选择";
+    return t("admin.ddns.autoSelect");
   }
   return (
     resolvedNetworkInterfaces.value.find((item) => item.name === selected)
@@ -649,7 +707,7 @@ const currentNetworkInterfaceLabel = computed(() => {
 const configuredNetworkInterfaceLabel = computed(() => {
   const selected = configuredNetworkInterface.value;
   if (!selected) {
-    return "自动选择";
+    return t("admin.ddns.autoSelect");
   }
   return (
     resolvedNetworkInterfaces.value.find((item) => item.name === selected)
@@ -692,7 +750,11 @@ const interfaceIPv4Options = computed(() => {
     .filter((item) => item.family === "ipv4")
     .map((item, index) => ({
       value: String(index),
-      label: `第 ${index + 1} 个 IPv4: ${item.address}`,
+      label: t("admin.ddns.addressOptionLabel", {
+        index: index + 1,
+        family: "IPv4",
+        address: item.address,
+      }),
     }));
 });
 
@@ -701,7 +763,11 @@ const interfaceIPv6Options = computed(() => {
     .filter((item) => item.family === "ipv6")
     .map((item, index) => ({
       value: String(index),
-      label: `第 ${index + 1} 个 IPv6: ${item.address}`,
+      label: t("admin.ddns.addressOptionLabel", {
+        index: index + 1,
+        family: "IPv6",
+        address: item.address,
+      }),
     }));
 });
 
@@ -745,19 +811,17 @@ const isSubdomainMode = computed(() =>
   isAnySubdomainRoutingMode(configStore.config),
 );
 const updateIntervalLabel = computed(
-  () => `每 ${updateIntervalMinutes.value} 分钟自动同步`,
+  () =>
+    t("admin.ddns.updateIntervalLabel", {
+      minutes: updateIntervalMinutes.value,
+    }),
 );
 
 const getFieldDescription = (field: ProviderField) => {
   const description = field.description?.trim() || "";
 
-  if (
-    isSubdomainMode.value &&
-    field.key === "domain" &&
-    field.label === "完整域名"
-  ) {
-    const wildcardHint =
-      "子域模式下可填写如 *.example.com，使用星号可设置泛解析。";
+  if (isSubdomainMode.value && field.key === "domain") {
+    const wildcardHint = t("admin.ddns.wildcardHint");
     return description ? `${description} ${wildcardHint}` : wildcardHint;
   }
 
@@ -872,7 +936,7 @@ const ddnsPolling = useTargetPolling({
   onError: (error) => {
     console.error(
       "ddns poll:",
-      extractErrorMessage(error, "轮询 DDNS 状态失败"),
+      extractErrorMessage(error, t("admin.ddns.pollStatusFailed")),
     );
   },
 });
@@ -882,7 +946,7 @@ watch(enabled, async (val) => {
   if (!enabledInitialized) return;
   await runToggleEnabled(() => DDNSAPI.toggle(val), {
     onSuccess: () => {
-      toast.success(val ? "已开启自动更新" : "已关闭自动更新");
+      toast.success(val ? t("admin.ddns.enabled") : t("admin.ddns.disabled"));
     },
     onError: () => {
       enabledInitialized = false;
@@ -918,8 +982,11 @@ function parseUpdateIntervalDraft() {
 async function saveUpdateInterval() {
   const next = parseUpdateIntervalDraft();
   if (next === null) {
-    toast.error("同步频率无效", {
-      description: `请输入 ${MIN_DDNS_UPDATE_INTERVAL_MINUTES}-${MAX_DDNS_UPDATE_INTERVAL_MINUTES} 之间的整数分钟数。`,
+    toast.error(t("admin.ddns.intervalInvalid"), {
+      description: t("admin.ddns.intervalInvalidDescription", {
+        min: MIN_DDNS_UPDATE_INTERVAL_MINUTES,
+        max: MAX_DDNS_UPDATE_INTERVAL_MINUTES,
+      }),
     });
     return;
   }
@@ -933,7 +1000,7 @@ async function saveUpdateInterval() {
         );
         updateIntervalDraft.value = String(updateIntervalMinutes.value);
         showUpdateIntervalDialog.value = false;
-        toast.success("自动同步频率已更新");
+        toast.success(t("admin.ddns.intervalSaved"));
       },
     },
   );
@@ -960,8 +1027,8 @@ function validateCommonConfig() {
   }
 
   if (!configuredNetworkInterface.value) {
-    toast.error("请先选择出站网卡", {
-      description: "从网卡直接获取时，必须明确指定一张网卡。",
+    toast.error(t("admin.ddns.chooseInterface"), {
+      description: t("admin.ddns.chooseInterfaceDescription"),
     });
     return false;
   }
@@ -970,8 +1037,8 @@ function validateCommonConfig() {
     effectiveUpdateScope.value === "ipv4_only" &&
     interfaceIPv4Options.value.length === 0
   ) {
-    toast.error("当前网卡没有可用的 IPv4 地址", {
-      description: "地址选择列表已过滤明显内网地址，请更换网卡或切换获取方式。",
+    toast.error(t("admin.ddns.noIpv4Available"), {
+      description: t("admin.ddns.addressFilteredDescription"),
     });
     return false;
   }
@@ -980,8 +1047,8 @@ function validateCommonConfig() {
     effectiveUpdateScope.value === "ipv6_only" &&
     interfaceIPv6Options.value.length === 0
   ) {
-    toast.error("当前网卡没有可用的 IPv6 地址", {
-      description: "地址选择列表已过滤明显内网地址，请更换网卡或切换获取方式。",
+    toast.error(t("admin.ddns.noIpv6Available"), {
+      description: t("admin.ddns.addressFilteredDescription"),
     });
     return false;
   }
@@ -991,8 +1058,8 @@ function validateCommonConfig() {
     interfaceIPv4Options.value.length === 0 &&
     interfaceIPv6Options.value.length === 0
   ) {
-    toast.error("当前网卡没有可用的地址", {
-      description: "地址选择列表已过滤明显内网地址，请更换网卡或切换获取方式。",
+    toast.error(t("admin.ddns.noAddressAvailable"), {
+      description: t("admin.ddns.addressFilteredDescription"),
     });
     return false;
   }
@@ -1002,9 +1069,8 @@ function validateCommonConfig() {
     interfaceIPv4Options.value.length > 0 &&
     !hasConfiguredInterfaceIPv4Selection.value
   ) {
-    toast.error("请选择 IPv4 地址", {
-      description:
-        "从网卡直接获取时，需要从过滤后的候选列表中选择一个 IPv4 地址。",
+    toast.error(t("admin.ddns.chooseIpv4"), {
+      description: t("admin.ddns.chooseIpv4Description"),
     });
     return false;
   }
@@ -1016,8 +1082,8 @@ function validateCommonConfig() {
       (option) => option.value === hasConfiguredInterfaceIPv4Selection.value,
     )
   ) {
-    toast.error("所选 IPv4 地址已不可用", {
-      description: "当前网卡的 IPv4 候选顺序已变化，请重新选择。",
+    toast.error(t("admin.ddns.ipv4Unavailable"), {
+      description: t("admin.ddns.ipv4UnavailableDescription"),
     });
     return false;
   }
@@ -1027,9 +1093,8 @@ function validateCommonConfig() {
     interfaceIPv6Options.value.length > 0 &&
     !hasConfiguredInterfaceIPv6Selection.value
   ) {
-    toast.error("请选择 IPv6 地址", {
-      description:
-        "从网卡直接获取时，需要从过滤后的候选列表中选择一个 IPv6 地址。",
+    toast.error(t("admin.ddns.chooseIpv6"), {
+      description: t("admin.ddns.chooseIpv6Description"),
     });
     return false;
   }
@@ -1041,8 +1106,8 @@ function validateCommonConfig() {
       (option) => option.value === hasConfiguredInterfaceIPv6Selection.value,
     )
   ) {
-    toast.error("所选 IPv6 地址已不可用", {
-      description: "当前网卡的 IPv6 候选顺序已变化，请重新选择。",
+    toast.error(t("admin.ddns.ipv6Unavailable"), {
+      description: t("admin.ddns.ipv6UnavailableDescription"),
     });
     return false;
   }
@@ -1089,8 +1154,8 @@ async function openEditTargetDialog(targetId: string) {
     const detail = await DDNSAPI.getTarget(targetId);
     applyTargetDetailToDialog(detail);
   } catch (error) {
-    toast.error("加载更多域失败", {
-      description: extractErrorMessage(error, "加载更多域失败"),
+    toast.error(t("admin.ddns.loadTargetFailed"), {
+      description: extractErrorMessage(error, t("admin.ddns.loadTargetFailed")),
     });
   }
 }
@@ -1115,7 +1180,7 @@ function handleTargetDialogProviderChange(value: string) {
 function validateTargetDialogConfig() {
   const provider = targetDialogState.value.provider.trim();
   if (!provider) {
-    toast.error("请选择 DDNS 提供商");
+    toast.error(t("admin.ddns.selectProvider"));
     return false;
   }
 
@@ -1128,7 +1193,11 @@ function validateTargetDialogConfig() {
       return !targetDialogState.value.config[field.key]?.toString().trim();
     });
     if (missingField) {
-      toast.error(`请填写 ${missingField.label}`);
+      toast.error(
+        t("admin.ddns.fillField", {
+          label: missingField.label,
+        }),
+      );
       return false;
     }
   }
@@ -1143,8 +1212,8 @@ function validateTargetDialogConfig() {
     config[NETWORK_INTERFACE_KEY],
   );
   if (!networkInterface) {
-    toast.error("请先选择出站网卡", {
-      description: "从网卡直接获取时，必须明确指定一张网卡。",
+    toast.error(t("admin.ddns.chooseInterface"), {
+      description: t("admin.ddns.chooseInterfaceDescription"),
     });
     return false;
   }
@@ -1153,7 +1222,7 @@ function validateTargetDialogConfig() {
     targetDialogUpdateScope.value === "ipv4_only" &&
     targetDialogIPv4Options.value.length === 0
   ) {
-    toast.error("当前网卡没有可用的 IPv4 地址");
+    toast.error(t("admin.ddns.noIpv4Available"));
     return false;
   }
 
@@ -1161,7 +1230,7 @@ function validateTargetDialogConfig() {
     targetDialogUpdateScope.value === "ipv6_only" &&
     targetDialogIPv6Options.value.length === 0
   ) {
-    toast.error("当前网卡没有可用的 IPv6 地址");
+    toast.error(t("admin.ddns.noIpv6Available"));
     return false;
   }
 
@@ -1170,7 +1239,7 @@ function validateTargetDialogConfig() {
     targetDialogIPv4Options.value.length === 0 &&
     targetDialogIPv6Options.value.length === 0
   ) {
-    toast.error("当前网卡没有可用的地址");
+    toast.error(t("admin.ddns.noAddressAvailable"));
     return false;
   }
 
@@ -1179,7 +1248,7 @@ function validateTargetDialogConfig() {
     targetDialogIPv4Options.value.length > 0 &&
     !normalizeInterfaceAddressIndex(config[INTERFACE_IPV4_INDEX_KEY])
   ) {
-    toast.error("请选择 IPv4 地址");
+    toast.error(t("admin.ddns.chooseIpv4"));
     return false;
   }
 
@@ -1188,7 +1257,7 @@ function validateTargetDialogConfig() {
     targetDialogIPv6Options.value.length > 0 &&
     !normalizeInterfaceAddressIndex(config[INTERFACE_IPV6_INDEX_KEY])
   ) {
-    toast.error("请选择 IPv6 地址");
+    toast.error(t("admin.ddns.chooseIpv6"));
     return false;
   }
 
@@ -1220,7 +1289,9 @@ async function saveTargetDialog() {
       onSuccess: async () => {
         showTargetDialog.value = false;
         toast.success(
-          targetDialogMode.value === "create" ? "更多域已创建" : "更多域已更新",
+          targetDialogMode.value === "create"
+            ? t("admin.ddns.targetCreated")
+            : t("admin.ddns.targetUpdated"),
         );
         await loadStatus();
         ddnsPolling.resetCursor();
@@ -1236,9 +1307,11 @@ async function onTestExtraTarget(target: DDNSTargetSummaryPayload) {
     async () => {
       const result = await DDNSAPI.testTarget(target.id);
       if (result.success) {
-        toast.success("更多域更新成功");
+        toast.success(t("admin.ddns.targetUpdateSuccess"));
       } else {
-        toast.error("更多域更新失败", { description: result.message });
+        toast.error(t("admin.ddns.testTargetFailed"), {
+          description: result.message,
+        });
       }
     },
     {
@@ -1261,7 +1334,9 @@ async function onToggleExtraTarget(
     },
     {
       onSuccess: async () => {
-        toast.success(enabled ? "更多域已启用" : "更多域已停用");
+        toast.success(
+          enabled ? t("admin.ddns.targetEnabled") : t("admin.ddns.targetDisabled"),
+        );
         await loadStatus();
       },
       onFinally: () => {
@@ -1279,7 +1354,7 @@ async function onDeleteExtraTarget(target: DDNSTargetSummaryPayload) {
     },
     {
       onSuccess: async () => {
-        toast.success("更多域已删除");
+        toast.success(t("admin.ddns.targetDeleted"));
         await loadStatus();
       },
       onFinally: () => {
@@ -1323,7 +1398,7 @@ async function confirmClearPrimaryConfig() {
         await loadConfig();
         ddnsPolling.resetCursor();
         void ddnsPolling.refresh();
-        toast.success("主域配置已清空");
+        toast.success(t("admin.ddns.primaryConfigCleared"));
       },
     },
   );
@@ -1338,7 +1413,10 @@ function applyCredentialTransfer() {
   }
 
   toast.success(
-    `已从 ${transferSourceScopeLabel.value} 填充 ${result.count} 个字段`,
+    t("admin.ddns.credentialsApplied", {
+      scope: transferSourceScopeLabel.value,
+      count: result.count,
+    }),
   );
 }
 
@@ -1350,11 +1428,11 @@ async function onTest() {
     }
     const result = await DDNSAPI.test();
     if (result.success) {
-      toast.success("更新成功");
+      toast.success(t("admin.ddns.updateSuccess"));
       await loadStatus();
       return;
     }
-    toast.error("更新失败", { description: result.message });
+    toast.error(t("admin.ddns.updateFailed"), { description: result.message });
   });
 }
 
@@ -1364,19 +1442,28 @@ async function onClearLogs() {
       logs.value = [];
       ddnsPolling.resetCursor();
       void ddnsPolling.refresh();
-      toast.success("日志已清空");
+      toast.success(t("admin.ddns.logsCleared"));
     },
   });
 }
 
 function formatTime(iso: string | null): string {
-  return formatDateTimeSafe(iso, { locale: "zh-CN", emptyText: "从未" });
+  return formatDateTimeSafe(iso, {
+    locale: String(locale.value),
+    emptyText: t("admin.ddns.never"),
+  });
 }
 
 const lastCheckTooltipLines = computed(() =>
   buildDDNSTimestampTooltipLines({
     updatedAt: lastIP.value.updated_at,
     checkedAt: lastCheck.value.checked_at,
+    locale: String(locale.value),
+    labels: {
+      lastSuccessfulUpdate: t("admin.ddns.lastSuccessfulUpdate"),
+      lastCheck: t("admin.ddns.lastCheck"),
+      never: t("admin.ddns.never"),
+    },
   }),
 );
 
@@ -1417,25 +1504,43 @@ async function copyIpAddress(
 ) {
   const address = value?.trim();
   if (!address) {
-    toast.error(`${versionLabel} 地址不可用`);
+    toast.error(
+      t("admin.ddns.copyUnavailable", {
+        version: versionLabel,
+      }),
+    );
     return;
   }
 
   try {
     await copyTextToClipboard(address);
-    toast.success(`${versionLabel} 地址已复制`, { description: address });
+    toast.success(
+      t("admin.ddns.copySuccess", {
+        version: versionLabel,
+      }),
+      { description: address },
+    );
   } catch (error) {
     console.error("copyIpAddress:", error);
-    toast.error(`复制 ${versionLabel} 地址失败`, {
-      description: "当前页面可能运行在受限 iframe 中，请手动复制。",
-    });
+    toast.error(
+      t("admin.ddns.copyFailed", {
+        version: versionLabel,
+      }),
+      {
+        description: t("admin.ddns.copyFailedDescription"),
+      },
+    );
   }
 }
 
 const logLines = computed(() =>
   logs.value.map((e) => {
     const tag =
-      e.level === "error" ? "[错误]" : e.level === "warn" ? "[警告]" : "[信息]";
+      e.level === "error"
+        ? t("admin.ddns.logLevelError")
+        : e.level === "warn"
+          ? t("admin.ddns.logLevelWarn")
+          : t("admin.ddns.logLevelInfo");
     return `${tag} ${formatTime(e.time)}  ${e.message}`;
   }),
 );
@@ -1461,12 +1566,12 @@ onUnmounted(() => {
   <div v-if="isInitialized && !isLoading" class="space-y-3">
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-2">
-        <h2 class="text-xl font-semibold">DDNS 管理</h2>
+        <h2 class="text-xl font-semibold">{{ t("admin.ddns.title") }}</h2>
         <DocsLinkButton :href="docsUrls.guides.ddns" />
       </div>
       <div class="flex items-center gap-3">
         <span class="text-sm text-muted-foreground">{{
-          enabled ? "已开启自动更新" : "已关闭自动更新"
+          enabled ? t("admin.ddns.enabled") : t("admin.ddns.disabled")
         }}</span>
         <Switch v-model="enabled" :disabled="isEnabledSwitchDisabled" />
       </div>
@@ -1476,11 +1581,11 @@ onUnmounted(() => {
       <CardHeader>
         <div class="flex items-center justify-between">
           <CardTitle class="text-base font-medium flex items-center gap-2">
-            运行状态
+            {{ t("admin.ddns.statusTitle") }}
             <LiveStatusBadge
               :active="enabled"
-              active-label="已启用"
-              inactive-label="已暂停"
+              :active-label="t('admin.ddns.activeLabel')"
+              :inactive-label="t('admin.ddns.pausedLabel')"
               class="mt-px"
             />
           </CardTitle>
@@ -1489,7 +1594,9 @@ onUnmounted(() => {
             v-if="enabled"
             type="button"
             class="inline-flex items-center gap-1.5 rounded-md bg-muted/50 px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            :aria-label="`设置 DDNS 自动同步频率，当前${updateIntervalLabel}`"
+            :aria-label="
+              t('admin.ddns.setIntervalAria', { label: updateIntervalLabel })
+            "
             @click="openUpdateIntervalDialog"
           >
             <Clock class="h-3.5 w-3.5" />
@@ -1516,7 +1623,7 @@ onUnmounted(() => {
                 <p
                   class="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground"
                 >
-                  IPv4地址
+                  {{ t("admin.ddns.ipv4Address") }}
                 </p>
                 <button
                   type="button"
@@ -1541,7 +1648,7 @@ onUnmounted(() => {
                 <p
                   class="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground"
                 >
-                  IPv6地址
+                  {{ t("admin.ddns.ipv6Address") }}
                 </p>
                 <button
                   type="button"
@@ -1551,7 +1658,7 @@ onUnmounted(() => {
                 >
                   <OverflowTooltipText
                     as="span"
-                    :text="lastIP.ipv6 || '未检测到地址'"
+                    :text="lastIP.ipv6 || t('admin.ddns.addressNotDetected')"
                     class="text-sm font-mono font-medium"
                   />
                 </button>
@@ -1572,12 +1679,12 @@ onUnmounted(() => {
                 <p
                   class="whitespace-nowrap text-[10px] uppercase tracking-wider font-semibold text-muted-foreground"
                 >
-                  最后检查
+                  {{ t("admin.ddns.lastCheck") }}
                 </p>
                 <p class="text-sm font-medium">
                   <HumanFriendlyTime
                     :value="lastCheck.checked_at"
-                    empty-text="从未"
+                    :empty-text="t('admin.ddns.never')"
                     :tooltip-lines="lastCheckTooltipLines"
                   />
                 </p>
@@ -1594,7 +1701,7 @@ onUnmounted(() => {
                 <p
                   class="whitespace-nowrap text-[10px] uppercase tracking-wider font-semibold text-muted-foreground"
                 >
-                  更新范围
+                  {{ t("admin.ddns.updateScopeLabel") }}
                 </p>
                 <p class="whitespace-nowrap text-sm font-medium">
                   {{ currentUpdateScopeLabel }}
@@ -1612,7 +1719,7 @@ onUnmounted(() => {
                 <p
                   class="whitespace-nowrap text-[10px] uppercase tracking-wider font-semibold text-muted-foreground"
                 >
-                  获取方式
+                  {{ t("admin.ddns.ipSourceLabel") }}
                 </p>
                 <p class="whitespace-nowrap text-sm font-medium">
                   {{ currentIpSourceLabel }}
@@ -1630,7 +1737,7 @@ onUnmounted(() => {
                 <p
                   class="whitespace-nowrap text-[10px] uppercase tracking-wider font-semibold text-muted-foreground"
                 >
-                  出站网卡
+                  {{ t("admin.ddns.outboundInterface") }}
                 </p>
                 <OverflowTooltipText
                   as="p"
@@ -1645,13 +1752,17 @@ onUnmounted(() => {
     </Card>
 
     <ConfigCollapsibleCard
-      title="主域配置"
+      :title="t('admin.ddns.mainConfigTitle')"
       :configured="hasProviderConfig"
       :ready="!isLoading"
       expanded-content-class="p-0 sm:p-0"
     >
       <template #summary>
-        主域当前提供商: {{ currentProviderDef?.label || "未配置" }}
+        {{
+          t("admin.ddns.currentProvider", {
+            provider: currentProviderDef?.label || t("admin.ddns.notConfigured"),
+          })
+        }}
       </template>
 
       <template v-if="hasSavedProviderConfig" #collapsed-actions>
@@ -1661,7 +1772,7 @@ onUnmounted(() => {
           @click="onTest"
         >
           <RefreshCw v-if="isTesting" class="w-4 h-4 mr-2 animate-spin" />
-          {{ isTesting ? "更新中..." : "立即刷新" }}
+          {{ isTesting ? t("admin.ddns.updating") : t("admin.ddns.refreshNow") }}
         </Button>
       </template>
 
@@ -1671,9 +1782,11 @@ onUnmounted(() => {
             class="p-4 sm:p-6 grid gap-2 sm:grid-cols-[200px_1fr] md:grid-cols-[240px_1fr] items-start"
           >
             <div class="space-y-1 mt-1.5">
-              <Label class="text-sm font-medium">DDNS 提供商</Label>
+              <Label class="text-sm font-medium">
+                {{ t("admin.ddns.providerLabel") }}
+              </Label>
               <p class="text-xs text-muted-foreground hidden sm:block pr-4">
-                选择您要用于解析的 DNS 服务商
+                {{ t("admin.ddns.providerHint") }}
               </p>
             </div>
             <div class="w-full max-w-md">
@@ -1685,7 +1798,7 @@ onUnmounted(() => {
                 "
               >
                 <SelectTrigger class="w-full" id="ddns-provider">
-                  <SelectValue placeholder="选择提供商" />
+                  <SelectValue :placeholder="t('admin.ddns.selectProvider')" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem
@@ -1706,10 +1819,10 @@ onUnmounted(() => {
           >
             <div class="space-y-1 mt-1.5">
               <Label for="ddns-network-interface" class="text-sm font-medium"
-                >出站网卡</Label
+                >{{ t("admin.ddns.outboundInterface") }}</Label
               >
               <p class="text-xs text-muted-foreground hidden sm:block pr-4">
-                测试更新和自动更新都会优先从这里选择的网卡发起请求
+                {{ t("admin.ddns.interfaceHint") }}
               </p>
             </div>
             <div class="w-full max-w-md space-y-2">
@@ -1732,7 +1845,7 @@ onUnmounted(() => {
                   class="w-full overflow-hidden"
                   id="ddns-network-interface"
                 >
-                  <SelectValue :placeholder="'自动选择'">
+                  <SelectValue :placeholder="t('admin.ddns.autoSelect')">
                     <span class="block min-w-0 max-w-full truncate">
                       {{ configuredNetworkInterfaceLabel }}
                     </span>
@@ -1742,7 +1855,7 @@ onUnmounted(() => {
                   class="w-[var(--reka-select-trigger-width)] max-w-[min(32rem,calc(100vw-2rem))]"
                 >
                   <SelectItem :value="NETWORK_INTERFACE_AUTO_VALUE">
-                    自动选择
+                    {{ t("admin.ddns.autoSelect") }}
                   </SelectItem>
                   <SelectItem
                     v-for="networkInterface in resolvedNetworkInterfaces"
@@ -1769,7 +1882,7 @@ onUnmounted(() => {
               </p>
 
               <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
-                测试更新和自动更新都会优先从这里选择的网卡发起请求
+                {{ t("admin.ddns.interfaceHint") }}
               </p>
             </div>
           </div>
@@ -1780,10 +1893,10 @@ onUnmounted(() => {
           >
             <div class="space-y-1 mt-1.5">
               <Label for="ddns-ip-source" class="text-sm font-medium"
-                >获取 IP 方式</Label
+                >{{ t("admin.ddns.ipSourceLabel") }}</Label
               >
               <p class="text-xs text-muted-foreground hidden sm:block pr-4">
-                可从公网探测当前出口地址，或直接使用所选网卡上的地址
+                {{ t("admin.ddns.ipSourceHint") }}
               </p>
             </div>
             <div class="w-full max-w-md space-y-2">
@@ -1807,18 +1920,17 @@ onUnmounted(() => {
                     :key="option.value"
                     :value="option.value"
                   >
-                    {{ option.label }}
+                    {{ formatOptionLabel(option) }}
                   </SelectItem>
                 </SelectContent>
               </Select>
 
               <p class="text-[11px] text-muted-foreground">
-                从网卡直接获取时，只显示看起来可直接用于 DDNS
-                的地址，并过滤明显内网地址。
+                {{ t("admin.ddns.interfaceOnlyFiltered") }}
               </p>
 
               <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
-                可从公网探测当前出口地址，或直接使用所选网卡上的地址
+                {{ t("admin.ddns.ipSourceHint") }}
               </p>
             </div>
           </div>
@@ -1829,10 +1941,10 @@ onUnmounted(() => {
           >
             <div class="space-y-1 mt-1.5">
               <Label for="ddns-update-scope" class="text-sm font-medium"
-                >更新范围</Label
+                >{{ t("admin.ddns.updateScopeLabel") }}</Label
               >
               <p class="text-xs text-muted-foreground hidden sm:block pr-4">
-                更新 IPv4、IPv6，或同时更新两者
+                {{ t("admin.ddns.updateScopeHint") }}
               </p>
             </div>
             <div class="w-full max-w-md space-y-2">
@@ -1856,13 +1968,13 @@ onUnmounted(() => {
                     :key="option.value"
                     :value="option.value"
                   >
-                    {{ option.label }}
+                    {{ formatOptionLabel(option) }}
                   </SelectItem>
                 </SelectContent>
               </Select>
 
               <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
-                更新 IPv4、IPv6，或同时更新两者
+                {{ t("admin.ddns.updateScopeHint") }}
               </p>
             </div>
           </div>
@@ -1872,9 +1984,11 @@ onUnmounted(() => {
             class="p-4 sm:p-6 grid gap-2 sm:grid-cols-[200px_1fr] md:grid-cols-[240px_1fr] items-start transition-colors hover:bg-muted/10"
           >
             <div class="space-y-1 mt-1.5">
-              <Label class="text-sm font-medium">网卡地址说明</Label>
+              <Label class="text-sm font-medium">
+                {{ t("admin.ddns.interfaceAddressHelpTitle") }}
+              </Label>
               <p class="text-xs text-muted-foreground hidden sm:block pr-4">
-                下方地址列表只展示过滤后的候选项，用于避免误选明显内网地址
+                {{ t("admin.ddns.interfaceAddressHelp") }}
               </p>
             </div>
             <div class="w-full max-w-md space-y-2">
@@ -1882,20 +1996,19 @@ onUnmounted(() => {
                 v-if="!configuredNetworkInterface"
                 class="text-sm text-muted-foreground"
               >
-                请先在上方明确选择一张出站网卡。
+                {{ t("admin.ddns.chooseInterfaceFirst") }}
               </p>
               <template v-else>
                 <p class="text-[11px] leading-5 text-muted-foreground">
-                  当前按顺序保存“第几个 IPv4 /
-                  IPv6”。如果更换网卡，会自动清空已选地址。
+                  {{ t("admin.ddns.addressOrderHelp") }}
                 </p>
                 <p class="text-[11px] leading-5 text-muted-foreground">
-                  已过滤明显内网地址；如果列表为空，请更换网卡或改用从公网获取。
+                  {{ t("admin.ddns.filteredAddressHelp") }}
                 </p>
               </template>
 
               <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
-                下方地址列表只展示过滤后的候选项，用于避免误选明显内网地址
+                {{ t("admin.ddns.interfaceAddressHelp") }}
               </p>
             </div>
           </div>
@@ -1906,10 +2019,10 @@ onUnmounted(() => {
           >
             <div class="space-y-1 mt-1.5">
               <Label for="ddns-interface-ipv4" class="text-sm font-medium"
-                >选择 IPv4 地址</Label
+                >{{ t("admin.ddns.selectIpv4Label") }}</Label
               >
               <p class="text-xs text-muted-foreground hidden sm:block pr-4">
-                将把所选网卡上的这个 IPv4 地址写入 DDNS
+                {{ t("admin.ddns.selectIpv4Hint") }}
               </p>
             </div>
             <div class="w-full max-w-md space-y-2">
@@ -1930,7 +2043,9 @@ onUnmounted(() => {
                 "
               >
                 <SelectTrigger class="w-full" id="ddns-interface-ipv4">
-                  <SelectValue placeholder="选择一个 IPv4 地址" />
+                  <SelectValue
+                    :placeholder="t('admin.ddns.selectIpv4Placeholder')"
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem
@@ -1944,13 +2059,13 @@ onUnmounted(() => {
                     v-if="interfaceIPv4Options.length === 0"
                     class="px-2 py-1.5 text-sm text-muted-foreground"
                   >
-                    没有可选的 IPv4 地址
+                    {{ t("admin.ddns.noIpv4Address") }}
                   </div>
                 </SelectContent>
               </Select>
 
               <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
-                将把所选网卡上的这个 IPv4 地址写入 DDNS
+                {{ t("admin.ddns.selectIpv4Hint") }}
               </p>
             </div>
           </div>
@@ -1961,10 +2076,10 @@ onUnmounted(() => {
           >
             <div class="space-y-1 mt-1.5">
               <Label for="ddns-interface-ipv6" class="text-sm font-medium"
-                >选择 IPv6 地址</Label
+                >{{ t("admin.ddns.selectIpv6Label") }}</Label
               >
               <p class="text-xs text-muted-foreground hidden sm:block pr-4">
-                将把所选网卡上的这个 IPv6 地址写入 DDNS
+                {{ t("admin.ddns.selectIpv6Hint") }}
               </p>
             </div>
             <div class="w-full max-w-md space-y-2">
@@ -1985,7 +2100,9 @@ onUnmounted(() => {
                 "
               >
                 <SelectTrigger class="w-full" id="ddns-interface-ipv6">
-                  <SelectValue placeholder="选择一个 IPv6 地址" />
+                  <SelectValue
+                    :placeholder="t('admin.ddns.selectIpv6Placeholder')"
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem
@@ -1999,13 +2116,13 @@ onUnmounted(() => {
                     v-if="interfaceIPv6Options.length === 0"
                     class="px-2 py-1.5 text-sm text-muted-foreground"
                   >
-                    没有可选的 IPv6 地址
+                    {{ t("admin.ddns.noIpv6Address") }}
                   </div>
                 </SelectContent>
               </Select>
 
               <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
-                将把所选网卡上的这个 IPv6 地址写入 DDNS
+                {{ t("admin.ddns.selectIpv6Hint") }}
               </p>
             </div>
           </div>
@@ -2016,15 +2133,21 @@ onUnmounted(() => {
               class="p-4 sm:p-6 grid gap-2 sm:grid-cols-[200px_1fr] md:grid-cols-[240px_1fr] items-start transition-colors hover:bg-muted/10"
             >
               <div class="space-y-1 mt-1.5">
-                <Label class="text-sm font-medium">可复用凭据</Label>
+                <Label class="text-sm font-medium">
+                  {{ t("admin.ddns.credentialReuse") }}
+                </Label>
                 <p class="text-xs text-muted-foreground hidden sm:block pr-4">
-                  检测到另一处已有同供应商凭据，可一键补齐当前为空的字段
+                  {{ t("admin.ddns.credentialReuseHint") }}
                 </p>
               </div>
 
               <div class="w-full max-w-2xl space-y-2">
                 <CredentialTransferHint
-                  :action-label="`从 ${transferSourceScopeLabel} 填充`"
+                  :action-label="
+                    t('admin.ddns.credentialFillAction', {
+                      scope: transferSourceScopeLabel,
+                    })
+                  "
                   :description="credentialTransferDescription"
                   :fields="
                     credentialTransferSuggestion.fillableFields.map(
@@ -2037,7 +2160,7 @@ onUnmounted(() => {
                 />
 
                 <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
-                  检测到另一处已有同供应商凭据，可一键补齐当前为空的字段
+                  {{ t("admin.ddns.credentialReuseHint") }}
                 </p>
               </div>
             </div>
@@ -2146,7 +2269,9 @@ onUnmounted(() => {
         <div
           class="p-4 sm:px-6 sm:py-4 bg-muted/30 border-t flex items-center justify-end gap-3 rounded-b-lg"
         >
-          <Button variant="outline" @click="collapse">折叠</Button>
+          <Button variant="outline" @click="collapse">
+            {{ t("admin.ddns.collapse") }}
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger as-child>
               <Button
@@ -2158,7 +2283,7 @@ onUnmounted(() => {
                   !hasSavedProviderConfig
                 "
               >
-                <span>操作</span>
+                <span>{{ t("admin.ddns.actions") }}</span>
                 <ChevronDown class="h-4 w-4 text-muted-foreground" />
               </Button>
             </DropdownMenuTrigger>
@@ -2169,7 +2294,7 @@ onUnmounted(() => {
                 @click="openClearPrimaryConfigDialog(collapse)"
               >
                 <Trash2 class="mr-2 h-4 w-4" />
-                清空主域配置
+                {{ t("admin.ddns.clearPrimaryConfig") }}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -2179,7 +2304,9 @@ onUnmounted(() => {
             class="min-w-[100px] shadow-sm"
           >
             <RefreshCw v-if="isTesting" class="w-4 h-4 mr-2 animate-spin" />
-            {{ isTesting ? "更新中..." : "保存并更新" }}
+            {{
+              isTesting ? t("admin.ddns.updating") : t("admin.ddns.saveAndUpdate")
+            }}
           </Button>
         </div>
       </template>
@@ -2191,14 +2318,16 @@ onUnmounted(() => {
           class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
         >
           <div class="space-y-1">
-            <CardTitle class="text-base">更多域</CardTitle>
+            <CardTitle class="text-base">
+              {{ t("admin.ddns.extraDomainsTitle") }}
+            </CardTitle>
             <p class="text-sm text-muted-foreground">
-              额外加入的 DDNS 更新目标，不影响主域配置。
+              {{ t("admin.ddns.extraDomainsDescription") }}
             </p>
           </div>
           <Button size="sm" @click="openCreateTargetDialog">
             <Plus class="mr-1.5 h-4 w-4" />
-            新增域
+            {{ t("admin.ddns.addDomain") }}
           </Button>
         </div>
       </CardHeader>
@@ -2207,7 +2336,7 @@ onUnmounted(() => {
           v-if="!hasExtraTargets"
           class="rounded-xl border border-dashed px-4 py-6 text-sm text-muted-foreground"
         >
-          暂无更多域。新增后可让主域和额外域一起参与自动更新。
+          {{ t("admin.ddns.extraDomainsEmpty") }}
         </div>
 
         <div v-else class="space-y-3">
@@ -2226,8 +2355,8 @@ onUnmounted(() => {
                   </p>
                   <LiveStatusBadge
                     :active="target.enabled"
-                    active-label="已启用"
-                    inactive-label="已停用"
+                    :active-label="t('admin.ddns.activeLabel')"
+                    :inactive-label="t('admin.ddns.stoppedLabel')"
                   />
                 </div>
                 <p
@@ -2255,7 +2384,7 @@ onUnmounted(() => {
                   <p
                     class="text-[10px] uppercase tracking-wider text-muted-foreground"
                   >
-                    IPv4地址
+                    {{ t("admin.ddns.ipv4Address") }}
                   </p>
                   <button
                     type="button"
@@ -2273,7 +2402,7 @@ onUnmounted(() => {
                   <p
                     class="text-[10px] uppercase tracking-wider text-muted-foreground"
                   >
-                    IPv6地址
+                    {{ t("admin.ddns.ipv6Address") }}
                   </p>
                   <button
                     type="button"
@@ -2283,7 +2412,9 @@ onUnmounted(() => {
                   >
                     <OverflowTooltipText
                       as="span"
-                      :text="target.lastIP.ipv6 || '未检测到地址'"
+                      :text="
+                        target.lastIP.ipv6 || t('admin.ddns.addressNotDetected')
+                      "
                       class="text-sm font-mono font-medium"
                     />
                   </button>
@@ -2292,12 +2423,12 @@ onUnmounted(() => {
                   <p
                     class="text-[10px] uppercase tracking-wider text-muted-foreground"
                   >
-                    最后检查
+                    {{ t("admin.ddns.lastCheck") }}
                   </p>
                   <div class="mt-1 text-sm">
                     <HumanFriendlyTime
                       :value="target.lastCheck.checked_at"
-                      empty-text="从未"
+                      :empty-text="t('admin.ddns.never')"
                       :tooltip-lines="getTargetLastCheckTooltipLines(target)"
                     />
                   </div>
@@ -2312,7 +2443,7 @@ onUnmounted(() => {
                 :disabled="isSavingTarget"
                 @click="openEditTargetDialog(target.id)"
               >
-                编辑
+                {{ t("admin.ddns.edit") }}
               </Button>
               <Button
                 variant="outline"
@@ -2324,7 +2455,11 @@ onUnmounted(() => {
                   v-if="testingTargetId === target.id"
                   class="mr-1.5 h-3.5 w-3.5 animate-spin"
                 />
-                {{ testingTargetId === target.id ? "更新中..." : "立即更新" }}
+                {{
+                  testingTargetId === target.id
+                    ? t("admin.ddns.updating")
+                    : t("admin.ddns.updateNow")
+                }}
               </Button>
               <Button
                 variant="outline"
@@ -2332,11 +2467,15 @@ onUnmounted(() => {
                 :disabled="togglingTargetId === target.id"
                 @click="onToggleExtraTarget(target, !target.enabled)"
               >
-                {{ target.enabled ? "停用" : "启用" }}
+                {{ target.enabled ? t("admin.ddns.stop") : t("admin.ddns.start") }}
               </Button>
               <ConfirmDangerPopover
-                title="确认删除更多域？"
-                :description="`删除后将不再自动更新 ${getTargetDisplayName(target)}，且该条目的运行状态会一并移除。`"
+                :title="t('admin.ddns.deleteExtraTitle')"
+                :description="
+                  t('admin.ddns.deleteExtraDescription', {
+                    name: getTargetDisplayName(target),
+                  })
+                "
                 :loading="deletingTargetId === target.id"
                 :disabled="deletingTargetId === target.id"
                 :on-confirm="() => onDeleteExtraTarget(target)"
@@ -2350,7 +2489,11 @@ onUnmounted(() => {
                     class="text-destructive hover:text-destructive"
                   >
                     <Trash2 class="mr-1.5 h-3.5 w-3.5" />
-                    {{ deletingTargetId === target.id ? "删除中..." : "删除" }}
+                    {{
+                      deletingTargetId === target.id
+                        ? t("admin.ddns.deleting")
+                        : t("admin.ddns.delete")
+                    }}
                   </Button>
                 </template>
               </ConfirmDangerPopover>
@@ -2363,7 +2506,7 @@ onUnmounted(() => {
     <Card class="gap-2">
       <CardHeader>
         <div class="flex items-center justify-between">
-          <CardTitle class="text-base">日志</CardTitle>
+          <CardTitle class="text-base">{{ t("admin.ddns.logsTitle") }}</CardTitle>
           <div class="flex gap-2">
             <Button
               variant="outline"
@@ -2372,7 +2515,7 @@ onUnmounted(() => {
               @click="onClearLogs"
             >
               <Trash2 class="h-3.5 w-3.5 mr-1" />
-              清空
+              {{ t("admin.ddns.clear") }}
             </Button>
           </div>
         </div>
@@ -2401,9 +2544,11 @@ onUnmounted(() => {
             class="p-4 sm:p-5 grid gap-3 sm:grid-cols-[180px_1fr] md:grid-cols-[220px_1fr] items-start transition-colors hover:bg-muted/10"
           >
             <div class="space-y-1 sm:mt-1.5">
-              <Label class="text-sm font-medium">启用状态</Label>
+              <Label class="text-sm font-medium">
+                {{ t("admin.ddns.targetEnabledLabel") }}
+              </Label>
               <p class="text-xs text-muted-foreground hidden sm:block pr-4">
-                关闭则不再自动更新。
+                {{ t("admin.ddns.targetEnabledHint") }}
               </p>
             </div>
             <div class="w-full max-w-md space-y-2 sm:justify-self-end">
@@ -2412,11 +2557,15 @@ onUnmounted(() => {
               >
                 <Switch v-model="targetDialogState.enabled" />
                 <span class="text-sm text-muted-foreground">
-                  {{ targetDialogState.enabled ? "已启用" : "已停用" }}
+                  {{
+                    targetDialogState.enabled
+                      ? t("admin.ddns.activeLabel")
+                      : t("admin.ddns.stoppedLabel")
+                  }}
                 </span>
               </div>
               <p class="text-[11px] text-muted-foreground sm:hidden">
-                关闭则不再自动更新。
+                {{ t("admin.ddns.targetEnabledHint") }}
               </p>
             </div>
           </div>
@@ -2426,20 +2575,20 @@ onUnmounted(() => {
           >
             <div class="space-y-1 mt-1.5">
               <Label for="ddns-target-name" class="text-sm font-medium">
-                名称
+                {{ t("admin.ddns.name") }}
               </Label>
               <p class="text-xs text-muted-foreground hidden sm:block pr-4">
-                可选，仅用于区分这个额外 DDNS 条目，例如 NAS、备用入口。
+                {{ t("admin.ddns.targetNameHint") }}
               </p>
             </div>
             <div class="w-full max-w-md space-y-2">
               <Input
                 id="ddns-target-name"
                 v-model="targetDialogState.name"
-                placeholder="例如：NAS、备用入口"
+                :placeholder="t('admin.ddns.targetNamePlaceholder')"
               />
               <p class="text-[11px] text-muted-foreground sm:hidden">
-                可选，仅用于区分这个额外 DDNS 条目，例如 NAS、备用入口。
+                {{ t("admin.ddns.targetNameHint") }}
               </p>
             </div>
           </div>
@@ -2449,10 +2598,10 @@ onUnmounted(() => {
           >
             <div class="space-y-1 mt-1.5">
               <Label for="ddns-target-provider" class="text-sm font-medium">
-                DDNS 提供商
+                {{ t("admin.ddns.providerLabel") }}
               </Label>
               <p class="text-xs text-muted-foreground hidden sm:block pr-4">
-                每个额外域都可以使用独立的配置项。
+                {{ t("admin.ddns.targetProviderHint") }}
               </p>
             </div>
             <div class="w-full max-w-md space-y-2">
@@ -2464,7 +2613,7 @@ onUnmounted(() => {
                 "
               >
                 <SelectTrigger id="ddns-target-provider">
-                  <SelectValue placeholder="选择提供商" />
+                  <SelectValue :placeholder="t('admin.ddns.selectProvider')" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem
@@ -2477,7 +2626,7 @@ onUnmounted(() => {
                 </SelectContent>
               </Select>
               <p class="text-[11px] text-muted-foreground sm:hidden">
-                每个额外域都可以使用独立的配置项。
+                {{ t("admin.ddns.targetProviderHint") }}
               </p>
             </div>
           </div>
@@ -2491,10 +2640,10 @@ onUnmounted(() => {
                   for="ddns-target-update-scope"
                   class="text-sm font-medium"
                 >
-                  更新范围
+                  {{ t("admin.ddns.updateScopeLabel") }}
                 </Label>
                 <p class="text-xs text-muted-foreground hidden sm:block pr-4">
-                  更新 IPv4、IPv6，或同时更新两者。
+                  {{ t("admin.ddns.updateScopeHint") }}
                 </p>
               </div>
               <div class="w-full max-w-md space-y-2">
@@ -2518,12 +2667,12 @@ onUnmounted(() => {
                       :key="option.value"
                       :value="option.value"
                     >
-                      {{ option.label }}
+                      {{ formatOptionLabel(option) }}
                     </SelectItem>
                   </SelectContent>
                 </Select>
                 <p class="text-[11px] text-muted-foreground sm:hidden">
-                  更新 IPv4、IPv6，或同时更新两者。
+                  {{ t("admin.ddns.updateScopeHint") }}
                 </p>
               </div>
             </div>
@@ -2533,10 +2682,10 @@ onUnmounted(() => {
             >
               <div class="space-y-1 mt-1.5">
                 <Label for="ddns-target-ip-source" class="text-sm font-medium">
-                  获取 IP 方式
+                  {{ t("admin.ddns.ipSourceLabel") }}
                 </Label>
                 <p class="text-xs text-muted-foreground hidden sm:block pr-4">
-                  可从公网探测当前出口地址，或直接使用所选网卡上的地址。
+                  {{ t("admin.ddns.ipSourceHint") }}
                 </p>
               </div>
               <div class="w-full max-w-md space-y-2">
@@ -2560,13 +2709,12 @@ onUnmounted(() => {
                       :key="option.value"
                       :value="option.value"
                     >
-                      {{ option.label }}
+                      {{ formatOptionLabel(option) }}
                     </SelectItem>
                   </SelectContent>
                 </Select>
                 <p class="text-[11px] text-muted-foreground">
-                  从网卡直接获取时，只显示看起来可直接用于 DDNS
-                  的地址，并过滤明显内网地址。
+                  {{ t("admin.ddns.interfaceOnlyFiltered") }}
                 </p>
               </div>
             </div>
@@ -2579,10 +2727,10 @@ onUnmounted(() => {
                   for="ddns-target-network-interface"
                   class="text-sm font-medium"
                 >
-                  出站网卡
+                  {{ t("admin.ddns.outboundInterface") }}
                 </Label>
                 <p class="text-xs text-muted-foreground hidden sm:block pr-4">
-                  测试更新和自动更新都会优先从这里选择的网卡发起请求。
+                  {{ t("admin.ddns.interfaceHint") }}
                 </p>
               </div>
               <div class="w-full max-w-md space-y-2">
@@ -2602,7 +2750,7 @@ onUnmounted(() => {
                   "
                 >
                   <SelectTrigger id="ddns-target-network-interface">
-                    <SelectValue :placeholder="'自动选择'">
+                    <SelectValue :placeholder="t('admin.ddns.autoSelect')">
                       <span class="block min-w-0 max-w-full truncate">
                         {{ targetDialogNetworkInterfaceLabel }}
                       </span>
@@ -2612,7 +2760,7 @@ onUnmounted(() => {
                     class="w-[var(--reka-select-trigger-width)] max-w-[min(32rem,calc(100vw-2rem))]"
                   >
                     <SelectItem :value="NETWORK_INTERFACE_AUTO_VALUE">
-                      自动选择
+                      {{ t("admin.ddns.autoSelect") }}
                     </SelectItem>
                     <SelectItem
                       v-for="networkInterface in targetDialogResolvedNetworkInterfaces"
@@ -2631,7 +2779,7 @@ onUnmounted(() => {
                   </SelectContent>
                 </Select>
                 <p class="text-[11px] text-muted-foreground sm:hidden">
-                  测试更新和自动更新都会优先从这里选择的网卡发起请求。
+                  {{ t("admin.ddns.interfaceHint") }}
                 </p>
               </div>
             </div>
@@ -2641,20 +2789,21 @@ onUnmounted(() => {
               class="p-4 sm:p-5 grid gap-2 sm:grid-cols-[180px_1fr] md:grid-cols-[220px_1fr] items-start transition-colors hover:bg-muted/10"
             >
               <div class="space-y-1 mt-1.5">
-                <Label class="text-sm font-medium">网卡地址说明</Label>
+                <Label class="text-sm font-medium">
+                  {{ t("admin.ddns.interfaceAddressHelpTitle") }}
+                </Label>
                 <p class="text-xs text-muted-foreground hidden sm:block pr-4">
-                  下方地址列表只展示过滤后的候选项，用于避免误选明显内网地址。
+                  {{ t("admin.ddns.interfaceAddressHelp") }}
                 </p>
               </div>
               <div
                 class="w-full max-w-md space-y-2 text-[11px] leading-5 text-muted-foreground"
               >
                 <p>
-                  当前按顺序保存“第几个 IPv4 /
-                  IPv6”。如果更换网卡，会自动清空已选地址。
+                  {{ t("admin.ddns.addressOrderHelp") }}
                 </p>
                 <p>
-                  已过滤明显内网地址；如果列表为空，请更换网卡或改用从公网获取。
+                  {{ t("admin.ddns.filteredAddressHelp") }}
                 </p>
               </div>
             </div>
@@ -2668,10 +2817,10 @@ onUnmounted(() => {
             >
               <div class="space-y-1 mt-1.5">
                 <Label for="ddns-target-ipv4" class="text-sm font-medium">
-                  选择 IPv4 地址
+                  {{ t("admin.ddns.selectIpv4Label") }}
                 </Label>
                 <p class="text-xs text-muted-foreground hidden sm:block pr-4">
-                  将把所选网卡上的这个 IPv4 地址写入 DDNS。
+                  {{ t("admin.ddns.selectIpv4Hint") }}
                 </p>
               </div>
               <div class="w-full max-w-md space-y-2">
@@ -2689,7 +2838,9 @@ onUnmounted(() => {
                   "
                 >
                   <SelectTrigger id="ddns-target-ipv4">
-                    <SelectValue placeholder="选择一个 IPv4 地址" />
+                    <SelectValue
+                      :placeholder="t('admin.ddns.selectIpv4Placeholder')"
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem
@@ -2702,7 +2853,7 @@ onUnmounted(() => {
                   </SelectContent>
                 </Select>
                 <p class="text-[11px] text-muted-foreground sm:hidden">
-                  将把所选网卡上的这个 IPv4 地址写入 DDNS。
+                  {{ t("admin.ddns.selectIpv4Hint") }}
                 </p>
               </div>
             </div>
@@ -2716,10 +2867,10 @@ onUnmounted(() => {
             >
               <div class="space-y-1 mt-1.5">
                 <Label for="ddns-target-ipv6" class="text-sm font-medium">
-                  选择 IPv6 地址
+                  {{ t("admin.ddns.selectIpv6Label") }}
                 </Label>
                 <p class="text-xs text-muted-foreground hidden sm:block pr-4">
-                  将把所选网卡上的这个 IPv6 地址写入 DDNS。
+                  {{ t("admin.ddns.selectIpv6Hint") }}
                 </p>
               </div>
               <div class="w-full max-w-md space-y-2">
@@ -2737,7 +2888,9 @@ onUnmounted(() => {
                   "
                 >
                   <SelectTrigger id="ddns-target-ipv6">
-                    <SelectValue placeholder="选择一个 IPv6 地址" />
+                    <SelectValue
+                      :placeholder="t('admin.ddns.selectIpv6Placeholder')"
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem
@@ -2750,7 +2903,7 @@ onUnmounted(() => {
                   </SelectContent>
                 </Select>
                 <p class="text-[11px] text-muted-foreground sm:hidden">
-                  将把所选网卡上的这个 IPv6 地址写入 DDNS。
+                  {{ t("admin.ddns.selectIpv6Hint") }}
                 </p>
               </div>
             </div>
@@ -2861,14 +3014,14 @@ onUnmounted(() => {
             :disabled="isSavingTarget"
             @click="showTargetDialog = false"
           >
-            取消
+            {{ t("common.cancel") }}
           </Button>
           <Button :disabled="isSavingTarget" @click="saveTargetDialog">
             <RefreshCw
               v-if="isSavingTarget"
               class="mr-1.5 h-4 w-4 animate-spin"
             />
-            {{ isSavingTarget ? "保存中..." : "保存" }}
+            {{ isSavingTarget ? t("admin.ddns.saving") : t("common.save") }}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -2880,14 +3033,16 @@ onUnmounted(() => {
     >
       <DialogContent class="sm:max-w-[420px]">
         <DialogHeader>
-          <DialogTitle>自动同步频率</DialogTitle>
+          <DialogTitle>{{ t("admin.ddns.intervalDialogTitle") }}</DialogTitle>
           <DialogDescription>
-            设置 DDNS 自动检查并同步解析记录的间隔时间。
+            {{ t("admin.ddns.intervalDialogDescription") }}
           </DialogDescription>
         </DialogHeader>
 
         <div class="grid gap-2 py-2">
-          <Label for="ddns-update-interval">间隔分钟数</Label>
+          <Label for="ddns-update-interval">
+            {{ t("admin.ddns.intervalMinutes") }}
+          </Label>
           <div class="relative">
             <Input
               id="ddns-update-interval"
@@ -2903,14 +3058,16 @@ onUnmounted(() => {
             <span
               class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground"
             >
-              分钟
+              {{ t("admin.ddns.minutes") }}
             </span>
           </div>
           <p class="text-xs text-muted-foreground">
-            可设置为 {{ MIN_DDNS_UPDATE_INTERVAL_MINUTES }}-{{
-              MAX_DDNS_UPDATE_INTERVAL_MINUTES
+            {{
+              t("admin.ddns.intervalHelp", {
+                min: MIN_DDNS_UPDATE_INTERVAL_MINUTES,
+                max: MAX_DDNS_UPDATE_INTERVAL_MINUTES,
+              })
             }}
-            分钟，保存后从下一轮自动同步开始生效。
           </p>
         </div>
 
@@ -2920,7 +3077,7 @@ onUnmounted(() => {
             :disabled="isSavingUpdateInterval"
             @click="showUpdateIntervalDialog = false"
           >
-            取消
+            {{ t("common.cancel") }}
           </Button>
           <Button
             :disabled="isSavingUpdateInterval"
@@ -2930,7 +3087,9 @@ onUnmounted(() => {
               v-if="isSavingUpdateInterval"
               class="mr-1.5 h-4 w-4 animate-spin"
             />
-            {{ isSavingUpdateInterval ? "保存中..." : "保存" }}
+            {{
+              isSavingUpdateInterval ? t("admin.ddns.saving") : t("common.save")
+            }}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -2942,9 +3101,9 @@ onUnmounted(() => {
     >
       <DialogContent class="sm:max-w-[420px]">
         <DialogHeader>
-          <DialogTitle>清空主域配置？</DialogTitle>
+          <DialogTitle>{{ t("admin.ddns.clearPrimaryTitle") }}</DialogTitle>
           <DialogDescription>
-            清空后当前主域的 DDNS 提供商配置会立即置空，自动更新将无法继续使用该主域配置，直到重新填写并保存。
+            {{ t("admin.ddns.clearPrimaryDescription") }}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -2953,7 +3112,7 @@ onUnmounted(() => {
             :disabled="isClearingPrimaryConfig"
             @click="showClearPrimaryConfigDialog = false"
           >
-            取消
+            {{ t("common.cancel") }}
           </Button>
           <Button
             variant="destructive"
@@ -2964,7 +3123,11 @@ onUnmounted(() => {
               v-if="isClearingPrimaryConfig"
               class="mr-2 h-4 w-4 animate-spin"
             />
-            {{ isClearingPrimaryConfig ? "清空中..." : "确认清空" }}
+            {{
+              isClearingPrimaryConfig
+                ? t("admin.ddns.clearing")
+                : t("admin.ddns.confirmClear")
+            }}
           </Button>
         </DialogFooter>
       </DialogContent>

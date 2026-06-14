@@ -12,6 +12,12 @@ import {
 import { configManager } from "../lib/redis";
 import { routeDoc, withRouteDoc } from "../lib/openapi";
 import { isWhitelistExemptIp, normalizeIp } from "../lib/ip-normalize";
+import { createRequestTranslator } from "../lib/i18n";
+
+const getGatewayLogsRouteTranslator = async (request: Request) => {
+  const config = await configManager.getConfig();
+  return createRequestTranslator(request, config.locale);
+};
 
 const toFailure = (
   set: { status?: number | string },
@@ -253,7 +259,8 @@ export const gatewayLogsRoutes = new Elysia({
   )
   .post(
     "/config",
-    async ({ body, set }) => {
+    async ({ body, set, request }) => {
+      const { t } = await getGatewayLogsRouteTranslator(request);
       const settings = await configManager.updateGatewayLoggingConfig({
         enabled: body.enabled,
         max_days: body.max_days,
@@ -265,7 +272,7 @@ export const gatewayLogsRoutes = new Elysia({
       } catch (error: any) {
         return toFailure(
           set,
-          error?.message || "请求日志设置已保存，但同步到网关失败",
+          error?.message || t("server.gatewayLogs.configSyncFailed"),
         );
       }
     },
@@ -278,10 +285,14 @@ export const gatewayLogsRoutes = new Elysia({
   )
   .get(
     "/directory",
-    async ({ set }) => {
+    async ({ set, request }) => {
+      const { t } = await getGatewayLogsRouteTranslator(request);
       const response = await goBackend.getGatewayLoggingDirectory();
       if (!response.success || !response.data) {
-        return toFailure(set, response.message || "读取日志目录失败");
+        return toFailure(
+          set,
+          response.message || t("server.gatewayLogs.readDirectoryFailed"),
+        );
       }
       return { success: true, data: response.data };
     },
@@ -289,10 +300,14 @@ export const gatewayLogsRoutes = new Elysia({
   )
   .get(
     "/dates",
-    async ({ set }) => {
+    async ({ set, request }) => {
+      const { t } = await getGatewayLogsRouteTranslator(request);
       const response = await goBackend.getGatewayLogDates();
       if (!response.success || !response.data) {
-        return toFailure(set, response.message || "读取日志日期失败");
+        return toFailure(
+          set,
+          response.message || t("server.gatewayLogs.readDatesFailed"),
+        );
       }
       return { success: true, data: response.data };
     },
@@ -300,13 +315,18 @@ export const gatewayLogsRoutes = new Elysia({
   )
   .get(
     "/entries",
-    async ({ query, set }) => {
+    async ({ query, set, request }) => {
+      const { t } = await getGatewayLogsRouteTranslator(request);
       const wafStatus = normalizeWAFStatusFilter(query.waf_status);
       const response = wafStatus
         ? await getGatewayLogEntriesWithWAFFilter(query, wafStatus)
         : await goBackend.getGatewayLogEntries(query);
       if (!response.success || !response.data) {
-        return toFailure(set, response.message || "读取请求日志失败", 400);
+        return toFailure(
+          set,
+          response.message || t("server.gatewayLogs.readEntriesFailed"),
+          400,
+        );
       }
       return {
         success: true,
@@ -329,10 +349,15 @@ export const gatewayLogsRoutes = new Elysia({
   )
   .delete(
     "/entries",
-    async ({ body, set }) => {
+    async ({ body, set, request }) => {
+      const { t } = await getGatewayLogsRouteTranslator(request);
       const response = await goBackend.deleteGatewayLogEntries(body.date);
       if (!response.success || !response.data) {
-        return toFailure(set, response.message || "删除请求日志失败", 400);
+        return toFailure(
+          set,
+          response.message || t("server.gatewayLogs.deleteEntriesFailed"),
+          400,
+        );
       }
       return { success: true, data: response.data };
     },

@@ -5,7 +5,12 @@
         type="button"
         class="inline-flex min-h-6 max-w-full flex-wrap items-center gap-x-2 gap-y-1 px-1.5 text-left text-xs leading-none transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         :class="{ 'border-primary/30 bg-primary/5': open || dialogOpen }"
-        :aria-label="`${displayTitle} ${host} 流量详情`"
+        :aria-label="
+          t('admin.hostTraffic.detailsAria', {
+            title: displayTitle,
+            host,
+          })
+        "
         @pointerdown="handleTriggerPointerDown"
         @pointerenter="handleTriggerPointerEnter"
         @pointerleave="handleTriggerPointerLeave"
@@ -27,7 +32,7 @@
           <ArrowUpRight class="h-3 w-3 shrink-0 text-blue-700" />
           <span>{{ compactOutText }}</span>
         </span>
-        <span v-if="!hasCompactTraffic">查看</span>
+        <span v-if="!hasCompactTraffic">{{ t("admin.hostTraffic.view") }}</span>
       </button>
     </PopoverAnchor>
 
@@ -74,7 +79,7 @@
               class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground"
             >
               <ArrowDownLeft class="h-3.5 w-3.5 text-emerald-700" />
-              实时入站
+              {{ t("admin.hostTraffic.realtimeIn") }}
             </div>
             <div class="mt-1 text-base font-semibold">
               {{ realtimeInText }}
@@ -85,7 +90,7 @@
               class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground"
             >
               <ArrowUpRight class="h-3.5 w-3.5 text-blue-700" />
-              实时出站
+              {{ t("admin.hostTraffic.realtimeOut") }}
             </div>
             <div class="mt-1 text-base font-semibold">
               {{ realtimeOutText }}
@@ -109,7 +114,7 @@
         <div class="grid gap-2 sm:grid-cols-2">
           <div class="rounded-md border px-3 py-2.5">
             <div class="text-xs text-muted-foreground">
-              {{ rangeText }}累计入站
+              {{ t("admin.hostTraffic.cumulativeIn", { range: rangeText }) }}
             </div>
             <div class="mt-1 text-base font-semibold">
               {{ formatBytes(stats?.totals.inBytes) }}
@@ -117,7 +122,7 @@
           </div>
           <div class="rounded-md border px-3 py-2.5">
             <div class="text-xs text-muted-foreground">
-              {{ rangeText }}累计出站
+              {{ t("admin.hostTraffic.cumulativeOut", { range: rangeText }) }}
             </div>
             <div class="mt-1 text-base font-semibold">
               {{ formatBytes(stats?.totals.outBytes) }}
@@ -183,7 +188,7 @@
               class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground"
             >
               <ArrowDownLeft class="h-3.5 w-3.5 text-emerald-700" />
-              实时入站
+              {{ t("admin.hostTraffic.realtimeIn") }}
             </div>
             <div class="mt-1 text-base font-semibold">
               {{ realtimeInText }}
@@ -194,7 +199,7 @@
               class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground"
             >
               <ArrowUpRight class="h-3.5 w-3.5 text-blue-700" />
-              实时出站
+              {{ t("admin.hostTraffic.realtimeOut") }}
             </div>
             <div class="mt-1 text-base font-semibold">
               {{ realtimeOutText }}
@@ -218,7 +223,7 @@
         <div class="grid gap-2 sm:grid-cols-2">
           <div class="rounded-md border px-3 py-2.5">
             <div class="text-xs text-muted-foreground">
-              {{ rangeText }}累计入站
+              {{ t("admin.hostTraffic.cumulativeIn", { range: rangeText }) }}
             </div>
             <div class="mt-1 text-base font-semibold">
               {{ formatBytes(stats?.totals.inBytes) }}
@@ -226,7 +231,7 @@
           </div>
           <div class="rounded-md border px-3 py-2.5">
             <div class="text-xs text-muted-foreground">
-              {{ rangeText }}累计出站
+              {{ t("admin.hostTraffic.cumulativeOut", { range: rangeText }) }}
             </div>
             <div class="mt-1 text-base font-semibold">
               {{ formatBytes(stats?.totals.outBytes) }}
@@ -273,6 +278,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { ArrowDownLeft, ArrowUpRight, Network } from "lucide-vue-next";
 import VChart from "vue-echarts";
 import type { EChartsOption } from "echarts";
@@ -302,15 +308,15 @@ import type { DashboardStats, HostTrafficStats } from "../types";
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent]);
 
-const ranges = [
-  { key: "15m", label: "15分钟", sec: 15 * 60 },
-  { key: "1h", label: "1小时", sec: 60 * 60 },
-  { key: "6h", label: "6小时", sec: 6 * 60 * 60 },
-  { key: "1d", label: "24小时", sec: 24 * 60 * 60 },
-  { key: "7d", label: "7天", sec: 7 * 24 * 60 * 60 },
+const rangeDefs = [
+  { key: "15m", sec: 15 * 60 },
+  { key: "1h", sec: 60 * 60 },
+  { key: "6h", sec: 6 * 60 * 60 },
+  { key: "1d", sec: 24 * 60 * 60 },
+  { key: "7d", sec: 7 * 24 * 60 * 60 },
 ] as const;
 
-type RangeKey = (typeof ranges)[number]["key"];
+type RangeKey = (typeof rangeDefs)[number]["key"];
 
 const props = withDefaults(
   defineProps<{
@@ -326,6 +332,7 @@ const props = withDefaults(
   },
 );
 
+const { t } = useI18n();
 const open = ref(false);
 const dialogOpen = ref(false);
 const activeIpDialogOpen = ref(false);
@@ -356,14 +363,42 @@ const {
   refresh: refreshActiveIps,
 } = useHostActiveIps(computed(() => props.host), activeIpDialogOpen);
 
+const formatPlainRangeText = (seconds: number) => {
+  if (seconds < 3600) {
+    return t("admin.hostTraffic.plainMinutes", {
+      count: Math.round(seconds / 60),
+    });
+  }
+  if (seconds < 24 * 3600) {
+    return t("admin.hostTraffic.plainHours", {
+      count: Math.round(seconds / 3600),
+    });
+  }
+  return t("admin.hostTraffic.plainDays", {
+    count: Math.round(seconds / 86400),
+  });
+};
+
+const ranges = computed(() =>
+  rangeDefs.map((range) => ({
+    ...range,
+    label: formatPlainRangeText(range.sec),
+  })),
+);
+
 const activeRange = computed(
-  () => ranges.find((range) => range.key === rangeKey.value) ?? ranges[1]!,
+  () =>
+    rangeDefs.find((range) => range.key === rangeKey.value) ?? rangeDefs[1]!,
 );
 
 const hasRealtimeSample = computed(() => Boolean(props.sample));
-const displayTitle = computed(() => props.title?.trim() || "未获取");
+const displayTitle = computed(
+  () => props.title?.trim() || t("admin.hostTraffic.unknownTitle"),
+);
 const sampleStatusText = computed(() =>
-  hasRealtimeSample.value ? "实时采样中" : "等待流量样本",
+  hasRealtimeSample.value
+    ? t("admin.hostTraffic.sampling")
+    : t("admin.hostTraffic.waitingSample"),
 );
 
 const formatBytes = (bytes: number | null | undefined) => {
@@ -402,14 +437,14 @@ const activeIpButtonText = computed(() => {
   const count = Number(
     props.sample?.active_ip_count ?? activeIpItems.value.length,
   );
-  return count > 0 ? `活跃 IP ${count}` : "活跃 IP";
+  return count > 0
+    ? t("admin.hostTraffic.activeIpWithCount", { count })
+    : t("admin.hostTraffic.activeIp");
 });
 
 const rangeText = computed(() => {
   const sec = stats.value?.rangeSec ?? activeRange.value.sec;
-  if (sec < 3600) return `${Math.round(sec / 60)} 分钟`;
-  if (sec < 24 * 3600) return `${Math.round(sec / 3600)} 小时`;
-  return `${Math.round(sec / 86400)} 天`;
+  return formatPlainRangeText(sec);
 });
 
 const trafficOption = computed<EChartsOption>(() => {
@@ -610,7 +645,9 @@ async function loadStats() {
   } catch (error: any) {
     if (requestId !== statsRequestId) return;
     statsError.value =
-      error?.response?.data?.message || error?.message || "流量统计加载失败";
+      error?.response?.data?.message ||
+      error?.message ||
+      t("admin.hostTraffic.loadFailed");
   } finally {
     if (requestId === statsRequestId) {
       isStatsLoading.value = false;

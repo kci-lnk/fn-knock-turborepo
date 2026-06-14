@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import {
   AlertTriangle,
   Loader2,
@@ -101,6 +102,8 @@ const props = withDefaults(
   },
 );
 
+const { t } = useI18n();
+
 const catalog = ref<NotificationProviderDefinition[]>([]);
 const providers = ref<NotificationProviderView[]>([]);
 const loading = ref(false);
@@ -142,11 +145,12 @@ const buildGeneratedProviderName = (type: string) => {
   const baseLabel =
     catalog.value.find((item) => item.type === type)?.label ||
     resolveProviderTypeLabel(type) ||
-    "通知提供商";
+    t("admin.notifications.providers.fallbackProviderLabel");
 
   return buildNextSequentialName(
     baseLabel,
     providers.value.map((provider) => provider.name),
+    t("admin.notifications.providers.unnamed"),
   );
 };
 
@@ -163,10 +167,16 @@ const loadData = async () => {
     ]);
 
     if (!catalogResult.success) {
-      throw new Error(catalogResult.message || "加载提供商目录失败");
+      throw new Error(
+        catalogResult.message ||
+          t("admin.notifications.providers.catalogLoadFailed"),
+      );
     }
     if (!providersResult.success) {
-      throw new Error(providersResult.message || "加载提供商列表失败");
+      throw new Error(
+        providersResult.message ||
+          t("admin.notifications.providers.providersLoadFailed"),
+      );
     }
 
     catalog.value = sortProviderCatalog(catalogResult.data.providers || []);
@@ -176,8 +186,9 @@ const loadData = async () => {
       providerForm.value.type = catalog.value[0].type;
     }
   } catch (error) {
-    toast.error("加载通知提供商失败", {
-      description: error instanceof Error ? error.message : "请稍后重试",
+    toast.error(t("admin.notifications.providers.loadFailed"), {
+      description:
+        error instanceof Error ? error.message : t("common.tryLater"),
     });
   } finally {
     loading.value = false;
@@ -208,7 +219,10 @@ const openEditDialog = async (provider: NotificationProviderView) => {
   try {
     const result = await EventCenterAPI.getNotificationProvider(provider.id);
     if (!result.success) {
-      throw new Error(result.message || "加载提供商详情失败");
+      throw new Error(
+        result.message ||
+          t("admin.notifications.providers.providerDetailsLoadFailed"),
+      );
     }
 
     const providerDetail = result.data;
@@ -231,8 +245,9 @@ const openEditDialog = async (provider: NotificationProviderView) => {
     };
     dialogOpen.value = true;
   } catch (error) {
-    toast.error("加载提供商详情失败", {
-      description: error instanceof Error ? error.message : "请稍后重试",
+    toast.error(t("admin.notifications.providers.providerDetailsLoadFailed"), {
+      description:
+        error instanceof Error ? error.message : t("common.tryLater"),
     });
   } finally {
     editingId.value = null;
@@ -291,7 +306,7 @@ const buildProviderPayload = (): ProviderFormPayload => {
 
 const saveProvider = async () => {
   if (!selectedDefinition.value) {
-    toast.error("当前没有可用的提供商类型");
+    toast.error(t("admin.notifications.providers.unavailableProviderType"));
     return;
   }
 
@@ -310,7 +325,9 @@ const saveProvider = async () => {
     if (!result.success) {
       throw new Error(
         result.message ||
-          (dialogMode.value === "create" ? "创建提供商失败" : "更新提供商失败"),
+          (dialogMode.value === "create"
+            ? t("admin.notifications.providers.createProviderFailed")
+            : t("admin.notifications.providers.updateProviderFailed")),
       );
     }
 
@@ -320,15 +337,25 @@ const saveProvider = async () => {
 
     toast.success(
       dialogMode.value === "create"
-        ? `提供商 ${savedName} 已创建`
-        : `提供商 ${savedName} 已更新`,
+        ? t("admin.notifications.providers.createProviderSuccess", {
+            name: savedName,
+          })
+        : t("admin.notifications.providers.updateProviderSuccess", {
+            name: savedName,
+          }),
     );
     dialogOpen.value = false;
     await loadData();
   } catch (error) {
-    toast.error(dialogMode.value === "create" ? "创建失败" : "更新失败", {
-      description: error instanceof Error ? error.message : "请稍后重试",
-    });
+    toast.error(
+      dialogMode.value === "create"
+        ? t("admin.notifications.providers.createFailed")
+        : t("admin.notifications.providers.updateFailed"),
+      {
+        description:
+          error instanceof Error ? error.message : t("common.tryLater"),
+      },
+    );
   } finally {
     saving.value = false;
   }
@@ -336,7 +363,7 @@ const saveProvider = async () => {
 
 const testProviderDraft = async () => {
   if (!selectedDefinition.value) {
-    toast.error("当前没有可用的提供商类型");
+    toast.error(t("admin.notifications.providers.unavailableProviderType"));
     return;
   }
 
@@ -347,13 +374,17 @@ const testProviderDraft = async () => {
       id: dialogMode.value === "edit" ? editingProvider.value?.id : undefined,
     });
     if (!result.success) {
-      throw new Error(result.message || "测试发送失败");
+      throw new Error(
+        result.message || t("admin.notifications.providers.testSendFailed"),
+      );
     }
-    toast.success("测试发送成功");
+    toast.success(t("admin.notifications.providers.testSendSuccess"));
   } catch (error) {
-    toast.error("测试发送失败", {
+    toast.error(t("admin.notifications.providers.testSendFailed"), {
       description:
-        error instanceof Error ? error.message : "请检查当前表单配置",
+        error instanceof Error
+          ? error.message
+          : t("admin.notifications.providers.testDraftConfigHint"),
     });
   } finally {
     testingDraft.value = false;
@@ -365,13 +396,17 @@ const deleteProvider = async (provider: NotificationProviderView) => {
   try {
     const result = await EventCenterAPI.deleteNotificationProvider(provider.id);
     if (!result.success) {
-      throw new Error(result.message || "删除提供商失败");
+      throw new Error(
+        result.message ||
+          t("admin.notifications.providers.deleteProviderFailed"),
+      );
     }
-    toast.success("提供商已删除");
+    toast.success(t("admin.notifications.providers.deleteProviderSuccess"));
     await loadData();
   } catch (error) {
-    toast.error("删除提供商失败", {
-      description: error instanceof Error ? error.message : "请稍后重试",
+    toast.error(t("admin.notifications.providers.deleteProviderFailed"), {
+      description:
+        error instanceof Error ? error.message : t("common.tryLater"),
     });
   } finally {
     deletingId.value = null;
@@ -383,13 +418,18 @@ const testProvider = async (provider: NotificationProviderView) => {
   try {
     const result = await EventCenterAPI.testNotificationProvider(provider.id);
     if (!result.success) {
-      throw new Error(result.message || "测试发送失败");
+      throw new Error(
+        result.message || t("admin.notifications.providers.testSendFailed"),
+      );
     }
-    toast.success("测试发送成功");
+    toast.success(t("admin.notifications.providers.testSendSuccess"));
     await loadData();
   } catch (error) {
-    toast.error("测试发送失败", {
-      description: error instanceof Error ? error.message : "请检查提供商配置",
+    toast.error(t("admin.notifications.providers.testSendFailed"), {
+      description:
+        error instanceof Error
+          ? error.message
+          : t("admin.notifications.providers.testProviderConfigHint"),
     });
   } finally {
     testingId.value = null;
@@ -417,7 +457,7 @@ watch(
   <div class="space-y-4 p-4 sm:p-6">
     <div class="flex flex-wrap items-center gap-2">
       <div class="text-sm text-muted-foreground">
-        必须先配置提供商，才能在规则里选择发送目标并启用告警通知。
+        {{ t("admin.notifications.providers.intro") }}
       </div>
       <div class="ml-auto flex items-center gap-2">
         <RefreshButton
@@ -427,7 +467,7 @@ watch(
         />
         <Button @click="openCreateDialog">
           <Plus class="mr-2 h-4 w-4" />
-          新增提供商
+          {{ t("admin.notifications.providers.addProvider") }}
         </Button>
       </div>
     </div>
@@ -436,11 +476,17 @@ watch(
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>名称</TableHead>
-            <TableHead>类型</TableHead>
-            <TableHead>状态</TableHead>
-            <TableHead>更新时间</TableHead>
-            <TableHead class="w-[180px] text-right">操作</TableHead>
+            <TableHead>{{ t("admin.notifications.providers.name") }}</TableHead>
+            <TableHead>{{ t("admin.notifications.providers.type") }}</TableHead>
+            <TableHead>
+              {{ t("admin.notifications.providers.status") }}
+            </TableHead>
+            <TableHead>
+              {{ t("admin.notifications.providers.updatedAt") }}
+            </TableHead>
+            <TableHead class="w-[180px] text-right">
+              {{ t("admin.notifications.providers.actions") }}
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -456,7 +502,7 @@ watch(
               colspan="6"
               class="py-10 text-center text-muted-foreground"
             >
-              暂无通知提供商
+              {{ t("admin.notifications.providers.empty") }}
             </TableCell>
           </TableRow>
           <TableRow v-for="provider in providers" :key="provider.id">
@@ -467,7 +513,8 @@ watch(
                   v-if="provider.last_error"
                   class="line-clamp-2 text-xs text-muted-foreground"
                 >
-                  最近错误：{{ provider.last_error }}
+                  {{ t("admin.notifications.providers.lastErrorPrefix")
+                  }}{{ provider.last_error }}
                 </div>
               </div>
             </TableCell>
@@ -481,7 +528,11 @@ watch(
                     : 'border-muted-foreground/20 bg-muted text-muted-foreground'
                 "
               >
-                {{ provider.enabled ? "启用" : "停用" }}
+                {{
+                  provider.enabled
+                    ? t("admin.notifications.providers.enabled")
+                    : t("admin.notifications.providers.disabled")
+                }}
               </Badge>
             </TableCell>
             <TableCell class="text-sm text-muted-foreground">
@@ -510,8 +561,10 @@ watch(
                   <Pencil v-else class="h-4 w-4" />
                 </Button>
                 <ConfirmDangerPopover
-                  title="确认删除该提供商？"
-                  description="若该提供商已被规则引用，后端会阻止删除。"
+                  :title="t('admin.notifications.providers.deleteTitle')"
+                  :description="
+                    t('admin.notifications.providers.deleteDescription')
+                  "
                   :loading="deletingId === provider.id"
                   :disabled="deletingId === provider.id"
                   :on-confirm="() => deleteProvider(provider)"
@@ -539,17 +592,21 @@ watch(
     <DialogContent class="max-h-[85vh] overflow-y-auto sm:max-w-[760px]">
       <DialogHeader>
         <DialogTitle>
-          {{ dialogMode === "create" ? "新增通知提供商" : "编辑通知提供商" }}
+          {{
+            dialogMode === "create"
+              ? t("admin.notifications.providers.createDialogTitle")
+              : t("admin.notifications.providers.editDialogTitle")
+          }}
         </DialogTitle>
         <DialogDescription>
-          先保存连接能力，再在规则 target 里补充每条规则自己的发送目标。
+          {{ t("admin.notifications.providers.dialogDescription") }}
         </DialogDescription>
       </DialogHeader>
 
       <div class="space-y-5 py-2">
         <div class="grid gap-4 md:grid-cols-2">
           <div class="space-y-2">
-            <Label>名称</Label>
+            <Label>{{ t("admin.notifications.providers.name") }}</Label>
             <Input
               v-model="providerForm.name"
               :placeholder="generatedProviderName"
@@ -558,21 +615,27 @@ watch(
             <div class="text-xs text-muted-foreground">
               {{
                 dialogMode === "create"
-                  ? `默认会生成“${generatedProviderName}”，也可以改成更易识别的名称。`
-                  : "可以直接修改当前名称；如果清空则会保留原名称。"
+                  ? t("admin.notifications.providers.createNameHelp", {
+                      name: generatedProviderName,
+                    })
+                  : t("admin.notifications.providers.editNameHelp")
               }}
             </div>
           </div>
 
           <div class="space-y-2">
-            <Label>提供商类型</Label>
+            <Label>{{ t("admin.notifications.providers.providerType") }}</Label>
             <Select
               :model-value="providerForm.type"
               :disabled="dialogMode === 'edit'"
               @update:model-value="handleTypeChange"
             >
               <SelectTrigger>
-                <SelectValue placeholder="选择提供商类型" />
+                <SelectValue
+                  :placeholder="
+                    t('admin.notifications.providers.selectProviderType')
+                  "
+                />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem
@@ -592,29 +655,33 @@ watch(
           class="border-amber-200 bg-amber-50/80 text-amber-950"
         >
           <AlertTriangle class="h-4 w-4" />
-          <AlertTitle>WxPusher 已不再支持微信内消息接收</AlertTitle>
+          <AlertTitle>
+            {{ t("admin.notifications.providers.wxpusherAlertTitle") }}
+          </AlertTitle>
           <AlertDescription class="space-y-2">
             <p>
-              该渠道已经不再支持直接通过微信接收推送消息，必须下载并登录
-              WxPusher 官方 App 才能正常收到通知。
+              {{ t("admin.notifications.providers.wxpusherAlertBody1") }}
             </p>
             <p>
-              下方新增的 UID / Topic / 跳转链接 /
-              订阅验证属于提供商默认值；规则里的同名字段留空时会沿用它们，测试发送也会直接使用这套默认配置。
+              {{ t("admin.notifications.providers.wxpusherAlertBody2") }}
             </p>
           </AlertDescription>
         </Alert>
 
         <div class="flex items-center justify-between rounded-md border p-3">
           <div class="space-y-1">
-            <div class="text-sm font-medium">启用状态</div>
+            <div class="text-sm font-medium">
+              {{ t("admin.notifications.providers.enabledStatus") }}
+            </div>
           </div>
           <Switch v-model="providerForm.enabled" />
         </div>
 
         <div v-if="selectedDefinition" class="space-y-3">
           <div class="space-y-1">
-            <div class="text-sm font-medium">连接配置</div>
+            <div class="text-sm font-medium">
+              {{ t("admin.notifications.providers.connectionConfig") }}
+            </div>
           </div>
 
           <SchemaFieldsEditor
@@ -637,7 +704,7 @@ watch(
           :disabled="saving || testingDraft"
           @click="dialogOpen = false"
         >
-          取消
+          {{ t("common.cancel") }}
         </Button>
         <Button
           variant="secondary"
@@ -646,11 +713,11 @@ watch(
         >
           <Loader2 v-if="testingDraft" class="mr-2 h-4 w-4 animate-spin" />
           <Send v-else class="mr-2 h-4 w-4" />
-          测试提供商
+          {{ t("admin.notifications.providers.testProvider") }}
         </Button>
         <Button :disabled="saving || testingDraft" @click="saveProvider">
           <Loader2 v-if="saving" class="mr-2 h-4 w-4 animate-spin" />
-          保存
+          {{ t("common.save") }}
         </Button>
       </DialogFooter>
     </DialogContent>

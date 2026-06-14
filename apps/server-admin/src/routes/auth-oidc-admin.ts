@@ -1,6 +1,13 @@
 import { Elysia, t } from "elysia";
 import { oidcAuthService } from "../lib/auth/oidc/service";
 import { routeDoc, withRouteDoc } from "../lib/openapi";
+import { configManager } from "../lib/redis";
+import { createRequestTranslator } from "../lib/i18n";
+
+const getOIDCAdminRouteTranslator = async (request: Request) => {
+  const config = await configManager.getConfig();
+  return createRequestTranslator(request, config.locale);
+};
 
 const providerCreateBody = t.Object({
   name: t.Optional(t.String()),
@@ -41,7 +48,8 @@ export const oidcAdminRoutes = new Elysia({
   )
   .post(
     "/providers",
-    async ({ body, set }) => {
+    async ({ body, set, request }) => {
+      const { t } = await getOIDCAdminRouteTranslator(request);
       try {
         const provider = await oidcAuthService.createProvider(body);
         return { success: true, data: provider };
@@ -50,7 +58,9 @@ export const oidcAdminRoutes = new Elysia({
         return {
           success: false,
           message:
-            error instanceof Error ? error.message : "创建外部登录提供商失败",
+            error instanceof Error
+              ? error.message
+              : t("server.oidc.createProviderFailed"),
         };
       }
     },
@@ -58,7 +68,8 @@ export const oidcAdminRoutes = new Elysia({
   )
   .patch(
     "/providers/:id",
-    async ({ params, body, set }) => {
+    async ({ params, body, set, request }) => {
+      const { t } = await getOIDCAdminRouteTranslator(request);
       try {
         const provider = await oidcAuthService.updateProvider(params.id, body);
         return { success: true, data: provider };
@@ -67,7 +78,9 @@ export const oidcAdminRoutes = new Elysia({
         return {
           success: false,
           message:
-            error instanceof Error ? error.message : "更新外部登录提供商失败",
+            error instanceof Error
+              ? error.message
+              : t("server.oidc.updateProviderFailed"),
         };
       }
     },
@@ -75,7 +88,8 @@ export const oidcAdminRoutes = new Elysia({
   )
   .delete(
     "/providers/:id",
-    async ({ params, set }) => {
+    async ({ params, set, request }) => {
+      const { t } = await getOIDCAdminRouteTranslator(request);
       try {
         await oidcAuthService.deleteProvider(params.id);
         return { success: true };
@@ -84,7 +98,9 @@ export const oidcAdminRoutes = new Elysia({
         return {
           success: false,
           message:
-            error instanceof Error ? error.message : "删除外部登录提供商失败",
+            error instanceof Error
+              ? error.message
+              : t("server.oidc.deleteProviderFailed"),
         };
       }
     },
@@ -92,7 +108,8 @@ export const oidcAdminRoutes = new Elysia({
   )
   .post(
     "/providers/:id/test",
-    async ({ params, set }) => {
+    async ({ params, set, request }) => {
+      const { t } = await getOIDCAdminRouteTranslator(request);
       try {
         return await oidcAuthService.testProvider(params.id);
       } catch (error) {
@@ -100,7 +117,9 @@ export const oidcAdminRoutes = new Elysia({
         return {
           success: false,
           message:
-            error instanceof Error ? error.message : "测试外部登录提供商失败",
+            error instanceof Error
+              ? error.message
+              : t("server.oidc.testProviderFailed"),
         };
       }
     },
@@ -118,7 +137,8 @@ export const oidcAdminRoutes = new Elysia({
   )
   .delete(
     "/bindings/:id",
-    async ({ params, set }) => {
+    async ({ params, set, request }) => {
+      const { t } = await getOIDCAdminRouteTranslator(request);
       try {
         await oidcAuthService.deleteBinding(params.id);
         return { success: true };
@@ -127,7 +147,9 @@ export const oidcAdminRoutes = new Elysia({
         return {
           success: false,
           message:
-            error instanceof Error ? error.message : "删除外部账号绑定失败",
+            error instanceof Error
+              ? error.message
+              : t("server.oidc.deleteBindingFailed"),
         };
       }
     },
@@ -136,6 +158,7 @@ export const oidcAdminRoutes = new Elysia({
   .post(
     "/invitations",
     async ({ body, request, set }) => {
+      const { t } = await getOIDCAdminRouteTranslator(request);
       try {
         const result = await oidcAuthService.createInvite({
           request,
@@ -154,7 +177,10 @@ export const oidcAdminRoutes = new Elysia({
         set.status = 400;
         return {
           success: false,
-          message: error instanceof Error ? error.message : "创建绑定邀请失败",
+          message:
+            error instanceof Error
+              ? error.message
+              : t("server.oidc.createInviteFailed"),
         };
       }
     },

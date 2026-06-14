@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { ExternalLink, Eye, EyeOff } from 'lucide-vue-next';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,7 @@ import { useDelayedLoading } from '@admin-shared/composables/useDelayedLoading';
 import { CaptchaAPI } from '../../lib/api';
 import type { CaptchaSettings as CaptchaSettingsModel } from '@frontend-core/captcha/types';
 
+const { t } = useI18n();
 const settings = ref<CaptchaSettingsModel | null>(null);
 const turnstileSiteFieldId = 'captcha-turnstile-public-token';
 const turnstileSecretFieldId = 'captcha-turnstile-private-token';
@@ -31,13 +33,23 @@ const form = reactive<CaptchaSettingsModel>({
 
 const { isPending: isLoading, run: runLoadSettings } = useAsyncAction({
   onError: (error) => {
-    toast.error('加载失败', { description: extractErrorMessage(error, '无法获取验证码设置') });
+    toast.error(t('admin.captchaSettings.loadFailed'), {
+      description: extractErrorMessage(
+        error,
+        t('admin.captchaSettings.loadDescription'),
+      ),
+    });
   },
 });
 const showLoadingSkeleton = useDelayedLoading(isLoading);
 const { isPending: isSaving, run: runSaveSettings } = useAsyncAction({
   onError: (error) => {
-    toast.error('保存失败', { description: extractErrorMessage(error, '验证码设置保存失败') });
+    toast.error(t('admin.captchaSettings.saveFailed'), {
+      description: extractErrorMessage(
+        error,
+        t('admin.captchaSettings.saveDescription'),
+      ),
+    });
   },
 });
 
@@ -73,8 +85,8 @@ const resetForm = () => {
 const saveSettings = async () => {
   if (form.provider === 'turnstile') {
     if (!form.turnstile.site_key.trim() || !form.turnstile.secret_key.trim()) {
-      toast.error('参数不完整', {
-        description: '启用 Cloudflare Turnstile 时，需要填写 site_key 和 secret_key。',
+      toast.error(t('admin.captchaSettings.incompleteTitle'), {
+        description: t('admin.captchaSettings.incompleteDescription'),
       });
       return;
     }
@@ -93,7 +105,7 @@ const saveSettings = async () => {
     {
       onSuccess: (data) => {
         applyFromSettings(data);
-        toast.success('验证码设置已更新');
+        toast.success(t('admin.captchaSettings.updated'));
       },
     },
   );
@@ -105,9 +117,9 @@ onMounted(fetchSettings);
 <template>
   <Card>
     <CardHeader>
-      <CardTitle class="text-md">验证码供应商</CardTitle>
+      <CardTitle class="text-md">{{ t('admin.captchaSettings.title') }}</CardTitle>
       <CardDescription class="mt-1.5">
-        配置登录页的人机验证方式。当前设置会作用于认证端登录流程，PoW 为内置方案，Cloudflare Turnstile 需要填写站点参数。
+        {{ t('admin.captchaSettings.description') }}
       </CardDescription>
     </CardHeader>
 
@@ -121,17 +133,17 @@ onMounted(fetchSettings);
     <CardContent v-else-if="!isLoading" class="border-t p-0 divide-y">
       <div class="flex flex-col gap-4 bg-muted/10 p-6 sm:flex-row sm:items-center sm:justify-between">
         <div class="min-w-0 space-y-1 sm:flex-1 sm:pr-6">
-          <Label class="text-base">验证码类型</Label>
+          <Label class="text-base">{{ t('admin.captchaSettings.typeLabel') }}</Label>
           <div class="text-sm text-muted-foreground">
-            你可以在系统内置 PoW 验证码和 Cloudflare Turnstile 之间切换。
+            {{ t('admin.captchaSettings.typeDescription') }}
           </div>
         </div>
         <Select v-model="form.provider" :disabled="isSaving">
           <SelectTrigger class="w-full sm:shrink-0" style="width: min(100%, 300px);">
-            <SelectValue placeholder="选择验证码类型" />
+            <SelectValue :placeholder="t('admin.captchaSettings.typePlaceholder')" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="pow">PoW 验证码</SelectItem>
+            <SelectItem value="pow">{{ t('admin.captchaSettings.powOption') }}</SelectItem>
             <SelectItem value="turnstile">Cloudflare Turnstile</SelectItem>
           </SelectContent>
         </Select>
@@ -144,30 +156,34 @@ onMounted(fetchSettings);
         <div class="grid gap-4 bg-muted/10 p-6">
           <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div class="space-y-1">
-              <Label class="text-base">开通 Cloudflare Turnstile</Label>
+              <Label class="text-base">
+                {{ t('admin.captchaSettings.turnstileSetupTitle') }}
+              </Label>
               <div class="text-sm text-muted-foreground">
-                如果你还没有创建 Turnstile 小组件，可以先打开官方指引，在 Cloudflare 后台完成开通后再把密钥填回这里。
+                {{ t('admin.captchaSettings.turnstileSetupDescription') }}
               </div>
             </div>
             <Button as-child variant="outline" class="shrink-0">
               <a :href="turnstileGettingStartedUrl" target="_blank" rel="noreferrer noopener">
                 <ExternalLink class="mr-2 h-4 w-4" />
-                打开Turnstile
+                {{ t('admin.captchaSettings.openTurnstile') }}
               </a>
             </Button>
           </div>
           <div class="grid gap-2 text-sm text-muted-foreground">
-            <div>1. 登录 Cloudflare 后台，进入 Turnstile。</div>
-            <div>2. 创建一个新的 Widget，类型保持普通可见模式即可。</div>
-            <div>3. 创建完成后复制 站点密钥 和 密钥，粘贴到下面两个输入框。</div>
+            <div>{{ t('admin.captchaSettings.stepLogin') }}</div>
+            <div>{{ t('admin.captchaSettings.stepCreate') }}</div>
+            <div>{{ t('admin.captchaSettings.stepCopy') }}</div>
           </div>
         </div>
 
         <div class="captcha-key-row">
           <div class="captcha-key-copy min-w-0 space-y-1">
-            <Label class="text-base" :for="turnstileSiteFieldId">站点密钥</Label>
+            <Label class="text-base" :for="turnstileSiteFieldId">
+              {{ t('admin.captchaSettings.siteKey') }}
+            </Label>
             <div class="text-sm leading-relaxed text-muted-foreground">
-              前端渲染 Turnstile 控件时使用，对应 Cloudflare 控制台中的站点公开密钥。
+              {{ t('admin.captchaSettings.siteKeyDescription') }}
             </div>
           </div>
           <div class="captcha-key-input-wrap w-full">
@@ -185,14 +201,18 @@ onMounted(fetchSettings);
                 data-1p-ignore="true"
                 data-lpignore="true"
                 data-bwignore="true"
-                placeholder="填写 Turnstile site_key"
+                :placeholder="t('admin.captchaSettings.siteKeyPlaceholder')"
                 class="pr-10"
                 :disabled="isSaving"
               />
               <button
                 type="button"
                 class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                :aria-label="isTurnstileSiteVisible ? '隐藏 站点密钥' : '显示 站点密钥'"
+                :aria-label="
+                  isTurnstileSiteVisible
+                    ? t('admin.captchaSettings.hideSiteKey')
+                    : t('admin.captchaSettings.showSiteKey')
+                "
                 :disabled="isSaving"
                 @click="isTurnstileSiteVisible = !isTurnstileSiteVisible"
               >
@@ -204,9 +224,11 @@ onMounted(fetchSettings);
 
         <div class="captcha-key-row">
           <div class="captcha-key-copy min-w-0 space-y-1">
-            <Label class="text-base" :for="turnstileSecretFieldId">密钥</Label>
+            <Label class="text-base" :for="turnstileSecretFieldId">
+              {{ t('admin.captchaSettings.secretKey') }}
+            </Label>
             <div class="text-sm leading-relaxed text-muted-foreground">
-              后端向 Cloudflare 校验 token 时使用，仅在服务端保存和消费。
+              {{ t('admin.captchaSettings.secretKeyDescription') }}
             </div>
           </div>
           <div class="captcha-key-input-wrap w-full">
@@ -224,14 +246,18 @@ onMounted(fetchSettings);
                 data-1p-ignore="true"
                 data-lpignore="true"
                 data-bwignore="true"
-                placeholder="填写 Turnstile secret_key"
+                :placeholder="t('admin.captchaSettings.secretKeyPlaceholder')"
                 class="pr-10"
                 :disabled="isSaving"
               />
               <button
                 type="button"
                 class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                :aria-label="isTurnstileSecretVisible ? '隐藏 密钥' : '显示 密钥'"
+                :aria-label="
+                  isTurnstileSecretVisible
+                    ? t('admin.captchaSettings.hideSecretKey')
+                    : t('admin.captchaSettings.showSecretKey')
+                "
                 :disabled="isSaving"
                 @click="isTurnstileSecretVisible = !isTurnstileSecretVisible"
               >
@@ -247,14 +273,16 @@ onMounted(fetchSettings);
 
     <div class="flex items-center justify-between rounded-b-xl border-t bg-muted/20 p-6">
       <div class="text-sm text-muted-foreground">
-        <span v-if="isDirty">您有未保存的更改</span>
-        <span v-else>所有设置已是最新状态</span>
+        <span v-if="isDirty">{{ t('admin.captchaSettings.dirty') }}</span>
+        <span v-else>{{ t('admin.captchaSettings.clean') }}</span>
       </div>
       <div class="flex gap-3">
-        <Button variant="ghost" @click="resetForm" :disabled="!isDirty || isSaving">放弃</Button>
+        <Button variant="ghost" @click="resetForm" :disabled="!isDirty || isSaving">
+          {{ t('admin.captchaSettings.discard') }}
+        </Button>
         <Button :disabled="!isDirty || isSaving" @click="saveSettings">
           <span v-if="isSaving" class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
-          保存更改
+          {{ t('admin.captchaSettings.saveChanges') }}
         </Button>
       </div>
     </div>

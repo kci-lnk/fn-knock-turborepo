@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { Button } from '@/components/ui/button';
 import RefreshButton from '@/components/RefreshButton.vue';
@@ -31,7 +32,23 @@ import ConfigCollapsibleCard from '@admin-shared/components/ConfigCollapsibleCar
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent]);
 
+const { t, locale } = useI18n();
 const ranges = DEFAULT_THREAT_RANGES;
+const formatOverviewRangeText = (seconds: number) => {
+  if (seconds < 3600) {
+    return t('admin.components.threatOverview.rangeMinutes', {
+      count: Math.round(seconds / 60),
+    });
+  }
+  if (seconds < 24 * 3600) {
+    return t('admin.components.threatOverview.rangeHours', {
+      count: Math.round(seconds / 3600),
+    });
+  }
+  return t('admin.components.threatOverview.rangeDays', {
+    count: Math.round(seconds / 86400),
+  });
+};
 
 const {
   rangeKey,
@@ -47,26 +64,43 @@ const {
   defaultRangeKey: '1h',
   ranges,
   seriesKey: 'blockedScanners',
-  seriesName: '拦截扫描器',
+  seriesName: () => t('admin.sessions.ipBlacklist.seriesName'),
   lineColor: '#f97316',
   areaStartColor: 'rgba(249, 115, 22, 0.18)',
   areaEndColor: 'rgba(249, 115, 22, 0)',
   fetchOverview: (rangeSec) => SecurityAPI.getOverview(rangeSec),
   onError: (err: any) => {
-    const msg = err?.response?.data?.message || err?.message || '加载失败';
-    toast.error('威胁态势加载失败', { description: msg });
+    const msg =
+      err?.response?.data?.message ||
+      err?.message ||
+      t('admin.sessions.ipBlacklist.loadFailed');
+    toast.error(t('admin.sessions.ipBlacklist.threatLoadFailed'), {
+      description: msg,
+    });
   },
+  formatRangeText: formatOverviewRangeText,
+  numberLocale: () => locale.value,
 });
 
 const router = useRouter();
 const { isPending: isDeleting, run: runDeleteAction } = useAsyncAction({
   onError: (error) => {
-    toast.error('删除失败', { description: extractErrorMessage(error, '删除失败') });
+    toast.error(t('admin.sessions.ipBlacklist.deleteFailed'), {
+      description: extractErrorMessage(
+        error,
+        t('admin.sessions.ipBlacklist.deleteFailed'),
+      ),
+    });
   },
 });
 const { isPending: isDetailLoading, run: runLoadDetail } = useAsyncAction({
   onError: (error) => {
-    toast.error('加载失败', { description: extractErrorMessage(error, '加载详情失败') });
+    toast.error(t('admin.sessions.ipBlacklist.loadFailed'), {
+      description: extractErrorMessage(
+        error,
+        t('admin.sessions.ipBlacklist.detailLoadFailed'),
+      ),
+    });
     detailRecord.value = null;
   },
 });
@@ -97,8 +131,13 @@ const {
   },
   getKey: (record) => record.ip,
   onError: (err: any) => {
-    const msg = err?.response?.data?.message || err?.message || '加载失败';
-    toast.error('加载失败', { description: msg });
+    const msg =
+      err?.response?.data?.message ||
+      err?.message ||
+      t('admin.sessions.ipBlacklist.loadFailed');
+    toast.error(t('admin.sessions.ipBlacklist.loadFailed'), {
+      description: msg,
+    });
   },
 });
 
@@ -112,7 +151,7 @@ const deleteBlacklist = async (ips: string[]) => {
     () => ScannerAPI.deleteBlacklist(ips),
     {
       onSuccess: async () => {
-        toast.success('删除成功');
+        toast.success(t('admin.sessions.ipBlacklist.deleteSuccess'));
         clearSelection();
         await fetchBlacklist();
       },
@@ -125,7 +164,7 @@ const deleteOne = async (ip: string) => {
     () => ScannerAPI.deleteBlacklistByIp(ip),
     {
       onSuccess: async () => {
-        toast.success('删除成功');
+        toast.success(t('admin.sessions.ipBlacklist.deleteSuccess'));
         selectedIps.value.delete(ip);
         selectedIps.value = new Set(selectedIps.value);
         await fetchBlacklist();
@@ -144,13 +183,15 @@ const viewDetails = async (record: ScannerBlacklistRecord) => {
 };
 
 const formatDate = (ts?: number) => {
-  return formatDateTimeSafe(ts);
+  return formatDateTimeSafe(ts, { locale: locale.value });
 };
 
 const formatIntervalSeconds = (value: number | null) => {
   if (value === null) return '-';
   if (!Number.isFinite(value)) return '-';
-  return `${(value * 60).toFixed(2)} 秒`;
+  return t('admin.sessions.ipBlacklist.seconds', {
+    seconds: (value * 60).toFixed(2),
+  });
 };
 
 const detailHits = computed(() => {
@@ -185,30 +226,35 @@ const goToFirewallSettings = () => {
 <template>
   <div class="h-full flex flex-col gap-4">
     <ConfigCollapsibleCard
-      title="扫描拦截图表"
+      :title="t('admin.sessions.ipBlacklist.chartTitle')"
       :configured="true"
-      edit-label="展开图表"
+      :edit-label="t('admin.sessions.ipBlacklist.expandChart')"
       summary-class="text-xs text-muted-foreground"
       expanded-content-class="p-0 sm:p-0"
     >
       <template #summary>
-        {{ titleRangeText }} · 拦截扫描器 {{ formatNumber(threatOverview?.totals?.blockedScanners) }}
+        {{
+          t("admin.sessions.ipBlacklist.chartSummary", {
+            range: titleRangeText,
+            count: formatNumber(threatOverview?.totals?.blockedScanners),
+          })
+        }}
       </template>
 
       <template #default>
         <ThreatOverviewCard
           v-model:range-key="rangeKey"
-          title="扫描拦截"
-          description="黑名单趋势"
+          :title="t('admin.sessions.ipBlacklist.overviewTitle')"
+          :description="t('admin.sessions.ipBlacklist.overviewDescription')"
           :ranges="ranges"
           :is-loading="isThreatLoading"
           :title-range-text="titleRangeText"
-          primary-label="拦截扫描器"
+          :primary-label="t('admin.sessions.ipBlacklist.primaryLabel')"
           :primary-value="formatNumber(threatOverview?.totals?.blockedScanners)"
-          primary-hint="新增拉黑 IP"
-          secondary-label="平均每小时"
+          :primary-hint="t('admin.sessions.ipBlacklist.primaryHint')"
+          :secondary-label="t('admin.sessions.ipBlacklist.secondaryLabel')"
           :secondary-value="formatRate(blockedPerHour)"
-          secondary-hint="按范围计算"
+          :secondary-hint="t('admin.sessions.ipBlacklist.secondaryHint')"
           :icon="Ban"
         >
           <template #chart>
@@ -221,7 +267,7 @@ const goToFirewallSettings = () => {
     <div class="flex items-center gap-2">
       <SearchInput
         v-model="searchQuery"
-        placeholder="搜索 IP..."
+        :placeholder="t('admin.sessions.ipBlacklist.searchPlaceholder')"
         class="w-[260px]"
         @search="handleSearch"
       />
@@ -229,11 +275,15 @@ const goToFirewallSettings = () => {
       <RefreshButton :loading="loading" :disabled="loading" @click="fetchBlacklist" />
       <Button variant="outline" @click="goToFirewallSettings">
         <Settings class="h-4" />
-        设置
+        {{ t("admin.sessions.ipBlacklist.settings") }}
       </Button>
       <ConfirmDangerPopover
-        :title="`确认删除 ${selectedIps.size} 个 IP？`"
-        description="删除后将立即解除拉黑。"
+        :title="
+          t('admin.sessions.ipBlacklist.deleteSelectedTitle', {
+            count: selectedIps.size,
+          })
+        "
+        :description="t('admin.sessions.ipBlacklist.deleteDescription')"
         :loading="isDeleting"
         :disabled="selectedIps.size === 0 || isDeleting"
         :on-confirm="() => deleteBlacklist(Array.from(selectedIps))"
@@ -241,7 +291,11 @@ const goToFirewallSettings = () => {
         <template #trigger>
           <Button variant="destructive" :disabled="selectedIps.size === 0 || isDeleting">
             <Trash2 class="h-4" />
-            删除已选 ({{ selectedIps.size }})
+            {{
+              t("admin.sessions.ipBlacklist.deleteSelected", {
+                count: selectedIps.size,
+              })
+            }}
           </Button>
         </template>
       </ConfirmDangerPopover>
@@ -256,12 +310,24 @@ const goToFirewallSettings = () => {
                 <TableHead class="w-[50px]">
                   <Checkbox v-model="isAllSelected" />
                 </TableHead>
-                <TableHead>IP / 归属</TableHead>
-                <TableHead>封禁时间</TableHead>
-                <TableHead>窗口</TableHead>
-                <TableHead>阈值</TableHead>
-                <TableHead>命中</TableHead>
-                <TableHead class="text-right pr-6">操作</TableHead>
+                <TableHead>{{
+                  t("admin.sessions.ipBlacklist.ipLocationHeader")
+                }}</TableHead>
+                <TableHead>{{
+                  t("admin.sessions.ipBlacklist.blockedAt")
+                }}</TableHead>
+                <TableHead>{{
+                  t("admin.sessions.ipBlacklist.window")
+                }}</TableHead>
+                <TableHead>{{
+                  t("admin.sessions.ipBlacklist.threshold")
+                }}</TableHead>
+                <TableHead>{{
+                  t("admin.sessions.ipBlacklist.hits")
+                }}</TableHead>
+                <TableHead class="text-right pr-6">{{
+                  t("admin.sessions.table.actions")
+                }}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -272,7 +338,7 @@ const goToFirewallSettings = () => {
               </TableRow>
               <TableRow v-else-if="records.length === 0">
                 <TableCell colspan="7" class="text-center py-10 text-muted-foreground">
-                  暂无黑名单记录
+                  {{ t("admin.sessions.ipBlacklist.empty") }}
                 </TableCell>
               </TableRow>
               <TableRow v-else v-for="record in records" :key="record.ip">
@@ -288,9 +354,22 @@ const goToFirewallSettings = () => {
                     {{ record.ipLocation }}
                   </div>
                 </TableCell>
-                <TableCell class="whitespace-nowrap"><HumanFriendlyTime :value="record.blockedAt" /></TableCell>
-                <TableCell>{{ record.windowMinutes }} 分钟</TableCell>
-                <TableCell>{{ record.threshold }} 次</TableCell>
+                <TableCell class="whitespace-nowrap">
+                  <HumanFriendlyTime
+                    :value="record.blockedAt"
+                    :locale="locale"
+                  />
+                </TableCell>
+                <TableCell>{{
+                  t("admin.sessions.ipBlacklist.minutes", {
+                    count: record.windowMinutes,
+                  })
+                }}</TableCell>
+                <TableCell>{{
+                  t("admin.sessions.ipBlacklist.times", {
+                    count: record.threshold,
+                  })
+                }}</TableCell>
                 <TableCell>
                   <Badge variant="secondary">{{ record.hits?.length || 0 }}</Badge>
                 </TableCell>
@@ -299,8 +378,8 @@ const goToFirewallSettings = () => {
                     <Eye class="h-4 w-4" />
                   </Button>
                   <ConfirmDangerPopover
-                    title="确认删除该 IP？"
-                    description="删除后将立即解除拉黑。"
+                    :title="t('admin.sessions.ipBlacklist.deleteOneTitle')"
+                    :description="t('admin.sessions.ipBlacklist.deleteDescription')"
                     :loading="isDeleting"
                     :disabled="isDeleting"
                     :on-confirm="() => deleteOne(record.ip)"
@@ -336,8 +415,8 @@ const goToFirewallSettings = () => {
 
     <DetailDialog
       v-model:open="isDetailsModalOpen"
-      title="详情"
-      description="查看该 IP 的封禁原因与访问路径。"
+      :title="t('admin.sessions.ipBlacklist.detailTitle')"
+      :description="t('admin.sessions.ipBlacklist.detailDescription')"
       max-width-class="sm:max-w-[700px] max-w-[calc(100vw-1rem)] p-4 sm:p-6"
       :loading="isDetailLoading"
       close-variant="outline"
@@ -353,18 +432,36 @@ const goToFirewallSettings = () => {
           </div>
 
           <div class="border rounded-lg p-4 space-y-2">
-            <div class="text-sm text-muted-foreground">封禁时间</div>
+            <div class="text-sm text-muted-foreground">
+              {{ t("admin.sessions.ipBlacklist.blockedAt") }}
+            </div>
             <div class="text-base break-all">{{ formatDate(detailRecord.blockedAt) }}</div>
           </div>
 
           <div class="border rounded-lg p-4 space-y-2">
-            <div class="text-sm text-muted-foreground">触发窗口</div>
-            <div class="text-base break-all">{{ detailRecord.windowMinutes }} 分钟</div>
+            <div class="text-sm text-muted-foreground">
+              {{ t("admin.sessions.ipBlacklist.triggerWindow") }}
+            </div>
+            <div class="text-base break-all">
+              {{
+                t("admin.sessions.ipBlacklist.minutes", {
+                  count: detailRecord.windowMinutes,
+                })
+              }}
+            </div>
           </div>
 
           <div class="border rounded-lg p-4 space-y-2">
-            <div class="text-sm text-muted-foreground">触发阈值</div>
-            <div class="text-base break-all">{{ detailRecord.threshold }} 次</div>
+            <div class="text-sm text-muted-foreground">
+              {{ t("admin.sessions.ipBlacklist.triggerThreshold") }}
+            </div>
+            <div class="text-base break-all">
+              {{
+                t("admin.sessions.ipBlacklist.times", {
+                  count: detailRecord.threshold,
+                })
+              }}
+            </div>
           </div>
         </div>
 

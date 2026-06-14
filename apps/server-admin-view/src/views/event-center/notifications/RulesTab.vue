@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { ChevronDown, Loader2, Pencil, Plus, Trash2 } from "lucide-vue-next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,8 +55,6 @@ import {
   DEFAULT_GROUP_BY_BY_EVENT_TYPE,
   NOTIFICATION_GROUP_BY_OPTIONS,
   SYSTEM_EVENT_TYPE_OPTIONS,
-  formatNotificationGroupByLabel,
-  formatSystemEventTypeLabel,
 } from "../constants";
 import SchemaFieldsEditor from "./SchemaFieldsEditor.vue";
 import { buildSchemaPayload, createEditableSchemaRecord } from "./form-utils";
@@ -90,6 +89,8 @@ const props = withDefaults(
     active: false,
   },
 );
+
+const { t } = useI18n();
 
 const catalog = ref<NotificationProviderDefinition[]>([]);
 const providers = ref<NotificationProviderView[]>([]);
@@ -166,38 +167,58 @@ const isAllEventTypesSelected = computed(
     selectedEventTypeCount.value === availableEventTypes.value.length,
 );
 
+const formatEventTypeLabel = (type: SystemEventType) =>
+  t(`admin.eventCenter.eventTypes.${type}`);
+
+const formatGroupByLabel = (value: NotificationGroupBy) =>
+  t(`admin.eventCenter.groupBy.${value}`);
+
 const buildRuleDisplayName = (eventType: SystemEventType) =>
-  `${formatSystemEventTypeLabel(eventType)} 通知`;
+  t("admin.notifications.rules.ruleDisplayName", {
+    event: formatEventTypeLabel(eventType),
+  });
 
 const dialogTitleText = computed(() =>
-  isEditMode.value ? "编辑通知规则" : "新增通知规则",
+  isEditMode.value
+    ? t("admin.notifications.rules.dialogTitleEdit")
+    : t("admin.notifications.rules.dialogTitleCreate"),
 );
 
 const dialogDescriptionText = computed(() =>
   isEditMode.value
-    ? "当前规则只对应单个事件，可直接调整触发条件和通知目标。"
-    : "只会列出还没有规则的事件，触发条件会先使用默认值，创建后再逐条调整。",
+    ? t("admin.notifications.rules.dialogDescriptionEdit")
+    : t("admin.notifications.rules.dialogDescriptionCreate"),
 );
 
 const lockedEventTypeLabel = computed(() => {
   const eventType = ruleForm.value.event_types[0];
-  return eventType ? formatSystemEventTypeLabel(eventType) : "未选择事件";
+  return eventType
+    ? formatEventTypeLabel(eventType)
+    : t("admin.notifications.rules.noEventSelected");
 });
 
 const dialogModeBadgeLabel = computed(() =>
-  isEditMode.value ? "单条编辑" : "批量创建",
+  isEditMode.value
+    ? t("admin.notifications.rules.modeEdit")
+    : t("admin.notifications.rules.modeCreate"),
 );
 
 const dialogSelectionBadgeLabel = computed(() =>
   isEditMode.value
-    ? `事件：${lockedEventTypeLabel.value}`
-    : `已选 ${selectedEventTypeCount.value} 个事件`,
+    ? t("admin.notifications.rules.selectionEvent", {
+        event: lockedEventTypeLabel.value,
+      })
+    : t("admin.notifications.rules.selectedEvents", {
+        count: selectedEventTypeCount.value,
+      }),
 );
 
 const dialogTargetsBadgeLabel = computed(() =>
   ruleForm.value.targets.length > 0
-    ? `${ruleForm.value.targets.length} 个通知目标`
-    : "尚未添加通知目标",
+    ? t("admin.notifications.rules.targetsCount", {
+        count: ruleForm.value.targets.length,
+      })
+    : t("admin.notifications.rules.noTargetsYet"),
 );
 
 const groupByHint = computed(() => {
@@ -207,13 +228,13 @@ const groupByHint = computed(() => {
 
   if (ruleForm.value.event_types.length === 1) {
     const onlyEventType = ruleForm.value.event_types[0]!;
-    return `将使用推荐聚合维度：${formatNotificationGroupByLabel(
-      DEFAULT_GROUP_BY_BY_EVENT_TYPE[onlyEventType],
-    )}`;
+    return t("admin.notifications.rules.groupByAutoHintSingle", {
+      group: formatGroupByLabel(DEFAULT_GROUP_BY_BY_EVENT_TYPE[onlyEventType]),
+    });
   }
 
   if (ruleForm.value.event_types.length > 1) {
-    return "保存时会按每个事件的推荐聚合维度分别创建规则。";
+    return t("admin.notifications.rules.groupByAutoHintBatch");
   }
 
   return "";
@@ -229,21 +250,30 @@ const loadData = async () => {
     ]);
 
     if (!catalogResult.success) {
-      throw new Error(catalogResult.message || "加载提供商目录失败");
+      throw new Error(
+        catalogResult.message ||
+          t("admin.notifications.providers.catalogLoadFailed"),
+      );
     }
     if (!providersResult.success) {
-      throw new Error(providersResult.message || "加载提供商列表失败");
+      throw new Error(
+        providersResult.message ||
+          t("admin.notifications.providers.providersLoadFailed"),
+      );
     }
     if (!rulesResult.success) {
-      throw new Error(rulesResult.message || "加载规则列表失败");
+      throw new Error(
+        rulesResult.message || t("admin.notifications.rules.rulesLoadFailed"),
+      );
     }
 
     catalog.value = catalogResult.data.providers || [];
     providers.value = providersResult.data.providers || [];
     rules.value = rulesResult.data.rules || [];
   } catch (error) {
-    toast.error("加载通知规则失败", {
-      description: error instanceof Error ? error.message : "请稍后重试",
+    toast.error(t("admin.notifications.rules.loadFailed"), {
+      description:
+        error instanceof Error ? error.message : t("common.tryLater"),
     });
   } finally {
     loading.value = false;
@@ -295,15 +325,19 @@ const openCreateDialog = () => {
 const getCreateRuleUnavailableTip = () => {
   if (!hasProviders.value) {
     return {
-      title: "暂时无法新增规则",
-      description: "请先在“提供商”选项卡中添加至少一个通知提供商",
+      title: t("admin.notifications.rules.createUnavailableTitle"),
+      description: t(
+        "admin.notifications.rules.createUnavailableDescription",
+      ),
     };
   }
 
   if (!hasAvailableEventTypes.value) {
     return {
-      title: "当前没有可新增的规则",
-      description: "所有事件都已经有规则了，如需重建请先删除原规则",
+      title: t("admin.notifications.rules.noCreateAvailableTitle"),
+      description: t(
+        "admin.notifications.rules.noCreateAvailableDescription",
+      ),
     };
   }
 
@@ -362,7 +396,7 @@ const openEditDialog = (rule: NotificationRule) => {
 const addTarget = (providerId = providers.value[0]?.id || "") => {
   if (!providerId) return;
   if (selectedTargetProviderIds.value.has(providerId)) {
-    toast.info("该提供商已经添加到当前规则");
+    toast.info(t("admin.notifications.rules.providerAlreadyAdded"));
     return;
   }
   ruleForm.value.targets.push(createTarget(providerId));
@@ -457,18 +491,18 @@ const buildRulePayload = (
 
 const saveRule = async () => {
   if (!ruleForm.value.targets.length) {
-    toast.error("请至少添加一个通知目标");
+    toast.error(t("admin.notifications.rules.missingTargets"));
     return;
   }
 
   const selectedEventTypes = ruleForm.value.event_types;
   if (!selectedEventTypes.length) {
-    toast.error("请至少选择一个事件");
+    toast.error(t("admin.notifications.rules.missingEvents"));
     return;
   }
 
   if (dialogMode.value === "edit" && selectedEventTypes.length !== 1) {
-    toast.error("编辑现有规则时只能保留一个事件类型");
+    toast.error(t("admin.notifications.rules.editOneEventOnly"));
     return;
   }
 
@@ -490,7 +524,12 @@ const saveRule = async () => {
           );
 
           if (!result.success) {
-            throw new Error(result.message || `创建规则 ${plan.name} 失败`);
+            throw new Error(
+              result.message ||
+                t("admin.notifications.rules.createRuleNamedFailed", {
+                  name: plan.name,
+                }),
+            );
           }
 
           return plan.name;
@@ -510,16 +549,21 @@ const saveRule = async () => {
         .map((item) =>
           item.reason instanceof Error
             ? item.reason.message
-            : "创建通知规则失败",
+            : t("admin.notifications.rules.createRulesFailed"),
         );
 
       if (failed.length === results.length) {
-        throw new Error(failed[0] || "创建通知规则失败");
+        throw new Error(
+          failed[0] || t("admin.notifications.rules.createRulesFailed"),
+        );
       }
 
       if (failed.length > 0) {
         toast.info(
-          `已创建 ${succeeded.length} 条规则，${failed.length} 条失败`,
+          t("admin.notifications.rules.createPartial", {
+            success: succeeded.length,
+            failed: failed.length,
+          }),
           {
             description: failed[0],
           },
@@ -527,8 +571,10 @@ const saveRule = async () => {
       } else {
         toast.success(
           succeeded.length > 1
-            ? `已创建 ${succeeded.length} 条规则`
-            : "规则已创建",
+            ? t("admin.notifications.rules.createCount", {
+                count: succeeded.length,
+              })
+            : t("admin.notifications.rules.createOne"),
         );
       }
 
@@ -544,16 +590,24 @@ const saveRule = async () => {
     );
 
     if (!result.success) {
-      throw new Error(result.message || "更新规则失败");
+      throw new Error(
+        result.message || t("admin.notifications.rules.updateRuleFailed"),
+      );
     }
 
-    toast.success("规则已更新");
+    toast.success(t("admin.notifications.rules.updated"));
     dialogOpen.value = false;
     await loadData();
   } catch (error) {
-    toast.error(dialogMode.value === "create" ? "创建失败" : "更新失败", {
-      description: error instanceof Error ? error.message : "请稍后重试",
-    });
+    toast.error(
+      dialogMode.value === "create"
+        ? t("admin.notifications.rules.createFailed")
+        : t("admin.notifications.rules.updateFailed"),
+      {
+        description:
+          error instanceof Error ? error.message : t("common.tryLater"),
+      },
+    );
   } finally {
     saving.value = false;
   }
@@ -564,13 +618,16 @@ const deleteRule = async (rule: NotificationRule) => {
   try {
     const result = await EventCenterAPI.deleteNotificationRule(rule.id);
     if (!result.success) {
-      throw new Error(result.message || "删除规则失败");
+      throw new Error(
+        result.message || t("admin.notifications.rules.deleteRuleFailed"),
+      );
     }
-    toast.success("规则已删除");
+    toast.success(t("admin.notifications.rules.deleted"));
     await loadData();
   } catch (error) {
-    toast.error("删除规则失败", {
-      description: error instanceof Error ? error.message : "请稍后重试",
+    toast.error(t("admin.notifications.rules.deleteRuleFailed"), {
+      description:
+        error instanceof Error ? error.message : t("common.tryLater"),
     });
   } finally {
     deletingId.value = null;
@@ -589,7 +646,12 @@ const clearAllRules = async () => {
       rules.value.map(async (rule) => {
         const result = await EventCenterAPI.deleteNotificationRule(rule.id);
         if (!result.success) {
-          throw new Error(result.message || `删除规则 ${rule.name} 失败`);
+          throw new Error(
+            result.message ||
+              t("admin.notifications.rules.deleteRuleNamedFailed", {
+                name: rule.name,
+              }),
+          );
         }
         return rule.name;
       }),
@@ -606,26 +668,41 @@ const clearAllRules = async () => {
         (item): item is PromiseRejectedResult => item.status === "rejected",
       )
       .map((item) =>
-        item.reason instanceof Error ? item.reason.message : "删除通知规则失败",
+        item.reason instanceof Error
+          ? item.reason.message
+          : t("admin.notifications.rules.deleteRulesFailed"),
       );
 
     if (failed.length === results.length) {
-      throw new Error(failed[0] || "清空通知规则失败");
+      throw new Error(
+        failed[0] || t("admin.notifications.rules.clearRulesFailed"),
+      );
     }
 
     if (failed.length > 0) {
-      toast.info(`已删除 ${succeeded.length} 条规则，${failed.length} 条失败`, {
-        description: failed[0],
-      });
+      toast.info(
+        t("admin.notifications.rules.clearPartial", {
+          success: succeeded.length,
+          failed: failed.length,
+        }),
+        {
+          description: failed[0],
+        },
+      );
     } else {
-      toast.success(`已清空 ${succeeded.length} 条规则`);
+      toast.success(
+        t("admin.notifications.rules.clearSuccess", {
+          count: succeeded.length,
+        }),
+      );
     }
 
     clearAllDialogOpen.value = false;
     await loadData();
   } catch (error) {
-    toast.error("清空规则失败", {
-      description: error instanceof Error ? error.message : "请稍后重试",
+    toast.error(t("admin.notifications.rules.clearFailed"), {
+      description:
+        error instanceof Error ? error.message : t("common.tryLater"),
     });
   } finally {
     clearingAll.value = false;
@@ -641,7 +718,7 @@ const resolveProviderTypeLabel = (providerId: string) => {
     return definition.label;
   }
 
-  return resolveProviderById(providerId)?.type || "未知类型";
+  return resolveProviderById(providerId)?.type || t("admin.notifications.rules.unknownType");
 };
 
 watch(
@@ -659,7 +736,7 @@ watch(
     <div class="flex flex-wrap items-center gap-2">
       <div class="space-y-1">
         <div class="text-xs text-muted-foreground">
-          右侧动作菜单支持快速清空已有规则。
+          {{ t("admin.notifications.rules.toolbarHint") }}
         </div>
       </div>
       <div class="ml-auto flex items-center gap-2">
@@ -675,7 +752,7 @@ watch(
             @click="handleCreateRuleClick"
           >
             <Plus class="mr-2 h-4 w-4" />
-            新增规则
+            {{ t("admin.notifications.rules.addRule") }}
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger as-child>
@@ -695,7 +772,7 @@ watch(
                 @click="clearAllDialogOpen = true"
               >
                 <Trash2 class="mr-2 h-4 w-4" />
-                清空全部规则
+                {{ t("admin.notifications.rules.clearAllRules") }}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -707,15 +784,14 @@ watch(
       v-if="!hasProviders"
       class="rounded-md border border-dashed bg-muted/30 px-4 py-6 text-sm text-muted-foreground"
     >
-      还没有可用的通知提供商。请先在“提供商”选项卡配置至少一个
-      provider。
+      {{ t("admin.notifications.rules.noProviders") }}
     </div>
 
     <div
       v-else-if="!hasAvailableEventTypes"
       class="rounded-md border border-dashed bg-muted/30 px-4 py-6 text-sm text-muted-foreground"
     >
-      所有事件都已经配置规则。如需重新配置，请先删除已有规则后再新增。
+      {{ t("admin.notifications.rules.noAvailableEventTypes") }}
     </div>
 
     <div class="overflow-hidden rounded-md border bg-background">
@@ -726,14 +802,16 @@ watch(
               <TableHead
                 class="sticky left-0 z-20 w-[168px] min-w-[168px] border-r bg-background sm:w-[220px] sm:min-w-[220px]"
               >
-                规则名称
+                {{ t("admin.notifications.rules.name") }}
               </TableHead>
-              <TableHead>事件类型</TableHead>
-              <TableHead>触发条件</TableHead>
-              <TableHead>聚合维度</TableHead>
-              <TableHead>目标数量</TableHead>
-              <TableHead>最近触发</TableHead>
-              <TableHead class="w-[140px] text-right">操作</TableHead>
+              <TableHead>{{ t("admin.notifications.rules.eventType") }}</TableHead>
+              <TableHead>{{ t("admin.notifications.rules.triggerCondition") }}</TableHead>
+              <TableHead>{{ t("admin.notifications.rules.groupBy") }}</TableHead>
+              <TableHead>{{ t("admin.notifications.rules.targetCount") }}</TableHead>
+              <TableHead>{{ t("admin.notifications.rules.lastTriggered") }}</TableHead>
+              <TableHead class="w-[140px] text-right">
+                {{ t("admin.notifications.rules.actions") }}
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -745,8 +823,11 @@ watch(
               </TableCell>
             </TableRow>
             <TableRow v-else-if="rules.length === 0">
-              <TableCell colspan="7" class="py-10 text-center text-muted-foreground">
-                暂无通知规则
+              <TableCell
+                colspan="7"
+                class="py-10 text-center text-muted-foreground"
+              >
+                {{ t("admin.notifications.rules.empty") }}
               </TableCell>
             </TableRow>
             <TableRow v-for="rule in rules" :key="rule.id">
@@ -768,13 +849,17 @@ watch(
                   </div>
                 </div>
               </TableCell>
-              <TableCell>{{ formatSystemEventTypeLabel(rule.event_type) }}</TableCell>
+              <TableCell>{{ formatEventTypeLabel(rule.event_type) }}</TableCell>
               <TableCell>
-                {{ rule.window_seconds }} 秒内触发
-                {{ rule.threshold_count }} 次
+                {{
+                  t("admin.notifications.rules.triggerSummary", {
+                    seconds: rule.window_seconds,
+                    count: rule.threshold_count,
+                  })
+                }}
               </TableCell>
               <TableCell>{{
-                formatNotificationGroupByLabel(rule.group_by)
+                formatGroupByLabel(rule.group_by)
               }}</TableCell>
               <TableCell>{{ rule.targets.length }}</TableCell>
               <TableCell class="text-sm text-muted-foreground">
@@ -794,8 +879,10 @@ watch(
                     <Pencil class="h-4 w-4" />
                   </Button>
                   <ConfirmDangerPopover
-                    title="确认删除该规则？"
-                    description="删除后不会影响已有事件，但后续不再触发通知。"
+                    :title="t('admin.notifications.rules.deleteTitle')"
+                    :description="
+                      t('admin.notifications.rules.deleteDescription')
+                    "
                     :loading="deletingId === rule.id"
                     :disabled="deletingId === rule.id || clearingAll"
                     :on-confirm="() => deleteRule(rule)"
@@ -859,9 +946,11 @@ watch(
         >
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div class="space-y-1">
-              <div class="text-sm font-semibold">触发事件</div>
+              <div class="text-sm font-semibold">
+                {{ t("admin.notifications.rules.triggerEvents") }}
+              </div>
               <div class="text-xs text-muted-foreground">
-                仅展示尚未配置规则的事件，可一次批量创建多条规则。
+                {{ t("admin.notifications.rules.triggerEventsDescription") }}
               </div>
             </div>
             <div class="flex items-center gap-2">
@@ -872,7 +961,9 @@ watch(
                   :model-value="isAllEventTypesSelected"
                   @update:model-value="toggleAllEventTypes"
                 />
-                <span class="text-xs text-muted-foreground">全选</span>
+                <span class="text-xs text-muted-foreground">
+                  {{ t("admin.notifications.rules.selectAll") }}
+                </span>
               </div>
             </div>
           </div>
@@ -896,12 +987,12 @@ watch(
               />
               <div class="space-y-1">
                 <div class="text-sm font-medium leading-5">
-                  {{ option.label }}
+                  {{ formatEventTypeLabel(option.value) }}
                 </div>
                 <div class="text-xs text-muted-foreground">
-                  推荐聚合维度：
+                  {{ t("admin.notifications.rules.recommendedGroupBy") }}
                   {{
-                    formatNotificationGroupByLabel(
+                    formatGroupByLabel(
                       DEFAULT_GROUP_BY_BY_EVENT_TYPE[option.value],
                     )
                   }}
@@ -916,14 +1007,16 @@ watch(
           class="space-y-3 border-b border-border/60 pb-6"
         >
           <div class="space-y-1">
-            <div class="text-sm font-semibold">触发条件</div>
+            <div class="text-sm font-semibold">
+              {{ t("admin.notifications.rules.triggerConditions") }}
+            </div>
             <div class="text-xs text-muted-foreground">
-              定义频次、聚合方式和冷却时间。
+              {{ t("admin.notifications.rules.triggerConditionsDescription") }}
             </div>
           </div>
           <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div class="space-y-2">
-              <Label>时间窗口（秒）</Label>
+              <Label>{{ t("admin.notifications.rules.windowSeconds") }}</Label>
               <Input
                 v-model="ruleForm.window_seconds"
                 type="number"
@@ -933,7 +1026,7 @@ watch(
             </div>
 
             <div class="space-y-2">
-              <Label>触发次数</Label>
+              <Label>{{ t("admin.notifications.rules.thresholdCount") }}</Label>
               <Input
                 v-model="ruleForm.threshold_count"
                 type="number"
@@ -943,19 +1036,23 @@ watch(
             </div>
 
             <div class="space-y-2">
-              <Label>聚合维度</Label>
+              <Label>{{ t("admin.notifications.rules.groupBy") }}</Label>
               <Select v-model="ruleForm.group_by">
                 <SelectTrigger>
-                  <SelectValue placeholder="选择聚合维度" />
+                  <SelectValue
+                    :placeholder="t('admin.notifications.rules.selectGroupBy')"
+                  />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="auto">按事件自动推荐</SelectItem>
+                  <SelectItem value="auto">
+                    {{ t("admin.notifications.rules.autoGroupBy") }}
+                  </SelectItem>
                   <SelectItem
                     v-for="option in NOTIFICATION_GROUP_BY_OPTIONS"
                     :key="option.value"
                     :value="option.value"
                   >
-                    {{ option.label }}
+                    {{ formatGroupByLabel(option.value) }}
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -965,7 +1062,7 @@ watch(
             </div>
 
             <div class="space-y-2">
-              <Label>冷却时间（秒）</Label>
+              <Label>{{ t("admin.notifications.rules.cooldownSeconds") }}</Label>
               <Input
                 v-model="ruleForm.cooldown_seconds"
                 type="number"
@@ -981,7 +1078,9 @@ watch(
             class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
           >
             <div class="space-y-1">
-              <div class="text-sm font-semibold">通知目标</div>
+              <div class="text-sm font-semibold">
+                {{ t("admin.notifications.rules.notificationTargets") }}
+              </div>
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger as-child>
@@ -992,7 +1091,7 @@ watch(
                   :disabled="!hasProviders || !hasAvailableProvidersForAdd"
                 >
                   <Plus class="mr-2 h-4 w-4" />
-                  添加目标
+                  {{ t("admin.notifications.rules.addTarget") }}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" class="w-64">
@@ -1018,7 +1117,7 @@ watch(
             v-if="!ruleForm.targets.length"
             class="text-sm text-muted-foreground"
           >
-            还没有目标。至少需要绑定一个通知目标。
+            {{ t("admin.notifications.rules.targetEmpty") }}
           </div>
 
           <div
@@ -1028,9 +1127,11 @@ watch(
             <div
               class="hidden grid-cols-[minmax(0,1fr)_180px_auto] gap-4 border-b bg-muted/20 px-4 py-3 text-xs font-medium text-muted-foreground sm:grid"
             >
-              <div>目标名</div>
-              <div>提供商类型</div>
-              <div class="text-right">操作</div>
+              <div>{{ t("admin.notifications.rules.targetName") }}</div>
+              <div>{{ t("admin.notifications.rules.providerType") }}</div>
+              <div class="text-right">
+                {{ t("admin.notifications.rules.actions") }}
+              </div>
             </div>
 
             <div
@@ -1042,7 +1143,7 @@ watch(
                 <div
                   class="mb-1 text-[11px] font-medium tracking-wide text-muted-foreground sm:hidden"
                 >
-                  目标名
+                  {{ t("admin.notifications.rules.targetName") }}
                 </div>
                 <div class="break-words text-sm font-medium sm:truncate">
                   {{ resolveProviderName(target.provider_id) }}
@@ -1053,7 +1154,7 @@ watch(
                 <div
                   class="mb-1 text-[11px] font-medium tracking-wide text-muted-foreground sm:hidden"
                 >
-                  提供商类型
+                  {{ t("admin.notifications.rules.providerType") }}
                 </div>
                 <div class="text-sm text-muted-foreground">
                   {{ resolveProviderTypeLabel(target.provider_id) }}
@@ -1083,7 +1184,7 @@ watch(
                 class="col-span-2 rounded-md border border-dashed bg-muted/10 p-3 sm:col-span-3"
               >
                 <div class="mb-3 text-xs font-medium text-muted-foreground">
-                  目标配置
+                  {{ t("admin.notifications.rules.targetConfig") }}
                 </div>
                 <SchemaFieldsEditor
                   :fields="
@@ -1109,15 +1210,17 @@ watch(
         <div class="text-xs text-muted-foreground">
           {{
             isEditMode
-              ? "保存后会立即更新当前规则配置。"
-              : "保存后会按默认触发条件批量创建规则，后续可逐条编辑。"
+              ? t("admin.notifications.rules.saveEditHint")
+              : t("admin.notifications.rules.saveCreateHint")
           }}
         </div>
         <DialogFooter class="gap-2 sm:flex-row">
-          <Button variant="outline" @click="dialogOpen = false">取消</Button>
+          <Button variant="outline" @click="dialogOpen = false">
+            {{ t("common.cancel") }}
+          </Button>
           <Button :disabled="saving" @click="saveRule">
             <Loader2 v-if="saving" class="mr-2 h-4 w-4 animate-spin" />
-            保存
+            {{ t("common.save") }}
           </Button>
         </DialogFooter>
       </div>
@@ -1127,9 +1230,11 @@ watch(
   <Dialog v-model:open="clearAllDialogOpen">
     <DialogContent class="sm:max-w-[420px]">
       <DialogHeader>
-        <DialogTitle>清空全部规则</DialogTitle>
+        <DialogTitle>
+          {{ t("admin.notifications.rules.clearDialogTitle") }}
+        </DialogTitle>
         <DialogDescription>
-          这会依次删除当前所有通知规则。已产生的事件记录不会受影响，但后续不会再触发通知。
+          {{ t("admin.notifications.rules.clearDialogDescription") }}
         </DialogDescription>
       </DialogHeader>
 
@@ -1139,7 +1244,7 @@ watch(
           :disabled="clearingAll"
           @click="clearAllDialogOpen = false"
         >
-          取消
+          {{ t("common.cancel") }}
         </Button>
         <Button
           variant="destructive"
@@ -1147,7 +1252,7 @@ watch(
           @click="clearAllRules"
         >
           <Loader2 v-if="clearingAll" class="mr-2 h-4 w-4 animate-spin" />
-          清空全部规则
+          {{ t("admin.notifications.rules.clearAllRules") }}
         </Button>
       </DialogFooter>
     </DialogContent>

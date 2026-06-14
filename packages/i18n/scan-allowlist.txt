@@ -1,0 +1,26 @@
+# One substring per line. Matching i18n:scan findings are ignored.
+# Keep this for planned non-runtime surfaces or consciously deferred migrations.
+./README.md:
+./deploy/docker/README.md:
+routeDoc("
+withRouteDoc("
+description: "
+阿里云 DNS
+腾讯云 DNS
+腾讯云 EdgeOne
+country === "中国"
+["台湾", "香港", "澳门"]
+CIDR_CITY_ONLY_PROVINCES
+KNOWN_COUNTRY_CHINA
+[AppDirManager]
+// 
+* 本地当前版本号
+* 返回不含 SSL cert/key 原文的配置
+* 解析 X.509 证书
+* 获取 SSL 状态和证书结构化信息
+* 验证 SSL 证书和私钥是否合法
+* 清除 SSL 配置
+<title>
+site_title ===
+"登录后自动授权"
+"登入後自動授權"

@@ -3,6 +3,12 @@ import { cron } from "@elysiajs/cron";
 import { acmeService } from "../plugins/acme";
 import { configManager } from "../lib/redis";
 import { startAcmeApplicationJob } from "../lib/acme-job-runner";
+import { tDefault } from "../lib/i18n";
+import {
+  DEFAULT_LOCALE,
+  normalizeLocale,
+  translate,
+} from "../../../../packages/i18n/src";
 
 const parseIntSafe = (value: string | undefined, fallback: number) => {
   const v = Number.parseInt(String(value ?? ""), 10);
@@ -16,6 +22,12 @@ const isExpiringSoon = (validTo: string | undefined, thresholdMs: number) => {
   if (!Number.isFinite(t)) return false;
   return t - Date.now() <= thresholdMs;
 };
+
+const activeAcmeTaskMessage = (locale?: string | null) =>
+  translate(
+    normalizeLocale(locale) ?? DEFAULT_LOCALE,
+    "server.acmeJobRunner.activeTaskRunning",
+  );
 
 export const registerAcmeRenewCron = (app: Elysia) => {
   const renewDays = Math.max(
@@ -46,6 +58,7 @@ export const registerAcmeRenewCron = (app: Elysia) => {
           const activeLock = await configManager.getActiveAcmeRuntimeLock();
           if (activeLock.locked) return;
 
+          const localeConfig = await configManager.getLocaleConfig();
           const applications = await configManager.listAcmeApplications();
           const renewableEntries: Array<{
             validToMs: number;
@@ -82,12 +95,17 @@ export const registerAcmeRenewCron = (app: Elysia) => {
                 application: entry.application,
                 trigger: "auto_renew",
                 wait: true,
+                locale: localeConfig.default_locale,
               });
               const latestJob = await configManager.getAcmeJob(started.job.id);
               if (latestJob?.status === "stopped") return;
             } catch (error: any) {
               const message = error?.message || String(error);
-              if (/当前已有 ACME 任务正在执行/.test(message)) {
+              if (
+                message ===
+                  activeAcmeTaskMessage(localeConfig.default_locale) ||
+                message === tDefault("server.acmeJobRunner.activeTaskRunning")
+              ) {
                 return;
               }
               console.error(

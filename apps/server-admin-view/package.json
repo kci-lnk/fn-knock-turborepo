@@ -14,6 +14,7 @@
     "@codemirror/legacy-modes": "^6.5.2",
     "@codemirror/state": "^6.6.0",
     "@codemirror/view": "^6.40.0",
+    "@fn-knock/i18n": "^0.0.0",
     "@tanstack/vue-table": "^8.21.3",
     "@vueuse/core": "^14.2.1",
     "axios": "^1.13.5",
@@ -32,6 +33,7 @@
     "vue": "^3.5.25",
     "vue-draggable-plus": "^0.6.1",
     "vue-echarts": "^7.0.3",
+    "vue-i18n": "^10.0.8",
     "vue-input-otp": "^0.3.2",
     "vue-router": "^5.0.3",
     "vue-sonner": "^2.0.9"

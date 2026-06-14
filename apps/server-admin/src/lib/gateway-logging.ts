@@ -1,5 +1,11 @@
 import { goBackend, type GatewayLoggingConfig } from "./go-backend";
 import { configManager, type GatewayLoggingSettings } from "./redis";
+import { tDefault } from "./i18n";
+
+const gatewayLoggingT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.gatewayLogging.${key}`, params);
 
 export const getGatewayLoggingConfigForResponse = async (
   settings?: GatewayLoggingSettings | null,
@@ -24,7 +30,7 @@ export const syncGatewayLoggingToGateway = async (
   const response = await goBackend.setGatewayLoggingConfig(next);
 
   if (!response.success) {
-    throw new Error(response.message || "同步网关请求日志配置失败");
+    throw new Error(response.message || gatewayLoggingT("syncConfigFailed"));
   }
 
   return {

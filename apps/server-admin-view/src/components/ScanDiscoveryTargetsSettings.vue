@@ -4,10 +4,14 @@
       class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
     >
       <div class="space-y-1">
-        <p class="text-sm font-medium">扫描网段</p>
+        <p class="text-sm font-medium">{{ t("admin.scanTargets.title") }}</p>
         <p class="text-xs text-muted-foreground">
-          最多选择 {{ limits.maxCidrs }} 个网段，单次最多扫描
-          {{ limits.maxHosts }} 台主机。
+          {{
+            t("admin.scanTargets.description", {
+              maxCidrs: limits.maxCidrs,
+              maxHosts: limits.maxHosts,
+            })
+          }}
         </p>
       </div>
       <div class="flex flex-wrap gap-2">
@@ -29,7 +33,7 @@
           @click="resetToAutomatic"
         >
           <RotateCcw class="mr-2 h-4 w-4" />
-          恢复自动
+          {{ t("admin.scanTargets.resetAutomatic") }}
         </Button>
         <Button
           size="sm"
@@ -39,7 +43,7 @@
           @click="saveTargets()"
         >
           <Save class="mr-2 h-4 w-4" :class="{ 'animate-pulse': isSaving }" />
-          保存
+          {{ t("common.save") }}
         </Button>
       </div>
     </div>
@@ -48,7 +52,7 @@
       <Input
         v-model="customInput"
         :disabled="isLoading || isSaving"
-        placeholder="例如 192.168.31.0/24"
+        :placeholder="t('admin.scanTargets.placeholder')"
         @keyup.enter="addCustomCidrs"
       />
       <Button
@@ -57,7 +61,7 @@
         @click="addCustomCidrs"
       >
         <Plus class="mr-2 h-4 w-4" />
-        添加
+        {{ t("admin.scanTargets.add") }}
       </Button>
     </div>
 
@@ -65,14 +69,14 @@
       v-if="isLoading"
       class="py-6 text-center text-sm text-muted-foreground"
     >
-      正在识别可扫描网段...
+      {{ t("admin.scanTargets.loading") }}
     </div>
 
     <div
       v-else-if="allTargets.length === 0"
       class="py-6 text-center text-sm text-muted-foreground"
     >
-      暂未识别到可扫描网段，请添加本地 IPv4 CIDR。
+      {{ t("admin.scanTargets.empty") }}
     </div>
 
     <div v-else class="mt-3 max-h-56 space-y-2 overflow-auto pr-1">
@@ -94,7 +98,9 @@
             <Badge variant="secondary">{{
               getSourceLabel(target.source)
             }}</Badge>
-            <Badge v-if="target.isAutomatic" variant="outline">自动</Badge>
+            <Badge v-if="target.isAutomatic" variant="outline">
+              {{ t("admin.scanTargets.automatic") }}
+            </Badge>
           </div>
           <p class="truncate text-xs text-muted-foreground">
             {{ target.label }}
@@ -102,7 +108,13 @@
         </div>
         <div class="flex shrink-0 items-center gap-2">
           <span class="text-xs text-muted-foreground">
-            {{ target.hostCount > 0 ? `${target.hostCount} 台` : "待保存" }}
+            {{
+              target.hostCount > 0
+                ? t("admin.scanTargets.hostCount", {
+                    count: target.hostCount,
+                  })
+                : t("admin.scanTargets.pendingSave")
+            }}
           </span>
           <Button
             v-if="customCidrs.includes(target.cidr)"
@@ -123,19 +135,32 @@
       class="mt-3 flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between"
     >
       <span>
-        已选择 {{ selectedCidrs.length }} 个网段
+        {{
+          t("admin.scanTargets.selectedCidrs", {
+            count: selectedCidrs.length,
+          })
+        }}
         <template v-if="selectedHostCount !== null">
-          / {{ selectedHostCount }} 台主机
+          {{
+            t("admin.scanTargets.selectedHosts", {
+              count: selectedHostCount,
+            })
+          }}
         </template>
       </span>
-      <span v-if="isDirty" class="text-amber-600">设置尚未保存</span>
-      <span v-else-if="isAutomaticSelection">自动跟随候选网段</span>
+      <span v-if="isDirty" class="text-amber-600">
+        {{ t("admin.scanTargets.dirty") }}
+      </span>
+      <span v-else-if="isAutomaticSelection">
+        {{ t("admin.scanTargets.automaticSelection") }}
+      </span>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -148,6 +173,8 @@ import {
   type ScanDiscoveryTargetSource,
   type ScanDiscoveryTargetsResponse,
 } from "../lib/api";
+
+const { t } = useI18n();
 
 const targets = ref<ScanDiscoveryTargetsResponse | null>(null);
 const selectedCidrs = ref<string[]>([]);
@@ -208,7 +235,7 @@ const allTargets = computed<ScanDiscoveryTarget[]>(() => {
     if (!map.has(cidr)) {
       map.set(cidr, {
         cidr,
-        label: `${cidr}（自定义）`,
+        label: t("admin.scanTargets.customLabel", { cidr }),
         source: "custom",
         hostCount: 0,
         isAutomatic: false,
@@ -220,7 +247,7 @@ const allTargets = computed<ScanDiscoveryTarget[]>(() => {
     if (!map.has(cidr)) {
       map.set(cidr, {
         cidr,
-        label: `${cidr}（已保存）`,
+        label: t("admin.scanTargets.savedLabel", { cidr }),
         source: "saved",
         hostCount: 0,
         isAutomatic: false,
@@ -243,11 +270,11 @@ const selectedHostCount = computed(() => {
 
 const getSourceLabel = (source: ScanDiscoveryTargetSource): string => {
   if (source === "docker") return "Docker";
-  if (source === "loopback") return "本机";
-  if (source === "interface") return "网卡";
-  if (source === "mapping") return "映射";
-  if (source === "custom") return "自定义";
-  return "已保存";
+  if (source === "loopback") return t("admin.scanTargets.sourceLoopback");
+  if (source === "interface") return t("admin.scanTargets.sourceInterface");
+  if (source === "mapping") return t("admin.scanTargets.sourceMapping");
+  if (source === "custom") return t("admin.scanTargets.sourceCustom");
+  return t("admin.scanTargets.sourceSaved");
 };
 
 const applyTargets = (payload: ScanDiscoveryTargetsResponse) => {
@@ -270,9 +297,11 @@ async function loadTargets(force = false) {
   try {
     applyTargets(await ScanAPI.getDiscoverTargets());
   } catch (error) {
-    toast.error("加载扫描网段失败", {
+    toast.error(t("admin.scanTargets.loadFailed"), {
       description:
-        error instanceof Error ? error.message : "无法获取服务发现扫描网段",
+        error instanceof Error
+          ? error.message
+          : t("admin.scanTargets.loadFallback"),
     });
     throw error;
   } finally {
@@ -286,8 +315,10 @@ const addCustomCidrs = () => {
 
   const invalid = values.filter((value) => !isValidCIDR(value));
   if (invalid.length > 0) {
-    toast.error("CIDR 格式不正确", {
-      description: `请检查：${invalid.slice(0, 3).join("、")}`,
+    toast.error(t("admin.scanTargets.invalidCidr"), {
+      description: t("admin.scanTargets.invalidCidrDescription", {
+        values: invalid.slice(0, 3).join("、"),
+      }),
     });
     return;
   }
@@ -318,8 +349,9 @@ const resetToAutomatic = () => {
 
 async function saveTargets(silent = false): Promise<string[]> {
   if (selectedCidrs.value.length === 0) {
-    toast.error("请选择扫描网段");
-    throw new Error("请选择扫描网段");
+    const message = t("admin.scanTargets.selectRequired");
+    toast.error(message);
+    throw new Error(message);
   }
 
   isSaving.value = true;
@@ -330,13 +362,15 @@ async function saveTargets(silent = false): Promise<string[]> {
     });
     applyTargets(payload);
     if (!silent) {
-      toast.success("扫描网段已保存");
+      toast.success(t("admin.scanTargets.saveSuccess"));
     }
     return [...selectedCidrs.value];
   } catch (error) {
-    toast.error("保存扫描网段失败", {
+    toast.error(t("admin.scanTargets.saveFailed"), {
       description:
-        error instanceof Error ? error.message : "无法保存服务发现扫描网段",
+        error instanceof Error
+          ? error.message
+          : t("admin.scanTargets.saveFallback"),
     });
     throw error;
   } finally {
@@ -350,8 +384,9 @@ async function ensureSaved(): Promise<string[]> {
     return saveTargets(true);
   }
   if (selectedCidrs.value.length === 0) {
-    toast.error("请选择扫描网段");
-    throw new Error("请选择扫描网段");
+    const message = t("admin.scanTargets.selectRequired");
+    toast.error(message);
+    throw new Error(message);
   }
   return [...selectedCidrs.value];
 }

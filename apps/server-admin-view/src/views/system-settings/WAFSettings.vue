@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import {
   Download,
   Eye,
@@ -54,28 +55,29 @@ import {
 } from "@admin-shared/composables/useAsyncAction";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 
-const LEVEL_OPTIONS = [
+const { locale, t } = useI18n();
+const levelOptions = computed(() => [
   {
     value: "1",
-    label: "日常防护",
-    description: "推荐",
+    label: t("admin.wafSettings.levels.daily"),
+    description: t("admin.wafSettings.levels.dailyDescription"),
   },
   {
     value: "2",
-    label: "加强防护",
-    description: "更敏感",
+    label: t("admin.wafSettings.levels.enhanced"),
+    description: t("admin.wafSettings.levels.enhancedDescription"),
   },
   {
     value: "3",
-    label: "严格防护",
-    description: "误拦截可能增加",
+    label: t("admin.wafSettings.levels.strict"),
+    description: t("admin.wafSettings.levels.strictDescription"),
   },
   {
     value: "4",
-    label: "最高防护",
-    description: "仅建议排查时使用",
+    label: t("admin.wafSettings.levels.maximum"),
+    description: t("admin.wafSettings.levels.maximumDescription"),
   },
-] as const;
+] as const);
 const SYSTEM_INITIALIZATION_RULE_FILENAME = "REQUEST-901-INITIALIZATION.conf";
 
 const configStore = useConfigStore();
@@ -98,38 +100,53 @@ const form = reactive({
 
 const { isPending: isLoading, run: runLoadDetails } = useAsyncAction({
   onError: (error) => {
-    toast.error("加载失败", {
-      description: extractErrorMessage(error, "无法获取 WAF 设置"),
+    toast.error(t("admin.wafSettings.loadFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.wafSettings.loadDescription"),
+      ),
     });
   },
 });
 const showLoadingSkeleton = useDelayedLoading(isLoading);
 const { isPending: isSaving, run: runSaveSettings } = useAsyncAction({
   onError: (error) => {
-    toast.error("保存失败", {
-      description: extractErrorMessage(error, "WAF 设置保存失败"),
+    toast.error(t("admin.wafSettings.saveFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.wafSettings.saveDescription"),
+      ),
     });
   },
 });
 const { isPending: isUpdatingSystemRules, run: runUpdateSystemRules } =
   useAsyncAction({
     onError: (error) => {
-      toast.error("更新失败", {
-        description: extractErrorMessage(error, "系统规则更新失败"),
+      toast.error(t("admin.wafSettings.updateFailed"), {
+        description: extractErrorMessage(
+          error,
+          t("admin.wafSettings.systemUpdateDescription"),
+        ),
       });
     },
   });
 const { isPending: isUploading, run: runUploadRules } = useAsyncAction({
   onError: (error) => {
-    toast.error("上传失败", {
-      description: extractErrorMessage(error, "自定义规则上传失败"),
+    toast.error(t("admin.wafSettings.uploadFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.wafSettings.uploadDescription"),
+      ),
     });
   },
 });
 const { isPending: isChangingRules, run: runRuleChange } = useAsyncAction({
   onError: (error) => {
-    toast.error("更新失败", {
-      description: extractErrorMessage(error, "规则状态更新失败"),
+    toast.error(t("admin.wafSettings.updateFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.wafSettings.ruleUpdateDescription"),
+      ),
     });
   },
 });
@@ -154,15 +171,19 @@ const allRulesEnabled = (source: WAFRuleSource) => {
   return rules.length > 0 && rules.every((rule) => rule.enabled);
 };
 const toggleAllRulesLabel = (source: WAFRuleSource) =>
-  allRulesEnabled(source) ? "关闭全部" : "开启全部";
+  allRulesEnabled(source)
+    ? t("admin.wafSettings.disableAll")
+    : t("admin.wafSettings.enableAll");
 const syncedLabel = computed(() => {
   const syncedAt = details.value?.system.synced?.synced_at;
-  return syncedAt ? formatDate(syncedAt) : "尚未同步";
+  return syncedAt ? formatDate(syncedAt) : t("admin.wafSettings.notSynced");
 });
 const manifestLabel = computed(() => {
   const manifest = details.value?.system.manifest;
-  if (!manifest) return "未获取";
-  return manifest.packagingTime ? formatDate(manifest.packagingTime) : "已获取";
+  if (!manifest) return t("admin.wafSettings.notFetched");
+  return manifest.packagingTime
+    ? formatDate(manifest.packagingTime)
+    : t("admin.wafSettings.fetched");
 });
 
 const clampLevel = (value: unknown, fallback = 1) => {
@@ -175,7 +196,7 @@ const formatDate = (value?: string | null) => {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("zh-CN", {
+  return date.toLocaleString(locale.value, {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
@@ -193,7 +214,9 @@ const formatSystemRuleName = (filename: string) =>
   filename.replace(/\.conf$/i, "");
 
 const sourceLabel = (source: WAFRuleSource) =>
-  source === "system" ? "系统规则" : "自定义规则";
+  source === "system"
+    ? t("admin.wafSettings.systemRules")
+    : t("admin.wafSettings.customRules");
 
 const ruleKey = (rule: Pick<WAFRuleFile, "source" | "filename">) =>
   `${rule.source}:${rule.filename}`;
@@ -231,10 +254,12 @@ const handleParanoiaLevelChange = (value: unknown) => {
   const level = clampLevel(value, 1);
   form.paranoia_level = level;
   form.executing_paranoia_level = level;
-  return saveSettings("WAF 防护强度已更新");
+  return saveSettings(t("admin.wafSettings.protectionUpdated"));
 };
 
-const saveSettings = async (successMessage = "WAF 设置已更新") => {
+const saveSettings = async (
+  successMessage = t("admin.wafSettings.settingsUpdated"),
+) => {
   await runSaveSettings(
     () =>
       WAFAPI.updateConfig({
@@ -285,11 +310,16 @@ const handleEnabledChange = async (enabled: boolean) => {
     {
       onSuccess: async (data) => {
         applyFromDetails(data);
-        toast.success(enabled ? "WAF 已开启" : "WAF 已关闭", {
-          description: enabled
-            ? "已更新系统规则并加载到 Go 网关。"
-            : "Go 网关会立即跳过 WAF 检查。",
-        });
+        toast.success(
+          enabled
+            ? t("admin.wafSettings.enabledTitle")
+            : t("admin.wafSettings.disabledTitle"),
+          {
+            description: enabled
+              ? t("admin.wafSettings.enabledDescription")
+              : t("admin.wafSettings.disabledDescription"),
+          },
+        );
         await configStore.loadConfig();
       },
       onError: () => {
@@ -312,7 +342,11 @@ const handleCommonLocationExemptChange = async (enabled: boolean) => {
     {
       onSuccess: (data) => {
         applyFromDetails(data);
-        toast.success(enabled ? "常用地豁免已开启" : "常用地豁免已关闭");
+        toast.success(
+          enabled
+            ? t("admin.wafSettings.commonLocationEnabled")
+            : t("admin.wafSettings.commonLocationDisabled"),
+        );
       },
       onError: () => {
         form.common_location_exempt_enabled = previousEnabled;
@@ -334,11 +368,16 @@ const handleAutoUpdateChange = async (enabled: boolean) => {
     {
       onSuccess: (data) => {
         applyFromDetails(data);
-        toast.success(enabled ? "自动更新已开启" : "自动更新已关闭", {
-          description: enabled
-            ? "后端会自动维护 WAF 系统规则更新。"
-            : "后端不会再自动检查 WAF 系统规则更新。",
-        });
+        toast.success(
+          enabled
+            ? t("admin.wafSettings.autoUpdateEnabled")
+            : t("admin.wafSettings.autoUpdateDisabled"),
+          {
+            description: enabled
+              ? t("admin.wafSettings.autoUpdateEnabledDescription")
+              : t("admin.wafSettings.autoUpdateDisabledDescription"),
+          },
+        );
       },
       onError: () => {
         form.system_rules_auto_update_enabled = previousEnabled;
@@ -353,15 +392,15 @@ const updateSystemRules = async () => {
     onSuccess: ({ details: nextDetails, updated }) => {
       applyFromDetails(nextDetails);
       if (updated) {
-        toast.success("系统规则已更新", {
+        toast.success(t("admin.wafSettings.systemRulesUpdated"), {
           description: nextDetails.config.enabled
-            ? "已自动加载到 Go 网关。"
-            : "WAF 开启后会按这些规则生效。",
+            ? t("admin.wafSettings.loadedToGateway")
+            : t("admin.wafSettings.rulesApplyWhenEnabled"),
         });
         return;
       }
-      toast.success("规则已是最新", {
-        description: "已检查清单，没有发现新的系统规则。",
+      toast.success(t("admin.wafSettings.rulesLatest"), {
+        description: t("admin.wafSettings.noNewSystemRules"),
       });
     },
   });
@@ -407,11 +446,16 @@ const updateRulesEnabled = async (
     {
       onSuccess: (data) => {
         applyFromDetails(data);
-        toast.success(enabled ? "规则已开启" : "规则已关闭", {
-          description: data.config.enabled
-            ? "已自动加载到 Go 网关。"
-            : "WAF 开启后会按当前规则生效。",
-        });
+        toast.success(
+          enabled
+            ? t("admin.wafSettings.ruleEnabled")
+            : t("admin.wafSettings.ruleDisabled"),
+          {
+            description: data.config.enabled
+              ? t("admin.wafSettings.loadedToGateway")
+              : t("admin.wafSettings.currentRulesApplyWhenEnabled"),
+          },
+        );
       },
     },
   );
@@ -440,8 +484,11 @@ const openRulePreview = async (rule: WAFRuleFile) => {
     );
     isRulePreviewOpen.value = true;
   } catch (error) {
-    toast.error("读取失败", {
-      description: extractErrorMessage(error, "WAF 规则读取失败"),
+    toast.error(t("admin.wafSettings.readFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.wafSettings.ruleReadDescription"),
+      ),
     });
   } finally {
     if (loadingRuleKey.value === key) loadingRuleKey.value = "";
@@ -459,8 +506,11 @@ const downloadRuleFile = async (rule: WAFRuleFile) => {
       data.filename || rule.filename,
     );
   } catch (error) {
-    toast.error("下载失败", {
-      description: extractErrorMessage(error, "WAF 规则下载失败"),
+    toast.error(t("admin.wafSettings.downloadFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.wafSettings.ruleDownloadDescription"),
+      ),
     });
   } finally {
     if (downloadingRuleKey.value === key) downloadingRuleKey.value = "";
@@ -474,7 +524,8 @@ const readFileAsBase64 = (file: File): Promise<string> =>
       const value = String(reader.result || "");
       resolve(value.includes(",") ? value.split(",")[1] || "" : value);
     };
-    reader.onerror = () => reject(reader.error || new Error("读取文件失败"));
+    reader.onerror = () =>
+      reject(reader.error || new Error(t("admin.wafSettings.fileReadFailed")));
     reader.readAsDataURL(file);
   });
 
@@ -498,10 +549,10 @@ const handleUploadChange = async (event: Event) => {
     {
       onSuccess: (data) => {
         applyFromDetails(data);
-        toast.success("自定义规则已上传", {
+        toast.success(t("admin.wafSettings.customRulesUploaded"), {
           description: data.config.enabled
-            ? "已自动加载到 Go 网关。"
-            : "WAF 开启后会按当前规则生效。",
+            ? t("admin.wafSettings.loadedToGateway")
+            : t("admin.wafSettings.currentRulesApplyWhenEnabled"),
         });
       },
     },
@@ -512,10 +563,10 @@ const deleteCustomRule = async (filename: string) => {
   await runRuleChange(() => WAFAPI.deleteCustomRule(filename), {
     onSuccess: (data) => {
       applyFromDetails(data);
-      toast.success("自定义规则已删除", {
+      toast.success(t("admin.wafSettings.customRuleDeleted"), {
         description: data.config.enabled
-          ? "已自动加载到 Go 网关。"
-          : "WAF 开启后会按当前规则生效。",
+          ? t("admin.wafSettings.loadedToGateway")
+          : t("admin.wafSettings.currentRulesApplyWhenEnabled"),
       });
     },
   });
@@ -529,10 +580,11 @@ onMounted(fetchDetails);
     <Card>
       <CardHeader>
         <div class="space-y-1.5">
-          <CardTitle class="text-md">Web 防护</CardTitle>
+          <CardTitle class="text-md">
+            {{ t("admin.wafSettings.title") }}
+          </CardTitle>
           <CardDescription>
-            使用系统规则和上传规则保护网关请求；开关、强度和规则操作会即时同步到
-            Go 网关。
+            {{ t("admin.wafSettings.description") }}
           </CardDescription>
         </div>
       </CardHeader>
@@ -551,9 +603,11 @@ onMounted(fetchDetails);
             class="items-start rounded-xl border-amber-200 bg-amber-50/70 text-amber-950 [&>svg]:text-amber-600"
           >
             <TriangleAlert class="mt-0.5 h-4 w-4" />
-            <AlertTitle>规则误报提示</AlertTitle>
+            <AlertTitle>
+              {{ t("admin.wafSettings.falsePositiveTitle") }}
+            </AlertTitle>
             <AlertDescription class="text-sm leading-6 text-amber-900">
-              默认已关闭高频误报的系统规则文件；手动开启更多规则后，部分正常请求仍可能被误判并拦截。如果发现误报，请及时反馈。QQ群：1081609274
+              {{ t("admin.wafSettings.falsePositiveDescription") }}
             </AlertDescription>
           </Alert>
         </section>
@@ -566,11 +620,10 @@ onMounted(fetchDetails);
               class="cursor-pointer text-base font-medium"
               @click="handleEnabledChange(!form.enabled)"
             >
-              启用WAF
+              {{ t("admin.wafSettings.enableWaf") }}
             </Label>
             <div class="text-sm text-muted-foreground">
-              默认关闭。开启时会先更新系统规则，并跳过高频误报规则文件，再按当前强度加载到
-              Go 网关；关闭后网关会立即跳过 WAF 检查。
+              {{ t("admin.wafSettings.enableWafDescription") }}
             </div>
           </div>
           <Switch
@@ -591,10 +644,10 @@ onMounted(fetchDetails);
                 handleAutoUpdateChange(!form.system_rules_auto_update_enabled)
               "
             >
-              规则自动更新
+              {{ t("admin.wafSettings.autoUpdate") }}
             </Label>
             <div class="text-sm text-muted-foreground">
-              开启后会自动维护 WAF 系统规则更新，失败后后续会继续尝试。
+              {{ t("admin.wafSettings.autoUpdateDescription") }}
             </div>
           </div>
           <Switch
@@ -619,10 +672,10 @@ onMounted(fetchDetails);
                 )
               "
             >
-              常用地豁免
+              {{ t("admin.wafSettings.commonLocationExempt") }}
             </Label>
             <div class="text-sm text-muted-foreground">
-              来自最近登录常用地区的请求会跳过 WAF 检查。
+              {{ t("admin.wafSettings.commonLocationExemptDescription") }}
             </div>
           </div>
           <Switch
@@ -639,9 +692,11 @@ onMounted(fetchDetails);
             class="grid gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_minmax(360px,520px)]"
           >
             <div class="space-y-1 pr-6">
-              <Label class="text-base">防护强度</Label>
+              <Label class="text-base">
+                {{ t("admin.wafSettings.protectionLevel") }}
+              </Label>
               <div class="text-sm text-muted-foreground">
-                日常使用建议保持 1 级。等级越高越严格，也越可能误拦截。
+                {{ t("admin.wafSettings.protectionLevelDescription") }}
               </div>
             </div>
             <div class="grid justify-items-end gap-5">
@@ -655,7 +710,7 @@ onMounted(fetchDetails);
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem
-                    v-for="level in LEVEL_OPTIONS"
+                    v-for="level in levelOptions"
                     :key="level.value"
                     :value="level.value"
                   >
@@ -672,16 +727,23 @@ onMounted(fetchDetails);
             >
               <div class="space-y-1">
                 <div class="flex items-center gap-2">
-                  <Label class="text-base">系统规则</Label>
+                  <Label class="text-base">
+                    {{ t("admin.wafSettings.systemRules") }}
+                  </Label>
                   <Badge
                     v-if="details?.system.update_available"
                     variant="secondary"
                   >
-                    有更新
+                    {{ t("admin.wafSettings.updateAvailable") }}
                   </Badge>
                 </div>
                 <div class="text-sm text-muted-foreground">
-                  清单 {{ manifestLabel }} · 本地 {{ syncedLabel }}
+                  {{
+                    t("admin.wafSettings.manifestLocal", {
+                      manifest: manifestLabel,
+                      synced: syncedLabel,
+                    })
+                  }}
                 </div>
                 <div
                   v-if="details?.system.manifest_last_error"
@@ -696,7 +758,7 @@ onMounted(fetchDetails);
                     class="mr-2 h-4 w-4"
                     :class="isUpdatingSystemRules ? 'animate-spin' : ''"
                   />
-                  更新规则
+                  {{ t("admin.wafSettings.updateRules") }}
                 </Button>
               </div>
             </div>
@@ -705,7 +767,7 @@ onMounted(fetchDetails);
               v-if="systemRules.length === 0"
               class="text-sm text-muted-foreground"
             >
-              尚未同步系统规则
+              {{ t("admin.wafSettings.notSyncedSystemRules") }}
             </div>
             <div v-else class="overflow-hidden rounded-md border">
               <div
@@ -722,7 +784,13 @@ onMounted(fetchDetails);
                       (value) => setAllSelected('system', value === true)
                     "
                   />
-                  <span>已选择 {{ selectedCount("system") }} 个</span>
+                  <span>
+                    {{
+                      t("admin.wafSettings.selectedCount", {
+                        count: selectedCount("system"),
+                      })
+                    }}
+                  </span>
                 </label>
                 <div class="flex flex-wrap gap-2">
                   <Button
@@ -732,7 +800,7 @@ onMounted(fetchDetails);
                     :disabled="isBusy"
                     @click="updateSelectedRules('system', true)"
                   >
-                    开启所选
+                    {{ t("admin.wafSettings.enableSelected") }}
                   </Button>
                   <Button
                     v-if="selectedCount('system') > 0"
@@ -741,7 +809,7 @@ onMounted(fetchDetails);
                     :disabled="isBusy"
                     @click="updateSelectedRules('system', false)"
                   >
-                    关闭所选
+                    {{ t("admin.wafSettings.disableSelected") }}
                   </Button>
                   <Button
                     variant="outline"
@@ -786,8 +854,8 @@ onMounted(fetchDetails);
                               size="icon"
                               class="h-8 w-8 text-muted-foreground hover:text-foreground"
                               :disabled="loadingRuleKey === ruleKey(rule)"
-                              title="查看规则"
-                              aria-label="查看规则"
+                              :title="t('admin.wafSettings.viewRule')"
+                              :aria-label="t('admin.wafSettings.viewRule')"
                               @click.stop="openRulePreview(rule)"
                             >
                               <Loader2
@@ -797,7 +865,9 @@ onMounted(fetchDetails);
                               <Eye v-else class="h-4 w-4" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>查看规则</TooltipContent>
+                          <TooltipContent>
+                            {{ t("admin.wafSettings.viewRule") }}
+                          </TooltipContent>
                         </Tooltip>
                         <Tooltip>
                           <TooltipTrigger as-child>
@@ -806,8 +876,8 @@ onMounted(fetchDetails);
                               size="icon"
                               class="h-8 w-8 text-muted-foreground hover:text-foreground"
                               :disabled="downloadingRuleKey === ruleKey(rule)"
-                              title="下载规则"
-                              aria-label="下载规则"
+                              :title="t('admin.wafSettings.downloadRule')"
+                              :aria-label="t('admin.wafSettings.downloadRule')"
                               @click.stop="downloadRuleFile(rule)"
                             >
                               <Loader2
@@ -817,7 +887,9 @@ onMounted(fetchDetails);
                               <Download v-else class="h-4 w-4" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>下载规则</TooltipContent>
+                          <TooltipContent>
+                            {{ t("admin.wafSettings.downloadRule") }}
+                          </TooltipContent>
                         </Tooltip>
                       </div>
                     </div>
@@ -849,9 +921,11 @@ onMounted(fetchDetails);
               class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
             >
               <div class="space-y-1">
-                <Label class="text-base">自定义规则</Label>
+                <Label class="text-base">
+                  {{ t("admin.wafSettings.customRules") }}
+                </Label>
                 <div class="text-sm text-muted-foreground">
-                  上传 `.conf` 文件后可单独开启或关闭。
+                  {{ t("admin.wafSettings.customRulesDescription") }}
                 </div>
               </div>
               <div>
@@ -862,7 +936,7 @@ onMounted(fetchDetails);
                   @click="triggerUpload"
                 >
                   <Upload class="mr-2 h-4 w-4" />
-                  上传规则
+                  {{ t("admin.wafSettings.uploadRules") }}
                 </Button>
                 <input
                   ref="uploadInputRef"
@@ -879,7 +953,7 @@ onMounted(fetchDetails);
               v-if="customRules.length === 0"
               class="text-sm text-muted-foreground"
             >
-              暂无自定义规则
+              {{ t("admin.wafSettings.noCustomRules") }}
             </div>
             <div v-else class="overflow-hidden rounded-md border">
               <div
@@ -896,7 +970,13 @@ onMounted(fetchDetails);
                       (value) => setAllSelected('custom', value === true)
                     "
                   />
-                  <span>已选择 {{ selectedCount("custom") }} 个</span>
+                  <span>
+                    {{
+                      t("admin.wafSettings.selectedCount", {
+                        count: selectedCount("custom"),
+                      })
+                    }}
+                  </span>
                 </label>
                 <div class="flex flex-wrap gap-2">
                   <Button
@@ -906,7 +986,7 @@ onMounted(fetchDetails);
                     :disabled="isBusy"
                     @click="updateSelectedRules('custom', true)"
                   >
-                    开启所选
+                    {{ t("admin.wafSettings.enableSelected") }}
                   </Button>
                   <Button
                     v-if="selectedCount('custom') > 0"
@@ -915,7 +995,7 @@ onMounted(fetchDetails);
                     :disabled="isBusy"
                     @click="updateSelectedRules('custom', false)"
                   >
-                    关闭所选
+                    {{ t("admin.wafSettings.disableSelected") }}
                   </Button>
                   <Button
                     variant="outline"
@@ -960,8 +1040,8 @@ onMounted(fetchDetails);
                               size="icon"
                               class="h-8 w-8 text-muted-foreground hover:text-foreground"
                               :disabled="loadingRuleKey === ruleKey(rule)"
-                              title="查看规则"
-                              aria-label="查看规则"
+                              :title="t('admin.wafSettings.viewRule')"
+                              :aria-label="t('admin.wafSettings.viewRule')"
                               @click.stop="openRulePreview(rule)"
                             >
                               <Loader2
@@ -971,7 +1051,9 @@ onMounted(fetchDetails);
                               <Eye v-else class="h-4 w-4" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>查看规则</TooltipContent>
+                          <TooltipContent>
+                            {{ t("admin.wafSettings.viewRule") }}
+                          </TooltipContent>
                         </Tooltip>
                         <Tooltip>
                           <TooltipTrigger as-child>
@@ -980,8 +1062,8 @@ onMounted(fetchDetails);
                               size="icon"
                               class="h-8 w-8 text-muted-foreground hover:text-foreground"
                               :disabled="downloadingRuleKey === ruleKey(rule)"
-                              title="下载规则"
-                              aria-label="下载规则"
+                              :title="t('admin.wafSettings.downloadRule')"
+                              :aria-label="t('admin.wafSettings.downloadRule')"
                               @click.stop="downloadRuleFile(rule)"
                             >
                               <Loader2
@@ -991,7 +1073,9 @@ onMounted(fetchDetails);
                               <Download v-else class="h-4 w-4" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>下载规则</TooltipContent>
+                          <TooltipContent>
+                            {{ t("admin.wafSettings.downloadRule") }}
+                          </TooltipContent>
                         </Tooltip>
                       </div>
                     </div>
@@ -1011,8 +1095,14 @@ onMounted(fetchDetails);
                       "
                     />
                     <ConfirmDangerPopover
-                      :title="`删除 ${rule.filename}？`"
-                      description="删除后不会再加载这个自定义规则。"
+                      :title="
+                        t('admin.wafSettings.deleteConfirmTitle', {
+                          filename: rule.filename,
+                        })
+                      "
+                      :description="
+                        t('admin.wafSettings.deleteConfirmDescription')
+                      "
                       :loading="isChangingRules"
                       :disabled="isBusy"
                       :on-confirm="() => deleteCustomRule(rule.filename)"
@@ -1038,7 +1128,7 @@ onMounted(fetchDetails);
     </Card>
     <DetailDialog
       v-model:open="isRulePreviewOpen"
-      :title="activeRulePreview?.filename || '规则内容'"
+      :title="activeRulePreview?.filename || t('admin.wafSettings.ruleContent')"
       :description="
         activeRulePreview
           ? `${sourceLabel(activeRulePreview.source)} · ${formatSize(activeRulePreview.size_bytes)} · ${formatDate(activeRulePreview.updated_at)}`

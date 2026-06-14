@@ -14,6 +14,12 @@ import {
 } from "../../lib/acme-dns-providers";
 import { collectStreamOutput, fileExists, sleep, waitForProcessExit } from "../../lib/runtime";
 import { applyAcmeDnsProviderPatches } from "./patches/index";
+import { tDefault } from "../../lib/i18n";
+
+const acmeServiceT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.acmeService.${key}`, params);
 
 export type AcmeStatus = "uninstalled" | "installing" | "installed" | "error";
 
@@ -57,7 +63,7 @@ export class AcmeService {
   private state: AcmeState = {
     status: "uninstalled",
     progress: 0,
-    message: "等待操作",
+    message: acmeServiceT("waiting"),
     executablePath: ACME_EXECUTABLE_PATH,
   };
 
@@ -137,7 +143,11 @@ export class AcmeService {
     } catch (error: any) {
       if (error?.code === "ESRCH") return;
       errors.push(
-        `发送 ${signal} 到 ${target} 失败: ${error?.message || String(error)}`,
+        acmeServiceT("sendSignalFailed", {
+          detail: error?.message || String(error),
+          signal,
+          target,
+        }),
       );
     }
   }
@@ -273,9 +283,10 @@ export class AcmeService {
       .slice(-3)
       .join(" | ");
     throw new Error(
-      `设置默认证书颁发机构失败（退出码: ${result.exitCode}）${
-        brief ? `: ${brief}` : ""
-      }`,
+      acmeServiceT("setDefaultCaFailed", {
+        brief: brief ? `: ${brief}` : "",
+        code: result.exitCode,
+      }),
     );
   }
 
@@ -303,7 +314,12 @@ export class AcmeService {
     if (isAlreadyRegistered) return accountEmail;
 
     const brief = (result.stderr || result.stdout || "").trim().split("\n").slice(-3).join(" | ");
-    throw new Error(`注册 ACME 账号失败（退出码: ${result.exitCode}）${brief ? `: ${brief}` : ""}`);
+    throw new Error(
+      acmeServiceT("registerAccountFailed", {
+        brief: brief ? `: ${brief}` : "",
+        code: result.exitCode,
+      }),
+    );
   }
 
   private async migrateLegacyInstallIfNeeded(): Promise<void> {
@@ -339,10 +355,10 @@ export class AcmeService {
   private async installFromBundledZip(): Promise<string> {
     const bundleZipPath = resolveBundledAcmeZipPath(this.currentDir);
     if (!bundleZipPath) {
-      throw new Error("未找到内置 acmesh.zip 资源");
+      throw new Error(acmeServiceT("bundledZipMissing"));
     }
 
-    this.state = { status: "installing", progress: 35, message: "正在解压内置 acme.sh 资源...", executablePath: this.acmePath };
+    this.state = { status: "installing", progress: 35, message: acmeServiceT("extractingBundled"), executablePath: this.acmePath };
 
     const tmpDir = join(this.acmeDir, "..", `.acme-extract-${Date.now()}-${Math.random().toString(16).slice(2)}`);
     await mkdir(tmpDir, { recursive: true });
@@ -359,21 +375,21 @@ export class AcmeService {
         unzipExitPromise,
       ]);
       if (unzipCode !== 0) {
-        throw new Error(`解压失败，退出码: ${unzipCode}`);
+        throw new Error(acmeServiceT("unzipFailed", { code: unzipCode }));
       }
 
       const extractedRoot = await this.locateExtractedRoot(tmpDir);
       if (!extractedRoot) {
-        throw new Error("解压成功但未找到 acme.sh");
+        throw new Error(acmeServiceT("extractedAcmeMissing"));
       }
 
-      this.state = { status: "installing", progress: 70, message: "正在写入数据目录...", executablePath: this.acmePath };
+      this.state = { status: "installing", progress: 70, message: acmeServiceT("writingDataDir"), executablePath: this.acmePath };
       await rm(this.acmeDir, { recursive: true, force: true });
       await mkdir(this.acmeDir, { recursive: true });
       await cp(extractedRoot, this.acmeDir, { recursive: true, force: true });
 
       if (!(await fileExists(this.acmePath))) {
-        throw new Error("写入后未找到 acme.sh");
+        throw new Error(acmeServiceT("writtenAcmeMissing"));
       }
 
       await chmod(this.acmePath, 0o755);
@@ -392,7 +408,9 @@ export class AcmeService {
       this.state = {
         status: "error",
         progress: 0,
-        message: `检查安装状态失败: ${e?.message || String(e)}`,
+        message: acmeServiceT("checkInstallFailed", {
+          detail: e?.message || String(e),
+        }),
         executablePath: this.acmePath,
       };
       return false;
@@ -402,13 +420,13 @@ export class AcmeService {
       this.state = {
         status: "installed",
         progress: 100,
-        message: `acme.sh 已就绪`,
+        message: acmeServiceT("ready"),
         executablePath: this.acmePath,
       };
       return true;
     }
 
-    this.state = { status: "uninstalled", progress: 0, message: "acme.sh 未安装", executablePath: this.acmePath };
+    this.state = { status: "uninstalled", progress: 0, message: acmeServiceT("notInstalled"), executablePath: this.acmePath };
     return false;
   }
 
@@ -430,22 +448,22 @@ export class AcmeService {
     certificateAuthority?: AcmeCertificateAuthority,
   ): Promise<void> {
     if (this.state.status === "installing" || this.state.status === "installed") return;
-    this.state = { status: "installing", progress: 10, message: "正在初始化内置 acme.sh...", executablePath: this.acmePath };
+    this.state = { status: "installing", progress: 10, message: acmeServiceT("initializingBundled"), executablePath: this.acmePath };
 
     try {
       const executablePath = await this.installFromBundledZip();
-      this.state = { status: "installing", progress: 90, message: "正在注册 ACME 账号...", executablePath: this.acmePath };
+      this.state = { status: "installing", progress: 90, message: acmeServiceT("registeringAccount"), executablePath: this.acmePath };
       const accountEmail = await this.registerAccount({
         email,
         certificateAuthority,
       });
-      this.state = { status: "installing", progress: 95, message: "正在保存默认证书颁发机构...", executablePath: this.acmePath };
+      this.state = { status: "installing", progress: 95, message: acmeServiceT("savingDefaultCa"), executablePath: this.acmePath };
       if (certificateAuthority) {
         await this.setDefaultCertificateAuthority(certificateAuthority);
       }
-      this.state = { status: "installed", progress: 100, message: `安装成功，账号邮箱: ${accountEmail}`, executablePath };
+      this.state = { status: "installed", progress: 100, message: acmeServiceT("installSuccess", { email: accountEmail }), executablePath };
     } catch (error: any) {
-      this.state = { status: "error", progress: 0, message: `安装失败: ${error.message}`, executablePath: this.acmePath };
+      this.state = { status: "error", progress: 0, message: acmeServiceT("installFailed", { detail: error.message }), executablePath: this.acmePath };
     }
   }
 
@@ -453,7 +471,7 @@ export class AcmeService {
     certificateAuthority: AcmeCertificateAuthority,
   ): Promise<string> {
     if (this.state.status !== "installed") {
-      throw new Error("请先安装 acme.sh");
+      throw new Error(acmeServiceT("installFirst"));
     }
 
     const accountEmail = await this.registerAccount({ certificateAuthority });
@@ -463,14 +481,14 @@ export class AcmeService {
 
   async uninstall(): Promise<void> {
     if (this.state.status === "installing") {
-      throw new Error("acme.sh 正在安装中，无法删除");
+      throw new Error(acmeServiceT("installingCannotDelete"));
     }
 
     try {
       await rm(this.acmeDir, { recursive: true, force: true });
-      this.state = { status: "uninstalled", progress: 0, message: "acme.sh 已删除", executablePath: this.acmePath };
+      this.state = { status: "uninstalled", progress: 0, message: acmeServiceT("deleted"), executablePath: this.acmePath };
     } catch (error: any) {
-      this.state = { status: "error", progress: 0, message: `删除失败: ${error?.message || String(error)}`, executablePath: this.acmePath };
+      this.state = { status: "error", progress: 0, message: acmeServiceT("deleteFailed", { detail: error?.message || String(error) }), executablePath: this.acmePath };
       throw error;
     }
   }
@@ -485,11 +503,11 @@ export class AcmeService {
     force,
   }: IssueCertParams) {
     if (this.state.status !== "installed") {
-      throw new Error("请先安装 acme.sh");
+      throw new Error(acmeServiceT("installFirst"));
     }
 
     if (!domains || domains.length === 0) {
-      throw new Error("域名列表不能为空");
+      throw new Error(acmeServiceT("domainsRequired"));
     }
 
     const normalizedDnsType =
@@ -509,7 +527,7 @@ export class AcmeService {
     };
 
     if (method === "dns") {
-      if (!normalizedDnsType) throw new Error("缺少 DNS 验证类型");
+      if (!normalizedDnsType) throw new Error(acmeServiceT("dnsTypeRequired"));
       await applyAcmeDnsProviderPatches({
         acmeHomeDir: this.acmeDir,
         dnsType: normalizedDnsType,
@@ -554,7 +572,10 @@ export class AcmeService {
         .slice(-5)
         .join(" | ");
       throw new Error(
-        `证书签发失败（退出码: ${exitCode}）${brief ? `: ${brief}` : ""}`,
+        acmeServiceT("issueFailed", {
+          brief: brief ? `: ${brief}` : "",
+          code: exitCode,
+        }),
       );
     }
 

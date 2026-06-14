@@ -1,5 +1,6 @@
 import type { DDNSProviderContext, DDNSProviderDefinition, DDNSUpdateResult } from "../types";
 import {
+  ddnsProviderT,
   getTimeoutMs,
   parseJsonResponse,
   splitDomain,
@@ -10,6 +11,15 @@ import {
 const DNSPOD_RECORD_LIST_API = "https://dnsapi.cn/Record.List";
 const DNSPOD_RECORD_MODIFY_API = "https://dnsapi.cn/Record.Modify";
 const DNSPOD_RECORD_CREATE_API = "https://dnsapi.cn/Record.Create";
+const DNSPOD_DEFAULT_LINE = "\u9ed8\u8ba4";
+const dnspodT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => ddnsProviderT("dnspod", key, params);
+const commonT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => ddnsProviderT("common", key, params);
 
 type DnspodResponse = {
   status?: {
@@ -28,10 +38,10 @@ export const dnspodProvider: DDNSProviderDefinition = {
   fields: [
     { key: "token_id", label: "Token ID", type: "text", placeholder: "DNSPod Token ID", required: true },
     { key: "token_key", label: "Token Key", type: "password", placeholder: "DNSPod Token Key", required: true },
-    { key: "root_domain", label: "根域名", type: "text", placeholder: "example.com", required: true },
-    { key: "domain", label: "完整域名", type: "text", placeholder: "home.example.com", required: true },
-    { key: "record_line", label: "线路", type: "text", placeholder: "默认", required: false, description: "默认使用“默认”线路" },
-    { key: "ttl", label: "TTL", type: "text", placeholder: "600", required: false, description: "默认 600 秒" },
+    { key: "root_domain", label: commonT("fields.root_domain.label"), type: "text", placeholder: "example.com", required: true },
+    { key: "domain", label: commonT("fields.domain.label"), type: "text", placeholder: "home.example.com", required: true },
+    { key: "record_line", label: dnspodT("fields.record_line.label"), type: "text", placeholder: dnspodT("defaultLine"), required: false, description: dnspodT("fields.record_line.description") },
+    { key: "ttl", label: "TTL", type: "text", placeholder: "600", required: false, description: commonT("fields.ttl.description", { seconds: 600 }) },
   ],
 };
 
@@ -67,12 +77,12 @@ export async function dnspodUpdate(
   const { config } = context;
   const { token_id, token_key, root_domain, domain } = config;
   if (!token_id || !token_key || !root_domain || !domain) {
-    return { success: false, message: "DNSPod 配置不完整" };
+    return { success: false, message: dnspodT("configIncomplete") };
   }
 
   const ttl = String(toPositiveInt(config.ttl, 600));
   const parsed = splitDomain(domain, root_domain);
-  const recordLine = config.record_line || "默认";
+  const recordLine = config.record_line || DNSPOD_DEFAULT_LINE;
 
   return updateDualStack("DNSPod", ipv4, ipv6, async (recordType, ip) => {
     const list = await dnspodRequest(DNSPOD_RECORD_LIST_API, context, {
@@ -83,7 +93,7 @@ export async function dnspodUpdate(
     });
 
     if (list.status?.code !== "1") {
-      throw new Error(list.status?.message || "查询记录失败");
+      throw new Error(list.status?.message || dnspodT("queryRecordFailed"));
     }
 
     const record = list.records?.[0];
@@ -103,7 +113,7 @@ export async function dnspodUpdate(
       });
 
       if (result.status?.code !== "1") {
-        throw new Error(result.status?.message || "更新记录失败");
+        throw new Error(result.status?.message || dnspodT("updateRecordFailed"));
       }
       return;
     }
@@ -118,7 +128,7 @@ export async function dnspodUpdate(
     });
 
     if (result.status?.code !== "1") {
-      throw new Error(result.status?.message || "创建记录失败");
+      throw new Error(result.status?.message || dnspodT("createRecordFailed"));
     }
   });
 }

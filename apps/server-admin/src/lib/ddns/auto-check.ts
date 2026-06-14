@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { redis } from "../redis";
+import { configManager, redis } from "../redis";
 import { ddnsManager } from ".";
 import {
   DDNS_INTERFACE_IPV4_INDEX_FIELD,
@@ -10,8 +10,10 @@ import {
 } from "./ip-source";
 import {
   applyUpdateScope,
+  ddnsTranslate,
   DDNS_UPDATE_SCOPE_FIELD,
   normalizeUpdateScope,
+  withDDNSLocale,
 } from "./providers/helpers";
 import { DDNS_NETWORK_INTERFACE_FIELD } from "./network";
 import { emitDDNSUpdateCompletedEvent } from "../system-events/helpers";
@@ -40,10 +42,15 @@ type RunAutomaticDDNSCheckOptions = {
   emitNoopLog?: boolean;
 };
 
-const TRIGGER_LABELS: Record<DDNSAutoCheckTrigger, string> = {
-  cron: "定时检查",
-  enable: "启用自动更新后立即检查",
+const TRIGGER_LABEL_KEYS: Record<DDNSAutoCheckTrigger, string> = {
+  cron: "triggerCron",
+  enable: "triggerEnable",
 };
+
+const ddnsT = ddnsTranslate;
+
+const withTrigger = (trigger: string, message: string): string =>
+  ddnsT("triggerMessage", { trigger, message });
 
 const recordSkippedCheck = async (
   targetId: string,
@@ -93,11 +100,11 @@ const releaseDDNSLock = async (token: string): Promise<void> => {
   );
 };
 
-export const runAutomaticDDNSCheck = async (
+const runAutomaticDDNSCheckWithLocale = async (
   options: RunAutomaticDDNSCheckOptions = {},
 ) => {
   const trigger = options.trigger ?? "cron";
-  const triggerLabel = TRIGGER_LABELS[trigger];
+  const triggerLabel = ddnsT(TRIGGER_LABEL_KEYS[trigger]);
   const lockToken = randomUUID();
 
   const enabled = await ddnsManager.isEnabled();
@@ -123,7 +130,7 @@ export const runAutomaticDDNSCheck = async (
         updateScope: normalizeUpdateScope(
           target.config[DDNS_UPDATE_SCOPE_FIELD],
         ),
-        providerLabel: target.provider || "未配置",
+        providerLabel: target.provider || ddnsT("notConfigured"),
         domainSummary: "",
         createdAt: target.createdAt,
         updatedAt: target.updatedAt,
@@ -136,7 +143,7 @@ export const runAutomaticDDNSCheck = async (
         if (!target.provider) {
           await recordSkippedCheck(
             target.id,
-            `${triggerLabel}: 未选择 DDNS 提供商，已跳过`,
+            withTrigger(triggerLabel, ddnsT("skippedNoProvider")),
             options.emitSkipLog === true,
           );
           continue;
@@ -146,7 +153,7 @@ export const runAutomaticDDNSCheck = async (
         if (!complete) {
           await recordSkippedCheck(
             target.id,
-            `${triggerLabel}: 当前配置不完整，已跳过`,
+            withTrigger(triggerLabel, ddnsT("skippedIncompleteConfig")),
             options.emitSkipLog === true,
           );
           continue;
@@ -172,12 +179,15 @@ export const runAutomaticDDNSCheck = async (
           await ddnsManager.appendTargetLog(
             "warn",
             summary,
-            `${triggerLabel}: ${warning}`,
+            withTrigger(triggerLabel, warning),
           );
         }
 
         if (ips.source === "public" && !ips.ipv4 && !ips.ipv6) {
-          const message = `${triggerLabel}: 无法获取公网 IP，已跳过`;
+          const message = withTrigger(
+            triggerLabel,
+            ddnsT("skippedPublicIpUnavailable"),
+          );
           await ddnsManager.setTargetLastCheck(target.id, "error", message);
           await ddnsManager.appendTargetLog("error", summary, message);
           continue;
@@ -185,7 +195,15 @@ export const runAutomaticDDNSCheck = async (
 
         const scopedIPs = applyUpdateScope(updateScope, ips.ipv4, ips.ipv6);
         if (!scopedIPs.ipv4 && !scopedIPs.ipv6) {
-          const message = `${triggerLabel}: ${getDDNSTargetIPUnavailableMessage(ips.source, updateScope)}，已跳过`;
+          const message = withTrigger(
+            triggerLabel,
+            ddnsT("skippedReason", {
+              reason: getDDNSTargetIPUnavailableMessage(
+                ips.source,
+                updateScope,
+              ),
+            }),
+          );
           await ddnsManager.setTargetLastCheck(target.id, "skipped", message);
           await ddnsManager.appendTargetLog("warn", summary, message);
           continue;
@@ -196,7 +214,7 @@ export const runAutomaticDDNSCheck = async (
         const ipv6Changed = !!scopedIPs.ipv6 && scopedIPs.ipv6 !== lastIP.ipv6;
 
         if (!ipv4Changed && !ipv6Changed) {
-          const message = `${triggerLabel}: 目标 IP 未变化，无需更新`;
+          const message = withTrigger(triggerLabel, ddnsT("targetIpNoChange"));
           await ddnsManager.setTargetLastCheck(target.id, "noop", message);
           if (options.emitNoopLog === true) {
             await ddnsManager.appendTargetLog("info", summary, message);
@@ -207,18 +225,29 @@ export const runAutomaticDDNSCheck = async (
         const changes: string[] = [];
         if (ipv4Changed) {
           changes.push(
-            `IPv4: ${lastIP.ipv4 || "无"} -> ${scopedIPs.ipv4 || "无"}`,
+            ddnsT("ipChange", {
+              family: "IPv4",
+              before: lastIP.ipv4 || ddnsT("none"),
+              after: scopedIPs.ipv4 || ddnsT("none"),
+            }),
           );
         }
         if (ipv6Changed) {
           changes.push(
-            `IPv6: ${lastIP.ipv6 || "无"} -> ${scopedIPs.ipv6 || "无"}`,
+            ddnsT("ipChange", {
+              family: "IPv6",
+              before: lastIP.ipv6 || ddnsT("none"),
+              after: scopedIPs.ipv6 || ddnsT("none"),
+            }),
           );
         }
         await ddnsManager.appendTargetLog(
           "info",
           summary,
-          `${triggerLabel}: 检测到目标 IP 变化: ${changes.join(", ")}`,
+          withTrigger(
+            triggerLabel,
+            ddnsT("targetIpChanged", { changes: changes.join(", ") }),
+          ),
         );
 
         const result = await ddnsManager.executeTargetUpdate(
@@ -244,7 +273,13 @@ export const runAutomaticDDNSCheck = async (
         });
 
         if (result.success) {
-          const message = `${triggerLabel}: DNS 更新成功 [${target.provider}]: ${result.message}`;
+          const message = withTrigger(
+            triggerLabel,
+            ddnsT("dnsUpdateSuccess", {
+              provider: target.provider,
+              message: result.message,
+            }),
+          );
           await ddnsManager.setTargetLastIP(
             target.id,
             scopedIPs.ipv4,
@@ -258,11 +293,20 @@ export const runAutomaticDDNSCheck = async (
           continue;
         }
 
-        const message = `${triggerLabel}: DNS 更新失败 [${target.provider}]: ${result.message}`;
+        const message = withTrigger(
+          triggerLabel,
+          ddnsT("dnsUpdateFailed", {
+            provider: target.provider,
+            message: result.message,
+          }),
+        );
         await ddnsManager.setTargetLastCheck(target.id, "error", message);
         await ddnsManager.appendTargetLog("error", summary, message);
       } catch (error: any) {
-        const message = `${triggerLabel}: 任务异常: ${error?.message || String(error)}`;
+        const message = withTrigger(
+          triggerLabel,
+          ddnsT("taskError", { message: error?.message || String(error) }),
+        );
         console.error("[ddns][auto-check] error:", error);
         await ddnsManager.setTargetLastCheck(target.id, "error", message);
         await ddnsManager.appendTargetLog("error", summary, message);
@@ -273,4 +317,13 @@ export const runAutomaticDDNSCheck = async (
   } finally {
     await releaseDDNSLock(lockToken).catch(() => undefined);
   }
+};
+
+export const runAutomaticDDNSCheck = async (
+  options: RunAutomaticDDNSCheckOptions = {},
+) => {
+  const localeConfig = await configManager.getLocaleConfig();
+  return withDDNSLocale(localeConfig.default_locale, () =>
+    runAutomaticDDNSCheckWithLocale(options),
+  );
 };

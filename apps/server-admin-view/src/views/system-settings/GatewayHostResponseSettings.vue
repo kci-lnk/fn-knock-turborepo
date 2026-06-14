@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -50,6 +51,7 @@ const formItems = ref<GatewayHostResponseItem[]>([]);
 const loadError = ref("");
 const accessEntryPort = ref("7999");
 const configStore = useConfigStore();
+const { t } = useI18n();
 
 const cloneItem = (item: GatewayHostResponseItem): GatewayHostResponseItem => ({
   ...item,
@@ -82,14 +84,20 @@ const applyDetails = (value: GatewayHostResponseDetails) => {
 
 const { isPending: isLoading, run: runLoad } = useAsyncAction({
   onError: (error) => {
-    loadError.value = extractErrorMessage(error, "加载 Host 响应配置失败");
+    loadError.value = extractErrorMessage(
+      error,
+      t("admin.gatewayHostResponseSettings.loadDescription"),
+    );
   },
 });
 
 const { isPending: isSaving, run: runSave } = useAsyncAction({
   onError: (error) => {
-    toast.error("保存失败", {
-      description: extractErrorMessage(error, "保存 Host 响应配置失败"),
+    toast.error(t("admin.gatewayHostResponseSettings.saveFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.gatewayHostResponseSettings.saveDescription"),
+      ),
     });
   },
 });
@@ -112,7 +120,10 @@ const isDirty = computed(() => {
 });
 const saveBlockedReason = computed(() => {
   if (isAvailable.value) return "";
-  return details.value?.availability.reason || "当前模式暂不可用";
+  return (
+    details.value?.availability.reason ||
+    t("admin.gatewayHostResponseSettings.unavailable")
+  );
 });
 const disabledHosts = computed(() =>
   formItems.value
@@ -181,7 +192,7 @@ const updatePreserveHost = (host: string, nextValue: boolean) => {
 
 const saveSettings = async () => {
   if (saveBlockedReason.value) {
-    toast.error("暂时无法保存", {
+    toast.error(t("admin.gatewayHostResponseSettings.saveBlockedTitle"), {
       description: saveBlockedReason.value,
     });
     return;
@@ -195,7 +206,7 @@ const saveSettings = async () => {
     {
       onSuccess: (value) => {
         applyDetails(value);
-        toast.success("Host 响应配置已更新并完成同步");
+        toast.success(t("admin.gatewayHostResponseSettings.updated"));
       },
     },
   );
@@ -212,15 +223,21 @@ onMounted(() => {
     <Breadcrumb>
       <BreadcrumbList>
         <BreadcrumbItem>
-          <BreadcrumbLink href="#/system">系统设置</BreadcrumbLink>
+          <BreadcrumbLink href="#/system">{{
+            t("admin.nav.systemSettings")
+          }}</BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />
         <BreadcrumbItem>
-          <BreadcrumbLink href="#/system?tab=gateway">网关</BreadcrumbLink>
+          <BreadcrumbLink href="#/system?tab=gateway">{{
+            t("admin.systemSettingsTabs.gateway")
+          }}</BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />
         <BreadcrumbItem>
-          <BreadcrumbPage>Host响应</BreadcrumbPage>
+          <BreadcrumbPage>{{
+            t("admin.gatewayHostResponseSettings.title")
+          }}</BreadcrumbPage>
         </BreadcrumbItem>
       </BreadcrumbList>
     </Breadcrumb>
@@ -228,12 +245,13 @@ onMounted(() => {
     <Card class="border-border/60 shadow-none">
       <CardHeader class="space-y-3">
         <div class="space-y-1.5">
-          <CardTitle class="text-xl">Host响应</CardTitle>
+          <CardTitle class="text-xl">
+            {{ t("admin.gatewayHostResponseSettings.title") }}
+          </CardTitle>
           <CardDescription class="leading-6">
-            默认会向上游保留用户访问时的
+            {{ t("admin.gatewayHostResponseSettings.descriptionPrefix") }}
             <code>Host</code>
-            ，便于应用按外部域名生成跳转、Cookie
-            或绝对链接。对于必须使用上游原始 Host 的目标，可以在这里单独关闭。
+            {{ t("admin.gatewayHostResponseSettings.descriptionSuffix") }}
           </CardDescription>
         </div>
       </CardHeader>
@@ -257,7 +275,9 @@ onMounted(() => {
 
         <template v-else-if="details">
           <Alert v-if="!isAvailable" class="border-zinc-200 bg-zinc-50">
-            <AlertTitle>当前模式暂不可用</AlertTitle>
+            <AlertTitle>{{
+              t("admin.gatewayHostResponseSettings.unavailable")
+            }}</AlertTitle>
             <AlertDescription class="text-sm leading-6 text-zinc-700">
               {{ details.availability.reason }}
             </AlertDescription>
@@ -269,16 +289,18 @@ onMounted(() => {
                 v-if="formItems.length === 0"
                 class="rounded-xl bg-muted/20 px-4 py-4 text-sm leading-6 text-muted-foreground"
               >
-                暂无可配置的子域映射，请先到“子域映射”添加应用映射。
+                {{ t("admin.gatewayHostResponseSettings.emptyMapping") }}
               </div>
 
               <div v-else class="rounded-xl bg-muted/10">
                 <Table>
                   <TableHeader>
                     <TableRow class="hover:bg-transparent">
-                      <TableHead class="px-4 py-3">子域</TableHead>
+                      <TableHead class="px-4 py-3">
+                        {{ t("admin.gatewayHostResponseSettings.subdomain") }}
+                      </TableHead>
                       <TableHead class="w-32 px-4 py-3 text-center">
-                        Host
+                        {{ t("admin.gatewayHostResponseSettings.host") }}
                       </TableHead>
                     </TableRow>
                   </TableHeader>
@@ -330,7 +352,8 @@ onMounted(() => {
               >
                 <p class="text-sm leading-6 text-muted-foreground">
                   {{
-                    saveBlockedReason || "保存后会立即同步到 Go 网关运行态。"
+                    saveBlockedReason ||
+                    t("admin.gatewayHostResponseSettings.saveHint")
                   }}
                 </p>
                 <div class="flex gap-2 self-end">
@@ -339,13 +362,17 @@ onMounted(() => {
                     :disabled="isSaving || !isDirty"
                     @click="resetForm"
                   >
-                    重置
+                    {{ t("admin.gatewayHostResponseSettings.reset") }}
                   </Button>
                   <Button
                     :disabled="isSaving || !isDirty || !!saveBlockedReason"
                     @click="saveSettings"
                   >
-                    {{ isSaving ? "保存中..." : "保存并同步" }}
+                    {{
+                      isSaving
+                        ? t("admin.gatewayHostResponseSettings.saving")
+                        : t("admin.gatewayHostResponseSettings.saveAndSync")
+                    }}
                   </Button>
                 </div>
               </div>

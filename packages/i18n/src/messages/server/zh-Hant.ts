@@ -1,0 +1,2644 @@
+import { zhCNServer } from "./zh-CN";
+
+export const zhHantServer = {
+  ...zhCNServer,
+  invalidLocale: "不支援的語言",
+  dockerAdminDenied: "Docker 管理面板僅允許內網或可信反代訪問",
+  dockerAdminDeniedTitle: "拒絕訪問",
+  dockerAdminDeniedDescription:
+    "Docker 管理面板預設只允許宿主機本地、局域網、VPN 或已配置的可信反向代理訪問。公網直連會被拒絕。",
+  dockerAdminCurrentIp: "當前識別來源 IP：{ip}",
+  dockerAdminProxyRequired: "Docker 模式下請透過 7991 管理入口訪問後台接口",
+  dockerAdminLoginRequired: "請先登入 Docker 管理面板",
+  captchaUnavailable: "驗證碼服務暫時不可用",
+  tooManyAttempts: "嘗試過於頻繁，請稍後重試",
+  tooManyAttemptsWithRetry: "嘗試過於頻繁，請在 {seconds} 秒後重試",
+  loginCredentialMissing: "伺服器尚未配置登入憑證",
+  invalidOtpWithRetry: "驗證碼不正確，請在 {seconds} 秒後重試",
+  runtimeProfile: {
+    capabilities: {
+      default: "目前運行環境不支援該能力",
+      direct_mode_available: {
+        docker: "Docker 部署不支援宿主機直連防火牆模式",
+        platform: "目前運行環境不支援宿主機直連防火牆模式",
+        permission: "目前進程沒有宿主機直連防火牆能力",
+      },
+      host_firewall_available: {
+        docker: "Docker 部署不支援宿主機防火牆管理",
+        platform: "目前運行環境不支援宿主機防火牆管理",
+        permission: "目前進程沒有宿主機防火牆管理能力",
+      },
+      smart_connect_available: {
+        docker:
+          "Docker 部署暫不支援 Smart Connect，它依賴宿主機 dnsmasq 與 53 端口",
+        platform: "目前運行環境暫不支援 Smart Connect",
+        permission: "目前進程沒有 Smart Connect 所需的宿主機管理能力",
+      },
+      system_clock_sync_available: {
+        docker: "Docker 部署不支援宿主機系統時間同步",
+        platform: "目前運行環境不支援系統時間同步",
+        permission: "目前進程沒有系統時間同步所需的宿主機權限",
+      },
+      self_update_available: {
+        docker: "Docker 部署不支援應用內 FPK 更新，請透過拉取新鏡像升級",
+        deployment: "目前部署形態不支援應用內更新",
+      },
+      terminal_available: {
+        docker: "Docker 部署不支援 Web 終端",
+        platform: "目前運行環境不支援 Web 終端",
+      },
+      shared_root_available: {
+        missing: "目前運行環境沒有可用的共享目錄掛載",
+      },
+    },
+  },
+  systemClock: {
+    unknown: "未知",
+    actionSeparator: "；",
+    listSeparator: "，",
+    duration: {
+      seconds: "{seconds} 秒",
+      minutes: "{minutes} 分鐘",
+      minutesSeconds: "{minutes} 分 {seconds} 秒",
+    },
+    networkCheckFailed: "聯網檢查系統時間失敗",
+    issues: {
+      timezone: {
+        title: "系統時區不是北京時間",
+        message: "目前系統時區為 {timezone}，應設定為 {expected}。",
+      },
+      timeMismatch: {
+        title: "系統時間與聯網校驗結果不一致",
+        message: "目前系統時間與聯網校驗結果相差約 {drift}。",
+      },
+    },
+    statusRefreshed: "系統時間狀態已刷新",
+    syncFailed: "系統時間同步失敗",
+    networkTimeUnavailable: "未能從網路獲取標準時間",
+    sourceFetchFailed: "從 {source} 獲取時間失敗",
+    missingDateHeader: "{source} 未返回可用的 Date 響應頭",
+    invalidDateHeader: "{source} 返回了無法解析的時間",
+    commandFailed: "執行 {command} 失敗",
+    timezoneSet: "已設定系統時區為 {timezone}",
+    missingZoneinfoFile: "系統缺少時區文件 {path}",
+    timezoneWritten: "已寫入系統時區 {timezone}",
+    clockAdjusted: "已校準系統時間",
+    ntpEnabled: "已啟用 NTP 自動校時",
+    serviceRestarted: "已重啟 {service} 服務",
+  },
+  updateRoutes: {
+    downloadStarted: "已開始下載更新包",
+    downloadStartFailed: "啟動下載失敗",
+    installStarted: "更新安裝流程已啟動",
+    installStartFailed: "啟動安裝失敗",
+    checkAndDownloadStarted: "已發起檢查並開始下載",
+    startFailed: "啟動失敗",
+  },
+  gatewayHostResponse: {
+    runTypes: {
+      direct: "直連模式",
+      reverseProxy: "反代模式",
+      subdomain: "子域模式",
+    },
+    unavailableReason: "僅子域模式可用，目前為{mode}。",
+    editSubdomainOnly: "Host 響應僅可在子域映射模式下編輯",
+    syncFailed: "同步網關 Host 響應配置失敗",
+    hostRoutesSyncFailed: "同步 Host 路由失敗",
+    updateFailed: "更新網關 Host 響應失敗",
+    updateFailedRolledBack: "更新網關 Host 響應失敗，已回滾配置",
+    updateFailedRollbackFailed: "{error}；回滾失敗：{rollbackError}",
+    restoreConfigFailed: "恢復 Host 響應原始配置失敗",
+    restoreRuntimeFailed: "恢復 Host 響應運行態失敗",
+    restoreGatewayRuntimeFailed: "恢復網關 Host 響應運行態失敗",
+  },
+  admin: {
+    runTypes: {
+      direct: "直連模式",
+      reverseProxy: "反代模式",
+      subdomain: "子域模式",
+    },
+    validation: {
+      required: "{label}不能為空",
+      httpUrlRequired: "{label}必須以 http:// 或 https:// 開頭",
+      invalidFormat: "{label}格式不正確",
+    },
+    rollback: {
+      failed: "{message}；回滾失敗：{rollbackError}",
+      restoreConfigFailed: "恢復之前的配置失敗",
+      restoreSmartConnectFailed: "恢復之前的智能連接運行態失敗",
+      restoreRuntimeFailed: "恢復之前的運行態失敗",
+      restoreProtocolConfigFailed: "恢復協議映射配置失敗",
+      restoreProtocolFeatureFailed: "恢復協議映射功能開關失敗",
+      restoreProtocolRuntimeFailed: "恢復協議映射運行態失敗",
+      restoreVisibilityConfigFailed: "恢復可見性原始配置失敗",
+      restoreVisibilityRuntimeFailed: "恢復可見性運行時 CIDR 失敗",
+      restoreGatewayVisibilityFailed: "恢復網關可見性運行態失敗",
+      restoreProxyHeadersConfigFailed: "恢復協議頭原始配置失敗",
+      restoreProxyHeadersRuntimeFailed: "恢復協議頭運行態失敗",
+      restoreGatewayProxyHeadersRuntimeFailed: "恢復網關協議頭運行態失敗",
+      restorePortalFailed: "恢復傳送門顯示運行態失敗",
+    },
+    dockerPanel: {
+      passwordNotNeeded: "目前運行模式不需要設定 Docker 管理面板密碼",
+      setPasswordFailed: "設定管理面板密碼失敗",
+      passwordChangeUnsupported: "目前運行模式不支援修改 Docker 管理面板密碼",
+      changePasswordFailed: "修改管理面板密碼失敗",
+      tooManyAttemptsWithRetry: "嘗試過於頻繁，請在 {seconds} 秒後重試",
+      tooManyAttempts: "嘗試過於頻繁，請稍後重試",
+      passwordSetupRequired: "目前還沒有設定管理面板密碼，請先完成首次設定",
+      passwordIncorrectWithRetry: "管理面板密碼錯誤，請在 {seconds} 秒後重試",
+    },
+    runType: {
+      switchFailed: "切換運行模式失敗",
+      switchFailedRolledBack: "切換運行模式失敗，已回滾配置",
+    },
+    firewall: {
+      whitelistSynced: "，並同步 {count} 條白名單 IP",
+      exemptPorts: "，保留入口端口 {ports}",
+      resetSuccess:
+        "已按{runType}重設防火牆{whitelistMessage}{exemptPortsMessage}",
+      resetFailed: "重設防火牆失敗",
+      clearSuccess: "已清空防火牆規則，並移除 {port} 端口相關的歷史重定向",
+      clearFailed: "清空防火牆失敗",
+    },
+    protocolMapping: {
+      subdomainOnly: "協議映射僅可在子域模式下啟用",
+      updateFeatureFailed: "更新協議映射功能開關失敗",
+      updateFeatureFailedRolledBack: "更新協議映射功能開關失敗，已回滾配置",
+    },
+    smartConnect: {
+      subdomainOnly: "智能連接僅可在子域模式下啟用",
+      updateFailed: "更新智能連接失敗",
+      updateFailedRolledBack: "更新智能連接失敗，已回滾配置",
+    },
+    fnosPortIcon: {
+      syncFailed: "同步飛牛端口圖標接管配置到網關失敗",
+    },
+    gateway: {
+      syncAuthCacheFailed: "同步鑒權緩存配置到網關失敗",
+      syncThrottleFailed: "同步網關節流配置到網關失敗",
+      updateFailed: "更新網關配置失敗",
+      updateFailedRolledBack: "更新網關配置失敗，已回滾配置",
+    },
+    gatewayVisibility: {
+      updateFailed: "更新網關可見性失敗",
+      updateFailedRolledBack: "更新網關可見性失敗，已回滾配置",
+    },
+    gatewayProxyHeaders: {
+      subdomainOnly: "協議頭僅可在子域映射模式下編輯",
+      updateFailed: "更新網關協議頭失敗",
+      updateFailedRolledBack: "更新網關協議頭失敗，已回滾配置",
+    },
+    captcha: {
+      turnstileKeysRequired:
+        "啟用 Cloudflare Turnstile 時，site_key 和 secret_key 都必須填寫",
+    },
+    ipLocation: {
+      ipLookupUrlLabel: "IP 識別庫地址",
+      cidrUrlLabel: "CIDR 地址庫地址",
+    },
+    connectionTest: {
+      httpStatus: "服務返回錯誤狀態碼 {status}",
+      invalidData: "服務返回數據異常",
+      success: "連接成功",
+      timeout: "連接超時",
+      failed: "連接失敗",
+    },
+    autoHttps: {
+      dockerUnsupported: "Docker 版本不支援自動 HTTPS",
+      startFailed: "自動 HTTPS 啟動失敗",
+    },
+    hostMappings: {
+      singleAuthPortMapping: "只能有一個 Host 映射指向 AUTH_PORT 作為鑒權服務",
+      authMappingMustBePublic:
+        "鑒權服務 {host} 必須保持公開入口，不能開啟自身鑒權或嚴格白名單，否則會導致登入入口不可達",
+      authMappingBasicAuthForbidden: "鑒權服務 {host} 不能開啟憑證注入",
+      basicAuthInvalid:
+        "Host 映射 {host} 的憑證注入需要填寫使用者名稱和密碼，且使用者名稱不能包含冒號",
+      locationPathRequired: "Host 映射 {host} 的路徑規則需要填寫路徑",
+      locationPathMustStartSlash:
+        "Host 映射 {host} 的路徑規則 {path} 必須以 / 開頭",
+      locationRootForbidden: "Host 映射 {host} 不允許配置根路徑 / 作為路徑規則",
+      locationReservedPath: "Host 映射 {host} 的路徑規則 {path} 使用了保留路徑",
+      locationDuplicate: "Host 映射 {host} 存在重複路徑規則 {path}",
+      locationTargetRequired: "Host 映射 {host} 的路徑規則 {path} 需要填寫目標",
+      locationStatusInvalid:
+        "Host 映射 {host} 的路徑規則 {path} 響應狀態碼必須在 100 到 599 之間",
+      locationHeaderInvalid:
+        "Host 映射 {host} 的路徑規則 {path} 包含非法響應頭 {header}",
+      locationHeaderForbidden:
+        "Host 映射 {host} 的路徑規則 {path} 不能自定義響應頭 {header}",
+      syncHostRulesFailed: "同步 Host 路由失敗",
+      syncAuthConfigFailed: "同步鑒權網關配置失敗",
+      updateFailed: "更新 Host 映射失敗",
+      updateFailedRolledBack: "更新 Host 映射失敗，已回滾配置",
+      metadataFailed: "目標地址標題刷新失敗",
+      bookmarkFolderForRoot: "{root} 子域映射",
+      bookmarkFolderDefault: "fn-knock 子域映射",
+    },
+    streamMappings: {
+      listenPortNotInteger: "監聽端口 {port} 不是有效整數",
+      listenPortOutOfRange: "監聽端口 {port} 超出有效範圍",
+      duplicatePort: "{protocol} 監聽端口 {port} 重複，請保持協議 + 端口唯一",
+      targetMustBeHostPort: "目標地址 {target} 必須是 host:port 形式",
+      syncFailed: "同步協議映射與網關端口放行規則失敗",
+      syncFailedRolledBack: "同步協議映射與網關端口放行規則失敗，已回滾配置",
+    },
+    passkeyRp: {
+      parentDomainRequired:
+        "啟用父域 Passkey RP 時，請先填寫根域名，或顯式指定一個父域 RP ID。",
+      mustMatchAuthHost:
+        "父域 Passkey RP ID {rpId} 必須與鑒權服務 {authHost} 相同，或是它的父域。",
+    },
+    subdomainMode: {
+      sslAutoSelected: "已自動切換到更適合目前子域模式的證書。",
+      sslAutoSelectionSyncFailed:
+        "已找到推薦證書，但同步到網關失敗，未自動切換。",
+    },
+    totp: {
+      invalidCode: "驗證碼不正確，請重試",
+      notFound: "TOTP not found",
+    },
+    passkeys: {
+      notFound: "Passkey not found",
+    },
+    syncRoutes: {
+      partialFailedGatewayLogging:
+        "同步部分失敗: gateway_logging={gatewayLogging}",
+      partialFailedGatewayLoggingWaf:
+        "同步部分失敗: gateway_logging={gatewayLogging}, waf={waf}",
+      success:
+        "已按目前運行模式同步 {rules} 條路徑路由、{hostRules} 條 Host 路由、{streamRules} 條協議映射、請求日誌配置與 WAF 配置",
+    },
+    backup: {
+      readFnosDirectoryFailed: "讀取飛牛備份目錄失敗",
+      exportFnosSuccess: "備份已導出到飛牛目錄",
+      exportFnosFailed: "導出到飛牛目錄失敗",
+      importSuccessWithWarnings: "備份已導入，但部分運行態同步失敗",
+      importSuccess: "備份已導入並完成運行態同步",
+      importFailed: "導入備份失敗",
+      importFnosSuccessWithWarnings: "飛牛備份已導入，但部分運行態同步失敗",
+      importFnosSuccess: "飛牛備份已導入並完成運行態同步",
+      importFnosFailed: "從飛牛導入備份失敗",
+    },
+    sessions: {
+      notFound: "Session not found",
+    },
+  },
+  gatewayLogs: {
+    configSyncFailed: "請求日誌設定已保存，但同步到網關失敗",
+    readDirectoryFailed: "讀取日誌目錄失敗",
+    readDatesFailed: "讀取日誌日期失敗",
+    readEntriesFailed: "讀取請求日誌失敗",
+    deleteEntriesFailed: "刪除請求日誌失敗",
+  },
+  backoffRoutes: {
+    ipRequired: "ip 參數缺失",
+  },
+  ipLocationRoutes: {
+    batchLimit: "單次最多查詢 {max} 個 IP",
+  },
+  gatewayPortal: {
+    syncConfigFailed: "同步傳送門顯示配置到網關失敗",
+    syncHostRulesFailed: "同步 Host 路由失敗",
+  },
+  gatewayVisibility: {
+    customCidrInvalid: "自定義 CIDR 格式不正確：{cidrs}",
+    emptyEnabledConfig: "開啟可見性後，至少需要添加一個地區或一條自定義 CIDR",
+    syncFailed: "同步網關可見性配置失敗",
+  },
+  gatewayLogging: {
+    syncConfigFailed: "同步網關請求日誌配置失敗",
+  },
+  sslGateway: {
+    clearFailed: "清除網關證書失敗",
+    syncFailed: "同步網關證書失敗",
+  },
+  sslRoutes: {
+    gatewayStatusReadFailed: "無法讀取網關 SSL 狀態",
+    readSharedFileFailed: "讀取共享目錄文件失敗",
+    emptyDomains: "域名列表為空，請先添加域名或 IP",
+    certOrKeyInvalid: "證書或私鑰無效",
+    hostRequired: "host 不能為空",
+    localCaCertificateLabel: "本地 CA 證書",
+    success: "成功",
+    certNotInstalled: "未安裝證書",
+    manualCertificateLabel: "手動上傳證書",
+    certNotFound: "證書不存在",
+  },
+  redis: {
+    defaultCredential: "默認憑據",
+    certificateLabels: {
+      acme: "ACME 證書",
+      ca: "自簽發證書",
+      manual: "手動上傳證書",
+      current: "目前證書",
+    },
+    ssl: {
+      certFormatInvalid: "證書格式無效: {message}",
+      keyFormatInvalid: "私鑰格式無效: {message}",
+      certKeyMismatch: "證書與私鑰不匹配",
+      certKeyCheckFailed: "證書與私鑰校驗失敗: {message}",
+      certContentRequired: "證書內容不能為空",
+      certNotFound: "證書不存在",
+      certOrKeyInvalid: "證書或私鑰無效",
+    },
+    acme: {
+      domainRequired: "域名不能為空",
+      domainsRequired: "域名列表不能為空",
+      dnsProviderRequired: "DNS 服務商不能為空",
+      primaryDomainDuplicated: "主域名 {primaryDomain} 已存在於其他申請項中",
+      applicationNotFound: "申請項不存在",
+      noMatchingIssuedCertificate: "目前申請項還沒有與域名配置匹配的已簽發證書",
+      jobDataInvalid: "ACME 任務數據無效",
+      multipleApplicationsUseNewApi:
+        "目前已存在多個申請項，請使用新接口管理 ACME 申請項",
+    },
+  },
+  acmeService: {
+    waiting: "等待操作",
+    sendSignalFailed: "發送 {signal} 到 {target} 失敗: {detail}",
+    setDefaultCaFailed: "設定默認證書頒發機構失敗（退出碼: {code}）{brief}",
+    registerAccountFailed: "註冊 ACME 帳號失敗（退出碼: {code}）{brief}",
+    bundledZipMissing: "未找到內置 acmesh.zip 資源",
+    extractingBundled: "正在解壓內置 acme.sh 資源...",
+    unzipFailed: "解壓失敗，退出碼: {code}",
+    extractedAcmeMissing: "解壓成功但未找到 acme.sh",
+    writingDataDir: "正在寫入數據目錄...",
+    writtenAcmeMissing: "寫入後未找到 acme.sh",
+    checkInstallFailed: "檢查安裝狀態失敗: {detail}",
+    ready: "acme.sh 已就緒",
+    notInstalled: "acme.sh 未安裝",
+    initializingBundled: "正在初始化內置 acme.sh...",
+    registeringAccount: "正在註冊 ACME 帳號...",
+    savingDefaultCa: "正在保存默認證書頒發機構...",
+    installSuccess: "安裝成功，帳號郵箱: {email}",
+    installFailed: "安裝失敗: {detail}",
+    installFirst: "請先安裝 acme.sh",
+    installingCannotDelete: "acme.sh 正在安裝中，無法刪除",
+    deleted: "acme.sh 已刪除",
+    deleteFailed: "刪除失敗: {detail}",
+    domainsRequired: "域名列表不能為空",
+    dnsTypeRequired: "缺少 DNS 驗證類型",
+    issueFailed: "證書簽發失敗（退出碼: {code}）{brief}",
+  },
+  acmeJobRunner: {
+    manualStop: "ACME 任務已由用戶手動停止",
+    lockMessages: {
+      manualRequest: "正在申請證書",
+      autoRenew: "正在自動續期證書",
+    },
+    activeTaskRunning: "目前已有 ACME 任務正在執行，請稍後再試",
+    flowFailed: "證書申請流程失敗: {message}",
+    stopSignalSent: "已發送停止信號，結束 {count} 個 acme.sh 進程",
+    noRunningProcess: "未發現正在運行的 acme.sh 進程",
+    stopProcessError: "停止進程時出現異常: {message}",
+    processStillRunning: "仍有 acme.sh 進程未退出: {pids}",
+    lockLost: "ACME 運行鎖已丟失，任務已停止，請重新發起申請",
+    lockRefreshFailed: "ACME 運行鎖續租異常: {message}",
+    lockLeaseExpired: "{message}；已超過鎖租期，任務已停止，請重新發起申請",
+    applicationChangedSkipped:
+      "申請項域名已在執行期間發生變化，已跳過寫入舊證書，請重新發起申請",
+    issuedButApplicationChanged:
+      "證書簽發成功，但由於申請項域名已變更，未寫入目前申請項",
+    issuedButCertReadFailed:
+      "證書簽發成功，但讀取證書文件失敗（請稍後重試或檢查 acme.sh 目錄）",
+    clearedDomainWorkingState:
+      "已清理 acme.sh 域名工作目錄，證書列表與續期由系統任務統一管理",
+    clearDomainWorkingStateFailed:
+      "證書已保存，但清理 acme.sh 域名狀態失敗: {message}",
+    linkedLibrarySyncedGateway: "已同步已關聯的證書庫條目，並刷新網關證書列表",
+    linkedLibraryUpdated: "已更新已關聯的證書庫條目",
+    addedToLibraryAndSyncedGateway:
+      "證書簽發成功後已自動加入證書庫，並刷新網關證書列表",
+    addedToLibrary: "證書簽發成功後已自動加入證書庫",
+    addToLibraryFailed: "證書已簽發並保存，但自動加入證書庫失敗: {message}",
+    stoppedIgnoredProcessError: "任務已停止，已忽略進程退出後的錯誤",
+  },
+  acmeRoutes: {
+    domainsInvalid: "域名列表不能為空或格式無效",
+    dnsTypeRequired: "缺少 DNS 驗證類型",
+    unsupportedDnsProvider: "不支持的 DNS 服務商",
+    missingDnsCredentials:
+      "缺少 DNS API 憑據，請填寫以下任一方案: {requirements}",
+    cloudflareInvalidKey: "Cloudflare API 密鑰不正確（X-Auth-Key 格式無效）",
+    cloudflareInvalidEmail: "Cloudflare 郵箱不正確（X-Auth-Email 格式無效）",
+    cloudflareInvalidHeaders:
+      "Cloudflare API 請求頭無效，通常是 API 密鑰/郵箱不正確導致",
+    acmeFrequencyLimited:
+      "申請頻率受限（Retry-After={seconds} 秒，超過 600 秒將不再重試），請等待後再試",
+    dnsApiRateLimited: "DNS API 觸發限流（429/Rate limit），稍後重試",
+    logUnknownFailure: "日誌中檢測到錯誤，但未能自動歸因",
+    installingRetryLater: "acme.sh 安裝中，請稍後再試",
+    installFirst: "請先安裝 acme.sh",
+    multipleApplicationsUseNewApi:
+      "目前已存在多個申請項，請使用新接口管理 ACME 申請項",
+    applicationNotFound: "申請項不存在",
+    notFound: "未找到",
+    installingCannotDelete: "acme.sh 安裝中，無法刪除",
+    installingCannotSwitchCa: "acme.sh 安裝中，暫時無法切換證書頒發機構",
+    noMatchingIssuedCertificate: "目前申請項還沒有與域名配置匹配的已簽發證書",
+    success: "成功",
+    dns01Only: "僅支持 DNS-01 驗證方式",
+    certNotFound: "證書不存在",
+    certOrKeyInvalid: "證書或私鑰無效",
+  },
+  acmeDnsProviders: {
+    groups: {
+      common: "常用",
+      domestic: "國內",
+      international: "國際",
+      selfHostedAdvanced: "自建/高級",
+    },
+    credentialSchemes: {
+      default: "默認憑據",
+    },
+    fields: {
+      accountEmail: "帳戶郵箱",
+      sshPrivateKeyPath: "SSH 私鑰文件路徑",
+    },
+    labels: {
+      aliyun: "阿里雲 DNS",
+      tencentCloudDnspod: "騰訊雲 DNSPod (TencentCloud)",
+      huaweiCloudDns: "華為雲 DNS",
+      jdCloudDns: "京東雲 DNS",
+      westCn: "西部數碼",
+    },
+    cloudflare: {
+      globalKeyDescription: "兼容 Cloudflare 舊版 Global API Key 方式。",
+      apiTokenDescription:
+        "推薦。僅需填寫 Token；如已知 Zone ID 或 Account ID，可一併填寫以減少自動探測。",
+    },
+    gcloud: {
+      description:
+        "依賴運行環境中的 gcloud 命令和已授權配置；未填寫時使用 gcloud 默認配置。",
+    },
+    azure: {
+      managedIdentityDescription: "AZUREDNS_MANAGEDIDENTITY 填寫 true。",
+    },
+    descriptions: {
+      boolean01: "填寫 0 或 1。",
+      optionalBoolean01: "可選，填寫 0 或 1。",
+    },
+    requirements: {
+      optionalSuffix: "；可選 {keys}",
+      orSeparator: "；或 ",
+    },
+  },
+  acmePatches: {
+    duckdns: {
+      scriptMissing: "未找到 DuckDNS DNS API 腳本: {path}",
+      proxyApplied: "已將 DuckDNS API 從 {from} 切換為 {to}",
+    },
+  },
+  reverseProxyTrustedIps: {
+    syncFailed: "同步反代節流豁免 IP 失敗",
+  },
+  commonAuthLocations: {
+    cidrLookupFailed: "CIDR 查詢失敗",
+    syncFailed: "同步常用地豁免配置到網關失敗",
+  },
+  fnosDataShare: {
+    invalidPath: "非法的共享文件路徑",
+    shareMissing: "未找到飛牛共享目錄，請確認應用資源已正確配置",
+    fileOnly: "只能讀取共享目錄中的文件",
+    fileTooLarge: "文件過大，請僅放入證書或私鑰文本文件",
+  },
+  autoHttps: {
+    listenEacces:
+      "沒有權限監聽 80 端口，請確認目前設備或容器允許程序綁定低端口。",
+    listenEaddrinuse:
+      "80 端口已被其他程序佔用，自動 HTTPS 無法啟動。請嘗試飛牛系統設定，安全性，端口設定，編輯，取消勾選：重定向 80 與 443 端口",
+    listenFailedWithMessage: "監聽 80 端口失敗：{message}",
+    listenFailed: "監聽 80 端口失敗。",
+  },
+  wafCollector: {
+    drainFailed: "拉取 WAF 事件失敗",
+  },
+  hostMappingBookmarks: {
+    defaultFolderTitle: "fn-knock 子域映射",
+  },
+  whitelist: {
+    addFailed: "新增白名單記錄失敗",
+    recordNotFound: "未找到白名單記錄",
+    domainResolveFailed: "域名解析失敗",
+    refreshFailed: "立即更新白名單記錄失敗",
+  },
+  whitelistManager: {
+    dnsRecordQueryFailedWithCode: "{label} 記錄查詢失敗 ({code}): {message}",
+    dnsRecordQueryFailed: "{label} 記錄查詢失敗: {message}",
+    targetFormatInvalid: "IP、CIDR 或域名格式不正確",
+    autoGrantIpOnly: "登入自動授權僅支援單個 IP",
+    cidrInvalid: "CIDR 格式不正確",
+    domainInvalid: "域名格式不正確",
+    ipInvalid: "IP 格式不正確",
+    autoOwnerMissing: "缺少自動白名單歸屬標識",
+    domainResolveFailed: "域名解析失敗",
+    resolvedIpCount: "已解析 {count} 個 IP",
+    noAaaaRecords: "目前未解析到 A / AAAA 記錄",
+    syncAllowedStateFailed: "域名解析結果已更新，但同步系統放行狀態失敗",
+  },
+  terminal: {
+    defaultTitle: "Web終端",
+    defaultSessionTitlePrefix: "會話-",
+    tmuxNotDetectedInstallFirst: "未檢測到 tmux，請先安裝 tmux 環境",
+    tmuxReadyWithVersion: "tmux 已就緒：{version}",
+    refreshingApt: "正在刷新 Debian 軟件源...",
+    aptUpdateFailed: "apt-get update 執行失敗",
+    installingTmux: "正在安裝 tmux...",
+    aptInstallTmuxFailed: "apt-get install tmux 執行失敗",
+    verifyingTmuxInstall: "正在驗證 tmux 安裝結果...",
+    tmuxMissingAfterInstall: "安裝完成後仍未檢測到 tmux",
+    tmuxInstallCompleteWithVersion: "tmux 安裝完成：{version}",
+    tmuxInstallFailed: "tmux 安裝失敗",
+    cwdUnavailable: "工作目錄不存在或不可訪問: {path}",
+    webTerminalDisabled: "網頁終端功能尚未啟用",
+    tmuxInstallingWait: "tmux 安裝中，請等待安裝完成",
+    tmuxStatusError: "tmux 狀態異常：{message}",
+    tmuxMissingCannotCreate: "未檢測到 tmux，無法建立可恢復終端會話",
+    rootRunRequiresDangerToggle:
+      "目前進程以 root 運行，需在設定中明確開啟高危運行開關後才能建立終端",
+    requestedShellUnavailable: "請求的 shell 不可用: {shell}",
+    noShellDetected: "未檢測到可用 shell，請確認系統已安裝 zsh、bash 或 sh",
+    paneMetadataReadFailed: "無法讀取終端 pane 元資料",
+    paneTtyParseFailed: "無法解析終端 pane tty",
+    inputPipeCreateFailed: "無法建立終端輸入管道",
+    ioRelayCreateFailed: "無法建立終端 IO 中繼",
+    sessionLimitReached: "終端會話已達到上限（{count}）",
+    tmuxSessionCreateFailed: "tmux 會話建立失敗",
+    sessionTitleRequired: "會話名稱不能為空",
+    sessionMissingOrExpired: "終端會話不存在或已失效",
+    tmuxMissingCannotAttach: "未檢測到 tmux，無法附著終端會話",
+    inputPipeNotReady: "終端輸入管道尚未就緒",
+    inputWriteInterrupted: "終端輸入寫入被中斷",
+    attachmentExpired: "終端附著已失效",
+    inputSendFailed: "終端輸入發送失敗",
+    resizeFailed: "終端尺寸調整失敗",
+    sessionNotFound: "終端會話不存在",
+  },
+  waf: {
+    manifestInvalid: "系統規則清單格式不正確",
+    manifestMissingZipInfo: "系統規則清單缺少 zip 文件資訊",
+    manifestRequestFailed: "系統規則清單請求失敗: HTTP {status}",
+    manifestRefreshFailed: "系統規則清單刷新失敗",
+    confOnly: "只支援 .conf 規則文件",
+    ruleFilenameInvalid: "規則文件名不正確",
+    fileTooLarge: "{filename} 超過 1MB",
+    fileInvalidUtf8: "{filename} 不是有效的 UTF-8 文本",
+    filesystemDirectiveBlocked: "{filename} 包含不允許的文件系統指令",
+    systemRuleDescription: "系統安全規則",
+    customRuleDescription: "使用者上傳規則",
+    enableNeedsRule: "至少啟用一個 WAF 規則文件後再開啟",
+    rulesLoadFailed: "WAF 規則載入失敗",
+    configSyncFailed: "同步 WAF 配置到網關失敗",
+    sourceInvalid: "規則來源不正確",
+    ruleFileNotFound: "規則文件不存在",
+    zipInvalid: "系統規則 zip 格式不正確",
+    zipDirectoryInvalid: "系統規則 zip 目錄不正確",
+    zipUnpackedTooLarge: "系統規則包解壓後過大",
+    zipHeaderInvalid: "系統規則 zip 文件頭不正確",
+    zipMethodUnsupported: "暫不支援 zip 壓縮方式 {method}",
+    zipSizeInvalid: "系統規則 zip 文件大小不正確",
+    zipPathInvalid: "系統規則 zip 文件路徑不正確: {path}",
+    downloadFailed: "系統規則下載失敗: HTTP {status}",
+    zipTooLarge: "系統規則包過大",
+    zipHashMismatch: "系統規則包校驗失敗",
+    zipEmpty: "系統規則包為空",
+    zipDuplicateFile: "系統規則包內存在重複文件: {path}",
+    zipConfRootOnly: "系統規則包內 .conf 文件必須位於根目錄",
+    zipNoConf: "系統規則包內沒有 .conf 文件",
+    systemRulePathInvalid: "系統規則文件路徑不正確",
+    manifestEmpty: "系統規則清單為空",
+    keepOneEnabledRule: "開啟 WAF 時至少保留一個啟用的規則文件",
+    uploadSelectConf: "請選擇要上傳的 .conf 文件",
+    reloadRulesFailed: "重新載入 WAF 規則失敗",
+    statusReadFailed: "讀取 WAF 狀態失敗",
+    configSaveOrLoadFailed: "WAF 設定保存或載入失敗",
+    systemRulesSyncFailed: "系統規則同步失敗",
+    ruleToggleFailed: "WAF 規則啟停失敗",
+    ruleReadFailed: "讀取 WAF 規則失敗",
+    customRuleUploadFailed: "自訂規則上傳失敗",
+    customRuleDeleteFailed: "自訂規則刪除失敗",
+    eventsDrainFailed: "拉取 WAF 事件失敗",
+    logsQueryFailed: "查詢 WAF 日誌失敗",
+    logNotFound: "WAF 日誌不存在",
+    logsDeleteFailed: "刪除 WAF 日誌失敗",
+  },
+  oidc: {
+    callbackStateExpired: "登入狀態已過期，請重新發起登入",
+    loginFailedRetry: "外部登入失敗，請重新發起登入。",
+    reservedExtraAuthParam: "extra_auth_params 包含 OIDC 保留參數: {key}",
+    urlInvalid: "{label} 必須是合法 URL",
+    urlMustUseHttps: "{label} 必須使用 HTTPS",
+    providerUnsupported: "不支援的外部登入提供商",
+    providerMissingRequiredConfig: "{provider} 缺少必填配置 {fields}",
+    providerMissingRequiredFields: "外部登入提供商缺少必填配置 {fields}",
+    accessTokenMissing: "未獲取到 access_token",
+    idTokenMissing: "未獲取到 id_token",
+    callbackUrlBuildFailed:
+      "無法生成外部登入回調地址，請配置 public_auth_base_url",
+    issuerMissing: "OIDC issuer 未配置",
+    discoveryMissingFields: "OIDC discovery 文檔缺少必要欄位",
+    nonceCheckFailed: "OIDC nonce 校驗失敗",
+    issuerCheckFailed: "OIDC issuer 校驗失敗",
+    subjectEmpty: "OIDC subject 為空",
+    githubUserIdEmpty: "GitHub 使用者 ID 為空",
+    providerNotFound: "外部登入提供商不存在",
+    connectionTestSuccess: "連接測試成功",
+    oauthEndpointIncomplete: "OAuth2 endpoint 未配置完整",
+    connectionTestFailed: "連接測試失敗",
+    totpMissing: "TOTP 憑據不存在",
+    selectProvider: "請選擇外部登入提供商",
+    providerUnavailable: "外部登入提供商不可用",
+    bindingNotFound: "外部帳號綁定不存在",
+    inviteInvalid: "綁定邀請連結無效",
+    inviteExpired: "綁定邀請連結已失效",
+    inviteProviderNotAllowed: "該邀請連結不允許使用此提供商",
+    authorizationEndpointMissing: "authorization endpoint 未配置",
+    bindStateInvalid: "綁定邀請狀態無效",
+    accountNotBoundCannotLogin: "該外部帳號尚未綁定，無法登入",
+    tokenEndpointMissing: "token endpoint 未配置",
+    bindProviderMismatch: "綁定邀請與登入提供商不匹配",
+    inviteTotpMissing: "綁定邀請關聯的 TOTP 已不存在",
+    accountAlreadyBoundOtherTotp: "該外部帳號已綁定到其他 TOTP",
+    inviteUsed: "綁定邀請連結已被使用",
+    providerErrors: {
+      accessDenied: "你取消了外部登入授權，或授權請求被提供商拒絕。",
+      temporarilyUnavailable: "外部登入服務暫時不可用，請稍後重試。",
+      serverError: "外部登入提供商返回服務錯誤，請稍後重試。",
+      invalidScope: "外部登入權限範圍配置不正確，請聯絡管理員檢查提供商配置。",
+      rejected: "外部登入請求被提供商拒絕，請檢查外部登入配置後重試。",
+      incomplete: "外部登入未完成，請重新發起登入。",
+    },
+    bindWithProvider: "使用 {provider} 綁定",
+    selectProviderTitle: "選擇外部帳號提供商",
+    bindToTotp: "將外部帳號綁定到 {totp}。",
+    linkMissingToken: "連結缺少 token。",
+    inviteMissingExpiredUsed: "該邀請不存在、已過期或已經被使用。",
+    noProvidersTitle: "沒有可用的外部登入提供商",
+    noProvidersBody: "該邀請目前沒有可用於綁定的外部帳號提供商。",
+    bindFailedTitle: "外部帳號綁定失敗",
+    bindStartFailed: "無法發起外部帳號綁定。",
+    startFailed: "發起外部登入失敗",
+    callbackMissingParams: "外部登入回調缺少必要參數，請重新發起登入。",
+    loginFailed: "外部登入失敗",
+    operationAborted: "外部登入請求已中斷，請重新發起登入。",
+    loginFailedRetryAfter: "{message}，請在 {seconds} 秒後重試",
+    createProviderFailed: "建立外部登入提供商失敗",
+    updateProviderFailed: "更新外部登入提供商失敗",
+    deleteProviderFailed: "刪除外部登入提供商失敗",
+    testProviderFailed: "測試外部登入提供商失敗",
+    deleteBindingFailed: "刪除外部帳號綁定失敗",
+    createInviteFailed: "建立綁定邀請失敗",
+    catalog: {
+      googleDescription: "使用 Google 帳號登入。",
+      microsoftDescription: "使用 Microsoft / Azure AD 帳號登入。",
+      githubDescription: "使用 GitHub OAuth 登入。",
+      customLabel: "自訂 OIDC",
+      customDescription: "使用標準 OpenID Connect Discovery 的自訂提供商。",
+    },
+  },
+  subdomainMode: {
+    recommendationMissingBase:
+      "尚未配置根域名或鑒權服務，暫時無法生成推薦證書域名。",
+    recommendationWildcardSummary:
+      "推薦申請 {rootDomain} 與 *.{rootDomain}，用於覆蓋根域名、鑒權服務和同一父域下的業務子域。",
+    authOutOfRootWarning:
+      "目前鑒權服務 {authHost} 不在根域名 {rootDomain} 下，已額外加入精確域名；請確認所選 DNS 服務商能夠管理這些域名。",
+    recommendationSingleHostSummary:
+      "尚未配置根域名，目前僅能推薦為鑒權服務 {authHost} 申請單域名證書。",
+    wildcardSuggestion:
+      "如果後續要統一覆蓋多個業務子域，建議先補充根域名後再申請 wildcard 證書。",
+    configureRootOrAuth:
+      "請先在子域模式裡配置根域名，或在 Host 映射中指定一條鑒權服務。",
+    authMissingWarning: "尚未指定鑒權服務，目前推薦結果只基於根域名推導。",
+    uncoveredHostMappingsWarning:
+      "目前有 {count} 個 Host 映射不在推薦證書的覆蓋範圍內，如需對外暴露，仍需額外證書或調整域名規劃。",
+    coverageNoSsl: "目前未啟用 SSL 證書，鑒權服務與業務子域尚未被 HTTPS 覆蓋。",
+    coverageReadyConcrete:
+      "目前已部署證書覆蓋了鑒權服務和所有已配置 Host 映射。",
+    coverageReadyRecommended: "目前已部署證書滿足子域模式目前的建議覆蓋範圍。",
+    coveragePartialConcrete:
+      "目前證書只覆蓋了部分子域模式所需域名，鑒權服務或部分業務 Host 仍可能出現證書不匹配。",
+    coveragePartialRecommended:
+      "目前證書只覆蓋了部分建議域名，後續啟用子域模式時仍可能出現證書不匹配。",
+    coverageMismatchConcrete:
+      "目前已部署證書與子域模式不匹配，鑒權服務和業務 Host 仍未被正確覆蓋。",
+    coverageMismatchRecommended:
+      "目前已部署證書尚未覆蓋子域模式建議的域名範圍。",
+    coverageMissingRequiredWarning:
+      "目前證書還缺少 {count} 個必需覆蓋項，建議重新申請或替換證書。",
+    coverageMissingRecommendedWarning:
+      "目前證書還缺少 {count} 個建議域名覆蓋項，後續如需使用這些域名，建議重新申請或替換證書。",
+    coverageAuthHostMissingWarning: "目前證書未覆蓋鑒權服務 {authHost}。",
+    inventoryEmpty: "證書庫中還沒有可用於子域模式的證書。",
+    inventoryActiveReady: "目前活動證書已經完整覆蓋子域模式所需域名。",
+    inventoryOneReady:
+      "證書庫中有 1 張證書可完整覆蓋子域模式，可以直接切換為活動證書。",
+    inventoryMultipleReady:
+      "證書庫中有 {count} 張證書各自都能完整覆蓋目前子域模式。",
+    inventoryCombinedReady: "證書庫組合後已經具備完整覆蓋能力。",
+    inventoryCandidateReady: "證書庫中已有可覆蓋目前子域模式的候選證書。",
+    inventoryCombinedNeedsMultiSni:
+      "證書庫組合後已經可以覆蓋目前子域模式，但目前網關仍是單活動證書模式，暫時不能同時生效。",
+    inventoryPartialCandidates:
+      "證書庫裡已有部分候選證書，但還不能完整覆蓋鑒權服務和全部 Host 映射。",
+    inventoryNoCertificateCoversRecommendation:
+      "目前還沒有證書能夠覆蓋子域模式推薦域名。",
+    inventoryMultiCertRequiresSniWarning:
+      "目前證書庫需要多張證書聯合覆蓋，但網關仍處於單活動證書模式，暫時無法一次性全部生效。",
+    inventorySwitchRecommendedWarning:
+      "目前活動證書與子域模式不完全匹配，建議切換到推薦證書。",
+    inventoryBetterForSniWarning: "現有證書庫更適合後續多證書/SNI 部署。",
+  },
+  cloudflared: {
+    missingToken: "請先配置 Cloudflare Token",
+    startFailedWithDetail: "啟動 cloudflared 失敗: {detail}",
+    processExited: "cloudflared 進程已退出",
+    processExitedWithCode: "cloudflared 進程已退出（退出碼 {code}）",
+    processCrashed: "cloudflared 進程異常退出：{message}",
+    resumeOnBoot: "resume: 檢測到 Cloudflared 上次為開啟狀態，正在自動恢復...",
+    unknownError: "未知錯誤",
+    notInitialized: "Cloudflared 未初始化",
+    startFailed: "啟動失敗",
+  },
+  dnsmasq: {
+    notDetectedInstallFirst: "未檢測到 dnsmasq，請先完成安裝",
+    dnsPortUnavailable: "DNS 53 端口不可用，請先釋放端口後重試",
+    dnsPortUnavailableWithDetail:
+      "DNS 53 端口不可用，請先釋放端口後重試：{detail}",
+    detectedWithVersion: "dnsmasq 已檢測到：{version}，等待初始化或啟動服務",
+    detected: "dnsmasq 已檢測到，等待初始化或啟動服務",
+    missingServiceAutoComplete: "缺少系統服務，初始化時會自動補全",
+    servicePackageMissing:
+      "檢測到 dnsmasq 可執行文件，但未安裝系統服務，請先安裝 dnsmasq 軟件包",
+    completingService: "正在補全 dnsmasq 系統服務...",
+    completeServiceFailed: "補全 dnsmasq 系統服務失敗",
+    serviceDefinitionMissingAfterInstall:
+      "dnsmasq 服務安裝完成後仍未檢測到可用的系統服務定義",
+    executableMissing: "未檢測到 dnsmasq 可執行文件",
+    configTestFailed: "dnsmasq 配置校驗失敗",
+    restartFailed: "重啟 dnsmasq 失敗",
+    serviceDefinitionMissing:
+      "未檢測到 dnsmasq 系統服務定義，請先完成初始化補全服務環境",
+    readyWithVersion: "dnsmasq 已就緒：{version}",
+    ready: "dnsmasq 已就緒",
+    refreshingApt: "正在刷新 Debian 軟件源...",
+    aptUpdateFailed: "apt-get update 執行失敗",
+    installing: "正在安裝 dnsmasq...",
+    aptInstallFailed: "apt-get install dnsmasq 執行失敗",
+    enablingService: "正在啟用 dnsmasq 服務...",
+    verifyingService: "正在驗證 dnsmasq 服務...",
+    installMissingAfterComplete: "安裝完成後仍未檢測到 dnsmasq",
+    installFailed: "dnsmasq 安裝失敗",
+    checkingEnvironment: "正在檢查 dnsmasq 環境...",
+    validatingConfig: "正在校驗 dnsmasq 配置...",
+    startingService: "正在啟動 dnsmasq 服務...",
+    initializeFailed: "dnsmasq 初始化失敗",
+  },
+  firewall: {
+    goBackendCallFailed: "Go 後端接口調用失敗: {message}",
+    clearLegacyTcpRedirectFailed:
+      "清理歷史 TCP 重定向 {listenPort} -> {targetPort} 失敗",
+    initDefaultRulesFailed: "初始化默認防火牆規則失敗",
+    syncWhitelistTargetFailed: "同步白名單目標 {target} 失敗",
+    cleanRulesFailed: "清理防火牆規則失敗",
+    syncAuthGatewayConfigFailed: "同步鑒權網關配置失敗",
+    syncReverseProxyThrottleFailed: "同步反代節流配置失敗",
+    syncGatewayVisibilityConfigFailed: "同步網關可見性配置失敗",
+    syncGatewayProxyHeadersConfigFailed: "同步網關協議頭配置失敗",
+    syncGatewayHostResponseConfigFailed: "同步網關 Host 響應配置失敗",
+    enableProxyProtocolForceFailed: "開啟 Proxy Protocol 強制模式失敗",
+    disableProxyProtocolForceFailed: "關閉 Proxy Protocol 強制模式失敗",
+    disableStreamRulesFailed: "關閉協議映射監聽失敗",
+    flushPathRoutesFailed: "清空路徑路由失敗",
+    syncHostRoutesFailed: "同步 Host 路由失敗",
+    syncDefaultRouteFailed: "同步默認路由失敗",
+    flushHostRoutesFailed: "清空 Host 路由失敗",
+    syncPathRoutesFailed: "同步路徑路由失敗",
+    syncStreamRulesFailed: "同步協議映射失敗",
+    syncAuthEntryRouteFailed: "同步鑒權入口路由失敗",
+    syncAuthDefaultRouteFailed: "同步鑒權默認路由失敗",
+  },
+  updateManager: {
+    manifestFieldInvalid: "更新資訊 {field} 無效",
+    manifestFormatInvalid: "更新資訊格式錯誤",
+    manifestMissingVersion: "更新資訊缺少 version",
+    manifestMissingUpdateAvailable: "更新資訊缺少 update_available",
+    manifestMissingForceUpdate: "更新資訊缺少 force_update",
+    manifestMissingDownloadUrl: "更新資訊缺少 download_url",
+    manifestArm64FieldsIncomplete: "更新資訊 ARM64 下載字段不完整",
+    architectureUnsupported: "目前系統架構暫不支援自動更新: {arch}",
+    manifestMissingArm64DownloadUrl: "更新資訊缺少 ARM64 下載地址",
+    manifestMissingArm64Checksum: "更新資訊缺少 ARM64 校驗值",
+    checkHttpFailed: "更新檢查失敗: HTTP {status}",
+    checkFailed: "更新檢查失敗",
+    noUpdateInfo: "尚未獲取到更新資訊",
+    featureDisabled: "更新功能目前未啟用",
+    alreadyLatest: "目前已是最新版本",
+    downloadHttpFailed: "下載失敗: HTTP {status}",
+    responseBodyUnreadable: "下載失敗: 響應流不可讀",
+    checksumFailed: "校驗失敗: 期望 {expected}，實際 {actual}",
+    downloadFailed: "下載失敗",
+    noInstallableUpdate: "目前沒有可安裝更新",
+    downloadPackageFirst: "請先完成更新包下載並校驗",
+    packageMissing: "更新包不存在，請重新下載",
+    packageChecksumFailed: "更新包校驗失敗，請重新下載",
+    installStartFailed: "啟動更新安裝流程失敗",
+  },
+  tunnelManagers: {
+    cloudflared: {
+      macAutoDownloadUnsupported:
+        "MAC 平台暫不支援自動下載應用，請手動透過 brew install cloudflared 安裝。",
+      platformUnsupported: "目前平台不受支援",
+      responseBodyUnreadable: "下載響應體不可讀",
+      downloadCancelled: "下載已取消",
+      unknownError: "未知錯誤",
+      macManualRemove: "MAC 平台請手動移除 cloudflared",
+      notInstalledBrew:
+        "Cloudflared 未安裝，請先透過 brew install cloudflared 安裝",
+      notInitialized: "Cloudflared 未初始化，請先下載",
+    },
+    frp: {
+      platformUnsupported: "目前平台不受支援",
+      packageMissing: "FRP 安裝包缺失",
+      extractFailed: "解壓失敗，退出碼 {code}",
+      responseBodyUnreadable: "下載響應體不可讀",
+      connectionFailed: "連接失敗",
+      downloadFailed: "下載失敗：{detail}",
+      unknownError: "未知錯誤",
+      downloadCancelled: "下載已取消",
+      notInitialized: "FRP 未初始化，請先下載",
+    },
+  },
+  frpc: {
+    instanceNotFound: "FRP 實例不存在：{id}",
+    instanceLimitExceeded: "額外 FRP 實例最多支援 {limit} 個",
+    primaryName: "主 FRP",
+    instanceName: "FRP 實例",
+    verifyFailedWithDetail: "frpc verify 校驗失敗：{detail}",
+    verifyFailedWithCode: "frpc verify 校驗失敗，退出碼 {code}",
+    verifyFrpNotInitialized:
+      "FRP 未初始化，無法校驗 frpc.toml，請先在系統設定中下載 FRP 資源。",
+    pidInvalidForInstance: "PID 已失效或不屬於該實例",
+    processExited: "frpc 進程已退出",
+    processExitedWithCode: "frpc 進程已退出（退出碼 {code}）",
+    processCrashed: "frpc 進程異常退出：{message}",
+    processStillRunning: "FRP 進程仍未退出 pid={pid}",
+    primaryDeleteDenied: "主 FRP 實例不允許刪除",
+    notInitialized: "FRP 未初始化",
+    startFailedWithDetail: "啟動 frpc 失敗: {detail}",
+    pidCleanedForInstance: "PID 不屬於該實例，已清理本實例運行記錄",
+    resumeOnBoot: "resume: 檢測到該 FRP 實例上次為開啟狀態，正在自動恢復...",
+    routes: {
+      saveConfigFailed: "保存配置失敗",
+      startFailed: "啟動失敗",
+      stopFailed: "停止失敗",
+      createInstanceFailed: "創建實例失敗",
+      startInstanceFailed: "啟動實例失敗",
+      stopInstanceFailed: "停止實例失敗",
+      restartInstanceFailed: "重啟實例失敗",
+      getInstanceLogsFailed: "獲取實例日誌失敗",
+      clearInstanceLogsFailed: "清空實例日誌失敗",
+      pollInstanceFailed: "輪詢實例失敗",
+      getInstanceDetailFailed: "獲取實例詳情失敗",
+      updateInstanceFailed: "更新實例失敗",
+      deleteInstanceFailed: "刪除實例失敗",
+    },
+  },
+  dockerAdminPanel: {
+    passwordTooShort: "管理面板密碼至少需要 6 位",
+    passwordTooLong: "管理面板密碼不能超過 128 位",
+    passwordWhitespace: "管理面板密碼不能包含空白字符",
+    passwordNeedsLettersAndNumbers: "管理面板密碼需要同時包含字母和數字",
+    passwordAlreadyConfigured: "管理面板密碼已經設定過了",
+    passwordNotConfigured: "目前還沒有設定管理面板密碼",
+    newPasswordSameAsCurrent: "新密碼不能與目前密碼相同",
+    resetHelp:
+      "fn-knock Docker 管理面板密碼重置工具\n\n用法:\n  node /opt/fn-knock/server/server-admin/reset-docker-admin-panel.js\n\n作用:\n  - 清除管理面板密碼\n  - 清除所有管理面板登入會話\n  - 清除登入失敗退避狀態\n\n執行完成後，下次訪問 Docker 管理入口會重新進入「首次設定密碼」流程。",
+    resetCleared: "[fn-knock] Docker 管理面板密碼狀態已清理",
+    resetNextVisit:
+      "[fn-knock] 下次訪問 Docker 管理入口時，需要重新設定管理面板密碼",
+    resetFailed: "[fn-knock] 清理 Docker 管理面板密碼失敗:",
+  },
+  passkeyRoutes: {
+    notFoundWithRetry: "Passkey not found，請在 {seconds} 秒後重試",
+    verifyFailedWithRetry: "驗證失敗，請在 {seconds} 秒後重試",
+    bindTokenExpired: "綁定憑證已失效",
+  },
+  maintenanceBackup: {
+    commandMissing: "系統環境缺少 {command} 命令",
+    commandFailed: "執行 {command} 命令失敗",
+    commandCheckFailed: "檢測 {command} 命令失敗",
+    commandsMissingNoApt:
+      "系統環境缺少 {commands} 命令，且未找到 Debian apt-get，無法自動安裝",
+    aptUpdateFailed: "apt-get update 執行失敗",
+    packageInstallFailed: "安裝 {packages} 失敗",
+    commandsStillMissingAfterInstall:
+      "自動安裝完成後仍未檢測到 {commands} 命令",
+    commandErrorWithDetail: "{message}（退出碼: {code}）: {detail}",
+    commandError: "{message}（退出碼: {code}）",
+    shareDirectoryMissing: "未找到飛牛共享目錄，請確認應用資源已正確配置",
+    invalidBackupPath: "非法的備份文件路徑",
+    invalidRedisStreamData: "Redis stream 數據格式無效: {key} ({id})",
+    unsupportedRedisExportType: "不支援導出的 Redis 數據類型: {type} ({key})",
+    createArchiveFailed: "生成備份歸檔失敗",
+    invalidBackupExtension: "備份文件副檔名必須為 {extension}",
+    stringArrayRequired: "{label} 必須是字符串數組",
+    stringArrayOnlyStrings: "{label} 只能包含字符串",
+    objectRequired: "{label} 必須是對象",
+    fieldStringRequired: "{label}.{field} 必須是字符串",
+    arrayRequired: "{label} 必須是數組",
+    zsetMemberRequired: "{label}[{index}] 必須包含字符串 member",
+    zsetScoreRequired: "{label}[{index}] 必須包含有效的數值 score",
+    streamIdRequired: "{label}[{index}] 必須包含字符串 id",
+    streamFieldsInvalid:
+      "{label}[{index}].fields 必須是偶數長度且非空的字符串數組",
+    entryObjectRequired: "entries[{index}] 必須是對象",
+    entryKeyPrefixRequired: "entries[{index}].key 必須以 {prefix} 開頭",
+    entryTypeUnsupported: "entries[{index}].type 不受支援",
+    entryTtlInvalid: "entries[{index}].ttl_ms 必須為正整數或 null",
+    entryValueStringRequired: "entries[{index}].value 必須是字符串",
+    jsonParseFailed: "備份文件 JSON 無法解析",
+    payloadObjectInvalid: "備份文件內容不是有效對象",
+    unsupportedSchemaVersion: "僅支援 version={version} 的備份文件",
+    unsupportedPrefix: "僅支援 {prefix} 前綴的備份文件",
+    missingAppVersion: "備份文件缺少 app_version",
+    appVersionUnsupported:
+      "目前版本 {currentVersion} 僅允許導入 {range} 範圍內導出的備份，收到 {appVersion}",
+    missingExportedAt: "備份文件缺少 exported_at",
+    missingEntries: "備份文件缺少 entries 數組",
+    duplicateRedisKey: "備份文件存在重複 Redis key",
+    archiveMissingPayload: "備份歸檔中缺少 {filename}",
+    archivePasswordInvalid: "備份歸檔密碼校驗失敗",
+    readArchiveFailed: "讀取 .knock 備份歸檔失敗",
+    writeRedisFailed: "寫入 Redis 備份數據失敗",
+    unknownError: "未知錯誤",
+    syncSteps: {
+      runModeGatewayRoutes: "運行模式與網關路由",
+      directModeWhitelist: "直連模式白名單",
+      gatewayLogging: "請求日誌配置",
+      sslDeployment: "SSL 證書部署",
+      legacyAuthLogCleanup: "廢棄登入日誌清理",
+      systemResourceMonitorReset: "系統資源監控狀態重置",
+    },
+    archiveEmpty: "備份歸檔內容為空",
+    directoryImportFileOnly: "只能導入備份目錄中的文件",
+    directoryImportExtensionOnly: "僅支援導入 {extension} 備份文件",
+    directoryImportTooLarge: "備份文件過大，無法從飛牛目錄導入",
+    archiveContentMissing: "缺少備份歸檔內容",
+    archiveBase64Invalid: "備份歸檔不是有效的 Base64 數據",
+  },
+  captcha: {
+    powServerNotConfigured: "PoW 驗證碼尚未完成服務端配置",
+    providerMismatch: "驗證碼類型不匹配",
+    turnstileNotConfigured: "目前 Turnstile 未完成配置，請聯絡管理員完善參數",
+    turnstileSecretMissing: "Cloudflare Turnstile secret_key 未配置",
+    turnstileTokenRequired: "Turnstile token 不能為空",
+    turnstileServiceUnavailable: "Turnstile 校驗服務暫時不可用",
+    turnstileVerifyFailedWithReason: "Turnstile 驗證失敗: {reason}",
+    turnstileVerifyFailed: "Turnstile 驗證失敗",
+    providerUnavailable: "未找到可用的驗證碼提供商",
+    powNotEnabled: "目前未啟用 PoW 驗證碼",
+    powUnavailable: "目前 PoW 驗證碼不可用",
+    providerConfigMismatch: "驗證碼提供商與目前配置不一致",
+  },
+  cidr: {
+    serviceError: "CIDR 服務異常",
+    emptyResponse: "<空響應>",
+    upstreamUrl: "上游地址: {url}",
+    status: "狀態: {status}{statusText}",
+    contentType: "類型: {contentType}",
+    upstreamCode: "上游 code: {code}",
+    upstreamMessage: "上游消息: {message}",
+    requestId: "請求 ID: {requestId}",
+    responsePreview: "響應摘要: {preview}",
+    provinceRequired: "省份不能為空",
+    upstreamTimeout: "CIDR 上游請求超時",
+    upstreamRequestFailed: "CIDR 上游請求失敗 ({status})",
+    invalidJson: "CIDR 上游返回了無效 JSON",
+    upstreamUnexpected: "CIDR 上游返回異常",
+    provinceWideLabel: "{province}全省",
+  },
+  dashboard: {
+    inbound: "入站",
+    outbound: "出站",
+    upstreamUnavailable: "上游服務不可用",
+    hostRequired: "host 不能為空",
+  },
+  acme: {
+    alreadyInstalled: "acme.sh 已經安裝過了",
+    installInProgress: "安裝任務正在進行中",
+    installSubmitted: "安裝任務已提交",
+    issueSucceeded: "證書簽發成功",
+  },
+  ddns: {
+    ipv6OnlyUnavailable:
+      "目前更新範圍為僅更新 IPv6，但未檢測到可用的 IPv6 地址",
+    ipv4OnlyUnavailable:
+      "目前更新範圍為僅更新 IPv4，但未檢測到可用的 IPv4 地址",
+    dualStackUnavailable: "目前更新範圍內沒有可用的 IPv4 或 IPv6 地址",
+    domainConfigIncomplete: "域名配置不完整",
+    domainNotInZone: "域名 {fqdn} 不屬於根域 {zone}",
+    invalidJsonResponse: "響應不是合法 JSON: {text}",
+    aRecordFailed: "A 記錄處理失敗",
+    aaaaRecordFailed: "AAAA 記錄處理失敗",
+    providerDnsUpdateSuccess: "{provider} DNS 更新成功",
+    aliyunParamKeyMissing: "阿里雲請求參數缺少鍵名",
+    requestFailed: "請求失敗",
+    tencentMissingResponse: "HTTP {status}: 騰訊雲 API 響應缺少 Response",
+    invalidHeaderFormat: "無效 Header 格式: {header}",
+    interfaceSourceLabel: "網卡 {name}",
+    selectedInterfaceSourceLabel: "所選網卡",
+    publicSourceLabel: "公網",
+    interfaceIpv6Unavailable:
+      "目前取得方式為從網卡直接取得，但所選網卡上沒有可用的 IPv6 地址",
+    interfaceIpv4Unavailable:
+      "目前取得方式為從網卡直接取得，但所選網卡上沒有可用的 IPv4 地址",
+    interfaceDualStackUnavailable:
+      "目前取得方式為從網卡直接取得，但所選網卡上沒有可用的 IPv4 或 IPv6 地址",
+    publicIpv6Unavailable:
+      "目前取得方式為從公網取得，但未取得到可用的 IPv6 地址",
+    publicIpv4Unavailable:
+      "目前取得方式為從公網取得，但未取得到可用的 IPv4 地址",
+    publicDualStackUnavailable:
+      "目前取得方式為從公網取得，但未取得到可用的 IPv4 或 IPv6 地址",
+    selectInterfaceAddress: "從網卡直接取得時，請先選擇一個 {family} 地址",
+    selectedInterfaceAddressUnavailable:
+      "所選網卡的第 {index} 個 {family} 地址已不可用，請重新選擇",
+    ipv4FailedContinueIpv6: "IPv4 取得失敗，將繼續使用 IPv6 ({error})",
+    ipv4Failed: "IPv4 取得失敗 ({error})",
+    ipv6FailedContinueIpv4: "IPv6 取得失敗，將繼續使用 IPv4 ({error})",
+    ipv6Failed: "IPv6 取得失敗 ({error})",
+    publicIpv6NotSelectable:
+      "公網探測得到的 IPv6 ({ip}) 不在本機或 Docker 宿主機的可選網卡地址中；如果外網無法訪問該地址，請改用「從網卡直接取得」並選擇宿主機公網 IPv6",
+    interfaceRequired: "從網卡直接取得時，必須先明確選擇一張出站網卡",
+    interfaceNotFound: "未找到可用網卡: {name}",
+    dockerHostInterfaceLabel: "宿主機 {name} ({summary})",
+    curlStatusLineParseFailed: "無法解析 curl 響應狀態行: {line}",
+    curlNoHeaders: "curl 未返回任何響應頭",
+    requestCanceled: "請求已取消",
+    curlRequestFailed: "curl 請求失敗: {detail}",
+    triggerCron: "定時檢查",
+    triggerEnable: "啟用自動更新後立即檢查",
+    triggerMessage: "{trigger}: {message}",
+    notConfigured: "未配置",
+    skippedNoProvider: "未選擇 DDNS 提供商，已跳過",
+    skippedIncompleteConfig: "目前配置不完整，已跳過",
+    skippedPublicIpUnavailable: "無法取得公網 IP，已跳過",
+    skippedReason: "{reason}，已跳過",
+    targetIpNoChange: "目標 IP 未變化，無需更新",
+    none: "無",
+    ipChange: "{family}: {before} -> {after}",
+    targetIpChanged: "檢測到目標 IP 變化: {changes}",
+    dnsUpdateSuccess: "DNS 更新成功 [{provider}]: {message}",
+    dnsUpdateFailed: "DNS 更新失敗 [{provider}]: {message}",
+    taskError: "任務異常: {message}",
+    intervalOutOfRange: "自動同步頻率必須是 {min}-{max} 之間的整數分鐘數",
+    primaryDomainName: "主域",
+    noProviderSelected: "未選擇提供商",
+    duplicateTarget: "已存在相同提供商和域名摘要的 DDNS 條目",
+    primaryInitFailed: "主域 DDNS 條目初始化失敗",
+    primaryDomainScope: "主域",
+    additionalDomainScope: "附加域",
+    targetNotFound: "未找到 DDNS 條目",
+    unknownProvider: "未知的 DDNS 提供商: {provider}",
+    primaryDeleteForbidden: "主域條目不允許刪除",
+    primaryDisableForbidden: "主域條目不可單獨停用",
+    unknownProviderShort: "未知的提供商: {provider}",
+    selectProviderFirst: "請先選擇 DDNS 提供商",
+    primaryConfigIncomplete: "目前主域配置不完整，請填寫所有必填欄位",
+    targetConfigIncomplete: "目前條目配置不完整，請填寫所有必填欄位",
+    manualTestStart: "手動測試開始，正在解析目前目標 IP...",
+    manualTestPrefix: "手動測試",
+    currentTargetIp: "目前目標 IP（{source}） — IPv4: {ipv4}, IPv6: {ipv6}",
+    testAborted: "{message}，測試中止",
+    updateSuccess: "更新成功: {message}",
+    updateFailed: "更新失敗: {message}",
+    testError: "測試異常: {message}",
+    settingsSaveFailed: "保存 DDNS 自動同步設定失敗",
+    providerSetFailed: "設定提供商失敗",
+    configSaveFailed: "保存 DDNS 配置失敗",
+    createTargetFailed: "建立 DDNS 條目失敗",
+    updateTargetFailed: "更新 DDNS 條目失敗",
+    deleteTargetFailed: "刪除 DDNS 條目失敗",
+    updateTargetEnabledFailed: "更新 DDNS 條目啟用狀態失敗",
+    providers: {
+      common: {
+        fields: {
+          root_domain: {
+            label: "根域名",
+            description: "用於確定 Zone，例如 example.com",
+          },
+          domain: {
+            label: "完整域名",
+            shortLabel: "域名",
+            description: "要更新的完整域名",
+            hostDescription: "要更新的完整主機名",
+          },
+          ttl: {
+            description: "默認 {seconds} 秒",
+          },
+        },
+      },
+      dynv6: {
+        fields: {
+          token: {
+            description: "在 dynv6.com 帳戶中生成",
+          },
+          zone: {
+            label: "Zone 名稱",
+            description: "你的 dynv6 zone 域名",
+          },
+          ipv6prefix: {
+            description: "可選，透傳給 dynv6 API",
+          },
+        },
+        configIncomplete: "dynv6 配置不完整",
+        empty: "(空)",
+        success: "dynv6: {detail} (發送: {params})",
+        updateFailed: "dynv6 更新失敗 [{status}]: {detail}",
+        requestError: "dynv6 請求異常: {detail}",
+      },
+      duckdns: {
+        fields: {
+          domains: {
+            label: "子域名",
+            description:
+              "只填寫 DuckDNS 子域名，不帶 .duckdns.org 後綴；支援逗號分隔",
+          },
+          token: {
+            description: "在 DuckDNS 控制台首頁可以看到帳戶 token",
+          },
+        },
+        configIncomplete: "DuckDNS 配置不完整",
+        noIpAvailable: "DuckDNS 更新失敗: 沒有可用的 IPv4 或 IPv6 地址",
+        updateFailedWithStatus: "DuckDNS 更新失敗 [{status}]: {detail}",
+        requestFailed: "請求失敗",
+        updateFailed: "DuckDNS 更新失敗: {detail}",
+        nonOkResponse: "返回了非 OK 響應",
+        success: "DuckDNS 更新成功{detail}",
+        requestError: "DuckDNS 請求異常: {detail}",
+      },
+      dnspod: {
+        fields: {
+          record_line: {
+            label: "線路",
+            description: "默認使用「默認」線路",
+          },
+        },
+        defaultLine: "默認",
+        configIncomplete: "DNSPod 配置不完整",
+        queryRecordFailed: "查詢記錄失敗",
+        updateRecordFailed: "更新記錄失敗",
+        createRecordFailed: "建立記錄失敗",
+      },
+      cloudflare: {
+        fields: {
+          api_token: {
+            label: "API 令牌",
+            description: "需要 Zone.DNS 編輯權限",
+          },
+          zone_id: {
+            description: "在 Cloudflare 域名頁，點擊三個點，選擇複製區域 ID",
+          },
+          proxied: {
+            label: "Cloudflare 代理",
+            description: "是否啟用 Cloudflare 代理（橙色雲朵）",
+            options: {
+              dnsOnly: "僅解析",
+              orangeCloud: "橙色雲朵",
+            },
+          },
+        },
+        configIncomplete: "Cloudflare 配置不完整",
+        searchRecordFailed: "查詢 {type} 記錄失敗: {detail}",
+        updateRecordFailed: "更新 {type} 記錄失敗: {detail}",
+        createRecordFailed: "建立 {type} 記錄失敗: {detail}",
+        recordOperationError: "{type} 記錄操作異常: {detail}",
+        success: "Cloudflare DNS 更新成功",
+      },
+      godaddy: {
+        configIncomplete: "GoDaddy 配置不完整",
+        updateFailed: "更新失敗",
+        updateFailedWithStatus: "[{status}] {detail}",
+      },
+      porkbun: {
+        configIncomplete: "Porkbun 配置不完整",
+        queryRecordFailed: "查詢記錄失敗",
+        updateRecordFailed: "更新記錄失敗",
+        createRecordFailed: "建立記錄失敗",
+      },
+      alidns: {
+        label: "阿里雲 DNS",
+        fields: {
+          access_key_secret: {
+            placeholder: "阿里雲 AccessKey Secret",
+          },
+          line: {
+            label: "線路",
+            description: "默認使用阿里雲「default」線路",
+          },
+        },
+        configIncomplete: "阿里雲 DNS 配置不完整",
+        requestFailed: "請求失敗",
+        updateFailed: "更新失敗",
+        createFailed: "建立失敗",
+      },
+      baidu: {
+        label: "百度雲 DNS",
+        fields: {
+          access_key_id: {
+            placeholder: "百度智能雲 Access Key",
+          },
+          secret_access_key: {
+            placeholder: "百度智能雲 Secret Key",
+          },
+        },
+        configIncomplete: "百度雲 DNS 配置不完整",
+        queryFailed: "查詢失敗",
+        updateFailed: "更新失敗",
+        createFailed: "建立失敗",
+      },
+      huawei: {
+        label: "華為雲 DNS",
+        fields: {
+          access_key_id: {
+            placeholder: "華為雲 AK",
+          },
+          secret_access_key: {
+            placeholder: "華為雲 SK",
+          },
+        },
+        webCryptoUnsupported:
+          "目前運行環境不支援 Web Crypto，無法生成華為雲 AK/SK 簽名",
+        configIncomplete: "華為雲 DNS 配置不完整",
+        requestFailed:
+          "華為雲 DNS 請求失敗: HTTP {status} {statusText}, {detail}",
+        zoneNotFound: "未找到華為雲 Zone: {zone}",
+      },
+      tencentcloud: {
+        label: "騰訊雲 DNS",
+        fields: {
+          secret_key: {
+            placeholder: "騰訊雲 SecretKey",
+          },
+          record_line: {
+            label: "線路",
+            description: "默認使用「默認」線路",
+          },
+          record_line_id: {
+            label: "線路 ID",
+            description: "可選；如填寫將優先使用線路 ID",
+          },
+        },
+        defaultLine: "默認",
+        configIncomplete: "騰訊雲 DNS 配置不完整",
+        missingUpdatedRecordId: "騰訊雲未返回更新後的 RecordId",
+        missingCreatedRecordId: "騰訊雲未返回建立後的 RecordId",
+      },
+      noip: {
+        fields: {
+          hostname: {
+            description: "填寫完整主機名，支援逗號分隔多個 hostname",
+          },
+          username: {
+            label: "使用者名稱",
+            description: "建議使用 NO-IP 控制台生成的 DDNS Key 使用者名稱",
+          },
+          password: {
+            label: "密碼",
+            description: "建議使用與 DDNS Key 配套的密碼，而不是主帳號密碼",
+          },
+        },
+        statusMessages: {
+          nohost: "指定的主機名不存在或不屬於目前 DDNS Key",
+          badauth: "使用者名稱或密碼錯誤",
+          badagent: "客戶端被 NO-IP 禁用，請檢查 User-Agent 或客戶端狀態",
+          "!donator": "目前帳號不支援請求中的增強功能",
+          abuse: "該 DDNS Key 因濫用被 NO-IP 封鎖",
+          "911": "NO-IP 服務端發生臨時故障，官方建議至少 30 分鐘後再重試",
+        },
+        unknownStatus: "返回未知狀態: {code}",
+        updateFailed: "NO-IP 更新失敗: {detail}",
+        updateSuccess: "NO-IP 更新成功{detail}",
+        ipUnchanged: "NO-IP IP 未變化{detail}",
+        configIncomplete: "NO-IP 配置不完整",
+        noIpAvailable: "NO-IP 更新失敗: 沒有可用的 IPv4 或 IPv6 地址",
+        updateFailedWithStatus: "NO-IP 更新失敗 [{status}]: {detail}",
+        requestFailed: "請求失敗",
+        emptyResponse: "NO-IP 更新失敗: 返回了空響應",
+        requestError: "NO-IP 請求異常: {detail}",
+      },
+      esa: {
+        label: "阿里雲 ESA DNS",
+        fields: {
+          access_key_secret: {
+            placeholder: "阿里雲 AccessKey Secret",
+          },
+          site_name: {
+            label: "站點名稱",
+            description:
+              "ESA 站點名稱，通常就是根域名；如已填寫 Site ID，此項僅作兜底查詢",
+          },
+          site_id: {
+            description: "可選，填寫後將直接操作該站點，避免每次先查詢站點列表",
+          },
+          proxied: {
+            label: "ESA 代理",
+            description: "默認僅解析；如開啟代理，將自動附帶業務類型",
+            options: {
+              dnsOnly: "僅解析",
+              enabled: "開啟代理",
+            },
+          },
+          biz_name: {
+            label: "業務類型",
+            description: "僅在開啟 ESA 代理時生效，默認 web",
+            options: {
+              web: "網頁",
+              api: "接口",
+              imageVideo: "音視頻",
+            },
+          },
+        },
+        configIncomplete: "阿里雲 ESA DNS 配置不完整",
+        siteNameMissing: "阿里雲 ESA DNS 缺少站點名稱",
+        siteNotFound: "未找到 ESA 站點: {site}",
+        noIpAvailable: "阿里雲 ESA DNS 缺少可更新的 IP 地址",
+        createRecordFailed: "CreateFailed: 建立記錄失敗",
+        success: "阿里雲 ESA DNS 更新成功",
+        recordIdMissing: "UpdateFailed: 記錄缺少 RecordId",
+      },
+      dynu: {
+        fields: {
+          api_key: {
+            description: "在 Dynu API Credentials 中生成的 API-Key",
+          },
+          domain: {
+            description: "要更新的完整 Dynu hostname",
+          },
+          group: {
+            description: "可選；寫入 Dynu DNS 記錄的 group",
+          },
+        },
+        actionFailed: "{action}失敗",
+        actions: {
+          resolveRoot: "解析 Dynu 根域",
+          readDnsService: "讀取 Dynu DNS 服務",
+          updateWildcardAlias: "更新 Dynu Wildcard Alias",
+          queryRecord: "查詢 Dynu {type} 記錄",
+          updateRecord: "更新 Dynu {type} 記錄",
+          createRecord: "建立 Dynu {type} 記錄",
+        },
+        invalidRootInfo: "Dynu 未返回有效的根域資訊",
+        wildcardUnsupported:
+          "Dynu REST 不支援把 *.{domain} 當作 DNS 記錄 nodeName。請先在 Dynu DDNS Services 中將 {domain} 添加為獨立服務並啟用 Wildcard Alias，或將 DDNS 配置改為 {domain}",
+        wildcardUnchanged: "Dynu Wildcard Alias IP 未變化",
+        wildcardSuccess: "Dynu Wildcard Alias 更新成功",
+        configIncomplete: "Dynu 配置不完整",
+        noIpAvailable: "Dynu 更新失敗: 沒有可用的 IPv4 或 IPv6 地址",
+        recordIdMissing: "Dynu 返回的 DNS 記錄缺少 RecordId",
+        requestError: "Dynu 請求異常: {detail}",
+      },
+      edgeone: {
+        label: "騰訊雲 EdgeOne",
+        fields: {
+          secret_key: {
+            placeholder: "騰訊雲 SecretKey",
+          },
+          zone_id: {
+            description: "EdgeOne 站點 ID，用於定位託管的 Zone",
+          },
+          domain: {
+            description: "要更新的完整主機名；中文域名請先轉為 punycode",
+          },
+          location: {
+            label: "解析線路",
+            placeholder: "Default 或 CN.BJ",
+            description: "可選；默認留空表示 Default 全局線路",
+          },
+          ttl: {
+            description: "默認 300 秒，EdgeOne 允許 60-86400",
+          },
+          overseas_access: {
+            label: "海外訪問控制",
+            description:
+              "當開啟時，將調用 EdgeOne 安全策略 API 屏蔽海外 IP 訪問；港澳台不屬於海外。該設定只會在配置變更時同步一次，不會隨每次 DDNS 更新重複執行。",
+            options: {
+              off: "不使用",
+              blockOverseas: "屏蔽海外 IP",
+            },
+          },
+          endpoint: {
+            description:
+              "默認國內版，可改為 https://teo.intl.tencentcloudapi.com 或地域接入域名",
+          },
+          region: {
+            placeholder: "留空",
+            description: "可選；大多數場景可留空",
+          },
+        },
+        configIncomplete: "騰訊雲 EdgeOne 配置不完整",
+        configTargetIncomplete:
+          "騰訊雲 EdgeOne 配置不完整，缺少 Zone ID 或域名",
+        missingRecordId: "EdgeOne 返回的記錄缺少 RecordId",
+        missingCreatedRecordId: "EdgeOne 未返回建立後的 RecordId",
+        overseasAccess: {
+          describeRulesFailed:
+            "EdgeOne 海外訪問控制讀取現有自定義規則失敗 (provider_target={target}, zone_id={zoneId}, endpoint_host={endpointHost}, region={region}, entity={entity}, scope={scope}): {message}",
+          syncFailedWithAttempt:
+            "EdgeOne 海外訪問控制同步失敗 ({attempt}, submitted_rule_count={count}): {message}",
+          syncAllScopesFailed:
+            "EdgeOne 海外訪問控制同步失敗：所有規則作用域均嘗試失敗",
+          cleanupAllScopesFailed:
+            "EdgeOne 海外訪問控制清理失敗：所有規則作用域均嘗試失敗",
+          syncSuccess:
+            "已同步 EdgeOne 海外 IP 屏蔽策略，僅允許中國大陸、香港、澳門、台灣訪問",
+          cleanupSuccess: "已清理 EdgeOne 海外 IP 屏蔽策略",
+        },
+      },
+      edgeone_cname: {
+        label: "騰訊雲 EdgeOne（CNAME 接入）",
+        fields: {
+          secret_key: {
+            placeholder: "騰訊雲 SecretKey",
+          },
+          zone_id: {
+            description: "EdgeOne 站點 ID，用於定位加速域名所屬的站點",
+          },
+          domain: {
+            label: "加速域名",
+            description:
+              "已在 EdgeOne 中建立的加速域名；僅支援目前源站類型為 IP_DOMAIN，且一次只能更新一個源站地址",
+          },
+          overseas_access: {
+            label: "海外訪問控制",
+            description:
+              "當開啟時，將調用 EdgeOne 安全策略 API 屏蔽海外 IP 訪問；港澳台不屬於海外。該設定只會在配置變更時同步一次，不會隨每次 DDNS 更新重複執行。",
+            options: {
+              off: "不使用",
+              blockOverseas: "屏蔽海外 IP",
+            },
+          },
+          endpoint: {
+            description:
+              "默認國內版，可改為 https://teo.intl.tencentcloudapi.com 或地域接入域名",
+          },
+          region: {
+            placeholder: "留空",
+            description: "可選；大多數場景可留空",
+          },
+        },
+        configIncomplete: "騰訊雲 EdgeOne（CNAME 接入）配置不完整",
+        singleAddressOnly:
+          "騰訊雲 EdgeOne（CNAME 接入）一次只能更新一個源站地址，請將 DDNS 更新範圍設定為「僅更新 IPv4」或「僅更新 IPv6」",
+        noIpAvailable: "騰訊雲 EdgeOne（CNAME 接入）缺少可更新的 IP 地址",
+        domainNotFound: "未找到 EdgeOne 加速域名: {domain}",
+        unsupportedOriginType:
+          "目前加速域名源站類型為 {originType}，僅支援 IP_DOMAIN 類型的加速域名進行 DDNS 更新",
+        originUnchanged: "騰訊雲 EdgeOne（CNAME 接入）源站已是最新，無需更新",
+        successWithInvalidHostHeaderIgnored:
+          "騰訊雲 EdgeOne（CNAME 接入）源站更新成功（已忽略無效 Host Header）",
+        success: "騰訊雲 EdgeOne（CNAME 接入）源站更新成功",
+      },
+    },
+  },
+  smartConnect: {
+    runTypes: {
+      direct: "直連模式",
+      reverseProxy: "反代模式",
+      subdomain: "子域模式",
+    },
+    currentMode: "目前模式",
+    unavailableReason: "僅子域模式可用，目前為{mode}。",
+    selectLocalIp: "請選擇本機局域網 IP",
+    selectValidLocalIpv4: "請選擇有效的本機局域網 IPv4 地址",
+    dnsmasqNotInstalled: "未檢測到 dnsmasq，請先完成安裝",
+    dnsmasqNotInitialized: "dnsmasq 尚未初始化完成，請先完成環境初始化",
+    syncFailed: "智能連接同步失敗",
+  },
+  scanDiscovery: {
+    localIpv4CidrOnly: "掃描網段僅支援本地 IPv4 CIDR：{cidrs}",
+    maxCidrsExceeded: "單次最多選擇 {max} 個掃描網段",
+    maxHostsExceededWithCurrent:
+      "單次最多掃描 {max} 台主機，目前為 {current} 台",
+    maxHostsExceeded: "單次最多掃描 {max} 台主機",
+    selectAtLeastOneCidr: "請選擇至少一個本地 IPv4 掃描網段",
+    targetLabels: {
+      docker: "{cidr}（Docker 宿主機局域網）",
+      loopback: "{cidr}（本機回環）",
+      interface: "{cidr}（{name}）",
+      mapping: "{cidr}（已有映射目標）",
+      custom: "{cidr}（自定義）",
+      saved: "{cidr}（已保存）",
+    },
+    serviceLabels: {
+      lottery: "彩票助手",
+      dlymusic: "道理魚音樂管理",
+      kuake: "夸克自動轉存",
+      xunlei: "迅雷",
+      nowen: "星雲門戶",
+      fnos: "飛牛OS",
+      fnys: "飛牛影視",
+      xiaoyaAlist: "小雅Alist",
+    },
+  },
+  gatewayProxyHeaders: {
+    runTypes: {
+      direct: "直連模式",
+      reverseProxy: "反代模式",
+      subdomain: "子域模式",
+    },
+    unavailableReason: "僅子域模式可用，目前為{mode}。",
+    syncFailed: "同步網關協議頭配置失敗",
+  },
+  sshSecurity: {
+    logSourceUnavailable: "目前系統未發現 journalctl 或 /var/log/auth.log",
+    enableUnavailable: "目前環境不可啟用 SSH 安全",
+    syncFirewallUnavailable: "目前環境不可同步 SSH 防火牆",
+    clearFirewallUnavailable: "目前環境不可清空 SSH 防火牆",
+    logSourceUnavailableShort: "SSH 日誌源不可用",
+    customCidrInvalid: "自定義 CIDR 格式不正確：{cidrs}",
+    syncSshPolicyFailed: "同步 SSH 專用防火牆規則失敗",
+    clearSshPolicyFailed: "清空 SSH 專用防火牆規則失敗",
+    blockRecordInvalid: "封鎖記錄格式不正確",
+    routes: {
+      updateConfigFailed: "更新 SSH 安全配置失敗",
+      syncFirewallSuccess:
+        "已同步 {allowedCidrs} 條允許 CIDR 與 {synced} 個 SSH 封鎖 IP 到 {ports} 端口",
+      syncFirewallFailed: "同步 SSH 防火牆失敗",
+      clearFirewallSuccess: "已清空 SSH 專用防火牆規則",
+      clearFirewallFailed: "清空 SSH 防火牆失敗",
+      readLoginLogsFailed: "讀取 SSH 登入日誌失敗",
+      blockNotFound: "封鎖記錄不存在",
+      removeBlockFailed: "解除封鎖失敗",
+      selectIps: "請選擇要解除封鎖的 IP",
+      removeBlocksFailed: "批量解除封鎖失敗",
+    },
+  },
+  notifications: {
+    brand: {
+      prefix: "敲門 Knock ",
+      defaultTitle: "敲門 Knock 通知",
+    },
+    templates: {
+      events: {
+        authLoginSuccess: "登入成功",
+        authLogout: "登出",
+        authLoginFailure: "登入失敗",
+        authSessionIpDrift: "會話 IP 漂移",
+        securityScannerBlocked: "掃描器攔截",
+        ddnsUpdateCompleted: "DDNS 更新",
+        gatewayThrottleBlocked: "網關節流封鎖",
+        wafBlocked: "WAF 阻斷",
+        sshLoginSuccess: "SSH 登入成功",
+        sshLoginFailure: "SSH 登入失敗",
+        sshIpBlocked: "SSH IP 封鎖",
+        appUpdateAvailable: "應用更新提示",
+        cpuAlert: "CPU 告警",
+        cpuRecovered: "CPU 恢復",
+        memoryAlert: "記憶體告警",
+        memoryRecovered: "記憶體恢復",
+        frpConnected: "FRP 已連上",
+        frpDisconnected: "FRP 已斷開",
+        cloudflaredConnected: "Cloudflared 已連上",
+        cloudflaredDisconnected: "Cloudflared 已斷開",
+      },
+      ruleName: "{event} 通知",
+      levels: {
+        info: "資訊",
+        warn: "注意",
+        error: "錯誤",
+        critical: "嚴重",
+      },
+      sources: {
+        serverAdmin: "管理後台",
+        goReauthProxy: "認證代理",
+        systemMonitor: "系統監控",
+      },
+      authMethods: {
+        oidc: "外部帳號",
+      },
+      grantTypes: {
+        browserSession: "瀏覽器會話",
+        loginIpGrant: "登入 IP 授權",
+      },
+      wafModes: {
+        detection: "檢測",
+        blocking: "阻斷",
+        off: "關閉",
+      },
+      wafActions: {
+        block: "阻斷",
+        deny: "拒絕",
+        detect: "檢測",
+        log: "記錄",
+        pass: "放行",
+      },
+      logoutSources: {
+        userLogout: "使用者主動登出",
+        adminSessionDelete: "管理員下線",
+      },
+      driftSources: {
+        proxySession: "代理會話",
+        fnosToken: "飛牛令牌",
+        sessionRefresh: "會話刷新",
+        browserSession: "瀏覽器會話",
+      },
+      ddnsTriggers: {
+        cron: "定時任務",
+        enable: "啟用後首次執行",
+        manualTest: "手動測試",
+      },
+      ddnsUpdateScopes: {
+        ipv4Only: "僅 IPv4",
+        ipv6Only: "僅 IPv6",
+      },
+      ddnsIpSources: {
+        public: "公網探測",
+        interface: "網卡讀取",
+      },
+      updateCheckReasons: {
+        cron: "定時檢查",
+        manual: "手動檢查",
+        manualCheckAndDownload: "手動檢查並下載",
+        downloadBootstrap: "下載前檢查",
+      },
+      credential: "憑證",
+      unknownCredential: "未知憑證",
+      credentialLinkedTotp: "{authMethod}「{credential}」關聯 TOTP「{totp}」",
+      credentialName: "憑證「{credential}」",
+      sessionCommentCompact: "備註：{comment}",
+      appendSessionComment: "{text}（備註：{comment}）",
+      yes: "是",
+      no: "否",
+      wafOutcomeBlocked: "阻斷",
+      wafOutcomeLogged: "記錄",
+      sections: {
+        overview: "事件概述",
+        aggregation: "聚合情況",
+        advice: "處理建議",
+      },
+      aggregationText:
+        "本次通知已在 {seconds} 秒窗口內聚合 {count} 條相似事件。",
+      details: {
+        units: {
+          seconds: "{count} 秒",
+          minutes: "{count} 分鐘",
+          times: "{count} 次",
+          ratePerSecond: "{count} 次/秒",
+        },
+        listSeparator: "、",
+        unknown: "未知",
+        unknownIp: "未知 IP",
+        unknownMethod: "未知方式",
+        unknownProvider: "未知提供商",
+        unknownUser: "未知使用者",
+        unknownHost: "未知主機",
+        currentSession: "目前會話",
+        memoryMetric: "記憶體",
+        connected: "已連上",
+        disconnected: "已斷開",
+        parenthesized: "（{value}）",
+        sessionCommentSentence: "目前會話備註為「{comment}」。",
+        aggregationStatsValue: "{count} 條 / {seconds} 秒窗口",
+        facts: {
+          credentialName: "憑證名稱",
+          linkedTotp: "關聯 TOTP",
+          sessionComment: "會話備註",
+          loginIp: "登入 IP",
+          ipLocation: "IP 位置",
+          authMethod: "認證方式",
+          loginProvider: "登入提供商",
+          grantType: "授權方式",
+          rememberLogin: "記住登入",
+          sessionExpiresAt: "會話到期",
+          sessionId: "會話 ID",
+          logoutSource: "登出方式",
+          loginTime: "登入時間",
+          sourceIp: "來源 IP",
+          failureAttempts: "失敗次數",
+          retryWait: "重試等待",
+          limitUntil: "限制截止",
+          originalIp: "原始 IP",
+          originalLocation: "原始位置",
+          currentIp: "目前 IP",
+          currentLocation: "目前位置",
+          driftSource: "變化來源",
+          hitCount: "命中次數",
+          observationWindow: "觀察窗口",
+          triggerThreshold: "觸發閾值",
+          blockedAt: "攔截時間",
+          recentPaths: "最近路徑",
+          target: "條目",
+          provider: "提供商",
+          targetType: "條目類型",
+          trigger: "執行方式",
+          updateScope: "更新範圍",
+          ipSource: "IP 來源",
+          ipv4Change: "IPv4 變化",
+          ipv6Change: "IPv6 變化",
+          result: "執行結果",
+          blockDuration: "封鎖時長",
+          blockedUntil: "封鎖截止",
+          rateLimit: "限流閾值",
+          burstCapacity: "突發容量",
+          targetHost: "目標主機",
+          requestPath: "請求路徑",
+          routeType: "路由類型",
+          authRoute: "認證路由",
+          traceId: "Trace ID",
+          requestAddress: "請求地址",
+          outcome: "處理結果",
+          wafAction: "WAF 動作",
+          wafMode: "WAF 模式",
+          ruleIds: "規則 ID",
+          ruleBundle: "規則包",
+          statusCode: "狀態碼",
+          user: "使用者",
+          port: "端口",
+          logTime: "日誌時間",
+          invalidUser: "無效使用者",
+          threshold: "閾值",
+          window: "窗口",
+          blockedReason: "封鎖原因",
+          relatedUser: "關聯使用者",
+          currentVersion: "目前版本",
+          latestVersion: "最新版本",
+          checkReason: "檢查方式",
+          forceUpdate: "強制更新",
+          releaseNotes: "更新說明",
+          hostname: "主機名",
+          currentUsage: "目前使用率",
+          alertThreshold: "告警閾值",
+          recoverThreshold: "恢復閾值",
+          sampleInterval: "採樣間隔",
+          sustainDuration: "持續時間",
+          tunnelType: "隧道類型",
+          connectionStatus: "連線狀態",
+          processPid: "進程 PID",
+          runtimeFeedback: "運行回饋",
+          eventType: "事件類型",
+          riskLevel: "風險級別",
+          eventSource: "事件來源",
+          happenedAt: "發生時間",
+          aggregationStats: "聚合統計",
+        },
+        authLoginSuccess: {
+          loginViaProvider: "透過 {provider} 登入",
+          loginWithMethod: "使用 {method}",
+          authViaProvider: "透過 {provider}",
+          authWithMethod: "使用 {method}",
+          summaryOidc: "{credential} {method}成功，來源 IP {ip}{totpPart}",
+          linkedTotpPart: "，關聯 TOTP「{totp}」",
+          summaryTotp:
+            "{method}「{credential}」關聯 TOTP「{totp}」從 {ip} 登入成功",
+          summaryCredential: "憑證「{credential}」從 {ip} 登入成功",
+          overview:
+            "本次登入{auth}完成認證，授權方式為 {grantType}{locationPart}。{commentPart}",
+          locationPart: "，登入位置為 {location}",
+          advice: "如該登入並非本人操作，建議儘快撤銷會話並檢查存取策略。",
+        },
+        authLogout: {
+          summaryTotp: "{method}「{credential}」關聯 TOTP「{totp}」已登出",
+          summaryCredential: "憑證「{credential}」已登出",
+          overview:
+            "該會話已從 {ip}{locationPart} 登出，登出方式為 {source}。{commentPart}",
+          advice:
+            "如該登出不符合預期，請核查是否存在管理員下線或異常會話清理。",
+        },
+        authLoginFailure: {
+          summary: "來自 {ip} 的登入失敗已累計 {attempts} 次",
+          overview:
+            "檢測到登入認證連續失敗，目前來源 IP 為 {ip}{retryPart}{blockedPart}。",
+          retryPart: "，需等待 {seconds} 秒後再嘗試",
+          blockedPart: "，限制將持續到 {time}",
+          advice:
+            "如非本人操作，建議立即檢查憑證安全，並考慮封鎖來源 IP 或提高登入防護等級。",
+        },
+        authSessionIpDrift: {
+          summary: "{session} IP 從 {fromIp} 切換到 {toIp}",
+          overview:
+            "檢測到{session}的存取來源 IP 發生變化，來源判定為 {source}。{commentPart}這通常與網路切換、代理變化或會話異常有關。",
+          advice:
+            "若這次 IP 變化並不符合預期，請儘快核查目前會話是否存在被接管風險。",
+        },
+        securityScannerBlocked: {
+          summary: "{ip} 因掃描行為已被攔截",
+          overview:
+            "該來源在 {minutes} 分鐘內累計觸發 {hits} 次掃描行為，已超過閾值 {threshold} 次{pathsPart}。",
+          pathsPart: "；最近命中的路徑包括 {paths}",
+          advice:
+            "建議結合網關日誌確認是否為惡意探測；如確認為誤報，可進一步調整掃描閾值。",
+        },
+        ddnsUpdateCompleted: {
+          defaultTarget: "DDNS 條目",
+          summarySuccess: "{target} DDNS 更新成功",
+          summaryFailure: "{target} DDNS 更新失敗",
+          currentTask: "本次任務",
+          overview:
+            "{trigger}已執行 DDNS 更新，範圍為 {scope}，IP 來源為 {ipSource}。{resultPart}",
+          resultPart: "結果說明：{message}",
+          adviceSuccess:
+            "如解析尚未生效，可繼續等待 DNS 快取刷新後再驗證外部存取。",
+          adviceFailure:
+            "建議檢查提供商憑證、解析記錄配置，以及公網 IP 獲取狀態是否正常。",
+          primaryDomain: "主域",
+          additionalDomain: "附加域",
+        },
+        gatewayThrottleBlocked: {
+          summary: "{ip} 因請求過快被封鎖 {seconds} 秒",
+          overview:
+            "該來源觸發了網關節流保護，限流閾值為 {rate} 次/秒，突發容量為 {burst}{targetPart}。",
+          targetPart: "，目標請求為 {target}",
+          advice:
+            "請結合存取日誌確認是否為突發流量、誤傷或惡意請求，並按需調整限流策略。",
+        },
+        wafBlocked: {
+          summary: "{ip} 的請求被 WAF {outcome}",
+          overview:
+            "WAF 已{outcome}來源 {ip}{hostPart}{pathPart}{actionPart}{modePart}。{rulesPart}",
+          hostPart: " 存取 {host}",
+          pathPart: " {path}",
+          actionPart: "，動作為{action}",
+          modePart: "，目前模式為{mode}",
+          rulesPart: "命中規則：{rules}。",
+          adviceBlocked:
+            "請在 WAF 日誌中按 Trace ID 查看命中詳情；如確認為誤報，請及時向項目方回饋 BUG。",
+          adviceLogged:
+            "請在 WAF 日誌中按 Trace ID 查看命中詳情，並結合規則與請求上下文判斷是否需要調整策略。",
+        },
+        sshLoginSuccess: {
+          summary: "SSH 使用者「{username}」從 {ip} 登入成功",
+          overview:
+            "檢測到一次 SSH 登入成功，來源為 {ip}{locationPart}{authPart}。",
+          authPart: "，認證方式為 {authMethod}",
+          advice: "如該登入並非預期，請檢查 SSH 帳號、金鑰和來源存取策略。",
+        },
+        sshLoginFailure: {
+          summary: "SSH 使用者「{username}」從 {ip} 登入失敗",
+          overview:
+            "該來源在 {minutes} 分鐘窗口內累計 {attempts}/{threshold} 次 SSH 登入失敗{locationPart}。",
+          locationPart: "，位置為 {location}",
+          advice:
+            "請關注失敗次數是否接近封鎖閾值，必要時收緊 SSH 暴露範圍或調整憑據。",
+        },
+        sshIpBlocked: {
+          reasonCidrNotAllowed: "不在允許地區範圍",
+          reasonFailedThreshold: "失敗次數達到閾值",
+          summary: "{ip} 已被 SSH 安全封鎖",
+          overview: "SSH 安全已封鎖來源 {ip}{locationPart}，原因是{reason}。",
+          advice:
+            "請確認該來源是否可信；如為誤封，可在 SSH 安全的封鎖列表中解除。",
+        },
+        appUpdateAvailable: {
+          currentVersionUnknown: "目前版本未知",
+          targetVersionUnknown: "目標版本未知",
+          summary: "發現新版本 {version}",
+          currentCheck: "本次檢查",
+          overview:
+            "{reason}發現 fn-knock 可從 {localVersion} 升級到 {latestVersion}{forcePart}。",
+          forcePart: "，建議儘快安排更新",
+          releaseNotesAdvice: "更新說明：{releaseNotes}",
+          advice:
+            "建議在合適的維護窗口完成更新，並在安裝前確認目前配置與服務狀態。",
+        },
+        systemMetric: {
+          recoveredSummary: "{hostname} {metric} 使用率已恢復至 {usage}%",
+          alertSummary: "{hostname} {metric} 使用率已升至 {usage}%",
+          recoveredOverview:
+            "{hostname} 的 {metric} 使用率已回落到 {usage}%，恢復線為 {recover}%，此前告警閾值為 {threshold}%。",
+          alertOverview:
+            "{hostname} 的 {metric} 使用率目前為 {usage}%，已超過告警閾值 {threshold}%，恢復線設定為 {recover}%。",
+          recoveredAdvice:
+            "目前資源已回到相對安全區間，建議繼續觀察後續是否還有反覆波動。",
+          alertAdvice:
+            "建議儘快檢查高負載進程、背景任務或外部流量變化，避免資源持續打滿。",
+        },
+        tunnel: {
+          connectedSummary: "{tunnel} 已連上",
+          disconnectedSummary: "{tunnel} 已斷開",
+          connectedOverview: "{tunnel} 隧道連線已經恢復{messagePart}。",
+          connectedMessagePart: "，運行回饋為：{message}",
+          disconnectedOverview: "{tunnel} 隧道連線已斷開{messagePart}。",
+          disconnectedMessagePart: "，目前回饋為：{message}",
+          connectedAdvice:
+            "如你之前正在排查存取問題，現在可以重新驗證外部入口是否已經恢復。",
+          disconnectedAdvice:
+            "建議檢查隧道配置、上游網路狀態，以及遠端服務是否可達。",
+        },
+        short: {
+          loginFailureAttempts: "{count}次失敗",
+          scanHits: "{count}次掃描",
+          scanBlocked: "掃描攔截",
+          success: "成功",
+          failure: "失敗",
+          blockSeconds: "封鎖{seconds}s",
+          blockTriggered: "觸發封鎖",
+          rules: "規則 {rules}",
+          sshLoginSuccess: "SSH 登入成功",
+          sshLoginFailure: "SSH 登入失敗",
+          regionNotAllowed: "地區不允許",
+          failureThreshold: "失敗閾值",
+          currentVersion: "目前 {version}",
+        },
+        titles: {
+          ddnsUpdateSuccess: "{target} 更新成功",
+          ddnsUpdateFailure: "{target} 更新失敗",
+          credentialIpDrift: "憑證「{credential}」IP 漂移",
+          appUpdateAvailable: "發現新版本 {version}",
+        },
+      },
+    },
+    providers: {
+      catalog: {
+        email: {
+          label: "郵件",
+          description:
+            "透過 SMTP 發送郵件通知，同時支援保存 IMAP 配置項以便統一管理郵箱連接資訊。",
+          fields: {
+            smtp_host: {
+              label: "SMTP 主機",
+              description: "郵件發送伺服器地址，例如 smtp.example.com。",
+            },
+            smtp_port: {
+              label: "SMTP 端口",
+              description: "常見端口為 465（SSL/TLS）或 587（STARTTLS）。",
+            },
+            smtp_security: {
+              label: "SMTP 加密方式",
+              options: {
+                none: "不加密",
+              },
+            },
+            smtp_auth_mode: {
+              label: "SMTP 認證方式",
+              description:
+                "自動優先使用 AUTH PLAIN，不支援時會回退到 AUTH LOGIN。",
+              options: {
+                auto: "自動協商",
+                none: "無認證",
+              },
+            },
+            smtp_username: {
+              label: "SMTP 使用者名稱",
+            },
+            smtp_password: {
+              label: "SMTP 密碼",
+            },
+            from_address: {
+              label: "發件郵箱",
+              description: "會作為 MAIL FROM 和郵件頭中的 From 地址。",
+            },
+            from_name: {
+              label: "發件人名稱",
+            },
+            to_addresses: {
+              label: "默認收件人",
+              description:
+                "支援逗號或換行分隔多個郵箱。測試發送會使用這裡的收件人，規則也可在 target 中覆蓋。",
+              targetLabel: "收件人覆蓋",
+              targetDescription: "可選。留空則使用提供商默認收件人。",
+              addressLabel: "收件人",
+            },
+            cc_addresses: {
+              label: "默認抄送",
+              targetLabel: "抄送覆蓋",
+              addressLabel: "抄送",
+            },
+            bcc_addresses: {
+              label: "默認密送",
+              targetLabel: "密送覆蓋",
+              addressLabel: "密送",
+            },
+            reply_to: {
+              label: "默認回覆地址",
+              targetLabel: "回覆地址覆蓋",
+              addressLabel: "回覆地址",
+            },
+            allow_invalid_tls: {
+              label: "允許不校驗證書",
+              description:
+                "僅建議在自建郵件伺服器或自簽名證書調試時開啟，生產環境應保持關閉。",
+            },
+            timeout_seconds: {
+              label: "超時秒數",
+            },
+            imap_host: {
+              label: "IMAP 主機",
+              description:
+                "可選，用於保存收信配置。當前通知發送流程只使用 SMTP，不會主動讀取 IMAP。",
+            },
+            imap_port: {
+              label: "IMAP 端口",
+            },
+            imap_security: {
+              label: "IMAP 加密方式",
+              options: {
+                none: "不加密",
+              },
+            },
+            imap_username: {
+              label: "IMAP 使用者名稱",
+            },
+            imap_password: {
+              label: "IMAP 密碼",
+            },
+            imap_mailbox: {
+              label: "IMAP 郵箱目錄",
+            },
+            subject_prefix: {
+              label: "主題前綴",
+              description: "可選，例如 [生產環境]。",
+              placeholder: "[生產環境]",
+            },
+          },
+          message: {
+            fallbackTitle: "fn-knock 通知",
+            details: "詳情:",
+            actionLinks: "操作連結:",
+            severity: "級別: {value}",
+            eventId: "事件 ID: {value}",
+            occurredAt: "發生時間: {value}",
+          },
+          errors: {
+            invalidEmailAddress: "{field} 中包含無效郵箱地址: {value}",
+            smtpConnectionClosed: "SMTP 連接已關閉",
+            smtpReaderDisposed: "SMTP 讀取器已釋放",
+            invalidSmtpResponse: "無法解析 SMTP 響應: {line}",
+            smtpConnectionTimeout: "SMTP 連接超時",
+            smtpTlsHandshakeTimeout: "SMTP TLS 握手超時",
+            smtpCommandFailed: "{message}: {code} {response}",
+            unknownResponse: "未知響應",
+            authPlainUnsupported: "SMTP 伺服器不支援 AUTH PLAIN",
+            authLoginUnsupported: "SMTP 伺服器不支援 AUTH LOGIN",
+            unsupportedAuthMechanisms: "SMTP 認證方式不受支援: {mechanisms}",
+            authFailed: "SMTP 認證失敗",
+            usernameAuthFailed: "SMTP 使用者名稱認證失敗",
+            passwordAuthFailed: "SMTP 密碼認證失敗",
+            dataStartFailed: "SMTP DATA 階段啟動失敗",
+            submitFailed: "SMTP 郵件提交失敗",
+            invalidFromAddress: "發件郵箱格式不正確",
+            recipientRequired: "至少需要配置一個收件郵箱",
+            handshakeFailed: "SMTP 服務端握手失敗",
+            ehloFailed: "SMTP EHLO 失敗",
+            startTlsUnsupported: "SMTP 伺服器未聲明 STARTTLS 能力",
+            startTlsFailed: "SMTP STARTTLS 失敗",
+            ehloAfterTlsFailed: "SMTP TLS 升級後 EHLO 失敗",
+            credentialsRequired: "SMTP 使用者名稱和密碼不能為空",
+            noAuthMechanism: "SMTP 伺服器未提供可用的認證方式",
+            mailFromFailed: "SMTP 發件人設置失敗",
+            recipientSetFailed: "SMTP 收件人 {recipient} 設置失敗",
+            quitFailed: "SMTP 退出失敗",
+            missingSmtpHost: "缺少 SMTP 主機",
+            deliveryFailed: "郵件投遞失敗",
+          },
+        },
+        pushplus: {
+          description:
+            "透過 PushPlus 標準發送接口推送通知，可按規則選擇公眾號、App、郵件等渠道。",
+          fields: {
+            server_url: {
+              label: "服務地址",
+              description: "官方接口保持默認值即可。",
+            },
+            token: {
+              description: "PushPlus 的使用者 token 或消息 token，請妥善保管。",
+            },
+            timeout_seconds: {
+              label: "超時秒數",
+            },
+            topic: {
+              label: "群組編碼",
+              description:
+                "可選。填寫後將消息發送到指定群組；不填則發送給 token 自己。",
+            },
+            template: {
+              label: "消息模板",
+              description:
+                "默認使用 Markdown；如果目標渠道更適合純文本或 HTML，也可以單獨切換。",
+              options: {
+                txt: "純文本",
+              },
+            },
+            channel: {
+              label: "發送渠道",
+              description:
+                "默認發送到微信公眾號；如已在 PushPlus 中配置其他渠道，可在這裡切換。",
+              options: {
+                wechat: "微信公眾號",
+                webhook: "第三方 Webhook",
+                cp: "企業微信應用",
+                mail: "郵件",
+                sms: "短信",
+                voice: "語音",
+                extension: "插件 / 桌面程序",
+                clawbot: "微信 ClawBot",
+              },
+            },
+            option: {
+              label: "渠道配置參數",
+              description:
+                "可選。cp、webhook、mail 等渠道通常需要填寫在 PushPlus 個人中心裡預先配置好的渠道編碼。",
+            },
+            to: {
+              label: "好友令牌 / 使用者 ID",
+              description:
+                "可選。微信公眾號渠道填寫好友令牌，企業微信應用渠道填寫使用者 ID；多人可按 PushPlus 文檔格式傳入。",
+              placeholder: "friend_token 或 user1,user2",
+            },
+            callback_url: {
+              label: "回調 URL",
+              description:
+                "可選。PushPlus 異步投遞完成後會把結果回調到這個地址。",
+            },
+            pre: {
+              label: "預處理編碼",
+              description:
+                "可選。僅當 PushPlus 賬號已配置對應預處理邏輯時填寫，用於在服務端發送前加工消息內容。",
+            },
+          },
+          message: {
+            fallbackTitle: "fn-knock 通知",
+          },
+          errors: {
+            missingToken: "缺少 PushPlus token",
+            requestFailed: "PushPlus 請求失敗",
+          },
+        },
+        wxpusher: {
+          description:
+            "透過 WxPusher 標準推送接口向指定 UID 或 Topic 發送消息通知；規則 target 留空時會繼承提供商裡的默認目標配置。",
+          fields: {
+            server_url: {
+              label: "服務地址",
+              description: "官方服務保持默認值即可。",
+            },
+            app_token: {
+              description: "WxPusher 後台應用的 AppToken，請妥善保管。",
+            },
+            timeout_seconds: {
+              label: "超時秒數",
+            },
+            uids: {
+              label: "默認 UID 列表",
+              targetLabel: "UID 列表",
+              description:
+                "可選。測試發送會優先使用這裡的 UID；規則 target 留空時也會沿用這裡的默認值。",
+              targetDescription:
+                "可選。填寫後覆蓋提供商中的默認 UID 列表；留空則沿用默認值。",
+            },
+            topic_ids: {
+              label: "默認 Topic",
+              description:
+                "可選。測試發送會優先使用這裡的 Topic；建議至少填寫一個默認 UID 或 Topic，便於直接驗證通道。",
+              targetDescription:
+                "可選。填寫後覆蓋提供商中的默認 Topic；留空則沿用默認值。",
+            },
+            url: {
+              label: "默認消息跳轉 URL",
+              targetLabel: "消息跳轉 URL",
+              description:
+                "可選。規則 target 未填寫時會沿用這裡的跳轉連結；測試發送也會使用它。",
+              targetDescription:
+                "可選。填寫後覆蓋提供商中的默認跳轉連結；留空則沿用默認值。",
+            },
+            verify_pay_type: {
+              label: "默認訂閱驗證",
+              targetLabel: "訂閱驗證",
+              description:
+                "可選。規則 target 未填寫時會沿用這裡的訂閱驗證策略。",
+              targetDescription:
+                "可選。填寫後覆蓋提供商中的默認訂閱驗證策略；選擇「沿用提供商默認」時不單獨覆蓋。",
+              options: {
+                "0": "不驗證",
+                "1": "僅付費訂閱使用者",
+                "2": "僅未訂閱或已過期使用者",
+                __inherit__: "沿用提供商默認",
+              },
+            },
+          },
+          message: {
+            fallbackTitle: "fn-knock 通知",
+          },
+          errors: {
+            missingAppToken: "缺少 WxPusher AppToken",
+            invalidTopicIds: "Topic ID 格式不正確：{values}",
+            recipientRequired:
+              "WxPusher 至少需要配置一個 UID 或 Topic ID，可在提供商默認配置中填寫，或在規則目標裡單獨覆蓋",
+            targetsFailed: "{failed}/{total} 個 WxPusher 目標發送失敗",
+            requestFailed: "WxPusher 請求失敗",
+          },
+        },
+        bark: {
+          description:
+            "透過 Bark 官方在線版或自建 Bark Server 向 iPhone 發送 APNs 推送通知。",
+          fields: {
+            server_url: {
+              label: "服務地址",
+              description:
+                "官方在線版保持默認值即可；如果你使用自建 Bark Server，則填寫服務根地址。",
+            },
+            device_key: {
+              description:
+                "Bark App 中複製的設備 Key。可填寫多個 key，並用英文逗號分隔。",
+            },
+            timeout_seconds: {
+              label: "超時秒數",
+            },
+            level: {
+              label: "通知級別",
+              description:
+                "active 為默認即時提醒；timeSensitive 可穿透專注模式；critical 為關鍵提醒。",
+            },
+            group: {
+              label: "消息分組",
+              description: "可選。相同分組會在 Bark 客戶端內聚合展示。",
+            },
+            sound: {
+              label: "提示音",
+              description: "可選。填寫 Bark 支援的系統或自定義提示音名稱。",
+            },
+            url: {
+              label: "點擊跳轉 URL",
+              description:
+                "可選。點擊通知後打開的連結；未填寫時會優先使用消息動作中的首個連結。",
+            },
+            icon: {
+              label: "圖標 URL",
+              description: "可選。iOS 15 及以上可顯示自定義圖標。",
+            },
+            badge: {
+              label: "角標數字",
+              description: "可選。顯示在 Bark App 圖標上的角標數字。",
+            },
+            call: {
+              label: "重複響鈴",
+              description: "啟用後 Bark 會持續響鈴約 30 秒。",
+            },
+          },
+          message: {
+            fallbackTitle: "fn-knock 通知",
+          },
+          errors: {
+            missingDeviceKey: "缺少 Bark Device Key",
+            requestFailed: "Bark 請求失敗",
+            pushFailed: "Bark 推送失敗",
+            targetsFailed: "{failed}/{total} 個 Bark 目標發送失敗",
+          },
+        },
+        serverchan: {
+          label: "Server醬",
+          description:
+            "透過 Server醬·Turbo 發送 Markdown 通知，可複用網站中配置好的默認接收通道。",
+          fields: {
+            server_url: {
+              label: "服務地址",
+              description: "官方接口保持默認值即可。",
+            },
+            sendkey: {
+              description: "Server醬·Turbo 提供的 SendKey，請妥善保管。",
+            },
+            timeout_seconds: {
+              label: "超時秒數",
+            },
+            channel: {
+              label: "消息通道",
+              description:
+                "可選。動態指定本次推送的通道，最多兩個值，使用 | 分隔，例如 9|66。",
+            },
+            openid: {
+              description:
+                "可選。測試號使用 openid，企業微信應用消息使用接收人的 UID；多個值請按 Server醬 文檔格式填寫。",
+              placeholder: "openid1,openid2 或 uid1|uid2",
+            },
+            short: {
+              label: "卡片摘要",
+              description:
+                "可選。消息卡片的簡短摘要，最長 64 個字符；留空時由 Server醬 自動截取正文。",
+              placeholder: "登入異常，請儘快處理",
+            },
+            noip: {
+              label: "隱藏調用 IP",
+              description: "啟用後本次推送不會展示調用來源 IP。",
+            },
+          },
+          message: {
+            fallbackTitle: "fn-knock 通知",
+          },
+          errors: {
+            missingSendKey: "缺少 Server醬 SendKey",
+            requestReturned: "Server醬 返回 HTTP {status}",
+            requestFailed: "Server醬 請求失敗",
+          },
+        },
+        dingtalk: {
+          label: "釘釘機器人",
+          description:
+            "透過釘釘機器人 Webhook 向群聊發送 Markdown 通知，並支援加簽校驗。",
+          fields: {
+            webhook_url: {
+              description: "釘釘機器人生成的完整 Webhook 地址。",
+            },
+            secret: {
+              label: "加簽密鑰",
+              description:
+                "可選。若機器人啟用了「加簽」，請填寫安全設定頁裡顯示的 SEC 開頭密鑰。",
+            },
+            keyword_prefix: {
+              label: "關鍵詞前綴",
+              description:
+                "可選。若機器人啟用了自定義關鍵詞校驗，建議填寫一個固定關鍵詞；發送時會自動追加到標題前。",
+              placeholder: "監控告警",
+            },
+            timeout_seconds: {
+              label: "超時秒數",
+            },
+            at_mobiles: {
+              label: "@ 手機號",
+              description:
+                "可選。多個值使用英文逗號或換行分隔，且必須是群內成員手機號。",
+            },
+            at_user_ids: {
+              label: "@ 使用者 ID",
+              description:
+                "可選。多個值使用英文逗號或換行分隔，會自動在正文追加 @userId。",
+            },
+            is_at_all: {
+              label: "@ 所有人",
+              description:
+                "啟用後會在請求裡攜帶 isAtAll，並在正文補充 @所有人。",
+            },
+          },
+          mentionAll: "@所有人",
+          message: {
+            fallbackTitle: "fn-knock 通知",
+          },
+          errors: {
+            missingWebhookUrl: "缺少 DingTalk Webhook URL",
+            requestReturned: "DingTalk 返回 HTTP {status}",
+            requestFailed: "DingTalk 請求失敗",
+          },
+        },
+        feishu: {
+          label: "飛書機器人",
+          description:
+            "透過飛書機器人 Webhook 向群聊發送 post 富文本通知，並支援簽名校驗。",
+          fields: {
+            webhook_url: {
+              description: "飛書機器人生成的完整 Webhook 地址。",
+            },
+            secret: {
+              label: "簽名密鑰",
+              description:
+                "可選。若機器人啟用了「簽名校驗」，請填寫安全設定中複製出的密鑰。",
+            },
+            keyword_prefix: {
+              label: "關鍵詞前綴",
+              description:
+                "可選。若機器人啟用了自定義關鍵詞校驗，建議填寫一個固定關鍵詞；發送時會自動追加到標題前。",
+              placeholder: "應用告警",
+            },
+            timeout_seconds: {
+              label: "超時秒數",
+            },
+            mention_user_ids: {
+              label: "@ 使用者 ID",
+              description:
+                "可選。多個值使用英文逗號或換行分隔；支援填寫 all。外部群中 @ 單個使用者僅支援 Open ID。",
+            },
+          },
+          mentionAll: "所有人",
+          message: {
+            fallbackTitle: "fn-knock 通知",
+          },
+          errors: {
+            missingWebhookUrl: "缺少 Feishu Webhook URL",
+            requestReturned: "Feishu 返回 HTTP {status}",
+            requestFailed: "Feishu 請求失敗",
+          },
+        },
+        webhook: {
+          description: "向任意支援 HTTP JSON 的地址發送標準通知消息。",
+          fields: {
+            url: {
+              description: "接收標準通知 JSON 的目標地址。",
+            },
+            method: {
+              label: "請求方法",
+            },
+            timeout_seconds: {
+              label: "超時秒數",
+            },
+            shared_secret: {
+              label: "共享密鑰",
+              description:
+                "可選。若填寫，會透過 X-Fn-Knock-Signature 請求頭發送。",
+            },
+            endpoint_path: {
+              label: "附加路徑",
+              description: "可選。將拼接到基礎 Webhook URL 後發送。",
+            },
+            extra_headers_json: {
+              label: "額外請求頭 JSON",
+              description: '可選，例如 {"X-Env":"prod"}。',
+            },
+            extra_body_json: {
+              label: "額外請求體 JSON",
+              description: "可選，會掛到 payload.extra_body。",
+            },
+          },
+          errors: {
+            missingUrl: "缺少 Webhook URL",
+            requestReturned: "Webhook 返回 HTTP {status}",
+            requestFailed: "Webhook 請求失敗",
+          },
+        },
+        magicpush: {
+          label: "MagicPush魔法推送",
+          description:
+            "透過 MagicPush 自建服務向已配置的渠道推送通知，支援標準推送和 MagicPush 入站配置。",
+          fields: {
+            server_url: {
+              label: "基礎 API 地址",
+              description:
+                "填寫 MagicPush 服務根地址，例如 http://192.168.31.98:3000；如果已填寫到 /api/push 或 /api/inbound 也會直接使用。",
+            },
+            delivery_mode: {
+              label: "投遞模式",
+              description:
+                "標準推送會發送到 /api/push；入站配置會發送到 /api/inbound/:token，由 MagicPush 的入站規則負責欄位映射。",
+              options: {
+                push: "標準推送",
+                inbound: "入站配置",
+              },
+            },
+            token: {
+              description:
+                "MagicPush 接口令牌。標準推送會透過 Authorization: Bearer 發送；入站配置會拼接到 /api/inbound/:token。",
+            },
+            timeout_seconds: {
+              label: "超時秒數",
+            },
+          },
+          message: {
+            fallbackTitle: "fn-knock 通知",
+          },
+          errors: {
+            missingBaseUrl: "缺少 MagicPush 基礎 API 地址",
+            missingToken: "缺少 MagicPush token",
+            invalidBaseUrl: "MagicPush 基礎 API 地址無效",
+            requestReturned: "MagicPush 返回 HTTP {status}",
+            requestFailed: "MagicPush 請求失敗",
+          },
+        },
+        telegram: {
+          description:
+            "透過 Telegram Bot API 向指定聊天或頻道發送文本通知，並附帶內聯操作按鈕。",
+          fields: {
+            server_url: {
+              label: "Bot API 地址",
+              description:
+                "官方 Bot API 保持默認值即可；如果由於網路因素無法訪問官方地址，可以填寫 https://tgapi.fnknock.cn 代為轉發；如果你使用自建 Local Bot API Server，也可以填寫其根地址。",
+            },
+            bot_token: {
+              description: "透過 @BotFather 建立機器人後取得的 Bot Token。",
+            },
+            chat_id: {
+              description:
+                "目標聊天 ID，或頻道使用者名稱（如 @channelusername）。可以先向 @UserIdzhBot 發送消息來取得 Chat ID；測試發送也會使用這個目標。",
+            },
+            timeout_seconds: {
+              label: "超時秒數",
+            },
+            message_thread_id: {
+              description:
+                "可選。發送到群組話題時填寫對應的話題 ID（message_thread_id）。",
+            },
+            disable_notification: {
+              label: "靜默發送",
+              description: "啟用後 Telegram 會靜默投遞，不播放提示音。",
+            },
+          },
+          message: {
+            fallbackTitle: "fn-knock 通知",
+          },
+          errors: {
+            missingBotToken: "缺少 Telegram Bot Token",
+            missingChatId: "缺少 Telegram Chat ID",
+            requestReturned: "Telegram 返回 HTTP {status}",
+            requestFailed: "Telegram 請求失敗",
+          },
+        },
+        wecom: {
+          label: "企業微信消息推送",
+          description:
+            "透過企業微信消息推送（群 Webhook）向指定群聊發送 text 或 markdown 通知。",
+          fields: {
+            webhook_url: {
+              description:
+                "企業微信消息推送頁面生成的完整 Webhook 地址，請妥善保管。",
+            },
+            timeout_seconds: {
+              label: "超時秒數",
+            },
+            mentioned_list: {
+              label: "提醒成員 UserID",
+              description:
+                "可選。多個值使用英文逗號或換行分隔；支援填寫 @all。",
+            },
+            mentioned_mobile_list: {
+              label: "提醒手機號",
+              description:
+                "可選。多個值使用英文逗號或換行分隔；支援填寫 @all。",
+            },
+          },
+          message: {
+            fallbackTitle: "fn-knock 通知",
+          },
+          errors: {
+            missingWebhookUrl: "缺少 WeCom Webhook URL",
+            requestReturned: "WeCom 返回 HTTP {status}",
+            requestFailed: "WeCom 請求失敗",
+          },
+        },
+        pushdeer: {
+          description:
+            "透過 PushDeer 官方在線版或自建服務向已綁定設備發送 Markdown 通知。",
+          fields: {
+            server_url: {
+              label: "服務地址",
+              description:
+                "官方在線版保持默認值即可；如果你使用自建 PushDeer，則填寫自建服務根地址。",
+            },
+            pushkey: {
+              description:
+                "PushDeer 客戶端中生成的 PushKey。可填寫多個 key，並用英文逗號分隔。",
+            },
+            timeout_seconds: {
+              label: "超時秒數",
+            },
+          },
+          message: {
+            fallbackTitle: "fn-knock 通知",
+          },
+          errors: {
+            missingPushKey: "缺少 PushDeer PushKey",
+            requestReturned: "PushDeer 返回 HTTP {status}",
+            apiReturnedCode: "PushDeer API 返回代碼 {code}",
+            requestFailed: "PushDeer 請求失敗",
+          },
+        },
+      },
+    },
+    routes: {
+      createProviderFailed: "創建通知提供商失敗",
+      testProviderFailed: "測試通知提供商失敗",
+      getProviderFailed: "獲取通知提供商失敗",
+      updateProviderFailed: "更新通知提供商失敗",
+      deleteProviderFailed: "刪除通知提供商失敗",
+      createRuleFailed: "創建通知規則失敗",
+      updateRuleFailed: "更新通知規則失敗",
+      deleteRuleFailed: "刪除通知規則失敗",
+      unsupportedDeliveryStatus: "不支援的投遞狀態",
+      clearDeliveriesFailed: "清空投遞記錄失敗",
+    },
+    service: {
+      unnamed: "未命名",
+      invalidJson: "{field} 必須是合法 JSON",
+      invalidSelectValue: "{field} 取值不合法",
+      fieldRequired: "{field} 不能為空",
+      testMessage: {
+        title: "測試通知",
+        summary: "通知通道配置正常，已成功觸發一條測試訊息。",
+        bodyText:
+          "這是一條由敲門 knock 主動發出的測試通知，用於驗證當前提供商的連通性、結構化文案以及展示效果。",
+        bodyMarkdown:
+          "**連通性檢查已通過。**\n\n這是一條由敲門 knock 主動發出的測試通知，用於驗證當前提供商的連通性、結構化文案以及展示效果。",
+        sendType: "發送類型",
+        providerTest: "提供商測試",
+        sentAt: "發送時間",
+      },
+      providerNotFound: "通知提供商不存在",
+      unsupportedProviderType: "不支援的通知提供商類型",
+      providerDefinitionMissing: "通知提供商定義不存在",
+      providerReferencedByRule: "該提供商仍被規則「{rule}」引用",
+      testSendFailed: "測試發送失敗",
+      testSendSuccess: "測試發送成功",
+      providerTypeMismatch: "提供商類型與已有配置不一致",
+      providerTestName: "{provider} 測試",
+      ruleProviderMissing: "規則引用了不存在的通知提供商",
+      invalidTemplateOverrideMode: "目標模板覆蓋模式不合法",
+      unsupportedEventType: "不支援的系統事件類型",
+      invalidGroupBy: "聚合維度不合法",
+      invalidMessageTemplateMode: "消息模板模式不合法",
+      invalidEventLevelFilter: "事件級別過濾條件不合法",
+      invalidEventSourceFilter: "事件來源過濾條件不合法",
+      targetRequired: "至少需要綁定一個通知目標",
+      duplicateEventRule: "該事件已有通知規則，請先刪除原規則",
+      ruleNotFound: "通知規則不存在",
+      deletedProvider: "已刪除提供商",
+    },
+  },
+};

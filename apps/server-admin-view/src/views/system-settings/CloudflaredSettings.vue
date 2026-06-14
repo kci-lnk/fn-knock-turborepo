@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { toast } from '@admin-shared/utils/toast';
 import { SystemAPI } from '../../lib/api';
 import { usePollingResourceStatus } from '@admin-shared/composables/usePollingResourceStatus';
 import BinaryDownloadCard from '@admin-shared/components/system/BinaryDownloadCard.vue';
 import { extractErrorMessage, useAsyncAction } from '@admin-shared/composables/useAsyncAction';
 
+const { t } = useI18n();
 const supported = ref(false);
 const platform = ref<'darwin' | 'linux-amd64' | 'linux-arm64' | 'linux-arm' | 'unsupported'>('unsupported');
 const downloaded = ref(false);
@@ -14,17 +16,17 @@ const percent = ref(0);
 const error = ref('');
 const { run: runStartDownload } = useAsyncAction({
   onError: (error) => {
-    toast.error(extractErrorMessage(error, '启动下载失败'));
+    toast.error(extractErrorMessage(error, t('admin.cloudflaredSettings.startDownloadFailed')));
   },
 });
 const { run: runDeleteResource } = useAsyncAction({
   onError: (error) => {
-    toast.error(extractErrorMessage(error, '删除失败'));
+    toast.error(extractErrorMessage(error, t('admin.cloudflaredSettings.deleteFailed')));
   },
 });
 const { isPending: isCancelling, run: runCancelDownload } = useAsyncAction({
   onError: (error) => {
-    toast.error(extractErrorMessage(error, '取消失败'));
+    toast.error(extractErrorMessage(error, t('admin.cloudflaredSettings.cancelFailed')));
   },
 });
 const { isInitializing, refresh: fetchStatus } = usePollingResourceStatus({
@@ -46,11 +48,11 @@ const startDownload = async () => {
     error.value = '';
     const res = await SystemAPI.startCloudflaredDownload();
     if (res.success) {
-      toast.success('开始下载 Cloudflared 资源');
+      toast.success(t('admin.cloudflaredSettings.downloadStarted'));
       await fetchStatus();
       return;
     }
-    toast.error(res.message || '启动下载失败');
+    toast.error(res.message || t('admin.cloudflaredSettings.startDownloadFailed'));
   });
 };
 
@@ -58,11 +60,11 @@ const deleteResource = async () => {
   await runDeleteResource(async () => {
     const res = await SystemAPI.deleteCloudflared();
     if (res.success) {
-      toast.success('已删除 Cloudflared 资源');
+      toast.success(t('admin.cloudflaredSettings.deleted'));
       await fetchStatus();
       return;
     }
-    toast.error(res.message || '删除失败');
+    toast.error(res.message || t('admin.cloudflaredSettings.deleteFailed'));
   });
 };
 
@@ -70,11 +72,11 @@ const cancelDownload = async () => {
   await runCancelDownload(async () => {
     const res = await SystemAPI.cancelCloudflaredDownload();
     if (res.success) {
-      toast.info('已请求取消下载');
+      toast.info(t('admin.cloudflaredSettings.cancelRequested'));
       await fetchStatus();
       return;
     }
-    toast.error(res.message || '取消失败');
+    toast.error(res.message || t('admin.cloudflaredSettings.cancelFailed'));
   });
 };
 
@@ -82,8 +84,8 @@ const cancelDownload = async () => {
 
 <template>
   <BinaryDownloadCard
-    title="Cloudflared资源"
-    description="下载并管理 Cloudflared 可执行资源，便于使用 Cloudflare 内网穿透"
+    :title="t('admin.cloudflaredSettings.title')"
+    :description="t('admin.cloudflaredSettings.description')"
     :is-initializing="isInitializing"
     :supported="supported"
     :platform="platform"
@@ -93,14 +95,14 @@ const cancelDownload = async () => {
     :error="error"
     :is-cancelling="isCancelling"
     :allow-manage="platform === 'linux-amd64' || platform === 'linux-arm64' || platform === 'linux-arm'"
-    ready-label="已就绪"
-    pending-label="未就绪"
-    download-button-text="下载资源"
-    downloading-text="下载中，请稍候..."
-    redownload-confirm-title="确认重新下载 Cloudflared 资源？"
-    redownload-confirm-description="此操作会覆盖现有文件。"
-    delete-confirm-title="确认删除 Cloudflared 资源？"
-    delete-confirm-description="删除后需重新下载才能使用。"
+    :ready-label="t('admin.cloudflaredSettings.readyLabel')"
+    :pending-label="t('admin.cloudflaredSettings.pendingLabel')"
+    :download-button-text="t('admin.cloudflaredSettings.downloadButton')"
+    :downloading-text="t('admin.cloudflaredSettings.downloading')"
+    :redownload-confirm-title="t('admin.cloudflaredSettings.redownloadConfirmTitle')"
+    :redownload-confirm-description="t('admin.cloudflaredSettings.redownloadConfirmDescription')"
+    :delete-confirm-title="t('admin.cloudflaredSettings.deleteConfirmTitle')"
+    :delete-confirm-description="t('admin.cloudflaredSettings.deleteConfirmDescription')"
     @start="startDownload"
     @cancel="cancelDownload"
     @redownload="startDownload"

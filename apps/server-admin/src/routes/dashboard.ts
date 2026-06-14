@@ -5,6 +5,13 @@ import {
   trafficMetricsManager,
 } from "../lib/traffic-metrics";
 import { routeDoc, withRouteDoc } from "../lib/openapi";
+import { configManager } from "../lib/redis";
+import { createRequestTranslator } from "../lib/i18n";
+
+const getDashboardRouteTranslator = async (request: Request) => {
+  const config = await configManager.getConfig();
+  return createRequestTranslator(request, config.locale);
+};
 
 const parseIntSafe = (value: string | undefined, fallback: number) => {
   const v = Number.parseInt(String(value ?? ""), 10);
@@ -61,10 +68,10 @@ const pointsToBpsData = (
   if (!points.length) return [];
   const sorted = points.slice().sort((a, b) => a.ts - b.ts);
 
-  // 强制最大数据点数量，防止前端 ECharts 卡死及网络传输过大
+  // Cap point count to keep ECharts and network payloads responsive.
   const MAX_POINTS = 300;
 
-  // 如果原始数据量在安全范围内，直接计算
+  // Use raw points directly when the range is already small enough.
   if (sorted.length <= MAX_POINTS) {
     let lastTs = sorted[0]!.ts - 1;
     return sorted.map((p) => {
@@ -75,7 +82,7 @@ const pointsToBpsData = (
     });
   }
 
-  // 降采样逻辑：将时间跨度划分为 MAX_POINTS 个区块（桶）
+  // Downsample by splitting the range into MAX_POINTS buckets.
   const bucketSec = Math.max(1, Math.ceil(rangeSec / MAX_POINTS));
   const result: [number, number][] = [];
 
@@ -87,12 +94,12 @@ const pointsToBpsData = (
     const bucket = Math.floor(p.ts / bucketSec) * bucketSec;
     if (bucket !== currentBucketTs) {
       if (hasData) {
-        // 计算该桶内的平均每秒速率 (BPS)
+        // Calculate average bytes per second in this bucket.
         const bps = Math.round((currentBucketDelta / bucketSec) * 1000) / 1000;
         result.push([currentBucketTs * 1000, bps]);
       }
       currentBucketTs = bucket;
-      currentBucketDelta = 0; // 重置增量
+      currentBucketDelta = 0;
       hasData = true;
     } else {
       hasData = true;
@@ -100,7 +107,7 @@ const pointsToBpsData = (
     currentBucketDelta += p.delta;
   }
 
-  // 收尾最后一个桶
+  // Flush the last bucket.
   if (hasData) {
     const bps = Math.round((currentBucketDelta / bucketSec) * 1000) / 1000;
     result.push([currentBucketTs * 1000, bps]);
@@ -136,7 +143,8 @@ export const dashboardRoutes = new Elysia({
 })
   .get(
     "/stats",
-    async ({ query }) => {
+    async ({ query, request }) => {
+      const { t } = await getDashboardRouteTranslator(request);
       const userId = query.userId || process.env.TRAFFIC_USER_ID || "global";
       const host = normalizeTrafficHost(query.host);
       const rangeSec = clamp(
@@ -202,18 +210,23 @@ export const dashboardRoutes = new Elysia({
 
       const trafficEcharts = {
         tooltip: { trigger: "axis" },
-        legend: { data: ["入站", "出站"] },
+        legend: {
+          data: [
+            t("server.dashboard.inbound"),
+            t("server.dashboard.outbound"),
+          ],
+        },
         xAxis: { type: "time" },
         yAxis: { type: "value" },
         series: [
           {
-            name: "入站",
+            name: t("server.dashboard.inbound"),
             type: "line",
             showSymbol: false,
             data: pointsToBpsData(inPoints, rangeSec),
           },
           {
-            name: "出站",
+            name: t("server.dashboard.outbound"),
             type: "line",
             showSymbol: false,
             data: pointsToBpsData(outPoints, rangeSec),
@@ -268,28 +281,36 @@ export const dashboardRoutes = new Elysia({
   )
   .get(
     "/realtime",
-    async ({ set }) => {
+    async ({ set, request }) => {
+      const { t } = await getDashboardRouteTranslator(request);
       try {
         const payload = await buildRealtimePayload();
         if (!payload) {
           set.status = 502;
-          return { success: false, message: "upstream unavailable" };
+          return {
+            success: false,
+            message: t("server.dashboard.upstreamUnavailable"),
+          };
         }
         return { success: true, data: payload };
       } catch {
         set.status = 502;
-        return { success: false, message: "upstream unavailable" };
+        return {
+          success: false,
+          message: t("server.dashboard.upstreamUnavailable"),
+        };
       }
     },
     routeDoc("获取实时流量快照"),
   )
   .get(
     "/active-ips",
-    async ({ query, set }) => {
+    async ({ query, set, request }) => {
+      const { t } = await getDashboardRouteTranslator(request);
       const host = normalizeTrafficHost(query.host);
       if (!host) {
         set.status = 400;
-        return { success: false, message: "host is required" };
+        return { success: false, message: t("server.dashboard.hostRequired") };
       }
 
       try {
@@ -298,7 +319,8 @@ export const dashboardRoutes = new Elysia({
           set.status = resp.code && resp.code >= 400 ? resp.code : 502;
           return {
             success: false,
-            message: resp.message || "upstream unavailable",
+            message:
+              resp.message || t("server.dashboard.upstreamUnavailable"),
           };
         }
 
@@ -326,7 +348,10 @@ export const dashboardRoutes = new Elysia({
         };
       } catch {
         set.status = 502;
-        return { success: false, message: "upstream unavailable" };
+        return {
+          success: false,
+          message: t("server.dashboard.upstreamUnavailable"),
+        };
       }
     },
     withRouteDoc("获取子域名活跃 IP", {

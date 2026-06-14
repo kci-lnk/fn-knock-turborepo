@@ -2,11 +2,13 @@ import type { IncomingMessage } from "node:http";
 import { BlockList, isIP } from "node:net";
 import { randomBytes, scrypt as scryptCallback } from "node:crypto";
 import { normalizeCidrLines } from "../../../../packages/admin-shared/src/utils/cidr";
+import type { LocaleConfig } from "../../../../packages/i18n/src";
 import { redis } from "./redis";
 import { getRequiredEnv } from "./env";
 import { getClientIp } from "./auth-request";
 import { normalizeIp, isWhitelistExemptIp } from "./ip-normalize";
 import { safeEqualString } from "./security";
+import { tDefault } from "./i18n";
 
 const DOCKER_ADMIN_PASSWORD_KEY = "fn_knock:docker_admin:password:v1";
 const DOCKER_ADMIN_SESSION_PREFIX = "fn_knock:docker_admin:session:v1";
@@ -34,6 +36,10 @@ const SCRYPT_PARAMS = {
   keyLength: 64,
   maxmem: 128 * 1024 * 1024,
 };
+const dockerAdminPanelT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.dockerAdminPanel.${key}`, params);
 
 const scryptAsync = (
   password: string,
@@ -159,6 +165,7 @@ export interface DockerAdminBootstrapState {
   password_configured: boolean;
   authenticated: boolean;
   session_expires_at: string | null;
+  locale: LocaleConfig;
 }
 
 export interface DockerAdminResetSummary {
@@ -381,16 +388,16 @@ export const validateDockerAdminPassword = (
   password: string,
 ): string | null => {
   if (password.length < 6) {
-    return "管理面板密码至少需要 6 位";
+    return dockerAdminPanelT("passwordTooShort");
   }
   if (password.length > 128) {
-    return "管理面板密码不能超过 128 位";
+    return dockerAdminPanelT("passwordTooLong");
   }
   if (/\s/.test(password)) {
-    return "管理面板密码不能包含空白字符";
+    return dockerAdminPanelT("passwordWhitespace");
   }
   if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) {
-    return "管理面板密码需要同时包含字母和数字";
+    return dockerAdminPanelT("passwordNeedsLettersAndNumbers");
   }
 
   return null;
@@ -602,7 +609,7 @@ export const dockerAdminPanelManager = {
 
     const existingRecord = await getPasswordRecord();
     if (existingRecord) {
-      throw new Error("管理面板密码已经设置过了");
+      throw new Error(dockerAdminPanelT("passwordAlreadyConfigured"));
     }
 
     const now = toIso();
@@ -631,12 +638,12 @@ export const dockerAdminPanelManager = {
 
     const existingRecord = await getPasswordRecord();
     if (!existingRecord) {
-      throw new Error("当前还没有设置管理面板密码");
+      throw new Error(dockerAdminPanelT("passwordNotConfigured"));
     }
 
     const isSamePassword = await this.verifyPassword(password);
     if (isSamePassword) {
-      throw new Error("新密码不能与当前密码相同");
+      throw new Error(dockerAdminPanelT("newPasswordSameAsCurrent"));
     }
 
     const now = toIso();
@@ -727,6 +734,7 @@ export const dockerAdminPanelManager = {
   async buildBootstrapState(
     request: Request,
     enabled: boolean,
+    locale: LocaleConfig,
   ): Promise<DockerAdminBootstrapState> {
     if (!enabled) {
       return {
@@ -734,6 +742,7 @@ export const dockerAdminPanelManager = {
         password_configured: false,
         authenticated: true,
         session_expires_at: null,
+        locale,
       };
     }
 
@@ -747,6 +756,7 @@ export const dockerAdminPanelManager = {
       password_configured: passwordConfigured,
       authenticated: Boolean(session),
       session_expires_at: session?.expires_at || null,
+      locale,
     };
   },
 

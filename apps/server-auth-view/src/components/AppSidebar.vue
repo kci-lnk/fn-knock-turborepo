@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { Calendar, Home, Inbox, Search, Settings } from 'lucide-vue-next'
 import {
   Sidebar,
@@ -38,13 +39,15 @@ const items = [
     icon: Settings,
   },
 ]
+
+const { t } = useI18n()
 </script>
 
 <template>
   <Sidebar>
     <SidebarContent>
       <SidebarGroup>
-        <SidebarGroupLabel>菜单</SidebarGroupLabel>
+        <SidebarGroupLabel>{{ t('auth.menu') }}</SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
             <SidebarMenuItem v-for="item in items" :key="item.title">

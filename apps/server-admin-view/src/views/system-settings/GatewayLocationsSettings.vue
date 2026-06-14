@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import {
   Breadcrumb,
@@ -89,6 +90,7 @@ const forbiddenResponseHeaders = new Set([
 const route = useRoute();
 const router = useRouter();
 const configStore = useConfigStore();
+const { t } = useI18n();
 const selectedHost = ref("");
 const editingIndex = ref<number | null>(null);
 const isDialogOpen = ref(false);
@@ -112,16 +114,22 @@ const form = reactive<LocationForm>({
 
 const { isPending: isLoading, run: runLoad } = useAsyncAction({
   onError: (error) => {
-    toast.error("加载失败", {
-      description: extractErrorMessage(error, "无法获取 Host 映射"),
+    toast.error(t("admin.gatewayLocationsSettings.loadFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.gatewayLocationsSettings.loadDescription"),
+      ),
     });
   },
 });
 const showLoadingSkeleton = useDelayedLoading(isLoading);
 const { isPending: isSaving, run: runSave } = useAsyncAction({
   onError: (error) => {
-    toast.error("保存失败", {
-      description: extractErrorMessage(error, "保存路径响应失败"),
+    toast.error(t("admin.gatewayLocationsSettings.saveFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.gatewayLocationsSettings.saveDescription"),
+      ),
     });
   },
 });
@@ -300,16 +308,20 @@ const cleanHostLocationPath = (value: string): string => {
 
 const formError = computed(() => {
   const rawLocationPath = form.path.trim();
-  if (!rawLocationPath) return "请填写路径";
-  if (!rawLocationPath.startsWith("/")) return "路径必须以 / 开头";
+  if (!rawLocationPath) return t("admin.gatewayLocationsSettings.pathRequired");
+  if (!rawLocationPath.startsWith("/")) {
+    return t("admin.gatewayLocationsSettings.pathMustStartSlash");
+  }
   const locationPath = cleanHostLocationPath(rawLocationPath);
-  if (locationPath === "/") return "不允许配置根路径 /";
+  if (locationPath === "/") {
+    return t("admin.gatewayLocationsSettings.rootPathForbidden");
+  }
   if (
     locationPath.startsWith("/__") ||
     locationPath === "/s" ||
     locationPath === "/s/"
   ) {
-    return "不能使用保留路径";
+    return t("admin.gatewayLocationsSettings.reservedPathForbidden");
   }
   const duplicate = draftLocations.value.some(
     (location, index) =>
@@ -317,26 +329,30 @@ const formError = computed(() => {
       location.path === locationPath &&
       location.match === form.match,
   );
-  if (duplicate) return "同一 Host 下已存在相同匹配方式和路径";
+  if (duplicate) return t("admin.gatewayLocationsSettings.duplicatePath");
   if (form.action === "proxy" && !form.target.trim()) {
-    return "请填写反代目标";
+    return t("admin.gatewayLocationsSettings.proxyTargetRequired");
   }
   if (form.action === "response") {
     const status = Math.floor(Number(form.response.status) || 0);
     if (status < 100 || status > 599) {
-      return "响应状态码必须在 100 到 599 之间";
+      return t("admin.gatewayLocationsSettings.statusRange");
     }
     const seen = new Set<string>();
     for (const row of form.headers) {
       const name = row.name.trim();
       if (!name && !row.value) continue;
-      if (!name) return "响应头名称不能为空";
-      if (!isValidHeaderName(name)) return `响应头 ${name} 不合法`;
+      if (!name) return t("admin.gatewayLocationsSettings.headerNameRequired");
+      if (!isValidHeaderName(name)) {
+        return t("admin.gatewayLocationsSettings.invalidHeaderName", { name });
+      }
       const key = name.toLowerCase();
       if (forbiddenResponseHeaders.has(key)) {
-        return `不能自定义响应头 ${name}`;
+        return t("admin.gatewayLocationsSettings.forbiddenHeader", { name });
       }
-      if (seen.has(key)) return `响应头 ${name} 重复`;
+      if (seen.has(key)) {
+        return t("admin.gatewayLocationsSettings.duplicateHeader", { name });
+      }
       seen.add(key);
     }
   }
@@ -391,7 +407,7 @@ const persistLocations = async (locations: HostLocation[]) => {
     {
       onSuccess: () => {
         resetDraftFromSelected();
-        toast.success("路径响应已保存并同步到网关");
+        toast.success(t("admin.gatewayLocationsSettings.saved"));
       },
     },
   );
@@ -400,7 +416,9 @@ const persistLocations = async (locations: HostLocation[]) => {
 
 const saveDialogLocation = async () => {
   if (formError.value) {
-    toast.error("路径规则未保存", { description: formError.value });
+    toast.error(t("admin.gatewayLocationsSettings.ruleNotSaved"), {
+      description: formError.value,
+    });
     return;
   }
 
@@ -427,7 +445,9 @@ const saveLocations = async () => {
 };
 
 const formatAction = (location: HostLocation) =>
-  location.action === "response" ? "固定响应" : "反代";
+  location.action === "response"
+    ? t("admin.gatewayLocationsSettings.fixedResponse")
+    : t("admin.gatewayLocationsSettings.proxyAction");
 
 const formatTarget = (location: HostLocation) => {
   if (location.action === "response") {
@@ -456,15 +476,21 @@ onMounted(async () => {
     <Breadcrumb>
       <BreadcrumbList>
         <BreadcrumbItem>
-          <BreadcrumbLink href="#/system">系统设置</BreadcrumbLink>
+          <BreadcrumbLink href="#/system">
+            {{ t("admin.gatewayLocationsSettings.systemSettings") }}
+          </BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />
         <BreadcrumbItem>
-          <BreadcrumbLink href="#/system?tab=gateway">网关</BreadcrumbLink>
+          <BreadcrumbLink href="#/system?tab=gateway">
+            {{ t("admin.gatewayLocationsSettings.gateway") }}
+          </BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />
         <BreadcrumbItem>
-          <BreadcrumbPage>路径响应</BreadcrumbPage>
+          <BreadcrumbPage>
+            {{ t("admin.gatewayLocationsSettings.title") }}
+          </BreadcrumbPage>
         </BreadcrumbItem>
       </BreadcrumbList>
     </Breadcrumb>
@@ -473,10 +499,11 @@ onMounted(async () => {
       class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
     >
       <div class="max-w-3xl space-y-1.5">
-        <h1 class="text-2xl font-semibold tracking-normal">路径响应</h1>
+        <h1 class="text-2xl font-semibold tracking-normal">
+          {{ t("admin.gatewayLocationsSettings.title") }}
+        </h1>
         <p class="text-sm leading-6 text-muted-foreground">
-          为指定 Host 添加路径级反代或固定响应。未命中的请求仍访问该 Host
-          的目标地址。
+          {{ t("admin.gatewayLocationsSettings.description") }}
         </p>
       </div>
       <Button
@@ -484,7 +511,7 @@ onMounted(async () => {
         :disabled="!selectedMapping || !isAvailable"
         @click="openCreateDialog"
       >
-        添加规则
+        {{ t("admin.gatewayLocationsSettings.addRule") }}
       </Button>
     </div>
 
@@ -500,9 +527,11 @@ onMounted(async () => {
 
         <template v-else>
           <Alert v-if="!isAvailable" class="border-zinc-200 bg-zinc-50">
-            <AlertTitle>当前模式暂不可用</AlertTitle>
+            <AlertTitle>
+              {{ t("admin.gatewayLocationsSettings.unavailableTitle") }}
+            </AlertTitle>
             <AlertDescription class="text-sm leading-6 text-zinc-700">
-              路径响应仅在子域映射模式下生效。
+              {{ t("admin.gatewayLocationsSettings.unavailableDescription") }}
             </AlertDescription>
           </Alert>
 
@@ -510,21 +539,31 @@ onMounted(async () => {
             type="button"
             class="grid w-full gap-4 rounded-md border border-border/60 bg-background px-5 py-4 text-left transition-colors hover:border-primary/30 hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_5rem] sm:items-center"
             :disabled="!isAvailable || availableMappings.length === 0"
-            :aria-label="`切换路径响应 Host，当前为 ${selectedMapping?.host || '暂无可用 Host'}，站点标题 ${getMappingTitleForDisplay(selectedMapping)}`"
+            :aria-label="
+              t('admin.gatewayLocationsSettings.switchHostAria', {
+                host:
+                  selectedMapping?.host ||
+                  t('admin.gatewayLocationsSettings.noHost'),
+                title: getMappingTitleForDisplay(selectedMapping),
+              })
+            "
             @click="openHostPicker"
           >
             <span class="min-w-0 space-y-1">
               <span class="block text-xs font-medium text-muted-foreground">
-                当前 Host
+                {{ t("admin.gatewayLocationsSettings.currentHost") }}
               </span>
               <span class="block truncate text-base font-semibold leading-6">
-                {{ selectedMapping?.host || "暂无可用 Host" }}
+                {{
+                  selectedMapping?.host ||
+                  t("admin.gatewayLocationsSettings.noHost")
+                }}
               </span>
               <span class="block truncate text-sm text-muted-foreground">
                 {{
                   availableMappings.length > 0
-                    ? "点击切换配置对象"
-                    : "创建 Host 后可配置路径响应"
+                    ? t("admin.gatewayLocationsSettings.switchObject")
+                    : t("admin.gatewayLocationsSettings.createHostHint")
                 }}
               </span>
             </span>
@@ -533,7 +572,7 @@ onMounted(async () => {
               class="min-w-0 space-y-1 border-t border-border/60 pt-3 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0"
             >
               <span class="block text-xs font-medium text-muted-foreground">
-                站点标题
+                {{ t("admin.gatewayLocationsSettings.siteTitle") }}
               </span>
               <span class="flex min-w-0 items-center gap-2">
                 <span class="truncate text-sm font-medium">
@@ -546,10 +585,13 @@ onMounted(async () => {
               class="min-w-0 space-y-1 border-t border-border/60 pt-3 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0"
             >
               <span class="block text-xs font-medium text-muted-foreground">
-                目标
+                {{ t("admin.gatewayLocationsSettings.target") }}
               </span>
               <span class="block truncate text-sm font-medium">
-                {{ selectedMapping?.target || "未选择" }}
+                {{
+                  selectedMapping?.target ||
+                  t("admin.gatewayLocationsSettings.notSelected")
+                }}
               </span>
             </span>
 
@@ -557,7 +599,7 @@ onMounted(async () => {
               class="space-y-1 border-t border-border/60 pt-3 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0 sm:text-right"
             >
               <span class="block text-xs font-medium text-muted-foreground">
-                规则数
+                {{ t("admin.gatewayLocationsSettings.ruleCount") }}
               </span>
               <span class="block text-sm font-medium">
                 {{ draftLocations.length }}
@@ -569,19 +611,31 @@ onMounted(async () => {
             v-if="availableMappings.length === 0"
             class="rounded-md border px-5 py-8 text-center text-sm text-muted-foreground"
           >
-            还没有可配置的 Host 映射。
+            {{ t("admin.gatewayLocationsSettings.noMappings") }}
           </div>
 
           <div v-else class="overflow-hidden rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>匹配</TableHead>
-                  <TableHead>路径</TableHead>
-                  <TableHead>动作</TableHead>
-                  <TableHead>目标/响应</TableHead>
-                  <TableHead>处理</TableHead>
-                  <TableHead class="text-right">操作</TableHead>
+                  <TableHead>
+                    {{ t("admin.gatewayLocationsSettings.match") }}
+                  </TableHead>
+                  <TableHead>
+                    {{ t("admin.gatewayLocationsSettings.path") }}
+                  </TableHead>
+                  <TableHead>
+                    {{ t("admin.gatewayLocationsSettings.action") }}
+                  </TableHead>
+                  <TableHead>
+                    {{ t("admin.gatewayLocationsSettings.targetResponse") }}
+                  </TableHead>
+                  <TableHead>
+                    {{ t("admin.gatewayLocationsSettings.processing") }}
+                  </TableHead>
+                  <TableHead class="text-right">
+                    {{ t("admin.gatewayLocationsSettings.actions") }}
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -590,7 +644,7 @@ onMounted(async () => {
                     colspan="6"
                     class="py-8 text-center text-muted-foreground"
                   >
-                    当前 Host 还没有路径规则。
+                    {{ t("admin.gatewayLocationsSettings.noRules") }}
                   </TableCell>
                 </TableRow>
                 <TableRow
@@ -598,7 +652,11 @@ onMounted(async () => {
                   :key="`${location.match}:${location.path}:${index}`"
                 >
                   <TableCell class="text-sm font-medium">
-                    {{ location.match === "exact" ? "精确" : "模糊匹配" }}
+                    {{
+                      location.match === "exact"
+                        ? t("admin.gatewayLocationsSettings.exactMatch")
+                        : t("admin.gatewayLocationsSettings.prefixMatch")
+                    }}
                   </TableCell>
                   <TableCell class="font-medium">{{ location.path }}</TableCell>
                   <TableCell>{{ formatAction(location) }}</TableCell>
@@ -607,13 +665,25 @@ onMounted(async () => {
                   </TableCell>
                   <TableCell class="text-xs text-muted-foreground">
                     <template v-if="location.action === 'proxy'">
-                      {{ location.strip_path ? "剥离路径" : "保留路径" }}
+                      {{
+                        location.strip_path
+                          ? t("admin.gatewayLocationsSettings.stripPath")
+                          : t("admin.gatewayLocationsSettings.keepPath")
+                      }}
                       ·
-                      {{ location.rewrite_html ? "改写 HTML" : "不改写 HTML" }}
+                      {{
+                        location.rewrite_html
+                          ? t("admin.gatewayLocationsSettings.rewriteHtml")
+                          : t("admin.gatewayLocationsSettings.noRewriteHtml")
+                      }}
                     </template>
                     <template v-else>
-                      {{ Object.keys(location.response.headers || {}).length }}
-                      个响应头
+                      {{
+                        t("admin.gatewayLocationsSettings.responseHeadersCount", {
+                          count: Object.keys(location.response.headers || {})
+                            .length,
+                        })
+                      }}
                     </template>
                   </TableCell>
                   <TableCell class="text-right">
@@ -624,12 +694,23 @@ onMounted(async () => {
                         @click="openEditDialog(index)"
                       >
                         <Pencil class="h-4 w-4" />
-                        <span class="sr-only">编辑路径规则</span>
+                        <span class="sr-only">
+                          {{ t("admin.gatewayLocationsSettings.editRuleSr") }}
+                        </span>
                       </Button>
                       <ConfirmDangerPopover
-                        title="确认删除路径规则?"
-                        :description="`您即将删除 ${location.path} 的路径响应规则，此操作不可逆转。`"
-                        confirm-text="确认删除"
+                        :title="
+                          t('admin.gatewayLocationsSettings.deleteRuleTitle')
+                        "
+                        :description="
+                          t(
+                            'admin.gatewayLocationsSettings.deleteRuleDescription',
+                            { path: location.path },
+                          )
+                        "
+                        :confirm-text="
+                          t('admin.gatewayLocationsSettings.confirmDelete')
+                        "
                         :on-confirm="() => removeLocation(index)"
                         content-class="w-64 text-left"
                       >
@@ -640,7 +721,11 @@ onMounted(async () => {
                             class="text-destructive hover:bg-destructive/10 hover:text-destructive"
                           >
                             <Trash2 class="h-4 w-4" />
-                            <span class="sr-only">删除路径规则</span>
+                            <span class="sr-only">
+                              {{
+                                t("admin.gatewayLocationsSettings.deleteRuleSr")
+                              }}
+                            </span>
                           </Button>
                         </template>
                       </ConfirmDangerPopover>
@@ -657,10 +742,10 @@ onMounted(async () => {
               :disabled="!isDirty || isSaving"
               @click="resetDraftFromSelected"
             >
-              放弃更改
+              {{ t("admin.gatewayLocationsSettings.discardChanges") }}
             </Button>
             <Button :disabled="!canSave" @click="saveLocations">
-              保存路径响应
+              {{ t("admin.gatewayLocationsSettings.saveLocations") }}
             </Button>
           </div>
         </template>
@@ -670,11 +755,16 @@ onMounted(async () => {
     <Dialog :open="isHostPickerOpen" @update:open="handleHostPickerOpenChange">
       <DialogContent class="sm:max-w-[760px]">
         <DialogHeader>
-          <DialogTitle>选择 Host</DialogTitle>
+          <DialogTitle>
+            {{ t("admin.gatewayLocationsSettings.chooseHost") }}
+          </DialogTitle>
           <DialogDescription class="leading-6">
-            选择要维护路径响应规则的 Host。当前选中
+            {{ t("admin.gatewayLocationsSettings.chooseHostDescription") }}
             <span class="font-medium text-foreground">
-              {{ selectedMapping?.host || "未选择" }}
+              {{
+                selectedMapping?.host ||
+                t("admin.gatewayLocationsSettings.notSelected")
+              }}
             </span>
             <template v-if="selectedMapping">
               · {{ getMappingTitleForDisplay(selectedMapping) }}
@@ -707,21 +797,24 @@ onMounted(async () => {
                     v-if="mapping.host === selectedHost"
                     variant="secondary"
                   >
-                    当前
+                    {{ t("admin.gatewayLocationsSettings.current") }}
                   </Badge>
                   <span class="text-xs text-muted-foreground">
                     {{ mapping.locations?.length ?? 0 }}
                   </span>
                 </span>
                 <span class="block truncate text-sm text-muted-foreground">
-                  {{ mapping.target || "未选择" }}
+                  {{
+                    mapping.target ||
+                    t("admin.gatewayLocationsSettings.notSelected")
+                  }}
                 </span>
               </span>
 
               <span class="min-w-0 space-y-1">
                 <span class="flex items-center gap-2">
                   <span class="text-xs font-medium text-muted-foreground">
-                    站点标题
+                    {{ t("admin.gatewayLocationsSettings.siteTitle") }}
                   </span>
                 </span>
                 <span class="block truncate text-sm font-medium">
@@ -741,17 +834,23 @@ onMounted(async () => {
       <DialogContent class="max-h-[85vh] overflow-y-auto sm:max-w-[800px]">
         <DialogHeader>
           <DialogTitle>
-            {{ editingIndex === null ? "添加路径规则" : "编辑路径规则" }}
+            {{
+              editingIndex === null
+                ? t("admin.gatewayLocationsSettings.addRuleDialog")
+                : t("admin.gatewayLocationsSettings.editRuleDialog")
+            }}
           </DialogTitle>
           <DialogDescription>
-            这条规则会继承当前 Host 的登录、白名单、Host 响应和凭证注入设置。
+            {{ t("admin.gatewayLocationsSettings.ruleDialogDescription") }}
           </DialogDescription>
         </DialogHeader>
 
         <div class="grid gap-5">
           <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_14rem]">
             <div class="space-y-2">
-              <Label for="location-path">路径</Label>
+              <Label for="location-path">
+                {{ t("admin.gatewayLocationsSettings.path") }}
+              </Label>
               <Input
                 id="location-path"
                 v-model="form.path"
@@ -759,21 +858,27 @@ onMounted(async () => {
               />
             </div>
             <div class="space-y-2">
-              <Label for="location-match">匹配</Label>
+              <Label for="location-match">
+                {{ t("admin.gatewayLocationsSettings.match") }}
+              </Label>
               <Select v-model="form.match">
                 <SelectTrigger id="location-match" class="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="exact">精确</SelectItem>
-                  <SelectItem value="prefix">模糊匹配</SelectItem>
+                  <SelectItem value="exact">
+                    {{ t("admin.gatewayLocationsSettings.exactMatch") }}
+                  </SelectItem>
+                  <SelectItem value="prefix">
+                    {{ t("admin.gatewayLocationsSettings.prefixMatch") }}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
           <div class="space-y-2">
-            <Label>动作</Label>
+            <Label>{{ t("admin.gatewayLocationsSettings.action") }}</Label>
             <div
               class="grid grid-cols-2 rounded-lg bg-muted p-[3px] text-sm text-muted-foreground"
             >
@@ -787,7 +892,7 @@ onMounted(async () => {
                 "
                 @click="setAction('proxy')"
               >
-                反代
+                {{ t("admin.gatewayLocationsSettings.proxyAction") }}
               </button>
               <button
                 type="button"
@@ -799,14 +904,16 @@ onMounted(async () => {
                 "
                 @click="setAction('response')"
               >
-                固定响应
+                {{ t("admin.gatewayLocationsSettings.fixedResponse") }}
               </button>
             </div>
           </div>
 
           <template v-if="form.action === 'proxy'">
             <div class="space-y-2">
-              <Label for="location-target">目标</Label>
+              <Label for="location-target">
+                {{ t("admin.gatewayLocationsSettings.target") }}
+              </Label>
               <ProxyTargetInputField
                 v-model="form.target"
                 input-id="location-target"
@@ -818,13 +925,17 @@ onMounted(async () => {
               <div
                 class="flex items-center justify-between gap-4 rounded-md border px-4 py-3"
               >
-                <Label for="location-strip-path">剥离匹配路径</Label>
+                <Label for="location-strip-path">
+                  {{ t("admin.gatewayLocationsSettings.stripMatchedPath") }}
+                </Label>
                 <Switch id="location-strip-path" v-model="form.strip_path" />
               </div>
               <div
                 class="flex items-center justify-between gap-4 rounded-md border px-4 py-3"
               >
-                <Label for="location-rewrite-html">改写 HTML 路径</Label>
+                <Label for="location-rewrite-html">
+                  {{ t("admin.gatewayLocationsSettings.rewriteHtmlPath") }}
+                </Label>
                 <Switch
                   id="location-rewrite-html"
                   v-model="form.rewrite_html"
@@ -838,7 +949,9 @@ onMounted(async () => {
               class="grid gap-3 rounded-md border border-border/60 bg-muted/10 p-4 sm:grid-cols-[8.5rem_minmax(0,1fr)]"
             >
               <div class="space-y-2">
-                <Label for="response-status">状态码</Label>
+                <Label for="response-status">
+                  {{ t("admin.gatewayLocationsSettings.statusCode") }}
+                </Label>
                 <Input
                   id="response-status"
                   v-model.number="form.response.status"
@@ -856,21 +969,23 @@ onMounted(async () => {
 
             <div class="space-y-3 rounded-md border px-4 py-3">
               <div class="flex items-center justify-between gap-3">
-                <Label>响应头</Label>
+                <Label>
+                  {{ t("admin.gatewayLocationsSettings.responseHeaders") }}
+                </Label>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   @click="addHeaderRow"
                 >
-                  添加响应头
+                  {{ t("admin.gatewayLocationsSettings.addResponseHeader") }}
                 </Button>
               </div>
               <div
                 v-if="form.headers.length === 0"
                 class="text-sm text-muted-foreground"
               >
-                未配置自定义响应头。
+                {{ t("admin.gatewayLocationsSettings.noCustomResponseHeaders") }}
               </div>
               <div
                 v-for="(header, index) in form.headers"
@@ -880,9 +995,17 @@ onMounted(async () => {
                 <Input v-model="header.name" placeholder="X-Example" />
                 <Input v-model="header.value" placeholder="value" />
                 <ConfirmDangerPopover
-                  title="确认删除响应头?"
-                  :description="`您即将删除响应头 ${header.name.trim() || '未命名响应头'}。`"
-                  confirm-text="确认删除"
+                  :title="t('admin.gatewayLocationsSettings.deleteHeaderTitle')"
+                  :description="
+                    t('admin.gatewayLocationsSettings.deleteHeaderDescription', {
+                      name:
+                        header.name.trim() ||
+                        t('admin.gatewayLocationsSettings.unnamedHeader'),
+                    })
+                  "
+                  :confirm-text="
+                    t('admin.gatewayLocationsSettings.confirmDelete')
+                  "
                   :on-confirm="() => removeHeaderRow(index)"
                   content-class="w-64 text-left"
                 >
@@ -894,7 +1017,9 @@ onMounted(async () => {
                       class="text-destructive hover:bg-destructive/10 hover:text-destructive"
                     >
                       <Trash2 class="h-4 w-4" />
-                      <span class="sr-only">删除响应头</span>
+                      <span class="sr-only">
+                        {{ t("admin.gatewayLocationsSettings.deleteHeaderSr") }}
+                      </span>
                     </Button>
                   </template>
                 </ConfirmDangerPopover>
@@ -913,12 +1038,14 @@ onMounted(async () => {
         </div>
 
         <DialogFooter>
-          <Button variant="outline" @click="closeDialog">取消</Button>
+          <Button variant="outline" @click="closeDialog">
+            {{ t("common.cancel") }}
+          </Button>
           <Button
             :disabled="!!formError || isSaving"
             @click="saveDialogLocation"
           >
-            保存规则
+            {{ t("admin.gatewayLocationsSettings.saveRule") }}
           </Button>
         </DialogFooter>
       </DialogContent>

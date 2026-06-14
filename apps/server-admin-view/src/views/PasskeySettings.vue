@@ -3,7 +3,9 @@
     <Breadcrumb>
       <BreadcrumbList>
         <BreadcrumbItem>
-          <BreadcrumbLink href="#/auth">TOTP 管理</BreadcrumbLink>
+          <BreadcrumbLink href="#/auth">
+            {{ t("admin.authSettings.title") }}
+          </BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />
         <BreadcrumbItem>
@@ -14,8 +16,10 @@
 
     <Card>
       <CardHeader>
-        <CardTitle>快捷登录凭据</CardTitle>
-        <CardDescription>管理已绑定的 Passkey 设备与外部账号。</CardDescription>
+        <CardTitle>{{ t("admin.passkeySettings.title") }}</CardTitle>
+        <CardDescription>{{
+          t("admin.passkeySettings.description")
+        }}</CardDescription>
       </CardHeader>
       <CardContent class="space-y-4">
         <div
@@ -25,15 +29,17 @@
           <span
             class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"
           ></span>
-          正在加载快捷登录凭据...
+          {{ t("admin.passkeySettings.loading") }}
         </div>
         <Table v-else>
           <TableHeader>
             <TableRow>
               <TableHead>Passkey</TableHead>
-              <TableHead>设备</TableHead>
-              <TableHead>绑定时间</TableHead>
-              <TableHead class="text-right">操作</TableHead>
+              <TableHead>{{ t("admin.passkeySettings.device") }}</TableHead>
+              <TableHead>{{ t("admin.passkeySettings.boundAt") }}</TableHead>
+              <TableHead class="text-right">{{
+                t("admin.sessions.table.actions")
+              }}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -43,12 +49,16 @@
               </TableCell>
               <TableCell>{{ passkey.deviceName }}</TableCell>
               <TableCell
-                ><HumanFriendlyTime :value="passkey.createdAt"
+                ><HumanFriendlyTime
+                  :value="passkey.createdAt"
+                  :locale="locale"
               /></TableCell>
               <TableCell class="text-right">
                 <ConfirmDangerPopover
-                  title="删除 Passkey"
-                  description="确认删除该 Passkey 吗？删除后将无法使用该设备一键登录。"
+                  :title="t('admin.passkeySettings.deletePasskeyTitle')"
+                  :description="
+                    t('admin.passkeySettings.deletePasskeyDescription')
+                  "
                   :loading="isDeleting"
                   :disabled="isDeleting"
                   :on-confirm="() => handleDeletePasskey(passkey.id)"
@@ -59,14 +69,14 @@
                       size="sm"
                       :disabled="isDeleting"
                     >
-                      删除
+                      {{ t("admin.passkeySettings.delete") }}
                     </Button>
                   </template>
                 </ConfirmDangerPopover>
               </TableCell>
             </TableRow>
             <TableEmpty v-if="passkeys.length === 0" :colspan="4">
-              暂无已绑定的 Passkey
+              {{ t("admin.passkeySettings.emptyPasskeys") }}
             </TableEmpty>
           </TableBody>
         </Table>
@@ -78,9 +88,9 @@
         class="gap-4 sm:flex sm:flex-row sm:items-center sm:justify-between"
       >
         <div>
-          <CardTitle>外部账号绑定</CardTitle>
+          <CardTitle>{{ t("admin.passkeySettings.oidcTitle") }}</CardTitle>
           <CardDescription>
-            绑定 Google、Microsoft、GitHub 或自定义 OIDC 账号。
+            {{ t("admin.passkeySettings.oidcDescription") }}
           </CardDescription>
         </div>
         <div
@@ -99,7 +109,7 @@
             @click="openInviteDialog"
           >
             <Link2 class="h-4 w-4" />
-            生成绑定邀请
+            {{ t("admin.passkeySettings.generateInvite") }}
           </Button>
         </div>
       </CardHeader>
@@ -108,16 +118,18 @@
           v-if="providers.length === 0"
           class="rounded-md border border-dashed px-4 py-3 text-sm text-muted-foreground"
         >
-          尚未配置外部登录提供商，请先到“外部账号登录”中添加提供商。
+          {{ t("admin.passkeySettings.noProviders") }}
         </div>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>提供商</TableHead>
-              <TableHead>账号</TableHead>
+              <TableHead>{{ t("admin.passkeySettings.provider") }}</TableHead>
+              <TableHead>{{ t("admin.passkeySettings.account") }}</TableHead>
               <TableHead>Subject</TableHead>
-              <TableHead>最近使用</TableHead>
-              <TableHead class="text-right">操作</TableHead>
+              <TableHead>{{ t("admin.passkeySettings.lastUsed") }}</TableHead>
+              <TableHead class="text-right">{{
+                t("admin.sessions.table.actions")
+              }}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -138,13 +150,14 @@
                 <HumanFriendlyTime
                   v-if="binding.last_used_at"
                   :value="binding.last_used_at"
+                  :locale="locale"
                 />
                 <span v-else class="text-muted-foreground">-</span>
               </TableCell>
               <TableCell class="text-right">
                 <ConfirmDangerPopover
-                  title="删除外部账号绑定"
-                  description="确认删除该绑定吗？删除后该外部账号将无法登录。"
+                  :title="t('admin.passkeySettings.deleteOidcTitle')"
+                  :description="t('admin.passkeySettings.deleteOidcDescription')"
                   :loading="isDeleting"
                   :disabled="isDeleting"
                   :on-confirm="() => handleDeleteOidcBinding(binding.id)"
@@ -155,14 +168,14 @@
                       size="sm"
                       :disabled="isDeleting"
                     >
-                      删除
+                      {{ t("admin.passkeySettings.delete") }}
                     </Button>
                   </template>
                 </ConfirmDangerPopover>
               </TableCell>
             </TableRow>
             <TableEmpty v-if="oidcBindings.length === 0" :colspan="5">
-              暂无已绑定的外部账号
+              {{ t("admin.passkeySettings.emptyOidc") }}
             </TableEmpty>
           </TableBody>
         </Table>
@@ -175,21 +188,24 @@
     <Dialog :open="showInviteDialog" @update:open="handleInviteDialogOpenChange">
       <DialogContent class="max-h-[88vh] overflow-y-auto sm:max-w-[560px]">
         <DialogHeader>
-          <DialogTitle>生成外部账号绑定邀请</DialogTitle>
+          <DialogTitle>{{ t("admin.passkeySettings.inviteTitle") }}</DialogTitle>
           <DialogDescription>
-            对方打开邀请链接并完成指定第三方登录后，该外部账号会绑定到当前
-            TOTP。
+            {{ t("admin.passkeySettings.inviteDescription") }}
           </DialogDescription>
         </DialogHeader>
         <div class="overflow-hidden rounded-lg border divide-y divide-border">
           <div class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5">
-            <Label for="oidc-invite-provider">提供商</Label>
+            <Label for="oidc-invite-provider">{{
+              t("admin.passkeySettings.provider")
+            }}</Label>
             <Select
               :model-value="inviteProviderId"
               @update:model-value="handleInviteProviderChange"
             >
               <SelectTrigger id="oidc-invite-provider" class="w-full">
-                <SelectValue placeholder="选择一个已启用提供商" />
+                <SelectValue
+                  :placeholder="t('admin.passkeySettings.providerPlaceholder')"
+                />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem
@@ -202,14 +218,14 @@
               </SelectContent>
             </Select>
             <p class="text-[11px] text-muted-foreground">
-              邀请有效期固定为 30 分钟。
+              {{ t("admin.passkeySettings.inviteExpiresIn") }}
             </p>
           </div>
           <div
             v-if="inviteUrl"
             class="space-y-3 p-4 transition-colors hover:bg-muted/10 sm:p-5"
           >
-            <Label>邀请链接</Label>
+            <Label>{{ t("admin.passkeySettings.inviteLink") }}</Label>
             <div
               class="flex items-start gap-2 rounded-md border bg-muted/30 px-2.5 py-2"
             >
@@ -222,29 +238,33 @@
                 variant="ghost"
                 size="icon-sm"
                 class="size-7 shrink-0"
-                title="复制邀请链接"
-                aria-label="复制邀请链接"
+                :title="t('admin.passkeySettings.copyInviteLink')"
+                :aria-label="t('admin.passkeySettings.copyInviteLink')"
                 @click="copyInviteUrl"
               >
                 <Copy class="h-4 w-4" />
               </Button>
             </div>
             <p class="text-xs text-muted-foreground">
-              过期时间：{{ inviteExpiresAt || "-" }}
+              {{
+                t("admin.passkeySettings.expiresAt", {
+                  time: inviteExpiresAt || "-",
+                })
+              }}
             </p>
           </div>
         </div>
         <DialogFooter class="gap-2">
-          <Button variant="outline" @click="showInviteDialog = false"
-            >关闭</Button
-          >
+          <Button variant="outline" @click="showInviteDialog = false">
+            {{ t("admin.passkeySettings.close") }}
+          </Button>
           <Button
             v-if="inviteUrl"
             variant="outline"
             @click="copyInviteUrl"
           >
             <Copy class="h-4 w-4" />
-            复制链接
+            {{ t("admin.passkeySettings.copyLink") }}
           </Button>
           <Button
             :disabled="isInviteCreating || !inviteProviderId"
@@ -255,7 +275,7 @@
               class="h-4 w-4 animate-spin"
             />
             <Link2 v-else class="h-4 w-4" />
-            生成
+            {{ t("admin.passkeySettings.generate") }}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -265,6 +285,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import {
   Breadcrumb,
@@ -324,6 +345,7 @@ import type {
 } from "../types";
 
 const route = useRoute();
+const { t, locale } = useI18n();
 const totpId = route.params.totpId as string;
 const OIDC_BINDINGS_AUTO_REFRESH_INTERVAL_MS = 5000;
 
@@ -341,24 +363,36 @@ let oidcBindingsAutoRefreshTimer: ReturnType<typeof window.setInterval> | null =
   null;
 
 const pageTitle = computed(() =>
-  totpName.value ? `${totpName.value} 快捷登录` : "快捷登录凭据",
+  totpName.value
+    ? t("admin.passkeySettings.titleWithName", { name: totpName.value })
+    : t("admin.passkeySettings.title"),
 );
 
 const { isPending: isLoading, run: runLoad } = useAsyncAction({
   onError: (error) => {
-    errorMessage.value = extractErrorMessage(error, "获取快捷登录凭据失败");
+    errorMessage.value = extractErrorMessage(
+      error,
+      t("admin.passkeySettings.loadFailed"),
+    );
   },
 });
 const { isPending: isDeleting, run: runDelete } = useAsyncAction({
   onError: (error) => {
-    const message = extractErrorMessage(error, "删除快捷登录凭据失败");
+    const message = extractErrorMessage(
+      error,
+      t("admin.passkeySettings.deleteFailed"),
+    );
     errorMessage.value = message;
-    toast.error("删除失败", { description: message });
+    toast.error(t("admin.passkeySettings.deleteErrorTitle"), {
+      description: message,
+    });
   },
 });
 const { isPending: isInviteCreating, run: runCreateInvite } = useAsyncAction({
   onError: (error) => {
-    toast.error(extractErrorMessage(error, "创建绑定邀请失败"));
+    toast.error(
+      extractErrorMessage(error, t("admin.passkeySettings.createInviteFailed")),
+    );
   },
 });
 
@@ -418,8 +452,10 @@ async function refreshOidcBindings(options?: {
       if (!firstBinding) return;
       toast.success(
         addedBindings.length > 1
-          ? `已添加 ${addedBindings.length} 个外部账号绑定`
-          : "外部账号绑定添加成功",
+          ? t("admin.passkeySettings.addedBindingsMany", {
+              count: addedBindings.length,
+            })
+          : t("admin.passkeySettings.addedBindingOne"),
         {
           description: formatOidcBindingLabel(firstBinding),
         },
@@ -428,13 +464,18 @@ async function refreshOidcBindings(options?: {
     }
 
     if (options?.showSuccessToast) {
-      toast.success("外部账号绑定已刷新");
+      toast.success(t("admin.passkeySettings.bindingsRefreshed"));
     }
   } catch (error) {
-    const message = extractErrorMessage(error, "刷新外部账号绑定失败");
+    const message = extractErrorMessage(
+      error,
+      t("admin.passkeySettings.refreshFailed"),
+    );
     errorMessage.value = message;
     if (options?.showErrorToast) {
-      toast.error("刷新失败", { description: message });
+      toast.error(t("admin.passkeySettings.refreshErrorTitle"), {
+        description: message,
+      });
     } else {
       console.error("refreshOidcBindings:", error);
     }
@@ -483,7 +524,7 @@ async function handleDeletePasskey(passkeyId: string) {
   await runDelete(async () => {
     await ConfigAPI.deletePasskey(passkeyId);
     await fetchCredentials();
-    toast.success("Passkey 已删除");
+    toast.success(t("admin.passkeySettings.passkeyDeleted"));
   });
 }
 
@@ -492,7 +533,7 @@ async function handleDeleteOidcBinding(bindingId: string) {
   await runDelete(async () => {
     await ConfigAPI.deleteOIDCBinding(bindingId);
     await fetchCredentials();
-    toast.success("外部账号绑定已删除");
+    toast.success(t("admin.passkeySettings.oidcDeleted"));
   });
 }
 
@@ -515,7 +556,7 @@ function handleInviteProviderChange(value: unknown) {
 
 async function createInvite() {
   if (!inviteProviderId.value) {
-    toast.error("请选择一个外部登录提供商");
+    toast.error(t("admin.passkeySettings.selectProvider"));
     return;
   }
 
@@ -528,13 +569,13 @@ async function createInvite() {
     inviteExpiresAt.value = result.expires_at;
     try {
       await copyTextToClipboard(result.invite_url);
-      toast.success("绑定邀请已生成并复制", {
+      toast.success(t("admin.passkeySettings.inviteCreatedCopied"), {
         description: result.invite_url,
       });
     } catch (error) {
       console.error("createInvite copy:", error);
-      toast.warning("绑定邀请已生成，但复制失败", {
-        description: "当前页面可能运行在受限环境中，请手动复制。",
+      toast.warning(t("admin.passkeySettings.inviteCreatedCopyFailed"), {
+        description: t("admin.passkeySettings.manualCopyHint"),
       });
     }
   });
@@ -544,11 +585,13 @@ async function copyInviteUrl() {
   if (!inviteUrl.value) return;
   try {
     await copyTextToClipboard(inviteUrl.value);
-    toast.success("邀请链接已复制", { description: inviteUrl.value });
+    toast.success(t("admin.passkeySettings.inviteCopied"), {
+      description: inviteUrl.value,
+    });
   } catch (error) {
     console.error("copyInviteUrl:", error);
-    toast.error("复制邀请链接失败", {
-      description: "当前页面可能运行在受限环境中，请手动复制。",
+    toast.error(t("admin.passkeySettings.copyInviteFailed"), {
+      description: t("admin.passkeySettings.manualCopyHint"),
     });
   }
 }

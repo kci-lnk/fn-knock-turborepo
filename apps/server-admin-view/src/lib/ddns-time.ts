@@ -4,17 +4,22 @@ export const buildDDNSTimestampTooltipLines = (input: {
   updatedAt: string | null | undefined;
   checkedAt: string | null | undefined;
   locale?: string;
+  labels: {
+    lastSuccessfulUpdate: string;
+    lastCheck: string;
+    never: string;
+  };
 }) => {
-  const locale = input.locale || "zh-CN";
+  const locale = input.locale || "en";
 
   return [
-    `最后成功更新: ${formatDateTimeSafe(input.updatedAt, {
+    `${input.labels.lastSuccessfulUpdate}: ${formatDateTimeSafe(input.updatedAt, {
       locale,
-      emptyText: "从未",
+      emptyText: input.labels.never,
     })}`,
-    `最后检查: ${formatDateTimeSafe(input.checkedAt, {
+    `${input.labels.lastCheck}: ${formatDateTimeSafe(input.checkedAt, {
       locale,
-      emptyText: "从未",
+      emptyText: input.labels.never,
     })}`,
   ];
 };

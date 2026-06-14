@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import {
   Card,
   CardContent,
@@ -25,6 +26,7 @@ import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { useConfigStore } from "../../store/config";
 
 const configStore = useConfigStore();
+const { t } = useI18n();
 const settings = ref<GatewayLoggingConfig | null>(null);
 const form = reactive<GatewayLoggingConfig>({
   enabled: false,
@@ -34,16 +36,22 @@ const form = reactive<GatewayLoggingConfig>({
 
 const { isPending: isLoading, run: runLoadSettings } = useAsyncAction({
   onError: (error) => {
-    toast.error("加载失败", {
-      description: extractErrorMessage(error, "无法获取请求日志设置"),
+    toast.error(t("admin.gatewayLogging.loadFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.gatewayLogging.loadDescription"),
+      ),
     });
   },
 });
 const showLoadingSkeleton = useDelayedLoading(isLoading);
 const { isPending: isSaving, run: runSaveSettings } = useAsyncAction({
   onError: (error) => {
-    toast.error("保存失败", {
-      description: extractErrorMessage(error, "请求日志设置保存失败"),
+    toast.error(t("admin.gatewayLogging.saveFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.gatewayLogging.saveDescription"),
+      ),
     });
   },
 });
@@ -84,7 +92,7 @@ const saveSettings = async () => {
     {
       onSuccess: async (data) => {
         applyFromSettings(data);
-        toast.success("请求日志设置已更新");
+        toast.success(t("admin.gatewayLogging.updated"));
         await configStore.loadConfig();
       },
     },
@@ -99,10 +107,13 @@ onMounted(fetchSettings);
     <CardHeader>
       <div class="flex items-start justify-between gap-3">
         <div class="space-y-1.5">
-          <CardTitle class="text-md">网关请求日志</CardTitle>
+          <CardTitle class="text-md">
+            {{ t("admin.gatewayLogging.title") }}
+          </CardTitle>
           <CardDescription>
-            开启后，Go 网关会在运行目录下的 <code>logs</code> 目录按天写入 JSON
-            结构化请求日志，方便在后台按日期查询、搜索和查看详情。
+            {{ t("admin.gatewayLogging.descriptionPrefix") }}
+            <code>logs</code>
+            {{ t("admin.gatewayLogging.descriptionSuffix") }}
           </CardDescription>
         </div>
         <DocsLinkButton :href="docsUrls.guides.requestLogs" />
@@ -123,11 +134,10 @@ onMounted(fetchSettings);
             class="cursor-pointer text-base font-medium"
             @click="form.enabled = !form.enabled"
           >
-            启用请求日志
+            {{ t("admin.gatewayLogging.enableLabel") }}
           </Label>
           <div class="text-sm text-muted-foreground">
-            默认关闭。开启后会记录访问者
-            IP、请求地址、登录状态、响应状态、耗时和上游目标等信息。
+            {{ t("admin.gatewayLogging.enableDescription") }}
           </div>
         </div>
         <Switch v-model="form.enabled" :disabled="isSaving" />
@@ -137,9 +147,11 @@ onMounted(fetchSettings);
         class="flex flex-col justify-between gap-4 p-6 sm:flex-row sm:items-center"
       >
         <div class="space-y-1 pr-6">
-          <Label class="text-base">日志保留天数</Label>
+          <Label class="text-base">
+            {{ t("admin.gatewayLogging.retentionLabel") }}
+          </Label>
           <div class="text-sm text-muted-foreground">
-            按天切分日志文件，只保留最近 N 天。超出的旧文件会自动清理。
+            {{ t("admin.gatewayLogging.retentionDescription") }}
           </div>
         </div>
         <div class="flex items-center gap-2 shrink-0">
@@ -151,7 +163,9 @@ onMounted(fetchSettings);
             class="w-24 text-center"
             :disabled="isSaving"
           />
-          <span class="w-12 text-sm text-muted-foreground">天</span>
+          <span class="w-12 text-sm text-muted-foreground">{{
+            t("admin.gatewayLogging.daysUnit")
+          }}</span>
         </div>
       </div>
 
@@ -161,10 +175,10 @@ onMounted(fetchSettings);
           :disabled="!isDirty || isSaving"
           @click="resetForm"
         >
-          重置
+          {{ t("admin.gatewayLogging.reset") }}
         </Button>
         <Button :disabled="!isDirty || isSaving" @click="saveSettings">
-          保存设置
+          {{ t("admin.gatewayLogging.saveSettings") }}
         </Button>
       </div>
     </CardContent>

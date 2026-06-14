@@ -12,6 +12,7 @@ import type {
   IpLocationLookupStatus,
   IpLocationSnapshot,
 } from "../types";
+import { browserT } from "@fn-knock/i18n/vue";
 import { useIpLocationBatch } from "./useIpLocationBatch";
 
 type HostSource = string | Ref<string> | (() => string);
@@ -35,18 +36,18 @@ const getLocationText = (snapshot: IpLocationSnapshot | null) => {
   if (snapshot?.location) return snapshot.location;
 
   if (snapshot?.status === "queued" || snapshot?.status === "processing") {
-    return "属地解析中...";
+    return browserT("admin.hostActiveIps.resolving");
   }
 
   if (snapshot?.status === "skipped") {
-    return "内网或本机地址";
+    return browserT("admin.hostActiveIps.privateAddress");
   }
 
   if (snapshot?.status === "failed") {
-    return "属地暂未获取";
+    return browserT("admin.hostActiveIps.unavailable");
   }
 
-  return "属地暂未获取";
+  return browserT("admin.hostActiveIps.unavailable");
 };
 
 const normalizeWindowSeconds = (value: unknown) => {
@@ -123,7 +124,7 @@ export const useHostActiveIps = (
       error.value =
         caught?.response?.data?.message ||
         caught?.message ||
-        "活跃 IP 加载失败";
+        browserT("admin.hostActiveIps.loadFailed");
     } finally {
       if (currentRequestId === requestId) {
         loading.value = false;

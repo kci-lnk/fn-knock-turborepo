@@ -1,4 +1,5 @@
 import type { CaptchaPublicSettings } from "../captcha/types";
+import type { LocaleConfig } from "@fn-knock/i18n";
 
 export type AuthClientInfo = {
   ip: string;
@@ -55,6 +56,7 @@ export type AuthOidcState = {
 };
 
 export type AuthBootstrapData = {
+  locale: LocaleConfig;
   auth: AuthAccessState;
   client: AuthClientInfo;
   captcha: CaptchaPublicSettings;
@@ -64,6 +66,7 @@ export type AuthBootstrapData = {
 };
 
 export type AuthSessionData = {
+  locale: LocaleConfig;
   auth: AuthAccessState;
   client: AuthClientInfo;
   passkey: AuthPasskeyState;

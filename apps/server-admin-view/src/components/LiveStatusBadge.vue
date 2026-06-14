@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 interface Props {
   active: boolean
@@ -11,14 +12,17 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  activeLabel: '运行中',
-  inactiveLabel: '未启用',
   pulse: true,
   size: 'sm',
   class: '',
 })
 
-const label = computed(() => (props.active ? props.activeLabel : props.inactiveLabel))
+const { t } = useI18n()
+const label = computed(() =>
+  props.active
+    ? props.activeLabel ?? t('common.active')
+    : props.inactiveLabel ?? t('common.inactive'),
+)
 const dotClass = computed(() =>
   props.active ? 'bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.14)]' : 'bg-zinc-300',
 )

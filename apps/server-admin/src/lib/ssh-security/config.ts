@@ -9,6 +9,12 @@ import type {
   SSHSecurityRuntimeState,
   SSHSecuritySelection,
 } from "./types";
+import { tDefault } from "../i18n";
+
+const sshSecurityT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.sshSecurity.${key}`, params);
 
 export const DEFAULT_SSH_SECURITY_CONFIG: SSHSecurityConfig = {
   enabled: false,
@@ -156,7 +162,9 @@ export const validateSSHSecurityCustomCidrs = (value: string[]): string[] => {
   const normalized = normalizeCidrLines(value);
   const invalid = normalized.filter((cidr) => !isValidCIDR(cidr));
   if (invalid.length > 0) {
-    throw new Error(`自定义 CIDR 格式不正确：${invalid.join("、")}`);
+    throw new Error(
+      sshSecurityT("customCidrInvalid", { cidrs: invalid.join(", ") }),
+    );
   }
   return normalized;
 };

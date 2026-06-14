@@ -6,9 +6,14 @@ import {
   getRuntimeCapabilities,
 } from "../runtime-profile";
 import { DEFAULT_SSH_PORTS, sshPortResolver } from "./port-resolver";
+import { tDefault } from "../i18n";
 
 const SSH_FIREWALL_CHAIN = "FN-KNOCK-SSH";
 const SSH_FIREWALL_PARENT_CHAINS = ["INPUT", "DOCKER-USER"] as const;
+const sshSecurityT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.sshSecurity.${key}`, params);
 
 export interface SSHFirewallPolicyInput {
   allowedCidrs: string[];
@@ -88,7 +93,7 @@ export class SSHSecurityFirewall {
       include_local_cidrs: true,
     });
     if (!goResponseOk(response)) {
-      throw new Error(response.message || "同步 SSH 专用防火墙规则失败");
+      throw new Error(response.message || sshSecurityT("syncSshPolicyFailed"));
     }
 
     return {
@@ -105,7 +110,7 @@ export class SSHSecurityFirewall {
       parent_chain: [...SSH_FIREWALL_PARENT_CHAINS],
     });
     if (!goResponseOk(response)) {
-      throw new Error(response.message || "清空 SSH 专用防火墙规则失败");
+      throw new Error(response.message || sshSecurityT("clearSshPolicyFailed"));
     }
   }
 }

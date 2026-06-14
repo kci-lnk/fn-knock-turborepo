@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import {
   RekaTabs,
@@ -15,20 +16,21 @@ import DeliveriesTab from "./notifications/DeliveriesTab.vue";
 const notificationTabs = [
   {
     value: "providers",
-    label: "提供商",
+    labelKey: "admin.notifications.tabs.providers",
   },
   {
     value: "rules",
-    label: "规则",
+    labelKey: "admin.notifications.tabs.rules",
   },
   {
     value: "deliveries",
-    label: "投递记录",
+    labelKey: "admin.notifications.tabs.deliveries",
   },
 ] as const;
 
 type NotificationTabValue = (typeof notificationTabs)[number]["value"];
 
+const { t } = useI18n();
 const router = useRouter();
 const route = useRoute();
 
@@ -65,7 +67,7 @@ watch(currentTab, (nextTab) => {
     >
       <div class="border-b border-border/70 bg-muted/20 px-4 sm:px-6">
         <RekaTabsList
-          aria-label="通知配置分区"
+          :aria-label="t('admin.notifications.tabs.aria')"
           class="w-fit rounded-none border-0 bg-transparent px-0 after:right-0 after:left-0 after:bg-border/70"
           indicator-class="h-px bg-foreground"
         >
@@ -75,7 +77,7 @@ watch(currentTab, (nextTab) => {
             :value="tab.value"
             class="min-w-[108px] px-5 text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground focus-visible:ring-ring/30 data-[state=active]:font-semibold data-[state=active]:text-foreground"
           >
-            {{ tab.label }}
+            {{ t(tab.labelKey) }}
           </RekaTabsTrigger>
         </RekaTabsList>
       </div>

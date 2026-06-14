@@ -3,12 +3,12 @@
     <div class="flex flex-1 items-center justify-center">
       <Card class="w-full max-w-sm">
         <CardHeader>
-          <CardTitle class="text-2xl text-center">安全验证</CardTitle>
+          <CardTitle class="text-2xl text-center">{{ t("auth.title") }}</CardTitle>
           <CardDescription class="text-center" v-if="!isCaptchaVerified">
-            请先完成下方的人机验证
+            {{ t("auth.captchaFirst") }}
           </CardDescription>
           <CardDescription class="text-center" v-else>
-            请输入您的六位数动态密码完成登录
+            {{ t("auth.otpPrompt") }}
           </CardDescription>
           <div
             v-if="logoutNotice"
@@ -50,13 +50,7 @@
                   --altcha-max-width: 360px;
                 "
                 :strings="
-                  JSON.stringify({
-                    label: '我不是机器人',
-                    verified: '验证通过',
-                    verifying: '正在验证...',
-                    wait: '请稍候...',
-                    error: '验证错误',
-                  })
+                  powWidgetStrings
                 "
               >
               </altcha-widget>
@@ -86,7 +80,7 @@
                   v-if="isPowFallbackLoading"
                   class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
                 ></span>
-                {{ isPowFallbackLoading ? "正在验证..." : "我不是机器人" }}
+                {{ isPowFallbackLoading ? t("auth.verifying") : t("auth.notRobot") }}
               </Button>
             </div>
             <div
@@ -111,7 +105,7 @@
                 v-else
                 class="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
               >
-                当前 Turnstile 未完成配置，请联系管理员填写 site key。
+                {{ t("auth.turnstileMissing") }}
               </div>
             </div>
             <div
@@ -213,7 +207,7 @@
                   aria-hidden="true"
                 />
                 <CircleUserRound v-else class="size-4" aria-hidden="true" />
-                使用 {{ provider.name }} 登录
+                {{ t("auth.loginWithProvider", { provider: provider.name }) }}
               </Button>
             </div>
 
@@ -243,13 +237,13 @@
             >
               <DialogContent :show-close-button="false">
                 <DialogHeader>
-                  <DialogTitle>提示</DialogTitle>
+                  <DialogTitle>{{ t("auth.tip") }}</DialogTitle>
                   <DialogDescription>
                     {{ errorMessage }}
                   </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>
-                  <Button @click="showErrorDialog = false">确定</Button>
+                  <Button @click="showErrorDialog = false">{{ t("auth.ok") }}</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -262,9 +256,9 @@
                 overlay-class="bg-black/50 backdrop-blur-sm"
               >
                 <DialogHeader>
-                  <DialogTitle>开启 Passkey 一键登录</DialogTitle>
+                  <DialogTitle>{{ t("auth.passkeyBindTitle") }}</DialogTitle>
                   <DialogDescription>
-                    是否在当前设备上绑定 Passkey？绑定后可直接一键登录。
+                    {{ t("auth.passkeyBindDescription") }}
                   </DialogDescription>
                 </DialogHeader>
                 <div v-if="passkeyBindError" class="text-sm text-destructive">
@@ -282,12 +276,12 @@
                     for="skipPasskeyBindPrompt"
                     class="cursor-pointer select-none text-sm text-muted-foreground"
                   >
-                    不再提醒
+                    {{ t("auth.passkeyBindSkipPrompt") }}
                   </label>
                 </div>
                 <DialogFooter class="gap-2">
                   <Button variant="outline" @click="skipPasskeyBind"
-                    >稍后再说</Button
+                    >{{ t("auth.passkeyBindLater") }}</Button
                   >
                   <Button
                     :disabled="isBindingPasskey"
@@ -297,7 +291,7 @@
                       v-if="isBindingPasskey"
                       class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
                     ></span>
-                    立即开启
+                    {{ t("auth.passkeyBindNow") }}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -332,7 +326,7 @@
                   for="rememberMe"
                   class="text-sm font-medium leading-none cursor-pointer select-none text-muted-foreground group-hover:text-foreground transition-colors"
                 >
-                  记住我
+                  {{ t("auth.rememberMe") }}
                 </label>
               </div>
             </div>
@@ -351,6 +345,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import {
   CircleUserRound,
@@ -403,16 +398,20 @@ import {
 import { useClientIpLocation } from "@/lib/client-ip-location";
 import {
   buildPowSubmission,
+  CaptchaError,
   normalizePowChallenge,
   solvePowChallenge,
 } from "@/lib/captcha";
 import { markPendingLogoutDelay } from "@/lib/post-login";
 import AuthFooter from "@/components/AuthFooter.vue";
 import TurnstileWidget from "@/components/captcha/TurnstileWidget.vue";
+import { normalizeLocale } from "@fn-knock/i18n";
+import { applyDocumentLocale } from "@fn-knock/i18n/vue";
 
 import "altcha";
 
 const router = useRouter();
+const { t, locale } = useI18n();
 
 const token = ref("");
 const rememberMe = ref(false);
@@ -466,29 +465,47 @@ const isCaptchaProviderAvailable = computed(
 const captchaUnavailableReason = computed(
   () =>
     captchaConfig.value?.unavailable_reason ||
-    "验证码配置加载失败，请刷新页面后重试。",
+    t("auth.captchaConfigLoadFailed"),
 );
 const hasTurnstileSiteKey = computed(
   () => !!captchaConfig.value?.turnstile.site_key.trim(),
 );
 const isLoginCoolingDown = computed(() => loginCooldownSeconds.value > 0);
+const applySystemLocale = (value: string | null | undefined) => {
+  const next = normalizeLocale(value) ?? "zh-CN";
+  locale.value = next;
+  applyDocumentLocale(next);
+};
+const powWidgetStrings = computed(() =>
+  JSON.stringify({
+    label: t("auth.notRobot"),
+    verified: t("auth.verified"),
+    verifying: t("auth.verifying"),
+    wait: t("auth.wait"),
+    error: t("auth.verifyError"),
+  }),
+);
 const loginButtonLabel = computed(() => {
   if (isLoading.value) {
-    return "正在验证...";
+    return t("auth.verifying");
   }
   if (isLoginCoolingDown.value) {
-    return `${loginCooldownSeconds.value} 秒后重试`;
+    return t("auth.retryAfterSeconds", {
+      seconds: loginCooldownSeconds.value,
+    });
   }
-  return "立即验证";
+  return t("auth.verifyNow");
 });
 const passkeyButtonLabel = computed(() => {
   if (isPasskeyLoading.value) {
-    return "正在验证...";
+    return t("auth.verifying");
   }
   if (isLoginCoolingDown.value) {
-    return `${loginCooldownSeconds.value} 秒后重试`;
+    return t("auth.retryAfterSeconds", {
+      seconds: loginCooldownSeconds.value,
+    });
   }
-  return "Passkey 一键登录";
+  return t("auth.passkeyLogin");
 });
 const queryParams =
   typeof window !== "undefined"
@@ -504,13 +521,13 @@ const logoutNotice = computed(() => {
 
   switch (bootstrapGrantType.value) {
     case "login_ip_grant":
-      return "当前浏览器会话已退出，登录时授予的当前 IP 访问权限也已撤销。";
+      return t("auth.loggedOutLoginIpGrant");
     case "manual_whitelist":
-      return "当前浏览器会话已退出。管理员白名单仍然有效。";
+      return t("auth.loggedOutManualWhitelist");
     case "local_exempt":
-      return "当前浏览器会话已退出。当前网络仍属于免白名单范围。";
+      return t("auth.loggedOutLocalExempt");
     default:
-      return "当前浏览器会话已退出，请重新验证。";
+      return t("auth.loggedOutDefault");
   }
 });
 
@@ -570,6 +587,7 @@ function initBrowserCapabilities() {
 async function loadBootstrap() {
   try {
     const bootstrap = await AuthAPI.getBootstrap(redirectUri);
+    applySystemLocale(bootstrap.locale.default_locale);
     startLocationPolling(bootstrap.client);
     captchaConfig.value = bootstrap.captcha;
     isPasskeyAvailable.value = !!bootstrap.passkey.available;
@@ -588,7 +606,7 @@ async function loadBootstrap() {
     errorMessage.value =
       e?.response?.data?.message ||
       e?.message ||
-      "验证码配置加载失败，请刷新页面后重试";
+      t("auth.captchaConfigLoadFailed");
     showErrorDialog.value = true;
   } finally {
     isCaptchaConfigLoading.value = false;
@@ -607,7 +625,9 @@ async function handlePowFallbackVerify() {
   } catch (e: any) {
     handleCaptchaReset();
     errorMessage.value =
-      e?.response?.data?.message || e?.message || "人机验证失败，请重试";
+      e instanceof CaptchaError
+        ? t(`auth.${e.code}`)
+        : e?.response?.data?.message || e?.message || t("auth.captchaFailed");
     showErrorDialog.value = true;
   } finally {
     isPowFallbackLoading.value = false;
@@ -684,10 +704,15 @@ function extractRetryAfterSeconds(payload: any): number {
 }
 
 function resolveRetryAfterMessage(message: string, retryAfter: number) {
-  if (retryAfter <= 0 || message.includes("秒后重试")) {
+  const retrySuffix = t("auth.retrySuffix", { seconds: retryAfter });
+  if (
+    retryAfter <= 0 ||
+    message.includes(String(retryAfter)) ||
+    message.includes(retrySuffix)
+  ) {
     return message;
   }
-  return `${message}，请在 ${retryAfter} 秒后重试`;
+  return `${message}${retrySuffix}`;
 }
 
 function handleOtpComplete() {
@@ -842,12 +867,12 @@ async function handleLogin() {
     return;
   }
   if (token.value.length !== 6) {
-    errorMessage.value = "请输入完整的 6 位身份验证码";
+    errorMessage.value = t("auth.invalidOtpLength");
     showErrorDialog.value = true;
     return;
   }
   if (!isCaptchaVerified.value || !captchaSubmission.value) {
-    errorMessage.value = "请先完成人机验证";
+    errorMessage.value = t("auth.captchaFirst");
     showErrorDialog.value = true;
     return;
   }
@@ -902,7 +927,7 @@ async function handleLogin() {
     } else {
       const retryAfter = startLoginCooldown(extractRetryAfterSeconds(res.data));
       errorMessage.value = resolveRetryAfterMessage(
-        res.data.message || "验证失败，请重试",
+        res.data.message || t("auth.loginFailed"),
         retryAfter,
       );
       showErrorDialog.value = true;
@@ -912,7 +937,7 @@ async function handleLogin() {
     console.error("Login error:", e);
     const retryAfter = startLoginCooldown(extractRetryAfterSeconds(e));
     errorMessage.value = resolveRetryAfterMessage(
-      e?.response?.data?.message || "验证失败，请重试",
+      e?.response?.data?.message || t("auth.loginFailed"),
       retryAfter,
     );
     showErrorDialog.value = true;
@@ -955,7 +980,7 @@ async function handlePasskeyLogin() {
       publicKey: requestOptions,
     });
     if (!credential) {
-      throw new Error("未获取到 Passkey 响应");
+      throw new Error(t("auth.passkeyNoResponse"));
     }
     const payload = serializeCredential(credential as PublicKeyCredential);
     const verifyRes = await apiClient.post("/passkey/auth/verify", {
@@ -978,14 +1003,16 @@ async function handlePasskeyLogin() {
     );
     throw new Error(
       resolveRetryAfterMessage(
-        verifyRes.data.message || "Passkey 验证失败",
+        verifyRes.data.message || t("auth.passkeyVerifyFailed"),
         retryAfter,
       ),
     );
   } catch (e: any) {
     const retryAfter = startLoginCooldown(extractRetryAfterSeconds(e));
     errorMessage.value = resolveRetryAfterMessage(
-      e?.response?.data?.message || e?.message || "Passkey 登录失败，请重试",
+      e?.response?.data?.message ||
+        e?.message ||
+        t("auth.passkeyLoginFailed"),
       retryAfter,
     );
     showErrorDialog.value = true;
@@ -1008,12 +1035,12 @@ async function handleOidcLogin(providerId: string) {
     });
     const authorizationUrl = res.data?.data?.authorization_url;
     if (!authorizationUrl) {
-      throw new Error(res.data?.message || "无法发起外部登录");
+      throw new Error(res.data?.message || t("auth.oidcStartFailed"));
     }
     window.location.assign(authorizationUrl);
   } catch (e: any) {
     errorMessage.value =
-      e?.response?.data?.message || e?.message || "外部登录失败，请重试";
+      e?.response?.data?.message || e?.message || t("auth.oidcLoginFailed");
     showErrorDialog.value = true;
     isOidcLoading.value = false;
     activeOidcProviderId.value = "";
@@ -1025,7 +1052,7 @@ async function handlePasskeyBind() {
     return;
   }
   if (!passkeyBindToken.value) {
-    passkeyBindError.value = "绑定凭证无效，请重新登录";
+    passkeyBindError.value = t("auth.passkeyBindInvalid");
     return;
   }
   isBindingPasskey.value = true;
@@ -1039,7 +1066,7 @@ async function handlePasskeyBind() {
       publicKey: creationOptions,
     });
     if (!credential) {
-      throw new Error("未获取到 Passkey 响应");
+      throw new Error(t("auth.passkeyNoResponse"));
     }
     const deviceName =
       (navigator as any).userAgentData?.platform ||
@@ -1062,10 +1089,10 @@ async function handlePasskeyBind() {
       }
       return;
     }
-    throw new Error(verifyRes.data.message || "Passkey 绑定失败");
+    throw new Error(verifyRes.data.message || t("auth.passkeyBindFailed"));
   } catch (e: any) {
     passkeyBindError.value =
-      e?.response?.data?.message || e?.message || "Passkey 绑定失败";
+      e?.response?.data?.message || e?.message || t("auth.passkeyBindFailed");
   } finally {
     isBindingPasskey.value = false;
   }

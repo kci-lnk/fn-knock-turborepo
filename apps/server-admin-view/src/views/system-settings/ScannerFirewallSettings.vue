@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
+import { Shield } from 'lucide-vue-next';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,15 +17,26 @@ import { useDelayedLoading } from '@admin-shared/composables/useDelayedLoading';
 const settings = ref<ScannerSettings | null>(null);
 const baseWindowMinutes = 5;
 const router = useRouter();
+const { t } = useI18n();
 const { isPending: isLoading, run: runLoadSettings } = useAsyncAction({
   onError: (error) => {
-    toast.error('加载失败', { description: extractErrorMessage(error, '无法获取配置') });
+    toast.error(t('admin.scannerFirewallSettings.loadFailed'), {
+      description: extractErrorMessage(
+        error,
+        t('admin.scannerFirewallSettings.loadDescription'),
+      ),
+    });
   },
 });
 const showLoadingSkeleton = useDelayedLoading(isLoading);
 const { isPending: isSaving, run: runSaveSettings } = useAsyncAction({
   onError: (error) => {
-    toast.error('保存失败', { description: extractErrorMessage(error, '保存失败') });
+    toast.error(t('admin.scannerFirewallSettings.saveFailed'), {
+      description: extractErrorMessage(
+        error,
+        t('admin.scannerFirewallSettings.saveDescription'),
+      ),
+    });
   },
 });
 
@@ -84,7 +97,7 @@ const saveSettings = async () => {
     {
       onSuccess: (data) => {
         applyFromSettings(data);
-        toast.success('扫描器防火墙设置已更新');
+        toast.success(t('admin.scannerFirewallSettings.updated'));
       },
     },
   );
@@ -101,14 +114,16 @@ const goToBlacklist = () => {
     <CardHeader>
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <CardTitle class="text-md">扫描器防火墙</CardTitle>
+          <CardTitle class="text-md">
+            {{ t('admin.scannerFirewallSettings.title') }}
+          </CardTitle>
           <CardDescription class="mt-1.5">
-            配置防扫描策略，自动识别并拦截恶意的路径嗅探和扫描行为。
+            {{ t('admin.scannerFirewallSettings.description') }}
           </CardDescription>
         </div>
         <Button variant="secondary" size="sm" @click="goToBlacklist" class="shrink-0">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"></path></svg>
-          查看黑名单
+          <Shield class="mr-2 h-4 w-4" />
+          {{ t('admin.scannerFirewallSettings.viewBlacklist') }}
         </Button>
       </div>
     </CardHeader>
@@ -124,10 +139,10 @@ const goToBlacklist = () => {
       <div class="flex items-center justify-between p-6 bg-muted/10">
         <div class="space-y-1 pr-6">
           <Label class="text-base font-medium cursor-pointer" @click="form.enabled = !form.enabled">
-            启用防御策略
+            {{ t('admin.scannerFirewallSettings.enableTitle') }}
           </Label>
           <div class="text-sm text-muted-foreground">
-            开启后，系统将在后台监控访问频率，并在触发阈值时自动将恶意 IP 加入黑名单。
+            {{ t('admin.scannerFirewallSettings.enableDescription') }}
           </div>
         </div>
         <Switch v-model="form.enabled" />
@@ -137,10 +152,10 @@ const goToBlacklist = () => {
         <div class="flex items-center justify-between p-6 gap-4">
           <div class="space-y-1 pr-6">
             <Label class="text-base font-medium cursor-pointer" @click="form.commonLocationExemptEnabled = !form.commonLocationExemptEnabled">
-              常用地豁免
+              {{ t('admin.scannerFirewallSettings.commonLocationExemptTitle') }}
             </Label>
             <div class="text-sm text-muted-foreground">
-              来自最近登录常用地区的请求不会触发扫描器黑名单拦截。
+              {{ t('admin.scannerFirewallSettings.commonLocationExemptDescription') }}
             </div>
           </div>
           <Switch v-model="form.commonLocationExemptEnabled" />
@@ -149,43 +164,59 @@ const goToBlacklist = () => {
         
         <div class="flex flex-col sm:flex-row sm:items-center justify-between p-6 gap-4">
           <div class="space-y-1 pr-6">
-            <Label class="text-base">统计窗口</Label>
+            <Label class="text-base">
+              {{ t('admin.scannerFirewallSettings.windowTitle') }}
+            </Label>
             <div class="text-sm text-muted-foreground">
-              系统计算异常访问次数的时间周期。
+              {{ t('admin.scannerFirewallSettings.windowDescription') }}
               <span v-if="derivedWindowMinutes > form.windowMinutes" class="text-destructive block sm:inline sm:ml-1">
-                (系统强制下限为 {{ baseWindowMinutes }} 分钟)
+                {{
+                  t('admin.scannerFirewallSettings.enforcedMinimum', {
+                    minutes: baseWindowMinutes,
+                  })
+                }}
               </span>
             </div>
           </div>
           <div class="flex items-center gap-2 shrink-0">
             <Input v-model.number="form.windowMinutes" type="number" min="1" class="w-24 text-center" />
-            <span class="text-sm text-muted-foreground w-12">分钟</span>
+            <span class="text-sm text-muted-foreground w-12">
+              {{ t('admin.scannerFirewallSettings.minutesUnit') }}
+            </span>
           </div>
         </div>
 
         <div class="flex flex-col sm:flex-row sm:items-center justify-between p-6 gap-4">
           <div class="space-y-1 pr-6">
-            <Label class="text-base">触发阈值</Label>
+            <Label class="text-base">
+              {{ t('admin.scannerFirewallSettings.thresholdTitle') }}
+            </Label>
             <div class="text-sm text-muted-foreground">
-              在一个统计窗口内，累计异常访问达到此次数将立即触发封禁。
+              {{ t('admin.scannerFirewallSettings.thresholdDescription') }}
             </div>
           </div>
           <div class="flex items-center gap-2 shrink-0">
             <Input v-model.number="form.threshold" type="number" min="1" class="w-24 text-center" />
-            <span class="text-sm text-muted-foreground w-12">次</span>
+            <span class="text-sm text-muted-foreground w-12">
+              {{ t('admin.scannerFirewallSettings.timesUnit') }}
+            </span>
           </div>
         </div>
 
         <div class="flex flex-col sm:flex-row sm:items-center justify-between p-6 gap-4">
           <div class="space-y-1 pr-6">
-            <Label class="text-base">黑名单保留时长</Label>
+            <Label class="text-base">
+              {{ t('admin.scannerFirewallSettings.blacklistTtlTitle') }}
+            </Label>
             <div class="text-sm text-muted-foreground">
-              攻击者 IP 被拦截后的封禁时间，到期后自动解封。
+              {{ t('admin.scannerFirewallSettings.blacklistTtlDescription') }}
             </div>
           </div>
           <div class="flex items-center gap-2 shrink-0">
             <Input v-model.number="form.blacklistTtlDays" type="number" min="1" class="w-24 text-center" />
-            <span class="text-sm text-muted-foreground w-12">天</span>
+            <span class="text-sm text-muted-foreground w-12">
+              {{ t('admin.scannerFirewallSettings.daysUnit') }}
+            </span>
           </div>
         </div>
       </div>
@@ -195,14 +226,16 @@ const goToBlacklist = () => {
 
     <div class="flex items-center justify-between p-6 border-t bg-muted/20 rounded-b-xl">
       <div class="text-sm text-muted-foreground">
-        <span v-if="isDirty">您有未保存的更改</span>
-        <span v-else>所有设置已是最新状态</span>
+        <span v-if="isDirty">{{ t('admin.scannerFirewallSettings.dirty') }}</span>
+        <span v-else>{{ t('admin.scannerFirewallSettings.clean') }}</span>
       </div>
       <div class="flex gap-3">
-        <Button variant="ghost" @click="resetForm" :disabled="!isDirty || isSaving">放弃</Button>
+        <Button variant="ghost" @click="resetForm" :disabled="!isDirty || isSaving">
+          {{ t('admin.scannerFirewallSettings.discard') }}
+        </Button>
         <Button :disabled="!isDirty || isSaving" @click="saveSettings">
           <span v-if="isSaving" class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
-          保存更改
+          {{ t('admin.scannerFirewallSettings.saveChanges') }}
         </Button>
       </div>
     </div>

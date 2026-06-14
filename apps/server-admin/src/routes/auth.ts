@@ -50,6 +50,8 @@ import {
   resolveSafeRedirectUri,
 } from "../lib/subdomain-mode";
 import { routeDoc, withRouteDoc } from "../lib/openapi";
+import { createRequestTranslator } from "../lib/i18n";
+import { normalizeLocaleConfig } from "../../../../packages/i18n/src";
 
 const buildPasskeyStatus = async (request: Request) => {
   const config = await configManager.getConfig();
@@ -204,6 +206,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth", tags: ["Auth"] })
       return {
         success: true,
         data: {
+          locale: normalizeLocaleConfig(config.locale),
           auth: {
             authenticated: auth.authorized,
             message: auth.message,
@@ -226,6 +229,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth", tags: ["Auth"] })
     "/session",
     async ({ request, set }) => {
       const clientIp = getClientIp(request);
+      const config = await configManager.getConfig();
       const auth = await resolveAuthAccess(request, clientIp);
       applyAuthResponseHeaders(set, auth);
 
@@ -246,6 +250,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth", tags: ["Auth"] })
       return {
         success: true,
         data: {
+          locale: normalizeLocaleConfig(config.locale),
           auth: {
             authenticated: true,
             message: auth.message,
@@ -269,14 +274,16 @@ export const authRoutes = new Elysia({ prefix: "/api/auth", tags: ["Auth"] })
   )
   .get(
     "/challenge",
-    async ({ set }) => {
+    async ({ set, request }) => {
       try {
         return await captchaService.createChallenge();
       } catch (error: any) {
+        const config = await configManager.getConfig();
+        const { t } = createRequestTranslator(request, config.locale);
         set.status = 503;
         return {
           success: false,
-          message: error?.message || "验证码服务暂时不可用",
+          message: error?.message || t("server.captchaUnavailable"),
         };
       }
     },
@@ -321,6 +328,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth", tags: ["Auth"] })
     "/login",
     async ({ body, set, request }) => {
       const config = await configManager.getConfig();
+      const { t } = createRequestTranslator(request, config.locale);
       const clientIp = getClientIp(request);
       const gate = await loginBackoffService.ensureNotBlocked(
         normalizeAuthFailureTrackingIp(clientIp),
@@ -332,8 +340,10 @@ export const authRoutes = new Elysia({ prefix: "/api/auth", tags: ["Auth"] })
         return {
           success: false,
           message: gate.retryAfter
-            ? `尝试过于频繁，请在 ${gate.retryAfter} 秒后重试`
-            : "尝试过于频繁，请稍后重试",
+            ? t("server.tooManyAttemptsWithRetry", {
+                seconds: gate.retryAfter,
+              })
+            : t("server.tooManyAttempts"),
           retryAfter: gate.retryAfter,
           blockedUntil: gate.blockedUntil,
         };
@@ -350,7 +360,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth", tags: ["Auth"] })
       const totpCredentials = await configManager.getTOTPCredentials();
       if (totpCredentials.length === 0) {
         set.status = 400;
-        return { success: false, message: "服务器尚未配置登录凭据" };
+        return { success: false, message: t("server.loginCredentialMissing") };
       }
 
       let matchedTotpId: string | null = null;
@@ -378,7 +388,9 @@ export const authRoutes = new Elysia({ prefix: "/api/auth", tags: ["Auth"] })
         set.headers["Retry-After"] = String(rf.retryAfter);
         return {
           success: false,
-          message: `验证码不正确，请在 ${rf.retryAfter} 秒后重试`,
+          message: t("server.invalidOtpWithRetry", {
+            seconds: rf.retryAfter,
+          }),
           retryAfter: rf.retryAfter,
         };
       }

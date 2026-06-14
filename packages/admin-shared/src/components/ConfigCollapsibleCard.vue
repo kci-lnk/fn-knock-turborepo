@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, useSlots, watch } from 'vue'
+import { computed, ref, useSlots, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
@@ -17,7 +18,6 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   ready: true,
-  editLabel: '编辑配置',
   cardClass: '',
   collapsedContentClass: 'h-[40px] flex items-center justify-between gap-3',
   expandedContentClass: '',
@@ -25,7 +25,9 @@ const props = withDefaults(defineProps<Props>(), {
   actionsClass: '',
 })
 
+const { t } = useI18n()
 const slots = useSlots()
+const resolvedEditLabel = computed(() => props.editLabel ?? t('shared.configCollapsibleCard.editConfig'))
 
 const open = ref(false)
 const initialized = ref(false)
@@ -165,7 +167,7 @@ watch(
                 :collapse="collapse"
                 :toggle="toggle"
               />
-              <Button variant="secondary" @click="expand">{{ editLabel }}</Button>
+              <Button variant="secondary" @click="expand">{{ resolvedEditLabel }}</Button>
             </div>
           </CardContent>
         </div>

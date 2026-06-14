@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
 import DataShareFilePicker from "@admin-shared/components/common/DataShareFilePicker.vue";
 import {
@@ -43,6 +44,7 @@ import { useConfigStore } from "../../store/config";
 type BackupSelectionSource = "local" | "fnos";
 
 const configStore = useConfigStore();
+const { t } = useI18n();
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const selectedLocalFile = ref<File | null>(null);
 const selectedFnosFile = ref<SharedDataFileEntry | null>(null);
@@ -62,16 +64,22 @@ const backupFiles = ref<BackupDirectoryFilesPayload>(defaultBackupFiles);
 
 const { isPending: isExporting, run: runExport } = useAsyncAction({
   onError: (error) => {
-    toast.error("导出失败", {
-      description: extractErrorMessage(error, "无法导出备份文件"),
+    toast.error(t("admin.maintenanceSettings.exportFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.maintenanceSettings.exportFailedDescription"),
+      ),
     });
   },
 });
 
 const { isPending: isImporting, run: runImport } = useAsyncAction({
   onError: (error) => {
-    toast.error("导入失败", {
-      description: extractErrorMessage(error, "无法导入备份文件"),
+    toast.error(t("admin.maintenanceSettings.importFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.maintenanceSettings.importFailedDescription"),
+      ),
     });
   },
 });
@@ -79,9 +87,12 @@ const { isPending: isImporting, run: runImport } = useAsyncAction({
 const { isPending: isLoadingBackupFiles, run: runLoadBackupFiles } =
   useAsyncAction({
     onError: (error) => {
-      const message = extractErrorMessage(error, "读取飞牛备份目录失败");
+      const message = extractErrorMessage(
+        error,
+        t("admin.maintenanceSettings.loadFnosDirFailedDescription"),
+      );
       backupFilesError.value = message;
-      toast.error("读取飞牛目录失败", {
+      toast.error(t("admin.maintenanceSettings.loadFnosDirFailed"), {
         description: message,
       });
     },
@@ -103,7 +114,7 @@ const selectedSummary = computed(() => {
     return {
       name: selectedLocalFile.value.name,
       size: formatFileSize(selectedLocalFile.value.size),
-      sourceLabel: "本机文件",
+      sourceLabel: t("admin.maintenanceSettings.localFile"),
       location: "",
     };
   }
@@ -112,7 +123,7 @@ const selectedSummary = computed(() => {
     return {
       name: selectedFnosFile.value.name,
       size: formatFileSize(selectedFnosFile.value.size),
-      sourceLabel: "飞牛 backup",
+      sourceLabel: t("admin.maintenanceSettings.fnosBackup"),
       location: selectedFnosFile.value.relativePath,
     };
   }
@@ -161,8 +172,10 @@ async function handleFileChange(event: Event) {
 
   if (!file.name.toLowerCase().endsWith(KNOCK_BACKUP_EXTENSION)) {
     resetSelectedBackup();
-    toast.error("备份文件无效", {
-      description: `请选择 ${KNOCK_BACKUP_EXTENSION} 备份文件`,
+    toast.error(t("admin.maintenanceSettings.invalidBackupFile"), {
+      description: t("admin.maintenanceSettings.invalidBackupFileDescription", {
+        extension: KNOCK_BACKUP_EXTENSION,
+      }),
     });
     return;
   }
@@ -201,7 +214,9 @@ function handleFnosFileSelect(file: SharedDataFileEntry) {
   selectedLocalFile.value = null;
   selectedSource.value = "fnos";
   isBackupPickerOpen.value = false;
-  toast.success(`已选择飞牛备份：${file.name}`);
+  toast.success(
+    t("admin.maintenanceSettings.fnosBackupSelected", { name: file.name }),
+  );
 }
 
 async function exportBackupToLocal() {
@@ -215,7 +230,7 @@ async function exportBackupToLocal() {
     anchor.click();
     anchor.remove();
     URL.revokeObjectURL(downloadUrl);
-    toast.success("备份文件已开始下载");
+    toast.success(t("admin.maintenanceSettings.backupDownloadStarted"));
   });
 }
 
@@ -225,15 +240,17 @@ async function exportBackupToFnos() {
     if (hasLoadedBackupFiles.value) {
       await loadBackupFiles(true);
     }
-    toast.success("备份已导出到飞牛", {
-      description: `已写入 ${result.relativePath}`,
+    toast.success(t("admin.maintenanceSettings.backupExportedToFnos"), {
+      description: t("admin.maintenanceSettings.writtenToPath", {
+        path: result.relativePath,
+      }),
     });
   });
 }
 
 function openImportDialog() {
   if (!hasSelectedBackup.value) {
-    toast.error("请先选择备份文件");
+    toast.error(t("admin.maintenanceSettings.chooseBackupFirst"));
     return;
   }
   isImportDialogOpen.value = true;
@@ -241,12 +258,18 @@ function openImportDialog() {
 
 function buildImportDescription(result: FnKnockBackupImportResult): string {
   if (result.warnings.length === 0) {
-    return `已恢复 ${result.imported_keys} 个 Redis 键，并同步 ${result.synced_steps.length} 项运行态。`;
+    return t("admin.maintenanceSettings.importSuccessDescription", {
+      keys: result.imported_keys,
+      steps: result.synced_steps.length,
+    });
   }
 
   const preview = result.warnings.slice(0, 2).join("；");
   return result.warnings.length > 2
-    ? `${preview}；另有 ${result.warnings.length - 2} 项提示。`
+    ? t("admin.maintenanceSettings.importWarningsWithMore", {
+        preview,
+        count: result.warnings.length - 2,
+      })
     : preview;
 }
 
@@ -255,14 +278,17 @@ async function readFileAsBase64(file: File): Promise<string> {
     const reader = new FileReader();
 
     reader.onerror = () =>
-      reject(reader.error || new Error("读取备份文件失败"));
+      reject(
+        reader.error ||
+          new Error(t("admin.maintenanceSettings.readBackupFileFailed")),
+      );
     reader.onload = () => {
       const result = typeof reader.result === "string" ? reader.result : "";
       const marker = "base64,";
       const markerIndex = result.indexOf(marker);
 
       if (markerIndex < 0) {
-        reject(new Error("无法解析备份文件内容"));
+        reject(new Error(t("admin.maintenanceSettings.parseBackupFileFailed")));
         return;
       }
 
@@ -289,7 +315,7 @@ async function importBackup() {
         });
       }
 
-      throw new Error("请先选择备份文件");
+      throw new Error(t("admin.maintenanceSettings.chooseBackupFirst"));
     },
     {
       onSuccess: async (result) => {
@@ -298,11 +324,11 @@ async function importBackup() {
         await configStore.loadConfig();
 
         if (result.warnings.length > 0) {
-          toast.info("备份已导入", {
+          toast.info(t("admin.maintenanceSettings.backupImported"), {
             description: buildImportDescription(result),
           });
         } else {
-          toast.success("备份已导入", {
+          toast.success(t("admin.maintenanceSettings.backupImported"), {
             description: buildImportDescription(result),
           });
         }
@@ -325,11 +351,15 @@ async function importBackup() {
         class="flex flex-col gap-2 border-b px-6 py-5 sm:flex-row sm:items-end sm:justify-between sm:px-8"
       >
         <div>
-          <h2 class="text-xl font-semibold tracking-tight">维护</h2>
-          <p class="mt-1 text-sm text-muted-foreground">导出或恢复系统备份。</p>
+          <h2 class="text-xl font-semibold tracking-tight">
+            {{ t("admin.maintenanceSettings.title") }}
+          </h2>
+          <p class="mt-1 text-sm text-muted-foreground">
+            {{ t("admin.maintenanceSettings.description") }}
+          </p>
         </div>
         <p class="max-w-md text-xs leading-5 text-muted-foreground">
-          导入会覆盖当前配置，并在完成后自动刷新页面。
+          {{ t("admin.maintenanceSettings.importWarning") }}
         </p>
       </div>
 
@@ -340,12 +370,12 @@ async function importBackup() {
           <div class="space-y-1">
             <div class="flex items-center gap-2 text-sm font-medium">
               <Download class="h-4 w-4" />
-              <span>导出备份</span>
+              <span>{{ t("admin.maintenanceSettings.exportBackup") }}</span>
             </div>
             <p class="text-sm text-muted-foreground">
-              生成
+              {{ t("admin.maintenanceSettings.exportHintBefore") }}
               <code>{{ KNOCK_BACKUP_EXTENSION }}</code>
-              归档，建议在调整配置前保留一份。
+              {{ t("admin.maintenanceSettings.exportHintAfter") }}
             </p>
           </div>
 
@@ -358,21 +388,25 @@ async function importBackup() {
                 :disabled="isBusy"
               >
                 <Download class="mr-2 h-4 w-4" />
-                {{ isExporting ? "导出中..." : "导出备份" }}
+                {{
+                  isExporting
+                    ? t("admin.maintenanceSettings.exporting")
+                    : t("admin.maintenanceSettings.exportBackup")
+                }}
                 <ChevronDown class="ml-2 h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem :disabled="isBusy" @select="exportBackupToFnos">
                 <FolderTree class="mr-2 h-4 w-4" />
-                导出到飞牛
+                {{ t("admin.maintenanceSettings.exportToFnos") }}
               </DropdownMenuItem>
               <DropdownMenuItem
                 :disabled="isBusy"
                 @select="exportBackupToLocal"
               >
                 <Laptop class="mr-2 h-4 w-4" />
-                导出到本机
+                {{ t("admin.maintenanceSettings.exportToLocal") }}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -385,7 +419,11 @@ async function importBackup() {
             @click="exportBackupToLocal"
           >
             <Download class="mr-2 h-4 w-4" />
-            {{ isExporting ? "导出中..." : "下载备份" }}
+            {{
+              isExporting
+                ? t("admin.maintenanceSettings.exporting")
+                : t("admin.maintenanceSettings.downloadBackup")
+            }}
           </Button>
         </div>
 
@@ -405,23 +443,27 @@ async function importBackup() {
               <div class="min-w-0 flex-1 space-y-1">
                 <div class="flex items-center gap-2 text-sm font-medium">
                   <Upload class="h-4 w-4" />
-                  <span>导入备份</span>
+                  <span>{{ t("admin.maintenanceSettings.importBackup") }}</span>
                 </div>
                 <p class="text-sm text-muted-foreground">
-                  先选择来源，再从已有归档恢复系统设置。
+                  {{ t("admin.maintenanceSettings.importDescription") }}
                 </p>
                 <p class="text-xs leading-5 text-muted-foreground">
                   <template v-if="supportsSharedBackup">
-                    共享目录导入会读取与 SSL 导入相同的共享根目录下的
+                    {{ t("admin.maintenanceSettings.sharedImportHintBefore") }}
                     <code>backup</code>
-                    文件夹，本机导入则直接读取当前设备中的
+                    {{
+                      t(
+                        "admin.maintenanceSettings.sharedImportHintBetween",
+                      )
+                    }}
                     <code>{{ KNOCK_BACKUP_EXTENSION }}</code>
-                    文件。
+                    {{ t("admin.maintenanceSettings.sharedImportHintAfter") }}
                   </template>
                   <template v-else>
-                    Docker 部署下仅支持从当前设备选择
+                    {{ t("admin.maintenanceSettings.dockerImportHintBefore") }}
                     <code>{{ KNOCK_BACKUP_EXTENSION }}</code>
-                    文件导入。
+                    {{ t("admin.maintenanceSettings.dockerImportHintAfter") }}
                   </template>
                 </p>
               </div>
@@ -434,7 +476,11 @@ async function importBackup() {
                       :disabled="isBusy"
                     >
                       <Upload class="mr-2 h-4 w-4" />
-                      {{ selectedSummary ? "重新选择来源" : "导入备份" }}
+                      {{
+                        selectedSummary
+                          ? t("admin.maintenanceSettings.reselectSource")
+                          : t("admin.maintenanceSettings.importBackup")
+                      }}
                       <ChevronDown class="ml-2 h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -444,14 +490,14 @@ async function importBackup() {
                       @select="openFnosBackupPicker"
                     >
                       <FolderTree class="mr-2 h-4 w-4" />
-                      从飞牛导入
+                      {{ t("admin.maintenanceSettings.importFromFnos") }}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       :disabled="isBusy"
                       @select="triggerLocalFilePicker"
                     >
                       <Laptop class="mr-2 h-4 w-4" />
-                      从本机选择
+                      {{ t("admin.maintenanceSettings.chooseFromLocal") }}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -462,7 +508,11 @@ async function importBackup() {
                   @click="triggerLocalFilePicker"
                 >
                   <Upload class="mr-2 h-4 w-4" />
-                  {{ selectedSummary ? "重新选择文件" : "选择备份文件" }}
+                  {{
+                    selectedSummary
+                      ? t("admin.maintenanceSettings.reselectFile")
+                      : t("admin.maintenanceSettings.chooseBackupFile")
+                  }}
                 </Button>
                 <Button
                   variant="default"
@@ -472,7 +522,11 @@ async function importBackup() {
                   @click="openImportDialog"
                 >
                   <Upload class="mr-2 h-4 w-4" />
-                  {{ isImporting ? "导入中..." : "开始导入" }}
+                  {{
+                    isImporting
+                      ? t("admin.maintenanceSettings.importing")
+                      : t("admin.maintenanceSettings.startImport")
+                  }}
                 </Button>
               </div>
             </div>
@@ -502,7 +556,7 @@ async function importBackup() {
                   {{ selectedSummary.location }}
                 </p>
                 <p v-else class="w-full text-muted-foreground">
-                  未选择备份文件
+                  {{ t("admin.maintenanceSettings.noBackupSelected") }}
                 </p>
               </div>
             </div>
@@ -514,9 +568,9 @@ async function importBackup() {
     <DataShareFilePicker
       v-if="supportsSharedBackup"
       v-model:open="isBackupPickerOpen"
-      title="从共享目录中选择备份"
-      description="从文件管理->应用数据->fn-knock->backup 文件夹中选择一个 .knock 备份文件。"
-      directory-label="备份目录"
+      :title="t('admin.maintenanceSettings.pickerTitle')"
+      :description="t('admin.maintenanceSettings.pickerDescription')"
+      :directory-label="t('admin.maintenanceSettings.pickerDirectoryLabel')"
       :share-name="backupFiles.shareName"
       :files="backupFiles.files"
       :supported-file-types="[KNOCK_BACKUP_EXTENSION]"
@@ -524,12 +578,18 @@ async function importBackup() {
       :loading="isLoadingBackupFiles"
       :selecting="isImporting"
       :error-message="backupFilesError"
-      alert-title="备份目录读取失败"
-      available-description="从文件管理->应用数据->fn-knock->backup 中读取现有的 .knock 备份。"
-      unavailable-description="备份目录暂不可访问，请确认共享目录已正确挂载。"
-      empty-title="backup 目录里还没有备份"
-      empty-description="先导出一份备份到共享目录，或将已有 .knock 文件放入应用数据->fn-knock 的 backup 文件夹。"
-      confirm-text="使用这个备份"
+      :alert-title="t('admin.maintenanceSettings.pickerAlertTitle')"
+      :available-description="
+        t('admin.maintenanceSettings.pickerAvailableDescription')
+      "
+      :unavailable-description="
+        t('admin.maintenanceSettings.pickerUnavailableDescription')
+      "
+      :empty-title="t('admin.maintenanceSettings.pickerEmptyTitle')"
+      :empty-description="
+        t('admin.maintenanceSettings.pickerEmptyDescription')
+      "
+      :confirm-text="t('admin.maintenanceSettings.pickerConfirmText')"
       @refresh="refreshBackupFiles"
       @select="handleFnosFileSelect"
     />
@@ -540,9 +600,11 @@ async function importBackup() {
     >
       <DialogContent class="sm:max-w-[420px]">
         <DialogHeader class="space-y-2">
-          <DialogTitle class="text-left">确认导入</DialogTitle>
+          <DialogTitle class="text-left">{{
+            t("admin.maintenanceSettings.confirmImportTitle")
+          }}</DialogTitle>
           <DialogDescription class="text-left text-sm leading-6">
-            这会先清空当前配置，再用所选备份文件覆盖恢复。
+            {{ t("admin.maintenanceSettings.confirmImportDescription") }}
           </DialogDescription>
         </DialogHeader>
 
@@ -568,14 +630,18 @@ async function importBackup() {
             :disabled="isImporting"
             @click="isImportDialogOpen = false"
           >
-            取消
+            {{ t("common.cancel") }}
           </Button>
           <Button
             variant="destructive"
             :disabled="isImporting || !hasSelectedBackup"
             @click="importBackup"
           >
-            {{ isImporting ? "正在导入..." : "确认导入" }}
+            {{
+              isImporting
+                ? t("admin.maintenanceSettings.importingNow")
+                : t("admin.maintenanceSettings.confirmImport")
+            }}
           </Button>
         </DialogFooter>
       </DialogContent>

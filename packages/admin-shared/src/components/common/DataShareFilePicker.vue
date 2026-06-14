@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -57,9 +58,6 @@ const props = withDefaults(
     confirmText?: string;
   }>(),
   {
-    title: "从飞牛中选择文件",
-    description: "从应用根目录中选择一个可读取的文件。",
-    directoryLabel: "应用文件",
     shareName: "fn-knock",
     files: () => [],
     supportedFileTypes: () => [],
@@ -67,15 +65,12 @@ const props = withDefaults(
     loading: false,
     selecting: false,
     errorMessage: "",
-    alertTitle: "目录读取失败",
-    availableDescription: "",
-    unavailableDescription:
-      "目录暂不可访问，请确认应用已安装并已生成共享目录。",
     emptyTitle: "",
     emptyDescription: "",
-    confirmText: "使用此文件",
   },
 );
+
+const { locale, t } = useI18n();
 
 const emit = defineEmits<{
   "update:open": [value: boolean];
@@ -86,6 +81,26 @@ const emit = defineEmits<{
 const searchQuery = ref("");
 const selectedRelativePath = ref("");
 const isMobileViewport = ref(false);
+const titleText = computed(
+  () => props.title ?? t("shared.dataShareFilePicker.title"),
+);
+const descriptionText = computed(
+  () => props.description ?? t("shared.dataShareFilePicker.description"),
+);
+const directoryLabelText = computed(
+  () => props.directoryLabel ?? t("shared.dataShareFilePicker.directoryLabel"),
+);
+const alertTitleText = computed(
+  () => props.alertTitle ?? t("shared.dataShareFilePicker.alertTitle"),
+);
+const unavailableDescriptionText = computed(
+  () =>
+    props.unavailableDescription ??
+    t("shared.dataShareFilePicker.unavailableDescription"),
+);
+const confirmTextLabel = computed(
+  () => props.confirmText ?? t("shared.dataShareFilePicker.confirmText"),
+);
 
 let viewportQuery: MediaQueryList | null = null;
 let viewportQueryListener: ((event: MediaQueryListEvent) => void) | null = null;
@@ -117,6 +132,18 @@ const selectedFile = computed(
       (file) => file.relativePath === selectedRelativePath.value,
     ) ?? null,
 );
+const directoryStatusDescription = computed(() => {
+  if (props.available) {
+    return (
+      props.availableDescription ||
+      t("shared.dataShareFilePicker.availableDescription", {
+        count: selectableFiles.value.length,
+      })
+    );
+  }
+
+  return unavailableDescriptionText.value;
+});
 
 watch(
   () => props.open,
@@ -213,7 +240,7 @@ function formatDateTime(dateValue: string) {
     return dateValue;
   }
 
-  return date.toLocaleString("zh-CN", {
+  return date.toLocaleString(locale.value, {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -255,19 +282,19 @@ function setOpen(value: boolean) {
         class="gap-2 px-6 pb-0 pt-6"
       >
         <component :is="isMobileViewport ? SheetTitle : DialogTitle">{{
-          title
+          titleText
         }}</component>
         <component
           :is="isMobileViewport ? SheetDescription : DialogDescription"
         >
-          {{ description }}
+          {{ descriptionText }}
         </component>
       </component>
 
       <div class="grid min-h-0 flex-1 gap-4 px-6">
         <Alert v-if="errorMessage" variant="destructive" class="rounded-[10px]">
           <Info />
-          <AlertTitle>{{ alertTitle }}</AlertTitle>
+          <AlertTitle>{{ alertTitleText }}</AlertTitle>
           <AlertDescription>{{ errorMessage }}</AlertDescription>
         </Alert>
 
@@ -277,15 +304,10 @@ function setOpen(value: boolean) {
           <div class="min-w-0">
             <div class="flex items-center gap-2">
               <FolderOpen class="h-4 w-4 text-muted-foreground" />
-              <p class="truncate text-sm font-medium">{{ directoryLabel }}</p>
+              <p class="truncate text-sm font-medium">{{ directoryLabelText }}</p>
             </div>
             <p class="mt-1 text-xs leading-5 text-muted-foreground">
-              {{
-                available
-                  ? availableDescription ||
-                    `已找到 ${selectableFiles.length} 个可用文件`
-                  : unavailableDescription
-              }}
+              {{ directoryStatusDescription }}
             </p>
           </div>
           <Button
@@ -297,7 +319,7 @@ function setOpen(value: boolean) {
             @click="emit('refresh')"
           >
             <RefreshCw :class="cn('mr-2 h-4 w-4', loading && 'animate-spin')" />
-            刷新
+            {{ t("common.refreshStatus") }}
           </Button>
         </div>
 
@@ -325,16 +347,16 @@ function setOpen(value: boolean) {
               <p class="text-sm font-medium">
                 {{
                   selectableFiles.length
-                    ? "没有匹配的文件"
-                    : emptyTitle || "共享目录中还没有可用文件"
+                    ? t("shared.dataShareFilePicker.noMatchedFiles")
+                    : emptyTitle || t("shared.dataShareFilePicker.emptyTitle")
                 }}
               </p>
               <p class="text-sm leading-6 text-muted-foreground">
                 {{
                   selectableFiles.length
-                    ? "换一个关键词试试，或刷新目录列表。"
+                    ? t("shared.dataShareFilePicker.noMatchedDescription")
                     : emptyDescription ||
-                      "当前目录里没有符合条件的文件，请放入支持的文件类型后再来选择。"
+                      t("shared.dataShareFilePicker.emptyDescription")
                 }}
               </p>
             </div>
@@ -364,7 +386,7 @@ function setOpen(value: boolean) {
                       variant="outline"
                       class="rounded-full text-[10px] uppercase tracking-[0.08em] text-muted-foreground"
                     >
-                      {{ file.extension || "无后缀" }}
+                      {{ file.extension || t("shared.dataShareFilePicker.noExtension") }}
                     </Badge>
                   </div>
                   <p
@@ -401,7 +423,7 @@ function setOpen(value: boolean) {
           :disabled="selecting"
           @click="setOpen(false)"
         >
-          取消
+          {{ t("common.cancel") }}
         </Button>
         <Button
           type="button"
@@ -410,7 +432,7 @@ function setOpen(value: boolean) {
           @click="confirmSelection"
         >
           <RefreshCw v-if="selecting" class="mr-2 h-4 w-4 animate-spin" />
-          {{ confirmText }}
+          {{ confirmTextLabel }}
         </Button>
       </component>
     </component>

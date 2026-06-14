@@ -7,7 +7,7 @@ type DnsCredentialMapping = {
 
 type DnsCredentialBridgeDefinition = {
   id: string;
-  label: string;
+  labelKey: string;
   acmeDnsType: string;
   ddnsProvider: string;
   acmeToDdns: DnsCredentialMapping[];
@@ -30,7 +30,7 @@ export type DnsCredentialTransferSuggestion = {
 const dnsCredentialBridgeDefinitions: DnsCredentialBridgeDefinition[] = [
   {
     id: "cloudflare",
-    label: "Cloudflare",
+    labelKey: "shared.dnsCredentialBridge.providers.cloudflare",
     acmeDnsType: "dns_cf",
     ddnsProvider: "cloudflare",
     acmeToDdns: [
@@ -44,7 +44,7 @@ const dnsCredentialBridgeDefinitions: DnsCredentialBridgeDefinition[] = [
   },
   {
     id: "alidns",
-    label: "阿里云 DNS",
+    labelKey: "shared.dnsCredentialBridge.providers.alidns",
     acmeDnsType: "dns_ali",
     ddnsProvider: "alidns",
     acmeToDdns: [
@@ -58,7 +58,7 @@ const dnsCredentialBridgeDefinitions: DnsCredentialBridgeDefinition[] = [
   },
   {
     id: "dnspod",
-    label: "DNSPod",
+    labelKey: "shared.dnsCredentialBridge.providers.dnspod",
     acmeDnsType: "dns_dp",
     ddnsProvider: "dnspod",
     acmeToDdns: [
@@ -72,7 +72,7 @@ const dnsCredentialBridgeDefinitions: DnsCredentialBridgeDefinition[] = [
   },
   {
     id: "tencentcloud",
-    label: "腾讯云 DNS",
+    labelKey: "shared.dnsCredentialBridge.providers.tencentcloud",
     acmeDnsType: "dns_tencent",
     ddnsProvider: "tencentcloud",
     acmeToDdns: [
@@ -86,7 +86,7 @@ const dnsCredentialBridgeDefinitions: DnsCredentialBridgeDefinition[] = [
   },
   {
     id: "edgeone",
-    label: "腾讯云 EdgeOne",
+    labelKey: "shared.dnsCredentialBridge.providers.edgeone",
     acmeDnsType: "dns_tencent",
     ddnsProvider: "edgeone",
     acmeToDdns: [
@@ -100,7 +100,7 @@ const dnsCredentialBridgeDefinitions: DnsCredentialBridgeDefinition[] = [
   },
   {
     id: "edgeone_cname",
-    label: "腾讯云 EdgeOne（CNAME 接入）",
+    labelKey: "shared.dnsCredentialBridge.providers.edgeoneCname",
     acmeDnsType: "dns_tencent",
     ddnsProvider: "edgeone_cname",
     acmeToDdns: [
@@ -114,7 +114,7 @@ const dnsCredentialBridgeDefinitions: DnsCredentialBridgeDefinition[] = [
   },
   {
     id: "godaddy",
-    label: "GoDaddy",
+    labelKey: "shared.dnsCredentialBridge.providers.godaddy",
     acmeDnsType: "dns_gd",
     ddnsProvider: "godaddy",
     acmeToDdns: [
@@ -128,7 +128,7 @@ const dnsCredentialBridgeDefinitions: DnsCredentialBridgeDefinition[] = [
   },
   {
     id: "porkbun",
-    label: "Porkbun",
+    labelKey: "shared.dnsCredentialBridge.providers.porkbun",
     acmeDnsType: "dns_porkbun",
     ddnsProvider: "porkbun",
     acmeToDdns: [
@@ -142,7 +142,7 @@ const dnsCredentialBridgeDefinitions: DnsCredentialBridgeDefinition[] = [
   },
   {
     id: "dynv6",
-    label: "dynv6",
+    labelKey: "shared.dnsCredentialBridge.providers.dynv6",
     acmeDnsType: "dns_dynv6",
     ddnsProvider: "dynv6",
     acmeToDdns: [{ from: "DYNV6_TOKEN", to: "token" }],
@@ -150,7 +150,7 @@ const dnsCredentialBridgeDefinitions: DnsCredentialBridgeDefinition[] = [
   },
   {
     id: "duckdns",
-    label: "DuckDNS",
+    labelKey: "shared.dnsCredentialBridge.providers.duckdns",
     acmeDnsType: "dns_duckdns",
     ddnsProvider: "duckdns",
     acmeToDdns: [{ from: "DuckDNS_Token", to: "token" }],
@@ -182,11 +182,13 @@ export const buildDnsCredentialTransferSuggestion = ({
   providerId,
   sourceCredentials,
   targetCredentials,
+  translateBridgeLabel,
 }: {
   target: DnsCredentialTarget;
   providerId: string;
   sourceCredentials: Record<string, string>;
   targetCredentials: Record<string, string>;
+  translateBridgeLabel?: (key: string) => string;
 }): DnsCredentialTransferSuggestion | null => {
   const bridge = resolveDnsCredentialBridge(target, providerId);
   if (!bridge) return null;
@@ -212,7 +214,7 @@ export const buildDnsCredentialTransferSuggestion = ({
 
   return {
     bridgeId: bridge.id,
-    bridgeLabel: bridge.label,
+    bridgeLabel: translateBridgeLabel?.(bridge.labelKey) ?? bridge.labelKey,
     fillableFields,
     patch: Object.fromEntries(
       fillableFields.map((field) => [field.targetKey, field.value]),

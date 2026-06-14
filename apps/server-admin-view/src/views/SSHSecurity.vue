@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { toast } from "@admin-shared/utils/toast";
 import {
   extractErrorMessage,
@@ -77,6 +78,7 @@ import type {
 } from "../types";
 
 const configStore = useConfigStore();
+const { t } = useI18n();
 const details = ref<SSHSecurityDetails | null>(null);
 const provinces = ref<CidrProvinceOption[]>([]);
 const cityOptions = ref<CidrCityOption[]>([]);
@@ -111,36 +113,51 @@ let logSearchTimer: ReturnType<typeof setTimeout> | null = null;
 
 const { isPending: isLoading, run: runLoad } = useAsyncAction({
   onError: (error) => {
-    toast.error("加载失败", {
-      description: extractErrorMessage(error, "加载 SSH 安全配置失败"),
+    toast.error(t("admin.sshSecurity.loadFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.sshSecurity.loadDescription"),
+      ),
     });
   },
 });
 const { isPending: isSaving, run: runSave } = useAsyncAction({
   onError: (error) => {
-    toast.error("保存失败", {
-      description: extractErrorMessage(error, "保存 SSH 安全配置失败"),
+    toast.error(t("admin.sshSecurity.saveFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.sshSecurity.saveDescription"),
+      ),
     });
   },
 });
 const { isPending: isSyncingFirewall, run: runSyncFirewall } = useAsyncAction({
   onError: (error) => {
-    toast.error("同步失败", {
-      description: extractErrorMessage(error, "同步 SSH 防火墙失败"),
+    toast.error(t("admin.sshSecurity.syncFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.sshSecurity.syncDescription"),
+      ),
     });
   },
 });
 const { isPending: isLoadingLogs, run: runLoadLogs } = useAsyncAction({
   onError: (error) => {
-    toast.error("日志加载失败", {
-      description: extractErrorMessage(error, "读取 SSH 登录日志失败"),
+    toast.error(t("admin.sshSecurity.logsLoadFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.sshSecurity.logsLoadDescription"),
+      ),
     });
   },
 });
 const { isPending: isDeleting, run: runDelete } = useAsyncAction({
   onError: (error) => {
-    toast.error("解除失败", {
-      description: extractErrorMessage(error, "解除 SSH 封锁失败"),
+    toast.error(t("admin.sshSecurity.unblockFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.sshSecurity.unblockDescription"),
+      ),
     });
   },
 });
@@ -163,11 +180,11 @@ const selectedCityOption = computed(
 );
 const citySelectKey = computed(() => regionDraft.province || "empty");
 const citySelectPlaceholder = computed(() => {
-  if (cityOptionsLoading.value) return "正在加载...";
-  if (!regionDraft.province) return "先选择省份";
+  if (cityOptionsLoading.value) return t("admin.sshSecurity.loading");
+  if (!regionDraft.province) return t("admin.sshSecurity.selectProvinceFirst");
   return cityOptions.value.some((option) => option.isProvinceWide)
-    ? "选择城市或全省"
-    : "选择城市";
+    ? t("admin.sshSecurity.selectCityOrProvince")
+    : t("admin.sshSecurity.selectCity");
 });
 const pendingRegionExists = computed(() => {
   const city = selectedCityOption.value;
@@ -195,28 +212,42 @@ const logParsedLimit = computed(() => {
 });
 const sshPortsLabel = computed(() => {
   const ports = details.value?.summary.ssh_ports ?? [22];
-  return ports.length > 0 ? ports.join("、") : "22";
+  return ports.length > 0
+    ? ports.join(t("admin.sshSecurity.listSeparator"))
+    : "22";
 });
 
 const summaryText = computed(() => {
   const summary = details.value?.summary;
-  if (!summary) return "尚未加载";
-  const enabled = summary.enabled ? "已开启" : "已关闭";
-  return `${enabled} · SSH 端口 ${sshPortsLabel.value} · ${summary.allowed_cidr_count} 条允许 CIDR · ${summary.active_block_count} 个封锁`;
+  if (!summary) return t("admin.sshSecurity.notLoaded");
+  const enabled = summary.enabled
+    ? t("admin.sshSecurity.enabled")
+    : t("admin.sshSecurity.disabled");
+  return t("admin.sshSecurity.summary", {
+    status: enabled,
+    ports: sshPortsLabel.value,
+    allowed: summary.allowed_cidr_count,
+    blocks: summary.active_block_count,
+  });
 });
 
 const saveBlockedReason = computed(() => {
   if (!details.value?.summary.available && form.enabled) {
-    return details.value?.summary.unavailable_reason || "当前环境不可启用";
+    return (
+      details.value?.summary.unavailable_reason ||
+      t("admin.sshSecurity.unavailableToEnable")
+    );
   }
   if (invalidCustomCidrs.value.length > 0) {
-    return "请先修正自定义 CIDR 格式";
+    return t("admin.sshSecurity.fixCustomCidrs");
   }
   return "";
 });
 
 const reasonLabel = (reason: SSHSecurityBlockRecord["reason"]) =>
-  reason === "cidr_not_allowed" ? "地区不允许" : "失败次数达到阈值";
+  reason === "cidr_not_allowed"
+    ? t("admin.sshSecurity.reasonRegionNotAllowed")
+    : t("admin.sshSecurity.reasonThresholdReached");
 
 const applyDetails = (value: SSHSecurityDetails) => {
   details.value = value;
@@ -292,8 +323,11 @@ const loadCityOptions = async (province: string) => {
     if (token !== cityRequestToken) return;
     cityOptions.value = [];
     regionDraft.cityValue = "";
-    toast.error("地区列表加载失败", {
-      description: extractErrorMessage(error, "无法获取省份下的城市列表"),
+    toast.error(t("admin.sshSecurity.regionsLoadFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.sshSecurity.regionsLoadDescription"),
+      ),
     });
   } finally {
     if (token === cityRequestToken) {
@@ -355,7 +389,9 @@ const loadDetails = async () => {
 
 const saveConfig = async () => {
   if (saveBlockedReason.value) {
-    toast.error("无法保存", { description: saveBlockedReason.value });
+    toast.error(t("admin.sshSecurity.cannotSave"), {
+      description: saveBlockedReason.value,
+    });
     return;
   }
   await runSave(
@@ -375,7 +411,7 @@ const saveConfig = async () => {
     {
       onSuccess: async (nextDetails) => {
         applyDetails(nextDetails);
-        toast.success("SSH 安全配置已保存");
+        toast.success(t("admin.sshSecurity.saved"));
         await configStore.loadConfig();
       },
     },
@@ -384,17 +420,23 @@ const saveConfig = async () => {
 
 const syncFirewall = async () => {
   if (!details.value?.summary.available) {
-    toast.error("无法同步", {
+    toast.error(t("admin.sshSecurity.cannotSync"), {
       description:
-        details.value?.summary.unavailable_reason || "当前环境不可同步防火墙",
+        details.value?.summary.unavailable_reason ||
+        t("admin.sshSecurity.unavailableToSync"),
     });
     return;
   }
 
   await runSyncFirewall(SSHSecurityAPI.syncFirewall, {
     onSuccess: async (result) => {
-      toast.success("SSH 防火墙已同步", {
-        description: `已重新下发 ${result.allowed_cidrs} 条允许 CIDR 与 ${result.synced} 个封锁 IP 到 ${result.ports.join("、") || "22"} 端口。`,
+      toast.success(t("admin.sshSecurity.firewallSynced"), {
+        description: t("admin.sshSecurity.firewallSyncedDescription", {
+          allowed: result.allowed_cidrs,
+          synced: result.synced,
+          ports:
+            result.ports.join(t("admin.sshSecurity.listSeparator")) || "22",
+        }),
       });
       await Promise.all([loadDetails(), loadBlocks()]);
     },
@@ -408,9 +450,10 @@ const openClearFirewallDialog = () => {
 
 const clearFirewall = async () => {
   if (!details.value?.summary.available) {
-    toast.error("无法清空", {
+    toast.error(t("admin.sshSecurity.cannotClear"), {
       description:
-        details.value?.summary.unavailable_reason || "当前环境不可清空防火墙",
+        details.value?.summary.unavailable_reason ||
+        t("admin.sshSecurity.unavailableToClear"),
     });
     return;
   }
@@ -418,8 +461,10 @@ const clearFirewall = async () => {
   await runSyncFirewall(SSHSecurityAPI.clearFirewall, {
     onSuccess: async (result) => {
       isClearFirewallDialogOpen.value = false;
-      toast.success("SSH 防火墙已清空", {
-        description: `已清理 FN-KNOCK-SSH，并解除 ${result.cleared_blocks} 个活动封锁记录。`,
+      toast.success(t("admin.sshSecurity.firewallCleared"), {
+        description: t("admin.sshSecurity.firewallClearedDescription", {
+          count: result.cleared_blocks,
+        }),
       });
       await Promise.all([loadDetails(), loadBlocks()]);
     },
@@ -492,8 +537,11 @@ const {
   },
   getKey: (record) => record.ip,
   onError: (error) => {
-    toast.error("封锁列表加载失败", {
-      description: extractErrorMessage(error, "无法获取 SSH 封锁列表"),
+    toast.error(t("admin.sshSecurity.blocksLoadFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.sshSecurity.blocksLoadDescription"),
+      ),
     });
   },
 });
@@ -502,7 +550,7 @@ const deleteBlocks = async (ips: string[]) => {
   if (ips.length === 0) return;
   await runDelete(() => SSHSecurityAPI.deleteBlocks(ips), {
     onSuccess: async () => {
-      toast.success("已解除封锁");
+      toast.success(t("admin.sshSecurity.unblocked"));
       clearBlockSelection();
       await Promise.all([loadBlocks(), loadDetails()]);
     },
@@ -512,7 +560,7 @@ const deleteBlocks = async (ips: string[]) => {
 const deleteOneBlock = async (ip: string) => {
   await runDelete(() => SSHSecurityAPI.deleteBlock(ip), {
     onSuccess: async () => {
-      toast.success("已解除封锁");
+      toast.success(t("admin.sshSecurity.unblocked"));
       selectedBlockIps.value.delete(ip);
       selectedBlockIps.value = new Set(selectedBlockIps.value);
       await Promise.all([loadBlocks(), loadDetails()]);
@@ -529,10 +577,10 @@ onMounted(async () => {
 <template>
   <div class="space-y-4">
     <ConfigCollapsibleCard
-      title="SSH 安全配置"
+      :title="t('admin.sshSecurity.title')"
       :configured="details?.summary.configured === true"
       :ready="details !== null && !isLoading"
-      edit-label="编辑配置"
+      :edit-label="t('admin.sshSecurity.editConfig')"
       summary-class="text-xs text-muted-foreground"
       expanded-content-class="p-0 sm:p-0"
       actions-class="border-t bg-muted/30 px-4 py-4 sm:px-6 flex flex-col-reverse items-stretch gap-2 rounded-b-lg sm:flex-row sm:items-center sm:justify-end"
@@ -555,7 +603,7 @@ onMounted(async () => {
               "
             >
               <Loader2 v-if="isSyncingFirewall" class="h-4 w-4 animate-spin" />
-              <span>操作</span>
+              <span>{{ t("admin.sshSecurity.actions") }}</span>
               <ChevronDown class="h-4 w-4 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
@@ -570,7 +618,7 @@ onMounted(async () => {
               @select="syncFirewall"
             >
               <RefreshCw class="h-4 w-4" />
-              同步防火墙
+              {{ t("admin.sshSecurity.syncFirewall") }}
             </DropdownMenuItem>
             <DropdownMenuItem
               class="text-destructive focus:text-destructive"
@@ -583,7 +631,7 @@ onMounted(async () => {
               @select="openClearFirewallDialog"
             >
               <Trash2 class="h-4 w-4" />
-              清空 SSH 防火墙
+              {{ t("admin.sshSecurity.clearSshFirewall") }}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -603,16 +651,18 @@ onMounted(async () => {
             class="grid gap-3 p-4 sm:grid-cols-[200px_1fr] sm:p-6 md:grid-cols-[240px_1fr]"
           >
             <div class="space-y-1">
-              <Label class="text-sm font-medium">启用 SSH 安全</Label>
+              <Label class="text-sm font-medium">
+                {{ t("admin.sshSecurity.enableSshSecurity") }}
+              </Label>
               <p
                 class="hidden pr-4 text-xs leading-5 text-muted-foreground sm:block"
               >
-                监听 SSH 登录日志，并按阈值或地区范围封锁来源 IP。
+                {{ t("admin.sshSecurity.enableDescription") }}
               </p>
             </div>
             <div class="flex items-start justify-between gap-4">
               <p class="text-sm leading-6 text-muted-foreground sm:hidden">
-                监听 SSH 登录日志，并按阈值或地区范围封锁来源 IP。
+                {{ t("admin.sshSecurity.enableDescription") }}
               </p>
               <Switch
                 v-model="form.enabled"
@@ -629,12 +679,12 @@ onMounted(async () => {
           >
             <div class="space-y-1">
               <Label for="ssh-window-minutes" class="text-sm font-medium">
-                窗口时间
+                {{ t("admin.sshSecurity.windowTime") }}
               </Label>
               <p
                 class="hidden pr-4 text-xs leading-5 text-muted-foreground sm:block"
               >
-                统计同一来源在多久内的失败次数。
+                {{ t("admin.sshSecurity.windowDescription") }}
               </p>
             </div>
             <div class="w-full max-w-xs space-y-2">
@@ -646,7 +696,9 @@ onMounted(async () => {
                 max="1440"
                 :disabled="isSaving"
               />
-              <p class="text-[11px] text-muted-foreground">单位：分钟</p>
+              <p class="text-[11px] text-muted-foreground">
+                {{ t("admin.sshSecurity.unitMinutes") }}
+              </p>
             </div>
           </div>
 
@@ -655,12 +707,12 @@ onMounted(async () => {
           >
             <div class="space-y-1">
               <Label for="ssh-failure-threshold" class="text-sm font-medium">
-                失败阈值
+                {{ t("admin.sshSecurity.failureThreshold") }}
               </Label>
               <p
                 class="hidden pr-4 text-xs leading-5 text-muted-foreground sm:block"
               >
-                达到阈值后会自动加入封锁列表。
+                {{ t("admin.sshSecurity.failureThresholdDescription") }}
               </p>
             </div>
             <div class="w-full max-w-xs">
@@ -680,12 +732,12 @@ onMounted(async () => {
           >
             <div class="space-y-1">
               <Label for="ssh-block-duration" class="text-sm font-medium">
-                封锁时长
+                {{ t("admin.sshSecurity.blockDuration") }}
               </Label>
               <p
                 class="hidden pr-4 text-xs leading-5 text-muted-foreground sm:block"
               >
-                自动封锁的 IP 到期后会解除。
+                {{ t("admin.sshSecurity.blockDurationDescription") }}
               </p>
             </div>
             <div
@@ -704,9 +756,15 @@ onMounted(async () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="minute">分钟</SelectItem>
-                  <SelectItem value="hour">小时</SelectItem>
-                  <SelectItem value="day">天</SelectItem>
+                  <SelectItem value="minute">
+                    {{ t("admin.sshSecurity.minute") }}
+                  </SelectItem>
+                  <SelectItem value="hour">
+                    {{ t("admin.sshSecurity.hour") }}
+                  </SelectItem>
+                  <SelectItem value="day">
+                    {{ t("admin.sshSecurity.day") }}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -716,19 +774,19 @@ onMounted(async () => {
             class="grid gap-3 p-4 transition-colors hover:bg-muted/10 sm:grid-cols-[200px_1fr] sm:p-6 md:grid-cols-[240px_1fr]"
           >
             <div class="space-y-1">
-              <Label class="text-sm font-medium">允许访问 SSH 的地区</Label>
+              <Label class="text-sm font-medium">
+                {{ t("admin.sshSecurity.allowedRegions") }}
+              </Label>
               <p
                 class="hidden pr-4 text-xs leading-5 text-muted-foreground sm:block"
               >
-                未添加地区时不做地区限制；添加后，仅允许这些地区和自定义 CIDR
-                访问 SSH。
+                {{ t("admin.sshSecurity.allowedRegionsDescription") }}
               </p>
             </div>
             <div class="w-full max-w-2xl space-y-3">
               <div class="flex flex-wrap items-center justify-between gap-3">
                 <p class="text-sm leading-6 text-muted-foreground sm:hidden">
-                  未添加地区时不做地区限制；添加后，仅允许这些地区和自定义 CIDR
-                  访问 SSH。
+                  {{ t("admin.sshSecurity.allowedRegionsDescription") }}
                 </p>
                 <Button
                   type="button"
@@ -738,7 +796,7 @@ onMounted(async () => {
                   @click="openRegionDialog"
                 >
                   <Plus class="h-4 w-4" />
-                  添加地区
+                  {{ t("admin.sshSecurity.addRegion") }}
                 </Button>
               </div>
 
@@ -768,7 +826,7 @@ onMounted(async () => {
                     </TagsInputItem>
                   </template>
                   <span v-else class="px-1 py-1 text-sm text-muted-foreground">
-                    尚未限制地区。
+                    {{ t("admin.sshSecurity.noRegions") }}
                   </span>
                 </TagsInput>
               </div>
@@ -780,12 +838,12 @@ onMounted(async () => {
           >
             <div class="space-y-1">
               <Label for="ssh-custom-cidrs" class="text-sm font-medium">
-                自定义 CIDR
+                {{ t("admin.sshSecurity.customCidrs") }}
               </Label>
               <p
                 class="hidden pr-4 text-xs leading-5 text-muted-foreground sm:block"
               >
-                可补充 VPN、办公公网出口等固定网段，每行一条。
+                {{ t("admin.sshSecurity.customCidrsDescription") }}
               </p>
             </div>
             <div class="w-full max-w-2xl space-y-2">
@@ -806,8 +864,14 @@ onMounted(async () => {
               >
                 {{
                   invalidCustomCidrs.length > 0
-                    ? `格式错误：${invalidCustomCidrs.join("、")}`
-                    : `已识别 ${customCidrsState.cidrs.length} 条自定义 CIDR`
+                    ? t("admin.sshSecurity.customCidrsInvalid", {
+                        items: invalidCustomCidrs.join(
+                          t("admin.sshSecurity.listSeparator"),
+                        ),
+                      })
+                    : t("admin.sshSecurity.customCidrsRecognized", {
+                        count: customCidrsState.cidrs.length,
+                      })
                 }}
               </p>
             </div>
@@ -816,7 +880,9 @@ onMounted(async () => {
       </template>
 
       <template #actions="{ collapse }">
-        <Button variant="outline" @click="collapse">折叠</Button>
+        <Button variant="outline" @click="collapse">
+          {{ t("admin.sshSecurity.collapse") }}
+        </Button>
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
             <Button
@@ -830,7 +896,7 @@ onMounted(async () => {
               "
             >
               <Loader2 v-if="isSyncingFirewall" class="h-4 w-4 animate-spin" />
-              <span>操作</span>
+              <span>{{ t("admin.sshSecurity.actions") }}</span>
               <ChevronDown class="h-4 w-4 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
@@ -845,7 +911,7 @@ onMounted(async () => {
               @select="syncFirewall"
             >
               <RefreshCw class="h-4 w-4" />
-              同步防火墙
+              {{ t("admin.sshSecurity.syncFirewall") }}
             </DropdownMenuItem>
             <DropdownMenuItem
               class="text-destructive focus:text-destructive"
@@ -858,7 +924,7 @@ onMounted(async () => {
               @select="openClearFirewallDialog"
             >
               <Trash2 class="h-4 w-4" />
-              清空 SSH 防火墙
+              {{ t("admin.sshSecurity.clearSshFirewall") }}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -869,7 +935,11 @@ onMounted(async () => {
           @click="saveConfig"
         >
           <Save class="h-4 w-4" />
-          {{ isSaving ? "保存中..." : "保存配置" }}
+          {{
+            isSaving
+              ? t("admin.sshSecurity.saving")
+              : t("admin.sshSecurity.saveConfig")
+          }}
         </Button>
       </template>
     </ConfigCollapsibleCard>
@@ -884,10 +954,10 @@ onMounted(async () => {
         <div class="px-6 pt-6 pb-2">
           <DialogHeader class="space-y-2 text-left">
             <DialogTitle class="text-xl font-semibold tracking-tight">
-              添加地区
+              {{ t("admin.sshSecurity.addRegion") }}
             </DialogTitle>
             <DialogDescription class="text-sm leading-6 text-muted-foreground">
-              选择允许访问 SSH 的省份和城市范围。
+              {{ t("admin.sshSecurity.addRegionDescription") }}
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -895,13 +965,17 @@ onMounted(async () => {
         <div class="space-y-4 border-t border-border/60 px-6 py-5">
           <div class="grid gap-4 sm:grid-cols-2">
             <div class="space-y-2">
-              <Label class="text-sm font-medium">省份</Label>
+              <Label class="text-sm font-medium">
+                {{ t("admin.sshSecurity.province") }}
+              </Label>
               <Select v-model="regionDraft.province">
                 <SelectTrigger
                   class="h-11 w-full rounded-lg border-border/70 bg-background px-3 shadow-none"
                   :disabled="regionInputsDisabled || provinces.length === 0"
                 >
-                  <SelectValue placeholder="选择省份" />
+                  <SelectValue
+                    :placeholder="t('admin.sshSecurity.selectProvince')"
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem
@@ -916,7 +990,9 @@ onMounted(async () => {
             </div>
 
             <div class="space-y-2">
-              <Label class="text-sm font-medium">范围</Label>
+              <Label class="text-sm font-medium">
+                {{ t("admin.sshSecurity.scope") }}
+              </Label>
               <Select :key="citySelectKey" v-model="regionDraft.cityValue">
                 <SelectTrigger
                   class="h-11 w-full rounded-lg border-border/70 bg-background px-3 shadow-none"
@@ -954,10 +1030,10 @@ onMounted(async () => {
             variant="outline"
             @click="handleRegionDialogOpenChange(false)"
           >
-            取消
+            {{ t("common.cancel") }}
           </Button>
           <Button :disabled="!canAddRegion || isSaving" @click="addRegion">
-            添加
+            {{ t("admin.sshSecurity.add") }}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -965,15 +1041,19 @@ onMounted(async () => {
 
     <Tabs v-model="activeTab" class="space-y-4">
       <TabsList>
-        <TabsTrigger value="login-logs">登录日志</TabsTrigger>
-        <TabsTrigger value="blocks">封锁列表</TabsTrigger>
+        <TabsTrigger value="login-logs">
+          {{ t("admin.sshSecurity.loginLogs") }}
+        </TabsTrigger>
+        <TabsTrigger value="blocks">
+          {{ t("admin.sshSecurity.blockList") }}
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="login-logs" class="space-y-3">
         <div class="flex flex-wrap items-center gap-2">
           <SearchInput
             v-model="logSearch"
-            placeholder="搜索 IP、用户、原始日志..."
+            :placeholder="t('admin.sshSecurity.searchLogsPlaceholder')"
             class="w-full max-w-xs"
             @search="handleLogSearch"
           />
@@ -982,9 +1062,15 @@ onMounted(async () => {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">全部结果</SelectItem>
-              <SelectItem value="success">成功</SelectItem>
-              <SelectItem value="failure">失败</SelectItem>
+              <SelectItem value="all">
+                {{ t("admin.sshSecurity.allResults") }}
+              </SelectItem>
+              <SelectItem value="success">
+                {{ t("admin.sshSecurity.success") }}
+              </SelectItem>
+              <SelectItem value="failure">
+                {{ t("admin.sshSecurity.failure") }}
+              </SelectItem>
             </SelectContent>
           </Select>
           <div class="flex-1"></div>
@@ -1001,13 +1087,21 @@ onMounted(async () => {
               <Table class="min-w-[760px]">
                 <TableHeader>
                   <TableRow>
-                    <TableHead class="h-11 w-[168px] px-4">时间</TableHead>
-                    <TableHead class="h-11 w-[92px] px-4">结果</TableHead>
-                    <TableHead class="h-11 min-w-[160px] px-4">用户</TableHead>
-                    <TableHead class="h-11 min-w-[220px] px-4">
-                      IP / 归属
+                    <TableHead class="h-11 w-[168px] px-4">
+                      {{ t("admin.sshSecurity.time") }}
                     </TableHead>
-                    <TableHead class="h-11 min-w-[180px] px-4">方式</TableHead>
+                    <TableHead class="h-11 w-[92px] px-4">
+                      {{ t("admin.sshSecurity.result") }}
+                    </TableHead>
+                    <TableHead class="h-11 min-w-[160px] px-4">
+                      {{ t("admin.sshSecurity.user") }}
+                    </TableHead>
+                    <TableHead class="h-11 min-w-[220px] px-4">
+                      {{ t("admin.sshSecurity.ipLocation") }}
+                    </TableHead>
+                    <TableHead class="h-11 min-w-[180px] px-4">
+                      {{ t("admin.sshSecurity.method") }}
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1023,7 +1117,7 @@ onMounted(async () => {
                       colspan="5"
                       class="px-4 py-10 text-center text-muted-foreground"
                     >
-                      暂无 SSH 登录日志
+                      {{ t("admin.sshSecurity.noLoginLogs") }}
                     </TableCell>
                   </TableRow>
                   <TableRow v-for="entry in logItems" v-else :key="entry.id">
@@ -1039,7 +1133,11 @@ onMounted(async () => {
                               : 'secondary'
                           "
                         >
-                          {{ entry.outcome === "success" ? "成功" : "失败" }}
+                          {{
+                            entry.outcome === "success"
+                              ? t("admin.sshSecurity.success")
+                              : t("admin.sshSecurity.failure")
+                          }}
                         </Badge>
                       </div>
                     </TableCell>
@@ -1051,7 +1149,7 @@ onMounted(async () => {
                         v-if="entry.invalid_user"
                         class="text-xs text-muted-foreground"
                       >
-                        invalid user
+                        {{ t("admin.sshSecurity.invalidUser") }}
                       </div>
                     </TableCell>
                     <TableCell
@@ -1098,7 +1196,7 @@ onMounted(async () => {
         <div class="flex flex-wrap items-center gap-2">
           <SearchInput
             v-model="blockSearch"
-            placeholder="搜索 IP、用户、属地..."
+            :placeholder="t('admin.sshSecurity.searchBlocksPlaceholder')"
             class="w-full max-w-xs"
             @search="handleBlockSearch"
           />
@@ -1109,8 +1207,12 @@ onMounted(async () => {
             @click="loadBlocks"
           />
           <ConfirmDangerPopover
-            :title="`确认解除 ${selectedBlockIps.size} 个 IP？`"
-            description="解除后会从本功能管理的防火墙规则中移除。"
+            :title="
+              t('admin.sshSecurity.confirmUnblockSelectedTitle', {
+                count: selectedBlockIps.size,
+              })
+            "
+            :description="t('admin.sshSecurity.unblockDescriptionText')"
             :loading="isDeleting"
             :disabled="selectedBlockIps.size === 0 || isDeleting"
             :on-confirm="() => deleteBlocks(Array.from(selectedBlockIps))"
@@ -1121,7 +1223,11 @@ onMounted(async () => {
                 :disabled="selectedBlockIps.size === 0 || isDeleting"
               >
                 <Trash2 class="h-4 w-4" />
-                删除已选 ({{ selectedBlockIps.size }})
+                {{
+                  t("admin.sshSecurity.deleteSelected", {
+                    count: selectedBlockIps.size,
+                  })
+                }}
               </Button>
             </template>
           </ConfirmDangerPopover>
@@ -1137,14 +1243,22 @@ onMounted(async () => {
                       <Checkbox v-model="isAllBlocksSelected" />
                     </TableHead>
                     <TableHead class="h-11 min-w-[220px] px-4">
-                      IP / 归属
+                      {{ t("admin.sshSecurity.ipLocation") }}
                     </TableHead>
-                    <TableHead class="h-11 w-[168px] px-4">封锁时间</TableHead>
-                    <TableHead class="h-11 w-[168px] px-4">到期时间</TableHead>
-                    <TableHead class="h-11 w-[120px] px-4">原因</TableHead>
-                    <TableHead class="h-11 w-[120px] px-4">计数</TableHead>
+                    <TableHead class="h-11 w-[168px] px-4">
+                      {{ t("admin.sshSecurity.blockedAt") }}
+                    </TableHead>
+                    <TableHead class="h-11 w-[168px] px-4">
+                      {{ t("admin.sshSecurity.expiresAt") }}
+                    </TableHead>
+                    <TableHead class="h-11 w-[120px] px-4">
+                      {{ t("admin.sshSecurity.reason") }}
+                    </TableHead>
+                    <TableHead class="h-11 w-[120px] px-4">
+                      {{ t("admin.sshSecurity.count") }}
+                    </TableHead>
                     <TableHead class="h-11 w-[88px] px-4 text-right">
-                      操作
+                      {{ t("admin.sshSecurity.actions") }}
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1161,7 +1275,7 @@ onMounted(async () => {
                       colspan="7"
                       class="px-4 py-10 text-center text-muted-foreground"
                     >
-                      暂无封锁记录
+                      {{ t("admin.sshSecurity.noBlockRecords") }}
                     </TableCell>
                   </TableRow>
                   <TableRow
@@ -1204,8 +1318,8 @@ onMounted(async () => {
                     </TableCell>
                     <TableCell class="px-4 py-3 text-right align-top">
                       <ConfirmDangerPopover
-                        title="确认解除该 IP？"
-                        description="解除后会从本功能管理的防火墙规则中移除。"
+                        :title="t('admin.sshSecurity.confirmUnblockOneTitle')"
+                        :description="t('admin.sshSecurity.unblockDescriptionText')"
                         :loading="isDeleting"
                         :disabled="isDeleting"
                         :on-confirm="() => deleteOneBlock(record.ip)"
@@ -1242,11 +1356,11 @@ onMounted(async () => {
     <Dialog v-model:open="isClearFirewallDialogOpen">
       <DialogContent class="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>清空 SSH 防火墙？</DialogTitle>
+          <DialogTitle>
+            {{ t("admin.sshSecurity.clearFirewallTitle") }}
+          </DialogTitle>
           <DialogDescription>
-            这会删除 FN-KNOCK-SSH
-            链，并将当前活动封锁记录标记为已解除。保存的地区与 CIDR
-            配置不会被删除，之后可重新同步。
+            {{ t("admin.sshSecurity.clearFirewallDescription") }}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -1255,7 +1369,7 @@ onMounted(async () => {
             :disabled="isSyncingFirewall"
             @click="isClearFirewallDialogOpen = false"
           >
-            取消
+            {{ t("common.cancel") }}
           </Button>
           <Button
             variant="destructive"
@@ -1263,7 +1377,7 @@ onMounted(async () => {
             @click="clearFirewall"
           >
             <Loader2 v-if="isSyncingFirewall" class="h-4 w-4 animate-spin" />
-            清空
+            {{ t("admin.sshSecurity.clear") }}
           </Button>
         </DialogFooter>
       </DialogContent>

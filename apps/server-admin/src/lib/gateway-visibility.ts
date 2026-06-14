@@ -10,6 +10,12 @@ import {
   type GatewayVisibilityRuntimeState,
   type GatewayVisibilitySelection,
 } from "./redis";
+import { tDefault } from "./i18n";
+
+const gatewayVisibilityT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.gatewayVisibility.${key}`, params);
 
 export interface GatewayVisibilitySelectionInput {
   province: string;
@@ -79,7 +85,9 @@ const validateCustomCidrs = (value: string[]): string[] => {
   const invalid = normalized.filter((cidr) => !isValidCIDR(cidr));
 
   if (invalid.length > 0) {
-    throw new Error(`自定义 CIDR 格式不正确：${invalid.join("、")}`);
+    throw new Error(
+      gatewayVisibilityT("customCidrInvalid", { cidrs: invalid.join(", ") }),
+    );
   }
 
   return normalized;
@@ -134,7 +142,7 @@ export const compileGatewayVisibilityConfig = async (input: {
 
   const mergedCidrs = normalizeCidrLines([...resolvedCidrs, ...customCidrs]);
   if (input.enabled && mergedCidrs.length === 0) {
-    throw new Error("开启可见性后，至少需要添加一个地区或一条自定义 CIDR");
+    throw new Error(gatewayVisibilityT("emptyEnabledConfig"));
   }
 
   const now = new Date().toISOString();
@@ -161,7 +169,7 @@ export const syncGatewayVisibilityToGateway = async (
   const response = await goBackend.setGatewayVisibility(nextRuntime);
 
   if (!response.success) {
-    throw new Error(response.message || "同步网关可见性配置失败");
+    throw new Error(response.message || gatewayVisibilityT("syncFailed"));
   }
 
   return nextRuntime;

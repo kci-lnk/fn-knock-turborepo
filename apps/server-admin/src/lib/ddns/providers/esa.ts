@@ -1,5 +1,6 @@
 import type { DDNSProviderContext, DDNSProviderDefinition, DDNSUpdateResult } from "../types";
 import {
+  ddnsProviderT,
   normalizeDomain,
   requestAliyunAcs3Json,
   toPositiveInt,
@@ -7,6 +8,14 @@ import {
 
 const ESA_ENDPOINT = "https://esa.cn-hangzhou.aliyuncs.com/";
 const ESA_API_VERSION = "2024-09-10";
+const esaT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => ddnsProviderT("esa", key, params);
+const commonT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => ddnsProviderT("common", key, params);
 
 type EsaSite = {
   SiteId?: number;
@@ -56,37 +65,37 @@ type EsaUpdateRecordResponse = {
 
 export const esaProvider: DDNSProviderDefinition = {
   name: "esa",
-  label: "阿里云 ESA DNS",
+  label: esaT("label"),
   fields: [
     { key: "access_key_id", label: "AccessKey ID", type: "text", placeholder: "LTAI...", required: true },
-    { key: "access_key_secret", label: "AccessKey Secret", type: "password", placeholder: "阿里云 AccessKey Secret", required: true },
-    { key: "site_name", label: "站点名称", type: "text", placeholder: "example.com", required: true, description: "ESA 站点名称，通常就是根域名；如已填写 Site ID，此项仅作兜底查询" },
-    { key: "site_id", label: "Site ID", type: "text", placeholder: "123456", required: false, description: "可选，填写后将直接操作该站点，避免每次先查询站点列表" },
-    { key: "domain", label: "完整域名", type: "text", placeholder: "home.example.com", required: true, description: "要更新的完整主机名" },
+    { key: "access_key_secret", label: "AccessKey Secret", type: "password", placeholder: esaT("fields.access_key_secret.placeholder"), required: true },
+    { key: "site_name", label: esaT("fields.site_name.label"), type: "text", placeholder: "example.com", required: true, description: esaT("fields.site_name.description") },
+    { key: "site_id", label: "Site ID", type: "text", placeholder: "123456", required: false, description: esaT("fields.site_id.description") },
+    { key: "domain", label: commonT("fields.domain.label"), type: "text", placeholder: "home.example.com", required: true, description: commonT("fields.domain.hostDescription") },
     {
       key: "proxied",
-      label: "ESA 代理",
+      label: esaT("fields.proxied.label"),
       type: "select",
       required: false,
       options: [
-        { label: "仅解析", value: "false" },
-        { label: "开启代理", value: "true" },
+        { label: esaT("fields.proxied.options.dnsOnly"), value: "false" },
+        { label: esaT("fields.proxied.options.enabled"), value: "true" },
       ],
-      description: "默认仅解析；如开启代理，将自动附带业务类型",
+      description: esaT("fields.proxied.description"),
     },
     {
       key: "biz_name",
-      label: "业务类型",
+      label: esaT("fields.biz_name.label"),
       type: "select",
       required: false,
       options: [
-        { label: "网页", value: "web" },
-        { label: "接口", value: "api" },
-        { label: "音视频", value: "image_video" },
+        { label: esaT("fields.biz_name.options.web"), value: "web" },
+        { label: esaT("fields.biz_name.options.api"), value: "api" },
+        { label: esaT("fields.biz_name.options.imageVideo"), value: "image_video" },
       ],
-      description: "仅在开启 ESA 代理时生效，默认 web",
+      description: esaT("fields.biz_name.description"),
     },
-    { key: "ttl", label: "TTL", type: "text", placeholder: "30", required: false, description: "默认 30 秒" },
+    { key: "ttl", label: "TTL", type: "text", placeholder: "30", required: false, description: commonT("fields.ttl.description", { seconds: 30 }) },
   ],
 };
 
@@ -103,7 +112,7 @@ async function esaRequest<T extends { Code?: string; Message?: string }>(
   const accessKeyId = config.access_key_id?.trim();
   const accessKeySecret = config.access_key_secret?.trim();
   if (!accessKeyId || !accessKeySecret) {
-    throw new Error("阿里云 ESA DNS 配置不完整");
+    throw new Error(esaT("configIncomplete"));
   }
 
   return requestAliyunAcs3Json<T>(http, {
@@ -127,7 +136,7 @@ async function resolveSiteId(context: DDNSProviderContext): Promise<string> {
 
   const siteName = normalizeDomain(config.site_name || "");
   if (!siteName) {
-    throw new Error("阿里云 ESA DNS 缺少站点名称");
+    throw new Error(esaT("siteNameMissing"));
   }
 
   const result = await esaRequest<EsaListSitesResponse>(context, "ListSites", "GET", {
@@ -141,7 +150,7 @@ async function resolveSiteId(context: DDNSProviderContext): Promise<string> {
 
   const matched = (result.Sites || []).find((site) => normalizeDomain(site.SiteName || "") === siteName);
   if (!matched?.SiteId) {
-    throw new Error(`未找到 ESA 站点: ${siteName}`);
+    throw new Error(esaT("siteNotFound", { site: siteName }));
   }
 
   return String(matched.SiteId);
@@ -191,7 +200,7 @@ export async function esaUpdate(
   const accessKeyId = config.access_key_id?.trim();
   const accessKeySecret = config.access_key_secret?.trim();
   if (!accessKeyId || !accessKeySecret || !domain || (!siteName && !config.site_id?.trim())) {
-    return { success: false, message: "阿里云 ESA DNS 配置不完整" };
+    return { success: false, message: esaT("configIncomplete") };
   }
 
   const ttl = toPositiveInt(config.ttl, 30);
@@ -203,7 +212,7 @@ export async function esaUpdate(
     .join(",");
 
   if (!recordValue) {
-    return { success: false, message: "阿里云 ESA DNS 缺少可更新的 IP 地址" };
+    return { success: false, message: esaT("noIpAvailable") };
   }
 
   const records = await esaRequest<EsaListRecordsResponse>(context, "ListRecords", "GET", {
@@ -232,12 +241,12 @@ export async function esaUpdate(
     });
 
     if (!result.RecordId) {
-      throw new Error("CreateFailed: 创建记录失败");
+      throw new Error(esaT("createRecordFailed"));
     }
 
     return {
       success: true,
-      message: "阿里云 ESA DNS 更新成功",
+      message: esaT("success"),
       ipv4Updated: Boolean(ipv4),
       ipv6Updated: Boolean(ipv6),
     };
@@ -260,7 +269,7 @@ export async function esaUpdate(
     }
 
     if (!record.RecordId) {
-      throw new Error("UpdateFailed: 记录缺少 RecordId");
+      throw new Error(esaT("recordIdMissing"));
     }
 
     await esaRequest<EsaUpdateRecordResponse>(context, "UpdateRecord", "POST", {
@@ -273,7 +282,7 @@ export async function esaUpdate(
 
   return {
     success: true,
-    message: "阿里云 ESA DNS 更新成功",
+    message: esaT("success"),
     ipv4Updated: Boolean(ipv4),
     ipv6Updated: Boolean(ipv6),
   };

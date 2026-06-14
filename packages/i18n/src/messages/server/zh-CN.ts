@@ -1,0 +1,2643 @@
+export const zhCNServer = {
+  success: "成功",
+  notFound: "Not found",
+  invalidLocale: "Unsupported locale",
+  dockerAdminDenied: "Docker 管理面板仅允许内网或可信反代访问",
+  dockerAdminDeniedTitle: "拒绝访问",
+  dockerAdminDeniedDescription:
+    "Docker 管理面板默认只允许宿主机本地、局域网、VPN 或已配置的可信反向代理访问。公网直连会被拒绝。",
+  dockerAdminCurrentIp: "当前识别来源 IP：{ip}",
+  dockerAdminProxyRequired: "Docker 模式下请通过 7991 管理入口访问后台接口",
+  dockerAdminLoginRequired: "请先登录 Docker 管理面板",
+  captchaUnavailable: "验证码服务暂时不可用",
+  tooManyAttempts: "尝试过于频繁，请稍后重试",
+  tooManyAttemptsWithRetry: "尝试过于频繁，请在 {seconds} 秒后重试",
+  loginCredentialMissing: "服务器尚未配置登录凭据",
+  invalidOtpWithRetry: "验证码不正确，请在 {seconds} 秒后重试",
+  runtimeProfile: {
+    capabilities: {
+      default: "当前运行环境不支持该能力",
+      direct_mode_available: {
+        docker: "Docker 部署不支持宿主机直连防火墙模式",
+        platform: "当前运行环境不支持宿主机直连防火墙模式",
+        permission: "当前进程没有宿主机直连防火墙能力",
+      },
+      host_firewall_available: {
+        docker: "Docker 部署不支持宿主机防火墙管理",
+        platform: "当前运行环境不支持宿主机防火墙管理",
+        permission: "当前进程没有宿主机防火墙管理能力",
+      },
+      smart_connect_available: {
+        docker:
+          "Docker 部署暂不支持 Smart Connect，它依赖宿主机 dnsmasq 与 53 端口",
+        platform: "当前运行环境暂不支持 Smart Connect",
+        permission: "当前进程没有 Smart Connect 所需的宿主机管理能力",
+      },
+      system_clock_sync_available: {
+        docker: "Docker 部署不支持宿主机系统时间同步",
+        platform: "当前运行环境不支持系统时间同步",
+        permission: "当前进程没有系统时间同步所需的宿主机权限",
+      },
+      self_update_available: {
+        docker: "Docker 部署不支持应用内 FPK 更新，请通过拉取新镜像升级",
+        deployment: "当前部署形态不支持应用内更新",
+      },
+      terminal_available: {
+        docker: "Docker 部署不支持 Web 终端",
+        platform: "当前运行环境不支持 Web 终端",
+      },
+      shared_root_available: {
+        missing: "当前运行环境没有可用的共享目录挂载",
+      },
+    },
+  },
+  systemClock: {
+    unknown: "未知",
+    actionSeparator: "；",
+    listSeparator: "，",
+    duration: {
+      seconds: "{seconds} 秒",
+      minutes: "{minutes} 分钟",
+      minutesSeconds: "{minutes} 分 {seconds} 秒",
+    },
+    networkCheckFailed: "联网检查系统时间失败",
+    issues: {
+      timezone: {
+        title: "系统时区不是北京时间",
+        message: "当前系统时区为 {timezone}，应设置为 {expected}。",
+      },
+      timeMismatch: {
+        title: "系统时间与联网校验结果不一致",
+        message: "当前系统时间与联网校验结果相差约 {drift}。",
+      },
+    },
+    statusRefreshed: "系统时间状态已刷新",
+    syncFailed: "系统时间同步失败",
+    networkTimeUnavailable: "未能从网络获取标准时间",
+    sourceFetchFailed: "从 {source} 获取时间失败",
+    missingDateHeader: "{source} 未返回可用的 Date 响应头",
+    invalidDateHeader: "{source} 返回了无法解析的时间",
+    commandFailed: "执行 {command} 失败",
+    timezoneSet: "已设置系统时区为 {timezone}",
+    missingZoneinfoFile: "系统缺少时区文件 {path}",
+    timezoneWritten: "已写入系统时区 {timezone}",
+    clockAdjusted: "已校准系统时间",
+    ntpEnabled: "已启用 NTP 自动校时",
+    serviceRestarted: "已重启 {service} 服务",
+  },
+  updateRoutes: {
+    downloadStarted: "已开始下载更新包",
+    downloadStartFailed: "启动下载失败",
+    installStarted: "更新安装流程已启动",
+    installStartFailed: "启动安装失败",
+    checkAndDownloadStarted: "已发起检查并开始下载",
+    startFailed: "启动失败",
+  },
+  gatewayHostResponse: {
+    runTypes: {
+      direct: "直连模式",
+      reverseProxy: "反代模式",
+      subdomain: "子域模式",
+    },
+    unavailableReason: "仅子域模式可用，当前为{mode}。",
+    editSubdomainOnly: "Host 响应仅可在子域映射模式下编辑",
+    syncFailed: "同步网关 Host 响应配置失败",
+    hostRoutesSyncFailed: "同步 Host 路由失败",
+    updateFailed: "更新网关 Host 响应失败",
+    updateFailedRolledBack: "更新网关 Host 响应失败，已回滚配置",
+    updateFailedRollbackFailed: "{error}；回滚失败：{rollbackError}",
+    restoreConfigFailed: "恢复 Host 响应原始配置失败",
+    restoreRuntimeFailed: "恢复 Host 响应运行态失败",
+    restoreGatewayRuntimeFailed: "恢复网关 Host 响应运行态失败",
+  },
+  admin: {
+    runTypes: {
+      direct: "直连模式",
+      reverseProxy: "反代模式",
+      subdomain: "子域模式",
+    },
+    validation: {
+      required: "{label}不能为空",
+      httpUrlRequired: "{label}必须以 http:// 或 https:// 开头",
+      invalidFormat: "{label}格式不正确",
+    },
+    rollback: {
+      failed: "{message}；回滚失败：{rollbackError}",
+      restoreConfigFailed: "恢复之前的配置失败",
+      restoreSmartConnectFailed: "恢复之前的智能连接运行态失败",
+      restoreRuntimeFailed: "恢复之前的运行态失败",
+      restoreProtocolConfigFailed: "恢复协议映射配置失败",
+      restoreProtocolFeatureFailed: "恢复协议映射功能开关失败",
+      restoreProtocolRuntimeFailed: "恢复协议映射运行态失败",
+      restoreVisibilityConfigFailed: "恢复可见性原始配置失败",
+      restoreVisibilityRuntimeFailed: "恢复可见性运行时 CIDR 失败",
+      restoreGatewayVisibilityFailed: "恢复网关可见性运行态失败",
+      restoreProxyHeadersConfigFailed: "恢复协议头原始配置失败",
+      restoreProxyHeadersRuntimeFailed: "恢复协议头运行态失败",
+      restoreGatewayProxyHeadersRuntimeFailed: "恢复网关协议头运行态失败",
+      restorePortalFailed: "恢复传送门显示运行态失败",
+    },
+    dockerPanel: {
+      passwordNotNeeded: "当前运行模式不需要设置 Docker 管理面板密码",
+      setPasswordFailed: "设置管理面板密码失败",
+      passwordChangeUnsupported: "当前运行模式不支持修改 Docker 管理面板密码",
+      changePasswordFailed: "修改管理面板密码失败",
+      tooManyAttemptsWithRetry: "尝试过于频繁，请在 {seconds} 秒后重试",
+      tooManyAttempts: "尝试过于频繁，请稍后重试",
+      passwordSetupRequired: "当前还没有设置管理面板密码，请先完成首次设置",
+      passwordIncorrectWithRetry: "管理面板密码错误，请在 {seconds} 秒后重试",
+    },
+    runType: {
+      switchFailed: "切换运行模式失败",
+      switchFailedRolledBack: "切换运行模式失败，已回滚配置",
+    },
+    firewall: {
+      whitelistSynced: "，并同步 {count} 条白名单 IP",
+      exemptPorts: "，保留入口端口 {ports}",
+      resetSuccess:
+        "已按{runType}重设防火墙{whitelistMessage}{exemptPortsMessage}",
+      resetFailed: "重设防火墙失败",
+      clearSuccess: "已清空防火墙规则，并移除 {port} 端口相关的历史重定向",
+      clearFailed: "清空防火墙失败",
+    },
+    protocolMapping: {
+      subdomainOnly: "协议映射仅可在子域模式下启用",
+      updateFeatureFailed: "更新协议映射功能开关失败",
+      updateFeatureFailedRolledBack: "更新协议映射功能开关失败，已回滚配置",
+    },
+    smartConnect: {
+      subdomainOnly: "智能连接仅可在子域模式下启用",
+      updateFailed: "更新智能连接失败",
+      updateFailedRolledBack: "更新智能连接失败，已回滚配置",
+    },
+    fnosPortIcon: {
+      syncFailed: "同步飞牛端口图标接管配置到网关失败",
+    },
+    gateway: {
+      syncAuthCacheFailed: "同步鉴权缓存配置到网关失败",
+      syncThrottleFailed: "同步网关节流配置到网关失败",
+      updateFailed: "更新网关配置失败",
+      updateFailedRolledBack: "更新网关配置失败，已回滚配置",
+    },
+    gatewayVisibility: {
+      updateFailed: "更新网关可见性失败",
+      updateFailedRolledBack: "更新网关可见性失败，已回滚配置",
+    },
+    gatewayProxyHeaders: {
+      subdomainOnly: "协议头仅可在子域映射模式下编辑",
+      updateFailed: "更新网关协议头失败",
+      updateFailedRolledBack: "更新网关协议头失败，已回滚配置",
+    },
+    captcha: {
+      turnstileKeysRequired:
+        "启用 Cloudflare Turnstile 时，site_key 和 secret_key 都必须填写",
+    },
+    ipLocation: {
+      ipLookupUrlLabel: "IP 识别库地址",
+      cidrUrlLabel: "CIDR 地址库地址",
+    },
+    connectionTest: {
+      httpStatus: "服务返回错误状态码 {status}",
+      invalidData: "服务返回数据异常",
+      success: "连接成功",
+      timeout: "连接超时",
+      failed: "连接失败",
+    },
+    autoHttps: {
+      dockerUnsupported: "Docker 版本不支持自动 HTTPS",
+      startFailed: "自动 HTTPS 启动失败",
+    },
+    hostMappings: {
+      singleAuthPortMapping: "只能有一个 Host 映射指向 AUTH_PORT 作为鉴权服务",
+      authMappingMustBePublic:
+        "鉴权服务 {host} 必须保持公开入口，不能开启自身鉴权或严格白名单，否则会导致登录入口不可达",
+      authMappingBasicAuthForbidden: "鉴权服务 {host} 不能开启凭证注入",
+      basicAuthInvalid:
+        "Host 映射 {host} 的凭证注入需要填写用户名和密码，且用户名不能包含冒号",
+      locationPathRequired: "Host 映射 {host} 的路径规则需要填写路径",
+      locationPathMustStartSlash:
+        "Host 映射 {host} 的路径规则 {path} 必须以 / 开头",
+      locationRootForbidden: "Host 映射 {host} 不允许配置根路径 / 作为路径规则",
+      locationReservedPath: "Host 映射 {host} 的路径规则 {path} 使用了保留路径",
+      locationDuplicate: "Host 映射 {host} 存在重复路径规则 {path}",
+      locationTargetRequired: "Host 映射 {host} 的路径规则 {path} 需要填写目标",
+      locationStatusInvalid:
+        "Host 映射 {host} 的路径规则 {path} 响应状态码必须在 100 到 599 之间",
+      locationHeaderInvalid:
+        "Host 映射 {host} 的路径规则 {path} 包含非法响应头 {header}",
+      locationHeaderForbidden:
+        "Host 映射 {host} 的路径规则 {path} 不能自定义响应头 {header}",
+      syncHostRulesFailed: "同步 Host 路由失败",
+      syncAuthConfigFailed: "同步鉴权网关配置失败",
+      updateFailed: "更新 Host 映射失败",
+      updateFailedRolledBack: "更新 Host 映射失败，已回滚配置",
+      metadataFailed: "目标地址标题刷新失败",
+      bookmarkFolderForRoot: "{root} 子域映射",
+      bookmarkFolderDefault: "fn-knock 子域映射",
+    },
+    streamMappings: {
+      listenPortNotInteger: "监听端口 {port} 不是有效整数",
+      listenPortOutOfRange: "监听端口 {port} 超出有效范围",
+      duplicatePort: "{protocol} 监听端口 {port} 重复，请保持协议 + 端口唯一",
+      targetMustBeHostPort: "目标地址 {target} 必须是 host:port 形式",
+      syncFailed: "同步协议映射与网关端口放行规则失败",
+      syncFailedRolledBack: "同步协议映射与网关端口放行规则失败，已回滚配置",
+    },
+    passkeyRp: {
+      parentDomainRequired:
+        "启用父域 Passkey RP 时，请先填写根域名，或显式指定一个父域 RP ID。",
+      mustMatchAuthHost:
+        "父域 Passkey RP ID {rpId} 必须与鉴权服务 {authHost} 相同，或是它的父域。",
+    },
+    subdomainMode: {
+      sslAutoSelected: "已自动切换到更适合当前子域模式的证书。",
+      sslAutoSelectionSyncFailed:
+        "已找到推荐证书，但同步到网关失败，未自动切换。",
+    },
+    totp: {
+      invalidCode: "验证码不正确，请重试",
+      notFound: "TOTP not found",
+    },
+    passkeys: {
+      notFound: "Passkey not found",
+    },
+    syncRoutes: {
+      partialFailedGatewayLogging:
+        "同步部分失败: gateway_logging={gatewayLogging}",
+      partialFailedGatewayLoggingWaf:
+        "同步部分失败: gateway_logging={gatewayLogging}, waf={waf}",
+      success:
+        "已按当前运行模式同步 {rules} 条路径路由、{hostRules} 条 Host 路由、{streamRules} 条协议映射、请求日志配置与 WAF 配置",
+    },
+    backup: {
+      readFnosDirectoryFailed: "读取飞牛备份目录失败",
+      exportFnosSuccess: "备份已导出到飞牛目录",
+      exportFnosFailed: "导出到飞牛目录失败",
+      importSuccessWithWarnings: "备份已导入，但部分运行态同步失败",
+      importSuccess: "备份已导入并完成运行态同步",
+      importFailed: "导入备份失败",
+      importFnosSuccessWithWarnings: "飞牛备份已导入，但部分运行态同步失败",
+      importFnosSuccess: "飞牛备份已导入并完成运行态同步",
+      importFnosFailed: "从飞牛导入备份失败",
+    },
+    sessions: {
+      notFound: "Session not found",
+    },
+  },
+  gatewayLogs: {
+    configSyncFailed: "请求日志设置已保存，但同步到网关失败",
+    readDirectoryFailed: "读取日志目录失败",
+    readDatesFailed: "读取日志日期失败",
+    readEntriesFailed: "读取请求日志失败",
+    deleteEntriesFailed: "删除请求日志失败",
+  },
+  backoffRoutes: {
+    ipRequired: "ip 参数缺失",
+  },
+  ipLocationRoutes: {
+    batchLimit: "单次最多查询 {max} 个 IP",
+  },
+  gatewayPortal: {
+    syncConfigFailed: "同步传送门显示配置到网关失败",
+    syncHostRulesFailed: "同步 Host 路由失败",
+  },
+  gatewayVisibility: {
+    customCidrInvalid: "自定义 CIDR 格式不正确：{cidrs}",
+    emptyEnabledConfig: "开启可见性后，至少需要添加一个地区或一条自定义 CIDR",
+    syncFailed: "同步网关可见性配置失败",
+  },
+  gatewayLogging: {
+    syncConfigFailed: "同步网关请求日志配置失败",
+  },
+  sslGateway: {
+    clearFailed: "清除网关证书失败",
+    syncFailed: "同步网关证书失败",
+  },
+  sslRoutes: {
+    gatewayStatusReadFailed: "无法读取网关 SSL 状态",
+    readSharedFileFailed: "读取共享目录文件失败",
+    emptyDomains: "域名列表为空，请先添加域名或 IP",
+    certOrKeyInvalid: "证书或私钥无效",
+    hostRequired: "host 不能为空",
+    localCaCertificateLabel: "本地 CA 证书",
+    success: "成功",
+    certNotInstalled: "未安装证书",
+    manualCertificateLabel: "手动上传证书",
+    certNotFound: "证书不存在",
+  },
+  redis: {
+    defaultCredential: "默认凭据",
+    certificateLabels: {
+      acme: "ACME 证书",
+      ca: "自签发证书",
+      manual: "手动上传证书",
+      current: "当前证书",
+    },
+    ssl: {
+      certFormatInvalid: "证书格式无效: {message}",
+      keyFormatInvalid: "私钥格式无效: {message}",
+      certKeyMismatch: "证书与私钥不匹配",
+      certKeyCheckFailed: "证书与私钥校验失败: {message}",
+      certContentRequired: "证书内容不能为空",
+      certNotFound: "证书不存在",
+      certOrKeyInvalid: "证书或私钥无效",
+    },
+    acme: {
+      domainRequired: "域名不能为空",
+      domainsRequired: "域名列表不能为空",
+      dnsProviderRequired: "DNS 服务商不能为空",
+      primaryDomainDuplicated: "主域名 {primaryDomain} 已存在于其他申请项中",
+      applicationNotFound: "申请项不存在",
+      noMatchingIssuedCertificate: "当前申请项还没有与域名配置匹配的已签发证书",
+      jobDataInvalid: "ACME 任务数据无效",
+      multipleApplicationsUseNewApi:
+        "当前已存在多个申请项，请使用新接口管理 ACME 申请项",
+    },
+  },
+  acmeService: {
+    waiting: "等待操作",
+    sendSignalFailed: "发送 {signal} 到 {target} 失败: {detail}",
+    setDefaultCaFailed: "设置默认证书颁发机构失败（退出码: {code}）{brief}",
+    registerAccountFailed: "注册 ACME 账号失败（退出码: {code}）{brief}",
+    bundledZipMissing: "未找到内置 acmesh.zip 资源",
+    extractingBundled: "正在解压内置 acme.sh 资源...",
+    unzipFailed: "解压失败，退出码: {code}",
+    extractedAcmeMissing: "解压成功但未找到 acme.sh",
+    writingDataDir: "正在写入数据目录...",
+    writtenAcmeMissing: "写入后未找到 acme.sh",
+    checkInstallFailed: "检查安装状态失败: {detail}",
+    ready: "acme.sh 已就绪",
+    notInstalled: "acme.sh 未安装",
+    initializingBundled: "正在初始化内置 acme.sh...",
+    registeringAccount: "正在注册 ACME 账号...",
+    savingDefaultCa: "正在保存默认证书颁发机构...",
+    installSuccess: "安装成功，账号邮箱: {email}",
+    installFailed: "安装失败: {detail}",
+    installFirst: "请先安装 acme.sh",
+    installingCannotDelete: "acme.sh 正在安装中，无法删除",
+    deleted: "acme.sh 已删除",
+    deleteFailed: "删除失败: {detail}",
+    domainsRequired: "域名列表不能为空",
+    dnsTypeRequired: "缺少 DNS 验证类型",
+    issueFailed: "证书签发失败（退出码: {code}）{brief}",
+  },
+  acmeJobRunner: {
+    manualStop: "ACME 任务已由用户手动停止",
+    lockMessages: {
+      manualRequest: "正在申请证书",
+      autoRenew: "正在自动续期证书",
+    },
+    activeTaskRunning: "当前已有 ACME 任务正在执行，请稍后再试",
+    flowFailed: "证书申请流程失败: {message}",
+    stopSignalSent: "已发送停止信号，结束 {count} 个 acme.sh 进程",
+    noRunningProcess: "未发现正在运行的 acme.sh 进程",
+    stopProcessError: "停止进程时出现异常: {message}",
+    processStillRunning: "仍有 acme.sh 进程未退出: {pids}",
+    lockLost: "ACME 运行锁已丢失，任务已停止，请重新发起申请",
+    lockRefreshFailed: "ACME 运行锁续租异常: {message}",
+    lockLeaseExpired: "{message}；已超过锁租期，任务已停止，请重新发起申请",
+    applicationChangedSkipped:
+      "申请项域名已在执行期间发生变化，已跳过写入旧证书，请重新发起申请",
+    issuedButApplicationChanged:
+      "证书签发成功，但由于申请项域名已变更，未写入当前申请项",
+    issuedButCertReadFailed:
+      "证书签发成功，但读取证书文件失败（请稍后重试或检查 acme.sh 目录）",
+    clearedDomainWorkingState:
+      "已清理 acme.sh 域名工作目录，证书列表与续期由系统任务统一管理",
+    clearDomainWorkingStateFailed:
+      "证书已保存，但清理 acme.sh 域名状态失败: {message}",
+    linkedLibrarySyncedGateway: "已同步已关联的证书库条目，并刷新网关证书列表",
+    linkedLibraryUpdated: "已更新已关联的证书库条目",
+    addedToLibraryAndSyncedGateway:
+      "证书签发成功后已自动加入证书库，并刷新网关证书列表",
+    addedToLibrary: "证书签发成功后已自动加入证书库",
+    addToLibraryFailed: "证书已签发并保存，但自动加入证书库失败: {message}",
+    stoppedIgnoredProcessError: "任务已停止，已忽略进程退出后的错误",
+  },
+  acmeRoutes: {
+    domainsInvalid: "域名列表不能为空或格式无效",
+    dnsTypeRequired: "缺少 DNS 验证类型",
+    unsupportedDnsProvider: "不支持的 DNS 服务商",
+    missingDnsCredentials:
+      "缺少 DNS API 凭据，请填写以下任一方案: {requirements}",
+    cloudflareInvalidKey: "Cloudflare API 密钥不正确（X-Auth-Key 格式无效）",
+    cloudflareInvalidEmail: "Cloudflare 邮箱不正确（X-Auth-Email 格式无效）",
+    cloudflareInvalidHeaders:
+      "Cloudflare API 请求头无效，通常是 API 密钥/邮箱不正确导致",
+    acmeFrequencyLimited:
+      "申请频率受限（Retry-After={seconds} 秒，超过 600 秒将不再重试），请等待后再试",
+    dnsApiRateLimited: "DNS API 触发限流（429/Rate limit），稍后重试",
+    logUnknownFailure: "日志中检测到错误，但未能自动归因",
+    installingRetryLater: "acme.sh 安装中，请稍后再试",
+    installFirst: "请先安装 acme.sh",
+    multipleApplicationsUseNewApi:
+      "当前已存在多个申请项，请使用新接口管理 ACME 申请项",
+    applicationNotFound: "申请项不存在",
+    notFound: "未找到",
+    installingCannotDelete: "acme.sh 安装中，无法删除",
+    installingCannotSwitchCa: "acme.sh 安装中，暂时无法切换证书颁发机构",
+    noMatchingIssuedCertificate: "当前申请项还没有与域名配置匹配的已签发证书",
+    success: "成功",
+    dns01Only: "仅支持 DNS-01 验证方式",
+    certNotFound: "证书不存在",
+    certOrKeyInvalid: "证书或私钥无效",
+  },
+  acmeDnsProviders: {
+    groups: {
+      common: "常用",
+      domestic: "国内",
+      international: "国际",
+      selfHostedAdvanced: "自建/高级",
+    },
+    credentialSchemes: {
+      default: "默认凭据",
+    },
+    fields: {
+      accountEmail: "账户邮箱",
+      sshPrivateKeyPath: "SSH 私钥文件路径",
+    },
+    labels: {
+      aliyun: "阿里云 DNS",
+      tencentCloudDnspod: "腾讯云 DNSPod (TencentCloud)",
+      huaweiCloudDns: "华为云 DNS",
+      jdCloudDns: "京东云 DNS",
+      westCn: "西部数码",
+    },
+    cloudflare: {
+      globalKeyDescription: "兼容 Cloudflare 旧版 Global API Key 方式。",
+      apiTokenDescription:
+        "推荐。仅需填写 Token；如已知 Zone ID 或 Account ID，可一并填写以减少自动探测。",
+    },
+    gcloud: {
+      description:
+        "依赖运行环境中的 gcloud 命令和已授权配置；未填写时使用 gcloud 默认配置。",
+    },
+    azure: {
+      managedIdentityDescription: "AZUREDNS_MANAGEDIDENTITY 填写 true。",
+    },
+    descriptions: {
+      boolean01: "填写 0 或 1。",
+      optionalBoolean01: "可选，填写 0 或 1。",
+    },
+    requirements: {
+      optionalSuffix: "；可选 {keys}",
+      orSeparator: "；或 ",
+    },
+  },
+  acmePatches: {
+    duckdns: {
+      scriptMissing: "未找到 DuckDNS DNS API 脚本: {path}",
+      proxyApplied: "已将 DuckDNS API 从 {from} 切换为 {to}",
+    },
+  },
+  reverseProxyTrustedIps: {
+    syncFailed: "同步反代节流豁免 IP 失败",
+  },
+  commonAuthLocations: {
+    cidrLookupFailed: "CIDR 查询失败",
+    syncFailed: "同步常用地豁免配置到网关失败",
+  },
+  fnosDataShare: {
+    invalidPath: "非法的共享文件路径",
+    shareMissing: "未找到飞牛共享目录，请确认应用资源已正确配置",
+    fileOnly: "只能读取共享目录中的文件",
+    fileTooLarge: "文件过大，请仅放入证书或私钥文本文件",
+  },
+  autoHttps: {
+    listenEacces:
+      "没有权限监听 80 端口，请确认当前设备或容器允许程序绑定低端口。",
+    listenEaddrinuse:
+      "80 端口已被其他程序占用，自动 HTTPS 无法启动。请尝试飞牛系统设置，安全性，端口设置，编辑，取消勾选：重定向 80 与 443 端口",
+    listenFailedWithMessage: "监听 80 端口失败：{message}",
+    listenFailed: "监听 80 端口失败。",
+  },
+  wafCollector: {
+    drainFailed: "拉取 WAF 事件失败",
+  },
+  hostMappingBookmarks: {
+    defaultFolderTitle: "fn-knock 子域映射",
+  },
+  whitelist: {
+    addFailed: "新增白名单记录失败",
+    recordNotFound: "未找到白名单记录",
+    domainResolveFailed: "域名解析失败",
+    refreshFailed: "立即更新白名单记录失败",
+  },
+  whitelistManager: {
+    dnsRecordQueryFailedWithCode: "{label} 记录查询失败 ({code}): {message}",
+    dnsRecordQueryFailed: "{label} 记录查询失败: {message}",
+    targetFormatInvalid: "IP、CIDR 或域名格式不正确",
+    autoGrantIpOnly: "登录自动授权仅支持单个 IP",
+    cidrInvalid: "CIDR 格式不正确",
+    domainInvalid: "域名格式不正确",
+    ipInvalid: "IP 格式不正确",
+    autoOwnerMissing: "缺少自动白名单归属标识",
+    domainResolveFailed: "域名解析失败",
+    resolvedIpCount: "已解析 {count} 个 IP",
+    noAaaaRecords: "当前未解析到 A / AAAA 记录",
+    syncAllowedStateFailed: "域名解析结果已更新，但同步系统放行状态失败",
+  },
+  terminal: {
+    defaultTitle: "Web终端",
+    defaultSessionTitlePrefix: "会话-",
+    tmuxNotDetectedInstallFirst: "未检测到 tmux，请先安装 tmux 环境",
+    tmuxReadyWithVersion: "tmux 已就绪：{version}",
+    refreshingApt: "正在刷新 Debian 软件源...",
+    aptUpdateFailed: "apt-get update 执行失败",
+    installingTmux: "正在安装 tmux...",
+    aptInstallTmuxFailed: "apt-get install tmux 执行失败",
+    verifyingTmuxInstall: "正在验证 tmux 安装结果...",
+    tmuxMissingAfterInstall: "安装完成后仍未检测到 tmux",
+    tmuxInstallCompleteWithVersion: "tmux 安装完成：{version}",
+    tmuxInstallFailed: "tmux 安装失败",
+    cwdUnavailable: "工作目录不存在或不可访问: {path}",
+    webTerminalDisabled: "网页终端功能尚未启用",
+    tmuxInstallingWait: "tmux 安装中，请等待安装完成",
+    tmuxStatusError: "tmux 状态异常：{message}",
+    tmuxMissingCannotCreate: "未检测到 tmux，无法创建可恢复终端会话",
+    rootRunRequiresDangerToggle:
+      "当前进程以 root 运行，需在设置中显式开启高危运行开关后才能创建终端",
+    requestedShellUnavailable: "请求的 shell 不可用: {shell}",
+    noShellDetected: "未检测到可用 shell，请确认系统已安装 zsh、bash 或 sh",
+    paneMetadataReadFailed: "无法读取终端 pane 元数据",
+    paneTtyParseFailed: "无法解析终端 pane tty",
+    inputPipeCreateFailed: "无法创建终端输入管道",
+    ioRelayCreateFailed: "无法建立终端 IO 中继",
+    sessionLimitReached: "终端会话已达到上限（{count}）",
+    tmuxSessionCreateFailed: "tmux 会话创建失败",
+    sessionTitleRequired: "会话名称不能为空",
+    sessionMissingOrExpired: "终端会话不存在或已失效",
+    tmuxMissingCannotAttach: "未检测到 tmux，无法附着终端会话",
+    inputPipeNotReady: "终端输入管道尚未就绪",
+    inputWriteInterrupted: "终端输入写入被中断",
+    attachmentExpired: "终端附着已失效",
+    inputSendFailed: "终端输入发送失败",
+    resizeFailed: "终端尺寸调整失败",
+    sessionNotFound: "终端会话不存在",
+  },
+  waf: {
+    manifestInvalid: "系统规则清单格式不正确",
+    manifestMissingZipInfo: "系统规则清单缺少 zip 文件信息",
+    manifestRequestFailed: "系统规则清单请求失败: HTTP {status}",
+    manifestRefreshFailed: "系统规则清单刷新失败",
+    confOnly: "只支持 .conf 规则文件",
+    ruleFilenameInvalid: "规则文件名不正确",
+    fileTooLarge: "{filename} 超过 1MB",
+    fileInvalidUtf8: "{filename} 不是有效的 UTF-8 文本",
+    filesystemDirectiveBlocked: "{filename} 包含不允许的文件系统指令",
+    systemRuleDescription: "系统安全规则",
+    customRuleDescription: "用户上传规则",
+    enableNeedsRule: "至少启用一个 WAF 规则文件后再开启",
+    rulesLoadFailed: "WAF 规则加载失败",
+    configSyncFailed: "同步 WAF 配置到网关失败",
+    sourceInvalid: "规则来源不正确",
+    ruleFileNotFound: "规则文件不存在",
+    zipInvalid: "系统规则 zip 格式不正确",
+    zipDirectoryInvalid: "系统规则 zip 目录不正确",
+    zipUnpackedTooLarge: "系统规则包解压后过大",
+    zipHeaderInvalid: "系统规则 zip 文件头不正确",
+    zipMethodUnsupported: "暂不支持 zip 压缩方式 {method}",
+    zipSizeInvalid: "系统规则 zip 文件大小不正确",
+    zipPathInvalid: "系统规则 zip 文件路径不正确: {path}",
+    downloadFailed: "系统规则下载失败: HTTP {status}",
+    zipTooLarge: "系统规则包过大",
+    zipHashMismatch: "系统规则包校验失败",
+    zipEmpty: "系统规则包为空",
+    zipDuplicateFile: "系统规则包内存在重复文件: {path}",
+    zipConfRootOnly: "系统规则包内 .conf 文件必须位于根目录",
+    zipNoConf: "系统规则包内没有 .conf 文件",
+    systemRulePathInvalid: "系统规则文件路径不正确",
+    manifestEmpty: "系统规则清单为空",
+    keepOneEnabledRule: "开启 WAF 时至少保留一个启用的规则文件",
+    uploadSelectConf: "请选择要上传的 .conf 文件",
+    reloadRulesFailed: "重新加载 WAF 规则失败",
+    statusReadFailed: "读取 WAF 状态失败",
+    configSaveOrLoadFailed: "WAF 设置保存或加载失败",
+    systemRulesSyncFailed: "系统规则同步失败",
+    ruleToggleFailed: "WAF 规则启停失败",
+    ruleReadFailed: "读取 WAF 规则失败",
+    customRuleUploadFailed: "自定义规则上传失败",
+    customRuleDeleteFailed: "自定义规则删除失败",
+    eventsDrainFailed: "拉取 WAF 事件失败",
+    logsQueryFailed: "查询 WAF 日志失败",
+    logNotFound: "WAF 日志不存在",
+    logsDeleteFailed: "删除 WAF 日志失败",
+  },
+  oidc: {
+    callbackStateExpired: "登录状态已过期，请重新发起登录",
+    loginFailedRetry: "外部登录失败，请重新发起登录。",
+    reservedExtraAuthParam: "extra_auth_params 包含 OIDC 保留参数: {key}",
+    urlInvalid: "{label} 必须是合法 URL",
+    urlMustUseHttps: "{label} 必须使用 HTTPS",
+    providerUnsupported: "不支持的外部登录提供商",
+    providerMissingRequiredConfig: "{provider} 缺少必填配置 {fields}",
+    providerMissingRequiredFields: "外部登录提供商缺少必填配置 {fields}",
+    accessTokenMissing: "未获取到 access_token",
+    idTokenMissing: "未获取到 id_token",
+    callbackUrlBuildFailed:
+      "无法生成外部登录回调地址，请配置 public_auth_base_url",
+    issuerMissing: "OIDC issuer 未配置",
+    discoveryMissingFields: "OIDC discovery 文档缺少必要字段",
+    nonceCheckFailed: "OIDC nonce 校验失败",
+    issuerCheckFailed: "OIDC issuer 校验失败",
+    subjectEmpty: "OIDC subject 为空",
+    githubUserIdEmpty: "GitHub 用户 ID 为空",
+    providerNotFound: "外部登录提供商不存在",
+    connectionTestSuccess: "连接测试成功",
+    oauthEndpointIncomplete: "OAuth2 endpoint 未配置完整",
+    connectionTestFailed: "连接测试失败",
+    totpMissing: "TOTP 凭据不存在",
+    selectProvider: "请选择外部登录提供商",
+    providerUnavailable: "外部登录提供商不可用",
+    bindingNotFound: "外部账号绑定不存在",
+    inviteInvalid: "绑定邀请链接无效",
+    inviteExpired: "绑定邀请链接已失效",
+    inviteProviderNotAllowed: "该邀请链接不允许使用此提供商",
+    authorizationEndpointMissing: "authorization endpoint 未配置",
+    bindStateInvalid: "绑定邀请状态无效",
+    accountNotBoundCannotLogin: "该外部账号尚未绑定，无法登录",
+    tokenEndpointMissing: "token endpoint 未配置",
+    bindProviderMismatch: "绑定邀请与登录提供商不匹配",
+    inviteTotpMissing: "绑定邀请关联的 TOTP 已不存在",
+    accountAlreadyBoundOtherTotp: "该外部账号已绑定到其他 TOTP",
+    inviteUsed: "绑定邀请链接已被使用",
+    providerErrors: {
+      accessDenied: "你取消了外部登录授权，或授权请求被提供商拒绝。",
+      temporarilyUnavailable: "外部登录服务暂时不可用，请稍后重试。",
+      serverError: "外部登录提供商返回服务错误，请稍后重试。",
+      invalidScope: "外部登录权限范围配置不正确，请联系管理员检查提供商配置。",
+      rejected: "外部登录请求被提供商拒绝，请检查外部登录配置后重试。",
+      incomplete: "外部登录未完成，请重新发起登录。",
+    },
+    bindWithProvider: "使用 {provider} 绑定",
+    selectProviderTitle: "选择外部账号提供商",
+    bindToTotp: "将外部账号绑定到 {totp}。",
+    linkMissingToken: "链接缺少 token。",
+    inviteMissingExpiredUsed: "该邀请不存在、已过期或已经被使用。",
+    noProvidersTitle: "没有可用的外部登录提供商",
+    noProvidersBody: "该邀请当前没有可用于绑定的外部账号提供商。",
+    bindFailedTitle: "外部账号绑定失败",
+    bindStartFailed: "无法发起外部账号绑定。",
+    startFailed: "发起外部登录失败",
+    callbackMissingParams: "外部登录回调缺少必要参数，请重新发起登录。",
+    loginFailed: "外部登录失败",
+    operationAborted: "外部登录请求已中断，请重新发起登录。",
+    loginFailedRetryAfter: "{message}，请在 {seconds} 秒后重试",
+    createProviderFailed: "创建外部登录提供商失败",
+    updateProviderFailed: "更新外部登录提供商失败",
+    deleteProviderFailed: "删除外部登录提供商失败",
+    testProviderFailed: "测试外部登录提供商失败",
+    deleteBindingFailed: "删除外部账号绑定失败",
+    createInviteFailed: "创建绑定邀请失败",
+    catalog: {
+      googleDescription: "使用 Google 账号登录。",
+      microsoftDescription: "使用 Microsoft / Azure AD 账号登录。",
+      githubDescription: "使用 GitHub OAuth 登录。",
+      customLabel: "自定义 OIDC",
+      customDescription: "使用标准 OpenID Connect Discovery 的自定义提供商。",
+    },
+  },
+  subdomainMode: {
+    recommendationMissingBase:
+      "尚未配置根域名或鉴权服务，暂时无法生成推荐证书域名。",
+    recommendationWildcardSummary:
+      "推荐申请 {rootDomain} 与 *.{rootDomain}，用于覆盖根域名、鉴权服务和同一父域下的业务子域。",
+    authOutOfRootWarning:
+      "当前鉴权服务 {authHost} 不在根域名 {rootDomain} 下，已额外加入精确域名；请确认所选 DNS 服务商能够管理这些域名。",
+    recommendationSingleHostSummary:
+      "尚未配置根域名，当前仅能推荐为鉴权服务 {authHost} 申请单域名证书。",
+    wildcardSuggestion:
+      "如果后续要统一覆盖多个业务子域，建议先补充根域名后再申请 wildcard 证书。",
+    configureRootOrAuth:
+      "请先在子域模式里配置根域名，或在 Host 映射中指定一条鉴权服务。",
+    authMissingWarning: "尚未指定鉴权服务，当前推荐结果只基于根域名推导。",
+    uncoveredHostMappingsWarning:
+      "当前有 {count} 个 Host 映射不在推荐证书的覆盖范围内，如需对外暴露，仍需额外证书或调整域名规划。",
+    coverageNoSsl: "当前未启用 SSL 证书，鉴权服务与业务子域尚未被 HTTPS 覆盖。",
+    coverageReadyConcrete:
+      "当前已部署证书覆盖了鉴权服务和所有已配置 Host 映射。",
+    coverageReadyRecommended: "当前已部署证书满足子域模式当前的建议覆盖范围。",
+    coveragePartialConcrete:
+      "当前证书只覆盖了部分子域模式所需域名，鉴权服务或部分业务 Host 仍可能出现证书不匹配。",
+    coveragePartialRecommended:
+      "当前证书只覆盖了部分建议域名，后续启用子域模式时仍可能出现证书不匹配。",
+    coverageMismatchConcrete:
+      "当前已部署证书与子域模式不匹配，鉴权服务和业务 Host 仍未被正确覆盖。",
+    coverageMismatchRecommended:
+      "当前已部署证书尚未覆盖子域模式建议的域名范围。",
+    coverageMissingRequiredWarning:
+      "当前证书还缺少 {count} 个必需覆盖项，建议重新申请或替换证书。",
+    coverageMissingRecommendedWarning:
+      "当前证书还缺少 {count} 个建议域名覆盖项，后续如需使用这些域名，建议重新申请或替换证书。",
+    coverageAuthHostMissingWarning: "当前证书未覆盖鉴权服务 {authHost}。",
+    inventoryEmpty: "证书库中还没有可用于子域模式的证书。",
+    inventoryActiveReady: "当前活动证书已经完整覆盖子域模式所需域名。",
+    inventoryOneReady:
+      "证书库中有 1 张证书可完整覆盖子域模式，可以直接切换为活动证书。",
+    inventoryMultipleReady:
+      "证书库中有 {count} 张证书各自都能完整覆盖当前子域模式。",
+    inventoryCombinedReady: "证书库组合后已经具备完整覆盖能力。",
+    inventoryCandidateReady: "证书库中已有可覆盖当前子域模式的候选证书。",
+    inventoryCombinedNeedsMultiSni:
+      "证书库组合后已经可以覆盖当前子域模式，但当前网关仍是单活动证书模式，暂时不能同时生效。",
+    inventoryPartialCandidates:
+      "证书库里已有部分候选证书，但还不能完整覆盖鉴权服务和全部 Host 映射。",
+    inventoryNoCertificateCoversRecommendation:
+      "当前还没有证书能够覆盖子域模式推荐域名。",
+    inventoryMultiCertRequiresSniWarning:
+      "当前证书库需要多张证书联合覆盖，但网关仍处于单活动证书模式，暂时无法一次性全部生效。",
+    inventorySwitchRecommendedWarning:
+      "当前活动证书与子域模式不完全匹配，建议切换到推荐证书。",
+    inventoryBetterForSniWarning: "现有证书库更适合后续多证书/SNI 部署。",
+  },
+  cloudflared: {
+    missingToken: "请先配置 Cloudflare Token",
+    startFailedWithDetail: "启动 cloudflared 失败: {detail}",
+    processExited: "cloudflared 进程已退出",
+    processExitedWithCode: "cloudflared 进程已退出（退出码 {code}）",
+    processCrashed: "cloudflared 进程异常退出：{message}",
+    resumeOnBoot: "resume: 检测到 Cloudflared 上次为开启状态，正在自动恢复...",
+    unknownError: "未知错误",
+    notInitialized: "Cloudflared 未初始化",
+    startFailed: "启动失败",
+  },
+  dnsmasq: {
+    notDetectedInstallFirst: "未检测到 dnsmasq，请先完成安装",
+    dnsPortUnavailable: "DNS 53 端口不可用，请先释放端口后重试",
+    dnsPortUnavailableWithDetail:
+      "DNS 53 端口不可用，请先释放端口后重试：{detail}",
+    detectedWithVersion: "dnsmasq 已检测到：{version}，等待初始化或启动服务",
+    detected: "dnsmasq 已检测到，等待初始化或启动服务",
+    missingServiceAutoComplete: "缺少系统服务，初始化时会自动补全",
+    servicePackageMissing:
+      "检测到 dnsmasq 可执行文件，但未安装系统服务，请先安装 dnsmasq 软件包",
+    completingService: "正在补全 dnsmasq 系统服务...",
+    completeServiceFailed: "补全 dnsmasq 系统服务失败",
+    serviceDefinitionMissingAfterInstall:
+      "dnsmasq 服务安装完成后仍未检测到可用的系统服务定义",
+    executableMissing: "未检测到 dnsmasq 可执行文件",
+    configTestFailed: "dnsmasq 配置校验失败",
+    restartFailed: "重启 dnsmasq 失败",
+    serviceDefinitionMissing:
+      "未检测到 dnsmasq 系统服务定义，请先完成初始化补全服务环境",
+    readyWithVersion: "dnsmasq 已就绪：{version}",
+    ready: "dnsmasq 已就绪",
+    refreshingApt: "正在刷新 Debian 软件源...",
+    aptUpdateFailed: "apt-get update 执行失败",
+    installing: "正在安装 dnsmasq...",
+    aptInstallFailed: "apt-get install dnsmasq 执行失败",
+    enablingService: "正在启用 dnsmasq 服务...",
+    verifyingService: "正在验证 dnsmasq 服务...",
+    installMissingAfterComplete: "安装完成后仍未检测到 dnsmasq",
+    installFailed: "dnsmasq 安装失败",
+    checkingEnvironment: "正在检查 dnsmasq 环境...",
+    validatingConfig: "正在校验 dnsmasq 配置...",
+    startingService: "正在启动 dnsmasq 服务...",
+    initializeFailed: "dnsmasq 初始化失败",
+  },
+  firewall: {
+    goBackendCallFailed: "Go 后端接口调用失败: {message}",
+    clearLegacyTcpRedirectFailed:
+      "清理历史 TCP 重定向 {listenPort} -> {targetPort} 失败",
+    initDefaultRulesFailed: "初始化默认防火墙规则失败",
+    syncWhitelistTargetFailed: "同步白名单目标 {target} 失败",
+    cleanRulesFailed: "清理防火墙规则失败",
+    syncAuthGatewayConfigFailed: "同步鉴权网关配置失败",
+    syncReverseProxyThrottleFailed: "同步反代节流配置失败",
+    syncGatewayVisibilityConfigFailed: "同步网关可见性配置失败",
+    syncGatewayProxyHeadersConfigFailed: "同步网关协议头配置失败",
+    syncGatewayHostResponseConfigFailed: "同步网关 Host 响应配置失败",
+    enableProxyProtocolForceFailed: "开启 Proxy Protocol 强制模式失败",
+    disableProxyProtocolForceFailed: "关闭 Proxy Protocol 强制模式失败",
+    disableStreamRulesFailed: "关闭协议映射监听失败",
+    flushPathRoutesFailed: "清空路径路由失败",
+    syncHostRoutesFailed: "同步 Host 路由失败",
+    syncDefaultRouteFailed: "同步默认路由失败",
+    flushHostRoutesFailed: "清空 Host 路由失败",
+    syncPathRoutesFailed: "同步路径路由失败",
+    syncStreamRulesFailed: "同步协议映射失败",
+    syncAuthEntryRouteFailed: "同步鉴权入口路由失败",
+    syncAuthDefaultRouteFailed: "同步鉴权默认路由失败",
+  },
+  updateManager: {
+    manifestFieldInvalid: "更新信息 {field} 无效",
+    manifestFormatInvalid: "更新信息格式错误",
+    manifestMissingVersion: "更新信息缺少 version",
+    manifestMissingUpdateAvailable: "更新信息缺少 update_available",
+    manifestMissingForceUpdate: "更新信息缺少 force_update",
+    manifestMissingDownloadUrl: "更新信息缺少 download_url",
+    manifestArm64FieldsIncomplete: "更新信息 ARM64 下载字段不完整",
+    architectureUnsupported: "当前系统架构暂不支持自动更新: {arch}",
+    manifestMissingArm64DownloadUrl: "更新信息缺少 ARM64 下载地址",
+    manifestMissingArm64Checksum: "更新信息缺少 ARM64 校验值",
+    checkHttpFailed: "更新检查失败: HTTP {status}",
+    checkFailed: "更新检查失败",
+    noUpdateInfo: "尚未获取到更新信息",
+    featureDisabled: "更新功能当前未启用",
+    alreadyLatest: "当前已是最新版本",
+    downloadHttpFailed: "下载失败: HTTP {status}",
+    responseBodyUnreadable: "下载失败: 响应流不可读",
+    checksumFailed: "校验失败: 期望 {expected}，实际 {actual}",
+    downloadFailed: "下载失败",
+    noInstallableUpdate: "当前没有可安装更新",
+    downloadPackageFirst: "请先完成更新包下载并校验",
+    packageMissing: "更新包不存在，请重新下载",
+    packageChecksumFailed: "更新包校验失败，请重新下载",
+    installStartFailed: "启动更新安装流程失败",
+  },
+  tunnelManagers: {
+    cloudflared: {
+      macAutoDownloadUnsupported:
+        "MAC 平台暂不支持自动下载应用，请手动通过 brew install cloudflared 安装。",
+      platformUnsupported: "当前平台不受支持",
+      responseBodyUnreadable: "下载响应体不可读",
+      downloadCancelled: "下载已取消",
+      unknownError: "未知错误",
+      macManualRemove: "MAC 平台请手动移除 cloudflared",
+      notInstalledBrew:
+        "Cloudflared 未安装，请先通过 brew install cloudflared 安装",
+      notInitialized: "Cloudflared 未初始化，请先下载",
+    },
+    frp: {
+      platformUnsupported: "当前平台不受支持",
+      packageMissing: "FRP 安装包缺失",
+      extractFailed: "解压失败，退出码 {code}",
+      responseBodyUnreadable: "下载响应体不可读",
+      connectionFailed: "连接失败",
+      downloadFailed: "下载失败：{detail}",
+      unknownError: "未知错误",
+      downloadCancelled: "下载已取消",
+      notInitialized: "FRP 未初始化，请先下载",
+    },
+  },
+  frpc: {
+    instanceNotFound: "FRP 实例不存在：{id}",
+    instanceLimitExceeded: "额外 FRP 实例最多支持 {limit} 个",
+    primaryName: "主 FRP",
+    instanceName: "FRP 实例",
+    verifyFailedWithDetail: "frpc verify 校验失败：{detail}",
+    verifyFailedWithCode: "frpc verify 校验失败，退出码 {code}",
+    verifyFrpNotInitialized:
+      "FRP 未初始化，无法校验 frpc.toml，请先在系统设置中下载 FRP 资源。",
+    pidInvalidForInstance: "PID 已失效或不属于该实例",
+    processExited: "frpc 进程已退出",
+    processExitedWithCode: "frpc 进程已退出（退出码 {code}）",
+    processCrashed: "frpc 进程异常退出：{message}",
+    processStillRunning: "FRP 进程仍未退出 pid={pid}",
+    primaryDeleteDenied: "主 FRP 实例不允许删除",
+    notInitialized: "FRP 未初始化",
+    startFailedWithDetail: "启动 frpc 失败: {detail}",
+    pidCleanedForInstance: "PID 不属于该实例，已清理本实例运行记录",
+    resumeOnBoot: "resume: 检测到该 FRP 实例上次为开启状态，正在自动恢复...",
+    routes: {
+      saveConfigFailed: "保存配置失败",
+      startFailed: "启动失败",
+      stopFailed: "停止失败",
+      createInstanceFailed: "创建实例失败",
+      startInstanceFailed: "启动实例失败",
+      stopInstanceFailed: "停止实例失败",
+      restartInstanceFailed: "重启实例失败",
+      getInstanceLogsFailed: "获取实例日志失败",
+      clearInstanceLogsFailed: "清空实例日志失败",
+      pollInstanceFailed: "轮询实例失败",
+      getInstanceDetailFailed: "获取实例详情失败",
+      updateInstanceFailed: "更新实例失败",
+      deleteInstanceFailed: "删除实例失败",
+    },
+  },
+  dockerAdminPanel: {
+    passwordTooShort: "管理面板密码至少需要 6 位",
+    passwordTooLong: "管理面板密码不能超过 128 位",
+    passwordWhitespace: "管理面板密码不能包含空白字符",
+    passwordNeedsLettersAndNumbers: "管理面板密码需要同时包含字母和数字",
+    passwordAlreadyConfigured: "管理面板密码已经设置过了",
+    passwordNotConfigured: "当前还没有设置管理面板密码",
+    newPasswordSameAsCurrent: "新密码不能与当前密码相同",
+    resetHelp:
+      "fn-knock Docker 管理面板密码重置工具\n\n用法:\n  node /opt/fn-knock/server/server-admin/reset-docker-admin-panel.js\n\n作用:\n  - 清除管理面板密码\n  - 清除所有管理面板登录会话\n  - 清除登录失败退避状态\n\n执行完成后，下次访问 Docker 管理入口会重新进入“首次设置密码”流程。",
+    resetCleared: "[fn-knock] Docker 管理面板密码状态已清理",
+    resetNextVisit:
+      "[fn-knock] 下次访问 Docker 管理入口时，需要重新设置管理面板密码",
+    resetFailed: "[fn-knock] 清理 Docker 管理面板密码失败:",
+  },
+  passkeyRoutes: {
+    notFoundWithRetry: "Passkey not found，请在 {seconds} 秒后重试",
+    verifyFailedWithRetry: "验证失败，请在 {seconds} 秒后重试",
+    bindTokenExpired: "绑定凭证已失效",
+  },
+  maintenanceBackup: {
+    commandMissing: "系统环境缺少 {command} 命令",
+    commandFailed: "执行 {command} 命令失败",
+    commandCheckFailed: "检测 {command} 命令失败",
+    commandsMissingNoApt:
+      "系统环境缺少 {commands} 命令，且未找到 Debian apt-get，无法自动安装",
+    aptUpdateFailed: "apt-get update 执行失败",
+    packageInstallFailed: "安装 {packages} 失败",
+    commandsStillMissingAfterInstall:
+      "自动安装完成后仍未检测到 {commands} 命令",
+    commandErrorWithDetail: "{message}（退出码: {code}）: {detail}",
+    commandError: "{message}（退出码: {code}）",
+    shareDirectoryMissing: "未找到飞牛共享目录，请确认应用资源已正确配置",
+    invalidBackupPath: "非法的备份文件路径",
+    invalidRedisStreamData: "Redis stream 数据格式无效: {key} ({id})",
+    unsupportedRedisExportType: "不支持导出的 Redis 数据类型: {type} ({key})",
+    createArchiveFailed: "生成备份归档失败",
+    invalidBackupExtension: "备份文件扩展名必须为 {extension}",
+    stringArrayRequired: "{label} 必须是字符串数组",
+    stringArrayOnlyStrings: "{label} 只能包含字符串",
+    objectRequired: "{label} 必须是对象",
+    fieldStringRequired: "{label}.{field} 必须是字符串",
+    arrayRequired: "{label} 必须是数组",
+    zsetMemberRequired: "{label}[{index}] 必须包含字符串 member",
+    zsetScoreRequired: "{label}[{index}] 必须包含有效的数值 score",
+    streamIdRequired: "{label}[{index}] 必须包含字符串 id",
+    streamFieldsInvalid:
+      "{label}[{index}].fields 必须是偶数长度且非空的字符串数组",
+    entryObjectRequired: "entries[{index}] 必须是对象",
+    entryKeyPrefixRequired: "entries[{index}].key 必须以 {prefix} 开头",
+    entryTypeUnsupported: "entries[{index}].type 不受支持",
+    entryTtlInvalid: "entries[{index}].ttl_ms 必须为正整数或 null",
+    entryValueStringRequired: "entries[{index}].value 必须是字符串",
+    jsonParseFailed: "备份文件 JSON 无法解析",
+    payloadObjectInvalid: "备份文件内容不是有效对象",
+    unsupportedSchemaVersion: "仅支持 version={version} 的备份文件",
+    unsupportedPrefix: "仅支持 {prefix} 前缀的备份文件",
+    missingAppVersion: "备份文件缺少 app_version",
+    appVersionUnsupported:
+      "当前版本 {currentVersion} 仅允许导入 {range} 范围内导出的备份，收到 {appVersion}",
+    missingExportedAt: "备份文件缺少 exported_at",
+    missingEntries: "备份文件缺少 entries 数组",
+    duplicateRedisKey: "备份文件存在重复 Redis key",
+    archiveMissingPayload: "备份归档中缺少 {filename}",
+    archivePasswordInvalid: "备份归档密码校验失败",
+    readArchiveFailed: "读取 .knock 备份归档失败",
+    writeRedisFailed: "写入 Redis 备份数据失败",
+    unknownError: "未知错误",
+    syncSteps: {
+      runModeGatewayRoutes: "运行模式与网关路由",
+      directModeWhitelist: "直连模式白名单",
+      gatewayLogging: "请求日志配置",
+      sslDeployment: "SSL 证书部署",
+      legacyAuthLogCleanup: "废弃登录日志清理",
+      systemResourceMonitorReset: "系统资源监控状态重置",
+    },
+    archiveEmpty: "备份归档内容为空",
+    directoryImportFileOnly: "只能导入备份目录中的文件",
+    directoryImportExtensionOnly: "仅支持导入 {extension} 备份文件",
+    directoryImportTooLarge: "备份文件过大，无法从飞牛目录导入",
+    archiveContentMissing: "缺少备份归档内容",
+    archiveBase64Invalid: "备份归档不是有效的 Base64 数据",
+  },
+  captcha: {
+    powServerNotConfigured: "PoW 验证码尚未完成服务端配置",
+    providerMismatch: "验证码类型不匹配",
+    turnstileNotConfigured: "当前 Turnstile 未完成配置，请联系管理员完善参数",
+    turnstileSecretMissing: "Cloudflare Turnstile secret_key 未配置",
+    turnstileTokenRequired: "Turnstile token 不能为空",
+    turnstileServiceUnavailable: "Turnstile 校验服务暂时不可用",
+    turnstileVerifyFailedWithReason: "Turnstile 验证失败: {reason}",
+    turnstileVerifyFailed: "Turnstile 验证失败",
+    providerUnavailable: "未找到可用的验证码提供商",
+    powNotEnabled: "当前未启用 PoW 验证码",
+    powUnavailable: "当前 PoW 验证码不可用",
+    providerConfigMismatch: "验证码提供商与当前配置不一致",
+  },
+  cidr: {
+    serviceError: "CIDR 服务异常",
+    emptyResponse: "<空响应>",
+    upstreamUrl: "上游地址: {url}",
+    status: "状态: {status}{statusText}",
+    contentType: "类型: {contentType}",
+    upstreamCode: "上游 code: {code}",
+    upstreamMessage: "上游消息: {message}",
+    requestId: "请求 ID: {requestId}",
+    responsePreview: "响应摘要: {preview}",
+    provinceRequired: "省份不能为空",
+    upstreamTimeout: "CIDR 上游请求超时",
+    upstreamRequestFailed: "CIDR 上游请求失败 ({status})",
+    invalidJson: "CIDR 上游返回了无效 JSON",
+    upstreamUnexpected: "CIDR 上游返回异常",
+    provinceWideLabel: "{province}全省",
+  },
+  dashboard: {
+    inbound: "入站",
+    outbound: "出站",
+    upstreamUnavailable: "上游服务不可用",
+    hostRequired: "host 不能为空",
+  },
+  acme: {
+    alreadyInstalled: "acme.sh 已经安装过了",
+    installInProgress: "安装任务正在进行中",
+    installSubmitted: "安装任务已提交",
+    issueSucceeded: "证书签发成功",
+  },
+  ddns: {
+    ipv6OnlyUnavailable:
+      "当前更新范围为仅更新 IPv6，但未检测到可用的 IPv6 地址",
+    ipv4OnlyUnavailable:
+      "当前更新范围为仅更新 IPv4，但未检测到可用的 IPv4 地址",
+    dualStackUnavailable: "当前更新范围内没有可用的 IPv4 或 IPv6 地址",
+    domainConfigIncomplete: "域名配置不完整",
+    domainNotInZone: "域名 {fqdn} 不属于根域 {zone}",
+    invalidJsonResponse: "响应不是合法 JSON: {text}",
+    aRecordFailed: "A 记录处理失败",
+    aaaaRecordFailed: "AAAA 记录处理失败",
+    providerDnsUpdateSuccess: "{provider} DNS 更新成功",
+    aliyunParamKeyMissing: "阿里云请求参数缺少键名",
+    requestFailed: "请求失败",
+    tencentMissingResponse: "HTTP {status}: 腾讯云 API 响应缺少 Response",
+    invalidHeaderFormat: "无效 Header 格式: {header}",
+    interfaceSourceLabel: "网卡 {name}",
+    selectedInterfaceSourceLabel: "所选网卡",
+    publicSourceLabel: "公网",
+    interfaceIpv6Unavailable:
+      "当前获取方式为从网卡直接获取，但所选网卡上没有可用的 IPv6 地址",
+    interfaceIpv4Unavailable:
+      "当前获取方式为从网卡直接获取，但所选网卡上没有可用的 IPv4 地址",
+    interfaceDualStackUnavailable:
+      "当前获取方式为从网卡直接获取，但所选网卡上没有可用的 IPv4 或 IPv6 地址",
+    publicIpv6Unavailable:
+      "当前获取方式为从公网获取，但未获取到可用的 IPv6 地址",
+    publicIpv4Unavailable:
+      "当前获取方式为从公网获取，但未获取到可用的 IPv4 地址",
+    publicDualStackUnavailable:
+      "当前获取方式为从公网获取，但未获取到可用的 IPv4 或 IPv6 地址",
+    selectInterfaceAddress: "从网卡直接获取时，请先选择一个 {family} 地址",
+    selectedInterfaceAddressUnavailable:
+      "所选网卡的第 {index} 个 {family} 地址已不可用，请重新选择",
+    ipv4FailedContinueIpv6: "IPv4 获取失败，将继续使用 IPv6 ({error})",
+    ipv4Failed: "IPv4 获取失败 ({error})",
+    ipv6FailedContinueIpv4: "IPv6 获取失败，将继续使用 IPv4 ({error})",
+    ipv6Failed: "IPv6 获取失败 ({error})",
+    publicIpv6NotSelectable:
+      "公网探测得到的 IPv6 ({ip}) 不在本机或 Docker 宿主机的可选网卡地址中；如果外网无法访问该地址，请改用“从网卡直接获取”并选择宿主机公网 IPv6",
+    interfaceRequired: "从网卡直接获取时，必须先明确选择一张出站网卡",
+    interfaceNotFound: "未找到可用网卡: {name}",
+    dockerHostInterfaceLabel: "宿主机 {name} ({summary})",
+    curlStatusLineParseFailed: "无法解析 curl 响应状态行: {line}",
+    curlNoHeaders: "curl 未返回任何响应头",
+    requestCanceled: "请求已取消",
+    curlRequestFailed: "curl 请求失败: {detail}",
+    triggerCron: "定时检查",
+    triggerEnable: "启用自动更新后立即检查",
+    triggerMessage: "{trigger}: {message}",
+    notConfigured: "未配置",
+    skippedNoProvider: "未选择 DDNS 提供商，已跳过",
+    skippedIncompleteConfig: "当前配置不完整，已跳过",
+    skippedPublicIpUnavailable: "无法获取公网 IP，已跳过",
+    skippedReason: "{reason}，已跳过",
+    targetIpNoChange: "目标 IP 未变化，无需更新",
+    none: "无",
+    ipChange: "{family}: {before} -> {after}",
+    targetIpChanged: "检测到目标 IP 变化: {changes}",
+    dnsUpdateSuccess: "DNS 更新成功 [{provider}]: {message}",
+    dnsUpdateFailed: "DNS 更新失败 [{provider}]: {message}",
+    taskError: "任务异常: {message}",
+    intervalOutOfRange: "自动同步频率必须是 {min}-{max} 之间的整数分钟数",
+    primaryDomainName: "主域",
+    noProviderSelected: "未选择提供商",
+    duplicateTarget: "已存在相同提供商和域名摘要的 DDNS 条目",
+    primaryInitFailed: "主域 DDNS 条目初始化失败",
+    primaryDomainScope: "主域",
+    additionalDomainScope: "附加域",
+    targetNotFound: "未找到 DDNS 条目",
+    unknownProvider: "未知的 DDNS 提供商: {provider}",
+    primaryDeleteForbidden: "主域条目不允许删除",
+    primaryDisableForbidden: "主域条目不可单独停用",
+    unknownProviderShort: "未知的提供商: {provider}",
+    selectProviderFirst: "请先选择 DDNS 提供商",
+    primaryConfigIncomplete: "当前主域配置不完整，请填写所有必填字段",
+    targetConfigIncomplete: "当前条目配置不完整，请填写所有必填字段",
+    manualTestStart: "手动测试开始，正在解析当前目标 IP...",
+    manualTestPrefix: "手动测试",
+    currentTargetIp: "当前目标 IP（{source}） — IPv4: {ipv4}, IPv6: {ipv6}",
+    testAborted: "{message}，测试中止",
+    updateSuccess: "更新成功: {message}",
+    updateFailed: "更新失败: {message}",
+    testError: "测试异常: {message}",
+    settingsSaveFailed: "保存 DDNS 自动同步设置失败",
+    providerSetFailed: "设置提供商失败",
+    configSaveFailed: "保存 DDNS 配置失败",
+    createTargetFailed: "创建 DDNS 条目失败",
+    updateTargetFailed: "更新 DDNS 条目失败",
+    deleteTargetFailed: "删除 DDNS 条目失败",
+    updateTargetEnabledFailed: "更新 DDNS 条目启用状态失败",
+    providers: {
+      common: {
+        fields: {
+          root_domain: {
+            label: "根域名",
+            description: "用于确定 Zone，例如 example.com",
+          },
+          domain: {
+            label: "完整域名",
+            shortLabel: "域名",
+            description: "要更新的完整域名",
+            hostDescription: "要更新的完整主机名",
+          },
+          ttl: {
+            description: "默认 {seconds} 秒",
+          },
+        },
+      },
+      dynv6: {
+        fields: {
+          token: {
+            description: "在 dynv6.com 账户中生成",
+          },
+          zone: {
+            label: "Zone 名称",
+            description: "你的 dynv6 zone 域名",
+          },
+          ipv6prefix: {
+            description: "可选，透传给 dynv6 API",
+          },
+        },
+        configIncomplete: "dynv6 配置不完整",
+        empty: "(空)",
+        success: "dynv6: {detail} (发送: {params})",
+        updateFailed: "dynv6 更新失败 [{status}]: {detail}",
+        requestError: "dynv6 请求异常: {detail}",
+      },
+      duckdns: {
+        fields: {
+          domains: {
+            label: "子域名",
+            description:
+              "只填写 DuckDNS 子域名，不带 .duckdns.org 后缀；支持逗号分隔",
+          },
+          token: {
+            description: "在 DuckDNS 控制台首页可以看到账号 token",
+          },
+        },
+        configIncomplete: "DuckDNS 配置不完整",
+        noIpAvailable: "DuckDNS 更新失败: 没有可用的 IPv4 或 IPv6 地址",
+        updateFailedWithStatus: "DuckDNS 更新失败 [{status}]: {detail}",
+        requestFailed: "请求失败",
+        updateFailed: "DuckDNS 更新失败: {detail}",
+        nonOkResponse: "返回了非 OK 响应",
+        success: "DuckDNS 更新成功{detail}",
+        requestError: "DuckDNS 请求异常: {detail}",
+      },
+      dnspod: {
+        fields: {
+          record_line: {
+            label: "线路",
+            description: "默认使用“默认”线路",
+          },
+        },
+        defaultLine: "默认",
+        configIncomplete: "DNSPod 配置不完整",
+        queryRecordFailed: "查询记录失败",
+        updateRecordFailed: "更新记录失败",
+        createRecordFailed: "创建记录失败",
+      },
+      cloudflare: {
+        fields: {
+          api_token: {
+            label: "API 令牌",
+            description: "需要 Zone.DNS 编辑权限",
+          },
+          zone_id: {
+            description: "在 Cloudflare 域名页，点击三个点，选择复制区域 ID",
+          },
+          proxied: {
+            label: "Cloudflare 代理",
+            description: "是否启用 Cloudflare 代理（橙色云朵）",
+            options: {
+              dnsOnly: "仅解析",
+              orangeCloud: "橙色云朵",
+            },
+          },
+        },
+        configIncomplete: "Cloudflare 配置不完整",
+        searchRecordFailed: "查询 {type} 记录失败: {detail}",
+        updateRecordFailed: "更新 {type} 记录失败: {detail}",
+        createRecordFailed: "创建 {type} 记录失败: {detail}",
+        recordOperationError: "{type} 记录操作异常: {detail}",
+        success: "Cloudflare DNS 更新成功",
+      },
+      godaddy: {
+        configIncomplete: "GoDaddy 配置不完整",
+        updateFailed: "更新失败",
+        updateFailedWithStatus: "[{status}] {detail}",
+      },
+      porkbun: {
+        configIncomplete: "Porkbun 配置不完整",
+        queryRecordFailed: "查询记录失败",
+        updateRecordFailed: "更新记录失败",
+        createRecordFailed: "创建记录失败",
+      },
+      alidns: {
+        label: "阿里云 DNS",
+        fields: {
+          access_key_secret: {
+            placeholder: "阿里云 AccessKey Secret",
+          },
+          line: {
+            label: "线路",
+            description: "默认使用阿里云“default”线路",
+          },
+        },
+        configIncomplete: "阿里云 DNS 配置不完整",
+        requestFailed: "请求失败",
+        updateFailed: "更新失败",
+        createFailed: "创建失败",
+      },
+      baidu: {
+        label: "百度云 DNS",
+        fields: {
+          access_key_id: {
+            placeholder: "百度智能云 Access Key",
+          },
+          secret_access_key: {
+            placeholder: "百度智能云 Secret Key",
+          },
+        },
+        configIncomplete: "百度云 DNS 配置不完整",
+        queryFailed: "查询失败",
+        updateFailed: "更新失败",
+        createFailed: "创建失败",
+      },
+      huawei: {
+        label: "华为云 DNS",
+        fields: {
+          access_key_id: {
+            placeholder: "华为云 AK",
+          },
+          secret_access_key: {
+            placeholder: "华为云 SK",
+          },
+        },
+        webCryptoUnsupported:
+          "当前运行环境不支持 Web Crypto，无法生成华为云 AK/SK 签名",
+        configIncomplete: "华为云 DNS 配置不完整",
+        requestFailed:
+          "华为云 DNS 请求失败: HTTP {status} {statusText}, {detail}",
+        zoneNotFound: "未找到华为云 Zone: {zone}",
+      },
+      tencentcloud: {
+        label: "腾讯云 DNS",
+        fields: {
+          secret_key: {
+            placeholder: "腾讯云 SecretKey",
+          },
+          record_line: {
+            label: "线路",
+            description: "默认使用“默认”线路",
+          },
+          record_line_id: {
+            label: "线路 ID",
+            description: "可选；如填写将优先使用线路 ID",
+          },
+        },
+        defaultLine: "默认",
+        configIncomplete: "腾讯云 DNS 配置不完整",
+        missingUpdatedRecordId: "腾讯云未返回更新后的 RecordId",
+        missingCreatedRecordId: "腾讯云未返回创建后的 RecordId",
+      },
+      noip: {
+        fields: {
+          hostname: {
+            description: "填写完整主机名，支持逗号分隔多个 hostname",
+          },
+          username: {
+            label: "用户名",
+            description: "建议使用 NO-IP 控制台生成的 DDNS Key 用户名",
+          },
+          password: {
+            label: "密码",
+            description: "建议使用与 DDNS Key 配套的密码，而不是主账号密码",
+          },
+        },
+        statusMessages: {
+          nohost: "指定的主机名不存在或不属于当前 DDNS Key",
+          badauth: "用户名或密码错误",
+          badagent: "客户端被 NO-IP 禁用，请检查 User-Agent 或客户端状态",
+          "!donator": "当前账号不支持请求中的增强功能",
+          abuse: "该 DDNS Key 因滥用被 NO-IP 封禁",
+          "911": "NO-IP 服务端发生临时故障，官方建议至少 30 分钟后再重试",
+        },
+        unknownStatus: "返回未知状态: {code}",
+        updateFailed: "NO-IP 更新失败: {detail}",
+        updateSuccess: "NO-IP 更新成功{detail}",
+        ipUnchanged: "NO-IP IP 未变化{detail}",
+        configIncomplete: "NO-IP 配置不完整",
+        noIpAvailable: "NO-IP 更新失败: 没有可用的 IPv4 或 IPv6 地址",
+        updateFailedWithStatus: "NO-IP 更新失败 [{status}]: {detail}",
+        requestFailed: "请求失败",
+        emptyResponse: "NO-IP 更新失败: 返回了空响应",
+        requestError: "NO-IP 请求异常: {detail}",
+      },
+      esa: {
+        label: "阿里云 ESA DNS",
+        fields: {
+          access_key_secret: {
+            placeholder: "阿里云 AccessKey Secret",
+          },
+          site_name: {
+            label: "站点名称",
+            description:
+              "ESA 站点名称，通常就是根域名；如已填写 Site ID，此项仅作兜底查询",
+          },
+          site_id: {
+            description: "可选，填写后将直接操作该站点，避免每次先查询站点列表",
+          },
+          proxied: {
+            label: "ESA 代理",
+            description: "默认仅解析；如开启代理，将自动附带业务类型",
+            options: {
+              dnsOnly: "仅解析",
+              enabled: "开启代理",
+            },
+          },
+          biz_name: {
+            label: "业务类型",
+            description: "仅在开启 ESA 代理时生效，默认 web",
+            options: {
+              web: "网页",
+              api: "接口",
+              imageVideo: "音视频",
+            },
+          },
+        },
+        configIncomplete: "阿里云 ESA DNS 配置不完整",
+        siteNameMissing: "阿里云 ESA DNS 缺少站点名称",
+        siteNotFound: "未找到 ESA 站点: {site}",
+        noIpAvailable: "阿里云 ESA DNS 缺少可更新的 IP 地址",
+        createRecordFailed: "CreateFailed: 创建记录失败",
+        success: "阿里云 ESA DNS 更新成功",
+        recordIdMissing: "UpdateFailed: 记录缺少 RecordId",
+      },
+      dynu: {
+        fields: {
+          api_key: {
+            description: "在 Dynu API Credentials 中生成的 API-Key",
+          },
+          domain: {
+            description: "要更新的完整 Dynu hostname",
+          },
+          group: {
+            description: "可选；写入 Dynu DNS 记录的 group",
+          },
+        },
+        actionFailed: "{action}失败",
+        actions: {
+          resolveRoot: "解析 Dynu 根域",
+          readDnsService: "读取 Dynu DNS 服务",
+          updateWildcardAlias: "更新 Dynu Wildcard Alias",
+          queryRecord: "查询 Dynu {type} 记录",
+          updateRecord: "更新 Dynu {type} 记录",
+          createRecord: "创建 Dynu {type} 记录",
+        },
+        invalidRootInfo: "Dynu 未返回有效的根域信息",
+        wildcardUnsupported:
+          "Dynu REST 不支持把 *.{domain} 当作 DNS 记录 nodeName。请先在 Dynu DDNS Services 中将 {domain} 添加为独立服务并启用 Wildcard Alias，或将 DDNS 配置改为 {domain}",
+        wildcardUnchanged: "Dynu Wildcard Alias IP 未变化",
+        wildcardSuccess: "Dynu Wildcard Alias 更新成功",
+        configIncomplete: "Dynu 配置不完整",
+        noIpAvailable: "Dynu 更新失败: 没有可用的 IPv4 或 IPv6 地址",
+        recordIdMissing: "Dynu 返回的 DNS 记录缺少 RecordId",
+        requestError: "Dynu 请求异常: {detail}",
+      },
+      edgeone: {
+        label: "腾讯云 EdgeOne",
+        fields: {
+          secret_key: {
+            placeholder: "腾讯云 SecretKey",
+          },
+          zone_id: {
+            description: "EdgeOne 站点 ID，用于定位托管的 Zone",
+          },
+          domain: {
+            description: "要更新的完整主机名；中文域名请先转为 punycode",
+          },
+          location: {
+            label: "解析线路",
+            placeholder: "Default 或 CN.BJ",
+            description: "可选；默认留空表示 Default 全局线路",
+          },
+          ttl: {
+            description: "默认 300 秒，EdgeOne 允许 60-86400",
+          },
+          overseas_access: {
+            label: "海外访问控制",
+            description:
+              "当开启时，将调用 EdgeOne 安全策略 API 屏蔽海外 IP 访问；港澳台不属于海外。该设置只会在配置变更时同步一次，不会随每次 DDNS 更新重复执行。",
+            options: {
+              off: "不使用",
+              blockOverseas: "屏蔽海外 IP",
+            },
+          },
+          endpoint: {
+            description:
+              "默认国内版，可改为 https://teo.intl.tencentcloudapi.com 或地域接入域名",
+          },
+          region: {
+            placeholder: "留空",
+            description: "可选；大多数场景可留空",
+          },
+        },
+        configIncomplete: "腾讯云 EdgeOne 配置不完整",
+        configTargetIncomplete:
+          "腾讯云 EdgeOne 配置不完整，缺少 Zone ID 或域名",
+        missingRecordId: "EdgeOne 返回的记录缺少 RecordId",
+        missingCreatedRecordId: "EdgeOne 未返回创建后的 RecordId",
+        overseasAccess: {
+          describeRulesFailed:
+            "EdgeOne 海外访问控制读取现有自定义规则失败 (provider_target={target}, zone_id={zoneId}, endpoint_host={endpointHost}, region={region}, entity={entity}, scope={scope}): {message}",
+          syncFailedWithAttempt:
+            "EdgeOne 海外访问控制同步失败 ({attempt}, submitted_rule_count={count}): {message}",
+          syncAllScopesFailed:
+            "EdgeOne 海外访问控制同步失败：所有规则作用域均尝试失败",
+          cleanupAllScopesFailed:
+            "EdgeOne 海外访问控制清理失败：所有规则作用域均尝试失败",
+          syncSuccess:
+            "已同步 EdgeOne 海外 IP 屏蔽策略，仅允许中国大陆、香港、澳门、台湾访问",
+          cleanupSuccess: "已清理 EdgeOne 海外 IP 屏蔽策略",
+        },
+      },
+      edgeone_cname: {
+        label: "腾讯云 EdgeOne（CNAME 接入）",
+        fields: {
+          secret_key: {
+            placeholder: "腾讯云 SecretKey",
+          },
+          zone_id: {
+            description: "EdgeOne 站点 ID，用于定位加速域名所属的站点",
+          },
+          domain: {
+            label: "加速域名",
+            description:
+              "已在 EdgeOne 中创建的加速域名；仅支持当前源站类型为 IP_DOMAIN，且一次只能更新一个源站地址",
+          },
+          overseas_access: {
+            label: "海外访问控制",
+            description:
+              "当开启时，将调用 EdgeOne 安全策略 API 屏蔽海外 IP 访问；港澳台不属于海外。该设置只会在配置变更时同步一次，不会随每次 DDNS 更新重复执行。",
+            options: {
+              off: "不使用",
+              blockOverseas: "屏蔽海外 IP",
+            },
+          },
+          endpoint: {
+            description:
+              "默认国内版，可改为 https://teo.intl.tencentcloudapi.com 或地域接入域名",
+          },
+          region: {
+            placeholder: "留空",
+            description: "可选；大多数场景可留空",
+          },
+        },
+        configIncomplete: "腾讯云 EdgeOne（CNAME 接入）配置不完整",
+        singleAddressOnly:
+          "腾讯云 EdgeOne（CNAME 接入）一次只能更新一个源站地址，请将 DDNS 更新范围设置为“仅更新 IPv4”或“仅更新 IPv6”",
+        noIpAvailable: "腾讯云 EdgeOne（CNAME 接入）缺少可更新的 IP 地址",
+        domainNotFound: "未找到 EdgeOne 加速域名: {domain}",
+        unsupportedOriginType:
+          "当前加速域名源站类型为 {originType}，仅支持 IP_DOMAIN 类型的加速域名进行 DDNS 更新",
+        originUnchanged: "腾讯云 EdgeOne（CNAME 接入）源站已是最新，无需更新",
+        successWithInvalidHostHeaderIgnored:
+          "腾讯云 EdgeOne（CNAME 接入）源站更新成功（已忽略无效 Host Header）",
+        success: "腾讯云 EdgeOne（CNAME 接入）源站更新成功",
+      },
+    },
+  },
+  smartConnect: {
+    runTypes: {
+      direct: "直连模式",
+      reverseProxy: "反代模式",
+      subdomain: "子域模式",
+    },
+    currentMode: "当前模式",
+    unavailableReason: "仅子域模式可用，当前为{mode}。",
+    selectLocalIp: "请选择本机局域网 IP",
+    selectValidLocalIpv4: "请选择有效的本机局域网 IPv4 地址",
+    dnsmasqNotInstalled: "未检测到 dnsmasq，请先完成安装",
+    dnsmasqNotInitialized: "dnsmasq 尚未初始化完成，请先完成环境初始化",
+    syncFailed: "智能连接同步失败",
+  },
+  scanDiscovery: {
+    localIpv4CidrOnly: "扫描网段仅支持本地 IPv4 CIDR：{cidrs}",
+    maxCidrsExceeded: "单次最多选择 {max} 个扫描网段",
+    maxHostsExceededWithCurrent:
+      "单次最多扫描 {max} 台主机，当前为 {current} 台",
+    maxHostsExceeded: "单次最多扫描 {max} 台主机",
+    selectAtLeastOneCidr: "请选择至少一个本地 IPv4 扫描网段",
+    targetLabels: {
+      docker: "{cidr}（Docker 宿主机局域网）",
+      loopback: "{cidr}（本机回环）",
+      interface: "{cidr}（{name}）",
+      mapping: "{cidr}（已有映射目标）",
+      custom: "{cidr}（自定义）",
+      saved: "{cidr}（已保存）",
+    },
+    serviceLabels: {
+      lottery: "彩票助手",
+      dlymusic: "道理鱼音乐管理",
+      kuake: "夸克自动转存",
+      xunlei: "迅雷",
+      nowen: "星云门户",
+      fnos: "飞牛OS",
+      fnys: "飞牛影视",
+      xiaoyaAlist: "小雅Alist",
+    },
+  },
+  gatewayProxyHeaders: {
+    runTypes: {
+      direct: "直连模式",
+      reverseProxy: "反代模式",
+      subdomain: "子域模式",
+    },
+    unavailableReason: "仅子域模式可用，当前为{mode}。",
+    syncFailed: "同步网关协议头配置失败",
+  },
+  sshSecurity: {
+    logSourceUnavailable: "当前系统未发现 journalctl 或 /var/log/auth.log",
+    enableUnavailable: "当前环境不可启用 SSH 安全",
+    syncFirewallUnavailable: "当前环境不可同步 SSH 防火墙",
+    clearFirewallUnavailable: "当前环境不可清空 SSH 防火墙",
+    logSourceUnavailableShort: "SSH 日志源不可用",
+    customCidrInvalid: "自定义 CIDR 格式不正确：{cidrs}",
+    syncSshPolicyFailed: "同步 SSH 专用防火墙规则失败",
+    clearSshPolicyFailed: "清空 SSH 专用防火墙规则失败",
+    blockRecordInvalid: "封锁记录格式不正确",
+    routes: {
+      updateConfigFailed: "更新 SSH 安全配置失败",
+      syncFirewallSuccess:
+        "已同步 {allowedCidrs} 条允许 CIDR 与 {synced} 个 SSH 封锁 IP 到 {ports} 端口",
+      syncFirewallFailed: "同步 SSH 防火墙失败",
+      clearFirewallSuccess: "已清空 SSH 专用防火墙规则",
+      clearFirewallFailed: "清空 SSH 防火墙失败",
+      readLoginLogsFailed: "读取 SSH 登录日志失败",
+      blockNotFound: "封锁记录不存在",
+      removeBlockFailed: "解除封锁失败",
+      selectIps: "请选择要解除封锁的 IP",
+      removeBlocksFailed: "批量解除封锁失败",
+    },
+  },
+  notifications: {
+    brand: {
+      prefix: "敲门 Knock ",
+      defaultTitle: "敲门 Knock 通知",
+    },
+    templates: {
+      events: {
+        authLoginSuccess: "登录成功",
+        authLogout: "退出登录",
+        authLoginFailure: "登录失败",
+        authSessionIpDrift: "会话 IP 漂移",
+        securityScannerBlocked: "扫描器拦截",
+        ddnsUpdateCompleted: "DDNS 更新",
+        gatewayThrottleBlocked: "网关节流封锁",
+        wafBlocked: "WAF 阻断",
+        sshLoginSuccess: "SSH 登录成功",
+        sshLoginFailure: "SSH 登录失败",
+        sshIpBlocked: "SSH IP 封锁",
+        appUpdateAvailable: "应用更新提示",
+        cpuAlert: "CPU 告警",
+        cpuRecovered: "CPU 恢复",
+        memoryAlert: "内存告警",
+        memoryRecovered: "内存恢复",
+        frpConnected: "FRP 已连上",
+        frpDisconnected: "FRP 已断开",
+        cloudflaredConnected: "Cloudflared 已连上",
+        cloudflaredDisconnected: "Cloudflared 已断开",
+      },
+      ruleName: "{event} 通知",
+      levels: {
+        info: "信息",
+        warn: "注意",
+        error: "错误",
+        critical: "严重",
+      },
+      sources: {
+        serverAdmin: "管理后台",
+        goReauthProxy: "认证代理",
+        systemMonitor: "系统监控",
+      },
+      authMethods: {
+        oidc: "外部账号",
+      },
+      grantTypes: {
+        browserSession: "浏览器会话",
+        loginIpGrant: "登录 IP 授权",
+      },
+      wafModes: {
+        detection: "检测",
+        blocking: "阻断",
+        off: "关闭",
+      },
+      wafActions: {
+        block: "阻断",
+        deny: "拒绝",
+        detect: "检测",
+        log: "记录",
+        pass: "放行",
+      },
+      logoutSources: {
+        userLogout: "用户主动退出",
+        adminSessionDelete: "管理员下线",
+      },
+      driftSources: {
+        proxySession: "代理会话",
+        fnosToken: "飞牛令牌",
+        sessionRefresh: "会话刷新",
+        browserSession: "浏览器会话",
+      },
+      ddnsTriggers: {
+        cron: "定时任务",
+        enable: "启用后首次执行",
+        manualTest: "手动测试",
+      },
+      ddnsUpdateScopes: {
+        ipv4Only: "仅 IPv4",
+        ipv6Only: "仅 IPv6",
+      },
+      ddnsIpSources: {
+        public: "公网探测",
+        interface: "网卡读取",
+      },
+      updateCheckReasons: {
+        cron: "定时检查",
+        manual: "手动检查",
+        manualCheckAndDownload: "手动检查并下载",
+        downloadBootstrap: "下载前检查",
+      },
+      credential: "凭证",
+      unknownCredential: "未知凭证",
+      credentialLinkedTotp: "{authMethod}「{credential}」关联 TOTP「{totp}」",
+      credentialName: "凭证「{credential}」",
+      sessionCommentCompact: "备注：{comment}",
+      appendSessionComment: "{text}（备注：{comment}）",
+      yes: "是",
+      no: "否",
+      wafOutcomeBlocked: "阻断",
+      wafOutcomeLogged: "记录",
+      sections: {
+        overview: "事件概述",
+        aggregation: "聚合情况",
+        advice: "处理建议",
+      },
+      aggregationText:
+        "本次通知已在 {seconds} 秒窗口内聚合 {count} 条相似事件。",
+      details: {
+        units: {
+          seconds: "{count} 秒",
+          minutes: "{count} 分钟",
+          times: "{count} 次",
+          ratePerSecond: "{count} 次/秒",
+        },
+        listSeparator: "、",
+        unknown: "未知",
+        unknownIp: "未知 IP",
+        unknownMethod: "未知方式",
+        unknownProvider: "未知提供商",
+        unknownUser: "未知用户",
+        unknownHost: "未知主机",
+        currentSession: "当前会话",
+        memoryMetric: "内存",
+        connected: "已连上",
+        disconnected: "已断开",
+        parenthesized: "（{value}）",
+        sessionCommentSentence: "当前会话备注为「{comment}」。",
+        aggregationStatsValue: "{count} 条 / {seconds} 秒窗口",
+        facts: {
+          credentialName: "凭证名称",
+          linkedTotp: "关联 TOTP",
+          sessionComment: "会话备注",
+          loginIp: "登录 IP",
+          ipLocation: "IP 位置",
+          authMethod: "认证方式",
+          loginProvider: "登录提供商",
+          grantType: "授权方式",
+          rememberLogin: "记住登录",
+          sessionExpiresAt: "会话到期",
+          sessionId: "会话 ID",
+          logoutSource: "退出方式",
+          loginTime: "登录时间",
+          sourceIp: "来源 IP",
+          failureAttempts: "失败次数",
+          retryWait: "重试等待",
+          limitUntil: "限制截止",
+          originalIp: "原始 IP",
+          originalLocation: "原始位置",
+          currentIp: "当前 IP",
+          currentLocation: "当前位置",
+          driftSource: "变化来源",
+          hitCount: "命中次数",
+          observationWindow: "观察窗口",
+          triggerThreshold: "触发阈值",
+          blockedAt: "拦截时间",
+          recentPaths: "最近路径",
+          target: "条目",
+          provider: "提供商",
+          targetType: "条目类型",
+          trigger: "执行方式",
+          updateScope: "更新范围",
+          ipSource: "IP 来源",
+          ipv4Change: "IPv4 变化",
+          ipv6Change: "IPv6 变化",
+          result: "执行结果",
+          blockDuration: "封锁时长",
+          blockedUntil: "封锁截止",
+          rateLimit: "限流阈值",
+          burstCapacity: "突发容量",
+          targetHost: "目标主机",
+          requestPath: "请求路径",
+          routeType: "路由类型",
+          authRoute: "认证路由",
+          traceId: "Trace ID",
+          requestAddress: "请求地址",
+          outcome: "处理结果",
+          wafAction: "WAF 动作",
+          wafMode: "WAF 模式",
+          ruleIds: "规则 ID",
+          ruleBundle: "规则包",
+          statusCode: "状态码",
+          user: "用户",
+          port: "端口",
+          logTime: "日志时间",
+          invalidUser: "无效用户",
+          threshold: "阈值",
+          window: "窗口",
+          blockedReason: "封锁原因",
+          relatedUser: "关联用户",
+          currentVersion: "当前版本",
+          latestVersion: "最新版本",
+          checkReason: "检查方式",
+          forceUpdate: "强制更新",
+          releaseNotes: "更新说明",
+          hostname: "主机名",
+          currentUsage: "当前使用率",
+          alertThreshold: "告警阈值",
+          recoverThreshold: "恢复阈值",
+          sampleInterval: "采样间隔",
+          sustainDuration: "持续时间",
+          tunnelType: "隧道类型",
+          connectionStatus: "连接状态",
+          processPid: "进程 PID",
+          runtimeFeedback: "运行反馈",
+          eventType: "事件类型",
+          riskLevel: "风险级别",
+          eventSource: "事件来源",
+          happenedAt: "发生时间",
+          aggregationStats: "聚合统计",
+        },
+        authLoginSuccess: {
+          loginViaProvider: "通过 {provider} 登录",
+          loginWithMethod: "使用 {method}",
+          authViaProvider: "通过 {provider}",
+          authWithMethod: "使用 {method}",
+          summaryOidc: "{credential} {method}成功，来源 IP {ip}{totpPart}",
+          linkedTotpPart: "，关联 TOTP「{totp}」",
+          summaryTotp:
+            "{method}「{credential}」关联 TOTP「{totp}」从 {ip} 登录成功",
+          summaryCredential: "凭证「{credential}」从 {ip} 登录成功",
+          overview:
+            "本次登录{auth}完成认证，授权方式为 {grantType}{locationPart}。{commentPart}",
+          locationPart: "，登录位置为 {location}",
+          advice: "如该登录并非本人操作，建议尽快撤销会话并检查访问策略。",
+        },
+        authLogout: {
+          summaryTotp: "{method}「{credential}」关联 TOTP「{totp}」已退出登录",
+          summaryCredential: "凭证「{credential}」已退出登录",
+          overview:
+            "该会话已从 {ip}{locationPart} 退出，退出方式为 {source}。{commentPart}",
+          advice:
+            "如该退出不符合预期，请核查是否存在管理员下线或异常会话清理。",
+        },
+        authLoginFailure: {
+          summary: "来自 {ip} 的登录失败已累计 {attempts} 次",
+          overview:
+            "检测到登录认证连续失败，当前来源 IP 为 {ip}{retryPart}{blockedPart}。",
+          retryPart: "，需等待 {seconds} 秒后再尝试",
+          blockedPart: "，限制将持续到 {time}",
+          advice:
+            "如非本人操作，建议立即检查凭证安全，并考虑封禁来源 IP 或提高登录防护等级。",
+        },
+        authSessionIpDrift: {
+          summary: "{session} IP 从 {fromIp} 切换到 {toIp}",
+          overview:
+            "检测到{session}的访问来源 IP 发生变化，来源判定为 {source}。{commentPart}这通常与网络切换、代理变化或会话异常有关。",
+          advice:
+            "若这次 IP 变化并不符合预期，请尽快核查当前会话是否存在被接管风险。",
+        },
+        securityScannerBlocked: {
+          summary: "{ip} 因扫描行为已被拦截",
+          overview:
+            "该来源在 {minutes} 分钟内累计触发 {hits} 次扫描行为，已超过阈值 {threshold} 次{pathsPart}。",
+          pathsPart: "；最近命中的路径包括 {paths}",
+          advice:
+            "建议结合网关日志确认是否为恶意探测；如确认为误报，可进一步调整扫描阈值。",
+        },
+        ddnsUpdateCompleted: {
+          defaultTarget: "DDNS 条目",
+          summarySuccess: "{target} DDNS 更新成功",
+          summaryFailure: "{target} DDNS 更新失败",
+          currentTask: "本次任务",
+          overview:
+            "{trigger}已执行 DDNS 更新，范围为 {scope}，IP 来源为 {ipSource}。{resultPart}",
+          resultPart: "结果说明：{message}",
+          adviceSuccess:
+            "如解析尚未生效，可继续等待 DNS 缓存刷新后再验证外部访问。",
+          adviceFailure:
+            "建议检查提供商凭证、解析记录配置，以及公网 IP 获取状态是否正常。",
+          primaryDomain: "主域",
+          additionalDomain: "附加域",
+        },
+        gatewayThrottleBlocked: {
+          summary: "{ip} 因请求过快被封锁 {seconds} 秒",
+          overview:
+            "该来源触发了网关节流保护，限流阈值为 {rate} 次/秒，突发容量为 {burst}{targetPart}。",
+          targetPart: "，目标请求为 {target}",
+          advice:
+            "请结合访问日志确认是否为突发流量、误伤或恶意请求，并按需调整限流策略。",
+        },
+        wafBlocked: {
+          summary: "{ip} 的请求被 WAF {outcome}",
+          overview:
+            "WAF 已{outcome}来源 {ip}{hostPart}{pathPart}{actionPart}{modePart}。{rulesPart}",
+          hostPart: " 访问 {host}",
+          pathPart: " {path}",
+          actionPart: "，动作为{action}",
+          modePart: "，当前模式为{mode}",
+          rulesPart: "命中规则：{rules}。",
+          adviceBlocked:
+            "请在 WAF 日志中按 Trace ID 查看命中详情；如确认为误报，请及时向项目方反馈BUG。",
+          adviceLogged:
+            "请在 WAF 日志中按 Trace ID 查看命中详情，并结合规则与请求上下文判断是否需要调整策略。",
+        },
+        sshLoginSuccess: {
+          summary: "SSH 用户「{username}」从 {ip} 登录成功",
+          overview:
+            "检测到一次 SSH 登录成功，来源为 {ip}{locationPart}{authPart}。",
+          authPart: "，认证方式为 {authMethod}",
+          advice: "如该登录并非预期，请检查 SSH 账号、密钥和来源访问策略。",
+        },
+        sshLoginFailure: {
+          summary: "SSH 用户「{username}」从 {ip} 登录失败",
+          overview:
+            "该来源在 {minutes} 分钟窗口内累计 {attempts}/{threshold} 次 SSH 登录失败{locationPart}。",
+          locationPart: "，位置为 {location}",
+          advice:
+            "请关注失败次数是否接近封锁阈值，必要时收紧 SSH 暴露范围或调整凭据。",
+        },
+        sshIpBlocked: {
+          reasonCidrNotAllowed: "不在允许地区范围",
+          reasonFailedThreshold: "失败次数达到阈值",
+          summary: "{ip} 已被 SSH 安全封锁",
+          overview: "SSH 安全已封锁来源 {ip}{locationPart}，原因是{reason}。",
+          advice:
+            "请确认该来源是否可信；如为误封，可在 SSH 安全的封锁列表中解除。",
+        },
+        appUpdateAvailable: {
+          currentVersionUnknown: "当前版本未知",
+          targetVersionUnknown: "目标版本未知",
+          summary: "发现新版本 {version}",
+          currentCheck: "本次检查",
+          overview:
+            "{reason}发现 fn-knock 可从 {localVersion} 升级到 {latestVersion}{forcePart}。",
+          forcePart: "，建议尽快安排更新",
+          releaseNotesAdvice: "更新说明：{releaseNotes}",
+          advice:
+            "建议在合适的维护窗口完成更新，并在安装前确认当前配置与服务状态。",
+        },
+        systemMetric: {
+          recoveredSummary: "{hostname} {metric} 使用率已恢复至 {usage}%",
+          alertSummary: "{hostname} {metric} 使用率已升至 {usage}%",
+          recoveredOverview:
+            "{hostname} 的 {metric} 使用率已回落到 {usage}%，恢复线为 {recover}%，此前告警阈值为 {threshold}%。",
+          alertOverview:
+            "{hostname} 的 {metric} 使用率当前为 {usage}%，已超过告警阈值 {threshold}%，恢复线设置为 {recover}%。",
+          recoveredAdvice:
+            "当前资源已回到相对安全区间，建议继续观察后续是否还有反复波动。",
+          alertAdvice:
+            "建议尽快检查高负载进程、后台任务或外部流量变化，避免资源持续打满。",
+        },
+        tunnel: {
+          connectedSummary: "{tunnel} 已连上",
+          disconnectedSummary: "{tunnel} 已断开",
+          connectedOverview: "{tunnel} 隧道连接已经恢复{messagePart}。",
+          connectedMessagePart: "，运行反馈为：{message}",
+          disconnectedOverview: "{tunnel} 隧道连接已断开{messagePart}。",
+          disconnectedMessagePart: "，当前反馈为：{message}",
+          connectedAdvice:
+            "如你之前正在排查访问问题，现在可以重新验证外部入口是否已经恢复。",
+          disconnectedAdvice:
+            "建议检查隧道配置、上游网络状态，以及远端服务是否可达。",
+        },
+        short: {
+          loginFailureAttempts: "{count}次失败",
+          scanHits: "{count}次扫描",
+          scanBlocked: "扫描拦截",
+          success: "成功",
+          failure: "失败",
+          blockSeconds: "封锁{seconds}s",
+          blockTriggered: "触发封锁",
+          rules: "规则 {rules}",
+          sshLoginSuccess: "SSH 登录成功",
+          sshLoginFailure: "SSH 登录失败",
+          regionNotAllowed: "地区不允许",
+          failureThreshold: "失败阈值",
+          currentVersion: "当前 {version}",
+        },
+        titles: {
+          ddnsUpdateSuccess: "{target} 更新成功",
+          ddnsUpdateFailure: "{target} 更新失败",
+          credentialIpDrift: "凭证「{credential}」IP 漂移",
+          appUpdateAvailable: "发现新版本 {version}",
+        },
+      },
+    },
+    providers: {
+      catalog: {
+        email: {
+          label: "邮件",
+          description:
+            "通过 SMTP 发送邮件通知，同时支持保存 IMAP 配置项以便统一管理邮箱连接信息。",
+          fields: {
+            smtp_host: {
+              label: "SMTP 主机",
+              description: "邮件发送服务器地址，例如 smtp.example.com。",
+            },
+            smtp_port: {
+              label: "SMTP 端口",
+              description: "常见端口为 465（SSL/TLS）或 587（STARTTLS）。",
+            },
+            smtp_security: {
+              label: "SMTP 加密方式",
+              options: {
+                none: "不加密",
+              },
+            },
+            smtp_auth_mode: {
+              label: "SMTP 认证方式",
+              description:
+                "自动优先使用 AUTH PLAIN，不支持时会回退到 AUTH LOGIN。",
+              options: {
+                auto: "自动协商",
+                none: "无认证",
+              },
+            },
+            smtp_username: {
+              label: "SMTP 用户名",
+            },
+            smtp_password: {
+              label: "SMTP 密码",
+            },
+            from_address: {
+              label: "发件邮箱",
+              description: "会作为 MAIL FROM 和邮件头中的 From 地址。",
+            },
+            from_name: {
+              label: "发件人名称",
+            },
+            to_addresses: {
+              label: "默认收件人",
+              description:
+                "支持逗号或换行分隔多个邮箱。测试发送会使用这里的收件人，规则也可在 target 中覆盖。",
+              targetLabel: "收件人覆盖",
+              targetDescription: "可选。留空则使用提供商默认收件人。",
+              addressLabel: "收件人",
+            },
+            cc_addresses: {
+              label: "默认抄送",
+              targetLabel: "抄送覆盖",
+              addressLabel: "抄送",
+            },
+            bcc_addresses: {
+              label: "默认密送",
+              targetLabel: "密送覆盖",
+              addressLabel: "密送",
+            },
+            reply_to: {
+              label: "默认回复地址",
+              targetLabel: "回复地址覆盖",
+              addressLabel: "回复地址",
+            },
+            allow_invalid_tls: {
+              label: "允许不校验证书",
+              description:
+                "仅建议在自建邮件服务器或自签名证书调试时开启，生产环境应保持关闭。",
+            },
+            timeout_seconds: {
+              label: "超时秒数",
+            },
+            imap_host: {
+              label: "IMAP 主机",
+              description:
+                "可选，用于保存收信配置。当前通知发送流程只使用 SMTP，不会主动读取 IMAP。",
+            },
+            imap_port: {
+              label: "IMAP 端口",
+            },
+            imap_security: {
+              label: "IMAP 加密方式",
+              options: {
+                none: "不加密",
+              },
+            },
+            imap_username: {
+              label: "IMAP 用户名",
+            },
+            imap_password: {
+              label: "IMAP 密码",
+            },
+            imap_mailbox: {
+              label: "IMAP 邮箱目录",
+            },
+            subject_prefix: {
+              label: "主题前缀",
+              description: "可选，例如 [生产环境]。",
+              placeholder: "[生产环境]",
+            },
+          },
+          message: {
+            fallbackTitle: "fn-knock 通知",
+            details: "详情:",
+            actionLinks: "操作链接:",
+            severity: "级别: {value}",
+            eventId: "事件 ID: {value}",
+            occurredAt: "发生时间: {value}",
+          },
+          errors: {
+            invalidEmailAddress: "{field} 中包含无效邮箱地址: {value}",
+            smtpConnectionClosed: "SMTP 连接已关闭",
+            smtpReaderDisposed: "SMTP 读取器已释放",
+            invalidSmtpResponse: "无法解析 SMTP 响应: {line}",
+            smtpConnectionTimeout: "SMTP 连接超时",
+            smtpTlsHandshakeTimeout: "SMTP TLS 握手超时",
+            smtpCommandFailed: "{message}: {code} {response}",
+            unknownResponse: "未知响应",
+            authPlainUnsupported: "SMTP 服务器不支持 AUTH PLAIN",
+            authLoginUnsupported: "SMTP 服务器不支持 AUTH LOGIN",
+            unsupportedAuthMechanisms: "SMTP 认证方式不受支持: {mechanisms}",
+            authFailed: "SMTP 认证失败",
+            usernameAuthFailed: "SMTP 用户名认证失败",
+            passwordAuthFailed: "SMTP 密码认证失败",
+            dataStartFailed: "SMTP DATA 阶段启动失败",
+            submitFailed: "SMTP 邮件提交失败",
+            invalidFromAddress: "发件邮箱格式不正确",
+            recipientRequired: "至少需要配置一个收件邮箱",
+            handshakeFailed: "SMTP 服务端握手失败",
+            ehloFailed: "SMTP EHLO 失败",
+            startTlsUnsupported: "SMTP 服务器未声明 STARTTLS 能力",
+            startTlsFailed: "SMTP STARTTLS 失败",
+            ehloAfterTlsFailed: "SMTP TLS 升级后 EHLO 失败",
+            credentialsRequired: "SMTP 用户名和密码不能为空",
+            noAuthMechanism: "SMTP 服务器未提供可用的认证方式",
+            mailFromFailed: "SMTP 发件人设置失败",
+            recipientSetFailed: "SMTP 收件人 {recipient} 设置失败",
+            quitFailed: "SMTP 退出失败",
+            missingSmtpHost: "缺少 SMTP 主机",
+            deliveryFailed: "邮件投递失败",
+          },
+        },
+        pushplus: {
+          description:
+            "通过 PushPlus 标准发送接口推送通知，可按规则选择公众号、App、邮件等渠道。",
+          fields: {
+            server_url: {
+              label: "服务地址",
+              description: "官方接口保持默认值即可。",
+            },
+            token: {
+              description: "PushPlus 的用户 token 或消息 token，请妥善保管。",
+            },
+            timeout_seconds: {
+              label: "超时秒数",
+            },
+            topic: {
+              label: "群组编码",
+              description:
+                "可选。填写后将消息发送到指定群组；不填则发送给 token 自己。",
+            },
+            template: {
+              label: "消息模板",
+              description:
+                "默认使用 Markdown；如果目标渠道更适合纯文本或 HTML，也可以单独切换。",
+              options: {
+                txt: "纯文本",
+              },
+            },
+            channel: {
+              label: "发送渠道",
+              description:
+                "默认发送到微信公众号；如已在 PushPlus 中配置其他渠道，可在这里切换。",
+              options: {
+                wechat: "微信公众号",
+                webhook: "第三方 Webhook",
+                cp: "企业微信应用",
+                mail: "邮件",
+                sms: "短信",
+                voice: "语音",
+                extension: "插件 / 桌面程序",
+                clawbot: "微信 ClawBot",
+              },
+            },
+            option: {
+              label: "渠道配置参数",
+              description:
+                "可选。cp、webhook、mail 等渠道通常需要填写在 PushPlus 个人中心里预先配置好的渠道编码。",
+            },
+            to: {
+              label: "好友令牌 / 用户 ID",
+              description:
+                "可选。微信公众号渠道填写好友令牌，企业微信应用渠道填写用户 ID；多人可按 PushPlus 文档格式传入。",
+              placeholder: "friend_token 或 user1,user2",
+            },
+            callback_url: {
+              label: "回调 URL",
+              description:
+                "可选。PushPlus 异步投递完成后会把结果回调到这个地址。",
+            },
+            pre: {
+              label: "预处理编码",
+              description:
+                "可选。仅当 PushPlus 账号已配置对应预处理逻辑时填写，用于在服务端发送前加工消息内容。",
+            },
+          },
+          message: {
+            fallbackTitle: "fn-knock 通知",
+          },
+          errors: {
+            missingToken: "缺少 PushPlus token",
+            requestFailed: "PushPlus 请求失败",
+          },
+        },
+        wxpusher: {
+          description:
+            "通过 WxPusher 标准推送接口向指定 UID 或 Topic 发送消息通知；规则 target 留空时会继承提供商里的默认目标配置。",
+          fields: {
+            server_url: {
+              label: "服务地址",
+              description: "官方服务保持默认值即可。",
+            },
+            app_token: {
+              description: "WxPusher 后台应用的 AppToken，请妥善保管。",
+            },
+            timeout_seconds: {
+              label: "超时秒数",
+            },
+            uids: {
+              label: "默认 UID 列表",
+              targetLabel: "UID 列表",
+              description:
+                "可选。测试发送会优先使用这里的 UID；规则 target 留空时也会沿用这里的默认值。",
+              targetDescription:
+                "可选。填写后覆盖提供商中的默认 UID 列表；留空则沿用默认值。",
+            },
+            topic_ids: {
+              label: "默认 Topic",
+              description:
+                "可选。测试发送会优先使用这里的 Topic；建议至少填写一个默认 UID 或 Topic，便于直接验证通道。",
+              targetDescription:
+                "可选。填写后覆盖提供商中的默认 Topic；留空则沿用默认值。",
+            },
+            url: {
+              label: "默认消息跳转 URL",
+              targetLabel: "消息跳转 URL",
+              description:
+                "可选。规则 target 未填写时会沿用这里的跳转链接；测试发送也会使用它。",
+              targetDescription:
+                "可选。填写后覆盖提供商中的默认跳转链接；留空则沿用默认值。",
+            },
+            verify_pay_type: {
+              label: "默认订阅验证",
+              targetLabel: "订阅验证",
+              description:
+                "可选。规则 target 未填写时会沿用这里的订阅验证策略。",
+              targetDescription:
+                "可选。填写后覆盖提供商中的默认订阅验证策略；选择“沿用提供商默认”时不单独覆盖。",
+              options: {
+                "0": "不验证",
+                "1": "仅付费订阅用户",
+                "2": "仅未订阅或已过期用户",
+                __inherit__: "沿用提供商默认",
+              },
+            },
+          },
+          message: {
+            fallbackTitle: "fn-knock 通知",
+          },
+          errors: {
+            missingAppToken: "缺少 WxPusher AppToken",
+            invalidTopicIds: "Topic ID 格式不正确：{values}",
+            recipientRequired:
+              "WxPusher 至少需要配置一个 UID 或 Topic ID，可在提供商默认配置中填写，或在规则目标里单独覆盖",
+            targetsFailed: "{failed}/{total} 个 WxPusher 目标发送失败",
+            requestFailed: "WxPusher 请求失败",
+          },
+        },
+        bark: {
+          description:
+            "通过 Bark 官方在线版或自建 Bark Server 向 iPhone 发送 APNs 推送通知。",
+          fields: {
+            server_url: {
+              label: "服务地址",
+              description:
+                "官方在线版保持默认值即可；如果你使用自建 Bark Server，则填写服务根地址。",
+            },
+            device_key: {
+              description:
+                "Bark App 中复制的设备 Key。可填写多个 key，并用英文逗号分隔。",
+            },
+            timeout_seconds: {
+              label: "超时秒数",
+            },
+            level: {
+              label: "通知级别",
+              description:
+                "active 为默认即时提醒；timeSensitive 可穿透专注模式；critical 为关键提醒。",
+            },
+            group: {
+              label: "消息分组",
+              description: "可选。相同分组会在 Bark 客户端内聚合展示。",
+            },
+            sound: {
+              label: "提示音",
+              description: "可选。填写 Bark 支持的系统或自定义提示音名称。",
+            },
+            url: {
+              label: "点击跳转 URL",
+              description:
+                "可选。点击通知后打开的链接；未填写时会优先使用消息动作中的首个链接。",
+            },
+            icon: {
+              label: "图标 URL",
+              description: "可选。iOS 15 及以上可显示自定义图标。",
+            },
+            badge: {
+              label: "角标数字",
+              description: "可选。显示在 Bark App 图标上的角标数字。",
+            },
+            call: {
+              label: "重复响铃",
+              description: "启用后 Bark 会持续响铃约 30 秒。",
+            },
+          },
+          message: {
+            fallbackTitle: "fn-knock 通知",
+          },
+          errors: {
+            missingDeviceKey: "缺少 Bark Device Key",
+            requestFailed: "Bark 请求失败",
+            pushFailed: "Bark 推送失败",
+            targetsFailed: "{failed}/{total} 个 Bark 目标发送失败",
+          },
+        },
+        serverchan: {
+          label: "Server酱",
+          description:
+            "通过 Server酱·Turbo 发送 Markdown 通知，可复用网站中配置好的默认接收通道。",
+          fields: {
+            server_url: {
+              label: "服务地址",
+              description: "官方接口保持默认值即可。",
+            },
+            sendkey: {
+              description: "Server酱·Turbo 提供的 SendKey，请妥善保管。",
+            },
+            timeout_seconds: {
+              label: "超时秒数",
+            },
+            channel: {
+              label: "消息通道",
+              description:
+                "可选。动态指定本次推送的通道，最多两个值，使用 | 分隔，例如 9|66。",
+            },
+            openid: {
+              description:
+                "可选。测试号使用 openid，企业微信应用消息使用接收人的 UID；多个值请按 Server酱 文档格式填写。",
+              placeholder: "openid1,openid2 或 uid1|uid2",
+            },
+            short: {
+              label: "卡片摘要",
+              description:
+                "可选。消息卡片的简短摘要，最长 64 个字符；留空时由 Server酱 自动截取正文。",
+              placeholder: "登录异常，请尽快处理",
+            },
+            noip: {
+              label: "隐藏调用 IP",
+              description: "启用后本次推送不会展示调用来源 IP。",
+            },
+          },
+          message: {
+            fallbackTitle: "fn-knock 通知",
+          },
+          errors: {
+            missingSendKey: "缺少 Server酱 SendKey",
+            requestReturned: "Server酱 返回 HTTP {status}",
+            requestFailed: "Server酱 请求失败",
+          },
+        },
+        dingtalk: {
+          label: "钉钉机器人",
+          description:
+            "通过钉钉机器人 Webhook 向群聊发送 Markdown 通知，并支持加签校验。",
+          fields: {
+            webhook_url: {
+              description: "钉钉机器人生成的完整 Webhook 地址。",
+            },
+            secret: {
+              label: "加签密钥",
+              description:
+                "可选。若机器人启用了“加签”，请填写安全设置页里显示的 SEC 开头密钥。",
+            },
+            keyword_prefix: {
+              label: "关键词前缀",
+              description:
+                "可选。若机器人启用了自定义关键词校验，建议填写一个固定关键词；发送时会自动追加到标题前。",
+              placeholder: "监控报警",
+            },
+            timeout_seconds: {
+              label: "超时秒数",
+            },
+            at_mobiles: {
+              label: "@ 手机号",
+              description:
+                "可选。多个值使用英文逗号或换行分隔，且必须是群内成员手机号。",
+            },
+            at_user_ids: {
+              label: "@ 用户 ID",
+              description:
+                "可选。多个值使用英文逗号或换行分隔，会自动在正文追加 @userId。",
+            },
+            is_at_all: {
+              label: "@ 所有人",
+              description:
+                "启用后会在请求里携带 isAtAll，并在正文补充 @所有人。",
+            },
+          },
+          mentionAll: "@所有人",
+          message: {
+            fallbackTitle: "fn-knock 通知",
+          },
+          errors: {
+            missingWebhookUrl: "缺少 DingTalk Webhook URL",
+            requestReturned: "DingTalk 返回 HTTP {status}",
+            requestFailed: "DingTalk 请求失败",
+          },
+        },
+        feishu: {
+          label: "飞书机器人",
+          description:
+            "通过飞书机器人 Webhook 向群聊发送 post 富文本通知，并支持签名校验。",
+          fields: {
+            webhook_url: {
+              description: "飞书机器人生成的完整 Webhook 地址。",
+            },
+            secret: {
+              label: "签名密钥",
+              description:
+                "可选。若机器人启用了“签名校验”，请填写安全设置中复制出的密钥。",
+            },
+            keyword_prefix: {
+              label: "关键词前缀",
+              description:
+                "可选。若机器人启用了自定义关键词校验，建议填写一个固定关键词；发送时会自动追加到标题前。",
+              placeholder: "应用报警",
+            },
+            timeout_seconds: {
+              label: "超时秒数",
+            },
+            mention_user_ids: {
+              label: "@ 用户 ID",
+              description:
+                "可选。多个值使用英文逗号或换行分隔；支持填写 all。外部群中 @ 单个用户仅支持 Open ID。",
+            },
+          },
+          mentionAll: "所有人",
+          message: {
+            fallbackTitle: "fn-knock 通知",
+          },
+          errors: {
+            missingWebhookUrl: "缺少 Feishu Webhook URL",
+            requestReturned: "Feishu 返回 HTTP {status}",
+            requestFailed: "Feishu 请求失败",
+          },
+        },
+        webhook: {
+          description: "向任意支持 HTTP JSON 的地址发送标准通知消息。",
+          fields: {
+            url: {
+              description: "接收标准通知 JSON 的目标地址。",
+            },
+            method: {
+              label: "请求方法",
+            },
+            timeout_seconds: {
+              label: "超时秒数",
+            },
+            shared_secret: {
+              label: "共享密钥",
+              description:
+                "可选。若填写，会通过 X-Fn-Knock-Signature 请求头发送。",
+            },
+            endpoint_path: {
+              label: "附加路径",
+              description: "可选。将拼接到基础 Webhook URL 后发送。",
+            },
+            extra_headers_json: {
+              label: "额外请求头 JSON",
+              description: '可选，例如 {"X-Env":"prod"}。',
+            },
+            extra_body_json: {
+              label: "额外请求体 JSON",
+              description: "可选，会挂到 payload.extra_body。",
+            },
+          },
+          errors: {
+            missingUrl: "缺少 Webhook URL",
+            requestReturned: "Webhook 返回 HTTP {status}",
+            requestFailed: "Webhook 请求失败",
+          },
+        },
+        magicpush: {
+          label: "MagicPush魔法推送",
+          description:
+            "通过 MagicPush 自建服务向已配置的渠道推送通知，支持标准推送和 MagicPush 入站配置。",
+          fields: {
+            server_url: {
+              label: "基础 API 地址",
+              description:
+                "填写 MagicPush 服务根地址，例如 http://192.168.31.98:3000；如果已填写到 /api/push 或 /api/inbound 也会直接使用。",
+            },
+            delivery_mode: {
+              label: "投递模式",
+              description:
+                "标准推送会发送到 /api/push；入站配置会发送到 /api/inbound/:token，由 MagicPush 的入站规则负责字段映射。",
+              options: {
+                push: "标准推送",
+                inbound: "入站配置",
+              },
+            },
+            token: {
+              description:
+                "MagicPush 接口令牌。标准推送会通过 Authorization: Bearer 发送；入站配置会拼接到 /api/inbound/:token。",
+            },
+            timeout_seconds: {
+              label: "超时秒数",
+            },
+          },
+          message: {
+            fallbackTitle: "fn-knock 通知",
+          },
+          errors: {
+            missingBaseUrl: "缺少 MagicPush 基础 API 地址",
+            missingToken: "缺少 MagicPush token",
+            invalidBaseUrl: "MagicPush 基础 API 地址无效",
+            requestReturned: "MagicPush 返回 HTTP {status}",
+            requestFailed: "MagicPush 请求失败",
+          },
+        },
+        telegram: {
+          description:
+            "通过 Telegram Bot API 向指定聊天或频道发送文本通知，并附带内联操作按钮。",
+          fields: {
+            server_url: {
+              label: "Bot API 地址",
+              description:
+                "官方 Bot API 保持默认值即可；如果由于网络因素无法访问官方地址，可以填写 https://tgapi.fnknock.cn 代为转发；如果你使用自建 Local Bot API Server，也可以填写其根地址。",
+            },
+            bot_token: {
+              description: "通过 @BotFather 创建机器人后获取的 Bot Token。",
+            },
+            chat_id: {
+              description:
+                "目标聊天 ID，或频道用户名（如 @channelusername）。可以先向 @UserIdzhBot 发送消息来获取 Chat ID；测试发送也会使用这个目标。",
+            },
+            timeout_seconds: {
+              label: "超时秒数",
+            },
+            message_thread_id: {
+              description:
+                "可选。发送到群组话题时填写对应的话题 ID（message_thread_id）。",
+            },
+            disable_notification: {
+              label: "静默发送",
+              description: "启用后 Telegram 会静默投递，不播放提示音。",
+            },
+          },
+          message: {
+            fallbackTitle: "fn-knock 通知",
+          },
+          errors: {
+            missingBotToken: "缺少 Telegram Bot Token",
+            missingChatId: "缺少 Telegram Chat ID",
+            requestReturned: "Telegram 返回 HTTP {status}",
+            requestFailed: "Telegram 请求失败",
+          },
+        },
+        wecom: {
+          label: "企业微信消息推送",
+          description:
+            "通过企业微信消息推送（群 Webhook）向指定群聊发送 text 或 markdown 通知。",
+          fields: {
+            webhook_url: {
+              description:
+                "企业微信消息推送页面生成的完整 Webhook 地址，请妥善保管。",
+            },
+            timeout_seconds: {
+              label: "超时秒数",
+            },
+            mentioned_list: {
+              label: "提醒成员 UserID",
+              description:
+                "可选。多个值使用英文逗号或换行分隔；支持填写 @all。",
+            },
+            mentioned_mobile_list: {
+              label: "提醒手机号",
+              description:
+                "可选。多个值使用英文逗号或换行分隔；支持填写 @all。",
+            },
+          },
+          message: {
+            fallbackTitle: "fn-knock 通知",
+          },
+          errors: {
+            missingWebhookUrl: "缺少 WeCom Webhook URL",
+            requestReturned: "WeCom 返回 HTTP {status}",
+            requestFailed: "WeCom 请求失败",
+          },
+        },
+        pushdeer: {
+          description:
+            "通过 PushDeer 官方在线版或自建服务向已绑定设备发送 Markdown 通知。",
+          fields: {
+            server_url: {
+              label: "服务地址",
+              description:
+                "官方在线版保持默认值即可；如果你使用自建 PushDeer，则填写自建服务根地址。",
+            },
+            pushkey: {
+              description:
+                "PushDeer 客户端中生成的 PushKey。可填写多个 key，并用英文逗号分隔。",
+            },
+            timeout_seconds: {
+              label: "超时秒数",
+            },
+          },
+          message: {
+            fallbackTitle: "fn-knock 通知",
+          },
+          errors: {
+            missingPushKey: "缺少 PushDeer PushKey",
+            requestReturned: "PushDeer 返回 HTTP {status}",
+            apiReturnedCode: "PushDeer API 返回代码 {code}",
+            requestFailed: "PushDeer 请求失败",
+          },
+        },
+      },
+    },
+    routes: {
+      createProviderFailed: "创建通知提供商失败",
+      testProviderFailed: "测试通知提供商失败",
+      getProviderFailed: "获取通知提供商失败",
+      updateProviderFailed: "更新通知提供商失败",
+      deleteProviderFailed: "删除通知提供商失败",
+      createRuleFailed: "创建通知规则失败",
+      updateRuleFailed: "更新通知规则失败",
+      deleteRuleFailed: "删除通知规则失败",
+      unsupportedDeliveryStatus: "不支持的投递状态",
+      clearDeliveriesFailed: "清空投递记录失败",
+    },
+    service: {
+      unnamed: "未命名",
+      invalidJson: "{field} 必须是合法 JSON",
+      invalidSelectValue: "{field} 取值不合法",
+      fieldRequired: "{field} 不能为空",
+      testMessage: {
+        title: "测试通知",
+        summary: "通知通道配置正常，已成功触发一条测试消息。",
+        bodyText:
+          "这是一条由敲门 knock 主动发出的测试通知，用于验证当前提供商的连通性、结构化文案以及展示效果。",
+        bodyMarkdown:
+          "**连通性检查已通过。**\n\n这是一条由敲门 knock 主动发出的测试通知，用于验证当前提供商的连通性、结构化文案以及展示效果。",
+        sendType: "发送类型",
+        providerTest: "提供商测试",
+        sentAt: "发送时间",
+      },
+      providerNotFound: "通知提供商不存在",
+      unsupportedProviderType: "不支持的通知提供商类型",
+      providerDefinitionMissing: "通知提供商定义不存在",
+      providerReferencedByRule: "该提供商仍被规则「{rule}」引用",
+      testSendFailed: "测试发送失败",
+      testSendSuccess: "测试发送成功",
+      providerTypeMismatch: "提供商类型与已有配置不一致",
+      providerTestName: "{provider} 测试",
+      ruleProviderMissing: "规则引用了不存在的通知提供商",
+      invalidTemplateOverrideMode: "目标模板覆盖模式不合法",
+      unsupportedEventType: "不支持的系统事件类型",
+      invalidGroupBy: "聚合维度不合法",
+      invalidMessageTemplateMode: "消息模板模式不合法",
+      invalidEventLevelFilter: "事件级别过滤条件不合法",
+      invalidEventSourceFilter: "事件来源过滤条件不合法",
+      targetRequired: "至少需要绑定一个通知目标",
+      duplicateEventRule: "该事件已有通知规则，请先删除原规则",
+      ruleNotFound: "通知规则不存在",
+      deletedProvider: "已删除提供商",
+    },
+  },
+};

@@ -37,10 +37,10 @@
                 v-if="isPasskeyBinding"
                 class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
               ></span>
-              开启 Passkey 一键登录
+              {{ t("auth.home.enablePasskey") }}
             </Button>
             <p class="text-xs text-center text-muted-foreground">
-              当前浏览器支持 Passkey，但尚未绑定
+              {{ t("auth.home.passkeySupportedUnbound") }}
             </p>
           </div>
           <p v-if="passkeyError" class="text-xs text-center text-destructive">
@@ -50,7 +50,11 @@
             v-if="!canShowLogoutButton"
             class="text-xs text-center text-muted-foreground"
           >
-            退出登录按钮将在 {{ logoutDelayRemainingSeconds }} 秒后显示
+            {{
+              t("auth.home.logoutDelay", {
+                seconds: logoutDelayRemainingSeconds,
+              })
+            }}
           </p>
           <Button
             v-else
@@ -63,7 +67,7 @@
               v-if="isLoading"
               class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
             ></span>
-            退出登录
+            {{ t("auth.home.logout") }}
           </Button>
         </CardContent>
       </Card>
@@ -82,7 +86,7 @@
   >
     <DialogContent :show-close-button="false">
       <DialogHeader>
-        <DialogTitle>确认退出登录</DialogTitle>
+        <DialogTitle>{{ t("auth.home.logoutConfirmTitle") }}</DialogTitle>
         <DialogDescription>
           {{ logoutDialogDescription }}
         </DialogDescription>
@@ -93,7 +97,7 @@
           @click="showLogoutConfirmDialog = false"
           :disabled="isLoading"
         >
-          取消
+          {{ t("common.cancel") }}
         </Button>
         <Button
           variant="destructive"
@@ -102,9 +106,9 @@
         >
           <span
             v-if="isLoading"
-            class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
-          ></span>
-          确认退出
+              class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+            ></span>
+          {{ t("auth.home.confirmLogout") }}
         </Button>
       </DialogFooter>
     </DialogContent>
@@ -113,6 +117,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import {
   Card,
@@ -143,8 +148,11 @@ import {
   POST_LOGIN_LOGOUT_DELAY_MS,
 } from "@/lib/post-login";
 import AuthFooter from "@/components/AuthFooter.vue";
+import { normalizeLocale } from "@fn-knock/i18n";
+import { applyDocumentLocale } from "@fn-knock/i18n/vue";
 
 const router = useRouter();
+const { t, locale } = useI18n();
 const isLoading = ref(false);
 const isPasskeySupported = ref(false);
 const isPasskeyAvailable = ref(false);
@@ -158,87 +166,53 @@ const logoutDelayRemainingSeconds = ref(0);
 const showLogoutConfirmDialog = ref(false);
 const authGrantType = ref<AuthGrantType | undefined>(undefined);
 
-const statusTitle = computed(() => {
-  switch (authGrantType.value) {
-    case "browser_session":
-      return "当前浏览器会话已验证";
-    case "session_migration":
-      return "浏览器会话已恢复";
-    case "fnos_fingerprint_session":
-      return "设备指纹会话已恢复";
-    case "manual_whitelist":
-      return "白名单访问已放行";
-    case "local_exempt":
-      return "当前网络已放行";
-    case "fnos_share":
-      return "分享访问已授权";
-    case "login_ip_grant":
-    default:
-      return "安全验证已通过";
-  }
-});
+const applySystemLocale = (value: string | null | undefined) => {
+  const next = normalizeLocale(value) ?? "zh-CN";
+  locale.value = next;
+  applyDocumentLocale(next);
+};
 
-const statusDescription = computed(() => {
-  switch (authGrantType.value) {
+const resolveGrantKey = (grantType?: AuthGrantType) => {
+  switch (grantType) {
     case "browser_session":
-      return "当前浏览器会话已被允许访问";
+      return "browserSession";
     case "session_migration":
-      return "当前浏览器会话已随网络切换恢复访问";
+      return "sessionMigration";
     case "fnos_fingerprint_session":
-      return "当前访问已由飞牛设备指纹会话恢复";
+      return "fnosFingerprintSession";
     case "manual_whitelist":
-      return "当前 IP 已在管理员白名单中";
+      return "manualWhitelist";
     case "local_exempt":
-      return "当前网络地址属于免白名单范围";
+      return "localExempt";
     case "fnos_share":
-      return "当前访问由飞牛分享链路授权";
+      return "fnosShare";
     case "login_ip_grant":
     default:
-      return "您的 IP 已被授权访问";
+      return "loginIpGrant";
   }
-});
+};
 
-const logoutHint = computed(() => {
-  switch (authGrantType.value) {
-    case "browser_session":
-      return "如果不再需要访问，请点击下方按钮退出。退出后当前浏览器需要重新验证才能再次进入。";
-    case "session_migration":
-      return "如果不再需要访问，请点击下方按钮退出。退出后当前浏览器需要重新验证，并会撤销本次会话迁移关联的授权。";
-    case "fnos_fingerprint_session":
-      return "如果不再需要访问，请点击下方按钮退出。退出后当前恢复的设备指纹会话会结束，并撤销关联授权。";
-    case "login_ip_grant":
-      return "如果不再需要访问，请点击下方按钮退出。退出后当前浏览器会话会结束，登录时授予的当前 IP 访问权限也会一并撤销。";
-    case "manual_whitelist":
-      return "如果不再需要访问，请点击下方按钮退出。退出只会结束当前浏览器会话，管理员白名单不会被移除。";
-    case "local_exempt":
-      return "如果不再需要访问，请点击下方按钮退出。退出只会结束当前浏览器会话，免白名单网络访问范围不会改变。";
-    case "fnos_share":
-      return "如果不再需要访问，请点击下方按钮退出。退出后当前分享访问会话会结束，需要重新进入分享链路。";
-    default:
-      return "如果不再需要访问，请点击下方按钮退出并撤销您的授权。";
-  }
-});
+const grantKey = computed(() => resolveGrantKey(authGrantType.value));
 
-const logoutDialogDescription = computed(() => {
-  switch (authGrantType.value) {
-    case "browser_session":
-      return "退出后将结束当前浏览器会话，需要重新验证后才能再次进入。";
-    case "session_migration":
-      return "退出后将结束当前浏览器会话，并撤销本次会话迁移关联的授权。";
-    case "fnos_fingerprint_session":
-      return "退出后将结束当前恢复的设备指纹会话，并撤销关联授权。";
-    case "login_ip_grant":
-      return "退出后将结束当前浏览器会话，并撤销这次登录授予的当前 IP 访问权限。";
-    case "manual_whitelist":
-      return "退出后只会结束当前浏览器会话，管理员配置的白名单不会被移除。";
-    case "local_exempt":
-      return "退出后只会结束当前浏览器会话，当前网络的免白名单属性不会改变。";
-    case "fnos_share":
-      return "退出后将结束当前分享访问会话，如需再次访问请重新进入分享链路。";
-    default:
-      return "退出后将撤销当前访问授权，需要重新验证后才能再次进入。";
-  }
-});
+const statusTitle = computed(() =>
+  t(`auth.home.statusTitles.${grantKey.value}`),
+);
+
+const statusDescription = computed(() =>
+  t(`auth.home.statusDescriptions.${grantKey.value}`),
+);
+
+const logoutHint = computed(() =>
+  t(`auth.home.logoutHints.${grantKey.value}`),
+);
+
+const logoutDialogKey = computed(() =>
+  authGrantType.value ? grantKey.value : "default",
+);
+
+const logoutDialogDescription = computed(() =>
+  t(`auth.home.logoutDialogDescriptions.${logoutDialogKey.value}`),
+);
 
 let logoutDelayTimer: ReturnType<typeof window.setTimeout> | null = null;
 let logoutDelayCountdownTimer: ReturnType<typeof window.setInterval> | null =
@@ -295,12 +269,13 @@ function initLogoutAvailability() {
 async function loadSession() {
   try {
     const session = await AuthAPI.getSession();
+    applySystemLocale(session.locale.default_locale);
     startLocationPolling(session.client);
     isPasskeyAvailable.value = !!session.passkey.available;
     authGrantType.value = session.auth.grant_type;
     return true;
   } catch (e: any) {
-    console.error("身份验证请求异常:", e);
+    console.error("Auth session request failed:", e);
     const query = Object.fromEntries(
       new URLSearchParams(
         typeof window !== "undefined" ? window.location.search : "",
@@ -360,7 +335,7 @@ async function handlePasskeyBind() {
     const tokenRes = await apiClient.post("/passkey/bind-token");
     const bindToken = tokenRes.data?.data?.token;
     if (!bindToken) {
-      throw new Error("无法获取绑定凭证");
+      throw new Error(t("auth.home.passkeyTokenMissing"));
     }
     const optionsRes = await apiClient.post("/passkey/register/options", {
       token: bindToken,
@@ -370,7 +345,7 @@ async function handlePasskeyBind() {
       publicKey: creationOptions,
     });
     if (!credential) {
-      throw new Error("未获取到 Passkey 响应");
+      throw new Error(t("auth.passkeyNoResponse"));
     }
     const deviceName =
       (navigator as any).userAgentData?.platform ||
@@ -386,10 +361,10 @@ async function handlePasskeyBind() {
       isPasskeyAvailable.value = true;
       return;
     }
-    throw new Error(verifyRes.data.message || "Passkey 绑定失败");
+    throw new Error(verifyRes.data.message || t("auth.passkeyBindFailed"));
   } catch (e: any) {
     passkeyError.value =
-      e?.response?.data?.message || e?.message || "Passkey 绑定失败";
+      e?.response?.data?.message || e?.message || t("auth.passkeyBindFailed");
   } finally {
     isPasskeyBinding.value = false;
   }

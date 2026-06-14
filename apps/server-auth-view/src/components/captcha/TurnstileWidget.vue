@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 const props = defineProps<{
   siteKey: string;
@@ -35,6 +36,9 @@ declare global {
 }
 
 const TURNSTILE_SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+const TURNSTILE_SCRIPT_LOAD_ERROR = 'TURNSTILE_SCRIPT_LOAD_ERROR';
+
+const { t } = useI18n();
 
 let turnstileScriptPromise: Promise<void> | null = null;
 
@@ -50,7 +54,7 @@ const ensureTurnstileScript = async () => {
     const existing = document.querySelector<HTMLScriptElement>(`script[src="${TURNSTILE_SCRIPT_SRC}"]`);
     if (existing) {
       existing.addEventListener('load', () => resolve(), { once: true });
-      existing.addEventListener('error', () => reject(new Error('Turnstile 脚本加载失败')), { once: true });
+      existing.addEventListener('error', () => reject(new Error(TURNSTILE_SCRIPT_LOAD_ERROR)), { once: true });
       return;
     }
 
@@ -59,7 +63,7 @@ const ensureTurnstileScript = async () => {
     script.async = true;
     script.defer = true;
     script.onload = () => resolve();
-    script.onerror = () => reject(new Error('Turnstile 脚本加载失败'));
+    script.onerror = () => reject(new Error(TURNSTILE_SCRIPT_LOAD_ERROR));
     document.head.appendChild(script);
   });
 
@@ -100,7 +104,12 @@ const renderWidget = async () => {
   try {
     await ensureTurnstileScript();
   } catch (error: any) {
-    emit('error', error?.message || 'Turnstile 脚本加载失败');
+    emit(
+      'error',
+      error?.message === TURNSTILE_SCRIPT_LOAD_ERROR
+        ? t('auth.turnstileScriptLoadFailed')
+        : error?.message || t('auth.turnstileScriptLoadFailed'),
+    );
     return;
   }
 
@@ -122,10 +131,10 @@ const renderWidget = async () => {
       resetWidget();
     },
     'error-callback': () => {
-      emit('error', 'Turnstile 渲染失败，请稍后重试');
+      emit('error', t('auth.turnstileRenderFailed'));
     },
     'timeout-callback': () => {
-      emit('error', 'Turnstile 验证超时，请重试');
+      emit('error', t('auth.turnstileTimeout'));
     },
   });
 };

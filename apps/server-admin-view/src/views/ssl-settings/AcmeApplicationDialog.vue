@@ -4,25 +4,29 @@
       <DialogHeader>
         <DialogTitle>{{ dialogTitle }}</DialogTitle>
         <DialogDescription>
-          保存只会更新申请项配置；保存并申请会立即发起签发任务。
+          {{ t("admin.acmeApplicationDialog.description") }}
         </DialogDescription>
       </DialogHeader>
 
       <div class="grid gap-6 py-1">
         <div class="grid gap-2">
-          <label class="text-sm text-muted-foreground">名称</label>
+          <label class="text-sm text-muted-foreground">
+            {{ t("admin.acmeApplicationDialog.name") }}
+          </label>
           <Input
             v-model.trim="name"
             :disabled="props.pending"
-            placeholder="可选，默认会显示主域名"
+            :placeholder="t('admin.acmeApplicationDialog.namePlaceholder')"
           />
         </div>
 
         <div class="grid gap-2">
           <div class="flex items-center justify-between gap-3">
-            <label class="text-sm text-muted-foreground">域名</label>
+            <label class="text-sm text-muted-foreground">
+              {{ t("admin.acmeApplicationDialog.domains") }}
+            </label>
             <span class="text-xs text-muted-foreground"
-              >支持一次申请多个域名</span
+              >{{ t("admin.acmeApplicationDialog.domainsHint") }}</span
             >
           </div>
           <TagsInput
@@ -37,14 +41,16 @@
             </TagsInputItem>
             <TagsInputInput
               :disabled="props.pending"
-              placeholder="输入域名后按回车或离开输入框添加多个 (例如: example.com)"
+              :placeholder="t('admin.acmeApplicationDialog.domainsPlaceholder')"
             />
           </TagsInput>
         </div>
 
         <div class="grid gap-2">
           <div class="flex items-center justify-between gap-3">
-            <label class="text-sm text-muted-foreground">DNS 服务商</label>
+            <label class="text-sm text-muted-foreground">
+              {{ t("admin.acmeApplicationDialog.dnsProvider") }}
+            </label>
             <span
               v-if="activeDnsType"
               class="text-xs font-mono text-muted-foreground"
@@ -54,10 +60,15 @@
           </div>
           <Select v-model="dnsType" :disabled="props.pending">
             <SelectTrigger class="w-full">
-              <SelectValue placeholder="选择 DNS 服务商" />
+              <SelectValue
+                :placeholder="t('admin.acmeApplicationDialog.selectDnsProvider')"
+              />
             </SelectTrigger>
             <SelectContent class="max-h-[320px]">
-              <SelectGroup v-for="group in groupedProviders" :key="group.group">
+              <SelectGroup
+                v-for="group in groupedProviders"
+                :key="group.groupKey"
+              >
                 <SelectLabel>{{ group.group }}</SelectLabel>
                 <SelectItem
                   v-for="provider in group.items"
@@ -86,7 +97,9 @@
           <div class="flex items-start justify-between gap-3">
             <div class="grid gap-0.5">
               <div class="flex flex-wrap items-center gap-2">
-                <div class="text-sm font-medium">DNS API 凭据</div>
+                <div class="text-sm font-medium">
+                  {{ t("admin.acmeApplicationDialog.dnsApiCredentials") }}
+                </div>
                 <span
                   class="rounded-full border bg-background px-2 py-0.5 text-[11px] text-muted-foreground"
                 >
@@ -94,13 +107,13 @@
                 </span>
               </div>
               <p class="text-xs text-muted-foreground">
-                这些字段只会用于当前 DNS 服务商的域名验证请求。
+                {{ t("admin.acmeApplicationDialog.credentialsDescription") }}
               </p>
               <p
                 v-if="hasMultipleCredentialSchemes"
                 class="text-xs text-muted-foreground"
               >
-                当前服务商支持多种鉴权方式，填写任意一套即可。
+                {{ t("admin.acmeApplicationDialog.multipleSchemesDescription") }}
               </p>
             </div>
             <Button
@@ -108,8 +121,16 @@
               variant="ghost"
               size="icon-sm"
               class="text-muted-foreground hover:text-foreground"
-              :title="isCredentialsVisible ? '隐藏' : '显示'"
-              :aria-label="isCredentialsVisible ? '隐藏凭据' : '显示凭据'"
+              :title="
+                isCredentialsVisible
+                  ? t('admin.acmeApplicationDialog.hide')
+                  : t('admin.acmeApplicationDialog.show')
+              "
+              :aria-label="
+                isCredentialsVisible
+                  ? t('admin.acmeApplicationDialog.hideCredentials')
+                  : t('admin.acmeApplicationDialog.showCredentials')
+              "
               @click="isCredentialsVisible = !isCredentialsVisible"
             >
               <component
@@ -122,7 +143,11 @@
           <div class="grid gap-3">
             <CredentialTransferHint
               v-if="credentialTransferSuggestion"
-              :action-label="`从 ${transferSourceScopeLabel} 填充`"
+              :action-label="
+                t('admin.acmeApplicationDialog.fillFromSource', {
+                  source: transferSourceScopeLabel,
+                })
+              "
               :description="credentialTransferDescription"
               :fields="
                 credentialTransferSuggestion.fillableFields.map(
@@ -176,7 +201,7 @@
                         v-if="field.required === false"
                         class="text-[11px] text-muted-foreground"
                       >
-                        可选
+                        {{ t("admin.acmeApplicationDialog.optional") }}
                       </span>
                     </div>
                     <Input
@@ -207,9 +232,11 @@
           class="flex items-center justify-between rounded-lg border bg-muted/20 px-4 py-3"
         >
           <div class="grid gap-0.5">
-            <div class="text-sm font-medium">自动续期</div>
+            <div class="text-sm font-medium">
+              {{ t("admin.acmeApplicationDialog.autoRenew") }}
+            </div>
             <div class="text-xs text-muted-foreground">
-              仅对当前申请项生效，有已签发证书时才会参与续期扫描。
+              {{ t("admin.acmeApplicationDialog.autoRenewDescription") }}
             </div>
           </div>
           <Switch v-model="renewEnabled" :disabled="props.pending" />
@@ -223,7 +250,7 @@
           :disabled="props.pending"
           @click="handleOpenChange(false)"
         >
-          取消
+          {{ t("common.cancel") }}
         </Button>
         <Button
           type="button"
@@ -231,14 +258,14 @@
           :disabled="!canSubmit || props.pending"
           @click="submit(false)"
         >
-          保存
+          {{ t("common.save") }}
         </Button>
         <Button
           type="button"
           :disabled="!canSubmit || props.pending"
           @click="submit(true)"
         >
-          保存并申请
+          {{ t("admin.acmeApplicationDialog.saveAndApply") }}
         </Button>
       </DialogFooter>
     </DialogContent>
@@ -247,6 +274,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { Eye, EyeOff } from "lucide-vue-next";
 import type {
   AcmeApplicationPayload,
@@ -297,6 +325,8 @@ type DnsCredentialScheme = {
   description?: string;
   fields: DnsCredentialField[];
 };
+
+const { locale, t } = useI18n();
 
 const props = defineProps<{
   open: boolean;
@@ -379,42 +409,78 @@ const filledCredentialCount = computed(() => {
 });
 
 const credentialSummary = computed(() => {
-  if (!activeCredentialFields.value.length) return "当前服务商无需额外凭据";
+  if (!activeCredentialFields.value.length) {
+    return t("admin.acmeApplicationDialog.noExtraCredentials");
+  }
   if (matchedCredentialScheme.value) {
-    return `已满足 ${matchedCredentialScheme.value.label}`;
+    return t("admin.acmeApplicationDialog.schemeSatisfied", {
+      label: matchedCredentialScheme.value.label,
+    });
   }
   if (!filledCredentialCount.value) {
     return hasMultipleCredentialSchemes.value
-      ? `支持 ${activeCredentialSchemes.value.length} 套凭据方案`
-      : `需要填写 ${activeCredentialFields.value.length} 个字段`;
+      ? t("admin.acmeApplicationDialog.schemeCount", {
+          count: activeCredentialSchemes.value.length,
+        })
+      : t("admin.acmeApplicationDialog.requiredFieldCount", {
+          count: activeCredentialFields.value.length,
+        });
   }
   if (hasMultipleCredentialSchemes.value) {
-    return `已填写 ${filledCredentialCount.value} 个字段，满足任一方案即可`;
+    return t("admin.acmeApplicationDialog.filledAnyScheme", {
+      count: filledCredentialCount.value,
+    });
   }
-  return `已填写 ${filledCredentialCount.value}/${activeCredentialFields.value.length} 个字段`;
+  return t("admin.acmeApplicationDialog.filledFieldCount", {
+    filled: filledCredentialCount.value,
+    total: activeCredentialFields.value.length,
+  });
 });
 
+const providerGroupKey = (group?: string | null) => {
+  if (group === "\u5e38\u7528") return "common";
+  if (group === "\u56fd\u5185") return "china";
+  if (group === "\u56fd\u9645") return "international";
+  if (group === "\u81ea\u5efa/\u9ad8\u7ea7") return "customAdvanced";
+  if (!group || group === "\u5176\u4ed6") return "other";
+  return group;
+};
+
+const providerGroupLabel = (key: string) => {
+  if (
+    key === "common" ||
+    key === "china" ||
+    key === "international" ||
+    key === "customAdvanced" ||
+    key === "other"
+  ) {
+    return t(`admin.acmeApplicationDialog.providerGroups.${key}`);
+  }
+  return key;
+};
+
 const groupedProviders = computed(() => {
-  const groupOrder = ["常用", "国内", "国际", "自建/高级"];
+  const groupOrder = ["common", "china", "international", "customAdvanced"];
   const bucket = new Map<string, AcmeDnsProvider[]>();
   for (const provider of props.dnsProviders) {
-    const group = provider.group || "其他";
+    const group = providerGroupKey(provider.group);
     if (!bucket.has(group)) bucket.set(group, []);
     bucket.get(group)!.push(provider);
   }
 
   const groups = Array.from(bucket.entries()).map(([group, items]) => ({
-    group,
+    group: providerGroupLabel(group),
+    groupKey: group,
     items: items
       .slice()
-      .sort((a, b) => a.label.localeCompare(b.label, "zh-Hans-CN")),
+      .sort((a, b) => a.label.localeCompare(b.label, locale.value)),
   }));
 
   groups.sort((a, b) => {
-    const ai = groupOrder.indexOf(a.group);
-    const bi = groupOrder.indexOf(b.group);
+    const ai = groupOrder.indexOf(a.groupKey);
+    const bi = groupOrder.indexOf(b.groupKey);
     if (ai === -1 && bi === -1) {
-      return a.group.localeCompare(b.group, "zh-Hans-CN");
+      return a.group.localeCompare(b.group, locale.value);
     }
     if (ai === -1) return 1;
     if (bi === -1) return -1;
@@ -425,7 +491,9 @@ const groupedProviders = computed(() => {
 });
 
 const dialogTitle = computed(() => {
-  return props.mode === "edit" ? "编辑 ACME 申请项" : "新建 ACME 申请项";
+  return props.mode === "edit"
+    ? t("admin.acmeApplicationDialog.editTitle")
+    : t("admin.acmeApplicationDialog.createTitle");
 });
 
 const getCredentialStateKey = (key: string) => `${activeDnsType.value}:${key}`;
@@ -451,7 +519,11 @@ const {
 const credentialTransferDescription = computed(() => {
   const suggestion = credentialTransferSuggestion.value;
   if (!suggestion) return "";
-  return `发现 ${transferSourceScopeLabel.value} 中已有 ${suggestion.bridgeLabel} 凭据，可补齐 ${suggestion.fillableFields.length} 个字段。`;
+  return t("admin.acmeApplicationDialog.transferDescription", {
+    source: transferSourceScopeLabel.value,
+    bridge: suggestion.bridgeLabel,
+    count: suggestion.fillableFields.length,
+  });
 });
 
 const canSubmit = computed(() => {
@@ -510,7 +582,10 @@ const applyCredentialTransfer = () => {
   }
 
   toast.success(
-    `已从 ${transferSourceScopeLabel.value} 填充 ${result.count} 个字段`,
+    t("admin.acmeApplicationDialog.transferApplied", {
+      source: transferSourceScopeLabel.value,
+      count: result.count,
+    }),
   );
 };
 

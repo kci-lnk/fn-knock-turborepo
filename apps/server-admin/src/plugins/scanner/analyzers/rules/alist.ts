@@ -1,4 +1,5 @@
 import { AnalyzerRule, ScanResult } from "../../types";
+import { scannerServiceLabel } from "../labels";
 
 interface PublicSettingsResponse {
   code?: number;
@@ -56,7 +57,7 @@ async function getPublicSettings(result: ScanResult): Promise<PublicSettingsResp
 
 export const xiaoyaRule: AnalyzerRule = {
   name: "xiaoya",
-  label: "小雅Alist",
+  label: scannerServiceLabel("xiaoyaAlist"),
   rule: {
     path: "/xy",
     rewrite_html: false,

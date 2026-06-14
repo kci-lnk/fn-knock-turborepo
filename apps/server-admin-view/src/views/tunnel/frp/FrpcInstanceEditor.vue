@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -22,6 +23,8 @@ const emit = defineEmits<{
   'update:modelValue': [value: string]
 }>()
 
+const { t } = useI18n()
+
 const rawContent = ref('')
 const customToml = ref('')
 const editorMode = ref<'visual' | 'custom'>('visual')
@@ -36,11 +39,13 @@ const localPort = ref('7999')
 const remotePort = ref('7999')
 
 const isCustomMode = computed(() => editorMode.value === 'custom')
-const currentModeLabel = computed(() => (isCustomMode.value ? '源码模式' : '表单模式'))
+const currentModeLabel = computed(() =>
+  isCustomMode.value ? t('admin.frpcInstanceEditor.sourceMode') : t('admin.frpcInstanceEditor.formMode'),
+)
 const currentModeDescription = computed(() =>
   isCustomMode.value
-    ? '直接编辑 frpc.toml，保存前会执行 frpc verify。再次点击“自定义”可尝试回到表单。'
-    : '表单模式只覆盖当前已支持字段，其他 TOML 字段会继续保留，不会被清空。',
+    ? t('admin.frpcInstanceEditor.customModeDescription')
+    : t('admin.frpcInstanceEditor.formModeDescription'),
 )
 
 function fieldId(name: string) {
@@ -92,7 +97,7 @@ function resetFromRaw(raw: string) {
     editorMode.value = 'visual'
   } catch (error) {
     editorMode.value = 'custom'
-    visualSyncError.value = extractErrorMessage(error, '当前 frpc.toml 无法映射到表单')
+    visualSyncError.value = extractErrorMessage(error, t('admin.frpcInstanceEditor.unmappableFallback'))
   }
 }
 
@@ -104,8 +109,8 @@ function enterCustomMode() {
     visualSyncError.value = null
     emit('update:modelValue', customToml.value)
   } catch (error) {
-    toast.error('无法进入自定义模式', {
-      description: extractErrorMessage(error, '当前配置无法转换为可编辑的 TOML'),
+    toast.error(t('admin.frpcInstanceEditor.enterCustomFailed'), {
+      description: extractErrorMessage(error, t('admin.frpcInstanceEditor.convertToTomlFailed')),
     })
   }
 }
@@ -117,10 +122,10 @@ function exitCustomMode() {
     editorMode.value = 'visual'
     emit('update:modelValue', customToml.value)
   } catch (error) {
-    const message = extractErrorMessage(error, '当前 TOML 语法有误')
+    const message = extractErrorMessage(error, t('admin.frpcInstanceEditor.invalidToml'))
     visualSyncError.value = message
-    toast.error('无法返回表单模式', {
-      description: `${message}。请先修复自定义内容后再切换。`,
+    toast.error(t('admin.frpcInstanceEditor.exitCustomFailed'), {
+      description: t('admin.frpcInstanceEditor.fixCustomBeforeSwitch', { message }),
     })
   }
 }
@@ -168,7 +173,7 @@ defineExpose({
     <div class="bg-linear-to-r from-muted/40 via-muted/15 to-transparent px-4 py-4 sm:px-5">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div class="space-y-1">
-          <div class="text-sm font-medium tracking-tight">配置编辑方式</div>
+          <div class="text-sm font-medium tracking-tight">{{ t('admin.frpcInstanceEditor.editMethod') }}</div>
           <p class="max-w-2xl text-xs leading-relaxed text-muted-foreground">
             {{ currentModeDescription }}
           </p>
@@ -186,7 +191,7 @@ defineExpose({
             :class="isCustomMode ? 'border-primary bg-primary/5 text-primary hover:bg-primary/10' : ''"
             @click="toggleCustomMode"
           >
-            自定义
+            {{ t('admin.frpcInstanceEditor.custom') }}
           </Button>
         </div>
       </div>
@@ -197,10 +202,10 @@ defineExpose({
         v-if="visualSyncError"
         class="rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm leading-relaxed text-destructive"
       >
-        当前内容还不能切回表单模式：{{ visualSyncError }}
+        {{ t('admin.frpcInstanceEditor.cannotSwitchToForm', { message: visualSyncError }) }}
       </div>
       <div class="rounded-lg border border-dashed border-border/80 bg-muted/20 px-4 py-3 text-xs leading-relaxed text-muted-foreground">
-        这里会直接编辑 <code>frpc.toml</code> 原文。保存时会先执行 <code>frpc verify</code>，表单模式只管理已支持字段。
+        {{ t('admin.frpcInstanceEditor.customHint') }}
       </div>
       <TomlCodeEditor v-model="customToml" />
     </div>
@@ -209,11 +214,11 @@ defineExpose({
       <div class="p-4 sm:p-5 grid gap-2 sm:grid-cols-[180px_1fr] md:grid-cols-[220px_1fr] items-start transition-colors hover:bg-muted/10">
         <div class="space-y-1 mt-1.5">
           <Label :for="fieldId('server-addr')" class="text-sm font-medium flex items-center gap-1">
-            FRP 服务器地址
+            {{ t('admin.frpcInstanceEditor.serverAddr') }}
             <span class="text-destructive">*</span>
           </Label>
           <p class="text-xs text-muted-foreground leading-relaxed hidden sm:block pr-4">
-            FRP 服务端域名或 IP。
+            {{ t('admin.frpcInstanceEditor.serverAddrHint') }}
           </p>
         </div>
         <div class="w-full max-w-md space-y-2">
@@ -231,7 +236,7 @@ defineExpose({
             data-bwignore="true"
           />
           <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
-            FRP 服务端域名或 IP。
+            {{ t('admin.frpcInstanceEditor.serverAddrHint') }}
           </p>
         </div>
       </div>
@@ -239,7 +244,7 @@ defineExpose({
       <div class="p-4 sm:p-5 grid gap-2 sm:grid-cols-[180px_1fr] md:grid-cols-[220px_1fr] items-start transition-colors hover:bg-muted/10">
         <div class="space-y-1 mt-1.5">
           <Label :for="fieldId('server-port')" class="text-sm font-medium flex items-center gap-1">
-            FRP 服务器端口
+            {{ t('admin.frpcInstanceEditor.serverPort') }}
             <span class="text-destructive">*</span>
           </Label>
         </div>
@@ -264,14 +269,14 @@ defineExpose({
         <div class="space-y-1 mt-1.5">
           <Label :for="fieldId('server-token')" class="text-sm font-medium">Token</Label>
           <p class="text-xs text-muted-foreground leading-relaxed hidden sm:block pr-4">
-            可选，需与服务端配置一致。
+            {{ t('admin.frpcInstanceEditor.tokenHint') }}
           </p>
         </div>
         <div class="w-full max-w-md space-y-2">
           <Input
             :id="fieldId('server-token')"
             v-model.trim="serverToken"
-            placeholder="可选"
+            :placeholder="t('admin.frpcInstanceEditor.optional')"
             autocomplete="off"
             autocapitalize="off"
             autocorrect="off"
@@ -282,7 +287,7 @@ defineExpose({
             data-bwignore="true"
           />
           <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
-            可选，需与服务端配置一致。
+            {{ t('admin.frpcInstanceEditor.tokenHint') }}
           </p>
         </div>
       </div>
@@ -290,11 +295,11 @@ defineExpose({
       <div class="p-4 sm:p-5 grid gap-2 sm:grid-cols-[180px_1fr] md:grid-cols-[220px_1fr] items-start transition-colors hover:bg-muted/10">
         <div class="space-y-1 mt-1.5">
           <Label :for="fieldId('local-port')" class="text-sm font-medium flex items-center gap-1">
-            本地端口
+            {{ t('admin.frpcInstanceEditor.localPort') }}
             <span class="text-destructive">*</span>
           </Label>
           <p class="text-xs text-muted-foreground leading-relaxed hidden sm:block pr-4">
-            本机服务监听端口，默认 {{ defaults.local_port }}。
+            {{ t('admin.frpcInstanceEditor.localPortHint', { port: defaults.local_port }) }}
           </p>
         </div>
         <div class="w-full max-w-md space-y-2">
@@ -313,7 +318,7 @@ defineExpose({
             data-bwignore="true"
           />
           <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
-            默认 {{ defaults.local_port }}。
+            {{ t('admin.frpcInstanceEditor.defaultPort', { port: defaults.local_port }) }}
           </p>
         </div>
       </div>
@@ -321,11 +326,11 @@ defineExpose({
       <div class="p-4 sm:p-5 grid gap-2 sm:grid-cols-[180px_1fr] md:grid-cols-[220px_1fr] items-start transition-colors hover:bg-muted/10">
         <div class="space-y-1 mt-1.5">
           <Label :for="fieldId('remote-port')" class="text-sm font-medium flex items-center gap-1">
-            出网端口
+            {{ t('admin.frpcInstanceEditor.remotePort') }}
             <span class="text-destructive">*</span>
           </Label>
           <p class="text-xs text-muted-foreground leading-relaxed hidden sm:block pr-4">
-            需要映射到外网访问的目标端口。
+            {{ t('admin.frpcInstanceEditor.remotePortHint') }}
           </p>
         </div>
         <div class="w-full max-w-md space-y-2">
@@ -343,7 +348,7 @@ defineExpose({
             data-bwignore="true"
           />
           <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
-            需要映射到外网访问的目标端口。
+            {{ t('admin.frpcInstanceEditor.remotePortHint') }}
           </p>
         </div>
       </div>

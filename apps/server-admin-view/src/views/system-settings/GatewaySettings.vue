@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import {
   Card,
@@ -27,6 +28,7 @@ import { isAnySubdomainRoutingMode } from "../../lib/reverse-proxy-submode";
 
 const configStore = useConfigStore();
 const router = useRouter();
+const { t } = useI18n();
 type GatewaySettingsForm = Pick<
   GatewaySettings,
   | "auth_cache_ttl_seconds"
@@ -51,23 +53,32 @@ const form = reactive<GatewaySettingsForm>({
 
 const { isPending: isLoading, run: runLoadSettings } = useAsyncAction({
   onError: (error) => {
-    toast.error("加载失败", {
-      description: extractErrorMessage(error, "无法获取网关设置"),
+    toast.error(t("admin.gatewaySettings.loadFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.gatewaySettings.loadFailedDescription"),
+      ),
     });
   },
 });
 const showLoadingSkeleton = useDelayedLoading(isLoading);
 const { isPending: isSaving, run: runSaveSettings } = useAsyncAction({
   onError: (error) => {
-    toast.error("保存失败", {
-      description: extractErrorMessage(error, "保存网关设置失败"),
+    toast.error(t("admin.gatewaySettings.saveFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.gatewaySettings.saveSettingsFailedDescription"),
+      ),
     });
   },
 });
 const { isPending: isSavingPortal, run: runSavePortal } = useAsyncAction({
   onError: (error) => {
-    toast.error("保存失败", {
-      description: extractErrorMessage(error, "保存传送门显示失败"),
+    toast.error(t("admin.gatewaySettings.saveFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.gatewaySettings.savePortalFailedDescription"),
+      ),
     });
   },
 });
@@ -101,28 +112,32 @@ const isDirty = computed(() => {
 
 const authCacheHint = computed(() =>
   Number(form.auth_cache_ttl_seconds) === 0
-    ? "成功鉴权结果缓存已关闭，每次请求都会实时校验。"
-    : `成功鉴权结果会缓存 ${clampCacheTtl(form.auth_cache_ttl_seconds)} 秒。`,
+    ? t("admin.gatewaySettings.authCacheDisabled")
+    : t("admin.gatewaySettings.authCacheEnabled", {
+        seconds: clampCacheTtl(form.auth_cache_ttl_seconds),
+      }),
 );
 
 const authCacheFailHint = computed(() =>
   Number(form.auth_cache_unauthorized_ttl_seconds) === 0
-    ? "未通过鉴权结果缓存已关闭，拒绝请求不会复用失败缓存。"
-    : `未通过鉴权结果会缓存 ${clampCacheTtl(form.auth_cache_unauthorized_ttl_seconds)} 秒。`,
+    ? t("admin.gatewaySettings.authCacheFailDisabled")
+    : t("admin.gatewaySettings.authCacheFailEnabled", {
+        seconds: clampCacheTtl(form.auth_cache_unauthorized_ttl_seconds),
+      }),
 );
 
-const runTypeLabelMap = {
-  0: "直连模式",
-  1: "反代模式",
-  3: "子域模式",
+const runTypeLabelKeyMap = {
+  0: "admin.gatewaySettings.runTypes.direct",
+  1: "admin.gatewaySettings.runTypes.reverse",
+  3: "admin.gatewaySettings.runTypes.subdomain",
 } as const;
 
 const currentRunTypeLabel = computed(() => {
   const runType = configStore.config?.run_type;
   if (runType === 0 || runType === 1 || runType === 3) {
-    return runTypeLabelMap[runType];
+    return t(runTypeLabelKeyMap[runType]);
   }
-  return "当前模式";
+  return t("admin.gatewaySettings.runTypes.current");
 });
 
 const visibilitySummary = computed(() => settings.value?.visibility ?? null);
@@ -132,21 +147,27 @@ const isProxyHeadersAvailable = computed(
 );
 const proxyHeadersDisabledReason = computed(() => {
   if (isProxyHeadersAvailable.value) return "";
-  return `仅子域映射模式可用，当前为${currentRunTypeLabel.value}。`;
+  return t("admin.gatewaySettings.subdomainOnlyReason", {
+    mode: currentRunTypeLabel.value,
+  });
 });
 const isHostResponseAvailable = computed(
   () => isAnySubdomainRoutingMode(configStore.config),
 );
 const hostResponseDisabledReason = computed(() => {
   if (isHostResponseAvailable.value) return "";
-  return `仅子域映射模式可用，当前为${currentRunTypeLabel.value}。`;
+  return t("admin.gatewaySettings.subdomainOnlyReason", {
+    mode: currentRunTypeLabel.value,
+  });
 });
 const isLocationsAvailable = computed(() =>
   isAnySubdomainRoutingMode(configStore.config),
 );
 const locationsDisabledReason = computed(() => {
   if (isLocationsAvailable.value) return "";
-  return `仅子域映射模式可用，当前为${currentRunTypeLabel.value}。`;
+  return t("admin.gatewaySettings.subdomainOnlyReason", {
+    mode: currentRunTypeLabel.value,
+  });
 });
 
 const openVisibilityEditor = () => {
@@ -255,7 +276,7 @@ const savePortalDisplayStyle = async (style: GatewayPortalDisplayStyle) => {
   } catch (error) {
     console.error("[gateway-settings] failed to refresh config store:", error);
   }
-  toast.success("传送门显示已更新");
+  toast.success(t("admin.gatewaySettings.portalUpdated"));
 };
 
 const saveSettings = async () => {
@@ -283,7 +304,7 @@ const saveSettings = async () => {
       onSuccess: async (data) => {
         applyFromSettings(data);
         await configStore.loadConfig();
-        toast.success("网关设置已更新");
+        toast.success(t("admin.gatewaySettings.settingsUpdated"));
       },
     },
   );
@@ -297,10 +318,11 @@ onMounted(fetchSettings);
     <CardHeader>
       <div class="flex items-start justify-between gap-3">
         <div class="space-y-1.5">
-          <CardTitle class="text-md">网关</CardTitle>
+          <CardTitle class="text-md">{{
+            t("admin.gatewaySettings.title")
+          }}</CardTitle>
           <CardDescription>
-            这里的配置会直接保存到管理端配置，并立即下发到 Go
-            网关，包含鉴权结果缓存与反向代理节流策略。
+            {{ t("admin.gatewaySettings.description") }}
           </CardDescription>
         </div>
       </div>
@@ -318,10 +340,13 @@ onMounted(fetchSettings);
         class="grid gap-3 p-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
       >
         <div class="space-y-1 pr-6">
-          <Label class="text-base">成功鉴权缓存时长</Label>
+          <Label class="text-base">{{
+            t("admin.gatewaySettings.authCacheTitle")
+          }}</Label>
           <div class="text-sm text-muted-foreground">
-            对同一客户端和同一鉴权目标，成功结果缓存多少秒。填
-            <code>0</code> 表示关闭成功缓存。
+            {{ t("admin.gatewaySettings.authCacheDescriptionBefore") }}
+            <code>0</code>
+            {{ t("admin.gatewaySettings.authCacheDescriptionAfter") }}
           </div>
         </div>
         <div class="flex items-center gap-2 shrink-0">
@@ -333,7 +358,9 @@ onMounted(fetchSettings);
             class="w-24 text-center"
             :disabled="isGatewaySettingsBusy"
           />
-          <span class="w-12 text-sm text-muted-foreground">秒</span>
+          <span class="w-12 text-sm text-muted-foreground">{{
+            t("admin.gatewaySettings.seconds")
+          }}</span>
         </div>
         <div class="sm:col-span-2 -mt-1 text-xs text-muted-foreground">
           {{ authCacheHint }}
@@ -344,10 +371,13 @@ onMounted(fetchSettings);
         class="grid gap-3 p-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
       >
         <div class="space-y-1 pr-6">
-          <Label class="text-base">失败鉴权缓存时长</Label>
+          <Label class="text-base">{{
+            t("admin.gatewaySettings.authFailCacheTitle")
+          }}</Label>
           <div class="text-sm text-muted-foreground">
-            未通过鉴权时，拒绝结果缓存多少秒。填
-            <code>0</code> 表示关闭失败缓存。
+            {{ t("admin.gatewaySettings.authFailCacheDescriptionBefore") }}
+            <code>0</code>
+            {{ t("admin.gatewaySettings.authFailCacheDescriptionAfter") }}
           </div>
         </div>
         <div class="flex items-center gap-2 shrink-0">
@@ -359,7 +389,9 @@ onMounted(fetchSettings);
             class="w-24 text-center"
             :disabled="isGatewaySettingsBusy"
           />
-          <span class="w-12 text-sm text-muted-foreground">秒</span>
+          <span class="w-12 text-sm text-muted-foreground">{{
+            t("admin.gatewaySettings.seconds")
+          }}</span>
         </div>
         <div class="sm:col-span-2 -mt-1 text-xs text-muted-foreground">
           {{ authCacheFailHint }}
@@ -370,9 +402,11 @@ onMounted(fetchSettings);
         class="grid gap-3 p-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
       >
         <div class="space-y-1 pr-6">
-          <Label class="text-base">传送门显示</Label>
+          <Label class="text-base">{{
+            t("admin.gatewaySettings.portalDisplay")
+          }}</Label>
           <div class="text-sm text-muted-foreground">
-            Host 类入口在传送门中显示域名或站点标题；标题为空时显示域名。
+            {{ t("admin.gatewaySettings.portalDisplayDescription") }}
           </div>
         </div>
         <div class="inline-flex w-fit rounded-md border bg-background p-1">
@@ -386,7 +420,7 @@ onMounted(fetchSettings);
             :disabled="isGatewaySettingsBusy"
             @click="savePortalDisplayStyle('domain')"
           >
-            域名
+            {{ t("admin.gatewaySettings.portalDisplayDomain") }}
           </Button>
           <Button
             type="button"
@@ -398,7 +432,7 @@ onMounted(fetchSettings);
             :disabled="isGatewaySettingsBusy"
             @click="savePortalDisplayStyle('title')"
           >
-            标题
+            {{ t("admin.gatewaySettings.portalDisplayTitle") }}
           </Button>
         </div>
       </div>
@@ -409,11 +443,10 @@ onMounted(fetchSettings);
             class="cursor-pointer text-base font-medium"
             @click="toggleThrottleEnabled"
           >
-            启用网关反代节流
+            {{ t("admin.gatewaySettings.throttleTitle") }}
           </Label>
           <div class="text-sm text-muted-foreground">
-            按客户端 IP
-            做限速与短时封禁，适合拦住高频探测、错误重试风暴和异常刷请求。
+            {{ t("admin.gatewaySettings.throttleDescription") }}
           </div>
         </div>
         <Switch
@@ -430,9 +463,11 @@ onMounted(fetchSettings);
           class="grid gap-3 p-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
         >
           <div class="space-y-1 pr-6">
-            <Label class="text-base">每秒请求数</Label>
+            <Label class="text-base">{{
+              t("admin.gatewaySettings.requestsPerSecond")
+            }}</Label>
             <div class="text-sm text-muted-foreground">
-              每个客户端 IP 每秒允许通过的请求数，超过后会消耗突发额度。
+              {{ t("admin.gatewaySettings.requestsPerSecondDescription") }}
             </div>
           </div>
           <div class="flex items-center gap-2 shrink-0">
@@ -452,9 +487,11 @@ onMounted(fetchSettings);
           class="grid gap-3 p-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
         >
           <div class="space-y-1 pr-6">
-            <Label class="text-base">突发额度</Label>
+            <Label class="text-base">{{
+              t("admin.gatewaySettings.burst")
+            }}</Label>
             <div class="text-sm text-muted-foreground">
-              短时间突增流量时可以额外放行的令牌数，适合容忍页面并发资源请求。
+              {{ t("admin.gatewaySettings.burstDescription") }}
             </div>
           </div>
           <div class="flex items-center gap-2 shrink-0">
@@ -474,10 +511,11 @@ onMounted(fetchSettings);
           class="grid gap-3 p-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
         >
           <div class="space-y-1 pr-6">
-            <Label class="text-base">超限封禁时长</Label>
+            <Label class="text-base">{{
+              t("admin.gatewaySettings.blockSeconds")
+            }}</Label>
             <div class="text-sm text-muted-foreground">
-              超出额度后，网关会直接断开连接并持续封禁这段时间；被中断的请求不会写入
-              access log。
+              {{ t("admin.gatewaySettings.blockSecondsDescription") }}
             </div>
           </div>
           <div class="flex items-center gap-2 shrink-0">
@@ -489,7 +527,9 @@ onMounted(fetchSettings);
               class="w-24 text-center"
               :disabled="isGatewaySettingsBusy"
             />
-            <span class="w-12 text-sm text-muted-foreground">秒</span>
+            <span class="w-12 text-sm text-muted-foreground">{{
+              t("admin.gatewaySettings.seconds")
+            }}</span>
           </div>
         </div>
       </div>
@@ -499,21 +539,27 @@ onMounted(fetchSettings);
       >
         <div class="space-y-3">
           <div class="flex flex-wrap items-center gap-2">
-            <Label class="text-base">可见性</Label>
+            <Label class="text-base">{{
+              t("admin.gatewaySettings.visibility")
+            }}</Label>
             <Badge
               :variant="visibilitySummary?.enabled ? 'default' : 'secondary'"
               class="rounded-full px-2.5"
             >
-              {{ visibilitySummary?.enabled ? "已启用" : "未启用" }}
+              {{
+                visibilitySummary?.enabled
+                  ? t("admin.gatewaySettings.enabled")
+                  : t("admin.gatewaySettings.disabled")
+              }}
             </Badge>
           </div>
           <div class="text-sm leading-6 text-muted-foreground">
-            控制哪些地区可以访问你的服务
+            {{ t("admin.gatewaySettings.visibilityDescription") }}
           </div>
         </div>
         <div class="flex justify-start lg:justify-end">
           <Button variant="outline" @click="openVisibilityEditor"
-            >编辑可见性</Button
+            >{{ t("admin.gatewaySettings.editVisibility") }}</Button
           >
         </div>
       </div>
@@ -527,7 +573,7 @@ onMounted(fetchSettings);
               class="text-base"
               :class="isProxyHeadersAvailable ? '' : 'text-zinc-500'"
             >
-              协议头
+              {{ t("admin.gatewaySettings.proxyHeaders") }}
             </Label>
           </div>
           <div
@@ -538,7 +584,7 @@ onMounted(fetchSettings);
                 : 'text-zinc-500'
             "
           >
-            控制哪些子域在转发到上游时不发送代理头
+            {{ t("admin.gatewaySettings.proxyHeadersDescription") }}
           </div>
           <div
             v-if="!isProxyHeadersAvailable"
@@ -553,7 +599,7 @@ onMounted(fetchSettings);
             :disabled="!isProxyHeadersAvailable"
             @click="openProxyHeadersEditor"
           >
-            编辑协议头
+            {{ t("admin.gatewaySettings.editProxyHeaders") }}
           </Button>
         </div>
       </div>
@@ -567,7 +613,7 @@ onMounted(fetchSettings);
               class="text-base"
               :class="isHostResponseAvailable ? '' : 'text-zinc-500'"
             >
-              Host响应
+              {{ t("admin.gatewaySettings.hostResponse") }}
             </Label>
           </div>
           <div
@@ -578,7 +624,7 @@ onMounted(fetchSettings);
                 : 'text-zinc-500'
             "
           >
-            控制哪些子域在转发到上游时不保留访问时的 Host
+            {{ t("admin.gatewaySettings.hostResponseDescription") }}
           </div>
           <div
             v-if="!isHostResponseAvailable"
@@ -593,7 +639,7 @@ onMounted(fetchSettings);
             :disabled="!isHostResponseAvailable"
             @click="openHostResponseEditor"
           >
-            编辑Host响应
+            {{ t("admin.gatewaySettings.editHostResponse") }}
           </Button>
         </div>
       </div>
@@ -607,7 +653,7 @@ onMounted(fetchSettings);
               class="text-base"
               :class="isLocationsAvailable ? '' : 'text-zinc-500'"
             >
-              路径响应
+              {{ t("admin.gatewaySettings.locations") }}
             </Label>
           </div>
           <div
@@ -618,7 +664,7 @@ onMounted(fetchSettings);
                 : 'text-zinc-500'
             "
           >
-            为指定 Host 配置路径级反代或固定响应
+            {{ t("admin.gatewaySettings.locationsDescription") }}
           </div>
           <div
             v-if="!isLocationsAvailable"
@@ -633,7 +679,7 @@ onMounted(fetchSettings);
             :disabled="!isLocationsAvailable"
             @click="openLocationsEditor"
           >
-            编辑路径响应
+            {{ t("admin.gatewaySettings.editLocations") }}
           </Button>
         </div>
       </div>
@@ -644,13 +690,13 @@ onMounted(fetchSettings);
           :disabled="!isDirty || isGatewaySettingsBusy"
           @click="resetForm"
         >
-          重置
+          {{ t("admin.gatewaySettings.reset") }}
         </Button>
         <Button
           :disabled="!isDirty || isGatewaySettingsBusy"
           @click="saveSettings"
         >
-          保存设置
+          {{ t("admin.gatewaySettings.saveSettings") }}
         </Button>
       </div>
     </CardContent>

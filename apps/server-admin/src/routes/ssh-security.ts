@@ -1,6 +1,21 @@
 import { Elysia, t } from "elysia";
 import { sshSecurityService } from "../lib/ssh-security/service";
 import { routeDoc, withRouteDoc } from "../lib/openapi";
+import { configManager } from "../lib/redis";
+import { createRequestTranslator } from "../lib/i18n";
+
+type RequestTranslator = ReturnType<typeof createRequestTranslator>["t"];
+
+const getSshSecurityTranslator = async (request: Request) => {
+  const locale = await configManager.getLocaleConfig();
+  return createRequestTranslator(request, locale);
+};
+
+const sshSecurityRouteT = (
+  t: RequestTranslator,
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => t(`server.sshSecurity.routes.${key}`, params);
 
 const parseDeleteIps = (body: unknown): string[] => {
   if (!body || typeof body !== "object") return [];
@@ -23,7 +38,8 @@ export const sshSecurityRoutes = new Elysia({
   )
   .post(
     "/config",
-    async ({ body, set }) => {
+    async ({ request, body, set }) => {
+      const { t } = await getSshSecurityTranslator(request);
       try {
         const details =
           body && Object.keys(body).length === 1 && "enabled" in body
@@ -43,7 +59,9 @@ export const sshSecurityRoutes = new Elysia({
         return {
           success: false,
           message:
-            error instanceof Error ? error.message : "更新 SSH 安全配置失败",
+            error instanceof Error
+              ? error.message
+              : sshSecurityRouteT(t, "updateConfigFailed"),
         };
       }
     },
@@ -72,20 +90,27 @@ export const sshSecurityRoutes = new Elysia({
   )
   .post(
     "/firewall/sync",
-    async ({ set }) => {
+    async ({ request, set }) => {
+      const { t } = await getSshSecurityTranslator(request);
       try {
         const result = await sshSecurityService.syncFirewallBlocks();
         return {
           success: true,
           data: result,
-          message: `已同步 ${result.allowed_cidrs} 条允许 CIDR 与 ${result.synced} 个 SSH 封锁 IP 到 ${result.ports.join("、")} 端口`,
+          message: sshSecurityRouteT(t, "syncFirewallSuccess", {
+            allowedCidrs: result.allowed_cidrs,
+            ports: result.ports.join(", "),
+            synced: result.synced,
+          }),
         };
       } catch (error) {
         set.status = 502;
         return {
           success: false,
           message:
-            error instanceof Error ? error.message : "同步 SSH 防火墙失败",
+            error instanceof Error
+              ? error.message
+              : sshSecurityRouteT(t, "syncFirewallFailed"),
         };
       }
     },
@@ -93,20 +118,23 @@ export const sshSecurityRoutes = new Elysia({
   )
   .post(
     "/firewall/clear",
-    async ({ set }) => {
+    async ({ request, set }) => {
+      const { t } = await getSshSecurityTranslator(request);
       try {
         const result = await sshSecurityService.clearFirewall();
         return {
           success: true,
           data: result,
-          message: "已清空 SSH 专用防火墙规则",
+          message: sshSecurityRouteT(t, "clearFirewallSuccess"),
         };
       } catch (error) {
         set.status = 502;
         return {
           success: false,
           message:
-            error instanceof Error ? error.message : "清空 SSH 防火墙失败",
+            error instanceof Error
+              ? error.message
+              : sshSecurityRouteT(t, "clearFirewallFailed"),
         };
       }
     },
@@ -114,7 +142,8 @@ export const sshSecurityRoutes = new Elysia({
   )
   .get(
     "/login-logs",
-    async ({ query, set }) => {
+    async ({ request, query, set }) => {
+      const { t } = await getSshSecurityTranslator(request);
       try {
         return {
           success: true,
@@ -125,7 +154,9 @@ export const sshSecurityRoutes = new Elysia({
         return {
           success: false,
           message:
-            error instanceof Error ? error.message : "读取 SSH 登录日志失败",
+            error instanceof Error
+              ? error.message
+              : sshSecurityRouteT(t, "readLoginLogsFailed"),
         };
       }
     },
@@ -141,11 +172,12 @@ export const sshSecurityRoutes = new Elysia({
   )
   .get(
     "/blocks/:ip",
-    async ({ params, set }) => {
+    async ({ request, params, set }) => {
+      const { t } = await getSshSecurityTranslator(request);
       const record = await sshSecurityService.getBlock(params.ip);
       if (!record) {
         set.status = 404;
-        return { success: false, message: "封锁记录不存在" };
+        return { success: false, message: sshSecurityRouteT(t, "blockNotFound") };
       }
       return { success: true, data: record };
     },
@@ -157,19 +189,26 @@ export const sshSecurityRoutes = new Elysia({
   )
   .delete(
     "/blocks/:ip",
-    async ({ params, set }) => {
+    async ({ request, params, set }) => {
+      const { t } = await getSshSecurityTranslator(request);
       try {
         const removed = await sshSecurityService.removeBlock(params.ip);
         if (!removed) {
           set.status = 404;
-          return { success: false, message: "封锁记录不存在" };
+          return {
+            success: false,
+            message: sshSecurityRouteT(t, "blockNotFound"),
+          };
         }
         return { success: true };
       } catch (error) {
         set.status = 400;
         return {
           success: false,
-          message: error instanceof Error ? error.message : "解除封锁失败",
+          message:
+            error instanceof Error
+              ? error.message
+              : sshSecurityRouteT(t, "removeBlockFailed"),
         };
       }
     },
@@ -181,11 +220,12 @@ export const sshSecurityRoutes = new Elysia({
   )
   .delete(
     "/blocks",
-    async ({ body, set }) => {
+    async ({ request, body, set }) => {
+      const { t } = await getSshSecurityTranslator(request);
       const ips = parseDeleteIps(body);
       if (ips.length === 0) {
         set.status = 400;
-        return { success: false, message: "请选择要解除封锁的 IP" };
+        return { success: false, message: sshSecurityRouteT(t, "selectIps") };
       }
 
       try {
@@ -195,7 +235,10 @@ export const sshSecurityRoutes = new Elysia({
         set.status = 400;
         return {
           success: false,
-          message: error instanceof Error ? error.message : "批量解除封锁失败",
+          message:
+            error instanceof Error
+              ? error.message
+              : sshSecurityRouteT(t, "removeBlocksFailed"),
         };
       }
     },

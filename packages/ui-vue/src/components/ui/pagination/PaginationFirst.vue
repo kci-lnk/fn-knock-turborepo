@@ -7,6 +7,9 @@ import { ChevronsLeftIcon } from "lucide-vue-next";
 import { PaginationFirst, useForwardProps } from "reka-ui";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
+import { useI18n } from "vue-i18n";
+
+const { t } = useI18n();
 
 const props = withDefaults(
   defineProps<
@@ -38,7 +41,7 @@ const forwarded = useForwardProps(delegatedProps);
   >
     <slot>
       <ChevronsLeftIcon />
-      <span class="hidden sm:block">首页</span>
+      <span class="hidden sm:block">{{ t("common.firstPage") }}</span>
     </slot>
   </PaginationFirst>
 </template>

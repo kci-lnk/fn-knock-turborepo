@@ -1,5 +1,6 @@
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
+import { browserT } from "@fn-knock/i18n/vue";
 import type { DockerAdminBootstrapState } from "../types";
 import { ConfigAPI } from "../lib/api";
 import {
@@ -38,6 +39,7 @@ export const useDockerAdminAuthStore = defineStore("dockerAdminAuth", () => {
   const canEnterApp = computed(
     () => isBootstrapped.value && (!isEnabled.value || isAuthenticated.value),
   );
+  const currentLocaleConfig = () => state.value?.locale;
 
   const applyState = (
     next: DockerAdminBootstrapState,
@@ -69,7 +71,9 @@ export const useDockerAdminAuthStore = defineStore("dockerAdminAuth", () => {
       })
       .catch((error) => {
         bootstrapError.value =
-          error instanceof Error ? error.message : "加载管理面板状态失败";
+          error instanceof Error
+            ? error.message
+            : browserT("admin.dockerAdmin.bootstrapFailed");
         throw error;
       })
       .finally(() => {
@@ -93,27 +97,36 @@ export const useDockerAdminAuthStore = defineStore("dockerAdminAuth", () => {
 
           writeDockerAdminDebugPassword(password);
           writeDockerAdminDebugStage("authenticated");
-          return applyState(createDockerAdminDebugState("authenticated"), {
-            debugOverride: true,
-          });
+          return applyState(
+            createDockerAdminDebugState("authenticated", currentLocaleConfig()),
+            {
+              debugOverride: true,
+            },
+          );
         }
 
         const savedPassword = readDockerAdminDebugPassword();
         if (!savedPassword) {
           writeDockerAdminDebugStage("setup");
-          return applyState(createDockerAdminDebugState("setup"), {
-            debugOverride: true,
-          });
+          return applyState(
+            createDockerAdminDebugState("setup", currentLocaleConfig()),
+            {
+              debugOverride: true,
+            },
+          );
         }
 
         if (savedPassword !== password) {
-          throw new Error("管理面板密码错误，请输入已设置的密码");
+          throw new Error(browserT("admin.dockerAdmin.wrongPassword"));
         }
 
         writeDockerAdminDebugStage("authenticated");
-        return applyState(createDockerAdminDebugState("authenticated"), {
-          debugOverride: true,
-        });
+        return applyState(
+          createDockerAdminDebugState("authenticated", currentLocaleConfig()),
+          {
+            debugOverride: true,
+          },
+        );
       }
 
       const next = needsPasswordSetup.value
@@ -122,7 +135,9 @@ export const useDockerAdminAuthStore = defineStore("dockerAdminAuth", () => {
       return applyState(next);
     } catch (error) {
       submitError.value =
-        error instanceof Error ? error.message : "提交管理面板密码失败";
+        error instanceof Error
+          ? error.message
+          : browserT("admin.dockerAdmin.submitFailed");
       throw error;
     } finally {
       isSubmitting.value = false;
@@ -136,9 +151,12 @@ export const useDockerAdminAuthStore = defineStore("dockerAdminAuth", () => {
       if (isDebugOverrideActive.value) {
         const nextStage = readDockerAdminDebugPassword() ? "login" : "setup";
         writeDockerAdminDebugStage(nextStage);
-        return applyState(createDockerAdminDebugState(nextStage), {
-          debugOverride: true,
-        });
+        return applyState(
+          createDockerAdminDebugState(nextStage, currentLocaleConfig()),
+          {
+            debugOverride: true,
+          },
+        );
       }
 
       const next = await ConfigAPI.logoutDockerAdmin();
@@ -153,7 +171,7 @@ export const useDockerAdminAuthStore = defineStore("dockerAdminAuth", () => {
     if (isDebugOverrideActive.value) {
       const nextStage = readDockerAdminDebugPassword() ? "login" : "setup";
       writeDockerAdminDebugStage(nextStage);
-      state.value = createDockerAdminDebugState(nextStage);
+      state.value = createDockerAdminDebugState(nextStage, currentLocaleConfig());
       return;
     }
 

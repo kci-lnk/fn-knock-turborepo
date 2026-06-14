@@ -1,6 +1,7 @@
 import type { DDNSProviderContext, DDNSProviderDefinition, DDNSUpdateResult } from "../types";
 import {
   applyBaiduBceAuth,
+  ddnsProviderT,
   getTimeoutMs,
   parseJsonResponse,
   splitDomain,
@@ -9,6 +10,14 @@ import {
 } from "./helpers";
 
 const BAIDU_ENDPOINT = "https://bcd.baidubce.com";
+const baiduT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => ddnsProviderT("baidu", key, params);
+const commonT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => ddnsProviderT("common", key, params);
 
 type BaiduRecord = {
   recordId: number;
@@ -28,13 +37,13 @@ type BaiduRecordListResponse = {
 
 export const baiduProvider: DDNSProviderDefinition = {
   name: "baiducloud",
-  label: "百度云 DNS",
+  label: baiduT("label"),
   fields: [
-    { key: "access_key_id", label: "Access Key", type: "text", placeholder: "百度智能云 Access Key", required: true },
-    { key: "secret_access_key", label: "Secret Key", type: "password", placeholder: "百度智能云 Secret Key", required: true },
-    { key: "root_domain", label: "根域名", type: "text", placeholder: "example.com", required: true },
-    { key: "domain", label: "完整域名", type: "text", placeholder: "home.example.com", required: true },
-    { key: "ttl", label: "TTL", type: "text", placeholder: "300", required: false, description: "默认 300 秒" },
+    { key: "access_key_id", label: "Access Key", type: "text", placeholder: baiduT("fields.access_key_id.placeholder"), required: true },
+    { key: "secret_access_key", label: "Secret Key", type: "password", placeholder: baiduT("fields.secret_access_key.placeholder"), required: true },
+    { key: "root_domain", label: commonT("fields.root_domain.label"), type: "text", placeholder: "example.com", required: true },
+    { key: "domain", label: commonT("fields.domain.label"), type: "text", placeholder: "home.example.com", required: true },
+    { key: "ttl", label: "TTL", type: "text", placeholder: "300", required: false, description: commonT("fields.ttl.description", { seconds: 300 }) },
   ],
 };
 
@@ -47,7 +56,7 @@ async function baiduRequest<T>(
   const accessKeyId = config.access_key_id;
   const secretAccessKey = config.secret_access_key;
   if (!accessKeyId || !secretAccessKey) {
-    throw new Error("百度云 DNS 配置不完整");
+    throw new Error(baiduT("configIncomplete"));
   }
 
   const request = new Request(`${BAIDU_ENDPOINT}${path}`, {
@@ -73,13 +82,13 @@ export async function baiduUpdate(
   const { config } = context;
   const { access_key_id, secret_access_key, root_domain, domain } = config;
   if (!access_key_id || !secret_access_key || !root_domain || !domain) {
-    return { success: false, message: "百度云 DNS 配置不完整" };
+    return { success: false, message: baiduT("configIncomplete") };
   }
 
   const ttl = toPositiveInt(config.ttl, 300);
   const parsed = splitDomain(domain, root_domain);
 
-  return updateDualStack("百度云 DNS", ipv4, ipv6, async (recordType, ip) => {
+  return updateDualStack(baiduT("label"), ipv4, ipv6, async (recordType, ip) => {
     const list = await baiduRequest<BaiduRecordListResponse>(context, "/v1/domain/resolve/list", {
       domain: parsed.rootDomain,
       pageNum: 1,
@@ -87,7 +96,7 @@ export async function baiduUpdate(
     });
 
     if (list.code) {
-      throw new Error(`${list.code}: ${list.message || "查询失败"}`);
+      throw new Error(`${list.code}: ${list.message || baiduT("queryFailed")}`);
     }
 
     const existing = (list.result || []).find((record) => record.domain === parsed.recordName);
@@ -107,7 +116,7 @@ export async function baiduUpdate(
       });
 
       if (result.code) {
-        throw new Error(`${result.code}: ${result.message || "更新失败"}`);
+        throw new Error(`${result.code}: ${result.message || baiduT("updateFailed")}`);
       }
       return;
     }
@@ -121,7 +130,7 @@ export async function baiduUpdate(
     });
 
     if (result.code) {
-      throw new Error(`${result.code}: ${result.message || "创建失败"}`);
+      throw new Error(`${result.code}: ${result.message || baiduT("createFailed")}`);
     }
   });
 }

@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type Server } from "node:http";
+import { tDefault } from "./i18n";
 
 export interface AutoHttpsConfig {
   enabled: boolean;
@@ -23,6 +24,10 @@ const AUTO_HTTPS_CONFIGURED_LISTEN_HOST =
   process.env.FN_KNOCK_AUTO_HTTPS_HOST?.trim() || "";
 const AUTO_HTTPS_DUAL_STACK_LISTEN_HOST = "::";
 const AUTO_HTTPS_FALLBACK_IPV4_LISTEN_HOST = "0.0.0.0";
+const autoHttpsT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.autoHttps.${key}`, params);
 
 interface AutoHttpsListenTarget {
   host: string;
@@ -89,15 +94,15 @@ const resolveRedirectPath = (req: IncomingMessage, host: string) => {
 const normalizeListenError = (error: unknown) => {
   const err = error as NodeJS.ErrnoException;
   if (err?.code === "EACCES") {
-    return "没有权限监听 80 端口，请确认当前设备或容器允许程序绑定低端口。";
+    return autoHttpsT("listenEacces");
   }
   if (err?.code === "EADDRINUSE") {
-    return "80 端口已被其他程序占用，自动 HTTPS 无法启动。请尝试飞牛系统设置，安全性，端口设置，编辑，取消勾选：重定向 80 与 443 端口";
+    return autoHttpsT("listenEaddrinuse");
   }
   if (err?.message) {
-    return `监听 80 端口失败：${err.message}`;
+    return autoHttpsT("listenFailedWithMessage", { message: err.message });
   }
-  return "监听 80 端口失败。";
+  return autoHttpsT("listenFailed");
 };
 
 const closeServer = (server: Server) =>

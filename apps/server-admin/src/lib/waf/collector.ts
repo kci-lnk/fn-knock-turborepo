@@ -1,9 +1,14 @@
 import { goBackend } from "../go-backend";
 import { configManager } from "../redis";
 import { emitWAFBlockedEvent } from "../system-events/helpers";
+import { tDefault } from "../i18n";
 import { wafLogStore } from "./log-store";
 
 const DEFAULT_DRAIN_LIMIT = 500;
+const wafCollectorT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.wafCollector.${key}`, params);
 
 export class WAFCollector {
   private timer: NodeJS.Timeout | null = null;
@@ -28,7 +33,7 @@ export class WAFCollector {
     const config = await configManager.getWAFConfig();
     const response = await goBackend.drainWAFEvents(limit);
     if (!response.success || !response.data) {
-      throw new Error(response.message || "拉取 WAF 事件失败");
+      throw new Error(response.message || wafCollectorT("drainFailed"));
     }
     if (response.data.events.length > 0) {
       await wafLogStore.persistEvents(

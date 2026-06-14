@@ -1,5 +1,14 @@
 import type { DDNSProviderContext } from "../types";
-import { normalizeDomain, requestTencentCloudJson } from "./helpers";
+import {
+  ddnsProviderT,
+  normalizeDomain,
+  requestTencentCloudJson,
+} from "./helpers";
+
+const edgeoneT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => ddnsProviderT("edgeone", key, params);
 
 export const EDGEONE_API_HOST = "teo.tencentcloudapi.com";
 export const EDGEONE_API_VERSION = "2022-09-01";
@@ -94,7 +103,7 @@ export function getEdgeOneDomainTarget(config: Record<string, string>): {
   const zoneId = config.zone_id?.trim();
   const domain = normalizeDomain(config.domain || "");
   if (!zoneId || !domain) {
-    throw new Error("腾讯云 EdgeOne 配置不完整，缺少 Zone ID 或域名");
+    throw new Error(edgeoneT("configTargetIncomplete"));
   }
 
   return {
@@ -114,7 +123,7 @@ export async function requestEdgeOneJson<T>(
   const secretId = config.secret_id?.trim();
   const secretKey = config.secret_key?.trim();
   if (!secretId || !secretKey) {
-    throw new Error("腾讯云 EdgeOne 配置不完整");
+    throw new Error(edgeoneT("configIncomplete"));
   }
 
   return requestTencentCloudJson<T>(http, {

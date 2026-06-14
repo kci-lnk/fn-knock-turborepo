@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { Button } from '@/components/ui/button';
 import RefreshButton from '@/components/RefreshButton.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -9,18 +10,29 @@ import { BackoffAPI, type BackoffItem } from '../../lib/api';
 import ConfirmDangerPopover from '@admin-shared/components/common/ConfirmDangerPopover.vue';
 import { extractErrorMessage, useAsyncAction } from '@admin-shared/composables/useAsyncAction';
 
+const { t } = useI18n();
 const items = ref<BackoffItem[]>([]);
 
 const { isPending: isLoading, run: runLoadBackoff } = useAsyncAction({
   onError: (error) => {
     items.value = [];
-    toast.error('加载失败', { description: extractErrorMessage(error, '加载失败') });
+    toast.error(t('admin.sessions.loginBackoff.loadFailed'), {
+      description: extractErrorMessage(
+        error,
+        t('admin.sessions.loginBackoff.loadFailed'),
+      ),
+    });
   },
 });
 
 const { isPending: isResetting, run: runResetIp } = useAsyncAction({
   onError: (error) => {
-    toast.error('解除失败', { description: extractErrorMessage(error, '解除失败') });
+    toast.error(t('admin.sessions.loginBackoff.resetFailed'), {
+      description: extractErrorMessage(
+        error,
+        t('admin.sessions.loginBackoff.resetFailed'),
+      ),
+    });
   },
 });
 
@@ -37,7 +49,7 @@ const resetIp = async (ip: string) => {
     () => BackoffAPI.reset(ip),
     {
       onSuccess: async () => {
-        toast.success(`已解除 ${ip}`);
+        toast.success(t('admin.sessions.loginBackoff.resetSuccess', { ip }));
         await load();
       },
     },
@@ -51,7 +63,7 @@ onMounted(load);
   <div class="space-y-3">
     <div class="flex items-center justify-between">
       <div class="text-sm text-muted-foreground">
-        当前受限 IP {{ items.length }} 个，失败次数按最近 1 小时滚动累计
+        {{ t('admin.sessions.loginBackoff.summary', { count: items.length }) }}
       </div>
       <RefreshButton :loading="isLoading" :disabled="isLoading" @click="load" />
     </div>
@@ -61,10 +73,16 @@ onMounted(load);
         <TableHeader>
           <TableRow>
             <TableHead class="w-[220px]">IP</TableHead>
-            <TableHead class="w-[140px]">1 小时内失败次数</TableHead>
-            <TableHead>状态</TableHead>
-            <TableHead>剩余时间</TableHead>
-            <TableHead class="text-right w-[160px]">操作</TableHead>
+            <TableHead class="w-[140px]">{{
+              t('admin.sessions.loginBackoff.attemptsInHour')
+            }}</TableHead>
+            <TableHead>{{ t('admin.sessions.loginBackoff.status') }}</TableHead>
+            <TableHead>{{
+              t('admin.sessions.loginBackoff.remainingTime')
+            }}</TableHead>
+            <TableHead class="text-right w-[160px]">{{
+              t('admin.sessions.table.actions')
+            }}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody v-if="hasItems">
@@ -73,25 +91,43 @@ onMounted(load);
             <TableCell>{{ item.attempts }}</TableCell>
             <TableCell>
               <Badge :variant="item.blocked ? 'destructive' : 'secondary'">
-                {{ item.blocked ? '限制中' : '未限制' }}
+                {{
+                  item.blocked
+                    ? t('admin.sessions.loginBackoff.blocked')
+                    : t('admin.sessions.loginBackoff.notBlocked')
+                }}
               </Badge>
             </TableCell>
             <TableCell>
-              <span v-if="item.retryAfter">{{ item.retryAfter }} 秒</span>
+              <span v-if="item.retryAfter">{{
+                t('admin.sessions.loginBackoff.seconds', {
+                  seconds: item.retryAfter,
+                })
+              }}</span>
               <span v-else>-</span>
             </TableCell>
             <TableCell class="text-right">
               <div class="flex justify-end">
                 <ConfirmDangerPopover
-                  title="确认解除限制？"
-                  :description="`解除后 IP ${item.ip} 将恢复访问，并清空最近 1 小时失败计数。`"
-                  confirm-text="确认解除"
+                  :title="t('admin.sessions.loginBackoff.confirmTitle')"
+                  :description="
+                    t('admin.sessions.loginBackoff.confirmDescription', {
+                      ip: item.ip,
+                    })
+                  "
+                  :confirm-text="t('admin.sessions.loginBackoff.confirmText')"
                   :loading="isResetting"
                   :disabled="isResetting"
                   :on-confirm="() => resetIp(item.ip)"
                 >
                   <template #trigger>
-                    <Button variant="destructive" size="sm" :disabled="isResetting">解除</Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      :disabled="isResetting"
+                    >
+                      {{ t('admin.sessions.loginBackoff.reset') }}
+                    </Button>
                   </template>
                 </ConfirmDangerPopover>
               </div>
@@ -101,7 +137,7 @@ onMounted(load);
         <TableBody v-else>
           <TableRow>
             <TableCell colspan="5" class="text-center text-muted-foreground py-6">
-              当前没有被限制的 IP
+              {{ t('admin.sessions.loginBackoff.empty') }}
             </TableCell>
           </TableRow>
         </TableBody>

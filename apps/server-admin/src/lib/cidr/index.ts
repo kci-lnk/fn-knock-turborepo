@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { redis, configManager } from "../redis";
 import { resolveIpLocationApiBaseUrl } from "../ip-location-api-url";
 import {
@@ -11,6 +12,13 @@ import {
   type CidrProvinceOption,
   type CidrSelectorPayload,
 } from "./types";
+import {
+  DEFAULT_LOCALE,
+  type LocaleCode,
+  type MessageParams,
+  normalizeLocale,
+  translate,
+} from "../../../../../packages/i18n/src";
 
 const CIDR_REQUEST_TIMEOUT_MS = Math.max(
   2000,
@@ -21,6 +29,20 @@ const CIDR_ERROR_BODY_PREVIEW_LENGTH = 280;
 const CIDR_USER_AGENT = "fn-knock-server-admin/1.0";
 const CIDR_CITY_ONLY_PROVINCES = new Set(["广东", "浙江"]);
 const PREFIX = "fn_knock:cidr";
+
+const cidrLocaleStorage = new AsyncLocalStorage<LocaleCode>();
+
+export const withCidrLocale = <T>(
+  locale: string | null | undefined,
+  action: () => T,
+): T =>
+  cidrLocaleStorage.run(normalizeLocale(locale) ?? DEFAULT_LOCALE, action);
+
+const getActiveCidrLocale = (): LocaleCode =>
+  cidrLocaleStorage.getStore() ?? DEFAULT_LOCALE;
+
+const cidrT = (key: string, params?: MessageParams): string =>
+  translate(getActiveCidrLocale(), `server.cidr.${key}`, params);
 
 const KEYS = {
   provinces: `${PREFIX}:provinces`,
@@ -103,7 +125,7 @@ const normalizeName = (value: unknown): string => String(value ?? "").trim();
 
 const sanitizeBodyPreview = (value: string): string | undefined => {
   const normalized = value.replace(/\s+/g, " ").trim();
-  if (!normalized) return "<空响应>";
+  if (!normalized) return cidrT("emptyResponse");
   if (normalized.length <= CIDR_ERROR_BODY_PREVIEW_LENGTH) {
     return normalized;
   }
@@ -125,33 +147,38 @@ const buildUpstreamErrorMessage = (
   summary: string,
   context: UpstreamErrorContext,
 ): string => {
-  const details: string[] = [`上游地址: ${context.url}`];
+  const details: string[] = [cidrT("upstreamUrl", { url: context.url })];
 
   if (typeof context.status === "number") {
     const statusText = normalizeName(context.statusText);
     details.push(
-      `状态: ${context.status}${statusText ? ` ${statusText}` : ""}`,
+      cidrT("status", {
+        status: context.status,
+        statusText: statusText ? ` ${statusText}` : "",
+      }),
     );
   }
 
   if (context.contentType) {
-    details.push(`类型: ${context.contentType}`);
+    details.push(cidrT("contentType", { contentType: context.contentType }));
   }
 
   if (typeof context.upstreamCode === "number") {
-    details.push(`上游 code: ${context.upstreamCode}`);
+    details.push(cidrT("upstreamCode", { code: context.upstreamCode }));
   }
 
   if (context.upstreamMessage && context.upstreamMessage !== summary) {
-    details.push(`上游消息: ${context.upstreamMessage}`);
+    details.push(
+      cidrT("upstreamMessage", { message: context.upstreamMessage }),
+    );
   }
 
   if (context.requestId) {
-    details.push(`请求 ID: ${context.requestId}`);
+    details.push(cidrT("requestId", { requestId: context.requestId }));
   }
 
   if (context.bodyPreview) {
-    details.push(`响应摘要: ${context.bodyPreview}`);
+    details.push(cidrT("responsePreview", { preview: context.bodyPreview }));
   }
 
   return `${summary}。${details.join("；")}`;
@@ -174,7 +201,7 @@ const toSafeInt = (value: unknown, fallback = 0): number => {
 const normalizeProvince = (province: string): string => {
   const normalized = normalizeName(province);
   if (!normalized) {
-    throw new CidrServiceError("省份不能为空", 400);
+    throw new CidrServiceError(cidrT("provinceRequired"), 400);
   }
   return normalized;
 };
@@ -200,7 +227,7 @@ const fetchWithTimeout = async (url: URL): Promise<Response> => {
     });
   } catch (error) {
     if (controller.signal.aborted) {
-      throw new CidrServiceError("CIDR 上游请求超时", 504);
+      throw new CidrServiceError(cidrT("upstreamTimeout"), 504);
     }
     throw error;
   } finally {
@@ -299,7 +326,7 @@ class CidrService {
       console.error("[CIDR] upstream request failed", context);
       throw new CidrServiceError(
         buildUpstreamErrorMessage(
-          `CIDR 上游请求失败 (${response.status})`,
+          cidrT("upstreamRequestFailed", { status: response.status }),
           context,
         ),
         502,
@@ -312,7 +339,7 @@ class CidrService {
     } catch {
       console.error("[CIDR] upstream returned invalid JSON", context);
       throw new CidrServiceError(
-        buildUpstreamErrorMessage("CIDR 上游返回了无效 JSON", context),
+        buildUpstreamErrorMessage(cidrT("invalidJson"), context),
         502,
       );
     }
@@ -328,7 +355,7 @@ class CidrService {
       console.error("[CIDR] upstream returned unexpected payload", nextContext);
       throw new CidrServiceError(
         buildUpstreamErrorMessage(
-          upstreamMessage || "CIDR 上游返回异常",
+          upstreamMessage || cidrT("upstreamUnexpected"),
           nextContext,
         ),
         502,
@@ -383,7 +410,7 @@ class CidrService {
     const options: CidrCityOption[] = [];
     if (supportsProvinceWide) {
       options.push({
-        label: `${resolvedProvince}全省`,
+        label: cidrT("provinceWideLabel", { province: resolvedProvince }),
         value: CIDR_PROVINCE_WIDE_VALUE,
         queryCity: null,
         isProvinceWide: true,
@@ -464,7 +491,9 @@ class CidrService {
       selection: {
         province: resolvedProvince,
         city: resolvedCity,
-        label: resolvedCity || `${resolvedProvince}全省`,
+        label:
+          resolvedCity ||
+          cidrT("provinceWideLabel", { province: resolvedProvince }),
         value: resolvedCity || CIDR_PROVINCE_WIDE_VALUE,
         queryCity: resolvedCity,
         isProvinceWide,

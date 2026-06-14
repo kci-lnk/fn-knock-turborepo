@@ -27,6 +27,7 @@ import { collectStreamOutput, waitForProcessExit } from "./runtime";
 import { syncSSLDeploymentToGateway } from "./ssl-gateway";
 import { systemResourceMonitor } from "./system-resource-monitor";
 import { whitelistManager } from "./whitelist-manager";
+import { tDefault } from "./i18n";
 import {
   buildKnockBackupFilename,
   KNOCK_BACKUP_EXTENSION,
@@ -48,6 +49,10 @@ const BASE64_PATTERN =
 const SUPPORTED_BACKUP_IMPORT_VERSION_RANGE = formatVersionRange(
   APP_BACKUP_IMPORT_VERSION_RANGE,
 );
+const backupT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.maintenanceBackup.${key}`, params);
 
 const BACKUP_EXCLUDED_KEY_PREFIXES = [
   "fn_knock:acme:job:",
@@ -320,8 +325,8 @@ class MaintenanceBackupService {
       const isMissingBinary = error?.code === "ENOENT";
       throw new MaintenanceBackupError(
         isMissingBinary
-          ? `系统环境缺少 ${command} 命令`
-          : error?.message || `执行 ${command} 命令失败`,
+          ? backupT("commandMissing", { command })
+          : error?.message || backupT("commandFailed", { command }),
         500,
       );
     }
@@ -343,7 +348,7 @@ class MaintenanceBackupService {
       }
 
       throw new MaintenanceBackupError(
-        error?.message || `检测 ${command} 命令失败`,
+        error?.message || backupT("commandCheckFailed", { command }),
         500,
       );
     }
@@ -372,7 +377,7 @@ class MaintenanceBackupService {
     ]);
     if (!canUseAptGet) {
       throw new MaintenanceBackupError(
-        `系统环境缺少 ${missingNames} 命令，且未找到 Debian apt-get，无法自动安装`,
+        backupT("commandsMissingNoApt", { commands: missingNames }),
         500,
       );
     }
@@ -380,7 +385,7 @@ class MaintenanceBackupService {
     const updateResult = await this.runCommand(DEBIAN_APT_GET_PATH, ["update"]);
     if (updateResult.exitCode !== 0) {
       throw this.createCommandError(
-        "apt-get update 执行失败",
+        backupT("aptUpdateFailed"),
         updateResult,
         500,
       );
@@ -396,7 +401,7 @@ class MaintenanceBackupService {
     ]);
     if (installResult.exitCode !== 0) {
       throw this.createCommandError(
-        `安装 ${packages.join(", ")} 失败`,
+        backupT("packageInstallFailed", { packages: packages.join(", ") }),
         installResult,
         500,
       );
@@ -405,9 +410,9 @@ class MaintenanceBackupService {
     const remainingCommands = await this.findMissingArchiveCommands();
     if (remainingCommands.length > 0) {
       throw new MaintenanceBackupError(
-        `自动安装完成后仍未检测到 ${remainingCommands
-          .map((item) => item.command)
-          .join(", ")} 命令`,
+        backupT("commandsStillMissingAfterInstall", {
+          commands: remainingCommands.map((item) => item.command).join(", "),
+        }),
         500,
       );
     }
@@ -444,7 +449,13 @@ class MaintenanceBackupService {
       .join(" | ");
 
     return new MaintenanceBackupError(
-      `${message}（退出码: ${result.exitCode}）${detail ? `: ${detail}` : ""}`,
+      detail
+        ? backupT("commandErrorWithDetail", {
+            message,
+            code: result.exitCode,
+            detail,
+          })
+        : backupT("commandError", { message, code: result.exitCode }),
       status,
     );
   }
@@ -458,7 +469,7 @@ class MaintenanceBackupService {
     const directoryPath = this.getBackupDirectoryPath();
     if (!directoryPath) {
       throw new MaintenanceBackupError(
-        "未找到飞牛共享目录，请确认应用资源已正确配置",
+        backupT("shareDirectoryMissing"),
         404,
       );
     }
@@ -483,7 +494,7 @@ class MaintenanceBackupService {
       relativeToRoot.startsWith("..") ||
       resolvedPath === directoryPath
     ) {
-      throw new MaintenanceBackupError("非法的备份文件路径", 400);
+      throw new MaintenanceBackupError(backupT("invalidBackupPath"), 400);
     }
 
     return resolvedPath;
@@ -658,7 +669,7 @@ class MaintenanceBackupService {
           normalizedFields.length % 2 !== 0
         ) {
           throw new MaintenanceBackupError(
-            `Redis stream 数据格式无效: ${key} (${id})`,
+            backupT("invalidRedisStreamData", { key, id }),
             500,
           );
         }
@@ -673,7 +684,7 @@ class MaintenanceBackupService {
     }
 
     throw new MaintenanceBackupError(
-      `不支持导出的 Redis 数据类型: ${type} (${key})`,
+      backupT("unsupportedRedisExportType", { type, key }),
       500,
     );
   }
@@ -715,7 +726,11 @@ class MaintenanceBackupService {
         );
 
         if (result.exitCode !== 0) {
-          throw this.createCommandError("生成备份归档失败", result, 500);
+          throw this.createCommandError(
+            backupT("createArchiveFailed"),
+            result,
+            500,
+          );
         }
 
         return {
@@ -729,7 +744,7 @@ class MaintenanceBackupService {
         }
 
         throw new MaintenanceBackupError(
-          error?.message || "生成备份归档失败",
+          error?.message || backupT("createArchiveFailed"),
           500,
         );
       }
@@ -794,7 +809,9 @@ class MaintenanceBackupService {
   private validateBackupFilename(filename: string) {
     if (filename && !filename.toLowerCase().endsWith(KNOCK_BACKUP_EXTENSION)) {
       throw new MaintenanceBackupError(
-        `备份文件扩展名必须为 ${KNOCK_BACKUP_EXTENSION}`,
+        backupT("invalidBackupExtension", {
+          extension: KNOCK_BACKUP_EXTENSION,
+        }),
         400,
       );
     }
@@ -802,13 +819,19 @@ class MaintenanceBackupService {
 
   private parseStringArray(value: unknown, label: string): string[] {
     if (!Array.isArray(value)) {
-      throw new MaintenanceBackupError(`${label} 必须是字符串数组`, 400);
+      throw new MaintenanceBackupError(
+        backupT("stringArrayRequired", { label }),
+        400,
+      );
     }
     const output = value.filter(
       (item): item is string => typeof item === "string",
     );
     if (output.length !== value.length) {
-      throw new MaintenanceBackupError(`${label} 只能包含字符串`, 400);
+      throw new MaintenanceBackupError(
+        backupT("stringArrayOnlyStrings", { label }),
+        400,
+      );
     }
     return output;
   }
@@ -818,13 +841,19 @@ class MaintenanceBackupService {
     label: string,
   ): Record<string, string> {
     if (!isRecord(value)) {
-      throw new MaintenanceBackupError(`${label} 必须是对象`, 400);
+      throw new MaintenanceBackupError(
+        backupT("objectRequired", { label }),
+        400,
+      );
     }
 
     const output: Record<string, string> = {};
     for (const [field, rawFieldValue] of Object.entries(value)) {
       if (typeof rawFieldValue !== "string") {
-        throw new MaintenanceBackupError(`${label}.${field} 必须是字符串`, 400);
+        throw new MaintenanceBackupError(
+          backupT("fieldStringRequired", { label, field }),
+          400,
+        );
       }
       output[field] = rawFieldValue;
     }
@@ -833,13 +862,16 @@ class MaintenanceBackupService {
 
   private parseZSetValue(value: unknown, label: string): RedisZSetEntry[] {
     if (!Array.isArray(value)) {
-      throw new MaintenanceBackupError(`${label} 必须是数组`, 400);
+      throw new MaintenanceBackupError(
+        backupT("arrayRequired", { label }),
+        400,
+      );
     }
 
     return value.map((item, index) => {
       if (!isRecord(item) || typeof item.member !== "string") {
         throw new MaintenanceBackupError(
-          `${label}[${index}] 必须包含字符串 member`,
+          backupT("zsetMemberRequired", { label, index }),
           400,
         );
       }
@@ -847,7 +879,7 @@ class MaintenanceBackupService {
       const score = Number(item.score);
       if (!Number.isFinite(score)) {
         throw new MaintenanceBackupError(
-          `${label}[${index}] 必须包含有效的数值 score`,
+          backupT("zsetScoreRequired", { label, index }),
           400,
         );
       }
@@ -858,13 +890,16 @@ class MaintenanceBackupService {
 
   private parseStreamValue(value: unknown, label: string): RedisStreamEntry[] {
     if (!Array.isArray(value)) {
-      throw new MaintenanceBackupError(`${label} 必须是数组`, 400);
+      throw new MaintenanceBackupError(
+        backupT("arrayRequired", { label }),
+        400,
+      );
     }
 
     return value.map((item, index) => {
       if (!isRecord(item) || typeof item.id !== "string") {
         throw new MaintenanceBackupError(
-          `${label}[${index}] 必须包含字符串 id`,
+          backupT("streamIdRequired", { label, index }),
           400,
         );
       }
@@ -875,7 +910,7 @@ class MaintenanceBackupService {
       );
       if (fields.length === 0 || fields.length % 2 !== 0) {
         throw new MaintenanceBackupError(
-          `${label}[${index}].fields 必须是偶数长度且非空的字符串数组`,
+          backupT("streamFieldsInvalid", { label, index }),
           400,
         );
       }
@@ -889,19 +924,28 @@ class MaintenanceBackupService {
 
   private parseEntry(value: unknown, index: number): RedisBackupEntry {
     if (!isRecord(value)) {
-      throw new MaintenanceBackupError(`entries[${index}] 必须是对象`, 400);
+      throw new MaintenanceBackupError(
+        backupT("entryObjectRequired", { index }),
+        400,
+      );
     }
 
     const key = typeof value.key === "string" ? value.key : "";
     if (!key.startsWith(KNOCK_BACKUP_PREFIX)) {
       throw new MaintenanceBackupError(
-        `entries[${index}].key 必须以 ${KNOCK_BACKUP_PREFIX} 开头`,
+        backupT("entryKeyPrefixRequired", {
+          index,
+          prefix: KNOCK_BACKUP_PREFIX,
+        }),
         400,
       );
     }
 
     if (!isSupportedType(value.type)) {
-      throw new MaintenanceBackupError(`entries[${index}].type 不受支持`, 400);
+      throw new MaintenanceBackupError(
+        backupT("entryTypeUnsupported", { index }),
+        400,
+      );
     }
 
     const ttlMs =
@@ -911,7 +955,7 @@ class MaintenanceBackupService {
           ? Math.floor(Number(value.ttl_ms))
           : (() => {
               throw new MaintenanceBackupError(
-                `entries[${index}].ttl_ms 必须为正整数或 null`,
+                backupT("entryTtlInvalid", { index }),
                 400,
               );
             })();
@@ -919,7 +963,7 @@ class MaintenanceBackupService {
     if (value.type === "string") {
       if (typeof value.value !== "string") {
         throw new MaintenanceBackupError(
-          `entries[${index}].value 必须是字符串`,
+          backupT("entryValueStringRequired", { index }),
           400,
         );
       }
@@ -967,24 +1011,26 @@ class MaintenanceBackupService {
       try {
         payload = JSON.parse(rawPayload) as unknown;
       } catch {
-        throw new MaintenanceBackupError("备份文件 JSON 无法解析", 400);
+        throw new MaintenanceBackupError(backupT("jsonParseFailed"), 400);
       }
     }
 
     if (!isRecord(payload)) {
-      throw new MaintenanceBackupError("备份文件内容不是有效对象", 400);
+      throw new MaintenanceBackupError(backupT("payloadObjectInvalid"), 400);
     }
 
     if (payload.version !== APP_BACKUP_SCHEMA_VERSION) {
       throw new MaintenanceBackupError(
-        `仅支持 version=${APP_BACKUP_SCHEMA_VERSION} 的备份文件`,
+        backupT("unsupportedSchemaVersion", {
+          version: APP_BACKUP_SCHEMA_VERSION,
+        }),
         400,
       );
     }
 
     if (payload.prefix !== KNOCK_BACKUP_PREFIX) {
       throw new MaintenanceBackupError(
-        `仅支持 ${KNOCK_BACKUP_PREFIX} 前缀的备份文件`,
+        backupT("unsupportedPrefix", { prefix: KNOCK_BACKUP_PREFIX }),
         400,
       );
     }
@@ -992,12 +1038,16 @@ class MaintenanceBackupService {
     const appVersion =
       typeof payload.app_version === "string" ? payload.app_version.trim() : "";
     if (!appVersion) {
-      throw new MaintenanceBackupError("备份文件缺少 app_version", 400);
+      throw new MaintenanceBackupError(backupT("missingAppVersion"), 400);
     }
 
     if (!isBackupAppVersionSupported(appVersion)) {
       throw new MaintenanceBackupError(
-        `当前版本 ${APP_LOCAL_VERSION} 仅允许导入 ${SUPPORTED_BACKUP_IMPORT_VERSION_RANGE} 范围内导出的备份，收到 ${appVersion}`,
+        backupT("appVersionUnsupported", {
+          currentVersion: APP_LOCAL_VERSION,
+          range: SUPPORTED_BACKUP_IMPORT_VERSION_RANGE,
+          appVersion,
+        }),
         400,
       );
     }
@@ -1005,11 +1055,11 @@ class MaintenanceBackupService {
     const exportedAt =
       typeof payload.exported_at === "string" ? payload.exported_at : "";
     if (!exportedAt) {
-      throw new MaintenanceBackupError("备份文件缺少 exported_at", 400);
+      throw new MaintenanceBackupError(backupT("missingExportedAt"), 400);
     }
 
     if (!Array.isArray(payload.entries)) {
-      throw new MaintenanceBackupError("备份文件缺少 entries 数组", 400);
+      throw new MaintenanceBackupError(backupT("missingEntries"), 400);
     }
 
     const entries = payload.entries.map((entry, index) =>
@@ -1017,7 +1067,7 @@ class MaintenanceBackupService {
     );
     const uniqueKeys = new Set(entries.map((entry) => entry.key));
     if (uniqueKeys.size !== entries.length) {
-      throw new MaintenanceBackupError("备份文件存在重复 Redis key", 400);
+      throw new MaintenanceBackupError(backupT("duplicateRedisKey"), 400);
     }
 
     return {
@@ -1057,7 +1107,9 @@ class MaintenanceBackupService {
 
           if (detail.includes("filename not matched")) {
             throw new MaintenanceBackupError(
-              `备份归档中缺少 ${KNOCK_BACKUP_JSON_FILENAME}`,
+              backupT("archiveMissingPayload", {
+                filename: KNOCK_BACKUP_JSON_FILENAME,
+              }),
               400,
             );
           }
@@ -1066,11 +1118,14 @@ class MaintenanceBackupService {
             detail.includes("incorrect password") ||
             detail.includes("wrong password")
           ) {
-            throw new MaintenanceBackupError("备份归档密码校验失败", 400);
+            throw new MaintenanceBackupError(
+              backupT("archivePasswordInvalid"),
+              400,
+            );
           }
 
           throw this.createCommandError(
-            "读取 .knock 备份归档失败",
+            backupT("readArchiveFailed"),
             result,
             400,
           );
@@ -1083,7 +1138,7 @@ class MaintenanceBackupService {
         }
 
         throw new MaintenanceBackupError(
-          error?.message || "读取 .knock 备份归档失败",
+          error?.message || backupT("readArchiveFailed"),
           400,
         );
       }
@@ -1118,7 +1173,7 @@ class MaintenanceBackupService {
       const failed = result?.find(([error]) => error != null);
       if (failed?.[0]) {
         throw new MaintenanceBackupError(
-          failed[0].message || "写入 Redis 备份数据失败",
+          failed[0].message || backupT("writeRedisFailed"),
           500,
         );
       }
@@ -1218,19 +1273,19 @@ class MaintenanceBackupService {
         await task();
         syncedSteps.push(label);
       } catch (error: any) {
-        const message = error?.message || String(error) || "未知错误";
+        const message = error?.message || String(error) || backupT("unknownError");
         warnings.push(`${label}: ${message}`);
       }
     };
 
     const config = await configManager.getConfig();
 
-    await attempt("运行模式与网关路由", async () => {
+    await attempt(backupT("syncSteps.runModeGatewayRoutes"), async () => {
       await firewallService.applyRunTypeConfig(config.run_type);
     });
 
     if (config.run_type === 0) {
-      await attempt("直连模式白名单", async () => {
+      await attempt(backupT("syncSteps.directModeWhitelist"), async () => {
         const records = await whitelistManager.getAllActiveConcreteTargets();
         for (const record of records) {
           await goBackend.allowIP(record.target);
@@ -1238,19 +1293,19 @@ class MaintenanceBackupService {
       });
     }
 
-    await attempt("请求日志配置", async () => {
+    await attempt(backupT("syncSteps.gatewayLogging"), async () => {
       await syncGatewayLoggingToGateway(config.gateway_logging);
     });
 
-    await attempt("SSL 证书部署", async () => {
+    await attempt(backupT("syncSteps.sslDeployment"), async () => {
       await syncSSLDeploymentToGateway(config);
     });
 
-    await attempt("废弃登录日志清理", async () => {
+    await attempt(backupT("syncSteps.legacyAuthLogCleanup"), async () => {
       await cleanupLegacyAuthLogStorage();
     });
 
-    await attempt("系统资源监控状态重置", async () => {
+    await attempt(backupT("syncSteps.systemResourceMonitorReset"), async () => {
       await systemResourceMonitor.resetStates();
     });
 
@@ -1261,7 +1316,7 @@ class MaintenanceBackupService {
     archiveBuffer: Buffer,
   ): Promise<FnKnockBackupImportResult> {
     if (archiveBuffer.length === 0) {
-      throw new MaintenanceBackupError("备份归档内容为空", 400);
+      throw new MaintenanceBackupError(backupT("archiveEmpty"), 400);
     }
 
     await this.ensureArchiveCommandsReady();
@@ -1288,16 +1343,18 @@ class MaintenanceBackupService {
     const fileStats = await stat(filePath);
 
     if (!fileStats.isFile()) {
-      throw new MaintenanceBackupError("只能导入备份目录中的文件", 400);
+      throw new MaintenanceBackupError(backupT("directoryImportFileOnly"), 400);
     }
     if (!isBackupArchiveFile(filePath)) {
       throw new MaintenanceBackupError(
-        `仅支持导入 ${KNOCK_BACKUP_EXTENSION} 备份文件`,
+        backupT("directoryImportExtensionOnly", {
+          extension: KNOCK_BACKUP_EXTENSION,
+        }),
         400,
       );
     }
     if (fileStats.size > MAX_BACKUP_ARCHIVE_SIZE) {
-      throw new MaintenanceBackupError("备份文件过大，无法从飞牛目录导入", 400);
+      throw new MaintenanceBackupError(backupT("directoryImportTooLarge"), 400);
     }
 
     return this.importBackupArchiveBuffer(await readFile(filePath));
@@ -1308,11 +1365,11 @@ class MaintenanceBackupService {
   ): Promise<FnKnockBackupImportResult> {
     const archiveBase64 = request.archive_base64?.trim() || "";
     if (!archiveBase64) {
-      throw new MaintenanceBackupError("缺少备份归档内容", 400);
+      throw new MaintenanceBackupError(backupT("archiveContentMissing"), 400);
     }
 
     if (!BASE64_PATTERN.test(archiveBase64)) {
-      throw new MaintenanceBackupError("备份归档不是有效的 Base64 数据", 400);
+      throw new MaintenanceBackupError(backupT("archiveBase64Invalid"), 400);
     }
 
     const filename = request.filename?.trim() || "";
@@ -1322,7 +1379,7 @@ class MaintenanceBackupService {
     try {
       archiveBuffer = Buffer.from(archiveBase64, "base64");
     } catch {
-      throw new MaintenanceBackupError("备份归档不是有效的 Base64 数据", 400);
+      throw new MaintenanceBackupError(backupT("archiveBase64Invalid"), 400);
     }
 
     return this.importBackupArchiveBuffer(archiveBuffer);

@@ -7,10 +7,10 @@
     <CardHeader>
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <CardTitle>SSL 证书</CardTitle>
+          <CardTitle>{{ t("admin.certConfig.title") }}</CardTitle>
         </div>
       </div>
-      <CardDescription>加载中...</CardDescription>
+      <CardDescription>{{ t("common.loadingConfig") }}</CardDescription>
     </CardHeader>
     <CardContent class="grid gap-4">
       <div class="rounded-lg border bg-muted/30 p-4 grid gap-3">
@@ -36,7 +36,7 @@
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div class="grid gap-1">
             <CardTitle class="flex items-center gap-3">
-              <span>HTTPS 当前状态</span>
+              <span>{{ t("admin.certConfig.currentStatus") }}</span>
               <Badge
                 :variant="activeCertificate ? 'default' : 'secondary'"
                 :class="
@@ -55,7 +55,11 @@
               {{ deploymentModeLabel }}
             </Badge>
             <Badge variant="secondary">
-              证书库 {{ certificates.length }} 张
+              {{
+                t("admin.certConfig.certificateLibraryCount", {
+                  count: certificates.length,
+                })
+              }}
             </Badge>
           </div>
         </div>
@@ -67,7 +71,7 @@
             libraryCoverage.status === 'missing' ? 'destructive' : 'default'
           "
         >
-          <AlertTitle>子域模式闭环提示</AlertTitle>
+          <AlertTitle>{{ t("admin.certConfig.subdomainLoopTitle") }}</AlertTitle>
           <AlertDescription class="grid gap-2">
             <p>{{ libraryCoverage.summary }}</p>
             <p
@@ -76,8 +80,11 @@
               "
               class="text-xs text-muted-foreground"
             >
-              组合覆盖证书数：{{
-                libraryCoverage.combined_covering_certificate_ids.length
+              {{
+                t("admin.certConfig.combinedCoverageCount", {
+                  count:
+                    libraryCoverage.combined_covering_certificate_ids.length,
+                })
               }}
             </p>
             <div
@@ -96,7 +103,7 @@
                 :disabled="isUpdatingDeploymentMode"
                 @click="updateDeploymentMode('multi_sni')"
               >
-                切换到多证书 SNI
+                {{ t("admin.certConfig.switchToMultiSni") }}
               </Button>
               <Button
                 v-if="recommendedCertificateId"
@@ -104,7 +111,7 @@
                 :disabled="isActivating"
                 @click="activateRecommendedCertificate"
               >
-                立即切换到推荐证书
+                {{ t("admin.certConfig.switchToRecommended") }}
               </Button>
             </div>
           </AlertDescription>
@@ -116,16 +123,16 @@
         class="flex flex-wrap justify-end gap-2 border-t pt-6"
       >
         <ConfirmDangerPopover
-          title="确认停用当前活动证书"
-          description="停用后将关闭 HTTPS，但证书仍会保留在证书库里，后续可以再次启用。"
-          confirm-text="确认停用"
+          :title="t('admin.certConfig.disableTitle')"
+          :description="t('admin.certConfig.disableDescription')"
+          :confirm-text="t('admin.certConfig.disableConfirm')"
           :loading="isClearing"
           :disabled="isClearing"
           :on-confirm="handleClear"
         >
           <template #trigger>
             <Button variant="destructive" size="sm" :disabled="isClearing">
-              停用 HTTPS
+              {{ t("admin.certConfig.disableHttps") }}
             </Button>
           </template>
         </ConfirmDangerPopover>
@@ -133,10 +140,10 @@
     </Card>
 
     <ConfigCollapsibleCard
-      title="部署方式与网关下发"
+      :title="t('admin.certConfig.deploymentTitle')"
       :configured="deploymentSectionConfigured"
       :ready="hasLoadedSSLStatus"
-      edit-label="查看配置"
+      :edit-label="t('admin.certConfig.viewConfig')"
       collapsed-content-class="min-h-[76px] flex flex-col items-start gap-3 sm:h-[40px] sm:flex-row sm:items-center sm:justify-between"
       summary-class="text-xs text-muted-foreground max-w-full whitespace-normal break-words sm:truncate"
       expanded-content-class="p-0 sm:p-0"
@@ -150,20 +157,24 @@
         <div class="divide-y divide-border">
           <div class="p-4 sm:p-6 grid gap-2">
             <div class="flex flex-wrap items-center justify-between gap-2">
-              <div class="text-base font-semibold">HTTPS 部署方式</div>
+              <div class="text-base font-semibold">
+                {{ t("admin.certConfig.deploymentHeading") }}
+              </div>
               <Badge variant="outline">{{ deploymentModeShortLabel }}</Badge>
             </div>
             <p class="text-sm text-muted-foreground">
-              这个切换只决定 Go
-              网关收到的是“当前这一张证书”，还是“整套证书集合”。
+              {{ t("admin.certConfig.deploymentIntro") }}
             </p>
             <p class="text-xs text-muted-foreground">
               {{ deploymentModeDescription }}
             </p>
             <p v-if="deploymentModeMismatch" class="text-xs text-amber-600">
-              已保存配置是{{
-                configuredDeploymentModeLabel
-              }}，但网关当前实际运行在{{ deploymentModeShortLabel }}。
+              {{
+                t("admin.certConfig.deploymentMismatch", {
+                  configured: configuredDeploymentModeLabel,
+                  current: deploymentModeShortLabel,
+                })
+              }}
             </p>
             <p v-else-if="gatewaySyncError" class="text-xs text-amber-600">
               {{ gatewaySyncError }}
@@ -177,10 +188,11 @@
             >
               <div class="flex flex-wrap items-start justify-between gap-2">
                 <div class="grid gap-1">
-                  <div class="text-sm font-medium">单活动证书</div>
+                  <div class="text-sm font-medium">
+                    {{ t("admin.certConfig.singleActiveTitle") }}
+                  </div>
                   <p class="text-xs text-muted-foreground">
-                    只向网关下发当前活动证书。切换“当前证书”时，对外 HTTPS
-                    证书也会一起切换。
+                    {{ t("admin.certConfig.singleActiveDescription") }}
                   </p>
                 </div>
                 <Badge
@@ -188,15 +200,31 @@
                   variant="default"
                   class="bg-green-600 hover:bg-green-600"
                 >
-                  当前模式
+                  {{ t("admin.certConfig.currentMode") }}
                 </Badge>
               </div>
 
               <div class="grid gap-2 text-xs text-muted-foreground">
-                <div>预计下发：{{ singleActivePreview.count }} 张</div>
-                <div>对外证书：{{ singleActivePreview.defaultLabel }}</div>
+                <div>
+                  {{
+                    t("admin.certConfig.expectedDeploy", {
+                      count: singleActivePreview.count,
+                    })
+                  }}
+                </div>
+                <div>
+                  {{
+                    t("admin.certConfig.publicCertificate", {
+                      label: singleActivePreview.defaultLabel,
+                    })
+                  }}
+                </div>
                 <div v-if="singleActivePreview.domainSummary">
-                  覆盖域名：{{ singleActivePreview.domainSummary }}
+                  {{
+                    t("admin.certConfig.coveredDomains", {
+                      domains: singleActivePreview.domainSummary,
+                    })
+                  }}
                 </div>
               </div>
 
@@ -218,8 +246,8 @@
                 ></span>
                 {{
                   sslStatus?.deploymentMode === "single_active"
-                    ? "当前正在使用"
-                    : "切换到单活动证书"
+                    ? t("admin.certConfig.currentlyInUse")
+                    : t("admin.certConfig.switchToSingleActive")
                 }}
               </Button>
             </div>
@@ -230,9 +258,11 @@
             >
               <div class="flex flex-wrap items-start justify-between gap-2">
                 <div class="grid gap-1">
-                  <div class="text-sm font-medium">多证书 SNI</div>
+                  <div class="text-sm font-medium">
+                    {{ t("admin.certConfig.multiSniTitle") }}
+                  </div>
                   <p class="text-xs text-muted-foreground">
-                    将证书库中的多张证书一起下发到网关，由网关按访问域名自动匹配证书。
+                    {{ t("admin.certConfig.multiSniDescription") }}
                   </p>
                 </div>
                 <Badge
@@ -240,13 +270,25 @@
                   variant="default"
                   class="bg-green-600 hover:bg-green-600"
                 >
-                  当前模式
+                  {{ t("admin.certConfig.currentMode") }}
                 </Badge>
               </div>
 
               <div class="grid gap-2 text-xs text-muted-foreground">
-                <div>预计下发：{{ multiSniPreview.count }} 张</div>
-                <div>默认证书：{{ multiSniPreview.defaultLabel }}</div>
+                <div>
+                  {{
+                    t("admin.certConfig.expectedDeploy", {
+                      count: multiSniPreview.count,
+                    })
+                  }}
+                </div>
+                <div>
+                  {{
+                    t("admin.certConfig.defaultCertificate", {
+                      label: multiSniPreview.defaultLabel,
+                    })
+                  }}
+                </div>
                 <div
                   v-if="multiSniPreview.previewItems.length"
                   class="flex flex-wrap gap-1.5"
@@ -261,14 +303,18 @@
                     <span
                       v-if="item.isDefault"
                       class="ml-1 text-[10px] text-muted-foreground"
-                      >默认</span
+                      >{{ t("admin.certConfig.defaultTag") }}</span
                     >
                   </Badge>
                   <Badge
                     v-if="multiSniPreview.remainingCount > 0"
                     variant="outline"
                   >
-                    +{{ multiSniPreview.remainingCount }} 张
+                    {{
+                      t("admin.certConfig.moreCertificates", {
+                        count: multiSniPreview.remainingCount,
+                      })
+                    }}
                   </Badge>
                 </div>
               </div>
@@ -291,8 +337,8 @@
                 ></span>
                 {{
                   sslStatus?.deploymentMode === "multi_sni"
-                    ? "当前正在使用"
-                    : "切换到多证书 SNI"
+                    ? t("admin.certConfig.currentlyInUse")
+                    : t("admin.certConfig.switchToMultiSni")
                 }}
               </Button>
             </div>
@@ -302,7 +348,9 @@
             <div
               class="rounded-lg border border-dashed bg-muted/20 p-4 grid gap-2"
             >
-              <div class="text-xs font-medium">网关当前已接收的证书集</div>
+              <div class="text-xs font-medium">
+                {{ t("admin.certConfig.gatewayReceivedTitle") }}
+              </div>
               <p class="text-xs text-muted-foreground">
                 {{ gatewayDeploymentSummary }}
               </p>
@@ -323,7 +371,7 @@
                     v-if="certificate.is_default"
                     class="ml-1 text-[10px] text-muted-foreground"
                   >
-                    默认
+                    {{ t("admin.certConfig.defaultTag") }}
                   </span>
                 </Badge>
               </div>
@@ -333,16 +381,18 @@
       </template>
 
       <template #actions="{ collapse }">
-        <Button variant="outline" @click="collapse">折叠</Button>
+        <Button variant="outline" @click="collapse">
+          {{ t("admin.certConfig.collapse") }}
+        </Button>
       </template>
     </ConfigCollapsibleCard>
 
     <ConfigCollapsibleCard
       v-if="activeCertificate || subdomainCoverage"
-      title="当前证书详情"
+      :title="t('admin.certConfig.currentCertificateTitle')"
       :configured="Boolean(activeCertificate?.certInfo)"
       :ready="hasLoadedSSLStatus"
-      edit-label="查看详情"
+      :edit-label="t('common.viewDetails')"
       collapsed-content-class="min-h-[76px] flex flex-col items-start gap-3 sm:h-[40px] sm:flex-row sm:items-center sm:justify-between"
       summary-class="text-xs text-muted-foreground max-w-full whitespace-normal break-words sm:truncate"
       expanded-content-class="p-0 sm:p-0"
@@ -362,32 +412,44 @@
               <div
                 class="grid grid-cols-[88px_minmax(0,1fr)] gap-y-3 text-sm sm:grid-cols-[100px_minmax(0,1fr)]"
               >
-                <span class="text-muted-foreground font-medium">名称</span>
+                <span class="text-muted-foreground font-medium">
+                  {{ t("admin.certConfig.fieldName") }}
+                </span>
                 <span class="min-w-0 font-medium">{{
                   activeCertificate.label
                 }}</span>
 
-                <span class="text-muted-foreground font-medium">来源</span>
+                <span class="text-muted-foreground font-medium">
+                  {{ t("admin.certConfig.fieldSource") }}
+                </span>
                 <span class="min-w-0 text-xs">{{
                   sourceLabel(activeCertificate.source)
                 }}</span>
 
-                <span class="text-muted-foreground font-medium">签发者</span>
+                <span class="text-muted-foreground font-medium">
+                  {{ t("admin.certConfig.fieldIssuer") }}
+                </span>
                 <span class="min-w-0 font-mono text-xs break-all">{{
                   formatDN(activeCertificate.certInfo.issuer)
                 }}</span>
 
-                <span class="text-muted-foreground font-medium">签发给</span>
+                <span class="text-muted-foreground font-medium">
+                  {{ t("admin.certConfig.fieldSubject") }}
+                </span>
                 <span class="min-w-0 font-mono text-xs break-all">{{
                   formatDN(activeCertificate.certInfo.subject)
                 }}</span>
 
-                <span class="text-muted-foreground font-medium">有效期</span>
+                <span class="text-muted-foreground font-medium">
+                  {{ t("admin.certConfig.fieldValidity") }}
+                </span>
                 <span class="min-w-0 text-xs">
                   <span>{{
                     formatDate(activeCertificate.certInfo.validFrom)
                   }}</span>
-                  <span class="mx-1 text-muted-foreground">至</span>
+                  <span class="mx-1 text-muted-foreground">
+                    {{ t("admin.certConfig.to") }}
+                  </span>
                   <span
                     :class="isExpired ? 'text-destructive font-semibold' : ''"
                   >
@@ -397,18 +459,20 @@
                     v-if="isExpired"
                     variant="destructive"
                     class="ml-2 text-[10px]"
-                    >已过期</Badge
+                    >{{ t("admin.certConfig.expired") }}</Badge
                   >
                   <Badge
                     v-else-if="isExpiringSoon"
                     variant="outline"
                     class="ml-2 text-[10px] border-yellow-500 text-yellow-600"
                   >
-                    即将过期
+                    {{ t("admin.certConfig.expiringSoon") }}
                   </Badge>
                 </span>
 
-                <span class="text-muted-foreground font-medium">域名</span>
+                <span class="text-muted-foreground font-medium">
+                  {{ t("admin.certConfig.fieldDomains") }}
+                </span>
                 <div class="min-w-0 flex flex-wrap gap-1.5">
                   <Badge
                     v-for="dns in activeCertificate.certInfo.dnsNames"
@@ -422,11 +486,13 @@
                     v-if="!activeCertificate.certInfo.dnsNames.length"
                     class="text-xs text-muted-foreground"
                   >
-                    无
+                    {{ t("admin.certConfig.none") }}
                   </span>
                 </div>
 
-                <span class="text-muted-foreground font-medium">更新时间</span>
+                <span class="text-muted-foreground font-medium">
+                  {{ t("admin.certConfig.fieldUpdatedAt") }}
+                </span>
                 <span class="min-w-0 text-xs text-muted-foreground">
                   {{ formatDate(activeCertificate.updated_at) }}
                 </span>
@@ -438,7 +504,9 @@
               class="rounded-lg border bg-background/80 p-4 grid gap-3"
             >
               <div class="flex flex-wrap items-center justify-between gap-3">
-                <div class="text-sm font-medium">活动证书覆盖分析</div>
+                <div class="text-sm font-medium">
+                  {{ t("admin.certConfig.coverageAnalysisTitle") }}
+                </div>
                 <Badge
                   :variant="coverageBadgeVariant(subdomainCoverage)"
                   :class="coverageBadgeClass(subdomainCoverage)"
@@ -452,36 +520,56 @@
               <div
                 class="grid grid-cols-[88px_minmax(0,1fr)] gap-y-3 text-sm sm:grid-cols-[100px_minmax(0,1fr)]"
               >
-                <span class="text-muted-foreground font-medium">鉴权服务</span>
+                <span class="text-muted-foreground font-medium">
+                  {{ t("admin.certConfig.authService") }}
+                </span>
                 <span class="min-w-0 font-mono text-xs break-all">
-                  {{ subdomainCoverage.auth_host || "未配置" }}
+                  {{
+                    subdomainCoverage.auth_host ||
+                    t("admin.certConfig.notConfigured")
+                  }}
                 </span>
 
-                <span class="text-muted-foreground font-medium">推荐域名</span>
+                <span class="text-muted-foreground font-medium">
+                  {{ t("admin.certConfig.recommendedDomains") }}
+                </span>
                 <span class="min-w-0 font-mono text-xs break-all">
                   {{
                     subdomainCoverage.recommended_domains.length
                       ? subdomainCoverage.recommended_domains.join(", ")
-                      : "暂无推荐"
+                      : t("admin.certConfig.noRecommendation")
                   }}
                 </span>
 
-                <span class="text-muted-foreground font-medium">Host 覆盖</span>
+                <span class="text-muted-foreground font-medium">
+                  {{ t("admin.certConfig.hostCoverage") }}
+                </span>
                 <span class="min-w-0 text-xs">
                   {{ subdomainCoverage.covered_hosts.length }} /
                   {{
                     subdomainCoverage.covered_hosts.length +
                     subdomainCoverage.uncovered_hosts.length
                   }}
-                  条映射已覆盖
+                  {{
+                    t("admin.certConfig.hostCoverageCount", {
+                      covered: subdomainCoverage.covered_hosts.length,
+                      total:
+                        subdomainCoverage.covered_hosts.length +
+                        subdomainCoverage.uncovered_hosts.length,
+                    })
+                  }}
                 </span>
               </div>
               <div
                 v-if="subdomainCoverage.uncovered_hosts.length"
                 class="text-xs text-amber-600"
               >
-                未覆盖 Host：{{
-                  uncoveredHostsPreview(subdomainCoverage.uncovered_hosts)
+                {{
+                  t("admin.certConfig.uncoveredHosts", {
+                    hosts: uncoveredHostsPreview(
+                      subdomainCoverage.uncovered_hosts,
+                    ),
+                  })
                 }}
               </div>
               <div
@@ -499,9 +587,9 @@
           </div>
 
           <Alert v-else variant="default">
-            <AlertTitle>当前没有活动证书</AlertTitle>
+            <AlertTitle>{{ t("admin.certConfig.noActiveTitle") }}</AlertTitle>
             <AlertDescription class="grid gap-2">
-              <p>你可以上传新的手动证书，或从证书库里选择一张设为当前证书。</p>
+              <p>{{ t("admin.certConfig.noActiveDescription") }}</p>
               <p v-if="subdomainCoverage" class="text-xs text-muted-foreground">
                 {{ subdomainCoverage.summary }}
               </p>
@@ -511,15 +599,17 @@
       </template>
 
       <template #actions="{ collapse }">
-        <Button variant="outline" @click="collapse">折叠</Button>
+        <Button variant="outline" @click="collapse">
+          {{ t("admin.certConfig.collapse") }}
+        </Button>
       </template>
     </ConfigCollapsibleCard>
 
     <ConfigCollapsibleCard
-      title="上传手动证书"
+      :title="t('admin.certConfig.manualUploadTitle')"
       :configured="manualUploadConfigured"
       :ready="hasLoadedSSLStatus"
-      edit-label="展开表单"
+      :edit-label="t('admin.certConfig.expandForm')"
       collapsed-content-class="min-h-[76px] flex flex-col items-start gap-3 sm:h-[40px] sm:flex-row sm:items-center sm:justify-between"
       summary-class="text-xs text-muted-foreground max-w-full whitespace-normal break-words sm:truncate"
       expanded-content-class="p-0 sm:p-0"
@@ -532,10 +622,11 @@
       <template #default>
         <div class="divide-y divide-border">
           <div class="p-4 sm:p-6 grid gap-2">
-            <div class="text-base font-semibold">上传新证书</div>
+            <div class="text-base font-semibold">
+              {{ t("admin.certConfig.uploadNewTitle") }}
+            </div>
             <p class="text-sm text-muted-foreground">
-              支持直接粘贴 PEM
-              文本，也支持从飞牛共享目录导入。保存时可以选择只入库，或直接启用为当前证书。
+              {{ t("admin.certConfig.uploadDescription") }}
             </p>
           </div>
 
@@ -554,7 +645,9 @@
             />
 
             <Alert v-if="errorMessage" variant="destructive">
-              <AlertTitle>证书验证失败</AlertTitle>
+              <AlertTitle>
+                {{ t("admin.certConfig.validationFailed") }}
+              </AlertTitle>
               <AlertDescription>{{ errorMessage }}</AlertDescription>
             </Alert>
           </div>
@@ -562,13 +655,15 @@
       </template>
 
       <template #actions="{ collapse }">
-        <Button variant="outline" @click="collapse">折叠</Button>
+        <Button variant="outline" @click="collapse">
+          {{ t("admin.certConfig.collapse") }}
+        </Button>
         <Button
           variant="outline"
           :disabled="isSaving || (!formData.cert && !formData.key)"
           @click="resetManualUploadForm"
         >
-          清空
+          {{ t("admin.certConfig.clear") }}
         </Button>
         <Button
           variant="outline"
@@ -579,7 +674,7 @@
             v-if="isSaving && pendingSaveMode === 'store'"
             class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
           ></span>
-          仅保存到证书库
+          {{ t("admin.certConfig.storeOnly") }}
         </Button>
         <Button
           :disabled="isSaving || !formData.cert || !formData.key"
@@ -589,17 +684,17 @@
             v-if="isSaving && pendingSaveMode === 'activate'"
             class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
           ></span>
-          保存并启用
+          {{ t("admin.certConfig.saveAndActivate") }}
         </Button>
       </template>
     </ConfigCollapsibleCard>
 
     <ConfigCollapsibleCard
       v-if="certificates.length"
-      title="证书库"
+      :title="t('admin.certConfig.libraryTitle')"
       :configured="true"
       :ready="hasLoadedSSLStatus"
-      edit-label="查看证书"
+      :edit-label="t('admin.certConfig.viewCertificates')"
       collapsed-content-class="min-h-[76px] flex flex-col items-start gap-3 sm:h-[40px] sm:flex-row sm:items-center sm:justify-between"
       summary-class="text-xs text-muted-foreground max-w-full whitespace-normal break-words sm:truncate"
       expanded-content-class="p-0 sm:p-0"
@@ -644,7 +739,7 @@
                   {{
                     certificate.certInfo?.dnsNames?.join(", ") ||
                     certificate.primary_domain ||
-                    "未解析到域名信息"
+                    t("admin.certConfig.noDomainInfo")
                   }}
                 </div>
               </div>
@@ -665,9 +760,9 @@
                   {{ activateButtonLabel }}
                 </Button>
                 <ConfirmDangerPopover
-                  title="确认删除证书"
-                  description="删除后会从证书库移除这张证书；如果它当前正在使用，HTTPS 也会一并停用。"
-                  confirm-text="确认删除"
+                  :title="t('admin.certConfig.deleteTitle')"
+                  :description="t('admin.certConfig.deleteDescription')"
+                  :confirm-text="t('admin.certConfig.deleteConfirm')"
                   :loading="
                     isDeleting && deletingCertificateId === certificate.id
                   "
@@ -684,7 +779,7 @@
                         isDeleting && deletingCertificateId === certificate.id
                       "
                     >
-                      删除
+                      {{ t("admin.certConfig.delete") }}
                     </Button>
                   </template>
                 </ConfirmDangerPopover>
@@ -693,11 +788,18 @@
 
             <div class="grid gap-2 text-xs text-muted-foreground">
               <div>
-                有效期：{{ formatDate(certificate.certInfo?.validFrom || "") }}
-                <span class="mx-1">至</span>
+                {{ t("admin.certConfig.validityLabel") }}
+                {{ formatDate(certificate.certInfo?.validFrom || "") }}
+                <span class="mx-1">{{ t("admin.certConfig.to") }}</span>
                 {{ formatDate(certificate.certInfo?.validTo || "") }}
               </div>
-              <div>更新于：{{ formatDate(certificate.updated_at) }}</div>
+              <div>
+                {{
+                  t("admin.certConfig.updatedAtLabel", {
+                    value: formatDate(certificate.updated_at),
+                  })
+                }}
+              </div>
               <div v-if="certificate.coverage?.summary">
                 {{ certificate.coverage.summary }}
               </div>
@@ -708,9 +810,9 @@
 
       <template #actions="{ collapse }">
         <ConfirmDangerPopover
-          title="确认清空证书库"
-          description="清空后会删除证书库中的所有证书，并同步清空 Go 网关当前已下发的证书。HTTPS 将一并停用。"
-          confirm-text="确认清空"
+          :title="t('admin.certConfig.clearLibraryTitle')"
+          :description="t('admin.certConfig.clearLibraryDescription')"
+          :confirm-text="t('admin.certConfig.clearLibraryConfirm')"
           :loading="isClearingLibrary"
           :disabled="isClearingLibrary"
           :on-confirm="handleClearLibrary"
@@ -720,11 +822,13 @@
               variant="destructive"
               :disabled="isClearingLibrary"
             >
-              清空证书库
+              {{ t("admin.certConfig.clearLibrary") }}
             </Button>
           </template>
         </ConfirmDangerPopover>
-        <Button variant="outline" @click="collapse">折叠</Button>
+        <Button variant="outline" @click="collapse">
+          {{ t("admin.certConfig.collapse") }}
+        </Button>
       </template>
     </ConfigCollapsibleCard>
   </div>
@@ -732,6 +836,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import {
   Card,
   CardHeader,
@@ -774,6 +879,7 @@ type GatewayCertificateItem = NonNullable<
 >["certificates"][number];
 
 const sslStatus = ref<SSLStatus | null>(null);
+const { t, locale } = useI18n();
 const hasLoadedSSLStatus = ref(false);
 const errorMessage = ref("");
 const sharedFilesError = ref("");
@@ -795,7 +901,7 @@ const { isPending: isSaving, run: runSaveSSL } = useAsyncAction({
   onError: (error) => {
     const message = extractErrorMessage(
       error,
-      "保存失败，请检查证书和私钥格式。",
+      t("admin.certConfig.saveFailed"),
     );
     errorMessage.value = message;
     toast.error(message);
@@ -803,7 +909,7 @@ const { isPending: isSaving, run: runSaveSSL } = useAsyncAction({
 });
 const { isPending: isClearing, run: runClearSSL } = useAsyncAction({
   onError: (error) => {
-    toast.error(extractErrorMessage(error, "停用 HTTPS 失败"));
+    toast.error(extractErrorMessage(error, t("admin.certConfig.disableFailed")));
   },
 });
 const { isPending: isLoading, run: runLoadSSLStatus } = useAsyncAction({
@@ -814,7 +920,10 @@ const { isPending: isLoading, run: runLoadSSLStatus } = useAsyncAction({
 const { isPending: isLoadingSharedFiles, run: runLoadSharedFiles } =
   useAsyncAction({
     onError: (error) => {
-      const message = extractErrorMessage(error, "读取飞牛共享目录失败");
+      const message = extractErrorMessage(
+        error,
+        t("admin.certConfig.loadSharedDirFailed"),
+      );
       sharedFilesError.value = message;
       toast.error(message);
     },
@@ -822,29 +931,39 @@ const { isPending: isLoadingSharedFiles, run: runLoadSharedFiles } =
 const { isPending: isReadingSharedFile, run: runReadSharedFile } =
   useAsyncAction({
     onError: (error) => {
-      toast.error(extractErrorMessage(error, "读取共享文件失败"));
+      toast.error(
+        extractErrorMessage(error, t("admin.certConfig.loadSharedFileFailed")),
+      );
     },
   });
 const { isPending: isActivating, run: runActivateSSL } = useAsyncAction({
   onError: (error) => {
-    toast.error(extractErrorMessage(error, "切换证书失败"));
+    toast.error(
+      extractErrorMessage(error, t("admin.certConfig.switchCertificateFailed")),
+    );
   },
 });
 const { isPending: isDeleting, run: runDeleteSSL } = useAsyncAction({
   onError: (error) => {
-    toast.error(extractErrorMessage(error, "删除证书失败"));
+    toast.error(
+      extractErrorMessage(error, t("admin.certConfig.deleteFailed")),
+    );
   },
 });
 const { isPending: isClearingLibrary, run: runClearSSLLibrary } =
   useAsyncAction({
     onError: (error) => {
-      toast.error(extractErrorMessage(error, "清空证书库失败"));
+      toast.error(
+        extractErrorMessage(error, t("admin.certConfig.clearLibraryFailed")),
+      );
     },
   });
 const { isPending: isUpdatingDeploymentMode, run: runUpdateDeploymentMode } =
   useAsyncAction({
     onError: (error) => {
-      toast.error(extractErrorMessage(error, "切换部署模式失败"));
+      toast.error(
+        extractErrorMessage(error, t("admin.certConfig.switchModeFailed")),
+      );
     },
   });
 
@@ -871,29 +990,39 @@ const recommendedCertificateId = computed(
 );
 
 const primaryCertificateBadgeLabel = computed(() => {
-  if (!activeCertificate.value) return "未启用";
-  if (sslStatus.value?.deploymentMode === "multi_sni") return "默认 / 兜底";
-  return "已启用";
+  if (!activeCertificate.value) return t("common.inactive");
+  if (sslStatus.value?.deploymentMode === "multi_sni") {
+    return t("admin.certConfig.defaultFallback");
+  }
+  return t("admin.certConfig.enabled");
 });
 const deploymentModeLabel = computed(() => {
-  if (sslStatus.value?.deploymentMode === "multi_sni")
-    return "部署模式：多证书 SNI";
-  return "部署模式：单活动证书";
+  if (sslStatus.value?.deploymentMode === "multi_sni") {
+    return t("admin.certConfig.deploymentModeLabel", {
+      mode: t("admin.certConfig.multiSniTitle"),
+    });
+  }
+  return t("admin.certConfig.deploymentModeLabel", {
+    mode: t("admin.certConfig.singleActiveTitle"),
+  });
 });
 const deploymentModeShortLabel = computed(() => {
-  if (sslStatus.value?.deploymentMode === "multi_sni") return "多证书 SNI";
-  return "单活动证书";
+  if (sslStatus.value?.deploymentMode === "multi_sni") {
+    return t("admin.certConfig.multiSniTitle");
+  }
+  return t("admin.certConfig.singleActiveTitle");
 });
 const configuredDeploymentModeLabel = computed(() => {
-  if (sslStatus.value?.configuredDeploymentMode === "multi_sni")
-    return "多证书 SNI";
-  return "单活动证书";
+  if (sslStatus.value?.configuredDeploymentMode === "multi_sni") {
+    return t("admin.certConfig.multiSniTitle");
+  }
+  return t("admin.certConfig.singleActiveTitle");
 });
 const deploymentModeDescription = computed(() => {
   if (sslStatus.value?.deploymentMode === "multi_sni") {
-    return "网关会按 SNI 为不同域名分配证书，适合同一入口下并存多张父域/子域证书。";
+    return t("admin.certConfig.multiSniModeDescription");
   }
-  return "网关当前只会对外提供一张默认证书，适合单域或单套证书场景。";
+  return t("admin.certConfig.singleActiveModeDescription");
 });
 const deploymentModeMismatch = computed(
   () =>
@@ -910,12 +1039,14 @@ const showMultiSniSuggestion = computed(
     (libraryCoverage.value?.combined_covering_certificate_ids.length || 0) > 1,
 );
 const activateButtonLabel = computed(() => {
-  if (sslStatus.value?.deploymentMode === "multi_sni") return "设为默认证书";
-  return "设为当前证书";
+  if (sslStatus.value?.deploymentMode === "multi_sni") {
+    return t("admin.certConfig.setDefaultCertificate");
+  }
+  return t("admin.certConfig.setCurrentCertificate");
 });
 const gatewayDeploymentSummary = computed(() => {
   if (!deployedGatewayCertificates.value.length) {
-    return "当前网关还没有接收到任何证书。";
+    return t("admin.certConfig.noGatewayCertificates");
   }
 
   const defaultCertificate = deployedGatewayCertificates.value.find(
@@ -923,35 +1054,51 @@ const gatewayDeploymentSummary = computed(() => {
   );
   const defaultLabel = defaultCertificate
     ? gatewayCertificateLabel(defaultCertificate)
-    : "未标记";
+    : t("admin.certConfig.notMarked");
 
   if (sslStatus.value?.deploymentMode === "multi_sni") {
-    return `当前网关持有 ${deployedGatewayCertificates.value.length} 张证书，并会按 SNI 自动选证；默认/兜底证书是 ${defaultLabel}。`;
+    return t("admin.certConfig.gatewaySummaryMulti", {
+      count: deployedGatewayCertificates.value.length,
+      label: defaultLabel,
+    });
   }
 
-  return `当前网关持有 ${deployedGatewayCertificates.value.length} 张证书；单活动证书模式下，对外统一返回 ${defaultLabel}。`;
+  return t("admin.certConfig.gatewaySummarySingle", {
+    count: deployedGatewayCertificates.value.length,
+    label: defaultLabel,
+  });
 });
 const statusOverviewText = computed(() => {
   if (!activeCertificate.value?.certInfo) {
-    return `当前还没有活动证书。上传手动证书或从证书库启用一张证书后，这里会显示当前真正对外返回的 HTTPS 证书。`;
+    return t("admin.certConfig.statusNoActive");
   }
 
   const parts = [
-    `当前对外证书：${certificateDisplayLabel(activeCertificate.value)}`,
-    `来源 ${sourceLabel(activeCertificate.value.source)}`,
+    t("admin.certConfig.statusCurrentCertificate", {
+      label: certificateDisplayLabel(activeCertificate.value),
+    }),
+    t("admin.certConfig.statusSource", {
+      source: sourceLabel(activeCertificate.value.source),
+    }),
   ];
 
   if (isExpired.value) {
     parts.push(
-      `已过期（${formatDate(activeCertificate.value.certInfo.validTo)}）`,
+      t("admin.certConfig.statusExpiredAt", {
+        date: formatDate(activeCertificate.value.certInfo.validTo),
+      }),
     );
   } else if (isExpiringSoon.value) {
     parts.push(
-      `30 天内到期（${formatDate(activeCertificate.value.certInfo.validTo)}）`,
+      t("admin.certConfig.statusExpiringSoonAt", {
+        date: formatDate(activeCertificate.value.certInfo.validTo),
+      }),
     );
   } else {
     parts.push(
-      `有效至 ${formatDate(activeCertificate.value.certInfo.validTo)}`,
+      t("admin.certConfig.statusValidTo", {
+        date: formatDate(activeCertificate.value.certInfo.validTo),
+      }),
     );
   }
 
@@ -959,7 +1106,10 @@ const statusOverviewText = computed(() => {
 });
 const deploymentSummary = computed(
   () =>
-    `${deploymentModeShortLabel.value} · 网关已下发 ${deployedGatewayCertificates.value.length} 张证书`,
+    t("admin.certConfig.deploymentSummary", {
+      mode: deploymentModeShortLabel.value,
+      count: deployedGatewayCertificates.value.length,
+    }),
 );
 const deploymentSectionConfigured = computed(() =>
   Boolean(
@@ -969,19 +1119,21 @@ const deploymentSectionConfigured = computed(() =>
 const currentCertificateSummary = computed(() => {
   if (!activeCertificate.value) {
     return subdomainCoverage.value
-      ? `当前未启用证书 · ${subdomainCoverage.value.summary}`
-      : "当前没有活动证书";
+      ? t("admin.certConfig.currentSummaryNoActiveWithCoverage", {
+          summary: subdomainCoverage.value.summary,
+        })
+      : t("admin.certConfig.noActiveTitle");
   }
 
   const parts = [certificateDisplayLabel(activeCertificate.value)];
   const domainSummary = certificateDomainSummary(activeCertificate.value);
   if (domainSummary) parts.push(domainSummary);
   if (isExpired.value) {
-    parts.push("已过期");
+    parts.push(t("admin.certConfig.expired"));
   } else if (isExpiringSoon.value) {
-    parts.push("30 天内到期");
+    parts.push(t("admin.certConfig.expiresIn30Days"));
   } else {
-    parts.push("运行中");
+    parts.push(t("common.active"));
   }
   return parts.join(" · ");
 });
@@ -992,18 +1144,25 @@ const manualUploadConfigured = computed(() =>
 );
 const manualUploadSummary = computed(() => {
   if (formData.value.cert || formData.value.key) {
-    return "已填写待保存的证书内容";
+    return t("admin.certConfig.manualUploadFilled");
   }
   if (certificates.value.length) {
-    return `证书库已有 ${certificates.value.length} 张证书，需要时再展开上传表单`;
+    return t("admin.certConfig.manualUploadHasLibrary", {
+      count: certificates.value.length,
+    });
   }
-  return "当前还没有手动上传证书，建议先在这里准备一份可用证书";
+  return t("admin.certConfig.manualUploadEmpty");
 });
 const certificateLibrarySummary = computed(() => {
   const activeLabel = activeCertificate.value
-    ? `当前 ${certificateDisplayLabel(activeCertificate.value)}`
-    : "当前未设置活动证书";
-  return `共 ${certificates.value.length} 张证书 · ${activeLabel}`;
+    ? t("admin.certConfig.libraryCurrentActive", {
+        label: certificateDisplayLabel(activeCertificate.value),
+      })
+    : t("admin.certConfig.libraryNoActive");
+  return t("admin.certConfig.librarySummary", {
+    count: certificates.value.length,
+    active: activeLabel,
+  });
 });
 const singleActivePreview = computed(() =>
   buildDeploymentPreview("single_active"),
@@ -1041,7 +1200,7 @@ async function handleSave(activate: boolean) {
   errorMessage.value = "";
   await runSaveSSL(async () => {
     await ConfigAPI.setSSL({
-      label: "手动上传证书",
+      label: t("admin.certConfig.manualCertificateLabel"),
       source: "manual",
       cert: formData.value.cert,
       key: formData.value.key,
@@ -1049,7 +1208,11 @@ async function handleSave(activate: boolean) {
     });
     formData.value = { cert: "", key: "" };
     await loadSSLStatus();
-    toast.success(activate ? "证书已保存并启用" : "证书已保存到证书库");
+    toast.success(
+      activate
+        ? t("admin.certConfig.saveAndActivateSuccess")
+        : t("admin.certConfig.saveToLibrarySuccess"),
+    );
   });
   pendingSaveMode.value = null;
 }
@@ -1063,7 +1226,7 @@ async function handleClear() {
   await runClearSSL(async () => {
     await ConfigAPI.deleteSSL();
     await loadSSLStatus();
-    toast.success("已停用当前 HTTPS 证书");
+    toast.success(t("admin.certConfig.disableSuccess"));
   });
 }
 
@@ -1074,8 +1237,8 @@ async function activateCertificate(id: string) {
     await loadSSLStatus();
     toast.success(
       sslStatus.value?.deploymentMode === "multi_sni"
-        ? "已切换默认证书"
-        : "已切换当前活动证书",
+        ? t("admin.certConfig.defaultCertificateSwitched")
+        : t("admin.certConfig.activeCertificateSwitched"),
     );
   });
   activatingCertificateId.value = null;
@@ -1093,8 +1256,8 @@ async function updateDeploymentMode(mode: "single_active" | "multi_sni") {
     sslStatus.value = await ConfigAPI.updateSSLDeploymentMode(mode);
     toast.success(
       mode === "multi_sni"
-        ? "已切换到多证书 SNI 部署"
-        : "已切换到单活动证书模式",
+        ? t("admin.certConfig.switchedToMultiSni")
+        : t("admin.certConfig.switchedToSingleActive"),
     );
   });
   pendingDeploymentMode.value = null;
@@ -1105,7 +1268,7 @@ async function deleteCertificate(id: string) {
   await runDeleteSSL(async () => {
     await ConfigAPI.deleteSSLCertificate(id);
     await loadSSLStatus();
-    toast.success("证书已删除");
+    toast.success(t("admin.certConfig.deleteSuccess"));
   });
   deletingCertificateId.value = null;
 }
@@ -1114,7 +1277,7 @@ async function handleClearLibrary() {
   await runClearSSLLibrary(async () => {
     await ConfigAPI.clearSSLCertificateLibrary();
     await loadSSLStatus();
-    toast.success("证书库已清空，Go 网关证书也已同步清除");
+    toast.success(t("admin.certConfig.clearLibrarySuccess"));
   });
 }
 
@@ -1153,8 +1316,16 @@ async function applySharedFileSelection(
     target.key = result.content;
   }
 
-  const label = payload.field === "cert" ? "证书" : "私钥";
-  toast.success(`已从飞牛目录载入${label}文件：${result.file.name}`);
+  const label =
+    payload.field === "cert"
+      ? t("admin.certConfig.certificateFile")
+      : t("admin.certConfig.privateKeyFile");
+  toast.success(
+    t("admin.certConfig.sharedFileLoaded", {
+      label,
+      file: result.file.name,
+    }),
+  );
 }
 
 async function handleCreateSharedFileSelect(payload: {
@@ -1180,7 +1351,10 @@ function certificateDomainSummary(
   if (!domains.length) return "";
   const preview = domains.slice(0, 3).join(", ");
   if (domains.length <= 3) return preview;
-  return `${preview} 等 ${domains.length} 个域名`;
+  return t("admin.certConfig.domainSummaryMore", {
+    preview,
+    count: domains.length,
+  });
 }
 
 function buildDeploymentPreview(mode: SSLDeploymentMode) {
@@ -1201,7 +1375,7 @@ function buildDeploymentPreview(mode: SSLDeploymentMode) {
     count: items.length,
     defaultLabel: defaultCertificate
       ? certificateDisplayLabel(defaultCertificate)
-      : "未设置",
+      : t("admin.certConfig.notSet"),
     domainSummary: certificateDomainSummary(defaultCertificate),
     previewItems: items
       .slice(0, 3)
@@ -1223,8 +1397,10 @@ function deploymentCardClass(mode: SSLDeploymentMode) {
 
 function certificateRoleLabel(certificate: SSLCertificateSummary) {
   if (!certificate.is_active) return "";
-  if (sslStatus.value?.deploymentMode === "multi_sni") return "默认 / 兜底";
-  return "当前活动";
+  if (sslStatus.value?.deploymentMode === "multi_sni") {
+    return t("admin.certConfig.defaultFallback");
+  }
+  return t("admin.certConfig.currentActive");
 }
 
 function gatewayCertificateLabel(certificate: GatewayCertificateItem) {
@@ -1232,7 +1408,7 @@ function gatewayCertificateLabel(certificate: GatewayCertificateItem) {
     certificate.label ||
     certificate.domains?.[0] ||
     certificate.id ||
-    "未命名证书"
+    t("admin.certConfig.unnamedCertificate")
   );
 }
 
@@ -1245,8 +1421,8 @@ function gatewayCertificateKey(certificate: GatewayCertificateItem) {
 
 function sourceLabel(source: SSLCertificateSource): string {
   if (source === "acme") return "ACME";
-  if (source === "ca") return "本地 CA";
-  return "手动上传";
+  if (source === "ca") return t("admin.certConfig.localCa");
+  return t("admin.certConfig.manualUploadSource");
 }
 
 function coverageBadgeVariant(coverage: SubdomainCertificateCoverage) {
@@ -1262,16 +1438,19 @@ function coverageBadgeClass(coverage: SubdomainCertificateCoverage) {
 }
 
 function coverageBadgeLabel(coverage: SubdomainCertificateCoverage) {
-  if (coverage.status === "ready") return "完全覆盖";
-  if (coverage.status === "partial") return "部分覆盖";
-  return "未覆盖";
+  if (coverage.status === "ready") return t("admin.certConfig.coverageReady");
+  if (coverage.status === "partial") return t("admin.certConfig.coveragePartial");
+  return t("admin.certConfig.coverageMissing");
 }
 
 function uncoveredHostsPreview(hosts: string[]) {
   if (hosts.length === 0) return "";
   const preview = hosts.slice(0, 4).join(", ");
   if (hosts.length <= 4) return preview;
-  return `${preview} 等 ${hosts.length} 个`;
+  return t("admin.certConfig.uncoveredHostsMore", {
+    preview,
+    count: hosts.length,
+  });
 }
 
 function formatDN(dn: string): string {
@@ -1282,7 +1461,7 @@ function formatDate(dateStr: string): string {
   if (!dateStr) return "";
   const date = new Date(dateStr);
   if (Number.isNaN(date.getTime())) return dateStr;
-  return date.toLocaleDateString("zh-CN", {
+  return date.toLocaleDateString(locale.value, {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",

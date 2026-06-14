@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import type {
   AppConfig,
   HostMapping,
+  LocaleConfig,
   ProxyMapping,
   ReverseProxySubmode,
   RunType,
@@ -242,6 +243,16 @@ export const useConfigStore = defineStore("config", () => {
     return result;
   }
 
+  async function saveLocaleConfig(next: LocaleConfig) {
+    const result = await ConfigAPI.updateLocaleConfig(next);
+    if (config.value) {
+      config.value.locale = result;
+    } else {
+      await loadConfig();
+    }
+    return result;
+  }
+
   const runtimeProfile = computed(() =>
     getEffectiveRuntimeProfile(config.value?.runtime_profile),
   );
@@ -293,6 +304,7 @@ export const useConfigStore = defineStore("config", () => {
     refreshAllHostMappingTitles,
     saveStreamMappings,
     saveSubdomainMode,
+    saveLocaleConfig,
     saveDefaultRoute,
   };
 });

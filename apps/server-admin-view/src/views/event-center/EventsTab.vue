@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { Eye, Loader2, Trash2 } from "lucide-vue-next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,10 +48,20 @@ import {
   SYSTEM_EVENT_LEVEL_FILTER_OPTIONS as LEVEL_OPTIONS,
   SYSTEM_EVENT_SOURCE_FILTER_OPTIONS as SOURCE_OPTIONS,
   SYSTEM_EVENT_TYPE_FILTER_OPTIONS as TYPE_OPTIONS,
-  formatSystemEventLevelLabel,
-  formatSystemEventSourceLabel,
-  formatSystemEventTypeLabel,
 } from "./constants";
+
+const { t } = useI18n();
+
+const formatSystemEventTypeLabel = (type: SystemEventType) =>
+  t(`admin.eventCenter.eventTypes.${type}`);
+
+const formatSystemEventLevelLabel = (level: SystemEventLevel) =>
+  t(`admin.eventCenter.levels.${level}`);
+
+const formatSystemEventSourceLabel = (source: SystemEventSource) =>
+  t(`admin.eventCenter.sources.${source}`);
+
+const formatOptionLabel = (option: { labelKey: string }) => t(option.labelKey);
 
 const selectedType = ref<SystemEventType | "all">("all");
 const selectedLevel = ref<SystemEventLevel | "all">("all");
@@ -60,8 +71,11 @@ const activeEvent = ref<SystemEventRecord | null>(null);
 
 const { isPending: isDeleting, run: runDelete } = useAsyncAction({
   onError: (error) => {
-    toast.error("删除失败", {
-      description: extractErrorMessage(error, "删除事件失败"),
+    toast.error(t("admin.eventCenter.events.deleteFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.eventCenter.events.deleteEventFailed"),
+      ),
     });
   },
 });
@@ -94,7 +108,9 @@ const {
     });
 
     if (!(result.success || result.data)) {
-      throw new Error(result.message || "加载失败");
+      throw new Error(
+        result.message || t("admin.eventCenter.events.loadFailed"),
+      );
     }
 
     return {
@@ -104,8 +120,11 @@ const {
   },
   getKey: (event) => event.id,
   onError: (error) => {
-    toast.error("加载失败", {
-      description: extractErrorMessage(error, "事件列表加载失败"),
+    toast.error(t("admin.eventCenter.events.loadFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.eventCenter.events.eventListLoadFailed"),
+      ),
     });
   },
 });
@@ -126,13 +145,14 @@ const deleteEvents = async (ids: string[]) => {
   await runDelete(() => EventCenterAPI.deleteEvents(ids), {
     onSuccess: async (result) => {
       if (result.success || result.message === "success") {
-        toast.success("删除成功");
+        toast.success(t("admin.eventCenter.events.deleteSuccess"));
         clearSelection();
         await fetchEvents();
         return;
       }
-      toast.error("删除失败", {
-        description: result.message || "删除事件失败",
+      toast.error(t("admin.eventCenter.events.deleteFailed"), {
+        description:
+          result.message || t("admin.eventCenter.events.deleteEventFailed"),
       });
     },
   });
@@ -146,173 +166,335 @@ const handleFilterChange = () => {
 watch([selectedType, selectedLevel, selectedSource], handleFilterChange);
 
 const detailFieldDefinitions = [
-  { key: "id", label: "事件 ID" },
-  { key: "type", label: "事件" },
-  { key: "level", label: "级别" },
-  { key: "source", label: "系统" },
-  { key: "happened_at", label: "发生时间" },
-  { key: "dedupe_key", label: "去重键" },
-  { key: "subject", label: "主题" },
-  { key: "credential_name", label: "凭证名称" },
-  { key: "linked_totp_name", label: "关联 TOTP 设备" },
-  { key: "session_comment", label: "会话备注" },
-  { key: "credential_id", label: "凭证 ID" },
-  { key: "auth_method", label: "认证方式" },
-  { key: "auth_provider_name", label: "登录提供商" },
-  { key: "grant_type", label: "授权方式" },
-  { key: "post_login_ip_grant_mode", label: "登录后 IP 放行" },
-  { key: "remember_me", label: "记住我" },
-  { key: "session_id", label: "会话 ID" },
-  { key: "ip", label: "IP 地址" },
-  { key: "ip_location", label: "IP 属地" },
-  { key: "user_agent", label: "User-Agent" },
-  { key: "expires_at", label: "过期时间" },
-  { key: "login_time", label: "登录时间" },
-  { key: "logout_source", label: "退出来源" },
-  { key: "attempts", label: "失败次数" },
-  { key: "threshold", label: "阈值" },
-  { key: "retry_after_seconds", label: "重试等待（秒）" },
-  { key: "blocked_until", label: "封禁截止时间" },
-  { key: "method", label: "失败方式" },
-  { key: "drift_source", label: "漂移来源" },
-  { key: "from_ip", label: "原 IP" },
-  { key: "from_ip_location", label: "原 IP 属地" },
-  { key: "to_ip", label: "当前 IP" },
-  { key: "to_ip_location", label: "当前 IP 属地" },
-  { key: "blocked_at", label: "拦截时间" },
-  { key: "window_minutes", label: "统计窗口（分钟）" },
-  { key: "hit_count", label: "命中次数" },
-  { key: "provider", label: "服务商" },
-  { key: "success", label: "结果" },
-  { key: "message", label: "消息" },
-  { key: "update_scope", label: "更新范围" },
-  { key: "ip_source", label: "IP 来源" },
-  { key: "local_version", label: "当前版本" },
-  { key: "latest_version", label: "最新版本" },
-  { key: "force_update", label: "强制更新" },
-  { key: "release_notes", label: "更新说明" },
-  { key: "check_reason", label: "检查方式" },
-  { key: "tunnel", label: "隧道类型" },
-  { key: "status", label: "状态" },
-  { key: "pid", label: "进程 PID" },
-  { key: "previous_ipv4", label: "原 IPv4" },
-  { key: "next_ipv4", label: "当前 IPv4" },
-  { key: "previous_ipv6", label: "原 IPv6" },
-  { key: "next_ipv6", label: "当前 IPv6" },
-  { key: "block_seconds", label: "封锁时长（秒）" },
-  { key: "requests_per_second", label: "每秒请求数" },
-  { key: "burst", label: "突发容量" },
-  { key: "trace_id", label: "Trace ID" },
-  { key: "mode", label: "WAF 模式" },
-  { key: "action", label: "WAF 动作" },
-  { key: "request_uri", label: "请求地址" },
-  { key: "bundle_id", label: "规则包" },
-  { key: "rule_ids", label: "规则 ID" },
-  { key: "route_type", label: "路由类型" },
-  { key: "route_key", label: "路由键" },
-  { key: "host", label: "Host" },
-  { key: "path", label: "路径" },
-  { key: "is_auth_route", label: "鉴权路由" },
-  { key: "hostname", label: "主机名" },
-  { key: "usage_percent", label: "使用率" },
-  { key: "threshold_percent", label: "告警阈值" },
-  { key: "recover_percent", label: "恢复阈值" },
-  { key: "sample_interval_seconds", label: "采样间隔（秒）" },
-  { key: "sustain_seconds", label: "持续时长（秒）" },
+  { key: "id", labelKey: "admin.eventCenter.events.detailFields.id" },
+  { key: "type", labelKey: "admin.eventCenter.events.detailFields.type" },
+  { key: "level", labelKey: "admin.eventCenter.events.detailFields.level" },
+  { key: "source", labelKey: "admin.eventCenter.events.detailFields.source" },
+  {
+    key: "happened_at",
+    labelKey: "admin.eventCenter.events.detailFields.happened_at",
+  },
+  {
+    key: "dedupe_key",
+    labelKey: "admin.eventCenter.events.detailFields.dedupe_key",
+  },
+  { key: "subject", labelKey: "admin.eventCenter.events.detailFields.subject" },
+  {
+    key: "credential_name",
+    labelKey: "admin.eventCenter.events.detailFields.credential_name",
+  },
+  {
+    key: "linked_totp_name",
+    labelKey: "admin.eventCenter.events.detailFields.linked_totp_name",
+  },
+  {
+    key: "session_comment",
+    labelKey: "admin.eventCenter.events.detailFields.session_comment",
+  },
+  {
+    key: "credential_id",
+    labelKey: "admin.eventCenter.events.detailFields.credential_id",
+  },
+  {
+    key: "auth_method",
+    labelKey: "admin.eventCenter.events.detailFields.auth_method",
+  },
+  {
+    key: "auth_provider_name",
+    labelKey: "admin.eventCenter.events.detailFields.auth_provider_name",
+  },
+  {
+    key: "grant_type",
+    labelKey: "admin.eventCenter.events.detailFields.grant_type",
+  },
+  {
+    key: "post_login_ip_grant_mode",
+    labelKey: "admin.eventCenter.events.detailFields.post_login_ip_grant_mode",
+  },
+  {
+    key: "remember_me",
+    labelKey: "admin.eventCenter.events.detailFields.remember_me",
+  },
+  {
+    key: "session_id",
+    labelKey: "admin.eventCenter.events.detailFields.session_id",
+  },
+  { key: "ip", labelKey: "admin.eventCenter.events.detailFields.ip" },
+  {
+    key: "ip_location",
+    labelKey: "admin.eventCenter.events.detailFields.ip_location",
+  },
+  {
+    key: "user_agent",
+    labelKey: "admin.eventCenter.events.detailFields.user_agent",
+  },
+  {
+    key: "expires_at",
+    labelKey: "admin.eventCenter.events.detailFields.expires_at",
+  },
+  {
+    key: "login_time",
+    labelKey: "admin.eventCenter.events.detailFields.login_time",
+  },
+  {
+    key: "logout_source",
+    labelKey: "admin.eventCenter.events.detailFields.logout_source",
+  },
+  {
+    key: "attempts",
+    labelKey: "admin.eventCenter.events.detailFields.attempts",
+  },
+  {
+    key: "threshold",
+    labelKey: "admin.eventCenter.events.detailFields.threshold",
+  },
+  {
+    key: "retry_after_seconds",
+    labelKey: "admin.eventCenter.events.detailFields.retry_after_seconds",
+  },
+  {
+    key: "blocked_until",
+    labelKey: "admin.eventCenter.events.detailFields.blocked_until",
+  },
+  { key: "method", labelKey: "admin.eventCenter.events.detailFields.method" },
+  {
+    key: "drift_source",
+    labelKey: "admin.eventCenter.events.detailFields.drift_source",
+  },
+  { key: "from_ip", labelKey: "admin.eventCenter.events.detailFields.from_ip" },
+  {
+    key: "from_ip_location",
+    labelKey: "admin.eventCenter.events.detailFields.from_ip_location",
+  },
+  { key: "to_ip", labelKey: "admin.eventCenter.events.detailFields.to_ip" },
+  {
+    key: "to_ip_location",
+    labelKey: "admin.eventCenter.events.detailFields.to_ip_location",
+  },
+  {
+    key: "blocked_at",
+    labelKey: "admin.eventCenter.events.detailFields.blocked_at",
+  },
+  {
+    key: "window_minutes",
+    labelKey: "admin.eventCenter.events.detailFields.window_minutes",
+  },
+  {
+    key: "hit_count",
+    labelKey: "admin.eventCenter.events.detailFields.hit_count",
+  },
+  {
+    key: "provider",
+    labelKey: "admin.eventCenter.events.detailFields.provider",
+  },
+  { key: "success", labelKey: "admin.eventCenter.events.detailFields.success" },
+  { key: "message", labelKey: "admin.eventCenter.events.detailFields.message" },
+  {
+    key: "update_scope",
+    labelKey: "admin.eventCenter.events.detailFields.update_scope",
+  },
+  {
+    key: "ip_source",
+    labelKey: "admin.eventCenter.events.detailFields.ip_source",
+  },
+  {
+    key: "local_version",
+    labelKey: "admin.eventCenter.events.detailFields.local_version",
+  },
+  {
+    key: "latest_version",
+    labelKey: "admin.eventCenter.events.detailFields.latest_version",
+  },
+  {
+    key: "force_update",
+    labelKey: "admin.eventCenter.events.detailFields.force_update",
+  },
+  {
+    key: "release_notes",
+    labelKey: "admin.eventCenter.events.detailFields.release_notes",
+  },
+  {
+    key: "check_reason",
+    labelKey: "admin.eventCenter.events.detailFields.check_reason",
+  },
+  { key: "tunnel", labelKey: "admin.eventCenter.events.detailFields.tunnel" },
+  { key: "status", labelKey: "admin.eventCenter.events.detailFields.status" },
+  { key: "pid", labelKey: "admin.eventCenter.events.detailFields.pid" },
+  {
+    key: "previous_ipv4",
+    labelKey: "admin.eventCenter.events.detailFields.previous_ipv4",
+  },
+  {
+    key: "next_ipv4",
+    labelKey: "admin.eventCenter.events.detailFields.next_ipv4",
+  },
+  {
+    key: "previous_ipv6",
+    labelKey: "admin.eventCenter.events.detailFields.previous_ipv6",
+  },
+  {
+    key: "next_ipv6",
+    labelKey: "admin.eventCenter.events.detailFields.next_ipv6",
+  },
+  {
+    key: "block_seconds",
+    labelKey: "admin.eventCenter.events.detailFields.block_seconds",
+  },
+  {
+    key: "requests_per_second",
+    labelKey: "admin.eventCenter.events.detailFields.requests_per_second",
+  },
+  { key: "burst", labelKey: "admin.eventCenter.events.detailFields.burst" },
+  {
+    key: "trace_id",
+    labelKey: "admin.eventCenter.events.detailFields.trace_id",
+  },
+  { key: "mode", labelKey: "admin.eventCenter.events.detailFields.mode" },
+  { key: "action", labelKey: "admin.eventCenter.events.detailFields.action" },
+  {
+    key: "request_uri",
+    labelKey: "admin.eventCenter.events.detailFields.request_uri",
+  },
+  {
+    key: "bundle_id",
+    labelKey: "admin.eventCenter.events.detailFields.bundle_id",
+  },
+  {
+    key: "rule_ids",
+    labelKey: "admin.eventCenter.events.detailFields.rule_ids",
+  },
+  {
+    key: "route_type",
+    labelKey: "admin.eventCenter.events.detailFields.route_type",
+  },
+  {
+    key: "route_key",
+    labelKey: "admin.eventCenter.events.detailFields.route_key",
+  },
+  { key: "host", labelKey: "admin.eventCenter.events.detailFields.host" },
+  { key: "path", labelKey: "admin.eventCenter.events.detailFields.path" },
+  {
+    key: "is_auth_route",
+    labelKey: "admin.eventCenter.events.detailFields.is_auth_route",
+  },
+  {
+    key: "hostname",
+    labelKey: "admin.eventCenter.events.detailFields.hostname",
+  },
+  {
+    key: "usage_percent",
+    labelKey: "admin.eventCenter.events.detailFields.usage_percent",
+  },
+  {
+    key: "threshold_percent",
+    labelKey: "admin.eventCenter.events.detailFields.threshold_percent",
+  },
+  {
+    key: "recover_percent",
+    labelKey: "admin.eventCenter.events.detailFields.recover_percent",
+  },
+  {
+    key: "sample_interval_seconds",
+    labelKey: "admin.eventCenter.events.detailFields.sample_interval_seconds",
+  },
+  {
+    key: "sustain_seconds",
+    labelKey: "admin.eventCenter.events.detailFields.sustain_seconds",
+  },
 ] as const;
+
+const localizedDetailFieldDefinitions = computed(() =>
+  detailFieldDefinitions.map((field) => ({
+    key: field.key,
+    label: t(field.labelKey),
+  })),
+);
 
 const eventTypeTextClass = (event: SystemEventRecord) =>
   event.level === "INFO" ? "text-black" : "text-red-700";
 
-const SUBJECT_KIND_LABELS: Record<
-  NonNullable<SystemEventRecord["subject"]>["kind"],
-  string
-> = {
-  IP: "IP",
-  SESSION: "会话",
-  DDNS: "DDNS",
-  RESOURCE: "资源",
-  APPLICATION: "应用",
-  TUNNEL: "隧道",
+const DRIFT_SOURCE_LABEL_KEYS: Record<string, string> = {
+  "proxy-session": "admin.eventCenter.events.driftSource.proxySession",
+  "fnos-token": "admin.eventCenter.events.driftSource.fnosToken",
+  "session-refresh": "admin.eventCenter.events.driftSource.sessionRefresh",
+  "browser-session": "admin.eventCenter.events.driftSource.browserSession",
 };
 
-const LOGOUT_SOURCE_LABELS: Record<string, string> = {
-  user_logout: "用户主动退出",
-  admin_session_delete: "管理员删除会话",
+const CHECK_REASON_LABEL_KEYS: Record<string, string> = {
+  cron: "admin.eventCenter.events.checkReason.cron",
+  manual: "admin.eventCenter.events.checkReason.manual",
+  "manual-check-and-download":
+    "admin.eventCenter.events.checkReason.manualCheckAndDownload",
+  "download-bootstrap":
+    "admin.eventCenter.events.checkReason.downloadBootstrap",
 };
 
-const AUTH_METHOD_LABELS: Record<string, string> = {
-  TOTP: "TOTP",
-  PASSKEY: "Passkey",
-  OIDC: "外部账号",
+const translateValue = (
+  prefix: string,
+  value: unknown,
+  keyMap: Record<string, string> = {},
+) => {
+  const key = String(value ?? "");
+  if (!key) return "";
+  const messageKey = keyMap[key] || `${prefix}.${key}`;
+  const translated = t(messageKey);
+  return translated === messageKey ? key : translated;
 };
 
-const DRIFT_SOURCE_LABELS: Record<string, string> = {
-  "proxy-session": "代理会话",
-  "fnos-token": "飞牛指纹续接",
-  "session-refresh": "会话刷新",
-  "browser-session": "浏览器会话",
-};
+const formatSubjectKindLabel = (
+  kind: NonNullable<SystemEventRecord["subject"]>["kind"],
+) => translateValue("admin.eventCenter.events.subjectKind", kind);
 
-const GRANT_TYPE_LABELS: Record<string, string> = {
-  browser_session: "浏览器会话",
-  login_ip_grant: "登录 IP 放行",
-};
+const formatLogoutSourceLabel = (value: unknown) =>
+  translateValue("admin.eventCenter.events.logoutSource", value);
 
-const POST_LOGIN_IP_GRANT_MODE_LABELS: Record<string, string> = {
-  follow_session: "跟随会话",
-  disabled: "禁用",
-  custom: "自定义",
-};
+const formatAuthMethodLabel = (value: unknown) =>
+  translateValue("admin.eventCenter.events.authMethod", value);
 
-const UPDATE_SCOPE_LABELS: Record<string, string> = {
-  dual_stack: "双栈",
-  ipv4_only: "仅 IPv4",
-  ipv6_only: "仅 IPv6",
-};
+const formatDriftSourceLabel = (value: unknown) =>
+  translateValue(
+    "admin.eventCenter.events.driftSource",
+    value,
+    DRIFT_SOURCE_LABEL_KEYS,
+  );
 
-const IP_SOURCE_LABELS: Record<string, string> = {
-  public: "公网 IP",
-  interface: "网卡地址",
-};
+const formatGrantTypeLabel = (value: unknown) =>
+  translateValue("admin.eventCenter.events.grantType", value);
 
-const CHECK_REASON_LABELS: Record<string, string> = {
-  cron: "定时检查",
-  manual: "手动检查",
-  "manual-check-and-download": "手动检查并下载",
-  "download-bootstrap": "下载前检查",
-};
+const formatPostLoginGrantModeLabel = (value: unknown) =>
+  translateValue("admin.eventCenter.events.postLoginGrantMode", value);
 
-const TUNNEL_LABELS: Record<string, string> = {
-  frp: "FRP",
-  cloudflared: "Cloudflared",
-};
+const formatUpdateScopeLabel = (value: unknown) =>
+  translateValue("admin.eventCenter.events.updateScope", value);
 
-const TUNNEL_STATUS_LABELS: Record<string, string> = {
-  connected: "已连上",
-  disconnected: "已断开",
-};
+const formatIpSourceLabel = (value: unknown) =>
+  translateValue("admin.eventCenter.events.ipSource", value);
 
-const WAF_MODE_LABELS: Record<string, string> = {
-  detection: "检测",
-  blocking: "阻断",
-  off: "关闭",
-};
+const formatCheckReasonLabel = (value: unknown) =>
+  translateValue(
+    "admin.eventCenter.events.checkReason",
+    value,
+    CHECK_REASON_LABEL_KEYS,
+  );
 
-const WAF_ACTION_LABELS: Record<string, string> = {
-  block: "阻断",
-  deny: "拒绝",
-  detect: "检测",
-  log: "记录",
-  pass: "放行",
-};
+const formatTunnelLabel = (value: unknown) =>
+  translateValue("admin.eventCenter.events.tunnel", value);
+
+const formatTunnelStatusLabel = (value: unknown) =>
+  translateValue("admin.eventCenter.events.tunnelStatus", value);
+
+const formatWafModeLabel = (value: unknown) =>
+  translateValue("admin.eventCenter.events.wafMode", value);
+
+const formatWafActionLabel = (value: unknown) =>
+  translateValue("admin.eventCenter.events.wafAction", value);
 
 const formatSubject = (
   subject: SystemEventRecord["subject"] | undefined,
   shortenId = false,
 ) => {
   if (!subject) return "-";
-  const kind = SUBJECT_KIND_LABELS[subject.kind] || subject.kind;
+  const kind = formatSubjectKindLabel(subject.kind) || subject.kind;
   const id = shortenId ? shortId(subject.id, 18) : subject.id;
   return `${kind} · ${id}`;
 };
@@ -341,14 +523,20 @@ const formatPercentage = (value: unknown) =>
     : `${String(value)}%`;
 
 const formatBoolean = (value: unknown) =>
-  value === undefined || value === null ? "-" : value ? "是" : "否";
+  value === undefined || value === null
+    ? "-"
+    : value
+      ? t("admin.eventCenter.events.yes")
+      : t("admin.eventCenter.events.no");
 
 const formatCredentialDisplay = (
   credentialName: unknown,
   linkedTotpName: unknown,
   authMethod: unknown,
 ) => {
-  const credential = String(credentialName ?? "").trim() || "未知凭证";
+  const credential =
+    String(credentialName ?? "").trim() ||
+    t("admin.eventCenter.events.unknownCredential");
   const linkedTotp = String(linkedTotpName ?? "").trim();
 
   if (String(authMethod ?? "") === "PASSKEY" && linkedTotp) {
@@ -358,9 +546,21 @@ const formatCredentialDisplay = (
   return credential;
 };
 
+const AUTO_IP_GRANT_COMMENT_VALUES = new Set([
+  "server.auth.autoIpGrantComment",
+  "登录后自动授权",
+  "登入後自動授權",
+  "Automatically authorized after sign-in",
+]);
+
 const formatSessionCommentInline = (value: unknown) => {
-  const comment = String(value ?? "").trim();
-  return comment ? `，备注「${comment}」` : "";
+  const rawComment = String(value ?? "").trim();
+  const comment = AUTO_IP_GRANT_COMMENT_VALUES.has(rawComment)
+    ? t("auth.autoIpGrantComment")
+    : rawComment;
+  return comment
+    ? t("admin.eventCenter.events.sessionComment", { comment })
+    : "";
 };
 
 const isWAFBlockingAction = (action: unknown, mode: unknown) => {
@@ -377,8 +577,10 @@ const isWAFBlockingAction = (action: unknown, mode: unknown) => {
 };
 
 const formatWAFOutcomeLabel = (action: unknown, mode: unknown) => {
-  if (isWAFBlockingAction(action, mode)) return "阻断";
-  return WAF_ACTION_LABELS[String(action)] || "记录";
+  if (isWAFBlockingAction(action, mode)) {
+    return formatWafActionLabel("block");
+  }
+  return formatWafActionLabel(action) || formatWafActionLabel("log");
 };
 
 const detailItems = computed(() => {
@@ -397,81 +599,86 @@ const detailItems = computed(() => {
     ...payload,
   };
 
-  return buildDetailFields(detailRecord, detailFieldDefinitions, {
-    format: (key, value) => {
-      if (key === "type")
-        return formatSystemEventTypeLabel(value as SystemEventType);
-      if (key === "level")
-        return formatSystemEventLevelLabel(value as SystemEventLevel);
-      if (key === "source")
-        return formatSystemEventSourceLabel(value as SystemEventSource);
-      if (
-        key === "happened_at" ||
-        key === "expires_at" ||
-        key === "login_time" ||
-        key === "blocked_until" ||
-        key === "blocked_at"
-      ) {
-        return formatDate(String(value || ""));
-      }
-      if (key === "subject") return formatSubject(event.subject, false);
-      if (key === "logout_source")
-        return LOGOUT_SOURCE_LABELS[String(value)] || String(value);
-      if (key === "auth_method" || key === "method")
-        return AUTH_METHOD_LABELS[String(value)] || String(value);
-      if (key === "drift_source")
-        return DRIFT_SOURCE_LABELS[String(value)] || String(value);
-      if (key === "grant_type")
-        return GRANT_TYPE_LABELS[String(value)] || String(value);
-      if (key === "post_login_ip_grant_mode")
-        return POST_LOGIN_IP_GRANT_MODE_LABELS[String(value)] || String(value);
-      if (key === "update_scope")
-        return UPDATE_SCOPE_LABELS[String(value)] || String(value);
-      if (key === "ip_source")
-        return IP_SOURCE_LABELS[String(value)] || String(value);
-      if (key === "check_reason")
-        return CHECK_REASON_LABELS[String(value)] || String(value);
-      if (key === "tunnel")
-        return TUNNEL_LABELS[String(value)] || String(value);
-      if (key === "mode")
-        return WAF_MODE_LABELS[String(value)] || String(value);
-      if (key === "action")
-        return WAF_ACTION_LABELS[String(value)] || String(value);
-      if (key === "rule_ids" && Array.isArray(value)) return value.join(", ");
-      if (key === "status")
-        return TUNNEL_STATUS_LABELS[String(value)] || String(value);
-      if (key === "remember_me" || key === "is_auth_route")
-        return formatBoolean(value);
-      if (key === "force_update")
-        return formatBoolean(value === true || value === "true");
-      if (key === "success")
-        return value === undefined || value === null
-          ? "-"
-          : value
-            ? "成功"
-            : "失败";
-      if (
-        key === "usage_percent" ||
-        key === "threshold_percent" ||
-        key === "recover_percent"
-      ) {
-        return formatPercentage(value);
-      }
-      if (value === undefined || value === null || value === "") return "-";
-      if (Array.isArray(value)) return value.join(", ");
-      return String(value);
+  return buildDetailFields(
+    detailRecord,
+    localizedDetailFieldDefinitions.value,
+    {
+      format: (key, value) => {
+        if (key === "type")
+          return formatSystemEventTypeLabel(value as SystemEventType);
+        if (key === "level")
+          return formatSystemEventLevelLabel(value as SystemEventLevel);
+        if (key === "source")
+          return formatSystemEventSourceLabel(value as SystemEventSource);
+        if (
+          key === "happened_at" ||
+          key === "expires_at" ||
+          key === "login_time" ||
+          key === "blocked_until" ||
+          key === "blocked_at"
+        ) {
+          return formatDate(String(value || ""));
+        }
+        if (key === "subject") return formatSubject(event.subject, false);
+        if (key === "logout_source")
+          return formatLogoutSourceLabel(value) || String(value);
+        if (key === "auth_method" || key === "method")
+          return formatAuthMethodLabel(value) || String(value);
+        if (key === "drift_source")
+          return formatDriftSourceLabel(value) || String(value);
+        if (key === "grant_type")
+          return formatGrantTypeLabel(value) || String(value);
+        if (key === "post_login_ip_grant_mode")
+          return formatPostLoginGrantModeLabel(value) || String(value);
+        if (key === "update_scope")
+          return formatUpdateScopeLabel(value) || String(value);
+        if (key === "ip_source")
+          return formatIpSourceLabel(value) || String(value);
+        if (key === "check_reason")
+          return formatCheckReasonLabel(value) || String(value);
+        if (key === "tunnel") return formatTunnelLabel(value) || String(value);
+        if (key === "mode") return formatWafModeLabel(value) || String(value);
+        if (key === "action")
+          return formatWafActionLabel(value) || String(value);
+        if (key === "rule_ids" && Array.isArray(value)) return value.join(", ");
+        if (key === "status")
+          return formatTunnelStatusLabel(value) || String(value);
+        if (key === "remember_me" || key === "is_auth_route")
+          return formatBoolean(value);
+        if (key === "force_update")
+          return formatBoolean(value === true || value === "true");
+        if (key === "success")
+          return value === undefined || value === null
+            ? "-"
+            : value
+              ? t("admin.eventCenter.events.success")
+              : t("admin.eventCenter.events.failure");
+        if (
+          key === "usage_percent" ||
+          key === "threshold_percent" ||
+          key === "recover_percent"
+        ) {
+          return formatPercentage(value);
+        }
+        if (value === undefined || value === null || value === "") return "-";
+        if (Array.isArray(value)) return value.join(", ");
+        return String(value);
+      },
     },
-  });
+  );
 });
 
 const detailCopyText = computed(() => {
   const lines = detailItems.value.map(
-    (item) => `${item.label}：${String(item.value)}`,
+    (item) => `${item.label}: ${String(item.value)}`,
   );
   const tags = activeEvent.value?.tags || [];
 
   if (tags.length > 0) {
-    lines.push("", `标签：${tags.join(", ")}`);
+    lines.push(
+      "",
+      `${t("admin.eventCenter.events.tagsCopyLabel")}：${tags.join(", ")}`,
+    );
   }
 
   return lines.join("\n");
@@ -545,25 +752,38 @@ const describeEvent = (event: SystemEventRecord) => {
       const authProviderName = String(payload.auth_provider_name || "").trim();
       const authMethodLabel =
         authMethod === "OIDC" && authProviderName
-          ? `通过 ${authProviderName}`
-          : `通过 ${
-              AUTH_METHOD_LABELS[authMethod] || String(payload.auth_method || "-")
-            }`;
-      return `${formatCredentialDisplay(
-        payload.credential_name,
-        payload.linked_totp_name,
-        payload.auth_method,
-      )} ${authMethodLabel} 登录，来源 IP ${formatIpDisplay(payload.ip)}${formatSessionCommentInline(payload.session_comment)}`;
+          ? t("admin.eventCenter.events.viaProvider", {
+              provider: authProviderName,
+            })
+          : t("admin.eventCenter.events.viaMethod", {
+              method:
+                formatAuthMethodLabel(authMethod) ||
+                String(payload.auth_method || "-"),
+            });
+      return t("admin.eventCenter.events.authLoginSuccess", {
+        credential: formatCredentialDisplay(
+          payload.credential_name,
+          payload.linked_totp_name,
+          payload.auth_method,
+        ),
+        method: authMethodLabel,
+        ip: formatIpDisplay(payload.ip),
+        comment: formatSessionCommentInline(payload.session_comment),
+      });
     }
     case "FN_EVENT_AUTH_LOGOUT":
-      return `${formatCredentialDisplay(
-        payload.credential_name,
-        payload.linked_totp_name,
-        payload.auth_method,
-      )} 已退出登录，来源 ${
-        LOGOUT_SOURCE_LABELS[String(payload.logout_source)] ||
-        String(payload.logout_source || "-")
-      }，会话 IP ${formatIpDisplay(payload.ip)}${formatSessionCommentInline(payload.session_comment)}`;
+      return t("admin.eventCenter.events.authLogout", {
+        credential: formatCredentialDisplay(
+          payload.credential_name,
+          payload.linked_totp_name,
+          payload.auth_method,
+        ),
+        source:
+          formatLogoutSourceLabel(payload.logout_source) ||
+          String(payload.logout_source || "-"),
+        ip: formatIpDisplay(payload.ip),
+        comment: formatSessionCommentInline(payload.session_comment),
+      });
     case "FN_EVENT_AUTH_LOGIN_FAILURE": {
       const attempts = String(payload.attempts || "-");
       const retryAfterSeconds = Number(payload.retry_after_seconds);
@@ -572,17 +792,30 @@ const describeEvent = (event: SystemEventRecord) => {
         (!!credentialName && !credentialName.startsWith("!")) ||
         payload.linked_totp_name !== undefined;
       const credentialContext = hasCredentialContext
-        ? `${formatCredentialDisplay(
+        ? formatCredentialDisplay(
             payload.credential_name,
             payload.linked_totp_name,
             payload.method,
-          )} 在 IP ${formatIpDisplay(payload.ip)} `
-        : `IP ${formatIpDisplay(payload.ip)} `;
-      return `${credentialContext}1 小时内第 ${attempts} 次失败${
+          )
+        : "";
+      const retry =
         Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
-          ? `，需等待 ${retryAfterSeconds} 秒后重试`
-          : ""
-      }`;
+          ? t("admin.eventCenter.events.retryAfter", {
+              seconds: retryAfterSeconds,
+            })
+          : "";
+      return hasCredentialContext
+        ? t("admin.eventCenter.events.authFailureWithCredential", {
+            credential: credentialContext,
+            ip: formatIpDisplay(payload.ip),
+            attempts,
+            retry,
+          })
+        : t("admin.eventCenter.events.authFailureWithoutCredential", {
+            ip: formatIpDisplay(payload.ip),
+            attempts,
+            retry,
+          });
     }
     case "FN_EVENT_AUTH_SESSION_IP_DRIFT": {
       const credentialName = String(payload.credential_name ?? "").trim();
@@ -593,74 +826,112 @@ const describeEvent = (event: SystemEventRecord) => {
             payload.credential_name,
             payload.linked_totp_name,
             payload.auth_method,
-          )} 会话`
-        : `会话 ${shortId(String(payload.session_id || ""), 14)}`;
-      return `${sessionLabel} 从 ${String(formatIpDisplay(payload.from_ip))} 漂移到 ${String(formatIpDisplay(payload.to_ip))}${formatSessionCommentInline(payload.session_comment)}`;
+          )} ${t("admin.eventCenter.events.session")}`
+        : `${t("admin.eventCenter.events.session")} ${shortId(String(payload.session_id || ""), 14)}`;
+      return t("admin.eventCenter.events.sessionIpDrift", {
+        session: sessionLabel,
+        fromIp: String(formatIpDisplay(payload.from_ip)),
+        toIp: String(formatIpDisplay(payload.to_ip)),
+        comment: formatSessionCommentInline(payload.session_comment),
+      });
     }
     case "FN_EVENT_SECURITY_SCANNER_BLOCKED":
-      return `${formatIpDisplay(payload.ip)} 因非常规路径命中 ${String(
-        payload.hit_count || "-",
-      )} 次被拦截`;
+      return t("admin.eventCenter.events.scannerBlocked", {
+        ip: formatIpDisplay(payload.ip),
+        count: String(payload.hit_count || "-"),
+      });
     case "FN_EVENT_DDNS_UPDATE_COMPLETED":
-      return `${String(payload.provider || "-")} ${
-        Boolean(payload.success) ? "更新成功" : "更新失败"
-      }：${String(payload.message || "-")}`;
+      return t("admin.eventCenter.events.ddnsUpdated", {
+        provider: String(payload.provider || "-"),
+        result: Boolean(payload.success)
+          ? t("admin.eventCenter.events.success")
+          : t("admin.eventCenter.events.failure"),
+        message: String(payload.message || "-"),
+      });
     case "FN_EVENT_GATEWAY_THROTTLE_BLOCKED":
-      return `${formatIpDisplay(payload.ip)} 触发节流封锁 ${String(
-        payload.block_seconds || "-",
-      )} 秒`;
+      return t("admin.eventCenter.events.gatewayThrottleBlocked", {
+        ip: formatIpDisplay(payload.ip),
+        seconds: String(payload.block_seconds || "-"),
+      });
     case "FN_EVENT_WAF_BLOCKED": {
       const outcomeLabel = formatWAFOutcomeLabel(payload.action, payload.mode);
-      return `${formatIpDisplay(payload.ip)} 的请求被 WAF ${outcomeLabel}${
-        payload.rule_ids ? `，规则 ${String(payload.rule_ids)}` : ""
-      }`;
+      return t("admin.eventCenter.events.wafBlocked", {
+        ip: formatIpDisplay(payload.ip),
+        outcome: outcomeLabel,
+        rules: payload.rule_ids
+          ? t("admin.eventCenter.events.wafRuleSuffix", {
+              rules: String(payload.rule_ids),
+            })
+          : "",
+      });
     }
     case "FN_EVENT_SSH_LOGIN_SUCCESS":
-      return `SSH 用户 ${String(payload.username || "-")} 从 ${formatIpDisplay(
-        payload.ip,
-      )} 登录成功`;
+      return t("admin.eventCenter.events.sshLoginSuccess", {
+        username: String(payload.username || "-"),
+        ip: formatIpDisplay(payload.ip),
+      });
     case "FN_EVENT_SSH_LOGIN_FAILURE":
-      return `SSH 用户 ${String(payload.username || "-")} 从 ${formatIpDisplay(
-        payload.ip,
-      )} 登录失败，窗口内第 ${String(payload.attempts || "-")} 次`;
+      return t("admin.eventCenter.events.sshLoginFailure", {
+        username: String(payload.username || "-"),
+        ip: formatIpDisplay(payload.ip),
+        attempts: String(payload.attempts || "-"),
+      });
     case "FN_EVENT_SSH_IP_BLOCKED":
-      return `${formatIpDisplay(payload.ip)} 被 SSH 安全封锁，原因 ${
-        String(payload.reason) === "cidr_not_allowed"
-          ? "不在允许地区"
-          : "失败次数达到阈值"
-      }`;
+      return t("admin.eventCenter.events.sshBlocked", {
+        ip: formatIpDisplay(payload.ip),
+        reason:
+          String(payload.reason) === "cidr_not_allowed"
+            ? t("admin.eventCenter.events.sshReasonCidr")
+            : t("admin.eventCenter.events.sshReasonThreshold"),
+      });
     case "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE":
-      return `发现新版本 ${String(payload.latest_version || "-")}，当前版本 ${String(
-        payload.local_version || "-",
-      )}${payload.force_update ? "，建议尽快更新" : ""}`;
+      return t("admin.eventCenter.events.appUpdateAvailable", {
+        latest: String(payload.latest_version || "-"),
+        current: String(payload.local_version || "-"),
+        suffix: payload.force_update
+          ? t("admin.eventCenter.events.updateSoonSuffix")
+          : "",
+      });
     case "FN_EVENT_SYSTEM_CPU_ALERT":
-      return `${String(payload.hostname || "-")} CPU 使用率 ${String(
-        payload.usage_percent || "-",
-      )}%`;
+      return t("admin.eventCenter.events.cpuAlert", {
+        hostname: String(payload.hostname || "-"),
+        usage: String(payload.usage_percent || "-"),
+      });
     case "FN_EVENT_SYSTEM_CPU_RECOVERED":
-      return `${String(payload.hostname || "-")} CPU 已恢复到 ${String(
-        payload.usage_percent || "-",
-      )}%`;
+      return t("admin.eventCenter.events.cpuRecovered", {
+        hostname: String(payload.hostname || "-"),
+        usage: String(payload.usage_percent || "-"),
+      });
     case "FN_EVENT_SYSTEM_MEMORY_ALERT":
-      return `${String(payload.hostname || "-")} 内存使用率 ${String(
-        payload.usage_percent || "-",
-      )}%`;
+      return t("admin.eventCenter.events.memoryAlert", {
+        hostname: String(payload.hostname || "-"),
+        usage: String(payload.usage_percent || "-"),
+      });
     case "FN_EVENT_SYSTEM_MEMORY_RECOVERED":
-      return `${String(payload.hostname || "-")} 内存已恢复到 ${String(
-        payload.usage_percent || "-",
-      )}%`;
+      return t("admin.eventCenter.events.memoryRecovered", {
+        hostname: String(payload.hostname || "-"),
+        usage: String(payload.usage_percent || "-"),
+      });
     case "FN_EVENT_TUNNEL_FRP_CONNECTED":
     case "FN_EVENT_TUNNEL_FRP_DISCONNECTED":
     case "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED":
     case "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED": {
       const tunnel =
-        TUNNEL_LABELS[String(payload.tunnel)] ||
+        formatTunnelLabel(payload.tunnel) ||
         (event.type.includes("CLOUDFLARED") ? "Cloudflared" : "FRP");
       const status =
-        TUNNEL_STATUS_LABELS[String(payload.status)] ||
-        (event.type.endsWith("_CONNECTED") ? "已连上" : "已断开");
+        formatTunnelStatusLabel(payload.status) ||
+        (event.type.endsWith("_CONNECTED")
+          ? formatTunnelStatusLabel("connected")
+          : formatTunnelStatusLabel("disconnected"));
       const message = String(payload.message || "").trim();
-      return `${tunnel} ${status}${message ? `：${message}` : ""}`;
+      return t("admin.eventCenter.events.tunnelStatusDescription", {
+        tunnel,
+        status,
+        message: message
+          ? t("admin.eventCenter.events.messageSuffix", { message })
+          : "",
+      });
     }
     default:
       return JSON.stringify(payload);
@@ -677,14 +948,16 @@ onMounted(() => {
     <div class="flex flex-wrap items-center gap-2">
       <SearchInput
         v-model="searchQuery"
-        placeholder="搜索事件 ID、IP、会话、凭证..."
+        :placeholder="t('admin.eventCenter.events.searchPlaceholder')"
         class="w-full max-w-xs"
         @search="handleSearch"
       />
 
       <Select v-model="selectedType">
         <SelectTrigger class="w-[160px]">
-          <SelectValue placeholder="事件类型" />
+          <SelectValue
+            :placeholder="t('admin.eventCenter.events.typePlaceholder')"
+          />
         </SelectTrigger>
         <SelectContent>
           <SelectItem
@@ -692,14 +965,16 @@ onMounted(() => {
             :key="option.value"
             :value="option.value"
           >
-            {{ option.label }}
+            {{ formatOptionLabel(option) }}
           </SelectItem>
         </SelectContent>
       </Select>
 
       <Select v-model="selectedLevel">
         <SelectTrigger class="w-[140px]">
-          <SelectValue placeholder="级别" />
+          <SelectValue
+            :placeholder="t('admin.eventCenter.events.levelPlaceholder')"
+          />
         </SelectTrigger>
         <SelectContent>
           <SelectItem
@@ -707,14 +982,16 @@ onMounted(() => {
             :key="option.value"
             :value="option.value"
           >
-            {{ option.label }}
+            {{ formatOptionLabel(option) }}
           </SelectItem>
         </SelectContent>
       </Select>
 
       <Select v-model="selectedSource">
         <SelectTrigger class="w-[110px]">
-          <SelectValue placeholder="系统" />
+          <SelectValue
+            :placeholder="t('admin.eventCenter.events.sourcePlaceholder')"
+          />
         </SelectTrigger>
         <SelectContent>
           <SelectItem
@@ -722,7 +999,7 @@ onMounted(() => {
             :key="option.value"
             :value="option.value"
           >
-            {{ option.label }}
+            {{ formatOptionLabel(option) }}
           </SelectItem>
         </SelectContent>
       </Select>
@@ -736,8 +1013,12 @@ onMounted(() => {
 
         <ConfirmDangerPopover
           v-if="hasSelectedEvents"
-          :title="`确认删除 ${selectedKeys.size} 条事件？`"
-          description="删除后记录将无法恢复。"
+          :title="
+            t('admin.eventCenter.events.deleteSelectedTitle', {
+              count: selectedKeys.size,
+            })
+          "
+          :description="t('admin.eventCenter.events.deleteDescription')"
           :loading="isDeleting"
           :disabled="isDeleting"
           :on-confirm="() => deleteEvents(Array.from(selectedKeys))"
@@ -745,7 +1026,11 @@ onMounted(() => {
           <template #trigger>
             <Button variant="destructive" :disabled="isDeleting">
               <Trash2 class="mr-2 h-4 w-4" />
-              删除已选 ({{ selectedKeys.size }})
+              {{
+                t("admin.eventCenter.events.deleteSelectedButton", {
+                  count: selectedKeys.size,
+                })
+              }}
             </Button>
           </template>
         </ConfirmDangerPopover>
@@ -765,11 +1050,21 @@ onMounted(() => {
               <TableHead class="w-[42px] pl-3 pr-1">
                 <Checkbox v-model="isAllSelected" />
               </TableHead>
-              <TableHead class="w-[300px]">事件</TableHead>
-              <TableHead class="w-[220px]">来源</TableHead>
-              <TableHead class="w-[100px]">级别</TableHead>
-              <TableHead class="w-[96px]">系统</TableHead>
-              <TableHead class="w-[110px] pr-6 text-right">操作</TableHead>
+              <TableHead class="w-[300px]">
+                {{ t("admin.eventCenter.events.tableEvent") }}
+              </TableHead>
+              <TableHead class="w-[220px]">
+                {{ t("admin.eventCenter.events.origin") }}
+              </TableHead>
+              <TableHead class="w-[100px]">
+                {{ t("admin.eventCenter.events.level") }}
+              </TableHead>
+              <TableHead class="w-[96px]">
+                {{ t("admin.eventCenter.events.system") }}
+              </TableHead>
+              <TableHead class="w-[110px] pr-6 text-right">
+                {{ t("admin.eventCenter.events.actions") }}
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -785,7 +1080,7 @@ onMounted(() => {
                 colspan="6"
                 class="py-10 text-center text-muted-foreground"
               >
-                暂无事件
+                {{ t("admin.eventCenter.events.empty") }}
               </TableCell>
             </TableRow>
             <TableRow v-for="event in events" :key="event.id">
@@ -862,8 +1157,8 @@ onMounted(() => {
                   <Eye class="h-4 w-4" />
                 </Button>
                 <ConfirmDangerPopover
-                  title="确认删除该事件？"
-                  description="删除后记录将无法恢复。"
+                  :title="t('admin.eventCenter.events.deleteSingleTitle')"
+                  :description="t('admin.eventCenter.events.deleteDescription')"
                   :loading="isDeleting"
                   :disabled="isDeleting"
                   :on-confirm="() => deleteEvents([event.id])"
@@ -898,7 +1193,7 @@ onMounted(() => {
         :page="currentPage"
         :limit="limit"
         :items-per-page="parsedLimit"
-        total-text="条事件"
+        :total-text="t('admin.eventCenter.events.totalText')"
         @update:page="handlePageChange"
         @update:limit="handleLimitChange"
       />
@@ -906,8 +1201,8 @@ onMounted(() => {
 
     <DetailDialog
       v-model:open="isDetailsOpen"
-      title="事件详情"
-      description="查看事件基础信息与上下文字段。"
+      :title="t('admin.eventCenter.events.detailTitle')"
+      :description="t('admin.eventCenter.events.detailDescription')"
       max-width-class="sm:max-w-[760px]"
       close-variant="default"
       :copy-text="detailCopyText"
@@ -916,7 +1211,9 @@ onMounted(() => {
         <DetailFieldsGrid :items="detailItems" />
 
         <div v-if="activeEvent.tags?.length" class="space-y-2">
-          <div class="text-sm font-medium text-foreground">标签</div>
+          <div class="text-sm font-medium text-foreground">
+            {{ t("admin.eventCenter.events.tags") }}
+          </div>
           <div class="flex flex-wrap gap-2">
             <Badge
               v-for="tag in activeEvent.tags"

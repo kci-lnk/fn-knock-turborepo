@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import RunModeSettings from "./system-settings/RunModeSettings.vue";
@@ -25,6 +26,7 @@ import { isCloudflaredTunnelAvailable } from "../lib/reverse-proxy-submode";
 const router = useRouter();
 const route = useRoute();
 const configStore = useConfigStore();
+const { t } = useI18n();
 
 const defaultTab = "run-mode";
 const showTunnelTabs = computed(() => configStore.config?.run_type === 1);
@@ -84,64 +86,64 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
       <div class="w-full overflow-x-auto pb-1">
         <TabsList class="min-w-max justify-start">
           <TabsTrigger value="run-mode" class="flex-none shrink-0 px-3"
-            >模式</TabsTrigger
+            >{{ t("admin.systemSettingsTabs.mode") }}</TabsTrigger
           >
           <TabsTrigger
             v-if="showTunnelTabs"
             value="frp"
             class="flex-none shrink-0 px-3"
-            >FRP</TabsTrigger
+            >{{ t("admin.systemSettingsTabs.frp") }}</TabsTrigger
           >
           <TabsTrigger
             v-if="showTunnelTabs && showCloudflaredTab"
             value="cloudflared"
             class="flex-none shrink-0 px-3"
-            >Cloudflared</TabsTrigger
+            >{{ t("admin.systemSettingsTabs.cloudflared") }}</TabsTrigger
           >
           <TabsTrigger value="acme-ssl" class="flex-none shrink-0 px-3"
-            >ACME</TabsTrigger
+            >{{ t("admin.systemSettingsTabs.acme") }}</TabsTrigger
           >
           <TabsTrigger value="ip-location" class="flex-none shrink-0 px-3"
-            >属地</TabsTrigger
+            >{{ t("admin.systemSettingsTabs.ipLocation") }}</TabsTrigger
           >
           <TabsTrigger value="fnos" class="flex-none shrink-0 px-3"
-            >飞牛</TabsTrigger
+            >{{ t("admin.systemSettingsTabs.fnos") }}</TabsTrigger
           >
           <TabsTrigger value="scanner-firewall" class="flex-none shrink-0 px-3"
-            >拦截</TabsTrigger
+            >{{ t("admin.systemSettingsTabs.scannerFirewall") }}</TabsTrigger
           >
           <TabsTrigger value="features" class="flex-none shrink-0 px-3"
-            >功能</TabsTrigger
+            >{{ t("admin.systemSettingsTabs.features") }}</TabsTrigger
           >
           <TabsTrigger value="gateway" class="flex-none shrink-0 px-3"
-            >网关</TabsTrigger
+            >{{ t("admin.systemSettingsTabs.gateway") }}</TabsTrigger
           >
           <TabsTrigger value="waf" class="flex-none shrink-0 px-3"
-            >WAF</TabsTrigger
+            >{{ t("admin.systemSettingsTabs.waf") }}</TabsTrigger
           >
           <TabsTrigger value="gateway-logging" class="flex-none shrink-0 px-3"
-            >日志</TabsTrigger
+            >{{ t("admin.systemSettingsTabs.logs") }}</TabsTrigger
           >
           <TabsTrigger
             v-if="showTerminalTab"
             value="terminal"
             class="flex-none shrink-0 px-3"
-            >终端</TabsTrigger
+            >{{ t("admin.systemSettingsTabs.terminal") }}</TabsTrigger
           >
           <TabsTrigger value="session" class="flex-none shrink-0 px-3"
-            >会话</TabsTrigger
+            >{{ t("admin.systemSettingsTabs.session") }}</TabsTrigger
           >
           <TabsTrigger
             v-if="showPanelTab"
             value="panel"
             class="flex-none shrink-0 px-3"
-            >面板</TabsTrigger
+            >{{ t("admin.systemSettingsTabs.panel") }}</TabsTrigger
           >
           <TabsTrigger value="captcha" class="flex-none shrink-0 px-3"
-            >Challenge</TabsTrigger
+            >{{ t("admin.systemSettingsTabs.challenge") }}</TabsTrigger
           >
           <TabsTrigger value="maintenance" class="flex-none shrink-0 px-3"
-            >维护</TabsTrigger
+            >{{ t("admin.systemSettingsTabs.maintenance") }}</TabsTrigger
           >
         </TabsList>
       </div>

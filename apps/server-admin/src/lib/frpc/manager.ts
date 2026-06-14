@@ -7,6 +7,7 @@ import { frpManager } from "../frp-manager";
 import { redis } from "../redis";
 import { RedisLogBuffer } from "../redis-log-buffer";
 import { collectStreamOutput, sleep, waitForProcessExit } from "../runtime";
+import { tDefault } from "../i18n";
 import {
   markTunnelRunning,
   markTunnelStopped,
@@ -43,6 +44,10 @@ const LOG_TTL_SEC = 24 * 3600;
 const PRIMARY_LOG_MAX_LEN = 1000;
 const EXTRA_LOG_MAX_LEN = 500;
 const EXTRA_INSTANCE_LIMIT = 20;
+const frpcT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.frpc.${key}`, params);
 
 type AttachedProcess = {
   proc: ChildProcess;
@@ -62,14 +67,14 @@ export class FrpcConfigValidationError extends Error {
 
 export class FrpcInstanceNotFoundError extends Error {
   constructor(id: string) {
-    super(`FRP 实例不存在：${id}`);
+    super(frpcT("instanceNotFound", { id }));
     this.name = "FrpcInstanceNotFoundError";
   }
 }
 
 export class FrpcInstanceLimitError extends Error {
   constructor(limit: number) {
-    super(`额外 FRP 实例最多支持 ${limit} 个`);
+    super(frpcT("instanceLimitExceeded", { limit }));
     this.name = "FrpcInstanceLimitError";
   }
 }
@@ -237,7 +242,7 @@ const primaryMeta = (): FrpcInstanceMeta => {
   const timestamp = nowIso();
   return {
     id: FRPC_PRIMARY_INSTANCE_ID,
-    name: "主 FRP",
+    name: frpcT("primaryName"),
     isPrimary: true,
     configPath: FRPC_PRIMARY_TOML,
     workDir: FRPC_DIR,
@@ -268,7 +273,7 @@ const readMeta = async (id: string): Promise<FrpcInstanceMeta | null> => {
           const timestamp = nowIso();
           return {
             id,
-            name: "FRP 实例",
+            name: frpcT("instanceName"),
             isPrimary: false,
             configPath: paths.configPath,
             workDir: paths.workDir,
@@ -645,8 +650,8 @@ const formatVerifyFailureMessage = (result: {
     .map(normalizeVerifyOutput)
     .filter(Boolean)
     .join("\n");
-  if (detail) return `frpc verify 校验失败：${detail}`;
-  return `frpc verify 校验失败，退出码 ${result.exitCode}`;
+  if (detail) return frpcT("verifyFailedWithDetail", { detail });
+  return frpcT("verifyFailedWithCode", { code: result.exitCode });
 };
 
 const verifyFrpcConfigForMeta = async (
@@ -658,7 +663,7 @@ const verifyFrpcConfigForMeta = async (
     bin = frpManager.getExecutable("frpc");
   } catch {
     throw new FrpcConfigValidationError(
-      "FRP 未初始化，无法校验 frpc.toml，请先在系统设置中下载 FRP 资源。",
+      frpcT("verifyFrpNotInitialized"),
     );
   }
 
@@ -676,7 +681,9 @@ const verifyFrpcConfigForMeta = async (
   } catch (error) {
     if (error instanceof FrpcConfigValidationError) throw error;
     const message = error instanceof Error ? error.message : String(error);
-    throw new FrpcConfigValidationError(`frpc verify 校验失败：${message}`);
+    throw new FrpcConfigValidationError(
+      frpcT("verifyFailedWithDetail", { detail: message }),
+    );
   } finally {
     try {
       if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
@@ -723,7 +730,7 @@ const reconcileRuntime = async (
       ...runtime,
       pid: null,
       stoppedAt: runtime.stoppedAt ?? nowIso(),
-      lastMessage: runtime.lastMessage ?? "PID 已失效或不属于该实例",
+      lastMessage: runtime.lastMessage ?? frpcT("pidInvalidForInstance"),
     };
     await writeRuntime(meta.id, next);
     return { ...next, running: false, attached: false };
@@ -816,16 +823,16 @@ const handleProcessExit = (
 ) => {
   void (async () => {
     let code = -1;
-    let exitMessage = "frpc 进程已退出";
+    let exitMessage = frpcT("processExited");
     try {
       code = await exitPromise;
-      exitMessage = `frpc 进程已退出（退出码 ${code}）`;
+      exitMessage = frpcT("processExitedWithCode", { code });
       await appendLogs(meta, [`frpc exited with code ${code}`], {
         inspectSignals: false,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      exitMessage = `frpc 进程异常退出：${message}`;
+      exitMessage = frpcT("processCrashed", { message });
       await appendLogs(meta, [`frpc process error: ${message}`], {
         inspectSignals: false,
       });
@@ -877,7 +884,7 @@ const terminatePid = async (pid: number): Promise<void> => {
   }
 
   if (isProcessAlive(pid)) {
-    throw new Error(`FRP 进程仍未退出 pid=${pid}`);
+    throw new Error(frpcT("processStillRunning", { pid }));
   }
 };
 
@@ -954,7 +961,7 @@ export const frpcInstanceManager = {
       const name = payload.name.trim();
       nextMeta = {
         ...nextMeta,
-        name: name || (meta.isPrimary ? "主 FRP" : "FRP 实例"),
+        name: name || (meta.isPrimary ? frpcT("primaryName") : frpcT("instanceName")),
       };
     }
     if (typeof payload.content === "string") {
@@ -980,7 +987,7 @@ export const frpcInstanceManager = {
     const timestamp = nowIso();
     const meta: FrpcInstanceMeta = {
       id,
-      name: payload.name?.trim() || "FRP 实例",
+      name: payload.name?.trim() || frpcT("instanceName"),
       isPrimary: false,
       configPath: paths.configPath,
       workDir: paths.workDir,
@@ -1021,7 +1028,7 @@ export const frpcInstanceManager = {
   async deleteInstance(id: string): Promise<void> {
     const meta = await getMetaOrThrow(id);
     if (meta.isPrimary) {
-      throw new Error("主 FRP 实例不允许删除");
+      throw new Error(frpcT("primaryDeleteDenied"));
     }
     const status = await buildStatus(meta);
     if (status.running) {
@@ -1042,7 +1049,7 @@ export const frpcInstanceManager = {
   async start(id: string): Promise<{ pid: number }> {
     const meta = await getMetaOrThrow(id);
     const st = frpManager.getStatus();
-    if (!st.downloaded) throw new Error("FRP 未初始化");
+    if (!st.downloaded) throw new Error(frpcT("notInitialized"));
     const content = await readConfigForMeta(meta);
     await verifyFrpcConfigForMeta(meta, content);
 
@@ -1070,7 +1077,7 @@ export const frpcInstanceManager = {
       } catch (error) {
         detail = error instanceof Error ? error.message : String(error);
       }
-      throw new Error(`启动 frpc 失败: ${detail}`);
+      throw new Error(frpcT("startFailedWithDetail", { detail }));
     }
 
     const state = getConnectionState(meta.id);
@@ -1122,7 +1129,7 @@ export const frpcInstanceManager = {
         desiredRunning: false,
         pid: null,
         stoppedAt: nowIso(),
-        lastMessage: "PID 不属于该实例，已清理本实例运行记录",
+        lastMessage: frpcT("pidCleanedForInstance"),
       });
       removePidFile(getPidPath(meta));
       state.stopRequested = false;
@@ -1192,7 +1199,7 @@ export const frpcInstanceManager = {
       try {
         await appendLogs(
           meta,
-          ["resume: 检测到该 FRP 实例上次为开启状态，正在自动恢复..."],
+          [frpcT("resumeOnBoot")],
           {
             inspectSignals: false,
           },

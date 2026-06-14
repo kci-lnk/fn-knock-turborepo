@@ -12,6 +12,10 @@ import {
 import { emitSessionIpDriftEvent } from "./system-events/helpers";
 import { normalizeIp } from "./ip-normalize";
 import { whitelistManager } from "./whitelist-manager";
+import {
+  AUTO_IP_GRANT_COMMENT,
+  normalizeAutoIpGrantComment,
+} from "./post-login-ip-grant";
 
 type MobilitySubjectType = "proxy-session" | "fnos-token" | "trim-media-token";
 type MobilityDriftSource =
@@ -1656,11 +1660,16 @@ export class AuthMobilitySessionManager {
       existing?.whitelistRecordId || args.whitelistRecordId || undefined;
 
     if (this.isFollowSessionAutoGrant(session)) {
+      const localeConfig = await configManager.getLocaleConfig();
       const record = await whitelistManager.ensureSessionAutoWhiteList({
         ownerKey: this.activeIpWhitelistOwnerKey(args.sessionId, normalizedIp),
         ip: normalizedIp,
         expireAt: activeExpireAt,
-        comment: session.comment ?? "登录后自动授权",
+        comment:
+          normalizeAutoIpGrantComment(
+            session.comment,
+            localeConfig.default_locale,
+          ) || AUTO_IP_GRANT_COMMENT,
         existingRecordId: whitelistRecordId,
       });
       whitelistRecordId = record.id;
@@ -1907,11 +1916,16 @@ export class AuthMobilitySessionManager {
         normalizeIp(session.ip) || String(session.ip || "").trim();
       const currentDetail = details.find((detail) => detail.ip === currentIp);
       if (currentIp) {
+        const localeConfig = await configManager.getLocaleConfig();
         const record = await whitelistManager.ensureSessionAutoWhiteList({
           ownerKey: this.legacyWhitelistOwnerKey(sessionId),
           ip: currentIp,
           expireAt: toUnixSeconds(session.expiresAt),
-          comment: session.comment ?? "登录后自动授权",
+          comment:
+            normalizeAutoIpGrantComment(
+              session.comment,
+              localeConfig.default_locale,
+            ) || AUTO_IP_GRANT_COMMENT,
           existingRecordId:
             session.postLoginIpGrantRecordId ||
             currentDetail?.whitelistRecordId ||

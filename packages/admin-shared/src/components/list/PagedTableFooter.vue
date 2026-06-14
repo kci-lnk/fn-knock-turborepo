@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import {
   Pagination,
   PaginationContent,
@@ -28,9 +29,10 @@ const props = withDefaults(
   }>(),
   {
     pageSizeOptions: () => ["10", "20", "50", "100"],
-    totalText: "条记录",
   },
 );
+
+const { t } = useI18n();
 
 const emit = defineEmits<{
   "update:page": [value: number];
@@ -47,6 +49,13 @@ const currentLimit = computed({
 const handlePageUpdate = (value: number) => {
   emit("update:page", value);
 };
+
+const totalLabel = computed(() =>
+  t("shared.pagedTableFooter.total", {
+    total: props.total,
+    itemText: props.totalText ?? t("shared.pagedTableFooter.records"),
+  }),
+);
 </script>
 
 <template>
@@ -54,7 +63,7 @@ const handlePageUpdate = (value: number) => {
     class="p-4 border-t flex items-center justify-between flex-shrink-0 bg-background"
   >
     <div class="text-sm text-muted-foreground">
-      共 {{ props.total }} {{ props.totalText }}
+      {{ totalLabel }}
     </div>
     <div class="flex items-center gap-6">
       <div class="flex items-center gap-2 text-sm">

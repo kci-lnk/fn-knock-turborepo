@@ -12,12 +12,19 @@ import {
   toTrimmedString,
   truncateText,
 } from "./shared";
+import { tDefault } from "../../i18n";
+
+const pushplusT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) =>
+  tDefault(`server.notifications.providers.catalog.pushplus.${key}`, params);
 
 const PUSHPLUS_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   {
     key: "server_url",
-    label: "服务地址",
-    description: "官方接口保持默认值即可。",
+    label: pushplusT("fields.server_url.label"),
+    description: pushplusT("fields.server_url.description"),
     placeholder: "https://www.pushplus.plus",
     type: "string",
     required: true,
@@ -26,7 +33,7 @@ const PUSHPLUS_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   {
     key: "token",
     label: "Token",
-    description: "PushPlus 的用户 token 或消息 token，请妥善保管。",
+    description: pushplusT("fields.token.description"),
     placeholder: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     type: "string",
     required: true,
@@ -34,7 +41,7 @@ const PUSHPLUS_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   },
   {
     key: "timeout_seconds",
-    label: "超时秒数",
+    label: pushplusT("fields.timeout_seconds.label"),
     type: "number",
     required: true,
     default_value: 5,
@@ -46,72 +53,70 @@ const PUSHPLUS_CONNECTION_SCHEMA: NotificationSchemaField[] = [
 const PUSHPLUS_TARGET_SCHEMA: NotificationSchemaField[] = [
   {
     key: "topic",
-    label: "群组编码",
-    description: "可选。填写后将消息发送到指定群组；不填则发送给 token 自己。",
+    label: pushplusT("fields.topic.label"),
+    description: pushplusT("fields.topic.description"),
     placeholder: "alarm-topic",
     type: "string",
   },
   {
     key: "template",
-    label: "消息模板",
-    description:
-      "默认使用 Markdown；如果目标渠道更适合纯文本或 HTML，也可以单独切换。",
+    label: pushplusT("fields.template.label"),
+    description: pushplusT("fields.template.description"),
     type: "select",
     default_value: "markdown",
     options: [
       { label: "Markdown", value: "markdown" },
       { label: "HTML", value: "html" },
-      { label: "纯文本", value: "txt" },
+      { label: pushplusT("fields.template.options.txt"), value: "txt" },
       { label: "JSON", value: "json" },
     ],
   },
   {
     key: "channel",
-    label: "发送渠道",
-    description:
-      "默认发送到微信公众号；如已在 PushPlus 中配置其他渠道，可在这里切换。",
+    label: pushplusT("fields.channel.label"),
+    description: pushplusT("fields.channel.description"),
     type: "select",
     default_value: "wechat",
     options: [
-      { label: "微信公众号", value: "wechat" },
-      { label: "第三方 Webhook", value: "webhook" },
-      { label: "企业微信应用", value: "cp" },
-      { label: "邮件", value: "mail" },
-      { label: "短信", value: "sms" },
-      { label: "语音", value: "voice" },
-      { label: "插件 / 桌面程序", value: "extension" },
+      { label: pushplusT("fields.channel.options.wechat"), value: "wechat" },
+      { label: pushplusT("fields.channel.options.webhook"), value: "webhook" },
+      { label: pushplusT("fields.channel.options.cp"), value: "cp" },
+      { label: pushplusT("fields.channel.options.mail"), value: "mail" },
+      { label: pushplusT("fields.channel.options.sms"), value: "sms" },
+      { label: pushplusT("fields.channel.options.voice"), value: "voice" },
+      {
+        label: pushplusT("fields.channel.options.extension"),
+        value: "extension",
+      },
       { label: "App", value: "app" },
-      { label: "微信 ClawBot", value: "clawbot" },
+      { label: pushplusT("fields.channel.options.clawbot"), value: "clawbot" },
     ],
   },
   {
     key: "option",
-    label: "渠道配置参数",
-    description:
-      "可选。cp、webhook、mail 等渠道通常需要填写在 PushPlus 个人中心里预先配置好的渠道编码。",
+    label: pushplusT("fields.option.label"),
+    description: pushplusT("fields.option.description"),
     placeholder: "my-channel-code",
     type: "string",
   },
   {
     key: "to",
-    label: "好友令牌 / 用户 ID",
-    description:
-      "可选。微信公众号渠道填写好友令牌，企业微信应用渠道填写用户 ID；多人可按 PushPlus 文档格式传入。",
-    placeholder: "friend_token 或 user1,user2",
+    label: pushplusT("fields.to.label"),
+    description: pushplusT("fields.to.description"),
+    placeholder: pushplusT("fields.to.placeholder"),
     type: "string",
   },
   {
     key: "callback_url",
-    label: "回调 URL",
-    description: "可选。PushPlus 异步投递完成后会把结果回调到这个地址。",
+    label: pushplusT("fields.callback_url.label"),
+    description: pushplusT("fields.callback_url.description"),
     placeholder: "https://example.com/hooks/pushplus",
     type: "string",
   },
   {
     key: "pre",
-    label: "预处理编码",
-    description:
-      "可选。仅当 PushPlus 账号已配置对应预处理逻辑时填写，用于在服务端发送前加工消息内容。",
+    label: pushplusT("fields.pre.label"),
+    description: pushplusT("fields.pre.description"),
     placeholder: "appendMsg",
     type: "string",
   },
@@ -120,8 +125,7 @@ const PUSHPLUS_TARGET_SCHEMA: NotificationSchemaField[] = [
 export const pushplusProviderDefinition: NotificationProviderDefinition = {
   type: "pushplus",
   label: "PushPlus",
-  description:
-    "通过 PushPlus 标准发送接口推送通知，可按规则选择公众号、App、邮件等渠道。",
+  description: pushplusT("description"),
   connection_schema: PUSHPLUS_CONNECTION_SCHEMA,
   target_schema: PUSHPLUS_TARGET_SCHEMA,
   sensitive_fields: ["token"],
@@ -189,7 +193,9 @@ const buildPushPlusTextContent = (message: NotificationMessage) => {
 
   return (
     sections.filter(Boolean).join("\n\n") ||
-    toTrimmedString(message.title || message.summary || "fn-knock 通知")
+    toTrimmedString(
+      message.title || message.summary || pushplusT("message.fallbackTitle"),
+    )
   );
 };
 
@@ -286,7 +292,11 @@ const buildPushPlusHtmlContent = (message: NotificationMessage) => {
 
   return (
     sections.filter(Boolean).join("") ||
-    `<p>${escapeHtml(toTrimmedString(message.title || message.summary || "fn-knock 通知"))}</p>`
+    `<p>${escapeHtml(
+      toTrimmedString(
+        message.title || message.summary || pushplusT("message.fallbackTitle"),
+      ),
+    )}</p>`
   );
 };
 
@@ -341,7 +351,7 @@ export const sendPushPlusMessage = async (args: {
     return {
       success: false,
       retryable: false,
-      reason: "Missing PushPlus token",
+      reason: pushplusT("errors.missingToken"),
     };
   }
 
@@ -355,7 +365,9 @@ export const sendPushPlusMessage = async (args: {
   const pre = toTrimmedString(targetConfig.pre);
   const title = truncateText(
     toTrimmedString(
-      args.message.title || args.message.summary || "fn-knock 通知",
+      args.message.title ||
+        args.message.summary ||
+        pushplusT("message.fallbackTitle"),
     ),
     128,
   );
@@ -372,7 +384,7 @@ export const sendPushPlusMessage = async (args: {
   const requestBody = {
     token,
     ...(title ? { title } : {}),
-    content: content || "fn-knock 通知",
+    content: content || pushplusT("message.fallbackTitle"),
     template,
     channel,
     ...(topic ? { topic } : {}),
@@ -448,7 +460,9 @@ export const sendPushPlusMessage = async (args: {
       success: false,
       retryable: true,
       reason:
-        error instanceof Error ? error.message : "PushPlus request failed",
+        error instanceof Error
+          ? error.message
+          : pushplusT("errors.requestFailed"),
       request_summary: {
         method: "POST",
         endpoint: url,

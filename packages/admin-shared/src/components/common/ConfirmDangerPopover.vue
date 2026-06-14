@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Loader2 } from 'lucide-vue-next';
 import type { ButtonVariants } from '@/components/ui/button';
+import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 const props = withDefaults(
   defineProps<{
@@ -18,8 +20,6 @@ const props = withDefaults(
     onConfirm: () => void | Promise<void>;
   }>(),
   {
-    confirmText: '确认删除',
-    cancelText: '取消',
     confirmVariant: 'destructive',
     loading: false,
     disabled: false,
@@ -27,6 +27,10 @@ const props = withDefaults(
     closeOnConfirm: true,
   },
 );
+
+const { t } = useI18n();
+const cancelText = computed(() => props.cancelText ?? t('common.cancel'));
+const confirmText = computed(() => props.confirmText ?? t('common.confirmDelete'));
 
 const handleConfirm = async (close: () => void) => {
   await props.onConfirm();
@@ -47,7 +51,7 @@ const handleConfirm = async (close: () => void) => {
         <p class="text-xs text-muted-foreground">{{ props.description }}</p>
         <div class="flex justify-end gap-2">
           <Button variant="outline" size="sm" @click="close" :disabled="props.loading">
-            {{ props.cancelText }}
+            {{ cancelText }}
           </Button>
           <Button
             :variant="props.confirmVariant"
@@ -56,7 +60,7 @@ const handleConfirm = async (close: () => void) => {
             @click="handleConfirm(close)"
           >
             <Loader2 v-if="props.loading" class="mr-2 h-3 w-3 animate-spin" />
-            {{ props.confirmText }}
+            {{ confirmText }}
           </Button>
         </div>
       </div>

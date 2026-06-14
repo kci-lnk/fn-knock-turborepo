@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import InlineCommentEditor from "@admin-shared/components/InlineCommentEditor.vue";
 import { Button } from "@/components/ui/button";
@@ -37,22 +38,26 @@ import FnosAttachmentIndicator from "./FnosAttachmentIndicator.vue";
 import trimMediaLogoUrl from "@/assets/trim-media-logo.png";
 
 const router = useRouter();
+const { t, locale } = useI18n();
 const sessions = ref<SessionRecord[]>([]);
 const showDetail = ref(false);
 const detailSession = ref<SessionRecord | null>(null);
 
 const { isPending: isLoading, run: runLoadSessions } = useAsyncAction({
   onError: (error) => {
-    toast.error("加载失败", {
-      description: extractErrorMessage(error, "加载失败"),
+    toast.error(t("admin.sessions.loadFailed"), {
+      description: extractErrorMessage(error, t("admin.sessions.loadFailed")),
     });
   },
 });
 
 const { isPending: isKicking, run: runKickSession } = useAsyncAction({
   onError: (error) => {
-    toast.error("踢出失败", {
-      description: extractErrorMessage(error, "操作失败"),
+    toast.error(t("admin.sessions.kickFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.sessions.operationFailed"),
+      ),
     });
   },
 });
@@ -64,25 +69,34 @@ const { run: runUpdateComment } = useAsyncAction({
 const configStore = useConfigStore();
 
 const detailFieldDefinitions = [
-  { key: "id", label: "会话 ID" },
-  { key: "method", label: "登录方式" },
-  { key: "credentialName", label: "凭证名称" },
-  { key: "comment", label: "备注" },
-  { key: "ip", label: "当前 IP" },
-  { key: "ipLocation", label: "归属信息" },
-  { key: "userAgent", label: "User-Agent" },
-  { key: "loginTime", label: "登录时间" },
-  { key: "expiresAt", label: "过期时间" },
+  { key: "id", labelKey: "admin.sessions.table.sessionId" },
+  { key: "method", labelKey: "admin.sessions.table.loginMethod" },
+  { key: "credentialName", labelKey: "admin.sessions.table.credentialName" },
+  { key: "comment", labelKey: "admin.sessions.table.comment" },
+  { key: "ip", labelKey: "admin.sessions.table.currentIp" },
+  { key: "ipLocation", labelKey: "admin.sessions.table.ipLocation" },
+  { key: "userAgent", labelKey: "User-Agent" },
+  { key: "loginTime", labelKey: "admin.sessions.table.loginTime" },
+  { key: "expiresAt", labelKey: "admin.sessions.table.expiresAt" },
 ] as const;
+
+const localizedDetailFieldDefinitions = computed(() =>
+  detailFieldDefinitions.map((field) => ({
+    key: field.key,
+    label:
+      field.labelKey === "User-Agent" ? field.labelKey : t(field.labelKey),
+  })),
+);
 
 const hasSessions = computed(() => sessions.value.length > 0);
 
 const detailItems = computed(() => {
-  return buildDetailFields(detailSession.value, detailFieldDefinitions, {
+  return buildDetailFields(detailSession.value, localizedDetailFieldDefinitions.value, {
     format: (key, value) => {
       if (key === "loginTime" || key === "expiresAt") {
         return formatDateTimeSafe(
           value as string | number | Date | null | undefined,
+          { locale: locale.value },
         );
       }
       return value;
@@ -124,7 +138,7 @@ async function kickSession(sessionId: string) {
         detailSession.value = null;
         showDetail.value = false;
       }
-      toast.success("已踢出会话");
+      toast.success(t("admin.sessions.kicked"));
       await fetchSessions();
     },
   });
@@ -147,10 +161,12 @@ async function updateComment(sessionId: string, comment: string) {
           ...updated,
         };
       }
-      toast.success("备注已更新");
+      toast.success(t("admin.sessions.commentUpdated"));
     },
     onError: (error) => {
-      throw new Error(extractErrorMessage(error, "更新备注失败"));
+      throw new Error(
+        extractErrorMessage(error, t("admin.sessions.updateCommentFailed")),
+      );
     },
   });
 }
@@ -170,7 +186,7 @@ watch(
   <div class="space-y-3">
     <div class="flex items-center justify-between">
       <div class="text-sm text-muted-foreground">
-        当前活跃会话 {{ sessions.length }} 个
+        {{ t("admin.sessions.activeCount", { count: sessions.length }) }}
       </div>
       <RefreshButton
         :loading="isLoading"
@@ -184,13 +200,17 @@ watch(
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead class="w-[150px]">会话 ID</TableHead>
-              <TableHead>凭证</TableHead>
-              <TableHead>备注</TableHead>
-              <TableHead>当前 IP</TableHead>
-              <TableHead>登录时间</TableHead>
-              <TableHead>过期时间</TableHead>
-              <TableHead class="w-[210px] text-right">操作</TableHead>
+              <TableHead class="w-[150px]">{{
+                t("admin.sessions.table.sessionId")
+              }}</TableHead>
+              <TableHead>{{ t("admin.sessions.table.credential") }}</TableHead>
+              <TableHead>{{ t("admin.sessions.table.comment") }}</TableHead>
+              <TableHead>{{ t("admin.sessions.table.currentIp") }}</TableHead>
+              <TableHead>{{ t("admin.sessions.table.loginTime") }}</TableHead>
+              <TableHead>{{ t("admin.sessions.table.expiresAt") }}</TableHead>
+              <TableHead class="w-[210px] text-right">{{
+                t("admin.sessions.table.actions")
+              }}</TableHead>
             </TableRow>
           </TableHeader>
 
@@ -220,11 +240,15 @@ watch(
                     v-if="session.trimMediaAttachments?.length"
                     :attachments="session.trimMediaAttachments"
                     :icon-url="trimMediaLogoUrl"
-                    icon-alt="飞牛影视App"
-                    title="附着的飞牛影视App令牌"
-                    trigger-label="飞牛影视App令牌"
-                    item-label="令牌"
-                    footer-text="包括飞牛影视App绑定到当前网页登录会话的令牌都会在此显示"
+                    :icon-alt="t('admin.sessions.attachments.trimMediaIconAlt')"
+                    :title="t('admin.sessions.attachments.trimMediaTitle')"
+                    :trigger-label="
+                      t('admin.sessions.attachments.trimMediaTriggerLabel')
+                    "
+                    :item-label="
+                      t('admin.sessions.attachments.trimMediaItemLabel')
+                    "
+                    :footer-text="t('admin.sessions.attachments.trimMediaFooter')"
                   />
                 </div>
               </TableCell>
@@ -257,13 +281,19 @@ watch(
 
               <TableCell>
                 <div class="text-sm">
-                  <HumanFriendlyTime :value="session.loginTime" />
+                  <HumanFriendlyTime
+                    :value="session.loginTime"
+                    :locale="locale"
+                  />
                 </div>
               </TableCell>
 
               <TableCell>
                 <div class="text-sm">
-                  <HumanFriendlyTime :value="session.expiresAt" />
+                  <HumanFriendlyTime
+                    :value="session.expiresAt"
+                    :locale="locale"
+                  />
                 </div>
               </TableCell>
 
@@ -276,7 +306,7 @@ watch(
                     @click="openMobility(session)"
                   >
                     <GitBranch class="h-4 w-4" />
-                    轨迹
+                    {{ t("admin.sessions.mobility") }}
                   </Button>
                   <Button
                     variant="outline"
@@ -285,12 +315,12 @@ watch(
                     @click="openDetail(session)"
                   >
                     <Eye class="h-4 w-4" />
-                    详情
+                    {{ t("admin.sessions.detail") }}
                   </Button>
                   <ConfirmDangerPopover
-                    title="确认踢出会话？"
-                    description="踢出后该会话将失效，需重新登录。"
-                    confirm-text="确认踢出"
+                    :title="t('admin.sessions.confirmKickTitle')"
+                    :description="t('admin.sessions.confirmKickDescription')"
+                    :confirm-text="t('admin.sessions.confirmKick')"
                     :loading="isKicking"
                     :disabled="isKicking"
                     :on-confirm="() => kickSession(session.id)"
@@ -303,7 +333,7 @@ watch(
                         class="gap-1.5"
                       >
                         <Trash2 class="h-4 w-4" />
-                        踢出
+                        {{ t("admin.sessions.kick") }}
                       </Button>
                     </template>
                   </ConfirmDangerPopover>
@@ -318,7 +348,7 @@ watch(
                 colspan="8"
                 class="py-6 text-center text-muted-foreground"
               >
-                暂无会话
+                {{ t("admin.sessions.empty") }}
               </TableCell>
             </TableRow>
           </TableBody>
@@ -328,8 +358,8 @@ watch(
 
     <DetailDialog
       :open="showDetail"
-      title="会话详情"
-      description="查看该会话的详细信息"
+      :title="t('admin.sessions.detailTitle')"
+      :description="t('admin.sessions.detailDescription')"
       max-width-class="sm:max-w-[500px]"
       @update:open="showDetail = $event"
     >

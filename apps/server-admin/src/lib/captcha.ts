@@ -5,9 +5,14 @@ import {
     type CaptchaSettings,
 } from "./redis";
 import { safeEqualString } from "./security";
+import { tDefault } from "./i18n";
 
 const MAX_NUMBER = 100000;
 const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+const captchaT = (
+    key: string,
+    params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.captcha.${key}`, params);
 
 type PowChallengeResponse = {
     algorithm: "SHA-256";
@@ -63,7 +68,7 @@ class PowCaptchaProvider implements CaptchaProviderAdapter {
     private getHmacKey() {
         const key = process.env.ALTCHA_HMAC_KEY?.trim();
         if (!key) {
-            throw new Error("PoW 验证码尚未完成服务端配置");
+            throw new Error(captchaT("powServerNotConfigured"));
         }
         return key;
     }
@@ -73,7 +78,7 @@ class PowCaptchaProvider implements CaptchaProviderAdapter {
         if (!key) {
             return {
                 available: false,
-                reason: "PoW 验证码尚未完成服务端配置",
+                reason: captchaT("powServerNotConfigured"),
             };
         }
         return { available: true, reason: null };
@@ -106,7 +111,7 @@ class PowCaptchaProvider implements CaptchaProviderAdapter {
         _settings: CaptchaSettings,
     ): Promise<void> {
         if (submission.provider !== "pow") {
-            throw new Error("验证码类型不匹配");
+            throw new Error(captchaT("providerMismatch"));
         }
 
         const payloadDecoded = Buffer.from(submission.proof, "base64").toString("utf-8");
@@ -162,7 +167,7 @@ class TurnstileCaptchaProvider implements CaptchaProviderAdapter {
         if (!settings.turnstile.site_key.trim() || !settings.turnstile.secret_key.trim()) {
             return {
                 available: false,
-                reason: "当前 Turnstile 未完成配置，请联系管理员完善参数",
+                reason: captchaT("turnstileNotConfigured"),
             };
         }
         return { available: true, reason: null };
@@ -174,17 +179,17 @@ class TurnstileCaptchaProvider implements CaptchaProviderAdapter {
         context: CaptchaVerifyContext,
     ): Promise<void> {
         if (submission.provider !== "turnstile") {
-            throw new Error("验证码类型不匹配");
+            throw new Error(captchaT("providerMismatch"));
         }
 
         const secretKey = settings.turnstile.secret_key.trim();
         if (!secretKey) {
-            throw new Error("Cloudflare Turnstile secret_key 未配置");
+            throw new Error(captchaT("turnstileSecretMissing"));
         }
 
         const token = submission.token.trim();
         if (!token) {
-            throw new Error("Turnstile token 不能为空");
+            throw new Error(captchaT("turnstileTokenRequired"));
         }
 
         const body = new URLSearchParams({
@@ -204,13 +209,13 @@ class TurnstileCaptchaProvider implements CaptchaProviderAdapter {
         });
 
         if (!response.ok) {
-            throw new Error("Turnstile 校验服务暂时不可用");
+            throw new Error(captchaT("turnstileServiceUnavailable"));
         }
 
         const result = await response.json() as TurnstileVerifyResponse;
         if (result.success !== true) {
             const reason = result["error-codes"]?.filter(Boolean).join(", ");
-            throw new Error(reason ? `Turnstile 验证失败: ${reason}` : "Turnstile 验证失败");
+            throw new Error(reason ? captchaT("turnstileVerifyFailedWithReason", { reason }) : captchaT("turnstileVerifyFailed"));
         }
     }
 }
@@ -254,19 +259,19 @@ class CaptchaService {
 
         return {
             available: false,
-            reason: "未找到可用的验证码提供商",
+            reason: captchaT("providerUnavailable"),
         };
     }
 
     async createChallenge(): Promise<PowChallengeResponse> {
         const settings = await this.getSettings();
         if (settings.provider !== "pow") {
-            throw new Error("当前未启用 PoW 验证码");
+            throw new Error(captchaT("powNotEnabled"));
         }
 
         const availability = this.getAvailability(settings);
         if (!availability.available) {
-            throw new Error(availability.reason || "当前 PoW 验证码不可用");
+            throw new Error(availability.reason || captchaT("powUnavailable"));
         }
 
         const provider = this.providers.get("pow");
@@ -282,12 +287,12 @@ class CaptchaService {
     ): Promise<void> {
         const settings = await this.getSettings();
         if (submission.provider !== settings.provider) {
-            throw new Error("验证码提供商与当前配置不一致");
+            throw new Error(captchaT("providerConfigMismatch"));
         }
 
         const provider = this.providers.get(settings.provider);
         if (!provider) {
-            throw new Error("未找到可用的验证码提供商");
+            throw new Error(captchaT("providerUnavailable"));
         }
 
         await provider.verify(submission, settings, context);

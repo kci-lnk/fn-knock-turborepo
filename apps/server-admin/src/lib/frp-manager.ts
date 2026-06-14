@@ -3,6 +3,7 @@ import fs from 'fs';
 import { spawn } from "node:child_process";
 import { dataPath } from './AppDirManager';
 import { waitForProcessExit } from "./runtime";
+import { tDefault } from "./i18n";
 
 type DownloadState = 'idle' | 'downloading' | 'completed' | 'error';
 
@@ -21,6 +22,10 @@ const DATA_DIR = dataPath;
 const FRP_DIR = path.join(DATA_DIR, 'frp');
 const TAR_PATH = path.join(FRP_DIR, 'frp.tar.gz');
 const VERSION = '0.67.0';
+const frpManagerT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.tunnelManagers.frp.${key}`, params);
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(FRP_DIR)) fs.mkdirSync(FRP_DIR, { recursive: true });
@@ -98,8 +103,8 @@ class FrpManager {
 
   private async extractAndPrepare(platform: Status['platform']): Promise<void> {
     const targetDir = this.extractedDir(platform);
-    if (!targetDir) throw new Error('当前平台不受支持');
-    if (!fs.existsSync(TAR_PATH)) throw new Error('FRP 安装包缺失');
+    if (!targetDir) throw new Error(frpManagerT("platformUnsupported"));
+    if (!fs.existsSync(TAR_PATH)) throw new Error(frpManagerT("packageMissing"));
     if (fs.existsSync(targetDir)) {
       fs.rmSync(targetDir, { recursive: true, force: true });
     }
@@ -108,7 +113,7 @@ class FrpManager {
     });
     const code = await waitForProcessExit(proc);
     if (code !== 0) {
-      throw new Error(`解压失败，退出码 ${code}`);
+      throw new Error(frpManagerT("extractFailed", { code }));
     }
     const frpc = path.join(targetDir, 'frpc');
     const frps = path.join(targetDir, 'frps');
@@ -121,7 +126,11 @@ class FrpManager {
     const platform = this.detectPlatform();
     const candidates = this.urlCandidatesForPlatform(platform);
     if (!candidates.length) {
-      this.progress = { status: 'error', percent: 0, error: '当前平台不受支持' };
+      this.progress = {
+        status: 'error',
+        percent: 0,
+        error: frpManagerT("platformUnsupported"),
+      };
       return;
     }
     this.abortController = new AbortController();
@@ -141,7 +150,7 @@ class FrpManager {
           const total = totalHeader ? parseInt(totalHeader, 10) : 0;
           let loaded = 0;
           const reader = res.body?.getReader();
-          if (!reader) throw new Error('下载响应体不可读');
+          if (!reader) throw new Error(frpManagerT("responseBodyUnreadable"));
           const stream = fs.createWriteStream(tempPath);
           while (true) {
             const { done, value } = await reader.read();
@@ -163,12 +172,18 @@ class FrpManager {
           succeeded = true;
           break;
         } catch (e: any) {
-          lastErr = e?.message || '连接失败';
+          lastErr = e?.message || frpManagerT("connectionFailed");
           continue;
         }
       }
       if (!succeeded) {
-        this.progress = { status: 'error', percent: 0, error: `下载失败：${lastErr || '未知错误'}` };
+        this.progress = {
+          status: 'error',
+          percent: 0,
+          error: frpManagerT("downloadFailed", {
+            detail: lastErr || frpManagerT("unknownError"),
+          }),
+        };
         this.abortController = null;
         if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
         return;
@@ -177,7 +192,11 @@ class FrpManager {
       await this.extractAndPrepare(platform);
       this.progress = { status: 'completed', percent: 100 };
     } catch (e: any) {
-      this.progress = { status: 'error', percent: 0, error: e?.message || '未知错误' };
+      this.progress = {
+        status: 'error',
+        percent: 0,
+        error: e?.message || frpManagerT("unknownError"),
+      };
       if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
     } finally {
       this.abortController = null;
@@ -195,7 +214,11 @@ class FrpManager {
       const tmp = TAR_PATH + '.tmp';
       if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
     } catch {}
-    this.progress = { status: 'idle', percent: 0, error: '下载已取消' };
+    this.progress = {
+      status: 'idle',
+      percent: 0,
+      error: frpManagerT("downloadCancelled"),
+    };
   }
 
   async delete(): Promise<void> {
@@ -210,7 +233,7 @@ class FrpManager {
     const platform = this.detectPlatform();
     const bin = this.binaryPath(kind, platform);
     if (!bin || !fs.existsSync(bin)) {
-      throw new Error('FRP 未初始化，请先下载');
+      throw new Error(frpManagerT("notInitialized"));
     }
     return bin;
   }

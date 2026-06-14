@@ -6,9 +6,14 @@ import {
 } from "./redis";
 import { goBackend } from "./go-backend";
 import { isAnySubdomainRoutingMode } from "./reverse-proxy-submode";
+import { tDefault } from "./i18n";
 
 export const GATEWAY_PORTAL_TITLE_HOST_RULES_PATCH_FLAG_KEY =
   "fn_knock:patch:gateway-portal-title-host-rules:v1";
+const gatewayPortalT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.gatewayPortal.${key}`, params);
 
 export const normalizeGatewayPortalConfigForSync = (
   config?: Partial<GatewayPortalConfig> | null,
@@ -31,7 +36,7 @@ export const syncGatewayPortalToGateway = async (
   );
   const response = await goBackend.setGatewayPortalConfig(next);
   if (!response.success) {
-    throw new Error(response.message || "同步传送门显示配置到网关失败");
+    throw new Error(response.message || gatewayPortalT("syncConfigFailed"));
   }
   return next;
 };
@@ -48,7 +53,7 @@ export const syncGatewayPortalHostRulesIfTitleMode = async (
 
   const response = await goBackend.setHostRules(config.host_mappings);
   if (!response.success) {
-    throw new Error(response.message || "同步 Host 路由失败");
+    throw new Error(response.message || gatewayPortalT("syncHostRulesFailed"));
   }
   return true;
 };

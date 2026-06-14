@@ -25,6 +25,7 @@ import {
   redis,
   type WAFConfig,
 } from "../redis";
+import { tDefault } from "../i18n";
 import { wafCollector } from "./collector";
 
 const MANIFEST_URL = "https://fn-knock.cdn.wxlnk.com/waf/manifest.json";
@@ -184,6 +185,11 @@ let systemRulesAutoUpdateRunning = false;
 
 const nowISO = () => new Date().toISOString();
 
+const wafT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+): string => tDefault(`server.waf.${key}`, params);
+
 const sha256Hex = (input: Buffer | string): string =>
   createHash("sha256").update(input).digest("hex");
 
@@ -297,12 +303,12 @@ const isManifestStale = (cache: WAFManifestCache): boolean => {
 
 const validateManifest = (value: any): WAFRemoteManifest => {
   if (!value || typeof value !== "object") {
-    throw new Error("系统规则清单格式不正确");
+    throw new Error(wafT("manifestInvalid"));
   }
   const zipFile = String(value.zipFile || "").trim();
   const zipHash = String(value.zipHash || "").trim();
   if (!zipFile || !zipHash) {
-    throw new Error("系统规则清单缺少 zip 文件信息");
+    throw new Error(wafT("manifestMissingZipInfo"));
   }
   return {
     ...value,
@@ -324,7 +330,7 @@ export const refreshSystemManifestCache =
         },
       });
       if (!response.ok) {
-        throw new Error(`系统规则清单请求失败: HTTP ${response.status}`);
+        throw new Error(wafT("manifestRequestFailed", { status: response.status }));
       }
       const manifest = validateManifest(await response.json());
       const cache: WAFManifestCache = {
@@ -339,7 +345,7 @@ export const refreshSystemManifestCache =
       const cache: WAFManifestCache = {
         ...previous,
         last_checked_at: checkedAt,
-        last_error: errorMessage(error, "系统规则清单刷新失败"),
+        last_error: errorMessage(error, wafT("manifestRefreshFailed")),
       };
       await writeJSONFile(MANIFEST_CACHE_PATH, cache);
       throw error;
@@ -361,36 +367,36 @@ const getManifestCacheForDetails = async (): Promise<WAFManifestCache> => {
 const safeRuleFilename = (value: string): string => {
   const raw = basename(value.replace(/\\/g, "/")).trim();
   if (!raw || raw === "." || raw === ".." || !CONF_EXT_RE.test(raw)) {
-    throw new Error("只支持 .conf 规则文件");
+    throw new Error(wafT("confOnly"));
   }
   const safe = raw.replace(/[^A-Za-z0-9._-]/g, "-");
   if (!safe || !CONF_EXT_RE.test(safe)) {
-    throw new Error("规则文件名不正确");
+    throw new Error(wafT("ruleFilenameInvalid"));
   }
   return safe;
 };
 
 const decodeUTF8Rule = (content: Buffer, filename: string): string => {
   if (content.length > MAX_RULE_FILE_BYTES) {
-    throw new Error(`${filename} 超过 1MB`);
+    throw new Error(wafT("fileTooLarge", { filename }));
   }
   const text = content.toString("utf8").replace(/^\uFEFF/, "");
   if (text.includes("\uFFFD")) {
-    throw new Error(`${filename} 不是有效的 UTF-8 文本`);
+    throw new Error(wafT("fileInvalidUtf8", { filename }));
   }
   if (BLOCKED_DIRECTIVE_RE.test(text)) {
-    throw new Error(`${filename} 包含不允许的文件系统指令`);
+    throw new Error(wafT("filesystemDirectiveBlocked", { filename }));
   }
   return text;
 };
 
 const readUTF8RuleText = (content: Buffer, filename: string): string => {
   if (content.length > MAX_RULE_FILE_BYTES) {
-    throw new Error(`${filename} 超过 1MB`);
+    throw new Error(wafT("fileTooLarge", { filename }));
   }
   const text = content.toString("utf8").replace(/^\uFEFF/, "");
   if (text.includes("\uFFFD")) {
-    throw new Error(`${filename} 不是有效的 UTF-8 文本`);
+    throw new Error(wafT("fileInvalidUtf8", { filename }));
   }
   return text;
 };
@@ -430,7 +436,9 @@ const listRuleFiles = async (
       filename: entry.name,
       description:
         descriptions.get(entry.name) ||
-        (source === "system" ? "系统安全规则" : "用户上传规则"),
+        (source === "system"
+          ? wafT("systemRuleDescription")
+          : wafT("customRuleDescription")),
       enabled:
         enabledMap[entry.name] ??
         (source === "system" ? isSystemRuleEnabledByDefault(entry.name) : true),
@@ -576,7 +584,7 @@ const hasAnyEnabledRuleFiles = async (
 
 const applyWAFConfigToGateway = async (
   config: WAFConfig,
-  emptyRulesMessage = "至少启用一个 WAF 规则文件后再开启",
+  emptyRulesMessage = wafT("enableNeedsRule"),
 ): Promise<void> => {
   const next = normalizeFixedWAFConfig(config);
   if (!next.enabled) {
@@ -590,7 +598,7 @@ const applyWAFConfigToGateway = async (
   }
   const response = await goBackend.reloadWAFRules(toGatewayWAFConfig(next));
   if (!response.success || !response.data) {
-    throw new Error(response.message || "WAF 规则加载失败");
+    throw new Error(response.message || wafT("rulesLoadFailed"));
   }
 };
 
@@ -611,7 +619,7 @@ export const syncWAFConfigToGateway = async (
   );
   const response = await goBackend.setWAFConfig(toGatewayWAFConfig(next));
   if (!response.success || !response.data) {
-    throw new Error(response.message || "同步 WAF 配置到网关失败");
+    throw new Error(response.message || wafT("configSyncFailed"));
   }
   return response.data;
 };
@@ -664,7 +672,7 @@ export const readWAFRuleFile = async (
 ): Promise<WAFRuleFileContent> => {
   await ensureWAFDirectories();
   if (source !== "system" && source !== "custom") {
-    throw new Error("规则来源不正确");
+    throw new Error(wafT("sourceInvalid"));
   }
   const safe = safeRuleFilename(filename);
   const manifestCache = await getManifestCacheForDetails();
@@ -672,7 +680,7 @@ export const readWAFRuleFile = async (
   const rules = await listRuleFiles(source, manifestCache.manifest, state);
   const rule = rules.find((item) => item.filename === safe);
   if (!rule) {
-    throw new Error("规则文件不存在");
+    throw new Error(wafT("ruleFileNotFound"));
   }
   const dir = source === "system" ? SYSTEM_DIR : CUSTOM_DIR;
   const content = readUTF8RuleText(await readFile(join(dir, safe)), safe);
@@ -687,7 +695,7 @@ const findZipEndOfCentralDirectory = (buffer: Buffer): number => {
   for (let index = buffer.length - 22; index >= min; index -= 1) {
     if (buffer.readUInt32LE(index) === 0x06054b50) return index;
   }
-  throw new Error("系统规则 zip 格式不正确");
+  throw new Error(wafT("zipInvalid"));
 };
 
 const parseZipEntries = (buffer: Buffer): ArchiveEntry[] => {
@@ -698,7 +706,7 @@ const parseZipEntries = (buffer: Buffer): ArchiveEntry[] => {
   let unpackedBytes = 0;
   for (let index = 0; index < entryCount; index += 1) {
     if (buffer.readUInt32LE(offset) !== 0x02014b50) {
-      throw new Error("系统规则 zip 目录不正确");
+      throw new Error(wafT("zipDirectoryInvalid"));
     }
     const flags = buffer.readUInt16LE(offset + 8);
     const method = buffer.readUInt16LE(offset + 10);
@@ -714,10 +722,10 @@ const parseZipEntries = (buffer: Buffer): ArchiveEntry[] => {
     if (!name.endsWith("/")) {
       unpackedBytes += uncompressedSize;
       if (unpackedBytes > MAX_UNPACKED_ZIP_BYTES) {
-        throw new Error("系统规则包解压后过大");
+        throw new Error(wafT("zipUnpackedTooLarge"));
       }
       if (buffer.readUInt32LE(localHeaderOffset) !== 0x04034b50) {
-        throw new Error("系统规则 zip 文件头不正确");
+        throw new Error(wafT("zipHeaderInvalid"));
       }
       const localNameLength = buffer.readUInt16LE(localHeaderOffset + 26);
       const localExtraLength = buffer.readUInt16LE(localHeaderOffset + 28);
@@ -731,10 +739,10 @@ const parseZipEntries = (buffer: Buffer): ArchiveEntry[] => {
             ? inflateRawSync(compressed)
             : null;
       if (!content) {
-        throw new Error(`暂不支持 zip 压缩方式 ${method}`);
+        throw new Error(wafT("zipMethodUnsupported", { method }));
       }
       if (content.length !== uncompressedSize) {
-        throw new Error("系统规则 zip 文件大小不正确");
+        throw new Error(wafT("zipSizeInvalid"));
       }
       entries.push({ path: name, content });
     }
@@ -756,7 +764,7 @@ const safeBundleEntryPath = (value: string): string => {
     ) ||
     !BUNDLE_ENTRY_PATH_RE.test(normalized)
   ) {
-    throw new Error(`系统规则 zip 文件路径不正确: ${value}`);
+    throw new Error(wafT("zipPathInvalid", { path: value }));
   }
   return segments.join("/");
 };
@@ -772,15 +780,15 @@ const downloadSystemZip = async (
     },
   });
   if (!response.ok) {
-    throw new Error(`系统规则下载失败: HTTP ${response.status}`);
+    throw new Error(wafT("downloadFailed", { status: response.status }));
   }
   const buffer = Buffer.from(await response.arrayBuffer());
   if (buffer.length > MAX_ZIP_BYTES) {
-    throw new Error("系统规则包过大");
+    throw new Error(wafT("zipTooLarge"));
   }
   const actualHash = sha256Hex(buffer);
   if (actualHash !== manifest.zipHash.toLowerCase()) {
-    throw new Error("系统规则包校验失败");
+    throw new Error(wafT("zipHashMismatch"));
   }
   return buffer;
 };
@@ -791,7 +799,7 @@ const syncSystemWAFRulesFromManifest = async (
   const zipBuffer = await downloadSystemZip(manifest);
   const entries = parseZipEntries(zipBuffer);
   if (entries.length === 0) {
-    throw new Error("系统规则包为空");
+    throw new Error(wafT("zipEmpty"));
   }
 
   const bundleFiles = new Map<string, Buffer>();
@@ -801,14 +809,14 @@ const syncSystemWAFRulesFromManifest = async (
     const relativePath = safeBundleEntryPath(entry.path);
     const pathKey = relativePath.toLowerCase();
     if (bundlePathKeys.has(pathKey)) {
-      throw new Error(`系统规则包内存在重复文件: ${relativePath}`);
+      throw new Error(wafT("zipDuplicateFile", { path: relativePath }));
     }
     bundlePathKeys.add(pathKey);
 
     const filename = basename(relativePath);
     if (CONF_EXT_RE.test(filename)) {
       if (relativePath !== filename) {
-        throw new Error("系统规则包内 .conf 文件必须位于根目录");
+        throw new Error(wafT("zipConfRootOnly"));
       }
       const content = decodeUTF8Rule(entry.content, filename);
       bundleFiles.set(relativePath, Buffer.from(content, "utf8"));
@@ -818,7 +826,7 @@ const syncSystemWAFRulesFromManifest = async (
     }
   }
   if (ruleFiles.size === 0) {
-    throw new Error("系统规则包内没有 .conf 文件");
+    throw new Error(wafT("zipNoConf"));
   }
 
   const tempDir = `${SYSTEM_DIR}.tmp-${Date.now()}`;
@@ -834,7 +842,7 @@ const syncSystemWAFRulesFromManifest = async (
       tempRelativePath.startsWith(`..${sep}`) ||
       tempRelativePath === ""
     ) {
-      throw new Error("系统规则文件路径不正确");
+      throw new Error(wafT("systemRulePathInvalid"));
     }
     await mkdir(dirname(filePath), { recursive: true });
     await writeFile(filePath, content);
@@ -870,7 +878,7 @@ const syncSystemWAFRulesFromManifest = async (
 export const syncSystemWAFRules = async (): Promise<WAFDetails> => {
   const cache = await refreshSystemManifestCache();
   const manifest = cache.manifest;
-  if (!manifest) throw new Error("系统规则清单为空");
+  if (!manifest) throw new Error(wafT("manifestEmpty"));
   return syncSystemWAFRulesFromManifest(manifest);
 };
 
@@ -908,7 +916,7 @@ export const checkAndSyncSystemWAFRulesIfNeeded =
 
     const cache = await refreshSystemManifestCache();
     const manifest = cache.manifest;
-    if (!manifest) throw new Error("系统规则清单为空");
+    if (!manifest) throw new Error(wafT("manifestEmpty"));
 
     const [synced, hasLocalRules] = await Promise.all([
       readSystemSyncState(),
@@ -959,7 +967,7 @@ export const setWAFRuleEnabled = async (
     enabledMap[filename] = Boolean(input.enabled);
   }
   if (details.config.enabled && !(await hasAnyEnabledRuleFiles(nextState))) {
-    throw new Error("开启 WAF 时至少保留一个启用的规则文件");
+    throw new Error(wafT("keepOneEnabledRule"));
   }
   await writeRulesState(nextState);
   await applyWAFConfigToGateway(details.config);
@@ -988,7 +996,7 @@ export const uploadCustomWAFRules = async (
 ): Promise<WAFDetails> => {
   await ensureWAFDirectories();
   if (!Array.isArray(input.files) || input.files.length === 0) {
-    throw new Error("请选择要上传的 .conf 文件");
+    throw new Error(wafT("uploadSelectConf"));
   }
   const state = await readRulesState();
   for (const file of input.files) {
@@ -1018,7 +1026,7 @@ export const deleteCustomWAFRule = async (
       filename: safe,
     });
     if (!canDelete) {
-      throw new Error("开启 WAF 时至少保留一个启用的规则文件");
+      throw new Error(wafT("keepOneEnabledRule"));
     }
   }
   try {
@@ -1088,7 +1096,7 @@ export const syncWAFToGatewayOnBoot = async (): Promise<void> => {
   if (config.enabled) {
     const response = await goBackend.reloadWAFRules(toGatewayWAFConfig(config));
     if (!response.success) {
-      throw new Error(response.message || "重新加载 WAF 规则失败");
+      throw new Error(response.message || wafT("reloadRulesFailed"));
     }
   }
 };

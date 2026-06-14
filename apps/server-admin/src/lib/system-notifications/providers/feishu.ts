@@ -13,12 +13,18 @@ import {
   toTrimmedString,
   truncateText,
 } from "./shared";
+import { tDefault } from "../../i18n";
+
+const feishuT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.notifications.providers.catalog.feishu.${key}`, params);
 
 const FEISHU_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   {
     key: "webhook_url",
     label: "Webhook URL",
-    description: "飞书机器人生成的完整 Webhook 地址。",
+    description: feishuT("fields.webhook_url.description"),
     placeholder: "https://open.feishu.cn/open-apis/bot/v2/hook/xxxxxxxxx",
     type: "string",
     required: true,
@@ -26,24 +32,22 @@ const FEISHU_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   },
   {
     key: "secret",
-    label: "签名密钥",
-    description:
-      "可选。若机器人启用了“签名校验”，请填写安全设置中复制出的密钥。",
+    label: feishuT("fields.secret.label"),
+    description: feishuT("fields.secret.description"),
     placeholder: "xxxxxxxxxxxxxxxx",
     type: "string",
     sensitive: true,
   },
   {
     key: "keyword_prefix",
-    label: "关键词前缀",
-    description:
-      "可选。若机器人启用了自定义关键词校验，建议填写一个固定关键词；发送时会自动追加到标题前。",
-    placeholder: "应用报警",
+    label: feishuT("fields.keyword_prefix.label"),
+    description: feishuT("fields.keyword_prefix.description"),
+    placeholder: feishuT("fields.keyword_prefix.placeholder"),
     type: "string",
   },
   {
     key: "timeout_seconds",
-    label: "超时秒数",
+    label: feishuT("fields.timeout_seconds.label"),
     type: "number",
     required: true,
     default_value: 5,
@@ -55,9 +59,8 @@ const FEISHU_CONNECTION_SCHEMA: NotificationSchemaField[] = [
 const FEISHU_TARGET_SCHEMA: NotificationSchemaField[] = [
   {
     key: "mention_user_ids",
-    label: "@ 用户 ID",
-    description:
-      "可选。多个值使用英文逗号或换行分隔；支持填写 all。外部群中 @ 单个用户仅支持 Open ID。",
+    label: feishuT("fields.mention_user_ids.label"),
+    description: feishuT("fields.mention_user_ids.description"),
     placeholder: "ou_xxx,all",
     type: "string",
   },
@@ -65,9 +68,8 @@ const FEISHU_TARGET_SCHEMA: NotificationSchemaField[] = [
 
 export const feishuProviderDefinition: NotificationProviderDefinition = {
   type: "feishu",
-  label: "飞书机器人",
-  description:
-    "通过飞书机器人 Webhook 向群聊发送 post 富文本通知，并支持签名校验。",
+  label: feishuT("label"),
+  description: feishuT("description"),
   connection_schema: FEISHU_CONNECTION_SCHEMA,
   target_schema: FEISHU_TARGET_SCHEMA,
   sensitive_fields: ["webhook_url", "secret"],
@@ -178,7 +180,7 @@ const buildFeishuPostContent = (
     paragraphs.push(
       mentionUserIds.map((userId) =>
         userId === "all"
-          ? { tag: "at", user_id: "all", user_name: "所有人" }
+          ? { tag: "at", user_id: "all", user_name: feishuT("mentionAll") }
           : { tag: "at", user_id: userId },
       ),
     );
@@ -191,7 +193,7 @@ const buildFeishuPostContent = (
         text:
           toTrimmedString(message.title) ||
           toTrimmedString(message.summary) ||
-          "fn-knock 通知",
+          feishuT("message.fallbackTitle"),
       },
     ]);
   }
@@ -212,7 +214,7 @@ export const sendFeishuMessage = async (args: {
     return {
       success: false,
       retryable: false,
-      reason: "Missing Feishu webhook url",
+      reason: feishuT("errors.missingWebhookUrl"),
     };
   }
 
@@ -225,7 +227,7 @@ export const sendFeishuMessage = async (args: {
     targetConfig.mention_user_ids,
   );
   const title = applyKeywordPrefix(
-    toTrimmedString(args.message.title || "fn-knock 通知"),
+    toTrimmedString(args.message.title || feishuT("message.fallbackTitle")),
     keywordPrefix,
   );
   const signatureFields = secret
@@ -291,7 +293,8 @@ export const sendFeishuMessage = async (args: {
           apiCode === 11232),
       reason: apiSucceeded
         ? undefined
-        : parsedResponse?.msg || `Feishu returned ${response.status}`,
+        : parsedResponse?.msg ||
+          feishuT("errors.requestReturned", { status: response.status }),
       request_summary: {
         method: "POST",
         url: redactFeishuWebhookUrl(webhookUrl),
@@ -312,7 +315,8 @@ export const sendFeishuMessage = async (args: {
     return {
       success: false,
       retryable: true,
-      reason: error instanceof Error ? error.message : "Feishu request failed",
+      reason:
+        error instanceof Error ? error.message : feishuT("errors.requestFailed"),
       request_summary: {
         method: "POST",
         url: redactFeishuWebhookUrl(webhookUrl),

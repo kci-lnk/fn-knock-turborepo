@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { Info } from "lucide-vue-next";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -44,19 +45,20 @@ type DurationField = {
 };
 
 const configStore = useConfigStore();
+const { t } = useI18n();
 const settings = ref<AuthCredentialSettings | null>(null);
 
 const durationUnits: Array<{
   value: DurationUnit;
-  label: string;
+  labelKey: string;
   seconds: number;
 }> = [
-  { value: "second", label: "秒", seconds: 1 },
-  { value: "minute", label: "分钟", seconds: 60 },
-  { value: "hour", label: "小时", seconds: 3600 },
-  { value: "day", label: "天", seconds: 24 * 3600 },
-  { value: "week", label: "周", seconds: 7 * 24 * 3600 },
-  { value: "year", label: "年", seconds: 365 * 24 * 3600 },
+  { value: "second", labelKey: "admin.sessionSettings.units.second", seconds: 1 },
+  { value: "minute", labelKey: "admin.sessionSettings.units.minute", seconds: 60 },
+  { value: "hour", labelKey: "admin.sessionSettings.units.hour", seconds: 3600 },
+  { value: "day", labelKey: "admin.sessionSettings.units.day", seconds: 24 * 3600 },
+  { value: "week", labelKey: "admin.sessionSettings.units.week", seconds: 7 * 24 * 3600 },
+  { value: "year", labelKey: "admin.sessionSettings.units.year", seconds: 365 * 24 * 3600 },
 ];
 
 const ipGrantDurationUnits = durationUnits.filter(
@@ -99,41 +101,48 @@ const form = reactive<{
   },
 });
 
-const postLoginIpGrantModeOptions: Array<{
-  value: PostLoginIpGrantMode;
-  title: string;
-  description: string;
-}> = [
+const postLoginIpGrantModeOptions = computed<
+  Array<{
+    value: PostLoginIpGrantMode;
+    title: string;
+    description: string;
+  }>
+>(() => [
   {
     value: "follow_session",
-    title: "跟随会话",
-    description: "登录后自动授权当前 IP，退出、踢出或过期时一并撤销。",
+    title: t("admin.sessionSettings.grantModes.followSession.title"),
+    description: t("admin.sessionSettings.grantModes.followSession.description"),
   },
   {
     value: "disabled",
-    title: "不自动授权 IP",
-    description: "只保留当前浏览器会话，不额外给当前 IP 放行。",
+    title: t("admin.sessionSettings.grantModes.disabled.title"),
+    description: t("admin.sessionSettings.grantModes.disabled.description"),
   },
   {
     value: "custom",
-    title: "自定义",
-    description:
-      "给当前 IP 签发固定时长授权；到期前可继续访问，但主动退出登录时会立即撤销。",
+    title: t("admin.sessionSettings.grantModes.custom.title"),
+    description: t("admin.sessionSettings.grantModes.custom.description"),
   },
-];
+]);
 
 const { isPending: isLoading, run: runLoadSettings } = useAsyncAction({
   onError: (error) => {
-    toast.error("加载失败", {
-      description: extractErrorMessage(error, "无法获取会话设置"),
+    toast.error(t("admin.sessionSettings.loadFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.sessionSettings.loadDescription"),
+      ),
     });
   },
 });
 const showLoadingSkeleton = useDelayedLoading(isLoading);
 const { isPending: isSaving, run: runSaveSettings } = useAsyncAction({
   onError: (error) => {
-    toast.error("保存失败", {
-      description: extractErrorMessage(error, "会话设置保存失败"),
+    toast.error(t("admin.sessionSettings.saveFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.sessionSettings.saveDescription"),
+      ),
     });
   },
 });
@@ -163,9 +172,10 @@ const splitDuration = (
 const formatDuration = (seconds: number, units = durationUnits): string => {
   const normalized = splitDuration(seconds, units);
   const label =
-    units.find((item) => item.value === normalized.unit)?.label ||
-    normalized.unit;
-  return `${normalized.value} ${label}`;
+    units.find((item) => item.value === normalized.unit)?.labelKey ||
+    "";
+  const unitLabel = label ? t(label) : normalized.unit;
+  return `${normalized.value} ${unitLabel}`;
 };
 
 const isDirectMode = computed(() => configStore.config?.run_type === 0);
@@ -237,14 +247,13 @@ const isDirty = computed(() => {
 const grantModeSummary = computed(() => {
   switch (form.postLoginIpGrantMode) {
     case "follow_session":
-      return "登录成功后，当前 IP 会随浏览器会话一起获得授权。";
+      return t("admin.sessionSettings.grantSummary.followSession");
     case "disabled":
-      return "只授权当前浏览器会话，不会额外给 IP 放行。";
+      return t("admin.sessionSettings.grantSummary.disabled");
     case "custom":
-      return `当前将保存为固定 ${formatDuration(
-        customGrantTtlSeconds.value,
-        ipGrantDurationUnits,
-      )} 的登录后 IP 授权；主动退出登录时会立即撤销。`;
+      return t("admin.sessionSettings.grantSummary.custom", {
+        duration: formatDuration(customGrantTtlSeconds.value, ipGrantDurationUnits),
+      });
     default:
       return "";
   }
@@ -252,13 +261,15 @@ const grantModeSummary = computed(() => {
 
 const sessionIpMobilitySummary = computed(() => {
   if (!form.sessionIpMobilityEnabled) {
-    return "关闭后只信任会话当前 IP。";
+    return t("admin.sessionSettings.mobilitySummary.disabled");
   }
 
-  return `最近 ${formatDuration(
-    sessionIpMobilityWindowSeconds.value,
-    mobilityWindowDurationUnits,
-  )} 内出现过的 IP 会被视为同一会话的可信来源，不会延长或缩短登录会话。`;
+  return t("admin.sessionSettings.mobilitySummary.enabled", {
+    duration: formatDuration(
+      sessionIpMobilityWindowSeconds.value,
+      mobilityWindowDurationUnits,
+    ),
+  });
 });
 
 const applyFromSettings = (data: AuthCredentialSettings) => {
@@ -301,22 +312,22 @@ const saveSettings = async () => {
   const nextMobilityWindowSeconds = sessionIpMobilityWindowSeconds.value;
 
   if (nextSessionTtl < 60 || nextRememberMeTtl < 60) {
-    toast.error("时长过短", {
-      description: "登录会话有效期至少需要 60 秒。",
+    toast.error(t("admin.sessionSettings.tooShort"), {
+      description: t("admin.sessionSettings.sessionTooShortDescription"),
     });
     return;
   }
 
   if (nextRememberMeTtl < nextSessionTtl) {
-    toast.error("设置不合理", {
-      description: "记住我有效期不能短于普通登录有效期。",
+    toast.error(t("admin.sessionSettings.invalidSettings"), {
+      description: t("admin.sessionSettings.rememberMeShorterDescription"),
     });
     return;
   }
 
   if (form.postLoginIpGrantMode === "custom" && nextCustomGrantTtl < 60) {
-    toast.error("设置不合理", {
-      description: "自定义登录后 IP 授权时长至少需要 60 秒。",
+    toast.error(t("admin.sessionSettings.invalidSettings"), {
+      description: t("admin.sessionSettings.customGrantTooShortDescription"),
     });
     return;
   }
@@ -325,8 +336,8 @@ const saveSettings = async () => {
     form.sessionIpMobilityEnabled &&
     (nextMobilityWindowSeconds < 60 || nextMobilityWindowSeconds > 24 * 3600)
   ) {
-    toast.error("设置不合理", {
-      description: "宽松的会话可信 IP 的保留时间需要在 1 分钟到 24 小时之间。",
+    toast.error(t("admin.sessionSettings.invalidSettings"), {
+      description: t("admin.sessionSettings.mobilityWindowInvalidDescription"),
     });
     return;
   }
@@ -346,7 +357,7 @@ const saveSettings = async () => {
       onSuccess: async (data) => {
         applyFromSettings(data);
         await configStore.loadConfig();
-        toast.success("会话设置已更新");
+        toast.success(t("admin.sessionSettings.updated"));
       },
     },
   );
@@ -358,9 +369,11 @@ onMounted(fetchSettings);
 <template>
   <Card>
     <CardHeader>
-      <CardTitle class="text-md">凭据与会话</CardTitle>
+      <CardTitle class="text-md">
+        {{ t("admin.sessionSettings.title") }}
+      </CardTitle>
       <CardDescription class="mt-1.5">
-        统一管理登录凭据签发后的会话时长，以及登录成功后是否自动给当前 IP 授权。
+        {{ t("admin.sessionSettings.description") }}
       </CardDescription>
     </CardHeader>
 
@@ -377,10 +390,11 @@ onMounted(fetchSettings);
           class="items-start rounded-xl border-zinc-200 bg-zinc-50/70 text-zinc-900 shadow-none"
         >
           <Info class="mt-0.5 h-4 w-4 shrink-0" />
-          <AlertTitle>修改后仅影响新的登录会话</AlertTitle>
+          <AlertTitle>
+            {{ t("admin.sessionSettings.newSessionsOnlyTitle") }}
+          </AlertTitle>
           <AlertDescription class="text-sm leading-6 text-zinc-700">
-            已经签发的 Cookie、Redis 会话和登录后 IP
-            授权不会被追溯改写，新设置会在下一次 TOTP 或 Passkey 登录时生效。
+            {{ t("admin.sessionSettings.newSessionsOnlyDescription") }}
           </AlertDescription>
         </Alert>
       </div>
@@ -389,9 +403,11 @@ onMounted(fetchSettings);
         class="grid gap-3 p-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
       >
         <div class="space-y-1 pr-6">
-          <Label class="text-base">普通登录有效期</Label>
+          <Label class="text-base">
+            {{ t("admin.sessionSettings.sessionTtl") }}
+          </Label>
           <div class="text-sm text-muted-foreground">
-            管理员完成验证但未勾选“记住我”时，会话保持有效的时长。
+            {{ t("admin.sessionSettings.sessionTtlDescription") }}
           </div>
         </div>
         <div class="flex items-center gap-2 shrink-0">
@@ -413,13 +429,17 @@ onMounted(fetchSettings);
                 :key="unit.value"
                 :value="unit.value"
               >
-                {{ unit.label }}
+                {{ t(unit.labelKey) }}
               </SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div class="sm:col-span-2 -mt-1 text-xs text-muted-foreground">
-          当前将保存为 {{ formatDuration(sessionTtlSeconds) }}。
+          {{
+            t("admin.sessionSettings.willSaveAs", {
+              duration: formatDuration(sessionTtlSeconds),
+            })
+          }}
         </div>
       </div>
 
@@ -427,9 +447,11 @@ onMounted(fetchSettings);
         class="grid gap-3 p-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
       >
         <div class="space-y-1 pr-6">
-          <Label class="text-base">记住我有效期</Label>
+          <Label class="text-base">
+            {{ t("admin.sessionSettings.rememberMeTtl") }}
+          </Label>
           <div class="text-sm text-muted-foreground">
-            用户勾选“记住我”后，浏览器会话保持有效的时长。
+            {{ t("admin.sessionSettings.rememberMeTtlDescription") }}
           </div>
         </div>
         <div class="flex items-center gap-2 shrink-0">
@@ -451,13 +473,17 @@ onMounted(fetchSettings);
                 :key="unit.value"
                 :value="unit.value"
               >
-                {{ unit.label }}
+                {{ t(unit.labelKey) }}
               </SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div class="sm:col-span-2 -mt-1 text-xs text-muted-foreground">
-          当前将保存为 {{ formatDuration(rememberMeTtlSeconds) }}。
+          {{
+            t("admin.sessionSettings.willSaveAs", {
+              duration: formatDuration(rememberMeTtlSeconds),
+            })
+          }}
         </div>
       </div>
 
@@ -466,17 +492,20 @@ onMounted(fetchSettings);
           v-if="isDirectMode"
           class="rounded-xl border border-zinc-200 bg-zinc-50/40 px-4 py-4"
         >
-          <div class="text-sm font-medium text-zinc-900">当前为直连模式</div>
+          <div class="text-sm font-medium text-zinc-900">
+            {{ t("admin.sessionSettings.directModeTitle") }}
+          </div>
           <div class="mt-1 text-sm leading-6 text-zinc-700">
-            这里的设置会直接决定登录后是否把当前 IP
-            自动加入白名单；通常建议保持“跟随会话”，在退出、踢出或过期时一并撤销。
+            {{ t("admin.sessionSettings.directModeDescription") }}
           </div>
         </div>
 
         <div class="space-y-1">
-          <Label class="text-base">登录后 IP 授权方式</Label>
+          <Label class="text-base">
+            {{ t("admin.sessionSettings.postLoginIpGrantMode") }}
+          </Label>
           <div class="text-sm text-muted-foreground">
-            控制登录成功后是否顺带授权当前访问 IP。
+            {{ t("admin.sessionSettings.postLoginIpGrantModeDescription") }}
           </div>
         </div>
 
@@ -508,11 +537,11 @@ onMounted(fetchSettings);
           class="grid gap-3 rounded-xl border bg-muted/15 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
         >
           <div class="space-y-1 pr-6">
-            <Label class="text-base">自定义授权时长</Label>
+            <Label class="text-base">
+              {{ t("admin.sessionSettings.customGrantDuration") }}
+            </Label>
             <div class="text-sm text-muted-foreground">
-              当前 IP
-              在这段时间内可继续访问；若主动点击退出登录，会同时撤销这份登录后
-              IP 授权。
+              {{ t("admin.sessionSettings.customGrantDurationDescription") }}
             </div>
           </div>
           <div class="flex items-center gap-2 shrink-0">
@@ -534,7 +563,7 @@ onMounted(fetchSettings);
                   :key="unit.value"
                   :value="unit.value"
                 >
-                  {{ unit.label }}
+                  {{ t(unit.labelKey) }}
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -552,10 +581,11 @@ onMounted(fetchSettings);
             class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
           >
             <div class="space-y-1 pr-6">
-              <Label class="text-base">宽松的会话可信 IP</Label>
+              <Label class="text-base">
+                {{ t("admin.sessionSettings.sessionIpMobility") }}
+              </Label>
               <div class="text-sm leading-6 text-muted-foreground">
-                允许同一登录会话在短时间内使用多个可信 IP，适合移动网络或
-                IPv4/IPv6 切换。
+                {{ t("admin.sessionSettings.sessionIpMobilityDescription") }}
               </div>
             </div>
 
@@ -574,9 +604,11 @@ onMounted(fetchSettings);
             class="mt-4 grid gap-3 rounded-xl border bg-muted/15 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
           >
             <div class="space-y-1 pr-6">
-              <Label class="text-base">IP 保留时间</Label>
+              <Label class="text-base">
+                {{ t("admin.sessionSettings.ipRetentionTime") }}
+              </Label>
               <div class="text-sm leading-6 text-muted-foreground">
-                控制某个 IP 被保留多久；不会改变登录会话本身有效期。
+                {{ t("admin.sessionSettings.ipRetentionTimeDescription") }}
               </div>
             </div>
             <div class="flex items-center gap-2 shrink-0">
@@ -601,7 +633,7 @@ onMounted(fetchSettings);
                     :key="unit.value"
                     :value="unit.value"
                   >
-                    {{ unit.label }}
+                    {{ t(unit.labelKey) }}
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -620,22 +652,24 @@ onMounted(fetchSettings);
           class="rounded-lg border border-zinc-200 bg-zinc-50/40 px-4 py-3 text-sm text-zinc-700"
         >
           <template v-if="effectiveSharedCookieDomain">
-            当前浏览器会话会按共享 Cookie 域
+            {{ t("admin.sessionSettings.sharedCookiePrefix") }}
             <code>{{ effectiveSharedCookieDomain }}</code>
-            在同一父域下复用；
+            {{ t("admin.sessionSettings.sharedCookieSuffix") }}
             <template v-if="incompatibleCookieScopeHosts.length > 0">
-              以下 Host 不在这个父域下：
-              <code>{{ incompatibleCookieScopeHosts.join("、") }}</code
-              >，它们会改为在各自域名下单独登录，不会再复用统一登录态。
+              {{ t("admin.sessionSettings.incompatibleHostsPrefix") }}
+              <code>{{
+                incompatibleCookieScopeHosts.join(
+                  t("admin.sessionSettings.listSeparator"),
+                )
+              }}</code
+              >{{ t("admin.sessionSettings.incompatibleHostsSuffix") }}
             </template>
             <template v-else>
-              当前所有鉴权 Host 都在共享域内，可以直接复用这份登录态。
+              {{ t("admin.sessionSettings.allHostsCompatible") }}
             </template>
           </template>
           <template v-else>
-            当前没有可用的共享 Cookie 域。关闭模式下，不同 Host
-            之间不会共享登录态，会分别使用各自 Host
-            的浏览器会话并在各自域名下登录；如果希望复用一次登录，建议先配置根域名。
+            {{ t("admin.sessionSettings.noSharedCookieDomain") }}
           </template>
         </div>
       </div>
@@ -647,8 +681,12 @@ onMounted(fetchSettings);
       class="flex items-center justify-between rounded-b-xl border-t bg-muted/20 p-6"
     >
       <div class="text-sm text-muted-foreground">
-        <span v-if="isDirty">您有未保存的更改</span>
-        <span v-else>所有设置已是最新状态</span>
+        <span v-if="isDirty">
+          {{ t("admin.sessionSettings.unsavedChanges") }}
+        </span>
+        <span v-else>
+          {{ t("admin.sessionSettings.upToDate") }}
+        </span>
       </div>
       <div class="flex gap-3">
         <Button
@@ -656,14 +694,14 @@ onMounted(fetchSettings);
           @click="resetForm"
           :disabled="!isDirty || isSaving"
         >
-          放弃
+          {{ t("admin.sessionSettings.discard") }}
         </Button>
         <Button :disabled="!isDirty || isSaving" @click="saveSettings">
           <span
             v-if="isSaving"
             class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
           ></span>
-          保存更改
+          {{ t("admin.sessionSettings.saveChanges") }}
         </Button>
       </div>
     </div>

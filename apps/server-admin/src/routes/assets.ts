@@ -25,6 +25,7 @@ import {
   normalizeAllowedScanCidrs,
   validateScanCidrs,
 } from "../lib/scan-discovery";
+import { createRequestTranslator } from "../lib/i18n";
 
 const runtimeProfile = getRuntimeProfile();
 
@@ -200,7 +201,9 @@ const collectExcludedPorts = (
           mappingPorts.push(443);
         }
       } catch (e) {
-        console.warn(`[扫描警告] 无法解析代理映射的 URL: ${mapping.target}`);
+        console.warn(
+          `[scan] failed to parse proxy mapping URL: ${mapping.target}`,
+        );
       }
     }
   }
@@ -233,8 +236,9 @@ const handleDiscover = async (
 ) => {
   const configManager = new ConfigManager();
   const config = await configManager.getConfig();
+  const { t } = createRequestTranslator(request, config.locale);
   const excludePorts = collectExcludedPorts(config);
-  console.log("准备跳过的端口:", excludePorts);
+  console.log("[scan] excluded ports:", excludePorts);
 
   try {
     const scanCidrs = await resolveScanCidrs(request, config, targetCidrs);
@@ -242,7 +246,7 @@ const handleDiscover = async (
       set.status = 400;
       return {
         success: false,
-        message: "请选择至少一个本地 IPv4 扫描网段",
+        message: t("server.scanDiscovery.selectAtLeastOneCidr"),
       };
     }
 
@@ -254,7 +258,7 @@ const handleDiscover = async (
       scanCidrs[0] === "127.0.0.1/32";
 
     console.log(
-      `[扫描] scope=${scanScope} hosts=${scanHosts.length} ports=${
+      `[scan] scope=${scanScope} hosts=${scanHosts.length} ports=${
         useFullLocalhostScan ? "1000-60000" : DISCOVER_COMMON_PORTS.length
       }`,
     );

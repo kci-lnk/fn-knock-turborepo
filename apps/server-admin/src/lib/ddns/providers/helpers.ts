@@ -1,13 +1,45 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import type {
   DDNSHttpClient,
   DDNSUpdateResult,
   DDNSUpdateScope,
 } from "../types";
+import {
+  DEFAULT_LOCALE,
+  type LocaleCode,
+  type MessageParams,
+  normalizeLocale,
+  translate,
+} from "../../../../../../packages/i18n/src";
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 export const DDNS_UPDATE_SCOPE_FIELD = "update_scope";
 export const DEFAULT_DDNS_UPDATE_SCOPE: DDNSUpdateScope = "dual_stack";
+
+const ddnsLocaleStorage = new AsyncLocalStorage<LocaleCode>();
+
+const resolveDDNSLocale = (locale: string | null | undefined): LocaleCode =>
+  normalizeLocale(locale) ?? DEFAULT_LOCALE;
+
+export const withDDNSLocale = <T>(
+  locale: string | null | undefined,
+  action: () => T,
+): T => ddnsLocaleStorage.run(resolveDDNSLocale(locale), action);
+
+export const getActiveDDNSLocale = (): LocaleCode =>
+  ddnsLocaleStorage.getStore() ?? DEFAULT_LOCALE;
+
+export const ddnsTranslate = (key: string, params?: MessageParams): string =>
+  translate(getActiveDDNSLocale(), `server.ddns.${key}`, params);
+
+const ddnsT = ddnsTranslate;
+
+export const ddnsProviderT = (
+  provider: string,
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+): string => ddnsT(`providers.${provider}.${key}`, params);
 
 export function getTimeoutMs(): number {
   const value = Number(process.env.DDNS_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
@@ -52,12 +84,12 @@ export function getUpdateScopeUnavailableMessage(
   scope: DDNSUpdateScope,
 ): string {
   if (scope === "ipv6_only") {
-    return "当前更新范围为仅更新 IPv6，但未检测到可用的 IPv6 地址";
+    return ddnsT("ipv6OnlyUnavailable");
   }
   if (scope === "ipv4_only") {
-    return "当前更新范围为仅更新 IPv4，但未检测到可用的 IPv4 地址";
+    return ddnsT("ipv4OnlyUnavailable");
   }
-  return "当前更新范围内没有可用的 IPv4 或 IPv6 地址";
+  return ddnsT("dualStackUnavailable");
 }
 
 export function toPositiveInt(
@@ -84,7 +116,7 @@ export function splitDomain(
   const zone = normalizeDomain(rootDomain);
 
   if (!fqdn || !zone) {
-    throw new Error("域名配置不完整");
+    throw new Error(ddnsT("domainConfigIncomplete"));
   }
 
   if (fqdn === zone) {
@@ -93,7 +125,7 @@ export function splitDomain(
 
   const suffix = `.${zone}`;
   if (!fqdn.endsWith(suffix)) {
-    throw new Error(`域名 ${fqdn} 不属于根域 ${zone}`);
+    throw new Error(ddnsT("domainNotInZone", { fqdn, zone }));
   }
 
   return {
@@ -112,7 +144,7 @@ export async function parseJsonResponse<T>(response: Response): Promise<T> {
   try {
     return JSON.parse(text) as T;
   } catch {
-    throw new Error(`响应不是合法 JSON: ${text}`);
+    throw new Error(ddnsT("invalidJsonResponse", { text }));
   }
 }
 
@@ -135,7 +167,7 @@ export async function updateDualStack(
       await updateRecord("A", ipv4);
       ipv4Updated = true;
     } catch (error) {
-      errors.push(formatError(`A 记录处理失败`, error));
+      errors.push(formatError(ddnsT("aRecordFailed"), error));
     }
   }
 
@@ -144,7 +176,7 @@ export async function updateDualStack(
       await updateRecord("AAAA", ipv6);
       ipv6Updated = true;
     } catch (error) {
-      errors.push(formatError(`AAAA 记录处理失败`, error));
+      errors.push(formatError(ddnsT("aaaaRecordFailed"), error));
     }
   }
 
@@ -159,7 +191,7 @@ export async function updateDualStack(
 
   return {
     success: true,
-    message: `${providerLabel} DNS 更新成功`,
+    message: ddnsT("providerDnsUpdateSuccess", { provider: providerLabel }),
     ipv4Updated,
     ipv6Updated,
   };
@@ -243,7 +275,7 @@ function buildAliyunParamEntries(
   }
 
   if (!prefix) {
-    throw new Error("阿里云请求参数缺少键名");
+    throw new Error(ddnsT("aliyunParamKeyMissing"));
   }
 
   return [[prefix, String(value)]];
@@ -388,7 +420,7 @@ export async function requestAliyunAcs3Json<T extends AliyunAcs3Response>(
 
   if (!response.ok || data.Code) {
     throw new Error(
-      `${data.Code || `HTTP ${response.status}`}: ${data.Message || "请求失败"}`,
+      `${data.Code || `HTTP ${response.status}`}: ${data.Message || ddnsT("requestFailed")}`,
     );
   }
 
@@ -507,12 +539,14 @@ export async function requestTencentCloudJson<T>(
   const payload = data.Response;
 
   if (!payload) {
-    throw new Error(`HTTP ${response.status}: 腾讯云 API 响应缺少 Response`);
+    throw new Error(
+      ddnsT("tencentMissingResponse", { status: response.status }),
+    );
   }
 
   if (!response.ok) {
     const errorCode = payload.Error?.Code || `HTTP ${response.status}`;
-    const errorMessage = payload.Error?.Message || "请求失败";
+    const errorMessage = payload.Error?.Message || ddnsT("requestFailed");
     throw new Error(
       `${errorCode}: ${errorMessage}${payload.RequestId ? ` (RequestId: ${payload.RequestId})` : ""}`,
     );
@@ -520,7 +554,7 @@ export async function requestTencentCloudJson<T>(
 
   if (payload.Error?.Code) {
     throw new Error(
-      `${payload.Error.Code}: ${payload.Error.Message || "请求失败"}${payload.RequestId ? ` (RequestId: ${payload.RequestId})` : ""}`,
+      `${payload.Error.Code}: ${payload.Error.Message || ddnsT("requestFailed")}${payload.RequestId ? ` (RequestId: ${payload.RequestId})` : ""}`,
     );
   }
 
@@ -623,7 +657,7 @@ export function parseHeaderLines(value: string): Record<string, string> {
     if (!trimmed) continue;
     const separatorIndex = trimmed.indexOf(":");
     if (separatorIndex <= 0) {
-      throw new Error(`无效 Header 格式: ${trimmed}`);
+      throw new Error(ddnsT("invalidHeaderFormat", { header: trimmed }));
     }
     const key = trimmed.slice(0, separatorIndex).trim();
     const headerValue = trimmed.slice(separatorIndex + 1).trim();

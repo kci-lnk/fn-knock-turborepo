@@ -6,42 +6,49 @@ import type {
   NotificationSendResult,
 } from "../types";
 import { toPlainRecord, toTrimmedString, truncateText } from "./shared";
+import { tDefault } from "../../i18n";
+
+const magicpushT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) =>
+  tDefault(`server.notifications.providers.catalog.magicpush.${key}`, params);
 
 const MAGICPUSH_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   {
     key: "server_url",
-    label: "基础 API 地址",
-    description:
-      "填写 MagicPush 服务根地址，例如 http://192.168.31.98:3000；如果已填写到 /api/push 或 /api/inbound 也会直接使用。",
+    label: magicpushT("fields.server_url.label"),
+    description: magicpushT("fields.server_url.description"),
     placeholder: "http://192.168.31.98:3000",
     type: "string",
     required: true,
   },
   {
     key: "delivery_mode",
-    label: "投递模式",
-    description:
-      "标准推送会发送到 /api/push；入站配置会发送到 /api/inbound/:token，由 MagicPush 的入站规则负责字段映射。",
+    label: magicpushT("fields.delivery_mode.label"),
+    description: magicpushT("fields.delivery_mode.description"),
     type: "select",
     required: true,
     default_value: "push",
     options: [
-      { label: "标准推送", value: "push" },
-      { label: "入站配置", value: "inbound" },
+      { label: magicpushT("fields.delivery_mode.options.push"), value: "push" },
+      {
+        label: magicpushT("fields.delivery_mode.options.inbound"),
+        value: "inbound",
+      },
     ],
   },
   {
     key: "token",
     label: "Token",
-    description:
-      "MagicPush 接口令牌。标准推送会通过 Authorization: Bearer 发送；入站配置会拼接到 /api/inbound/:token。",
+    description: magicpushT("fields.token.description"),
     placeholder: "your_token",
     type: "string",
     required: true,
   },
   {
     key: "timeout_seconds",
-    label: "超时秒数",
+    label: magicpushT("fields.timeout_seconds.label"),
     type: "number",
     required: true,
     default_value: 5,
@@ -54,9 +61,8 @@ const MAGICPUSH_TARGET_SCHEMA: NotificationSchemaField[] = [];
 
 export const magicpushProviderDefinition: NotificationProviderDefinition = {
   type: "magicpush",
-  label: "MagicPush魔法推送",
-  description:
-    "通过 MagicPush 自建服务向已配置的渠道推送通知，支持标准推送和 MagicPush 入站配置。",
+  label: magicpushT("label"),
+  description: magicpushT("description"),
   connection_schema: MAGICPUSH_CONNECTION_SCHEMA,
   target_schema: MAGICPUSH_TARGET_SCHEMA,
   sensitive_fields: [],
@@ -79,7 +85,7 @@ const resolveMagicPushUrl = (
 ) => {
   const baseUrl = toTrimmedString(provider.connection_config.server_url);
   if (!baseUrl) {
-    throw new Error("Missing MagicPush base API url");
+    throw new Error(magicpushT("errors.missingBaseUrl"));
   }
 
   const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
@@ -153,7 +159,9 @@ const buildMagicPushInboundPayload = (message: NotificationMessage) => {
 
   return {
     source: "fn-knock",
-    title: toTrimmedString(message.title || message.summary || "fn-knock 通知"),
+    title: toTrimmedString(
+      message.title || message.summary || magicpushT("message.fallbackTitle"),
+    ),
     summary: message.summary,
     content,
     body: content,
@@ -182,7 +190,7 @@ export const sendMagicPushMessage = async (args: {
     return {
       success: false,
       retryable: false,
-      reason: "Missing MagicPush token",
+      reason: magicpushT("errors.missingToken"),
     };
   }
 
@@ -198,12 +206,14 @@ export const sendMagicPushMessage = async (args: {
       success: false,
       retryable: false,
       reason:
-        error instanceof Error ? error.message : "Invalid MagicPush base url",
+        error instanceof Error ? error.message : magicpushT("errors.invalidBaseUrl"),
     };
   }
 
   const title = toTrimmedString(
-    args.message.title || args.message.summary || "fn-knock 通知",
+    args.message.title ||
+      args.message.summary ||
+      magicpushT("message.fallbackTitle"),
   );
   const content = buildMagicPushContent(args.message) || title;
   const payload =
@@ -265,7 +275,8 @@ export const sendMagicPushMessage = async (args: {
         !succeeded && (response.status >= 500 || response.status === 429),
       reason: succeeded
         ? undefined
-        : apiMessage || `MagicPush returned ${response.status}`,
+        : apiMessage ||
+          magicpushT("errors.requestReturned", { status: response.status }),
       request_summary: {
         method: "POST",
         url,
@@ -291,7 +302,9 @@ export const sendMagicPushMessage = async (args: {
       success: false,
       retryable: true,
       reason:
-        error instanceof Error ? error.message : "MagicPush request failed",
+        error instanceof Error
+          ? error.message
+          : magicpushT("errors.requestFailed"),
       request_summary: {
         method: "POST",
         url,

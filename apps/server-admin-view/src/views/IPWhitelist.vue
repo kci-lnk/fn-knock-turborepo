@@ -2,10 +2,12 @@
   <Card class="mb-6">
     <CardHeader>
       <CardTitle class="flex justify-between items-center">
-        <span>白名单管理</span>
+        <span>{{ t("admin.ipWhitelist.title") }}</span>
         <div class="flex items-center gap-2">
           <DocsLinkButton :href="docsUrls.guides.whitelist" />
-          <Button @click="showAddDialog = true">添加目标</Button>
+          <Button @click="showAddDialog = true">{{
+            t("admin.ipWhitelist.addTarget")
+          }}</Button>
         </div>
       </CardTitle>
       <CardDescription>{{ pageDescription }}</CardDescription>
@@ -14,7 +16,7 @@
       <div class="flex items-center mb-4 space-x-2" v-if="!isInitializing">
         <SearchInput
           v-model="searchQuery"
-          placeholder="搜索目标、解析IP或备注..."
+          :placeholder="t('admin.ipWhitelist.searchPlaceholder')"
           class="max-w-xs"
         />
         <RefreshButton
@@ -37,12 +39,14 @@
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>目标</TableHead>
-              <TableHead>状态</TableHead>
-              <TableHead>来源</TableHead>
-              <TableHead>创建时间</TableHead>
-              <TableHead>备注</TableHead>
-              <TableHead class="w-[180px] text-right">操作</TableHead>
+              <TableHead>{{ t("admin.ipWhitelist.target") }}</TableHead>
+              <TableHead>{{ t("admin.ipWhitelist.status") }}</TableHead>
+              <TableHead>{{ t("admin.ipWhitelist.source") }}</TableHead>
+              <TableHead>{{ t("admin.ipWhitelist.createdAt") }}</TableHead>
+              <TableHead>{{ t("admin.ipWhitelist.comment") }}</TableHead>
+              <TableHead class="w-[180px] text-right">{{
+                t("admin.ipWhitelist.actions")
+              }}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -51,7 +55,7 @@
                 colspan="6"
                 class="text-center text-muted-foreground py-6"
               >
-                加载中...
+                {{ t("admin.ipWhitelist.loading") }}
               </TableCell>
             </TableRow>
             <TableRow v-else-if="paginatedRecords.length === 0">
@@ -59,7 +63,7 @@
                 colspan="6"
                 class="text-center text-muted-foreground py-6"
               >
-                未找到记录。
+                {{ t("admin.ipWhitelist.empty") }}
               </TableCell>
             </TableRow>
             <TableRow v-for="record in paginatedRecords" :key="record.id">
@@ -68,11 +72,7 @@
                   <span>{{ record.ip }}</span>
                   <Badge variant="outline">
                     {{
-                      record.targetType === "cidr"
-                        ? "CIDR"
-                        : record.targetType === "cname"
-                          ? "CNAME"
-                          : "IP"
+                      targetTypeBadgeLabel(record.targetType)
                     }}
                   </Badge>
                 </div>
@@ -92,7 +92,7 @@
                     v-if="!(record.resolvedTargets || []).length"
                     class="block text-xs text-muted-foreground"
                   >
-                    当前未解析到 A / AAAA 记录
+                    {{ t("admin.ipWhitelist.noResolvedRecords") }}
                   </span>
                 </div>
                 <div
@@ -115,20 +115,24 @@
                       {{ getResolveStatusLabel(record) }}
                     </Badge>
                     <span class="text-xs text-muted-foreground">
-                      检查周期：{{ record.checkIntervalMinutes || 5 }} 分钟
+                      {{
+                        t("admin.ipWhitelist.checkInterval", {
+                          minutes: record.checkIntervalMinutes || 5,
+                        })
+                      }}
                     </span>
                     <span
                       v-if="record.lastCheckedAt"
                       class="text-xs text-muted-foreground"
                     >
-                      上次检查:
+                      {{ t("admin.ipWhitelist.lastCheckedAt") }}
                       <HumanFriendlyTime :value="record.lastCheckedAt * 1000" />
                     </span>
                     <span
                       v-if="record.expireAt"
                       class="text-xs text-muted-foreground"
                     >
-                      过期于:
+                      {{ t("admin.ipWhitelist.expiresAt") }}
                       <HumanFriendlyTime :value="record.expireAt * 1000" />
                     </span>
                     <div
@@ -136,7 +140,7 @@
                       class="flex items-center text-green-600 text-sm"
                     >
                       <ShieldCheck class="w-4 h-4 mr-1" />
-                      永久
+                      {{ t("admin.ipWhitelist.permanent") }}
                     </div>
                   </div>
                 </template>
@@ -146,12 +150,13 @@
                     class="flex items-center text-green-600"
                   >
                     <ShieldCheck class="w-4 h-4 mr-1" />
-                    永久
+                    {{ t("admin.ipWhitelist.permanent") }}
                   </div>
                   <div v-else class="flex flex-col">
                     <span>{{ formatRemaining(record.expireAt) }}</span>
                     <span class="text-xs text-muted-foreground"
-                      >过期于: <HumanFriendlyTime :value="record.expireAt * 1000"
+                      >{{ t("admin.ipWhitelist.expiresAt") }}
+                      <HumanFriendlyTime :value="record.expireAt * 1000"
                     /></span>
                   </div>
                 </template>
@@ -162,7 +167,11 @@
                     record.source === 'manual' ? 'default' : 'secondary'
                   "
                 >
-                  {{ record.source === "manual" ? "手动" : "登录授权" }}
+                  {{
+                    record.source === "manual"
+                      ? t("admin.ipWhitelist.sourceManual")
+                      : t("admin.ipWhitelist.sourceLoginGrant")
+                  }}
                 </Badge>
               </TableCell>
               <TableCell
@@ -191,11 +200,15 @@
                         refreshingId === record.id ? 'animate-spin' : '',
                       ]"
                     />
-                    立即更新
+                    {{ t("admin.ipWhitelist.refreshNow") }}
                   </Button>
                   <ConfirmDangerPopover
-                    title="确认删除?"
-                    :description="`您即将从白名单中删除 ${record.ip}，此操作不可逆转。`"
+                    :title="t('admin.ipWhitelist.deleteTitle')"
+                    :description="
+                      t('admin.ipWhitelist.deleteDescription', {
+                        target: record.ip,
+                      })
+                    "
                     :loading="removingId === record.id"
                     :disabled="removingId === record.id"
                     :on-confirm="() => removeRecord(record.id)"
@@ -222,12 +235,14 @@
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>目标</TableHead>
-              <TableHead>状态/过期时间</TableHead>
-              <TableHead>来源</TableHead>
-              <TableHead>创建时间</TableHead>
-              <TableHead>备注</TableHead>
-              <TableHead class="w-[180px] text-right">操作</TableHead>
+              <TableHead>{{ t("admin.ipWhitelist.target") }}</TableHead>
+              <TableHead>{{ t("admin.ipWhitelist.statusExpires") }}</TableHead>
+              <TableHead>{{ t("admin.ipWhitelist.source") }}</TableHead>
+              <TableHead>{{ t("admin.ipWhitelist.createdAt") }}</TableHead>
+              <TableHead>{{ t("admin.ipWhitelist.comment") }}</TableHead>
+              <TableHead class="w-[180px] text-right">{{
+                t("admin.ipWhitelist.actions")
+              }}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -261,28 +276,38 @@
   <Dialog v-model:open="showAddDialog">
     <DialogContent>
       <DialogHeader>
-        <DialogTitle>添加白名单目标</DialogTitle>
+        <DialogTitle>{{ t("admin.ipWhitelist.addDialogTitle") }}</DialogTitle>
         <DialogDescription>
-          请输入您希望允许访问的 IP、CIDR 或域名及可选配置。
+          {{ t("admin.ipWhitelist.addDialogDescription") }}
         </DialogDescription>
       </DialogHeader>
       <div class="grid gap-4 py-4">
         <div class="grid grid-cols-4 items-center gap-4">
-          <Label for="targetType" class="text-right">类型</Label>
+          <Label for="targetType" class="text-right">{{
+            t("admin.ipWhitelist.type")
+          }}</Label>
           <Select v-model="newRecord.targetType">
             <SelectTrigger class="col-span-3">
-              <SelectValue placeholder="选择类型" />
+              <SelectValue :placeholder="t('admin.ipWhitelist.selectType')" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="ip">单个 IP</SelectItem>
-              <SelectItem value="cidr">CIDR 网段</SelectItem>
-              <SelectItem value="cname">域名 / CNAME</SelectItem>
+              <SelectItem value="ip">{{
+                t("admin.ipWhitelist.typeIp")
+              }}</SelectItem>
+              <SelectItem value="cidr">{{
+                t("admin.ipWhitelist.typeCidr")
+              }}</SelectItem>
+              <SelectItem value="cname">{{
+                t("admin.ipWhitelist.typeCname")
+              }}</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         <div class="grid grid-cols-4 items-center gap-4">
-          <Label for="ip" class="text-right">目标</Label>
+          <Label for="ip" class="text-right">{{
+            t("admin.ipWhitelist.target")
+          }}</Label>
           <Input
             id="ip"
             v-model="newRecord.ip"
@@ -296,7 +321,7 @@
           class="grid grid-cols-4 items-center gap-4"
         >
           <Label for="checkIntervalMinutes" class="text-right"
-            >检查周期</Label
+            >{{ t("admin.ipWhitelist.checkIntervalLabel") }}</Label
           >
           <div class="col-span-3 flex items-center gap-2">
             <Input
@@ -304,26 +329,38 @@
               type="number"
               min="1"
               v-model.number="newRecord.checkIntervalMinutes"
-              placeholder="默认 5"
+              :placeholder="t('admin.ipWhitelist.defaultFive')"
             />
             <span class="text-sm text-muted-foreground whitespace-nowrap"
-              >分钟</span
+              >{{ t("admin.ipWhitelist.minutes") }}</span
             >
           </div>
         </div>
 
         <div class="grid grid-cols-4 items-center gap-4">
-          <Label for="duration" class="text-right">有效期</Label>
+          <Label for="duration" class="text-right">{{
+            t("admin.ipWhitelist.duration")
+          }}</Label>
           <Select v-model="durationSetting">
             <SelectTrigger class="col-span-3">
-              <SelectValue placeholder="选择有效期" />
+              <SelectValue :placeholder="t('admin.ipWhitelist.selectDuration')" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="permanent">永久</SelectItem>
-              <SelectItem value="1h">1 小时</SelectItem>
-              <SelectItem value="24h">24 小时</SelectItem>
-              <SelectItem value="7d">7 天</SelectItem>
-              <SelectItem value="custom">自定义小时</SelectItem>
+              <SelectItem value="permanent">{{
+                t("admin.ipWhitelist.permanent")
+              }}</SelectItem>
+              <SelectItem value="1h">{{
+                t("admin.ipWhitelist.oneHour")
+              }}</SelectItem>
+              <SelectItem value="24h">{{
+                t("admin.ipWhitelist.twentyFourHours")
+              }}</SelectItem>
+              <SelectItem value="7d">{{
+                t("admin.ipWhitelist.sevenDays")
+              }}</SelectItem>
+              <SelectItem value="custom">{{
+                t("admin.ipWhitelist.customHours")
+              }}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -332,32 +369,38 @@
           v-if="durationSetting === 'custom'"
           class="grid grid-cols-4 items-center gap-4"
         >
-          <Label for="customHours" class="text-right">自定义小时</Label>
+          <Label for="customHours" class="text-right">{{
+            t("admin.ipWhitelist.customHours")
+          }}</Label>
           <Input
             id="customHours"
             type="number"
             min="1"
             v-model.number="customHours"
-            placeholder="输入小时数"
+            :placeholder="t('admin.ipWhitelist.customHoursPlaceholder')"
             class="col-span-3"
           />
         </div>
 
         <div class="grid grid-cols-4 items-center gap-4">
-          <Label for="comment" class="text-right">备注 (可选)</Label>
+          <Label for="comment" class="text-right">{{
+            t("admin.ipWhitelist.commentOptional")
+          }}</Label>
           <Input
             id="comment"
             v-model="newRecord.comment"
-            placeholder="输入用途说明..."
+            :placeholder="t('admin.ipWhitelist.commentPlaceholder')"
             class="col-span-3"
             @keyup.enter="addRecord"
           />
         </div>
       </div>
       <DialogFooter>
-        <Button variant="outline" @click="showAddDialog = false">取消</Button>
+        <Button variant="outline" @click="showAddDialog = false">{{
+          t("common.cancel")
+        }}</Button>
         <Button @click="addRecord" :disabled="!newRecord.ip || isSaving"
-          >保存</Button
+          >{{ t("common.save") }}</Button
         >
       </DialogFooter>
     </DialogContent>
@@ -366,6 +409,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import {
   Card,
   CardHeader,
@@ -419,23 +463,25 @@ import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { isValidCIDR } from "@admin-shared/utils/cidr";
 import { docsUrls } from "../lib/docs";
 
-// 引入统一封装的 API 和类型
 import { WhitelistAPI, type WhiteListRecord } from "../lib/api";
 
+const { t } = useI18n();
 const records = ref<WhiteListRecord[]>([]);
 const isInitializing = ref(true);
 const showInitializingSkeleton = useDelayedLoading(isInitializing);
 const pageDescription = computed(
-  () =>
-    "查看手动白名单与登录后自动授权记录。直连模式下，这些 IP / CIDR / 域名解析结果也会同步到系统防火墙。",
+  () => t("admin.ipWhitelist.pageDescription"),
 );
 
 const removingId = ref<string | null>(null);
 const refreshingId = ref<string | null>(null);
 const { run: runRemoveRecord } = useAsyncAction({
   onError: (error) => {
-    toast.error("删除发生网络错误", {
-      description: extractErrorMessage(error, "删除失败"),
+    toast.error(t("admin.ipWhitelist.networkDeleteTitle"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.ipWhitelist.deleteFailed"),
+      ),
     });
   },
 });
@@ -444,15 +490,21 @@ const { run: runSaveComment } = useAsyncAction({
 });
 const { run: runRefreshRecord } = useAsyncAction({
   onError: (error) => {
-    toast.error("立即更新发生网络错误", {
-      description: extractErrorMessage(error, "立即更新失败"),
+    toast.error(t("admin.ipWhitelist.networkRefreshTitle"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.ipWhitelist.refreshFailed"),
+      ),
     });
   },
 });
 const { isPending: loading, run: runFetchRecords } = useAsyncAction({
   onError: (error) => {
-    toast.error("加载白名单发生网络错误", {
-      description: extractErrorMessage(error, "加载白名单失败"),
+    toast.error(t("admin.ipWhitelist.networkLoadTitle"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.ipWhitelist.loadFailed"),
+      ),
     });
   },
 });
@@ -461,8 +513,11 @@ const { isPending: loading, run: runFetchRecords } = useAsyncAction({
 const showAddDialog = ref(false);
 const { isPending: isSaving, run: runAddRecord } = useAsyncAction({
   onError: (error) => {
-    toast.error("添加发生网络错误", {
-      description: extractErrorMessage(error, "添加失败"),
+    toast.error(t("admin.ipWhitelist.networkAddTitle"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.ipWhitelist.addFailed"),
+      ),
     });
   },
 });
@@ -476,10 +531,10 @@ const newRecord = ref({
 });
 const newRecordPlaceholder = computed(() =>
   newRecord.value.targetType === "cidr"
-    ? "例如：203.0.113.0/24"
+    ? t("admin.ipWhitelist.placeholderCidr")
     : newRecord.value.targetType === "cname"
-      ? "例如：access.example.com"
-      : "例如：203.0.113.10",
+      ? t("admin.ipWhitelist.placeholderCname")
+      : t("admin.ipWhitelist.placeholderIp"),
 );
 
 const fetchRecords = async () => {
@@ -489,7 +544,9 @@ const fetchRecords = async () => {
       if (res.success) {
         records.value = res.data;
       } else {
-        toast.error("获取白名单失败", { description: res.message });
+        toast.error(t("admin.ipWhitelist.getFailed"), {
+          description: res.message,
+        });
       }
     },
     {
@@ -531,7 +588,9 @@ const {
     record.ip.toLowerCase().includes(query) ||
     Boolean(record.comment?.toLowerCase().includes(query)) ||
     Boolean(
-      record.resolvedTargets?.some((target) => target.toLowerCase().includes(query)),
+      record.resolvedTargets?.some((target) =>
+        target.toLowerCase().includes(query),
+      ),
     ),
 });
 
@@ -544,14 +603,20 @@ const replaceRecord = (nextRecord: WhiteListRecord) => {
 const getResolveStatusLabel = (record: WhiteListRecord) => {
   switch (record.resolveStatus) {
     case "resolved":
-      return "解析成功";
+      return t("admin.ipWhitelist.resolveSuccess");
     case "empty":
-      return "无解析结果";
+      return t("admin.ipWhitelist.resolveEmpty");
     case "error":
-      return "解析异常";
+      return t("admin.ipWhitelist.resolveError");
     default:
-      return "待首次检查";
+      return t("admin.ipWhitelist.resolvePending");
   }
+};
+
+const targetTypeBadgeLabel = (type: WhiteListRecord["targetType"]) => {
+  if (type === "cidr") return "CIDR";
+  if (type === "cname") return "CNAME";
+  return "IP";
 };
 
 const getResolveStatusVariant = (record: WhiteListRecord) => {
@@ -571,18 +636,20 @@ const formatRemaining = (expireAt: number) => {
   const now = Math.floor(Date.now() / 1000);
   const diff = expireAt - now;
 
-  if (diff <= 0) return "已过期";
+  if (diff <= 0) return t("admin.ipWhitelist.expired");
 
   const days = Math.floor(diff / 86400);
   const hours = Math.floor((diff % 86400) / 3600);
   const mins = Math.floor((diff % 3600) / 60);
 
   const parts = [];
-  if (days > 0) parts.push(`${days}天`);
-  if (hours > 0) parts.push(`${hours}小时`);
-  if (mins > 0 || (days === 0 && hours === 0)) parts.push(`${mins}分钟`);
+  if (days > 0) parts.push(t("admin.ipWhitelist.days", { count: days }));
+  if (hours > 0) parts.push(t("admin.ipWhitelist.hours", { count: hours }));
+  if (mins > 0 || (days === 0 && hours === 0)) {
+    parts.push(t("admin.ipWhitelist.minutesCount", { count: mins }));
+  }
 
-  return `剩余 ${parts.join("")}`;
+  return t("admin.ipWhitelist.remaining", { value: parts.join("") });
 };
 
 // Actions
@@ -590,8 +657,8 @@ const addRecord = async () => {
   const ip = newRecord.value.ip.trim();
   if (!ip) return;
   if (newRecord.value.targetType === "cidr" && !isValidCIDR(ip)) {
-    toast.error("CIDR 格式不正确", {
-      description: "请输入类似 203.0.113.0/24 或 2001:db8::/32 的网段。",
+    toast.error(t("admin.ipWhitelist.invalidCidrTitle"), {
+      description: t("admin.ipWhitelist.invalidCidrDescription"),
     });
     return;
   }
@@ -600,8 +667,8 @@ const addRecord = async () => {
     (!Number.isFinite(newRecord.value.checkIntervalMinutes) ||
       newRecord.value.checkIntervalMinutes < 1)
   ) {
-    toast.error("检查周期不正确", {
-      description: "请输入大于等于 1 的分钟数。",
+    toast.error(t("admin.ipWhitelist.invalidIntervalTitle"), {
+      description: t("admin.ipWhitelist.invalidIntervalDescription"),
     });
     return;
   }
@@ -642,7 +709,7 @@ const addRecord = async () => {
     });
 
     if (res.success) {
-      toast.success("已成功添加白名单");
+      toast.success(t("admin.ipWhitelist.addSuccess"));
       showAddDialog.value = false;
       newRecord.value = {
         ip: "",
@@ -655,7 +722,9 @@ const addRecord = async () => {
       searchQuery.value = "";
       await fetchRecords();
     } else {
-      toast.error("添加失败", { description: res.message });
+      toast.error(t("admin.ipWhitelist.addFailed"), {
+        description: res.message,
+      });
     }
   });
 };
@@ -666,13 +735,15 @@ const removeRecord = async (id: string) => {
     async () => {
       const res = await WhitelistAPI.deleteRecord(id);
       if (res.success) {
-        toast.success("已删除白名单记录");
+        toast.success(t("admin.ipWhitelist.deleteSuccess"));
         await fetchRecords();
         if (paginatedRecords.value.length === 1 && currentPage.value > 1) {
           currentPage.value--;
         }
       } else {
-        toast.error("删除失败", { description: res.message });
+        toast.error(t("admin.ipWhitelist.deleteFailed"), {
+          description: res.message,
+        });
       }
     },
     {
@@ -694,20 +765,25 @@ const refreshRecord = async (id: string) => {
         replaceRecord(nextRecord);
       }
 
-      if (!res.success || !result || !nextRecord || nextRecord.resolveStatus === "error") {
-        toast.error("立即更新失败", {
+      if (
+        !res.success ||
+        !result ||
+        !nextRecord ||
+        nextRecord.resolveStatus === "error"
+      ) {
+        toast.error(t("admin.ipWhitelist.refreshFailed"), {
           description:
             res.message ||
             nextRecord?.resolveMessage ||
-            "域名白名单记录更新失败",
+            t("admin.ipWhitelist.refreshFallbackError"),
         });
         return;
       }
 
-      toast.success("已立即更新域名解析", {
+      toast.success(t("admin.ipWhitelist.refreshSuccessTitle"), {
         description: result.changed
-          ? "白名单中的实际 IP 已同步刷新。"
-          : "域名状态已刷新，当前解析 IP 未变化。",
+          ? t("admin.ipWhitelist.refreshChanged")
+          : t("admin.ipWhitelist.refreshUnchanged"),
       });
     },
     {
@@ -728,13 +804,15 @@ const saveComment = async (id: string, newComment: string) => {
   await runSaveComment(() => WhitelistAPI.updateComment(id, newComment), {
     onSuccess: (res) => {
       if (!res.success) {
-        throw new Error(res.message || "更新备注失败");
+        throw new Error(res.message || t("admin.ipWhitelist.commentUpdateFailed"));
       }
       if (record) record.comment = newComment;
-      toast.success("备注已更新");
+      toast.success(t("admin.ipWhitelist.commentUpdated"));
     },
     onError: (error) => {
-      throw new Error(extractErrorMessage(error, "更新备注失败"));
+      throw new Error(
+        extractErrorMessage(error, t("admin.ipWhitelist.commentUpdateFailed")),
+      );
     },
   });
 };

@@ -1,24 +1,36 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { formatDateTimeSafe } from '@admin-shared/utils/formatDateTimeSafe';
-import { formatHumanFriendlyTime, resolveDateValue } from '@admin-shared/utils/formatHumanFriendlyTime';
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { formatDateTimeSafe } from "@admin-shared/utils/formatDateTimeSafe";
+import {
+  formatHumanFriendlyTime,
+  resolveDateValue,
+} from "@admin-shared/utils/formatHumanFriendlyTime";
 
-const props = withDefaults(defineProps<{
-  value: string | number | Date | null | undefined;
-  locale?: string;
-  emptyText?: string;
-  keepInvalidRawText?: boolean;
-  absoluteFormatOptions?: Intl.DateTimeFormatOptions;
-  refreshIntervalMs?: number;
-  tooltipLines?: string[];
-}>(), {
-  locale: 'zh-CN',
-  emptyText: '-',
-  keepInvalidRawText: true,
-  refreshIntervalMs: 60_000,
-});
+const props = withDefaults(
+  defineProps<{
+    value: string | number | Date | null | undefined;
+    locale?: string;
+    emptyText?: string;
+    keepInvalidRawText?: boolean;
+    absoluteFormatOptions?: Intl.DateTimeFormatOptions;
+    refreshIntervalMs?: number;
+    tooltipLines?: string[];
+  }>(),
+  {
+    emptyText: "-",
+    keepInvalidRawText: true,
+    refreshIntervalMs: 60_000,
+  },
+);
 
+const { locale: globalLocale } = useI18n({ useScope: "global" });
 const now = ref(Date.now());
 const open = ref(false);
 const isTouchInteraction = ref(false);
@@ -26,11 +38,13 @@ let timer: number | null = null;
 let interactionMediaQuery: MediaQueryList | null = null;
 
 const updateInteractionMode = () => {
-  if (typeof window === 'undefined') {
+  if (typeof window === "undefined") {
     return;
   }
 
-  isTouchInteraction.value = window.matchMedia('(hover: none), (pointer: coarse)').matches;
+  isTouchInteraction.value = window.matchMedia(
+    "(hover: none), (pointer: coarse)",
+  ).matches;
 };
 
 const stopTimer = () => {
@@ -48,9 +62,12 @@ const startTimer = () => {
 };
 
 const resolvedDate = computed(() => resolveDateValue(props.value));
+const effectiveLocale = computed(() =>
+  String(props.locale || globalLocale.value || "zh-CN"),
+);
 const fullText = computed(() =>
   formatDateTimeSafe(props.value, {
-    locale: props.locale,
+    locale: effectiveLocale.value,
     emptyText: props.emptyText,
     keepInvalidRawText: props.keepInvalidRawText,
     formatOptions: props.absoluteFormatOptions,
@@ -58,7 +75,7 @@ const fullText = computed(() =>
 );
 const displayText = computed(() =>
   formatHumanFriendlyTime(props.value, {
-    locale: props.locale,
+    locale: effectiveLocale.value,
     emptyText: props.emptyText,
     keepInvalidRawText: props.keepInvalidRawText,
     now: now.value,
@@ -68,11 +85,14 @@ const customTooltipLines = computed(() =>
   (props.tooltipLines || []).map((line) => line?.trim()).filter(Boolean),
 );
 const tooltipContentLines = computed(() =>
-  customTooltipLines.value.length > 0 ? customTooltipLines.value : [fullText.value],
+  customTooltipLines.value.length > 0
+    ? customTooltipLines.value
+    : [fullText.value],
 );
-const showTooltip = computed(() =>
-  customTooltipLines.value.length > 0 ||
-  (Boolean(resolvedDate.value) && fullText.value !== displayText.value),
+const showTooltip = computed(
+  () =>
+    customTooltipLines.value.length > 0 ||
+    (Boolean(resolvedDate.value) && fullText.value !== displayText.value),
 );
 
 const handleOpenChange = (nextOpen: boolean) => {
@@ -107,15 +127,15 @@ watch(showTooltip, (visible) => {
 });
 
 onMounted(() => {
-  if (typeof window === 'undefined') {
+  if (typeof window === "undefined") {
     return;
   }
 
-  interactionMediaQuery = window.matchMedia('(hover: none), (pointer: coarse)');
+  interactionMediaQuery = window.matchMedia("(hover: none), (pointer: coarse)");
   updateInteractionMode();
 
-  if (typeof interactionMediaQuery.addEventListener === 'function') {
-    interactionMediaQuery.addEventListener('change', updateInteractionMode);
+  if (typeof interactionMediaQuery.addEventListener === "function") {
+    interactionMediaQuery.addEventListener("change", updateInteractionMode);
     return;
   }
 
@@ -129,8 +149,8 @@ onUnmounted(() => {
     return;
   }
 
-  if (typeof interactionMediaQuery.removeEventListener === 'function') {
-    interactionMediaQuery.removeEventListener('change', updateInteractionMode);
+  if (typeof interactionMediaQuery.removeEventListener === "function") {
+    interactionMediaQuery.removeEventListener("change", updateInteractionMode);
     return;
   }
 
@@ -143,11 +163,7 @@ onUnmounted(() => {
   <TooltipProvider v-else>
     <Tooltip :open="open" @update:open="handleOpenChange">
       <TooltipTrigger as-child>
-        <span
-          class="cursor-help"
-          tabindex="0"
-          @click="handleTriggerClick"
-        >
+        <span class="cursor-help" tabindex="0" @click="handleTriggerClick">
           {{ displayText }}
         </span>
       </TooltipTrigger>

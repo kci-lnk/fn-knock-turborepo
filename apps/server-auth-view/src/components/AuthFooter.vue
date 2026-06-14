@@ -18,13 +18,13 @@
           v-else-if="props.ipLocationStatus === 'queued' || props.ipLocationStatus === 'processing'"
           class="break-words sm:break-normal sm:whitespace-nowrap sm:shrink-0"
         >
-          属地解析中...
+          {{ t('auth.locationResolving') }}
         </span>
         <span
           v-else-if="props.ipLocationStatus === 'failed'"
           class="break-words sm:break-normal sm:whitespace-nowrap sm:shrink-0"
         >
-          属地暂未获取
+          {{ t('auth.locationUnavailable') }}
         </span>
       </div>
 
@@ -34,7 +34,7 @@
           target="_blank"
           rel="noopener noreferrer"
           class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 transition-colors hover:text-foreground hover:bg-background/70"
-          title="打开 GitHub 项目页"
+          :title="t('auth.openGithub')"
         >
           <Github class="h-3.5 w-3.5" />
           <span>fn-knock-turborepo</span>
@@ -45,10 +45,12 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { Github } from 'lucide-vue-next';
 import type { AuthClientLocationStatus } from '@frontend-core/auth/types';
 
 const APP_GITHUB_URL = 'https://github.com/kci-lnk/fn-knock-turborepo';
+const { t } = useI18n();
 const props = withDefaults(defineProps<{
   clientIp?: string;
   ipLocation?: string;

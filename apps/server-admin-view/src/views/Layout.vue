@@ -4,10 +4,10 @@
       v-if="configStore.isLoading"
       class="ml-4 text-sm text-muted-foreground animate-pulse"
     >
-      加载配置中...
+      {{ t("common.loadingConfig") }}
     </div>
     <div v-if="configStore.isError" class="ml-4 text-sm text-destructive">
-      加载配置失败
+      {{ t("common.loadConfigFailed") }}
     </div>
 
     <div
@@ -16,7 +16,7 @@
       <div class="mx-auto flex h-14 max-w-[96rem] items-center gap-2 px-4">
         <Button variant="ghost" size="icon" @click="isMobileNavOpen = true">
           <Menu class="h-5 w-5" />
-          <span class="sr-only">打开导航菜单</span>
+          <span class="sr-only">{{ t("admin.nav.openNavigation") }}</span>
         </Button>
         <p class="truncate text-sm font-medium">{{ currentNavLabel }}</p>
       </div>
@@ -25,10 +25,12 @@
     <Sheet v-model:open="isMobileNavOpen">
       <SheetContent side="left" class="w-[66vw] max-w-[240px] p-0">
         <SheetHeader class="sr-only">
-          <SheetTitle>导航菜单</SheetTitle>
+          <SheetTitle>{{ t("admin.nav.navigationMenu") }}</SheetTitle>
         </SheetHeader>
         <div class="flex h-full flex-col">
-          <div class="border-b px-4 py-3 text-sm font-semibold">导航菜单</div>
+          <div class="border-b px-4 py-3 text-sm font-semibold">
+            {{ t("admin.nav.navigationMenu") }}
+          </div>
           <nav
             class="flex-1 space-y-2 overflow-y-auto p-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
           >
@@ -44,13 +46,27 @@
             </Button>
           </nav>
           <div class="border-t p-3">
+            <div class="mb-5 flex justify-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                class="h-8 max-w-full gap-1.5 rounded-md border border-border/60 bg-background/70 px-2.5 text-xs shadow-none hover:bg-muted"
+                :title="t('locale.label')"
+                @click="openLocaleDialog"
+              >
+                <Languages class="h-3.5 w-3.5 shrink-0" />
+                <span class="max-w-[5.25rem] truncate">{{
+                  selectedLocaleLabel
+                }}</span>
+              </Button>
+            </div>
             <p class="mb-2 text-center text-xs font-medium text-primary/70">
               <a
                 :href="APP_GITHUB_URL"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 leading-none transition-colors hover:text-foreground hover:bg-background/70"
-                title="打开 GitHub 项目页"
+                :title="t('admin.nav.openGithub')"
               >
                 <Github class="h-3.5 w-3.5" />
                 <span>{{ currentVersionLabel }}</span>
@@ -97,6 +113,20 @@
             </Button>
           </nav>
           <div>
+            <div class="mb-5 flex justify-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                class="h-8 max-w-full justify-center gap-1.5 rounded-md border border-border/60 bg-background/70 px-2.5 text-xs shadow-none hover:bg-muted"
+                :title="t('locale.label')"
+                @click="openLocaleDialog"
+              >
+                <Languages class="h-3.5 w-3.5 shrink-0" />
+                <span class="max-w-[5.25rem] truncate">{{
+                  selectedLocaleLabel
+                }}</span>
+              </Button>
+            </div>
             <p
               class="mb-2 min-w-0 text-center text-xs font-medium text-primary/70"
             >
@@ -105,7 +135,7 @@
                 target="_blank"
                 rel="noopener noreferrer"
                 class="inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 leading-none transition-colors hover:text-foreground hover:bg-background/70"
-                title="打开 GitHub 项目页"
+                :title="t('admin.nav.openGithub')"
               >
                 <Github class="h-3.5 w-3.5" />
                 <span>{{ currentVersionLabel }}</span>
@@ -159,7 +189,7 @@
                 "
                 @click="refreshSystemClockStatus"
               >
-                刷新状态
+                {{ t("common.refreshStatus") }}
               </Button>
               <Button
                 v-if="configStore.canSyncSystemClock"
@@ -172,7 +202,7 @@
                 :disabled="systemClockStore.isSyncing"
                 @click="syncSystemClock"
               >
-                立即同步
+                {{ t("common.syncNow") }}
               </Button>
             </div>
           </div>
@@ -191,8 +221,12 @@
           >
             <div class="space-y-1">
               <p class="text-sm font-semibold">
-                检测到新版本 {{ updateStore.status.latest?.version }}（当前
-                {{ updateStore.status.localVersion }}）
+                {{
+                  t("admin.banner.updateFound", {
+                    latest: updateStore.status.latest?.version || "",
+                    current: updateStore.status.localVersion,
+                  })
+                }}
               </p>
               <p class="text-xs">
                 {{ updateBannerDescription }}
@@ -205,7 +239,7 @@
                 class="bg-white/80"
                 @click="goToAbout"
               >
-                查看详情
+                {{ t("common.viewDetails") }}
               </Button>
               <Button
                 v-if="configStore.canSelfUpdate"
@@ -213,7 +247,7 @@
                 :variant="updateStore.isForceUpdate ? 'destructive' : 'default'"
                 @click="startUpdateFromBanner"
               >
-                立即更新
+                {{ t("common.updateNow") }}
               </Button>
             </div>
           </div>
@@ -228,7 +262,7 @@
             <span
               class="h-1.5 w-1.5 rounded-full bg-primary animate-pulse"
             ></span>
-            <span>页面切换中...</span>
+            <span>{{ t("common.pageSwitching") }}</span>
           </div>
         </div>
         <RouterView v-if="!configStore.isLoading && !configStore.isError" />
@@ -242,11 +276,145 @@
         </div>
       </main>
     </div>
+
+    <Dialog v-model:open="isLocaleDialogOpen">
+      <DialogContent class="gap-0 overflow-hidden p-0 sm:max-w-[420px]">
+        <DialogHeader class="border-b px-5 py-4 text-left">
+          <DialogTitle>{{ t("locale.label") }}</DialogTitle>
+        </DialogHeader>
+        <div class="divide-y">
+          <button
+            v-for="option in localeOptions"
+            :key="option.value"
+            type="button"
+            :class="[
+              'flex h-14 w-full items-center gap-3 px-5 text-left transition-colors',
+              selectedLocale === option.value
+                ? 'bg-muted/90'
+                : 'hover:bg-muted/55',
+              isSavingLocale ? 'cursor-not-allowed opacity-60' : '',
+            ]"
+            :disabled="isSavingLocale"
+            :aria-current="selectedLocale === option.value ? 'true' : undefined"
+            @click="handleLocaleSelect(option.value)"
+          >
+            <span
+              :class="[
+                'grid h-5 w-5 shrink-0 place-items-center rounded-full border transition-colors',
+                selectedLocale === option.value
+                  ? 'border-emerald-500 bg-emerald-500 text-white'
+                  : 'border-muted-foreground/35',
+              ]"
+            >
+              <Check
+                v-if="selectedLocale === option.value"
+                class="h-3.5 w-3.5"
+              />
+            </span>
+            <span class="min-w-0 flex-1 truncate text-sm font-medium">
+              {{ option.label }}
+            </span>
+            <span
+              class="grid h-6 w-8 shrink-0 place-items-center overflow-hidden rounded-[5px] shadow-sm ring-1 ring-black/10"
+              aria-hidden="true"
+            >
+              <svg
+                v-if="option.value === 'zh-CN'"
+                viewBox="0 0 32 24"
+                class="h-6 w-8"
+              >
+                <defs>
+                  <polygon
+                    id="locale-flag-cn-star"
+                    points="0,-1 0.24,-0.32 0.96,-0.31 0.38,0.12 0.59,0.82 0,0.4 -0.59,0.82 -0.38,0.12 -0.96,-0.31 -0.24,-0.32"
+                  />
+                </defs>
+                <rect width="32" height="24" fill="#f23b2f" />
+                <g fill="#ffde45">
+                  <use
+                    href="#locale-flag-cn-star"
+                    transform="translate(6.2 6.3) scale(3)"
+                  />
+                  <use
+                    href="#locale-flag-cn-star"
+                    transform="translate(12.6 3.6) scale(0.95)"
+                  />
+                  <use
+                    href="#locale-flag-cn-star"
+                    transform="translate(14.5 6.1) scale(0.95)"
+                  />
+                  <use
+                    href="#locale-flag-cn-star"
+                    transform="translate(14.2 9.2) scale(0.95)"
+                  />
+                  <use
+                    href="#locale-flag-cn-star"
+                    transform="translate(12.1 11.3) scale(0.95)"
+                  />
+                </g>
+              </svg>
+              <svg
+                v-else-if="option.value === 'zh-Hant'"
+                viewBox="0 0 32 24"
+                class="h-6 w-8"
+              >
+                <defs>
+                  <path
+                    id="locale-flag-hk-petal"
+                    d="M0,-0.65 C-1.55,-3.25 -0.25,-5.95 2.35,-6.25 C4,-4 3.05,-1.45 0.8,0.45 C0.55,0.2 0.25,-0.15 0,-0.65Z"
+                  />
+                </defs>
+                <rect width="32" height="24" fill="#f43b2f" />
+                <g fill="#fff" transform="translate(16 12)">
+                  <use href="#locale-flag-hk-petal" transform="rotate(0)" />
+                  <use href="#locale-flag-hk-petal" transform="rotate(72)" />
+                  <use href="#locale-flag-hk-petal" transform="rotate(144)" />
+                  <use href="#locale-flag-hk-petal" transform="rotate(216)" />
+                  <use href="#locale-flag-hk-petal" transform="rotate(288)" />
+                  <circle r="0.85" />
+                </g>
+              </svg>
+              <svg v-else viewBox="0 0 32 24" class="h-6 w-8">
+                <rect width="32" height="24" fill="#f8f8f8" />
+                <g fill="#d62d2d">
+                  <rect y="0" width="32" height="2.3" />
+                  <rect y="4.3" width="32" height="2.3" />
+                  <rect y="8.6" width="32" height="2.3" />
+                  <rect y="12.9" width="32" height="2.3" />
+                  <rect y="17.2" width="32" height="2.3" />
+                  <rect y="21.5" width="32" height="2.5" />
+                </g>
+                <rect width="14" height="12.4" fill="#4b5fb8" />
+                <g fill="#fff">
+                  <circle cx="2.3" cy="2.1" r="0.5" />
+                  <circle cx="5" cy="2.1" r="0.5" />
+                  <circle cx="7.7" cy="2.1" r="0.5" />
+                  <circle cx="10.4" cy="2.1" r="0.5" />
+                  <circle cx="3.65" cy="4.6" r="0.5" />
+                  <circle cx="6.35" cy="4.6" r="0.5" />
+                  <circle cx="9.05" cy="4.6" r="0.5" />
+                  <circle cx="11.75" cy="4.6" r="0.5" />
+                  <circle cx="2.3" cy="7.1" r="0.5" />
+                  <circle cx="5" cy="7.1" r="0.5" />
+                  <circle cx="7.7" cy="7.1" r="0.5" />
+                  <circle cx="10.4" cy="7.1" r="0.5" />
+                  <circle cx="3.65" cy="9.6" r="0.5" />
+                  <circle cx="6.35" cy="9.6" r="0.5" />
+                  <circle cx="9.05" cy="9.6" r="0.5" />
+                  <circle cx="11.75" cy="9.6" r="0.5" />
+                </g>
+              </svg>
+            </span>
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { isNavigationFailure, useRoute, useRouter } from "vue-router";
 import { useConfigStore } from "../store/config";
 import { useSystemClockStore } from "../store/systemClock";
@@ -259,6 +427,19 @@ import {
 import { Button } from "@/components/ui/button";
 import { toast } from "@admin-shared/utils/toast";
 import {
+  LOCALE_DISPLAY_NAMES,
+  SUPPORTED_LOCALES,
+  type LocaleCode,
+  normalizeLocale,
+} from "@fn-knock/i18n";
+import { applyDocumentLocale } from "@fn-knock/i18n/vue";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Sheet,
   SheetContent,
   SheetHeader,
@@ -267,6 +448,7 @@ import {
 const APP_GITHUB_URL = "https://github.com/kci-lnk/fn-knock-turborepo";
 import {
   BellRing,
+  Check,
   FileKey2,
   FileSearch,
   Fingerprint,
@@ -281,6 +463,7 @@ import {
   SquareTerminal,
   UsersRound,
   Menu,
+  Languages,
   Network,
   ServerCog,
   ShieldAlert,
@@ -292,6 +475,21 @@ const configStore = useConfigStore();
 const systemClockStore = useSystemClockStore();
 const updateStore = useUpdateStore();
 const isMobileNavOpen = ref(false);
+const isLocaleDialogOpen = ref(false);
+const isSavingLocale = ref(false);
+const { t, locale } = useI18n();
+const selectedLocale = ref<LocaleCode>(
+  normalizeLocale(String(locale.value)) ?? "zh-CN",
+);
+
+const localeOptions = SUPPORTED_LOCALES.map((value) => ({
+  value,
+  label: LOCALE_DISPLAY_NAMES[value],
+}));
+
+const selectedLocaleLabel = computed(
+  () => LOCALE_DISPLAY_NAMES[selectedLocale.value],
+);
 
 onMounted(() => {
   void configStore.loadConfig();
@@ -316,8 +514,45 @@ const navigateTo = async (path: string) => {
   } catch (error) {
     pendingNavPath.value = null;
     const message =
-      error instanceof Error ? error.message : "页面加载失败，请稍后重试";
-    toast.error("页面跳转失败", { description: message });
+      error instanceof Error ? error.message : t("admin.route.loadFailedRetry");
+    toast.error(t("admin.route.navigationFailed"), { description: message });
+  }
+};
+
+const applySystemLocale = (value: string | null | undefined) => {
+  const next = normalizeLocale(value) ?? "zh-CN";
+  locale.value = next;
+  selectedLocale.value = next;
+  applyDocumentLocale(next);
+  return next;
+};
+
+const openLocaleDialog = () => {
+  isLocaleDialogOpen.value = true;
+};
+
+const handleLocaleSelect = async (value: LocaleCode) => {
+  const next = normalizeLocale(value) ?? "zh-CN";
+  if (
+    selectedLocale.value === next &&
+    configStore.config?.locale?.default_locale === next
+  ) {
+    isLocaleDialogOpen.value = false;
+    return;
+  }
+
+  isSavingLocale.value = true;
+  try {
+    const saved = await configStore.saveLocaleConfig({ default_locale: next });
+    applySystemLocale(saved.default_locale);
+    isLocaleDialogOpen.value = false;
+    toast.success(t("locale.saved"));
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : t("locale.saveFailed");
+    toast.error(t("locale.saveFailed"), { description: message });
+  } finally {
+    isSavingLocale.value = false;
   }
 };
 
@@ -330,6 +565,22 @@ watch(
   () => {
     isMobileNavOpen.value = false;
   },
+);
+
+watch(
+  () => locale.value,
+  (next) => {
+    selectedLocale.value = normalizeLocale(String(next)) ?? "zh-CN";
+  },
+);
+
+watch(
+  () => configStore.config?.locale?.default_locale,
+  (next) => {
+    if (!next) return;
+    applySystemLocale(next);
+  },
+  { immediate: true },
 );
 
 const startUpdateFromBanner = async () => {
@@ -358,21 +609,25 @@ const isNavActive = (path: string) => {
 
 const navItems = computed(() => {
   const items = [
-    { name: "IP白名单", path: "/whitelist", icon: ShieldCheck },
-    { name: "SSL证书", path: "/ssl", icon: FileKey2 },
+    { name: t("admin.nav.ipWhitelist"), path: "/whitelist", icon: ShieldCheck },
+    { name: t("admin.nav.sslCert"), path: "/ssl", icon: FileKey2 },
   ];
   if (
     configStore.config?.run_type === 1 ||
     configStore.config?.run_type === 3
   ) {
-    items.unshift({ name: "控制台", path: "/", icon: LayoutDashboard });
+    items.unshift({
+      name: t("admin.nav.dashboard"),
+      path: "/",
+      icon: LayoutDashboard,
+    });
   }
-  items.push({ name: "动态域名", path: "/ddns", icon: Network });
+  items.push({ name: t("admin.nav.ddns"), path: "/ddns", icon: Network });
   if (configStore.config?.run_type === 1) {
     items.splice(1, 0, {
       name: isReverseProxySubdomainMode(configStore.config)
-        ? "子域映射"
-        : "路径映射",
+        ? t("admin.nav.subdomainMapping")
+        : t("admin.nav.pathMapping"),
       path: isReverseProxySubdomainMode(configStore.config)
         ? "/subdomains"
         : "/proxy",
@@ -381,12 +636,12 @@ const navItems = computed(() => {
         : RouteIcon,
     });
     items.splice(2, 0, {
-      name: "内网穿透",
+      name: t("admin.nav.tunnel"),
       path: "/tunnel",
       icon: RadioTower,
     });
     items.splice(3, 0, {
-      name: "会话管理",
+      name: t("admin.nav.sessions"),
       path: "/sessions",
       icon: UsersRound,
     });
@@ -394,50 +649,74 @@ const navItems = computed(() => {
     const isProtocolMappingVisible =
       configStore.config?.protocol_mapping_feature?.enabled === true;
     items.splice(1, 0, {
-      name: "子域映射",
+      name: t("admin.nav.subdomainMapping"),
       path: "/subdomains",
       icon: Globe2,
     });
     if (isProtocolMappingVisible) {
       items.splice(2, 0, {
-        name: "协议映射",
+        name: t("admin.nav.protocolMapping"),
         path: "/streams",
         icon: ServerCog,
       });
     }
     items.splice(isProtocolMappingVisible ? 3 : 2, 0, {
-      name: "会话管理",
+      name: t("admin.nav.sessions"),
       path: "/sessions",
       icon: UsersRound,
     });
   }
-  items.push({ name: "认证配置", path: "/auth", icon: Fingerprint });
+  items.push({
+    name: t("admin.nav.authConfig"),
+    path: "/auth",
+    icon: Fingerprint,
+  });
   if (
     !configStore.isDockerDeployment &&
     configStore.config?.ssh_security?.enabled === true
   ) {
-    items.push({ name: "SSH安全", path: "/ssh-security", icon: ShieldBan });
+    items.push({
+      name: t("admin.nav.sshSecurity"),
+      path: "/ssh-security",
+      icon: ShieldBan,
+    });
   }
-  items.push({ name: "事件中心", path: "/events", icon: BellRing });
+  items.push({ name: t("admin.nav.events"), path: "/events", icon: BellRing });
   if (configStore.config?.gateway_logging?.enabled) {
-    items.push({ name: "请求日志", path: "/request-logs", icon: FileSearch });
+    items.push({
+      name: t("admin.nav.requestLogs"),
+      path: "/request-logs",
+      icon: FileSearch,
+    });
   }
   if (configStore.config?.waf?.enabled) {
-    items.push({ name: "WAF日志", path: "/waf-logs", icon: ShieldAlert });
+    items.push({
+      name: t("admin.nav.wafLogs"),
+      path: "/waf-logs",
+      icon: ShieldAlert,
+    });
   }
   if (
     configStore.canUseTerminal &&
     configStore.config?.terminal_feature?.enabled
   ) {
-    items.push({ name: "Web终端", path: "/terminal", icon: SquareTerminal });
+    items.push({
+      name: t("admin.nav.webTerminal"),
+      path: "/terminal",
+      icon: SquareTerminal,
+    });
   }
-  items.push({ name: "系统设置", path: "/system", icon: Settings2 });
+  items.push({
+    name: t("admin.nav.systemSettings"),
+    path: "/system",
+    icon: Settings2,
+  });
   return items;
 });
 
 const currentNavLabel = computed(() => {
   const activeItem = navItems.value.find((item) => isNavActive(item.path));
-  return activeItem?.name ?? "管理后台";
+  return activeItem?.name ?? t("common.managementConsole");
 });
 
 const currentVersionLabel = computed(() => {
@@ -446,19 +725,21 @@ const currentVersionLabel = computed(() => {
 });
 
 const aboutEntryLabel = computed(() =>
-  configStore.canSelfUpdate ? "系统更新" : "版本信息",
+  configStore.canSelfUpdate
+    ? t("admin.nav.systemUpdate")
+    : t("admin.nav.versionInfo"),
 );
 
 const systemClockBannerTitle = computed(() => {
   const status = systemClockStore.status;
   if (!status) return "";
   if (status.timezoneMismatch && status.timeMismatch) {
-    return "系统时间与时区需要立即同步";
+    return t("admin.banner.clockImmediate");
   }
   if (status.timezoneMismatch) {
-    return "系统时区不是北京时间";
+    return t("admin.banner.timezoneMismatch");
   }
-  return "系统时间与联网校验结果不一致";
+  return t("admin.banner.clockMismatch");
 });
 
 const systemClockBannerDescription = computed(() => {
@@ -466,10 +747,12 @@ const systemClockBannerDescription = computed(() => {
   if (!status) return "";
   const messages = status.issues.map((issue) => issue.message);
   if (status.lastCheckError) {
-    messages.push(`最近一次联网校验失败：${status.lastCheckError}`);
+    messages.push(
+      t("admin.banner.lastCheckFailed", { error: status.lastCheckError }),
+    );
   }
   if (!configStore.canSyncSystemClock) {
-    messages.push("当前部署不支持宿主机时间同步，请在宿主机上处理。");
+    messages.push(t("admin.banner.hostSyncUnsupported"));
   }
   return messages.join(" ");
 });
@@ -480,16 +763,24 @@ const systemClockBannerMeta = computed(() => {
 
   const parts: string[] = [];
   if (status.systemBeijingTime) {
-    parts.push(`系统北京时间：${status.systemBeijingTime}`);
+    parts.push(
+      t("admin.banner.systemBeijingTime", { time: status.systemBeijingTime }),
+    );
   }
   if (status.remoteBeijingTime) {
-    parts.push(`联网校验：${status.remoteBeijingTime}`);
+    parts.push(
+      t("admin.banner.remoteBeijingTime", { time: status.remoteBeijingTime }),
+    );
   }
   if (status.systemTimeZone) {
-    parts.push(`系统时区：${status.systemTimeZone}`);
+    parts.push(
+      t("admin.banner.systemTimeZone", { timezone: status.systemTimeZone }),
+    );
   }
   if (status.networkSource) {
-    parts.push(`校验来源：${status.networkSource}`);
+    parts.push(
+      t("admin.banner.networkSource", { source: status.networkSource }),
+    );
   }
   return parts.join(" · ");
 });
@@ -497,10 +788,10 @@ const systemClockBannerMeta = computed(() => {
 const updateBannerDescription = computed(() => {
   if (configStore.canSelfUpdate) {
     return updateStore.isForceUpdate
-      ? "重要更新，请尽快安装。"
-      : "可前往关于页查看详情并更新。";
+      ? t("admin.banner.importantUpdate")
+      : t("admin.banner.normalUpdate");
   }
 
-  return "可前往关于页查看版本信息与 Docker 升级说明。";
+  return t("admin.banner.dockerUpdateInfo");
 });
 </script>

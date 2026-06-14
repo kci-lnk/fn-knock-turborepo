@@ -7,7 +7,7 @@
         >
           <div class="grid gap-1">
             <CardTitle class="flex flex-wrap items-center gap-2">
-              ACME 证书申请
+              {{ t("admin.acmeCert.title") }}
               <Badge :variant="acmeStatusBadgeVariant">{{
                 acmeStatusLabel
               }}</Badge>
@@ -16,7 +16,7 @@
               </Badge>
             </CardTitle>
             <CardDescription>
-              管理多个 ACME 申请项、签发证书和证书库关联状态。申请成功后会自动同步到证书库。
+              {{ t("admin.acmeCert.description") }}
             </CardDescription>
           </div>
           <div class="flex flex-wrap items-center gap-2">
@@ -31,7 +31,7 @@
               "
               @click="openCreateDialog"
             >
-              新申请
+              {{ t("admin.acmeCert.newApplication") }}
             </Button>
           </div>
         </div>
@@ -40,9 +40,9 @@
 
     <Card class="border-border/80 shadow-sm">
       <CardHeader>
-        <CardTitle>申请项列表</CardTitle>
+        <CardTitle>{{ t("admin.acmeCert.applicationList") }}</CardTitle>
         <CardDescription>
-          列表中的每一行对应一条独立的 ACME 申请配置和它当前的证书状态。
+          {{ t("admin.acmeCert.applicationListDescription") }}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -64,17 +64,19 @@
               <TableHeader>
                 <TableRow>
                   <TableHead class="w-[100px] whitespace-normal">
-                    DNS 服务商
+                    {{ t("admin.acmeCert.dnsProvider") }}
                   </TableHead>
-                  <TableHead class="w-[120px] whitespace-normal">域名</TableHead>
+                  <TableHead class="w-[120px] whitespace-normal">
+                    {{ t("admin.acmeCert.domain") }}
+                  </TableHead>
                   <TableHead class="w-[180px] whitespace-normal">
-                    状态概览
+                    {{ t("admin.acmeCert.statusOverview") }}
                   </TableHead>
                   <TableHead class="w-[150px] whitespace-normal"
-                    >有效期</TableHead
+                    >{{ t("admin.acmeCert.validity") }}</TableHead
                   >
                   <TableHead class="w-[156px] whitespace-normal text-right">
-                    操作
+                    {{ t("admin.acmeCert.actions") }}
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -108,7 +110,7 @@
                     colspan="5"
                     class="py-10 text-center text-muted-foreground"
                   >
-                    还没有 ACME 申请项，点击右上角“新申请”开始创建。
+                    {{ t("admin.acmeCert.emptyApplications") }}
                   </TableCell>
                 </TableRow>
 
@@ -140,8 +142,8 @@
                       <div class="text-xs text-muted-foreground">
                         {{
                           application.renewEnabled
-                            ? "已启用自动续期"
-                            : "未启用自动续期"
+                            ? t("admin.acmeCert.autoRenewEnabled")
+                            : t("admin.acmeCert.autoRenewDisabled")
                         }}
                       </div>
                     </div>
@@ -168,7 +170,10 @@
                         v-if="application.certificate?.exists"
                         class="text-xs text-muted-foreground break-all"
                       >
-                        {{ application.certificate?.issuer || "未知签发者" }}
+                        {{
+                          application.certificate?.issuer ||
+                          t("admin.acmeCert.unknownIssuer")
+                        }}
                       </div>
                     </div>
                   </TableCell>
@@ -208,20 +213,20 @@
                               :disabled="isActionBlocked()"
                               @select="openEditDialog(application.id)"
                             >
-                              编辑申请项
+                              {{ t("admin.acmeCert.editApplication") }}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               v-if="application.latestJob?.id"
                               @select="viewJob(application.latestJob.id)"
                             >
-                              查看日志
+                              {{ t("admin.acmeCert.viewLogs") }}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               v-if="application.certificate?.exists"
                               :disabled="isActionBlocked()"
                               @select="downloadCertificate(application)"
                             >
-                              下载证书
+                              {{ t("admin.acmeCert.downloadCertificate") }}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               v-if="application.certificate?.exists"
@@ -230,8 +235,8 @@
                             >
                               {{
                                 application.library?.linked
-                                  ? "更新到证书库"
-                                  : "添加到证书库"
+                                  ? t("admin.acmeCert.updateToLibrary")
+                                  : t("admin.acmeCert.addToLibrary")
                               }}
                             </DropdownMenuItem>
                             <DropdownMenuItem
@@ -239,7 +244,7 @@
                               :disabled="isActionBlocked()"
                               @select="deployCertificate(application)"
                             >
-                              设为当前证书
+                              {{ t("admin.acmeCert.setAsCurrentCertificate") }}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator
                               v-if="application.certificate?.exists"
@@ -250,16 +255,16 @@
                               :disabled="isActionBlocked()"
                               @select="openDeleteDialog(application)"
                             >
-                              删除证书
+                              {{ t("admin.acmeCert.deleteCertificate") }}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
 
                       <ConfirmDangerPopover
-                        title="确认删除申请项？"
+                        :title="t('admin.acmeCert.confirmDeleteApplicationTitle')"
                         :description="deleteApplicationDescription(application)"
-                        confirm-text="删除申请项"
+                        :confirm-text="t('admin.acmeCert.deleteApplication')"
                         :loading="deletingApplicationId === application.id"
                         :disabled="isDeleteApplicationBlocked()"
                         :on-confirm="() => removeApplication(application)"
@@ -316,13 +321,16 @@
     >
       <DialogContent class="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>确认删除 ACME 证书</DialogTitle>
+          <DialogTitle>
+            {{ t("admin.acmeCert.confirmDeleteCertificateTitle") }}
+          </DialogTitle>
           <DialogDescription class="leading-6">
-            删除后会移除
-            <span class="font-medium text-foreground">
-              {{ deleteCandidateLabel || "当前申请项" }}
-            </span>
-            当前保存的证书和相关证书库关联，但会保留申请项配置。
+            {{
+              t("admin.acmeCert.confirmDeleteCertificateDescription", {
+                target:
+                  deleteCandidateLabel || t("admin.acmeCert.currentApplication"),
+              })
+            }}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -332,7 +340,7 @@
             :disabled="isMutating"
             @click="closeDeleteDialog"
           >
-            取消
+            {{ t("common.cancel") }}
           </Button>
           <Button
             type="button"
@@ -340,7 +348,7 @@
             :disabled="isActionBlocked() || !deleteCandidate"
             @click="confirmDeleteCandidate"
           >
-            确认删除
+            {{ t("common.confirmDelete") }}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -350,6 +358,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import {
   AcmeAPI,
   type AcmeApplicationOverviewItem,
@@ -405,6 +414,14 @@ import AcmeApplicationDialog from "./AcmeApplicationDialog.vue";
 import AcmeJobPanel from "./AcmeJobPanel.vue";
 import { ChevronDown, Trash2 } from "lucide-vue-next";
 
+type CertificateStatusKey =
+  | "none"
+  | "invalid"
+  | "expired"
+  | "expiring"
+  | "valid";
+
+const { locale, t } = useI18n();
 const overview = ref<AcmeOverview | null>(null);
 const dnsProviders = ref<AcmeDnsProvider[]>([]);
 const isDialogOpen = ref(false);
@@ -423,32 +440,36 @@ const { isPending: isProvidersLoading, run: runLoadProviders } =
   useAsyncAction();
 const { isPending: isDialogSubmitting, run: runDialogSubmit } = useAsyncAction({
   onError: (error) => {
-    toast.error(extractErrorMessage(error, "保存申请项失败"));
+    toast.error(
+      extractErrorMessage(error, t("admin.acmeCert.saveApplicationFailed")),
+    );
   },
 });
 const { isPending: isMutating, run: runMutating } = useAsyncAction({
   onError: (error) => {
-    toast.error(extractErrorMessage(error, "操作失败"));
+    toast.error(extractErrorMessage(error, t("admin.acmeCert.operationFailed")));
   },
 });
 const { isPending: isRefreshingLogs, run: runRefreshLogs } = useAsyncAction({
   onError: (error) => {
-    toast.error(extractErrorMessage(error, "刷新日志失败"));
+    toast.error(extractErrorMessage(error, t("admin.acmeCert.refreshLogsFailed")));
   },
 });
 const { isPending: isStoppingJob, run: runStopJob } = useAsyncAction({
   onError: (error) => {
-    toast.error(extractErrorMessage(error, "停止 ACME 任务失败"));
+    toast.error(extractErrorMessage(error, t("admin.acmeCert.stopJobFailed")));
   },
 });
 const { isPending: isDownloading, run: runDownload } = useAsyncAction({
   onError: (error) => {
-    toast.error(extractErrorMessage(error, "下载失败"));
+    toast.error(extractErrorMessage(error, t("admin.acmeCert.downloadFailed")));
   },
 });
 const { run: runLoadApplication } = useAsyncAction({
   onError: (error) => {
-    toast.error(extractErrorMessage(error, "加载申请项失败"));
+    toast.error(
+      extractErrorMessage(error, t("admin.acmeCert.loadApplicationFailed")),
+    );
   },
 });
 
@@ -469,10 +490,10 @@ const lockedApplication = computed(() => {
 
 const acmeStatusLabel = computed(() => {
   const status = acmeState.value?.status;
-  if (status === "installed") return "已就绪";
-  if (status === "installing") return "安装中";
-  if (status === "error") return "异常";
-  return "未安装";
+  if (status === "installed") return t("admin.acmeCert.acmeStatus.ready");
+  if (status === "installing") return t("admin.acmeCert.acmeStatus.installing");
+  if (status === "error") return t("admin.acmeCert.acmeStatus.error");
+  return t("admin.acmeCert.acmeStatus.notInstalled");
 });
 
 const acmeStatusBadgeVariant = computed(() => {
@@ -485,7 +506,9 @@ const acmeStatusBadgeVariant = computed(() => {
 
 const lockReasonLabel = computed(() => {
   const reason = overview.value?.lock.reason;
-  return reason === "auto_renew" ? "自动续期中" : "任务执行中";
+  return reason === "auto_renew"
+    ? t("admin.acmeCert.lock.autoRenew")
+    : t("admin.acmeCert.lock.running");
 });
 
 const lockMessageTitle = computed(() => {
@@ -493,16 +516,16 @@ const lockMessageTitle = computed(() => {
     lockedApplication.value?.name || lockedApplication.value?.primaryDomain;
   if (!target) {
     return overview.value?.lock.reason === "auto_renew"
-      ? "正在自动续期证书"
-      : "正在申请证书";
+      ? t("admin.acmeCert.lock.autoRenewTitle")
+      : t("admin.acmeCert.lock.requestTitle");
   }
   return overview.value?.lock.reason === "auto_renew"
-    ? `正在为 ${target} 自动续期证书`
-    : `正在为 ${target} 申请证书`;
+    ? t("admin.acmeCert.lock.autoRenewFor", { target })
+    : t("admin.acmeCert.lock.requestFor", { target });
 });
 
 const lockMessageDescription = computed(() => {
-  return "任务执行期间会锁定列表操作，你仍然可以查看列表内容和下方日志。";
+  return t("admin.acmeCert.lock.description");
 });
 
 const selectedApplicationLabel = computed(() => {
@@ -551,7 +574,9 @@ const fetchOverview = async (opts?: {
     {
       onError: (error) => {
         if (!opts?.silent) {
-          toast.error(extractErrorMessage(error, "加载 ACME 概览失败"));
+          toast.error(
+            extractErrorMessage(error, t("admin.acmeCert.loadOverviewFailed")),
+          );
         }
       },
     },
@@ -565,7 +590,9 @@ const loadProviders = async () => {
     },
     {
       onError: (error) => {
-        toast.error(extractErrorMessage(error, "加载 DNS 服务商失败"));
+        toast.error(
+          extractErrorMessage(error, t("admin.acmeCert.loadProvidersFailed")),
+        );
         dnsProviders.value = [];
       },
     },
@@ -661,7 +688,11 @@ const submitDialog = async (payload: AcmeApplicationPayload) => {
         ? await AcmeAPI.updateApplication(editingApplication.value.id, payload)
         : await AcmeAPI.createApplication(payload);
 
-    toast.success(payload.submitNow ? "任务已提交" : "已保存");
+    toast.success(
+      payload.submitNow
+        ? t("admin.acmeCert.taskSubmitted")
+        : t("admin.acmeCert.saved"),
+    );
     isDialogOpen.value = false;
     editingApplication.value = null;
     await fetchOverview({ silent: true, preserveSelection: true });
@@ -675,7 +706,7 @@ const submitDialog = async (payload: AcmeApplicationPayload) => {
 const requestCertificate = async (applicationId: string) => {
   await runMutating(async () => {
     const response = await AcmeAPI.requestApplication(applicationId);
-    toast.success("任务已提交");
+    toast.success(t("admin.acmeCert.taskSubmitted"));
     await fetchOverview({ silent: true, preserveSelection: true });
     await selectJob(response.job.id, true);
   });
@@ -685,7 +716,9 @@ const syncLibrary = async (application: AcmeApplicationOverviewItem) => {
   await runMutating(async () => {
     await AcmeAPI.syncApplicationLibrary(application.id);
     toast.success(
-      application.library?.linked ? "已更新到证书库" : "已添加到证书库",
+      application.library?.linked
+        ? t("admin.acmeCert.updatedToLibrary")
+        : t("admin.acmeCert.addedToLibrary"),
     );
     await fetchOverview({ silent: true, preserveSelection: true });
   });
@@ -694,7 +727,7 @@ const syncLibrary = async (application: AcmeApplicationOverviewItem) => {
 const deployCertificate = async (application: AcmeApplicationOverviewItem) => {
   await runMutating(async () => {
     await AcmeAPI.deployApplication(application.id);
-    toast.success("已设为当前证书");
+    toast.success(t("admin.acmeCert.deployed"));
     await fetchOverview({ silent: true, preserveSelection: true });
   });
 };
@@ -702,7 +735,7 @@ const deployCertificate = async (application: AcmeApplicationOverviewItem) => {
 const deleteCertificate = async (application: AcmeApplicationOverviewItem) => {
   await runMutating(async () => {
     await AcmeAPI.deleteApplicationCertificate(application.id);
-    toast.success("已删除证书");
+    toast.success(t("admin.acmeCert.certificateDeleted"));
     await fetchOverview({ silent: true, preserveSelection: true });
     if (
       job.value?.applicationId === application.id &&
@@ -721,7 +754,7 @@ const removeApplication = async (application: AcmeApplicationOverviewItem) => {
   try {
     await runMutating(async () => {
       await AcmeAPI.deleteApplication(application.id);
-      toast.success("已删除申请项");
+      toast.success(t("admin.acmeCert.applicationDeleted"));
       await fetchOverview({ silent: true, preserveSelection: true });
 
       if (editingApplication.value?.id === application.id) {
@@ -774,14 +807,16 @@ const stopActiveJob = async () => {
       result.processResult.matchedPids.length -
       result.processResult.remainingPids.length;
     if (result.stopped) {
-      toast.success("已停止 ACME 任务", {
+      toast.success(t("admin.acmeCert.jobStopped"), {
         description:
           result.processResult.matchedPids.length > 0
-            ? `已结束 ${Math.max(0, killedCount)} 个 acme.sh 进程`
-            : "未发现仍在运行的 acme.sh 进程",
+            ? t("admin.acmeCert.jobStoppedDescription", {
+                count: Math.max(0, killedCount),
+              })
+            : t("admin.acmeCert.noRunningProcesses"),
       });
     } else {
-      toast.info("当前没有正在执行的 ACME 任务");
+      toast.info(t("admin.acmeCert.noActiveJob"));
     }
 
     await fetchOverview({ silent: true, preserveSelection: true });
@@ -826,7 +861,9 @@ const isDeleteApplicationBlocked = () => {
 };
 
 const primaryActionLabel = (application: AcmeApplicationOverviewItem) => {
-  return application.certificate?.exists ? "重申请" : "申请";
+  return application.certificate?.exists
+    ? t("admin.acmeCert.reapply")
+    : t("admin.acmeCert.apply");
 };
 
 const isSecondaryActionDisabled = (
@@ -835,38 +872,47 @@ const isSecondaryActionDisabled = (
   return isActionBlocked() && !application.latestJob?.id;
 };
 
-const certificateStatusLabel = (application: AcmeApplicationOverviewItem) => {
-  if (!application.certificate?.exists) return "无证书";
+const certificateStatusKey = (
+  application: AcmeApplicationOverviewItem,
+): CertificateStatusKey => {
+  if (!application.certificate?.exists) return "none";
   const validTo = Date.parse(application.certificate.validTo || "");
-  if (!Number.isFinite(validTo)) return "证书异常";
-  if (validTo <= Date.now()) return "已过期";
-  if (validTo - Date.now() <= 30 * 24 * 60 * 60 * 1000) return "即将过期";
-  return "有证书";
+  if (!Number.isFinite(validTo)) return "invalid";
+  if (validTo <= Date.now()) return "expired";
+  if (validTo - Date.now() <= 30 * 24 * 60 * 60 * 1000) return "expiring";
+  return "valid";
+};
+
+const certificateStatusLabel = (application: AcmeApplicationOverviewItem) => {
+  const key = certificateStatusKey(application);
+  return t(`admin.acmeCert.certificateStatus.${key}`);
 };
 
 const certificateBadgeVariant = (application: AcmeApplicationOverviewItem) => {
-  const label = certificateStatusLabel(application);
-  if (label === "无证书") return "outline";
-  if (label === "有证书") return "secondary";
+  const key = certificateStatusKey(application);
+  if (key === "none") return "outline";
+  if (key === "valid") return "secondary";
   return "destructive";
 };
 
 const formatCertificateRange = (application: AcmeApplicationOverviewItem) => {
-  if (!application.certificate?.exists) return "未签发";
+  if (!application.certificate?.exists) return t("admin.acmeCert.notIssued");
   const validFrom = application.certificate.validFrom || "";
   const validTo = application.certificate.validTo || "";
-  if (!validFrom || !validTo) return "证书信息异常";
+  if (!validFrom || !validTo) {
+    return t("admin.acmeCert.certificateInfoInvalid");
+  }
   return `${formatDate(validFrom)} ~ ${formatDate(validTo)}`;
 };
 
 const latestJobLabel = (application: AcmeApplicationOverviewItem) => {
   const status = application.latestJob?.status;
-  if (!status || status === "idle") return "未运行";
-  if (status === "queued") return "排队中";
-  if (status === "running") return "执行中";
-  if (status === "succeeded") return "最近成功";
-  if (status === "failed") return "最近失败";
-  if (status === "stopped") return "已停止";
+  if (!status || status === "idle") return t("admin.acmeCert.jobStatus.idle");
+  if (status === "queued") return t("admin.acmeCert.jobStatus.queued");
+  if (status === "running") return t("admin.acmeCert.jobStatus.running");
+  if (status === "succeeded") return t("admin.acmeCert.jobStatus.succeeded");
+  if (status === "failed") return t("admin.acmeCert.jobStatus.failed");
+  if (status === "stopped") return t("admin.acmeCert.jobStatus.stopped");
   return status;
 };
 
@@ -881,9 +927,9 @@ const jobBadgeVariant = (status?: string | null) => {
 };
 
 const libraryStatusLabel = (application: AcmeApplicationOverviewItem) => {
-  if (application.library?.isActive) return "当前使用中";
-  if (application.library?.linked) return "已加入";
-  return "未加入";
+  if (application.library?.isActive) return t("admin.acmeCert.library.active");
+  if (application.library?.linked) return t("admin.acmeCert.library.linked");
+  return t("admin.acmeCert.library.unlinked");
 };
 
 const libraryBadgeVariant = (application: AcmeApplicationOverviewItem) => {
@@ -897,15 +943,17 @@ const deleteApplicationDescription = (
 ) => {
   const target = application.name || application.primaryDomain;
   if (application.certificate?.exists || application.library?.linked) {
-    return `删除后会移除 ${target} 申请项，并清理该项对应的已签发证书和证书库关联，此操作不可恢复。`;
+    return t("admin.acmeCert.deleteApplicationWithCertificateDescription", {
+      target,
+    });
   }
-  return `删除后会移除 ${target} 申请项记录，此操作不可恢复。`;
+  return t("admin.acmeCert.deleteApplicationDescription", { target });
 };
 
 const formatDate = (value: string) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
+  return date.toLocaleString(locale.value);
 };
 
 onMounted(async () => {

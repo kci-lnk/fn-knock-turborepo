@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
@@ -13,6 +14,7 @@ import { docsUrls } from "../lib/docs";
 const router = useRouter();
 const route = useRoute();
 const configStore = useConfigStore();
+const { t } = useI18n();
 
 const showSessionsTab = computed(
   () =>
@@ -44,9 +46,11 @@ const currentDocsHref = computed(() =>
   <div class="h-full flex flex-col gap-4">
     <div class="flex items-start justify-between gap-3">
       <div class="space-y-1">
-        <h1 class="text-lg font-semibold tracking-tight">会话与安全</h1>
+        <h1 class="text-lg font-semibold tracking-tight">
+          {{ t("admin.sessions.page.title") }}
+        </h1>
         <p class="text-sm text-muted-foreground">
-          查看在线会话、异常登录退避和扫描器黑名单。
+          {{ t("admin.sessions.page.description") }}
         </p>
       </div>
       <DocsLinkButton :href="currentDocsHref" />
@@ -57,11 +61,15 @@ const currentDocsHref = computed(() =>
       class="w-full"
     >
       <TabsList>
-        <TabsTrigger v-if="showSessionsTab" value="sessions"
-          >会话管理</TabsTrigger
-        >
-        <TabsTrigger value="login-backoff">异常登录退避</TabsTrigger>
-        <TabsTrigger value="ip-blacklist">扫描器黑名单</TabsTrigger>
+        <TabsTrigger v-if="showSessionsTab" value="sessions">
+          {{ t("admin.sessions.page.sessionsTab") }}
+        </TabsTrigger>
+        <TabsTrigger value="login-backoff">
+          {{ t("admin.sessions.page.loginBackoffTab") }}
+        </TabsTrigger>
+        <TabsTrigger value="ip-blacklist">
+          {{ t("admin.sessions.page.ipBlacklistTab") }}
+        </TabsTrigger>
       </TabsList>
       <TabsContent v-if="showSessionsTab" value="sessions" class="pt-2">
         <SessionsTab />

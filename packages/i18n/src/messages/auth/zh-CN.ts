@@ -1,0 +1,128 @@
+export const zhCNAuth = {
+  autoIpGrantComment: "登录后自动授权",
+  title: "安全验证",
+  captchaFirst: "请先完成下方的人机验证",
+  otpPrompt: "请输入您的六位数动态密码完成登录",
+  notRobot: "我不是机器人",
+  verified: "验证通过",
+  verifying: "正在验证...",
+  wait: "请稍候...",
+  verifyError: "验证错误",
+  turnstileMissing: "当前 Turnstile 未完成配置，请联系管理员填写 site key。",
+  turnstileScriptLoadFailed: "Turnstile 脚本加载失败",
+  turnstileRenderFailed: "Turnstile 渲染失败，请稍后重试",
+  turnstileTimeout: "Turnstile 验证超时，请重试",
+  powUnsupportedAlgorithm: "不支持的 PoW 算法",
+  powInvalidChallenge: "PoW challenge 数据无效",
+  powSolveFailed: "PoW 求解失败，请刷新页面后重试",
+  locationResolving: "属地解析中...",
+  locationUnavailable: "属地暂未获取",
+  openGithub: "打开 GitHub 项目页",
+  menu: "菜单",
+  or: "OR",
+  loginWithProvider: "使用 {provider} 登录",
+  retryAfterSeconds: "{seconds} 秒后重试",
+  verifyNow: "立即验证",
+  passkeyLogin: "Passkey 一键登录",
+  tip: "提示",
+  ok: "确定",
+  rememberMe: "记住我",
+  passkeyBindTitle: "开启 Passkey 一键登录",
+  passkeyBindDescription:
+    "是否在当前设备上绑定 Passkey？绑定后可直接一键登录。",
+  passkeyBindSkipPrompt: "不再提醒",
+  passkeyBindLater: "稍后再说",
+  passkeyBindNow: "立即开启",
+  captchaConfigLoadFailed: "验证码配置加载失败，请刷新页面后重试。",
+  captchaFailed: "人机验证失败，请重试",
+  loggedOutLoginIpGrant:
+    "当前浏览器会话已退出，登录时授予的当前 IP 访问权限也已撤销。",
+  loggedOutManualWhitelist: "当前浏览器会话已退出。管理员白名单仍然有效。",
+  loggedOutLocalExempt: "当前浏览器会话已退出。当前网络仍属于免白名单范围。",
+  loggedOutDefault: "当前浏览器会话已退出，请重新验证。",
+  retrySuffix: "，请在 {seconds} 秒后重试",
+  invalidOtpLength: "请输入完整的 6 位身份验证码",
+  loginFailed: "验证失败，请重试",
+  passkeyNoResponse: "未获取到 Passkey 响应",
+  passkeyVerifyFailed: "Passkey 验证失败",
+  passkeyLoginFailed: "Passkey 登录失败，请重试",
+  oidcStartFailed: "无法发起外部登录",
+  oidcLoginFailed: "外部登录失败，请重试",
+  passkeyBindInvalid: "绑定凭证无效，请重新登录",
+  passkeyBindFailed: "Passkey 绑定失败",
+  home: {
+    statusTitles: {
+      browserSession: "当前浏览器会话已验证",
+      sessionMigration: "浏览器会话已恢复",
+      fnosFingerprintSession: "设备指纹会话已恢复",
+      manualWhitelist: "白名单访问已放行",
+      localExempt: "当前网络已放行",
+      fnosShare: "分享访问已授权",
+      loginIpGrant: "安全验证已通过",
+    },
+    statusDescriptions: {
+      browserSession: "当前浏览器会话已被允许访问",
+      sessionMigration: "当前浏览器会话已随网络切换恢复访问",
+      fnosFingerprintSession: "当前访问已由飞牛设备指纹会话恢复",
+      manualWhitelist: "当前 IP 已在管理员白名单中",
+      localExempt: "当前网络地址属于免白名单范围",
+      fnosShare: "当前访问由飞牛分享链路授权",
+      loginIpGrant: "您的 IP 已被授权访问",
+    },
+    logoutHints: {
+      browserSession:
+        "如果不再需要访问，请点击下方按钮退出。退出后当前浏览器需要重新验证才能再次进入。",
+      sessionMigration:
+        "如果不再需要访问，请点击下方按钮退出。退出后当前浏览器需要重新验证，并会撤销本次会话迁移关联的授权。",
+      fnosFingerprintSession:
+        "如果不再需要访问，请点击下方按钮退出。退出后当前恢复的设备指纹会话会结束，并撤销关联授权。",
+      loginIpGrant:
+        "如果不再需要访问，请点击下方按钮退出。退出后当前浏览器会话会结束，登录时授予的当前 IP 访问权限也会一并撤销。",
+      manualWhitelist:
+        "如果不再需要访问，请点击下方按钮退出。退出只会结束当前浏览器会话，管理员白名单不会被移除。",
+      localExempt:
+        "如果不再需要访问，请点击下方按钮退出。退出只会结束当前浏览器会话，免白名单网络访问范围不会改变。",
+      fnosShare:
+        "如果不再需要访问，请点击下方按钮退出。退出后当前分享访问会话会结束，需要重新进入分享链路。",
+      default: "如果不再需要访问，请点击下方按钮退出并撤销您的授权。",
+    },
+    logoutDialogDescriptions: {
+      browserSession:
+        "退出后将结束当前浏览器会话，需要重新验证后才能再次进入。",
+      sessionMigration:
+        "退出后将结束当前浏览器会话，并撤销本次会话迁移关联的授权。",
+      fnosFingerprintSession:
+        "退出后将结束当前恢复的设备指纹会话，并撤销关联授权。",
+      loginIpGrant:
+        "退出后将结束当前浏览器会话，并撤销这次登录授予的当前 IP 访问权限。",
+      manualWhitelist:
+        "退出后只会结束当前浏览器会话，管理员配置的白名单不会被移除。",
+      localExempt:
+        "退出后只会结束当前浏览器会话，当前网络的免白名单属性不会改变。",
+      fnosShare:
+        "退出后将结束当前分享访问会话，如需再次访问请重新进入分享链路。",
+      default: "退出后将撤销当前访问授权，需要重新验证后才能再次进入。",
+    },
+    enablePasskey: "开启 Passkey 一键登录",
+    passkeySupportedUnbound: "当前浏览器支持 Passkey，但尚未绑定",
+    logoutDelay: "退出登录按钮将在 {seconds} 秒后显示",
+    logout: "退出登录",
+    logoutConfirmTitle: "确认退出登录",
+    confirmLogout: "确认退出",
+    passkeyTokenMissing: "无法获取绑定凭证",
+  },
+  oidcBind: {
+    title: "绑定外部账号",
+    checkingInvite: "正在检查邀请链接...",
+    bindTo: "绑定到",
+    useProvider: "使用 {provider} 绑定",
+    invalidInvite: "邀请链接不可用",
+    wait: "请稍候",
+    selectProvider: "选择一个提供商完成登录并绑定",
+    missingToken: "邀请链接缺少 token",
+    noProviders: "当前没有可用的外部登录提供商",
+    inviteExpired: "邀请链接已失效",
+    startFailed: "无法发起外部账号绑定",
+    bindFailed: "外部账号绑定失败，请重试",
+  },
+};

@@ -1,8 +1,9 @@
 import { AnalyzerRule } from "../../types";
+import { scannerServiceLabel } from "../labels";
 
 export const lotteryRule: AnalyzerRule = {
   name: "cpzs",
-  label: '彩票助手',
+  label: scannerServiceLabel("lottery"),
   rule: {
     path: '/cpzs',
     rewrite_html: false,

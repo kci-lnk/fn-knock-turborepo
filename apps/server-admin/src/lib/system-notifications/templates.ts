@@ -6,111 +6,176 @@ import type {
   NotificationRule,
   NotificationSeverity,
 } from "./types";
+import {
+  DEFAULT_LOCALE,
+  type LocaleCode,
+  normalizeLocale,
+  translate,
+} from "../../../../../packages/i18n/src";
+import { normalizeAutoIpGrantComment } from "../post-login-ip-grant";
 
-const EVENT_LABELS: Record<SystemEventEnvelope["type"], string> = {
-  FN_EVENT_AUTH_LOGIN_SUCCESS: "登录成功",
-  FN_EVENT_AUTH_LOGOUT: "退出登录",
-  FN_EVENT_AUTH_LOGIN_FAILURE: "登录失败",
-  FN_EVENT_AUTH_SESSION_IP_DRIFT: "会话 IP 漂移",
-  FN_EVENT_SECURITY_SCANNER_BLOCKED: "扫描器拦截",
-  FN_EVENT_DDNS_UPDATE_COMPLETED: "DDNS 更新",
-  FN_EVENT_GATEWAY_THROTTLE_BLOCKED: "网关节流封锁",
-  FN_EVENT_WAF_BLOCKED: "WAF 阻断",
-  FN_EVENT_SSH_LOGIN_SUCCESS: "SSH 登录成功",
-  FN_EVENT_SSH_LOGIN_FAILURE: "SSH 登录失败",
-  FN_EVENT_SSH_IP_BLOCKED: "SSH IP 封锁",
-  FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE: "应用更新提示",
-  FN_EVENT_SYSTEM_CPU_ALERT: "CPU 告警",
-  FN_EVENT_SYSTEM_CPU_RECOVERED: "CPU 恢复",
-  FN_EVENT_SYSTEM_MEMORY_ALERT: "内存告警",
-  FN_EVENT_SYSTEM_MEMORY_RECOVERED: "内存恢复",
-  FN_EVENT_TUNNEL_FRP_CONNECTED: "FRP 已连上",
-  FN_EVENT_TUNNEL_FRP_DISCONNECTED: "FRP 已断开",
-  FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED: "Cloudflared 已连上",
-  FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED: "Cloudflared 已断开",
+let activeNotificationLocale: LocaleCode = DEFAULT_LOCALE;
+
+const withNotificationLocale = <T>(
+  locale: string | null | undefined,
+  action: () => T,
+): T => {
+  const previous = activeNotificationLocale;
+  activeNotificationLocale = normalizeLocale(locale) ?? DEFAULT_LOCALE;
+  try {
+    return action();
+  } finally {
+    activeNotificationLocale = previous;
+  }
+};
+
+const ntfT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+): string =>
+  translate(
+    activeNotificationLocale,
+    `server.notifications.templates.${key}`,
+    params,
+  );
+
+const detailT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+): string => ntfT(`details.${key}`, params);
+
+const factLabel = (key: string): string => detailT(`facts.${key}`);
+
+const formatSeconds = (value: string) =>
+  value ? detailT("units.seconds", { count: value }) : "";
+
+const formatMinutes = (value: string) =>
+  value ? detailT("units.minutes", { count: value }) : "";
+
+const formatTimes = (value: string) =>
+  value ? detailT("units.times", { count: value }) : "";
+
+const formatRatePerSecond = (value: string) =>
+  value ? detailT("units.ratePerSecond", { count: value }) : "";
+
+const joinLocalizedList = (items: string[]) =>
+  items.filter(Boolean).join(detailT("listSeparator"));
+
+const EVENT_LABEL_KEYS: Record<SystemEventEnvelope["type"], string> = {
+  FN_EVENT_AUTH_LOGIN_SUCCESS: "events.authLoginSuccess",
+  FN_EVENT_AUTH_LOGOUT: "events.authLogout",
+  FN_EVENT_AUTH_LOGIN_FAILURE: "events.authLoginFailure",
+  FN_EVENT_AUTH_SESSION_IP_DRIFT: "events.authSessionIpDrift",
+  FN_EVENT_SECURITY_SCANNER_BLOCKED: "events.securityScannerBlocked",
+  FN_EVENT_DDNS_UPDATE_COMPLETED: "events.ddnsUpdateCompleted",
+  FN_EVENT_GATEWAY_THROTTLE_BLOCKED: "events.gatewayThrottleBlocked",
+  FN_EVENT_WAF_BLOCKED: "events.wafBlocked",
+  FN_EVENT_SSH_LOGIN_SUCCESS: "events.sshLoginSuccess",
+  FN_EVENT_SSH_LOGIN_FAILURE: "events.sshLoginFailure",
+  FN_EVENT_SSH_IP_BLOCKED: "events.sshIpBlocked",
+  FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE: "events.appUpdateAvailable",
+  FN_EVENT_SYSTEM_CPU_ALERT: "events.cpuAlert",
+  FN_EVENT_SYSTEM_CPU_RECOVERED: "events.cpuRecovered",
+  FN_EVENT_SYSTEM_MEMORY_ALERT: "events.memoryAlert",
+  FN_EVENT_SYSTEM_MEMORY_RECOVERED: "events.memoryRecovered",
+  FN_EVENT_TUNNEL_FRP_CONNECTED: "events.frpConnected",
+  FN_EVENT_TUNNEL_FRP_DISCONNECTED: "events.frpDisconnected",
+  FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED: "events.cloudflaredConnected",
+  FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED: "events.cloudflaredDisconnected",
 };
 
 const APP_UPDATE_RELEASE_NOTES_PREVIEW_LENGTH = 360;
 
 export const formatNotificationEventLabel = (
   type: SystemEventEnvelope["type"],
-) => EVENT_LABELS[type] || type;
-
-export const buildNotificationRuleName = (type: SystemEventEnvelope["type"]) =>
-  `${formatNotificationEventLabel(type)} 通知`;
-
-const EVENT_LEVEL_LABELS: Record<SystemEventEnvelope["level"], string> = {
-  INFO: "信息",
-  WARN: "注意",
-  ERROR: "错误",
-  CRITICAL: "严重",
+  locale?: string | null,
+) => {
+  const format = () => {
+    const key = EVENT_LABEL_KEYS[type];
+    return key ? ntfT(key) : type;
+  };
+  return locale === undefined
+    ? format()
+    : withNotificationLocale(locale, format);
 };
 
-const EVENT_SOURCE_LABELS: Record<SystemEventEnvelope["source"], string> = {
-  SERVER_ADMIN: "管理后台",
-  GO_REAUTH_PROXY: "认证代理",
-  SYSTEM_MONITOR: "系统监控",
+export const buildNotificationRuleName = (
+  type: SystemEventEnvelope["type"],
+  locale?: string | null,
+) =>
+  withNotificationLocale(locale, () =>
+    ntfT("ruleName", { event: formatNotificationEventLabel(type) }),
+  );
+
+const EVENT_LEVEL_LABEL_KEYS: Record<SystemEventEnvelope["level"], string> = {
+  INFO: "levels.info",
+  WARN: "levels.warn",
+  ERROR: "levels.error",
+  CRITICAL: "levels.critical",
 };
 
-const AUTH_METHOD_LABELS = {
-  TOTP: "TOTP",
-  PASSKEY: "Passkey",
-  OIDC: "外部账号",
+const EVENT_SOURCE_LABEL_KEYS: Record<SystemEventEnvelope["source"], string> = {
+  SERVER_ADMIN: "sources.serverAdmin",
+  GO_REAUTH_PROXY: "sources.goReauthProxy",
+  SYSTEM_MONITOR: "sources.systemMonitor",
+};
+
+const AUTH_METHOD_LABEL_KEYS = {
+  OIDC: "authMethods.oidc",
 } as const;
 
-const GRANT_TYPE_LABELS = {
-  browser_session: "浏览器会话",
-  login_ip_grant: "登录 IP 授权",
+const GRANT_TYPE_LABEL_KEYS = {
+  browser_session: "grantTypes.browserSession",
+  login_ip_grant: "grantTypes.loginIpGrant",
 } as const;
 
-const WAF_MODE_LABELS = {
-  detection: "检测",
-  blocking: "阻断",
-  off: "关闭",
+const WAF_MODE_LABEL_KEYS = {
+  detection: "wafModes.detection",
+  blocking: "wafModes.blocking",
+  off: "wafModes.off",
 } as const;
 
-const WAF_ACTION_LABELS = {
-  block: "阻断",
-  deny: "拒绝",
-  detect: "检测",
-  log: "记录",
-  pass: "放行",
+const WAF_ACTION_LABEL_KEYS = {
+  block: "wafActions.block",
+  deny: "wafActions.deny",
+  detect: "wafActions.detect",
+  log: "wafActions.log",
+  pass: "wafActions.pass",
 } as const;
 
-const LOGOUT_SOURCE_LABELS = {
-  user_logout: "用户主动退出",
-  admin_session_delete: "管理员下线",
+const LOGOUT_SOURCE_LABEL_KEYS = {
+  user_logout: "logoutSources.userLogout",
+  admin_session_delete: "logoutSources.adminSessionDelete",
 } as const;
 
-const DRIFT_SOURCE_LABELS = {
-  "proxy-session": "代理会话",
-  "fnos-token": "飞牛令牌",
-  "session-refresh": "会话刷新",
-  "browser-session": "浏览器会话",
+const DRIFT_SOURCE_LABEL_KEYS = {
+  "proxy-session": "driftSources.proxySession",
+  "fnos-token": "driftSources.fnosToken",
+  "session-refresh": "driftSources.sessionRefresh",
+  "browser-session": "driftSources.browserSession",
 } as const;
 
-const DDNS_TRIGGER_LABELS = {
-  cron: "定时任务",
-  enable: "启用后首次执行",
-  manual_test: "手动测试",
+const DDNS_TRIGGER_LABEL_KEYS = {
+  cron: "ddnsTriggers.cron",
+  enable: "ddnsTriggers.enable",
+  manual_test: "ddnsTriggers.manualTest",
 } as const;
 
-const DDNS_UPDATE_SCOPE_LABELS = {
-  dual_stack: "IPv4 + IPv6",
-  ipv4_only: "仅 IPv4",
-  ipv6_only: "仅 IPv6",
+const DDNS_UPDATE_SCOPE_LABEL_KEYS = {
+  ipv4_only: "ddnsUpdateScopes.ipv4Only",
+  ipv6_only: "ddnsUpdateScopes.ipv6Only",
 } as const;
 
-const DDNS_IP_SOURCE_LABELS = {
-  public: "公网探测",
-  interface: "网卡读取",
+const DDNS_IP_SOURCE_LABEL_KEYS = {
+  public: "ddnsIpSources.public",
+  interface: "ddnsIpSources.interface",
 } as const;
 
-const UPDATE_CHECK_REASON_LABELS = {
-  cron: "定时检查",
-  manual: "手动检查",
-  "manual-check-and-download": "手动检查并下载",
-  "download-bootstrap": "下载前检查",
+const UPDATE_CHECK_REASON_LABEL_KEYS = {
+  cron: "updateCheckReasons.cron",
+  manual: "updateCheckReasons.manual",
+  "manual-check-and-download": "updateCheckReasons.manualCheckAndDownload",
+  "download-bootstrap": "updateCheckReasons.downloadBootstrap",
 } as const;
 
 const TUNNEL_LABELS = {
@@ -118,12 +183,55 @@ const TUNNEL_LABELS = {
   cloudflared: "Cloudflared",
 } as const;
 
+const translateLabelKey = <T extends string>(
+  labels: Partial<Record<T, string>>,
+  value: string,
+) => {
+  const key = labels[value as T];
+  return key ? ntfT(key) : value;
+};
+
+const formatAuthMethodLabel = (value: string) => {
+  if (value === "TOTP") return "TOTP";
+  if (value === "PASSKEY") return "Passkey";
+  return translateLabelKey(AUTH_METHOD_LABEL_KEYS, value);
+};
+
+const formatGrantTypeLabel = (value: string) =>
+  translateLabelKey(GRANT_TYPE_LABEL_KEYS, value);
+
+const formatLogoutSourceLabel = (value: string) =>
+  translateLabelKey(LOGOUT_SOURCE_LABEL_KEYS, value);
+
+const formatDriftSourceLabel = (value: string) =>
+  translateLabelKey(DRIFT_SOURCE_LABEL_KEYS, value);
+
+const formatDdnsTriggerLabel = (value: string) =>
+  translateLabelKey(DDNS_TRIGGER_LABEL_KEYS, value);
+
+const formatDdnsUpdateScopeLabel = (value: string) =>
+  value === "dual_stack"
+    ? "IPv4 + IPv6"
+    : translateLabelKey(DDNS_UPDATE_SCOPE_LABEL_KEYS, value);
+
+const formatDdnsIpSourceLabel = (value: string) =>
+  translateLabelKey(DDNS_IP_SOURCE_LABEL_KEYS, value);
+
+const formatUpdateCheckReasonLabel = (value: string) =>
+  translateLabelKey(UPDATE_CHECK_REASON_LABEL_KEYS, value);
+
 const readPayloadValue = (event: SystemEventEnvelope, key: string) => {
   const payload = event.payload as Record<string, unknown>;
   const value = payload[key];
   if (value === undefined || value === null || value === "") return "";
   return String(value);
 };
+
+const readSessionComment = (event: SystemEventEnvelope): string =>
+  normalizeAutoIpGrantComment(
+    readPayloadValue(event, "session_comment"),
+    activeNotificationLocale,
+  );
 
 const joinCompactParts = (...parts: Array<string | undefined>) =>
   parts
@@ -134,31 +242,46 @@ const joinCompactParts = (...parts: Array<string | undefined>) =>
 const formatCredentialContext = (event: SystemEventEnvelope, fallback = "") => {
   const credentialName = readPayloadValue(event, "credential_name");
   const linkedTotpName = readPayloadValue(event, "linked_totp_name");
-  const authMethod =
-    AUTH_METHOD_LABELS[
-      readPayloadValue(event, "auth_method") as keyof typeof AUTH_METHOD_LABELS
-    ] || readPayloadValue(event, "auth_method");
+  const authMethod = formatAuthMethodLabel(
+    readPayloadValue(event, "auth_method"),
+  );
 
   if (linkedTotpName) {
-    return `${authMethod || "凭证"}「${credentialName || "未知凭证"}」关联 TOTP「${linkedTotpName}」`;
+    return ntfT("credentialLinkedTotp", {
+      authMethod: authMethod || ntfT("credential"),
+      credential: credentialName || ntfT("unknownCredential"),
+      totp: linkedTotpName,
+    });
   }
   if (credentialName) {
-    return `凭证「${credentialName}」`;
+    return ntfT("credentialName", { credential: credentialName });
   }
   return fallback;
 };
 
 const formatSessionCommentCompact = (value: string) =>
-  value ? `备注：${value}` : "";
+  value
+    ? ntfT("sessionCommentCompact", {
+        comment: normalizeAutoIpGrantComment(value, activeNotificationLocale),
+      })
+    : "";
 
 const appendSessionComment = (text: string, sessionComment: string) =>
-  sessionComment ? `${text}（备注：${sessionComment}）` : text;
+  sessionComment
+    ? ntfT("appendSessionComment", {
+        text,
+        comment: normalizeAutoIpGrantComment(
+          sessionComment,
+          activeNotificationLocale,
+        ),
+      })
+    : text;
 
 const formatEventLevelLabel = (level: SystemEventEnvelope["level"]) =>
-  EVENT_LEVEL_LABELS[level] || level;
+  translateLabelKey(EVENT_LEVEL_LABEL_KEYS, level);
 
 const formatEventSourceLabel = (source: SystemEventEnvelope["source"]) =>
-  EVENT_SOURCE_LABELS[source] || source;
+  translateLabelKey(EVENT_SOURCE_LABEL_KEYS, source);
 
 const formatDateTime = (value: string) => {
   const date = new Date(value);
@@ -166,7 +289,7 @@ const formatDateTime = (value: string) => {
     return String(value || "").trim();
   }
 
-  return new Intl.DateTimeFormat("zh-CN", {
+  return new Intl.DateTimeFormat(activeNotificationLocale, {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -180,8 +303,8 @@ const formatDateTime = (value: string) => {
 };
 
 const formatBoolean = (value: string) => {
-  if (value === "true") return "是";
-  if (value === "false") return "否";
+  if (value === "true") return ntfT("yes");
+  if (value === "false") return ntfT("no");
   return value;
 };
 
@@ -191,10 +314,10 @@ const formatIpTransition = (previousIp: string, nextIp: string) => {
 };
 
 const formatWAFActionLabel = (value: string) =>
-  WAF_ACTION_LABELS[value as keyof typeof WAF_ACTION_LABELS] || value;
+  translateLabelKey(WAF_ACTION_LABEL_KEYS, value);
 
 const formatWAFModeLabel = (value: string) =>
-  WAF_MODE_LABELS[value as keyof typeof WAF_MODE_LABELS] || value;
+  translateLabelKey(WAF_MODE_LABEL_KEYS, value);
 
 const isWAFBlockingAction = (action: string, mode: string) => {
   const normalizedAction = action.toLowerCase();
@@ -210,9 +333,9 @@ const isWAFBlockingAction = (action: string, mode: string) => {
 };
 
 const formatWAFOutcomeLabel = (action: string, mode: string) => {
-  if (isWAFBlockingAction(action, mode)) return "阻断";
+  if (isWAFBlockingAction(action, mode)) return ntfT("wafOutcomeBlocked");
   const actionLabel = formatWAFActionLabel(action);
-  return actionLabel || "记录";
+  return actionLabel || ntfT("wafOutcomeLogged");
 };
 
 const truncateText = (value: string, maxLength = 180) => {
@@ -251,16 +374,18 @@ const buildBodyMarkdown = (args: {
   advice?: string;
 }) =>
   [
-    args.overview ? `**事件概述**\n${args.overview}` : "",
-    args.aggregation ? `**聚合情况**\n${args.aggregation}` : "",
-    args.advice ? `**处理建议**\n${args.advice}` : "",
+    args.overview ? `**${ntfT("sections.overview")}**\n${args.overview}` : "",
+    args.aggregation
+      ? `**${ntfT("sections.aggregation")}**\n${args.aggregation}`
+      : "",
+    args.advice ? `**${ntfT("sections.advice")}**\n${args.advice}` : "",
   ]
     .filter(Boolean)
     .join("\n\n");
 
 const buildAggregationText = (matchedCount: number, windowSeconds: number) =>
   matchedCount > 1
-    ? `本次通知已在 ${windowSeconds} 秒窗口内聚合 ${matchedCount} 条相似事件。`
+    ? ntfT("aggregationText", { count: matchedCount, seconds: windowSeconds })
     : "";
 
 const getScannerPaths = (event: SystemEventEnvelope) => {
@@ -292,231 +417,306 @@ const buildNotificationDetails = (args: {
   switch (event.type) {
     case "FN_EVENT_AUTH_LOGIN_SUCCESS": {
       const credentialName =
-        readPayloadValue(event, "credential_name") || "未知凭证";
+        readPayloadValue(event, "credential_name") || ntfT("unknownCredential");
       const linkedTotpName = readPayloadValue(event, "linked_totp_name");
-      const sessionComment = readPayloadValue(event, "session_comment");
-      const ip = readPayloadValue(event, "ip") || "未知 IP";
+      const sessionComment = readSessionComment(event);
+      const ip = readPayloadValue(event, "ip") || detailT("unknownIp");
       const ipLocation = readPayloadValue(event, "ip_location");
       const authMethodRaw = readPayloadValue(event, "auth_method");
       const authProviderName = readPayloadValue(event, "auth_provider_name");
-      const authMethod =
-        AUTH_METHOD_LABELS[
-          authMethodRaw as keyof typeof AUTH_METHOD_LABELS
-        ] || authMethodRaw;
+      const authMethod = formatAuthMethodLabel(authMethodRaw);
       const isOidcLogin = authMethodRaw === "OIDC";
       const loginMethodText =
         isOidcLogin && authProviderName
-          ? `通过 ${authProviderName} 登录`
-          : `使用 ${authMethod || "未知方式"}`;
+          ? detailT("authLoginSuccess.loginViaProvider", {
+              provider: authProviderName,
+            })
+          : detailT("authLoginSuccess.loginWithMethod", {
+              method: authMethod || detailT("unknownMethod"),
+            });
       const loginAuthText =
         isOidcLogin && authProviderName
-          ? `通过 ${authProviderName}`
-          : `使用 ${authMethod || "未知方式"}`;
-      const grantType =
-        GRANT_TYPE_LABELS[
-          readPayloadValue(
-            event,
-            "grant_type",
-          ) as keyof typeof GRANT_TYPE_LABELS
-        ] || readPayloadValue(event, "grant_type");
+          ? detailT("authLoginSuccess.authViaProvider", {
+              provider: authProviderName,
+            })
+          : detailT("authLoginSuccess.authWithMethod", {
+              method: authMethod || detailT("unknownMethod"),
+            });
+      const grantType = formatGrantTypeLabel(
+        readPayloadValue(event, "grant_type"),
+      );
       const rememberMe = formatBoolean(readPayloadValue(event, "remember_me"));
       const expiresAt = formatDateTime(readPayloadValue(event, "expires_at"));
 
       summary = appendSessionComment(
         isOidcLogin
-          ? `${credentialName} ${loginMethodText}成功，来源 IP ${ip}${linkedTotpName ? `，关联 TOTP「${linkedTotpName}」` : ""}`
+          ? detailT("authLoginSuccess.summaryOidc", {
+              credential: credentialName,
+              method: loginMethodText,
+              ip,
+              totpPart: linkedTotpName
+                ? detailT("authLoginSuccess.linkedTotpPart", {
+                    totp: linkedTotpName,
+                  })
+                : "",
+            })
           : linkedTotpName
-          ? `${authMethod || "凭证"}「${credentialName}」关联 TOTP「${linkedTotpName}」从 ${ip} 登录成功`
-          : `凭证「${credentialName}」从 ${ip} 登录成功`,
+            ? detailT("authLoginSuccess.summaryTotp", {
+                method: authMethod || ntfT("credential"),
+                credential: credentialName,
+                totp: linkedTotpName,
+                ip,
+              })
+            : detailT("authLoginSuccess.summaryCredential", {
+                credential: credentialName,
+                ip,
+              }),
         sessionComment,
       );
-      overview = `本次登录${loginAuthText}完成认证，授权方式为 ${grantType || "未知"}${ipLocation ? `，登录位置为 ${ipLocation}` : ""}。${sessionComment ? `当前会话备注为「${sessionComment}」。` : ""}`;
-      advice = "如该登录并非本人操作，建议尽快撤销会话并检查访问策略。";
+      overview = detailT("authLoginSuccess.overview", {
+        auth: loginAuthText,
+        grantType: grantType || detailT("unknown"),
+        locationPart: ipLocation
+          ? detailT("authLoginSuccess.locationPart", { location: ipLocation })
+          : "",
+        commentPart: sessionComment
+          ? detailT("sessionCommentSentence", { comment: sessionComment })
+          : "",
+      });
+      advice = detailT("authLoginSuccess.advice");
 
-      pushFact(facts, "凭证名称", credentialName);
-      pushFact(facts, "关联 TOTP", linkedTotpName);
-      pushFact(facts, "会话备注", sessionComment);
-      pushFact(facts, "登录 IP", ip);
-      pushFact(facts, "IP 位置", ipLocation);
-      pushFact(facts, "认证方式", authMethod);
-      pushFact(facts, "登录提供商", authProviderName);
-      pushFact(facts, "授权方式", grantType);
-      pushFact(facts, "记住登录", rememberMe);
-      pushFact(facts, "会话到期", expiresAt);
-      pushFact(facts, "会话 ID", readPayloadValue(event, "session_id"));
+      pushFact(facts, factLabel("credentialName"), credentialName);
+      pushFact(facts, factLabel("linkedTotp"), linkedTotpName);
+      pushFact(facts, factLabel("sessionComment"), sessionComment);
+      pushFact(facts, factLabel("loginIp"), ip);
+      pushFact(facts, factLabel("ipLocation"), ipLocation);
+      pushFact(facts, factLabel("authMethod"), authMethod);
+      pushFact(facts, factLabel("loginProvider"), authProviderName);
+      pushFact(facts, factLabel("grantType"), grantType);
+      pushFact(facts, factLabel("rememberLogin"), rememberMe);
+      pushFact(facts, factLabel("sessionExpiresAt"), expiresAt);
+      pushFact(
+        facts,
+        factLabel("sessionId"),
+        readPayloadValue(event, "session_id"),
+      );
       break;
     }
     case "FN_EVENT_AUTH_LOGOUT": {
       const credentialName =
-        readPayloadValue(event, "credential_name") || "未知凭证";
+        readPayloadValue(event, "credential_name") || ntfT("unknownCredential");
       const linkedTotpName = readPayloadValue(event, "linked_totp_name");
-      const sessionComment = readPayloadValue(event, "session_comment");
-      const ip = readPayloadValue(event, "ip") || "未知 IP";
+      const sessionComment = readSessionComment(event);
+      const ip = readPayloadValue(event, "ip") || detailT("unknownIp");
       const ipLocation = readPayloadValue(event, "ip_location");
-      const authMethod =
-        AUTH_METHOD_LABELS[
-          readPayloadValue(
-            event,
-            "auth_method",
-          ) as keyof typeof AUTH_METHOD_LABELS
-        ] || readPayloadValue(event, "auth_method");
-      const logoutSource =
-        LOGOUT_SOURCE_LABELS[
-          readPayloadValue(
-            event,
-            "logout_source",
-          ) as keyof typeof LOGOUT_SOURCE_LABELS
-        ] || readPayloadValue(event, "logout_source");
+      const authMethod = formatAuthMethodLabel(
+        readPayloadValue(event, "auth_method"),
+      );
+      const logoutSource = formatLogoutSourceLabel(
+        readPayloadValue(event, "logout_source"),
+      );
 
       summary = appendSessionComment(
         linkedTotpName
-          ? `${authMethod || "凭证"}「${credentialName}」关联 TOTP「${linkedTotpName}」已退出登录`
-          : `凭证「${credentialName}」已退出登录`,
+          ? detailT("authLogout.summaryTotp", {
+              method: authMethod || ntfT("credential"),
+              credential: credentialName,
+              totp: linkedTotpName,
+            })
+          : detailT("authLogout.summaryCredential", {
+              credential: credentialName,
+            }),
         sessionComment,
       );
-      overview = `该会话已从 ${ip}${ipLocation ? `（${ipLocation}）` : ""} 退出，退出方式为 ${logoutSource || "未知"}。${sessionComment ? `当前会话备注为「${sessionComment}」。` : ""}`;
-      advice = "如该退出不符合预期，请核查是否存在管理员下线或异常会话清理。";
+      overview = detailT("authLogout.overview", {
+        ip,
+        locationPart: ipLocation
+          ? detailT("parenthesized", { value: ipLocation })
+          : "",
+        source: logoutSource || detailT("unknown"),
+        commentPart: sessionComment
+          ? detailT("sessionCommentSentence", { comment: sessionComment })
+          : "",
+      });
+      advice = detailT("authLogout.advice");
 
-      pushFact(facts, "凭证名称", credentialName);
-      pushFact(facts, "关联 TOTP", linkedTotpName);
-      pushFact(facts, "会话备注", sessionComment);
-      pushFact(facts, "登录 IP", ip);
-      pushFact(facts, "IP 位置", ipLocation);
-      pushFact(facts, "退出方式", logoutSource);
+      pushFact(facts, factLabel("credentialName"), credentialName);
+      pushFact(facts, factLabel("linkedTotp"), linkedTotpName);
+      pushFact(facts, factLabel("sessionComment"), sessionComment);
+      pushFact(facts, factLabel("loginIp"), ip);
+      pushFact(facts, factLabel("ipLocation"), ipLocation);
+      pushFact(facts, factLabel("logoutSource"), logoutSource);
       pushFact(
         facts,
-        "登录时间",
+        factLabel("loginTime"),
         formatDateTime(readPayloadValue(event, "login_time")),
       );
-      pushFact(facts, "会话 ID", readPayloadValue(event, "session_id"));
+      pushFact(
+        facts,
+        factLabel("sessionId"),
+        readPayloadValue(event, "session_id"),
+      );
       break;
     }
     case "FN_EVENT_AUTH_LOGIN_FAILURE": {
-      const ip = readPayloadValue(event, "ip") || "未知 IP";
+      const ip = readPayloadValue(event, "ip") || detailT("unknownIp");
       const attempts = readPayloadValue(event, "attempts") || "0";
       const retryAfter = readPayloadValue(event, "retry_after_seconds");
       const blockedUntil = formatDateTime(
         readPayloadValue(event, "blocked_until"),
       );
-      const method =
-        AUTH_METHOD_LABELS[
-          readPayloadValue(event, "method") as keyof typeof AUTH_METHOD_LABELS
-        ] || readPayloadValue(event, "method");
+      const method = formatAuthMethodLabel(readPayloadValue(event, "method"));
       const credentialName = readPayloadValue(event, "credential_name");
       const linkedTotpName = readPayloadValue(event, "linked_totp_name");
 
-      summary = `来自 ${ip} 的登录失败已累计 ${attempts} 次`;
-      overview = `检测到登录认证连续失败，当前来源 IP 为 ${ip}${retryAfter ? `，需等待 ${retryAfter} 秒后再尝试` : ""}${blockedUntil ? `，限制将持续到 ${blockedUntil}` : ""}。`;
-      advice =
-        "如非本人操作，建议立即检查凭证安全，并考虑封禁来源 IP 或提高登录防护等级。";
+      summary = detailT("authLoginFailure.summary", { ip, attempts });
+      overview = detailT("authLoginFailure.overview", {
+        ip,
+        retryPart: retryAfter
+          ? detailT("authLoginFailure.retryPart", { seconds: retryAfter })
+          : "",
+        blockedPart: blockedUntil
+          ? detailT("authLoginFailure.blockedPart", { time: blockedUntil })
+          : "",
+      });
+      advice = detailT("authLoginFailure.advice");
 
-      pushFact(facts, "来源 IP", ip);
-      pushFact(facts, "失败次数", `${attempts} 次`);
-      pushFact(facts, "认证方式", method);
-      pushFact(facts, "凭证名称", credentialName);
-      pushFact(facts, "关联 TOTP", linkedTotpName);
-      pushFact(facts, "重试等待", retryAfter ? `${retryAfter} 秒` : "");
-      pushFact(facts, "限制截止", blockedUntil);
+      pushFact(facts, factLabel("sourceIp"), ip);
+      pushFact(facts, factLabel("failureAttempts"), formatTimes(attempts));
+      pushFact(facts, factLabel("authMethod"), method);
+      pushFact(facts, factLabel("credentialName"), credentialName);
+      pushFact(facts, factLabel("linkedTotp"), linkedTotpName);
+      pushFact(facts, factLabel("retryWait"), formatSeconds(retryAfter));
+      pushFact(facts, factLabel("limitUntil"), blockedUntil);
       break;
     }
     case "FN_EVENT_AUTH_SESSION_IP_DRIFT": {
       const credentialName = readPayloadValue(event, "credential_name");
       const linkedTotpName = readPayloadValue(event, "linked_totp_name");
-      const sessionComment = readPayloadValue(event, "session_comment");
-      const authMethod =
-        AUTH_METHOD_LABELS[
-          readPayloadValue(
-            event,
-            "auth_method",
-          ) as keyof typeof AUTH_METHOD_LABELS
-        ] || readPayloadValue(event, "auth_method");
-      const fromIp = readPayloadValue(event, "from_ip") || "未知 IP";
-      const toIp = readPayloadValue(event, "to_ip") || "未知 IP";
-      const source =
-        DRIFT_SOURCE_LABELS[
-          readPayloadValue(
-            event,
-            "drift_source",
-          ) as keyof typeof DRIFT_SOURCE_LABELS
-        ] || readPayloadValue(event, "drift_source");
-      const sessionLabel = formatCredentialContext(event, "当前会话");
+      const sessionComment = readSessionComment(event);
+      const authMethod = formatAuthMethodLabel(
+        readPayloadValue(event, "auth_method"),
+      );
+      const fromIp = readPayloadValue(event, "from_ip") || detailT("unknownIp");
+      const toIp = readPayloadValue(event, "to_ip") || detailT("unknownIp");
+      const source = formatDriftSourceLabel(
+        readPayloadValue(event, "drift_source"),
+      );
+      const sessionLabel = formatCredentialContext(
+        event,
+        detailT("currentSession"),
+      );
 
       summary = appendSessionComment(
-        `${sessionLabel} IP 从 ${fromIp} 切换到 ${toIp}`,
+        detailT("authSessionIpDrift.summary", {
+          session: sessionLabel,
+          fromIp,
+          toIp,
+        }),
         sessionComment,
       );
-      overview = `检测到${sessionLabel}的访问来源 IP 发生变化，来源判定为 ${source || "未知"}。${sessionComment ? `当前会话备注为「${sessionComment}」。` : ""}这通常与网络切换、代理变化或会话异常有关。`;
-      advice =
-        "若这次 IP 变化并不符合预期，请尽快核查当前会话是否存在被接管风险。";
+      overview = detailT("authSessionIpDrift.overview", {
+        session: sessionLabel,
+        source: source || detailT("unknown"),
+        commentPart: sessionComment
+          ? detailT("sessionCommentSentence", { comment: sessionComment })
+          : "",
+      });
+      advice = detailT("authSessionIpDrift.advice");
 
-      pushFact(facts, "凭证名称", credentialName);
-      pushFact(facts, "关联 TOTP", linkedTotpName);
-      pushFact(facts, "会话备注", sessionComment);
-      pushFact(facts, "认证方式", authMethod);
-      pushFact(facts, "原始 IP", fromIp);
-      pushFact(facts, "原始位置", readPayloadValue(event, "from_ip_location"));
-      pushFact(facts, "当前 IP", toIp);
-      pushFact(facts, "当前位置", readPayloadValue(event, "to_ip_location"));
-      pushFact(facts, "变化来源", source);
+      pushFact(facts, factLabel("credentialName"), credentialName);
+      pushFact(facts, factLabel("linkedTotp"), linkedTotpName);
+      pushFact(facts, factLabel("sessionComment"), sessionComment);
+      pushFact(facts, factLabel("authMethod"), authMethod);
+      pushFact(facts, factLabel("originalIp"), fromIp);
       pushFact(
         facts,
-        "登录时间",
+        factLabel("originalLocation"),
+        readPayloadValue(event, "from_ip_location"),
+      );
+      pushFact(facts, factLabel("currentIp"), toIp);
+      pushFact(
+        facts,
+        factLabel("currentLocation"),
+        readPayloadValue(event, "to_ip_location"),
+      );
+      pushFact(facts, factLabel("driftSource"), source);
+      pushFact(
+        facts,
+        factLabel("loginTime"),
         formatDateTime(readPayloadValue(event, "login_time")),
       );
-      pushFact(facts, "会话 ID", readPayloadValue(event, "session_id"));
+      pushFact(
+        facts,
+        factLabel("sessionId"),
+        readPayloadValue(event, "session_id"),
+      );
       break;
     }
     case "FN_EVENT_SECURITY_SCANNER_BLOCKED": {
-      const ip = readPayloadValue(event, "ip") || "未知 IP";
+      const ip = readPayloadValue(event, "ip") || detailT("unknownIp");
       const windowMinutes = readPayloadValue(event, "window_minutes") || "0";
       const hitCount = readPayloadValue(event, "hit_count") || "0";
       const threshold = readPayloadValue(event, "threshold") || "0";
       const scannerPaths = getScannerPaths(event).slice(0, 3);
 
-      summary = `${ip} 因扫描行为已被拦截`;
-      overview = `该来源在 ${windowMinutes} 分钟内累计触发 ${hitCount} 次扫描行为，已超过阈值 ${threshold} 次${scannerPaths.length > 0 ? `；最近命中的路径包括 ${scannerPaths.join("、")}` : ""}。`;
-      advice =
-        "建议结合网关日志确认是否为恶意探测；如确认为误报，可进一步调整扫描阈值。";
+      summary = detailT("securityScannerBlocked.summary", { ip });
+      overview = detailT("securityScannerBlocked.overview", {
+        minutes: windowMinutes,
+        hits: hitCount,
+        threshold,
+        pathsPart:
+          scannerPaths.length > 0
+            ? detailT("securityScannerBlocked.pathsPart", {
+                paths: joinLocalizedList(scannerPaths),
+              })
+            : "",
+      });
+      advice = detailT("securityScannerBlocked.advice");
 
-      pushFact(facts, "来源 IP", ip);
-      pushFact(facts, "IP 位置", readPayloadValue(event, "ip_location"));
-      pushFact(facts, "命中次数", `${hitCount} 次`);
-      pushFact(facts, "观察窗口", `${windowMinutes} 分钟`);
-      pushFact(facts, "触发阈值", `${threshold} 次`);
+      pushFact(facts, factLabel("sourceIp"), ip);
       pushFact(
         facts,
-        "拦截时间",
+        factLabel("ipLocation"),
+        readPayloadValue(event, "ip_location"),
+      );
+      pushFact(facts, factLabel("hitCount"), formatTimes(hitCount));
+      pushFact(
+        facts,
+        factLabel("observationWindow"),
+        formatMinutes(windowMinutes),
+      );
+      pushFact(facts, factLabel("triggerThreshold"), formatTimes(threshold));
+      pushFact(
+        facts,
+        factLabel("blockedAt"),
         formatDateTime(readPayloadValue(event, "blocked_at")),
       );
-      pushFact(facts, "最近路径", scannerPaths.join("、"));
+      pushFact(
+        facts,
+        factLabel("recentPaths"),
+        joinLocalizedList(scannerPaths),
+      );
       break;
     }
     case "FN_EVENT_DDNS_UPDATE_COMPLETED": {
       const targetName =
         readPayloadValue(event, "target_name") ||
         readPayloadValue(event, "domain_summary") ||
-        "DDNS 条目";
-      const provider = readPayloadValue(event, "provider") || "未知提供商";
+        detailT("ddnsUpdateCompleted.defaultTarget");
+      const provider =
+        readPayloadValue(event, "provider") || detailT("unknownProvider");
       const success = readPayloadValue(event, "success") === "true";
       const resultMessage = readPayloadValue(event, "message");
-      const trigger =
-        DDNS_TRIGGER_LABELS[
-          readPayloadValue(event, "trigger") as keyof typeof DDNS_TRIGGER_LABELS
-        ] || readPayloadValue(event, "trigger");
-      const updateScope =
-        DDNS_UPDATE_SCOPE_LABELS[
-          readPayloadValue(
-            event,
-            "update_scope",
-          ) as keyof typeof DDNS_UPDATE_SCOPE_LABELS
-        ] || readPayloadValue(event, "update_scope");
-      const ipSource =
-        DDNS_IP_SOURCE_LABELS[
-          readPayloadValue(
-            event,
-            "ip_source",
-          ) as keyof typeof DDNS_IP_SOURCE_LABELS
-        ] || readPayloadValue(event, "ip_source");
+      const trigger = formatDdnsTriggerLabel(
+        readPayloadValue(event, "trigger"),
+      );
+      const updateScope = formatDdnsUpdateScopeLabel(
+        readPayloadValue(event, "update_scope"),
+      );
+      const ipSource = formatDdnsIpSourceLabel(
+        readPayloadValue(event, "ip_source"),
+      );
       const ipv4Change = formatIpTransition(
         readPayloadValue(event, "previous_ipv4"),
         readPayloadValue(event, "next_ipv4"),
@@ -526,29 +726,45 @@ const buildNotificationDetails = (args: {
         readPayloadValue(event, "next_ipv6"),
       );
 
-      summary = `${targetName} DDNS ${success ? "更新成功" : "更新失败"}`;
-      overview = `${trigger || "本次任务"}已执行 DDNS 更新，范围为 ${updateScope || "未知"}，IP 来源为 ${ipSource || "未知"}。${resultMessage ? `结果说明：${resultMessage}` : ""}`;
+      summary = detailT(
+        success
+          ? "ddnsUpdateCompleted.summarySuccess"
+          : "ddnsUpdateCompleted.summaryFailure",
+        { target: targetName },
+      );
+      overview = detailT("ddnsUpdateCompleted.overview", {
+        trigger: trigger || detailT("ddnsUpdateCompleted.currentTask"),
+        scope: updateScope || detailT("unknown"),
+        ipSource: ipSource || detailT("unknown"),
+        resultPart: resultMessage
+          ? detailT("ddnsUpdateCompleted.resultPart", {
+              message: resultMessage,
+            })
+          : "",
+      });
       advice = success
-        ? "如解析尚未生效，可继续等待 DNS 缓存刷新后再验证外部访问。"
-        : "建议检查提供商凭证、解析记录配置，以及公网 IP 获取状态是否正常。";
+        ? detailT("ddnsUpdateCompleted.adviceSuccess")
+        : detailT("ddnsUpdateCompleted.adviceFailure");
 
-      pushFact(facts, "条目", targetName);
-      pushFact(facts, "提供商", provider);
+      pushFact(facts, factLabel("target"), targetName);
+      pushFact(facts, factLabel("provider"), provider);
       pushFact(
         facts,
-        "条目类型",
-        readPayloadValue(event, "is_primary") === "true" ? "主域" : "附加域",
+        factLabel("targetType"),
+        readPayloadValue(event, "is_primary") === "true"
+          ? detailT("ddnsUpdateCompleted.primaryDomain")
+          : detailT("ddnsUpdateCompleted.additionalDomain"),
       );
-      pushFact(facts, "执行方式", trigger);
-      pushFact(facts, "更新范围", updateScope);
-      pushFact(facts, "IP 来源", ipSource);
-      pushFact(facts, "IPv4 变化", ipv4Change);
-      pushFact(facts, "IPv6 变化", ipv6Change);
-      pushFact(facts, "执行结果", resultMessage);
+      pushFact(facts, factLabel("trigger"), trigger);
+      pushFact(facts, factLabel("updateScope"), updateScope);
+      pushFact(facts, factLabel("ipSource"), ipSource);
+      pushFact(facts, factLabel("ipv4Change"), ipv4Change);
+      pushFact(facts, factLabel("ipv6Change"), ipv6Change);
+      pushFact(facts, factLabel("result"), resultMessage);
       break;
     }
     case "FN_EVENT_GATEWAY_THROTTLE_BLOCKED": {
-      const ip = readPayloadValue(event, "ip") || "未知 IP";
+      const ip = readPayloadValue(event, "ip") || detailT("unknownIp");
       const blockSeconds = readPayloadValue(event, "block_seconds") || "0";
       const requestsPerSecond =
         readPayloadValue(event, "requests_per_second") || "0";
@@ -556,32 +772,51 @@ const buildNotificationDetails = (args: {
       const host = readPayloadValue(event, "host");
       const path = readPayloadValue(event, "path");
 
-      summary = `${ip} 因请求过快被封锁 ${blockSeconds} 秒`;
-      overview = `该来源触发了网关节流保护，限流阈值为 ${requestsPerSecond} 次/秒，突发容量为 ${burst}${host || path ? `，目标请求为 ${joinCompactParts(host, path)}` : ""}。`;
-      advice =
-        "请结合访问日志确认是否为突发流量、误伤或恶意请求，并按需调整限流策略。";
+      summary = detailT("gatewayThrottleBlocked.summary", {
+        ip,
+        seconds: blockSeconds,
+      });
+      overview = detailT("gatewayThrottleBlocked.overview", {
+        rate: requestsPerSecond,
+        burst,
+        targetPart:
+          host || path
+            ? detailT("gatewayThrottleBlocked.targetPart", {
+                target: joinCompactParts(host, path),
+              })
+            : "",
+      });
+      advice = detailT("gatewayThrottleBlocked.advice");
 
-      pushFact(facts, "来源 IP", ip);
-      pushFact(facts, "封锁时长", `${blockSeconds} 秒`);
+      pushFact(facts, factLabel("sourceIp"), ip);
+      pushFact(facts, factLabel("blockDuration"), formatSeconds(blockSeconds));
       pushFact(
         facts,
-        "封锁截止",
+        factLabel("blockedUntil"),
         formatDateTime(readPayloadValue(event, "blocked_until")),
       );
-      pushFact(facts, "限流阈值", `${requestsPerSecond} 次/秒`);
-      pushFact(facts, "突发容量", burst);
-      pushFact(facts, "目标主机", host);
-      pushFact(facts, "请求路径", path);
-      pushFact(facts, "路由类型", readPayloadValue(event, "route_type"));
       pushFact(
         facts,
-        "认证路由",
+        factLabel("rateLimit"),
+        formatRatePerSecond(requestsPerSecond),
+      );
+      pushFact(facts, factLabel("burstCapacity"), burst);
+      pushFact(facts, factLabel("targetHost"), host);
+      pushFact(facts, factLabel("requestPath"), path);
+      pushFact(
+        facts,
+        factLabel("routeType"),
+        readPayloadValue(event, "route_type"),
+      );
+      pushFact(
+        facts,
+        factLabel("authRoute"),
         formatBoolean(readPayloadValue(event, "is_auth_route")),
       );
       break;
     }
     case "FN_EVENT_WAF_BLOCKED": {
-      const ip = readPayloadValue(event, "ip") || "未知 IP";
+      const ip = readPayloadValue(event, "ip") || detailT("unknownIp");
       const host = readPayloadValue(event, "host");
       const path =
         readPayloadValue(event, "request_uri") ||
@@ -593,145 +828,217 @@ const buildNotificationDetails = (args: {
       const actionLabel = formatWAFActionLabel(action);
       const modeLabel = formatWAFModeLabel(mode);
       const outcomeLabel = formatWAFOutcomeLabel(action, mode);
+      const isBlocking = isWAFBlockingAction(action, mode);
 
-      summary = `${ip} 的请求被 WAF ${outcomeLabel}`;
-      overview = `WAF 已${outcomeLabel}来源 ${ip}${host ? ` 访问 ${host}` : ""}${path ? ` ${path}` : ""}${actionLabel ? `，动作为${actionLabel}` : ""}${modeLabel ? `，当前模式为${modeLabel}` : ""}。${ruleIds ? `命中规则：${ruleIds}。` : ""}`;
-      advice =
-        outcomeLabel === "阻断"
-          ? "请在 WAF 日志中按 Trace ID 查看命中详情；如确认为误报，请及时向项目方反馈BUG。"
-          : "请在 WAF 日志中按 Trace ID 查看命中详情，并结合规则与请求上下文判断是否需要调整策略。";
+      summary = detailT("wafBlocked.summary", { ip, outcome: outcomeLabel });
+      overview = detailT("wafBlocked.overview", {
+        outcome: outcomeLabel,
+        ip,
+        hostPart: host ? detailT("wafBlocked.hostPart", { host }) : "",
+        pathPart: path ? detailT("wafBlocked.pathPart", { path }) : "",
+        actionPart: actionLabel
+          ? detailT("wafBlocked.actionPart", { action: actionLabel })
+          : "",
+        modePart: modeLabel
+          ? detailT("wafBlocked.modePart", { mode: modeLabel })
+          : "",
+        rulesPart: ruleIds
+          ? detailT("wafBlocked.rulesPart", { rules: ruleIds })
+          : "",
+      });
+      advice = isBlocking
+        ? detailT("wafBlocked.adviceBlocked")
+        : detailT("wafBlocked.adviceLogged");
 
-      pushFact(facts, "来源 IP", ip);
-      pushFact(facts, "Trace ID", traceId);
+      pushFact(facts, factLabel("sourceIp"), ip);
+      pushFact(facts, factLabel("traceId"), traceId);
       pushFact(facts, "Host", host);
-      pushFact(facts, "请求地址", path);
-      pushFact(facts, "处理结果", outcomeLabel);
-      pushFact(facts, "WAF 动作", actionLabel);
-      pushFact(facts, "WAF 模式", modeLabel);
-      pushFact(facts, "规则 ID", ruleIds);
-      pushFact(facts, "规则包", readPayloadValue(event, "bundle_id"));
-      pushFact(facts, "状态码", readPayloadValue(event, "status"));
+      pushFact(facts, factLabel("requestAddress"), path);
+      pushFact(facts, factLabel("outcome"), outcomeLabel);
+      pushFact(facts, factLabel("wafAction"), actionLabel);
+      pushFact(facts, factLabel("wafMode"), modeLabel);
+      pushFact(facts, factLabel("ruleIds"), ruleIds);
       pushFact(
         facts,
-        "拦截时间",
+        factLabel("ruleBundle"),
+        readPayloadValue(event, "bundle_id"),
+      );
+      pushFact(
+        facts,
+        factLabel("statusCode"),
+        readPayloadValue(event, "status"),
+      );
+      pushFact(
+        facts,
+        factLabel("blockedAt"),
         formatDateTime(readPayloadValue(event, "blocked_at")),
       );
       break;
     }
     case "FN_EVENT_SSH_LOGIN_SUCCESS": {
-      const ip = readPayloadValue(event, "ip") || "未知 IP";
+      const ip = readPayloadValue(event, "ip") || detailT("unknownIp");
       const ipLocation = readPayloadValue(event, "ip_location");
-      const username = readPayloadValue(event, "username") || "未知用户";
+      const username =
+        readPayloadValue(event, "username") || detailT("unknownUser");
       const authMethod = readPayloadValue(event, "auth_method");
 
-      summary = `SSH 用户「${username}」从 ${ip} 登录成功`;
-      overview = `检测到一次 SSH 登录成功，来源为 ${ip}${ipLocation ? `（${ipLocation}）` : ""}${authMethod ? `，认证方式为 ${authMethod}` : ""}。`;
-      advice = "如该登录并非预期，请检查 SSH 账号、密钥和来源访问策略。";
+      summary = detailT("sshLoginSuccess.summary", { username, ip });
+      overview = detailT("sshLoginSuccess.overview", {
+        ip,
+        locationPart: ipLocation
+          ? detailT("parenthesized", { value: ipLocation })
+          : "",
+        authPart: authMethod
+          ? detailT("sshLoginSuccess.authPart", { authMethod })
+          : "",
+      });
+      advice = detailT("sshLoginSuccess.advice");
 
-      pushFact(facts, "用户", username);
-      pushFact(facts, "来源 IP", ip);
-      pushFact(facts, "IP 位置", ipLocation);
-      pushFact(facts, "认证方式", authMethod);
-      pushFact(facts, "端口", readPayloadValue(event, "port"));
+      pushFact(facts, factLabel("user"), username);
+      pushFact(facts, factLabel("sourceIp"), ip);
+      pushFact(facts, factLabel("ipLocation"), ipLocation);
+      pushFact(facts, factLabel("authMethod"), authMethod);
+      pushFact(facts, factLabel("port"), readPayloadValue(event, "port"));
       pushFact(
         facts,
-        "日志时间",
+        factLabel("logTime"),
         formatDateTime(readPayloadValue(event, "log_time")),
       );
       break;
     }
     case "FN_EVENT_SSH_LOGIN_FAILURE": {
-      const ip = readPayloadValue(event, "ip") || "未知 IP";
+      const ip = readPayloadValue(event, "ip") || detailT("unknownIp");
       const ipLocation = readPayloadValue(event, "ip_location");
-      const username = readPayloadValue(event, "username") || "未知用户";
+      const username =
+        readPayloadValue(event, "username") || detailT("unknownUser");
       const attempts = readPayloadValue(event, "attempts") || "0";
       const threshold = readPayloadValue(event, "threshold") || "0";
       const windowMinutes = readPayloadValue(event, "window_minutes") || "0";
 
-      summary = `SSH 用户「${username}」从 ${ip} 登录失败`;
-      overview = `该来源在 ${windowMinutes} 分钟窗口内累计 ${attempts}/${threshold} 次 SSH 登录失败${ipLocation ? `，位置为 ${ipLocation}` : ""}。`;
-      advice =
-        "请关注失败次数是否接近封锁阈值，必要时收紧 SSH 暴露范围或调整凭据。";
+      summary = detailT("sshLoginFailure.summary", { username, ip });
+      overview = detailT("sshLoginFailure.overview", {
+        minutes: windowMinutes,
+        attempts,
+        threshold,
+        locationPart: ipLocation
+          ? detailT("sshLoginFailure.locationPart", { location: ipLocation })
+          : "",
+      });
+      advice = detailT("sshLoginFailure.advice");
 
-      pushFact(facts, "用户", username);
+      pushFact(facts, factLabel("user"), username);
       pushFact(
         facts,
-        "无效用户",
+        factLabel("invalidUser"),
         formatBoolean(readPayloadValue(event, "invalid_user")),
       );
-      pushFact(facts, "来源 IP", ip);
-      pushFact(facts, "IP 位置", ipLocation);
-      pushFact(facts, "认证方式", readPayloadValue(event, "auth_method"));
-      pushFact(facts, "端口", readPayloadValue(event, "port"));
-      pushFact(facts, "失败次数", attempts);
-      pushFact(facts, "阈值", threshold);
-      pushFact(facts, "窗口", `${windowMinutes} 分钟`);
+      pushFact(facts, factLabel("sourceIp"), ip);
+      pushFact(facts, factLabel("ipLocation"), ipLocation);
+      pushFact(
+        facts,
+        factLabel("authMethod"),
+        readPayloadValue(event, "auth_method"),
+      );
+      pushFact(facts, factLabel("port"), readPayloadValue(event, "port"));
+      pushFact(facts, factLabel("failureAttempts"), attempts);
+      pushFact(facts, factLabel("threshold"), threshold);
+      pushFact(facts, factLabel("window"), formatMinutes(windowMinutes));
       break;
     }
     case "FN_EVENT_SSH_IP_BLOCKED": {
-      const ip = readPayloadValue(event, "ip") || "未知 IP";
+      const ip = readPayloadValue(event, "ip") || detailT("unknownIp");
       const ipLocation = readPayloadValue(event, "ip_location");
       const reason = readPayloadValue(event, "reason");
       const reasonLabel =
-        reason === "cidr_not_allowed" ? "不在允许地区范围" : "失败次数达到阈值";
+        reason === "cidr_not_allowed"
+          ? detailT("sshIpBlocked.reasonCidrNotAllowed")
+          : detailT("sshIpBlocked.reasonFailedThreshold");
 
-      summary = `${ip} 已被 SSH 安全封锁`;
-      overview = `SSH 安全已封锁来源 ${ip}${ipLocation ? `（${ipLocation}）` : ""}，原因是${reasonLabel}。`;
-      advice =
-        "请确认该来源是否可信；如为误封，可在 SSH 安全的封锁列表中解除。";
+      summary = detailT("sshIpBlocked.summary", { ip });
+      overview = detailT("sshIpBlocked.overview", {
+        ip,
+        locationPart: ipLocation
+          ? detailT("parenthesized", { value: ipLocation })
+          : "",
+        reason: reasonLabel,
+      });
+      advice = detailT("sshIpBlocked.advice");
 
-      pushFact(facts, "来源 IP", ip);
-      pushFact(facts, "IP 位置", ipLocation);
-      pushFact(facts, "封锁原因", reasonLabel);
-      pushFact(facts, "关联用户", readPayloadValue(event, "username"));
-      pushFact(facts, "失败次数", readPayloadValue(event, "failed_count"));
+      pushFact(facts, factLabel("sourceIp"), ip);
+      pushFact(facts, factLabel("ipLocation"), ipLocation);
+      pushFact(facts, factLabel("blockedReason"), reasonLabel);
       pushFact(
         facts,
-        "窗口",
-        `${readPayloadValue(event, "window_minutes")} 分钟`,
+        factLabel("relatedUser"),
+        readPayloadValue(event, "username"),
       );
-      pushFact(facts, "阈值", readPayloadValue(event, "threshold"));
       pushFact(
         facts,
-        "封锁时间",
+        factLabel("failureAttempts"),
+        readPayloadValue(event, "failed_count"),
+      );
+      pushFact(
+        facts,
+        factLabel("window"),
+        formatMinutes(readPayloadValue(event, "window_minutes")),
+      );
+      pushFact(
+        facts,
+        factLabel("threshold"),
+        readPayloadValue(event, "threshold"),
+      );
+      pushFact(
+        facts,
+        factLabel("blockedAt"),
         formatDateTime(readPayloadValue(event, "blocked_at")),
       );
       pushFact(
         facts,
-        "封锁截止",
+        factLabel("blockedUntil"),
         formatDateTime(readPayloadValue(event, "blocked_until")),
       );
       break;
     }
     case "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE": {
       const localVersion =
-        readPayloadValue(event, "local_version") || "当前版本未知";
+        readPayloadValue(event, "local_version") ||
+        detailT("appUpdateAvailable.currentVersionUnknown");
       const latestVersion =
-        readPayloadValue(event, "latest_version") || "目标版本未知";
+        readPayloadValue(event, "latest_version") ||
+        detailT("appUpdateAvailable.targetVersionUnknown");
       const forceUpdate = readPayloadValue(event, "force_update") === "true";
-      const checkReason =
-        UPDATE_CHECK_REASON_LABELS[
-          readPayloadValue(
-            event,
-            "check_reason",
-          ) as keyof typeof UPDATE_CHECK_REASON_LABELS
-        ] || readPayloadValue(event, "check_reason");
+      const checkReason = formatUpdateCheckReasonLabel(
+        readPayloadValue(event, "check_reason"),
+      );
       const releaseNotes = truncateText(
         readPayloadValue(event, "release_notes"),
         APP_UPDATE_RELEASE_NOTES_PREVIEW_LENGTH,
       );
 
-      summary = `发现新版本 ${latestVersion}`;
-      overview = `${checkReason || "本次检查"}发现 fn-knock 可从 ${localVersion} 升级到 ${latestVersion}${forceUpdate ? "，建议尽快安排更新" : ""}。`;
+      summary = detailT("appUpdateAvailable.summary", {
+        version: latestVersion,
+      });
+      overview = detailT("appUpdateAvailable.overview", {
+        reason: checkReason || detailT("appUpdateAvailable.currentCheck"),
+        localVersion,
+        latestVersion,
+        forcePart: forceUpdate ? detailT("appUpdateAvailable.forcePart") : "",
+      });
       advice = releaseNotes
-        ? `更新说明：${releaseNotes}`
-        : "建议在合适的维护窗口完成更新，并在安装前确认当前配置与服务状态。";
+        ? detailT("appUpdateAvailable.releaseNotesAdvice", {
+            releaseNotes,
+          })
+        : detailT("appUpdateAvailable.advice");
 
-      pushFact(facts, "当前版本", localVersion);
-      pushFact(facts, "最新版本", latestVersion);
-      pushFact(facts, "检查方式", checkReason);
-      pushFact(facts, "强制更新", forceUpdate ? "是" : "否");
-      pushFact(facts, "更新说明", releaseNotes);
+      pushFact(facts, factLabel("currentVersion"), localVersion);
+      pushFact(facts, factLabel("latestVersion"), latestVersion);
+      pushFact(facts, factLabel("checkReason"), checkReason);
+      pushFact(
+        facts,
+        factLabel("forceUpdate"),
+        forceUpdate ? ntfT("yes") : ntfT("no"),
+      );
+      pushFact(facts, factLabel("releaseNotes"), releaseNotes);
       break;
     }
     case "FN_EVENT_SYSTEM_CPU_ALERT":
@@ -744,40 +1051,57 @@ const buildNotificationDetails = (args: {
       const recovered =
         event.type === "FN_EVENT_SYSTEM_CPU_RECOVERED" ||
         event.type === "FN_EVENT_SYSTEM_MEMORY_RECOVERED";
-      const metricLabel = isCpuEvent ? "CPU" : "内存";
-      const hostname = readPayloadValue(event, "hostname") || "未知主机";
+      const metricLabel = isCpuEvent ? "CPU" : detailT("memoryMetric");
+      const hostname =
+        readPayloadValue(event, "hostname") || detailT("unknownHost");
       const usagePercent = readPayloadValue(event, "usage_percent") || "0";
       const thresholdPercent =
         readPayloadValue(event, "threshold_percent") || "0";
       const recoverPercent = readPayloadValue(event, "recover_percent") || "0";
 
       summary = recovered
-        ? `${hostname} ${metricLabel} 使用率已恢复至 ${usagePercent}%`
-        : `${hostname} ${metricLabel} 使用率已升至 ${usagePercent}%`;
+        ? detailT("systemMetric.recoveredSummary", {
+            hostname,
+            metric: metricLabel,
+            usage: usagePercent,
+          })
+        : detailT("systemMetric.alertSummary", {
+            hostname,
+            metric: metricLabel,
+            usage: usagePercent,
+          });
       overview = recovered
-        ? `${hostname} 的 ${metricLabel} 使用率已回落到 ${usagePercent}%，恢复线为 ${recoverPercent}%，此前告警阈值为 ${thresholdPercent}%。`
-        : `${hostname} 的 ${metricLabel} 使用率当前为 ${usagePercent}%，已超过告警阈值 ${thresholdPercent}%，恢复线设置为 ${recoverPercent}%。`;
+        ? detailT("systemMetric.recoveredOverview", {
+            hostname,
+            metric: metricLabel,
+            usage: usagePercent,
+            recover: recoverPercent,
+            threshold: thresholdPercent,
+          })
+        : detailT("systemMetric.alertOverview", {
+            hostname,
+            metric: metricLabel,
+            usage: usagePercent,
+            threshold: thresholdPercent,
+            recover: recoverPercent,
+          });
       advice = recovered
-        ? "当前资源已回到相对安全区间，建议继续观察后续是否还有反复波动。"
-        : "建议尽快检查高负载进程、后台任务或外部流量变化，避免资源持续打满。";
+        ? detailT("systemMetric.recoveredAdvice")
+        : detailT("systemMetric.alertAdvice");
 
-      pushFact(facts, "主机名", hostname);
-      pushFact(facts, "当前使用率", `${usagePercent}%`);
-      pushFact(facts, "告警阈值", `${thresholdPercent}%`);
-      pushFact(facts, "恢复阈值", `${recoverPercent}%`);
+      pushFact(facts, factLabel("hostname"), hostname);
+      pushFact(facts, factLabel("currentUsage"), `${usagePercent}%`);
+      pushFact(facts, factLabel("alertThreshold"), `${thresholdPercent}%`);
+      pushFact(facts, factLabel("recoverThreshold"), `${recoverPercent}%`);
       pushFact(
         facts,
-        "采样间隔",
-        readPayloadValue(event, "sample_interval_seconds")
-          ? `${readPayloadValue(event, "sample_interval_seconds")} 秒`
-          : "",
+        factLabel("sampleInterval"),
+        formatSeconds(readPayloadValue(event, "sample_interval_seconds")),
       );
       pushFact(
         facts,
-        "持续时间",
-        readPayloadValue(event, "sustain_seconds")
-          ? `${readPayloadValue(event, "sustain_seconds")} 秒`
-          : "",
+        factLabel("sustainDuration"),
+        formatSeconds(readPayloadValue(event, "sustain_seconds")),
       );
       break;
     }
@@ -793,31 +1117,59 @@ const buildNotificationDetails = (args: {
       const message = truncateText(readPayloadValue(event, "message"), 200);
       const pid = readPayloadValue(event, "pid");
 
-      summary = `${tunnel} ${connected ? "已连上" : "已断开"}`;
+      summary = detailT(
+        connected ? "tunnel.connectedSummary" : "tunnel.disconnectedSummary",
+        { tunnel },
+      );
       overview = connected
-        ? `${tunnel} 隧道连接已经恢复${message ? `，运行反馈为：${message}` : ""}。`
-        : `${tunnel} 隧道连接已断开${message ? `，当前反馈为：${message}` : ""}。`;
+        ? detailT("tunnel.connectedOverview", {
+            tunnel,
+            messagePart: message
+              ? detailT("tunnel.connectedMessagePart", { message })
+              : "",
+          })
+        : detailT("tunnel.disconnectedOverview", {
+            tunnel,
+            messagePart: message
+              ? detailT("tunnel.disconnectedMessagePart", { message })
+              : "",
+          });
       advice = connected
-        ? "如你之前正在排查访问问题，现在可以重新验证外部入口是否已经恢复。"
-        : "建议检查隧道配置、上游网络状态，以及远端服务是否可达。";
+        ? detailT("tunnel.connectedAdvice")
+        : detailT("tunnel.disconnectedAdvice");
 
-      pushFact(facts, "隧道类型", tunnel);
-      pushFact(facts, "连接状态", connected ? "已连上" : "已断开");
-      pushFact(facts, "进程 PID", pid);
-      pushFact(facts, "运行反馈", message);
+      pushFact(facts, factLabel("tunnelType"), tunnel);
+      pushFact(
+        facts,
+        factLabel("connectionStatus"),
+        connected ? detailT("connected") : detailT("disconnected"),
+      );
+      pushFact(facts, factLabel("processPid"), pid);
+      pushFact(facts, factLabel("runtimeFeedback"), message);
       break;
     }
   }
 
-  pushFact(facts, "事件类型", formatNotificationEventLabel(event.type));
-  pushFact(facts, "风险级别", formatEventLevelLabel(event.level));
-  pushFact(facts, "事件来源", formatEventSourceLabel(event.source));
-  pushFact(facts, "发生时间", formatDateTime(event.happened_at));
   pushFact(
     facts,
-    "聚合统计",
+    factLabel("eventType"),
+    formatNotificationEventLabel(event.type),
+  );
+  pushFact(facts, factLabel("riskLevel"), formatEventLevelLabel(event.level));
+  pushFact(
+    facts,
+    factLabel("eventSource"),
+    formatEventSourceLabel(event.source),
+  );
+  pushFact(facts, factLabel("happenedAt"), formatDateTime(event.happened_at));
+  pushFact(
+    facts,
+    factLabel("aggregationStats"),
     matchedCount > 1
-      ? `${matchedCount} 条 / ${rule.window_seconds} 秒窗口`
+      ? detailT("aggregationStatsValue", {
+          count: matchedCount,
+          seconds: rule.window_seconds,
+        })
       : "",
   );
 
@@ -844,35 +1196,40 @@ const formatEventSummary = (event: SystemEventEnvelope) => {
       const authProviderName = readPayloadValue(event, "auth_provider_name");
       if (authMethod === "OIDC" && authProviderName) {
         return joinCompactParts(
-          `通过 ${authProviderName} 登录`,
-          readPayloadValue(event, "credential_name") || "未知凭证",
-          formatSessionCommentCompact(readPayloadValue(event, "session_comment")),
+          detailT("authLoginSuccess.loginViaProvider", {
+            provider: authProviderName,
+          }),
+          readPayloadValue(event, "credential_name") ||
+            ntfT("unknownCredential"),
+          formatSessionCommentCompact(readSessionComment(event)),
           readPayloadValue(event, "ip"),
         );
       }
       return joinCompactParts(
-        readPayloadValue(event, "credential_name") || "未知凭证",
-        formatSessionCommentCompact(readPayloadValue(event, "session_comment")),
+        readPayloadValue(event, "credential_name") || ntfT("unknownCredential"),
+        formatSessionCommentCompact(readSessionComment(event)),
         readPayloadValue(event, "ip"),
       );
     }
     case "FN_EVENT_AUTH_LOGOUT":
       return joinCompactParts(
-        readPayloadValue(event, "credential_name") || "未知凭证",
-        formatSessionCommentCompact(readPayloadValue(event, "session_comment")),
+        readPayloadValue(event, "credential_name") || ntfT("unknownCredential"),
+        formatSessionCommentCompact(readSessionComment(event)),
         readPayloadValue(event, "ip"),
       );
     case "FN_EVENT_AUTH_LOGIN_FAILURE":
       return joinCompactParts(
         readPayloadValue(event, "ip"),
         readPayloadValue(event, "attempts")
-          ? `${readPayloadValue(event, "attempts")}次失败`
+          ? detailT("short.loginFailureAttempts", {
+              count: readPayloadValue(event, "attempts"),
+            })
           : "",
       );
     case "FN_EVENT_AUTH_SESSION_IP_DRIFT":
       return joinCompactParts(
         formatCredentialContext(event),
-        formatSessionCommentCompact(readPayloadValue(event, "session_comment")),
+        formatSessionCommentCompact(readSessionComment(event)),
         formatIpTransition(
           readPayloadValue(event, "from_ip"),
           readPayloadValue(event, "to_ip"),
@@ -882,22 +1239,28 @@ const formatEventSummary = (event: SystemEventEnvelope) => {
       return joinCompactParts(
         readPayloadValue(event, "ip"),
         readPayloadValue(event, "hit_count")
-          ? `${readPayloadValue(event, "hit_count")}次扫描`
-          : "扫描拦截",
+          ? detailT("short.scanHits", {
+              count: readPayloadValue(event, "hit_count"),
+            })
+          : detailT("short.scanBlocked"),
       );
     case "FN_EVENT_DDNS_UPDATE_COMPLETED":
       return joinCompactParts(
         readPayloadValue(event, "target_name") ||
           readPayloadValue(event, "domain_summary") ||
           readPayloadValue(event, "provider"),
-        readPayloadValue(event, "success") === "true" ? "成功" : "失败",
+        readPayloadValue(event, "success") === "true"
+          ? detailT("short.success")
+          : detailT("short.failure"),
       );
     case "FN_EVENT_GATEWAY_THROTTLE_BLOCKED":
       return joinCompactParts(
         readPayloadValue(event, "ip"),
         readPayloadValue(event, "block_seconds")
-          ? `封锁${readPayloadValue(event, "block_seconds")}s`
-          : "触发封锁",
+          ? detailT("short.blockSeconds", {
+              seconds: readPayloadValue(event, "block_seconds"),
+            })
+          : detailT("short.blockTriggered"),
       );
     case "FN_EVENT_WAF_BLOCKED": {
       const outcomeLabel = formatWAFOutcomeLabel(
@@ -909,7 +1272,9 @@ const formatEventSummary = (event: SystemEventEnvelope) => {
         readPayloadValue(event, "host"),
         `WAF ${outcomeLabel}`,
         readPayloadValue(event, "rule_ids")
-          ? `规则 ${readPayloadValue(event, "rule_ids")}`
+          ? detailT("short.rules", {
+              rules: readPayloadValue(event, "rule_ids"),
+            })
           : "",
       );
     }
@@ -917,28 +1282,32 @@ const formatEventSummary = (event: SystemEventEnvelope) => {
       return joinCompactParts(
         readPayloadValue(event, "username"),
         readPayloadValue(event, "ip"),
-        "SSH 登录成功",
+        detailT("short.sshLoginSuccess"),
       );
     case "FN_EVENT_SSH_LOGIN_FAILURE":
       return joinCompactParts(
         readPayloadValue(event, "username"),
         readPayloadValue(event, "ip"),
         readPayloadValue(event, "attempts")
-          ? `${readPayloadValue(event, "attempts")}次失败`
-          : "SSH 登录失败",
+          ? detailT("short.loginFailureAttempts", {
+              count: readPayloadValue(event, "attempts"),
+            })
+          : detailT("short.sshLoginFailure"),
       );
     case "FN_EVENT_SSH_IP_BLOCKED":
       return joinCompactParts(
         readPayloadValue(event, "ip"),
         readPayloadValue(event, "reason") === "cidr_not_allowed"
-          ? "地区不允许"
-          : "失败阈值",
+          ? detailT("short.regionNotAllowed")
+          : detailT("short.failureThreshold"),
       );
     case "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE":
       return joinCompactParts(
         readPayloadValue(event, "latest_version"),
         readPayloadValue(event, "local_version")
-          ? `当前 ${readPayloadValue(event, "local_version")}`
+          ? detailT("short.currentVersion", {
+              version: readPayloadValue(event, "local_version"),
+            })
           : "",
       );
     case "FN_EVENT_SYSTEM_CPU_ALERT":
@@ -959,7 +1328,9 @@ const formatEventSummary = (event: SystemEventEnvelope) => {
         TUNNEL_LABELS[
           readPayloadValue(event, "tunnel") as keyof typeof TUNNEL_LABELS
         ] || (event.type.includes("CLOUDFLARED") ? "Cloudflared" : "FRP"),
-        readPayloadValue(event, "status") === "connected" ? "已连上" : "已断开",
+        readPayloadValue(event, "status") === "connected"
+          ? detailT("connected")
+          : detailT("disconnected"),
       );
     default:
       return "";
@@ -974,14 +1345,28 @@ const buildNotificationTitle = (
   const baseTitle =
     event.type === "FN_EVENT_DDNS_UPDATE_COMPLETED"
       ? readPayloadValue(event, "success") === "true"
-        ? `${readPayloadValue(event, "target_name") || readPayloadValue(event, "domain_summary") || "DDNS"} 更新成功`
-        : `${readPayloadValue(event, "target_name") || readPayloadValue(event, "domain_summary") || "DDNS"} 更新失败`
+        ? detailT("titles.ddnsUpdateSuccess", {
+            target:
+              readPayloadValue(event, "target_name") ||
+              readPayloadValue(event, "domain_summary") ||
+              "DDNS",
+          })
+        : detailT("titles.ddnsUpdateFailure", {
+            target:
+              readPayloadValue(event, "target_name") ||
+              readPayloadValue(event, "domain_summary") ||
+              "DDNS",
+          })
       : event.type === "FN_EVENT_AUTH_SESSION_IP_DRIFT"
         ? driftCredentialName
-          ? `凭证「${driftCredentialName}」IP 漂移`
+          ? detailT("titles.credentialIpDrift", {
+              credential: driftCredentialName,
+            })
           : formatNotificationEventLabel(event.type)
         : event.type === "FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE"
-          ? `发现新版本 ${readPayloadValue(event, "latest_version") || ""}`.trim()
+          ? detailT("titles.appUpdateAvailable", {
+              version: readPayloadValue(event, "latest_version") || "",
+            }).trim()
           : formatNotificationEventLabel(event.type);
 
   return matchedCount > 1 ? `${baseTitle} x${matchedCount}` : baseTitle;
@@ -1007,31 +1392,38 @@ export const buildNotificationMessage = (args: {
   rule: NotificationRule;
   matchedCount: number;
   groupKey: string;
+  locale?: string | null;
 }): NotificationMessage => {
-  const details = buildNotificationDetails(args);
+  return withNotificationLocale(args.locale, () => {
+    const details = buildNotificationDetails(args);
 
-  return normalizeNotificationMessage({
-    title: buildNotificationTitle(args.event, args.matchedCount),
-    summary: details.summary,
-    body_text: details.body_text,
-    body_markdown: details.body_markdown,
-    severity: toSeverity(args.event),
-    facts: details.facts,
-    actions: [],
-    mentions: [],
-    dedupe_key: `${args.rule.id}:${args.groupKey}`,
-    occurred_at: args.event.happened_at,
-    event_id: args.event.id,
-    metadata: {
-      event_type: args.event.type,
-      event_level: args.event.level,
-      event_source: args.event.source,
-      rule_id: args.rule.id,
-      rule_name: args.rule.name,
-      group_key: args.groupKey,
-      matched_count: args.matchedCount,
-      window_seconds: args.rule.window_seconds,
-      threshold_count: args.rule.threshold_count,
-    },
+    return normalizeNotificationMessage(
+      {
+        title: buildNotificationTitle(args.event, args.matchedCount),
+        summary: details.summary,
+        body_text: details.body_text,
+        body_markdown: details.body_markdown,
+        severity: toSeverity(args.event),
+        facts: details.facts,
+        actions: [],
+        mentions: [],
+        dedupe_key: `${args.rule.id}:${args.groupKey}`,
+        occurred_at: args.event.happened_at,
+        event_id: args.event.id,
+        metadata: {
+          event_type: args.event.type,
+          event_level: args.event.level,
+          event_source: args.event.source,
+          rule_id: args.rule.id,
+          rule_name: args.rule.name,
+          group_key: args.groupKey,
+          matched_count: args.matchedCount,
+          window_seconds: args.rule.window_seconds,
+          threshold_count: args.rule.threshold_count,
+          locale: activeNotificationLocale,
+        },
+      },
+      activeNotificationLocale,
+    );
   });
 };

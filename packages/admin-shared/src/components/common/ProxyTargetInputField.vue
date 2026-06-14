@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -22,11 +23,12 @@ type Props = {
 const props = withDefaults(defineProps<Props>(), {
   defaultPort: "80",
   disabled: false,
-  hint: "左侧选择协议，右侧填写 IP 和端口；未填写端口时会在失焦后自动补成 80。",
   inputId: "proxy-target-endpoint",
   placeholder: "127.0.0.1:8080",
   protocolId: undefined,
 });
+
+const { t } = useI18n();
 
 const modelValue = defineModel<string>({ default: "" });
 
@@ -37,6 +39,9 @@ const resolvedProtocolId = computed(
 const { protocol, endpoint, normalize } = useProxyTargetInput(modelValue, {
   defaultPort: props.defaultPort,
 });
+const hintText = computed(() =>
+  props.hint ?? t("shared.proxyTargetInputField.hint", { port: props.defaultPort }),
+);
 
 defineExpose({
   normalize,
@@ -64,8 +69,8 @@ defineExpose({
         @blur="normalize"
       />
     </div>
-    <p v-if="hint" class="text-xs text-muted-foreground">
-      {{ hint }}
+    <p v-if="hintText" class="text-xs text-muted-foreground">
+      {{ hintText }}
     </p>
   </div>
 </template>

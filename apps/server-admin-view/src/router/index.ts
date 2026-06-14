@@ -6,6 +6,7 @@ import { useDockerAdminAuthStore } from "../store/dockerAdminAuth";
 import { pinia } from "../store";
 import { isRouteNavigating, pendingNavPath } from "./navigation-state";
 import { toast } from "@admin-shared/utils/toast";
+import { browserT } from "@fn-knock/i18n/vue";
 import {
   isAnySubdomainRoutingMode,
   isReverseProxySubdomainMode,
@@ -326,7 +327,7 @@ router.onError((error) => {
     message.includes("Importing a module script failed");
 
   if (import.meta.env.DEV && isDynamicImportFailure) {
-    toast.info("检测到开发环境依赖缓存已过期，正在刷新页面...");
+    toast.info(browserT("admin.route.devCacheExpired"));
     window.setTimeout(() => {
       window.location.reload();
     }, 120);

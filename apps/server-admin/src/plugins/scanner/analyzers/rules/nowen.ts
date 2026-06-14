@@ -1,8 +1,9 @@
 import { AnalyzerRule } from "../../types";
+import { scannerServiceLabel } from "../labels";
 
 export const nowenRule: AnalyzerRule = {
   name: "nowen",
-  label: '星云门户',
+  label: scannerServiceLabel("nowen"),
   rule: {
     path: '/nowen',
     rewrite_html: false,

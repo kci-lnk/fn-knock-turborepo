@@ -28,6 +28,8 @@ import {
   readCookieValue,
 } from "../../lib/session-cookie";
 import { routeDoc, withRouteDoc } from "../../lib/openapi";
+import { createRequestTranslator } from "../../lib/i18n";
+import { normalizeLocaleConfig } from "../../../../../packages/i18n/src";
 
 const resolveAuthViewPrefix = (request: Request) => {
   const pathname = new URL(request.url).pathname;
@@ -130,26 +132,29 @@ const buildOidcFlowClearCookieForRequest = (
     path: resolveOidcCookiePath(request, config),
   });
 
-const resolveProviderErrorMessage = (error: string | undefined) => {
+const resolveProviderErrorMessage = (
+  error: string | undefined,
+  t: ReturnType<typeof createRequestTranslator>["t"],
+) => {
   switch (
     String(error || "")
       .trim()
       .toLowerCase()
   ) {
     case "access_denied":
-      return "你取消了外部登录授权，或授权请求被提供商拒绝。";
+      return t("server.oidc.providerErrors.accessDenied");
     case "temporarily_unavailable":
-      return "外部登录服务暂时不可用，请稍后重试。";
+      return t("server.oidc.providerErrors.temporarilyUnavailable");
     case "server_error":
-      return "外部登录提供商返回服务错误，请稍后重试。";
+      return t("server.oidc.providerErrors.serverError");
     case "invalid_scope":
-      return "外部登录权限范围配置不正确，请联系管理员检查提供商配置。";
+      return t("server.oidc.providerErrors.invalidScope");
     case "invalid_request":
     case "unauthorized_client":
     case "unsupported_response_type":
-      return "外部登录请求被提供商拒绝，请检查外部登录配置后重试。";
+      return t("server.oidc.providerErrors.rejected");
     default:
-      return "外部登录未完成，请重新发起登录。";
+      return t("server.oidc.providerErrors.incomplete");
   }
 };
 
@@ -232,6 +237,7 @@ const buildBindHtmlResponse = (
   status: number,
   title: string,
   body: string,
+  locale = "zh-CN",
   actions = "",
 ) => {
   const headers = new Headers({
@@ -245,7 +251,7 @@ const buildBindHtmlResponse = (
   applyNoStoreHeaders(headers);
   return new Response(
     `<!doctype html>
-<html lang="zh-CN">
+<html lang="${escapeHtml(locale)}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -276,6 +282,8 @@ const buildBindProviderSelectionResponse = (
   request: Request,
   token: string,
   invite: OIDCInviteDetails,
+  t: ReturnType<typeof createRequestTranslator>["t"],
+  locale: string,
 ) => {
   const actions = invite.providers
     .map((provider) => {
@@ -283,14 +291,17 @@ const buildBindProviderSelectionResponse = (
       url.search = "";
       url.searchParams.set("token", token);
       url.searchParams.set("provider_id", provider.id);
-      return `<a href="${escapeHtml(`${url.pathname}${url.search}`)}">使用 ${escapeHtml(provider.name)} 绑定</a>`;
+      return `<a href="${escapeHtml(`${url.pathname}${url.search}`)}">${escapeHtml(
+        t("server.oidc.bindWithProvider", { provider: provider.name }),
+      )}</a>`;
     })
     .join("");
 
   return buildBindHtmlResponse(
     200,
-    "选择外部账号提供商",
-    `将外部账号绑定到 ${invite.totp.comment || "TOTP"}。`,
+    t("server.oidc.selectProviderTitle"),
+    t("server.oidc.bindToTotp", { totp: invite.totp.comment || "TOTP" }),
+    locale,
     `<div class="actions">${actions}</div>`,
   );
 };
@@ -314,18 +325,35 @@ export const oidcRoutes = new Elysia({
   )
   .get(
     "/invite",
-    async ({ query, set }) => {
+    async ({ query, set, request }) => {
+      const config = await configManager.getConfig();
+      const locale = normalizeLocaleConfig(config.locale);
+      const { t } = createRequestTranslator(request, config.locale);
       const token = query.token?.trim();
       if (!token) {
         set.status = 400;
-        return { success: false, message: "绑定邀请链接无效" };
+        return {
+          success: false,
+          message: t("server.oidc.inviteInvalid"),
+          data: { locale },
+        };
       }
       const invite = await oidcAuthService.inspectInvite(token);
       if (!invite) {
         set.status = 404;
-        return { success: false, message: "绑定邀请链接已失效" };
+        return {
+          success: false,
+          message: t("server.oidc.inviteExpired"),
+          data: { locale },
+        };
       }
-      return { success: true, data: invite };
+      return {
+        success: true,
+        data: {
+          locale,
+          ...invite,
+        },
+      };
     },
     withRouteDoc("检查外部账号绑定邀请", {
       query: t.Object({
@@ -336,12 +364,15 @@ export const oidcRoutes = new Elysia({
   .get(
     "/bind",
     async ({ query, request }) => {
+      const config = await configManager.getConfig();
+      const { locale, t } = createRequestTranslator(request, config.locale);
       const token = query.token?.trim();
       if (!token) {
         return buildBindHtmlResponse(
           400,
-          "绑定邀请链接无效",
-          "链接缺少 token。",
+          t("server.oidc.inviteInvalid"),
+          t("server.oidc.linkMissingToken"),
+          locale,
         );
       }
 
@@ -349,15 +380,17 @@ export const oidcRoutes = new Elysia({
       if (!invite) {
         return buildBindHtmlResponse(
           404,
-          "绑定邀请链接已失效",
-          "该邀请不存在、已过期或已经被使用。",
+          t("server.oidc.inviteExpired"),
+          t("server.oidc.inviteMissingExpiredUsed"),
+          locale,
         );
       }
       if (invite.providers.length === 0) {
         return buildBindHtmlResponse(
           404,
-          "没有可用的外部登录提供商",
-          "该邀请当前没有可用于绑定的外部账号提供商。",
+          t("server.oidc.noProvidersTitle"),
+          t("server.oidc.noProvidersBody"),
+          locale,
         );
       }
 
@@ -367,7 +400,13 @@ export const oidcRoutes = new Elysia({
         (invite.providers.length === 1 ? invite.providers[0]?.id : "");
 
       if (!selectedProviderId) {
-        return buildBindProviderSelectionResponse(request, token, invite);
+        return buildBindProviderSelectionResponse(
+          request,
+          token,
+          invite,
+          t,
+          locale,
+        );
       }
 
       try {
@@ -380,7 +419,6 @@ export const oidcRoutes = new Elysia({
           rememberMe: false,
           clientIp,
         });
-        const config = await configManager.getConfig();
         return buildRedirectResponse(result.authorization_url, undefined, [
           buildOidcFlowCookieForRequest(
             result.flow_token,
@@ -392,8 +430,11 @@ export const oidcRoutes = new Elysia({
       } catch (error) {
         return buildBindHtmlResponse(
           400,
-          "外部账号绑定失败",
-          error instanceof Error ? error.message : "无法发起外部账号绑定。",
+          t("server.oidc.bindFailedTitle"),
+          error instanceof Error
+            ? error.message
+            : t("server.oidc.bindStartFailed"),
+          locale,
         );
       }
     },
@@ -407,6 +448,8 @@ export const oidcRoutes = new Elysia({
   .post(
     "/start",
     async ({ body, request, set }) => {
+      const config = await configManager.getConfig();
+      const { t } = createRequestTranslator(request, config.locale);
       try {
         const clientIp = getClientIp(request);
         const result = await oidcAuthService.buildAuthorizationUrl({
@@ -418,7 +461,6 @@ export const oidcRoutes = new Elysia({
           rememberMe: body.rememberMe,
           clientIp,
         });
-        const config = await configManager.getConfig();
         appendSetCookieHeader(
           set,
           buildOidcFlowCookieForRequest(
@@ -436,7 +478,10 @@ export const oidcRoutes = new Elysia({
         set.status = 400;
         return {
           success: false,
-          message: error instanceof Error ? error.message : "发起外部登录失败",
+          message:
+            error instanceof Error
+              ? error.message
+              : t("server.oidc.startFailed"),
         };
       }
     },
@@ -463,6 +508,7 @@ export const oidcRoutes = new Elysia({
         request.headers.get("cookie"),
         OIDC_FLOW_COOKIE_NAME,
       );
+      const { t } = createRequestTranslator(request, config.locale);
       const resolveFlowClearCookies = () =>
         state && isOIDCFlowTokenValid(state, flowToken)
           ? [buildOidcFlowClearCookieForRequest(request, config)]
@@ -489,7 +535,7 @@ export const oidcRoutes = new Elysia({
         return buildLoginErrorRedirectResponse({
           request,
           config,
-          message: resolveProviderErrorMessage(query.error),
+          message: resolveProviderErrorMessage(query.error, t),
           redirectUri: authState?.redirect_uri,
           persistNotice: !!authState,
           extraSetCookies: resolveFlowClearCookies(),
@@ -511,7 +557,7 @@ export const oidcRoutes = new Elysia({
         return buildLoginErrorRedirectResponse({
           request,
           config,
-          message: "外部登录回调缺少必要参数，请重新发起登录。",
+          message: t("server.oidc.callbackMissingParams"),
           redirectUri: authState?.redirect_uri,
           persistNotice: !!authState,
           extraSetCookies: resolveFlowClearCookies(),
@@ -527,8 +573,10 @@ export const oidcRoutes = new Elysia({
           request,
           config,
           message: gate.retryAfter
-            ? `尝试过于频繁，请在 ${gate.retryAfter} 秒后重试`
-            : "尝试过于频繁，请稍后重试",
+            ? t("server.tooManyAttemptsWithRetry", {
+                seconds: gate.retryAfter,
+              })
+            : t("server.tooManyAttempts"),
           redirectUri: authState?.redirect_uri,
           persistNotice: !!authState,
           extraSetCookies: resolveFlowClearCookies(),
@@ -576,7 +624,7 @@ export const oidcRoutes = new Elysia({
           resolveFlowClearCookies(),
         );
       } catch (error) {
-        const message = getErrorMessage(error, "外部登录失败");
+        const message = getErrorMessage(error, t("server.oidc.loginFailed"));
         if (message === OIDC_CALLBACK_STATE_EXPIRED_MESSAGE) {
           return buildLoginErrorRedirectResponse({
             request,
@@ -590,7 +638,7 @@ export const oidcRoutes = new Elysia({
           return buildLoginErrorRedirectResponse({
             request,
             config,
-            message: "外部登录请求已中断，请重新发起登录。",
+            message: t("server.oidc.operationAborted"),
             persistNotice: true,
             extraSetCookies: resolveFlowClearCookies(),
           });
@@ -604,7 +652,10 @@ export const oidcRoutes = new Elysia({
         return buildLoginErrorRedirectResponse({
           request,
           config,
-          message: `${message}，请在 ${failure.retryAfter} 秒后重试`,
+          message: t("server.oidc.loginFailedRetryAfter", {
+            message,
+            seconds: failure.retryAfter,
+          }),
           persistNotice: true,
           extraSetCookies: resolveFlowClearCookies(),
         });

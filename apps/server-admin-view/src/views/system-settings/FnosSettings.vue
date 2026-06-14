@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -18,6 +19,7 @@ import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { useConfigStore } from "../../store/config";
 
 const configStore = useConfigStore();
+const { t } = useI18n();
 const DEFAULT_FNOS_SHARE_BYPASS_VALUES = {
   upstream_timeout_ms: 2500,
   validation_cache_ttl_seconds: 30,
@@ -37,24 +39,33 @@ const iconHijackForm = reactive<FnosPortIconHijackConfig>({
 
 const { isPending: isLoading, run: runLoadSettings } = useAsyncAction({
   onError: (error) => {
-    toast.error("加载失败", {
-      description: extractErrorMessage(error, "无法获取飞牛设置"),
+    toast.error(t("admin.fnosSettings.loadFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.fnosSettings.loadDescription"),
+      ),
     });
   },
 });
 const showLoadingSkeleton = useDelayedLoading(isLoading);
 const { isPending: isSaving, run: runSaveSettings } = useAsyncAction({
   onError: (error) => {
-    toast.error("保存失败", {
-      description: extractErrorMessage(error, "保存飞牛设置失败"),
+    toast.error(t("admin.fnosSettings.saveFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.fnosSettings.saveDescription"),
+      ),
     });
   },
 });
 const { isPending: isIconHijackSaving, run: runSaveIconHijackSettings } =
   useAsyncAction({
     onError: (error) => {
-      toast.error("保存失败", {
-        description: extractErrorMessage(error, "保存飞牛端口图标接管设置失败"),
+      toast.error(t("admin.fnosSettings.saveFailed"), {
+        description: extractErrorMessage(
+          error,
+          t("admin.fnosSettings.saveIconHijackDescription"),
+        ),
       });
     },
   });
@@ -95,9 +106,8 @@ const fetchSettings = async () => {
 const saveShareBypassEnabled = async (nextValue: boolean) => {
   if (!isShareBypassMode.value || isSaving.value) {
     if (!isShareBypassMode.value) {
-      toast.error("当前运行模式不可用", {
-        description:
-          "此功能仅在反代模式和子域模式下可用。直连模式下，需要完成鉴权后才能开启对应端口供其他人访问。",
+      toast.error(t("admin.fnosSettings.unavailableTitle"), {
+        description: t("admin.fnosSettings.unavailableDescription"),
       });
     }
     return;
@@ -115,7 +125,7 @@ const saveShareBypassEnabled = async (nextValue: boolean) => {
     {
       onSuccess: (data) => {
         applyFromSettings(data);
-        toast.success("飞牛分享直通设置已更新");
+        toast.success(t("admin.fnosSettings.shareBypassUpdated"));
       },
     },
   );
@@ -141,7 +151,7 @@ const saveIconHijackEnabled = async (nextValue: boolean) => {
     {
       onSuccess: (data) => {
         applyIconHijackFromSettings(data);
-        toast.success("飞牛端口图标接管设置已更新");
+        toast.success(t("admin.fnosSettings.iconHijackUpdated"));
       },
     },
   );
@@ -185,7 +195,7 @@ onMounted(fetchSettings);
             "
             @click="toggleShareBypass"
           >
-            飞牛分享直通
+            {{ t("admin.fnosSettings.shareBypassTitle") }}
           </Label>
           <div
             class="text-sm"
@@ -193,13 +203,13 @@ onMounted(fetchSettings);
               isShareBypassMode ? 'text-muted-foreground' : 'text-zinc-500'
             "
           >
-            开启后，分享链接可按飞牛校验结果直通访问；反代模式和子域模式可用。
+            {{ t("admin.fnosSettings.shareBypassDescription") }}
           </div>
           <div
             v-if="isRestrictedByRunMode"
             class="text-xs leading-5 text-zinc-500"
           >
-            当前为直连模式，此功能暂不可用。
+            {{ t("admin.fnosSettings.shareBypassDirectUnavailable") }}
           </div>
         </div>
         <Switch
@@ -215,10 +225,12 @@ onMounted(fetchSettings);
             class="cursor-pointer text-base font-medium"
             @click="toggleIconHijack"
           >
-            端口类图标接管
+            {{ t("admin.fnosSettings.iconHijackTitle") }}
           </Label>
           <div class="text-sm text-muted-foreground">
-            公网访问时，飞牛桌面里有些应用图标会跳到不可访问的本机端口。开启后，点击这些原本指向端口的图标，会自动<u>匹配已有的子域映射</u>并改为可访问地址。你也可以手动每个图标进行编辑“自定义URL”来实现，但通过这里可以一键完成。
+            {{ t("admin.fnosSettings.iconHijackDescriptionPrefix") }}<u>{{
+              t("admin.fnosSettings.iconHijackDescriptionHighlight")
+            }}</u>{{ t("admin.fnosSettings.iconHijackDescriptionSuffix") }}
           </div>
         </div>
         <Switch

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Component } from 'vue';
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -38,6 +39,7 @@ const emit = defineEmits<{
   'update:rangeKey': [value: string];
 }>();
 
+const { t } = useI18n();
 const showLoadingSkeleton = useDelayedLoading(() => props.isLoading);
 
 const currentRangeKey = computed({
@@ -46,6 +48,12 @@ const currentRangeKey = computed({
     emit('update:rangeKey', value);
   },
 });
+const descriptionWithRange = computed(() =>
+  t('admin.components.threatOverview.descriptionWithRange', {
+    description: props.description,
+    range: props.titleRangeText,
+  }),
+);
 </script>
 
 <template>
@@ -55,7 +63,7 @@ const currentRangeKey = computed({
         <div class="flex items-center gap-3">
           <div>
             <CardTitle class="text-base">{{ props.title }}</CardTitle>
-            <CardDescription>{{ props.description }}（{{ props.titleRangeText }}）</CardDescription>
+            <CardDescription>{{ descriptionWithRange }}</CardDescription>
           </div>
         </div>
         <div v-if="$slots['header-right']" class="flex flex-wrap items-center gap-2">

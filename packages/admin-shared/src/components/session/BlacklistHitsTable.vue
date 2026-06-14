@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 type BlacklistHitRow = {
@@ -11,9 +13,12 @@ type BlacklistHitRow = {
 const props = withDefaults(defineProps<{
   rows: BlacklistHitRow[];
   emptyText?: string;
-}>(), {
-  emptyText: '暂无访问记录',
-});
+}>(), {});
+
+const { t } = useI18n();
+const resolvedEmptyText = computed(
+  () => props.emptyText || t('admin.components.blacklistHitsTable.empty'),
+);
 </script>
 
 <template>
@@ -21,14 +26,18 @@ const props = withDefaults(defineProps<{
     <Table class="w-max min-w-full">
       <TableHeader>
         <TableRow>
-          <TableHead class="w-[220px]">访问时间</TableHead>
-          <TableHead>路径</TableHead>
-          <TableHead class="w-[160px]">间隔</TableHead>
+          <TableHead class="w-[220px]">{{
+            t('admin.components.blacklistHitsTable.visitedAt')
+          }}</TableHead>
+          <TableHead>{{ t('admin.components.blacklistHitsTable.path') }}</TableHead>
+          <TableHead class="w-[160px]">{{
+            t('admin.components.blacklistHitsTable.interval')
+          }}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         <TableRow v-if="props.rows.length === 0">
-          <TableCell colspan="3" class="text-center text-muted-foreground py-6">{{ props.emptyText }}</TableCell>
+          <TableCell colspan="3" class="text-center text-muted-foreground py-6">{{ resolvedEmptyText }}</TableCell>
         </TableRow>
         <TableRow v-else v-for="row in props.rows" :key="row.key">
           <TableCell class="whitespace-nowrap">{{ row.time }}</TableCell>

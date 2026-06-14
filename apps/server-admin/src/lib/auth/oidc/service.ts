@@ -7,6 +7,7 @@ import {
   resolvePublicAuthBaseUrl,
   resolveSafeRedirectUri,
 } from "../../subdomain-mode";
+import { tDefault } from "../../i18n";
 import {
   getDefaultConnectionConfig,
   getOIDCProviderDefinition,
@@ -36,8 +37,12 @@ const MAX_INVITE_TTL_SECONDS = 7 * 24 * 60 * 60;
 const LOGIN_ERROR_TTL_SECONDS = 5 * 60;
 const LOGIN_ERROR_MESSAGE_MAX_LENGTH = 240;
 const REQUEST_TIMEOUT_MS = 7000;
+const oidcT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+): string => tDefault(`server.oidc.${key}`, params);
 export const OIDC_CALLBACK_STATE_EXPIRED_MESSAGE =
-  "登录状态已过期，请重新发起登录";
+  oidcT("callbackStateExpired");
 const TRUST_OIDC_FORWARDED_HEADERS =
   getBooleanEnv("OIDC_TRUST_FORWARDED_HEADERS", false) ||
   getBooleanEnv("AUTH_TRUST_FORWARDED_HEADERS", false);
@@ -91,7 +96,7 @@ const normalizeOptionalString = (value: unknown) => {
 };
 
 const normalizeLoginErrorMessage = (value: unknown) => {
-  const normalized = normalizeString(value) || "外部登录失败，请重新发起登录。";
+  const normalized = normalizeString(value) || oidcT("loginFailedRetry");
   return normalized.length > LOGIN_ERROR_MESSAGE_MAX_LENGTH
     ? `${normalized.slice(0, LOGIN_ERROR_MESSAGE_MAX_LENGTH)}...`
     : normalized;
@@ -132,7 +137,7 @@ const normalizeStringRecord = (value: unknown) => {
 const assertExtraAuthParamKeyAllowed = (key: string) => {
   const normalizedKey = key.trim().toLowerCase();
   if (RESERVED_EXTRA_AUTH_PARAM_KEYS.has(normalizedKey)) {
-    throw new Error(`extra_auth_params 包含 OIDC 保留参数: ${key}`);
+    throw new Error(oidcT("reservedExtraAuthParam", { key }));
   }
 };
 
@@ -190,10 +195,10 @@ const assertHttpUrl = (value: string, label: string) => {
   try {
     parsed = new URL(value);
   } catch {
-    throw new Error(`${label} 必须是合法 URL`);
+    throw new Error(oidcT("urlInvalid", { label }));
   }
   if (parsed.protocol !== "https:" && parsed.hostname !== "localhost") {
-    throw new Error(`${label} 必须使用 HTTPS`);
+    throw new Error(oidcT("urlMustUseHttps", { label }));
   }
 };
 
@@ -203,7 +208,7 @@ const normalizeProviderConnectionConfig = (
   options: { allowIncomplete?: boolean } = {},
 ): OIDCProviderConnectionConfig => {
   const definition = getOIDCProviderDefinition(type);
-  if (!definition) throw new Error("不支持的外部登录提供商");
+  if (!definition) throw new Error(oidcT("providerUnsupported"));
   const defaults = getDefaultConnectionConfig(type);
   const tenant = normalizeOptionalString(raw.tenant) || defaults.tenant;
   const issuer =
@@ -237,7 +242,10 @@ const normalizeProviderConnectionConfig = (
   );
   if (missingFields.length && !options.allowIncomplete) {
     throw new Error(
-      `${definition.label} 缺少必填配置 ${missingFields.join(", ")}`,
+      oidcT("providerMissingRequiredConfig", {
+        provider: definition.label,
+        fields: missingFields.join(", "),
+      }),
     );
   }
 
@@ -269,7 +277,11 @@ const getMissingProviderRequiredFields = (provider: OIDCProvider) => {
 const assertProviderReady = (provider: OIDCProvider) => {
   const missingFields = getMissingProviderRequiredFields(provider);
   if (missingFields.length) {
-    throw new Error(`外部登录提供商缺少必填配置 ${missingFields.join(", ")}`);
+    throw new Error(
+      oidcT("providerMissingRequiredFields", {
+        fields: missingFields.join(", "),
+      }),
+    );
   }
   assertExtraAuthParamsAllowed(provider.connection_config.extra_auth_params);
 };
@@ -345,7 +357,7 @@ const parseAccessToken = (payload: Record<string, unknown>) => {
     const message =
       normalizeString(payload.error_description) ||
       normalizeString(payload.error) ||
-      "未获取到 access_token";
+      oidcT("accessTokenMissing");
     throw new Error(message);
   }
   return accessToken;
@@ -353,7 +365,7 @@ const parseAccessToken = (payload: Record<string, unknown>) => {
 
 const parseIdToken = (payload: Record<string, unknown>) => {
   const idToken = normalizeString(payload.id_token);
-  if (!idToken) throw new Error("未获取到 id_token");
+  if (!idToken) throw new Error(oidcT("idTokenMissing"));
   return idToken;
 };
 
@@ -390,7 +402,7 @@ const resolveRequestOrigin = (request: Request) => {
   const host = trustedHost || directHost;
 
   if ((proto !== "http" && proto !== "https") || !isSafeOriginHost(host)) {
-    throw new Error("无法生成外部登录回调地址，请配置 public_auth_base_url");
+    throw new Error(oidcT("callbackUrlBuildFailed"));
   }
 
   return `${proto}://${host}`;
@@ -470,7 +482,7 @@ const getDiscovery = async (
       jwks_uri: cfg.jwks_uri,
     };
   }
-  if (!cfg.issuer) throw new Error("OIDC issuer 未配置");
+  if (!cfg.issuer) throw new Error(oidcT("issuerMissing"));
   const { text, contentType } = await fetchText(
     buildOidcDiscoveryUrl(cfg.issuer),
     {
@@ -483,7 +495,7 @@ const getDiscovery = async (
   const tokenEndpoint = normalizeString(payload.token_endpoint);
   const jwksUri = normalizeString(payload.jwks_uri);
   if (!issuer || !authorizationEndpoint || !tokenEndpoint || !jwksUri) {
-    throw new Error("OIDC discovery 文档缺少必要字段");
+    throw new Error(oidcT("discoveryMissingFields"));
   }
   return {
     issuer,
@@ -527,16 +539,16 @@ const verifyStandardOidcProfile = async (
   });
   const payload = verified.payload as JWTPayload & Record<string, unknown>;
   if (expectedNonce && payload.nonce !== expectedNonce) {
-    throw new Error("OIDC nonce 校验失败");
+    throw new Error(oidcT("nonceCheckFailed"));
   }
   if (!issuerForVerify) {
     const issuer = normalizeString(payload.iss);
     if (!issuer || !issuer.startsWith("https://login.microsoftonline.com/")) {
-      throw new Error("OIDC issuer 校验失败");
+      throw new Error(oidcT("issuerCheckFailed"));
     }
   }
   const subject = normalizeString(payload.sub);
-  if (!subject) throw new Error("OIDC subject 为空");
+  if (!subject) throw new Error(oidcT("subjectEmpty"));
 
   let userInfo: Record<string, unknown> = {};
   const accessToken = normalizeString(tokenPayload.access_token);
@@ -589,7 +601,7 @@ const fetchGithubProfile = async (
     (typeof user.id === "number" && Number.isFinite(user.id)
       ? String(user.id)
       : "");
-  if (!subject) throw new Error("GitHub 用户 ID 为空");
+  if (!subject) throw new Error(oidcT("githubUserIdEmpty"));
 
   let email = normalizeOptionalString(user.email);
   let emailVerified = false;
@@ -665,10 +677,10 @@ export class OIDCAuthService {
 
   async createProvider(input: OIDCProviderUpsertInput) {
     if (!isExternalAuthProviderType(input.type)) {
-      throw new Error("不支持的外部登录提供商");
+      throw new Error(oidcT("providerUnsupported"));
     }
     const definition = getOIDCProviderDefinition(input.type);
-    if (!definition) throw new Error("不支持的外部登录提供商");
+    if (!definition) throw new Error(oidcT("providerUnsupported"));
     const now = nowIso();
     const enabled = input.enabled !== false;
     const provider: OIDCProvider = {
@@ -692,7 +704,7 @@ export class OIDCAuthService {
 
   async updateProvider(id: string, input: OIDCProviderUpdateInput) {
     const provider = await oidcRedisStore.getProvider(id);
-    if (!provider) throw new Error("外部登录提供商不存在");
+    if (!provider) throw new Error(oidcT("providerNotFound"));
     const connectionPatch = input.connection_config || {};
     const nextEnabled =
       typeof input.enabled === "boolean" ? input.enabled : provider.enabled;
@@ -720,15 +732,15 @@ export class OIDCAuthService {
 
   async deleteProvider(id: string) {
     const provider = await oidcRedisStore.getProvider(id);
-    if (!provider) throw new Error("外部登录提供商不存在");
+    if (!provider) throw new Error(oidcT("providerNotFound"));
     await oidcRedisStore.deleteProvider(id);
   }
 
   async testProvider(id: string) {
     const provider = await oidcRedisStore.getProvider(id);
-    if (!provider) throw new Error("外部登录提供商不存在");
+    if (!provider) throw new Error(oidcT("providerNotFound"));
     let success = false;
-    let message = "连接测试成功";
+    let message = oidcT("connectionTestSuccess");
     try {
       assertProviderReady(provider);
       if (provider.protocol === "oidc") {
@@ -736,12 +748,12 @@ export class OIDCAuthService {
       } else {
         const cfg = provider.connection_config;
         if (!cfg.authorization_endpoint || !cfg.token_endpoint) {
-          throw new Error("OAuth2 endpoint 未配置完整");
+          throw new Error(oidcT("oauthEndpointIncomplete"));
         }
       }
       success = true;
     } catch (error) {
-      message = error instanceof Error ? error.message : "连接测试失败";
+      message = error instanceof Error ? error.message : oidcT("connectionTestFailed");
     }
     const updated: OIDCProvider = {
       ...provider,
@@ -764,18 +776,18 @@ export class OIDCAuthService {
     const totp = (await configManager.getTOTPCredentials()).find(
       (item) => item.id === args.totpId,
     );
-    if (!totp) throw new Error("TOTP 凭据不存在");
+    if (!totp) throw new Error(oidcT("totpMissing"));
     const providerId = normalizeString(args.providerId);
     if (!providerId) {
-      throw new Error("请选择外部登录提供商");
+      throw new Error(oidcT("selectProvider"));
     }
     const provider = await oidcRedisStore.getProvider(providerId);
-    if (!provider) throw new Error("外部登录提供商不存在");
+    if (!provider) throw new Error(oidcT("providerNotFound"));
     if (
       !provider.enabled ||
       getMissingProviderRequiredFields(provider).length
     ) {
-      throw new Error("外部登录提供商不可用");
+      throw new Error(oidcT("providerUnavailable"));
     }
     const ttlSeconds = Math.min(
       Math.max(60, Math.floor(args.ttlSeconds || DEFAULT_INVITE_TTL_SECONDS)),
@@ -856,7 +868,7 @@ export class OIDCAuthService {
 
   async deleteBinding(id: string) {
     const deleted = await oidcRedisStore.deleteBinding(id);
-    if (!deleted) throw new Error("外部账号绑定不存在");
+    if (!deleted) throw new Error(oidcT("bindingNotFound"));
   }
 
   async deleteBindingsByTotp(totpId: string) {
@@ -877,17 +889,17 @@ export class OIDCAuthService {
       configManager.getConfig(),
     ]);
     if (!provider || !provider.enabled) {
-      throw new Error("外部登录提供商不可用");
+      throw new Error(oidcT("providerUnavailable"));
     }
     assertProviderReady(provider);
     let inviteTokenHash: string | undefined;
     if (args.mode === "bind") {
       const token = normalizeString(args.inviteToken);
-      if (!token) throw new Error("绑定邀请链接无效");
+      if (!token) throw new Error(oidcT("inviteInvalid"));
       const invite = await this.inspectInvite(token);
-      if (!invite) throw new Error("绑定邀请链接已失效");
+      if (!invite) throw new Error(oidcT("inviteExpired"));
       if (invite.provider_id && invite.provider_id !== provider.id) {
-        throw new Error("该邀请链接不允许使用此提供商");
+        throw new Error(oidcT("inviteProviderNotAllowed"));
       }
       inviteTokenHash = hashOIDCToken(token);
     }
@@ -1009,7 +1021,7 @@ export class OIDCAuthService {
   ) {
     const cfg = provider.connection_config;
     if (!cfg.authorization_endpoint) {
-      throw new Error("authorization endpoint 未配置");
+      throw new Error(oidcT("authorizationEndpointMissing"));
     }
     const params = new URLSearchParams({
       client_id: cfg.client_id,
@@ -1037,7 +1049,7 @@ export class OIDCAuthService {
     }
     const provider = await oidcRedisStore.getProvider(args.providerId);
     if (!provider || !provider.enabled) {
-      throw new Error("外部登录提供商不可用");
+      throw new Error(oidcT("providerUnavailable"));
     }
     const config = await configManager.getConfig();
     const callbackUrl = buildCallbackUrl(provider.id, args.request, config);
@@ -1061,7 +1073,7 @@ export class OIDCAuthService {
     );
     if (authState.mode === "bind") {
       if (!authState.invite_token_hash) {
-        throw new Error("绑定邀请状态无效");
+        throw new Error(oidcT("bindStateInvalid"));
       }
       return this.bindProfileAndResolveLogin({
         provider,
@@ -1072,7 +1084,7 @@ export class OIDCAuthService {
     }
     const binding = await oidcRedisStore.getBindingBySubject(subjectKey);
     if (!binding) {
-      throw new Error("该外部账号尚未绑定，无法登录");
+      throw new Error(oidcT("accountNotBoundCannotLogin"));
     }
     await oidcRedisStore.saveBinding({
       ...binding,
@@ -1127,7 +1139,7 @@ export class OIDCAuthService {
     callbackUrl: string,
   ) {
     const cfg = provider.connection_config;
-    if (!cfg.token_endpoint) throw new Error("token endpoint 未配置");
+    if (!cfg.token_endpoint) throw new Error(oidcT("tokenEndpointMissing"));
     const body = new URLSearchParams({
       grant_type: "authorization_code",
       client_id: cfg.client_id,
@@ -1144,7 +1156,7 @@ export class OIDCAuthService {
     if (provider.type === "github") {
       return fetchGithubProfile(provider, accessToken);
     }
-    throw new Error("不支持的外部登录提供商");
+    throw new Error(oidcT("providerUnsupported"));
   }
 
   private async bindProfileAndResolveLogin(args: {
@@ -1156,22 +1168,22 @@ export class OIDCAuthService {
     const invite = await oidcRedisStore.getInvite(
       args.state.invite_token_hash!,
     );
-    if (!invite) throw new Error("绑定邀请链接已失效");
+    if (!invite) throw new Error(oidcT("inviteExpired"));
     if (invite.provider_id && invite.provider_id !== args.provider.id) {
-      throw new Error("绑定邀请与登录提供商不匹配");
+      throw new Error(oidcT("bindProviderMismatch"));
     }
     const totp = (await configManager.getTOTPCredentials()).find(
       (item) => item.id === invite.totp_id,
     );
-    if (!totp) throw new Error("绑定邀请关联的 TOTP 已不存在");
+    if (!totp) throw new Error(oidcT("inviteTotpMissing"));
     const existing = await oidcRedisStore.getBindingBySubject(args.subjectKey);
     if (existing && existing.totp_id !== invite.totp_id) {
-      throw new Error("该外部账号已绑定到其他 TOTP");
+      throw new Error(oidcT("accountAlreadyBoundOtherTotp"));
     }
     const consumed = await oidcRedisStore.consumeInvite(
       args.state.invite_token_hash!,
     );
-    if (!consumed) throw new Error("绑定邀请链接已被使用");
+    if (!consumed) throw new Error(oidcT("inviteUsed"));
     if (existing) {
       const updated: OIDCBinding = {
         ...existing,
@@ -1234,7 +1246,7 @@ export class OIDCAuthService {
           profile: args.profile,
         };
       }
-      throw new Error("该外部账号已绑定到其他 TOTP");
+      throw new Error(oidcT("accountAlreadyBoundOtherTotp"));
     }
     return {
       state: args.state,

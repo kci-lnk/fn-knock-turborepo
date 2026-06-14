@@ -1,7 +1,12 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { tDefault } from "./i18n";
 
 export const SSL_CERT_SHARE_NAME = "fn-knock";
+const fnosDataShareT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.fnosDataShare.${key}`, params);
 
 const MAX_SHARED_FILES = 500;
 const MAX_SHARED_FILE_SIZE = 512 * 1024;
@@ -57,7 +62,7 @@ function resolveSharePath(rootDir: string, relativePath: string) {
     relativeToRoot.startsWith("..") ||
     path.isAbsolute(relativeToRoot)
   ) {
-    throw new Error("非法的共享文件路径");
+    throw new Error(fnosDataShareT("invalidPath"));
   }
 
   return resolved;
@@ -153,16 +158,16 @@ export async function listSSLSharedFiles() {
 export async function readSSLSharedFile(relativePath: string) {
   const directory = getConfiguredShareDirectory();
   if (!directory) {
-    throw new Error("未找到飞牛共享目录，请确认应用资源已正确配置");
+    throw new Error(fnosDataShareT("shareMissing"));
   }
 
   const filePath = resolveSharePath(directory, relativePath);
   const stats = await fs.stat(filePath);
   if (!stats.isFile()) {
-    throw new Error("只能读取共享目录中的文件");
+    throw new Error(fnosDataShareT("fileOnly"));
   }
   if (stats.size > MAX_SHARED_FILE_SIZE) {
-    throw new Error("文件过大，请仅放入证书或私钥文本文件");
+    throw new Error(fnosDataShareT("fileTooLarge"));
   }
 
   const content = await fs.readFile(filePath, "utf8");

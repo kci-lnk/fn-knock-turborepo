@@ -3,11 +3,25 @@ import type {
   DDNSProviderDefinition,
   DDNSUpdateResult,
 } from "../types";
-import { normalizeDomain, toPositiveInt, updateDualStack } from "./helpers";
+import {
+  ddnsProviderT,
+  normalizeDomain,
+  toPositiveInt,
+  updateDualStack,
+} from "./helpers";
 import {
   EDGEONE_OVERSEAS_ACCESS_MODE_FIELD,
   requestEdgeOneJson,
 } from "./edgeone-shared";
+
+const edgeoneT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => ddnsProviderT("edgeone", key, params);
+const commonT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => ddnsProviderT("common", key, params);
 
 type EdgeOneDnsRecord = {
   RecordId?: string;
@@ -29,7 +43,7 @@ type EdgeOneCreateDnsRecordResponse = {
 
 export const edgeoneProvider: DDNSProviderDefinition = {
   name: "edgeone",
-  label: "腾讯云 EdgeOne",
+  label: edgeoneT("label"),
   fields: [
     {
       key: "secret_id",
@@ -42,7 +56,7 @@ export const edgeoneProvider: DDNSProviderDefinition = {
       key: "secret_key",
       label: "SecretKey",
       type: "password",
-      placeholder: "腾讯云 SecretKey",
+      placeholder: edgeoneT("fields.secret_key.placeholder"),
       required: true,
     },
     {
@@ -51,23 +65,23 @@ export const edgeoneProvider: DDNSProviderDefinition = {
       type: "text",
       placeholder: "zone-xxxxxxxx",
       required: true,
-      description: "EdgeOne 站点 ID，用于定位托管的 Zone",
+      description: edgeoneT("fields.zone_id.description"),
     },
     {
       key: "domain",
-      label: "完整域名",
+      label: commonT("fields.domain.label"),
       type: "text",
       placeholder: "home.example.com",
       required: true,
-      description: "要更新的完整主机名；中文域名请先转为 punycode",
+      description: edgeoneT("fields.domain.description"),
     },
     {
       key: "location",
-      label: "解析线路",
+      label: edgeoneT("fields.location.label"),
       type: "text",
-      placeholder: "Default 或 CN.BJ",
+      placeholder: edgeoneT("fields.location.placeholder"),
       required: false,
-      description: "可选；默认留空表示 Default 全局线路",
+      description: edgeoneT("fields.location.description"),
     },
     {
       key: "ttl",
@@ -75,19 +89,21 @@ export const edgeoneProvider: DDNSProviderDefinition = {
       type: "text",
       placeholder: "300",
       required: false,
-      description: "默认 300 秒，EdgeOne 允许 60-86400",
+      description: edgeoneT("fields.ttl.description"),
     },
     {
       key: EDGEONE_OVERSEAS_ACCESS_MODE_FIELD,
-      label: "海外访问控制",
+      label: edgeoneT("fields.overseas_access.label"),
       type: "select",
       required: false,
       options: [
-        { label: "不使用", value: "off" },
-        { label: "屏蔽海外IP", value: "block_overseas" },
+        { label: edgeoneT("fields.overseas_access.options.off"), value: "off" },
+        {
+          label: edgeoneT("fields.overseas_access.options.blockOverseas"),
+          value: "block_overseas",
+        },
       ],
-      description:
-        "当开启时，将调用 EdgeOne 安全策略 API 屏蔽海外 IP 访问；港澳台不属于海外。该设置只会在配置变更时同步一次，不会随每次 DDNS 更新重复执行。",
+      description: edgeoneT("fields.overseas_access.description"),
     },
     {
       key: "endpoint",
@@ -95,16 +111,15 @@ export const edgeoneProvider: DDNSProviderDefinition = {
       type: "text",
       placeholder: "https://teo.tencentcloudapi.com",
       required: false,
-      description:
-        "默认国内版，可改为 https://teo.intl.tencentcloudapi.com 或地域接入域名",
+      description: edgeoneT("fields.endpoint.description"),
     },
     {
       key: "region",
       label: "Region",
       type: "text",
-      placeholder: "留空",
+      placeholder: edgeoneT("fields.region.placeholder"),
       required: false,
-      description: "可选；大多数场景可留空",
+      description: edgeoneT("fields.region.description"),
     },
   ],
 };
@@ -126,7 +141,7 @@ async function edgeoneRequest<T>(
   const secretId = config.secret_id?.trim();
   const secretKey = config.secret_key?.trim();
   if (!secretId || !secretKey) {
-    throw new Error("腾讯云 EdgeOne 配置不完整");
+    throw new Error(edgeoneT("configIncomplete"));
   }
 
   return requestEdgeOneJson<T>(context, action, payload);
@@ -143,14 +158,14 @@ export async function edgeoneUpdate(
   const zoneId = config.zone_id?.trim();
   const domain = normalizeDomain(config.domain || "");
   if (!secretId || !secretKey || !zoneId || !domain) {
-    return { success: false, message: "腾讯云 EdgeOne 配置不完整" };
+    return { success: false, message: edgeoneT("configIncomplete") };
   }
 
   const ttl = toPositiveInt(config.ttl, 300);
   const desiredLocation = normalizeEdgeOneLocation(config.location);
 
   return updateDualStack(
-    "腾讯云 EdgeOne",
+    edgeoneT("label"),
     ipv4,
     ipv6,
     async (recordType, ip) => {
@@ -186,7 +201,7 @@ export async function edgeoneUpdate(
         }
 
         if (!existing.RecordId) {
-          throw new Error("EdgeOne 返回的记录缺少 RecordId");
+          throw new Error(edgeoneT("missingRecordId"));
         }
 
         await edgeoneRequest(context, "ModifyDnsRecords", {
@@ -223,7 +238,7 @@ export async function edgeoneUpdate(
       );
 
       if (!result.RecordId) {
-        throw new Error("EdgeOne 未返回创建后的 RecordId");
+        throw new Error(edgeoneT("missingCreatedRecordId"));
       }
     },
   );

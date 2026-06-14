@@ -16,13 +16,19 @@ import {
   truncateText,
   truncateUtf8ByBytes,
 } from "./shared";
+import { tDefault } from "../../i18n";
 
 const WXPUSHER_INHERIT_TARGET_VALUE = "__inherit__";
+const wxpusherT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) =>
+  tDefault(`server.notifications.providers.catalog.wxpusher.${key}`, params);
 
 const WXPUSHER_UIDS_FIELD: NotificationSchemaField = {
   key: "uids",
-  label: "UID 列表",
-  description: "可选。单发目标，可填写多个 UID，使用英文逗号或换行分隔。",
+  label: wxpusherT("fields.uids.targetLabel"),
+  description: wxpusherT("fields.uids.description"),
   placeholder: "UID_xxx,UID_yyy",
   type: "string",
 };
@@ -30,40 +36,37 @@ const WXPUSHER_UIDS_FIELD: NotificationSchemaField = {
 const WXPUSHER_TOPIC_IDS_FIELD: NotificationSchemaField = {
   key: "topic_ids",
   label: "Topic",
-  description:
-    "可选。群发目标，可填写一个或多个 Topic ID，使用英文逗号或换行分隔。",
+  description: wxpusherT("fields.topic_ids.description"),
   placeholder: "123,456",
   type: "string",
 };
 
 const WXPUSHER_URL_FIELD: NotificationSchemaField = {
   key: "url",
-  label: "消息跳转 URL",
-  description:
-    "可选。点击消息时跳转的链接；未填写时会优先使用通知消息里的首个动作链接。",
+  label: wxpusherT("fields.url.targetLabel"),
+  description: wxpusherT("fields.url.description"),
   placeholder: "https://example.com/events/123",
   type: "string",
 };
 
 const WXPUSHER_VERIFY_PAY_TYPE_FIELD: NotificationSchemaField = {
   key: "verify_pay_type",
-  label: "订阅验证",
-  description:
-    "0 不校验；1 仅发送给付费订阅用户；2 仅发送给未订阅或已过期用户。",
+  label: wxpusherT("fields.verify_pay_type.targetLabel"),
+  description: wxpusherT("fields.verify_pay_type.description"),
   type: "select",
   default_value: "0",
   options: [
-    { label: "不验证", value: "0" },
-    { label: "仅付费订阅用户", value: "1" },
-    { label: "仅未订阅或已过期用户", value: "2" },
+    { label: wxpusherT("fields.verify_pay_type.options.0"), value: "0" },
+    { label: wxpusherT("fields.verify_pay_type.options.1"), value: "1" },
+    { label: wxpusherT("fields.verify_pay_type.options.2"), value: "2" },
   ],
 };
 
 const WXPUSHER_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   {
     key: "server_url",
-    label: "服务地址",
-    description: "官方服务保持默认值即可。",
+    label: wxpusherT("fields.server_url.label"),
+    description: wxpusherT("fields.server_url.description"),
     placeholder: "https://wxpusher.zjiecode.com",
     type: "string",
     required: true,
@@ -72,7 +75,7 @@ const WXPUSHER_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   {
     key: "app_token",
     label: "AppToken",
-    description: "WxPusher 后台应用的 AppToken，请妥善保管。",
+    description: wxpusherT("fields.app_token.description"),
     placeholder: "AT_xxx",
     type: "string",
     required: true,
@@ -80,7 +83,7 @@ const WXPUSHER_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   },
   {
     key: "timeout_seconds",
-    label: "超时秒数",
+    label: wxpusherT("fields.timeout_seconds.label"),
     type: "number",
     required: true,
     default_value: 5,
@@ -89,50 +92,46 @@ const WXPUSHER_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   },
   {
     ...WXPUSHER_UIDS_FIELD,
-    label: "默认 UID 列表",
-    description:
-      "可选。测试发送会优先使用这里的 UID；规则 target 留空时也会沿用这里的默认值。",
+    label: wxpusherT("fields.uids.label"),
+    description: wxpusherT("fields.uids.description"),
   },
   {
     ...WXPUSHER_TOPIC_IDS_FIELD,
-    label: "默认 Topic",
-    description:
-      "可选。测试发送会优先使用这里的 Topic；建议至少填写一个默认 UID 或 Topic，便于直接验证通道。",
+    label: wxpusherT("fields.topic_ids.label"),
+    description: wxpusherT("fields.topic_ids.description"),
   },
   {
     ...WXPUSHER_URL_FIELD,
-    label: "默认消息跳转 URL",
-    description:
-      "可选。规则 target 未填写时会沿用这里的跳转链接；测试发送也会使用它。",
+    label: wxpusherT("fields.url.label"),
+    description: wxpusherT("fields.url.description"),
   },
   {
     ...WXPUSHER_VERIFY_PAY_TYPE_FIELD,
-    label: "默认订阅验证",
-    description: "可选。规则 target 未填写时会沿用这里的订阅验证策略。",
+    label: wxpusherT("fields.verify_pay_type.label"),
+    description: wxpusherT("fields.verify_pay_type.description"),
   },
 ];
 
 const WXPUSHER_TARGET_SCHEMA: NotificationSchemaField[] = [
   {
     ...WXPUSHER_UIDS_FIELD,
-    description: "可选。填写后覆盖提供商中的默认 UID 列表；留空则沿用默认值。",
+    description: wxpusherT("fields.uids.targetDescription"),
   },
   {
     ...WXPUSHER_TOPIC_IDS_FIELD,
-    description: "可选。填写后覆盖提供商中的默认 Topic；留空则沿用默认值。",
+    description: wxpusherT("fields.topic_ids.targetDescription"),
   },
   {
     ...WXPUSHER_URL_FIELD,
-    description: "可选。填写后覆盖提供商中的默认跳转链接；留空则沿用默认值。",
+    description: wxpusherT("fields.url.targetDescription"),
   },
   {
     ...WXPUSHER_VERIFY_PAY_TYPE_FIELD,
-    description:
-      "可选。填写后覆盖提供商中的默认订阅验证策略；选择“沿用提供商默认”时不单独覆盖。",
+    description: wxpusherT("fields.verify_pay_type.targetDescription"),
     default_value: WXPUSHER_INHERIT_TARGET_VALUE,
     options: [
       {
-        label: "沿用提供商默认",
+        label: wxpusherT("fields.verify_pay_type.options.__inherit__"),
         value: WXPUSHER_INHERIT_TARGET_VALUE,
       },
       ...(WXPUSHER_VERIFY_PAY_TYPE_FIELD.options || []),
@@ -143,8 +142,7 @@ const WXPUSHER_TARGET_SCHEMA: NotificationSchemaField[] = [
 export const wxpusherProviderDefinition: NotificationProviderDefinition = {
   type: "wxpusher",
   label: "WxPusher",
-  description:
-    "通过 WxPusher 标准推送接口向指定 UID 或 Topic 发送消息通知；规则 target 留空时会继承提供商里的默认目标配置。",
+  description: wxpusherT("description"),
   connection_schema: WXPUSHER_CONNECTION_SCHEMA,
   target_schema: WXPUSHER_TARGET_SCHEMA,
   sensitive_fields: ["app_token"],
@@ -229,7 +227,9 @@ const resolveEffectiveWxPusherValue = (
 
 const buildWxPusherHtmlContent = (message: NotificationMessage) => {
   const sections: string[] = [];
-  const title = toTrimmedString(message.title || "fn-knock 通知");
+  const title = toTrimmedString(
+    message.title || wxpusherT("message.fallbackTitle"),
+  );
   const summary = toTrimmedString(message.summary);
   const bodyText = toTrimmedString(message.body_text);
 
@@ -294,7 +294,7 @@ export const sendWxPusherMessage = async (args: {
     return {
       success: false,
       retryable: false,
-      reason: "Missing WxPusher app token",
+      reason: wxpusherT("errors.missingAppToken"),
     };
   }
 
@@ -318,7 +318,9 @@ export const sendWxPusherMessage = async (args: {
     return {
       success: false,
       retryable: false,
-      reason: `Topic ID 格式不正确：${invalidValues.join(", ")}`,
+      reason: wxpusherT("errors.invalidTopicIds", {
+        values: invalidValues.join(", "),
+      }),
     };
   }
 
@@ -326,8 +328,7 @@ export const sendWxPusherMessage = async (args: {
     return {
       success: false,
       retryable: false,
-      reason:
-        "WxPusher 至少需要配置一个 UID 或 Topic ID，可在提供商默认配置中填写，或在规则目标里单独覆盖",
+      reason: wxpusherT("errors.recipientRequired"),
     };
   }
 
@@ -343,10 +344,14 @@ export const sendWxPusherMessage = async (args: {
   );
   const requestBody = {
     appToken,
-    content: buildWxPusherHtmlContent(args.message) || "<p>fn-knock 通知</p>",
+    content:
+      buildWxPusherHtmlContent(args.message) ||
+      `<p>${wxpusherT("message.fallbackTitle")}</p>`,
     summary: truncateUtf8ByBytes(
       toTrimmedString(
-        args.message.summary || args.message.title || "fn-knock 通知",
+        args.message.summary ||
+          args.message.title ||
+          wxpusherT("message.fallbackTitle"),
       ),
       100,
     ),
@@ -410,7 +415,10 @@ export const sendWxPusherMessage = async (args: {
       reason: apiSucceeded
         ? undefined
         : failedItems.length > 0
-          ? `${failedItems.length}/${itemResults.length} 个 WxPusher 目标发送失败`
+          ? wxpusherT("errors.targetsFailed", {
+              failed: failedItems.length,
+              total: itemResults.length,
+            })
           : parsedResponse?.msg || `WxPusher returned ${response.status}`,
       request_summary: {
         method: "POST",
@@ -444,7 +452,9 @@ export const sendWxPusherMessage = async (args: {
       success: false,
       retryable: true,
       reason:
-        error instanceof Error ? error.message : "WxPusher request failed",
+        error instanceof Error
+          ? error.message
+          : wxpusherT("errors.requestFailed"),
       request_summary: {
         method: "POST",
         url: urlToSend,

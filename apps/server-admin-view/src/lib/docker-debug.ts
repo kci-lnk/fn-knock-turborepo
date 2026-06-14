@@ -1,3 +1,5 @@
+import { DEFAULT_LOCALE, type LocaleConfig } from "@fn-knock/i18n";
+import { browserT } from "@fn-knock/i18n/vue";
 import type {
   DockerAdminBootstrapState,
   RuntimeCapabilities,
@@ -13,6 +15,9 @@ export const DOCKER_ADMIN_PASSWORD_DEBUG_STORAGE_KEY =
 export type DockerAdminDebugStage = "setup" | "login" | "authenticated";
 
 const DEBUG_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+const DEFAULT_DEBUG_LOCALE_CONFIG: LocaleConfig = {
+  default_locale: DEFAULT_LOCALE,
+};
 
 const isBrowser = () => typeof window !== "undefined";
 
@@ -88,16 +93,16 @@ export const validateDockerAdminDebugPassword = (
   password: string,
 ): string | null => {
   if (password.length < 6) {
-    return "管理面板密码至少需要 6 位";
+    return browserT("admin.dockerAdmin.passwordMin");
   }
   if (password.length > 128) {
-    return "管理面板密码不能超过 128 位";
+    return browserT("admin.dockerAdmin.passwordMax");
   }
   if (/\s/.test(password)) {
-    return "管理面板密码不能包含空白字符";
+    return browserT("admin.dockerAdmin.passwordNoWhitespace");
   }
   if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) {
-    return "管理面板密码需要同时包含字母和数字";
+    return browserT("admin.dockerAdmin.passwordRequireLetterNumber");
   }
 
   return null;
@@ -105,6 +110,7 @@ export const validateDockerAdminDebugPassword = (
 
 export const createDockerAdminDebugState = (
   stage: DockerAdminDebugStage,
+  locale: LocaleConfig = DEFAULT_DEBUG_LOCALE_CONFIG,
 ): DockerAdminBootstrapState => {
   if (stage === "setup") {
     return {
@@ -112,6 +118,7 @@ export const createDockerAdminDebugState = (
       password_configured: false,
       authenticated: false,
       session_expires_at: null,
+      locale,
     };
   }
 
@@ -121,6 +128,7 @@ export const createDockerAdminDebugState = (
       password_configured: true,
       authenticated: false,
       session_expires_at: null,
+      locale,
     };
   }
 
@@ -129,6 +137,7 @@ export const createDockerAdminDebugState = (
     password_configured: true,
     authenticated: true,
     session_expires_at: createAuthenticatedSessionExpiry(),
+    locale,
   };
 };
 
@@ -144,7 +153,7 @@ export const buildDockerAdminDebugState = (
     return null;
   }
 
-  return createDockerAdminDebugState(stage);
+  return createDockerAdminDebugState(stage, backendState.locale);
 };
 
 export const getEffectiveRuntimeProfile = (

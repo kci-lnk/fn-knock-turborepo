@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { readFile, writeFile } from "node:fs/promises";
 import { fileExists } from "../../../lib/runtime";
+import { tDefault } from "../../../lib/i18n";
 
 export type AcmePatchLogger = (line: string) => Promise<void> | void;
 
@@ -11,6 +12,11 @@ const DUCKDNS_DEFAULT_API_PATTERN =
 const DUCKDNS_PROXY_API_PATTERN =
   /^[ \t]*DuckDNS_API=(["'])https:\/\/duckdns\.fnknock\.cn\/update\1[ \t]*$/m;
 
+const duckDnsPatchT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.acmePatches.duckdns.${key}`, params);
+
 export const DUCKDNS_ACME_DNS_TYPE = "dns_duckdns";
 
 export const ensureDuckDnsApiEndpoint = async (options: {
@@ -19,7 +25,7 @@ export const ensureDuckDnsApiEndpoint = async (options: {
 }): Promise<void> => {
   const scriptPath = join(options.acmeHomeDir, "dnsapi", "dns_duckdns.sh");
   if (!(await fileExists(scriptPath))) {
-    throw new Error(`未找到 DuckDNS DNS API 脚本: ${scriptPath}`);
+    throw new Error(duckDnsPatchT("scriptMissing", { path: scriptPath }));
   }
 
   const content = await readFile(scriptPath, "utf-8");
@@ -44,7 +50,10 @@ export const ensureDuckDnsApiEndpoint = async (options: {
   await writeFile(scriptPath, updated, "utf-8");
   if (options.onLog) {
     await options.onLog(
-      `已将 DuckDNS API 从 ${DUCKDNS_DEFAULT_API_URL} 切换为 ${DUCKDNS_PROXY_API_URL}`,
+      duckDnsPatchT("proxyApplied", {
+        from: DUCKDNS_DEFAULT_API_URL,
+        to: DUCKDNS_PROXY_API_URL,
+      }),
     );
   }
 };

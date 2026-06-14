@@ -13,12 +13,19 @@ import {
   toTrimmedString,
   truncateText,
 } from "./shared";
+import { tDefault } from "../../i18n";
+
+const dingtalkT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) =>
+  tDefault(`server.notifications.providers.catalog.dingtalk.${key}`, params);
 
 const DINGTALK_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   {
     key: "webhook_url",
     label: "Webhook URL",
-    description: "钉钉机器人生成的完整 Webhook 地址。",
+    description: dingtalkT("fields.webhook_url.description"),
     placeholder: "https://oapi.dingtalk.com/robot/send?access_token=xxxxxx",
     type: "string",
     required: true,
@@ -26,24 +33,22 @@ const DINGTALK_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   },
   {
     key: "secret",
-    label: "加签密钥",
-    description:
-      "可选。若机器人启用了“加签”，请填写安全设置页里显示的 SEC 开头密钥。",
+    label: dingtalkT("fields.secret.label"),
+    description: dingtalkT("fields.secret.description"),
     placeholder: "SECxxxxxxxx",
     type: "string",
     sensitive: true,
   },
   {
     key: "keyword_prefix",
-    label: "关键词前缀",
-    description:
-      "可选。若机器人启用了自定义关键词校验，建议填写一个固定关键词；发送时会自动追加到标题前。",
-    placeholder: "监控报警",
+    label: dingtalkT("fields.keyword_prefix.label"),
+    description: dingtalkT("fields.keyword_prefix.description"),
+    placeholder: dingtalkT("fields.keyword_prefix.placeholder"),
     type: "string",
   },
   {
     key: "timeout_seconds",
-    label: "超时秒数",
+    label: dingtalkT("fields.timeout_seconds.label"),
     type: "number",
     required: true,
     default_value: 5,
@@ -55,23 +60,22 @@ const DINGTALK_CONNECTION_SCHEMA: NotificationSchemaField[] = [
 const DINGTALK_TARGET_SCHEMA: NotificationSchemaField[] = [
   {
     key: "at_mobiles",
-    label: "@ 手机号",
-    description: "可选。多个值使用英文逗号或换行分隔，且必须是群内成员手机号。",
+    label: dingtalkT("fields.at_mobiles.label"),
+    description: dingtalkT("fields.at_mobiles.description"),
     placeholder: "13800001111,13900002222",
     type: "string",
   },
   {
     key: "at_user_ids",
-    label: "@ 用户 ID",
-    description:
-      "可选。多个值使用英文逗号或换行分隔，会自动在正文追加 @userId。",
+    label: dingtalkT("fields.at_user_ids.label"),
+    description: dingtalkT("fields.at_user_ids.description"),
     placeholder: "manager7675,user123",
     type: "string",
   },
   {
     key: "is_at_all",
-    label: "@ 所有人",
-    description: "启用后会在请求里携带 isAtAll，并在正文补充 @所有人。",
+    label: dingtalkT("fields.is_at_all.label"),
+    description: dingtalkT("fields.is_at_all.description"),
     type: "boolean",
     default_value: false,
   },
@@ -79,9 +83,8 @@ const DINGTALK_TARGET_SCHEMA: NotificationSchemaField[] = [
 
 export const dingtalkProviderDefinition: NotificationProviderDefinition = {
   type: "dingtalk",
-  label: "钉钉机器人",
-  description:
-    "通过钉钉机器人 Webhook 向群聊发送 Markdown 通知，并支持加签校验。",
+  label: dingtalkT("label"),
+  description: dingtalkT("description"),
   connection_schema: DINGTALK_CONNECTION_SCHEMA,
   target_schema: DINGTALK_TARGET_SCHEMA,
   sensitive_fields: ["webhook_url", "secret"],
@@ -153,7 +156,7 @@ const buildDingTalkMentionText = (
   ];
 
   if (isAtAll) {
-    tokens.unshift("@所有人");
+    tokens.unshift(dingtalkT("mentionAll"));
   }
 
   return tokens.join(" ").trim();
@@ -219,7 +222,7 @@ export const sendDingTalkMessage = async (args: {
     return {
       success: false,
       retryable: false,
-      reason: "Missing DingTalk webhook url",
+      reason: dingtalkT("errors.missingWebhookUrl"),
     };
   }
 
@@ -233,7 +236,7 @@ export const sendDingTalkMessage = async (args: {
   const isAtAll = Boolean(targetConfig.is_at_all);
   const mentionText = buildDingTalkMentionText(atMobiles, atUserIds, isAtAll);
   const title = applyKeywordPrefix(
-    toTrimmedString(args.message.title || "fn-knock 通知"),
+    toTrimmedString(args.message.title || dingtalkT("message.fallbackTitle")),
     keywordPrefix,
   );
   const markdownText =
@@ -302,7 +305,8 @@ export const sendDingTalkMessage = async (args: {
         !apiSucceeded && (response.status >= 500 || response.status === 429),
       reason: apiSucceeded
         ? undefined
-        : parsedResponse?.errmsg || `DingTalk returned ${response.status}`,
+        : parsedResponse?.errmsg ||
+          dingtalkT("errors.requestReturned", { status: response.status }),
       request_summary: {
         method: "POST",
         url: redactDingTalkWebhookUrl(requestUrl),
@@ -326,7 +330,9 @@ export const sendDingTalkMessage = async (args: {
       success: false,
       retryable: true,
       reason:
-        error instanceof Error ? error.message : "DingTalk request failed",
+        error instanceof Error
+          ? error.message
+          : dingtalkT("errors.requestFailed"),
       request_summary: {
         method: "POST",
         url: redactDingTalkWebhookUrl(requestUrl),

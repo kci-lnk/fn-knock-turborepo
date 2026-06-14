@@ -1,5 +1,11 @@
 import { goBackend, type SSLDeployedCertificate, type SSLDeploymentMode } from "./go-backend";
 import { configManager, type AppConfig, type SSLManagedCertificate } from "./redis";
+import { tDefault } from "./i18n";
+
+const sslGatewayT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.sslGateway.${key}`, params);
 
 const normalizeDeploymentMode = (
   value: SSLDeploymentMode | undefined | null,
@@ -80,14 +86,13 @@ export const syncSSLDeploymentToGateway = async (
   if (deployment.certificates.length === 0) {
     const resp = await goBackend.clearSSL();
     if (!resp.success) {
-      throw new Error(resp.message || "清除网关证书失败");
+      throw new Error(resp.message || sslGatewayT("clearFailed"));
     }
     return;
   }
 
   const resp = await goBackend.setSSLDeployment(deployment);
   if (!resp.success) {
-    throw new Error(resp.message || "同步网关证书失败");
+    throw new Error(resp.message || sslGatewayT("syncFailed"));
   }
 };
-

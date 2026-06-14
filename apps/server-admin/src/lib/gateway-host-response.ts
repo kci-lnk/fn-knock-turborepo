@@ -1,5 +1,6 @@
 import { isAuthServiceTarget } from "./auth-service";
 import { goBackend } from "./go-backend";
+import { tDefault, tWithFallback } from "./i18n";
 import {
   configManager,
   DEFAULT_GATEWAY_HOST_RESPONSE_CONFIG,
@@ -9,6 +10,10 @@ import {
   type HostMapping,
 } from "./redis";
 import { isAnySubdomainRoutingMode } from "./reverse-proxy-submode";
+import {
+  DEFAULT_LOCALE,
+  type LocaleCode,
+} from "../../../../packages/i18n/src";
 
 export interface GatewayHostResponseItem {
   host: string;
@@ -43,10 +48,29 @@ const normalizeHostLike = (value: string | undefined | null): string =>
     .replace(/\/.*$/, "")
     .replace(/\.+$/, "");
 
-const getRunTypeLabel = (runType: 0 | 1 | 3) => {
-  if (runType === 0) return "直连模式";
-  if (runType === 1) return "反代模式";
-  return "子域模式";
+const getRunTypeLabel = (
+  runType: 0 | 1 | 3,
+  locale: LocaleCode = DEFAULT_LOCALE,
+) => {
+  if (runType === 0) {
+    return tWithFallback(
+      locale,
+      "server.gatewayHostResponse.runTypes.direct",
+      "Direct mode",
+    );
+  }
+  if (runType === 1) {
+    return tWithFallback(
+      locale,
+      "server.gatewayHostResponse.runTypes.reverseProxy",
+      "Reverse proxy mode",
+    );
+  }
+  return tWithFallback(
+    locale,
+    "server.gatewayHostResponse.runTypes.subdomain",
+    "Subdomain mode",
+  );
 };
 
 const getVisibleHostMappings = (
@@ -85,6 +109,7 @@ const sanitizeDisabledHosts = (
 
 export const buildGatewayHostResponseAvailability = (
   config: Pick<AppConfig, "run_type" | "reverse_proxy_submode">,
+  locale: LocaleCode = DEFAULT_LOCALE,
 ): GatewayHostResponseAvailability => {
   if (isAnySubdomainRoutingMode(config)) {
     return {
@@ -95,7 +120,12 @@ export const buildGatewayHostResponseAvailability = (
 
   return {
     available: false,
-    reason: `仅子域模式可用，当前为${getRunTypeLabel(config.run_type)}。`,
+    reason: tWithFallback(
+      locale,
+      "server.gatewayHostResponse.unavailableReason",
+      "Only subdomain mode is available. Current mode: {mode}.",
+      { mode: getRunTypeLabel(config.run_type, locale) },
+    ),
   };
 };
 
@@ -170,7 +200,9 @@ export const compileGatewayHostResponseState = (
 };
 
 export const getGatewayHostResponseDetails =
-  async (): Promise<GatewayHostResponseDetails> => {
+  async (
+    locale: LocaleCode = DEFAULT_LOCALE,
+  ): Promise<GatewayHostResponseDetails> => {
     const [config, hostResponseConfig, runtime] = await Promise.all([
       configManager.getConfig(),
       configManager.getGatewayHostResponseConfig(),
@@ -183,7 +215,7 @@ export const getGatewayHostResponseDetails =
 
     return {
       config: nextConfig,
-      availability: buildGatewayHostResponseAvailability(config),
+      availability: buildGatewayHostResponseAvailability(config, locale),
       items,
       summary: buildGatewayHostResponseSummary(items, runtime),
     };
@@ -197,7 +229,9 @@ export const syncGatewayHostResponseToGateway = async (
   const response = await goBackend.setPreserveHostConfig(nextRuntime);
 
   if (!response.success) {
-    throw new Error(response.message || "同步网关 Host 响应配置失败");
+    throw new Error(
+      response.message || tDefault("server.gatewayHostResponse.syncFailed"),
+    );
   }
 
   return nextRuntime;
@@ -231,7 +265,10 @@ export const syncGatewayHostResponseRuntimeForConfig = async (
   if (isAnySubdomainRoutingMode(config)) {
     const response = await goBackend.setHostRules(config.host_mappings);
     if (!response.success) {
-      throw new Error(response.message || "同步 Host 路由失败");
+      throw new Error(
+        response.message ||
+          tDefault("server.gatewayHostResponse.hostRoutesSyncFailed"),
+      );
     }
   }
 

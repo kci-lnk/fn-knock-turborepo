@@ -3,13 +3,17 @@ import type {
   OIDCProviderCatalogItem,
   OIDCProviderConnectionConfig,
 } from "./types";
+import { tDefault } from "../../i18n";
+
+const oidcCatalogT = (key: string): string =>
+  tDefault(`server.oidc.catalog.${key}`);
 
 export const OIDC_PROVIDER_CATALOG: OIDCProviderCatalogItem[] = [
   {
     type: "google",
     protocol: "oidc",
     label: "Google",
-    description: "使用 Google 账号登录。",
+    description: oidcCatalogT("googleDescription"),
     default_name: "Google",
     default_scopes: ["openid", "profile", "email"],
     required_fields: ["client_id", "client_secret"],
@@ -21,7 +25,7 @@ export const OIDC_PROVIDER_CATALOG: OIDCProviderCatalogItem[] = [
     type: "microsoft",
     protocol: "oidc",
     label: "Microsoft",
-    description: "使用 Microsoft / Azure AD 账号登录。",
+    description: oidcCatalogT("microsoftDescription"),
     default_name: "Microsoft",
     default_scopes: ["openid", "profile", "email"],
     required_fields: ["client_id", "client_secret"],
@@ -33,7 +37,7 @@ export const OIDC_PROVIDER_CATALOG: OIDCProviderCatalogItem[] = [
     type: "github",
     protocol: "oauth2_profile",
     label: "GitHub",
-    description: "使用 GitHub OAuth 登录。",
+    description: oidcCatalogT("githubDescription"),
     default_name: "GitHub",
     default_scopes: ["read:user", "user:email"],
     required_fields: ["client_id", "client_secret"],
@@ -44,9 +48,9 @@ export const OIDC_PROVIDER_CATALOG: OIDCProviderCatalogItem[] = [
   {
     type: "custom_oidc",
     protocol: "oidc",
-    label: "自定义 OIDC",
-    description: "使用标准 OpenID Connect Discovery 的自定义提供商。",
-    default_name: "自定义 OIDC",
+    label: oidcCatalogT("customLabel"),
+    description: oidcCatalogT("customDescription"),
+    default_name: oidcCatalogT("customLabel"),
     default_scopes: ["openid", "profile", "email"],
     required_fields: ["client_id", "client_secret", "issuer"],
     optional_fields: [

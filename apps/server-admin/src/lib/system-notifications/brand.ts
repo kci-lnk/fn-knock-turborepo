@@ -3,9 +3,15 @@ import type {
   NotificationMessageAction,
   NotificationMessageFact,
 } from "./types";
+import {
+  DEFAULT_LOCALE,
+  type LocaleCode,
+  normalizeLocale,
+  translate,
+} from "../../../../../packages/i18n/src";
 
-export const NOTIFICATION_BRAND_PREFIX = "敲门 Knock ";
-export const DEFAULT_NOTIFICATION_TITLE = `${NOTIFICATION_BRAND_PREFIX}通知`;
+const brandT = (locale: LocaleCode, key: string) =>
+  translate(locale, `server.notifications.brand.${key}`);
 
 const trimValue = (value: unknown) => String(value ?? "").trim();
 
@@ -33,20 +39,26 @@ const normalizeAction = (
   };
 };
 
-export const brandNotificationTitle = (title?: string) => {
+export const brandNotificationTitle = (
+  title?: string,
+  locale?: string | null,
+) => {
+  const resolvedLocale = normalizeLocale(locale) ?? DEFAULT_LOCALE;
+  const brandPrefix = brandT(resolvedLocale, "prefix");
   const normalized = trimValue(title);
-  if (!normalized) return DEFAULT_NOTIFICATION_TITLE;
-  if (normalized.startsWith(NOTIFICATION_BRAND_PREFIX)) {
+  if (!normalized) return brandT(resolvedLocale, "defaultTitle");
+  if (normalized.startsWith(brandPrefix)) {
     return normalized;
   }
-  return `${NOTIFICATION_BRAND_PREFIX}${normalized}`;
+  return `${brandPrefix}${normalized}`;
 };
 
 export const normalizeNotificationMessage = (
   message: NotificationMessage,
+  locale?: string | null,
 ): NotificationMessage => ({
   ...message,
-  title: brandNotificationTitle(message.title),
+  title: brandNotificationTitle(message.title, locale),
   summary: trimValue(message.summary),
   body_text: trimValue(message.body_text),
   body_markdown: trimValue(message.body_markdown),

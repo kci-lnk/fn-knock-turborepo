@@ -32,6 +32,7 @@ import {
   watch,
   type HTMLAttributes,
 } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { cn } from '@/lib/utils'
 
 export type CodeEditorLanguage =
@@ -55,7 +56,6 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   language: 'text',
   minHeight: '260px',
-  ariaLabel: '代码编辑器',
 })
 
 const emit = defineEmits<{
@@ -65,6 +65,7 @@ const emit = defineEmits<{
 const hostRef = ref<HTMLDivElement | null>(null)
 const editorView = shallowRef<EditorView | null>(null)
 const languageCompartment = new Compartment()
+const { t } = useI18n()
 
 const languageExtensions: Record<Exclude<CodeEditorLanguage, 'text'>, Extension> =
   {
@@ -82,6 +83,9 @@ const shellClass = computed(() =>
 const shellStyle = computed(() => ({
   '--code-editor-min-height': props.minHeight,
 }))
+const resolvedAriaLabel = computed(
+  () => props.ariaLabel || t('admin.components.codeMirrorEditor.ariaLabel'),
+)
 
 function getLanguageExtension(language: CodeEditorLanguage): Extension {
   if (language === 'text') return []
@@ -102,7 +106,7 @@ function buildEditorState(doc: string) {
       keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
       EditorView.lineWrapping,
       EditorView.contentAttributes.of({
-        'aria-label': props.ariaLabel,
+        'aria-label': resolvedAriaLabel.value,
       }),
       EditorView.updateListener.of((update) => {
         if (!update.docChanged) return

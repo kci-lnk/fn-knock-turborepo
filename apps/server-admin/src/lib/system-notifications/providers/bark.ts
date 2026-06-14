@@ -14,13 +14,18 @@ import {
   toTrimmedString,
   truncateText,
 } from "./shared";
+import { tDefault } from "../../i18n";
+
+const barkT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.notifications.providers.catalog.bark.${key}`, params);
 
 const BARK_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   {
     key: "server_url",
-    label: "服务地址",
-    description:
-      "官方在线版保持默认值即可；如果你使用自建 Bark Server，则填写服务根地址。",
+    label: barkT("fields.server_url.label"),
+    description: barkT("fields.server_url.description"),
     placeholder: "https://api.day.app",
     type: "string",
     required: true,
@@ -29,8 +34,7 @@ const BARK_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   {
     key: "device_key",
     label: "Device Key",
-    description:
-      "Bark App 中复制的设备 Key。可填写多个 key，并用英文逗号分隔。",
+    description: barkT("fields.device_key.description"),
     placeholder: "ynJ5Ft4atkMkWeo2PAvFhF",
     type: "string",
     required: true,
@@ -38,7 +42,7 @@ const BARK_CONNECTION_SCHEMA: NotificationSchemaField[] = [
   },
   {
     key: "timeout_seconds",
-    label: "超时秒数",
+    label: barkT("fields.timeout_seconds.label"),
     type: "number",
     required: true,
     default_value: 5,
@@ -50,9 +54,8 @@ const BARK_CONNECTION_SCHEMA: NotificationSchemaField[] = [
 const BARK_TARGET_SCHEMA: NotificationSchemaField[] = [
   {
     key: "level",
-    label: "通知级别",
-    description:
-      "active 为默认即时提醒；timeSensitive 可穿透专注模式；critical 为关键提醒。",
+    label: barkT("fields.level.label"),
+    description: barkT("fields.level.description"),
     type: "select",
     default_value: "active",
     options: [
@@ -64,45 +67,44 @@ const BARK_TARGET_SCHEMA: NotificationSchemaField[] = [
   },
   {
     key: "group",
-    label: "消息分组",
-    description: "可选。相同分组会在 Bark 客户端内聚合展示。",
+    label: barkT("fields.group.label"),
+    description: barkT("fields.group.description"),
     placeholder: "fn-knock",
     type: "string",
   },
   {
     key: "sound",
-    label: "提示音",
-    description: "可选。填写 Bark 支持的系统或自定义提示音名称。",
+    label: barkT("fields.sound.label"),
+    description: barkT("fields.sound.description"),
     placeholder: "alarm",
     type: "string",
   },
   {
     key: "url",
-    label: "点击跳转 URL",
-    description:
-      "可选。点击通知后打开的链接；未填写时会优先使用消息动作中的首个链接。",
+    label: barkT("fields.url.label"),
+    description: barkT("fields.url.description"),
     placeholder: "https://example.com/events/123",
     type: "string",
   },
   {
     key: "icon",
-    label: "图标 URL",
-    description: "可选。iOS 15 及以上可显示自定义图标。",
+    label: barkT("fields.icon.label"),
+    description: barkT("fields.icon.description"),
     placeholder: "https://day.app/assets/images/avatar.jpg",
     type: "string",
   },
   {
     key: "badge",
-    label: "角标数字",
-    description: "可选。显示在 Bark App 图标上的角标数字。",
+    label: barkT("fields.badge.label"),
+    description: barkT("fields.badge.description"),
     type: "number",
     min: 0,
     max: 99999,
   },
   {
     key: "call",
-    label: "重复响铃",
-    description: "启用后 Bark 会持续响铃约 30 秒。",
+    label: barkT("fields.call.label"),
+    description: barkT("fields.call.description"),
     type: "boolean",
     default_value: false,
   },
@@ -111,8 +113,7 @@ const BARK_TARGET_SCHEMA: NotificationSchemaField[] = [
 export const barkProviderDefinition: NotificationProviderDefinition = {
   type: "bark",
   label: "Bark",
-  description:
-    "通过 Bark 官方在线版或自建 Bark Server 向 iPhone 发送 APNs 推送通知。",
+  description: barkT("description"),
   connection_schema: BARK_CONNECTION_SCHEMA,
   target_schema: BARK_TARGET_SCHEMA,
   sensitive_fields: ["device_key"],
@@ -142,7 +143,7 @@ const buildBarkPayload = (
   const summary = toTrimmedString(message.summary);
   const bodyText = toTrimmedString(message.body_text);
   const hasStandaloneBody = Boolean(bodyText) && bodyText !== summary;
-  const title = toTrimmedString(message.title || "fn-knock 通知");
+  const title = toTrimmedString(message.title || barkT("message.fallbackTitle"));
   const subtitle = hasStandaloneBody ? summary : "";
   const body = hasStandaloneBody ? bodyText : summary || bodyText || title;
   const url =
@@ -157,7 +158,7 @@ const buildBarkPayload = (
   return {
     title,
     subtitle: subtitle || undefined,
-    body: body || "fn-knock 通知",
+    body: body || barkT("message.fallbackTitle"),
     level: level || "active",
     ...(sound ? { sound } : {}),
     ...(group ? { group } : {}),
@@ -230,7 +231,8 @@ const sendSingleBarkPush = async (args: {
     return {
       success: false,
       retryable: true,
-      reason: error instanceof Error ? error.message : "Bark request failed",
+      reason:
+        error instanceof Error ? error.message : barkT("errors.requestFailed"),
       response_summary: null,
     };
   } finally {
@@ -252,7 +254,7 @@ export const sendBarkMessage = async (args: {
     return {
       success: false,
       retryable: false,
-      reason: "Missing Bark device key",
+      reason: barkT("errors.missingDeviceKey"),
     };
   }
 
@@ -295,8 +297,11 @@ export const sendBarkMessage = async (args: {
     retryable: failedResults.some((result) => result.retryable),
     reason:
       failedResults.length === 1
-        ? failedResults[0]!.reason || "Bark push failed"
-        : `${failedResults.length}/${results.length} 个 Bark 目标发送失败`,
+        ? failedResults[0]!.reason || barkT("errors.pushFailed")
+        : barkT("errors.targetsFailed", {
+            failed: failedResults.length,
+            total: results.length,
+          }),
     request_summary: {
       method: "POST",
       url,

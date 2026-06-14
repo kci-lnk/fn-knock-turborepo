@@ -51,6 +51,7 @@ import type {
   DashboardDisplayConfig,
   IpLocationBatchPayload,
   IpLocationSnapshot,
+  LocaleConfig,
   AutoHttpsConfig,
   AutoHttpsDetails,
   ProtocolMappingFeatureConfig,
@@ -200,6 +201,14 @@ export const ConfigAPI = {
   },
   async getConfig(): Promise<AppConfig> {
     const res = await apiClient.get("/config");
+    return res.data.data;
+  },
+  async getLocaleConfig(): Promise<LocaleConfig> {
+    const res = await apiClient.get("/config/locale");
+    return res.data.data;
+  },
+  async updateLocaleConfig(payload: LocaleConfig): Promise<LocaleConfig> {
+    const res = await apiClient.post("/config/locale", payload);
     return res.data.data;
   },
   async getWelcomeGuideStatus(): Promise<WelcomeGuideStatus> {
@@ -566,7 +575,7 @@ export const ConfigAPI = {
     const res = await apiClient.post("/auth/oidc/invitations", payload);
     return res.data.data;
   },
-  // 同步路由
+  // Sync routes.
   async syncRoutes(): Promise<{
     success: boolean;
     message?: string;
@@ -1255,7 +1264,7 @@ export const SystemAPI = {
   }> {
     const res = await apiClient.post("/system/clock/sync");
     return {
-      message: String(res.data.message || "系统时间同步完成"),
+      message: String(res.data.message || "System time synchronized"),
       data: res.data.data,
     };
   },

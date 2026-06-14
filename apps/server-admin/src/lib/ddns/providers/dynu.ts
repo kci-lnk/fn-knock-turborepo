@@ -4,6 +4,7 @@ import type {
   DDNSUpdateResult,
 } from "../types";
 import {
+  ddnsProviderT,
   getTimeoutMs,
   normalizeDomain,
   parseJsonResponse,
@@ -13,6 +14,14 @@ import {
 
 const DYNU_ENDPOINT = "https://api.dynu.com/v2";
 const DEFAULT_TTL = 300;
+const dynuT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => ddnsProviderT("dynu", key, params);
+const commonT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => ddnsProviderT("common", key, params);
 
 type DynuApiEnvelope = {
   statusCode?: number;
@@ -105,15 +114,15 @@ export const dynuProvider: DDNSProviderDefinition = {
       type: "password",
       placeholder: "Dynu API Key",
       required: true,
-      description: "在 Dynu API Credentials 中生成的 API-Key",
+      description: dynuT("fields.api_key.description"),
     },
     {
       key: "domain",
-      label: "完整域名",
+      label: commonT("fields.domain.label"),
       type: "text",
       placeholder: "home.example.com",
       required: true,
-      description: "要更新的完整 Dynu hostname",
+      description: dynuT("fields.domain.description"),
     },
     {
       key: "ttl",
@@ -121,7 +130,7 @@ export const dynuProvider: DDNSProviderDefinition = {
       type: "text",
       placeholder: String(DEFAULT_TTL),
       required: false,
-      description: `默认 ${DEFAULT_TTL} 秒`,
+      description: commonT("fields.ttl.description", { seconds: DEFAULT_TTL }),
     },
     {
       key: "group",
@@ -129,7 +138,7 @@ export const dynuProvider: DDNSProviderDefinition = {
       type: "text",
       placeholder: "default",
       required: false,
-      description: "可选；写入 Dynu DNS 记录的 group",
+      description: dynuT("fields.group.description"),
     },
   ],
 };
@@ -190,19 +199,20 @@ function assertDynuSuccess(
   data: DynuApiEnvelope,
   action: string,
 ): void {
+  const fallback = dynuT("actionFailed", { action });
   if (!response.ok) {
     throw new Error(
-      `[${response.status}] ${formatDynuError(data, `${action}失败`)}`,
+      `[${response.status}] ${formatDynuError(data, fallback)}`,
     );
   }
 
   if (data.exception) {
-    throw new Error(formatDynuError(data, `${action}失败`));
+    throw new Error(formatDynuError(data, fallback));
   }
 
   if (typeof data.statusCode === "number" && data.statusCode !== 200) {
     throw new Error(
-      `[${data.statusCode}] ${formatDynuError(data, `${action}失败`)}`,
+      `[${data.statusCode}] ${formatDynuError(data, fallback)}`,
     );
   }
 }
@@ -246,13 +256,13 @@ async function resolveDynuRoot(
     context,
     apiKey,
     `/dns/getroot/${encodeURIComponent(domain)}`,
-    { action: "解析 Dynu 根域" },
+    { action: dynuT("actions.resolveRoot") },
   );
   const domainId = readPositiveId(root.id);
   const domainName = normalizeDomain(root.domainName || "");
 
   if (!domainId || !domainName) {
-    throw new Error("Dynu 未返回有效的根域信息");
+    throw new Error(dynuT("invalidRootInfo"));
   }
 
   return {
@@ -393,10 +403,7 @@ async function updateWildcardDomain(
   if (root.domainName !== domain || root.nodeName) {
     return {
       success: false,
-      message:
-        `Dynu REST 不支持把 *.${domain} 当作 DNS 记录 nodeName。` +
-        `请先在 Dynu DDNS Services 中将 ${domain} 添加为独立服务并启用 Wildcard Alias，` +
-        `或将 DDNS 配置改为 ${domain}`,
+      message: dynuT("wildcardUnsupported", { domain }),
       ipv4Updated: false,
       ipv6Updated: false,
     };
@@ -406,7 +413,7 @@ async function updateWildcardDomain(
     context,
     apiKey,
     `/dns/${root.domainId}`,
-    { action: "读取 Dynu DNS 服务" },
+    { action: dynuT("actions.readDnsService") },
   );
 
   const ipv4Unchanged =
@@ -416,7 +423,7 @@ async function updateWildcardDomain(
   if (ipv4Unchanged && ipv6Unchanged) {
     return {
       success: true,
-      message: "Dynu Wildcard Alias IP 未变化",
+      message: dynuT("wildcardUnchanged"),
       ipv4Updated: !!ipv4,
       ipv6Updated: !!ipv6,
     };
@@ -427,7 +434,7 @@ async function updateWildcardDomain(
     apiKey,
     `/dns/${root.domainId}`,
     {
-      action: "更新 Dynu Wildcard Alias",
+      action: dynuT("actions.updateWildcardAlias"),
       method: "POST",
       body: buildDomainPayload(details, domain, context.config, ipv4, ipv6),
     },
@@ -435,7 +442,7 @@ async function updateWildcardDomain(
 
   return {
     success: true,
-    message: "Dynu Wildcard Alias 更新成功",
+    message: dynuT("wildcardSuccess"),
     ipv4Updated: !!ipv4,
     ipv6Updated: !!ipv6,
   };
@@ -452,13 +459,13 @@ export async function dynuUpdate(
   const { domain, wildcard } = parsedDomain;
 
   if (!apiKey || !domain) {
-    return { success: false, message: "Dynu 配置不完整" };
+    return { success: false, message: dynuT("configIncomplete") };
   }
 
   if (!ipv4 && !ipv6) {
     return {
       success: false,
-      message: "Dynu 更新失败: 没有可用的 IPv4 或 IPv6 地址",
+      message: dynuT("noIpAvailable"),
     };
   }
 
@@ -474,7 +481,7 @@ export async function dynuUpdate(
         context,
         apiKey,
         `/dns/record/${encodeURIComponent(domain)}?recordType=${recordType}`,
-        { action: `查询 Dynu ${recordType} 记录` },
+        { action: dynuT("actions.queryRecord", { type: recordType }) },
       );
       const existing = findDynuRecord(
         list.dnsRecords || [],
@@ -497,7 +504,7 @@ export async function dynuUpdate(
       if (existing) {
         const recordId = readPositiveId(existing.id);
         if (!recordId) {
-          throw new Error("Dynu 返回的 DNS 记录缺少 RecordId");
+          throw new Error(dynuT("recordIdMissing"));
         }
 
         await dynuRequest<DynuApiEnvelope>(
@@ -505,7 +512,7 @@ export async function dynuUpdate(
           apiKey,
           `/dns/${root.domainId}/record/${recordId}`,
           {
-            action: `更新 Dynu ${recordType} 记录`,
+            action: dynuT("actions.updateRecord", { type: recordType }),
             method: "POST",
             body: payload,
           },
@@ -518,7 +525,7 @@ export async function dynuUpdate(
         apiKey,
         `/dns/${root.domainId}/record`,
         {
-          action: `创建 Dynu ${recordType} 记录`,
+          action: dynuT("actions.createRecord", { type: recordType }),
           method: "POST",
           body: payload,
         },
@@ -528,7 +535,7 @@ export async function dynuUpdate(
     const err = error instanceof Error ? error : new Error(String(error));
     return {
       success: false,
-      message: `Dynu 请求异常: ${err.message}`,
+      message: dynuT("requestError", { detail: err.message }),
       ipv4Updated: false,
       ipv6Updated: false,
     };

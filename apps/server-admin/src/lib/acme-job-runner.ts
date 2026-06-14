@@ -9,13 +9,35 @@ import {
 } from "./redis";
 import { normalizeAcmeDnsType } from "./acme-dns-providers";
 import { syncSSLDeploymentToGateway } from "./ssl-gateway";
+import {
+  DEFAULT_LOCALE,
+  type LocaleCode,
+  type MessageParams,
+  normalizeLocale,
+  translate,
+} from "../../../../packages/i18n/src";
+
+const resolveAcmeJobLocale = (locale: string | null | undefined): LocaleCode =>
+  normalizeLocale(locale) ?? DEFAULT_LOCALE;
+
+const acmeJobT = (
+  locale: string | null | undefined,
+  key: string,
+  params?: MessageParams,
+) =>
+  translate(
+    resolveAcmeJobLocale(locale),
+    `server.acmeJobRunner.${key}`,
+    params,
+  );
 
 export const isAcmeJobTerminalStatus = (
   status: string | undefined | null,
 ): boolean =>
   status === "succeeded" || status === "failed" || status === "stopped";
 
-const manualStopMessage = "ACME 任务已由用户手动停止";
+const getManualStopMessage = (locale?: string | null) =>
+  acmeJobT(locale, "manualStop");
 
 const buildQueuedJob = (
   application: AcmeApplication,
@@ -33,10 +55,16 @@ const buildQueuedJob = (
   message: trigger === "auto_renew" ? "queued for renew" : "queued",
 });
 
-const lockMessageByTrigger: Record<AcmeJobTrigger, string> = {
-  manual_request: "正在申请证书",
-  auto_renew: "正在自动续期证书",
-};
+const getLockMessageByTrigger = (
+  trigger: AcmeJobTrigger,
+  locale?: string | null,
+): string =>
+  acmeJobT(
+    locale,
+    trigger === "auto_renew"
+      ? "lockMessages.autoRenew"
+      : "lockMessages.manualRequest",
+  );
 
 const normalizeDomainSet = (domains: string[]): string[] =>
   [
@@ -66,13 +94,14 @@ const getAcmeLockHeartbeatIntervalMs = (): number =>
 export const reserveAcmeApplicationJob = async (options: {
   application: AcmeApplication;
   trigger: AcmeJobTrigger;
+  locale?: string | null;
 }): Promise<{
   job: AcmeJob;
   lock: AcmeRuntimeLock;
 }> => {
   const activeLock = await configManager.getActiveAcmeRuntimeLock();
   if (activeLock.locked) {
-    throw new Error("当前已有 ACME 任务正在执行，请稍后再试");
+    throw new Error(acmeJobT(options.locale, "activeTaskRunning"));
   }
 
   const job = buildQueuedJob(options.application, options.trigger);
@@ -86,7 +115,7 @@ export const reserveAcmeApplicationJob = async (options: {
   };
   const lock = await configManager.tryAcquireAcmeRuntimeLock(requestedLock);
   if (!lock) {
-    throw new Error("当前已有 ACME 任务正在执行，请稍后再试");
+    throw new Error(acmeJobT(options.locale, "activeTaskRunning"));
   }
 
   try {
@@ -109,10 +138,14 @@ export const failReservedAcmeApplicationJob = async (options: {
   job: Pick<AcmeJob, "id" | "createdAt" | "trigger">;
   lock: AcmeRuntimeLock;
   message: string;
+  locale?: string | null;
 }): Promise<void> => {
   const finishedAt = new Date().toISOString();
   await configManager
-    .appendAcmeLog(options.job.id, `证书申请流程失败: ${options.message}`)
+    .appendAcmeLog(
+      options.job.id,
+      acmeJobT(options.locale, "flowFailed", { message: options.message }),
+    )
     .catch(() => undefined);
   await configManager.updateAcmeJob(options.job.id, {
     applicationId: options.applicationId,
@@ -141,6 +174,7 @@ export const runReservedAcmeApplicationJob = async (options: {
   job: AcmeJob;
   lock: AcmeRuntimeLock;
   wait?: boolean;
+  locale?: string | null;
 }): Promise<{
   job: AcmeJob;
   lock: AcmeRuntimeLock;
@@ -160,6 +194,7 @@ export const runReservedAcmeApplicationJob = async (options: {
     trigger: options.trigger,
     jobId: options.job.id,
     lock: options.lock,
+    locale: options.locale,
   });
 
   if (options.wait) {
@@ -176,6 +211,7 @@ export const startAcmeApplicationJob = async (options: {
   application: AcmeApplication;
   trigger: AcmeJobTrigger;
   wait?: boolean;
+  locale?: string | null;
 }): Promise<{
   job: AcmeJob;
   lock: AcmeRuntimeLock;
@@ -183,6 +219,7 @@ export const startAcmeApplicationJob = async (options: {
   const reserved = await reserveAcmeApplicationJob({
     application: options.application,
     trigger: options.trigger,
+    locale: options.locale,
   });
 
   try {
@@ -190,6 +227,7 @@ export const startAcmeApplicationJob = async (options: {
       ...options,
       job: reserved.job,
       lock: reserved.lock,
+      locale: options.locale,
     });
   } catch (error: any) {
     await failReservedAcmeApplicationJob({
@@ -197,6 +235,7 @@ export const startAcmeApplicationJob = async (options: {
       job: reserved.job,
       lock: reserved.lock,
       message: error?.message || String(error),
+      locale: options.locale,
     });
     throw error;
   }
@@ -205,6 +244,7 @@ export const startAcmeApplicationJob = async (options: {
 export const stopActiveAcmeApplicationJob = async (options: {
   acme: AcmeService;
   message?: string;
+  locale?: string | null;
 }): Promise<{
   stopped: boolean;
   job: AcmeJob | null;
@@ -212,16 +252,14 @@ export const stopActiveAcmeApplicationJob = async (options: {
   processResult: Awaited<ReturnType<AcmeService["stopAllAcmeProcesses"]>>;
 }> => {
   const lock = await configManager.getActiveAcmeRuntimeLock();
-  const message = options.message || manualStopMessage;
+  const message = options.message || getManualStopMessage(options.locale);
   const stoppedAt = new Date().toISOString();
   let job: AcmeJob | null = null;
 
   if (lock.locked && lock.jobId) {
     job = await configManager.getAcmeJob(lock.jobId);
     if (job && !isAcmeJobTerminalStatus(job.status)) {
-      await configManager
-        .appendAcmeLog(job.id, message)
-        .catch(() => undefined);
+      await configManager.appendAcmeLog(job.id, message).catch(() => undefined);
       await configManager.updateAcmeJob(job.id, {
         status: "stopped",
         progress: 100,
@@ -254,20 +292,27 @@ export const stopActiveAcmeApplicationJob = async (options: {
       .appendAcmeLog(
         job.id,
         processResult.matchedPids.length
-          ? `已发送停止信号，结束 ${Math.max(0, killedCount)} 个 acme.sh 进程`
-          : "未发现正在运行的 acme.sh 进程",
+          ? acmeJobT(options.locale, "stopSignalSent", {
+              count: Math.max(0, killedCount),
+            })
+          : acmeJobT(options.locale, "noRunningProcess"),
       )
       .catch(() => undefined);
     for (const error of processResult.errors) {
       await configManager
-        .appendAcmeLog(job.id, `停止进程时出现异常: ${error}`)
+        .appendAcmeLog(
+          job.id,
+          acmeJobT(options.locale, "stopProcessError", { message: error }),
+        )
         .catch(() => undefined);
     }
     if (processResult.remainingPids.length > 0) {
       await configManager
         .appendAcmeLog(
           job.id,
-          `仍有 acme.sh 进程未退出: ${processResult.remainingPids.join(", ")}`,
+          acmeJobT(options.locale, "processStillRunning", {
+            pids: processResult.remainingPids.join(", "),
+          }),
         )
         .catch(() => undefined);
     }
@@ -291,8 +336,10 @@ export const executeAcmeApplicationJob = async (options: {
   trigger: AcmeJobTrigger;
   jobId: string;
   lock: AcmeRuntimeLock;
+  locale?: string | null;
 }): Promise<void> => {
   const { acme, application, trigger, jobId } = options;
+  const locale = options.locale;
   const startedAt = new Date().toISOString();
   let activeLock = options.lock;
   let heartbeatInFlight = false;
@@ -303,7 +350,7 @@ export const executeAcmeApplicationJob = async (options: {
   const persistJobPatch = async (patch: Partial<AcmeJob>) => {
     const currentJob = await configManager.getAcmeJob(jobId);
     if (currentJob?.status === "stopped" && patch.status !== "stopped") {
-      throw new Error(manualStopMessage);
+      throw new Error(getManualStopMessage(locale));
     }
     await configManager.updateAcmeJob(jobId, patch);
     const latestJob = await configManager.getAcmeJob(jobId);
@@ -340,9 +387,11 @@ export const executeAcmeApplicationJob = async (options: {
         activeLock = refreshed;
         return;
       }
-      await markLockLost("ACME 运行锁已丢失，任务已停止，请重新发起申请");
+      await markLockLost(acmeJobT(locale, "lockLost"));
     } catch (error: any) {
-      const message = `ACME 运行锁续租异常: ${error?.message || String(error)}`;
+      const message = acmeJobT(locale, "lockRefreshFailed", {
+        message: error?.message || String(error),
+      });
       const lastLeaseAtMs = Date.parse(
         activeLock.heartbeatAt || activeLock.startedAt || startedAt,
       );
@@ -350,9 +399,7 @@ export const executeAcmeApplicationJob = async (options: {
         Number.isFinite(lastLeaseAtMs) &&
         Date.now() - lastLeaseAtMs >= lockLeaseTtlMs
       ) {
-        await markLockLost(
-          `${message}；已超过锁租期，任务已停止，请重新发起申请`,
-        );
+        await markLockLost(acmeJobT(locale, "lockLeaseExpired", { message }));
       } else {
         await configManager
           .appendAcmeLog(jobId, message)
@@ -374,7 +421,7 @@ export const executeAcmeApplicationJob = async (options: {
       trigger,
       status: "running",
       progress: 5,
-      message: lockMessageByTrigger[trigger],
+      message: getLockMessageByTrigger(trigger, locale),
       startedAt,
     });
 
@@ -423,15 +470,15 @@ export const executeAcmeApplicationJob = async (options: {
     if (applicationChanged) {
       await configManager.appendAcmeLog(
         jobId,
-        "申请项域名已在执行期间发生变化，已跳过写入旧证书，请重新发起申请",
+        acmeJobT(locale, "applicationChangedSkipped"),
       );
     }
     if (!saved) {
       await configManager.appendAcmeLog(
         jobId,
         applicationChanged
-          ? "证书签发成功，但由于申请项域名已变更，未写入当前申请项"
-          : "证书签发成功，但读取证书文件失败（请稍后重试或检查 acme.sh 目录）",
+          ? acmeJobT(locale, "issuedButApplicationChanged")
+          : acmeJobT(locale, "issuedButCertReadFailed"),
       );
     }
     if (saved) {
@@ -439,14 +486,14 @@ export const executeAcmeApplicationJob = async (options: {
         await acme.clearDomainWorkingState(application.primaryDomain);
         await configManager.appendAcmeLog(
           jobId,
-          "已清理 acme.sh 域名工作目录，证书列表与续期由系统任务统一管理",
+          acmeJobT(locale, "clearedDomainWorkingState"),
         );
       } catch (error: any) {
         await configManager.appendAcmeLog(
           jobId,
-          `证书已保存，但清理 acme.sh 域名状态失败: ${
-            error?.message || String(error)
-          }`,
+          acmeJobT(locale, "clearDomainWorkingStateFailed", {
+            message: error?.message || String(error),
+          }),
         );
       }
     }
@@ -474,8 +521,8 @@ export const executeAcmeApplicationJob = async (options: {
       await configManager.appendAcmeLog(
         jobId,
         shouldActivate || currentConfig.ssl.deployment_mode === "multi_sni"
-          ? "已同步已关联的证书库条目，并刷新网关证书列表"
-          : "已更新已关联的证书库条目",
+          ? acmeJobT(locale, "linkedLibrarySyncedGateway")
+          : acmeJobT(locale, "linkedLibraryUpdated"),
       );
     } else if (saved) {
       try {
@@ -494,20 +541,20 @@ export const executeAcmeApplicationJob = async (options: {
           await syncSSLDeploymentToGateway(currentConfig);
           await configManager.appendAcmeLog(
             jobId,
-            "证书签发成功后已自动加入证书库，并刷新网关证书列表",
+            acmeJobT(locale, "addedToLibraryAndSyncedGateway"),
           );
         } else {
           await configManager.appendAcmeLog(
             jobId,
-            "证书签发成功后已自动加入证书库",
+            acmeJobT(locale, "addedToLibrary"),
           );
         }
       } catch (error: any) {
         await configManager.appendAcmeLog(
           jobId,
-          `证书已签发并保存，但自动加入证书库失败: ${
-            error?.message || String(error)
-          }`,
+          acmeJobT(locale, "addToLibraryFailed", {
+            message: error?.message || String(error),
+          }),
         );
       }
     }
@@ -522,12 +569,15 @@ export const executeAcmeApplicationJob = async (options: {
     const latestJob = await configManager.getAcmeJob(jobId).catch(() => null);
     if (latestJob?.status === "stopped") {
       await configManager
-        .appendAcmeLog(jobId, "任务已停止，已忽略进程退出后的错误")
+        .appendAcmeLog(jobId, acmeJobT(locale, "stoppedIgnoredProcessError"))
         .catch(() => undefined);
       return;
     }
     const message = error?.message || String(error);
-    await configManager.appendAcmeLog(jobId, `证书申请流程失败: ${message}`);
+    await configManager.appendAcmeLog(
+      jobId,
+      acmeJobT(locale, "flowFailed", { message }),
+    );
     await persistJobPatch({
       status: "failed",
       progress: 100,

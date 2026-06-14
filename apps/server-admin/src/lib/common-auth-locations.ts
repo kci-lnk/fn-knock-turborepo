@@ -16,9 +16,14 @@ import {
 import { configManager, redis } from "./redis";
 import { isWhitelistExemptIp, normalizeIp } from "./ip-normalize";
 import { isIpMatchedByCIDR } from "./whitelist-target";
+import { tDefault } from "./i18n";
 
 export type CommonAuthLocationConfidence = "high" | "medium" | "low";
 export type CommonAuthLocationCIDRSource = "region" | "sample" | "mixed";
+const commonAuthLocationsT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.commonAuthLocations.${key}`, params);
 
 export interface CommonAuthLocationRuntimeLocation {
   key: string;
@@ -302,7 +307,10 @@ const resolveRegionCIDRs = async (
   } catch (error) {
     return {
       cidrs: [],
-      error: error instanceof Error ? error.message : "CIDR 查询失败",
+      error:
+        error instanceof Error
+          ? error.message
+          : commonAuthLocationsT("cidrLookupFailed"),
     };
   }
 };
@@ -421,7 +429,7 @@ export const syncCommonAuthLocationExemptionsToGateway = async (
       return nextRuntime;
     }
 
-    throw new Error(response.message || "同步常用地豁免配置到网关失败");
+    throw new Error(response.message || commonAuthLocationsT("syncFailed"));
   }
 
   runtimeEndpointUnavailableLogged = false;

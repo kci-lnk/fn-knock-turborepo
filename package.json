@@ -28,7 +28,9 @@
     "fn-knock:docker:hub-publish": "bash ./scripts/fn-knock-docker.sh publish-hub",
     "fn-knock:docker:remote-ps": "bash ./scripts/fn-knock-docker.sh remote-ps",
     "fn-knock:docker:remote-logs": "bash ./scripts/fn-knock-docker.sh remote-logs",
-    "fn-knock:docker:remote-reset-panel-password": "bash ./scripts/fn-knock-docker.sh reset-panel-password-remote"
+    "fn-knock:docker:remote-reset-panel-password": "bash ./scripts/fn-knock-docker.sh reset-panel-password-remote",
+    "i18n:check": "tsx ./packages/i18n/scripts/check.mjs",
+    "i18n:scan": "node ./packages/i18n/scripts/scan.mjs"
   },
   "devDependencies": {
     "prettier": "^3.7.4",

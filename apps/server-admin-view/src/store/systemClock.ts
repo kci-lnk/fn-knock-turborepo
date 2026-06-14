@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
+import { browserT } from "@fn-knock/i18n/vue";
 import { SystemAPI, type SystemClockStatus } from "../lib/api";
 
 const POLL_HEALTHY_MS = 10 * 60 * 1000;
@@ -57,8 +58,8 @@ export const useSystemClockStore = defineStore("system-clock", () => {
       return status.value;
     } catch (error) {
       if (!silent) {
-        toast.error("加载系统时间状态失败", {
-          description: extractErrorMessage(error, "请稍后重试"),
+        toast.error(browserT("admin.systemClock.loadFailed"), {
+          description: extractErrorMessage(error, browserT("common.tryLater")),
         });
       }
       return null;
@@ -75,16 +76,16 @@ export const useSystemClockStore = defineStore("system-clock", () => {
       status.value = await SystemAPI.refreshClockStatus();
       if (showToast) {
         if (status.value.needsAttention) {
-          toast.error("系统时间或时区仍然异常");
+          toast.error(browserT("admin.systemClock.stillAbnormal"));
         } else {
-          toast.success("系统时间状态已恢复正常");
+          toast.success(browserT("admin.systemClock.recovered"));
         }
       }
       return true;
     } catch (error) {
       if (showToast) {
-        toast.error("刷新系统时间状态失败", {
-          description: extractErrorMessage(error, "请稍后重试"),
+        toast.error(browserT("admin.systemClock.refreshFailed"), {
+          description: extractErrorMessage(error, browserT("common.tryLater")),
         });
       }
       return false;
@@ -103,12 +104,12 @@ export const useSystemClockStore = defineStore("system-clock", () => {
       status.value = result.data;
       toast.success(result.message);
       if (status.value.needsAttention) {
-        toast.error("系统时间或时区仍未恢复，请稍后再次刷新状态");
+        toast.error(browserT("admin.systemClock.stillNeedsRefresh"));
       }
       return true;
     } catch (error) {
-      toast.error("系统时间同步失败", {
-        description: extractErrorMessage(error, "请稍后重试"),
+      toast.error(browserT("admin.systemClock.syncFailed"), {
+        description: extractErrorMessage(error, browserT("common.tryLater")),
       });
       return false;
     } finally {

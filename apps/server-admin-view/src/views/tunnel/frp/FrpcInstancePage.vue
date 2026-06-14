@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ConfigAPI,
@@ -38,10 +39,15 @@ type FrpcEditorExpose = {
 const route = useRoute()
 const router = useRouter()
 const configStore = useConfigStore()
+const { t } = useI18n()
 
 const instanceId = computed(() => String(route.params.id || ''))
 const isCreateMode = computed(() => route.name === 'FrpcInstanceCreate')
-const title = computed(() => (isCreateMode.value ? '新增 FRP' : getInstanceDisplayName(instance.value)))
+const title = computed(() =>
+  isCreateMode.value
+    ? t('admin.frpcInstancePage.newFrp')
+    : getInstanceDisplayName(instance.value),
+)
 const defaults = ref<{ local_port: string }>({ local_port: '7999' })
 const instance = ref<FrpcInstanceStatus | null>(null)
 const content = ref('')
@@ -84,18 +90,22 @@ function summarizeContent(raw: string): FrpcInstanceSummary {
 }
 
 function formatSummary(value: FrpcInstanceSummary) {
-  const server = value.serverAddr ? `${value.serverAddr}:${value.serverPort || '7000'}` : '未配置'
+  const server = value.serverAddr
+    ? `${value.serverAddr}:${value.serverPort || '7000'}`
+    : t('admin.frpcInstancePage.notConfigured')
   const local = value.localPort || defaults.value.local_port
   const remote = value.remotePort || '0'
-  return `${server} · 本地 ${local} → 远端 ${remote}`
+  return t('admin.frpcInstancePage.summary', { server, local, remote })
 }
 
 function getInstanceDisplayName(value: FrpcInstanceStatus | null | undefined) {
-  if (!value) return 'FRP 实例'
+  if (!value) return t('admin.frpcInstancePage.frpInstance')
   const displayName = value.name.trim()
   if (displayName) return displayName
   if (value.summary.serverAddr) return `${value.summary.serverAddr}:${value.summary.serverPort || '7000'}`
-  return value.isPrimary ? '主 FRP' : 'FRP 实例'
+  return value.isPrimary
+    ? t('admin.frpcInstancePage.primaryFrp')
+    : t('admin.frpcInstancePage.frpInstance')
 }
 
 function backToList() {
@@ -153,7 +163,9 @@ async function loadPage() {
     startPolling()
     await restoreInitialScrollPosition()
   } catch (error) {
-    toast.error('加载 FRP 实例失败', { description: extractErrorMessage(error, '加载 FRP 实例失败') })
+    toast.error(t('admin.frpcInstancePage.loadFailed'), {
+      description: extractErrorMessage(error, t('admin.frpcInstancePage.loadFailed')),
+    })
   } finally {
     isLoading.value = false
   }
@@ -169,7 +181,7 @@ async function saveInstance() {
         name: name.value.trim(),
         content: nextContent,
       })
-      toast.success('FRP 实例已创建')
+      toast.success(t('admin.frpcInstancePage.created'))
       await router.replace({ path: `/tunnel/frp/instances/${encodeURIComponent(created.id)}` })
       await loadPage()
       return
@@ -185,13 +197,15 @@ async function saveInstance() {
     content.value = nextContent
     if (wasRunning) {
       await FrpcAPI.restartInstance(updated.id)
-      toast.success('实例已保存并重启')
+      toast.success(t('admin.frpcInstancePage.savedAndRestarted'))
       await loadPage()
       return
     }
-    toast.success('实例已保存')
+    toast.success(t('admin.frpcInstancePage.saved'))
   } catch (error) {
-    toast.error('保存实例失败', { description: extractErrorMessage(error, '保存实例失败') })
+    toast.error(t('admin.frpcInstancePage.saveFailed'), {
+      description: extractErrorMessage(error, t('admin.frpcInstancePage.saveFailed')),
+    })
   } finally {
     isSaving.value = false
   }
@@ -206,10 +220,12 @@ async function startInstance() {
     if (configStore.config) {
       configStore.config.default_tunnel = 'frp'
     }
-    toast.success('启动成功')
+    toast.success(t('admin.frpcInstancePage.startSuccess'))
     await loadPage()
   } catch (error) {
-    toast.error('启动失败', { description: extractErrorMessage(error, '启动失败') })
+    toast.error(t('admin.frpcInstancePage.startFailed'), {
+      description: extractErrorMessage(error, t('admin.frpcInstancePage.startFailed')),
+    })
   } finally {
     isStarting.value = false
   }
@@ -220,10 +236,12 @@ async function stopInstance() {
   isStopping.value = true
   try {
     await FrpcAPI.stopInstance(instance.value.id)
-    toast.success('停止成功')
+    toast.success(t('admin.frpcInstancePage.stopSuccess'))
     await loadPage()
   } catch (error) {
-    toast.error('停止失败', { description: extractErrorMessage(error, '停止失败') })
+    toast.error(t('admin.frpcInstancePage.stopFailed'), {
+      description: extractErrorMessage(error, t('admin.frpcInstancePage.stopFailed')),
+    })
   } finally {
     isStopping.value = false
   }
@@ -236,9 +254,11 @@ async function clearLogs() {
     await FrpcAPI.clearInstanceLogs(instance.value.id)
     logs.value = []
     cursor.value = undefined
-    toast.success('日志已清空')
+    toast.success(t('admin.frpcInstancePage.logsCleared'))
   } catch (error) {
-    toast.error('清空日志失败', { description: extractErrorMessage(error, '清空日志失败') })
+    toast.error(t('admin.frpcInstancePage.clearLogsFailed'), {
+      description: extractErrorMessage(error, t('admin.frpcInstancePage.clearLogsFailed')),
+    })
   } finally {
     isClearingLogs.value = false
   }
@@ -289,7 +309,9 @@ onUnmounted(() => {
     <Breadcrumb>
       <BreadcrumbList>
         <BreadcrumbItem>
-          <BreadcrumbLink href="#/tunnel?tab=frp">内网穿透</BreadcrumbLink>
+          <BreadcrumbLink href="#/tunnel?tab=frp">{{
+            t('admin.frpcInstancePage.tunnel')
+          }}</BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />
         <BreadcrumbItem>
@@ -297,7 +319,9 @@ onUnmounted(() => {
         </BreadcrumbItem>
         <BreadcrumbSeparator />
         <BreadcrumbItem>
-          <BreadcrumbPage>{{ isCreateMode ? '新增实例' : title }}</BreadcrumbPage>
+          <BreadcrumbPage>{{
+            isCreateMode ? t('admin.frpcInstancePage.newInstance') : title
+          }}</BreadcrumbPage>
         </BreadcrumbItem>
       </BreadcrumbList>
     </Breadcrumb>
@@ -306,7 +330,7 @@ onUnmounted(() => {
       <div class="space-y-2">
         <Button variant="ghost" size="sm" class="w-fit px-2" @click="backToList">
           <ArrowLeft class="mr-1.5 h-4 w-4" />
-          返回 FRP 列表
+          {{ t('admin.frpcInstancePage.backToList') }}
         </Button>
         <div class="space-y-1">
           <h2 class="text-xl font-semibold">{{ title }}</h2>
@@ -322,7 +346,11 @@ onUnmounted(() => {
           @click="startInstance"
         >
           <Play class="mr-1.5 h-4 w-4" />
-          {{ isStarting ? '启动中...' : '启动' }}
+          {{
+            isStarting
+              ? t('admin.frpcInstancePage.starting')
+              : t('admin.frpcInstancePage.start')
+          }}
         </Button>
         <Button
           v-if="!isCreateMode && instance?.running"
@@ -331,27 +359,39 @@ onUnmounted(() => {
           @click="stopInstance"
         >
           <Square class="mr-1.5 h-4 w-4" />
-          {{ isStopping ? '停止中...' : '停止' }}
+          {{
+            isStopping
+              ? t('admin.frpcInstancePage.stopping')
+              : t('admin.frpcInstancePage.stop')
+          }}
         </Button>
         <Button :disabled="isSaving || isLoading" @click="saveInstance">
           <Save class="mr-1.5 h-4 w-4" />
-          {{ isSaving ? '保存中...' : '保存' }}
+          {{ isSaving ? t('admin.frpcInstancePage.saving') : t('common.save') }}
         </Button>
       </div>
     </div>
 
     <Card v-if="!isCreateMode && instance">
       <CardHeader>
-        <CardTitle class="text-base">运行信息</CardTitle>
+        <CardTitle class="text-base">{{
+          t('admin.frpcInstancePage.runtimeInfo')
+        }}</CardTitle>
       </CardHeader>
       <CardContent class="space-y-4">
         <div class="grid gap-3 text-sm sm:grid-cols-3">
           <div class="rounded-lg border px-4 py-3">
-            <p class="text-xs text-muted-foreground">状态</p>
+            <p class="text-xs text-muted-foreground">{{
+              t('admin.frpcInstancePage.status')
+            }}</p>
             <div class="mt-1 flex items-center gap-2">
               <LiveStatusBadge :active="instance.running" />
               <span :class="instance.running ? 'text-green-600' : 'text-muted-foreground'">
-                {{ instance.running ? '运行中' : '未运行' }}
+                {{
+                  instance.running
+                    ? t('admin.frpcInstancePage.running')
+                    : t('admin.frpcInstancePage.notRunning')
+                }}
               </span>
             </div>
           </div>
@@ -360,23 +400,35 @@ onUnmounted(() => {
             <p class="mt-1 font-mono">{{ instance.pid ?? '-' }}</p>
           </div>
           <div class="rounded-lg border px-4 py-3">
-            <p class="text-xs text-muted-foreground">日志接管</p>
-            <p class="mt-1">{{ instance.attached ? '当前进程' : '历史缓冲' }}</p>
+            <p class="text-xs text-muted-foreground">{{
+              t('admin.frpcInstancePage.logAttachment')
+            }}</p>
+            <p class="mt-1">{{
+              instance.attached
+                ? t('admin.frpcInstancePage.currentProcess')
+                : t('admin.frpcInstancePage.historyBuffer')
+            }}</p>
           </div>
           <div class="rounded-lg border px-4 py-3">
-            <p class="text-xs text-muted-foreground">最近启动</p>
+            <p class="text-xs text-muted-foreground">{{
+              t('admin.frpcInstancePage.lastStarted')
+            }}</p>
             <p class="mt-1">
               <HumanFriendlyTime :value="instance.startedAt" />
             </p>
           </div>
           <div class="rounded-lg border px-4 py-3">
-            <p class="text-xs text-muted-foreground">最近停止</p>
+            <p class="text-xs text-muted-foreground">{{
+              t('admin.frpcInstancePage.lastStopped')
+            }}</p>
             <p class="mt-1">
               <HumanFriendlyTime :value="instance.stoppedAt" />
             </p>
           </div>
           <div class="rounded-lg border px-4 py-3">
-            <p class="text-xs text-muted-foreground">创建时间</p>
+            <p class="text-xs text-muted-foreground">{{
+              t('admin.frpcInstancePage.createdAt')
+            }}</p>
             <p class="mt-1">
               <HumanFriendlyTime :value="instance.createdAt" />
             </p>
@@ -385,11 +437,15 @@ onUnmounted(() => {
 
         <div class="grid gap-3 text-sm md:grid-cols-2">
           <div class="rounded-lg border px-4 py-3">
-            <p class="text-xs text-muted-foreground">配置路径</p>
+            <p class="text-xs text-muted-foreground">{{
+              t('admin.frpcInstancePage.configPath')
+            }}</p>
             <p class="mt-1 break-all font-mono text-xs">{{ instance.configPath }}</p>
           </div>
           <div class="rounded-lg border px-4 py-3">
-            <p class="text-xs text-muted-foreground">工作目录</p>
+            <p class="text-xs text-muted-foreground">{{
+              t('admin.frpcInstancePage.workDir')
+            }}</p>
             <p class="mt-1 break-all font-mono text-xs">{{ instance.workDir }}</p>
           </div>
         </div>
@@ -403,15 +459,25 @@ onUnmounted(() => {
     <div ref="configSectionRef">
       <Card>
         <CardHeader>
-          <CardTitle class="text-base">实例配置</CardTitle>
+          <CardTitle class="text-base">{{
+            t('admin.frpcInstancePage.instanceConfig')
+          }}</CardTitle>
         </CardHeader>
         <CardContent class="space-y-4">
           <div class="grid gap-2 sm:grid-cols-[160px_1fr] sm:items-start">
             <div class="space-y-1 mt-1.5">
-              <Label for="frp-instance-name">名称</Label>
-              <p class="hidden text-xs text-muted-foreground sm:block">可选，用于区分不同入口。</p>
+              <Label for="frp-instance-name">{{
+                t('admin.frpcInstancePage.name')
+              }}</Label>
+              <p class="hidden text-xs text-muted-foreground sm:block">
+                {{ t('admin.frpcInstancePage.nameHint') }}
+              </p>
             </div>
-            <Input id="frp-instance-name" v-model="name" placeholder="例如：备用入口" />
+            <Input
+              id="frp-instance-name"
+              v-model="name"
+              :placeholder="t('admin.frpcInstancePage.namePlaceholder')"
+            />
           </div>
 
           <FrpcInstanceEditor
@@ -428,7 +494,9 @@ onUnmounted(() => {
       <Card>
         <CardHeader>
           <div class="flex items-center justify-between gap-3">
-            <CardTitle class="text-base">实例日志</CardTitle>
+            <CardTitle class="text-base">{{
+              t('admin.frpcInstancePage.instanceLogs')
+            }}</CardTitle>
             <Button
               variant="outline"
               size="sm"
@@ -436,7 +504,7 @@ onUnmounted(() => {
               @click="clearLogs"
             >
               <Trash2 class="mr-1.5 h-3.5 w-3.5" />
-              清空
+              {{ t('admin.frpcInstancePage.clear') }}
             </Button>
           </div>
         </CardHeader>

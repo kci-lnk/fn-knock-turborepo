@@ -31,6 +31,7 @@ import {
   normalizeSSHSecurityConfig,
 } from "./ssh-security/config";
 import type { SSHSecurityConfig } from "./ssh-security/types";
+import { tDefault } from "./i18n";
 import {
   DEFAULT_REVERSE_PROXY_SUBMODE,
   normalizeReverseProxySubmode,
@@ -44,6 +45,10 @@ import type { AutoHttpsConfig } from "./auto-https-redirect";
 import { normalizeIp } from "./ip-normalize";
 import { getRuntimeCapabilities, getRuntimeProfile } from "./runtime-profile";
 import { normalizeCidrLines } from "../../../../packages/admin-shared/src/utils/cidr";
+import {
+  type LocaleConfig,
+  normalizeLocaleConfig,
+} from "../../../../packages/i18n/src";
 
 const REDIS_CONFIG = {
   host: process.env.REDIS_HOST || "127.0.0.1",
@@ -60,6 +65,10 @@ const ACME_RUNTIME_LOCK_TTL_SECONDS = Math.max(
   300,
   Math.min(6 * 60 * 60, parseEnvInt(process.env.ACME_RUNTIME_LOCK_TTL, 900)),
 );
+const redisT = (
+  key: string,
+  params?: Record<string, string | number | boolean | null | undefined>,
+) => tDefault(`server.redis.${key}`, params);
 
 export const redis = new Redis(REDIS_CONFIG);
 redis.on("error", (err) => {
@@ -546,6 +555,7 @@ export interface AppConfig {
   event_system?: EventSystemConfig;
   terminal_feature?: TerminalFeatureConfig;
   ssh_security?: SSHSecurityConfig;
+  locale?: LocaleConfig;
 }
 
 export interface RunModePromptPreferences {
@@ -727,6 +737,10 @@ export const DEFAULT_EVENT_SYSTEM_CONFIG: EventSystemConfig = {
       sustain_seconds: 30,
     },
   },
+};
+
+export const DEFAULT_LOCALE_CONFIG: LocaleConfig = {
+  default_locale: "zh-CN",
 };
 
 const LEGACY_REVERSE_PROXY_THROTTLE_PATCH_FLAG_KEY =
@@ -954,6 +968,9 @@ const DEFAULT_CONFIG: AppConfig = {
     ...DEFAULT_SSH_SECURITY_CONFIG,
     allowed_regions: [],
     custom_cidrs: [],
+  },
+  locale: {
+    ...DEFAULT_LOCALE_CONFIG,
   },
 };
 
@@ -1832,9 +1849,9 @@ const normalizeCertificateLabel = ({
 }): string => {
   if (typeof value === "string" && value.trim()) return value.trim();
   if (primaryDomain) return primaryDomain;
-  if (source === "acme") return "ACME 证书";
-  if (source === "ca") return "自签发证书";
-  return "手动上传证书";
+  if (source === "acme") return redisT("certificateLabels.acme");
+  if (source === "ca") return redisT("certificateLabels.ca");
+  return redisT("certificateLabels.manual");
 };
 
 const normalizeManagedSSLCertificate = (
@@ -2064,7 +2081,7 @@ const normalizeSSLConfig = (value?: Partial<SSLConfig> | null): SSLConfig => {
     if (!legacyMatch) {
       const migrated = normalizeManagedSSLCertificate({
         id: buildSSLCertificateId(legacyCert, legacyKey),
-        label: "当前证书",
+        label: redisT("certificateLabels.current"),
         source: "manual",
         cert: legacyCert,
         key: legacyKey,
@@ -2871,6 +2888,7 @@ return actual
           parsed.terminal_feature,
         );
         parsed.ssh_security = normalizeSSHSecurityConfig(parsed.ssh_security);
+        parsed.locale = normalizeLocaleConfig(parsed.locale);
         return parsed;
       }
     } catch (e) {
@@ -2929,6 +2947,7 @@ return actual
         allowed_regions: [],
         custom_cidrs: [],
       },
+      locale: { ...DEFAULT_LOCALE_CONFIG },
     };
   }
 
@@ -2955,7 +2974,28 @@ return actual
         certificate_count: ssl.certificates?.length || 0,
       },
       terminal_feature: normalizeTerminalFeatureConfig(config.terminal_feature),
+      locale: normalizeLocaleConfig(config.locale),
     };
+  }
+
+  async getLocaleConfig(): Promise<LocaleConfig> {
+    const config = await this.getConfig();
+    return normalizeLocaleConfig(config.locale);
+  }
+
+  async updateLocaleConfig(
+    patch: Partial<LocaleConfig>,
+  ): Promise<LocaleConfig> {
+    const config = await this.getConfig();
+    const next = normalizeLocaleConfig({
+      ...config.locale,
+      ...patch,
+    });
+    await this.saveConfig({
+      ...config,
+      locale: next,
+    });
+    return next;
   }
 
   async applyRuntimeConstraints(): Promise<{
@@ -3116,22 +3156,31 @@ return actual
     try {
       new X509Certificate(cert);
     } catch (e: any) {
-      return { valid: false, error: `证书格式无效: ${e.message}` };
+      return {
+        valid: false,
+        error: redisT("ssl.certFormatInvalid", { message: e.message }),
+      };
     }
     try {
       createPrivateKey(key);
     } catch (e: any) {
-      return { valid: false, error: `私钥格式无效: ${e.message}` };
+      return {
+        valid: false,
+        error: redisT("ssl.keyFormatInvalid", { message: e.message }),
+      };
     }
     // Check cert-key match
     try {
       const x509 = new X509Certificate(cert);
       const privateKey = createPrivateKey(key);
       if (!x509.checkPrivateKey(privateKey)) {
-        return { valid: false, error: "证书与私钥不匹配" };
+        return { valid: false, error: redisT("ssl.certKeyMismatch") };
       }
     } catch (e: any) {
-      return { valid: false, error: `证书与私钥校验失败: ${e.message}` };
+      return {
+        valid: false,
+        error: redisT("ssl.certKeyCheckFailed", { message: e.message }),
+      };
     }
     return { valid: true };
   }
@@ -3255,7 +3304,7 @@ return actual
     });
 
     if (!nextRecord) {
-      throw new Error("证书内容不能为空");
+      throw new Error(redisT("ssl.certContentRequired"));
     }
 
     const nextCertificates = certificates.filter(
@@ -3285,7 +3334,7 @@ return actual
   ): Promise<SSLManagedCertificate> {
     const normalizedDomain = domain.trim().toLowerCase();
     if (!normalizedDomain) {
-      throw new Error("域名不能为空");
+      throw new Error(redisT("acme.domainRequired"));
     }
 
     const application =
@@ -3299,12 +3348,12 @@ return actual
 
     const pair = await this.getAcmeCert(normalizedDomain);
     if (!pair) {
-      throw new Error("证书不存在");
+      throw new Error(redisT("ssl.certNotFound"));
     }
 
     const validation = this.validateSSLCert(pair.cert, pair.key);
     if (!validation.valid) {
-      throw new Error(validation.error || "证书或私钥无效");
+      throw new Error(validation.error || redisT("ssl.certOrKeyInvalid"));
     }
 
     return this.saveSSLCertificate({
@@ -3781,10 +3830,10 @@ return actual
     const dnsType = input.dnsType.trim();
 
     if (!normalizedDomains.length) {
-      throw new Error("域名列表不能为空");
+      throw new Error(redisT("acme.domainsRequired"));
     }
     if (!dnsType) {
-      throw new Error("DNS 服务商不能为空");
+      throw new Error(redisT("acme.dnsProviderRequired"));
     }
 
     const existing = input.id
@@ -3795,7 +3844,7 @@ return actual
         item.primaryDomain === primaryDomain && item.id !== existing?.id,
     );
     if (duplicated) {
-      throw new Error(`主域名 ${primaryDomain} 已存在于其他申请项中`);
+      throw new Error(redisT("acme.primaryDomainDuplicated", { primaryDomain }));
     }
 
     const now = new Date().toISOString();
@@ -4190,15 +4239,15 @@ return actual
       this.getAcmeIssuedCertificate(applicationId),
     ]);
     if (!application) {
-      throw new Error("申请项不存在");
+      throw new Error(redisT("acme.applicationNotFound"));
     }
     if (
       !this.isAcmeIssuedCertificateCompatible(application, issuedCertificate)
     ) {
-      throw new Error("当前申请项还没有与域名配置匹配的已签发证书");
+      throw new Error(redisT("acme.noMatchingIssuedCertificate"));
     }
     if (!issuedCertificate) {
-      throw new Error("证书不存在");
+      throw new Error(redisT("ssl.certNotFound"));
     }
 
     const validation = this.validateSSLCert(
@@ -4206,7 +4255,7 @@ return actual
       issuedCertificate.key,
     );
     if (!validation.valid) {
-      throw new Error(validation.error || "证书或私钥无效");
+      throw new Error(validation.error || redisT("ssl.certOrKeyInvalid"));
     }
 
     const saved = await this.saveSSLCertificate({
@@ -4232,7 +4281,7 @@ return actual
     const key = `${this.acmeJobKey}${job.id}`;
     const normalized = normalizeAcmeJob(job);
     if (!normalized) {
-      throw new Error("ACME 任务数据无效");
+      throw new Error(redisT("acme.jobDataInvalid"));
     }
     await this.redis.set(key, JSON.stringify(normalized), "EX", 86400);
   }
@@ -4325,7 +4374,7 @@ return actual
       (applications.length === 1 ? applications[0]! : null);
 
     if (!targetApplication && applications.length > 1) {
-      throw new Error("当前已存在多个申请项，请使用新接口管理 ACME 申请项");
+      throw new Error(redisT("acme.multipleApplicationsUseNewApi"));
     }
 
     const savedApplication = await this.saveAcmeApplication({
@@ -5229,7 +5278,7 @@ return actual
 
   async updateSSLConfig(ssl: SSLConfig): Promise<void> {
     await this.saveSSLCertificate({
-      label: "当前证书",
+      label: redisT("certificateLabels.current"),
       source: "manual",
       cert: ssl.cert,
       key: ssl.key,
@@ -5347,7 +5396,7 @@ return actual
         const legacyTotp: TOTPCredential = {
           id: "legacy-totp-id",
           secret: oldSecret,
-          comment: "默认凭据",
+          comment: redisT("defaultCredential"),
           createdAt: new Date().toISOString(),
         };
         await this.saveTOTPCredentials([legacyTotp]);

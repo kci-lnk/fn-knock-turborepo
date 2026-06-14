@@ -22,4 +22,9 @@ export const zhCNCommon = {
   active: "运行中",
   inactive: "未启用",
   tryLater: "请稍后重试",
+  appearance: "外观",
+  appearanceLight: "日间模式",
+  appearanceDark: "夜间模式",
+  switchToLightAppearance: "切换到日间模式",
+  switchToDarkAppearance: "切换到夜间模式",
 };

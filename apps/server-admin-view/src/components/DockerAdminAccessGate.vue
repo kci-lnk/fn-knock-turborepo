@@ -1,10 +1,15 @@
 <template>
   <div class="relative min-h-screen overflow-hidden bg-muted/40 p-4">
+    <div class="theme-grid-background pointer-events-none absolute inset-0 z-0"></div>
     <div
-      class="absolute inset-0 -z-10 bg-white bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px]"
-    ></div>
+      class="fixed right-[calc(env(safe-area-inset-right)+1rem)] top-[calc(env(safe-area-inset-top)+1rem)] z-30"
+    >
+      <ThemeModeToggle />
+    </div>
 
-    <div class="flex min-h-[calc(100vh-2rem)] items-center justify-center">
+    <div
+      class="relative z-10 flex min-h-[calc(100vh-2rem)] items-center justify-center"
+    >
       <Card class="w-full max-w-sm border-border/80 shadow-sm">
         <CardHeader class="space-y-2">
           <CardTitle class="text-center text-2xl tracking-tight">
@@ -141,6 +146,7 @@
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
+import { ThemeModeToggle } from "@/components/ui/theme-toggle";
 import {
   Card,
   CardContent,

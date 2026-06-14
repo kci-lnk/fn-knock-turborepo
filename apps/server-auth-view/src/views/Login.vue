@@ -12,7 +12,7 @@
           </CardDescription>
           <div
             v-if="logoutNotice"
-            class="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700"
+            class="mt-3 rounded-lg border border-border/70 bg-muted/50 px-3 py-2 text-sm text-muted-foreground"
           >
             {{ logoutNotice }}
           </div>

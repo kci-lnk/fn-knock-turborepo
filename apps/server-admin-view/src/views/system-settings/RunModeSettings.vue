@@ -6,7 +6,7 @@
     </CardHeader>
     <CardContent class="grid gap-6">
       <Alert
-        class="items-start rounded-xl border-zinc-200 bg-zinc-50/70 text-zinc-900"
+        class="items-start rounded-xl border-border/70 bg-muted/30 text-foreground"
       >
         <Info class="mt-0.5 h-4 w-4" />
         <AlertTitle>{{ accessAlertTitle }}</AlertTitle>
@@ -19,7 +19,7 @@
 
       <Alert
         v-if="showHostFirewallUnavailableAlert"
-        class="items-start rounded-xl border-zinc-200 bg-zinc-50/70 text-zinc-900"
+        class="items-start rounded-xl border-border/70 bg-muted/30 text-foreground"
       >
         <Info class="mt-0.5 h-4 w-4" />
         <AlertTitle>{{ t("admin.runModeSettings.hostFirewallUnavailableTitle") }}</AlertTitle>
@@ -35,8 +35,8 @@
         class="group flex items-start space-x-4 rounded-lg border p-4 cursor-pointer transition-all hover:border-primary/50"
         :class="
           mode === 0
-            ? 'border-zinc-900 bg-zinc-50 ring-1 ring-zinc-900/10 shadow-sm'
-            : 'border-zinc-200 hover:border-zinc-400'
+            ? 'border-primary/70 bg-primary/5 ring-1 ring-primary/20 shadow-sm'
+            : 'border-border bg-background hover:border-primary/40 hover:bg-muted/30'
         "
         @click="mode = 0"
       >
@@ -44,13 +44,13 @@
           class="mt-1 flex h-5 w-5 items-center justify-center rounded-full border shrink-0 transition-colors"
           :class="
             mode === 0
-              ? 'border-zinc-900'
-              : 'border-zinc-400 group-hover:border-zinc-700'
+              ? 'border-primary'
+              : 'border-muted-foreground/40 group-hover:border-primary/60'
           "
         >
           <div
             v-show="mode === 0"
-            class="h-2.5 w-2.5 rounded-full bg-zinc-900"
+            class="h-2.5 w-2.5 rounded-full bg-primary"
           />
         </div>
         <div class="flex-1 space-y-2">
@@ -59,7 +59,7 @@
               {{ t("admin.runModeSettings.directModeTitle") }}
             </p>
             <span
-              class="inline-flex items-center rounded-md border border-zinc-300 bg-white px-2 py-0.5 text-xs font-medium text-zinc-700"
+              class="inline-flex items-center rounded-md border border-border bg-muted/40 px-2 py-0.5 text-xs font-medium text-muted-foreground"
             >
               {{ t("admin.runModeSettings.directModeBadge") }}
             </span>
@@ -75,8 +75,8 @@
         class="group flex items-start space-x-4 rounded-lg border p-4 cursor-pointer transition-all hover:border-primary/50"
         :class="
           mode === 1
-            ? 'border-zinc-900 bg-zinc-50 ring-1 ring-zinc-900/10 shadow-sm'
-            : 'border-zinc-200 hover:border-zinc-400'
+            ? 'border-primary/70 bg-primary/5 ring-1 ring-primary/20 shadow-sm'
+            : 'border-border bg-background hover:border-primary/40 hover:bg-muted/30'
         "
         @click="mode = 1"
       >
@@ -84,13 +84,13 @@
           class="mt-1 flex h-5 w-5 items-center justify-center rounded-full border shrink-0 transition-colors"
           :class="
             mode === 1
-              ? 'border-zinc-900'
-              : 'border-zinc-400 group-hover:border-zinc-700'
+              ? 'border-primary'
+              : 'border-muted-foreground/40 group-hover:border-primary/60'
           "
         >
           <div
             v-show="mode === 1"
-            class="h-2.5 w-2.5 rounded-full bg-zinc-900"
+            class="h-2.5 w-2.5 rounded-full bg-primary"
           />
         </div>
         <div class="flex-1 space-y-2">
@@ -99,7 +99,7 @@
               {{ t("admin.runModeSettings.reverseModeTitle") }}
             </p>
             <span
-              class="inline-flex items-center rounded-md border border-zinc-300 bg-white px-2 py-0.5 text-xs font-medium text-zinc-700"
+              class="inline-flex items-center rounded-md border border-border bg-muted/40 px-2 py-0.5 text-xs font-medium text-muted-foreground"
             >
               {{ t("admin.runModeSettings.reverseModeBadge") }}
             </span>
@@ -118,12 +118,12 @@
               class="rounded-lg border px-3 py-3 text-left transition-colors"
               :class="
                 reverseProxySubmode === 'path'
-                  ? 'border-zinc-900 bg-white shadow-sm'
-                  : 'border-zinc-200 bg-white/80 hover:border-zinc-400'
+                  ? 'border-primary/70 bg-primary/5 shadow-sm'
+                  : 'border-border bg-background hover:border-primary/40 hover:bg-muted/30'
               "
               @click="reverseProxySubmode = 'path'"
             >
-              <p class="text-sm font-medium text-zinc-900">
+              <p class="text-sm font-medium text-foreground">
                 {{ t("admin.runModeSettings.pathMapping") }}
               </p>
               <p class="mt-1 text-xs leading-5 text-muted-foreground">
@@ -135,12 +135,12 @@
               class="rounded-lg border px-3 py-3 text-left transition-colors"
               :class="
                 reverseProxySubmode === 'subdomain'
-                  ? 'border-zinc-900 bg-white shadow-sm'
-                  : 'border-zinc-200 bg-white/80 hover:border-zinc-400'
+                  ? 'border-primary/70 bg-primary/5 shadow-sm'
+                  : 'border-border bg-background hover:border-primary/40 hover:bg-muted/30'
               "
               @click="reverseProxySubmode = 'subdomain'"
             >
-              <p class="text-sm font-medium text-zinc-900">
+              <p class="text-sm font-medium text-foreground">
                 {{ t("admin.runModeSettings.subdomainMapping") }}
               </p>
               <p class="mt-1 text-xs leading-5 text-muted-foreground">
@@ -155,8 +155,8 @@
         class="group flex items-start space-x-4 rounded-lg border p-4 cursor-pointer transition-all hover:border-primary/50"
         :class="
           mode === 3
-            ? 'border-zinc-900 bg-zinc-50 ring-1 ring-zinc-900/10 shadow-sm'
-            : 'border-zinc-200 hover:border-zinc-400'
+            ? 'border-primary/70 bg-primary/5 ring-1 ring-primary/20 shadow-sm'
+            : 'border-border bg-background hover:border-primary/40 hover:bg-muted/30'
         "
         @click="mode = 3"
       >
@@ -164,13 +164,13 @@
           class="mt-1 flex h-5 w-5 items-center justify-center rounded-full border shrink-0 transition-colors"
           :class="
             mode === 3
-              ? 'border-zinc-900'
-              : 'border-zinc-400 group-hover:border-zinc-700'
+              ? 'border-primary'
+              : 'border-muted-foreground/40 group-hover:border-primary/60'
           "
         >
           <div
             v-show="mode === 3"
-            class="h-2.5 w-2.5 rounded-full bg-zinc-900"
+            class="h-2.5 w-2.5 rounded-full bg-primary"
           />
         </div>
         <div class="flex-1 space-y-2">
@@ -179,7 +179,7 @@
               {{ t("admin.runModeSettings.subdomainModeTitle") }}
             </p>
             <span
-              class="inline-flex items-center rounded-md border border-zinc-300 bg-white px-2 py-0.5 text-xs font-medium text-zinc-700"
+              class="inline-flex items-center rounded-md border border-border bg-muted/40 px-2 py-0.5 text-xs font-medium text-muted-foreground"
             >
               {{ t("admin.runModeSettings.subdomainModeBadge") }}
             </span>
@@ -192,11 +192,11 @@
       </div>
     </CardContent>
     <CardFooter
-      class="flex flex-col gap-4 border-t border-zinc-200/80 pt-6 sm:flex-row sm:items-center sm:justify-between"
+      class="flex flex-col gap-4 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between"
     >
       <label
         v-if="canManageHostFirewall"
-        class="flex items-start gap-3 text-sm text-zinc-700"
+        class="flex items-start gap-3 text-sm text-muted-foreground"
       >
         <Checkbox
           class="mt-0.5"
@@ -205,7 +205,7 @@
           @update:model-value="handleAutoManageFirewallChange"
         />
         <span class="space-y-1">
-          <span class="block font-medium text-zinc-900">
+          <span class="block font-medium text-foreground">
             {{ t("admin.runModeSettings.autoFirewallTitle") }}
           </span>
           <span class="block text-xs leading-5 text-muted-foreground">
@@ -278,45 +278,45 @@
     @update:open="handleConfirmDialogOpenChange"
   >
     <DialogContent
-      class="overflow-hidden border-zinc-200 bg-white p-0 shadow-xl sm:max-w-[760px]"
+      class="overflow-hidden border-border bg-card p-0 text-card-foreground shadow-xl sm:max-w-[760px]"
     >
       <div class="px-8 pt-8 pb-6">
         <DialogHeader class="space-y-3 text-left">
           <p
-            class="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500"
+            class="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground"
           >
             {{ t("admin.runModeSettings.switchEyebrow") }}
           </p>
           <DialogTitle
-            class="text-2xl font-semibold tracking-tight text-zinc-950"
+            class="text-2xl font-semibold tracking-tight text-foreground"
           >
             {{ confirmDialogContent.title }}
           </DialogTitle>
           <DialogDescription
-            class="max-w-[56ch] text-sm leading-6 text-zinc-600"
+            class="max-w-[56ch] text-sm leading-6 text-muted-foreground"
           >
             {{ confirmDialogContent.description }}
           </DialogDescription>
         </DialogHeader>
 
-        <ul class="mt-8 divide-y divide-zinc-200 border-y border-zinc-200">
+        <ul class="mt-8 divide-y divide-border border-y border-border">
           <li
             v-for="(item, index) in confirmDialogContent.items"
             :key="item"
             class="grid grid-cols-[auto_1fr] items-start gap-x-4 py-4"
           >
             <span
-              class="pt-0.5 font-mono text-[11px] tracking-[0.18em] text-zinc-400"
+              class="pt-0.5 font-mono text-[11px] tracking-[0.18em] text-muted-foreground"
             >
               {{ String(index + 1).padStart(2, "0") }}
             </span>
-            <p class="text-sm leading-6 text-zinc-800">
+            <p class="text-sm leading-6 text-foreground">
               {{ item }}
             </p>
           </li>
         </ul>
 
-        <label class="mt-6 flex items-center gap-3 text-sm text-zinc-600">
+        <label class="mt-6 flex items-center gap-3 text-sm text-muted-foreground">
           <Checkbox
             :model-value="dontShowAgainChecked"
             @update:model-value="dontShowAgainChecked = $event === true"
@@ -325,7 +325,7 @@
         </label>
       </div>
 
-      <DialogFooter class="border-t border-zinc-200 bg-zinc-50/60 px-8 py-4">
+      <DialogFooter class="border-t border-border bg-muted/20 px-8 py-4">
         <Button variant="outline" @click="isConfirmDialogOpen = false"
           >{{ t("common.cancel") }}</Button
         >

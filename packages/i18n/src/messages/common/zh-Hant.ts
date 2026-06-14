@@ -21,4 +21,9 @@ export const zhHantCommon = {
   active: "運行中",
   inactive: "未啟用",
   tryLater: "請稍後重試",
+  appearance: "外觀",
+  appearanceLight: "日間模式",
+  appearanceDark: "夜間模式",
+  switchToLightAppearance: "切換到日間模式",
+  switchToDarkAppearance: "切換到夜間模式",
 };

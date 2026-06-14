@@ -22,4 +22,9 @@ export const enCommon = {
   active: "Running",
   inactive: "Disabled",
   tryLater: "Please try again later.",
+  appearance: "Appearance",
+  appearanceLight: "Light",
+  appearanceDark: "Dark",
+  switchToLightAppearance: "Switch to light mode",
+  switchToDarkAppearance: "Switch to dark mode",
 };

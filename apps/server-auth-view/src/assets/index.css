@@ -4,6 +4,15 @@
 
 @custom-variant dark (&:is(.dark *));
 
+.theme-grid-background {
+  background-color: var(--background);
+  background-image: radial-gradient(
+    color-mix(in oklch, var(--foreground) 12%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: 16px 16px;
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);

@@ -18,7 +18,10 @@
           <Menu class="h-5 w-5" />
           <span class="sr-only">{{ t("admin.nav.openNavigation") }}</span>
         </Button>
-        <p class="truncate text-sm font-medium">{{ currentNavLabel }}</p>
+        <p class="min-w-0 flex-1 truncate text-sm font-medium">
+          {{ currentNavLabel }}
+        </p>
+        <ThemeModeToggle />
       </div>
     </div>
 
@@ -46,7 +49,8 @@
             </Button>
           </nav>
           <div class="border-t p-3">
-            <div class="mb-5 flex justify-center">
+            <div class="mb-5 flex justify-center gap-2">
+              <ThemeModeToggle />
               <Button
                 variant="ghost"
                 size="sm"
@@ -113,7 +117,8 @@
             </Button>
           </nav>
           <div>
-            <div class="mb-5 flex justify-center">
+            <div class="mb-5 flex justify-center gap-2">
+              <ThemeModeToggle />
               <Button
                 variant="ghost"
                 size="sm"
@@ -122,9 +127,6 @@
                 @click="openLocaleDialog"
               >
                 <Languages class="h-3.5 w-3.5 shrink-0" />
-                <span class="max-w-[5.25rem] truncate">{{
-                  selectedLocaleLabel
-                }}</span>
               </Button>
             </div>
             <p
@@ -160,8 +162,8 @@
           :class="[
             'mx-auto mt-3 mb-6 w-full max-w-7xl rounded-lg border px-4 py-3',
             systemClockStore.status.timeMismatch
-              ? 'border-red-300 bg-red-50 text-red-800'
-              : 'border-amber-300 bg-amber-50 text-amber-900',
+              ? 'border-destructive/35 bg-destructive/10 text-destructive'
+              : 'border-amber-500/35 bg-amber-500/10 text-amber-900 dark:text-amber-200',
           ]"
         >
           <div
@@ -183,7 +185,7 @@
               <Button
                 variant="outline"
                 size="sm"
-                class="bg-white/80"
+                class="bg-background/80"
                 :disabled="
                   systemClockStore.isRefreshing || systemClockStore.isSyncing
                 "
@@ -212,8 +214,8 @@
           :class="[
             'mx-auto mt-3 mb-6 w-full max-w-7xl rounded-lg border px-4 py-3',
             updateStore.isForceUpdate
-              ? 'border-red-300 bg-red-50 text-red-800'
-              : 'border-amber-300 bg-amber-50 text-amber-900',
+              ? 'border-destructive/35 bg-destructive/10 text-destructive'
+              : 'border-amber-500/35 bg-amber-500/10 text-amber-900 dark:text-amber-200',
           ]"
         >
           <div
@@ -236,7 +238,7 @@
               <Button
                 variant="outline"
                 size="sm"
-                class="bg-white/80"
+                class="bg-background/80"
                 @click="goToAbout"
               >
                 {{ t("common.viewDetails") }}
@@ -425,6 +427,7 @@ import {
   isReverseProxySubdomainMode,
 } from "../lib/reverse-proxy-submode";
 import { Button } from "@/components/ui/button";
+import { ThemeModeToggle } from "@/components/ui/theme-toggle";
 import { toast } from "@admin-shared/utils/toast";
 import {
   LOCALE_DISPLAY_NAMES,

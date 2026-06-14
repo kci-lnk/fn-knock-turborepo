@@ -385,15 +385,15 @@ onMounted(fetchSettings);
     </CardContent>
 
     <CardContent v-else-if="!isLoading" class="border-t p-0 divide-y">
-      <div class="border-b border-zinc-200 bg-zinc-50/40 px-6 py-5">
+      <div class="border-b border-border bg-muted/20 px-6 py-5">
         <Alert
-          class="items-start rounded-xl border-zinc-200 bg-zinc-50/70 text-zinc-900 shadow-none"
+          class="items-start rounded-xl border-border/70 bg-muted/30 text-foreground shadow-none"
         >
           <Info class="mt-0.5 h-4 w-4 shrink-0" />
           <AlertTitle>
             {{ t("admin.sessionSettings.newSessionsOnlyTitle") }}
           </AlertTitle>
-          <AlertDescription class="text-sm leading-6 text-zinc-700">
+          <AlertDescription class="text-sm leading-6">
             {{ t("admin.sessionSettings.newSessionsOnlyDescription") }}
           </AlertDescription>
         </Alert>
@@ -490,12 +490,12 @@ onMounted(fetchSettings);
       <div class="space-y-4 p-6">
         <div
           v-if="isDirectMode"
-          class="rounded-xl border border-zinc-200 bg-zinc-50/40 px-4 py-4"
+          class="rounded-xl border border-border bg-muted/20 px-4 py-4"
         >
-          <div class="text-sm font-medium text-zinc-900">
+          <div class="text-sm font-medium text-foreground">
             {{ t("admin.sessionSettings.directModeTitle") }}
           </div>
-          <div class="mt-1 text-sm leading-6 text-zinc-700">
+          <div class="mt-1 text-sm leading-6 text-muted-foreground">
             {{ t("admin.sessionSettings.directModeDescription") }}
           </div>
         </div>
@@ -518,7 +518,7 @@ onMounted(fetchSettings);
             :class="
               form.postLoginIpGrantMode === option.value
                 ? 'border-primary bg-primary/5'
-                : 'border-border bg-background hover:border-zinc-300'
+                : 'border-border bg-background hover:border-primary/40 hover:bg-muted/30'
             "
             :disabled="isSaving"
             @click="form.postLoginIpGrantMode = option.value"
@@ -649,7 +649,7 @@ onMounted(fetchSettings);
           v-if="
             form.postLoginIpGrantMode === 'disabled' && isSubdomainRoutingMode
           "
-          class="rounded-lg border border-zinc-200 bg-zinc-50/40 px-4 py-3 text-sm text-zinc-700"
+          class="rounded-lg border border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground"
         >
           <template v-if="effectiveSharedCookieDomain">
             {{ t("admin.sessionSettings.sharedCookiePrefix") }}

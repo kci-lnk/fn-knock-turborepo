@@ -222,6 +222,7 @@ watch(
     "
     :error-message="dockerAdminGateError"
     :show-retry="dockerAdminGateShowRetry"
+    :deployment-target="dockerAdminAuthStore.state?.deployment_target"
     @submit="handleDockerAdminSubmit"
     @retry="handleDockerAdminRetry"
   />

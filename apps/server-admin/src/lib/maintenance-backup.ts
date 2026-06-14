@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import {
   mkdir,
   mkdtemp,
@@ -10,6 +11,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, extname, join, relative, resolve } from "node:path";
+import { deflateRawSync } from "node:zlib";
 import {
   APP_BACKUP_IMPORT_VERSION_RANGE,
   APP_BACKUP_SCHEMA_VERSION,
@@ -39,6 +41,7 @@ const SCAN_COUNT = 200;
 const PIPELINE_BATCH_SIZE = 100;
 const TEMP_DIR_PREFIX = "fn-knock-backup-";
 const KNOCK_BACKUP_PASSWORD = "890eced0-4561-4044-8d6b-def83b5c6016";
+const OPENWRT_OPKG_COMMAND = "opkg";
 const DEBIAN_APT_GET_PATH = "/usr/bin/apt-get";
 const BACKUP_DIRECTORY_NAME = "backup";
 const MAX_BACKUP_DIRECTORY_SCAN_DEPTH = 5;
@@ -127,7 +130,7 @@ type CommandResult = {
   stderr: string;
 };
 
-type ArchiveCommandName = "zip" | "unzip";
+type ArchiveCommandName = "unzip";
 
 type ArchiveCommandSpec = {
   command: ArchiveCommandName;
@@ -136,11 +139,6 @@ type ArchiveCommandSpec = {
 };
 
 const ARCHIVE_COMMAND_SPECS: ArchiveCommandSpec[] = [
-  {
-    command: "zip",
-    packageName: "zip",
-    probeArgs: ["-v"],
-  },
   {
     command: "unzip",
     packageName: "unzip",
@@ -156,6 +154,163 @@ type RedisZSetEntry = {
 type RedisStreamEntry = {
   id: string;
   fields: string[];
+};
+
+const CRC32_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let i = 0; i < table.length; i += 1) {
+    let value = i;
+    for (let bit = 0; bit < 8; bit += 1) {
+      value =
+        value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+    }
+    table[i] = value >>> 0;
+  }
+  return table;
+})();
+
+const crc32Update = (crc: number, byte: number): number =>
+  ((CRC32_TABLE[(crc ^ byte) & 0xff] ?? 0) ^ (crc >>> 8)) >>> 0;
+
+const crc32Buffer = (buffer: Buffer): number => {
+  let crc = 0xffffffff;
+  for (const byte of buffer) {
+    crc = crc32Update(crc, byte);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+};
+
+const toDosDateTime = (date: Date): { time: number; date: number } => {
+  const year = Math.min(2107, Math.max(1980, date.getFullYear()));
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
+  const seconds = Math.floor(date.getSeconds() / 2);
+
+  return {
+    time: ((hours & 0x1f) << 11) | ((minutes & 0x3f) << 5) | (seconds & 0x1f),
+    date: ((year - 1980) << 9) | ((month & 0xf) << 5) | (day & 0x1f),
+  };
+};
+
+const createZipCryptoEncryptor = (password: string) => {
+  let key0 = 0x12345678;
+  let key1 = 0x23456789;
+  let key2 = 0x34567890;
+
+  const updateKeys = (byte: number) => {
+    key0 = crc32Update(key0, byte);
+    key1 = (Math.imul((key1 + (key0 & 0xff)) >>> 0, 134775813) + 1) >>> 0;
+    key2 = crc32Update(key2, key1 >>> 24);
+  };
+
+  for (const byte of Buffer.from(password, "utf-8")) {
+    updateKeys(byte);
+  }
+
+  const decryptByte = (): number => {
+    const temp = (key2 | 2) & 0xffff;
+    return (Math.imul(temp, temp ^ 1) >>> 8) & 0xff;
+  };
+
+  return (plain: Buffer): Buffer => {
+    const encrypted = Buffer.allocUnsafe(plain.length);
+    for (let index = 0; index < plain.length; index += 1) {
+      const byte = plain[index] ?? 0;
+      encrypted[index] = byte ^ decryptByte();
+      updateKeys(byte);
+    }
+    return encrypted;
+  };
+};
+
+const writeUInt16LE = (value: number): Buffer => {
+  const buffer = Buffer.allocUnsafe(2);
+  buffer.writeUInt16LE(value & 0xffff, 0);
+  return buffer;
+};
+
+const writeUInt32LE = (value: number): Buffer => {
+  const buffer = Buffer.allocUnsafe(4);
+  buffer.writeUInt32LE(value >>> 0, 0);
+  return buffer;
+};
+
+const createPasswordProtectedZip = (
+  fileName: string,
+  content: Buffer,
+  password: string,
+  modifiedAt = new Date(),
+): Buffer => {
+  const fileNameBuffer = Buffer.from(fileName, "utf-8");
+  const crc = crc32Buffer(content);
+  const compressedContent = deflateRawSync(content, { level: 9 });
+  const encrypt = createZipCryptoEncryptor(password);
+  const encryptionHeader = randomBytes(12);
+  encryptionHeader[11] = (crc >>> 24) & 0xff;
+  const encryptedData = Buffer.concat([
+    encrypt(encryptionHeader),
+    encrypt(compressedContent),
+  ]);
+  const compressedSize = encryptedData.length;
+  const uncompressedSize = content.length;
+  const { time: dosTime, date: dosDate } = toDosDateTime(modifiedAt);
+  const flags = 0x0001;
+  const compressionMethod = 8;
+
+  const localHeader = Buffer.concat([
+    writeUInt32LE(0x04034b50),
+    writeUInt16LE(20),
+    writeUInt16LE(flags),
+    writeUInt16LE(compressionMethod),
+    writeUInt16LE(dosTime),
+    writeUInt16LE(dosDate),
+    writeUInt32LE(crc),
+    writeUInt32LE(compressedSize),
+    writeUInt32LE(uncompressedSize),
+    writeUInt16LE(fileNameBuffer.length),
+    writeUInt16LE(0),
+    fileNameBuffer,
+  ]);
+  const centralDirectoryOffset = localHeader.length + encryptedData.length;
+  const centralDirectory = Buffer.concat([
+    writeUInt32LE(0x02014b50),
+    writeUInt16LE(20),
+    writeUInt16LE(20),
+    writeUInt16LE(flags),
+    writeUInt16LE(compressionMethod),
+    writeUInt16LE(dosTime),
+    writeUInt16LE(dosDate),
+    writeUInt32LE(crc),
+    writeUInt32LE(compressedSize),
+    writeUInt32LE(uncompressedSize),
+    writeUInt16LE(fileNameBuffer.length),
+    writeUInt16LE(0),
+    writeUInt16LE(0),
+    writeUInt16LE(0),
+    writeUInt16LE(0),
+    writeUInt32LE(0),
+    writeUInt32LE(0),
+    fileNameBuffer,
+  ]);
+  const endOfCentralDirectory = Buffer.concat([
+    writeUInt32LE(0x06054b50),
+    writeUInt16LE(0),
+    writeUInt16LE(0),
+    writeUInt16LE(1),
+    writeUInt16LE(1),
+    writeUInt32LE(centralDirectory.length),
+    writeUInt32LE(centralDirectoryOffset),
+    writeUInt16LE(0),
+  ]);
+
+  return Buffer.concat([
+    localHeader,
+    encryptedData,
+    centralDirectory,
+    endOfCentralDirectory,
+  ]);
 };
 
 type RedisBackupEntry =
@@ -372,39 +527,72 @@ class MaintenanceBackupService {
     }
 
     const missingNames = missingCommands.map((item) => item.command).join(", ");
-    const canUseAptGet = await this.isCommandAvailable(DEBIAN_APT_GET_PATH, [
-      "--version",
-    ]);
-    if (!canUseAptGet) {
-      throw new MaintenanceBackupError(
-        backupT("commandsMissingNoApt", { commands: missingNames }),
-        500,
-      );
-    }
-
-    const updateResult = await this.runCommand(DEBIAN_APT_GET_PATH, ["update"]);
-    if (updateResult.exitCode !== 0) {
-      throw this.createCommandError(
-        backupT("aptUpdateFailed"),
-        updateResult,
-        500,
-      );
-    }
-
     const packages = [
       ...new Set(missingCommands.map((item) => item.packageName)),
     ];
-    const installResult = await this.runCommand(DEBIAN_APT_GET_PATH, [
-      "install",
-      "-y",
-      ...packages,
+
+    const canUseOpkg = await this.isCommandAvailable(OPENWRT_OPKG_COMMAND, [
+      "--version",
     ]);
-    if (installResult.exitCode !== 0) {
-      throw this.createCommandError(
-        backupT("packageInstallFailed", { packages: packages.join(", ") }),
-        installResult,
-        500,
-      );
+    if (canUseOpkg) {
+      const updateResult = await this.runCommand(OPENWRT_OPKG_COMMAND, [
+        "update",
+      ]);
+      if (updateResult.exitCode !== 0) {
+        throw this.createCommandError(
+          backupT("opkgUpdateFailed"),
+          updateResult,
+          500,
+        );
+      }
+
+      const installResult = await this.runCommand(OPENWRT_OPKG_COMMAND, [
+        "install",
+        ...packages,
+      ]);
+      if (installResult.exitCode !== 0) {
+        throw this.createCommandError(
+          backupT("packageInstallFailed", { packages: packages.join(", ") }),
+          installResult,
+          500,
+        );
+      }
+    } else {
+      const canUseAptGet = await this.isCommandAvailable(DEBIAN_APT_GET_PATH, [
+        "--version",
+      ]);
+      if (!canUseAptGet) {
+        throw new MaintenanceBackupError(
+          backupT("commandsMissingNoPackageManager", {
+            commands: missingNames,
+          }),
+          500,
+        );
+      }
+
+      const updateResult = await this.runCommand(DEBIAN_APT_GET_PATH, [
+        "update",
+      ]);
+      if (updateResult.exitCode !== 0) {
+        throw this.createCommandError(
+          backupT("aptUpdateFailed"),
+          updateResult,
+          500,
+        );
+      }
+
+      const installResult = await this.runCommand(DEBIAN_APT_GET_PATH, [
+        "install",
+        "-y",
+        ...packages,
+      ]);
+      if (installResult.exitCode !== 0) {
+        throw this.createCommandError(
+          backupT("packageInstallFailed", { packages: packages.join(", ") }),
+          installResult,
+          500,
+        );
+      }
     }
 
     const remainingCommands = await this.findMissingArchiveCommands();
@@ -708,47 +896,20 @@ class MaintenanceBackupService {
   }
 
   async exportBackupArchive(): Promise<FnKnockBackupArchive> {
-    await this.ensureArchiveCommandsReady();
     const payload = await this.exportBackupPayload();
+    const filename = buildKnockBackupFilename(payload.exported_at);
+    const archiveBuffer = createPasswordProtectedZip(
+      KNOCK_BACKUP_JSON_FILENAME,
+      Buffer.from(JSON.stringify(payload, null, 2), "utf-8"),
+      KNOCK_BACKUP_PASSWORD,
+      new Date(payload.exported_at),
+    );
 
-    return this.withTempDir(async (tempDir) => {
-      const filename = buildKnockBackupFilename(payload.exported_at);
-      const archivePath = join(tempDir, filename);
-      const payloadPath = join(tempDir, KNOCK_BACKUP_JSON_FILENAME);
-
-      try {
-        await writeFile(payloadPath, JSON.stringify(payload, null, 2), "utf-8");
-
-        const result = await this.runCommand(
-          "zip",
-          ["-q", "-j", "-P", KNOCK_BACKUP_PASSWORD, archivePath, payloadPath],
-          tempDir,
-        );
-
-        if (result.exitCode !== 0) {
-          throw this.createCommandError(
-            backupT("createArchiveFailed"),
-            result,
-            500,
-          );
-        }
-
-        return {
-          buffer: await readFile(archivePath),
-          exported_at: payload.exported_at,
-          filename,
-        };
-      } catch (error: any) {
-        if (error instanceof MaintenanceBackupError) {
-          throw error;
-        }
-
-        throw new MaintenanceBackupError(
-          error?.message || backupT("createArchiveFailed"),
-          500,
-        );
-      }
-    });
+    return {
+      buffer: archiveBuffer,
+      exported_at: payload.exported_at,
+      filename,
+    };
   }
 
   async listBackupDirectoryFiles(): Promise<BackupDirectoryFilesPayload> {

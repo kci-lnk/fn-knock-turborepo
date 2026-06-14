@@ -1,0 +1,15 @@
+{
+	"admin/services/fn-knock": {
+		"title": "敲门 Knock",
+		"order": 5,
+		"action": {
+			"type": "view",
+			"path": "fn-knock-openwrt"
+		},
+		"depends": {
+			"acl": [ "luci-app-fn-knock" ],
+			"uci": { "fn-knock": true }
+		},
+		"icon": "fn-knock/fn-knock.png"
+	}
+}

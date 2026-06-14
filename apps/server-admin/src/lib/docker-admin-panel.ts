@@ -9,6 +9,10 @@ import { getClientIp } from "./auth-request";
 import { normalizeIp, isWhitelistExemptIp } from "./ip-normalize";
 import { safeEqualString } from "./security";
 import { tDefault } from "./i18n";
+import {
+  getRuntimeProfile,
+  type DeploymentTarget,
+} from "./runtime-profile";
 
 const DOCKER_ADMIN_PASSWORD_KEY = "fn_knock:docker_admin:password:v1";
 const DOCKER_ADMIN_SESSION_PREFIX = "fn_knock:docker_admin:session:v1";
@@ -161,6 +165,7 @@ export interface DockerAdminSessionRecord {
 }
 
 export interface DockerAdminBootstrapState {
+  deployment_target: DeploymentTarget;
   enabled: boolean;
   password_configured: boolean;
   authenticated: boolean;
@@ -736,8 +741,11 @@ export const dockerAdminPanelManager = {
     enabled: boolean,
     locale: LocaleConfig,
   ): Promise<DockerAdminBootstrapState> {
+    const deploymentTarget = getRuntimeProfile().deployment_target;
+
     if (!enabled) {
       return {
+        deployment_target: deploymentTarget,
         enabled: false,
         password_configured: false,
         authenticated: true,
@@ -752,6 +760,7 @@ export const dockerAdminPanelManager = {
     ]);
 
     return {
+      deployment_target: deploymentTarget,
       enabled: true,
       password_configured: passwordConfigured,
       authenticated: Boolean(session),

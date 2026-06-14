@@ -86,6 +86,7 @@ import {
   getCapabilityUnavailableMessage,
   getRuntimeCapabilities,
   getRuntimeProfile,
+  isAdminPanelProtectedRuntime,
 } from "./lib/runtime-profile";
 import {
   DOCKER_ADMIN_DISCOVER_IP_HEADER_NAME,
@@ -112,11 +113,15 @@ import { createRequestTranslator } from "./lib/i18n";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const runtimeProfile = getRuntimeProfile();
 const runtimeCapabilities = getRuntimeCapabilities(runtimeProfile);
+const adminPanelProtectedRuntime = isAdminPanelProtectedRuntime(runtimeProfile);
 
-const BACKEND_PORT = process.env.BACKEND_PORT || 7998;
+const BACKEND_PORT =
+  process.env.BACKEND_PORT ||
+  (runtimeProfile.deployment_target === "openwrt" ? 17998 : 7998);
 const AUTH_PORT = process.env.AUTH_PORT || 7997;
-const ADMIN_VIEW_PORT = runtimeProfile.is_docker
-  ? process.env.ADMIN_VIEW_PORT?.trim() || "7991"
+const DEFAULT_ADMIN_VIEW_PORT = "7991";
+const ADMIN_VIEW_PORT = adminPanelProtectedRuntime
+  ? process.env.ADMIN_VIEW_PORT?.trim() || DEFAULT_ADMIN_VIEW_PORT
   : "";
 const BACKEND_HOST =
   process.env.BACKEND_HOST?.trim() ||
@@ -124,7 +129,7 @@ const BACKEND_HOST =
 const AUTH_HOST = process.env.AUTH_HOST?.trim() || "127.0.0.1";
 const ADMIN_VIEW_HOST =
   process.env.ADMIN_VIEW_HOST?.trim() ||
-  (runtimeProfile.is_docker ? "0.0.0.0" : BACKEND_HOST);
+  (adminPanelProtectedRuntime ? "0.0.0.0" : BACKEND_HOST);
 
 const ADMIN_STATIC_PATH_FROM_ENV = process.env.ADMIN_STATIC_PATH?.trim();
 const DEV_STATIC_PATH = join(__dirname, "../../app/ui/www");
@@ -508,7 +513,7 @@ const app = new Elysia();
 const authApp = new Elysia();
 
 app.onBeforeHandle(async ({ request, set }) => {
-  if (!runtimeProfile.is_docker) {
+  if (!adminPanelProtectedRuntime) {
     return;
   }
 
@@ -527,7 +532,9 @@ app.onBeforeHandle(async ({ request, set }) => {
     set.status = 403;
     return {
       success: false,
-      message: t("server.dockerAdminProxyRequired"),
+      message: t("server.dockerAdminProxyRequired", {
+        port: ADMIN_VIEW_PORT || DEFAULT_ADMIN_VIEW_PORT,
+      }),
     };
   }
 
@@ -994,16 +1001,16 @@ systemNotificationRuntime.start();
 
 const backendPort = toPort(BACKEND_PORT);
 const authPort = toPort(AUTH_PORT);
-const adminViewPort = runtimeProfile.is_docker
+const adminViewPort = adminPanelProtectedRuntime
   ? toOptionalPort(ADMIN_VIEW_PORT)
   : null;
 
 console.log(
   `Elysia Admin Backend is running at ${BACKEND_HOST}:${backendPort}`,
 );
-if (runtimeProfile.is_docker && adminViewPort !== null) {
+if (adminPanelProtectedRuntime && adminViewPort !== null) {
   console.log(
-    `Elysia Docker Admin View is running at ${ADMIN_VIEW_HOST}:${adminViewPort}`,
+    `Elysia protected admin view is running at ${ADMIN_VIEW_HOST}:${adminViewPort}`,
   );
   startDockerAdminViewServer(app, adminViewPort, ADMIN_VIEW_HOST);
 }

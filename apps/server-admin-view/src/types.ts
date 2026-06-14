@@ -20,7 +20,7 @@ export interface WelcomeGuideStatus {
   completed_at: string | null;
 }
 
-export type DeploymentTarget = "fpk" | "docker" | "dev";
+export type DeploymentTarget = "fpk" | "docker" | "openwrt" | "dev";
 
 export interface RuntimeProfile {
   deployment_target: DeploymentTarget;
@@ -40,6 +40,7 @@ export interface RuntimeCapabilities {
 }
 
 export interface DockerAdminBootstrapState {
+  deployment_target: DeploymentTarget;
   enabled: boolean;
   password_configured: boolean;
   authenticated: boolean;

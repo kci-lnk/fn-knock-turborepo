@@ -109,6 +109,7 @@ import {
   getCapabilityUnavailableMessage,
   getRuntimeCapabilities,
   getRuntimeProfile,
+  isAdminPanelProtectedRuntime,
 } from "../lib/runtime-profile";
 import { getClientIp } from "../lib/auth-request";
 import { dockerAdminPanelManager } from "../lib/docker-admin-panel";
@@ -166,6 +167,9 @@ const buildCapabilityBlockedResponse = (
     message: getCapabilityUnavailableMessage(capability),
   };
 };
+
+const isPanelAuthRuntime = () =>
+  isAdminPanelProtectedRuntime(getRuntimeProfile());
 
 const getRunTypeLabel = (t: RequestTranslator, runType: 0 | 1 | 3) => {
   if (runType === 0) return adminT(t, "runTypes.direct");
@@ -1062,7 +1066,7 @@ export const adminRoutes = new Elysia({
         success: true,
         data: await dockerAdminPanelManager.buildBootstrapState(
           request,
-          getRuntimeProfile().is_docker,
+          isPanelAuthRuntime(),
           locale,
         ),
       };
@@ -1073,7 +1077,7 @@ export const adminRoutes = new Elysia({
     "/panel/password",
     async ({ request, body, set }) => {
       const { t } = await getAdminRouteTranslator(request);
-      if (!getRuntimeProfile().is_docker) {
+      if (!isPanelAuthRuntime()) {
         set.status = 400;
         return {
           success: false,
@@ -1129,7 +1133,7 @@ export const adminRoutes = new Elysia({
     "/panel/password/change",
     async ({ request, body, set }) => {
       const { t } = await getAdminRouteTranslator(request);
-      if (!getRuntimeProfile().is_docker) {
+      if (!isPanelAuthRuntime()) {
         set.status = 400;
         return {
           success: false,
@@ -1185,7 +1189,7 @@ export const adminRoutes = new Elysia({
     async ({ request, body, set }) => {
       const { t } = await getAdminRouteTranslator(request);
       const locale = await configManager.getLocaleConfig();
-      if (!getRuntimeProfile().is_docker) {
+      if (!isPanelAuthRuntime()) {
         return {
           success: true,
           data: await dockerAdminPanelManager.buildBootstrapState(
@@ -1285,7 +1289,7 @@ export const adminRoutes = new Elysia({
         success: true,
         data: await dockerAdminPanelManager.buildBootstrapState(
           request,
-          getRuntimeProfile().is_docker,
+          isPanelAuthRuntime(),
           await configManager.getLocaleConfig(),
         ),
       };
@@ -2572,11 +2576,19 @@ export const adminRoutes = new Elysia({
     "/config/auto_https",
     async ({ request, body, set }) => {
       const { t } = await getAdminRouteTranslator(request);
-      if (body.enabled === true && getRuntimeProfile().is_docker) {
+      const runtimeProfile = getRuntimeProfile();
+      if (
+        body.enabled === true &&
+        (runtimeProfile.is_docker ||
+          runtimeProfile.deployment_target === "openwrt")
+      ) {
         set.status = 403;
         return {
           success: false,
-          message: adminT(t, "autoHttps.dockerUnsupported"),
+          message:
+            runtimeProfile.deployment_target === "openwrt"
+              ? adminT(t, "autoHttps.openWrtUnsupported")
+              : adminT(t, "autoHttps.dockerUnsupported"),
         };
       }
 

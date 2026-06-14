@@ -106,30 +106,47 @@
 
           <div class="min-w-0 space-y-2">
             <p class="text-sm font-medium">
-              {{ t("admin.components.dockerAdminGate.resetStepSsh") }}
+              {{
+                t(
+                  isOpenWrtMode
+                    ? "admin.components.dockerAdminGate.resetStepOpenWrtSsh"
+                    : "admin.components.dockerAdminGate.resetStepSsh",
+                )
+              }}
             </p>
             <pre
               class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
-            ><code>{{ resetCommands.ssh }}</code></pre>
+            ><code>{{ resetSshCommand }}</code></pre>
           </div>
 
-          <div class="min-w-0 space-y-2">
+          <div v-if="isOpenWrtMode" class="min-w-0 space-y-2">
             <p class="text-sm font-medium">
-              {{ t("admin.components.dockerAdminGate.resetStepCompose") }}
+              {{ t("admin.components.dockerAdminGate.resetStepOpenWrtCommand") }}
             </p>
             <pre
               class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
-            ><code>{{ resetCommands.compose }}</code></pre>
+            ><code>{{ openWrtResetCommand }}</code></pre>
           </div>
 
-          <div class="min-w-0 space-y-2">
-            <p class="text-sm font-medium">
-              {{ t("admin.components.dockerAdminGate.resetStepDockerExec") }}
-            </p>
-            <pre
-              class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
-            ><code>{{ resetCommands.dockerExec }}</code></pre>
-          </div>
+          <template v-else>
+            <div class="min-w-0 space-y-2">
+              <p class="text-sm font-medium">
+                {{ t("admin.components.dockerAdminGate.resetStepCompose") }}
+              </p>
+              <pre
+                class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
+              ><code>{{ dockerComposeResetCommand }}</code></pre>
+            </div>
+
+            <div class="min-w-0 space-y-2">
+              <p class="text-sm font-medium">
+                {{ t("admin.components.dockerAdminGate.resetStepDockerExec") }}
+              </p>
+              <pre
+                class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
+              ><code>{{ dockerExecResetCommand }}</code></pre>
+            </div>
+          </template>
         </div>
 
         <DialogFooter>
@@ -163,13 +180,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { dockerAdminPanelResetCommands } from "../lib/docker-admin-panel-reset";
+import {
+  dockerAdminPanelResetCommands,
+  openWrtAdminPanelResetCommands,
+} from "../lib/docker-admin-panel-reset";
+import type { DeploymentTarget } from "../types";
 
 const props = defineProps<{
   mode: "setup" | "login";
   loading: boolean;
   errorMessage?: string;
   showRetry?: boolean;
+  deploymentTarget?: DeploymentTarget;
 }>();
 
 const emit = defineEmits<{
@@ -179,8 +201,16 @@ const emit = defineEmits<{
 
 const password = ref("");
 const showResetDialog = ref(false);
-const resetCommands = dockerAdminPanelResetCommands;
 const { t } = useI18n();
+const isOpenWrtMode = computed(() => props.deploymentTarget === "openwrt");
+const resetSshCommand = computed(() =>
+  isOpenWrtMode.value
+    ? openWrtAdminPanelResetCommands.ssh
+    : dockerAdminPanelResetCommands.ssh,
+);
+const openWrtResetCommand = openWrtAdminPanelResetCommands.reset;
+const dockerComposeResetCommand = dockerAdminPanelResetCommands.compose;
+const dockerExecResetCommand = dockerAdminPanelResetCommands.dockerExec;
 
 const title = computed(() =>
   props.mode === "setup"

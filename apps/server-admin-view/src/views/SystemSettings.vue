@@ -34,7 +34,7 @@ const showCloudflaredTab = computed(() =>
   isCloudflaredTunnelAvailable(configStore.config),
 );
 const showTerminalTab = computed(() => configStore.canUseTerminal);
-const showPanelTab = computed(() => configStore.isDockerDeployment);
+const showPanelTab = computed(() => configStore.isProtectedAdminPanelDeployment);
 const allowedTabs = computed(() => {
   const tabs = [
     "run-mode",

@@ -1,0 +1,23 @@
+{
+	"luci-app-fn-knock": {
+		"description": "Grant access to the fn-knock LuCI app",
+		"read": {
+			"uci": [ "fn-knock" ],
+			"file": {
+				"/etc/init.d/fn-knock status": [ "exec" ]
+			},
+			"ubus": {
+				"file": [ "exec" ]
+			}
+		},
+		"write": {
+			"uci": [ "fn-knock" ],
+			"file": {
+				"/etc/init.d/fn-knock restart": [ "exec" ]
+			},
+			"ubus": {
+				"file": [ "exec" ]
+			}
+		}
+	}
+}

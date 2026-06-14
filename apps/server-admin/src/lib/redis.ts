@@ -3004,7 +3004,8 @@ return actual
     corrected: string[];
   }> {
     const config = await this.getConfig();
-    const capabilities = getRuntimeCapabilities();
+    const runtimeProfile = getRuntimeProfile();
+    const capabilities = getRuntimeCapabilities(runtimeProfile);
     const corrected: string[] = [];
 
     if (!capabilities.direct_mode_available && config.run_type === 0) {
@@ -3021,15 +3022,31 @@ return actual
       corrected.push("smart_connect.enabled -> false");
     }
 
+    config.terminal_feature = normalizeTerminalFeatureConfig(
+      config.terminal_feature,
+    );
+    if (
+      !capabilities.terminal_available &&
+      config.terminal_feature.enabled === true
+    ) {
+      config.terminal_feature.enabled = false;
+      corrected.push("terminal_feature.enabled -> false");
+    }
+
     config.auto_https = normalizeAutoHttpsConfig(config.auto_https);
-    if (getRuntimeProfile().is_docker && config.auto_https.enabled === true) {
+    if (
+      (runtimeProfile.is_docker ||
+        runtimeProfile.deployment_target === "openwrt") &&
+      config.auto_https.enabled === true
+    ) {
       config.auto_https.enabled = false;
       corrected.push("auto_https.enabled -> false");
     }
 
     config.ssh_security = normalizeSSHSecurityConfig(config.ssh_security);
     if (
-      !capabilities.host_firewall_available &&
+      (!capabilities.host_firewall_available ||
+        runtimeProfile.deployment_target === "openwrt") &&
       config.ssh_security.enabled === true
     ) {
       config.ssh_security.enabled = false;

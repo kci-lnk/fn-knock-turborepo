@@ -267,6 +267,7 @@ router.beforeEach(async (to, from) => {
   if (
     to.path === "/ssh-security" &&
     (configStore.isDockerDeployment ||
+      configStore.isOpenWrtDeployment ||
       configStore.config?.ssh_security?.enabled !== true)
   ) {
     return {

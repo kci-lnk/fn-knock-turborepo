@@ -16,7 +16,7 @@ export const enAdmin = {
     wafLogs: "WAF",
     webTerminal: "Terminal",
     systemSettings: "System",
-    systemUpdate: "Update",
+    systemUpdate: "System Update",
     versionInfo: "Version",
     about: "About",
     openNavigation: "Open navigation",
@@ -36,9 +36,13 @@ export const enAdmin = {
     networkSource: "Source: {source}",
     updateFound: "New version {latest} detected (current {current})",
     importantUpdate: "Important update. Please install it soon.",
-    normalUpdate: "Open About to view details and update.",
+    normalUpdate: "Open System Update to view details and update.",
     dockerUpdateInfo:
-      "Open About for version details and Docker upgrade instructions.",
+      "Open System Update for version details and Docker upgrade instructions.",
+    openWrtUpdateInfo:
+      "Open System Update for version details and OpenWrt IPK upgrade instructions.",
+    genericUpdateInfo:
+      "Open System Update for version details and manual upgrade instructions.",
   },
   route: {
     navigationFailed: "Navigation failed",
@@ -73,24 +77,45 @@ export const enAdmin = {
     title: "Version and updates",
     subtitleSelfUpdate: "Manage Fn-Knock versions and upgrades",
     subtitleDocker: "View version details and Docker upgrade instructions",
+    subtitleOpenWrt:
+      "View version details and OpenWrt IPK upgrade instructions",
+    subtitleGeneric: "View version details and manual upgrade instructions",
     openGithub: "Open GitHub project",
     selfUpdateUnsupportedTitle:
       "This deployment does not support in-app updates",
     selfUpdateUnsupportedDescription:
       "For Docker deployments, pull the new image and recreate the container to upgrade. This page can still check the latest version and show release notes.",
+    selfUpdateUnsupportedDescriptionDocker:
+      "For Docker deployments, pull the new image and recreate the container to upgrade. This page can still check the latest version and show release notes.",
+    selfUpdateUnsupportedDescriptionOpenWrt:
+      "For OpenWrt deployments, download the fn-knock IPK matching the device architecture and install it through LuCI Software upload, or upload it to /tmp and run opkg install --force-reinstall /tmp/fn-knock_*.ipk. Upgrades preserve /etc/config/fn-knock and /var/lib/fn-knock.",
+    selfUpdateUnsupportedDescriptionGeneric:
+      "Upgrade this deployment manually using the matching installation method. This page can still check the latest version and show release notes.",
     currentVersion: "Current version",
     latestVersion: "Latest version",
     newVersionSelfUpdate: "New version found. Update soon.",
     newVersionDocker: "New version found. Upgrade by updating the image.",
+    newVersionOpenWrt: "New version found. Upgrade by installing a new IPK.",
+    newVersionGeneric: "New version found. Upgrade manually for this deployment.",
     alreadyLatest: "You are already on the latest version",
     updateDisabled: "Updates are not enabled yet",
     versionCheckOnly: "This deployment only provides version checks",
     newVersionSelfUpdateHint: "Get the latest features and fixes in one step.",
     newVersionDockerHint:
       "Pull the new image and recreate the container to upgrade.",
+    newVersionOpenWrtHint:
+      "Download the matching architecture IPK, install it through LuCI Software upload, or use opkg install --force-reinstall.",
+    newVersionGenericHint:
+      "Download the matching package and upgrade using this deployment's installation method.",
     latestHint: "Thanks for using the latest version.",
     versionCheckHint:
       "You can keep checking the latest release and release notes.",
+    versionCheckHintDocker:
+      "You can keep checking the latest release and Docker image upgrade notes.",
+    versionCheckHintOpenWrt:
+      "You can keep checking the latest release and OpenWrt IPK upgrade notes.",
+    versionCheckHintGeneric:
+      "You can keep checking the latest release and manual upgrade notes.",
     checkUpdate: "Check for updates",
     installRestart: "Install and restart",
     checkFailed: "Update check failed",
@@ -357,6 +382,10 @@ export const enAdmin = {
     sharedImportHintAfter: "file from this device.",
     dockerImportHintBefore: "Docker deployments can only choose a",
     dockerImportHintAfter: "file from this device.",
+    openWrtImportHintBefore: "OpenWrt deployments can only choose a",
+    openWrtImportHintAfter: "file from this device.",
+    localImportHintBefore: "This environment can only choose a",
+    localImportHintAfter: "file from this device.",
     reselectSource: "Choose source again",
     importFromFnos: "Import from FNOS",
     chooseFromLocal: "Choose from local device",
@@ -1831,15 +1860,15 @@ export const enAdmin = {
   },
   panelSettings: {
     updateFailed: "Update failed",
-    updatePasswordFailed: "Failed to update Docker admin panel password",
+    updatePasswordFailed: "Failed to update admin panel password",
     passwordRequired: "Enter the new password first",
     passwordMismatch: "The two passwords do not match",
-    passwordUpdated: "Docker admin panel password updated",
+    passwordUpdated: "Admin panel password updated",
     passwordUpdatedDescription:
       "Use the new password the next time you open the admin console.",
-    title: "Docker admin panel password",
+    title: "Admin panel password",
     description:
-      "Change the Docker admin panel password required before entering the admin console.",
+      "Change the admin panel password required before entering the admin console.",
     newPassword: "New password",
     newPasswordPlaceholder: "Enter the new admin panel password",
     confirmPassword: "Confirm new password",
@@ -1854,10 +1883,11 @@ export const enAdmin = {
       "If you can no longer enter the admin console, run these commands on the server to reset the password.",
     resetResultTitle: "Reset result",
     resetResultDescription:
-      "The command resets the admin panel password to docker-admin-123456. Change it immediately after signing in.",
+      "The command clears the admin panel password state. Set the admin panel password again the next time you open the admin entry.",
     stepLoginHost: "1. Sign in to the host",
     stepCompose: "2. Open the docker-compose.yml directory",
     stepDockerExec: "3. Run the reset command",
+    stepOpenWrtReset: "2. Run the reset command",
   },
   sslSettings: {
     title: "SSL / HTTPS",
@@ -2835,20 +2865,22 @@ export const enAdmin = {
       retry: "Check status again",
       resetTitle: "Reset admin panel password",
       resetDescription:
-        "Run the reset command on the Docker host or outside the container. This only clears the panel password, panel sessions, and login backoff state. Business configuration is not deleted.",
+        "Run the reset command on the device or outside the container. This only clears the panel password, panel sessions, and login backoff state. Business configuration is not deleted.",
       resetNotice:
-        "After cleanup, the next visit to the Docker admin entry will return to the first-time password setup flow.",
+        "After cleanup, the next visit to the admin entry will return to the first-time password setup flow.",
       resetStepSsh: "1. Sign in to the Docker host",
+      resetStepOpenWrtSsh: "1. Sign in to the OpenWrt device",
       resetStepCompose:
         "2. Recommended: run this in the compose deployment directory",
       resetStepDockerExec:
         "3. If you only know the container is running in Docker, run this directly",
+      resetStepOpenWrtCommand: "2. Run the reset command",
       acknowledge: "Got it",
       setupTitle: "Set admin panel password",
       loginTitle: "Sign in to admin panel",
       setupDescription: "Set an admin password before first entry.",
       loginDescription:
-        "Enter the admin password to continue to the Docker admin console.",
+        "Enter the admin password to continue to the admin console.",
       setupHelper: "At least 6 characters, with both letters and numbers.",
       setupAction: "Set and enter",
       loginAction: "Sign in and enter",

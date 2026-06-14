@@ -5,3 +5,8 @@ export const dockerAdminPanelResetCommands = {
   dockerExec:
     "docker exec -it \"$(docker ps --filter label=com.docker.compose.service=fn-knock --format '{{.Names}}' | head -n 1)\" fn-knock-reset-panel-password",
 } as const;
+
+export const openWrtAdminPanelResetCommands = {
+  ssh: "ssh root@<openwrt-host>",
+  reset: "fn-knock-reset-panel-password",
+} as const;

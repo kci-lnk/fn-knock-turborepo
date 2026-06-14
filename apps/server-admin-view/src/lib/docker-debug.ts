@@ -114,6 +114,7 @@ export const createDockerAdminDebugState = (
 ): DockerAdminBootstrapState => {
   if (stage === "setup") {
     return {
+      deployment_target: "docker",
       enabled: true,
       password_configured: false,
       authenticated: false,
@@ -124,6 +125,7 @@ export const createDockerAdminDebugState = (
 
   if (stage === "login") {
     return {
+      deployment_target: "docker",
       enabled: true,
       password_configured: true,
       authenticated: false,
@@ -133,6 +135,7 @@ export const createDockerAdminDebugState = (
   }
 
   return {
+    deployment_target: "docker",
     enabled: true,
     password_configured: true,
     authenticated: true,

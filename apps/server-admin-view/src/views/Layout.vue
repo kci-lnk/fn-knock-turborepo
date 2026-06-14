@@ -704,6 +704,7 @@ const navItems = computed(() => {
   });
   if (
     !configStore.isDockerDeployment &&
+    !configStore.isOpenWrtDeployment &&
     configStore.config?.ssh_security?.enabled === true
   ) {
     items.push({
@@ -755,11 +756,7 @@ const currentVersionLabel = computed(() => {
   return version ? `v${version}` : "";
 });
 
-const aboutEntryLabel = computed(() =>
-  configStore.canSelfUpdate
-    ? t("admin.nav.systemUpdate")
-    : t("admin.nav.versionInfo"),
-);
+const aboutEntryLabel = computed(() => t("admin.nav.systemUpdate"));
 
 const systemClockBannerTitle = computed(() => {
   const status = systemClockStore.status;
@@ -823,6 +820,14 @@ const updateBannerDescription = computed(() => {
       : t("admin.banner.normalUpdate");
   }
 
-  return t("admin.banner.dockerUpdateInfo");
+  if (configStore.isOpenWrtDeployment) {
+    return t("admin.banner.openWrtUpdateInfo");
+  }
+
+  if (configStore.isDockerDeployment) {
+    return t("admin.banner.dockerUpdateInfo");
+  }
+
+  return t("admin.banner.genericUpdateInfo");
 });
 </script>

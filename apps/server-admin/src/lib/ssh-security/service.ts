@@ -31,6 +31,7 @@ import type {
 import {
   getCapabilityUnavailableMessage,
   getRuntimeCapabilities,
+  getRuntimeProfile,
 } from "../runtime-profile";
 import { tDefault } from "../i18n";
 
@@ -168,6 +169,13 @@ export class SSHSecurityService {
     log_source: "journal" | "auth.log" | "unavailable";
   }> {
     const logSource = await sshLogSource.detect();
+    if (getRuntimeProfile().deployment_target === "openwrt") {
+      return {
+        available: false,
+        reason: sshSecurityT("openWrtUnsupported"),
+        log_source: logSource,
+      };
+    }
     if (!getRuntimeCapabilities().host_firewall_available) {
       return {
         available: false,

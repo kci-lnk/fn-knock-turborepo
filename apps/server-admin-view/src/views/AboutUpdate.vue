@@ -26,6 +26,31 @@ const showInstallingOverlay = ref(false);
 
 const status = computed(() => updateStore.status);
 const canSelfUpdate = computed(() => configStore.canSelfUpdate);
+const nonSelfUpdateTarget = computed(() => {
+  if (configStore.isOpenWrtDeployment) return "OpenWrt";
+  if (configStore.isDockerDeployment) return "Docker";
+  return "Generic";
+});
+const updateSubtitleKey = computed(() =>
+  canSelfUpdate.value
+    ? "admin.aboutUpdate.subtitleSelfUpdate"
+    : `admin.aboutUpdate.subtitle${nonSelfUpdateTarget.value}`,
+);
+const unsupportedDescriptionKey = computed(
+  () =>
+    `admin.aboutUpdate.selfUpdateUnsupportedDescription${nonSelfUpdateTarget.value}`,
+);
+const nonSelfUpdateVersionMessageKey = computed(
+  () => `admin.aboutUpdate.newVersion${nonSelfUpdateTarget.value}`,
+);
+const nonSelfUpdateVersionHintKey = computed(
+  () => `admin.aboutUpdate.newVersion${nonSelfUpdateTarget.value}Hint`,
+);
+const versionCheckHintKey = computed(() =>
+  canSelfUpdate.value
+    ? "admin.aboutUpdate.latestHint"
+    : `admin.aboutUpdate.versionCheckHint${nonSelfUpdateTarget.value}`,
+);
 const releaseNotesHtml = computed(() => {
   const raw = status.value?.latest?.release_notes || t("admin.aboutUpdate.noReleaseNotes");
   let html = raw
@@ -161,9 +186,7 @@ onMounted(() => {
             </h2>
             <p class="text-sm text-muted-foreground mt-1">
               {{
-                canSelfUpdate
-                  ? t("admin.aboutUpdate.subtitleSelfUpdate")
-                  : t("admin.aboutUpdate.subtitleDocker")
+                t(updateSubtitleKey)
               }}
             </p>
           </div>
@@ -186,7 +209,7 @@ onMounted(() => {
           <AlertCircle class="w-4 h-4" />
           <AlertTitle>{{ t("admin.aboutUpdate.selfUpdateUnsupportedTitle") }}</AlertTitle>
           <AlertDescription>
-            {{ t("admin.aboutUpdate.selfUpdateUnsupportedDescription") }}
+            {{ t(unsupportedDescriptionKey) }}
           </AlertDescription>
         </Alert>
 
@@ -243,7 +266,7 @@ onMounted(() => {
                   status?.hasUpdate
                     ? canSelfUpdate
                       ? t("admin.aboutUpdate.newVersionSelfUpdate")
-                      : t("admin.aboutUpdate.newVersionDocker")
+                      : t(nonSelfUpdateVersionMessageKey)
                     : canSelfUpdate
                       ? status?.updateEnabled
                         ? t("admin.aboutUpdate.alreadyLatest")
@@ -256,10 +279,8 @@ onMounted(() => {
                   status?.hasUpdate
                     ? canSelfUpdate
                       ? t("admin.aboutUpdate.newVersionSelfUpdateHint")
-                      : t("admin.aboutUpdate.newVersionDockerHint")
-                    : canSelfUpdate
-                      ? t("admin.aboutUpdate.latestHint")
-                      : t("admin.aboutUpdate.versionCheckHint")
+                      : t(nonSelfUpdateVersionHintKey)
+                    : t(versionCheckHintKey)
                 }}
               </p>
             </div>

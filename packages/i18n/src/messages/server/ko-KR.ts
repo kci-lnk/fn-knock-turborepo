@@ -9,7 +9,7 @@ export const koKRServer = {
     "Docker 관리 패널은 기본적으로 호스트, LAN, VPN 또는 구성된 신뢰할 수 있는 역방향 프록시에서의 액세스만 허용합니다. 직접적인 공개 액세스는 거부됩니다.",
   dockerAdminCurrentIp: "감지된 소스 IP: {ip}",
   dockerAdminProxyRequired:
-    "Docker 모드에서는 7991 관리 항목을 통해 관리 API에 액세스합니다.",
+    "{port} 관리 항목을 통해 관리 API에 액세스합니다.",
   dockerAdminLoginRequired: "먼저 Docker 관리 패널에 로그인하세요.",
   captchaUnavailable: "보안 문자 서비스를 일시적으로 사용할 수 없습니다",
   tooManyAttempts: "시도 횟수가 너무 많습니다. 나중에 다시 시도해 주세요.",
@@ -47,10 +47,13 @@ export const koKRServer = {
       self_update_available: {
         docker:
           "Docker 배포는 인앱 FPK 업데이트를 지원하지 않습니다. 새 이미지를 가져와 업그레이드",
+        openwrt:
+          "OpenWrt 배포는 인앱 FPK 업데이트를 지원하지 않습니다. 장치 아키텍처에 맞는 IPK를 opkg로 설치해 업그레이드하세요.",
         deployment: "현재 배포 유형은 인앱 업데이트를 지원하지 않습니다.",
       },
       terminal_available: {
         docker: "Docker 배포는 웹 터미널을 지원하지 않습니다.",
+        openwrt: "OpenWrt 배포는 아직 웹 터미널을 지원하지 않습니다.",
         platform: "현재 런타임은 웹 터미널을 지원하지 않습니다.",
       },
       shared_root_available: {
@@ -246,6 +249,8 @@ export const koKRServer = {
     },
     autoHttps: {
       dockerUnsupported: "Docker 빌드에서는 자동 HTTPS가 지원되지 않습니다.",
+      openWrtUnsupported:
+        "OpenWrt 빌드에서는 자동 HTTPS가 지원되지 않습니다.",
       startFailed: "자동 HTTPS를 시작하지 못했습니다.",
     },
     hostMappings: {
@@ -1065,11 +1070,11 @@ export const koKRServer = {
     passwordNotConfigured: "관리자 패널 비밀번호가 아직 설정되지 않았습니다.",
     newPasswordSameAsCurrent: "새 비밀번호는 현재 비밀번호와 같을 수 없습니다.",
     resetHelp:
-      "fn-knock Docker 관리자 패널 비밀번호 재설정 도구\n\n사용법:\n  node /opt/fn-knock/server/server-admin/reset-docker-admin-panel.js\n\n작업:\n  - 관리자 패널 비밀번호 지우기\n  - 모든 관리자 패널 로그인 세션 지우기\n  - 로그인 실패 백오프 상태 지우기\n\n완료 후 다음에 Docker 관리자 항목을 방문하면 최초 비밀번호 설정 흐름이 다시 시작됩니다.",
-    resetCleared: "[fn-knock] Docker 관리자 패널 비밀번호 상태가 지워졌습니다.",
+      "fn-knock 관리자 패널 비밀번호 재설정 도구\n\n사용법:\n  fn-knock-reset-panel-password\n\n작업:\n  - 관리자 패널 비밀번호 지우기\n  - 모든 관리자 패널 로그인 세션 지우기\n  - 로그인 실패 백오프 상태 지우기\n\n완료 후 다음에 관리자 항목을 방문하면 최초 비밀번호 설정 흐름이 다시 시작됩니다.",
+    resetCleared: "[fn-knock] 관리자 패널 비밀번호 상태가 지워졌습니다.",
     resetNextVisit:
-      "[fn-knock] 다음에 Docker 관리자 항목을 방문할 때 관리자 패널 비밀번호를 다시 설정하세요.",
-    resetFailed: "[fn-knock] Docker 관리자 패널 비밀번호를 지우지 못했습니다.",
+      "[fn-knock] 다음에 관리자 항목을 방문할 때 관리자 패널 비밀번호를 다시 설정하세요.",
+    resetFailed: "[fn-knock] 관리자 패널 비밀번호를 지우지 못했습니다.",
   },
   passkeyRoutes: {
     notFoundWithRetry:
@@ -1084,6 +1089,9 @@ export const koKRServer = {
     commandCheckFailed: "명령 확인 실패: {command}",
     commandsMissingNoApt:
       "시스템 명령이 누락되었습니다: {commands}. Debian apt-get을 찾을 수 없으므로 자동으로 설치할 수 없습니다.",
+    commandsMissingNoPackageManager:
+      "시스템 명령이 누락되었습니다: {commands}. opkg 또는 Debian apt-get을 찾을 수 없으므로 자동으로 설치할 수 없습니다.",
+    opkgUpdateFailed: "opkg 업데이트 실패",
     aptUpdateFailed: "apt-get 업데이트 실패",
     packageInstallFailed: "{packages}을 설치하지 못했습니다.",
     commandsStillMissingAfterInstall:
@@ -1758,6 +1766,8 @@ export const koKRServer = {
   sshSecurity: {
     logSourceUnavailable:
       "이 시스템에서 Journalctl 또는 /var/log/auth.log를 찾을 수 없습니다.",
+    openWrtUnsupported:
+      "OpenWrt 빌드에서는 아직 SSH 보안이 지원되지 않습니다.",
     enableUnavailable: "이 환경에서는 SSH 보안을 활성화할 수 없습니다.",
     syncFirewallUnavailable: "이 환경에서는 SSH 방화벽을 동기화할 수 없습니다.",
     clearFirewallUnavailable: "이 환경에서는 SSH 방화벽을 지울 수 없습니다.",

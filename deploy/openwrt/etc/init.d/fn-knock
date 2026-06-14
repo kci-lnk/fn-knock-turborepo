@@ -1,0 +1,272 @@
+#!/bin/sh /etc/rc.common
+
+START=99
+STOP=10
+USE_PROCD=1
+
+NAME=fn-knock
+CONFIG_NAME=fn-knock
+
+load_config() {
+	config_load "$CONFIG_NAME"
+	config_get_bool enabled main enabled 1
+	config_get app_home main app_home "/usr/lib/fn-knock"
+	config_get data_dir main data_dir "/var/lib/fn-knock"
+	config_get gateway_config_dir main gateway_config_dir "/etc/fn-knock/gateway"
+	config_get node_bin main node_bin "/usr/bin/node"
+	config_get admin_view_host main admin_view_host "0.0.0.0"
+	config_get admin_view_port main admin_view_port "7991"
+	config_get backend_host main backend_host "127.0.0.1"
+	config_get backend_port main backend_port "17998"
+	config_get auth_host main auth_host "127.0.0.1"
+	config_get auth_port main auth_port "7997"
+	config_get go_backend_port main go_backend_port "7996"
+	config_get go_reproxy_port main go_reproxy_port "7999"
+	config_get redis_host main redis_host "127.0.0.1"
+	config_get redis_port main redis_port "6379"
+	config_get redis_password main redis_password ""
+	config_get root_share_dir main root_share_dir ""
+}
+
+generate_random_hex() {
+	if command -v openssl >/dev/null 2>&1; then
+		openssl rand -hex 32 2>/dev/null && return 0
+	fi
+
+	dd if=/dev/urandom bs=32 count=1 2>/dev/null | hexdump -v -e '/1 "%02x"'
+}
+
+load_or_create_secret() {
+	local var_name="$1"
+	local file_path="$2"
+	local value=""
+
+	if [ -r "$file_path" ]; then
+		value="$(tr -d '\r\n' < "$file_path")"
+	fi
+
+	if [ -z "$value" ]; then
+		value="$(generate_random_hex)"
+		[ -n "$value" ] || return 1
+		(
+			umask 077
+			printf '%s' "$value" > "$file_path"
+		) || return 1
+	fi
+
+	chmod 600 "$file_path" 2>/dev/null || true
+	eval "$var_name=\"\$value\""
+}
+
+ensure_runtime_layout() {
+	mkdir -p \
+		"$data_dir" \
+		"$data_dir/frp" \
+		"$data_dir/frp/instances" \
+		"$data_dir/cloudflared" \
+		"$data_dir/updates" \
+		"$gateway_config_dir"
+}
+
+validate_port() {
+	local name="$1"
+	local value="$2"
+
+	case "$value" in
+		''|*[!0-9]*)
+			echo "$NAME: invalid $name port: $value" >&2
+			return 1
+			;;
+	esac
+
+	[ "$value" -ge 1 ] && [ "$value" -le 65535 ] || {
+		echo "$NAME: invalid $name port: $value" >&2
+		return 1
+	}
+}
+
+validate_ports() {
+	validate_port admin_view "$admin_view_port" &&
+	validate_port backend "$backend_port" &&
+	validate_port auth "$auth_port" &&
+	validate_port go_backend "$go_backend_port" &&
+	validate_port go_reproxy "$go_reproxy_port" &&
+	validate_port redis "$redis_port" &&
+	validate_unique_service_ports
+}
+
+check_unique_service_port() {
+	local name="$1"
+	local value="$2"
+
+	case " $FN_KNOCK_SEEN_SERVICE_PORTS " in
+		*" $value "*)
+			echo "$NAME: duplicate service port for $name: $value" >&2
+			return 1
+			;;
+	esac
+
+	FN_KNOCK_SEEN_SERVICE_PORTS="$FN_KNOCK_SEEN_SERVICE_PORTS $value"
+}
+
+validate_unique_service_ports() {
+	FN_KNOCK_SEEN_SERVICE_PORTS=""
+
+	check_unique_service_port admin_view "$admin_view_port" &&
+	check_unique_service_port backend "$backend_port" &&
+	check_unique_service_port auth "$auth_port" &&
+	check_unique_service_port go_backend "$go_backend_port" &&
+	check_unique_service_port go_reproxy "$go_reproxy_port"
+}
+
+append_common_env() {
+	procd_set_param env \
+		"PATH=/usr/sbin:/usr/bin:/sbin:/bin" \
+		"TZ=${TZ:-Asia/Shanghai}" \
+		"NODE_ENV=production" \
+		"FN_KNOCK_RUNTIME_TARGET=openwrt" \
+		"FN_KNOCK_DATA_DIR=$data_dir" \
+		"FN_KNOCK_GATEWAY_CONFIG_DIR=$gateway_config_dir" \
+		"ACME_BUNDLE_ZIP=$app_home/server/server-admin/resources/acmesh.zip" \
+		"ADMIN_STATIC_PATH=$app_home/ui/www" \
+		"AUTH_STATIC_PATH=$app_home/server-auth-view/dist" \
+		"ADMIN_VIEW_HOST=$admin_view_host" \
+		"ADMIN_VIEW_PORT=$admin_view_port" \
+		"BACKEND_HOST=$backend_host" \
+		"BACKEND_PORT=$backend_port" \
+		"AUTH_HOST=$auth_host" \
+		"AUTH_PORT=$auth_port" \
+		"GO_BACKEND_PORT=$go_backend_port" \
+		"GO_REPROXY_PORT=$go_reproxy_port" \
+		"GO_BACKEND_BASE_URL=http://127.0.0.1:$go_backend_port" \
+		"REDIS_HOST=$redis_host" \
+		"REDIS_PORT=$redis_port" \
+		"ALTCHA_HMAC_KEY=$ALTCHA_HMAC_KEY" \
+		"HMAC_SECRET=$HMAC_SECRET" \
+		"ADMIN_PROXY_SECRET=$ADMIN_PROXY_SECRET"
+	[ -n "$redis_password" ] && procd_append_param env "REDIS_PASSWORD=$redis_password"
+	[ -n "$root_share_dir" ] && procd_append_param env "FN_KNOCK_ROOT_SHARE_DIR=$root_share_dir"
+}
+
+start_redis_if_present() {
+	[ -x /etc/init.d/redis ] || return 0
+	/etc/init.d/redis start >/dev/null 2>&1 || true
+}
+
+start_config_watcher() {
+	procd_open_instance config_watch
+	procd_set_param command /bin/sh -c '
+CONFIG_NAME="fn-knock"
+CONFIG_FILE="/etc/config/fn-knock"
+
+calc_hash() {
+	[ -f "$CONFIG_FILE" ] && md5sum "$CONFIG_FILE" | awk "{ print \$1 }"
+}
+
+wait_stable_hash() {
+	local first
+	local second
+
+	first="$(calc_hash)"
+	sleep 3
+	second="$(calc_hash)"
+
+	while [ "$first" != "$second" ]; do
+		first="$second"
+		sleep 3
+		second="$(calc_hash)"
+	done
+
+	printf "%s" "$second"
+}
+
+last_hash="$(calc_hash)"
+[ -n "$last_hash" ] || last_hash="missing"
+
+while sleep 2; do
+	current_hash="$(calc_hash)"
+	[ -n "$current_hash" ] || current_hash="missing"
+
+	if [ "$current_hash" != "$last_hash" ]; then
+		last_hash="$(wait_stable_hash)"
+		[ -n "$last_hash" ] || last_hash="missing"
+		admin_port="$(uci -q get "$CONFIG_NAME".main.admin_view_port 2>/dev/null || printf unknown)"
+		proxy_port="$(uci -q get "$CONFIG_NAME".main.go_reproxy_port 2>/dev/null || printf unknown)"
+		logger -t fn-knock "detected committed UCI config change; reloading service admin_port=$admin_port proxy_port=$proxy_port"
+		ubus call service event "{ \"type\": \"config.change\", \"data\": { \"package\": \"fn-knock\" } }" >/dev/null 2>&1 || \
+			/etc/init.d/fn-knock reload >/dev/null 2>&1
+	fi
+done
+'
+	procd_set_param respawn
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	procd_close_instance
+}
+
+start_service() {
+	load_config
+	[ "$enabled" = "1" ] || return 0
+
+	validate_ports || return 1
+	ensure_runtime_layout || return 1
+	start_redis_if_present
+
+	load_or_create_secret ALTCHA_HMAC_KEY "$data_dir/altcha_hmac_key" || return 1
+	load_or_create_secret HMAC_SECRET "$data_dir/hmac_secret" || return 1
+	load_or_create_secret ADMIN_PROXY_SECRET "$data_dir/admin_proxy_secret" || return 1
+
+	local gateway_bin="$app_home/bin/go-reauth-proxy"
+	local backend_entry="$app_home/server/server-admin/index.js"
+
+	[ -x "$node_bin" ] || {
+		echo "$NAME: node runtime is not executable: $node_bin" >&2
+		return 1
+	}
+	[ -x "$gateway_bin" ] || {
+		echo "$NAME: gateway binary is not executable: $gateway_bin" >&2
+		return 1
+	}
+	[ -f "$backend_entry" ] || {
+		echo "$NAME: backend entry is missing: $backend_entry" >&2
+		return 1
+	}
+
+	procd_open_instance gateway
+	procd_set_param command "$gateway_bin" \
+		-c "$gateway_config_dir" \
+		-admin-port "$go_backend_port" \
+		-proxy-port "$go_reproxy_port"
+	procd_set_param env \
+		"BACKEND_PORT=$backend_port" \
+		"PATH=/usr/sbin:/usr/bin:/sbin:/bin"
+	procd_set_param respawn
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	procd_close_instance
+
+	procd_open_instance backend
+	procd_set_param command "$node_bin" "$backend_entry"
+	append_common_env
+	procd_set_param limits nofile="65535 65535"
+	procd_set_param respawn
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	procd_close_instance
+
+	start_config_watcher
+}
+
+stop_service() {
+	load_config
+}
+
+reload_service() {
+	stop
+	sleep 1
+	start
+}
+
+service_triggers() {
+	procd_add_reload_trigger "$CONFIG_NAME"
+}

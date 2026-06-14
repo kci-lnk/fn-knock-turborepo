@@ -1,0 +1,68 @@
+#!/bin/sh
+set -e
+
+[ -n "$IPKG_INSTROOT" ] && exit 0
+
+reload_luci() {
+	rm -f /tmp/luci-indexcache /tmp/luci-modulecache/* 2>/dev/null || true
+	[ -x /etc/init.d/rpcd ] && /etc/init.d/rpcd restart >/dev/null 2>&1 || true
+	[ -x /etc/init.d/uhttpd ] && /etc/init.d/uhttpd restart >/dev/null 2>&1 || true
+}
+
+ensure_opkg_status_description() {
+	local status_file="/usr/lib/opkg/status"
+	local tmp_file
+
+	[ -f "$status_file" ] || return 0
+	grep -q '^Package: fn-knock$' "$status_file" 2>/dev/null || return 0
+
+	tmp_file="$(mktemp /tmp/fn-knock-status.XXXXXX)" || return 0
+	awk '
+		BEGIN {
+			RS = ""
+			ORS = "\n\n"
+		}
+		/^Package: fn-knock(\n|$)/ && $0 !~ /\nDescription:/ {
+			print $0 "\n" \
+				"Maintainer: kci-lnk <https://github.com/kci-lnk>\n" \
+				"Section: net\n" \
+				"Priority: optional\n" \
+				"Description: fn-knock secure reverse proxy and knock authentication gateway\n" \
+				" fn-knock packages the admin UI, auth UI, Node backend, Go gateway, and LuCI launcher for OpenWrt."
+			next
+		}
+		{ print }
+	' "$status_file" > "$tmp_file" && cat "$tmp_file" > "$status_file"
+	rm -f "$tmp_file" 2>/dev/null || true
+}
+
+schedule_opkg_status_description() {
+	(
+		sleep 2
+		ensure_opkg_status_description
+	) >/dev/null 2>&1 &
+}
+
+if command -v uci >/dev/null 2>&1; then
+	if [ "$(uci -q get fn-knock.main.admin_view_port)" = "7998" ]; then
+		uci set fn-knock.main.admin_view_port="7991" >/dev/null 2>&1 || true
+		uci commit fn-knock >/dev/null 2>&1 || true
+	fi
+fi
+
+ensure_opkg_status_description
+schedule_opkg_status_description
+
+if [ -x /etc/init.d/redis ]; then
+	/etc/init.d/redis enable >/dev/null 2>&1 || true
+	/etc/init.d/redis start >/dev/null 2>&1 || true
+fi
+
+if [ -x /etc/init.d/fn-knock ]; then
+	/etc/init.d/fn-knock enable >/dev/null 2>&1 || true
+	/etc/init.d/fn-knock restart >/dev/null 2>&1 || true
+fi
+
+reload_luci
+
+exit 0

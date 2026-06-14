@@ -106,8 +106,12 @@ const autoHttpsRuntimeError = computed(() => {
   if (runtime?.status !== "error") return "";
   return runtime.last_error || t("admin.featuresSettings.autoHttpsListenFailed");
 });
-const showAutoHttpsEntry = computed(() => !configStore.isDockerDeployment);
-const showSSHSecurityEntry = computed(() => !configStore.isDockerDeployment);
+const showAutoHttpsEntry = computed(
+  () => !configStore.isDockerDeployment && !configStore.isOpenWrtDeployment,
+);
+const showSSHSecurityEntry = computed(
+  () => !configStore.isDockerDeployment && !configStore.isOpenWrtDeployment,
+);
 const isSSHSecurityAvailable = computed(
   () =>
     configStore.canManageHostFirewall && !sshSecurityUnavailableReason.value,

@@ -19,7 +19,10 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { ConfigAPI } from "../../lib/api";
-import { dockerAdminPanelResetCommands } from "../../lib/docker-admin-panel-reset";
+import {
+  dockerAdminPanelResetCommands,
+  openWrtAdminPanelResetCommands,
+} from "../../lib/docker-admin-panel-reset";
 import { useConfigStore } from "../../store/config";
 import { useDockerAdminAuthStore } from "../../store/dockerAdminAuth";
 
@@ -30,9 +33,19 @@ const { t } = useI18n();
 const newPassword = ref("");
 const confirmPassword = ref("");
 
-const resetCommands = dockerAdminPanelResetCommands;
+const isOpenWrtMode = computed(() => configStore.isOpenWrtDeployment);
+const resetSshCommand = computed(() =>
+  isOpenWrtMode.value
+    ? openWrtAdminPanelResetCommands.ssh
+    : dockerAdminPanelResetCommands.ssh,
+);
+const openWrtResetCommand = openWrtAdminPanelResetCommands.reset;
+const dockerComposeResetCommand = dockerAdminPanelResetCommands.compose;
+const dockerExecResetCommand = dockerAdminPanelResetCommands.dockerExec;
 
-const isDockerMode = computed(() => configStore.isDockerDeployment);
+const isPanelAuthMode = computed(
+  () => configStore.isProtectedAdminPanelDeployment,
+);
 const isFormFilled = computed(
   () =>
     newPassword.value.trim().length > 0 &&
@@ -83,7 +96,7 @@ const savePassword = async () => {
 </script>
 
 <template>
-  <div v-if="isDockerMode" class="space-y-4">
+  <div v-if="isPanelAuthMode" class="space-y-4">
     <Card>
       <CardHeader>
         <CardTitle>{{ t("admin.panelSettings.title") }}</CardTitle>
@@ -166,26 +179,37 @@ const savePassword = async () => {
           </p>
           <pre
             class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
-          ><code>{{ resetCommands.ssh }}</code></pre>
+          ><code>{{ resetSshCommand }}</code></pre>
         </div>
 
-        <div class="space-y-2">
+        <div v-if="isOpenWrtMode" class="space-y-2">
           <p class="text-sm font-medium">
-            {{ t("admin.panelSettings.stepCompose") }}
+            {{ t("admin.panelSettings.stepOpenWrtReset") }}
           </p>
           <pre
             class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
-          ><code>{{ resetCommands.compose }}</code></pre>
+          ><code>{{ openWrtResetCommand }}</code></pre>
         </div>
 
-        <div class="space-y-2">
-          <p class="text-sm font-medium">
-            {{ t("admin.panelSettings.stepDockerExec") }}
-          </p>
-          <pre
-            class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
-          ><code>{{ resetCommands.dockerExec }}</code></pre>
-        </div>
+        <template v-else>
+          <div class="space-y-2">
+            <p class="text-sm font-medium">
+              {{ t("admin.panelSettings.stepCompose") }}
+            </p>
+            <pre
+              class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
+            ><code>{{ dockerComposeResetCommand }}</code></pre>
+          </div>
+
+          <div class="space-y-2">
+            <p class="text-sm font-medium">
+              {{ t("admin.panelSettings.stepDockerExec") }}
+            </p>
+            <pre
+              class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
+            ><code>{{ dockerExecResetCommand }}</code></pre>
+          </div>
+        </template>
       </CardContent>
     </Card>
   </div>

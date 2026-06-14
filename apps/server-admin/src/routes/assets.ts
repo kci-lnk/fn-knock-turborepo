@@ -6,7 +6,10 @@ import { acmePlugin } from "../plugins/acme";
 import { ConfigManager } from "../lib/redis";
 import { DOCKER_ADMIN_DISCOVER_IP_HEADER_NAME } from "../lib/docker-admin-panel";
 import { routeDoc, withRouteDoc } from "../lib/openapi";
-import { getRuntimeProfile } from "../lib/runtime-profile";
+import {
+  getRuntimeProfile,
+  isAdminPanelProtectedRuntime,
+} from "../lib/runtime-profile";
 import {
   DISCOVER_COMMON_PORTS,
   SCAN_DISCOVERY_LIMITS,
@@ -28,6 +31,10 @@ import {
 import { createRequestTranslator } from "../lib/i18n";
 
 const runtimeProfile = getRuntimeProfile();
+const adminPanelProtectedRuntime = isAdminPanelProtectedRuntime(runtimeProfile);
+const defaultAdminViewPort = "7991";
+const defaultBackendPort =
+  runtimeProfile.deployment_target === "openwrt" ? "17998" : "7998";
 
 const normalizeHostLike = (value: string): string => {
   const trimmed = value.trim();
@@ -179,14 +186,18 @@ const collectExcludedPorts = (
   config: Awaited<ReturnType<ConfigManager["getConfig"]>>,
 ): number[] => {
   const envPorts = [
-    parseInt(process.env.ADMIN_VIEW_PORT || "7991", 10),
-    parseInt(process.env.BACKEND_PORT || "7998", 10),
+    parseInt(
+      process.env.ADMIN_VIEW_PORT ||
+        (adminPanelProtectedRuntime ? defaultAdminViewPort : ""),
+      10,
+    ),
+    parseInt(process.env.BACKEND_PORT || defaultBackendPort, 10),
     parseInt(process.env.AUTH_PORT || "7997", 10),
     parseInt(process.env.GO_BACKEND_PORT || "7996", 10),
     parseInt(process.env.GO_REPROXY_PORT || "7999", 10),
     7995,
     8000,
-  ];
+  ].filter((port) => Number.isFinite(port) && port > 0);
 
   const mappingPorts: number[] = [];
   for (const mapping of config.proxy_mappings || []) {

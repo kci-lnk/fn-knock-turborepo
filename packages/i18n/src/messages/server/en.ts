@@ -8,8 +8,7 @@ export const enServer = {
   dockerAdminDeniedDescription:
     "The Docker admin panel only allows access from the host, LAN, VPN, or configured trusted reverse proxies by default. Direct public access is denied.",
   dockerAdminCurrentIp: "Detected source IP: {ip}",
-  dockerAdminProxyRequired:
-    "In Docker mode, access admin APIs through the 7991 admin entry.",
+  dockerAdminProxyRequired: "Access admin APIs through the {port} admin entry.",
   dockerAdminLoginRequired: "Sign in to the Docker admin panel first",
   captchaUnavailable: "Captcha service is temporarily unavailable",
   tooManyAttempts: "Too many attempts. Please try again later.",
@@ -51,11 +50,14 @@ export const enServer = {
       self_update_available: {
         docker:
           "Docker deployments do not support in-app FPK updates. Upgrade by pulling a new image",
+        openwrt:
+          "OpenWrt deployments do not support in-app FPK updates. Upgrade by installing a matching IPK with opkg",
         deployment:
           "The current deployment type does not support in-app updates",
       },
       terminal_available: {
         docker: "Docker deployments do not support Web terminal",
+        openwrt: "OpenWrt deployments do not support Web terminal yet",
         platform: "The current runtime does not support Web terminal",
       },
       shared_root_available: {
@@ -249,6 +251,8 @@ export const enServer = {
     },
     autoHttps: {
       dockerUnsupported: "Automatic HTTPS is not supported in the Docker build",
+      openWrtUnsupported:
+        "Automatic HTTPS is not supported in the OpenWrt build",
       startFailed: "Failed to start automatic HTTPS",
     },
     hostMappings: {
@@ -1052,11 +1056,11 @@ export const enServer = {
     newPasswordSameAsCurrent:
       "New password cannot be the same as the current password",
     resetHelp:
-      "fn-knock Docker admin panel password reset tool\n\nUsage:\n  node /opt/fn-knock/server/server-admin/reset-docker-admin-panel.js\n\nActions:\n  - Clear the admin panel password\n  - Clear all admin panel login sessions\n  - Clear login failure backoff state\n\nAfter completion, the next visit to the Docker admin entry will enter the first-time password setup flow again.",
-    resetCleared: "[fn-knock] Docker admin panel password state cleared",
+      "fn-knock admin panel password reset tool\n\nUsage:\n  fn-knock-reset-panel-password\n\nActions:\n  - Clear the admin panel password\n  - Clear all admin panel login sessions\n  - Clear login failure backoff state\n\nAfter completion, the next visit to the admin entry will enter the first-time password setup flow again.",
+    resetCleared: "[fn-knock] Admin panel password state cleared",
     resetNextVisit:
-      "[fn-knock] Set the admin panel password again on the next visit to the Docker admin entry",
-    resetFailed: "[fn-knock] Failed to clear Docker admin panel password:",
+      "[fn-knock] Set the admin panel password again on the next visit to the admin entry",
+    resetFailed: "[fn-knock] Failed to clear admin panel password:",
   },
   passkeyRoutes: {
     notFoundWithRetry: "Passkey not found. Retry in {seconds} seconds.",
@@ -1069,6 +1073,9 @@ export const enServer = {
     commandCheckFailed: "Failed to check command: {command}",
     commandsMissingNoApt:
       "System commands are missing: {commands}. Debian apt-get was not found, so they cannot be installed automatically.",
+    commandsMissingNoPackageManager:
+      "System commands are missing: {commands}. opkg or Debian apt-get was not found, so they cannot be installed automatically.",
+    opkgUpdateFailed: "opkg update failed",
     aptUpdateFailed: "apt-get update failed",
     packageInstallFailed: "Failed to install {packages}",
     commandsStillMissingAfterInstall:
@@ -1739,6 +1746,8 @@ export const enServer = {
   sshSecurity: {
     logSourceUnavailable:
       "journalctl or /var/log/auth.log was not found on this system",
+    openWrtUnsupported:
+      "SSH security is not supported in the OpenWrt build yet",
     enableUnavailable: "SSH security cannot be enabled in this environment",
     syncFirewallUnavailable:
       "SSH firewall cannot be synced in this environment",

@@ -1,5 +1,5 @@
 appname=fn-knock-docker
-version=1.6.5
+version=1.7.5
 display_name=敲门knock
 desc="""敲门knock 是集DDNS、SSL证书申请、内网穿透、Web映射、安全网关的一款公网访问集合方案工具"""
 platform=x86

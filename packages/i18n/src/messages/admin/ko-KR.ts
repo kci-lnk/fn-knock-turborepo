@@ -16,7 +16,7 @@ export const koKRAdmin = {
     wafLogs: "WAF",
     webTerminal: "터미널",
     systemSettings: "시스템",
-    systemUpdate: "업데이트",
+    systemUpdate: "시스템 업데이트",
     versionInfo: "버전",
     about: "소개",
     openNavigation: "탐색 열기",
@@ -36,9 +36,13 @@ export const koKRAdmin = {
     networkSource: "출처: {source}",
     updateFound: "새 버전 {latest}이 감지되었습니다(현재 {current}).",
     importantUpdate: "중요한 업데이트. 빨리 설치해주세요.",
-    normalUpdate: "정보를 열어 세부정보를 확인하고 업데이트하세요.",
+    normalUpdate: "시스템 업데이트를 열어 세부정보를 확인하고 업데이트하세요.",
     dockerUpdateInfo:
-      "버전 세부 정보 및 Docker 업그레이드 지침을 보려면 정보를 여세요.",
+      "시스템 업데이트를 열어 버전 정보와 Docker 업그레이드 안내를 확인하세요.",
+    openWrtUpdateInfo:
+      "시스템 업데이트를 열어 버전 정보와 OpenWrt IPK 업그레이드 안내를 확인하세요.",
+    genericUpdateInfo:
+      "시스템 업데이트를 열어 버전 정보와 수동 업그레이드 안내를 확인하세요.",
   },
   route: {
     navigationFailed: "탐색 실패",
@@ -73,23 +77,45 @@ export const koKRAdmin = {
     title: "버전 및 업데이트",
     subtitleSelfUpdate: "Fn-Knock 버전 및 업그레이드 관리",
     subtitleDocker: "버전 세부정보 및 Docker 업그레이드 지침 보기",
+    subtitleOpenWrt: "버전 세부정보 및 OpenWrt IPK 업그레이드 지침 보기",
+    subtitleGeneric: "버전 세부정보 및 수동 업그레이드 지침 보기",
     openGithub: "GitHub 프로젝트 열기",
     selfUpdateUnsupportedTitle: "이 배포는 인앱 업데이트를 지원하지 않습니다.",
     selfUpdateUnsupportedDescription:
       "Docker 배포의 경우 새 이미지를 가져오고 업그레이드할 컨테이너를 다시 만듭니다. 이 페이지에서는 여전히 최신 버전을 확인하고 릴리스 노트를 표시할 수 있습니다.",
+    selfUpdateUnsupportedDescriptionDocker:
+      "Docker 배포의 경우 새 이미지를 가져오고 업그레이드할 컨테이너를 다시 만듭니다. 이 페이지에서는 여전히 최신 버전을 확인하고 릴리스 노트를 표시할 수 있습니다.",
+    selfUpdateUnsupportedDescriptionOpenWrt:
+      "OpenWrt 배포는 장치 아키텍처에 맞는 fn-knock IPK를 다운로드하여 LuCI Software 업로드로 설치하거나 /tmp에 업로드한 뒤 opkg install --force-reinstall /tmp/fn-knock_*.ipk를 실행해 업그레이드하세요. 업그레이드는 /etc/config/fn-knock 및 /var/lib/fn-knock를 보존합니다.",
+    selfUpdateUnsupportedDescriptionGeneric:
+      "현재 배포에 맞는 설치 방식으로 수동 업그레이드하세요. 이 페이지에서는 여전히 최신 버전과 릴리스 노트를 확인할 수 있습니다.",
     currentVersion: "현재 버전",
     latestVersion: "최신 버전",
     newVersionSelfUpdate: "새 버전이 발견되었습니다. 곧 업데이트하세요.",
     newVersionDocker:
       "새 버전이 발견되었습니다. 이미지를 업데이트하여 업그레이드하세요.",
+    newVersionOpenWrt:
+      "새 버전이 발견되었습니다. 새 IPK를 설치하여 업그레이드하세요.",
+    newVersionGeneric:
+      "새 버전이 발견되었습니다. 현재 배포 방식에 맞게 수동 업그레이드하세요.",
     alreadyLatest: "이미 최신 버전을 사용 중입니다.",
     updateDisabled: "업데이트가 아직 활성화되지 않았습니다.",
     versionCheckOnly: "이 배포에서는 버전 확인만 제공합니다.",
     newVersionSelfUpdateHint: "한 단계로 최신 기능과 수정 사항을 받으세요.",
     newVersionDockerHint:
       "새 이미지를 가져와 업그레이드할 컨테이너를 다시 만듭니다.",
+    newVersionOpenWrtHint:
+      "아키텍처에 맞는 IPK를 다운로드하여 LuCI Software 업로드로 설치하거나 opkg install --force-reinstall을 사용하세요.",
+    newVersionGenericHint:
+      "맞는 설치 패키지를 다운로드하고 현재 배포 방식에 맞게 업그레이드하세요.",
     latestHint: "최신 버전을 사용해 주셔서 감사합니다.",
     versionCheckHint: "최신 릴리스와 릴리스 노트를 계속 확인할 수 있습니다.",
+    versionCheckHintDocker:
+      "최신 릴리스와 Docker 이미지 업그레이드 안내를 계속 확인할 수 있습니다.",
+    versionCheckHintOpenWrt:
+      "최신 릴리스와 OpenWrt IPK 업그레이드 안내를 계속 확인할 수 있습니다.",
+    versionCheckHintGeneric:
+      "최신 릴리스와 수동 업그레이드 안내를 계속 확인할 수 있습니다.",
     checkUpdate: "업데이트 확인",
     installRestart: "설치 및 다시 시작",
     checkFailed: "업데이트 확인 실패",
@@ -355,6 +381,12 @@ export const koKRAdmin = {
     dockerImportHintBefore:
       "Docker 배포에서는 다음 중 하나만 선택할 수 있습니다.",
     dockerImportHintAfter: "이 장치의 파일입니다.",
+    openWrtImportHintBefore:
+      "OpenWrt 배포에서는 다음 중 하나만 선택할 수 있습니다.",
+    openWrtImportHintAfter: "이 장치의 파일입니다.",
+    localImportHintBefore:
+      "이 환경에서는 다음 중 하나만 선택할 수 있습니다.",
+    localImportHintAfter: "이 장치의 파일입니다.",
     reselectSource: "소스를 다시 선택하세요",
     importFromFnos: "FNOS에서 가져오기",
     chooseFromLocal: "로컬 장치에서 선택",
@@ -1820,15 +1852,15 @@ export const koKRAdmin = {
   panelSettings: {
     updateFailed: "업데이트 실패",
     updatePasswordFailed:
-      "Docker 관리자 패널 비밀번호를 업데이트하지 못했습니다.",
+      "관리자 패널 비밀번호를 업데이트하지 못했습니다.",
     passwordRequired: "새 비밀번호를 먼저 입력하세요.",
     passwordMismatch: "두 비밀번호가 일치하지 않습니다.",
-    passwordUpdated: "Docker 관리자 패널 비밀번호가 업데이트되었습니다.",
+    passwordUpdated: "관리자 패널 비밀번호가 업데이트되었습니다.",
     passwordUpdatedDescription:
       "다음에 관리 콘솔을 열 때 새 비밀번호를 사용하세요.",
-    title: "Docker 관리자 패널 비밀번호",
+    title: "관리자 패널 비밀번호",
     description:
-      "관리 콘솔에 들어가기 전에 필요한 Docker 관리 패널 비밀번호를 변경하십시오.",
+      "관리 콘솔에 들어가기 전에 필요한 관리자 패널 비밀번호를 변경하십시오.",
     newPassword: "새 비밀번호",
     newPasswordPlaceholder: "새 관리자 패널 비밀번호를 입력하세요",
     confirmPassword: "새 비밀번호 확인",
@@ -1843,10 +1875,11 @@ export const koKRAdmin = {
       "더 이상 관리 콘솔에 들어갈 수 없는 경우 서버에서 다음 명령을 실행하여 비밀번호를 재설정하세요.",
     resetResultTitle: "결과 재설정",
     resetResultDescription:
-      "이 명령은 관리자 패널 비밀번호를 docker-admin-123456으로 재설정합니다. 로그인 후 즉시 변경하세요.",
+      "이 명령은 관리자 패널 비밀번호 상태를 지웁니다. 다음에 관리자 항목을 열 때 관리자 패널 비밀번호를 다시 설정하세요.",
     stepLoginHost: "1. 호스트에 로그인",
     stepCompose: "2. docker-compose.yml 디렉터리를 엽니다.",
     stepDockerExec: "3. 재설정 명령을 실행합니다.",
+    stepOpenWrtReset: "2. 재설정 명령을 실행합니다.",
   },
   sslSettings: {
     title: "SSL/HTTPS",
@@ -2819,19 +2852,21 @@ export const koKRAdmin = {
       retry: "상태를 다시 확인해보세요",
       resetTitle: "관리자 패널 비밀번호 재설정",
       resetDescription:
-        "Docker 호스트 또는 컨테이너 외부에서 재설정 명령을 실행하십시오. 이렇게 하면 패널 비밀번호, 패널 세션 및 로그인 백오프 상태만 지워집니다. 비즈니스 구성은 삭제되지 않습니다.",
+        "장치 또는 컨테이너 외부에서 재설정 명령을 실행하십시오. 이렇게 하면 패널 비밀번호, 패널 세션 및 로그인 백오프 상태만 지워집니다. 비즈니스 구성은 삭제되지 않습니다.",
       resetNotice:
-        "정리 후 Docker 관리자 항목을 다음에 방문하면 최초 비밀번호 설정 흐름으로 돌아갑니다.",
+        "정리 후 관리자 항목을 다음에 방문하면 최초 비밀번호 설정 흐름으로 돌아갑니다.",
       resetStepSsh: "1. Docker 호스트에 로그인합니다.",
+      resetStepOpenWrtSsh: "1. OpenWrt 장치에 로그인합니다.",
       resetStepCompose: "2. 권장 사항: Compose 배포 디렉터리에서 실행하세요.",
       resetStepDockerExec:
         "3. 컨테이너가 Docker에서 실행되고 있다는 것만 알고 있는 경우 이를 직접 실행하세요.",
+      resetStepOpenWrtCommand: "2. 재설정 명령을 실행합니다.",
       acknowledge: "알았어요",
       setupTitle: "관리자 패널 비밀번호 설정",
       loginTitle: "관리자 패널에 로그인",
       setupDescription: "처음 입력하기 전에 관리자 비밀번호를 설정하세요.",
       loginDescription:
-        "Docker 관리 콘솔로 계속 진행하려면 관리자 비밀번호를 입력하세요.",
+        "관리 콘솔로 계속 진행하려면 관리자 비밀번호를 입력하세요.",
       setupHelper: "문자와 숫자를 모두 포함하여 6자 이상이어야 합니다.",
       setupAction: "설정하고 입력하세요",
       loginAction: "로그인하고 들어가세요",

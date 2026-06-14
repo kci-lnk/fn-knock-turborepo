@@ -5,7 +5,7 @@ import {
   type LocaleCode,
 } from "../../../../packages/i18n/src";
 
-export type DeploymentTarget = "fpk" | "docker" | "dev";
+export type DeploymentTarget = "fpk" | "docker" | "openwrt" | "dev";
 
 export interface RuntimeProfile {
   deployment_target: DeploymentTarget;
@@ -34,6 +34,7 @@ const normalizeDeploymentTarget = (
   const normalized = value?.trim().toLowerCase();
   if (normalized === "docker") return "docker";
   if (normalized === "fpk") return "fpk";
+  if (normalized === "openwrt") return "openwrt";
   if (normalized === "dev" || normalized === "development") return "dev";
   return null;
 };
@@ -123,10 +124,18 @@ export const getRuntimeCapabilities = (
     smart_connect_available: hostRuntimeAvailable,
     system_clock_sync_available: hostRuntimeAvailable,
     self_update_available: profile.deployment_target === "fpk",
-    terminal_available: profile.deployment_target !== "docker",
+    terminal_available:
+      profile.deployment_target !== "docker" &&
+      profile.deployment_target !== "openwrt",
     shared_root_available: hasSharedRoot(),
   };
 };
+
+export const isAdminPanelProtectedRuntime = (
+  profile: RuntimeProfile = getRuntimeProfile(),
+): boolean =>
+  profile.deployment_target === "docker" ||
+  profile.deployment_target === "openwrt";
 
 export const getCapabilityUnavailableMessage = (
   capability: RuntimeCapabilityKey,
@@ -216,6 +225,12 @@ export const getCapabilityUnavailableMessage = (
           "Docker deployments do not support in-app FPK updates. Upgrade by pulling a new image",
         );
       }
+      if (profile.deployment_target === "openwrt") {
+        return message(
+          "openwrt",
+          "OpenWrt deployments do not support in-app FPK updates. Upgrade by installing a matching IPK with opkg",
+        );
+      }
       return message(
         "deployment",
         "The current deployment type does not support in-app updates",
@@ -223,6 +238,12 @@ export const getCapabilityUnavailableMessage = (
     case "terminal_available":
       if (profile.is_docker) {
         return message("docker", "Docker deployments do not support Web terminal");
+      }
+      if (profile.deployment_target === "openwrt") {
+        return message(
+          "openwrt",
+          "OpenWrt deployments do not support Web terminal yet",
+        );
       }
       return message(
         "platform",

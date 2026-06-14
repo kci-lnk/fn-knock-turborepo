@@ -8,7 +8,7 @@ export const zhHantServer = {
   dockerAdminDeniedDescription:
     "Docker 管理面板預設只允許宿主機本地、局域網、VPN 或已配置的可信反向代理訪問。公網直連會被拒絕。",
   dockerAdminCurrentIp: "當前識別來源 IP：{ip}",
-  dockerAdminProxyRequired: "Docker 模式下請透過 7991 管理入口訪問後台接口",
+  dockerAdminProxyRequired: "請透過 {port} 管理入口訪問後台接口",
   dockerAdminLoginRequired: "請先登入 Docker 管理面板",
   captchaUnavailable: "驗證碼服務暫時不可用",
   tooManyAttempts: "嘗試過於頻繁，請稍後重試",
@@ -41,10 +41,13 @@ export const zhHantServer = {
       },
       self_update_available: {
         docker: "Docker 部署不支援應用內 FPK 更新，請透過拉取新鏡像升級",
+        openwrt:
+          "OpenWrt 部署不支援應用內 FPK 更新，請安裝匹配設備架構的 IPK 並透過 opkg 升級",
         deployment: "目前部署形態不支援應用內更新",
       },
       terminal_available: {
         docker: "Docker 部署不支援 Web 終端",
+        openwrt: "OpenWrt 部署暫不支援 Web 終端",
         platform: "目前運行環境不支援 Web 終端",
       },
       shared_root_available: {
@@ -206,6 +209,7 @@ export const zhHantServer = {
     },
     autoHttps: {
       dockerUnsupported: "Docker 版本不支援自動 HTTPS",
+      openWrtUnsupported: "OpenWrt 版本不支援自動 HTTPS",
       startFailed: "自動 HTTPS 啟動失敗",
     },
     hostMappings: {
@@ -915,11 +919,11 @@ export const zhHantServer = {
     passwordNotConfigured: "目前還沒有設定管理面板密碼",
     newPasswordSameAsCurrent: "新密碼不能與目前密碼相同",
     resetHelp:
-      "fn-knock Docker 管理面板密碼重置工具\n\n用法:\n  node /opt/fn-knock/server/server-admin/reset-docker-admin-panel.js\n\n作用:\n  - 清除管理面板密碼\n  - 清除所有管理面板登入會話\n  - 清除登入失敗退避狀態\n\n執行完成後，下次訪問 Docker 管理入口會重新進入「首次設定密碼」流程。",
-    resetCleared: "[fn-knock] Docker 管理面板密碼狀態已清理",
+      "fn-knock 管理面板密碼重置工具\n\n用法:\n  fn-knock-reset-panel-password\n\n作用:\n  - 清除管理面板密碼\n  - 清除所有管理面板登入會話\n  - 清除登入失敗退避狀態\n\n執行完成後，下次訪問管理入口會重新進入「首次設定密碼」流程。",
+    resetCleared: "[fn-knock] 管理面板密碼狀態已清理",
     resetNextVisit:
-      "[fn-knock] 下次訪問 Docker 管理入口時，需要重新設定管理面板密碼",
-    resetFailed: "[fn-knock] 清理 Docker 管理面板密碼失敗:",
+      "[fn-knock] 下次訪問管理入口時，需要重新設定管理面板密碼",
+    resetFailed: "[fn-knock] 清理管理面板密碼失敗:",
   },
   passkeyRoutes: {
     notFoundWithRetry: "Passkey not found，請在 {seconds} 秒後重試",
@@ -932,6 +936,9 @@ export const zhHantServer = {
     commandCheckFailed: "檢測 {command} 命令失敗",
     commandsMissingNoApt:
       "系統環境缺少 {commands} 命令，且未找到 Debian apt-get，無法自動安裝",
+    commandsMissingNoPackageManager:
+      "系統環境缺少 {commands} 命令，且未找到 opkg 或 Debian apt-get，無法自動安裝",
+    opkgUpdateFailed: "opkg update 執行失敗",
     aptUpdateFailed: "apt-get update 執行失敗",
     packageInstallFailed: "安裝 {packages} 失敗",
     commandsStillMissingAfterInstall:
@@ -1555,6 +1562,7 @@ export const zhHantServer = {
   },
   sshSecurity: {
     logSourceUnavailable: "目前系統未發現 journalctl 或 /var/log/auth.log",
+    openWrtUnsupported: "OpenWrt 版本暫不支援 SSH 安全",
     enableUnavailable: "目前環境不可啟用 SSH 安全",
     syncFirewallUnavailable: "目前環境不可同步 SSH 防火牆",
     clearFirewallUnavailable: "目前環境不可清空 SSH 防火牆",

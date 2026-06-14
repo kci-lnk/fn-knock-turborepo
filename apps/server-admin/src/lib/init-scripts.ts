@@ -13,7 +13,7 @@ remove_parent_jumps() {
     local parent="$2"
     local chain="$3"
 
-    if ! sudo "$cmd" -L "$parent" -n >/dev/null 2>&1; then
+    if ! "$cmd" -L "$parent" -n >/dev/null 2>&1; then
         return
     fi
 
@@ -23,12 +23,12 @@ remove_parent_jumps() {
 
         local rule_args="\${line#-A $parent }"
         # shellcheck disable=SC2086
-        if sudo "$cmd" -D "$parent" $rule_args 2>/dev/null; then
+        if "$cmd" -D "$parent" $rule_args 2>/dev/null; then
             echo "Removed jump rule from $parent -> $chain: $rule_args"
         fi
-    done < <(sudo "$cmd" -S "$parent" 2>/dev/null || true)
+    done < <("$cmd" -S "$parent" 2>/dev/null || true)
 
-    while sudo "$cmd" -D "$parent" -j "$chain" 2>/dev/null; do
+    while "$cmd" -D "$parent" -j "$chain" 2>/dev/null; do
         echo "Removed legacy jump rule from $parent -> $chain"
     done
 }
@@ -48,11 +48,11 @@ for cmd in "\${TABLES[@]}"; do
             remove_parent_jumps "\$cmd" "\$parent" "\$chain"
         done
 
-        if sudo "\$cmd" -L "\$chain" -n >/dev/null 2>&1; then
-            sudo "\$cmd" -F "\$chain"
+        if "\$cmd" -L "\$chain" -n >/dev/null 2>&1; then
+            "\$cmd" -F "\$chain"
             echo "Flushed all rules inside \$chain"
         
-            sudo "\$cmd" -X "\$chain"
+            "\$cmd" -X "\$chain"
             echo "Deleted custom chain \$chain"
         else
             echo "Chain \$chain does not exist in \$cmd (already clean)."

@@ -7,7 +7,7 @@ export const zhCNServer = {
   dockerAdminDeniedDescription:
     "Docker 管理面板默认只允许宿主机本地、局域网、VPN 或已配置的可信反向代理访问。公网直连会被拒绝。",
   dockerAdminCurrentIp: "当前识别来源 IP：{ip}",
-  dockerAdminProxyRequired: "Docker 模式下请通过 7991 管理入口访问后台接口",
+  dockerAdminProxyRequired: "请通过 {port} 管理入口访问后台接口",
   dockerAdminLoginRequired: "请先登录 Docker 管理面板",
   captchaUnavailable: "验证码服务暂时不可用",
   tooManyAttempts: "尝试过于频繁，请稍后重试",
@@ -40,10 +40,13 @@ export const zhCNServer = {
       },
       self_update_available: {
         docker: "Docker 部署不支持应用内 FPK 更新，请通过拉取新镜像升级",
+        openwrt:
+          "OpenWrt 部署不支持应用内 FPK 更新，请安装匹配设备架构的 IPK 并通过 opkg 升级",
         deployment: "当前部署形态不支持应用内更新",
       },
       terminal_available: {
         docker: "Docker 部署不支持 Web 终端",
+        openwrt: "OpenWrt 部署暂不支持 Web 终端",
         platform: "当前运行环境不支持 Web 终端",
       },
       shared_root_available: {
@@ -205,6 +208,7 @@ export const zhCNServer = {
     },
     autoHttps: {
       dockerUnsupported: "Docker 版本不支持自动 HTTPS",
+      openWrtUnsupported: "OpenWrt 版本不支持自动 HTTPS",
       startFailed: "自动 HTTPS 启动失败",
     },
     hostMappings: {
@@ -914,11 +918,11 @@ export const zhCNServer = {
     passwordNotConfigured: "当前还没有设置管理面板密码",
     newPasswordSameAsCurrent: "新密码不能与当前密码相同",
     resetHelp:
-      "fn-knock Docker 管理面板密码重置工具\n\n用法:\n  node /opt/fn-knock/server/server-admin/reset-docker-admin-panel.js\n\n作用:\n  - 清除管理面板密码\n  - 清除所有管理面板登录会话\n  - 清除登录失败退避状态\n\n执行完成后，下次访问 Docker 管理入口会重新进入“首次设置密码”流程。",
-    resetCleared: "[fn-knock] Docker 管理面板密码状态已清理",
+      "fn-knock 管理面板密码重置工具\n\n用法:\n  fn-knock-reset-panel-password\n\n作用:\n  - 清除管理面板密码\n  - 清除所有管理面板登录会话\n  - 清除登录失败退避状态\n\n执行完成后，下次访问管理入口会重新进入“首次设置密码”流程。",
+    resetCleared: "[fn-knock] 管理面板密码状态已清理",
     resetNextVisit:
-      "[fn-knock] 下次访问 Docker 管理入口时，需要重新设置管理面板密码",
-    resetFailed: "[fn-knock] 清理 Docker 管理面板密码失败:",
+      "[fn-knock] 下次访问管理入口时，需要重新设置管理面板密码",
+    resetFailed: "[fn-knock] 清理管理面板密码失败:",
   },
   passkeyRoutes: {
     notFoundWithRetry: "Passkey not found，请在 {seconds} 秒后重试",
@@ -931,6 +935,9 @@ export const zhCNServer = {
     commandCheckFailed: "检测 {command} 命令失败",
     commandsMissingNoApt:
       "系统环境缺少 {commands} 命令，且未找到 Debian apt-get，无法自动安装",
+    commandsMissingNoPackageManager:
+      "系统环境缺少 {commands} 命令，且未找到 opkg 或 Debian apt-get，无法自动安装",
+    opkgUpdateFailed: "opkg update 执行失败",
     aptUpdateFailed: "apt-get update 执行失败",
     packageInstallFailed: "安装 {packages} 失败",
     commandsStillMissingAfterInstall:
@@ -1554,6 +1561,7 @@ export const zhCNServer = {
   },
   sshSecurity: {
     logSourceUnavailable: "当前系统未发现 journalctl 或 /var/log/auth.log",
+    openWrtUnsupported: "OpenWrt 版本暂不支持 SSH 安全",
     enableUnavailable: "当前环境不可启用 SSH 安全",
     syncFirewallUnavailable: "当前环境不可同步 SSH 防火墙",
     clearFirewallUnavailable: "当前环境不可清空 SSH 防火墙",

@@ -53,7 +53,30 @@ const isImportDialogOpen = ref(false);
 const isBackupPickerOpen = ref(false);
 const backupFilesError = ref("");
 const hasLoadedBackupFiles = ref(false);
-const supportsSharedBackup = computed(() => !configStore.isDockerDeployment);
+const supportsSharedBackup = computed(
+  () =>
+    configStore.hasSharedRoot &&
+    !configStore.isDockerDeployment &&
+    !configStore.isOpenWrtDeployment,
+);
+const localImportHintBeforeKey = computed(() => {
+  if (configStore.isDockerDeployment) {
+    return "admin.maintenanceSettings.dockerImportHintBefore";
+  }
+  if (configStore.isOpenWrtDeployment) {
+    return "admin.maintenanceSettings.openWrtImportHintBefore";
+  }
+  return "admin.maintenanceSettings.localImportHintBefore";
+});
+const localImportHintAfterKey = computed(() => {
+  if (configStore.isDockerDeployment) {
+    return "admin.maintenanceSettings.dockerImportHintAfter";
+  }
+  if (configStore.isOpenWrtDeployment) {
+    return "admin.maintenanceSettings.openWrtImportHintAfter";
+  }
+  return "admin.maintenanceSettings.localImportHintAfter";
+});
 
 const defaultBackupFiles: BackupDirectoryFilesPayload = {
   shareName: "fn-knock / backup",
@@ -461,9 +484,9 @@ async function importBackup() {
                     {{ t("admin.maintenanceSettings.sharedImportHintAfter") }}
                   </template>
                   <template v-else>
-                    {{ t("admin.maintenanceSettings.dockerImportHintBefore") }}
+                    {{ t(localImportHintBeforeKey) }}
                     <code>{{ KNOCK_BACKUP_EXTENSION }}</code>
-                    {{ t("admin.maintenanceSettings.dockerImportHintAfter") }}
+                    {{ t(localImportHintAfterKey) }}
                   </template>
                 </p>
               </div>

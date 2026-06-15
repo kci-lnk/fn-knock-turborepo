@@ -1388,6 +1388,7 @@ export const adminRoutes = new Elysia({
           t.Literal("zh-Hant"),
           t.Literal("en"),
           t.Literal("ko-KR"),
+          t.Literal("ja-JP"),
         ]),
       }),
     }),

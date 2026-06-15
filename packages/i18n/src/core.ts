@@ -1,6 +1,12 @@
 export { LOCALE_DISPLAY_NAMES, LOCALE_OPTIONS } from "./locale-options";
 
-export const SUPPORTED_LOCALES = ["zh-CN", "zh-Hant", "en", "ko-KR"] as const;
+export const SUPPORTED_LOCALES = [
+  "zh-CN",
+  "zh-Hant",
+  "en",
+  "ko-KR",
+  "ja-JP",
+] as const;
 export type LocaleCode = (typeof SUPPORTED_LOCALES)[number];
 
 export interface LocaleConfig {
@@ -31,6 +37,8 @@ const localeAliases: Record<string, LocaleCode> = {
   "en-gb": "en",
   ko: "ko-KR",
   "ko-kr": "ko-KR",
+  ja: "ja-JP",
+  "ja-jp": "ja-JP",
 };
 
 export const normalizeLocale = (
@@ -44,6 +52,7 @@ export const normalizeLocale = (
   if (localeAliases[lower]) return localeAliases[lower];
   if (lower.startsWith("en-")) return "en";
   if (lower.startsWith("ko-")) return "ko-KR";
+  if (lower.startsWith("ja-")) return "ja-JP";
   if (lower.startsWith("zh-hant")) return "zh-Hant";
   if (lower.startsWith("zh-")) return "zh-CN";
   return null;

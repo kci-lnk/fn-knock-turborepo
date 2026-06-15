@@ -24,7 +24,7 @@ export interface AuthConfig {
   trust_forwarded_proto?: boolean;
 }
 
-export type LocaleCode = "zh-CN" | "zh-Hant" | "en" | "ko-KR";
+export type LocaleCode = "zh-CN" | "zh-Hant" | "en" | "ko-KR" | "ja-JP";
 
 export interface LocaleConfig {
   default_locale: LocaleCode;

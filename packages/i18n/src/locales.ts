@@ -1,5 +1,6 @@
 export {
   en,
+  jaJP,
   koKR,
   messages,
   zhCN,

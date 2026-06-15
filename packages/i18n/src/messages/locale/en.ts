@@ -4,6 +4,7 @@ export const enLocale = {
   zhHant: "中文正體",
   en: "English",
   koKR: "한국어",
+  jaJP: "日本語",
   saved: "Language updated",
   saveFailed: "Failed to save language",
   invalid: "Unsupported language",

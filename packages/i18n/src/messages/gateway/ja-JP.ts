@@ -1,0 +1,28 @@
+export const jaJPGateway = {
+  htmlLang: "ja-JP",
+  success: "成功",
+  goToSelect: "選択ページへ",
+  request: "リクエスト",
+  host: "ホスト",
+  path: "パス",
+  welcomeTitle: "サービス開始しました",
+  welcomeMessage: "ようこそGo Reauth Proxy",
+  routeNotFoundTitle: "一致するルートがありません",
+  routeNotFoundMessage:
+    "現在のリクエストは、設定されているルートに一致しません。",
+  selectTitle: "アクセスポータルを選択",
+  selectDescription:
+    "アクセスを続けるには、設定されたプロキシ エントランスを選択してください。",
+  routesEmpty: "現在ご利用可能な路線はありません。",
+  logout: "ログアウト",
+  logoutConfirmTitle: "ログアウト",
+  logoutConfirmMessage: "現在のログイン状態からログアウトしてもよろしいですか?",
+  cancel: "キャンセル",
+  confirm: "確認",
+  noRoutesConfigured: "ルートがまだ設定されていません",
+  go: "へ",
+  wafBlockedTitle: "リクエストが傍受されました",
+  wafBlockedMessage: "セキュリティ ポリシーによりアクセスが拒否されました。",
+  wafBlockedJson: "リクエストは WAF によって傍受されました",
+  traceId: "トレース ID",
+};

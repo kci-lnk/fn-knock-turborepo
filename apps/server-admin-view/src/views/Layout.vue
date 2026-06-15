@@ -377,6 +377,14 @@
                 </g>
               </svg>
               <svg
+                v-else-if="option.value === 'ja-JP'"
+                viewBox="0 0 32 24"
+                class="h-6 w-8"
+              >
+                <rect width="32" height="24" fill="#fff" />
+                <circle cx="16" cy="12" r="5.4" fill="#bc002d" />
+              </svg>
+              <svg
                 v-else-if="option.value === 'ko-KR'"
                 viewBox="-72 -48 144 96"
                 class="h-6 w-8"

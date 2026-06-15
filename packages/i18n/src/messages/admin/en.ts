@@ -678,7 +678,8 @@ export const enAdmin = {
     reverseModeBadge: "For tunneling",
     reverseModeDescription:
       "Use tunneling to forward requests when there is no public IP.",
-    pathMapping: "Path mapping",
+    pathMapping: "Path mode",
+    pathSubmodeDeprecatedBadge: "Not recommended",
     pathSubmodeDescription:
       "Continue using the current path mapping entry. Works with FRP or Cloudflared.",
     subdomainMapping: "Subdomain mapping",

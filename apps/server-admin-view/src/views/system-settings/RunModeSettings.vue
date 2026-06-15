@@ -117,23 +117,6 @@
               type="button"
               class="rounded-lg border px-3 py-3 text-left transition-colors"
               :class="
-                reverseProxySubmode === 'path'
-                  ? 'border-primary/70 bg-primary/5 shadow-sm'
-                  : 'border-border bg-background hover:border-primary/40 hover:bg-muted/30'
-              "
-              @click="reverseProxySubmode = 'path'"
-            >
-              <p class="text-sm font-medium text-foreground">
-                {{ t("admin.runModeSettings.pathMapping") }}
-              </p>
-              <p class="mt-1 text-xs leading-5 text-muted-foreground">
-                {{ t("admin.runModeSettings.pathSubmodeDescription") }}
-              </p>
-            </button>
-            <button
-              type="button"
-              class="rounded-lg border px-3 py-3 text-left transition-colors"
-              :class="
                 reverseProxySubmode === 'subdomain'
                   ? 'border-primary/70 bg-primary/5 shadow-sm'
                   : 'border-border bg-background hover:border-primary/40 hover:bg-muted/30'
@@ -145,6 +128,28 @@
               </p>
               <p class="mt-1 text-xs leading-5 text-muted-foreground">
                 {{ t("admin.runModeSettings.subdomainSubmodeDescription") }}
+              </p>
+            </button>
+            <button
+              type="button"
+              class="rounded-lg border px-3 py-3 text-left transition-colors"
+              :class="
+                reverseProxySubmode === 'path'
+                  ? 'border-primary/70 bg-primary/5 shadow-sm'
+                  : 'border-border bg-background hover:border-primary/40 hover:bg-muted/30'
+              "
+              @click="reverseProxySubmode = 'path'"
+            >
+              <p class="flex flex-wrap items-center gap-2 text-sm font-medium text-foreground">
+                <span>{{ t("admin.runModeSettings.pathMapping") }}</span>
+                <span
+                  class="inline-flex items-center rounded border border-border bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground"
+                >
+                  {{ t("admin.runModeSettings.pathSubmodeDeprecatedBadge") }}
+                </span>
+              </p>
+              <p class="mt-1 text-xs leading-5 text-muted-foreground">
+                {{ t("admin.runModeSettings.pathSubmodeDescription") }}
               </p>
             </button>
           </div>

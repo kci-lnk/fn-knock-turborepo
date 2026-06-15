@@ -631,7 +631,8 @@ export const zhHantAdmin = {
     reverseModeTitle: "反代模式",
     reverseModeBadge: "內網穿透專用",
     reverseModeDescription: "沒有公網 IP，通過內網穿透轉發請求。",
-    pathMapping: "路徑映射",
+    pathMapping: "路徑模式",
+    pathSubmodeDeprecatedBadge: "不再推薦",
     pathSubmodeDescription:
       "繼續使用當前路徑映射入口，可搭配 FRP 或 Cloudflared。",
     subdomainMapping: "子域映射",

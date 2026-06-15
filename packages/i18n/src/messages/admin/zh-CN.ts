@@ -625,7 +625,8 @@ export const zhCNAdmin = {
     reverseModeTitle: "反代模式",
     reverseModeBadge: "内网穿透专用",
     reverseModeDescription: "没有公网 IP，通过内网穿透转发请求。",
-    pathMapping: "路径映射",
+    pathMapping: "路径模式",
+    pathSubmodeDeprecatedBadge: "不再推荐",
     pathSubmodeDescription:
       "继续使用当前路径映射入口，可搭配 FRP 或 Cloudflared。",
     subdomainMapping: "子域映射",

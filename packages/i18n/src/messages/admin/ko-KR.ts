@@ -677,7 +677,8 @@ export const koKRAdmin = {
     reverseModeBadge: "터널링용",
     reverseModeDescription:
       "공용 IP가 없을 때 터널링을 사용하여 요청을 전달합니다.",
-    pathMapping: "경로 매핑",
+    pathMapping: "경로 모드",
+    pathSubmodeDeprecatedBadge: "권장하지 않음",
     pathSubmodeDescription:
       "현재 경로 매핑 항목을 계속 사용합니다. FRP 또는 Cloudflared와 함께 작동합니다.",
     subdomainMapping: "하위 도메인 매핑",

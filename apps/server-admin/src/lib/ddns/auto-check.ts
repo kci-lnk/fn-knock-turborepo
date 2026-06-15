@@ -5,6 +5,9 @@ import {
   DDNS_INTERFACE_IPV4_INDEX_FIELD,
   DDNS_INTERFACE_IPV6_INDEX_FIELD,
   DDNS_IP_SOURCE_FIELD,
+  DDNS_SOURCE_DOMAIN_FIELD,
+  DDNS_STATIC_IPV4_FIELD,
+  DDNS_STATIC_IPV6_FIELD,
   getDDNSTargetIPUnavailableMessage,
   resolveDDNSTargetIPs,
 } from "./ip-source";
@@ -173,6 +176,9 @@ const runAutomaticDDNSCheckWithLocale = async (
           networkInterface: target.config[DDNS_NETWORK_INTERFACE_FIELD],
           interfaceIpv4Index: target.config[DDNS_INTERFACE_IPV4_INDEX_FIELD],
           interfaceIpv6Index: target.config[DDNS_INTERFACE_IPV6_INDEX_FIELD],
+          staticIpv4: target.config[DDNS_STATIC_IPV4_FIELD],
+          staticIpv6: target.config[DDNS_STATIC_IPV6_FIELD],
+          sourceDomain: target.config[DDNS_SOURCE_DOMAIN_FIELD],
         });
 
         for (const warning of ips.warnings) {

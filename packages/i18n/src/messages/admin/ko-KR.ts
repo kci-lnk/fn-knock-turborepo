@@ -384,8 +384,7 @@ export const koKRAdmin = {
     openWrtImportHintBefore:
       "OpenWrt 배포에서는 다음 중 하나만 선택할 수 있습니다.",
     openWrtImportHintAfter: "이 장치의 파일입니다.",
-    localImportHintBefore:
-      "이 환경에서는 다음 중 하나만 선택할 수 있습니다.",
+    localImportHintBefore: "이 환경에서는 다음 중 하나만 선택할 수 있습니다.",
     localImportHintAfter: "이 장치의 파일입니다.",
     reselectSource: "소스를 다시 선택하세요",
     importFromFnos: "FNOS에서 가져오기",
@@ -1852,8 +1851,7 @@ export const koKRAdmin = {
   },
   panelSettings: {
     updateFailed: "업데이트 실패",
-    updatePasswordFailed:
-      "관리자 패널 비밀번호를 업데이트하지 못했습니다.",
+    updatePasswordFailed: "관리자 패널 비밀번호를 업데이트하지 못했습니다.",
     passwordRequired: "새 비밀번호를 먼저 입력하세요.",
     passwordMismatch: "두 비밀번호가 일치하지 않습니다.",
     passwordUpdated: "관리자 패널 비밀번호가 업데이트되었습니다.",
@@ -2939,10 +2937,17 @@ export const koKRAdmin = {
       "테스트 업데이트 및 자동 업데이트는 여기에서 선택한 인터페이스를 선호합니다.",
     autoSelect: "자동 선택",
     ipSourceHint:
-      "공용 네트워크에서 현재 아웃바운드 주소를 감지하거나 선택한 인터페이스의 주소를 직접 사용합니다.",
+      "현재 아웃바운드 주소를 감지하거나, 선택한 인터페이스를 읽거나, 고정 IP를 입력하거나, 다른 도메인을 확인합니다.",
     interfaceOnlyFiltered:
       "인터페이스를 직접 사용하는 경우 DDNS 지원 주소만 표시되고 명백한 개인 주소는 필터링됩니다.",
     updateScopeHint: "IPv4, IPv6 또는 둘 다 업데이트",
+    staticIpv4Label: "고정 IPv4 주소",
+    staticIpv4Hint: "이 IPv4 주소가 DDNS A 레코드에 기록됩니다.",
+    staticIpv6Label: "고정 IPv6 주소",
+    staticIpv6Hint: "이 IPv6 주소가 DDNS AAAA 레코드에 기록됩니다.",
+    sourceDomainLabel: "원본 도메인",
+    sourceDomainHint:
+      "이 도메인을 IPv4/IPv6으로 확인한 뒤 현재 업데이트 범위에 따라 DDNS에 기록합니다.",
     interfaceAddressHelpTitle: "인터페이스 주소 참고",
     interfaceAddressHelp:
       "아래 주소 목록에는 명백한 개인 주소를 피하기 위해 필터링된 후보만 표시됩니다.",
@@ -3011,6 +3016,8 @@ export const koKRAdmin = {
     ipSource: {
       public: "공개 탐지",
       interface: "인터페이스를 직접 사용",
+      static: "고정 IP",
+      domain: "도메인 확인",
     },
     unavailableInterfaceLabel: "{name}(현재 구성, 사용할 수 없음)",
     unavailableInterfaceSummary:
@@ -3069,6 +3076,15 @@ export const koKRAdmin = {
     ipv6Unavailable: "선택한 IPv6 주소는 더 이상 사용할 수 없습니다.",
     ipv6UnavailableDescription:
       "현재 인터페이스에서 IPv6 후보 순서가 변경되었습니다. 다시 선택하세요.",
+    enterStaticIpv4: "고정 IPv4 주소를 입력하세요.",
+    enterStaticIpv6: "고정 IPv6 주소를 입력하세요.",
+    enterStaticIp: "고정 IP 주소를 하나 이상 입력하세요.",
+    invalidStaticIpv4: "고정 IPv4 주소 형식이 올바르지 않습니다.",
+    invalidStaticIpv6: "고정 IPv6 주소 형식이 올바르지 않습니다.",
+    enterSourceDomain: "원본 도메인을 입력하세요.",
+    invalidSourceDomain: "원본 도메인 형식이 올바르지 않습니다.",
+    singleAddressProviderRequiresSingleStack:
+      "현재 제공업체는 한 번에 하나의 주소만 업데이트할 수 있습니다. IPv4 전용 또는 IPv6 전용을 선택하세요.",
     fillField: "{label} 채우기",
     targetCreated: "추가 도메인이 생성되었습니다.",
     targetUpdated: "추가 도메인이 업데이트되었습니다.",
@@ -3636,6 +3652,8 @@ export const koKRAdmin = {
       ipSource: {
         public: "공개 IP",
         interface: "인터페이스 주소",
+        static: "고정 IP",
+        domain: "도메인 확인",
       },
       checkReason: {
         cron: "예정된 점검",

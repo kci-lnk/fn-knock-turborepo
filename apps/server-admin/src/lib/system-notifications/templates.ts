@@ -169,6 +169,8 @@ const DDNS_UPDATE_SCOPE_LABEL_KEYS = {
 const DDNS_IP_SOURCE_LABEL_KEYS = {
   public: "ddnsIpSources.public",
   interface: "ddnsIpSources.interface",
+  static: "ddnsIpSources.static",
+  domain: "ddnsIpSources.domain",
 } as const;
 
 const UPDATE_CHECK_REASON_LABEL_KEYS = {

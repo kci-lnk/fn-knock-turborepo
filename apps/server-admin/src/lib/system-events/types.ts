@@ -122,7 +122,7 @@ export type SystemEventDDNSUpdateCompletedPayload = {
   success: boolean;
   message: string;
   update_scope: "dual_stack" | "ipv4_only" | "ipv6_only";
-  ip_source: "public" | "interface";
+  ip_source: "public" | "interface" | "static" | "domain";
   previous_ipv4?: string | null;
   previous_ipv6?: string | null;
   next_ipv4?: string | null;

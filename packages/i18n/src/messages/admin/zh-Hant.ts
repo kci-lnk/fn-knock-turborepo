@@ -2766,10 +2766,18 @@ export const zhHantAdmin = {
     providerHint: "選擇您要用於解析的 DNS 服務商",
     interfaceHint: "測試更新和自動更新都會優先從這裡選擇的網卡發起請求",
     autoSelect: "自動選擇",
-    ipSourceHint: "可從公網探測目前出口地址，或直接使用所選網卡上的地址",
+    ipSourceHint:
+      "可從公網探測、網卡讀取、靜態填寫，或解析另一個域名取得目標地址",
     interfaceOnlyFiltered:
       "從網卡直接取得時，只顯示看起來可直接用於 DDNS 的地址，並過濾明顯內網地址。",
     updateScopeHint: "更新 IPv4、IPv6，或同時更新兩者",
+    staticIpv4Label: "靜態 IPv4 地址",
+    staticIpv4Hint: "將把這個 IPv4 地址寫入 DDNS A 記錄",
+    staticIpv6Label: "靜態 IPv6 地址",
+    staticIpv6Hint: "將把這個 IPv6 地址寫入 DDNS AAAA 記錄",
+    sourceDomainLabel: "來源域名",
+    sourceDomainHint:
+      "自動解析該域名取得 IPv4/IPv6，然後按目前更新範圍寫入 DDNS",
     interfaceAddressHelpTitle: "網卡地址說明",
     interfaceAddressHelp:
       "下方地址列表只展示過濾後的候選項，用於避免誤選明顯內網地址",
@@ -2821,6 +2829,8 @@ export const zhHantAdmin = {
     ipSource: {
       public: "從公網取得",
       interface: "從網卡直接取得",
+      static: "靜態 IP",
+      domain: "解析域名",
     },
     unavailableInterfaceLabel: "{name}（目前配置，暫不可用）",
     unavailableInterfaceSummary: "目前配置中的網卡已不可用或沒有可用地址",
@@ -2873,6 +2883,15 @@ export const zhHantAdmin = {
       "從網卡直接取得時，需要從過濾後的候選列表中選擇一個 IPv6 地址。",
     ipv6Unavailable: "所選 IPv6 地址已不可用",
     ipv6UnavailableDescription: "目前網卡的 IPv6 候選順序已變化，請重新選擇。",
+    enterStaticIpv4: "請填寫靜態 IPv4 地址",
+    enterStaticIpv6: "請填寫靜態 IPv6 地址",
+    enterStaticIp: "請至少填寫一個靜態 IP 地址",
+    invalidStaticIpv4: "靜態 IPv4 地址格式不正確",
+    invalidStaticIpv6: "靜態 IPv6 地址格式不正確",
+    enterSourceDomain: "請填寫來源域名",
+    invalidSourceDomain: "來源域名格式不正確",
+    singleAddressProviderRequiresSingleStack:
+      "目前提供商一次只能更新一個地址，請選擇僅更新 IPv4 或僅更新 IPv6。",
     fillField: "請填寫 {label}",
     targetCreated: "更多域已建立",
     targetUpdated: "更多域已更新",
@@ -3405,6 +3424,8 @@ export const zhHantAdmin = {
       ipSource: {
         public: "公網 IP",
         interface: "網卡地址",
+        static: "靜態 IP",
+        domain: "域名解析",
       },
       checkReason: {
         cron: "定時檢查",

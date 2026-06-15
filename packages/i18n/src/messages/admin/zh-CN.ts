@@ -2716,8 +2716,7 @@ export const zhCNAdmin = {
       resetTitle: "重设管理面板密码",
       resetDescription:
         "需要在设备或容器外执行重置命令。该操作只会清除面板密码、面板会话和登录退避状态，不会删除业务配置。",
-      resetNotice:
-        "清理完成后，下次访问管理入口会重新进入“首次设置密码”流程。",
+      resetNotice: "清理完成后，下次访问管理入口会重新进入“首次设置密码”流程。",
       resetStepSsh: "1. 先登录 Docker 主机",
       resetStepOpenWrtSsh: "1. 先登录 OpenWrt 设备",
       resetStepCompose: "2. 推荐：在 compose 部署目录执行",
@@ -2763,10 +2762,18 @@ export const zhCNAdmin = {
     selectProvider: "选择提供商",
     interfaceHint: "测试更新和自动更新都会优先从这里选择的网卡发起请求",
     autoSelect: "自动选择",
-    ipSourceHint: "可从公网探测当前出口地址，或直接使用所选网卡上的地址",
+    ipSourceHint:
+      "可从公网探测、网卡读取、静态填写，或解析另一个域名得到目标地址",
     interfaceOnlyFiltered:
       "从网卡直接获取时，只显示看起来可直接用于 DDNS 的地址，并过滤明显内网地址。",
     updateScopeHint: "更新 IPv4、IPv6，或同时更新两者",
+    staticIpv4Label: "静态 IPv4 地址",
+    staticIpv4Hint: "将把这个 IPv4 地址写入 DDNS A 记录",
+    staticIpv6Label: "静态 IPv6 地址",
+    staticIpv6Hint: "将把这个 IPv6 地址写入 DDNS AAAA 记录",
+    sourceDomainLabel: "来源域名",
+    sourceDomainHint:
+      "自动解析该域名得到 IPv4/IPv6，然后按当前更新范围写入 DDNS",
     interfaceAddressHelpTitle: "网卡地址说明",
     interfaceAddressHelp:
       "下方地址列表只展示过滤后的候选项，用于避免误选明显内网地址",
@@ -2830,6 +2837,8 @@ export const zhCNAdmin = {
     ipSource: {
       public: "从公网获取",
       interface: "从网卡直接获取",
+      static: "静态 IP",
+      domain: "解析域名",
     },
     unavailableInterfaceLabel: "{name}（当前配置，暂不可用）",
     unavailableInterfaceSummary: "当前配置中的网卡已不可用或没有可用地址",
@@ -2882,6 +2891,15 @@ export const zhCNAdmin = {
       "从网卡直接获取时，需要从过滤后的候选列表中选择一个 IPv6 地址。",
     ipv6Unavailable: "所选 IPv6 地址已不可用",
     ipv6UnavailableDescription: "当前网卡的 IPv6 候选顺序已变化，请重新选择。",
+    enterStaticIpv4: "请填写静态 IPv4 地址",
+    enterStaticIpv6: "请填写静态 IPv6 地址",
+    enterStaticIp: "请至少填写一个静态 IP 地址",
+    invalidStaticIpv4: "静态 IPv4 地址格式不正确",
+    invalidStaticIpv6: "静态 IPv6 地址格式不正确",
+    enterSourceDomain: "请填写来源域名",
+    invalidSourceDomain: "来源域名格式不正确",
+    singleAddressProviderRequiresSingleStack:
+      "当前提供商一次只能更新一个地址，请选择仅更新 IPv4 或仅更新 IPv6。",
     fillField: "请填写 {label}",
     targetCreated: "更多域已创建",
     targetUpdated: "更多域已更新",
@@ -3432,6 +3450,8 @@ export const zhCNAdmin = {
       ipSource: {
         public: "公网 IP",
         interface: "网卡地址",
+        static: "静态 IP",
+        domain: "域名解析",
       },
       checkReason: {
         cron: "定时检查",

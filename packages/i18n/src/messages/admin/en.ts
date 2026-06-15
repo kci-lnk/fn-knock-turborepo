@@ -96,7 +96,8 @@ export const enAdmin = {
     newVersionSelfUpdate: "New version found. Update soon.",
     newVersionDocker: "New version found. Upgrade by updating the image.",
     newVersionOpenWrt: "New version found. Upgrade by installing a new IPK.",
-    newVersionGeneric: "New version found. Upgrade manually for this deployment.",
+    newVersionGeneric:
+      "New version found. Upgrade manually for this deployment.",
     alreadyLatest: "You are already on the latest version",
     updateDisabled: "Updates are not enabled yet",
     versionCheckOnly: "This deployment only provides version checks",
@@ -2952,10 +2953,17 @@ export const enAdmin = {
       "Test updates and automatic updates prefer the interface selected here",
     autoSelect: "Auto select",
     ipSourceHint:
-      "Detect the current outbound address from the public network, or use an address on the selected interface directly",
+      "Detect the current outbound address, read the selected interface, enter a static IP, or resolve another domain",
     interfaceOnlyFiltered:
       "When using an interface directly, only DDNS-ready addresses are shown and obvious private addresses are filtered.",
     updateScopeHint: "Update IPv4, IPv6, or both",
+    staticIpv4Label: "Static IPv4 address",
+    staticIpv4Hint: "This IPv4 address will be written to the DDNS A record",
+    staticIpv6Label: "Static IPv6 address",
+    staticIpv6Hint: "This IPv6 address will be written to the DDNS AAAA record",
+    sourceDomainLabel: "Source domain",
+    sourceDomainHint:
+      "Resolve this domain to IPv4/IPv6, then write the result according to the update scope",
     interfaceAddressHelpTitle: "Interface address notes",
     interfaceAddressHelp:
       "The address list below only shows filtered candidates to avoid obvious private addresses",
@@ -3026,6 +3034,8 @@ export const enAdmin = {
     ipSource: {
       public: "Public detection",
       interface: "Use interface directly",
+      static: "Static IP",
+      domain: "Resolve domain",
     },
     unavailableInterfaceLabel: "{name} (current config, unavailable)",
     unavailableInterfaceSummary:
@@ -3085,6 +3095,15 @@ export const enAdmin = {
     ipv6Unavailable: "The selected IPv6 address is no longer available",
     ipv6UnavailableDescription:
       "The IPv6 candidate order changed on the current interface. Select it again.",
+    enterStaticIpv4: "Enter a static IPv4 address",
+    enterStaticIpv6: "Enter a static IPv6 address",
+    enterStaticIp: "Enter at least one static IP address",
+    invalidStaticIpv4: "The static IPv4 address is invalid",
+    invalidStaticIpv6: "The static IPv6 address is invalid",
+    enterSourceDomain: "Enter a source domain",
+    invalidSourceDomain: "The source domain is invalid",
+    singleAddressProviderRequiresSingleStack:
+      "The current provider can update only one address at a time. Choose IPv4 only or IPv6 only.",
     fillField: "Fill {label}",
     targetCreated: "Additional domain created",
     targetUpdated: "Additional domain updated",
@@ -3648,6 +3667,8 @@ export const enAdmin = {
       ipSource: {
         public: "Public IP",
         interface: "Interface address",
+        static: "Static IP",
+        domain: "Domain resolution",
       },
       checkReason: {
         cron: "Scheduled check",

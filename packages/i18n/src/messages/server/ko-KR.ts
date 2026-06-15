@@ -8,8 +8,7 @@ export const koKRServer = {
   dockerAdminDeniedDescription:
     "Docker 관리 패널은 기본적으로 호스트, LAN, VPN 또는 구성된 신뢰할 수 있는 역방향 프록시에서의 액세스만 허용합니다. 직접적인 공개 액세스는 거부됩니다.",
   dockerAdminCurrentIp: "감지된 소스 IP: {ip}",
-  dockerAdminProxyRequired:
-    "{port} 관리 항목을 통해 관리 API에 액세스합니다.",
+  dockerAdminProxyRequired: "{port} 관리 항목을 통해 관리 API에 액세스합니다.",
   dockerAdminLoginRequired: "먼저 Docker 관리 패널에 로그인하세요.",
   captchaUnavailable: "보안 문자 서비스를 일시적으로 사용할 수 없습니다",
   tooManyAttempts: "시도 횟수가 너무 많습니다. 나중에 다시 시도해 주세요.",
@@ -249,8 +248,7 @@ export const koKRServer = {
     },
     autoHttps: {
       dockerUnsupported: "Docker 빌드에서는 자동 HTTPS가 지원되지 않습니다.",
-      openWrtUnsupported:
-        "OpenWrt 빌드에서는 자동 HTTPS가 지원되지 않습니다.",
+      openWrtUnsupported: "OpenWrt 빌드에서는 자동 HTTPS가 지원되지 않습니다.",
       startFailed: "자동 HTTPS를 시작하지 못했습니다.",
     },
     hostMappings: {
@@ -1221,6 +1219,16 @@ export const koKRServer = {
     interfaceSourceLabel: "인터페이스 {name}",
     selectedInterfaceSourceLabel: "선택된 인터페이스",
     publicSourceLabel: "공용 네트워크",
+    staticSourceLabel: "고정 IP",
+    domainSourceLabel: "도메인 {domain}",
+    domainSourceLabelEmpty: "원본 도메인",
+    staticIpv4Invalid: "잘못된 고정 IPv4 주소: {value}",
+    staticIpv6Invalid: "잘못된 고정 IPv6 주소: {value}",
+    sourceDomainRequired: "확인할 원본 도메인을 입력하세요.",
+    sourceDomainInvalid: "원본 도메인 형식이 올바르지 않습니다: {domain}",
+    sourceDomainResolveFailed: "원본 도메인 {domain} 확인 실패: {error}",
+    singleAddressProviderUnsupported:
+      "{provider}은(는) 한 번에 하나의 주소만 업데이트할 수 있습니다. 업데이트 범위를 IPv4 전용 또는 IPv6 전용으로 설정하세요.",
     interfaceIpv6Unavailable:
       "IP 소스가 직접 인터페이스이지만 선택한 인터페이스에 사용 가능한 IPv6 주소가 없습니다.",
     interfaceIpv4Unavailable:
@@ -1233,6 +1241,18 @@ export const koKRServer = {
       "IP 소스가 공용 네트워크이지만 사용 가능한 IPv4 주소를 얻지 못했습니다.",
     publicDualStackUnavailable:
       "IP 소스가 공용 네트워크이지만 사용 가능한 IPv4 또는 IPv6 주소를 얻지 못했습니다.",
+    staticIpv6Unavailable:
+      "IP 소스가 고정 IP이지만 사용 가능한 IPv6 주소가 입력되지 않았습니다.",
+    staticIpv4Unavailable:
+      "IP 소스가 고정 IP이지만 사용 가능한 IPv4 주소가 입력되지 않았습니다.",
+    staticDualStackUnavailable:
+      "IP 소스가 고정 IP이지만 사용 가능한 IPv4 또는 IPv6 주소가 입력되지 않았습니다.",
+    domainIpv6Unavailable:
+      "IP 소스가 도메인 확인이지만 사용 가능한 IPv6 주소를 확인하지 못했습니다.",
+    domainIpv4Unavailable:
+      "IP 소스가 도메인 확인이지만 사용 가능한 IPv4 주소를 확인하지 못했습니다.",
+    domainDualStackUnavailable:
+      "IP 소스가 도메인 확인이지만 사용 가능한 IPv4 또는 IPv6 주소를 확인하지 못했습니다.",
     selectInterfaceAddress:
       "직접 인터페이스 모드를 사용하기 전에 {family} 주소를 선택하세요.",
     selectedInterfaceAddressUnavailable:
@@ -1766,8 +1786,7 @@ export const koKRServer = {
   sshSecurity: {
     logSourceUnavailable:
       "이 시스템에서 Journalctl 또는 /var/log/auth.log를 찾을 수 없습니다.",
-    openWrtUnsupported:
-      "OpenWrt 빌드에서는 아직 SSH 보안이 지원되지 않습니다.",
+    openWrtUnsupported: "OpenWrt 빌드에서는 아직 SSH 보안이 지원되지 않습니다.",
     enableUnavailable: "이 환경에서는 SSH 보안을 활성화할 수 없습니다.",
     syncFirewallUnavailable: "이 환경에서는 SSH 방화벽을 동기화할 수 없습니다.",
     clearFirewallUnavailable: "이 환경에서는 SSH 방화벽을 지울 수 없습니다.",
@@ -1871,6 +1890,8 @@ export const koKRServer = {
       ddnsIpSources: {
         public: "공개 탐지",
         interface: "인터페이스 읽기",
+        static: "고정 IP",
+        domain: "도메인 확인",
       },
       updateCheckReasons: {
         cron: "예정된 점검",

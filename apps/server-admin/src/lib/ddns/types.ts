@@ -1,3 +1,12 @@
+export type DDNSUpdateScope = "dual_stack" | "ipv6_only" | "ipv4_only";
+export type DDNSIpSource = "public" | "interface" | "static" | "domain";
+export type DDNSProviderAddressMode = "dual_stack" | "single_address";
+
+export type DDNSProviderCapabilities = {
+  addressMode?: DDNSProviderAddressMode;
+  ipSources?: DDNSIpSource[];
+};
+
 export type DDNSProviderField = {
   key: string;
   label: string;
@@ -12,6 +21,7 @@ export type DDNSProviderDefinition = {
   name: string;
   label: string;
   fields: DDNSProviderField[];
+  capabilities?: DDNSProviderCapabilities;
 };
 
 export type DDNSNetworkInterfaceAddress = {
@@ -39,9 +49,6 @@ export type DDNSUpdateResult = {
   ipv4Updated?: boolean;
   ipv6Updated?: boolean;
 };
-
-export type DDNSUpdateScope = "dual_stack" | "ipv6_only" | "ipv4_only";
-export type DDNSIpSource = "public" | "interface";
 
 export type DDNSSettings = {
   updateIntervalMinutes: number;

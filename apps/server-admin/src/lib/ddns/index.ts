@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { isIP } from "node:net";
 import { redis } from "../redis";
 import {
   DEFAULT_REDIS_LOG_BUFFER_MAX_LEN,
@@ -41,7 +42,12 @@ import {
   DDNS_INTERFACE_IPV4_INDEX_FIELD,
   DDNS_INTERFACE_IPV6_INDEX_FIELD,
   DDNS_IP_SOURCE_FIELD,
+  DDNS_SOURCE_DOMAIN_FIELD,
+  DDNS_STATIC_IPV4_FIELD,
+  DDNS_STATIC_IPV6_FIELD,
   DEFAULT_DDNS_IP_SOURCE,
+  normalizeSourceDomain,
+  normalizeStaticIPAddress,
   normalizeInterfaceAddressIndex,
   normalizeIpSource,
 } from "./ip-source";
@@ -378,6 +384,15 @@ export class DDNSManager {
       [DDNS_INTERFACE_IPV6_INDEX_FIELD]: normalizeInterfaceAddressIndex(
         data[DDNS_INTERFACE_IPV6_INDEX_FIELD],
       ),
+      [DDNS_STATIC_IPV4_FIELD]: normalizeStaticIPAddress(
+        data[DDNS_STATIC_IPV4_FIELD],
+      ),
+      [DDNS_STATIC_IPV6_FIELD]: normalizeStaticIPAddress(
+        data[DDNS_STATIC_IPV6_FIELD],
+      ),
+      [DDNS_SOURCE_DOMAIN_FIELD]: normalizeSourceDomain(
+        data[DDNS_SOURCE_DOMAIN_FIELD],
+      ),
       ...(isEdgeOneDDNSProvider(providerName || "")
         ? {
             [EDGEONE_OVERSEAS_ACCESS_MODE_FIELD]:
@@ -410,6 +425,15 @@ export class DDNSManager {
       [DDNS_INTERFACE_IPV6_INDEX_FIELD]: normalizeInterfaceAddressIndex(
         config[DDNS_INTERFACE_IPV6_INDEX_FIELD],
       ),
+      [DDNS_STATIC_IPV4_FIELD]: normalizeStaticIPAddress(
+        config[DDNS_STATIC_IPV4_FIELD],
+      ),
+      [DDNS_STATIC_IPV6_FIELD]: normalizeStaticIPAddress(
+        config[DDNS_STATIC_IPV6_FIELD],
+      ),
+      [DDNS_SOURCE_DOMAIN_FIELD]: normalizeSourceDomain(
+        config[DDNS_SOURCE_DOMAIN_FIELD],
+      ),
       ...(isEdgeOneDDNSProvider(normalizedProviderName)
         ? {
             [EDGEONE_OVERSEAS_ACCESS_MODE_FIELD]:
@@ -434,6 +458,24 @@ export class DDNSManager {
       if (!normalizedConfig[DDNS_INTERFACE_IPV6_INDEX_FIELD]) {
         delete normalizedConfig[DDNS_INTERFACE_IPV6_INDEX_FIELD];
       }
+    }
+
+    if (ipSource !== "static") {
+      delete normalizedConfig[DDNS_STATIC_IPV4_FIELD];
+      delete normalizedConfig[DDNS_STATIC_IPV6_FIELD];
+    } else {
+      if (!normalizedConfig[DDNS_STATIC_IPV4_FIELD]) {
+        delete normalizedConfig[DDNS_STATIC_IPV4_FIELD];
+      }
+      if (!normalizedConfig[DDNS_STATIC_IPV6_FIELD]) {
+        delete normalizedConfig[DDNS_STATIC_IPV6_FIELD];
+      }
+    }
+
+    if (ipSource !== "domain") {
+      delete normalizedConfig[DDNS_SOURCE_DOMAIN_FIELD];
+    } else if (!normalizedConfig[DDNS_SOURCE_DOMAIN_FIELD]) {
+      delete normalizedConfig[DDNS_SOURCE_DOMAIN_FIELD];
     }
 
     if (
@@ -1561,6 +1603,7 @@ export class DDNSManager {
       const http = createDDNSHttpClient({
         networkInterface: target.config[DDNS_NETWORK_INTERFACE_FIELD],
       });
+      const definition = this.getProviderDefinition(target.provider);
       const updateScope = normalizeUpdateScope(
         target.config[DDNS_UPDATE_SCOPE_FIELD],
       );
@@ -1570,6 +1613,18 @@ export class DDNSManager {
         return {
           success: false,
           message: getUpdateScopeUnavailableMessage(updateScope),
+        };
+      }
+      if (
+        definition?.capabilities?.addressMode === "single_address" &&
+        scopedIPs.ipv4 &&
+        scopedIPs.ipv6
+      ) {
+        return {
+          success: false,
+          message: ddnsT("singleAddressProviderUnsupported", {
+            provider: this.getProviderLabel(target.provider),
+          }),
         };
       }
 
@@ -1636,7 +1691,50 @@ export class DDNSManager {
       return false;
     }
 
+    const updateScope = normalizeUpdateScope(
+      target.config[DDNS_UPDATE_SCOPE_FIELD],
+    );
+    if (
+      definition.capabilities?.addressMode === "single_address" &&
+      updateScope === "dual_stack"
+    ) {
+      return false;
+    }
+
     const ipSource = normalizeIpSource(target.config[DDNS_IP_SOURCE_FIELD]);
+    if (ipSource === "static") {
+      const requiresIPv4 = updateScope !== "ipv6_only";
+      const requiresIPv6 = updateScope !== "ipv4_only";
+      const ipv4 = normalizeStaticIPAddress(
+        target.config[DDNS_STATIC_IPV4_FIELD],
+      );
+      const ipv6 = normalizeStaticIPAddress(
+        target.config[DDNS_STATIC_IPV6_FIELD],
+      );
+      const hasValidIPv4 = isIP(ipv4) === 4;
+      const hasValidIPv6 = isIP(ipv6) === 6;
+
+      if (ipv4 && !hasValidIPv4) {
+        return false;
+      }
+      if (ipv6 && !hasValidIPv6) {
+        return false;
+      }
+      if (updateScope === "ipv4_only") {
+        return hasValidIPv4;
+      }
+      if (updateScope === "ipv6_only") {
+        return hasValidIPv6;
+      }
+      return (requiresIPv4 && hasValidIPv4) || (requiresIPv6 && hasValidIPv6);
+    }
+
+    if (ipSource === "domain") {
+      return Boolean(
+        normalizeSourceDomain(target.config[DDNS_SOURCE_DOMAIN_FIELD]),
+      );
+    }
+
     if (ipSource !== "interface") {
       return true;
     }
@@ -1653,9 +1751,6 @@ export class DDNSManager {
       return false;
     }
 
-    const updateScope = normalizeUpdateScope(
-      target.config[DDNS_UPDATE_SCOPE_FIELD],
-    );
     const requiresIPv4 = updateScope !== "ipv6_only";
     const requiresIPv6 = updateScope !== "ipv4_only";
     const hasSelectableIPv4 = network.selectableAddresses.some(

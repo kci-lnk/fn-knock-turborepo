@@ -33,6 +33,9 @@ type EdgeOneDescribeAccelerationDomainsResponse = {
 export const edgeoneCnameProvider: DDNSProviderDefinition = {
   name: "edgeone_cname",
   label: edgeoneCnameT("label"),
+  capabilities: {
+    addressMode: "single_address",
+  },
   fields: [
     {
       key: "secret_id",

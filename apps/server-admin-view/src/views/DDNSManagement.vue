@@ -63,7 +63,9 @@ import {
 import { useDnsCredentialTransfer } from "@/composables/useDnsCredentialTransfer";
 import { useTargetPolling } from "../composables/useTargetPolling";
 import type {
+  DDNSIpSource,
   DDNSNetworkInterfacePayload,
+  DDNSUpdateScope,
   DDNSTargetDetailPayload,
   DDNSTargetSummaryPayload,
 } from "../lib/api";
@@ -86,6 +88,10 @@ interface Provider {
   name: string;
   label: string;
   fields: ProviderField[];
+  capabilities?: {
+    addressMode?: "dual_stack" | "single_address";
+    ipSources?: DDNSIpSource[];
+  };
 }
 
 interface LogEntry {
@@ -114,14 +120,14 @@ interface TargetDialogState {
   config: Record<string, string>;
 }
 
-type DDNSUpdateScope = "dual_stack" | "ipv6_only" | "ipv4_only";
-type DDNSIpSource = "public" | "interface";
-
 const UPDATE_SCOPE_KEY = "update_scope";
 const IP_SOURCE_KEY = "ip_source";
 const NETWORK_INTERFACE_KEY = "network_interface";
 const INTERFACE_IPV4_INDEX_KEY = "interface_ipv4_index";
 const INTERFACE_IPV6_INDEX_KEY = "interface_ipv6_index";
+const STATIC_IPV4_KEY = "static_ipv4";
+const STATIC_IPV6_KEY = "static_ipv6";
+const SOURCE_DOMAIN_KEY = "source_domain";
 const NETWORK_INTERFACE_AUTO_VALUE = "__auto__";
 const DEFAULT_DDNS_UPDATE_SCOPE: DDNSUpdateScope = "dual_stack";
 const DEFAULT_DDNS_IP_SOURCE: DDNSIpSource = "public";
@@ -139,6 +145,8 @@ const UPDATE_SCOPE_OPTIONS: Array<{
 const IP_SOURCE_OPTIONS: Array<{ labelKey: string; value: DDNSIpSource }> = [
   { labelKey: "admin.ddns.ipSource.public", value: "public" },
   { labelKey: "admin.ddns.ipSource.interface", value: "interface" },
+  { labelKey: "admin.ddns.ipSource.static", value: "static" },
+  { labelKey: "admin.ddns.ipSource.domain", value: "domain" },
 ];
 
 const { t, locale } = useI18n();
@@ -159,7 +167,10 @@ const normalizeUpdateScope = (
 };
 
 const normalizeIpSource = (value: string | null | undefined): DDNSIpSource => {
-  return value === "interface" ? "interface" : DEFAULT_DDNS_IP_SOURCE;
+  if (value === "interface" || value === "static" || value === "domain") {
+    return value;
+  }
+  return DEFAULT_DDNS_IP_SOURCE;
 };
 
 const normalizeNetworkInterface = (value: string | null | undefined) => {
@@ -180,6 +191,14 @@ const normalizeInterfaceAddressIndex = (value: string | null | undefined) => {
   return String(parsed);
 };
 
+const normalizeStaticIPAddress = (value: string | null | undefined) => {
+  return value?.trim() || "";
+};
+
+const normalizeSourceDomain = (value: string | null | undefined) => {
+  return (value || "").trim().replace(/\.+$/, "");
+};
+
 const normalizeUpdateIntervalMinutes = (value: unknown) => {
   const parsed = Number(value);
   if (
@@ -198,17 +217,15 @@ const toNetworkInterfaceSelectValue = (value: string | null | undefined) => {
 };
 
 const getUpdateScopeLabel = (value: string | null | undefined) => {
-  return (
-    UPDATE_SCOPE_OPTIONS.find(
-      (option) => option.value === normalizeUpdateScope(value),
-    )
-      ? formatOptionLabel(
-          UPDATE_SCOPE_OPTIONS.find(
-            (option) => option.value === normalizeUpdateScope(value),
-          )!,
-        )
-      : t("admin.ddns.updateScope.dualStack")
-  );
+  return UPDATE_SCOPE_OPTIONS.find(
+    (option) => option.value === normalizeUpdateScope(value),
+  )
+    ? formatOptionLabel(
+        UPDATE_SCOPE_OPTIONS.find(
+          (option) => option.value === normalizeUpdateScope(value),
+        )!,
+      )
+    : t("admin.ddns.updateScope.dualStack");
 };
 
 const normalizeTargetConfigValues = (
@@ -226,6 +243,9 @@ const normalizeTargetConfigValues = (
   [INTERFACE_IPV6_INDEX_KEY]: normalizeInterfaceAddressIndex(
     config?.[INTERFACE_IPV6_INDEX_KEY],
   ),
+  [STATIC_IPV4_KEY]: normalizeStaticIPAddress(config?.[STATIC_IPV4_KEY]),
+  [STATIC_IPV6_KEY]: normalizeStaticIPAddress(config?.[STATIC_IPV6_KEY]),
+  [SOURCE_DOMAIN_KEY]: normalizeSourceDomain(config?.[SOURCE_DOMAIN_KEY]),
 });
 
 const extractCommonTargetConfig = (
@@ -242,6 +262,9 @@ const extractCommonTargetConfig = (
   [INTERFACE_IPV6_INDEX_KEY]: normalizeInterfaceAddressIndex(
     config[INTERFACE_IPV6_INDEX_KEY],
   ),
+  [STATIC_IPV4_KEY]: normalizeStaticIPAddress(config[STATIC_IPV4_KEY]),
+  [STATIC_IPV6_KEY]: normalizeStaticIPAddress(config[STATIC_IPV6_KEY]),
+  [SOURCE_DOMAIN_KEY]: normalizeSourceDomain(config[SOURCE_DOMAIN_KEY]),
 });
 
 const resolveNetworkInterfaceOptions = (
@@ -492,6 +515,61 @@ const currentProviderDef = computed(() => {
 const findProviderDef = (providerName: string) =>
   providers.value.find((provider) => provider.name === providerName) || null;
 
+const isSingleAddressProvider = (providerName: string) =>
+  findProviderDef(providerName)?.capabilities?.addressMode === "single_address";
+
+const isUpdateScopeOptionDisabled = (
+  providerName: string,
+  option: DDNSUpdateScope,
+) => isSingleAddressProvider(providerName) && option === "dual_stack";
+
+const isIpSourceOptionDisabled = (
+  providerName: string,
+  option: DDNSIpSource,
+) => {
+  const supportedSources =
+    findProviderDef(providerName)?.capabilities?.ipSources;
+  return Array.isArray(supportedSources) && !supportedSources.includes(option);
+};
+
+const isLikelyIPv4Address = (value: string) => {
+  const parts = value.trim().split(".");
+  return (
+    parts.length === 4 &&
+    parts.every((part) => {
+      if (!/^\d{1,3}$/.test(part)) return false;
+      const parsed = Number(part);
+      return Number.isInteger(parsed) && parsed >= 0 && parsed <= 255;
+    })
+  );
+};
+
+const isLikelyIPv6Address = (value: string) => {
+  const address = value.trim();
+  return (
+    address.includes(":") &&
+    address.length <= 45 &&
+    /^[0-9a-f:.]+$/i.test(address)
+  );
+};
+
+const isLikelySourceDomain = (value: string) => {
+  const domain = normalizeSourceDomain(value);
+  if (!domain || domain.length > 253) return false;
+  if (/^https?:\/\//i.test(value) || /[\s/:*]/.test(domain)) {
+    return false;
+  }
+  return domain.split(".").every((label) => {
+    return (
+      label.length > 0 &&
+      label.length <= 63 &&
+      !label.startsWith("-") &&
+      !label.endsWith("-") &&
+      /^[a-z0-9-]+$/i.test(label)
+    );
+  });
+};
+
 const extraTargets = computed(() =>
   targetSummaries.value.filter((target) => !target.isPrimary),
 );
@@ -556,6 +634,20 @@ const targetDialogShouldShowInterfaceBlock = computed(
     !!targetDialogState.value.provider &&
     normalizeIpSource(targetDialogState.value.config[IP_SOURCE_KEY]) ===
       "interface",
+);
+
+const targetDialogShouldShowStaticBlock = computed(
+  () =>
+    !!targetDialogState.value.provider &&
+    normalizeIpSource(targetDialogState.value.config[IP_SOURCE_KEY]) ===
+      "static",
+);
+
+const targetDialogShouldShowDomainBlock = computed(
+  () =>
+    !!targetDialogState.value.provider &&
+    normalizeIpSource(targetDialogState.value.config[IP_SOURCE_KEY]) ===
+      "domain",
 );
 
 const targetDialogUpdateScope = computed(() =>
@@ -657,13 +749,11 @@ const currentIpSourceLabel = computed(() => {
   const ipSource = normalizeIpSource(
     providerConfig.value[IP_SOURCE_KEY] || statusIpSource.value,
   );
-  return (
-    IP_SOURCE_OPTIONS.find((option) => option.value === ipSource)
-      ? formatOptionLabel(
-          IP_SOURCE_OPTIONS.find((option) => option.value === ipSource)!,
-        )
-      : t("admin.ddns.ipSource.public")
-  );
+  return IP_SOURCE_OPTIONS.find((option) => option.value === ipSource)
+    ? formatOptionLabel(
+        IP_SOURCE_OPTIONS.find((option) => option.value === ipSource)!,
+      )
+    : t("admin.ddns.ipSource.public");
 });
 
 const selectedNetworkInterface = computed(() => {
@@ -774,6 +864,22 @@ const interfaceIPv6Options = computed(() => {
 const shouldShowInterfaceAddressBlock = computed(
   () => !!selectedProvider.value && effectiveIpSource.value === "interface",
 );
+const shouldShowStaticAddressBlock = computed(
+  () => !!selectedProvider.value && effectiveIpSource.value === "static",
+);
+const shouldShowSourceDomainBlock = computed(
+  () => !!selectedProvider.value && effectiveIpSource.value === "domain",
+);
+const showStaticIPv4Input = computed(
+  () =>
+    shouldShowStaticAddressBlock.value &&
+    effectiveUpdateScope.value !== "ipv6_only",
+);
+const showStaticIPv6Input = computed(
+  () =>
+    shouldShowStaticAddressBlock.value &&
+    effectiveUpdateScope.value !== "ipv4_only",
+);
 const showInterfaceIPv4Select = computed(
   () =>
     shouldShowInterfaceAddressBlock.value &&
@@ -810,11 +916,10 @@ const isProviderSelectDisabled = computed(
 const isSubdomainMode = computed(() =>
   isAnySubdomainRoutingMode(configStore.config),
 );
-const updateIntervalLabel = computed(
-  () =>
-    t("admin.ddns.updateIntervalLabel", {
-      minutes: updateIntervalMinutes.value,
-    }),
+const updateIntervalLabel = computed(() =>
+  t("admin.ddns.updateIntervalLabel", {
+    minutes: updateIntervalMinutes.value,
+  }),
 );
 
 const getFieldDescription = (field: ProviderField) => {
@@ -887,6 +992,9 @@ async function loadConfig() {
       [INTERFACE_IPV6_INDEX_KEY]: normalizeInterfaceAddressIndex(
         config[INTERFACE_IPV6_INDEX_KEY],
       ),
+      [STATIC_IPV4_KEY]: normalizeStaticIPAddress(config[STATIC_IPV4_KEY]),
+      [STATIC_IPV6_KEY]: normalizeStaticIPAddress(config[STATIC_IPV6_KEY]),
+      [SOURCE_DOMAIN_KEY]: normalizeSourceDomain(config[SOURCE_DOMAIN_KEY]),
     };
 
     fieldEditReady.value = {};
@@ -1021,7 +1129,67 @@ function updateConfiguredNetworkInterface(value: string) {
   providerConfig.value[INTERFACE_IPV6_INDEX_KEY] = "";
 }
 
+function updateConfiguredIpSource(value: string) {
+  providerConfig.value[IP_SOURCE_KEY] = normalizeIpSource(value);
+}
+
 function validateCommonConfig() {
+  if (
+    isSingleAddressProvider(selectedProvider.value) &&
+    effectiveUpdateScope.value === "dual_stack"
+  ) {
+    toast.error(t("admin.ddns.singleAddressProviderRequiresSingleStack"));
+    return false;
+  }
+
+  if (effectiveIpSource.value === "static") {
+    const ipv4 = normalizeStaticIPAddress(
+      providerConfig.value[STATIC_IPV4_KEY],
+    );
+    const ipv6 = normalizeStaticIPAddress(
+      providerConfig.value[STATIC_IPV6_KEY],
+    );
+    const needsIPv4 = effectiveUpdateScope.value !== "ipv6_only";
+    const needsIPv6 = effectiveUpdateScope.value !== "ipv4_only";
+
+    if (needsIPv4 && ipv4 && !isLikelyIPv4Address(ipv4)) {
+      toast.error(t("admin.ddns.invalidStaticIpv4"));
+      return false;
+    }
+    if (needsIPv6 && ipv6 && !isLikelyIPv6Address(ipv6)) {
+      toast.error(t("admin.ddns.invalidStaticIpv6"));
+      return false;
+    }
+    if (effectiveUpdateScope.value === "ipv4_only" && !ipv4) {
+      toast.error(t("admin.ddns.enterStaticIpv4"));
+      return false;
+    }
+    if (effectiveUpdateScope.value === "ipv6_only" && !ipv6) {
+      toast.error(t("admin.ddns.enterStaticIpv6"));
+      return false;
+    }
+    if (effectiveUpdateScope.value === "dual_stack" && !ipv4 && !ipv6) {
+      toast.error(t("admin.ddns.enterStaticIp"));
+      return false;
+    }
+    return true;
+  }
+
+  if (effectiveIpSource.value === "domain") {
+    const domain = normalizeSourceDomain(
+      providerConfig.value[SOURCE_DOMAIN_KEY],
+    );
+    if (!domain) {
+      toast.error(t("admin.ddns.enterSourceDomain"));
+      return false;
+    }
+    if (!isLikelySourceDomain(domain)) {
+      toast.error(t("admin.ddns.invalidSourceDomain"));
+      return false;
+    }
+    return true;
+  }
+
   if (effectiveIpSource.value !== "interface") {
     return true;
   }
@@ -1203,7 +1371,57 @@ function validateTargetDialogConfig() {
   }
 
   const config = targetDialogState.value.config;
+  if (
+    isSingleAddressProvider(provider) &&
+    targetDialogUpdateScope.value === "dual_stack"
+  ) {
+    toast.error(t("admin.ddns.singleAddressProviderRequiresSingleStack"));
+    return false;
+  }
+
   const ipSource = normalizeIpSource(config[IP_SOURCE_KEY]);
+  if (ipSource === "static") {
+    const ipv4 = normalizeStaticIPAddress(config[STATIC_IPV4_KEY]);
+    const ipv6 = normalizeStaticIPAddress(config[STATIC_IPV6_KEY]);
+    const needsIPv4 = targetDialogUpdateScope.value !== "ipv6_only";
+    const needsIPv6 = targetDialogUpdateScope.value !== "ipv4_only";
+
+    if (needsIPv4 && ipv4 && !isLikelyIPv4Address(ipv4)) {
+      toast.error(t("admin.ddns.invalidStaticIpv4"));
+      return false;
+    }
+    if (needsIPv6 && ipv6 && !isLikelyIPv6Address(ipv6)) {
+      toast.error(t("admin.ddns.invalidStaticIpv6"));
+      return false;
+    }
+    if (targetDialogUpdateScope.value === "ipv4_only" && !ipv4) {
+      toast.error(t("admin.ddns.enterStaticIpv4"));
+      return false;
+    }
+    if (targetDialogUpdateScope.value === "ipv6_only" && !ipv6) {
+      toast.error(t("admin.ddns.enterStaticIpv6"));
+      return false;
+    }
+    if (targetDialogUpdateScope.value === "dual_stack" && !ipv4 && !ipv6) {
+      toast.error(t("admin.ddns.enterStaticIp"));
+      return false;
+    }
+    return true;
+  }
+
+  if (ipSource === "domain") {
+    const domain = normalizeSourceDomain(config[SOURCE_DOMAIN_KEY]);
+    if (!domain) {
+      toast.error(t("admin.ddns.enterSourceDomain"));
+      return false;
+    }
+    if (!isLikelySourceDomain(domain)) {
+      toast.error(t("admin.ddns.invalidSourceDomain"));
+      return false;
+    }
+    return true;
+  }
+
   if (ipSource !== "interface") {
     return true;
   }
@@ -1335,7 +1553,9 @@ async function onToggleExtraTarget(
     {
       onSuccess: async () => {
         toast.success(
-          enabled ? t("admin.ddns.targetEnabled") : t("admin.ddns.targetDisabled"),
+          enabled
+            ? t("admin.ddns.targetEnabled")
+            : t("admin.ddns.targetDisabled"),
         );
         await loadStatus();
       },
@@ -1760,7 +1980,8 @@ onUnmounted(() => {
       <template #summary>
         {{
           t("admin.ddns.currentProvider", {
-            provider: currentProviderDef?.label || t("admin.ddns.notConfigured"),
+            provider:
+              currentProviderDef?.label || t("admin.ddns.notConfigured"),
           })
         }}
       </template>
@@ -1772,7 +1993,9 @@ onUnmounted(() => {
           @click="onTest"
         >
           <RefreshCw v-if="isTesting" class="w-4 h-4 mr-2 animate-spin" />
-          {{ isTesting ? t("admin.ddns.updating") : t("admin.ddns.refreshNow") }}
+          {{
+            isTesting ? t("admin.ddns.updating") : t("admin.ddns.refreshNow")
+          }}
         </Button>
       </template>
 
@@ -1818,9 +2041,9 @@ onUnmounted(() => {
             class="p-4 sm:p-6 grid gap-2 sm:grid-cols-[200px_1fr] md:grid-cols-[240px_1fr] items-start transition-colors hover:bg-muted/10"
           >
             <div class="space-y-1 mt-1.5">
-              <Label for="ddns-network-interface" class="text-sm font-medium"
-                >{{ t("admin.ddns.outboundInterface") }}</Label
-              >
+              <Label for="ddns-network-interface" class="text-sm font-medium">{{
+                t("admin.ddns.outboundInterface")
+              }}</Label>
               <p class="text-xs text-muted-foreground hidden sm:block pr-4">
                 {{ t("admin.ddns.interfaceHint") }}
               </p>
@@ -1892,9 +2115,9 @@ onUnmounted(() => {
             class="p-4 sm:p-6 grid gap-2 sm:grid-cols-[200px_1fr] md:grid-cols-[240px_1fr] items-start transition-colors hover:bg-muted/10"
           >
             <div class="space-y-1 mt-1.5">
-              <Label for="ddns-ip-source" class="text-sm font-medium"
-                >{{ t("admin.ddns.ipSourceLabel") }}</Label
-              >
+              <Label for="ddns-ip-source" class="text-sm font-medium">{{
+                t("admin.ddns.ipSourceLabel")
+              }}</Label>
               <p class="text-xs text-muted-foreground hidden sm:block pr-4">
                 {{ t("admin.ddns.ipSourceHint") }}
               </p>
@@ -1905,10 +2128,7 @@ onUnmounted(() => {
                   providerConfig[IP_SOURCE_KEY] || DEFAULT_DDNS_IP_SOURCE
                 "
                 @update:modelValue="
-                  (val: any) =>
-                    (providerConfig[IP_SOURCE_KEY] = normalizeIpSource(
-                      String(val ?? ''),
-                    ))
+                  (val: any) => updateConfiguredIpSource(String(val ?? ''))
                 "
               >
                 <SelectTrigger class="w-full" id="ddns-ip-source">
@@ -1919,6 +2139,9 @@ onUnmounted(() => {
                     v-for="option in IP_SOURCE_OPTIONS"
                     :key="option.value"
                     :value="option.value"
+                    :disabled="
+                      isIpSourceOptionDisabled(selectedProvider, option.value)
+                    "
                   >
                     {{ formatOptionLabel(option) }}
                   </SelectItem>
@@ -1940,9 +2163,9 @@ onUnmounted(() => {
             class="p-4 sm:p-6 grid gap-2 sm:grid-cols-[200px_1fr] md:grid-cols-[240px_1fr] items-start transition-colors hover:bg-muted/10"
           >
             <div class="space-y-1 mt-1.5">
-              <Label for="ddns-update-scope" class="text-sm font-medium"
-                >{{ t("admin.ddns.updateScopeLabel") }}</Label
-              >
+              <Label for="ddns-update-scope" class="text-sm font-medium">{{
+                t("admin.ddns.updateScopeLabel")
+              }}</Label>
               <p class="text-xs text-muted-foreground hidden sm:block pr-4">
                 {{ t("admin.ddns.updateScopeHint") }}
               </p>
@@ -1967,6 +2190,12 @@ onUnmounted(() => {
                     v-for="option in UPDATE_SCOPE_OPTIONS"
                     :key="option.value"
                     :value="option.value"
+                    :disabled="
+                      isUpdateScopeOptionDisabled(
+                        selectedProvider,
+                        option.value,
+                      )
+                    "
                   >
                     {{ formatOptionLabel(option) }}
                   </SelectItem>
@@ -1975,6 +2204,82 @@ onUnmounted(() => {
 
               <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
                 {{ t("admin.ddns.updateScopeHint") }}
+              </p>
+            </div>
+          </div>
+
+          <div
+            v-if="showStaticIPv4Input"
+            class="p-4 sm:p-6 grid gap-2 sm:grid-cols-[200px_1fr] md:grid-cols-[240px_1fr] items-start transition-colors hover:bg-muted/10"
+          >
+            <div class="space-y-1 mt-1.5">
+              <Label for="ddns-static-ipv4" class="text-sm font-medium">
+                {{ t("admin.ddns.staticIpv4Label") }}
+              </Label>
+              <p class="text-xs text-muted-foreground hidden sm:block pr-4">
+                {{ t("admin.ddns.staticIpv4Hint") }}
+              </p>
+            </div>
+            <div class="w-full max-w-md space-y-2">
+              <Input
+                id="ddns-static-ipv4"
+                v-model="providerConfig[STATIC_IPV4_KEY]"
+                placeholder="203.0.113.10"
+                inputmode="decimal"
+                autocomplete="off"
+              />
+              <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
+                {{ t("admin.ddns.staticIpv4Hint") }}
+              </p>
+            </div>
+          </div>
+
+          <div
+            v-if="showStaticIPv6Input"
+            class="p-4 sm:p-6 grid gap-2 sm:grid-cols-[200px_1fr] md:grid-cols-[240px_1fr] items-start transition-colors hover:bg-muted/10"
+          >
+            <div class="space-y-1 mt-1.5">
+              <Label for="ddns-static-ipv6" class="text-sm font-medium">
+                {{ t("admin.ddns.staticIpv6Label") }}
+              </Label>
+              <p class="text-xs text-muted-foreground hidden sm:block pr-4">
+                {{ t("admin.ddns.staticIpv6Hint") }}
+              </p>
+            </div>
+            <div class="w-full max-w-md space-y-2">
+              <Input
+                id="ddns-static-ipv6"
+                v-model="providerConfig[STATIC_IPV6_KEY]"
+                placeholder="2001:db8::10"
+                autocomplete="off"
+              />
+              <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
+                {{ t("admin.ddns.staticIpv6Hint") }}
+              </p>
+            </div>
+          </div>
+
+          <div
+            v-if="shouldShowSourceDomainBlock"
+            class="p-4 sm:p-6 grid gap-2 sm:grid-cols-[200px_1fr] md:grid-cols-[240px_1fr] items-start transition-colors hover:bg-muted/10"
+          >
+            <div class="space-y-1 mt-1.5">
+              <Label for="ddns-source-domain" class="text-sm font-medium">
+                {{ t("admin.ddns.sourceDomainLabel") }}
+              </Label>
+              <p class="text-xs text-muted-foreground hidden sm:block pr-4">
+                {{ t("admin.ddns.sourceDomainHint") }}
+              </p>
+            </div>
+            <div class="w-full max-w-md space-y-2">
+              <Input
+                id="ddns-source-domain"
+                v-model="providerConfig[SOURCE_DOMAIN_KEY]"
+                placeholder="origin.example.com"
+                autocomplete="off"
+              />
+              <p class="text-[11px] text-muted-foreground sm:hidden mt-1.5">
+                {{ t("admin.ddns.sourceDomainHint") }}
               </p>
             </div>
           </div>
@@ -2018,9 +2323,9 @@ onUnmounted(() => {
             class="p-4 sm:p-6 grid gap-2 sm:grid-cols-[200px_1fr] md:grid-cols-[240px_1fr] items-start transition-colors hover:bg-muted/10"
           >
             <div class="space-y-1 mt-1.5">
-              <Label for="ddns-interface-ipv4" class="text-sm font-medium"
-                >{{ t("admin.ddns.selectIpv4Label") }}</Label
-              >
+              <Label for="ddns-interface-ipv4" class="text-sm font-medium">{{
+                t("admin.ddns.selectIpv4Label")
+              }}</Label>
               <p class="text-xs text-muted-foreground hidden sm:block pr-4">
                 {{ t("admin.ddns.selectIpv4Hint") }}
               </p>
@@ -2075,9 +2380,9 @@ onUnmounted(() => {
             class="p-4 sm:p-6 grid gap-2 sm:grid-cols-[200px_1fr] md:grid-cols-[240px_1fr] items-start transition-colors hover:bg-muted/10"
           >
             <div class="space-y-1 mt-1.5">
-              <Label for="ddns-interface-ipv6" class="text-sm font-medium"
-                >{{ t("admin.ddns.selectIpv6Label") }}</Label
-              >
+              <Label for="ddns-interface-ipv6" class="text-sm font-medium">{{
+                t("admin.ddns.selectIpv6Label")
+              }}</Label>
               <p class="text-xs text-muted-foreground hidden sm:block pr-4">
                 {{ t("admin.ddns.selectIpv6Hint") }}
               </p>
@@ -2305,7 +2610,9 @@ onUnmounted(() => {
           >
             <RefreshCw v-if="isTesting" class="w-4 h-4 mr-2 animate-spin" />
             {{
-              isTesting ? t("admin.ddns.updating") : t("admin.ddns.saveAndUpdate")
+              isTesting
+                ? t("admin.ddns.updating")
+                : t("admin.ddns.saveAndUpdate")
             }}
           </Button>
         </div>
@@ -2467,7 +2774,9 @@ onUnmounted(() => {
                 :disabled="togglingTargetId === target.id"
                 @click="onToggleExtraTarget(target, !target.enabled)"
               >
-                {{ target.enabled ? t("admin.ddns.stop") : t("admin.ddns.start") }}
+                {{
+                  target.enabled ? t("admin.ddns.stop") : t("admin.ddns.start")
+                }}
               </Button>
               <ConfirmDangerPopover
                 :title="t('admin.ddns.deleteExtraTitle')"
@@ -2506,7 +2815,9 @@ onUnmounted(() => {
     <Card class="gap-2">
       <CardHeader>
         <div class="flex items-center justify-between">
-          <CardTitle class="text-base">{{ t("admin.ddns.logsTitle") }}</CardTitle>
+          <CardTitle class="text-base">{{
+            t("admin.ddns.logsTitle")
+          }}</CardTitle>
           <div class="flex gap-2">
             <Button
               variant="outline"
@@ -2633,6 +2944,97 @@ onUnmounted(() => {
 
           <template v-if="targetDialogState.provider">
             <div
+              v-if="
+                targetDialogShouldShowStaticBlock &&
+                targetDialogUpdateScope !== 'ipv6_only'
+              "
+              class="p-4 sm:p-5 grid gap-2 sm:grid-cols-[180px_1fr] md:grid-cols-[220px_1fr] items-start transition-colors hover:bg-muted/10"
+            >
+              <div class="space-y-1 mt-1.5">
+                <Label
+                  for="ddns-target-static-ipv4"
+                  class="text-sm font-medium"
+                >
+                  {{ t("admin.ddns.staticIpv4Label") }}
+                </Label>
+                <p class="text-xs text-muted-foreground hidden sm:block pr-4">
+                  {{ t("admin.ddns.staticIpv4Hint") }}
+                </p>
+              </div>
+              <div class="w-full max-w-md space-y-2">
+                <Input
+                  id="ddns-target-static-ipv4"
+                  v-model="targetDialogState.config[STATIC_IPV4_KEY]"
+                  placeholder="203.0.113.10"
+                  inputmode="decimal"
+                  autocomplete="off"
+                />
+                <p class="text-[11px] text-muted-foreground sm:hidden">
+                  {{ t("admin.ddns.staticIpv4Hint") }}
+                </p>
+              </div>
+            </div>
+
+            <div
+              v-if="
+                targetDialogShouldShowStaticBlock &&
+                targetDialogUpdateScope !== 'ipv4_only'
+              "
+              class="p-4 sm:p-5 grid gap-2 sm:grid-cols-[180px_1fr] md:grid-cols-[220px_1fr] items-start transition-colors hover:bg-muted/10"
+            >
+              <div class="space-y-1 mt-1.5">
+                <Label
+                  for="ddns-target-static-ipv6"
+                  class="text-sm font-medium"
+                >
+                  {{ t("admin.ddns.staticIpv6Label") }}
+                </Label>
+                <p class="text-xs text-muted-foreground hidden sm:block pr-4">
+                  {{ t("admin.ddns.staticIpv6Hint") }}
+                </p>
+              </div>
+              <div class="w-full max-w-md space-y-2">
+                <Input
+                  id="ddns-target-static-ipv6"
+                  v-model="targetDialogState.config[STATIC_IPV6_KEY]"
+                  placeholder="2001:db8::10"
+                  autocomplete="off"
+                />
+                <p class="text-[11px] text-muted-foreground sm:hidden">
+                  {{ t("admin.ddns.staticIpv6Hint") }}
+                </p>
+              </div>
+            </div>
+
+            <div
+              v-if="targetDialogShouldShowDomainBlock"
+              class="p-4 sm:p-5 grid gap-2 sm:grid-cols-[180px_1fr] md:grid-cols-[220px_1fr] items-start transition-colors hover:bg-muted/10"
+            >
+              <div class="space-y-1 mt-1.5">
+                <Label
+                  for="ddns-target-source-domain"
+                  class="text-sm font-medium"
+                >
+                  {{ t("admin.ddns.sourceDomainLabel") }}
+                </Label>
+                <p class="text-xs text-muted-foreground hidden sm:block pr-4">
+                  {{ t("admin.ddns.sourceDomainHint") }}
+                </p>
+              </div>
+              <div class="w-full max-w-md space-y-2">
+                <Input
+                  id="ddns-target-source-domain"
+                  v-model="targetDialogState.config[SOURCE_DOMAIN_KEY]"
+                  placeholder="origin.example.com"
+                  autocomplete="off"
+                />
+                <p class="text-[11px] text-muted-foreground sm:hidden">
+                  {{ t("admin.ddns.sourceDomainHint") }}
+                </p>
+              </div>
+            </div>
+
+            <div
               class="p-4 sm:p-5 grid gap-2 sm:grid-cols-[180px_1fr] md:grid-cols-[220px_1fr] items-start transition-colors hover:bg-muted/10"
             >
               <div class="space-y-1 mt-1.5">
@@ -2666,6 +3068,12 @@ onUnmounted(() => {
                       v-for="option in UPDATE_SCOPE_OPTIONS"
                       :key="option.value"
                       :value="option.value"
+                      :disabled="
+                        isUpdateScopeOptionDisabled(
+                          targetDialogState.provider,
+                          option.value,
+                        )
+                      "
                     >
                       {{ formatOptionLabel(option) }}
                     </SelectItem>
@@ -2708,6 +3116,12 @@ onUnmounted(() => {
                       v-for="option in IP_SOURCE_OPTIONS"
                       :key="option.value"
                       :value="option.value"
+                      :disabled="
+                        isIpSourceOptionDisabled(
+                          targetDialogState.provider,
+                          option.value,
+                        )
+                      "
                     >
                       {{ formatOptionLabel(option) }}
                     </SelectItem>

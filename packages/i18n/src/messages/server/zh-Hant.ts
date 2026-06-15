@@ -921,8 +921,7 @@ export const zhHantServer = {
     resetHelp:
       "fn-knock 管理面板密碼重置工具\n\n用法:\n  fn-knock-reset-panel-password\n\n作用:\n  - 清除管理面板密碼\n  - 清除所有管理面板登入會話\n  - 清除登入失敗退避狀態\n\n執行完成後，下次訪問管理入口會重新進入「首次設定密碼」流程。",
     resetCleared: "[fn-knock] 管理面板密碼狀態已清理",
-    resetNextVisit:
-      "[fn-knock] 下次訪問管理入口時，需要重新設定管理面板密碼",
+    resetNextVisit: "[fn-knock] 下次訪問管理入口時，需要重新設定管理面板密碼",
     resetFailed: "[fn-knock] 清理管理面板密碼失敗:",
   },
   passkeyRoutes: {
@@ -1058,6 +1057,16 @@ export const zhHantServer = {
     interfaceSourceLabel: "網卡 {name}",
     selectedInterfaceSourceLabel: "所選網卡",
     publicSourceLabel: "公網",
+    staticSourceLabel: "靜態 IP",
+    domainSourceLabel: "域名 {domain}",
+    domainSourceLabelEmpty: "來源域名",
+    staticIpv4Invalid: "靜態 IPv4 地址無效: {value}",
+    staticIpv6Invalid: "靜態 IPv6 地址無效: {value}",
+    sourceDomainRequired: "請填寫要解析的來源域名",
+    sourceDomainInvalid: "來源域名格式無效: {domain}",
+    sourceDomainResolveFailed: "來源域名 {domain} 解析失敗: {error}",
+    singleAddressProviderUnsupported:
+      "{provider} 一次只能更新一個地址，請將更新範圍設定為僅 IPv4 或僅 IPv6",
     interfaceIpv6Unavailable:
       "目前取得方式為從網卡直接取得，但所選網卡上沒有可用的 IPv6 地址",
     interfaceIpv4Unavailable:
@@ -1070,6 +1079,14 @@ export const zhHantServer = {
       "目前取得方式為從公網取得，但未取得到可用的 IPv4 地址",
     publicDualStackUnavailable:
       "目前取得方式為從公網取得，但未取得到可用的 IPv4 或 IPv6 地址",
+    staticIpv6Unavailable: "目前取得方式為靜態 IP，但未填寫可用的 IPv6 地址",
+    staticIpv4Unavailable: "目前取得方式為靜態 IP，但未填寫可用的 IPv4 地址",
+    staticDualStackUnavailable:
+      "目前取得方式為靜態 IP，但未填寫可用的 IPv4 或 IPv6 地址",
+    domainIpv6Unavailable: "目前取得方式為解析域名，但未解析到可用的 IPv6 地址",
+    domainIpv4Unavailable: "目前取得方式為解析域名，但未解析到可用的 IPv4 地址",
+    domainDualStackUnavailable:
+      "目前取得方式為解析域名，但未解析到可用的 IPv4 或 IPv6 地址",
     selectInterfaceAddress: "從網卡直接取得時，請先選擇一個 {family} 地址",
     selectedInterfaceAddressUnavailable:
       "所選網卡的第 {index} 個 {family} 地址已不可用，請重新選擇",
@@ -1666,6 +1683,8 @@ export const zhHantServer = {
       ddnsIpSources: {
         public: "公網探測",
         interface: "網卡讀取",
+        static: "靜態 IP",
+        domain: "域名解析",
       },
       updateCheckReasons: {
         cron: "定時檢查",

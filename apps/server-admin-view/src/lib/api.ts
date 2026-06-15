@@ -2291,7 +2291,10 @@ export const ScanAPI = {
   async probeHostMappings(
     payload?: HostMappingsProbeRequest,
   ): Promise<HostMappingsProbeResponse> {
-    const res = await apiClient.post("/scan/host-mappings/probe", payload || {});
+    const res = await apiClient.post(
+      "/scan/host-mappings/probe",
+      payload || {},
+    );
     return res.data.data;
   },
   async getDiscoverTargets(): Promise<ScanDiscoveryTargetsResponse> {
@@ -2312,12 +2315,15 @@ export type DDNSLogEntry = {
   message: string;
 };
 
+export type DDNSIpSource = "public" | "interface" | "static" | "domain";
+export type DDNSUpdateScope = "dual_stack" | "ipv6_only" | "ipv4_only";
+
 export type DDNSStatusPayload = {
   enabled: boolean;
   provider: string | null;
   updateIntervalMinutes: number;
-  updateScope: "dual_stack" | "ipv6_only" | "ipv4_only";
-  ipSource: "public" | "interface";
+  updateScope: DDNSUpdateScope;
+  ipSource: DDNSIpSource;
   networkInterface: string;
   lastIP: {
     ipv4: string | null;
@@ -2345,7 +2351,7 @@ export type DDNSTargetSummaryPayload = {
   isPrimary: boolean;
   enabled: boolean;
   provider: string | null;
-  updateScope: "dual_stack" | "ipv6_only" | "ipv4_only";
+  updateScope: DDNSUpdateScope;
   providerLabel: string;
   domainSummary: string;
   createdAt: string;
@@ -2522,6 +2528,10 @@ export const DDNSAPI = {
         options?: Array<{ label: string; value: string }>;
         description?: string;
       }>;
+      capabilities?: {
+        addressMode?: "dual_stack" | "single_address";
+        ipSources?: DDNSIpSource[];
+      };
     }>
   > {
     const res = await apiClient.get("/ddns/providers");
@@ -2551,7 +2561,12 @@ export const DDNSAPI = {
   async test(): Promise<{
     success: boolean;
     message: string;
-    data?: { ipv4: string | null; ipv6: string | null };
+    data?: {
+      ipv4: string | null;
+      ipv6: string | null;
+      source?: DDNSIpSource;
+      sourceLabel?: string;
+    };
   }> {
     const res = await apiClient.post("/ddns/test");
     return res.data;
@@ -2599,7 +2614,12 @@ export const DDNSAPI = {
   async testTarget(id: string): Promise<{
     success: boolean;
     message: string;
-    data?: { ipv4: string | null; ipv6: string | null };
+    data?: {
+      ipv4: string | null;
+      ipv6: string | null;
+      source?: DDNSIpSource;
+      sourceLabel?: string;
+    };
   }> {
     const res = await apiClient.post(
       `/ddns/targets/${encodeURIComponent(id)}/test`,

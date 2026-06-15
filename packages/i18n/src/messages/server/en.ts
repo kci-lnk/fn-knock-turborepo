@@ -1207,6 +1207,17 @@ export const enServer = {
     interfaceSourceLabel: "Interface {name}",
     selectedInterfaceSourceLabel: "Selected interface",
     publicSourceLabel: "Public network",
+    staticSourceLabel: "Static IP",
+    domainSourceLabel: "Domain {domain}",
+    domainSourceLabelEmpty: "Source domain",
+    staticIpv4Invalid: "Invalid static IPv4 address: {value}",
+    staticIpv6Invalid: "Invalid static IPv6 address: {value}",
+    sourceDomainRequired: "Enter the source domain to resolve",
+    sourceDomainInvalid: "Invalid source domain: {domain}",
+    sourceDomainResolveFailed:
+      "Failed to resolve source domain {domain}: {error}",
+    singleAddressProviderUnsupported:
+      "{provider} can update only one address at a time. Set the update scope to IPv4 only or IPv6 only.",
     interfaceIpv6Unavailable:
       "IP source is direct interface, but the selected interface has no usable IPv6 address",
     interfaceIpv4Unavailable:
@@ -1219,6 +1230,18 @@ export const enServer = {
       "IP source is public network, but no usable IPv4 address was obtained",
     publicDualStackUnavailable:
       "IP source is public network, but no usable IPv4 or IPv6 address was obtained",
+    staticIpv6Unavailable:
+      "IP source is static IP, but no usable IPv6 address was entered",
+    staticIpv4Unavailable:
+      "IP source is static IP, but no usable IPv4 address was entered",
+    staticDualStackUnavailable:
+      "IP source is static IP, but no usable IPv4 or IPv6 address was entered",
+    domainIpv6Unavailable:
+      "IP source is domain resolution, but no usable IPv6 address was resolved",
+    domainIpv4Unavailable:
+      "IP source is domain resolution, but no usable IPv4 address was resolved",
+    domainDualStackUnavailable:
+      "IP source is domain resolution, but no usable IPv4 or IPv6 address was resolved",
     selectInterfaceAddress:
       "Select a {family} address before using direct interface mode",
     selectedInterfaceAddressUnavailable:
@@ -1853,6 +1876,8 @@ export const enServer = {
       ddnsIpSources: {
         public: "Public detection",
         interface: "Interface read",
+        static: "Static IP",
+        domain: "Domain resolution",
       },
       updateCheckReasons: {
         cron: "Scheduled check",

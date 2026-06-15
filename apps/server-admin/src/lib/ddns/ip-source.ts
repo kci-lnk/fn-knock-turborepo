@@ -1,3 +1,5 @@
+import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
 import { IPDetector } from "../../plugins/ip-detector";
 import {
   findDDNSNetworkInterface,
@@ -8,12 +10,16 @@ import {
 import {
   ddnsTranslate,
   getUpdateScopeDetectionOptions,
+  normalizeDomain,
 } from "./providers/helpers";
 import type { DDNSIpSource, DDNSUpdateScope } from "./types";
 
 export const DDNS_IP_SOURCE_FIELD = "ip_source";
 export const DDNS_INTERFACE_IPV4_INDEX_FIELD = "interface_ipv4_index";
 export const DDNS_INTERFACE_IPV6_INDEX_FIELD = "interface_ipv6_index";
+export const DDNS_STATIC_IPV4_FIELD = "static_ipv4";
+export const DDNS_STATIC_IPV6_FIELD = "static_ipv6";
+export const DDNS_SOURCE_DOMAIN_FIELD = "source_domain";
 export const DEFAULT_DDNS_IP_SOURCE: DDNSIpSource = "public";
 export const DEFAULT_DDNS_INTERFACE_ADDRESS_INDEX = "";
 
@@ -30,7 +36,10 @@ export type DDNSResolvedTargetIPs = {
 export function normalizeIpSource(
   value: string | null | undefined,
 ): DDNSIpSource {
-  return value === "interface" ? "interface" : DEFAULT_DDNS_IP_SOURCE;
+  if (value === "interface" || value === "static" || value === "domain") {
+    return value;
+  }
+  return DEFAULT_DDNS_IP_SOURCE;
 }
 
 export function normalizeInterfaceAddressIndex(
@@ -52,12 +61,24 @@ export function normalizeInterfaceAddressIndex(
 export function getDDNSIpSourceLabel(
   source: DDNSIpSource,
   networkInterface?: string | null,
+  sourceDomain?: string | null,
 ): string {
   if (source === "interface") {
     const normalizedInterface = normalizeNetworkInterface(networkInterface);
     return normalizedInterface
       ? ddnsT("interfaceSourceLabel", { name: normalizedInterface })
       : ddnsT("selectedInterfaceSourceLabel");
+  }
+
+  if (source === "static") {
+    return ddnsT("staticSourceLabel");
+  }
+
+  if (source === "domain") {
+    const domain = normalizeSourceDomain(sourceDomain);
+    return domain
+      ? ddnsT("domainSourceLabel", { domain })
+      : ddnsT("domainSourceLabelEmpty");
   }
 
   return ddnsT("publicSourceLabel");
@@ -67,6 +88,26 @@ export function getDDNSTargetIPUnavailableMessage(
   source: DDNSIpSource,
   scope: DDNSUpdateScope,
 ): string {
+  if (source === "static") {
+    if (scope === "ipv6_only") {
+      return ddnsT("staticIpv6Unavailable");
+    }
+    if (scope === "ipv4_only") {
+      return ddnsT("staticIpv4Unavailable");
+    }
+    return ddnsT("staticDualStackUnavailable");
+  }
+
+  if (source === "domain") {
+    if (scope === "ipv6_only") {
+      return ddnsT("domainIpv6Unavailable");
+    }
+    if (scope === "ipv4_only") {
+      return ddnsT("domainIpv4Unavailable");
+    }
+    return ddnsT("domainDualStackUnavailable");
+  }
+
   if (source === "interface") {
     if (scope === "ipv6_only") {
       return ddnsT("interfaceIpv6Unavailable");
@@ -84,6 +125,93 @@ export function getDDNSTargetIPUnavailableMessage(
     return ddnsT("publicIpv4Unavailable");
   }
   return ddnsT("publicDualStackUnavailable");
+}
+
+export function normalizeStaticIPAddress(
+  value: string | null | undefined,
+): string {
+  return value?.trim() || "";
+}
+
+export function normalizeSourceDomain(
+  value: string | null | undefined,
+): string {
+  return normalizeDomain(value || "");
+}
+
+function isValidSourceDomain(value: string): boolean {
+  const domain = normalizeSourceDomain(value);
+  if (!domain || domain.length > 253) {
+    return false;
+  }
+  if (
+    /^https?:\/\//i.test(value) ||
+    domain.includes("/") ||
+    domain.includes(":") ||
+    domain.includes("*") ||
+    /\s/.test(domain)
+  ) {
+    return false;
+  }
+
+  return domain.split(".").every((label) => {
+    return (
+      label.length > 0 &&
+      label.length <= 63 &&
+      !label.startsWith("-") &&
+      !label.endsWith("-") &&
+      /^[a-z0-9-]+$/i.test(label)
+    );
+  });
+}
+
+function resolveStaticAddress(
+  value: string | null | undefined,
+  family: "ipv4" | "ipv6",
+): string | null {
+  const address = normalizeStaticIPAddress(value);
+  if (!address) {
+    return null;
+  }
+
+  const expectedVersion = family === "ipv4" ? 4 : 6;
+  if (isIP(address) !== expectedVersion) {
+    throw new Error(
+      family === "ipv4"
+        ? ddnsT("staticIpv4Invalid", { value: address })
+        : ddnsT("staticIpv6Invalid", { value: address }),
+    );
+  }
+
+  return address;
+}
+
+async function resolveSourceDomainAddresses(
+  rawDomain: string | null | undefined,
+): Promise<{ ipv4: string | null; ipv6: string | null }> {
+  const domain = normalizeSourceDomain(rawDomain);
+  if (!domain) {
+    throw new Error(ddnsT("sourceDomainRequired"));
+  }
+  if (!isValidSourceDomain(domain)) {
+    throw new Error(ddnsT("sourceDomainInvalid", { domain }));
+  }
+
+  try {
+    const entries = await lookup(domain, { all: true, verbatim: false });
+    const ipv4 =
+      entries.find((entry) => entry.family === 4)?.address?.trim() || null;
+    const ipv6 =
+      entries.find((entry) => entry.family === 6)?.address?.trim() || null;
+    return { ipv4, ipv6 };
+  } catch (error) {
+    throw new Error(
+      ddnsT("sourceDomainResolveFailed", {
+        domain,
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
+  }
 }
 
 function resolveInterfaceAddress(
@@ -141,6 +269,9 @@ export async function resolveDDNSTargetIPs(options: {
   ipSource?: string | null;
   interfaceIpv4Index?: string | null;
   interfaceIpv6Index?: string | null;
+  staticIpv4?: string | null;
+  staticIpv6?: string | null;
+  sourceDomain?: string | null;
 }): Promise<DDNSResolvedTargetIPs> {
   const source = normalizeIpSource(options.ipSource);
   const detectionOptions = getUpdateScopeDetectionOptions(options.updateScope);
@@ -186,6 +317,32 @@ export async function resolveDDNSTargetIPs(options: {
       source,
       sourceLabel: getDDNSIpSourceLabel(source, normalizedInterface),
       warnings,
+    };
+  }
+
+  if (source === "static") {
+    return {
+      ipv4: detectionOptions.enableIPv4
+        ? resolveStaticAddress(options.staticIpv4, "ipv4")
+        : null,
+      ipv6: detectionOptions.enableIPv6
+        ? resolveStaticAddress(options.staticIpv6, "ipv6")
+        : null,
+      source,
+      sourceLabel: getDDNSIpSourceLabel(source),
+      warnings: [],
+    };
+  }
+
+  if (source === "domain") {
+    const resolved = await resolveSourceDomainAddresses(options.sourceDomain);
+    const domain = normalizeSourceDomain(options.sourceDomain);
+    return {
+      ipv4: detectionOptions.enableIPv4 ? resolved.ipv4 : null,
+      ipv6: detectionOptions.enableIPv6 ? resolved.ipv6 : null,
+      source,
+      sourceLabel: getDDNSIpSourceLabel(source, null, domain),
+      warnings: [],
     };
   }
 

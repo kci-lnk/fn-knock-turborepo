@@ -318,6 +318,17 @@
                     {{ t("admin.subdomainProxy.clearAllConfig") }}
                   </DropdownMenuItem>
                   <DropdownMenuItem
+                    :disabled="
+                      !hasRegularHostMappings ||
+                      isSavingMappings ||
+                      isClearingAllSubdomainConfig
+                    "
+                    @select="openStaleCleanupDialog"
+                  >
+                    <Eraser class="mr-2 h-4 w-4" />
+                    {{ t("admin.subdomainProxy.cleanupStaleServices") }}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
                     :disabled="configStore.isLoading"
                     @click="openCreateDialog"
                   >
@@ -1376,6 +1387,13 @@
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <StaleHostMappingsCleanupDialog
+      ref="staleCleanupDialogRef"
+      :mappings="allMappings"
+      :save-mappings="saveHostMappingsForCleanup"
+      :is-auth-service-target="isAuthServiceTarget"
+    />
   </div>
 </template>
 
@@ -1397,6 +1415,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  Eraser,
   GripVertical,
   Image,
   PanelsTopLeft,
@@ -1456,6 +1475,7 @@ import InlineCommentEditor from "@admin-shared/components/InlineCommentEditor.vu
 import ProxyTargetInputField from "@admin-shared/components/common/ProxyTargetInputField.vue";
 import ScanDiscoveryTargetsSettings from "@/components/ScanDiscoveryTargetsSettings.vue";
 import SearchInput from "@admin-shared/components/SearchInput.vue";
+import StaleHostMappingsCleanupDialog from "@/components/StaleHostMappingsCleanupDialog.vue";
 import {
   Table,
   TableBody,
@@ -1529,6 +1549,9 @@ const configStore = useConfigStore();
 const { t } = useI18n();
 const discoverTargetsSettingsRef = ref<InstanceType<
   typeof ScanDiscoveryTargetsSettings
+> | null>(null);
+const staleCleanupDialogRef = ref<InstanceType<
+  typeof StaleHostMappingsCleanupDialog
 > | null>(null);
 const isDiscoverSettingsOpen = ref(false);
 
@@ -1915,6 +1938,12 @@ const canManageNewMappings = computed(
   () => Boolean(savedRootDomain.value) && !isRootDomainPendingSave.value,
 );
 const allMappings = computed(() => configStore.config?.host_mappings ?? []);
+const regularHostMappings = computed(() =>
+  allMappings.value.filter((mapping) => !isAuthServiceTarget(mapping.target)),
+);
+const hasRegularHostMappings = computed(
+  () => regularHostMappings.value.length > 0,
+);
 const existingMappingPorts = computed(() => {
   const ports = new Set<number>();
 
@@ -3988,6 +4017,14 @@ function openDiscoverDialog() {
     void nextTick().then(() => triggerScan());
   }
 }
+
+function openStaleCleanupDialog() {
+  void staleCleanupDialogRef.value?.open();
+}
+
+const saveHostMappingsForCleanup = async (mappings: HostMapping[]) => {
+  await configStore.saveHostMappings(mappings);
+};
 
 async function toggleDiscoverSettings() {
   isDiscoverSettingsOpen.value = !isDiscoverSettingsOpen.value;

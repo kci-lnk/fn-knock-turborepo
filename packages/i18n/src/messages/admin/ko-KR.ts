@@ -2144,6 +2144,7 @@ export const koKRAdmin = {
     discovering: "발견 중...",
     discover: "발견하다",
     clearAllConfig: "모든 구성 지우기",
+    cleanupStaleServices: "만료된 서비스 정리",
     addMapping: "매핑 추가",
     syncing: "동기화 중...",
     syncRoutes: "경로 동기화",
@@ -2311,6 +2312,12 @@ export const koKRAdmin = {
     exportBookmarksFailed: "북마크를 내보내지 못했습니다.",
     discoverFailed: "검색 실패",
     discoverServicesFailed: "로컬 서비스를 스캔하지 못했습니다.",
+    staleCleanupProbeFailed: "만료된 서비스 검사를 실패했습니다.",
+    staleCleanupProbeFailedDescription:
+      "Host 매핑 대상의 도달 가능성을 확인하지 못했습니다.",
+    staleCleanupCleanFailed: "만료된 서비스 정리를 실패했습니다.",
+    staleCleanupCleanFailedDescription:
+      "정리 후 Host 매핑을 저장하지 못했습니다.",
     basicAuthProbeFailed: "기본 인증 프로브 실패",
     proxyHeadersLoadFailed: "프로토콜 헤더 구성을 로드하지 못했습니다.",
     hostResponseLoadFailed: "호스트 응답 구성을 로드하지 못했습니다.",
@@ -2351,6 +2358,9 @@ export const koKRAdmin = {
     allCleared: "인증 서비스 및 하위 도메인 매핑이 삭제되었습니다.",
     clearedMappingsDescription:
       "{count} 호스트 매핑을 지웠습니다. 하위 도메인 모드 구성은 변경되지 않습니다.",
+    staleCleanupCleaned: "만료된 서비스가 정리되었습니다.",
+    staleCleanupCleanedDescription:
+      "{count}개의 만료된 Host 매핑이 정리되었습니다.",
     modeConfigKept: "하위 도메인 모드 구성은 변경되지 않습니다.",
     hostExists: "호스트가 이미 존재합니다.",
     hostExistsDescription: "{host}은 이미 매핑되어 있습니다.",
@@ -2374,6 +2384,30 @@ export const koKRAdmin = {
       "{updated}을 업데이트했고 {failed}에 실패했으며 {skipped}을 건너뛰었습니다.",
     bookmarksExported: "내보낸 북마크",
     bookmarksExportDescription: "{count} 하위 도메인 매핑을 내보냈습니다.",
+    staleCleanupTitle: "만료된 서비스 정리",
+    staleCleanupDescription:
+      "현재 일반 Host 매핑의 대상 주소를 검사하고 네트워크에서 도달할 수 없는 서비스만 정리합니다.",
+    staleCleanupRefresh: "다시 검사",
+    staleCleanupChecking: "검사 중...",
+    staleCleanupProbing: "Host 매핑 대상의 도달 가능성을 검사하는 중...",
+    staleCleanupEmpty: "검사할 일반 Host 매핑이 없습니다.",
+    staleCleanupNoResults: "아직 검사 결과가 없습니다.",
+    staleCleanupNoStale: "정리할 만료된 서비스를 찾지 못했습니다.",
+    staleCleanupColumns: {
+      title: "제목",
+      host: "도메인",
+      target: "대상",
+      status: "상태",
+    },
+    staleCleanupStatus: {
+      online: "온라인",
+      stale: "도달 불가",
+      unsupported: "지원되지 않음",
+    },
+    staleCleanupSelectAll: "만료된 서비스 모두 선택",
+    staleCleanupSelected: "{selected} / {total}개의 만료된 서비스 선택됨",
+    staleCleanupCleanSelected: "선택 항목 정리",
+    staleCleanupCleaning: "정리 중...",
     edgeProviders: {
       tencentEdgeOne: {
         label: "Tencent EdgeOne",

@@ -29,6 +29,7 @@ import {
   validateScanCidrs,
 } from "../lib/scan-discovery";
 import { createRequestTranslator } from "../lib/i18n";
+import { probeConfiguredHostMappings } from "../lib/host-mapping-probe";
 
 const runtimeProfile = getRuntimeProfile();
 const adminPanelProtectedRuntime = isAdminPanelProtectedRuntime(runtimeProfile);
@@ -382,6 +383,29 @@ export const assetsRoutes = new Elysia({
     withRouteDoc("按网段扫描可发现服务", {
       body: t.Object({
         target_cidrs: t.Optional(t.Array(t.String())),
+      }),
+    }),
+  )
+  .post(
+    "/host-mappings/probe",
+    async ({ body }) => {
+      const configManager = new ConfigManager();
+      const config = await configManager.getConfig();
+      const results = await probeConfiguredHostMappings(
+        config.host_mappings,
+        body.hosts,
+      );
+
+      return {
+        success: true,
+        data: {
+          results,
+        },
+      };
+    },
+    withRouteDoc("探测 Host 映射目标可达性", {
+      body: t.Object({
+        hosts: t.Optional(t.Array(t.String())),
       }),
     }),
   );

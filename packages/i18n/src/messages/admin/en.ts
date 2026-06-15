@@ -2152,6 +2152,7 @@ export const enAdmin = {
     discovering: "Discovering...",
     discover: "Discover",
     clearAllConfig: "Clear all configuration",
+    cleanupStaleServices: "Clean stale services",
     addMapping: "Add mapping",
     syncing: "Syncing...",
     syncRoutes: "Sync routes",
@@ -2318,6 +2319,12 @@ export const enAdmin = {
     exportBookmarksFailed: "Failed to export bookmarks",
     discoverFailed: "Discovery failed",
     discoverServicesFailed: "Failed to scan local services",
+    staleCleanupProbeFailed: "Stale service check failed",
+    staleCleanupProbeFailedDescription:
+      "Failed to check Host mapping target reachability",
+    staleCleanupCleanFailed: "Stale service cleanup failed",
+    staleCleanupCleanFailedDescription:
+      "Failed to save Host mappings after cleanup",
     basicAuthProbeFailed: "Basic Auth probe failed",
     proxyHeadersLoadFailed: "Failed to load protocol header configuration",
     hostResponseLoadFailed: "Failed to load Host response configuration",
@@ -2358,6 +2365,8 @@ export const enAdmin = {
     allCleared: "Auth service and subdomain mappings cleared",
     clearedMappingsDescription:
       "Cleared {count} Host mappings. Subdomain mode configuration is unchanged.",
+    staleCleanupCleaned: "Stale services cleaned",
+    staleCleanupCleanedDescription: "Cleaned {count} stale Host mappings.",
     modeConfigKept: "Subdomain mode configuration is unchanged.",
     hostExists: "Host already exists",
     hostExistsDescription: "{host} is already mapped.",
@@ -2382,6 +2391,30 @@ export const enAdmin = {
       "Updated {updated}, failed {failed}, skipped {skipped}.",
     bookmarksExported: "Bookmarks exported",
     bookmarksExportDescription: "Exported {count} subdomain mappings.",
+    staleCleanupTitle: "Clean stale services",
+    staleCleanupDescription:
+      "Check the targets of current normal Host mappings and only clean services that are unreachable.",
+    staleCleanupRefresh: "Check again",
+    staleCleanupChecking: "Checking...",
+    staleCleanupProbing: "Checking Host mapping target reachability...",
+    staleCleanupEmpty: "There are no normal Host mappings to check.",
+    staleCleanupNoResults: "No check results yet.",
+    staleCleanupNoStale: "No stale services need cleanup.",
+    staleCleanupColumns: {
+      title: "Title",
+      host: "Domain",
+      target: "Target",
+      status: "Status",
+    },
+    staleCleanupStatus: {
+      online: "Online",
+      stale: "Unreachable",
+      unsupported: "Unsupported",
+    },
+    staleCleanupSelectAll: "Select all stale services",
+    staleCleanupSelected: "{selected} / {total} stale services selected",
+    staleCleanupCleanSelected: "Clean selected",
+    staleCleanupCleaning: "Cleaning...",
     edgeProviders: {
       tencentEdgeOne: {
         label: "Tencent EdgeOne",

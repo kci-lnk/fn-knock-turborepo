@@ -2256,6 +2256,25 @@ export interface ScanDiscoverRequest {
   target_cidrs?: string[];
 }
 
+export type HostMappingProbeStatus = "online" | "stale" | "unsupported";
+
+export interface HostMappingProbeResult {
+  host: string;
+  target: string;
+  status: HostMappingProbeStatus;
+  httpStatus?: number;
+  error?: string;
+  latencyMs?: number;
+}
+
+export interface HostMappingsProbeRequest {
+  hosts?: string[];
+}
+
+export interface HostMappingsProbeResponse {
+  results: HostMappingProbeResult[];
+}
+
 export interface ScanDiscoveryTargetsSaveRequest {
   custom_cidrs?: string[];
   selected_cidrs?: string[];
@@ -2267,6 +2286,12 @@ export const ScanAPI = {
       payload && "target_cidrs" in payload
         ? await apiClient.post("/scan/discover", payload)
         : await apiClient.get("/scan/discover");
+    return res.data.data;
+  },
+  async probeHostMappings(
+    payload?: HostMappingsProbeRequest,
+  ): Promise<HostMappingsProbeResponse> {
+    const res = await apiClient.post("/scan/host-mappings/probe", payload || {});
     return res.data.data;
   },
   async getDiscoverTargets(): Promise<ScanDiscoveryTargetsResponse> {

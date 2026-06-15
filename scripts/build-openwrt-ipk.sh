@@ -11,7 +11,7 @@ WORK_DIR="${OUTPUT_DIR}/work"
 RUNTIME_DIR="${OUTPUT_DIR}/runtime"
 TEMPLATE_DIR="${ROOT_DIR}/deploy/openwrt"
 VERSION_FILE="${ROOT_DIR}/apps/server-admin/src/lib/app-version.ts"
-DEFAULT_ARCH_MATRIX="aarch64_generic:arm64,arm_cortex-a7_neon-vfpv4:arm,x86_64:amd64"
+DEFAULT_ARCH_MATRIX="aarch64_cortex-a53:arm64,aarch64_generic:arm64,arm_cortex-a7_neon-vfpv4:arm,x86_64:amd64"
 ARCH_MATRIX="${FN_KNOCK_OPENWRT_ARCHES:-${DEFAULT_ARCH_MATRIX}}"
 DEPENDS="${FN_KNOCK_OPENWRT_DEPENDS:-libc, node, redis-server, bash, curl, unzip, ca-bundle, ca-certificates, iptables-nft, ip6tables-nft, luci-base}"
 DESCRIPTION="${FN_KNOCK_OPENWRT_DESCRIPTION:-fn-knock secure reverse proxy and knock authentication gateway}"
@@ -31,6 +31,20 @@ fail() {
 require_cmd() {
   local cmd="$1"
   command -v "${cmd}" >/dev/null 2>&1 || fail "missing required command: ${cmd}"
+}
+
+clean_output_dir() {
+  local normalized_output_dir="${OUTPUT_DIR%/}"
+
+  case "${normalized_output_dir}" in
+    ""|"/"|"."|".."|"${ROOT_DIR}")
+      fail "refusing to clean unsafe output directory: ${OUTPUT_DIR}"
+      ;;
+  esac
+
+  log "Cleaning output directory ${OUTPUT_DIR}"
+  rm -rf "${OUTPUT_DIR}"
+  mkdir -p "${OUTPUT_DIR}" "${WORK_DIR}"
 }
 
 parse_app_version() {
@@ -463,7 +477,7 @@ main() {
   local item
 
   version="$(parse_app_version)"
-  mkdir -p "${OUTPUT_DIR}" "${WORK_DIR}"
+  clean_output_dir
 
   while IFS= read -r item; do
     [ -n "${item}" ] || continue

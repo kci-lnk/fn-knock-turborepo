@@ -21,6 +21,7 @@ import { moontvRule } from "./rules/moontv";
 import { fnosappsRule } from "./rules/fnosapps";
 import { embyRule } from "./rules/emby";
 import { dlymusicRule } from "./rules/dlymusic";
+import { onePanelRule } from "./rules/1panel";
 
 const rules: AnalyzerRule[] = [
   mongoExpressRule,
@@ -46,7 +47,8 @@ const rules: AnalyzerRule[] = [
   moontvRule,
   fnosappsRule,
   embyRule,
-  dlymusicRule
+  dlymusicRule,
+  onePanelRule,
 ];
 
 function extractTitle(body?: string): string {
@@ -55,18 +57,20 @@ function extractTitle(body?: string): string {
   return match && match[1] ? match[1].trim() : "";
 }
 
-export async function analyzeService(result: ScanResult): Promise<AnalyzerRule> {
+export async function analyzeService(
+  result: ScanResult,
+): Promise<AnalyzerRule> {
   for (const rule of rules) {
     try {
-      const isMatch = await rule.match(result); 
+      const isMatch = await rule.match(result);
       if (isMatch) {
         return rule;
       }
     } catch (error) {
-      continue; 
+      continue;
     }
   }
-  
+
   const title = extractTitle(result.body);
 
   return {

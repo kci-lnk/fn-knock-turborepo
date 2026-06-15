@@ -9,6 +9,9 @@ const MAX_FAVICON_BYTES = 128 * 1024;
 const METADATA_USER_AGENT = "fn-knock-server-admin/1.0";
 const MAX_METADATA_REDIRECTS = 20;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+const ONE_PANEL_TITLE = "1Panel";
+const ONE_PANEL_LOADING_TITLE = "loading...";
+const ONE_PANEL_FAVICON_PATH = "/public/favicon.png";
 
 export interface UrlMetadata {
   title: string;
@@ -159,12 +162,27 @@ const normalizeManifestUrl = (value: string, baseUrl: string): string => {
   }
 };
 
-const resolveDefaultFaviconUrl = (value: string): string => {
+const resolveOriginPathUrl = (value: string, pathname: string): string => {
   try {
     const parsed = new URL(value);
-    return `${parsed.origin}/favicon.ico`;
+    return `${parsed.origin}${pathname}`;
   } catch {
     return "";
+  }
+};
+
+const resolveDefaultFaviconUrl = (value: string): string =>
+  resolveOriginPathUrl(value, "/favicon.ico");
+
+const resolveFallbackFaviconUrls = (value: string): string[] => {
+  try {
+    const parsed = new URL(value);
+    return [
+      `${parsed.origin}/favicon.ico`,
+      `${parsed.origin}${ONE_PANEL_FAVICON_PATH}`,
+    ];
+  } catch {
+    return [];
   }
 };
 
@@ -172,6 +190,9 @@ export const extractTitleFromHtml = (html: string): string => {
   const match = html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i);
   return collapseWhitespace(decodeHtmlEntities(match?.[1] ?? ""));
 };
+
+const isOnePanelLoadingTitle = (value: string): boolean =>
+  value.trim().toLowerCase() === ONE_PANEL_LOADING_TITLE;
 
 export const extractFaviconFromHtml = (
   html: string,
@@ -363,6 +384,15 @@ const resolveImageContentType = (value: string, response: Response): string => {
     ?.toLowerCase();
   if (headerValue?.startsWith("image/")) {
     return headerValue;
+  }
+  if (
+    headerValue &&
+    headerValue !== "application/octet-stream" &&
+    headerValue !== "binary/octet-stream" &&
+    headerValue !== "application/ico" &&
+    headerValue !== "application/x-ico"
+  ) {
+    return "";
   }
 
   try {
@@ -647,6 +677,25 @@ export const fetchUrlMetadata = async (
 
     const finalUrl = response.url || normalizedUrl;
     const html = (await response.text()).slice(0, MAX_HTML_LENGTH);
+    const title = extractTitleFromHtml(html);
+    const onePanelFavicon = isOnePanelLoadingTitle(title)
+      ? await fetchFaviconAsDataUrl(
+          resolveOriginPathUrl(finalUrl, ONE_PANEL_FAVICON_PATH),
+          timeoutMs,
+          basicAuthContext,
+        )
+      : "";
+    if (onePanelFavicon) {
+      return {
+        ok: true,
+        data: {
+          title: ONE_PANEL_TITLE,
+          favicon: onePanelFavicon,
+          finalUrl,
+        },
+      };
+    }
+
     const explicitFaviconUrl = extractExplicitFaviconFromHtml(html, finalUrl);
     const manifestUrl = extractManifestFromHtml(html, finalUrl);
     let favicon = explicitFaviconUrl
@@ -658,18 +707,14 @@ export const fetchUrlMetadata = async (
       : "";
     if (!favicon && manifestUrl) {
       favicon = await fetchFirstFaviconAsDataUrl(
-        await fetchManifestIconUrls(
-          manifestUrl,
-          timeoutMs,
-          basicAuthContext,
-        ),
+        await fetchManifestIconUrls(manifestUrl, timeoutMs, basicAuthContext),
         timeoutMs,
         basicAuthContext,
       );
     }
     if (!favicon) {
-      favicon = await fetchFaviconAsDataUrl(
-        resolveDefaultFaviconUrl(finalUrl),
+      favicon = await fetchFirstFaviconAsDataUrl(
+        resolveFallbackFaviconUrls(finalUrl),
         timeoutMs,
         basicAuthContext,
       );
@@ -678,7 +723,7 @@ export const fetchUrlMetadata = async (
     return {
       ok: true,
       data: {
-        title: extractTitleFromHtml(html),
+        title,
         favicon,
         finalUrl,
       },

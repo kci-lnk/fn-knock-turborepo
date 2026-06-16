@@ -79,6 +79,16 @@ const { isPending: isDeleting, run: runDelete } = useAsyncAction({
     });
   },
 });
+const { isPending: isClearing, run: runClear } = useAsyncAction({
+  onError: (error) => {
+    toast.error(t("admin.eventCenter.events.clearFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.eventCenter.events.clearEventFailed"),
+      ),
+    });
+  },
+});
 
 const {
   items: events,
@@ -133,6 +143,11 @@ const showTableSkeleton = useDelayedLoading(
   () => loading.value && events.value.length === 0,
 );
 const hasSelectedEvents = computed(() => selectedKeys.value.size > 0);
+const clearEventsDescription = computed(() =>
+  t("admin.eventCenter.events.clearDescription", {
+    count: totalEvents.value,
+  }),
+);
 
 const viewDetails = (event: SystemEventRecord) => {
   activeEvent.value = event;
@@ -153,6 +168,37 @@ const deleteEvents = async (ids: string[]) => {
       toast.error(t("admin.eventCenter.events.deleteFailed"), {
         description:
           result.message || t("admin.eventCenter.events.deleteEventFailed"),
+      });
+    },
+  });
+};
+
+const clearAllEvents = async () => {
+  if (totalEvents.value === 0) return;
+
+  await runClear(() => EventCenterAPI.clearEvents(), {
+    onSuccess: async (result) => {
+      if (result.success || result.message === "success") {
+        const deletedCount = result.data?.deleted_count ?? 0;
+        toast.success(
+          deletedCount > 0
+            ? t("admin.eventCenter.events.clearSuccess", {
+                count: deletedCount,
+              })
+            : t("admin.eventCenter.events.clearEmpty"),
+        );
+        clearSelection();
+        activeEvent.value = null;
+        isDetailsOpen.value = false;
+        if (currentPage.value !== 1) {
+          currentPage.value = 1;
+        }
+        await fetchEvents();
+        return;
+      }
+      toast.error(t("admin.eventCenter.events.clearFailed"), {
+        description:
+          result.message || t("admin.eventCenter.events.clearEventFailed"),
       });
     },
   });
@@ -1007,9 +1053,30 @@ onMounted(() => {
       <div class="ml-auto flex items-center gap-2">
         <RefreshButton
           :loading="loading"
-          :disabled="loading"
+          :disabled="loading || isClearing"
           @click="fetchEvents"
         />
+
+        <ConfirmDangerPopover
+          :title="t('admin.eventCenter.events.clearTitle')"
+          :description="clearEventsDescription"
+          :confirm-text="t('admin.eventCenter.events.confirmClear')"
+          :loading="isClearing"
+          :disabled="loading || isClearing || totalEvents === 0"
+          content-class="w-80 text-left"
+          :on-confirm="clearAllEvents"
+        >
+          <template #trigger>
+            <Button
+              variant="outline"
+              class="border-destructive/20 text-destructive hover:bg-destructive/5 hover:text-destructive"
+              :disabled="loading || isClearing || totalEvents === 0"
+            >
+              <Trash2 class="mr-2 h-4 w-4" />
+              {{ t("admin.eventCenter.events.clearButton") }}
+            </Button>
+          </template>
+        </ConfirmDangerPopover>
 
         <ConfirmDangerPopover
           v-if="hasSelectedEvents"
@@ -1020,11 +1087,11 @@ onMounted(() => {
           "
           :description="t('admin.eventCenter.events.deleteDescription')"
           :loading="isDeleting"
-          :disabled="isDeleting"
+          :disabled="isDeleting || isClearing"
           :on-confirm="() => deleteEvents(Array.from(selectedKeys))"
         >
           <template #trigger>
-            <Button variant="destructive" :disabled="isDeleting">
+            <Button variant="destructive" :disabled="isDeleting || isClearing">
               <Trash2 class="mr-2 h-4 w-4" />
               {{
                 t("admin.eventCenter.events.deleteSelectedButton", {
@@ -1160,7 +1227,7 @@ onMounted(() => {
                   :title="t('admin.eventCenter.events.deleteSingleTitle')"
                   :description="t('admin.eventCenter.events.deleteDescription')"
                   :loading="isDeleting"
-                  :disabled="isDeleting"
+                  :disabled="isDeleting || isClearing"
                   :on-confirm="() => deleteEvents([event.id])"
                 >
                   <template #trigger>
@@ -1168,7 +1235,7 @@ onMounted(() => {
                       variant="ghost"
                       size="icon"
                       class="text-destructive"
-                      :disabled="isDeleting"
+                      :disabled="isDeleting || isClearing"
                     >
                       <Trash2 class="h-4 w-4" />
                     </Button>

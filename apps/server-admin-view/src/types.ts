@@ -589,6 +589,7 @@ export interface GatewayLogEntry {
   waf_rule_ids?: number[];
   waf_action?: string;
   waf_bundle?: string;
+  general_blacklist_blocked?: boolean;
   ipLocation?: string;
 }
 

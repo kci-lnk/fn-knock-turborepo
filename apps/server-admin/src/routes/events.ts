@@ -65,6 +65,19 @@ export const eventRoutes = new Elysia({
     }),
   )
   .delete(
+    "/clear",
+    async () => {
+      const deletedCount = await systemEventManager.clearAll();
+      return {
+        success: true,
+        data: {
+          deleted_count: deletedCount,
+        },
+      };
+    },
+    withRouteDoc("清空系统事件", {}),
+  )
+  .delete(
     "/",
     async ({ body }) => {
       await systemEventManager.deleteMany(body.ids);

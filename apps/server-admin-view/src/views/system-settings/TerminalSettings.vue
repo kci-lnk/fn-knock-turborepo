@@ -257,6 +257,25 @@ onMounted(loadSettings);
 
     <CardContent v-else class="border-t p-0">
       <div class="space-y-6 p-6">
+        <template v-if="isTmuxInstalled">
+          <div
+            class="flex items-center justify-between rounded-lg border bg-muted/10 p-4"
+          >
+            <div class="space-y-1 pr-6">
+              <Label
+                class="cursor-pointer text-base font-medium"
+                @click="form.enabled = !form.enabled"
+              >
+                {{ t("admin.terminalSettings.enableLabel") }}
+              </Label>
+              <p class="text-sm text-muted-foreground">
+                {{ t("admin.terminalSettings.enableDescription") }}
+              </p>
+            </div>
+            <Switch v-model="form.enabled" :disabled="isSaving" />
+          </div>
+        </template>
+
         <div class="grid gap-4 md:grid-cols-1">
           <div class="rounded-lg border bg-muted/20 p-4">
             <div class="mb-2 flex items-center gap-2 text-sm font-medium">
@@ -322,23 +341,6 @@ onMounted(loadSettings);
         </div>
 
         <template v-else>
-          <div
-            class="flex items-center justify-between rounded-lg border bg-muted/10 p-4"
-          >
-            <div class="space-y-1 pr-6">
-              <Label
-                class="cursor-pointer text-base font-medium"
-                @click="form.enabled = !form.enabled"
-              >
-                {{ t("admin.terminalSettings.enableLabel") }}
-              </Label>
-              <p class="text-sm text-muted-foreground">
-                {{ t("admin.terminalSettings.enableDescription") }}
-              </p>
-            </div>
-            <Switch v-model="form.enabled" :disabled="isSaving" />
-          </div>
-
           <div class="grid gap-4 md:grid-cols-2">
             <div class="space-y-2">
               <Label for="terminal-max-sessions">

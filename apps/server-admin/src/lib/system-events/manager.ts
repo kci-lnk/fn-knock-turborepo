@@ -148,6 +148,10 @@ export class SystemEventManager {
   async deleteMany(ids: string[]): Promise<void> {
     await this.store.deleteMany(ids);
   }
+
+  async clearAll(): Promise<number> {
+    return this.store.clearAll();
+  }
 }
 
 export const systemEventManager = new SystemEventManager();

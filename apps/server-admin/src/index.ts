@@ -17,6 +17,7 @@ import { authRoutes } from "./routes/auth";
 import { systemRoutes } from "./routes/system";
 import { backoffRoutes } from "./routes/backoff";
 import { scannerRoutes } from "./routes/scanner";
+import { generalBlacklistRoutes } from "./routes/general-blacklist";
 import { hmacMiddleware } from "./middleware/hmac";
 import { frpcRoutes, restoreFrpcOnBoot } from "./routes/frpc";
 import {
@@ -697,6 +698,7 @@ app.use(backoffRoutes);
 app.use(frpcRoutes);
 app.use(cloudflaredRoutes);
 app.use(scannerRoutes);
+app.use(generalBlacklistRoutes);
 app.use(ddnsRoutes);
 app.use(gatewayLogsRoutes);
 app.use(wafRoutes);
@@ -739,14 +741,14 @@ app.use(
     name: "session-active-ip-maintenance",
     pattern: "* * * * *",
     run() {
-      void authMobilitySessionManager.maintainSessionActiveIps().catch(
-        (error) => {
+      void authMobilitySessionManager
+        .maintainSessionActiveIps()
+        .catch((error) => {
           console.error(
             "[auth-mobility] failed to maintain session active IPs:",
             error,
           );
-        },
-      );
+        });
     },
   }),
 );

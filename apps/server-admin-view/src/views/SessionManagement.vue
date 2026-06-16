@@ -7,6 +7,7 @@ import DocsLinkButton from "@/components/DocsLinkButton.vue";
 import SessionsTab from "./session-management/SessionsTab.vue";
 import LoginBackoffTab from "./session-management/LoginBackoffTab.vue";
 import IpBlacklistTab from "./session-management/IpBlacklistTab.vue";
+import GeneralBlacklistTab from "./session-management/GeneralBlacklistTab.vue";
 import { useConfigStore } from "../store/config";
 import { useSyncedQueryTab } from "@admin-shared/composables/useSyncedQueryTab";
 import { docsUrls } from "../lib/docs";
@@ -25,8 +26,8 @@ const defaultTab = computed(() =>
 );
 const allowedTabs = computed(() =>
   showSessionsTab.value
-    ? ["sessions", "login-backoff", "ip-blacklist"]
-    : ["login-backoff", "ip-blacklist"],
+    ? ["sessions", "login-backoff", "ip-blacklist", "general-blacklist"]
+    : ["login-backoff", "ip-blacklist", "general-blacklist"],
 );
 const { currentTab, navigateTo } = useSyncedQueryTab({
   route,
@@ -70,6 +71,9 @@ const currentDocsHref = computed(() =>
         <TabsTrigger value="ip-blacklist">
           {{ t("admin.sessions.page.ipBlacklistTab") }}
         </TabsTrigger>
+        <TabsTrigger value="general-blacklist">
+          {{ t("admin.sessions.page.generalBlacklistTab") }}
+        </TabsTrigger>
       </TabsList>
       <TabsContent v-if="showSessionsTab" value="sessions" class="pt-2">
         <SessionsTab />
@@ -79,6 +83,9 @@ const currentDocsHref = computed(() =>
       </TabsContent>
       <TabsContent value="ip-blacklist" class="pt-2">
         <IpBlacklistTab />
+      </TabsContent>
+      <TabsContent value="general-blacklist" class="pt-2">
+        <GeneralBlacklistTab />
       </TabsContent>
     </Tabs>
   </div>

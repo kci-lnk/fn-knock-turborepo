@@ -260,6 +260,7 @@ export interface GatewayLogEntry {
   waf_rule_ids?: number[];
   waf_action?: string;
   waf_bundle?: string;
+  general_blacklist_blocked?: boolean;
 }
 
 export interface GatewayLogEntriesResponse {
@@ -281,6 +282,37 @@ export interface GatewayLogDeleteResponse {
   logs_dir: string;
   deleted: boolean;
   available_dates: string[];
+}
+
+export type GeneralBlacklistSource =
+  | "manual"
+  | "request_log"
+  | "active_ip"
+  | "waf_log";
+
+export interface GeneralBlacklistRecord {
+  ip: string;
+  source?: GeneralBlacklistSource | string;
+  comment?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface GeneralBlacklistList {
+  total: number;
+  items: GeneralBlacklistRecord[];
+}
+
+export interface GeneralBlacklistMutationResult {
+  added: number;
+  updated: number;
+  removed: number;
+  total: number;
+  items: GeneralBlacklistRecord[];
+}
+
+export interface GeneralBlacklistStatus {
+  records: Record<string, GeneralBlacklistRecord>;
 }
 
 export type WAFMode = "off" | "detection" | "blocking";
@@ -878,6 +910,64 @@ export class GoBackendService {
       "/api/logging/entries",
       "DELETE",
       { date },
+    );
+  }
+
+  async getGeneralBlacklist(params: {
+    page?: string | number;
+    limit?: string | number;
+    search?: string;
+  }): Promise<GoResponse<GeneralBlacklistList>> {
+    const searchParams = new URLSearchParams();
+    if (params.page !== undefined)
+      searchParams.set("page", String(params.page));
+    if (params.limit !== undefined)
+      searchParams.set("limit", String(params.limit));
+    if (params.search) searchParams.set("search", params.search);
+    const query = searchParams.toString();
+    return this.request<GeneralBlacklistList>(
+      `/api/general-blacklist${query ? `?${query}` : ""}`,
+    );
+  }
+
+  async addGeneralBlacklist(payload: {
+    ips: string[];
+    source: GeneralBlacklistSource;
+    comment?: string;
+  }): Promise<GoResponse<GeneralBlacklistMutationResult>> {
+    return this.request<GeneralBlacklistMutationResult>(
+      "/api/general-blacklist",
+      "POST",
+      payload,
+    );
+  }
+
+  async getGeneralBlacklistStatus(
+    ips: string[],
+  ): Promise<GoResponse<GeneralBlacklistStatus>> {
+    return this.request<GeneralBlacklistStatus>(
+      "/api/general-blacklist/status",
+      "POST",
+      { ips },
+    );
+  }
+
+  async deleteGeneralBlacklist(
+    ips: string[],
+  ): Promise<GoResponse<GeneralBlacklistMutationResult>> {
+    return this.request<GeneralBlacklistMutationResult>(
+      "/api/general-blacklist",
+      "DELETE",
+      { ips },
+    );
+  }
+
+  async deleteGeneralBlacklistByIp(
+    ip: string,
+  ): Promise<GoResponse<GeneralBlacklistMutationResult>> {
+    return this.request<GeneralBlacklistMutationResult>(
+      `/api/general-blacklist/${encodeURIComponent(ip)}`,
+      "DELETE",
     );
   }
 

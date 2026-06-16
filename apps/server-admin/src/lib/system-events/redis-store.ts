@@ -15,6 +15,7 @@ const DEDUPE_PREFIX = "fn_knock:events:dedupe:";
 const STATE_PREFIX = "fn_knock:events:state:";
 const STREAM_ID_PREFIX = "fn_knock:events:stream-id:";
 const LIST_SCAN_CHUNK_SIZE = 200;
+const CLEAR_CHUNK_SIZE = 500;
 const MAX_EVENT_RETENTION_DAYS = 90;
 
 const getDataKey = (id: string) => `${DATA_KEY_PREFIX}${id}`;
@@ -302,6 +303,23 @@ class RedisSystemEventStore implements SystemEventStore {
       pipeline.xdel(STREAM_KEY, ...validStreamIds);
     }
     await pipeline.exec();
+  }
+
+  async clearAll(): Promise<number> {
+    const ids = await redis.zrange(INDEX_KEY, 0, -1);
+    const pipeline = redis.pipeline();
+
+    for (let index = 0; index < ids.length; index += CLEAR_CHUNK_SIZE) {
+      const batch = ids.slice(index, index + CLEAR_CHUNK_SIZE);
+      pipeline.del(...batch.map((id) => getDataKey(id)));
+      pipeline.del(...batch.map((id) => getStreamIdKey(id)));
+    }
+
+    pipeline.del(INDEX_KEY);
+    pipeline.del(STREAM_KEY);
+    await pipeline.exec();
+
+    return ids.length;
   }
 }
 

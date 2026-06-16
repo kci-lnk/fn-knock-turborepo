@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import {
+  Ban,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
@@ -10,10 +11,12 @@ import {
   Settings,
   ShieldAlert,
   Trash2,
+  Unlock,
 } from "lucide-vue-next";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import RefreshButton from "@/components/RefreshButton.vue";
 import SearchInput from "@admin-shared/components/SearchInput.vue";
 import {
@@ -32,7 +35,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "@admin-shared/utils/toast";
-import { WAFAPI } from "../lib/api";
+import { GeneralBlacklistAPI, WAFAPI } from "../lib/api";
 import type { WAFEvent, WAFInterruptionInfo, WAFRuleMatch } from "../types";
 import { useConfigStore } from "../store/config";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
@@ -49,6 +52,7 @@ import {
   normalizeIpKey,
   useIpLocationBatch,
 } from "../composables/useIpLocationBatch";
+import { useGeneralBlacklistStatus } from "../composables/useGeneralBlacklistStatus";
 
 const LIMIT_OPTIONS = ["20", "50", "100", "200"] as const;
 const AUTO_REFRESH_MS = 5_000;
@@ -76,6 +80,7 @@ const traceFilter = ref(String(route.query.trace_id || ""));
 const loading = ref(false);
 const isDetailsOpen = ref(false);
 const activeEvent = ref<WAFEvent | null>(null);
+const selectedWafEntryKeys = ref<Set<string>>(new Set());
 const currentCursor = ref("");
 const nextCursor = ref("");
 const cursorHistory = ref<string[]>([]);
@@ -99,6 +104,26 @@ const { isPending: isDeleting, run: runDelete } = useAsyncAction({
     });
   },
 });
+const { isPending: isBlockingIps, run: runBlockIps } = useAsyncAction({
+  onError: (error) => {
+    toast.error(t("admin.wafLogs.blacklistFailed"), {
+      description: extractErrorMessage(error, t("admin.wafLogs.blacklistFailed")),
+    });
+  },
+});
+const { isPending: isReleasingIps, run: runReleaseIps } = useAsyncAction({
+  onError: (error) => {
+    toast.error(t("admin.wafLogs.unblacklistFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.wafLogs.unblacklistFailed"),
+      ),
+    });
+  },
+});
+const isMutatingBlacklistIps = computed(
+  () => isBlockingIps.value || isReleasingIps.value,
+);
 const applyDates = (dates: string[], preferred?: string) => {
   const fallbackToday = getTodayString();
   const nextDates = dates.length > 0 ? dates : [fallbackToday];
@@ -296,6 +321,8 @@ const routeTypeLabel = (value?: string) => {
       return t("admin.wafLogs.routeTypes.slashRedirect");
     case "favicon":
       return t("admin.wafLogs.routeTypes.favicon");
+    case "general_blacklist":
+      return t("admin.wafLogs.routeTypes.generalBlacklist");
     case "not_found":
       return t("admin.wafLogs.routeTypes.notFound");
     default:
@@ -326,6 +353,22 @@ const isCRSBlockingEvaluationRule = (rule: WAFRuleMatch) => {
 
 const getEntrySourceIp = (event: WAFEvent) =>
   event.client_ip || event.remote_addr || "";
+
+const getEntryActionIp = (event: WAFEvent) => {
+  const sourceIp = getEntrySourceIp(event);
+  return normalizeIpKey(sourceIp) || sourceIp.trim();
+};
+
+const getEntrySelectionKey = (event: WAFEvent, index: number) =>
+  event.trace_id ||
+  [
+    currentCursor.value || "first",
+    index,
+    event.time || "",
+    event.transaction_id || "",
+    event.request_uri || event.path || "",
+    getEntryActionIp(event),
+  ].join("|");
 
 const getEntryDisplayIp = (event: WAFEvent) => {
   const sourceIp = getEntrySourceIp(event);
@@ -467,11 +510,134 @@ const formatInterruption = (value: WAFInterruptionInfo | undefined) => {
 };
 
 const displayedEntries = computed(() =>
-  entries.value.map((entry) => ({
+  entries.value.map((entry, index) => ({
     ...entry,
     ipLocation: getEntryIpLocation(entry),
+    actionIp: getEntryActionIp(entry),
+    selectionKey: getEntrySelectionKey(entry, index),
   })),
 );
+
+const displayedEntryKeys = computed(() =>
+  displayedEntries.value.map((entry) => entry.selectionKey),
+);
+
+const displayedSelectableEntryKeys = computed(() =>
+  displayedEntries.value
+    .filter((entry) => entry.actionIp)
+    .map((entry) => entry.selectionKey),
+);
+
+const displayedEntryIps = computed(() =>
+  Array.from(
+    new Set(
+      displayedEntries.value
+        .map((entry) => entry.actionIp)
+        .filter(Boolean),
+    ),
+  ),
+);
+const {
+  refresh: refreshGeneralBlacklistStatus,
+  isBlacklisted: isGeneralBlacklisted,
+} = useGeneralBlacklistStatus(displayedEntryIps);
+const selectedWafIpList = computed(() =>
+  Array.from(
+    new Set(
+      displayedEntries.value
+        .filter((entry) => selectedWafEntryKeys.value.has(entry.selectionKey))
+        .map((entry) => entry.actionIp)
+        .filter(Boolean),
+    ),
+  ),
+);
+const selectedBlockedWafIps = computed(() =>
+  selectedWafIpList.value.filter((ip) => isGeneralBlacklisted(ip)),
+);
+const selectedUnblockedWafIps = computed(() =>
+  selectedWafIpList.value.filter((ip) => !isGeneralBlacklisted(ip)),
+);
+const isAllDisplayedRowsSelected = computed({
+  get: () =>
+    displayedSelectableEntryKeys.value.length > 0 &&
+    displayedSelectableEntryKeys.value.every((key) =>
+      selectedWafEntryKeys.value.has(key),
+    ),
+  set: (checked: boolean) => {
+    const next = new Set(selectedWafEntryKeys.value);
+    if (checked) {
+      displayedEntries.value.forEach((entry) => {
+        if (entry.actionIp) next.add(entry.selectionKey);
+      });
+    } else {
+      displayedEntryKeys.value.forEach((key) => next.delete(key));
+    }
+    selectedWafEntryKeys.value = next;
+  },
+});
+
+const toggleWafEntrySelection = (key?: string) => {
+  if (!key) return;
+  const next = new Set(selectedWafEntryKeys.value);
+  if (next.has(key)) {
+    next.delete(key);
+  } else {
+    next.add(key);
+  }
+  selectedWafEntryKeys.value = next;
+};
+
+const removeSelectedWafIps = (ips: string[]) => {
+  const operatedIps = new Set(ips);
+  selectedWafEntryKeys.value = new Set(
+    displayedEntries.value
+      .filter(
+        (entry) =>
+          selectedWafEntryKeys.value.has(entry.selectionKey) &&
+          !operatedIps.has(entry.actionIp),
+      )
+      .map((entry) => entry.selectionKey),
+  );
+};
+
+const blockIpsFromWafLogs = async (ips: string[]) => {
+  const uniqueIps = Array.from(new Set(ips.filter(Boolean))).filter(
+    (ip) => !isGeneralBlacklisted(ip),
+  );
+  if (uniqueIps.length === 0) return;
+
+  await runBlockIps(() => GeneralBlacklistAPI.add(uniqueIps, "waf_log"), {
+    onSuccess: async (result) => {
+      toast.success(t("admin.wafLogs.blacklistSuccess"), {
+        description: t("admin.wafLogs.blacklistSuccessDetail", {
+          added: result?.added ?? 0,
+          updated: result?.updated ?? 0,
+        }),
+      });
+      removeSelectedWafIps(uniqueIps);
+      await refreshGeneralBlacklistStatus();
+    },
+  });
+};
+
+const releaseIpsFromWafLogs = async (ips: string[]) => {
+  const uniqueIps = Array.from(new Set(ips.filter(Boolean))).filter((ip) =>
+    isGeneralBlacklisted(ip),
+  );
+  if (uniqueIps.length === 0) return;
+
+  await runReleaseIps(() => GeneralBlacklistAPI.delete(uniqueIps), {
+    onSuccess: async (result) => {
+      toast.success(t("admin.wafLogs.unblacklistSuccess"), {
+        description: t("admin.wafLogs.unblacklistSuccessDetail", {
+          removed: result?.removed ?? 0,
+        }),
+      });
+      removeSelectedWafIps(uniqueIps);
+      await refreshGeneralBlacklistStatus();
+    },
+  });
+};
 
 const activeEventWithIpLocation = computed(() =>
   activeEvent.value
@@ -542,6 +708,15 @@ const detailCopyText = computed(() =>
     .join("\n"),
 );
 
+watch(displayedEntryKeys, (keys) => {
+  const visibleKeys = new Set(keys);
+  selectedWafEntryKeys.value = new Set(
+    Array.from(selectedWafEntryKeys.value).filter((key) =>
+      visibleKeys.has(key),
+    ),
+  );
+});
+
 watch(
   () => route.query.trace_id,
   (value) => {
@@ -604,6 +779,68 @@ onBeforeUnmount(() => {
           :disabled="loading"
           @click="refreshAll"
         />
+        <ConfirmDangerPopover
+          v-if="selectedUnblockedWafIps.length > 0"
+          :title="
+            t('admin.wafLogs.blacklistSelectedTitle', {
+              count: selectedUnblockedWafIps.length,
+            })
+          "
+          :description="t('admin.wafLogs.blacklistDescription')"
+          :loading="isBlockingIps"
+          :disabled="
+            selectedUnblockedWafIps.length === 0 || isMutatingBlacklistIps
+          "
+          :on-confirm="() => blockIpsFromWafLogs(selectedUnblockedWafIps)"
+        >
+          <template #trigger>
+            <Button
+              variant="outline"
+              class="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              :disabled="
+                selectedUnblockedWafIps.length === 0 || isMutatingBlacklistIps
+              "
+            >
+              <Ban class="mr-2 h-4 w-4" />
+              {{
+                t("admin.wafLogs.blacklistSelected", {
+                  count: selectedUnblockedWafIps.length,
+                })
+              }}
+            </Button>
+          </template>
+        </ConfirmDangerPopover>
+        <ConfirmDangerPopover
+          v-if="selectedBlockedWafIps.length > 0"
+          :title="
+            t('admin.wafLogs.unblacklistSelectedTitle', {
+              count: selectedBlockedWafIps.length,
+            })
+          "
+          :description="t('admin.wafLogs.unblacklistDescription')"
+          :loading="isReleasingIps"
+          :disabled="
+            selectedBlockedWafIps.length === 0 || isMutatingBlacklistIps
+          "
+          :on-confirm="() => releaseIpsFromWafLogs(selectedBlockedWafIps)"
+        >
+          <template #trigger>
+            <Button
+              variant="outline"
+              class="text-foreground"
+              :disabled="
+                selectedBlockedWafIps.length === 0 || isMutatingBlacklistIps
+              "
+            >
+              <Unlock class="mr-2 h-4 w-4" />
+              {{
+                t("admin.wafLogs.unblacklistSelected", {
+                  count: selectedBlockedWafIps.length,
+                })
+              }}
+            </Button>
+          </template>
+        </ConfirmDangerPopover>
         <ConfirmDangerPopover
           :title="t('admin.wafLogs.deleteDateTitle', { date: selectedDate })"
           :description="t('admin.wafLogs.deleteDateDescription')"
@@ -701,9 +938,17 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="min-h-0 flex-1 overflow-auto">
-        <Table class="min-w-[820px]">
+        <Table class="min-w-[880px]">
           <TableHeader class="sticky top-0 z-10 bg-background/95 backdrop-blur">
             <TableRow>
+              <TableHead
+                class="h-10 w-[48px] min-w-[48px] text-[11px] font-medium text-muted-foreground"
+              >
+                <Checkbox
+                  v-model="isAllDisplayedRowsSelected"
+                  :disabled="displayedSelectableEntryKeys.length === 0"
+                />
+              </TableHead>
               <TableHead
                 class="h-10 w-[320px] min-w-[320px] max-w-[320px] text-[11px] font-medium text-muted-foreground"
                 >{{ t("admin.wafLogs.requestColumn") }}</TableHead
@@ -725,7 +970,7 @@ onBeforeUnmount(() => {
           <TableBody>
             <TableRow v-if="loading && entries.length === 0">
               <TableCell
-                colspan="4"
+                colspan="5"
                 class="py-10 text-center text-muted-foreground"
               >
                 {{ t("admin.wafLogs.loading") }}
@@ -733,7 +978,7 @@ onBeforeUnmount(() => {
             </TableRow>
             <TableRow v-else-if="entries.length === 0">
               <TableCell
-                colspan="4"
+                colspan="5"
                 class="py-10 text-center text-muted-foreground"
               >
                 {{ t("admin.wafLogs.empty") }}
@@ -742,9 +987,18 @@ onBeforeUnmount(() => {
             <TableRow
               v-else
               v-for="entry in displayedEntries"
-              :key="entry.trace_id"
-              class="align-top"
+              :key="entry.selectionKey"
+              class="group align-top"
             >
+              <TableCell class="py-2.5">
+                <Checkbox
+                  :model-value="selectedWafEntryKeys.has(entry.selectionKey)"
+                  :disabled="!entry.actionIp"
+                  @update:model-value="
+                    toggleWafEntrySelection(entry.selectionKey)
+                  "
+                />
+              </TableCell>
               <TableCell
                 class="w-[320px] min-w-[320px] max-w-[320px] whitespace-normal py-2.5"
               >
@@ -834,15 +1088,70 @@ onBeforeUnmount(() => {
               <TableCell
                 class="sticky right-0 z-10 bg-background py-2.5 pr-4 text-right"
               >
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  class="h-8 w-8 text-muted-foreground hover:text-foreground"
-                  :aria-label="t('common.viewDetails')"
-                  @click="viewDetails(entry)"
-                >
-                  <Eye class="h-4 w-4" />
-                </Button>
+                <div class="flex justify-end gap-1">
+                  <div
+                    class="pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
+                  >
+                    <ConfirmDangerPopover
+                      :title="
+                        isGeneralBlacklisted(entry.actionIp)
+                          ? t('admin.wafLogs.unblacklistOneTitle')
+                          : t('admin.wafLogs.blacklistOneTitle')
+                      "
+                      :description="
+                        isGeneralBlacklisted(entry.actionIp)
+                          ? t('admin.wafLogs.unblacklistOneDescription', {
+                              ip: entry.actionIp || '-',
+                            })
+                          : t('admin.wafLogs.blacklistOneDescription', {
+                              ip: entry.actionIp || '-',
+                            })
+                      "
+                      :loading="isMutatingBlacklistIps"
+                      :disabled="!entry.actionIp || isMutatingBlacklistIps"
+                      :on-confirm="
+                        () =>
+                          isGeneralBlacklisted(entry.actionIp)
+                            ? releaseIpsFromWafLogs([entry.actionIp])
+                            : blockIpsFromWafLogs([entry.actionIp])
+                      "
+                    >
+                      <template #trigger>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          class="h-8 w-8"
+                          :class="
+                            isGeneralBlacklisted(entry.actionIp)
+                              ? 'text-foreground hover:text-foreground'
+                              : 'text-destructive hover:text-destructive'
+                          "
+                          :disabled="!entry.actionIp || isMutatingBlacklistIps"
+                          :aria-label="
+                            isGeneralBlacklisted(entry.actionIp)
+                              ? t('admin.wafLogs.unblacklistOne')
+                              : t('admin.wafLogs.blacklistOne')
+                          "
+                        >
+                          <Unlock
+                            v-if="isGeneralBlacklisted(entry.actionIp)"
+                            class="h-4 w-4"
+                          />
+                          <Ban v-else class="h-4 w-4" />
+                        </Button>
+                      </template>
+                    </ConfirmDangerPopover>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    class="h-8 w-8 text-muted-foreground hover:text-foreground"
+                    :aria-label="t('common.viewDetails')"
+                    @click="viewDetails(entry)"
+                  >
+                    <Eye class="h-4 w-4" />
+                  </Button>
+                </div>
               </TableCell>
             </TableRow>
           </TableBody>

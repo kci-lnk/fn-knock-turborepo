@@ -17,12 +17,15 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
+  Ban,
+  Unlock,
   ShieldAlert,
   ShieldCheck,
   ShieldX,
 } from "lucide-vue-next";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import RefreshButton from "@/components/RefreshButton.vue";
 import SearchInput from "@admin-shared/components/SearchInput.vue";
 import {
@@ -41,7 +44,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "@admin-shared/utils/toast";
-import { GatewayLogsAPI } from "../lib/api";
+import { GatewayLogsAPI, GeneralBlacklistAPI } from "../lib/api";
 import type { GatewayLogEntry } from "../types";
 import { useConfigStore } from "../store/config";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
@@ -58,7 +61,11 @@ import { buildDetailFields } from "@admin-shared/utils/buildDetailFields";
 import { formatDateTimeSafe } from "@admin-shared/utils/formatDateTimeSafe";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
 import { docsUrls } from "../lib/docs";
-import { useIpLocationBatch } from "../composables/useIpLocationBatch";
+import {
+  normalizeIpKey,
+  useIpLocationBatch,
+} from "../composables/useIpLocationBatch";
+import { useGeneralBlacklistStatus } from "../composables/useGeneralBlacklistStatus";
 
 const router = useRouter();
 const configStore = useConfigStore();
@@ -75,21 +82,54 @@ const getTodayString = () => {
 const LIMIT_OPTIONS = ["10", "20", "50", "100"] as const;
 const STATUS_FILTER_OPTIONS = [
   { value: "all", labelKey: "admin.gatewayRequestLogs.statusFilters.all" },
-  { value: "2xx", labelKey: "admin.gatewayRequestLogs.statusFilters.success2xx" },
-  { value: "3xx", labelKey: "admin.gatewayRequestLogs.statusFilters.redirect3xx" },
-  { value: "4xx", labelKey: "admin.gatewayRequestLogs.statusFilters.client4xx" },
-  { value: "5xx", labelKey: "admin.gatewayRequestLogs.statusFilters.server5xx" },
-  { value: "401", labelKey: "admin.gatewayRequestLogs.statusFilters.unauthorized401" },
-  { value: "403", labelKey: "admin.gatewayRequestLogs.statusFilters.forbidden403" },
-  { value: "404", labelKey: "admin.gatewayRequestLogs.statusFilters.notFound404" },
-  { value: "500", labelKey: "admin.gatewayRequestLogs.statusFilters.serverError500" },
-  { value: "502", labelKey: "admin.gatewayRequestLogs.statusFilters.badGateway502" },
-  { value: "503", labelKey: "admin.gatewayRequestLogs.statusFilters.unavailable503" },
+  {
+    value: "2xx",
+    labelKey: "admin.gatewayRequestLogs.statusFilters.success2xx",
+  },
+  {
+    value: "3xx",
+    labelKey: "admin.gatewayRequestLogs.statusFilters.redirect3xx",
+  },
+  {
+    value: "4xx",
+    labelKey: "admin.gatewayRequestLogs.statusFilters.client4xx",
+  },
+  {
+    value: "5xx",
+    labelKey: "admin.gatewayRequestLogs.statusFilters.server5xx",
+  },
+  {
+    value: "401",
+    labelKey: "admin.gatewayRequestLogs.statusFilters.unauthorized401",
+  },
+  {
+    value: "403",
+    labelKey: "admin.gatewayRequestLogs.statusFilters.forbidden403",
+  },
+  {
+    value: "404",
+    labelKey: "admin.gatewayRequestLogs.statusFilters.notFound404",
+  },
+  {
+    value: "500",
+    labelKey: "admin.gatewayRequestLogs.statusFilters.serverError500",
+  },
+  {
+    value: "502",
+    labelKey: "admin.gatewayRequestLogs.statusFilters.badGateway502",
+  },
+  {
+    value: "503",
+    labelKey: "admin.gatewayRequestLogs.statusFilters.unavailable503",
+  },
 ] as const;
 const LOGIN_FILTER_OPTIONS = [
   { value: "all", labelKey: "admin.gatewayRequestLogs.loginFilters.all" },
   { value: "true", labelKey: "admin.gatewayRequestLogs.loginFilters.loggedIn" },
-  { value: "false", labelKey: "admin.gatewayRequestLogs.loginFilters.notLoggedIn" },
+  {
+    value: "false",
+    labelKey: "admin.gatewayRequestLogs.loginFilters.notLoggedIn",
+  },
 ] as const;
 const WAF_FILTER_OPTIONS = [
   { value: "all", labelKey: "admin.gatewayRequestLogs.wafFilters.all" },
@@ -112,6 +152,7 @@ const searchQuery = ref("");
 const loading = ref(false);
 const isDetailsOpen = ref(false);
 const activeEntry = ref<GatewayLogEntry | null>(null);
+const selectedLogEntryKeys = ref<Set<string>>(new Set());
 const currentCursor = ref("");
 const nextCursor = ref("");
 const cursorHistory = ref<string[]>([]);
@@ -137,26 +178,23 @@ const normalizedLoggedInQuery = computed(() =>
 const normalizedWAFStatusQuery = computed(() =>
   selectedWAFStatus.value === "all" ? "" : selectedWAFStatus.value,
 );
-const activeStatusLabel = computed(
-  () =>
-    t(
-      STATUS_FILTER_OPTIONS.find((item) => item.value === selectedStatus.value)
-        ?.labelKey || "admin.gatewayRequestLogs.statusFilters.all",
-    ),
+const activeStatusLabel = computed(() =>
+  t(
+    STATUS_FILTER_OPTIONS.find((item) => item.value === selectedStatus.value)
+      ?.labelKey || "admin.gatewayRequestLogs.statusFilters.all",
+  ),
 );
-const activeLoggedInLabel = computed(
-  () =>
-    t(
-      LOGIN_FILTER_OPTIONS.find((item) => item.value === selectedLoggedIn.value)
-        ?.labelKey || "admin.gatewayRequestLogs.loginFilters.all",
-    ),
+const activeLoggedInLabel = computed(() =>
+  t(
+    LOGIN_FILTER_OPTIONS.find((item) => item.value === selectedLoggedIn.value)
+      ?.labelKey || "admin.gatewayRequestLogs.loginFilters.all",
+  ),
 );
-const activeWAFStatusLabel = computed(
-  () =>
-    t(
-      WAF_FILTER_OPTIONS.find((item) => item.value === selectedWAFStatus.value)
-        ?.labelKey || "admin.gatewayRequestLogs.wafFilters.all",
-    ),
+const activeWAFStatusLabel = computed(() =>
+  t(
+    WAF_FILTER_OPTIONS.find((item) => item.value === selectedWAFStatus.value)
+      ?.labelKey || "admin.gatewayRequestLogs.wafFilters.all",
+  ),
 );
 const hasHorizontalOverflow = computed(
   () => tableContentWidth.value > tableViewportWidth.value + 1,
@@ -172,11 +210,10 @@ const canScrollRight = computed(
 );
 const canLoadNewer = computed(() => cursorHistory.value.length > 0);
 const canLoadOlder = computed(() => Boolean(nextCursor.value));
-const cursorPageLabel = computed(
-  () =>
-    t("admin.gatewayRequestLogs.cursorPage", {
-      page: cursorHistory.value.length + 1,
-    }),
+const cursorPageLabel = computed(() =>
+  t("admin.gatewayRequestLogs.cursorPage", {
+    page: cursorHistory.value.length + 1,
+  }),
 );
 
 let resizeObserver: ResizeObserver | null = null;
@@ -192,6 +229,29 @@ const { isPending: isDeleting, run: runDelete } = useAsyncAction({
     });
   },
 });
+const { isPending: isBlockingIps, run: runBlockIps } = useAsyncAction({
+  onError: (error) => {
+    toast.error(t("admin.gatewayRequestLogs.blacklistFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.gatewayRequestLogs.blacklistFailed"),
+      ),
+    });
+  },
+});
+const { isPending: isReleasingIps, run: runReleaseIps } = useAsyncAction({
+  onError: (error) => {
+    toast.error(t("admin.gatewayRequestLogs.unblacklistFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.gatewayRequestLogs.unblacklistFailed"),
+      ),
+    });
+  },
+});
+const isMutatingBlacklistIps = computed(
+  () => isBlockingIps.value || isReleasingIps.value,
+);
 
 const applyDates = (dates: string[], preferred?: string) => {
   const fallbackToday = getTodayString();
@@ -233,6 +293,7 @@ const fetchEntries = async () => {
     });
     logsDir.value = data.logs_dir || "";
     entries.value = data.items || [];
+    selectedLogEntryKeys.value = new Set();
     trackIps(entries.value.map((entry) => getEntryClientIp(entry)));
     nextCursor.value = data.next_cursor || "";
     applyDates(data.available_dates || [], data.date || selectedDate.value);
@@ -468,7 +529,8 @@ const isWAFBlocked = (entry: GatewayLogEntry) =>
   getWAFAction(entry) === "deny";
 
 const wafBadgeLabel = (entry: GatewayLogEntry) => {
-  if (isWAFBlocked(entry)) return t("admin.gatewayRequestLogs.wafBadges.blocked");
+  if (isWAFBlocked(entry))
+    return t("admin.gatewayRequestLogs.wafBadges.blocked");
   const action = getWAFAction(entry);
   if (action === "pass") return t("admin.gatewayRequestLogs.wafBadges.pass");
   if (action === "log" || action === "detect")
@@ -540,6 +602,8 @@ const routeTypeLabel = (value?: string) => {
       return t("admin.wafLogs.routeTypes.slashRedirect");
     case "favicon":
       return t("admin.wafLogs.routeTypes.favicon");
+    case "general_blacklist":
+      return t("admin.wafLogs.routeTypes.generalBlacklist");
     case "not_found":
       return t("admin.wafLogs.routeTypes.notFound");
     default:
@@ -563,6 +627,10 @@ const authDecisionLabel = (value?: string) => {
       return t("admin.gatewayRequestLogs.authDecisions.proxy");
     case "error":
       return t("admin.gatewayRequestLogs.authDecisions.error");
+    case "general_blacklist_blocked":
+      return t(
+        "admin.gatewayRequestLogs.authDecisions.generalBlacklistBlocked",
+      );
     default:
       return value || "-";
   }
@@ -584,6 +652,26 @@ const formatDate = (value?: string) =>
 
 const getEntryClientIp = (entry: GatewayLogEntry) =>
   entry.client_ip || entry.remote_ip || "";
+
+const getEntryActionIp = (entry: GatewayLogEntry) => {
+  const clientIp = getEntryClientIp(entry);
+  return normalizeIpKey(clientIp) || clientIp.trim();
+};
+
+const getEntrySelectionKey = (entry: GatewayLogEntry, index: number) =>
+  [
+    currentCursor.value || "first",
+    index,
+    entry.time || "",
+    entry.method || "",
+    entry.host || "",
+    entry.request_uri || entry.path || "",
+    entry.status ?? "",
+    entry.duration_ms ?? "",
+    getEntryActionIp(entry),
+    entry.remote_addr || entry.remote_ip || "",
+    entry.waf_trace_id || "",
+  ].join("|");
 
 const getEntryIpSnapshot = (entry: GatewayLogEntry) =>
   getSnapshot(getEntryClientIp(entry));
@@ -634,12 +722,136 @@ const getConnectionSourceText = (entry: GatewayLogEntry) => {
 };
 
 const displayedEntries = computed(() =>
-  entries.value.map((entry) => ({
+  entries.value.map((entry, index) => ({
     ...entry,
     client_ip: getEntryClientIp(entry),
     ipLocation: getEntryIpLocation(entry),
+    actionIp: getEntryActionIp(entry),
+    selectionKey: getEntrySelectionKey(entry, index),
   })),
 );
+
+const displayedEntryKeys = computed(() =>
+  displayedEntries.value.map((entry) => entry.selectionKey),
+);
+
+const displayedSelectableEntryKeys = computed(() =>
+  displayedEntries.value
+    .filter((entry) => entry.actionIp)
+    .map((entry) => entry.selectionKey),
+);
+
+const displayedEntryIps = computed(() =>
+  Array.from(
+    new Set(
+      displayedEntries.value
+        .map((entry) => entry.actionIp)
+        .filter(Boolean),
+    ),
+  ),
+);
+const {
+  refresh: refreshGeneralBlacklistStatus,
+  isBlacklisted: isGeneralBlacklisted,
+} = useGeneralBlacklistStatus(displayedEntryIps);
+const selectedLogIpList = computed(() =>
+  Array.from(
+    new Set(
+      displayedEntries.value
+        .filter((entry) => selectedLogEntryKeys.value.has(entry.selectionKey))
+        .map((entry) => entry.actionIp)
+        .filter(Boolean),
+    ),
+  ),
+);
+const selectedBlockedLogIps = computed(() =>
+  selectedLogIpList.value.filter((ip) => isGeneralBlacklisted(ip)),
+);
+const selectedUnblockedLogIps = computed(() =>
+  selectedLogIpList.value.filter((ip) => !isGeneralBlacklisted(ip)),
+);
+
+const isAllDisplayedRowsSelected = computed({
+  get: () =>
+    displayedSelectableEntryKeys.value.length > 0 &&
+    displayedSelectableEntryKeys.value.every((key) =>
+      selectedLogEntryKeys.value.has(key),
+    ),
+  set: (checked: boolean) => {
+    const next = new Set(selectedLogEntryKeys.value);
+    if (checked) {
+      displayedEntries.value.forEach((entry) => {
+        if (entry.actionIp) next.add(entry.selectionKey);
+      });
+    } else {
+      displayedEntryKeys.value.forEach((key) => next.delete(key));
+    }
+    selectedLogEntryKeys.value = next;
+  },
+});
+
+const toggleLogEntrySelection = (key?: string) => {
+  if (!key) return;
+  const next = new Set(selectedLogEntryKeys.value);
+  if (next.has(key)) {
+    next.delete(key);
+  } else {
+    next.add(key);
+  }
+  selectedLogEntryKeys.value = next;
+};
+
+const removeSelectedLogIps = (ips: string[]) => {
+  const operatedIps = new Set(ips);
+  selectedLogEntryKeys.value = new Set(
+    displayedEntries.value
+      .filter(
+        (entry) =>
+          selectedLogEntryKeys.value.has(entry.selectionKey) &&
+          !operatedIps.has(entry.actionIp),
+      )
+      .map((entry) => entry.selectionKey),
+  );
+};
+
+const blockIpsFromLogs = async (ips: string[]) => {
+  const uniqueIps = Array.from(new Set(ips.filter(Boolean))).filter(
+    (ip) => !isGeneralBlacklisted(ip),
+  );
+  if (uniqueIps.length === 0) return;
+
+  await runBlockIps(() => GeneralBlacklistAPI.add(uniqueIps, "request_log"), {
+    onSuccess: async (result) => {
+      toast.success(t("admin.gatewayRequestLogs.blacklistSuccess"), {
+        description: t("admin.gatewayRequestLogs.blacklistSuccessDetail", {
+          added: result?.added ?? 0,
+          updated: result?.updated ?? 0,
+        }),
+      });
+      removeSelectedLogIps(uniqueIps);
+      await refreshGeneralBlacklistStatus();
+    },
+  });
+};
+
+const releaseIpsFromLogs = async (ips: string[]) => {
+  const uniqueIps = Array.from(new Set(ips.filter(Boolean))).filter((ip) =>
+    isGeneralBlacklisted(ip),
+  );
+  if (uniqueIps.length === 0) return;
+
+  await runReleaseIps(() => GeneralBlacklistAPI.delete(uniqueIps), {
+    onSuccess: async (result) => {
+      toast.success(t("admin.gatewayRequestLogs.unblacklistSuccess"), {
+        description: t("admin.gatewayRequestLogs.unblacklistSuccessDetail", {
+          removed: result?.removed ?? 0,
+        }),
+      });
+      removeSelectedLogIps(uniqueIps);
+      await refreshGeneralBlacklistStatus();
+    },
+  });
+};
 
 const activeEntryWithIpLocation = computed(() =>
   activeEntry.value
@@ -662,7 +874,10 @@ const detailFields = [
     key: "request_uri",
     labelKey: "admin.gatewayRequestLogs.detailFields.requestUri",
   },
-  { key: "protocol", labelKey: "admin.gatewayRequestLogs.detailFields.protocol" },
+  {
+    key: "protocol",
+    labelKey: "admin.gatewayRequestLogs.detailFields.protocol",
+  },
   { key: "status", labelKey: "admin.gatewayRequestLogs.detailFields.status" },
   {
     key: "duration_ms",
@@ -710,10 +925,19 @@ const detailFields = [
     key: "route_key",
     labelKey: "admin.gatewayRequestLogs.detailFields.routeKey",
   },
-  { key: "upstream", labelKey: "admin.gatewayRequestLogs.detailFields.upstream" },
+  {
+    key: "upstream",
+    labelKey: "admin.gatewayRequestLogs.detailFields.upstream",
+  },
   { key: "matched", labelKey: "admin.gatewayRequestLogs.detailFields.matched" },
-  { key: "bytes_in", labelKey: "admin.gatewayRequestLogs.detailFields.bytesIn" },
-  { key: "bytes_out", labelKey: "admin.gatewayRequestLogs.detailFields.bytesOut" },
+  {
+    key: "bytes_in",
+    labelKey: "admin.gatewayRequestLogs.detailFields.bytesIn",
+  },
+  {
+    key: "bytes_out",
+    labelKey: "admin.gatewayRequestLogs.detailFields.bytesOut",
+  },
   { key: "tls", label: "TLS" },
   { key: "websocket", label: "WebSocket" },
   { key: "eo_connecting_ip", label: "EO-Connecting-IP" },
@@ -724,8 +948,15 @@ const detailFields = [
     key: "waf_blocked",
     labelKey: "admin.gatewayRequestLogs.detailFields.wafBlocked",
   },
+  {
+    key: "general_blacklist_blocked",
+    labelKey: "admin.gatewayRequestLogs.detailFields.generalBlacklistBlocked",
+  },
   { key: "waf_trace_id", label: "WAF Trace ID" },
-  { key: "waf_mode", labelKey: "admin.gatewayRequestLogs.detailFields.wafMode" },
+  {
+    key: "waf_mode",
+    labelKey: "admin.gatewayRequestLogs.detailFields.wafMode",
+  },
   {
     key: "waf_action",
     labelKey: "admin.gatewayRequestLogs.detailFields.wafAction",
@@ -748,30 +979,35 @@ const localizedDetailFields = computed(() =>
 );
 
 const detailItems = computed(() =>
-  buildDetailFields(activeEntryWithIpLocation.value, localizedDetailFields.value, {
-    format: (key, value) => {
-      if (key === "time") return formatDate(value);
-      if (key === "duration_ms") return formatDuration(value);
-      if (
-        key === "logged_in" ||
-        key === "auth_required" ||
-        key === "matched" ||
-        key === "tls" ||
-        key === "websocket" ||
-        key === "waf_blocked"
-      ) {
-        return formatBoolean(Boolean(value));
-      }
-      if (key === "route_type") return routeTypeLabel(String(value || ""));
-      if (key === "auth_decision")
-        return authDecisionLabel(String(value || ""));
-      if (key === "waf_action") return wafActionLabel(String(value || ""));
-      if (key === "waf_mode") return wafModeLabel(String(value || ""));
-      if (key === "waf_rule_ids") return formatRuleIds(value as number[]);
-      if (value === undefined || value === null || value === "") return "-";
-      return value;
+  buildDetailFields(
+    activeEntryWithIpLocation.value,
+    localizedDetailFields.value,
+    {
+      format: (key, value) => {
+        if (key === "time") return formatDate(value);
+        if (key === "duration_ms") return formatDuration(value);
+        if (
+          key === "logged_in" ||
+          key === "auth_required" ||
+          key === "matched" ||
+          key === "tls" ||
+          key === "websocket" ||
+          key === "waf_blocked" ||
+          key === "general_blacklist_blocked"
+        ) {
+          return formatBoolean(Boolean(value));
+        }
+        if (key === "route_type") return routeTypeLabel(String(value || ""));
+        if (key === "auth_decision")
+          return authDecisionLabel(String(value || ""));
+        if (key === "waf_action") return wafActionLabel(String(value || ""));
+        if (key === "waf_mode") return wafModeLabel(String(value || ""));
+        if (key === "waf_rule_ids") return formatRuleIds(value as number[]);
+        if (value === undefined || value === null || value === "") return "-";
+        return value;
+      },
     },
-  }),
+  ),
 );
 
 const detailCopyText = computed(() =>
@@ -826,6 +1062,68 @@ onBeforeUnmount(() => {
           :disabled="loading"
           @click="refreshAll"
         />
+        <ConfirmDangerPopover
+          v-if="selectedUnblockedLogIps.length > 0"
+          :title="
+            t('admin.gatewayRequestLogs.blacklistSelectedTitle', {
+              count: selectedUnblockedLogIps.length,
+            })
+          "
+          :description="t('admin.gatewayRequestLogs.blacklistDescription')"
+          :loading="isBlockingIps"
+          :disabled="
+            selectedUnblockedLogIps.length === 0 || isMutatingBlacklistIps
+          "
+          :on-confirm="() => blockIpsFromLogs(selectedUnblockedLogIps)"
+        >
+          <template #trigger>
+            <Button
+              variant="outline"
+              class="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              :disabled="
+                selectedUnblockedLogIps.length === 0 || isMutatingBlacklistIps
+              "
+            >
+              <Ban class="mr-2 h-4 w-4" />
+              {{
+                t("admin.gatewayRequestLogs.blacklistSelected", {
+                  count: selectedUnblockedLogIps.length,
+                })
+              }}
+            </Button>
+          </template>
+        </ConfirmDangerPopover>
+        <ConfirmDangerPopover
+          v-if="selectedBlockedLogIps.length > 0"
+          :title="
+            t('admin.gatewayRequestLogs.unblacklistSelectedTitle', {
+              count: selectedBlockedLogIps.length,
+            })
+          "
+          :description="t('admin.gatewayRequestLogs.unblacklistDescription')"
+          :loading="isReleasingIps"
+          :disabled="
+            selectedBlockedLogIps.length === 0 || isMutatingBlacklistIps
+          "
+          :on-confirm="() => releaseIpsFromLogs(selectedBlockedLogIps)"
+        >
+          <template #trigger>
+            <Button
+              variant="outline"
+              class="text-foreground"
+              :disabled="
+                selectedBlockedLogIps.length === 0 || isMutatingBlacklistIps
+              "
+            >
+              <Unlock class="mr-2 h-4 w-4" />
+              {{
+                t("admin.gatewayRequestLogs.unblacklistSelected", {
+                  count: selectedBlockedLogIps.length,
+                })
+              }}
+            </Button>
+          </template>
+        </ConfirmDangerPopover>
         <ConfirmDangerPopover
           :title="
             t('admin.gatewayRequestLogs.deleteDateTitle', {
@@ -935,7 +1233,9 @@ onBeforeUnmount(() => {
               <div class="w-[156px]">
                 <SelectTrigger>
                   <SelectValue
-                    :placeholder="t('admin.gatewayRequestLogs.loginPlaceholder')"
+                    :placeholder="
+                      t('admin.gatewayRequestLogs.loginPlaceholder')
+                    "
                   />
                 </SelectTrigger>
               </div>
@@ -988,13 +1288,11 @@ onBeforeUnmount(() => {
           <span>{{ activeStatusLabel }}</span>
           <span>{{ activeLoggedInLabel }}</span>
           <span>{{ activeWAFStatusLabel }}</span>
-          <span v-if="searchQuery.trim()"
-            >{{
-              t("admin.gatewayRequestLogs.keywordFilter", {
-                keyword: searchQuery.trim(),
-              })
-            }}</span
-          >
+          <span v-if="searchQuery.trim()">{{
+            t("admin.gatewayRequestLogs.keywordFilter", {
+              keyword: searchQuery.trim(),
+            })
+          }}</span>
           <span class="break-all">{{
             t("admin.gatewayRequestLogs.directoryLabel", {
               directory: logsDir || "-",
@@ -1035,15 +1333,25 @@ onBeforeUnmount(() => {
         >
           <Table
             v-if="!(loading && entries.length === 0)"
-            class="min-w-[980px]"
+            class="min-w-[1040px]"
           >
             <TableHeader
               class="sticky top-0 z-10 bg-background/95 backdrop-blur"
             >
               <TableRow>
                 <TableHead
+                  class="h-10 w-[48px] min-w-[48px] text-[11px] font-medium text-muted-foreground"
+                >
+                  <Checkbox
+                    v-model="isAllDisplayedRowsSelected"
+                    :disabled="displayedSelectableEntryKeys.length === 0"
+                  />
+                </TableHead>
+                <TableHead
                   class="h-10 w-[320px] min-w-[320px] max-w-[320px] text-[11px] font-medium text-muted-foreground"
-                  >{{ t("admin.gatewayRequestLogs.columns.request") }}</TableHead
+                  >{{
+                    t("admin.gatewayRequestLogs.columns.request")
+                  }}</TableHead
                 >
                 <TableHead
                   class="h-10 text-[11px] font-medium text-muted-foreground"
@@ -1071,14 +1379,16 @@ onBeforeUnmount(() => {
                 >
                 <TableHead
                   class="sticky right-0 z-20 h-10 bg-background/95 pr-4 text-right text-[11px] font-medium text-muted-foreground"
-                  >{{ t("admin.gatewayRequestLogs.columns.actions") }}</TableHead
+                  >{{
+                    t("admin.gatewayRequestLogs.columns.actions")
+                  }}</TableHead
                 >
               </TableRow>
             </TableHeader>
             <TableBody>
               <TableRow v-if="loading">
                 <TableCell
-                  colspan="7"
+                  colspan="8"
                   class="py-10 text-center text-muted-foreground"
                 >
                   {{ t("admin.gatewayRequestLogs.loading") }}
@@ -1086,7 +1396,7 @@ onBeforeUnmount(() => {
               </TableRow>
               <TableRow v-else-if="entries.length === 0">
                 <TableCell
-                  colspan="7"
+                  colspan="8"
                   class="py-10 text-center text-muted-foreground"
                 >
                   {{ t("admin.gatewayRequestLogs.empty") }}
@@ -1095,9 +1405,18 @@ onBeforeUnmount(() => {
               <TableRow
                 v-else
                 v-for="entry in displayedEntries"
-                :key="`${entry.time}-${entry.request_uri}-${entry.remote_ip}`"
-                class="align-top"
+                :key="entry.selectionKey"
+                class="group align-top"
               >
+                <TableCell class="py-2.5">
+                  <Checkbox
+                    :model-value="selectedLogEntryKeys.has(entry.selectionKey)"
+                    :disabled="!entry.actionIp"
+                    @update:model-value="
+                      toggleLogEntrySelection(entry.selectionKey)
+                    "
+                  />
+                </TableCell>
                 <TableCell
                   class="w-[320px] min-w-[320px] max-w-[320px] whitespace-normal py-2.5"
                 >
@@ -1106,7 +1425,10 @@ onBeforeUnmount(() => {
                       <div
                         class="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium leading-5 text-muted-foreground"
                       >
-                        <HumanFriendlyTime :value="entry.time" :locale="locale" />
+                        <HumanFriendlyTime
+                          :value="entry.time"
+                          :locale="locale"
+                        />
                       </div>
                       <div class="min-w-0 flex-1">
                         <div
@@ -1223,15 +1545,73 @@ onBeforeUnmount(() => {
                 <TableCell
                   class="sticky right-0 z-10 bg-background py-2.5 pr-4 text-right"
                 >
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    class="h-8 w-8 text-muted-foreground hover:text-foreground"
-                    :aria-label="t('common.viewDetails')"
-                    @click="viewDetails(entry)"
-                  >
-                    <Eye class="h-4 w-4" />
-                  </Button>
+                  <div class="flex justify-end gap-1">
+                    <div
+                      class="pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
+                    >
+                      <ConfirmDangerPopover
+                        :title="
+                          isGeneralBlacklisted(entry.actionIp)
+                            ? t('admin.gatewayRequestLogs.unblacklistOneTitle')
+                            : t('admin.gatewayRequestLogs.blacklistOneTitle')
+                        "
+                        :description="
+                          isGeneralBlacklisted(entry.actionIp)
+                            ? t(
+                                'admin.gatewayRequestLogs.unblacklistOneDescription',
+                                {
+                                  ip: entry.actionIp || '-',
+                                },
+                              )
+                            : t('admin.gatewayRequestLogs.blacklistOneDescription', {
+                                ip: entry.actionIp || '-',
+                              })
+                        "
+                        :loading="isMutatingBlacklistIps"
+                        :disabled="!entry.actionIp || isMutatingBlacklistIps"
+                        :on-confirm="
+                          () =>
+                            isGeneralBlacklisted(entry.actionIp)
+                              ? releaseIpsFromLogs([entry.actionIp])
+                              : blockIpsFromLogs([entry.actionIp])
+                        "
+                      >
+                        <template #trigger>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            class="h-8 w-8"
+                            :class="
+                              isGeneralBlacklisted(entry.actionIp)
+                                ? 'text-foreground hover:text-foreground'
+                                : 'text-destructive hover:text-destructive'
+                            "
+                            :disabled="!entry.actionIp || isMutatingBlacklistIps"
+                            :aria-label="
+                              isGeneralBlacklisted(entry.actionIp)
+                                ? t('admin.gatewayRequestLogs.unblacklistOne')
+                                : t('admin.gatewayRequestLogs.blacklistOne')
+                            "
+                          >
+                            <Unlock
+                              v-if="isGeneralBlacklisted(entry.actionIp)"
+                              class="h-4 w-4"
+                            />
+                            <Ban v-else class="h-4 w-4" />
+                          </Button>
+                        </template>
+                      </ConfirmDangerPopover>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="h-8 w-8 text-muted-foreground hover:text-foreground"
+                      :aria-label="t('common.viewDetails')"
+                      @click="viewDetails(entry)"
+                    >
+                      <Eye class="h-4 w-4" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             </TableBody>
@@ -1239,6 +1619,7 @@ onBeforeUnmount(() => {
           <TableSkeletonBlock
             v-else-if="showTableSkeleton"
             :header-widths="[
+              'w-4',
               'w-56',
               'w-16',
               'w-16',
@@ -1248,6 +1629,7 @@ onBeforeUnmount(() => {
               'w-10',
             ]"
             :row-widths="[
+              'w-4',
               'w-64',
               'w-12',
               'w-20',

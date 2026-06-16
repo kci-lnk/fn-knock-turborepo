@@ -685,6 +685,14 @@ export const EventCenterAPI = {
     const res = await apiClient.delete("/events", { data: { ids } });
     return res.data;
   },
+  async clearEvents(): Promise<{
+    success: boolean;
+    data: { deleted_count: number };
+    message?: string;
+  }> {
+    const res = await apiClient.delete("/events/clear");
+    return res.data;
+  },
   async getNotificationProviderCatalog(): Promise<{
     success: boolean;
     data: NotificationProviderCatalogPayload;
@@ -1162,6 +1170,38 @@ export type ScannerBlacklistList = {
   total: number;
 };
 
+export type GeneralBlacklistSource =
+  | "manual"
+  | "request_log"
+  | "active_ip"
+  | "waf_log";
+
+export type GeneralBlacklistRecord = {
+  ip: string;
+  source?: GeneralBlacklistSource | string;
+  comment?: string;
+  created_at?: string;
+  updated_at?: string;
+  ipLocation?: string;
+};
+
+export type GeneralBlacklistList = {
+  items: GeneralBlacklistRecord[];
+  total: number;
+};
+
+export type GeneralBlacklistMutationResult = {
+  added: number;
+  updated: number;
+  removed: number;
+  total: number;
+  items: GeneralBlacklistRecord[];
+};
+
+export type GeneralBlacklistStatus = {
+  records: Record<string, GeneralBlacklistRecord>;
+};
+
 export type AccessEntryInfo = {
   env: "GO_REPROXY_PORT" | "FRP_REMOTE_PORT";
   port: string;
@@ -1520,6 +1560,45 @@ export const ScannerAPI = {
   },
   async deleteBlacklistByIp(ip: string): Promise<void> {
     await apiClient.delete(`/scanner/blacklist/${encodeURIComponent(ip)}`);
+  },
+};
+
+export const GeneralBlacklistAPI = {
+  async getList(
+    page: number,
+    limit: string,
+    search: string,
+  ): Promise<GeneralBlacklistList> {
+    const res = await apiClient.get("/general-blacklist", {
+      params: { page, limit, search },
+    });
+    return res.data.data;
+  },
+  async add(
+    ips: string[],
+    source: GeneralBlacklistSource,
+    comment?: string,
+  ): Promise<GeneralBlacklistMutationResult> {
+    const res = await apiClient.post("/general-blacklist", {
+      ips,
+      source,
+      comment,
+    });
+    return res.data.data;
+  },
+  async getStatus(ips: string[]): Promise<GeneralBlacklistStatus> {
+    const res = await apiClient.post("/general-blacklist/status", { ips });
+    return res.data.data;
+  },
+  async delete(ips: string[]): Promise<GeneralBlacklistMutationResult> {
+    const res = await apiClient.delete("/general-blacklist", { data: { ips } });
+    return res.data.data;
+  },
+  async deleteByIp(ip: string): Promise<GeneralBlacklistMutationResult> {
+    const res = await apiClient.delete(
+      `/general-blacklist/${encodeURIComponent(ip)}`,
+    );
+    return res.data.data;
   },
 };
 

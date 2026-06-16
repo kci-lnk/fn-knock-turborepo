@@ -31,6 +31,7 @@ export interface SystemEventStore {
     types?: SystemEventType[];
   }): Promise<SystemEventRangeItem[]>;
   deleteMany(ids: string[]): Promise<void>;
+  clearAll(): Promise<number>;
 }
 
 export type SystemEventIngressInput = SystemEventPublishInput;

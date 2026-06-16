@@ -1248,13 +1248,18 @@ export const adminRoutes = new Elysia({
       }
 
       await dockerAdminPanelManager.resetLoginFailures(clientIp);
+      const sessionTtlSeconds =
+        body.rememberMe === true
+          ? dockerAdminPanelManager.rememberMeSessionTtlSeconds
+          : dockerAdminPanelManager.sessionTtlSeconds;
       const session = await dockerAdminPanelManager.createSession({
         ip: clientIp,
         userAgent: request.headers.get("user-agent") || "",
+        ttlSeconds: sessionTtlSeconds,
       });
       set.headers["set-cookie"] = buildAdminPanelSessionCookie(
         session.id,
-        dockerAdminPanelManager.sessionTtlSeconds,
+        sessionTtlSeconds,
         {
           secure: dockerAdminPanelManager.isSecureRequest(request),
         },
@@ -1274,6 +1279,7 @@ export const adminRoutes = new Elysia({
     withRouteDoc("登录 Docker 管理面板", {
       body: t.Object({
         password: t.String(),
+        rememberMe: t.Optional(t.Boolean()),
       }),
     }),
   )

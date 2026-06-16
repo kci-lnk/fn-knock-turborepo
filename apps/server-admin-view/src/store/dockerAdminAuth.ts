@@ -84,7 +84,7 @@ export const useDockerAdminAuthStore = defineStore("dockerAdminAuth", () => {
     return bootstrapPromise;
   };
 
-  const submitPassword = async (password: string) => {
+  const submitPassword = async (password: string, rememberMe = false) => {
     isSubmitting.value = true;
     submitError.value = "";
     try {
@@ -98,7 +98,11 @@ export const useDockerAdminAuthStore = defineStore("dockerAdminAuth", () => {
           writeDockerAdminDebugPassword(password);
           writeDockerAdminDebugStage("authenticated");
           return applyState(
-            createDockerAdminDebugState("authenticated", currentLocaleConfig()),
+            createDockerAdminDebugState(
+              "authenticated",
+              currentLocaleConfig(),
+              rememberMe,
+            ),
             {
               debugOverride: true,
             },
@@ -122,7 +126,11 @@ export const useDockerAdminAuthStore = defineStore("dockerAdminAuth", () => {
 
         writeDockerAdminDebugStage("authenticated");
         return applyState(
-          createDockerAdminDebugState("authenticated", currentLocaleConfig()),
+          createDockerAdminDebugState(
+            "authenticated",
+            currentLocaleConfig(),
+            rememberMe,
+          ),
           {
             debugOverride: true,
           },
@@ -131,7 +139,7 @@ export const useDockerAdminAuthStore = defineStore("dockerAdminAuth", () => {
 
       const next = needsPasswordSetup.value
         ? await ConfigAPI.setDockerAdminPassword(password)
-        : await ConfigAPI.loginDockerAdmin(password);
+        : await ConfigAPI.loginDockerAdmin(password, rememberMe);
       return applyState(next);
     } catch (error) {
       submitError.value =

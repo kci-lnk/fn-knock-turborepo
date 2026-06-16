@@ -191,8 +191,11 @@ export const ConfigAPI = {
     const res = await apiClient.post("/panel/password/change", { password });
     return res.data.data;
   },
-  async loginDockerAdmin(password: string): Promise<DockerAdminBootstrapState> {
-    const res = await apiClient.post("/panel/login", { password });
+  async loginDockerAdmin(
+    password: string,
+    rememberMe = false,
+  ): Promise<DockerAdminBootstrapState> {
+    const res = await apiClient.post("/panel/login", { password, rememberMe });
     return res.data.data;
   },
   async logoutDockerAdmin(): Promise<DockerAdminBootstrapState> {

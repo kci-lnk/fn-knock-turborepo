@@ -63,6 +63,32 @@
                   selectedLocaleLabel
                 }}</span>
               </Button>
+              <ConfirmDangerPopover
+                v-if="shouldShowPanelLogout"
+                :title="t('admin.dockerAdmin.logoutConfirmTitle')"
+                :description="t('admin.dockerAdmin.logoutConfirmDescription')"
+                :confirm-text="t('admin.dockerAdmin.logoutConfirm')"
+                :loading="dockerAdminAuthStore.isSubmitting"
+                :disabled="dockerAdminAuthStore.isSubmitting"
+                :on-confirm="handlePanelLogout"
+                content-class="w-72 text-left"
+              >
+                <template #trigger>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    class="h-8 w-8 shrink-0 rounded-md border border-destructive/20 bg-destructive/5 p-0 text-destructive shadow-none hover:bg-destructive/10 hover:text-destructive"
+                    :disabled="dockerAdminAuthStore.isSubmitting"
+                    :title="t('admin.dockerAdmin.logout')"
+                  >
+                    <LogOut class="h-3.5 w-3.5" />
+                    <span class="sr-only">{{
+                      t("admin.dockerAdmin.logout")
+                    }}</span>
+                  </Button>
+                </template>
+              </ConfirmDangerPopover>
             </div>
             <p class="mb-2 text-center text-xs font-medium text-primary/70">
               <a
@@ -128,6 +154,32 @@
               >
                 <Languages class="h-3.5 w-3.5 shrink-0" />
               </Button>
+              <ConfirmDangerPopover
+                v-if="shouldShowPanelLogout"
+                :title="t('admin.dockerAdmin.logoutConfirmTitle')"
+                :description="t('admin.dockerAdmin.logoutConfirmDescription')"
+                :confirm-text="t('admin.dockerAdmin.logoutConfirm')"
+                :loading="dockerAdminAuthStore.isSubmitting"
+                :disabled="dockerAdminAuthStore.isSubmitting"
+                :on-confirm="handlePanelLogout"
+                content-class="w-64 text-left"
+              >
+                <template #trigger>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    class="h-8 w-8 shrink-0 rounded-md border border-destructive/20 bg-destructive/5 p-0 text-destructive shadow-none hover:bg-destructive/10 hover:text-destructive"
+                    :disabled="dockerAdminAuthStore.isSubmitting"
+                    :title="t('admin.dockerAdmin.logout')"
+                  >
+                    <LogOut class="h-3.5 w-3.5" />
+                    <span class="sr-only">{{
+                      t("admin.dockerAdmin.logout")
+                    }}</span>
+                  </Button>
+                </template>
+              </ConfirmDangerPopover>
             </div>
             <p
               class="mb-2 min-w-0 text-center text-xs font-medium text-primary/70"
@@ -456,6 +508,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { isNavigationFailure, useRoute, useRouter } from "vue-router";
 import { useConfigStore } from "../store/config";
+import { useDockerAdminAuthStore } from "../store/dockerAdminAuth";
 import { useSystemClockStore } from "../store/systemClock";
 import { useUpdateStore } from "../store/update";
 import { isRouteNavigating, pendingNavPath } from "../router/navigation-state";
@@ -464,6 +517,7 @@ import {
   isReverseProxySubdomainMode,
 } from "../lib/reverse-proxy-submode";
 import JapaneseLocaleOptionButton from "../components/JapaneseLocaleOptionButton.vue";
+import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import { Button } from "@/components/ui/button";
 import { ThemeModeToggle } from "@/components/ui/theme-toggle";
 import { toast } from "@admin-shared/utils/toast";
@@ -505,6 +559,7 @@ import {
   UsersRound,
   Menu,
   Languages,
+  LogOut,
   Network,
   ServerCog,
   ShieldAlert,
@@ -513,6 +568,7 @@ import {
 const router = useRouter();
 const route = useRoute();
 const configStore = useConfigStore();
+const dockerAdminAuthStore = useDockerAdminAuthStore();
 const systemClockStore = useSystemClockStore();
 const updateStore = useUpdateStore();
 const isMobileNavOpen = ref(false);
@@ -531,6 +587,12 @@ const localeOptions = SUPPORTED_LOCALES.map((value) => ({
 
 const selectedLocaleLabel = computed(
   () => LOCALE_DISPLAY_NAMES[selectedLocale.value],
+);
+const shouldShowPanelLogout = computed(
+  () =>
+    dockerAdminAuthStore.isEnabled &&
+    dockerAdminAuthStore.isAuthenticated &&
+    dockerAdminAuthStore.passwordConfigured,
 );
 
 onMounted(() => {
@@ -598,6 +660,17 @@ const handleLocaleSelect = async (value: LocaleCode) => {
 
 const goToAbout = () => {
   void navigateTo("/about");
+};
+
+const handlePanelLogout = async () => {
+  try {
+    await dockerAdminAuthStore.logout();
+    isMobileNavOpen.value = false;
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : t("common.tryLater");
+    toast.error(t("admin.dockerAdmin.logoutFailed"), { description: message });
+  }
 };
 
 watch(

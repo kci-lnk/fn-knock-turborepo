@@ -149,9 +149,12 @@ const bootstrapDockerAdmin = async (force = false) => {
   resetWelcomeGuideGate();
 };
 
-const handleDockerAdminSubmit = async (password: string) => {
+const handleDockerAdminSubmit = async (
+  password: string,
+  rememberMe: boolean,
+) => {
   try {
-    await dockerAdminAuthStore.submitPassword(password);
+    await dockerAdminAuthStore.submitPassword(password, rememberMe);
     await initializeWelcomeGuide();
   } catch (error) {
     console.error("Failed to submit docker admin password", error);

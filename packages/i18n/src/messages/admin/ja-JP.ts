@@ -2915,6 +2915,12 @@ export const jaJPAdmin = {
     wrongPassword:
       "管理パネルのパスワードが間違っています。設定したパスワードを入力してください。",
     submitFailed: "管理パネルのパスワードの送信に失敗しました",
+    logout: "ログアウト",
+    logoutConfirmTitle: "管理パネルからログアウトしますか?",
+    logoutConfirmDescription:
+      "続行するには、管理パネルのパスワードを再入力する必要があります。",
+    logoutConfirm: "ログアウト",
+    logoutFailed: "管理パネルからログアウトできませんでした",
     passwordMin: "管理パネルのパスワードには少なくとも 6 桁の数字が必要です",
     passwordMax: "管理パネルのパスワードは 128 文字を超えることはできません",
     passwordNoWhitespace:
@@ -2973,6 +2979,7 @@ export const jaJPAdmin = {
       loginDescription:
         "管理バックエンドへのアクセスを続けるには、管理パスワードを入力してください。",
       setupHelper: "少なくとも 6 桁で、文字と数字の両方が含まれています。",
+      rememberMe: "私を覚えていてください",
       setupAction: "設定して入力してください",
       loginAction: "ログインして入力してください",
       setupPlaceholder: "管理パネルのパスワードを設定する",

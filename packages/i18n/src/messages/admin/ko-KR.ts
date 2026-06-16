@@ -2846,6 +2846,12 @@ export const koKRAdmin = {
     wrongPassword:
       "관리자 패널 비밀번호가 올바르지 않습니다. 구성된 비밀번호를 입력하세요.",
     submitFailed: "관리자 패널 비밀번호를 제출하지 못했습니다.",
+    logout: "로그아웃",
+    logoutConfirmTitle: "관리자 패널에서 로그아웃할까요?",
+    logoutConfirmDescription:
+      "계속하려면 관리자 패널 비밀번호를 다시 입력해야 합니다.",
+    logoutConfirm: "로그아웃",
+    logoutFailed: "관리자 패널에서 로그아웃하지 못했습니다.",
     passwordMin: "관리자 패널 비밀번호는 6자 이상이어야 합니다.",
     passwordMax: "관리자 패널 비밀번호는 128자 이하여야 합니다.",
     passwordNoWhitespace: "관리자 패널 비밀번호에는 공백을 포함할 수 없습니다.",
@@ -2901,6 +2907,7 @@ export const koKRAdmin = {
       loginDescription:
         "관리 콘솔로 계속 진행하려면 관리자 비밀번호를 입력하세요.",
       setupHelper: "문자와 숫자를 모두 포함하여 6자 이상이어야 합니다.",
+      rememberMe: "나를 기억해",
       setupAction: "설정하고 입력하세요",
       loginAction: "로그인하고 들어가세요",
       setupPlaceholder: "관리자 패널 비밀번호 설정",

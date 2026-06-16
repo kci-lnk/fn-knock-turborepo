@@ -2861,6 +2861,12 @@ export const enAdmin = {
     wrongPassword:
       "Admin panel password is incorrect. Enter the configured password.",
     submitFailed: "Failed to submit admin panel password",
+    logout: "Sign out",
+    logoutConfirmTitle: "Sign out of the admin panel?",
+    logoutConfirmDescription:
+      "You will need to enter the admin panel password again to continue.",
+    logoutConfirm: "Sign out",
+    logoutFailed: "Failed to sign out of the admin panel",
     passwordMin: "Admin panel password must be at least 6 characters",
     passwordMax: "Admin panel password must be at most 128 characters",
     passwordNoWhitespace: "Admin panel password cannot contain whitespace",
@@ -2917,6 +2923,7 @@ export const enAdmin = {
       loginDescription:
         "Enter the admin password to continue to the admin console.",
       setupHelper: "At least 6 characters, with both letters and numbers.",
+      rememberMe: "Remember me",
       setupAction: "Set and enter",
       loginAction: "Sign in and enter",
       setupPlaceholder: "Set admin panel password",

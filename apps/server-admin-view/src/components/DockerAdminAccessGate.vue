@@ -10,39 +10,74 @@
     <div
       class="relative z-10 flex min-h-[calc(100vh-2rem)] items-center justify-center"
     >
-      <Card class="w-full max-w-sm border-border/80 shadow-sm">
-        <CardHeader class="space-y-2">
-          <CardTitle class="text-center text-2xl tracking-tight">
+      <Card
+        class="w-full max-w-[400px] border-border/70 bg-card/95 shadow-lg shadow-black/5"
+      >
+        <CardHeader class="space-y-2 pb-5 text-center">
+          <CardTitle class="text-2xl font-semibold tracking-tight">
             {{ title }}
           </CardTitle>
-          <CardDescription class="text-center leading-6">
+          <CardDescription class="text-sm leading-6 sm:text-base">
             {{ description }}
           </CardDescription>
         </CardHeader>
 
-        <CardContent>
-          <form class="space-y-4" autocomplete="off" @submit.prevent="submit">
-            <Input
-              v-model="password"
-              type="password"
-              :placeholder="placeholder"
-              :autocomplete="autocomplete"
-              class="h-11"
-              :disabled="loading"
-            />
+        <CardContent class="pt-0">
+          <form class="space-y-5" autocomplete="off" @submit.prevent="submit">
+            <div class="space-y-3">
+              <Input
+                v-model="password"
+                type="password"
+                :placeholder="placeholder"
+                :autocomplete="autocomplete"
+                class="h-11 rounded-md"
+                :disabled="loading"
+              />
 
-            <p
-              v-if="helperText"
-              class="text-xs leading-5 text-muted-foreground"
-            >
-              {{ helperText }}
-            </p>
+              <p
+                v-if="helperText"
+                class="text-xs leading-5 text-muted-foreground"
+              >
+                {{ helperText }}
+              </p>
 
-            <div
-              v-if="errorMessage"
-              class="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm leading-6 text-destructive"
-            >
-              {{ errorMessage }}
+              <div
+                v-if="errorMessage"
+                class="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm leading-6 text-destructive"
+              >
+                {{ errorMessage }}
+              </div>
+
+              <div
+                v-if="showRememberMe"
+                class="flex min-h-6 items-center justify-between gap-3"
+              >
+                <div class="flex min-w-0 items-center gap-2">
+                  <Checkbox
+                    id="dockerAdminRememberMe"
+                    v-model="rememberMe"
+                    :disabled="loading"
+                    class="data-[state=checked]:border-primary data-[state=checked]:bg-primary"
+                  />
+                  <label
+                    for="dockerAdminRememberMe"
+                    class="cursor-pointer select-none text-sm leading-none text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    {{ t("admin.components.dockerAdminGate.rememberMe") }}
+                  </label>
+                </div>
+
+                <Button
+                  v-if="showForgotPassword"
+                  type="button"
+                  variant="link"
+                  class="h-auto shrink-0 px-0 py-0 text-sm font-medium text-muted-foreground hover:text-foreground"
+                  :disabled="loading"
+                  @click="showResetDialog = true"
+                >
+                  {{ t("admin.components.dockerAdminGate.forgotPassword") }}
+                </Button>
+              </div>
             </div>
 
             <Button
@@ -56,18 +91,6 @@
               ></span>
               {{ actionLabel }}
             </Button>
-
-            <div v-if="showForgotPassword" class="flex justify-center">
-              <Button
-                type="button"
-                variant="link"
-                class="h-auto px-0 py-0 text-xs text-muted-foreground hover:text-foreground"
-                :disabled="loading"
-                @click="showResetDialog = true"
-              >
-                {{ t("admin.components.dockerAdminGate.forgotPassword") }}
-              </Button>
-            </div>
 
             <Button
               v-if="showRetry"
@@ -180,6 +203,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   dockerAdminPanelResetCommands,
   openWrtAdminPanelResetCommands,
@@ -195,11 +219,12 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  submit: [password: string];
+  submit: [password: string, rememberMe: boolean];
   retry: [];
 }>();
 
 const password = ref("");
+const rememberMe = ref(false);
 const showResetDialog = ref(false);
 const { t } = useI18n();
 const isOpenWrtMode = computed(() => props.deploymentTarget === "openwrt");
@@ -241,15 +266,17 @@ const autocomplete = computed(() =>
   props.mode === "setup" ? "new-password" : "current-password",
 );
 const showForgotPassword = computed(() => props.mode === "login");
+const showRememberMe = computed(() => props.mode === "login");
 
 const submit = () => {
-  emit("submit", password.value);
+  emit("submit", password.value, showRememberMe.value && rememberMe.value);
 };
 
 watch(
   () => props.mode,
   () => {
     password.value = "";
+    rememberMe.value = false;
   },
 );
 

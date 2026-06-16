@@ -15,6 +15,7 @@ export const DOCKER_ADMIN_PASSWORD_DEBUG_STORAGE_KEY =
 export type DockerAdminDebugStage = "setup" | "login" | "authenticated";
 
 const DEBUG_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+const DEBUG_REMEMBER_ME_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const DEFAULT_DEBUG_LOCALE_CONFIG: LocaleConfig = {
   default_locale: DEFAULT_LOCALE,
 };
@@ -48,8 +49,11 @@ const isTruthyDebugValue = (value: string) => {
   );
 };
 
-const createAuthenticatedSessionExpiry = () =>
-  new Date(Date.now() + DEBUG_SESSION_TTL_MS).toISOString();
+const createAuthenticatedSessionExpiry = (rememberMe = false) =>
+  new Date(
+    Date.now() +
+      (rememberMe ? DEBUG_REMEMBER_ME_SESSION_TTL_MS : DEBUG_SESSION_TTL_MS),
+  ).toISOString();
 
 export const isDockerModeDebugEnabled = () =>
   isTruthyDebugValue(readStorageValue(DOCKER_MODE_DEBUG_STORAGE_KEY));
@@ -111,6 +115,7 @@ export const validateDockerAdminDebugPassword = (
 export const createDockerAdminDebugState = (
   stage: DockerAdminDebugStage,
   locale: LocaleConfig = DEFAULT_DEBUG_LOCALE_CONFIG,
+  rememberMe = false,
 ): DockerAdminBootstrapState => {
   if (stage === "setup") {
     return {
@@ -139,7 +144,7 @@ export const createDockerAdminDebugState = (
     enabled: true,
     password_configured: true,
     authenticated: true,
-    session_expires_at: createAuthenticatedSessionExpiry(),
+    session_expires_at: createAuthenticatedSessionExpiry(rememberMe),
     locale,
   };
 };

@@ -29,6 +29,7 @@ const SESSION_TTL_SECONDS = (() => {
   }
   return Math.min(7 * 24 * 60 * 60, Math.max(15 * 60, parsed));
 })();
+const PANEL_REMEMBER_ME_TTL_SECONDS = 30 * 24 * 60 * 60;
 const DOCKER_ADMIN_LOGIN_BACKOFF_TTL_SECONDS = 60 * 60;
 const DOCKER_ADMIN_LOGIN_BACKOFF_BASE_DELAY_MS = 2000;
 const DOCKER_ADMIN_LOGIN_BACKOFF_MAX_DELAY_MS = 15 * 60 * 1000;
@@ -160,6 +161,7 @@ export interface DockerAdminSessionRecord {
   created_at: string;
   updated_at: string;
   expires_at: string;
+  ttl_seconds: number;
   ip: string;
   user_agent: string;
 }
@@ -460,11 +462,19 @@ const getSessionRecord = async (
       return null;
     }
 
+    const ttlSeconds =
+      typeof parsed.ttl_seconds === "number" &&
+      Number.isFinite(parsed.ttl_seconds) &&
+      parsed.ttl_seconds > 0
+        ? Math.max(1, Math.trunc(parsed.ttl_seconds))
+        : SESSION_TTL_SECONDS;
+
     return {
       id: parsed.id,
       created_at: parsed.created_at,
       updated_at: parsed.updated_at,
       expires_at: parsed.expires_at,
+      ttl_seconds: ttlSeconds,
       ip: parsed.ip,
       user_agent: parsed.user_agent,
     };
@@ -593,6 +603,7 @@ const requestMatchesSessionRecord = (
 
 export const dockerAdminPanelManager = {
   sessionTtlSeconds: SESSION_TTL_SECONDS,
+  rememberMeSessionTtlSeconds: PANEL_REMEMBER_ME_TTL_SECONDS,
 
   async isPasswordConfigured(): Promise<boolean> {
     return Boolean(await getPasswordRecord());
@@ -673,14 +684,22 @@ export const dockerAdminPanelManager = {
   async createSession(args: {
     ip: string;
     userAgent: string;
+    ttlSeconds?: number;
   }): Promise<DockerAdminSessionRecord> {
     const now = Date.now();
     const sessionId = randomBytes(32).toString("hex");
+    const ttlSeconds =
+      typeof args.ttlSeconds === "number" &&
+      Number.isFinite(args.ttlSeconds) &&
+      args.ttlSeconds > 0
+        ? Math.max(1, Math.trunc(args.ttlSeconds))
+        : SESSION_TTL_SECONDS;
     const record: DockerAdminSessionRecord = {
       id: sessionId,
       created_at: toIso(now),
       updated_at: toIso(now),
-      expires_at: toIso(now + SESSION_TTL_SECONDS * 1000),
+      expires_at: toIso(now + ttlSeconds * 1000),
+      ttl_seconds: ttlSeconds,
       ip: normalizeDockerAdminTrackingIp(args.ip),
       user_agent: normalizeDockerAdminUserAgent(args.userAgent),
     };
@@ -729,7 +748,7 @@ export const dockerAdminPanelManager = {
     const refreshedRecord: DockerAdminSessionRecord = {
       ...record,
       updated_at: toIso(),
-      expires_at: toIso(Date.now() + SESSION_TTL_SECONDS * 1000),
+      expires_at: toIso(Date.now() + record.ttl_seconds * 1000),
     };
     await persistSessionRecord(refreshedRecord);
 

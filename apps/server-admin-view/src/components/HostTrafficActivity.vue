@@ -143,10 +143,10 @@
           >
             {{ statsError }}
           </div>
-          <VChart
+          <TimeSeriesChart
             v-else
-            :option="trafficOption"
-            autoresize
+            :series="trafficSeries"
+            :value-formatter="formatBps"
             class="h-full w-full"
           />
         </div>
@@ -252,10 +252,10 @@
           >
             {{ statsError }}
           </div>
-          <VChart
+          <TimeSeriesChart
             v-else
-            :option="trafficOption"
-            autoresize
+            :series="trafficSeries"
+            :value-formatter="formatBps"
             class="h-full w-full"
           />
         </div>
@@ -280,12 +280,6 @@
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { ArrowDownLeft, ArrowUpRight, Network } from "lucide-vue-next";
-import VChart from "vue-echarts";
-import type { EChartsOption } from "echarts";
-import { use } from "echarts/core";
-import { CanvasRenderer } from "echarts/renderers";
-import { LineChart } from "echarts/charts";
-import { GridComponent, TooltipComponent } from "echarts/components";
 import {
   Popover,
   PopoverAnchor,
@@ -302,11 +296,12 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import HostActiveIpDialog from "@/components/host-traffic/HostActiveIpDialog.vue";
+import TimeSeriesChart, {
+  type TimeSeriesChartSeries,
+} from "@/components/charts/TimeSeriesChart.vue";
 import { useHostActiveIps } from "@/composables/useHostActiveIps";
 import { DashboardAPI } from "../lib/api";
 import type { DashboardStats, HostTrafficStats } from "../types";
-
-use([CanvasRenderer, LineChart, GridComponent, TooltipComponent]);
 
 const rangeDefs = [
   { key: "15m", sec: 15 * 60 },
@@ -447,66 +442,34 @@ const rangeText = computed(() => {
   return formatPlainRangeText(sec);
 });
 
-const trafficOption = computed<EChartsOption>(() => {
+const normalizeSeriesData = (value: unknown) => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((point) => {
+      if (!Array.isArray(point)) return null;
+      const time = Number(point[0]);
+      const amount = Number(point[1]);
+      if (!Number.isFinite(time) || !Number.isFinite(amount)) return null;
+      return [time, amount] as const;
+    })
+    .filter((point): point is readonly [number, number] => Boolean(point));
+};
+
+const trafficSeries = computed<TimeSeriesChartSeries[]>(() => {
   const base = (stats.value?.traffic.echarts ?? {}) as any;
   const colors = ["#047857", "#1d4ed8"];
-  const series = (Array.isArray(base?.series) ? base.series : []).map(
-    (item: any, index: number) => ({
-      ...item,
-      type: "line",
-      smooth: true,
-      symbol: "none",
-      lineStyle: { width: 2 },
-      areaStyle: { opacity: 0.06, color: colors[index % colors.length] },
-      emphasis: { focus: "series" },
-    }),
-  );
 
-  return {
-    ...base,
-    color: colors,
-    animationDuration: 280,
-    tooltip: {
-      trigger: "axis",
-      axisPointer: { type: "cross" },
-      backgroundColor: "rgba(0, 0, 0, 0.85)",
-      borderColor: "rgba(255,255,255,0.1)",
-      textStyle: { color: "#fff" },
-      formatter: (params: any) => {
-        const items = Array.isArray(params) ? params : [params];
-        const timeLabel = items[0]?.axisValueLabel ?? "";
-        const lines = [timeLabel];
-        for (const item of items) {
-          const name = String(item?.seriesName ?? "");
-          const value = Array.isArray(item?.data) ? item.data[1] : item?.value;
-          lines.push(
-            `${item?.marker ?? ""} ${name}: ${formatBps(Number(value))}`,
-          );
-        }
-        return lines.join("<br/>");
-      },
+  return (Array.isArray(base?.series) ? base.series : []).map(
+    (item: any, index: number) => {
+      const color = colors[index % colors.length] ?? "#047857";
+      return {
+        name: String(item?.name ?? ""),
+        color,
+        fill: `${color}14`,
+        data: normalizeSeriesData(item?.data),
+      };
     },
-    grid: { left: 8, right: 8, top: 14, bottom: 8, containLabel: true },
-    xAxis: {
-      ...(base?.xAxis ?? {}),
-      type: "time",
-      boundaryGap: false,
-      axisLabel: { color: "#737373" },
-      axisLine: { lineStyle: { color: "#e5e5e5" } },
-      splitLine: { show: false },
-    },
-    yAxis: {
-      ...(base?.yAxis ?? {}),
-      type: "value",
-      axisLabel: {
-        color: "#737373",
-        formatter: (value: number) => formatBytes(value),
-      },
-      axisLine: { show: false },
-      splitLine: { lineStyle: { color: "#f5f5f5" } },
-    },
-    series,
-  } satisfies EChartsOption;
+  );
 });
 
 const clearCloseTimer = () => {

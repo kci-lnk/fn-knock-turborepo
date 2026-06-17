@@ -32,10 +32,6 @@ interface UseThreatOverviewOptions {
   defaultRangeKey: string;
   ranges: ThreatRange[];
   seriesKey: 'failedLogins' | 'blockedScanners';
-  seriesName: string | (() => string);
-  lineColor: string;
-  areaStartColor: string;
-  areaEndColor: string;
   fetchOverview: (rangeSec: number) => Promise<ThreatOverviewModel>;
   onError: (error: unknown) => void;
   formatRangeText?: (seconds: number) => string;
@@ -79,10 +75,6 @@ export function useThreatOverview(options: UseThreatOverviewOptions) {
     typeof options.numberLocale === 'function'
       ? options.numberLocale()
       : (options.numberLocale ?? 'zh-CN');
-  const resolveSeriesName = () =>
-    typeof options.seriesName === 'function'
-      ? options.seriesName()
-      : options.seriesName;
 
   const formatNumber = (value: number | null | undefined) => {
     const normalized = Number(value ?? 0);
@@ -96,57 +88,6 @@ export function useThreatOverview(options: UseThreatOverviewOptions) {
     new Intl.NumberFormat(resolveNumberLocale(), {
       maximumFractionDigits: 1,
     }).format(value);
-
-  const trendOption = computed(() => ({
-    color: [options.lineColor],
-    animationDuration: 420,
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: { type: 'cross' },
-      backgroundColor: 'rgba(10, 10, 10, 0.9)',
-      borderColor: 'rgba(255,255,255,0.08)',
-      textStyle: { color: '#fff' },
-    },
-    grid: { left: 18, right: 18, top: 36, bottom: 24, containLabel: true },
-    xAxis: {
-      type: 'time',
-      boundaryGap: false,
-      axisLabel: { color: 'rgba(120,120,120,0.9)' },
-      axisLine: { lineStyle: { color: 'rgba(120,120,120,0.25)' } },
-      splitLine: { show: false },
-    },
-    yAxis: {
-      type: 'value',
-      minInterval: 1,
-      axisLabel: { color: 'rgba(120,120,120,0.9)' },
-      axisLine: { show: false },
-      splitLine: { lineStyle: { color: 'rgba(120,120,120,0.18)' } },
-    },
-    series: [
-      {
-        name: resolveSeriesName(),
-        type: 'line',
-        smooth: true,
-        symbol: 'none',
-        lineStyle: { width: 2 },
-        areaStyle: {
-          opacity: 1,
-          color: {
-            type: 'linear',
-            x: 0,
-            y: 0,
-            x2: 0,
-            y2: 1,
-            colorStops: [
-              { offset: 0, color: options.areaStartColor },
-              { offset: 1, color: options.areaEndColor },
-            ],
-          },
-        },
-        data: threatOverview.value?.series[options.seriesKey] ?? [],
-      },
-    ],
-  }));
 
   const fetchThreatOverview = async () => {
     isThreatLoading.value = true;
@@ -171,7 +112,6 @@ export function useThreatOverview(options: UseThreatOverviewOptions) {
     perHour,
     formatNumber,
     formatRate,
-    trendOption,
     fetchThreatOverview,
   };
 }

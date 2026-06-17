@@ -22,6 +22,8 @@ export const useConfigStore = defineStore("config", () => {
   const isError = ref(false);
   let hostMappingsFollowUpRefreshTimer: number | null = null;
   let hostMappingsFollowUpRefreshAttempts = 0;
+  let loadConfigPromise: Promise<AppConfig | null> | null = null;
+  let loadConfigRequestId = 0;
 
   const normalizeComparableBasicAuth = (
     value: HostMapping["basic_auth"],
@@ -156,23 +158,46 @@ export const useConfigStore = defineStore("config", () => {
     }, 1800);
   };
 
-  async function loadConfig() {
+  async function loadConfig(options: { force?: boolean } = {}) {
+    if (!options.force && !config.value && loadConfigPromise) {
+      return loadConfigPromise;
+    }
+
+    const requestId = loadConfigRequestId + 1;
+    loadConfigRequestId = requestId;
     isLoading.value = true;
     isError.value = false;
-    try {
-      config.value = await ConfigAPI.getConfig();
-    } catch (e) {
-      console.error(e);
-      isError.value = true;
-    } finally {
-      isLoading.value = false;
-    }
+    const request = ConfigAPI.getConfig()
+      .then((next) => {
+        if (requestId === loadConfigRequestId) {
+          config.value = next;
+        }
+        return next;
+      })
+      .catch((e) => {
+        console.error(e);
+        if (requestId === loadConfigRequestId) {
+          isError.value = true;
+        }
+        return null;
+      })
+      .finally(() => {
+        if (requestId === loadConfigRequestId) {
+          isLoading.value = false;
+        }
+        if (loadConfigPromise === request) {
+          loadConfigPromise = null;
+        }
+      });
+
+    loadConfigPromise = request;
+    return loadConfigPromise;
   }
 
   async function saveDefaultRoute(path: string) {
     await ConfigAPI.updateDefaultRoute(path);
     if (config.value) config.value.default_route = path;
-    await loadConfig();
+    await loadConfig({ force: true });
   }
 
   async function setRunType(
@@ -189,7 +214,7 @@ export const useConfigStore = defineStore("config", () => {
         config.value.reverse_proxy_submode = reverseProxySubmode;
       }
     }
-    await loadConfig(); // refresh to be safe
+    await loadConfig({ force: true }); // refresh to be safe
   }
 
   async function saveAutoManageFirewall(enabled: boolean) {
@@ -199,21 +224,21 @@ export const useConfigStore = defineStore("config", () => {
     if (config.value) {
       config.value.auto_manage_firewall = next.auto_manage_firewall;
     } else {
-      await loadConfig();
+      await loadConfig({ force: true });
     }
     return next;
   }
 
   async function saveProxyMappings(mappings: ProxyMapping[]) {
     await ConfigAPI.updateProxyMappings(mappings);
-    await loadConfig();
+    await loadConfig({ force: true });
   }
 
   async function saveHostMappings(mappings: HostMapping[]) {
     const nextMappings = await ConfigAPI.updateHostMappings(mappings);
     if (!config.value) {
       scheduleHostMappingsFollowUpRefresh(nextMappings);
-      await loadConfig();
+      await loadConfig({ force: true });
       return nextMappings;
     }
 
@@ -228,18 +253,18 @@ export const useConfigStore = defineStore("config", () => {
 
   async function refreshAllHostMappingTitles() {
     const result = await ConfigAPI.refreshAllHostMappingTitles();
-    await loadConfig();
+    await loadConfig({ force: true });
     return result;
   }
 
   async function saveStreamMappings(mappings: StreamMapping[]) {
     await ConfigAPI.updateStreamMappings(mappings);
-    await loadConfig();
+    await loadConfig({ force: true });
   }
 
   async function saveSubdomainMode(next: Partial<SubdomainModeConfig>) {
     const result = await ConfigAPI.updateSubdomainMode(next);
-    await loadConfig();
+    await loadConfig({ force: true });
     return result;
   }
 
@@ -248,7 +273,7 @@ export const useConfigStore = defineStore("config", () => {
     if (config.value) {
       config.value.locale = result;
     } else {
-      await loadConfig();
+      await loadConfig({ force: true });
     }
     return result;
   }

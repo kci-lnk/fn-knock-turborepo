@@ -52,7 +52,10 @@ import { getRequiredEnv } from "./lib/env";
 import { updatePlugin } from "./plugins/update";
 import { updateRoutes } from "./routes/update";
 import { updateManager } from "./lib/update-manager";
-import { createStaticFilesPlugin } from "./plugins/static-files";
+import {
+  createMaybeCompressedResponse,
+  createStaticFilesPlugin,
+} from "./plugins/static-files";
 import { firewallService } from "./lib/firewall-service";
 import {
   scheduleSyncReverseProxyTrustedIPs,
@@ -482,18 +485,28 @@ const startDockerAdminViewServer = (
   return server;
 };
 
-const serveIndexHtml = (rootPath: string, injectRuntimeSecret = false) => {
+const serveIndexHtml = async (
+  rootPath: string,
+  injectRuntimeSecret = false,
+  request?: Request,
+) => {
   const indexPath = join(rootPath, "index.html");
   if (!existsSync(indexPath)) {
     return new Response("Not Found", { status: 404 });
   }
   const html = readFileSync(indexPath, "utf-8");
   const body = injectRuntimeSecret ? injectRuntimeScript(html) : html;
-  return new Response(body, {
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "no-cache",
-    },
+  const headers = new Headers({
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-cache",
+  });
+  if (!request) return new Response(body, { headers });
+  return createMaybeCompressedResponse({
+    body,
+    headers,
+    pathname: "/index.html",
+    request,
+    head: request.method === "HEAD",
   });
 };
 
@@ -808,8 +821,8 @@ void updateManager.prepareOnBoot();
 void updateManager.checkNow("startup");
 systemClockManager.prepareOnBoot();
 
-app.get("/", () => serveIndexHtml(STATIC_PATH), hideFromDocs);
-app.get("/index.html", () => serveIndexHtml(STATIC_PATH), hideFromDocs);
+app.get("/", ({ request }) => serveIndexHtml(STATIC_PATH, false, request), hideFromDocs);
+app.get("/index.html", ({ request }) => serveIndexHtml(STATIC_PATH, false, request), hideFromDocs);
 
 app.use(
   createStaticFilesPlugin({
@@ -819,22 +832,34 @@ app.use(
 
 app.get(
   "*",
-  ({ path }) => {
+  ({ path, request }) => {
     if (path.startsWith("/api")) return;
-    return serveIndexHtml(STATIC_PATH);
+    return serveIndexHtml(STATIC_PATH, false, request);
   },
   hideFromDocs,
 );
 
-authApp.get("/", () => serveIndexHtml(AUTH_STATIC_PATH, true));
-authApp.get("/index.html", () => serveIndexHtml(AUTH_STATIC_PATH, true));
-authApp.get("/auth", () => serveIndexHtml(AUTH_STATIC_PATH, true));
-authApp.get("/auth/", () => serveIndexHtml(AUTH_STATIC_PATH, true));
-authApp.get("/auth/index.html", () => serveIndexHtml(AUTH_STATIC_PATH, true));
-authApp.get("/__auth__", () => serveIndexHtml(AUTH_STATIC_PATH, true));
-authApp.get("/__auth__/", () => serveIndexHtml(AUTH_STATIC_PATH, true));
-authApp.get("/__auth__/index.html", () =>
-  serveIndexHtml(AUTH_STATIC_PATH, true),
+authApp.get("/", ({ request }) => serveIndexHtml(AUTH_STATIC_PATH, true, request));
+authApp.get("/index.html", ({ request }) =>
+  serveIndexHtml(AUTH_STATIC_PATH, true, request),
+);
+authApp.get("/auth", ({ request }) =>
+  serveIndexHtml(AUTH_STATIC_PATH, true, request),
+);
+authApp.get("/auth/", ({ request }) =>
+  serveIndexHtml(AUTH_STATIC_PATH, true, request),
+);
+authApp.get("/auth/index.html", ({ request }) =>
+  serveIndexHtml(AUTH_STATIC_PATH, true, request),
+);
+authApp.get("/__auth__", ({ request }) =>
+  serveIndexHtml(AUTH_STATIC_PATH, true, request),
+);
+authApp.get("/__auth__/", ({ request }) =>
+  serveIndexHtml(AUTH_STATIC_PATH, true, request),
+);
+authApp.get("/__auth__/index.html", ({ request }) =>
+  serveIndexHtml(AUTH_STATIC_PATH, true, request),
 );
 authApp.get("/__fn-knock/runtime-hmac-secret", ({ set }) => {
   return buildRuntimeHmacSecretResponse(set);
@@ -867,13 +892,16 @@ authApp.use(
   createStaticFilesPlugin({
     root: AUTH_STATIC_PATH,
     mountPrefixes: ["/", "/auth", "/__auth__"],
+    excludePaths: ["/auth/index.html", "/__auth__/index.html"],
   }),
 );
 
-authApp.get("*", ({ path }) => {
+authApp.get("*", ({ path, request }) => {
   const normalizedPath = normalizeAuthPath(path);
   if (normalizedPath.startsWith("/api")) return;
-  if (isKnownAuthViewPath(path)) return serveIndexHtml(AUTH_STATIC_PATH, true);
+  if (isKnownAuthViewPath(path)) {
+    return serveIndexHtml(AUTH_STATIC_PATH, true, request);
+  }
   return serveAuthNotFoundHtml();
 });
 

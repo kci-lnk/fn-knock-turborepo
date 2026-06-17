@@ -10,11 +10,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@admin-shared/utils/toast';
 import { Ban, Eye, Loader2, Settings, Trash2 } from 'lucide-vue-next';
-import VChart from 'vue-echarts';
-import { use } from 'echarts/core';
-import { CanvasRenderer } from 'echarts/renderers';
-import { LineChart } from 'echarts/charts';
-import { GridComponent, TooltipComponent } from 'echarts/components';
 import { ScannerAPI, SecurityAPI, type ScannerBlacklistRecord } from '../../lib/api';
 import { DEFAULT_THREAT_RANGES, useThreatOverview } from '@admin-shared/composables/useThreatOverview';
 import { usePagedSelectionList } from '@admin-shared/composables/usePagedSelectionList';
@@ -29,8 +24,9 @@ import { extractErrorMessage, useAsyncAction } from '@admin-shared/composables/u
 import { useDelayedLoading } from '@admin-shared/composables/useDelayedLoading';
 import { formatDateTimeSafe } from '@admin-shared/utils/formatDateTimeSafe';
 import ConfigCollapsibleCard from '@admin-shared/components/ConfigCollapsibleCard.vue';
-
-use([CanvasRenderer, LineChart, GridComponent, TooltipComponent]);
+import TimeSeriesChart, {
+  type TimeSeriesChartSeries,
+} from '@/components/charts/TimeSeriesChart.vue';
 
 const { t, locale } = useI18n();
 const ranges = DEFAULT_THREAT_RANGES;
@@ -58,16 +54,11 @@ const {
   perHour: blockedPerHour,
   formatNumber,
   formatRate,
-  trendOption: blockedTrendOption,
   fetchThreatOverview,
 } = useThreatOverview({
   defaultRangeKey: '1h',
   ranges,
   seriesKey: 'blockedScanners',
-  seriesName: () => t('admin.sessions.ipBlacklist.seriesName'),
-  lineColor: '#f97316',
-  areaStartColor: 'rgba(249, 115, 22, 0.18)',
-  areaEndColor: 'rgba(249, 115, 22, 0)',
   fetchOverview: (rangeSec) => SecurityAPI.getOverview(rangeSec),
   onError: (err: any) => {
     const msg =
@@ -81,6 +72,15 @@ const {
   formatRangeText: formatOverviewRangeText,
   numberLocale: () => locale.value,
 });
+
+const blockedTrendSeries = computed<TimeSeriesChartSeries[]>(() => [
+  {
+    name: t('admin.sessions.ipBlacklist.seriesName'),
+    color: '#f97316',
+    fill: 'rgba(249, 115, 22, 0.14)',
+    data: threatOverview.value?.series.blockedScanners ?? [],
+  },
+]);
 
 const router = useRouter();
 const { isPending: isDeleting, run: runDeleteAction } = useAsyncAction({
@@ -258,7 +258,11 @@ const goToFirewallSettings = () => {
           :icon="Ban"
         >
           <template #chart>
-            <VChart :option="blockedTrendOption" class="h-full w-full" />
+            <TimeSeriesChart
+              :series="blockedTrendSeries"
+              :value-formatter="(value) => formatNumber(value)"
+              class="h-full w-full"
+            />
           </template>
         </ThreatOverviewCard>
       </template>

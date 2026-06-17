@@ -595,10 +595,31 @@ const shouldShowPanelLogout = computed(
     dockerAdminAuthStore.passwordConfigured,
 );
 
+type WindowWithIdleCallback = Window & {
+  requestIdleCallback?: (
+    callback: IdleRequestCallback,
+    options?: IdleRequestOptions,
+  ) => number;
+};
+
+const runAfterFirstPaint = (callback: () => void) => {
+  window.requestAnimationFrame(() => {
+    const requestIdleCallback = (window as WindowWithIdleCallback)
+      .requestIdleCallback;
+    if (requestIdleCallback) {
+      requestIdleCallback(callback, { timeout: 1500 });
+      return;
+    }
+    window.setTimeout(callback, 250);
+  });
+};
+
 onMounted(() => {
   void configStore.loadConfig();
-  void systemClockStore.initialize();
-  void updateStore.initialize();
+  runAfterFirstPaint(() => {
+    void systemClockStore.initialize();
+    void updateStore.initialize();
+  });
 });
 
 onUnmounted(() => {

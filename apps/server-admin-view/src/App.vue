@@ -26,6 +26,17 @@ const writeWelcomeGuideLocalFlag = () => {
   window.localStorage.setItem(WELCOME_GUIDE_STORAGE_KEY, "1");
 };
 
+const runAfterFirstPaint = (callback: () => void) => {
+  if (typeof window === "undefined") {
+    callback();
+    return;
+  }
+
+  window.requestAnimationFrame(() => {
+    window.setTimeout(callback, 0);
+  });
+};
+
 const hasLocalWelcomeGuideCompletion = readWelcomeGuideLocalFlag();
 const isWelcomeVisible = ref(false);
 const isWelcomeResolved = ref(hasLocalWelcomeGuideCompletion);
@@ -93,7 +104,9 @@ const initializeWelcomeGuide = async () => {
 
   if (hasLocalWelcomeGuideCompletion) {
     isWelcomeResolved.value = true;
-    void syncWelcomeGuideCompletion(false);
+    runAfterFirstPaint(() => {
+      void syncWelcomeGuideCompletion(false);
+    });
     return;
   }
 
@@ -129,7 +142,9 @@ const handleWelcomeStart = () => {
   writeWelcomeGuideLocalFlag();
   isWelcomeResolved.value = true;
   isWelcomeVisible.value = false;
-  void syncWelcomeGuideCompletion(false);
+  runAfterFirstPaint(() => {
+    void syncWelcomeGuideCompletion(false);
+  });
 };
 
 const bootstrapDockerAdmin = async (force = false) => {

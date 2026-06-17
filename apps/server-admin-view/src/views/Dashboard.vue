@@ -7,7 +7,6 @@ import {
   DashboardAPI,
   FrpcAPI,
   CloudflaredAPI,
-  ConfigAPI,
   DDNSAPI,
   SecurityAPI,
 } from "../lib/api";
@@ -45,21 +44,9 @@ import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime
 import { useTargetPolling } from "../composables/useTargetPolling";
 import { useConfigStore } from "../store/config";
 import { buildDDNSTimestampTooltipLines } from "../lib/ddns-time";
-import VChart from "vue-echarts";
-import type { EChartsOption } from "echarts";
-import { use } from "echarts/core";
-import { CanvasRenderer } from "echarts/renderers";
-import { LineChart } from "echarts/charts";
-import { GridComponent, TooltipComponent } from "echarts/components";
-import { LegendComponent } from "echarts/components";
-
-use([
-  CanvasRenderer,
-  LineChart,
-  GridComponent,
-  TooltipComponent,
-  LegendComponent,
-]);
+import TimeSeriesChart, {
+  type TimeSeriesChartSeries,
+} from "@/components/charts/TimeSeriesChart.vue";
 
 const ranges = [
   {
@@ -102,6 +89,8 @@ let lastRealtimeSample: {
   totalIn: number;
   totalOut: number;
 } | null = null;
+let tunnelStatusTimer: number | null = null;
+let tunnelStatusInFlight: Promise<void> | null = null;
 
 const router = useRouter();
 const configStore = useConfigStore();
@@ -187,12 +176,16 @@ const translateTrafficSeriesName = (name: unknown) => {
   return key ? t(key) : value;
 };
 
-const loadTunnelStatus = async () => {
+const resetTunnelStatus = () => {
+  frpStatus.value = null;
+  cfStatus.value = null;
+  defaultTunnel.value = "frp";
+  isTunnelInitializing.value = false;
+};
+
+const runTunnelStatusLoad = async () => {
   if (!showTunnelSection.value) {
-    frpStatus.value = null;
-    cfStatus.value = null;
-    defaultTunnel.value = "frp";
-    isTunnelInitializing.value = false;
+    resetTunnelStatus();
     return;
   }
 
@@ -201,7 +194,10 @@ const loadTunnelStatus = async () => {
       Promise.all([
         FrpcAPI.getStatus().catch(() => null),
         CloudflaredAPI.getStatus().catch(() => null),
-        ConfigAPI.getConfig().catch(() => null),
+        (configStore.config
+          ? Promise.resolve(configStore.config)
+          : configStore.loadConfig()
+        ).catch(() => null),
       ]),
     {
       onSuccess: ([frp, cf, config]) => {
@@ -230,6 +226,34 @@ const loadTunnelStatus = async () => {
       },
     },
   );
+};
+
+const loadTunnelStatus = async () => {
+  if (tunnelStatusInFlight) return tunnelStatusInFlight;
+
+  tunnelStatusInFlight = runTunnelStatusLoad().finally(() => {
+    tunnelStatusInFlight = null;
+  });
+  return tunnelStatusInFlight;
+};
+
+const scheduleTunnelStatusLoad = () => {
+  if (tunnelStatusTimer !== null) {
+    window.clearTimeout(tunnelStatusTimer);
+    tunnelStatusTimer = null;
+  }
+
+  if (!showTunnelSection.value) {
+    resetTunnelStatus();
+    return;
+  }
+
+  if (tunnelStatusInFlight) return;
+  isTunnelInitializing.value = true;
+  tunnelStatusTimer = window.setTimeout(() => {
+    tunnelStatusTimer = null;
+    void loadTunnelStatus();
+  }, 0);
 };
 
 const gotoTunnel = (tab: "frp" | "cloudflared") => {
@@ -270,135 +294,60 @@ const onlineNow = computed(
   () => realtimeStats.value?.active_conns ?? stats.value?.now?.online ?? null,
 );
 
-const trafficOption = computed<EChartsOption>(() => {
+const normalizeSeriesData = (value: unknown) => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((point) => {
+      if (!Array.isArray(point)) return null;
+      const time = Number(point[0]);
+      const amount = Number(point[1]);
+      if (!Number.isFinite(time) || !Number.isFinite(amount)) return null;
+      return [time, amount] as const;
+    })
+    .filter((point): point is readonly [number, number] => Boolean(point));
+};
+
+const trafficSeries = computed<TimeSeriesChartSeries[]>(() => {
   const base = (stats.value?.traffic.echarts ?? {}) as any;
-  const colors = ["#171717", "#a3a3a3"];
+  const colors = ["#0f766e", "#2563eb"];
 
-  const series = (Array.isArray(base?.series) ? base.series : []).map(
-    (s: any, idx: number) => ({
-      ...s,
-      name: translateTrafficSeriesName(s?.name),
-      type: "line",
-      smooth: true,
-      symbol: "none",
-      lineStyle: { width: 2 },
-      areaStyle: { opacity: 0.05, color: colors[idx % colors.length] },
-      emphasis: { focus: "series" },
-    }),
+  return (Array.isArray(base?.series) ? base.series : []).map(
+    (s: any, idx: number) => {
+      const color = colors[idx % colors.length] ?? "#0f766e";
+      return {
+        name: translateTrafficSeriesName(s?.name),
+        color,
+        fill: `${color}14`,
+        data: normalizeSeriesData(s?.data),
+      };
+    },
   );
-
-  return {
-    ...base,
-    color: colors,
-    animationDuration: 420,
-    legend: {
-      ...(base?.legend ?? {}),
-      data: Array.isArray(base?.legend?.data)
-        ? base.legend.data.map(translateTrafficSeriesName)
-        : base?.legend?.data,
-    },
-    tooltip: {
-      trigger: "axis",
-      axisPointer: { type: "cross" },
-      backgroundColor: "rgba(0, 0, 0, 0.85)",
-      borderColor: "rgba(255,255,255,0.1)",
-      textStyle: { color: "#fff" },
-      formatter: (params: any) => {
-        const arr = Array.isArray(params) ? params : [params];
-        const t = arr[0]?.axisValueLabel ?? "";
-        const lines = [t];
-        for (const p of arr) {
-          const name = String(p?.seriesName ?? "");
-          const value = Array.isArray(p?.data) ? p.data[1] : p?.value;
-          lines.push(`${p?.marker ?? ""} ${name}: ${formatBps(Number(value))}`);
-        }
-        return lines.join("<br/>");
-      },
-    },
-    grid: { left: 10, right: 10, top: 24, bottom: 12, containLabel: true },
-    xAxis: {
-      ...(base?.xAxis ?? {}),
-      type: "time",
-      boundaryGap: false,
-      axisLabel: { color: "#737373" },
-      axisLine: { lineStyle: { color: "#e5e5e5" } },
-      splitLine: { show: false },
-    },
-    yAxis: {
-      ...(base?.yAxis ?? {}),
-      type: "value",
-      axisLabel: {
-        color: "#737373",
-        formatter: (v: number) => formatBytes(v),
-      },
-      axisLine: { show: false },
-      splitLine: { lineStyle: { color: "#f5f5f5" } },
-    },
-    series,
-  } satisfies EChartsOption;
 });
 
-const threatOption = computed<EChartsOption>(() => {
+const threatSeries = computed<TimeSeriesChartSeries[]>(() => {
   const failedSeries = threatOverview.value?.series.failedLogins ?? [];
   const blockedSeries = threatOverview.value?.series.blockedScanners ?? [];
   const wafSeries = threatOverview.value?.series.wafEvents ?? [];
-  const colors = ["#525252", "#171717", "#b45309"];
-
-  return {
-    color: colors,
-    animationDuration: 420,
-    tooltip: {
-      trigger: "axis",
-      axisPointer: { type: "cross" },
-      backgroundColor: "rgba(0, 0, 0, 0.85)",
-      borderColor: "rgba(255,255,255,0.1)",
-      textStyle: { color: "#fff" },
+  return [
+    {
+      name: t("admin.dashboard.security.failedLogins"),
+      color: "#525252",
+      fill: "rgba(82, 82, 82, 0.08)",
+      data: failedSeries,
     },
-    grid: { left: 10, right: 10, top: 20, bottom: 12, containLabel: true },
-    xAxis: {
-      type: "time",
-      boundaryGap: false,
-      axisLabel: { color: "#737373" },
-      axisLine: { lineStyle: { color: "#e5e5e5" } },
-      splitLine: { show: false },
-    } as any,
-    yAxis: {
-      type: "value",
-      minInterval: 1,
-      axisLabel: { color: "#737373" },
-      axisLine: { show: false },
-      splitLine: { lineStyle: { color: "#f5f5f5" } },
+    {
+      name: t("admin.dashboard.security.scanners"),
+      color: "#991b1b",
+      fill: "rgba(153, 27, 27, 0.08)",
+      data: blockedSeries,
     },
-    series: [
-      {
-        name: t("admin.dashboard.security.failedLogins"),
-        type: "line",
-        smooth: true,
-        symbol: "none",
-        lineStyle: { width: 2 },
-        areaStyle: { opacity: 0.05, color: colors[0] },
-        data: failedSeries,
-      },
-      {
-        name: t("admin.dashboard.security.scanners"),
-        type: "line",
-        smooth: true,
-        symbol: "none",
-        lineStyle: { width: 2 },
-        areaStyle: { opacity: 0.05, color: colors[1] },
-        data: blockedSeries,
-      },
-      {
-        name: "WAF",
-        type: "line",
-        smooth: true,
-        symbol: "none",
-        lineStyle: { width: 2 },
-        areaStyle: { opacity: 0.05, color: colors[2] },
-        data: wafSeries,
-      },
-    ],
-  } satisfies EChartsOption;
+    {
+      name: "WAF",
+      color: "#b45309",
+      fill: "rgba(180, 83, 9, 0.08)",
+      data: wafSeries,
+    },
+  ];
 });
 
 const applyRealtimeStats = (payload: TrafficStats) => {
@@ -501,12 +450,10 @@ const load = async () => {
       },
     },
   );
-  if (showTunnelSection.value) {
-    void loadTunnelStatus();
-  } else {
-    isTunnelInitializing.value = false;
-  }
-  void loadDdnsStatus();
+  scheduleTunnelStatusLoad();
+  window.setTimeout(() => {
+    void loadDdnsStatus();
+  }, 0);
 };
 
 const refreshAll = () => {
@@ -527,15 +474,11 @@ watch(rangeKey, () => {
 
 watch(showTunnelSection, (visible) => {
   if (visible) {
-    isTunnelInitializing.value = true;
-    void loadTunnelStatus();
+    scheduleTunnelStatusLoad();
     return;
   }
 
-  frpStatus.value = null;
-  cfStatus.value = null;
-  defaultTunnel.value = "frp";
-  isTunnelInitializing.value = false;
+  resetTunnelStatus();
 });
 
 watch(isAutoRefresh, () => {
@@ -551,6 +494,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (refreshTimer) window.clearInterval(refreshTimer);
+  if (tunnelStatusTimer !== null) window.clearTimeout(tunnelStatusTimer);
   realtimePolling.stop();
 });
 
@@ -865,9 +809,9 @@ const tunnelCards = computed(() => [
                 </div>
               </div>
               <div class="h-[180px] w-full">
-                <VChart
-                  :option="threatOption"
-                  autoresize
+                <TimeSeriesChart
+                  :series="threatSeries"
+                  :value-formatter="(value) => formatNumber(value, '0')"
                   class="h-full w-full"
                 />
               </div>
@@ -1029,7 +973,11 @@ const tunnelCards = computed(() => [
             <Skeleton class="h-[300px] w-full rounded-xl" />
           </div>
           <div v-else-if="!isInitializing" class="h-[300px] w-full">
-            <VChart :option="trafficOption" autoresize class="h-full w-full" />
+            <TimeSeriesChart
+              :series="trafficSeries"
+              :value-formatter="formatBps"
+              class="h-full w-full"
+            />
           </div>
           <div v-else class="h-[300px]" aria-hidden="true"></div>
         </CardContent>

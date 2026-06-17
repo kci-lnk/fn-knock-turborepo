@@ -26,9 +26,23 @@ const isUiChunk = createChunkMatcher([
   'node_modules/nprogress/',
 ])
 
-const isEchartsChunk = createChunkMatcher([
-  'node_modules/vue-echarts/',
+const isChartChunk = createChunkMatcher([
+  'node_modules/uplot/',
 ])
+
+const isCriticalHtmlPreload = (dep: string) => {
+  const name = path.basename(dep)
+  return (
+    name.startsWith('_plugin-vue_export-helper-') ||
+    name.startsWith('rolldown-runtime-') ||
+    name.startsWith('preload-helper-') ||
+    name.startsWith('framework-') ||
+    name.startsWith('ui-vendor-') ||
+    name.startsWith('api-') ||
+    name.startsWith('config-') ||
+    name.startsWith('dockerAdminAuth-')
+  )
+}
 
 export default defineConfig({
   base: './',
@@ -41,6 +55,12 @@ export default defineConfig({
     exclude: ['qrcode.vue'],
   },
   build: {
+    modulePreload: {
+      resolveDependencies(_filename, deps, context) {
+        if (context.hostType !== 'html') return deps
+        return deps.filter(isCriticalHtmlPreload)
+      },
+    },
     rolldownOptions: {
       output: {
         manualChunks(id) {
@@ -50,23 +70,8 @@ export default defineConfig({
           if (isUiChunk(id)) {
             return 'ui-vendor'
           }
-          if (id.includes('node_modules/zrender/')) {
-            return 'zrender-vendor'
-          }
-          if (id.includes('node_modules/echarts/charts/')) {
-            return 'echarts-charts'
-          }
-          if (id.includes('node_modules/echarts/components/')) {
-            return 'echarts-components'
-          }
-          if (
-            id.includes('node_modules/echarts/core/') ||
-            id.includes('node_modules/echarts/renderers/')
-          ) {
-            return 'echarts-core'
-          }
-          if (isEchartsChunk(id)) {
-            return 'echarts-vendor'
+          if (isChartChunk(id)) {
+            return 'chart-vendor'
           }
         },
       },

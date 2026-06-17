@@ -48,6 +48,7 @@ export interface HostRule {
   preserve_host?: boolean;
   title?: string;
   title_override?: string;
+  favicon?: string | null;
   basic_auth?: {
     enabled: boolean;
     username: string;
@@ -190,6 +191,7 @@ export type GatewayPortalDisplayStyle = "domain" | "title";
 
 export interface GatewayPortalConfig {
   display_style: GatewayPortalDisplayStyle;
+  show_app_icon?: boolean;
 }
 
 export interface FnosPortIconHijackConfig {
@@ -696,6 +698,7 @@ export class GoBackendService {
   ): Promise<GoResponse<GatewayPortalConfig>> {
     return this.request<GatewayPortalConfig>("/api/config/portal", "POST", {
       display_style: config.display_style === "title" ? "title" : "domain",
+      show_app_icon: config.show_app_icon === true,
     } satisfies GatewayPortalConfig);
   }
 
@@ -1017,6 +1020,10 @@ export class GoBackendService {
         suppress_toolbar: rule.suppress_toolbar,
         preserve_host: rule.preserve_host,
         title: resolveHostRuleTitle(rule),
+        favicon:
+          typeof rule.favicon === "string" && rule.favicon.trim()
+            ? rule.favicon.trim()
+            : null,
         basic_auth: rule.basic_auth,
         locations: (rule.locations ?? []).map((location) => ({
           path: location.path,

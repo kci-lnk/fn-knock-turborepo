@@ -344,6 +344,7 @@ export type GatewayPortalDisplayStyle = "domain" | "title";
 
 export interface GatewayPortalConfig {
   display_style: GatewayPortalDisplayStyle;
+  show_app_icon: boolean;
 }
 
 export interface ReverseProxyTrustedIPRuntimeItem {
@@ -649,6 +650,7 @@ export const DEFAULT_GATEWAY_HOST_RESPONSE_CONFIG: GatewayHostResponseConfig = {
 
 export const DEFAULT_GATEWAY_PORTAL_CONFIG: GatewayPortalConfig = {
   display_style: "domain",
+  show_app_icon: false,
 };
 
 export const DEFAULT_DASHBOARD_DISPLAY_CONFIG: DashboardDisplayConfig = {
@@ -1394,6 +1396,7 @@ const normalizeGatewayPortalConfig = (
 
   return {
     display_style: normalizeGatewayPortalDisplayStyle(raw.display_style),
+    show_app_icon: raw.show_app_icon === true,
   };
 };
 

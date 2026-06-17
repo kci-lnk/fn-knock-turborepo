@@ -267,6 +267,11 @@ export const jaJPAdmin = {
       "ホスト クラス エントリには、ポータル内のドメイン名またはサイト タイトルが表示されます。タイトルが空の場合は、ドメイン名が表示されます。",
     portalDisplayDomain: "ドメイン名",
     portalDisplayTitle: "タイトル",
+    portal: "ポータル設定",
+    portalDescription:
+      "ポータルとツールバーでアクセス エントリをどのように表示するかを制御します。",
+    portalIconSummary: "アイコン: {state}",
+    editPortal: "ポータルを編集",
     throttleTitle:
       "ゲートウェイのアンチジェネレーションスロットリングを有効にする",
     throttleDescription:
@@ -299,6 +304,26 @@ export const jaJPAdmin = {
     editLocations: "パス応答の編集",
     reset: "リセット",
     saveSettings: "設定を保存",
+  },
+  gatewayPortalSettings: {
+    loadFailedDescription: "ポータル設定の読み込みに失敗しました",
+    saveFailed: "保存に失敗しました",
+    saveFailedDescription: "ポータル設定の保存に失敗しました",
+    updated: "ポータル設定を更新しました",
+    systemSettings: "システム設定",
+    gateway: "ゲートウェイ",
+    title: "ポータル設定",
+    description:
+      "ポータルとツールバーでホスト エントリをどのように表示するかを設定します。変更はすぐに保存され、Go ゲートウェイに同期されます。",
+    loadingConfig: "ポータル設定を読み込み中...",
+    display: "ポータル表示",
+    displayDescription:
+      "ホスト エントリはドメイン名またはサイト タイトルを表示します。タイトルが空の場合はドメイン名を表示します。",
+    displayDomain: "ドメイン名",
+    displayTitle: "タイトル",
+    showAppIcon: "アプリ アイコンを表示",
+    showAppIconDescription:
+      "有効にすると、ポータルとツールバーに収集済みのアプリ アイコンが表示されます。アイコンのないエントリはスペースを占有しません。",
   },
   gatewayVisibilitySettings: {
     loading: "読み込み中...",
@@ -2259,7 +2284,9 @@ export const jaJPAdmin = {
       "セキュリティ。ログインしていないユーザーはアクセスする前にログインする必要があります。",
     toolbar: "ポータルを表示",
     toolbarDescription:
-      "ログインが完了すると、アプリケーションを素早く切り替えるための小さなアイコンが表示されます。",
+      "ログイン後に、アプリを素早く切り替えるためのポータル入口を表示します。表示方式やアプリ アイコンなどの追加設定は",
+    toolbarSettingsLink: "ポータル設定",
+    toolbarSettingsSuffix: "で変更できます。",
     basicAuthSkip: "基本認証スキップ",
     basicAuthSkipDescription:
       "開いてユーザー名とパスワードを入力すると、アクセス時にこの一連のログイン情報が自動的に取得され、ブラウザーを開くたびにブラウザーに付属の基本認証ログイン ボックスがポップアップ表示されるのを回避します。",

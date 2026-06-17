@@ -118,6 +118,12 @@ const router = createRouter({
             import("../views/system-settings/GatewayVisibilitySettings.vue"),
         },
         {
+          path: "system/gateway-portal",
+          name: "GatewayPortalSettings",
+          component: () =>
+            import("../views/system-settings/GatewayPortalSettings.vue"),
+        },
+        {
           path: "system/gateway-proxy-headers",
           name: "GatewayProxyHeadersSettings",
           component: () =>

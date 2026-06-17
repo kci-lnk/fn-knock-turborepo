@@ -261,6 +261,11 @@ export const enAdmin = {
       "Host entries show either the domain or site title in the portal. Empty titles fall back to the domain.",
     portalDisplayDomain: "Domain",
     portalDisplayTitle: "Title",
+    portal: "Portal settings",
+    portalDescription:
+      "Control how access entries appear in the portal and toolbar.",
+    portalIconSummary: "Icon: {state}",
+    editPortal: "Edit portal",
     throttleTitle: "Enable gateway reverse proxy throttling",
     throttleDescription:
       "Rate limit and briefly block by client IP to stop high-frequency probing, retry storms, and abnormal request floods.",
@@ -292,6 +297,26 @@ export const enAdmin = {
     editLocations: "Edit path responses",
     reset: "Reset",
     saveSettings: "Save settings",
+  },
+  gatewayPortalSettings: {
+    loadFailedDescription: "Failed to load portal settings",
+    saveFailed: "Save failed",
+    saveFailedDescription: "Failed to save portal settings",
+    updated: "Portal settings updated",
+    systemSettings: "System settings",
+    gateway: "Gateway",
+    title: "Portal settings",
+    description:
+      "Configure how Host entries are displayed in the portal and toolbar. Changes are saved and synced to the Go gateway immediately.",
+    loadingConfig: "Loading portal settings...",
+    display: "Portal display",
+    displayDescription:
+      "Host entries show either the domain or site title. Empty titles fall back to the domain.",
+    displayDomain: "Domain",
+    displayTitle: "Title",
+    showAppIcon: "Show app icons",
+    showAppIconDescription:
+      "When enabled, the portal and toolbar show collected app icons. Entries without an icon do not reserve space.",
   },
   gatewayVisibilitySettings: {
     loading: "Loading...",
@@ -2222,7 +2247,9 @@ export const enAdmin = {
       "For security, users who are not signed in must sign in before access.",
     toolbar: "Show portal",
     toolbarDescription:
-      "Show a small icon after sign-in for quickly switching apps.",
+      "Show the portal entry after sign-in for quickly switching apps. To adjust display style, app icons, and related options, open ",
+    toolbarSettingsLink: "Portal settings",
+    toolbarSettingsSuffix: ".",
     basicAuthSkip: "Skip Basic Auth",
     basicAuthSkipDescription:
       "When enabled with a username and password, access will include those credentials automatically so the browser's Basic Auth prompt does not appear each time.",

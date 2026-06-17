@@ -978,6 +978,13 @@
                     }}</Label>
                     <p class="text-xs leading-5 text-muted-foreground">
                       {{ t("admin.subdomainProxy.toolbarDescription") }}
+                      <a
+                        href="#/system/gateway-portal"
+                        class="font-medium text-foreground underline underline-offset-4 transition hover:text-primary"
+                      >
+                        {{ t("admin.subdomainProxy.toolbarSettingsLink") }}
+                      </a>
+                      {{ t("admin.subdomainProxy.toolbarSettingsSuffix") }}
                     </p>
                   </div>
                   <Switch id="mapping-toolbar" v-model="showToolbar" />

@@ -54,6 +54,7 @@ import {
   scheduleHostMappingsMetadataRefresh,
 } from "../lib/host-mapping-metadata";
 import {
+  applyGatewayPortalIconHostRulesPatchIfNeeded,
   applyGatewayPortalTitleHostRulesPatchIfNeeded,
   syncGatewayPortalHostRulesIfTitleMode,
   syncGatewayPortalToGateway,
@@ -530,6 +531,7 @@ const toHostRuleSyncPayload = (
     | "locations"
     | "title"
     | "title_override"
+    | "favicon"
   >,
 ) => ({
   host: normalizeHostMappingLookupKey(mapping.host),
@@ -539,6 +541,10 @@ const toHostRuleSyncPayload = (
   suppress_toolbar: mapping.suppress_toolbar,
   preserve_host: mapping.preserve_host,
   title: resolveHostMappingDisplayTitle(mapping),
+  favicon:
+    typeof mapping.favicon === "string" && mapping.favicon.trim()
+      ? mapping.favicon.trim()
+      : null,
   basic_auth: normalizeHostBasicAuth(mapping.basic_auth),
   locations: mapping.locations ?? [],
 });
@@ -1950,6 +1956,7 @@ export const adminRoutes = new Elysia({
           updatedConfig.gateway_portal ?? DEFAULT_GATEWAY_PORTAL_CONFIG,
         );
         await applyGatewayPortalTitleHostRulesPatchIfNeeded(updatedConfig);
+        await applyGatewayPortalIconHostRulesPatchIfNeeded(updatedConfig);
 
         return {
           success: true,
@@ -2003,6 +2010,7 @@ export const adminRoutes = new Elysia({
             display_style: t.Optional(
               t.Union([t.Literal("domain"), t.Literal("title")]),
             ),
+            show_app_icon: t.Optional(t.Boolean()),
           }),
         ),
       }),

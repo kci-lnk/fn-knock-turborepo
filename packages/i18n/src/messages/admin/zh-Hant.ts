@@ -238,6 +238,10 @@ export const zhHantAdmin = {
       "Host 類入口在傳送門中顯示域名或站點標題；標題為空時顯示域名。",
     portalDisplayDomain: "域名",
     portalDisplayTitle: "標題",
+    portal: "傳送門設定",
+    portalDescription: "控制訪問入口在傳送門與工具列中的展示方式。",
+    portalIconSummary: "圖示：{state}",
+    editPortal: "編輯傳送門",
     throttleTitle: "啟用網關反代節流",
     throttleDescription:
       "按客戶端 IP 做限速與短時封禁，適合攔住高頻探測、錯誤重試風暴和異常刷請求。",
@@ -266,6 +270,27 @@ export const zhHantAdmin = {
     editLocations: "編輯路徑響應",
     reset: "重置",
     saveSettings: "保存設定",
+  },
+  gatewayPortalSettings: {
+    ...zhCNAdmin.gatewayPortalSettings,
+    loadFailedDescription: "載入傳送門設定失敗",
+    saveFailed: "保存失敗",
+    saveFailedDescription: "保存傳送門設定失敗",
+    updated: "傳送門設定已更新",
+    systemSettings: "系統設定",
+    gateway: "網關",
+    title: "傳送門設定",
+    description:
+      "配置 Host 類入口在傳送門與工具列中的顯示方式，點擊後會立即保存並同步到 Go 網關。",
+    loadingConfig: "正在載入傳送門設定...",
+    display: "傳送門顯示",
+    displayDescription:
+      "Host 類入口顯示域名或站點標題；標題為空時顯示域名。",
+    displayDomain: "域名",
+    displayTitle: "標題",
+    showAppIcon: "顯示應用圖示",
+    showAppIconDescription:
+      "開啟後，傳送門和工具列會顯示已採集到的應用圖示；沒有圖示的入口不會占位。",
   },
   gatewayVisibilitySettings: {
     ...zhCNAdmin.gatewayVisibilitySettings,
@@ -2087,7 +2112,10 @@ export const zhHantAdmin = {
     authRequired: "要求登入",
     authRequiredDescription: "安全性，未登入使用者會被要求登入才可以訪問。",
     toolbar: "顯示傳送門",
-    toolbarDescription: "完成登入後顯示快速切換應用的小圖示。",
+    toolbarDescription:
+      "完成登入後顯示用於快速切換應用的傳送門入口。如需調整展示方式、應用圖示等更多設定，可前往",
+    toolbarSettingsLink: "傳送門設定",
+    toolbarSettingsSuffix: "。",
     basicAuthSkip: "Basic Auth 跳過",
     basicAuthSkipDescription:
       "開啟並填寫使用者名稱和密碼後，訪問時會自動帶上這組登入資訊，避免每次打開都彈出瀏覽器自帶的 Basic Auth 登入框。",

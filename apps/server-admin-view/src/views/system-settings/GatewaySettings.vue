@@ -17,7 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@admin-shared/utils/toast";
 import { ConfigAPI } from "../../lib/api";
-import type { GatewayPortalDisplayStyle, GatewaySettings } from "../../types";
+import type { GatewaySettings } from "../../types";
 import {
   extractErrorMessage,
   useAsyncAction,
@@ -42,6 +42,7 @@ const form = reactive<GatewaySettingsForm>({
   auth_cache_unauthorized_ttl_seconds: 1,
   portal: {
     display_style: "domain",
+    show_app_icon: false,
   },
   reverse_proxy_throttle: {
     enabled: true,
@@ -72,19 +73,7 @@ const { isPending: isSaving, run: runSaveSettings } = useAsyncAction({
     });
   },
 });
-const { isPending: isSavingPortal, run: runSavePortal } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.gatewaySettings.saveFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.gatewaySettings.savePortalFailedDescription"),
-      ),
-    });
-  },
-});
-const isGatewaySettingsBusy = computed(
-  () => isSaving.value || isSavingPortal.value,
-);
+const isGatewaySettingsBusy = computed(() => isSaving.value);
 
 const clampCacheTtl = (value: unknown) =>
   Math.max(0, Math.floor(Number(value) || 0));
@@ -141,6 +130,17 @@ const currentRunTypeLabel = computed(() => {
 });
 
 const visibilitySummary = computed(() => settings.value?.visibility ?? null);
+const portalSummary = computed(() => settings.value?.portal ?? null);
+const portalDisplaySummary = computed(() =>
+  (portalSummary.value?.display_style ?? "domain") === "title"
+    ? t("admin.gatewaySettings.portalDisplayTitle")
+    : t("admin.gatewaySettings.portalDisplayDomain"),
+);
+const portalIconSummary = computed(() =>
+  portalSummary.value?.show_app_icon
+    ? t("admin.gatewaySettings.enabled")
+    : t("admin.gatewaySettings.disabled"),
+);
 
 const isProxyHeadersAvailable = computed(
   () => isAnySubdomainRoutingMode(configStore.config),
@@ -174,6 +174,10 @@ const openVisibilityEditor = () => {
   void router.push("/system/gateway-visibility");
 };
 
+const openPortalEditor = () => {
+  void router.push("/system/gateway-portal");
+};
+
 const openProxyHeadersEditor = () => {
   if (!isProxyHeadersAvailable.value) {
     return;
@@ -205,7 +209,10 @@ const toggleThrottleEnabled = () => {
 
 const buildSettingsSnapshot = (data: GatewaySettings): GatewaySettings => ({
   ...data,
-  portal: { display_style: data.portal?.display_style ?? "domain" },
+  portal: {
+    display_style: data.portal?.display_style ?? "domain",
+    show_app_icon: data.portal?.show_app_icon === true,
+  },
   reverse_proxy_throttle: { ...data.reverse_proxy_throttle },
 });
 
@@ -221,17 +228,13 @@ const applyFromSettings = (data: GatewaySettings) => {
   form.auth_cache_unauthorized_ttl_seconds =
     data.auth_cache_unauthorized_ttl_seconds;
   form.portal.display_style = snapshot.portal.display_style;
+  form.portal.show_app_icon = snapshot.portal.show_app_icon;
   form.reverse_proxy_throttle.enabled = data.reverse_proxy_throttle.enabled;
   form.reverse_proxy_throttle.requests_per_second =
     data.reverse_proxy_throttle.requests_per_second;
   form.reverse_proxy_throttle.burst = data.reverse_proxy_throttle.burst;
   form.reverse_proxy_throttle.block_seconds =
     data.reverse_proxy_throttle.block_seconds;
-};
-
-const applyPortalFromSettings = (data: GatewaySettings) => {
-  const snapshot = applySettingsSnapshot(data);
-  form.portal.display_style = snapshot.portal.display_style;
 };
 
 const fetchSettings = async () => {
@@ -243,40 +246,6 @@ const fetchSettings = async () => {
 
 const resetForm = () => {
   if (settings.value) applyFromSettings(settings.value);
-};
-
-const savePortalDisplayStyle = async (style: GatewayPortalDisplayStyle) => {
-  if (isGatewaySettingsBusy.value) return;
-
-  const previousSavedStyle = settings.value?.portal.display_style ?? "domain";
-  if (
-    form.portal.display_style === style &&
-    previousSavedStyle === style
-  ) {
-    return;
-  }
-
-  form.portal.display_style = style;
-  const data = await runSavePortal(() =>
-    ConfigAPI.updateGatewaySettings({
-      portal: {
-        display_style: style,
-      },
-    }),
-  );
-
-  if (!data) {
-    form.portal.display_style = previousSavedStyle;
-    return;
-  }
-
-  applyPortalFromSettings(data);
-  try {
-    await configStore.loadConfig();
-  } catch (error) {
-    console.error("[gateway-settings] failed to refresh config store:", error);
-  }
-  toast.success(t("admin.gatewaySettings.portalUpdated"));
 };
 
 const saveSettings = async () => {
@@ -398,45 +367,6 @@ onMounted(fetchSettings);
         </div>
       </div>
 
-      <div
-        class="grid gap-3 p-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
-      >
-        <div class="space-y-1 pr-6">
-          <Label class="text-base">{{
-            t("admin.gatewaySettings.portalDisplay")
-          }}</Label>
-          <div class="text-sm text-muted-foreground">
-            {{ t("admin.gatewaySettings.portalDisplayDescription") }}
-          </div>
-        </div>
-        <div class="inline-flex w-fit rounded-md border bg-background p-1">
-          <Button
-            type="button"
-            size="sm"
-            :variant="
-              form.portal.display_style === 'domain' ? 'default' : 'ghost'
-            "
-            class="h-8 px-3"
-            :disabled="isGatewaySettingsBusy"
-            @click="savePortalDisplayStyle('domain')"
-          >
-            {{ t("admin.gatewaySettings.portalDisplayDomain") }}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            :variant="
-              form.portal.display_style === 'title' ? 'default' : 'ghost'
-            "
-            class="h-8 px-3"
-            :disabled="isGatewaySettingsBusy"
-            @click="savePortalDisplayStyle('title')"
-          >
-            {{ t("admin.gatewaySettings.portalDisplayTitle") }}
-          </Button>
-        </div>
-      </div>
-
       <div class="flex items-center justify-between bg-muted/10 p-6">
         <div class="space-y-1 pr-6">
           <Label
@@ -531,6 +461,39 @@ onMounted(fetchSettings);
               t("admin.gatewaySettings.seconds")
             }}</span>
           </div>
+        </div>
+      </div>
+
+      <div
+        class="grid gap-4 p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
+      >
+        <div class="space-y-3">
+          <div class="flex flex-wrap items-center gap-2">
+            <Label class="text-base">{{
+              t("admin.gatewaySettings.portal")
+            }}</Label>
+            <Badge variant="secondary" class="rounded-full px-2.5">
+              {{ portalDisplaySummary }}
+            </Badge>
+            <Badge
+              :variant="portalSummary?.show_app_icon ? 'default' : 'secondary'"
+              class="rounded-full px-2.5"
+            >
+              {{
+                t("admin.gatewaySettings.portalIconSummary", {
+                  state: portalIconSummary,
+                })
+              }}
+            </Badge>
+          </div>
+          <div class="text-sm leading-6 text-muted-foreground">
+            {{ t("admin.gatewaySettings.portalDescription") }}
+          </div>
+        </div>
+        <div class="flex justify-start lg:justify-end">
+          <Button variant="outline" @click="openPortalEditor"
+            >{{ t("admin.gatewaySettings.editPortal") }}</Button
+          >
         </div>
       </div>
 

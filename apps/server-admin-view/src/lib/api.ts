@@ -32,6 +32,7 @@ import type {
   GatewayHostResponseDetails,
   GatewayProxyHeadersDetails,
   GatewaySettings,
+  GatewayPortalConfig,
   GatewayVisibilityDetails,
   FnKnockBackupImportArchiveRequest,
   FnKnockBackupImportResult,
@@ -430,7 +431,9 @@ export const ConfigAPI = {
     return res.data.data;
   },
   async updateGatewaySettings(
-    payload: Partial<GatewaySettings>,
+    payload: Partial<Omit<GatewaySettings, "portal">> & {
+      portal?: Partial<GatewayPortalConfig>;
+    },
   ): Promise<GatewaySettings> {
     const res = await apiClient.post("/config/gateway", payload);
     return res.data.data;

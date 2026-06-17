@@ -258,6 +258,10 @@ export const koKRAdmin = {
       "호스트 항목은 포털의 도메인 또는 사이트 제목을 표시합니다. 빈 제목은 도메인으로 대체됩니다.",
     portalDisplayDomain: "도메인",
     portalDisplayTitle: "제목",
+    portal: "포털 설정",
+    portalDescription: "포털과 도구 모음에서 액세스 항목이 표시되는 방식을 제어합니다.",
+    portalIconSummary: "아이콘: {state}",
+    editPortal: "포털 편집",
     throttleTitle: "게이트웨이 역방향 프록시 제한 활성화",
     throttleDescription:
       "빈도가 높은 프로브, 재시도 폭풍 및 비정상적인 요청 플러드를 중지하기 위해 클라이언트 IP별로 속도 제한 및 잠시 차단합니다.",
@@ -289,6 +293,26 @@ export const koKRAdmin = {
     editLocations: "경로 응답 편집",
     reset: "재설정",
     saveSettings: "설정 저장",
+  },
+  gatewayPortalSettings: {
+    loadFailedDescription: "포털 설정을 로드하지 못했습니다.",
+    saveFailed: "저장 실패",
+    saveFailedDescription: "포털 설정을 저장하지 못했습니다.",
+    updated: "포털 설정이 업데이트되었습니다.",
+    systemSettings: "시스템 설정",
+    gateway: "게이트웨이",
+    title: "포털 설정",
+    description:
+      "포털과 도구 모음에서 호스트 항목이 표시되는 방식을 구성합니다. 변경 사항은 즉시 저장되고 Go 게이트웨이에 동기화됩니다.",
+    loadingConfig: "포털 설정 로드 중...",
+    display: "포털 표시",
+    displayDescription:
+      "호스트 항목은 도메인 또는 사이트 제목을 표시합니다. 빈 제목은 도메인으로 대체됩니다.",
+    displayDomain: "도메인",
+    displayTitle: "제목",
+    showAppIcon: "앱 아이콘 표시",
+    showAppIconDescription:
+      "활성화하면 포털과 도구 모음에 수집된 앱 아이콘이 표시됩니다. 아이콘이 없는 항목은 공간을 차지하지 않습니다.",
   },
   gatewayVisibilitySettings: {
     loading: "로드 중...",
@@ -2212,7 +2236,9 @@ export const koKRAdmin = {
       "보안을 위해 로그인하지 않은 사용자는 로그인을 해야 접근할 수 있습니다.",
     toolbar: "포털 표시",
     toolbarDescription:
-      "빠른 앱 전환을 위해 로그인 후 작은 아이콘을 표시합니다.",
+      "빠른 앱 전환을 위해 로그인 후 포털 진입점을 표시합니다. 표시 방식, 앱 아이콘 등 추가 설정은 ",
+    toolbarSettingsLink: "포털 설정",
+    toolbarSettingsSuffix: "에서 조정할 수 있습니다.",
     basicAuthSkip: "기본 인증 건너뛰기",
     basicAuthSkipDescription:
       "사용자 이름과 비밀번호를 사용하여 활성화하면 액세스에 해당 자격 증명이 자동으로 포함되므로 브라우저의 기본 인증 프롬프트가 매번 표시되지 않습니다.",

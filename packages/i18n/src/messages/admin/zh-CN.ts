@@ -239,6 +239,10 @@ export const zhCNAdmin = {
       "Host 类入口在传送门中显示域名或站点标题；标题为空时显示域名。",
     portalDisplayDomain: "域名",
     portalDisplayTitle: "标题",
+    portal: "传送门设置",
+    portalDescription: "控制访问入口在传送门与工具栏中的展示方式。",
+    portalIconSummary: "图标：{state}",
+    editPortal: "编辑传送门",
     throttleTitle: "启用网关反代节流",
     throttleDescription:
       "按客户端 IP 做限速与短时封禁，适合拦住高频探测、错误重试风暴和异常刷请求。",
@@ -267,6 +271,26 @@ export const zhCNAdmin = {
     editLocations: "编辑路径响应",
     reset: "重置",
     saveSettings: "保存设置",
+  },
+  gatewayPortalSettings: {
+    loadFailedDescription: "加载传送门设置失败",
+    saveFailed: "保存失败",
+    saveFailedDescription: "保存传送门设置失败",
+    updated: "传送门设置已更新",
+    systemSettings: "系统设置",
+    gateway: "网关",
+    title: "传送门设置",
+    description:
+      "配置 Host 类入口在传送门与工具栏中的显示方式，点击后会立即保存并同步到 Go 网关。",
+    loadingConfig: "正在加载传送门设置...",
+    display: "传送门显示",
+    displayDescription:
+      "Host 类入口显示域名或站点标题；标题为空时显示域名。",
+    displayDomain: "域名",
+    displayTitle: "标题",
+    showAppIcon: "显示应用图标",
+    showAppIconDescription:
+      "开启后，传送门和工具栏会显示已采集到的应用图标；没有图标的入口不会占位。",
   },
   gatewayVisibilitySettings: {
     loading: "正在加载...",
@@ -2080,7 +2104,10 @@ export const zhCNAdmin = {
     authRequired: "要求登录",
     authRequiredDescription: "安全性，未登录用户会被要求登录才可以访问。",
     toolbar: "显示传送门",
-    toolbarDescription: "完成登录后显示快速切换应用的小图标。",
+    toolbarDescription:
+      "完成登录后显示用于快速切换应用的传送门入口。如需调整展示方式、应用图标等更多设置，可前往",
+    toolbarSettingsLink: "传送门设置",
+    toolbarSettingsSuffix: "。",
     basicAuthSkip: "Basic Auth 跳过",
     basicAuthSkipDescription:
       "开启并填写用户名和密码后，访问时会自动带上这组登录信息，避免每次打开都弹出浏览器自带的 Basic Auth 登录框。",

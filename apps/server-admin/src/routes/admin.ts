@@ -3543,9 +3543,10 @@ export const adminRoutes = new Elysia({
         toMs: nowMs,
         types: [FN_EVENT_AUTH_LOGIN_FAILURE, FN_EVENT_SECURITY_SCANNER_BLOCKED],
       });
-      const wafTimestamps = await wafLogStore.listTimestampsByRange({
+      const wafOverview = await wafLogStore.getRangeSeries({
         fromMs,
         toMs: nowMs,
+        bucketCount,
       });
       const failedTimestamps = events
         .filter((item) => item.event.type === FN_EVENT_AUTH_LOGIN_FAILURE)
@@ -3561,7 +3562,7 @@ export const adminRoutes = new Elysia({
           totals: {
             failedLogins: failedTimestamps.length,
             blockedScanners: blockedTimestamps.length,
-            wafEvents: wafTimestamps.length,
+            wafEvents: wafOverview.total,
           },
           series: {
             failedLogins: buildCountSeries(
@@ -3576,12 +3577,7 @@ export const adminRoutes = new Elysia({
               nowMs,
               bucketCount,
             ),
-            wafEvents: buildCountSeries(
-              wafTimestamps,
-              fromMs,
-              nowMs,
-              bucketCount,
-            ),
+            wafEvents: wafOverview.series,
           },
         },
       };

@@ -732,6 +732,7 @@ const startAutoRefresh = () => {
   stopAutoRefresh();
   autoRefreshTimer = window.setInterval(() => {
     if (currentCursor.value || cursorHistory.value.length > 0) return;
+    if (searchQuery.value.trim() || traceFilter.value.trim()) return;
     void fetchEntries({ silent: true });
   }, AUTO_REFRESH_MS);
 };

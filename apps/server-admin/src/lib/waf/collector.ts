@@ -10,9 +10,15 @@ const wafCollectorT = (
   params?: Record<string, string | number | boolean | null | undefined>,
 ) => tDefault(`server.wafCollector.${key}`, params);
 
+type WAFDrainOnceResult = {
+  drained: number;
+  remaining: number;
+};
+
 export class WAFCollector {
   private timer: NodeJS.Timeout | null = null;
   private running = false;
+  private draining: Promise<WAFDrainOnceResult> | null = null;
 
   start(): void {
     if (this.timer) return;
@@ -26,10 +32,15 @@ export class WAFCollector {
     }
   }
 
-  async drainOnce(limit = DEFAULT_DRAIN_LIMIT): Promise<{
-    drained: number;
-    remaining: number;
-  }> {
+  async drainOnce(limit = DEFAULT_DRAIN_LIMIT): Promise<WAFDrainOnceResult> {
+    if (this.draining) return this.draining;
+    this.draining = this.drainOnceInternal(limit).finally(() => {
+      this.draining = null;
+    });
+    return this.draining;
+  }
+
+  private async drainOnceInternal(limit: number): Promise<WAFDrainOnceResult> {
     const config = await configManager.getWAFConfig();
     const response = await goBackend.drainWAFEvents(limit);
     if (!response.success || !response.data) {

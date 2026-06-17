@@ -22,6 +22,7 @@
           </div>
           <div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
             <ConfirmDangerPopover
+              v-if="selectedUnblockedIps.length > 0"
               :title="
                 t('admin.hostTraffic.activeIpDialog.blacklistSelectedTitle', {
                   count: selectedUnblockedIps.length,
@@ -56,6 +57,7 @@
               </template>
             </ConfirmDangerPopover>
             <ConfirmDangerPopover
+              v-if="selectedBlockedIps.length > 0"
               :title="
                 t('admin.hostTraffic.activeIpDialog.unblacklistSelectedTitle', {
                   count: selectedBlockedIps.length,

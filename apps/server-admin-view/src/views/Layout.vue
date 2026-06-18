@@ -591,7 +591,7 @@ const shouldShowPanelLogout = computed(
   () =>
     dockerAdminAuthStore.isEnabled &&
     dockerAdminAuthStore.isAuthenticated &&
-    dockerAdminAuthStore.passwordConfigured,
+    dockerAdminAuthStore.authSource !== "reauth_session",
 );
 
 type WindowWithIdleCallback = Window & {

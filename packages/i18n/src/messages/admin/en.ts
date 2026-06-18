@@ -3218,6 +3218,13 @@ export const enAdmin = {
     comment: "Comment",
     boundAt: "Bound at",
     deviceAssociation: "Device association",
+    adminPanelAccess: "Admin panel",
+    adminPanelAllowed: "Allowed",
+    adminPanelDenied: "Not allowed",
+    adminPanelAccessTooltip:
+      "After enabling this, the fn-knock admin panel added in subdomain mappings can be opened without entering the separate panel password.",
+    adminPanelAccessUpdated: "Admin panel access updated",
+    adminPanelAccessUpdateFailed: "Failed to update admin panel access",
     actions: "Actions",
     managePasskey: "Manage quick login",
     deleteTitle: "Confirm delete",

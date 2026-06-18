@@ -294,23 +294,27 @@
     @update:open="handleDiscoverDialogOpenChange"
   >
     <DialogContent
-      class="sm:max-w-[800px] max-h-[85vh] flex flex-col overflow-hidden"
+      class="max-w-[calc(100vw-2rem)] sm:max-w-[800px] max-h-[85vh] flex flex-col overflow-hidden"
     >
       <DialogHeader class="shrink-0">
         <div
-          class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+          class="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
         >
           <DialogTitle>{{ t("admin.reverseProxy.discoverTitle") }}</DialogTitle>
-          <div class="flex items-center gap-2">
+          <div
+            class="flex w-fit max-w-full min-w-0 self-center items-center gap-2 sm:self-auto"
+          >
             <Button
               variant="outline"
               size="icon"
+              class="h-11 w-11 sm:h-9 sm:w-9"
               :disabled="isDiscovering"
               @click="toggleDiscoverSettings"
             >
               <SlidersHorizontal class="h-4 w-4" />
             </Button>
             <RefreshButton
+              class="w-auto max-w-[calc(100vw-7rem)] min-w-0 !shrink justify-center overflow-hidden [&>span]:min-w-0 [&>span]:truncate"
               :label="t('admin.reverseProxy.refreshServices')"
               :loading="isDiscovering"
               :disabled="isDiscovering"

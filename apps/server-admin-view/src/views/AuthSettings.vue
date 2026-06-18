@@ -8,7 +8,9 @@
           <CardTitle>{{ t("admin.authSettings.title") }}</CardTitle>
           <DocsLinkButton class="sm:hidden" :href="docsUrls.guides.auth" />
         </div>
-        <CardDescription>{{ t("admin.authSettings.description") }}</CardDescription>
+        <CardDescription>{{
+          t("admin.authSettings.description")
+        }}</CardDescription>
       </div>
       <div class="grid w-full gap-2 sm:flex sm:w-auto sm:items-center">
         <DocsLinkButton
@@ -29,23 +31,30 @@
     </CardHeader>
     <CardContent v-if="isLoading && showLoadingSkeleton && !credentials.length">
       <div class="border rounded-md overflow-hidden">
-        <Table class="table-fixed" container-class="overflow-hidden">
+        <Table :class="totpTableClass" container-class="overflow-x-auto">
           <colgroup>
-            <col class="w-[44%] sm:w-[36%]" />
-            <col class="hidden sm:table-column sm:w-[24%]" />
-            <col class="w-[32%] sm:w-[25%]" />
-            <col class="w-[72px] sm:w-[15%]" />
+            <col :class="showAdminPanelAccessColumn ? 'w-[30%]' : 'w-[36%]'" />
+            <col :class="showAdminPanelAccessColumn ? 'w-[20%]' : 'w-[24%]'" />
+            <col :class="showAdminPanelAccessColumn ? 'w-[20%]' : 'w-[25%]'" />
+            <col v-if="showAdminPanelAccessColumn" class="w-[18%]" />
+            <col :class="showAdminPanelAccessColumn ? 'w-[12%]' : 'w-[15%]'" />
           </colgroup>
           <TableHeader>
             <TableRow>
               <TableHead class="whitespace-normal">
                 {{ t("admin.authSettings.comment") }}
               </TableHead>
-              <TableHead class="hidden whitespace-normal sm:table-cell"
-                >{{ t("admin.authSettings.boundAt") }}</TableHead
-              >
+              <TableHead class="whitespace-normal">{{
+                t("admin.authSettings.boundAt")
+              }}</TableHead>
               <TableHead class="whitespace-normal">
                 {{ t("admin.authSettings.deviceAssociation") }}
+              </TableHead>
+              <TableHead
+                v-if="showAdminPanelAccessColumn"
+                class="whitespace-normal"
+              >
+                {{ t("admin.authSettings.adminPanelAccess") }}
               </TableHead>
               <TableHead class="text-right">
                 {{ t("admin.authSettings.actions") }}
@@ -55,10 +64,11 @@
           <TableBody>
             <TableRow v-for="n in 4" :key="n">
               <TableCell><Skeleton class="h-4 w-40 max-w-full" /></TableCell>
-              <TableCell class="hidden sm:table-cell"
-                ><Skeleton class="h-4 w-36 max-w-full"
-              /></TableCell>
+              <TableCell><Skeleton class="h-4 w-36 max-w-full" /></TableCell>
               <TableCell><Skeleton class="h-4 w-52 max-w-full" /></TableCell>
+              <TableCell v-if="showAdminPanelAccessColumn">
+                <Skeleton class="h-6 w-24 max-w-full" />
+              </TableCell>
               <TableCell class="text-right"
                 ><Skeleton class="h-8 w-16 rounded-md ml-auto sm:w-24"
               /></TableCell>
@@ -68,23 +78,30 @@
       </div>
     </CardContent>
     <CardContent v-else-if="!isLoading || credentials.length">
-      <Table class="table-fixed" container-class="overflow-hidden">
+      <Table :class="totpTableClass" container-class="overflow-x-auto">
         <colgroup>
-          <col class="w-[44%] sm:w-[36%]" />
-          <col class="hidden sm:table-column sm:w-[24%]" />
-          <col class="w-[32%] sm:w-[25%]" />
-          <col class="w-[72px] sm:w-[15%]" />
+          <col :class="showAdminPanelAccessColumn ? 'w-[30%]' : 'w-[36%]'" />
+          <col :class="showAdminPanelAccessColumn ? 'w-[20%]' : 'w-[24%]'" />
+          <col :class="showAdminPanelAccessColumn ? 'w-[20%]' : 'w-[25%]'" />
+          <col v-if="showAdminPanelAccessColumn" class="w-[18%]" />
+          <col :class="showAdminPanelAccessColumn ? 'w-[12%]' : 'w-[15%]'" />
         </colgroup>
         <TableHeader>
           <TableRow>
             <TableHead class="whitespace-normal">
               {{ t("admin.authSettings.comment") }}
             </TableHead>
-            <TableHead class="hidden whitespace-normal sm:table-cell"
-              >{{ t("admin.authSettings.boundAt") }}</TableHead
-            >
+            <TableHead class="whitespace-normal">{{
+              t("admin.authSettings.boundAt")
+            }}</TableHead>
             <TableHead class="whitespace-normal">
               {{ t("admin.authSettings.deviceAssociation") }}
+            </TableHead>
+            <TableHead
+              v-if="showAdminPanelAccessColumn"
+              class="whitespace-normal"
+            >
+              {{ t("admin.authSettings.adminPanelAccess") }}
             </TableHead>
             <TableHead class="text-right">
               {{ t("admin.authSettings.actions") }}
@@ -101,9 +118,7 @@
                 :save="(value) => saveComment(totp.id, value)"
               />
             </TableCell>
-            <TableCell class="hidden sm:table-cell"
-              ><HumanFriendlyTime :value="totp.createdAt"
-            /></TableCell>
+            <TableCell><HumanFriendlyTime :value="totp.createdAt" /></TableCell>
             <TableCell class="whitespace-normal">
               <Button
                 variant="link"
@@ -112,6 +127,46 @@
               >
                 {{ t("admin.authSettings.managePasskey") }}
               </Button>
+            </TableCell>
+            <TableCell v-if="showAdminPanelAccessColumn">
+              <TooltipProvider>
+                <Tooltip
+                  :open="isAdminPanelAccessTooltipOpen(totp.id)"
+                  @update:open="
+                    handleAdminPanelAccessTooltipOpenChange(totp.id, $event)
+                  "
+                >
+                  <TooltipTrigger as-child>
+                    <div
+                      class="inline-flex cursor-help items-center gap-2"
+                      tabindex="0"
+                      @click="handleAdminPanelAccessTooltipClick(totp.id)"
+                    >
+                      <Switch
+                        :model-value="hasDockerAdminPanelAccess(totp)"
+                        :disabled="isAccessScopeUpdating(totp.id)"
+                        :aria-label="t('admin.authSettings.adminPanelAccess')"
+                        @update:model-value="
+                          handleDockerAdminPanelAccessChange(
+                            totp,
+                            $event === true,
+                          )
+                        "
+                      />
+                      <span class="text-xs text-muted-foreground">
+                        {{
+                          hasDockerAdminPanelAccess(totp)
+                            ? t("admin.authSettings.adminPanelAllowed")
+                            : t("admin.authSettings.adminPanelDenied")
+                        }}
+                      </span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent class="max-w-72 text-left">
+                    <p>{{ t("admin.authSettings.adminPanelAccessTooltip") }}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </TableCell>
             <TableCell class="text-right">
               <ConfirmDangerPopover
@@ -137,7 +192,10 @@
               </ConfirmDangerPopover>
             </TableCell>
           </TableRow>
-          <TableEmpty v-if="credentials.length === 0" :colspan="4">
+          <TableEmpty
+            v-if="credentials.length === 0"
+            :colspan="totpTableColspan"
+          >
             {{ t("admin.authSettings.empty") }}
           </TableEmpty>
         </TableBody>
@@ -175,9 +233,9 @@
             ref="otpInputAreaRef"
             class="space-y-2 flex flex-col items-center scroll-mt-24"
           >
-            <Label class="text-sm text-muted-foreground self-center"
-              >{{ t("admin.authSettings.otpLabel") }}</Label
-            >
+            <Label class="text-sm text-muted-foreground self-center">{{
+              t("admin.authSettings.otpLabel")
+            }}</Label>
             <div class="w-full flex justify-center py-2">
               <InputOTP
                 inputmode="numeric"
@@ -242,7 +300,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
+import {
+  ref,
+  onMounted,
+  onBeforeUnmount,
+  watch,
+  nextTick,
+  computed,
+} from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import {
@@ -280,6 +345,13 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import {
   extractErrorMessage,
@@ -288,14 +360,22 @@ import {
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { ConfigAPI } from "../lib/api";
 import { docsUrls } from "../lib/docs";
+import { useDockerAdminAuthStore } from "../store/dockerAdminAuth";
 import QrcodeVue from "qrcode.vue";
 import { toast } from "@admin-shared/utils/toast";
-import type { TOTPCredential } from "../types";
+import type { TOTPCredential, TOTPAccessScope } from "../types";
+
+const DOCKER_ADMIN_PANEL_ACCESS_SCOPE: TOTPAccessScope = "docker_admin_panel";
 
 const { t } = useI18n();
 const router = useRouter();
+const dockerAdminAuthStore = useDockerAdminAuthStore();
 
 const credentials = ref<TOTPCredential[]>([]);
+const updatingAccessScopeIds = ref<Set<string>>(new Set());
+const openAdminPanelAccessTooltipId = ref<string | null>(null);
+const isTouchInteraction = ref(false);
+let adminPanelAccessTooltipMediaQuery: MediaQueryList | null = null;
 const { isPending: isLoading, run: runLoadStatus } = useAsyncAction({
   onError: (error) => {
     console.error("Failed to get TOTP status:", error);
@@ -340,16 +420,33 @@ const { run: runSaveComment } = useAsyncAction({
 // Delete state
 const { isPending: isDeleting, run: runDeleteTotp } = useAsyncAction({
   onError: (error) => {
-    toast.error(extractErrorMessage(error, t("admin.authSettings.deleteFailed")));
+    toast.error(
+      extractErrorMessage(error, t("admin.authSettings.deleteFailed")),
+    );
   },
 });
 
+const showAdminPanelAccessColumn = computed(() => {
+  const target = dockerAdminAuthStore.state?.deployment_target;
+  return target === "docker" || target === "openwrt";
+});
+const totpTableClass = computed(() =>
+  showAdminPanelAccessColumn.value
+    ? "min-w-[760px] table-fixed"
+    : "min-w-[640px] table-fixed",
+);
+const totpTableColspan = computed(() =>
+  showAdminPanelAccessColumn.value ? 5 : 4,
+);
+
 onMounted(async () => {
+  setupAdminPanelAccessTooltipInteraction();
   window.visualViewport?.addEventListener("resize", handleVisualViewportResize);
   await fetchStatus();
 });
 
 onBeforeUnmount(() => {
+  teardownAdminPanelAccessTooltipInteraction();
   window.visualViewport?.removeEventListener(
     "resize",
     handleVisualViewportResize,
@@ -359,6 +456,52 @@ onBeforeUnmount(() => {
     viewportResizeTimer = null;
   }
 });
+
+function updateInteractionMode() {
+  if (typeof window === "undefined") return;
+  isTouchInteraction.value = window.matchMedia(
+    "(hover: none), (pointer: coarse)",
+  ).matches;
+}
+
+function setupAdminPanelAccessTooltipInteraction() {
+  if (typeof window === "undefined") return;
+
+  adminPanelAccessTooltipMediaQuery = window.matchMedia(
+    "(hover: none), (pointer: coarse)",
+  );
+  updateInteractionMode();
+
+  if (
+    typeof adminPanelAccessTooltipMediaQuery.addEventListener === "function"
+  ) {
+    adminPanelAccessTooltipMediaQuery.addEventListener(
+      "change",
+      updateInteractionMode,
+    );
+    return;
+  }
+
+  adminPanelAccessTooltipMediaQuery.addListener(updateInteractionMode);
+}
+
+function teardownAdminPanelAccessTooltipInteraction() {
+  if (!adminPanelAccessTooltipMediaQuery) return;
+
+  if (
+    typeof adminPanelAccessTooltipMediaQuery.removeEventListener === "function"
+  ) {
+    adminPanelAccessTooltipMediaQuery.removeEventListener(
+      "change",
+      updateInteractionMode,
+    );
+    adminPanelAccessTooltipMediaQuery = null;
+    return;
+  }
+
+  adminPanelAccessTooltipMediaQuery.removeListener(updateInteractionMode);
+  adminPanelAccessTooltipMediaQuery = null;
+}
 
 watch(
   () => [showSetupDialog.value, setupStep.value, setupData.value] as const,
@@ -372,8 +515,82 @@ watch(
 async function fetchStatus() {
   await runLoadStatus(async () => {
     const res = await ConfigAPI.getTOTPStatus();
-    credentials.value = res.credentials || [];
+    credentials.value = (res.credentials || []).map((credential) => ({
+      ...credential,
+      access_scopes: credential.access_scopes || [],
+    }));
   });
+}
+
+function hasDockerAdminPanelAccess(totp: TOTPCredential) {
+  return (totp.access_scopes || []).includes(DOCKER_ADMIN_PANEL_ACCESS_SCOPE);
+}
+
+function isAdminPanelAccessTooltipOpen(totpId: string) {
+  return openAdminPanelAccessTooltipId.value === totpId;
+}
+
+function handleAdminPanelAccessTooltipOpenChange(
+  totpId: string,
+  nextOpen: boolean,
+) {
+  openAdminPanelAccessTooltipId.value = nextOpen ? totpId : null;
+}
+
+function handleAdminPanelAccessTooltipClick(totpId: string) {
+  if (!isTouchInteraction.value) return;
+  openAdminPanelAccessTooltipId.value =
+    openAdminPanelAccessTooltipId.value === totpId ? null : totpId;
+}
+
+function isAccessScopeUpdating(totpId: string) {
+  return updatingAccessScopeIds.value.has(totpId);
+}
+
+function setAccessScopeUpdating(totpId: string, pending: boolean) {
+  const next = new Set(updatingAccessScopeIds.value);
+  if (pending) {
+    next.add(totpId);
+  } else {
+    next.delete(totpId);
+  }
+  updatingAccessScopeIds.value = next;
+}
+
+async function handleDockerAdminPanelAccessChange(
+  totp: TOTPCredential,
+  enabled: boolean,
+) {
+  const previousScopes = [...(totp.access_scopes || [])];
+  const nextScopeSet = new Set<TOTPAccessScope>(previousScopes);
+  if (enabled) {
+    nextScopeSet.add(DOCKER_ADMIN_PANEL_ACCESS_SCOPE);
+  } else {
+    nextScopeSet.delete(DOCKER_ADMIN_PANEL_ACCESS_SCOPE);
+  }
+
+  const nextScopes = [...nextScopeSet];
+  totp.access_scopes = nextScopes;
+  setAccessScopeUpdating(totp.id, true);
+
+  try {
+    const updated = await ConfigAPI.updateTOTPAccessScopes(totp.id, nextScopes);
+    const target = credentials.value.find((item) => item.id === totp.id);
+    if (target) {
+      target.access_scopes = updated.access_scopes || [];
+    }
+    toast.success(t("admin.authSettings.adminPanelAccessUpdated"));
+  } catch (error) {
+    totp.access_scopes = previousScopes;
+    toast.error(
+      extractErrorMessage(
+        error,
+        t("admin.authSettings.adminPanelAccessUpdateFailed"),
+      ),
+    );
+  } finally {
+    setAccessScopeUpdating(totp.id, false);
+  }
 }
 
 function scrollOtpIntoView(behavior: ScrollBehavior = "smooth") {
@@ -438,7 +655,8 @@ async function handleBind() {
   bindErrorMessage.value = "";
   await runBindingAction(async () => {
     const randomSuffix = Math.random().toString(36).substring(2, 8);
-    const randomName = t("admin.authSettings.randomDevicePrefix") + randomSuffix;
+    const randomName =
+      t("admin.authSettings.randomDevicePrefix") + randomSuffix;
     await ConfigAPI.bindTOTP(setup.secret, verifyToken.value, randomName);
     await fetchStatus();
 

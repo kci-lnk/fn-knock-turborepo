@@ -187,12 +187,12 @@ const resolveScanCidrs = async (
 const collectExcludedPorts = (
   config: Awaited<ReturnType<ConfigManager["getConfig"]>>,
 ): number[] => {
+  const adminViewPort = parseInt(
+    process.env.ADMIN_VIEW_PORT || defaultAdminViewPort,
+    10,
+  );
   const envPorts = [
-    parseInt(
-      process.env.ADMIN_VIEW_PORT ||
-        (adminPanelProtectedRuntime ? defaultAdminViewPort : ""),
-      10,
-    ),
+    ...(adminPanelProtectedRuntime ? [] : [adminViewPort]),
     parseInt(process.env.BACKEND_PORT || defaultBackendPort, 10),
     parseInt(process.env.AUTH_PORT || "7997", 10),
     parseInt(process.env.GO_BACKEND_PORT || "7996", 10),

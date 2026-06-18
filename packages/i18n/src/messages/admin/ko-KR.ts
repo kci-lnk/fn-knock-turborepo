@@ -3197,6 +3197,13 @@ export const koKRAdmin = {
     comment: "코멘트",
     boundAt: "바인딩 시간",
     deviceAssociation: "장치 연결",
+    adminPanelAccess: "관리 패널",
+    adminPanelAllowed: "허용됨",
+    adminPanelDenied: "허용 안 됨",
+    adminPanelAccessTooltip:
+      "활성화하면 하위 도메인 매핑에 추가된 fn-knock 관리 패널을 별도의 패널 비밀번호 없이 열 수 있습니다.",
+    adminPanelAccessUpdated: "관리 패널 권한이 업데이트되었습니다",
+    adminPanelAccessUpdateFailed: "관리 패널 권한 업데이트 실패",
     actions: "작업",
     managePasskey: "빠른 로그인 관리",
     deleteTitle: "삭제 확인",

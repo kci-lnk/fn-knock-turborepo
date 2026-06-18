@@ -3278,6 +3278,13 @@ export const jaJPAdmin = {
     comment: "備考",
     boundAt: "拘束時間",
     deviceAssociation: "デバイスの関連付け",
+    adminPanelAccess: "管理パネル",
+    adminPanelAllowed: "許可済み",
+    adminPanelDenied: "未許可",
+    adminPanelAccessTooltip:
+      "有効にすると、サブドメインマッピングに追加した fn-knock 管理パネルは、別途パネルパスワードを入力せずに開けます。",
+    adminPanelAccessUpdated: "管理パネル権限を更新しました",
+    adminPanelAccessUpdateFailed: "管理パネル権限の更新に失敗しました",
     actions: "動作",
     managePasskey: "管理クイックログイン",
     deleteTitle: "削除を確認",

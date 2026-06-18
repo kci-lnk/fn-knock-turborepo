@@ -63,14 +63,11 @@ export const readDockerAdminDebugStage = (): DockerAdminDebugStage | null => {
     return null;
   }
 
-  const raw = readStorageValue(DOCKER_ADMIN_STAGE_DEBUG_STORAGE_KEY)
-    .toLowerCase();
+  const raw = readStorageValue(
+    DOCKER_ADMIN_STAGE_DEBUG_STORAGE_KEY,
+  ).toLowerCase();
 
-  if (
-    raw === "setup" ||
-    raw === "login" ||
-    raw === "authenticated"
-  ) {
+  if (raw === "setup" || raw === "login" || raw === "authenticated") {
     return raw;
   }
 
@@ -123,6 +120,7 @@ export const createDockerAdminDebugState = (
       enabled: true,
       password_configured: false,
       authenticated: false,
+      auth_source: null,
       session_expires_at: null,
       locale,
     };
@@ -134,6 +132,7 @@ export const createDockerAdminDebugState = (
       enabled: true,
       password_configured: true,
       authenticated: false,
+      auth_source: null,
       session_expires_at: null,
       locale,
     };
@@ -144,6 +143,7 @@ export const createDockerAdminDebugState = (
     enabled: true,
     password_configured: true,
     authenticated: true,
+    auth_source: "panel_session",
     session_expires_at: createAuthenticatedSessionExpiry(rememberMe),
     locale,
   };

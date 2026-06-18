@@ -25,6 +25,7 @@
     "fn-knock:docker:down": "bash ./scripts/fn-knock-docker.sh down-local",
     "fn-knock:docker:logs": "bash ./scripts/fn-knock-docker.sh logs-local",
     "fn-knock:docker:reset-panel-password": "bash ./scripts/fn-knock-docker.sh reset-panel-password-local",
+    "fn-knock:docker:local-deploy-fast": "bash ./scripts/fn-knock-docker.sh local-deploy-fast",
     "fn-knock:docker:local-deploy": "bash ./scripts/fn-knock-docker.sh local-deploy",
     "fn-knock:docker:hub-publish": "bash ./scripts/fn-knock-docker.sh publish-hub",
     "fn-knock:docker:remote-ps": "bash ./scripts/fn-knock-docker.sh remote-ps",

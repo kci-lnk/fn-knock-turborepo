@@ -1210,6 +1210,7 @@ export const adminRoutes = new Elysia({
           enabled: true,
           password_configured: true,
           authenticated: true,
+          auth_source: "panel_session",
           session_expires_at: session.expires_at,
           locale,
         },
@@ -1265,6 +1266,7 @@ export const adminRoutes = new Elysia({
           enabled: true,
           password_configured: true,
           authenticated: true,
+          auth_source: "panel_session",
           session_expires_at: session.expires_at,
           locale,
         },
@@ -1363,6 +1365,7 @@ export const adminRoutes = new Elysia({
           enabled: true,
           password_configured: true,
           authenticated: true,
+          auth_source: "panel_session",
           session_expires_at: session.expires_at,
           locale,
         },
@@ -3370,6 +3373,7 @@ export const adminRoutes = new Elysia({
         secret: body.secret,
         comment: body.comment || "New Token",
         createdAt: new Date().toISOString(),
+        access_scopes: [],
       });
       return { success: true };
     },
@@ -3395,6 +3399,27 @@ export const adminRoutes = new Elysia({
     },
     withRouteDoc("删除 TOTP 凭据", {
       params: t.Object({ id: t.String() }),
+    }),
+  )
+  .patch(
+    "/totp/:id/access-scopes",
+    async ({ request, params, body, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
+      const updated = await configManager.updateTOTPCredentialAccessScopes(
+        params.id,
+        body.access_scopes,
+      );
+      if (!updated) {
+        set.status = 404;
+        return { success: false, message: adminT(t, "totp.notFound") };
+      }
+      return { success: true, data: updated };
+    },
+    withRouteDoc("更新 TOTP 凭据访问范围", {
+      params: t.Object({ id: t.String() }),
+      body: t.Object({
+        access_scopes: t.Array(t.String()),
+      }),
     }),
   )
   .patch(

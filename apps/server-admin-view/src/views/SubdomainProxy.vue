@@ -1193,13 +1193,13 @@
       @update:open="handleDiscoverDialogOpenChange"
     >
       <DialogContent
-        class="flex max-h-[85vh] flex-col overflow-hidden sm:max-w-[820px]"
+        class="flex max-w-[calc(100vw-2rem)] max-h-[85vh] flex-col overflow-hidden sm:max-w-[820px]"
       >
         <DialogHeader class="shrink-0">
           <div
-            class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+            class="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
           >
-            <div class="space-y-1">
+            <div class="min-w-0 space-y-1">
               <DialogTitle>{{
                 t("admin.subdomainProxy.discoverTitle")
               }}</DialogTitle>
@@ -1211,17 +1211,20 @@
                 }}
               </DialogDescription>
             </div>
-            <div class="flex items-center gap-2">
+            <div
+              class="flex w-fit max-w-full min-w-0 self-center items-center gap-2 sm:self-auto"
+            >
               <Button
                 variant="outline"
                 size="icon"
+                class="h-11 w-11 sm:h-9 sm:w-9"
                 :disabled="isDiscovering"
                 @click="toggleDiscoverSettings"
               >
                 <SlidersHorizontal class="h-4 w-4" />
               </Button>
               <Button
-                class="w-full sm:w-auto"
+                class="w-auto max-w-[calc(100vw-7rem)] min-w-0 !shrink justify-center overflow-hidden"
                 variant="outline"
                 :disabled="isDiscovering"
                 @click="triggerScan"
@@ -1230,11 +1233,13 @@
                   class="mr-2 h-4 w-4"
                   :class="{ 'animate-spin': isDiscovering }"
                 />
-                {{
-                  isDiscovering
-                    ? t("admin.subdomainProxy.scanning")
-                    : t("admin.subdomainProxy.refreshServices")
-                }}
+                <span class="min-w-0 truncate">
+                  {{
+                    isDiscovering
+                      ? t("admin.subdomainProxy.scanning")
+                      : t("admin.subdomainProxy.refreshServices")
+                  }}
+                </span>
               </Button>
             </div>
           </div>

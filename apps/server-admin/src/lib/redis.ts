@@ -50,6 +50,10 @@ import {
   type LocaleConfig,
   normalizeLocaleConfig,
 } from "../../../../packages/i18n/src";
+import {
+  normalizeTotpAccessScopes,
+  type TOTPAccessScope,
+} from "./totp-access-scopes";
 
 const REDIS_CONFIG = {
   host: process.env.REDIS_HOST || "127.0.0.1",
@@ -813,6 +817,7 @@ export type TOTPCredential = {
   secret: string;
   comment: string;
   createdAt: string;
+  access_scopes: TOTPAccessScope[];
 };
 
 export type PasskeyCredential = {
@@ -828,6 +833,29 @@ export type PasskeyCredential = {
 
 const DEFAULT_ROUTE_PLACEHOLDER = "/__select__";
 const DEFAULT_RUN_TYPE: RunType = 3;
+
+const normalizeTOTPCredential = (value: unknown): TOTPCredential | null => {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Partial<TOTPCredential>;
+  const id = String(raw.id ?? "").trim();
+  const secret = String(raw.secret ?? "").trim();
+  if (!id || !secret) return null;
+
+  return {
+    id,
+    secret,
+    comment: String(raw.comment ?? "").trim(),
+    createdAt: String(raw.createdAt ?? "").trim() || new Date().toISOString(),
+    access_scopes: normalizeTotpAccessScopes(raw.access_scopes),
+  };
+};
+
+const normalizeTOTPCredentials = (value: unknown): TOTPCredential[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => normalizeTOTPCredential(item))
+    .filter((item): item is TOTPCredential => item !== null);
+};
 
 const DEFAULT_CONFIG: AppConfig = {
   run_type: DEFAULT_RUN_TYPE,
@@ -5410,6 +5438,7 @@ return actual
           secret: oldSecret,
           comment: redisT("defaultCredential"),
           createdAt: new Date().toISOString(),
+          access_scopes: [],
         };
         await this.saveTOTPCredentials([legacyTotp]);
         await this.redis.del(this.totpKey);
@@ -5428,20 +5457,24 @@ return actual
     }
     try {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed as TOTPCredential[];
+      return normalizeTOTPCredentials(parsed);
     } catch {
       return [];
     }
-    return [];
   }
 
   async saveTOTPCredentials(totps: TOTPCredential[]): Promise<void> {
-    await this.redis.set(this.totpListKey, JSON.stringify(totps));
+    await this.redis.set(
+      this.totpListKey,
+      JSON.stringify(normalizeTOTPCredentials(totps)),
+    );
   }
 
   async addTOTPCredential(totp: TOTPCredential): Promise<void> {
     const totps = await this.getTOTPCredentials();
-    totps.push(totp);
+    const normalized = normalizeTOTPCredential(totp);
+    if (!normalized) return;
+    totps.push(normalized);
     await this.saveTOTPCredentials(totps);
   }
 
@@ -5452,6 +5485,18 @@ return actual
     target.comment = comment;
     await this.saveTOTPCredentials(totps);
     return true;
+  }
+
+  async updateTOTPCredentialAccessScopes(
+    id: string,
+    accessScopes: unknown,
+  ): Promise<TOTPCredential | null> {
+    const totps = await this.getTOTPCredentials();
+    const target = totps.find((t) => t.id === id);
+    if (!target) return null;
+    target.access_scopes = normalizeTotpAccessScopes(accessScopes);
+    await this.saveTOTPCredentials(totps);
+    return target;
   }
 
   async deleteTOTPCredential(id: string): Promise<boolean> {

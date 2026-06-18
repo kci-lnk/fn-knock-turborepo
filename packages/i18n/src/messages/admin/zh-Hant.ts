@@ -2998,6 +2998,13 @@ export const zhHantAdmin = {
     comment: "備註資訊",
     boundAt: "綁定時間",
     deviceAssociation: "裝置關聯",
+    adminPanelAccess: "管理面板",
+    adminPanelAllowed: "已允許",
+    adminPanelDenied: "未允許",
+    adminPanelAccessTooltip:
+      "開啟後，在子域映射中新增的 fn-knock 管理面板將免密登入，無需額外輸入面板密碼。",
+    adminPanelAccessUpdated: "管理面板權限已更新",
+    adminPanelAccessUpdateFailed: "更新管理面板權限失敗",
     actions: "操作",
     managePasskey: "管理快捷登入",
     deleteTitle: "確認刪除",

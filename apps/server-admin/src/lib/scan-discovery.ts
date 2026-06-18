@@ -5,8 +5,8 @@ import { tDefault } from "./i18n";
 
 export const DISCOVER_COMMON_PORTS = [
   80, 81, 88, 443, 3000, 3001, 5000, 5001, 5666, 6688, 7000, 7001, 7080, 7443,
-  8000, 8001, 8080, 8081, 8082, 8086, 8088, 8090, 8091, 8096, 8097, 8123, 8443,
-  8888, 9000, 9001, 9090, 9091, 9443, 10000, 12345, 16601, 18080, 19999,
+  7991, 8000, 8001, 8080, 8081, 8082, 8086, 8088, 8090, 8091, 8096, 8097, 8123,
+  8443, 8888, 9000, 9001, 9090, 9091, 9443, 10000, 12345, 16601, 18080, 19999,
 ] as const;
 
 export const SCAN_DISCOVERY_LIMITS = {
@@ -381,7 +381,12 @@ export function buildCustomDiscoverTargets(
 ): ScanDiscoveryTarget[] {
   return normalizeAllowedScanCidrs(cidrs)
     .map((cidr) =>
-      toTarget(cidr, scanDiscoveryT("targetLabels.custom", { cidr }), "custom", false),
+      toTarget(
+        cidr,
+        scanDiscoveryT("targetLabels.custom", { cidr }),
+        "custom",
+        false,
+      ),
     )
     .filter((target): target is ScanDiscoveryTarget => Boolean(target));
 }
@@ -391,7 +396,12 @@ export function buildSavedDiscoverTargets(
 ): ScanDiscoveryTarget[] {
   return normalizeAllowedScanCidrs(cidrs)
     .map((cidr) =>
-      toTarget(cidr, scanDiscoveryT("targetLabels.saved", { cidr }), "saved", false),
+      toTarget(
+        cidr,
+        scanDiscoveryT("targetLabels.saved", { cidr }),
+        "saved",
+        false,
+      ),
     )
     .filter((target): target is ScanDiscoveryTarget => Boolean(target));
 }

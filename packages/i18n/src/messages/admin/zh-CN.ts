@@ -3004,6 +3004,13 @@ export const zhCNAdmin = {
     comment: "备注信息",
     boundAt: "绑定时间",
     deviceAssociation: "设备关联",
+    adminPanelAccess: "管理面板",
+    adminPanelAllowed: "已允许",
+    adminPanelDenied: "未允许",
+    adminPanelAccessTooltip:
+      "开启后，在子域映射中添加的 fn-knock 管理面板将免密登录，无需额外输入面板密码。",
+    adminPanelAccessUpdated: "管理面板权限已更新",
+    adminPanelAccessUpdateFailed: "更新管理面板权限失败",
     actions: "操作",
     managePasskey: "管理快捷登录",
     deleteTitle: "确认删除",

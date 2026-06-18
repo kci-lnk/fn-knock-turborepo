@@ -809,6 +809,46 @@ cmd_local_deploy() {
   print_remote_access_hint
 }
 
+cmd_local_deploy_fast() {
+  local remote_arch
+  local image_repo
+  local tag_base
+  local runtime_image_ref
+  local remote_env_file
+
+  require_cmd docker
+  require_cmd ssh
+  require_cmd scp
+  require_env_file
+  ensure_remote_prerequisites
+
+  remote_arch="$(detect_remote_arch)"
+  image_repo="${FN_KNOCK_DOCKER_IMAGE_REPO:-fn-knock}"
+  tag_base="${FN_KNOCK_DOCKER_IMAGE_TAG:-$(build_default_remote_tag_base)}"
+  tag_base="$(normalize_tag_base "${tag_base}")"
+  runtime_image_ref="$(build_arch_image_ref "${image_repo}" "${tag_base}" "${remote_arch}")"
+  remote_env_file="$(prepare_remote_env_file "${runtime_image_ref}")"
+
+  log "Using env file ${ENV_FILE}"
+  log "Remote host ${REMOTE_HOST} detected as ${remote_arch}"
+  log "Fast deploy image ${runtime_image_ref}"
+
+  build_remote_image "${remote_arch}" "${runtime_image_ref}"
+  stream_image_to_remote "${runtime_image_ref}"
+
+  upload_remote_bundle "${remote_env_file}"
+
+  log "Restarting remote compose stack"
+  if ! run_remote_compose up -d --remove-orphans --force-recreate; then
+    show_remote_logs
+    fail "remote docker compose up failed"
+  fi
+
+  wait_for_remote_health
+  run_remote_compose ps
+  print_remote_access_hint
+}
+
 cmd_publish_hub() {
   local image_repo
   local tag_base
@@ -860,6 +900,7 @@ Commands:
   down-local    Stop the local Docker stack
   logs-local    Tail local fn-knock container logs
   reset-panel-password-local   Clear Docker admin panel password for the local compose stack
+  local-deploy-fast  Build and upload only the remote host architecture, then restart remote compose
   local-deploy  Build amd64, arm64, and arm32 images, upload them via SSH, and restart remote compose
   publish-hub   Push amd64, arm64, and arm32 images to a registry, then update version and latest manifest tags
   remote-ps     Show remote compose status
@@ -870,7 +911,7 @@ Optional env overrides:
   FN_KNOCK_DOCKER_ENV_FILE        (default: deploy/docker/.env, fallback: deploy/docker/.env.example)
   FN_KNOCK_DOCKER_IMAGE           (override local build image)
   FN_KNOCK_DOCKER_IMAGE_REPO      (default: fn-knock; publish-hub requires namespace/repo)
-  FN_KNOCK_DOCKER_IMAGE_TAG       (base tag; final publish tags append -amd64, -arm64, and -arm32)
+  FN_KNOCK_DOCKER_IMAGE_TAG       (base tag; fast deploy appends remote arch, full deploy/publish append all arches)
   FN_KNOCK_DOCKER_LOCAL_ARCH      (override local build arch; default: host arch)
   FN_KNOCK_DOCKER_CACHE_DIR       (default: $HOME/.cache/fn-knock-buildx)
   FN_KNOCK_DOCKER_BUILDER         (optional docker buildx builder name)
@@ -906,6 +947,9 @@ case "${1:-}" in
     ;;
   reset-panel-password-local)
     cmd_reset_panel_password_local
+    ;;
+  local-deploy-fast)
+    cmd_local_deploy_fast
     ;;
   local-deploy)
     cmd_local_deploy

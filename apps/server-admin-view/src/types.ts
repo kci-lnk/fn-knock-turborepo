@@ -44,6 +44,7 @@ export interface DockerAdminBootstrapState {
   enabled: boolean;
   password_configured: boolean;
   authenticated: boolean;
+  auth_source: "panel_session" | "reauth_session" | null;
   session_expires_at: string | null;
   locale: LocaleConfig;
 }
@@ -772,11 +773,14 @@ export interface AppConfig {
   };
 }
 
+export type TOTPAccessScope = "docker_admin_panel";
+
 export type TOTPCredential = {
   id: string;
   secret: string;
   comment: string;
   createdAt: string;
+  access_scopes: TOTPAccessScope[];
 };
 
 export type PasskeyCredential = {

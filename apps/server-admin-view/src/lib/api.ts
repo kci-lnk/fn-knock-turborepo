@@ -19,6 +19,7 @@ import type {
   SSLStatus,
   SubdomainModeConfig,
   TOTPCredential,
+  TOTPAccessScope,
   TrafficStats,
   DashboardStats,
   ThreatOverview,
@@ -512,6 +513,18 @@ export const ConfigAPI = {
     await apiClient.patch(`/totp/${encodeURIComponent(id)}/comment`, {
       comment,
     });
+  },
+  async updateTOTPAccessScopes(
+    id: string,
+    accessScopes: TOTPAccessScope[],
+  ): Promise<TOTPCredential> {
+    const res = await apiClient.patch(
+      `/totp/${encodeURIComponent(id)}/access-scopes`,
+      {
+        access_scopes: accessScopes,
+      },
+    );
+    return res.data.data;
   },
   async getPasskeys(totpId: string): Promise<PasskeyCredential[]> {
     const res = await apiClient.get(

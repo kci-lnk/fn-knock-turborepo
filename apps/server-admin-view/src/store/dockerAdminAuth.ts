@@ -36,6 +36,7 @@ export const useDockerAdminAuthStore = defineStore("dockerAdminAuth", () => {
   const needsLogin = computed(
     () => isEnabled.value && passwordConfigured.value && !isAuthenticated.value,
   );
+  const authSource = computed(() => state.value?.auth_source ?? null);
   const canEnterApp = computed(
     () => isBootstrapped.value && (!isEnabled.value || isAuthenticated.value),
   );
@@ -53,9 +54,9 @@ export const useDockerAdminAuthStore = defineStore("dockerAdminAuth", () => {
     return next;
   };
 
-  const bootstrap = async (
-    options?: { force?: boolean },
-  ): Promise<DockerAdminBootstrapState> => {
+  const bootstrap = async (options?: {
+    force?: boolean;
+  }): Promise<DockerAdminBootstrapState> => {
     if (bootstrapPromise && !options?.force) {
       return bootstrapPromise;
     }
@@ -167,7 +168,20 @@ export const useDockerAdminAuthStore = defineStore("dockerAdminAuth", () => {
         );
       }
 
+      const previousAuthSource = authSource.value;
       const next = await ConfigAPI.logoutDockerAdmin();
+      if (
+        previousAuthSource === "reauth_session" &&
+        typeof window !== "undefined"
+      ) {
+        window.location.assign("/__auth__/logout");
+        return applyState({
+          ...next,
+          authenticated: false,
+          auth_source: null,
+          session_expires_at: null,
+        });
+      }
       return applyState(next);
     } finally {
       isSubmitting.value = false;
@@ -179,13 +193,17 @@ export const useDockerAdminAuthStore = defineStore("dockerAdminAuth", () => {
     if (isDebugOverrideActive.value) {
       const nextStage = readDockerAdminDebugPassword() ? "login" : "setup";
       writeDockerAdminDebugStage(nextStage);
-      state.value = createDockerAdminDebugState(nextStage, currentLocaleConfig());
+      state.value = createDockerAdminDebugState(
+        nextStage,
+        currentLocaleConfig(),
+      );
       return;
     }
 
     state.value = {
       ...state.value,
       authenticated: false,
+      auth_source: null,
       session_expires_at: null,
     };
   };
@@ -201,6 +219,7 @@ export const useDockerAdminAuthStore = defineStore("dockerAdminAuth", () => {
     isEnabled,
     passwordConfigured,
     isAuthenticated,
+    authSource,
     needsPasswordSetup,
     needsLogin,
     canEnterApp,

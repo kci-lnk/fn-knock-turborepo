@@ -3,16 +3,14 @@ import { BlockList, isIP } from "node:net";
 import { randomBytes, scrypt as scryptCallback } from "node:crypto";
 import { normalizeCidrLines } from "../../../../packages/admin-shared/src/utils/cidr";
 import type { LocaleConfig } from "../../../../packages/i18n/src";
-import { redis } from "./redis";
+import { configManager, redis } from "./redis";
 import { getRequiredEnv } from "./env";
 import { getClientIp } from "./auth-request";
 import { normalizeIp, isWhitelistExemptIp } from "./ip-normalize";
 import { safeEqualString } from "./security";
 import { tDefault } from "./i18n";
-import {
-  getRuntimeProfile,
-  type DeploymentTarget,
-} from "./runtime-profile";
+import { getRuntimeProfile, type DeploymentTarget } from "./runtime-profile";
+import { isDockerAdminPanelReauthSessionAllowed } from "./totp-access-scopes";
 
 const DOCKER_ADMIN_PASSWORD_KEY = "fn_knock:docker_admin:password:v1";
 const DOCKER_ADMIN_SESSION_PREFIX = "fn_knock:docker_admin:session:v1";
@@ -166,11 +164,20 @@ export interface DockerAdminSessionRecord {
   user_agent: string;
 }
 
+export type DockerAdminAuthSource = "panel_session" | "reauth_session";
+
+export interface DockerAdminAuthContext {
+  authenticated: boolean;
+  auth_source: DockerAdminAuthSource | null;
+  session_expires_at: string | null;
+}
+
 export interface DockerAdminBootstrapState {
   deployment_target: DeploymentTarget;
   enabled: boolean;
   password_configured: boolean;
   authenticated: boolean;
+  auth_source: DockerAdminAuthSource | null;
   session_expires_at: string | null;
   locale: LocaleConfig;
 }
@@ -601,6 +608,40 @@ const requestMatchesSessionRecord = (
   );
 };
 
+const resolveReauthSessionFromRequest = async (
+  request: Request,
+): Promise<DockerAdminAuthContext | null> => {
+  const sessionId = parseCookieValue(
+    request.headers.get("cookie"),
+    "x-go-reauth-proxy-session-id",
+  );
+  if (!sessionId) return null;
+
+  try {
+    const [session, totpCredentials] = await Promise.all([
+      configManager.getSession(sessionId),
+      configManager.getTOTPCredentials(),
+    ]);
+    if (
+      !isDockerAdminPanelReauthSessionAllowed({
+        session,
+        totpCredentials,
+      })
+    ) {
+      return null;
+    }
+
+    return {
+      authenticated: true,
+      auth_source: "reauth_session",
+      session_expires_at: session?.expiresAt || null,
+    };
+  } catch (error) {
+    console.warn("[docker-admin] failed to resolve reauth session:", error);
+    return null;
+  }
+};
+
 export const dockerAdminPanelManager = {
   sessionTtlSeconds: SESSION_TTL_SECONDS,
   rememberMeSessionTtlSeconds: PANEL_REMEMBER_ME_TTL_SECONDS,
@@ -755,6 +796,30 @@ export const dockerAdminPanelManager = {
     return refreshedRecord;
   },
 
+  async resolveAuthContextFromRequest(
+    request: Request,
+  ): Promise<DockerAdminAuthContext> {
+    const panelSession = await this.resolveSessionFromRequest(request);
+    if (panelSession) {
+      return {
+        authenticated: true,
+        auth_source: "panel_session",
+        session_expires_at: panelSession.expires_at,
+      };
+    }
+
+    const reauthSession = await resolveReauthSessionFromRequest(request);
+    if (reauthSession) {
+      return reauthSession;
+    }
+
+    return {
+      authenticated: false,
+      auth_source: null,
+      session_expires_at: null,
+    };
+  },
+
   async buildBootstrapState(
     request: Request,
     enabled: boolean,
@@ -768,22 +833,24 @@ export const dockerAdminPanelManager = {
         enabled: false,
         password_configured: false,
         authenticated: true,
+        auth_source: null,
         session_expires_at: null,
         locale,
       };
     }
 
-    const [passwordConfigured, session] = await Promise.all([
+    const [passwordConfigured, authContext] = await Promise.all([
       this.isPasswordConfigured(),
-      this.resolveSessionFromRequest(request),
+      this.resolveAuthContextFromRequest(request),
     ]);
 
     return {
       deployment_target: deploymentTarget,
       enabled: true,
       password_configured: passwordConfigured,
-      authenticated: Boolean(session),
-      session_expires_at: session?.expires_at || null,
+      authenticated: authContext.authenticated,
+      auth_source: authContext.auth_source,
+      session_expires_at: authContext.session_expires_at,
       locale,
     };
   },

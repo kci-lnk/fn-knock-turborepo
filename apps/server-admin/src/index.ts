@@ -556,9 +556,9 @@ app.onBeforeHandle(async ({ request, set }) => {
     return;
   }
 
-  const session =
-    await dockerAdminPanelManager.resolveSessionFromRequest(request);
-  if (!session) {
+  const authContext =
+    await dockerAdminPanelManager.resolveAuthContextFromRequest(request);
+  if (!authContext.authenticated) {
     const { t } = createRequestTranslator(
       request,
       await configManager.getLocaleConfig(),
@@ -821,8 +821,16 @@ void updateManager.prepareOnBoot();
 void updateManager.checkNow("startup");
 systemClockManager.prepareOnBoot();
 
-app.get("/", ({ request }) => serveIndexHtml(STATIC_PATH, false, request), hideFromDocs);
-app.get("/index.html", ({ request }) => serveIndexHtml(STATIC_PATH, false, request), hideFromDocs);
+app.get(
+  "/",
+  ({ request }) => serveIndexHtml(STATIC_PATH, false, request),
+  hideFromDocs,
+);
+app.get(
+  "/index.html",
+  ({ request }) => serveIndexHtml(STATIC_PATH, false, request),
+  hideFromDocs,
+);
 
 app.use(
   createStaticFilesPlugin({
@@ -839,7 +847,9 @@ app.get(
   hideFromDocs,
 );
 
-authApp.get("/", ({ request }) => serveIndexHtml(AUTH_STATIC_PATH, true, request));
+authApp.get("/", ({ request }) =>
+  serveIndexHtml(AUTH_STATIC_PATH, true, request),
+);
 authApp.get("/index.html", ({ request }) =>
   serveIndexHtml(AUTH_STATIC_PATH, true, request),
 );

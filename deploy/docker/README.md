@@ -227,6 +227,9 @@ npm run fn-knock:docker:logs
 # 忘记管理面板密码时重置
 npm run fn-knock:docker:reset-panel-password
 
+# 单台远端主机快速部署（只构建远端实际架构）
+npm run fn-knock:docker:local-deploy-fast
+
 # 发布到 Docker Hub（推 amd64 / arm64 / arm32 + manifest）
 npm run fn-knock:docker:hub-publish
 
@@ -346,11 +349,29 @@ location.reload();
 
 ### 发布命令
 
+单台远端主机推荐使用快速部署命令：
+
+```bash
+npm run fn-knock:docker:local-deploy-fast
+```
+
+快速部署脚本会自动完成以下事情：
+
+1. SSH 检测远端主机架构
+2. 只使用 `docker buildx build` 构建远端实际运行的架构镜像
+3. 生成对应架构的镜像 tag
+4. 用 `docker save | ssh ... docker load` 把这一套镜像传到远端
+5. 上传 `compose.remote.yaml` 和远端 `.env`
+6. 远端执行 `docker compose up -d --remove-orphans --force-recreate`
+7. 等待健康检查通过
+
+如果需要一次性把三套架构镜像都同步到远端 Docker，仍然可以使用完整部署命令：
+
 ```bash
 npm run fn-knock:docker:local-deploy
 ```
 
-发布脚本会自动完成以下事情：
+完整部署脚本会自动完成以下事情：
 
 1. SSH 检测远端主机架构
 2. 同时使用 `docker buildx build` 本地构建 `linux/amd64`、`linux/arm64` 和 `linux/arm/v7`
@@ -366,7 +387,9 @@ npm run fn-knock:docker:local-deploy
 - `deps` 阶段只要 `package.json` / workspace `package.json` 不变，就能直接复用依赖层
 - 三个构建阶段相互独立，修改后端代码时不会强制重建两个前端阶段
 - Docker 内不再依赖 `assemble-runtime.sh` 的聚合构建路径，而是直接构建各自工作区产物
-- 各阶段会复用 `~/.cache/fn-knock-buildx/<arch>` 下的 buildx 缓存
+- Node 构建阶段会在构建机原生平台执行，避免前端和服务端 JS 产物在非本机架构仿真环境里重复编译
+- `local-deploy-fast` 只会使用远端实际架构对应的 `~/.cache/fn-knock-buildx/<arch>` 缓存
+- `local-deploy` 仍会分别复用 `~/.cache/fn-knock-buildx/amd64`、`arm64` 和 `arm32` 下的 buildx 缓存
 - 如果依赖声明变化、Dockerfile 变化、或源码真实影响产物，仍然会触发对应层重建，这是正常行为
 
 ### 镜像 tag 规则
@@ -393,15 +416,21 @@ fn-knock:1.4.1-20260409094530-arm64
 fn-knock:1.4.1-20260409094530-arm32
 ```
 
-推荐发布新版本时先更新 `APP_LOCAL_VERSION`，再执行部署命令。
+推荐发布新版本时先更新 `APP_LOCAL_VERSION`，再执行部署命令。快速部署只会产出远端架构对应的 tag；完整部署会产出三套架构 tag。
 
 如果希望手工指定基础 tag：
 
 ```bash
-FN_KNOCK_DOCKER_IMAGE_TAG=1.4.2 npm run fn-knock:docker:local-deploy
+FN_KNOCK_DOCKER_IMAGE_TAG=1.4.2 npm run fn-knock:docker:local-deploy-fast
 ```
 
-实际发布镜像会变成：
+如果远端是 `amd64`，快速部署实际发布镜像会变成：
+
+```text
+fn-knock:1.4.2-amd64
+```
+
+完整部署实际发布镜像会变成：
 
 ```text
 fn-knock:1.4.2-amd64
@@ -506,7 +535,7 @@ npm run fn-knock:docker:hub-publish
 ### 发布/远端部署
 
 - `FN_KNOCK_DOCKER_IMAGE_REPO`：镜像仓库名，默认 `fn-knock`
-- `FN_KNOCK_DOCKER_IMAGE_TAG`：手工指定发布基础 tag；远端部署时会自动扩展为 `-amd64`、`-arm64` 和 `-arm32`
+- `FN_KNOCK_DOCKER_IMAGE_TAG`：手工指定发布基础 tag；快速远端部署时会扩展为远端实际架构，完整远端部署时会扩展为 `-amd64`、`-arm64` 和 `-arm32`
 - `FN_KNOCK_DOCKER_REMOTE_HOST`：远端 SSH 地址，默认 `root@192.168.31.135`
 - `FN_KNOCK_DOCKER_REMOTE_DIR`：远端 compose 落地目录，默认 `/opt/fn-knock-docker`
 - `FN_KNOCK_DOCKER_WAIT_TIMEOUT`：远端健康检查等待秒数，默认 `180`
@@ -517,7 +546,7 @@ npm run fn-knock:docker:hub-publish
 FN_KNOCK_DOCKER_REMOTE_HOST=root@192.168.31.136 \
 FN_KNOCK_DOCKER_REMOTE_DIR=/srv/fn-knock \
 FN_KNOCK_DOCKER_IMAGE_TAG=1.4.2 \
-npm run fn-knock:docker:local-deploy
+npm run fn-knock:docker:local-deploy-fast
 ```
 
 如果你的本机代理监听在 `127.0.0.1:7890`，可以直接这样执行：

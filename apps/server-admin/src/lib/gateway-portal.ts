@@ -7,6 +7,7 @@ import {
 import { goBackend } from "./go-backend";
 import { isAnySubdomainRoutingMode } from "./reverse-proxy-submode";
 import { tDefault } from "./i18n";
+import { normalizeGatewayPortalConfigValue } from "./gateway-portal-config";
 
 export const GATEWAY_PORTAL_TITLE_HOST_RULES_PATCH_FLAG_KEY =
   "fn_knock:patch:gateway-portal-title-host-rules:v1";
@@ -19,10 +20,7 @@ const gatewayPortalT = (
 
 export const normalizeGatewayPortalConfigForSync = (
   config?: Partial<GatewayPortalConfig> | null,
-): GatewayPortalConfig => ({
-  display_style: config?.display_style === "title" ? "title" : "domain",
-  show_app_icon: config?.show_app_icon === true,
-});
+): GatewayPortalConfig => normalizeGatewayPortalConfigValue(config);
 
 export const isGatewayPortalTitleMode = (
   config: Pick<AppConfig, "gateway_portal">,

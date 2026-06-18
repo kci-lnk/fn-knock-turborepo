@@ -41,6 +41,7 @@ import {
   DEFAULT_AUTO_MANAGE_FIREWALL,
   normalizeAutoManageFirewall,
 } from "./firewall-automation";
+import { normalizeGatewayPortalConfigValue } from "./gateway-portal-config";
 import type { AutoHttpsConfig } from "./auto-https-redirect";
 import { normalizeIp } from "./ip-normalize";
 import { getRuntimeCapabilities, getRuntimeProfile } from "./runtime-profile";
@@ -343,6 +344,7 @@ export interface GatewayHostResponseRuntimeState {
 export type GatewayPortalDisplayStyle = "domain" | "title";
 
 export interface GatewayPortalConfig {
+  enabled: boolean;
   display_style: GatewayPortalDisplayStyle;
   show_app_icon: boolean;
 }
@@ -649,6 +651,7 @@ export const DEFAULT_GATEWAY_HOST_RESPONSE_CONFIG: GatewayHostResponseConfig = {
 };
 
 export const DEFAULT_GATEWAY_PORTAL_CONFIG: GatewayPortalConfig = {
+  enabled: true,
   display_style: "domain",
   show_app_icon: false,
 };
@@ -1385,20 +1388,7 @@ const normalizeGatewayHostResponseConfig = (
   };
 };
 
-const normalizeGatewayPortalDisplayStyle = (
-  value: unknown,
-): GatewayPortalDisplayStyle => (value === "title" ? "title" : "domain");
-
-const normalizeGatewayPortalConfig = (
-  value?: Partial<GatewayPortalConfig> | null,
-): GatewayPortalConfig => {
-  const raw = value ?? {};
-
-  return {
-    display_style: normalizeGatewayPortalDisplayStyle(raw.display_style),
-    show_app_icon: raw.show_app_icon === true,
-  };
-};
+const normalizeGatewayPortalConfig = normalizeGatewayPortalConfigValue;
 
 const normalizeGatewayHostResponseRuntimeState = (
   value?: Partial<GatewayHostResponseRuntimeState> | null,
@@ -3864,7 +3854,9 @@ return actual
         item.primaryDomain === primaryDomain && item.id !== existing?.id,
     );
     if (duplicated) {
-      throw new Error(redisT("acme.primaryDomainDuplicated", { primaryDomain }));
+      throw new Error(
+        redisT("acme.primaryDomainDuplicated", { primaryDomain }),
+      );
     }
 
     const now = new Date().toISOString();

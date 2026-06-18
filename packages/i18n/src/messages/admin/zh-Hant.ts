@@ -283,9 +283,11 @@ export const zhHantAdmin = {
     description:
       "配置 Host 類入口在傳送門與工具列中的顯示方式，點擊後會立即保存並同步到 Go 網關。",
     loadingConfig: "正在載入傳送門設定...",
+    enabled: "啟用傳送門",
+    enabledDescription:
+      "開啟後，已登入使用者訪問子域名應用時會顯示用於快速切換應用的傳送門工具列。",
     display: "傳送門顯示",
-    displayDescription:
-      "Host 類入口顯示域名或站點標題；標題為空時顯示域名。",
+    displayDescription: "Host 類入口顯示域名或站點標題；標題為空時顯示域名。",
     displayDomain: "域名",
     displayTitle: "標題",
     showAppIcon: "顯示應用圖示",
@@ -2116,6 +2118,8 @@ export const zhHantAdmin = {
       "完成登入後顯示用於快速切換應用的傳送門入口。如需調整展示方式、應用圖示等更多設定，可前往",
     toolbarSettingsLink: "傳送門設定",
     toolbarSettingsSuffix: "。",
+    portalDisabledDescription:
+      "目前無法修改此入口的傳送門顯示狀態。請先到傳送門設定中開啟全域開關。",
     basicAuthSkip: "Basic Auth 跳過",
     basicAuthSkipDescription:
       "開啟並填寫使用者名稱和密碼後，訪問時會自動帶上這組登入資訊，避免每次打開都彈出瀏覽器自帶的 Basic Auth 登入框。",

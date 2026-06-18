@@ -2007,6 +2007,7 @@ export const adminRoutes = new Elysia({
         ),
         portal: t.Optional(
           t.Object({
+            enabled: t.Optional(t.Boolean()),
             display_style: t.Optional(
               t.Union([t.Literal("domain"), t.Literal("title")]),
             ),

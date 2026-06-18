@@ -1115,6 +1115,7 @@ export type GatewayHostResponseDetails = {
 export type GatewayPortalDisplayStyle = "domain" | "title";
 
 export type GatewayPortalConfig = {
+  enabled: boolean;
   display_style: GatewayPortalDisplayStyle;
   show_app_icon: boolean;
 };

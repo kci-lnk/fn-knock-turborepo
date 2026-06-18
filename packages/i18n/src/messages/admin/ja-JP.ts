@@ -316,6 +316,9 @@ export const jaJPAdmin = {
     description:
       "ポータルとツールバーでホスト エントリをどのように表示するかを設定します。変更はすぐに保存され、Go ゲートウェイに同期されます。",
     loadingConfig: "ポータル設定を読み込み中...",
+    enabled: "ポータルを有効化",
+    enabledDescription:
+      "有効にすると、ログイン済みユーザーがサブドメインアプリにアクセスしたときに、アプリを素早く切り替えるポータルツールバーが表示されます。",
     display: "ポータル表示",
     displayDescription:
       "ホスト エントリはドメイン名またはサイト タイトルを表示します。タイトルが空の場合はドメイン名を表示します。",
@@ -2287,6 +2290,8 @@ export const jaJPAdmin = {
       "ログイン後に、アプリを素早く切り替えるためのポータル入口を表示します。表示方式やアプリ アイコンなどの追加設定は",
     toolbarSettingsLink: "ポータル設定",
     toolbarSettingsSuffix: "で変更できます。",
+    portalDisabledDescription:
+      "現在、この入口のポータル表示状態は変更できません。先にポータル設定でグローバルスイッチを有効にしてください。",
     basicAuthSkip: "基本認証スキップ",
     basicAuthSkipDescription:
       "開いてユーザー名とパスワードを入力すると、アクセス時にこの一連のログイン情報が自動的に取得され、ブラウザーを開くたびにブラウザーに付属の基本認証ログイン ボックスがポップアップ表示されるのを回避します。",
@@ -2759,8 +2764,7 @@ export const jaJPAdmin = {
     unblacklistSelected: "IP を解除 ({count})",
     unblacklistOne: "IP を解除",
     unblacklistOneTitle: "この IP を解除しますか?",
-    unblacklistOneDescription:
-      "IP {ip} を共通ブラックリストから削除します。",
+    unblacklistOneDescription: "IP {ip} を共通ブラックリストから削除します。",
     unblacklistSuccess: "共通ブラックリストから解除しました",
     unblacklistSuccessDetail: "{removed} 件の IP を削除しました。",
     unblacklistFailed: "IP の解除に失敗しました",
@@ -2862,8 +2866,7 @@ export const jaJPAdmin = {
     unblacklistSelected: "IP を解除 ({count})",
     unblacklistOne: "IP を解除",
     unblacklistOneTitle: "この IP を解除しますか?",
-    unblacklistOneDescription:
-      "IP {ip} を共通ブラックリストから削除します。",
+    unblacklistOneDescription: "IP {ip} を共通ブラックリストから削除します。",
     unblacklistSuccess: "共通ブラックリストから解除しました",
     unblacklistSuccessDetail: "{removed} 件の IP を削除しました。",
     unblacklistFailed: "IP の解除に失敗しました",
@@ -3416,8 +3419,7 @@ export const jaJPAdmin = {
       unblacklistSelected: "IP を解除 ({count})",
       unblacklistOne: "IP を解除",
       unblacklistOneTitle: "この IP を解除しますか?",
-      unblacklistOneDescription:
-        "IP {ip} を共通ブラックリストから削除します。",
+      unblacklistOneDescription: "IP {ip} を共通ブラックリストから削除します。",
       unblacklistSuccess: "共通ブラックリストから解除しました",
       unblacklistSuccessDetail: "{removed} 件の IP を削除しました。",
       unblacklistFailed: "IP の解除に失敗しました",

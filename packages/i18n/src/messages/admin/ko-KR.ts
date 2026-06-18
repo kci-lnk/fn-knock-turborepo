@@ -259,7 +259,8 @@ export const koKRAdmin = {
     portalDisplayDomain: "도메인",
     portalDisplayTitle: "제목",
     portal: "포털 설정",
-    portalDescription: "포털과 도구 모음에서 액세스 항목이 표시되는 방식을 제어합니다.",
+    portalDescription:
+      "포털과 도구 모음에서 액세스 항목이 표시되는 방식을 제어합니다.",
     portalIconSummary: "아이콘: {state}",
     editPortal: "포털 편집",
     throttleTitle: "게이트웨이 역방향 프록시 제한 활성화",
@@ -305,6 +306,9 @@ export const koKRAdmin = {
     description:
       "포털과 도구 모음에서 호스트 항목이 표시되는 방식을 구성합니다. 변경 사항은 즉시 저장되고 Go 게이트웨이에 동기화됩니다.",
     loadingConfig: "포털 설정 로드 중...",
+    enabled: "포털 활성화",
+    enabledDescription:
+      "활성화하면 로그인한 사용자가 하위 도메인 앱을 방문할 때 앱을 빠르게 전환할 수 있는 포털 도구 모음이 표시됩니다.",
     display: "포털 표시",
     displayDescription:
       "호스트 항목은 도메인 또는 사이트 제목을 표시합니다. 빈 제목은 도메인으로 대체됩니다.",
@@ -2239,6 +2243,8 @@ export const koKRAdmin = {
       "빠른 앱 전환을 위해 로그인 후 포털 진입점을 표시합니다. 표시 방식, 앱 아이콘 등 추가 설정은 ",
     toolbarSettingsLink: "포털 설정",
     toolbarSettingsSuffix: "에서 조정할 수 있습니다.",
+    portalDisabledDescription:
+      "지금은 이 항목의 포털 표시 상태를 변경할 수 없습니다. 먼저 포털 설정에서 전역 스위치를 활성화하세요.",
     basicAuthSkip: "기본 인증 건너뛰기",
     basicAuthSkipDescription:
       "사용자 이름과 비밀번호를 사용하여 활성화하면 액세스에 해당 자격 증명이 자동으로 포함되므로 브라우저의 기본 인증 프롬프트가 매번 표시되지 않습니다.",
@@ -2690,8 +2696,7 @@ export const koKRAdmin = {
     unblacklistSelected: "IP 차단 해제({count})",
     unblacklistOne: "IP 차단 해제",
     unblacklistOneTitle: "이 IP를 차단 해제할까요?",
-    unblacklistOneDescription:
-      "IP {ip}가 일반 블랙리스트에서 제거됩니다.",
+    unblacklistOneDescription: "IP {ip}가 일반 블랙리스트에서 제거됩니다.",
     unblacklistSuccess: "일반 블랙리스트에서 차단 해제됨",
     unblacklistSuccessDetail: "{removed}개 IP를 제거했습니다.",
     unblacklistFailed: "IP 차단 해제 실패",
@@ -2793,8 +2798,7 @@ export const koKRAdmin = {
     unblacklistSelected: "IP 차단 해제({count})",
     unblacklistOne: "IP 차단 해제",
     unblacklistOneTitle: "이 IP를 차단 해제할까요?",
-    unblacklistOneDescription:
-      "IP {ip}가 일반 블랙리스트에서 제거됩니다.",
+    unblacklistOneDescription: "IP {ip}가 일반 블랙리스트에서 제거됩니다.",
     unblacklistSuccess: "일반 블랙리스트에서 차단 해제됨",
     unblacklistSuccessDetail: "{removed}개 IP를 제거했습니다.",
     unblacklistFailed: "IP 차단 해제 실패",
@@ -3331,8 +3335,7 @@ export const koKRAdmin = {
       unblacklistSelected: "IP 차단 해제({count})",
       unblacklistOne: "IP 차단 해제",
       unblacklistOneTitle: "이 IP를 차단 해제할까요?",
-      unblacklistOneDescription:
-        "IP {ip}가 일반 블랙리스트에서 제거됩니다.",
+      unblacklistOneDescription: "IP {ip}가 일반 블랙리스트에서 제거됩니다.",
       unblacklistSuccess: "일반 블랙리스트에서 차단 해제됨",
       unblacklistSuccessDetail: "{removed}개 IP를 제거했습니다.",
       unblacklistFailed: "IP 차단 해제 실패",

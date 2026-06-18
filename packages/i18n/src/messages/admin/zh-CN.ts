@@ -283,9 +283,11 @@ export const zhCNAdmin = {
     description:
       "配置 Host 类入口在传送门与工具栏中的显示方式，点击后会立即保存并同步到 Go 网关。",
     loadingConfig: "正在加载传送门设置...",
+    enabled: "启用传送门",
+    enabledDescription:
+      "开启后，已登录用户访问子域名应用时会显示用于快速切换应用的传送门工具栏。",
     display: "传送门显示",
-    displayDescription:
-      "Host 类入口显示域名或站点标题；标题为空时显示域名。",
+    displayDescription: "Host 类入口显示域名或站点标题；标题为空时显示域名。",
     displayDomain: "域名",
     displayTitle: "标题",
     showAppIcon: "显示应用图标",
@@ -2108,6 +2110,8 @@ export const zhCNAdmin = {
       "完成登录后显示用于快速切换应用的传送门入口。如需调整展示方式、应用图标等更多设置，可前往",
     toolbarSettingsLink: "传送门设置",
     toolbarSettingsSuffix: "。",
+    portalDisabledDescription:
+      "当前无法修改此入口的传送门显示状态。请先到传送门设置中开启全局开关。",
     basicAuthSkip: "Basic Auth 跳过",
     basicAuthSkipDescription:
       "开启并填写用户名和密码后，访问时会自动带上这组登录信息，避免每次打开都弹出浏览器自带的 Basic Auth 登录框。",

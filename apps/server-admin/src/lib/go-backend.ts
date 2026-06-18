@@ -190,6 +190,7 @@ export interface PreserveHostConfig {
 export type GatewayPortalDisplayStyle = "domain" | "title";
 
 export interface GatewayPortalConfig {
+  enabled: boolean;
   display_style: GatewayPortalDisplayStyle;
   show_app_icon?: boolean;
 }
@@ -697,6 +698,7 @@ export class GoBackendService {
     config: GatewayPortalConfig,
   ): Promise<GoResponse<GatewayPortalConfig>> {
     return this.request<GatewayPortalConfig>("/api/config/portal", "POST", {
+      enabled: config.enabled !== false,
       display_style: config.display_style === "title" ? "title" : "domain",
       show_app_icon: config.show_app_icon === true,
     } satisfies GatewayPortalConfig);

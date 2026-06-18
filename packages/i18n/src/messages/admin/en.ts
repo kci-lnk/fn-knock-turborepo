@@ -309,6 +309,9 @@ export const enAdmin = {
     description:
       "Configure how Host entries are displayed in the portal and toolbar. Changes are saved and synced to the Go gateway immediately.",
     loadingConfig: "Loading portal settings...",
+    enabled: "Enable portal",
+    enabledDescription:
+      "When enabled, signed-in users see the portal toolbar for quickly switching apps while visiting subdomain applications.",
     display: "Portal display",
     displayDescription:
       "Host entries show either the domain or site title. Empty titles fall back to the domain.",
@@ -2250,6 +2253,8 @@ export const enAdmin = {
       "Show the portal entry after sign-in for quickly switching apps. To adjust display style, app icons, and related options, open ",
     toolbarSettingsLink: "Portal settings",
     toolbarSettingsSuffix: ".",
+    portalDisabledDescription:
+      "This entry's portal visibility cannot be changed right now. Enable the global switch in Portal settings first.",
     basicAuthSkip: "Skip Basic Auth",
     basicAuthSkipDescription:
       "When enabled with a username and password, access will include those credentials automatically so the browser's Basic Auth prompt does not appear each time.",

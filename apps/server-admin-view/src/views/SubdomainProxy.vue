@@ -68,7 +68,9 @@
                 class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div class="space-y-1">
-                  <Label>{{ t("admin.subdomainProxy.currentAuthService") }}</Label>
+                  <Label>{{
+                    t("admin.subdomainProxy.currentAuthService")
+                  }}</Label>
                   <div class="text-sm">
                     <template v-if="authServiceMapping">
                       <div class="break-all font-medium">
@@ -159,15 +161,17 @@
               <div class="flex flex-col gap-4">
                 <div class="flex items-start justify-between gap-4">
                   <div class="space-y-1">
-                    <Label for="edge-client-ip-enabled"
-                      >{{ t("admin.subdomainProxy.edgeClientIpTitle") }}</Label
-                    >
+                    <Label for="edge-client-ip-enabled">{{
+                      t("admin.subdomainProxy.edgeClientIpTitle")
+                    }}</Label>
                     <p class="text-xs text-muted-foreground">
                       {{ t("admin.subdomainProxy.edgeClientIpDescription") }}
                     </p>
                     <p class="text-xs text-muted-foreground">
                       {{
-                        t("admin.subdomainProxy.edgeClientIpProviderDescription")
+                        t(
+                          "admin.subdomainProxy.edgeClientIpProviderDescription",
+                        )
                       }}
                     </p>
                     <p
@@ -577,7 +581,9 @@
                             href="#/system/gateway-proxy-headers"
                             class="inline-flex rounded-md border border-destructive/20 bg-destructive/5 px-2.5 py-1.5 text-xs font-medium text-destructive transition hover:bg-destructive/10"
                           >
-                            {{ t("admin.subdomainProxy.goDisableProtocolHeaders") }}
+                            {{
+                              t("admin.subdomainProxy.goDisableProtocolHeaders")
+                            }}
                           </a>
                         </div>
                       </PopoverContent>
@@ -585,7 +591,9 @@
                     <div class="min-w-0 flex-1">
                       <InlineCommentEditor
                         :text="getMappingDisplayTitle(mapping)"
-                        :placeholder="t('admin.subdomainProxy.titlePlaceholder')"
+                        :placeholder="
+                          t('admin.subdomainProxy.titlePlaceholder')
+                        "
                         :empty-text="t('admin.subdomainProxy.notFetched')"
                         :save="
                           (value) => saveMappingTitleOverride(mapping, value)
@@ -640,12 +648,14 @@
                       t("admin.subdomainProxy.publicAccess")
                     }}</Badge>
                     <PanelsTopLeft
-                      v-if="mapping.use_auth && !mapping.suppress_toolbar"
+                      v-if="
+                        isGatewayPortalEnabled &&
+                        mapping.use_auth &&
+                        !mapping.suppress_toolbar
+                      "
                       class="h-3.5 w-3.5 shrink-0"
                     />
-                    <TooltipProvider
-                      v-if="getLocationRulesCount(mapping) > 0"
-                    >
+                    <TooltipProvider v-if="getLocationRulesCount(mapping) > 0">
                       <Tooltip
                         :open="isLocationRulesTooltipOpen(mapping.host)"
                         @update:open="
@@ -668,7 +678,11 @@
                                 count: getLocationRulesCount(mapping),
                               })
                             "
-                            @click="handleLocationRulesTooltipTriggerClick(mapping.host)"
+                            @click="
+                              handleLocationRulesTooltipTriggerClick(
+                                mapping.host,
+                              )
+                            "
                           >
                             <RouteIcon class="h-3.5 w-3.5" />
                           </button>
@@ -987,7 +1001,35 @@
                       {{ t("admin.subdomainProxy.toolbarSettingsSuffix") }}
                     </p>
                   </div>
-                  <Switch id="mapping-toolbar" v-model="showToolbar" />
+                  <TooltipProvider v-if="shouldShowPortalDisabledTooltip">
+                    <Tooltip
+                      :open="isPortalDisabledTooltipOpen"
+                      @update:open="handlePortalDisabledTooltipOpenChange"
+                    >
+                      <TooltipTrigger as-child>
+                        <span
+                          class="inline-flex cursor-help rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                          tabindex="0"
+                          @click="handlePortalDisabledTooltipTriggerClick"
+                        >
+                          <Switch
+                            id="mapping-toolbar"
+                            class="pointer-events-none"
+                            :model-value="showToolbar"
+                            disabled
+                          />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" align="end" class="max-w-xs">
+                        <p>
+                          {{
+                            t("admin.subdomainProxy.portalDisabledDescription")
+                          }}
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <Switch v-else id="mapping-toolbar" v-model="showToolbar" />
                 </div>
 
                 <div
@@ -1000,9 +1042,7 @@
                         t("admin.subdomainProxy.basicAuthSkip")
                       }}</Label>
                       <p class="text-xs leading-5 text-muted-foreground">
-                        {{
-                          t("admin.subdomainProxy.basicAuthSkipDescription")
-                        }}
+                        {{ t("admin.subdomainProxy.basicAuthSkipDescription") }}
                       </p>
                     </div>
                     <Switch
@@ -1158,7 +1198,9 @@
             class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
           >
             <div class="space-y-1">
-              <DialogTitle>{{ t("admin.subdomainProxy.discoverTitle") }}</DialogTitle>
+              <DialogTitle>{{
+                t("admin.subdomainProxy.discoverTitle")
+              }}</DialogTitle>
               <DialogDescription>
                 {{
                   t("admin.subdomainProxy.discoverDescription", {
@@ -1369,7 +1411,8 @@
               >
                 {{
                   t("admin.subdomainProxy.coveredHosts", {
-                    hosts: discoveredData.scanScope || discoveredData.scannedHosts,
+                    hosts:
+                      discoveredData.scanScope || discoveredData.scannedHosts,
                   })
                 }}
               </template>
@@ -1650,12 +1693,14 @@ const buildSuggestedSubdomain = (service: DiscoveredServiceInfo): string => {
   return `app-${service.port}`;
 };
 
-const edgeClientIpProviderOptions = computed<Array<{
-  value: EdgeClientIpProvider;
-  label: string;
-  description: string;
-  headerHint: string;
-}>>(() => [
+const edgeClientIpProviderOptions = computed<
+  Array<{
+    value: EdgeClientIpProvider;
+    label: string;
+    description: string;
+    headerHint: string;
+  }>
+>(() => [
   {
     value: "tencent_edgeone",
     label: t("admin.subdomainProxy.edgeProviders.tencentEdgeOne.label"),
@@ -1669,12 +1714,8 @@ const edgeClientIpProviderOptions = computed<Array<{
   {
     value: "aliyun_esa",
     label: t("admin.subdomainProxy.edgeProviders.aliyunEsa.label"),
-    description: t(
-      "admin.subdomainProxy.edgeProviders.aliyunEsa.description",
-    ),
-    headerHint: t(
-      "admin.subdomainProxy.edgeProviders.aliyunEsa.headerHint",
-    ),
+    description: t("admin.subdomainProxy.edgeProviders.aliyunEsa.description"),
+    headerHint: t("admin.subdomainProxy.edgeProviders.aliyunEsa.headerHint"),
   },
 ]);
 
@@ -1891,6 +1932,7 @@ let mappingDialogKeyboardScrollTimer: number | null = null;
 const mappingMetadataTarget = ref("");
 const openProtocolHeadersWarningHost = ref<string | null>(null);
 const openLocationRulesTooltipHost = ref<string | null>(null);
+const isPortalDisabledTooltipOpen = ref(false);
 const isTouchInteraction = ref(false);
 const sendProxyHeaders = ref(true);
 const preserveHost = ref(true);
@@ -1945,6 +1987,12 @@ const canManageNewMappings = computed(
   () => Boolean(savedRootDomain.value) && !isRootDomainPendingSave.value,
 );
 const allMappings = computed(() => configStore.config?.host_mappings ?? []);
+const isGatewayPortalEnabled = computed(
+  () => configStore.config?.gateway_portal?.enabled !== false,
+);
+const shouldShowPortalDisabledTooltip = computed(
+  () => !isGatewayPortalEnabled.value,
+);
 const regularHostMappings = computed(() =>
   allMappings.value.filter((mapping) => !isAuthServiceTarget(mapping.target)),
 );
@@ -2048,7 +2096,7 @@ const canShowBasicAuthInjection = computed(
   () =>
     !isMappingAuthService.value &&
     (basicAuthInjectionModel.value ||
-    currentBasicAuthProbeResult.value?.requiresBasicAuth === true),
+      currentBasicAuthProbeResult.value?.requiresBasicAuth === true),
 );
 const mappingDialogContentStyle = computed(() => ({
   "--mapping-dialog-keyboard-inset": `${mappingDialogKeyboardInset.value}px`,
@@ -2284,7 +2332,8 @@ const configuredAuthServicePublicPort = computed(() => {
 const authServicePublicPort = computed({
   get: () => {
     return (
-      configuredAuthServicePublicPort.value || defaultAuthServicePublicPort.value
+      configuredAuthServicePublicPort.value ||
+      defaultAuthServicePublicPort.value
     );
   },
   set: (value: number | string) => {
@@ -2682,6 +2731,12 @@ watch(
   { immediate: true },
 );
 
+watch(shouldShowPortalDisabledTooltip, (visible) => {
+  if (!visible) {
+    isPortalDisabledTooltipOpen.value = false;
+  }
+});
+
 watch(
   () =>
     [
@@ -2778,10 +2833,7 @@ function updateInteractionMode() {
   ).matches;
 }
 
-function handleLocationRulesTooltipOpenChange(
-  host: string,
-  nextOpen: boolean,
-) {
+function handleLocationRulesTooltipOpenChange(host: string, nextOpen: boolean) {
   if (nextOpen) {
     openLocationRulesTooltipHost.value = host;
     return;
@@ -2801,10 +2853,20 @@ function handleLocationRulesTooltipTriggerClick(host: string) {
     openLocationRulesTooltipHost.value === host ? null : host;
 }
 
+function handlePortalDisabledTooltipOpenChange(nextOpen: boolean) {
+  isPortalDisabledTooltipOpen.value = nextOpen;
+}
+
+function handlePortalDisabledTooltipTriggerClick() {
+  if (!shouldShowPortalDisabledTooltip.value || !isTouchInteraction.value) {
+    return;
+  }
+
+  isPortalDisabledTooltipOpen.value = !isPortalDisabledTooltipOpen.value;
+}
+
 onMounted(async () => {
-  interactionMediaQuery = window.matchMedia(
-    "(hover: none), (pointer: coarse)",
-  );
+  interactionMediaQuery = window.matchMedia("(hover: none), (pointer: coarse)");
   updateInteractionMode();
   if (typeof interactionMediaQuery.addEventListener === "function") {
     interactionMediaQuery.addEventListener("change", updateInteractionMode);
@@ -2840,7 +2902,10 @@ onUnmounted(() => {
   clearBasicAuthProbeTimer();
   if (interactionMediaQuery) {
     if (typeof interactionMediaQuery.removeEventListener === "function") {
-      interactionMediaQuery.removeEventListener("change", updateInteractionMode);
+      interactionMediaQuery.removeEventListener(
+        "change",
+        updateInteractionMode,
+      );
     } else {
       interactionMediaQuery.removeListener(updateInteractionMode);
     }
@@ -3136,7 +3201,10 @@ function scheduleMappingDialogInputScrollIntoView(target: HTMLElement) {
 
   let attempts = 0;
   const run = () => {
-    scrollMappingDialogInputIntoView(target, attempts === 0 ? "auto" : "smooth");
+    scrollMappingDialogInputIntoView(
+      target,
+      attempts === 0 ? "auto" : "smooth",
+    );
     attempts += 1;
     if (attempts >= 4) {
       mappingDialogKeyboardScrollTimer = null;
@@ -3181,8 +3249,7 @@ async function runBasicAuthProbe(target: string) {
   isLoadingBasicAuthProbe.value = true;
 
   try {
-    const result =
-      await ConfigAPI.probeHostMappingBasicAuth(normalizedTarget);
+    const result = await ConfigAPI.probeHostMappingBasicAuth(normalizedTarget);
     setBasicAuthProbeCacheResult(normalizedTarget, result);
   } catch (error) {
     setBasicAuthProbeCacheResult(normalizedTarget, {
@@ -3573,7 +3640,9 @@ async function copyMappingHost(mapping: HostMapping) {
   try {
     const result = await copyTextToClipboard(host);
     if (result.verified) {
-      toast.success(t("admin.subdomainProxy.hostCopied"), { description: host });
+      toast.success(t("admin.subdomainProxy.hostCopied"), {
+        description: host,
+      });
       return;
     }
 

@@ -41,6 +41,7 @@ const form = reactive<GatewaySettingsForm>({
   auth_cache_ttl_seconds: 1,
   auth_cache_unauthorized_ttl_seconds: 1,
   portal: {
+    enabled: true,
     display_style: "domain",
     show_app_icon: false,
   },
@@ -131,6 +132,11 @@ const currentRunTypeLabel = computed(() => {
 
 const visibilitySummary = computed(() => settings.value?.visibility ?? null);
 const portalSummary = computed(() => settings.value?.portal ?? null);
+const portalEnabledSummary = computed(() =>
+  portalSummary.value?.enabled !== false
+    ? t("admin.gatewaySettings.enabled")
+    : t("admin.gatewaySettings.disabled"),
+);
 const portalDisplaySummary = computed(() =>
   (portalSummary.value?.display_style ?? "domain") === "title"
     ? t("admin.gatewaySettings.portalDisplayTitle")
@@ -142,8 +148,8 @@ const portalIconSummary = computed(() =>
     : t("admin.gatewaySettings.disabled"),
 );
 
-const isProxyHeadersAvailable = computed(
-  () => isAnySubdomainRoutingMode(configStore.config),
+const isProxyHeadersAvailable = computed(() =>
+  isAnySubdomainRoutingMode(configStore.config),
 );
 const proxyHeadersDisabledReason = computed(() => {
   if (isProxyHeadersAvailable.value) return "";
@@ -151,8 +157,8 @@ const proxyHeadersDisabledReason = computed(() => {
     mode: currentRunTypeLabel.value,
   });
 });
-const isHostResponseAvailable = computed(
-  () => isAnySubdomainRoutingMode(configStore.config),
+const isHostResponseAvailable = computed(() =>
+  isAnySubdomainRoutingMode(configStore.config),
 );
 const hostResponseDisabledReason = computed(() => {
   if (isHostResponseAvailable.value) return "";
@@ -210,6 +216,7 @@ const toggleThrottleEnabled = () => {
 const buildSettingsSnapshot = (data: GatewaySettings): GatewaySettings => ({
   ...data,
   portal: {
+    enabled: data.portal?.enabled !== false,
     display_style: data.portal?.display_style ?? "domain",
     show_app_icon: data.portal?.show_app_icon === true,
   },
@@ -227,6 +234,7 @@ const applyFromSettings = (data: GatewaySettings) => {
   form.auth_cache_ttl_seconds = data.auth_cache_ttl_seconds;
   form.auth_cache_unauthorized_ttl_seconds =
     data.auth_cache_unauthorized_ttl_seconds;
+  form.portal.enabled = snapshot.portal.enabled;
   form.portal.display_style = snapshot.portal.display_style;
   form.portal.show_app_icon = snapshot.portal.show_app_icon;
   form.reverse_proxy_throttle.enabled = data.reverse_proxy_throttle.enabled;
@@ -472,6 +480,14 @@ onMounted(fetchSettings);
             <Label class="text-base">{{
               t("admin.gatewaySettings.portal")
             }}</Label>
+            <Badge
+              :variant="
+                portalSummary?.enabled !== false ? 'default' : 'secondary'
+              "
+              class="rounded-full px-2.5"
+            >
+              {{ portalEnabledSummary }}
+            </Badge>
             <Badge variant="secondary" class="rounded-full px-2.5">
               {{ portalDisplaySummary }}
             </Badge>
@@ -491,9 +507,9 @@ onMounted(fetchSettings);
           </div>
         </div>
         <div class="flex justify-start lg:justify-end">
-          <Button variant="outline" @click="openPortalEditor"
-            >{{ t("admin.gatewaySettings.editPortal") }}</Button
-          >
+          <Button variant="outline" @click="openPortalEditor">{{
+            t("admin.gatewaySettings.editPortal")
+          }}</Button>
         </div>
       </div>
 
@@ -521,9 +537,9 @@ onMounted(fetchSettings);
           </div>
         </div>
         <div class="flex justify-start lg:justify-end">
-          <Button variant="outline" @click="openVisibilityEditor"
-            >{{ t("admin.gatewaySettings.editVisibility") }}</Button
-          >
+          <Button variant="outline" @click="openVisibilityEditor">{{
+            t("admin.gatewaySettings.editVisibility")
+          }}</Button>
         </div>
       </div>
 
@@ -622,9 +638,7 @@ onMounted(fetchSettings);
           <div
             class="text-sm leading-6"
             :class="
-              isLocationsAvailable
-                ? 'text-muted-foreground'
-                : 'text-zinc-500'
+              isLocationsAvailable ? 'text-muted-foreground' : 'text-zinc-500'
             "
           >
             {{ t("admin.gatewaySettings.locationsDescription") }}

@@ -139,6 +139,8 @@ export const enServer = {
     validation: {
       required: "{label} is required",
       httpUrlRequired: "{label} must start with http:// or https://",
+      proxyTargetUrlRequired:
+        "{label} must start with http://, https://, ws://, or wss:// and include a host",
       invalidFormat: "{label} format is invalid",
     },
     rollback: {
@@ -221,6 +223,13 @@ export const enServer = {
       updateFailed: "Failed to update gateway configuration",
       updateFailedRolledBack:
         "Failed to update gateway configuration; configuration was rolled back",
+    },
+    proxyMappings: {
+      syncRulesFailed: "Failed to sync path proxy routes",
+      restoreRulesFailed: "Failed to restore path proxy routes",
+      updateFailed: "Failed to update path proxy mappings",
+      updateFailedRolledBack:
+        "Failed to update path proxy mappings; configuration was rolled back",
     },
     gatewayVisibility: {
       updateFailed: "Failed to update gateway visibility",

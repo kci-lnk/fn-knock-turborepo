@@ -1,6 +1,5 @@
 import { ref, watch, type Ref } from "vue";
 import {
-  DEFAULT_PROXY_TARGET_PORT,
   DEFAULT_PROXY_TARGET_PROTOCOL,
   normalizeProxyTargetInput,
   resolveProxyTargetInput,
@@ -18,7 +17,6 @@ export const useProxyTargetInput = (
 ) => {
   const defaultProtocol =
     options.defaultProtocol ?? DEFAULT_PROXY_TARGET_PROTOCOL;
-  const defaultPort = options.defaultPort ?? DEFAULT_PROXY_TARGET_PORT;
 
   const protocol = ref<ProxyTargetProtocol>(defaultProtocol);
   const endpoint = ref("");
@@ -48,7 +46,7 @@ export const useProxyTargetInput = (
     const normalized = normalizeProxyTargetInput(
       protocol.value,
       endpoint.value,
-      defaultPort,
+      options.defaultPort,
     );
 
     isSyncingInternally = true;

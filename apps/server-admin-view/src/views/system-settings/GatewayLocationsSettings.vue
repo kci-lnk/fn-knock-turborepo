@@ -48,6 +48,7 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
+import { isWebSocketProxyTargetUrl } from "@admin-shared/utils/proxyTargetInput";
 import { toast } from "@admin-shared/utils/toast";
 import { Pencil, Trash2 } from "lucide-vue-next";
 import ResponseBodyEditor from "../../components/ResponseBodyEditor.vue";
@@ -157,6 +158,9 @@ const sortedDraftLocations = computed(() =>
 );
 const canSave = computed(
   () => Boolean(selectedMapping.value) && isDirty.value && !isSaving.value,
+);
+const isProxyLocationWebSocketTarget = computed(
+  () => form.action === "proxy" && isWebSocketProxyTargetUrl(form.target),
 );
 
 const getMappingDisplayTitle = (mapping?: HostMappingTitleInfo | null) =>
@@ -361,13 +365,16 @@ const formError = computed(() => {
 
 const buildLocationFromForm = (): HostLocation => {
   const action = form.action;
+  const isWebSocketProxy =
+    action === "proxy" && isWebSocketProxyTargetUrl(form.target);
   return {
     path: cleanHostLocationPath(form.path),
     match: form.match,
     action,
     target: action === "proxy" ? form.target.trim() : "",
     strip_path: action === "proxy" ? form.strip_path : false,
-    rewrite_html: action === "proxy" ? form.rewrite_html : false,
+    rewrite_html:
+      action === "proxy" && !isWebSocketProxy ? form.rewrite_html : false,
     response:
       action === "response"
         ? {
@@ -670,19 +677,26 @@ onMounted(async () => {
                           ? t("admin.gatewayLocationsSettings.stripPath")
                           : t("admin.gatewayLocationsSettings.keepPath")
                       }}
-                      ·
-                      {{
-                        location.rewrite_html
-                          ? t("admin.gatewayLocationsSettings.rewriteHtml")
-                          : t("admin.gatewayLocationsSettings.noRewriteHtml")
-                      }}
+                      <template
+                        v-if="!isWebSocketProxyTargetUrl(location.target)"
+                      >
+                        ·
+                        {{
+                          location.rewrite_html
+                            ? t("admin.gatewayLocationsSettings.rewriteHtml")
+                            : t("admin.gatewayLocationsSettings.noRewriteHtml")
+                        }}
+                      </template>
                     </template>
                     <template v-else>
                       {{
-                        t("admin.gatewayLocationsSettings.responseHeadersCount", {
-                          count: Object.keys(location.response.headers || {})
-                            .length,
-                        })
+                        t(
+                          "admin.gatewayLocationsSettings.responseHeadersCount",
+                          {
+                            count: Object.keys(location.response.headers || {})
+                              .length,
+                          },
+                        )
                       }}
                     </template>
                   </TableCell>
@@ -931,6 +945,7 @@ onMounted(async () => {
                 <Switch id="location-strip-path" v-model="form.strip_path" />
               </div>
               <div
+                v-if="!isProxyLocationWebSocketTarget"
                 class="flex items-center justify-between gap-4 rounded-md border px-4 py-3"
               >
                 <Label for="location-rewrite-html">
@@ -985,7 +1000,9 @@ onMounted(async () => {
                 v-if="form.headers.length === 0"
                 class="text-sm text-muted-foreground"
               >
-                {{ t("admin.gatewayLocationsSettings.noCustomResponseHeaders") }}
+                {{
+                  t("admin.gatewayLocationsSettings.noCustomResponseHeaders")
+                }}
               </div>
               <div
                 v-for="(header, index) in form.headers"
@@ -997,11 +1014,14 @@ onMounted(async () => {
                 <ConfirmDangerPopover
                   :title="t('admin.gatewayLocationsSettings.deleteHeaderTitle')"
                   :description="
-                    t('admin.gatewayLocationsSettings.deleteHeaderDescription', {
-                      name:
-                        header.name.trim() ||
-                        t('admin.gatewayLocationsSettings.unnamedHeader'),
-                    })
+                    t(
+                      'admin.gatewayLocationsSettings.deleteHeaderDescription',
+                      {
+                        name:
+                          header.name.trim() ||
+                          t('admin.gatewayLocationsSettings.unnamedHeader'),
+                      },
+                    )
                   "
                   :confirm-text="
                     t('admin.gatewayLocationsSettings.confirmDelete')

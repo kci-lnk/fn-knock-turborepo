@@ -123,6 +123,8 @@ export const zhHantServer = {
     validation: {
       required: "{label}不能為空",
       httpUrlRequired: "{label}必須以 http:// 或 https:// 開頭",
+      proxyTargetUrlRequired:
+        "{label}必須以 http://、https://、ws:// 或 wss:// 開頭並包含主機名",
       invalidFormat: "{label}格式不正確",
     },
     rollback: {
@@ -182,6 +184,12 @@ export const zhHantServer = {
       syncThrottleFailed: "同步網關節流配置到網關失敗",
       updateFailed: "更新網關配置失敗",
       updateFailedRolledBack: "更新網關配置失敗，已回滾配置",
+    },
+    proxyMappings: {
+      syncRulesFailed: "同步路徑代理路由失敗",
+      restoreRulesFailed: "恢復路徑代理路由失敗",
+      updateFailed: "更新路徑代理映射失敗",
+      updateFailedRolledBack: "更新路徑代理映射失敗，已回滾配置",
     },
     gatewayVisibility: {
       updateFailed: "更新網關可見性失敗",

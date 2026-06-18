@@ -119,6 +119,7 @@ import {
   buildAdminPanelSessionCookie,
 } from "../lib/session-cookie";
 import { isValidHostPort } from "../../../../packages/admin-shared/src/utils/parseHostPort";
+import { isSupportedProxyTargetUrl } from "../../../../packages/admin-shared/src/utils/proxyTargetInput";
 import {
   buildIpLocationApiUrl,
   normalizeIpLocationServiceUrl,
@@ -208,6 +209,19 @@ const validateHostMappings = (
   }>,
   t: RequestTranslator,
 ) => {
+  for (const mapping of mappings) {
+    const label = mapping.host.trim()
+      ? `Host mapping ${mapping.host.trim()} target`
+      : "Host mapping target";
+    const message = validateProxyTargetUrl(mapping.target, label, t);
+    if (message) {
+      return {
+        valid: false as const,
+        message,
+      };
+    }
+  }
+
   const authMappings = mappings.filter((mapping) =>
     isAuthServiceTarget(mapping.target),
   );
@@ -371,6 +385,14 @@ const validateHostMappingLocations = (
             host: mapping.host,
             path: locationPath,
           });
+        }
+        const invalidTargetMessage = validateProxyTargetUrl(
+          target,
+          `Host mapping ${mapping.host} path ${locationPath} target`,
+          t,
+        );
+        if (invalidTargetMessage) {
+          return invalidTargetMessage;
         }
       } else {
         const response = (location.response ?? {}) as Partial<
@@ -572,6 +594,48 @@ const ensureGoResponseSuccess = <T>(
 
 const isValidStreamTarget = (target: string): boolean => {
   return isValidHostPort(target);
+};
+
+type ProxyMappingInput = Pick<
+  ProxyMapping,
+  | "path"
+  | "target"
+  | "rewrite_html"
+  | "use_auth"
+  | "use_root_mode"
+  | "strip_path"
+>;
+
+const validateProxyTargetUrl = (
+  target: unknown,
+  label: string,
+  t: RequestTranslator,
+): string | null => {
+  const value = typeof target === "string" ? target.trim() : "";
+  if (!value) {
+    return adminT(t, "validation.required", { label });
+  }
+  if (!isSupportedProxyTargetUrl(value)) {
+    return adminT(t, "validation.proxyTargetUrlRequired", { label });
+  }
+  return null;
+};
+
+const validateProxyMappings = (
+  mappings: ProxyMappingInput[],
+  t: RequestTranslator,
+) => {
+  for (const mapping of mappings) {
+    const label = mapping.path.trim()
+      ? `Path mapping ${mapping.path.trim()} target`
+      : "Path mapping target";
+    const message = validateProxyTargetUrl(mapping.target, label, t);
+    if (message) {
+      return { valid: false as const, message };
+    }
+  }
+
+  return { valid: true as const };
 };
 
 const validateIpLocationBaseUrl = (
@@ -800,6 +864,28 @@ const rollbackConfigAndRuntime = async (
     await firewallService.applyRunTypeConfig(
       previousConfig.run_type,
       previousConfig.run_type,
+    );
+  } catch (error: any) {
+    return error?.message || adminT(t, "rollback.restoreRuntimeFailed");
+  }
+
+  return null;
+};
+
+const rollbackProxyMappingsConfigAndRuntime = async (
+  previousConfig: AppConfig,
+  t: RequestTranslator,
+): Promise<string | null> => {
+  try {
+    await configManager.saveConfig(previousConfig);
+  } catch (error: any) {
+    return error?.message || adminT(t, "rollback.restoreConfigFailed");
+  }
+
+  try {
+    ensureGoResponseSuccess(
+      await goBackend.setRules(previousConfig.proxy_mappings),
+      adminT(t, "proxyMappings.restoreRulesFailed"),
     );
   } catch (error: any) {
     return error?.message || adminT(t, "rollback.restoreRuntimeFailed");
@@ -2701,10 +2787,55 @@ export const adminRoutes = new Elysia({
   )
   .post(
     "/config/proxy_mappings",
-    async ({ body }) => {
-      await configManager.updateProxyMappings(body.mappings);
-      await goBackend.setRules(body.mappings);
-      return { success: true };
+    async ({ request, body, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
+      const validation = validateProxyMappings(body.mappings, t);
+      if (!validation.valid) {
+        set.status = 400;
+        return {
+          success: false,
+          message: validation.message,
+        };
+      }
+
+      const config = await configManager.getConfig();
+      const normalizedMappings: ProxyMapping[] = body.mappings.map(
+        (mapping) => ({
+          ...mapping,
+          target: mapping.target.trim(),
+        }),
+      );
+      const updatedConfig = {
+        ...config,
+        proxy_mappings: normalizedMappings,
+      };
+
+      try {
+        await configManager.saveConfig(updatedConfig);
+        ensureGoResponseSuccess(
+          await goBackend.setRules(normalizedMappings),
+          adminT(t, "proxyMappings.syncRulesFailed"),
+        );
+      } catch (error: any) {
+        const rollbackError = await rollbackProxyMappingsConfigAndRuntime(
+          config,
+          t,
+        );
+        set.status = 502;
+        return {
+          success: false,
+          message: rollbackError
+            ? adminT(t, "rollback.failed", {
+                message:
+                  error?.message || adminT(t, "proxyMappings.updateFailed"),
+                rollbackError,
+              })
+            : error?.message ||
+              adminT(t, "proxyMappings.updateFailedRolledBack"),
+        };
+      }
+
+      return { success: true, data: normalizedMappings };
     },
     withRouteDoc("更新路径代理映射", {
       body: t.Object({

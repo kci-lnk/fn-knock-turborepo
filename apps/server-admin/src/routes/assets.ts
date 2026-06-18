@@ -30,6 +30,7 @@ import {
 } from "../lib/scan-discovery";
 import { createRequestTranslator } from "../lib/i18n";
 import { probeConfiguredHostMappings } from "../lib/host-mapping-probe";
+import { resolveProxyTargetPort } from "../lib/proxy-target-url";
 
 const runtimeProfile = getRuntimeProfile();
 const adminPanelProtectedRuntime = isAdminPanelProtectedRuntime(runtimeProfile);
@@ -203,19 +204,9 @@ const collectExcludedPorts = (
   const mappingPorts: number[] = [];
   for (const mapping of config.proxy_mappings || []) {
     if (mapping.target) {
-      try {
-        const parsedUrl = new URL(mapping.target);
-        if (parsedUrl.port) {
-          mappingPorts.push(parseInt(parsedUrl.port, 10));
-        } else if (parsedUrl.protocol === "http:") {
-          mappingPorts.push(80);
-        } else if (parsedUrl.protocol === "https:") {
-          mappingPorts.push(443);
-        }
-      } catch (e) {
-        console.warn(
-          `[scan] failed to parse proxy mapping URL: ${mapping.target}`,
-        );
+      const port = resolveProxyTargetPort(mapping.target);
+      if (port !== null) {
+        mappingPorts.push(port);
       }
     }
   }

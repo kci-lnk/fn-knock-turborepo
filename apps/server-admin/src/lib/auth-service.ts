@@ -1,4 +1,5 @@
 import type { HostMapping } from "./redis";
+import { isHttpProxyTargetProtocol } from "../../../../packages/admin-shared/src/utils/proxyTargetInput";
 
 export const parseTargetPort = (target: string): number | null => {
   const normalizedTarget = target.trim();
@@ -10,8 +11,8 @@ export const parseTargetPort = (target: string): number | null => {
     if (Number.isFinite(port) && port > 0) {
       return port;
     }
-    if (parsed.protocol === "https:") return 443;
-    if (parsed.protocol === "http:") return 80;
+    if (parsed.protocol === "https:" || parsed.protocol === "wss:") return 443;
+    if (parsed.protocol === "http:" || parsed.protocol === "ws:") return 80;
   } catch {
     // ignore and fallback below
   }
@@ -28,7 +29,19 @@ export const resolveAuthServicePort = (): number => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 7997;
 };
 
+const isHttpTargetUrl = (target: string): boolean => {
+  try {
+    const parsed = new URL(target.trim());
+    return (
+      isHttpProxyTargetProtocol(parsed.protocol) && Boolean(parsed.hostname)
+    );
+  } catch {
+    return false;
+  }
+};
+
 export const isAuthServiceTarget = (target: string): boolean =>
+  isHttpTargetUrl(target) &&
   parseTargetPort(target) === resolveAuthServicePort();
 
 export const isAuthServiceMapping = (

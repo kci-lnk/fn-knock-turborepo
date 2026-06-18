@@ -1,6 +1,7 @@
 import { configManager, type HostMapping } from "./redis";
 import { syncGatewayPortalHostRulesIfTitleMode } from "./gateway-portal";
 import { fetchUrlMetadata } from "./url-metadata";
+import { isHttpProxyTargetUrl } from "./proxy-target-url";
 
 export interface HostMappingMetadataRefreshSummary {
   updated: number;
@@ -98,6 +99,12 @@ const resolveMetadataRefreshDecision = (
 ): { refreshTitle: boolean; refreshFavicon: boolean } => {
   const target = mapping.target.trim();
   if (!target) {
+    return {
+      refreshTitle: false,
+      refreshFavicon: false,
+    };
+  }
+  if (!isHttpProxyTargetUrl(target)) {
     return {
       refreshTitle: false,
       refreshFavicon: false,
@@ -202,7 +209,7 @@ export const refreshAllHostMappingTitles = async (
 
   const nextMappings = await Promise.all(
     mappings.map(async (mapping) => {
-      if (!mapping.target.trim()) {
+      if (!isHttpProxyTargetUrl(mapping.target)) {
         summary.skipped += 1;
         return mapping;
       }

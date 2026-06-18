@@ -122,6 +122,8 @@ export const zhCNServer = {
     validation: {
       required: "{label}不能为空",
       httpUrlRequired: "{label}必须以 http:// 或 https:// 开头",
+      proxyTargetUrlRequired:
+        "{label}必须以 http://、https://、ws:// 或 wss:// 开头并包含主机名",
       invalidFormat: "{label}格式不正确",
     },
     rollback: {
@@ -181,6 +183,12 @@ export const zhCNServer = {
       syncThrottleFailed: "同步网关节流配置到网关失败",
       updateFailed: "更新网关配置失败",
       updateFailedRolledBack: "更新网关配置失败，已回滚配置",
+    },
+    proxyMappings: {
+      syncRulesFailed: "同步路径代理路由失败",
+      restoreRulesFailed: "恢复路径代理路由失败",
+      updateFailed: "更新路径代理映射失败",
+      updateFailedRolledBack: "更新路径代理映射失败，已回滚配置",
     },
     gatewayVisibility: {
       updateFailed: "更新网关可见性失败",

@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useProxyTargetInput } from "@admin-shared/composables/useProxyTargetInput";
+import { PROXY_TARGET_PROTOCOLS } from "@admin-shared/utils/proxyTargetInput";
 
 type Props = {
   defaultPort?: string;
@@ -21,7 +22,6 @@ type Props = {
 };
 
 const props = withDefaults(defineProps<Props>(), {
-  defaultPort: "80",
   disabled: false,
   inputId: "proxy-target-endpoint",
   placeholder: "127.0.0.1:8080",
@@ -39,8 +39,8 @@ const resolvedProtocolId = computed(
 const { protocol, endpoint, normalize } = useProxyTargetInput(modelValue, {
   defaultPort: props.defaultPort,
 });
-const hintText = computed(() =>
-  props.hint ?? t("shared.proxyTargetInputField.hint", { port: props.defaultPort }),
+const hintText = computed(
+  () => props.hint ?? t("shared.proxyTargetInputField.hint"),
 );
 
 defineExpose({
@@ -52,12 +52,17 @@ defineExpose({
   <div class="space-y-2">
     <div class="flex gap-2">
       <Select v-model="protocol" :disabled="disabled">
-        <SelectTrigger :id="resolvedProtocolId" class="w-[110px] shrink-0">
+        <SelectTrigger :id="resolvedProtocolId" class="w-[116px] shrink-0">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="http">HTTP</SelectItem>
-          <SelectItem value="https">HTTPS</SelectItem>
+          <SelectItem
+            v-for="protocolOption in PROXY_TARGET_PROTOCOLS"
+            :key="protocolOption"
+            :value="protocolOption"
+          >
+            {{ protocolOption.toUpperCase() }}
+          </SelectItem>
         </SelectContent>
       </Select>
       <Input

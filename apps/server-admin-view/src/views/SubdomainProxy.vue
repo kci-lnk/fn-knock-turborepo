@@ -651,7 +651,8 @@
                       v-if="
                         isGatewayPortalEnabled &&
                         mapping.use_auth &&
-                        !mapping.suppress_toolbar
+                        !mapping.suppress_toolbar &&
+                        !isWebSocketProxyTargetUrl(mapping.target)
                       "
                       class="h-3.5 w-3.5 shrink-0"
                     />
@@ -984,6 +985,7 @@
                 </div>
 
                 <div
+                  v-if="!isMappingWebSocketTarget"
                   class="flex items-center justify-between gap-4 rounded-lg border px-4 py-3"
                 >
                   <div class="min-w-0 space-y-1">
@@ -1537,6 +1539,11 @@ import {
 import { toast } from "@admin-shared/utils/toast";
 import { useDiscoverServicesSelection } from "@admin-shared/composables/useDiscoverServicesSelection";
 import { extractPortFromTarget } from "@admin-shared/utils/extractPortFromTarget";
+import {
+  isHttpProxyTargetProtocol,
+  isSupportedProxyTargetUrl,
+  isWebSocketProxyTargetUrl,
+} from "@admin-shared/utils/proxyTargetInput";
 import { copyTextToClipboard } from "@admin-shared/utils/copyTextToClipboard";
 import { useConfigStore } from "../store/config";
 import {
@@ -1760,13 +1767,24 @@ const parseTargetPort = (target: string): number | null => {
 
   try {
     const parsed = new URL(normalizedTarget);
-    if (parsed.protocol === "https:") return 443;
-    if (parsed.protocol === "http:") return 80;
+    if (parsed.protocol === "https:" || parsed.protocol === "wss:") return 443;
+    if (parsed.protocol === "http:" || parsed.protocol === "ws:") return 80;
   } catch {
     // ignore
   }
 
   return null;
+};
+
+const isHttpTargetUrl = (target: string): boolean => {
+  try {
+    const parsed = new URL(target.trim());
+    return (
+      isHttpProxyTargetProtocol(parsed.protocol) && Boolean(parsed.hostname)
+    );
+  } catch {
+    return false;
+  }
 };
 
 const normalizePublicPort = (value: unknown): number => {
@@ -1956,7 +1974,7 @@ const authServicePort = computed(
   () => parseTargetPort(currentModeConfig.value.auth_target) ?? 7997,
 );
 const isAuthServiceTarget = (target: string): boolean =>
-  parseTargetPort(target) === authServicePort.value;
+  isHttpTargetUrl(target) && parseTargetPort(target) === authServicePort.value;
 const getLocationRulesCount = (mapping: HostMapping): number =>
   mapping.locations?.length ?? 0;
 const isLocationRulesTooltipOpen = (host: string): boolean =>
@@ -2035,6 +2053,9 @@ const isSubdomainModeConfigured = computed(() => {
 const isMappingAuthService = computed(() =>
   isAuthServiceTarget(mappingForm.target),
 );
+const isMappingWebSocketTarget = computed(() =>
+  isWebSocketProxyTargetUrl(mappingForm.target),
+);
 const mappingResolvedTitle = computed(() =>
   mappingMetadataTarget.value === mappingForm.target.trim()
     ? mappingForm.title.trim()
@@ -2060,8 +2081,12 @@ const currentBasicAuthProbeResult = computed(() => {
   return basicAuthProbeCache.value.get(target) ?? null;
 });
 const showToolbar = computed({
-  get: () => !mappingForm.suppress_toolbar,
+  get: () => !isMappingWebSocketTarget.value && !mappingForm.suppress_toolbar,
   set: (value: boolean) => {
+    if (isMappingWebSocketTarget.value) {
+      mappingForm.suppress_toolbar = true;
+      return;
+    }
     mappingForm.suppress_toolbar = !value;
   },
 });
@@ -2269,10 +2294,14 @@ const mappingAdvancedSummary = computed(() => {
     mappingUseAuth.value
       ? t("admin.subdomainProxy.authRequired")
       : t("admin.subdomainProxy.publicAccess"),
-    showToolbar.value
-      ? t("admin.subdomainProxy.toolbar")
-      : t("admin.subdomainProxy.hideToolbar"),
   ];
+  if (!isMappingWebSocketTarget.value) {
+    items.push(
+      showToolbar.value
+        ? t("admin.subdomainProxy.toolbar")
+        : t("admin.subdomainProxy.hideToolbar"),
+    );
+  }
 
   if (isMappingAuthService.value) {
     items.push(t("admin.subdomainProxy.authEntry"));
@@ -2593,15 +2622,7 @@ const isMappingValid = computed(() => {
     return false;
   }
 
-  try {
-    const parsed = new URL(target);
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return false;
-    }
-    return !basicAuthValidationMessage.value;
-  } catch {
-    return false;
-  }
+  return isSupportedProxyTargetUrl(target) && !basicAuthValidationMessage.value;
 });
 
 const { isPending: isSavingMode, run: runSaveMode } = useAsyncAction({
@@ -3563,6 +3584,7 @@ function normalizeMapping(input: HostMapping): HostMapping {
   const normalizedTarget = input.target.trim();
   const hasFreshMetadata = mappingMetadataTarget.value === normalizedTarget;
   const serviceRole = isAuthServiceTarget(normalizedTarget) ? "auth" : "app";
+  const isWebSocketTarget = isWebSocketProxyTargetUrl(normalizedTarget);
   const host = mappingDraftHost.value;
   const basicAuth =
     serviceRole === "auth"
@@ -3577,7 +3599,12 @@ function normalizeMapping(input: HostMapping): HostMapping {
       serviceRole === "auth"
         ? DEFAULT_ACCESS_MODE
         : input.access_mode || DEFAULT_ACCESS_MODE,
-    suppress_toolbar: serviceRole === "auth" ? false : input.suppress_toolbar,
+    suppress_toolbar:
+      serviceRole === "auth"
+        ? false
+        : isWebSocketTarget
+          ? true
+          : input.suppress_toolbar,
     preserve_host: input.preserve_host === true,
     basic_auth: basicAuth.enabled
       ? basicAuth

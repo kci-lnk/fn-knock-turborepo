@@ -135,6 +135,8 @@ export const koKRServer = {
     validation: {
       required: "{label}이 필요합니다",
       httpUrlRequired: "{label}은 http:// 또는 https://로 시작해야 합니다.",
+      proxyTargetUrlRequired:
+        "{label}은 http://, https://, ws:// 또는 wss://로 시작하고 호스트를 포함해야 합니다.",
       invalidFormat: "{label} 형식이 잘못되었습니다.",
     },
     rollback: {
@@ -218,6 +220,13 @@ export const koKRServer = {
       updateFailed: "게이트웨이 구성을 업데이트하지 못했습니다.",
       updateFailedRolledBack:
         "게이트웨이 구성을 업데이트하지 못했습니다. 구성이 롤백되었습니다.",
+    },
+    proxyMappings: {
+      syncRulesFailed: "경로 프록시 라우트를 동기화하지 못했습니다.",
+      restoreRulesFailed: "경로 프록시 라우트를 복원하지 못했습니다.",
+      updateFailed: "경로 프록시 매핑을 업데이트하지 못했습니다.",
+      updateFailedRolledBack:
+        "경로 프록시 매핑을 업데이트하지 못했습니다. 구성이 롤백되었습니다.",
     },
     gatewayVisibility: {
       updateFailed: "게이트웨이 공개 상태를 업데이트하지 못했습니다.",

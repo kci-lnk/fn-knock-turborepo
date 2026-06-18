@@ -59,8 +59,12 @@
           <TableHeader>
             <TableRow>
               <TableHead>{{ t("admin.reverseProxy.columns.path") }}</TableHead>
-              <TableHead>{{ t("admin.reverseProxy.columns.target") }}</TableHead>
-              <TableHead>{{ t("admin.reverseProxy.columns.options") }}</TableHead>
+              <TableHead>{{
+                t("admin.reverseProxy.columns.target")
+              }}</TableHead>
+              <TableHead>{{
+                t("admin.reverseProxy.columns.options")
+              }}</TableHead>
               <TableHead class="text-right">{{
                 t("admin.reverseProxy.columns.actions")
               }}</TableHead>
@@ -94,7 +98,10 @@
                     {{ t("admin.reverseProxy.defaultRoute") }}
                   </Badge>
                   <span
-                    v-if="mapping.rewrite_html"
+                    v-if="
+                      mapping.rewrite_html &&
+                      !isWebSocketProxyTargetUrl(mapping.target)
+                    "
                     class="px-2 py-0.5 bg-muted rounded"
                     >{{ t("admin.reverseProxy.rewriteHtml") }}</span
                   >
@@ -104,7 +111,10 @@
                     >{{ t("admin.reverseProxy.authRequiredShort") }}</span
                   >
                   <span
-                    v-if="mapping.use_root_mode"
+                    v-if="
+                      mapping.use_root_mode &&
+                      !isWebSocketProxyTargetUrl(mapping.target)
+                    "
                     class="px-2 py-0.5 bg-muted rounded"
                     >{{ t("admin.reverseProxy.rootMode") }}</span
                   >
@@ -235,7 +245,10 @@
             t("admin.reverseProxy.optionsLabel")
           }}</Label>
           <div class="col-span-3 space-y-2">
-            <div class="flex items-center space-x-2">
+            <div
+              v-if="!isNewMappingWebSocketTarget"
+              class="flex items-center space-x-2"
+            >
               <Switch id="rewrite" v-model="newMapping.rewrite_html" />
               <Label for="rewrite">{{
                 t("admin.reverseProxy.rewriteHtmlContent")
@@ -243,11 +256,18 @@
             </div>
             <div class="flex items-center space-x-2">
               <Switch id="auth" v-model="newMapping.use_auth" />
-              <Label for="auth">{{ t("admin.reverseProxy.requireAuth") }}</Label>
+              <Label for="auth">{{
+                t("admin.reverseProxy.requireAuth")
+              }}</Label>
             </div>
-            <div class="flex items-center space-x-2">
+            <div
+              v-if="!isNewMappingWebSocketTarget"
+              class="flex items-center space-x-2"
+            >
               <Switch id="root" v-model="newMapping.use_root_mode" />
-              <Label for="root">{{ t("admin.reverseProxy.useRootMode") }}</Label>
+              <Label for="root">{{
+                t("admin.reverseProxy.useRootMode")
+              }}</Label>
             </div>
             <div class="flex items-center space-x-2">
               <Switch id="strip" v-model="newMapping.strip_path" />
@@ -262,9 +282,9 @@
         <Button variant="outline" @click="closeMappingDialog(true)">
           {{ t("admin.reverseProxy.cancel") }}
         </Button>
-        <Button @click="saveMapping" :disabled="!isValid || isSaving"
-          >{{ t("admin.reverseProxy.saveSettings") }}</Button
-        >
+        <Button @click="saveMapping" :disabled="!isValid || isSaving">{{
+          t("admin.reverseProxy.saveSettings")
+        }}</Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -406,14 +426,16 @@
                     <span v-if="svc.detail.label" class="text-sm">{{
                       svc.detail.label
                     }}</span>
-                    <span v-else class="text-red-500 text-sm font-medium"
-                      >{{ t("admin.reverseProxy.unknownService") }}</span
-                    >
+                    <span v-else class="text-red-500 text-sm font-medium">{{
+                      t("admin.reverseProxy.unknownService")
+                    }}</span>
                   </TableCell>
                   <TableCell>
                     <Input
                       v-model="svc.detail.rule.path"
-                      :placeholder="t('admin.reverseProxy.requiredPathPlaceholder')"
+                      :placeholder="
+                        t('admin.reverseProxy.requiredPathPlaceholder')
+                      "
                       class="h-8 text-sm"
                       :class="{
                         'border-destructive focus-visible:ring-destructive':
@@ -461,7 +483,8 @@
             >
               {{
                 t("admin.reverseProxy.coveredHosts", {
-                  hosts: discoveredData.scanScope || discoveredData.scannedHosts,
+                  hosts:
+                    discoveredData.scanScope || discoveredData.scannedHosts,
                 })
               }}
             </template>
@@ -593,6 +616,7 @@ import {
 } from "@admin-shared/utils/defaultRouteGuard";
 import { extractPortFromTarget } from "@admin-shared/utils/extractPortFromTarget";
 import { persistProxyMappings } from "@admin-shared/utils/persistProxyMappings";
+import { isWebSocketProxyTargetUrl } from "@admin-shared/utils/proxyTargetInput";
 import {
   buildProxyMapping,
   DEFAULT_PROXY_MAPPING_FLAGS,
@@ -655,6 +679,9 @@ const {
   openEdit: openEditDialog,
   close: closeMappingDialog,
 } = useProxyMappingDialogForm<ProxyMapping>(DEFAULT_PROXY_MAPPING_FLAGS);
+const isNewMappingWebSocketTarget = computed(() =>
+  isWebSocketProxyTargetUrl(newMapping.target),
+);
 
 const handleMappingDialogOpenChange = (nextOpen: boolean) => {
   if (!nextOpen) {
@@ -806,7 +833,12 @@ async function removeMapping(mapping: ProxyMapping) {
 
 async function saveMapping() {
   if (!isValid.value) return;
-  const normalizedMapping = buildProxyMapping(newMapping);
+  const isWebSocketTarget = isWebSocketProxyTargetUrl(newMapping.target);
+  const normalizedMapping = buildProxyMapping({
+    ...newMapping,
+    rewrite_html: isWebSocketTarget ? false : newMapping.rewrite_html,
+    use_root_mode: isWebSocketTarget ? false : newMapping.use_root_mode,
+  });
   const { path: trimmedPath, target: trimmedTarget } = normalizedMapping;
   const ignorePath =
     isEditing.value && editingOriginalMapping.value

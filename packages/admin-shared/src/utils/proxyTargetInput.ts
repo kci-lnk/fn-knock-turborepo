@@ -1,9 +1,28 @@
-import { extractPortFromTarget } from "@admin-shared/utils/extractPortFromTarget";
+import { extractPortFromTarget } from "./extractPortFromTarget";
 
-export type ProxyTargetProtocol = "http" | "https";
+export type ProxyTargetProtocol = "http" | "https" | "ws" | "wss";
 
 export const DEFAULT_PROXY_TARGET_PROTOCOL: ProxyTargetProtocol = "http";
-export const DEFAULT_PROXY_TARGET_PORT = "80";
+export const DEFAULT_PROXY_TARGET_PORTS: Record<ProxyTargetProtocol, string> = {
+  http: "80",
+  https: "443",
+  ws: "80",
+  wss: "443",
+};
+export const DEFAULT_PROXY_TARGET_PORT =
+  DEFAULT_PROXY_TARGET_PORTS[DEFAULT_PROXY_TARGET_PROTOCOL];
+export const PROXY_TARGET_PROTOCOLS: ProxyTargetProtocol[] = [
+  "http",
+  "https",
+  "ws",
+  "wss",
+];
+
+const PROXY_TARGET_PROTOCOL_SET = new Set<string>(PROXY_TARGET_PROTOCOLS);
+
+const isNormalizedProxyTargetProtocol = (
+  value: string,
+): value is ProxyTargetProtocol => PROXY_TARGET_PROTOCOL_SET.has(value);
 
 type ParsedProxyTargetParts = {
   protocol: ProxyTargetProtocol;
@@ -11,11 +30,45 @@ type ParsedProxyTargetParts = {
   hadProtocol: boolean;
 };
 
-const TARGET_PROTOCOL_PATTERN = /^(https?):\/\/(.*)$/i;
+const TARGET_PROTOCOL_PATTERN = /^(https?|wss?):\/\/(.*)$/i;
+
+export const isProxyTargetProtocol = (
+  value: string | null | undefined,
+): boolean => {
+  const normalized = value?.toLowerCase().replace(/:$/, "") ?? "";
+  return isNormalizedProxyTargetProtocol(normalized);
+};
+
+export const isHttpProxyTargetProtocol = (
+  value: string | null | undefined,
+): boolean => {
+  const normalized = value?.toLowerCase().replace(/:$/, "") ?? "";
+  return normalized === "http" || normalized === "https";
+};
+
+export const isWebSocketProxyTargetProtocol = (
+  value: string | null | undefined,
+): boolean => {
+  const normalized = value?.toLowerCase().replace(/:$/, "") ?? "";
+  return normalized === "ws" || normalized === "wss";
+};
 
 const normalizeProtocol = (
   value: string | null | undefined,
-): ProxyTargetProtocol => (value?.toLowerCase() === "https" ? "https" : "http");
+): ProxyTargetProtocol => {
+  const normalized = value?.toLowerCase().replace(/:$/, "") ?? "";
+  return isNormalizedProxyTargetProtocol(normalized)
+    ? normalized
+    : DEFAULT_PROXY_TARGET_PROTOCOL;
+};
+
+export const getDefaultProxyTargetPort = (
+  protocol: ProxyTargetProtocol,
+  defaultPort?: string,
+): string => {
+  const explicitDefaultPort = defaultPort?.trim();
+  return explicitDefaultPort || DEFAULT_PROXY_TARGET_PORTS[protocol];
+};
 
 export const parseProxyTargetParts = (
   value: string,
@@ -107,14 +160,46 @@ export const ensureProxyTargetPort = (
 export const normalizeProxyTargetInput = (
   selectedProtocol: ProxyTargetProtocol,
   endpointInput: string,
-  defaultPort: string = DEFAULT_PROXY_TARGET_PORT,
+  defaultPort?: string,
 ) => {
   const resolved = resolveProxyTargetInput(selectedProtocol, endpointInput);
-  const endpoint = ensureProxyTargetPort(resolved.endpoint, defaultPort);
+  const endpoint = ensureProxyTargetPort(
+    resolved.endpoint,
+    getDefaultProxyTargetPort(resolved.protocol, defaultPort),
+  );
 
   return {
     ...resolved,
     endpoint,
     target: endpoint ? `${resolved.protocol}://${endpoint}` : "",
   };
+};
+
+export const isSupportedProxyTargetUrl = (value: string): boolean => {
+  const target = value.trim();
+  if (!target) return false;
+
+  try {
+    const parsed = new URL(target);
+    return (
+      isProxyTargetProtocol(parsed.protocol) && Boolean(parsed.hostname.trim())
+    );
+  } catch {
+    return false;
+  }
+};
+
+export const isWebSocketProxyTargetUrl = (value: string): boolean => {
+  const target = value.trim();
+  if (!target) return false;
+
+  try {
+    const parsed = new URL(target);
+    return (
+      isWebSocketProxyTargetProtocol(parsed.protocol) &&
+      Boolean(parsed.hostname.trim())
+    );
+  } catch {
+    return false;
+  }
 };

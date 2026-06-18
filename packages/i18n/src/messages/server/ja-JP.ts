@@ -147,6 +147,8 @@ export const jaJPServer = {
       required: "{label} を空にすることはできません",
       httpUrlRequired:
         "{label}は http:// または https:// で始まる必要があります",
+      proxyTargetUrlRequired:
+        "{label} は http://、https://、ws://、または wss:// で始まり、ホストを含む必要があります",
       invalidFormat: "{label}形式が正しくありません",
     },
     rollback: {
@@ -231,6 +233,13 @@ export const jaJPServer = {
       updateFailed: "ゲートウェイ構成の更新に失敗しました",
       updateFailedRolledBack:
         "ゲートウェイ構成の更新に失敗しました。構成はロールバックされました。",
+    },
+    proxyMappings: {
+      syncRulesFailed: "パスプロキシルートの同期に失敗しました",
+      restoreRulesFailed: "パスプロキシルートの復元に失敗しました",
+      updateFailed: "パスプロキシマッピングの更新に失敗しました",
+      updateFailedRolledBack:
+        "パスプロキシマッピングの更新に失敗しました。設定はロールバックされました",
     },
     gatewayVisibility: {
       updateFailed: "ゲートウェイの可視性を更新できませんでした",

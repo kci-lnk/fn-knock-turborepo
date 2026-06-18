@@ -109,7 +109,7 @@ export const enShared = {
     },
   },
   proxyTargetInputField: {
-    hint: "Choose the protocol on the left, then enter the IP and port on the right. If the port is omitted, it is filled as {port} on blur.",
+    hint: "Choose the protocol on the left, then enter the IP and port on the right. If the port is omitted, it is filled from the protocol default on blur.",
   },
   configCollapsibleCard: {
     editConfig: "Edit config",

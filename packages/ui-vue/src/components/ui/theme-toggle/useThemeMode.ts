@@ -185,13 +185,15 @@ export const useThemeMode = (): ThemeModeState => {
   })
 
   if (!normalizeThemeMode(colorMode.store.value)) {
-    colorMode.store.value = "light"
+    colorMode.value = "light"
+    applyResolvedThemeMode("light")
   }
 
   const mode = computed<ThemeMode>({
     get: () => normalizeThemeMode(colorMode.store.value) ?? "light",
     set: (value) => {
-      colorMode.store.value = value
+      colorMode.value = value
+      applyResolvedThemeMode(value)
     },
   })
 

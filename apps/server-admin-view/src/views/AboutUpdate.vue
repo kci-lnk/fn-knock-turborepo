@@ -204,7 +204,7 @@ onMounted(() => {
 
         <Alert
           v-if="!canSelfUpdate"
-          class="rounded-xl border-zinc-200 bg-zinc-50 text-zinc-900"
+          class="rounded-xl border-border/70 bg-muted/30 text-foreground shadow-none"
         >
           <AlertCircle class="w-4 h-4" />
           <AlertTitle>{{ t("admin.aboutUpdate.selfUpdateUnsupportedTitle") }}</AlertTitle>
@@ -214,14 +214,14 @@ onMounted(() => {
         </Alert>
 
         <div
-          class="flex items-center justify-center py-6 px-4 bg-muted/30 rounded-2xl border border-border/50"
+          class="flex items-center justify-center rounded-2xl border border-border/50 bg-muted/[0.16] px-4 py-6"
         >
           <div class="flex flex-col items-center flex-1 space-y-1">
             <span class="text-sm font-medium text-muted-foreground"
               >{{ t("admin.aboutUpdate.currentVersion") }}</span
             >
             <span
-              class="text-2xl text-gray-600 font-bold font-mono tracking-tight text-foreground"
+              class="text-2xl font-bold font-mono tracking-tight text-foreground"
             >
               {{ status?.localVersion || "..." }}
             </span>
@@ -245,7 +245,7 @@ onMounted(() => {
         </div>
 
         <div
-          class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-6 bg-background"
+          class="flex flex-col items-stretch justify-between gap-6 rounded-xl border border-border/50 bg-muted/[0.14] p-4 sm:flex-row sm:items-center"
         >
           <div class="flex items-center gap-3 w-full sm:w-auto">
             <div
@@ -289,7 +289,7 @@ onMounted(() => {
           <div class="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
             <Button
               variant="outline"
-              class="flex-1 min-w-0 sm:flex-none sm:w-auto"
+              class="flex-1 min-w-0 border-border/70 bg-card shadow-none hover:bg-muted/60 sm:flex-none sm:w-auto dark:bg-muted/20 dark:hover:bg-muted/35"
               :disabled="updateStore.isChecking"
               @click="checkNow"
             >

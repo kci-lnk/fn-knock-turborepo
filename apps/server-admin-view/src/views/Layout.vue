@@ -338,15 +338,7 @@
         </DialogHeader>
         <div class="divide-y">
           <template v-for="option in localeOptions" :key="option.value">
-            <JapaneseLocaleOptionButton
-              v-if="option.value === 'ja-JP'"
-              :label="option.label"
-              :selected="selectedLocale === option.value"
-              :disabled="isSavingLocale"
-              @select="handleLocaleSelect(option.value)"
-            />
             <button
-              v-else
               type="button"
               :class="[
                 'flex h-14 w-full items-center gap-3 px-5 text-left transition-colors',
@@ -464,6 +456,14 @@
                     />
                   </g>
                 </svg>
+                <svg
+                  v-else-if="option.value === 'ja-JP'"
+                  viewBox="0 0 32 24"
+                  class="h-6 w-8"
+                >
+                  <rect width="32" height="24" fill="#fff" />
+                  <circle cx="16" cy="12" r="5.4" fill="#bc002d" />
+                </svg>
                 <svg v-else viewBox="0 0 32 24" class="h-6 w-8">
                   <rect width="32" height="24" fill="#f8f8f8" />
                   <g fill="#d62d2d">
@@ -516,7 +516,6 @@ import {
   isAnySubdomainRoutingMode,
   isReverseProxySubdomainMode,
 } from "../lib/reverse-proxy-submode";
-import JapaneseLocaleOptionButton from "../components/JapaneseLocaleOptionButton.vue";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import { Button } from "@/components/ui/button";
 import { ThemeModeToggle } from "@/components/ui/theme-toggle";

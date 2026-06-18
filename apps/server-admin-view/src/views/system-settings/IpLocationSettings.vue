@@ -277,10 +277,10 @@ onMounted(fetchSettings);
 </script>
 
 <template>
-  <div class="w-full max-w-5xl space-y-4">
+  <div class="w-full space-y-4">
     <div
       v-if="isLoading && showLoadingSkeleton"
-      class="grid gap-4 xl:grid-cols-2"
+      class="grid gap-4"
     >
       <section class="rounded-xl border bg-card p-5 shadow-sm">
         <div class="flex gap-3">
@@ -312,7 +312,7 @@ onMounted(fetchSettings);
       </section>
     </div>
 
-    <div v-else-if="!isLoading" class="grid gap-4 xl:grid-cols-1">
+    <div v-else-if="!isLoading" class="grid gap-4">
       <section class="flex min-h-full flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
         <div class="border-b bg-muted/10 p-4 sm:p-5">
           <div class="flex gap-3">

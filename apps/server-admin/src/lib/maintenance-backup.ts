@@ -1,5 +1,4 @@
 import { spawn } from "node:child_process";
-import { randomBytes } from "node:crypto";
 import {
   mkdir,
   mkdtemp,
@@ -11,14 +10,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, extname, join, relative, resolve } from "node:path";
-import { deflateRawSync } from "node:zlib";
-import {
-  APP_BACKUP_IMPORT_VERSION_RANGE,
-  APP_BACKUP_SCHEMA_VERSION,
-  APP_LOCAL_VERSION,
-  formatVersionRange,
-  isBackupAppVersionSupported,
-} from "./app-version";
+import { APP_BACKUP_SCHEMA_VERSION, APP_LOCAL_VERSION } from "./app-version";
 import { getConfiguredShareDirectory } from "./fnos-data-share";
 import { goBackend } from "./go-backend";
 import { firewallService } from "./firewall-service";
@@ -29,13 +21,31 @@ import { collectStreamOutput, waitForProcessExit } from "./runtime";
 import { syncSSLDeploymentToGateway } from "./ssl-gateway";
 import { systemResourceMonitor } from "./system-resource-monitor";
 import { whitelistManager } from "./whitelist-manager";
-import { tDefault } from "./i18n";
+import { MaintenanceBackupError } from "./maintenance-backup/errors";
+import { shouldExportBackupKey } from "./maintenance-backup/key-filter";
+import { backupT } from "./maintenance-backup/messages";
+import { parseBackupPayload } from "./maintenance-backup/payload";
+import { createPasswordProtectedZip } from "./maintenance-backup/zip-crypto";
+import type {
+  FnKnockBackupPayload,
+  RedisBackupEntry,
+  RedisStreamEntry,
+  RedisZSetEntry,
+} from "./maintenance-backup/payload";
 import {
   buildKnockBackupFilename,
   KNOCK_BACKUP_EXTENSION,
   KNOCK_BACKUP_JSON_FILENAME,
   KNOCK_BACKUP_PREFIX,
 } from "../../../../packages/admin-shared/src/utils/maintenanceBackup";
+
+export { MaintenanceBackupError } from "./maintenance-backup/errors";
+export type {
+  FnKnockBackupPayload,
+  RedisBackupEntry,
+  RedisStreamEntry,
+  RedisZSetEntry,
+} from "./maintenance-backup/payload";
 
 const SCAN_COUNT = 200;
 const PIPELINE_BATCH_SIZE = 100;
@@ -49,81 +59,7 @@ const MAX_BACKUP_DIRECTORY_FILES = 500;
 const MAX_BACKUP_ARCHIVE_SIZE = 128 * 1024 * 1024;
 const BASE64_PATTERN =
   /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
-const SUPPORTED_BACKUP_IMPORT_VERSION_RANGE = formatVersionRange(
-  APP_BACKUP_IMPORT_VERSION_RANGE,
-);
-const backupT = (
-  key: string,
-  params?: Record<string, string | number | boolean | null | undefined>,
-) => tDefault(`server.maintenanceBackup.${key}`, params);
 
-const BACKUP_EXCLUDED_KEY_PREFIXES = [
-  "fn_knock:acme:job:",
-  "fn_knock:acme:logs:",
-  "fn_knock:auth_log_data:",
-  "fn_knock:auth_logs:",
-  "fn_knock:auth_mobility:",
-  "fn_knock:backoff:",
-  "fn_knock:cidr:",
-  "fn_knock:cloudflared:logs",
-  "fn_knock:common_auth_locations:runtime",
-  "fn_knock:config:backup:",
-  "fn_knock:docker_admin:login_backoff:",
-  "fn_knock:docker_admin:session:",
-  "fn_knock:errors:",
-  "fn_knock:events:",
-  "fn_knock:fnos-share:session:",
-  "fn_knock:fnos-share:validation:",
-  "fn_knock:gateway:",
-  "fn_knock:ip_location:",
-  "fn_knock:lock:",
-  "fn_knock:login_backoff:",
-  "fn_knock:nonce:",
-  "fn_knock:notifications:deliveries:",
-  "fn_knock:notifications:runtime:",
-  "fn_knock:notifications:triggers:",
-  "fn_knock:oidc:invite:",
-  "fn_knock:oidc:login_error:",
-  "fn_knock:oidc:state:",
-  "fn_knock:passkey:bind:",
-  "fn_knock:passkey:challenge:",
-  "fn_knock:recent_auth_ips:",
-  "fn_knock:reverse-proxy:",
-  "fn_knock:scanner:blacklist:",
-  "fn_knock:scanner:suspicious:",
-  "fn_knock:session:",
-  "fn_knock:smart-connect:runtime",
-  "fn_knock:ssh_security:",
-  "fn_knock:terminal:",
-  "fn_knock:traffic:",
-  "fn_knock:tunnel:runtime",
-  "fn_knock:ui:",
-  "fn_knock:update:",
-  "fn_knock:waf:log:",
-  "fn_knock:waf:logs:",
-  "fn_knock:waf:stats:",
-  "fn_knock:welcome-guide:",
-] as const;
-
-const BACKUP_EXCLUDED_KEY_PATTERNS = [
-  /^fn_knock:acme:runtime-lock$/,
-  /^fn_knock:ddns:last_(?:ip|check)$/,
-  /^fn_knock:ddns:logs(?::seq)?$/,
-  /^fn_knock:ddns:v2:target:[^:]+:last_(?:ip|check)$/,
-  /^fn_knock:frpc:v2:instance:[^:]+:(?:runtime|logs(?::seq)?)$/,
-] as const;
-
-const shouldExportBackupKey = (key: string): boolean =>
-  !BACKUP_EXCLUDED_KEY_PREFIXES.some((prefix) => key.startsWith(prefix)) &&
-  !BACKUP_EXCLUDED_KEY_PATTERNS.some((pattern) => pattern.test(key));
-
-type RedisBackupValueType =
-  | "string"
-  | "hash"
-  | "list"
-  | "set"
-  | "zset"
-  | "stream";
 type CommandResult = {
   exitCode: number;
   stdout: string;
@@ -145,220 +81,6 @@ const ARCHIVE_COMMAND_SPECS: ArchiveCommandSpec[] = [
     probeArgs: ["-v"],
   },
 ];
-
-type RedisZSetEntry = {
-  member: string;
-  score: number;
-};
-
-type RedisStreamEntry = {
-  id: string;
-  fields: string[];
-};
-
-const CRC32_TABLE = (() => {
-  const table = new Uint32Array(256);
-  for (let i = 0; i < table.length; i += 1) {
-    let value = i;
-    for (let bit = 0; bit < 8; bit += 1) {
-      value =
-        value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
-    }
-    table[i] = value >>> 0;
-  }
-  return table;
-})();
-
-const crc32Update = (crc: number, byte: number): number =>
-  ((CRC32_TABLE[(crc ^ byte) & 0xff] ?? 0) ^ (crc >>> 8)) >>> 0;
-
-const crc32Buffer = (buffer: Buffer): number => {
-  let crc = 0xffffffff;
-  for (const byte of buffer) {
-    crc = crc32Update(crc, byte);
-  }
-  return (crc ^ 0xffffffff) >>> 0;
-};
-
-const toDosDateTime = (date: Date): { time: number; date: number } => {
-  const year = Math.min(2107, Math.max(1980, date.getFullYear()));
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  const hours = date.getHours();
-  const minutes = date.getMinutes();
-  const seconds = Math.floor(date.getSeconds() / 2);
-
-  return {
-    time: ((hours & 0x1f) << 11) | ((minutes & 0x3f) << 5) | (seconds & 0x1f),
-    date: ((year - 1980) << 9) | ((month & 0xf) << 5) | (day & 0x1f),
-  };
-};
-
-const createZipCryptoEncryptor = (password: string) => {
-  let key0 = 0x12345678;
-  let key1 = 0x23456789;
-  let key2 = 0x34567890;
-
-  const updateKeys = (byte: number) => {
-    key0 = crc32Update(key0, byte);
-    key1 = (Math.imul((key1 + (key0 & 0xff)) >>> 0, 134775813) + 1) >>> 0;
-    key2 = crc32Update(key2, key1 >>> 24);
-  };
-
-  for (const byte of Buffer.from(password, "utf-8")) {
-    updateKeys(byte);
-  }
-
-  const decryptByte = (): number => {
-    const temp = (key2 | 2) & 0xffff;
-    return (Math.imul(temp, temp ^ 1) >>> 8) & 0xff;
-  };
-
-  return (plain: Buffer): Buffer => {
-    const encrypted = Buffer.allocUnsafe(plain.length);
-    for (let index = 0; index < plain.length; index += 1) {
-      const byte = plain[index] ?? 0;
-      encrypted[index] = byte ^ decryptByte();
-      updateKeys(byte);
-    }
-    return encrypted;
-  };
-};
-
-const writeUInt16LE = (value: number): Buffer => {
-  const buffer = Buffer.allocUnsafe(2);
-  buffer.writeUInt16LE(value & 0xffff, 0);
-  return buffer;
-};
-
-const writeUInt32LE = (value: number): Buffer => {
-  const buffer = Buffer.allocUnsafe(4);
-  buffer.writeUInt32LE(value >>> 0, 0);
-  return buffer;
-};
-
-const createPasswordProtectedZip = (
-  fileName: string,
-  content: Buffer,
-  password: string,
-  modifiedAt = new Date(),
-): Buffer => {
-  const fileNameBuffer = Buffer.from(fileName, "utf-8");
-  const crc = crc32Buffer(content);
-  const compressedContent = deflateRawSync(content, { level: 9 });
-  const encrypt = createZipCryptoEncryptor(password);
-  const encryptionHeader = randomBytes(12);
-  encryptionHeader[11] = (crc >>> 24) & 0xff;
-  const encryptedData = Buffer.concat([
-    encrypt(encryptionHeader),
-    encrypt(compressedContent),
-  ]);
-  const compressedSize = encryptedData.length;
-  const uncompressedSize = content.length;
-  const { time: dosTime, date: dosDate } = toDosDateTime(modifiedAt);
-  const flags = 0x0001;
-  const compressionMethod = 8;
-
-  const localHeader = Buffer.concat([
-    writeUInt32LE(0x04034b50),
-    writeUInt16LE(20),
-    writeUInt16LE(flags),
-    writeUInt16LE(compressionMethod),
-    writeUInt16LE(dosTime),
-    writeUInt16LE(dosDate),
-    writeUInt32LE(crc),
-    writeUInt32LE(compressedSize),
-    writeUInt32LE(uncompressedSize),
-    writeUInt16LE(fileNameBuffer.length),
-    writeUInt16LE(0),
-    fileNameBuffer,
-  ]);
-  const centralDirectoryOffset = localHeader.length + encryptedData.length;
-  const centralDirectory = Buffer.concat([
-    writeUInt32LE(0x02014b50),
-    writeUInt16LE(20),
-    writeUInt16LE(20),
-    writeUInt16LE(flags),
-    writeUInt16LE(compressionMethod),
-    writeUInt16LE(dosTime),
-    writeUInt16LE(dosDate),
-    writeUInt32LE(crc),
-    writeUInt32LE(compressedSize),
-    writeUInt32LE(uncompressedSize),
-    writeUInt16LE(fileNameBuffer.length),
-    writeUInt16LE(0),
-    writeUInt16LE(0),
-    writeUInt16LE(0),
-    writeUInt16LE(0),
-    writeUInt32LE(0),
-    writeUInt32LE(0),
-    fileNameBuffer,
-  ]);
-  const endOfCentralDirectory = Buffer.concat([
-    writeUInt32LE(0x06054b50),
-    writeUInt16LE(0),
-    writeUInt16LE(0),
-    writeUInt16LE(1),
-    writeUInt16LE(1),
-    writeUInt32LE(centralDirectory.length),
-    writeUInt32LE(centralDirectoryOffset),
-    writeUInt16LE(0),
-  ]);
-
-  return Buffer.concat([
-    localHeader,
-    encryptedData,
-    centralDirectory,
-    endOfCentralDirectory,
-  ]);
-};
-
-type RedisBackupEntry =
-  | {
-      key: string;
-      type: "string";
-      ttl_ms: number | null;
-      value: string;
-    }
-  | {
-      key: string;
-      type: "hash";
-      ttl_ms: number | null;
-      value: Record<string, string>;
-    }
-  | {
-      key: string;
-      type: "list";
-      ttl_ms: number | null;
-      value: string[];
-    }
-  | {
-      key: string;
-      type: "set";
-      ttl_ms: number | null;
-      value: string[];
-    }
-  | {
-      key: string;
-      type: "zset";
-      ttl_ms: number | null;
-      value: RedisZSetEntry[];
-    }
-  | {
-      key: string;
-      type: "stream";
-      ttl_ms: number | null;
-      value: RedisStreamEntry[];
-    };
-
-export type FnKnockBackupPayload = {
-  version: typeof APP_BACKUP_SCHEMA_VERSION;
-  app_version: string;
-  prefix: typeof KNOCK_BACKUP_PREFIX;
-  exported_at: string;
-  entry_count: number;
-  entries: RedisBackupEntry[];
-};
 
 export type FnKnockBackupArchive = {
   buffer: Buffer;
@@ -400,17 +122,6 @@ export type FnKnockBackupExportToDirectoryResult = {
   exportedAt: string;
 };
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
-const isSupportedType = (value: unknown): value is RedisBackupValueType =>
-  value === "string" ||
-  value === "hash" ||
-  value === "list" ||
-  value === "set" ||
-  value === "zset" ||
-  value === "stream";
-
 const chunk = <T>(items: T[], size: number): T[][] => {
   const safeSize = Math.max(1, Math.floor(size));
   const output: T[][] = [];
@@ -428,16 +139,6 @@ const normalizeExtension = (value: string): string =>
 
 const isBackupArchiveFile = (value: string): boolean =>
   normalizeExtension(value) === KNOCK_BACKUP_EXTENSION;
-
-export class MaintenanceBackupError extends Error {
-  status: number;
-
-  constructor(message: string, status = 500) {
-    super(message);
-    this.name = "MaintenanceBackupError";
-    this.status = status;
-  }
-}
 
 class MaintenanceBackupService {
   private archiveCommandsReady = false;
@@ -978,269 +679,6 @@ class MaintenanceBackupService {
     }
   }
 
-  private parseStringArray(value: unknown, label: string): string[] {
-    if (!Array.isArray(value)) {
-      throw new MaintenanceBackupError(
-        backupT("stringArrayRequired", { label }),
-        400,
-      );
-    }
-    const output = value.filter(
-      (item): item is string => typeof item === "string",
-    );
-    if (output.length !== value.length) {
-      throw new MaintenanceBackupError(
-        backupT("stringArrayOnlyStrings", { label }),
-        400,
-      );
-    }
-    return output;
-  }
-
-  private parseHashValue(
-    value: unknown,
-    label: string,
-  ): Record<string, string> {
-    if (!isRecord(value)) {
-      throw new MaintenanceBackupError(
-        backupT("objectRequired", { label }),
-        400,
-      );
-    }
-
-    const output: Record<string, string> = {};
-    for (const [field, rawFieldValue] of Object.entries(value)) {
-      if (typeof rawFieldValue !== "string") {
-        throw new MaintenanceBackupError(
-          backupT("fieldStringRequired", { label, field }),
-          400,
-        );
-      }
-      output[field] = rawFieldValue;
-    }
-    return output;
-  }
-
-  private parseZSetValue(value: unknown, label: string): RedisZSetEntry[] {
-    if (!Array.isArray(value)) {
-      throw new MaintenanceBackupError(
-        backupT("arrayRequired", { label }),
-        400,
-      );
-    }
-
-    return value.map((item, index) => {
-      if (!isRecord(item) || typeof item.member !== "string") {
-        throw new MaintenanceBackupError(
-          backupT("zsetMemberRequired", { label, index }),
-          400,
-        );
-      }
-
-      const score = Number(item.score);
-      if (!Number.isFinite(score)) {
-        throw new MaintenanceBackupError(
-          backupT("zsetScoreRequired", { label, index }),
-          400,
-        );
-      }
-
-      return { member: item.member, score };
-    });
-  }
-
-  private parseStreamValue(value: unknown, label: string): RedisStreamEntry[] {
-    if (!Array.isArray(value)) {
-      throw new MaintenanceBackupError(
-        backupT("arrayRequired", { label }),
-        400,
-      );
-    }
-
-    return value.map((item, index) => {
-      if (!isRecord(item) || typeof item.id !== "string") {
-        throw new MaintenanceBackupError(
-          backupT("streamIdRequired", { label, index }),
-          400,
-        );
-      }
-
-      const fields = this.parseStringArray(
-        item.fields,
-        `${label}[${index}].fields`,
-      );
-      if (fields.length === 0 || fields.length % 2 !== 0) {
-        throw new MaintenanceBackupError(
-          backupT("streamFieldsInvalid", { label, index }),
-          400,
-        );
-      }
-
-      return {
-        id: item.id,
-        fields,
-      };
-    });
-  }
-
-  private parseEntry(value: unknown, index: number): RedisBackupEntry {
-    if (!isRecord(value)) {
-      throw new MaintenanceBackupError(
-        backupT("entryObjectRequired", { index }),
-        400,
-      );
-    }
-
-    const key = typeof value.key === "string" ? value.key : "";
-    if (!key.startsWith(KNOCK_BACKUP_PREFIX)) {
-      throw new MaintenanceBackupError(
-        backupT("entryKeyPrefixRequired", {
-          index,
-          prefix: KNOCK_BACKUP_PREFIX,
-        }),
-        400,
-      );
-    }
-
-    if (!isSupportedType(value.type)) {
-      throw new MaintenanceBackupError(
-        backupT("entryTypeUnsupported", { index }),
-        400,
-      );
-    }
-
-    const ttlMs =
-      value.ttl_ms == null
-        ? null
-        : Number.isFinite(Number(value.ttl_ms)) && Number(value.ttl_ms) > 0
-          ? Math.floor(Number(value.ttl_ms))
-          : (() => {
-              throw new MaintenanceBackupError(
-                backupT("entryTtlInvalid", { index }),
-                400,
-              );
-            })();
-
-    if (value.type === "string") {
-      if (typeof value.value !== "string") {
-        throw new MaintenanceBackupError(
-          backupT("entryValueStringRequired", { index }),
-          400,
-        );
-      }
-      return { key, type: value.type, ttl_ms: ttlMs, value: value.value };
-    }
-
-    if (value.type === "hash") {
-      return {
-        key,
-        type: value.type,
-        ttl_ms: ttlMs,
-        value: this.parseHashValue(value.value, `entries[${index}].value`),
-      };
-    }
-
-    if (value.type === "list" || value.type === "set") {
-      return {
-        key,
-        type: value.type,
-        ttl_ms: ttlMs,
-        value: this.parseStringArray(value.value, `entries[${index}].value`),
-      };
-    }
-
-    if (value.type === "stream") {
-      return {
-        key,
-        type: value.type,
-        ttl_ms: ttlMs,
-        value: this.parseStreamValue(value.value, `entries[${index}].value`),
-      };
-    }
-
-    return {
-      key,
-      type: value.type,
-      ttl_ms: ttlMs,
-      value: this.parseZSetValue(value.value, `entries[${index}].value`),
-    };
-  }
-
-  private parseBackupPayload(rawPayload: unknown): FnKnockBackupPayload {
-    let payload: unknown = rawPayload;
-    if (typeof rawPayload === "string") {
-      try {
-        payload = JSON.parse(rawPayload) as unknown;
-      } catch {
-        throw new MaintenanceBackupError(backupT("jsonParseFailed"), 400);
-      }
-    }
-
-    if (!isRecord(payload)) {
-      throw new MaintenanceBackupError(backupT("payloadObjectInvalid"), 400);
-    }
-
-    if (payload.version !== APP_BACKUP_SCHEMA_VERSION) {
-      throw new MaintenanceBackupError(
-        backupT("unsupportedSchemaVersion", {
-          version: APP_BACKUP_SCHEMA_VERSION,
-        }),
-        400,
-      );
-    }
-
-    if (payload.prefix !== KNOCK_BACKUP_PREFIX) {
-      throw new MaintenanceBackupError(
-        backupT("unsupportedPrefix", { prefix: KNOCK_BACKUP_PREFIX }),
-        400,
-      );
-    }
-
-    const appVersion =
-      typeof payload.app_version === "string" ? payload.app_version.trim() : "";
-    if (!appVersion) {
-      throw new MaintenanceBackupError(backupT("missingAppVersion"), 400);
-    }
-
-    if (!isBackupAppVersionSupported(appVersion)) {
-      throw new MaintenanceBackupError(
-        backupT("appVersionUnsupported", {
-          currentVersion: APP_LOCAL_VERSION,
-          range: SUPPORTED_BACKUP_IMPORT_VERSION_RANGE,
-          appVersion,
-        }),
-        400,
-      );
-    }
-
-    const exportedAt =
-      typeof payload.exported_at === "string" ? payload.exported_at : "";
-    if (!exportedAt) {
-      throw new MaintenanceBackupError(backupT("missingExportedAt"), 400);
-    }
-
-    if (!Array.isArray(payload.entries)) {
-      throw new MaintenanceBackupError(backupT("missingEntries"), 400);
-    }
-
-    const entries = payload.entries.map((entry, index) =>
-      this.parseEntry(entry, index),
-    );
-    const uniqueKeys = new Set(entries.map((entry) => entry.key));
-    if (uniqueKeys.size !== entries.length) {
-      throw new MaintenanceBackupError(backupT("duplicateRedisKey"), 400);
-    }
-
-    return {
-      version: APP_BACKUP_SCHEMA_VERSION,
-      app_version: appVersion,
-      prefix: KNOCK_BACKUP_PREFIX,
-      exported_at: exportedAt,
-      entry_count: entries.length,
-      entries,
-    };
-  }
-
   private async extractPayloadFromArchive(
     archiveBuffer: Buffer,
   ): Promise<FnKnockBackupPayload> {
@@ -1292,7 +730,7 @@ class MaintenanceBackupService {
           );
         }
 
-        return this.parseBackupPayload(result.stdout);
+        return parseBackupPayload(result.stdout);
       } catch (error: any) {
         if (error instanceof MaintenanceBackupError) {
           throw error;

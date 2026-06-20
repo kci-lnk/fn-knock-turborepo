@@ -689,153 +689,32 @@
       </template>
     </ConfigCollapsibleCard>
 
-    <ConfigCollapsibleCard
-      v-if="certificates.length"
-      :title="t('admin.certConfig.libraryTitle')"
-      :configured="true"
+    <CertificateLibraryCard
+      :activate-button-label="activateButtonLabel"
+      :activate-certificate="activateCertificate"
+      :activating-certificate-id="activatingCertificateId"
+      :certificate-display-label="certificateDisplayLabel"
+      :certificate-role-label="certificateRoleLabel"
+      :certificates="certificates"
+      :clear-library="handleClearLibrary"
+      :coverage-badge-class="coverageBadgeClass"
+      :coverage-badge-label="coverageBadgeLabel"
+      :coverage-badge-variant="coverageBadgeVariant"
+      :delete-certificate="deleteCertificate"
+      :deleting-certificate-id="deletingCertificateId"
+      :format-date="formatDate"
+      :is-activating="isActivating"
+      :is-clearing-library="isClearingLibrary"
+      :is-deleting="isDeleting"
       :ready="hasLoadedSSLStatus"
-      :edit-label="t('admin.certConfig.viewCertificates')"
-      collapsed-content-class="min-h-[76px] flex flex-col items-start gap-3 sm:h-[40px] sm:flex-row sm:items-center sm:justify-between"
-      summary-class="text-xs text-muted-foreground max-w-full whitespace-normal break-words sm:truncate"
-      expanded-content-class="p-0 sm:p-0"
-      actions-class="border-t bg-muted/30 px-4 py-4 sm:px-6 flex flex-col gap-2 rounded-b-lg sm:flex-row sm:justify-end"
-    >
-      <template #summary>
-        {{ certificateLibrarySummary }}
-      </template>
-
-      <template #default>
-        <div class="p-4 sm:p-6 grid gap-3 xl:grid-cols-2">
-          <div
-            v-for="certificate in certificates"
-            :key="certificate.id"
-            class="rounded-lg border bg-muted/15 p-4 grid gap-3"
-          >
-            <div class="flex flex-wrap items-start justify-between gap-3">
-              <div class="grid gap-1 min-w-0">
-                <div class="flex flex-wrap items-center gap-2">
-                  <div class="font-medium break-all">
-                    {{ certificateDisplayLabel(certificate) }}
-                  </div>
-                  <Badge
-                    v-if="certificate.is_active"
-                    variant="default"
-                    class="bg-green-600 hover:bg-green-600"
-                  >
-                    {{ certificateRoleLabel(certificate) }}
-                  </Badge>
-                  <Badge variant="outline">
-                    {{ sourceLabel(certificate.source) }}
-                  </Badge>
-                  <Badge
-                    v-if="certificate.coverage"
-                    :variant="coverageBadgeVariant(certificate.coverage)"
-                    :class="coverageBadgeClass(certificate.coverage)"
-                  >
-                    {{ coverageBadgeLabel(certificate.coverage) }}
-                  </Badge>
-                </div>
-                <div class="text-xs text-muted-foreground font-mono break-all">
-                  {{
-                    certificate.certInfo?.dnsNames?.join(", ") ||
-                    certificate.primary_domain ||
-                    t("admin.certConfig.noDomainInfo")
-                  }}
-                </div>
-              </div>
-
-              <div class="flex flex-wrap gap-2">
-                <Button
-                  v-if="!certificate.is_active"
-                  size="sm"
-                  :disabled="isActivating"
-                  @click="activateCertificate(certificate.id)"
-                >
-                  <span
-                    v-if="
-                      isActivating && activatingCertificateId === certificate.id
-                    "
-                    class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
-                  ></span>
-                  {{ activateButtonLabel }}
-                </Button>
-                <ConfirmDangerPopover
-                  :title="t('admin.certConfig.deleteTitle')"
-                  :description="t('admin.certConfig.deleteDescription')"
-                  :confirm-text="t('admin.certConfig.deleteConfirm')"
-                  :loading="
-                    isDeleting && deletingCertificateId === certificate.id
-                  "
-                  :disabled="
-                    isDeleting && deletingCertificateId === certificate.id
-                  "
-                  :on-confirm="() => deleteCertificate(certificate.id)"
-                >
-                  <template #trigger>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      :disabled="
-                        isDeleting && deletingCertificateId === certificate.id
-                      "
-                    >
-                      {{ t("admin.certConfig.delete") }}
-                    </Button>
-                  </template>
-                </ConfirmDangerPopover>
-              </div>
-            </div>
-
-            <div class="grid gap-2 text-xs text-muted-foreground">
-              <div>
-                {{ t("admin.certConfig.validityLabel") }}
-                {{ formatDate(certificate.certInfo?.validFrom || "") }}
-                <span class="mx-1">{{ t("admin.certConfig.to") }}</span>
-                {{ formatDate(certificate.certInfo?.validTo || "") }}
-              </div>
-              <div>
-                {{
-                  t("admin.certConfig.updatedAtLabel", {
-                    value: formatDate(certificate.updated_at),
-                  })
-                }}
-              </div>
-              <div v-if="certificate.coverage?.summary">
-                {{ certificate.coverage.summary }}
-              </div>
-            </div>
-          </div>
-        </div>
-      </template>
-
-      <template #actions="{ collapse }">
-        <ConfirmDangerPopover
-          :title="t('admin.certConfig.clearLibraryTitle')"
-          :description="t('admin.certConfig.clearLibraryDescription')"
-          :confirm-text="t('admin.certConfig.clearLibraryConfirm')"
-          :loading="isClearingLibrary"
-          :disabled="isClearingLibrary"
-          :on-confirm="handleClearLibrary"
-        >
-          <template #trigger>
-            <Button
-              variant="destructive"
-              :disabled="isClearingLibrary"
-            >
-              {{ t("admin.certConfig.clearLibrary") }}
-            </Button>
-          </template>
-        </ConfirmDangerPopover>
-        <Button variant="outline" @click="collapse">
-          {{ t("admin.certConfig.collapse") }}
-        </Button>
-      </template>
-    </ConfigCollapsibleCard>
+      :source-label="sourceLabel"
+      :summary="certificateLibrarySummary"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   Card,
@@ -858,44 +737,33 @@ import {
 } from "@admin-shared/composables/useAsyncAction";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { ConfigAPI } from "../../lib/api";
-import type {
-  SSLDeploymentMode,
-  SSLCertificateSummary,
-  SSLSharedFilesPayload,
-  SSLStatus,
-  SSLCertificateSource,
-  SubdomainCertificateCoverage,
-} from "../../types";
+import type { SSLStatus } from "../../types";
 import { toast } from "@admin-shared/utils/toast";
-
-type DeploymentPreviewItem = {
-  id: string;
-  label: string;
-  isDefault: boolean;
-};
-
-type GatewayCertificateItem = NonNullable<
-  SSLStatus["gateway_status"]
->["certificates"][number];
+import CertificateLibraryCard from "./CertificateLibraryCard.vue";
+import { useCertConfigViewModel } from "./useCertConfigViewModel";
+import { useSSLSharedFiles } from "./useSSLSharedFiles";
 
 const sslStatus = ref<SSLStatus | null>(null);
 const { t, locale } = useI18n();
 const hasLoadedSSLStatus = ref(false);
 const errorMessage = ref("");
-const sharedFilesError = ref("");
 const formData = ref({ cert: "", key: "" });
 const pendingSaveMode = ref<"store" | "activate" | null>(null);
 const activatingCertificateId = ref<string | null>(null);
 const deletingCertificateId = ref<string | null>(null);
 const pendingDeploymentMode = ref<"single_active" | "multi_sni" | null>(null);
 
-const defaultSSLSharedFiles: SSLSharedFilesPayload = {
-  shareName: "fn-knock",
-  available: false,
-  files: [],
-};
-const sslSharedFiles = ref<SSLSharedFilesPayload>(defaultSSLSharedFiles);
-const hasLoadedSharedFiles = ref(false);
+const {
+  handleCreateSharedFileSelect,
+  handleSharedFilesRequest,
+  isLoadingSharedFiles,
+  isReadingSharedFile,
+  sharedFilesError,
+  sslSharedFiles,
+} = useSSLSharedFiles({
+  formData,
+  translate: (key, params) => (params ? t(key, params) : t(key)),
+});
 
 const { isPending: isSaving, run: runSaveSSL } = useAsyncAction({
   onError: (error) => {
@@ -917,25 +785,6 @@ const { isPending: isLoading, run: runLoadSSLStatus } = useAsyncAction({
     console.error("Failed to load SSL status:", error);
   },
 });
-const { isPending: isLoadingSharedFiles, run: runLoadSharedFiles } =
-  useAsyncAction({
-    onError: (error) => {
-      const message = extractErrorMessage(
-        error,
-        t("admin.certConfig.loadSharedDirFailed"),
-      );
-      sharedFilesError.value = message;
-      toast.error(message);
-    },
-  });
-const { isPending: isReadingSharedFile, run: runReadSharedFile } =
-  useAsyncAction({
-    onError: (error) => {
-      toast.error(
-        extractErrorMessage(error, t("admin.certConfig.loadSharedFileFailed")),
-      );
-    },
-  });
 const { isPending: isActivating, run: runActivateSSL } = useAsyncAction({
   onError: (error) => {
     toast.error(
@@ -969,219 +818,51 @@ const { isPending: isUpdatingDeploymentMode, run: runUpdateDeploymentMode } =
 
 const showLoadingSkeleton = useDelayedLoading(isLoading);
 
-const certificates = computed(() => sslStatus.value?.certificates || []);
-const activeCertificate = computed(
-  () => certificates.value.find((certificate) => certificate.is_active) || null,
-);
-const deployedGatewayCertificates = computed(
-  () => sslStatus.value?.gateway_status?.certificates || [],
-);
-const subdomainCoverage = computed(
-  () =>
-    sslStatus.value?.subdomain_coverage ??
-    activeCertificate.value?.coverage ??
-    null,
-);
-const libraryCoverage = computed(
-  () => sslStatus.value?.library_coverage ?? null,
-);
-const recommendedCertificateId = computed(
-  () => libraryCoverage.value?.suggested_certificate_id || "",
-);
-
-const primaryCertificateBadgeLabel = computed(() => {
-  if (!activeCertificate.value) return t("common.inactive");
-  if (sslStatus.value?.deploymentMode === "multi_sni") {
-    return t("admin.certConfig.defaultFallback");
-  }
-  return t("admin.certConfig.enabled");
-});
-const deploymentModeLabel = computed(() => {
-  if (sslStatus.value?.deploymentMode === "multi_sni") {
-    return t("admin.certConfig.deploymentModeLabel", {
-      mode: t("admin.certConfig.multiSniTitle"),
-    });
-  }
-  return t("admin.certConfig.deploymentModeLabel", {
-    mode: t("admin.certConfig.singleActiveTitle"),
-  });
-});
-const deploymentModeShortLabel = computed(() => {
-  if (sslStatus.value?.deploymentMode === "multi_sni") {
-    return t("admin.certConfig.multiSniTitle");
-  }
-  return t("admin.certConfig.singleActiveTitle");
-});
-const configuredDeploymentModeLabel = computed(() => {
-  if (sslStatus.value?.configuredDeploymentMode === "multi_sni") {
-    return t("admin.certConfig.multiSniTitle");
-  }
-  return t("admin.certConfig.singleActiveTitle");
-});
-const deploymentModeDescription = computed(() => {
-  if (sslStatus.value?.deploymentMode === "multi_sni") {
-    return t("admin.certConfig.multiSniModeDescription");
-  }
-  return t("admin.certConfig.singleActiveModeDescription");
-});
-const deploymentModeMismatch = computed(
-  () =>
-    Boolean(sslStatus.value?.configuredDeploymentMode) &&
-    sslStatus.value?.configuredDeploymentMode !==
-      sslStatus.value?.deploymentMode,
-);
-const gatewaySyncError = computed(
-  () => sslStatus.value?.gateway_status?.sync_error || "",
-);
-const showMultiSniSuggestion = computed(
-  () =>
-    sslStatus.value?.deploymentMode !== "multi_sni" &&
-    (libraryCoverage.value?.combined_covering_certificate_ids.length || 0) > 1,
-);
-const activateButtonLabel = computed(() => {
-  if (sslStatus.value?.deploymentMode === "multi_sni") {
-    return t("admin.certConfig.setDefaultCertificate");
-  }
-  return t("admin.certConfig.setCurrentCertificate");
-});
-const gatewayDeploymentSummary = computed(() => {
-  if (!deployedGatewayCertificates.value.length) {
-    return t("admin.certConfig.noGatewayCertificates");
-  }
-
-  const defaultCertificate = deployedGatewayCertificates.value.find(
-    (certificate) => certificate.is_default,
-  );
-  const defaultLabel = defaultCertificate
-    ? gatewayCertificateLabel(defaultCertificate)
-    : t("admin.certConfig.notMarked");
-
-  if (sslStatus.value?.deploymentMode === "multi_sni") {
-    return t("admin.certConfig.gatewaySummaryMulti", {
-      count: deployedGatewayCertificates.value.length,
-      label: defaultLabel,
-    });
-  }
-
-  return t("admin.certConfig.gatewaySummarySingle", {
-    count: deployedGatewayCertificates.value.length,
-    label: defaultLabel,
-  });
-});
-const statusOverviewText = computed(() => {
-  if (!activeCertificate.value?.certInfo) {
-    return t("admin.certConfig.statusNoActive");
-  }
-
-  const parts = [
-    t("admin.certConfig.statusCurrentCertificate", {
-      label: certificateDisplayLabel(activeCertificate.value),
-    }),
-    t("admin.certConfig.statusSource", {
-      source: sourceLabel(activeCertificate.value.source),
-    }),
-  ];
-
-  if (isExpired.value) {
-    parts.push(
-      t("admin.certConfig.statusExpiredAt", {
-        date: formatDate(activeCertificate.value.certInfo.validTo),
-      }),
-    );
-  } else if (isExpiringSoon.value) {
-    parts.push(
-      t("admin.certConfig.statusExpiringSoonAt", {
-        date: formatDate(activeCertificate.value.certInfo.validTo),
-      }),
-    );
-  } else {
-    parts.push(
-      t("admin.certConfig.statusValidTo", {
-        date: formatDate(activeCertificate.value.certInfo.validTo),
-      }),
-    );
-  }
-
-  return parts.join(" · ");
-});
-const deploymentSummary = computed(
-  () =>
-    t("admin.certConfig.deploymentSummary", {
-      mode: deploymentModeShortLabel.value,
-      count: deployedGatewayCertificates.value.length,
-    }),
-);
-const deploymentSectionConfigured = computed(() =>
-  Boolean(
-    certificates.value.length || deployedGatewayCertificates.value.length,
-  ),
-);
-const currentCertificateSummary = computed(() => {
-  if (!activeCertificate.value) {
-    return subdomainCoverage.value
-      ? t("admin.certConfig.currentSummaryNoActiveWithCoverage", {
-          summary: subdomainCoverage.value.summary,
-        })
-      : t("admin.certConfig.noActiveTitle");
-  }
-
-  const parts = [certificateDisplayLabel(activeCertificate.value)];
-  const domainSummary = certificateDomainSummary(activeCertificate.value);
-  if (domainSummary) parts.push(domainSummary);
-  if (isExpired.value) {
-    parts.push(t("admin.certConfig.expired"));
-  } else if (isExpiringSoon.value) {
-    parts.push(t("admin.certConfig.expiresIn30Days"));
-  } else {
-    parts.push(t("common.active"));
-  }
-  return parts.join(" · ");
-});
-const manualUploadConfigured = computed(() =>
-  Boolean(
-    certificates.value.length || formData.value.cert || formData.value.key,
-  ),
-);
-const manualUploadSummary = computed(() => {
-  if (formData.value.cert || formData.value.key) {
-    return t("admin.certConfig.manualUploadFilled");
-  }
-  if (certificates.value.length) {
-    return t("admin.certConfig.manualUploadHasLibrary", {
-      count: certificates.value.length,
-    });
-  }
-  return t("admin.certConfig.manualUploadEmpty");
-});
-const certificateLibrarySummary = computed(() => {
-  const activeLabel = activeCertificate.value
-    ? t("admin.certConfig.libraryCurrentActive", {
-        label: certificateDisplayLabel(activeCertificate.value),
-      })
-    : t("admin.certConfig.libraryNoActive");
-  return t("admin.certConfig.librarySummary", {
-    count: certificates.value.length,
-    active: activeLabel,
-  });
-});
-const singleActivePreview = computed(() =>
-  buildDeploymentPreview("single_active"),
-);
-const multiSniPreview = computed(() => buildDeploymentPreview("multi_sni"));
-
-const isExpired = computed(() => {
-  const validTo = activeCertificate.value?.certInfo?.validTo;
-  if (!validTo) return false;
-  return new Date(validTo) < new Date();
-});
-
-const isExpiringSoon = computed(() => {
-  const validTo = activeCertificate.value?.certInfo?.validTo;
-  if (!validTo) return false;
-  const expiresAt = new Date(validTo);
-  const now = new Date();
-  const thirtyDays = 30 * 24 * 60 * 60 * 1000;
-  return expiresAt > now && expiresAt.getTime() - now.getTime() < thirtyDays;
+const {
+  activateButtonLabel,
+  activeCertificate,
+  certificateDisplayLabel,
+  certificateLibrarySummary,
+  certificateRoleLabel,
+  certificates,
+  configuredDeploymentModeLabel,
+  coverageBadgeClass,
+  coverageBadgeLabel,
+  coverageBadgeVariant,
+  currentCertificateSummary,
+  deployedGatewayCertificates,
+  deploymentCardClass,
+  deploymentModeDescription,
+  deploymentModeLabel,
+  deploymentModeMismatch,
+  deploymentModeShortLabel,
+  deploymentSectionConfigured,
+  deploymentSummary,
+  formatDate,
+  formatDN,
+  gatewayCertificateKey,
+  gatewayCertificateLabel,
+  gatewayDeploymentSummary,
+  gatewaySyncError,
+  isExpired,
+  isExpiringSoon,
+  libraryCoverage,
+  manualUploadConfigured,
+  manualUploadSummary,
+  multiSniPreview,
+  primaryCertificateBadgeLabel,
+  recommendedCertificateId,
+  showMultiSniSuggestion,
+  singleActivePreview,
+  sourceLabel,
+  statusOverviewText,
+  subdomainCoverage,
+  uncoveredHostsPreview,
+} = useCertConfigViewModel({
+  formData,
+  locale,
+  sslStatus,
+  translate: (key, params) => (params ? t(key, params) : t(key)),
 });
 
 onMounted(() => {
@@ -1278,195 +959,6 @@ async function handleClearLibrary() {
     await ConfigAPI.clearSSLCertificateLibrary();
     await loadSSLStatus();
     toast.success(t("admin.certConfig.clearLibrarySuccess"));
-  });
-}
-
-async function loadSharedFiles(force = false) {
-  if (hasLoadedSharedFiles.value && !force) return;
-
-  sharedFilesError.value = "";
-  const nextFiles = await runLoadSharedFiles(async () =>
-    ConfigAPI.getSSLSharedFiles(),
-  );
-  if (!nextFiles) return;
-
-  sslSharedFiles.value = nextFiles;
-  hasLoadedSharedFiles.value = true;
-}
-
-async function handleSharedFilesRequest(payload: {
-  field: "cert" | "sslKey";
-  force?: boolean;
-}) {
-  await loadSharedFiles(Boolean(payload.force));
-}
-
-async function applySharedFileSelection(
-  target: { cert: string; key: string },
-  payload: { field: "cert" | "sslKey"; relativePath: string },
-) {
-  const result = await runReadSharedFile(async () =>
-    ConfigAPI.readSSLSharedFile(payload.relativePath),
-  );
-  if (!result) return;
-
-  if (payload.field === "cert") {
-    target.cert = result.content;
-  } else {
-    target.key = result.content;
-  }
-
-  const label =
-    payload.field === "cert"
-      ? t("admin.certConfig.certificateFile")
-      : t("admin.certConfig.privateKeyFile");
-  toast.success(
-    t("admin.certConfig.sharedFileLoaded", {
-      label,
-      file: result.file.name,
-    }),
-  );
-}
-
-async function handleCreateSharedFileSelect(payload: {
-  field: "cert" | "sslKey";
-  relativePath: string;
-}) {
-  await applySharedFileSelection(formData.value, payload);
-}
-
-function certificateDisplayLabel(certificate: SSLCertificateSummary): string {
-  return (
-    certificate.label ||
-    certificate.primary_domain ||
-    certificate.certInfo?.dnsNames?.[0] ||
-    certificate.id
-  );
-}
-
-function certificateDomainSummary(
-  certificate: SSLCertificateSummary | null,
-): string {
-  const domains = certificate?.certInfo?.dnsNames || [];
-  if (!domains.length) return "";
-  const preview = domains.slice(0, 3).join(", ");
-  if (domains.length <= 3) return preview;
-  return t("admin.certConfig.domainSummaryMore", {
-    preview,
-    count: domains.length,
-  });
-}
-
-function buildDeploymentPreview(mode: SSLDeploymentMode) {
-  const items =
-    mode === "single_active"
-      ? activeCertificate.value
-        ? [activeCertificate.value]
-        : []
-      : [...certificates.value].sort((a, b) => {
-          if (a.is_active === b.is_active) return 0;
-          return a.is_active ? -1 : 1;
-        });
-
-  const defaultCertificate =
-    items.find((certificate) => certificate.is_active) || items[0] || null;
-
-  return {
-    count: items.length,
-    defaultLabel: defaultCertificate
-      ? certificateDisplayLabel(defaultCertificate)
-      : t("admin.certConfig.notSet"),
-    domainSummary: certificateDomainSummary(defaultCertificate),
-    previewItems: items
-      .slice(0, 3)
-      .map<DeploymentPreviewItem>((certificate) => ({
-        id: certificate.id,
-        label: certificateDisplayLabel(certificate),
-        isDefault: defaultCertificate?.id === certificate.id,
-      })),
-    remainingCount: Math.max(items.length - 3, 0),
-  };
-}
-
-function deploymentCardClass(mode: SSLDeploymentMode) {
-  if (sslStatus.value?.deploymentMode === mode) {
-    return "border-green-500 bg-green-50/60";
-  }
-  return "bg-muted/20";
-}
-
-function certificateRoleLabel(certificate: SSLCertificateSummary) {
-  if (!certificate.is_active) return "";
-  if (sslStatus.value?.deploymentMode === "multi_sni") {
-    return t("admin.certConfig.defaultFallback");
-  }
-  return t("admin.certConfig.currentActive");
-}
-
-function gatewayCertificateLabel(certificate: GatewayCertificateItem) {
-  return (
-    certificate.label ||
-    certificate.domains?.[0] ||
-    certificate.id ||
-    t("admin.certConfig.unnamedCertificate")
-  );
-}
-
-function gatewayCertificateKey(certificate: GatewayCertificateItem) {
-  return (
-    certificate.id ||
-    `${gatewayCertificateLabel(certificate)}-${certificate.domains?.join(",") || "no-domains"}`
-  );
-}
-
-function sourceLabel(source: SSLCertificateSource): string {
-  if (source === "acme") return "ACME";
-  if (source === "ca") return t("admin.certConfig.localCa");
-  return t("admin.certConfig.manualUploadSource");
-}
-
-function coverageBadgeVariant(coverage: SubdomainCertificateCoverage) {
-  if (coverage.status === "missing") return "destructive";
-  if (coverage.status === "partial") return "outline";
-  return "default";
-}
-
-function coverageBadgeClass(coverage: SubdomainCertificateCoverage) {
-  if (coverage.status === "ready") return "bg-green-600 hover:bg-green-600";
-  if (coverage.status === "partial") return "border-amber-500 text-amber-700";
-  return "";
-}
-
-function coverageBadgeLabel(coverage: SubdomainCertificateCoverage) {
-  if (coverage.status === "ready") return t("admin.certConfig.coverageReady");
-  if (coverage.status === "partial") return t("admin.certConfig.coveragePartial");
-  return t("admin.certConfig.coverageMissing");
-}
-
-function uncoveredHostsPreview(hosts: string[]) {
-  if (hosts.length === 0) return "";
-  const preview = hosts.slice(0, 4).join(", ");
-  if (hosts.length <= 4) return preview;
-  return t("admin.certConfig.uncoveredHostsMore", {
-    preview,
-    count: hosts.length,
-  });
-}
-
-function formatDN(dn: string): string {
-  return dn.replace(/\n/g, ", ");
-}
-
-function formatDate(dateStr: string): string {
-  if (!dateStr) return "";
-  const date = new Date(dateStr);
-  if (Number.isNaN(date.getTime())) return dateStr;
-  return date.toLocaleDateString(locale.value, {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
   });
 }
 </script>

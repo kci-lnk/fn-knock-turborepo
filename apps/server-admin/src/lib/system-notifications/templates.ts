@@ -7,400 +7,57 @@ import type {
   NotificationSeverity,
 } from "./types";
 import {
-  DEFAULT_LOCALE,
-  type LocaleCode,
-  normalizeLocale,
-  translate,
-} from "../../../../../packages/i18n/src";
-import { normalizeAutoIpGrantComment } from "../post-login-ip-grant";
-
-let activeNotificationLocale: LocaleCode = DEFAULT_LOCALE;
-
-const withNotificationLocale = <T>(
-  locale: string | null | undefined,
-  action: () => T,
-): T => {
-  const previous = activeNotificationLocale;
-  activeNotificationLocale = normalizeLocale(locale) ?? DEFAULT_LOCALE;
-  try {
-    return action();
-  } finally {
-    activeNotificationLocale = previous;
-  }
-};
-
-const ntfT = (
-  key: string,
-  params?: Record<string, string | number | boolean | null | undefined>,
-): string =>
-  translate(
-    activeNotificationLocale,
-    `server.notifications.templates.${key}`,
-    params,
-  );
-
-const detailT = (
-  key: string,
-  params?: Record<string, string | number | boolean | null | undefined>,
-): string => ntfT(`details.${key}`, params);
-
-const factLabel = (key: string): string => detailT(`facts.${key}`);
-
-const formatSeconds = (value: string) =>
-  value ? detailT("units.seconds", { count: value }) : "";
-
-const formatMinutes = (value: string) =>
-  value ? detailT("units.minutes", { count: value }) : "";
-
-const formatTimes = (value: string) =>
-  value ? detailT("units.times", { count: value }) : "";
-
-const formatRatePerSecond = (value: string) =>
-  value ? detailT("units.ratePerSecond", { count: value }) : "";
-
-const joinLocalizedList = (items: string[]) =>
-  items.filter(Boolean).join(detailT("listSeparator"));
-
-const EVENT_LABEL_KEYS: Record<SystemEventEnvelope["type"], string> = {
-  FN_EVENT_AUTH_LOGIN_SUCCESS: "events.authLoginSuccess",
-  FN_EVENT_AUTH_LOGOUT: "events.authLogout",
-  FN_EVENT_AUTH_LOGIN_FAILURE: "events.authLoginFailure",
-  FN_EVENT_AUTH_SESSION_IP_DRIFT: "events.authSessionIpDrift",
-  FN_EVENT_SECURITY_SCANNER_BLOCKED: "events.securityScannerBlocked",
-  FN_EVENT_DDNS_UPDATE_COMPLETED: "events.ddnsUpdateCompleted",
-  FN_EVENT_GATEWAY_THROTTLE_BLOCKED: "events.gatewayThrottleBlocked",
-  FN_EVENT_WAF_BLOCKED: "events.wafBlocked",
-  FN_EVENT_SSH_LOGIN_SUCCESS: "events.sshLoginSuccess",
-  FN_EVENT_SSH_LOGIN_FAILURE: "events.sshLoginFailure",
-  FN_EVENT_SSH_IP_BLOCKED: "events.sshIpBlocked",
-  FN_EVENT_SYSTEM_APP_UPDATE_AVAILABLE: "events.appUpdateAvailable",
-  FN_EVENT_SYSTEM_CPU_ALERT: "events.cpuAlert",
-  FN_EVENT_SYSTEM_CPU_RECOVERED: "events.cpuRecovered",
-  FN_EVENT_SYSTEM_MEMORY_ALERT: "events.memoryAlert",
-  FN_EVENT_SYSTEM_MEMORY_RECOVERED: "events.memoryRecovered",
-  FN_EVENT_TUNNEL_FRP_CONNECTED: "events.frpConnected",
-  FN_EVENT_TUNNEL_FRP_DISCONNECTED: "events.frpDisconnected",
-  FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED: "events.cloudflaredConnected",
-  FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED: "events.cloudflaredDisconnected",
-};
+  detailT,
+  factLabel,
+  getActiveNotificationLocale,
+  ntfT,
+  withNotificationLocale,
+} from "./templates/context";
+import {
+  appendSessionComment,
+  buildAggregationText,
+  buildBodyMarkdown,
+  buildBodyText,
+  formatBoolean,
+  formatCredentialContext,
+  formatDateTime,
+  formatIpTransition,
+  formatMinutes,
+  formatRatePerSecond,
+  formatSeconds,
+  formatSessionCommentCompact,
+  formatTimes,
+  getScannerPaths,
+  joinCompactParts,
+  joinLocalizedList,
+  pushFact,
+  readPayloadValue,
+  readSessionComment,
+  truncateText,
+} from "./templates/formatters";
+import {
+  TUNNEL_LABELS,
+  buildNotificationRuleName,
+  formatAuthMethodLabel,
+  formatDdnsIpSourceLabel,
+  formatDdnsTriggerLabel,
+  formatDdnsUpdateScopeLabel,
+  formatDriftSourceLabel,
+  formatEventLevelLabel,
+  formatEventSourceLabel,
+  formatGrantTypeLabel,
+  formatLogoutSourceLabel,
+  formatNotificationEventLabel,
+  formatUpdateCheckReasonLabel,
+  formatWAFActionLabel,
+  formatWAFModeLabel,
+  formatWAFOutcomeLabel,
+  isWAFBlockingAction,
+} from "./templates/labels";
 
 const APP_UPDATE_RELEASE_NOTES_PREVIEW_LENGTH = 360;
 
-export const formatNotificationEventLabel = (
-  type: SystemEventEnvelope["type"],
-  locale?: string | null,
-) => {
-  const format = () => {
-    const key = EVENT_LABEL_KEYS[type];
-    return key ? ntfT(key) : type;
-  };
-  return locale === undefined
-    ? format()
-    : withNotificationLocale(locale, format);
-};
-
-export const buildNotificationRuleName = (
-  type: SystemEventEnvelope["type"],
-  locale?: string | null,
-) =>
-  withNotificationLocale(locale, () =>
-    ntfT("ruleName", { event: formatNotificationEventLabel(type) }),
-  );
-
-const EVENT_LEVEL_LABEL_KEYS: Record<SystemEventEnvelope["level"], string> = {
-  INFO: "levels.info",
-  WARN: "levels.warn",
-  ERROR: "levels.error",
-  CRITICAL: "levels.critical",
-};
-
-const EVENT_SOURCE_LABEL_KEYS: Record<SystemEventEnvelope["source"], string> = {
-  SERVER_ADMIN: "sources.serverAdmin",
-  GO_REAUTH_PROXY: "sources.goReauthProxy",
-  SYSTEM_MONITOR: "sources.systemMonitor",
-};
-
-const AUTH_METHOD_LABEL_KEYS = {
-  OIDC: "authMethods.oidc",
-} as const;
-
-const GRANT_TYPE_LABEL_KEYS = {
-  browser_session: "grantTypes.browserSession",
-  login_ip_grant: "grantTypes.loginIpGrant",
-} as const;
-
-const WAF_MODE_LABEL_KEYS = {
-  detection: "wafModes.detection",
-  blocking: "wafModes.blocking",
-  off: "wafModes.off",
-} as const;
-
-const WAF_ACTION_LABEL_KEYS = {
-  block: "wafActions.block",
-  deny: "wafActions.deny",
-  detect: "wafActions.detect",
-  log: "wafActions.log",
-  pass: "wafActions.pass",
-} as const;
-
-const LOGOUT_SOURCE_LABEL_KEYS = {
-  user_logout: "logoutSources.userLogout",
-  admin_session_delete: "logoutSources.adminSessionDelete",
-} as const;
-
-const DRIFT_SOURCE_LABEL_KEYS = {
-  "proxy-session": "driftSources.proxySession",
-  "fnos-token": "driftSources.fnosToken",
-  "session-refresh": "driftSources.sessionRefresh",
-  "browser-session": "driftSources.browserSession",
-} as const;
-
-const DDNS_TRIGGER_LABEL_KEYS = {
-  cron: "ddnsTriggers.cron",
-  enable: "ddnsTriggers.enable",
-  manual_test: "ddnsTriggers.manualTest",
-} as const;
-
-const DDNS_UPDATE_SCOPE_LABEL_KEYS = {
-  ipv4_only: "ddnsUpdateScopes.ipv4Only",
-  ipv6_only: "ddnsUpdateScopes.ipv6Only",
-} as const;
-
-const DDNS_IP_SOURCE_LABEL_KEYS = {
-  public: "ddnsIpSources.public",
-  interface: "ddnsIpSources.interface",
-  static: "ddnsIpSources.static",
-  domain: "ddnsIpSources.domain",
-} as const;
-
-const UPDATE_CHECK_REASON_LABEL_KEYS = {
-  cron: "updateCheckReasons.cron",
-  manual: "updateCheckReasons.manual",
-  "manual-check-and-download": "updateCheckReasons.manualCheckAndDownload",
-  "download-bootstrap": "updateCheckReasons.downloadBootstrap",
-} as const;
-
-const TUNNEL_LABELS = {
-  frp: "FRP",
-  cloudflared: "Cloudflared",
-} as const;
-
-const translateLabelKey = <T extends string>(
-  labels: Partial<Record<T, string>>,
-  value: string,
-) => {
-  const key = labels[value as T];
-  return key ? ntfT(key) : value;
-};
-
-const formatAuthMethodLabel = (value: string) => {
-  if (value === "TOTP") return "TOTP";
-  if (value === "PASSKEY") return "Passkey";
-  return translateLabelKey(AUTH_METHOD_LABEL_KEYS, value);
-};
-
-const formatGrantTypeLabel = (value: string) =>
-  translateLabelKey(GRANT_TYPE_LABEL_KEYS, value);
-
-const formatLogoutSourceLabel = (value: string) =>
-  translateLabelKey(LOGOUT_SOURCE_LABEL_KEYS, value);
-
-const formatDriftSourceLabel = (value: string) =>
-  translateLabelKey(DRIFT_SOURCE_LABEL_KEYS, value);
-
-const formatDdnsTriggerLabel = (value: string) =>
-  translateLabelKey(DDNS_TRIGGER_LABEL_KEYS, value);
-
-const formatDdnsUpdateScopeLabel = (value: string) =>
-  value === "dual_stack"
-    ? "IPv4 + IPv6"
-    : translateLabelKey(DDNS_UPDATE_SCOPE_LABEL_KEYS, value);
-
-const formatDdnsIpSourceLabel = (value: string) =>
-  translateLabelKey(DDNS_IP_SOURCE_LABEL_KEYS, value);
-
-const formatUpdateCheckReasonLabel = (value: string) =>
-  translateLabelKey(UPDATE_CHECK_REASON_LABEL_KEYS, value);
-
-const readPayloadValue = (event: SystemEventEnvelope, key: string) => {
-  const payload = event.payload as Record<string, unknown>;
-  const value = payload[key];
-  if (value === undefined || value === null || value === "") return "";
-  return String(value);
-};
-
-const readSessionComment = (event: SystemEventEnvelope): string =>
-  normalizeAutoIpGrantComment(
-    readPayloadValue(event, "session_comment"),
-    activeNotificationLocale,
-  );
-
-const joinCompactParts = (...parts: Array<string | undefined>) =>
-  parts
-    .map((part) => String(part || "").trim())
-    .filter(Boolean)
-    .join(" | ");
-
-const formatCredentialContext = (event: SystemEventEnvelope, fallback = "") => {
-  const credentialName = readPayloadValue(event, "credential_name");
-  const linkedTotpName = readPayloadValue(event, "linked_totp_name");
-  const authMethod = formatAuthMethodLabel(
-    readPayloadValue(event, "auth_method"),
-  );
-
-  if (linkedTotpName) {
-    return ntfT("credentialLinkedTotp", {
-      authMethod: authMethod || ntfT("credential"),
-      credential: credentialName || ntfT("unknownCredential"),
-      totp: linkedTotpName,
-    });
-  }
-  if (credentialName) {
-    return ntfT("credentialName", { credential: credentialName });
-  }
-  return fallback;
-};
-
-const formatSessionCommentCompact = (value: string) =>
-  value
-    ? ntfT("sessionCommentCompact", {
-        comment: normalizeAutoIpGrantComment(value, activeNotificationLocale),
-      })
-    : "";
-
-const appendSessionComment = (text: string, sessionComment: string) =>
-  sessionComment
-    ? ntfT("appendSessionComment", {
-        text,
-        comment: normalizeAutoIpGrantComment(
-          sessionComment,
-          activeNotificationLocale,
-        ),
-      })
-    : text;
-
-const formatEventLevelLabel = (level: SystemEventEnvelope["level"]) =>
-  translateLabelKey(EVENT_LEVEL_LABEL_KEYS, level);
-
-const formatEventSourceLabel = (source: SystemEventEnvelope["source"]) =>
-  translateLabelKey(EVENT_SOURCE_LABEL_KEYS, source);
-
-const formatDateTime = (value: string) => {
-  const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) {
-    return String(value || "").trim();
-  }
-
-  return new Intl.DateTimeFormat(activeNotificationLocale, {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  })
-    .format(date)
-    .replaceAll("/", "-");
-};
-
-const formatBoolean = (value: string) => {
-  if (value === "true") return ntfT("yes");
-  if (value === "false") return ntfT("no");
-  return value;
-};
-
-const formatIpTransition = (previousIp: string, nextIp: string) => {
-  if (previousIp && nextIp) return `${previousIp} -> ${nextIp}`;
-  return previousIp || nextIp;
-};
-
-const formatWAFActionLabel = (value: string) =>
-  translateLabelKey(WAF_ACTION_LABEL_KEYS, value);
-
-const formatWAFModeLabel = (value: string) =>
-  translateLabelKey(WAF_MODE_LABEL_KEYS, value);
-
-const isWAFBlockingAction = (action: string, mode: string) => {
-  const normalizedAction = action.toLowerCase();
-  if (normalizedAction === "block" || normalizedAction === "deny") return true;
-  if (
-    normalizedAction === "detect" ||
-    normalizedAction === "log" ||
-    normalizedAction === "pass"
-  ) {
-    return false;
-  }
-  return mode.toLowerCase() === "blocking";
-};
-
-const formatWAFOutcomeLabel = (action: string, mode: string) => {
-  if (isWAFBlockingAction(action, mode)) return ntfT("wafOutcomeBlocked");
-  const actionLabel = formatWAFActionLabel(action);
-  return actionLabel || ntfT("wafOutcomeLogged");
-};
-
-const truncateText = (value: string, maxLength = 180) => {
-  const normalized = value.replace(/\s+/g, " ").trim();
-  if (!normalized) return "";
-  if (normalized.length <= maxLength) return normalized;
-  return `${normalized.slice(0, maxLength).trim()}...`;
-};
-
-const pushFact = (
-  facts: NotificationMessageFact[],
-  label: string,
-  value: string | undefined,
-) => {
-  const normalized = String(value || "").trim();
-  if (!normalized) return;
-  facts.push({ label, value: normalized });
-};
-
-const buildBodyText = (args: {
-  overview: string;
-  aggregation?: string;
-  advice?: string;
-}) =>
-  [
-    args.overview ? `${args.overview}` : "",
-    args.aggregation ? `${args.aggregation}` : "",
-    args.advice ? `${args.advice}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n\n");
-
-const buildBodyMarkdown = (args: {
-  overview: string;
-  aggregation?: string;
-  advice?: string;
-}) =>
-  [
-    args.overview ? `**${ntfT("sections.overview")}**\n${args.overview}` : "",
-    args.aggregation
-      ? `**${ntfT("sections.aggregation")}**\n${args.aggregation}`
-      : "",
-    args.advice ? `**${ntfT("sections.advice")}**\n${args.advice}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n\n");
-
-const buildAggregationText = (matchedCount: number, windowSeconds: number) =>
-  matchedCount > 1
-    ? ntfT("aggregationText", { count: matchedCount, seconds: windowSeconds })
-    : "";
-
-const getScannerPaths = (event: SystemEventEnvelope) => {
-  const hits = (event.payload as Record<string, unknown>).hits;
-  if (!Array.isArray(hits)) return [];
-
-  return hits
-    .map((item) => {
-      if (!item || typeof item !== "object") return "";
-      return String((item as { path?: string }).path || "").trim();
-    })
-    .filter(Boolean);
-};
+export { buildNotificationRuleName, formatNotificationEventLabel };
 
 const buildNotificationDetails = (args: {
   event: SystemEventEnvelope;
@@ -1422,10 +1079,10 @@ export const buildNotificationMessage = (args: {
           matched_count: args.matchedCount,
           window_seconds: args.rule.window_seconds,
           threshold_count: args.rule.threshold_count,
-          locale: activeNotificationLocale,
+          locale: getActiveNotificationLocale(),
         },
       },
-      activeNotificationLocale,
+      getActiveNotificationLocale(),
     );
   });
 };

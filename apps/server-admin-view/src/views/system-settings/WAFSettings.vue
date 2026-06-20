@@ -2,12 +2,8 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import {
-  Download,
-  Eye,
-  Loader2,
   RefreshCw,
   TriangleAlert,
-  Trash2,
   Upload,
 } from "lucide-vue-next";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -20,7 +16,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -32,10 +27,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import {
-  Tooltip,
-  TooltipContent,
   TooltipProvider,
-  TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { toast } from "@admin-shared/utils/toast";
 import { downloadBlob } from "@admin-shared/utils/downloadBlob";
@@ -47,8 +39,8 @@ import type {
   WAFRuleSource,
 } from "../../types";
 import { useConfigStore } from "../../store/config";
-import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import DetailDialog from "@admin-shared/components/common/DetailDialog.vue";
+import WAFRuleList from "./waf-settings/WAFRuleList.vue";
 import {
   extractErrorMessage,
   useAsyncAction,
@@ -170,10 +162,6 @@ const allRulesEnabled = (source: WAFRuleSource) => {
   const rules = sourceRules(source);
   return rules.length > 0 && rules.every((rule) => rule.enabled);
 };
-const toggleAllRulesLabel = (source: WAFRuleSource) =>
-  allRulesEnabled(source)
-    ? t("admin.wafSettings.disableAll")
-    : t("admin.wafSettings.enableAll");
 const syncedLabel = computed(() => {
   const syncedAt = details.value?.system.synced?.synced_at;
   return syncedAt ? formatDate(syncedAt) : t("admin.wafSettings.notSynced");
@@ -210,8 +198,17 @@ const formatSize = (value: number) => {
   return `${value} B`;
 };
 
-const formatSystemRuleName = (filename: string) =>
-  filename.replace(/\.conf$/i, "");
+const formatSystemRuleName = (rule: WAFRuleFile) =>
+  rule.filename.replace(/\.conf$/i, "");
+
+const formatSystemRuleMeta = (rule: WAFRuleFile) => rule.description;
+
+const formatRuleSize = (rule: WAFRuleFile) => formatSize(rule.size_bytes);
+
+const formatCustomRuleName = (rule: WAFRuleFile) => rule.filename;
+
+const formatCustomRuleMeta = (rule: WAFRuleFile) =>
+  `${formatSize(rule.size_bytes)} · ${formatDate(rule.updated_at)}`;
 
 const sourceLabel = (source: WAFRuleSource) =>
   source === "system"
@@ -224,11 +221,6 @@ const ruleKey = (rule: Pick<WAFRuleFile, "source" | "filename">) =>
 const activateRuleActions = (rule: Pick<WAFRuleFile, "source" | "filename">) => {
   activeRuleActionsKey.value = ruleKey(rule);
 };
-
-const ruleActionsClass = (rule: Pick<WAFRuleFile, "source" | "filename">) =>
-  activeRuleActionsKey.value === ruleKey(rule)
-    ? "visible opacity-100"
-    : "invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100";
 
 const applyFromDetails = (data: WAFDetails) => {
   details.value = data;
@@ -408,9 +400,6 @@ const updateSystemRules = async () => {
 
 const selectionRef = (source: WAFRuleSource) =>
   source === "system" ? selectedSystemRules : selectedCustomRules;
-
-const selectedCount = (source: WAFRuleSource) =>
-  selectionRef(source).value.length;
 
 const setRuleSelected = (
   source: WAFRuleSource,
@@ -763,157 +752,31 @@ onMounted(fetchDetails);
               </div>
             </div>
 
-            <div
-              v-if="systemRules.length === 0"
-              class="text-sm text-muted-foreground"
-            >
-              {{ t("admin.wafSettings.notSyncedSystemRules") }}
-            </div>
-            <div v-else class="overflow-hidden rounded-md border">
-              <div
-                class="flex flex-col gap-3 border-b bg-muted/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <label class="flex items-center gap-3 text-sm">
-                  <Checkbox
-                    :model-value="
-                      selectedSystemRules.length === systemRules.length &&
-                      systemRules.length > 0
-                    "
-                    :disabled="isBusy"
-                    @update:model-value="
-                      (value) => setAllSelected('system', value === true)
-                    "
-                  />
-                  <span>
-                    {{
-                      t("admin.wafSettings.selectedCount", {
-                        count: selectedCount("system"),
-                      })
-                    }}
-                  </span>
-                </label>
-                <div class="flex flex-wrap gap-2">
-                  <Button
-                    v-if="selectedCount('system') > 0"
-                    variant="outline"
-                    size="sm"
-                    :disabled="isBusy"
-                    @click="updateSelectedRules('system', true)"
-                  >
-                    {{ t("admin.wafSettings.enableSelected") }}
-                  </Button>
-                  <Button
-                    v-if="selectedCount('system') > 0"
-                    variant="outline"
-                    size="sm"
-                    :disabled="isBusy"
-                    @click="updateSelectedRules('system', false)"
-                  >
-                    {{ t("admin.wafSettings.disableSelected") }}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    :disabled="isBusy"
-                    @click="toggleAllRules('system')"
-                  >
-                    {{ toggleAllRulesLabel("system") }}
-                  </Button>
-                </div>
-              </div>
-
-              <div class="divide-y">
-                <div
-                  v-for="rule in systemRules"
-                  :key="rule.filename"
-                  class="group flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center"
-                  @pointerdown.passive="activateRuleActions(rule)"
-                  @touchstart.passive="activateRuleActions(rule)"
-                >
-                  <Checkbox
-                    :model-value="selectedSystemRules.includes(rule.filename)"
-                    :disabled="isBusy"
-                    @update:model-value="
-                      (value) =>
-                        setRuleSelected('system', rule.filename, value === true)
-                    "
-                  />
-                  <div class="min-w-0 flex-1 space-y-1">
-                    <div class="flex min-w-0 items-center gap-2">
-                      <div class="min-w-0 truncate font-mono text-sm">
-                        {{ formatSystemRuleName(rule.filename) }}
-                      </div>
-                      <div
-                        class="flex h-8 shrink-0 items-center gap-1 transition-opacity duration-150"
-                        :class="ruleActionsClass(rule)"
-                      >
-                        <Tooltip>
-                          <TooltipTrigger as-child>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              class="h-8 w-8 text-muted-foreground hover:text-foreground"
-                              :disabled="loadingRuleKey === ruleKey(rule)"
-                              :title="t('admin.wafSettings.viewRule')"
-                              :aria-label="t('admin.wafSettings.viewRule')"
-                              @click.stop="openRulePreview(rule)"
-                            >
-                              <Loader2
-                                v-if="loadingRuleKey === ruleKey(rule)"
-                                class="h-4 w-4 animate-spin"
-                              />
-                              <Eye v-else class="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {{ t("admin.wafSettings.viewRule") }}
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger as-child>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              class="h-8 w-8 text-muted-foreground hover:text-foreground"
-                              :disabled="downloadingRuleKey === ruleKey(rule)"
-                              :title="t('admin.wafSettings.downloadRule')"
-                              :aria-label="t('admin.wafSettings.downloadRule')"
-                              @click.stop="downloadRuleFile(rule)"
-                            >
-                              <Loader2
-                                v-if="downloadingRuleKey === ruleKey(rule)"
-                                class="h-4 w-4 animate-spin"
-                              />
-                              <Download v-else class="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {{ t("admin.wafSettings.downloadRule") }}
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                    </div>
-                    <div class="text-sm text-muted-foreground">
-                      {{ rule.description }}
-                    </div>
-                  </div>
-                  <div
-                    class="flex items-center justify-between gap-4 sm:justify-end"
-                  >
-                    <span class="text-xs text-muted-foreground">
-                      {{ formatSize(rule.size_bytes) }}
-                    </span>
-                    <Switch
-                      :model-value="rule.enabled"
-                      :disabled="isBusy"
-                      @update:model-value="
-                        (value) => toggleRule(rule, value === true)
-                      "
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
+            <WAFRuleList
+              :active-rule-actions-key="activeRuleActionsKey"
+              :downloading-rule-key="downloadingRuleKey"
+              :empty-label="t('admin.wafSettings.notSyncedSystemRules')"
+              :format-rule-aside="formatRuleSize"
+              :format-rule-meta="formatSystemRuleMeta"
+              :format-rule-name="formatSystemRuleName"
+              :is-busy="isBusy"
+              :loading-rule-key="loadingRuleKey"
+              :rules="systemRules"
+              :selected-filenames="selectedSystemRules"
+              @activate-rule-actions="activateRuleActions"
+              @download-rule-file="downloadRuleFile"
+              @open-rule-preview="openRulePreview"
+              @set-all-selected="(checked) => setAllSelected('system', checked)"
+              @set-rule-selected="
+                (filename, checked) =>
+                  setRuleSelected('system', filename, checked)
+              "
+              @toggle-all-rules="toggleAllRules('system')"
+              @toggle-rule="(rule, enabled) => toggleRule(rule, enabled)"
+              @update-selected-rules="
+                (enabled) => updateSelectedRules('system', enabled)
+              "
+            />
           </section>
 
           <section class="space-y-5 p-6">
@@ -949,179 +812,33 @@ onMounted(fetchDetails);
               </div>
             </div>
 
-            <div
-              v-if="customRules.length === 0"
-              class="text-sm text-muted-foreground"
-            >
-              {{ t("admin.wafSettings.noCustomRules") }}
-            </div>
-            <div v-else class="overflow-hidden rounded-md border">
-              <div
-                class="flex flex-col gap-3 border-b bg-muted/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <label class="flex items-center gap-3 text-sm">
-                  <Checkbox
-                    :model-value="
-                      selectedCustomRules.length === customRules.length &&
-                      customRules.length > 0
-                    "
-                    :disabled="isBusy"
-                    @update:model-value="
-                      (value) => setAllSelected('custom', value === true)
-                    "
-                  />
-                  <span>
-                    {{
-                      t("admin.wafSettings.selectedCount", {
-                        count: selectedCount("custom"),
-                      })
-                    }}
-                  </span>
-                </label>
-                <div class="flex flex-wrap gap-2">
-                  <Button
-                    v-if="selectedCount('custom') > 0"
-                    variant="outline"
-                    size="sm"
-                    :disabled="isBusy"
-                    @click="updateSelectedRules('custom', true)"
-                  >
-                    {{ t("admin.wafSettings.enableSelected") }}
-                  </Button>
-                  <Button
-                    v-if="selectedCount('custom') > 0"
-                    variant="outline"
-                    size="sm"
-                    :disabled="isBusy"
-                    @click="updateSelectedRules('custom', false)"
-                  >
-                    {{ t("admin.wafSettings.disableSelected") }}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    :disabled="isBusy"
-                    @click="toggleAllRules('custom')"
-                  >
-                    {{ toggleAllRulesLabel("custom") }}
-                  </Button>
-                </div>
-              </div>
-
-              <div class="divide-y">
-                <div
-                  v-for="rule in customRules"
-                  :key="rule.filename"
-                  class="group flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center"
-                  @pointerdown.passive="activateRuleActions(rule)"
-                  @touchstart.passive="activateRuleActions(rule)"
-                >
-                  <Checkbox
-                    :model-value="selectedCustomRules.includes(rule.filename)"
-                    :disabled="isBusy"
-                    @update:model-value="
-                      (value) =>
-                        setRuleSelected('custom', rule.filename, value === true)
-                    "
-                  />
-                  <div class="min-w-0 flex-1 space-y-1">
-                    <div class="flex min-w-0 items-center gap-2">
-                      <div class="min-w-0 truncate font-mono text-sm">
-                        {{ rule.filename }}
-                      </div>
-                      <div
-                        class="flex h-8 shrink-0 items-center gap-1 transition-opacity duration-150"
-                        :class="ruleActionsClass(rule)"
-                      >
-                        <Tooltip>
-                          <TooltipTrigger as-child>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              class="h-8 w-8 text-muted-foreground hover:text-foreground"
-                              :disabled="loadingRuleKey === ruleKey(rule)"
-                              :title="t('admin.wafSettings.viewRule')"
-                              :aria-label="t('admin.wafSettings.viewRule')"
-                              @click.stop="openRulePreview(rule)"
-                            >
-                              <Loader2
-                                v-if="loadingRuleKey === ruleKey(rule)"
-                                class="h-4 w-4 animate-spin"
-                              />
-                              <Eye v-else class="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {{ t("admin.wafSettings.viewRule") }}
-                          </TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                          <TooltipTrigger as-child>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              class="h-8 w-8 text-muted-foreground hover:text-foreground"
-                              :disabled="downloadingRuleKey === ruleKey(rule)"
-                              :title="t('admin.wafSettings.downloadRule')"
-                              :aria-label="t('admin.wafSettings.downloadRule')"
-                              @click.stop="downloadRuleFile(rule)"
-                            >
-                              <Loader2
-                                v-if="downloadingRuleKey === ruleKey(rule)"
-                                class="h-4 w-4 animate-spin"
-                              />
-                              <Download v-else class="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {{ t("admin.wafSettings.downloadRule") }}
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                    </div>
-                    <div class="text-sm text-muted-foreground">
-                      {{ formatSize(rule.size_bytes) }} ·
-                      {{ formatDate(rule.updated_at) }}
-                    </div>
-                  </div>
-                  <div
-                    class="flex items-center justify-between gap-3 sm:justify-end"
-                  >
-                    <Switch
-                      :model-value="rule.enabled"
-                      :disabled="isBusy"
-                      @update:model-value="
-                        (value) => toggleRule(rule, value === true)
-                      "
-                    />
-                    <ConfirmDangerPopover
-                      :title="
-                        t('admin.wafSettings.deleteConfirmTitle', {
-                          filename: rule.filename,
-                        })
-                      "
-                      :description="
-                        t('admin.wafSettings.deleteConfirmDescription')
-                      "
-                      :loading="isChangingRules"
-                      :disabled="isBusy"
-                      :on-confirm="() => deleteCustomRule(rule.filename)"
-                    >
-                      <template #trigger>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          class="h-8 w-8 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                          :disabled="isBusy"
-                        >
-                          <Trash2 class="h-4 w-4" />
-                        </Button>
-                      </template>
-                    </ConfirmDangerPopover>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <WAFRuleList
+              :active-rule-actions-key="activeRuleActionsKey"
+              :delete-rule="deleteCustomRule"
+              :downloading-rule-key="downloadingRuleKey"
+              :empty-label="t('admin.wafSettings.noCustomRules')"
+              :format-rule-meta="formatCustomRuleMeta"
+              :format-rule-name="formatCustomRuleName"
+              :is-busy="isBusy"
+              :is-changing-rules="isChangingRules"
+              :loading-rule-key="loadingRuleKey"
+              :rules="customRules"
+              :selected-filenames="selectedCustomRules"
+              show-delete
+              @activate-rule-actions="activateRuleActions"
+              @download-rule-file="downloadRuleFile"
+              @open-rule-preview="openRulePreview"
+              @set-all-selected="(checked) => setAllSelected('custom', checked)"
+              @set-rule-selected="
+                (filename, checked) =>
+                  setRuleSelected('custom', filename, checked)
+              "
+              @toggle-all-rules="toggleAllRules('custom')"
+              @toggle-rule="(rule, enabled) => toggleRule(rule, enabled)"
+              @update-selected-rules="
+                (enabled) => updateSelectedRules('custom', enabled)
+              "
+            />
           </section>
         </template>
       </CardContent>

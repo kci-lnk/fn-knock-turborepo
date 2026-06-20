@@ -35,8 +35,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "@admin-shared/utils/toast";
-import { GeneralBlacklistAPI, WAFAPI } from "../lib/api";
-import type { WAFEvent, WAFInterruptionInfo, WAFRuleMatch } from "../types";
+import { WAFAPI } from "../lib/api";
+import type { WAFEvent } from "../types";
 import { useConfigStore } from "../store/config";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import DetailDialog from "@admin-shared/components/common/DetailDialog.vue";
@@ -46,18 +46,15 @@ import {
   extractErrorMessage,
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
-import { buildDetailFields } from "@admin-shared/utils/buildDetailFields";
-import { formatDateTimeSafe } from "@admin-shared/utils/formatDateTimeSafe";
 import {
   normalizeIpKey,
   useIpLocationBatch,
 } from "../composables/useIpLocationBatch";
-import { useGeneralBlacklistStatus } from "../composables/useGeneralBlacklistStatus";
+import { useWafLogIpSelection } from "./waf-logs/useWafLogIpSelection";
+import { useWafLogDisplay } from "./waf-logs/useWafLogDisplay";
 
 const LIMIT_OPTIONS = ["20", "50", "100", "200"] as const;
 const AUTO_REFRESH_MS = 5_000;
-const WAF_RULE_PATH_PREFIX = "/usr/local/apps/@appdata/fn-knock/waf";
-
 const getTodayString = () => {
   const now = new Date();
   const year = now.getFullYear();
@@ -104,26 +101,6 @@ const { isPending: isDeleting, run: runDelete } = useAsyncAction({
     });
   },
 });
-const { isPending: isBlockingIps, run: runBlockIps } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.wafLogs.blacklistFailed"), {
-      description: extractErrorMessage(error, t("admin.wafLogs.blacklistFailed")),
-    });
-  },
-});
-const { isPending: isReleasingIps, run: runReleaseIps } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.wafLogs.unblacklistFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.wafLogs.unblacklistFailed"),
-      ),
-    });
-  },
-});
-const isMutatingBlacklistIps = computed(
-  () => isBlockingIps.value || isReleasingIps.value,
-);
 const applyDates = (dates: string[], preferred?: string) => {
   const fallbackToday = getTodayString();
   const nextDates = dates.length > 0 ? dates : [fallbackToday];
@@ -271,86 +248,6 @@ const goToSettings = () => {
   router.push({ path: "/system", query: { tab: "waf" } });
 };
 
-const actionLabel = (value?: string) => {
-  switch (value) {
-    case "block":
-    case "deny":
-      return t("admin.wafLogs.actions.block");
-    case "log":
-    case "detect":
-      return t("admin.wafLogs.actions.record");
-    case "pass":
-      return t("admin.wafLogs.actions.pass");
-    default:
-      return value || "-";
-  }
-};
-
-const actionVariant = (value?: string) => {
-  if (value === "block" || value === "deny") return "destructive";
-  if (value === "log" || value === "detect") return "secondary";
-  return "outline";
-};
-
-const modeLabel = (value?: string) => {
-  switch (value) {
-    case "detection":
-      return t("admin.wafLogs.modes.detection");
-    case "blocking":
-      return t("admin.wafLogs.modes.blocking");
-    case "off":
-      return t("admin.wafLogs.modes.off");
-    default:
-      return value || "-";
-  }
-};
-
-const routeTypeLabel = (value?: string) => {
-  switch (value) {
-    case "path_rule":
-      return t("admin.wafLogs.routeTypes.pathRule");
-    case "host_rule":
-      return t("admin.wafLogs.routeTypes.hostRule");
-    case "auth_proxy":
-      return t("admin.wafLogs.routeTypes.authProxy");
-    case "select":
-      return t("admin.wafLogs.routeTypes.select");
-    case "preflight":
-      return t("admin.wafLogs.routeTypes.preflight");
-    case "slash_redirect":
-      return t("admin.wafLogs.routeTypes.slashRedirect");
-    case "favicon":
-      return t("admin.wafLogs.routeTypes.favicon");
-    case "general_blacklist":
-      return t("admin.wafLogs.routeTypes.generalBlacklist");
-    case "not_found":
-      return t("admin.wafLogs.routeTypes.notFound");
-    default:
-      return value || "-";
-  }
-};
-
-const formatDate = (value?: string) =>
-  formatDateTimeSafe(value, { locale: locale.value });
-const formatRuleIds = (value?: number[]) =>
-  value && value.length > 0 ? value.map((id) => `#${id}`).join(", ") : "-";
-
-const ruleFileBasename = (value?: string) => {
-  const normalized = String(value || "")
-    .trim()
-    .replace(/\\/g, "/");
-  return normalized.split("/").pop() || "";
-};
-
-const isCRSBlockingEvaluationRule = (rule: WAFRuleMatch) => {
-  const filename = ruleFileBasename(rule.file).toLowerCase();
-  return (
-    filename === "request-949-blocking-evaluation.conf" ||
-    filename === "response-959-blocking-evaluation.conf" ||
-    rule.tags?.some((tag) => tag.toLowerCase() === "anomaly-evaluation")
-  );
-};
-
 const getEntrySourceIp = (event: WAFEvent) =>
   event.client_ip || event.remote_addr || "";
 
@@ -397,118 +294,6 @@ const getEntryIpLocationText = (event: WAFEvent) => {
   return "";
 };
 
-const hasRuleDescription = (rule: WAFRuleMatch) =>
-  Boolean(rule.message?.trim() || rule.data?.trim());
-
-const getPrimaryRule = (event: WAFEvent): WAFRuleMatch | undefined => {
-  const rules = event.rules || [];
-  const interruptedRuleId = event.interruption?.rule_id;
-  const contributingRules = rules.filter(
-    (rule) => !isCRSBlockingEvaluationRule(rule),
-  );
-  if (interruptedRuleId) {
-    const interruptedRule = rules.find((rule) => rule.id === interruptedRuleId);
-    if (interruptedRule && !isCRSBlockingEvaluationRule(interruptedRule)) {
-      return interruptedRule;
-    }
-  }
-  return (
-    contributingRules.find(hasRuleDescription) ||
-    contributingRules.find((rule) => rule.disruptive) ||
-    contributingRules[0] ||
-    rules.find(hasRuleDescription) ||
-    rules.find((rule) => rule.disruptive) ||
-    rules[0]
-  );
-};
-
-const formatPrimaryRuleId = (event: WAFEvent) => {
-  const primaryRule = getPrimaryRule(event);
-  if (!primaryRule) return formatRuleIds(event.rule_ids);
-  const ruleIds = new Set([
-    ...(event.rule_ids || []),
-    ...(event.rules || []).map((rule) => rule.id),
-  ]);
-  const otherCount = Math.max(0, ruleIds.size - 1);
-  return otherCount > 0
-    ? t("admin.wafLogs.moreRules", {
-        id: primaryRule.id,
-        count: otherCount,
-      })
-    : `#${primaryRule.id}`;
-};
-
-const formatRuleSummary = (event: WAFEvent) => {
-  const firstRule = getPrimaryRule(event);
-  if (!firstRule) return "";
-  return firstRule.message || firstRule.data || "";
-};
-
-const formatRuleFilePath = (value?: string) => {
-  const normalized = String(value || "")
-    .trim()
-    .replace(/\\/g, "/");
-  if (!normalized) return "";
-
-  const lowerPath = normalized.toLowerCase();
-  const lowerPrefix = WAF_RULE_PATH_PREFIX.toLowerCase();
-  if (lowerPath === lowerPrefix) return "";
-  if (lowerPath.startsWith(`${lowerPrefix}/`)) {
-    return normalized.slice(WAF_RULE_PATH_PREFIX.length + 1);
-  }
-
-  return normalized;
-};
-
-const formatRuleFileLocation = (rule: WAFRuleMatch) => {
-  const file = formatRuleFilePath(rule.file);
-  if (!file) return "";
-  return rule.line ? `${file}:${rule.line}` : file;
-};
-
-const formatRuleLocationSummary = (event: WAFEvent) => {
-  const firstRule = getPrimaryRule(event);
-  if (!firstRule?.file) return "";
-  return formatRuleFileLocation(firstRule);
-};
-
-const formatRules = (
-  value: WAFRuleMatch[] | undefined,
-  event?: WAFEvent | null,
-) => {
-  if (!value || value.length === 0) return "-";
-  const primaryRuleId = event ? getPrimaryRule(event)?.id : undefined;
-  return [...value]
-    .sort((left, right) => {
-      if (primaryRuleId) {
-        if (left.id === primaryRuleId) return -1;
-        if (right.id === primaryRuleId) return 1;
-      }
-      return 0;
-    })
-    .map((rule) => {
-      const parts = [`#${rule.id}`];
-      if (rule.phase) parts.push(`phase ${rule.phase}`);
-      if (rule.severity) parts.push(rule.severity);
-      const location = formatRuleFileLocation(rule);
-      if (location) parts.push(location);
-      if (rule.message) parts.push(rule.message);
-      return parts.join(" · ");
-    })
-    .join("\n");
-};
-
-const formatInterruption = (value: WAFInterruptionInfo | undefined) => {
-  if (!value) return "-";
-  return [
-    value.rule_id ? `rule ${value.rule_id}` : "",
-    value.action || "",
-    value.status ? `HTTP ${value.status}` : "",
-  ]
-    .filter(Boolean)
-    .join(" · ");
-};
-
 const displayedEntries = computed(() =>
   entries.value.map((entry, index) => ({
     ...entry,
@@ -518,126 +303,23 @@ const displayedEntries = computed(() =>
   })),
 );
 
-const displayedEntryKeys = computed(() =>
-  displayedEntries.value.map((entry) => entry.selectionKey),
-);
-
-const displayedSelectableEntryKeys = computed(() =>
-  displayedEntries.value
-    .filter((entry) => entry.actionIp)
-    .map((entry) => entry.selectionKey),
-);
-
-const displayedEntryIps = computed(() =>
-  Array.from(
-    new Set(
-      displayedEntries.value
-        .map((entry) => entry.actionIp)
-        .filter(Boolean),
-    ),
-  ),
-);
 const {
-  refresh: refreshGeneralBlacklistStatus,
-  isBlacklisted: isGeneralBlacklisted,
-} = useGeneralBlacklistStatus(displayedEntryIps);
-const selectedWafIpList = computed(() =>
-  Array.from(
-    new Set(
-      displayedEntries.value
-        .filter((entry) => selectedWafEntryKeys.value.has(entry.selectionKey))
-        .map((entry) => entry.actionIp)
-        .filter(Boolean),
-    ),
-  ),
-);
-const selectedBlockedWafIps = computed(() =>
-  selectedWafIpList.value.filter((ip) => isGeneralBlacklisted(ip)),
-);
-const selectedUnblockedWafIps = computed(() =>
-  selectedWafIpList.value.filter((ip) => !isGeneralBlacklisted(ip)),
-);
-const isAllDisplayedRowsSelected = computed({
-  get: () =>
-    displayedSelectableEntryKeys.value.length > 0 &&
-    displayedSelectableEntryKeys.value.every((key) =>
-      selectedWafEntryKeys.value.has(key),
-    ),
-  set: (checked: boolean) => {
-    const next = new Set(selectedWafEntryKeys.value);
-    if (checked) {
-      displayedEntries.value.forEach((entry) => {
-        if (entry.actionIp) next.add(entry.selectionKey);
-      });
-    } else {
-      displayedEntryKeys.value.forEach((key) => next.delete(key));
-    }
-    selectedWafEntryKeys.value = next;
-  },
+  blockIpsFromWafLogs,
+  hasSelectableDisplayedRows,
+  isAllDisplayedRowsSelected,
+  isBlockingIps,
+  isGeneralBlacklisted,
+  isMutatingBlacklistIps,
+  isReleasingIps,
+  releaseIpsFromWafLogs,
+  selectedBlockedWafIps,
+  selectedUnblockedWafIps,
+  toggleWafEntrySelection,
+} = useWafLogIpSelection({
+  displayedEntries,
+  selectedWafEntryKeys,
+  translate: (key, params) => (params ? t(key, params) : t(key)),
 });
-
-const toggleWafEntrySelection = (key?: string) => {
-  if (!key) return;
-  const next = new Set(selectedWafEntryKeys.value);
-  if (next.has(key)) {
-    next.delete(key);
-  } else {
-    next.add(key);
-  }
-  selectedWafEntryKeys.value = next;
-};
-
-const removeSelectedWafIps = (ips: string[]) => {
-  const operatedIps = new Set(ips);
-  selectedWafEntryKeys.value = new Set(
-    displayedEntries.value
-      .filter(
-        (entry) =>
-          selectedWafEntryKeys.value.has(entry.selectionKey) &&
-          !operatedIps.has(entry.actionIp),
-      )
-      .map((entry) => entry.selectionKey),
-  );
-};
-
-const blockIpsFromWafLogs = async (ips: string[]) => {
-  const uniqueIps = Array.from(new Set(ips.filter(Boolean))).filter(
-    (ip) => !isGeneralBlacklisted(ip),
-  );
-  if (uniqueIps.length === 0) return;
-
-  await runBlockIps(() => GeneralBlacklistAPI.add(uniqueIps, "waf_log"), {
-    onSuccess: async (result) => {
-      toast.success(t("admin.wafLogs.blacklistSuccess"), {
-        description: t("admin.wafLogs.blacklistSuccessDetail", {
-          added: result?.added ?? 0,
-          updated: result?.updated ?? 0,
-        }),
-      });
-      removeSelectedWafIps(uniqueIps);
-      await refreshGeneralBlacklistStatus();
-    },
-  });
-};
-
-const releaseIpsFromWafLogs = async (ips: string[]) => {
-  const uniqueIps = Array.from(new Set(ips.filter(Boolean))).filter((ip) =>
-    isGeneralBlacklisted(ip),
-  );
-  if (uniqueIps.length === 0) return;
-
-  await runReleaseIps(() => GeneralBlacklistAPI.delete(uniqueIps), {
-    onSuccess: async (result) => {
-      toast.success(t("admin.wafLogs.unblacklistSuccess"), {
-        description: t("admin.wafLogs.unblacklistSuccessDetail", {
-          removed: result?.removed ?? 0,
-        }),
-      });
-      removeSelectedWafIps(uniqueIps);
-      await refreshGeneralBlacklistStatus();
-    },
-  });
-};
 
 const activeEventWithIpLocation = computed(() =>
   activeEvent.value
@@ -648,75 +330,22 @@ const activeEventWithIpLocation = computed(() =>
     : null,
 );
 
-const detailFields = [
-  { key: "time", labelKey: "admin.wafLogs.detailFields.time" },
-  { key: "trace_id", label: "Trace ID" },
-  { key: "transaction_id", labelKey: "admin.wafLogs.detailFields.transactionId" },
-  { key: "action", labelKey: "admin.wafLogs.detailFields.action" },
-  { key: "mode", labelKey: "admin.wafLogs.detailFields.mode" },
-  { key: "status", labelKey: "admin.wafLogs.detailFields.status" },
-  { key: "client_ip", labelKey: "admin.wafLogs.detailFields.clientIp" },
-  { key: "ipLocation", labelKey: "admin.wafLogs.detailFields.ipLocation" },
-  { key: "remote_addr", labelKey: "admin.wafLogs.detailFields.remoteAddr" },
-  { key: "method", labelKey: "admin.wafLogs.detailFields.method" },
-  { key: "scheme", labelKey: "admin.wafLogs.detailFields.scheme" },
-  { key: "host", label: "Host" },
-  { key: "path", labelKey: "admin.wafLogs.detailFields.path" },
-  { key: "query", label: "Query" },
-  { key: "request_uri", labelKey: "admin.wafLogs.detailFields.requestUri" },
-  { key: "user_agent", label: "User-Agent" },
-  { key: "referer", label: "Referer" },
-  { key: "route_type", labelKey: "admin.wafLogs.detailFields.routeType" },
-  { key: "route_key", labelKey: "admin.wafLogs.detailFields.routeKey" },
-  { key: "upstream", labelKey: "admin.wafLogs.detailFields.upstream" },
-  { key: "bundle_id", labelKey: "admin.wafLogs.detailFields.bundleId" },
-  { key: "bundle_hash", label: "Bundle Hash" },
-  { key: "rule_ids", labelKey: "admin.wafLogs.detailFields.ruleIds" },
-  { key: "rules", labelKey: "admin.wafLogs.detailFields.rules" },
-  { key: "interruption", labelKey: "admin.wafLogs.detailFields.interruption" },
-  { key: "error", labelKey: "admin.wafLogs.detailFields.error" },
-] as const;
-
-const localizedDetailFields = computed(() =>
-  detailFields.map((field) => ({
-    key: field.key,
-    label: "label" in field ? field.label : t(field.labelKey),
-  })),
-);
-
-const detailItems = computed(() =>
-  buildDetailFields(activeEventWithIpLocation.value, localizedDetailFields.value, {
-    format: (key, value) => {
-      if (key === "time") return formatDate(value);
-      if (key === "action") return actionLabel(String(value || ""));
-      if (key === "mode") return modeLabel(String(value || ""));
-      if (key === "route_type") return routeTypeLabel(String(value || ""));
-      if (key === "rule_ids") return formatRuleIds(value as number[]);
-      if (key === "rules")
-        return formatRules(value as WAFRuleMatch[], activeEvent.value);
-      if (key === "interruption")
-        return formatInterruption(value as WAFInterruptionInfo);
-      if (value === undefined || value === null || value === "") return "-";
-      return value;
-    },
-  }),
-);
-
-const detailCopyText = computed(() =>
-  detailItems.value
-    .map((item) => `${item.label}: ${String(item.value)}`)
-    .join("\n"),
-);
-
-watch(displayedEntryKeys, (keys) => {
-  const visibleKeys = new Set(keys);
-  selectedWafEntryKeys.value = new Set(
-    Array.from(selectedWafEntryKeys.value).filter((key) =>
-      visibleKeys.has(key),
-    ),
-  );
+const {
+  actionLabel,
+  actionVariant,
+  detailCopyText,
+  detailItems,
+  formatPrimaryRuleId,
+  formatRuleLocationSummary,
+  formatRuleSummary,
+  modeLabel,
+  routeTypeLabel,
+} = useWafLogDisplay({
+  activeEvent,
+  activeEventWithIpLocation,
+  locale,
+  translate: (key, params) => (params ? t(key, params) : t(key)),
 });
-
 watch(
   () => route.query.trace_id,
   (value) => {
@@ -947,7 +576,7 @@ onBeforeUnmount(() => {
               >
                 <Checkbox
                   v-model="isAllDisplayedRowsSelected"
-                  :disabled="displayedSelectableEntryKeys.length === 0"
+                  :disabled="!hasSelectableDisplayedRows"
                 />
               </TableHead>
               <TableHead

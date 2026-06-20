@@ -1,4 +1,3 @@
-import { createHash, randomBytes } from "node:crypto";
 import {
   getNotificationProviderDefinition,
   listNotificationProviderDefinitions,
@@ -24,8 +23,6 @@ import {
   type NotificationDeliveryClearQuery,
   type NotificationDelivery,
   type NotificationDeliveryListQuery,
-  type NotificationDeliveryPolicy,
-  type NotificationMessage,
   type NotificationProvider,
   type NotificationProviderDraftTestInput,
   type NotificationProviderUpsertInput,
@@ -41,321 +38,41 @@ import {
   isSystemEventType,
 } from "../system-events/constants";
 import type { SystemEventEnvelope } from "../system-events/types";
-import { tDefault } from "../i18n";
 import {
-  DEFAULT_LOCALE,
-  normalizeLocale,
-  translate,
+  asPlainRecord,
+  buildNextSequentialName,
+  createId,
+  createStableId,
+  nowIso,
+  parseNumberField,
+  serviceT,
+  serviceTForLocale,
+  toMs,
+  uniqueStrings,
+} from "./service/common";
+import {
+  DEFAULT_DELIVERY_POLICY,
+  isTerminalDeliveryStatus,
+  resolveDeliveryPolicy,
+  resolveDeliveryReadyAtMs,
+} from "./service/delivery";
+import {
+  buildProviderTestMessage,
+  resolveMessageLocale,
+} from "./service/message";
+import {
+  applySchemaDefaults,
+  normalizeProviderConnectionConfig,
+  normalizeProviderTargetConfig,
+  normalizeSchemaPatch,
+  validateRequiredSchemaFields,
+} from "./service/provider-config";
+import {
   type LocaleCode,
 } from "../../../../../packages/i18n/src";
 import { configManager } from "../redis";
-
-const DEFAULT_DELIVERY_POLICY: Required<NotificationDeliveryPolicy> = {
-  timeout_seconds: 5,
-  max_attempts: 3,
-  backoff_seconds: 30,
-};
 const DEFAULT_RULE_WINDOW_SECONDS = 60;
 const DEFAULT_RULE_COOLDOWN_SECONDS = 60;
-
-const nowIso = () => new Date().toISOString();
-
-const createId = (prefix: string) =>
-  `${prefix}_${randomBytes(10).toString("hex")}`;
-
-const createStableId = (prefix: string, ...parts: string[]) =>
-  `${prefix}_${createHash("sha256")
-    .update(parts.join("\u0000"))
-    .digest("hex")
-    .slice(0, 24)}`;
-
-const escapeRegExp = (value: string) =>
-  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-const serviceT = (
-  key: string,
-  params?: Record<string, string | number | boolean | null | undefined>,
-) => tDefault(`server.notifications.service.${key}`, params);
-
-const serviceTForLocale = (
-  locale: string | null | undefined,
-  key: string,
-  params?: Record<string, string | number | boolean | null | undefined>,
-) =>
-  translate(
-    normalizeLocale(locale) ?? DEFAULT_LOCALE,
-    `server.notifications.service.${key}`,
-    params,
-  );
-
-const asPlainRecord = (value: unknown) => {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return {} as Record<string, unknown>;
-  }
-  return value as Record<string, unknown>;
-};
-
-const normalizeProviderConnectionConfig = (
-  providerType: string,
-  raw: Record<string, unknown>,
-) => {
-  if (providerType !== "wxpusher") {
-    return raw;
-  }
-
-  return {
-    ...raw,
-    ...(!("app_token" in raw) && "appToken" in raw
-      ? { app_token: raw.appToken }
-      : {}),
-    ...(!("server_url" in raw) && "serverUrl" in raw
-      ? { server_url: raw.serverUrl }
-      : {}),
-    ...(!("timeout_seconds" in raw) && "timeoutSeconds" in raw
-      ? { timeout_seconds: raw.timeoutSeconds }
-      : {}),
-  };
-};
-
-const normalizeProviderTargetConfig = (
-  providerType: string,
-  raw: Record<string, unknown>,
-) => {
-  if (providerType !== "wxpusher") {
-    return raw;
-  }
-
-  const topicValue =
-    raw.topic_ids ??
-    raw.topicIds ??
-    raw.topic_id ??
-    raw.topicId ??
-    raw.topic ??
-    raw.Topic;
-
-  return {
-    ...raw,
-    ...(raw.topic_ids === undefined && topicValue !== undefined
-      ? { topic_ids: topicValue }
-      : {}),
-    ...(!("verify_pay_type" in raw) && "verifyPayType" in raw
-      ? { verify_pay_type: raw.verifyPayType }
-      : {}),
-  };
-};
-
-const uniqueStrings = (values: string[] | undefined) =>
-  Array.from(
-    new Set((values || []).map((value) => value.trim()).filter(Boolean)),
-  );
-
-const buildNextSequentialName = (
-  baseLabel: string,
-  existingNames: string[],
-) => {
-  const normalizedBase = baseLabel.trim() || serviceT("unnamed");
-  const pattern = new RegExp(`^${escapeRegExp(normalizedBase)}\\s+(\\d+)$`);
-  const usedIndexes = new Set<number>();
-
-  for (const name of existingNames) {
-    const match = name.trim().match(pattern);
-    if (!match) continue;
-
-    const index = Number.parseInt(match[1] || "", 10);
-    if (Number.isFinite(index) && index > 0) {
-      usedIndexes.add(index);
-    }
-  }
-
-  let nextIndex = 1;
-  while (usedIndexes.has(nextIndex)) {
-    nextIndex += 1;
-  }
-
-  return `${normalizedBase} ${nextIndex}`;
-};
-
-const parseNumberField = (
-  value: unknown,
-  fallback: number,
-  options: { min?: number; max?: number } = {},
-) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  const floored = Math.floor(parsed);
-  if (options.min !== undefined && floored < options.min) {
-    return options.min;
-  }
-  if (options.max !== undefined && floored > options.max) {
-    return options.max;
-  }
-  return floored;
-};
-
-const normalizeJsonField = (value: unknown, fieldLabel: string) => {
-  if (value === undefined || value === null || value === "") return undefined;
-  if (typeof value === "string") {
-    try {
-      return JSON.parse(value) as unknown;
-    } catch {
-      throw new Error(serviceT("invalidJson", { field: fieldLabel }));
-    }
-  }
-  return value;
-};
-
-const normalizeSchemaPatch = (
-  raw: Record<string, unknown>,
-  fields: Array<{
-    key: string;
-    label: string;
-    type: "string" | "number" | "boolean" | "select" | "json";
-    options?: Array<{ value: string }>;
-  }>,
-) => {
-  const normalized: Record<string, unknown> = {};
-
-  for (const field of fields) {
-    if (!(field.key in raw)) continue;
-    const input = raw[field.key];
-    switch (field.type) {
-      case "string":
-        normalized[field.key] =
-          input === undefined || input === null ? "" : String(input).trim();
-        break;
-      case "number":
-        normalized[field.key] = parseNumberField(input, 0);
-        break;
-      case "boolean":
-        normalized[field.key] = Boolean(input);
-        break;
-      case "select": {
-        const value = String(input ?? "").trim();
-        if (
-          field.options?.length &&
-          !field.options.some((option) => option.value === value)
-        ) {
-          throw new Error(
-            serviceT("invalidSelectValue", { field: field.label }),
-          );
-        }
-        normalized[field.key] = value;
-        break;
-      }
-      case "json":
-        normalized[field.key] = normalizeJsonField(input, field.label);
-        break;
-    }
-  }
-
-  return normalized;
-};
-
-const applySchemaDefaults = (
-  config: Record<string, unknown>,
-  fields: Array<{
-    key: string;
-    default_value?: string | number | boolean | null;
-  }>,
-) => {
-  const next = { ...config };
-  for (const field of fields) {
-    if (next[field.key] !== undefined) continue;
-    if (field.default_value === undefined) continue;
-    next[field.key] = field.default_value;
-  }
-  return next;
-};
-
-const validateRequiredSchemaFields = (
-  config: Record<string, unknown>,
-  fields: Array<{
-    key: string;
-    label: string;
-    required?: boolean;
-  }>,
-) => {
-  for (const field of fields) {
-    if (!field.required) continue;
-    const value = config[field.key];
-    if (value === undefined || value === null || value === "") {
-      throw new Error(serviceT("fieldRequired", { field: field.label }));
-    }
-  }
-};
-
-const buildProviderTestMessage = (
-  locale?: string | null,
-): NotificationMessage => {
-  const sentAt = nowIso();
-  const t = (
-    key: string,
-    params?: Record<string, string | number | boolean | null | undefined>,
-  ) => serviceTForLocale(locale, key, params);
-
-  return {
-    title: t("testMessage.title"),
-    summary: t("testMessage.summary"),
-    body_text: t("testMessage.bodyText"),
-    body_markdown: t("testMessage.bodyMarkdown"),
-    severity: "info",
-    facts: [
-      {
-        label: t("testMessage.sendType"),
-        value: t("testMessage.providerTest"),
-      },
-      {
-        label: t("testMessage.sentAt"),
-        value: sentAt,
-      },
-    ],
-    actions: [],
-    mentions: [],
-    occurred_at: sentAt,
-    metadata: {
-      test: true,
-      locale: normalizeLocale(locale) ?? DEFAULT_LOCALE,
-    },
-  };
-};
-
-const resolveMessageLocale = (message: NotificationMessage) =>
-  normalizeLocale(String(message.metadata?.locale ?? "")) ?? DEFAULT_LOCALE;
-
-const resolveDeliveryPolicy = (
-  policy?: NotificationDeliveryPolicy | null,
-): Required<NotificationDeliveryPolicy> => ({
-  timeout_seconds: parseNumberField(
-    policy?.timeout_seconds,
-    DEFAULT_DELIVERY_POLICY.timeout_seconds,
-    { min: 1, max: 30 },
-  ),
-  max_attempts: parseNumberField(
-    policy?.max_attempts,
-    DEFAULT_DELIVERY_POLICY.max_attempts,
-    { min: 1, max: 10 },
-  ),
-  backoff_seconds: parseNumberField(
-    policy?.backoff_seconds,
-    DEFAULT_DELIVERY_POLICY.backoff_seconds,
-    { min: 5, max: 3600 },
-  ),
-});
-
-const isTerminalDeliveryStatus = (status: NotificationDelivery["status"]) =>
-  status === "success" || status === "gave_up" || status === "skipped";
-
-const resolveDeliveryReadyAtMs = (delivery: NotificationDelivery) => {
-  const nextRetryAtMs = delivery.next_retry_at
-    ? Date.parse(delivery.next_retry_at)
-    : NaN;
-  if (Number.isFinite(nextRetryAtMs)) {
-    return nextRetryAtMs;
-  }
-
-  const triggeredAtMs = Date.parse(delivery.triggered_at);
-  return Number.isFinite(triggeredAtMs) ? triggeredAtMs : Date.now();
-};
 
 export class SystemNotificationService {
   listProviderCatalog(locale?: LocaleCode) {
@@ -1266,10 +983,5 @@ export class SystemNotificationService {
     });
   }
 }
-
-const toMs = (value: string) => {
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-};
 
 export const systemNotificationService = new SystemNotificationService();

@@ -3,7 +3,6 @@ import { acmePlugin } from "../plugins/acme";
 import {
   configManager,
   type AcmeApplication,
-  type AcmeApplicationSaveResult,
 } from "../lib/redis";
 import { syncSSLDeploymentToGateway } from "../lib/ssl-gateway";
 import { DEFAULT_REDIS_LOG_BUFFER_MAX_LEN } from "../lib/redis-log-buffer";
@@ -17,15 +16,21 @@ import {
 } from "../lib/acme-job-runner";
 import {
   createAcmeDnsProviders,
-  dnsProviders,
-  filterAcmeCredentialsForProvider,
-  formatCredentialRequirements,
-  getProviderLabel,
-  getSatisfiedCredentialScheme,
-  normalizeAcmeDnsType,
 } from "../lib/acme-dns-providers";
 import { routeDoc, withRouteDoc } from "../lib/openapi";
 import { createRequestTranslator, tDefault } from "../lib/i18n";
+import { createZip } from "../lib/simple-zip";
+import { analyzeAcmeLogs } from "./acme/log-analysis";
+import { validateAndNormalizeAcmeRequest } from "./acme/request-validation";
+import { buildApplicationOverview } from "./acme/application-overview";
+import {
+  deleteAcmeApplication,
+  deleteAcmeApplicationCertificate,
+  getStatusCertificate,
+  getUsableIssuedCertificateForApplication,
+  syncGatewayIfAcmeApplicationSaveRemovedLibrary,
+  syncGatewayIfAcmeLibraryRemoved,
+} from "./acme/application-certificates";
 
 type RequestTranslator = ReturnType<typeof createRequestTranslator>["t"];
 
@@ -42,6 +47,16 @@ const acmeDefaultT = (
   key: string,
   params?: Record<string, string | number | boolean | null | undefined>,
 ) => tDefault(`server.acmeRoutes.${key}`, params);
+
+const validateAcmeRequest = (
+  input: Parameters<typeof validateAndNormalizeAcmeRequest>[0],
+  t: RequestTranslator,
+) =>
+  validateAndNormalizeAcmeRequest(
+    input,
+    (key, params) => acmeRouteT(t, key, params),
+    t,
+  );
 
 const isAcmeConflictMessage = (
   message: string,
@@ -83,305 +98,6 @@ const isAcmeApplicationNotFoundMessage = (
   return messages.includes(message);
 };
 
-const normalizeDomains = (domains: string[]) => {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const raw of domains || []) {
-    const v = String(raw ?? "")
-      .trim()
-      .toLowerCase();
-    if (!v) continue;
-    if (!isValidDomain(v)) continue;
-    if (seen.has(v)) continue;
-    seen.add(v);
-    out.push(v);
-  }
-  return out;
-};
-
-const isValidDomain = (value: string) => {
-  if (!value) return false;
-  if (value.length > 253) return false;
-  const v = value.trim();
-  if (!v) return false;
-  if (v.includes("..")) return false;
-  if (v.startsWith(".") || v.endsWith(".")) return false;
-  if (v.includes("/") || v.includes(" ") || v.includes("\t")) return false;
-  return /^(\*\.)?([a-z0-9-]+\.)+[a-z0-9-]+$/i.test(v);
-};
-
-const validateAndNormalizeAcmeRequest = (
-  input: {
-    domains: string[];
-    dnsType?: string;
-    provider?: string;
-    credentials?: Record<string, string>;
-  },
-  t: RequestTranslator,
-) => {
-  const domains = normalizeDomains(input.domains);
-  if (domains.length === 0) throw new Error(acmeRouteT(t, "domainsInvalid"));
-
-  const dnsType = normalizeAcmeDnsType(input.dnsType ?? input.provider);
-  if (!dnsType) throw new Error(acmeRouteT(t, "dnsTypeRequired"));
-  const provider = dnsProviders.find((p) => p.dnsType === dnsType) || null;
-  if (!provider) throw new Error(acmeRouteT(t, "unsupportedDnsProvider"));
-
-  const credentials = filterAcmeCredentialsForProvider(
-    provider,
-    input.credentials,
-  );
-  const matchedScheme = getSatisfiedCredentialScheme(provider, credentials);
-  if (!matchedScheme) {
-    throw new Error(
-      acmeRouteT(t, "missingDnsCredentials", {
-        requirements: formatCredentialRequirements(provider, t),
-      }),
-    );
-  }
-
-  return { domains, dnsType, provider, credentials };
-};
-
-function crc32(buf: Uint8Array) {
-  let c = ~0 >>> 0;
-  for (let i = 0; i < buf.length; i++) {
-    c ^= buf[i] ?? 0;
-    for (let k = 0; k < 8; k++) {
-      const mask = -(c & 1);
-      c = (c >>> 1) ^ (0xedb88320 & mask);
-    }
-  }
-  return ~c >>> 0;
-}
-
-function dtNow() {
-  const d = new Date();
-  const dosTime =
-    ((d.getHours() & 0x1f) << 11) |
-    ((d.getMinutes() & 0x3f) << 5) |
-    (Math.floor(d.getSeconds() / 2) & 0x1f);
-  const dosDate =
-    (((d.getFullYear() - 1980) & 0x7f) << 9) |
-    (((d.getMonth() + 1) & 0xf) << 5) |
-    (d.getDate() & 0x1f);
-  return { dosTime, dosDate };
-}
-
-function u16(v: number) {
-  const b = new Uint8Array(2);
-  const dv = new DataView(b.buffer);
-  dv.setUint16(0, v, true);
-  return b;
-}
-function u32(v: number) {
-  const b = new Uint8Array(4);
-  const dv = new DataView(b.buffer);
-  dv.setUint32(0, v, true);
-  return b;
-}
-
-function createZip(entries: { name: string; data: Uint8Array }[]) {
-  const files: Uint8Array[] = [];
-  const central: Uint8Array[] = [];
-  let offset = 0;
-  const { dosTime, dosDate } = dtNow();
-  for (const e of entries) {
-    const nameBytes = new TextEncoder().encode(e.name);
-    const csum = crc32(e.data);
-    const lfh = new Uint8Array([
-      ...u32(0x04034b50),
-      ...u16(20),
-      ...u16(0),
-      ...u16(0),
-      ...u16(dosTime),
-      ...u16(dosDate),
-      ...u32(csum),
-      ...u32(e.data.length),
-      ...u32(e.data.length),
-      ...u16(nameBytes.length),
-      ...u16(0),
-      ...nameBytes,
-      ...e.data,
-    ]);
-    files.push(lfh);
-    const cdfh = new Uint8Array([
-      ...u32(0x02014b50),
-      ...u16(20),
-      ...u16(20),
-      ...u16(0),
-      ...u16(0),
-      ...u16(dosTime),
-      ...u16(dosDate),
-      ...u32(csum),
-      ...u32(e.data.length),
-      ...u32(e.data.length),
-      ...u16(nameBytes.length),
-      ...u16(0),
-      ...u16(0),
-      ...u16(0),
-      ...u16(0),
-      ...u32(0),
-      ...u32(offset),
-      ...nameBytes,
-    ]);
-    central.push(cdfh);
-    offset += lfh.length;
-  }
-  const centralDir = central.reduce(
-    (a, b) => new Uint8Array([...a, ...b]),
-    new Uint8Array(),
-  );
-  const filesBlob = files.reduce(
-    (a, b) => new Uint8Array([...a, ...b]),
-    new Uint8Array(),
-  );
-  const eocd = new Uint8Array([
-    ...u32(0x06054b50),
-    ...u16(0),
-    ...u16(0),
-    ...u16(entries.length),
-    ...u16(entries.length),
-    ...u32(centralDir.length),
-    ...u32(filesBlob.length),
-    ...u16(0),
-  ]);
-  return new Uint8Array([...filesBlob, ...centralDir, ...eocd]);
-}
-
-type AcmeJobNonNull = NonNullable<
-  Awaited<ReturnType<typeof configManager.getAcmeJob>>
->;
-
-type AcmeLogAnalysis = {
-  reason:
-    | "dns_credentials_invalid"
-    | "dns_credentials_invalid_email"
-    | "dns_api_rate_limited"
-    | "acme_frequency_limited"
-    | "unknown";
-  provider?: string;
-  message: string;
-  evidence?: string[];
-};
-
-const pickEvidence = (
-  logs: string[],
-  match: (line: string) => boolean,
-  max: number = 3,
-) => {
-  const hits: string[] = [];
-  for (let i = logs.length - 1; i >= 0; i--) {
-    const line = logs[i];
-    if (!line) continue;
-    if (!match(line)) continue;
-    hits.push(line);
-    if (hits.length >= max) break;
-  }
-  return hits.length ? hits.reverse() : undefined;
-};
-
-const analyzeAcmeLogs = (
-  job: AcmeJobNonNull,
-  logs: string[],
-  t: RequestTranslator,
-): AcmeLogAnalysis | null => {
-  if (!logs.length) return null;
-  const provider = job.provider || undefined;
-
-  const has = (re: RegExp) => logs.some((line) => re.test(line));
-
-  const isCloudflare =
-    provider === "dns_cf" || has(/\bCloudflare\b/i) || has(/\bX-Auth-Key\b/i);
-  if (isCloudflare) {
-    const invalidKey =
-      has(/Invalid format for X-Auth-Key header/i) || has(/"code"\s*:\s*6103/i);
-    if (invalidKey) {
-      return {
-        reason: "dns_credentials_invalid",
-        provider: "dns_cf",
-        message: acmeRouteT(t, "cloudflareInvalidKey"),
-        evidence: pickEvidence(
-          logs,
-          (line) => /X-Auth-Key/i.test(line) || /"code"\s*:\s*6103/i.test(line),
-        ),
-      };
-    }
-
-    const invalidEmail = has(/Invalid format for X-Auth-Email header/i);
-    if (invalidEmail) {
-      return {
-        reason: "dns_credentials_invalid_email",
-        provider: "dns_cf",
-        message: acmeRouteT(t, "cloudflareInvalidEmail"),
-        evidence: pickEvidence(logs, (line) => /X-Auth-Email/i.test(line)),
-      };
-    }
-
-    const invalidHeaders =
-      has(/Invalid request headers/i) || has(/"code"\s*:\s*6003/i);
-    if (invalidHeaders) {
-      return {
-        reason: "dns_credentials_invalid",
-        provider: "dns_cf",
-        message: acmeRouteT(t, "cloudflareInvalidHeaders"),
-        evidence: pickEvidence(
-          logs,
-          (line) =>
-            /Invalid request headers/i.test(line) ||
-            /"code"\s*:\s*6003/i.test(line),
-        ),
-      };
-    }
-  }
-
-  const retryAfterLine = [...logs]
-    .reverse()
-    .find((line) => /retryafter\s*=\s*\d+/i.test(line));
-  if (retryAfterLine && /will not retry|too large/i.test(retryAfterLine)) {
-    const m = retryAfterLine.match(/retryafter\s*=\s*(\d+)/i);
-    const seconds = m ? Number(m[1]) : NaN;
-    const isTooLarge = Number.isFinite(seconds) && seconds > 600;
-    if (isTooLarge) {
-      return {
-        reason: "acme_frequency_limited",
-        provider,
-        message: acmeRouteT(t, "acmeFrequencyLimited", { seconds }),
-        evidence: pickEvidence(
-          logs,
-          (line) =>
-            /retryafter\s*=\s*\d+/i.test(line) ||
-            /will not retry|too large/i.test(line),
-        ),
-      };
-    }
-  }
-
-  const rateLimited = has(/rate limit|too many requests|429/i);
-  if (rateLimited) {
-    return {
-      reason: "dns_api_rate_limited",
-      provider,
-      message: acmeRouteT(t, "dnsApiRateLimited"),
-      evidence: pickEvidence(logs, (line) =>
-        /rate limit|too many requests|429/i.test(line),
-      ),
-    };
-  }
-
-  const failure = has(/failed|invalid/i);
-  if (failure) {
-    return {
-      reason: "unknown",
-      provider,
-      message: acmeRouteT(t, "logUnknownFailure"),
-      evidence: pickEvidence(logs, (line) => /failed|invalid/i.test(line)),
-    };
-  }
-
-  return null;
-};
-
 const ensureInstalledForRequest = async (
   acme: {
     checkInstalled: () => Promise<boolean>;
@@ -396,37 +112,6 @@ const ensureInstalledForRequest = async (
     throw new Error(acmeRouteT(t, "installingRetryLater"));
   }
   throw new Error(acmeRouteT(t, "installFirst"));
-};
-
-const getUsableIssuedCertificateForApplication = async (
-  application: AcmeApplication,
-) => {
-  const issuedCertificate = await configManager.getAcmeIssuedCertificate(
-    application.id,
-  );
-  if (
-    !configManager.isAcmeIssuedCertificateCompatible(
-      application,
-      issuedCertificate,
-    )
-  ) {
-    return null;
-  }
-  return issuedCertificate;
-};
-
-const getStatusCertificate = async () => {
-  const applications = await configManager.listAcmeApplications();
-  for (const application of applications) {
-    const issuedCertificate =
-      await getUsableIssuedCertificateForApplication(application);
-    if (!issuedCertificate) continue;
-    return {
-      primaryDomain: issuedCertificate.primaryDomain,
-      info: issuedCertificate.certInfo,
-    };
-  }
-  return null;
 };
 
 const resolveLegacyApplicationForMutation = async (
@@ -467,195 +152,6 @@ const buildPendingApplication = (
   credentials: input.credentials,
   renewEnabled: input.renewEnabled ?? application.renewEnabled,
 });
-
-const syncGatewayIfAcmeLibraryRemoved = async (input: {
-  removedActive: boolean;
-  removedCount: number;
-}) => {
-  if (!input.removedActive && input.removedCount <= 0) return;
-  const currentConfig = await configManager.getConfig();
-  if (
-    input.removedActive ||
-    (input.removedCount > 0 &&
-      currentConfig.ssl.deployment_mode === "multi_sni")
-  ) {
-    await syncSSLDeploymentToGateway(currentConfig);
-  }
-};
-
-const syncGatewayIfAcmeApplicationSaveRemovedLibrary = async (
-  saved: Pick<
-    AcmeApplicationSaveResult,
-    "removedActiveLibraryCertificate" | "removedLibraryCertificates"
-  >,
-) => {
-  await syncGatewayIfAcmeLibraryRemoved({
-    removedActive: saved.removedActiveLibraryCertificate,
-    removedCount: saved.removedLibraryCertificates.length,
-  });
-};
-
-const deleteAcmeApplicationCertificate = async (
-  applicationId: string,
-  t: RequestTranslator,
-) => {
-  const application = await configManager.getAcmeApplication(applicationId);
-  if (!application) {
-    throw new Error(acmeRouteT(t, "applicationNotFound"));
-  }
-
-  const issuedCertificate =
-    await configManager.getAcmeIssuedCertificate(applicationId);
-  const deletedFromLibrary =
-    await configManager.deleteSSLCertificatesBySourceRef("acme", applicationId);
-  await configManager.deleteAcmeIssuedCertificate(applicationId);
-
-  const { join } = await import("node:path");
-  const { rm } = await import("node:fs/promises");
-  const domainsToRemove = new Set(
-    [application.primaryDomain, issuedCertificate?.primaryDomain].filter(
-      (value): value is string => Boolean(value),
-    ),
-  );
-
-  for (const domain of domainsToRemove) {
-    await rm(join(process.cwd(), "data", "ssl", domain), {
-      recursive: true,
-      force: true,
-    });
-  }
-
-  await syncGatewayIfAcmeLibraryRemoved({
-    removedActive: deletedFromLibrary.removedActive,
-    removedCount: deletedFromLibrary.removed.length,
-  });
-
-  return {
-    application,
-    issuedCertificate,
-    deletedFromLibrary,
-  };
-};
-
-const deleteAcmeApplication = async (
-  applicationId: string,
-  t: RequestTranslator,
-) => {
-  const deleted = await configManager.deleteAcmeApplication(applicationId);
-  if (!deleted) {
-    throw new Error(acmeRouteT(t, "applicationNotFound"));
-  }
-
-  await syncGatewayIfAcmeLibraryRemoved({
-    removedActive: deleted.removedActiveLibraryCertificate,
-    removedCount: deleted.removedLibraryCertificates.length,
-  });
-
-  return deleted;
-};
-
-const buildApplicationOverview = async (t: RequestTranslator) => {
-  const [applications, issuedCertificates, sslStatus] = await Promise.all([
-    configManager.listAcmeApplications(),
-    configManager.listAcmeIssuedCertificates(),
-    configManager.getSSLStatus(),
-  ]);
-
-  const applicationMap = new Map(applications.map((item) => [item.id, item]));
-  const issuedByApplicationId = new Map(
-    issuedCertificates
-      .filter((item) =>
-        configManager.isAcmeIssuedCertificateCompatible(
-          applicationMap.get(item.applicationId),
-          item,
-        ),
-      )
-      .map((item) => [item.applicationId, item]),
-  );
-  const latestJobIds = Array.from(
-    new Set(
-      applications
-        .map((item) => item.latestJobId)
-        .filter((item): item is string => Boolean(item)),
-    ),
-  );
-  const latestJobs = await Promise.all(
-    latestJobIds.map((jobId) => configManager.getAcmeJob(jobId)),
-  );
-  const latestJobMap = new Map(
-    latestJobs
-      .filter((job): job is NonNullable<typeof job> => job !== null)
-      .map((job) => [job.id, job]),
-  );
-
-  return applications.map((application) => {
-    const issuedCertificate = issuedByApplicationId.get(application.id) || null;
-    const latestJob = application.latestJobId
-      ? latestJobMap.get(application.latestJobId) || null
-      : null;
-    const libraryCertificate = issuedCertificate
-      ? sslStatus.certificates.find(
-          (certificate) =>
-            certificate.source === "acme" &&
-            (certificate.source_ref_id === application.id ||
-              (!!issuedCertificate.libraryCertificateId &&
-                certificate.id === issuedCertificate.libraryCertificateId)),
-        ) || null
-      : null;
-
-    return {
-      id: application.id,
-      name: application.name,
-      primaryDomain: application.primaryDomain,
-      domains: application.domains,
-      dnsType: application.dnsType,
-      providerLabel: getProviderLabel(application.dnsType, t),
-      renewEnabled: application.renewEnabled,
-      createdAt: application.createdAt,
-      updatedAt: application.updatedAt,
-      latestJob: latestJob
-        ? {
-            id: latestJob.id,
-            status: latestJob.status,
-            trigger: latestJob.trigger || "manual_request",
-            createdAt:
-              latestJob.startedAt ||
-              latestJob.createdAt ||
-              application.updatedAt,
-            message: latestJob.message,
-          }
-        : application.latestJobId
-          ? {
-              id: application.latestJobId,
-              status: application.latestJobStatus || "idle",
-              trigger: application.latestJobTrigger || "manual_request",
-              createdAt: application.latestJobAt || application.updatedAt,
-              message: application.lastError,
-            }
-          : null,
-      certificate: issuedCertificate
-        ? {
-            exists: true,
-            validFrom: issuedCertificate.certInfo.validFrom,
-            validTo: issuedCertificate.certInfo.validTo,
-            dnsNames: issuedCertificate.certInfo.dnsNames,
-            issuer: issuedCertificate.certInfo.issuer,
-          }
-        : {
-            exists: false,
-          },
-      library: libraryCertificate
-        ? {
-            linked: true,
-            certificateId: libraryCertificate.id,
-            isActive: libraryCertificate.is_active,
-          }
-        : {
-            linked: false,
-          },
-    };
-  });
-};
 
 export const acmeRoutes = new Elysia({
   prefix: "/api/admin/acme",
@@ -873,7 +369,7 @@ export const acmeRoutes = new Elysia({
     async ({ body, set, request }) => {
       const t = await getAcmeRouteTranslator(request);
       try {
-        const normalized = validateAndNormalizeAcmeRequest(body, t);
+        const normalized = validateAcmeRequest(body, t);
         const targetApplication = await resolveLegacyApplicationForMutation(
           normalized.domains,
           t,
@@ -913,7 +409,7 @@ export const acmeRoutes = new Elysia({
       const t = await getAcmeRouteTranslator(request);
       try {
         const localeConfig = await configManager.getLocaleConfig();
-        const normalized = validateAndNormalizeAcmeRequest(body, t);
+        const normalized = validateAcmeRequest(body, t);
         const saved = await configManager.saveAcmeApplicationWithEffects({
           name: body.name,
           domains: normalized.domains,
@@ -973,7 +469,7 @@ export const acmeRoutes = new Elysia({
           return { success: false, message: acmeRouteT(t, "notFound") };
         }
 
-        const normalized = validateAndNormalizeAcmeRequest(body, t);
+        const normalized = validateAcmeRequest(body, t);
         let reservation: Awaited<
           ReturnType<typeof reserveAcmeApplicationJob>
         > | null = null;
@@ -1117,7 +613,10 @@ export const acmeRoutes = new Elysia({
           };
         }
 
-        const deleted = await deleteAcmeApplication(params.id, t);
+        const deleted = await deleteAcmeApplication(
+          params.id,
+          acmeRouteT(t, "applicationNotFound"),
+        );
         return {
           success: true,
           data: {
@@ -1137,7 +636,10 @@ export const acmeRoutes = new Elysia({
     async ({ params, set, request }) => {
       const t = await getAcmeRouteTranslator(request);
       try {
-        await deleteAcmeApplicationCertificate(params.id, t);
+        await deleteAcmeApplicationCertificate(
+          params.id,
+          acmeRouteT(t, "applicationNotFound"),
+        );
         return { success: true };
       } catch (e: any) {
         const message = e?.message || String(e);
@@ -1246,7 +748,7 @@ export const acmeRoutes = new Elysia({
         }
 
         await ensureInstalledForRequest(acme, t);
-        const normalized = validateAndNormalizeAcmeRequest(
+        const normalized = validateAcmeRequest(
           {
             domains: body.domains,
             dnsType: body.dnsType,
@@ -1374,7 +876,9 @@ export const acmeRoutes = new Elysia({
       );
       const order = query.order === "asc" ? "asc" : "desc";
       const logs = await configManager.getAcmeLogs(params.id, limit, order);
-      const analysis = analyzeAcmeLogs(job, logs, t);
+      const analysis = analyzeAcmeLogs(job, logs, (key, params) =>
+        acmeRouteT(t, key, params),
+      );
       return { success: true, data: { job, logs, analysis } };
     },
     withRouteDoc("轮询 ACME 任务状态与日志", {
@@ -1446,7 +950,10 @@ export const acmeRoutes = new Elysia({
         const application =
           await configManager.getAcmeApplicationByPrimaryDomain(params.domain);
         if (application) {
-          await deleteAcmeApplicationCertificate(application.id, t);
+          await deleteAcmeApplicationCertificate(
+            application.id,
+            acmeRouteT(t, "applicationNotFound"),
+          );
           return { success: true };
         }
 

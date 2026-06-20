@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { isIP } from "node:net";
 import { redis } from "../redis";
 import {
   DEFAULT_REDIS_LOG_BUFFER_MAX_LEN,
@@ -23,6 +22,7 @@ import type {
   DDNSUpdateScope,
 } from "./types";
 import { providerDefinitions, providerUpdaters } from "./providers";
+import { localizeProviderDefinition } from "./catalog";
 import { ensureEdgeOneOverseasAccessSynced } from "./providers/edgeone-overseas-access";
 import {
   applyUpdateScope,
@@ -33,265 +33,71 @@ import {
   normalizeUpdateScope,
   withDDNSLocale,
 } from "./providers/helpers";
+import { isEdgeOneDDNSProvider } from "./providers/edgeone-shared";
 import {
-  EDGEONE_OVERSEAS_ACCESS_MODE_FIELD,
-  isEdgeOneDDNSProvider,
-  normalizeEdgeOneOverseasAccessMode,
-} from "./providers/edgeone-shared";
-import {
-  DDNS_INTERFACE_IPV4_INDEX_FIELD,
-  DDNS_INTERFACE_IPV6_INDEX_FIELD,
   DDNS_IP_SOURCE_FIELD,
-  DDNS_SOURCE_DOMAIN_FIELD,
-  DDNS_STATIC_IPV4_FIELD,
-  DDNS_STATIC_IPV6_FIELD,
-  DEFAULT_DDNS_IP_SOURCE,
-  normalizeSourceDomain,
-  normalizeStaticIPAddress,
-  normalizeInterfaceAddressIndex,
   normalizeIpSource,
 } from "./ip-source";
 import {
   createDDNSHttpClient,
   DDNS_NETWORK_INTERFACE_FIELD,
-  DEFAULT_DDNS_NETWORK_INTERFACE,
-  findDDNSNetworkInterface,
   listDDNSNetworkInterfaces,
   normalizeNetworkInterface,
 } from "./network";
 import { runWithRetry } from "./retry";
+import {
+  buildComparableDDNSConfigKey,
+  normalizeDDNSConfig,
+} from "./config-normalizer";
+import {
+  buildEmptyDDNSLastCheck,
+  buildEmptyDDNSLastIP,
+} from "./status-codec";
+import {
+  DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES,
+  MAX_DDNS_UPDATE_INTERVAL_MINUTES,
+  MIN_DDNS_UPDATE_INTERVAL_MINUTES,
+  getDefaultUpdateIntervalMinutes,
+  normalizeUpdateIntervalMinutes,
+  parseUpdateIntervalMinutesInput,
+} from "./update-interval";
+import {
+  DDNS_REDIS_KEYS,
+  DDNSRedisStore,
+  PRIMARY_DDNS_TARGET_ID,
+} from "./redis-store";
+import {
+  buildDDNSTargetDuplicateKey,
+  buildDDNSTargetLogLabel,
+  compareDDNSTargets,
+  toDDNSTargetSummary,
+} from "./target-view";
+import { isDDNSTargetConfigComplete } from "./config-completeness";
 
-const PRIMARY_TARGET_ID = "primary";
-export const DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES = 10;
-export const MIN_DDNS_UPDATE_INTERVAL_MINUTES = 5;
-export const MAX_DDNS_UPDATE_INTERVAL_MINUTES = 1440;
+export {
+  DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES,
+  MAX_DDNS_UPDATE_INTERVAL_MINUTES,
+  MIN_DDNS_UPDATE_INTERVAL_MINUTES,
+};
 
-const KEYS = {
-  enabled: "fn_knock:ddns:enabled",
-  settings: "fn_knock:ddns:settings",
-  legacyProvider: "fn_knock:ddns:provider",
-  legacyConfigPrefix: "fn_knock:ddns:config:",
-  legacyLastIP: "fn_knock:ddns:last_ip",
-  legacyLastCheck: "fn_knock:ddns:last_check",
-  targetIds: "fn_knock:ddns:v2:target_ids",
-  primaryTargetId: "fn_knock:ddns:v2:primary_target_id",
-  targetPrefix: "fn_knock:ddns:v2:target:",
-  logs: "fn_knock:ddns:logs",
-  logSeq: "fn_knock:ddns:logs:seq",
-} as const;
+const PRIMARY_TARGET_ID = PRIMARY_DDNS_TARGET_ID;
 
 const LOG_TTL = 7 * 24 * 3600;
 const ddnsT = ddnsTranslate;
 const ddnsLogBuffer = new RedisLogBuffer(redis, {
-  key: KEYS.logs,
+  key: DDNS_REDIS_KEYS.logs,
   ttlSeconds: LOG_TTL,
   maxLen: DEFAULT_REDIS_LOG_BUFFER_MAX_LEN,
-  seqKey: KEYS.logSeq,
+  seqKey: DDNS_REDIS_KEYS.logSeq,
 });
-
-const DDNS_PROVIDER_I18N_KEYS: Record<string, string> = {
-  baiducloud: "baidu",
-  huaweicloud: "huawei",
-};
-
-const getDDNSProviderI18nKey = (providerName: string): string =>
-  DDNS_PROVIDER_I18N_KEYS[providerName] ?? providerName;
-
-const translateDDNSCatalogText = (
-  key: string,
-  fallback: string | undefined,
-  params?: Record<string, string | number | boolean | null | undefined>,
-): string | undefined => {
-  if (fallback === undefined) return undefined;
-  const fullKey = `server.ddns.${key}`;
-  const translated = ddnsT(key, params);
-  return translated === fullKey ? fallback : translated;
-};
-
-const localizeProviderField = (
-  providerKey: string,
-  field: DDNSProviderField,
-): DDNSProviderField => {
-  const fieldParams =
-    field.key === "ttl"
-      ? {
-          seconds: Number(field.placeholder) || 600,
-        }
-      : undefined;
-  const localizeFieldPart = (
-    part: "label" | "placeholder" | "description",
-    fallback: string | undefined,
-  ) => {
-    const providerValue = translateDDNSCatalogText(
-      `providers.${providerKey}.fields.${field.key}.${part}`,
-      fallback,
-      fieldParams,
-    );
-    if (providerValue !== fallback) return providerValue;
-    return translateDDNSCatalogText(
-      `providers.common.fields.${field.key}.${part}`,
-      fallback,
-      fieldParams,
-    );
-  };
-
-  return {
-    ...field,
-    label: localizeFieldPart("label", field.label) ?? field.label,
-    ...(field.placeholder !== undefined
-      ? { placeholder: localizeFieldPart("placeholder", field.placeholder) }
-      : {}),
-    ...(field.description !== undefined
-      ? { description: localizeFieldPart("description", field.description) }
-      : {}),
-    ...(field.options
-      ? {
-          options: field.options.map((option) => ({
-            ...option,
-            label:
-              translateDDNSCatalogText(
-                `providers.${providerKey}.fields.${field.key}.options.${option.value}`,
-                option.label,
-              ) ?? option.label,
-          })),
-        }
-      : {}),
-  };
-};
-
-const localizeProviderDefinition = (
-  provider: DDNSProviderDefinition,
-): DDNSProviderDefinition => {
-  const providerKey = getDDNSProviderI18nKey(provider.name);
-  return {
-    ...provider,
-    label:
-      translateDDNSCatalogText(
-        `providers.${providerKey}.label`,
-        provider.label,
-      ) ?? provider.label,
-    fields: provider.fields.map((field) =>
-      localizeProviderField(providerKey, field),
-    ),
-  };
-};
-
-const buildEmptyLastIP = (): DDNSLastIP => ({
-  ipv4: null,
-  ipv6: null,
-  updated_at: null,
-});
-
-const buildEmptyLastCheck = (): DDNSLastCheck => ({
-  checked_at: null,
-  outcome: null,
-  message: null,
-});
-
-const normalizeOutcome = (
-  value: string | null | undefined,
-): DDNSLastCheck["outcome"] => {
-  return value === "updated" ||
-    value === "noop" ||
-    value === "skipped" ||
-    value === "error"
-    ? value
-    : null;
-};
-
-const normalizeUpdateIntervalMinutes = (
-  value: unknown,
-  fallback = DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES,
-): number => {
-  const parsed =
-    typeof value === "number"
-      ? value
-      : typeof value === "string"
-        ? Number(value.trim())
-        : NaN;
-
-  if (
-    Number.isInteger(parsed) &&
-    parsed >= MIN_DDNS_UPDATE_INTERVAL_MINUTES &&
-    parsed <= MAX_DDNS_UPDATE_INTERVAL_MINUTES
-  ) {
-    return parsed;
-  }
-
-  return fallback;
-};
-
-const parseUpdateIntervalMinutesInput = (value: unknown): number | null => {
-  if (typeof value === "string" && !/^\d+$/.test(value.trim())) {
-    return null;
-  }
-
-  const parsed = typeof value === "number" ? value : Number(value);
-  if (
-    Number.isInteger(parsed) &&
-    parsed >= MIN_DDNS_UPDATE_INTERVAL_MINUTES &&
-    parsed <= MAX_DDNS_UPDATE_INTERVAL_MINUTES
-  ) {
-    return parsed;
-  }
-
-  return null;
-};
-
-const parseLegacyDDNSCronIntervalMinutes = (
-  pattern: string | null | undefined,
-): number | null => {
-  const parts = pattern?.trim().split(/\s+/).filter(Boolean) || [];
-  if (parts.length !== 5 && parts.length !== 6) {
-    return null;
-  }
-
-  const minutePart = parts.length === 6 ? parts[1] : parts[0];
-  const otherParts = parts.length === 6 ? parts.slice(2) : parts.slice(1);
-  if (!minutePart) {
-    return null;
-  }
-  if (parts.length === 6 && parts[0] !== "0") {
-    return null;
-  }
-
-  if (!otherParts.every((part) => part === "*")) {
-    return null;
-  }
-
-  const match = minutePart.match(/^\*\/(\d+)$/);
-  if (!match) {
-    return null;
-  }
-
-  const interval = match[1];
-  if (!interval) {
-    return null;
-  }
-
-  const minutes = Number.parseInt(interval, 10);
-  if (
-    !Number.isInteger(minutes) ||
-    minutes < MIN_DDNS_UPDATE_INTERVAL_MINUTES ||
-    minutes > MAX_DDNS_UPDATE_INTERVAL_MINUTES
-  ) {
-    return null;
-  }
-
-  return minutes;
-};
-
-const getDefaultUpdateIntervalMinutes = () =>
-  parseLegacyDDNSCronIntervalMinutes(process.env.DDNS_CRON) ??
-  DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES;
-
-const targetMetaKey = (id: string) => `${KEYS.targetPrefix}${id}:meta`;
-const targetConfigKey = (id: string) => `${KEYS.targetPrefix}${id}:config`;
-const targetLastIPKey = (id: string) => `${KEYS.targetPrefix}${id}:last_ip`;
-const targetLastCheckKey = (id: string) =>
-  `${KEYS.targetPrefix}${id}:last_check`;
 
 export class DDNSManager {
+  private readonly store: DDNSRedisStore;
+
+  constructor() {
+    this.store = new DDNSRedisStore(redis);
+  }
+
   getProviders(locale?: string | null): DDNSProviderDefinition[] {
     return withDDNSLocale(locale, () =>
       providerDefinitions.map((provider) =>
@@ -306,7 +112,7 @@ export class DDNSManager {
   }
 
   async getSettings(): Promise<DDNSSettings> {
-    const raw = await redis.get(KEYS.settings);
+    const raw = await this.store.getSettingsRaw();
     if (!raw) {
       return {
         updateIntervalMinutes: getDefaultUpdateIntervalMinutes(),
@@ -342,7 +148,7 @@ export class DDNSManager {
       );
     }
 
-    await redis.set(KEYS.settings, JSON.stringify({ updateIntervalMinutes }));
+    await this.store.saveSettings({ updateIntervalMinutes });
     return this.getSettings();
   }
 
@@ -364,295 +170,8 @@ export class DDNSManager {
     );
   }
 
-  private normalizeConfig(
-    providerName: string | null | undefined,
-    config: Record<string, string> | null | undefined,
-  ): Record<string, string> {
-    const data = config || {};
-    return {
-      ...data,
-      [DDNS_UPDATE_SCOPE_FIELD]: normalizeUpdateScope(
-        data[DDNS_UPDATE_SCOPE_FIELD],
-      ),
-      [DDNS_IP_SOURCE_FIELD]: normalizeIpSource(data[DDNS_IP_SOURCE_FIELD]),
-      [DDNS_NETWORK_INTERFACE_FIELD]: normalizeNetworkInterface(
-        data[DDNS_NETWORK_INTERFACE_FIELD],
-      ),
-      [DDNS_INTERFACE_IPV4_INDEX_FIELD]: normalizeInterfaceAddressIndex(
-        data[DDNS_INTERFACE_IPV4_INDEX_FIELD],
-      ),
-      [DDNS_INTERFACE_IPV6_INDEX_FIELD]: normalizeInterfaceAddressIndex(
-        data[DDNS_INTERFACE_IPV6_INDEX_FIELD],
-      ),
-      [DDNS_STATIC_IPV4_FIELD]: normalizeStaticIPAddress(
-        data[DDNS_STATIC_IPV4_FIELD],
-      ),
-      [DDNS_STATIC_IPV6_FIELD]: normalizeStaticIPAddress(
-        data[DDNS_STATIC_IPV6_FIELD],
-      ),
-      [DDNS_SOURCE_DOMAIN_FIELD]: normalizeSourceDomain(
-        data[DDNS_SOURCE_DOMAIN_FIELD],
-      ),
-      ...(isEdgeOneDDNSProvider(providerName || "")
-        ? {
-            [EDGEONE_OVERSEAS_ACCESS_MODE_FIELD]:
-              normalizeEdgeOneOverseasAccessMode(
-                data[EDGEONE_OVERSEAS_ACCESS_MODE_FIELD],
-              ),
-          }
-        : {}),
-    };
-  }
-
-  private prepareConfigForStorage(
-    providerName: string | null | undefined,
-    config: Record<string, string>,
-  ): Partial<Record<string, string>> {
-    const normalizedProviderName = providerName?.trim() || "";
-    const ipSource = normalizeIpSource(config[DDNS_IP_SOURCE_FIELD]);
-    const normalizedConfig: Partial<Record<string, string>> = {
-      ...config,
-      [DDNS_UPDATE_SCOPE_FIELD]: normalizeUpdateScope(
-        config[DDNS_UPDATE_SCOPE_FIELD],
-      ),
-      [DDNS_IP_SOURCE_FIELD]: ipSource,
-      [DDNS_NETWORK_INTERFACE_FIELD]: normalizeNetworkInterface(
-        config[DDNS_NETWORK_INTERFACE_FIELD],
-      ),
-      [DDNS_INTERFACE_IPV4_INDEX_FIELD]: normalizeInterfaceAddressIndex(
-        config[DDNS_INTERFACE_IPV4_INDEX_FIELD],
-      ),
-      [DDNS_INTERFACE_IPV6_INDEX_FIELD]: normalizeInterfaceAddressIndex(
-        config[DDNS_INTERFACE_IPV6_INDEX_FIELD],
-      ),
-      [DDNS_STATIC_IPV4_FIELD]: normalizeStaticIPAddress(
-        config[DDNS_STATIC_IPV4_FIELD],
-      ),
-      [DDNS_STATIC_IPV6_FIELD]: normalizeStaticIPAddress(
-        config[DDNS_STATIC_IPV6_FIELD],
-      ),
-      [DDNS_SOURCE_DOMAIN_FIELD]: normalizeSourceDomain(
-        config[DDNS_SOURCE_DOMAIN_FIELD],
-      ),
-      ...(isEdgeOneDDNSProvider(normalizedProviderName)
-        ? {
-            [EDGEONE_OVERSEAS_ACCESS_MODE_FIELD]:
-              normalizeEdgeOneOverseasAccessMode(
-                config[EDGEONE_OVERSEAS_ACCESS_MODE_FIELD],
-              ),
-          }
-        : {}),
-    };
-
-    if (ipSource === DEFAULT_DDNS_IP_SOURCE) {
-      delete normalizedConfig[DDNS_IP_SOURCE_FIELD];
-    }
-
-    if (ipSource !== "interface") {
-      delete normalizedConfig[DDNS_INTERFACE_IPV4_INDEX_FIELD];
-      delete normalizedConfig[DDNS_INTERFACE_IPV6_INDEX_FIELD];
-    } else {
-      if (!normalizedConfig[DDNS_INTERFACE_IPV4_INDEX_FIELD]) {
-        delete normalizedConfig[DDNS_INTERFACE_IPV4_INDEX_FIELD];
-      }
-      if (!normalizedConfig[DDNS_INTERFACE_IPV6_INDEX_FIELD]) {
-        delete normalizedConfig[DDNS_INTERFACE_IPV6_INDEX_FIELD];
-      }
-    }
-
-    if (ipSource !== "static") {
-      delete normalizedConfig[DDNS_STATIC_IPV4_FIELD];
-      delete normalizedConfig[DDNS_STATIC_IPV6_FIELD];
-    } else {
-      if (!normalizedConfig[DDNS_STATIC_IPV4_FIELD]) {
-        delete normalizedConfig[DDNS_STATIC_IPV4_FIELD];
-      }
-      if (!normalizedConfig[DDNS_STATIC_IPV6_FIELD]) {
-        delete normalizedConfig[DDNS_STATIC_IPV6_FIELD];
-      }
-    }
-
-    if (ipSource !== "domain") {
-      delete normalizedConfig[DDNS_SOURCE_DOMAIN_FIELD];
-    } else if (!normalizedConfig[DDNS_SOURCE_DOMAIN_FIELD]) {
-      delete normalizedConfig[DDNS_SOURCE_DOMAIN_FIELD];
-    }
-
-    if (
-      !isEdgeOneDDNSProvider(normalizedProviderName) ||
-      normalizedConfig[EDGEONE_OVERSEAS_ACCESS_MODE_FIELD] === "off"
-    ) {
-      delete normalizedConfig[EDGEONE_OVERSEAS_ACCESS_MODE_FIELD];
-    }
-
-    return normalizedConfig;
-  }
-
-  private parseLastIP(
-    data: Record<string, string> | null | undefined,
-  ): DDNSLastIP {
-    return {
-      ipv4: data?.ipv4 || null,
-      ipv6: data?.ipv6 || null,
-      updated_at: data?.updated_at || null,
-    };
-  }
-
-  private parseLastCheck(
-    data: Record<string, string> | null | undefined,
-  ): DDNSLastCheck {
-    return {
-      checked_at: data?.checked_at || null,
-      outcome: normalizeOutcome(data?.outcome),
-      message: data?.message || null,
-    };
-  }
-
-  private parseTargetMeta(
-    id: string,
-    data: Record<string, string> | null | undefined,
-  ): DDNSTargetMeta | null {
-    if (!data || Object.keys(data).length === 0) {
-      return null;
-    }
-
-    const now = new Date().toISOString();
-    const parsedSortOrder = Number(data.sort_order);
-
-    return {
-      id,
-      name:
-        data.name?.trim() ||
-        (id === PRIMARY_TARGET_ID ? ddnsT("primaryDomainName") : ""),
-      isPrimary: data.is_primary === "true" || id === PRIMARY_TARGET_ID,
-      enabled: id === PRIMARY_TARGET_ID ? true : data.enabled !== "false",
-      provider: data.provider?.trim() || null,
-      createdAt: data.created_at || now,
-      updatedAt: data.updated_at || data.created_at || now,
-      sortOrder: Number.isFinite(parsedSortOrder)
-        ? parsedSortOrder
-        : id === PRIMARY_TARGET_ID
-          ? 0
-          : 1,
-    };
-  }
-
   private async getTargetMetaRaw(id: string): Promise<DDNSTargetMeta | null> {
-    return this.parseTargetMeta(id, await redis.hgetall(targetMetaKey(id)));
-  }
-
-  private async saveTargetMeta(meta: DDNSTargetMeta): Promise<void> {
-    const key = targetMetaKey(meta.id);
-    const payload: Record<string, string> = {
-      name: meta.name.trim(),
-      is_primary: meta.isPrimary ? "true" : "false",
-      enabled: meta.enabled ? "true" : "false",
-      provider: meta.provider?.trim() || "",
-      created_at: meta.createdAt,
-      updated_at: meta.updatedAt,
-      sort_order: String(meta.sortOrder),
-    };
-
-    await redis.del(key);
-    await redis.hmset(key, payload);
-    await redis.sadd(KEYS.targetIds, meta.id);
-    if (meta.isPrimary) {
-      await redis.set(KEYS.primaryTargetId, meta.id);
-    }
-  }
-
-  private async getTargetConfigRaw(
-    id: string,
-    providerName: string | null | undefined,
-  ): Promise<Record<string, string>> {
-    return this.normalizeConfig(
-      providerName,
-      await redis.hgetall(targetConfigKey(id)),
-    );
-  }
-
-  private async saveTargetConfigRaw(
-    id: string,
-    providerName: string | null | undefined,
-    config: Record<string, string>,
-  ): Promise<void> {
-    const key = targetConfigKey(id);
-    const payload = this.prepareConfigForStorage(providerName, config);
-    await redis.del(key);
-    if (Object.keys(payload).length > 0) {
-      await redis.hmset(key, payload as Record<string, string>);
-    }
-  }
-
-  private async getTargetLastIPRaw(id: string): Promise<DDNSLastIP> {
-    return this.parseLastIP(await redis.hgetall(targetLastIPKey(id)));
-  }
-
-  private async saveTargetLastIPRaw(
-    id: string,
-    status: DDNSLastIP,
-  ): Promise<void> {
-    const key = targetLastIPKey(id);
-    const payload: Record<string, string> = {};
-
-    if (status.ipv4) {
-      payload.ipv4 = status.ipv4;
-    }
-    if (status.ipv6) {
-      payload.ipv6 = status.ipv6;
-    }
-    if (status.updated_at) {
-      payload.updated_at = status.updated_at;
-    }
-
-    await redis.del(key);
-    if (Object.keys(payload).length > 0) {
-      await redis.hmset(key, payload);
-    }
-  }
-
-  private async getTargetLastCheckRaw(id: string): Promise<DDNSLastCheck> {
-    return this.parseLastCheck(await redis.hgetall(targetLastCheckKey(id)));
-  }
-
-  private async saveTargetLastCheckRaw(
-    id: string,
-    status: DDNSLastCheck,
-  ): Promise<void> {
-    const key = targetLastCheckKey(id);
-    const payload: Record<string, string> = {};
-
-    if (status.checked_at) {
-      payload.checked_at = status.checked_at;
-    }
-    if (status.outcome) {
-      payload.outcome = status.outcome;
-    }
-    if (status.message) {
-      payload.message = status.message;
-    }
-
-    await redis.del(key);
-    if (Object.keys(payload).length > 0) {
-      await redis.hmset(key, payload);
-    }
-  }
-
-  private buildComparableConfigKey(
-    providerName: string | null | undefined,
-    config: Record<string, string> | null | undefined,
-  ): string {
-    const normalizedProviderName = providerName?.trim() || "";
-    const prepared = this.prepareConfigForStorage(
-      normalizedProviderName,
-      this.normalizeConfig(normalizedProviderName, config || {}),
-    );
-
-    return JSON.stringify(
-      Object.entries(prepared).sort(([left], [right]) =>
-        left.localeCompare(right),
-      ),
-    );
+    return this.store.getTargetMeta(id, ddnsT("primaryDomainName"));
   }
 
   private didTargetRuntimeInputsChange(
@@ -670,131 +189,41 @@ export class DDNSManager {
     }
 
     return (
-      this.buildComparableConfigKey(currentProvider, current.config) !==
-      this.buildComparableConfigKey(nextProvider, next.config)
+      buildComparableDDNSConfigKey(currentProvider, current.config) !==
+      buildComparableDDNSConfigKey(nextProvider, next.config)
     );
   }
 
   private async resetTargetRuntimeState(
     target: Pick<DDNSTargetMeta, "id" | "isPrimary">,
   ): Promise<void> {
-    const emptyLastIP = buildEmptyLastIP();
-    const emptyLastCheck = buildEmptyLastCheck();
+    const emptyLastIP = buildEmptyDDNSLastIP();
+    const emptyLastCheck = buildEmptyDDNSLastCheck();
 
     await Promise.all([
-      this.saveTargetLastIPRaw(target.id, emptyLastIP),
-      this.saveTargetLastCheckRaw(target.id, emptyLastCheck),
+      this.store.saveTargetLastIP(target.id, emptyLastIP),
+      this.store.saveTargetLastCheck(target.id, emptyLastCheck),
       ...(target.isPrimary
         ? [
-            this.writeLegacyLastIP(emptyLastIP),
-            this.writeLegacyLastCheck(emptyLastCheck),
+            this.store.writeLegacyLastIP(emptyLastIP),
+            this.store.writeLegacyLastCheck(emptyLastCheck),
           ]
         : []),
     ]);
   }
 
-  private async readLegacyConfigDraft(
-    providerName: string | null | undefined,
-  ): Promise<Record<string, string>> {
-    const normalizedProviderName = providerName?.trim() || "";
-    if (!normalizedProviderName) {
-      return this.normalizeConfig(null, {});
-    }
-
-    return this.normalizeConfig(
-      normalizedProviderName,
-      await redis.hgetall(KEYS.legacyConfigPrefix + normalizedProviderName),
-    );
-  }
-
-  private async saveLegacyConfigDraft(
-    providerName: string | null | undefined,
-    config: Record<string, string>,
-  ): Promise<void> {
-    const normalizedProviderName = providerName?.trim() || "";
-    if (!normalizedProviderName) {
-      return;
-    }
-
-    const key = KEYS.legacyConfigPrefix + normalizedProviderName;
-    const payload = this.prepareConfigForStorage(
-      normalizedProviderName,
-      config,
-    );
-
-    await redis.del(key);
-    if (Object.keys(payload).length > 0) {
-      await redis.hmset(key, payload as Record<string, string>);
-    }
-  }
-
-  private async readLegacyLastIP(): Promise<DDNSLastIP> {
-    return this.parseLastIP(await redis.hgetall(KEYS.legacyLastIP));
-  }
-
-  private async writeLegacyLastIP(status: DDNSLastIP): Promise<void> {
-    const payload: Record<string, string> = {};
-    if (status.ipv4) {
-      payload.ipv4 = status.ipv4;
-    }
-    if (status.ipv6) {
-      payload.ipv6 = status.ipv6;
-    }
-    if (status.updated_at) {
-      payload.updated_at = status.updated_at;
-    }
-
-    await redis.del(KEYS.legacyLastIP);
-    if (Object.keys(payload).length > 0) {
-      await redis.hmset(KEYS.legacyLastIP, payload);
-    }
-  }
-
-  private async readLegacyLastCheck(): Promise<DDNSLastCheck> {
-    return this.parseLastCheck(await redis.hgetall(KEYS.legacyLastCheck));
-  }
-
-  private async writeLegacyLastCheck(status: DDNSLastCheck): Promise<void> {
-    const payload: Record<string, string> = {};
-    if (status.checked_at) {
-      payload.checked_at = status.checked_at;
-    }
-    if (status.outcome) {
-      payload.outcome = status.outcome;
-    }
-    if (status.message) {
-      payload.message = status.message;
-    }
-
-    await redis.del(KEYS.legacyLastCheck);
-    if (Object.keys(payload).length > 0) {
-      await redis.hmset(KEYS.legacyLastCheck, payload);
-    }
-  }
-
-  private async mirrorPrimaryProvider(
-    providerName: string | null | undefined,
-  ): Promise<void> {
-    const normalizedProviderName = providerName?.trim() || "";
-    if (!normalizedProviderName) {
-      await redis.del(KEYS.legacyProvider);
-      return;
-    }
-    await redis.set(KEYS.legacyProvider, normalizedProviderName);
-  }
-
   private async ensureTargetsInitialized(): Promise<void> {
-    const currentPrimaryTargetId = await redis.get(KEYS.primaryTargetId);
+    const currentPrimaryTargetId = await this.store.getPrimaryTargetId();
     if (currentPrimaryTargetId) {
       const existing = await this.getTargetMetaRaw(currentPrimaryTargetId);
       if (existing) {
-        await redis.sadd(KEYS.targetIds, currentPrimaryTargetId);
+        await this.store.addTargetId(currentPrimaryTargetId);
         return;
       }
     }
 
     const now = new Date().toISOString();
-    const legacyProviderValue = (await redis.get(KEYS.legacyProvider))?.trim();
+    const legacyProviderValue = await this.store.readLegacyProvider();
     const legacyProvider = this.getProviderDefinition(legacyProviderValue)?.name
       ? legacyProviderValue || null
       : null;
@@ -809,94 +238,24 @@ export class DDNSManager {
       sortOrder: 0,
     };
     const primaryConfig = legacyProvider
-      ? await this.readLegacyConfigDraft(legacyProvider)
-      : this.normalizeConfig(null, {});
+      ? await this.store.readLegacyConfigDraft(legacyProvider)
+      : normalizeDDNSConfig(null, {});
 
-    await this.saveTargetMeta(primaryMeta);
-    await this.saveTargetConfigRaw(
+    await this.store.saveTargetMeta(primaryMeta);
+    await this.store.saveTargetConfig(
       primaryMeta.id,
       primaryMeta.provider,
       primaryConfig,
     );
-    await this.saveTargetLastIPRaw(
+    await this.store.saveTargetLastIP(
       primaryMeta.id,
-      await this.readLegacyLastIP(),
+      await this.store.readLegacyLastIP(),
     );
-    await this.saveTargetLastCheckRaw(
+    await this.store.saveTargetLastCheck(
       primaryMeta.id,
-      await this.readLegacyLastCheck(),
+      await this.store.readLegacyLastCheck(),
     );
-    await this.mirrorPrimaryProvider(primaryMeta.provider);
-  }
-
-  private compareTargets(left: DDNSTargetMeta, right: DDNSTargetMeta): number {
-    if (left.isPrimary !== right.isPrimary) {
-      return left.isPrimary ? -1 : 1;
-    }
-    if (left.sortOrder !== right.sortOrder) {
-      return left.sortOrder - right.sortOrder;
-    }
-    if (left.createdAt !== right.createdAt) {
-      return left.createdAt.localeCompare(right.createdAt);
-    }
-    return left.id.localeCompare(right.id);
-  }
-
-  private buildDomainSummary(
-    providerName: string | null | undefined,
-    config: Record<string, string>,
-  ): string {
-    const provider = providerName?.trim() || "";
-    const candidates = [
-      config.domain,
-      config.hostname,
-      config.domains,
-      config.zone,
-      config.root_domain,
-      config.site_name,
-      config.site_id,
-    ];
-    const summary = candidates.find((value) => value?.trim())?.trim() || "";
-
-    if (summary) {
-      return summary;
-    }
-
-    return provider ? "" : ddnsT("noProviderSelected");
-  }
-
-  private buildDisplayName(
-    meta: DDNSTargetMeta,
-    providerLabel: string,
-    domainSummary: string,
-  ): string {
-    const explicitName = meta.name.trim();
-    if (explicitName) {
-      return explicitName;
-    }
-    if (meta.isPrimary) {
-      return ddnsT("primaryDomainName");
-    }
-    return domainSummary || providerLabel;
-  }
-
-  private buildDuplicateKey(
-    providerName: string | null | undefined,
-    config: Record<string, string>,
-  ): string {
-    const normalizedProviderName = providerName?.trim() || "";
-    const normalizedDomainSummary = this.buildDomainSummary(
-      normalizedProviderName,
-      config,
-    )
-      .trim()
-      .toLowerCase();
-
-    if (!normalizedProviderName || !normalizedDomainSummary) {
-      return "";
-    }
-
-    return `${normalizedProviderName}::${normalizedDomainSummary}`;
+    await this.store.mirrorPrimaryProvider(primaryMeta.provider);
   }
 
   private async assertNoDuplicateTarget(
@@ -904,7 +263,7 @@ export class DDNSManager {
     config: Record<string, string>,
     excludeId?: string,
   ): Promise<void> {
-    const duplicateKey = this.buildDuplicateKey(providerName, config);
+    const duplicateKey = buildDDNSTargetDuplicateKey(providerName, config);
     if (!duplicateKey) {
       return;
     }
@@ -915,7 +274,8 @@ export class DDNSManager {
         return false;
       }
       return (
-        this.buildDuplicateKey(target.provider, target.config) === duplicateKey
+        buildDDNSTargetDuplicateKey(target.provider, target.config) ===
+        duplicateKey
       );
     });
 
@@ -929,7 +289,7 @@ export class DDNSManager {
   private async getPrimaryTargetMeta(): Promise<DDNSTargetMeta> {
     await this.ensureTargetsInitialized();
     const primaryTargetId =
-      (await redis.get(KEYS.primaryTargetId)) || PRIMARY_TARGET_ID;
+      (await this.store.getPrimaryTargetId()) || PRIMARY_TARGET_ID;
     const primaryTarget = await this.getTargetMetaRaw(primaryTargetId);
     if (!primaryTarget) {
       throw new Error(ddnsT("primaryInitFailed"));
@@ -941,9 +301,9 @@ export class DDNSManager {
     meta: DDNSTargetMeta,
   ): Promise<DDNSTargetRecord> {
     const [config, lastIP, lastCheck] = await Promise.all([
-      this.getTargetConfigRaw(meta.id, meta.provider),
-      this.getTargetLastIPRaw(meta.id),
-      this.getTargetLastCheckRaw(meta.id),
+      this.store.getTargetConfig(meta.id, meta.provider),
+      this.store.getTargetLastIP(meta.id),
+      this.store.getTargetLastCheck(meta.id),
     ]);
 
     return {
@@ -954,63 +314,20 @@ export class DDNSManager {
     };
   }
 
-  private toTargetSummary(target: DDNSTargetRecord): DDNSTargetSummary {
-    const providerLabel = this.getProviderLabel(target.provider);
-    const domainSummary = this.buildDomainSummary(
-      target.provider,
-      target.config,
-    );
-
-    return {
-      id: target.id,
-      name: this.buildDisplayName(target, providerLabel, domainSummary),
-      isPrimary: target.isPrimary,
-      enabled: target.isPrimary ? true : target.enabled,
-      provider: target.provider,
-      updateScope: normalizeUpdateScope(target.config[DDNS_UPDATE_SCOPE_FIELD]),
-      providerLabel,
-      domainSummary,
-      createdAt: target.createdAt,
-      updatedAt: target.updatedAt,
-      sortOrder: target.sortOrder,
-      lastIP: target.lastIP,
-      lastCheck: target.lastCheck,
-    };
-  }
-
-  private getTargetLogLabel(
-    target: Pick<
-      DDNSTargetRecord | DDNSTargetSummary,
-      "id" | "isPrimary" | "name" | "provider"
-    >,
-    config?: Record<string, string>,
-  ): string {
-    const providerLabel = this.getProviderLabel(target.provider);
-    const domainSummary =
-      "domainSummary" in target
-        ? target.domainSummary
-        : this.buildDomainSummary(target.provider, config || {});
-    const label = domainSummary || target.name || providerLabel;
-    const scope = target.isPrimary
-      ? ddnsT("primaryDomainScope")
-      : ddnsT("additionalDomainScope");
-    return `[${scope}][${providerLabel}]${label ? `[${label}]` : ""}`;
-  }
-
   async isEnabled(): Promise<boolean> {
-    return (await redis.get(KEYS.enabled)) === "true";
+    return this.store.getEnabled();
   }
 
   async setEnabled(enabled: boolean): Promise<void> {
-    await redis.set(KEYS.enabled, enabled ? "true" : "false");
+    await this.store.setEnabled(enabled);
   }
 
   async listTargets(): Promise<DDNSTargetRecord[]> {
     await this.ensureTargetsInitialized();
 
     const [primaryTargetId, rawIds] = await Promise.all([
-      redis.get(KEYS.primaryTargetId),
-      redis.smembers(KEYS.targetIds),
+      this.store.getPrimaryTargetId(),
+      this.store.listTargetIds(),
     ]);
     const ids = Array.from(
       new Set([...(primaryTargetId ? [primaryTargetId] : []), ...rawIds]),
@@ -1019,7 +336,7 @@ export class DDNSManager {
       await Promise.all(ids.map((id) => this.getTargetMetaRaw(id)))
     ).filter((item): item is DDNSTargetMeta => item !== null);
 
-    metas.sort((left, right) => this.compareTargets(left, right));
+    metas.sort(compareDDNSTargets);
 
     return Promise.all(
       metas.map((meta) => this.buildTargetRecordFromMeta(meta)),
@@ -1053,24 +370,24 @@ export class DDNSManager {
       throw new Error(ddnsT("targetNotFound"));
     }
 
-    const nextConfig = this.normalizeConfig(target.provider, config);
+    const nextConfig = normalizeDDNSConfig(target.provider, config);
     const shouldResetRuntime = this.didTargetRuntimeInputsChange(target, {
       provider: target.provider,
       config: nextConfig,
     });
 
-    await this.saveTargetConfigRaw(target.id, target.provider, nextConfig);
+    await this.store.saveTargetConfig(target.id, target.provider, nextConfig);
     if (shouldResetRuntime) {
       await this.resetTargetRuntimeState(target);
     }
     if (target.isPrimary) {
-      await this.saveLegacyConfigDraft(target.provider, nextConfig);
+      await this.store.saveLegacyConfigDraft(target.provider, nextConfig);
     }
   }
 
   async getTargetLastIP(targetId: string): Promise<DDNSLastIP> {
     await this.ensureTargetsInitialized();
-    return this.getTargetLastIPRaw(targetId);
+    return this.store.getTargetLastIP(targetId);
   }
 
   async setTargetLastIP(
@@ -1090,15 +407,15 @@ export class DDNSManager {
       ipv6: ipv6 ?? previous?.ipv6 ?? null,
       updated_at: new Date().toISOString(),
     };
-    await this.saveTargetLastIPRaw(target.id, next);
+    await this.store.saveTargetLastIP(target.id, next);
     if (target.isPrimary) {
-      await this.writeLegacyLastIP(next);
+      await this.store.writeLegacyLastIP(next);
     }
   }
 
   async getTargetLastCheck(targetId: string): Promise<DDNSLastCheck> {
     await this.ensureTargetsInitialized();
-    return this.getTargetLastCheckRaw(targetId);
+    return this.store.getTargetLastCheck(targetId);
   }
 
   async setTargetLastCheck(
@@ -1116,9 +433,9 @@ export class DDNSManager {
       outcome,
       message,
     };
-    await this.saveTargetLastCheckRaw(target.id, next);
+    await this.store.saveTargetLastCheck(target.id, next);
     if (target.isPrimary) {
-      await this.writeLegacyLastCheck(next);
+      await this.store.writeLegacyLastCheck(next);
     }
   }
 
@@ -1126,12 +443,18 @@ export class DDNSManager {
     targetId: string,
   ): Promise<DDNSTargetSummary | null> {
     const target = await this.getTarget(targetId);
-    return target ? this.toTargetSummary(target) : null;
+    return target
+      ? toDDNSTargetSummary(target, (provider) =>
+          this.getProviderLabel(provider),
+        )
+      : null;
   }
 
   async getTargetsOverview(): Promise<DDNSTargetList> {
     const items = (await this.listTargets()).map((target) =>
-      this.toTargetSummary(target),
+      toDDNSTargetSummary(target, (provider) =>
+        this.getProviderLabel(provider),
+      ),
     );
     const primaryTargetId = items.find((item) => item.isPrimary)?.id || null;
     const extras = items.filter((item) => !item.isPrimary);
@@ -1158,7 +481,7 @@ export class DDNSManager {
       throw new Error(ddnsT("unknownProvider", { provider: input.provider }));
     }
 
-    const config = this.normalizeConfig(providerName, input.config || {});
+    const config = normalizeDDNSConfig(providerName, input.config || {});
     await this.assertNoDuplicateTarget(providerName, config);
 
     const now = new Date().toISOString();
@@ -1179,8 +502,8 @@ export class DDNSManager {
       sortOrder,
     };
 
-    await this.saveTargetMeta(meta);
-    await this.saveTargetConfigRaw(meta.id, providerName, config);
+    await this.store.saveTargetMeta(meta);
+    await this.store.saveTargetConfig(meta.id, providerName, config);
 
     return this.buildTargetRecordFromMeta(meta);
   }
@@ -1204,7 +527,7 @@ export class DDNSManager {
       throw new Error(ddnsT("unknownProvider", { provider: patch.provider }));
     }
 
-    const nextConfig = this.normalizeConfig(providerName, patch.config || {});
+    const nextConfig = normalizeDDNSConfig(providerName, patch.config || {});
     await this.assertNoDuplicateTarget(providerName, nextConfig, target.id);
     const shouldResetRuntime = this.didTargetRuntimeInputsChange(target, {
       provider: providerName,
@@ -1223,15 +546,15 @@ export class DDNSManager {
       updatedAt: new Date().toISOString(),
     };
 
-    await this.saveTargetMeta(nextMeta);
-    await this.saveTargetConfigRaw(nextMeta.id, providerName, nextConfig);
+    await this.store.saveTargetMeta(nextMeta);
+    await this.store.saveTargetConfig(nextMeta.id, providerName, nextConfig);
     if (shouldResetRuntime) {
       await this.resetTargetRuntimeState(nextMeta);
     }
 
     if (nextMeta.isPrimary) {
-      await this.saveLegacyConfigDraft(providerName, nextConfig);
-      await this.mirrorPrimaryProvider(providerName);
+      await this.store.saveLegacyConfigDraft(providerName, nextConfig);
+      await this.store.mirrorPrimaryProvider(providerName);
     }
 
     return this.buildTargetRecordFromMeta(nextMeta);
@@ -1246,13 +569,7 @@ export class DDNSManager {
       throw new Error(ddnsT("primaryDeleteForbidden"));
     }
 
-    await Promise.all([
-      redis.srem(KEYS.targetIds, target.id),
-      redis.del(targetMetaKey(target.id)),
-      redis.del(targetConfigKey(target.id)),
-      redis.del(targetLastIPKey(target.id)),
-      redis.del(targetLastCheckKey(target.id)),
-    ]);
+    await this.store.deleteTarget(target.id);
   }
 
   async setTargetEnabled(targetId: string, enabled: boolean): Promise<void> {
@@ -1264,7 +581,7 @@ export class DDNSManager {
       throw new Error(ddnsT("primaryDisableForbidden"));
     }
 
-    await this.saveTargetMeta({
+    await this.store.saveTargetMeta({
       ...target,
       enabled: target.isPrimary ? true : enabled,
       updatedAt: new Date().toISOString(),
@@ -1289,15 +606,15 @@ export class DDNSManager {
 
     const primary = await this.getPrimaryTarget();
     if (primary.provider === providerName) {
-      await this.mirrorPrimaryProvider(providerName);
+      await this.store.mirrorPrimaryProvider(providerName);
       return;
     }
 
     if (primary.provider) {
-      await this.saveLegacyConfigDraft(primary.provider, primary.config);
+      await this.store.saveLegacyConfigDraft(primary.provider, primary.config);
     }
 
-    const nextConfig = await this.readLegacyConfigDraft(providerName);
+    const nextConfig = await this.store.readLegacyConfigDraft(providerName);
     await this.assertNoDuplicateTarget(providerName, nextConfig, primary.id);
     const shouldResetRuntime = this.didTargetRuntimeInputsChange(primary, {
       provider: providerName,
@@ -1310,12 +627,12 @@ export class DDNSManager {
       enabled: true,
     };
 
-    await this.saveTargetMeta(nextMeta);
-    await this.saveTargetConfigRaw(nextMeta.id, providerName, nextConfig);
+    await this.store.saveTargetMeta(nextMeta);
+    await this.store.saveTargetConfig(nextMeta.id, providerName, nextConfig);
     if (shouldResetRuntime) {
       await this.resetTargetRuntimeState(nextMeta);
     }
-    await this.mirrorPrimaryProvider(providerName);
+    await this.store.mirrorPrimaryProvider(providerName);
   }
 
   async getConfig(providerName: string): Promise<Record<string, string>> {
@@ -1335,7 +652,7 @@ export class DDNSManager {
 
     const primary = await this.getPrimaryTarget();
     if (primary.provider === normalizedProviderName) {
-      const nextConfig = this.normalizeConfig(normalizedProviderName, config);
+      const nextConfig = normalizeDDNSConfig(normalizedProviderName, config);
       await this.assertNoDuplicateTarget(
         normalizedProviderName,
         nextConfig,
@@ -1345,7 +662,7 @@ export class DDNSManager {
         provider: normalizedProviderName,
         config: nextConfig,
       });
-      await this.saveTargetConfigRaw(
+      await this.store.saveTargetConfig(
         primary.id,
         normalizedProviderName,
         nextConfig,
@@ -1353,11 +670,11 @@ export class DDNSManager {
       if (shouldResetRuntime) {
         await this.resetTargetRuntimeState(primary);
       }
-      await this.saveLegacyConfigDraft(normalizedProviderName, nextConfig);
+      await this.store.saveLegacyConfigDraft(normalizedProviderName, nextConfig);
       return;
     }
 
-    await this.saveLegacyConfigDraft(normalizedProviderName, config);
+    await this.store.saveLegacyConfigDraft(normalizedProviderName, config);
   }
 
   async getLastIP(): Promise<DDNSLastIP> {
@@ -1464,7 +781,11 @@ export class DDNSManager {
   ): Promise<void> {
     await this.appendLog(
       level,
-      `${this.getTargetLogLabel(target, "config" in target ? target.config : {})} ${message}`,
+      `${buildDDNSTargetLogLabel(
+        target,
+        (provider) => this.getProviderLabel(provider),
+        "config" in target ? target.config : {},
+      )} ${message}`,
       {
         targetId: target.id,
         targetName: target.name,
@@ -1534,7 +855,9 @@ export class DDNSManager {
     if (options.emitLog && result.changed && result.message) {
       await this.appendTargetLog(
         "info",
-        this.toTargetSummary(primary),
+        toDDNSTargetSummary(primary, (provider) =>
+          this.getProviderLabel(provider),
+        ),
         options.logPrefix
           ? `${options.logPrefix}: ${result.message}`
           : result.message,
@@ -1565,7 +888,9 @@ export class DDNSManager {
     if (options.emitLog && result.changed && result.message) {
       await this.appendTargetLog(
         "info",
-        this.toTargetSummary(target),
+        toDDNSTargetSummary(target, (provider) =>
+          this.getProviderLabel(provider),
+        ),
         options.logPrefix
           ? `${options.logPrefix}: ${result.message}`
           : result.message,
@@ -1677,110 +1002,7 @@ export class DDNSManager {
     }
 
     const definition = this.getProviderDefinition(target.provider);
-    if (!definition) {
-      return false;
-    }
-
-    const requiredFields = definition.fields.filter(
-      (field) => field.required !== false,
-    );
-    const providerFieldsComplete = requiredFields.every(
-      (field) => !!target.config[field.key],
-    );
-    if (!providerFieldsComplete) {
-      return false;
-    }
-
-    const updateScope = normalizeUpdateScope(
-      target.config[DDNS_UPDATE_SCOPE_FIELD],
-    );
-    if (
-      definition.capabilities?.addressMode === "single_address" &&
-      updateScope === "dual_stack"
-    ) {
-      return false;
-    }
-
-    const ipSource = normalizeIpSource(target.config[DDNS_IP_SOURCE_FIELD]);
-    if (ipSource === "static") {
-      const requiresIPv4 = updateScope !== "ipv6_only";
-      const requiresIPv6 = updateScope !== "ipv4_only";
-      const ipv4 = normalizeStaticIPAddress(
-        target.config[DDNS_STATIC_IPV4_FIELD],
-      );
-      const ipv6 = normalizeStaticIPAddress(
-        target.config[DDNS_STATIC_IPV6_FIELD],
-      );
-      const hasValidIPv4 = isIP(ipv4) === 4;
-      const hasValidIPv6 = isIP(ipv6) === 6;
-
-      if (ipv4 && !hasValidIPv4) {
-        return false;
-      }
-      if (ipv6 && !hasValidIPv6) {
-        return false;
-      }
-      if (updateScope === "ipv4_only") {
-        return hasValidIPv4;
-      }
-      if (updateScope === "ipv6_only") {
-        return hasValidIPv6;
-      }
-      return (requiresIPv4 && hasValidIPv4) || (requiresIPv6 && hasValidIPv6);
-    }
-
-    if (ipSource === "domain") {
-      return Boolean(
-        normalizeSourceDomain(target.config[DDNS_SOURCE_DOMAIN_FIELD]),
-      );
-    }
-
-    if (ipSource !== "interface") {
-      return true;
-    }
-
-    const networkInterface = normalizeNetworkInterface(
-      target.config[DDNS_NETWORK_INTERFACE_FIELD],
-    );
-    if (!networkInterface) {
-      return false;
-    }
-
-    const network = findDDNSNetworkInterface(networkInterface);
-    if (!network) {
-      return false;
-    }
-
-    const requiresIPv4 = updateScope !== "ipv6_only";
-    const requiresIPv6 = updateScope !== "ipv4_only";
-    const hasSelectableIPv4 = network.selectableAddresses.some(
-      (item) => item.family === "ipv4",
-    );
-    const hasSelectableIPv6 = network.selectableAddresses.some(
-      (item) => item.family === "ipv6",
-    );
-
-    if (
-      requiresIPv4 &&
-      hasSelectableIPv4 &&
-      !normalizeInterfaceAddressIndex(
-        target.config[DDNS_INTERFACE_IPV4_INDEX_FIELD],
-      )
-    ) {
-      return false;
-    }
-
-    if (
-      requiresIPv6 &&
-      hasSelectableIPv6 &&
-      !normalizeInterfaceAddressIndex(
-        target.config[DDNS_INTERFACE_IPV6_INDEX_FIELD],
-      )
-    ) {
-      return false;
-    }
-
-    return true;
+    return isDDNSTargetConfigComplete(target, definition);
   }
 
   async isConfigComplete(): Promise<boolean> {

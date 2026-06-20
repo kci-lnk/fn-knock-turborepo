@@ -1,15 +1,42 @@
 import { spawn } from "node:child_process";
-import { constants as fsConstants } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
 import { mkdir, open, rm, stat, writeFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import { v4 as uuidv4 } from "uuid";
 import { dataPath } from "./AppDirManager";
-import { homedir } from "node:os";
 import { configManager } from "./redis";
 import { collectStreamOutput, sleep, waitForProcessExit } from "./runtime";
-import { tDefault } from "./i18n";
 import { terminalStore } from "./terminal-store";
+import {
+  DEFAULT_CWD,
+  DEBIAN_APT_GET_PATH,
+  INPUT_PIPE_OPEN_FLAGS,
+  INPUT_SESSION_TOUCH_THROTTLE_MS,
+  TERMINAL_SNAPSHOT_SCROLLBACK_ROWS,
+  TERMINAL_STREAM_CHUNK_MAX_BYTES,
+  TERMINAL_STREAM_DIR_NAME,
+  TMUX_ABSOLUTE_FALLBACK_PATH,
+  parseOutputCursor,
+  parseTmuxNumber,
+  terminalT,
+  type CreateSessionInput,
+  type ExecResult,
+  type TmuxExecutableInfo,
+} from "./terminal-manager/common";
+import {
+  buildSessionShellCommand,
+  resolveTerminalShell,
+} from "./terminal-manager/shell";
+import {
+  buildDefaultSessionTitle,
+  buildInputPipePath,
+  buildOutputLogPath,
+  buildRelayCommand,
+  buildSessionName,
+  formatIoError,
+  paneTarget,
+  sanitizeTitle,
+} from "./terminal-manager/session";
 import {
   DEFAULT_TERMINAL_ATTACHMENT_TTL_SECONDS,
   DEFAULT_TERMINAL_POLL_INTERVAL_MS,
@@ -24,91 +51,6 @@ import {
   normalizeTerminalAttachmentRecord,
   normalizeTerminalSessionRecord,
 } from "./terminal-shared";
-
-const DEFAULT_CWD = homedir();
-
-const terminalT = (
-  key: string,
-  params?: Record<string, string | number | boolean | null | undefined>,
-): string => tDefault(`server.terminal.${key}`, params);
-
-const TMUX_TARGET_PANE_SUFFIX = ":0.0";
-const TERMINAL_STREAM_DIR_NAME = "terminal-streams";
-const TERMINAL_STREAM_CHUNK_MAX_BYTES = 256 * 1024;
-const TERMINAL_SNAPSHOT_SCROLLBACK_ROWS = 200;
-const INPUT_SESSION_TOUCH_THROTTLE_MS = 5_000;
-const INPUT_PIPE_OPEN_FLAGS =
-  fsConstants.O_WRONLY | (fsConstants.O_NONBLOCK ?? 0);
-const DEFAULT_SESSION_TITLE_PREFIX = terminalT("defaultSessionTitlePrefix");
-const TMUX_ABSOLUTE_FALLBACK_PATH = "/usr/bin/tmux";
-const DEBIAN_APT_GET_PATH = "/usr/bin/apt-get";
-const ZSH_SHELL_CANDIDATES = ["zsh", "/bin/zsh", "/usr/bin/zsh"];
-const FALLBACK_SHELL_CANDIDATES = [
-  "bash",
-  "/bin/bash",
-  "/usr/bin/bash",
-  "sh",
-  "/bin/sh",
-  "/usr/bin/sh",
-];
-const TERMINAL_RELAY_NODE_SCRIPT = [
-  "const fs=require('node:fs');",
-  "const [logPath,inputPath]=process.argv.slice(-2);",
-  "const log=fs.createWriteStream(logPath,{flags:'a'});",
-  "const inputFd=fs.openSync(inputPath,'r+');",
-  "const input=fs.createReadStream(null,{fd:inputFd,autoClose:true});",
-  "log.on('error',()=>process.exit(1));",
-  "input.on('error',()=>process.exit(1));",
-  "process.stdout.on('error',()=>process.exit(0));",
-  "process.stdin.pipe(log);",
-  "input.pipe(process.stdout);",
-].join("");
-
-type ExecResult = {
-  code: number;
-  stdout: string;
-  stderr: string;
-};
-
-type CreateSessionInput = {
-  title?: string;
-  shell?: string;
-  cwd?: string;
-  cols?: number;
-  rows?: number;
-};
-
-type TmuxExecutableInfo = {
-  path: string;
-  detectionSource: TerminalTmuxDetectionSource;
-  version: string;
-};
-
-const parseTmuxNumber = (value: string, fallback: number): number => {
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) ? parsed : fallback;
-};
-
-const parseOutputCursor = (
-  value: number | string | null | undefined,
-  fallback = 0,
-): number => {
-  const parsed = Number.parseInt(String(value ?? ""), 10);
-  if (!Number.isFinite(parsed) || parsed < 0) {
-    return fallback;
-  }
-  return parsed;
-};
-
-const shellQuote = (value: string): string =>
-  `'${value.replace(/'/g, `'\"'\"'`)}'`;
-const escapeRegExp = (value: string): string =>
-  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const dedupeStrings = (values: string[]): string[] =>
-  Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
-const DEFAULT_SESSION_TITLE_PATTERN = new RegExp(
-  `^${escapeRegExp(DEFAULT_SESSION_TITLE_PREFIX)}(\\d+)$`,
-);
 
 class TerminalManager {
   private tmuxExecutableInfoPromise: Promise<TmuxExecutableInfo | null> | null =
@@ -371,66 +313,6 @@ class TerminalManager {
     await mkdir(this.streamDirectory, { recursive: true });
   }
 
-  private buildSessionName(id: string): string {
-    return `fnk_${id.replace(/-/g, "").slice(0, 16)}`;
-  }
-
-  private buildOutputLogPath(id: string): string {
-    return join(this.streamDirectory, `${id}.log`);
-  }
-
-  private buildInputPipePath(id: string): string {
-    return join(this.streamDirectory, `${id}.in`);
-  }
-
-  private paneTarget(session: TerminalSessionRecord): string {
-    return `${session.backend_session_name}${TMUX_TARGET_PANE_SUFFIX}`;
-  }
-
-  private sanitizeTitle(rawTitle: string | undefined): string {
-    const trimmed = (rawTitle || "").trim();
-    return trimmed;
-  }
-
-  private buildDefaultSessionTitle(
-    existingSessions: TerminalSessionRecord[],
-  ): string {
-    const usedIndexes = new Set<number>();
-    for (const session of existingSessions) {
-      const match = session.title.trim().match(DEFAULT_SESSION_TITLE_PATTERN);
-      if (!match) continue;
-      const parsed = Number.parseInt(match[1]!, 10);
-      if (Number.isFinite(parsed) && parsed > 0) {
-        usedIndexes.add(parsed);
-      }
-    }
-
-    let nextIndex = 1;
-    while (usedIndexes.has(nextIndex)) {
-      nextIndex += 1;
-    }
-
-    return `${DEFAULT_SESSION_TITLE_PREFIX}${nextIndex}`;
-  }
-
-  private formatIoError(prefix: string, error: unknown): string {
-    const detail = error instanceof Error ? error.message.trim() : "";
-    return detail ? `${prefix}: ${detail}` : prefix;
-  }
-
-  private buildRelayCommand(
-    outputLogPath: string,
-    inputPipePath: string,
-  ): string {
-    return [
-      shellQuote(process.execPath),
-      "-e",
-      shellQuote(TERMINAL_RELAY_NODE_SCRIPT),
-      shellQuote(outputLogPath),
-      shellQuote(inputPipePath),
-    ].join(" ");
-  }
-
   private async getFeatureConfig(): Promise<TerminalFeatureConfig> {
     return configManager.getTerminalFeatureConfig();
   }
@@ -489,10 +371,6 @@ class TerminalManager {
     }
   }
 
-  private isZshShell(shell: string): boolean {
-    return basename(shell).toLowerCase() === "zsh";
-  }
-
   private async canStartShell(command: string): Promise<boolean> {
     try {
       const result = await this.runProcess(command, ["-c", "exit 0"]);
@@ -502,57 +380,11 @@ class TerminalManager {
     }
   }
 
-  private async pickAvailableShell(
-    candidates: string[],
-  ): Promise<string | null> {
-    for (const candidate of dedupeStrings(candidates)) {
-      if (await this.canStartShell(candidate)) {
-        return candidate;
-      }
-    }
-    return null;
-  }
-
-  private buildAutoShellCandidates(): string[] {
-    const envShell = (process.env.SHELL || "").trim();
-    return dedupeStrings([
-      // Prefer zsh so Oh My Zsh works in the web terminal without extra setup.
-      ...(envShell && this.isZshShell(envShell) ? [envShell] : []),
-      ...ZSH_SHELL_CANDIDATES,
-      envShell,
-      ...FALLBACK_SHELL_CANDIDATES,
-    ]);
-  }
-
   private async resolveShell(shell?: string): Promise<string> {
-    const requestedShell = (shell || "").trim();
-    if (requestedShell) {
-      const resolvedRequestedShell = await this.pickAvailableShell([
-        requestedShell,
-      ]);
-      if (!resolvedRequestedShell) {
-        throw new Error(
-          terminalT("requestedShellUnavailable", { shell: requestedShell }),
-        );
-      }
-      return resolvedRequestedShell;
-    }
-
-    const autoDetectedShell = await this.pickAvailableShell(
-      this.buildAutoShellCandidates(),
+    return resolveTerminalShell(
+      shell,
+      (command) => this.canStartShell(command),
     );
-    if (autoDetectedShell) {
-      return autoDetectedShell;
-    }
-
-    throw new Error(terminalT("noShellDetected"));
-  }
-
-  private buildSessionShellCommand(shell: string): string {
-    if (this.isZshShell(shell)) {
-      return `exec ${shellQuote(shell)} -il`;
-    }
-    return `exec ${shellQuote(shell)}`;
   }
 
   private async resolveCwd(cwd?: string): Promise<string> {
@@ -709,7 +541,7 @@ class TerminalManager {
       "display-message",
       "-p",
       "-t",
-      this.paneTarget(session),
+      paneTarget(session),
       "#{pane_tty}\t#{pane_width}\t#{pane_height}",
     ]);
     if (paneResult.code !== 0) {
@@ -738,7 +570,7 @@ class TerminalManager {
       "display-message",
       "-p",
       "-t",
-      this.paneTarget(session),
+      paneTarget(session),
       "#{?pane_pipe,1,0}",
     ]);
     return result.code === 0 && result.stdout.trim() === "1";
@@ -749,7 +581,8 @@ class TerminalManager {
   ): Promise<string> {
     await this.ensureStreamDirectory();
     const outputLogPath =
-      session.output_log_path.trim() || this.buildOutputLogPath(session.id);
+      session.output_log_path.trim() ||
+      buildOutputLogPath(this.streamDirectory, session.id);
     await writeFile(outputLogPath, "", { flag: "a" });
     return outputLogPath;
   }
@@ -759,7 +592,8 @@ class TerminalManager {
   ): Promise<string> {
     await this.ensureStreamDirectory();
     const inputPipePath =
-      session.input_pipe_path.trim() || this.buildInputPipePath(session.id);
+      session.input_pipe_path.trim() ||
+      buildInputPipePath(this.streamDirectory, session.id);
     const inputPipeInfo = await stat(inputPipePath).catch(() => null);
 
     if (inputPipeInfo) {
@@ -786,8 +620,8 @@ class TerminalManager {
       "-I",
       "-O",
       "-t",
-      this.paneTarget(session),
-      this.buildRelayCommand(outputLogPath, inputPipePath),
+      paneTarget(session),
+      buildRelayCommand(outputLogPath, inputPipePath),
     ]);
     if (result.code !== 0) {
       throw new Error(result.stderr || terminalT("ioRelayCreateFailed"));
@@ -820,9 +654,11 @@ class TerminalManager {
     session: TerminalSessionRecord,
   ): Promise<TerminalSessionRecord> {
     const outputLogPath =
-      session.output_log_path.trim() || this.buildOutputLogPath(session.id);
+      session.output_log_path.trim() ||
+      buildOutputLogPath(this.streamDirectory, session.id);
     const inputPipePath =
-      session.input_pipe_path.trim() || this.buildInputPipePath(session.id);
+      session.input_pipe_path.trim() ||
+      buildInputPipePath(this.streamDirectory, session.id);
     const hasPaneTtyPath = session.pane_tty_path.trim().length > 0;
     const outputLogExists = await stat(outputLogPath)
       .then((info) => info.isFile())
@@ -880,10 +716,10 @@ class TerminalManager {
     const rows = Math.min(200, Math.max(12, Math.floor(input.rows || 32)));
     const id = uuidv4();
     const now = new Date().toISOString();
-    const sessionName = this.buildSessionName(id);
+    const sessionName = buildSessionName(id);
     const title =
-      this.sanitizeTitle(input.title) ||
-      this.buildDefaultSessionTitle(existing);
+      sanitizeTitle(input.title) ||
+      buildDefaultSessionTitle(existing);
 
     const createResult = await this.runTmux([
       "new-session",
@@ -896,7 +732,7 @@ class TerminalManager {
       String(rows),
       "-c",
       cwd,
-      this.buildSessionShellCommand(shell),
+      buildSessionShellCommand(shell),
     ]);
     if (createResult.code !== 0) {
       throw new Error(createResult.stderr || terminalT("tmuxSessionCreateFailed"));
@@ -916,8 +752,8 @@ class TerminalManager {
       resume_backend: "tmux",
       backend_session_name: sessionName,
       pane_tty_path: "",
-      input_pipe_path: this.buildInputPipePath(id),
-      output_log_path: this.buildOutputLogPath(id),
+      input_pipe_path: buildInputPipePath(this.streamDirectory, id),
+      output_log_path: buildOutputLogPath(this.streamDirectory, id),
       expires_at: new Date(
         Date.now() + config.idle_timeout_seconds * 1000,
       ).toISOString(),
@@ -941,7 +777,7 @@ class TerminalManager {
     const session = await terminalStore.getSession(id);
     if (!session) return null;
 
-    const sanitizedTitle = this.sanitizeTitle(title);
+    const sanitizedTitle = sanitizeTitle(title);
     if (!sanitizedTitle) {
       throw new Error(terminalT("sessionTitleRequired"));
     }
@@ -1134,7 +970,7 @@ class TerminalManager {
         await this.writeToInputPipe(runtimeSession, data);
       } catch (retryError) {
         throw new Error(
-          this.formatIoError(terminalT("inputSendFailed"), retryError),
+          formatIoError(terminalT("inputSendFailed"), retryError),
         );
       }
       console.warn(
@@ -1216,7 +1052,7 @@ class TerminalManager {
       "-p",
       "-e",
       "-t",
-      this.paneTarget(session),
+      paneTarget(session),
       "-S",
       `-${rows}`,
     ]).catch(() => null);

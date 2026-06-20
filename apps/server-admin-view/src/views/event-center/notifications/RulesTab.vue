@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { ChevronDown, Loader2, Pencil, Plus, Trash2 } from "lucide-vue-next";
+import { ChevronDown, Loader2, Plus, Trash2 } from "lucide-vue-next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -28,27 +28,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import RefreshButton from "@/components/RefreshButton.vue";
-import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
-import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import { toast } from "@admin-shared/utils/toast";
 import { EventCenterAPI } from "../../../lib/api";
 import type {
-  NotificationDeliveryPolicy,
   NotificationGroupBy,
   NotificationProviderDefinition,
   NotificationProviderView,
   NotificationRule,
-  NotificationTemplate,
-  NotificationTemplateOverrideMode,
   SystemEventType,
 } from "../../../types";
 import {
@@ -57,29 +44,18 @@ import {
   SYSTEM_EVENT_TYPE_OPTIONS,
 } from "../constants";
 import SchemaFieldsEditor from "./SchemaFieldsEditor.vue";
-import { buildSchemaPayload, createEditableSchemaRecord } from "./form-utils";
-
-type EditableRuleTarget = {
-  id?: string;
-  provider_id: string;
-  target_config: Record<string, unknown>;
-  delivery_policy: {
-    timeout_seconds: string;
-    max_attempts: string;
-    backoff_seconds: string;
-  };
-  template_override_mode: NotificationTemplateOverrideMode;
-  template_override: NotificationTemplate | null;
-};
-
-type EditableRuleForm = {
-  event_types: SystemEventType[];
-  window_seconds: string;
-  threshold_count: string;
-  group_by: NotificationGroupBy | "auto";
-  cooldown_seconds: string;
-  targets: EditableRuleTarget[];
-};
+import { createEditableSchemaRecord } from "./form-utils";
+import {
+  DEFAULT_RULE_COOLDOWN_SECONDS,
+  DEFAULT_RULE_WINDOW_SECONDS,
+  buildRulePayload,
+  createEmptyDeliveryPolicy,
+  createEmptyRuleForm,
+  resolveGroupByForEventType,
+  type EditableRuleForm,
+  type EditableRuleTarget,
+} from "./rule-form";
+import RulesListTable from "./RulesListTable.vue";
 
 const props = withDefaults(
   defineProps<{
@@ -107,22 +83,8 @@ const editingRule = ref<NotificationRule | null>(null);
 const allEventTypes = SYSTEM_EVENT_TYPE_OPTIONS.map(
   (option) => option.value,
 ) as SystemEventType[];
-const DEFAULT_RULE_WINDOW_SECONDS = "60";
-const DEFAULT_RULE_COOLDOWN_SECONDS = "60";
-const createEmptyDeliveryPolicy = () => ({
-  timeout_seconds: "",
-  max_attempts: "",
-  backoff_seconds: "",
-});
 
-const ruleForm = ref<EditableRuleForm>({
-  event_types: [...allEventTypes],
-  window_seconds: DEFAULT_RULE_WINDOW_SECONDS,
-  threshold_count: "1",
-  group_by: "auto",
-  cooldown_seconds: DEFAULT_RULE_COOLDOWN_SECONDS,
-  targets: [],
-});
+const ruleForm = ref<EditableRuleForm>(createEmptyRuleForm(allEventTypes));
 
 const hasProviders = computed(() => providers.value.length > 0);
 const isEditMode = computed(() => dialogMode.value === "edit");
@@ -305,14 +267,7 @@ const createTarget = (
 };
 
 const resetRuleForm = () => {
-  ruleForm.value = {
-    event_types: [...availableEventTypes.value],
-    window_seconds: DEFAULT_RULE_WINDOW_SECONDS,
-    threshold_count: "1",
-    group_by: "auto",
-    cooldown_seconds: DEFAULT_RULE_COOLDOWN_SECONDS,
-    targets: [],
-  };
+  ruleForm.value = createEmptyRuleForm(availableEventTypes.value);
 };
 
 const openCreateDialog = () => {
@@ -429,66 +384,6 @@ const toggleEventType = (eventType: SystemEventType, checked: unknown) => {
   );
 };
 
-const parseOptionalPolicyNumber = (value: string) => {
-  const parsed = Number.parseInt(String(value || "").trim(), 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
-};
-
-const buildDeliveryPolicyPayload = (
-  policy: EditableRuleTarget["delivery_policy"],
-): NotificationDeliveryPolicy | undefined => {
-  const payload: NotificationDeliveryPolicy = {
-    timeout_seconds: parseOptionalPolicyNumber(policy.timeout_seconds),
-    max_attempts: parseOptionalPolicyNumber(policy.max_attempts),
-    backoff_seconds: parseOptionalPolicyNumber(policy.backoff_seconds),
-  };
-  if (
-    payload.timeout_seconds === undefined &&
-    payload.max_attempts === undefined &&
-    payload.backoff_seconds === undefined
-  ) {
-    return undefined;
-  }
-  return payload;
-};
-
-const resolveGroupByForEventType = (
-  eventType: SystemEventType,
-): NotificationGroupBy =>
-  ruleForm.value.group_by === "auto"
-    ? DEFAULT_GROUP_BY_BY_EVENT_TYPE[eventType]
-    : ruleForm.value.group_by;
-
-const buildRulePayload = (
-  eventType: SystemEventType,
-  groupBy: NotificationGroupBy,
-) => ({
-  enabled: true,
-  event_type: eventType,
-  event_level_filter: [],
-  event_source_filter: [],
-  window_seconds: Number(ruleForm.value.window_seconds || 0),
-  threshold_count: Number(ruleForm.value.threshold_count || 0),
-  group_by: groupBy,
-  cooldown_seconds: Number(ruleForm.value.cooldown_seconds || 0),
-  message_template_mode: "default",
-  targets: ruleForm.value.targets.map((target) => {
-    const definition = resolveProviderDefinitionById(target.provider_id);
-    return {
-      ...(target.id ? { id: target.id } : {}),
-      provider_id: target.provider_id,
-      enabled: true,
-      target_config: buildSchemaPayload({
-        fields: definition?.target_schema || [],
-        value: target.target_config,
-      }),
-      delivery_policy: buildDeliveryPolicyPayload(target.delivery_policy),
-      template_override_mode: target.template_override_mode,
-      template_override: target.template_override,
-    };
-  }),
-});
-
 const saveRule = async () => {
   if (!ruleForm.value.targets.length) {
     toast.error(t("admin.notifications.rules.missingTargets"));
@@ -508,19 +403,28 @@ const saveRule = async () => {
 
   saving.value = true;
   try {
+    const currentRuleForm = ruleForm.value;
     if (dialogMode.value === "create") {
       const batchPlans = selectedEventTypes.map((eventType) => {
         return {
           eventType,
           name: buildRuleDisplayName(eventType),
-          groupBy: resolveGroupByForEventType(eventType),
+          groupBy: resolveGroupByForEventType({
+            eventType,
+            form: currentRuleForm,
+          }),
         };
       });
 
       const results = await Promise.allSettled(
         batchPlans.map(async (plan) => {
           const result = await EventCenterAPI.createNotificationRule(
-            buildRulePayload(plan.eventType, plan.groupBy),
+            buildRulePayload({
+              eventType: plan.eventType,
+              form: currentRuleForm,
+              groupBy: plan.groupBy,
+              resolveProviderDefinitionById,
+            }),
           );
 
           if (!result.success) {
@@ -586,7 +490,15 @@ const saveRule = async () => {
     const eventType = selectedEventTypes[0]!;
     const result = await EventCenterAPI.updateNotificationRule(
       editingRule.value!.id,
-      buildRulePayload(eventType, resolveGroupByForEventType(eventType)),
+      buildRulePayload({
+        eventType,
+        form: currentRuleForm,
+        groupBy: resolveGroupByForEventType({
+          eventType,
+          form: currentRuleForm,
+        }),
+        resolveProviderDefinitionById,
+      }),
     );
 
     if (!result.success) {
@@ -794,117 +706,18 @@ watch(
       {{ t("admin.notifications.rules.noAvailableEventTypes") }}
     </div>
 
-    <div class="overflow-hidden rounded-md border bg-background">
-      <div class="overflow-x-auto">
-        <Table class="min-w-[700px] sm:min-w-[760px]">
-          <TableHeader>
-            <TableRow>
-              <TableHead
-                class="sticky left-0 z-20 w-[168px] min-w-[168px] border-r bg-background sm:w-[220px] sm:min-w-[220px]"
-              >
-                {{ t("admin.notifications.rules.name") }}
-              </TableHead>
-              <TableHead>{{ t("admin.notifications.rules.eventType") }}</TableHead>
-              <TableHead>{{ t("admin.notifications.rules.triggerCondition") }}</TableHead>
-              <TableHead>{{ t("admin.notifications.rules.groupBy") }}</TableHead>
-              <TableHead>{{ t("admin.notifications.rules.targetCount") }}</TableHead>
-              <TableHead>{{ t("admin.notifications.rules.lastTriggered") }}</TableHead>
-              <TableHead class="w-[140px] text-right">
-                {{ t("admin.notifications.rules.actions") }}
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TableRow v-if="loading && rules.length === 0">
-              <TableCell colspan="7" class="py-10 text-center">
-                <Loader2
-                  class="mx-auto h-5 w-5 animate-spin text-muted-foreground"
-                />
-              </TableCell>
-            </TableRow>
-            <TableRow v-else-if="rules.length === 0">
-              <TableCell
-                colspan="7"
-                class="py-10 text-center text-muted-foreground"
-              >
-                {{ t("admin.notifications.rules.empty") }}
-              </TableCell>
-            </TableRow>
-            <TableRow v-for="rule in rules" :key="rule.id">
-              <TableCell
-                class="sticky left-0 z-10 w-[168px] min-w-[168px] border-r bg-background sm:w-[220px] sm:min-w-[220px]"
-              >
-                <div class="space-y-1">
-                  <div class="font-medium">
-                    {{ buildRuleDisplayName(rule.event_type) }}
-                  </div>
-                  <div class="line-clamp-2 text-xs text-muted-foreground">
-                    <span
-                      v-for="target in rule.targets"
-                      :key="target.id"
-                      class="mr-2 inline-block"
-                    >
-                      {{ resolveProviderName(target.provider_id) }}
-                    </span>
-                  </div>
-                </div>
-              </TableCell>
-              <TableCell>{{ formatEventTypeLabel(rule.event_type) }}</TableCell>
-              <TableCell>
-                {{
-                  t("admin.notifications.rules.triggerSummary", {
-                    seconds: rule.window_seconds,
-                    count: rule.threshold_count,
-                  })
-                }}
-              </TableCell>
-              <TableCell>{{
-                formatGroupByLabel(rule.group_by)
-              }}</TableCell>
-              <TableCell>{{ rule.targets.length }}</TableCell>
-              <TableCell class="text-sm text-muted-foreground">
-                <span v-if="rule.last_triggered_at">
-                  <HumanFriendlyTime :value="rule.last_triggered_at" />
-                </span>
-                <span v-else>-</span>
-              </TableCell>
-              <TableCell class="text-right">
-                <div class="inline-flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    :disabled="clearingAll"
-                    @click="openEditDialog(rule)"
-                  >
-                    <Pencil class="h-4 w-4" />
-                  </Button>
-                  <ConfirmDangerPopover
-                    :title="t('admin.notifications.rules.deleteTitle')"
-                    :description="
-                      t('admin.notifications.rules.deleteDescription')
-                    "
-                    :loading="deletingId === rule.id"
-                    :disabled="deletingId === rule.id || clearingAll"
-                    :on-confirm="() => deleteRule(rule)"
-                  >
-                    <template #trigger>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        class="text-destructive"
-                        :disabled="deletingId === rule.id || clearingAll"
-                      >
-                        <Trash2 class="h-4 w-4" />
-                      </Button>
-                    </template>
-                  </ConfirmDangerPopover>
-                </div>
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
-      </div>
-    </div>
+    <RulesListTable
+      :build-rule-display-name="buildRuleDisplayName"
+      :clearing-all="clearingAll"
+      :deleting-id="deletingId"
+      :format-event-type-label="formatEventTypeLabel"
+      :format-group-by-label="formatGroupByLabel"
+      :loading="loading"
+      :resolve-provider-name="resolveProviderName"
+      :rules="rules"
+      @delete-rule="deleteRule"
+      @edit="openEditDialog"
+    />
   </div>
 
   <Dialog v-model:open="dialogOpen">

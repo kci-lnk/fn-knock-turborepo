@@ -196,98 +196,18 @@
     </CardContent>
   </Card>
 
-  <Dialog
+  <ReverseProxyMappingDialog
     :open="isMappingDialogOpen"
+    :form="newMapping"
+    :is-editing="isEditing"
+    :is-saving="isSaving"
+    :is-valid="isValid"
+    :is-web-socket-target="isNewMappingWebSocketTarget"
     @update:open="handleMappingDialogOpenChange"
-  >
-    <DialogContent class="sm:max-w-[425px]">
-      <DialogHeader>
-        <DialogTitle>{{
-          isEditing
-            ? t("admin.reverseProxy.editTitle")
-            : t("admin.reverseProxy.addTitle")
-        }}</DialogTitle>
-        <DialogDescription>
-          {{
-            isEditing
-              ? t("admin.reverseProxy.editDescription")
-              : t("admin.reverseProxy.addDescription")
-          }}
-        </DialogDescription>
-      </DialogHeader>
-      <div class="grid gap-4 py-4">
-        <div class="grid grid-cols-4 items-center gap-4">
-          <Label for="path" class="text-right">{{
-            t("admin.reverseProxy.pathLabel")
-          }}</Label>
-          <Input
-            id="path"
-            v-model="newMapping.path"
-            :placeholder="t('admin.reverseProxy.pathPlaceholder')"
-            class="col-span-3"
-          />
-        </div>
-        <div class="grid grid-cols-4 items-start gap-4">
-          <Label for="target-endpoint" class="pt-2 text-right">{{
-            t("admin.reverseProxy.targetLabel")
-          }}</Label>
-          <ProxyTargetInputField
-            v-model="newMapping.target"
-            input-id="target-endpoint"
-            protocol-id="target-protocol"
-            :placeholder="t('admin.reverseProxy.targetPlaceholder')"
-            class="col-span-3"
-          />
-        </div>
-
-        <div class="grid grid-cols-4 items-center gap-4">
-          <Label class="text-right">{{
-            t("admin.reverseProxy.optionsLabel")
-          }}</Label>
-          <div class="col-span-3 space-y-2">
-            <div
-              v-if="!isNewMappingWebSocketTarget"
-              class="flex items-center space-x-2"
-            >
-              <Switch id="rewrite" v-model="newMapping.rewrite_html" />
-              <Label for="rewrite">{{
-                t("admin.reverseProxy.rewriteHtmlContent")
-              }}</Label>
-            </div>
-            <div class="flex items-center space-x-2">
-              <Switch id="auth" v-model="newMapping.use_auth" />
-              <Label for="auth">{{
-                t("admin.reverseProxy.requireAuth")
-              }}</Label>
-            </div>
-            <div
-              v-if="!isNewMappingWebSocketTarget"
-              class="flex items-center space-x-2"
-            >
-              <Switch id="root" v-model="newMapping.use_root_mode" />
-              <Label for="root">{{
-                t("admin.reverseProxy.useRootMode")
-              }}</Label>
-            </div>
-            <div class="flex items-center space-x-2">
-              <Switch id="strip" v-model="newMapping.strip_path" />
-              <Label for="strip">{{
-                t("admin.reverseProxy.stripRequestPrefix")
-              }}</Label>
-            </div>
-          </div>
-        </div>
-      </div>
-      <DialogFooter>
-        <Button variant="outline" @click="closeMappingDialog(true)">
-          {{ t("admin.reverseProxy.cancel") }}
-        </Button>
-        <Button @click="saveMapping" :disabled="!isValid || isSaving">{{
-          t("admin.reverseProxy.saveSettings")
-        }}</Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+    @update-form="updateMappingDraft"
+    @close="closeMappingDialog(true)"
+    @save="saveMapping"
+  />
 
   <Dialog
     :open="isDiscoverDialogOpen"
@@ -514,42 +434,16 @@
     </DialogContent>
   </Dialog>
 
-  <Dialog
+  <ReverseProxyDefaultRouteDialog
     :open="isDefaultRouteConfirmOpen"
+    :title="defaultRouteDialogTitle"
+    :description="defaultRouteDialogDescription"
+    :show-fnos-hint="showDefaultRouteFnosHint"
+    :saving="isSavingDefaultRoute"
     @update:open="handleDefaultRouteConfirmOpenChange"
-  >
-    <DialogContent class="sm:max-w-[520px]">
-      <DialogHeader>
-        <DialogTitle>{{ defaultRouteDialogTitle }}</DialogTitle>
-        <DialogDescription class="space-y-2 text-left">
-          <p>{{ defaultRouteDialogDescription }}</p>
-          <p v-if="showDefaultRouteFnosHint" class="text-amber-600">
-            {{ t("admin.reverseProxy.fnosDefaultRouteHint") }}
-          </p>
-        </DialogDescription>
-      </DialogHeader>
-      <DialogFooter>
-        <Button
-          variant="outline"
-          :disabled="isSavingDefaultRoute"
-          @click="closeDefaultRouteConfirm"
-        >
-          {{ t("admin.reverseProxy.cancel") }}
-        </Button>
-        <Button
-          variant="destructive"
-          :disabled="isSavingDefaultRoute"
-          @click="confirmDefaultRouteChange"
-        >
-          {{
-            isSavingDefaultRoute
-              ? t("admin.reverseProxy.processing")
-              : t("admin.reverseProxy.continueAction")
-          }}
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+    @cancel="closeDefaultRouteConfirm"
+    @confirm="confirmDefaultRouteChange"
+  />
 </template>
 
 <script setup lang="ts">
@@ -569,7 +463,6 @@ import ScanDiscoveryTargetsSettings from "@/components/ScanDiscoveryTargetsSetti
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
 import { Input } from "@/components/ui/input";
 import SearchInput from "@admin-shared/components/SearchInput.vue";
-import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableHeader,
@@ -592,7 +485,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
-import { Label } from "@/components/ui/label";
 import {
   ChevronDown,
   RefreshCw,
@@ -606,8 +498,9 @@ import { ConfigAPI, ScanAPI, SystemAPI } from "../lib/api";
 import type { ProxyMapping } from "../types";
 import type { ScanDiscoverResponse, DiscoveredServiceInfo } from "../lib/api";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
-import ProxyTargetInputField from "@admin-shared/components/common/ProxyTargetInputField.vue";
 import PagedTableFooter from "@admin-shared/components/list/PagedTableFooter.vue";
+import ReverseProxyDefaultRouteDialog from "./reverse-proxy/ReverseProxyDefaultRouteDialog.vue";
+import ReverseProxyMappingDialog from "./reverse-proxy/ReverseProxyMappingDialog.vue";
 import { useAsyncAction } from "@admin-shared/composables/useAsyncAction";
 import { useDiscoverServicesSelection } from "@admin-shared/composables/useDiscoverServicesSelection";
 import { useDefaultRouteConfirm } from "@admin-shared/composables/useDefaultRouteConfirm";
@@ -692,6 +585,10 @@ const handleMappingDialogOpenChange = (nextOpen: boolean) => {
     closeMappingDialog(true);
   }
 };
+
+function updateMappingDraft(patch: Partial<ProxyMapping>) {
+  Object.assign(newMapping, patch);
+}
 
 const { isPending: isSyncing, run: runSyncRoutes } = useAsyncAction({
   onError: (error) => {

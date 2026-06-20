@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, onMounted, reactive, ref, toRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { toast } from "@admin-shared/utils/toast";
 import {
@@ -7,16 +7,8 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { parseCidrTextarea } from "@admin-shared/utils/cidr";
-import { usePagedSelectionList } from "@admin-shared/composables/usePagedSelectionList";
 import ConfigCollapsibleCard from "@admin-shared/components/ConfigCollapsibleCard.vue";
-import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
-import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
-import PagedTableFooter from "@admin-shared/components/list/PagedTableFooter.vue";
-import SearchInput from "@admin-shared/components/SearchInput.vue";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -41,14 +33,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   TagsInput,
@@ -57,7 +41,6 @@ import {
   TagsInputItemText,
 } from "@/components/ui/tags-input";
 import { Textarea } from "@/components/ui/textarea";
-import RefreshButton from "@/components/RefreshButton.vue";
 import {
   ChevronDown,
   Loader2,
@@ -69,34 +52,25 @@ import {
 import { CidrAPI, SSHSecurityAPI } from "../lib/api";
 import { useConfigStore } from "../store/config";
 import type {
-  CidrCityOption,
   CidrProvinceOption,
-  SSHLoginLogEntry,
-  SSHSecurityBlockRecord,
   SSHSecurityDetails,
   SSHSecuritySelection,
 } from "../types";
+import SSHBlockListPanel from "./ssh-security/SSHBlockListPanel.vue";
+import SSHLoginLogsPanel from "./ssh-security/SSHLoginLogsPanel.vue";
+import { useSSHAllowedRegions } from "./ssh-security/useSSHAllowedRegions";
+
+type SSHBlockListPanelInstance = {
+  loadBlocks: () => Promise<void>;
+};
 
 const configStore = useConfigStore();
 const { t } = useI18n();
 const details = ref<SSHSecurityDetails | null>(null);
 const provinces = ref<CidrProvinceOption[]>([]);
-const cityOptions = ref<CidrCityOption[]>([]);
-const cityOptionsLoading = ref(false);
 const activeTab = ref("login-logs");
-const logItems = ref<SSHLoginLogEntry[]>([]);
-const logTotal = ref(0);
-const logPage = ref(1);
-const logLimit = ref("20");
-const logSearch = ref("");
-const logOutcome = ref<"all" | "success" | "failure">("all");
-const isRegionDialogOpen = ref(false);
 const isClearFirewallDialogOpen = ref(false);
-
-const regionDraft = reactive({
-  province: "",
-  cityValue: "",
-});
+const blockListPanel = ref<SSHBlockListPanelInstance | null>(null);
 
 const form = reactive({
   enabled: false,
@@ -107,9 +81,6 @@ const form = reactive({
   allowedRegions: [] as SSHSecuritySelection[],
   customCidrsText: "",
 });
-
-let cityRequestToken = 0;
-let logSearchTimer: ReturnType<typeof setTimeout> | null = null;
 
 const { isPending: isLoading, run: runLoad } = useAsyncAction({
   onError: (error) => {
@@ -141,74 +112,31 @@ const { isPending: isSyncingFirewall, run: runSyncFirewall } = useAsyncAction({
     });
   },
 });
-const { isPending: isLoadingLogs, run: runLoadLogs } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.sshSecurity.logsLoadFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.sshSecurity.logsLoadDescription"),
-      ),
-    });
-  },
-});
-const { isPending: isDeleting, run: runDelete } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.sshSecurity.unblockFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.sshSecurity.unblockDescription"),
-      ),
-    });
-  },
-});
-
-const selectionKey = (selection: {
-  province: string;
-  query_city?: string | null;
-}) => `${selection.province}::${selection.query_city ?? ""}`;
-
 const customCidrsState = computed(() =>
   parseCidrTextarea(form.customCidrsText),
 );
 const invalidCustomCidrs = computed(() => customCidrsState.value.invalid);
 const regionInputsDisabled = computed(() => isSaving.value || !form.enabled);
-const selectedCityOption = computed(
-  () =>
-    cityOptions.value.find(
-      (option) => option.value === regionDraft.cityValue,
-    ) ?? null,
-);
-const citySelectKey = computed(() => regionDraft.province || "empty");
-const citySelectPlaceholder = computed(() => {
-  if (cityOptionsLoading.value) return t("admin.sshSecurity.loading");
-  if (!regionDraft.province) return t("admin.sshSecurity.selectProvinceFirst");
-  return cityOptions.value.some((option) => option.isProvinceWide)
-    ? t("admin.sshSecurity.selectCityOrProvince")
-    : t("admin.sshSecurity.selectCity");
-});
-const pendingRegionExists = computed(() => {
-  const city = selectedCityOption.value;
-  if (!regionDraft.province || !city) return false;
-  return form.allowedRegions.some(
-    (item) =>
-      selectionKey(item) ===
-      selectionKey({
-        province: regionDraft.province,
-        query_city: city.queryCity,
-      }),
-  );
-});
-const canAddRegion = computed(
-  () =>
-    form.enabled &&
-    Boolean(regionDraft.province) &&
-    Boolean(selectedCityOption.value) &&
-    !pendingRegionExists.value &&
-    !cityOptionsLoading.value,
-);
-const logParsedLimit = computed(() => {
-  const parsed = Number.parseInt(logLimit.value, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 20;
+const {
+  addRegion,
+  canAddRegion,
+  cityOptions,
+  cityOptionsLoading,
+  citySelectKey,
+  citySelectPlaceholder,
+  handleRegionDialogOpenChange,
+  isRegionDialogOpen,
+  openRegionDialog,
+  regionDraft,
+  removeRegion,
+  selectionKey,
+} = useSSHAllowedRegions({
+  allowedRegions: toRef(form, "allowedRegions"),
+  isEnabled: toRef(form, "enabled"),
+  loadCities: (province) => CidrAPI.getCities(province),
+  provinces,
+  regionInputsDisabled,
+  translate: (key, params) => (params ? t(key, params) : t(key)),
 });
 const sshPortsLabel = computed(() => {
   const ports = details.value?.summary.ssh_ports ?? [22];
@@ -244,11 +172,6 @@ const saveBlockedReason = computed(() => {
   return "";
 });
 
-const reasonLabel = (reason: SSHSecurityBlockRecord["reason"]) =>
-  reason === "cidr_not_allowed"
-    ? t("admin.sshSecurity.reasonRegionNotAllowed")
-    : t("admin.sshSecurity.reasonThresholdReached");
-
 const applyDetails = (value: SSHSecurityDetails) => {
   details.value = value;
   form.enabled = value.config.enabled;
@@ -262,120 +185,6 @@ const applyDetails = (value: SSHSecurityDetails) => {
   form.customCidrsText = value.config.custom_cidrs.join("\n");
 };
 
-const clearRegionDraft = () => {
-  cityRequestToken += 1;
-  cityOptionsLoading.value = false;
-  regionDraft.province = "";
-  regionDraft.cityValue = "";
-  cityOptions.value = [];
-};
-
-const prepareRegionDraft = () => {
-  const preferredProvince =
-    form.allowedRegions[0]?.province || provinces.value[0]?.value || "";
-
-  clearRegionDraft();
-
-  if (preferredProvince) {
-    regionDraft.province = preferredProvince;
-  }
-};
-
-const openRegionDialog = () => {
-  if (regionInputsDisabled.value || provinces.value.length === 0) {
-    return;
-  }
-
-  isRegionDialogOpen.value = true;
-  prepareRegionDraft();
-};
-
-const handleRegionDialogOpenChange = (nextOpen: boolean) => {
-  isRegionDialogOpen.value = nextOpen;
-
-  if (!nextOpen) {
-    clearRegionDraft();
-  }
-};
-
-const loadCityOptions = async (province: string) => {
-  if (!province) {
-    cityOptions.value = [];
-    regionDraft.cityValue = "";
-    return;
-  }
-
-  const token = ++cityRequestToken;
-  cityOptionsLoading.value = true;
-  cityOptions.value = [];
-  regionDraft.cityValue = "";
-  try {
-    const payload = await CidrAPI.getCities(province);
-    if (token !== cityRequestToken) return;
-    cityOptions.value = payload.options;
-    const hasCurrentValue = payload.options.some(
-      (option) => option.value === regionDraft.cityValue,
-    );
-    regionDraft.cityValue = hasCurrentValue
-      ? regionDraft.cityValue
-      : (payload.defaultValue ?? payload.options[0]?.value ?? "");
-  } catch (error) {
-    if (token !== cityRequestToken) return;
-    cityOptions.value = [];
-    regionDraft.cityValue = "";
-    toast.error(t("admin.sshSecurity.regionsLoadFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.sshSecurity.regionsLoadDescription"),
-      ),
-    });
-  } finally {
-    if (token === cityRequestToken) {
-      cityOptionsLoading.value = false;
-    }
-  }
-};
-
-watch(
-  () => regionDraft.province,
-  (province, previousProvince) => {
-    if (province !== previousProvince) {
-      void loadCityOptions(province);
-    }
-  },
-);
-
-watch(
-  () => form.enabled,
-  (enabled) => {
-    if (!enabled) {
-      handleRegionDialogOpenChange(false);
-    }
-  },
-);
-
-const addRegion = () => {
-  const option = selectedCityOption.value;
-  if (!option || !canAddRegion.value) return;
-  form.allowedRegions.push({
-    province: regionDraft.province,
-    city: option.isProvinceWide ? null : option.label,
-    label: option.label,
-    value: option.value,
-    query_city: option.queryCity,
-    is_province_wide: option.isProvinceWide,
-    is_municipality: option.isMunicipality,
-  });
-  handleRegionDialogOpenChange(false);
-};
-
-const removeRegion = (selection: SSHSecuritySelection) => {
-  if (regionInputsDisabled.value) return;
-  form.allowedRegions = form.allowedRegions.filter(
-    (item) => selectionKey(item) !== selectionKey(selection),
-  );
-};
-
 const loadDetails = async () => {
   await runLoad(async () => {
     const [provincePayload, nextDetails] = await Promise.all([
@@ -386,6 +195,9 @@ const loadDetails = async () => {
     applyDetails(nextDetails);
   });
 };
+
+const reloadBlockList = () =>
+  blockListPanel.value?.loadBlocks() ?? Promise.resolve();
 
 const saveConfig = async () => {
   if (saveBlockedReason.value) {
@@ -438,7 +250,7 @@ const syncFirewall = async () => {
             result.ports.join(t("admin.sshSecurity.listSeparator")) || "22",
         }),
       });
-      await Promise.all([loadDetails(), loadBlocks()]);
+      await Promise.all([loadDetails(), reloadBlockList()]);
     },
   });
 };
@@ -466,111 +278,13 @@ const clearFirewall = async () => {
           count: result.cleared_blocks,
         }),
       });
-      await Promise.all([loadDetails(), loadBlocks()]);
-    },
-  });
-};
-
-const loadLogs = async () => {
-  await runLoadLogs(
-    () =>
-      SSHSecurityAPI.getLoginLogs({
-        page: logPage.value,
-        limit: logLimit.value,
-        search: logSearch.value,
-        outcome: logOutcome.value,
-      }),
-    {
-      onSuccess: (payload) => {
-        logItems.value = payload.items;
-        logTotal.value = payload.total;
-      },
-    },
-  );
-};
-
-const handleLogSearch = () => {
-  logPage.value = 1;
-  void loadLogs();
-};
-
-const handleLogPageChange = (page: number) => {
-  logPage.value = page;
-  void loadLogs();
-};
-
-const handleLogLimitChange = (value: unknown) => {
-  logLimit.value = String(value ?? "20");
-  logPage.value = 1;
-  void loadLogs();
-};
-
-watch(logSearch, () => {
-  if (logSearchTimer) clearTimeout(logSearchTimer);
-  logSearchTimer = setTimeout(handleLogSearch, 500);
-});
-
-watch(logOutcome, () => {
-  handleLogSearch();
-});
-
-const {
-  items: blockRecords,
-  total: blockTotal,
-  loading: isLoadingBlocks,
-  searchQuery: blockSearch,
-  currentPage: blockPage,
-  limit: blockLimit,
-  parsedLimit: blockParsedLimit,
-  selectedKeys: selectedBlockIps,
-  isAllSelected: isAllBlocksSelected,
-  fetchList: loadBlocks,
-  handleSearch: handleBlockSearch,
-  handlePageChange: handleBlockPageChange,
-  handleLimitChange: handleBlockLimitChange,
-  toggleSelect: toggleBlockSelect,
-  clearSelection: clearBlockSelection,
-} = usePagedSelectionList<SSHSecurityBlockRecord, string>({
-  fetchPage: async ({ page, limit, query }) => {
-    const payload = await SSHSecurityAPI.getBlocks(page, limit, query);
-    return { items: payload.items, total: payload.total };
-  },
-  getKey: (record) => record.ip,
-  onError: (error) => {
-    toast.error(t("admin.sshSecurity.blocksLoadFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.sshSecurity.blocksLoadDescription"),
-      ),
-    });
-  },
-});
-
-const deleteBlocks = async (ips: string[]) => {
-  if (ips.length === 0) return;
-  await runDelete(() => SSHSecurityAPI.deleteBlocks(ips), {
-    onSuccess: async () => {
-      toast.success(t("admin.sshSecurity.unblocked"));
-      clearBlockSelection();
-      await Promise.all([loadBlocks(), loadDetails()]);
-    },
-  });
-};
-
-const deleteOneBlock = async (ip: string) => {
-  await runDelete(() => SSHSecurityAPI.deleteBlock(ip), {
-    onSuccess: async () => {
-      toast.success(t("admin.sshSecurity.unblocked"));
-      selectedBlockIps.value.delete(ip);
-      selectedBlockIps.value = new Set(selectedBlockIps.value);
-      await Promise.all([loadBlocks(), loadDetails()]);
+      await Promise.all([loadDetails(), reloadBlockList()]);
     },
   });
 };
 
 onMounted(async () => {
   await loadDetails();
-  await Promise.all([loadLogs(), loadBlocks()]);
 });
 </script>
 
@@ -1049,307 +763,12 @@ onMounted(async () => {
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="login-logs" class="space-y-3">
-        <div class="flex flex-wrap items-center gap-2">
-          <SearchInput
-            v-model="logSearch"
-            :placeholder="t('admin.sshSecurity.searchLogsPlaceholder')"
-            class="w-full max-w-xs"
-            @search="handleLogSearch"
-          />
-          <Select v-model="logOutcome">
-            <SelectTrigger class="w-[140px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">
-                {{ t("admin.sshSecurity.allResults") }}
-              </SelectItem>
-              <SelectItem value="success">
-                {{ t("admin.sshSecurity.success") }}
-              </SelectItem>
-              <SelectItem value="failure">
-                {{ t("admin.sshSecurity.failure") }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-          <div class="flex-1"></div>
-          <RefreshButton
-            :loading="isLoadingLogs"
-            :disabled="isLoadingLogs"
-            @click="loadLogs"
-          />
-        </div>
-
-        <Card class="border-border/60 shadow-none">
-          <CardContent class="p-0">
-            <div class="overflow-auto">
-              <Table class="min-w-[760px]">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead class="h-11 w-[168px] px-4">
-                      {{ t("admin.sshSecurity.time") }}
-                    </TableHead>
-                    <TableHead class="h-11 w-[92px] px-4">
-                      {{ t("admin.sshSecurity.result") }}
-                    </TableHead>
-                    <TableHead class="h-11 min-w-[160px] px-4">
-                      {{ t("admin.sshSecurity.user") }}
-                    </TableHead>
-                    <TableHead class="h-11 min-w-[220px] px-4">
-                      {{ t("admin.sshSecurity.ipLocation") }}
-                    </TableHead>
-                    <TableHead class="h-11 min-w-[180px] px-4">
-                      {{ t("admin.sshSecurity.method") }}
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow v-if="isLoadingLogs">
-                    <TableCell colspan="5" class="px-4 py-10 text-center">
-                      <Loader2
-                        class="mx-auto h-6 w-6 animate-spin text-muted-foreground"
-                      />
-                    </TableCell>
-                  </TableRow>
-                  <TableRow v-else-if="logItems.length === 0">
-                    <TableCell
-                      colspan="5"
-                      class="px-4 py-10 text-center text-muted-foreground"
-                    >
-                      {{ t("admin.sshSecurity.noLoginLogs") }}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow v-for="entry in logItems" v-else :key="entry.id">
-                    <TableCell class="px-4 py-3 align-top whitespace-nowrap">
-                      <HumanFriendlyTime :value="entry.happened_at" />
-                    </TableCell>
-                    <TableCell class="px-4 py-3 align-top">
-                      <div class="flex flex-wrap items-center gap-1.5">
-                        <Badge
-                          :variant="
-                            entry.outcome === 'success'
-                              ? 'default'
-                              : 'secondary'
-                          "
-                        >
-                          {{
-                            entry.outcome === "success"
-                              ? t("admin.sshSecurity.success")
-                              : t("admin.sshSecurity.failure")
-                          }}
-                        </Badge>
-                      </div>
-                    </TableCell>
-                    <TableCell
-                      class="min-w-[160px] px-4 py-3 align-top whitespace-normal"
-                    >
-                      <div class="font-medium">{{ entry.username }}</div>
-                      <div
-                        v-if="entry.invalid_user"
-                        class="text-xs text-muted-foreground"
-                      >
-                        {{ t("admin.sshSecurity.invalidUser") }}
-                      </div>
-                    </TableCell>
-                    <TableCell
-                      class="min-w-[220px] px-4 py-3 align-top whitespace-normal"
-                    >
-                      <div class="font-mono text-sm">{{ entry.ip }}</div>
-                      <div
-                        v-if="entry.ipLocation"
-                        class="mt-0.5 text-xs text-muted-foreground"
-                      >
-                        {{ entry.ipLocation }}
-                      </div>
-                    </TableCell>
-                    <TableCell
-                      class="min-w-[180px] px-4 py-3 align-top whitespace-normal"
-                    >
-                      <span class="break-words">
-                        {{ entry.auth_method || "-" }}
-                      </span>
-                      <span
-                        v-if="entry.port"
-                        class="text-muted-foreground whitespace-nowrap"
-                      >
-                        / {{ entry.port }}
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
-            <PagedTableFooter
-              :total="logTotal"
-              :page="logPage"
-              :limit="logLimit"
-              :items-per-page="logParsedLimit"
-              @update:page="handleLogPageChange"
-              @update:limit="handleLogLimitChange"
-            />
-          </CardContent>
-        </Card>
+      <TabsContent value="login-logs">
+        <SSHLoginLogsPanel />
       </TabsContent>
 
-      <TabsContent value="blocks" class="space-y-3">
-        <div class="flex flex-wrap items-center gap-2">
-          <SearchInput
-            v-model="blockSearch"
-            :placeholder="t('admin.sshSecurity.searchBlocksPlaceholder')"
-            class="w-full max-w-xs"
-            @search="handleBlockSearch"
-          />
-          <div class="flex-1"></div>
-          <RefreshButton
-            :loading="isLoadingBlocks"
-            :disabled="isLoadingBlocks"
-            @click="loadBlocks"
-          />
-          <ConfirmDangerPopover
-            :title="
-              t('admin.sshSecurity.confirmUnblockSelectedTitle', {
-                count: selectedBlockIps.size,
-              })
-            "
-            :description="t('admin.sshSecurity.unblockDescriptionText')"
-            :loading="isDeleting"
-            :disabled="selectedBlockIps.size === 0 || isDeleting"
-            :on-confirm="() => deleteBlocks(Array.from(selectedBlockIps))"
-          >
-            <template #trigger>
-              <Button
-                variant="destructive"
-                :disabled="selectedBlockIps.size === 0 || isDeleting"
-              >
-                <Trash2 class="h-4 w-4" />
-                {{
-                  t("admin.sshSecurity.deleteSelected", {
-                    count: selectedBlockIps.size,
-                  })
-                }}
-              </Button>
-            </template>
-          </ConfirmDangerPopover>
-        </div>
-
-        <Card class="border-border/60 shadow-none">
-          <CardContent class="p-0">
-            <div class="overflow-auto">
-              <Table class="min-w-[860px]">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead class="h-11 w-[48px] px-3">
-                      <Checkbox v-model="isAllBlocksSelected" />
-                    </TableHead>
-                    <TableHead class="h-11 min-w-[220px] px-4">
-                      {{ t("admin.sshSecurity.ipLocation") }}
-                    </TableHead>
-                    <TableHead class="h-11 w-[168px] px-4">
-                      {{ t("admin.sshSecurity.blockedAt") }}
-                    </TableHead>
-                    <TableHead class="h-11 w-[168px] px-4">
-                      {{ t("admin.sshSecurity.expiresAt") }}
-                    </TableHead>
-                    <TableHead class="h-11 w-[120px] px-4">
-                      {{ t("admin.sshSecurity.reason") }}
-                    </TableHead>
-                    <TableHead class="h-11 w-[120px] px-4">
-                      {{ t("admin.sshSecurity.count") }}
-                    </TableHead>
-                    <TableHead class="h-11 w-[88px] px-4 text-right">
-                      {{ t("admin.sshSecurity.actions") }}
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow v-if="isLoadingBlocks">
-                    <TableCell colspan="7" class="px-4 py-10 text-center">
-                      <Loader2
-                        class="mx-auto h-6 w-6 animate-spin text-muted-foreground"
-                      />
-                    </TableCell>
-                  </TableRow>
-                  <TableRow v-else-if="blockRecords.length === 0">
-                    <TableCell
-                      colspan="7"
-                      class="px-4 py-10 text-center text-muted-foreground"
-                    >
-                      {{ t("admin.sshSecurity.noBlockRecords") }}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow
-                    v-for="record in blockRecords"
-                    v-else
-                    :key="record.ip"
-                  >
-                    <TableCell class="px-3 py-3 align-top">
-                      <Checkbox
-                        :model-value="selectedBlockIps.has(record.ip)"
-                        @update:model-value="toggleBlockSelect(record.ip)"
-                      />
-                    </TableCell>
-                    <TableCell
-                      class="min-w-[220px] px-4 py-3 align-top whitespace-normal"
-                    >
-                      <div class="font-mono text-sm">{{ record.ip }}</div>
-                      <div
-                        v-if="record.ipLocation"
-                        class="mt-0.5 text-xs text-muted-foreground"
-                      >
-                        {{ record.ipLocation }}
-                      </div>
-                    </TableCell>
-                    <TableCell class="px-4 py-3 align-top whitespace-nowrap">
-                      <HumanFriendlyTime :value="record.blocked_at" />
-                    </TableCell>
-                    <TableCell class="px-4 py-3 align-top whitespace-nowrap">
-                      <HumanFriendlyTime :value="record.expires_at" />
-                    </TableCell>
-                    <TableCell class="px-4 py-3 align-top">
-                      <Badge
-                        :variant="record.applied ? 'secondary' : 'outline'"
-                      >
-                        {{ reasonLabel(record.reason) }}
-                      </Badge>
-                    </TableCell>
-                    <TableCell class="px-4 py-3 align-top whitespace-nowrap">
-                      {{ record.failed_count }} / {{ record.threshold }}
-                    </TableCell>
-                    <TableCell class="px-4 py-3 text-right align-top">
-                      <ConfirmDangerPopover
-                        :title="t('admin.sshSecurity.confirmUnblockOneTitle')"
-                        :description="t('admin.sshSecurity.unblockDescriptionText')"
-                        :loading="isDeleting"
-                        :disabled="isDeleting"
-                        :on-confirm="() => deleteOneBlock(record.ip)"
-                      >
-                        <template #trigger>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            class="text-destructive"
-                            :disabled="isDeleting"
-                          >
-                            <Trash2 class="h-4 w-4" />
-                          </Button>
-                        </template>
-                      </ConfirmDangerPopover>
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
-            <PagedTableFooter
-              :total="blockTotal"
-              :page="blockPage"
-              :limit="blockLimit"
-              :items-per-page="blockParsedLimit"
-              @update:page="handleBlockPageChange"
-              @update:limit="handleBlockLimitChange"
-            />
-          </CardContent>
-        </Card>
+      <TabsContent value="blocks">
+        <SSHBlockListPanel ref="blockListPanel" :reload-details="loadDetails" />
       </TabsContent>
     </Tabs>
 

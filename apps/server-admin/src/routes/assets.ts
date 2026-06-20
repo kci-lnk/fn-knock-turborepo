@@ -11,7 +11,6 @@ import {
   isAdminPanelProtectedRuntime,
 } from "../lib/runtime-profile";
 import {
-  DISCOVER_COMMON_PORTS,
   SCAN_DISCOVERY_LIMITS,
   ScanDiscoveryValidationError,
   buildCustomDiscoverTargets,
@@ -21,13 +20,17 @@ import {
   buildMappingDiscoverTargets,
   buildSavedDiscoverTargets,
   buildScanScope,
-  buildSingletonPortRanges,
   dedupeTargets,
   expandScanCidrs,
   isAllowedScanIpv4,
   normalizeAllowedScanCidrs,
   validateScanCidrs,
 } from "../lib/scan-discovery";
+import {
+  buildDiscoveryPortModeLabel,
+  runServiceDiscoveryScan,
+  type ServiceDiscoveryScanner,
+} from "../lib/service-discovery-scan";
 import { createRequestTranslator } from "../lib/i18n";
 import { probeConfiguredHostMappings } from "../lib/host-mapping-probe";
 import { resolveProxyTargetPort } from "../lib/proxy-target-url";
@@ -223,16 +226,7 @@ const handleDiscover = async (
     set,
   }: {
     request: Request;
-    scannerService: {
-      scanAndAnalyzeMany: (
-        hosts: string[],
-        options?: Record<string, unknown>,
-      ) => Promise<any>;
-      scanAndAnalyze: (
-        host: string,
-        options?: Record<string, unknown>,
-      ) => Promise<any>;
-    };
+    scannerService: ServiceDiscoveryScanner;
     set: { status?: number | string };
   },
   targetCidrs?: string[],
@@ -255,29 +249,22 @@ const handleDiscover = async (
 
     const scanHosts = expandScanCidrs(scanCidrs);
     const scanScope = buildScanScope(scanCidrs);
-    const useFullLocalhostScan =
-      !runtimeProfile.is_docker &&
-      scanCidrs.length === 1 &&
-      scanCidrs[0] === "127.0.0.1/32";
-
-    console.log(
-      `[scan] scope=${scanScope} hosts=${scanHosts.length} ports=${
-        useFullLocalhostScan ? "1000-60000" : DISCOVER_COMMON_PORTS.length
-      }`,
+    const portModeLabel = buildDiscoveryPortModeLabel(
+      runtimeProfile.is_docker,
+      scanCidrs,
     );
 
-    const scanResult = useFullLocalhostScan
-      ? await scannerService.scanAndAnalyze(scanHosts[0] || "127.0.0.1", {
-          skipPorts: excludePorts,
-          maxConcurrent: 200,
-        })
-      : await scannerService.scanAndAnalyzeMany(scanHosts, {
-          skipPorts: excludePorts,
-          timeout: 80,
-          maxConcurrent: 64,
-          hostConcurrency: 6,
-          portRanges: buildSingletonPortRanges(DISCOVER_COMMON_PORTS),
-        });
+    console.log(
+      `[scan] scope=${scanScope} hosts=${scanHosts.length} ports=${portModeLabel}`,
+    );
+
+    const scanResult = await runServiceDiscoveryScan({
+      excludePorts,
+      isDockerRuntime: runtimeProfile.is_docker,
+      scanCidrs,
+      scanHosts,
+      scannerService,
+    });
 
     return {
       success: true,

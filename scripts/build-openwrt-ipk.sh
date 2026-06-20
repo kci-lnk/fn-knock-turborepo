@@ -246,6 +246,8 @@ validate_data_payload() {
     fail "data payload missing /etc/init.d/fn-knock"
   printf '%s\n' "${listing}" | grep -Fxq "usr/lib/fn-knock/server/server-admin/index.js" || \
     fail "data payload missing server-admin index.js"
+  printf '%s\n' "${listing}" | grep -Fxq "usr/lib/fn-knock/server/server-admin/package.json" || \
+    fail "data payload missing server-admin package.json"
   printf '%s\n' "${listing}" | grep -Fxq "usr/lib/fn-knock/ui/www/index.html" || \
     fail "data payload missing admin UI index.html"
   printf '%s\n' "${listing}" | grep -Fxq "usr/lib/fn-knock/server/go-reauth-proxy-linux-${gateway_arch}" || \

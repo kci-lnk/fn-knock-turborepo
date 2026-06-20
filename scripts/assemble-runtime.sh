@@ -52,6 +52,11 @@ rsync -a --delete "${ROOT_DIR}/apps/server-auth-view/dist/" "${AUTH_DIST_DIR}/"
 echo "[fn-knock] Syncing server-admin dist"
 rsync -a --delete "${ROOT_DIR}/apps/server-admin/dist/" "${SERVER_ADMIN_DIR}/"
 mkdir -p "${SERVER_ADMIN_RES_DIR}"
+cat > "${SERVER_ADMIN_DIR}/package.json" <<'EOF'
+{
+  "type": "module"
+}
+EOF
 
 if [ ! -f "${ACME_RESOURCE_SRC}" ]; then
   echo "[fn-knock] Missing acme resource: ${ACME_RESOURCE_SRC}" >&2

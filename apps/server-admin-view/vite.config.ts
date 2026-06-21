@@ -49,12 +49,15 @@ export default defineConfig({
   publicDir: path.resolve(__dirname, '../../packages/icons'),
   plugins: [
     vue(),
-    tailwindcss(),
+    tailwindcss({
+      optimize: false,
+    }),
   ],
   optimizeDeps: {
     exclude: ['qrcode.vue'],
   },
   build: {
+    cssMinify: 'esbuild',
     modulePreload: {
       resolveDependencies(_filename, deps, context) {
         if (context.hostType !== 'html') return deps

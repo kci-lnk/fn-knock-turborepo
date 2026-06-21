@@ -159,14 +159,37 @@
 }
 
 .mapping-table-scroll .mapping-sticky-cell {
-  @apply sticky z-10 bg-card;
+  @apply sticky z-10;
+  background-color: transparent;
+}
+
+.mapping-table-scroll--scrolled .mapping-sticky-cell {
+  background-color: var(--card);
+}
+
+.mapping-table-scroll--scrolled
+  .mapping-title-cell.mapping-sticky-cell::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+}
+
+:root:not(.dark)[data-theme-color="dynamic_white"]
+  .mapping-table-scroll--scrolled
+  .mapping-title-cell.mapping-sticky-cell::after {
+  background: var(--dynamic-white-glass-inner-border);
 }
 
 .mapping-table-scroll .mapping-icon-cell {
   @apply px-0 text-center;
 }
 
-.mapping-table-scroll .mapping-sticky-cell-1 {
+.mapping-table-scroll .mapping-order-cell {
   @apply left-0;
   box-sizing: border-box;
   width: 36px;
@@ -174,7 +197,7 @@
   max-width: 36px;
 }
 
-.mapping-table-scroll .mapping-sticky-cell-2 {
+.mapping-table-scroll .mapping-favicon-cell {
   left: 36px;
   box-sizing: border-box;
   width: 28px;
@@ -182,11 +205,8 @@
   max-width: 28px;
 }
 
-.mapping-table-scroll .mapping-sticky-cell-3 {
-  left: 64px;
-}
-
 .mapping-table-scroll .mapping-title-cell {
+  left: 64px;
   @apply w-[7rem] min-w-[7rem] max-w-[7rem] overflow-hidden sm:w-[12rem] sm:min-w-[12rem] sm:max-w-[12rem];
 }
 
@@ -195,7 +215,7 @@
 }
 
 .mapping-table-scroll thead .mapping-sticky-cell {
-  @apply z-20 bg-card;
+  @apply z-20;
 }
 
 #nprogress {

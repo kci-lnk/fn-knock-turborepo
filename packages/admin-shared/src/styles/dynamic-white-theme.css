@@ -2,18 +2,18 @@
   --background: #ffffff;
   --card: #ffffff;
   --popover: #ffffff;
-  --primary: #525252;
-  --primary-foreground: #ffffff;
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
   --secondary: #f5f5f5;
   --muted: #f5f5f5;
   --accent: #f5f5f5;
   --border: rgb(212 212 212 / 58%);
   --input: rgb(212 212 212 / 62%);
-  --ring: #a3a3a3;
-  --chart-1: #737373;
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
   --sidebar: #ffffff;
-  --sidebar-primary: #525252;
-  --sidebar-primary-foreground: #ffffff;
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: #f5f5f5;
   --sidebar-border: rgb(212 212 212 / 58%);
 

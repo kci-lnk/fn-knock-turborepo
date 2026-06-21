@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   ChevronDown,
@@ -142,6 +142,13 @@ const searchModel = computed({
   get: () => props.searchQuery,
   set: (value: string) => emit("update:searchQuery", value),
 });
+
+const isMappingTableScrolled = ref(false);
+
+const handleMappingTableScroll = (event: Event) => {
+  if (!(event.currentTarget instanceof HTMLElement)) return;
+  isMappingTableScrolled.value = event.currentTarget.scrollLeft > 0;
+};
 </script>
 
 <template>
@@ -301,19 +308,25 @@ const searchModel = computed({
       </p>
 
       <div class="overflow-hidden rounded-md border">
-        <Table container-class="mapping-table-scroll">
+        <Table
+          :container-class="[
+            'mapping-table-scroll',
+            { 'mapping-table-scroll--scrolled': isMappingTableScrolled },
+          ]"
+          @scroll.passive="handleMappingTableScroll"
+        >
           <TableHeader>
             <TableRow>
               <TableHead
-                class="mapping-sticky-cell mapping-sticky-cell-1"
+                class="mapping-sticky-cell mapping-order-cell mapping-icon-cell"
               ></TableHead>
               <TableHead
-                class="mapping-sticky-cell mapping-sticky-cell-2 mapping-icon-cell"
+                class="mapping-sticky-cell mapping-favicon-cell mapping-icon-cell"
               >
                 <span class="sr-only">Icon</span>
               </TableHead>
               <TableHead
-                class="mapping-sticky-cell mapping-sticky-cell-3 mapping-title-cell"
+                class="mapping-sticky-cell mapping-title-cell"
               >
                 {{ t("admin.subdomainProxy.columns.title") }}
               </TableHead>
@@ -355,7 +368,7 @@ const searchModel = computed({
               class="group"
             >
               <TableCell
-                class="mapping-sticky-cell mapping-sticky-cell-1 mapping-icon-cell"
+                class="mapping-sticky-cell mapping-order-cell mapping-icon-cell"
               >
                 <button
                   type="button"
@@ -367,7 +380,7 @@ const searchModel = computed({
                 </button>
               </TableCell>
               <TableCell
-                class="mapping-sticky-cell mapping-sticky-cell-2 mapping-icon-cell"
+                class="mapping-sticky-cell mapping-favicon-cell mapping-icon-cell"
               >
                 <img
                   v-if="getMappingFaviconSrc(mapping) && !isFaviconBroken(mapping)"
@@ -378,7 +391,7 @@ const searchModel = computed({
                 />
               </TableCell>
               <TableCell
-                class="mapping-sticky-cell mapping-sticky-cell-3 mapping-title-cell text-sm"
+                class="mapping-sticky-cell mapping-title-cell text-sm"
                 :title="getMappingTitleForDisplay(mapping)"
               >
                 <div class="flex min-w-0 items-center gap-2">

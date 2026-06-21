@@ -1113,6 +1113,7 @@ export const zhHantServer = {
     curlRequestFailed: "curl 請求失敗: {detail}",
     triggerCron: "定時檢查",
     triggerEnable: "啟用自動更新後立即檢查",
+    triggerStartup: "程式啟動後檢查",
     triggerMessage: "{trigger}: {message}",
     notConfigured: "未配置",
     skippedNoProvider: "未選擇 DDNS 提供商，已跳過",
@@ -1682,6 +1683,7 @@ export const zhHantServer = {
       ddnsTriggers: {
         cron: "定時任務",
         enable: "啟用後首次執行",
+        startup: "程式啟動後檢查",
         manualTest: "手動測試",
       },
       ddnsUpdateScopes: {

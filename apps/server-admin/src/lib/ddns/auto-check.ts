@@ -37,9 +37,9 @@ end
 return 0
 `;
 
-type DDNSAutoCheckTrigger = "cron" | "enable";
+export type DDNSAutoCheckTrigger = "cron" | "enable" | "startup";
 
-type RunAutomaticDDNSCheckOptions = {
+export type RunAutomaticDDNSCheckOptions = {
   trigger?: DDNSAutoCheckTrigger;
   emitSkipLog?: boolean;
   emitNoopLog?: boolean;
@@ -48,6 +48,7 @@ type RunAutomaticDDNSCheckOptions = {
 const TRIGGER_LABEL_KEYS: Record<DDNSAutoCheckTrigger, string> = {
   cron: "triggerCron",
   enable: "triggerEnable",
+  startup: "triggerStartup",
 };
 
 const ddnsT = ddnsTranslate;

@@ -1112,6 +1112,7 @@ export const zhCNServer = {
     curlRequestFailed: "curl 请求失败: {detail}",
     triggerCron: "定时检查",
     triggerEnable: "启用自动更新后立即检查",
+    triggerStartup: "程序启动后检查",
     triggerMessage: "{trigger}: {message}",
     notConfigured: "未配置",
     skippedNoProvider: "未选择 DDNS 提供商，已跳过",
@@ -1681,6 +1682,7 @@ export const zhCNServer = {
       ddnsTriggers: {
         cron: "定时任务",
         enable: "启用后首次执行",
+        startup: "程序启动后检查",
         manualTest: "手动测试",
       },
       ddnsUpdateScopes: {

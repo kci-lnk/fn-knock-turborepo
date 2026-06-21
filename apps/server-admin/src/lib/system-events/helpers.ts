@@ -242,7 +242,7 @@ export const emitScannerBlockedEvent = async (payload: {
   });
 
 export const emitDDNSUpdateCompletedEvent = async (payload: {
-  trigger: "cron" | "enable" | "manual_test";
+  trigger: "cron" | "enable" | "manual_test" | "startup";
   targetId: string;
   targetName: string;
   domainSummary?: string;

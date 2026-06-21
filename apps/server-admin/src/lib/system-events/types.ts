@@ -113,7 +113,7 @@ export type SystemEventScannerBlockedPayload = {
 };
 
 export type SystemEventDDNSUpdateCompletedPayload = {
-  trigger: "cron" | "enable" | "manual_test";
+  trigger: "cron" | "enable" | "manual_test" | "startup";
   target_id: string;
   target_name: string;
   domain_summary?: string;

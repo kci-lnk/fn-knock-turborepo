@@ -75,6 +75,7 @@ const DRIFT_SOURCE_LABEL_KEYS = {
 const DDNS_TRIGGER_LABEL_KEYS = {
   cron: "ddnsTriggers.cron",
   enable: "ddnsTriggers.enable",
+  startup: "ddnsTriggers.startup",
   manual_test: "ddnsTriggers.manualTest",
 } as const;
 

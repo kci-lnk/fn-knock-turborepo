@@ -1274,6 +1274,7 @@ export const enServer = {
     curlRequestFailed: "curl request failed: {detail}",
     triggerCron: "Scheduled check",
     triggerEnable: "Immediate check after enabling automatic updates",
+    triggerStartup: "Startup check",
     triggerMessage: "{trigger}: {message}",
     notConfigured: "Not configured",
     skippedNoProvider: "No DDNS provider selected; skipped",
@@ -1876,6 +1877,7 @@ export const enServer = {
       ddnsTriggers: {
         cron: "Scheduled task",
         enable: "First run after enabling",
+        startup: "Startup check",
         manualTest: "Manual test",
       },
       ddnsUpdateScopes: {

@@ -1283,6 +1283,7 @@ export const koKRServer = {
     curlRequestFailed: "컬 요청 실패: {detail}",
     triggerCron: "예정된 점검",
     triggerEnable: "자동 업데이트 활성화 후 즉시 확인",
+    triggerStartup: "시작 후 확인",
     triggerMessage: "{trigger}: {message}",
     notConfigured: "구성되지 않음",
     skippedNoProvider: "DDNS 공급자가 선택되지 않았습니다. 건너뛰었습니다",
@@ -1890,6 +1891,7 @@ export const koKRServer = {
       ddnsTriggers: {
         cron: "예약된 작업",
         enable: "활성화 후 첫 번째 실행",
+        startup: "시작 후 확인",
         manualTest: "수동 테스트",
       },
       ddnsUpdateScopes: {

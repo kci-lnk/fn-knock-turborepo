@@ -1340,6 +1340,7 @@ export const jaJPServer = {
     curlRequestFailed: "curl リクエストが失敗しました: {detail}",
     triggerCron: "定期点検",
     triggerEnable: "自動アップデートを有効にした後、今すぐ確認してください",
+    triggerStartup: "起動後チェック",
     triggerMessage: "{trigger}: {message}",
     notConfigured: "未設定",
     skippedNoProvider:
@@ -1966,6 +1967,7 @@ export const jaJPServer = {
       ddnsTriggers: {
         cron: "スケジュールされたタスク",
         enable: "有効化後の最初の実行",
+        startup: "起動後チェック",
         manualTest: "手動テスト",
       },
       ddnsUpdateScopes: {

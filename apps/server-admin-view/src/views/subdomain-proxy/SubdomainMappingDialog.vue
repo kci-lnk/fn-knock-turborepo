@@ -313,6 +313,7 @@ const preserveHostModel = computed({
                 input-id="mapping-target"
                 protocol-id="mapping-target-protocol"
                 placeholder="127.0.0.1:5173"
+                :suggestions="['127.0.0.1:']"
               />
             </div>
 

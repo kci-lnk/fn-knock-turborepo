@@ -32,6 +32,22 @@ type ParsedProxyTargetParts = {
 
 const TARGET_PROTOCOL_PATTERN = /^(https?|wss?):\/\/(.*)$/i;
 
+const hasExplicitEmptyPort = (value: string): boolean => {
+  const match = value.trim().match(TARGET_PROTOCOL_PATTERN);
+  if (!match) return false;
+
+  const [, , endpoint = ""] = match;
+  const firstSuffixIndex = endpoint.search(/[/?#]/);
+  const boundary =
+    firstSuffixIndex === -1 ? endpoint.length : firstSuffixIndex;
+  const authorityWithCredentials = endpoint.slice(0, boundary);
+  const authority = authorityWithCredentials.slice(
+    authorityWithCredentials.lastIndexOf("@") + 1,
+  );
+
+  return authority.endsWith(":");
+};
+
 export const isProxyTargetProtocol = (
   value: string | null | undefined,
 ): boolean => {
@@ -178,6 +194,7 @@ export const normalizeProxyTargetInput = (
 export const isSupportedProxyTargetUrl = (value: string): boolean => {
   const target = value.trim();
   if (!target) return false;
+  if (hasExplicitEmptyPort(target)) return false;
 
   try {
     const parsed = new URL(target);
@@ -192,6 +209,7 @@ export const isSupportedProxyTargetUrl = (value: string): boolean => {
 export const isWebSocketProxyTargetUrl = (value: string): boolean => {
   const target = value.trim();
   if (!target) return false;
+  if (hasExplicitEmptyPort(target)) return false;
 
   try {
     const parsed = new URL(target);

@@ -105,6 +105,7 @@ export const zhHantShared = {
   },
   proxyTargetInputField: {
     hint: "左側選擇協議，右側填寫 IP 和端口；未填寫端口時會按協議默認端口自動補齊。",
+    suggestionsLabel: "目標地址候選",
   },
   configCollapsibleCard: {
     editConfig: "編輯配置",

@@ -114,6 +114,7 @@ export const jaJPShared = {
   },
   proxyTargetInputField: {
     hint: "左側でプロトコルを選択し、右側に IP とポートを入力します。ポートが未入力の場合は、プロトコルのデフォルトポートで自動補完されます。",
+    suggestionsLabel: "ターゲットアドレス候補",
   },
   configCollapsibleCard: {
     editConfig: "設定の編集",

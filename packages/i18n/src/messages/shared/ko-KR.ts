@@ -112,6 +112,7 @@ export const koKRShared = {
   },
   proxyTargetInputField: {
     hint: "왼쪽에서 프로토콜을 선택하고 오른쪽에서 IP와 포트를 입력하세요. 포트를 생략하면 프로토콜 기본 포트로 자동 채워집니다.",
+    suggestionsLabel: "대상 주소 추천",
   },
   configCollapsibleCard: {
     editConfig: "구성 수정",

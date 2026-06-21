@@ -105,6 +105,7 @@ export const zhCNShared = {
   },
   proxyTargetInputField: {
     hint: "左侧选择协议，右侧填写 IP 和端口；未填写端口时会按协议默认端口自动补齐。",
+    suggestionsLabel: "目标地址候选",
   },
   configCollapsibleCard: {
     editConfig: "编辑配置",

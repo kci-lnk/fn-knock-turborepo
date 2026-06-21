@@ -287,11 +287,11 @@ export const isHttpTargetUrl = (target: string): boolean => {
 
 export const canRefreshHostMappingMetadata = (target: string): boolean => {
   const normalizedTarget = target.trim();
-  if (!normalizedTarget) return false;
+  if (!isSupportedProxyTargetUrl(normalizedTarget)) return false;
 
   try {
     const parsed = new URL(normalizedTarget);
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
+    return isHttpProxyTargetProtocol(parsed.protocol);
   } catch {
     return false;
   }

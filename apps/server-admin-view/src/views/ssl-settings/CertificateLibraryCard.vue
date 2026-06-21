@@ -48,6 +48,7 @@ const { t } = useI18n();
     summary-class="text-xs text-muted-foreground max-w-full whitespace-normal break-words sm:truncate"
     expanded-content-class="p-0 sm:p-0"
     actions-class="border-t bg-muted/30 px-4 py-4 sm:px-6 flex flex-col gap-2 rounded-b-lg sm:flex-row sm:justify-end"
+    card-class="dynamic-white-cert-card"
   >
     <template #summary>
       {{ summary }}
@@ -58,7 +59,7 @@ const { t } = useI18n();
         <div
           v-for="certificate in certificates"
           :key="certificate.id"
-          class="rounded-lg border bg-muted/15 p-4 grid gap-3"
+          class="dynamic-white-cert-subsurface rounded-lg border bg-muted/15 p-4 grid gap-3"
         >
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="grid gap-1 min-w-0">
@@ -69,7 +70,7 @@ const { t } = useI18n();
                 <Badge
                   v-if="certificate.is_active"
                   variant="default"
-                  class="bg-green-600 hover:bg-green-600"
+                  class="dynamic-white-glass-chip dynamic-white-glass-chip-success bg-green-600 hover:bg-green-600"
                 >
                   {{ certificateRoleLabel(certificate) }}
                 </Badge>

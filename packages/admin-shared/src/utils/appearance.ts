@@ -1,7 +1,10 @@
+export const DYNAMIC_WHITE_THEME_COLOR_PRESET_KEY = "dynamic_white";
+
 export const THEME_COLOR_PRESET_KEYS = [
   "default",
   "hermes_orange",
   "prussian_blue",
+  DYNAMIC_WHITE_THEME_COLOR_PRESET_KEY,
 ] as const;
 
 export type ThemeColorPresetKey = (typeof THEME_COLOR_PRESET_KEYS)[number];
@@ -17,6 +20,7 @@ export const THEME_COLOR_PRESETS: readonly ThemeColorPreset[] = [
   { key: "default", color: "#171717" },
   { key: "hermes_orange", color: "#EB5C20" },
   { key: "prussian_blue", color: "#0D3A69" },
+  { key: DYNAMIC_WHITE_THEME_COLOR_PRESET_KEY, color: "#f5f5f5" },
 ];
 
 export interface AppearanceConfig {

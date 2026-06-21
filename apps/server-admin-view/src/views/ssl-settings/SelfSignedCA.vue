@@ -31,12 +31,19 @@
         <CardDescription>{{ t('admin.selfSignedCA.rootDescription') }}</CardDescription>
       </CardHeader>
       <CardContent class="grid gap-4">
-        <Alert v-if="!hasRootCA" variant="destructive">
+        <Alert
+          v-if="!hasRootCA"
+          variant="destructive"
+          class="dynamic-white-glass-surface"
+        >
           <AlertTitle>{{ t('admin.selfSignedCA.notInitializedTitle') }}</AlertTitle>
           <AlertDescription>{{ t('admin.selfSignedCA.notInitializedDescription') }}</AlertDescription>
         </Alert>
         <div v-else class="rounded-lg border bg-muted/30 p-4 grid gap-3 text-sm">
-          <Badge variant="default" class="bg-green-600 hover:bg-green-600">
+          <Badge
+            variant="default"
+            class="dynamic-white-glass-chip dynamic-white-glass-chip-success bg-green-600 hover:bg-green-600"
+          >
             <svg xmlns="http://www.w3.org/2000/svg" class="mr-1 h-3 w-3" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />

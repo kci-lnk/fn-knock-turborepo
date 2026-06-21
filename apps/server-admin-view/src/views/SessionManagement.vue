@@ -44,7 +44,9 @@ const currentDocsHref = computed(() =>
 </script>
 
 <template>
-  <div class="h-full flex flex-col gap-4">
+  <div
+    class="dynamic-white-page-card dynamic-white-settings-surface h-full flex flex-col gap-4"
+  >
     <div class="flex items-start justify-between gap-3">
       <div class="space-y-1">
         <h1 class="text-lg font-semibold tracking-tight">

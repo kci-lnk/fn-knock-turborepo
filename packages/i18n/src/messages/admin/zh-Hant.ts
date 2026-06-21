@@ -139,6 +139,7 @@ export const zhHantAdmin = {
         default: "預設色",
         hermes_orange: "愛馬仕橙",
         prussian_blue: "普魯士藍",
+        dynamic_white: "動態白",
       },
     },
     errors: {

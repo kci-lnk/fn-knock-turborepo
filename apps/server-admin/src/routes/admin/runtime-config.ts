@@ -172,6 +172,7 @@ export const adminRuntimeConfigRoutes = new Elysia()
             t.Literal("default"),
             t.Literal("hermes_orange"),
             t.Literal("prussian_blue"),
+            t.Literal("dynamic_white"),
           ]),
         ),
       }),

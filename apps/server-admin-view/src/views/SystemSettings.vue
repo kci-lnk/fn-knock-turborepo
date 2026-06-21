@@ -77,7 +77,9 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
 </script>
 
 <template>
-  <div class="h-full flex flex-col gap-4">
+  <div
+    class="dynamic-white-page-card dynamic-white-settings-surface h-full flex flex-col gap-4"
+  >
     <Tabs
       :model-value="currentTab"
       @update:model-value="navigateTo"

@@ -3,6 +3,7 @@
     v-if="
       !hasLoadedSSLStatus || (isLoading && showLoadingSkeleton && !sslStatus)
     "
+    class="dynamic-white-cert-card"
   >
     <CardHeader>
       <div class="flex items-center justify-between">
@@ -13,7 +14,9 @@
       <CardDescription>{{ t("common.loadingConfig") }}</CardDescription>
     </CardHeader>
     <CardContent class="grid gap-4">
-      <div class="rounded-lg border bg-muted/30 p-4 grid gap-3">
+      <div
+        class="dynamic-white-cert-subsurface rounded-lg border bg-muted/30 p-4 grid gap-3"
+      >
         <div
           class="grid grid-cols-[88px_minmax(0,1fr)] gap-y-3 text-sm sm:grid-cols-[100px_minmax(0,1fr)]"
         >
@@ -31,7 +34,7 @@
   </Card>
 
   <div v-else class="grid gap-4">
-    <Card class="overflow-hidden">
+    <Card class="dynamic-white-cert-card">
       <CardHeader>
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div class="grid gap-1">
@@ -70,6 +73,7 @@
           :variant="
             libraryCoverage.status === 'missing' ? 'destructive' : 'default'
           "
+          class="dynamic-white-glass-surface"
         >
           <AlertTitle>{{ t("admin.certConfig.subdomainLoopTitle") }}</AlertTitle>
           <AlertDescription class="grid gap-2">
@@ -148,6 +152,7 @@
       summary-class="text-xs text-muted-foreground max-w-full whitespace-normal break-words sm:truncate"
       expanded-content-class="p-0 sm:p-0"
       actions-class="border-t bg-muted/30 px-4 py-4 sm:px-6 flex flex-col-reverse gap-2 rounded-b-lg sm:flex-row sm:items-center sm:justify-end"
+      card-class="dynamic-white-cert-card"
     >
       <template #summary>
         {{ deploymentSummary }}
@@ -189,7 +194,7 @@
 
           <div class="grid gap-3 p-4 sm:p-6 lg:grid-cols-2">
             <div
-              class="rounded-lg border p-4 grid gap-3 transition-colors"
+              class="dynamic-white-cert-subsurface rounded-lg border p-4 grid gap-3 transition-colors"
               :class="deploymentCardClass('single_active')"
             >
               <div class="flex flex-wrap items-start justify-between gap-2">
@@ -264,7 +269,7 @@
             </div>
 
             <div
-              class="rounded-lg border p-4 grid gap-3 transition-colors"
+              class="dynamic-white-cert-subsurface rounded-lg border p-4 grid gap-3 transition-colors"
               :class="deploymentCardClass('multi_sni')"
             >
               <div class="flex flex-wrap items-start justify-between gap-2">
@@ -362,7 +367,7 @@
 
           <div class="p-4 sm:p-6">
             <div
-              class="rounded-lg border border-dashed bg-muted/20 p-4 grid gap-2"
+              class="dynamic-white-cert-subsurface rounded-lg border border-dashed bg-muted/20 p-4 grid gap-2"
             >
               <div class="text-xs font-medium">
                 {{ t("admin.certConfig.gatewayReceivedTitle") }}
@@ -413,6 +418,7 @@
       summary-class="text-xs text-muted-foreground max-w-full whitespace-normal break-words sm:truncate"
       expanded-content-class="p-0 sm:p-0"
       actions-class="border-t bg-muted/30 px-4 py-4 sm:px-6 flex flex-col gap-2 rounded-b-lg sm:flex-row sm:justify-end"
+      card-class="dynamic-white-cert-card"
     >
       <template #summary>
         {{ currentCertificateSummary }}
@@ -424,7 +430,9 @@
             v-if="activeCertificate?.certInfo"
             class="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]"
           >
-            <div class="rounded-lg border bg-muted/20 p-4 grid gap-4">
+            <div
+              class="dynamic-white-cert-subsurface rounded-lg border bg-muted/20 p-4 grid gap-4"
+            >
               <div
                 class="grid grid-cols-[88px_minmax(0,1fr)] gap-y-3 text-sm sm:grid-cols-[100px_minmax(0,1fr)]"
               >
@@ -517,7 +525,7 @@
 
             <div
               v-if="subdomainCoverage"
-              class="rounded-lg border bg-background/80 p-4 grid gap-3"
+              class="dynamic-white-cert-subsurface rounded-lg border bg-background/80 p-4 grid gap-3"
             >
               <div class="flex flex-wrap items-center justify-between gap-3">
                 <div class="text-sm font-medium">
@@ -602,7 +610,7 @@
             </div>
           </div>
 
-          <Alert v-else variant="default">
+          <Alert v-else variant="default" class="dynamic-white-glass-surface">
             <AlertTitle>{{ t("admin.certConfig.noActiveTitle") }}</AlertTitle>
             <AlertDescription class="grid gap-2">
               <p>{{ t("admin.certConfig.noActiveDescription") }}</p>
@@ -630,6 +638,7 @@
       summary-class="text-xs text-muted-foreground max-w-full whitespace-normal break-words sm:truncate"
       expanded-content-class="p-0 sm:p-0"
       actions-class="border-t bg-muted/30 px-4 py-4 sm:px-6 flex flex-col-reverse gap-2 rounded-b-lg sm:flex-row sm:items-center sm:justify-end"
+      card-class="dynamic-white-cert-card"
     >
       <template #summary>
         {{ manualUploadSummary }}

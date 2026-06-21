@@ -156,12 +156,14 @@ export const jaJPAdmin = {
     theme: {
       buttonLabel: "テーマカラーを変更",
       title: "テーマカラー",
-      description: "管理コンソールに適用するシステム共通のテーマカラーを選択します。",
+      description:
+        "管理コンソールに適用するシステム共通のテーマカラーを選択します。",
       saveFailed: "テーマカラーの保存に失敗しました",
       presets: {
         default: "デフォルト",
         hermes_orange: "エルメスオレンジ",
         prussian_blue: "プルシアンブルー",
+        dynamic_white: "ダイナミックホワイト",
       },
     },
     errors: {

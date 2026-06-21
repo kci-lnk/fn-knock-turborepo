@@ -19,7 +19,9 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
 </script>
 
 <template>
-  <div class="flex h-full flex-col gap-4">
+  <div
+    class="dynamic-white-page-card dynamic-white-settings-surface flex h-full flex-col gap-4"
+  >
     <div class="space-y-1">
       <div class="text-xl font-semibold tracking-tight text-foreground">
         {{ t("admin.eventCenter.title") }}

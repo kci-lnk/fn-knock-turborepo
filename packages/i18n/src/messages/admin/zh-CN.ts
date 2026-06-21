@@ -141,6 +141,7 @@ export const zhCNAdmin = {
         default: "默认色",
         hermes_orange: "爱马仕橙",
         prussian_blue: "普鲁士蓝",
+        dynamic_white: "动态白",
       },
     },
     errors: {

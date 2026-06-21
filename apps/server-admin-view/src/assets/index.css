@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "../../../../packages/admin-shared/src/styles/dynamic-white-theme.css";
 @source "../../../../packages/ui-vue/src/**/*.{vue,ts}";
 @source "../../../../packages/admin-shared/src/**/*.{vue,ts}";
 

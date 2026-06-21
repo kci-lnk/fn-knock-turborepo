@@ -157,6 +157,7 @@ export const enAdmin = {
         default: "Default",
         hermes_orange: "Hermes orange",
         prussian_blue: "Prussian blue",
+        dynamic_white: "Dynamic white",
       },
     },
     errors: {

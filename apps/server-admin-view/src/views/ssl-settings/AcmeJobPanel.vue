@@ -62,7 +62,11 @@
     </CardHeader>
 
     <CardContent class="grid gap-4">
-      <Alert v-if="props.analysis" :variant="analysisVariant">
+      <Alert
+        v-if="props.analysis"
+        :variant="analysisVariant"
+        class="dynamic-white-glass-surface"
+      >
         <component :is="analysisIcon" class="h-4 w-4" />
         <AlertTitle>{{ analysisTitle }}</AlertTitle>
         <AlertDescription>

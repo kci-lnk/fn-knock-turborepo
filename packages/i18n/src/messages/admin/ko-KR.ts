@@ -156,6 +156,7 @@ export const koKRAdmin = {
         default: "기본 색상",
         hermes_orange: "에르메스 오렌지",
         prussian_blue: "프러시안 블루",
+        dynamic_white: "다이내믹 화이트",
       },
     },
     errors: {

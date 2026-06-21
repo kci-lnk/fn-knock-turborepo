@@ -5,14 +5,20 @@ import { toast } from "@admin-shared/utils/toast";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import "vue-sonner/style.css";
+import { useThemeMode } from "@/components/ui/theme-toggle";
+import DynamicWhiteBackground from "@admin-shared/components/appearance/DynamicWhiteBackground.vue";
 import DockerAdminAccessGate from "./components/DockerAdminAccessGate.vue";
 import WelcomeScreen from "./components/WelcomeScreen.vue";
+import { DYNAMIC_WHITE_THEME_COLOR_PRESET_KEY } from "@admin-shared/utils/appearance";
 import { ConfigAPI } from "./lib/api";
+import { useAppearanceState } from "./lib/appearance";
 import { useDockerAdminAuthStore } from "./store/dockerAdminAuth";
 import { setFnKnockLocale } from "@fn-knock/i18n/vue/admin";
 
 const WELCOME_GUIDE_STORAGE_KEY = "fn_knock:welcome-guide:completed";
 const dockerAdminAuthStore = useDockerAdminAuthStore();
+const { activeThemeColorPreset } = useAppearanceState();
+const { resolvedMode } = useThemeMode();
 const i18n = useI18n();
 const { t } = i18n;
 
@@ -59,6 +65,11 @@ const shouldShowDockerAdminGate = computed(() => {
     !dockerAdminAuthStore.isAuthenticated
   );
 });
+const isDynamicWhiteActive = computed(
+  () =>
+    resolvedMode.value === "light" &&
+    activeThemeColorPreset.value === DYNAMIC_WHITE_THEME_COLOR_PRESET_KEY,
+);
 const dockerAdminGateMode = computed(() =>
   dockerAdminAuthStore.needsPasswordSetup ? "setup" : "login",
 );
@@ -70,7 +81,7 @@ const dockerAdminGateShowRetry = computed(() =>
 );
 const toastOptions = {
   closeButton: false,
-  duration: 2500
+  duration: 2500,
 };
 
 const applySystemLocale = async (value: string | null | undefined) => {
@@ -231,6 +242,7 @@ watch(
 </script>
 
 <template>
+  <DynamicWhiteBackground :active="isDynamicWhiteActive" />
   <RouterView v-if="shouldRenderRouter" />
   <DockerAdminAccessGate
     v-else-if="shouldShowDockerAdminGate"
@@ -263,8 +275,16 @@ watch(
   inset: 0;
   z-index: 9998;
   background:
-    radial-gradient(circle at 18% 18%, rgba(118, 164, 255, 0.18), transparent 28%),
-    radial-gradient(circle at 82% 24%, rgba(255, 159, 237, 0.14), transparent 24%),
+    radial-gradient(
+      circle at 18% 18%,
+      rgba(118, 164, 255, 0.18),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 82% 24%,
+      rgba(255, 159, 237, 0.14),
+      transparent 24%
+    ),
     linear-gradient(180deg, rgba(8, 10, 18, 0.98), rgba(8, 10, 18, 0.92));
 }
 </style>

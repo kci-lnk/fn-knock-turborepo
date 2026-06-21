@@ -32,6 +32,7 @@ import {
   type AutoHttpsConfig,
 } from "../../lib/auto-https-redirect";
 import { normalizeLocaleConfig } from "../../../../../packages/i18n/src";
+import { normalizeAppearanceConfig } from "../../../../../packages/admin-shared/src/utils/appearance";
 import { validateIpLocationBaseUrl } from "./validation";
 import {
   adminT,
@@ -146,6 +147,33 @@ export const adminRuntimeConfigRoutes = new Elysia()
           t.Literal("ko-KR"),
           t.Literal("ja-JP"),
         ]),
+      }),
+    }),
+  )
+  .get(
+    "/config/appearance",
+    async () => {
+      const appearance = await configManager.getAppearanceConfig();
+      return { success: true, data: appearance };
+    },
+    routeDoc("获取后台外观配置"),
+  )
+  .post(
+    "/config/appearance",
+    async ({ body }) => {
+      const next = normalizeAppearanceConfig(body);
+      const saved = await configManager.updateAppearanceConfig(next);
+      return { success: true, data: saved };
+    },
+    withRouteDoc("更新后台外观配置", {
+      body: t.Object({
+        theme_color_preset: t.Optional(
+          t.Union([
+            t.Literal("default"),
+            t.Literal("hermes_orange"),
+            t.Literal("prussian_blue"),
+          ]),
+        ),
       }),
     }),
   )

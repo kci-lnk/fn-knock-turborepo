@@ -13,13 +13,17 @@ export const adminPanelRoutes = new Elysia()
   .get(
     "/panel/bootstrap",
     async ({ request }) => {
-      const locale = await configManager.getLocaleConfig();
+      const [locale, appearance] = await Promise.all([
+        configManager.getLocaleConfig(),
+        configManager.getAppearanceConfig(),
+      ]);
       return {
         success: true,
         data: await dockerAdminPanelManager.buildBootstrapState(
           request,
           isPanelAuthRuntime(),
           locale,
+          appearance,
         ),
       };
     },
@@ -54,7 +58,10 @@ export const adminPanelRoutes = new Elysia()
         ip: getClientIp(request) || "unknown",
         userAgent: request.headers.get("user-agent") || "",
       });
-      const locale = await configManager.getLocaleConfig();
+      const [locale, appearance] = await Promise.all([
+        configManager.getLocaleConfig(),
+        configManager.getAppearanceConfig(),
+      ]);
       await dockerAdminPanelManager.resetLoginFailures(getClientIp(request));
       set.headers["set-cookie"] = buildAdminPanelSessionCookie(
         session.id,
@@ -73,6 +80,7 @@ export const adminPanelRoutes = new Elysia()
           auth_source: "panel_session",
           session_expires_at: session.expires_at,
           locale,
+          appearance,
         },
       };
     },
@@ -111,7 +119,10 @@ export const adminPanelRoutes = new Elysia()
         ip: getClientIp(request) || "unknown",
         userAgent: request.headers.get("user-agent") || "",
       });
-      const locale = await configManager.getLocaleConfig();
+      const [locale, appearance] = await Promise.all([
+        configManager.getLocaleConfig(),
+        configManager.getAppearanceConfig(),
+      ]);
       set.headers["set-cookie"] = buildAdminPanelSessionCookie(
         session.id,
         dockerAdminPanelManager.sessionTtlSeconds,
@@ -129,6 +140,7 @@ export const adminPanelRoutes = new Elysia()
           auth_source: "panel_session",
           session_expires_at: session.expires_at,
           locale,
+          appearance,
         },
       };
     },
@@ -142,7 +154,10 @@ export const adminPanelRoutes = new Elysia()
     "/panel/login",
     async ({ request, body, set }) => {
       const { t } = await getAdminRouteTranslator(request);
-      const locale = await configManager.getLocaleConfig();
+      const [locale, appearance] = await Promise.all([
+        configManager.getLocaleConfig(),
+        configManager.getAppearanceConfig(),
+      ]);
       if (!isPanelAuthRuntime()) {
         return {
           success: true,
@@ -150,6 +165,7 @@ export const adminPanelRoutes = new Elysia()
             request,
             false,
             locale,
+            appearance,
           ),
         };
       }
@@ -228,6 +244,7 @@ export const adminPanelRoutes = new Elysia()
           auth_source: "panel_session",
           session_expires_at: session.expires_at,
           locale,
+          appearance,
         },
       };
     },
@@ -252,6 +269,7 @@ export const adminPanelRoutes = new Elysia()
           request,
           isPanelAuthRuntime(),
           await configManager.getLocaleConfig(),
+          await configManager.getAppearanceConfig(),
         ),
       };
     },

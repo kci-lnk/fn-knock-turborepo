@@ -4,6 +4,7 @@ import {
 import {
   normalizeLocaleConfig,
 } from "../../../../../packages/i18n/src";
+import { normalizeAppearanceConfig } from "../../../../../packages/admin-shared/src/utils/appearance";
 import { getRuntimeCapabilities, getRuntimeProfile } from "../runtime-profile";
 import type { AppConfig, ProtocolMappingFeatureConfig } from "./types";
 
@@ -28,5 +29,6 @@ export const buildSafeAppConfig = (
     },
     terminal_feature: normalizeTerminalFeatureConfig(config.terminal_feature),
     locale: normalizeLocaleConfig(config.locale),
+    appearance: normalizeAppearanceConfig(config.appearance),
   };
 };

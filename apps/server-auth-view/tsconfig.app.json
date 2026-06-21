@@ -8,6 +8,7 @@
       "@/components/ui": ["../../packages/ui-vue/src/components/ui/index.ts"],
       "@/components/ui/*": ["../../packages/ui-vue/src/components/ui/*"],
       "@/lib/utils": ["../../packages/ui-vue/src/lib/utils.ts"],
+      "@admin-shared/*": ["../../packages/admin-shared/src/*"],
       "@frontend-core/*": ["../../packages/frontend-core/src/*"],
       "@fn-knock/i18n": ["../../packages/i18n/src/index.ts"],
       "@fn-knock/i18n/core": ["../../packages/i18n/src/core.ts"],
@@ -32,6 +33,8 @@
     "src/**/*.vue",
     "../../packages/ui-vue/src/**/*.ts",
     "../../packages/ui-vue/src/**/*.vue",
+    "../../packages/admin-shared/src/**/*.ts",
+    "../../packages/admin-shared/src/**/*.vue",
     "../../packages/frontend-core/src/**/*.ts",
     "../../packages/i18n/src/**/*.ts"
   ]

@@ -8,6 +8,7 @@ import {
   DEFAULT_ROUTE_PLACEHOLDER,
   DEFAULT_RUN_TYPE,
   normalizeAuthCredentialSettings,
+  normalizeAppearanceConfig,
   normalizeAutoHttpsConfig,
   normalizeDashboardDisplayConfig,
   normalizeEventSystemConfig,
@@ -83,6 +84,7 @@ export const normalizePersistedAppConfig = (config: AppConfig): AppConfig => {
   normalized.gateway_portal = normalizeGatewayPortalConfig(
     normalized.gateway_portal,
   );
+  normalized.appearance = normalizeAppearanceConfig(normalized.appearance);
   normalized.dashboard_display = normalizeDashboardDisplayConfig(
     normalized.dashboard_display,
   );

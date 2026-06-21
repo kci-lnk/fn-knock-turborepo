@@ -153,6 +153,17 @@ export const jaJPAdmin = {
       online: "オンライン",
       manage: "管理",
     },
+    theme: {
+      buttonLabel: "テーマカラーを変更",
+      title: "テーマカラー",
+      description: "管理コンソールに適用するシステム共通のテーマカラーを選択します。",
+      saveFailed: "テーマカラーの保存に失敗しました",
+      presets: {
+        default: "デフォルト",
+        hermes_orange: "エルメスオレンジ",
+        prussian_blue: "プルシアンブルー",
+      },
+    },
     errors: {
       loadFailed: "ロードに失敗しました",
       dashboardLoadFailed: "ダッシュボードの読み込みに失敗しました",

@@ -1,5 +1,9 @@
 import { DEFAULT_LOCALE, type LocaleConfig } from "@fn-knock/i18n/core";
 import { browserT } from "@fn-knock/i18n/vue/admin";
+import {
+  DEFAULT_APPEARANCE_CONFIG,
+  type AppearanceConfig,
+} from "@admin-shared/utils/appearance";
 import type {
   DockerAdminBootstrapState,
   RuntimeCapabilities,
@@ -18,6 +22,9 @@ const DEBUG_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 const DEBUG_REMEMBER_ME_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const DEFAULT_DEBUG_LOCALE_CONFIG: LocaleConfig = {
   default_locale: DEFAULT_LOCALE,
+};
+const DEFAULT_DEBUG_APPEARANCE_CONFIG: AppearanceConfig = {
+  ...DEFAULT_APPEARANCE_CONFIG,
 };
 
 const isBrowser = () => typeof window !== "undefined";
@@ -112,6 +119,7 @@ export const validateDockerAdminDebugPassword = (
 export const createDockerAdminDebugState = (
   stage: DockerAdminDebugStage,
   locale: LocaleConfig = DEFAULT_DEBUG_LOCALE_CONFIG,
+  appearance: AppearanceConfig = DEFAULT_DEBUG_APPEARANCE_CONFIG,
   rememberMe = false,
 ): DockerAdminBootstrapState => {
   if (stage === "setup") {
@@ -123,6 +131,7 @@ export const createDockerAdminDebugState = (
       auth_source: null,
       session_expires_at: null,
       locale,
+      appearance,
     };
   }
 
@@ -135,6 +144,7 @@ export const createDockerAdminDebugState = (
       auth_source: null,
       session_expires_at: null,
       locale,
+      appearance,
     };
   }
 
@@ -146,6 +156,7 @@ export const createDockerAdminDebugState = (
     auth_source: "panel_session",
     session_expires_at: createAuthenticatedSessionExpiry(rememberMe),
     locale,
+    appearance,
   };
 };
 
@@ -161,7 +172,11 @@ export const buildDockerAdminDebugState = (
     return null;
   }
 
-  return createDockerAdminDebugState(stage, backendState.locale);
+  return createDockerAdminDebugState(
+    stage,
+    backendState.locale,
+    backendState.appearance,
+  );
 };
 
 export const getEffectiveRuntimeProfile = (

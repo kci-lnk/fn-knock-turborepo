@@ -132,6 +132,17 @@ export const zhCNAdmin = {
       online: "在线",
       manage: "管理",
     },
+    theme: {
+      buttonLabel: "切换主题配色",
+      title: "主题配色",
+      description: "选择后台使用的系统级主题色。",
+      saveFailed: "主题配色保存失败",
+      presets: {
+        default: "默认色",
+        hermes_orange: "爱马仕橙",
+        prussian_blue: "普鲁士蓝",
+      },
+    },
     errors: {
       loadFailed: "加载失败",
       dashboardLoadFailed: "Dashboard 加载失败",

@@ -168,7 +168,10 @@
             <p class="text-xs text-muted-foreground">
               {{ deploymentModeDescription }}
             </p>
-            <p v-if="deploymentModeMismatch" class="text-xs text-amber-600">
+            <p
+              v-if="deploymentModeMismatch"
+              class="text-xs text-amber-600 dark:text-amber-400"
+            >
               {{
                 t("admin.certConfig.deploymentMismatch", {
                   configured: configuredDeploymentModeLabel,
@@ -176,7 +179,10 @@
                 })
               }}
             </p>
-            <p v-else-if="gatewaySyncError" class="text-xs text-amber-600">
+            <p
+              v-else-if="gatewaySyncError"
+              class="text-xs text-amber-600 dark:text-amber-400"
+            >
               {{ gatewaySyncError }}
             </p>
           </div>
@@ -231,6 +237,11 @@
               <Button
                 variant="outline"
                 class="justify-start"
+                :class="
+                  sslStatus?.deploymentMode === 'single_active'
+                    ? 'border-border/70 bg-muted/60 text-foreground disabled:opacity-100 dark:bg-muted/40'
+                    : ''
+                "
                 :disabled="
                   isUpdatingDeploymentMode ||
                   sslStatus?.deploymentMode === 'single_active'
@@ -321,6 +332,11 @@
 
               <Button
                 class="justify-start"
+                :class="
+                  sslStatus?.deploymentMode === 'multi_sni'
+                    ? 'border border-border/70 bg-muted/60 text-foreground hover:bg-muted/60 disabled:opacity-100 dark:bg-muted/40 dark:hover:bg-muted/40'
+                    : ''
+                "
                 :disabled="
                   isUpdatingDeploymentMode ||
                   !certificates.length ||
@@ -464,7 +480,7 @@
                   <Badge
                     v-else-if="isExpiringSoon"
                     variant="outline"
-                    class="ml-2 text-[10px] border-yellow-500 text-yellow-600"
+                    class="ml-2 text-[10px] border-yellow-500 text-yellow-600 dark:border-yellow-400/80 dark:text-yellow-300"
                   >
                     {{ t("admin.certConfig.expiringSoon") }}
                   </Badge>
@@ -562,7 +578,7 @@
               </div>
               <div
                 v-if="subdomainCoverage.uncovered_hosts.length"
-                class="text-xs text-amber-600"
+                class="text-xs text-amber-600 dark:text-amber-400"
               >
                 {{
                   t("admin.certConfig.uncoveredHosts", {

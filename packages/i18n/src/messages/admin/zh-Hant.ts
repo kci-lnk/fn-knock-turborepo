@@ -130,6 +130,17 @@ export const zhHantAdmin = {
       online: "在線",
       manage: "管理",
     },
+    theme: {
+      buttonLabel: "切換主題配色",
+      title: "主題配色",
+      description: "選擇後台使用的系統級主題色。",
+      saveFailed: "主題配色儲存失敗",
+      presets: {
+        default: "預設色",
+        hermes_orange: "愛馬仕橙",
+        prussian_blue: "普魯士藍",
+      },
+    },
     errors: {
       loadFailed: "載入失敗",
       dashboardLoadFailed: "Dashboard 載入失敗",

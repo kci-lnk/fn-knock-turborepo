@@ -20,6 +20,7 @@ export default defineConfig({
     alias: {
       '@/components/ui': path.resolve(__dirname, '../../packages/ui-vue/src/components/ui'),
       '@/lib/utils': path.resolve(__dirname, '../../packages/ui-vue/src/lib/utils.ts'),
+      '@admin-shared': path.resolve(__dirname, '../../packages/admin-shared/src'),
       '@frontend-core': path.resolve(__dirname, '../../packages/frontend-core/src'),
       '@fn-knock/i18n/core': path.resolve(__dirname, '../../packages/i18n/src/core.ts'),
       '@fn-knock/i18n/vue/auth': path.resolve(__dirname, '../../packages/i18n/src/vue-auth.ts'),

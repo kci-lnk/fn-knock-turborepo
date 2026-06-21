@@ -6,6 +6,10 @@ import { normalizeSSHSecurityConfig } from "../ssh-security/config";
 import type { SSHSecurityConfig } from "../ssh-security/types";
 import type { AutoHttpsConfig } from "../auto-https-redirect";
 import {
+  normalizeAppearanceConfig,
+  type AppearanceConfig,
+} from "../../../../../packages/admin-shared/src/utils/appearance";
+import {
   DEFAULT_CAPTCHA_SETTINGS,
   normalizeAuthCredentialSettings,
   normalizeAuthCredentialSettingsPatch,
@@ -151,6 +155,13 @@ export class ConfigFeatureSectionService {
     return this.sections.read(
       (config) => config.gateway_portal,
       normalizeGatewayPortalConfig,
+    );
+  }
+
+  async getAppearanceConfig(): Promise<AppearanceConfig> {
+    return this.sections.read(
+      (config) => config.appearance,
+      normalizeAppearanceConfig,
     );
   }
 
@@ -349,6 +360,19 @@ export class ConfigFeatureSectionService {
       },
       patch as Record<string, unknown>,
       normalizeGatewayPortalConfig,
+    );
+  }
+
+  async updateAppearanceConfig(
+    patch: Partial<AppearanceConfig>,
+  ): Promise<AppearanceConfig> {
+    return this.sections.patch(
+      (config) => config.appearance,
+      (config, next) => {
+        config.appearance = next;
+      },
+      patch as Record<string, unknown>,
+      normalizeAppearanceConfig,
     );
   }
 

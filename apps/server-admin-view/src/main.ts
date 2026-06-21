@@ -6,8 +6,10 @@ import router from "./router";
 import { pinia } from "./store";
 import { createFnKnockI18n } from "@fn-knock/i18n/vue/admin";
 import { applyStoredThemeMode } from "@/components/ui/theme-toggle";
+import { applyAppearanceConfig } from "./lib/appearance";
 
 applyStoredThemeMode();
+applyAppearanceConfig();
 
 const bootstrap = async () => {
   const app = createApp(App);

@@ -142,6 +142,7 @@ import {
 } from "@frontend-core/passkey/utils";
 import type { AuthGrantType } from "@frontend-core/auth/types";
 import { apiClient, AuthAPI } from "@/lib/api";
+import { applyAppearanceConfig } from "@/lib/appearance";
 import { useClientIpLocation } from "@/lib/client-ip-location";
 import {
   consumePendingLogoutDelay,
@@ -268,6 +269,7 @@ async function loadSession() {
   try {
     const session = await AuthAPI.getSession();
     await applySystemLocale(session.locale.default_locale);
+    applyAppearanceConfig(session.appearance);
     startLocationPolling(session.client);
     isPasskeyAvailable.value = !!session.passkey.available;
     authGrantType.value = session.auth.grant_type;

@@ -125,6 +125,24 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+:root[data-theme-color="hermes_orange"] {
+  --primary: #eb5c20;
+  --primary-foreground: #ffffff;
+  --ring: #eb5c20;
+  --chart-1: #eb5c20;
+  --sidebar-primary: #eb5c20;
+  --sidebar-primary-foreground: #ffffff;
+}
+
+:root[data-theme-color="prussian_blue"] {
+  --primary: #0d3a69;
+  --primary-foreground: #ffffff;
+  --ring: #0d3a69;
+  --chart-1: #0d3a69;
+  --sidebar-primary: #0d3a69;
+  --sidebar-primary-foreground: #ffffff;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

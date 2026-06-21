@@ -3,6 +3,10 @@ import { join } from "node:path";
 import { dataPath } from "../AppDirManager";
 import type { AutoHttpsConfig } from "../auto-https-redirect";
 import type { LocaleConfig } from "../../../../../packages/i18n/src";
+import {
+  DEFAULT_APPEARANCE_CONFIG,
+  type AppearanceConfig,
+} from "../../../../../packages/admin-shared/src/utils/appearance";
 import type {
   AuthCredentialSettings,
   DashboardDisplayConfig,
@@ -113,6 +117,10 @@ export const DEFAULT_GATEWAY_PORTAL_CONFIG: GatewayPortalConfig = {
 
 export const DEFAULT_DASHBOARD_DISPLAY_CONFIG: DashboardDisplayConfig = {
   show_entry_status_module: true,
+};
+
+export const DEFAULT_APPEARANCE_CONFIG_FOR_ADMIN: AppearanceConfig = {
+  ...DEFAULT_APPEARANCE_CONFIG,
 };
 
 export const DEFAULT_AUTO_HTTPS_CONFIG: AutoHttpsConfig = {

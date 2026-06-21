@@ -11,6 +11,7 @@ import {
   writeDockerAdminDebugPassword,
   writeDockerAdminDebugStage,
 } from "../lib/docker-debug";
+import { applyAppearanceConfig } from "../lib/appearance";
 
 export const useDockerAdminAuthStore = defineStore("dockerAdminAuth", () => {
   const state = ref<DockerAdminBootstrapState | null>(null);
@@ -41,12 +42,14 @@ export const useDockerAdminAuthStore = defineStore("dockerAdminAuth", () => {
     () => isBootstrapped.value && (!isEnabled.value || isAuthenticated.value),
   );
   const currentLocaleConfig = () => state.value?.locale;
+  const currentAppearanceConfig = () => state.value?.appearance;
 
   const applyState = (
     next: DockerAdminBootstrapState,
     options?: { debugOverride?: boolean },
   ) => {
     state.value = next;
+    applyAppearanceConfig(next.appearance);
     isDebugOverrideActive.value = options?.debugOverride === true;
     isBootstrapped.value = true;
     bootstrapError.value = "";
@@ -102,6 +105,7 @@ export const useDockerAdminAuthStore = defineStore("dockerAdminAuth", () => {
             createDockerAdminDebugState(
               "authenticated",
               currentLocaleConfig(),
+              currentAppearanceConfig(),
               rememberMe,
             ),
             {
@@ -114,7 +118,11 @@ export const useDockerAdminAuthStore = defineStore("dockerAdminAuth", () => {
         if (!savedPassword) {
           writeDockerAdminDebugStage("setup");
           return applyState(
-            createDockerAdminDebugState("setup", currentLocaleConfig()),
+            createDockerAdminDebugState(
+              "setup",
+              currentLocaleConfig(),
+              currentAppearanceConfig(),
+            ),
             {
               debugOverride: true,
             },
@@ -130,6 +138,7 @@ export const useDockerAdminAuthStore = defineStore("dockerAdminAuth", () => {
           createDockerAdminDebugState(
             "authenticated",
             currentLocaleConfig(),
+            currentAppearanceConfig(),
             rememberMe,
           ),
           {
@@ -161,7 +170,11 @@ export const useDockerAdminAuthStore = defineStore("dockerAdminAuth", () => {
         const nextStage = readDockerAdminDebugPassword() ? "login" : "setup";
         writeDockerAdminDebugStage(nextStage);
         return applyState(
-          createDockerAdminDebugState(nextStage, currentLocaleConfig()),
+          createDockerAdminDebugState(
+            nextStage,
+            currentLocaleConfig(),
+            currentAppearanceConfig(),
+          ),
           {
             debugOverride: true,
           },
@@ -196,6 +209,7 @@ export const useDockerAdminAuthStore = defineStore("dockerAdminAuth", () => {
       state.value = createDockerAdminDebugState(
         nextStage,
         currentLocaleConfig(),
+        currentAppearanceConfig(),
       );
       return;
     }

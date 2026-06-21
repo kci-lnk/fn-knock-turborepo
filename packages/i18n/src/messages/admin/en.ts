@@ -148,6 +148,17 @@ export const enAdmin = {
       online: "Online",
       manage: "Manage",
     },
+    theme: {
+      buttonLabel: "Change theme color",
+      title: "Theme color",
+      description: "Choose the system-wide theme color for the admin console.",
+      saveFailed: "Failed to save theme color",
+      presets: {
+        default: "Default",
+        hermes_orange: "Hermes orange",
+        prussian_blue: "Prussian blue",
+      },
+    },
     errors: {
       loadFailed: "Load failed",
       dashboardLoadFailed: "Failed to load Dashboard",

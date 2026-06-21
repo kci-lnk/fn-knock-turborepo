@@ -1,4 +1,7 @@
 import type { WAFConfig } from "./types/waf";
+import type { AppearanceConfig } from "@admin-shared/utils/appearance";
+
+export type { AppearanceConfig } from "@admin-shared/utils/appearance";
 
 export interface ProxyMapping {
   path: string;
@@ -49,6 +52,7 @@ export interface DockerAdminBootstrapState {
   auth_source: "panel_session" | "reauth_session" | null;
   session_expires_at: string | null;
   locale: LocaleConfig;
+  appearance: AppearanceConfig;
 }
 
 export type HostAccessMode = "login_first" | "strict_whitelist";
@@ -578,6 +582,7 @@ export interface AppConfig {
   gateway_proxy_headers?: GatewayProxyHeadersConfig;
   gateway_host_response?: GatewayHostResponseConfig;
   gateway_portal?: GatewayPortalConfig;
+  appearance?: AppearanceConfig;
   protocol_mapping_feature?: ProtocolMappingFeatureConfig;
   auto_https?: AutoHttpsConfig;
   dashboard_display?: DashboardDisplayConfig;

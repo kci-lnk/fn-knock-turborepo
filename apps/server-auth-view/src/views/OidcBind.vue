@@ -64,11 +64,14 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api";
+import { applyAppearanceConfig } from "@/lib/appearance";
 import type { LocaleConfig } from "@fn-knock/i18n/core";
+import type { AppearanceConfig } from "@admin-shared/utils/appearance";
 import { setFnKnockLocale } from "@fn-knock/i18n/vue/auth";
 
 type InviteDetails = {
   locale: LocaleConfig;
+  appearance: AppearanceConfig;
   totp: { id: string; comment: string };
   provider_id?: string;
   expires_at: string;
@@ -110,11 +113,13 @@ async function loadInvite() {
     });
     invite.value = res.data.data;
     await applySystemLocale(invite.value?.locale?.default_locale);
+    applyAppearanceConfig(invite.value?.appearance);
     if (!invite.value?.providers.length) {
       throw new Error(t("auth.oidcBind.noProviders"));
     }
   } catch (error: any) {
     await applySystemLocale(error?.response?.data?.data?.locale?.default_locale);
+    applyAppearanceConfig(error?.response?.data?.data?.appearance);
     errorMessage.value =
       error?.response?.data?.message ||
       error?.message ||

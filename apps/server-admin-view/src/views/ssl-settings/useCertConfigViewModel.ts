@@ -338,7 +338,7 @@ export const useCertConfigViewModel = ({
 
   const deploymentCardClass = (mode: SSLDeploymentMode) => {
     if (sslStatus.value?.deploymentMode === mode) {
-      return "border-green-500 bg-green-50/60";
+      return "border-green-500 bg-green-50/60 dark:border-green-500/70 dark:bg-green-950/25";
     }
     return "bg-muted/20";
   };
@@ -359,7 +359,9 @@ export const useCertConfigViewModel = ({
 
   const coverageBadgeClass = (coverage: SubdomainCertificateCoverage) => {
     if (coverage.status === "ready") return "bg-green-600 hover:bg-green-600";
-    if (coverage.status === "partial") return "border-amber-500 text-amber-700";
+    if (coverage.status === "partial") {
+      return "border-amber-500 text-amber-700 dark:border-amber-400/80 dark:text-amber-300";
+    }
     return "";
   };
 

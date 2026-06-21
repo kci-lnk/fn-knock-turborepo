@@ -30,6 +30,7 @@ import {
 import { routeDoc, withRouteDoc } from "../../lib/openapi";
 import { createRequestTranslator } from "../../lib/i18n";
 import { normalizeLocaleConfig } from "../../../../../packages/i18n/src";
+import { normalizeAppearanceConfig } from "../../../../../packages/admin-shared/src/utils/appearance";
 
 const resolveAuthViewPrefix = (request: Request) => {
   const pathname = new URL(request.url).pathname;
@@ -328,6 +329,7 @@ export const oidcRoutes = new Elysia({
     async ({ query, set, request }) => {
       const config = await configManager.getConfig();
       const locale = normalizeLocaleConfig(config.locale);
+      const appearance = normalizeAppearanceConfig(config.appearance);
       const { t } = createRequestTranslator(request, config.locale);
       const token = query.token?.trim();
       if (!token) {
@@ -335,7 +337,7 @@ export const oidcRoutes = new Elysia({
         return {
           success: false,
           message: t("server.oidc.inviteInvalid"),
-          data: { locale },
+          data: { locale, appearance },
         };
       }
       const invite = await oidcAuthService.inspectInvite(token);
@@ -344,13 +346,14 @@ export const oidcRoutes = new Elysia({
         return {
           success: false,
           message: t("server.oidc.inviteExpired"),
-          data: { locale },
+          data: { locale, appearance },
         };
       }
       return {
         success: true,
         data: {
           locale,
+          appearance,
           ...invite,
         },
       };

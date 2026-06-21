@@ -5,6 +5,7 @@ import type { SSHSecurityConfig } from "../ssh-security/types";
 import type { TerminalFeatureConfig } from "../terminal-shared";
 import type { TOTPAccessScope } from "../totp-access-scopes";
 import type { LocaleConfig } from "../../../../../packages/i18n/src";
+import type { AppearanceConfig } from "../../../../../packages/admin-shared/src/utils/appearance";
 
 export interface ProxyMapping {
   path: string;
@@ -473,6 +474,7 @@ export interface AppConfig {
   gateway_proxy_headers?: GatewayProxyHeadersConfig;
   gateway_host_response?: GatewayHostResponseConfig;
   gateway_portal?: GatewayPortalConfig;
+  appearance?: AppearanceConfig;
   dashboard_display?: DashboardDisplayConfig;
   auto_https?: AutoHttpsConfig;
   smart_connect?: SmartConnectConfig;

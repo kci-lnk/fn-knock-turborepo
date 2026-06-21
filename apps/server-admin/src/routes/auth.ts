@@ -52,6 +52,7 @@ import {
 import { routeDoc, withRouteDoc } from "../lib/openapi";
 import { createRequestTranslator } from "../lib/i18n";
 import { normalizeLocaleConfig } from "../../../../packages/i18n/src";
+import { normalizeAppearanceConfig } from "../../../../packages/admin-shared/src/utils/appearance";
 
 const buildPasskeyStatus = async (request: Request) => {
   const config = await configManager.getConfig();
@@ -207,6 +208,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth", tags: ["Auth"] })
         success: true,
         data: {
           locale: normalizeLocaleConfig(config.locale),
+          appearance: normalizeAppearanceConfig(config.appearance),
           auth: {
             authenticated: auth.authorized,
             message: auth.message,
@@ -251,6 +253,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth", tags: ["Auth"] })
         success: true,
         data: {
           locale: normalizeLocaleConfig(config.locale),
+          appearance: normalizeAppearanceConfig(config.appearance),
           auth: {
             authenticated: true,
             message: auth.message,

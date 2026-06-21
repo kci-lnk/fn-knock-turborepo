@@ -395,6 +395,7 @@ import {
   CaptchaAPI,
   fetchNoStore,
 } from "@/lib/api";
+import { applyAppearanceConfig } from "@/lib/appearance";
 import { useClientIpLocation } from "@/lib/client-ip-location";
 import {
   buildPowSubmission,
@@ -586,6 +587,7 @@ async function loadBootstrap() {
   try {
     const bootstrap = await AuthAPI.getBootstrap(redirectUri);
     await applySystemLocale(bootstrap.locale.default_locale);
+    applyAppearanceConfig(bootstrap.appearance);
     startLocationPolling(bootstrap.client);
     captchaConfig.value = bootstrap.captcha;
     isPasskeyAvailable.value = !!bootstrap.passkey.available;

@@ -9,8 +9,10 @@ import {
   type TerminalFeatureConfig,
 } from "../terminal-shared";
 import { normalizeCidrLines } from "../../../../../packages/admin-shared/src/utils/cidr";
+import { normalizeAppearanceConfig } from "../../../../../packages/admin-shared/src/utils/appearance";
 import {
   DEFAULT_AUTH_CREDENTIAL_SETTINGS,
+  DEFAULT_APPEARANCE_CONFIG_FOR_ADMIN,
   DEFAULT_AUTO_HTTPS_CONFIG,
   DEFAULT_DASHBOARD_DISPLAY_CONFIG,
   DEFAULT_EVENT_SYSTEM_CONFIG,
@@ -166,6 +168,9 @@ export const DEFAULT_CONFIG: AppConfig = {
   },
   gateway_portal: {
     ...DEFAULT_GATEWAY_PORTAL_CONFIG,
+  },
+  appearance: {
+    ...DEFAULT_APPEARANCE_CONFIG_FOR_ADMIN,
   },
   dashboard_display: {
     ...DEFAULT_DASHBOARD_DISPLAY_CONFIG,
@@ -606,6 +611,8 @@ export const normalizeDashboardDisplayConfig = (
     show_entry_status_module: raw.show_entry_status_module !== false,
   };
 };
+
+export { normalizeAppearanceConfig };
 
 export const normalizeAutoHttpsConfig = (
   value?: Partial<AutoHttpsConfig> | null,

@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import type {
   AppConfig,
+  AppearanceConfig,
   HostMapping,
   LocaleConfig,
   ProxyMapping,
@@ -15,6 +16,7 @@ import {
   getEffectiveRuntimeCapabilities,
   getEffectiveRuntimeProfile,
 } from "../lib/docker-debug";
+import { applyAppearanceConfig } from "../lib/appearance";
 
 export const useConfigStore = defineStore("config", () => {
   const config = ref<AppConfig | null>(null);
@@ -171,6 +173,7 @@ export const useConfigStore = defineStore("config", () => {
       .then((next) => {
         if (requestId === loadConfigRequestId) {
           config.value = next;
+          applyAppearanceConfig(next.appearance);
         }
         return next;
       })
@@ -278,6 +281,17 @@ export const useConfigStore = defineStore("config", () => {
     return result;
   }
 
+  async function saveAppearanceConfig(next: Partial<AppearanceConfig>) {
+    const result = await ConfigAPI.updateAppearanceConfig(next);
+    applyAppearanceConfig(result);
+    if (config.value) {
+      config.value.appearance = result;
+    } else {
+      await loadConfig({ force: true });
+    }
+    return result;
+  }
+
   const runtimeProfile = computed(() =>
     getEffectiveRuntimeProfile(config.value?.runtime_profile),
   );
@@ -339,6 +353,7 @@ export const useConfigStore = defineStore("config", () => {
     saveStreamMappings,
     saveSubdomainMode,
     saveLocaleConfig,
+    saveAppearanceConfig,
     saveDefaultRoute,
   };
 });

@@ -147,6 +147,17 @@ export const koKRAdmin = {
       online: "온라인",
       manage: "관리하다",
     },
+    theme: {
+      buttonLabel: "테마 색상 변경",
+      title: "테마 색상",
+      description: "관리 콘솔에 적용할 시스템 테마 색상을 선택하세요.",
+      saveFailed: "테마 색상을 저장하지 못했습니다.",
+      presets: {
+        default: "기본 색상",
+        hermes_orange: "에르메스 오렌지",
+        prussian_blue: "프러시안 블루",
+      },
+    },
     errors: {
       loadFailed: "로드 실패",
       dashboardLoadFailed: "대시보드를 로드하지 못했습니다.",

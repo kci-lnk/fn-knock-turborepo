@@ -2,6 +2,7 @@ import type { CaptchaSettings } from "@frontend-core/captcha/types";
 
 import type {
   AppConfig,
+  AppearanceConfig,
   AuthCredentialSettings,
   AutoHttpsConfig,
   AutoHttpsDetails,
@@ -56,6 +57,7 @@ import {
 
 export type {
   AppConfig,
+  AppearanceConfig,
   AuthCredentialSettings,
   AutoHttpsConfig,
   AutoHttpsDetails,
@@ -145,6 +147,16 @@ export const ConfigAPI = {
   },
   async getLocaleConfig(): Promise<LocaleConfig> {
     const res = await apiClient.get("/config/locale");
+    return res.data.data;
+  },
+  async getAppearanceConfig(): Promise<AppearanceConfig> {
+    const res = await apiClient.get("/config/appearance");
+    return res.data.data;
+  },
+  async updateAppearanceConfig(
+    payload: Partial<AppearanceConfig>,
+  ): Promise<AppearanceConfig> {
+    const res = await apiClient.post("/config/appearance", payload);
     return res.data.data;
   },
   async updateLocaleConfig(payload: LocaleConfig): Promise<LocaleConfig> {

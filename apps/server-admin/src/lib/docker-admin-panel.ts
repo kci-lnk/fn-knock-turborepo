@@ -2,6 +2,7 @@ import type { IncomingMessage } from "node:http";
 import { BlockList, isIP } from "node:net";
 import { randomBytes, scrypt as scryptCallback } from "node:crypto";
 import { normalizeCidrLines } from "../../../../packages/admin-shared/src/utils/cidr";
+import type { AppearanceConfig } from "../../../../packages/admin-shared/src/utils/appearance";
 import type { LocaleConfig } from "../../../../packages/i18n/src";
 import { configManager, redis } from "./redis";
 import { getRequiredEnv } from "./env";
@@ -180,6 +181,7 @@ export interface DockerAdminBootstrapState {
   auth_source: DockerAdminAuthSource | null;
   session_expires_at: string | null;
   locale: LocaleConfig;
+  appearance: AppearanceConfig;
 }
 
 export interface DockerAdminResetSummary {
@@ -824,6 +826,7 @@ export const dockerAdminPanelManager = {
     request: Request,
     enabled: boolean,
     locale: LocaleConfig,
+    appearance: AppearanceConfig,
   ): Promise<DockerAdminBootstrapState> {
     const deploymentTarget = getRuntimeProfile().deployment_target;
 
@@ -836,6 +839,7 @@ export const dockerAdminPanelManager = {
         auth_source: null,
         session_expires_at: null,
         locale,
+        appearance,
       };
     }
 
@@ -852,6 +856,7 @@ export const dockerAdminPanelManager = {
       auth_source: authContext.auth_source,
       session_expires_at: authContext.session_expires_at,
       locale,
+      appearance,
     };
   },
 

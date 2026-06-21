@@ -15,6 +15,7 @@ import {
   type LocaleConfig,
   normalizeLocaleConfig,
 } from "../../../../../packages/i18n/src";
+import type { AppearanceConfig } from "../../../../../packages/admin-shared/src/utils/appearance";
 import {
   AcmeCertificateStore,
   type AcmeCertificatePair,
@@ -736,6 +737,10 @@ export class ConfigManager {
     return this.featureSections.getGatewayPortalConfig();
   }
 
+  async getAppearanceConfig(): Promise<AppearanceConfig> {
+    return this.featureSections.getAppearanceConfig();
+  }
+
   async getDashboardDisplayConfig(): Promise<DashboardDisplayConfig> {
     return this.featureSections.getDashboardDisplayConfig();
   }
@@ -840,6 +845,12 @@ export class ConfigManager {
     patch: Partial<GatewayPortalConfig>,
   ): Promise<GatewayPortalConfig> {
     return this.featureSections.updateGatewayPortalConfig(patch);
+  }
+
+  async updateAppearanceConfig(
+    patch: Partial<AppearanceConfig>,
+  ): Promise<AppearanceConfig> {
+    return this.featureSections.updateAppearanceConfig(patch);
   }
 
   async updateDashboardDisplayConfig(

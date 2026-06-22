@@ -3313,6 +3313,11 @@ export const jaJPAdmin = {
     description:
       "管理者ログインで使用されるすべての TOTP 両端認証システムを管理します。",
     oidcLogin: "外部アカウントログイン",
+    credentialTransfer: "認証情報のインポート/エクスポート",
+    credentialTransferDescription:
+      "TOTP 認証情報をインポートまたはエクスポートします。エクスポートされた JSON にはログインに使える secret が含まれるため、安全に保管してください。",
+    exportCredentials: "認証情報をエクスポート",
+    importCredentials: "認証情報をインポート",
     bindNewToken: "新しいトークンをバインドします",
     comment: "備考",
     boundAt: "拘束時間",
@@ -3354,6 +3359,27 @@ export const jaJPAdmin = {
     commentDuplicate: "コメント名はすでに存在します",
     commentUpdated: "注意事項を更新しました",
     tokenDeleted: "トークンが削除されました",
+    cancel: "キャンセル",
+    exportCredentialsTitle: "TOTP 認証情報をエクスポートしますか？",
+    exportCredentialsDescription:
+      "エクスポートされる JSON ファイルには、ログインに使用できる TOTP secret が含まれます。信頼できる場所にのみ保存してください。",
+    confirmExportCredentials: "エクスポート",
+    exportCredentialsStarted: "認証情報ファイルのダウンロードを開始しました",
+    exportCredentialsFailed: "認証情報のエクスポートに失敗しました",
+    importCredentialsTitle: "TOTP 認証情報をインポートしますか？",
+    importCredentialsDescription:
+      "インポートは TOTP 認証情報を追加マージします。重複はスキップされ、Passkey や外部アカウントの関連付けは復元されません。",
+    confirmImportCredentials: "インポート",
+    importCredentialsCompleted: "認証情報をインポートしました",
+    importCredentialsFailed: "認証情報のインポートに失敗しました",
+    importCredentialsInvalidFile: "JSON 認証情報ファイルを選択してください",
+    importCredentialsFileTooLarge: "認証情報ファイルが大きすぎます",
+    importCredentialsFileTooLargeDetail:
+      "{size} KB 以下の JSON ファイルを選択してください",
+    importCredentialsParseFailed: "認証情報ファイルを解析できません",
+    importCredentialsChooseFileFirst: "先に認証情報ファイルを選択してください",
+    importCredentialsSummary:
+      "合計 {total} 件、インポート {imported} 件、既存 ID でスキップ {skippedExistingId} 件、既存 secret でスキップ {skippedExistingSecret} 件、ファイル内重複でスキップ {skippedFileDuplicate} 件、無効 {invalid} 件。",
   },
   passkeySettings: {
     title: "クイックログイン認証情報",

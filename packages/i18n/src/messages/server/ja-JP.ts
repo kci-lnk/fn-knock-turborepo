@@ -339,6 +339,15 @@ export const jaJPServer = {
       invalidCode: "認証コードが間違っています。もう一度お試しください。",
       notFound: "TOTP が見つかりません",
     },
+    totpImport: {
+      payloadObject:
+        "TOTP 認証情報のインポート内容はオブジェクトである必要があります",
+      unsupportedKind: "サポートされていない TOTP 認証情報インポート形式です",
+      unsupportedVersion:
+        "サポートされていない TOTP 認証情報インポートバージョンです",
+      credentialsArray: "TOTP 認証情報リストは配列である必要があります",
+      countExceeded: "一度にインポートできる TOTP 認証情報は最大 {max} 件です",
+    },
     passkeys: {
       notFound: "Passkey が見つかりません",
     },

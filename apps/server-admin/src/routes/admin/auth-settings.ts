@@ -3,10 +3,19 @@ import { Elysia, t } from "elysia";
 import { generateSecret, generateURI, verifySync } from "otplib";
 import { oidcAuthService } from "../../lib/auth/oidc/service";
 import { authMobilitySessionManager } from "../../lib/auth-mobility-session";
+import { APP_LOCAL_VERSION } from "../../lib/app-version";
 import { configManager } from "../../lib/redis";
 import { scheduleSyncReverseProxyTrustedIPs } from "../../lib/reverse-proxy-trusted-ips";
+import {
+  buildTOTPCredentialImportPlan,
+  buildTOTPCredentialTransferPayload,
+  TOTPCredentialTransferError,
+} from "../../lib/totp-credential-transfer";
 import { routeDoc, withRouteDoc } from "../../lib/openapi";
 import { adminT, getAdminRouteTranslator } from "./shared";
+
+const buildTOTPCredentialExportFilename = (exportedAt: string) =>
+  `fn-knock-totp-credentials-${exportedAt.replace(/[:.]/g, "-")}.json`;
 
 export const adminAuthSettingsRoutes = new Elysia()
   .get(
@@ -139,6 +148,65 @@ export const adminAuthSettingsRoutes = new Elysia()
         secret: t.String(),
         token: t.String(),
         comment: t.Optional(t.String()),
+      }),
+    }),
+  )
+  .get(
+    "/totp/credentials/export",
+    async () => {
+      const payload = buildTOTPCredentialTransferPayload({
+        credentials: await configManager.getTOTPCredentials(),
+        appVersion: APP_LOCAL_VERSION,
+      });
+      const body = new Blob([JSON.stringify(payload, null, 2)], {
+        type: "application/json",
+      });
+
+      return new Response(body, {
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          "Content-Disposition": `attachment; filename="${buildTOTPCredentialExportFilename(
+            payload.exported_at,
+          )}"`,
+          "Cache-Control": "no-store",
+        },
+      });
+    },
+    routeDoc("导出 TOTP 凭据"),
+  )
+  .post(
+    "/totp/credentials/import",
+    async ({ request, body, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
+      try {
+        const existing = await configManager.getTOTPCredentials();
+        const plan = buildTOTPCredentialImportPlan({
+          existing,
+          payload: body.payload,
+        });
+
+        if (plan.credentials.length > 0) {
+          await configManager.saveTOTPCredentials([
+            ...existing,
+            ...plan.credentials,
+          ]);
+        }
+
+        return { success: true, data: plan.summary };
+      } catch (error) {
+        if (error instanceof TOTPCredentialTransferError) {
+          set.status = error.status;
+          return {
+            success: false,
+            message: adminT(t, `totpImport.${error.code}`, error.params),
+          };
+        }
+        throw error;
+      }
+    },
+    withRouteDoc("导入 TOTP 凭据", {
+      body: t.Object({
+        payload: t.Any(),
       }),
     }),
   )

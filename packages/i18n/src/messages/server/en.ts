@@ -325,6 +325,13 @@ export const enServer = {
       invalidCode: "Verification code is incorrect. Try again.",
       notFound: "TOTP not found",
     },
+    totpImport: {
+      payloadObject: "TOTP credential import payload must be an object",
+      unsupportedKind: "Unsupported TOTP credential import format",
+      unsupportedVersion: "Unsupported TOTP credential import version",
+      credentialsArray: "TOTP credential list must be an array",
+      countExceeded: "At most {max} TOTP credentials can be imported at once",
+    },
     passkeys: {
       notFound: "Passkey not found",
     },

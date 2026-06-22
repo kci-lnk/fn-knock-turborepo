@@ -3037,6 +3037,11 @@ export const zhCNAdmin = {
     title: "TOTP 令牌管理",
     description: "管理管理员登录使用的所有 TOTP 双端验证器。",
     oidcLogin: "外部账号登录",
+    credentialTransfer: "导入/导出凭证",
+    credentialTransferDescription:
+      "导入或导出 TOTP 凭证。导出的 JSON 包含可用于登录的 secret，请妥善保管。",
+    exportCredentials: "导出凭证",
+    importCredentials: "导入凭证",
     bindNewToken: "绑定新令牌",
     comment: "备注信息",
     boundAt: "绑定时间",
@@ -3075,6 +3080,26 @@ export const zhCNAdmin = {
     commentDuplicate: "备注名称已存在",
     commentUpdated: "备注已更新",
     tokenDeleted: "令牌已删除",
+    cancel: "取消",
+    exportCredentialsTitle: "导出 TOTP 凭证？",
+    exportCredentialsDescription:
+      "导出的 JSON 文件包含可用于登录的 TOTP secret，请只保存在可信位置。",
+    confirmExportCredentials: "确认导出",
+    exportCredentialsStarted: "凭证文件已开始下载",
+    exportCredentialsFailed: "导出凭证失败",
+    importCredentialsTitle: "导入 TOTP 凭证？",
+    importCredentialsDescription:
+      "导入会追加合并 TOTP 凭证，重复凭证会跳过；不会恢复 Passkey 或外部账号绑定。",
+    confirmImportCredentials: "确认导入",
+    importCredentialsCompleted: "凭证已导入",
+    importCredentialsFailed: "导入凭证失败",
+    importCredentialsInvalidFile: "请选择 JSON 凭证文件",
+    importCredentialsFileTooLarge: "凭证文件过大",
+    importCredentialsFileTooLargeDetail: "请选择不超过 {size} KB 的 JSON 文件",
+    importCredentialsParseFailed: "无法解析凭证文件",
+    importCredentialsChooseFileFirst: "请先选择凭证文件",
+    importCredentialsSummary:
+      "共 {total} 条，导入 {imported} 条，跳过同 ID {skippedExistingId} 条，跳过同 secret {skippedExistingSecret} 条，跳过文件内重复 {skippedFileDuplicate} 条，无效 {invalid} 条。",
   },
   passkeySettings: {
     title: "快捷登录凭据",

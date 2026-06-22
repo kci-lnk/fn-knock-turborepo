@@ -271,6 +271,13 @@ export const zhHantServer = {
       invalidCode: "驗證碼不正確，請重試",
       notFound: "TOTP not found",
     },
+    totpImport: {
+      payloadObject: "TOTP 憑證匯入內容必須是物件",
+      unsupportedKind: "不支援的 TOTP 憑證匯入格式",
+      unsupportedVersion: "不支援的 TOTP 憑證匯入版本",
+      credentialsArray: "TOTP 憑證列表必須是陣列",
+      countExceeded: "單次最多匯入 {max} 個 TOTP 憑證",
+    },
     passkeys: {
       notFound: "Passkey not found",
     },

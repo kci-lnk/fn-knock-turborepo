@@ -270,6 +270,13 @@ export const zhCNServer = {
       invalidCode: "验证码不正确，请重试",
       notFound: "TOTP not found",
     },
+    totpImport: {
+      payloadObject: "TOTP 凭证导入内容必须是对象",
+      unsupportedKind: "不支持的 TOTP 凭证导入格式",
+      unsupportedVersion: "不支持的 TOTP 凭证导入版本",
+      credentialsArray: "TOTP 凭证列表必须是数组",
+      countExceeded: "单次最多导入 {max} 个 TOTP 凭证",
+    },
     passkeys: {
       notFound: "Passkey not found",
     },

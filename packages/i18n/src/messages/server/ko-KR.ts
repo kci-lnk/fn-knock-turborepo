@@ -324,6 +324,14 @@ export const koKRServer = {
       invalidCode: "인증코드가 올바르지 않습니다. 다시 시도해 보세요.",
       notFound: "TOTP를 찾을 수 없습니다",
     },
+    totpImport: {
+      payloadObject: "TOTP 자격 증명 가져오기 내용은 객체여야 합니다.",
+      unsupportedKind: "지원되지 않는 TOTP 자격 증명 가져오기 형식입니다.",
+      unsupportedVersion: "지원되지 않는 TOTP 자격 증명 가져오기 버전입니다.",
+      credentialsArray: "TOTP 자격 증명 목록은 배열이어야 합니다.",
+      countExceeded:
+        "한 번에 최대 {max}개의 TOTP 자격 증명을 가져올 수 있습니다.",
+    },
     passkeys: {
       notFound: "비밀번호를 찾을 수 없습니다.",
     },

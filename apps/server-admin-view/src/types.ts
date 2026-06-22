@@ -614,6 +614,15 @@ export type TOTPCredential = {
   access_scopes: TOTPAccessScope[];
 };
 
+export type TOTPCredentialImportSummary = {
+  imported: number;
+  skipped_existing_id: number;
+  skipped_existing_secret: number;
+  skipped_file_duplicate: number;
+  invalid: number;
+  total: number;
+};
+
 export type PasskeyCredential = {
   id: string;
   totpId: string;

@@ -44,6 +44,7 @@ import type {
   SubdomainModeConfig,
   TerminalFeatureConfig,
   TOTPCredential,
+  TOTPCredentialImportSummary,
   TOTPAccessScope,
   TrafficStats,
   UrlMetadataPreview,
@@ -101,6 +102,7 @@ export type {
   SubdomainModeConfig,
   TerminalFeatureConfig,
   TOTPCredential,
+  TOTPCredentialImportSummary,
   TOTPAccessScope,
   TrafficStats,
   UrlMetadataPreview,
@@ -452,6 +454,18 @@ export const ConfigAPI = {
   ): Promise<{ success: boolean; message?: string }> {
     const res = await apiClient.post("/totp/bind", { secret, token, comment });
     return res.data;
+  },
+  async downloadTOTPCredentials(): Promise<Blob> {
+    const res = await apiClient.get("/totp/credentials/export", {
+      responseType: "blob",
+    });
+    return res.data;
+  },
+  async importTOTPCredentials(
+    payload: unknown,
+  ): Promise<TOTPCredentialImportSummary> {
+    const res = await apiClient.post("/totp/credentials/import", { payload });
+    return res.data.data;
   },
   async deleteTOTP(id: string): Promise<void> {
     await apiClient.delete(`/totp/${encodeURIComponent(id)}`);

@@ -16,7 +16,19 @@
         <DocsLinkButton
           class="hidden sm:inline-flex"
           :href="docsUrls.guides.auth"
+          size="default"
         />
+        <Button
+          class="justify-self-start"
+          variant="outline"
+          size="icon"
+          :aria-label="t('admin.authSettings.credentialTransfer')"
+          :title="t('admin.authSettings.credentialTransfer')"
+          :disabled="isCredentialTransferBusy"
+          @click="showCredentialTransferDialog = true"
+        >
+          <ArrowUpDown class="h-4 w-4" />
+        </Button>
         <Button
           class="w-full sm:w-auto"
           variant="outline"
@@ -204,6 +216,141 @@
     <CardContent v-else class="min-h-[180px]" aria-hidden="true"></CardContent>
   </Card>
 
+  <input
+    ref="credentialImportInputRef"
+    type="file"
+    accept=".json,application/json"
+    class="hidden"
+    @change="handleCredentialImportFileChange"
+  />
+
+  <Dialog
+    :open="showCredentialTransferDialog"
+    @update:open="showCredentialTransferDialog = $event"
+  >
+    <DialogContent class="max-h-[88vh] overflow-y-auto sm:max-w-[520px]">
+      <DialogHeader>
+        <DialogTitle>{{
+          t("admin.authSettings.credentialTransfer")
+        }}</DialogTitle>
+        <DialogDescription>
+          {{ t("admin.authSettings.credentialTransferDescription") }}
+        </DialogDescription>
+      </DialogHeader>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <Button
+          variant="outline"
+          class="h-auto justify-start gap-3 px-4 py-3 text-left"
+          :disabled="credentials.length === 0 || isCredentialTransferBusy"
+          @click="openExportDialogFromCredentialTransferDialog"
+        >
+          <Download class="h-4 w-4 shrink-0" />
+          <span class="min-w-0 whitespace-normal font-medium">
+            {{ t("admin.authSettings.exportCredentials") }}
+          </span>
+        </Button>
+        <Button
+          variant="outline"
+          class="h-auto justify-start gap-3 px-4 py-3 text-left"
+          :disabled="isCredentialTransferBusy"
+          @click="triggerImportFilePickerFromCredentialTransferDialog"
+        >
+          <Upload class="h-4 w-4 shrink-0" />
+          <span class="min-w-0 whitespace-normal font-medium">
+            {{ t("admin.authSettings.importCredentials") }}
+          </span>
+        </Button>
+      </div>
+      <DialogFooter>
+        <Button
+          variant="outline"
+          :disabled="isCredentialTransferBusy"
+          @click="showCredentialTransferDialog = false"
+        >
+          {{ t("admin.authSettings.cancel") }}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
+  <Dialog :open="showExportDialog" @update:open="showExportDialog = $event">
+    <DialogContent class="max-h-[88vh] overflow-y-auto sm:max-w-[520px]">
+      <DialogHeader>
+        <DialogTitle>{{
+          t("admin.authSettings.exportCredentialsTitle")
+        }}</DialogTitle>
+        <DialogDescription>
+          {{ t("admin.authSettings.exportCredentialsDescription") }}
+        </DialogDescription>
+      </DialogHeader>
+      <DialogFooter class="gap-2">
+        <Button
+          variant="outline"
+          :disabled="isExportingCredentials"
+          @click="showExportDialog = false"
+        >
+          {{ t("admin.authSettings.cancel") }}
+        </Button>
+        <Button
+          :disabled="isExportingCredentials"
+          @click="handleExportCredentials"
+        >
+          <span
+            v-if="isExportingCredentials"
+            class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+          ></span>
+          {{ t("admin.authSettings.confirmExportCredentials") }}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
+  <Dialog
+    :open="showImportDialog"
+    @update:open="
+      showImportDialog = $event;
+      if (!$event) resetPendingCredentialImport();
+    "
+  >
+    <DialogContent class="max-h-[88vh] overflow-y-auto sm:max-w-[520px]">
+      <DialogHeader>
+        <DialogTitle>{{
+          t("admin.authSettings.importCredentialsTitle")
+        }}</DialogTitle>
+        <DialogDescription>
+          {{ t("admin.authSettings.importCredentialsDescription") }}
+        </DialogDescription>
+      </DialogHeader>
+      <div class="rounded-md border bg-muted/20 px-3 py-2 text-sm">
+        <p class="break-all font-medium">
+          {{ pendingCredentialImportFilename }}
+        </p>
+      </div>
+      <DialogFooter class="gap-2">
+        <Button
+          variant="outline"
+          :disabled="isImportingCredentials"
+          @click="
+            showImportDialog = false;
+            resetPendingCredentialImport();
+          "
+        >
+          {{ t("admin.authSettings.cancel") }}
+        </Button>
+        <Button
+          :disabled="isImportingCredentials"
+          @click="handleImportCredentials"
+        >
+          <span
+            v-if="isImportingCredentials"
+            class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+          ></span>
+          {{ t("admin.authSettings.confirmImportCredentials") }}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
   <Dialog
     :open="showSetupDialog"
     @update:open="
@@ -330,10 +477,12 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { ArrowUpDown, Download, Upload } from "lucide-vue-next";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
 import InlineCommentEditor from "@admin-shared/components/InlineCommentEditor.vue";
 import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
@@ -358,14 +507,20 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
+import { downloadBlob } from "@admin-shared/utils/downloadBlob";
 import { ConfigAPI } from "../lib/api";
 import { docsUrls } from "../lib/docs";
 import { useDockerAdminAuthStore } from "../store/dockerAdminAuth";
 import QrcodeVue from "qrcode.vue";
 import { toast } from "@admin-shared/utils/toast";
-import type { TOTPCredential, TOTPAccessScope } from "../types";
+import type {
+  TOTPCredential,
+  TOTPCredentialImportSummary,
+  TOTPAccessScope,
+} from "../types";
 
 const DOCKER_ADMIN_PANEL_ACCESS_SCOPE: TOTPAccessScope = "docker_admin_panel";
+const MAX_TOTP_CREDENTIAL_IMPORT_FILE_SIZE = 256 * 1024;
 
 const { t } = useI18n();
 const router = useRouter();
@@ -375,6 +530,12 @@ const credentials = ref<TOTPCredential[]>([]);
 const updatingAccessScopeIds = ref<Set<string>>(new Set());
 const openAdminPanelAccessTooltipId = ref<string | null>(null);
 const isTouchInteraction = ref(false);
+const credentialImportInputRef = ref<HTMLInputElement | null>(null);
+const showCredentialTransferDialog = ref(false);
+const showExportDialog = ref(false);
+const showImportDialog = ref(false);
+const pendingCredentialImportPayload = ref<unknown>(null);
+const pendingCredentialImportFilename = ref("");
 let adminPanelAccessTooltipMediaQuery: MediaQueryList | null = null;
 const { isPending: isLoading, run: runLoadStatus } = useAsyncAction({
   onError: (error) => {
@@ -382,6 +543,28 @@ const { isPending: isLoading, run: runLoadStatus } = useAsyncAction({
   },
 });
 const showLoadingSkeleton = useDelayedLoading(isLoading);
+const { isPending: isExportingCredentials, run: runExportCredentials } =
+  useAsyncAction({
+    onError: (error) => {
+      toast.error(
+        extractErrorMessage(
+          error,
+          t("admin.authSettings.exportCredentialsFailed"),
+        ),
+      );
+    },
+  });
+const { isPending: isImportingCredentials, run: runImportCredentials } =
+  useAsyncAction({
+    onError: (error) => {
+      toast.error(
+        extractErrorMessage(
+          error,
+          t("admin.authSettings.importCredentialsFailed"),
+        ),
+      );
+    },
+  });
 
 // Setup state
 const showSetupDialog = ref(false);
@@ -437,6 +620,9 @@ const totpTableClass = computed(() =>
 );
 const totpTableColspan = computed(() =>
   showAdminPanelAccessColumn.value ? 5 : 4,
+);
+const isCredentialTransferBusy = computed(
+  () => isExportingCredentials.value || isImportingCredentials.value,
 );
 
 onMounted(async () => {
@@ -519,6 +705,119 @@ async function fetchStatus() {
       ...credential,
       access_scopes: credential.access_scopes || [],
     }));
+  });
+}
+
+function buildTOTPCredentialExportFilename() {
+  return `fn-knock-totp-credentials-${new Date()
+    .toISOString()
+    .replace(/[:.]/g, "-")}.json`;
+}
+
+function openExportDialog() {
+  if (credentials.value.length === 0 || isCredentialTransferBusy.value) return;
+  showExportDialog.value = true;
+}
+
+function openExportDialogFromCredentialTransferDialog() {
+  showCredentialTransferDialog.value = false;
+  openExportDialog();
+}
+
+async function handleExportCredentials() {
+  await runExportCredentials(async () => {
+    const blob = await ConfigAPI.downloadTOTPCredentials();
+    downloadBlob(blob, buildTOTPCredentialExportFilename());
+    showExportDialog.value = false;
+    toast.success(t("admin.authSettings.exportCredentialsStarted"));
+  });
+}
+
+function resetPendingCredentialImport() {
+  pendingCredentialImportPayload.value = null;
+  pendingCredentialImportFilename.value = "";
+}
+
+function resetCredentialImportInput() {
+  if (credentialImportInputRef.value) {
+    credentialImportInputRef.value.value = "";
+  }
+}
+
+function triggerImportFilePicker() {
+  if (isCredentialTransferBusy.value) return;
+  resetCredentialImportInput();
+  credentialImportInputRef.value?.click();
+}
+
+function triggerImportFilePickerFromCredentialTransferDialog() {
+  showCredentialTransferDialog.value = false;
+  triggerImportFilePicker();
+}
+
+async function handleCredentialImportFileChange(event: Event) {
+  const input = event.target as HTMLInputElement | null;
+  const file = input?.files?.[0] ?? null;
+  resetPendingCredentialImport();
+
+  if (!file) return;
+
+  if (
+    !file.name.toLowerCase().endsWith(".json") &&
+    file.type !== "application/json"
+  ) {
+    toast.error(t("admin.authSettings.importCredentialsInvalidFile"));
+    resetCredentialImportInput();
+    return;
+  }
+
+  if (file.size > MAX_TOTP_CREDENTIAL_IMPORT_FILE_SIZE) {
+    toast.error(t("admin.authSettings.importCredentialsFileTooLarge"), {
+      description: t("admin.authSettings.importCredentialsFileTooLargeDetail", {
+        size: Math.floor(MAX_TOTP_CREDENTIAL_IMPORT_FILE_SIZE / 1024),
+      }),
+    });
+    resetCredentialImportInput();
+    return;
+  }
+
+  try {
+    pendingCredentialImportPayload.value = JSON.parse(await file.text());
+    pendingCredentialImportFilename.value = file.name;
+    showImportDialog.value = true;
+  } catch {
+    toast.error(t("admin.authSettings.importCredentialsParseFailed"));
+  } finally {
+    resetCredentialImportInput();
+  }
+}
+
+function buildImportSummaryDescription(summary: TOTPCredentialImportSummary) {
+  return t("admin.authSettings.importCredentialsSummary", {
+    imported: summary.imported,
+    skippedExistingId: summary.skipped_existing_id,
+    skippedExistingSecret: summary.skipped_existing_secret,
+    skippedFileDuplicate: summary.skipped_file_duplicate,
+    invalid: summary.invalid,
+    total: summary.total,
+  });
+}
+
+async function handleImportCredentials() {
+  const payload = pendingCredentialImportPayload.value;
+  if (!payload) {
+    toast.error(t("admin.authSettings.importCredentialsChooseFileFirst"));
+    return;
+  }
+
+  await runImportCredentials(async () => {
+    const summary = await ConfigAPI.importTOTPCredentials(payload);
+    showImportDialog.value = false;
+    resetPendingCredentialImport();
+    await fetchStatus();
+    toast.success(t("admin.authSettings.importCredentialsCompleted"), {
+      description: buildImportSummaryDescription(summary),
+    });
   });
 }
 

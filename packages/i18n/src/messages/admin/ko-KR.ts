@@ -3231,6 +3231,11 @@ export const koKRAdmin = {
     description:
       "관리자 로그인에 사용되는 모든 TOTP 2단계 인증자를 관리합니다.",
     oidcLogin: "외부 계정 로그인",
+    credentialTransfer: "자격 증명 가져오기/내보내기",
+    credentialTransferDescription:
+      "TOTP 자격 증명을 가져오거나 내보냅니다. 내보낸 JSON에는 로그인에 사용할 수 있는 secret이 포함되므로 안전하게 보관하세요.",
+    exportCredentials: "자격 증명 내보내기",
+    importCredentials: "자격 증명 가져오기",
     bindNewToken: "새 토큰 바인딩",
     comment: "코멘트",
     boundAt: "바인딩 시간",
@@ -3271,6 +3276,27 @@ export const koKRAdmin = {
     commentDuplicate: "댓글 이름이 이미 존재합니다.",
     commentUpdated: "댓글이 업데이트되었습니다.",
     tokenDeleted: "토큰이 삭제되었습니다.",
+    cancel: "취소",
+    exportCredentialsTitle: "TOTP 자격 증명을 내보내시겠습니까?",
+    exportCredentialsDescription:
+      "내보낸 JSON 파일에는 로그인에 사용할 수 있는 TOTP secret이 포함됩니다. 신뢰할 수 있는 위치에만 보관하세요.",
+    confirmExportCredentials: "내보내기",
+    exportCredentialsStarted: "자격 증명 파일 다운로드가 시작되었습니다.",
+    exportCredentialsFailed: "자격 증명 내보내기 실패",
+    importCredentialsTitle: "TOTP 자격 증명을 가져오시겠습니까?",
+    importCredentialsDescription:
+      "가져오기는 TOTP 자격 증명을 추가 병합합니다. 중복은 건너뛰며 Passkey 또는 외부 계정 바인딩은 복원되지 않습니다.",
+    confirmImportCredentials: "가져오기",
+    importCredentialsCompleted: "자격 증명을 가져왔습니다.",
+    importCredentialsFailed: "자격 증명 가져오기 실패",
+    importCredentialsInvalidFile: "JSON 자격 증명 파일을 선택하세요",
+    importCredentialsFileTooLarge: "자격 증명 파일이 너무 큽니다.",
+    importCredentialsFileTooLargeDetail:
+      "{size} KB 이하의 JSON 파일을 선택하세요",
+    importCredentialsParseFailed: "자격 증명 파일을 파싱할 수 없습니다.",
+    importCredentialsChooseFileFirst: "먼저 자격 증명 파일을 선택하세요",
+    importCredentialsSummary:
+      "총 {total}개, 가져옴 {imported}개, 기존 ID로 건너뜀 {skippedExistingId}개, 기존 secret으로 건너뜀 {skippedExistingSecret}개, 파일 내 중복으로 건너뜀 {skippedFileDuplicate}개, 유효하지 않음 {invalid}개.",
   },
   passkeySettings: {
     title: "빠른 로그인 자격 증명",

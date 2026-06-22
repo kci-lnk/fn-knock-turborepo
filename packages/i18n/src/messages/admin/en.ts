@@ -3252,6 +3252,11 @@ export const enAdmin = {
     description:
       "Manage all TOTP two-factor authenticators used for admin login.",
     oidcLogin: "External account login",
+    credentialTransfer: "Import/export credentials",
+    credentialTransferDescription:
+      "Import or export TOTP credentials. Exported JSON contains sign-in secrets; store it carefully.",
+    exportCredentials: "Export credentials",
+    importCredentials: "Import credentials",
     bindNewToken: "Bind new token",
     comment: "Comment",
     boundAt: "Bound at",
@@ -3291,6 +3296,27 @@ export const enAdmin = {
     commentDuplicate: "Comment name already exists",
     commentUpdated: "Comment updated",
     tokenDeleted: "Token deleted",
+    cancel: "Cancel",
+    exportCredentialsTitle: "Export TOTP credentials?",
+    exportCredentialsDescription:
+      "The exported JSON file contains TOTP secrets that can be used to sign in. Store it only in a trusted location.",
+    confirmExportCredentials: "Export",
+    exportCredentialsStarted: "Credential file download started",
+    exportCredentialsFailed: "Failed to export credentials",
+    importCredentialsTitle: "Import TOTP credentials?",
+    importCredentialsDescription:
+      "Import appends and merges TOTP credentials. Duplicates are skipped, and Passkey or external account bindings are not restored.",
+    confirmImportCredentials: "Import",
+    importCredentialsCompleted: "Credentials imported",
+    importCredentialsFailed: "Failed to import credentials",
+    importCredentialsInvalidFile: "Select a JSON credential file",
+    importCredentialsFileTooLarge: "Credential file is too large",
+    importCredentialsFileTooLargeDetail:
+      "Select a JSON file no larger than {size} KB",
+    importCredentialsParseFailed: "Unable to parse credential file",
+    importCredentialsChooseFileFirst: "Select a credential file first",
+    importCredentialsSummary:
+      "{total} total, {imported} imported, {skippedExistingId} skipped by existing ID, {skippedExistingSecret} skipped by existing secret, {skippedFileDuplicate} skipped as file duplicates, {invalid} invalid.",
   },
   passkeySettings: {
     title: "Quick Login Credentials",

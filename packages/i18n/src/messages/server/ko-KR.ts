@@ -377,6 +377,9 @@ export const koKRServer = {
       "가시성을 활성화한 후 하나 이상의 지역 또는 하나의 사용자 정의 CIDR을 추가하세요.",
     syncFailed: "게이트웨이 공개 상태 구성을 동기화하지 못했습니다.",
   },
+  scanner: {
+    cidrExemptionsInvalid: "CIDR 면제 형식이 잘못되었습니다. {cidrs}",
+  },
   gatewayLogging: {
     syncConfigFailed: "게이트웨이 요청 로그 구성을 동기화하지 못했습니다.",
   },

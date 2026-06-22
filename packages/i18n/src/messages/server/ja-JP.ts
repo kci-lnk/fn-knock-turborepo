@@ -395,6 +395,9 @@ export const jaJPServer = {
       "可視性をオンにした後、少なくとも 1 つの領域またはカスタム CIDR を追加する必要があります",
     syncFailed: "ゲートウェイ可視性構成の同期に失敗しました",
   },
+  scanner: {
+    cidrExemptionsInvalid: "CIDR 免除の形式が正しくありません: {cidrs}",
+  },
   gatewayLogging: {
     syncConfigFailed: "同期ゲートウェイ要求ログの構成に失敗しました",
   },

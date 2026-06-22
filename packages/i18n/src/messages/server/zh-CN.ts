@@ -318,6 +318,9 @@ export const zhCNServer = {
     emptyEnabledConfig: "开启可见性后，至少需要添加一个地区或一条自定义 CIDR",
     syncFailed: "同步网关可见性配置失败",
   },
+  scanner: {
+    cidrExemptionsInvalid: "CIDR 豁免格式不正确：{cidrs}",
+  },
   gatewayLogging: {
     syncConfigFailed: "同步网关请求日志配置失败",
   },

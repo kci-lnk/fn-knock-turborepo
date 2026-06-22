@@ -9,6 +9,12 @@ import {
 import { ipLocationRefs, ipLocationService } from "./ip-location";
 import { emitScannerBlockedEvent } from "./system-events/helpers";
 import { isCommonAuthLocationExemptIP } from "./common-auth-locations";
+import { cidrService } from "./cidr";
+import {
+  isScannerCidrExemptIp,
+  normalizeScannerCidrExemptions,
+  validateScannerCidrExemptions,
+} from "./scanner-cidr";
 
 type ScanHit = {
   path: string;
@@ -31,6 +37,25 @@ type ScannerSettings = {
   windowSeconds: number;
   blacklistTtlSeconds: number;
   commonLocationExemptEnabled: boolean;
+  cidrExemptions: string[];
+  cidrExemptionRegions: ScannerCidrExemptionSelection[];
+  cidrExemptionRegionCidrs: string[];
+  cidrExemptionCidrs: string[];
+};
+
+type ScannerCidrExemptionSelection = {
+  province: string;
+  city: string | null;
+  label: string;
+  value: string;
+  query_city: string | null;
+  is_province_wide: boolean;
+  is_municipality: boolean;
+};
+
+type ScannerCidrExemptionRegionInput = {
+  province: string;
+  query_city?: string | null;
 };
 
 const parseIntSafe = (value: string | undefined, fallback: number) => {
@@ -38,6 +63,90 @@ const parseIntSafe = (value: string | undefined, fallback: number) => {
   if (!Number.isFinite(v)) return fallback;
   return v;
 };
+
+const normalizeString = (value: unknown): string => String(value ?? "").trim();
+
+const scannerCidrRegionKey = (
+  province: string,
+  queryCity?: string | null,
+): string => `${province.trim()}::${String(queryCity ?? "").trim()}`;
+
+const scannerCidrRegionKeysEqual = (
+  left: Array<{ province: string; query_city?: string | null }>,
+  right: Array<{ province: string; query_city?: string | null }>,
+): boolean => {
+  if (left.length !== right.length) return false;
+  return left.every(
+    (item, index) =>
+      scannerCidrRegionKey(item.province, item.query_city) ===
+      scannerCidrRegionKey(right[index]?.province ?? "", right[index]?.query_city),
+  );
+};
+
+const normalizeScannerCidrExemptionSelection = (
+  value: unknown,
+): ScannerCidrExemptionSelection | null => {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Partial<ScannerCidrExemptionSelection>;
+  const province = normalizeString(raw.province);
+  const label = normalizeString(raw.label);
+  const valueLabel = normalizeString(raw.value);
+  if (!province || !label || !valueLabel) return null;
+
+  return {
+    province,
+    city: normalizeString(raw.city) || null,
+    label,
+    value: valueLabel,
+    query_city: normalizeString(raw.query_city) || null,
+    is_province_wide: raw.is_province_wide === true,
+    is_municipality: raw.is_municipality === true,
+  };
+};
+
+const normalizeScannerCidrExemptionRegions = (
+  value: unknown,
+): ScannerCidrExemptionSelection[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => normalizeScannerCidrExemptionSelection(item))
+    .filter((item): item is ScannerCidrExemptionSelection => item !== null);
+};
+
+const dedupeScannerCidrExemptionRegionInputs = (
+  value: unknown,
+): ScannerCidrExemptionRegionInput[] => {
+  const items = Array.isArray(value) ? value : [];
+  const result: ScannerCidrExemptionRegionInput[] = [];
+  const seen = new Set<string>();
+
+  for (const item of items) {
+    if (!item || typeof item !== "object") continue;
+    const raw = item as Partial<ScannerCidrExemptionRegionInput>;
+    const province = normalizeString(raw.province);
+    const queryCity = normalizeString(raw.query_city) || null;
+    if (!province) continue;
+
+    const key = scannerCidrRegionKey(province, queryCity);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push({ province, query_city: queryCity });
+  }
+
+  return result;
+};
+
+const toStoredScannerCidrExemptionSelection = (
+  value: Awaited<ReturnType<typeof cidrService.getCidrs>>["selection"],
+): ScannerCidrExemptionSelection => ({
+  province: value.province,
+  city: value.city,
+  label: value.label,
+  value: value.value,
+  query_city: value.queryCity,
+  is_province_wide: value.isProvinceWide,
+  is_municipality: value.isMunicipality,
+});
 
 const SUBSONIC_REST_ENDPOINTS = new Set([
   "addchatmessage",
@@ -465,6 +574,10 @@ class ScanDetector {
     let threshold = envThreshold;
     let blacklistTtlSeconds = envBlacklistTtlDays * 24 * 3600;
     let commonLocationExemptEnabled = false;
+    let cidrExemptions: string[] = [];
+    let cidrExemptionRegions: ScannerCidrExemptionSelection[] = [];
+    let cidrExemptionRegionCidrs: string[] = [];
+    let cidrExemptionCidrs: string[] = [];
 
     const raw = await redis.get(this.settingsKey);
     if (raw) {
@@ -481,9 +594,28 @@ class ScanDetector {
         if (typeof parsed.commonLocationExemptEnabled === "boolean") {
           commonLocationExemptEnabled = parsed.commonLocationExemptEnabled;
         }
+        cidrExemptions = normalizeScannerCidrExemptions(
+          parsed.cidrExemptions,
+        );
+        cidrExemptionRegions = normalizeScannerCidrExemptionRegions(
+          parsed.cidrExemptionRegions,
+        );
+        cidrExemptionRegionCidrs = normalizeScannerCidrExemptions(
+          parsed.cidrExemptionRegionCidrs,
+        );
+        cidrExemptionCidrs = normalizeScannerCidrExemptions(
+          parsed.cidrExemptionCidrs,
+        );
       } catch {}
     }
 
+    const effectiveCidrExemptions =
+      cidrExemptionCidrs.length > 0
+        ? cidrExemptionCidrs
+        : normalizeScannerCidrExemptions([
+            ...cidrExemptionRegionCidrs,
+            ...cidrExemptions,
+          ]);
     const windowSeconds = Math.max(this.baseWindowSeconds, windowMinutes * 60);
     return {
       enabled,
@@ -492,6 +624,33 @@ class ScanDetector {
       windowSeconds,
       blacklistTtlSeconds,
       commonLocationExemptEnabled,
+      cidrExemptions,
+      cidrExemptionRegions,
+      cidrExemptionRegionCidrs,
+      cidrExemptionCidrs: effectiveCidrExemptions,
+    };
+  }
+
+  private async resolveCidrExemptionRegions(value: unknown): Promise<{
+    regions: ScannerCidrExemptionSelection[];
+    cidrs: string[];
+  }> {
+    const inputs = dedupeScannerCidrExemptionRegionInputs(value);
+    const regions: ScannerCidrExemptionSelection[] = [];
+    const cidrs: string[] = [];
+
+    for (const input of inputs) {
+      const lookup = await cidrService.getCidrs({
+        province: input.province,
+        city: input.query_city,
+      });
+      regions.push(toStoredScannerCidrExemptionSelection(lookup.selection));
+      cidrs.push(...lookup.cidrGroups.ipv4, ...lookup.cidrGroups.ipv6);
+    }
+
+    return {
+      regions,
+      cidrs: normalizeScannerCidrExemptions(cidrs),
     };
   }
 
@@ -501,7 +660,37 @@ class ScanDetector {
     threshold: number;
     blacklistTtlSeconds: number;
     commonLocationExemptEnabled?: boolean;
+    cidrExemptions?: string[];
+    cidrExemptionRegions?: ScannerCidrExemptionRegionInput[];
   }): Promise<ScannerSettings> {
+    const previous = await this.getSettings();
+    const manualCidrs =
+      payload.cidrExemptions === undefined
+        ? previous.cidrExemptions
+        : validateScannerCidrExemptions(payload.cidrExemptions);
+    const requestedRegions =
+      payload.cidrExemptionRegions === undefined
+        ? null
+        : dedupeScannerCidrExemptionRegionInputs(
+            payload.cidrExemptionRegions,
+          );
+    const previousRegionInputs = previous.cidrExemptionRegions.map((item) => ({
+      province: item.province,
+      query_city: item.query_city,
+    }));
+    const shouldReuseRegionResolution =
+      requestedRegions === null ||
+      scannerCidrRegionKeysEqual(requestedRegions, previousRegionInputs);
+    const regionResolution = shouldReuseRegionResolution
+      ? {
+          regions: previous.cidrExemptionRegions,
+          cidrs: previous.cidrExemptionRegionCidrs,
+        }
+      : await this.resolveCidrExemptionRegions(requestedRegions);
+    const effectiveCidrExemptions = normalizeScannerCidrExemptions([
+      ...regionResolution.cidrs,
+      ...manualCidrs,
+    ]);
     const next = {
       enabled: payload.enabled,
       windowMinutes: Math.max(1, Math.floor(payload.windowMinutes)),
@@ -512,6 +701,10 @@ class ScanDetector {
       ),
       commonLocationExemptEnabled:
         payload.commonLocationExemptEnabled === true,
+      cidrExemptions: manualCidrs,
+      cidrExemptionRegions: regionResolution.regions,
+      cidrExemptionRegionCidrs: regionResolution.cidrs,
+      cidrExemptionCidrs: effectiveCidrExemptions,
     };
     await redis.set(this.settingsKey, JSON.stringify(next));
     return this.getSettings();
@@ -527,6 +720,9 @@ class ScanDetector {
       settings.commonLocationExemptEnabled &&
       (await isCommonAuthLocationExemptIP(cleanIp))
     ) {
+      return false;
+    }
+    if (isScannerCidrExemptIp(cleanIp, settings.cidrExemptionCidrs)) {
       return false;
     }
 
@@ -551,6 +747,9 @@ class ScanDetector {
       settings.commonLocationExemptEnabled &&
       (await isCommonAuthLocationExemptIP(cleanIp))
     ) {
+      return { hitCount: 0, blocked: false };
+    }
+    if (isScannerCidrExemptIp(cleanIp, settings.cidrExemptionCidrs)) {
       return { hitCount: 0, blocked: false };
     }
 

@@ -319,6 +319,9 @@ export const zhHantServer = {
     emptyEnabledConfig: "開啟可見性後，至少需要添加一個地區或一條自定義 CIDR",
     syncFailed: "同步網關可見性配置失敗",
   },
+  scanner: {
+    cidrExemptionsInvalid: "CIDR 豁免格式不正確：{cidrs}",
+  },
   gatewayLogging: {
     syncConfigFailed: "同步網關請求日誌配置失敗",
   },

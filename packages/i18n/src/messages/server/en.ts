@@ -377,6 +377,9 @@ export const enServer = {
       "After enabling visibility, add at least one region or one custom CIDR",
     syncFailed: "Failed to sync gateway visibility configuration",
   },
+  scanner: {
+    cidrExemptionsInvalid: "CIDR exemption format is invalid: {cidrs}",
+  },
   gatewayLogging: {
     syncConfigFailed: "Failed to sync gateway request log configuration",
   },

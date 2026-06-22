@@ -1,5 +1,6 @@
 import { Elysia, t } from "elysia";
 import { scanDetector } from "../lib/scan-detector";
+import { ScannerCidrValidationError } from "../lib/scanner-cidr";
 import { routeDoc, withRouteDoc } from "../lib/openapi";
 
 const parseBlacklistDeleteIps = (body: unknown): string[] => {
@@ -37,15 +38,28 @@ export const scannerRoutes = new Elysia({
   )
   .post(
     "/settings",
-    async ({ body }) => {
-      const settings = await scanDetector.updateSettings({
-        enabled: body.enabled,
-        windowMinutes: body.windowMinutes,
-        threshold: body.threshold,
-        blacklistTtlSeconds: body.blacklistTtlSeconds,
-        commonLocationExemptEnabled: body.commonLocationExemptEnabled,
-      });
-      return { success: true, data: settings };
+    async ({ body, set }) => {
+      try {
+        const settings = await scanDetector.updateSettings({
+          enabled: body.enabled,
+          windowMinutes: body.windowMinutes,
+          threshold: body.threshold,
+          blacklistTtlSeconds: body.blacklistTtlSeconds,
+          commonLocationExemptEnabled: body.commonLocationExemptEnabled,
+          cidrExemptions: body.cidrExemptions,
+          cidrExemptionRegions: body.cidrExemptionRegions,
+        });
+        return { success: true, data: settings };
+      } catch (error) {
+        if (!(error instanceof ScannerCidrValidationError)) {
+          throw error;
+        }
+        set.status = 400;
+        return {
+          success: false,
+          message: error.message,
+        };
+      }
     },
     withRouteDoc("更新扫描器设置", {
       body: t.Object({
@@ -54,6 +68,15 @@ export const scannerRoutes = new Elysia({
         threshold: t.Number(),
         blacklistTtlSeconds: t.Number(),
         commonLocationExemptEnabled: t.Optional(t.Boolean()),
+        cidrExemptions: t.Optional(t.Array(t.String())),
+        cidrExemptionRegions: t.Optional(
+          t.Array(
+            t.Object({
+              province: t.String(),
+              query_city: t.Optional(t.Union([t.String(), t.Null()])),
+            }),
+          ),
+        ),
       }),
     }),
   )

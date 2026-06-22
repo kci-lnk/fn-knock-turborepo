@@ -1,4 +1,5 @@
 import type {
+  GatewayVisibilitySelection,
   SSHLoginLogListPayload,
   SSHSecurityBlockListPayload,
   SSHSecurityBlockRecord,
@@ -28,6 +29,9 @@ export type ScannerSettings = {
   windowSeconds: number;
   blacklistTtlSeconds: number;
   commonLocationExemptEnabled: boolean;
+  cidrExemptions: string[];
+  cidrExemptionRegions: GatewayVisibilitySelection[];
+  cidrExemptionCidrs: string[];
 };
 
 export type ScannerBlacklistHit = {
@@ -101,6 +105,11 @@ export const ScannerAPI = {
     threshold: number;
     blacklistTtlSeconds: number;
     commonLocationExemptEnabled?: boolean;
+    cidrExemptions?: string[];
+    cidrExemptionRegions?: Array<{
+      province: string;
+      query_city?: string | null;
+    }>;
   }): Promise<ScannerSettings> {
     const res = await apiClient.post("/scanner/settings", payload);
     return res.data.data;

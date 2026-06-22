@@ -1671,6 +1671,32 @@ export const enAdmin = {
     commonLocationExemptTitle: "Common location exemption",
     commonLocationExemptDescription:
       "Requests from recently used login locations will not trigger scanner blacklist blocking.",
+    loading: "Loading...",
+    selectProvinceFirst: "Select a province first",
+    selectCityOrProvinceWide: "Select a city or whole province",
+    selectCity: "Select a city",
+    regionsLoadFailed: "Failed to load regions",
+    regionsLoadDescription: "Unable to load cities for this province",
+    cidrExemptionRegionsTitle: "Region allowlist exemptions",
+    cidrExemptionRegionsDescription:
+      "Add trusted regions by province and city. They are resolved into final CIDR exemptions when saved.",
+    addRegion: "Add region",
+    noRegions: "No regions added yet.",
+    addRegionDescription:
+      "Select the province and city scope to exempt from scanner blocking.",
+    province: "Province",
+    selectProvince: "Select province",
+    scope: "Scope",
+    add: "Add",
+    cidrExemptionsTitle: "CIDR allowlist exemptions",
+    cidrExemptionsDescription:
+      "Enter one CIDR per line. Matching IPs will not be blocked by the scanner blacklist or counted toward uncommon path hits.",
+    cidrExemptionsPlaceholder: "1.2.3.0/24\n2408:8000::/24",
+    cidrExemptionsRecognized: "{count} CIDR exemptions recognized",
+    cidrExemptionsInvalid: "Format error: {items}",
+    cidrExemptionsValid: "CIDR format looks good",
+    fixCidrExemptions: "Fix the CIDR exemption format first",
+    cidrValidationFailed: "CIDR validation failed",
     windowTitle: "Statistics window",
     windowDescription:
       "The time window used to count abnormal access attempts.",

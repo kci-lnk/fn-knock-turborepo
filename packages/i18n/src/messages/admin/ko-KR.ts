@@ -1660,6 +1660,32 @@ export const koKRAdmin = {
     commonLocationExemptTitle: "공통 위치 면제",
     commonLocationExemptDescription:
       "최근에 사용한 로그인 위치의 요청은 스캐너 블랙리스트 차단을 트리거하지 않습니다.",
+    loading: "로드 중...",
+    selectProvinceFirst: "먼저 성/도를 선택하세요.",
+    selectCityOrProvinceWide: "도시 또는 전체 성/도를 선택하세요.",
+    selectCity: "도시 선택",
+    regionsLoadFailed: "지역 목록을 로드하지 못했습니다.",
+    regionsLoadDescription: "이 성/도의 도시 목록을 가져올 수 없습니다.",
+    cidrExemptionRegionsTitle: "지역 허용 목록 면제",
+    cidrExemptionRegionsDescription:
+      "신뢰할 지역을 성/도 및 도시 단위로 추가하세요. 저장 시 최종 CIDR 면제로 해석됩니다.",
+    addRegion: "지역 추가",
+    noRegions: "아직 추가된 지역이 없습니다.",
+    addRegionDescription:
+      "스캐너 차단에서 면제할 성/도와 도시 범위를 선택하세요.",
+    province: "성/도",
+    selectProvince: "성/도 선택",
+    scope: "범위",
+    add: "추가",
+    cidrExemptionsTitle: "CIDR 허용 목록 면제",
+    cidrExemptionsDescription:
+      "한 줄에 CIDR 하나씩 입력하세요. 일치하는 IP는 스캐너 블랙리스트에서 차단되지 않고 비정상 경로 적중에도 누적되지 않습니다.",
+    cidrExemptionsPlaceholder: "1.2.3.0/24\n2408:8000::/24",
+    cidrExemptionsRecognized: "{count}개의 CIDR 면제가 인식되었습니다.",
+    cidrExemptionsInvalid: "형식 오류: {items}",
+    cidrExemptionsValid: "CIDR 형식이 정상입니다.",
+    fixCidrExemptions: "먼저 CIDR 면제 형식을 수정하세요.",
+    cidrValidationFailed: "CIDR 검증 실패",
     windowTitle: "통계 창",
     windowDescription:
       "비정상적인 액세스 시도를 계산하는 데 사용되는 시간 창입니다.",

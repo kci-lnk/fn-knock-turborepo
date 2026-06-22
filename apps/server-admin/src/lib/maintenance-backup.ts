@@ -51,6 +51,7 @@ const SCAN_COUNT = 200;
 const PIPELINE_BATCH_SIZE = 100;
 const TEMP_DIR_PREFIX = "fn-knock-backup-";
 const KNOCK_BACKUP_PASSWORD = "890eced0-4561-4044-8d6b-def83b5c6016";
+const OPENWRT_APK_COMMAND = "apk";
 const OPENWRT_OPKG_COMMAND = "opkg";
 const DEBIAN_APT_GET_PATH = "/usr/bin/apt-get";
 const BACKUP_DIRECTORY_NAME = "backup";
@@ -232,10 +233,76 @@ class MaintenanceBackupService {
       ...new Set(missingCommands.map((item) => item.packageName)),
     ];
 
-    const canUseOpkg = await this.isCommandAvailable(OPENWRT_OPKG_COMMAND, [
+    const canUseApk = await this.isCommandAvailable(OPENWRT_APK_COMMAND, [
       "--version",
     ]);
-    if (canUseOpkg) {
+    if (canUseApk) {
+      const installResult = await this.runCommand(OPENWRT_APK_COMMAND, [
+        "--update-cache",
+        "add",
+        ...packages,
+      ]);
+      if (installResult.exitCode !== 0) {
+        throw this.createCommandError(
+          backupT("packageInstallFailed", { packages: packages.join(", ") }),
+          installResult,
+          500,
+        );
+      }
+    } else {
+      const canUseOpkg = await this.isCommandAvailable(OPENWRT_OPKG_COMMAND, [
+        "--version",
+      ]);
+      if (!canUseOpkg) {
+        const canUseAptGet = await this.isCommandAvailable(DEBIAN_APT_GET_PATH, [
+          "--version",
+        ]);
+        if (!canUseAptGet) {
+          throw new MaintenanceBackupError(
+            backupT("commandsMissingNoPackageManager", {
+              commands: missingNames,
+            }),
+            500,
+          );
+        }
+
+        const updateResult = await this.runCommand(DEBIAN_APT_GET_PATH, [
+          "update",
+        ]);
+        if (updateResult.exitCode !== 0) {
+          throw this.createCommandError(
+            backupT("aptUpdateFailed"),
+            updateResult,
+            500,
+          );
+        }
+
+        const installResult = await this.runCommand(DEBIAN_APT_GET_PATH, [
+          "install",
+          "-y",
+          ...packages,
+        ]);
+        if (installResult.exitCode !== 0) {
+          throw this.createCommandError(
+            backupT("packageInstallFailed", { packages: packages.join(", ") }),
+            installResult,
+            500,
+          );
+        }
+
+        const remainingCommands = await this.findMissingArchiveCommands();
+        if (remainingCommands.length > 0) {
+          throw new MaintenanceBackupError(
+            backupT("commandsStillMissingAfterInstall", {
+              commands: remainingCommands.map((item) => item.command).join(", "),
+            }),
+            500,
+          );
+        }
+
+        return;
+      }
+
       const updateResult = await this.runCommand(OPENWRT_OPKG_COMMAND, [
         "update",
       ]);
@@ -249,42 +316,6 @@ class MaintenanceBackupService {
 
       const installResult = await this.runCommand(OPENWRT_OPKG_COMMAND, [
         "install",
-        ...packages,
-      ]);
-      if (installResult.exitCode !== 0) {
-        throw this.createCommandError(
-          backupT("packageInstallFailed", { packages: packages.join(", ") }),
-          installResult,
-          500,
-        );
-      }
-    } else {
-      const canUseAptGet = await this.isCommandAvailable(DEBIAN_APT_GET_PATH, [
-        "--version",
-      ]);
-      if (!canUseAptGet) {
-        throw new MaintenanceBackupError(
-          backupT("commandsMissingNoPackageManager", {
-            commands: missingNames,
-          }),
-          500,
-        );
-      }
-
-      const updateResult = await this.runCommand(DEBIAN_APT_GET_PATH, [
-        "update",
-      ]);
-      if (updateResult.exitCode !== 0) {
-        throw this.createCommandError(
-          backupT("aptUpdateFailed"),
-          updateResult,
-          500,
-        );
-      }
-
-      const installResult = await this.runCommand(DEBIAN_APT_GET_PATH, [
-        "install",
-        "-y",
         ...packages,
       ]);
       if (installResult.exitCode !== 0) {

@@ -12,31 +12,38 @@
           t("admin.authSettings.description")
         }}</CardDescription>
       </div>
-      <div class="grid w-full gap-2 sm:flex sm:w-auto sm:items-center">
+      <div
+        class="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center"
+      >
         <DocsLinkButton
           class="hidden sm:inline-flex"
           :href="docsUrls.guides.auth"
           size="default"
         />
         <Button
-          class="justify-self-start"
+          class="order-3 h-11 w-full justify-center px-3 sm:order-none sm:size-9 sm:w-auto sm:px-0"
           variant="outline"
-          size="icon"
           :aria-label="t('admin.authSettings.credentialTransfer')"
           :title="t('admin.authSettings.credentialTransfer')"
           :disabled="isCredentialTransferBusy"
           @click="showCredentialTransferDialog = true"
         >
-          <ArrowUpDown class="h-4 w-4" />
+          <FileKey2 class="h-4 w-4" />
+          <span class="sm:hidden">
+            {{ t("admin.authSettings.credentialTransferShort") }}
+          </span>
         </Button>
         <Button
-          class="w-full sm:w-auto"
+          class="order-2 h-11 min-w-0 w-full sm:order-none sm:h-9 sm:w-auto"
           variant="outline"
           @click="goToOidcProviders"
         >
           {{ t("admin.authSettings.oidcLogin") }}
         </Button>
-        <Button class="w-full sm:w-auto" @click="openSetupDialog">
+        <Button
+          class="order-1 col-span-2 h-11 w-full sm:order-none sm:h-9 sm:w-auto"
+          @click="openSetupDialog"
+        >
           {{ t("admin.authSettings.bindNewToken") }}
         </Button>
       </div>
@@ -370,12 +377,81 @@
       </DialogHeader>
       <div
         v-if="setupData && setupStep === 'BIND'"
-        class="flex flex-col items-center gap-6 py-4 max-sm:gap-4 max-sm:py-2"
+        class="w-full py-4 max-sm:py-2"
       >
-        <div class="rounded-xl border bg-white p-4">
-          <QrcodeVue :value="setupData.uri" :size="200" level="M" />
-        </div>
-        <div class="w-full space-y-4">
+        <Transition
+          mode="out-in"
+          enter-active-class="transition duration-150 ease-out"
+          leave-active-class="transition duration-100 ease-in"
+          :enter-from-class="setupBindTransitionEnterFromClass"
+          enter-to-class="translate-x-0 opacity-100"
+          leave-from-class="translate-x-0 opacity-100"
+          :leave-to-class="setupBindTransitionLeaveToClass"
+        >
+          <div
+            v-if="setupBindView === 'qr'"
+            key="setup-qr"
+            class="flex flex-col items-center gap-4"
+          >
+            <div class="rounded-xl border bg-white p-4">
+              <QrcodeVue :value="setupData.uri" :size="200" level="M" />
+            </div>
+            <Button
+              type="button"
+              variant="link"
+              class="h-auto gap-1 px-0 text-sm"
+              @click="openManualSetupView"
+            >
+              {{ t("admin.authSettings.manualSetupEntry") }}
+              <ChevronRight class="h-4 w-4" />
+            </Button>
+          </div>
+
+          <div v-else key="setup-manual" class="w-full space-y-4">
+            <button
+              type="button"
+              class="-mx-2 inline-flex w-[calc(100%+1rem)] items-center gap-3 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              :aria-label="t('admin.authSettings.backToQRCodeSetupAria')"
+              @click="returnQRCodeSetupView"
+            >
+              <ChevronLeft class="h-4 w-4 shrink-0" />
+              <span class="text-sm font-semibold">
+                {{ t("admin.authSettings.manualSetupTitle") }}
+              </span>
+            </button>
+            <div class="space-y-3 rounded-md border bg-muted/30 p-3">
+              <p class="text-xs leading-5 text-muted-foreground">
+                {{ t("admin.authSettings.manualSetupDescription") }}
+              </p>
+              <div
+                class="flex items-start gap-2 rounded-md border bg-background px-2.5 py-2"
+              >
+                <div class="min-w-0 flex-1 space-y-1">
+                  <Label class="text-xs text-muted-foreground">
+                    {{ t("admin.authSettings.manualSetupSecretLabel") }}
+                  </Label>
+                  <p
+                    class="break-all font-mono text-xs leading-5 text-muted-foreground"
+                  >
+                    {{ setupSecretDisplay }}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  class="size-8 shrink-0"
+                  :title="t('admin.authSettings.copySetupSecret')"
+                  :aria-label="t('admin.authSettings.copySetupSecret')"
+                  @click="copySetupSecret"
+                >
+                  <Copy class="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Transition>
+
+        <div class="mt-6 w-full space-y-4 max-sm:mt-4">
           <div
             ref="otpInputAreaRef"
             class="space-y-2 flex flex-col items-center scroll-mt-24"
@@ -482,7 +558,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ArrowUpDown, Download, Upload } from "lucide-vue-next";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  Download,
+  FileKey2,
+  Upload,
+} from "lucide-vue-next";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
 import InlineCommentEditor from "@admin-shared/components/InlineCommentEditor.vue";
 import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
@@ -507,6 +590,7 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
+import { copyTextToClipboard } from "@admin-shared/utils/copyTextToClipboard";
 import { downloadBlob } from "@admin-shared/utils/downloadBlob";
 import { ConfigAPI } from "../lib/api";
 import { docsUrls } from "../lib/docs";
@@ -573,6 +657,8 @@ const verifyToken = ref("");
 const newTotpComment = ref("");
 const bindErrorMessage = ref("");
 const setupStep = ref<"BIND" | "NAME">("BIND");
+const setupBindView = ref<"qr" | "manual">("qr");
+const setupBindMotionDirection = ref<"forward" | "back">("forward");
 const boundTotpId = ref<string | null>(null);
 const bindingMode = ref<"bind" | "rename">("bind");
 const otpInputAreaRef = ref<HTMLElement | null>(null);
@@ -624,6 +710,20 @@ const totpTableColspan = computed(() =>
 const isCredentialTransferBusy = computed(
   () => isExportingCredentials.value || isImportingCredentials.value,
 );
+const setupSecretDisplay = computed(() => {
+  const secret = setupData.value?.secret || "";
+  return formatTOTPSecretForDisplay(secret);
+});
+const setupBindTransitionEnterFromClass = computed(() => {
+  return setupBindMotionDirection.value === "forward"
+    ? "translate-x-4 opacity-0"
+    : "-translate-x-4 opacity-0";
+});
+const setupBindTransitionLeaveToClass = computed(() => {
+  return setupBindMotionDirection.value === "forward"
+    ? "-translate-x-4 opacity-0"
+    : "translate-x-4 opacity-0";
+});
 
 onMounted(async () => {
   setupAdminPanelAccessTooltipInteraction();
@@ -712,6 +812,50 @@ function buildTOTPCredentialExportFilename() {
   return `fn-knock-totp-credentials-${new Date()
     .toISOString()
     .replace(/[:.]/g, "-")}.json`;
+}
+
+function normalizeTOTPSecret(secret: string) {
+  return secret.replace(/\s+/g, "").toUpperCase();
+}
+
+function splitTOTPSecretGroups(secret: string) {
+  return normalizeTOTPSecret(secret).match(/.{1,4}/g) || [];
+}
+
+function formatTOTPSecretForDisplay(secret: string) {
+  return splitTOTPSecretGroups(secret).join(" ");
+}
+
+async function copySetupSecret() {
+  const secret = setupData.value?.secret;
+  if (!secret) return;
+
+  try {
+    const result = await copyTextToClipboard(secret);
+    if (result.verified) {
+      toast.success(t("admin.authSettings.setupSecretCopied"));
+      return;
+    }
+
+    toast.info(t("admin.authSettings.setupSecretCopyUnverified"), {
+      description: t("admin.authSettings.setupSecretCopyUnverifiedDescription"),
+    });
+  } catch (error) {
+    console.error("copySetupSecret:", error);
+    toast.error(t("admin.authSettings.setupSecretCopyFailed"), {
+      description: t("admin.authSettings.setupSecretManualCopyHint"),
+    });
+  }
+}
+
+function openManualSetupView() {
+  setupBindMotionDirection.value = "forward";
+  setupBindView.value = "manual";
+}
+
+function returnQRCodeSetupView() {
+  setupBindMotionDirection.value = "back";
+  setupBindView.value = "qr";
 }
 
 function openExportDialog() {
@@ -933,6 +1077,8 @@ async function openSetupDialog() {
   newTotpComment.value = "";
   setupData.value = null;
   setupStep.value = "BIND";
+  setupBindView.value = "qr";
+  setupBindMotionDirection.value = "forward";
   boundTotpId.value = null;
   await runSetupInit(async () => {
     setupData.value = await ConfigAPI.setupTOTP();
@@ -944,6 +1090,8 @@ function handleCancelSetup() {
   verifyToken.value = "";
   bindErrorMessage.value = "";
   setupStep.value = "BIND";
+  setupBindView.value = "qr";
+  setupBindMotionDirection.value = "forward";
   boundTotpId.value = null;
 }
 

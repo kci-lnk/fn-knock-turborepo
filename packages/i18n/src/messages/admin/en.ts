@@ -3282,6 +3282,7 @@ export const enAdmin = {
       "Manage all TOTP two-factor authenticators used for admin login.",
     oidcLogin: "External account login",
     credentialTransfer: "Import/export credentials",
+    credentialTransferShort: "Import/export",
     credentialTransferDescription:
       "Import or export TOTP credentials. Exported JSON contains sign-in secrets; store it carefully.",
     exportCredentials: "Export credentials",
@@ -3307,7 +3308,21 @@ export const enAdmin = {
     empty: "No TOTP tokens bound yet",
     bindDialogTitle: "Bind new TOTP token",
     bindDialogDescription:
-      "Scan the QR code with an authenticator app and enter the verification code.",
+      "Add the token in your authenticator app, then enter the verification code.",
+    manualSetupEntry: "Need manual setup?",
+    manualSetupTitle: "Manual setup",
+    manualSetupDescription:
+      "Copy this secret and choose manual entry in your authenticator app.",
+    manualSetupSecretLabel: "TOTP secret",
+    backToQRCodeSetupAria: "Back to QR code setup",
+    copySetupSecret: "Copy secret",
+    setupSecretCopied: "Secret copied",
+    setupSecretCopyUnverified: "Tried to copy secret",
+    setupSecretCopyUnverifiedDescription:
+      "If the app cannot read the clipboard, show and copy the secret manually.",
+    setupSecretCopyFailed: "Failed to copy secret",
+    setupSecretManualCopyHint:
+      "This page may be running in a restricted environment. Show and copy the secret manually.",
     otpLabel: "Enter the 6-digit code to verify and bind",
     verifying: "Verifying...",
     nameSuccessLabel: "Verified. Name this device",

@@ -3261,6 +3261,7 @@ export const koKRAdmin = {
       "관리자 로그인에 사용되는 모든 TOTP 2단계 인증자를 관리합니다.",
     oidcLogin: "외부 계정 로그인",
     credentialTransfer: "자격 증명 가져오기/내보내기",
+    credentialTransferShort: "가져오기/내보내기",
     credentialTransferDescription:
       "TOTP 자격 증명을 가져오거나 내보냅니다. 내보낸 JSON에는 로그인에 사용할 수 있는 secret이 포함되므로 안전하게 보관하세요.",
     exportCredentials: "자격 증명 내보내기",
@@ -3286,7 +3287,21 @@ export const koKRAdmin = {
     empty: "아직 바인딩된 TOTP 토큰이 없습니다.",
     bindDialogTitle: "새로운 TOTP 토큰 바인딩",
     bindDialogDescription:
-      "인증 앱으로 QR 코드를 스캔하고 인증 코드를 입력하세요.",
+      "인증 앱에 토큰을 추가한 뒤 인증 코드를 입력하세요.",
+    manualSetupEntry: "수동 설정이 필요하신가요?",
+    manualSetupTitle: "수동 설정",
+    manualSetupDescription:
+      "이 키를 복사하고 인증 앱에서 수동 입력을 선택하세요.",
+    manualSetupSecretLabel: "TOTP 키",
+    backToQRCodeSetupAria: "QR 코드 설정으로 돌아가기",
+    copySetupSecret: "키 복사",
+    setupSecretCopied: "키가 복사되었습니다.",
+    setupSecretCopyUnverified: "키 복사를 시도했습니다.",
+    setupSecretCopyUnverifiedDescription:
+      "앱이 클립보드를 읽지 못하면 키를 표시하고 직접 복사하세요.",
+    setupSecretCopyFailed: "키를 복사하지 못했습니다.",
+    setupSecretManualCopyHint:
+      "현재 페이지가 제한된 환경에서 실행 중일 수 있습니다. 키를 표시하고 직접 복사하세요.",
     otpLabel: "인증 및 바인딩을 위해 6자리 코드를 입력하세요",
     verifying: "확인 중...",
     nameSuccessLabel: "확인되었습니다. 이 장치의 이름을 지정하세요",

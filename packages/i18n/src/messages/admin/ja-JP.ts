@@ -3343,6 +3343,7 @@ export const jaJPAdmin = {
       "管理者ログインで使用されるすべての TOTP 両端認証システムを管理します。",
     oidcLogin: "外部アカウントログイン",
     credentialTransfer: "認証情報のインポート/エクスポート",
+    credentialTransferShort: "インポート/エクスポート",
     credentialTransferDescription:
       "TOTP 認証情報をインポートまたはエクスポートします。エクスポートされた JSON にはログインに使える secret が含まれるため、安全に保管してください。",
     exportCredentials: "認証情報をエクスポート",
@@ -3368,7 +3369,21 @@ export const jaJPAdmin = {
     empty: "現在、バインドされた TOTP トークンはありません",
     bindDialogTitle: "新しい TOTP トークンをバインドします",
     bindDialogDescription:
-      "Authenticator アプリを使用して QR コードをスキャンし、確認コードを入力します。",
+      "認証アプリでトークンを追加し、確認コードを入力します。",
+    manualSetupEntry: "手動で設定しますか？",
+    manualSetupTitle: "手動設定",
+    manualSetupDescription:
+      "このシークレットをコピーし、認証アプリで手動入力を選択してください。",
+    manualSetupSecretLabel: "TOTP シークレット",
+    backToQRCodeSetupAria: "QR コード設定に戻る",
+    copySetupSecret: "シークレットをコピー",
+    setupSecretCopied: "シークレットをコピーしました",
+    setupSecretCopyUnverified: "シークレットのコピーを試みました",
+    setupSecretCopyUnverifiedDescription:
+      "アプリがクリップボードを読み取れない場合は、シークレットを表示して手動でコピーしてください。",
+    setupSecretCopyFailed: "シークレットをコピーできませんでした",
+    setupSecretManualCopyHint:
+      "このページは制限された環境で実行されている可能性があります。シークレットを表示して手動でコピーしてください。",
     otpLabel: "6桁の認証コードを入力して検証してバインドします",
     verifying: "確認中...",
     nameSuccessLabel: "検証に成功しました!このデバイスに名前を付けてください",

@@ -23,6 +23,7 @@ import { emitDDNSUpdateCompletedEvent } from "../lib/system-events/helpers";
 import { routeDoc, withRouteDoc } from "../lib/openapi";
 import { configManager } from "../lib/redis";
 import { createRequestTranslator, tDefault } from "../lib/i18n";
+import { IPDetector } from "../plugins/ip-detector";
 
 const getDDNSRouteTranslator = async (request: Request) => {
   const config = await configManager.getConfig();
@@ -106,6 +107,7 @@ const runTargetManualTest = async (
       const updateScope = normalizeUpdateScope(
         target.config[DDNS_UPDATE_SCOPE_FIELD],
       );
+      const settings = await ddnsManager.getSettings();
       const ips = await resolveDDNSTargetIPs({
         updateScope,
         ipSource: target.config[DDNS_IP_SOURCE_FIELD],
@@ -115,6 +117,7 @@ const runTargetManualTest = async (
         staticIpv4: target.config[DDNS_STATIC_IPV4_FIELD],
         staticIpv6: target.config[DDNS_STATIC_IPV6_FIELD],
         sourceDomain: target.config[DDNS_SOURCE_DOMAIN_FIELD],
+        publicCheckSources: settings.publicCheckSources,
       });
 
       await ddnsManager.appendTargetLog(
@@ -292,6 +295,7 @@ export const ddnsRoutes = new Elysia({
         const settings = await withDDNSLocale(locale, () =>
           ddnsManager.updateSettings({
             updateIntervalMinutes: body.updateIntervalMinutes,
+            publicCheckSources: body.publicCheckSources,
           }),
         );
         await ddnsIntervalScheduler.reload();
@@ -305,7 +309,41 @@ export const ddnsRoutes = new Elysia({
       }
     },
     withRouteDoc("更新 DDNS 自动同步设置", {
-      body: t.Object({ updateIntervalMinutes: t.Number() }),
+      body: t.Object({
+        updateIntervalMinutes: t.Optional(t.Number()),
+        publicCheckSources: t.Optional(
+          t.Object({
+            ipv4: t.Array(t.String()),
+            ipv6: t.Array(t.String()),
+          }),
+        ),
+      }),
+    }),
+  )
+  .post(
+    "/public-check/test",
+    async ({ body, set, request }) => {
+      const { locale, t } = await getDDNSRouteTranslator(request);
+      try {
+        const results = await withDDNSLocale(locale, () =>
+          IPDetector.testPublicCheckSources(body.publicCheckSources),
+        );
+        return { success: true, data: { results } };
+      } catch (error: any) {
+        set.status = 400;
+        return {
+          success: false,
+          message: error?.message || t("server.ddns.publicCheckTestFailed"),
+        };
+      }
+    },
+    withRouteDoc("测试 DDNS 公网探测地址", {
+      body: t.Object({
+        publicCheckSources: t.Object({
+          ipv4: t.Array(t.String()),
+          ipv6: t.Array(t.String()),
+        }),
+      }),
     }),
   )
   .get(

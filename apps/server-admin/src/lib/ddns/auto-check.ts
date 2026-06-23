@@ -122,7 +122,10 @@ const runAutomaticDDNSCheckWithLocale = async (
   }
 
   try {
-    const targets = await ddnsManager.listRunnableTargets();
+    const [targets, settings] = await Promise.all([
+      ddnsManager.listRunnableTargets(),
+      ddnsManager.getSettings(),
+    ]);
 
     for (const target of targets) {
       const summary = (await ddnsManager.buildTargetSummary(target.id)) || {
@@ -180,6 +183,7 @@ const runAutomaticDDNSCheckWithLocale = async (
           staticIpv4: target.config[DDNS_STATIC_IPV4_FIELD],
           staticIpv6: target.config[DDNS_STATIC_IPV6_FIELD],
           sourceDomain: target.config[DDNS_SOURCE_DOMAIN_FIELD],
+          publicCheckSources: settings.publicCheckSources,
         });
 
         for (const warning of ips.warnings) {

@@ -9,10 +9,29 @@ export type DDNSLogEntry = {
 export type DDNSIpSource = "public" | "interface" | "static" | "domain";
 export type DDNSUpdateScope = "dual_stack" | "ipv6_only" | "ipv4_only";
 
+export type DDNSPublicCheckFamily = "ipv4" | "ipv6";
+
+export type DDNSPublicCheckSourcesPayload = Record<
+  DDNSPublicCheckFamily,
+  string[]
+>;
+
+export type DDNSPublicCheckTestResultPayload = {
+  family: DDNSPublicCheckFamily;
+  url: string;
+  success: boolean;
+  status: number | null;
+  ip: string | null;
+  responsePreview?: string;
+  error?: string;
+};
+
 export type DDNSStatusPayload = {
   enabled: boolean;
   provider: string | null;
   updateIntervalMinutes: number;
+  publicCheckSources: DDNSPublicCheckSourcesPayload;
+  defaultPublicCheckSources: DDNSPublicCheckSourcesPayload;
   updateScope: DDNSUpdateScope;
   ipSource: DDNSIpSource;
   networkInterface: string;
@@ -34,7 +53,13 @@ export type DDNSStatusPayload = {
 
 export type DDNSSettingsPayload = {
   updateIntervalMinutes: number;
+  publicCheckSources: DDNSPublicCheckSourcesPayload;
+  defaultPublicCheckSources: DDNSPublicCheckSourcesPayload;
 };
+
+export type DDNSSettingsUpdatePayload = Partial<
+  Pick<DDNSSettingsPayload, "updateIntervalMinutes" | "publicCheckSources">
+>;
 
 export type DDNSTargetSummaryPayload = {
   id: string;
@@ -115,10 +140,18 @@ export const DDNSAPI = {
     const res = await apiClient.get("/ddns/settings");
     return res.data.data;
   },
-  async saveSettings(payload: {
-    updateIntervalMinutes: number;
-  }): Promise<DDNSSettingsPayload> {
+  async saveSettings(
+    payload: DDNSSettingsUpdatePayload,
+  ): Promise<DDNSSettingsPayload> {
     const res = await apiClient.post("/ddns/settings", payload);
+    return res.data.data;
+  },
+  async testPublicCheckSources(
+    publicCheckSources: DDNSPublicCheckSourcesPayload,
+  ): Promise<{ results: DDNSPublicCheckTestResultPayload[] }> {
+    const res = await apiClient.post("/ddns/public-check/test", {
+      publicCheckSources,
+    });
     return res.data.data;
   },
   async getProviders(): Promise<

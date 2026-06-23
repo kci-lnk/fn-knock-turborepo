@@ -50,8 +50,27 @@ export type DDNSUpdateResult = {
   ipv6Updated?: boolean;
 };
 
-export type DDNSSettings = {
+export type DDNSPublicCheckFamily = "ipv4" | "ipv6";
+
+export type DDNSPublicCheckSources = Record<DDNSPublicCheckFamily, string[]>;
+
+export type DDNSPublicCheckTestResult = {
+  family: DDNSPublicCheckFamily;
+  url: string;
+  success: boolean;
+  status: number | null;
+  ip: string | null;
+  responsePreview?: string;
+  error?: string;
+};
+
+export type DDNSStoredSettings = {
   updateIntervalMinutes: number;
+  publicCheckSources: DDNSPublicCheckSources;
+};
+
+export type DDNSSettings = DDNSStoredSettings & {
+  defaultPublicCheckSources: DDNSPublicCheckSources;
 };
 
 export type DDNSLogEntry = {
@@ -80,6 +99,8 @@ export type DDNSStatus = {
   enabled: boolean;
   provider: string | null;
   updateIntervalMinutes: number;
+  publicCheckSources: DDNSPublicCheckSources;
+  defaultPublicCheckSources: DDNSPublicCheckSources;
   updateScope: DDNSUpdateScope;
   ipSource: DDNSIpSource;
   networkInterface: string;

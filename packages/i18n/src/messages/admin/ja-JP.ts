@@ -3229,6 +3229,33 @@ export const jaJPAdmin = {
     credentialTransferDescription:
       "は、{scope} がすでに {bridge} 資格情報を持っており、{count} フィールドを完了できることを発見しました。",
     updateIntervalLabel: "{minutes} 分ごとに自動的に同期します",
+    publicCheckSettings: "公開検出アドレス",
+    publicCheckDialogTitle: "公開検出アドレス",
+    publicCheckDialogDescription:
+      "DDNS が現在の公開 IPv4/IPv6 を検出するときに使用するアドレスを設定します。",
+    publicCheckIpv4Title: "IPv4 検出アドレス",
+    publicCheckIpv6Title: "IPv6 検出アドレス",
+    publicCheckSourcePlaceholder: "example.com または https://example.com/ip",
+    addPublicCheckSource: "アドレスを追加",
+    removePublicCheckSource: "アドレスを削除",
+    restorePublicCheckDefaults: "出荷時アドレスに戻す",
+    restorePublicCheckDefaultsTitle: "出荷時の検出アドレスに戻しますか?",
+    restorePublicCheckDefaultsDescription:
+      "このダイアログ内の現在の下書きを、組み込みの IPv4/IPv6 検出アドレスで置き換えます。未保存のカスタムアドレスは上書きされます。",
+    restorePublicCheckDefaultsConfirm: "復元する",
+    publicCheckNoSources: "{family} 検出アドレスは設定されていません",
+    testPublicCheckSources: "アドレスをテスト",
+    publicCheckTestResultTitle: "テスト結果",
+    publicCheckTestSuccess: "{ip} を取得しました",
+    publicCheckTestFailed: "取得に失敗しました",
+    publicCheckStatusCode: "HTTP {status}",
+    publicCheckResponsePreview: "応答: {preview}",
+    publicCheckSaved: "公開検出アドレスを保存しました",
+    publicCheckTestCompleted: "公開検出アドレスのテストが完了しました",
+    publicCheckTestCompletedWithErrors:
+      "公開検出アドレスのテストが完了しました。一部のアドレスは失敗しました",
+    publicCheckNoTestSourcesConfigured:
+      "テストする前に公開検出アドレスを少なくとも 1 つ設定してください",
     wildcardHint:
       "サブドメイン モードでは、*.example.com を入力し、アスタリスクを使用して汎解像度を設定できます。",
     saveConfigFailed: "設定の保存に失敗しました",
@@ -3245,6 +3272,8 @@ export const jaJPAdmin = {
     initLoadFailed: "DDNS管理ページの読み込みに失敗しました",
     saveTargetFailed: "さらにドメインを保存できませんでした",
     saveIntervalFailed: "自動同期周波数の保存に失敗しました",
+    savePublicCheckFailed: "公開検出アドレスの保存に失敗しました",
+    testPublicCheckSourcesFailed: "公開検出アドレスのテストに失敗しました",
     deleteTargetFailed: "さらにドメインを削除できませんでした",
     toggleTargetFailed: "さらなるドメインステータスの切り替えに失敗しました",
     testTargetFailed: "さらなるドメイン更新に失敗しました",

@@ -1293,6 +1293,16 @@ export const jaJPServer = {
     tencentMissingResponse:
       "HTTP {status}: Tencent Cloud API 応答がありません 応答",
     invalidHeaderFormat: "無効なヘッダー形式: {header}",
+    publicCheckSourceEmpty: "{family} 公開検出アドレスは空にできません",
+    publicCheckSourceInvalidUrl: "{family} 公開検出アドレスが無効です: {source}",
+    publicCheckSourceUnsupportedProtocol:
+      "{family} 公開検出アドレスは HTTP/HTTPS のみ対応しています: {source}",
+    publicCheckSourceListEmpty: "{family} 公開検出アドレスが設定されていません",
+    publicCheckSourceRequestFailed:
+      "検出元 {url} のリクエストに失敗しました: HTTP {status}",
+    publicCheckSourceInvalidPayload:
+      "検出元 {url} は有効な {family} アドレスを返しませんでした",
+    publicCheckTestFailed: "公開検出アドレスのテストに失敗しました",
     interfaceSourceLabel: "ネットワークカード {name}",
     selectedInterfaceSourceLabel: "選択されたネットワークカード",
     publicSourceLabel: "パブリックネットワーク",

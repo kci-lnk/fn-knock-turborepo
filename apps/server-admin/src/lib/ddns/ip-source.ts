@@ -12,7 +12,11 @@ import {
   getUpdateScopeDetectionOptions,
   normalizeDomain,
 } from "./providers/helpers";
-import type { DDNSIpSource, DDNSUpdateScope } from "./types";
+import type {
+  DDNSIpSource,
+  DDNSPublicCheckSources,
+  DDNSUpdateScope,
+} from "./types";
 
 export const DDNS_IP_SOURCE_FIELD = "ip_source";
 export const DDNS_INTERFACE_IPV4_INDEX_FIELD = "interface_ipv4_index";
@@ -272,6 +276,7 @@ export async function resolveDDNSTargetIPs(options: {
   staticIpv4?: string | null;
   staticIpv6?: string | null;
   sourceDomain?: string | null;
+  publicCheckSources?: DDNSPublicCheckSources;
 }): Promise<DDNSResolvedTargetIPs> {
   const source = normalizeIpSource(options.ipSource);
   const detectionOptions = getUpdateScopeDetectionOptions(options.updateScope);
@@ -282,6 +287,7 @@ export async function resolveDDNSTargetIPs(options: {
   if (source === "public") {
     const ips = await IPDetector.getCurrentIPs({
       networkInterface: normalizedInterface,
+      publicCheckSources: options.publicCheckSources,
       ...detectionOptions,
     });
     const warnings: string[] = [];

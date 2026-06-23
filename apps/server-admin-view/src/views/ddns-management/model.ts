@@ -1,6 +1,7 @@
 import type {
   DDNSIpSource,
   DDNSNetworkInterfacePayload,
+  DDNSPublicCheckSourcesPayload,
   DDNSTargetSummaryPayload,
   DDNSUpdateScope,
 } from "@/lib/api";
@@ -65,6 +66,10 @@ export const NETWORK_INTERFACE_AUTO_VALUE = "__auto__";
 export const DEFAULT_DDNS_UPDATE_SCOPE: DDNSUpdateScope = "dual_stack";
 export const DEFAULT_DDNS_IP_SOURCE: DDNSIpSource = "public";
 export const DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES = 10;
+export const EMPTY_DDNS_PUBLIC_CHECK_SOURCES: DDNSPublicCheckSourcesPayload = {
+  ipv4: [],
+  ipv6: [],
+};
 export const MIN_DDNS_UPDATE_INTERVAL_MINUTES = 5;
 export const MAX_DDNS_UPDATE_INTERVAL_MINUTES = 1440;
 
@@ -146,6 +151,18 @@ export const normalizeUpdateIntervalMinutes = (value: unknown) => {
 
   return DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES;
 };
+
+export const normalizePublicCheckSources = (
+  value: Partial<DDNSPublicCheckSourcesPayload> | null | undefined,
+  fallback: DDNSPublicCheckSourcesPayload = EMPTY_DDNS_PUBLIC_CHECK_SOURCES,
+): DDNSPublicCheckSourcesPayload => ({
+  ipv4: Array.isArray(value?.ipv4)
+    ? value.ipv4.map((item) => String(item ?? ""))
+    : [...fallback.ipv4],
+  ipv6: Array.isArray(value?.ipv6)
+    ? value.ipv6.map((item) => String(item ?? ""))
+    : [...fallback.ipv6],
+});
 
 export const toNetworkInterfaceSelectValue = (
   value: string | null | undefined,

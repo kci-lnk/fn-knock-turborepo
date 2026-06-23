@@ -1072,6 +1072,15 @@ export const zhHantServer = {
     requestFailed: "請求失敗",
     tencentMissingResponse: "HTTP {status}: 騰訊雲 API 響應缺少 Response",
     invalidHeaderFormat: "無效 Header 格式: {header}",
+    publicCheckSourceEmpty: "{family} 公網探測地址不能為空",
+    publicCheckSourceInvalidUrl: "{family} 公網探測地址無效: {source}",
+    publicCheckSourceUnsupportedProtocol:
+      "{family} 公網探測地址僅支援 HTTP/HTTPS: {source}",
+    publicCheckSourceListEmpty: "未配置 {family} 公網探測地址",
+    publicCheckSourceRequestFailed: "探測源 {url} 請求失敗: HTTP {status}",
+    publicCheckSourceInvalidPayload:
+      "探測源 {url} 未回傳有效的 {family} 地址",
+    publicCheckTestFailed: "公網探測地址測試失敗",
     interfaceSourceLabel: "網卡 {name}",
     selectedInterfaceSourceLabel: "所選網卡",
     publicSourceLabel: "公網",

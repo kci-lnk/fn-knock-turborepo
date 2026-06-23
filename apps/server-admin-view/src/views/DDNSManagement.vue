@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, computed } from "vue";
 import { useI18n } from "vue-i18n";
+import { Settings2 } from "lucide-vue-next";
 import { DDNSAPI } from "../lib/api";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
 import { toast } from "@admin-shared/utils/toast";
@@ -19,6 +21,8 @@ import { useDnsCredentialTransfer } from "@/composables/useDnsCredentialTransfer
 import { useTargetPolling } from "../composables/useTargetPolling";
 import type {
   DDNSNetworkInterfacePayload,
+  DDNSPublicCheckSourcesPayload,
+  DDNSPublicCheckTestResultPayload,
   DDNSTargetSummaryPayload,
 } from "../lib/api";
 import { useConfigStore } from "../store/config";
@@ -43,6 +47,7 @@ import {
   normalizeInterfaceAddressIndex,
   normalizeIpSource,
   normalizeNetworkInterface,
+  normalizePublicCheckSources,
   normalizeSourceDomain,
   normalizeStaticIPAddress,
   normalizeTargetConfigValues,
@@ -66,6 +71,7 @@ import DDNSClearPrimaryConfigDialog from "./ddns-management/DDNSClearPrimaryConf
 import DDNSExtraTargetsCard from "./ddns-management/DDNSExtraTargetsCard.vue";
 import DDNSLogsCard from "./ddns-management/DDNSLogsCard.vue";
 import DDNSPrimaryConfigCard from "./ddns-management/DDNSPrimaryConfigCard.vue";
+import DDNSPublicCheckDialog from "./ddns-management/DDNSPublicCheckDialog.vue";
 import DDNSStatusCard from "./ddns-management/DDNSStatusCard.vue";
 import DDNSTargetDialog from "./ddns-management/DDNSTargetDialog.vue";
 import DDNSUpdateIntervalDialog from "./ddns-management/DDNSUpdateIntervalDialog.vue";
@@ -90,6 +96,16 @@ const lastCheck = ref<LastCheck>({
 });
 const updateIntervalMinutes = ref(DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES);
 const updateIntervalDraft = ref(String(DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES));
+const publicCheckSources = ref<DDNSPublicCheckSourcesPayload>(
+  normalizePublicCheckSources(undefined),
+);
+const defaultPublicCheckSources = ref<DDNSPublicCheckSourcesPayload>(
+  normalizePublicCheckSources(undefined),
+);
+const publicCheckDraft = ref<DDNSPublicCheckSourcesPayload>(
+  normalizePublicCheckSources(undefined),
+);
+const publicCheckTestResults = ref<DDNSPublicCheckTestResultPayload[]>([]);
 const logs = ref<LogEntry[]>([]);
 const statusUpdateScope = ref<DDNSUpdateScope>(DEFAULT_DDNS_UPDATE_SCOPE);
 const statusIpSource = ref<DDNSIpSource>(DEFAULT_DDNS_IP_SOURCE);
@@ -98,6 +114,7 @@ const networkInterfaces = ref<DDNSNetworkInterfacePayload[]>([]);
 const targetSummaries = ref<DDNSTargetSummaryPayload[]>([]);
 const showTargetDialog = ref(false);
 const showUpdateIntervalDialog = ref(false);
+const showPublicCheckDialog = ref(false);
 const showClearPrimaryConfigDialog = ref(false);
 const targetDialogMode = ref<"create" | "edit">("create");
 const targetDialogState = ref<TargetDialogState>({
@@ -219,6 +236,30 @@ const { isPending: isSavingUpdateInterval, run: runSaveUpdateInterval } =
       });
     },
   });
+const { isPending: isSavingPublicCheckSources, run: runSavePublicCheckSources } =
+  useAsyncAction({
+    onError: (error) => {
+      toast.error(t("admin.ddns.savePublicCheckFailed"), {
+        description: extractErrorMessage(
+          error,
+          t("admin.ddns.savePublicCheckFailed"),
+        ),
+      });
+    },
+  });
+const {
+  isPending: isTestingPublicCheckSources,
+  run: runTestPublicCheckSources,
+} = useAsyncAction({
+  onError: (error) => {
+    toast.error(t("admin.ddns.testPublicCheckSourcesFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.ddns.testPublicCheckSourcesFailed"),
+      ),
+    });
+  },
+});
 const { run: runDeleteTarget } = useAsyncAction({
   onError: (error) => {
     toast.error(t("admin.ddns.deleteTargetFailed"), {
@@ -416,6 +457,13 @@ async function loadStatus() {
     updateIntervalMinutes.value = normalizeUpdateIntervalMinutes(
       status.updateIntervalMinutes,
     );
+    defaultPublicCheckSources.value = normalizePublicCheckSources(
+      status.defaultPublicCheckSources,
+    );
+    publicCheckSources.value = normalizePublicCheckSources(
+      status.publicCheckSources,
+      defaultPublicCheckSources.value,
+    );
     statusUpdateScope.value = normalizeUpdateScope(status.updateScope);
     statusIpSource.value = normalizeIpSource(status.ipSource);
     statusNetworkInterface.value = normalizeNetworkInterface(
@@ -499,6 +547,13 @@ const ddnsPolling = useTargetPolling({
     updateIntervalMinutes.value = normalizeUpdateIntervalMinutes(
       status.updateIntervalMinutes,
     );
+    defaultPublicCheckSources.value = normalizePublicCheckSources(
+      status.defaultPublicCheckSources,
+    );
+    publicCheckSources.value = normalizePublicCheckSources(
+      status.publicCheckSources,
+      defaultPublicCheckSources.value,
+    );
     statusUpdateScope.value = normalizeUpdateScope(status.updateScope);
     statusIpSource.value = normalizeIpSource(status.ipSource);
     statusNetworkInterface.value = normalizeNetworkInterface(
@@ -562,6 +617,83 @@ async function saveUpdateInterval() {
         updateIntervalDraft.value = String(updateIntervalMinutes.value);
         showUpdateIntervalDialog.value = false;
         toast.success(t("admin.ddns.intervalSaved"));
+      },
+    },
+  );
+}
+
+function openPublicCheckDialog() {
+  publicCheckDraft.value = normalizePublicCheckSources(publicCheckSources.value);
+  publicCheckTestResults.value = [];
+  showPublicCheckDialog.value = true;
+}
+
+function restorePublicCheckDefaults() {
+  publicCheckDraft.value = normalizePublicCheckSources(
+    defaultPublicCheckSources.value,
+  );
+  publicCheckTestResults.value = [];
+}
+
+async function savePublicCheckSources(
+  nextSources: DDNSPublicCheckSourcesPayload,
+) {
+  await runSavePublicCheckSources(
+    () =>
+      DDNSAPI.saveSettings({
+        publicCheckSources: normalizePublicCheckSources(nextSources),
+      }),
+    {
+      onSuccess: (settings) => {
+        defaultPublicCheckSources.value = normalizePublicCheckSources(
+          settings.defaultPublicCheckSources,
+        );
+        publicCheckSources.value = normalizePublicCheckSources(
+          settings.publicCheckSources,
+          defaultPublicCheckSources.value,
+        );
+        publicCheckDraft.value = normalizePublicCheckSources(
+          settings.publicCheckSources,
+          defaultPublicCheckSources.value,
+        );
+        publicCheckTestResults.value = [];
+        showPublicCheckDialog.value = false;
+        toast.success(t("admin.ddns.publicCheckSaved"));
+      },
+    },
+  );
+}
+
+async function testPublicCheckSources(
+  nextSources: DDNSPublicCheckSourcesPayload,
+) {
+  const sources = normalizePublicCheckSources(
+    nextSources,
+    defaultPublicCheckSources.value,
+  );
+  if (sources.ipv4.length === 0 && sources.ipv6.length === 0) {
+    publicCheckTestResults.value = [];
+    toast.error(t("admin.ddns.publicCheckNoTestSourcesConfigured"));
+    return;
+  }
+
+  await runTestPublicCheckSources(
+    () => DDNSAPI.testPublicCheckSources(sources),
+    {
+      onSuccess: (payload) => {
+        publicCheckTestResults.value = payload.results || [];
+        if (publicCheckTestResults.value.length === 0) {
+          toast.error(t("admin.ddns.publicCheckNoTestSourcesConfigured"));
+          return;
+        }
+        const hasFailures = publicCheckTestResults.value.some(
+          (item) => !item.success,
+        );
+        if (hasFailures) {
+          toast.error(t("admin.ddns.publicCheckTestCompletedWithErrors"));
+        } else {
+          toast.success(t("admin.ddns.publicCheckTestCompleted"));
+        }
       },
     },
   );
@@ -833,6 +965,16 @@ onUnmounted(() => {
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-2">
         <h2 class="text-xl font-semibold">{{ t("admin.ddns.title") }}</h2>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          class="text-muted-foreground hover:text-foreground"
+          :aria-label="t('admin.ddns.publicCheckSettings')"
+          :title="t('admin.ddns.publicCheckSettings')"
+          @click="openPublicCheckDialog"
+        >
+          <Settings2 class="h-4 w-4" />
+        </Button>
         <DocsLinkButton :href="docsUrls.guides.ddns" />
       </div>
       <div class="flex items-center gap-3">
@@ -963,6 +1105,18 @@ onUnmounted(() => {
       :is-saving="isSavingUpdateInterval"
       @update:open="showUpdateIntervalDialog = $event"
       @confirm="saveUpdateInterval"
+    />
+
+    <DDNSPublicCheckDialog
+      v-model:draft="publicCheckDraft"
+      :open="showPublicCheckDialog"
+      :is-saving="isSavingPublicCheckSources"
+      :is-testing="isTestingPublicCheckSources"
+      :test-results="publicCheckTestResults"
+      @update:open="showPublicCheckDialog = $event"
+      @restore-defaults="restorePublicCheckDefaults"
+      @save="savePublicCheckSources"
+      @test="testPublicCheckSources"
     />
 
     <DDNSClearPrimaryConfigDialog

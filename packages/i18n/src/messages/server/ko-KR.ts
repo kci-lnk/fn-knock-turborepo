@@ -1236,6 +1236,16 @@ export const koKRServer = {
     tencentMissingResponse:
       "HTTP {status}: Tencent Cloud API 응답이 누락되었습니다. 응답",
     invalidHeaderFormat: "잘못된 헤더 형식: {header}",
+    publicCheckSourceEmpty: "{family} 공개 탐지 주소는 비워 둘 수 없습니다.",
+    publicCheckSourceInvalidUrl: "잘못된 {family} 공개 탐지 주소: {source}",
+    publicCheckSourceUnsupportedProtocol:
+      "{family} 공개 탐지 주소는 HTTP/HTTPS만 지원합니다: {source}",
+    publicCheckSourceListEmpty: "{family} 공개 탐지 주소가 설정되지 않았습니다.",
+    publicCheckSourceRequestFailed:
+      "탐지 소스 {url} 요청 실패: HTTP {status}",
+    publicCheckSourceInvalidPayload:
+      "탐지 소스 {url}이(가) 유효한 {family} 주소를 반환하지 않았습니다.",
+    publicCheckTestFailed: "공개 탐지 주소 테스트 실패",
     interfaceSourceLabel: "인터페이스 {name}",
     selectedInterfaceSourceLabel: "선택된 인터페이스",
     publicSourceLabel: "공용 네트워크",

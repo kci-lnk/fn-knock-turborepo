@@ -10,9 +10,11 @@ import type {
   DDNSLastIP,
   DDNSLogEntry,
   DDNSNetworkInterfaceOption,
+  DDNSPublicCheckSources,
   DDNSProviderDefinition,
   DDNSProviderField,
   DDNSSettings,
+  DDNSStoredSettings,
   DDNSStatus,
   DDNSTargetList,
   DDNSTargetMeta,
@@ -57,8 +59,6 @@ import {
   DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES,
   MAX_DDNS_UPDATE_INTERVAL_MINUTES,
   MIN_DDNS_UPDATE_INTERVAL_MINUTES,
-  getDefaultUpdateIntervalMinutes,
-  normalizeUpdateIntervalMinutes,
   parseUpdateIntervalMinutesInput,
 } from "./update-interval";
 import {
@@ -66,6 +66,8 @@ import {
   DDNSRedisStore,
   PRIMARY_DDNS_TARGET_ID,
 } from "./redis-store";
+import { normalizeDDNSPublicCheckSources } from "./public-check-sources";
+import { parseDDNSSettingsRaw } from "./settings";
 import {
   buildDDNSTargetDuplicateKey,
   buildDDNSTargetLogLabel,
@@ -113,32 +115,19 @@ export class DDNSManager {
 
   async getSettings(): Promise<DDNSSettings> {
     const raw = await this.store.getSettingsRaw();
-    if (!raw) {
-      return {
-        updateIntervalMinutes: getDefaultUpdateIntervalMinutes(),
-      };
-    }
-
-    try {
-      const parsed = JSON.parse(raw) as Partial<DDNSSettings>;
-      return {
-        updateIntervalMinutes: normalizeUpdateIntervalMinutes(
-          parsed.updateIntervalMinutes,
-        ),
-      };
-    } catch {
-      return {
-        updateIntervalMinutes: DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES,
-      };
-    }
+    return parseDDNSSettingsRaw(raw);
   }
 
   async updateSettings(input: {
-    updateIntervalMinutes: number;
+    updateIntervalMinutes?: number;
+    publicCheckSources?: DDNSPublicCheckSources;
   }): Promise<DDNSSettings> {
-    const updateIntervalMinutes = parseUpdateIntervalMinutesInput(
-      input.updateIntervalMinutes,
-    );
+    const current = await this.getSettings();
+    const updateIntervalMinutes =
+      typeof input.updateIntervalMinutes === "undefined"
+        ? current.updateIntervalMinutes
+        : parseUpdateIntervalMinutesInput(input.updateIntervalMinutes);
+
     if (updateIntervalMinutes === null) {
       throw new Error(
         ddnsT("intervalOutOfRange", {
@@ -148,7 +137,19 @@ export class DDNSManager {
       );
     }
 
-    await this.store.saveSettings({ updateIntervalMinutes });
+    const publicCheckSources =
+      typeof input.publicCheckSources === "undefined"
+        ? current.publicCheckSources
+        : normalizeDDNSPublicCheckSources(
+            input.publicCheckSources,
+            current.publicCheckSources,
+          );
+
+    const settingsToSave: DDNSStoredSettings = {
+      updateIntervalMinutes,
+      publicCheckSources,
+    };
+    await this.store.saveSettings(settingsToSave);
     return this.getSettings();
   }
 
@@ -733,6 +734,8 @@ export class DDNSManager {
       enabled,
       provider: primaryTarget.provider,
       updateIntervalMinutes: settings.updateIntervalMinutes,
+      publicCheckSources: settings.publicCheckSources,
+      defaultPublicCheckSources: settings.defaultPublicCheckSources,
       updateScope: normalizeUpdateScope(
         primaryTarget.config[DDNS_UPDATE_SCOPE_FIELD],
       ),
@@ -1019,6 +1022,7 @@ export type {
   DDNSLastIP,
   DDNSLogEntry,
   DDNSNetworkInterfaceOption,
+  DDNSPublicCheckSources,
   DDNSProviderDefinition,
   DDNSProviderField,
   DDNSSettings,

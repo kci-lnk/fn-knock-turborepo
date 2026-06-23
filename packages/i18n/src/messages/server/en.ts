@@ -1223,6 +1223,16 @@ export const enServer = {
     tencentMissingResponse:
       "HTTP {status}: Tencent Cloud API response is missing Response",
     invalidHeaderFormat: "Invalid Header format: {header}",
+    publicCheckSourceEmpty: "{family} public detection source cannot be empty",
+    publicCheckSourceInvalidUrl: "Invalid {family} public detection source: {source}",
+    publicCheckSourceUnsupportedProtocol:
+      "{family} public detection source supports only HTTP/HTTPS: {source}",
+    publicCheckSourceListEmpty: "No {family} public detection source is configured",
+    publicCheckSourceRequestFailed:
+      "Detection source {url} request failed: HTTP {status}",
+    publicCheckSourceInvalidPayload:
+      "Detection source {url} did not return a valid {family} address",
+    publicCheckTestFailed: "Failed to test public detection sources",
     interfaceSourceLabel: "Interface {name}",
     selectedInterfaceSourceLabel: "Selected interface",
     publicSourceLabel: "Public network",

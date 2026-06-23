@@ -3172,6 +3172,33 @@ export const enAdmin = {
     credentialTransferDescription:
       "{bridge} credentials were found in {scope}. {count} fields can be filled.",
     updateIntervalLabel: "Sync every {minutes} minutes",
+    publicCheckSettings: "Public detection sources",
+    publicCheckDialogTitle: "Public detection sources",
+    publicCheckDialogDescription:
+      "Configure the sources DDNS uses to detect the current public IPv4/IPv6 address.",
+    publicCheckIpv4Title: "IPv4 detection sources",
+    publicCheckIpv6Title: "IPv6 detection sources",
+    publicCheckSourcePlaceholder: "example.com or https://example.com/ip",
+    addPublicCheckSource: "Add source",
+    removePublicCheckSource: "Remove source",
+    restorePublicCheckDefaults: "Restore factory sources",
+    restorePublicCheckDefaultsTitle: "Restore factory detection sources?",
+    restorePublicCheckDefaultsDescription:
+      "This replaces the current draft in this dialog with the built-in IPv4/IPv6 detection sources. Unsaved custom sources will be overwritten.",
+    restorePublicCheckDefaultsConfirm: "Restore sources",
+    publicCheckNoSources: "No {family} detection source is configured",
+    testPublicCheckSources: "Test sources",
+    publicCheckTestResultTitle: "Test results",
+    publicCheckTestSuccess: "Detected {ip}",
+    publicCheckTestFailed: "Detection failed",
+    publicCheckStatusCode: "HTTP {status}",
+    publicCheckResponsePreview: "Response: {preview}",
+    publicCheckSaved: "Public detection sources saved",
+    publicCheckTestCompleted: "Public detection source test completed",
+    publicCheckTestCompletedWithErrors:
+      "Public detection source test completed with some failures",
+    publicCheckNoTestSourcesConfigured:
+      "Configure at least one public detection source before testing",
     wildcardHint:
       "In subdomain mode, values such as *.example.com are allowed. Use an asterisk for wildcard records.",
     saveConfigFailed: "Failed to save config",
@@ -3188,6 +3215,8 @@ export const enAdmin = {
     initLoadFailed: "Failed to load DDNS management page",
     saveTargetFailed: "Failed to save additional domain",
     saveIntervalFailed: "Failed to save automatic sync interval",
+    savePublicCheckFailed: "Failed to save public detection sources",
+    testPublicCheckSourcesFailed: "Failed to test public detection sources",
     deleteTargetFailed: "Failed to delete additional domain",
     toggleTargetFailed: "Failed to toggle additional domain status",
     testTargetFailed: "Additional domain update failed",

@@ -1071,6 +1071,15 @@ export const zhCNServer = {
     requestFailed: "请求失败",
     tencentMissingResponse: "HTTP {status}: 腾讯云 API 响应缺少 Response",
     invalidHeaderFormat: "无效 Header 格式: {header}",
+    publicCheckSourceEmpty: "{family} 公网探测地址不能为空",
+    publicCheckSourceInvalidUrl: "{family} 公网探测地址无效: {source}",
+    publicCheckSourceUnsupportedProtocol:
+      "{family} 公网探测地址仅支持 HTTP/HTTPS: {source}",
+    publicCheckSourceListEmpty: "未配置 {family} 公网探测地址",
+    publicCheckSourceRequestFailed: "探测源 {url} 请求失败: HTTP {status}",
+    publicCheckSourceInvalidPayload:
+      "探测源 {url} 未返回有效的 {family} 地址",
+    publicCheckTestFailed: "公网探测地址测试失败",
     interfaceSourceLabel: "网卡 {name}",
     selectedInterfaceSourceLabel: "所选网卡",
     publicSourceLabel: "公网",

@@ -12,7 +12,7 @@ import {
 import type {
   DDNSLastCheck,
   DDNSLastIP,
-  DDNSSettings,
+  DDNSStoredSettings,
   DDNSTargetMeta,
 } from "./types";
 
@@ -86,7 +86,7 @@ export class DDNSRedisStore {
     return this.redis.get(DDNS_REDIS_KEYS.settings);
   }
 
-  async saveSettings(settings: DDNSSettings): Promise<void> {
+  async saveSettings(settings: DDNSStoredSettings): Promise<void> {
     await this.redis.set(DDNS_REDIS_KEYS.settings, JSON.stringify(settings));
   }
 

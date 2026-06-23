@@ -3152,6 +3152,33 @@ export const koKRAdmin = {
     credentialTransferDescription:
       "{bridge} 자격 증명이 {scope}에서 발견되었습니다. {count} 필드를 채울 수 있습니다.",
     updateIntervalLabel: "{minutes} 분마다 동기화",
+    publicCheckSettings: "공개 탐지 주소",
+    publicCheckDialogTitle: "공개 탐지 주소",
+    publicCheckDialogDescription:
+      "DDNS가 현재 공개 IPv4/IPv6를 탐지할 때 사용할 주소를 설정합니다.",
+    publicCheckIpv4Title: "IPv4 탐지 주소",
+    publicCheckIpv6Title: "IPv6 탐지 주소",
+    publicCheckSourcePlaceholder: "example.com 또는 https://example.com/ip",
+    addPublicCheckSource: "주소 추가",
+    removePublicCheckSource: "주소 삭제",
+    restorePublicCheckDefaults: "출고 기본 주소 복원",
+    restorePublicCheckDefaultsTitle: "출고 기본 탐지 주소로 복원할까요?",
+    restorePublicCheckDefaultsDescription:
+      "이 대화상자의 현재 초안을 내장 IPv4/IPv6 탐지 주소로 바꿉니다. 저장되지 않은 사용자 지정 주소는 덮어쓰입니다.",
+    restorePublicCheckDefaultsConfirm: "복원",
+    publicCheckNoSources: "{family} 탐지 주소가 설정되지 않았습니다.",
+    testPublicCheckSources: "주소 테스트",
+    publicCheckTestResultTitle: "테스트 결과",
+    publicCheckTestSuccess: "{ip} 감지됨",
+    publicCheckTestFailed: "탐지 실패",
+    publicCheckStatusCode: "HTTP {status}",
+    publicCheckResponsePreview: "응답: {preview}",
+    publicCheckSaved: "공개 탐지 주소가 저장되었습니다.",
+    publicCheckTestCompleted: "공개 탐지 주소 테스트가 완료되었습니다.",
+    publicCheckTestCompletedWithErrors:
+      "공개 탐지 주소 테스트가 완료되었지만 일부 주소가 실패했습니다.",
+    publicCheckNoTestSourcesConfigured:
+      "테스트하기 전에 공개 탐지 주소를 하나 이상 설정하세요.",
     wildcardHint:
       "하위 도메인 모드에서는 *.example.com과 같은 값이 허용됩니다. 와일드카드 레코드에는 별표를 사용합니다.",
     saveConfigFailed: "구성을 저장하지 못했습니다.",
@@ -3168,6 +3195,8 @@ export const koKRAdmin = {
     initLoadFailed: "DDNS 관리 페이지를 로드하지 못했습니다.",
     saveTargetFailed: "추가 도메인을 저장하지 못했습니다.",
     saveIntervalFailed: "자동 동기화 간격을 저장하지 못했습니다.",
+    savePublicCheckFailed: "공개 탐지 주소를 저장하지 못했습니다.",
+    testPublicCheckSourcesFailed: "공개 탐지 주소를 테스트하지 못했습니다.",
     deleteTargetFailed: "추가 도메인을 삭제하지 못했습니다.",
     toggleTargetFailed: "추가 도메인 상태를 전환하지 못했습니다.",
     testTargetFailed: "추가 도메인 업데이트 실패",

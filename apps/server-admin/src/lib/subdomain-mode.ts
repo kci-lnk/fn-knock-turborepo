@@ -113,14 +113,28 @@ const parseExplicitUrlPort = (
   }
 };
 
+type PublicPortResolutionOptions = {
+  gatewayFallback?: boolean;
+  allowReverseProxyConfiguredPort?: boolean;
+};
+
 const resolveConfiguredPublicPort = (
   config:
     | Partial<Pick<AppConfig, "reverse_proxy_submode" | "subdomain_mode">>
     | null
     | undefined,
   scheme: "http" | "https",
+  options: Pick<
+    PublicPortResolutionOptions,
+    "allowReverseProxyConfiguredPort"
+  > = {},
 ): number | null => {
-  if (isReverseProxySubdomainMode(config)) return null;
+  if (
+    isReverseProxySubdomainMode(config) &&
+    !options.allowReverseProxyConfiguredPort
+  ) {
+    return null;
+  }
   const value =
     scheme === "https"
       ? config?.subdomain_mode?.public_https_port
@@ -136,20 +150,26 @@ export const resolvePublicPortForScheme = (
     | Partial<
         Pick<
           AppConfig,
-          "run_type" | "reverse_proxy_submode" | "subdomain_mode" | "default_tunnel"
+          | "run_type"
+          | "reverse_proxy_submode"
+          | "subdomain_mode"
+          | "default_tunnel"
         >
       >
     | null
     | undefined,
   scheme: "http" | "https",
   rawPublicBaseUrl = "",
-  options: { gatewayFallback?: boolean } = {},
+  options: PublicPortResolutionOptions = {},
 ): number | null => {
-  const { gatewayFallback = true } = options;
+  const { gatewayFallback = true, allowReverseProxyConfiguredPort = false } =
+    options;
   const explicitUrlPort = parseExplicitUrlPort(rawPublicBaseUrl, scheme);
   if (explicitUrlPort) return explicitUrlPort;
 
-  const configuredPort = resolveConfiguredPublicPort(config, scheme);
+  const configuredPort = resolveConfiguredPublicPort(config, scheme, {
+    allowReverseProxyConfiguredPort,
+  });
   if (configuredPort) return configuredPort;
 
   if (shouldOmitPublicAccessEntryPort(config)) return null;
@@ -157,6 +177,28 @@ export const resolvePublicPortForScheme = (
 
   return resolvePublicGatewayPort(config);
 };
+
+const resolveAuthPublicPortForScheme = (
+  config:
+    | Partial<
+        Pick<
+          AppConfig,
+          | "run_type"
+          | "reverse_proxy_submode"
+          | "subdomain_mode"
+          | "default_tunnel"
+        >
+      >
+    | null
+    | undefined,
+  scheme: "http" | "https",
+  rawPublicBaseUrl = "",
+  options: PublicPortResolutionOptions = {},
+): number | null =>
+  resolvePublicPortForScheme(config, scheme, rawPublicBaseUrl, {
+    ...options,
+    allowReverseProxyConfiguredPort: true,
+  });
 
 const isDefaultSchemePort = (scheme: "http" | "https", port: number): boolean =>
   (scheme === "https" && port === 443) || (scheme === "http" && port === 80);
@@ -209,7 +251,7 @@ const formatDerivedPublicAuthBaseUrl = (
   const normalizedHost = host.trim().toLowerCase();
   if (!normalizedHost) return "";
 
-  const port = resolvePublicPortForScheme(
+  const port = resolveAuthPublicPortForScheme(
     config,
     scheme,
     config?.subdomain_mode?.public_auth_base_url?.trim() || "",
@@ -788,7 +830,9 @@ export const buildSubdomainCertificateInventoryCoverage = ({
 
 export const resolvePublicAuthBaseUrl = (
   config: Pick<AppConfig, "subdomain_mode" | "host_mappings"> &
-    Partial<Pick<AppConfig, "run_type" | "reverse_proxy_submode" | "default_tunnel">>,
+    Partial<
+      Pick<AppConfig, "run_type" | "reverse_proxy_submode" | "default_tunnel">
+    >,
 ): string => {
   const explicit = isReverseProxySubdomainMode(config)
     ? ""
@@ -1032,12 +1076,12 @@ export const buildGatewayAuthConfig = (
     !tencentEdgeOneEnabled &&
     config.subdomain_mode?.aliyun_esa_enabled === true;
   const publicHttpPort = isSubdomainModeActive
-    ? (resolvePublicPortForScheme(config, "http", publicAuthBaseUrl, {
+    ? (resolveAuthPublicPortForScheme(config, "http", publicAuthBaseUrl, {
         gatewayFallback: false,
       }) ?? 0)
     : 0;
   const publicHttpsPort = isSubdomainModeActive
-    ? (resolvePublicPortForScheme(config, "https", publicAuthBaseUrl) ?? 0)
+    ? (resolveAuthPublicPortForScheme(config, "https", publicAuthBaseUrl) ?? 0)
     : 0;
   const authHost = isSubdomainModeActive
     ? authMapping?.host?.trim() ||

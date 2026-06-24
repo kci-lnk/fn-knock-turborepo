@@ -1,4 +1,5 @@
 import { normalizeTotpAccessScopes } from "./totp-access-scopes";
+import { normalizeTotpSubdomainAccess } from "./totp-subdomain-access";
 import type { TOTPCredential } from "./config/types";
 
 export const TOTP_CREDENTIAL_TRANSFER_KIND =
@@ -82,6 +83,9 @@ export const buildTOTPCredentialTransferPayload = ({
     comment: String(credential.comment ?? "").trim(),
     createdAt: normalizeCreatedAt(credential.createdAt, exportedAt),
     access_scopes: normalizeTotpAccessScopes(credential.access_scopes),
+    subdomain_access: normalizeTotpSubdomainAccess(
+      credential.subdomain_access,
+    ),
   })),
 });
 
@@ -162,6 +166,9 @@ export const buildTOTPCredentialImportPlan = ({
       comment: String(rawItem.comment ?? "").trim(),
       createdAt: normalizeCreatedAt(rawItem.createdAt, now),
       access_scopes: normalizeTotpAccessScopes(rawItem.access_scopes),
+      subdomain_access: normalizeTotpSubdomainAccess(
+        rawItem.subdomain_access,
+      ),
     });
   }
 

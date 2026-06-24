@@ -17,6 +17,7 @@ import {
   resolveCookieDomain,
   resolvePublicAuthBaseUrl,
 } from "./subdomain-mode";
+import { isTotpSubdomainAccessRestricted } from "./totp-subdomain-access";
 
 export type PasskeyBindInfo = {
   available: boolean;
@@ -299,23 +300,31 @@ export const handleLoginSuccess = async ({
     config.locale?.default_locale,
   );
   const postLoginIpGrantMode = credentialSettings.post_login_ip_grant_mode;
+  const totpCredential = (await configManager.getTOTPCredentials()).find(
+    (item) => item.id === totpId,
+  );
+  const shouldDisableIpGrantForCredential =
+    isTotpSubdomainAccessRestricted(totpCredential?.subdomain_access);
+  const effectivePostLoginIpGrantMode = shouldDisableIpGrantForCredential
+    ? "disabled"
+    : postLoginIpGrantMode;
   const resolvedLinkedTotpName =
     authMethod !== "TOTP"
-      ? linkedTotpName || (await resolveTotpCredentialName(totpId))
+      ? linkedTotpName || totpCredential?.comment?.trim() || undefined
       : undefined;
 
   let whitelistRecordId: string | null = null;
   let sessionComment: string | undefined;
   let grantType: "browser_session" | "login_ip_grant" = "browser_session";
 
-  if (normalizedClientIp && postLoginIpGrantMode !== "disabled") {
+  if (normalizedClientIp && effectivePostLoginIpGrantMode !== "disabled") {
     const grantExpireAt =
-      postLoginIpGrantMode === "custom"
+      effectivePostLoginIpGrantMode === "custom"
         ? Math.floor(Date.now() / 1000) +
           (credentialSettings.post_login_ip_grant_ttl_seconds ?? 3600)
         : expireAt;
     if (
-      postLoginIpGrantMode === "follow_session" &&
+      effectivePostLoginIpGrantMode === "follow_session" &&
       credentialSettings.session_ip_mobility_enabled
     ) {
       const whitelistRecord = await whitelistManager.ensureSessionAutoWhiteList(
@@ -366,7 +375,7 @@ export const handleLoginSuccess = async ({
         : {}),
       grantType,
       postLoginIpGrantMode:
-        grantType === "login_ip_grant" ? postLoginIpGrantMode : null,
+        grantType === "login_ip_grant" ? effectivePostLoginIpGrantMode : null,
       postLoginIpGrantRecordId:
         grantType === "login_ip_grant" ? whitelistRecordId : null,
       comment: sessionComment,
@@ -381,7 +390,7 @@ export const handleLoginSuccess = async ({
   if (
     normalizedClientIp &&
     whitelistRecordId &&
-    postLoginIpGrantMode === "follow_session"
+    effectivePostLoginIpGrantMode === "follow_session"
   ) {
     await authMobilitySessionManager.registerLoginSession({
       sessionId,
@@ -426,7 +435,7 @@ export const handleLoginSuccess = async ({
     ...(sessionComment ? { sessionComment } : {}),
     grantType,
     postLoginIpGrantMode:
-      grantType === "login_ip_grant" ? postLoginIpGrantMode : null,
+      grantType === "login_ip_grant" ? effectivePostLoginIpGrantMode : null,
     whitelistRecordId:
       grantType === "login_ip_grant" ? whitelistRecordId : null,
     ip: clientIpStr,

@@ -10,9 +10,11 @@ import {
   applyNoStoreHeaders,
   applyAuthResponseHeaders,
   hasWhitelistAccess,
-  hasNormalAccessContext,
+  REAUTH_ACCESS_DENIED_HEADER,
+  REAUTH_SCOPE_DENIED,
   reliesOnBrowserSessionCookie,
   resolveAuthAccess,
+  resolveNormalAccessContext,
   resolveRequestedAccessMode,
 } from "../lib/auth-access";
 import { authMobilitySessionManager } from "../lib/auth-mobility-session";
@@ -530,14 +532,25 @@ export const authRoutes = new Elysia({ prefix: "/api/auth", tags: ["Auth"] })
           ReturnType<typeof fnosShareBypassService.resolvePreflight>
         > | null = null;
 
-        if (
+        const normalAccess = await resolveNormalAccessContext(
+          request,
+          clientIp,
+          accessMode,
+        );
+
+        if (normalAccess.denyReason === REAUTH_SCOPE_DENIED) {
+          for (const [key, value] of Object.entries(
+            normalAccess.responseHeaders ?? {},
+          )) {
+            headers.set(key, value);
+          }
+          headers.set(REAUTH_ACCESS_DENIED_HEADER, REAUTH_SCOPE_DENIED);
+        } else if (
           accessMode === "strict_whitelist" &&
           !(await hasWhitelistAccess(clientIp))
         ) {
           headers.set("X-Option", "Deny");
-        } else if (
-          !(await hasNormalAccessContext(request, clientIp, accessMode))
-        ) {
+        } else if (!normalAccess.authorized) {
           shareDecision =
             await fnosShareBypassService.resolvePreflight(request);
           if (shareDecision.redirectLocation) {
@@ -608,7 +621,7 @@ export const authRoutes = new Elysia({ prefix: "/api/auth", tags: ["Auth"] })
         return { success: true, message: auth.message };
       }
 
-      set.status = 401;
+      set.status = auth.denyReason === REAUTH_SCOPE_DENIED ? 403 : 401;
       return { success: false, message: auth.message };
     },
     routeDoc("校验当前认证状态"),

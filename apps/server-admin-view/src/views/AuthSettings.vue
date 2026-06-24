@@ -52,11 +52,12 @@
       <div class="border rounded-md overflow-hidden">
         <Table :class="totpTableClass" container-class="overflow-x-auto">
           <colgroup>
-            <col :class="showAdminPanelAccessColumn ? 'w-[30%]' : 'w-[36%]'" />
-            <col :class="showAdminPanelAccessColumn ? 'w-[20%]' : 'w-[24%]'" />
-            <col :class="showAdminPanelAccessColumn ? 'w-[20%]' : 'w-[25%]'" />
-            <col v-if="showAdminPanelAccessColumn" class="w-[18%]" />
-            <col :class="showAdminPanelAccessColumn ? 'w-[12%]' : 'w-[15%]'" />
+            <col :class="showAdminPanelAccessColumn ? 'w-[24%]' : 'w-[27%]'" />
+            <col :class="showAdminPanelAccessColumn ? 'w-[16%]' : 'w-[18%]'" />
+            <col :class="showAdminPanelAccessColumn ? 'w-[16%]' : 'w-[19%]'" />
+            <col :class="showAdminPanelAccessColumn ? 'w-[18%]' : 'w-[22%]'" />
+            <col v-if="showAdminPanelAccessColumn" class="w-[14%]" />
+            <col :class="showAdminPanelAccessColumn ? 'w-[12%]' : 'w-[14%]'" />
           </colgroup>
           <TableHeader>
             <TableRow>
@@ -68,6 +69,9 @@
               }}</TableHead>
               <TableHead class="whitespace-normal">
                 {{ t("admin.authSettings.deviceAssociation") }}
+              </TableHead>
+              <TableHead class="whitespace-normal">
+                {{ t("admin.authSettings.permission") }}
               </TableHead>
               <TableHead
                 v-if="showAdminPanelAccessColumn"
@@ -85,6 +89,7 @@
               <TableCell><Skeleton class="h-4 w-40 max-w-full" /></TableCell>
               <TableCell><Skeleton class="h-4 w-36 max-w-full" /></TableCell>
               <TableCell><Skeleton class="h-4 w-52 max-w-full" /></TableCell>
+              <TableCell><Skeleton class="h-8 w-40 max-w-full" /></TableCell>
               <TableCell v-if="showAdminPanelAccessColumn">
                 <Skeleton class="h-6 w-24 max-w-full" />
               </TableCell>
@@ -99,11 +104,12 @@
     <CardContent v-else-if="!isLoading || credentials.length">
       <Table :class="totpTableClass" container-class="overflow-x-auto">
         <colgroup>
-          <col :class="showAdminPanelAccessColumn ? 'w-[30%]' : 'w-[36%]'" />
-          <col :class="showAdminPanelAccessColumn ? 'w-[20%]' : 'w-[24%]'" />
-          <col :class="showAdminPanelAccessColumn ? 'w-[20%]' : 'w-[25%]'" />
-          <col v-if="showAdminPanelAccessColumn" class="w-[18%]" />
-          <col :class="showAdminPanelAccessColumn ? 'w-[12%]' : 'w-[15%]'" />
+          <col :class="showAdminPanelAccessColumn ? 'w-[24%]' : 'w-[27%]'" />
+          <col :class="showAdminPanelAccessColumn ? 'w-[16%]' : 'w-[18%]'" />
+          <col :class="showAdminPanelAccessColumn ? 'w-[16%]' : 'w-[19%]'" />
+          <col :class="showAdminPanelAccessColumn ? 'w-[18%]' : 'w-[22%]'" />
+          <col v-if="showAdminPanelAccessColumn" class="w-[14%]" />
+          <col :class="showAdminPanelAccessColumn ? 'w-[12%]' : 'w-[14%]'" />
         </colgroup>
         <TableHeader>
           <TableRow>
@@ -115,6 +121,9 @@
             }}</TableHead>
             <TableHead class="whitespace-normal">
               {{ t("admin.authSettings.deviceAssociation") }}
+            </TableHead>
+            <TableHead class="whitespace-normal">
+              {{ t("admin.authSettings.permission") }}
             </TableHead>
             <TableHead
               v-if="showAdminPanelAccessColumn"
@@ -146,6 +155,25 @@
               >
                 {{ t("admin.authSettings.managePasskey") }}
               </Button>
+            </TableCell>
+            <TableCell class="min-w-0 whitespace-normal">
+              <div class="flex min-w-0 flex-col gap-1">
+                <button
+                  type="button"
+                  class="min-w-0 text-left text-sm font-medium text-primary underline-offset-4 hover:underline disabled:pointer-events-none disabled:opacity-60"
+                  :disabled="isSubdomainAccessUpdating(totp.id)"
+                  @click="openSubdomainAccessDialog(totp)"
+                >
+                  {{ getSubdomainAccessSummary(totp) }}
+                </button>
+                <span
+                  v-if="getSubdomainAccessPreview(totp)"
+                  class="truncate text-xs text-muted-foreground"
+                  :title="getSubdomainAccessPreview(totp)"
+                >
+                  {{ getSubdomainAccessPreview(totp) }}
+                </span>
+              </div>
             </TableCell>
             <TableCell v-if="showAdminPanelAccessColumn">
               <TooltipProvider>
@@ -353,6 +381,159 @@
             class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
           ></span>
           {{ t("admin.authSettings.confirmImportCredentials") }}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
+  <Dialog
+    :open="showSubdomainAccessDialog"
+    @update:open="handleSubdomainAccessDialogOpenChange"
+  >
+    <DialogContent class="max-h-[88vh] overflow-y-auto sm:max-w-[640px]">
+      <DialogHeader>
+        <DialogTitle>
+          {{ t("admin.authSettings.permissionDialogTitle") }}
+        </DialogTitle>
+        <DialogDescription>
+          {{
+            t("admin.authSettings.permissionDialogDescription", {
+              name:
+                editingSubdomainAccessTotp?.comment ||
+                t("admin.authSettings.tokenFallback"),
+            })
+          }}
+        </DialogDescription>
+      </DialogHeader>
+
+      <div class="space-y-4">
+        <div class="grid grid-cols-2 gap-2">
+          <Button
+            type="button"
+            :variant="subdomainAccessMode === 'all' ? 'default' : 'outline'"
+            class="h-auto justify-start px-4 py-3 text-left"
+            @click="subdomainAccessMode = 'all'"
+          >
+            <span class="min-w-0 whitespace-normal">
+              {{ t("admin.authSettings.permissionAll") }}
+            </span>
+          </Button>
+          <Button
+            type="button"
+            :variant="subdomainAccessMode === 'custom' ? 'default' : 'outline'"
+            class="h-auto justify-start px-4 py-3 text-left"
+            @click="subdomainAccessMode = 'custom'"
+          >
+            <span class="min-w-0 whitespace-normal">
+              {{ t("admin.authSettings.permissionCustom") }}
+            </span>
+          </Button>
+        </div>
+
+        <div v-if="subdomainAccessMode === 'custom'" class="space-y-3">
+          <Input
+            v-model.trim="subdomainAccessSearch"
+            :placeholder="t('admin.authSettings.permissionSearchPlaceholder')"
+          />
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <p class="text-sm text-muted-foreground">
+              {{
+                t("admin.authSettings.permissionSelectedCount", {
+                  count: selectedSubdomainHostCount,
+                })
+              }}
+            </p>
+            <div class="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                :disabled="filteredSubdomainAccessOptions.length === 0"
+                @click="selectAllFilteredSubdomainHosts"
+              >
+                {{ t("admin.authSettings.permissionSelectAll") }}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                :disabled="selectedSubdomainHostCount === 0"
+                @click="clearSelectedSubdomainHosts"
+              >
+                {{ t("admin.authSettings.permissionClear") }}
+              </Button>
+            </div>
+          </div>
+
+          <div
+            class="max-h-72 overflow-y-auto rounded-md border"
+            role="group"
+            :aria-label="t('admin.authSettings.permissionCustom')"
+          >
+            <label
+              v-for="option in filteredSubdomainAccessOptions"
+              :key="option.host"
+              class="flex cursor-pointer items-start gap-3 border-b px-3 py-3 last:border-b-0 hover:bg-muted/40"
+            >
+              <Checkbox
+                class="mt-0.5"
+                :model-value="isSubdomainHostSelected(option.host)"
+                @update:model-value="
+                  toggleSubdomainHost(option.host, $event === true)
+                "
+              />
+              <span class="min-w-0 flex-1">
+                <span class="block truncate text-sm font-medium">
+                  {{ option.label }}
+                </span>
+                <span class="block truncate text-xs text-muted-foreground">
+                  {{ option.description }}
+                </span>
+              </span>
+              <span
+                v-if="option.builtin"
+                class="shrink-0 rounded border px-1.5 py-0.5 text-xs text-muted-foreground"
+              >
+                {{ t("admin.authSettings.permissionBuiltin") }}
+              </span>
+              <span
+                v-else-if="option.stale"
+                class="shrink-0 rounded border px-1.5 py-0.5 text-xs text-muted-foreground"
+              >
+                {{ t("admin.authSettings.permissionStaleHost") }}
+              </span>
+            </label>
+            <div
+              v-if="filteredSubdomainAccessOptions.length === 0"
+              class="px-3 py-8 text-center text-sm text-muted-foreground"
+            >
+              {{
+                subdomainAccessOptions.length === 0
+                  ? t("admin.authSettings.permissionNoHosts")
+                  : t("admin.authSettings.permissionNoSearchResults")
+              }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <DialogFooter class="gap-2">
+        <Button
+          variant="outline"
+          :disabled="isSavingSubdomainAccess"
+          @click="closeSubdomainAccessDialog"
+        >
+          {{ t("admin.authSettings.cancel") }}
+        </Button>
+        <Button
+          :disabled="isSavingSubdomainAccess || !editingSubdomainAccessTotp"
+          @click="handleSaveSubdomainAccess"
+        >
+          <span
+            v-if="isSavingSubdomainAccess"
+            class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+          ></span>
+          {{ t("common.save") }}
         </Button>
       </DialogFooter>
     </DialogContent>
@@ -578,6 +759,7 @@ import {
 } from "@/components/ui/input-otp";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Tooltip,
   TooltipContent,
@@ -598,26 +780,50 @@ import { useDockerAdminAuthStore } from "../store/dockerAdminAuth";
 import QrcodeVue from "qrcode.vue";
 import { toast } from "@admin-shared/utils/toast";
 import type {
+  HostMapping,
   TOTPCredential,
   TOTPCredentialImportSummary,
+  TOTPSubdomainAccess,
+  TOTPSubdomainAccessMode,
   TOTPAccessScope,
 } from "../types";
 
 const DOCKER_ADMIN_PANEL_ACCESS_SCOPE: TOTPAccessScope = "docker_admin_panel";
+const BUILTIN_SELECT_PAGE_ACCESS_HOST = "__builtin_select__";
+const BUILTIN_SELECT_PAGE_PATH = "/__select__";
+const DEFAULT_SUBDOMAIN_ACCESS: TOTPSubdomainAccess = {
+  mode: "all",
+  hosts: [],
+};
 const MAX_TOTP_CREDENTIAL_IMPORT_FILE_SIZE = 256 * 1024;
+
+type SubdomainAccessOption = {
+  host: string;
+  label: string;
+  description: string;
+  stale?: boolean;
+  builtin?: boolean;
+};
 
 const { t } = useI18n();
 const router = useRouter();
 const dockerAdminAuthStore = useDockerAdminAuthStore();
 
 const credentials = ref<TOTPCredential[]>([]);
+const hostMappings = ref<HostMapping[]>([]);
 const updatingAccessScopeIds = ref<Set<string>>(new Set());
+const updatingSubdomainAccessIds = ref<Set<string>>(new Set());
 const openAdminPanelAccessTooltipId = ref<string | null>(null);
 const isTouchInteraction = ref(false);
 const credentialImportInputRef = ref<HTMLInputElement | null>(null);
 const showCredentialTransferDialog = ref(false);
 const showExportDialog = ref(false);
 const showImportDialog = ref(false);
+const showSubdomainAccessDialog = ref(false);
+const editingSubdomainAccessTotp = ref<TOTPCredential | null>(null);
+const subdomainAccessMode = ref<TOTPSubdomainAccessMode>("all");
+const selectedSubdomainHosts = ref<Set<string>>(new Set());
+const subdomainAccessSearch = ref("");
 const pendingCredentialImportPayload = ref<unknown>(null);
 const pendingCredentialImportFilename = ref("");
 let adminPanelAccessTooltipMediaQuery: MediaQueryList | null = null;
@@ -685,6 +891,19 @@ const { run: runSetupInit } = useAsyncAction({
 const { run: runSaveComment } = useAsyncAction({
   rethrow: true,
 });
+const {
+  isPending: isSavingSubdomainAccess,
+  run: runSaveSubdomainAccess,
+} = useAsyncAction({
+  onError: (error) => {
+    toast.error(
+      extractErrorMessage(
+        error,
+        t("admin.authSettings.permissionUpdateFailed"),
+      ),
+    );
+  },
+});
 
 // Delete state
 const { isPending: isDeleting, run: runDeleteTotp } = useAsyncAction({
@@ -701,11 +920,11 @@ const showAdminPanelAccessColumn = computed(() => {
 });
 const totpTableClass = computed(() =>
   showAdminPanelAccessColumn.value
-    ? "min-w-[760px] table-fixed"
-    : "min-w-[640px] table-fixed",
+    ? "min-w-[920px] table-fixed"
+    : "min-w-[780px] table-fixed",
 );
 const totpTableColspan = computed(() =>
-  showAdminPanelAccessColumn.value ? 5 : 4,
+  showAdminPanelAccessColumn.value ? 6 : 5,
 );
 const isCredentialTransferBusy = computed(
   () => isExportingCredentials.value || isImportingCredentials.value,
@@ -723,6 +942,62 @@ const setupBindTransitionLeaveToClass = computed(() => {
   return setupBindMotionDirection.value === "forward"
     ? "-translate-x-4 opacity-0"
     : "translate-x-4 opacity-0";
+});
+const selectedSubdomainHostCount = computed(
+  () => selectedSubdomainHosts.value.size,
+);
+const subdomainAccessOptions = computed<SubdomainAccessOption[]>(() => {
+  const byHost = new Map<string, SubdomainAccessOption>();
+  byHost.set(BUILTIN_SELECT_PAGE_ACCESS_HOST, {
+    host: BUILTIN_SELECT_PAGE_ACCESS_HOST,
+    label: t("admin.authSettings.permissionBuiltinSelectLabel"),
+    description: BUILTIN_SELECT_PAGE_PATH,
+    builtin: true,
+  });
+
+  for (const mapping of hostMappings.value) {
+    if (mapping.service_role === "auth" || mapping.use_auth !== true) {
+      continue;
+    }
+    const host = normalizeSubdomainHost(mapping.host);
+    if (!host || byHost.has(host)) continue;
+    const label =
+      mapping.title_override.trim() || mapping.title.trim() || mapping.host;
+    byHost.set(host, {
+      host,
+      label,
+      description: host,
+      stale: false,
+    });
+  }
+
+  for (const host of selectedSubdomainHosts.value) {
+    if (byHost.has(host)) continue;
+    byHost.set(host, {
+      host,
+      label: host,
+      description: host,
+      stale: true,
+    });
+  }
+
+  const options = [...byHost.values()];
+  return [
+    ...options.filter((option) => option.builtin),
+    ...options
+      .filter((option) => !option.builtin)
+      .sort((left, right) => left.host.localeCompare(right.host)),
+  ];
+});
+const filteredSubdomainAccessOptions = computed(() => {
+  const keyword = subdomainAccessSearch.value.trim().toLowerCase();
+  if (!keyword) return subdomainAccessOptions.value;
+  return subdomainAccessOptions.value.filter(
+    (option) =>
+      option.host.includes(keyword) ||
+      option.description.toLowerCase().includes(keyword) ||
+      option.label.toLowerCase().includes(keyword),
+  );
 });
 
 onMounted(async () => {
@@ -800,12 +1075,88 @@ watch(
 
 async function fetchStatus() {
   await runLoadStatus(async () => {
-    const res = await ConfigAPI.getTOTPStatus();
-    credentials.value = (res.credentials || []).map((credential) => ({
-      ...credential,
-      access_scopes: credential.access_scopes || [],
-    }));
+    const [res, mappings] = await Promise.all([
+      ConfigAPI.getTOTPStatus(),
+      ConfigAPI.getHostMappings().catch((error) => {
+        console.error("Failed to get host mappings:", error);
+        return [] as HostMapping[];
+      }),
+    ]);
+    hostMappings.value = mappings;
+    credentials.value = (res.credentials || []).map(normalizeCredential);
   });
+}
+
+function normalizeSubdomainHost(value: unknown) {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (!raw) return "";
+  if (
+    raw === BUILTIN_SELECT_PAGE_ACCESS_HOST ||
+    raw === BUILTIN_SELECT_PAGE_PATH
+  ) {
+    return BUILTIN_SELECT_PAGE_ACCESS_HOST;
+  }
+
+  let host = raw;
+  try {
+    const parsed = new URL(raw.includes("://") ? raw : `https://${raw}`);
+    host = parsed.hostname;
+  } catch {
+    const hostCandidate =
+      raw
+        .replace(/^[a-z][a-z0-9+.-]*:\/\//i, "")
+        .replace(/^[^@/\s]+@/, "")
+        .split(/[/?#]/, 1)[0] ?? "";
+    host = hostCandidate.replace(/:\d+$/, "");
+  }
+
+  host = host.trim().toLowerCase().replace(/\.+$/, "");
+  if (!host || host.includes("*") || /\s/.test(host)) return "";
+  return host;
+}
+
+function compareSubdomainAccessHosts(left: string, right: string) {
+  if (left === BUILTIN_SELECT_PAGE_ACCESS_HOST) return -1;
+  if (right === BUILTIN_SELECT_PAGE_ACCESS_HOST) return 1;
+  return left.localeCompare(right);
+}
+
+function formatSubdomainAccessHostLabel(host: string) {
+  return host === BUILTIN_SELECT_PAGE_ACCESS_HOST
+    ? t("admin.authSettings.permissionBuiltinSelectLabel")
+    : host;
+}
+
+function normalizeTOTPSubdomainAccess(
+  value: unknown,
+): TOTPSubdomainAccess {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    (value as { mode?: unknown }).mode !== "custom"
+  ) {
+    return { ...DEFAULT_SUBDOMAIN_ACCESS };
+  }
+
+  const hostsValue = (value as { hosts?: unknown }).hosts;
+  const hosts = Array.isArray(hostsValue)
+    ? [...new Set(hostsValue.map(normalizeSubdomainHost).filter(Boolean))]
+        .sort(compareSubdomainAccessHosts)
+    : [];
+  return {
+    mode: "custom",
+    hosts,
+  };
+}
+
+function normalizeCredential(credential: TOTPCredential): TOTPCredential {
+  return {
+    ...credential,
+    access_scopes: credential.access_scopes || [],
+    subdomain_access: normalizeTOTPSubdomainAccess(
+      credential.subdomain_access,
+    ),
+  };
 }
 
 function buildTOTPCredentialExportFilename() {
@@ -967,6 +1318,139 @@ async function handleImportCredentials() {
 
 function hasDockerAdminPanelAccess(totp: TOTPCredential) {
   return (totp.access_scopes || []).includes(DOCKER_ADMIN_PANEL_ACCESS_SCOPE);
+}
+
+function getSubdomainAccess(totp: TOTPCredential) {
+  return normalizeTOTPSubdomainAccess(totp.subdomain_access);
+}
+
+function getSubdomainAccessSummary(totp: TOTPCredential) {
+  const access = getSubdomainAccess(totp);
+  if (access.mode !== "custom") {
+    return t("admin.authSettings.permissionAll");
+  }
+  if (access.hosts.length === 0) {
+    return t("admin.authSettings.permissionCustomEmpty");
+  }
+  return t("admin.authSettings.permissionCustomSummary", {
+    count: access.hosts.length,
+  });
+}
+
+function getSubdomainAccessPreview(totp: TOTPCredential) {
+  const access = getSubdomainAccess(totp);
+  if (access.mode !== "custom") return "";
+  if (access.hosts.length === 0) {
+    return t("admin.authSettings.permissionNoAllowedHosts");
+  }
+  const previewHosts = access.hosts
+    .slice(0, 2)
+    .map(formatSubdomainAccessHostLabel)
+    .join(", ");
+  if (access.hosts.length <= 2) return previewHosts;
+  return t("admin.authSettings.permissionPreviewMore", {
+    hosts: previewHosts,
+    count: access.hosts.length,
+  });
+}
+
+function openSubdomainAccessDialog(totp: TOTPCredential) {
+  const access = getSubdomainAccess(totp);
+  editingSubdomainAccessTotp.value = totp;
+  subdomainAccessMode.value = access.mode;
+  selectedSubdomainHosts.value = new Set(access.hosts);
+  subdomainAccessSearch.value = "";
+  showSubdomainAccessDialog.value = true;
+}
+
+function handleSubdomainAccessDialogOpenChange(open: boolean) {
+  if (open) {
+    showSubdomainAccessDialog.value = true;
+    return;
+  }
+  closeSubdomainAccessDialog();
+}
+
+function closeSubdomainAccessDialog() {
+  showSubdomainAccessDialog.value = false;
+  editingSubdomainAccessTotp.value = null;
+  subdomainAccessMode.value = "all";
+  selectedSubdomainHosts.value = new Set();
+  subdomainAccessSearch.value = "";
+}
+
+function isSubdomainHostSelected(host: string) {
+  return selectedSubdomainHosts.value.has(host);
+}
+
+function toggleSubdomainHost(host: string, checked: boolean) {
+  const normalizedHost = normalizeSubdomainHost(host);
+  if (!normalizedHost) return;
+  const next = new Set(selectedSubdomainHosts.value);
+  if (checked) {
+    next.add(normalizedHost);
+  } else {
+    next.delete(normalizedHost);
+  }
+  selectedSubdomainHosts.value = next;
+}
+
+function selectAllFilteredSubdomainHosts() {
+  const next = new Set(selectedSubdomainHosts.value);
+  for (const option of filteredSubdomainAccessOptions.value) {
+    next.add(option.host);
+  }
+  selectedSubdomainHosts.value = next;
+}
+
+function clearSelectedSubdomainHosts() {
+  selectedSubdomainHosts.value = new Set();
+}
+
+function isSubdomainAccessUpdating(totpId: string) {
+  return updatingSubdomainAccessIds.value.has(totpId);
+}
+
+function setSubdomainAccessUpdating(totpId: string, pending: boolean) {
+  const next = new Set(updatingSubdomainAccessIds.value);
+  if (pending) {
+    next.add(totpId);
+  } else {
+    next.delete(totpId);
+  }
+  updatingSubdomainAccessIds.value = next;
+}
+
+async function handleSaveSubdomainAccess() {
+  const target = editingSubdomainAccessTotp.value;
+  if (!target) return;
+
+  const subdomainAccess: TOTPSubdomainAccess =
+    subdomainAccessMode.value === "custom"
+      ? {
+          mode: "custom",
+          hosts: [...selectedSubdomainHosts.value].sort(
+            compareSubdomainAccessHosts,
+          ),
+        }
+      : { ...DEFAULT_SUBDOMAIN_ACCESS };
+
+  setSubdomainAccessUpdating(target.id, true);
+  try {
+    await runSaveSubdomainAccess(async () => {
+      const updated = normalizeCredential(
+        await ConfigAPI.updateTOTPSubdomainAccess(target.id, subdomainAccess),
+      );
+      const existing = credentials.value.find((item) => item.id === target.id);
+      if (existing) {
+        Object.assign(existing, updated);
+      }
+      toast.success(t("admin.authSettings.permissionUpdated"));
+      closeSubdomainAccessDialog();
+    });
+  } finally {
+    setSubdomainAccessUpdating(target.id, false);
+  }
 }
 
 function isAdminPanelAccessTooltipOpen(totpId: string) {

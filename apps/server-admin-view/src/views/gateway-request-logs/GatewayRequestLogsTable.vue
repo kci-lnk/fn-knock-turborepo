@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/table";
 import {
   authDecisionLabel as resolveAuthDecisionLabel,
+  formatAuthCredential as resolveAuthCredentialLabel,
   formatDuration,
   getEntryClientIp,
   getForwardedHeaderLines,
@@ -87,6 +88,8 @@ const wafBadgeTitle = (entry: SelectableGatewayLogEntry) =>
 const routeTypeLabel = (value?: string) => resolveRouteTypeLabel(value, t);
 const authDecisionLabel = (value?: string) =>
   resolveAuthDecisionLabel(value, t);
+const authCredentialLabel = (entry: SelectableGatewayLogEntry) =>
+  resolveAuthCredentialLabel(entry, t);
 
 watch(
   [() => props.entries, () => props.loading],
@@ -136,7 +139,7 @@ onUnmounted(disposeResizeObserver);
       class="h-full overflow-auto overscroll-x-contain"
       @scroll="syncHorizontalScroll('table')"
     >
-      <Table v-if="!(loading && entriesCount === 0)" class="min-w-[1040px]">
+      <Table v-if="!(loading && entriesCount === 0)" class="min-w-[1060px]">
         <TableHeader class="sticky top-0 z-10 bg-background/95 backdrop-blur">
           <TableRow>
             <TableHead
@@ -147,10 +150,7 @@ onUnmounted(disposeResizeObserver);
                 :disabled="!hasSelectableDisplayedRows"
                 @update:model-value="
                   (value) =>
-                    emit(
-                      'update:isAllDisplayedRowsSelected',
-                      Boolean(value),
-                    )
+                    emit('update:isAllDisplayedRowsSelected', Boolean(value))
                 "
               />
             </TableHead>
@@ -160,12 +160,12 @@ onUnmounted(disposeResizeObserver);
               {{ t("admin.gatewayRequestLogs.columns.request") }}
             </TableHead>
             <TableHead
-              class="h-10 text-[11px] font-medium text-muted-foreground"
+              class="h-10 w-[72px] min-w-[72px] text-[11px] font-medium text-muted-foreground"
             >
               {{ t("admin.gatewayRequestLogs.columns.status") }}
             </TableHead>
             <TableHead
-              class="h-10 text-[11px] font-medium text-muted-foreground"
+              class="h-10 w-[150px] min-w-[150px] max-w-[150px] text-[11px] font-medium text-muted-foreground"
             >
               {{ t("admin.gatewayRequestLogs.columns.login") }}
             </TableHead>
@@ -234,7 +234,9 @@ onUnmounted(disposeResizeObserver);
                     <HumanFriendlyTime :value="entry.time" :locale="locale" />
                   </div>
                   <div class="min-w-0 flex-1">
-                    <div class="flex items-center gap-2 text-sm text-foreground">
+                    <div
+                      class="flex items-center gap-2 text-sm text-foreground"
+                    >
                       <span
                         class="font-mono text-[11px] tracking-[0.12em] text-muted-foreground"
                       >
@@ -276,11 +278,13 @@ onUnmounted(disposeResizeObserver);
                   />
                   <ShieldAlert v-else class="h-2.5 w-2.5 shrink-0" />
                   <span class="shrink-0">{{ wafBadgeLabel(entry) }}</span>
-                  <span class="truncate font-mono">{{ wafBadgeMeta(entry) }}</span>
+                  <span class="truncate font-mono">{{
+                    wafBadgeMeta(entry)
+                  }}</span>
                 </button>
               </div>
             </TableCell>
-            <TableCell class="py-2.5">
+            <TableCell class="w-[72px] min-w-[72px] py-2.5">
               <div
                 class="flex items-center gap-2 font-mono text-sm"
                 :class="getStatusTextClass(entry.status)"
@@ -292,16 +296,23 @@ onUnmounted(disposeResizeObserver);
                 <span>{{ entry.status }}</span>
               </div>
             </TableCell>
-            <TableCell class="py-2.5">
-              <div class="text-sm text-foreground">
+            <TableCell class="w-[150px] min-w-[150px] max-w-[150px] py-2.5">
+              <div class="truncate text-sm text-foreground">
                 {{
                   entry.logged_in
                     ? t("admin.gatewayRequestLogs.loggedIn")
                     : t("admin.gatewayRequestLogs.notLoggedIn")
                 }}
               </div>
-              <div class="text-[11px] text-muted-foreground">
+              <div class="truncate text-[11px] text-muted-foreground">
                 {{ authDecisionLabel(entry.auth_decision) }}
+              </div>
+              <div
+                v-if="authCredentialLabel(entry)"
+                class="max-w-full truncate text-[11px] text-muted-foreground/75"
+                :title="authCredentialLabel(entry)"
+              >
+                {{ authCredentialLabel(entry) }}
               </div>
             </TableCell>
             <TableCell class="min-w-[140px] py-2.5">

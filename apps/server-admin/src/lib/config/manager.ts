@@ -1080,6 +1080,16 @@ export class ConfigManager {
     );
   }
 
+  async updateTOTPCredentialSubdomainAccess(
+    id: string,
+    subdomainAccess: unknown,
+  ): Promise<TOTPCredential | null> {
+    return this.authCredentialStore.updateTOTPCredentialSubdomainAccess(
+      id,
+      subdomainAccess,
+    );
+  }
+
   async deleteTOTPCredential(id: string): Promise<boolean> {
     return this.authCredentialStore.deleteTOTPCredential(id);
   }

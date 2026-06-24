@@ -77,6 +77,7 @@ export const GatewayLogsAPI = {
     search?: string;
     status?: string;
     logged_in?: string;
+    credential?: string;
     waf_status?: string;
     page?: number;
   }): Promise<GatewayLogEntriesPayload> {

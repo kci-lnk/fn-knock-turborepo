@@ -401,6 +401,11 @@ export interface GatewayLogEntry {
   logged_in: boolean;
   auth_required: boolean;
   auth_decision?: string;
+  auth_credential_id?: string;
+  auth_credential_name?: string;
+  auth_credential_method?: string;
+  auth_linked_totp_id?: string;
+  auth_linked_totp_name?: string;
   access_mode?: string;
   route_type?: string;
   route_key?: string;
@@ -605,6 +610,12 @@ export interface AppConfig {
 }
 
 export type TOTPAccessScope = "docker_admin_panel";
+export type TOTPSubdomainAccessMode = "all" | "custom";
+
+export type TOTPSubdomainAccess = {
+  mode: TOTPSubdomainAccessMode;
+  hosts: string[];
+};
 
 export type TOTPCredential = {
   id: string;
@@ -612,6 +623,7 @@ export type TOTPCredential = {
   comment: string;
   createdAt: string;
   access_scopes: TOTPAccessScope[];
+  subdomain_access: TOTPSubdomainAccess;
 };
 
 export type TOTPCredentialImportSummary = {

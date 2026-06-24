@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type Redis from "ioredis";
 import { normalizeTotpAccessScopes } from "../totp-access-scopes";
+import { normalizeTotpSubdomainAccess } from "../totp-subdomain-access";
 import { redisT } from "./messages";
 import type { LoginSession, PasskeyCredential, TOTPCredential } from "./types";
 
@@ -17,6 +18,7 @@ const normalizeTOTPCredential = (value: unknown): TOTPCredential | null => {
     comment: String(raw.comment ?? "").trim(),
     createdAt: String(raw.createdAt ?? "").trim() || new Date().toISOString(),
     access_scopes: normalizeTotpAccessScopes(raw.access_scopes),
+    subdomain_access: normalizeTotpSubdomainAccess(raw.subdomain_access),
   };
 };
 
@@ -76,6 +78,7 @@ return actual
           comment: redisT("defaultCredential"),
           createdAt: new Date().toISOString(),
           access_scopes: [],
+          subdomain_access: normalizeTotpSubdomainAccess(null),
         };
         await this.saveTOTPCredentials([legacyTotp]);
         await this.redis.del(this.totpKey);
@@ -132,6 +135,18 @@ return actual
     const target = totps.find((t) => t.id === id);
     if (!target) return null;
     target.access_scopes = normalizeTotpAccessScopes(accessScopes);
+    await this.saveTOTPCredentials(totps);
+    return target;
+  }
+
+  async updateTOTPCredentialSubdomainAccess(
+    id: string,
+    subdomainAccess: unknown,
+  ): Promise<TOTPCredential | null> {
+    const totps = await this.getTOTPCredentials();
+    const target = totps.find((t) => t.id === id);
+    if (!target) return null;
+    target.subdomain_access = normalizeTotpSubdomainAccess(subdomainAccess);
     await this.saveTOTPCredentials(totps);
     return target;
   }

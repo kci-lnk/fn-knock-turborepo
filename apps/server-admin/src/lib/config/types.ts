@@ -3,6 +3,7 @@ import type { AutoHttpsConfig } from "../auto-https-redirect";
 import type { ReverseProxySubmode } from "../reverse-proxy-submode";
 import type { SSHSecurityConfig } from "../ssh-security/types";
 import type { TerminalFeatureConfig } from "../terminal-shared";
+import type { TOTPSubdomainAccess } from "../totp-subdomain-access";
 import type { TOTPAccessScope } from "../totp-access-scopes";
 import type { LocaleConfig } from "../../../../../packages/i18n/src";
 import type { AppearanceConfig } from "../../../../../packages/admin-shared/src/utils/appearance";
@@ -511,6 +512,7 @@ export type TOTPCredential = {
   comment: string;
   createdAt: string;
   access_scopes: TOTPAccessScope[];
+  subdomain_access: TOTPSubdomainAccess;
 };
 
 export type PasskeyCredential = {

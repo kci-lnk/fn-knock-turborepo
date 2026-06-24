@@ -45,6 +45,7 @@ import type {
   TerminalFeatureConfig,
   TOTPCredential,
   TOTPCredentialImportSummary,
+  TOTPSubdomainAccess,
   TOTPAccessScope,
   TrafficStats,
   UrlMetadataPreview,
@@ -103,6 +104,7 @@ export type {
   TerminalFeatureConfig,
   TOTPCredential,
   TOTPCredentialImportSummary,
+  TOTPSubdomainAccess,
   TOTPAccessScope,
   TrafficStats,
   UrlMetadataPreview,
@@ -483,6 +485,18 @@ export const ConfigAPI = {
       `/totp/${encodeURIComponent(id)}/access-scopes`,
       {
         access_scopes: accessScopes,
+      },
+    );
+    return res.data.data;
+  },
+  async updateTOTPSubdomainAccess(
+    id: string,
+    subdomainAccess: TOTPSubdomainAccess,
+  ): Promise<TOTPCredential> {
+    const res = await apiClient.patch(
+      `/totp/${encodeURIComponent(id)}/subdomain-access`,
+      {
+        subdomain_access: subdomainAccess,
       },
     );
     return res.data.data;

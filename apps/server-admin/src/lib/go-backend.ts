@@ -477,6 +477,7 @@ export class GoBackendService {
     search?: string;
     status?: string;
     logged_in?: string;
+    credential?: string;
     waf_status?: string;
   }): Promise<GoResponse<GatewayLogEntriesResponse>> {
     const searchParams = new URLSearchParams();
@@ -491,6 +492,7 @@ export class GoBackendService {
     if (params.search) searchParams.set("search", params.search);
     if (params.status) searchParams.set("status", params.status);
     if (params.logged_in) searchParams.set("logged_in", params.logged_in);
+    if (params.credential) searchParams.set("credential", params.credential);
     if (params.waf_status) searchParams.set("waf_status", params.waf_status);
     const query = searchParams.toString();
     return this.request<GatewayLogEntriesResponse>(

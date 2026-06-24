@@ -343,6 +343,7 @@ export const gatewayLogsRoutes = new Elysia({
         search: t.Optional(t.String()),
         status: t.Optional(t.String()),
         logged_in: t.Optional(t.String()),
+        credential: t.Optional(t.String()),
         waf_status: t.Optional(t.String()),
       }),
     }),

@@ -244,6 +244,11 @@ export interface GatewayLogEntry {
   logged_in: boolean;
   auth_required: boolean;
   auth_decision?: string;
+  auth_credential_id?: string;
+  auth_credential_name?: string;
+  auth_credential_method?: string;
+  auth_linked_totp_id?: string;
+  auth_linked_totp_name?: string;
   access_mode?: string;
   route_type?: string;
   route_key?: string;

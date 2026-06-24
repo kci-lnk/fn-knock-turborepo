@@ -4,18 +4,104 @@ import { generateSecret, generateURI, verifySync } from "otplib";
 import { oidcAuthService } from "../../lib/auth/oidc/service";
 import { authMobilitySessionManager } from "../../lib/auth-mobility-session";
 import { APP_LOCAL_VERSION } from "../../lib/app-version";
+import { goBackend } from "../../lib/go-backend";
 import { configManager } from "../../lib/redis";
 import { scheduleSyncReverseProxyTrustedIPs } from "../../lib/reverse-proxy-trusted-ips";
+import { buildGatewayAuthConfig } from "../../lib/subdomain-mode";
+import { whitelistManager } from "../../lib/whitelist-manager";
 import {
   buildTOTPCredentialImportPlan,
   buildTOTPCredentialTransferPayload,
   TOTPCredentialTransferError,
 } from "../../lib/totp-credential-transfer";
 import { routeDoc, withRouteDoc } from "../../lib/openapi";
-import { adminT, getAdminRouteTranslator } from "./shared";
+import {
+  adminT,
+  ensureGoResponseSuccess,
+  getAdminRouteTranslator,
+  type RequestTranslator,
+} from "./shared";
 
 const buildTOTPCredentialExportFilename = (exportedAt: string) =>
   `fn-knock-totp-credentials-${exportedAt.replace(/[:.]/g, "-")}.json`;
+
+const refreshGatewayAuthRuntime = async (
+  t: RequestTranslator,
+): Promise<void> => {
+  const config = await configManager.getConfig();
+  ensureGoResponseSuccess(
+    await goBackend.setAuthConfig(buildGatewayAuthConfig(config)),
+    adminT(t, "hostMappings.syncAuthConfigFailed"),
+  );
+};
+
+const clearAutoIpGrantsForTotpCredential = async (
+  totpId: string,
+): Promise<void> => {
+  const sessions = await configManager.listSessions();
+  let changed = false;
+
+  for (const session of sessions) {
+    if (session.data.totpId !== totpId) continue;
+
+    const whitelistRecordIds = new Set<string>();
+    if (session.data.postLoginIpGrantRecordId) {
+      whitelistRecordIds.add(session.data.postLoginIpGrantRecordId);
+    }
+    for (const recordId of await authMobilitySessionManager.listSessionWhitelistRecordIds(
+      session.id,
+    )) {
+      whitelistRecordIds.add(recordId);
+    }
+
+    for (const recordId of whitelistRecordIds) {
+      changed = (await whitelistManager.removeWhiteList(recordId)) || changed;
+    }
+
+    if (
+      session.data.grantType === "login_ip_grant" ||
+      session.data.postLoginIpGrantMode ||
+      session.data.postLoginIpGrantRecordId
+    ) {
+      await configManager.updateSession(session.id, {
+        grantType: "browser_session",
+        postLoginIpGrantMode: null,
+        postLoginIpGrantRecordId: null,
+      });
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    scheduleSyncReverseProxyTrustedIPs({
+      reason: "totp-subdomain-access-updated",
+      delayMs: 0,
+    });
+  }
+};
+
+const destroySessionsForTotpCredential = async (
+  totpId: string,
+): Promise<number> => {
+  const sessions = await configManager.listSessions();
+  let destroyed = 0;
+
+  for (const session of sessions) {
+    if (session.data.totpId !== totpId) continue;
+    await authMobilitySessionManager.destroySession(session.id);
+    await configManager.deleteSession(session.id);
+    destroyed += 1;
+  }
+
+  if (destroyed > 0) {
+    scheduleSyncReverseProxyTrustedIPs({
+      reason: "totp-credential-deleted",
+      delayMs: 0,
+    });
+  }
+
+  return destroyed;
+};
 
 export const adminAuthSettingsRoutes = new Elysia()
   .get(
@@ -140,6 +226,7 @@ export const adminAuthSettingsRoutes = new Elysia()
         comment: body.comment || "New Token",
         createdAt: new Date().toISOString(),
         access_scopes: [],
+        subdomain_access: { mode: "all", hosts: [] },
       });
       return { success: true };
     },
@@ -219,7 +306,9 @@ export const adminAuthSettingsRoutes = new Elysia()
         set.status = 404;
         return { success: false, message: adminT(t, "totp.notFound") };
       }
+      await destroySessionsForTotpCredential(params.id);
       await oidcAuthService.deleteBindingsByTotp(params.id);
+      await refreshGatewayAuthRuntime(t);
       return { success: true };
     },
     withRouteDoc("删除 TOTP 凭据", {
@@ -244,6 +333,34 @@ export const adminAuthSettingsRoutes = new Elysia()
       params: t.Object({ id: t.String() }),
       body: t.Object({
         access_scopes: t.Array(t.String()),
+      }),
+    }),
+  )
+  .patch(
+    "/totp/:id/subdomain-access",
+    async ({ request, params, body, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
+      const updated = await configManager.updateTOTPCredentialSubdomainAccess(
+        params.id,
+        body.subdomain_access,
+      );
+      if (!updated) {
+        set.status = 404;
+        return { success: false, message: adminT(t, "totp.notFound") };
+      }
+      if (updated.subdomain_access.mode === "custom") {
+        await clearAutoIpGrantsForTotpCredential(params.id);
+      }
+      await refreshGatewayAuthRuntime(t);
+      return { success: true, data: updated };
+    },
+    withRouteDoc("更新 TOTP 凭据子域访问范围", {
+      params: t.Object({ id: t.String() }),
+      body: t.Object({
+        subdomain_access: t.Object({
+          mode: t.Union([t.Literal("all"), t.Literal("custom")]),
+          hosts: t.Array(t.String()),
+        }),
       }),
     }),
   )

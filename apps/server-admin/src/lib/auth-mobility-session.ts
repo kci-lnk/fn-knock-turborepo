@@ -247,6 +247,56 @@ export class AuthMobilitySessionManager {
     });
   }
 
+  async resolveRequestOwnerSessions(
+    request: Request,
+    clientIp: string,
+  ): Promise<AuthMobilityBootstrapOwnerResolution[]> {
+    const identity = this.inspectRequest(request);
+    const owners = new Map<string, AuthMobilityBootstrapOwnerResolution>();
+    const addOwner = async (
+      owner: Promise<AuthMobilityBootstrapOwnerResolution | null>,
+    ) => {
+      const resolved = await owner;
+      if (resolved) {
+        owners.set(resolved.ownerSessionId, resolved);
+      }
+    };
+
+    if (identity.sessionId) {
+      await addOwner(this.resolveSessionOwner(identity.sessionId));
+    }
+
+    if (identity.fnosToken) {
+      const binding = await this.bindingStore.get(
+        "fnos-token",
+        identity.fnosToken,
+      );
+      if (binding?.ownerSessionId) {
+        await addOwner(this.resolveSessionOwner(binding.ownerSessionId));
+      }
+    }
+
+    if (identity.trimMediaToken) {
+      const binding = await this.bindingStore.get(
+        "trim-media-token",
+        identity.trimMediaToken,
+      );
+      if (binding?.ownerSessionId) {
+        await addOwner(this.resolveSessionOwner(binding.ownerSessionId));
+      }
+    }
+
+    if (identity.appBinding === "fnos-app") {
+      await addOwner(this.resolveBootstrapOwner(clientIp));
+    } else if (identity.appBinding === "trim-media-app") {
+      for (const owner of await this.listActiveSessionsByIp(clientIp)) {
+        owners.set(owner.ownerSessionId, owner);
+      }
+    }
+
+    return [...owners.values()];
+  }
+
   async destroySession(sessionId: string): Promise<void> {
     await this.cleanupService.destroySession(sessionId);
   }

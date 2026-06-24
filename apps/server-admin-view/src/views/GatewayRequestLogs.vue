@@ -24,8 +24,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@admin-shared/utils/toast";
-import { GatewayLogsAPI } from "../lib/api";
-import type { GatewayLogEntry } from "../types";
+import { ConfigAPI, GatewayLogsAPI } from "../lib/api";
+import type { GatewayLogEntry, TOTPCredential } from "../types";
 import { useConfigStore } from "../store/config";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import DetailDialog from "@admin-shared/components/common/DetailDialog.vue";
@@ -42,6 +42,7 @@ import {
   LIMIT_OPTIONS,
   LOGIN_FILTER_OPTIONS,
   STATUS_FILTER_OPTIONS,
+  UNRECORDED_CREDENTIAL_FILTER,
   WAF_FILTER_OPTIONS,
   buildGatewayLogDetailCopyText,
   buildGatewayLogDetailItems,
@@ -67,12 +68,14 @@ const availableDates = ref<string[]>([]);
 const selectedDate = ref(getTodayString());
 const selectedStatus = ref<GatewayStatusFilterValue>("all");
 const selectedLoggedIn = ref<GatewayLoginFilterValue>("all");
+const selectedCredential = ref("all");
 const selectedWAFStatus = ref<GatewayWAFFilterValue>("all");
 const limit = ref("20");
 const searchQuery = ref("");
 const loading = ref(false);
 const isDetailsOpen = ref(false);
 const activeEntry = ref<GatewayLogEntry | null>(null);
+const credentialOptions = ref<TOTPCredential[]>([]);
 const selectedLogEntryKeys = ref<Set<string>>(new Set());
 const currentCursor = ref("");
 const nextCursor = ref("");
@@ -90,6 +93,9 @@ const normalizedStatusQuery = computed(() =>
 );
 const normalizedLoggedInQuery = computed(() =>
   selectedLoggedIn.value === "all" ? "" : selectedLoggedIn.value,
+);
+const normalizedCredentialQuery = computed(() =>
+  selectedCredential.value === "all" ? "" : selectedCredential.value,
 );
 const normalizedWAFStatusQuery = computed(() =>
   selectedWAFStatus.value === "all" ? "" : selectedWAFStatus.value,
@@ -109,6 +115,38 @@ const activeLoggedInLabel = computed(() =>
     "admin.gatewayRequestLogs.loginFilters.all",
     t,
   ),
+);
+const credentialFilterOptions = computed(() => {
+  const options = [
+    {
+      value: "all",
+      label: t("admin.gatewayRequestLogs.credentialFilters.all"),
+    },
+    {
+      value: UNRECORDED_CREDENTIAL_FILTER,
+      label: t("admin.gatewayRequestLogs.credentialFilters.unrecorded"),
+    },
+    ...credentialOptions.value.map((credential) => ({
+      value: credential.id,
+      label: credential.comment?.trim() || credential.id,
+    })),
+  ];
+  if (
+    selectedCredential.value !== "all" &&
+    !options.some((option) => option.value === selectedCredential.value)
+  ) {
+    options.push({
+      value: selectedCredential.value,
+      label: selectedCredential.value,
+    });
+  }
+  return options;
+});
+const activeCredentialLabel = computed(
+  () =>
+    credentialFilterOptions.value.find(
+      (option) => option.value === selectedCredential.value,
+    )?.label || selectedCredential.value,
 );
 const activeWAFStatusLabel = computed(() =>
   getGatewayLogOptionLabel(
@@ -162,6 +200,15 @@ const fetchDates = async (preferred?: string) => {
   applyDates(data.dates || [], preferred || data.today || selectedDate.value);
 };
 
+const fetchCredentialOptions = async () => {
+  try {
+    const data = await ConfigAPI.getTOTPStatus();
+    credentialOptions.value = data.credentials || [];
+  } catch {
+    credentialOptions.value = [];
+  }
+};
+
 const fetchEntries = async () => {
   loading.value = true;
   try {
@@ -173,6 +220,7 @@ const fetchEntries = async () => {
       search: searchQuery.value || undefined,
       status: normalizedStatusQuery.value || undefined,
       logged_in: normalizedLoggedInQuery.value || undefined,
+      credential: normalizedCredentialQuery.value || undefined,
       waf_status: normalizedWAFStatusQuery.value || undefined,
     });
     logsDir.value = data.logs_dir || "";
@@ -197,7 +245,7 @@ const fetchEntries = async () => {
 };
 
 const refreshAll = async () => {
-  await fetchDates(selectedDate.value);
+  await Promise.all([fetchDates(selectedDate.value), fetchCredentialOptions()]);
   currentCursor.value = "";
   nextCursor.value = "";
   cursorHistory.value = [];
@@ -231,6 +279,13 @@ const handleStatusChange = async (value: unknown) => {
 const handleLoggedInChange = async (value: unknown) => {
   if (!value) return;
   selectedLoggedIn.value = String(value) as GatewayLoginFilterValue;
+  resetCursorPagination();
+  await fetchEntries();
+};
+
+const handleCredentialChange = async (value: unknown) => {
+  if (!value) return;
+  selectedCredential.value = String(value);
   resetCursorPagination();
   await fetchEntries();
 };
@@ -291,6 +346,7 @@ const deleteSelectedDate = async () => {
       searchQuery.value = "";
       selectedStatus.value = "all";
       selectedLoggedIn.value = "all";
+      selectedCredential.value = "all";
       selectedWAFStatus.value = "all";
       resetCursorPagination();
       const nextPreferred =
@@ -394,7 +450,7 @@ const detailCopyText = computed(() =>
 );
 
 onMounted(async () => {
-  await fetchDates(selectedDate.value);
+  await Promise.all([fetchDates(selectedDate.value), fetchCredentialOptions()]);
   await fetchEntries();
 });
 </script>
@@ -532,21 +588,23 @@ onMounted(async () => {
       class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-background"
     >
       <div class="border-b px-4 py-3">
-        <div class="flex flex-col gap-2 xl:flex-row xl:items-center">
+        <div class="flex flex-col gap-2 lg:flex-row lg:items-start">
           <SearchInput
             v-model="searchQuery"
             :placeholder="t('admin.gatewayRequestLogs.searchPlaceholder')"
-            class="w-full xl:w-[320px] xl:max-w-[320px]"
+            class="w-full min-w-0 sm:w-[320px] lg:shrink-0"
             @search="handleSearch"
           />
 
-          <div class="flex flex-1 flex-wrap items-center gap-2">
+          <div
+            class="flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:justify-end"
+          >
             <Select
               :model-value="selectedDate"
               @update:model-value="handleDateChange"
             >
-              <div class="w-[148px]">
-                <SelectTrigger>
+              <div class="w-full min-w-0 sm:w-[148px]">
+                <SelectTrigger class="w-full min-w-0">
                   <SelectValue
                     :placeholder="t('admin.gatewayRequestLogs.datePlaceholder')"
                   />
@@ -567,8 +625,8 @@ onMounted(async () => {
               :model-value="selectedStatus"
               @update:model-value="handleStatusChange"
             >
-              <div class="w-[156px]">
-                <SelectTrigger>
+              <div class="w-full min-w-0 sm:w-[156px]">
+                <SelectTrigger class="w-full min-w-0">
                   <SelectValue
                     :placeholder="
                       t('admin.gatewayRequestLogs.statusPlaceholder')
@@ -591,8 +649,8 @@ onMounted(async () => {
               :model-value="selectedLoggedIn"
               @update:model-value="handleLoggedInChange"
             >
-              <div class="w-[156px]">
-                <SelectTrigger>
+              <div class="w-full min-w-0 sm:w-[168px]">
+                <SelectTrigger class="w-full min-w-0">
                   <SelectValue
                     :placeholder="
                       t('admin.gatewayRequestLogs.loginPlaceholder')
@@ -612,11 +670,41 @@ onMounted(async () => {
             </Select>
 
             <Select
+              :model-value="selectedCredential"
+              @update:model-value="handleCredentialChange"
+            >
+              <div class="w-full min-w-0 sm:w-[220px]">
+                <SelectTrigger class="w-full min-w-0">
+                  <SelectValue
+                    :placeholder="
+                      t('admin.gatewayRequestLogs.credentialPlaceholder')
+                    "
+                  />
+                </SelectTrigger>
+              </div>
+              <SelectContent class="max-w-[min(28rem,calc(100vw-2rem))]">
+                <SelectItem
+                  v-for="option in credentialFilterOptions"
+                  :key="option.value"
+                  :value="option.value"
+                  class="min-w-0"
+                >
+                  <span
+                    class="block max-w-[22rem] truncate"
+                    :title="option.label"
+                  >
+                    {{ option.label }}
+                  </span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select
               :model-value="selectedWAFStatus"
               @update:model-value="handleWAFStatusChange"
             >
-              <div class="w-[148px]">
-                <SelectTrigger>
+              <div class="w-full min-w-0 sm:w-[144px]">
+                <SelectTrigger class="w-full min-w-0">
                   <SelectValue
                     :placeholder="t('admin.gatewayRequestLogs.wafPlaceholder')"
                   />
@@ -648,6 +736,9 @@ onMounted(async () => {
           </span>
           <span>{{ activeStatusLabel }}</span>
           <span>{{ activeLoggedInLabel }}</span>
+          <span class="max-w-[220px] truncate" :title="activeCredentialLabel">
+            {{ activeCredentialLabel }}
+          </span>
           <span>{{ activeWAFStatusLabel }}</span>
           <span v-if="searchQuery.trim()">{{
             t("admin.gatewayRequestLogs.keywordFilter", {

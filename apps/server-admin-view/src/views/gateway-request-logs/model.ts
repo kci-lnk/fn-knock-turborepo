@@ -77,6 +77,8 @@ export const WAF_FILTER_OPTIONS = [
   { value: "none", labelKey: "admin.gatewayRequestLogs.wafFilters.none" },
 ] as const;
 
+export const UNRECORDED_CREDENTIAL_FILTER = "__unrecorded__";
+
 export type GatewayStatusFilterValue =
   (typeof STATUS_FILTER_OPTIONS)[number]["value"];
 export type GatewayLoginFilterValue =
@@ -298,6 +300,8 @@ export const authDecisionLabel = (
       return t("admin.gatewayRequestLogs.authDecisions.redirected");
     case "denied":
       return t("admin.gatewayRequestLogs.authDecisions.denied");
+    case "access_denied":
+      return t("admin.gatewayRequestLogs.authDecisions.accessDenied");
     case "root_mode_redirect":
       return t("admin.gatewayRequestLogs.authDecisions.rootModeRedirect");
     case "not_required":
@@ -313,6 +317,42 @@ export const authDecisionLabel = (
     default:
       return value || "-";
   }
+};
+
+export const credentialMethodLabel = (
+  value: string | undefined,
+  t: GatewayLogTranslator,
+) => {
+  switch (String(value || "").toUpperCase()) {
+    case "TOTP":
+      return t("admin.gatewayRequestLogs.credentialMethods.totp");
+    case "PASSKEY":
+      return t("admin.gatewayRequestLogs.credentialMethods.passkey");
+    case "OIDC":
+      return t("admin.gatewayRequestLogs.credentialMethods.oidc");
+    default:
+      return value || "";
+  }
+};
+
+export const formatAuthCredential = (
+  entry: GatewayLogEntry,
+  t: GatewayLogTranslator,
+) => {
+  const method = credentialMethodLabel(entry.auth_credential_method, t);
+  const name = entry.auth_credential_name || entry.auth_credential_id || "";
+  const primary = method && name ? `${method} / ${name}` : method || name || "";
+  if (!primary) return "";
+
+  const linkedTotpName =
+    String(entry.auth_credential_method || "").toUpperCase() === "TOTP"
+      ? ""
+      : entry.auth_linked_totp_name || entry.auth_linked_totp_id || "";
+  if (!linkedTotpName) return primary;
+
+  return `${primary} (${t("admin.gatewayRequestLogs.linkedTotp", {
+    name: linkedTotpName,
+  })})`;
 };
 
 export const formatDuration = (value?: number) => {
@@ -378,6 +418,26 @@ const detailFields = [
   {
     key: "auth_decision",
     labelKey: "admin.gatewayRequestLogs.detailFields.authDecision",
+  },
+  {
+    key: "auth_credential_method",
+    labelKey: "admin.gatewayRequestLogs.detailFields.authCredentialMethod",
+  },
+  {
+    key: "auth_credential_name",
+    labelKey: "admin.gatewayRequestLogs.detailFields.authCredentialName",
+  },
+  {
+    key: "auth_credential_id",
+    labelKey: "admin.gatewayRequestLogs.detailFields.authCredentialId",
+  },
+  {
+    key: "auth_linked_totp_name",
+    labelKey: "admin.gatewayRequestLogs.detailFields.authLinkedTotpName",
+  },
+  {
+    key: "auth_linked_totp_id",
+    labelKey: "admin.gatewayRequestLogs.detailFields.authLinkedTotpId",
   },
   {
     key: "access_mode",
@@ -466,6 +526,8 @@ export const buildGatewayLogDetailItems = (
       if (key === "route_type") return routeTypeLabel(String(value || ""), t);
       if (key === "auth_decision")
         return authDecisionLabel(String(value || ""), t);
+      if (key === "auth_credential_method")
+        return credentialMethodLabel(String(value || ""), t) || "-";
       if (key === "waf_action") return wafActionLabel(String(value || ""), t);
       if (key === "waf_mode") return wafModeLabel(String(value || ""), t);
       if (key === "waf_rule_ids") return formatRuleIds(value as number[]);

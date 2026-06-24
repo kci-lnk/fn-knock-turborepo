@@ -33,7 +33,6 @@ import {
 } from "../lib/service-discovery-scan";
 import { createRequestTranslator } from "../lib/i18n";
 import { probeConfiguredHostMappings } from "../lib/host-mapping-probe";
-import { resolveProxyTargetPort } from "../lib/proxy-target-url";
 
 const runtimeProfile = getRuntimeProfile();
 const adminPanelProtectedRuntime = isAdminPanelProtectedRuntime(runtimeProfile);
@@ -187,8 +186,11 @@ const resolveScanCidrs = async (
   return validateScanCidrs(payload.effectiveCidrs);
 };
 
-const collectExcludedPorts = (
-  config: Awaited<ReturnType<ConfigManager["getConfig"]>>,
+export const collectExcludedPorts = (
+  _config: Pick<
+    Awaited<ReturnType<ConfigManager["getConfig"]>>,
+    "proxy_mappings"
+  >,
 ): number[] => {
   const adminViewPort = parseInt(
     process.env.ADMIN_VIEW_PORT || defaultAdminViewPort,
@@ -204,19 +206,9 @@ const collectExcludedPorts = (
     8000,
   ].filter((port) => Number.isFinite(port) && port > 0);
 
-  const mappingPorts: number[] = [];
-  for (const mapping of config.proxy_mappings || []) {
-    if (mapping.target) {
-      const port = resolveProxyTargetPort(mapping.target);
-      if (port !== null) {
-        mappingPorts.push(port);
-      }
-    }
-  }
-
-  return Array.from(
-    new Set([...envPorts, ...mappingPorts, 8200, 30661, 30662]),
-  );
+  // Existing mapping targets are filtered after discovery by host:port.
+  // Excluding their ports here would hide same-port services on other hosts.
+  return Array.from(new Set([...envPorts, 8200, 30661, 30662]));
 };
 
 const handleDiscover = async (

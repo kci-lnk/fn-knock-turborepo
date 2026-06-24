@@ -23,6 +23,7 @@ import { frpcRoutes, restoreFrpcOnBoot } from "./routes/frpc";
 import {
   DEFAULT_FNOS_PORT_ICON_HIJACK_CONFIG,
   configManager,
+  waitForRedis,
 } from "./lib/redis";
 import { whitelistRoutes } from "./routes/whitelist";
 import { whitelistManager } from "./lib/whitelist-manager";
@@ -164,6 +165,8 @@ if (runtimeProfile.is_docker) {
     );
   }
 }
+
+await waitForRedis();
 
 const RUNTIME_HMAC_SECRET = getRequiredEnv("HMAC_SECRET");
 const EXPOSE_RUNTIME_HMAC_SECRET =

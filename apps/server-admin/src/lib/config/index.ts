@@ -1,4 +1,4 @@
-export { redis } from "./client";
+export { redis, waitForRedis } from "./client";
 export { ConfigManager, configManager } from "./manager";
 export * from "./defaults";
 export * from "./normalizers";

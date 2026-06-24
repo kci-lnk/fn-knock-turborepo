@@ -22,11 +22,13 @@ import { fnosappsRule } from "./rules/fnosapps";
 import { embyRule } from "./rules/emby";
 import { dlymusicRule } from "./rules/dlymusic";
 import { onePanelRule } from "./rules/1panel";
+import { openWrtRule } from "./rules/openwrt";
 
 const rules: AnalyzerRule[] = [
   mongoExpressRule,
   redisInsightRule,
   go2rtcRule,
+  openWrtRule,
   fnosRule,
   luckyRule,
   xiaoyaRule,

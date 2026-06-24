@@ -2,6 +2,15 @@ import { ScanOptions, ScanResult } from "./types";
 import net from "node:net";
 import { headersRequireBasicAuth } from "../../lib/basic-auth-probe";
 
+const LUCI_LOGIN_REQUIRED_HEADER = "x-luci-login-required";
+
+const isLuciLoginRequiredResponse = (
+  status: number,
+  headers: Record<string, string>,
+): boolean =>
+  status === 403 &&
+  headers[LUCI_LOGIN_REQUIRED_HEADER]?.trim().toLowerCase() === "yes";
+
 export const buildScanPortList = (options: ScanOptions): number[] => {
   let portsToScan: number[] = [];
   if (options.portRanges && options.portRanges.length > 0) {
@@ -52,7 +61,10 @@ export class ScannerLogic {
     });
   }
 
-  private async fetchHttpInfo(host: string, port: number): Promise<Partial<ScanResult>> {
+  private async fetchHttpInfo(
+    host: string,
+    port: number,
+  ): Promise<Partial<ScanResult>> {
     try {
       const response = await fetch(`http://${host}:${port}`, {
         signal: AbortSignal.timeout(2000),
@@ -68,7 +80,11 @@ export class ScannerLogic {
       });
 
       let body = "";
-      if (response.status === 200 || response.status === 401) {
+      if (
+        response.status === 200 ||
+        response.status === 401 ||
+        isLuciLoginRequiredResponse(response.status, headers)
+      ) {
         body = await response.text();
       }
 
@@ -128,7 +144,11 @@ export class ScannerLogic {
     const hostBatchSize = Math.max(1, options.hostConcurrency || 1);
     const results: ScanResult[] = [];
 
-    for (let index = 0; index < normalizedHosts.length; index += hostBatchSize) {
+    for (
+      let index = 0;
+      index < normalizedHosts.length;
+      index += hostBatchSize
+    ) {
       const hostBatch = normalizedHosts.slice(index, index + hostBatchSize);
       const batchResults = await Promise.all(
         hostBatch.map((host) => this.runScan(host, options)),

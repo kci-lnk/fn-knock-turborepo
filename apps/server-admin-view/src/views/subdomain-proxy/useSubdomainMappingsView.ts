@@ -1,7 +1,10 @@
 import { computed, type ComputedRef, type Ref } from "vue";
-import { extractPortFromTarget } from "@admin-shared/utils/extractPortFromTarget";
 import type { HostMapping, HostTrafficStats, TrafficStats } from "@/types";
-import { getMappingDisplayTitle, normalizeHostLike } from "./model";
+import {
+  buildMappingTargetKey,
+  getMappingDisplayTitle,
+  normalizeHostLike,
+} from "./model";
 
 export const useSubdomainMappingsView = ({
   allMappings,
@@ -24,17 +27,17 @@ export const useSubdomainMappingsView = ({
   const hasRegularHostMappings = computed(
     () => regularHostMappings.value.length > 0,
   );
-  const existingMappingPorts = computed(() => {
-    const ports = new Set<number>();
+  const existingMappingTargets = computed(() => {
+    const targets = new Set<string>();
 
     for (const mapping of allMappings.value) {
-      const port = extractPortFromTarget(mapping.target);
-      if (port !== null) {
-        ports.add(port);
+      const targetKey = buildMappingTargetKey(mapping.target);
+      if (targetKey) {
+        targets.add(targetKey);
       }
     }
 
-    return ports;
+    return targets;
   });
   const authServiceMapping = computed(
     () =>
@@ -87,7 +90,7 @@ export const useSubdomainMappingsView = ({
     authServiceMapping,
     discoverButtonDividerClass,
     discoverButtonVariant,
-    existingMappingPorts,
+    existingMappingTargets,
     filteredMappings,
     getHostTrafficSample,
     hasRegularHostMappings,

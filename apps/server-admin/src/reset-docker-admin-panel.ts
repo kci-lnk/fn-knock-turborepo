@@ -1,6 +1,6 @@
 import { dockerAdminPanelManager } from "./lib/docker-admin-panel";
 import { tDefault } from "./lib/i18n";
-import { redis } from "./lib/redis";
+import { redis, waitForRedis } from "./lib/redis";
 
 const printHelp = () => {
   console.log(tDefault("server.dockerAdminPanel.resetHelp"));
@@ -12,6 +12,8 @@ const main = async () => {
     printHelp();
     return;
   }
+
+  await waitForRedis();
 
   const summary = await dockerAdminPanelManager.resetPasswordState();
 

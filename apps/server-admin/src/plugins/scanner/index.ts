@@ -3,15 +3,27 @@ import { buildScanPortList, ScannerLogic } from "./scanner";
 import { analyzeService } from "./analyzers";
 import { ScanOptions } from "./types";
 
+const LUCI_LOGIN_REQUIRED_HEADER = "x-luci-login-required";
+
+const isAnalyzableHttpResult = (result: {
+  httpStatus?: number;
+  headers?: Record<string, string>;
+}): boolean =>
+  result.httpStatus === 200 ||
+  result.httpStatus === 401 ||
+  (result.httpStatus === 403 &&
+    result.headers?.[LUCI_LOGIN_REQUIRED_HEADER]?.trim().toLowerCase() ===
+      "yes");
+
 export class ScannerService {
   async scanAndAnalyze(host: string, options: ScanOptions = {}) {
     return this.scanAndAnalyzeMany([host], options);
   }
 
   async scanAndAnalyzeMany(hosts: string[], options: ScanOptions = {}) {
-    const normalizedHosts = [...new Set(hosts.map((host) => host.trim()))].filter(
-      Boolean,
-    );
+    const normalizedHosts = [
+      ...new Set(hosts.map((host) => host.trim())),
+    ].filter(Boolean);
     if (normalizedHosts.length === 0) {
       return {
         host: "",
@@ -31,9 +43,7 @@ export class ScannerService {
       normalizedHosts.length === 1
         ? await scanner.runScan(normalizedHosts[0]!, options)
         : await scanner.runScanMany(normalizedHosts, options);
-    const successfulResults = rawResults.filter(
-      (result) => result.httpStatus === 200 || result.httpStatus === 401,
-    );
+    const successfulResults = rawResults.filter(isAnalyzableHttpResult);
 
     const processedServices = await Promise.all(
       successfulResults.map(async (result) => {
@@ -68,7 +78,8 @@ export class ScannerService {
 
     return {
       host: normalizedHosts[0],
-      totalPortsScanned: buildScanPortList(options).length * normalizedHosts.length,
+      totalPortsScanned:
+        buildScanPortList(options).length * normalizedHosts.length,
       foundServices: filteredServices.length,
       scannedHosts: normalizedHosts.length,
       services: filteredServices,
@@ -76,5 +87,6 @@ export class ScannerService {
   }
 }
 
-export const portScannerPlugin = new Elysia({ name: "plugin-port-scanner" })
-  .decorate("scannerService", new ScannerService());
+export const portScannerPlugin = new Elysia({
+  name: "plugin-port-scanner",
+}).decorate("scannerService", new ScannerService());

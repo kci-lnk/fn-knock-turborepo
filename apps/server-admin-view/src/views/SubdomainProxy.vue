@@ -192,13 +192,7 @@
 </template>
 
 <script setup lang="ts">
-import {
-  computed,
-  onMounted,
-  onUnmounted,
-  ref,
-  watch,
-} from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import StaleHostMappingsCleanupDialog from "@/components/StaleHostMappingsCleanupDialog.vue";
@@ -212,9 +206,7 @@ import { useConfigStore } from "../store/config";
 import { isAnySubdomainRoutingMode } from "../lib/reverse-proxy-submode";
 import { ConfigAPI, DashboardAPI } from "../lib/api";
 import { docsUrls } from "../lib/docs";
-import type {
-  HostMapping,
-} from "../types";
+import type { HostMapping } from "../types";
 import {
   extractErrorMessage,
   useAsyncAction,
@@ -331,7 +323,7 @@ const {
   authServiceMapping,
   discoverButtonDividerClass,
   discoverButtonVariant,
-  existingMappingPorts,
+  existingMappingTargets,
   filteredMappings,
   getHostTrafficSample,
   hasRegularHostMappings,
@@ -512,7 +504,7 @@ const {
 } = useSubdomainDiscoverFlow({
   allMappings,
   canManageNewMappings,
-  existingMappingPorts,
+  existingMappingTargets,
   runSaveMappings,
   savedRootDomain,
   saveHostMappings: (mappings) => configStore.saveHostMappings(mappings),

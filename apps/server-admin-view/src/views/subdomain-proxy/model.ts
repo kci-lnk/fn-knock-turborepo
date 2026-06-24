@@ -183,9 +183,56 @@ export const resolveDiscoveredServiceHost = (
   fallbackHost: string | null | undefined,
 ) => service.host?.trim() || fallbackHost?.trim() || "127.0.0.1";
 
+const normalizeEndpointHost = (value: string): string =>
+  value.trim().replace(/^\[/, "").replace(/\]$/, "").toLowerCase();
+
+const getDefaultTargetPort = (protocol: string): number | null => {
+  if (protocol === "http:" || protocol === "ws:") return 80;
+  if (protocol === "https:" || protocol === "wss:") return 443;
+  return null;
+};
+
+const parseTargetUrl = (value: string): URL => {
+  if (/^[a-z][a-z\d+.-]*:\/\//i.test(value)) {
+    return new URL(value);
+  }
+  if (value.startsWith("//")) {
+    return new URL(`http:${value}`);
+  }
+  return new URL(`http://${value}`);
+};
+
+export const buildDiscoveredServiceTargetKey = (
+  service: Pick<DiscoveredServiceInfo, "host" | "port">,
+  fallbackHost: string | null | undefined,
+): string => {
+  const host = normalizeEndpointHost(
+    resolveDiscoveredServiceHost(service, fallbackHost),
+  );
+  return host && Number.isFinite(service.port) ? `${host}:${service.port}` : "";
+};
+
+export const buildMappingTargetKey = (target: string): string => {
+  const normalizedTarget = target.trim();
+  if (!normalizedTarget) return "";
+
+  try {
+    const parsed = parseTargetUrl(normalizedTarget);
+    const port = parsed.port
+      ? Number.parseInt(parsed.port, 10)
+      : getDefaultTargetPort(parsed.protocol);
+    const host = normalizeEndpointHost(parsed.hostname);
+    return host && port !== null && Number.isFinite(port)
+      ? `${host}:${port}`
+      : "";
+  } catch {
+    return "";
+  }
+};
+
 export const buildDiscoveredHostResponse = (
   data: ScanDiscoverResponse,
-  existingPorts: Set<number>,
+  existingTargets: Set<string>,
 ): DiscoveredHostResponse => ({
   ...data,
   services: data.services
@@ -197,7 +244,12 @@ export const buildDiscoveredHostResponse = (
       },
       suggestedSubdomain: buildSuggestedSubdomain(service),
     }))
-    .filter((service) => !existingPorts.has(service.port)),
+    .filter(
+      (service) =>
+        !existingTargets.has(
+          buildDiscoveredServiceTargetKey(service, data.host),
+        ),
+    ),
 });
 
 export const collectDuplicateValues = (values: string[]): string[] => {

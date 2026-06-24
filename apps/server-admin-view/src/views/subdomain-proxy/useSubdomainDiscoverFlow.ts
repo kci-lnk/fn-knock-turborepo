@@ -23,9 +23,7 @@ import {
   type TranslationParams,
 } from "./model";
 
-type RunAsyncAction = <T>(
-  action: () => Promise<T>,
-) => Promise<T | undefined>;
+type RunAsyncAction = <T>(action: () => Promise<T>) => Promise<T | undefined>;
 
 type DiscoverDialogHandle = {
   ensureSaved: () => Promise<string[]> | undefined;
@@ -35,7 +33,7 @@ type DiscoverDialogHandle = {
 export const useSubdomainDiscoverFlow = ({
   allMappings,
   canManageNewMappings,
-  existingMappingPorts,
+  existingMappingTargets,
   runSaveMappings,
   savedRootDomain,
   saveHostMappings,
@@ -43,7 +41,7 @@ export const useSubdomainDiscoverFlow = ({
 }: {
   allMappings: ComputedRef<HostMapping[]>;
   canManageNewMappings: ComputedRef<boolean>;
-  existingMappingPorts: ComputedRef<Set<number>>;
+  existingMappingTargets: ComputedRef<Set<string>>;
   runSaveMappings: RunAsyncAction;
   savedRootDomain: ComputedRef<string>;
   saveHostMappings: (mappings: HostMapping[]) => Promise<unknown>;
@@ -57,8 +55,8 @@ export const useSubdomainDiscoverFlow = ({
   };
   const isDiscoverSettingsOpen = ref(false);
 
-  const { isPending: isDiscovering, run: runDiscoverServices } =
-    useAsyncAction({
+  const { isPending: isDiscovering, run: runDiscoverServices } = useAsyncAction(
+    {
       onError: (error) => {
         toast.error(translate("admin.subdomainProxy.discoverFailed"), {
           description: extractErrorMessage(
@@ -67,7 +65,8 @@ export const useSubdomainDiscoverFlow = ({
           ),
         });
       },
-    });
+    },
+  );
 
   const {
     open: isDiscoverDialogOpen,
@@ -124,7 +123,7 @@ export const useSubdomainDiscoverFlow = ({
         onSuccess: (data) => {
           const nextData = buildDiscoveredHostResponse(
             data,
-            existingMappingPorts.value,
+            existingMappingTargets.value,
           );
           setDiscoveredData(nextData);
           selectedServices.value = nextData.services.filter((service) =>

@@ -382,15 +382,21 @@ const resolveImageContentType = (value: string, response: Response): string => {
     ?.split(";")[0]
     ?.trim()
     ?.toLowerCase();
+  if (
+    headerValue === "application/ico" ||
+    headerValue === "application/x-ico" ||
+    headerValue === "application/x-icon" ||
+    headerValue === "application/vnd.microsoft.icon"
+  ) {
+    return "image/x-icon";
+  }
   if (headerValue?.startsWith("image/")) {
     return headerValue;
   }
   if (
     headerValue &&
     headerValue !== "application/octet-stream" &&
-    headerValue !== "binary/octet-stream" &&
-    headerValue !== "application/ico" &&
-    headerValue !== "application/x-ico"
+    headerValue !== "binary/octet-stream"
   ) {
     return "";
   }

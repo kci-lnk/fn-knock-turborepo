@@ -3246,10 +3246,17 @@ export const jaJPAdmin = {
     credentialTransferDescription:
       "は、{scope} がすでに {bridge} 資格情報を持っており、{count} フィールドを完了できることを発見しました。",
     updateIntervalLabel: "{minutes} 分ごとに自動的に同期します",
-    publicCheckSettings: "公開検出アドレス",
-    publicCheckDialogTitle: "公開検出アドレス",
+    publicCheckSettings: "公開検出設定",
+    publicCheckDialogTitle: "公開検出設定",
     publicCheckDialogDescription:
-      "DDNS が現在の公開 IPv4/IPv6 を検出するときに使用するアドレスを設定します。",
+      "DDNS が現在の公開 IPv4/IPv6 を検出するときに使用するアドレスとリクエスト実装を設定します。",
+    httpTransportLabel: "リクエスト実装",
+    httpTransportHint:
+      "curl はシステムの curl を使用します。Node 組み込み HTTP は Node の低レベルネットワークリクエストを使用し、送信インターフェイス選択時はそのローカルアドレスにバインドします。",
+    httpTransport: {
+      curl: "curl（デフォルト）",
+      node: "Node 組み込み HTTP",
+    },
     publicCheckIpv4Title: "IPv4 検出アドレス",
     publicCheckIpv6Title: "IPv6 検出アドレス",
     publicCheckSourcePlaceholder: "example.com または https://example.com/ip",

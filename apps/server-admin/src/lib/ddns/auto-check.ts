@@ -184,6 +184,7 @@ const runAutomaticDDNSCheckWithLocale = async (
           staticIpv6: target.config[DDNS_STATIC_IPV6_FIELD],
           sourceDomain: target.config[DDNS_SOURCE_DOMAIN_FIELD],
           publicCheckSources: settings.publicCheckSources,
+          httpTransport: settings.httpTransport,
         });
 
         for (const warning of ips.warnings) {

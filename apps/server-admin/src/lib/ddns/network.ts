@@ -1,9 +1,13 @@
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
+import { isIP } from "node:net";
 import { networkInterfaces, tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
+  DDNSHttpTransport,
   DDNSHttpClient,
   DDNSNetworkInterfaceAddress,
   DDNSNetworkInterfaceOption,
@@ -18,6 +22,7 @@ type DDNSAddressFamily = 4 | 6;
 type DDNSFetchInit = RequestInit & {
   networkInterface?: string | null;
   preferredFamily?: DDNSAddressFamily;
+  transport?: DDNSHttpTransport;
 };
 
 const CURL_PROXY_ENV_KEYS = [
@@ -37,6 +42,7 @@ const HOST_IF_INET6_PATH =
   process.env.DDNS_HOST_IF_INET6_PATH || DEFAULT_DOCKER_HOST_IF_INET6_PATH;
 
 const ddnsT = ddnsTranslate;
+const NODE_FETCH_MAX_REDIRECTS = 20;
 
 const IFA_F_TEMPORARY = 0x01;
 const IFA_F_DEPRECATED = 0x20;
@@ -125,6 +131,12 @@ function isDockerHostInterfaceName(value: string): boolean {
 
 function toCurlNetworkInterface(value: string): string | undefined {
   return isDockerHostInterfaceName(value) ? undefined : value || undefined;
+}
+
+function normalizeRequestFamily(
+  value: DDNSAddressFamily | undefined,
+): DDNSAddressFamily | undefined {
+  return value === 4 || value === 6 ? value : undefined;
 }
 
 export function isSelectableDDNSInterfaceAddress(
@@ -460,6 +472,283 @@ async function readRequestBody(request: Request): Promise<Buffer | null> {
   return body.length > 0 ? body : null;
 }
 
+type NodeRequestAttempt = {
+  family?: DDNSAddressFamily;
+  localAddress?: string;
+};
+
+function getFamilyLabel(family: DDNSAddressFamily): string {
+  return family === 4 ? "IPv4" : "IPv6";
+}
+
+function getNodeInterfaceAddresses(
+  interfaceName: string,
+  family: DDNSAddressFamily,
+): string[] {
+  const selected = findDDNSNetworkInterface(interfaceName);
+  if (!selected || selected.source === "docker_host") {
+    return [];
+  }
+
+  const expectedFamily = family === 4 ? "ipv4" : "ipv6";
+  return selected.addresses
+    .filter(
+      (item) =>
+        item.family === expectedFamily && isIP(item.address) === family,
+    )
+    .map((item) => item.address);
+}
+
+function buildNodeRequestAttempts(
+  options: {
+    networkInterface?: string;
+    preferredFamily?: DDNSAddressFamily;
+  },
+): NodeRequestAttempt[] {
+  const preferredFamily = normalizeRequestFamily(options.preferredFamily);
+  const normalizedInterface = normalizeNetworkInterface(
+    options.networkInterface,
+  );
+
+  if (!normalizedInterface || isDockerHostInterfaceName(normalizedInterface)) {
+    return preferredFamily ? [{ family: preferredFamily }] : [{}];
+  }
+
+  if (preferredFamily) {
+    const [localAddress] = getNodeInterfaceAddresses(
+      normalizedInterface,
+      preferredFamily,
+    );
+    if (!localAddress) {
+      throw new Error(
+        ddnsT("nodeTransportInterfaceAddressUnavailable", {
+          name: normalizedInterface,
+          family: getFamilyLabel(preferredFamily),
+        }),
+      );
+    }
+
+    return [{ family: preferredFamily, localAddress }];
+  }
+
+  const attempts: NodeRequestAttempt[] = [];
+  const [ipv4LocalAddress] = getNodeInterfaceAddresses(normalizedInterface, 4);
+  const [ipv6LocalAddress] = getNodeInterfaceAddresses(normalizedInterface, 6);
+  if (ipv4LocalAddress) {
+    attempts.push({ family: 4, localAddress: ipv4LocalAddress });
+  }
+  if (ipv6LocalAddress) {
+    attempts.push({ family: 6, localAddress: ipv6LocalAddress });
+  }
+
+  if (attempts.length === 0) {
+    throw new Error(
+      ddnsT("nodeTransportInterfaceNoAddress", {
+        name: normalizedInterface,
+      }),
+    );
+  }
+
+  return attempts;
+}
+
+function toNodeRequestHeaders(headers: Headers): Record<string, string> {
+  const result: Record<string, string> = {};
+  headers.forEach((value, key) => {
+    result[key] = value;
+  });
+  return result;
+}
+
+function toFetchHeaders(headers: Record<string, string | string[] | undefined>) {
+  const result = new Headers();
+  for (const [key, value] of Object.entries(headers)) {
+    if (typeof value === "string") {
+      result.append(key, value);
+      continue;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        result.append(key, item);
+      }
+    }
+  }
+  return result;
+}
+
+function isRedirectStatus(status: number): boolean {
+  return (
+    status === 301 ||
+    status === 302 ||
+    status === 303 ||
+    status === 307 ||
+    status === 308
+  );
+}
+
+function shouldDropRedirectBody(status: number, method: string): boolean {
+  return status === 303 && method !== "GET" && method !== "HEAD";
+}
+
+async function executeNodeRequest(
+  url: URL,
+  method: string,
+  headers: Headers,
+  body: Buffer | null,
+  signal: AbortSignal | null | undefined,
+  attempt: NodeRequestAttempt,
+): Promise<Response> {
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error(
+      ddnsT("nodeTransportUnsupportedProtocol", { protocol: url.protocol }),
+    );
+  }
+
+  const transport = url.protocol === "https:" ? httpsRequest : httpRequest;
+  return new Promise<Response>((resolve, reject) => {
+    const req = transport(
+      {
+        protocol: url.protocol,
+        hostname: url.hostname,
+        port: url.port || undefined,
+        path: `${url.pathname}${url.search}`,
+        method,
+        headers: toNodeRequestHeaders(headers),
+        family: attempt.family,
+        localAddress: attempt.localAddress,
+        agent: false,
+        signal: signal ?? undefined,
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk) => {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        });
+        res.on("error", reject);
+        res.on("end", () => {
+          resolve(
+            new Response(Buffer.concat(chunks), {
+              status: res.statusCode || 502,
+              statusText: res.statusMessage || "",
+              headers: toFetchHeaders(res.headers),
+            }),
+          );
+        });
+      },
+    );
+
+    req.on("error", (error) => {
+      reject(error);
+    });
+
+    if (body) {
+      req.end(body);
+      return;
+    }
+
+    req.end();
+  });
+}
+
+async function fetchViaNodeWithBody(
+  url: URL,
+  method: string,
+  headers: Headers,
+  body: Buffer | null,
+  signal: AbortSignal | null | undefined,
+  options: {
+    networkInterface?: string;
+    preferredFamily?: DDNSAddressFamily;
+  },
+  redirectCount: number,
+): Promise<Response> {
+  if (signal?.aborted) {
+    throw createAbortError(signal);
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error(
+      ddnsT("nodeTransportUnsupportedProtocol", { protocol: url.protocol }),
+    );
+  }
+
+  const attempts = buildNodeRequestAttempts(options);
+  let lastError: unknown = null;
+  for (const attempt of attempts) {
+    let response: Response;
+    try {
+      response = await executeNodeRequest(
+        url,
+        method,
+        headers,
+        body,
+        signal,
+        attempt,
+      );
+    } catch (error) {
+      if (signal?.aborted) {
+        throw createAbortError(signal);
+      }
+      lastError = error;
+      continue;
+    }
+
+    if (!isRedirectStatus(response.status)) {
+      return response;
+    }
+
+    const location = response.headers.get("location");
+    if (!location) {
+      return response;
+    }
+    if (redirectCount >= NODE_FETCH_MAX_REDIRECTS) {
+      throw new Error(
+        ddnsT("nodeTransportRedirectLimitExceeded", {
+          max: NODE_FETCH_MAX_REDIRECTS,
+        }),
+      );
+    }
+
+    const nextUrl = new URL(location, url);
+    const nextHeaders = new Headers(headers);
+    const dropBody = shouldDropRedirectBody(response.status, method);
+    if (dropBody) {
+      nextHeaders.delete("content-length");
+      nextHeaders.delete("content-type");
+    }
+
+    return fetchViaNodeWithBody(
+      nextUrl,
+      dropBody ? "GET" : method,
+      nextHeaders,
+      dropBody ? null : body,
+      signal,
+      options,
+      redirectCount + 1,
+    );
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
+async function fetchViaNode(
+  request: Request,
+  options: {
+    networkInterface?: string;
+    preferredFamily?: DDNSAddressFamily;
+  },
+): Promise<Response> {
+  const body = await readRequestBody(request.clone());
+  return fetchViaNodeWithBody(
+    new URL(request.url),
+    request.method,
+    new Headers(request.headers),
+    body,
+    request.signal,
+    options,
+    0,
+  );
+}
+
 async function executeCurl(
   args: string[],
   body: Buffer | null,
@@ -607,12 +896,24 @@ export async function ddnsFetch(
   input: RequestInfo | URL,
   init: DDNSFetchInit = {},
 ): Promise<Response> {
-  const { networkInterface, preferredFamily, ...requestInit } = init;
+  const {
+    networkInterface,
+    preferredFamily,
+    transport = "curl",
+    ...requestInit
+  } = init;
   const normalizedInterface = normalizeNetworkInterface(networkInterface);
   const request = new Request(input, requestInit);
 
   if (normalizedInterface) {
     ensureNetworkInterfaceExists(normalizedInterface);
+  }
+
+  if (transport === "node") {
+    return fetchViaNode(request, {
+      networkInterface: normalizedInterface,
+      preferredFamily,
+    });
   }
 
   return fetchViaCurl(request, {
@@ -624,6 +925,7 @@ export async function ddnsFetch(
 export function createDDNSHttpClient(
   options: {
     networkInterface?: string | null;
+    transport?: DDNSHttpTransport;
   } = {},
 ): DDNSHttpClient {
   return {
@@ -631,6 +933,7 @@ export function createDDNSHttpClient(
       return ddnsFetch(input, {
         ...init,
         networkInterface: options.networkInterface,
+        transport: options.transport,
       });
     },
   };

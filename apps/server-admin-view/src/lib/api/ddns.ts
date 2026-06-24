@@ -8,6 +8,7 @@ export type DDNSLogEntry = {
 
 export type DDNSIpSource = "public" | "interface" | "static" | "domain";
 export type DDNSUpdateScope = "dual_stack" | "ipv6_only" | "ipv4_only";
+export type DDNSHttpTransport = "curl" | "node";
 
 export type DDNSPublicCheckFamily = "ipv4" | "ipv6";
 
@@ -32,6 +33,7 @@ export type DDNSStatusPayload = {
   updateIntervalMinutes: number;
   publicCheckSources: DDNSPublicCheckSourcesPayload;
   defaultPublicCheckSources: DDNSPublicCheckSourcesPayload;
+  httpTransport: DDNSHttpTransport;
   updateScope: DDNSUpdateScope;
   ipSource: DDNSIpSource;
   networkInterface: string;
@@ -55,10 +57,14 @@ export type DDNSSettingsPayload = {
   updateIntervalMinutes: number;
   publicCheckSources: DDNSPublicCheckSourcesPayload;
   defaultPublicCheckSources: DDNSPublicCheckSourcesPayload;
+  httpTransport: DDNSHttpTransport;
 };
 
 export type DDNSSettingsUpdatePayload = Partial<
-  Pick<DDNSSettingsPayload, "updateIntervalMinutes" | "publicCheckSources">
+  Pick<
+    DDNSSettingsPayload,
+    "updateIntervalMinutes" | "publicCheckSources" | "httpTransport"
+  >
 >;
 
 export type DDNSTargetSummaryPayload = {
@@ -148,9 +154,14 @@ export const DDNSAPI = {
   },
   async testPublicCheckSources(
     publicCheckSources: DDNSPublicCheckSourcesPayload,
+    options: {
+      httpTransport?: DDNSHttpTransport;
+      networkInterface?: string;
+    } = {},
   ): Promise<{ results: DDNSPublicCheckTestResultPayload[] }> {
     const res = await apiClient.post("/ddns/public-check/test", {
       publicCheckSources,
+      ...options,
     });
     return res.data.data;
   },

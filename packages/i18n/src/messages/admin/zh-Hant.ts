@@ -2974,10 +2974,17 @@ export const zhHantAdmin = {
     credentialTransferDescription:
       "發現 {scope} 中已有 {bridge} 憑據，可補齊 {count} 個字段。",
     updateIntervalLabel: "每 {minutes} 分鐘自動同步",
-    publicCheckSettings: "公網探測地址",
-    publicCheckDialogTitle: "公網探測地址",
+    publicCheckSettings: "公網探測設定",
+    publicCheckDialogTitle: "公網探測設定",
     publicCheckDialogDescription:
-      "配置 DDNS 從公網探測目前 IPv4/IPv6 時使用的地址。",
+      "配置 DDNS 從公網探測目前 IPv4/IPv6 時使用的地址和請求實作。",
+    httpTransportLabel: "請求實作",
+    httpTransportHint:
+      "curl 會沿用系統 curl；Node 內建 HTTP 會使用 Node 底層網路請求，並在選擇出站網卡時綁定該網卡的本機地址。",
+    httpTransport: {
+      curl: "curl（預設）",
+      node: "Node 內建 HTTP",
+    },
     publicCheckIpv4Title: "IPv4 探測地址",
     publicCheckIpv6Title: "IPv6 探測地址",
     publicCheckSourcePlaceholder: "example.com 或 https://example.com/ip",

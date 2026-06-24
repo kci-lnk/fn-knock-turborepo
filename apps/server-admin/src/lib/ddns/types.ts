@@ -1,5 +1,6 @@
 export type DDNSUpdateScope = "dual_stack" | "ipv6_only" | "ipv4_only";
 export type DDNSIpSource = "public" | "interface" | "static" | "domain";
+export type DDNSHttpTransport = "curl" | "node";
 export type DDNSProviderAddressMode = "dual_stack" | "single_address";
 
 export type DDNSProviderCapabilities = {
@@ -67,6 +68,7 @@ export type DDNSPublicCheckTestResult = {
 export type DDNSStoredSettings = {
   updateIntervalMinutes: number;
   publicCheckSources: DDNSPublicCheckSources;
+  httpTransport: DDNSHttpTransport;
 };
 
 export type DDNSSettings = DDNSStoredSettings & {
@@ -101,6 +103,7 @@ export type DDNSStatus = {
   updateIntervalMinutes: number;
   publicCheckSources: DDNSPublicCheckSources;
   defaultPublicCheckSources: DDNSPublicCheckSources;
+  httpTransport: DDNSHttpTransport;
   updateScope: DDNSUpdateScope;
   ipSource: DDNSIpSource;
   networkInterface: string;

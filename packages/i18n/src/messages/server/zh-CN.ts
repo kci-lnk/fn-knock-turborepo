@@ -1129,6 +1129,13 @@ export const zhCNServer = {
     curlNoHeaders: "curl 未返回任何响应头",
     requestCanceled: "请求已取消",
     curlRequestFailed: "curl 请求失败: {detail}",
+    nodeTransportInterfaceAddressUnavailable:
+      "Node HTTP 请求无法绑定网卡 {name}：没有可用的 {family} 本地地址",
+    nodeTransportInterfaceNoAddress:
+      "Node HTTP 请求无法绑定网卡 {name}：没有可用的本地地址",
+    nodeTransportUnsupportedProtocol: "Node HTTP 请求不支持协议: {protocol}",
+    nodeTransportRedirectLimitExceeded:
+      "Node HTTP 请求重定向次数超过上限 {max}",
     triggerCron: "定时检查",
     triggerEnable: "启用自动更新后立即检查",
     triggerStartup: "程序启动后检查",

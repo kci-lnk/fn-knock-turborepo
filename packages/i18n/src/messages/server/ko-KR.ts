@@ -1302,6 +1302,14 @@ export const koKRServer = {
     curlNoHeaders: "컬이 응답 헤더를 반환하지 않았습니다.",
     requestCanceled: "요청이 취소되었습니다.",
     curlRequestFailed: "컬 요청 실패: {detail}",
+    nodeTransportInterfaceAddressUnavailable:
+      "Node HTTP 요청을 인터페이스 {name}에 바인딩할 수 없습니다: 사용 가능한 {family} 로컬 주소가 없습니다.",
+    nodeTransportInterfaceNoAddress:
+      "Node HTTP 요청을 인터페이스 {name}에 바인딩할 수 없습니다: 사용 가능한 로컬 주소가 없습니다.",
+    nodeTransportUnsupportedProtocol:
+      "Node HTTP 요청은 이 프로토콜을 지원하지 않습니다: {protocol}",
+    nodeTransportRedirectLimitExceeded:
+      "Node HTTP 요청 리디렉션 횟수가 한도 {max}회를 초과했습니다.",
     triggerCron: "예정된 점검",
     triggerEnable: "자동 업데이트 활성화 후 즉시 확인",
     triggerStartup: "시작 후 확인",

@@ -7,6 +7,7 @@ import {
 } from "../../lib/ddns/public-check-sources";
 import { ddnsTranslate } from "../../lib/ddns/providers/helpers";
 import type {
+  DDNSHttpTransport,
   DDNSPublicCheckFamily,
   DDNSPublicCheckSources,
   DDNSPublicCheckTestResult,
@@ -54,7 +55,10 @@ export class IPDetector {
   private static async testSingleSource(
     url: string,
     family: DDNSPublicCheckFamily,
-    options: { networkInterface?: string | null } = {},
+    options: {
+      networkInterface?: string | null;
+      httpTransport?: DDNSHttpTransport;
+    } = {},
   ): Promise<DDNSPublicCheckTestResult> {
     const preferredFamily = this.getFamilyVersion(family);
 
@@ -62,6 +66,7 @@ export class IPDetector {
       const res = await ddnsFetch(url, {
         networkInterface: options.networkInterface,
         preferredFamily,
+        transport: options.httpTransport,
         signal: AbortSignal.timeout(IP_DETECTION_TIMEOUT_MS),
         headers: { Accept: "application/json, text/plain" },
       });
@@ -124,6 +129,7 @@ export class IPDetector {
     options: {
       family: DDNSPublicCheckFamily;
       networkInterface?: string | null;
+      httpTransport?: DDNSHttpTransport;
     },
   ): Promise<string> {
     if (sources.length === 0) {
@@ -138,6 +144,7 @@ export class IPDetector {
     const fetchTasks = sources.map(async (url) => {
       const result = await this.testSingleSource(url, options.family, {
         networkInterface: options.networkInterface,
+        httpTransport: options.httpTransport,
       });
       if (result.success && result.ip) {
         return result.ip;
@@ -158,6 +165,7 @@ export class IPDetector {
     options: {
       family: DDNSPublicCheckFamily;
       networkInterface?: string | null;
+      httpTransport?: DDNSHttpTransport;
     },
   ): Promise<{ ip: string | null; error: string | null }> {
     try {
@@ -174,6 +182,7 @@ export class IPDetector {
     enableIPv4?: boolean;
     enableIPv6?: boolean;
     publicCheckSources?: DDNSPublicCheckSources;
+    httpTransport?: DDNSHttpTransport;
   } = {}) {
     const enableIPv4 = options.enableIPv4 !== false;
     const enableIPv6 = options.enableIPv6 !== false;
@@ -208,6 +217,7 @@ export class IPDetector {
     sources: DDNSPublicCheckSources,
     options: {
       networkInterface?: string | null;
+      httpTransport?: DDNSHttpTransport;
     } = {},
   ): Promise<DDNSPublicCheckTestResult[]> {
     const normalized = normalizeDDNSPublicCheckSources(sources, {

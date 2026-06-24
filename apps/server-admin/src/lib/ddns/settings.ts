@@ -1,4 +1,8 @@
-import type { DDNSSettings, DDNSStoredSettings } from "./types";
+import type {
+  DDNSHttpTransport,
+  DDNSSettings,
+  DDNSStoredSettings,
+} from "./types";
 import {
   buildDefaultDDNSPublicCheckSources,
   normalizeDDNSPublicCheckSources,
@@ -11,10 +15,22 @@ import {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
 
+export const DEFAULT_DDNS_HTTP_TRANSPORT: DDNSHttpTransport = "curl";
+
+export function normalizeDDNSHttpTransport(
+  value: unknown,
+): DDNSHttpTransport {
+  if (value === "node" || value === "fetch") {
+    return "node";
+  }
+  return DEFAULT_DDNS_HTTP_TRANSPORT;
+}
+
 function buildDefaultStoredSettings(): DDNSStoredSettings {
   return {
     updateIntervalMinutes: getDefaultUpdateIntervalMinutes(),
     publicCheckSources: buildDefaultDDNSPublicCheckSources(),
+    httpTransport: DEFAULT_DDNS_HTTP_TRANSPORT,
   };
 }
 
@@ -48,6 +64,7 @@ export function normalizeStoredDDNSSettings(value: unknown): DDNSSettings {
       value.updateIntervalMinutes,
     ),
     publicCheckSources,
+    httpTransport: normalizeDDNSHttpTransport(value.httpTransport),
   });
 }
 

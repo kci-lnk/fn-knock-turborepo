@@ -1130,6 +1130,13 @@ export const zhHantServer = {
     curlNoHeaders: "curl 未返回任何響應頭",
     requestCanceled: "請求已取消",
     curlRequestFailed: "curl 請求失敗: {detail}",
+    nodeTransportInterfaceAddressUnavailable:
+      "Node HTTP 請求無法綁定網卡 {name}：沒有可用的 {family} 本機地址",
+    nodeTransportInterfaceNoAddress:
+      "Node HTTP 請求無法綁定網卡 {name}：沒有可用的本機地址",
+    nodeTransportUnsupportedProtocol: "Node HTTP 請求不支援協議: {protocol}",
+    nodeTransportRedirectLimitExceeded:
+      "Node HTTP 請求重定向次數超過上限 {max}",
     triggerCron: "定時檢查",
     triggerEnable: "啟用自動更新後立即檢查",
     triggerStartup: "程式啟動後檢查",

@@ -1292,6 +1292,14 @@ export const enServer = {
     curlNoHeaders: "curl did not return any response headers",
     requestCanceled: "Request was canceled",
     curlRequestFailed: "curl request failed: {detail}",
+    nodeTransportInterfaceAddressUnavailable:
+      "Node HTTP request cannot bind interface {name}: no usable {family} local address",
+    nodeTransportInterfaceNoAddress:
+      "Node HTTP request cannot bind interface {name}: no usable local address",
+    nodeTransportUnsupportedProtocol:
+      "Node HTTP request does not support protocol: {protocol}",
+    nodeTransportRedirectLimitExceeded:
+      "Node HTTP request exceeded the redirect limit of {max}",
     triggerCron: "Scheduled check",
     triggerEnable: "Immediate check after enabling automatic updates",
     triggerStartup: "Startup check",

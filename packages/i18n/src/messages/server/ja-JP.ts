@@ -1360,6 +1360,14 @@ export const jaJPServer = {
     curlNoHeaders: "curl は応答ヘッダーを返しませんでした",
     requestCanceled: "リクエストがキャンセルされました",
     curlRequestFailed: "curl リクエストが失敗しました: {detail}",
+    nodeTransportInterfaceAddressUnavailable:
+      "Node HTTP リクエストはインターフェイス {name} にバインドできません: 使用可能な {family} ローカルアドレスがありません",
+    nodeTransportInterfaceNoAddress:
+      "Node HTTP リクエストはインターフェイス {name} にバインドできません: 使用可能なローカルアドレスがありません",
+    nodeTransportUnsupportedProtocol:
+      "Node HTTP リクエストはこのプロトコルをサポートしていません: {protocol}",
+    nodeTransportRedirectLimitExceeded:
+      "Node HTTP リクエストのリダイレクト回数が上限 {max} を超えました",
     triggerCron: "定期点検",
     triggerEnable: "自動アップデートを有効にした後、今すぐ確認してください",
     triggerStartup: "起動後チェック",

@@ -3189,10 +3189,17 @@ export const enAdmin = {
     credentialTransferDescription:
       "{bridge} credentials were found in {scope}. {count} fields can be filled.",
     updateIntervalLabel: "Sync every {minutes} minutes",
-    publicCheckSettings: "Public detection sources",
-    publicCheckDialogTitle: "Public detection sources",
+    publicCheckSettings: "Public detection settings",
+    publicCheckDialogTitle: "Public detection settings",
     publicCheckDialogDescription:
-      "Configure the sources DDNS uses to detect the current public IPv4/IPv6 address.",
+      "Configure the sources and request implementation DDNS uses to detect the current public IPv4/IPv6 address.",
+    httpTransportLabel: "Request implementation",
+    httpTransportHint:
+      "curl uses the system curl binary. Node built-in HTTP uses Node's low-level network request and binds the selected outbound interface by local address.",
+    httpTransport: {
+      curl: "curl (default)",
+      node: "Node built-in HTTP",
+    },
     publicCheckIpv4Title: "IPv4 detection sources",
     publicCheckIpv6Title: "IPv6 detection sources",
     publicCheckSourcePlaceholder: "example.com or https://example.com/ip",

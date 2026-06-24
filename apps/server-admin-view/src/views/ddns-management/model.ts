@@ -1,12 +1,13 @@
 import type {
   DDNSIpSource,
+  DDNSHttpTransport,
   DDNSNetworkInterfacePayload,
   DDNSPublicCheckSourcesPayload,
   DDNSTargetSummaryPayload,
   DDNSUpdateScope,
 } from "@/lib/api";
 
-export type { DDNSIpSource, DDNSUpdateScope } from "@/lib/api";
+export type { DDNSHttpTransport, DDNSIpSource, DDNSUpdateScope } from "@/lib/api";
 
 export interface ProviderField {
   key: string;
@@ -65,6 +66,7 @@ export const SOURCE_DOMAIN_KEY = "source_domain";
 export const NETWORK_INTERFACE_AUTO_VALUE = "__auto__";
 export const DEFAULT_DDNS_UPDATE_SCOPE: DDNSUpdateScope = "dual_stack";
 export const DEFAULT_DDNS_IP_SOURCE: DDNSIpSource = "public";
+export const DEFAULT_DDNS_HTTP_TRANSPORT: DDNSHttpTransport = "curl";
 export const DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES = 10;
 export const EMPTY_DDNS_PUBLIC_CHECK_SOURCES: DDNSPublicCheckSourcesPayload = {
   ipv4: [],
@@ -92,6 +94,14 @@ export const IP_SOURCE_OPTIONS: Array<{
   { labelKey: "admin.ddns.ipSource.domain", value: "domain" },
 ];
 
+export const HTTP_TRANSPORT_OPTIONS: Array<{
+  labelKey: string;
+  value: DDNSHttpTransport;
+}> = [
+  { labelKey: "admin.ddns.httpTransport.curl", value: "curl" },
+  { labelKey: "admin.ddns.httpTransport.node", value: "node" },
+];
+
 export const normalizeUpdateScope = (
   value: string | null | undefined,
 ): DDNSUpdateScope => {
@@ -112,6 +122,15 @@ export const normalizeIpSource = (
     return value;
   }
   return DEFAULT_DDNS_IP_SOURCE;
+};
+
+export const normalizeDDNSHttpTransport = (
+  value: string | null | undefined,
+): DDNSHttpTransport => {
+  if (value === "node" || value === "fetch") {
+    return "node";
+  }
+  return DEFAULT_DDNS_HTTP_TRANSPORT;
 };
 
 export const normalizeNetworkInterface = (value: string | null | undefined) =>

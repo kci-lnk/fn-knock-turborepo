@@ -20,15 +20,28 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import type {
+  DDNSHttpTransport,
   DDNSPublicCheckFamily,
   DDNSPublicCheckSourcesPayload,
   DDNSPublicCheckTestResultPayload,
 } from "@/lib/api";
+import {
+  HTTP_TRANSPORT_OPTIONS,
+  normalizeDDNSHttpTransport,
+} from "./model";
 
 const props = defineProps<{
   draft: DDNSPublicCheckSourcesPayload;
+  httpTransportDraft: DDNSHttpTransport;
   isSaving: boolean;
   isTesting: boolean;
   open: boolean;
@@ -37,9 +50,10 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   "restore-defaults": [];
-  save: [value: DDNSPublicCheckSourcesPayload];
-  test: [value: DDNSPublicCheckSourcesPayload];
+  save: [value: DDNSPublicCheckSourcesPayload, transport: DDNSHttpTransport];
+  test: [value: DDNSPublicCheckSourcesPayload, transport: DDNSHttpTransport];
   "update:draft": [value: DDNSPublicCheckSourcesPayload];
+  "update:httpTransportDraft": [value: DDNSHttpTransport];
   "update:open": [value: boolean];
 }>();
 
@@ -89,6 +103,11 @@ const groupedResults = computed(() => ({
 
 const hasResults = computed(() => props.testResults.length > 0);
 const isBusy = computed(() => props.isSaving || props.isTesting);
+const transportDraft = computed({
+  get: () => props.httpTransportDraft,
+  set: (value: string) =>
+    emit("update:httpTransportDraft", normalizeDDNSHttpTransport(value)),
+});
 </script>
 
 <template>
@@ -102,6 +121,29 @@ const isBusy = computed(() => props.isSaving || props.isTesting);
       </DialogHeader>
 
       <div class="space-y-5 py-2">
+        <section class="space-y-2">
+          <Label for="ddns-http-transport" class="text-sm font-medium">
+            {{ t("admin.ddns.httpTransportLabel") }}
+          </Label>
+          <Select v-model="transportDraft" :disabled="isBusy">
+            <SelectTrigger id="ddns-http-transport" class="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem
+                v-for="option in HTTP_TRANSPORT_OPTIONS"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ t(option.labelKey) }}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          <p class="text-xs leading-5 text-muted-foreground">
+            {{ t("admin.ddns.httpTransportHint") }}
+          </p>
+        </section>
+
         <section
           v-for="family in families"
           :key="family.key"
@@ -138,7 +180,9 @@ const isBusy = computed(() => props.isSaving || props.isTesting);
                 @update:model-value="
                   updateSource(family.key, index, String($event))
                 "
-                @keydown.enter.prevent="emit('save', cloneSources(draft))"
+                @keydown.enter.prevent="
+                  emit('save', cloneSources(draft), transportDraft)
+                "
               />
               <Button
                 type="button"
@@ -278,7 +322,7 @@ const isBusy = computed(() => props.isSaving || props.isTesting);
             type="button"
             variant="outline"
             :disabled="isBusy"
-            @click="emit('test', cloneSources(draft))"
+            @click="emit('test', cloneSources(draft), transportDraft)"
           >
             <RefreshCw
               class="mr-1.5 h-4 w-4"
@@ -289,7 +333,7 @@ const isBusy = computed(() => props.isSaving || props.isTesting);
           <Button
             type="button"
             :disabled="isBusy"
-            @click="emit('save', cloneSources(draft))"
+            @click="emit('save', cloneSources(draft), transportDraft)"
           >
             <RefreshCw v-if="isSaving" class="mr-1.5 h-4 w-4 animate-spin" />
             {{ isSaving ? t("admin.ddns.saving") : t("common.save") }}

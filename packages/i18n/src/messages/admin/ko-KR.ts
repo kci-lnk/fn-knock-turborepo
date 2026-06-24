@@ -3169,10 +3169,17 @@ export const koKRAdmin = {
     credentialTransferDescription:
       "{bridge} 자격 증명이 {scope}에서 발견되었습니다. {count} 필드를 채울 수 있습니다.",
     updateIntervalLabel: "{minutes} 분마다 동기화",
-    publicCheckSettings: "공개 탐지 주소",
-    publicCheckDialogTitle: "공개 탐지 주소",
+    publicCheckSettings: "공개 탐지 설정",
+    publicCheckDialogTitle: "공개 탐지 설정",
     publicCheckDialogDescription:
-      "DDNS가 현재 공개 IPv4/IPv6를 탐지할 때 사용할 주소를 설정합니다.",
+      "DDNS가 현재 공개 IPv4/IPv6를 탐지할 때 사용할 주소와 요청 구현을 설정합니다.",
+    httpTransportLabel: "요청 구현",
+    httpTransportHint:
+      "curl은 시스템 curl을 사용합니다. Node 내장 HTTP는 Node의 저수준 네트워크 요청을 사용하며, 아웃바운드 인터페이스를 선택하면 해당 로컬 주소에 바인딩합니다.",
+    httpTransport: {
+      curl: "curl(기본값)",
+      node: "Node 내장 HTTP",
+    },
     publicCheckIpv4Title: "IPv4 탐지 주소",
     publicCheckIpv6Title: "IPv6 탐지 주소",
     publicCheckSourcePlaceholder: "example.com 또는 https://example.com/ip",

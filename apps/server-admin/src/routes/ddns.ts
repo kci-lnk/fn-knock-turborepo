@@ -118,6 +118,7 @@ const runTargetManualTest = async (
         staticIpv6: target.config[DDNS_STATIC_IPV6_FIELD],
         sourceDomain: target.config[DDNS_SOURCE_DOMAIN_FIELD],
         publicCheckSources: settings.publicCheckSources,
+        httpTransport: settings.httpTransport,
       });
 
       await ddnsManager.appendTargetLog(
@@ -296,6 +297,7 @@ export const ddnsRoutes = new Elysia({
           ddnsManager.updateSettings({
             updateIntervalMinutes: body.updateIntervalMinutes,
             publicCheckSources: body.publicCheckSources,
+            httpTransport: body.httpTransport,
           }),
         );
         await ddnsIntervalScheduler.reload();
@@ -317,6 +319,7 @@ export const ddnsRoutes = new Elysia({
             ipv6: t.Array(t.String()),
           }),
         ),
+        httpTransport: t.Optional(t.Union([t.Literal("curl"), t.Literal("node")])),
       }),
     }),
   )
@@ -325,8 +328,12 @@ export const ddnsRoutes = new Elysia({
     async ({ body, set, request }) => {
       const { locale, t } = await getDDNSRouteTranslator(request);
       try {
+        const settings = await ddnsManager.getSettings();
         const results = await withDDNSLocale(locale, () =>
-          IPDetector.testPublicCheckSources(body.publicCheckSources),
+          IPDetector.testPublicCheckSources(body.publicCheckSources, {
+            httpTransport: body.httpTransport ?? settings.httpTransport,
+            networkInterface: body.networkInterface,
+          }),
         );
         return { success: true, data: { results } };
       } catch (error: any) {
@@ -343,6 +350,8 @@ export const ddnsRoutes = new Elysia({
           ipv4: t.Array(t.String()),
           ipv6: t.Array(t.String()),
         }),
+        httpTransport: t.Optional(t.Union([t.Literal("curl"), t.Literal("node")])),
+        networkInterface: t.Optional(t.String()),
       }),
     }),
   )

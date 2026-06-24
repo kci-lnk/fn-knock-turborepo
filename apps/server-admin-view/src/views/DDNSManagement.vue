@@ -20,6 +20,7 @@ import {
 import { useDnsCredentialTransfer } from "@/composables/useDnsCredentialTransfer";
 import { useTargetPolling } from "../composables/useTargetPolling";
 import type {
+  DDNSHttpTransport,
   DDNSNetworkInterfacePayload,
   DDNSPublicCheckSourcesPayload,
   DDNSPublicCheckTestResultPayload,
@@ -31,6 +32,7 @@ import { docsUrls } from "../lib/docs";
 import { buildDDNSTimestampTooltipLines } from "../lib/ddns-time";
 import {
   DEFAULT_DDNS_IP_SOURCE,
+  DEFAULT_DDNS_HTTP_TRANSPORT,
   DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES,
   DEFAULT_DDNS_UPDATE_SCOPE,
   INTERFACE_IPV4_INDEX_KEY,
@@ -45,6 +47,7 @@ import {
   UPDATE_SCOPE_KEY,
   findProviderDef,
   normalizeInterfaceAddressIndex,
+  normalizeDDNSHttpTransport,
   normalizeIpSource,
   normalizeNetworkInterface,
   normalizePublicCheckSources,
@@ -104,6 +107,10 @@ const defaultPublicCheckSources = ref<DDNSPublicCheckSourcesPayload>(
 );
 const publicCheckDraft = ref<DDNSPublicCheckSourcesPayload>(
   normalizePublicCheckSources(undefined),
+);
+const httpTransport = ref<DDNSHttpTransport>(DEFAULT_DDNS_HTTP_TRANSPORT);
+const httpTransportDraft = ref<DDNSHttpTransport>(
+  DEFAULT_DDNS_HTTP_TRANSPORT,
 );
 const publicCheckTestResults = ref<DDNSPublicCheckTestResultPayload[]>([]);
 const logs = ref<LogEntry[]>([]);
@@ -464,6 +471,7 @@ async function loadStatus() {
       status.publicCheckSources,
       defaultPublicCheckSources.value,
     );
+    httpTransport.value = normalizeDDNSHttpTransport(status.httpTransport);
     statusUpdateScope.value = normalizeUpdateScope(status.updateScope);
     statusIpSource.value = normalizeIpSource(status.ipSource);
     statusNetworkInterface.value = normalizeNetworkInterface(
@@ -554,6 +562,7 @@ const ddnsPolling = useTargetPolling({
       status.publicCheckSources,
       defaultPublicCheckSources.value,
     );
+    httpTransport.value = normalizeDDNSHttpTransport(status.httpTransport);
     statusUpdateScope.value = normalizeUpdateScope(status.updateScope);
     statusIpSource.value = normalizeIpSource(status.ipSource);
     statusNetworkInterface.value = normalizeNetworkInterface(
@@ -624,6 +633,7 @@ async function saveUpdateInterval() {
 
 function openPublicCheckDialog() {
   publicCheckDraft.value = normalizePublicCheckSources(publicCheckSources.value);
+  httpTransportDraft.value = httpTransport.value;
   publicCheckTestResults.value = [];
   showPublicCheckDialog.value = true;
 }
@@ -637,11 +647,13 @@ function restorePublicCheckDefaults() {
 
 async function savePublicCheckSources(
   nextSources: DDNSPublicCheckSourcesPayload,
+  nextHttpTransport: DDNSHttpTransport,
 ) {
   await runSavePublicCheckSources(
     () =>
       DDNSAPI.saveSettings({
         publicCheckSources: normalizePublicCheckSources(nextSources),
+        httpTransport: normalizeDDNSHttpTransport(nextHttpTransport),
       }),
     {
       onSuccess: (settings) => {
@@ -656,6 +668,10 @@ async function savePublicCheckSources(
           settings.publicCheckSources,
           defaultPublicCheckSources.value,
         );
+        httpTransport.value = normalizeDDNSHttpTransport(
+          settings.httpTransport,
+        );
+        httpTransportDraft.value = httpTransport.value;
         publicCheckTestResults.value = [];
         showPublicCheckDialog.value = false;
         toast.success(t("admin.ddns.publicCheckSaved"));
@@ -666,6 +682,7 @@ async function savePublicCheckSources(
 
 async function testPublicCheckSources(
   nextSources: DDNSPublicCheckSourcesPayload,
+  nextHttpTransport: DDNSHttpTransport,
 ) {
   const sources = normalizePublicCheckSources(
     nextSources,
@@ -678,7 +695,13 @@ async function testPublicCheckSources(
   }
 
   await runTestPublicCheckSources(
-    () => DDNSAPI.testPublicCheckSources(sources),
+    () =>
+      DDNSAPI.testPublicCheckSources(sources, {
+        httpTransport: normalizeDDNSHttpTransport(nextHttpTransport),
+        networkInterface: normalizeNetworkInterface(
+          providerConfig.value[NETWORK_INTERFACE_KEY],
+        ),
+      }),
     {
       onSuccess: (payload) => {
         publicCheckTestResults.value = payload.results || [];
@@ -1109,6 +1132,7 @@ onUnmounted(() => {
 
     <DDNSPublicCheckDialog
       v-model:draft="publicCheckDraft"
+      v-model:http-transport-draft="httpTransportDraft"
       :open="showPublicCheckDialog"
       :is-saving="isSavingPublicCheckSources"
       :is-testing="isTestingPublicCheckSources"

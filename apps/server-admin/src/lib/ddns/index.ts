@@ -6,6 +6,7 @@ import {
 } from "../redis-log-buffer";
 import type {
   DDNSIpSource,
+  DDNSHttpTransport,
   DDNSLastCheck,
   DDNSLastIP,
   DDNSLogEntry,
@@ -67,7 +68,10 @@ import {
   PRIMARY_DDNS_TARGET_ID,
 } from "./redis-store";
 import { normalizeDDNSPublicCheckSources } from "./public-check-sources";
-import { parseDDNSSettingsRaw } from "./settings";
+import {
+  normalizeDDNSHttpTransport,
+  parseDDNSSettingsRaw,
+} from "./settings";
 import {
   buildDDNSTargetDuplicateKey,
   buildDDNSTargetLogLabel,
@@ -121,6 +125,7 @@ export class DDNSManager {
   async updateSettings(input: {
     updateIntervalMinutes?: number;
     publicCheckSources?: DDNSPublicCheckSources;
+    httpTransport?: DDNSHttpTransport;
   }): Promise<DDNSSettings> {
     const current = await this.getSettings();
     const updateIntervalMinutes =
@@ -148,6 +153,10 @@ export class DDNSManager {
     const settingsToSave: DDNSStoredSettings = {
       updateIntervalMinutes,
       publicCheckSources,
+      httpTransport:
+        typeof input.httpTransport === "undefined"
+          ? current.httpTransport
+          : normalizeDDNSHttpTransport(input.httpTransport),
     };
     await this.store.saveSettings(settingsToSave);
     return this.getSettings();
@@ -736,6 +745,7 @@ export class DDNSManager {
       updateIntervalMinutes: settings.updateIntervalMinutes,
       publicCheckSources: settings.publicCheckSources,
       defaultPublicCheckSources: settings.defaultPublicCheckSources,
+      httpTransport: settings.httpTransport,
       updateScope: normalizeUpdateScope(
         primaryTarget.config[DDNS_UPDATE_SCOPE_FIELD],
       ),
@@ -849,10 +859,15 @@ export class DDNSManager {
     if (!primary.provider) {
       return;
     }
+    const settings = await this.getSettings();
 
     const result = await this.ensureProviderAuxiliaryStateWithContext(
       primary.provider,
       primary.config,
+      createDDNSHttpClient({
+        networkInterface: primary.config[DDNS_NETWORK_INTERFACE_FIELD],
+        transport: settings.httpTransport,
+      }),
     );
 
     if (options.emitLog && result.changed && result.message) {
@@ -882,10 +897,15 @@ export class DDNSManager {
     if (!target?.provider) {
       return;
     }
+    const settings = await this.getSettings();
 
     const result = await this.ensureProviderAuxiliaryStateWithContext(
       target.provider,
       target.config,
+      createDDNSHttpClient({
+        networkInterface: target.config[DDNS_NETWORK_INTERFACE_FIELD],
+        transport: settings.httpTransport,
+      }),
     );
 
     if (options.emitLog && result.changed && result.message) {
@@ -928,8 +948,10 @@ export class DDNSManager {
         };
       }
 
+      const settings = await this.getSettings();
       const http = createDDNSHttpClient({
         networkInterface: target.config[DDNS_NETWORK_INTERFACE_FIELD],
+        transport: settings.httpTransport,
       });
       const definition = this.getProviderDefinition(target.provider);
       const updateScope = normalizeUpdateScope(

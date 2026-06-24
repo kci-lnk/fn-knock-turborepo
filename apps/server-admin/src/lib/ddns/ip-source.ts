@@ -14,6 +14,7 @@ import {
 } from "./providers/helpers";
 import type {
   DDNSIpSource,
+  DDNSHttpTransport,
   DDNSPublicCheckSources,
   DDNSUpdateScope,
 } from "./types";
@@ -277,6 +278,7 @@ export async function resolveDDNSTargetIPs(options: {
   staticIpv6?: string | null;
   sourceDomain?: string | null;
   publicCheckSources?: DDNSPublicCheckSources;
+  httpTransport?: DDNSHttpTransport;
 }): Promise<DDNSResolvedTargetIPs> {
   const source = normalizeIpSource(options.ipSource);
   const detectionOptions = getUpdateScopeDetectionOptions(options.updateScope);
@@ -288,6 +290,7 @@ export async function resolveDDNSTargetIPs(options: {
     const ips = await IPDetector.getCurrentIPs({
       networkInterface: normalizedInterface,
       publicCheckSources: options.publicCheckSources,
+      httpTransport: options.httpTransport,
       ...detectionOptions,
     });
     const warnings: string[] = [];

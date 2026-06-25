@@ -849,8 +849,6 @@ async function fetchViaCurl(
       "--silent",
       "--show-error",
       "--location",
-      "--proxy",
-      "",
       ...getPreferredFamilyArgs(options.preferredFamily),
       "--dump-header",
       headerPath,

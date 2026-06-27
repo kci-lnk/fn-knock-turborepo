@@ -13,6 +13,7 @@ import type {
   EventSystemConfig,
   FnosPortIconHijackConfig,
   FnosShareBypassConfig,
+  GatewayCrawlerBlockerConfig,
   GatewayHostResponseConfig,
   GatewayHostResponseRuntimeState,
   GatewayLoggingSettings,
@@ -108,6 +109,12 @@ export const DEFAULT_GATEWAY_PROXY_HEADERS_RUNTIME_STATE: GatewayProxyHeadersRun
 export const DEFAULT_GATEWAY_HOST_RESPONSE_CONFIG: GatewayHostResponseConfig = {
   disabled_hosts: [],
 };
+
+export const DEFAULT_GATEWAY_CRAWLER_BLOCKER_CONFIG: GatewayCrawlerBlockerConfig =
+  {
+    enabled: false,
+    updated_at: null,
+  };
 
 export const DEFAULT_GATEWAY_PORTAL_CONFIG: GatewayPortalConfig = {
   enabled: true,

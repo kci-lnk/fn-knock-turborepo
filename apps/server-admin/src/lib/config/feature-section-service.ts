@@ -18,6 +18,7 @@ import {
   normalizeDashboardDisplayConfig,
   normalizeFnosPortIconHijackConfig,
   normalizeFnosShareBypassConfig,
+  normalizeGatewayCrawlerBlockerConfig,
   normalizeGatewayHostResponseConfig,
   normalizeGatewayLoggingSettings,
   normalizeGatewayPortalConfig,
@@ -45,6 +46,7 @@ import type {
   DashboardDisplayConfig,
   FnosPortIconHijackConfig,
   FnosShareBypassConfig,
+  GatewayCrawlerBlockerConfig,
   GatewayHostResponseConfig,
   GatewayHostResponseRuntimeState,
   GatewayLoggingSettings,
@@ -148,6 +150,13 @@ export class ConfigFeatureSectionService {
     return this.sections.read(
       (config) => config.gateway_host_response,
       normalizeGatewayHostResponseConfig,
+    );
+  }
+
+  async getGatewayCrawlerBlockerConfig(): Promise<GatewayCrawlerBlockerConfig> {
+    return this.sections.read(
+      (config) => config.gateway_crawler_blocker,
+      normalizeGatewayCrawlerBlockerConfig,
     );
   }
 
@@ -347,6 +356,22 @@ export class ConfigFeatureSectionService {
       },
       nextValue,
       normalizeGatewayHostResponseConfig,
+    );
+  }
+
+  async updateGatewayCrawlerBlockerConfig(
+    patch: Partial<GatewayCrawlerBlockerConfig>,
+  ): Promise<GatewayCrawlerBlockerConfig> {
+    return this.sections.patch(
+      (config) => config.gateway_crawler_blocker,
+      (config, next) => {
+        config.gateway_crawler_blocker = next;
+      },
+      {
+        ...patch,
+        updated_at: new Date().toISOString(),
+      },
+      normalizeGatewayCrawlerBlockerConfig,
     );
   }
 

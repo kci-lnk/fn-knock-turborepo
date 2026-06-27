@@ -18,6 +18,7 @@ import {
   DEFAULT_EVENT_SYSTEM_CONFIG,
   DEFAULT_FNOS_PORT_ICON_HIJACK_CONFIG,
   DEFAULT_FNOS_SHARE_BYPASS_CONFIG,
+  DEFAULT_GATEWAY_CRAWLER_BLOCKER_CONFIG,
   DEFAULT_GATEWAY_HOST_RESPONSE_CONFIG,
   DEFAULT_GATEWAY_HOST_RESPONSE_RUNTIME_STATE,
   DEFAULT_GATEWAY_LOGGING_SETTINGS,
@@ -67,6 +68,7 @@ import type {
   EventSystemSimpleRuleConfig,
   FnosPortIconHijackConfig,
   FnosShareBypassConfig,
+  GatewayCrawlerBlockerConfig,
   GatewayHostResponseConfig,
   GatewayHostResponseRuntimeState,
   GatewayLoggingSettings,
@@ -165,6 +167,9 @@ export const DEFAULT_CONFIG: AppConfig = {
   gateway_host_response: {
     ...DEFAULT_GATEWAY_HOST_RESPONSE_CONFIG,
     disabled_hosts: [],
+  },
+  gateway_crawler_blocker: {
+    ...DEFAULT_GATEWAY_CRAWLER_BLOCKER_CONFIG,
   },
   gateway_portal: {
     ...DEFAULT_GATEWAY_PORTAL_CONFIG,
@@ -546,6 +551,18 @@ export const normalizeGatewayHostResponseRuntimeState = (
   return {
     enabled: raw.enabled === true,
     omit_targets: normalizeStringList(raw.omit_targets),
+    updated_at: updatedAt || null,
+  };
+};
+
+export const normalizeGatewayCrawlerBlockerConfig = (
+  value?: Partial<GatewayCrawlerBlockerConfig> | null,
+): GatewayCrawlerBlockerConfig => {
+  const raw = value ?? {};
+  const updatedAt = normalizeOptionalString(raw.updated_at);
+
+  return {
+    enabled: raw.enabled === true,
     updated_at: updatedAt || null,
   };
 };

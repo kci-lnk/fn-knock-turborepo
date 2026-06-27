@@ -31,6 +31,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import RefreshButton from "@/components/RefreshButton.vue";
+import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
 import { toast } from "@admin-shared/utils/toast";
 import { SystemAPI } from "../../lib/api";
 import type {
@@ -659,52 +660,84 @@ const saveSettings = async () => {
               </template>
             </template>
 
-            <section
-              :class="[
+            <FloatingActionDock
+              :active="isDirty"
+              :inline-class="[
                 'space-y-4 p-5',
                 showDnsmasqCard ? 'border-t border-border/60' : '',
               ]"
             >
-              <div
-                class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <p class="text-sm leading-6 text-muted-foreground">
-                  {{
-                    saveBlockedReason ||
-                    t("admin.smartConnectSettings.saveSyncHint")
-                  }}
-                </p>
-
-                <div class="flex gap-3 sm:ml-auto">
-                  <Button
-                    variant="outline"
-                    :disabled="isSaving"
-                    @click="cancelAndBack"
-                  >
-                    {{ t("common.cancel") }}
-                  </Button>
-                  <Button
-                    :disabled="
-                      !isDirty ||
-                      isSaving ||
-                      isStartingInstall ||
-                      Boolean(saveBlockedReason)
-                    "
-                    @click="saveSettings"
-                  >
-                    <span
-                      v-if="isSaving"
-                      class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
-                    ></span>
+              <template #inline>
+                <div
+                  class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <p class="text-sm leading-6 text-muted-foreground">
                     {{
-                      isSaving
-                        ? t("admin.smartConnectSettings.saving")
-                        : t("admin.smartConnectSettings.saveAndSync")
+                      saveBlockedReason ||
+                      t("admin.smartConnectSettings.saveSyncHint")
                     }}
-                  </Button>
+                  </p>
+
+                  <div class="flex gap-3 sm:ml-auto">
+                    <Button
+                      variant="outline"
+                      :disabled="isSaving"
+                      @click="cancelAndBack"
+                    >
+                      {{ t("common.cancel") }}
+                    </Button>
+                    <Button
+                      :disabled="
+                        !isDirty ||
+                        isSaving ||
+                        isStartingInstall ||
+                        Boolean(saveBlockedReason)
+                      "
+                      @click="saveSettings"
+                    >
+                      <span
+                        v-if="isSaving"
+                        class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+                      ></span>
+                      {{
+                        isSaving
+                          ? t("admin.smartConnectSettings.saving")
+                          : t("admin.smartConnectSettings.saveAndSync")
+                      }}
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </section>
+              </template>
+
+              <template #floating>
+                <Button
+                  variant="outline"
+                  :disabled="isSaving"
+                  @click="cancelAndBack"
+                >
+                  {{ t("common.cancel") }}
+                </Button>
+                <Button
+                  :disabled="
+                    !isDirty ||
+                    isSaving ||
+                    isStartingInstall ||
+                    Boolean(saveBlockedReason)
+                  "
+                  @click="saveSettings"
+                >
+                  <span
+                    v-if="isSaving"
+                    class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+                  ></span>
+                  {{
+                    isSaving
+                      ? t("admin.smartConnectSettings.saving")
+                      : t("admin.smartConnectSettings.saveAndSync")
+                  }}
+                </Button>
+              </template>
+            </FloatingActionDock>
           </div>
         </template>
       </CardContent>

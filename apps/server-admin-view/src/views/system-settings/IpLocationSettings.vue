@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
 import { toast } from "@admin-shared/utils/toast";
 import {
   extractErrorMessage,
@@ -560,33 +561,61 @@ onMounted(fetchSettings);
 
     <div v-else class="min-h-[220px] rounded-xl border bg-card" aria-hidden="true" />
 
-    <section class="rounded-xl border bg-card px-4 py-4 shadow-sm sm:px-6">
-      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-        <div class="flex gap-3">
-          <Button
-            variant="outline"
-            class="flex-1 sm:flex-none"
-            @click="resetForm"
-            :disabled="!isDirty || isSaving"
-          >
-            <RotateCcw class="size-4" />
-            {{ t("admin.ipLocationSettings.discard") }}
-          </Button>
-          <Button
-            class="flex-1 sm:flex-none"
-            :disabled="!isDirty || isSaving"
-            @click="saveSettings"
-          >
-            <LoaderCircle v-if="isSaving" class="size-4 animate-spin" />
-            <Save v-else class="size-4" />
-            {{
-              isSaving
-                ? t("admin.ipLocationSettings.saving")
-                : t("admin.ipLocationSettings.saveChanges")
-            }}
-          </Button>
+    <FloatingActionDock
+      :active="isDirty"
+      inline-class="rounded-xl border bg-card px-4 py-4 shadow-sm sm:px-6"
+    >
+      <template #inline>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+          <div class="flex gap-3">
+            <Button
+              variant="outline"
+              class="flex-1 sm:flex-none"
+              @click="resetForm"
+              :disabled="!isDirty || isSaving"
+            >
+              <RotateCcw class="size-4" />
+              {{ t("admin.ipLocationSettings.discard") }}
+            </Button>
+            <Button
+              class="flex-1 sm:flex-none"
+              :disabled="!isDirty || isSaving"
+              @click="saveSettings"
+            >
+              <LoaderCircle v-if="isSaving" class="size-4 animate-spin" />
+              <Save v-else class="size-4" />
+              {{
+                isSaving
+                  ? t("admin.ipLocationSettings.saving")
+                  : t("admin.ipLocationSettings.saveChanges")
+              }}
+            </Button>
+          </div>
         </div>
-      </div>
-    </section>
+      </template>
+
+      <template #floating>
+        <Button
+          variant="outline"
+          @click="resetForm"
+          :disabled="!isDirty || isSaving"
+        >
+          <RotateCcw class="size-4" />
+          {{ t("admin.ipLocationSettings.discard") }}
+        </Button>
+        <Button
+          :disabled="!isDirty || isSaving"
+          @click="saveSettings"
+        >
+          <LoaderCircle v-if="isSaving" class="size-4 animate-spin" />
+          <Save v-else class="size-4" />
+          {{
+            isSaving
+              ? t("admin.ipLocationSettings.saving")
+              : t("admin.ipLocationSettings.saveChanges")
+          }}
+        </Button>
+      </template>
+    </FloatingActionDock>
   </div>
 </template>

@@ -11,6 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import RefreshButton from "@/components/RefreshButton.vue";
+import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
@@ -371,18 +372,23 @@ onMounted(loadSettings);
             </div>
           </div>
 
-          <div class="flex items-center justify-end gap-3">
-            <Button
-              variant="outline"
-              :disabled="!isDirty || isSaving"
-              @click="resetForm"
-            >
-              {{ t("admin.terminalSettings.reset") }}
-            </Button>
-            <Button :disabled="!isDirty || isSaving" @click="saveSettings">
-              {{ t("admin.terminalSettings.saveSettings") }}
-            </Button>
-          </div>
+          <FloatingActionDock
+            :active="isDirty"
+            inline-class="flex items-center justify-end gap-3"
+          >
+            <template #inline>
+              <Button
+                variant="outline"
+                :disabled="!isDirty || isSaving"
+                @click="resetForm"
+              >
+                {{ t("admin.terminalSettings.reset") }}
+              </Button>
+              <Button :disabled="!isDirty || isSaving" @click="saveSettings">
+                {{ t("admin.terminalSettings.saveSettings") }}
+              </Button>
+            </template>
+          </FloatingActionDock>
         </template>
       </div>
     </CardContent>

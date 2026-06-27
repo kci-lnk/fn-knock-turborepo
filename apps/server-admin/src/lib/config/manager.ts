@@ -1,9 +1,5 @@
-import {
-  type AcmeCertificateAuthority,
-} from "../acme-certificate-authority";
-import {
-  type TerminalFeatureConfig,
-} from "../terminal-shared";
+import { type AcmeCertificateAuthority } from "../acme-certificate-authority";
+import { type TerminalFeatureConfig } from "../terminal-shared";
 import type { SSHSecurityConfig } from "../ssh-security/types";
 import {
   normalizeReverseProxySubmode,
@@ -77,6 +73,7 @@ import type {
   GatewayProxyHeadersRuntimeState,
   GatewayHostResponseConfig,
   GatewayHostResponseRuntimeState,
+  GatewayCrawlerBlockerConfig,
   GatewayPortalConfig,
   ReverseProxyTrustedIPRuntimeState,
   ProtocolMappingFeatureConfig,
@@ -733,6 +730,10 @@ export class ConfigManager {
     return this.featureSections.getGatewayHostResponseConfig();
   }
 
+  async getGatewayCrawlerBlockerConfig(): Promise<GatewayCrawlerBlockerConfig> {
+    return this.featureSections.getGatewayCrawlerBlockerConfig();
+  }
+
   async getGatewayPortalConfig(): Promise<GatewayPortalConfig> {
     return this.featureSections.getGatewayPortalConfig();
   }
@@ -839,6 +840,12 @@ export class ConfigManager {
     nextValue: GatewayHostResponseConfig,
   ): Promise<GatewayHostResponseConfig> {
     return this.featureSections.updateGatewayHostResponseConfig(nextValue);
+  }
+
+  async updateGatewayCrawlerBlockerConfig(
+    patch: Partial<GatewayCrawlerBlockerConfig>,
+  ): Promise<GatewayCrawlerBlockerConfig> {
+    return this.featureSections.updateGatewayCrawlerBlockerConfig(patch);
   }
 
   async updateGatewayPortalConfig(

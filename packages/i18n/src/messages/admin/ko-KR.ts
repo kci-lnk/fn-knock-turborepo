@@ -278,6 +278,9 @@ export const koKRAdmin = {
     throttleTitle: "게이트웨이 역방향 프록시 제한 활성화",
     throttleDescription:
       "빈도가 높은 프로브, 재시도 폭풍 및 비정상적인 요청 플러드를 중지하기 위해 클라이언트 IP별로 속도 제한 및 잠시 차단합니다.",
+    crawlerBlockerTitle: "크롤러 요청 차단",
+    crawlerBlockerDescription:
+      "NAS는 웹사이트가 아니므로 색인될 필요가 없습니다. 이러한 크롤러는 업스트림 대역폭을 사용할 수 있습니다.",
     requestsPerSecond: "초당 요청",
     requestsPerSecondDescription:
       "각 클라이언트 IP가 초당 전달할 수 있는 요청입니다. 이를 초과하면 버스트 토큰이 소모됩니다.",

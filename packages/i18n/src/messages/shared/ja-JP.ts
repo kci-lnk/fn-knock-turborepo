@@ -97,6 +97,7 @@ export const jaJPShared = {
   pagedTableFooter: {
     total: "合計 {total} {itemText}",
     records: "レコード",
+    pageSizeOption: "{count} アイテム",
   },
   dnsCredentialBridge: {
     providers: {

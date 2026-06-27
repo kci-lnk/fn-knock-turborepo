@@ -281,6 +281,9 @@ export const enAdmin = {
     throttleTitle: "Enable gateway reverse proxy throttling",
     throttleDescription:
       "Rate limit and briefly block by client IP to stop high-frequency probing, retry storms, and abnormal request floods.",
+    crawlerBlockerTitle: "Block crawler requests",
+    crawlerBlockerDescription:
+      "A NAS is not a website and does not need indexing. These crawlers can consume upstream bandwidth.",
     requestsPerSecond: "Requests per second",
     requestsPerSecondDescription:
       "Requests each client IP can pass per second. Exceeding this consumes burst tokens.",

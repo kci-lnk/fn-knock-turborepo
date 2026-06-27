@@ -21,6 +21,7 @@ import { generalBlacklistRoutes } from "./routes/general-blacklist";
 import { hmacMiddleware } from "./middleware/hmac";
 import { frpcRoutes, restoreFrpcOnBoot } from "./routes/frpc";
 import {
+  DEFAULT_GATEWAY_CRAWLER_BLOCKER_CONFIG,
   DEFAULT_FNOS_PORT_ICON_HIJACK_CONFIG,
   configManager,
   waitForRedis,
@@ -63,6 +64,7 @@ import {
   syncReverseProxyTrustedIPsNow,
 } from "./lib/reverse-proxy-trusted-ips";
 import { syncGatewayLoggingToGateway } from "./lib/gateway-logging";
+import { syncGatewayCrawlerBlockerToGateway } from "./lib/gateway-crawler-blocker";
 import {
   startWAFSystemRulesAutoUpdate,
   syncWAFToGatewayOnBoot,
@@ -1019,6 +1021,14 @@ goBackend
       error,
     );
   });
+syncGatewayCrawlerBlockerToGateway(
+  config.gateway_crawler_blocker ?? DEFAULT_GATEWAY_CRAWLER_BLOCKER_CONFIG,
+).catch((error) => {
+  console.error(
+    "[gateway-crawler-blocker] failed to sync config on boot:",
+    error,
+  );
+});
 syncWAFToGatewayOnBoot()
   .then(() => {
     startWAFSystemRulesAutoUpdate();

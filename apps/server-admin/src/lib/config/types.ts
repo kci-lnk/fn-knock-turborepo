@@ -273,6 +273,11 @@ export interface GatewayHostResponseRuntimeState {
   updated_at: string | null;
 }
 
+export interface GatewayCrawlerBlockerConfig {
+  enabled: boolean;
+  updated_at: string | null;
+}
+
 export type GatewayPortalDisplayStyle = "domain" | "title";
 
 export interface GatewayPortalConfig {
@@ -474,6 +479,7 @@ export interface AppConfig {
   gateway_visibility?: GatewayVisibilityConfig;
   gateway_proxy_headers?: GatewayProxyHeadersConfig;
   gateway_host_response?: GatewayHostResponseConfig;
+  gateway_crawler_blocker?: GatewayCrawlerBlockerConfig;
   gateway_portal?: GatewayPortalConfig;
   appearance?: AppearanceConfig;
   dashboard_display?: DashboardDisplayConfig;

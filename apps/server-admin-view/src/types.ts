@@ -586,6 +586,7 @@ export interface AppConfig {
   reverse_proxy_throttle?: ReverseProxyThrottleConfig;
   gateway_proxy_headers?: GatewayProxyHeadersConfig;
   gateway_host_response?: GatewayHostResponseConfig;
+  gateway_crawler_blocker?: GatewayCrawlerBlockerConfig;
   gateway_portal?: GatewayPortalConfig;
   appearance?: AppearanceConfig;
   protocol_mapping_feature?: ProtocolMappingFeatureConfig;
@@ -976,6 +977,11 @@ export type GatewayPortalConfig = {
   show_app_icon: boolean;
 };
 
+export type GatewayCrawlerBlockerConfig = {
+  enabled: boolean;
+  updated_at?: string | null;
+};
+
 export type GatewaySettings = {
   auth_cache_ttl_seconds: number;
   auth_cache_unauthorized_ttl_seconds: number;
@@ -983,6 +989,7 @@ export type GatewaySettings = {
   visibility: GatewayVisibilitySummary;
   proxy_headers: GatewayProxyHeadersSummary;
   host_response: GatewayHostResponseSummary;
+  crawler_blocker: GatewayCrawlerBlockerConfig;
   portal: GatewayPortalConfig;
 };
 

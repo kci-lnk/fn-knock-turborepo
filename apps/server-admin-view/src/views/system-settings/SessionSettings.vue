@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
 import { toast } from "@admin-shared/utils/toast";
 import {
   extractErrorMessage,
@@ -677,18 +678,38 @@ onMounted(fetchSettings);
 
     <CardContent v-else class="min-h-[200px]" aria-hidden="true" />
 
-    <div
-      class="flex items-center justify-between rounded-b-xl border-t bg-muted/20 p-6"
+    <FloatingActionDock
+      :active="isDirty"
+      inline-class="flex items-center justify-between rounded-b-xl border-t bg-muted/20 p-6"
     >
-      <div class="text-sm text-muted-foreground">
-        <span v-if="isDirty">
-          {{ t("admin.sessionSettings.unsavedChanges") }}
-        </span>
-        <span v-else>
-          {{ t("admin.sessionSettings.upToDate") }}
-        </span>
-      </div>
-      <div class="flex gap-3">
+      <template #inline>
+        <div class="text-sm text-muted-foreground">
+          <span v-if="isDirty">
+            {{ t("admin.sessionSettings.unsavedChanges") }}
+          </span>
+          <span v-else>
+            {{ t("admin.sessionSettings.upToDate") }}
+          </span>
+        </div>
+        <div class="flex gap-3">
+          <Button
+            variant="ghost"
+            @click="resetForm"
+            :disabled="!isDirty || isSaving"
+          >
+            {{ t("admin.sessionSettings.discard") }}
+          </Button>
+          <Button :disabled="!isDirty || isSaving" @click="saveSettings">
+            <span
+              v-if="isSaving"
+              class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+            ></span>
+            {{ t("admin.sessionSettings.saveChanges") }}
+          </Button>
+        </div>
+      </template>
+
+      <template #floating>
         <Button
           variant="ghost"
           @click="resetForm"
@@ -703,7 +724,7 @@ onMounted(fetchSettings);
           ></span>
           {{ t("admin.sessionSettings.saveChanges") }}
         </Button>
-      </div>
-    </div>
+      </template>
+    </FloatingActionDock>
   </Card>
 </template>

@@ -30,6 +30,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "@admin-shared/utils/toast";
+import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
 import { ConfigAPI, SystemAPI } from "../../lib/api";
 import {
   resolveExplicitPublicAccessEntryPort,
@@ -347,44 +348,73 @@ onMounted(() => {
               </div>
             </section>
 
-            <section class="space-y-4 border-t border-border/60 p-5">
-              <div
-                class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <p class="text-sm leading-6 text-muted-foreground">
-                  {{
-                    saveBlockedReason ||
-                    t("admin.gatewayProxyHeadersSettings.saveHint")
-                  }}
-                </p>
-
-                <div class="flex flex-wrap items-center justify-end gap-3">
-                  <Button
-                    variant="outline"
-                    :disabled="!isDirty || isSaving"
-                    @click="resetForm"
-                  >
-                    {{ t("admin.gatewayProxyHeadersSettings.reset") }}
-                  </Button>
-                  <Button
-                    :disabled="
-                      !isDirty || isSaving || Boolean(saveBlockedReason)
-                    "
-                    @click="saveSettings"
-                  >
-                    <span
-                      v-if="isSaving"
-                      class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
-                    ></span>
+            <FloatingActionDock
+              :active="isDirty"
+              inline-class="space-y-4 border-t border-border/60 p-5"
+            >
+              <template #inline>
+                <div
+                  class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <p class="text-sm leading-6 text-muted-foreground">
                     {{
-                      isSaving
-                        ? t("admin.gatewayProxyHeadersSettings.saving")
-                        : t("admin.gatewayProxyHeadersSettings.saveAndSync")
+                      saveBlockedReason ||
+                      t("admin.gatewayProxyHeadersSettings.saveHint")
                     }}
-                  </Button>
+                  </p>
+
+                  <div class="flex flex-wrap items-center justify-end gap-3">
+                    <Button
+                      variant="outline"
+                      :disabled="!isDirty || isSaving"
+                      @click="resetForm"
+                    >
+                      {{ t("admin.gatewayProxyHeadersSettings.reset") }}
+                    </Button>
+                    <Button
+                      :disabled="
+                        !isDirty || isSaving || Boolean(saveBlockedReason)
+                      "
+                      @click="saveSettings"
+                    >
+                      <span
+                        v-if="isSaving"
+                        class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+                      ></span>
+                      {{
+                        isSaving
+                          ? t("admin.gatewayProxyHeadersSettings.saving")
+                          : t("admin.gatewayProxyHeadersSettings.saveAndSync")
+                      }}
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </section>
+              </template>
+
+              <template #floating>
+                <Button
+                  variant="outline"
+                  :disabled="!isDirty || isSaving"
+                  @click="resetForm"
+                >
+                  {{ t("admin.gatewayProxyHeadersSettings.reset") }}
+                </Button>
+                <Button
+                  :disabled="!isDirty || isSaving || Boolean(saveBlockedReason)"
+                  @click="saveSettings"
+                >
+                  <span
+                    v-if="isSaving"
+                    class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+                  ></span>
+                  {{
+                    isSaving
+                      ? t("admin.gatewayProxyHeadersSettings.saving")
+                      : t("admin.gatewayProxyHeadersSettings.saveAndSync")
+                  }}
+                </Button>
+              </template>
+            </FloatingActionDock>
           </div>
         </template>
       </CardContent>

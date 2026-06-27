@@ -428,6 +428,28 @@ const hasSavedProviderConfig = computed(() => {
     (field) => savedProviderConfig.value[field.key]?.toString().trim() !== "",
   );
 });
+const normalizePrimaryProviderConfigForComparison = (
+  config: Record<string, string>,
+) => {
+  const normalized = normalizeTargetConfigValues(config);
+  return Object.keys(normalized)
+    .sort()
+    .reduce<Record<string, string>>((result, key) => {
+      result[key] = String(normalized[key] ?? "");
+      return result;
+    }, {});
+};
+const isPrimaryConfigDirty = computed(() => {
+  if (!selectedProvider.value) return false;
+  return (
+    JSON.stringify(
+      normalizePrimaryProviderConfigForComparison(providerConfig.value),
+    ) !==
+    JSON.stringify(
+      normalizePrimaryProviderConfigForComparison(savedProviderConfig.value),
+    )
+  );
+});
 const isEnabledSwitchDisabled = computed(
   () => isTogglingEnabled.value || isLoading.value,
 );
@@ -1040,6 +1062,7 @@ onUnmounted(() => {
       :interface-i-pv4-options="interfaceIPv4Options"
       :interface-i-pv6-options="interfaceIPv6Options"
       :is-clearing-primary-config="isClearingPrimaryConfig"
+      :is-dirty="isPrimaryConfigDirty"
       :is-field-edit-ready="isFieldEditReady"
       :is-ip-source-option-disabled="isProviderIpSourceOptionDisabled"
       :is-provider-select-disabled="isProviderSelectDisabled"

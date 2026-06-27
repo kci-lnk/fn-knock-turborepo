@@ -1,5 +1,6 @@
 import { Elysia, t } from "elysia";
 import {
+  DEFAULT_GATEWAY_CRAWLER_BLOCKER_CONFIG,
   DEFAULT_GATEWAY_HOST_RESPONSE_CONFIG,
   DEFAULT_GATEWAY_PORTAL_CONFIG,
   DEFAULT_GATEWAY_PROXY_HEADERS_CONFIG,
@@ -38,6 +39,7 @@ import {
   getGatewayVisibilityDetails,
   syncGatewayVisibilityToGateway,
 } from "../../lib/gateway-visibility";
+import { syncGatewayCrawlerBlockerToGateway } from "../../lib/gateway-crawler-blocker";
 import { syncReverseProxyTrustedIPsNow } from "../../lib/reverse-proxy-trusted-ips";
 import { isAnySubdomainRoutingMode } from "../../lib/reverse-proxy-submode";
 import { routeDoc, withRouteDoc } from "../../lib/openapi";
@@ -154,6 +156,7 @@ const buildGatewaySettingsResponse = (
     | "gateway_visibility"
     | "gateway_proxy_headers"
     | "gateway_host_response"
+    | "gateway_crawler_blocker"
     | "gateway_portal"
     | "host_mappings"
   >,
@@ -197,6 +200,8 @@ const buildGatewaySettingsResponse = (
     ).items,
     hostResponseRuntime,
   ),
+  crawler_blocker:
+    config.gateway_crawler_blocker ?? DEFAULT_GATEWAY_CRAWLER_BLOCKER_CONFIG,
   portal: config.gateway_portal ?? DEFAULT_GATEWAY_PORTAL_CONFIG,
 });
 
@@ -258,6 +263,12 @@ export const adminGatewaySettingsRoutes = new Elysia()
           await configManager.updateGatewayPortalConfig(body.portal);
         }
 
+        if (body.crawler_blocker) {
+          await configManager.updateGatewayCrawlerBlockerConfig(
+            body.crawler_blocker,
+          );
+        }
+
         const updatedConfig = await configManager.getConfig();
         const [
           visibilityRuntime,
@@ -265,6 +276,7 @@ export const adminGatewaySettingsRoutes = new Elysia()
           hostResponseRuntime,
           authConfigResult,
           reverseProxyThrottleResult,
+          crawlerBlockerResult,
         ] = await Promise.all([
           configManager.getGatewayVisibilityRuntimeState(),
           configManager.getGatewayProxyHeadersRuntimeState(),
@@ -273,6 +285,17 @@ export const adminGatewaySettingsRoutes = new Elysia()
           goBackend.setReverseProxyThrottle(
             updatedConfig.reverse_proxy_throttle ??
               DEFAULT_REVERSE_PROXY_THROTTLE_CONFIG,
+          ),
+          syncGatewayCrawlerBlockerToGateway(
+            updatedConfig.gateway_crawler_blocker ??
+              DEFAULT_GATEWAY_CRAWLER_BLOCKER_CONFIG,
+          ).then(
+            (data) => ({ success: true as const, data }),
+            (error) => ({
+              success: false as const,
+              message:
+                error?.message || adminT(t, "gateway.syncCrawlerBlockerFailed"),
+            }),
           ),
         ]);
 
@@ -287,6 +310,12 @@ export const adminGatewaySettingsRoutes = new Elysia()
           syncErrors.push(
             reverseProxyThrottleResult.message ||
               adminT(t, "gateway.syncThrottleFailed"),
+          );
+        }
+        if (!crawlerBlockerResult.success) {
+          syncErrors.push(
+            crawlerBlockerResult.message ||
+              adminT(t, "gateway.syncCrawlerBlockerFailed"),
           );
         }
         if (syncErrors.length > 0) {
@@ -365,6 +394,11 @@ export const adminGatewaySettingsRoutes = new Elysia()
               t.Union([t.Literal("domain"), t.Literal("title")]),
             ),
             show_app_icon: t.Optional(t.Boolean()),
+          }),
+        ),
+        crawler_blocker: t.Optional(
+          t.Object({
+            enabled: t.Optional(t.Boolean()),
           }),
         ),
       }),

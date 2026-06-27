@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { toast } from "@admin-shared/utils/toast";
+import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
 import {
   useAsyncAction,
   extractErrorMessage,
@@ -562,31 +563,38 @@ onMounted(() => {
               </section>
             </template>
 
-            <section class="space-y-4 p-5">
-              <div class="flex flex-wrap items-center justify-end gap-3">
-                <Button
-                  variant="outline"
-                  :disabled="!isDirty || isSaving"
-                  @click="resetForm"
-                >
-                  {{ t("admin.gatewayVisibilitySettings.reset") }}
-                </Button>
-                <Button
-                  :disabled="!isDirty || isSaving || Boolean(saveBlockedReason)"
-                  @click="saveSettings"
-                >
-                  <span
-                    v-if="isSaving"
-                    class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
-                  ></span>
-                  {{
-                    isSaving
-                      ? t("admin.gatewayVisibilitySettings.savingAndSyncing")
-                      : t("admin.gatewayVisibilitySettings.saveAndSync")
-                  }}
-                </Button>
-              </div>
-            </section>
+            <FloatingActionDock
+              :active="isDirty"
+              inline-class="space-y-4 p-5"
+            >
+              <template #inline>
+                <div class="flex flex-wrap items-center justify-end gap-3">
+                  <Button
+                    variant="outline"
+                    :disabled="!isDirty || isSaving"
+                    @click="resetForm"
+                  >
+                    {{ t("admin.gatewayVisibilitySettings.reset") }}
+                  </Button>
+                  <Button
+                    :disabled="
+                      !isDirty || isSaving || Boolean(saveBlockedReason)
+                    "
+                    @click="saveSettings"
+                  >
+                    <span
+                      v-if="isSaving"
+                      class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+                    ></span>
+                    {{
+                      isSaving
+                        ? t("admin.gatewayVisibilitySettings.savingAndSyncing")
+                        : t("admin.gatewayVisibilitySettings.saveAndSync")
+                    }}
+                  </Button>
+                </div>
+              </template>
+            </FloatingActionDock>
           </div>
         </template>
       </CardContent>

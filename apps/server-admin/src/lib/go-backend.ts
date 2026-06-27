@@ -1,6 +1,7 @@
 import type {
   AuthConfig,
   CommonLocationExemptionsRuntime,
+  CrawlerBlockerConfig,
   FnosPortIconHijackConfig,
   ForwardedHeadersConfig,
   GatewayLogDates,
@@ -275,6 +276,25 @@ export class GoBackendService {
 
     return this.request<PreserveHostConfig>(
       "/api/config/preserve-host",
+      "POST",
+      payload,
+    );
+  }
+
+  async getCrawlerBlockerConfig(): Promise<GoResponse<CrawlerBlockerConfig>> {
+    return this.request<CrawlerBlockerConfig>("/api/config/crawler-blocker");
+  }
+
+  async setCrawlerBlockerConfig(
+    config: CrawlerBlockerConfig,
+  ): Promise<GoResponse<CrawlerBlockerConfig>> {
+    const payload = {
+      enabled: config.enabled,
+      ...(config.updated_at ? { updated_at: config.updated_at } : {}),
+    };
+
+    return this.request<CrawlerBlockerConfig>(
+      "/api/config/crawler-blocker",
       "POST",
       payload,
     );

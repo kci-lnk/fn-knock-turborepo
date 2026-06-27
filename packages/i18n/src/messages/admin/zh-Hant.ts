@@ -257,6 +257,9 @@ export const zhHantAdmin = {
     throttleTitle: "啟用網關反代節流",
     throttleDescription:
       "按客戶端 IP 做限速與短時封禁，適合攔住高頻探測、錯誤重試風暴和異常刷請求。",
+    crawlerBlockerTitle: "攔截爬蟲請求",
+    crawlerBlockerDescription:
+      "NAS 不是網站，不需要被收錄，這些爬蟲會導致占用上行頻寬",
     requestsPerSecond: "每秒請求數",
     requestsPerSecondDescription:
       "每個客戶端 IP 每秒允許通過的請求數，超過後會消耗突發額度。",

@@ -217,6 +217,8 @@ export const koKRServer = {
         "인증 캐시 구성을 게이트웨이에 동기화하지 못했습니다.",
       syncThrottleFailed:
         "게이트웨이 제한 구성을 게이트웨이에 동기화하지 못했습니다.",
+      syncCrawlerBlockerFailed:
+        "크롤러 차단 구성을 게이트웨이에 동기화하지 못했습니다.",
       updateFailed: "게이트웨이 구성을 업데이트하지 못했습니다.",
       updateFailedRolledBack:
         "게이트웨이 구성을 업데이트하지 못했습니다. 구성이 롤백되었습니다.",
@@ -384,6 +386,9 @@ export const koKRServer = {
     emptyEnabledConfig:
       "가시성을 활성화한 후 하나 이상의 지역 또는 하나의 사용자 정의 CIDR을 추가하세요.",
     syncFailed: "게이트웨이 공개 상태 구성을 동기화하지 못했습니다.",
+  },
+  gatewayCrawlerBlocker: {
+    syncFailed: "크롤러 차단 구성을 동기화하지 못했습니다.",
   },
   scanner: {
     cidrExemptionsInvalid: "CIDR 면제 형식이 잘못되었습니다. {cidrs}",
@@ -964,6 +969,8 @@ export const koKRServer = {
       "게이트웨이 프록시 헤더 구성을 동기화하지 못했습니다.",
     syncGatewayHostResponseConfigFailed:
       "게이트웨이 호스트 응답 구성을 동기화하지 못했습니다.",
+    syncGatewayCrawlerBlockerConfigFailed:
+      "크롤러 차단 구성을 동기화하지 못했습니다.",
     enableProxyProtocolForceFailed:
       "강제 프록시 프로토콜 모드를 활성화하지 못했습니다.",
     disableProxyProtocolForceFailed:
@@ -1240,9 +1247,9 @@ export const koKRServer = {
     publicCheckSourceInvalidUrl: "잘못된 {family} 공개 탐지 주소: {source}",
     publicCheckSourceUnsupportedProtocol:
       "{family} 공개 탐지 주소는 HTTP/HTTPS만 지원합니다: {source}",
-    publicCheckSourceListEmpty: "{family} 공개 탐지 주소가 설정되지 않았습니다.",
-    publicCheckSourceRequestFailed:
-      "탐지 소스 {url} 요청 실패: HTTP {status}",
+    publicCheckSourceListEmpty:
+      "{family} 공개 탐지 주소가 설정되지 않았습니다.",
+    publicCheckSourceRequestFailed: "탐지 소스 {url} 요청 실패: HTTP {status}",
     publicCheckSourceInvalidPayload:
       "탐지 소스 {url}이(가) 유효한 {family} 주소를 반환하지 않았습니다.",
     publicCheckTestFailed: "공개 탐지 주소 테스트 실패",

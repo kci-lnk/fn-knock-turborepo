@@ -31,6 +31,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
+import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
 import {
   extractErrorMessage,
   useAsyncAction,
@@ -737,18 +738,23 @@ onMounted(async () => {
             </Table>
           </div>
 
-          <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button
-              variant="outline"
-              :disabled="!isDirty || isSaving"
-              @click="resetDraftFromSelected"
-            >
-              {{ t("admin.gatewayLocationsSettings.discardChanges") }}
-            </Button>
-            <Button :disabled="!canSave" @click="saveLocations">
-              {{ t("admin.gatewayLocationsSettings.saveLocations") }}
-            </Button>
-          </div>
+          <FloatingActionDock
+            :active="isDirty"
+            inline-class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"
+          >
+            <template #inline>
+              <Button
+                variant="outline"
+                :disabled="!isDirty || isSaving"
+                @click="resetDraftFromSelected"
+              >
+                {{ t("admin.gatewayLocationsSettings.discardChanges") }}
+              </Button>
+              <Button :disabled="!canSave" @click="saveLocations">
+                {{ t("admin.gatewayLocationsSettings.saveLocations") }}
+              </Button>
+            </template>
+          </FloatingActionDock>
         </template>
       </CardContent>
     </Card>

@@ -370,6 +370,7 @@ watch(
         :limit="limit"
         :items-per-page="parsedLimit"
         :total-text="t('admin.notifications.deliveries.totalText')"
+        :floating="props.active"
         @update:page="(value) => (currentPage = value)"
         @update:limit="(value) => (limit = value)"
       />

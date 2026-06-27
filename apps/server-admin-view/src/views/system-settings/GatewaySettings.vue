@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
+import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
 import { toast } from "@admin-shared/utils/toast";
 import { ConfigAPI } from "../../lib/api";
 import type { GatewaySettings } from "../../types";
@@ -34,6 +35,7 @@ type GatewaySettingsForm = Pick<
   | "auth_cache_ttl_seconds"
   | "auth_cache_unauthorized_ttl_seconds"
   | "portal"
+  | "crawler_blocker"
   | "reverse_proxy_throttle"
 >;
 const settings = ref<GatewaySettings | null>(null);
@@ -44,6 +46,10 @@ const form = reactive<GatewaySettingsForm>({
     enabled: true,
     display_style: "domain",
     show_app_icon: false,
+  },
+  crawler_blocker: {
+    enabled: false,
+    updated_at: null,
   },
   reverse_proxy_throttle: {
     enabled: true,
@@ -96,7 +102,8 @@ const isDirty = computed(() => {
     settings.value.reverse_proxy_throttle.burst !==
       Number(form.reverse_proxy_throttle.burst) ||
     settings.value.reverse_proxy_throttle.block_seconds !==
-      Number(form.reverse_proxy_throttle.block_seconds)
+      Number(form.reverse_proxy_throttle.block_seconds) ||
+    settings.value.crawler_blocker.enabled !== form.crawler_blocker.enabled
   );
 });
 
@@ -213,12 +220,21 @@ const toggleThrottleEnabled = () => {
   form.reverse_proxy_throttle.enabled = !form.reverse_proxy_throttle.enabled;
 };
 
+const toggleCrawlerBlockerEnabled = () => {
+  if (isGatewaySettingsBusy.value) return;
+  form.crawler_blocker.enabled = !form.crawler_blocker.enabled;
+};
+
 const buildSettingsSnapshot = (data: GatewaySettings): GatewaySettings => ({
   ...data,
   portal: {
     enabled: data.portal?.enabled !== false,
     display_style: data.portal?.display_style ?? "domain",
     show_app_icon: data.portal?.show_app_icon === true,
+  },
+  crawler_blocker: {
+    enabled: data.crawler_blocker?.enabled === true,
+    updated_at: data.crawler_blocker?.updated_at ?? null,
   },
   reverse_proxy_throttle: { ...data.reverse_proxy_throttle },
 });
@@ -237,6 +253,8 @@ const applyFromSettings = (data: GatewaySettings) => {
   form.portal.enabled = snapshot.portal.enabled;
   form.portal.display_style = snapshot.portal.display_style;
   form.portal.show_app_icon = snapshot.portal.show_app_icon;
+  form.crawler_blocker.enabled = snapshot.crawler_blocker.enabled;
+  form.crawler_blocker.updated_at = snapshot.crawler_blocker.updated_at;
   form.reverse_proxy_throttle.enabled = data.reverse_proxy_throttle.enabled;
   form.reverse_proxy_throttle.requests_per_second =
     data.reverse_proxy_throttle.requests_per_second;
@@ -275,6 +293,9 @@ const saveSettings = async () => {
             form.reverse_proxy_throttle.block_seconds,
             30,
           ),
+        },
+        crawler_blocker: {
+          enabled: form.crawler_blocker.enabled,
         },
       }),
     {
@@ -472,6 +493,24 @@ onMounted(fetchSettings);
         </div>
       </div>
 
+      <div class="flex items-center justify-between bg-muted/10 p-6">
+        <div class="space-y-1 pr-6">
+          <Label
+            class="cursor-pointer text-base font-medium"
+            @click="toggleCrawlerBlockerEnabled"
+          >
+            {{ t("admin.gatewaySettings.crawlerBlockerTitle") }}
+          </Label>
+          <div class="text-sm text-muted-foreground">
+            {{ t("admin.gatewaySettings.crawlerBlockerDescription") }}
+          </div>
+        </div>
+        <Switch
+          v-model="form.crawler_blocker.enabled"
+          :disabled="isGatewaySettingsBusy"
+        />
+      </div>
+
       <div
         class="grid gap-4 p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
       >
@@ -661,21 +700,26 @@ onMounted(fetchSettings);
         </div>
       </div>
 
-      <div class="flex items-center justify-end gap-3 p-6">
-        <Button
-          variant="outline"
-          :disabled="!isDirty || isGatewaySettingsBusy"
-          @click="resetForm"
-        >
-          {{ t("admin.gatewaySettings.reset") }}
-        </Button>
-        <Button
-          :disabled="!isDirty || isGatewaySettingsBusy"
-          @click="saveSettings"
-        >
-          {{ t("admin.gatewaySettings.saveSettings") }}
-        </Button>
-      </div>
+      <FloatingActionDock
+        :active="isDirty"
+        inline-class="flex items-center justify-end gap-3 p-6"
+      >
+        <template #inline>
+          <Button
+            variant="outline"
+            :disabled="!isDirty || isGatewaySettingsBusy"
+            @click="resetForm"
+          >
+            {{ t("admin.gatewaySettings.reset") }}
+          </Button>
+          <Button
+            :disabled="!isDirty || isGatewaySettingsBusy"
+            @click="saveSettings"
+          >
+            {{ t("admin.gatewaySettings.saveSettings") }}
+          </Button>
+        </template>
+      </FloatingActionDock>
     </CardContent>
   </Card>
 </template>

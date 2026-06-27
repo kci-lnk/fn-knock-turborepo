@@ -289,6 +289,9 @@ export const jaJPAdmin = {
       "ゲートウェイのアンチジェネレーションスロットリングを有効にする",
     throttleDescription:
       "は、クライアント IP に基づいて速度制限と短期禁止を実装します。これは、高頻度の検出、エラー リトライ ストーム、異常なブラシ リクエストのブロックに適しています。",
+    crawlerBlockerTitle: "クローラーリクエストをブロック",
+    crawlerBlockerDescription:
+      "NAS は Web サイトではないため、検索インデックスに登録される必要はありません。これらのクローラーは上り帯域を消費する可能性があります。",
     requestsPerSecond: "1 秒あたりのリクエスト数",
     requestsPerSecondDescription:
       "各クライアント IP 1 秒あたりに許可されるリクエストの数。超過すると、バースト クォータが消費されます。",

@@ -93,6 +93,7 @@ export const enShared = {
   pagedTableFooter: {
     total: "{total} {itemText}",
     records: "records",
+    pageSizeOption: "{count} rows",
   },
   dnsCredentialBridge: {
     providers: {

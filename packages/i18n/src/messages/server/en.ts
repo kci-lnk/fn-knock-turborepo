@@ -220,6 +220,8 @@ export const enServer = {
         "Failed to sync auth cache configuration to the gateway",
       syncThrottleFailed:
         "Failed to sync gateway throttle configuration to the gateway",
+      syncCrawlerBlockerFailed:
+        "Failed to sync crawler blocker configuration to the gateway",
       updateFailed: "Failed to update gateway configuration",
       updateFailedRolledBack:
         "Failed to update gateway configuration; configuration was rolled back",
@@ -383,6 +385,9 @@ export const enServer = {
     emptyEnabledConfig:
       "After enabling visibility, add at least one region or one custom CIDR",
     syncFailed: "Failed to sync gateway visibility configuration",
+  },
+  gatewayCrawlerBlocker: {
+    syncFailed: "Failed to sync crawler blocker configuration",
   },
   scanner: {
     cidrExemptionsInvalid: "CIDR exemption format is invalid: {cidrs}",
@@ -955,6 +960,8 @@ export const enServer = {
       "Failed to sync gateway proxy header configuration",
     syncGatewayHostResponseConfigFailed:
       "Failed to sync gateway Host response configuration",
+    syncGatewayCrawlerBlockerConfigFailed:
+      "Failed to sync crawler blocker configuration",
     enableProxyProtocolForceFailed:
       "Failed to enable forced Proxy Protocol mode",
     disableProxyProtocolForceFailed:
@@ -1224,10 +1231,12 @@ export const enServer = {
       "HTTP {status}: Tencent Cloud API response is missing Response",
     invalidHeaderFormat: "Invalid Header format: {header}",
     publicCheckSourceEmpty: "{family} public detection source cannot be empty",
-    publicCheckSourceInvalidUrl: "Invalid {family} public detection source: {source}",
+    publicCheckSourceInvalidUrl:
+      "Invalid {family} public detection source: {source}",
     publicCheckSourceUnsupportedProtocol:
       "{family} public detection source supports only HTTP/HTTPS: {source}",
-    publicCheckSourceListEmpty: "No {family} public detection source is configured",
+    publicCheckSourceListEmpty:
+      "No {family} public detection source is configured",
     publicCheckSourceRequestFailed:
       "Detection source {url} request failed: HTTP {status}",
     publicCheckSourceInvalidPayload:

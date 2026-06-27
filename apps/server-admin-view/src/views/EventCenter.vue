@@ -46,7 +46,7 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
       </TabsList>
 
       <TabsContent value="events" class="min-h-0 flex-1 pt-2">
-        <EventsTab />
+        <EventsTab :active="currentTab === 'events'" />
       </TabsContent>
 
       <TabsContent value="notifications" class="min-h-0 flex-1 pt-2">

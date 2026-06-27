@@ -88,6 +88,7 @@ export const zhHantShared = {
   pagedTableFooter: {
     total: "共 {total} {itemText}",
     records: "條記錄",
+    pageSizeOption: "{count} 條",
   },
   dnsCredentialBridge: {
     providers: {

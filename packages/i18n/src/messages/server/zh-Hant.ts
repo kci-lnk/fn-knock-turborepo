@@ -182,6 +182,7 @@ export const zhHantServer = {
     gateway: {
       syncAuthCacheFailed: "同步鑒權緩存配置到網關失敗",
       syncThrottleFailed: "同步網關節流配置到網關失敗",
+      syncCrawlerBlockerFailed: "同步爬蟲攔截配置到網關失敗",
       updateFailed: "更新網關配置失敗",
       updateFailedRolledBack: "更新網關配置失敗，已回滾配置",
     },
@@ -325,6 +326,9 @@ export const zhHantServer = {
     customCidrInvalid: "自定義 CIDR 格式不正確：{cidrs}",
     emptyEnabledConfig: "開啟可見性後，至少需要添加一個地區或一條自定義 CIDR",
     syncFailed: "同步網關可見性配置失敗",
+  },
+  gatewayCrawlerBlocker: {
+    syncFailed: "同步爬蟲攔截配置失敗",
   },
   scanner: {
     cidrExemptionsInvalid: "CIDR 豁免格式不正確：{cidrs}",
@@ -830,6 +834,7 @@ export const zhHantServer = {
     syncGatewayVisibilityConfigFailed: "同步網關可見性配置失敗",
     syncGatewayProxyHeadersConfigFailed: "同步網關協議頭配置失敗",
     syncGatewayHostResponseConfigFailed: "同步網關 Host 響應配置失敗",
+    syncGatewayCrawlerBlockerConfigFailed: "同步爬蟲攔截配置失敗",
     enableProxyProtocolForceFailed: "開啟 Proxy Protocol 強制模式失敗",
     disableProxyProtocolForceFailed: "關閉 Proxy Protocol 強制模式失敗",
     disableStreamRulesFailed: "關閉協議映射監聽失敗",
@@ -1078,8 +1083,7 @@ export const zhHantServer = {
       "{family} 公網探測地址僅支援 HTTP/HTTPS: {source}",
     publicCheckSourceListEmpty: "未配置 {family} 公網探測地址",
     publicCheckSourceRequestFailed: "探測源 {url} 請求失敗: HTTP {status}",
-    publicCheckSourceInvalidPayload:
-      "探測源 {url} 未回傳有效的 {family} 地址",
+    publicCheckSourceInvalidPayload: "探測源 {url} 未回傳有效的 {family} 地址",
     publicCheckTestFailed: "公網探測地址測試失敗",
     interfaceSourceLabel: "網卡 {name}",
     selectedInterfaceSourceLabel: "所選網卡",

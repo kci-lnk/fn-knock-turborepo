@@ -187,6 +187,11 @@ export interface PreserveHostConfig {
   updated_at?: string | null;
 }
 
+export interface CrawlerBlockerConfig {
+  enabled: boolean;
+  updated_at?: string | null;
+}
+
 export type GatewayPortalDisplayStyle = "domain" | "title";
 
 export interface GatewayPortalConfig {

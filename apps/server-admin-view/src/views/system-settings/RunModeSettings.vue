@@ -229,52 +229,75 @@
         {{ t("admin.runModeSettings.hostFirewallDisabled") }}
       </div>
 
-      <div class="flex w-full justify-end gap-2 sm:w-auto">
-        <DropdownMenu v-if="canManageHostFirewall">
-          <DropdownMenuTrigger as-child>
-            <Button variant="outline" class="w-24 gap-2" :disabled="isBusy">
-              <Loader2
-                v-if="isFirewallActionPending"
-                class="h-4 w-4 animate-spin"
-              />
-              <span>{{ t("admin.runModeSettings.actions") }}</span>
-              <ChevronDown class="h-4 w-4 text-muted-foreground" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" class="w-56">
-            <DropdownMenuItem
-              :disabled="isBusy"
-              @select="resetFirewallBySelectedMode"
-            >
-              <RefreshCw class="h-4 w-4" />
-              {{ t("admin.runModeSettings.resetFirewallByMode") }}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              variant="destructive"
-              :disabled="isBusy"
-              @select="clearFirewallRules"
-            >
-              <Trash2 class="h-4 w-4" />
-              {{ t("admin.runModeSettings.clearFirewall") }}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <Button
-          variant="outline"
-          class="w-24"
-          @click="reset"
-          :disabled="isBusy"
-        >
-          {{ t("admin.runModeSettings.discardChanges") }}
-        </Button>
-        <Button @click="save" :disabled="isBusy || isModeUnchanged">
-          <span
-            v-if="isSaving"
-            class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
-          ></span>
-          {{ t("admin.runModeSettings.saveChanges") }}
-        </Button>
-      </div>
+      <FloatingActionDock
+        :active="!isModeUnchanged"
+        inline-class="flex w-full justify-end gap-2 sm:w-auto"
+      >
+        <template #inline>
+          <DropdownMenu v-if="canManageHostFirewall">
+            <DropdownMenuTrigger as-child>
+              <Button variant="outline" class="w-24 gap-2" :disabled="isBusy">
+                <Loader2
+                  v-if="isFirewallActionPending"
+                  class="h-4 w-4 animate-spin"
+                />
+                <span>{{ t("admin.runModeSettings.actions") }}</span>
+                <ChevronDown class="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" class="w-56">
+              <DropdownMenuItem
+                :disabled="isBusy"
+                @select="resetFirewallBySelectedMode"
+              >
+                <RefreshCw class="h-4 w-4" />
+                {{ t("admin.runModeSettings.resetFirewallByMode") }}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                variant="destructive"
+                :disabled="isBusy"
+                @select="clearFirewallRules"
+              >
+                <Trash2 class="h-4 w-4" />
+                {{ t("admin.runModeSettings.clearFirewall") }}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button
+            variant="outline"
+            class="w-24"
+            @click="reset"
+            :disabled="isBusy"
+          >
+            {{ t("admin.runModeSettings.discardChanges") }}
+          </Button>
+          <Button @click="save" :disabled="isBusy || isModeUnchanged">
+            <span
+              v-if="isSaving"
+              class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+            ></span>
+            {{ t("admin.runModeSettings.saveChanges") }}
+          </Button>
+        </template>
+
+        <template #floating>
+          <Button
+            variant="outline"
+            class="w-24"
+            @click="reset"
+            :disabled="isBusy"
+          >
+            {{ t("admin.runModeSettings.discardChanges") }}
+          </Button>
+          <Button @click="save" :disabled="isBusy || isModeUnchanged">
+            <span
+              v-if="isSaving"
+              class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+            ></span>
+            {{ t("admin.runModeSettings.saveChanges") }}
+          </Button>
+        </template>
+      </FloatingActionDock>
     </CardFooter>
   </Card>
 
@@ -368,6 +391,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
+import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
 import {
   Dialog,
   DialogContent,

@@ -49,6 +49,15 @@ import {
 } from "./constants";
 import { useSystemEventDisplay } from "./useSystemEventDisplay";
 
+const props = withDefaults(
+  defineProps<{
+    active?: boolean;
+  }>(),
+  {
+    active: true,
+  },
+);
+
 const { t } = useI18n();
 
 const formatOptionLabel = (option: { labelKey: string }) => t(option.labelKey);
@@ -491,6 +500,7 @@ onMounted(() => {
         :limit="limit"
         :items-per-page="parsedLimit"
         :total-text="t('admin.eventCenter.events.totalText')"
+        :floating="props.active"
         @update:page="handlePageChange"
         @update:limit="handleLimitChange"
       />

@@ -30,6 +30,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "@admin-shared/utils/toast";
+import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
 import { ConfigAPI, SystemAPI } from "../../lib/api";
 import {
   resolveExplicitPublicAccessEntryPort,
@@ -346,37 +347,62 @@ onMounted(() => {
               </div>
             </section>
 
-            <section class="space-y-4 border-t border-border/60 p-5">
-              <div
-                class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <p class="text-sm leading-6 text-muted-foreground">
-                  {{
-                    saveBlockedReason ||
-                    t("admin.gatewayHostResponseSettings.saveHint")
-                  }}
-                </p>
-                <div class="flex gap-2 self-end">
-                  <Button
-                    variant="outline"
-                    :disabled="isSaving || !isDirty"
-                    @click="resetForm"
-                  >
-                    {{ t("admin.gatewayHostResponseSettings.reset") }}
-                  </Button>
-                  <Button
-                    :disabled="isSaving || !isDirty || !!saveBlockedReason"
-                    @click="saveSettings"
-                  >
+            <FloatingActionDock
+              :active="isDirty"
+              inline-class="space-y-4 border-t border-border/60 p-5"
+            >
+              <template #inline>
+                <div
+                  class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <p class="text-sm leading-6 text-muted-foreground">
                     {{
-                      isSaving
-                        ? t("admin.gatewayHostResponseSettings.saving")
-                        : t("admin.gatewayHostResponseSettings.saveAndSync")
+                      saveBlockedReason ||
+                      t("admin.gatewayHostResponseSettings.saveHint")
                     }}
-                  </Button>
+                  </p>
+                  <div class="flex gap-2 self-end">
+                    <Button
+                      variant="outline"
+                      :disabled="isSaving || !isDirty"
+                      @click="resetForm"
+                    >
+                      {{ t("admin.gatewayHostResponseSettings.reset") }}
+                    </Button>
+                    <Button
+                      :disabled="isSaving || !isDirty || !!saveBlockedReason"
+                      @click="saveSettings"
+                    >
+                      {{
+                        isSaving
+                          ? t("admin.gatewayHostResponseSettings.saving")
+                          : t("admin.gatewayHostResponseSettings.saveAndSync")
+                      }}
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </section>
+              </template>
+
+              <template #floating>
+                <Button
+                  variant="outline"
+                  :disabled="isSaving || !isDirty"
+                  @click="resetForm"
+                >
+                  {{ t("admin.gatewayHostResponseSettings.reset") }}
+                </Button>
+                <Button
+                  :disabled="isSaving || !isDirty || !!saveBlockedReason"
+                  @click="saveSettings"
+                >
+                  {{
+                    isSaving
+                      ? t("admin.gatewayHostResponseSettings.saving")
+                      : t("admin.gatewayHostResponseSettings.saveAndSync")
+                  }}
+                </Button>
+              </template>
+            </FloatingActionDock>
           </div>
         </template>
       </CardContent>

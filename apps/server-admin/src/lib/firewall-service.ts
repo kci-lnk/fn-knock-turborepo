@@ -1,4 +1,5 @@
 import {
+  DEFAULT_GATEWAY_CRAWLER_BLOCKER_CONFIG,
   configManager,
   DEFAULT_REVERSE_PROXY_THROTTLE_CONFIG,
   type AppConfig,
@@ -8,6 +9,7 @@ import { buildGatewayAuthConfig } from "./subdomain-mode";
 import { syncGatewayProxyHeadersRuntimeForConfig } from "./gateway-proxy-headers";
 import { syncGatewayHostResponseRuntimeForConfig } from "./gateway-host-response";
 import { syncGatewayVisibilityToGateway } from "./gateway-visibility";
+import { syncGatewayCrawlerBlockerToGateway } from "./gateway-crawler-blocker";
 import { syncReverseProxyTrustedIPsNow } from "./reverse-proxy-trusted-ips";
 import { whitelistManager } from "./whitelist-manager";
 import { isReverseProxySubdomainMode } from "./reverse-proxy-submode";
@@ -287,6 +289,16 @@ export class FirewallService {
       ),
       firewallT("syncReverseProxyThrottleFailed"),
     );
+    await syncGatewayCrawlerBlockerToGateway(
+      config.gateway_crawler_blocker ?? DEFAULT_GATEWAY_CRAWLER_BLOCKER_CONFIG,
+    ).catch((error) => {
+      console.error(
+        firewallT("goBackendCallFailed", {
+          message: firewallT("syncGatewayCrawlerBlockerConfigFailed"),
+        }),
+        error,
+      );
+    });
     await syncReverseProxyTrustedIPsNow({ config }).catch((error) => {
       console.error(
         "[reverse-proxy-trusted-ips] failed to sync runtime state during run type apply:",

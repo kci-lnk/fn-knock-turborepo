@@ -32,6 +32,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@admin-shared/utils/toast';
+import FloatingActionDock from '@admin-shared/components/common/FloatingActionDock.vue';
 import { parseCidrTextarea } from '@admin-shared/utils/cidr';
 import { CidrAPI, ScannerAPI, type ScannerSettings } from '../../lib/api';
 import { extractErrorMessage, useAsyncAction } from '@admin-shared/composables/useAsyncAction';
@@ -434,12 +435,27 @@ const goToBlacklist = () => {
 
     <CardContent v-else class="min-h-[200px]" aria-hidden="true"></CardContent>
 
-    <div class="flex items-center justify-between p-6 border-t bg-muted/20 rounded-b-xl">
-      <div class="text-sm text-muted-foreground">
-        <span v-if="isDirty">{{ t('admin.scannerFirewallSettings.dirty') }}</span>
-        <span v-else>{{ t('admin.scannerFirewallSettings.clean') }}</span>
-      </div>
-      <div class="flex gap-3">
+    <FloatingActionDock
+      :active="isDirty"
+      inline-class="flex items-center justify-between p-6 border-t bg-muted/20 rounded-b-xl"
+    >
+      <template #inline>
+        <div class="text-sm text-muted-foreground">
+          <span v-if="isDirty">{{ t('admin.scannerFirewallSettings.dirty') }}</span>
+          <span v-else>{{ t('admin.scannerFirewallSettings.clean') }}</span>
+        </div>
+        <div class="flex gap-3">
+          <Button variant="ghost" @click="resetForm" :disabled="!isDirty || isSaving">
+            {{ t('admin.scannerFirewallSettings.discard') }}
+          </Button>
+          <Button :disabled="!isDirty || isSaving || Boolean(saveBlockedReason)" @click="saveSettings">
+            <span v-if="isSaving" class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
+            {{ t('admin.scannerFirewallSettings.saveChanges') }}
+          </Button>
+        </div>
+      </template>
+
+      <template #floating>
         <Button variant="ghost" @click="resetForm" :disabled="!isDirty || isSaving">
           {{ t('admin.scannerFirewallSettings.discard') }}
         </Button>
@@ -447,8 +463,8 @@ const goToBlacklist = () => {
           <span v-if="isSaving" class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
           {{ t('admin.scannerFirewallSettings.saveChanges') }}
         </Button>
-      </div>
-    </div>
+      </template>
+    </FloatingActionDock>
   </Card>
 
   <Dialog

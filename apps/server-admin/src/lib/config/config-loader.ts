@@ -14,6 +14,7 @@ import {
   normalizeEventSystemConfig,
   normalizeFnosPortIconHijackConfig,
   normalizeFnosShareBypassConfig,
+  normalizeGatewayCrawlerBlockerConfig,
   normalizeGatewayHostResponseConfig,
   normalizeGatewayLoggingSettings,
   normalizeGatewayPortalConfig,
@@ -80,6 +81,9 @@ export const normalizePersistedAppConfig = (config: AppConfig): AppConfig => {
   );
   normalized.gateway_host_response = normalizeGatewayHostResponseConfig(
     normalized.gateway_host_response,
+  );
+  normalized.gateway_crawler_blocker = normalizeGatewayCrawlerBlockerConfig(
+    normalized.gateway_crawler_blocker,
   );
   normalized.gateway_portal = normalizeGatewayPortalConfig(
     normalized.gateway_portal,

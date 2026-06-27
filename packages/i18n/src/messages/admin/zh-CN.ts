@@ -258,6 +258,9 @@ export const zhCNAdmin = {
     throttleTitle: "启用网关反代节流",
     throttleDescription:
       "按客户端 IP 做限速与短时封禁，适合拦住高频探测、错误重试风暴和异常刷请求。",
+    crawlerBlockerTitle: "拦截爬虫请求",
+    crawlerBlockerDescription:
+      "NAS不是网站，不需要被收录，这些爬虫会导致占用上行带宽",
     requestsPerSecond: "每秒请求数",
     requestsPerSecondDescription:
       "每个客户端 IP 每秒允许通过的请求数，超过后会消耗突发额度。",

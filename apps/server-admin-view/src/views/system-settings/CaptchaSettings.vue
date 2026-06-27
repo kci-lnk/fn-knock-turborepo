@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@admin-shared/utils/toast';
+import FloatingActionDock from '@admin-shared/components/common/FloatingActionDock.vue';
 import { extractErrorMessage, useAsyncAction } from '@admin-shared/composables/useAsyncAction';
 import { useDelayedLoading } from '@admin-shared/composables/useDelayedLoading';
 import { CaptchaAPI } from '../../lib/api';
@@ -271,12 +272,27 @@ onMounted(fetchSettings);
 
     <CardContent v-else class="min-h-[200px]" aria-hidden="true" />
 
-    <div class="flex items-center justify-between rounded-b-xl border-t bg-muted/20 p-6">
-      <div class="text-sm text-muted-foreground">
-        <span v-if="isDirty">{{ t('admin.captchaSettings.dirty') }}</span>
-        <span v-else>{{ t('admin.captchaSettings.clean') }}</span>
-      </div>
-      <div class="flex gap-3">
+    <FloatingActionDock
+      :active="isDirty"
+      inline-class="flex items-center justify-between rounded-b-xl border-t bg-muted/20 p-6"
+    >
+      <template #inline>
+        <div class="text-sm text-muted-foreground">
+          <span v-if="isDirty">{{ t('admin.captchaSettings.dirty') }}</span>
+          <span v-else>{{ t('admin.captchaSettings.clean') }}</span>
+        </div>
+        <div class="flex gap-3">
+          <Button variant="ghost" @click="resetForm" :disabled="!isDirty || isSaving">
+            {{ t('admin.captchaSettings.discard') }}
+          </Button>
+          <Button :disabled="!isDirty || isSaving" @click="saveSettings">
+            <span v-if="isSaving" class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
+            {{ t('admin.captchaSettings.saveChanges') }}
+          </Button>
+        </div>
+      </template>
+
+      <template #floating>
         <Button variant="ghost" @click="resetForm" :disabled="!isDirty || isSaving">
           {{ t('admin.captchaSettings.discard') }}
         </Button>
@@ -284,8 +300,8 @@ onMounted(fetchSettings);
           <span v-if="isSaving" class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
           {{ t('admin.captchaSettings.saveChanges') }}
         </Button>
-      </div>
-    </div>
+      </template>
+    </FloatingActionDock>
   </Card>
 </template>
 

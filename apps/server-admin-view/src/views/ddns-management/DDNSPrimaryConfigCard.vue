@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import ConfigCollapsibleCard from "@admin-shared/components/ConfigCollapsibleCard.vue";
+import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
 import type { DDNSNetworkInterfacePayload } from "@/lib/api";
 import type { DnsCredentialTransferSuggestion } from "@/lib/dns-credential-bridge";
 import type {
@@ -46,6 +47,7 @@ defineProps<{
   interfaceIPv4Options: DDNSAddressOption[];
   interfaceIPv6Options: DDNSAddressOption[];
   isClearingPrimaryConfig: boolean;
+  isDirty: boolean;
   isFieldEditReady: (key: string) => boolean;
   isIpSourceOptionDisabled: (
     providerName: string,
@@ -197,49 +199,69 @@ const { t } = useI18n();
     </template>
 
     <template #actions="{ collapse }">
-      <div
-        class="p-4 sm:px-6 sm:py-4 bg-muted/30 border-t flex items-center justify-end gap-3 rounded-b-lg"
+      <FloatingActionDock
+        :active="isDirty"
+        inline-class="p-4 sm:px-6 sm:py-4 bg-muted/30 border-t flex items-center justify-end gap-3 rounded-b-lg"
       >
-        <Button variant="outline" @click="collapse">
-          {{ t("admin.ddns.collapse") }}
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger as-child>
-            <Button
-              variant="outline"
-              class="w-24 gap-2"
-              :disabled="
-                isClearingPrimaryConfig ||
-                !selectedProvider ||
-                !hasSavedProviderConfig
-              "
-            >
-              <span>{{ t("admin.ddns.actions") }}</span>
-              <ChevronDown class="h-4 w-4 text-muted-foreground" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" class="w-48">
-            <DropdownMenuItem
-              variant="destructive"
-              :disabled="isClearingPrimaryConfig || !hasSavedProviderConfig"
-              @click="emit('clearPrimaryConfig', collapse)"
-            >
-              <Trash2 class="mr-2 h-4 w-4" />
-              {{ t("admin.ddns.clearPrimaryConfig") }}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <Button
-          :disabled="isTesting || isSaving || !selectedProvider"
-          @click="emit('test')"
-          class="min-w-[100px] shadow-sm"
-        >
-          <RefreshCw v-if="isTesting" class="w-4 h-4 mr-2 animate-spin" />
-          {{
-            isTesting ? t("admin.ddns.updating") : t("admin.ddns.saveAndUpdate")
-          }}
-        </Button>
-      </div>
+        <template #inline>
+          <Button variant="outline" @click="collapse">
+            {{ t("admin.ddns.collapse") }}
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <Button
+                variant="outline"
+                class="w-24 gap-2"
+                :disabled="
+                  isClearingPrimaryConfig ||
+                  !selectedProvider ||
+                  !hasSavedProviderConfig
+                "
+              >
+                <span>{{ t("admin.ddns.actions") }}</span>
+                <ChevronDown class="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" class="w-48">
+              <DropdownMenuItem
+                variant="destructive"
+                :disabled="isClearingPrimaryConfig || !hasSavedProviderConfig"
+                @click="emit('clearPrimaryConfig', collapse)"
+              >
+                <Trash2 class="mr-2 h-4 w-4" />
+                {{ t("admin.ddns.clearPrimaryConfig") }}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button
+            :disabled="isTesting || isSaving || !selectedProvider"
+            @click="emit('test')"
+            class="min-w-[100px] shadow-sm"
+          >
+            <RefreshCw v-if="isTesting" class="w-4 h-4 mr-2 animate-spin" />
+            {{
+              isTesting
+                ? t("admin.ddns.updating")
+                : t("admin.ddns.saveAndUpdate")
+            }}
+          </Button>
+        </template>
+
+        <template #floating>
+          <Button
+            :disabled="isTesting || isSaving || !selectedProvider"
+            @click="emit('test')"
+            class="min-w-[100px] shadow-sm"
+          >
+            <RefreshCw v-if="isTesting" class="w-4 h-4 mr-2 animate-spin" />
+            {{
+              isTesting
+                ? t("admin.ddns.updating")
+                : t("admin.ddns.saveAndUpdate")
+            }}
+          </Button>
+        </template>
+      </FloatingActionDock>
     </template>
   </ConfigCollapsibleCard>
 </template>

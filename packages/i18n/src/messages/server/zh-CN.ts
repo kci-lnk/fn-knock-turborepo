@@ -181,6 +181,7 @@ export const zhCNServer = {
     gateway: {
       syncAuthCacheFailed: "同步鉴权缓存配置到网关失败",
       syncThrottleFailed: "同步网关节流配置到网关失败",
+      syncCrawlerBlockerFailed: "同步爬虫拦截配置到网关失败",
       updateFailed: "更新网关配置失败",
       updateFailedRolledBack: "更新网关配置失败，已回滚配置",
     },
@@ -324,6 +325,9 @@ export const zhCNServer = {
     customCidrInvalid: "自定义 CIDR 格式不正确：{cidrs}",
     emptyEnabledConfig: "开启可见性后，至少需要添加一个地区或一条自定义 CIDR",
     syncFailed: "同步网关可见性配置失败",
+  },
+  gatewayCrawlerBlocker: {
+    syncFailed: "同步爬虫拦截配置失败",
   },
   scanner: {
     cidrExemptionsInvalid: "CIDR 豁免格式不正确：{cidrs}",
@@ -829,6 +833,7 @@ export const zhCNServer = {
     syncGatewayVisibilityConfigFailed: "同步网关可见性配置失败",
     syncGatewayProxyHeadersConfigFailed: "同步网关协议头配置失败",
     syncGatewayHostResponseConfigFailed: "同步网关 Host 响应配置失败",
+    syncGatewayCrawlerBlockerConfigFailed: "同步爬虫拦截配置失败",
     enableProxyProtocolForceFailed: "开启 Proxy Protocol 强制模式失败",
     disableProxyProtocolForceFailed: "关闭 Proxy Protocol 强制模式失败",
     disableStreamRulesFailed: "关闭协议映射监听失败",
@@ -1077,8 +1082,7 @@ export const zhCNServer = {
       "{family} 公网探测地址仅支持 HTTP/HTTPS: {source}",
     publicCheckSourceListEmpty: "未配置 {family} 公网探测地址",
     publicCheckSourceRequestFailed: "探测源 {url} 请求失败: HTTP {status}",
-    publicCheckSourceInvalidPayload:
-      "探测源 {url} 未返回有效的 {family} 地址",
+    publicCheckSourceInvalidPayload: "探测源 {url} 未返回有效的 {family} 地址",
     publicCheckTestFailed: "公网探测地址测试失败",
     interfaceSourceLabel: "网卡 {name}",
     selectedInterfaceSourceLabel: "所选网卡",

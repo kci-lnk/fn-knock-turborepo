@@ -88,6 +88,7 @@ export const zhCNShared = {
   pagedTableFooter: {
     total: "共 {total} {itemText}",
     records: "条记录",
+    pageSizeOption: "{count} 条",
   },
   dnsCredentialBridge: {
     providers: {

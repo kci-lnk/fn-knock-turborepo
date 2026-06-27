@@ -230,6 +230,8 @@ export const jaJPServer = {
         "認証キャッシュ構成をゲートウェイに同期できませんでした",
       syncThrottleFailed:
         "ゲートウェイ スロットリング構成をゲートウェイに同期できませんでした",
+      syncCrawlerBlockerFailed:
+        "クローラーブロック構成をゲートウェイに同期できませんでした",
       updateFailed: "ゲートウェイ構成の更新に失敗しました",
       updateFailedRolledBack:
         "ゲートウェイ構成の更新に失敗しました。構成はロールバックされました。",
@@ -403,6 +405,9 @@ export const jaJPServer = {
     emptyEnabledConfig:
       "可視性をオンにした後、少なくとも 1 つの領域またはカスタム CIDR を追加する必要があります",
     syncFailed: "ゲートウェイ可視性構成の同期に失敗しました",
+  },
+  gatewayCrawlerBlocker: {
+    syncFailed: "クローラーブロック構成の同期に失敗しました",
   },
   scanner: {
     cidrExemptionsInvalid: "CIDR 免除の形式が正しくありません: {cidrs}",
@@ -997,6 +1002,8 @@ export const jaJPServer = {
       "同期ゲートウェイプロトコルヘッダーの構成に失敗しました",
     syncGatewayHostResponseConfigFailed:
       "同期ゲートウェイ ホスト応答設定に失敗しました",
+    syncGatewayCrawlerBlockerConfigFailed:
+      "クローラーブロック構成の同期に失敗しました",
     enableProxyProtocolForceFailed:
       "プロキシプロトコル強制モードを有効にできませんでした",
     disableProxyProtocolForceFailed:
@@ -1294,7 +1301,8 @@ export const jaJPServer = {
       "HTTP {status}: Tencent Cloud API 応答がありません 応答",
     invalidHeaderFormat: "無効なヘッダー形式: {header}",
     publicCheckSourceEmpty: "{family} 公開検出アドレスは空にできません",
-    publicCheckSourceInvalidUrl: "{family} 公開検出アドレスが無効です: {source}",
+    publicCheckSourceInvalidUrl:
+      "{family} 公開検出アドレスが無効です: {source}",
     publicCheckSourceUnsupportedProtocol:
       "{family} 公開検出アドレスは HTTP/HTTPS のみ対応しています: {source}",
     publicCheckSourceListEmpty: "{family} 公開検出アドレスが設定されていません",

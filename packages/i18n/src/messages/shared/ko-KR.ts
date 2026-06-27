@@ -95,6 +95,7 @@ export const koKRShared = {
   pagedTableFooter: {
     total: "{total} {itemText}",
     records: "기록",
+    pageSizeOption: "{count} 행",
   },
   dnsCredentialBridge: {
     providers: {

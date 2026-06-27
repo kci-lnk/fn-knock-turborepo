@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
+import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
 import { toast } from "@admin-shared/utils/toast";
 import { GatewayLogsAPI } from "../../lib/api";
 import { docsUrls } from "../../lib/docs";
@@ -169,18 +170,23 @@ onMounted(fetchSettings);
         </div>
       </div>
 
-      <div class="flex items-center justify-end gap-3 p-6">
-        <Button
-          variant="outline"
-          :disabled="!isDirty || isSaving"
-          @click="resetForm"
-        >
-          {{ t("admin.gatewayLogging.reset") }}
-        </Button>
-        <Button :disabled="!isDirty || isSaving" @click="saveSettings">
-          {{ t("admin.gatewayLogging.saveSettings") }}
-        </Button>
-      </div>
+      <FloatingActionDock
+        :active="isDirty"
+        inline-class="flex items-center justify-end gap-3 p-6"
+      >
+        <template #inline>
+          <Button
+            variant="outline"
+            :disabled="!isDirty || isSaving"
+            @click="resetForm"
+          >
+            {{ t("admin.gatewayLogging.reset") }}
+          </Button>
+          <Button :disabled="!isDirty || isSaving" @click="saveSettings">
+            {{ t("admin.gatewayLogging.saveSettings") }}
+          </Button>
+        </template>
+      </FloatingActionDock>
     </CardContent>
   </Card>
 </template>

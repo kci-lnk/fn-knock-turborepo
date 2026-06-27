@@ -41,6 +41,7 @@ import { useConfigStore } from "../store/config";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import DetailDialog from "@admin-shared/components/common/DetailDialog.vue";
 import DetailFieldsGrid from "@admin-shared/components/common/DetailFieldsGrid.vue";
+import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
 import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
 import {
   extractErrorMessage,
@@ -89,6 +90,9 @@ const canLoadNewer = computed(() => cursorHistory.value.length > 0);
 const canLoadOlder = computed(() => Boolean(nextCursor.value));
 const cursorPageLabel = computed(
   () => t("admin.wafLogs.cursorPage", { page: cursorHistory.value.length + 1 }),
+);
+const shouldFloatPagination = computed(
+  () => entries.value.length > 0 || canLoadNewer.value || canLoadOlder.value,
 );
 
 const { isPending: isDeleting, run: runDelete } = useAsyncAction({
@@ -788,62 +792,137 @@ onBeforeUnmount(() => {
         </Table>
       </div>
 
-      <div class="border-t px-4 py-3">
-        <div
-          class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
-        >
-          <div
-            class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground"
-          >
-            <span>{{ cursorPageLabel }}</span>
-            <span>{{
-              canLoadOlder
-                ? t("admin.wafLogs.canLoadOlder")
-                : t("admin.wafLogs.lastPage")
-            }}</span>
-          </div>
-
-          <div class="flex flex-wrap items-center justify-end gap-2">
-            <Button
-              variant="outline"
-              class="h-8 px-3"
-              :disabled="loading || !canLoadNewer"
-              @click="handleLoadFirst"
-            >
-              <ChevronsLeft class="mr-1.5 h-4 w-4" />
-              {{ t("admin.wafLogs.firstPage") }}
-            </Button>
-            <Button
-              variant="outline"
-              class="h-8 px-3"
-              :disabled="loading || !canLoadNewer"
-              @click="handleLoadNewer"
-            >
-              <ChevronLeft class="mr-1.5 h-4 w-4" />
-              {{ t("admin.wafLogs.previousPage") }}
-            </Button>
-            <Button
-              class="h-8 px-3"
-              :disabled="loading || !canLoadOlder"
-              @click="handleLoadOlder"
-            >
-              {{ t("admin.wafLogs.nextPage") }}
-              <ChevronRight class="ml-1.5 h-4 w-4" />
-            </Button>
-
+      <FloatingActionDock
+        :active="shouldFloatPagination"
+        :keep-visible="loading && shouldFloatPagination"
+        :keep-visible-release-delay="600"
+        align="center"
+        variant="surface"
+        :visible-threshold="0.4"
+        :aria-label="t('admin.wafLogs.title')"
+        floating-class="min-w-0 max-w-[calc(100vw-2rem)] rounded-[1.25rem] p-2"
+      >
+        <template #inline>
+          <div class="border-t px-4 py-3">
             <div
-              class="ml-1 flex items-center gap-2 text-xs text-muted-foreground"
+              class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
             >
-              <span>{{ t("admin.wafLogs.pageSize") }}</span>
+              <div
+                class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground"
+              >
+                <span>{{ cursorPageLabel }}</span>
+                <span>{{
+                  canLoadOlder
+                    ? t("admin.wafLogs.canLoadOlder")
+                    : t("admin.wafLogs.lastPage")
+                }}</span>
+              </div>
+
+              <div class="flex flex-wrap items-center justify-end gap-2">
+                <Button
+                  variant="outline"
+                  class="h-8 px-3"
+                  :disabled="loading || !canLoadNewer"
+                  @click="handleLoadFirst"
+                >
+                  <ChevronsLeft class="mr-1.5 h-4 w-4" />
+                  {{ t("admin.wafLogs.firstPage") }}
+                </Button>
+                <Button
+                  variant="outline"
+                  class="h-8 px-3"
+                  :disabled="loading || !canLoadNewer"
+                  @click="handleLoadNewer"
+                >
+                  <ChevronLeft class="mr-1.5 h-4 w-4" />
+                  {{ t("admin.wafLogs.previousPage") }}
+                </Button>
+                <Button
+                  class="h-8 px-3"
+                  :disabled="loading || !canLoadOlder"
+                  @click="handleLoadOlder"
+                >
+                  {{ t("admin.wafLogs.nextPage") }}
+                  <ChevronRight class="ml-1.5 h-4 w-4" />
+                </Button>
+
+                <div
+                  class="ml-1 flex items-center gap-2 text-xs text-muted-foreground"
+                >
+                  <span>{{ t("admin.wafLogs.pageSize") }}</span>
+                  <Select
+                    :model-value="limit"
+                    @update:model-value="handleLimitChange"
+                  >
+                    <div class="w-[96px]">
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </div>
+                    <SelectContent>
+                      <SelectItem
+                        v-for="option in LIMIT_OPTIONS"
+                        :key="option"
+                        :value="option"
+                      >
+                        {{
+                          t("admin.wafLogs.pageSizeOption", {
+                            count: option,
+                          })
+                        }}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <template #floating>
+          <div class="floating-cursor-pagination">
+            <div class="floating-cursor-pagination__controls">
+              <Button
+                variant="ghost"
+                class="floating-cursor-pagination__button"
+                :disabled="loading || !canLoadNewer"
+                @click="handleLoadFirst"
+              >
+                <ChevronsLeft class="h-4 w-4" />
+                <span class="hidden sm:inline">
+                  {{ t("admin.wafLogs.firstPage") }}
+                </span>
+              </Button>
+              <Button
+                variant="ghost"
+                class="floating-cursor-pagination__button"
+                :disabled="loading || !canLoadNewer"
+                @click="handleLoadNewer"
+              >
+                <ChevronLeft class="h-4 w-4" />
+                <span class="hidden sm:inline">
+                  {{ t("admin.wafLogs.previousPage") }}
+                </span>
+              </Button>
+              <Button
+                variant="ghost"
+                class="floating-cursor-pagination__button is-primary"
+                :disabled="loading || !canLoadOlder"
+                @click="handleLoadOlder"
+              >
+                <span>{{ t("admin.wafLogs.nextPage") }}</span>
+                <ChevronRight class="h-4 w-4" />
+              </Button>
+
               <Select
                 :model-value="limit"
                 @update:model-value="handleLimitChange"
               >
-                <div class="w-[96px]">
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                </div>
+                <SelectTrigger
+                  class="h-9 w-[84px] rounded-xl border-white/10 bg-white/10 text-white shadow-none hover:bg-white/15 focus-visible:border-white/30 focus-visible:ring-white/20 [&_svg]:text-white"
+                >
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem
                     v-for="option in LIMIT_OPTIONS"
@@ -856,8 +935,8 @@ onBeforeUnmount(() => {
               </Select>
             </div>
           </div>
-        </div>
-      </div>
+        </template>
+      </FloatingActionDock>
     </div>
 
     <DetailDialog
@@ -874,3 +953,52 @@ onBeforeUnmount(() => {
     </DetailDialog>
   </div>
 </template>
+
+<style scoped>
+.floating-cursor-pagination {
+  display: flex;
+  max-width: calc(100vw - 3rem);
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem 0.8rem;
+}
+
+.floating-cursor-pagination__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+:deep(.floating-cursor-pagination__button) {
+  height: 2.25rem;
+  min-width: 2.25rem;
+  border-color: transparent;
+  border-radius: 0.8rem;
+  background: transparent;
+  padding-inline: 0.7rem;
+  color: rgb(255 255 255 / 82%);
+  box-shadow: none;
+}
+
+:deep(.floating-cursor-pagination__button:hover) {
+  background: rgb(255 255 255 / 12%);
+  color: #fff;
+}
+
+:deep(.floating-cursor-pagination__button.is-primary) {
+  background: #fff;
+  color: #09090b;
+}
+
+:deep(.floating-cursor-pagination__button.is-primary:hover) {
+  background: rgb(255 255 255 / 92%);
+  color: #09090b;
+}
+
+:deep(.floating-cursor-pagination__button:disabled) {
+  opacity: 0.46;
+}
+</style>

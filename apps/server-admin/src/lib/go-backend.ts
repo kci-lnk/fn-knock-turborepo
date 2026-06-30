@@ -633,6 +633,7 @@ export class GoBackendService {
         access_mode: rule.access_mode,
         suppress_toolbar: rule.suppress_toolbar,
         preserve_host: rule.preserve_host,
+        is_default: rule.is_default === true,
         title: resolveHostRuleTitle(rule),
         favicon:
           typeof rule.favicon === "string" && rule.favicon.trim()

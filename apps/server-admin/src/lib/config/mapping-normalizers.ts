@@ -214,6 +214,7 @@ export const normalizeHostMapping = (
     suppress_toolbar:
       serviceRole === "auth" ? false : raw.suppress_toolbar === true,
     preserve_host: true,
+    is_default: serviceRole === "auth" ? false : raw.is_default === true,
     basic_auth:
       serviceRole === "auth"
         ? createDisabledHostBasicAuth()
@@ -232,9 +233,18 @@ export const normalizeHostMappings = (
   value?: Array<Partial<HostMapping>> | null,
 ): HostMapping[] => {
   if (!Array.isArray(value)) return [];
+  let hasDefault = false;
   return value
     .map((item) => normalizeHostMapping(item))
-    .filter((item) => item.host && item.target);
+    .filter((item) => item.host && item.target)
+    .map((item) => {
+      if (!item.is_default) return item;
+      if (!hasDefault) {
+        hasDefault = true;
+        return item;
+      }
+      return { ...item, is_default: false };
+    });
 };
 
 export const normalizeStreamMapping = (

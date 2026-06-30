@@ -282,6 +282,7 @@ export const buildDiscoveredServiceMappings = ({
     access_mode: DEFAULT_ACCESS_MODE,
     suppress_toolbar: false,
     preserve_host: true,
+    is_default: false,
     basic_auth: createDisabledMappingBasicAuth(),
     locations: [],
     service_role: "app",
@@ -588,6 +589,7 @@ export const createDefaultMapping = (): HostMapping => ({
   access_mode: DEFAULT_ACCESS_MODE,
   suppress_toolbar: false,
   preserve_host: true,
+  is_default: false,
   basic_auth: createDisabledMappingBasicAuth(),
   locations: [],
   service_role: "app",
@@ -659,6 +661,7 @@ export const normalizeMappingForm = (
           ? true
           : input.suppress_toolbar,
     preserve_host: input.preserve_host === true,
+    is_default: serviceRole === "auth" ? false : input.is_default === true,
     basic_auth: basicAuth.enabled
       ? basicAuth
       : createDisabledMappingBasicAuth(),

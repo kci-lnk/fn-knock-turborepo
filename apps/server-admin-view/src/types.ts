@@ -92,6 +92,7 @@ export interface HostMapping {
   access_mode: HostAccessMode;
   suppress_toolbar: boolean;
   preserve_host: boolean;
+  is_default: boolean;
   basic_auth: HostMappingBasicAuth;
   locations: HostLocation[];
   service_role: HostServiceRole;

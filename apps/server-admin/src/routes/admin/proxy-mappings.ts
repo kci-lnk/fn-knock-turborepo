@@ -63,6 +63,7 @@ const toHostRuleSyncPayload = (
     | "access_mode"
     | "suppress_toolbar"
     | "preserve_host"
+    | "is_default"
     | "basic_auth"
     | "locations"
     | "title"
@@ -76,6 +77,7 @@ const toHostRuleSyncPayload = (
   access_mode: mapping.access_mode,
   suppress_toolbar: mapping.suppress_toolbar,
   preserve_host: mapping.preserve_host,
+  is_default: mapping.is_default === true,
   title: resolveHostMappingDisplayTitle(mapping),
   favicon:
     typeof mapping.favicon === "string" && mapping.favicon.trim()
@@ -283,6 +285,7 @@ export const adminProxyMappingsRoutes = new Elysia()
           mapping,
         ]),
       );
+      let hasDefaultMapping = false;
       const normalizedMappings: HostMapping[] = body.mappings.map((mapping) => {
         const previous = previousByHost.get(
           normalizeHostMappingLookupKey(mapping.host),
@@ -303,11 +306,19 @@ export const adminProxyMappingsRoutes = new Elysia()
           serviceRole === "auth"
             ? []
             : normalizeHostMappingLocationsForRoute(mapping.locations);
+        const isDefault =
+          serviceRole !== "auth" &&
+          mapping.is_default === true &&
+          !hasDefaultMapping;
+        if (isDefault) {
+          hasDefaultMapping = true;
+        }
 
         return {
           ...mapping,
           target: normalizedTarget,
           service_role: serviceRole,
+          is_default: isDefault,
           basic_auth: normalizedBasicAuth,
           locations: normalizedLocations,
           title:
@@ -391,6 +402,7 @@ export const adminProxyMappingsRoutes = new Elysia()
             ]),
             suppress_toolbar: t.Boolean(),
             preserve_host: t.Boolean(),
+            is_default: t.Optional(t.Boolean()),
             basic_auth: t.Optional(
               t.Object({
                 enabled: t.Boolean(),

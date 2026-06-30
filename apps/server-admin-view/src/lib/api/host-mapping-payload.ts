@@ -8,6 +8,7 @@ type HostMappingUpdatePayload = Pick<
   | "access_mode"
   | "suppress_toolbar"
   | "preserve_host"
+  | "is_default"
   | "basic_auth"
   | "locations"
   | "title_override"
@@ -30,6 +31,7 @@ export const toHostMappingUpdatePayload = (
   access_mode: mapping.access_mode,
   suppress_toolbar: mapping.suppress_toolbar,
   preserve_host: mapping.preserve_host,
+  is_default: mapping.is_default === true,
   basic_auth: toHostMappingBasicAuthPayload(mapping.basic_auth),
   locations: (mapping.locations ?? []).map((location) => ({
     path: location.path.trim(),

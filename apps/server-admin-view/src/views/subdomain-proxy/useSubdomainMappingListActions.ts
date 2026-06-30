@@ -128,6 +128,43 @@ export const useSubdomainMappingListActions = ({
     navigateToGatewayLocations(host);
   };
 
+  const setDefaultMapping = async (mapping: HostMapping) => {
+    if (isSavingMappings.value || isAuthServiceTarget(mapping.target)) {
+      return;
+    }
+
+    await runSaveMappings(async () => {
+      await saveHostMappings(
+        allMappings.value.map((item) => ({
+          ...item,
+          is_default: item.host === mapping.host,
+        })),
+      );
+      toast.success(translate("admin.subdomainProxy.defaultDomainSet"), {
+        description: formatHostWithAccessEntryPort(mapping.host),
+      });
+      return true;
+    });
+  };
+
+  const clearDefaultMapping = async (mapping: HostMapping) => {
+    if (isSavingMappings.value) {
+      return;
+    }
+
+    await runSaveMappings(async () => {
+      await saveHostMappings(
+        allMappings.value.map((item) =>
+          item.is_default ? { ...item, is_default: false } : item,
+        ),
+      );
+      toast.success(translate("admin.subdomainProxy.defaultDomainCleared"), {
+        description: formatHostWithAccessEntryPort(mapping.host),
+      });
+      return true;
+    });
+  };
+
   const saveMappingTitleOverride = async (
     mapping: HostMapping,
     value: string,
@@ -225,12 +262,14 @@ export const useSubdomainMappingListActions = ({
   };
 
   return {
+    clearDefaultMapping,
     copyMappingHost,
     exportBookmarks,
     openGatewayLocations,
     refreshAllTitles,
     saveMappingOrder,
     saveMappingTitleOverride,
+    setDefaultMapping,
     syncRoutes,
   };
 };

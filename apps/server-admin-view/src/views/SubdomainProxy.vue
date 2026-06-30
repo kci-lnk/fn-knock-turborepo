@@ -71,6 +71,7 @@
       :traffic-timestamp="trafficRealtimeStats?.timestamp ?? null"
       :visible-mappings-count="visibleMappings.length"
       @add-auth-service="addAuthService"
+      @clear-default="clearDefaultMapping"
       @copy-host="copyMappingHost"
       @delete="openDeleteMappingDialog"
       @edit="openEditDialog"
@@ -82,6 +83,7 @@
       @open-stale-cleanup="openStaleCleanupDialog"
       @refresh-all-titles="refreshAllTitles"
       @save-order="saveMappingOrder"
+      @set-default="setDefaultMapping"
       @sync-routes="syncRoutes"
     />
 
@@ -562,12 +564,14 @@ const { isPending: isExportingBookmarks, run: runExportBookmarks } =
   });
 
 const {
+  clearDefaultMapping,
   copyMappingHost,
   exportBookmarks,
   openGatewayLocations,
   refreshAllTitles,
   saveMappingOrder,
   saveMappingTitleOverride,
+  setDefaultMapping,
   syncRoutes,
 } = useSubdomainMappingListActions({
   allMappings,
@@ -694,6 +698,7 @@ async function addAuthService() {
         access_mode: DEFAULT_ACCESS_MODE,
         suppress_toolbar: false,
         preserve_host: true,
+        is_default: false,
         basic_auth: createDisabledMappingBasicAuth(),
         locations: [],
         service_role: "auth",

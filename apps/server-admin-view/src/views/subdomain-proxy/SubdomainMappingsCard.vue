@@ -14,6 +14,8 @@ import {
   Route as RouteIcon,
   Search,
   ShieldCheck,
+  Star,
+  StarOff,
   Trash2,
 } from "lucide-vue-next";
 import { Badge } from "@/components/ui/badge";
@@ -75,15 +77,9 @@ const props = defineProps<{
   formatHost: (host: string) => string;
   getHostTrafficSample: (host: string) => HostTrafficStats | null;
   getMappingTitleForDisplay: (mapping: HostMapping) => string;
-  handleLocationRulesTooltipOpenChange: (
-    host: string,
-    open: boolean,
-  ) => void;
+  handleLocationRulesTooltipOpenChange: (host: string, open: boolean) => void;
   handleLocationRulesTooltipTriggerClick: (host: string) => void;
-  handleProtocolHeadersWarningOpenChange: (
-    host: string,
-    open: boolean,
-  ) => void;
+  handleProtocolHeadersWarningOpenChange: (host: string, open: boolean) => void;
   hasRegularHostMappings: boolean;
   isClearingAllSubdomainConfig: boolean;
   isConfigLoading: boolean;
@@ -115,8 +111,9 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   "add-auth-service": [];
+  "clear-default": [mapping: HostMapping];
   "copy-host": [mapping: HostMapping];
-  "delete": [host: string];
+  delete: [host: string];
   edit: [mapping: HostMapping];
   "export-bookmarks": [];
   "open-clear-all-config": [];
@@ -126,6 +123,7 @@ const emit = defineEmits<{
   "open-stale-cleanup": [];
   "refresh-all-titles": [];
   "save-order": [];
+  "set-default": [mapping: HostMapping];
   "sync-routes": [];
   "update:draggableMappings": [mappings: HostMapping[]];
   "update:searchQuery": [value: string];
@@ -325,13 +323,15 @@ const handleMappingTableScroll = (event: Event) => {
               >
                 <span class="sr-only">Icon</span>
               </TableHead>
-              <TableHead
-                class="mapping-sticky-cell mapping-title-cell"
-              >
+              <TableHead class="mapping-sticky-cell mapping-title-cell">
                 {{ t("admin.subdomainProxy.columns.title") }}
               </TableHead>
-              <TableHead>{{ t("admin.subdomainProxy.columns.domain") }}</TableHead>
-              <TableHead>{{ t("admin.subdomainProxy.columns.target") }}</TableHead>
+              <TableHead>{{
+                t("admin.subdomainProxy.columns.domain")
+              }}</TableHead>
+              <TableHead>{{
+                t("admin.subdomainProxy.columns.target")
+              }}</TableHead>
               <TableHead class="w-[7rem] min-w-[7rem] max-w-[7rem]">
                 {{ t("admin.subdomainProxy.columns.traffic") }}
               </TableHead>
@@ -383,7 +383,9 @@ const handleMappingTableScroll = (event: Event) => {
                 class="mapping-sticky-cell mapping-favicon-cell mapping-icon-cell"
               >
                 <img
-                  v-if="getMappingFaviconSrc(mapping) && !isFaviconBroken(mapping)"
+                  v-if="
+                    getMappingFaviconSrc(mapping) && !isFaviconBroken(mapping)
+                  "
                   :src="getMappingFaviconSrc(mapping)"
                   :alt="`${getMappingTitleForDisplay(mapping)} favicon`"
                   class="h-4 w-4 object-contain"
@@ -462,7 +464,9 @@ const handleMappingTableScroll = (event: Event) => {
                           href="#/system/gateway-proxy-headers"
                           class="inline-flex rounded-md border border-destructive/20 bg-destructive/5 px-2.5 py-1.5 text-xs font-medium text-destructive transition hover:bg-destructive/10"
                         >
-                          {{ t("admin.subdomainProxy.goDisableProtocolHeaders") }}
+                          {{
+                            t("admin.subdomainProxy.goDisableProtocolHeaders")
+                          }}
                         </a>
                       </div>
                     </PopoverContent>
@@ -472,7 +476,9 @@ const handleMappingTableScroll = (event: Event) => {
                       :text="getMappingDisplayTitle(mapping)"
                       :placeholder="t('admin.subdomainProxy.titlePlaceholder')"
                       :empty-text="t('admin.subdomainProxy.notFetched')"
-                      :save="(value) => saveMappingTitleOverride(mapping, value)"
+                      :save="
+                        (value) => saveMappingTitleOverride(mapping, value)
+                      "
                     />
                   </div>
                 </div>
@@ -515,6 +521,25 @@ const handleMappingTableScroll = (event: Event) => {
                   >
                     {{ t("admin.subdomainProxy.authServiceBadge") }}
                   </Badge>
+                  <TooltipProvider v-if="mapping.is_default">
+                    <Tooltip>
+                      <TooltipTrigger as-child>
+                        <span
+                          class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-muted-foreground"
+                          :aria-label="
+                            t('admin.subdomainProxy.defaultDomainAria', {
+                              host: formatHost(mapping.host),
+                            })
+                          "
+                        >
+                          <Star class="h-3.5 w-3.5" />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" align="center">
+                        <p>{{ t("admin.subdomainProxy.defaultDomain") }}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                   <ShieldCheck
                     v-if="mapping.use_auth"
                     class="h-3.5 w-3.5 shrink-0"
@@ -573,31 +598,63 @@ const handleMappingTableScroll = (event: Event) => {
                 </div>
               </TableCell>
               <TableCell class="text-right">
-                <div class="flex justify-end gap-2">
+                <div class="flex justify-end">
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
+                    class="rounded-r-none"
                     @click="emit('edit', mapping)"
                   >
                     {{ t("admin.subdomainProxy.edit") }}
                   </Button>
-                  <Button
-                    v-if="!isAuthServiceTarget(mapping.target)"
-                    variant="ghost"
-                    size="sm"
-                    @click="emit('open-gateway-locations', mapping.host)"
-                  >
-                    {{ t("admin.subdomainProxy.paths") }}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    class="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    :disabled="isSavingMappings"
-                    @click="emit('delete', mapping.host)"
-                  >
-                    {{ t("admin.subdomainProxy.delete") }}
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger as-child>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        class="h-8 w-8 rounded-l-none border-l-0"
+                      >
+                        <ChevronDown class="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" class="w-44">
+                      <DropdownMenuItem
+                        v-if="!isAuthServiceTarget(mapping.target)"
+                        @select="emit('open-gateway-locations', mapping.host)"
+                      >
+                        <RouteIcon class="mr-2 h-4 w-4" />
+                        {{ t("admin.subdomainProxy.paths") }}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        v-if="
+                          !isAuthServiceTarget(mapping.target) &&
+                          mapping.is_default
+                        "
+                        :disabled="isSavingMappings"
+                        @select="emit('clear-default', mapping)"
+                      >
+                        <StarOff class="mr-2 h-4 w-4" />
+                        {{ t("admin.subdomainProxy.clearDefaultDomain") }}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        v-else-if="!isAuthServiceTarget(mapping.target)"
+                        :disabled="isSavingMappings"
+                        @select="emit('set-default', mapping)"
+                      >
+                        <Star class="mr-2 h-4 w-4" />
+                        {{ t("admin.subdomainProxy.setDefaultDomain") }}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        variant="destructive"
+                        :disabled="isSavingMappings"
+                        @select="emit('delete', mapping.host)"
+                      >
+                        <Trash2 class="mr-2 h-4 w-4" />
+                        {{ t("admin.subdomainProxy.delete") }}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </TableCell>
             </TableRow>

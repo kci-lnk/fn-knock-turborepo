@@ -46,6 +46,7 @@ export interface HostRule {
   access_mode?: "login_first" | "strict_whitelist";
   suppress_toolbar?: boolean;
   preserve_host?: boolean;
+  is_default?: boolean;
   title?: string;
   title_override?: string;
   favicon?: string | null;

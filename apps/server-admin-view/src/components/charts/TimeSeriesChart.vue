@@ -68,6 +68,10 @@ const { locale } = useI18n();
 let resizeObserver: ResizeObserver | null = null;
 let themeObserver: MutationObserver | null = null;
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+const LONG_RANGE_MS = DAY_MS * 2;
+const X_AXIS_LABEL_GAP = 8;
+
 const toTimestampMs = (value: TimeSeriesPoint[0]): number | null => {
   if (value instanceof Date) {
     const time = value.getTime();
@@ -143,12 +147,116 @@ const formatTime = (value: number, compact = false) => {
   if (!Number.isFinite(date.getTime())) return "";
 
   return new Intl.DateTimeFormat(String(locale.value), {
-    month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
     ...(compact ? {} : { second: "2-digit" }),
   }).format(date);
+};
+
+const formatDay = (date: Date) =>
+  new Intl.DateTimeFormat(String(locale.value), {
+    day: "2-digit",
+  }).format(date);
+
+const formatClock = (date: Date) =>
+  new Intl.DateTimeFormat(String(locale.value), {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+
+const getDateKey = (value: number) => {
+  const date = new Date(value);
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+};
+
+const estimateAxisLabelWidth = (label: string) =>
+  Math.max(
+    ...label.split("\n").map((line) =>
+      Array.from(line).reduce(
+        (width, char) => width + (char.charCodeAt(0) > 255 ? 12 : 7),
+        0,
+      ),
+    ),
+  );
+
+const thinXAxisLabels = (
+  chart: uPlot,
+  splits: number[],
+  labels: string[],
+) => {
+  const visibleLabels = Array.from({ length: labels.length }, () => "");
+  let lastRight = Number.NEGATIVE_INFINITY;
+
+  labels.forEach((label, index) => {
+    if (!label) return;
+
+    const split = splits[index];
+    if (split === undefined) return;
+
+    const x = chart.valToPos(split, "x");
+    if (!Number.isFinite(x)) return;
+
+    const halfWidth = estimateAxisLabelWidth(label) / 2;
+    const left = x - halfWidth;
+    const right = x + halfWidth;
+
+    if (left >= lastRight + X_AXIS_LABEL_GAP) {
+      visibleLabels[index] = label;
+      lastRight = right;
+    }
+  });
+
+  return visibleLabels;
+};
+
+const formatXAxisValues = (chart: uPlot, splits: number[]) => {
+  const xScale = chart.scales.x;
+  const firstSplit = splits[0] ?? 0;
+  const lastSplit = splits[splits.length - 1] ?? firstSplit;
+  const rangeMs =
+    xScale && typeof xScale.min === "number" && typeof xScale.max === "number"
+      ? xScale.max - xScale.min
+      : lastSplit - firstSplit;
+
+  if (!Number.isFinite(rangeMs)) {
+    return splits.map((value) => formatTime(value, true));
+  }
+
+  if (props.timeFormatter) {
+    return thinXAxisLabels(
+      chart,
+      splits,
+      splits.map((value) => props.timeFormatter?.(value) ?? ""),
+    );
+  }
+
+  if (rangeMs >= LONG_RANGE_MS) {
+    let previousDateKey = "";
+    const labels = splits.map((value) => {
+      const date = new Date(value);
+      if (!Number.isFinite(date.getTime())) return "";
+
+      const dateKey = getDateKey(value);
+      if (dateKey === previousDateKey) return "";
+      previousDateKey = dateKey;
+      return formatDay(date);
+    });
+
+    return thinXAxisLabels(chart, splits, labels);
+  }
+
+  return thinXAxisLabels(
+    chart,
+    splits,
+    splits.map((value) => {
+      const date = new Date(value);
+      if (!Number.isFinite(date.getTime())) return "";
+      return rangeMs >= DAY_MS
+        ? `${formatDay(date)} ${formatClock(date)}`
+        : formatClock(date);
+    }),
+  );
 };
 
 const isDarkMode = () =>
@@ -244,7 +352,7 @@ const createOptions = (): uPlot.Options => {
         stroke: colors.axis,
         grid: { stroke: colors.grid, width: 1 },
         ticks: { show: false },
-        values: (_chart, splits) => splits.map((value) => formatTime(value, true)),
+        values: formatXAxisValues,
         size: 34,
       },
       {

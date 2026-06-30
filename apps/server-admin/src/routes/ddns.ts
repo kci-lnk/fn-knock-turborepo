@@ -79,15 +79,18 @@ const runTargetManualTest = async (
       };
     }
 
-    const complete = await ddnsManager.isTargetConfigComplete(target);
-    if (!complete) {
+    const completeness = await ddnsManager.getTargetConfigCompleteness(target);
+    if (!completeness.complete) {
+      const baseMessage = target.isPrimary
+        ? t("server.ddns.primaryConfigIncomplete")
+        : t("server.ddns.targetConfigIncomplete");
       return {
         status: 400,
         body: {
           success: false,
-          message: target.isPrimary
-            ? t("server.ddns.primaryConfigIncomplete")
-            : t("server.ddns.targetConfigIncomplete"),
+          message: completeness.reason
+            ? `${baseMessage}: ${completeness.reason}`
+            : baseMessage,
         },
       };
     }

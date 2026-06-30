@@ -156,11 +156,15 @@ const runAutomaticDDNSCheckWithLocale = async (
           continue;
         }
 
-        const complete = await ddnsManager.isTargetConfigComplete(target);
-        if (!complete) {
+        const completeness =
+          await ddnsManager.getTargetConfigCompleteness(target);
+        if (!completeness.complete) {
+          const message = completeness.reason
+            ? `${ddnsT("skippedIncompleteConfig")}: ${completeness.reason}`
+            : ddnsT("skippedIncompleteConfig");
           await recordSkippedCheck(
             target.id,
-            withTrigger(triggerLabel, ddnsT("skippedIncompleteConfig")),
+            withTrigger(triggerLabel, message),
             options.emitSkipLog === true,
           );
           continue;

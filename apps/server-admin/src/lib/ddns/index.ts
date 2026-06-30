@@ -78,7 +78,7 @@ import {
   compareDDNSTargets,
   toDDNSTargetSummary,
 } from "./target-view";
-import { isDDNSTargetConfigComplete } from "./config-completeness";
+import { getDDNSTargetConfigCompleteness } from "./config-completeness";
 
 export {
   DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES,
@@ -1018,16 +1018,25 @@ export class DDNSManager {
   async isTargetConfigComplete(
     targetOrId: string | DDNSTargetRecord,
   ): Promise<boolean> {
+    return (await this.getTargetConfigCompleteness(targetOrId)).complete;
+  }
+
+  async getTargetConfigCompleteness(
+    targetOrId: string | DDNSTargetRecord,
+  ): Promise<ReturnType<typeof getDDNSTargetConfigCompleteness>> {
     const target =
       typeof targetOrId === "string"
         ? await this.getTarget(targetOrId)
         : targetOrId;
     if (!target?.provider) {
-      return false;
+      return {
+        complete: false,
+        reason: ddnsT("noProviderSelected"),
+      };
     }
 
     const definition = this.getProviderDefinition(target.provider);
-    return isDDNSTargetConfigComplete(target, definition);
+    return getDDNSTargetConfigCompleteness(target, definition);
   }
 
   async isConfigComplete(): Promise<boolean> {

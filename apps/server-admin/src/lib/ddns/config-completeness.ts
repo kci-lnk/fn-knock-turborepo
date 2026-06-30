@@ -18,26 +18,52 @@ import {
 } from "./network";
 import {
   DDNS_UPDATE_SCOPE_FIELD,
+  ddnsProviderT,
+  ddnsTranslate,
   normalizeUpdateScope,
 } from "./providers/helpers";
 import type { DDNSProviderDefinition, DDNSTargetRecord } from "./types";
 
-export const isDDNSTargetConfigComplete = (
+export type DDNSTargetConfigCompleteness =
+  | { complete: true; reason: null }
+  | { complete: false; reason: string };
+
+const ddnsT = ddnsTranslate;
+
+const complete = (): DDNSTargetConfigCompleteness => ({
+  complete: true,
+  reason: null,
+});
+
+const incomplete = (reason: string): DDNSTargetConfigCompleteness => ({
+  complete: false,
+  reason,
+});
+
+const formatFamily = (family: "ipv4" | "ipv6") =>
+  family === "ipv4" ? "IPv4" : "IPv6";
+
+export const getDDNSTargetConfigCompleteness = (
   target: DDNSTargetRecord,
   definition: DDNSProviderDefinition | null,
-): boolean => {
+): DDNSTargetConfigCompleteness => {
   if (!definition) {
-    return false;
+    return incomplete(ddnsT("notConfigured"));
   }
 
   const requiredFields = definition.fields.filter(
     (field) => field.required !== false,
   );
-  const providerFieldsComplete = requiredFields.every(
-    (field) => !!target.config[field.key],
+  const missingRequiredFields = requiredFields.filter(
+    (field) => !target.config[field.key],
   );
-  if (!providerFieldsComplete) {
-    return false;
+  if (missingRequiredFields.length > 0) {
+    const missingLabels = missingRequiredFields
+      .map((field) => field.label || field.key)
+      .join(", ");
+    return incomplete(
+      `${ddnsProviderT(definition.name, "configIncomplete")}: ${missingLabels}`,
+    );
   }
 
   const updateScope = normalizeUpdateScope(
@@ -47,7 +73,11 @@ export const isDDNSTargetConfigComplete = (
     definition.capabilities?.addressMode === "single_address" &&
     updateScope === "dual_stack"
   ) {
-    return false;
+    return incomplete(
+      ddnsT("singleAddressProviderUnsupported", {
+        provider: definition.label,
+      }),
+    );
   }
 
   const ipSource = normalizeIpSource(target.config[DDNS_IP_SOURCE_FIELD]);
@@ -64,70 +94,99 @@ export const isDDNSTargetConfigComplete = (
     const hasValidIPv6 = isIP(ipv6) === 6;
 
     if (ipv4 && !hasValidIPv4) {
-      return false;
+      return incomplete(ddnsT("staticIpv4Invalid", { value: ipv4 }));
     }
     if (ipv6 && !hasValidIPv6) {
-      return false;
+      return incomplete(ddnsT("staticIpv6Invalid", { value: ipv6 }));
     }
     if (updateScope === "ipv4_only") {
-      return hasValidIPv4;
+      return hasValidIPv4
+        ? complete()
+        : incomplete(ddnsT("staticIpv4Unavailable"));
     }
     if (updateScope === "ipv6_only") {
-      return hasValidIPv6;
+      return hasValidIPv6
+        ? complete()
+        : incomplete(ddnsT("staticIpv6Unavailable"));
     }
-    return (requiresIPv4 && hasValidIPv4) || (requiresIPv6 && hasValidIPv6);
+    return (requiresIPv4 && hasValidIPv4) || (requiresIPv6 && hasValidIPv6)
+      ? complete()
+      : incomplete(ddnsT("staticDualStackUnavailable"));
   }
 
   if (ipSource === "domain") {
-    return Boolean(
-      normalizeSourceDomain(target.config[DDNS_SOURCE_DOMAIN_FIELD]),
-    );
+    return normalizeSourceDomain(target.config[DDNS_SOURCE_DOMAIN_FIELD])
+      ? complete()
+      : incomplete(ddnsT("sourceDomainRequired"));
   }
 
   if (ipSource !== "interface") {
-    return true;
+    return complete();
   }
 
   const networkInterface = normalizeNetworkInterface(
     target.config[DDNS_NETWORK_INTERFACE_FIELD],
   );
   if (!networkInterface) {
-    return false;
+    return incomplete(ddnsT("interfaceRequired"));
   }
 
   const network = findDDNSNetworkInterface(networkInterface);
   if (!network) {
-    return false;
+    return incomplete(ddnsT("interfaceNotFound", { name: networkInterface }));
   }
 
   const requiresIPv4 = updateScope !== "ipv6_only";
   const requiresIPv6 = updateScope !== "ipv4_only";
-  const hasSelectableIPv4 = network.selectableAddresses.some(
+  const selectableIPv4 = network.selectableAddresses.filter(
     (item) => item.family === "ipv4",
   );
-  const hasSelectableIPv6 = network.selectableAddresses.some(
+  const selectableIPv6 = network.selectableAddresses.filter(
     (item) => item.family === "ipv6",
   );
 
-  if (
-    requiresIPv4 &&
-    hasSelectableIPv4 &&
-    !normalizeInterfaceAddressIndex(
+  if (requiresIPv4 && selectableIPv4.length > 0) {
+    const index = normalizeInterfaceAddressIndex(
       target.config[DDNS_INTERFACE_IPV4_INDEX_FIELD],
-    )
-  ) {
-    return false;
+    );
+    if (!index) {
+      return incomplete(
+        ddnsT("selectInterfaceAddress", { family: formatFamily("ipv4") }),
+      );
+    }
+    if (!selectableIPv4[Number(index)]) {
+      return incomplete(
+        ddnsT("selectedInterfaceAddressUnavailable", {
+          index: Number(index) + 1,
+          family: formatFamily("ipv4"),
+        }),
+      );
+    }
   }
 
-  if (
-    requiresIPv6 &&
-    hasSelectableIPv6 &&
-    !normalizeInterfaceAddressIndex(
+  if (requiresIPv6 && selectableIPv6.length > 0) {
+    const index = normalizeInterfaceAddressIndex(
       target.config[DDNS_INTERFACE_IPV6_INDEX_FIELD],
-    )
-  ) {
-    return false;
+    );
+    if (!index) {
+      return incomplete(
+        ddnsT("selectInterfaceAddress", { family: formatFamily("ipv6") }),
+      );
+    }
+    if (!selectableIPv6[Number(index)]) {
+      return incomplete(
+        ddnsT("selectedInterfaceAddressUnavailable", {
+          index: Number(index) + 1,
+          family: formatFamily("ipv6"),
+        }),
+      );
+    }
   }
 
-  return true;
+  return complete();
 };
+
+export const isDDNSTargetConfigComplete = (
+  target: DDNSTargetRecord,
+  definition: DDNSProviderDefinition | null,
+): boolean => getDDNSTargetConfigCompleteness(target, definition).complete;

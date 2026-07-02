@@ -62,6 +62,7 @@ import type {
   SSLCertificateSource,
   SSLManagedCertificate,
   SSLStatus,
+  FnosNetworkTuningConfig,
   FnosShareBypassConfig,
   FnosPortIconHijackConfig,
   GatewayLoggingSettings,
@@ -706,6 +707,10 @@ export class ConfigManager {
     return this.featureSections.getFnosPortIconHijackConfig();
   }
 
+  async getFnosNetworkTuningConfig(): Promise<FnosNetworkTuningConfig> {
+    return this.featureSections.getFnosNetworkTuningConfig();
+  }
+
   async getGatewayLoggingConfig(): Promise<GatewayLoggingSettings> {
     return this.featureSections.getGatewayLoggingConfig();
   }
@@ -806,6 +811,12 @@ export class ConfigManager {
     patch: Partial<FnosPortIconHijackConfig>,
   ): Promise<FnosPortIconHijackConfig> {
     return this.featureSections.updateFnosPortIconHijackConfig(patch);
+  }
+
+  async updateFnosNetworkTuningConfig(
+    patch: Partial<FnosNetworkTuningConfig>,
+  ): Promise<FnosNetworkTuningConfig> {
+    return this.featureSections.updateFnosNetworkTuningConfig(patch);
   }
 
   async updateGatewayLoggingConfig(

@@ -1532,11 +1532,15 @@ export const koKRAdmin = {
     saveDescription: "FNOS 설정을 저장하지 못했습니다.",
     saveIconHijackDescription:
       "FNOS 포트 아이콘 인계 설정을 저장하지 못했습니다.",
+    saveNetworkTuningDescription:
+      "FNOS FPK 네트워크 최적화 설정을 저장하지 못했습니다.",
     unavailableTitle: "현재 실행 모드를 사용할 수 없습니다.",
     unavailableDescription:
       "이 기능은 역방향 프록시 모드와 하위 도메인 모드에서만 사용할 수 있습니다. 직접 모드에서는 해당 포트가 다른 사람에게 노출되기 전에 인증이 완료되어야 합니다.",
     shareBypassUpdated: "FNOS 공유 우회 설정이 업데이트되었습니다.",
     iconHijackUpdated: "FNOS 포트 아이콘 인계 설정이 업데이트되었습니다.",
+    bbrUpdated: "BBR 가속 설정이 업데이트되었습니다.",
+    mtuUpdated: "MTU 탐지 설정이 업데이트되었습니다.",
     shareBypassTitle: "FNOS 공유 우회",
     shareBypassDescription:
       "활성화되면 FNOS 검증 결과에 따라 공유 링크가 통과될 수 있습니다. 역방향 프록시 모드와 하위 도메인 모드에서 사용할 수 있습니다.",
@@ -1548,6 +1552,21 @@ export const koKRAdmin = {
     iconHijackDescriptionHighlight: "기존 하위 도메인 매핑과 일치",
     iconHijackDescriptionSuffix:
       " 도달 가능한 주소로 다시 작성됩니다. 맞춤 URL을 사용하여 각 아이콘을 수동으로 편집할 수도 있지만 이렇게 하면 한 단계로 완료됩니다.",
+    networkTuningUnavailable:
+      "현재 런타임은 호스트 네트워크 최적화 설정을 수정할 수 없습니다.",
+    networkTuningLastError: "마지막 실행 실패: {message}",
+    bbrTitle: "BBR 가속",
+    bbrDescription:
+      "bbr 혼잡 제어와 fq 큐를 사용해 네트워크 간 처리량과 안정성을 높입니다.",
+    bbrCurrent:
+      "현재: 혼잡 제어 {congestion}, 기본 큐 {qdisc}, 사용 가능한 알고리즘 {available}",
+    bbrSupported: "현재 커널은 BBR을 지원합니다.",
+    bbrUnsupported:
+      "현재 커널이 아직 BBR을 노출하지 않았습니다. 저장 시 tcp_bbr 모듈 로드를 시도합니다.",
+    mtuTitle: "MTU 탐지",
+    mtuDescription:
+      "경로 MTU 탐지를 활성화해 링크 MTU 불일치로 인한 조각화와 재전송을 줄입니다.",
+    mtuCurrent: "현재: tcp_mtu_probing = {value}",
   },
   gatewayLogging: {
     loadFailed: "로드 실패",

@@ -16,6 +16,7 @@ import {
   DEFAULT_AUTO_HTTPS_CONFIG,
   DEFAULT_DASHBOARD_DISPLAY_CONFIG,
   DEFAULT_EVENT_SYSTEM_CONFIG,
+  DEFAULT_FNOS_NETWORK_TUNING_CONFIG,
   DEFAULT_FNOS_PORT_ICON_HIJACK_CONFIG,
   DEFAULT_FNOS_SHARE_BYPASS_CONFIG,
   DEFAULT_GATEWAY_CRAWLER_BLOCKER_CONFIG,
@@ -66,6 +67,7 @@ import type {
   EventSystemConfig,
   EventSystemResourceAlertRuleConfig,
   EventSystemSimpleRuleConfig,
+  FnosNetworkTuningConfig,
   FnosPortIconHijackConfig,
   FnosShareBypassConfig,
   GatewayCrawlerBlockerConfig,
@@ -143,6 +145,9 @@ export const DEFAULT_CONFIG: AppConfig = {
   fnos_port_icon_hijack: {
     enabled: false,
     updated_at: null,
+  },
+  fnos_network_tuning: {
+    ...DEFAULT_FNOS_NETWORK_TUNING_CONFIG,
   },
   gateway_logging: {
     ...DEFAULT_GATEWAY_LOGGING_SETTINGS,
@@ -749,6 +754,25 @@ export const normalizeFnosPortIconHijackConfig = (
   return {
     enabled: raw.enabled === true,
     updated_at: normalizeOptionalString(raw.updated_at) ?? null,
+  };
+};
+
+export const normalizeFnosNetworkTuningConfig = (
+  value?: Partial<FnosNetworkTuningConfig> | null,
+): FnosNetworkTuningConfig => {
+  const raw = value ?? {};
+
+  return {
+    bbr_enabled: raw.bbr_enabled === true,
+    mtu_probing_enabled: raw.mtu_probing_enabled === true,
+    previous_tcp_congestion_control:
+      normalizeOptionalString(raw.previous_tcp_congestion_control) ?? null,
+    previous_default_qdisc:
+      normalizeOptionalString(raw.previous_default_qdisc) ?? null,
+    previous_tcp_mtu_probing:
+      normalizeOptionalString(raw.previous_tcp_mtu_probing) ?? null,
+    updated_at: normalizeOptionalString(raw.updated_at) ?? null,
+    last_error: normalizeOptionalString(raw.last_error) ?? null,
   };
 };
 

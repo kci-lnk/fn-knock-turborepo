@@ -215,6 +215,17 @@ export const enServer = {
       syncFailed:
         "Failed to sync FNOS port icon hijack configuration to the gateway",
     },
+    fnosNetworkTuning: {
+      unavailable:
+        "The current runtime does not support FNOS FPK network optimization",
+      updateFailed: "Failed to update FNOS FPK network optimization",
+      blocked: {
+        deployment:
+          "FNOS FPK network optimization is only available in FPK deployments",
+        platform: "FNOS FPK network optimization requires a Linux host",
+        permission: "FNOS FPK network optimization requires root permission",
+      },
+    },
     gateway: {
       syncAuthCacheFailed:
         "Failed to sync auth cache configuration to the gateway",

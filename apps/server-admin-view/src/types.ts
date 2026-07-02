@@ -252,6 +252,56 @@ export interface FnosPortIconHijackConfig {
   updated_at: string | null;
 }
 
+export interface FnosNetworkTuningConfig {
+  bbr_enabled: boolean;
+  mtu_probing_enabled: boolean;
+  previous_tcp_congestion_control: string | null;
+  previous_default_qdisc: string | null;
+  previous_tcp_mtu_probing: string | null;
+  updated_at: string | null;
+  last_error: string | null;
+}
+
+export interface FnosNetworkTuningKernelState {
+  tcp_congestion_control: string | null;
+  tcp_available_congestion_control: string[];
+  default_qdisc: string | null;
+  tcp_mtu_probing: string | null;
+  bbr_module_loaded: boolean;
+  bbr_supported: boolean;
+  bbr_active: boolean;
+  mtu_probing_active: boolean;
+}
+
+export interface FnosNetworkTuningStatus {
+  available: boolean;
+  blocked_reason_code: "deployment" | "platform" | "permission" | null;
+  blocked_reason: string | null;
+  managed_config_path: string;
+  config: FnosNetworkTuningConfig;
+  state: FnosNetworkTuningKernelState;
+  bbr: {
+    desired_enabled: boolean;
+    active: boolean;
+    supported: boolean;
+    module_loaded: boolean;
+    current_congestion_control: string | null;
+    current_default_qdisc: string | null;
+    available_congestion_control: string[];
+  };
+  mtu_probing: {
+    desired_enabled: boolean;
+    active: boolean;
+    current_value: string | null;
+  };
+  last_error: string | null;
+}
+
+export interface FnosNetworkTuningUpdatePayload {
+  bbr_enabled?: boolean;
+  mtu_probing_enabled?: boolean;
+}
+
 export interface GatewayLoggingConfig {
   enabled: boolean;
   max_days: number;
@@ -582,6 +632,7 @@ export interface AppConfig {
   default_tunnel?: "frp" | "cloudflared";
   fnos_share_bypass?: FnosShareBypassConfig;
   fnos_port_icon_hijack?: FnosPortIconHijackConfig;
+  fnos_network_tuning?: FnosNetworkTuningConfig;
   gateway_logging?: GatewayLoggingConfig;
   waf?: WAFConfig;
   reverse_proxy_throttle?: ReverseProxyThrottleConfig;

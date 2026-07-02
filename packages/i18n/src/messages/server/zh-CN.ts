@@ -178,6 +178,15 @@ export const zhCNServer = {
     fnosPortIcon: {
       syncFailed: "同步飞牛端口图标接管配置到网关失败",
     },
+    fnosNetworkTuning: {
+      unavailable: "当前运行环境不支持飞牛 FPK 网络优化",
+      updateFailed: "更新飞牛 FPK 网络优化失败",
+      blocked: {
+        deployment: "飞牛 FPK 网络优化仅支持 FPK 部署",
+        platform: "飞牛 FPK 网络优化需要 Linux 宿主环境",
+        permission: "飞牛 FPK 网络优化需要 root 权限",
+      },
+    },
     gateway: {
       syncAuthCacheFailed: "同步鉴权缓存配置到网关失败",
       syncThrottleFailed: "同步网关节流配置到网关失败",

@@ -179,6 +179,15 @@ export const zhHantServer = {
     fnosPortIcon: {
       syncFailed: "同步飛牛端口圖標接管配置到網關失敗",
     },
+    fnosNetworkTuning: {
+      unavailable: "目前運行環境不支援飛牛 FPK 網路優化",
+      updateFailed: "更新飛牛 FPK 網路優化失敗",
+      blocked: {
+        deployment: "飛牛 FPK 網路優化僅支援 FPK 部署",
+        platform: "飛牛 FPK 網路優化需要 Linux 宿主環境",
+        permission: "飛牛 FPK 網路優化需要 root 權限",
+      },
+    },
     gateway: {
       syncAuthCacheFailed: "同步鑒權緩存配置到網關失敗",
       syncThrottleFailed: "同步網關節流配置到網關失敗",

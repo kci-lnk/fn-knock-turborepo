@@ -1448,11 +1448,14 @@ export const zhHantAdmin = {
     saveFailed: "保存失敗",
     saveDescription: "保存飛牛設定失敗",
     saveIconHijackDescription: "保存飛牛端口圖標接管設定失敗",
+    saveNetworkTuningDescription: "保存飛牛 FPK 網路優化設定失敗",
     unavailableTitle: "當前運行模式不可用",
     unavailableDescription:
       "此功能僅在反代模式和子域模式下可用。直連模式下，需要完成鑒權後才能開啟對應端口供其他人訪問。",
     shareBypassUpdated: "飛牛分享直通設定已更新",
     iconHijackUpdated: "飛牛端口圖標接管設定已更新",
+    bbrUpdated: "BBR 加速設定已更新",
+    mtuUpdated: "MTU 探測設定已更新",
     shareBypassTitle: "飛牛分享直通",
     shareBypassDescription:
       "開啟後，分享連結可按飛牛校驗結果直通訪問；反代模式和子域模式可用。",
@@ -1463,6 +1466,19 @@ export const zhHantAdmin = {
     iconHijackDescriptionHighlight: "匹配已有的子域映射",
     iconHijackDescriptionSuffix:
       "並改為可訪問地址。你也可以手動每個圖標進行編輯「自定義URL」來實現，但通過這裡可以一鍵完成。",
+    networkTuningUnavailable: "目前運行環境不支援修改宿主網路優化。",
+    networkTuningLastError: "上次執行失敗：{message}",
+    bbrTitle: "BBR 加速",
+    bbrDescription:
+      "開啟後使用 bbr 擁塞控制和 fq 佇列，提升跨網訪問吞吐與穩定性。",
+    bbrCurrent:
+      "目前：擁塞控制 {congestion}，預設佇列 {qdisc}，可用演算法 {available}",
+    bbrSupported: "目前核心支援 BBR。",
+    bbrUnsupported: "目前核心尚未暴露 BBR，保存時會嘗試載入 tcp_bbr 模組。",
+    mtuTitle: "MTU 探測",
+    mtuDescription:
+      "開啟後啟用路徑 MTU 探測，減少鏈路 MTU 不一致造成的分片和重傳。",
+    mtuCurrent: "目前：tcp_mtu_probing = {value}",
   },
   gatewayLogging: {
     loadFailed: "載入失敗",

@@ -25,6 +25,11 @@ import {
   getRuntimeCapabilities,
   getRuntimeProfile,
 } from "../../lib/runtime-profile";
+import {
+  FnosNetworkTuningUnavailableError,
+  type FnosNetworkTuningStatus,
+  fnosNetworkTuningService,
+} from "../../lib/fnos-network-tuning";
 import { buildIpLocationApiUrl } from "../../lib/ip-location-api-url";
 import { routeDoc, withRouteDoc } from "../../lib/openapi";
 import {
@@ -40,6 +45,7 @@ import {
   ensureGoResponseSuccess,
   getAdminRouteTranslator,
   getRunTypeLabel,
+  type RequestTranslator,
   rollbackConfigAndRuntime,
   rollbackProtocolMappingFeatureAndRuntime,
 } from "./shared";
@@ -49,6 +55,23 @@ const buildAutoHttpsDetails = async (settings?: AutoHttpsConfig) => {
   return {
     ...config,
     runtime: autoHttpsRedirectManager.getRuntimeState(),
+  };
+};
+
+const localizeFnosNetworkTuningStatus = (
+  status: FnosNetworkTuningStatus,
+  t: RequestTranslator,
+): FnosNetworkTuningStatus => {
+  if (!status.blocked_reason_code) {
+    return status;
+  }
+
+  return {
+    ...status,
+    blocked_reason: adminT(
+      t,
+      `fnosNetworkTuning.blocked.${status.blocked_reason_code}`,
+    ),
   };
 };
 
@@ -618,6 +641,57 @@ export const adminRuntimeConfigRoutes = new Elysia()
     withRouteDoc("更新飞牛端口图标接管配置", {
       body: t.Object({
         enabled: t.Optional(t.Boolean()),
+      }),
+    }),
+  )
+  .get(
+    "/config/fnos_network_tuning",
+    async ({ request }) => {
+      const { t } = await getAdminRouteTranslator(request);
+      const status = await fnosNetworkTuningService.getStatus();
+      return {
+        success: true,
+        data: localizeFnosNetworkTuningStatus(status, t),
+      };
+    },
+    routeDoc("获取飞牛 FPK 网络优化状态"),
+  )
+  .post(
+    "/config/fnos_network_tuning",
+    async ({ request, body, set }) => {
+      const { t } = await getAdminRouteTranslator(request);
+      try {
+        const status = await fnosNetworkTuningService.update(body);
+        return {
+          success: true,
+          data: localizeFnosNetworkTuningStatus(status, t),
+        };
+      } catch (error) {
+        if (error instanceof FnosNetworkTuningUnavailableError) {
+          set.status = 403;
+          return {
+            success: false,
+            message: adminT(
+              t,
+              `fnosNetworkTuning.blocked.${error.reasonCode}`,
+            ),
+          };
+        }
+
+        set.status = 400;
+        return {
+          success: false,
+          message:
+            error instanceof Error
+              ? error.message
+              : adminT(t, "fnosNetworkTuning.updateFailed"),
+        };
+      }
+    },
+    withRouteDoc("更新飞牛 FPK 网络优化配置", {
+      body: t.Object({
+        bbr_enabled: t.Optional(t.Boolean()),
+        mtu_probing_enabled: t.Optional(t.Boolean()),
       }),
     }),
   )

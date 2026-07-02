@@ -1572,11 +1572,15 @@ export const jaJPAdmin = {
     saveDescription: "Feiniu設定の保存に失敗しました",
     saveIconHijackDescription:
       "Feiniuポートアイコン引き継ぎ設定の保存に失敗しました",
+    saveNetworkTuningDescription:
+      "Feiniu FPK ネットワーク最適化設定の保存に失敗しました",
     unavailableTitle: "現在の動作モードは利用できません",
     unavailableDescription:
       "この機能は、アンチジェネレーション モードとサブドメイン モードでのみ使用できます。直接接続モードでは、他のユーザーがアクセスできるように対応するポートを開く前に、認証を完了する必要があります。",
     shareBypassUpdated: "Feiniu共有パススルー設定が更新されました",
     iconHijackUpdated: "Feiniuポートアイコン引き継ぎ設定が更新されました",
+    bbrUpdated: "BBR アクセラレーション設定が更新されました",
+    mtuUpdated: "MTU 探測設定が更新されました",
     shareBypassTitle: "Feiniu 直接共有",
     shareBypassDescription:
       "オンにすると、Feiniu の検証結果に従って共有リンクに直接アクセスできます。逆生成モードとサブドメインモードが利用可能です。",
@@ -1588,6 +1592,21 @@ export const jaJPAdmin = {
     iconHijackDescriptionHighlight: "既存のサブドメイン マッピングと一致する",
     iconHijackDescriptionSuffix:
       "をアクセス可能なアドレスに変更します。これを実現するには「カスタマイズURL」で各アイコンを手動で編集することもできますが、ここではワンクリックで編集できます。",
+    networkTuningUnavailable:
+      "現在のランタイムではホストネットワーク最適化設定を変更できません。",
+    networkTuningLastError: "前回の実行に失敗しました: {message}",
+    bbrTitle: "BBR アクセラレーション",
+    bbrDescription:
+      "bbr 輻輳制御と fq キューを使用し、ネットワーク間のスループットと安定性を向上します。",
+    bbrCurrent:
+      "現在: 輻輳制御 {congestion}、デフォルトキュー {qdisc}、利用可能なアルゴリズム {available}",
+    bbrSupported: "現在のカーネルは BBR をサポートしています。",
+    bbrUnsupported:
+      "現在のカーネルではまだ BBR が公開されていません。保存時に tcp_bbr モジュールの読み込みを試みます。",
+    mtuTitle: "MTU 探測",
+    mtuDescription:
+      "Path MTU 探測を有効にし、リンク MTU 不一致による断片化と再送を減らします。",
+    mtuCurrent: "現在: tcp_mtu_probing = {value}",
   },
   gatewayLogging: {
     loadFailed: "ロードに失敗しました",

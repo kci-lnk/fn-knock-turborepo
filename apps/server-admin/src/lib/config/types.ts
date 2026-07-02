@@ -163,6 +163,16 @@ export interface FnosPortIconHijackConfig {
   updated_at: string | null;
 }
 
+export interface FnosNetworkTuningConfig {
+  bbr_enabled: boolean;
+  mtu_probing_enabled: boolean;
+  previous_tcp_congestion_control: string | null;
+  previous_default_qdisc: string | null;
+  previous_tcp_mtu_probing: string | null;
+  updated_at: string | null;
+  last_error: string | null;
+}
+
 export interface GatewayLoggingSettings {
   enabled: boolean;
   max_days: number;
@@ -474,6 +484,7 @@ export interface AppConfig {
   default_tunnel?: "frp" | "cloudflared";
   fnos_share_bypass?: FnosShareBypassConfig;
   fnos_port_icon_hijack?: FnosPortIconHijackConfig;
+  fnos_network_tuning?: FnosNetworkTuningConfig;
   gateway_logging?: GatewayLoggingSettings;
   waf?: WAFConfig;
   reverse_proxy_throttle?: ReverseProxyThrottleConfig;

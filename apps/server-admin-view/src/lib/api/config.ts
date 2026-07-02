@@ -14,6 +14,8 @@ import type {
   FnKnockBackupExportToDirectoryResult,
   FnKnockBackupImportArchiveRequest,
   FnKnockBackupImportResult,
+  FnosNetworkTuningStatus,
+  FnosNetworkTuningUpdatePayload,
   FnosPortIconHijackConfig,
   FnosShareBypassConfig,
   GatewayHostResponseDetails,
@@ -71,6 +73,8 @@ export type {
   FnKnockBackupExportToDirectoryResult,
   FnKnockBackupImportArchiveRequest,
   FnKnockBackupImportResult,
+  FnosNetworkTuningStatus,
+  FnosNetworkTuningUpdatePayload,
   FnosPortIconHijackConfig,
   FnosShareBypassConfig,
   GatewayHostResponseDetails,
@@ -813,6 +817,16 @@ export const SystemAPI = {
     payload: Partial<FnosPortIconHijackConfig>,
   ): Promise<FnosPortIconHijackConfig> {
     const res = await apiClient.post("/config/fnos_port_icon_hijack", payload);
+    return res.data.data;
+  },
+  async getFnosNetworkTuningStatus(): Promise<FnosNetworkTuningStatus> {
+    const res = await apiClient.get("/config/fnos_network_tuning");
+    return res.data.data;
+  },
+  async updateFnosNetworkTuningConfig(
+    payload: FnosNetworkTuningUpdatePayload,
+  ): Promise<FnosNetworkTuningStatus> {
+    const res = await apiClient.post("/config/fnos_network_tuning", payload);
     return res.data.data;
   },
   async getFrpStatus() {

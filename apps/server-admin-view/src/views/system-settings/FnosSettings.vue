@@ -8,8 +8,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@admin-shared/utils/toast";
 import { SystemAPI } from "../../lib/api";
 import type {
+  FnosNetworkTuningStatus,
   FnosPortIconHijackConfig,
   FnosShareBypassConfig,
+  FnosNetworkTuningUpdatePayload,
 } from "../../types";
 import {
   extractErrorMessage,
@@ -35,6 +37,11 @@ const iconHijackSettings = ref<FnosPortIconHijackConfig | null>(null);
 const iconHijackForm = reactive<FnosPortIconHijackConfig>({
   enabled: false,
   updated_at: null,
+});
+const networkTuningStatus = ref<FnosNetworkTuningStatus | null>(null);
+const networkTuningForm = reactive({
+  bbr_enabled: false,
+  mtu_probing_enabled: false,
 });
 
 const { isPending: isLoading, run: runLoadSettings } = useAsyncAction({
@@ -69,12 +76,62 @@ const { isPending: isIconHijackSaving, run: runSaveIconHijackSettings } =
       });
     },
   });
+const { isPending: isNetworkTuningSaving, run: runSaveNetworkTuningSettings } =
+  useAsyncAction({
+    onError: (error) => {
+      toast.error(t("admin.fnosSettings.saveFailed"), {
+        description: extractErrorMessage(
+          error,
+          t("admin.fnosSettings.saveNetworkTuningDescription"),
+        ),
+      });
+    },
+  });
 const isShareBypassMode = computed(
   () =>
     configStore.config?.run_type === 1 || configStore.config?.run_type === 3,
 );
 const isRestrictedByRunMode = computed(
   () => configStore.config?.run_type === 0,
+);
+const isNetworkTuningAvailable = computed(
+  () => networkTuningStatus.value?.available === true,
+);
+const networkTuningUnavailableText = computed(
+  () =>
+    networkTuningStatus.value?.blocked_reason ||
+    t("admin.fnosSettings.networkTuningUnavailable"),
+);
+
+const displaySysctlValue = (value: string | null | undefined) =>
+  value?.trim() || "--";
+
+const displayList = (values: string[] | null | undefined) =>
+  values && values.length > 0 ? values.join(" ") : "--";
+
+const bbrCurrentDescription = computed(() => {
+  const status = networkTuningStatus.value;
+  return t("admin.fnosSettings.bbrCurrent", {
+    congestion: displaySysctlValue(status?.bbr.current_congestion_control),
+    qdisc: displaySysctlValue(status?.bbr.current_default_qdisc),
+    available: displayList(status?.bbr.available_congestion_control),
+  });
+});
+
+const bbrSupportDescription = computed(() => {
+  const status = networkTuningStatus.value;
+  if (!status) return "";
+  return status.bbr.supported
+    ? t("admin.fnosSettings.bbrSupported")
+    : t("admin.fnosSettings.bbrUnsupported");
+});
+
+const mtuCurrentDescription = computed(() =>
+  t("admin.fnosSettings.mtuCurrent", {
+    value: displaySysctlValue(
+      networkTuningStatus.value?.mtu_probing.current_value,
+    ),
+  }),
 );
 
 const applyFromSettings = (data: FnosShareBypassConfig) => {
@@ -92,14 +149,22 @@ const applyIconHijackFromSettings = (data: FnosPortIconHijackConfig) => {
   iconHijackForm.updated_at = data.updated_at;
 };
 
+const applyNetworkTuningFromStatus = (data: FnosNetworkTuningStatus) => {
+  networkTuningStatus.value = data;
+  networkTuningForm.bbr_enabled = data.config.bbr_enabled;
+  networkTuningForm.mtu_probing_enabled = data.config.mtu_probing_enabled;
+};
+
 const fetchSettings = async () => {
   await runLoadSettings(async () => {
-    const [shareBypass, iconHijack] = await Promise.all([
+    const [shareBypass, iconHijack, networkTuning] = await Promise.all([
       SystemAPI.getFnosShareBypassConfig(),
       SystemAPI.getFnosPortIconHijackConfig(),
+      SystemAPI.getFnosNetworkTuningStatus(),
     ]);
     applyFromSettings(shareBypass);
     applyIconHijackFromSettings(iconHijack);
+    applyNetworkTuningFromStatus(networkTuning);
   });
 };
 
@@ -161,12 +226,62 @@ const saveIconHijackEnabled = async (nextValue: boolean) => {
   }
 };
 
+const saveNetworkTuning = async (
+  patch: FnosNetworkTuningUpdatePayload,
+  successKey: string,
+) => {
+  if (!isNetworkTuningAvailable.value || isNetworkTuningSaving.value) {
+    if (!isNetworkTuningAvailable.value) {
+      toast.error(t("admin.fnosSettings.unavailableTitle"), {
+        description: networkTuningUnavailableText.value,
+      });
+    }
+    return;
+  }
+
+  const previousStatus = networkTuningStatus.value;
+  if (patch.bbr_enabled !== undefined) {
+    networkTuningForm.bbr_enabled = patch.bbr_enabled;
+  }
+  if (patch.mtu_probing_enabled !== undefined) {
+    networkTuningForm.mtu_probing_enabled = patch.mtu_probing_enabled;
+  }
+
+  const result = await runSaveNetworkTuningSettings(
+    () => SystemAPI.updateFnosNetworkTuningConfig(patch),
+    {
+      onSuccess: (data) => {
+        applyNetworkTuningFromStatus(data);
+        toast.success(t(successKey));
+      },
+    },
+  );
+
+  if (!result && previousStatus) {
+    applyNetworkTuningFromStatus(previousStatus);
+  }
+};
+
 const toggleShareBypass = () => {
   void saveShareBypassEnabled(!form.enabled);
 };
 
 const toggleIconHijack = () => {
   void saveIconHijackEnabled(!iconHijackForm.enabled);
+};
+
+const toggleBbr = () => {
+  void saveNetworkTuning(
+    { bbr_enabled: !networkTuningForm.bbr_enabled },
+    "admin.fnosSettings.bbrUpdated",
+  );
+};
+
+const toggleMtuProbing = () => {
+  void saveNetworkTuning(
+    { mtu_probing_enabled: !networkTuningForm.mtu_probing_enabled },
+    "admin.fnosSettings.mtuUpdated",
+  );
 };
 
 onMounted(fetchSettings);
@@ -176,6 +291,10 @@ onMounted(fetchSettings);
   <Card>
     <CardContent v-if="isLoading && showLoadingSkeleton" class="p-0">
       <div class="space-y-4 p-6">
+        <Skeleton class="h-6 w-1/3" />
+        <Skeleton class="h-4 w-2/3" />
+        <Skeleton class="h-6 w-1/3" />
+        <Skeleton class="h-4 w-2/3" />
         <Skeleton class="h-6 w-1/3" />
         <Skeleton class="h-4 w-2/3" />
         <Skeleton class="h-6 w-1/3" />
@@ -237,6 +356,117 @@ onMounted(fetchSettings);
           :model-value="iconHijackForm.enabled"
           :disabled="isIconHijackSaving"
           @update:model-value="saveIconHijackEnabled($event === true)"
+        />
+      </div>
+
+      <div class="flex items-center justify-between bg-muted/10 p-6">
+        <div class="space-y-1 pr-6">
+          <Label
+            class="text-base font-medium"
+            :class="
+              isNetworkTuningAvailable
+                ? 'cursor-pointer'
+                : 'cursor-not-allowed text-zinc-500'
+            "
+            @click="toggleBbr"
+          >
+            {{ t("admin.fnosSettings.bbrTitle") }}
+          </Label>
+          <div
+            class="text-sm"
+            :class="
+              isNetworkTuningAvailable
+                ? 'text-muted-foreground'
+                : 'text-zinc-500'
+            "
+          >
+            {{ t("admin.fnosSettings.bbrDescription") }}
+          </div>
+          <div class="text-xs leading-5 text-zinc-500">
+            {{ bbrCurrentDescription }}
+          </div>
+          <div
+            v-if="networkTuningStatus"
+            class="text-xs leading-5"
+            :class="
+              networkTuningStatus.bbr.supported
+                ? 'text-emerald-600'
+                : 'text-amber-600'
+            "
+          >
+            {{ bbrSupportDescription }}
+          </div>
+          <div
+            v-if="!isNetworkTuningAvailable"
+            class="text-xs leading-5 text-zinc-500"
+          >
+            {{ networkTuningUnavailableText }}
+          </div>
+          <div
+            v-if="networkTuningStatus?.last_error"
+            class="text-xs leading-5 text-destructive"
+          >
+            {{
+              t("admin.fnosSettings.networkTuningLastError", {
+                message: networkTuningStatus.last_error,
+              })
+            }}
+          </div>
+        </div>
+        <Switch
+          :model-value="networkTuningForm.bbr_enabled"
+          :disabled="!isNetworkTuningAvailable || isNetworkTuningSaving"
+          @update:model-value="
+            saveNetworkTuning(
+              { bbr_enabled: $event === true },
+              'admin.fnosSettings.bbrUpdated',
+            )
+          "
+        />
+      </div>
+
+      <div class="flex items-center justify-between bg-muted/10 p-6">
+        <div class="space-y-1 pr-6">
+          <Label
+            class="text-base font-medium"
+            :class="
+              isNetworkTuningAvailable
+                ? 'cursor-pointer'
+                : 'cursor-not-allowed text-zinc-500'
+            "
+            @click="toggleMtuProbing"
+          >
+            {{ t("admin.fnosSettings.mtuTitle") }}
+          </Label>
+          <div
+            class="text-sm"
+            :class="
+              isNetworkTuningAvailable
+                ? 'text-muted-foreground'
+                : 'text-zinc-500'
+            "
+          >
+            {{ t("admin.fnosSettings.mtuDescription") }}
+          </div>
+          <div class="text-xs leading-5 text-zinc-500">
+            {{ mtuCurrentDescription }}
+          </div>
+          <div
+            v-if="!isNetworkTuningAvailable"
+            class="text-xs leading-5 text-zinc-500"
+          >
+            {{ networkTuningUnavailableText }}
+          </div>
+        </div>
+        <Switch
+          :model-value="networkTuningForm.mtu_probing_enabled"
+          :disabled="!isNetworkTuningAvailable || isNetworkTuningSaving"
+          @update:model-value="
+            saveNetworkTuning(
+              { mtu_probing_enabled: $event === true },
+              'admin.fnosSettings.mtuUpdated',
+            )
+          "
         />
       </div>
     </CardContent>

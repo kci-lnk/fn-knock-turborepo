@@ -212,6 +212,17 @@ export const koKRServer = {
       syncFailed:
         "FNOS 포트 아이콘 하이재킹 구성을 게이트웨이에 동기화하지 못했습니다.",
     },
+    fnosNetworkTuning: {
+      unavailable:
+        "현재 런타임은 FNOS FPK 네트워크 최적화를 지원하지 않습니다.",
+      updateFailed: "FNOS FPK 네트워크 최적화를 업데이트하지 못했습니다.",
+      blocked: {
+        deployment:
+          "FNOS FPK 네트워크 최적화는 FPK 배포에서만 사용할 수 있습니다.",
+        platform: "FNOS FPK 네트워크 최적화에는 Linux 호스트가 필요합니다.",
+        permission: "FNOS FPK 네트워크 최적화에는 root 권한이 필요합니다.",
+      },
+    },
     gateway: {
       syncAuthCacheFailed:
         "인증 캐시 구성을 게이트웨이에 동기화하지 못했습니다.",

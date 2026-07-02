@@ -16,6 +16,7 @@ import {
   normalizeAutoHttpsConfig,
   normalizeCaptchaSettings,
   normalizeDashboardDisplayConfig,
+  normalizeFnosNetworkTuningConfig,
   normalizeFnosPortIconHijackConfig,
   normalizeFnosShareBypassConfig,
   normalizeGatewayCrawlerBlockerConfig,
@@ -44,6 +45,7 @@ import type {
   AuthCredentialSettings,
   CaptchaSettings,
   DashboardDisplayConfig,
+  FnosNetworkTuningConfig,
   FnosPortIconHijackConfig,
   FnosShareBypassConfig,
   GatewayCrawlerBlockerConfig,
@@ -111,6 +113,13 @@ export class ConfigFeatureSectionService {
     return this.sections.read(
       (config) => config.fnos_port_icon_hijack,
       normalizeFnosPortIconHijackConfig,
+    );
+  }
+
+  async getFnosNetworkTuningConfig(): Promise<FnosNetworkTuningConfig> {
+    return this.sections.read(
+      (config) => config.fnos_network_tuning,
+      normalizeFnosNetworkTuningConfig,
     );
   }
 
@@ -280,6 +289,22 @@ export class ConfigFeatureSectionService {
         updated_at: new Date().toISOString(),
       },
       normalizeFnosPortIconHijackConfig,
+    );
+  }
+
+  async updateFnosNetworkTuningConfig(
+    patch: Partial<FnosNetworkTuningConfig>,
+  ): Promise<FnosNetworkTuningConfig> {
+    return this.sections.patch(
+      (config) => config.fnos_network_tuning,
+      (config, next) => {
+        config.fnos_network_tuning = next;
+      },
+      {
+        ...patch,
+        updated_at: new Date().toISOString(),
+      },
+      normalizeFnosNetworkTuningConfig,
     );
   }
 

@@ -12,6 +12,7 @@ import {
   normalizeAutoHttpsConfig,
   normalizeDashboardDisplayConfig,
   normalizeEventSystemConfig,
+  normalizeFnosNetworkTuningConfig,
   normalizeFnosPortIconHijackConfig,
   normalizeFnosShareBypassConfig,
   normalizeGatewayCrawlerBlockerConfig,
@@ -65,6 +66,9 @@ export const normalizePersistedAppConfig = (config: AppConfig): AppConfig => {
   );
   normalized.fnos_port_icon_hijack = normalizeFnosPortIconHijackConfig(
     normalized.fnos_port_icon_hijack,
+  );
+  normalized.fnos_network_tuning = normalizeFnosNetworkTuningConfig(
+    normalized.fnos_network_tuning,
   );
   normalized.gateway_logging = normalizeGatewayLoggingSettings(
     normalized.gateway_logging,

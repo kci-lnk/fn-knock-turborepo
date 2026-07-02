@@ -11,6 +11,7 @@ import type {
   AuthCredentialSettings,
   DashboardDisplayConfig,
   EventSystemConfig,
+  FnosNetworkTuningConfig,
   FnosPortIconHijackConfig,
   FnosShareBypassConfig,
   GatewayCrawlerBlockerConfig,
@@ -259,4 +260,14 @@ export const DEFAULT_FNOS_SHARE_BYPASS_CONFIG: FnosShareBypassConfig = {
 export const DEFAULT_FNOS_PORT_ICON_HIJACK_CONFIG: FnosPortIconHijackConfig = {
   enabled: false,
   updated_at: null,
+};
+
+export const DEFAULT_FNOS_NETWORK_TUNING_CONFIG: FnosNetworkTuningConfig = {
+  bbr_enabled: false,
+  mtu_probing_enabled: false,
+  previous_tcp_congestion_control: null,
+  previous_default_qdisc: null,
+  previous_tcp_mtu_probing: null,
+  updated_at: null,
+  last_error: null,
 };

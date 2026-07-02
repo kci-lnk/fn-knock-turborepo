@@ -225,6 +225,18 @@ export const jaJPServer = {
       syncFailed:
         "Feiniu ポート アイコンの引き継ぎ設定をゲートウェイに同期できませんでした",
     },
+    fnosNetworkTuning: {
+      unavailable:
+        "現在のランタイムは Feiniu FPK ネットワーク最適化をサポートしていません",
+      updateFailed: "Feiniu FPK ネットワーク最適化の更新に失敗しました",
+      blocked: {
+        deployment:
+          "Feiniu FPK ネットワーク最適化は FPK デプロイでのみ利用できます",
+        platform:
+          "Feiniu FPK ネットワーク最適化には Linux ホストが必要です",
+        permission: "Feiniu FPK ネットワーク最適化には root 権限が必要です",
+      },
+    },
     gateway: {
       syncAuthCacheFailed:
         "認証キャッシュ構成をゲートウェイに同期できませんでした",

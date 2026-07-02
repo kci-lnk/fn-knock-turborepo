@@ -1543,11 +1543,15 @@ export const enAdmin = {
     saveDescription: "Failed to save FNOS settings",
     saveIconHijackDescription:
       "Failed to save FNOS port icon takeover settings",
+    saveNetworkTuningDescription:
+      "Failed to save FNOS FPK network optimization settings",
     unavailableTitle: "Current run mode is unavailable",
     unavailableDescription:
       "This feature is only available in reverse proxy mode and subdomain mode. In direct mode, authentication must complete before the corresponding port can be exposed to others.",
     shareBypassUpdated: "FNOS share bypass settings updated",
     iconHijackUpdated: "FNOS port icon takeover settings updated",
+    bbrUpdated: "BBR acceleration settings updated",
+    mtuUpdated: "MTU probing settings updated",
     shareBypassTitle: "FNOS share bypass",
     shareBypassDescription:
       "When enabled, share links can pass through according to FNOS validation results. Available in reverse proxy mode and subdomain mode.",
@@ -1559,6 +1563,21 @@ export const enAdmin = {
     iconHijackDescriptionHighlight: "match existing subdomain mappings",
     iconHijackDescriptionSuffix:
       " and be rewritten to reachable addresses. You can also edit each icon manually with a custom URL, but this completes it in one step.",
+    networkTuningUnavailable:
+      "The current runtime cannot modify host network optimization settings.",
+    networkTuningLastError: "Last run failed: {message}",
+    bbrTitle: "BBR acceleration",
+    bbrDescription:
+      "Enables bbr congestion control with fq queueing to improve cross-network throughput and stability.",
+    bbrCurrent:
+      "Current: congestion {congestion}, default queue {qdisc}, available algorithms {available}",
+    bbrSupported: "The current kernel supports BBR.",
+    bbrUnsupported:
+      "The current kernel has not exposed BBR yet. Saving will try to load the tcp_bbr module.",
+    mtuTitle: "MTU probing",
+    mtuDescription:
+      "Enables path MTU probing to reduce fragmentation and retransmits caused by mismatched link MTU.",
+    mtuCurrent: "Current: tcp_mtu_probing = {value}",
   },
   gatewayLogging: {
     loadFailed: "Load failed",

@@ -2,8 +2,8 @@ import { ddnsTranslate } from "./providers/helpers";
 import type { DDNSPublicCheckSources } from "./types";
 
 export const DEFAULT_DDNS_PUBLIC_CHECK_SOURCES: DDNSPublicCheckSources = {
-  ipv4: ["https://4.wxlnk.com", "http://ipv4.icanhazip.com"],
-  ipv6: ["https://6.wxlnk.com", "https://ipv6.icanhazip.com/"],
+  ipv4: ["https://4.fnknock.cn", "http://ipv4.icanhazip.com"],
+  ipv6: ["https://6.fnknock.cn", "https://ipv6.icanhazip.com/"],
 };
 
 const ddnsT = ddnsTranslate;

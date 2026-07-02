@@ -31,7 +31,7 @@ import { IpLocationSettingsAPI } from "../../lib/api";
 import type { IpLocationApiConfig } from "../../lib/api";
 
 const OFFICIAL_IP_LOOKUP_URL = "https://ipaddress.fnknock.cn/api/v1";
-const OFFICIAL_CIDR_URL = "https://cidr.wxlnk.com/api/v1";
+const OFFICIAL_CIDR_URL = "https://cidr.fnknock.cn/api/v1";
 const DEFAULT_CUSTOM_IP_LOOKUP_URL = "http://127.0.0.1:30661";
 const DEFAULT_CUSTOM_CIDR_URL = "http://127.0.0.1:30662";
 const ipLookupDockerUrl = "https://hub.docker.com/r/kcilnk/go-ipaddress-api";

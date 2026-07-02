@@ -38,7 +38,7 @@ export const DEFAULT_IP_LOCATION_API_CONFIG: IpLocationApiConfig = {
   ip_lookup_mode: "online",
   ip_lookup_url: "https://ipaddress.fnknock.cn/api/v1",
   cidr_mode: "online",
-  cidr_url: "https://cidr.wxlnk.com/api/v1",
+  cidr_url: "https://cidr.fnknock.cn/api/v1",
 };
 
 export const DEFAULT_AUTH_CREDENTIAL_SETTINGS: AuthCredentialSettings = {

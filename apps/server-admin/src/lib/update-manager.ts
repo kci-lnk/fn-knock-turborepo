@@ -13,7 +13,7 @@ import { waitForProcessExit } from "./runtime";
 import { emitAppUpdateAvailableEvent } from "./system-events/helpers";
 import { tDefault } from "./i18n";
 
-const OTA_LATEST_URL = "https://fn-knock.cdn.wxlnk.com/latest.json";
+const OTA_LATEST_URL = "https://cor.fnknock.cn/latest.json";
 const UPDATE_PENDING_KEY = "fn_knock:update:pending";
 const UPDATE_CONFIRM_KEY = "fn_knock:update:confirm";
 const UPDATE_PENDING_TTL_SECONDS = 7 * 24 * 60 * 60;

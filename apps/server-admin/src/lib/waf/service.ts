@@ -28,7 +28,7 @@ import {
 import { tDefault } from "../i18n";
 import { wafCollector } from "./collector";
 
-const MANIFEST_URL = "https://fn-knock.cdn.wxlnk.com/waf/manifest.json";
+const MANIFEST_URL = "https://cor.fnknock.cn/waf/manifest.json";
 const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
 const MANIFEST_REFRESH_MS = TWO_DAYS_MS;
 const SYSTEM_RULES_AUTO_UPDATE_MS = TWO_DAYS_MS;

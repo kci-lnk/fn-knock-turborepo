@@ -15,6 +15,7 @@ import { resolveCnameTargets } from "./whitelist/dns-resolver";
 import { KEYS, getAutoOwnerRecordKey, getIPRecordsKey } from "./whitelist/keys";
 import { whitelistManagerT } from "./whitelist/messages";
 import { WhitelistRecordIndex } from "./whitelist/record-index";
+import { whitelistRegionGroupManager } from "./whitelist-region-groups";
 import {
   deserializeRecord,
   getConcreteIPTargets,
@@ -108,10 +109,11 @@ export class IPTablesWhiteListManager {
     return lastCheckedAt + intervalMinutes * 60 <= now;
   }
 
-  private async cleanupUnusedConcreteTargets(
+  async cleanupUnusedConcreteTargets(
     targets: Array<{ target: string; targetType: "ip" | "cidr" }>,
   ): Promise<void> {
     const uniqueTargets = new Map<string, "ip" | "cidr">();
+    let activeRegionCidrTargets: Set<string> | null = null;
     for (const entry of targets) {
       if (!entry.target) continue;
       uniqueTargets.set(
@@ -125,6 +127,11 @@ export class IPTablesWhiteListManager {
       if (targetType === "cidr") {
         const active = await this.findRecordsByTarget(target, "cidr");
         if (active.length > 0) continue;
+        activeRegionCidrTargets ??=
+          await whitelistRegionGroupManager.getActiveCIDRTargetSet();
+        if (activeRegionCidrTargets.has(target.toLowerCase())) {
+          continue;
+        }
         await this.removeAllowedTarget(target);
         continue;
       }
@@ -145,6 +152,13 @@ export class IPTablesWhiteListManager {
   private async syncAllowedTarget(target: string) {
     if (!(await this.shouldSyncDirectModeFirewall())) return;
     await goBackend.allowIP(target);
+  }
+
+  async syncAllowedTargets(targets: Iterable<string>): Promise<void> {
+    const uniqueTargets = [...new Set([...targets].filter(Boolean))];
+    for (const target of uniqueTargets) {
+      await this.syncAllowedTarget(target);
+    }
   }
 
   private async removeAllowedTarget(target: string) {
@@ -486,6 +500,12 @@ export class IPTablesWhiteListManager {
       targets.push(...this.buildConcreteTargetRecords(record));
     }
 
+    if (!source || source === "manual") {
+      targets.push(
+        ...(await whitelistRegionGroupManager.getActiveConcreteTargets()),
+      );
+    }
+
     return targets;
   }
 
@@ -495,7 +515,8 @@ export class IPTablesWhiteListManager {
 
   async hasValidIP(ip: string): Promise<boolean> {
     const records = await this.getActiveRecordsByIP(ip);
-    return records.length > 0;
+    if (records.length > 0) return true;
+    return whitelistRegionGroupManager.hasValidIP(ip);
   }
 
   private async findMatchingCIDRRecords(
@@ -670,7 +691,8 @@ export class IPTablesWhiteListManager {
           ),
           lastCheckedAt: now,
           resolveStatus: "error",
-          resolveMessage: error?.message || whitelistManagerT("domainResolveFailed"),
+          resolveMessage:
+            error?.message || whitelistManagerT("domainResolveFailed"),
         };
         const pipeline = this.redis.pipeline();
         pipeline.hset(KEYS.RECORDS, id, JSON.stringify(nextRecord));

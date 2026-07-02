@@ -28,6 +28,7 @@ import {
 } from "./lib/redis";
 import { whitelistRoutes } from "./routes/whitelist";
 import { whitelistManager } from "./lib/whitelist-manager";
+import { whitelistRegionGroupManager } from "./lib/whitelist-region-groups";
 import { portScannerPlugin } from "./plugins/scanner";
 import { cron } from "@elysiajs/cron";
 import { assetsRoutes } from "./routes/assets";
@@ -731,25 +732,46 @@ app.use(
     name: "whitelist-expiry-check",
     pattern: "* * * * *",
     run() {
-      void Promise.all([
-        whitelistManager.processExpiredRecords(),
-        whitelistManager.processDueCnameRecords(),
-      ])
-        .then(([expiredChanged, cnameChanged]) => {
-          if (!expiredChanged && !cnameChanged) return;
-          scheduleSyncReverseProxyTrustedIPs({
-            reason: expiredChanged
+      void (async () => {
+        const [expiredChanged, cnameChanged, expiredRegionGroups] =
+          await Promise.all([
+            whitelistManager.processExpiredRecords(),
+            whitelistManager.processDueCnameRecords(),
+            whitelistRegionGroupManager.processExpiredGroups(),
+          ]);
+
+        if (expiredRegionGroups.length > 0) {
+          await whitelistManager.cleanupUnusedConcreteTargets(
+            expiredRegionGroups.flatMap((group) =>
+              group.cidrs.map((target) => ({
+                target,
+                targetType: "cidr" as const,
+              })),
+            ),
+          );
+        }
+
+        if (
+          !expiredChanged &&
+          !cnameChanged &&
+          expiredRegionGroups.length === 0
+        ) {
+          return;
+        }
+
+        scheduleSyncReverseProxyTrustedIPs({
+          reason:
+            expiredChanged || expiredRegionGroups.length > 0
               ? "whitelist-expiry"
               : "whitelist-cname-refresh",
-            delayMs: 50,
-          });
-        })
-        .catch((error) => {
-          console.error(
-            "[reverse-proxy-trusted-ips] failed to process whitelist maintenance:",
-            error,
-          );
+          delayMs: 50,
         });
+      })().catch((error) => {
+        console.error(
+          "[reverse-proxy-trusted-ips] failed to process whitelist maintenance:",
+          error,
+        );
+      });
     },
   }),
 );

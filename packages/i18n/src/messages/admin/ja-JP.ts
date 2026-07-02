@@ -4123,6 +4123,45 @@ export const jaJPAdmin = {
     typeIp: "シングル IP",
     typeCidr: "CIDR ネットワークセグメント",
     typeCname: "ドメイン名 / CNAME",
+    cidrInputMode: "CIDR ソース",
+    cidrInputManual: "手動入力",
+    cidrInputRegion: "地域から選択",
+    regionScope: "地域範囲",
+    regionScopeDescription:
+      "省と都市を選択すると、独立した地域ホワイトリストグループとして保存されます。",
+    regionSecurityWarningTitle: "地域ホワイトリストはリスクがあります",
+    regionSecurityWarningDescription:
+      "安全ではありません。選択した地域全体の公開 IP がサービスにアクセスできるようになります。その地域全体を許可する必要がある場合のみ使用してください。",
+    addRegion: "地域を追加",
+    noRegions: "地域はまだ追加されていません。",
+    addRegionDescription:
+      "ホワイトリストに追加する省と都市の範囲を選択してください。",
+    province: "省",
+    selectProvince: "省を選択",
+    scope: "範囲",
+    selectProvinceFirst: "先に省を選択してください",
+    selectCityOrProvince: "都市または省全体を選択",
+    selectCity: "都市を選択",
+    regionsLoadFailed: "地域リストの読み込みに失敗しました",
+    regionsLoadDescription: "CIDR 地域リストを取得できません",
+    regionRequiredTitle: "地域を選択してください",
+    regionRequiredDescription:
+      "地域から CIDR ホワイトリストを追加するには、少なくとも 1 つの地域が必要です。",
+    regionGroupsTitle: "CIDR 地域ホワイトリスト",
+    regionGroupsDescription:
+      "地域セレクターで保存した対象はここで個別に管理され、上のホワイトリスト表には展開されません。",
+    regionGroupsCount: "{count} 件の地域グループ",
+    regionGroupsEmpty: "地域ホワイトリストはまだ追加されていません。",
+    regionGroupsLoadFailed: "地域ホワイトリストの読み込みに失敗しました",
+    regionGroupCidrCount: "{count} 件の CIDR",
+    regionGroupDeleteTitle: "地域ホワイトリストを削除しますか?",
+    regionGroupDeleteDescription:
+      "地域ホワイトリスト「{target}」を削除しようとしています。対応する地域はこのルールでサービスにアクセスできなくなります。",
+    regionGroupDeleteSuccess: "地域ホワイトリストを削除しました",
+    regionGroupDeleteFailed: "地域ホワイトリストの削除に失敗しました",
+    networkRegionDeleteTitle:
+      "地域ホワイトリストの削除中にネットワークエラーが発生しました",
+    add: "追加",
     checkIntervalLabel: "検査周期",
     defaultFive: "デフォルト 5",
     minutes: "分",
@@ -4164,6 +4203,12 @@ export const jaJPAdmin = {
     invalidIntervalDescription: "1 以上の分数を入力してください。",
     getFailed: "ホワイトリストの取得に失敗しました",
     addSuccess: "がホワイトリストに正常に追加されました",
+    addRegionsSuccess: "地域ホワイトリストを追加しました",
+    addRegionsPartial: "地域ホワイトリストを一部追加しました",
+    addRegionsFailed: "地域ホワイトリストの追加に失敗しました",
+    addRegionsEmpty: "追加できる CIDR が見つかりませんでした",
+    addRegionsResult:
+      "{regions} 件の地域を保存し、{total} 件の CIDR を解析しました。",
     deleteSuccess: "ホワイトリストのレコードが削除されました",
     refreshFallbackError:
       "ドメイン名のホワイトリスト レコードの更新に失敗しました",

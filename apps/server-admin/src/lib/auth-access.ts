@@ -5,6 +5,7 @@ import { recentAuthIPsManager } from "./recent-auth-ips";
 import { scheduleCommonAuthLocationsRebuild } from "./common-auth-locations";
 import { configManager, type HostMapping, type TOTPCredential } from "./redis";
 import { whitelistManager } from "./whitelist-manager";
+import { whitelistRegionGroupManager } from "./whitelist-region-groups";
 import { getClientIp } from "./auth-request";
 import { isWhitelistExemptIp } from "./ip-normalize";
 import { resolveRequestHostname } from "./subdomain-mode";
@@ -245,7 +246,10 @@ export const resolveNormalAccessContext = async (
   }
 
   const records = await whitelistManager.getActiveRecordsByIP(clientIp);
-  if (records.some((record) => record.source === "manual")) {
+  if (
+    records.some((record) => record.source === "manual") ||
+    (await whitelistRegionGroupManager.hasValidIP(clientIp))
+  ) {
     return {
       authorized: true,
       message: "Authorized by IP whitelist",

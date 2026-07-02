@@ -5,6 +5,12 @@ import { routeDoc, withRouteDoc } from "../lib/openapi";
 import { configManager } from "../lib/redis";
 import { createRequestTranslator } from "../lib/i18n";
 import { normalizeAutoIpGrantComment } from "../lib/post-login-ip-grant";
+import { CidrServiceError, cidrService, withCidrLocale } from "../lib/cidr";
+import { WhitelistRegionValidationError } from "../lib/whitelist-regions";
+import {
+  summarizeWhitelistRegionGroup,
+  whitelistRegionGroupManager,
+} from "../lib/whitelist-region-groups";
 
 const getWhitelistRouteTranslator = async (request: Request) => {
   const config = await configManager.getConfig();
@@ -67,6 +73,104 @@ export const whitelistRoutes = new Elysia({
         source: t.Union([t.Literal("manual"), t.Literal("auto")]),
         comment: t.Optional(t.String()),
         checkIntervalMinutes: t.Optional(t.Number()),
+      }),
+    }),
+  )
+  .get(
+    "/regions",
+    async () => {
+      const groups =
+        await whitelistRegionGroupManager.listActiveGroupSummaries();
+      return { success: true, data: groups };
+    },
+    routeDoc("获取地区 CIDR 白名单组"),
+  )
+  .post(
+    "/regions",
+    async ({ body, set, request }) => {
+      const { locale, t } = await getWhitelistRouteTranslator(request);
+      try {
+        const group = await withCidrLocale(locale, () =>
+          whitelistRegionGroupManager.createGroup({
+            regions: body.regions,
+            expireAt: body.expireAt,
+            comment: body.comment,
+            lookupCidrs: (input) =>
+              cidrService.getCidrs({
+                province: input.province,
+                city: input.city,
+              }),
+          }),
+        );
+
+        if (group.cidrs.length > 0) {
+          await whitelistManager.syncAllowedTargets(group.cidrs);
+          scheduleSyncReverseProxyTrustedIPs({
+            reason: "whitelist-region-add",
+          });
+        }
+
+        return {
+          success: true,
+          data: {
+            group: summarizeWhitelistRegionGroup(group),
+            total: group.cidrs.length,
+          },
+        };
+      } catch (error: any) {
+        set.status =
+          error instanceof CidrServiceError
+            ? error.statusCode
+            : error instanceof WhitelistRegionValidationError
+              ? 400
+              : 400;
+        return {
+          success: false,
+          message:
+            error instanceof WhitelistRegionValidationError &&
+            error.message === "regionRequired"
+              ? t("server.whitelist.regionRequired")
+              : error instanceof WhitelistRegionValidationError &&
+                  error.message === "regionEmpty"
+                ? t("server.whitelist.regionEmpty")
+                : error?.message || t("server.whitelist.regionAddFailed"),
+        };
+      }
+    },
+    withRouteDoc("新增地区 CIDR 白名单组", {
+      body: t.Object({
+        regions: t.Array(
+          t.Object({
+            province: t.String(),
+            query_city: t.Optional(t.Union([t.String(), t.Null()])),
+          }),
+        ),
+        expireAt: t.Union([t.Number(), t.Null()]),
+        comment: t.Optional(t.String()),
+      }),
+    }),
+  )
+  .delete(
+    "/regions/:id",
+    async ({ params, set, request }) => {
+      const { t } = await getWhitelistRouteTranslator(request);
+      const deleted = await whitelistRegionGroupManager.deleteGroup(params.id);
+      if (!deleted) {
+        set.status = 404;
+        return {
+          success: false,
+          message: t("server.whitelist.regionNotFound"),
+        };
+      }
+      await whitelistManager.cleanupUnusedConcreteTargets(
+        deleted.cidrs.map((target) => ({ target, targetType: "cidr" })),
+      );
+      scheduleSyncReverseProxyTrustedIPs({ reason: "whitelist-region-remove" });
+      return { success: true };
+    },
+    withRouteDoc("删除地区 CIDR 白名单组", {
+      params: t.Object({
+        id: t.String(),
       }),
     }),
   )

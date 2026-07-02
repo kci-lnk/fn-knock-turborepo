@@ -625,6 +625,10 @@ export const enServer = {
   },
   whitelist: {
     addFailed: "Failed to add whitelist record",
+    regionAddFailed: "Failed to add region whitelist",
+    regionRequired: "Select at least one region",
+    regionEmpty: "No usable CIDRs were resolved for the selected regions",
+    regionNotFound: "Region whitelist not found",
     recordNotFound: "Whitelist record not found",
     domainResolveFailed: "Domain resolution failed",
     refreshFailed: "Failed to refresh whitelist record",

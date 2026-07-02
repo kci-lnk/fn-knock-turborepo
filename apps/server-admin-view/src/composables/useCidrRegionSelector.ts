@@ -1,33 +1,45 @@
-import { computed, reactive, ref, watch, type ComputedRef, type Ref } from "vue";
 import {
-  extractErrorMessage,
-} from "@admin-shared/composables/useAsyncAction";
+  computed,
+  reactive,
+  ref,
+  watch,
+  type ComputedRef,
+  type Ref,
+} from "vue";
+import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
 import type {
   CidrCityOption,
   CidrProvinceOption,
-  SSHSecuritySelection,
+  GatewayVisibilitySelection,
 } from "@/types";
 
 type TranslateParams = Record<string, string | number>;
+type RegionSelectorTextKey =
+  | "loading"
+  | "selectProvinceFirst"
+  | "selectCityOrProvince"
+  | "selectCity"
+  | "regionsLoadFailed"
+  | "regionsLoadDescription";
 
-export const useSSHAllowedRegions = ({
-  allowedRegions,
+export const useCidrRegionSelector = ({
+  selections,
   isEnabled,
   loadCities,
   provinces,
   regionInputsDisabled,
   translate,
 }: {
-  allowedRegions: Ref<SSHSecuritySelection[]>;
-  isEnabled: Ref<boolean>;
+  selections: Ref<GatewayVisibilitySelection[]>;
+  isEnabled: Readonly<Ref<boolean>>;
   loadCities: (province: string) => Promise<{
     defaultValue?: string | null;
     options: CidrCityOption[];
   }>;
   provinces: Ref<CidrProvinceOption[]>;
   regionInputsDisabled: ComputedRef<boolean>;
-  translate: (key: string, params?: TranslateParams) => string;
+  translate: (key: RegionSelectorTextKey, params?: TranslateParams) => string;
 }) => {
   const cityOptions = ref<CidrCityOption[]>([]);
   const cityOptionsLoading = ref(false);
@@ -51,18 +63,18 @@ export const useSSHAllowedRegions = ({
   );
   const citySelectKey = computed(() => regionDraft.province || "empty");
   const citySelectPlaceholder = computed(() => {
-    if (cityOptionsLoading.value) return translate("admin.sshSecurity.loading");
+    if (cityOptionsLoading.value) return translate("loading");
     if (!regionDraft.province) {
-      return translate("admin.sshSecurity.selectProvinceFirst");
+      return translate("selectProvinceFirst");
     }
     return cityOptions.value.some((option) => option.isProvinceWide)
-      ? translate("admin.sshSecurity.selectCityOrProvince")
-      : translate("admin.sshSecurity.selectCity");
+      ? translate("selectCityOrProvince")
+      : translate("selectCity");
   });
   const pendingRegionExists = computed(() => {
     const city = selectedCityOption.value;
     if (!regionDraft.province || !city) return false;
-    return allowedRegions.value.some(
+    return selections.value.some(
       (item) =>
         selectionKey(item) ===
         selectionKey({
@@ -90,7 +102,7 @@ export const useSSHAllowedRegions = ({
 
   const prepareRegionDraft = () => {
     const preferredProvince =
-      allowedRegions.value[0]?.province || provinces.value[0]?.value || "";
+      selections.value[0]?.province || provinces.value[0]?.value || "";
 
     clearRegionDraft();
 
@@ -141,10 +153,10 @@ export const useSSHAllowedRegions = ({
       if (token !== cityRequestToken) return;
       cityOptions.value = [];
       regionDraft.cityValue = "";
-      toast.error(translate("admin.sshSecurity.regionsLoadFailed"), {
+      toast.error(translate("regionsLoadFailed"), {
         description: extractErrorMessage(
           error,
-          translate("admin.sshSecurity.regionsLoadDescription"),
+          translate("regionsLoadDescription"),
         ),
       });
     } finally {
@@ -172,7 +184,7 @@ export const useSSHAllowedRegions = ({
   const addRegion = () => {
     const option = selectedCityOption.value;
     if (!option || !canAddRegion.value) return;
-    allowedRegions.value.push({
+    selections.value.push({
       province: regionDraft.province,
       city: option.isProvinceWide ? null : option.label,
       label: option.label,
@@ -184,9 +196,9 @@ export const useSSHAllowedRegions = ({
     handleRegionDialogOpenChange(false);
   };
 
-  const removeRegion = (selection: SSHSecuritySelection) => {
+  const removeRegion = (selection: GatewayVisibilitySelection) => {
     if (regionInputsDisabled.value) return;
-    allowedRegions.value = allowedRegions.value.filter(
+    selections.value = selections.value.filter(
       (item) => selectionKey(item) !== selectionKey(selection),
     );
   };

@@ -629,6 +629,10 @@ export const koKRServer = {
   },
   whitelist: {
     addFailed: "화이트리스트 레코드를 추가하지 못했습니다.",
+    regionAddFailed: "지역 화이트리스트를 추가하지 못했습니다.",
+    regionRequired: "지역을 하나 이상 선택하세요.",
+    regionEmpty: "선택한 지역에서 사용할 수 있는 CIDR을 찾지 못했습니다.",
+    regionNotFound: "지역 화이트리스트를 찾을 수 없습니다.",
     recordNotFound: "화이트리스트 기록을 찾을 수 없습니다",
     domainResolveFailed: "도메인 확인 실패",
     refreshFailed: "허용 목록 레코드를 새로 고치지 못했습니다.",

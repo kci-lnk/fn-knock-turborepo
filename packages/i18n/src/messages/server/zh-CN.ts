@@ -545,6 +545,10 @@ export const zhCNServer = {
   },
   whitelist: {
     addFailed: "新增白名单记录失败",
+    regionAddFailed: "按地区新增白名单失败",
+    regionRequired: "请至少选择一个地区",
+    regionEmpty: "所选地区未解析到可用 CIDR",
+    regionNotFound: "未找到地区白名单",
     recordNotFound: "未找到白名单记录",
     domainResolveFailed: "域名解析失败",
     refreshFailed: "立即更新白名单记录失败",

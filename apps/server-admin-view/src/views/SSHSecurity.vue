@@ -56,9 +56,9 @@ import type {
   SSHSecurityDetails,
   SSHSecuritySelection,
 } from "../types";
+import { useCidrRegionSelector } from "../composables/useCidrRegionSelector";
 import SSHBlockListPanel from "./ssh-security/SSHBlockListPanel.vue";
 import SSHLoginLogsPanel from "./ssh-security/SSHLoginLogsPanel.vue";
-import { useSSHAllowedRegions } from "./ssh-security/useSSHAllowedRegions";
 
 type SSHBlockListPanelInstance = {
   loadBlocks: () => Promise<void>;
@@ -117,6 +117,27 @@ const customCidrsState = computed(() =>
 );
 const invalidCustomCidrs = computed(() => customCidrsState.value.invalid);
 const regionInputsDisabled = computed(() => isSaving.value || !form.enabled);
+const sshRegionTranslate = (
+  key:
+    | "loading"
+    | "selectProvinceFirst"
+    | "selectCityOrProvince"
+    | "selectCity"
+    | "regionsLoadFailed"
+    | "regionsLoadDescription",
+  params?: Record<string, string | number>,
+) => {
+  const keyMap = {
+    loading: "admin.sshSecurity.loading",
+    selectProvinceFirst: "admin.sshSecurity.selectProvinceFirst",
+    selectCityOrProvince: "admin.sshSecurity.selectCityOrProvince",
+    selectCity: "admin.sshSecurity.selectCity",
+    regionsLoadFailed: "admin.sshSecurity.regionsLoadFailed",
+    regionsLoadDescription: "admin.sshSecurity.regionsLoadDescription",
+  } as const;
+  const resolvedKey = keyMap[key];
+  return params ? t(resolvedKey, params) : t(resolvedKey);
+};
 const {
   addRegion,
   canAddRegion,
@@ -130,13 +151,13 @@ const {
   regionDraft,
   removeRegion,
   selectionKey,
-} = useSSHAllowedRegions({
-  allowedRegions: toRef(form, "allowedRegions"),
+} = useCidrRegionSelector({
+  selections: toRef(form, "allowedRegions"),
   isEnabled: toRef(form, "enabled"),
   loadCities: (province) => CidrAPI.getCities(province),
   provinces,
   regionInputsDisabled,
-  translate: (key, params) => (params ? t(key, params) : t(key)),
+  translate: sshRegionTranslate,
 });
 const sshPortsLabel = computed(() => {
   const ports = details.value?.summary.ssh_ports ?? [22];

@@ -652,6 +652,10 @@ export const jaJPServer = {
   },
   whitelist: {
     addFailed: "ホワイトリスト レコードの追加に失敗しました",
+    regionAddFailed: "地域ホワイトリストの追加に失敗しました",
+    regionRequired: "少なくとも 1 つの地域を選択してください",
+    regionEmpty: "選択した地域で使用可能な CIDR が見つかりませんでした",
+    regionNotFound: "地域ホワイトリストが見つかりませんでした",
     recordNotFound: "ホワイトリスト レコードが見つかりませんでした",
     domainResolveFailed: "ドメイン名解決に失敗しました",
     refreshFailed: "ホワイトリスト レコードをすぐに更新できませんでした",

@@ -546,6 +546,10 @@ export const zhHantServer = {
   },
   whitelist: {
     addFailed: "新增白名單記錄失敗",
+    regionAddFailed: "按地區新增白名單失敗",
+    regionRequired: "請至少選擇一個地區",
+    regionEmpty: "所選地區未解析到可用 CIDR",
+    regionNotFound: "未找到地區白名單",
     recordNotFound: "未找到白名單記錄",
     domainResolveFailed: "域名解析失敗",
     refreshFailed: "立即更新白名單記錄失敗",

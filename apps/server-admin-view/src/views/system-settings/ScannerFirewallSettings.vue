@@ -1,10 +1,16 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, toRef } from 'vue';
-import { useI18n } from 'vue-i18n';
-import { useRouter } from 'vue-router';
-import { Plus, Shield } from 'lucide-vue-next';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { computed, onMounted, reactive, ref, toRef } from "vue";
+import { useI18n } from "vue-i18n";
+import { useRouter } from "vue-router";
+import { Plus, Shield } from "lucide-vue-next";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -12,33 +18,39 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   TagsInput,
   TagsInputItem,
   TagsInputItemDelete,
   TagsInputItemText,
-} from '@/components/ui/tags-input';
-import { Textarea } from '@/components/ui/textarea';
-import { Skeleton } from '@/components/ui/skeleton';
-import { toast } from '@admin-shared/utils/toast';
-import FloatingActionDock from '@admin-shared/components/common/FloatingActionDock.vue';
-import { parseCidrTextarea } from '@admin-shared/utils/cidr';
-import { CidrAPI, ScannerAPI, type ScannerSettings } from '../../lib/api';
-import { extractErrorMessage, useAsyncAction } from '@admin-shared/composables/useAsyncAction';
-import { useDelayedLoading } from '@admin-shared/composables/useDelayedLoading';
-import type { CidrProvinceOption, GatewayVisibilitySelection } from '../../types';
-import { useSSHAllowedRegions } from '../ssh-security/useSSHAllowedRegions';
+} from "@/components/ui/tags-input";
+import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "@admin-shared/utils/toast";
+import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
+import { parseCidrTextarea } from "@admin-shared/utils/cidr";
+import { CidrAPI, ScannerAPI, type ScannerSettings } from "../../lib/api";
+import {
+  extractErrorMessage,
+  useAsyncAction,
+} from "@admin-shared/composables/useAsyncAction";
+import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
+import type {
+  CidrProvinceOption,
+  GatewayVisibilitySelection,
+} from "../../types";
+import { useCidrRegionSelector } from "../../composables/useCidrRegionSelector";
 
 const settings = ref<ScannerSettings | null>(null);
 const provinces = ref<CidrProvinceOption[]>([]);
@@ -47,10 +59,10 @@ const router = useRouter();
 const { t } = useI18n();
 const { isPending: isLoading, run: runLoadSettings } = useAsyncAction({
   onError: (error) => {
-    toast.error(t('admin.scannerFirewallSettings.loadFailed'), {
+    toast.error(t("admin.scannerFirewallSettings.loadFailed"), {
       description: extractErrorMessage(
         error,
-        t('admin.scannerFirewallSettings.loadDescription'),
+        t("admin.scannerFirewallSettings.loadDescription"),
       ),
     });
   },
@@ -58,10 +70,10 @@ const { isPending: isLoading, run: runLoadSettings } = useAsyncAction({
 const showLoadingSkeleton = useDelayedLoading(isLoading);
 const { isPending: isSaving, run: runSaveSettings } = useAsyncAction({
   onError: (error) => {
-    toast.error(t('admin.scannerFirewallSettings.saveFailed'), {
+    toast.error(t("admin.scannerFirewallSettings.saveFailed"), {
       description: extractErrorMessage(
         error,
-        t('admin.scannerFirewallSettings.saveDescription'),
+        t("admin.scannerFirewallSettings.saveDescription"),
       ),
     });
   },
@@ -74,31 +86,36 @@ const form = reactive({
   threshold: 3,
   blacklistTtlDays: 90,
   cidrExemptionRegions: [] as GatewayVisibilitySelection[],
-  cidrExemptionsText: '',
+  cidrExemptionsText: "",
 });
 
 const scannerRegionTranslate = (
-  key: string,
+  key:
+    | "loading"
+    | "selectProvinceFirst"
+    | "selectCityOrProvince"
+    | "selectCity"
+    | "regionsLoadFailed"
+    | "regionsLoadDescription",
   params?: Record<string, string | number>,
 ) => {
   const keyMap: Record<string, string> = {
-    'admin.sshSecurity.loading': 'admin.scannerFirewallSettings.loading',
-    'admin.sshSecurity.selectProvinceFirst':
-      'admin.scannerFirewallSettings.selectProvinceFirst',
-    'admin.sshSecurity.selectCityOrProvince':
-      'admin.scannerFirewallSettings.selectCityOrProvinceWide',
-    'admin.sshSecurity.selectCity':
-      'admin.scannerFirewallSettings.selectCity',
-    'admin.sshSecurity.regionsLoadFailed':
-      'admin.scannerFirewallSettings.regionsLoadFailed',
-    'admin.sshSecurity.regionsLoadDescription':
-      'admin.scannerFirewallSettings.regionsLoadDescription',
+    loading: "admin.scannerFirewallSettings.loading",
+    selectProvinceFirst: "admin.scannerFirewallSettings.selectProvinceFirst",
+    selectCityOrProvince:
+      "admin.scannerFirewallSettings.selectCityOrProvinceWide",
+    selectCity: "admin.scannerFirewallSettings.selectCity",
+    regionsLoadFailed: "admin.scannerFirewallSettings.regionsLoadFailed",
+    regionsLoadDescription:
+      "admin.scannerFirewallSettings.regionsLoadDescription",
   };
   const resolvedKey = keyMap[key] ?? key;
   return params ? t(resolvedKey, params) : t(resolvedKey);
 };
 
-const derivedWindowMinutes = computed(() => Math.max(baseWindowMinutes, Number(form.windowMinutes) || 0));
+const derivedWindowMinutes = computed(() =>
+  Math.max(baseWindowMinutes, Number(form.windowMinutes) || 0),
+);
 const cidrExemptionsState = computed(() =>
   parseCidrTextarea(form.cidrExemptionsText),
 );
@@ -117,9 +134,9 @@ const {
   regionDraft,
   removeRegion,
   selectionKey,
-} = useSSHAllowedRegions({
-  allowedRegions: toRef(form, 'cidrExemptionRegions'),
-  isEnabled: toRef(form, 'enabled'),
+} = useCidrRegionSelector({
+  selections: toRef(form, "cidrExemptionRegions"),
+  isEnabled: toRef(form, "enabled"),
   loadCities: (province) => CidrAPI.getCities(province),
   provinces,
   regionInputsDisabled,
@@ -135,17 +152,23 @@ const isDirty = computed(() => {
     settings.value.windowMinutes !== Number(form.windowMinutes) ||
     settings.value.threshold !== Number(form.threshold) ||
     compareDays !== Number(form.blacklistTtlDays) ||
-    JSON.stringify((settings.value.cidrExemptionRegions ?? []).map((item) => selectionKey(item))) !==
-      JSON.stringify(form.cidrExemptionRegions.map((item) => selectionKey(item))) ||
+    JSON.stringify(
+      (settings.value.cidrExemptionRegions ?? []).map((item) =>
+        selectionKey(item),
+      ),
+    ) !==
+      JSON.stringify(
+        form.cidrExemptionRegions.map((item) => selectionKey(item)),
+      ) ||
     JSON.stringify(settings.value.cidrExemptions ?? []) !==
       JSON.stringify(cidrExemptionsState.value.cidrs)
   );
 });
 const saveBlockedReason = computed(() => {
   if (invalidCidrExemptions.value.length > 0) {
-    return t('admin.scannerFirewallSettings.fixCidrExemptions');
+    return t("admin.scannerFirewallSettings.fixCidrExemptions");
   }
-  return '';
+  return "";
 });
 
 const applyFromSettings = (data: ScannerSettings) => {
@@ -154,11 +177,14 @@ const applyFromSettings = (data: ScannerSettings) => {
   form.commonLocationExemptEnabled = data.commonLocationExemptEnabled === true;
   form.windowMinutes = data.windowMinutes;
   form.threshold = data.threshold;
-  form.blacklistTtlDays = Math.max(1, Math.ceil(data.blacklistTtlSeconds / 86400));
+  form.blacklistTtlDays = Math.max(
+    1,
+    Math.ceil(data.blacklistTtlSeconds / 86400),
+  );
   form.cidrExemptionRegions = (data.cidrExemptionRegions ?? []).map((item) => ({
     ...item,
   }));
-  form.cidrExemptionsText = (data.cidrExemptions ?? []).join('\n');
+  form.cidrExemptionsText = (data.cidrExemptions ?? []).join("\n");
 };
 
 const fetchSettings = async () => {
@@ -166,10 +192,10 @@ const fetchSettings = async () => {
     const [data, provincePayload] = await Promise.all([
       ScannerAPI.getSettings(),
       CidrAPI.getProvinces().catch((error) => {
-        toast.error(t('admin.scannerFirewallSettings.regionsLoadFailed'), {
+        toast.error(t("admin.scannerFirewallSettings.regionsLoadFailed"), {
           description: extractErrorMessage(
             error,
-            t('admin.scannerFirewallSettings.regionsLoadDescription'),
+            t("admin.scannerFirewallSettings.regionsLoadDescription"),
           ),
         });
         return null;
@@ -186,9 +212,9 @@ const resetForm = () => {
 
 const saveSettings = async () => {
   if (invalidCidrExemptions.value.length > 0) {
-    toast.error(t('admin.scannerFirewallSettings.cidrValidationFailed'), {
-      description: t('admin.scannerFirewallSettings.cidrExemptionsInvalid', {
-        items: invalidCidrExemptions.value.join('、'),
+    toast.error(t("admin.scannerFirewallSettings.cidrValidationFailed"), {
+      description: t("admin.scannerFirewallSettings.cidrExemptionsInvalid", {
+        items: invalidCidrExemptions.value.join("、"),
       }),
     });
     return;
@@ -201,7 +227,10 @@ const saveSettings = async () => {
         commonLocationExemptEnabled: form.commonLocationExemptEnabled,
         windowMinutes: Math.max(1, Number(form.windowMinutes) || 1),
         threshold: Math.max(1, Number(form.threshold) || 1),
-        blacklistTtlSeconds: Math.max(60, Math.floor((Number(form.blacklistTtlDays) || 1) * 86400)),
+        blacklistTtlSeconds: Math.max(
+          60,
+          Math.floor((Number(form.blacklistTtlDays) || 1) * 86400),
+        ),
         cidrExemptionRegions: form.cidrExemptionRegions.map((item) => ({
           province: item.province,
           query_city: item.query_city,
@@ -213,7 +242,7 @@ const saveSettings = async () => {
     {
       onSuccess: (data) => {
         applyFromSettings(data);
-        toast.success(t('admin.scannerFirewallSettings.updated'));
+        toast.success(t("admin.scannerFirewallSettings.updated"));
       },
     },
   );
@@ -222,24 +251,31 @@ const saveSettings = async () => {
 onMounted(fetchSettings);
 
 const goToBlacklist = () => {
-  router.push({ path: '/sessions', query: { tab: 'ip-blacklist' } });
+  router.push({ path: "/sessions", query: { tab: "ip-blacklist" } });
 };
 </script>
 <template>
   <Card>
     <CardHeader>
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div
+        class="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+      >
         <div>
           <CardTitle class="text-md">
-            {{ t('admin.scannerFirewallSettings.title') }}
+            {{ t("admin.scannerFirewallSettings.title") }}
           </CardTitle>
           <CardDescription class="mt-1.5">
-            {{ t('admin.scannerFirewallSettings.description') }}
+            {{ t("admin.scannerFirewallSettings.description") }}
           </CardDescription>
         </div>
-        <Button variant="secondary" size="sm" @click="goToBlacklist" class="shrink-0">
+        <Button
+          variant="secondary"
+          size="sm"
+          @click="goToBlacklist"
+          class="shrink-0"
+        >
           <Shield class="mr-2 h-4 w-4" />
-          {{ t('admin.scannerFirewallSettings.viewBlacklist') }}
+          {{ t("admin.scannerFirewallSettings.viewBlacklist") }}
         </Button>
       </div>
     </CardHeader>
@@ -254,37 +290,61 @@ const goToBlacklist = () => {
     <CardContent v-else-if="!isLoading" class="p-0 border-t divide-y">
       <div class="flex items-center justify-between p-6 bg-muted/10">
         <div class="space-y-1 pr-6">
-          <Label class="text-base font-medium cursor-pointer" @click="form.enabled = !form.enabled">
-            {{ t('admin.scannerFirewallSettings.enableTitle') }}
+          <Label
+            class="text-base font-medium cursor-pointer"
+            @click="form.enabled = !form.enabled"
+          >
+            {{ t("admin.scannerFirewallSettings.enableTitle") }}
           </Label>
           <div class="text-sm text-muted-foreground">
-            {{ t('admin.scannerFirewallSettings.enableDescription') }}
+            {{ t("admin.scannerFirewallSettings.enableDescription") }}
           </div>
         </div>
         <Switch v-model="form.enabled" />
       </div>
 
-      <div v-show="form.enabled" class="divide-y animate-in fade-in slide-in-from-top-2 duration-300">
+      <div
+        v-show="form.enabled"
+        class="divide-y animate-in fade-in slide-in-from-top-2 duration-300"
+      >
         <div class="flex items-center justify-between p-6 gap-4">
           <div class="space-y-1 pr-6">
-            <Label class="text-base font-medium cursor-pointer" @click="form.commonLocationExemptEnabled = !form.commonLocationExemptEnabled">
-              {{ t('admin.scannerFirewallSettings.commonLocationExemptTitle') }}
+            <Label
+              class="text-base font-medium cursor-pointer"
+              @click="
+                form.commonLocationExemptEnabled =
+                  !form.commonLocationExemptEnabled
+              "
+            >
+              {{ t("admin.scannerFirewallSettings.commonLocationExemptTitle") }}
             </Label>
             <div class="text-sm text-muted-foreground">
-              {{ t('admin.scannerFirewallSettings.commonLocationExemptDescription') }}
+              {{
+                t(
+                  "admin.scannerFirewallSettings.commonLocationExemptDescription",
+                )
+              }}
             </div>
           </div>
           <Switch v-model="form.commonLocationExemptEnabled" />
         </div>
 
         <div class="flex flex-col p-6 gap-4">
-          <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div
+            class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+          >
             <div class="space-y-1">
               <Label class="text-base">
-                {{ t('admin.scannerFirewallSettings.cidrExemptionRegionsTitle') }}
+                {{
+                  t("admin.scannerFirewallSettings.cidrExemptionRegionsTitle")
+                }}
               </Label>
               <div class="text-sm text-muted-foreground">
-                {{ t('admin.scannerFirewallSettings.cidrExemptionRegionsDescription') }}
+                {{
+                  t(
+                    "admin.scannerFirewallSettings.cidrExemptionRegionsDescription",
+                  )
+                }}
               </div>
             </div>
             <Button
@@ -295,7 +355,7 @@ const goToBlacklist = () => {
               @click="openRegionDialog"
             >
               <Plus class="h-4 w-4" />
-              {{ t('admin.scannerFirewallSettings.addRegion') }}
+              {{ t("admin.scannerFirewallSettings.addRegion") }}
             </Button>
           </div>
 
@@ -325,7 +385,7 @@ const goToBlacklist = () => {
                 </TagsInputItem>
               </template>
               <span v-else class="px-1 py-1 text-sm text-muted-foreground">
-                {{ t('admin.scannerFirewallSettings.noRegions') }}
+                {{ t("admin.scannerFirewallSettings.noRegions") }}
               </span>
             </TagsInput>
           </div>
@@ -334,10 +394,10 @@ const goToBlacklist = () => {
         <div class="flex flex-col p-6 gap-4">
           <div class="space-y-1">
             <Label for="scanner-cidr-exemptions" class="text-base">
-              {{ t('admin.scannerFirewallSettings.cidrExemptionsTitle') }}
+              {{ t("admin.scannerFirewallSettings.cidrExemptionsTitle") }}
             </Label>
             <div class="text-sm text-muted-foreground">
-              {{ t('admin.scannerFirewallSettings.cidrExemptionsDescription') }}
+              {{ t("admin.scannerFirewallSettings.cidrExemptionsDescription") }}
             </div>
           </div>
           <div class="w-full space-y-2">
@@ -345,13 +405,15 @@ const goToBlacklist = () => {
               id="scanner-cidr-exemptions"
               v-model="form.cidrExemptionsText"
               class="min-h-32 font-mono text-sm"
-              :placeholder="t('admin.scannerFirewallSettings.cidrExemptionsPlaceholder')"
+              :placeholder="
+                t('admin.scannerFirewallSettings.cidrExemptionsPlaceholder')
+              "
               :disabled="isSaving"
             />
             <div class="flex flex-wrap gap-x-4 gap-y-2 text-sm">
               <span class="text-muted-foreground">
                 {{
-                  t('admin.scannerFirewallSettings.cidrExemptionsRecognized', {
+                  t("admin.scannerFirewallSettings.cidrExemptionsRecognized", {
                     count: cidrExemptionsState.cidrs.length,
                   })
                 }}
@@ -361,28 +423,33 @@ const goToBlacklist = () => {
                 class="text-destructive"
               >
                 {{
-                  t('admin.scannerFirewallSettings.cidrExemptionsInvalid', {
-                    items: invalidCidrExemptions.join('、'),
+                  t("admin.scannerFirewallSettings.cidrExemptionsInvalid", {
+                    items: invalidCidrExemptions.join("、"),
                   })
                 }}
               </span>
               <span v-else class="text-emerald-600">
-                {{ t('admin.scannerFirewallSettings.cidrExemptionsValid') }}
+                {{ t("admin.scannerFirewallSettings.cidrExemptionsValid") }}
               </span>
             </div>
           </div>
         </div>
 
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between p-6 gap-4">
+        <div
+          class="flex flex-col sm:flex-row sm:items-center justify-between p-6 gap-4"
+        >
           <div class="space-y-1 pr-6">
             <Label class="text-base">
-              {{ t('admin.scannerFirewallSettings.windowTitle') }}
+              {{ t("admin.scannerFirewallSettings.windowTitle") }}
             </Label>
             <div class="text-sm text-muted-foreground">
-              {{ t('admin.scannerFirewallSettings.windowDescription') }}
-              <span v-if="derivedWindowMinutes > form.windowMinutes" class="text-destructive block sm:inline sm:ml-1">
+              {{ t("admin.scannerFirewallSettings.windowDescription") }}
+              <span
+                v-if="derivedWindowMinutes > form.windowMinutes"
+                class="text-destructive block sm:inline sm:ml-1"
+              >
                 {{
-                  t('admin.scannerFirewallSettings.enforcedMinimum', {
+                  t("admin.scannerFirewallSettings.enforcedMinimum", {
                     minutes: baseWindowMinutes,
                   })
                 }}
@@ -390,43 +457,62 @@ const goToBlacklist = () => {
             </div>
           </div>
           <div class="flex items-center gap-2 shrink-0">
-            <Input v-model.number="form.windowMinutes" type="number" min="1" class="w-24 text-center" />
+            <Input
+              v-model.number="form.windowMinutes"
+              type="number"
+              min="1"
+              class="w-24 text-center"
+            />
             <span class="text-sm text-muted-foreground w-12">
-              {{ t('admin.scannerFirewallSettings.minutesUnit') }}
+              {{ t("admin.scannerFirewallSettings.minutesUnit") }}
             </span>
           </div>
         </div>
 
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between p-6 gap-4">
+        <div
+          class="flex flex-col sm:flex-row sm:items-center justify-between p-6 gap-4"
+        >
           <div class="space-y-1 pr-6">
             <Label class="text-base">
-              {{ t('admin.scannerFirewallSettings.thresholdTitle') }}
+              {{ t("admin.scannerFirewallSettings.thresholdTitle") }}
             </Label>
             <div class="text-sm text-muted-foreground">
-              {{ t('admin.scannerFirewallSettings.thresholdDescription') }}
+              {{ t("admin.scannerFirewallSettings.thresholdDescription") }}
             </div>
           </div>
           <div class="flex items-center gap-2 shrink-0">
-            <Input v-model.number="form.threshold" type="number" min="1" class="w-24 text-center" />
+            <Input
+              v-model.number="form.threshold"
+              type="number"
+              min="1"
+              class="w-24 text-center"
+            />
             <span class="text-sm text-muted-foreground w-12">
-              {{ t('admin.scannerFirewallSettings.timesUnit') }}
+              {{ t("admin.scannerFirewallSettings.timesUnit") }}
             </span>
           </div>
         </div>
 
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between p-6 gap-4">
+        <div
+          class="flex flex-col sm:flex-row sm:items-center justify-between p-6 gap-4"
+        >
           <div class="space-y-1 pr-6">
             <Label class="text-base">
-              {{ t('admin.scannerFirewallSettings.blacklistTtlTitle') }}
+              {{ t("admin.scannerFirewallSettings.blacklistTtlTitle") }}
             </Label>
             <div class="text-sm text-muted-foreground">
-              {{ t('admin.scannerFirewallSettings.blacklistTtlDescription') }}
+              {{ t("admin.scannerFirewallSettings.blacklistTtlDescription") }}
             </div>
           </div>
           <div class="flex items-center gap-2 shrink-0">
-            <Input v-model.number="form.blacklistTtlDays" type="number" min="1" class="w-24 text-center" />
+            <Input
+              v-model.number="form.blacklistTtlDays"
+              type="number"
+              min="1"
+              class="w-24 text-center"
+            />
             <span class="text-sm text-muted-foreground w-12">
-              {{ t('admin.scannerFirewallSettings.daysUnit') }}
+              {{ t("admin.scannerFirewallSettings.daysUnit") }}
             </span>
           </div>
         </div>
@@ -441,27 +527,49 @@ const goToBlacklist = () => {
     >
       <template #inline>
         <div class="text-sm text-muted-foreground">
-          <span v-if="isDirty">{{ t('admin.scannerFirewallSettings.dirty') }}</span>
-          <span v-else>{{ t('admin.scannerFirewallSettings.clean') }}</span>
+          <span v-if="isDirty">{{
+            t("admin.scannerFirewallSettings.dirty")
+          }}</span>
+          <span v-else>{{ t("admin.scannerFirewallSettings.clean") }}</span>
         </div>
         <div class="flex gap-3">
-          <Button variant="ghost" @click="resetForm" :disabled="!isDirty || isSaving">
-            {{ t('admin.scannerFirewallSettings.discard') }}
+          <Button
+            variant="ghost"
+            @click="resetForm"
+            :disabled="!isDirty || isSaving"
+          >
+            {{ t("admin.scannerFirewallSettings.discard") }}
           </Button>
-          <Button :disabled="!isDirty || isSaving || Boolean(saveBlockedReason)" @click="saveSettings">
-            <span v-if="isSaving" class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
-            {{ t('admin.scannerFirewallSettings.saveChanges') }}
+          <Button
+            :disabled="!isDirty || isSaving || Boolean(saveBlockedReason)"
+            @click="saveSettings"
+          >
+            <span
+              v-if="isSaving"
+              class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+            ></span>
+            {{ t("admin.scannerFirewallSettings.saveChanges") }}
           </Button>
         </div>
       </template>
 
       <template #floating>
-        <Button variant="ghost" @click="resetForm" :disabled="!isDirty || isSaving">
-          {{ t('admin.scannerFirewallSettings.discard') }}
+        <Button
+          variant="ghost"
+          @click="resetForm"
+          :disabled="!isDirty || isSaving"
+        >
+          {{ t("admin.scannerFirewallSettings.discard") }}
         </Button>
-        <Button :disabled="!isDirty || isSaving || Boolean(saveBlockedReason)" @click="saveSettings">
-          <span v-if="isSaving" class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"></span>
-          {{ t('admin.scannerFirewallSettings.saveChanges') }}
+        <Button
+          :disabled="!isDirty || isSaving || Boolean(saveBlockedReason)"
+          @click="saveSettings"
+        >
+          <span
+            v-if="isSaving"
+            class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+          ></span>
+          {{ t("admin.scannerFirewallSettings.saveChanges") }}
         </Button>
       </template>
     </FloatingActionDock>
@@ -477,10 +585,10 @@ const goToBlacklist = () => {
       <div class="px-6 pt-6 pb-2">
         <DialogHeader class="space-y-2 text-left">
           <DialogTitle class="text-xl font-semibold tracking-tight">
-            {{ t('admin.scannerFirewallSettings.addRegion') }}
+            {{ t("admin.scannerFirewallSettings.addRegion") }}
           </DialogTitle>
           <DialogDescription class="text-sm leading-6 text-muted-foreground">
-            {{ t('admin.scannerFirewallSettings.addRegionDescription') }}
+            {{ t("admin.scannerFirewallSettings.addRegionDescription") }}
           </DialogDescription>
         </DialogHeader>
       </div>
@@ -489,7 +597,7 @@ const goToBlacklist = () => {
         <div class="grid gap-4 sm:grid-cols-2">
           <div class="space-y-2">
             <Label class="text-sm font-medium">
-              {{ t('admin.scannerFirewallSettings.province') }}
+              {{ t("admin.scannerFirewallSettings.province") }}
             </Label>
             <Select v-model="regionDraft.province">
               <SelectTrigger
@@ -497,7 +605,9 @@ const goToBlacklist = () => {
                 :disabled="regionInputsDisabled || provinces.length === 0"
               >
                 <SelectValue
-                  :placeholder="t('admin.scannerFirewallSettings.selectProvince')"
+                  :placeholder="
+                    t('admin.scannerFirewallSettings.selectProvince')
+                  "
                 />
               </SelectTrigger>
               <SelectContent>
@@ -514,7 +624,7 @@ const goToBlacklist = () => {
 
           <div class="space-y-2">
             <Label class="text-sm font-medium">
-              {{ t('admin.scannerFirewallSettings.scope') }}
+              {{ t("admin.scannerFirewallSettings.scope") }}
             </Label>
             <Select :key="citySelectKey" v-model="regionDraft.cityValue">
               <SelectTrigger
@@ -547,17 +657,11 @@ const goToBlacklist = () => {
       </div>
 
       <DialogFooter class="border-t border-border/60 px-6 py-4 sm:justify-end">
-        <Button
-          variant="outline"
-          @click="handleRegionDialogOpenChange(false)"
-        >
-          {{ t('common.cancel') }}
+        <Button variant="outline" @click="handleRegionDialogOpenChange(false)">
+          {{ t("common.cancel") }}
         </Button>
-        <Button
-          :disabled="!canAddRegion || isSaving"
-          @click="addRegion"
-        >
-          {{ t('admin.scannerFirewallSettings.add') }}
+        <Button :disabled="!canAddRegion || isSaving" @click="addRegion">
+          {{ t("admin.scannerFirewallSettings.add") }}
         </Button>
       </DialogFooter>
     </DialogContent>

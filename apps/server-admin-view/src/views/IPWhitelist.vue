@@ -71,9 +71,7 @@
                 <div class="flex items-center gap-2">
                   <span>{{ record.ip }}</span>
                   <Badge variant="outline">
-                    {{
-                      targetTypeBadgeLabel(record.targetType)
-                    }}
+                    {{ targetTypeBadgeLabel(record.targetType) }}
                   </Badge>
                 </div>
                 <div
@@ -270,11 +268,105 @@
         @update:page="handlePageChange"
         @update:limit="handleLimitChange"
       />
+
+      <div
+        v-if="!isInitializing && regionGroups.length > 0"
+        class="mt-6 rounded-md border"
+      >
+        <div
+          class="flex flex-wrap items-start justify-between gap-3 border-b px-4 py-3"
+        >
+          <div class="min-w-0 space-y-1">
+            <h3 class="text-sm font-medium">
+              {{ t("admin.ipWhitelist.regionGroupsTitle") }}
+            </h3>
+            <p class="text-sm text-muted-foreground">
+              {{ t("admin.ipWhitelist.regionGroupsDescription") }}
+            </p>
+          </div>
+          <Badge variant="secondary">
+            {{
+              t("admin.ipWhitelist.regionGroupsCount", {
+                count: regionGroups.length,
+              })
+            }}
+          </Badge>
+        </div>
+
+        <div class="divide-y">
+          <div
+            v-for="group in regionGroups"
+            :key="group.id"
+            class="flex flex-wrap items-start justify-between gap-4 px-4 py-4"
+          >
+            <div class="min-w-0 flex-1 space-y-2">
+              <div class="flex flex-wrap gap-2">
+                <Badge
+                  v-for="region in group.regions"
+                  :key="`${group.id}:${formatRegionInput(region)}`"
+                  variant="outline"
+                  class="max-w-full whitespace-normal text-left font-normal"
+                >
+                  {{ formatRegionInput(region) }}
+                </Badge>
+              </div>
+              <div
+                class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground"
+              >
+                <span>
+                  {{
+                    t("admin.ipWhitelist.regionGroupCidrCount", {
+                      count: group.cidrCount,
+                    })
+                  }}
+                </span>
+                <span v-if="group.expireAt">
+                  {{ formatRemaining(group.expireAt) }}
+                </span>
+                <span v-else class="text-green-600">
+                  {{ t("admin.ipWhitelist.permanent") }}
+                </span>
+                <span>
+                  {{ t("admin.ipWhitelist.createdAt") }}
+                  <HumanFriendlyTime :value="group.createdAt * 1000" />
+                </span>
+              </div>
+              <p v-if="group.comment" class="text-sm text-muted-foreground">
+                {{ group.comment }}
+              </p>
+            </div>
+
+            <ConfirmDangerPopover
+              :title="t('admin.ipWhitelist.regionGroupDeleteTitle')"
+              :description="
+                t('admin.ipWhitelist.regionGroupDeleteDescription', {
+                  target: regionGroupLabel(group),
+                })
+              "
+              :loading="removingRegionGroupId === group.id"
+              :disabled="removingRegionGroupId === group.id"
+              :on-confirm="() => removeRegionGroup(group.id)"
+              content-class="w-64 text-left"
+            >
+              <template #trigger>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  class="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  :disabled="removingRegionGroupId === group.id"
+                >
+                  <Trash2 class="h-4 w-4" />
+                </Button>
+              </template>
+            </ConfirmDangerPopover>
+          </div>
+        </div>
+      </div>
     </CardContent>
   </Card>
 
   <Dialog v-model:open="showAddDialog">
-    <DialogContent>
+    <DialogContent class="sm:max-w-[640px]">
       <DialogHeader>
         <DialogTitle>{{ t("admin.ipWhitelist.addDialogTitle") }}</DialogTitle>
         <DialogDescription>
@@ -304,7 +396,41 @@
           </Select>
         </div>
 
-        <div class="grid grid-cols-4 items-center gap-4">
+        <div
+          v-if="newRecord.targetType === 'cidr'"
+          class="grid grid-cols-4 items-center gap-4"
+        >
+          <Label class="text-right">{{
+            t("admin.ipWhitelist.cidrInputMode")
+          }}</Label>
+          <div
+            class="col-span-3 inline-flex w-fit rounded-md border border-border bg-muted/20 p-1"
+          >
+            <Button
+              type="button"
+              size="sm"
+              :variant="cidrInputMode === 'manual' ? 'default' : 'ghost'"
+              class="h-8"
+              @click="cidrInputMode = 'manual'"
+            >
+              {{ t("admin.ipWhitelist.cidrInputManual") }}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              :variant="cidrInputMode === 'region' ? 'default' : 'ghost'"
+              class="h-8"
+              @click="cidrInputMode = 'region'"
+            >
+              {{ t("admin.ipWhitelist.cidrInputRegion") }}
+            </Button>
+          </div>
+        </div>
+
+        <div
+          v-if="!isRegionCidrMode"
+          class="grid grid-cols-4 items-center gap-4"
+        >
           <Label for="ip" class="text-right">{{
             t("admin.ipWhitelist.target")
           }}</Label>
@@ -316,13 +442,84 @@
           />
         </div>
 
+        <div v-else class="grid grid-cols-4 items-start gap-4">
+          <Label class="pt-2 text-right">{{
+            t("admin.ipWhitelist.regionScope")
+          }}</Label>
+          <div class="col-span-3 space-y-3">
+            <Alert variant="destructive" class="items-start">
+              <AlertTriangle class="h-4 w-4" />
+              <AlertTitle>
+                {{ t("admin.ipWhitelist.regionSecurityWarningTitle") }}
+              </AlertTitle>
+              <AlertDescription>
+                {{ t("admin.ipWhitelist.regionSecurityWarningDescription") }}
+              </AlertDescription>
+            </Alert>
+
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <p class="text-sm text-muted-foreground">
+                {{ t("admin.ipWhitelist.regionScopeDescription") }}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                :disabled="
+                  regionInputsDisabled ||
+                  isLoadingProvinces ||
+                  (provincesLoaded && provinces.length === 0)
+                "
+                @click="openWhitelistRegionDialog"
+              >
+                <Loader2
+                  v-if="isLoadingProvinces"
+                  class="h-4 w-4 animate-spin"
+                />
+                <Plus v-else class="h-4 w-4" />
+                {{ t("admin.ipWhitelist.addRegion") }}
+              </Button>
+            </div>
+
+            <div class="rounded-xl bg-muted/20 px-4 py-4">
+              <TagsInput
+                :model-value="
+                  whitelistRegionSelections.map((item) => selectionKey(item))
+                "
+                class="min-h-0 items-start gap-2 border-none bg-transparent px-0 py-0 shadow-none"
+              >
+                <template v-if="whitelistRegionSelections.length > 0">
+                  <TagsInputItem
+                    v-for="selection in whitelistRegionSelections"
+                    :key="selectionKey(selection)"
+                    :value="selectionKey(selection)"
+                    class="h-auto rounded-full border border-border/70 bg-background pr-1"
+                  >
+                    <TagsInputItemText class="px-3 py-1.5">
+                      {{ selection.label }}
+                    </TagsInputItemText>
+                    <TagsInputItemDelete
+                      class="mr-1 rounded-full hover:bg-muted"
+                      :disabled="regionInputsDisabled"
+                      @click.prevent="removeRegion(selection)"
+                    />
+                  </TagsInputItem>
+                </template>
+                <span v-else class="px-1 py-1 text-sm text-muted-foreground">
+                  {{ t("admin.ipWhitelist.noRegions") }}
+                </span>
+              </TagsInput>
+            </div>
+          </div>
+        </div>
+
         <div
           v-if="newRecord.targetType === 'cname'"
           class="grid grid-cols-4 items-center gap-4"
         >
-          <Label for="checkIntervalMinutes" class="text-right"
-            >{{ t("admin.ipWhitelist.checkIntervalLabel") }}</Label
-          >
+          <Label for="checkIntervalMinutes" class="text-right">{{
+            t("admin.ipWhitelist.checkIntervalLabel")
+          }}</Label>
           <div class="col-span-3 flex items-center gap-2">
             <Input
               id="checkIntervalMinutes"
@@ -331,9 +528,9 @@
               v-model.number="newRecord.checkIntervalMinutes"
               :placeholder="t('admin.ipWhitelist.defaultFive')"
             />
-            <span class="text-sm text-muted-foreground whitespace-nowrap"
-              >{{ t("admin.ipWhitelist.minutes") }}</span
-            >
+            <span class="text-sm text-muted-foreground whitespace-nowrap">{{
+              t("admin.ipWhitelist.minutes")
+            }}</span>
           </div>
         </div>
 
@@ -343,7 +540,9 @@
           }}</Label>
           <Select v-model="durationSetting">
             <SelectTrigger class="col-span-3">
-              <SelectValue :placeholder="t('admin.ipWhitelist.selectDuration')" />
+              <SelectValue
+                :placeholder="t('admin.ipWhitelist.selectDuration')"
+              />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="permanent">{{
@@ -399,9 +598,99 @@
         <Button variant="outline" @click="showAddDialog = false">{{
           t("common.cancel")
         }}</Button>
-        <Button @click="addRecord" :disabled="!newRecord.ip || isSaving"
-          >{{ t("common.save") }}</Button
-        >
+        <Button @click="addRecord" :disabled="!canSaveNewRecord || isSaving">{{
+          t("common.save")
+        }}</Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
+  <Dialog
+    :open="isRegionDialogOpen"
+    @update:open="handleRegionDialogOpenChange"
+  >
+    <DialogContent
+      class="overflow-hidden border-border/70 bg-background p-0 shadow-xl sm:max-w-[560px]"
+    >
+      <div class="px-6 pt-6 pb-2">
+        <DialogHeader class="space-y-2 text-left">
+          <DialogTitle class="text-xl font-semibold tracking-tight">
+            {{ t("admin.ipWhitelist.addRegion") }}
+          </DialogTitle>
+          <DialogDescription class="text-sm leading-6 text-muted-foreground">
+            {{ t("admin.ipWhitelist.addRegionDescription") }}
+          </DialogDescription>
+        </DialogHeader>
+      </div>
+
+      <div class="space-y-4 border-t border-border/60 px-6 py-5">
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div class="space-y-2">
+            <Label class="text-sm font-medium">
+              {{ t("admin.ipWhitelist.province") }}
+            </Label>
+            <Select v-model="regionDraft.province">
+              <SelectTrigger
+                class="h-11 w-full rounded-lg border-border/70 bg-background px-3 shadow-none"
+                :disabled="regionInputsDisabled || provinces.length === 0"
+              >
+                <SelectValue
+                  :placeholder="t('admin.ipWhitelist.selectProvince')"
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="province in provinces"
+                  :key="province.value"
+                  :value="province.value"
+                >
+                  {{ province.label }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div class="space-y-2">
+            <Label class="text-sm font-medium">
+              {{ t("admin.ipWhitelist.scope") }}
+            </Label>
+            <Select :key="citySelectKey" v-model="regionDraft.cityValue">
+              <SelectTrigger
+                class="h-11 w-full rounded-lg border-border/70 bg-background px-3 shadow-none"
+                :disabled="
+                  regionInputsDisabled ||
+                  !regionDraft.province ||
+                  cityOptionsLoading ||
+                  cityOptions.length === 0
+                "
+              >
+                <Loader2
+                  v-if="cityOptionsLoading"
+                  class="h-4 w-4 animate-spin text-muted-foreground"
+                />
+                <SelectValue :placeholder="citySelectPlaceholder" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="city in cityOptions"
+                  :key="city.value"
+                  :value="city.value"
+                >
+                  {{ city.label }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
+      <DialogFooter class="border-t border-border/60 px-6 py-4 sm:justify-end">
+        <Button variant="outline" @click="handleRegionDialogOpenChange(false)">
+          {{ t("common.cancel") }}
+        </Button>
+        <Button :disabled="!canAddRegion || isSaving" @click="addRegion">
+          {{ t("admin.ipWhitelist.add") }}
+        </Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -410,6 +699,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Card,
   CardHeader,
@@ -447,7 +737,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { RefreshCw, ShieldCheck, Trash2 } from "lucide-vue-next";
+import {
+  AlertTriangle,
+  Loader2,
+  Plus,
+  RefreshCw,
+  ShieldCheck,
+  Trash2,
+} from "lucide-vue-next";
+import {
+  TagsInput,
+  TagsInputItem,
+  TagsInputItemDelete,
+  TagsInputItemText,
+} from "@/components/ui/tags-input";
 import RefreshButton from "@/components/RefreshButton.vue";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
 import { toast } from "@admin-shared/utils/toast";
@@ -462,18 +765,27 @@ import { useLocalPagedList } from "@admin-shared/composables/useLocalPagedList";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { isValidCIDR } from "@admin-shared/utils/cidr";
 import { docsUrls } from "../lib/docs";
+import { useCidrRegionSelector } from "../composables/useCidrRegionSelector";
 
-import { WhitelistAPI, type WhiteListRecord } from "../lib/api";
+import {
+  CidrAPI,
+  WhitelistAPI,
+  type CidrProvinceOption,
+  type GatewayVisibilitySelection,
+  type WhiteListRecord,
+  type WhitelistRegionGroupRecord,
+  type WhitelistRegionInput,
+} from "../lib/api";
 
 const { t } = useI18n();
 const records = ref<WhiteListRecord[]>([]);
+const regionGroups = ref<WhitelistRegionGroupRecord[]>([]);
 const isInitializing = ref(true);
 const showInitializingSkeleton = useDelayedLoading(isInitializing);
-const pageDescription = computed(
-  () => t("admin.ipWhitelist.pageDescription"),
-);
+const pageDescription = computed(() => t("admin.ipWhitelist.pageDescription"));
 
 const removingId = ref<string | null>(null);
+const removingRegionGroupId = ref<string | null>(null);
 const refreshingId = ref<string | null>(null);
 const { run: runRemoveRecord } = useAsyncAction({
   onError: (error) => {
@@ -481,6 +793,16 @@ const { run: runRemoveRecord } = useAsyncAction({
       description: extractErrorMessage(
         error,
         t("admin.ipWhitelist.deleteFailed"),
+      ),
+    });
+  },
+});
+const { run: runRemoveRegionGroup } = useAsyncAction({
+  onError: (error) => {
+    toast.error(t("admin.ipWhitelist.networkRegionDeleteTitle"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.ipWhitelist.regionGroupDeleteFailed"),
       ),
     });
   },
@@ -514,10 +836,7 @@ const showAddDialog = ref(false);
 const { isPending: isSaving, run: runAddRecord } = useAsyncAction({
   onError: (error) => {
     toast.error(t("admin.ipWhitelist.networkAddTitle"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.ipWhitelist.addFailed"),
-      ),
+      description: extractErrorMessage(error, t("admin.ipWhitelist.addFailed")),
     });
   },
 });
@@ -529,6 +848,11 @@ const newRecord = ref({
   checkIntervalMinutes: 5,
   comment: "",
 });
+const cidrInputMode = ref<"manual" | "region">("manual");
+const whitelistRegionSelections = ref<GatewayVisibilitySelection[]>([]);
+const provinces = ref<CidrProvinceOption[]>([]);
+const isLoadingProvinces = ref(false);
+const provincesLoaded = ref(false);
 const newRecordPlaceholder = computed(() =>
   newRecord.value.targetType === "cidr"
     ? t("admin.ipWhitelist.placeholderCidr")
@@ -536,16 +860,109 @@ const newRecordPlaceholder = computed(() =>
       ? t("admin.ipWhitelist.placeholderCname")
       : t("admin.ipWhitelist.placeholderIp"),
 );
+const isRegionCidrMode = computed(
+  () =>
+    newRecord.value.targetType === "cidr" && cidrInputMode.value === "region",
+);
+const regionInputsDisabled = computed(
+  () => isSaving.value || !isRegionCidrMode.value,
+);
+const canSaveNewRecord = computed(() =>
+  isRegionCidrMode.value
+    ? whitelistRegionSelections.value.length > 0
+    : Boolean(newRecord.value.ip.trim()),
+);
+
+const whitelistRegionTranslate = (
+  key:
+    | "loading"
+    | "selectProvinceFirst"
+    | "selectCityOrProvince"
+    | "selectCity"
+    | "regionsLoadFailed"
+    | "regionsLoadDescription",
+  params?: Record<string, string | number>,
+) => {
+  const keyMap = {
+    loading: "admin.ipWhitelist.loading",
+    selectProvinceFirst: "admin.ipWhitelist.selectProvinceFirst",
+    selectCityOrProvince: "admin.ipWhitelist.selectCityOrProvince",
+    selectCity: "admin.ipWhitelist.selectCity",
+    regionsLoadFailed: "admin.ipWhitelist.regionsLoadFailed",
+    regionsLoadDescription: "admin.ipWhitelist.regionsLoadDescription",
+  } as const;
+  const resolvedKey = keyMap[key];
+  return params ? t(resolvedKey, params) : t(resolvedKey);
+};
+
+const {
+  addRegion,
+  canAddRegion,
+  cityOptions,
+  cityOptionsLoading,
+  citySelectKey,
+  citySelectPlaceholder,
+  handleRegionDialogOpenChange,
+  isRegionDialogOpen,
+  openRegionDialog,
+  regionDraft,
+  removeRegion,
+  selectionKey,
+} = useCidrRegionSelector({
+  selections: whitelistRegionSelections,
+  isEnabled: isRegionCidrMode,
+  loadCities: (province) => CidrAPI.getCities(province),
+  provinces,
+  regionInputsDisabled,
+  translate: whitelistRegionTranslate,
+});
+
+const loadProvinces = async () => {
+  if (provincesLoaded.value || isLoadingProvinces.value) return;
+
+  isLoadingProvinces.value = true;
+  try {
+    const payload = await CidrAPI.getProvinces();
+    provinces.value = payload.options;
+    provincesLoaded.value = true;
+  } catch (error) {
+    toast.error(t("admin.ipWhitelist.regionsLoadFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.ipWhitelist.regionsLoadDescription"),
+      ),
+    });
+  } finally {
+    isLoadingProvinces.value = false;
+  }
+};
+
+const openWhitelistRegionDialog = async () => {
+  if (regionInputsDisabled.value) return;
+  await loadProvinces();
+  openRegionDialog();
+};
 
 const fetchRecords = async () => {
   await runFetchRecords(
     async () => {
-      const res = await WhitelistAPI.getRecords();
-      if (res.success) {
-        records.value = res.data;
+      const [recordsRes, regionsRes] = await Promise.all([
+        WhitelistAPI.getRecords(),
+        WhitelistAPI.getRegions(),
+      ]);
+      if (recordsRes.success) {
+        records.value = recordsRes.data;
       } else {
         toast.error(t("admin.ipWhitelist.getFailed"), {
-          description: res.message,
+          description: recordsRes.message,
+        });
+      }
+
+      if (regionsRes.success && regionsRes.data) {
+        regionGroups.value = regionsRes.data;
+      } else {
+        toast.error(t("admin.ipWhitelist.regionGroupsLoadFailed"), {
+          description: regionsRes.message,
         });
       }
     },
@@ -595,7 +1012,9 @@ const {
 });
 
 const replaceRecord = (nextRecord: WhiteListRecord) => {
-  const index = records.value.findIndex((record) => record.id === nextRecord.id);
+  const index = records.value.findIndex(
+    (record) => record.id === nextRecord.id,
+  );
   if (index < 0) return;
   records.value.splice(index, 1, nextRecord);
 };
@@ -652,27 +1071,15 @@ const formatRemaining = (expireAt: number) => {
   return t("admin.ipWhitelist.remaining", { value: parts.join("") });
 };
 
-// Actions
-const addRecord = async () => {
-  const ip = newRecord.value.ip.trim();
-  if (!ip) return;
-  if (newRecord.value.targetType === "cidr" && !isValidCIDR(ip)) {
-    toast.error(t("admin.ipWhitelist.invalidCidrTitle"), {
-      description: t("admin.ipWhitelist.invalidCidrDescription"),
-    });
-    return;
-  }
-  if (
-    newRecord.value.targetType === "cname" &&
-    (!Number.isFinite(newRecord.value.checkIntervalMinutes) ||
-      newRecord.value.checkIntervalMinutes < 1)
-  ) {
-    toast.error(t("admin.ipWhitelist.invalidIntervalTitle"), {
-      description: t("admin.ipWhitelist.invalidIntervalDescription"),
-    });
-    return;
-  }
+const formatRegionInput = (region: WhitelistRegionInput) =>
+  region.query_city
+    ? `${region.province} / ${region.query_city}`
+    : region.province;
 
+const regionGroupLabel = (group: WhitelistRegionGroupRecord) =>
+  group.regions.map(formatRegionInput).join(", ");
+
+const getNewRecordExpireAt = () => {
   let expireAt: number | null = null;
   const now = Math.floor(Date.now() / 1000);
 
@@ -695,6 +1102,91 @@ const addRecord = async () => {
     expireAt = now + addHours * 3600;
   }
 
+  return expireAt;
+};
+
+const resetAddForm = () => {
+  newRecord.value = {
+    ip: "",
+    targetType: "ip",
+    checkIntervalMinutes: 5,
+    comment: "",
+  };
+  cidrInputMode.value = "manual";
+  whitelistRegionSelections.value = [];
+  durationSetting.value = "permanent";
+  customHours.value = 24;
+  handleRegionDialogOpenChange(false);
+};
+
+// Actions
+const addRecord = async () => {
+  if (isRegionCidrMode.value) {
+    if (whitelistRegionSelections.value.length === 0) {
+      toast.error(t("admin.ipWhitelist.regionRequiredTitle"), {
+        description: t("admin.ipWhitelist.regionRequiredDescription"),
+      });
+      return;
+    }
+
+    const expireAt = getNewRecordExpireAt();
+    const comment = newRecord.value.comment.trim() || undefined;
+
+    await runAddRecord(async () => {
+      const res = await WhitelistAPI.addRegions({
+        regions: whitelistRegionSelections.value.map((item) => ({
+          province: item.province,
+          query_city: item.query_city,
+        })),
+        expireAt,
+        ...(comment ? { comment } : {}),
+      });
+
+      if (!res.success || !res.data) {
+        toast.error(t("admin.ipWhitelist.addFailed"), {
+          description: res.message,
+        });
+        return;
+      }
+
+      const result = res.data;
+      toast.success(t("admin.ipWhitelist.addRegionsSuccess"), {
+        description: t("admin.ipWhitelist.addRegionsResult", {
+          regions: result.group.regions.length,
+          total: result.total,
+        }),
+      });
+
+      showAddDialog.value = false;
+      resetAddForm();
+      currentPage.value = 1;
+      searchQuery.value = "";
+      await fetchRecords();
+    });
+    return;
+  }
+
+  const ip = newRecord.value.ip.trim();
+  if (!ip) return;
+  if (newRecord.value.targetType === "cidr" && !isValidCIDR(ip)) {
+    toast.error(t("admin.ipWhitelist.invalidCidrTitle"), {
+      description: t("admin.ipWhitelist.invalidCidrDescription"),
+    });
+    return;
+  }
+  if (
+    newRecord.value.targetType === "cname" &&
+    (!Number.isFinite(newRecord.value.checkIntervalMinutes) ||
+      newRecord.value.checkIntervalMinutes < 1)
+  ) {
+    toast.error(t("admin.ipWhitelist.invalidIntervalTitle"), {
+      description: t("admin.ipWhitelist.invalidIntervalDescription"),
+    });
+    return;
+  }
+
+  const expireAt = getNewRecordExpireAt();
+
   await runAddRecord(async () => {
     const res = await WhitelistAPI.addRecord({
       ip,
@@ -711,13 +1203,7 @@ const addRecord = async () => {
     if (res.success) {
       toast.success(t("admin.ipWhitelist.addSuccess"));
       showAddDialog.value = false;
-      newRecord.value = {
-        ip: "",
-        targetType: "ip",
-        checkIntervalMinutes: 5,
-        comment: "",
-      };
-      durationSetting.value = "permanent";
+      resetAddForm();
       currentPage.value = 1;
       searchQuery.value = "";
       await fetchRecords();
@@ -727,6 +1213,28 @@ const addRecord = async () => {
       });
     }
   });
+};
+
+const removeRegionGroup = async (id: string) => {
+  removingRegionGroupId.value = id;
+  await runRemoveRegionGroup(
+    async () => {
+      const res = await WhitelistAPI.deleteRegion(id);
+      if (res.success) {
+        toast.success(t("admin.ipWhitelist.regionGroupDeleteSuccess"));
+        await fetchRecords();
+      } else {
+        toast.error(t("admin.ipWhitelist.regionGroupDeleteFailed"), {
+          description: res.message,
+        });
+      }
+    },
+    {
+      onFinally: () => {
+        removingRegionGroupId.value = null;
+      },
+    },
+  );
 };
 
 const removeRecord = async (id: string) => {
@@ -804,7 +1312,9 @@ const saveComment = async (id: string, newComment: string) => {
   await runSaveComment(() => WhitelistAPI.updateComment(id, newComment), {
     onSuccess: (res) => {
       if (!res.success) {
-        throw new Error(res.message || t("admin.ipWhitelist.commentUpdateFailed"));
+        throw new Error(
+          res.message || t("admin.ipWhitelist.commentUpdateFailed"),
+        );
       }
       if (record) record.comment = newComment;
       toast.success(t("admin.ipWhitelist.commentUpdated"));

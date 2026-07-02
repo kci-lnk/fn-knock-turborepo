@@ -18,9 +18,39 @@ export interface WhiteListRecord {
   resolveMessage?: string;
 }
 
+export interface WhitelistRegionInput {
+  province: string;
+  query_city?: string | null;
+}
+
+export interface WhitelistRegionGroupRecord {
+  id: string;
+  regions: WhitelistRegionInput[];
+  cidrCount: number;
+  expireAt: number | null;
+  source: "manual";
+  createdAt: number;
+  updatedAt: number;
+  status: "active" | "deleted" | "expired";
+  comment?: string;
+}
+
+export interface WhitelistRegionAddResult {
+  total: number;
+  group: WhitelistRegionGroupRecord;
+}
+
 export const WhitelistAPI = {
   async getRecords() {
     const res = await apiClient.get("/whitelist");
+    return res.data;
+  },
+  async getRegions(): Promise<{
+    success: boolean;
+    message?: string;
+    data?: WhitelistRegionGroupRecord[];
+  }> {
+    const res = await apiClient.get("/whitelist/regions");
     return res.data;
   },
   async addRecord(payload: {
@@ -32,6 +62,24 @@ export const WhitelistAPI = {
     checkIntervalMinutes?: number;
   }) {
     const res = await apiClient.post("/whitelist", payload);
+    return res.data;
+  },
+  async addRegions(payload: {
+    regions: WhitelistRegionInput[];
+    expireAt: number | null;
+    comment?: string;
+  }): Promise<{
+    success: boolean;
+    message?: string;
+    data?: WhitelistRegionAddResult;
+  }> {
+    const res = await apiClient.post("/whitelist/regions", payload);
+    return res.data;
+  },
+  async deleteRegion(id: string) {
+    const res = await apiClient.delete(
+      `/whitelist/regions/${encodeURIComponent(id)}`,
+    );
     return res.data;
   },
   async deleteRecord(id: string) {

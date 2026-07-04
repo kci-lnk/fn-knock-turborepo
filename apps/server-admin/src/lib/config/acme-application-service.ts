@@ -465,7 +465,10 @@ export class AcmeApplicationService {
   async saveIssuedCertFromFS(
     applicationId: string,
     primaryDomain: string,
-    opts?: { forceInstall?: boolean },
+    opts?: {
+      forceInstall?: boolean;
+      onLog?: (line: string) => Promise<void> | void;
+    },
   ): Promise<boolean> {
     const saved = await this.args.acmeCertificateStore.saveFromFS(
       primaryDomain,

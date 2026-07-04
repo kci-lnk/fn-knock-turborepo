@@ -480,7 +480,10 @@ export class ConfigManager {
   async saveAcmeIssuedCertFromFS(
     applicationId: string,
     primaryDomain: string,
-    opts?: { forceInstall?: boolean },
+    opts?: {
+      forceInstall?: boolean;
+      onLog?: (line: string) => Promise<void> | void;
+    },
   ): Promise<boolean> {
     return this.acmeApplicationService.saveIssuedCertFromFS(
       applicationId,
@@ -621,7 +624,10 @@ export class ConfigManager {
 
   async saveAcmeCertFromFS(
     domain: string,
-    opts?: { forceInstall?: boolean },
+    opts?: {
+      forceInstall?: boolean;
+      onLog?: (line: string) => Promise<void> | void;
+    },
   ): Promise<boolean> {
     return this.acmeCertificateStore.saveFromFS(domain, opts);
   }

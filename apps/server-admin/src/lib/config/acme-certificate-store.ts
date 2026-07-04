@@ -67,7 +67,10 @@ export class AcmeCertificateStore {
 
   async saveFromFS(
     domain: string,
-    opts?: { forceInstall?: boolean },
+    opts?: {
+      forceInstall?: boolean;
+      onLog?: (line: string) => Promise<void> | void;
+    },
   ): Promise<boolean> {
     const domainDir = join(dataPath, "ssl", domain);
     const installedKeyPath = join(domainDir, `${domain}.key`);
@@ -91,6 +94,22 @@ export class AcmeCertificateStore {
         useEcc: false,
       },
     ];
+
+    const appendLog = async (line: string) => {
+      const normalized = line.trim();
+      if (!normalized || !opts?.onLog) return;
+      await opts.onLog(normalized);
+    };
+
+    const summarizeCommandOutput = (stdout: string, stderr: string): string => {
+      const merged = `${stdout}\n${stderr}`
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .slice(-5)
+        .join(" | ");
+      return merged || "no output";
+    };
 
     try {
       const hasKey = await fileExists(installedKeyPath);
@@ -142,7 +161,7 @@ export class AcmeCertificateStore {
           });
           const installExitPromise = waitForProcessExit(installProc);
 
-          const [, , exitCode] = await Promise.all([
+          const [stdout, stderr, exitCode] = await Promise.all([
             collectStreamOutput(installProc.stdout).catch(() => ""),
             collectStreamOutput(installProc.stderr).catch(() => ""),
             installExitPromise,
@@ -151,6 +170,9 @@ export class AcmeCertificateStore {
             installSucceeded = true;
             break;
           }
+          await appendLog(
+            `[acme][install-cert] ${useEcc ? "ECC" : "RSA"} install failed (exit ${exitCode}): ${summarizeCommandOutput(stdout, stderr)}`,
+          );
         }
 
         if (!installSucceeded) return false;
@@ -162,7 +184,10 @@ export class AcmeCertificateStore {
       if (!this.parseCertInfo(cert)) return false;
       await this.save(domain, cert, key);
       return true;
-    } catch {
+    } catch (error: any) {
+      await appendLog(
+        `[acme][install-cert] failed to install certificate files: ${error?.message || String(error)}`,
+      );
       try {
         for (const candidate of acmeDirCandidates) {
           const certPathA = join(candidate.dir, "fullchain.cer");
@@ -181,6 +206,9 @@ export class AcmeCertificateStore {
             // try next fallback directory
           }
         }
+        await appendLog(
+          "[acme][install-cert] fallback certificate read failed for all known acme.sh directories",
+        );
         return false;
       } catch {
         return false;

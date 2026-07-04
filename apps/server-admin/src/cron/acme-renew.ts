@@ -4,6 +4,7 @@ import { acmeService } from "../plugins/acme";
 import { configManager } from "../lib/redis";
 import { startAcmeApplicationJob } from "../lib/acme-job-runner";
 import { tDefault } from "../lib/i18n";
+import { syncSSLDeploymentToGateway } from "../lib/ssl-gateway";
 import {
   DEFAULT_LOCALE,
   normalizeLocale,
@@ -28,6 +29,87 @@ const activeAcmeTaskMessage = (locale?: string | null) =>
     normalizeLocale(locale) ?? DEFAULT_LOCALE,
     "server.acmeJobRunner.activeTaskRunning",
   );
+
+const samePem = (left: string | undefined, right: string | undefined) =>
+  (left || "").trim() === (right || "").trim();
+
+const reconcileAcmeSslDeployment = async () => {
+  try {
+    const applications = await configManager.listAcmeApplications();
+    let config = await configManager.getConfig();
+    let deploymentChanged = false;
+
+    for (const application of applications) {
+      if (!application.renewEnabled) continue;
+
+      try {
+        const issuedCertificate =
+          await configManager.getUsableAcmeIssuedCertificate(application.id);
+        if (!issuedCertificate) continue;
+
+        const linkedLibraryCertificate =
+          await configManager.getSSLCertificateBySourceRef(
+            "acme",
+            application.id,
+          );
+        const libraryMatchesIssued =
+          linkedLibraryCertificate &&
+          samePem(linkedLibraryCertificate.cert, issuedCertificate.cert) &&
+          samePem(linkedLibraryCertificate.key, issuedCertificate.key);
+
+        if (libraryMatchesIssued) continue;
+
+        const shouldActivate =
+          !!linkedLibraryCertificate &&
+          config.ssl.active_cert_id === linkedLibraryCertificate.id;
+
+        await configManager.saveAcmeCertificateToLibraryByApplication(
+          application.id,
+          {
+            id: linkedLibraryCertificate?.id,
+            label:
+              linkedLibraryCertificate?.label ||
+              application.name ||
+              application.primaryDomain,
+            activate: shouldActivate,
+          },
+        );
+        config = await configManager.getConfig();
+        deploymentChanged =
+          deploymentChanged ||
+          shouldActivate ||
+          config.ssl.deployment_mode === "multi_sni";
+      } catch (error: any) {
+        console.error(
+          `[ACME][cron] certificate library reconcile failed for ${application.primaryDomain}:`,
+          error?.message || String(error),
+        );
+      }
+    }
+
+    const certificates = config.ssl.certificates || [];
+    const activeCertificate =
+      certificates.find(
+        (certificate) => certificate.id === config.ssl.active_cert_id,
+      ) || null;
+    const hasAcmeCertificate = certificates.some(
+      (certificate) => certificate.source === "acme",
+    );
+    const shouldSync =
+      deploymentChanged ||
+      (hasAcmeCertificate &&
+        (config.ssl.deployment_mode === "multi_sni" ||
+          activeCertificate?.source === "acme"));
+
+    if (!shouldSync) return;
+    await syncSSLDeploymentToGateway(config);
+  } catch (error: any) {
+    console.error(
+      "[ACME][cron] SSL deployment reconcile failed:",
+      error?.message || String(error),
+    );
+  }
+};
 
 export const registerAcmeRenewCron = (app: Elysia) => {
   const renewDays = Math.max(
@@ -114,6 +196,8 @@ export const registerAcmeRenewCron = (app: Elysia) => {
               );
             }
           }
+
+          await reconcileAcmeSslDeployment();
         } catch (e: any) {
           console.error(
             "[ACME][cron] renew task error:",

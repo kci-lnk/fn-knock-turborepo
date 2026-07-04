@@ -465,7 +465,10 @@ export const executeAcmeApplicationJob = async (options: {
       : await configManager.saveAcmeIssuedCertFromFS(
           application.id,
           application.primaryDomain,
-          { forceInstall: true },
+          {
+            forceInstall: true,
+            onLog: (line) => configManager.appendAcmeLog(jobId, line),
+          },
         );
     if (applicationChanged) {
       await configManager.appendAcmeLog(
@@ -474,12 +477,11 @@ export const executeAcmeApplicationJob = async (options: {
       );
     }
     if (!saved) {
-      await configManager.appendAcmeLog(
-        jobId,
-        applicationChanged
-          ? acmeJobT(locale, "issuedButApplicationChanged")
-          : acmeJobT(locale, "issuedButCertReadFailed"),
-      );
+      const message = applicationChanged
+        ? acmeJobT(locale, "issuedButApplicationChanged")
+        : acmeJobT(locale, "issuedButCertReadFailed");
+      await configManager.appendAcmeLog(jobId, message);
+      throw new Error(message);
     }
     if (saved) {
       try {
@@ -550,12 +552,11 @@ export const executeAcmeApplicationJob = async (options: {
           );
         }
       } catch (error: any) {
-        await configManager.appendAcmeLog(
-          jobId,
-          acmeJobT(locale, "addToLibraryFailed", {
-            message: error?.message || String(error),
-          }),
-        );
+        const message = acmeJobT(locale, "addToLibraryFailed", {
+          message: error?.message || String(error),
+        });
+        await configManager.appendAcmeLog(jobId, message);
+        throw new Error(message);
       }
     }
 

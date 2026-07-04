@@ -305,6 +305,11 @@ export const zhHantAdmin = {
     displayDescription: "Host 類入口顯示域名或站點標題；標題為空時顯示域名。",
     displayDomain: "域名",
     displayTitle: "標題",
+    iconDragMode: "傳送門圖示拖拽位置",
+    iconDragModeDescription:
+      "選擇圖示拖動後停留在四個角，或允許停留在視口內任意位置。",
+    iconDragModeCorners: "四個角",
+    iconDragModeFree: "自由",
     showAppIcon: "顯示應用圖示",
     showAppIconDescription:
       "開啟後，傳送門和工具列會顯示已採集到的應用圖示；沒有圖示的入口不會占位。",

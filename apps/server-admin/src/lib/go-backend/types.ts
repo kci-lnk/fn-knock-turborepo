@@ -194,11 +194,13 @@ export interface CrawlerBlockerConfig {
 }
 
 export type GatewayPortalDisplayStyle = "domain" | "title";
+export type GatewayPortalIconDragMode = "corners" | "free";
 
 export interface GatewayPortalConfig {
   enabled: boolean;
   display_style: GatewayPortalDisplayStyle;
   show_app_icon?: boolean;
+  icon_drag_mode?: GatewayPortalIconDragMode;
 }
 
 export interface FnosPortIconHijackConfig {

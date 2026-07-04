@@ -329,6 +329,11 @@ export const koKRAdmin = {
       "호스트 항목은 도메인 또는 사이트 제목을 표시합니다. 빈 제목은 도메인으로 대체됩니다.",
     displayDomain: "도메인",
     displayTitle: "제목",
+    iconDragMode: "포털 아이콘 드래그 위치",
+    iconDragModeDescription:
+      "아이콘을 네 모서리에 고정할지, 뷰포트 안의 임의 위치에 둘지 선택합니다.",
+    iconDragModeCorners: "네 모서리",
+    iconDragModeFree: "자유",
     showAppIcon: "앱 아이콘 표시",
     showAppIconDescription:
       "활성화하면 포털과 도구 모음에 수집된 앱 아이콘이 표시됩니다. 아이콘이 없는 항목은 공간을 차지하지 않습니다.",

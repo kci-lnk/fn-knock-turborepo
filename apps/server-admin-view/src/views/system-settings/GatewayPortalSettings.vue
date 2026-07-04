@@ -29,6 +29,7 @@ import { useConfigStore } from "../../store/config";
 import type {
   GatewayPortalConfig,
   GatewayPortalDisplayStyle,
+  GatewayPortalIconDragMode,
   GatewaySettings,
 } from "../../types";
 
@@ -41,6 +42,7 @@ const form = reactive<GatewayPortalConfig>({
   enabled: true,
   display_style: "title",
   show_app_icon: true,
+  icon_drag_mode: "corners",
 });
 
 const normalizePortal = (
@@ -49,6 +51,7 @@ const normalizePortal = (
   enabled: portal?.enabled !== false,
   display_style: portal?.display_style === "domain" ? "domain" : "title",
   show_app_icon: portal?.show_app_icon !== false,
+  icon_drag_mode: portal?.icon_drag_mode === "free" ? "free" : "corners",
 });
 
 const applyPortal = (portal?: Partial<GatewayPortalConfig> | null) => {
@@ -56,6 +59,7 @@ const applyPortal = (portal?: Partial<GatewayPortalConfig> | null) => {
   settings.value = normalized;
   form.display_style = normalized.display_style;
   form.show_app_icon = normalized.show_app_icon;
+  form.icon_drag_mode = normalized.icon_drag_mode;
   form.enabled = normalized.enabled;
 };
 
@@ -151,6 +155,25 @@ const saveShowAppIcon = async (value: boolean) => {
     ConfigAPI.updateGatewaySettings({
       portal: {
         show_app_icon: value,
+      },
+    }),
+  );
+
+  if (!(await applySavedSettings(data))) {
+    applyPortal(previous);
+  }
+};
+
+const saveIconDragMode = async (mode: GatewayPortalIconDragMode) => {
+  if (isSaving.value || form.icon_drag_mode === mode) return;
+
+  const previous = { ...form };
+  form.icon_drag_mode = mode;
+
+  const data = await runSave(() =>
+    ConfigAPI.updateGatewaySettings({
+      portal: {
+        icon_drag_mode: mode,
       },
     }),
   );
@@ -275,6 +298,47 @@ onMounted(() => {
                   @click="saveDisplayStyle('title')"
                 >
                   {{ t("admin.gatewayPortalSettings.displayTitle") }}
+                </Button>
+              </div>
+            </section>
+
+            <section
+              class="grid gap-3 p-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
+            >
+              <div class="space-y-1 pr-6">
+                <Label class="text-base">{{
+                  t("admin.gatewayPortalSettings.iconDragMode")
+                }}</Label>
+                <div class="text-sm text-muted-foreground">
+                  {{ t("admin.gatewayPortalSettings.iconDragModeDescription") }}
+                </div>
+              </div>
+              <div
+                class="inline-flex w-fit rounded-md border bg-background p-1"
+              >
+                <Button
+                  type="button"
+                  size="sm"
+                  :variant="
+                    form.icon_drag_mode === 'corners' ? 'default' : 'ghost'
+                  "
+                  class="h-8 px-3"
+                  :disabled="isSaving"
+                  @click="saveIconDragMode('corners')"
+                >
+                  {{ t("admin.gatewayPortalSettings.iconDragModeCorners") }}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  :variant="
+                    form.icon_drag_mode === 'free' ? 'default' : 'ghost'
+                  "
+                  class="h-8 px-3"
+                  :disabled="isSaving"
+                  @click="saveIconDragMode('free')"
+                >
+                  {{ t("admin.gatewayPortalSettings.iconDragModeFree") }}
                 </Button>
               </div>
             </section>

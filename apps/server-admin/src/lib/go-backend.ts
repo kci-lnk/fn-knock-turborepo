@@ -311,6 +311,7 @@ export class GoBackendService {
       enabled: config.enabled !== false,
       display_style: config.display_style === "title" ? "title" : "domain",
       show_app_icon: config.show_app_icon === true,
+      icon_drag_mode: config.icon_drag_mode === "free" ? "free" : "corners",
     } satisfies GatewayPortalConfig);
   }
 

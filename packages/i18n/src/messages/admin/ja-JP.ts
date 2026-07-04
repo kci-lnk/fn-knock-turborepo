@@ -340,6 +340,11 @@ export const jaJPAdmin = {
       "ホスト エントリはドメイン名またはサイト タイトルを表示します。タイトルが空の場合はドメイン名を表示します。",
     displayDomain: "ドメイン名",
     displayTitle: "タイトル",
+    iconDragMode: "ポータルアイコンのドラッグ位置",
+    iconDragModeDescription:
+      "アイコンを四隅に固定するか、ビューポート内の任意の位置に置けるようにするかを選択します。",
+    iconDragModeCorners: "四隅",
+    iconDragModeFree: "自由",
     showAppIcon: "アプリ アイコンを表示",
     showAppIconDescription:
       "有効にすると、ポータルとツールバーに収集済みのアプリ アイコンが表示されます。アイコンのないエントリはスペースを占有しません。",

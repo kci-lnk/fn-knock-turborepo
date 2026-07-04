@@ -305,6 +305,11 @@ export const zhCNAdmin = {
     displayDescription: "Host 类入口显示域名或站点标题；标题为空时显示域名。",
     displayDomain: "域名",
     displayTitle: "标题",
+    iconDragMode: "传送门图标拖拽位置",
+    iconDragModeDescription:
+      "选择图标拖动后停留在四个角，或允许停留在视口内任意位置。",
+    iconDragModeCorners: "四个角",
+    iconDragModeFree: "自由",
     showAppIcon: "显示应用图标",
     showAppIconDescription:
       "开启后，传送门和工具栏会显示已采集到的应用图标；没有图标的入口不会占位。",

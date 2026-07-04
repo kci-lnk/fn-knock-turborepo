@@ -332,6 +332,11 @@ export const enAdmin = {
       "Host entries show either the domain or site title. Empty titles fall back to the domain.",
     displayDomain: "Domain",
     displayTitle: "Title",
+    iconDragMode: "Portal icon drag position",
+    iconDragModeDescription:
+      "Choose whether the icon snaps to one of the four corners or can stay anywhere inside the viewport.",
+    iconDragModeCorners: "Corners",
+    iconDragModeFree: "Free",
     showAppIcon: "Show app icons",
     showAppIconDescription:
       "When enabled, the portal and toolbar show collected app icons. Entries without an icon do not reserve space.",

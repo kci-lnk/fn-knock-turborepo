@@ -121,6 +121,7 @@ export const DEFAULT_GATEWAY_PORTAL_CONFIG: GatewayPortalConfig = {
   enabled: true,
   display_style: "title",
   show_app_icon: true,
+  icon_drag_mode: "corners",
 };
 
 export const DEFAULT_DASHBOARD_DISPLAY_CONFIG: DashboardDisplayConfig = {

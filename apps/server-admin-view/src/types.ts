@@ -1022,11 +1022,13 @@ export type GatewayHostResponseDetails = {
 };
 
 export type GatewayPortalDisplayStyle = "domain" | "title";
+export type GatewayPortalIconDragMode = "corners" | "free";
 
 export type GatewayPortalConfig = {
   enabled: boolean;
   display_style: GatewayPortalDisplayStyle;
   show_app_icon: boolean;
+  icon_drag_mode: GatewayPortalIconDragMode;
 };
 
 export type GatewayCrawlerBlockerConfig = {

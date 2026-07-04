@@ -46,6 +46,7 @@ const form = reactive<GatewaySettingsForm>({
     enabled: true,
     display_style: "title",
     show_app_icon: true,
+    icon_drag_mode: "corners",
   },
   crawler_blocker: {
     enabled: false,
@@ -231,6 +232,7 @@ const buildSettingsSnapshot = (data: GatewaySettings): GatewaySettings => ({
     enabled: data.portal?.enabled !== false,
     display_style: data.portal?.display_style === "domain" ? "domain" : "title",
     show_app_icon: data.portal?.show_app_icon !== false,
+    icon_drag_mode: data.portal?.icon_drag_mode === "free" ? "free" : "corners",
   },
   crawler_blocker: {
     enabled: data.crawler_blocker?.enabled === true,
@@ -253,6 +255,7 @@ const applyFromSettings = (data: GatewaySettings) => {
   form.portal.enabled = snapshot.portal.enabled;
   form.portal.display_style = snapshot.portal.display_style;
   form.portal.show_app_icon = snapshot.portal.show_app_icon;
+  form.portal.icon_drag_mode = snapshot.portal.icon_drag_mode;
   form.crawler_blocker.enabled = snapshot.crawler_blocker.enabled;
   form.crawler_blocker.updated_at = snapshot.crawler_blocker.updated_at;
   form.reverse_proxy_throttle.enabled = data.reverse_proxy_throttle.enabled;
@@ -532,9 +535,7 @@ onMounted(fetchSettings);
             </Badge>
             <Badge
               :variant="
-                portalSummary?.show_app_icon !== false
-                  ? 'default'
-                  : 'secondary'
+                portalSummary?.show_app_icon !== false ? 'default' : 'secondary'
               "
               class="rounded-full px-2.5"
             >

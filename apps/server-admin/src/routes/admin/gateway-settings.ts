@@ -394,6 +394,9 @@ export const adminGatewaySettingsRoutes = new Elysia()
               t.Union([t.Literal("domain"), t.Literal("title")]),
             ),
             show_app_icon: t.Optional(t.Boolean()),
+            icon_drag_mode: t.Optional(
+              t.Union([t.Literal("corners"), t.Literal("free")]),
+            ),
           }),
         ),
         crawler_blocker: t.Optional(

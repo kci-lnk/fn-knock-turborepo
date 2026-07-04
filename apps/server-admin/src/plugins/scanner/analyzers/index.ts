@@ -59,6 +59,28 @@ function extractTitle(body?: string): string {
   return match && match[1] ? match[1].trim() : "";
 }
 
+const buildGenericHttpRule = (
+  result: ScanResult,
+  title: string,
+): AnalyzerRule => {
+  const fallbackName = `http-${result.port}`;
+  const fallbackLabel = `HTTP ${result.port}`;
+  return {
+    name: fallbackName,
+    label: title || fallbackLabel,
+    rule: {
+      path: `/app-${result.port}`,
+      rewrite_html: true,
+      use_auth: true,
+      use_root_mode: false,
+      strip_path: true,
+      target: "",
+    },
+    isDefault: false,
+    match: () => true,
+  };
+};
+
 export async function analyzeService(
   result: ScanResult,
 ): Promise<AnalyzerRule> {
@@ -75,18 +97,5 @@ export async function analyzeService(
 
   const title = extractTitle(result.body);
 
-  return {
-    name: title,
-    label: title,
-    rule: {
-      path: "",
-      rewrite_html: true,
-      use_auth: true,
-      use_root_mode: false,
-      strip_path: true,
-      target: "",
-    },
-    isDefault: false,
-    match: () => true,
-  };
+  return buildGenericHttpRule(result, title);
 }

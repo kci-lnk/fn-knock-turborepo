@@ -49,6 +49,15 @@
                 }}
               </span>
             </Button>
+            <Button
+              v-if="isDiscovering"
+              class="h-11 sm:h-9"
+              variant="outline"
+              @click="emit('stopScan')"
+            >
+              <X class="mr-2 h-4 w-4" />
+              {{ t("admin.subdomainProxy.cancel") }}
+            </Button>
           </div>
         </div>
         <ScanDiscoveryTargetsSettings
@@ -61,17 +70,11 @@
       <div class="flex-1 min-h-0 overflow-auto">
         <div class="py-2">
           <div
-            v-if="isDiscovering"
-            class="flex flex-col items-center justify-center py-16 space-y-4"
-          >
-            <RefreshCw class="h-8 w-8 animate-spin text-muted-foreground" />
-            <p class="text-sm text-muted-foreground">
-              {{ t("admin.subdomainProxy.probing") }}
-            </p>
-          </div>
-
-          <div
-            v-else-if="discoveredData && discoveredData.services.length === 0"
+            v-if="
+              !isDiscovering &&
+              discoveredData &&
+              discoveredData.services.length === 0
+            "
             class="text-center py-16 text-muted-foreground"
           >
             {{
@@ -82,7 +85,7 @@
           </div>
 
           <div
-            v-else-if="discoveredData"
+            v-else-if="discoveredData && discoveredData.services.length > 0"
             class="rounded-md border bg-background"
           >
             <Table class="min-w-[42rem]" container-class="overflow-visible">
@@ -197,11 +200,17 @@
       <DialogFooter class="mt-2 shrink-0 items-center sm:justify-between">
         <span class="text-sm text-muted-foreground">
           <template v-if="discoveredData">
-            {{
-              t("admin.subdomainProxy.discoveredScannedPorts", {
-                count: discoveredData.totalPortsScanned,
-              })
-            }}，{{
+            <template v-if="isDiscovering">
+              {{ t("admin.subdomainProxy.probing") }}
+            </template>
+            <template v-else>
+              {{
+                t("admin.subdomainProxy.discoveredScannedPorts", {
+                  count: footerScannedPorts,
+                })
+              }}
+            </template>
+            ，{{
               t("admin.subdomainProxy.selectedItems", {
                 count: `${selectedServices.length} / ${discoveredData.services.length}`,
               })
@@ -239,7 +248,6 @@
           </Button>
           <Button
             :disabled="
-              isDiscovering ||
               selectedServices.length === 0 ||
               !isSelectionValid ||
               isSavingMappings
@@ -257,7 +265,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { RefreshCw, SlidersHorizontal } from "lucide-vue-next";
+import { RefreshCw, SlidersHorizontal, X } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -279,8 +287,10 @@ import {
 } from "@/components/ui/table";
 import type { DiscoveredHostResponse, DiscoveredHostService } from "./model";
 import { resolveDiscoveredServiceHost } from "./model";
+import type { ScanDiscoverProgress } from "@/lib/api";
 
 const props = defineProps<{
+  discoverProgress: ScanDiscoverProgress | null;
   discoveredData: DiscoveredHostResponse | null;
   domain: string;
   isAllSelected: boolean;
@@ -297,6 +307,7 @@ const emit = defineEmits<{
   cancel: [];
   save: [];
   scan: [];
+  stopScan: [];
   toggleAll: [checked: boolean];
   toggleSettings: [];
   "update:open": [open: boolean];
@@ -313,6 +324,10 @@ const selectedServicesModel = computed({
   set: (value: DiscoveredHostService[]) => {
     emit("update:selectedServices", value);
   },
+});
+
+const footerScannedPorts = computed(() => {
+  return props.discoveredData?.totalPortsScanned || 0;
 });
 
 const emitToggleAll = (event: Event) => {

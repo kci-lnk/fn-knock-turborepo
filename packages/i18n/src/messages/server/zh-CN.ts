@@ -1600,6 +1600,7 @@ export const zhCNServer = {
       "单次最多扫描 {max} 台主机，当前为 {current} 台",
     maxHostsExceeded: "单次最多扫描 {max} 台主机",
     selectAtLeastOneCidr: "请选择至少一个本地 IPv4 扫描网段",
+    scanJobNotFound: "扫描任务不存在或已过期",
     targetLabels: {
       docker: "{cidr}（Docker 宿主机局域网）",
       loopback: "{cidr}（本机回环）",

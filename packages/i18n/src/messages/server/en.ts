@@ -1799,6 +1799,7 @@ export const enServer = {
       "Scan at most {max} hosts at a time; current selection has {current} hosts",
     maxHostsExceeded: "Scan at most {max} hosts at a time",
     selectAtLeastOneCidr: "Select at least one local IPv4 scan range",
+    scanJobNotFound: "Scan job not found or expired",
     targetLabels: {
       docker: "{cidr} (Docker host LAN)",
       loopback: "{cidr} (local loopback)",

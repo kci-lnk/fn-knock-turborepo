@@ -1815,6 +1815,7 @@ export const koKRServer = {
       "한 번에 최대 {max} 호스트를 스캔합니다. 현재 선택에는 {current} 호스트가 있습니다",
     maxHostsExceeded: "한 번에 최대 {max} 호스트를 스캔하세요.",
     selectAtLeastOneCidr: "로컬 IPv4 스캔 범위를 하나 이상 선택하세요.",
+    scanJobNotFound: "스캔 작업을 찾을 수 없거나 만료되었습니다.",
     targetLabels: {
       docker: "{cidr}(Docker 호스트 LAN)",
       loopback: "{cidr}(로컬 루프백)",

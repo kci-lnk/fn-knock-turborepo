@@ -3,6 +3,12 @@ import net from "node:net";
 import { headersRequireBasicAuth } from "../../lib/basic-auth-probe";
 
 const LUCI_LOGIN_REQUIRED_HEADER = "x-luci-login-required";
+const DEFAULT_SCAN_PORT_START = 80;
+const DEFAULT_SCAN_PORT_END = 60000;
+const HTTP_PROBE_HEADERS = {
+  "User-Agent": "Node-Elysia-Scanner/1.0",
+  Connection: "close",
+} as const;
 
 const isLuciLoginRequiredResponse = (
   status: number,
@@ -20,11 +26,29 @@ export const buildScanPortList = (options: ScanOptions): number[] => {
       }
     }
   } else {
-    portsToScan = Array.from({ length: 59001 }, (_, i) => i + 1000);
+    portsToScan = Array.from(
+      { length: DEFAULT_SCAN_PORT_END - DEFAULT_SCAN_PORT_START + 1 },
+      (_, i) => i + DEFAULT_SCAN_PORT_START,
+    );
   }
 
   const skipSet = new Set(options.skipPorts || []);
   return portsToScan.filter((port) => !skipSet.has(port));
+};
+
+export const isAbortError = (error: unknown): boolean =>
+  error instanceof Error && error.name === "AbortError";
+
+const createAbortError = (): Error => {
+  const error = new Error("Scan aborted");
+  error.name = "AbortError";
+  return error;
+};
+
+const throwIfAborted = (signal?: AbortSignal) => {
+  if (signal?.aborted) {
+    throw createAbortError();
+  }
 };
 
 export class ScannerLogic {
@@ -37,19 +61,29 @@ export class ScannerLogic {
   }
 
   // 1. TCP 端口检测 (第一阶段)
-  private async checkPort(host: string, port: number): Promise<boolean> {
+  private async checkPort(
+    host: string,
+    port: number,
+    signal?: AbortSignal,
+  ): Promise<boolean> {
+    throwIfAborted(signal);
+
     return new Promise((resolve) => {
       const socket = net.createConnection({ host, port });
       let settled = false;
+      let timer: ReturnType<typeof setTimeout>;
       const finish = (ok: boolean) => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
+        signal?.removeEventListener("abort", onAbort);
         socket.destroy();
         resolve(ok);
       };
 
-      const timer = setTimeout(() => finish(false), this.timeout);
+      const onAbort = () => finish(false);
+      timer = setTimeout(() => finish(false), this.timeout);
+      signal?.addEventListener("abort", onAbort, { once: true });
       socket.setTimeout(this.timeout);
       socket.once("connect", () => finish(true));
       socket.once("timeout", () => finish(false));
@@ -64,15 +98,30 @@ export class ScannerLogic {
   private async fetchHttpInfo(
     host: string,
     port: number,
+    signal?: AbortSignal,
   ): Promise<Partial<ScanResult>> {
     try {
-      const response = await fetch(`http://${host}:${port}`, {
-        signal: AbortSignal.timeout(2000),
-        headers: {
-          "User-Agent": "Node-Elysia-Scanner/1.0",
-          Connection: "close",
-        },
-      });
+      throwIfAborted(signal);
+      const timeoutSignal = AbortSignal.timeout(2000);
+      const requestSignal = signal
+        ? AbortSignal.any([signal, timeoutSignal])
+        : timeoutSignal;
+      const url = `http://${host}:${port}`;
+      const fetchHttp = (redirect: RequestRedirect) =>
+        fetch(url, {
+          signal: requestSignal,
+          headers: HTTP_PROBE_HEADERS,
+          redirect,
+        });
+      let response: Response;
+      try {
+        response = await fetchHttp("follow");
+      } catch (error) {
+        if (isAbortError(error) || signal?.aborted || timeoutSignal.aborted) {
+          throw error;
+        }
+        response = await fetchHttp("manual");
+      }
 
       const headers: Record<string, string> = {};
       response.headers.forEach((value, key) => {
@@ -80,12 +129,12 @@ export class ScannerLogic {
       });
 
       let body = "";
-      if (
-        response.status === 200 ||
-        response.status === 401 ||
-        isLuciLoginRequiredResponse(response.status, headers)
-      ) {
+      try {
         body = await response.text();
+      } catch (error) {
+        if (isAbortError(error) || signal?.aborted || timeoutSignal.aborted) {
+          throw error;
+        }
       }
 
       return {
@@ -95,28 +144,42 @@ export class ScannerLogic {
         body,
       };
     } catch (error) {
+      if (isAbortError(error)) {
+        throw error;
+      }
       return { error: (error as Error).message };
     }
   }
 
   async runScan(host: string, options: ScanOptions): Promise<ScanResult[]> {
     const portsToScan = buildScanPortList(options);
+    const totalPorts = portsToScan.length;
+    let scannedPorts = 0;
 
     const finalResults: ScanResult[] = [];
     const batchSize = this.maxConcurrent;
 
     for (let i = 0; i < portsToScan.length; i += batchSize) {
+      throwIfAborted(options.signal);
       const batch = portsToScan.slice(i, i + batchSize);
       const tcpPromises = batch.map(async (port) => {
-        const isOpen = await this.checkPort(host, port);
+        const isOpen = await this.checkPort(host, port, options.signal);
+        scannedPorts += 1;
+        options.onPortScanned?.({
+          host,
+          port,
+          scannedPorts,
+          totalPorts,
+        });
         return { port, open: isOpen };
       });
 
       const tcpResults = await Promise.all(tcpPromises);
+      throwIfAborted(options.signal);
       const openPorts = tcpResults.filter((r) => r.open).map((r) => r.port);
 
       const httpPromises = openPorts.map(async (port) => {
-        const httpInfo = await this.fetchHttpInfo(host, port);
+        const httpInfo = await this.fetchHttpInfo(host, port, options.signal);
         return {
           host,
           port,
@@ -126,6 +189,11 @@ export class ScannerLogic {
       });
 
       const httpResults = await Promise.all(httpPromises);
+      if (options.onResult) {
+        await Promise.all(
+          httpResults.map((result) => options.onResult!(result)),
+        );
+      }
       finalResults.push(...httpResults);
     }
 

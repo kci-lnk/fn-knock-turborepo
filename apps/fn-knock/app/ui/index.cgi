@@ -227,6 +227,25 @@ guess_content_type() {
     esac
 }
 
+emit_upstream_header() {
+    HEADER_NAME="$1"
+    HEADER_LINE=$(grep -i "^${HEADER_NAME}:" "$HEADER_FILE" | tail -1 | tr -d '\r')
+    if [ -n "$HEADER_LINE" ]; then
+        printf "%s\r\n" "$HEADER_LINE"
+    fi
+}
+
+emit_upstream_cache_headers() {
+    emit_upstream_header "Cache-Control"
+    emit_upstream_header "CDN-Cache-Control"
+    emit_upstream_header "Surrogate-Control"
+    emit_upstream_header "Expires"
+    emit_upstream_header "Pragma"
+    emit_upstream_header "ETag"
+    emit_upstream_header "Last-Modified"
+    emit_upstream_header "Vary"
+}
+
 REQ_URI=${REQUEST_URI:-""}
 URI_NO_QUERY="${REQ_URI%%\?*}"
 QUERY_STRING=${QUERY_STRING:-""}
@@ -323,7 +342,9 @@ if [ $CURL_EXIT -ne 0 ]; then
 fi
 
 if [ "$REL_PATH" = "/" ] || [ "$REL_PATH" = "/index.html" ]; then
-    printf "Content-Type: text/html; charset=utf-8\r\n\r\n"
+    printf "Content-Type: text/html; charset=utf-8\r\n"
+    emit_upstream_cache_headers
+    printf "\r\n"
     sed -e 's|src="/|src="./|g' -e 's|href="/|href="./|g' "$BODY_FILE"
     exit 0
 fi
@@ -344,5 +365,6 @@ else
     guess_content_type "$REL_PATH"
 fi
 
+emit_upstream_cache_headers
 printf "\r\n"
 cat "$BODY_FILE"

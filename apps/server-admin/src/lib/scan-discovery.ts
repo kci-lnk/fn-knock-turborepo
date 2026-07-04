@@ -3,12 +3,6 @@ import type { AppConfig } from "./redis";
 import { listPrivateIpv4Candidates } from "./local-network";
 import { tDefault } from "./i18n";
 
-export const DISCOVER_COMMON_PORTS = [
-  80, 81, 88, 443, 3000, 3001, 5000, 5001, 5666, 6688, 7000, 7001, 7080, 7443,
-  7991, 8000, 8001, 8080, 8081, 8082, 8086, 8088, 8090, 8091, 8096, 8097, 8123,
-  8443, 8888, 9000, 9001, 9090, 9091, 9443, 10000, 12345, 16601, 18080, 19999,
-] as const;
-
 export const SCAN_DISCOVERY_LIMITS = {
   maxCidrs: 16,
   maxHosts: 1024,
@@ -255,6 +249,25 @@ export function buildIpv4Cidr(value: string, prefix = 24): string | null {
   return parsed?.cidr ?? null;
 }
 
+export const buildInterfaceIpv4Cidr = (
+  value: string,
+  prefix?: number,
+): string | null => {
+  const prefixes = Array.from(new Set([prefix, 24])).filter(
+    (item): item is number => Number.isInteger(item),
+  );
+
+  for (const candidatePrefix of prefixes) {
+    const cidr = buildIpv4Cidr(value, candidatePrefix);
+    const parsed = cidr ? parseAllowedScanCidr(cidr) : null;
+    if (parsed && parsed.hostCount <= SCAN_DISCOVERY_LIMITS.maxHosts) {
+      return cidr;
+    }
+  }
+
+  return null;
+};
+
 const toTarget = (
   cidr: string,
   label: string,
@@ -315,7 +328,7 @@ export function buildLoopbackDiscoverTarget(): ScanDiscoveryTarget {
 export function buildInterfaceDiscoverTargets(): ScanDiscoveryTarget[] {
   return dedupeTargets(
     listPrivateIpv4Candidates().map((candidate) => {
-      const cidr = buildIpv4Cidr(candidate.value, 24);
+      const cidr = buildInterfaceIpv4Cidr(candidate.value, candidate.prefix);
       return cidr
         ? toTarget(
             cidr,
@@ -411,6 +424,3 @@ export function buildScanScope(cidrs: string[]): string | null {
   if (cidrs.length === 1) return cidrs[0]!;
   return cidrs.join(", ");
 }
-
-export const buildSingletonPortRanges = (ports: readonly number[]) =>
-  ports.map((port) => ({ start: port, end: port }));

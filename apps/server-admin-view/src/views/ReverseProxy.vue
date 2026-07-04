@@ -240,6 +240,15 @@
               :disabled="isDiscovering"
               @click="triggerScan"
             />
+            <Button
+              v-if="isDiscovering"
+              class="h-11 sm:h-9"
+              variant="outline"
+              @click="stopDiscoverScan"
+            >
+              <X class="mr-2 h-4 w-4" />
+              {{ t("admin.reverseProxy.cancel") }}
+            </Button>
           </div>
         </div>
         <DialogDescription>
@@ -255,24 +264,18 @@
       <div class="flex-1 min-h-0 overflow-auto">
         <div class="py-2">
           <div
-            v-if="isDiscovering"
-            class="flex flex-col items-center justify-center py-16 space-y-4"
-          >
-            <RefreshCw class="h-8 w-8 animate-spin text-muted-foreground" />
-            <p class="text-sm text-muted-foreground">
-              {{ t("admin.reverseProxy.probing") }}
-            </p>
-          </div>
-
-          <div
-            v-else-if="discoveredData && discoveredData.services.length === 0"
+            v-if="
+              !isDiscovering &&
+              discoveredData &&
+              discoveredData.services.length === 0
+            "
             class="text-center py-16 text-muted-foreground"
           >
             {{ t("admin.reverseProxy.discoverEmpty") }}
           </div>
 
           <div
-            v-else-if="discoveredData"
+            v-else-if="discoveredData && discoveredData.services.length > 0"
             class="border rounded-md bg-background"
           >
             <Table container-class="overflow-visible">
@@ -378,11 +381,17 @@
       <DialogFooter class="mt-2 shrink-0 items-center sm:justify-between">
         <span class="text-sm text-muted-foreground">
           <template v-if="discoveredData">
-            {{
-              t("admin.reverseProxy.scannedPorts", {
-                count: discoveredData.totalPortsScanned,
-              })
-            }}，{{
+            <template v-if="isDiscovering">
+              {{ t("admin.reverseProxy.probing") }}
+            </template>
+            <template v-else>
+              {{
+                t("admin.reverseProxy.scannedPorts", {
+                  count: discoverFooterScannedPorts,
+                })
+              }}
+            </template>
+            ，{{
               t("admin.reverseProxy.selectedItems", {
                 count: `${selectedServices.length} / ${discoveredData.services.length}`,
               })
@@ -415,13 +424,12 @@
           </template>
         </span>
         <div class="space-x-2">
-          <Button variant="outline" @click="closeDiscoverDialog(true)">
+          <Button variant="outline" @click="dismissDiscoverDialog">
             {{ t("admin.reverseProxy.cancel") }}
           </Button>
           <Button
             @click="saveDiscoveredServices"
             :disabled="
-              isDiscovering ||
               selectedServices.length === 0 ||
               !isDiscoverSelectionValid ||
               isSaving
@@ -447,7 +455,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted } from "vue";
+import { ref, computed, nextTick, onMounted, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   Card,
@@ -491,12 +499,18 @@ import {
   Plus,
   Search,
   SlidersHorizontal,
+  X,
 } from "lucide-vue-next";
 import { toast } from "@admin-shared/utils/toast";
 import { useConfigStore } from "../store/config";
 import { ConfigAPI, ScanAPI, SystemAPI } from "../lib/api";
 import type { ProxyMapping } from "../types";
-import type { ScanDiscoverResponse, DiscoveredServiceInfo } from "../lib/api";
+import type {
+  DiscoveredServiceInfo,
+  ScanDiscoverPollEvent,
+  ScanDiscoverProgress,
+  ScanDiscoverResponse,
+} from "../lib/api";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import PagedTableFooter from "@admin-shared/components/list/PagedTableFooter.vue";
 import ReverseProxyDefaultRouteDialog from "./reverse-proxy/ReverseProxyDefaultRouteDialog.vue";
@@ -698,6 +712,10 @@ onMounted(() => {
   void loadAccessEntryPort();
 });
 
+onUnmounted(() => {
+  stopDiscoverScan();
+});
+
 async function loadAccessEntryPort() {
   try {
     const info = await SystemAPI.getAccessEntry();
@@ -821,6 +839,7 @@ async function syncRoutes() {
 
 const { isPending: isDiscovering, run: runDiscoverServices } = useAsyncAction({
   onError: (error) => {
+    if (isDiscoverAbortError(error)) return;
     showReverseProxyActionError(
       reverseProxyMessages.scanFailed,
       error,
@@ -828,6 +847,8 @@ const { isPending: isDiscovering, run: runDiscoverServices } = useAsyncAction({
     );
   },
 });
+const discoverAbortController = ref<AbortController | null>(null);
+const discoverProgress = ref<ScanDiscoverProgress | null>(null);
 const {
   open: isDiscoverDialogOpen,
   discoveredData,
@@ -852,6 +873,106 @@ const showDiscoverHostColumn = computed(() => {
 });
 const resolveDiscoveredServiceHost = (service: DiscoveredServiceInfo) =>
   service.host?.trim() || discoveredData.value?.host?.trim() || currentHostname;
+const discoverFooterScannedPorts = computed(() => {
+  return discoveredData.value?.totalPortsScanned || 0;
+});
+
+const isDiscoverAbortError = (error: unknown): boolean =>
+  error instanceof DOMException
+    ? error.name === "AbortError"
+    : error instanceof Error && error.name === "AbortError";
+
+const createEmptyDiscoverResponse = (
+  patch: Partial<ScanDiscoverResponse> = {},
+): ScanDiscoverResponse => ({
+  host: patch.host || "",
+  totalPortsScanned: patch.totalPortsScanned || 0,
+  foundServices: patch.foundServices || 0,
+  scannedHosts: patch.scannedHosts,
+  scanHostCount: patch.scanHostCount,
+  scanScope: patch.scanScope,
+  scanCidrs: patch.scanCidrs,
+  services: [],
+});
+
+const cloneDiscoveredService = (
+  service: DiscoveredServiceInfo,
+): DiscoveredServiceInfo => ({
+  ...service,
+  detail: {
+    ...service.detail,
+    rule: { ...service.detail.rule },
+  },
+});
+
+const upsertDiscoveredService = (service: DiscoveredServiceInfo) => {
+  const current = discoveredData.value || createEmptyDiscoverResponse();
+  const nextService = cloneDiscoveredService(service);
+  const serviceKey =
+    nextService.serviceKey ||
+    `${nextService.host?.trim() || current.host}:${nextService.port}`;
+  const nextServices = [...current.services];
+  const existingIndex = nextServices.findIndex((item) => {
+    const itemKey =
+      item.serviceKey || `${item.host?.trim() || current.host}:${item.port}`;
+    return itemKey === serviceKey;
+  });
+
+  if (existingIndex >= 0) {
+    const previous = nextServices[existingIndex]!;
+    nextServices[existingIndex] = nextService;
+    const selectedIndex = selectedServices.value.indexOf(previous);
+    if (selectedIndex >= 0) {
+      selectedServices.value[selectedIndex] = nextService;
+    }
+  } else {
+    nextServices.push(nextService);
+    if (nextService.detail.rule.path?.trim()) {
+      selectedServices.value.push(nextService);
+    }
+  }
+
+  setDiscoveredData({
+    ...current,
+    foundServices: nextServices.length,
+    services: nextServices,
+  });
+};
+
+const applyDiscoverPollEvent = (event: ScanDiscoverPollEvent) => {
+  if (event.type === "meta") {
+    setDiscoveredData(createEmptyDiscoverResponse(event.data));
+    return;
+  }
+
+  if (event.type === "progress") {
+    discoverProgress.value = event.data;
+    return;
+  }
+
+  if (event.type === "service") {
+    upsertDiscoveredService(event.data.service);
+    return;
+  }
+
+  if (event.type === "done") {
+    const current = discoveredData.value;
+    if (!current) {
+      setDiscoveredData(event.data);
+      selectedServices.value = event.data.services.filter((svc) =>
+        Boolean(svc.detail.rule.path?.trim()),
+      );
+      return;
+    }
+
+    setDiscoveredData({
+      ...current,
+      ...event.data,
+      foundServices: current.services.length,
+      services: current.services,
+    });
+  }
+};
 
 const onToggleAllDiscoverSelect = (e: Event) => {
   const checked = (e.target as HTMLInputElement).checked;
@@ -860,10 +981,15 @@ const onToggleAllDiscoverSelect = (e: Event) => {
 
 const handleDiscoverDialogOpenChange = (nextOpen: boolean) => {
   if (!nextOpen) {
-    closeDiscoverDialog(true);
-    isDiscoverSettingsOpen.value = false;
+    dismissDiscoverDialog();
   }
 };
+
+function dismissDiscoverDialog() {
+  stopDiscoverScan();
+  closeDiscoverDialog(true);
+  isDiscoverSettingsOpen.value = false;
+}
 
 function openDiscoverDialog() {
   openDiscoverDialogState();
@@ -882,26 +1008,44 @@ async function toggleDiscoverSettings() {
 }
 
 async function triggerScan() {
-  let targetCidrs: string[] | undefined;
+  let targetCidrs: string[];
   try {
     await nextTick();
-    targetCidrs = await discoverTargetsSettingsRef.value?.ensureSaved();
+    const selectedCidrs =
+      await discoverTargetsSettingsRef.value?.ensureSaved();
+    if (!selectedCidrs || selectedCidrs.length === 0) return;
+    targetCidrs = selectedCidrs;
   } catch {
     return;
   }
 
   resetDiscoverSelection();
+  discoverProgress.value = null;
+  discoverAbortController.value?.abort();
+  const abortController = new AbortController();
+  discoverAbortController.value = abortController;
   await runDiscoverServices(
-    () => ScanAPI.discover({ target_cidrs: targetCidrs }),
+    () =>
+      ScanAPI.discoverPolling(
+        { target_cidrs: targetCidrs },
+        {
+          signal: abortController.signal,
+          onEvent: applyDiscoverPollEvent,
+        },
+      ),
     {
-      onSuccess: (data) => {
-        setDiscoveredData(data);
-        selectedServices.value = data.services.filter((svc) =>
-          Boolean(svc.detail.rule.path?.trim()),
-        );
+      onFinally: () => {
+        if (discoverAbortController.value === abortController) {
+          discoverAbortController.value = null;
+        }
       },
     },
   );
+}
+
+function stopDiscoverScan() {
+  discoverAbortController.value?.abort();
+  discoverAbortController.value = null;
 }
 
 async function saveDiscoveredServices() {
@@ -934,6 +1078,7 @@ async function saveDiscoveredServices() {
     return;
   }
 
+  stopDiscoverScan();
   await runSaveAction(async () => {
     const newList = [...allMappings.value];
     let defaultRouteToSet: string | null = null;
@@ -976,7 +1121,7 @@ async function saveDiscoveredServices() {
         resetPage: true,
         onAfterPersist: () => {
           toast.success(reverseProxyMessages.discoverSaveSuccess(addedCount));
-          closeDiscoverDialog(true);
+          dismissDiscoverDialog();
         },
       },
     );

@@ -1601,6 +1601,7 @@ export const zhHantServer = {
       "單次最多掃描 {max} 台主機，目前為 {current} 台",
     maxHostsExceeded: "單次最多掃描 {max} 台主機",
     selectAtLeastOneCidr: "請選擇至少一個本地 IPv4 掃描網段",
+    scanJobNotFound: "掃描任務不存在或已過期",
     targetLabels: {
       docker: "{cidr}（Docker 宿主機局域網）",
       loopback: "{cidr}（本機回環）",

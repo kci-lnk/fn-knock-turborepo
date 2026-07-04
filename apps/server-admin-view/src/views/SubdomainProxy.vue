@@ -169,6 +169,7 @@
       :domain="savedRootDomain"
       :is-settings-open="isDiscoverSettingsOpen"
       :is-discovering="isDiscovering"
+      :discover-progress="discoverProgress"
       :discovered-data="discoveredData"
       :selected-services="selectedServices"
       :is-all-selected="isAllSelected"
@@ -180,6 +181,7 @@
       @toggle-settings="toggleDiscoverSettings"
       @toggle-all="setAllSelected"
       @scan="triggerScan"
+      @stop-scan="stopDiscoverScan"
       @cancel="dismissDiscoverDialog"
       @save="saveDiscoveredServices"
     />
@@ -488,6 +490,7 @@ const {
 
 const {
   discoveredData,
+  discoverProgress,
   dismissDiscoverDialog,
   handleDiscoverDialogOpenChange,
   isAllSelected,
@@ -501,6 +504,7 @@ const {
   setDiscoverDialogRef,
   setAllSelected,
   showDiscoverHostColumn,
+  stopDiscoverScan,
   toggleDiscoverSettings,
   triggerScan,
 } = useSubdomainDiscoverFlow({
@@ -640,6 +644,7 @@ onUnmounted(() => {
   stopTouchInteractionTracking();
   clearProtocolHeadersWarningCloseTimer();
   stopTrafficRealtimePolling();
+  stopDiscoverScan();
 });
 
 async function addAuthService() {

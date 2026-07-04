@@ -232,8 +232,7 @@ export const jaJPServer = {
       blocked: {
         deployment:
           "Feiniu FPK ネットワーク最適化は FPK デプロイでのみ利用できます",
-        platform:
-          "Feiniu FPK ネットワーク最適化には Linux ホストが必要です",
+        platform: "Feiniu FPK ネットワーク最適化には Linux ホストが必要です",
         permission: "Feiniu FPK ネットワーク最適化には root 権限が必要です",
       },
     },
@@ -1890,6 +1889,7 @@ export const jaJPServer = {
     maxHostsExceeded: "一度に最大 {max} のホストをスキャンします",
     selectAtLeastOneCidr:
       "ローカル IPv4 スキャン ネットワーク セグメントを少なくとも 1 つ選択してください",
+    scanJobNotFound: "スキャンジョブが見つからないか、有効期限が切れています",
     targetLabels: {
       docker: "{cidr} (Docker ホスト LAN)",
       loopback: "{cidr} (ネイティブ ループバック)",

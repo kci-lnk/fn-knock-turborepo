@@ -12,18 +12,30 @@ import {
 } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
 import { ScanAPI } from "@/lib/api";
+import type {
+  DiscoveredServiceInfo,
+  ScanDiscoverPollEvent,
+  ScanDiscoverProgress,
+  ScanDiscoverResponse,
+} from "@/lib/api";
 import type { HostMapping } from "@/types";
 import {
   buildDiscoveredHostResponse,
   buildDiscoveredServiceMappings,
   collectDuplicateValues,
   composeHostFromSubdomain,
+  resolveDiscoveredServiceHost,
   type DiscoveredHostResponse,
   type DiscoveredHostService,
   type TranslationParams,
 } from "./model";
 
 type RunAsyncAction = <T>(action: () => Promise<T>) => Promise<T | undefined>;
+
+const isDiscoverAbortError = (error: unknown): boolean =>
+  error instanceof DOMException
+    ? error.name === "AbortError"
+    : error instanceof Error && error.name === "AbortError";
 
 type DiscoverDialogHandle = {
   ensureSaved: () => Promise<string[]> | undefined;
@@ -48,6 +60,8 @@ export const useSubdomainDiscoverFlow = ({
   translate: (key: string, params?: TranslationParams) => string;
 }) => {
   const discoverDialogRef = ref<DiscoverDialogHandle | null>(null);
+  const discoverAbortController = ref<AbortController | null>(null);
+  const discoverProgress = ref<ScanDiscoverProgress | null>(null);
   const setDiscoverDialogRef = (
     instance: Element | ComponentPublicInstance | null,
   ) => {
@@ -58,6 +72,7 @@ export const useSubdomainDiscoverFlow = ({
   const { isPending: isDiscovering, run: runDiscoverServices } = useAsyncAction(
     {
       onError: (error) => {
+        if (isDiscoverAbortError(error)) return;
         toast.error(translate("admin.subdomainProxy.discoverFailed"), {
           description: extractErrorMessage(
             error,
@@ -95,7 +110,99 @@ export const useSubdomainDiscoverFlow = ({
     return hosts.size > 1;
   });
 
+  const createEmptyDiscoveredResponse = (
+    patch: Partial<ScanDiscoverResponse> = {},
+  ): DiscoveredHostResponse => ({
+    host: patch.host || "",
+    totalPortsScanned: patch.totalPortsScanned || 0,
+    foundServices: patch.foundServices || 0,
+    scannedHosts: patch.scannedHosts,
+    scanHostCount: patch.scanHostCount,
+    scanScope: patch.scanScope,
+    scanCidrs: patch.scanCidrs,
+    services: [],
+  });
+
+  const upsertDiscoveredService = (service: DiscoveredServiceInfo) => {
+    const current =
+      discoveredData.value || createEmptyDiscoveredResponse({ services: [] });
+    const transformed = buildDiscoveredHostResponse(
+      {
+        ...current,
+        services: [service],
+      },
+      existingMappingTargets.value,
+    ).services[0];
+    if (!transformed) return;
+
+    const serviceKey =
+      service.serviceKey ||
+      `${resolveDiscoveredServiceHost(service, current.host)}:${service.port}`;
+    const nextServices = [...current.services];
+    const existingIndex = nextServices.findIndex((item) => {
+      const itemKey =
+        item.serviceKey ||
+        `${resolveDiscoveredServiceHost(item, current.host)}:${item.port}`;
+      return itemKey === serviceKey;
+    });
+
+    if (existingIndex >= 0) {
+      const previous = nextServices[existingIndex]!;
+      nextServices[existingIndex] = transformed;
+      const selectedIndex = selectedServices.value.indexOf(previous);
+      if (selectedIndex >= 0) {
+        selectedServices.value[selectedIndex] = transformed;
+      }
+    } else {
+      nextServices.push(transformed);
+      if (transformed.suggestedSubdomain.trim()) {
+        selectedServices.value.push(transformed);
+      }
+    }
+
+    setDiscoveredData({
+      ...current,
+      foundServices: nextServices.length,
+      services: nextServices,
+    });
+  };
+
+  const applyDiscoverEvent = (event: ScanDiscoverPollEvent) => {
+    if (event.type === "meta") {
+      setDiscoveredData(createEmptyDiscoveredResponse(event.data));
+      return;
+    }
+
+    if (event.type === "progress") {
+      discoverProgress.value = event.data;
+      return;
+    }
+
+    if (event.type === "service") {
+      upsertDiscoveredService(event.data.service);
+      return;
+    }
+
+    if (event.type === "done") {
+      const current = discoveredData.value;
+      if (!current) {
+        setDiscoveredData(
+          buildDiscoveredHostResponse(event.data, existingMappingTargets.value),
+        );
+        return;
+      }
+
+      setDiscoveredData({
+        ...current,
+        ...event.data,
+        foundServices: current.services.length,
+        services: current.services,
+      });
+    }
+  };
+
   const dismissDiscoverDialog = () => {
+    stopDiscoverScan();
     setDiscoveredData(null);
     closeDiscoverDialog(true);
     isDiscoverSettingsOpen.value = false;
@@ -108,30 +215,43 @@ export const useSubdomainDiscoverFlow = ({
   };
 
   const triggerScan = async () => {
-    let targetCidrs: string[] | undefined;
+    let targetCidrs: string[];
     try {
       await nextTick();
-      targetCidrs = await discoverDialogRef.value?.ensureSaved();
+      const selectedCidrs = await discoverDialogRef.value?.ensureSaved();
+      if (!selectedCidrs || selectedCidrs.length === 0) return;
+      targetCidrs = selectedCidrs;
     } catch {
       return;
     }
 
     resetSelection();
+    discoverProgress.value = null;
+    discoverAbortController.value?.abort();
+    const abortController = new AbortController();
+    discoverAbortController.value = abortController;
     await runDiscoverServices(
-      () => ScanAPI.discover({ target_cidrs: targetCidrs }),
+      () =>
+        ScanAPI.discoverPolling(
+          { target_cidrs: targetCidrs },
+          {
+            signal: abortController.signal,
+            onEvent: applyDiscoverEvent,
+          },
+        ),
       {
-        onSuccess: (data) => {
-          const nextData = buildDiscoveredHostResponse(
-            data,
-            existingMappingTargets.value,
-          );
-          setDiscoveredData(nextData);
-          selectedServices.value = nextData.services.filter((service) =>
-            Boolean(service.suggestedSubdomain.trim()),
-          );
+        onFinally: () => {
+          if (discoverAbortController.value === abortController) {
+            discoverAbortController.value = null;
+          }
         },
       },
     );
+  };
+
+  const stopDiscoverScan = () => {
+    discoverAbortController.value?.abort();
+    discoverAbortController.value = null;
   };
 
   const openDiscoverDialog = () => {
@@ -188,6 +308,7 @@ export const useSubdomainDiscoverFlow = ({
       return;
     }
 
+    stopDiscoverScan();
     await runSaveMappings(async () => {
       const next = [
         ...allMappings.value,
@@ -210,6 +331,7 @@ export const useSubdomainDiscoverFlow = ({
 
   return {
     discoveredData,
+    discoverProgress,
     dismissDiscoverDialog,
     handleDiscoverDialogOpenChange,
     isAllSelected,
@@ -221,6 +343,7 @@ export const useSubdomainDiscoverFlow = ({
     saveDiscoveredServices,
     selectedServices,
     setDiscoverDialogRef,
+    stopDiscoverScan,
     setAllSelected,
     showDiscoverHostColumn,
     toggleDiscoverSettings,

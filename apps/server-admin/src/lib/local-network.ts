@@ -4,6 +4,8 @@ export interface LocalIpv4Candidate {
   label: string;
   value: string;
   interface: string;
+  netmask?: string;
+  prefix?: number;
 }
 
 const EXCLUDED_INTERFACE_PATTERNS = [
@@ -24,8 +26,41 @@ const isExcludedInterface = (name: string): boolean =>
 const isIpv4Family = (family: string | number): boolean =>
   family === "IPv4" || family === 4;
 
+const parseIpv4Segments = (value: string): number[] | null => {
+  const segments = value.split(".").map((segment) => Number.parseInt(segment, 10));
+  if (
+    segments.length !== 4 ||
+    segments.some((segment) => !Number.isInteger(segment) || segment < 0 || segment > 255)
+  ) {
+    return null;
+  }
+
+  return segments;
+};
+
+export const ipv4NetmaskToPrefix = (value: string): number | null => {
+  const segments = parseIpv4Segments(value.trim());
+  if (!segments) return null;
+
+  const mask = segments.reduce((acc, segment) => (acc << 8) | segment, 0) >>> 0;
+  let prefix = 0;
+  let hasSeenZero = false;
+
+  for (let bit = 31; bit >= 0; bit -= 1) {
+    const isOne = Boolean(mask & (1 << bit));
+    if (isOne && hasSeenZero) return null;
+    if (isOne) {
+      prefix += 1;
+    } else {
+      hasSeenZero = true;
+    }
+  }
+
+  return prefix;
+};
+
 export const isPrivateIpv4Address = (value: string): boolean => {
-  const [a, b] = value.split(".").map((item) => Number.parseInt(item, 10));
+  const [a, b] = parseIpv4Segments(value) || [];
   if (
     a === undefined ||
     b === undefined ||
@@ -61,10 +96,14 @@ export const listPrivateIpv4Candidates = (): LocalIpv4Candidate[] => {
       }
 
       seen.add(address);
+      const netmask = String(item.netmask ?? "").trim();
+      const prefix = netmask ? ipv4NetmaskToPrefix(netmask) : null;
       results.push({
         label: `${address} (${name})`,
         value: address,
         interface: name,
+        ...(netmask ? { netmask } : {}),
+        ...(prefix !== null ? { prefix } : {}),
       });
     }
   }

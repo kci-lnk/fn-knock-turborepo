@@ -27,7 +27,10 @@
             />
             <Button
               :disabled="
-                isTableLocked || isDialogSubmitting || !dnsProviders.length
+                !isAcmeInstalled ||
+                isTableLocked ||
+                isDialogSubmitting ||
+                !dnsProviders.length
               "
               @click="openCreateDialog"
             >
@@ -37,6 +40,30 @@
         </div>
       </CardHeader>
     </Card>
+
+    <Alert
+      v-if="shouldPromptAcmeInitialization"
+      class="border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100"
+    >
+      <AlertTriangle class="h-4 w-4" />
+      <AlertTitle>
+        {{ t("admin.acmeCert.initializePromptTitle") }}
+      </AlertTitle>
+      <AlertDescription
+        class="grid gap-3 text-amber-900 sm:grid-cols-[1fr_auto] sm:items-center dark:text-amber-100/90"
+      >
+        <span>{{ t("admin.acmeCert.initializePromptDescription") }}</span>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          class="shrink-0 border-amber-300 bg-background/80 text-amber-950 hover:bg-background dark:border-amber-700 dark:text-amber-100"
+          @click="goToAcmeInitialization"
+        >
+          {{ t("admin.acmeCert.goInitialize") }}
+        </Button>
+      </AlertDescription>
+    </Alert>
 
     <Card class="border-border/80 shadow-sm">
       <CardHeader>
@@ -110,7 +137,11 @@
                     colspan="5"
                     class="py-10 text-center text-muted-foreground"
                   >
-                    {{ t("admin.acmeCert.emptyApplications") }}
+                    {{
+                      shouldPromptAcmeInitialization
+                        ? t("admin.acmeCert.emptyApplicationsBeforeInit")
+                        : t("admin.acmeCert.emptyApplications")
+                    }}
                   </TableCell>
                 </TableRow>
 
@@ -359,6 +390,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
+import { useRouter } from "vue-router";
 import {
   AcmeAPI,
   type AcmeApplicationOverviewItem,
@@ -369,6 +401,7 @@ import {
   type AcmeLogAnalysis,
   type AcmeOverview,
 } from "@/lib/api";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -412,7 +445,7 @@ import {
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import AcmeApplicationDialog from "./AcmeApplicationDialog.vue";
 import AcmeJobPanel from "./AcmeJobPanel.vue";
-import { ChevronDown, Trash2 } from "lucide-vue-next";
+import { AlertTriangle, ChevronDown, Trash2 } from "lucide-vue-next";
 
 type CertificateStatusKey =
   | "none"
@@ -422,6 +455,7 @@ type CertificateStatusKey =
   | "valid";
 
 const { locale, t } = useI18n();
+const router = useRouter();
 const overview = ref<AcmeOverview | null>(null);
 const dnsProviders = ref<AcmeDnsProvider[]>([]);
 const isDialogOpen = ref(false);
@@ -476,6 +510,9 @@ const { run: runLoadApplication } = useAsyncAction({
 const applications = computed(() => overview.value?.applications || []);
 const acmeState = computed(() => overview.value?.acmeState || null);
 const isAcmeInstalled = computed(() => acmeState.value?.status === "installed");
+const shouldPromptAcmeInitialization = computed(
+  () => acmeState.value?.status === "uninstalled",
+);
 const isTableLocked = computed(() => overview.value?.lock.locked === true);
 const canStopActiveJob = computed(() => {
   if (!isTableLocked.value) return false;
@@ -655,6 +692,10 @@ const openCreateDialog = () => {
   dialogMode.value = "create";
   editingApplication.value = null;
   isDialogOpen.value = true;
+};
+
+const goToAcmeInitialization = () => {
+  void router.push({ path: "/system", query: { tab: "acme-ssl" } });
 };
 
 const openEditDialog = async (applicationId: string) => {

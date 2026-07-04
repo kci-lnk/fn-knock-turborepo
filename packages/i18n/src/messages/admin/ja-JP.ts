@@ -1303,6 +1303,12 @@ export const jaJPAdmin = {
     actions: "動作",
     emptyApplications:
       "ACMEの申請項目はまだありません。右上隅の「新しいアプリケーション」をクリックして作成を開始します。",
+    emptyApplicationsBeforeInit:
+      "ACME.sh はまだ初期化されていません。証明書申請項目を作成する前に初期化してください。",
+    initializePromptTitle: "先に ACME.sh を初期化してください",
+    initializePromptDescription:
+      "ACME.sh はまだ初期化されていないため、証明書の申請、更新、デプロイ操作は利用できません。システム設定の ACME.sh タブで初期化を完了してください。",
+    goInitialize: "ACME.sh を初期化",
     autoRenewEnabled: "自動更新が有効になりました",
     autoRenewDisabled: "自動更新が有効になっていません",
     unknownIssuer: "不明な発行者",

@@ -1284,6 +1284,12 @@ export const enAdmin = {
     actions: "Actions",
     emptyApplications:
       "No ACME request items yet. Click New request in the upper right to create one.",
+    emptyApplicationsBeforeInit:
+      "ACME.sh has not been initialized yet. Initialize it before creating certificate request items.",
+    initializePromptTitle: "Initialize ACME.sh first",
+    initializePromptDescription:
+      "ACME.sh has not been initialized yet, so certificate requests, renewal, and deployment are unavailable. Initialize it from the ACME.sh tab in System Settings.",
+    goInitialize: "Initialize ACME.sh",
     autoRenewEnabled: "Automatic renewal enabled",
     autoRenewDisabled: "Automatic renewal disabled",
     unknownIssuer: "Unknown issuer",

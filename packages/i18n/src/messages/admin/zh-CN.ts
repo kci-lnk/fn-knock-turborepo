@@ -1190,6 +1190,12 @@ export const zhCNAdmin = {
     validity: "有效期",
     actions: "操作",
     emptyApplications: "还没有 ACME 申请项，点击右上角“新申请”开始创建。",
+    emptyApplicationsBeforeInit:
+      "ACME.sh 尚未初始化，请先完成初始化后再创建证书申请项。",
+    initializePromptTitle: "请先初始化 ACME.sh",
+    initializePromptDescription:
+      "当前还没有初始化 ACME.sh，证书申请、续期和部署操作暂不可用。请到系统设置的 ACME.sh 标签页完成初始化。",
+    goInitialize: "去初始化",
     autoRenewEnabled: "已启用自动续期",
     autoRenewDisabled: "未启用自动续期",
     unknownIssuer: "未知签发者",

@@ -1273,6 +1273,12 @@ export const koKRAdmin = {
     actions: "작업",
     emptyApplications:
       "아직 ACME 요청 항목이 없습니다. 오른쪽 상단에 있는 새 요청을 클릭하여 생성하세요.",
+    emptyApplicationsBeforeInit:
+      "ACME.sh가 아직 초기화되지 않았습니다. 인증서 요청 항목을 만들기 전에 먼저 초기화하세요.",
+    initializePromptTitle: "먼저 ACME.sh를 초기화하세요",
+    initializePromptDescription:
+      "ACME.sh가 아직 초기화되지 않아 인증서 요청, 갱신 및 배포 작업을 사용할 수 없습니다. 시스템 설정의 ACME.sh 탭에서 초기화를 완료하세요.",
+    goInitialize: "ACME.sh 초기화",
     autoRenewEnabled: "자동 갱신 활성화됨",
     autoRenewDisabled: "자동 갱신이 비활성화되었습니다.",
     unknownIssuer: "알 수 없는 발급자",

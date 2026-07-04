@@ -1198,6 +1198,12 @@ export const zhHantAdmin = {
     validity: "有效期",
     actions: "操作",
     emptyApplications: "還沒有 ACME 申請項，點擊右上角「新申請」開始創建。",
+    emptyApplicationsBeforeInit:
+      "ACME.sh 尚未初始化，請先完成初始化後再創建證書申請項。",
+    initializePromptTitle: "請先初始化 ACME.sh",
+    initializePromptDescription:
+      "當前還沒有初始化 ACME.sh，證書申請、續期和部署操作暫不可用。請到系統設定的 ACME.sh 標籤頁完成初始化。",
+    goInitialize: "去初始化",
     autoRenewEnabled: "已啟用自動續期",
     autoRenewDisabled: "未啟用自動續期",
     unknownIssuer: "未知簽發者",

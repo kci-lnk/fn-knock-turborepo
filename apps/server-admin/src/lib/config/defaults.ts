@@ -119,8 +119,8 @@ export const DEFAULT_GATEWAY_CRAWLER_BLOCKER_CONFIG: GatewayCrawlerBlockerConfig
 
 export const DEFAULT_GATEWAY_PORTAL_CONFIG: GatewayPortalConfig = {
   enabled: true,
-  display_style: "domain",
-  show_app_icon: false,
+  display_style: "title",
+  show_app_icon: true,
 };
 
 export const DEFAULT_DASHBOARD_DISPLAY_CONFIG: DashboardDisplayConfig = {

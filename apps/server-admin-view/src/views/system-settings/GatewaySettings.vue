@@ -44,8 +44,8 @@ const form = reactive<GatewaySettingsForm>({
   auth_cache_unauthorized_ttl_seconds: 1,
   portal: {
     enabled: true,
-    display_style: "domain",
-    show_app_icon: false,
+    display_style: "title",
+    show_app_icon: true,
   },
   crawler_blocker: {
     enabled: false,
@@ -145,12 +145,12 @@ const portalEnabledSummary = computed(() =>
     : t("admin.gatewaySettings.disabled"),
 );
 const portalDisplaySummary = computed(() =>
-  (portalSummary.value?.display_style ?? "domain") === "title"
-    ? t("admin.gatewaySettings.portalDisplayTitle")
-    : t("admin.gatewaySettings.portalDisplayDomain"),
+  portalSummary.value?.display_style === "domain"
+    ? t("admin.gatewaySettings.portalDisplayDomain")
+    : t("admin.gatewaySettings.portalDisplayTitle"),
 );
 const portalIconSummary = computed(() =>
-  portalSummary.value?.show_app_icon
+  portalSummary.value?.show_app_icon !== false
     ? t("admin.gatewaySettings.enabled")
     : t("admin.gatewaySettings.disabled"),
 );
@@ -229,8 +229,8 @@ const buildSettingsSnapshot = (data: GatewaySettings): GatewaySettings => ({
   ...data,
   portal: {
     enabled: data.portal?.enabled !== false,
-    display_style: data.portal?.display_style ?? "domain",
-    show_app_icon: data.portal?.show_app_icon === true,
+    display_style: data.portal?.display_style === "domain" ? "domain" : "title",
+    show_app_icon: data.portal?.show_app_icon !== false,
   },
   crawler_blocker: {
     enabled: data.crawler_blocker?.enabled === true,
@@ -531,7 +531,11 @@ onMounted(fetchSettings);
               {{ portalDisplaySummary }}
             </Badge>
             <Badge
-              :variant="portalSummary?.show_app_icon ? 'default' : 'secondary'"
+              :variant="
+                portalSummary?.show_app_icon !== false
+                  ? 'default'
+                  : 'secondary'
+              "
               class="rounded-full px-2.5"
             >
               {{

@@ -39,16 +39,16 @@ const loadError = ref("");
 
 const form = reactive<GatewayPortalConfig>({
   enabled: true,
-  display_style: "domain",
-  show_app_icon: false,
+  display_style: "title",
+  show_app_icon: true,
 });
 
 const normalizePortal = (
   portal?: Partial<GatewayPortalConfig> | null,
 ): GatewayPortalConfig => ({
   enabled: portal?.enabled !== false,
-  display_style: portal?.display_style === "title" ? "title" : "domain",
-  show_app_icon: portal?.show_app_icon === true,
+  display_style: portal?.display_style === "domain" ? "domain" : "title",
+  show_app_icon: portal?.show_app_icon !== false,
 });
 
 const applyPortal = (portal?: Partial<GatewayPortalConfig> | null) => {

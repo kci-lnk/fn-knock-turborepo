@@ -2,7 +2,7 @@ import type { GatewayPortalConfig, GatewayPortalDisplayStyle } from "./redis";
 
 export const normalizeGatewayPortalDisplayStyle = (
   value: unknown,
-): GatewayPortalDisplayStyle => (value === "title" ? "title" : "domain");
+): GatewayPortalDisplayStyle => (value === "domain" ? "domain" : "title");
 
 export const normalizeGatewayPortalConfigValue = (
   value?: Partial<GatewayPortalConfig> | null,
@@ -12,6 +12,6 @@ export const normalizeGatewayPortalConfigValue = (
   return {
     enabled: raw.enabled !== false,
     display_style: normalizeGatewayPortalDisplayStyle(raw.display_style),
-    show_app_icon: raw.show_app_icon === true,
+    show_app_icon: raw.show_app_icon !== false,
   };
 };

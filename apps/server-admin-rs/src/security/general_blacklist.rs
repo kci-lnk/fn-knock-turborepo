@@ -2,12 +2,12 @@ use axum::{
     Router,
     body::Bytes,
     extract::{Path, Query, State},
-    http::{Method, StatusCode},
+    http::StatusCode,
     response::{IntoResponse, Response},
     routing::{delete, get, post},
 };
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::{http_utils::normalize_ip, i18n::Translator, response, state::AppState};
 
@@ -84,21 +84,28 @@ pub fn general_blacklist_routes() -> Router<AppState> {
 
 async fn list(State(state): State<AppState>, Query(query): Query<ListQuery>) -> Response {
     let translator = Translator::from_state(&state).await;
-    let query_string = {
-        let mut serializer = url::form_urlencoded::Serializer::new(String::new());
-        serializer.append_pair("page", query_param_or(query.page.as_deref(), "1"));
-        serializer.append_pair("limit", query_param_or(query.limit.as_deref(), "20"));
-        if let Some(search) = query.search.as_deref().filter(|value| !value.is_empty()) {
-            serializer.append_pair("search", search);
+    let page = match parse_positive_i32(query.page.as_deref(), 1, "page must be a positive integer")
+    {
+        Ok(page) => page,
+        Err(message) => {
+            return general_blacklist_error_response(&translator, StatusCode::BAD_REQUEST, message);
         }
-        serializer.finish()
     };
-    let path = format!("/api/general-blacklist?{query_string}");
+    let limit = match parse_positive_i32(
+        query.limit.as_deref(),
+        20,
+        "limit must be a positive integer",
+    ) {
+        Ok(limit) => limit,
+        Err(message) => {
+            return general_blacklist_error_response(&translator, StatusCode::BAD_REQUEST, message);
+        }
+    };
     go_data_response(
         &translator,
         state
             .go_backend
-            .request_json(Method::GET, &path, Option::<&Value>::None)
+            .list_general_blacklist(page, limit, query.search.unwrap_or_default())
             .await,
     )
 }
@@ -114,14 +121,7 @@ async fn status(State(state): State<AppState>, body: Bytes) -> Response {
     let ips = normalize_status_ip_list(parsed.get("ips").cloned().unwrap_or(Value::Null));
     go_data_response(
         &translator,
-        state
-            .go_backend
-            .request_json(
-                Method::POST,
-                "/api/general-blacklist/status",
-                Some(&json!({ "ips": ips })),
-            )
-            .await,
+        state.go_backend.check_general_blacklist(ips).await,
     )
 }
 
@@ -157,11 +157,7 @@ async fn add(State(state): State<AppState>, body: Bytes) -> Response {
         &translator,
         state
             .go_backend
-            .request_json(
-                Method::POST,
-                "/api/general-blacklist",
-                Some(&json!({ "ips": ips, "source": source, "comment": comment })),
-            )
+            .add_general_blacklist(ips, source.to_string(), comment)
             .await,
     )
 }
@@ -189,14 +185,7 @@ async fn remove(State(state): State<AppState>, body: Bytes) -> Response {
     }
     go_data_response(
         &translator,
-        state
-            .go_backend
-            .request_json(
-                Method::DELETE,
-                "/api/general-blacklist",
-                Some(&json!({ "ips": ips })),
-            )
-            .await,
+        state.go_backend.remove_general_blacklist(ips).await,
     )
 }
 
@@ -210,15 +199,11 @@ async fn remove_ip(State(state): State<AppState>, Path(ip): Path<String>) -> Res
             "Invalid IP",
         );
     }
-    let path = format!(
-        "/api/general-blacklist/{}",
-        url::form_urlencoded::byte_serialize(normalized.as_bytes()).collect::<String>()
-    );
     go_data_response(
         &translator,
         state
             .go_backend
-            .request_json(Method::DELETE, &path, Option::<&Value>::None)
+            .remove_general_blacklist(vec![normalized])
             .await,
     )
 }
@@ -266,8 +251,21 @@ fn go_backend_response_status(value: &Value) -> StatusCode {
         .unwrap_or(StatusCode::BAD_GATEWAY)
 }
 
-fn query_param_or<'a>(value: Option<&'a str>, fallback: &'a str) -> &'a str {
-    value.filter(|value| !value.is_empty()).unwrap_or(fallback)
+fn parse_positive_i32(
+    value: Option<&str>,
+    fallback: i32,
+    message: &'static str,
+) -> Result<i32, &'static str> {
+    let Some(raw) = value.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(fallback);
+    };
+    let Ok(parsed) = raw.parse::<i32>() else {
+        return Err(message);
+    };
+    if parsed <= 0 {
+        return Err(message);
+    }
+    Ok(parsed)
 }
 
 fn parse_body(body: &[u8]) -> Result<Value, &'static str> {
@@ -342,6 +340,7 @@ fn normalize_source(value: Option<&str>) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn normalizes_and_deduplicates_ip_list() {
@@ -427,11 +426,12 @@ mod tests {
     }
 
     #[test]
-    fn list_query_defaults_match_node_truthy_fallbacks() {
-        assert_eq!(query_param_or(None, "1"), "1");
-        assert_eq!(query_param_or(Some(""), "1"), "1");
-        assert_eq!(query_param_or(Some("0"), "1"), "0");
-        assert_eq!(query_param_or(Some("  "), "1"), "  ");
+    fn list_query_positive_integer_parser_matches_gateway_validation() {
+        assert_eq!(parse_positive_i32(None, 1, "invalid").unwrap(), 1);
+        assert_eq!(parse_positive_i32(Some(""), 1, "invalid").unwrap(), 1);
+        assert_eq!(parse_positive_i32(Some(" 2 "), 1, "invalid").unwrap(), 2);
+        assert!(parse_positive_i32(Some("0"), 1, "invalid").is_err());
+        assert!(parse_positive_i32(Some("2x"), 1, "invalid").is_err());
     }
 
     #[test]

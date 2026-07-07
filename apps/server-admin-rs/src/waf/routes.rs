@@ -9,7 +9,7 @@ use axum::{
     Router,
     body::Bytes,
     extract::{Path, Query},
-    http::{Method, StatusCode},
+    http::StatusCode,
     response::{IntoResponse, Response},
     routing::{delete, get, post},
 };
@@ -274,11 +274,7 @@ async fn details(axum::extract::State(state): axum::extract::State<AppState>) ->
 
 async fn status(axum::extract::State(state): axum::extract::State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state
-        .go_backend
-        .request_json(Method::GET, "/api/waf/status", Option::<&Value>::None)
-        .await
-    {
+    match state.go_backend.get_waf_status().await {
         Ok(value) => {
             if !value
                 .get("success")

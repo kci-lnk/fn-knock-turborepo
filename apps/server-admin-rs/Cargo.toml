@@ -43,6 +43,9 @@ subtle = "2.6"
 thiserror = "2.0"
 time = { version = "0.3.53", features = ["formatting", "local-offset", "parsing", "serde"] }
 tokio = { version = "1.48", features = ["fs", "io-util", "macros", "net", "process", "rt-multi-thread", "signal", "time"] }
+tokio-stream = "0.1"
+tonic = { version = "0.12", features = ["transport"] }
+prost = "0.13"
 totp-rs = { version = "5.7.2", features = ["gen_secret"] }
 tower = "0.5"
 tower-http = { version = "0.7.0", features = ["compression-full", "cors", "trace"] }
@@ -60,4 +63,6 @@ libc = "0.2"
 tempfile = "3.23"
 
 [build-dependencies]
+protoc-bin-vendored = "3"
 serde_json = "1.0"
+tonic-build = "0.12"

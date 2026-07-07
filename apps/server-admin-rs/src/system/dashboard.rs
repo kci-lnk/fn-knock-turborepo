@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use axum::{
     Json, Router,
     extract::{Query, State},
-    http::{Method, StatusCode},
+    http::StatusCode,
     response::{IntoResponse, Response},
     routing::get,
 };
@@ -196,16 +196,7 @@ async fn active_ips(
         );
     }
 
-    let path = {
-        let encoded: String = url::form_urlencoded::byte_serialize(host.as_bytes()).collect();
-        format!("/api/traffic/active-ips?host={encoded}")
-    };
-
-    let (status, envelope) = match state
-        .go_backend
-        .request_json_with_status(Method::GET, &path, Option::<&Value>::None)
-        .await
-    {
+    let (status, envelope) = match state.go_backend.get_host_active_ips(host.clone()).await {
         Ok(value) => value,
         Err(error) => {
             tracing::warn!(%error, "failed to read active IP stats from Go backend");
@@ -426,10 +417,7 @@ async fn build_realtime_payload(state: &AppState) -> anyhow::Result<Option<Value
 }
 
 async fn fetch_traffic_stats(state: &AppState) -> anyhow::Result<Value> {
-    let (status, envelope) = state
-        .go_backend
-        .request_json_with_status(Method::GET, "/api/traffic", Option::<&Value>::None)
-        .await?;
+    let (status, envelope) = state.go_backend.get_traffic_stats().await?;
     if status.as_u16() == 404 || envelope_code(&envelope) == Some(404) {
         return Ok(default_traffic_snapshot());
     }

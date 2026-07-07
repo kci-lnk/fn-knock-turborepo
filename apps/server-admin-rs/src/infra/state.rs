@@ -32,7 +32,8 @@ impl AppState {
             .await
             .context("connect redis")?;
         let go_backend = GoBackendClient::new(
-            settings.go_backend_base_url.clone(),
+            settings.go_backend_grpc_addr.clone(),
+            settings.internal_rpc_token.clone(),
             settings.request_timeout,
         )?;
         let fallback_client = reqwest::Client::builder()

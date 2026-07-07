@@ -1,8 +1,9 @@
+use anyhow::Context;
 use axum::{
     Json, Router,
     body::Bytes,
     extract::{Query, State},
-    http::{Method, StatusCode},
+    http::StatusCode,
     response::{IntoResponse, Response},
     routing::get,
 };
@@ -66,13 +67,11 @@ async fn get_config(State(state): State<AppState>) -> Response {
             );
         }
     };
-    let logs_dir = match go_request(
-        &state,
-        Method::GET,
-        "/api/logging/directory",
-        Option::<&Value>::None,
-    )
-    .await
+    let logs_dir = match state
+        .go_backend
+        .get_logging_directory()
+        .await
+        .and_then(go_backend_data)
     {
         Ok(data) => data
             .get("logs_dir")
@@ -123,13 +122,14 @@ async fn update_config(
         );
     }
 
-    match go_request(
-        &state,
-        Method::POST,
-        "/api/logging",
-        Some(&json!({ "enabled": settings.enabled, "max_days": settings.max_days })),
-    )
-    .await
+    match state
+        .go_backend
+        .set_gateway_logging_config(&json!({
+            "enabled": settings.enabled,
+            "max_days": settings.max_days
+        }))
+        .await
+        .and_then(go_backend_data)
     {
         Ok(data) => response::ok(json!({
             "enabled": settings.enabled,
@@ -151,13 +151,11 @@ async fn directory(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     go_data_response(
         &translator,
-        go_request(
-            &state,
-            Method::GET,
-            "/api/logging/directory",
-            Option::<&Value>::None,
-        )
-        .await,
+        state
+            .go_backend
+            .get_logging_directory()
+            .await
+            .and_then(go_backend_data),
         "readDirectoryFailed",
     )
 }
@@ -166,13 +164,11 @@ async fn dates(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     go_data_response(
         &translator,
-        go_request(
-            &state,
-            Method::GET,
-            "/api/logging/dates",
-            Option::<&Value>::None,
-        )
-        .await,
+        state
+            .go_backend
+            .get_log_dates()
+            .await
+            .and_then(go_backend_data),
         "readDatesFailed",
     )
 }
@@ -216,13 +212,11 @@ async fn delete_entries(State(state): State<AppState>, body: Bytes) -> Response 
         .trim();
     go_data_response(
         &translator,
-        go_request(
-            &state,
-            Method::DELETE,
-            "/api/logging/entries",
-            Some(&json!({ "date": date })),
-        )
-        .await,
+        state
+            .go_backend
+            .delete_log_date(date)
+            .await
+            .and_then(go_backend_data),
         "deleteEntriesFailed",
     )
 }
@@ -378,24 +372,37 @@ async fn get_entries_with_waf_filter(
 async fn go_log_entries(
     state: &AppState,
     query: &GatewayLogQuery,
-    include_waf_status: bool,
+    _include_waf_status: bool,
 ) -> anyhow::Result<Value> {
-    let path = format!(
-        "/api/logging/entries{}",
-        gateway_log_query_string(query, include_waf_status)
-            .map(|query| format!("?{query}"))
-            .unwrap_or_default()
-    );
-    go_request(state, Method::GET, &path, Option::<&Value>::None).await
+    let pagination = query
+        .pagination
+        .clone()
+        .unwrap_or_else(|| "page".to_string());
+    let page = if pagination.trim().eq_ignore_ascii_case("cursor") {
+        0
+    } else {
+        parse_gateway_log_positive_i32(query.page.as_deref(), 1, "page")?
+    };
+    let limit = parse_gateway_log_positive_i32(query.limit.as_deref(), 20, "limit")?;
+    let rpc_query = crate::grpc_proto::GatewayLogQuery {
+        date: query.date.clone().unwrap_or_default(),
+        page,
+        limit,
+        search: query.search.clone().unwrap_or_default(),
+        status: query.status.clone().unwrap_or_default(),
+        logged_in: query.logged_in.clone().unwrap_or_default(),
+        credential: query.credential.clone().unwrap_or_default(),
+        cursor: query.cursor.clone().unwrap_or_default(),
+        pagination,
+    };
+    state
+        .go_backend
+        .query_log_entries(rpc_query)
+        .await
+        .and_then(go_backend_data)
 }
 
-async fn go_request<T: serde::Serialize + ?Sized>(
-    state: &AppState,
-    method: Method,
-    path: &str,
-    body: Option<&T>,
-) -> anyhow::Result<Value> {
-    let value = state.go_backend.request_json(method, path, body).await?;
+fn go_backend_data(value: Value) -> anyhow::Result<Value> {
     if !value
         .get("success")
         .and_then(Value::as_bool)
@@ -410,6 +417,23 @@ async fn go_request<T: serde::Serialize + ?Sized>(
         );
     }
     Ok(value.get("data").cloned().unwrap_or(Value::Null))
+}
+
+fn parse_gateway_log_positive_i32(
+    value: Option<&str>,
+    fallback: i32,
+    field: &str,
+) -> anyhow::Result<i32> {
+    let Some(raw) = value.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(fallback);
+    };
+    let parsed = raw
+        .parse::<i32>()
+        .with_context(|| format!("{field} must be a positive integer"))?;
+    if parsed <= 0 {
+        anyhow::bail!("{field} must be a positive integer");
+    }
+    Ok(parsed)
 }
 
 fn go_data_response(
@@ -452,6 +476,7 @@ async fn gateway_logging_settings(state: &AppState) -> redis::RedisResult<Gatewa
     })
 }
 
+#[cfg(test)]
 fn gateway_log_query_string(query: &GatewayLogQuery, include_waf_status: bool) -> Option<String> {
     let output = {
         let mut serializer = url::form_urlencoded::Serializer::new(String::new());
@@ -472,6 +497,7 @@ fn gateway_log_query_string(query: &GatewayLogQuery, include_waf_status: bool) -
     (!output.is_empty()).then_some(output)
 }
 
+#[cfg(test)]
 fn append_if_some(
     serializer: &mut url::form_urlencoded::Serializer<'_, String>,
     key: &str,
@@ -484,6 +510,7 @@ fn append_if_some(
     }
 }
 
+#[cfg(test)]
 fn append_if_present(
     serializer: &mut url::form_urlencoded::Serializer<'_, String>,
     key: &str,

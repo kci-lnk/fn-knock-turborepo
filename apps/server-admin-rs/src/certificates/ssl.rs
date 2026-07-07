@@ -14,7 +14,7 @@ use axum::{
     Json, Router,
     body::{Body, Bytes},
     extract::{Path as AxumPath, Query, State},
-    http::{HeaderValue, Method, StatusCode, header},
+    http::{HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{delete, get, post},
 };

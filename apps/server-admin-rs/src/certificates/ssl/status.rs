@@ -124,11 +124,7 @@ pub(super) async fn gateway_ssl_status(
     state: &AppState,
     translator: &Translator,
 ) -> Result<Option<Value>, String> {
-    match state
-        .go_backend
-        .request_json_with_status::<Value>(Method::GET, "/api/ssl", None)
-        .await
-    {
+    match state.go_backend.get_ssl_info().await {
         Ok((status, value)) if status.is_success() => {
             if value.get("success").and_then(Value::as_bool) == Some(false) {
                 return Err(value

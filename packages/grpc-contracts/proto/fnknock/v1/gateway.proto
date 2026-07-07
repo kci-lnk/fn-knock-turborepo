@@ -1,0 +1,683 @@
+syntax = "proto3";
+
+package fnknock.v1;
+
+option go_package = "go-reauth-proxy/pkg/grpc/pb;pb";
+
+import "google/protobuf/empty.proto";
+
+message RpcStatus {
+  bool success = 1;
+  int32 code = 2;
+  string message = 3;
+}
+
+message Header {
+  string name = 1;
+  repeated string values = 2;
+}
+
+message HeaderList {
+  repeated Header headers = 1;
+}
+
+message BasicAuthConfig {
+  bool enabled = 1;
+  string username = 2;
+  string password = 3;
+}
+
+message HostLocationResponse {
+  int32 status = 1;
+  string content_type = 2;
+  map<string, string> headers = 3;
+  string body = 4;
+}
+
+message HostLocation {
+  string path = 1;
+  string match = 2;
+  string action = 3;
+  string target = 4;
+  bool strip_path = 5;
+  bool rewrite_html = 6;
+  HostLocationResponse response = 7;
+}
+
+message Rule {
+  string path = 1;
+  string target = 2;
+  bool use_auth = 3;
+  bool strip_path = 4;
+  bool rewrite_html = 5;
+  bool use_root_mode = 6;
+}
+
+message HostRule {
+  string host = 1;
+  string target = 2;
+  bool use_auth = 3;
+  string access_mode = 4;
+  bool suppress_toolbar = 5;
+  bool preserve_host = 6;
+  bool is_default = 7;
+  string title = 8;
+  string favicon = 9;
+  BasicAuthConfig basic_auth = 10;
+  repeated HostLocation locations = 11;
+}
+
+message StreamRule {
+  string protocol = 1;
+  int32 listen_port = 2;
+  string target = 3;
+  bool use_auth = 4;
+}
+
+message AuthConfig {
+  int32 auth_port = 1;
+  string auth_url = 2;
+  string login_url = 3;
+  string logout_url = 4;
+  string preflight_url = 5;
+  int32 auth_cache_ttl_seconds = 6;
+  int32 auth_cache_unauthorized_ttl_seconds = 7;
+  bool edge_client_ip_enabled = 8;
+  bool aliyun_esa_enabled = 9;
+  bool tencent_edgeone_enabled = 10;
+  string public_auth_base_url = 11;
+  int32 public_http_port = 12;
+  int32 public_https_port = 13;
+  string auth_host = 14;
+  bool trust_forwarded_proto = 15;
+}
+
+message LoggingConfig {
+  bool enabled = 1;
+  int32 max_days = 2;
+  string logs_dir = 3;
+}
+
+message ReverseProxyThrottleConfig {
+  bool enabled = 1;
+  int32 requests_per_second = 2;
+  int32 burst = 3;
+  int32 block_seconds = 4;
+}
+
+message GatewayVisibilityConfig {
+  bool enabled = 1;
+  repeated string cidrs = 2;
+  string updated_at = 3;
+}
+
+message OmitTargetsConfig {
+  bool enabled = 1;
+  repeated string omit_targets = 2;
+  string updated_at = 3;
+}
+
+message CrawlerBlockerConfig {
+  bool enabled = 1;
+  string updated_at = 2;
+}
+
+message GatewayPortalConfig {
+  bool enabled = 1;
+  string display_style = 2;
+  bool show_app_icon = 3;
+  string icon_drag_mode = 4;
+}
+
+message FnosPortIconHijackConfig {
+  bool enabled = 1;
+  string updated_at = 2;
+}
+
+message ReverseProxyThrottleExemptIpsRuntime {
+  bool enabled = 1;
+  repeated string ips = 2;
+  repeated string cidrs = 3;
+  string updated_at = 4;
+}
+
+message CommonLocationExemptionsRuntime {
+  bool enabled = 1;
+  bool waf_enabled = 2;
+  repeated string cidrs = 3;
+  string updated_at = 4;
+}
+
+message LocaleConfig {
+  string default_locale = 1;
+}
+
+message GeneralBlacklistRecord {
+  string ip = 1;
+  string source = 2;
+  string comment = 3;
+  string created_at = 4;
+  string updated_at = 5;
+}
+
+message GeneralBlacklistList {
+  int32 total = 1;
+  repeated GeneralBlacklistRecord items = 2;
+}
+
+message GeneralBlacklistMutationResult {
+  int32 added = 1;
+  int32 updated = 2;
+  int32 removed = 3;
+  int32 total = 4;
+  repeated GeneralBlacklistRecord items = 5;
+}
+
+message GeneralBlacklistStatus {
+  map<string, GeneralBlacklistRecord> records = 1;
+}
+
+message WafConfig {
+  bool enabled = 1;
+  string mode = 2;
+  string rules_dir = 3;
+  string active_bundle_id = 4;
+  int32 paranoia_level = 5;
+  int32 executing_paranoia_level = 6;
+  int32 inbound_anomaly_threshold = 7;
+  int32 outbound_anomaly_threshold = 8;
+  bool request_body_access = 9;
+  int32 request_body_limit_bytes = 10;
+  int32 request_body_in_memory_limit_bytes = 11;
+  bool response_body_access = 12;
+  repeated string disabled_hosts = 13;
+  repeated string disabled_path_prefixes = 14;
+  string updated_at = 15;
+}
+
+message WafStatus {
+  bool enabled = 1;
+  string mode = 2;
+  bool loaded = 3;
+  string bundle_id = 4;
+  string bundle_hash = 5;
+  string loaded_at = 6;
+  string rules_dir = 7;
+  int32 pending_events = 8;
+  string last_error = 9;
+}
+
+message WafValidationResult {
+  bool ok = 1;
+  string bundle_id = 2;
+  string bundle_path = 3;
+  string bundle_hash = 4;
+  string error = 5;
+}
+
+message WafMatchedVariable {
+  string variable = 1;
+  string key = 2;
+  string value_preview = 3;
+}
+
+message WafRuleMatch {
+  int32 id = 1;
+  string message = 2;
+  string data = 3;
+  string severity = 4;
+  int32 phase = 5;
+  string file = 6;
+  int32 line = 7;
+  repeated string tags = 8;
+  bool disruptive = 9;
+  repeated WafMatchedVariable matched_variables = 10;
+}
+
+message WafInterruptionInfo {
+  int32 rule_id = 1;
+  string action = 2;
+  int32 status = 3;
+}
+
+message WafEvent {
+  string trace_id = 1;
+  string transaction_id = 2;
+  string time = 3;
+  string mode = 4;
+  string action = 5;
+  int32 status = 6;
+  string client_ip = 7;
+  string remote_addr = 8;
+  string method = 9;
+  string scheme = 10;
+  string host = 11;
+  string path = 12;
+  string query = 13;
+  string request_uri = 14;
+  string user_agent = 15;
+  string referer = 16;
+  string route_type = 17;
+  string route_key = 18;
+  string upstream = 19;
+  string bundle_id = 20;
+  string bundle_hash = 21;
+  repeated int32 rule_ids = 22;
+  repeated WafRuleMatch rules = 23;
+  WafInterruptionInfo interruption = 24;
+  string error = 25;
+}
+
+message WafDrainResult {
+  repeated WafEvent events = 1;
+  int32 drained = 2;
+  int32 remaining = 3;
+}
+
+message SslDeployedCertificate {
+  string id = 1;
+  string label = 2;
+  string cert = 3;
+  string key = 4;
+  bool is_default = 5;
+}
+
+message SslDeployedCertificateInfo {
+  string id = 1;
+  string label = 2;
+  repeated string domains = 3;
+  bool is_default = 4;
+}
+
+message SslConfig {
+  string deployment_mode = 1;
+  repeated SslDeployedCertificate certificates = 2;
+}
+
+message SslInfo {
+  bool enabled = 1;
+  string deployment_mode = 2;
+  repeated SslDeployedCertificateInfo certificates = 3;
+}
+
+message GatewayLogEntry {
+  string time = 1;
+  string level = 2;
+  string method = 3;
+  string scheme = 4;
+  string host = 5;
+  string path = 6;
+  string query = 7;
+  string request_uri = 8;
+  string protocol = 9;
+  int32 status = 10;
+  int64 duration_ms = 11;
+  string remote_ip = 12;
+  string remote_addr = 13;
+  string user_agent = 14;
+  string referer = 15;
+  bool logged_in = 16;
+  bool auth_required = 17;
+  string auth_decision = 18;
+  string auth_credential_id = 19;
+  string auth_credential_name = 20;
+  string auth_credential_method = 21;
+  string auth_linked_totp_id = 22;
+  string auth_linked_totp_name = 23;
+  string access_mode = 24;
+  string route_type = 25;
+  string route_key = 26;
+  string upstream = 27;
+  bool matched = 28;
+  uint64 bytes_in = 29;
+  uint64 bytes_out = 30;
+  bool tls = 31;
+  bool websocket = 32;
+  string ali_real_client_ip = 33;
+  string eo_connecting_ip = 34;
+  string x_forwarded_for = 35;
+  string x_real_ip = 36;
+  bool waf_blocked = 37;
+  string waf_trace_id = 38;
+  string waf_mode = 39;
+  repeated int32 waf_rule_ids = 40;
+  string waf_action = 41;
+  string waf_bundle = 42;
+  bool general_blacklist_blocked = 43;
+}
+
+message GatewayLogDates {
+  string today = 1;
+  string logs_dir = 2;
+  repeated string dates = 3;
+}
+
+message GatewayLogQuery {
+  string date = 1;
+  int32 page = 2;
+  int32 limit = 3;
+  string search = 4;
+  string status = 5;
+  string logged_in = 6;
+  string credential = 7;
+  string cursor = 8;
+  string pagination = 9;
+}
+
+message GatewayLogQueryResult {
+  string date = 1;
+  string logs_dir = 2;
+  repeated string available_dates = 3;
+  string pagination = 4;
+  int32 page = 5;
+  int32 limit = 6;
+  int32 total = 7;
+  string cursor = 8;
+  string next_cursor = 9;
+  bool has_more = 10;
+  repeated GatewayLogEntry items = 11;
+}
+
+message GatewayLogDeleteResult {
+  string date = 1;
+  string logs_dir = 2;
+  bool deleted = 3;
+  repeated string available_dates = 4;
+}
+
+message TrafficStats {
+  uint64 total_in = 1;
+  uint64 total_out = 2;
+  int64 active_conns = 3;
+  uint64 error_5xx = 4;
+  repeated HostTrafficStats by_host = 5;
+}
+
+message HostTrafficStats {
+  string host = 1;
+  uint64 total_in = 2;
+  uint64 total_out = 3;
+  uint64 error_5xx = 4;
+  int32 active_ip_count = 5;
+}
+
+message HostActiveIpStats {
+  string ip = 1;
+  string last_seen_at = 2;
+  int64 active_conns = 3;
+}
+
+message HostActiveIpsStats {
+  string host = 1;
+  int32 window_seconds = 2;
+  repeated HostActiveIpStats items = 3;
+}
+
+message IptablesRule {
+  string ip = 1;
+  string action = 2;
+  string protocol = 3;
+  int32 port = 4;
+}
+
+message ServerInfo {
+  string version = 1;
+}
+
+message Rules {
+  repeated Rule items = 1;
+}
+
+message HostRules {
+  repeated HostRule items = 1;
+}
+
+message StreamRules {
+  repeated StreamRule items = 1;
+}
+
+message StringValue {
+  string value = 1;
+}
+
+message BoolValue {
+  bool value = 1;
+}
+
+message IpRequest {
+  string ip = 1;
+}
+
+message IpListRequest {
+  repeated string ips = 1;
+  string source = 2;
+  string comment = 3;
+}
+
+message GeneralBlacklistListRequest {
+  int32 page = 1;
+  int32 limit = 2;
+  string search = 3;
+}
+
+message HostRequest {
+  string host = 1;
+}
+
+message WafBundleRequest {
+  string bundle_id = 1;
+  string bundle_path = 2;
+  WafConfig config = 3;
+  bool has_config = 4;
+}
+
+message WafDrainRequest {
+  int32 limit = 1;
+}
+
+message TcpRedirectRequest {
+  int32 listen_port = 1;
+  int32 target_port = 2;
+}
+
+message TcpPortRuleRequest {
+  string ip = 1;
+  int32 port = 2;
+}
+
+message IptablesInitRequest {
+  string chain_name = 1;
+  repeated string parent_chains = 2;
+  repeated string exempt_ports = 3;
+}
+
+message SshFirewallSyncRequest {
+  string chain_name = 1;
+  repeated string parent_chains = 2;
+  repeated int32 ports = 3;
+  repeated string allowed_cidrs = 4;
+  repeated string blocked_ips = 5;
+  bool include_local_cidrs = 6;
+}
+
+message SshFirewallClearRequest {
+  string chain_name = 1;
+  repeated string parent_chains = 2;
+}
+
+message IptablesRules {
+  repeated IptablesRule items = 1;
+}
+
+message AuthContext {
+  string client_ip = 1;
+  string forwarded_for = 2;
+  string forwarded_host = 3;
+  string forwarded_proto = 4;
+  string forwarded_path = 5;
+  string host = 6;
+  string scheme = 7;
+  string path = 8;
+  string raw_query = 9;
+  string request_uri = 10;
+  string cookie = 11;
+  string authorization = 12;
+  string user_agent = 13;
+  string access_mode = 14;
+  repeated Header extra_headers = 15;
+}
+
+message VerifyAuthRequest {
+  AuthContext context = 1;
+}
+
+message VerifyAuthResponse {
+  bool success = 1;
+  string message = 2;
+  int32 status = 3;
+  repeated string set_cookies = 4;
+  bool suppress_toolbar = 5;
+  string redirect_location = 6;
+  string access_denied_reason = 7;
+  repeated Header response_headers = 8;
+}
+
+message PreflightAuthRequest {
+  AuthContext context = 1;
+  bool matched = 2;
+}
+
+message PreflightAuthResponse {
+  bool deny = 1;
+  string redirect_location = 2;
+  string access_denied_reason = 3;
+  repeated Header response_headers = 4;
+}
+
+message VerifyStreamAuthRequest {
+  string client_ip = 1;
+  string protocol = 2;
+  int32 listen_port = 3;
+  string target = 4;
+}
+
+message VerifyStreamAuthResponse {
+  bool allowed = 1;
+  int32 status = 2;
+  string decision = 3;
+  string message = 4;
+}
+
+message AuthBridgeReady {
+  string instance_id = 1;
+}
+
+message AuthBridgeEnvelope {
+  string request_id = 1;
+  oneof payload {
+    AuthBridgeReady ready = 2;
+    VerifyAuthRequest verify_auth_request = 3;
+    VerifyAuthResponse verify_auth_response = 4;
+    PreflightAuthRequest preflight_auth_request = 5;
+    PreflightAuthResponse preflight_auth_response = 6;
+    VerifyStreamAuthRequest verify_stream_auth_request = 7;
+    VerifyStreamAuthResponse verify_stream_auth_response = 8;
+  }
+}
+
+service GatewayControlService {
+  rpc GetServerInfo(google.protobuf.Empty) returns (ServerInfo);
+  rpc GetRules(google.protobuf.Empty) returns (Rules);
+  rpc SetRules(Rules) returns (Rules);
+  rpc FlushRules(google.protobuf.Empty) returns (RpcStatus);
+  rpc GetHostRules(google.protobuf.Empty) returns (HostRules);
+  rpc SetHostRules(HostRules) returns (HostRules);
+  rpc FlushHostRules(google.protobuf.Empty) returns (RpcStatus);
+  rpc GetStreamRules(google.protobuf.Empty) returns (StreamRules);
+  rpc SetStreamRules(StreamRules) returns (StreamRules);
+  rpc FlushStreamRules(google.protobuf.Empty) returns (RpcStatus);
+  rpc GetAuthConfig(google.protobuf.Empty) returns (AuthConfig);
+  rpc SetAuthConfig(AuthConfig) returns (RpcStatus);
+  rpc GetDefaultRoute(google.protobuf.Empty) returns (StringValue);
+  rpc SetDefaultRoute(StringValue) returns (RpcStatus);
+  rpc GetProxyProtocolForce(google.protobuf.Empty) returns (BoolValue);
+  rpc SetProxyProtocolForce(BoolValue) returns (BoolValue);
+  rpc GetLocaleConfig(google.protobuf.Empty) returns (LocaleConfig);
+  rpc SetLocaleConfig(LocaleConfig) returns (LocaleConfig);
+  rpc GetReverseProxyThrottle(google.protobuf.Empty) returns (ReverseProxyThrottleConfig);
+  rpc SetReverseProxyThrottle(ReverseProxyThrottleConfig) returns (ReverseProxyThrottleConfig);
+  rpc GetGatewayVisibility(google.protobuf.Empty) returns (GatewayVisibilityConfig);
+  rpc SetGatewayVisibility(GatewayVisibilityConfig) returns (GatewayVisibilityConfig);
+  rpc GetForwardedHeadersConfig(google.protobuf.Empty) returns (OmitTargetsConfig);
+  rpc SetForwardedHeadersConfig(OmitTargetsConfig) returns (OmitTargetsConfig);
+  rpc GetPreserveHostConfig(google.protobuf.Empty) returns (OmitTargetsConfig);
+  rpc SetPreserveHostConfig(OmitTargetsConfig) returns (OmitTargetsConfig);
+  rpc GetCrawlerBlockerConfig(google.protobuf.Empty) returns (CrawlerBlockerConfig);
+  rpc SetCrawlerBlockerConfig(CrawlerBlockerConfig) returns (CrawlerBlockerConfig);
+  rpc GetGatewayPortalConfig(google.protobuf.Empty) returns (GatewayPortalConfig);
+  rpc SetGatewayPortalConfig(GatewayPortalConfig) returns (GatewayPortalConfig);
+  rpc GetFnosPortIconHijackConfig(google.protobuf.Empty) returns (FnosPortIconHijackConfig);
+  rpc SetFnosPortIconHijackConfig(FnosPortIconHijackConfig) returns (FnosPortIconHijackConfig);
+  rpc GetReverseProxyThrottleExemptIps(google.protobuf.Empty) returns (ReverseProxyThrottleExemptIpsRuntime);
+  rpc SetReverseProxyThrottleExemptIps(ReverseProxyThrottleExemptIpsRuntime) returns (ReverseProxyThrottleExemptIpsRuntime);
+  rpc GetCommonLocationExemptions(google.protobuf.Empty) returns (CommonLocationExemptionsRuntime);
+  rpc SetCommonLocationExemptions(CommonLocationExemptionsRuntime) returns (CommonLocationExemptionsRuntime);
+}
+
+service GatewayLogsService {
+  rpc GetLoggingConfig(google.protobuf.Empty) returns (LoggingConfig);
+  rpc SetLoggingConfig(LoggingConfig) returns (LoggingConfig);
+  rpc GetLoggingDirectory(google.protobuf.Empty) returns (StringValue);
+  rpc GetLogDates(google.protobuf.Empty) returns (GatewayLogDates);
+  rpc QueryLogEntries(GatewayLogQuery) returns (GatewayLogQueryResult);
+  rpc DeleteLogDate(StringValue) returns (GatewayLogDeleteResult);
+}
+
+service SecurityService {
+  rpc ListGeneralBlacklist(GeneralBlacklistListRequest) returns (GeneralBlacklistList);
+  rpc CheckGeneralBlacklist(IpListRequest) returns (GeneralBlacklistStatus);
+  rpc AddGeneralBlacklist(IpListRequest) returns (GeneralBlacklistMutationResult);
+  rpc RemoveGeneralBlacklist(IpListRequest) returns (GeneralBlacklistMutationResult);
+}
+
+service TrafficService {
+  rpc GetTrafficStats(google.protobuf.Empty) returns (TrafficStats);
+  rpc GetHostActiveIps(HostRequest) returns (HostActiveIpsStats);
+}
+
+service WafService {
+  rpc GetWafStatus(google.protobuf.Empty) returns (WafStatus);
+  rpc SetWafConfig(WafConfig) returns (WafStatus);
+  rpc ValidateWafBundle(WafBundleRequest) returns (WafValidationResult);
+  rpc ReloadWafBundle(WafBundleRequest) returns (WafStatus);
+  rpc DrainWafEvents(WafDrainRequest) returns (WafDrainResult);
+}
+
+service SslService {
+  rpc GetSslInfo(google.protobuf.Empty) returns (SslInfo);
+  rpc SetSslDeployment(SslConfig) returns (RpcStatus);
+  rpc SetSslPem(SslDeployedCertificate) returns (RpcStatus);
+  rpc ClearSsl(google.protobuf.Empty) returns (RpcStatus);
+}
+
+service FirewallService {
+  rpc InitIptables(IptablesInitRequest) returns (RpcStatus);
+  rpc CleanIptables(google.protobuf.Empty) returns (RpcStatus);
+  rpc FlushIptables(google.protobuf.Empty) returns (RpcStatus);
+  rpc AllowIp(IpRequest) returns (RpcStatus);
+  rpc BlockIp(IpRequest) returns (RpcStatus);
+  rpc RemoveIp(IpRequest) returns (RpcStatus);
+  rpc BlockTcpPortForIp(TcpPortRuleRequest) returns (RpcStatus);
+  rpc RemoveTcpPortRule(TcpPortRuleRequest) returns (RpcStatus);
+  rpc SyncSshFirewall(SshFirewallSyncRequest) returns (RpcStatus);
+  rpc ClearSshFirewall(SshFirewallClearRequest) returns (RpcStatus);
+  rpc BlockAll(google.protobuf.Empty) returns (RpcStatus);
+  rpc AllowAll(google.protobuf.Empty) returns (RpcStatus);
+  rpc EnsureTcpRedirect(TcpRedirectRequest) returns (RpcStatus);
+  rpc ClearTcpRedirect(TcpRedirectRequest) returns (RpcStatus);
+  rpc ListIptables(google.protobuf.Empty) returns (IptablesRules);
+}
+
+service AuthBridgeService {
+  rpc ConnectAuthBridge(stream AuthBridgeEnvelope) returns (stream AuthBridgeEnvelope);
+}

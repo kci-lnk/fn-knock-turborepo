@@ -23,8 +23,21 @@ fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
     let src_dir = manifest_dir.join("src");
     let version_file = manifest_dir.join("../../version.json");
+    let proto_file =
+        manifest_dir.join("../../packages/grpc-contracts/proto/fnknock/v1/gateway.proto");
+    let proto_root = manifest_dir.join("../../packages/grpc-contracts/proto");
     println!("cargo:rerun-if-changed={}", src_dir.display());
     println!("cargo:rerun-if-changed={}", version_file.display());
+    println!("cargo:rerun-if-changed={}", proto_file.display());
+
+    let protoc = protoc_bin_vendored::protoc_bin_path().expect("resolve vendored protoc");
+    unsafe {
+        env::set_var("PROTOC", protoc);
+    }
+    tonic_build::configure()
+        .build_server(false)
+        .compile_protos(&[proto_file], &[proto_root])
+        .expect("compile fn-knock grpc proto");
 
     let mut routes = BTreeSet::new();
     collect_routes(&src_dir, &mut routes);

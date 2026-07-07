@@ -19,15 +19,9 @@ pub(crate) async fn sync_ssl_deployment_to_gateway(
         .cloned()
         .unwrap_or_default();
     let (status, value) = if certificates.is_empty() {
-        state
-            .go_backend
-            .request_json_with_status::<Value>(Method::DELETE, "/api/ssl", None)
-            .await?
+        state.go_backend.clear_ssl().await?
     } else {
-        state
-            .go_backend
-            .request_json_with_status(Method::POST, "/api/ssl", Some(&deployment))
-            .await?
+        state.go_backend.set_ssl_deployment(&deployment).await?
     };
     if !status.is_success() || value.get("success").and_then(Value::as_bool) == Some(false) {
         return Err(anyhow!(

@@ -1,5 +1,10 @@
 pub mod app;
 
+pub(crate) mod grpc_proto {
+    #![allow(dead_code)]
+    tonic::include_proto!("fnknock.v1");
+}
+
 pub(crate) mod admin;
 pub(crate) mod auth;
 pub(crate) mod certificates;

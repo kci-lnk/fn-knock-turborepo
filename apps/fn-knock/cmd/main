@@ -8,6 +8,7 @@ BACKEND_PID_FILE="${PKG_VAR_DIR}/backend.pid"
 GATEWAY_PID_FILE="${PKG_VAR_DIR}/gateway.pid"
 ALTCHA_HMAC_KEY_FILE="${PKG_VAR_DIR}/altcha_hmac_key"
 HMAC_SECRET_FILE="${PKG_VAR_DIR}/hmac_secret"
+INTERNAL_RPC_TOKEN_FILE="${PKG_VAR_DIR}/internal_rpc_token"
 ADMIN_PROXY_SECRET_FILE="${PKG_VAR_DIR}/admin_proxy_secret"
 RUNTIME_PORT_FILE=""
 GATEWAY_CONFIG_DIR="/usr/local/etc/fn-knock/"
@@ -29,6 +30,7 @@ GO_BACKEND_PORT=""
 GO_REPROXY_PORT=""
 ALTCHA_HMAC_KEY="${ALTCHA_HMAC_KEY:-}"
 HMAC_SECRET="${HMAC_SECRET:-}"
+FN_KNOCK_INTERNAL_RPC_TOKEN="${FN_KNOCK_INTERNAL_RPC_TOKEN:-}"
 ADMIN_PROXY_SECRET="${ADMIN_PROXY_SECRET:-}"
 ROOT_SHARE_DIR="${FN_KNOCK_ROOT_SHARE_DIR:-${FN_KNOCK_CERT_SHARE_DIR:-}}"
 
@@ -243,6 +245,10 @@ resolve_secret_value() {
 
 resolve_hmac_secret() {
     resolve_secret_value "HMAC_SECRET" "${HMAC_SECRET_FILE}" "HMAC_SECRET"
+}
+
+resolve_internal_rpc_token() {
+    resolve_secret_value "FN_KNOCK_INTERNAL_RPC_TOKEN" "${INTERNAL_RPC_TOKEN_FILE}" "FN_KNOCK_INTERNAL_RPC_TOKEN"
 }
 
 resolve_admin_proxy_secret() {
@@ -528,6 +534,14 @@ start_gateway() {
         log_msg "Gateway binary is missing or not executable: ${GATEWAY_BIN}"
         return 1
     fi
+    if ! resolve_hmac_secret; then
+        log_msg "HMAC_SECRET is unavailable"
+        return 1
+    fi
+    if ! resolve_internal_rpc_token; then
+        log_msg "FN_KNOCK_INTERNAL_RPC_TOKEN is unavailable"
+        return 1
+    fi
     local max_attempts=3
     local attempt=1
     local pid=""
@@ -535,6 +549,7 @@ start_gateway() {
     while [ "${attempt}" -le "${max_attempts}" ]; do
         log_msg "Starting Go Reauth Proxy (admin-port=${GO_BACKEND_PORT}, proxy-port=${GO_REPROXY_PORT}, attempt=${attempt}/${max_attempts})..."
         BACKEND_PORT="${BACKEND_PORT}" \
+        FN_KNOCK_INTERNAL_RPC_TOKEN="${FN_KNOCK_INTERNAL_RPC_TOKEN}" \
         "${GATEWAY_BIN}" \
             -c "${GATEWAY_CONFIG_DIR}" \
             -admin-port "${GO_BACKEND_PORT}" \
@@ -595,6 +610,10 @@ start_backend() {
         fail_backend_start "HMAC_SECRET is unavailable" ""
         return 1
     fi
+    if ! resolve_internal_rpc_token; then
+        fail_backend_start "FN_KNOCK_INTERNAL_RPC_TOKEN is unavailable" ""
+        return 1
+    fi
     if ! resolve_admin_proxy_secret; then
         fail_backend_start "ADMIN_PROXY_SECRET is unavailable" ""
         return 1
@@ -617,7 +636,8 @@ start_backend() {
         AUTH_PORT="${AUTH_PORT}" \
         GO_BACKEND_PORT="${GO_BACKEND_PORT}" \
         GO_REPROXY_PORT="${GO_REPROXY_PORT}" \
-        GO_BACKEND_BASE_URL="http://127.0.0.1:${GO_BACKEND_PORT}" \
+        GO_BACKEND_GRPC_ADDR="127.0.0.1:${GO_BACKEND_PORT}" \
+        FN_KNOCK_INTERNAL_RPC_TOKEN="${FN_KNOCK_INTERNAL_RPC_TOKEN}" \
         ALTCHA_HMAC_KEY="${ALTCHA_HMAC_KEY}" \
         HMAC_SECRET="${HMAC_SECRET}" \
         ADMIN_PROXY_SECRET="${ADMIN_PROXY_SECRET}" \

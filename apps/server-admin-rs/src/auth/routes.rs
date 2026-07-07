@@ -34,6 +34,7 @@ use crate::{
     system_events, time_utils, whitelist,
 };
 
+mod bridge;
 mod captcha;
 mod handlers;
 mod preflight;
@@ -41,6 +42,7 @@ mod redirect;
 mod utils;
 mod verify;
 
+pub(crate) use bridge::start_auth_bridge;
 use captcha::*;
 use handlers::*;
 use preflight::*;

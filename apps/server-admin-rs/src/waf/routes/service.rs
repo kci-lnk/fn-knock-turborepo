@@ -8,11 +8,7 @@ pub(super) async fn get_waf_details(state: &AppState) -> anyhow::Result<Value> {
     let rules_state = read_rules_state(state).await?;
     let system_rules = list_rule_files(state, "system", &manifest_cache, &rules_state).await?;
     let custom_rules = list_rule_files(state, "custom", &manifest_cache, &rules_state).await?;
-    let status = match state
-        .go_backend
-        .request_json(Method::GET, "/api/waf/status", Option::<&Value>::None)
-        .await
-    {
+    let status = match state.go_backend.get_waf_status().await {
         Ok(value)
             if value
                 .get("success")

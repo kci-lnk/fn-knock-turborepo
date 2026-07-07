@@ -1,10 +1,32 @@
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 use anyhow::Context;
-use axum::http::Method;
-use reqwest::Url;
-use serde::Serialize;
+use reqwest::StatusCode;
 use serde_json::{Value, json};
+use tonic::{
+    Request,
+    metadata::MetadataValue,
+    transport::{Channel, Endpoint},
+};
+
+use crate::grpc_proto::{
+    AuthConfig, BasicAuthConfig, BoolValue, CommonLocationExemptionsRuntime, CrawlerBlockerConfig,
+    FnosPortIconHijackConfig, GatewayLogQuery, GatewayPortalConfig, GatewayVisibilityConfig,
+    GeneralBlacklistListRequest, HostActiveIpStats, HostLocation, HostLocationResponse,
+    HostRequest, HostRule, HostRules, IpListRequest, IpRequest, IptablesInitRequest, LocaleConfig,
+    LoggingConfig, OmitTargetsConfig, ReverseProxyThrottleConfig,
+    ReverseProxyThrottleExemptIpsRuntime, Rule, Rules, SshFirewallClearRequest,
+    SshFirewallSyncRequest, SslConfig, SslDeployedCertificate, StreamRule, StreamRules,
+    StringValue, TcpRedirectRequest, WafBundleRequest, WafConfig, WafDrainRequest,
+    firewall_service_client::FirewallServiceClient,
+    gateway_control_service_client::GatewayControlServiceClient,
+    gateway_logs_service_client::GatewayLogsServiceClient,
+    security_service_client::SecurityServiceClient, ssl_service_client::SslServiceClient,
+    traffic_service_client::TrafficServiceClient, waf_service_client::WafServiceClient,
+};
+
+const INTERNAL_TOKEN_METADATA_KEY: &str = "x-fn-knock-internal-rpc-token";
+const INTERNAL_GRPC_MAX_MESSAGE_SIZE: usize = 16 * 1024 * 1024;
 
 pub(crate) fn response_success(value: &Value) -> bool {
     value
@@ -26,315 +48,1535 @@ pub(crate) fn response_message(value: &Value, fallback: &str) -> String {
 #[allow(dead_code)]
 #[derive(Clone)]
 pub struct GoBackendClient {
-    base_url: Url,
-    client: reqwest::Client,
+    control: GatewayControlServiceClient<Channel>,
+    logs: GatewayLogsServiceClient<Channel>,
+    security: SecurityServiceClient<Channel>,
+    traffic: TrafficServiceClient<Channel>,
+    waf: WafServiceClient<Channel>,
+    ssl: SslServiceClient<Channel>,
+    firewall: FirewallServiceClient<Channel>,
+    timeout: Duration,
+    token: MetadataValue<tonic::metadata::Ascii>,
 }
 
 #[allow(dead_code)]
 impl GoBackendClient {
-    pub fn new(base_url: String, timeout: Duration) -> anyhow::Result<Self> {
-        let base_url = Url::parse(base_url.trim_end_matches('/'))
-            .with_context(|| format!("invalid GO_BACKEND_BASE_URL: {base_url}"))?;
-        let client = reqwest::Client::builder()
+    pub fn new(addr: String, token: String, timeout: Duration) -> anyhow::Result<Self> {
+        let token = token.trim();
+        if token.is_empty() {
+            anyhow::bail!("FN_KNOCK_INTERNAL_RPC_TOKEN must be set for Go gRPC backend");
+        }
+        let token = MetadataValue::try_from(token)
+            .context("encode FN_KNOCK_INTERNAL_RPC_TOKEN metadata")?;
+        let endpoint = Endpoint::from_shared(format!("http://{}", normalize_grpc_addr(&addr)))
+            .with_context(|| format!("invalid GO_BACKEND_GRPC_ADDR: {addr}"))?
             .timeout(timeout)
-            .build()
-            .context("build go backend http client")?;
-        Ok(Self { base_url, client })
+            .connect_timeout(timeout);
+        let channel = endpoint.connect_lazy();
+        Ok(Self {
+            control: GatewayControlServiceClient::new(channel.clone())
+                .max_decoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE)
+                .max_encoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE),
+            logs: GatewayLogsServiceClient::new(channel.clone())
+                .max_decoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE)
+                .max_encoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE),
+            security: SecurityServiceClient::new(channel.clone())
+                .max_decoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE)
+                .max_encoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE),
+            traffic: TrafficServiceClient::new(channel.clone())
+                .max_decoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE)
+                .max_encoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE),
+            waf: WafServiceClient::new(channel.clone())
+                .max_decoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE)
+                .max_encoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE),
+            ssl: SslServiceClient::new(channel.clone())
+                .max_decoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE)
+                .max_encoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE),
+            firewall: FirewallServiceClient::new(channel)
+                .max_decoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE)
+                .max_encoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE),
+            timeout,
+            token,
+        })
     }
 
-    pub async fn request_json<T: Serialize + ?Sized>(
-        &self,
-        method: Method,
-        path: &str,
-        body: Option<&T>,
-    ) -> anyhow::Result<Value> {
-        let url = self.url(path)?;
-        let method = reqwest::Method::from_bytes(method.as_str().as_bytes())
-            .context("convert http method for go backend request")?;
-        let mut request = self.client.request(method, url);
-        if let Some(body) = body {
-            request = request.json(body);
-        }
-
-        let response = request.send().await.context("send go backend request")?;
-        let status = response.status();
-        let value = response.json::<Value>().await.with_context(|| {
-            format!("decode go backend JSON response from {path}, status {status}")
-        })?;
-        if !status.is_success() {
-            anyhow::bail!("go backend request failed: {path} returned {status}: {value}");
-        }
-        Ok(value)
+    fn request<T>(&self, message: T) -> Request<T> {
+        let mut request = Request::new(message);
+        request.set_timeout(self.timeout);
+        request
+            .metadata_mut()
+            .insert(INTERNAL_TOKEN_METADATA_KEY, self.token.clone());
+        request
     }
 
-    pub async fn request_json_with_status<T: Serialize + ?Sized>(
-        &self,
-        method: Method,
-        path: &str,
-        body: Option<&T>,
-    ) -> anyhow::Result<(reqwest::StatusCode, Value)> {
-        let url = self.url(path)?;
-        let method = reqwest::Method::from_bytes(method.as_str().as_bytes())
-            .context("convert http method for go backend request")?;
-        let mut request = self.client.request(method, url);
-        if let Some(body) = body {
-            request = request.json(body);
-        }
+    pub async fn get_server_info(&self) -> anyhow::Result<Value> {
+        status_value("get_server_info", self.get_server_info_status().await?)
+    }
 
-        let response = request.send().await.context("send go backend request")?;
-        let status = response.status();
-        let text = response.text().await.with_context(|| {
-            format!("read go backend response body from {path}, status {status}")
-        })?;
-        let value = if text.trim().is_empty() {
-            Value::Null
-        } else {
-            serde_json::from_str::<Value>(&text).unwrap_or_else(|_| {
-                json!({
-                    "success": false,
-                    "code": status.as_u16(),
-                    "message": text
-                })
-            })
+    async fn get_server_info_status(&self) -> anyhow::Result<(StatusCode, Value)> {
+        let mut client = self.control.clone();
+        match client.get_server_info(self.request(())).await {
+            Ok(response) => Ok(ok(json!({ "version": response.into_inner().version }))),
+            Err(error) => Ok(grpc_error(error)),
+        }
+    }
+
+    pub async fn set_rules(&self, rules: &Value) -> anyhow::Result<Value> {
+        let mut client = self.control.clone();
+        let result = match client
+            .set_rules(self.request(Rules {
+                items: parse_rules(rules),
+            }))
+            .await
+        {
+            Ok(response) => ok(rules_to_json(response.into_inner().items)),
+            Err(error) => grpc_error(error),
         };
-        Ok((status, value))
+        status_value("set_rules", result)
     }
 
-    pub async fn allow_ip(&self, ip: &str) -> anyhow::Result<Value> {
-        self.request_json(
-            Method::POST,
-            "/api/iptables/allow",
-            Some(&json!({ "ip": ip })),
-        )
-        .await
+    pub async fn set_host_rules(&self, rules: &Value) -> anyhow::Result<Value> {
+        let mut client = self.control.clone();
+        let result = match client
+            .set_host_rules(self.request(HostRules {
+                items: parse_host_rules(rules),
+            }))
+            .await
+        {
+            Ok(response) => ok(host_rules_to_json(response.into_inner().items)),
+            Err(error) => grpc_error(error),
+        };
+        status_value("set_host_rules", result)
     }
 
-    pub async fn remove_ip(&self, ip: &str) -> anyhow::Result<Value> {
-        self.request_json(
-            Method::POST,
-            "/api/iptables/remove",
-            Some(&json!({ "ip": ip })),
+    pub async fn set_stream_rules(&self, rules: &Value) -> anyhow::Result<Value> {
+        let mut client = self.control.clone();
+        let result = match client
+            .set_stream_rules(self.request(StreamRules {
+                items: parse_stream_rules(rules),
+            }))
+            .await
+        {
+            Ok(response) => ok(stream_rules_to_json(response.into_inner().items)),
+            Err(error) => grpc_error(error),
+        };
+        status_value("set_stream_rules", result)
+    }
+
+    pub async fn flush_rules(&self) -> anyhow::Result<Value> {
+        let mut client = self.control.clone();
+        let result = match client.flush_rules(self.request(())).await {
+            Ok(response) => rpc_status_response(response.into_inner()),
+            Err(error) => grpc_error(error),
+        };
+        status_value("flush_rules", result)
+    }
+
+    pub async fn flush_host_rules(&self) -> anyhow::Result<Value> {
+        let mut client = self.control.clone();
+        let result = match client.flush_host_rules(self.request(())).await {
+            Ok(response) => rpc_status_response(response.into_inner()),
+            Err(error) => grpc_error(error),
+        };
+        status_value("flush_host_rules", result)
+    }
+
+    pub async fn flush_stream_rules(&self) -> anyhow::Result<Value> {
+        let mut client = self.control.clone();
+        let result = match client.flush_stream_rules(self.request(())).await {
+            Ok(response) => rpc_status_response(response.into_inner()),
+            Err(error) => grpc_error(error),
+        };
+        status_value("flush_stream_rules", result)
+    }
+
+    pub async fn set_auth_config(&self, config: &Value) -> anyhow::Result<Value> {
+        let mut client = self.control.clone();
+        let result = match client
+            .set_auth_config(self.request(parse_auth_config(config)))
+            .await
+        {
+            Ok(response) => rpc_status_response(response.into_inner()),
+            Err(error) => grpc_error(error),
+        };
+        status_value("set_auth_config", result)
+    }
+
+    pub async fn get_proxy_protocol_force(&self) -> anyhow::Result<Value> {
+        status_value(
+            "get_proxy_protocol_force",
+            self.get_proxy_protocol_force_status().await?,
         )
-        .await
+    }
+
+    async fn get_proxy_protocol_force_status(&self) -> anyhow::Result<(StatusCode, Value)> {
+        let mut client = self.control.clone();
+        match client.get_proxy_protocol_force(self.request(())).await {
+            Ok(response) => Ok(ok(json!({
+                "proxy_protocol_force": response.into_inner().value
+            }))),
+            Err(error) => Ok(grpc_error(error)),
+        }
+    }
+
+    pub async fn set_proxy_protocol_force(&self, force: bool) -> anyhow::Result<Value> {
+        status_value(
+            "set_proxy_protocol_force",
+            self.set_proxy_protocol_force_status(force).await?,
+        )
+    }
+
+    async fn set_proxy_protocol_force_status(
+        &self,
+        force: bool,
+    ) -> anyhow::Result<(StatusCode, Value)> {
+        let mut client = self.control.clone();
+        match client
+            .set_proxy_protocol_force(self.request(BoolValue { value: force }))
+            .await
+        {
+            Ok(response) => Ok(ok(json!({
+                "proxy_protocol_force": response.into_inner().value
+            }))),
+            Err(error) => Ok(grpc_error(error)),
+        }
+    }
+
+    pub async fn set_locale_config(&self, config: &Value) -> anyhow::Result<(StatusCode, Value)> {
+        let mut client = self.control.clone();
+        match client
+            .set_locale_config(self.request(LocaleConfig {
+                default_locale: string_field(config, "default_locale"),
+            }))
+            .await
+        {
+            Ok(response) => Ok(ok(locale_to_json(response.into_inner()))),
+            Err(error) => Ok(grpc_error(error)),
+        }
+    }
+
+    pub async fn set_default_route(&self, route: &str) -> anyhow::Result<(StatusCode, Value)> {
+        let mut client = self.control.clone();
+        match client
+            .set_default_route(self.request(StringValue {
+                value: route.to_string(),
+            }))
+            .await
+        {
+            Ok(response) => Ok(rpc_status_response(response.into_inner())),
+            Err(error) => Ok(grpc_error(error)),
+        }
+    }
+
+    pub async fn set_reverse_proxy_throttle(&self, config: &Value) -> anyhow::Result<Value> {
+        let mut client = self.control.clone();
+        let result = match client
+            .set_reverse_proxy_throttle(self.request(parse_throttle(config)))
+            .await
+        {
+            Ok(response) => ok(throttle_to_json(response.into_inner())),
+            Err(error) => grpc_error(error),
+        };
+        status_value("set_reverse_proxy_throttle", result)
+    }
+
+    pub async fn set_gateway_visibility(&self, config: &Value) -> anyhow::Result<Value> {
+        let mut client = self.control.clone();
+        let result = match client
+            .set_gateway_visibility(self.request(parse_visibility(config)))
+            .await
+        {
+            Ok(response) => ok(visibility_to_json(response.into_inner())),
+            Err(error) => grpc_error(error),
+        };
+        status_value("set_gateway_visibility", result)
+    }
+
+    pub async fn set_forwarded_headers_config(&self, config: &Value) -> anyhow::Result<Value> {
+        let mut client = self.control.clone();
+        let result = match client
+            .set_forwarded_headers_config(self.request(parse_omit_targets(config)))
+            .await
+        {
+            Ok(response) => ok(omit_targets_to_json(response.into_inner())),
+            Err(error) => grpc_error(error),
+        };
+        status_value("set_forwarded_headers_config", result)
+    }
+
+    pub async fn set_preserve_host_config(&self, config: &Value) -> anyhow::Result<Value> {
+        let mut client = self.control.clone();
+        let result = match client
+            .set_preserve_host_config(self.request(parse_omit_targets(config)))
+            .await
+        {
+            Ok(response) => ok(omit_targets_to_json(response.into_inner())),
+            Err(error) => grpc_error(error),
+        };
+        status_value("set_preserve_host_config", result)
+    }
+
+    pub async fn set_crawler_blocker_config(&self, config: &Value) -> anyhow::Result<Value> {
+        let mut client = self.control.clone();
+        let result = match client
+            .set_crawler_blocker_config(self.request(parse_crawler_blocker(config)))
+            .await
+        {
+            Ok(response) => ok(crawler_blocker_to_json(response.into_inner())),
+            Err(error) => grpc_error(error),
+        };
+        status_value("set_crawler_blocker_config", result)
+    }
+
+    pub async fn set_gateway_portal_config(&self, config: &Value) -> anyhow::Result<Value> {
+        let mut client = self.control.clone();
+        let result = match client
+            .set_gateway_portal_config(self.request(parse_portal(config)))
+            .await
+        {
+            Ok(response) => ok(portal_to_json(response.into_inner())),
+            Err(error) => grpc_error(error),
+        };
+        status_value("set_gateway_portal_config", result)
+    }
+
+    pub async fn set_fnos_port_icon_hijack_config(&self, config: &Value) -> anyhow::Result<Value> {
+        let mut client = self.control.clone();
+        let result = match client
+            .set_fnos_port_icon_hijack_config(self.request(parse_fnos_port_icon_hijack(config)))
+            .await
+        {
+            Ok(response) => ok(fnos_port_icon_hijack_to_json(response.into_inner())),
+            Err(error) => grpc_error(error),
+        };
+        status_value("set_fnos_port_icon_hijack_config", result)
     }
 
     pub async fn set_reverse_proxy_throttle_exempt_ips(
         &self,
         runtime: &Value,
     ) -> anyhow::Result<Value> {
-        self.request_json(
-            Method::POST,
-            "/api/runtime/reverse-proxy-throttle-exempt-ips",
-            Some(runtime),
-        )
-        .await
-    }
-
-    pub async fn set_rules(&self, rules: &Value) -> anyhow::Result<Value> {
-        self.request_json(Method::POST, "/api/rules", Some(rules))
+        let mut client = self.control.clone();
+        let result = match client
+            .set_reverse_proxy_throttle_exempt_ips(self.request(parse_throttle_exempt(runtime)))
             .await
-    }
-
-    pub async fn set_host_rules(&self, rules: &Value) -> anyhow::Result<Value> {
-        self.request_json(Method::POST, "/api/host-rules", Some(rules))
-            .await
-    }
-
-    pub async fn set_stream_rules(&self, rules: &Value) -> anyhow::Result<Value> {
-        self.request_json(Method::POST, "/api/stream-rules", Some(rules))
-            .await
-    }
-
-    pub async fn flush_rules(&self) -> anyhow::Result<Value> {
-        self.request_json(Method::DELETE, "/api/rules", Option::<&Value>::None)
-            .await
-    }
-
-    pub async fn flush_host_rules(&self) -> anyhow::Result<Value> {
-        self.request_json(Method::DELETE, "/api/host-rules", Option::<&Value>::None)
-            .await
-    }
-
-    pub async fn flush_stream_rules(&self) -> anyhow::Result<Value> {
-        self.request_json(Method::DELETE, "/api/stream-rules", Option::<&Value>::None)
-            .await
-    }
-
-    pub async fn set_auth_config(&self, config: &Value) -> anyhow::Result<Value> {
-        self.request_json(Method::POST, "/api/auth", Some(config))
-            .await
-    }
-
-    pub async fn get_proxy_protocol_force(&self) -> anyhow::Result<Value> {
-        self.request_json(
-            Method::GET,
-            "/api/config/proxy-protocol",
-            Option::<&Value>::None,
-        )
-        .await
-    }
-
-    pub async fn set_proxy_protocol_force(&self, force: bool) -> anyhow::Result<Value> {
-        self.request_json(
-            Method::POST,
-            "/api/config/proxy-protocol",
-            Some(&json!({ "proxy_protocol_force": force })),
-        )
-        .await
-    }
-
-    pub async fn set_reverse_proxy_throttle(&self, config: &Value) -> anyhow::Result<Value> {
-        self.request_json(
-            Method::POST,
-            "/api/config/reverse-proxy-throttle",
-            Some(config),
-        )
-        .await
-    }
-
-    pub async fn set_gateway_visibility(&self, config: &Value) -> anyhow::Result<Value> {
-        self.request_json(Method::POST, "/api/config/visibility", Some(config))
-            .await
-    }
-
-    pub async fn set_forwarded_headers_config(&self, config: &Value) -> anyhow::Result<Value> {
-        self.request_json(Method::POST, "/api/config/forwarded-headers", Some(config))
-            .await
-    }
-
-    pub async fn set_preserve_host_config(&self, config: &Value) -> anyhow::Result<Value> {
-        self.request_json(Method::POST, "/api/config/preserve-host", Some(config))
-            .await
-    }
-
-    pub async fn set_crawler_blocker_config(&self, config: &Value) -> anyhow::Result<Value> {
-        self.request_json(Method::POST, "/api/config/crawler-blocker", Some(config))
-            .await
-    }
-
-    pub async fn set_gateway_portal_config(&self, config: &Value) -> anyhow::Result<Value> {
-        self.request_json(Method::POST, "/api/config/portal", Some(config))
-            .await
-    }
-
-    pub async fn set_gateway_logging_config(&self, config: &Value) -> anyhow::Result<Value> {
-        self.request_json(Method::POST, "/api/logging", Some(config))
-            .await
-    }
-
-    pub async fn set_fnos_port_icon_hijack_config(&self, config: &Value) -> anyhow::Result<Value> {
-        self.request_json(
-            Method::POST,
-            "/api/config/fnos-port-icon-hijack",
-            Some(config),
-        )
-        .await
+        {
+            Ok(response) => ok(throttle_exempt_to_json(response.into_inner())),
+            Err(error) => grpc_error(error),
+        };
+        status_value("set_reverse_proxy_throttle_exempt_ips", result)
     }
 
     pub async fn set_common_location_exemptions(
         &self,
         runtime: &Value,
-    ) -> anyhow::Result<(reqwest::StatusCode, Value)> {
-        self.request_json_with_status(
-            Method::POST,
-            "/api/runtime/common-location-exemptions",
-            Some(runtime),
-        )
-        .await
+    ) -> anyhow::Result<(StatusCode, Value)> {
+        let mut client = self.control.clone();
+        match client
+            .set_common_location_exemptions(self.request(parse_common_exemptions(runtime)))
+            .await
+        {
+            Ok(response) => Ok(ok(common_exemptions_to_json(response.into_inner()))),
+            Err(error) => Ok(grpc_error(error)),
+        }
     }
 
-    pub async fn set_locale_config(
+    pub async fn set_gateway_logging_config(&self, config: &Value) -> anyhow::Result<Value> {
+        status_value(
+            "set_gateway_logging_config",
+            self.set_gateway_logging_config_status(config).await?,
+        )
+    }
+
+    pub async fn set_gateway_logging_config_status(
         &self,
         config: &Value,
-    ) -> anyhow::Result<(reqwest::StatusCode, Value)> {
-        self.request_json_with_status(Method::POST, "/api/config/locale", Some(config))
+    ) -> anyhow::Result<(StatusCode, Value)> {
+        let mut client = self.logs.clone();
+        match client
+            .set_logging_config(self.request(parse_logging(config)))
             .await
+        {
+            Ok(response) => Ok(ok(logging_to_json(response.into_inner()))),
+            Err(error) => Ok(grpc_error(error)),
+        }
     }
 
-    pub async fn set_default_route(
+    pub async fn get_logging_directory(&self) -> anyhow::Result<Value> {
+        let mut client = self.logs.clone();
+        let result = match client.get_logging_directory(self.request(())).await {
+            Ok(response) => ok(json!({ "logs_dir": response.into_inner().value })),
+            Err(error) => grpc_error(error),
+        };
+        status_value("get_logging_directory", result)
+    }
+
+    pub async fn get_log_dates(&self) -> anyhow::Result<Value> {
+        let mut client = self.logs.clone();
+        let result = match client.get_log_dates(self.request(())).await {
+            Ok(response) => ok(log_dates_to_json(response.into_inner())),
+            Err(error) => grpc_error(error),
+        };
+        status_value("get_log_dates", result)
+    }
+
+    pub async fn query_log_entries(&self, query: GatewayLogQuery) -> anyhow::Result<Value> {
+        let mut client = self.logs.clone();
+        let result = match client.query_log_entries(self.request(query)).await {
+            Ok(response) => ok(log_query_to_json(response.into_inner())),
+            Err(error) => grpc_error(error),
+        };
+        status_value("query_log_entries", result)
+    }
+
+    pub async fn delete_log_date(&self, date: &str) -> anyhow::Result<Value> {
+        let mut client = self.logs.clone();
+        let result = match client
+            .delete_log_date(self.request(StringValue {
+                value: date.to_string(),
+            }))
+            .await
+        {
+            Ok(response) => ok(log_delete_to_json(response.into_inner())),
+            Err(error) => grpc_error(error),
+        };
+        status_value("delete_log_date", result)
+    }
+
+    pub async fn list_general_blacklist(
         &self,
-        route: &str,
-    ) -> anyhow::Result<(reqwest::StatusCode, Value)> {
-        self.request_json_with_status(
-            Method::POST,
-            "/api/config/default-route",
-            Some(&json!({ "default_route": route })),
-        )
-        .await
+        page: i32,
+        limit: i32,
+        search: String,
+    ) -> anyhow::Result<Value> {
+        let mut client = self.security.clone();
+        let result = match client
+            .list_general_blacklist(self.request(GeneralBlacklistListRequest {
+                page,
+                limit,
+                search,
+            }))
+            .await
+        {
+            Ok(response) => ok(general_blacklist_list_to_json(response.into_inner())),
+            Err(error) => grpc_error(error),
+        };
+        status_value("list_general_blacklist", result)
     }
 
-    pub async fn get_server_info(&self) -> anyhow::Result<Value> {
-        self.request_json(Method::GET, "/api/info", Option::<&Value>::None)
+    pub async fn check_general_blacklist(&self, ips: Vec<String>) -> anyhow::Result<Value> {
+        let mut client = self.security.clone();
+        let result = match client
+            .check_general_blacklist(self.request(IpListRequest {
+                ips,
+                source: String::new(),
+                comment: String::new(),
+            }))
             .await
+        {
+            Ok(response) => ok(general_blacklist_status_to_json(response.into_inner())),
+            Err(error) => grpc_error(error),
+        };
+        status_value("check_general_blacklist", result)
+    }
+
+    pub async fn add_general_blacklist(
+        &self,
+        ips: Vec<String>,
+        source: String,
+        comment: String,
+    ) -> anyhow::Result<Value> {
+        let mut client = self.security.clone();
+        let result = match client
+            .add_general_blacklist(self.request(IpListRequest {
+                ips,
+                source,
+                comment,
+            }))
+            .await
+        {
+            Ok(response) => ok(general_blacklist_mutation_to_json(response.into_inner())),
+            Err(error) => grpc_error(error),
+        };
+        status_value("add_general_blacklist", result)
+    }
+
+    pub async fn remove_general_blacklist(&self, ips: Vec<String>) -> anyhow::Result<Value> {
+        let mut client = self.security.clone();
+        let result = match client
+            .remove_general_blacklist(self.request(IpListRequest {
+                ips,
+                source: String::new(),
+                comment: String::new(),
+            }))
+            .await
+        {
+            Ok(response) => ok(general_blacklist_mutation_to_json(response.into_inner())),
+            Err(error) => grpc_error(error),
+        };
+        status_value("remove_general_blacklist", result)
+    }
+
+    pub async fn get_traffic_stats(&self) -> anyhow::Result<(StatusCode, Value)> {
+        let mut client = self.traffic.clone();
+        match client.get_traffic_stats(self.request(())).await {
+            Ok(response) => Ok(ok(traffic_to_json(response.into_inner()))),
+            Err(error) => Ok(grpc_error(error)),
+        }
+    }
+
+    pub async fn get_host_active_ips(&self, host: String) -> anyhow::Result<(StatusCode, Value)> {
+        let mut client = self.traffic.clone();
+        match client
+            .get_host_active_ips(self.request(HostRequest { host }))
+            .await
+        {
+            Ok(response) => Ok(ok(active_ips_to_json(response.into_inner()))),
+            Err(error) => Ok(grpc_error(error)),
+        }
+    }
+
+    pub async fn get_waf_status(&self) -> anyhow::Result<Value> {
+        let mut client = self.waf.clone();
+        let result = match client.get_waf_status(self.request(())).await {
+            Ok(response) => ok(waf_status_to_json(response.into_inner())),
+            Err(error) => grpc_error(error),
+        };
+        status_value("get_waf_status", result)
     }
 
     pub async fn set_waf_config(&self, config: &Value) -> anyhow::Result<Value> {
-        self.request_json(Method::POST, "/api/waf/config", Some(config))
+        let mut client = self.waf.clone();
+        let result = match client
+            .set_waf_config(self.request(parse_waf_config(config)))
             .await
+        {
+            Ok(response) => ok(waf_status_to_json(response.into_inner())),
+            Err(error) => grpc_error(error),
+        };
+        status_value("set_waf_config", result)
     }
 
     pub async fn reload_waf_rules(&self, config: &Value) -> anyhow::Result<Value> {
-        self.request_json(
-            Method::POST,
-            "/api/waf/reload",
-            Some(&json!({ "config": config })),
-        )
-        .await
+        let mut client = self.waf.clone();
+        let result = match client
+            .reload_waf_bundle(self.request(WafBundleRequest {
+                bundle_id: String::new(),
+                bundle_path: String::new(),
+                has_config: true,
+                config: Some(parse_waf_config(config)),
+            }))
+            .await
+        {
+            Ok(response) => ok(waf_status_to_json(response.into_inner())),
+            Err(error) => grpc_error(error),
+        };
+        status_value("reload_waf_rules", result)
     }
 
     pub async fn drain_waf_events(&self, limit: i64) -> anyhow::Result<Value> {
-        self.request_json(
-            Method::POST,
-            "/api/waf/events/drain",
-            Some(&json!({ "limit": limit })),
-        )
-        .await
+        let mut client = self.waf.clone();
+        let result = match client
+            .drain_waf_events(self.request(WafDrainRequest {
+                limit: i32::try_from(limit).unwrap_or(i32::MAX),
+            }))
+            .await
+        {
+            Ok(response) => ok(waf_drain_to_json(response.into_inner())),
+            Err(error) => grpc_error(error),
+        };
+        status_value("drain_waf_events", result)
     }
 
-    pub async fn sync_ssh_firewall(&self, payload: &Value) -> anyhow::Result<Value> {
-        self.request_json(Method::POST, "/api/iptables/ssh/sync", Some(payload))
+    pub async fn get_ssl_info(&self) -> anyhow::Result<(StatusCode, Value)> {
+        let mut client = self.ssl.clone();
+        match client.get_ssl_info(self.request(())).await {
+            Ok(response) => Ok(ok(ssl_info_to_json(response.into_inner()))),
+            Err(error) => Ok(grpc_error(error)),
+        }
+    }
+
+    pub async fn set_ssl_deployment(
+        &self,
+        deployment: &Value,
+    ) -> anyhow::Result<(StatusCode, Value)> {
+        let mut client = self.ssl.clone();
+        match client
+            .set_ssl_deployment(self.request(parse_ssl_config(deployment)))
             .await
+        {
+            Ok(response) => Ok(rpc_status_response(response.into_inner())),
+            Err(error) => Ok(grpc_error(error)),
+        }
+    }
+
+    pub async fn clear_ssl(&self) -> anyhow::Result<(StatusCode, Value)> {
+        let mut client = self.ssl.clone();
+        match client.clear_ssl(self.request(())).await {
+            Ok(response) => Ok(rpc_status_response(response.into_inner())),
+            Err(error) => Ok(grpc_error(error)),
+        }
+    }
+
+    pub async fn allow_ip(&self, ip: &str) -> anyhow::Result<Value> {
+        let mut client = self.firewall.clone();
+        let result = match client
+            .allow_ip(self.request(IpRequest { ip: ip.to_string() }))
+            .await
+        {
+            Ok(response) => rpc_status_response(response.into_inner()),
+            Err(error) => grpc_error(error),
+        };
+        status_value("allow_ip", result)
+    }
+
+    pub async fn remove_ip(&self, ip: &str) -> anyhow::Result<Value> {
+        let mut client = self.firewall.clone();
+        let result = match client
+            .remove_ip(self.request(IpRequest { ip: ip.to_string() }))
+            .await
+        {
+            Ok(response) => rpc_status_response(response.into_inner()),
+            Err(error) => grpc_error(error),
+        };
+        status_value("remove_ip", result)
     }
 
     pub async fn init_iptables(&self, payload: &Value) -> anyhow::Result<Value> {
-        self.request_json(Method::POST, "/api/iptables/init", Some(payload))
+        let mut client = self.firewall.clone();
+        let result = match client
+            .init_iptables(self.request(IptablesInitRequest {
+                chain_name: string_field(payload, "chain_name"),
+                parent_chains: parent_chains_from_body(payload),
+                exempt_ports: string_vec_any_field(payload, "exempt_ports"),
+            }))
             .await
+        {
+            Ok(response) => rpc_status_response(response.into_inner()),
+            Err(error) => grpc_error(error),
+        };
+        status_value("init_iptables", result)
     }
 
     pub async fn clean_iptables(&self) -> anyhow::Result<Value> {
-        self.request_json(Method::POST, "/api/iptables/clean", Option::<&Value>::None)
+        let mut client = self.firewall.clone();
+        let result = match client.clean_iptables(self.request(())).await {
+            Ok(response) => rpc_status_response(response.into_inner()),
+            Err(error) => grpc_error(error),
+        };
+        status_value("clean_iptables", result)
+    }
+
+    pub async fn sync_ssh_firewall(&self, payload: &Value) -> anyhow::Result<Value> {
+        let mut client = self.firewall.clone();
+        let result = match client
+            .sync_ssh_firewall(self.request(SshFirewallSyncRequest {
+                chain_name: string_field(payload, "chain_name"),
+                parent_chains: parent_chains_from_body(payload),
+                ports: int_vec_any_field(payload, "ports"),
+                allowed_cidrs: string_vec_field(payload, "allowed_cidrs"),
+                blocked_ips: string_vec_field(payload, "blocked_ips"),
+                include_local_cidrs: bool_field(payload, "include_local_cidrs", false),
+            }))
             .await
+        {
+            Ok(response) => rpc_status_response(response.into_inner()),
+            Err(error) => grpc_error(error),
+        };
+        status_value("sync_ssh_firewall", result)
+    }
+
+    pub async fn clear_ssh_firewall(&self, payload: &Value) -> anyhow::Result<Value> {
+        let mut client = self.firewall.clone();
+        let result = match client
+            .clear_ssh_firewall(self.request(SshFirewallClearRequest {
+                chain_name: string_field(payload, "chain_name"),
+                parent_chains: parent_chains_from_body(payload),
+            }))
+            .await
+        {
+            Ok(response) => rpc_status_response(response.into_inner()),
+            Err(error) => grpc_error(error),
+        };
+        status_value("clear_ssh_firewall", result)
     }
 
     pub async fn clear_tcp_redirect(
         &self,
         listen_port: i64,
         target_port: i64,
-    ) -> anyhow::Result<(reqwest::StatusCode, Value)> {
-        self.request_json_with_status(
-            Method::DELETE,
-            "/api/iptables/tcp-redirect",
-            Some(&json!({
-                "listen_port": listen_port,
-                "target_port": target_port,
-            })),
-        )
-        .await
-    }
-
-    pub async fn clear_ssh_firewall(&self, payload: &Value) -> anyhow::Result<Value> {
-        self.request_json(Method::POST, "/api/iptables/ssh/clear", Some(payload))
+    ) -> anyhow::Result<(StatusCode, Value)> {
+        let mut client = self.firewall.clone();
+        match client
+            .clear_tcp_redirect(self.request(TcpRedirectRequest {
+                listen_port: i32::try_from(listen_port).unwrap_or(0),
+                target_port: i32::try_from(target_port).unwrap_or(0),
+            }))
             .await
+        {
+            Ok(response) => Ok(rpc_status_response(response.into_inner())),
+            Err(error) => Ok(grpc_error(error)),
+        }
+    }
+}
+
+fn normalize_grpc_addr(addr: &str) -> String {
+    addr.trim()
+        .trim_start_matches("http://")
+        .trim_start_matches("https://")
+        .trim_end_matches('/')
+        .to_string()
+}
+
+fn ok(data: Value) -> (StatusCode, Value) {
+    (StatusCode::OK, success_envelope(data))
+}
+
+fn status_value(operation: &str, result: (StatusCode, Value)) -> anyhow::Result<Value> {
+    let (status, value) = result;
+    if !status.is_success() {
+        anyhow::bail!("go backend gRPC request failed: {operation} returned {status}: {value}");
+    }
+    Ok(value)
+}
+
+fn success_envelope(data: Value) -> Value {
+    envelope(true, 200, "success", data)
+}
+
+fn envelope(success: bool, code: u16, message: &str, data: Value) -> Value {
+    json!({
+        "success": success,
+        "code": code,
+        "message": if message.trim().is_empty() { if success { "success" } else { "error" } } else { message },
+        "data": data
+    })
+}
+
+fn rpc_status_response(status: crate::grpc_proto::RpcStatus) -> (StatusCode, Value) {
+    let code = if status.code > 0 {
+        status.code as u16
+    } else if status.success {
+        200
+    } else {
+        500
+    };
+    let http_status = StatusCode::from_u16(code).unwrap_or(if status.success {
+        StatusCode::OK
+    } else {
+        StatusCode::BAD_GATEWAY
+    });
+    (
+        http_status,
+        envelope(
+            status.success,
+            http_status.as_u16(),
+            &status.message,
+            Value::Null,
+        ),
+    )
+}
+
+fn grpc_error(error: tonic::Status) -> (StatusCode, Value) {
+    let status = match error.code() {
+        tonic::Code::InvalidArgument => StatusCode::BAD_REQUEST,
+        tonic::Code::Unauthenticated => StatusCode::UNAUTHORIZED,
+        tonic::Code::PermissionDenied => StatusCode::FORBIDDEN,
+        tonic::Code::NotFound => StatusCode::NOT_FOUND,
+        tonic::Code::DeadlineExceeded => StatusCode::GATEWAY_TIMEOUT,
+        tonic::Code::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
+        _ => StatusCode::BAD_GATEWAY,
+    };
+    (
+        status,
+        envelope(false, status.as_u16(), error.message(), Value::Null),
+    )
+}
+
+fn string_field(value: &Value, key: &str) -> String {
+    value
+        .get(key)
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string()
+}
+
+fn bool_field(value: &Value, key: &str, default: bool) -> bool {
+    value.get(key).and_then(Value::as_bool).unwrap_or(default)
+}
+
+fn i32_field(value: &Value, key: &str, default: i32) -> i32 {
+    value
+        .get(key)
+        .and_then(Value::as_i64)
+        .and_then(|value| i32::try_from(value).ok())
+        .unwrap_or(default)
+}
+
+fn string_vec_field(value: &Value, key: &str) -> Vec<String> {
+    value
+        .get(key)
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn string_vec_any_field(value: &Value, key: &str) -> Vec<String> {
+    match value.get(key) {
+        Some(Value::Array(items)) => items
+            .iter()
+            .filter_map(|item| {
+                item.as_str()
+                    .map(str::to_string)
+                    .or_else(|| item.as_i64().map(|value| value.to_string()))
+            })
+            .flat_map(|value| split_csv(&value))
+            .collect(),
+        Some(Value::String(value)) => split_csv(value),
+        Some(Value::Number(value)) => vec![value.to_string()],
+        _ => Vec::new(),
+    }
+}
+
+fn int_vec_any_field(value: &Value, key: &str) -> Vec<i32> {
+    string_vec_any_field(value, key)
+        .into_iter()
+        .filter_map(|value| value.parse::<i32>().ok())
+        .filter(|value| *value > 0)
+        .collect()
+}
+
+fn split_csv(value: &str) -> Vec<String> {
+    value
+        .split(',')
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+fn parent_chains_from_body(value: &Value) -> Vec<String> {
+    let from_parent_chain = string_vec_any_field(value, "parent_chain");
+    if from_parent_chain.is_empty() {
+        string_vec_any_field(value, "parent_chains")
+    } else {
+        from_parent_chain
+    }
+}
+
+fn parse_rules(value: &Value) -> Vec<Rule> {
+    value
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .map(|item| Rule {
+                    path: string_field(item, "path"),
+                    target: string_field(item, "target"),
+                    use_auth: bool_field(item, "use_auth", false),
+                    strip_path: bool_field(item, "strip_path", true),
+                    rewrite_html: bool_field(item, "rewrite_html", true),
+                    use_root_mode: bool_field(item, "use_root_mode", false),
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn parse_basic_auth(value: &Value) -> BasicAuthConfig {
+    BasicAuthConfig {
+        enabled: bool_field(value, "enabled", false),
+        username: string_field(value, "username"),
+        password: string_field(value, "password"),
+    }
+}
+
+fn parse_host_location_response(value: &Value) -> Option<HostLocationResponse> {
+    if !value.is_object() {
+        return None;
+    }
+    let headers = value
+        .get("headers")
+        .and_then(Value::as_object)
+        .map(|headers| {
+            headers
+                .iter()
+                .filter_map(|(key, value)| {
+                    value.as_str().map(|value| (key.clone(), value.to_string()))
+                })
+                .collect::<HashMap<_, _>>()
+        })
+        .unwrap_or_default();
+    Some(HostLocationResponse {
+        status: i32_field(value, "status", 0),
+        content_type: string_field(value, "content_type"),
+        headers,
+        body: string_field(value, "body"),
+    })
+}
+
+fn parse_host_locations(value: &Value) -> Vec<HostLocation> {
+    value
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .map(|item| HostLocation {
+                    path: string_field(item, "path"),
+                    r#match: string_field(item, "match"),
+                    action: string_field(item, "action"),
+                    target: string_field(item, "target"),
+                    strip_path: bool_field(item, "strip_path", true),
+                    rewrite_html: bool_field(item, "rewrite_html", true),
+                    response: item.get("response").and_then(parse_host_location_response),
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn parse_host_rules(value: &Value) -> Vec<HostRule> {
+    value
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .map(|item| HostRule {
+                    host: string_field(item, "host"),
+                    target: string_field(item, "target"),
+                    use_auth: bool_field(item, "use_auth", true),
+                    access_mode: string_field(item, "access_mode"),
+                    suppress_toolbar: bool_field(item, "suppress_toolbar", false),
+                    preserve_host: bool_field(item, "preserve_host", true),
+                    is_default: bool_field(item, "is_default", false),
+                    title: string_field(item, "title"),
+                    favicon: string_field(item, "favicon"),
+                    basic_auth: item.get("basic_auth").map(parse_basic_auth),
+                    locations: item
+                        .get("locations")
+                        .map(parse_host_locations)
+                        .unwrap_or_default(),
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn parse_stream_rules(value: &Value) -> Vec<StreamRule> {
+    value
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .map(|item| StreamRule {
+                    protocol: string_field(item, "protocol"),
+                    listen_port: i32_field(item, "listen_port", 0),
+                    target: string_field(item, "target"),
+                    use_auth: bool_field(item, "use_auth", true),
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn parse_auth_config(value: &Value) -> AuthConfig {
+    AuthConfig {
+        auth_port: i32_field(value, "auth_port", 0),
+        auth_url: string_field(value, "auth_url"),
+        login_url: string_field(value, "login_url"),
+        logout_url: string_field(value, "logout_url"),
+        preflight_url: string_field(value, "preflight_url"),
+        auth_cache_ttl_seconds: i32_field(value, "auth_cache_ttl_seconds", 0),
+        auth_cache_unauthorized_ttl_seconds: i32_field(
+            value,
+            "auth_cache_unauthorized_ttl_seconds",
+            0,
+        ),
+        edge_client_ip_enabled: bool_field(value, "edge_client_ip_enabled", false),
+        aliyun_esa_enabled: bool_field(value, "aliyun_esa_enabled", false),
+        tencent_edgeone_enabled: bool_field(value, "tencent_edgeone_enabled", false),
+        public_auth_base_url: string_field(value, "public_auth_base_url"),
+        public_http_port: i32_field(value, "public_http_port", 0),
+        public_https_port: i32_field(value, "public_https_port", 0),
+        auth_host: string_field(value, "auth_host"),
+        trust_forwarded_proto: bool_field(value, "trust_forwarded_proto", false),
+    }
+}
+
+fn parse_logging(value: &Value) -> LoggingConfig {
+    LoggingConfig {
+        enabled: bool_field(value, "enabled", false),
+        max_days: i32_field(value, "max_days", 0),
+        logs_dir: string_field(value, "logs_dir"),
+    }
+}
+
+fn parse_throttle(value: &Value) -> ReverseProxyThrottleConfig {
+    ReverseProxyThrottleConfig {
+        enabled: bool_field(value, "enabled", false),
+        requests_per_second: i32_field(value, "requests_per_second", 0),
+        burst: i32_field(value, "burst", 0),
+        block_seconds: i32_field(value, "block_seconds", 0),
+    }
+}
+
+fn parse_visibility(value: &Value) -> GatewayVisibilityConfig {
+    GatewayVisibilityConfig {
+        enabled: bool_field(value, "enabled", false),
+        cidrs: string_vec_field(value, "cidrs"),
+        updated_at: string_field(value, "updated_at"),
+    }
+}
+
+fn parse_omit_targets(value: &Value) -> OmitTargetsConfig {
+    OmitTargetsConfig {
+        enabled: bool_field(value, "enabled", false),
+        omit_targets: string_vec_field(value, "omit_targets"),
+        updated_at: string_field(value, "updated_at"),
+    }
+}
+
+fn parse_crawler_blocker(value: &Value) -> CrawlerBlockerConfig {
+    CrawlerBlockerConfig {
+        enabled: bool_field(value, "enabled", false),
+        updated_at: string_field(value, "updated_at"),
+    }
+}
+
+fn parse_portal(value: &Value) -> GatewayPortalConfig {
+    GatewayPortalConfig {
+        enabled: bool_field(value, "enabled", true),
+        display_style: string_field(value, "display_style"),
+        show_app_icon: bool_field(value, "show_app_icon", false),
+        icon_drag_mode: string_field(value, "icon_drag_mode"),
+    }
+}
+
+fn parse_fnos_port_icon_hijack(value: &Value) -> FnosPortIconHijackConfig {
+    FnosPortIconHijackConfig {
+        enabled: bool_field(value, "enabled", false),
+        updated_at: string_field(value, "updated_at"),
+    }
+}
+
+fn parse_throttle_exempt(value: &Value) -> ReverseProxyThrottleExemptIpsRuntime {
+    ReverseProxyThrottleExemptIpsRuntime {
+        enabled: bool_field(value, "enabled", false),
+        ips: string_vec_field(value, "ips"),
+        cidrs: string_vec_field(value, "cidrs"),
+        updated_at: string_field(value, "updated_at"),
+    }
+}
+
+fn parse_common_exemptions(value: &Value) -> CommonLocationExemptionsRuntime {
+    CommonLocationExemptionsRuntime {
+        enabled: bool_field(value, "enabled", false),
+        waf_enabled: bool_field(value, "waf_enabled", false),
+        cidrs: string_vec_field(value, "cidrs"),
+        updated_at: string_field(value, "updated_at"),
+    }
+}
+
+fn parse_waf_config(value: &Value) -> WafConfig {
+    WafConfig {
+        enabled: bool_field(value, "enabled", false),
+        mode: string_field(value, "mode"),
+        rules_dir: string_field(value, "rules_dir"),
+        active_bundle_id: string_field(value, "active_bundle_id"),
+        paranoia_level: i32_field(value, "paranoia_level", 0),
+        executing_paranoia_level: i32_field(value, "executing_paranoia_level", 0),
+        inbound_anomaly_threshold: i32_field(value, "inbound_anomaly_threshold", 0),
+        outbound_anomaly_threshold: i32_field(value, "outbound_anomaly_threshold", 0),
+        request_body_access: bool_field(value, "request_body_access", false),
+        request_body_limit_bytes: i32_field(value, "request_body_limit_bytes", 0),
+        request_body_in_memory_limit_bytes: i32_field(
+            value,
+            "request_body_in_memory_limit_bytes",
+            0,
+        ),
+        response_body_access: bool_field(value, "response_body_access", false),
+        disabled_hosts: string_vec_field(value, "disabled_hosts"),
+        disabled_path_prefixes: string_vec_field(value, "disabled_path_prefixes"),
+        updated_at: string_field(value, "updated_at"),
+    }
+}
+
+fn parse_ssl_config(value: &Value) -> SslConfig {
+    SslConfig {
+        deployment_mode: string_field(value, "deployment_mode"),
+        certificates: value
+            .get("certificates")
+            .and_then(Value::as_array)
+            .map(|items| {
+                items
+                    .iter()
+                    .map(|item| SslDeployedCertificate {
+                        id: string_field(item, "id"),
+                        label: string_field(item, "label"),
+                        cert: string_field(item, "cert"),
+                        key: string_field(item, "key"),
+                        is_default: bool_field(item, "is_default", false),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default(),
+    }
+}
+
+fn rules_to_json(items: Vec<Rule>) -> Value {
+    Value::Array(
+        items
+            .into_iter()
+            .map(|item| {
+                json!({
+                    "path": item.path,
+                    "target": item.target,
+                    "use_auth": item.use_auth,
+                    "strip_path": item.strip_path,
+                    "rewrite_html": item.rewrite_html,
+                    "use_root_mode": item.use_root_mode
+                })
+            })
+            .collect(),
+    )
+}
+
+fn host_location_response_to_json(response: Option<HostLocationResponse>) -> Value {
+    match response {
+        Some(response) => json!({
+            "status": response.status,
+            "content_type": response.content_type,
+            "headers": response.headers,
+            "body": response.body
+        }),
+        None => Value::Null,
+    }
+}
+
+fn host_rules_to_json(items: Vec<HostRule>) -> Value {
+    Value::Array(
+        items
+            .into_iter()
+            .map(|item| {
+                json!({
+                    "host": item.host,
+                    "target": item.target,
+                    "use_auth": item.use_auth,
+                    "access_mode": item.access_mode,
+                    "suppress_toolbar": item.suppress_toolbar,
+                    "preserve_host": item.preserve_host,
+                    "is_default": item.is_default,
+                    "title": item.title,
+                    "favicon": item.favicon,
+                    "basic_auth": item.basic_auth.map(|auth| json!({
+                        "enabled": auth.enabled,
+                        "username": auth.username,
+                        "password": auth.password
+                    })).unwrap_or(Value::Null),
+                    "locations": item.locations.into_iter().map(|location| json!({
+                        "path": location.path,
+                        "match": location.r#match,
+                        "action": location.action,
+                        "target": location.target,
+                        "strip_path": location.strip_path,
+                        "rewrite_html": location.rewrite_html,
+                        "response": host_location_response_to_json(location.response)
+                    })).collect::<Vec<_>>()
+                })
+            })
+            .collect(),
+    )
+}
+
+fn stream_rules_to_json(items: Vec<StreamRule>) -> Value {
+    Value::Array(
+        items
+            .into_iter()
+            .map(|item| {
+                json!({
+                    "protocol": item.protocol,
+                    "listen_port": item.listen_port,
+                    "target": item.target,
+                    "use_auth": item.use_auth
+                })
+            })
+            .collect(),
+    )
+}
+
+fn locale_to_json(config: LocaleConfig) -> Value {
+    json!({ "default_locale": config.default_locale })
+}
+
+fn logging_to_json(config: LoggingConfig) -> Value {
+    json!({
+        "enabled": config.enabled,
+        "max_days": config.max_days,
+        "logs_dir": config.logs_dir
+    })
+}
+
+fn throttle_to_json(config: ReverseProxyThrottleConfig) -> Value {
+    json!({
+        "enabled": config.enabled,
+        "requests_per_second": config.requests_per_second,
+        "burst": config.burst,
+        "block_seconds": config.block_seconds
+    })
+}
+
+fn visibility_to_json(config: GatewayVisibilityConfig) -> Value {
+    json!({
+        "enabled": config.enabled,
+        "cidrs": config.cidrs,
+        "updated_at": config.updated_at
+    })
+}
+
+fn omit_targets_to_json(config: OmitTargetsConfig) -> Value {
+    json!({
+        "enabled": config.enabled,
+        "omit_targets": config.omit_targets,
+        "updated_at": config.updated_at
+    })
+}
+
+fn crawler_blocker_to_json(config: CrawlerBlockerConfig) -> Value {
+    json!({ "enabled": config.enabled, "updated_at": config.updated_at })
+}
+
+fn portal_to_json(config: GatewayPortalConfig) -> Value {
+    json!({
+        "enabled": config.enabled,
+        "display_style": config.display_style,
+        "show_app_icon": config.show_app_icon,
+        "icon_drag_mode": config.icon_drag_mode
+    })
+}
+
+fn fnos_port_icon_hijack_to_json(config: FnosPortIconHijackConfig) -> Value {
+    json!({ "enabled": config.enabled, "updated_at": config.updated_at })
+}
+
+fn throttle_exempt_to_json(config: ReverseProxyThrottleExemptIpsRuntime) -> Value {
+    json!({
+        "enabled": config.enabled,
+        "ips": config.ips,
+        "cidrs": config.cidrs,
+        "updated_at": config.updated_at
+    })
+}
+
+fn common_exemptions_to_json(config: CommonLocationExemptionsRuntime) -> Value {
+    json!({
+        "enabled": config.enabled,
+        "waf_enabled": config.waf_enabled,
+        "cidrs": config.cidrs,
+        "updated_at": config.updated_at
+    })
+}
+
+fn general_blacklist_record_to_json(record: crate::grpc_proto::GeneralBlacklistRecord) -> Value {
+    json!({
+        "ip": record.ip,
+        "source": record.source,
+        "comment": record.comment,
+        "created_at": record.created_at,
+        "updated_at": record.updated_at
+    })
+}
+
+fn general_blacklist_list_to_json(list: crate::grpc_proto::GeneralBlacklistList) -> Value {
+    json!({
+        "total": list.total,
+        "items": list.items.into_iter().map(general_blacklist_record_to_json).collect::<Vec<_>>()
+    })
+}
+
+fn general_blacklist_mutation_to_json(
+    result: crate::grpc_proto::GeneralBlacklistMutationResult,
+) -> Value {
+    json!({
+        "added": result.added,
+        "updated": result.updated,
+        "removed": result.removed,
+        "total": result.total,
+        "items": result.items.into_iter().map(general_blacklist_record_to_json).collect::<Vec<_>>()
+    })
+}
+
+fn general_blacklist_status_to_json(status: crate::grpc_proto::GeneralBlacklistStatus) -> Value {
+    let records = status
+        .records
+        .into_iter()
+        .map(|(key, value)| (key, general_blacklist_record_to_json(value)))
+        .collect::<serde_json::Map<_, _>>();
+    json!({ "records": records })
+}
+
+fn traffic_to_json(stats: crate::grpc_proto::TrafficStats) -> Value {
+    json!({
+        "total_in": stats.total_in,
+        "total_out": stats.total_out,
+        "active_conns": stats.active_conns,
+        "error_5xx": stats.error_5xx,
+        "by_host": stats.by_host.into_iter().map(|item| json!({
+            "host": item.host,
+            "total_in": item.total_in,
+            "total_out": item.total_out,
+            "error_5xx": item.error_5xx,
+            "active_ip_count": item.active_ip_count
+        })).collect::<Vec<_>>()
+    })
+}
+
+fn active_ip_to_json(item: HostActiveIpStats) -> Value {
+    json!({
+        "ip": item.ip,
+        "last_seen_at": item.last_seen_at,
+        "active_conns": item.active_conns
+    })
+}
+
+fn active_ips_to_json(stats: crate::grpc_proto::HostActiveIpsStats) -> Value {
+    json!({
+        "host": stats.host,
+        "window_seconds": stats.window_seconds,
+        "items": stats.items.into_iter().map(active_ip_to_json).collect::<Vec<_>>()
+    })
+}
+
+fn waf_status_to_json(status: crate::grpc_proto::WafStatus) -> Value {
+    json!({
+        "enabled": status.enabled,
+        "mode": status.mode,
+        "loaded": status.loaded,
+        "bundle_id": status.bundle_id,
+        "bundle_hash": status.bundle_hash,
+        "loaded_at": status.loaded_at,
+        "rules_dir": status.rules_dir,
+        "pending_events": status.pending_events,
+        "last_error": status.last_error
+    })
+}
+
+fn waf_drain_to_json(result: crate::grpc_proto::WafDrainResult) -> Value {
+    json!({
+        "events": result.events.into_iter().map(|event| json!({
+            "trace_id": event.trace_id,
+            "transaction_id": event.transaction_id,
+            "time": event.time,
+            "mode": event.mode,
+            "action": event.action,
+            "status": event.status,
+            "client_ip": event.client_ip,
+            "remote_addr": event.remote_addr,
+            "method": event.method,
+            "scheme": event.scheme,
+            "host": event.host,
+            "path": event.path,
+            "query": event.query,
+            "request_uri": event.request_uri,
+            "user_agent": event.user_agent,
+            "referer": event.referer,
+            "route_type": event.route_type,
+            "route_key": event.route_key,
+            "upstream": event.upstream,
+            "bundle_id": event.bundle_id,
+            "bundle_hash": event.bundle_hash,
+            "rule_ids": event.rule_ids,
+            "rules": event.rules.into_iter().map(|rule| json!({
+                "id": rule.id,
+                "message": rule.message,
+                "data": rule.data,
+                "severity": rule.severity,
+                "phase": rule.phase,
+                "file": rule.file,
+                "line": rule.line,
+                "tags": rule.tags,
+                "disruptive": rule.disruptive,
+                "matched_variables": rule.matched_variables.into_iter().map(|matched| json!({
+                    "variable": matched.variable,
+                    "key": matched.key,
+                    "value_preview": matched.value_preview
+                })).collect::<Vec<_>>()
+            })).collect::<Vec<_>>(),
+            "interruption": event.interruption.map(|value| json!({
+                "rule_id": value.rule_id,
+                "action": value.action,
+                "status": value.status
+            })).unwrap_or(Value::Null),
+            "error": event.error
+        })).collect::<Vec<_>>(),
+        "drained": result.drained,
+        "remaining": result.remaining
+    })
+}
+
+fn ssl_info_to_json(info: crate::grpc_proto::SslInfo) -> Value {
+    json!({
+        "enabled": info.enabled,
+        "deployment_mode": info.deployment_mode,
+        "certificates": info.certificates.into_iter().map(|cert| json!({
+            "id": cert.id,
+            "label": cert.label,
+            "domains": cert.domains,
+            "is_default": cert.is_default
+        })).collect::<Vec<_>>()
+    })
+}
+
+fn log_dates_to_json(dates: crate::grpc_proto::GatewayLogDates) -> Value {
+    json!({
+        "today": dates.today,
+        "logs_dir": dates.logs_dir,
+        "dates": dates.dates
+    })
+}
+
+fn log_entry_to_json(entry: crate::grpc_proto::GatewayLogEntry) -> Value {
+    let mut object = serde_json::Map::new();
+    object.insert("time".to_string(), Value::String(entry.time));
+    object.insert("level".to_string(), Value::String(entry.level));
+    object.insert("method".to_string(), Value::String(entry.method));
+    object.insert("scheme".to_string(), Value::String(entry.scheme));
+    object.insert("host".to_string(), Value::String(entry.host));
+    object.insert("path".to_string(), Value::String(entry.path));
+    object.insert("query".to_string(), Value::String(entry.query));
+    object.insert("request_uri".to_string(), Value::String(entry.request_uri));
+    object.insert("protocol".to_string(), Value::String(entry.protocol));
+    object.insert("status".to_string(), json!(entry.status));
+    object.insert("duration_ms".to_string(), json!(entry.duration_ms));
+    object.insert("remote_ip".to_string(), Value::String(entry.remote_ip));
+    object.insert("remote_addr".to_string(), Value::String(entry.remote_addr));
+    object.insert("user_agent".to_string(), Value::String(entry.user_agent));
+    object.insert("referer".to_string(), Value::String(entry.referer));
+    object.insert("logged_in".to_string(), Value::Bool(entry.logged_in));
+    object.insert(
+        "auth_required".to_string(),
+        Value::Bool(entry.auth_required),
+    );
+    object.insert(
+        "auth_decision".to_string(),
+        Value::String(entry.auth_decision),
+    );
+    object.insert(
+        "auth_credential_id".to_string(),
+        Value::String(entry.auth_credential_id),
+    );
+    object.insert(
+        "auth_credential_name".to_string(),
+        Value::String(entry.auth_credential_name),
+    );
+    object.insert(
+        "auth_credential_method".to_string(),
+        Value::String(entry.auth_credential_method),
+    );
+    object.insert(
+        "auth_linked_totp_id".to_string(),
+        Value::String(entry.auth_linked_totp_id),
+    );
+    object.insert(
+        "auth_linked_totp_name".to_string(),
+        Value::String(entry.auth_linked_totp_name),
+    );
+    object.insert("access_mode".to_string(), Value::String(entry.access_mode));
+    object.insert("route_type".to_string(), Value::String(entry.route_type));
+    object.insert("route_key".to_string(), Value::String(entry.route_key));
+    object.insert("upstream".to_string(), Value::String(entry.upstream));
+    object.insert("matched".to_string(), Value::Bool(entry.matched));
+    object.insert("bytes_in".to_string(), json!(entry.bytes_in));
+    object.insert("bytes_out".to_string(), json!(entry.bytes_out));
+    object.insert("tls".to_string(), Value::Bool(entry.tls));
+    object.insert("websocket".to_string(), Value::Bool(entry.websocket));
+    object.insert(
+        "ali_real_client_ip".to_string(),
+        Value::String(entry.ali_real_client_ip),
+    );
+    object.insert(
+        "eo_connecting_ip".to_string(),
+        Value::String(entry.eo_connecting_ip),
+    );
+    object.insert(
+        "x_forwarded_for".to_string(),
+        Value::String(entry.x_forwarded_for),
+    );
+    object.insert("x_real_ip".to_string(), Value::String(entry.x_real_ip));
+    object.insert("waf_blocked".to_string(), Value::Bool(entry.waf_blocked));
+    object.insert(
+        "waf_trace_id".to_string(),
+        Value::String(entry.waf_trace_id),
+    );
+    object.insert("waf_mode".to_string(), Value::String(entry.waf_mode));
+    object.insert("waf_rule_ids".to_string(), json!(entry.waf_rule_ids));
+    object.insert("waf_action".to_string(), Value::String(entry.waf_action));
+    object.insert("waf_bundle".to_string(), Value::String(entry.waf_bundle));
+    object.insert(
+        "general_blacklist_blocked".to_string(),
+        Value::Bool(entry.general_blacklist_blocked),
+    );
+    Value::Object(object)
+}
+
+fn log_query_to_json(result: crate::grpc_proto::GatewayLogQueryResult) -> Value {
+    json!({
+        "date": result.date,
+        "logs_dir": result.logs_dir,
+        "available_dates": result.available_dates,
+        "pagination": result.pagination,
+        "page": result.page,
+        "limit": result.limit,
+        "total": result.total,
+        "cursor": result.cursor,
+        "next_cursor": result.next_cursor,
+        "has_more": result.has_more,
+        "items": result.items.into_iter().map(log_entry_to_json).collect::<Vec<_>>()
+    })
+}
+
+fn log_delete_to_json(result: crate::grpc_proto::GatewayLogDeleteResult) -> Value {
+    json!({
+        "date": result.date,
+        "logs_dir": result.logs_dir,
+        "deleted": result.deleted,
+        "available_dates": result.available_dates
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn go_backend_client_requires_internal_rpc_token() {
+        let err = match GoBackendClient::new(
+            "127.0.0.1:7996".to_string(),
+            " ".to_string(),
+            Duration::from_millis(1),
+        ) {
+            Ok(_) => panic!("GoBackendClient accepted an empty token"),
+            Err(error) => error,
+        };
+        assert!(
+            err.to_string()
+                .contains("FN_KNOCK_INTERNAL_RPC_TOKEN must be set")
+        );
     }
 
-    fn url(&self, path: &str) -> anyhow::Result<Url> {
-        let normalized = if path.starts_with('/') {
-            path.to_string()
-        } else {
-            format!("/{path}")
-        };
-        self.base_url
-            .join(normalized.trim_start_matches('/'))
-            .with_context(|| format!("join go backend URL path: {path}"))
+    #[tokio::test]
+    async fn go_backend_client_accepts_internal_rpc_token() {
+        if let Err(error) = GoBackendClient::new(
+            "127.0.0.1:7996".to_string(),
+            "token".to_string(),
+            Duration::from_millis(1),
+        ) {
+            panic!("GoBackendClient rejected a non-empty token: {error}");
+        }
     }
 }

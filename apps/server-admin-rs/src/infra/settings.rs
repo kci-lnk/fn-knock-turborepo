@@ -18,7 +18,8 @@ pub struct Settings {
     pub data_dir: PathBuf,
     pub gateway_config_dir: PathBuf,
     pub redis_url: String,
-    pub go_backend_base_url: String,
+    pub go_backend_grpc_addr: String,
+    pub internal_rpc_token: String,
     pub hmac_secret: String,
     pub altcha_hmac_key: Option<String>,
     #[allow(dead_code)]
@@ -87,6 +88,9 @@ impl Settings {
 
         let expose_runtime_hmac_secret = should_expose_runtime_hmac_secret();
 
+        let hmac_secret = env::var("HMAC_SECRET").unwrap_or_default();
+        let internal_rpc_token = internal_rpc_token_from_env();
+
         Self {
             backend_host: backend_host.clone(),
             backend_port,
@@ -108,13 +112,12 @@ impl Settings {
             data_dir,
             gateway_config_dir,
             redis_url,
-            go_backend_base_url: env::var("GO_BACKEND_BASE_URL")
+            go_backend_grpc_addr: env::var("GO_BACKEND_GRPC_ADDR")
                 .ok()
                 .filter(|value| !value.trim().is_empty())
-                .unwrap_or_else(|| {
-                    format!("http://localhost:{}", env_string("GO_BACKEND_PORT", "7996"))
-                }),
-            hmac_secret: env::var("HMAC_SECRET").unwrap_or_default(),
+                .unwrap_or_else(|| format!("127.0.0.1:{}", env_string("GO_BACKEND_PORT", "7996"))),
+            internal_rpc_token,
+            hmac_secret,
             altcha_hmac_key: env::var("ALTCHA_HMAC_KEY")
                 .ok()
                 .map(|value| value.trim().to_string())
@@ -334,6 +337,14 @@ fn should_expose_runtime_hmac_secret() -> bool {
         || env::var("NODE_ENV").as_deref() != Ok("production")
 }
 
+fn internal_rpc_token_from_env() -> String {
+    env::var("FN_KNOCK_INTERNAL_RPC_TOKEN")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_default()
+}
+
 fn parse_addr(host: &str, port: u16) -> anyhow::Result<SocketAddr> {
     let value = format!("{host}:{port}");
     value
@@ -483,6 +494,24 @@ mod tests {
             remove_env("EXPOSE_RUNTIME_HMAC_SECRET");
             set_env("NODE_ENV", "development");
             assert!(should_expose_runtime_hmac_secret());
+        });
+    }
+
+    #[test]
+    fn internal_rpc_token_uses_only_explicit_env() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        with_env_vars(&["FN_KNOCK_INTERNAL_RPC_TOKEN", "HMAC_SECRET"], || {
+            set_env("FN_KNOCK_INTERNAL_RPC_TOKEN", " explicit-token ");
+            set_env("HMAC_SECRET", "hmac-token");
+            assert_eq!(Settings::from_env().internal_rpc_token, "explicit-token");
+
+            remove_env("FN_KNOCK_INTERNAL_RPC_TOKEN");
+            set_env("HMAC_SECRET", " hmac-token ");
+            assert_eq!(Settings::from_env().internal_rpc_token, "");
+
+            set_env("FN_KNOCK_INTERNAL_RPC_TOKEN", " ");
+            set_env("HMAC_SECRET", " fallback-token ");
+            assert_eq!(Settings::from_env().internal_rpc_token, "");
         });
     }
 

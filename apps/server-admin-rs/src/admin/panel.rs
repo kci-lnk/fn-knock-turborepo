@@ -2,7 +2,7 @@ use axum::{
     Extension, Json, Router,
     body::Body,
     extract::State,
-    http::{HeaderMap, HeaderValue, Method, Request, StatusCode, Uri, header},
+    http::{HeaderMap, HeaderValue, Request, StatusCode, Uri, header},
     middleware::Next,
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -200,15 +200,7 @@ async fn enrich_gateway_logging_config(state: &AppState, config: &mut Value) {
         .and_then(Value::as_i64)
         .filter(|value| *value > 0)
         .unwrap_or(7);
-    let logs_dir = match state
-        .go_backend
-        .request_json(
-            Method::GET,
-            "/api/logging/directory",
-            Option::<&Value>::None,
-        )
-        .await
-    {
+    let logs_dir = match state.go_backend.get_logging_directory().await {
         Ok(value) if value.get("success").and_then(Value::as_bool) == Some(true) => value
             .pointer("/data/logs_dir")
             .and_then(Value::as_str)

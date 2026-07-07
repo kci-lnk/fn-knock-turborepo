@@ -12,6 +12,7 @@ pub(crate) use boot::cleanup_legacy_auth_log_storage;
 
 use crate::{
     acme::start_acme_tasks,
+    auth::start_auth_bridge,
     auth_mobility::start_auth_mobility_tasks,
     auto_https::sync_auto_https_on_boot,
     cloudflared::start_cloudflared_tasks,
@@ -84,6 +85,7 @@ pub async fn run() -> anyhow::Result<()> {
     start_common_auth_location_tasks(state.clone());
     start_whitelist_tasks(state.clone());
     start_waf_tasks(state.clone());
+    start_auth_bridge(state.clone());
     start_terminal_tasks(state.clone());
     start_ssh_security_tasks(state.clone());
     start_cloudflared_tasks(state.clone());

@@ -45,11 +45,7 @@ pub(super) async fn sync_runtime_after_import(
     });
     match state
         .go_backend
-        .request_json_with_status(
-            axum::http::Method::POST,
-            "/api/logging",
-            Some(&gateway_logging),
-        )
+        .set_gateway_logging_config_status(&gateway_logging)
         .await
     {
         Ok((status, value))

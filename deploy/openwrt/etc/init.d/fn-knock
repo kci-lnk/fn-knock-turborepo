@@ -144,11 +144,12 @@ append_common_env() {
 		"BACKEND_HOST=$backend_host" \
 		"BACKEND_PORT=$backend_port" \
 		"AUTH_HOST=$auth_host" \
-		"AUTH_PORT=$auth_port" \
-		"GO_BACKEND_PORT=$go_backend_port" \
-		"GO_REPROXY_PORT=$go_reproxy_port" \
-		"GO_BACKEND_BASE_URL=http://127.0.0.1:$go_backend_port" \
-		"REDIS_HOST=$redis_host" \
+			"AUTH_PORT=$auth_port" \
+			"GO_BACKEND_PORT=$go_backend_port" \
+			"GO_REPROXY_PORT=$go_reproxy_port" \
+			"GO_BACKEND_GRPC_ADDR=127.0.0.1:$go_backend_port" \
+			"FN_KNOCK_INTERNAL_RPC_TOKEN=$FN_KNOCK_INTERNAL_RPC_TOKEN" \
+			"REDIS_HOST=$redis_host" \
 		"REDIS_PORT=$redis_port" \
 		"ALTCHA_HMAC_KEY=$ALTCHA_HMAC_KEY" \
 		"HMAC_SECRET=$HMAC_SECRET" \
@@ -223,6 +224,7 @@ start_service() {
 
 	load_or_create_secret ALTCHA_HMAC_KEY "$data_dir/altcha_hmac_key" || return 1
 	load_or_create_secret HMAC_SECRET "$data_dir/hmac_secret" || return 1
+	load_or_create_secret FN_KNOCK_INTERNAL_RPC_TOKEN "$data_dir/internal_rpc_token" || return 1
 	load_or_create_secret ADMIN_PROXY_SECRET "$data_dir/admin_proxy_secret" || return 1
 
 	local gateway_bin="$app_home/bin/go-reauth-proxy"
@@ -244,6 +246,7 @@ start_service() {
 		-proxy-port "$go_reproxy_port"
 	procd_set_param env \
 		"BACKEND_PORT=$backend_port" \
+		"FN_KNOCK_INTERNAL_RPC_TOKEN=$FN_KNOCK_INTERNAL_RPC_TOKEN" \
 		"PATH=/usr/sbin:/usr/bin:/sbin:/bin"
 	procd_set_param respawn
 	procd_set_param stdout 1

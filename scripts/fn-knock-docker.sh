@@ -39,8 +39,6 @@ DOCKER_RUST_BACKEND_DIR="${FN_KNOCK_DOCKER_RUST_BACKEND_DIR:-${DOCKER_DIR}/rust-
 DOCKER_RUST_BACKEND_BIN_DIR="${FN_KNOCK_DOCKER_RUST_BACKEND_BIN_DIR:-}"
 DOCKER_RUST_BUILD_MODE="${FN_KNOCK_DOCKER_BUILD_RUST_BACKENDS:-auto}"
 RUST_MUSL_CROSS_IMAGE_PREFIX="${FN_KNOCK_DOCKER_RUST_MUSL_CROSS_IMAGE_PREFIX:-messense/rust-musl-cross}"
-RUST_UPX_MODE="${FN_KNOCK_DOCKER_RUST_UPX:-${FN_KNOCK_RUST_UPX:-auto}}"
-RUST_UPX_ARGS_STRING="${FN_KNOCK_DOCKER_RUST_UPX_ARGS:-${FN_KNOCK_RUST_UPX_ARGS:---best --lzma}}"
 
 cleanup_temp_files() {
   if [ "${#TEMP_FILES[@]}" -gt 0 ]; then
@@ -185,42 +183,6 @@ rust_backend_is_fresh() {
   return 0
 }
 
-maybe_compress_docker_rust_backend_with_upx() {
-  local bin="$1"
-  local gateway_arch="$2"
-  local upx_bin="${FN_KNOCK_UPX_BIN:-}"
-  local upx_args
-
-  case "${RUST_UPX_MODE}" in
-    0|false|False|FALSE|no|No|NO|off|Off|OFF)
-      log "Skipping UPX compression for Docker Rust backend ${gateway_arch} (FN_KNOCK_DOCKER_RUST_UPX=${RUST_UPX_MODE})"
-      return
-      ;;
-    auto|1|true|True|TRUE|yes|Yes|YES|on|On|ON|required)
-      ;;
-    *)
-      fail "unsupported FN_KNOCK_DOCKER_RUST_UPX=${RUST_UPX_MODE}; expected auto, 0, 1, or required"
-      ;;
-  esac
-
-  if [ -z "${upx_bin}" ]; then
-    upx_bin="$(command -v upx || true)"
-  fi
-  if [ -z "${upx_bin}" ]; then
-    if [ "${RUST_UPX_MODE}" = "auto" ]; then
-      log "UPX not found; leaving Docker Rust backend ${gateway_arch} uncompressed"
-      return
-    fi
-    fail "UPX is required but was not found; install upx or set FN_KNOCK_DOCKER_RUST_UPX=0"
-  fi
-
-  read -r -a upx_args <<< "${RUST_UPX_ARGS_STRING}"
-  log "Compressing Docker Rust backend ${gateway_arch} with UPX (${upx_bin} ${RUST_UPX_ARGS_STRING})"
-  "${upx_bin}" "${upx_args[@]}" "${bin}" || \
-    fail "UPX compression failed for ${bin}; set FN_KNOCK_DOCKER_RUST_UPX=0 to disable compression"
-  chmod 755 "${bin}"
-}
-
 copy_docker_rust_backend() {
   local src="$1"
   local gateway_arch="$2"
@@ -255,8 +217,7 @@ build_docker_rust_backend() {
   local target
   local image
   local out_bin="${DOCKER_RUST_BACKEND_DIR}/server-admin-rs-linux-${gateway_arch}"
-  local before_bytes
-  local after_bytes
+  local bytes
 
   target="$(rust_musl_target_for_gateway_arch "${gateway_arch}")"
   image="$(rust_musl_image_for_gateway_arch "${gateway_arch}")"
@@ -277,11 +238,8 @@ build_docker_rust_backend() {
 
   chmod 755 "${out_bin}"
   validate_elf_arch "${out_bin}" "${gateway_arch}" "Docker Rust backend ${gateway_arch}"
-  before_bytes="$(file_size_bytes "${out_bin}")"
-  maybe_compress_docker_rust_backend_with_upx "${out_bin}" "${gateway_arch}"
-  validate_elf_arch "${out_bin}" "${gateway_arch}" "Docker Rust backend ${gateway_arch}"
-  after_bytes="$(file_size_bytes "${out_bin}")"
-  log "Docker Rust backend ${gateway_arch} size: $(format_bytes "${before_bytes}") -> $(format_bytes "${after_bytes}")"
+  bytes="$(file_size_bytes "${out_bin}")"
+  log "Docker Rust backend ${gateway_arch} size: $(format_bytes "${bytes}")"
 }
 
 prepare_docker_rust_backend() {
@@ -1262,8 +1220,6 @@ Optional env overrides:
   FN_KNOCK_DOCKER_RUST_BACKEND_BIN_DIR (optional prebuilt server-admin-rs-linux-* source dir)
   FN_KNOCK_DOCKER_RUST_BACKEND_DIR     (default: deploy/docker/rust-backends)
   FN_KNOCK_DOCKER_RUST_MUSL_CROSS_IMAGE_PREFIX (default: messense/rust-musl-cross)
-  FN_KNOCK_DOCKER_RUST_UPX       (auto|0|1|required; default: FN_KNOCK_RUST_UPX or auto)
-  FN_KNOCK_DOCKER_RUST_UPX_ARGS  (default: FN_KNOCK_RUST_UPX_ARGS or --best --lzma)
   FN_KNOCK_DOCKER_BUILDER         (optional docker buildx builder name)
   FN_KNOCK_DOCKER_MANAGED_BUILDER (default: fn-knock-buildx)
   FN_KNOCK_DOCKER_HTTP_PROXY      (optional build proxy; falls back to HTTP_PROXY/http_proxy)

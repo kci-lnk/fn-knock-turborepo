@@ -29,8 +29,6 @@ LICENSE="${FN_KNOCK_OPENWRT_LICENSE:-MIT}"
 IPK_CONTAINER_FORMAT="${FN_KNOCK_OPENWRT_IPK_FORMAT:-tar}"
 APK_DOCKER_IMAGE="${FN_KNOCK_OPENWRT_APK_DOCKER_IMAGE:-alpine:3.23}"
 RUST_MUSL_CROSS_IMAGE_PREFIX="${FN_KNOCK_OPENWRT_RUST_MUSL_CROSS_IMAGE_PREFIX:-messense/rust-musl-cross}"
-RUST_UPX_MODE="${FN_KNOCK_OPENWRT_RUST_UPX:-${FN_KNOCK_RUST_UPX:-auto}}"
-RUST_UPX_ARGS_STRING="${FN_KNOCK_OPENWRT_RUST_UPX_ARGS:-${FN_KNOCK_RUST_UPX_ARGS:---best --lzma}}"
 
 case "${BACKEND_IMPL}" in
   rust) ;;
@@ -241,50 +239,12 @@ validate_elf_arch() {
   esac
 }
 
-maybe_compress_rust_backend_with_upx() {
-  local bin="$1"
-  local gateway_arch="$2"
-  local upx_bin="${FN_KNOCK_UPX_BIN:-}"
-  local upx_args
-
-  case "${RUST_UPX_MODE}" in
-    0|false|False|FALSE|no|No|NO|off|Off|OFF)
-      log "Skipping UPX compression for OpenWrt Rust backend ${gateway_arch} (FN_KNOCK_OPENWRT_RUST_UPX=${RUST_UPX_MODE})"
-      return
-      ;;
-    auto|1|true|True|TRUE|yes|Yes|YES|on|On|ON|required)
-      ;;
-    *)
-      fail "unsupported FN_KNOCK_OPENWRT_RUST_UPX=${RUST_UPX_MODE}; expected auto, 0, 1, or required"
-      ;;
-  esac
-
-  if [ -z "${upx_bin}" ]; then
-    upx_bin="$(command -v upx || true)"
-  fi
-
-  if [ -z "${upx_bin}" ]; then
-    if [ "${RUST_UPX_MODE}" = "auto" ]; then
-      log "UPX not found; leaving OpenWrt Rust backend ${gateway_arch} uncompressed"
-      return
-    fi
-    fail "UPX is required but was not found; install upx or set FN_KNOCK_OPENWRT_RUST_UPX=0"
-  fi
-
-  read -r -a upx_args <<< "${RUST_UPX_ARGS_STRING}"
-  log "Compressing OpenWrt Rust backend ${gateway_arch} with UPX (${upx_bin} ${RUST_UPX_ARGS_STRING})"
-  "${upx_bin}" "${upx_args[@]}" "${bin}" || \
-    fail "UPX compression failed for ${bin}; set FN_KNOCK_OPENWRT_RUST_UPX=0 to disable compression"
-  chmod 755 "${bin}"
-}
-
 build_openwrt_rust_backend() {
   local gateway_arch="$1"
   local target
   local image
   local out_bin="${RUST_BACKEND_OUTPUT_DIR}/server-admin-rs-linux-${gateway_arch}"
-  local before_bytes
-  local after_bytes
+  local bytes
 
   target="$(rust_musl_target_for_arch "${gateway_arch}")"
   image="$(rust_musl_image_for_arch "${gateway_arch}")"
@@ -305,11 +265,8 @@ build_openwrt_rust_backend() {
 
   chmod 755 "${out_bin}"
   validate_elf_arch "${out_bin}" "${gateway_arch}" "OpenWrt Rust backend ${gateway_arch}"
-  before_bytes="$(file_size_bytes "${out_bin}")"
-  maybe_compress_rust_backend_with_upx "${out_bin}" "${gateway_arch}"
-  validate_elf_arch "${out_bin}" "${gateway_arch}" "OpenWrt Rust backend ${gateway_arch}"
-  after_bytes="$(file_size_bytes "${out_bin}")"
-  log "OpenWrt Rust backend ${gateway_arch} size: $(format_bytes "${before_bytes}") -> $(format_bytes "${after_bytes}")"
+  bytes="$(file_size_bytes "${out_bin}")"
+  log "OpenWrt Rust backend ${gateway_arch} size: $(format_bytes "${bytes}")"
 }
 
 prepare_openwrt_rust_backends() {

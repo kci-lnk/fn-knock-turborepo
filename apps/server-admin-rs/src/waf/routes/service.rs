@@ -249,17 +249,21 @@ pub(super) async fn has_system_rule_files(state: &AppState) -> anyhow::Result<bo
 }
 
 pub(super) async fn waf_drain_interval_seconds(state: &AppState) -> u64 {
-    state
-        .redis
-        .get_config()
-        .await
-        .ok()
-        .and_then(|config| {
-            config
-                .pointer("/waf/drain_interval_seconds")
-                .and_then(Value::as_i64)
-        })
-        .unwrap_or(2)
+    let Ok(config) = state.redis.get_config().await else {
+        return DEFAULT_WAF_DRAIN_INTERVAL_SECONDS;
+    };
+    let waf = config.get("waf");
+    if !waf
+        .and_then(|value| value.get("enabled"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        return DISABLED_WAF_DRAIN_INTERVAL_SECONDS;
+    }
+
+    waf.and_then(|value| value.get("drain_interval_seconds"))
+        .and_then(Value::as_i64)
+        .unwrap_or(DEFAULT_WAF_DRAIN_INTERVAL_SECONDS as i64)
         .clamp(1, 60) as u64
 }
 

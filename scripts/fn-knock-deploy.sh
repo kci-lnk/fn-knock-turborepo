@@ -122,9 +122,30 @@ resolve_remote_www_index() {
   ssh "${REMOTE_HOST}" "for p in '/usr/local/apps/@appcenter/${APP_NAME}/ui/www/index.html' '/usr/local/apps/@appcenter/${APP_NAME}/app/ui/www/index.html'; do if [ -f \"\$p\" ]; then echo \"\$p\"; exit 0; fi; done; exit 1"
 }
 
+resolve_deploy_rust_builder() {
+  local builder="${FN_KNOCK_FPK_RUST_BUILDER:-auto}"
+
+  case "${builder}" in
+    "")
+      echo "auto"
+      ;;
+    auto|zig|docker)
+      echo "${builder}"
+      ;;
+    *)
+      echo "ERROR: unsupported FN_KNOCK_FPK_RUST_BUILDER=${builder}; expected auto, zig, or docker" >&2
+      exit 1
+      ;;
+  esac
+}
+
 run_local_package() {
-  log "Step 1/4: Build package assets locally (${FPK_ARCHES[*]})"
-  ./apps/fn-knock/scripts/build-package.sh
+  local rust_builder
+
+  rust_builder="$(resolve_deploy_rust_builder)"
+
+  log "Step 1/4: Build package assets locally (${FPK_ARCHES[*]}, Rust builder: ${rust_builder})"
+  FN_KNOCK_FPK_RUST_BUILDER="${rust_builder}" ./apps/fn-knock/scripts/build-package.sh
 }
 
 run_remote_pack_for_arch() {
@@ -452,8 +473,6 @@ Optional env overrides:
   FN_KNOCK_WIZARD_GO_BACKEND_PORT (default: 7996)
   FN_KNOCK_WIZARD_GO_REPROXY_PORT (default: 7999)
   FN_KNOCK_FPK_RUST_BUILDER (auto|zig|docker; default: auto)
-  FN_KNOCK_RUST_UPX (auto|0|1|required; default: auto)
-  FN_KNOCK_RUST_UPX_ARGS (default: --best --lzma)
   FN_KNOCK_RUST_PARALLEL_RELEASE (set 1 to use thin LTO + multi codegen units for faster builds)
   CARGO_BUILD_JOBS (Cargo job count; defaults to CPU count when FN_KNOCK_RUST_PARALLEL_RELEASE=1)
   CARGO_PROFILE_RELEASE_LTO (optional Cargo release LTO override, e.g. thin)

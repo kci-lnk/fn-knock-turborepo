@@ -21,7 +21,7 @@ use ipnet::IpNet;
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
-use tokio::time::{self as tokio_time, MissedTickBehavior};
+use tokio::time as tokio_time;
 
 use crate::{
     http_utils::{is_private_or_local_ip, normalize_ip},
@@ -41,6 +41,7 @@ const PROCESSED_TTL_SECONDS: i64 = 7 * 24 * 3600;
 const STARTUP_BACKFILL_LOG_LIMIT: usize = 2000;
 const SUCCESS_LOG_COALESCE_WINDOW_MS: i64 = 30 * 1000;
 const SSH_SECURITY_TICK_SECONDS: u64 = 10;
+const DISABLED_SSH_SECURITY_TICK_SECONDS: u64 = 5 * 60;
 const AUTH_LOG_CANDIDATES: &[&str] = &[
     "/var/log/auth.log",
     "/var/log/auth.log.1",
@@ -107,15 +108,27 @@ pub fn start_ssh_security_tasks(state: AppState) {
             tracing::warn!(%error, "SSH security boot sync failed");
         }
 
-        let mut ticker = tokio_time::interval(Duration::from_secs(SSH_SECURITY_TICK_SECONDS));
-        ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
         loop {
-            ticker.tick().await;
+            tokio_time::sleep(ssh_security_tick_interval(&state).await).await;
             if let Err(error) = ssh_security_maintenance_tick(&state).await {
                 tracing::debug!(%error, "SSH security maintenance tick failed");
             }
         }
     });
+}
+
+async fn ssh_security_tick_interval(state: &AppState) -> Duration {
+    match ssh_security_config_active(state).await {
+        Ok(true) => Duration::from_secs(SSH_SECURITY_TICK_SECONDS),
+        Ok(false) | Err(_) => Duration::from_secs(DISABLED_SSH_SECURITY_TICK_SECONDS),
+    }
+}
+
+async fn ssh_security_config_active(state: &AppState) -> redis::RedisResult<bool> {
+    let config = load_config(state).await?;
+    let runtime = load_runtime(state).await?;
+    Ok(config.get("enabled").and_then(Value::as_bool) == Some(true)
+        && runtime.get("enabled").and_then(Value::as_bool) == Some(true))
 }
 
 #[derive(Debug)]

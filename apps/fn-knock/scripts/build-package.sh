@@ -203,7 +203,7 @@ build_fpk_rust_backends() {
 
   local builder="${FN_KNOCK_FPK_RUST_BUILDER:-auto}"
   if [ "${builder}" = "auto" ]; then
-    if command -v zig >/dev/null 2>&1 && cargo zigbuild --version >/dev/null 2>&1; then
+    if command -v zig >/dev/null 2>&1 && cargo zigbuild --help >/dev/null 2>&1; then
       builder="zig"
     else
       builder="docker"
@@ -212,6 +212,7 @@ build_fpk_rust_backends() {
 
   case "${builder}" in
     zig)
+      require_local_zigbuild
       for arch in "${FPK_ARCHES[@]}"; do
         case "${arch}" in
           amd64)
@@ -244,6 +245,18 @@ build_fpk_rust_backends() {
       exit 1
       ;;
   esac
+}
+
+require_local_zigbuild() {
+  if ! command -v zig >/dev/null 2>&1; then
+    echo "[fn-knock] Zig is required for local Linux cross compilation; install zig before running the FPK build" >&2
+    exit 1
+  fi
+
+  if ! cargo zigbuild --help >/dev/null 2>&1; then
+    echo "[fn-knock] cargo-zigbuild is required for local Linux cross compilation; install it with: cargo install cargo-zigbuild" >&2
+    exit 1
+  fi
 }
 
 build_fpk_rust_backend_with_docker() {
@@ -281,7 +294,7 @@ build_fpk_rust_backend_with_docker() {
     bash -lc 'export PATH=/usr/local/cargo/bin:$PATH; cargo build --release --manifest-path apps/server-admin-rs/Cargo.toml && cp "${CARGO_TARGET_DIR}/release/server-admin-rs" "${FN_KNOCK_RUST_OUT}" && { strip --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || true; }'
 
   chmod 755 "${out_bin}"
-  optimize_rust_backend_binary "${out_bin}" "${arch}"
+  log_rust_backend_binary_size "${out_bin}" "${arch}"
   verify_linux_rust_backend "${out_bin}" "${arch}"
   echo "[fn-knock] Prepared Rust backend ${arch}: ${out_bin}"
 }
@@ -313,65 +326,18 @@ build_fpk_rust_backend_with_zig() {
   fi
   cp "${built_bin}" "${out_bin}"
   chmod 755 "${out_bin}"
-  optimize_rust_backend_binary "${out_bin}" "${arch}"
+  log_rust_backend_binary_size "${out_bin}" "${arch}"
   verify_linux_rust_backend "${out_bin}" "${arch}"
   echo "[fn-knock] Prepared Rust backend ${arch}: ${out_bin}"
 }
 
-optimize_rust_backend_binary() {
+log_rust_backend_binary_size() {
   local bin="$1"
   local arch="$2"
-  local before_bytes
-  local after_bytes
+  local bytes
 
-  before_bytes="$(file_size_bytes "${bin}")"
-  maybe_compress_rust_backend_with_upx "${bin}" "${arch}"
-  after_bytes="$(file_size_bytes "${bin}")"
-
-  echo "[fn-knock] Rust backend ${arch} size: $(format_bytes "${before_bytes}") -> $(format_bytes "${after_bytes}")"
-}
-
-maybe_compress_rust_backend_with_upx() {
-  local bin="$1"
-  local arch="$2"
-  local mode="${FN_KNOCK_RUST_UPX:-auto}"
-  local upx_bin="${FN_KNOCK_UPX_BIN:-}"
-  local upx_args_string="${FN_KNOCK_RUST_UPX_ARGS:---best --lzma}"
-  local upx_args
-
-  case "${mode}" in
-    0|false|False|FALSE|no|No|NO|off|Off|OFF)
-      echo "[fn-knock] Skipping UPX compression for ${arch} (FN_KNOCK_RUST_UPX=${mode})"
-      return
-      ;;
-    auto|1|true|True|TRUE|yes|Yes|YES|on|On|ON|required)
-      ;;
-    *)
-      echo "[fn-knock] Unsupported FN_KNOCK_RUST_UPX=${mode}; expected auto, 0, 1, or required" >&2
-      exit 1
-      ;;
-  esac
-
-  if [ -z "${upx_bin}" ]; then
-    upx_bin="$(command -v upx || true)"
-  fi
-
-  if [ -z "${upx_bin}" ]; then
-    if [ "${mode}" = "auto" ]; then
-      echo "[fn-knock] UPX not found; leaving Rust backend ${arch} uncompressed"
-      return
-    fi
-    echo "[fn-knock] UPX is required but was not found; install upx or set FN_KNOCK_RUST_UPX=0" >&2
-    exit 1
-  fi
-
-  read -r -a upx_args <<< "${upx_args_string}"
-  echo "[fn-knock] Compressing Rust backend ${arch} with UPX (${upx_bin} ${upx_args_string})..."
-  if ! "${upx_bin}" "${upx_args[@]}" "${bin}"; then
-    echo "[fn-knock] UPX compression failed for ${bin}; set FN_KNOCK_RUST_UPX=0 to disable compression" >&2
-    exit 1
-  fi
-  chmod 755 "${bin}"
+  bytes="$(file_size_bytes "${bin}")"
+  echo "[fn-knock] Rust backend ${arch} size: $(format_bytes "${bytes}")"
 }
 
 file_size_bytes() {
@@ -452,6 +418,7 @@ Commands:
 
 Optional env overrides:
   FN_KNOCK_FPK_ARCHES  Space/comma list: amd64/x86 and/or arm64 (default: amd64 arm64)
+  FN_KNOCK_FPK_RUST_BUILDER  Rust backend builder: auto, zig, or docker (deploy uses zig)
   FN_KNOCK_RUST_PARALLEL_RELEASE  Set 1 to override release LTO/codegen for more parallel builds
   CARGO_BUILD_JOBS  Cargo job count; defaults to CPU count when FN_KNOCK_RUST_PARALLEL_RELEASE=1
   CARGO_PROFILE_RELEASE_LTO  Optional Cargo release LTO override, e.g. thin

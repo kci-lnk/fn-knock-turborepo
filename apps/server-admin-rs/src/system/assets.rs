@@ -5,7 +5,6 @@ use axum::{
     routing::{get, post},
 };
 use serde_json::Value;
-use tokio::time::{self, MissedTickBehavior};
 
 use crate::{i18n::Translator, state::AppState};
 
@@ -148,14 +147,6 @@ pub fn start_system_clock_tasks(state: AppState) {
     tokio::spawn(async move {
         let translator = Translator::from_state(&state).await;
         let _ = refresh_clock_status(&state, &translator).await;
-        let mut ticker = time::interval(std::time::Duration::from_secs(10 * 60));
-        ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
-        ticker.tick().await;
-        loop {
-            ticker.tick().await;
-            let translator = Translator::from_state(&state).await;
-            let _ = refresh_clock_status(&state, &translator).await;
-        }
     });
 }
 

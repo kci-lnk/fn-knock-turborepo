@@ -11,7 +11,6 @@ pub(super) async fn apply_ssh_security_config_once(
     config: &Value,
     runtime: &Value,
 ) -> anyhow::Result<()> {
-    let translator = Translator::from_state(state).await;
     if config.get("enabled").and_then(Value::as_bool) != Some(true)
         || runtime.get("enabled").and_then(Value::as_bool) != Some(true)
     {
@@ -19,6 +18,7 @@ pub(super) async fn apply_ssh_security_config_once(
         return Ok(());
     }
 
+    let translator = Translator::from_state(state).await;
     let availability = ssh_security_availability(state, &translator);
     if !availability.available {
         tracing::warn!(reason = %availability.reason, "skipped SSH security sync");

@@ -85,12 +85,23 @@ fn raw_to_static(value: &str) -> &'static str {
 }
 
 fn translate(locale: &str, key: &str, params: &[(&str, String)]) -> String {
-    let template = generated_message_for(locale, key)
+    let template = message_template(locale, key).unwrap_or_else(|| key.to_string());
+    interpolate(&template, params)
+}
+
+fn message_template(locale: &str, key: &str) -> Option<String> {
+    if key.starts_with("server.systemClock.") {
+        return message_for(locale, key)
+            .map(str::to_string)
+            .or_else(|| generated_message_for(locale, key))
+            .or_else(|| message_for(DEFAULT_LOCALE, key).map(str::to_string))
+            .or_else(|| generated_message_for(DEFAULT_LOCALE, key));
+    }
+
+    generated_message_for(locale, key)
         .or_else(|| generated_message_for(DEFAULT_LOCALE, key))
         .or_else(|| message_for(locale, key).map(str::to_string))
         .or_else(|| message_for(DEFAULT_LOCALE, key).map(str::to_string))
-        .unwrap_or_else(|| key.to_string());
-    interpolate(&template, params)
 }
 
 fn interpolate(template: &str, params: &[(&str, String)]) -> String {

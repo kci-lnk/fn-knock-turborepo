@@ -118,6 +118,10 @@ pub async fn is_common_auth_location_exempt_ip(state: &AppState, ip: &str) -> an
 pub async fn rebuild_common_auth_locations_runtime_state(
     state: &AppState,
 ) -> anyhow::Result<Value> {
+    if !common_auth_location_exemptions_enabled(state).await? {
+        return sync_disabled_common_auth_locations_runtime(state).await;
+    }
+
     let max_recent_ips = env_i64("COMMON_AUTH_LOCATIONS_MAX_IPS", 1000).max(10) as usize;
     let max_locations = env_i64("COMMON_AUTH_LOCATIONS_MAX_LOCATIONS", 5).max(1) as usize;
     let max_cidrs = env_i64("COMMON_AUTH_LOCATIONS_MAX_CIDRS", 1000).max(1) as usize;
@@ -230,6 +234,60 @@ pub async fn rebuild_common_auth_locations_runtime_state(
             common_auth_locations_location_retry_delay(),
         );
     }
+    Ok(runtime)
+}
+
+async fn common_auth_location_exemptions_enabled(state: &AppState) -> anyhow::Result<bool> {
+    let config = state.redis.get_config().await?;
+    let waf = config.get("waf").unwrap_or(&Value::Null);
+    let waf_enabled = waf.get("enabled").and_then(Value::as_bool) == Some(true)
+        && waf
+            .get("common_location_exempt_enabled")
+            .and_then(Value::as_bool)
+            == Some(true);
+    let scanner_settings = state.redis.scanner_settings_raw().await?;
+    let scanner_enabled = scanner_settings
+        .as_ref()
+        .and_then(|value| value.get("enabled"))
+        .and_then(Value::as_bool)
+        == Some(true)
+        && scanner_settings
+            .as_ref()
+            .and_then(|value| value.get("commonLocationExemptEnabled"))
+            .and_then(Value::as_bool)
+            == Some(true);
+    Ok(waf_enabled || scanner_enabled)
+}
+
+async fn sync_disabled_common_auth_locations_runtime(state: &AppState) -> anyhow::Result<Value> {
+    if let Some(runtime) = state
+        .redis
+        .get_string_value(RUNTIME_KEY)
+        .await?
+        .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
+        && runtime.get("enabled").and_then(Value::as_bool) != Some(true)
+        && runtime
+            .get("cidrs")
+            .and_then(Value::as_array)
+            .is_none_or(Vec::is_empty)
+    {
+        return Ok(runtime);
+    }
+
+    let runtime = json!({
+        "enabled": false,
+        "cidrs": [],
+        "locations": [],
+        "sample_count": 0,
+        "resolved_sample_count": 0,
+        "pending_ip_count": 0,
+        "updated_at": time_utils::now_iso(),
+    });
+    state
+        .redis
+        .set_string_value(RUNTIME_KEY, &serde_json::to_string(&runtime)?)
+        .await?;
+    sync_common_auth_locations_to_gateway(state, &runtime).await?;
     Ok(runtime)
 }
 

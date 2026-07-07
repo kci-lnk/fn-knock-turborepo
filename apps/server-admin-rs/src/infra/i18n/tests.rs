@@ -154,6 +154,24 @@ fn translates_and_interpolates() {
 }
 
 #[test]
+fn generated_catalog_wins_for_non_clock_runtime_messages() {
+    let translator = Translator::new("zh-Hant");
+    assert_eq!(translator.t("server.acmeRoutes.certNotFound"), "證書不存在");
+}
+
+#[test]
+fn system_clock_messages_use_static_fast_path() {
+    let translator = Translator::new("ko-KR");
+    assert_eq!(
+        translator.t_params(
+            "server.systemClock.duration.seconds",
+            &[("seconds", "5".to_string())]
+        ),
+        "5초"
+    );
+}
+
+#[test]
 fn runtime_messages_are_explicit_for_supported_locales() {
     for key in RUNTIME_I18N_KEYS {
         assert!(zh_cn_message(key).is_some(), "missing zh-CN key {key}");

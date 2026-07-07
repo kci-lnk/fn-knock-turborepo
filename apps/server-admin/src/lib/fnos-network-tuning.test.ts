@@ -231,16 +231,20 @@ describe("FnosNetworkTuningService", () => {
 
     assert.equal(harness.config.bbr_enabled, false);
     assert.match(harness.config.last_error ?? "", /tcp_bbr/);
-    assert.equal(harness.files.has(managedPath), false);
+    assert.match(
+      harness.files.get(managedPath) ?? "",
+      /net\.ipv4\.tcp_mtu_probing=0/,
+    );
     assert.equal(harness.sysctl.get("net.ipv4.tcp_congestion_control"), "cubic");
   });
 
-  it("enables and disables MTU probing with previous value restoration", async () => {
+  it("enables and disables MTU probing with explicit 1/0 sysctl values", async () => {
     const harness = createHarness();
+    harness.sysctl.set("net.ipv4.tcp_mtu_probing", "1");
 
     await harness.service.update({ mtu_probing_enabled: true });
     assert.equal(harness.sysctl.get("net.ipv4.tcp_mtu_probing"), "1");
-    assert.equal(harness.config.previous_tcp_mtu_probing, "0");
+    assert.equal(harness.config.previous_tcp_mtu_probing, "1");
     assert.match(
       harness.files.get(managedPath) ?? "",
       /net\.ipv4\.tcp_mtu_probing=1/,
@@ -249,7 +253,10 @@ describe("FnosNetworkTuningService", () => {
     await harness.service.update({ mtu_probing_enabled: false });
     assert.equal(harness.sysctl.get("net.ipv4.tcp_mtu_probing"), "0");
     assert.equal(harness.config.mtu_probing_enabled, false);
-    assert.equal(harness.files.has(managedPath), false);
+    assert.match(
+      harness.files.get(managedPath) ?? "",
+      /net\.ipv4\.tcp_mtu_probing=0/,
+    );
   });
 
   it("keeps managed config rendering idempotent", async () => {
@@ -278,7 +285,10 @@ describe("FnosNetworkTuningService", () => {
     assert.equal(harness.sysctl.get("net.ipv4.tcp_congestion_control"), "cubic");
     assert.equal(harness.sysctl.get("net.core.default_qdisc"), "pfifo_fast");
     assert.equal(harness.config.bbr_enabled, false);
-    assert.equal(harness.files.has(managedPath), false);
+    assert.match(
+      harness.files.get(managedPath) ?? "",
+      /net\.ipv4\.tcp_mtu_probing=0/,
+    );
   });
 
   it("falls back when previous BBR values are no longer accepted", async () => {

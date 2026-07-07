@@ -364,6 +364,65 @@ fn fnos_network_tuning_disable_keeps_previous_runtime_values() {
 }
 
 #[test]
+fn fnos_network_tuning_disable_requires_zero_even_when_previous_was_one() {
+    let translator = Translator::new("zh-CN");
+    let config = normalize_fnos_network_tuning(Some(&json!({
+        "bbr_enabled": false,
+        "mtu_probing_enabled": false,
+        "previous_tcp_mtu_probing": "1",
+    })));
+    let patch = json!({ "mtu_probing_enabled": false });
+    let targets = FnosNetworkTuningTransitionTargets::default();
+
+    assert!(
+        verify_fnos_network_tuning_state(
+            &config,
+            &patch,
+            &json!({ "tcp_mtu_probing": "0" }),
+            &targets,
+            &translator,
+        )
+        .is_ok()
+    );
+    assert!(
+        verify_fnos_network_tuning_state(
+            &config,
+            &patch,
+            &json!({ "tcp_mtu_probing": "1" }),
+            &targets,
+            &translator,
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn fnos_network_tuning_managed_config_writes_explicit_mtu_zero() {
+    let config = normalize_fnos_network_tuning(Some(&json!({
+        "bbr_enabled": true,
+        "mtu_probing_enabled": false,
+    })));
+    let content = render_fnos_network_tuning_sysctl_config(&config).join("\n");
+
+    assert!(content.contains("net.core.default_qdisc=fq"));
+    assert!(content.contains("net.ipv4.tcp_congestion_control=bbr"));
+    assert!(content.contains("net.ipv4.tcp_mtu_probing=0"));
+}
+
+#[test]
+fn fnos_network_tuning_managed_config_removes_bbr_when_disabled() {
+    let config = normalize_fnos_network_tuning(Some(&json!({
+        "bbr_enabled": false,
+        "mtu_probing_enabled": false,
+    })));
+    let content = render_fnos_network_tuning_sysctl_config(&config).join("\n");
+
+    assert!(!content.contains("net.core.default_qdisc=fq"));
+    assert!(!content.contains("net.ipv4.tcp_congestion_control=bbr"));
+    assert!(content.contains("net.ipv4.tcp_mtu_probing=0"));
+}
+
+#[test]
 fn fnos_network_tuning_success_clears_previous_last_error_like_node() {
     let mut next = normalize_fnos_network_tuning(Some(&json!({
         "bbr_enabled": true,

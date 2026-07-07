@@ -376,11 +376,11 @@ export class FnosNetworkTuningService {
       );
     }
 
-    if (config.mtu_probing_enabled) {
-      lines.push(`${TCP_MTU_PROBING_KEY}=1`);
-    }
+    lines.push(
+      `${TCP_MTU_PROBING_KEY}=${config.mtu_probing_enabled ? "1" : "0"}`,
+    );
 
-    return lines.length > 2 ? `${lines.join("\n")}\n` : "";
+    return `${lines.join("\n")}\n`;
   }
 
   private async writeManagedConfig(
@@ -494,11 +494,8 @@ export class FnosNetworkTuningService {
     if (patch.mtu_probing_enabled === true) {
       await this.setSysctlValue(TCP_MTU_PROBING_KEY, "1");
     } else if (patch.mtu_probing_enabled === false) {
-      targets.disabled_tcp_mtu_probing =
-        await this.setSysctlValueFromCandidates(
-          TCP_MTU_PROBING_KEY,
-          this.uniqueCandidates([nextConfig.previous_tcp_mtu_probing, "0"]),
-        );
+      await this.setSysctlValue(TCP_MTU_PROBING_KEY, "0");
+      targets.disabled_tcp_mtu_probing = "0";
     }
 
     return targets;
@@ -526,8 +523,8 @@ export class FnosNetworkTuningService {
 
     if (previousConfig.mtu_probing_enabled) {
       await this.setSysctlValue(TCP_MTU_PROBING_KEY, "1");
-    } else if (beforeState.tcp_mtu_probing) {
-      await this.setSysctlValue(TCP_MTU_PROBING_KEY, beforeState.tcp_mtu_probing);
+    } else {
+      await this.setSysctlValue(TCP_MTU_PROBING_KEY, "0");
     }
   }
 
@@ -566,10 +563,7 @@ export class FnosNetworkTuningService {
     }
 
     if (patch.mtu_probing_enabled === false) {
-      const expectedMtu =
-        targets.disabled_tcp_mtu_probing ??
-        config.previous_tcp_mtu_probing ??
-        "0";
+      const expectedMtu = targets.disabled_tcp_mtu_probing ?? "0";
       if (state.tcp_mtu_probing !== expectedMtu) {
         throw new Error("MTU probing rollback did not restore the expected value.");
       }

@@ -43,12 +43,11 @@ pub fn success_empty() -> Json<ApiEnvelope<Value>> {
 }
 
 pub fn error(status: StatusCode, message: impl Into<String>) -> axum::response::Response {
-    let code = status.as_u16();
     (
         status,
         Json(ApiEnvelope::<Value> {
             success: false,
-            code: Some(code),
+            code: None,
             message: Some(message.into()),
             data: None,
         }),
@@ -114,4 +113,28 @@ pub async fn healthz(State(state): State<AppState>) -> axum::response::Response 
 
 fn runtime_profile(state: &AppState) -> Value {
     serde_json::to_value(runtime_profile::get_runtime_profile(state)).unwrap_or_else(|_| json!({}))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::to_bytes;
+
+    #[tokio::test]
+    async fn error_response_matches_node_envelope_shape() {
+        let response = error(StatusCode::BAD_REQUEST, "Bad request");
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let value: Value = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(
+            value,
+            json!({
+                "success": false,
+                "message": "Bad request"
+            })
+        );
+    }
 }

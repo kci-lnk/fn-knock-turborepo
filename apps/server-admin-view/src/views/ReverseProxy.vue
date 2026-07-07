@@ -234,7 +234,7 @@
               <SlidersHorizontal class="h-4 w-4" />
             </Button>
             <RefreshButton
-              class="w-auto max-w-[calc(100vw-7rem)] min-w-0 !shrink justify-center overflow-hidden [&>span]:min-w-0 [&>span]:truncate"
+              class="h-11 w-auto max-w-[calc(100vw-7rem)] min-w-0 !shrink justify-center overflow-hidden sm:h-9 [&>span]:min-w-0 [&>span]:truncate"
               :label="t('admin.reverseProxy.refreshServices')"
               :loading="isDiscovering"
               :disabled="isDiscovering"
@@ -265,6 +265,19 @@
         <div class="py-2">
           <div
             v-if="
+              isDiscovering &&
+              (!discoveredData || discoveredData.services.length === 0)
+            "
+            class="flex flex-col items-center justify-center py-16 space-y-4"
+          >
+            <RefreshCw class="h-8 w-8 animate-spin text-muted-foreground" />
+            <p class="text-sm text-muted-foreground">
+              {{ t("admin.reverseProxy.probing") }}
+            </p>
+          </div>
+
+          <div
+            v-else-if="
               !isDiscovering &&
               discoveredData &&
               discoveredData.services.length === 0

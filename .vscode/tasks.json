@@ -2,10 +2,29 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "task: server-admin",
+			"label": "task: go-reauth-proxy",
 			"type": "shell",
 			"isBackground": true,
-			"command": "source ~/.zshrc && npm run dev --workspace server-admin",
+			"command": "source ~/.zshrc && go run ./cmd/server -proxy-port 7999 -admin-port 7996 -c ./config.json",
+			"options": {
+				"cwd": "${env:HOME}/Local/Go-Reauth-Proxy",
+				"env": {
+					"GO_REPROXY_PORT": "7999",
+					"FN_KNOCK_INTERNAL_RPC_TOKEN": "fn-knock-dev-internal-rpc-token"
+				}
+			},
+			"problemMatcher": [],
+			"presentation": {
+				"group": "output",
+				"panel": "new",
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "task: server-admin-rs",
+			"type": "shell",
+			"isBackground": true,
+			"command": "source ~/.zshrc && npm run dev --workspace server-admin-rs",
 			"options": {
 				"env": {
 					"BACKEND_PORT": "7998",
@@ -13,9 +32,13 @@
 					"GO_BACKEND_PORT": "7996",
 					"GO_REPROXY_PORT": "7999",
 					"NODE_ENV": "developer",
+					"FN_KNOCK_INTERNAL_RPC_TOKEN": "fn-knock-dev-internal-rpc-token",
+					"HMAC_SECRET": "fn-knock-dev-hmac-secret",
+					"ADMIN_PROXY_SECRET": "fn-knock-dev-admin-proxy-secret",
 					"ALTCHA_HMAC_KEY": "77c15a04-6b00-4ecc-8986-d8697780434b"
 				}
 			},
+			"problemMatcher": [],
 			"presentation": {
 				"group": "output",
 				"panel": "new",
@@ -27,6 +50,7 @@
 			"type": "shell",
 			"isBackground": true,
 			"command": "source ~/.zshrc && npm run dev --workspace server-admin-view -- --port 5173",
+			"problemMatcher": [],
 			"presentation": {
 				"group": "output",
 				"panel": "new"
@@ -37,6 +61,7 @@
 			"type": "shell",
 			"isBackground": true,
 			"command": "source ~/.zshrc && npm run dev --workspace server-auth-view -- --port 5174",
+			"problemMatcher": [],
 			"presentation": {
 				"group": "output"
 			}
@@ -45,7 +70,8 @@
 			"label": "🚀 Start Full Dev Stack",
 			"dependsOrder": "parallel",
 			"dependsOn": [
-				"task: server-admin",
+				"task: go-reauth-proxy",
+				"task: server-admin-rs",
 				"task: server-admin-view",
 				"task: server-auth-view"
 			],

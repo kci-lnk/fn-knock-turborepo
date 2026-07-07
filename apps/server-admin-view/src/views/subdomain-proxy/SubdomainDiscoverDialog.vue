@@ -31,24 +31,17 @@
             >
               <SlidersHorizontal class="h-4 w-4" />
             </Button>
-            <Button
-              class="w-auto max-w-[calc(100vw-7rem)] min-w-0 !shrink justify-center overflow-hidden"
-              variant="outline"
+            <RefreshButton
+              class="h-11 w-auto max-w-[calc(100vw-7rem)] min-w-0 !shrink justify-center overflow-hidden sm:h-9 [&>span]:min-w-0 [&>span]:truncate"
+              :label="
+                isDiscovering
+                  ? t('admin.subdomainProxy.scanning')
+                  : t('admin.subdomainProxy.refreshServices')
+              "
+              :loading="isDiscovering"
               :disabled="isDiscovering"
               @click="emit('scan')"
-            >
-              <RefreshCw
-                class="mr-2 h-4 w-4"
-                :class="{ 'animate-spin': isDiscovering }"
-              />
-              <span class="min-w-0 truncate">
-                {{
-                  isDiscovering
-                    ? t("admin.subdomainProxy.scanning")
-                    : t("admin.subdomainProxy.refreshServices")
-                }}
-              </span>
-            </Button>
+            />
             <Button
               v-if="isDiscovering"
               class="h-11 sm:h-9"
@@ -71,6 +64,19 @@
         <div class="py-2">
           <div
             v-if="
+              isDiscovering &&
+              (!discoveredData || discoveredData.services.length === 0)
+            "
+            class="flex flex-col items-center justify-center py-16 space-y-4"
+          >
+            <RefreshCw class="h-8 w-8 animate-spin text-muted-foreground" />
+            <p class="text-sm text-muted-foreground">
+              {{ t("admin.subdomainProxy.probing") }}
+            </p>
+          </div>
+
+          <div
+            v-else-if="
               !isDiscovering &&
               discoveredData &&
               discoveredData.services.length === 0
@@ -267,6 +273,7 @@ import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { RefreshCw, SlidersHorizontal, X } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
+import RefreshButton from "@/components/RefreshButton.vue";
 import {
   Dialog,
   DialogContent,

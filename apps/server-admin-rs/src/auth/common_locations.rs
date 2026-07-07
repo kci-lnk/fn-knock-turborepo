@@ -3,11 +3,16 @@ use std::{
     env,
     net::IpAddr,
     str::FromStr,
+    sync::{LazyLock, Mutex},
+    time::Duration,
 };
 
 use ipnet::IpNet;
 use serde_json::{Value, json};
-use tokio::time::{self, MissedTickBehavior};
+use tokio::{
+    task::JoinHandle,
+    time::{self, MissedTickBehavior},
+};
 
 use crate::{
     http_utils::{is_private_or_local_ip, normalize_ip},
@@ -20,6 +25,14 @@ use crate::{
 const RUNTIME_KEY: &str = "fn_knock:common_auth_locations:runtime";
 const RECENT_WINDOW_SECONDS: i64 = 7 * 24 * 3600;
 const KNOWN_COUNTRY_CHINA: &str = "中国";
+static SCHEDULED_REBUILD: LazyLock<Mutex<ScheduledRebuild>> =
+    LazyLock::new(|| Mutex::new(ScheduledRebuild::default()));
+
+#[derive(Default)]
+struct ScheduledRebuild {
+    next_id: u64,
+    task: Option<(u64, JoinHandle<()>)>,
+}
 
 #[derive(Clone, Debug)]
 struct RecentAuthIpEntry {
@@ -70,6 +83,7 @@ pub async fn record_recent_verified_ip(state: &AppState, ip: &str) -> anyhow::Re
         .redis
         .record_recent_auth_ip(&normalized, now_seconds())
         .await?;
+    schedule_common_auth_locations_rebuild(state.clone(), "recent-auth-ip");
     Ok(())
 }
 
@@ -120,20 +134,14 @@ pub async fn rebuild_common_auth_locations_runtime_state(
     let mut samples = Vec::new();
     let mut pending_ips = Vec::new();
     for entry in &entries {
-        match state.redis.get_ip_location_cache(&entry.ip).await? {
-            Some(location) if location_key(&location).is_some() => {
-                samples.push(ResolvedSample {
-                    entry: entry.clone(),
-                    location,
-                });
-            }
-            _ => pending_ips.push(entry.ip.clone()),
-        }
+        let cached = state.redis.get_ip_location_cache(&entry.ip).await?;
+        collect_resolved_sample_or_pending(entry, cached, &mut samples, &mut pending_ips);
     }
     if !pending_ips.is_empty() {
         ensure_ip_locations_enqueued(state, pending_ips.clone()).await?;
     }
 
+    let resolved_sample_count = samples.len();
     let groups = scored_location_groups(samples, now_seconds(), max_locations);
     let mut locations = Vec::new();
     let mut all_cidrs = Vec::new();
@@ -205,7 +213,7 @@ pub async fn rebuild_common_auth_locations_runtime_state(
         "cidrs": normalize_cidr_lines(all_cidrs),
         "locations": locations,
         "sample_count": entries.len(),
-        "resolved_sample_count": samples_len_from_locations(&locations),
+        "resolved_sample_count": resolved_sample_count,
         "pending_ip_count": pending_ips.len(),
         "updated_at": time_utils::now_iso(),
     });
@@ -214,7 +222,67 @@ pub async fn rebuild_common_auth_locations_runtime_state(
         .set_string_value(RUNTIME_KEY, &serde_json::to_string(&runtime)?)
         .await?;
     sync_common_auth_locations_to_gateway(state, &runtime).await?;
+    if !pending_ips.is_empty() {
+        schedule_common_auth_locations_rebuild_after(
+            state.clone(),
+            "ip-location-refresh",
+            common_auth_locations_location_retry_delay(),
+        );
+    }
     Ok(runtime)
+}
+
+fn schedule_common_auth_locations_rebuild(state: AppState, reason: &'static str) {
+    schedule_common_auth_locations_rebuild_after(
+        state,
+        reason,
+        common_auth_locations_rebuild_debounce(),
+    );
+}
+
+fn schedule_common_auth_locations_rebuild_after(
+    state: AppState,
+    reason: &'static str,
+    delay: Duration,
+) {
+    let Ok(mut scheduled) = SCHEDULED_REBUILD.lock() else {
+        return;
+    };
+    if let Some((_, handle)) = scheduled.task.take() {
+        handle.abort();
+    }
+    scheduled.next_id = scheduled.next_id.wrapping_add(1).max(1);
+    let task_id = scheduled.next_id;
+    scheduled.task = Some((
+        task_id,
+        tokio::spawn(async move {
+            time::sleep(delay).await;
+            {
+                let Ok(mut scheduled) = SCHEDULED_REBUILD.lock() else {
+                    return;
+                };
+                if !matches!(scheduled.task.as_ref(), Some((id, _)) if *id == task_id) {
+                    return;
+                }
+                scheduled.task = None;
+            }
+            if let Err(error) = rebuild_common_auth_locations_runtime_state(&state).await {
+                tracing::warn!(%error, %reason, "failed to rebuild common auth locations");
+            }
+        }),
+    ));
+}
+
+fn common_auth_locations_rebuild_debounce() -> Duration {
+    Duration::from_millis(
+        env_i64("COMMON_AUTH_LOCATIONS_REBUILD_DEBOUNCE_MS", 5000).max(1000) as u64,
+    )
+}
+
+fn common_auth_locations_location_retry_delay() -> Duration {
+    Duration::from_millis(
+        env_i64("COMMON_AUTH_LOCATIONS_LOCATION_RETRY_MS", 30000).max(5000) as u64,
+    )
 }
 
 async fn sync_common_auth_locations_to_gateway(
@@ -250,14 +318,32 @@ async fn sync_common_auth_locations_to_gateway(
         "cidrs": if enabled { cidrs } else { Vec::<String>::new() },
         "updated_at": runtime.get("updated_at").cloned().unwrap_or(Value::Null),
     });
-    if let Err(error) = state
+    let (status, response) = state
         .go_backend
         .set_common_location_exemptions(&payload)
-        .await
-    {
-        tracing::debug!(%error, "failed to sync common auth locations to gateway");
+        .await?;
+    if let Some(error) = common_location_sync_failure(status, &response) {
+        anyhow::bail!(error);
     }
     Ok(())
+}
+
+fn common_location_sync_failure(status: reqwest::StatusCode, response: &Value) -> Option<String> {
+    if status == reqwest::StatusCode::NOT_FOUND || status == reqwest::StatusCode::NOT_IMPLEMENTED {
+        return None;
+    }
+    if status.is_success() && response.get("success").and_then(Value::as_bool) == Some(true) {
+        return None;
+    }
+    Some(
+        response
+            .get("message")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|message| !message.is_empty())
+            .map(ToString::to_string)
+            .unwrap_or_else(|| format!("Failed to sync common location exemptions ({status})")),
+    )
 }
 
 fn parse_recent_auth_ip_entry(value: Value) -> Option<RecentAuthIpEntry> {
@@ -279,6 +365,21 @@ fn parse_recent_auth_ip_entry(value: Value) -> Option<RecentAuthIpEntry> {
             .unwrap_or(1)
             .max(1),
     })
+}
+
+fn collect_resolved_sample_or_pending(
+    entry: &RecentAuthIpEntry,
+    cached_location: Option<Value>,
+    samples: &mut Vec<ResolvedSample>,
+    pending_ips: &mut Vec<String>,
+) {
+    match cached_location {
+        Some(location) => samples.push(ResolvedSample {
+            entry: entry.clone(),
+            location,
+        }),
+        None => pending_ips.push(entry.ip.clone()),
+    }
 }
 
 fn scored_location_groups(
@@ -451,10 +552,10 @@ fn location_key(location: &Value) -> Option<String> {
 }
 
 fn location_label(group: &LocationGroup) -> String {
-    let parts = if group.country == KNOWN_COUNTRY_CHINA {
-        [&group.province, &group.city, &group.isp]
+    let parts: Vec<&str> = if group.country == KNOWN_COUNTRY_CHINA {
+        vec![&group.province, &group.city, &group.isp]
     } else {
-        [&group.country, &group.province, &group.city]
+        vec![&group.country, &group.province, &group.city, &group.isp]
     };
     let label = parts
         .into_iter()
@@ -467,14 +568,6 @@ fn location_label(group: &LocationGroup) -> String {
     } else {
         label
     }
-}
-
-fn samples_len_from_locations(locations: &[Value]) -> usize {
-    locations
-        .iter()
-        .filter_map(|location| location.get("ip_count").and_then(Value::as_u64))
-        .map(|value| value as usize)
-        .sum()
 }
 
 fn string_field(value: &Value, key: &str) -> String {
@@ -495,4 +588,110 @@ fn env_i64(key: &str, fallback: i64) -> i64 {
 
 fn now_seconds() -> i64 {
     time_utils::now_ms().div_euclid(1000)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn recent_entry(ip: &str, seen_count: i64) -> RecentAuthIpEntry {
+        RecentAuthIpEntry {
+            ip: ip.to_string(),
+            first_seen_at: 1_000,
+            last_seen_at: 2_000,
+            seen_count,
+        }
+    }
+
+    #[test]
+    fn cached_location_without_key_is_resolved_but_not_grouped_like_node() {
+        let entry = recent_entry("203.0.113.9", 6);
+        let mut samples = Vec::new();
+        let mut pending_ips = Vec::new();
+
+        collect_resolved_sample_or_pending(
+            &entry,
+            Some(json!({ "country": "", "province": "", "city": "", "isp": "Test ISP" })),
+            &mut samples,
+            &mut pending_ips,
+        );
+
+        assert_eq!(samples.len(), 1);
+        assert!(pending_ips.is_empty());
+        assert!(scored_location_groups(samples, 2_000, 5).is_empty());
+    }
+
+    #[test]
+    fn non_china_location_label_includes_isp_like_node() {
+        let group = LocationGroup {
+            key: "United States|California|San Francisco".to_string(),
+            country: "United States".to_string(),
+            province: "California".to_string(),
+            city: "San Francisco".to_string(),
+            isp: "Example ISP".to_string(),
+            samples: Vec::new(),
+        };
+
+        assert_eq!(
+            location_label(&group),
+            "United States / California / San Francisco / Example ISP"
+        );
+    }
+
+    #[test]
+    fn rebuild_debounce_has_node_floor() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        unsafe {
+            env::set_var("COMMON_AUTH_LOCATIONS_REBUILD_DEBOUNCE_MS", "0");
+        }
+        assert_eq!(
+            common_auth_locations_rebuild_debounce(),
+            Duration::from_millis(1_000)
+        );
+        unsafe {
+            env::remove_var("COMMON_AUTH_LOCATIONS_REBUILD_DEBOUNCE_MS");
+        }
+    }
+
+    #[test]
+    fn location_retry_delay_has_node_floor() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        unsafe {
+            env::set_var("COMMON_AUTH_LOCATIONS_LOCATION_RETRY_MS", "1");
+        }
+        assert_eq!(
+            common_auth_locations_location_retry_delay(),
+            Duration::from_millis(5_000)
+        );
+        unsafe {
+            env::remove_var("COMMON_AUTH_LOCATIONS_LOCATION_RETRY_MS");
+        }
+    }
+
+    #[test]
+    fn common_location_sync_failure_matches_node_gateway_semantics() {
+        assert!(
+            common_location_sync_failure(reqwest::StatusCode::OK, &json!({ "success": true }))
+                .is_none()
+        );
+        assert!(common_location_sync_failure(reqwest::StatusCode::NOT_FOUND, &json!({})).is_none());
+        assert!(
+            common_location_sync_failure(reqwest::StatusCode::NOT_IMPLEMENTED, &json!({}))
+                .is_none()
+        );
+        assert_eq!(
+            common_location_sync_failure(
+                reqwest::StatusCode::OK,
+                &json!({ "success": false, "message": "gateway rejected" }),
+            )
+            .as_deref(),
+            Some("gateway rejected")
+        );
+        assert!(
+            common_location_sync_failure(reqwest::StatusCode::INTERNAL_SERVER_ERROR, &json!({}))
+                .is_some()
+        );
+    }
 }

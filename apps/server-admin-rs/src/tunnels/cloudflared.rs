@@ -401,7 +401,9 @@ impl CloudflaredManager {
             run.pid = Some(pid);
             run.stop_requested = false;
         }
-        mark_tunnel_running(&state).await?;
+        if let Err(error) = mark_tunnel_running(&state).await {
+            tracing::warn!(%error, "failed to persist cloudflared running state");
+        }
         append_logs(&state, vec![format!("cloudflared started pid={pid}")])
             .await
             .map_err(|error| error.to_string())?;
@@ -422,12 +424,13 @@ impl CloudflaredManager {
             };
             let (expected_stop, was_connected) = {
                 let mut run = self.state.lock().unwrap();
+                if run.pid != Some(pid) {
+                    return;
+                }
                 let expected_stop = run.stop_requested;
                 let was_connected = run.connected;
-                if run.pid == Some(pid) {
-                    run.running = false;
-                    run.pid = None;
-                }
+                run.running = false;
+                run.pid = None;
                 run.connected = false;
                 run.stop_requested = false;
                 (expected_stop, was_connected)
@@ -471,7 +474,9 @@ impl CloudflaredManager {
         if let Some(pid) = pid {
             let _ = Command::new("kill").arg(pid.to_string()).status();
         }
-        mark_tunnel_stopped(state).await?;
+        if let Err(error) = mark_tunnel_stopped(state).await {
+            tracing::warn!(%error, "failed to persist cloudflared stopped state");
+        }
         Ok(())
     }
 }
@@ -682,9 +687,17 @@ async fn tunnel_runtime_state(state: &AppState) -> redis::RedisResult<Value> {
 }
 
 fn normalize_tunnel_runtime_state(value: Option<Value>) -> Value {
-    let raw = value
-        .and_then(|value| value.as_object().cloned())
-        .unwrap_or_default();
+    let Some(value) = value else {
+        return default_tunnel_runtime_state();
+    };
+    let Some(raw) = value.as_object().cloned() else {
+        return default_tunnel_runtime_state();
+    };
+    let updated_at = raw
+        .get("updated_at")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(time_utils::now_iso);
     if !raw.contains_key("frp_enabled")
         && !raw.contains_key("cloudflared_enabled")
         && raw.contains_key("tunnel")
@@ -696,14 +709,23 @@ fn normalize_tunnel_runtime_state(value: Option<Value>) -> Value {
             "frp_enabled": tunnel == "frp" && enabled,
             "cloudflared_enabled": tunnel == "cloudflared" && enabled,
             "last_tunnel": if tunnel == "cloudflared" { "cloudflared" } else { "frp" },
-            "updated_at": raw.get("updated_at").and_then(Value::as_str).unwrap_or("1970-01-01T00:00:00Z")
+            "updated_at": updated_at
         });
     }
     json!({
         "frp_enabled": raw.get("frp_enabled").and_then(Value::as_bool).unwrap_or(false),
         "cloudflared_enabled": raw.get("cloudflared_enabled").and_then(Value::as_bool).unwrap_or(false),
         "last_tunnel": if raw.get("last_tunnel").and_then(Value::as_str) == Some("cloudflared") { "cloudflared" } else { "frp" },
-        "updated_at": raw.get("updated_at").and_then(Value::as_str).unwrap_or("1970-01-01T00:00:00Z")
+        "updated_at": raw.get("updated_at").and_then(Value::as_str).map(str::to_string).unwrap_or_else(time_utils::now_iso)
+    })
+}
+
+fn default_tunnel_runtime_state() -> Value {
+    json!({
+        "frp_enabled": false,
+        "cloudflared_enabled": false,
+        "last_tunnel": "frp",
+        "updated_at": "1970-01-01T00:00:00.000Z"
     })
 }
 
@@ -799,6 +821,21 @@ mod tests {
         })));
         assert_eq!(state["cloudflared_enabled"], true);
         assert_eq!(state["last_tunnel"], "cloudflared");
+    }
+
+    #[test]
+    fn tunnel_runtime_state_matches_node_legacy_boundaries() {
+        let state = normalize_tunnel_runtime_state(None);
+        assert_eq!(state["updated_at"], "1970-01-01T00:00:00.000Z");
+
+        let partial_new_state = normalize_tunnel_runtime_state(Some(json!({
+            "cloudflared_enabled": true,
+            "tunnel": "frp",
+            "enabled": true
+        })));
+        assert_eq!(partial_new_state["frp_enabled"], false);
+        assert_eq!(partial_new_state["cloudflared_enabled"], true);
+        assert_ne!(partial_new_state["updated_at"], "1970-01-01T00:00:00.000Z");
     }
 
     #[test]

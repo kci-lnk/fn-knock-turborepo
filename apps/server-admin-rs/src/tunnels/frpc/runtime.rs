@@ -194,7 +194,7 @@ pub(super) fn normalize_verify_output(value: &str) -> String {
 pub(super) async fn start_instance_inner(state: &AppState, id: &str) -> FrpcResult<u32> {
     let meta = get_meta_or_error(state, id).await?;
     let Some(bin) = frp_executable(state) else {
-        return Err(frpc_validation("FRP is not initialized"));
+        return Err(frpc_internal("FRP is not initialized"));
     };
     let content = read_config_for_meta(&meta).await?;
     verify_frpc_config(state, &meta, &content).await?;
@@ -284,14 +284,19 @@ pub(super) fn spawn_exit_watcher(
             .ok()
             .and_then(|status| status.code())
             .unwrap_or(-1);
-        let was_attached = ATTACHED_PIDS.lock().await.remove(&meta.id).is_some();
+        {
+            let mut attached = ATTACHED_PIDS.lock().await;
+            if !attached_pid_matches(attached.get(&meta.id).copied(), pid) {
+                return;
+            }
+            attached.remove(&meta.id);
+        }
         let expected_stop = {
             let states = CONNECTION_STATES.lock().await;
             states
                 .get(&meta.id)
                 .map(|state| state.stop_requested)
                 .unwrap_or(false)
-                || !was_attached
         };
         remove_pid_file(&pid_path_for_meta(&meta)).await;
         let message = match status {
@@ -316,6 +321,10 @@ pub(super) fn spawn_exit_watcher(
         }
         let _ = update_aggregate_tunnel_state(&state).await;
     });
+}
+
+pub(super) fn attached_pid_matches(current: Option<u32>, exiting: Option<u32>) -> bool {
+    matches!((current, exiting), (Some(current), Some(exiting)) if current == exiting)
 }
 
 pub(super) async fn stop_instance_inner(state: &AppState, id: &str) -> FrpcResult<()> {
@@ -532,7 +541,7 @@ pub(super) async fn restore_on_boot(state: &AppState) -> FrpcResult<()> {
         if !status.desired_running || status.running {
             continue;
         }
-        append_logs(state, &meta, &["resume on boot".to_string()]).await?;
+        append_logs(state, &meta, &[default_frpc_text("resumeOnBoot")]).await?;
         if let Err(error) = start_instance_inner(state, &meta.id).await {
             append_logs(state, &meta, &[format!("resume error: {}", error.message)]).await?;
         }
@@ -609,21 +618,35 @@ pub(super) async fn mark_tunnel_stopped(state: &AppState) {
 }
 
 pub(super) async fn load_tunnel_state(state: &AppState) -> serde_json::Map<String, Value> {
-    let raw = state
+    let Some(raw) = state
         .redis
         .get_json_value(TUNNEL_RUNTIME_KEY)
         .await
         .ok()
         .flatten()
-        .unwrap_or_else(|| json!({}));
-    let mut object = if !raw.get("frp_enabled").is_some() && raw.get("tunnel").is_some() {
+    else {
+        return default_tunnel_state();
+    };
+    let Some(raw_object) = raw.as_object() else {
+        return default_tunnel_state();
+    };
+    let updated_at = raw_object
+        .get("updated_at")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(time_utils::now_iso);
+    let mut object = if !raw_object.contains_key("frp_enabled")
+        && !raw_object.contains_key("cloudflared_enabled")
+        && raw_object.contains_key("tunnel")
+        && raw_object.contains_key("enabled")
+    {
         let tunnel = raw.get("tunnel").and_then(Value::as_str).unwrap_or("frp");
         let enabled = raw.get("enabled").and_then(Value::as_bool).unwrap_or(false);
         json!({
             "frp_enabled": tunnel == "frp" && enabled,
             "cloudflared_enabled": tunnel == "cloudflared" && enabled,
             "last_tunnel": if tunnel == "cloudflared" { "cloudflared" } else { "frp" },
-            "updated_at": raw.get("updated_at").and_then(Value::as_str).unwrap_or("1970-01-01T00:00:00Z")
+            "updated_at": updated_at
         })
     } else {
         raw
@@ -665,9 +688,21 @@ pub(super) async fn load_tunnel_state(state: &AppState) -> serde_json::Map<Strin
             object
                 .get("updated_at")
                 .and_then(Value::as_str)
-                .unwrap_or("1970-01-01T00:00:00Z")
-                .to_string(),
+                .map(str::to_string)
+                .unwrap_or_else(time_utils::now_iso),
         ),
+    );
+    normalized
+}
+
+pub(super) fn default_tunnel_state() -> serde_json::Map<String, Value> {
+    let mut normalized = serde_json::Map::new();
+    normalized.insert("frp_enabled".to_string(), Value::Bool(false));
+    normalized.insert("cloudflared_enabled".to_string(), Value::Bool(false));
+    normalized.insert("last_tunnel".to_string(), Value::String("frp".to_string()));
+    normalized.insert(
+        "updated_at".to_string(),
+        Value::String("1970-01-01T00:00:00.000Z".to_string()),
     );
     normalized
 }

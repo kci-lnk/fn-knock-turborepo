@@ -60,6 +60,23 @@ fn detected_frpc_runtime_clears_stale_exit_state() {
 }
 
 #[test]
+fn frpc_exit_watcher_only_handles_current_attached_pid_like_node() {
+    assert!(attached_pid_matches(Some(42), Some(42)));
+    assert!(!attached_pid_matches(Some(43), Some(42)));
+    assert!(!attached_pid_matches(None, Some(42)));
+    assert!(!attached_pid_matches(Some(42), None));
+}
+
+#[test]
+fn default_tunnel_state_matches_node_absent_key_shape() {
+    let state = Value::Object(default_tunnel_state());
+    assert_eq!(state["frp_enabled"], false);
+    assert_eq!(state["cloudflared_enabled"], false);
+    assert_eq!(state["last_tunnel"], "frp");
+    assert_eq!(state["updated_at"], "1970-01-01T00:00:00.000Z");
+}
+
+#[test]
 fn matches_frpc_process_config_args() {
     assert!(is_frpc_process_args_for_config(
         &[

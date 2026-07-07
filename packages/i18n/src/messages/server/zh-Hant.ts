@@ -96,6 +96,8 @@ export const zhHantServer = {
     installStartFailed: "啟動安裝失敗",
     checkAndDownloadStarted: "已發起檢查並開始下載",
     startFailed: "啟動失敗",
+    loadStatusFailed: "載入更新狀態失敗",
+    loadConfirmationFailed: "載入更新確認資訊失敗",
   },
   gatewayHostResponse: {
     runTypes: {
@@ -153,6 +155,20 @@ export const zhHantServer = {
       passwordSetupRequired: "目前還沒有設定管理面板密碼，請先完成首次設定",
       passwordIncorrectWithRetry: "管理面板密碼錯誤，請在 {seconds} 秒後重試",
     },
+    adminPanelRoutes: {
+      signInRequired: "請先登入管理面板",
+      verifySessionFailed: "驗證管理面板會話失敗",
+      loadStateFailed: "載入管理面板狀態失敗",
+      loadConfigFailed: "載入配置失敗",
+      loadLocaleFailed: "載入語言配置失敗",
+      loadAppearanceFailed: "載入外觀配置失敗",
+      saveLocaleFailed: "保存語言配置失敗",
+      saveAppearanceFailed: "保存外觀配置失敗",
+      loadPasswordFailed: "載入管理面板密碼失敗",
+      createSessionFailed: "建立管理面板會話失敗",
+      verifyPasswordFailed: "驗證管理面板密碼失敗",
+      checkLoginRateLimitFailed: "檢查登入頻率限制失敗",
+    },
     runType: {
       switchFailed: "切換運行模式失敗",
       switchFailedRolledBack: "切換運行模式失敗，已回滾配置",
@@ -182,6 +198,20 @@ export const zhHantServer = {
     fnosNetworkTuning: {
       unavailable: "目前運行環境不支援飛牛 FPK 網路優化",
       updateFailed: "更新飛牛 FPK 網路優化失敗",
+      errors: {
+        bbrNotSupported: "宿主機核心未提供 tcp_bbr",
+        bbrEnableVerificationFailed:
+          "已請求啟用 BBR，但目前核心狀態不是 bbr/fq",
+        bbrRollbackCongestionFailed: "BBR 回滾未恢復原擁塞控制演算法",
+        bbrRollbackQdiscFailed: "BBR 回滾未恢復原預設佇列規則",
+        bbrRollbackStillBbrFailed: "BBR 回滾後仍停留在 bbr 擁塞控制",
+        mtuEnableVerificationFailed:
+          "已請求啟用 MTU 探測，但 tcp_mtu_probing 不是 1",
+        mtuRollbackFailed: "MTU 探測回滾未恢復預期值",
+        emptyPatch: "請至少修改一個飛牛 FPK 網路優化選項",
+        setSysctlFailed: "設定 {key} 失敗",
+        rollbackFailed: "{message}；回滾失敗：{error}",
+      },
       blocked: {
         deployment: "飛牛 FPK 網路優化僅支援 FPK 部署",
         platform: "飛牛 FPK 網路優化需要 Linux 宿主環境",
@@ -196,6 +226,9 @@ export const zhHantServer = {
       updateFailedRolledBack: "更新網關配置失敗，已回滾配置",
     },
     proxyMappings: {
+      payloadObjectRequired: "路徑代理映射必須是物件",
+      targetInvalid:
+        "路徑代理目標必須以 http://、https://、ws:// 或 wss:// 開頭並包含主機名",
       syncRulesFailed: "同步路徑代理路由失敗",
       restoreRulesFailed: "恢復路徑代理路由失敗",
       updateFailed: "更新路徑代理映射失敗",
@@ -210,6 +243,44 @@ export const zhHantServer = {
       updateFailed: "更新網關協議頭失敗",
       updateFailedRolledBack: "更新網關協議頭失敗，已回滾配置",
     },
+    gatewaySettingsRoutes: {
+      loadGatewaySettingsFailed: "載入網關設定失敗",
+      payloadObjectRequired: "網關請求內容必須是物件",
+      loadConfigFailed: "載入配置失敗",
+      saveGatewaySettingsFailed: "保存網關設定失敗",
+      syncGatewaySettingsFailed: "同步網關設定失敗：{message}",
+      responseReloadFailed: "網關設定已保存，但重新載入響應失敗",
+      loadGatewayVisibilityFailed: "載入網關可見性失敗",
+      loadRuntimeFailed: "載入運行態失敗",
+      loadGatewayProxyHeadersFailed: "載入網關協議頭失敗",
+      loadGatewayHostResponseFailed: "載入網關 Host 響應失敗",
+    },
+    runtimeConfigRoutes: {
+      loadCaptchaFailed: "載入驗證碼配置失敗",
+      saveCaptchaFailed: "保存驗證碼配置失敗",
+      loadTerminalFeatureFailed: "載入終端功能配置失敗",
+      saveTerminalFeatureFailed: "保存終端功能配置失敗",
+      invalidRunType: "run_type 不合法",
+      loadProtocolMappingFeatureFailed: "載入協議映射功能配置失敗",
+      loadSmartConnectDetailsFailed: "載入智能連接詳情失敗",
+      loadFnosShareBypassFailed: "載入飛牛共享目錄繞過配置失敗",
+      saveFnosShareBypassFailed: "保存飛牛共享目錄繞過配置失敗",
+      loadFnosPortIconHijackFailed: "載入飛牛端口圖標接管配置失敗",
+      loadAutoHttpsFailed: "載入自動 HTTPS 配置失敗",
+      saveAutoHttpsFailed: "保存自動 HTTPS 配置失敗",
+      saveAutoManageFirewallFailed: "保存自動管理防火牆配置失敗",
+      loadConfigFailed: "載入配置失敗",
+      loadDefaultRouteFailed: "載入默認路由失敗",
+      saveDefaultRouteFailed: "保存默認路由失敗",
+      unsupportedTunnelType: "不支援的隧道類型",
+      saveDefaultTunnelFailed: "保存默認隧道失敗",
+      upstreamUnavailable: "上游服務不可用",
+      proxyProtocolForceBooleanRequired: "proxy_protocol_force 必須是布林值",
+      loadRunModePromptPreferencesFailed: "載入運行模式提示偏好失敗",
+      saveRunModePromptPreferencesFailed: "保存運行模式提示偏好失敗",
+      loadWelcomeGuideFailed: "載入歡迎引導狀態失敗",
+      saveWelcomeGuideFailed: "保存歡迎引導狀態失敗",
+    },
     captcha: {
       turnstileKeysRequired:
         "啟用 Cloudflare Turnstile 時，site_key 和 secret_key 都必須填寫",
@@ -217,6 +288,9 @@ export const zhHantServer = {
     ipLocation: {
       ipLookupUrlLabel: "IP 識別庫地址",
       cidrUrlLabel: "CIDR 地址庫地址",
+      loadSettingsFailed: "讀取 IP 屬地 API 配置失敗",
+      saveSettingsFailed: "保存 IP 屬地 API 配置失敗",
+      modeInvalid: "模式必須是 online 或 custom",
     },
     connectionTest: {
       httpStatus: "服務返回錯誤狀態碼 {status}",
@@ -231,6 +305,10 @@ export const zhHantServer = {
       startFailed: "自動 HTTPS 啟動失敗",
     },
     hostMappings: {
+      payloadObjectRequired: "Host 映射必須是物件",
+      hostRequired: "Host 映射需要填寫域名",
+      targetInvalid:
+        "Host 映射 {host} 的目標必須以 http://、https://、ws:// 或 wss:// 開頭並包含主機名",
       singleAuthPortMapping: "只能有一個 Host 映射指向 AUTH_PORT 作為鑒權服務",
       authMappingMustBePublic:
         "鑒權服務 {host} 必須保持公開入口，不能開啟自身鑒權或嚴格白名單，否則會導致登入入口不可達",
@@ -244,6 +322,8 @@ export const zhHantServer = {
       locationReservedPath: "Host 映射 {host} 的路徑規則 {path} 使用了保留路徑",
       locationDuplicate: "Host 映射 {host} 存在重複路徑規則 {path}",
       locationTargetRequired: "Host 映射 {host} 的路徑規則 {path} 需要填寫目標",
+      locationTargetInvalid:
+        "Host 映射 {host} 的路徑規則 {path} 目標必須以 http://、https://、ws:// 或 wss:// 開頭並包含主機名",
       locationStatusInvalid:
         "Host 映射 {host} 的路徑規則 {path} 響應狀態碼必須在 100 到 599 之間",
       locationHeaderInvalid:
@@ -255,14 +335,19 @@ export const zhHantServer = {
       updateFailed: "更新 Host 映射失敗",
       updateFailedRolledBack: "更新 Host 映射失敗，已回滾配置",
       metadataFailed: "目標地址標題刷新失敗",
+      onlyHttpTargetsSupported: "僅支援 http/https 目標地址",
+      metadataUpstreamStatus: "上游服務返回狀態碼 {status}",
       bookmarkFolderForRoot: "{root} 子域映射",
       bookmarkFolderDefault: "fn-knock 子域映射",
     },
     streamMappings: {
+      payloadObjectRequired: "協議映射必須是物件",
+      listenPortRequiredInteger: "監聽端口必須是有效整數",
       listenPortNotInteger: "監聽端口 {port} 不是有效整數",
       listenPortOutOfRange: "監聽端口 {port} 超出有效範圍",
       duplicatePort: "{protocol} 監聽端口 {port} 重複，請保持協議 + 端口唯一",
       targetMustBeHostPort: "目標地址 {target} 必須是 host:port 形式",
+      saveFailed: "保存協議映射失敗",
       syncFailed: "同步協議映射與網關端口放行規則失敗",
       syncFailedRolledBack: "同步協議映射與網關端口放行規則失敗，已回滾配置",
     },
@@ -273,13 +358,30 @@ export const zhHantServer = {
         "父域 Passkey RP ID {rpId} 必須與鑒權服務 {authHost} 相同，或是它的父域。",
     },
     subdomainMode: {
+      payloadObjectRequired: "子域模式請求內容必須是物件",
+      saveFailed: "保存子域模式配置失敗",
       sslAutoSelected: "已自動切換到更適合目前子域模式的證書。",
       sslAutoSelectionSyncFailed:
         "已找到推薦證書，但同步到網關失敗，未自動切換。",
     },
+    authCredentialSettings: {
+      loadFailed: "載入認證憑據配置失敗",
+      loadConfigFailed: "載入配置失敗",
+      saveFailed: "保存認證憑據配置失敗",
+    },
     totp: {
       invalidCode: "驗證碼不正確，請重試",
-      notFound: "TOTP not found",
+      invalidSecretOrCode: "TOTP 密鑰或驗證碼不正確",
+      notFound: "TOTP 憑據不存在",
+      loadFailed: "載入 TOTP 憑據失敗",
+      saveFailed: "保存 TOTP 憑據失敗",
+      exportFailed: "導出 TOTP 憑據失敗",
+      importFailed: "導入 TOTP 憑據失敗",
+      deleteFailed: "刪除 TOTP 憑據失敗",
+      updateFailed: "更新 TOTP 憑據失敗",
+      bound: "TOTP 憑據已綁定",
+      deleted: "TOTP 憑據已刪除",
+      updated: "TOTP 憑據已更新",
     },
     totpImport: {
       payloadObject: "TOTP 憑證匯入內容必須是物件",
@@ -289,7 +391,10 @@ export const zhHantServer = {
       countExceeded: "單次最多匯入 {max} 個 TOTP 憑證",
     },
     passkeys: {
-      notFound: "Passkey not found",
+      notFound: "Passkey 不存在",
+      listFailed: "讀取 Passkey 列表失敗",
+      deleteFailed: "刪除 Passkey 失敗",
+      deleted: "Passkey 已刪除",
     },
     syncRoutes: {
       partialFailedGatewayLogging:
@@ -311,21 +416,40 @@ export const zhHantServer = {
       importFnosFailed: "從飛牛導入備份失敗",
     },
     sessions: {
-      notFound: "Session not found",
+      notFound: "會話不存在",
+      listFailed: "讀取會話列表失敗",
+      loadFailed: "讀取會話失敗",
+      updateFailed: "更新會話失敗",
+      deleteFailed: "刪除會話失敗",
+      mobilityLoadFailed: "讀取會話流動詳情失敗",
+      deleted: "會話已刪除",
     },
   },
   gatewayLogs: {
+    configLoadFailed: "讀取請求日誌配置失敗",
+    configSaveFailed: "保存請求日誌配置失敗",
     configSyncFailed: "請求日誌設定已保存，但同步到網關失敗",
     readDirectoryFailed: "讀取日誌目錄失敗",
     readDatesFailed: "讀取日誌日期失敗",
     readEntriesFailed: "讀取請求日誌失敗",
     deleteEntriesFailed: "刪除請求日誌失敗",
+    invalidJsonObject: "請求體不是有效的 JSON 物件",
   },
   backoffRoutes: {
     ipRequired: "ip 參數缺失",
+    listFailed: "載入登入退避列表失敗",
+    statusFailed: "載入登入退避狀態失敗",
+    resetFailed: "重置登入退避失敗",
+  },
+  systemInfoRoutes: {
+    loadAccessEntryFailed: "載入訪問入口失敗",
+  },
+  securityOverviewRoutes: {
+    loadFailed: "載入安全概覽失敗",
   },
   ipLocationRoutes: {
     batchLimit: "單次最多查詢 {max} 個 IP",
+    enqueueFailed: "加入 IP 歸屬地查詢佇列失敗",
   },
   gatewayPortal: {
     syncConfigFailed: "同步傳送門顯示配置到網關失敗",
@@ -340,6 +464,15 @@ export const zhHantServer = {
     syncFailed: "同步爬蟲攔截配置失敗",
   },
   scanner: {
+    settingsLoadFailed: "讀取掃描器設定失敗",
+    settingsUpdateFailed: "更新掃描器設定失敗",
+    invalidRequestBody: "請求體不正確",
+    atLeastOneIpRequired: "請至少提供一個 IP",
+    blacklistLoadFailed: "讀取掃描器黑名單失敗",
+    recordNotFound: "記錄不存在",
+    blacklistRecordLoadFailed: "讀取掃描器黑名單記錄失敗",
+    blacklistRecordDeleteFailed: "刪除掃描器黑名單記錄失敗",
+    blacklistRecordsDeleteFailed: "批量刪除掃描器黑名單記錄失敗",
     cidrExemptionsInvalid: "CIDR 豁免格式不正確：{cidrs}",
   },
   gatewayLogging: {
@@ -350,16 +483,28 @@ export const zhHantServer = {
     syncFailed: "同步網關證書失敗",
   },
   sslRoutes: {
+    statusReadFailed: "讀取 SSL 狀態失敗",
     gatewayStatusReadFailed: "無法讀取網關 SSL 狀態",
     readSharedFileFailed: "讀取共享目錄文件失敗",
     emptyDomains: "域名列表為空，請先添加域名或 IP",
     certOrKeyInvalid: "證書或私鑰無效",
     hostRequired: "host 不能為空",
     localCaCertificateLabel: "本地 CA 證書",
+    rootCaNotInitialized: "本地 CA 尚未初始化",
     success: "成功",
     certNotInstalled: "未安裝證書",
+    certReadFailed: "讀取 SSL 證書失敗",
+    certZipCreateFailed: "建立 SSL 證書壓縮包失敗",
     manualCertificateLabel: "手動上傳證書",
     certNotFound: "證書不存在",
+    caInitFailed: "初始化本地 CA 失敗",
+    caHostLoadFailed: "讀取本地 CA Host 列表失敗",
+    caHostSaveFailed: "保存本地 CA Host 列表失敗",
+    certSaveFailed: "保存 SSL 證書失敗",
+    certActivateFailed: "啟用 SSL 證書失敗",
+    deploymentModeSaveFailed: "保存 SSL 部署模式失敗",
+    certDeleteFailed: "刪除 SSL 證書失敗",
+    certClearFailed: "清空 SSL 證書配置失敗",
   },
   redis: {
     defaultCredential: "默認憑據",
@@ -451,6 +596,30 @@ export const zhHantServer = {
     stoppedIgnoredProcessError: "任務已停止，已忽略進程退出後的錯誤",
   },
   acmeRoutes: {
+    invalidRequestBody: "請求體不正確",
+    loadStatusFailed: "讀取 ACME 狀態失敗",
+    loadClientSettingsFailed: "讀取 ACME 客戶端設定失敗",
+    saveClientSettingsFailed: "保存 ACME 客戶端設定失敗",
+    switchCertificateAuthorityFailed: "切換 ACME 證書頒發機構失敗",
+    loadOverviewFailed: "讀取 ACME 概覽失敗",
+    loadApplicationOverviewFailed: "讀取 ACME 申請項概覽失敗",
+    loadConfigFailed: "讀取 ACME 配置失敗",
+    loadSubdomainRecommendationFailed: "讀取子域證書推薦失敗",
+    loadApplicationsFailed: "讀取 ACME 申請項列表失敗",
+    loadApplicationFailed: "讀取 ACME 申請項失敗",
+    updateApplicationFailed: "更新 ACME 申請項失敗",
+    deleteApplicationFailed: "刪除 ACME 申請項失敗",
+    syncLibraryFailed: "同步 ACME 證書到證書庫失敗",
+    deployCertificateFailed: "部署 ACME 證書失敗",
+    loadJobFailed: "讀取 ACME 任務失敗",
+    loadJobLogsFailed: "讀取 ACME 任務日誌失敗",
+    loadJobPollFailed: "輪詢 ACME 任務失敗",
+    stopJobFailed: "停止 ACME 任務失敗",
+    loadCertificateInfoFailed: "讀取 ACME 證書資訊失敗",
+    deleteCertificateFailed: "刪除 ACME 證書失敗",
+    uninstallFailed: "卸載 ACME 客戶端失敗",
+    createCertificateZipFailed: "建立 ACME 證書壓縮包失敗",
+    loadCertificateFailed: "讀取 ACME 證書失敗",
     domainsInvalid: "域名列表不能為空或格式無效",
     dnsTypeRequired: "缺少 DNS 驗證類型",
     unsupportedDnsProvider: "不支持的 DNS 服務商",
@@ -533,6 +702,14 @@ export const zhHantServer = {
     cidrLookupFailed: "CIDR 查詢失敗",
     syncFailed: "同步常用地豁免配置到網關失敗",
   },
+  generalBlacklist: {
+    invalidRequestBody: "請求體不正確",
+    invalidIp: "IP 地址不正確",
+    invalidIpWithValue: "IP 地址不正確: {ip}",
+    atLeastOneValidIpRequired: "請至少提供一個有效 IP",
+    backendRequestFailed: "通用黑名單後端請求失敗",
+    backendResponseMissingData: "通用黑名單後端響應缺少資料",
+  },
   fnosDataShare: {
     invalidPath: "非法的共享文件路徑",
     shareMissing: "未找到飛牛共享目錄，請確認應用資源已正確配置",
@@ -554,8 +731,14 @@ export const zhHantServer = {
     defaultFolderTitle: "fn-knock 子域映射",
   },
   whitelist: {
+    listFailed: "讀取白名單列表失敗",
     addFailed: "新增白名單記錄失敗",
+    updateRecordsFailed: "更新白名單記錄失敗",
+    deleteFailed: "刪除白名單記錄失敗",
+    commentUpdateFailed: "更新白名單備註失敗",
+    regionListFailed: "讀取地區白名單失敗",
     regionAddFailed: "按地區新增白名單失敗",
+    regionDeleteFailed: "刪除地區白名單失敗",
     regionRequired: "請至少選擇一個地區",
     regionEmpty: "所選地區未解析到可用 CIDR",
     regionNotFound: "未找到地區白名單",
@@ -590,6 +773,8 @@ export const zhHantServer = {
     tmuxMissingAfterInstall: "安裝完成後仍未檢測到 tmux",
     tmuxInstallCompleteWithVersion: "tmux 安裝完成：{version}",
     tmuxInstallFailed: "tmux 安裝失敗",
+    operationFailed: "終端操作失敗",
+    operationFailedWithMessage: "終端操作失敗：{message}",
     cwdUnavailable: "工作目錄不存在或不可訪問: {path}",
     webTerminalDisabled: "網頁終端功能尚未啟用",
     tmuxInstallingWait: "tmux 安裝中，請等待安裝完成",
@@ -650,8 +835,12 @@ export const zhHantServer = {
     manifestEmpty: "系統規則清單為空",
     keepOneEnabledRule: "開啟 WAF 時至少保留一個啟用的規則文件",
     uploadSelectConf: "請選擇要上傳的 .conf 文件",
+    base64Invalid: "規則文件內容不是有效的 Base64",
     reloadRulesFailed: "重新載入 WAF 規則失敗",
+    detailsLoadFailed: "讀取 WAF 詳情失敗",
     statusReadFailed: "讀取 WAF 狀態失敗",
+    invalidRequestBody: "請求體不正確",
+    dateInvalid: "日期格式不正確，應為 YYYY-MM-DD",
     configSaveOrLoadFailed: "WAF 設定保存或載入失敗",
     systemRulesSyncFailed: "系統規則同步失敗",
     ruleToggleFailed: "WAF 規則啟停失敗",
@@ -661,6 +850,7 @@ export const zhHantServer = {
     eventsDrainFailed: "拉取 WAF 事件失敗",
     logsQueryFailed: "查詢 WAF 日誌失敗",
     logNotFound: "WAF 日誌不存在",
+    logLoadFailed: "讀取 WAF 日誌失敗",
     logsDeleteFailed: "刪除 WAF 日誌失敗",
   },
   oidc: {
@@ -694,13 +884,29 @@ export const zhHantServer = {
     inviteExpired: "綁定邀請連結已失效",
     inviteProviderNotAllowed: "該邀請連結不允許使用此提供商",
     authorizationEndpointMissing: "authorization endpoint 未配置",
+    authorizationEndpointInvalid: "authorization endpoint 格式無效",
     bindStateInvalid: "綁定邀請狀態無效",
     accountNotBoundCannotLogin: "該外部帳號尚未綁定，無法登入",
     tokenEndpointMissing: "token endpoint 未配置",
+    clientIdMissing: "client_id 未配置",
     bindProviderMismatch: "綁定邀請與登入提供商不匹配",
     inviteTotpMissing: "綁定邀請關聯的 TOTP 已不存在",
     accountAlreadyBoundOtherTotp: "該外部帳號已綁定到其他 TOTP",
     inviteUsed: "綁定邀請連結已被使用",
+    externalAccountFallback: "外部帳號",
+    loginFailedWithDetail: "外部登入失敗: {detail}",
+    tokenRequestFailed: "取得外部登入 token 失敗: {detail}",
+    readResponseFailed: "讀取外部登入回應失敗: {detail}",
+    httpResponseFailed: "外部登入請求失敗: HTTP {status}: {detail}",
+    jsonResponseInvalid: "外部登入回應不是有效 JSON: {detail}",
+    jwksUriMissing: "OIDC JWKS URI 未配置",
+    jwksFetchFailed: "取得 OIDC JWKS 失敗: {detail}",
+    jwksInvalid: "OIDC JWKS 回應無效: {detail}",
+    tokenHeaderInvalid: "OIDC token header 無效: {detail}",
+    signingKeyUnavailable: "OIDC 簽名金鑰不可用",
+    signingKeyInvalid: "OIDC 簽名金鑰無效: {detail}",
+    idTokenVerificationFailed: "OIDC id_token 校驗失敗: {detail}",
+    githubProfileRequestFailed: "GitHub 使用者資料請求失敗: {detail}",
     providerErrors: {
       accessDenied: "你取消了外部登入授權，或授權請求被提供商拒絕。",
       temporarilyUnavailable: "外部登入服務暫時不可用，請稍後重試。",
@@ -729,6 +935,23 @@ export const zhHantServer = {
     testProviderFailed: "測試外部登入提供商失敗",
     deleteBindingFailed: "刪除外部帳號綁定失敗",
     createInviteFailed: "建立綁定邀請失敗",
+    listProvidersFailed: "讀取外部登入提供商列表失敗",
+    providerPayloadObject: "提供商參數必須是物件",
+    loadProviderFailed: "載入外部登入提供商失敗",
+    listBindingsFailed: "讀取外部帳號綁定失敗",
+    invitationPayloadObject: "邀請參數必須是物件",
+    totpRequired: "缺少 TOTP 憑據",
+    loadTotpFailed: "載入 TOTP 憑據失敗",
+    loadConfigFailed: "載入配置失敗",
+    inviteUrlBuildFailed: "產生外部帳號邀請連結失敗",
+    connectionConfigInvalid: "外部登入提供商連線配置無效",
+    oauthEndpointIncompleteWithField: "OAuth2 endpoint 未配置完整: {field}",
+    discoveryHttpFailed: "OIDC discovery 請求失敗: HTTP {status}: {detail}",
+    discoveryInvalid: "OIDC discovery 文件無效",
+    discoveryMissingFieldsWithList: "OIDC discovery 文件缺少必要欄位: {fields}",
+    providerTypeRequired: "缺少外部登入提供商類型",
+    storedProviderInvalid: "已儲存的外部登入提供商無效",
+    storedProviderTypeInvalid: "已儲存的外部登入提供商類型無效",
     catalog: {
       googleDescription: "使用 Google 帳號登入。",
       microsoftDescription: "使用 Microsoft / Azure AD 帳號登入。",
@@ -791,6 +1014,8 @@ export const zhHantServer = {
     inventoryBetterForSniWarning: "現有證書庫更適合後續多證書/SNI 部署。",
   },
   cloudflared: {
+    configReadFailed: "讀取 Cloudflared 配置失敗",
+    configWriteFailed: "保存 Cloudflared 配置失敗",
     missingToken: "請先配置 Cloudflare Token",
     startFailedWithDetail: "啟動 cloudflared 失敗: {detail}",
     processExited: "cloudflared 進程已退出",
@@ -800,6 +1025,10 @@ export const zhHantServer = {
     unknownError: "未知錯誤",
     notInitialized: "Cloudflared 未初始化",
     startFailed: "啟動失敗",
+    stopFailed: "停止 Cloudflared 失敗",
+    logsListFailed: "讀取 Cloudflared 日誌失敗",
+    logsClearFailed: "清空 Cloudflared 日誌失敗",
+    logsPollFailed: "輪詢 Cloudflared 日誌失敗",
   },
   dnsmasq: {
     notDetectedInstallFirst: "未檢測到 dnsmasq，請先完成安裝",
@@ -891,9 +1120,12 @@ export const zhHantServer = {
       macAutoDownloadUnsupported:
         "MAC 平台暫不支援自動下載應用，請手動透過 brew install cloudflared 安裝。",
       platformUnsupported: "目前平台不受支援",
+      downloadStarted: "已開始下載 Cloudflared",
       responseBodyUnreadable: "下載響應體不可讀",
       downloadCancelled: "下載已取消",
       unknownError: "未知錯誤",
+      deleteSuccess: "Cloudflared 已刪除",
+      deleteFailed: "刪除 Cloudflared 失敗：{detail}",
       macManualRemove: "MAC 平台請手動移除 cloudflared",
       notInstalledBrew:
         "Cloudflared 未安裝，請先透過 brew install cloudflared 安裝",
@@ -903,11 +1135,14 @@ export const zhHantServer = {
       platformUnsupported: "目前平台不受支援",
       packageMissing: "FRP 安裝包缺失",
       extractFailed: "解壓失敗，退出碼 {code}",
+      downloadStarted: "已開始下載 FRP",
       responseBodyUnreadable: "下載響應體不可讀",
       connectionFailed: "連接失敗",
       downloadFailed: "下載失敗：{detail}",
       unknownError: "未知錯誤",
       downloadCancelled: "下載已取消",
+      deleteSuccess: "FRP 已刪除",
+      deleteFailed: "刪除 FRP 失敗：{detail}",
       notInitialized: "FRP 未初始化，請先下載",
     },
   },
@@ -928,6 +1163,10 @@ export const zhHantServer = {
     primaryDeleteDenied: "主 FRP 實例不允許刪除",
     notInitialized: "FRP 未初始化",
     startFailedWithDetail: "啟動 frpc 失敗: {detail}",
+    pidReadFailed: "讀取 frpc PID 失敗",
+    startedWithPid: "frpc 已啟動 pid={pid}",
+    stoppedWithPid: "frpc 已停止 pid={pid}",
+    alreadyStopped: "frpc 已停止",
     pidCleanedForInstance: "PID 不屬於該實例，已清理本實例運行記錄",
     resumeOnBoot: "resume: 檢測到該 FRP 實例上次為開啟狀態，正在自動恢復...",
     routes: {
@@ -961,9 +1200,55 @@ export const zhHantServer = {
     resetFailed: "[fn-knock] 清理管理面板密碼失敗:",
   },
   passkeyRoutes: {
-    notFoundWithRetry: "Passkey not found，請在 {seconds} 秒後重試",
+    notFoundWithRetry: "未找到 Passkey，請在 {seconds} 秒後重試",
     verifyFailedWithRetry: "驗證失敗，請在 {seconds} 秒後重試",
     bindTokenExpired: "綁定憑證已失效",
+    loadStatusFailed: "載入 Passkey 狀態失敗",
+    createOptionsFailed: "建立 Passkey 登入選項失敗",
+    loadPasskeysFailed: "載入 Passkey 列表失敗",
+    noPasskeyAvailable: "暫無可用 Passkey",
+    noValidPasskeyAvailable: "暫無有效 Passkey",
+    invalidRpConfig: "Passkey RP 配置無效",
+    invalidResponse: "Passkey 回應無效",
+    challengeExpired: "Passkey 挑戰已過期",
+    verifyFailed: "Passkey 驗證失敗",
+    notFound: "未找到 Passkey",
+    createSessionFailed: "建立登入會話失敗",
+    loginSuccessful: "登入成功",
+    unauthorizedOrMissingTotp: "未授權或缺少 TOTP ID",
+    createBindTokenFailed: "建立 Passkey 綁定令牌失敗",
+    createRegistrationOptionsFailed: "建立 Passkey 註冊選項失敗",
+    registerFailed: "註冊 Passkey 失敗",
+    registrationFailed: "Passkey 註冊驗證失敗",
+    alreadyRegistered: "Passkey 已註冊",
+    unknownDevice: "未知設備",
+  },
+  authRoutes: {
+    pathNotFound: "認證接口不存在",
+    loadBootstrapFailed: "載入認證啟動資訊失敗",
+    authenticationRequired: "需要先完成認證",
+    loadSessionFailed: "載入認證會話失敗",
+    loadCaptchaConfigFailed: "載入驗證碼配置失敗",
+    createCaptchaChallengeFailed: "建立驗證碼挑戰失敗",
+    loadOidcProvidersFailed: "載入外部登入提供商失敗",
+    loadOidcInviteFailed: "載入外部帳號邀請失敗",
+    inspectOidcInviteFailed: "檢查外部帳號邀請失敗",
+    loadAuthConfigFailed: "載入認證配置失敗",
+    loadLoginCredentialsFailed: "載入登入憑據失敗",
+    createSessionFailed: "建立認證會話失敗",
+    loginSuccessful: "登入成功",
+    verifyFailed: "驗證認證狀態失敗",
+    localNetworkAccessAllowed: "已允許內網訪問",
+    authenticated: "已認證",
+    invalidCaptchaProof: "驗證碼 proof 無效",
+    invalidCaptchaAlgorithm: "驗證碼算法無效",
+    invalidCaptchaChallenge: "驗證碼挑戰無效",
+    invalidCaptchaSignature: "驗證碼簽名無效",
+    captchaChallengeExpired: "驗證碼挑戰已過期",
+    captchaChallengeAlreadyUsed: "驗證碼挑戰已被使用",
+    captchaVerifyFailed: "驗證碼校驗失敗",
+    turnstileResponseInvalid: "Turnstile 回應無效",
+    unknownTotp: "未知 TOTP",
   },
   maintenanceBackup: {
     commandMissing: "系統環境缺少 {command} 命令",
@@ -985,6 +1270,7 @@ export const zhHantServer = {
     invalidRedisStreamData: "Redis stream 數據格式無效: {key} ({id})",
     unsupportedRedisExportType: "不支援導出的 Redis 數據類型: {type} ({key})",
     createArchiveFailed: "生成備份歸檔失敗",
+    buildResponseFailed: "生成備份下載回應失敗",
     invalidBackupExtension: "備份文件副檔名必須為 {extension}",
     stringArrayRequired: "{label} 必須是字符串數組",
     stringArrayOnlyStrings: "{label} 只能包含字符串",
@@ -1014,6 +1300,7 @@ export const zhHantServer = {
     archiveMissingPayload: "備份歸檔中缺少 {filename}",
     archivePasswordInvalid: "備份歸檔密碼校驗失敗",
     readArchiveFailed: "讀取 .knock 備份歸檔失敗",
+    payloadUtf8Invalid: "備份文件內容不是有效的 UTF-8 文字",
     writeRedisFailed: "寫入 Redis 備份數據失敗",
     unknownError: "未知錯誤",
     syncSteps: {
@@ -1025,6 +1312,9 @@ export const zhHantServer = {
       systemResourceMonitorReset: "系統資源監控狀態重置",
     },
     archiveEmpty: "備份歸檔內容為空",
+    archiveTooLarge: "備份歸檔過大，無法導入",
+    directoryImportFileNotFound: "未找到要導入的備份文件",
+    directoryImportFileUnreadable: "無法讀取要導入的備份文件",
     directoryImportFileOnly: "只能導入備份目錄中的文件",
     directoryImportExtensionOnly: "僅支援導入 {extension} 備份文件",
     directoryImportTooLarge: "備份文件過大，無法從飛牛目錄導入",
@@ -1045,6 +1335,16 @@ export const zhHantServer = {
     powUnavailable: "目前 PoW 驗證碼不可用",
     providerConfigMismatch: "驗證碼提供商與目前配置不一致",
   },
+  hmac: {
+    missingTimestamp: "缺少 HMAC 時間戳",
+    missingNonce: "缺少 HMAC nonce",
+    missingSignature: "缺少 HMAC 簽名",
+    timestampExpired: "HMAC 時間戳已過期",
+    invalidKey: "HMAC 密鑰無效",
+    invalidSignature: "HMAC 簽名無效",
+    nonceReused: "HMAC nonce 已被使用",
+    nonceVerifyFailed: "校驗 HMAC nonce 失敗",
+  },
   cidr: {
     serviceError: "CIDR 服務異常",
     emptyResponse: "<空響應>",
@@ -1056,7 +1356,9 @@ export const zhHantServer = {
     requestId: "請求 ID: {requestId}",
     responsePreview: "響應摘要: {preview}",
     provinceRequired: "省份不能為空",
+    invalidApiUrl: "CIDR API 地址無效：{error}",
     upstreamTimeout: "CIDR 上游請求超時",
+    upstreamRequestFailedGeneric: "CIDR 上游請求失敗：{error}",
     upstreamRequestFailed: "CIDR 上游請求失敗 ({status})",
     invalidJson: "CIDR 上游返回了無效 JSON",
     upstreamUnexpected: "CIDR 上游返回異常",
@@ -1067,6 +1369,9 @@ export const zhHantServer = {
     outbound: "出站",
     upstreamUnavailable: "上游服務不可用",
     hostRequired: "host 不能為空",
+    statsLoadFailed: "載入儀表盤統計失敗",
+    configLoadFailed: "載入儀表盤配置失敗",
+    displayConfigSaveFailed: "保存儀表盤展示配置失敗",
   },
   acme: {
     alreadyInstalled: "acme.sh 已經安裝過了",
@@ -1148,12 +1453,12 @@ export const zhHantServer = {
     requestCanceled: "請求已取消",
     curlRequestFailed: "curl 請求失敗: {detail}",
     nodeTransportInterfaceAddressUnavailable:
-      "Node HTTP 請求無法綁定網卡 {name}：沒有可用的 {family} 本機地址",
+      "內建 HTTP 請求無法綁定網卡 {name}：沒有可用的 {family} 本機地址",
     nodeTransportInterfaceNoAddress:
-      "Node HTTP 請求無法綁定網卡 {name}：沒有可用的本機地址",
-    nodeTransportUnsupportedProtocol: "Node HTTP 請求不支援協議: {protocol}",
+      "內建 HTTP 請求無法綁定網卡 {name}：沒有可用的本機地址",
+    nodeTransportUnsupportedProtocol: "內建 HTTP 請求不支援協議: {protocol}",
     nodeTransportRedirectLimitExceeded:
-      "Node HTTP 請求重定向次數超過上限 {max}",
+      "內建 HTTP 請求重定向次數超過上限 {max}",
     triggerCron: "定時檢查",
     triggerEnable: "啟用自動更新後立即檢查",
     triggerStartup: "程式啟動後檢查",
@@ -1192,7 +1497,13 @@ export const zhHantServer = {
     updateSuccess: "更新成功: {message}",
     updateFailed: "更新失敗: {message}",
     testError: "測試異常: {message}",
+    statusLoadFailed: "讀取 DDNS 狀態失敗",
+    toggleFailed: "更新 DDNS 啟用狀態失敗",
+    settingsLoadFailed: "讀取 DDNS 自動同步設定失敗",
     settingsSaveFailed: "保存 DDNS 自動同步設定失敗",
+    logsLoadFailed: "讀取 DDNS 日誌失敗",
+    logsClearFailed: "清空 DDNS 日誌失敗",
+    pollFailed: "輪詢 DDNS 日誌與狀態失敗",
     providerSetFailed: "設定提供商失敗",
     configSaveFailed: "保存 DDNS 配置失敗",
     createTargetFailed: "建立 DDNS 條目失敗",
@@ -1214,6 +1525,54 @@ export const zhHantServer = {
           },
           ttl: {
             description: "默認 {seconds} 秒",
+          },
+          access_key_id: {
+            label: "訪問密鑰 ID",
+            description: "雲服務商訪問密鑰 ID，請授予 DNS 解析記錄讀寫權限",
+          },
+          access_key_secret: {
+            label: "訪問密鑰 Secret",
+            description: "與訪問密鑰 ID 配套的密鑰 Secret，請妥善保管",
+          },
+          secret_access_key: {
+            label: "訪問密鑰 Secret",
+            description: "與訪問密鑰 ID 配套的密鑰 Secret，請妥善保管",
+          },
+          secret_id: {
+            label: "SecretId（密鑰 ID）",
+            description: "騰訊雲 API 訪問密鑰 SecretId，需具備對應 DNS 服務權限",
+          },
+          secret_key: {
+            label: "SecretKey（密鑰）",
+            description: "與 SecretId 配套的騰訊雲 API 密鑰 SecretKey",
+          },
+          api_key: {
+            label: "API 密鑰",
+            description: "服務商控制台生成的 API Key",
+          },
+          api_secret: {
+            label: "API Secret（密鑰）",
+            description: "與 API Key 配套的 API Secret",
+          },
+          secret_api_key: {
+            label: "Secret API Key（密鑰）",
+            description: "Porkbun 控制台生成的 Secret API Key",
+          },
+          api_token: {
+            label: "API 令牌",
+            description: "服務商控制台生成的 API Token",
+          },
+          token_id: {
+            label: "Token ID（令牌 ID）",
+            description: "DNSPod 控制台生成的 API Token ID",
+          },
+          token_key: {
+            label: "Token Key（令牌密鑰）",
+            description: "DNSPod 控制台生成的 API Token Key",
+          },
+          zone_id: {
+            label: "Zone ID（區域 ID）",
+            description: "服務商控制台中的 Zone 或站點 ID",
           },
         },
       },
@@ -1320,6 +1679,7 @@ export const zhHantServer = {
         requestFailed: "請求失敗",
         updateFailed: "更新失敗",
         createFailed: "建立失敗",
+        recordIdMissing: "阿里雲 DNS 返回的記錄缺少 RecordId",
       },
       baidu: {
         label: "百度雲 DNS",
@@ -1352,6 +1712,7 @@ export const zhHantServer = {
         requestFailed:
           "華為雲 DNS 請求失敗: HTTP {status} {statusText}, {detail}",
         zoneNotFound: "未找到華為雲 Zone: {zone}",
+        recordsetIdMissing: "華為雲 DNS 返回的記錄集缺少 ID",
       },
       tencentcloud: {
         label: "騰訊雲 DNS",
@@ -1602,6 +1963,9 @@ export const zhHantServer = {
     maxHostsExceeded: "單次最多掃描 {max} 台主機",
     selectAtLeastOneCidr: "請選擇至少一個本地 IPv4 掃描網段",
     scanJobNotFound: "掃描任務不存在或已過期",
+    loadTargetsFailed: "讀取掃描目標失敗",
+    loadConfigFailed: "讀取配置失敗",
+    saveTargetsFailed: "保存掃描目標失敗",
     targetLabels: {
       docker: "{cidr}（Docker 宿主機局域網）",
       loopback: "{cidr}（本機回環）",
@@ -1638,10 +2002,12 @@ export const zhHantServer = {
     clearFirewallUnavailable: "目前環境不可清空 SSH 防火牆",
     logSourceUnavailableShort: "SSH 日誌源不可用",
     customCidrInvalid: "自定義 CIDR 格式不正確：{cidrs}",
+    customCidrsMustBeArray: "custom_cidrs 必須是陣列",
     syncSshPolicyFailed: "同步 SSH 專用防火牆規則失敗",
     clearSshPolicyFailed: "清空 SSH 專用防火牆規則失敗",
     blockRecordInvalid: "封鎖記錄格式不正確",
     routes: {
+      loadConfigFailed: "載入 SSH 安全配置失敗",
       updateConfigFailed: "更新 SSH 安全配置失敗",
       syncFirewallSuccess:
         "已同步 {allowedCidrs} 條允許 CIDR 與 {synced} 個 SSH 封鎖 IP 到 {ports} 端口",
@@ -1649,10 +2015,28 @@ export const zhHantServer = {
       clearFirewallSuccess: "已清空 SSH 專用防火牆規則",
       clearFirewallFailed: "清空 SSH 防火牆失敗",
       readLoginLogsFailed: "讀取 SSH 登入日誌失敗",
+      listBlocksFailed: "獲取 SSH 封鎖列表失敗",
       blockNotFound: "封鎖記錄不存在",
+      loadBlockFailed: "讀取 SSH 封鎖記錄失敗",
       removeBlockFailed: "解除封鎖失敗",
       selectIps: "請選擇要解除封鎖的 IP",
       removeBlocksFailed: "批量解除封鎖失敗",
+    },
+  },
+  systemEvents: {
+    routes: {
+      unsupportedSystemEventType: "不支援的系統事件類型",
+      unsupportedSystemEventSource: "不支援的系統事件來源",
+      unsupportedSystemEventLevel: "不支援的系統事件級別",
+      unsupportedSubjectKind: "不支援的事件主體類型",
+      unsupportedEventType: "不支援的事件類型",
+      unsupportedEventLevel: "不支援的事件級別",
+      unsupportedEventSource: "不支援的事件來源",
+      loadConfigFailed: "載入系統事件配置失敗",
+      writeEventFailed: "寫入系統事件失敗",
+      listEventsFailed: "獲取系統事件列表失敗",
+      deleteEventsFailed: "刪除系統事件失敗",
+      clearEventsFailed: "清空系統事件失敗",
     },
   },
   notifications: {
@@ -2177,6 +2561,7 @@ export const zhHantServer = {
           },
         },
         pushplus: {
+          label: "PushPlus 推送",
           description:
             "透過 PushPlus 標準發送接口推送通知，可按規則選擇公眾號、App、郵件等渠道。",
           fields: {
@@ -2185,6 +2570,7 @@ export const zhHantServer = {
               description: "官方接口保持默認值即可。",
             },
             token: {
+              label: "令牌",
               description: "PushPlus 的使用者 token 或消息 token，請妥善保管。",
             },
             timeout_seconds: {
@@ -2200,7 +2586,10 @@ export const zhHantServer = {
               description:
                 "默認使用 Markdown；如果目標渠道更適合純文本或 HTML，也可以單獨切換。",
               options: {
+                markdown: "Markdown 富文本",
+                html: "HTML 網頁",
                 txt: "純文本",
+                json: "JSON 原始資料",
               },
             },
             channel: {
@@ -2215,6 +2604,7 @@ export const zhHantServer = {
                 sms: "短信",
                 voice: "語音",
                 extension: "插件 / 桌面程序",
+                app: "App 應用",
                 clawbot: "微信 ClawBot",
               },
             },
@@ -2249,6 +2639,7 @@ export const zhHantServer = {
           },
         },
         wxpusher: {
+          label: "WxPusher 推送",
           description:
             "透過 WxPusher 標準推送接口向指定 UID 或 Topic 發送消息通知；規則 target 留空時會繼承提供商裡的默認目標配置。",
           fields: {
@@ -2257,6 +2648,7 @@ export const zhHantServer = {
               description: "官方服務保持默認值即可。",
             },
             app_token: {
+              label: "AppToken",
               description: "WxPusher 後台應用的 AppToken，請妥善保管。",
             },
             timeout_seconds: {
@@ -2313,6 +2705,7 @@ export const zhHantServer = {
           },
         },
         bark: {
+          label: "Bark 推送",
           description:
             "透過 Bark 官方在線版或自建 Bark Server 向 iPhone 發送 APNs 推送通知。",
           fields: {
@@ -2322,6 +2715,7 @@ export const zhHantServer = {
                 "官方在線版保持默認值即可；如果你使用自建 Bark Server，則填寫服務根地址。",
             },
             device_key: {
+              label: "設備 Key",
               description:
                 "Bark App 中複製的設備 Key。可填寫多個 key，並用英文逗號分隔。",
             },
@@ -2332,6 +2726,12 @@ export const zhHantServer = {
               label: "通知級別",
               description:
                 "active 為默認即時提醒；timeSensitive 可穿透專注模式；critical 為關鍵提醒。",
+              options: {
+                active: "即時提醒",
+                timeSensitive: "時效性通知",
+                passive: "靜默通知",
+                critical: "關鍵提醒",
+              },
             },
             group: {
               label: "消息分組",
@@ -2379,6 +2779,7 @@ export const zhHantServer = {
               description: "官方接口保持默認值即可。",
             },
             sendkey: {
+              label: "SendKey",
               description: "Server醬·Turbo 提供的 SendKey，請妥善保管。",
             },
             timeout_seconds: {
@@ -2390,6 +2791,7 @@ export const zhHantServer = {
                 "可選。動態指定本次推送的通道，最多兩個值，使用 | 分隔，例如 9|66。",
             },
             openid: {
+              label: "OpenID / UID",
               description:
                 "可選。測試號使用 openid，企業微信應用消息使用接收人的 UID；多個值請按 Server醬 文檔格式填寫。",
               placeholder: "openid1,openid2 或 uid1|uid2",
@@ -2420,6 +2822,7 @@ export const zhHantServer = {
             "透過釘釘機器人 Webhook 向群聊發送 Markdown 通知，並支援加簽校驗。",
           fields: {
             webhook_url: {
+              label: "Webhook 地址",
               description: "釘釘機器人生成的完整 Webhook 地址。",
             },
             secret: {
@@ -2468,6 +2871,7 @@ export const zhHantServer = {
             "透過飛書機器人 Webhook 向群聊發送 post 富文本通知，並支援簽名校驗。",
           fields: {
             webhook_url: {
+              label: "Webhook 地址",
               description: "飛書機器人生成的完整 Webhook 地址。",
             },
             secret: {
@@ -2501,9 +2905,11 @@ export const zhHantServer = {
           },
         },
         webhook: {
+          label: "Webhook 通知",
           description: "向任意支援 HTTP JSON 的地址發送標準通知消息。",
           fields: {
             url: {
+              label: "Webhook 地址",
               description: "接收標準通知 JSON 的目標地址。",
             },
             method: {
@@ -2556,6 +2962,7 @@ export const zhHantServer = {
               },
             },
             token: {
+              label: "令牌",
               description:
                 "MagicPush 接口令牌。標準推送會透過 Authorization: Bearer 發送；入站配置會拼接到 /api/inbound/:token。",
             },
@@ -2575,6 +2982,7 @@ export const zhHantServer = {
           },
         },
         telegram: {
+          label: "Telegram 機器人",
           description:
             "透過 Telegram Bot API 向指定聊天或頻道發送文本通知，並附帶內聯操作按鈕。",
           fields: {
@@ -2584,9 +2992,11 @@ export const zhHantServer = {
                 "官方 Bot API 保持默認值即可；如果由於網路因素無法訪問官方地址，可以填寫 https://tgapi.fnknock.cn 代為轉發；如果你使用自建 Local Bot API Server，也可以填寫其根地址。",
             },
             bot_token: {
+              label: "Bot 令牌",
               description: "透過 @BotFather 建立機器人後取得的 Bot Token。",
             },
             chat_id: {
+              label: "聊天 ID",
               description:
                 "目標聊天 ID，或頻道使用者名稱（如 @channelusername）。可以先向 @UserIdzhBot 發送消息來取得 Chat ID；測試發送也會使用這個目標。",
             },
@@ -2594,6 +3004,7 @@ export const zhHantServer = {
               label: "超時秒數",
             },
             message_thread_id: {
+              label: "話題 ID",
               description:
                 "可選。發送到群組話題時填寫對應的話題 ID（message_thread_id）。",
             },
@@ -2618,6 +3029,7 @@ export const zhHantServer = {
             "透過企業微信消息推送（群 Webhook）向指定群聊發送 text 或 markdown 通知。",
           fields: {
             webhook_url: {
+              label: "Webhook 地址",
               description:
                 "企業微信消息推送頁面生成的完整 Webhook 地址，請妥善保管。",
             },
@@ -2645,6 +3057,7 @@ export const zhHantServer = {
           },
         },
         pushdeer: {
+          label: "PushDeer 推送",
           description:
             "透過 PushDeer 官方在線版或自建服務向已綁定設備發送 Markdown 通知。",
           fields: {
@@ -2654,6 +3067,7 @@ export const zhHantServer = {
                 "官方在線版保持默認值即可；如果你使用自建 PushDeer，則填寫自建服務根地址。",
             },
             pushkey: {
+              label: "PushKey",
               description:
                 "PushDeer 客戶端中生成的 PushKey。可填寫多個 key，並用英文逗號分隔。",
             },
@@ -2687,6 +3101,7 @@ export const zhHantServer = {
     },
     service: {
       unnamed: "未命名",
+      invalidJsonBody: "請求體必須是合法 JSON",
       invalidJson: "{field} 必須是合法 JSON",
       invalidSelectValue: "{field} 取值不合法",
       fieldRequired: "{field} 不能為空",
@@ -2707,8 +3122,11 @@ export const zhHantServer = {
       providerReferencedByRule: "該提供商仍被規則「{rule}」引用",
       testSendFailed: "測試發送失敗",
       testSendSuccess: "測試發送成功",
+      providerRequestReturnedStatus: "{provider} 請求返回狀態 {status}",
+      barkPartialFailed: "Bark {failed}/{total} 個目標發送失敗",
       providerTypeMismatch: "提供商類型與已有配置不一致",
       providerTestName: "{provider} 測試",
+      invalidProviderRecord: "通知提供商記錄無效",
       ruleProviderMissing: "規則引用了不存在的通知提供商",
       invalidTemplateOverrideMode: "目標模板覆蓋模式不合法",
       unsupportedEventType: "不支援的系統事件類型",
@@ -2719,7 +3137,9 @@ export const zhHantServer = {
       targetRequired: "至少需要綁定一個通知目標",
       duplicateEventRule: "該事件已有通知規則，請先刪除原規則",
       ruleNotFound: "通知規則不存在",
+      invalidRuleRecord: "通知規則記錄無效",
       deletedProvider: "已刪除提供商",
+      storageUnavailable: "通知儲存暫不可用",
     },
   },
 };

@@ -1580,8 +1580,15 @@ export const enAdmin = {
     bbrTitle: "BBR acceleration",
     bbrDescription:
       "Enables bbr congestion control with fq queueing to improve cross-network throughput and stability.",
+    desiredState: "Configured target: {state}",
+    desiredEnabled: "enabled",
+    desiredDisabled: "disabled",
     bbrCurrent:
       "Current: congestion {congestion}, default queue {qdisc}, available algorithms {available}",
+    bbrRuntimeInactiveAfterEnable:
+      "The target is enabled, but the current kernel state has not matched it yet. Check the last error or host configuration.",
+    bbrRuntimeStillActiveAfterDisable:
+      "The target is disabled, but the kernel is still using BBR/fq. It may be the pre-enable state or managed by another system setting.",
     bbrSupported: "The current kernel supports BBR.",
     bbrUnsupported:
       "The current kernel has not exposed BBR yet. Saving will try to load the tcp_bbr module.",
@@ -1589,6 +1596,10 @@ export const enAdmin = {
     mtuDescription:
       "Enables path MTU probing to reduce fragmentation and retransmits caused by mismatched link MTU.",
     mtuCurrent: "Current: tcp_mtu_probing = {value}",
+    mtuRuntimeInactiveAfterEnable:
+      "The target is enabled, but the current kernel value has not matched it yet. Check the last error or host configuration.",
+    mtuRuntimeStillActiveAfterDisable:
+      "The target is disabled, but the current kernel value is still {value}. This is the pre-enable state or another system setting.",
   },
   gatewayLogging: {
     loadFailed: "Load failed",
@@ -3124,6 +3135,12 @@ export const enAdmin = {
     updating: "Updating...",
     refreshNow: "Refresh now",
     saveAndUpdate: "Save and update",
+    configSaved: "Primary DDNS config saved",
+    configChangesDiscarded: "Unsaved primary DDNS config changes discarded",
+    unsavedLeaveConfirm:
+      "The primary DDNS config has unsaved changes. Leaving this page will discard them. Continue?",
+    unsavedSwitchProviderConfirm:
+      "The primary DDNS config has unsaved field changes. Switching provider will discard them. Continue?",
     providerLabel: "DDNS provider",
     providerHint: "Choose the DNS provider used for resolution",
     selectProvider: "Select provider",
@@ -3234,10 +3251,10 @@ export const enAdmin = {
       "Configure the sources and request implementation DDNS uses to detect the current public IPv4/IPv6 address.",
     httpTransportLabel: "Request implementation",
     httpTransportHint:
-      "curl uses the system curl binary. Node built-in HTTP uses Node's low-level network request and binds the selected outbound interface by local address.",
+      "curl uses the system curl binary. Built-in HTTP uses the Rust backend's built-in network request and binds the selected outbound interface by local address.",
     httpTransport: {
       curl: "curl (default)",
-      node: "Node built-in HTTP",
+      node: "Built-in HTTP",
     },
     publicCheckIpv4Title: "IPv4 detection sources",
     publicCheckIpv6Title: "IPv6 detection sources",

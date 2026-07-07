@@ -1,14 +1,16 @@
+import appMetadata from "../../../../version.json";
+
 /**
  * 本地当前版本号
  */
-export const APP_LOCAL_VERSION = "1.8.6";
+export const APP_LOCAL_VERSION = appMetadata.version;
 
-export const APP_GITHUB_URL = "https://github.com/kci-lnk/fn-knock-turborepo";
+export const APP_GITHUB_URL = appMetadata.githubUrl;
 
-export const APP_BACKUP_SCHEMA_VERSION = 1;
+export const APP_BACKUP_SCHEMA_VERSION = appMetadata.backupSchemaVersion;
 
 export const APP_BACKUP_IMPORT_VERSION_RANGE = {
-  min: "1.4.0",
+  min: appMetadata.backupImportMinVersion,
   max: APP_LOCAL_VERSION,
 } as const;
 

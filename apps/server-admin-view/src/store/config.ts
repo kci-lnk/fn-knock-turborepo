@@ -301,6 +301,9 @@ export const useConfigStore = defineStore("config", () => {
   const isDockerDeployment = computed(
     () => runtimeProfile.value?.is_docker === true,
   );
+  const isFpkDeployment = computed(
+    () => runtimeProfile.value?.deployment_target === "fpk",
+  );
   const isOpenWrtDeployment = computed(
     () => runtimeProfile.value?.deployment_target === "openwrt",
   );
@@ -334,7 +337,10 @@ export const useConfigStore = defineStore("config", () => {
     config,
     isLoading,
     isError,
+    runtimeProfile,
+    capabilities,
     isDockerDeployment,
+    isFpkDeployment,
     isOpenWrtDeployment,
     isProtectedAdminPanelDeployment,
     canUseDirectMode,

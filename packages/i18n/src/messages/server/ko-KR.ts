@@ -1,6 +1,7 @@
 export const koKRServer = {
   success: "성공",
   notFound: "찾을 수 없음",
+  apiPathNotFound: "API 경로를 찾을 수 없습니다.",
   invalidLocale: "지원되지 않는 로케일",
   dockerAdminDenied:
     "Docker 관리 패널은 개인 네트워크 또는 신뢰할 수 있는 프록시 액세스만 허용합니다.",
@@ -104,6 +105,8 @@ export const koKRServer = {
     checkAndDownloadStarted:
       "업데이트 확인이 시작되었으며 다운로드가 대기 중입니다.",
     startFailed: "시작하지 못했습니다.",
+    loadStatusFailed: "업데이트 상태를 불러오지 못했습니다.",
+    loadConfirmationFailed: "업데이트 확인 정보를 불러오지 못했습니다.",
   },
   gatewayHostResponse: {
     runTypes: {
@@ -178,6 +181,20 @@ export const koKRServer = {
       passwordIncorrectWithRetry:
         "관리자 패널 비밀번호가 올바르지 않습니다. {seconds} 초 후에 다시 시도하세요.",
     },
+    adminPanelRoutes: {
+      signInRequired: "먼저 관리자 패널에 로그인하세요.",
+      verifySessionFailed: "관리자 패널 세션을 확인하지 못했습니다.",
+      loadStateFailed: "관리자 패널 상태를 불러오지 못했습니다.",
+      loadConfigFailed: "구성을 불러오지 못했습니다.",
+      loadLocaleFailed: "언어 설정을 불러오지 못했습니다.",
+      loadAppearanceFailed: "외관 설정을 불러오지 못했습니다.",
+      saveLocaleFailed: "언어 설정을 저장하지 못했습니다.",
+      saveAppearanceFailed: "외관 설정을 저장하지 못했습니다.",
+      loadPasswordFailed: "관리자 패널 비밀번호를 불러오지 못했습니다.",
+      createSessionFailed: "관리자 패널 세션을 생성하지 못했습니다.",
+      verifyPasswordFailed: "관리자 패널 비밀번호를 확인하지 못했습니다.",
+      checkLoginRateLimitFailed: "로그인 빈도 제한을 확인하지 못했습니다.",
+    },
     runType: {
       switchFailed: "실행 모드를 전환하지 못했습니다.",
       switchFailedRolledBack:
@@ -216,6 +233,23 @@ export const koKRServer = {
       unavailable:
         "현재 런타임은 FNOS FPK 네트워크 최적화를 지원하지 않습니다.",
       updateFailed: "FNOS FPK 네트워크 최적화를 업데이트하지 못했습니다.",
+      errors: {
+        bbrNotSupported: "호스트 커널이 tcp_bbr을 제공하지 않습니다.",
+        bbrEnableVerificationFailed:
+          "BBR 활성화를 요청했지만 현재 커널 상태가 bbr/fq가 아닙니다.",
+        bbrRollbackCongestionFailed:
+          "BBR 롤백이 이전 혼잡 제어 값을 복원하지 못했습니다.",
+        bbrRollbackQdiscFailed:
+          "BBR 롤백이 이전 기본 큐 규칙을 복원하지 못했습니다.",
+        bbrRollbackStillBbrFailed:
+          "BBR 롤백 후에도 혼잡 제어가 bbr 상태입니다.",
+        mtuEnableVerificationFailed:
+          "MTU probing 활성화를 요청했지만 tcp_mtu_probing이 1이 아닙니다.",
+        mtuRollbackFailed: "MTU probing 롤백이 예상 값을 복원하지 못했습니다.",
+        emptyPatch: "FNOS FPK 네트워크 최적화 옵션을 하나 이상 변경하세요.",
+        setSysctlFailed: "{key} 설정에 실패했습니다.",
+        rollbackFailed: "{message}; 롤백 실패: {error}",
+      },
       blocked: {
         deployment:
           "FNOS FPK 네트워크 최적화는 FPK 배포에서만 사용할 수 있습니다.",
@@ -235,6 +269,9 @@ export const koKRServer = {
         "게이트웨이 구성을 업데이트하지 못했습니다. 구성이 롤백되었습니다.",
     },
     proxyMappings: {
+      payloadObjectRequired: "경로 프록시 매핑은 객체여야 합니다.",
+      targetInvalid:
+        "경로 프록시 대상은 http://, https://, ws:// 또는 wss://로 시작하고 호스트를 포함해야 합니다.",
       syncRulesFailed: "경로 프록시 라우트를 동기화하지 못했습니다.",
       restoreRulesFailed: "경로 프록시 라우트를 복원하지 못했습니다.",
       updateFailed: "경로 프록시 매핑을 업데이트하지 못했습니다.",
@@ -253,6 +290,55 @@ export const koKRServer = {
       updateFailedRolledBack:
         "게이트웨이 프록시 헤더를 업데이트하지 못했습니다. 구성이 롤백되었습니다.",
     },
+    gatewaySettingsRoutes: {
+      loadGatewaySettingsFailed: "게이트웨이 설정을 불러오지 못했습니다.",
+      payloadObjectRequired: "게이트웨이 요청 내용은 객체여야 합니다.",
+      loadConfigFailed: "구성을 불러오지 못했습니다.",
+      saveGatewaySettingsFailed: "게이트웨이 설정을 저장하지 못했습니다.",
+      syncGatewaySettingsFailed: "게이트웨이 설정 동기화 실패: {message}",
+      responseReloadFailed:
+        "게이트웨이 설정은 저장되었지만 응답을 다시 불러오지 못했습니다.",
+      loadGatewayVisibilityFailed:
+        "게이트웨이 표시 상태를 불러오지 못했습니다.",
+      loadRuntimeFailed: "런타임 상태를 불러오지 못했습니다.",
+      loadGatewayProxyHeadersFailed:
+        "게이트웨이 프록시 헤더를 불러오지 못했습니다.",
+      loadGatewayHostResponseFailed:
+        "게이트웨이 Host 응답을 불러오지 못했습니다.",
+    },
+    runtimeConfigRoutes: {
+      loadCaptchaFailed: "캡차 설정을 불러오지 못했습니다.",
+      saveCaptchaFailed: "캡차 설정을 저장하지 못했습니다.",
+      loadTerminalFeatureFailed: "터미널 기능 설정을 불러오지 못했습니다.",
+      saveTerminalFeatureFailed: "터미널 기능 설정을 저장하지 못했습니다.",
+      invalidRunType: "run_type이 올바르지 않습니다.",
+      loadProtocolMappingFeatureFailed:
+        "프로토콜 매핑 기능 설정을 불러오지 못했습니다.",
+      loadSmartConnectDetailsFailed:
+        "Smart Connect 세부 정보를 불러오지 못했습니다.",
+      loadFnosShareBypassFailed: "FNOS 공유 우회 설정을 불러오지 못했습니다.",
+      saveFnosShareBypassFailed: "FNOS 공유 우회 설정을 저장하지 못했습니다.",
+      loadFnosPortIconHijackFailed:
+        "FNOS 포트 아이콘 하이재킹 설정을 불러오지 못했습니다.",
+      loadAutoHttpsFailed: "자동 HTTPS 설정을 불러오지 못했습니다.",
+      saveAutoHttpsFailed: "자동 HTTPS 설정을 저장하지 못했습니다.",
+      saveAutoManageFirewallFailed:
+        "방화벽 자동 관리 설정을 저장하지 못했습니다.",
+      loadConfigFailed: "구성을 불러오지 못했습니다.",
+      loadDefaultRouteFailed: "기본 라우트를 불러오지 못했습니다.",
+      saveDefaultRouteFailed: "기본 라우트를 저장하지 못했습니다.",
+      unsupportedTunnelType: "지원하지 않는 터널 유형입니다.",
+      saveDefaultTunnelFailed: "기본 터널을 저장하지 못했습니다.",
+      upstreamUnavailable: "업스트림 서비스를 사용할 수 없습니다.",
+      proxyProtocolForceBooleanRequired:
+        "proxy_protocol_force는 불리언이어야 합니다.",
+      loadRunModePromptPreferencesFailed:
+        "실행 모드 안내 기본 설정을 불러오지 못했습니다.",
+      saveRunModePromptPreferencesFailed:
+        "실행 모드 안내 기본 설정을 저장하지 못했습니다.",
+      loadWelcomeGuideFailed: "환영 가이드 상태를 불러오지 못했습니다.",
+      saveWelcomeGuideFailed: "환영 가이드 상태를 저장하지 못했습니다.",
+    },
     captcha: {
       turnstileKeysRequired:
         "Cloudflare Turnstile이 활성화되면 site_key와 secret_key가 모두 필요합니다.",
@@ -260,6 +346,9 @@ export const koKRServer = {
     ipLocation: {
       ipLookupUrlLabel: "IP 조회 데이터베이스 URL",
       cidrUrlLabel: "CIDR 데이터베이스 URL",
+      loadSettingsFailed: "IP 위치 API 설정을 불러오지 못했습니다.",
+      saveSettingsFailed: "IP 위치 API 설정을 저장하지 못했습니다.",
+      modeInvalid: "모드는 online 또는 custom이어야 합니다.",
     },
     connectionTest: {
       httpStatus: "서비스가 HTTP 상태 {status}을 반환했습니다.",
@@ -274,6 +363,10 @@ export const koKRServer = {
       startFailed: "자동 HTTPS를 시작하지 못했습니다.",
     },
     hostMappings: {
+      payloadObjectRequired: "호스트 매핑은 객체여야 합니다.",
+      hostRequired: "호스트 매핑에는 도메인이 필요합니다.",
+      targetInvalid:
+        "호스트 매핑 {host} 대상은 http://, https://, ws:// 또는 wss://로 시작하고 호스트를 포함해야 합니다.",
       singleAuthPortMapping:
         "하나의 호스트 매핑만 인증 서비스로 AUTH_PORT를 가리킬 수 있습니다.",
       authMappingMustBePublic:
@@ -294,6 +387,8 @@ export const koKRServer = {
         "호스트 매핑 {host}에 중복된 경로 규칙 {path}이 있습니다.",
       locationTargetRequired:
         "호스트 매핑 {host} 경로 규칙 {path}에는 대상이 필요합니다.",
+      locationTargetInvalid:
+        "호스트 매핑 {host} 경로 규칙 {path} 대상은 http://, https://, ws:// 또는 wss://로 시작하고 호스트를 포함해야 합니다.",
       locationStatusInvalid:
         "호스트 매핑 {host} 경로 규칙 {path} 응답 상태는 100에서 599 사이여야 합니다.",
       locationHeaderInvalid:
@@ -306,16 +401,21 @@ export const koKRServer = {
       updateFailedRolledBack:
         "호스트 매핑을 업데이트하지 못했습니다. 구성이 롤백되었습니다.",
       metadataFailed: "대상 제목을 새로 고치지 못했습니다.",
+      onlyHttpTargetsSupported: "http/https 대상만 지원됩니다.",
+      metadataUpstreamStatus: "업스트림이 상태 {status}을 반환했습니다.",
       bookmarkFolderForRoot: "{root} 하위 도메인 매핑",
       bookmarkFolderDefault: "fn-knock 하위 도메인 매핑",
     },
     streamMappings: {
+      payloadObjectRequired: "스트림 매핑은 객체여야 합니다.",
+      listenPortRequiredInteger: "수신 포트는 유효한 정수여야 합니다.",
       listenPortNotInteger: "수신 포트 {port}은 유효한 정수가 아닙니다.",
       listenPortOutOfRange: "수신 포트 {port}이 범위를 벗어났습니다.",
       duplicatePort:
         "{protocol} 수신 포트 {port}이 중복되었습니다. 프로토콜 + 포트를 고유하게 유지하십시오.",
       targetMustBeHostPort:
         "대상 주소 {target}은 호스트:포트 형식이어야 합니다.",
+      saveFailed: "프로토콜 매핑을 저장하지 못했습니다.",
       syncFailed:
         "프로토콜 매핑 및 게이트웨이 포트 허용 규칙을 동기화하지 못했습니다.",
       syncFailedRolledBack:
@@ -328,14 +428,31 @@ export const koKRServer = {
         "상위 도메인 암호 키 RP ID {rpId}은 인증 서비스 {authHost}과 일치하거나 해당 상위 도메인이어야 합니다.",
     },
     subdomainMode: {
+      payloadObjectRequired: "하위 도메인 모드 요청 내용은 객체여야 합니다.",
+      saveFailed: "하위 도메인 모드 설정을 저장하지 못했습니다.",
       sslAutoSelected:
         "현재 하위 도메인 모드에 더 적합한 인증서로 자동 전환됩니다.",
       sslAutoSelectionSyncFailed:
         "권장 인증서를 찾았지만 게이트웨이와의 동기화에 실패하여 자동으로 전환되지 않았습니다.",
     },
+    authCredentialSettings: {
+      loadFailed: "인증 자격 증명 설정을 불러오지 못했습니다.",
+      loadConfigFailed: "구성을 불러오지 못했습니다.",
+      saveFailed: "인증 자격 증명 설정을 저장하지 못했습니다.",
+    },
     totp: {
       invalidCode: "인증코드가 올바르지 않습니다. 다시 시도해 보세요.",
+      invalidSecretOrCode: "TOTP 비밀 키 또는 인증 코드가 올바르지 않습니다.",
       notFound: "TOTP를 찾을 수 없습니다",
+      loadFailed: "TOTP 자격 증명을 불러오지 못했습니다.",
+      saveFailed: "TOTP 자격 증명을 저장하지 못했습니다.",
+      exportFailed: "TOTP 자격 증명을 내보내지 못했습니다.",
+      importFailed: "TOTP 자격 증명을 가져오지 못했습니다.",
+      deleteFailed: "TOTP 자격 증명을 삭제하지 못했습니다.",
+      updateFailed: "TOTP 자격 증명을 업데이트하지 못했습니다.",
+      bound: "TOTP 자격 증명이 연결되었습니다.",
+      deleted: "TOTP 자격 증명이 삭제되었습니다.",
+      updated: "TOTP 자격 증명이 업데이트되었습니다.",
     },
     totpImport: {
       payloadObject: "TOTP 자격 증명 가져오기 내용은 객체여야 합니다.",
@@ -346,7 +463,10 @@ export const koKRServer = {
         "한 번에 최대 {max}개의 TOTP 자격 증명을 가져올 수 있습니다.",
     },
     passkeys: {
-      notFound: "비밀번호를 찾을 수 없습니다.",
+      notFound: "패스키를 찾을 수 없습니다.",
+      listFailed: "패스키 목록을 불러오지 못했습니다.",
+      deleteFailed: "패스키를 삭제하지 못했습니다.",
+      deleted: "패스키가 삭제되었습니다.",
     },
     syncRoutes: {
       partialFailedGatewayLogging:
@@ -371,21 +491,40 @@ export const koKRServer = {
     },
     sessions: {
       notFound: "세션을 찾을 수 없습니다",
+      listFailed: "세션 목록을 불러오지 못했습니다.",
+      loadFailed: "세션을 불러오지 못했습니다.",
+      updateFailed: "세션을 업데이트하지 못했습니다.",
+      deleteFailed: "세션을 삭제하지 못했습니다.",
+      mobilityLoadFailed: "세션 이동성 세부 정보를 불러오지 못했습니다.",
+      deleted: "세션이 삭제되었습니다.",
     },
   },
   gatewayLogs: {
+    configLoadFailed: "요청 로그 설정을 읽지 못했습니다.",
+    configSaveFailed: "요청 로그 설정을 저장하지 못했습니다.",
     configSyncFailed:
       "요청 로그 설정이 저장되었지만 게이트웨이와 동기화하지 못했습니다.",
     readDirectoryFailed: "로그 디렉터리를 읽지 못했습니다.",
     readDatesFailed: "로그 날짜를 읽지 못했습니다.",
     readEntriesFailed: "요청 로그를 읽지 못했습니다.",
     deleteEntriesFailed: "요청 로그를 삭제하지 못했습니다.",
+    invalidJsonObject: "요청 본문이 유효한 JSON 객체가 아닙니다.",
   },
   backoffRoutes: {
     ipRequired: "IP 매개변수가 누락되었습니다",
+    listFailed: "로그인 backoff 목록을 불러오지 못했습니다.",
+    statusFailed: "로그인 backoff 상태를 불러오지 못했습니다.",
+    resetFailed: "로그인 backoff를 재설정하지 못했습니다.",
+  },
+  systemInfoRoutes: {
+    loadAccessEntryFailed: "접속 진입 정보를 불러오지 못했습니다.",
+  },
+  securityOverviewRoutes: {
+    loadFailed: "보안 개요를 불러오지 못했습니다.",
   },
   ipLocationRoutes: {
     batchLimit: "한 번에 최대 {max} IP를 쿼리합니다.",
+    enqueueFailed: "IP 위치 조회 대기열 추가에 실패했습니다.",
   },
   gatewayPortal: {
     syncConfigFailed:
@@ -402,6 +541,16 @@ export const koKRServer = {
     syncFailed: "크롤러 차단 구성을 동기화하지 못했습니다.",
   },
   scanner: {
+    settingsLoadFailed: "스캐너 설정을 불러오지 못했습니다.",
+    settingsUpdateFailed: "스캐너 설정을 업데이트하지 못했습니다.",
+    invalidRequestBody: "요청 본문이 올바르지 않습니다.",
+    atLeastOneIpRequired: "하나 이상의 IP를 제공하세요.",
+    blacklistLoadFailed: "스캐너 차단 목록을 불러오지 못했습니다.",
+    recordNotFound: "기록을 찾을 수 없습니다.",
+    blacklistRecordLoadFailed: "스캐너 차단 목록 기록을 불러오지 못했습니다.",
+    blacklistRecordDeleteFailed: "스캐너 차단 목록 기록을 삭제하지 못했습니다.",
+    blacklistRecordsDeleteFailed:
+      "스캐너 차단 목록 기록을 삭제하지 못했습니다.",
     cidrExemptionsInvalid: "CIDR 면제 형식이 잘못되었습니다. {cidrs}",
   },
   gatewayLogging: {
@@ -412,6 +561,7 @@ export const koKRServer = {
     syncFailed: "게이트웨이 인증서를 동기화하지 못했습니다.",
   },
   sslRoutes: {
+    statusReadFailed: "SSL 상태를 불러오지 못했습니다.",
     gatewayStatusReadFailed: "게이트웨이 SSL 상태를 읽을 수 없습니다.",
     readSharedFileFailed: "공유 디렉터리 파일을 읽지 못했습니다.",
     emptyDomains:
@@ -419,10 +569,21 @@ export const koKRServer = {
     certOrKeyInvalid: "인증서 또는 개인 키가 유효하지 않습니다.",
     hostRequired: "호스트가 필요합니다",
     localCaCertificateLabel: "로컬 CA 인증서",
+    rootCaNotInitialized: "루트 CA가 초기화되지 않았습니다.",
     success: "성공함",
     certNotInstalled: "인증서가 설치되지 않았습니다.",
+    certReadFailed: "SSL 인증서를 읽지 못했습니다.",
+    certZipCreateFailed: "SSL 인증서 zip을 생성하지 못했습니다.",
     manualCertificateLabel: "수동으로 업로드된 인증서",
     certNotFound: "인증서를 찾을 수 없습니다.",
+    caInitFailed: "로컬 CA 초기화에 실패했습니다.",
+    caHostLoadFailed: "로컬 CA 호스트 목록을 불러오지 못했습니다.",
+    caHostSaveFailed: "로컬 CA 호스트 목록을 저장하지 못했습니다.",
+    certSaveFailed: "SSL 인증서 저장에 실패했습니다.",
+    certActivateFailed: "SSL 인증서 활성화에 실패했습니다.",
+    deploymentModeSaveFailed: "SSL 배포 모드 저장에 실패했습니다.",
+    certDeleteFailed: "SSL 인증서 삭제에 실패했습니다.",
+    certClearFailed: "SSL 인증서 구성 초기화에 실패했습니다.",
   },
   redis: {
     defaultCredential: "기본 자격 증명",
@@ -525,6 +686,32 @@ export const koKRServer = {
       "작업이 중지되었습니다. 프로세스 종료 오류가 무시되었습니다.",
   },
   acmeRoutes: {
+    invalidRequestBody: "요청 본문이 올바르지 않습니다.",
+    loadStatusFailed: "ACME 상태를 불러오지 못했습니다.",
+    loadClientSettingsFailed: "ACME 클라이언트 설정을 불러오지 못했습니다.",
+    saveClientSettingsFailed: "ACME 클라이언트 설정을 저장하지 못했습니다.",
+    switchCertificateAuthorityFailed: "ACME 인증 기관을 전환하지 못했습니다.",
+    loadOverviewFailed: "ACME 개요를 불러오지 못했습니다.",
+    loadApplicationOverviewFailed: "ACME 요청 항목 개요를 불러오지 못했습니다.",
+    loadConfigFailed: "ACME 설정을 불러오지 못했습니다.",
+    loadSubdomainRecommendationFailed:
+      "하위 도메인 인증서 추천을 불러오지 못했습니다.",
+    loadApplicationsFailed: "ACME 요청 항목 목록을 불러오지 못했습니다.",
+    loadApplicationFailed: "ACME 요청 항목을 불러오지 못했습니다.",
+    updateApplicationFailed: "ACME 요청 항목을 업데이트하지 못했습니다.",
+    deleteApplicationFailed: "ACME 요청 항목을 삭제하지 못했습니다.",
+    syncLibraryFailed:
+      "ACME 인증서를 인증서 라이브러리에 동기화하지 못했습니다.",
+    deployCertificateFailed: "ACME 인증서를 배포하지 못했습니다.",
+    loadJobFailed: "ACME 작업을 불러오지 못했습니다.",
+    loadJobLogsFailed: "ACME 작업 로그를 불러오지 못했습니다.",
+    loadJobPollFailed: "ACME 작업을 폴링하지 못했습니다.",
+    stopJobFailed: "ACME 작업을 중지하지 못했습니다.",
+    loadCertificateInfoFailed: "ACME 인증서 정보를 불러오지 못했습니다.",
+    deleteCertificateFailed: "ACME 인증서를 삭제하지 못했습니다.",
+    uninstallFailed: "ACME 클라이언트를 제거하지 못했습니다.",
+    createCertificateZipFailed: "ACME 인증서 zip을 생성하지 못했습니다.",
+    loadCertificateFailed: "ACME 인증서를 불러오지 못했습니다.",
     domainsInvalid: "도메인 목록이 비어 있거나 유효하지 않습니다.",
     dnsTypeRequired: "DNS 확인 유형이 누락되었습니다.",
     unsupportedDnsProvider: "지원되지 않는 DNS 공급자",
@@ -616,6 +803,15 @@ export const koKRServer = {
     cidrLookupFailed: "CIDR 조회 실패",
     syncFailed: "공통 위치 면제 구성을 게이트웨이에 동기화하지 못했습니다.",
   },
+  generalBlacklist: {
+    invalidRequestBody: "요청 본문이 올바르지 않습니다.",
+    invalidIp: "IP 주소가 올바르지 않습니다.",
+    invalidIpWithValue: "IP 주소가 올바르지 않습니다: {ip}",
+    atLeastOneValidIpRequired: "하나 이상의 유효한 IP를 입력하세요.",
+    backendRequestFailed: "일반 블랙리스트 백엔드 요청에 실패했습니다.",
+    backendResponseMissingData:
+      "일반 블랙리스트 백엔드 응답에 데이터가 없습니다.",
+  },
   fnosDataShare: {
     invalidPath: "잘못된 공유 파일 경로",
     shareMissing:
@@ -639,8 +835,14 @@ export const koKRServer = {
     defaultFolderTitle: "fn-knock 하위 도메인 매핑",
   },
   whitelist: {
+    listFailed: "화이트리스트 레코드를 불러오지 못했습니다.",
     addFailed: "화이트리스트 레코드를 추가하지 못했습니다.",
+    updateRecordsFailed: "화이트리스트 레코드를 업데이트하지 못했습니다.",
+    deleteFailed: "화이트리스트 레코드를 삭제하지 못했습니다.",
+    commentUpdateFailed: "화이트리스트 메모를 업데이트하지 못했습니다.",
+    regionListFailed: "지역 화이트리스트를 불러오지 못했습니다.",
     regionAddFailed: "지역 화이트리스트를 추가하지 못했습니다.",
+    regionDeleteFailed: "지역 화이트리스트를 삭제하지 못했습니다.",
     regionRequired: "지역을 하나 이상 선택하세요.",
     regionEmpty: "선택한 지역에서 사용할 수 있는 CIDR을 찾지 못했습니다.",
     regionNotFound: "지역 화이트리스트를 찾을 수 없습니다.",
@@ -678,6 +880,8 @@ export const koKRServer = {
       "설치가 완료된 후에도 tmux가 여전히 감지되지 않습니다.",
     tmuxInstallCompleteWithVersion: "tmux 설치 완료: {version}",
     tmuxInstallFailed: "tmux 설치 실패",
+    operationFailed: "터미널 작업 실패",
+    operationFailedWithMessage: "터미널 작업 실패: {message}",
     cwdUnavailable: "작업 디렉터리가 없거나 액세스할 수 없습니다: {path}",
     webTerminalDisabled: "웹 터미널이 활성화되지 않았습니다.",
     tmuxInstallingWait:
@@ -747,8 +951,12 @@ export const koKRServer = {
     keepOneEnabledRule:
       "WAF가 켜져 있는 동안 하나 이상의 규칙 파일을 활성화된 상태로 유지하세요.",
     uploadSelectConf: "업로드할 .conf 파일 선택",
+    base64Invalid: "규칙 파일 내용이 유효한 Base64가 아닙니다.",
     reloadRulesFailed: "WAF 규칙을 다시 로드하지 못했습니다.",
+    detailsLoadFailed: "WAF 세부 정보를 불러오지 못했습니다.",
     statusReadFailed: "WAF 상태를 읽지 못했습니다.",
+    invalidRequestBody: "요청 본문이 올바르지 않습니다.",
+    dateInvalid: "날짜 형식이 잘못되었습니다. YYYY-MM-DD 형식이어야 합니다.",
     configSaveOrLoadFailed: "WAF 설정을 저장하거나 로드하지 못했습니다.",
     systemRulesSyncFailed: "시스템 규칙을 동기화하지 못했습니다.",
     ruleToggleFailed: "WAF 규칙을 활성화 또는 비활성화하지 못했습니다.",
@@ -758,6 +966,7 @@ export const koKRServer = {
     eventsDrainFailed: "WAF 이벤트를 가져오지 못했습니다.",
     logsQueryFailed: "WAF 로그를 쿼리하지 못했습니다.",
     logNotFound: "WAF 로그를 찾을 수 없습니다",
+    logLoadFailed: "WAF 로그를 불러오지 못했습니다.",
     logsDeleteFailed: "WAF 로그를 삭제하지 못했습니다.",
   },
   oidc: {
@@ -795,16 +1004,32 @@ export const koKRServer = {
     inviteExpired: "바인딩 초대 링크가 만료되었습니다",
     inviteProviderNotAllowed: "이 초대 링크는 이 공급자를 허용하지 않습니다.",
     authorizationEndpointMissing: "인증 끝점이 구성되지 않았습니다.",
+    authorizationEndpointInvalid: "인증 엔드포인트 형식이 올바르지 않습니다.",
     bindStateInvalid: "바인딩 초대 상태가 잘못되었습니다.",
     accountNotBoundCannotLogin:
       "이 외부 계정은 연결되어 있지 않아 로그인할 수 없습니다.",
     tokenEndpointMissing: "토큰 엔드포인트가 구성되지 않았습니다.",
+    clientIdMissing: "client_id가 구성되지 않았습니다.",
     bindProviderMismatch: "바인딩 초대가 로그인 제공업체와 일치하지 않습니다.",
     inviteTotpMissing:
       "이 바인딩 초대에 연결된 TOTP가 더 이상 존재하지 않습니다.",
     accountAlreadyBoundOtherTotp:
       "이 외부 계정은 이미 다른 TOTP에 연결되어 있습니다.",
     inviteUsed: "바인딩 초대 링크가 이미 사용되었습니다.",
+    externalAccountFallback: "외부 계정",
+    loginFailedWithDetail: "외부 로그인 실패: {detail}",
+    tokenRequestFailed: "외부 로그인 토큰을 가져오지 못했습니다: {detail}",
+    readResponseFailed: "외부 로그인 응답을 읽지 못했습니다: {detail}",
+    httpResponseFailed: "외부 로그인 요청 실패: HTTP {status}: {detail}",
+    jsonResponseInvalid: "외부 로그인 응답이 유효한 JSON이 아닙니다: {detail}",
+    jwksUriMissing: "OIDC JWKS URI가 구성되지 않았습니다.",
+    jwksFetchFailed: "OIDC JWKS를 가져오지 못했습니다: {detail}",
+    jwksInvalid: "OIDC JWKS 응답이 올바르지 않습니다: {detail}",
+    tokenHeaderInvalid: "OIDC token header가 올바르지 않습니다: {detail}",
+    signingKeyUnavailable: "OIDC 서명 키를 사용할 수 없습니다.",
+    signingKeyInvalid: "OIDC 서명 키가 올바르지 않습니다: {detail}",
+    idTokenVerificationFailed: "OIDC id_token 검증 실패: {detail}",
+    githubProfileRequestFailed: "GitHub 프로필 요청 실패: {detail}",
     providerErrors: {
       accessDenied:
         "외부 로그인 승인을 취소했거나 제공업체가 요청을 거부했습니다.",
@@ -843,6 +1068,27 @@ export const koKRServer = {
     testProviderFailed: "외부 로그인 공급자를 테스트하지 못했습니다.",
     deleteBindingFailed: "외부 계정 바인딩을 삭제하지 못했습니다.",
     createInviteFailed: "바인딩 초대를 생성하지 못했습니다.",
+    listProvidersFailed: "외부 로그인 제공자 목록을 불러오지 못했습니다.",
+    providerPayloadObject: "제공자 페이로드는 객체여야 합니다.",
+    loadProviderFailed: "외부 로그인 제공자를 불러오지 못했습니다.",
+    listBindingsFailed: "외부 계정 바인딩 목록을 불러오지 못했습니다.",
+    invitationPayloadObject: "초대 페이로드는 객체여야 합니다.",
+    totpRequired: "TOTP 자격 증명이 필요합니다.",
+    loadTotpFailed: "TOTP 자격 증명을 불러오지 못했습니다.",
+    loadConfigFailed: "구성을 불러오지 못했습니다.",
+    inviteUrlBuildFailed: "외부 계정 초대 URL을 만들지 못했습니다.",
+    connectionConfigInvalid:
+      "외부 로그인 제공자 연결 구성이 올바르지 않습니다.",
+    oauthEndpointIncompleteWithField:
+      "OAuth2 엔드포인트 구성이 완전하지 않습니다: {field}",
+    discoveryHttpFailed: "OIDC discovery 요청 실패: HTTP {status}: {detail}",
+    discoveryInvalid: "OIDC discovery 문서가 올바르지 않습니다.",
+    discoveryMissingFieldsWithList:
+      "OIDC discovery 문서에 필수 필드가 없습니다: {fields}",
+    providerTypeRequired: "외부 로그인 제공자 유형이 필요합니다.",
+    storedProviderInvalid: "저장된 외부 로그인 제공자가 올바르지 않습니다.",
+    storedProviderTypeInvalid:
+      "저장된 외부 로그인 제공자 유형이 올바르지 않습니다.",
     catalog: {
       googleDescription: "Google 계정으로 로그인하세요.",
       microsoftDescription: "Microsoft/Azure AD 계정으로 로그인하세요.",
@@ -915,6 +1161,8 @@ export const koKRServer = {
       "기존 인증서 인벤토리는 향후 다중 인증서/SNI 배포에 더 적합합니다.",
   },
   cloudflared: {
+    configReadFailed: "Cloudflared 설정을 읽지 못했습니다.",
+    configWriteFailed: "Cloudflared 설정을 저장하지 못했습니다.",
     missingToken: "Cloudflare 토큰을 먼저 구성하세요",
     startFailedWithDetail: "Cloudflared를 시작하지 못했습니다: {detail}",
     processExited: "cloudflared 프로세스가 종료되었습니다.",
@@ -926,6 +1174,10 @@ export const koKRServer = {
     unknownError: "알 수 없는 오류",
     notInitialized: "Cloudflared가 초기화되지 않았습니다",
     startFailed: "시작하지 못했습니다.",
+    stopFailed: "Cloudflared를 중지하지 못했습니다.",
+    logsListFailed: "Cloudflared 로그를 불러오지 못했습니다.",
+    logsClearFailed: "Cloudflared 로그를 지우지 못했습니다.",
+    logsPollFailed: "Cloudflared 로그를 폴링하지 못했습니다.",
   },
   dnsmasq: {
     notDetectedInstallFirst: "dnsmasq가 감지되지 않았습니다. 먼저 설치하세요.",
@@ -1041,9 +1293,12 @@ export const koKRServer = {
       macAutoDownloadUnsupported:
         "macOS에서는 자동 앱 다운로드가 지원되지 않습니다. Brew install cloudflared를 사용하여 수동으로 설치하세요.",
       platformUnsupported: "이 플랫폼은 지원되지 않습니다",
+      downloadStarted: "Cloudflared 다운로드를 시작했습니다.",
       responseBodyUnreadable: "다운로드 응답 본문을 읽을 수 없습니다.",
       downloadCancelled: "다운로드가 취소되었습니다.",
       unknownError: "알 수 없는 오류",
+      deleteSuccess: "Cloudflared가 삭제되었습니다.",
+      deleteFailed: "Cloudflared 삭제 실패: {detail}",
       macManualRemove: "macOS에서 수동으로 cloudflared 제거",
       notInstalledBrew:
         "Cloudflared가 설치되어 있지 않습니다. 먼저 brew install cloudflared를 사용하여 설치하세요.",
@@ -1054,11 +1309,14 @@ export const koKRServer = {
       platformUnsupported: "이 플랫폼은 지원되지 않습니다",
       packageMissing: "FRP 패키지가 누락되었습니다.",
       extractFailed: "종료 코드 {code}으로 인해 추출에 실패했습니다.",
+      downloadStarted: "FRP 다운로드를 시작했습니다.",
       responseBodyUnreadable: "다운로드 응답 본문을 읽을 수 없습니다.",
       connectionFailed: "연결 실패",
       downloadFailed: "다운로드 실패: {detail}",
       unknownError: "알 수 없는 오류",
       downloadCancelled: "다운로드가 취소되었습니다.",
+      deleteSuccess: "FRP가 삭제되었습니다.",
+      deleteFailed: "FRP 삭제 실패: {detail}",
       notInitialized: "FRP가 초기화되지 않았습니다. 먼저 다운로드하세요.",
     },
   },
@@ -1080,6 +1338,10 @@ export const koKRServer = {
     primaryDeleteDenied: "기본 FRP 인스턴스는 삭제할 수 없습니다.",
     notInitialized: "FRP가 초기화되지 않았습니다.",
     startFailedWithDetail: "frpc를 시작하지 못했습니다: {detail}",
+    pidReadFailed: "frpc PID를 읽지 못했습니다.",
+    startedWithPid: "frpc가 시작되었습니다. pid={pid}",
+    stoppedWithPid: "frpc가 중지되었습니다. pid={pid}",
+    alreadyStopped: "frpc가 이미 중지되었습니다.",
     pidCleanedForInstance:
       "PID는 이 인스턴스에 속하지 않습니다. 이 인스턴스 런타임 기록이 삭제되었습니다",
     resumeOnBoot:
@@ -1122,6 +1384,52 @@ export const koKRServer = {
     verifyFailedWithRetry:
       "확인에 실패했습니다. {seconds} 초 후에 다시 시도하세요.",
     bindTokenExpired: "바인딩 자격 증명이 만료되었습니다.",
+    loadStatusFailed: "패스키 상태를 불러오지 못했습니다.",
+    createOptionsFailed: "패스키 옵션을 만들지 못했습니다.",
+    loadPasskeysFailed: "패스키 목록을 불러오지 못했습니다.",
+    noPasskeyAvailable: "사용 가능한 패스키가 없습니다.",
+    noValidPasskeyAvailable: "유효한 패스키가 없습니다.",
+    invalidRpConfig: "패스키 RP 구성이 올바르지 않습니다.",
+    invalidResponse: "패스키 응답이 올바르지 않습니다.",
+    challengeExpired: "패스키 챌린지가 만료되었습니다.",
+    verifyFailed: "패스키를 확인하지 못했습니다.",
+    notFound: "패스키를 찾을 수 없습니다.",
+    createSessionFailed: "인증 세션을 만들지 못했습니다.",
+    loginSuccessful: "로그인했습니다.",
+    unauthorizedOrMissingTotp: "권한이 없거나 TOTP ID가 없습니다.",
+    createBindTokenFailed: "패스키 바인딩 토큰을 만들지 못했습니다.",
+    createRegistrationOptionsFailed: "패스키 등록 옵션을 만들지 못했습니다.",
+    registerFailed: "패스키를 등록하지 못했습니다.",
+    registrationFailed: "패스키 등록에 실패했습니다.",
+    alreadyRegistered: "이미 등록된 패스키입니다.",
+    unknownDevice: "알 수 없는 장치",
+  },
+  authRoutes: {
+    pathNotFound: "인증 API 경로를 찾을 수 없습니다.",
+    loadBootstrapFailed: "인증 부트스트랩을 불러오지 못했습니다.",
+    authenticationRequired: "인증이 필요합니다.",
+    loadSessionFailed: "인증 세션을 불러오지 못했습니다.",
+    loadCaptchaConfigFailed: "Captcha 구성을 불러오지 못했습니다.",
+    createCaptchaChallengeFailed: "Captcha 챌린지를 만들지 못했습니다.",
+    loadOidcProvidersFailed: "OIDC 제공자를 불러오지 못했습니다.",
+    loadOidcInviteFailed: "OIDC 초대를 불러오지 못했습니다.",
+    inspectOidcInviteFailed: "OIDC 초대를 확인하지 못했습니다.",
+    loadAuthConfigFailed: "인증 구성을 불러오지 못했습니다.",
+    loadLoginCredentialsFailed: "로그인 자격 증명을 불러오지 못했습니다.",
+    createSessionFailed: "인증 세션을 만들지 못했습니다.",
+    loginSuccessful: "로그인했습니다.",
+    verifyFailed: "인증 상태를 확인하지 못했습니다.",
+    localNetworkAccessAllowed: "로컬 네트워크 접근이 허용되었습니다.",
+    authenticated: "인증되었습니다.",
+    invalidCaptchaProof: "Captcha proof가 올바르지 않습니다.",
+    invalidCaptchaAlgorithm: "Captcha 알고리즘이 올바르지 않습니다.",
+    invalidCaptchaChallenge: "Captcha 챌린지가 올바르지 않습니다.",
+    invalidCaptchaSignature: "Captcha 서명이 올바르지 않습니다.",
+    captchaChallengeExpired: "Captcha 챌린지가 만료되었습니다.",
+    captchaChallengeAlreadyUsed: "Captcha 챌린지가 이미 사용되었습니다.",
+    captchaVerifyFailed: "Captcha를 확인하지 못했습니다.",
+    turnstileResponseInvalid: "Turnstile 응답이 올바르지 않습니다.",
+    unknownTotp: "알 수 없는 TOTP",
   },
   maintenanceBackup: {
     commandMissing: "시스템 명령이 누락되었습니다: {command}",
@@ -1145,6 +1453,7 @@ export const koKRServer = {
     unsupportedRedisExportType:
       "내보내기에 지원되지 않는 Redis 데이터 유형: {type}({key})",
     createArchiveFailed: "백업 아카이브를 생성하지 못했습니다.",
+    buildResponseFailed: "백업 다운로드 응답을 만들지 못했습니다.",
     invalidBackupExtension: "백업 파일 확장자는 {extension}이어야 합니다.",
     stringArrayRequired: "{label}은 문자열 배열이어야 합니다.",
     stringArrayOnlyStrings: "{label}은 문자열만 포함할 수 있습니다.",
@@ -1176,6 +1485,7 @@ export const koKRServer = {
     archiveMissingPayload: "백업 아카이브가 누락되었습니다. {filename}",
     archivePasswordInvalid: "백업 아카이브 비밀번호 확인에 실패했습니다.",
     readArchiveFailed: ".knock 백업 아카이브를 읽지 못했습니다.",
+    payloadUtf8Invalid: "백업 파일 콘텐츠가 유효한 UTF-8 텍스트가 아닙니다.",
     writeRedisFailed: "Redis 백업 데이터를 쓰지 못했습니다.",
     unknownError: "알 수 없는 오류",
     syncSteps: {
@@ -1187,6 +1497,9 @@ export const koKRServer = {
       systemResourceMonitorReset: "시스템 리소스 모니터 상태 재설정",
     },
     archiveEmpty: "백업 아카이브 콘텐츠가 비어 있습니다.",
+    archiveTooLarge: "백업 아카이브가 너무 커서 가져올 수 없습니다.",
+    directoryImportFileNotFound: "가져올 백업 파일을 찾을 수 없습니다.",
+    directoryImportFileUnreadable: "가져올 백업 파일을 읽을 수 없습니다.",
     directoryImportFileOnly: "백업 디렉터리의 파일만 가져올 수 있습니다.",
     directoryImportExtensionOnly: "{extension} 백업 파일만 가져올 수 있습니다.",
     directoryImportTooLarge:
@@ -1211,6 +1524,16 @@ export const koKRServer = {
     powUnavailable: "PoW 보안 문자를 사용할 수 없습니다",
     providerConfigMismatch: "보안 문자 제공자가 현재 구성과 일치하지 않습니다",
   },
+  hmac: {
+    missingTimestamp: "HMAC 타임스탬프가 없습니다.",
+    missingNonce: "HMAC nonce가 없습니다.",
+    missingSignature: "HMAC 서명이 없습니다.",
+    timestampExpired: "HMAC 타임스탬프가 만료되었습니다.",
+    invalidKey: "HMAC 키가 올바르지 않습니다.",
+    invalidSignature: "HMAC 서명이 올바르지 않습니다.",
+    nonceReused: "HMAC nonce가 이미 사용되었습니다.",
+    nonceVerifyFailed: "HMAC nonce 확인에 실패했습니다.",
+  },
   cidr: {
     serviceError: "CIDR 서비스 오류",
     emptyResponse: "<빈 응답>",
@@ -1222,7 +1545,9 @@ export const koKRServer = {
     requestId: "요청 ID: {requestId}",
     responsePreview: "응답 미리보기: {preview}",
     provinceRequired: "시/도는 필수 항목입니다.",
+    invalidApiUrl: "CIDR API URL이 잘못되었습니다: {error}",
     upstreamTimeout: "CIDR 업스트림 요청 시간이 초과되었습니다.",
+    upstreamRequestFailedGeneric: "CIDR 업스트림 요청 실패: {error}",
     upstreamRequestFailed: "CIDR 업스트림 요청 실패({status})",
     invalidJson: "CIDR 업스트림이 잘못된 JSON을 반환했습니다.",
     upstreamUnexpected: "CIDR 업스트림이 예상치 못한 응답을 반환했습니다.",
@@ -1233,6 +1558,9 @@ export const koKRServer = {
     outbound: "아웃바운드",
     upstreamUnavailable: "업스트림 서비스를 사용할 수 없습니다.",
     hostRequired: "호스트가 필요합니다",
+    statsLoadFailed: "대시보드 통계를 불러오지 못했습니다.",
+    configLoadFailed: "대시보드 구성을 불러오지 못했습니다.",
+    displayConfigSaveFailed: "대시보드 표시 구성을 저장하지 못했습니다.",
   },
   acme: {
     alreadyInstalled: "acme.sh가 이미 설치되어 있습니다.",
@@ -1325,13 +1653,13 @@ export const koKRServer = {
     requestCanceled: "요청이 취소되었습니다.",
     curlRequestFailed: "컬 요청 실패: {detail}",
     nodeTransportInterfaceAddressUnavailable:
-      "Node HTTP 요청을 인터페이스 {name}에 바인딩할 수 없습니다: 사용 가능한 {family} 로컬 주소가 없습니다.",
+      "내장 HTTP 요청을 인터페이스 {name}에 바인딩할 수 없습니다: 사용 가능한 {family} 로컬 주소가 없습니다.",
     nodeTransportInterfaceNoAddress:
-      "Node HTTP 요청을 인터페이스 {name}에 바인딩할 수 없습니다: 사용 가능한 로컬 주소가 없습니다.",
+      "내장 HTTP 요청을 인터페이스 {name}에 바인딩할 수 없습니다: 사용 가능한 로컬 주소가 없습니다.",
     nodeTransportUnsupportedProtocol:
-      "Node HTTP 요청은 이 프로토콜을 지원하지 않습니다: {protocol}",
+      "내장 HTTP 요청은 이 프로토콜을 지원하지 않습니다: {protocol}",
     nodeTransportRedirectLimitExceeded:
-      "Node HTTP 요청 리디렉션 횟수가 한도 {max}회를 초과했습니다.",
+      "내장 HTTP 요청 리디렉션 횟수가 한도 {max}회를 초과했습니다.",
     triggerCron: "예정된 점검",
     triggerEnable: "자동 업데이트 활성화 후 즉시 확인",
     triggerStartup: "시작 후 확인",
@@ -1377,7 +1705,13 @@ export const koKRServer = {
     updateSuccess: "업데이트 성공: {message}",
     updateFailed: "업데이트 실패: {message}",
     testError: "테스트 오류: {message}",
+    statusLoadFailed: "DDNS 상태를 불러오지 못했습니다.",
+    toggleFailed: "DDNS 활성화 상태를 업데이트하지 못했습니다.",
+    settingsLoadFailed: "DDNS 자동 동기화 설정을 불러오지 못했습니다.",
     settingsSaveFailed: "DDNS 자동 동기화 설정을 저장하지 못했습니다.",
+    logsLoadFailed: "DDNS 로그를 불러오지 못했습니다.",
+    logsClearFailed: "DDNS 로그를 지우지 못했습니다.",
+    pollFailed: "DDNS 로그와 상태를 폴링하지 못했습니다.",
     providerSetFailed: "공급자를 설정하지 못했습니다.",
     configSaveFailed: "DDNS 구성을 저장하지 못했습니다.",
     createTargetFailed: "DDNS 항목을 생성하지 못했습니다.",
@@ -1400,6 +1734,54 @@ export const koKRServer = {
           },
           ttl: {
             description: "기본 {seconds} 초",
+          },
+          access_key_id: {
+            label: "액세스 키 ID",
+            description: "DNS 레코드 읽기/쓰기 권한이 있는 클라우드 공급자 액세스 키 ID",
+          },
+          access_key_secret: {
+            label: "액세스 키 Secret",
+            description: "액세스 키 ID와 함께 사용하는 Secret",
+          },
+          secret_access_key: {
+            label: "액세스 키 Secret",
+            description: "액세스 키 ID와 함께 사용하는 Secret",
+          },
+          secret_id: {
+            label: "SecretId",
+            description: "선택한 DNS 서비스 권한이 있는 Tencent Cloud API SecretId",
+          },
+          secret_key: {
+            label: "SecretKey",
+            description: "SecretId와 함께 사용하는 Tencent Cloud API SecretKey",
+          },
+          api_key: {
+            label: "API 키",
+            description: "공급자 콘솔에서 생성한 API Key",
+          },
+          api_secret: {
+            label: "API Secret",
+            description: "API Key와 함께 사용하는 API Secret",
+          },
+          secret_api_key: {
+            label: "Secret API Key",
+            description: "Porkbun 콘솔에서 생성한 Secret API Key",
+          },
+          api_token: {
+            label: "API 토큰",
+            description: "공급자 콘솔에서 생성한 API Token",
+          },
+          token_id: {
+            label: "Token ID",
+            description: "DNSPod 콘솔에서 생성한 API Token ID",
+          },
+          token_key: {
+            label: "Token Key",
+            description: "DNSPod 콘솔에서 생성한 API Token Key",
+          },
+          zone_id: {
+            label: "Zone ID",
+            description: "공급자 콘솔의 Zone 또는 사이트 ID",
           },
         },
       },
@@ -1508,6 +1890,7 @@ export const koKRServer = {
         requestFailed: "요청 실패",
         updateFailed: "업데이트 실패",
         createFailed: "생성 실패",
+        recordIdMissing: "Aliyun DNS가 RecordId 없는 레코드를 반환했습니다.",
       },
       baidu: {
         label: "바이두 클라우드 DNS",
@@ -1540,6 +1923,8 @@ export const koKRServer = {
         requestFailed:
           "Huawei Cloud DNS 요청 실패: HTTP {status} {statusText}, {detail}",
         zoneNotFound: "화웨이 클라우드 존을 찾을 수 없습니다: {zone}",
+        recordsetIdMissing:
+          "Huawei Cloud DNS가 ID 없는 레코드셋을 반환했습니다.",
       },
       tencentcloud: {
         label: "Tencent Cloud DNS",
@@ -1816,6 +2201,9 @@ export const koKRServer = {
     maxHostsExceeded: "한 번에 최대 {max} 호스트를 스캔하세요.",
     selectAtLeastOneCidr: "로컬 IPv4 스캔 범위를 하나 이상 선택하세요.",
     scanJobNotFound: "스캔 작업을 찾을 수 없거나 만료되었습니다.",
+    loadTargetsFailed: "스캔 대상을 불러오지 못했습니다.",
+    loadConfigFailed: "설정을 불러오지 못했습니다.",
+    saveTargetsFailed: "스캔 대상을 저장하지 못했습니다.",
     targetLabels: {
       docker: "{cidr}(Docker 호스트 LAN)",
       loopback: "{cidr}(로컬 루프백)",
@@ -1854,10 +2242,12 @@ export const koKRServer = {
     clearFirewallUnavailable: "이 환경에서는 SSH 방화벽을 지울 수 없습니다.",
     logSourceUnavailableShort: "SSH 로그 소스를 사용할 수 없습니다.",
     customCidrInvalid: "맞춤 CIDR 형식이 잘못되었습니다. {cidrs}",
+    customCidrsMustBeArray: "custom_cidrs는 배열이어야 합니다.",
     syncSshPolicyFailed: "SSH 전용 방화벽 규칙을 동기화하지 못했습니다.",
     clearSshPolicyFailed: "SSH 전용 방화벽 규칙을 지우지 못했습니다.",
     blockRecordInvalid: "블록 레코드 형식이 잘못되었습니다.",
     routes: {
+      loadConfigFailed: "SSH 보안 설정을 불러오지 못했습니다.",
       updateConfigFailed: "SSH 보안 구성을 업데이트하지 못했습니다.",
       syncFirewallSuccess:
         "동기화된 {allowedCidrs}은 CIDR을 허용하고 {synced} SSH는 {ports} 포트에 대한 IP를 차단했습니다.",
@@ -1865,10 +2255,28 @@ export const koKRServer = {
       clearFirewallSuccess: "SSH 전용 방화벽 규칙을 지웠습니다.",
       clearFirewallFailed: "SSH 방화벽을 지우지 못했습니다.",
       readLoginLogsFailed: "SSH 로그인 로그를 읽지 못했습니다.",
+      listBlocksFailed: "SSH 차단 목록을 불러오지 못했습니다.",
       blockNotFound: "블록 기록을 찾을 수 없습니다",
+      loadBlockFailed: "SSH 차단 기록을 불러오지 못했습니다.",
       removeBlockFailed: "블록을 제거하지 못했습니다.",
       selectIps: "차단을 해제할 IP를 선택하세요.",
       removeBlocksFailed: "블록을 제거하지 못했습니다.",
+    },
+  },
+  systemEvents: {
+    routes: {
+      unsupportedSystemEventType: "지원하지 않는 시스템 이벤트 유형입니다",
+      unsupportedSystemEventSource: "지원하지 않는 시스템 이벤트 소스입니다",
+      unsupportedSystemEventLevel: "지원하지 않는 시스템 이벤트 레벨입니다",
+      unsupportedSubjectKind: "지원하지 않는 이벤트 주체 유형입니다",
+      unsupportedEventType: "지원하지 않는 이벤트 유형입니다",
+      unsupportedEventLevel: "지원하지 않는 이벤트 레벨입니다",
+      unsupportedEventSource: "지원하지 않는 이벤트 소스입니다",
+      loadConfigFailed: "시스템 이벤트 설정을 불러오지 못했습니다",
+      writeEventFailed: "시스템 이벤트를 기록하지 못했습니다",
+      listEventsFailed: "시스템 이벤트 목록을 불러오지 못했습니다",
+      deleteEventsFailed: "시스템 이벤트를 삭제하지 못했습니다",
+      clearEventsFailed: "시스템 이벤트를 비우지 못했습니다",
     },
   },
   notifications: {
@@ -2409,6 +2817,7 @@ export const koKRServer = {
           },
         },
         pushplus: {
+          label: "PushPlus",
           description:
             "WeChat 공식 계정, 앱, 이메일 등 규칙별 채널 선택을 통해 PushPlus 표준 API를 통해 알림을 보냅니다.",
           fields: {
@@ -2417,6 +2826,7 @@ export const koKRServer = {
               description: "필요한 경우가 아니면 공식 API URL을 유지하세요.",
             },
             token: {
+              label: "토큰",
               description:
                 "PushPlus 사용자 토큰 또는 메시지 토큰. 비밀로 유지하세요.",
             },
@@ -2433,7 +2843,10 @@ export const koKRServer = {
               description:
                 "마크다운은 기본적으로 사용됩니다. 일반 텍스트나 HTML이 채널에 더 적합한 경우 대상별로 전환합니다.",
               options: {
+                markdown: "Markdown",
+                html: "HTML",
                 txt: "일반 텍스트",
+                json: "JSON",
               },
             },
             channel: {
@@ -2448,6 +2861,7 @@ export const koKRServer = {
                 sms: "SMS",
                 voice: "음성",
                 extension: "플러그인/데스크탑 앱",
+                app: "앱",
                 clawbot: "위챗 ClawBot",
               },
             },
@@ -2482,6 +2896,7 @@ export const koKRServer = {
           },
         },
         wxpusher: {
+          label: "WxPusher",
           description:
             "WxPusher 표준 API를 통해 지정된 UID 또는 주제에 알림을 보냅니다. 빈 규칙 대상은 공급자 기본값을 상속합니다.",
           fields: {
@@ -2490,6 +2905,7 @@ export const koKRServer = {
               description: "필요한 경우가 아니면 공식 서비스 URL을 유지하세요.",
             },
             app_token: {
+              label: "AppToken",
               description: "WxPusher 백엔드 앱용 AppToken. 비밀로 유지하세요.",
             },
             timeout_seconds: {
@@ -2546,6 +2962,7 @@ export const koKRServer = {
           },
         },
         bark: {
+          label: "Bark",
           description:
             "공식 Bark 서비스 또는 자체 호스팅 Bark 서버를 통해 APN 푸시 알림을 iPhone으로 보냅니다.",
           fields: {
@@ -2555,6 +2972,7 @@ export const koKRServer = {
                 "자체 호스팅 Bark 서버를 사용하지 않는 한 공식 온라인 서비스 URL을 유지하세요.",
             },
             device_key: {
+              label: "장치 Key",
               description:
                 "Bark 앱에서 복사된 장치 키. 여러 키는 쉼표로 구분할 수 있습니다.",
             },
@@ -2565,6 +2983,12 @@ export const koKRServer = {
               label: "알림 수준",
               description:
                 "active는 기본 즉시 알림이고, timeSensitive는 Focus를 우회할 수 있으며, important는 중요한 알림입니다.",
+              options: {
+                active: "즉시 알림",
+                timeSensitive: "시간 민감 알림",
+                passive: "조용한 알림",
+                critical: "중요 알림",
+              },
             },
             group: {
               label: "메시지 그룹",
@@ -2616,6 +3040,7 @@ export const koKRServer = {
               description: "필요한 경우가 아니면 공식 API URL을 유지하세요.",
             },
             sendkey: {
+              label: "SendKey",
               description:
                 "ServerChan Turbo에서 제공하는 SendKey입니다. 비밀로 유지하세요.",
             },
@@ -2628,6 +3053,7 @@ export const koKRServer = {
                 "선택사항. 이 푸시에 대해 9|66과 같이 |로 구분된 최대 2개의 채널을 동적으로 선택합니다.",
             },
             openid: {
+              label: "OpenID / UID",
               description:
                 "선택사항. 테스트 계정은 openid를 사용하고 WeCom 앱 메시지는 수신자 UID를 사용합니다. 값이 여러 개인 경우 ServerChan 설명서 형식을 따르세요.",
               placeholder: "openid1,openid2 또는 uid1|uid2",
@@ -2659,6 +3085,7 @@ export const koKRServer = {
             "선택적 서명 확인과 함께 DingTalk 봇 Webhook을 통해 그룹 채팅에 Markdown 알림을 보냅니다.",
           fields: {
             webhook_url: {
+              label: "Webhook URL",
               description: "DingTalk 봇이 생성한 전체 웹훅 URL입니다.",
             },
             secret: {
@@ -2707,6 +3134,7 @@ export const koKRServer = {
             "선택적 서명 확인과 함께 Feishu 봇 웹후크를 통해 그룹 채팅에 풍부한 게시물 알림을 보냅니다.",
           fields: {
             webhook_url: {
+              label: "Webhook URL",
               description: "Feishu 봇이 생성한 전체 웹훅 URL입니다.",
             },
             secret: {
@@ -2740,10 +3168,12 @@ export const koKRServer = {
           },
         },
         webhook: {
+          label: "Webhook",
           description:
             "HTTP JSON을 지원하는 모든 엔드포인트에 표준 알림 JSON을 보냅니다.",
           fields: {
             url: {
+              label: "Webhook URL",
               description: "표준 알림 JSON을 수신하는 대상 주소입니다.",
             },
             method: {
@@ -2797,6 +3227,7 @@ export const koKRServer = {
               },
             },
             token: {
+              label: "토큰",
               description:
                 "MagicPush API 토큰. 표준 푸시는 이를 Authorization: Bearer로 보냅니다. 인바운드 모드에서는 이를 /api/inbound/:token에 추가합니다.",
             },
@@ -2816,6 +3247,7 @@ export const koKRServer = {
           },
         },
         telegram: {
+          label: "Telegram",
           description:
             "인라인 작업 버튼을 사용하여 Telegram Bot API를 통해 지정된 채팅이나 채널에 문자 알림을 보냅니다.",
           fields: {
@@ -2825,10 +3257,12 @@ export const koKRServer = {
                 "기본적으로 공식 Bot API를 유지합니다. 공식 엔드포인트에 대한 네트워크 액세스가 불가능한 경우 https://tgapi.fnknock.cn을 릴레이로 사용하세요. 자체 호스팅 Local Bot API 서버를 실행하는 경우 해당 루트 URL을 입력합니다.",
             },
             bot_token: {
+              label: "봇 토큰",
               description:
                 "@BotFather를 통해 봇을 생성한 후 획득한 봇 토큰입니다.",
             },
             chat_id: {
+              label: "채팅 ID",
               description:
                 "@channelusername과 같은 대상 채팅 ID 또는 채널 사용자 이름입니다. 먼저 @UserIdzhBot에 메시지를 보내 채팅 ID를 받을 수 있습니다. 테스트 전송도 이 대상을 사용합니다.",
             },
@@ -2836,6 +3270,7 @@ export const koKRServer = {
               label: "시간 초과(초)",
             },
             message_thread_id: {
+              label: "주제 ID",
               description:
                 "선택사항. 그룹 주제로 보내기 위한 주제 ID(message_thread_id)입니다.",
             },
@@ -2861,6 +3296,7 @@ export const koKRServer = {
             "WeCom 그룹 Webhook을 통해 지정된 그룹 채팅에 텍스트 또는 마크다운 알림을 보냅니다.",
           fields: {
             webhook_url: {
+              label: "Webhook URL",
               description:
                 "WeCom 메시지 푸시 페이지에 생성된 전체 웹훅 URL입니다. 비밀로 유지하세요.",
             },
@@ -2888,6 +3324,7 @@ export const koKRServer = {
           },
         },
         pushdeer: {
+          label: "PushDeer",
           description:
             "PushDeer 공식 온라인 서비스 또는 자체 호스팅 서비스를 통해 바인딩된 장치에 Markdown 알림을 보냅니다.",
           fields: {
@@ -2897,6 +3334,7 @@ export const koKRServer = {
                 "자체 호스팅 PushDeer 서비스를 사용하지 않는 한 공식 온라인 서비스 URL을 유지하세요.",
             },
             pushkey: {
+              label: "PushKey",
               description:
                 "PushDeer 클라이언트에서 생성된 PushKey입니다. 여러 키는 쉼표로 구분할 수 있습니다.",
             },
@@ -2930,6 +3368,7 @@ export const koKRServer = {
     },
     service: {
       unnamed: "이름 없음",
+      invalidJsonBody: "요청 본문은 유효한 JSON이어야 합니다.",
       invalidJson: "{field}은 유효한 JSON이어야 합니다.",
       invalidSelectValue: "{field}에 잘못된 값이 있습니다.",
       fieldRequired: "{field}은 비워둘 수 없습니다.",
@@ -2952,8 +3391,12 @@ export const koKRServer = {
         '이 공급자는 여전히 "{rule}" 규칙에 의해 참조됩니다.',
       testSendFailed: "테스트 전송 실패",
       testSendSuccess: "테스트 전송 성공",
+      providerRequestReturnedStatus:
+        "{provider} 요청이 상태 {status}를 반환했습니다.",
+      barkPartialFailed: "Bark 대상 {failed}/{total}개 전송 실패",
       providerTypeMismatch: "공급자 유형이 기존 구성과 일치하지 않습니다.",
       providerTestName: "{provider} 테스트",
+      invalidProviderRecord: "알림 공급자 레코드가 유효하지 않습니다.",
       ruleProviderMissing: "규칙이 존재하지 않는 알림 공급자를 참조합니다.",
       invalidTemplateOverrideMode: "잘못된 대상 템플릿 재정의 모드",
       unsupportedEventType: "지원되지 않는 시스템 이벤트 유형",
@@ -2965,7 +3408,9 @@ export const koKRServer = {
       duplicateEventRule:
         "이 이벤트에 대한 알림 규칙이 이미 존재합니다. 먼저 원래 규칙을 삭제하세요.",
       ruleNotFound: "알림 규칙이 존재하지 않습니다.",
+      invalidRuleRecord: "알림 규칙 레코드가 유효하지 않습니다.",
       deletedProvider: "삭제된 제공업체",
+      storageUnavailable: "알림 저장소를 일시적으로 사용할 수 없습니다.",
     },
   },
 };

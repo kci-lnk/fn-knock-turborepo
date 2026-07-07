@@ -34,6 +34,7 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { MaintenanceAPI } from "../../lib/api";
+import { supportsSharedBackupForRuntime } from "../../lib/maintenance-runtime";
 import type {
   BackupDirectoryFilesPayload,
   FnKnockBackupImportResult,
@@ -53,11 +54,11 @@ const isImportDialogOpen = ref(false);
 const isBackupPickerOpen = ref(false);
 const backupFilesError = ref("");
 const hasLoadedBackupFiles = ref(false);
-const supportsSharedBackup = computed(
-  () =>
-    configStore.hasSharedRoot &&
-    !configStore.isDockerDeployment &&
-    !configStore.isOpenWrtDeployment,
+const supportsSharedBackup = computed(() =>
+  supportsSharedBackupForRuntime(
+    configStore.runtimeProfile,
+    configStore.capabilities,
+  ),
 );
 const localImportHintBeforeKey = computed(() => {
   if (configStore.isDockerDeployment) {
@@ -475,11 +476,7 @@ async function importBackup() {
                   <template v-if="supportsSharedBackup">
                     {{ t("admin.maintenanceSettings.sharedImportHintBefore") }}
                     <code>backup</code>
-                    {{
-                      t(
-                        "admin.maintenanceSettings.sharedImportHintBetween",
-                      )
-                    }}
+                    {{ t("admin.maintenanceSettings.sharedImportHintBetween") }}
                     <code>{{ KNOCK_BACKUP_EXTENSION }}</code>
                     {{ t("admin.maintenanceSettings.sharedImportHintAfter") }}
                   </template>
@@ -494,10 +491,7 @@ async function importBackup() {
               <div class="flex flex-wrap gap-3 lg:justify-end">
                 <DropdownMenu v-if="supportsSharedBackup">
                   <DropdownMenuTrigger as-child>
-                    <Button
-                      variant="outline"
-                      :disabled="isBusy"
-                    >
+                    <Button variant="outline" :disabled="isBusy">
                       <Upload class="mr-2 h-4 w-4" />
                       {{
                         selectedSummary
@@ -609,9 +603,7 @@ async function importBackup() {
         t('admin.maintenanceSettings.pickerUnavailableDescription')
       "
       :empty-title="t('admin.maintenanceSettings.pickerEmptyTitle')"
-      :empty-description="
-        t('admin.maintenanceSettings.pickerEmptyDescription')
-      "
+      :empty-description="t('admin.maintenanceSettings.pickerEmptyDescription')"
       :confirm-text="t('admin.maintenanceSettings.pickerConfirmText')"
       @refresh="refreshBackupFiles"
       @select="handleFnosFileSelect"

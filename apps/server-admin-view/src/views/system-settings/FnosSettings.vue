@@ -109,6 +109,19 @@ const displaySysctlValue = (value: string | null | undefined) =>
 const displayList = (values: string[] | null | undefined) =>
   values && values.length > 0 ? values.join(" ") : "--";
 
+const desiredStateText = (enabled: boolean | null | undefined) =>
+  t(
+    enabled
+      ? "admin.fnosSettings.desiredEnabled"
+      : "admin.fnosSettings.desiredDisabled",
+  );
+
+const bbrDesiredDescription = computed(() =>
+  t("admin.fnosSettings.desiredState", {
+    state: desiredStateText(networkTuningStatus.value?.config.bbr_enabled),
+  }),
+);
+
 const bbrCurrentDescription = computed(() => {
   const status = networkTuningStatus.value;
   return t("admin.fnosSettings.bbrCurrent", {
@@ -126,6 +139,26 @@ const bbrSupportDescription = computed(() => {
     : t("admin.fnosSettings.bbrUnsupported");
 });
 
+const bbrStateMismatchDescription = computed(() => {
+  const status = networkTuningStatus.value;
+  if (!status) return "";
+  if (status.config.bbr_enabled && !status.bbr.active) {
+    return t("admin.fnosSettings.bbrRuntimeInactiveAfterEnable");
+  }
+  if (!status.config.bbr_enabled && status.bbr.active) {
+    return t("admin.fnosSettings.bbrRuntimeStillActiveAfterDisable");
+  }
+  return "";
+});
+
+const mtuDesiredDescription = computed(() =>
+  t("admin.fnosSettings.desiredState", {
+    state: desiredStateText(
+      networkTuningStatus.value?.config.mtu_probing_enabled,
+    ),
+  }),
+);
+
 const mtuCurrentDescription = computed(() =>
   t("admin.fnosSettings.mtuCurrent", {
     value: displaySysctlValue(
@@ -133,6 +166,20 @@ const mtuCurrentDescription = computed(() =>
     ),
   }),
 );
+
+const mtuStateMismatchDescription = computed(() => {
+  const status = networkTuningStatus.value;
+  if (!status) return "";
+  if (status.config.mtu_probing_enabled && !status.mtu_probing.active) {
+    return t("admin.fnosSettings.mtuRuntimeInactiveAfterEnable");
+  }
+  if (!status.config.mtu_probing_enabled && status.mtu_probing.active) {
+    return t("admin.fnosSettings.mtuRuntimeStillActiveAfterDisable", {
+      value: displaySysctlValue(status.mtu_probing.current_value),
+    });
+  }
+  return "";
+});
 
 const applyFromSettings = (data: FnosShareBypassConfig) => {
   settings.value = data;
@@ -383,7 +430,16 @@ onMounted(fetchSettings);
             {{ t("admin.fnosSettings.bbrDescription") }}
           </div>
           <div class="text-xs leading-5 text-zinc-500">
+            {{ bbrDesiredDescription }}
+          </div>
+          <div class="text-xs leading-5 text-zinc-500">
             {{ bbrCurrentDescription }}
+          </div>
+          <div
+            v-if="bbrStateMismatchDescription"
+            class="text-xs leading-5 text-amber-600"
+          >
+            {{ bbrStateMismatchDescription }}
           </div>
           <div
             v-if="networkTuningStatus"
@@ -449,7 +505,16 @@ onMounted(fetchSettings);
             {{ t("admin.fnosSettings.mtuDescription") }}
           </div>
           <div class="text-xs leading-5 text-zinc-500">
+            {{ mtuDesiredDescription }}
+          </div>
+          <div class="text-xs leading-5 text-zinc-500">
             {{ mtuCurrentDescription }}
+          </div>
+          <div
+            v-if="mtuStateMismatchDescription"
+            class="text-xs leading-5 text-amber-600"
+          >
+            {{ mtuStateMismatchDescription }}
           </div>
           <div
             v-if="!isNetworkTuningAvailable"

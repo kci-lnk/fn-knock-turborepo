@@ -1,6 +1,7 @@
 export const jaJPServer = {
   success: "成功",
   notFound: "見つかりません",
+  apiPathNotFound: "API パスが見つかりません",
   invalidLocale: "サポートされていないロケールです",
   dockerAdminDenied:
     "Docker 管理パネルでは、イントラネットまたは信頼できるリバース プロキシ アクセスのみが許可されます",
@@ -114,6 +115,8 @@ export const jaJPServer = {
     installStartFailed: "インストールの開始に失敗しました",
     checkAndDownloadStarted: "チェックを開始し、ダウンロードを開始しました",
     startFailed: "起動に失敗しました",
+    loadStatusFailed: "更新ステータスの読み込みに失敗しました",
+    loadConfirmationFailed: "更新確認情報の読み込みに失敗しました",
   },
   gatewayHostResponse: {
     runTypes: {
@@ -191,6 +194,20 @@ export const jaJPServer = {
       passwordIncorrectWithRetry:
         "管理パネルのパスワードが正しくありません。{seconds} 秒後にもう一度お試しください。",
     },
+    adminPanelRoutes: {
+      signInRequired: "先に管理パネルへログインしてください",
+      verifySessionFailed: "管理パネルセッションの検証に失敗しました",
+      loadStateFailed: "管理パネル状態の読み込みに失敗しました",
+      loadConfigFailed: "設定の読み込みに失敗しました",
+      loadLocaleFailed: "言語設定の読み込みに失敗しました",
+      loadAppearanceFailed: "外観設定の読み込みに失敗しました",
+      saveLocaleFailed: "言語設定の保存に失敗しました",
+      saveAppearanceFailed: "外観設定の保存に失敗しました",
+      loadPasswordFailed: "管理パネルパスワードの読み込みに失敗しました",
+      createSessionFailed: "管理パネルセッションの作成に失敗しました",
+      verifyPasswordFailed: "管理パネルパスワードの検証に失敗しました",
+      checkLoginRateLimitFailed: "ログイン頻度制限の確認に失敗しました",
+    },
     runType: {
       switchFailed: "動作モードの切り替えに失敗しました",
       switchFailedRolledBack:
@@ -229,6 +246,25 @@ export const jaJPServer = {
       unavailable:
         "現在のランタイムは Feiniu FPK ネットワーク最適化をサポートしていません",
       updateFailed: "Feiniu FPK ネットワーク最適化の更新に失敗しました",
+      errors: {
+        bbrNotSupported: "ホストカーネルが tcp_bbr を提供していません",
+        bbrEnableVerificationFailed:
+          "BBR の有効化を要求しましたが、現在のカーネル状態が bbr/fq ではありません",
+        bbrRollbackCongestionFailed:
+          "BBR のロールバックで以前の輻輳制御を復元できませんでした",
+        bbrRollbackQdiscFailed:
+          "BBR のロールバックで以前の既定 qdisc を復元できませんでした",
+        bbrRollbackStillBbrFailed:
+          "BBR のロールバック後も輻輳制御が bbr のままです",
+        mtuEnableVerificationFailed:
+          "MTU probing の有効化を要求しましたが、tcp_mtu_probing が 1 ではありません",
+        mtuRollbackFailed:
+          "MTU probing のロールバックで期待値を復元できませんでした",
+        emptyPatch:
+          "FNOS FPK ネットワーク最適化オプションを少なくとも 1 つ変更してください",
+        setSysctlFailed: "{key} の設定に失敗しました",
+        rollbackFailed: "{message}; ロールバック失敗: {error}",
+      },
       blocked: {
         deployment:
           "Feiniu FPK ネットワーク最適化は FPK デプロイでのみ利用できます",
@@ -248,6 +284,10 @@ export const jaJPServer = {
         "ゲートウェイ構成の更新に失敗しました。構成はロールバックされました。",
     },
     proxyMappings: {
+      payloadObjectRequired:
+        "パスプロキシマッピングはオブジェクトである必要があります",
+      targetInvalid:
+        "パスプロキシのターゲットは http://、https://、ws://、wss:// のいずれかで始まり、ホストを含む必要があります",
       syncRulesFailed: "パスプロキシルートの同期に失敗しました",
       restoreRulesFailed: "パスプロキシルートの復元に失敗しました",
       updateFailed: "パスプロキシマッピングの更新に失敗しました",
@@ -266,6 +306,57 @@ export const jaJPServer = {
       updateFailedRolledBack:
         "ゲートウェイ プロトコル ヘッダーの更新に失敗し、構成はロールバックされました",
     },
+    gatewaySettingsRoutes: {
+      loadGatewaySettingsFailed: "ゲートウェイ設定の読み込みに失敗しました",
+      payloadObjectRequired:
+        "ゲートウェイリクエスト本文はオブジェクトである必要があります",
+      loadConfigFailed: "設定の読み込みに失敗しました",
+      saveGatewaySettingsFailed: "ゲートウェイ設定の保存に失敗しました",
+      syncGatewaySettingsFailed:
+        "ゲートウェイ設定の同期に失敗しました: {message}",
+      responseReloadFailed:
+        "ゲートウェイ設定は保存されましたが、応答の再読み込みに失敗しました",
+      loadGatewayVisibilityFailed: "ゲートウェイ可視性の読み込みに失敗しました",
+      loadRuntimeFailed: "実行状態の読み込みに失敗しました",
+      loadGatewayProxyHeadersFailed:
+        "ゲートウェイプロトコルヘッダーの読み込みに失敗しました",
+      loadGatewayHostResponseFailed:
+        "ゲートウェイ Host 応答の読み込みに失敗しました",
+    },
+    runtimeConfigRoutes: {
+      loadCaptchaFailed: "CAPTCHA 設定の読み込みに失敗しました",
+      saveCaptchaFailed: "CAPTCHA 設定の保存に失敗しました",
+      loadTerminalFeatureFailed: "ターミナル機能設定の読み込みに失敗しました",
+      saveTerminalFeatureFailed: "ターミナル機能設定の保存に失敗しました",
+      invalidRunType: "run_type が不正です",
+      loadProtocolMappingFeatureFailed:
+        "プロトコルマッピング機能設定の読み込みに失敗しました",
+      loadSmartConnectDetailsFailed:
+        "Smart Connect 詳細の読み込みに失敗しました",
+      loadFnosShareBypassFailed:
+        "FNOS 共有バイパス設定の読み込みに失敗しました",
+      saveFnosShareBypassFailed: "FNOS 共有バイパス設定の保存に失敗しました",
+      loadFnosPortIconHijackFailed:
+        "FNOS ポートアイコン引き継ぎ設定の読み込みに失敗しました",
+      loadAutoHttpsFailed: "自動 HTTPS 設定の読み込みに失敗しました",
+      saveAutoHttpsFailed: "自動 HTTPS 設定の保存に失敗しました",
+      saveAutoManageFirewallFailed:
+        "ファイアウォール自動管理設定の保存に失敗しました",
+      loadConfigFailed: "設定の読み込みに失敗しました",
+      loadDefaultRouteFailed: "既定ルートの読み込みに失敗しました",
+      saveDefaultRouteFailed: "既定ルートの保存に失敗しました",
+      unsupportedTunnelType: "サポートされていないトンネルタイプです",
+      saveDefaultTunnelFailed: "既定トンネルの保存に失敗しました",
+      upstreamUnavailable: "上流サービスを利用できません",
+      proxyProtocolForceBooleanRequired:
+        "proxy_protocol_force は boolean である必要があります",
+      loadRunModePromptPreferencesFailed:
+        "動作モード案内設定の読み込みに失敗しました",
+      saveRunModePromptPreferencesFailed:
+        "動作モード案内設定の保存に失敗しました",
+      loadWelcomeGuideFailed: "ウェルカムガイド状態の読み込みに失敗しました",
+      saveWelcomeGuideFailed: "ウェルカムガイド状態の保存に失敗しました",
+    },
     captcha: {
       turnstileKeysRequired:
         "Cloudflare回転木戸が有効な場合、site_keyとsecret_keyの両方を入力する必要があります",
@@ -273,6 +364,9 @@ export const jaJPServer = {
     ipLocation: {
       ipLookupUrlLabel: "IP 識別ライブラリのアドレス",
       cidrUrlLabel: "CIDR アドレスライブラリのアドレス",
+      loadSettingsFailed: "IP ロケーション API 設定の読み込みに失敗しました",
+      saveSettingsFailed: "IP ロケーション API 設定の保存に失敗しました",
+      modeInvalid: "モードは online または custom である必要があります",
     },
     connectionTest: {
       httpStatus: "サービスはエラーステータスコード {status} を返します",
@@ -288,6 +382,11 @@ export const jaJPServer = {
       startFailed: "自動 HTTPS 起動に失敗しました",
     },
     hostMappings: {
+      payloadObjectRequired:
+        "Host マッピングはオブジェクトである必要があります",
+      hostRequired: "Host マッピングにはドメインが必要です",
+      targetInvalid:
+        "Host マッピング {host} のターゲットは http://、https://、ws://、wss:// のいずれかで始まり、ホストを含む必要があります",
       singleAuthPortMapping:
         "は、認証サービスとして AUTH_PORT を指すホスト マッピングを 1 つだけ持つことができます",
       authMappingMustBePublic:
@@ -308,6 +407,8 @@ export const jaJPServer = {
         "ホストマッピング {host} 重複したパスルールが存在します {path}",
       locationTargetRequired:
         "ホストマッピング {host} パスルール {path} にターゲットを入力する必要があります",
+      locationTargetInvalid:
+        "Host マッピング {host} のパスルール {path} のターゲットは http://、https://、ws://、wss:// のいずれかで始まり、ホストを含む必要があります",
       locationStatusInvalid:
         "ホストマッピング {host} パスルール {path} 応答ステータスコードは 100 ～ 599 でなければなりません",
       locationHeaderInvalid:
@@ -320,10 +421,16 @@ export const jaJPServer = {
       updateFailedRolledBack:
         "ホスト マッピングの更新に失敗し、構成はロールバックされました",
       metadataFailed: "ターゲットアドレスタイトルの更新に失敗しました",
+      onlyHttpTargetsSupported: "http/https ターゲットのみサポートされています",
+      metadataUpstreamStatus: "上流サービスがステータス {status} を返しました",
       bookmarkFolderForRoot: "{root} サブドメインマッピング",
       bookmarkFolderDefault: "fn-knock サブドメインマッピング",
     },
     streamMappings: {
+      payloadObjectRequired:
+        "ストリームマッピングはオブジェクトである必要があります",
+      listenPortRequiredInteger:
+        "リスニングポートは有効な整数である必要があります",
       listenPortNotInteger:
         "リスニングポート {port} は有効な整数ではありません",
       listenPortOutOfRange: "リスニングポート {port} が有効範囲外です",
@@ -331,6 +438,7 @@ export const jaJPServer = {
         "{protocol} リスニングポート {port} 重複しています。プロトコルとポートを一意にしてください",
       targetMustBeHostPort:
         "ターゲット アドレス {target} は、ホスト:ポートの形式である必要があります",
+      saveFailed: "プロトコルマッピングの保存に失敗しました",
       syncFailed:
         "プロトコル マッピングとゲートウェイ ポート解放ルールの同期に失敗しました",
       syncFailedRolledBack:
@@ -343,14 +451,33 @@ export const jaJPServer = {
         "親ドメイン Passkey RP ID {rpId} は、認証サービス {authHost} またはその親ドメインと同じである必要があります。",
     },
     subdomainMode: {
+      payloadObjectRequired:
+        "サブドメインモードのリクエスト本文はオブジェクトである必要があります",
+      saveFailed: "サブドメインモード設定の保存に失敗しました",
       sslAutoSelected:
         "は、現在のサブドメイン モードにより適した証明書に自動的に切り替わりました。",
       sslAutoSelectionSyncFailed:
         "推奨証明書は見つかりましたが、ゲートウェイとの同期に失敗し、自動切り替えが行われませんでした。",
     },
+    authCredentialSettings: {
+      loadFailed: "認証情報設定の読み込みに失敗しました",
+      loadConfigFailed: "設定の読み込みに失敗しました",
+      saveFailed: "認証情報設定の保存に失敗しました",
+    },
     totp: {
       invalidCode: "認証コードが間違っています。もう一度お試しください。",
+      invalidSecretOrCode:
+        "TOTP シークレットまたは認証コードが正しくありません",
       notFound: "TOTP が見つかりません",
+      loadFailed: "TOTP 認証情報の読み込みに失敗しました",
+      saveFailed: "TOTP 認証情報の保存に失敗しました",
+      exportFailed: "TOTP 認証情報のエクスポートに失敗しました",
+      importFailed: "TOTP 認証情報のインポートに失敗しました",
+      deleteFailed: "TOTP 認証情報の削除に失敗しました",
+      updateFailed: "TOTP 認証情報の更新に失敗しました",
+      bound: "TOTP 認証情報を登録しました",
+      deleted: "TOTP 認証情報を削除しました",
+      updated: "TOTP 認証情報を更新しました",
     },
     totpImport: {
       payloadObject:
@@ -363,6 +490,9 @@ export const jaJPServer = {
     },
     passkeys: {
       notFound: "Passkey が見つかりません",
+      listFailed: "Passkey 一覧の読み込みに失敗しました",
+      deleteFailed: "Passkey の削除に失敗しました",
+      deleted: "Passkey を削除しました",
     },
     syncRoutes: {
       partialFailedGatewayLogging:
@@ -391,21 +521,40 @@ export const jaJPServer = {
     },
     sessions: {
       notFound: "セッションが見つかりません",
+      listFailed: "セッション一覧の読み込みに失敗しました",
+      loadFailed: "セッションの読み込みに失敗しました",
+      updateFailed: "セッションの更新に失敗しました",
+      deleteFailed: "セッションの削除に失敗しました",
+      mobilityLoadFailed: "セッション移動情報の読み込みに失敗しました",
+      deleted: "セッションを削除しました",
     },
   },
   gatewayLogs: {
+    configLoadFailed: "リクエストログ設定の読み取りに失敗しました",
+    configSaveFailed: "リクエストログ設定の保存に失敗しました",
     configSyncFailed:
       "リクエストログ設定は保存されますが、ゲートウェイとの同期に失敗します",
     readDirectoryFailed: "ログディレクトリの読み取りに失敗しました",
     readDatesFailed: "ログ日付の読み取りに失敗しました",
     readEntriesFailed: "リクエストログの読み取りに失敗しました",
     deleteEntriesFailed: "リクエストログの削除に失敗しました",
+    invalidJsonObject: "リクエスト本文は有効な JSON オブジェクトではありません",
   },
   backoffRoutes: {
     ipRequired: "ip パラメータがありません",
+    listFailed: "ログイン backoff 一覧の読み込みに失敗しました",
+    statusFailed: "ログイン backoff 状態の読み込みに失敗しました",
+    resetFailed: "ログイン backoff のリセットに失敗しました",
+  },
+  systemInfoRoutes: {
+    loadAccessEntryFailed: "アクセス入口の読み込みに失敗しました",
+  },
+  securityOverviewRoutes: {
+    loadFailed: "セキュリティ概要の読み込みに失敗しました",
   },
   ipLocationRoutes: {
     batchLimit: "単一クエリの最大数 {max} IP",
+    enqueueFailed: "IP 位置検索キューへの追加に失敗しました",
   },
   gatewayPortal: {
     syncConfigFailed: "ポータル表示設定のゲートウェイへの同期に失敗しました",
@@ -421,6 +570,18 @@ export const jaJPServer = {
     syncFailed: "クローラーブロック構成の同期に失敗しました",
   },
   scanner: {
+    settingsLoadFailed: "スキャナー設定の読み込みに失敗しました",
+    settingsUpdateFailed: "スキャナー設定の更新に失敗しました",
+    invalidRequestBody: "リクエスト本文が正しくありません",
+    atLeastOneIpRequired: "1 つ以上の IP を指定してください",
+    blacklistLoadFailed: "スキャナー ブラックリストの読み込みに失敗しました",
+    recordNotFound: "レコードが見つかりません",
+    blacklistRecordLoadFailed:
+      "スキャナー ブラックリスト レコードの読み込みに失敗しました",
+    blacklistRecordDeleteFailed:
+      "スキャナー ブラックリスト レコードの削除に失敗しました",
+    blacklistRecordsDeleteFailed:
+      "スキャナー ブラックリスト レコードの一括削除に失敗しました",
     cidrExemptionsInvalid: "CIDR 免除の形式が正しくありません: {cidrs}",
   },
   gatewayLogging: {
@@ -431,16 +592,28 @@ export const jaJPServer = {
     syncFailed: "ゲートウェイ証明書の同期に失敗しました",
   },
   sslRoutes: {
+    statusReadFailed: "SSL ステータスの読み込みに失敗しました",
     gatewayStatusReadFailed: "ゲートウェイ SSL ステータスを読み取れません",
     readSharedFileFailed: "共有ディレクトリファイルの読み込みに失敗しました",
     emptyDomains: "ドメイン名リストが空です。最初にドメイン名を追加するか、IP",
     certOrKeyInvalid: "証明書または秘密鍵が無効です",
     hostRequired: "ホストを空にすることはできません",
     localCaCertificateLabel: "ローカル CA 証明書",
+    rootCaNotInitialized: "ルート CA が初期化されていません",
     success: "成功",
     certNotInstalled: "証明書がインストールされていません",
+    certReadFailed: "SSL 証明書を読み取れませんでした",
+    certZipCreateFailed: "SSL 証明書 zip を作成できませんでした",
     manualCertificateLabel: "証明書を手動でアップロードします",
     certNotFound: "証明書が存在しません",
+    caInitFailed: "ローカル CA の初期化に失敗しました",
+    caHostLoadFailed: "ローカル CA Host リストの読み込みに失敗しました",
+    caHostSaveFailed: "ローカル CA Host リストの保存に失敗しました",
+    certSaveFailed: "SSL 証明書の保存に失敗しました",
+    certActivateFailed: "SSL 証明書の有効化に失敗しました",
+    deploymentModeSaveFailed: "SSL デプロイモードの保存に失敗しました",
+    certDeleteFailed: "SSL 証明書の削除に失敗しました",
+    certClearFailed: "SSL 証明書設定のクリアに失敗しました",
   },
   redis: {
     defaultCredential: "デフォルトの認証情報",
@@ -545,6 +718,32 @@ export const jaJPServer = {
       "タスクが停止され、プロセス終了後のエラーは無視されました",
   },
   acmeRoutes: {
+    invalidRequestBody: "リクエスト本文が正しくありません",
+    loadStatusFailed: "ACME 状態の読み込みに失敗しました",
+    loadClientSettingsFailed: "ACME クライアント設定の読み込みに失敗しました",
+    saveClientSettingsFailed: "ACME クライアント設定の保存に失敗しました",
+    switchCertificateAuthorityFailed:
+      "ACME 証明書発行機関の切り替えに失敗しました",
+    loadOverviewFailed: "ACME 概要の読み込みに失敗しました",
+    loadApplicationOverviewFailed: "ACME 申請項目概要の読み込みに失敗しました",
+    loadConfigFailed: "ACME 設定の読み込みに失敗しました",
+    loadSubdomainRecommendationFailed:
+      "サブドメイン証明書推奨の読み込みに失敗しました",
+    loadApplicationsFailed: "ACME 申請項目一覧の読み込みに失敗しました",
+    loadApplicationFailed: "ACME 申請項目の読み込みに失敗しました",
+    updateApplicationFailed: "ACME 申請項目の更新に失敗しました",
+    deleteApplicationFailed: "ACME 申請項目の削除に失敗しました",
+    syncLibraryFailed: "ACME 証明書の証明書ライブラリ同期に失敗しました",
+    deployCertificateFailed: "ACME 証明書のデプロイに失敗しました",
+    loadJobFailed: "ACME タスクの読み込みに失敗しました",
+    loadJobLogsFailed: "ACME タスクログの読み込みに失敗しました",
+    loadJobPollFailed: "ACME タスクのポーリングに失敗しました",
+    stopJobFailed: "ACME タスクの停止に失敗しました",
+    loadCertificateInfoFailed: "ACME 証明書情報の読み込みに失敗しました",
+    deleteCertificateFailed: "ACME 証明書の削除に失敗しました",
+    uninstallFailed: "ACME クライアントのアンインストールに失敗しました",
+    createCertificateZipFailed: "ACME 証明書 zip の作成に失敗しました",
+    loadCertificateFailed: "ACME 証明書の読み込みに失敗しました",
     domainsInvalid:
       "ドメイン名リストを空にすることはできません、または形式が無効です。",
     dnsTypeRequired: "DNS 検証タイプがありません",
@@ -639,6 +838,16 @@ export const jaJPServer = {
     syncFailed:
       "一般的に使用される除外設定をゲートウェイに同期できませんでした",
   },
+  generalBlacklist: {
+    invalidRequestBody: "リクエスト本文が正しくありません",
+    invalidIp: "IP アドレスが正しくありません",
+    invalidIpWithValue: "IP アドレスが正しくありません: {ip}",
+    atLeastOneValidIpRequired: "有効な IP を少なくとも 1 つ指定してください",
+    backendRequestFailed:
+      "汎用ブラックリストのバックエンドリクエストに失敗しました",
+    backendResponseMissingData:
+      "汎用ブラックリストのバックエンド応答にデータがありません",
+  },
   fnosDataShare: {
     invalidPath: "不正な共有ファイルパス",
     shareMissing:
@@ -662,8 +871,14 @@ export const jaJPServer = {
     defaultFolderTitle: "fn-knock サブドメインマッピング",
   },
   whitelist: {
+    listFailed: "ホワイトリスト レコードの読み込みに失敗しました",
     addFailed: "ホワイトリスト レコードの追加に失敗しました",
+    updateRecordsFailed: "ホワイトリスト レコードの更新に失敗しました",
+    deleteFailed: "ホワイトリスト レコードの削除に失敗しました",
+    commentUpdateFailed: "ホワイトリストの備考更新に失敗しました",
+    regionListFailed: "地域ホワイトリストの読み込みに失敗しました",
     regionAddFailed: "地域ホワイトリストの追加に失敗しました",
+    regionDeleteFailed: "地域ホワイトリストの削除に失敗しました",
     regionRequired: "少なくとも 1 つの地域を選択してください",
     regionEmpty: "選択した地域で使用可能な CIDR が見つかりませんでした",
     regionNotFound: "地域ホワイトリストが見つかりませんでした",
@@ -702,6 +917,8 @@ export const jaJPServer = {
     tmuxInstallCompleteWithVersion:
       "tmux のインストールが完了しました: {version}",
     tmuxInstallFailed: "tmux のインストールに失敗しました",
+    operationFailed: "ターミナル操作に失敗しました",
+    operationFailedWithMessage: "ターミナル操作に失敗しました: {message}",
     cwdUnavailable:
       "作業ディレクトリが存在しないか、アクセスできません: {path}",
     webTerminalDisabled: "Webターミナル機能はまだ有効になっていません",
@@ -778,8 +995,12 @@ export const jaJPServer = {
     keepOneEnabledRule:
       "WAF がオンの場合、有効なルール ファイルを少なくとも 1 つ保持します",
     uploadSelectConf: "アップロードする .conf ファイルを選択してください",
+    base64Invalid: "ルールファイルの内容は有効な Base64 ではありません",
     reloadRulesFailed: "WAF ルールのリロードに失敗しました",
+    detailsLoadFailed: "WAF 詳細の読み込みに失敗しました",
     statusReadFailed: "WAF ステータスの読み取りに失敗しました",
+    invalidRequestBody: "リクエスト本文が正しくありません",
+    dateInvalid: "日付形式が正しくありません。YYYY-MM-DD を指定してください",
     configSaveOrLoadFailed: "WAF 設定の保存または読み込みに失敗しました",
     systemRulesSyncFailed: "システムルールの同期に失敗しました",
     ruleToggleFailed: "WAF ルールの開始と停止に失敗しました",
@@ -789,6 +1010,7 @@ export const jaJPServer = {
     eventsDrainFailed: "WAF イベントの取得に失敗しました",
     logsQueryFailed: "WAF ログのクエリに失敗しました",
     logNotFound: "WAF ログが存在しません",
+    logLoadFailed: "WAF ログの読み込みに失敗しました",
     logsDeleteFailed: "WAF ログの削除に失敗しました",
   },
   oidc: {
@@ -826,10 +1048,12 @@ export const jaJPServer = {
     inviteProviderNotAllowed:
       "この招待リンクはこのプロバイダーの使用を許可されていません",
     authorizationEndpointMissing: "認証エンドポイントが構成されていません",
+    authorizationEndpointInvalid: "認証エンドポイントの形式が正しくありません",
     bindStateInvalid: "バインディング招待ステータスが無効です",
     accountNotBoundCannotLogin:
       "この外部アカウントはバインドされていないため、ログインできません。",
     tokenEndpointMissing: "トークンエンドポイントが構成されていません",
+    clientIdMissing: "client_id が構成されていません",
     bindProviderMismatch:
       "バインディング招待状がログインプロバイダーと一致しません",
     inviteTotpMissing:
@@ -837,6 +1061,23 @@ export const jaJPServer = {
     accountAlreadyBoundOtherTotp:
       "この外部アカウントは別の TOTP にバインドされています",
     inviteUsed: "バインディング招待リンクが使用されました",
+    externalAccountFallback: "外部アカウント",
+    loginFailedWithDetail: "外部ログインに失敗しました: {detail}",
+    tokenRequestFailed: "外部ログイントークンの取得に失敗しました: {detail}",
+    readResponseFailed: "外部ログイン応答の読み取りに失敗しました: {detail}",
+    httpResponseFailed:
+      "外部ログインリクエストに失敗しました: HTTP {status}: {detail}",
+    jsonResponseInvalid:
+      "外部ログイン応答は有効な JSON ではありません: {detail}",
+    jwksUriMissing: "OIDC JWKS URI が構成されていません",
+    jwksFetchFailed: "OIDC JWKS の取得に失敗しました: {detail}",
+    jwksInvalid: "OIDC JWKS 応答が無効です: {detail}",
+    tokenHeaderInvalid: "OIDC token header が無効です: {detail}",
+    signingKeyUnavailable: "OIDC 署名キーを使用できません",
+    signingKeyInvalid: "OIDC 署名キーが無効です: {detail}",
+    idTokenVerificationFailed: "OIDC id_token の検証に失敗しました: {detail}",
+    githubProfileRequestFailed:
+      "GitHub プロフィールのリクエストに失敗しました: {detail}",
     providerErrors: {
       accessDenied:
         "外部ログイン認証をキャンセルしたか、プロバイダーによって認証リクエストが拒否されました。",
@@ -875,6 +1116,28 @@ export const jaJPServer = {
     testProviderFailed: "外部ログインプロバイダーのテストに失敗しました",
     deleteBindingFailed: "外部アカウント バインドを削除できませんでした",
     createInviteFailed: "バインディング招待状の作成に失敗しました",
+    listProvidersFailed: "外部ログインプロバイダー一覧の取得に失敗しました",
+    providerPayloadObject:
+      "プロバイダーのペイロードはオブジェクトである必要があります",
+    loadProviderFailed: "外部ログインプロバイダーの読み込みに失敗しました",
+    listBindingsFailed: "外部アカウント連携一覧の取得に失敗しました",
+    invitationPayloadObject: "招待ペイロードはオブジェクトである必要があります",
+    totpRequired: "TOTP 認証情報が必要です",
+    loadTotpFailed: "TOTP 認証情報の読み込みに失敗しました",
+    loadConfigFailed: "設定の読み込みに失敗しました",
+    inviteUrlBuildFailed: "外部アカウント招待 URL の作成に失敗しました",
+    connectionConfigInvalid: "外部ログインプロバイダーの接続設定が無効です",
+    oauthEndpointIncompleteWithField:
+      "OAuth2 エンドポイント設定が不完全です: {field}",
+    discoveryHttpFailed:
+      "OIDC discovery リクエストに失敗しました: HTTP {status}: {detail}",
+    discoveryInvalid: "OIDC discovery ドキュメントが無効です",
+    discoveryMissingFieldsWithList:
+      "OIDC discovery ドキュメントに必須フィールドがありません: {fields}",
+    providerTypeRequired: "外部ログインプロバイダーの種類が必要です",
+    storedProviderInvalid: "保存済みの外部ログインプロバイダーが無効です",
+    storedProviderTypeInvalid:
+      "保存済みの外部ログインプロバイダーの種類が無効です",
     catalog: {
       googleDescription: "Google アカウントでサインインします。",
       microsoftDescription: "Microsoft / Azure AD アカウントでログインします。",
@@ -947,6 +1210,8 @@ export const jaJPServer = {
       "既存の証明書ストアは、後続のマルチ証明書/SNI の展開により適しています。",
   },
   cloudflared: {
+    configReadFailed: "Cloudflared 設定の読み込みに失敗しました",
+    configWriteFailed: "Cloudflared 設定の保存に失敗しました",
     missingToken: "最初にCloudflareトークンを設定してください",
     startFailedWithDetail: "Cloudflared の起動に失敗しました: {detail}",
     processExited: "クラウドフレアプロセスが終了しました",
@@ -958,6 +1223,10 @@ export const jaJPServer = {
     unknownError: "不明なエラー",
     notInitialized: "Cloudflared が初期化されていません",
     startFailed: "起動に失敗しました",
+    stopFailed: "Cloudflared の停止に失敗しました",
+    logsListFailed: "Cloudflared ログの読み込みに失敗しました",
+    logsClearFailed: "Cloudflared ログの消去に失敗しました",
+    logsPollFailed: "Cloudflared ログのポーリングに失敗しました",
   },
   dnsmasq: {
     notDetectedInstallFirst:
@@ -1072,9 +1341,12 @@ export const jaJPServer = {
       macAutoDownloadUnsupported:
         "MAC プラットフォームは現在、アプリケーションの自動ダウンロードをサポートしていません。 brew install Cloudflared を通じて手動でインストールしてください。",
       platformUnsupported: "現在のプラットフォームはサポートされていません",
+      downloadStarted: "Cloudflared のダウンロードを開始しました",
       responseBodyUnreadable: "ダウンロード応答本文が読めません",
       downloadCancelled: "ダウンロードがキャンセルされました",
       unknownError: "不明なエラー",
+      deleteSuccess: "Cloudflared を削除しました",
+      deleteFailed: "Cloudflared の削除に失敗しました: {detail}",
       macManualRemove: "MAC プラットフォームを手動で削除してください",
       notInstalledBrew:
         "Cloudflared がインストールされていません。最初に brew install Cloudflared を通じてインストールしてください。",
@@ -1085,11 +1357,14 @@ export const jaJPServer = {
       platformUnsupported: "現在のプラットフォームはサポートされていません",
       packageMissing: "FRP インストールパッケージがありません",
       extractFailed: "解凍に失敗しました。終了コード {code}",
+      downloadStarted: "FRP のダウンロードを開始しました",
       responseBodyUnreadable: "ダウンロード応答本文が読めません",
       connectionFailed: "接続に失敗しました",
       downloadFailed: "ダウンロードに失敗しました: {detail}",
       unknownError: "不明なエラー",
       downloadCancelled: "ダウンロードがキャンセルされました",
+      deleteSuccess: "FRP を削除しました",
+      deleteFailed: "FRP の削除に失敗しました: {detail}",
       notInitialized:
         "FRP 初期化されていません。最初にダウンロードしてください",
     },
@@ -1113,6 +1388,10 @@ export const jaJPServer = {
     primaryDeleteDenied: "マスター FRP インスタンスは削除できません",
     notInitialized: "FRP 初期化されていません",
     startFailedWithDetail: "起動 frpc が失敗しました: {detail}",
+    pidReadFailed: "frpc PID の読み取りに失敗しました",
+    startedWithPid: "frpc が起動しました pid={pid}",
+    stoppedWithPid: "frpc が停止しました pid={pid}",
+    alreadyStopped: "frpc は既に停止しています",
     pidCleanedForInstance:
       "PID はこのインスタンスに属しません。このインスタンスの実行記録はクリアされました。",
     resumeOnBoot:
@@ -1160,6 +1439,53 @@ export const jaJPServer = {
     verifyFailedWithRetry:
       "認証に失敗しました。{seconds} 秒後にもう一度お試しください",
     bindTokenExpired: "結合証明書の有効期限が切れています",
+    loadStatusFailed: "Passkey ステータスの読み込みに失敗しました",
+    createOptionsFailed: "Passkey オプションの作成に失敗しました",
+    loadPasskeysFailed: "Passkey 一覧の読み込みに失敗しました",
+    noPasskeyAvailable: "利用可能な Passkey がありません",
+    noValidPasskeyAvailable: "有効な Passkey がありません",
+    invalidRpConfig: "Passkey RP 設定が無効です",
+    invalidResponse: "Passkey 応答が無効です",
+    challengeExpired: "Passkey チャレンジの有効期限が切れました",
+    verifyFailed: "Passkey の検証に失敗しました",
+    notFound: "Passkey が見つかりません",
+    createSessionFailed: "認証セッションの作成に失敗しました",
+    loginSuccessful: "ログインしました",
+    unauthorizedOrMissingTotp: "未認可、または TOTP ID がありません",
+    createBindTokenFailed: "Passkey バインドトークンの作成に失敗しました",
+    createRegistrationOptionsFailed:
+      "Passkey 登録オプションの作成に失敗しました",
+    registerFailed: "Passkey の登録に失敗しました",
+    registrationFailed: "Passkey 登録に失敗しました",
+    alreadyRegistered: "Passkey はすでに登録されています",
+    unknownDevice: "不明なデバイス",
+  },
+  authRoutes: {
+    pathNotFound: "認証 API パスが見つかりません",
+    loadBootstrapFailed: "認証ブートストラップの読み込みに失敗しました",
+    authenticationRequired: "認証が必要です",
+    loadSessionFailed: "認証セッションの読み込みに失敗しました",
+    loadCaptchaConfigFailed: "Captcha 設定の読み込みに失敗しました",
+    createCaptchaChallengeFailed: "Captcha チャレンジの作成に失敗しました",
+    loadOidcProvidersFailed: "OIDC プロバイダーの読み込みに失敗しました",
+    loadOidcInviteFailed: "OIDC 招待の読み込みに失敗しました",
+    inspectOidcInviteFailed: "OIDC 招待の確認に失敗しました",
+    loadAuthConfigFailed: "認証設定の読み込みに失敗しました",
+    loadLoginCredentialsFailed: "ログイン認証情報の読み込みに失敗しました",
+    createSessionFailed: "認証セッションの作成に失敗しました",
+    loginSuccessful: "ログインしました",
+    verifyFailed: "認証状態の確認に失敗しました",
+    localNetworkAccessAllowed: "ローカルネットワークアクセスが許可されました",
+    authenticated: "認証済みです",
+    invalidCaptchaProof: "Captcha proof が無効です",
+    invalidCaptchaAlgorithm: "Captcha アルゴリズムが無効です",
+    invalidCaptchaChallenge: "Captcha チャレンジが無効です",
+    invalidCaptchaSignature: "Captcha 署名が無効です",
+    captchaChallengeExpired: "Captcha チャレンジの有効期限が切れました",
+    captchaChallengeAlreadyUsed: "Captcha チャレンジはすでに使用されています",
+    captchaVerifyFailed: "Captcha の検証に失敗しました",
+    turnstileResponseInvalid: "Turnstile 応答が無効です",
+    unknownTotp: "不明な TOTP",
   },
   maintenanceBackup: {
     commandMissing: "システム環境に {command} コマンドがありません",
@@ -1184,6 +1510,7 @@ export const jaJPServer = {
     unsupportedRedisExportType:
       "は、エクスポートされた Redis データ型: {type} ({key}) をサポートしていません。",
     createArchiveFailed: "バックアップ アーカイブの生成に失敗しました",
+    buildResponseFailed: "バックアップのダウンロード応答の生成に失敗しました",
     invalidBackupExtension:
       "バックアップ ファイルの拡張子は {extension} である必要があります",
     stringArrayRequired: "{label} は文字列配列でなければなりません",
@@ -1225,6 +1552,8 @@ export const jaJPServer = {
     archivePasswordInvalid:
       "バックアップ アーカイブのパスワード検証に失敗しました",
     readArchiveFailed: ".knock バックアップ アーカイブの読み取りに失敗しました",
+    payloadUtf8Invalid:
+      "バックアップ ファイルの内容は有効な UTF-8 テキストではありません",
     writeRedisFailed: "Redis バックアップ データの書き込みに失敗しました",
     unknownError: "不明なエラー",
     syncSteps: {
@@ -1236,6 +1565,12 @@ export const jaJPServer = {
       systemResourceMonitorReset: "システムリソース監視ステータスリセット",
     },
     archiveEmpty: "バックアップ アーカイブのコンテンツが空です",
+    archiveTooLarge:
+      "バックアップ アーカイブが大きすぎるためインポートできません",
+    directoryImportFileNotFound:
+      "インポートするバックアップ ファイルが見つかりません",
+    directoryImportFileUnreadable:
+      "インポートするバックアップ ファイルを読み取れません",
     directoryImportFileOnly:
       "はバックアップ ディレクトリ内のファイルのみをインポートできます",
     directoryImportExtensionOnly:
@@ -1265,6 +1600,16 @@ export const jaJPServer = {
     powUnavailable: "現在の PoW 検証コードは利用できません",
     providerConfigMismatch: "確認コードプロバイダーが現在の構成と一致しません",
   },
+  hmac: {
+    missingTimestamp: "HMAC タイムスタンプがありません",
+    missingNonce: "HMAC nonce がありません",
+    missingSignature: "HMAC 署名がありません",
+    timestampExpired: "HMAC タイムスタンプの有効期限が切れています",
+    invalidKey: "HMAC キーが無効です",
+    invalidSignature: "HMAC 署名が無効です",
+    nonceReused: "HMAC nonce はすでに使用されています",
+    nonceVerifyFailed: "HMAC nonce の検証に失敗しました",
+  },
   cidr: {
     serviceError: "CIDR サービス異常",
     emptyResponse: "<空の応答>",
@@ -1276,7 +1621,10 @@ export const jaJPServer = {
     requestId: "リクエストID: {requestId}",
     responsePreview: "回答概要: {preview}",
     provinceRequired: "州を空にすることはできません",
+    invalidApiUrl: "CIDR API URL が無効です: {error}",
     upstreamTimeout: "CIDR アップストリームリクエストのタイムアウト",
+    upstreamRequestFailedGeneric:
+      "CIDR アップストリームリクエストが失敗しました: {error}",
     upstreamRequestFailed:
       "CIDR アップストリームリクエストが失敗しました ({status})",
     invalidJson: "CIDR アップストリームが無効な JSON を返しました",
@@ -1288,6 +1636,9 @@ export const jaJPServer = {
     outbound: "下り",
     upstreamUnavailable: "上りサービスが利用できません",
     hostRequired: "ホストを空にすることはできません",
+    statsLoadFailed: "ダッシュボード統計の読み込みに失敗しました",
+    configLoadFailed: "ダッシュボード設定の読み込みに失敗しました",
+    displayConfigSaveFailed: "ダッシュボード表示設定の保存に失敗しました",
   },
   acme: {
     alreadyInstalled: "acme.shがインストールされました",
@@ -1384,13 +1735,13 @@ export const jaJPServer = {
     requestCanceled: "リクエストがキャンセルされました",
     curlRequestFailed: "curl リクエストが失敗しました: {detail}",
     nodeTransportInterfaceAddressUnavailable:
-      "Node HTTP リクエストはインターフェイス {name} にバインドできません: 使用可能な {family} ローカルアドレスがありません",
+      "組み込み HTTP リクエストはインターフェイス {name} にバインドできません: 使用可能な {family} ローカルアドレスがありません",
     nodeTransportInterfaceNoAddress:
-      "Node HTTP リクエストはインターフェイス {name} にバインドできません: 使用可能なローカルアドレスがありません",
+      "組み込み HTTP リクエストはインターフェイス {name} にバインドできません: 使用可能なローカルアドレスがありません",
     nodeTransportUnsupportedProtocol:
-      "Node HTTP リクエストはこのプロトコルをサポートしていません: {protocol}",
+      "組み込み HTTP リクエストはこのプロトコルをサポートしていません: {protocol}",
     nodeTransportRedirectLimitExceeded:
-      "Node HTTP リクエストのリダイレクト回数が上限 {max} を超えました",
+      "組み込み HTTP リクエストのリダイレクト回数が上限 {max} を超えました",
     triggerCron: "定期点検",
     triggerEnable: "自動アップデートを有効にした後、今すぐ確認してください",
     triggerStartup: "起動後チェック",
@@ -1438,7 +1789,13 @@ export const jaJPServer = {
     updateSuccess: "アップデート成功: {message}",
     updateFailed: "更新に失敗しました: {message}",
     testError: "テスト例外: {message}",
+    statusLoadFailed: "DDNS ステータスの読み込みに失敗しました",
+    toggleFailed: "DDNS 有効状態の更新に失敗しました",
+    settingsLoadFailed: "DDNS 自動同期設定の読み込みに失敗しました",
     settingsSaveFailed: "保存DDNS 自動同期設定に失敗しました",
+    logsLoadFailed: "DDNS ログの読み込みに失敗しました",
+    logsClearFailed: "DDNS ログの消去に失敗しました",
+    pollFailed: "DDNS ログとステータスのポーリングに失敗しました",
     providerSetFailed: "プロバイダーの設定に失敗しました",
     configSaveFailed: "DDNS の保存に失敗しました",
     createTargetFailed: "DDNS エントリの作成に失敗しました",
@@ -1461,6 +1818,54 @@ export const jaJPServer = {
           },
           ttl: {
             description: "デフォルト {seconds} 秒",
+          },
+          access_key_id: {
+            label: "アクセスキー ID",
+            description: "DNS レコードの読み書き権限を持つクラウドプロバイダーのアクセスキー ID",
+          },
+          access_key_secret: {
+            label: "アクセスキー Secret",
+            description: "アクセスキー ID と組み合わせて使用する Secret",
+          },
+          secret_access_key: {
+            label: "アクセスキー Secret",
+            description: "アクセスキー ID と組み合わせて使用する Secret",
+          },
+          secret_id: {
+            label: "SecretId",
+            description: "選択した DNS サービス権限を持つ Tencent Cloud API SecretId",
+          },
+          secret_key: {
+            label: "SecretKey",
+            description: "SecretId と組み合わせて使用する Tencent Cloud API SecretKey",
+          },
+          api_key: {
+            label: "API キー",
+            description: "プロバイダーのコンソールで生成した API Key",
+          },
+          api_secret: {
+            label: "API Secret",
+            description: "API Key と組み合わせて使用する API Secret",
+          },
+          secret_api_key: {
+            label: "Secret API Key",
+            description: "Porkbun コンソールで生成した Secret API Key",
+          },
+          api_token: {
+            label: "API トークン",
+            description: "プロバイダーのコンソールで生成した API Token",
+          },
+          token_id: {
+            label: "Token ID",
+            description: "DNSPod コンソールで生成した API Token ID",
+          },
+          token_key: {
+            label: "Token Key",
+            description: "DNSPod コンソールで生成した API Token Key",
+          },
+          zone_id: {
+            label: "Zone ID",
+            description: "プロバイダーのコンソールにある Zone またはサイト ID",
           },
         },
       },
@@ -1573,6 +1978,7 @@ export const jaJPServer = {
         requestFailed: "リクエストが失敗しました",
         updateFailed: "アップデートに失敗しました",
         createFailed: "作成に失敗しました",
+        recordIdMissing: "Alibaba Cloud DNS が RecordId のないレコードを返しました",
       },
       baidu: {
         label: "百度クラウド DNS",
@@ -1605,6 +2011,8 @@ export const jaJPServer = {
         requestFailed:
           "Huawei Cloud DNS リクエストが失敗しました: HTTP {status} {statusText}、{detail}",
         zoneNotFound: "Huawei クラウドゾーンが見つかりません: {zone}",
+        recordsetIdMissing:
+          "Huawei Cloud DNS が ID のないレコードセットを返しました",
       },
       tencentcloud: {
         label: "テンセントクラウド DNS",
@@ -1890,6 +2298,9 @@ export const jaJPServer = {
     selectAtLeastOneCidr:
       "ローカル IPv4 スキャン ネットワーク セグメントを少なくとも 1 つ選択してください",
     scanJobNotFound: "スキャンジョブが見つからないか、有効期限が切れています",
+    loadTargetsFailed: "スキャン対象の読み込みに失敗しました",
+    loadConfigFailed: "設定の読み込みに失敗しました",
+    saveTargetsFailed: "スキャン対象の保存に失敗しました",
     targetLabels: {
       docker: "{cidr} (Docker ホスト LAN)",
       loopback: "{cidr} (ネイティブ ループバック)",
@@ -1930,11 +2341,13 @@ export const jaJPServer = {
       "現在の環境SSH ファイアウォールをクリアできません",
     logSourceUnavailableShort: "SSH ログソースが利用できません",
     customCidrInvalid: "カスタム CIDR 間違った形式: {cidrs}",
+    customCidrsMustBeArray: "custom_cidrs は配列である必要があります",
     syncSshPolicyFailed: "同期 SSH 専用ファイアウォール ルールが失敗しました",
     clearSshPolicyFailed:
       "クリア SSH 専用ファイアウォール ルールが失敗しました",
     blockRecordInvalid: "ブロックレコード形式が正しくありません",
     routes: {
+      loadConfigFailed: "SSH セキュリティ設定の読み込みに失敗しました",
       updateConfigFailed: "アップデート SSH セキュリティ設定に失敗しました",
       syncFirewallSuccess:
         "同期 {allowedCidrs} は許可 CIDR および {synced} SSH IP から {ports} ポートはブロック",
@@ -1943,10 +2356,31 @@ export const jaJPServer = {
         "SSH プライベート ファイアウォール ルールをクリアしました",
       clearFirewallFailed: "クリア SSH ファイアウォールが失敗しました",
       readLoginLogsFailed: "SSH ログインログの読み取りに失敗しました",
+      listBlocksFailed: "SSH ブロック一覧の取得に失敗しました",
       blockNotFound: "ブロッキングレコードは存在しません",
+      loadBlockFailed: "SSH ブロック記録の読み込みに失敗しました",
       removeBlockFailed: "ブロックを解除できませんでした",
       selectIps: "ブロックを解除するには IP を選択してください",
       removeBlocksFailed: "一括ブロック解除に失敗しました",
+    },
+  },
+  systemEvents: {
+    routes: {
+      unsupportedSystemEventType:
+        "サポートされていないシステムイベントタイプです",
+      unsupportedSystemEventSource:
+        "サポートされていないシステムイベントソースです",
+      unsupportedSystemEventLevel:
+        "サポートされていないシステムイベントレベルです",
+      unsupportedSubjectKind: "サポートされていないイベント主体タイプです",
+      unsupportedEventType: "サポートされていないイベントタイプです",
+      unsupportedEventLevel: "サポートされていないイベントレベルです",
+      unsupportedEventSource: "サポートされていないイベントソースです",
+      loadConfigFailed: "システムイベント設定の読み込みに失敗しました",
+      writeEventFailed: "システムイベントの書き込みに失敗しました",
+      listEventsFailed: "システムイベント一覧の取得に失敗しました",
+      deleteEventsFailed: "システムイベントの削除に失敗しました",
+      clearEventsFailed: "システムイベントのクリアに失敗しました",
     },
   },
   notifications: {
@@ -2495,6 +2929,7 @@ export const jaJPServer = {
           },
         },
         pushplus: {
+          label: "PushPlus",
           description:
             "プッシュ通知はPushPlus標準の送信インターフェースを通じて送信され、公式アカウント、アプリ、メールなどのチャネルをルールに従って選択できます。",
           fields: {
@@ -2504,6 +2939,7 @@ export const jaJPServer = {
                 "公式インターフェースのデフォルト値をそのままにしておきます。",
             },
             token: {
+              label: "トークン",
               description:
                 "PushPlusのユーザートークンまたはメッセージトークンは大切に保管してください。",
             },
@@ -2520,7 +2956,10 @@ export const jaJPServer = {
               description:
                 "はデフォルトで Markdown を使用します。ターゲットチャンネルがプレーンテキストまたはHTMLに適している場合は、個別に切り替えることもできます。",
               options: {
+                markdown: "Markdown",
+                html: "HTML",
                 txt: "プレーンテキスト",
+                json: "JSON",
               },
             },
             channel: {
@@ -2535,6 +2974,7 @@ export const jaJPServer = {
                 sms: "SMS",
                 voice: "音声",
                 extension: "プラグイン/デスクトップ プログラム",
+                app: "アプリ",
                 clawbot: "WeChat クローボット",
               },
             },
@@ -2569,6 +3009,7 @@ export const jaJPServer = {
           },
         },
         wxpusher: {
+          label: "WxPusher",
           description:
             "は、WxPusher 標準プッシュ インターフェイスを通じて、指定された UID またはトピックにメッセージ通知を送信します。ルールのターゲットを空白のままにすると、プロバイダーのデフォルトのターゲット構成が継承されます。",
           fields: {
@@ -2577,6 +3018,7 @@ export const jaJPServer = {
               description: "正式サービスではデフォルト値のままにしておきます。",
             },
             app_token: {
+              label: "AppToken",
               description:
                 "WxPusher バックグラウンドアプリケーションのAppTokenを適切に保管してください。",
             },
@@ -2635,6 +3077,7 @@ export const jaJPServer = {
           },
         },
         bark: {
+          label: "Bark",
           description:
             "は、Bark 公式オンライン バージョンまたは自社構築の Bark サーバーを通じて APN プッシュ通知を iPhone に送信します。",
           fields: {
@@ -2644,6 +3087,7 @@ export const jaJPServer = {
                 "公式オンライン バージョンのデフォルト値をそのまま使用します。自社構築の Bark サーバーを使用する場合は、サービス ルート アドレスを入力します。",
             },
             device_key: {
+              label: "デバイス Key",
               description:
                 "Barkアプリにデバイスキーがコピーされました。複数のキーを入力し、カンマで区切ることができます。",
             },
@@ -2654,6 +3098,12 @@ export const jaJPServer = {
               label: "通知レベル",
               description:
                 "アクティブはデフォルトのインスタント リマインダーです。 timeSensitive はフォーカス モードを通過できます。クリティカルは重要な注意事項です。",
+              options: {
+                active: "即時通知",
+                timeSensitive: "時間制限通知",
+                passive: "サイレント通知",
+                critical: "重要通知",
+              },
             },
             group: {
               label: "メッセージのグループ化",
@@ -2706,6 +3156,7 @@ export const jaJPServer = {
                 "公式インターフェースのデフォルト値をそのままにしておきます。",
             },
             sendkey: {
+              label: "SendKey",
               description:
                 "サーバー Jiang·Turbo が SendKey を提供します。安全に保管してください。",
             },
@@ -2718,6 +3169,7 @@ export const jaJPServer = {
                 "オプション。このプッシュのチャネルを動的に指定します。9|66 のように、| で区切られた最大 2 つの値を使用します。",
             },
             openid: {
+              label: "OpenID / UID",
               description:
                 "オプション。テスト アカウントは openid を使用し、エンタープライズ WeChat アプリケーション メッセージは受信者の UID を使用します。サーバーソースのドキュメント形式に従って複数の値を入力してください。",
               placeholder: "openid1、openid2 または uid1|uid2",
@@ -2749,6 +3201,7 @@ export const jaJPServer = {
             "DingTalk ロボット Webhook を使用して、Markdown 通知をグループ チャットに送信し、署名検証をサポートします。",
           fields: {
             webhook_url: {
+              label: "Webhook URL",
               description:
                 "DingTalk ロボットによって生成された完全な Webhook アドレス。",
             },
@@ -2798,6 +3251,7 @@ export const jaJPServer = {
             "は、Feishu ロボット Webhook を使用して、投稿リッチ テキスト通知をグループ チャットに送信し、署名検証をサポートします。",
           fields: {
             webhook_url: {
+              label: "Webhook URL",
               description:
                 "Feishu ロボットによって生成された完全な Webhook アドレス。",
             },
@@ -2832,10 +3286,12 @@ export const jaJPServer = {
           },
         },
         webhook: {
+          label: "Webhook",
           description:
             "HTTP JSON をサポートするアドレスに標準通知メッセージを送信します。",
           fields: {
             url: {
+              label: "Webhook URL",
               description: "標準通知を受信する宛先アドレス JSON。",
             },
             method: {
@@ -2889,6 +3345,7 @@ export const jaJPServer = {
               },
             },
             token: {
+              label: "トークン",
               description:
                 "MagicPush インターフェーストークン。標準プッシュは、Authorization: Bearer で送信されます。受信設定は /api/inbound/:token に接続されます。",
             },
@@ -2908,6 +3365,7 @@ export const jaJPServer = {
           },
         },
         telegram: {
+          label: "Telegram",
           description:
             "インライン アクション ボタンを使用して、Telegram ボット API を介して、指定されたチャットまたはチャネルにテキスト通知を送信します。",
           fields: {
@@ -2917,10 +3375,12 @@ export const jaJPServer = {
                 "公式ボット API デフォルト値のままにしてください。ネットワーク要因により公式アドレスにアクセスできない場合は、https://tgapi.fnknock.cnを入力して代わりにアドレスを転送できます。独自に構築したローカル ボット API サーバーを使用する場合は、そのルート アドレスを入力することもできます。",
             },
             bot_token: {
+              label: "Bot Token",
               description:
                 "@BotFather を通じてロボットを作成した後に取得したボット トークン。",
             },
             chat_id: {
+              label: "Chat ID",
               description:
                 "ターゲットチャット ID、またはチャンネルユーザー名 (例: @channelusername)。最初に @UserIdzhBot にメッセージを送信すると、チャット ID を取得できます。テスト送信でもこのターゲットが使用されます。",
             },
@@ -2928,6 +3388,7 @@ export const jaJPServer = {
               label: "タイムアウト秒数",
             },
             message_thread_id: {
+              label: "トピック ID",
               description:
                 "オプション。グループトピックに送信する場合は、該当のトピックID（message_thread_id）を記入してください。",
             },
@@ -2953,6 +3414,7 @@ export const jaJPServer = {
             "エンタープライズ WeChat メッセージ プッシュ (グループ Webhook) を通じて、指定されたグループ チャットにテキストまたはマークダウン通知を送信します。",
           fields: {
             webhook_url: {
+              label: "Webhook URL",
               description:
                 "企業 WeChat メッセージ プッシュ ページによって生成された完全な Webhook アドレスを保管してください。",
             },
@@ -2980,6 +3442,7 @@ export const jaJPServer = {
           },
         },
         pushdeer: {
+          label: "PushDeer",
           description:
             "PushDeer 公式オンライン バージョンまたは自社構築サービスを通じて、バインドされたデバイスに Markdown 通知を送信します。",
           fields: {
@@ -2989,6 +3452,7 @@ export const jaJPServer = {
                 "公式オンライン バージョンのデフォルト値をそのまま使用してください。自己構築 PushDeer を使用する場合は、自己構築したサービスのルート アドレスを入力します。",
             },
             pushkey: {
+              label: "PushKey",
               description:
                 "PushDeer クライアントで生成された PushKey。複数のキーを入力し、カンマで区切ることができます。",
             },
@@ -3022,6 +3486,7 @@ export const jaJPServer = {
     },
     service: {
       unnamed: "無名",
+      invalidJsonBody: "リクエスト本文は有効な JSON である必要があります",
       invalidJson: "{field} は合法である必要があります JSON",
       invalidSelectValue: "{field} 値が不正です",
       fieldRequired: "{field} を空にすることはできません",
@@ -3044,8 +3509,13 @@ export const jaJPServer = {
         "このプロバイダーはまだルール「{rule}」によって参照されています",
       testSendFailed: "テスト送信に失敗しました",
       testSendSuccess: "テストは正常に送信されました",
+      providerRequestReturnedStatus:
+        "{provider} リクエストがステータス {status} を返しました",
+      barkPartialFailed:
+        "Bark は {failed}/{total} 件のターゲット送信に失敗しました",
       providerTypeMismatch: "プロバイダーのタイプが既存の構成と一致しません",
       providerTestName: "{provider} テスト",
+      invalidProviderRecord: "通知プロバイダーレコードが無効です",
       ruleProviderMissing: "ルールは存在しない通知プロバイダーを参照しています",
       invalidTemplateOverrideMode:
         "ターゲット テンプレート カバレッジ モードが不正です",
@@ -3059,7 +3529,9 @@ export const jaJPServer = {
       duplicateEventRule:
         "このイベントにはすでに通知ルールが存在します。まず元のルールを削除してください。",
       ruleNotFound: "通知ルールが存在しません",
+      invalidRuleRecord: "通知ルールレコードが無効です",
       deletedProvider: "プロバイダーが削除されました",
+      storageUnavailable: "通知ストレージは一時的に利用できません",
     },
   },
 };

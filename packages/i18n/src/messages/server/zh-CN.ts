@@ -1,7 +1,8 @@
 export const zhCNServer = {
   success: "成功",
-  notFound: "Not found",
-  invalidLocale: "Unsupported locale",
+  notFound: "未找到",
+  apiPathNotFound: "接口不存在",
+  invalidLocale: "不支持的语言",
   dockerAdminDenied: "Docker 管理面板仅允许内网或可信反代访问",
   dockerAdminDeniedTitle: "拒绝访问",
   dockerAdminDeniedDescription:
@@ -95,6 +96,8 @@ export const zhCNServer = {
     installStartFailed: "启动安装失败",
     checkAndDownloadStarted: "已发起检查并开始下载",
     startFailed: "启动失败",
+    loadStatusFailed: "加载更新状态失败",
+    loadConfirmationFailed: "加载更新确认信息失败",
   },
   gatewayHostResponse: {
     runTypes: {
@@ -152,6 +155,20 @@ export const zhCNServer = {
       passwordSetupRequired: "当前还没有设置管理面板密码，请先完成首次设置",
       passwordIncorrectWithRetry: "管理面板密码错误，请在 {seconds} 秒后重试",
     },
+    adminPanelRoutes: {
+      signInRequired: "请先登录管理面板",
+      verifySessionFailed: "验证管理面板会话失败",
+      loadStateFailed: "加载管理面板状态失败",
+      loadConfigFailed: "加载配置失败",
+      loadLocaleFailed: "加载语言配置失败",
+      loadAppearanceFailed: "加载外观配置失败",
+      saveLocaleFailed: "保存语言配置失败",
+      saveAppearanceFailed: "保存外观配置失败",
+      loadPasswordFailed: "加载管理面板密码失败",
+      createSessionFailed: "创建管理面板会话失败",
+      verifyPasswordFailed: "验证管理面板密码失败",
+      checkLoginRateLimitFailed: "检查登录频率限制失败",
+    },
     runType: {
       switchFailed: "切换运行模式失败",
       switchFailedRolledBack: "切换运行模式失败，已回滚配置",
@@ -181,6 +198,20 @@ export const zhCNServer = {
     fnosNetworkTuning: {
       unavailable: "当前运行环境不支持飞牛 FPK 网络优化",
       updateFailed: "更新飞牛 FPK 网络优化失败",
+      errors: {
+        bbrNotSupported: "宿主机内核未提供 tcp_bbr",
+        bbrEnableVerificationFailed:
+          "已请求启用 BBR，但当前内核状态不是 bbr/fq",
+        bbrRollbackCongestionFailed: "BBR 回滚未恢复原拥塞控制算法",
+        bbrRollbackQdiscFailed: "BBR 回滚未恢复原默认队列规则",
+        bbrRollbackStillBbrFailed: "BBR 回滚后仍停留在 bbr 拥塞控制",
+        mtuEnableVerificationFailed:
+          "已请求启用 MTU 探测，但 tcp_mtu_probing 不是 1",
+        mtuRollbackFailed: "MTU 探测回滚未恢复预期值",
+        emptyPatch: "请至少修改一个飞牛 FPK 网络优化选项",
+        setSysctlFailed: "设置 {key} 失败",
+        rollbackFailed: "{message}；回滚失败：{error}",
+      },
       blocked: {
         deployment: "飞牛 FPK 网络优化仅支持 FPK 部署",
         platform: "飞牛 FPK 网络优化需要 Linux 宿主环境",
@@ -195,6 +226,9 @@ export const zhCNServer = {
       updateFailedRolledBack: "更新网关配置失败，已回滚配置",
     },
     proxyMappings: {
+      payloadObjectRequired: "路径代理映射必须是对象",
+      targetInvalid:
+        "路径代理目标必须以 http://、https://、ws:// 或 wss:// 开头并包含主机名",
       syncRulesFailed: "同步路径代理路由失败",
       restoreRulesFailed: "恢复路径代理路由失败",
       updateFailed: "更新路径代理映射失败",
@@ -209,6 +243,44 @@ export const zhCNServer = {
       updateFailed: "更新网关协议头失败",
       updateFailedRolledBack: "更新网关协议头失败，已回滚配置",
     },
+    gatewaySettingsRoutes: {
+      loadGatewaySettingsFailed: "加载网关设置失败",
+      payloadObjectRequired: "网关请求内容必须是对象",
+      loadConfigFailed: "加载配置失败",
+      saveGatewaySettingsFailed: "保存网关设置失败",
+      syncGatewaySettingsFailed: "同步网关设置失败：{message}",
+      responseReloadFailed: "网关设置已保存，但重新加载响应失败",
+      loadGatewayVisibilityFailed: "加载网关可见性失败",
+      loadRuntimeFailed: "加载运行态失败",
+      loadGatewayProxyHeadersFailed: "加载网关协议头失败",
+      loadGatewayHostResponseFailed: "加载网关 Host 响应失败",
+    },
+    runtimeConfigRoutes: {
+      loadCaptchaFailed: "加载验证码配置失败",
+      saveCaptchaFailed: "保存验证码配置失败",
+      loadTerminalFeatureFailed: "加载终端功能配置失败",
+      saveTerminalFeatureFailed: "保存终端功能配置失败",
+      invalidRunType: "run_type 不合法",
+      loadProtocolMappingFeatureFailed: "加载协议映射功能配置失败",
+      loadSmartConnectDetailsFailed: "加载智能连接详情失败",
+      loadFnosShareBypassFailed: "加载飞牛共享目录绕过配置失败",
+      saveFnosShareBypassFailed: "保存飞牛共享目录绕过配置失败",
+      loadFnosPortIconHijackFailed: "加载飞牛端口图标接管配置失败",
+      loadAutoHttpsFailed: "加载自动 HTTPS 配置失败",
+      saveAutoHttpsFailed: "保存自动 HTTPS 配置失败",
+      saveAutoManageFirewallFailed: "保存自动管理防火墙配置失败",
+      loadConfigFailed: "加载配置失败",
+      loadDefaultRouteFailed: "加载默认路由失败",
+      saveDefaultRouteFailed: "保存默认路由失败",
+      unsupportedTunnelType: "不支持的隧道类型",
+      saveDefaultTunnelFailed: "保存默认隧道失败",
+      upstreamUnavailable: "上游服务不可用",
+      proxyProtocolForceBooleanRequired: "proxy_protocol_force 必须是布尔值",
+      loadRunModePromptPreferencesFailed: "加载运行模式提示偏好失败",
+      saveRunModePromptPreferencesFailed: "保存运行模式提示偏好失败",
+      loadWelcomeGuideFailed: "加载欢迎引导状态失败",
+      saveWelcomeGuideFailed: "保存欢迎引导状态失败",
+    },
     captcha: {
       turnstileKeysRequired:
         "启用 Cloudflare Turnstile 时，site_key 和 secret_key 都必须填写",
@@ -216,6 +288,9 @@ export const zhCNServer = {
     ipLocation: {
       ipLookupUrlLabel: "IP 识别库地址",
       cidrUrlLabel: "CIDR 地址库地址",
+      loadSettingsFailed: "读取 IP 属地 API 配置失败",
+      saveSettingsFailed: "保存 IP 属地 API 配置失败",
+      modeInvalid: "模式必须是 online 或 custom",
     },
     connectionTest: {
       httpStatus: "服务返回错误状态码 {status}",
@@ -230,6 +305,10 @@ export const zhCNServer = {
       startFailed: "自动 HTTPS 启动失败",
     },
     hostMappings: {
+      payloadObjectRequired: "Host 映射必须是对象",
+      hostRequired: "Host 映射需要填写域名",
+      targetInvalid:
+        "Host 映射 {host} 的目标必须以 http://、https://、ws:// 或 wss:// 开头并包含主机名",
       singleAuthPortMapping: "只能有一个 Host 映射指向 AUTH_PORT 作为鉴权服务",
       authMappingMustBePublic:
         "鉴权服务 {host} 必须保持公开入口，不能开启自身鉴权或严格白名单，否则会导致登录入口不可达",
@@ -243,6 +322,8 @@ export const zhCNServer = {
       locationReservedPath: "Host 映射 {host} 的路径规则 {path} 使用了保留路径",
       locationDuplicate: "Host 映射 {host} 存在重复路径规则 {path}",
       locationTargetRequired: "Host 映射 {host} 的路径规则 {path} 需要填写目标",
+      locationTargetInvalid:
+        "Host 映射 {host} 的路径规则 {path} 目标必须以 http://、https://、ws:// 或 wss:// 开头并包含主机名",
       locationStatusInvalid:
         "Host 映射 {host} 的路径规则 {path} 响应状态码必须在 100 到 599 之间",
       locationHeaderInvalid:
@@ -254,14 +335,19 @@ export const zhCNServer = {
       updateFailed: "更新 Host 映射失败",
       updateFailedRolledBack: "更新 Host 映射失败，已回滚配置",
       metadataFailed: "目标地址标题刷新失败",
+      onlyHttpTargetsSupported: "仅支持 http/https 目标地址",
+      metadataUpstreamStatus: "上游服务返回状态码 {status}",
       bookmarkFolderForRoot: "{root} 子域映射",
       bookmarkFolderDefault: "fn-knock 子域映射",
     },
     streamMappings: {
+      payloadObjectRequired: "协议映射必须是对象",
+      listenPortRequiredInteger: "监听端口必须是有效整数",
       listenPortNotInteger: "监听端口 {port} 不是有效整数",
       listenPortOutOfRange: "监听端口 {port} 超出有效范围",
       duplicatePort: "{protocol} 监听端口 {port} 重复，请保持协议 + 端口唯一",
       targetMustBeHostPort: "目标地址 {target} 必须是 host:port 形式",
+      saveFailed: "保存协议映射失败",
       syncFailed: "同步协议映射与网关端口放行规则失败",
       syncFailedRolledBack: "同步协议映射与网关端口放行规则失败，已回滚配置",
     },
@@ -272,13 +358,30 @@ export const zhCNServer = {
         "父域 Passkey RP ID {rpId} 必须与鉴权服务 {authHost} 相同，或是它的父域。",
     },
     subdomainMode: {
+      payloadObjectRequired: "子域模式请求内容必须是对象",
+      saveFailed: "保存子域模式配置失败",
       sslAutoSelected: "已自动切换到更适合当前子域模式的证书。",
       sslAutoSelectionSyncFailed:
         "已找到推荐证书，但同步到网关失败，未自动切换。",
     },
+    authCredentialSettings: {
+      loadFailed: "加载认证凭据配置失败",
+      loadConfigFailed: "加载配置失败",
+      saveFailed: "保存认证凭据配置失败",
+    },
     totp: {
       invalidCode: "验证码不正确，请重试",
-      notFound: "TOTP not found",
+      invalidSecretOrCode: "TOTP 密钥或验证码不正确",
+      notFound: "TOTP 凭据不存在",
+      loadFailed: "加载 TOTP 凭据失败",
+      saveFailed: "保存 TOTP 凭据失败",
+      exportFailed: "导出 TOTP 凭据失败",
+      importFailed: "导入 TOTP 凭据失败",
+      deleteFailed: "删除 TOTP 凭据失败",
+      updateFailed: "更新 TOTP 凭据失败",
+      bound: "TOTP 凭据已绑定",
+      deleted: "TOTP 凭据已删除",
+      updated: "TOTP 凭据已更新",
     },
     totpImport: {
       payloadObject: "TOTP 凭证导入内容必须是对象",
@@ -288,7 +391,10 @@ export const zhCNServer = {
       countExceeded: "单次最多导入 {max} 个 TOTP 凭证",
     },
     passkeys: {
-      notFound: "Passkey not found",
+      notFound: "Passkey 不存在",
+      listFailed: "读取 Passkey 列表失败",
+      deleteFailed: "删除 Passkey 失败",
+      deleted: "Passkey 已删除",
     },
     syncRoutes: {
       partialFailedGatewayLogging:
@@ -310,21 +416,40 @@ export const zhCNServer = {
       importFnosFailed: "从飞牛导入备份失败",
     },
     sessions: {
-      notFound: "Session not found",
+      notFound: "会话不存在",
+      listFailed: "读取会话列表失败",
+      loadFailed: "读取会话失败",
+      updateFailed: "更新会话失败",
+      deleteFailed: "删除会话失败",
+      mobilityLoadFailed: "读取会话流动详情失败",
+      deleted: "会话已删除",
     },
   },
   gatewayLogs: {
+    configLoadFailed: "读取请求日志配置失败",
+    configSaveFailed: "保存请求日志配置失败",
     configSyncFailed: "请求日志设置已保存，但同步到网关失败",
     readDirectoryFailed: "读取日志目录失败",
     readDatesFailed: "读取日志日期失败",
     readEntriesFailed: "读取请求日志失败",
     deleteEntriesFailed: "删除请求日志失败",
+    invalidJsonObject: "请求体不是有效的 JSON 对象",
   },
   backoffRoutes: {
     ipRequired: "ip 参数缺失",
+    listFailed: "加载登录退避列表失败",
+    statusFailed: "加载登录退避状态失败",
+    resetFailed: "重置登录退避失败",
+  },
+  systemInfoRoutes: {
+    loadAccessEntryFailed: "加载访问入口失败",
+  },
+  securityOverviewRoutes: {
+    loadFailed: "加载安全概览失败",
   },
   ipLocationRoutes: {
     batchLimit: "单次最多查询 {max} 个 IP",
+    enqueueFailed: "加入 IP 归属地查询队列失败",
   },
   gatewayPortal: {
     syncConfigFailed: "同步传送门显示配置到网关失败",
@@ -339,6 +464,15 @@ export const zhCNServer = {
     syncFailed: "同步爬虫拦截配置失败",
   },
   scanner: {
+    settingsLoadFailed: "读取扫描器设置失败",
+    settingsUpdateFailed: "更新扫描器设置失败",
+    invalidRequestBody: "请求体不正确",
+    atLeastOneIpRequired: "请至少提供一个 IP",
+    blacklistLoadFailed: "读取扫描器黑名单失败",
+    recordNotFound: "记录不存在",
+    blacklistRecordLoadFailed: "读取扫描器黑名单记录失败",
+    blacklistRecordDeleteFailed: "删除扫描器黑名单记录失败",
+    blacklistRecordsDeleteFailed: "批量删除扫描器黑名单记录失败",
     cidrExemptionsInvalid: "CIDR 豁免格式不正确：{cidrs}",
   },
   gatewayLogging: {
@@ -349,16 +483,28 @@ export const zhCNServer = {
     syncFailed: "同步网关证书失败",
   },
   sslRoutes: {
+    statusReadFailed: "读取 SSL 状态失败",
     gatewayStatusReadFailed: "无法读取网关 SSL 状态",
     readSharedFileFailed: "读取共享目录文件失败",
     emptyDomains: "域名列表为空，请先添加域名或 IP",
     certOrKeyInvalid: "证书或私钥无效",
     hostRequired: "host 不能为空",
     localCaCertificateLabel: "本地 CA 证书",
+    rootCaNotInitialized: "本地 CA 尚未初始化",
     success: "成功",
     certNotInstalled: "未安装证书",
+    certReadFailed: "读取 SSL 证书失败",
+    certZipCreateFailed: "创建 SSL 证书压缩包失败",
     manualCertificateLabel: "手动上传证书",
     certNotFound: "证书不存在",
+    caInitFailed: "初始化本地 CA 失败",
+    caHostLoadFailed: "读取本地 CA Host 列表失败",
+    caHostSaveFailed: "保存本地 CA Host 列表失败",
+    certSaveFailed: "保存 SSL 证书失败",
+    certActivateFailed: "激活 SSL 证书失败",
+    deploymentModeSaveFailed: "保存 SSL 部署模式失败",
+    certDeleteFailed: "删除 SSL 证书失败",
+    certClearFailed: "清空 SSL 证书配置失败",
   },
   redis: {
     defaultCredential: "默认凭据",
@@ -450,6 +596,30 @@ export const zhCNServer = {
     stoppedIgnoredProcessError: "任务已停止，已忽略进程退出后的错误",
   },
   acmeRoutes: {
+    invalidRequestBody: "请求体不正确",
+    loadStatusFailed: "读取 ACME 状态失败",
+    loadClientSettingsFailed: "读取 ACME 客户端设置失败",
+    saveClientSettingsFailed: "保存 ACME 客户端设置失败",
+    switchCertificateAuthorityFailed: "切换 ACME 证书颁发机构失败",
+    loadOverviewFailed: "读取 ACME 概览失败",
+    loadApplicationOverviewFailed: "读取 ACME 申请项概览失败",
+    loadConfigFailed: "读取 ACME 配置失败",
+    loadSubdomainRecommendationFailed: "读取子域证书推荐失败",
+    loadApplicationsFailed: "读取 ACME 申请项列表失败",
+    loadApplicationFailed: "读取 ACME 申请项失败",
+    updateApplicationFailed: "更新 ACME 申请项失败",
+    deleteApplicationFailed: "删除 ACME 申请项失败",
+    syncLibraryFailed: "同步 ACME 证书到证书库失败",
+    deployCertificateFailed: "部署 ACME 证书失败",
+    loadJobFailed: "读取 ACME 任务失败",
+    loadJobLogsFailed: "读取 ACME 任务日志失败",
+    loadJobPollFailed: "轮询 ACME 任务失败",
+    stopJobFailed: "停止 ACME 任务失败",
+    loadCertificateInfoFailed: "读取 ACME 证书信息失败",
+    deleteCertificateFailed: "删除 ACME 证书失败",
+    uninstallFailed: "卸载 ACME 客户端失败",
+    createCertificateZipFailed: "创建 ACME 证书压缩包失败",
+    loadCertificateFailed: "读取 ACME 证书失败",
     domainsInvalid: "域名列表不能为空或格式无效",
     dnsTypeRequired: "缺少 DNS 验证类型",
     unsupportedDnsProvider: "不支持的 DNS 服务商",
@@ -532,6 +702,14 @@ export const zhCNServer = {
     cidrLookupFailed: "CIDR 查询失败",
     syncFailed: "同步常用地豁免配置到网关失败",
   },
+  generalBlacklist: {
+    invalidRequestBody: "请求体不正确",
+    invalidIp: "IP 地址不正确",
+    invalidIpWithValue: "IP 地址不正确: {ip}",
+    atLeastOneValidIpRequired: "请至少提供一个有效 IP",
+    backendRequestFailed: "通用黑名单后端请求失败",
+    backendResponseMissingData: "通用黑名单后端响应缺少数据",
+  },
   fnosDataShare: {
     invalidPath: "非法的共享文件路径",
     shareMissing: "未找到飞牛共享目录，请确认应用资源已正确配置",
@@ -553,8 +731,14 @@ export const zhCNServer = {
     defaultFolderTitle: "fn-knock 子域映射",
   },
   whitelist: {
+    listFailed: "读取白名单列表失败",
     addFailed: "新增白名单记录失败",
+    updateRecordsFailed: "更新白名单记录失败",
+    deleteFailed: "删除白名单记录失败",
+    commentUpdateFailed: "更新白名单备注失败",
+    regionListFailed: "读取地区白名单失败",
     regionAddFailed: "按地区新增白名单失败",
+    regionDeleteFailed: "删除地区白名单失败",
     regionRequired: "请至少选择一个地区",
     regionEmpty: "所选地区未解析到可用 CIDR",
     regionNotFound: "未找到地区白名单",
@@ -589,6 +773,8 @@ export const zhCNServer = {
     tmuxMissingAfterInstall: "安装完成后仍未检测到 tmux",
     tmuxInstallCompleteWithVersion: "tmux 安装完成：{version}",
     tmuxInstallFailed: "tmux 安装失败",
+    operationFailed: "终端操作失败",
+    operationFailedWithMessage: "终端操作失败：{message}",
     cwdUnavailable: "工作目录不存在或不可访问: {path}",
     webTerminalDisabled: "网页终端功能尚未启用",
     tmuxInstallingWait: "tmux 安装中，请等待安装完成",
@@ -649,8 +835,12 @@ export const zhCNServer = {
     manifestEmpty: "系统规则清单为空",
     keepOneEnabledRule: "开启 WAF 时至少保留一个启用的规则文件",
     uploadSelectConf: "请选择要上传的 .conf 文件",
+    base64Invalid: "规则文件内容不是有效的 Base64",
     reloadRulesFailed: "重新加载 WAF 规则失败",
+    detailsLoadFailed: "读取 WAF 详情失败",
     statusReadFailed: "读取 WAF 状态失败",
+    invalidRequestBody: "请求体不正确",
+    dateInvalid: "日期格式不正确，应为 YYYY-MM-DD",
     configSaveOrLoadFailed: "WAF 设置保存或加载失败",
     systemRulesSyncFailed: "系统规则同步失败",
     ruleToggleFailed: "WAF 规则启停失败",
@@ -660,6 +850,7 @@ export const zhCNServer = {
     eventsDrainFailed: "拉取 WAF 事件失败",
     logsQueryFailed: "查询 WAF 日志失败",
     logNotFound: "WAF 日志不存在",
+    logLoadFailed: "读取 WAF 日志失败",
     logsDeleteFailed: "删除 WAF 日志失败",
   },
   oidc: {
@@ -693,13 +884,29 @@ export const zhCNServer = {
     inviteExpired: "绑定邀请链接已失效",
     inviteProviderNotAllowed: "该邀请链接不允许使用此提供商",
     authorizationEndpointMissing: "authorization endpoint 未配置",
+    authorizationEndpointInvalid: "authorization endpoint 格式无效",
     bindStateInvalid: "绑定邀请状态无效",
     accountNotBoundCannotLogin: "该外部账号尚未绑定，无法登录",
     tokenEndpointMissing: "token endpoint 未配置",
+    clientIdMissing: "client_id 未配置",
     bindProviderMismatch: "绑定邀请与登录提供商不匹配",
     inviteTotpMissing: "绑定邀请关联的 TOTP 已不存在",
     accountAlreadyBoundOtherTotp: "该外部账号已绑定到其他 TOTP",
     inviteUsed: "绑定邀请链接已被使用",
+    externalAccountFallback: "外部账号",
+    loginFailedWithDetail: "外部登录失败: {detail}",
+    tokenRequestFailed: "获取外部登录 token 失败: {detail}",
+    readResponseFailed: "读取外部登录响应失败: {detail}",
+    httpResponseFailed: "外部登录请求失败: HTTP {status}: {detail}",
+    jsonResponseInvalid: "外部登录响应不是有效 JSON: {detail}",
+    jwksUriMissing: "OIDC JWKS URI 未配置",
+    jwksFetchFailed: "获取 OIDC JWKS 失败: {detail}",
+    jwksInvalid: "OIDC JWKS 响应无效: {detail}",
+    tokenHeaderInvalid: "OIDC token header 无效: {detail}",
+    signingKeyUnavailable: "OIDC 签名密钥不可用",
+    signingKeyInvalid: "OIDC 签名密钥无效: {detail}",
+    idTokenVerificationFailed: "OIDC id_token 校验失败: {detail}",
+    githubProfileRequestFailed: "GitHub 用户资料请求失败: {detail}",
     providerErrors: {
       accessDenied: "你取消了外部登录授权，或授权请求被提供商拒绝。",
       temporarilyUnavailable: "外部登录服务暂时不可用，请稍后重试。",
@@ -728,6 +935,23 @@ export const zhCNServer = {
     testProviderFailed: "测试外部登录提供商失败",
     deleteBindingFailed: "删除外部账号绑定失败",
     createInviteFailed: "创建绑定邀请失败",
+    listProvidersFailed: "读取外部登录提供商列表失败",
+    providerPayloadObject: "提供商参数必须是对象",
+    loadProviderFailed: "加载外部登录提供商失败",
+    listBindingsFailed: "读取外部账号绑定失败",
+    invitationPayloadObject: "邀请参数必须是对象",
+    totpRequired: "缺少 TOTP 凭据",
+    loadTotpFailed: "加载 TOTP 凭据失败",
+    loadConfigFailed: "加载配置失败",
+    inviteUrlBuildFailed: "生成外部账号邀请链接失败",
+    connectionConfigInvalid: "外部登录提供商连接配置无效",
+    oauthEndpointIncompleteWithField: "OAuth2 endpoint 未配置完整: {field}",
+    discoveryHttpFailed: "OIDC discovery 请求失败: HTTP {status}: {detail}",
+    discoveryInvalid: "OIDC discovery 文档无效",
+    discoveryMissingFieldsWithList: "OIDC discovery 文档缺少必要字段: {fields}",
+    providerTypeRequired: "缺少外部登录提供商类型",
+    storedProviderInvalid: "已保存的外部登录提供商无效",
+    storedProviderTypeInvalid: "已保存的外部登录提供商类型无效",
     catalog: {
       googleDescription: "使用 Google 账号登录。",
       microsoftDescription: "使用 Microsoft / Azure AD 账号登录。",
@@ -790,6 +1014,8 @@ export const zhCNServer = {
     inventoryBetterForSniWarning: "现有证书库更适合后续多证书/SNI 部署。",
   },
   cloudflared: {
+    configReadFailed: "读取 Cloudflared 配置失败",
+    configWriteFailed: "保存 Cloudflared 配置失败",
     missingToken: "请先配置 Cloudflare Token",
     startFailedWithDetail: "启动 cloudflared 失败: {detail}",
     processExited: "cloudflared 进程已退出",
@@ -799,6 +1025,10 @@ export const zhCNServer = {
     unknownError: "未知错误",
     notInitialized: "Cloudflared 未初始化",
     startFailed: "启动失败",
+    stopFailed: "停止 Cloudflared 失败",
+    logsListFailed: "读取 Cloudflared 日志失败",
+    logsClearFailed: "清空 Cloudflared 日志失败",
+    logsPollFailed: "轮询 Cloudflared 日志失败",
   },
   dnsmasq: {
     notDetectedInstallFirst: "未检测到 dnsmasq，请先完成安装",
@@ -890,9 +1120,12 @@ export const zhCNServer = {
       macAutoDownloadUnsupported:
         "MAC 平台暂不支持自动下载应用，请手动通过 brew install cloudflared 安装。",
       platformUnsupported: "当前平台不受支持",
+      downloadStarted: "已开始下载 Cloudflared",
       responseBodyUnreadable: "下载响应体不可读",
       downloadCancelled: "下载已取消",
       unknownError: "未知错误",
+      deleteSuccess: "Cloudflared 已删除",
+      deleteFailed: "删除 Cloudflared 失败：{detail}",
       macManualRemove: "MAC 平台请手动移除 cloudflared",
       notInstalledBrew:
         "Cloudflared 未安装，请先通过 brew install cloudflared 安装",
@@ -902,11 +1135,14 @@ export const zhCNServer = {
       platformUnsupported: "当前平台不受支持",
       packageMissing: "FRP 安装包缺失",
       extractFailed: "解压失败，退出码 {code}",
+      downloadStarted: "已开始下载 FRP",
       responseBodyUnreadable: "下载响应体不可读",
       connectionFailed: "连接失败",
       downloadFailed: "下载失败：{detail}",
       unknownError: "未知错误",
       downloadCancelled: "下载已取消",
+      deleteSuccess: "FRP 已删除",
+      deleteFailed: "删除 FRP 失败：{detail}",
       notInitialized: "FRP 未初始化，请先下载",
     },
   },
@@ -927,6 +1163,10 @@ export const zhCNServer = {
     primaryDeleteDenied: "主 FRP 实例不允许删除",
     notInitialized: "FRP 未初始化",
     startFailedWithDetail: "启动 frpc 失败: {detail}",
+    pidReadFailed: "读取 frpc PID 失败",
+    startedWithPid: "frpc 已启动 pid={pid}",
+    stoppedWithPid: "frpc 已停止 pid={pid}",
+    alreadyStopped: "frpc 已停止",
     pidCleanedForInstance: "PID 不属于该实例，已清理本实例运行记录",
     resumeOnBoot: "resume: 检测到该 FRP 实例上次为开启状态，正在自动恢复...",
     routes: {
@@ -960,9 +1200,55 @@ export const zhCNServer = {
     resetFailed: "[fn-knock] 清理管理面板密码失败:",
   },
   passkeyRoutes: {
-    notFoundWithRetry: "Passkey not found，请在 {seconds} 秒后重试",
+    notFoundWithRetry: "未找到 Passkey，请在 {seconds} 秒后重试",
     verifyFailedWithRetry: "验证失败，请在 {seconds} 秒后重试",
     bindTokenExpired: "绑定凭证已失效",
+    loadStatusFailed: "加载 Passkey 状态失败",
+    createOptionsFailed: "创建 Passkey 登录选项失败",
+    loadPasskeysFailed: "加载 Passkey 列表失败",
+    noPasskeyAvailable: "暂无可用 Passkey",
+    noValidPasskeyAvailable: "暂无有效 Passkey",
+    invalidRpConfig: "Passkey RP 配置无效",
+    invalidResponse: "Passkey 响应无效",
+    challengeExpired: "Passkey 挑战已过期",
+    verifyFailed: "Passkey 验证失败",
+    notFound: "未找到 Passkey",
+    createSessionFailed: "创建登录会话失败",
+    loginSuccessful: "登录成功",
+    unauthorizedOrMissingTotp: "未授权或缺少 TOTP ID",
+    createBindTokenFailed: "创建 Passkey 绑定令牌失败",
+    createRegistrationOptionsFailed: "创建 Passkey 注册选项失败",
+    registerFailed: "注册 Passkey 失败",
+    registrationFailed: "Passkey 注册验证失败",
+    alreadyRegistered: "Passkey 已注册",
+    unknownDevice: "未知设备",
+  },
+  authRoutes: {
+    pathNotFound: "认证接口不存在",
+    loadBootstrapFailed: "加载认证启动信息失败",
+    authenticationRequired: "需要先完成认证",
+    loadSessionFailed: "加载认证会话失败",
+    loadCaptchaConfigFailed: "加载验证码配置失败",
+    createCaptchaChallengeFailed: "创建验证码挑战失败",
+    loadOidcProvidersFailed: "加载外部登录提供商失败",
+    loadOidcInviteFailed: "加载外部账号邀请失败",
+    inspectOidcInviteFailed: "检查外部账号邀请失败",
+    loadAuthConfigFailed: "加载认证配置失败",
+    loadLoginCredentialsFailed: "加载登录凭据失败",
+    createSessionFailed: "创建认证会话失败",
+    loginSuccessful: "登录成功",
+    verifyFailed: "验证认证状态失败",
+    localNetworkAccessAllowed: "已允许内网访问",
+    authenticated: "已认证",
+    invalidCaptchaProof: "验证码 proof 无效",
+    invalidCaptchaAlgorithm: "验证码算法无效",
+    invalidCaptchaChallenge: "验证码挑战无效",
+    invalidCaptchaSignature: "验证码签名无效",
+    captchaChallengeExpired: "验证码挑战已过期",
+    captchaChallengeAlreadyUsed: "验证码挑战已被使用",
+    captchaVerifyFailed: "验证码校验失败",
+    turnstileResponseInvalid: "Turnstile 响应无效",
+    unknownTotp: "未知 TOTP",
   },
   maintenanceBackup: {
     commandMissing: "系统环境缺少 {command} 命令",
@@ -984,6 +1270,7 @@ export const zhCNServer = {
     invalidRedisStreamData: "Redis stream 数据格式无效: {key} ({id})",
     unsupportedRedisExportType: "不支持导出的 Redis 数据类型: {type} ({key})",
     createArchiveFailed: "生成备份归档失败",
+    buildResponseFailed: "生成备份下载响应失败",
     invalidBackupExtension: "备份文件扩展名必须为 {extension}",
     stringArrayRequired: "{label} 必须是字符串数组",
     stringArrayOnlyStrings: "{label} 只能包含字符串",
@@ -1013,6 +1300,7 @@ export const zhCNServer = {
     archiveMissingPayload: "备份归档中缺少 {filename}",
     archivePasswordInvalid: "备份归档密码校验失败",
     readArchiveFailed: "读取 .knock 备份归档失败",
+    payloadUtf8Invalid: "备份文件内容不是有效的 UTF-8 文本",
     writeRedisFailed: "写入 Redis 备份数据失败",
     unknownError: "未知错误",
     syncSteps: {
@@ -1024,6 +1312,9 @@ export const zhCNServer = {
       systemResourceMonitorReset: "系统资源监控状态重置",
     },
     archiveEmpty: "备份归档内容为空",
+    archiveTooLarge: "备份归档过大，无法导入",
+    directoryImportFileNotFound: "未找到要导入的备份文件",
+    directoryImportFileUnreadable: "无法读取要导入的备份文件",
     directoryImportFileOnly: "只能导入备份目录中的文件",
     directoryImportExtensionOnly: "仅支持导入 {extension} 备份文件",
     directoryImportTooLarge: "备份文件过大，无法从飞牛目录导入",
@@ -1044,6 +1335,16 @@ export const zhCNServer = {
     powUnavailable: "当前 PoW 验证码不可用",
     providerConfigMismatch: "验证码提供商与当前配置不一致",
   },
+  hmac: {
+    missingTimestamp: "缺少 HMAC 时间戳",
+    missingNonce: "缺少 HMAC nonce",
+    missingSignature: "缺少 HMAC 签名",
+    timestampExpired: "HMAC 时间戳已过期",
+    invalidKey: "HMAC 密钥无效",
+    invalidSignature: "HMAC 签名无效",
+    nonceReused: "HMAC nonce 已被使用",
+    nonceVerifyFailed: "校验 HMAC nonce 失败",
+  },
   cidr: {
     serviceError: "CIDR 服务异常",
     emptyResponse: "<空响应>",
@@ -1055,7 +1356,9 @@ export const zhCNServer = {
     requestId: "请求 ID: {requestId}",
     responsePreview: "响应摘要: {preview}",
     provinceRequired: "省份不能为空",
+    invalidApiUrl: "CIDR API 地址无效：{error}",
     upstreamTimeout: "CIDR 上游请求超时",
+    upstreamRequestFailedGeneric: "CIDR 上游请求失败：{error}",
     upstreamRequestFailed: "CIDR 上游请求失败 ({status})",
     invalidJson: "CIDR 上游返回了无效 JSON",
     upstreamUnexpected: "CIDR 上游返回异常",
@@ -1066,6 +1369,9 @@ export const zhCNServer = {
     outbound: "出站",
     upstreamUnavailable: "上游服务不可用",
     hostRequired: "host 不能为空",
+    statsLoadFailed: "加载仪表盘统计失败",
+    configLoadFailed: "加载仪表盘配置失败",
+    displayConfigSaveFailed: "保存仪表盘展示配置失败",
   },
   acme: {
     alreadyInstalled: "acme.sh 已经安装过了",
@@ -1147,12 +1453,12 @@ export const zhCNServer = {
     requestCanceled: "请求已取消",
     curlRequestFailed: "curl 请求失败: {detail}",
     nodeTransportInterfaceAddressUnavailable:
-      "Node HTTP 请求无法绑定网卡 {name}：没有可用的 {family} 本地地址",
+      "内置 HTTP 请求无法绑定网卡 {name}：没有可用的 {family} 本地地址",
     nodeTransportInterfaceNoAddress:
-      "Node HTTP 请求无法绑定网卡 {name}：没有可用的本地地址",
-    nodeTransportUnsupportedProtocol: "Node HTTP 请求不支持协议: {protocol}",
+      "内置 HTTP 请求无法绑定网卡 {name}：没有可用的本地地址",
+    nodeTransportUnsupportedProtocol: "内置 HTTP 请求不支持协议: {protocol}",
     nodeTransportRedirectLimitExceeded:
-      "Node HTTP 请求重定向次数超过上限 {max}",
+      "内置 HTTP 请求重定向次数超过上限 {max}",
     triggerCron: "定时检查",
     triggerEnable: "启用自动更新后立即检查",
     triggerStartup: "程序启动后检查",
@@ -1191,7 +1497,13 @@ export const zhCNServer = {
     updateSuccess: "更新成功: {message}",
     updateFailed: "更新失败: {message}",
     testError: "测试异常: {message}",
+    statusLoadFailed: "读取 DDNS 状态失败",
+    toggleFailed: "更新 DDNS 启用状态失败",
+    settingsLoadFailed: "读取 DDNS 自动同步设置失败",
     settingsSaveFailed: "保存 DDNS 自动同步设置失败",
+    logsLoadFailed: "读取 DDNS 日志失败",
+    logsClearFailed: "清空 DDNS 日志失败",
+    pollFailed: "轮询 DDNS 日志与状态失败",
     providerSetFailed: "设置提供商失败",
     configSaveFailed: "保存 DDNS 配置失败",
     createTargetFailed: "创建 DDNS 条目失败",
@@ -1213,6 +1525,54 @@ export const zhCNServer = {
           },
           ttl: {
             description: "默认 {seconds} 秒",
+          },
+          access_key_id: {
+            label: "访问密钥 ID",
+            description: "云服务商访问密钥 ID，请授予 DNS 解析记录读写权限",
+          },
+          access_key_secret: {
+            label: "访问密钥 Secret",
+            description: "与访问密钥 ID 配套的密钥 Secret，请妥善保管",
+          },
+          secret_access_key: {
+            label: "访问密钥 Secret",
+            description: "与访问密钥 ID 配套的密钥 Secret，请妥善保管",
+          },
+          secret_id: {
+            label: "SecretId（密钥 ID）",
+            description: "腾讯云 API 访问密钥 SecretId，需具备对应 DNS 服务权限",
+          },
+          secret_key: {
+            label: "SecretKey（密钥）",
+            description: "与 SecretId 配套的腾讯云 API 密钥 SecretKey",
+          },
+          api_key: {
+            label: "API 密钥",
+            description: "服务商控制台生成的 API Key",
+          },
+          api_secret: {
+            label: "API Secret（密钥）",
+            description: "与 API Key 配套的 API Secret",
+          },
+          secret_api_key: {
+            label: "Secret API Key（密钥）",
+            description: "Porkbun 控制台生成的 Secret API Key",
+          },
+          api_token: {
+            label: "API 令牌",
+            description: "服务商控制台生成的 API Token",
+          },
+          token_id: {
+            label: "Token ID（令牌 ID）",
+            description: "DNSPod 控制台生成的 API Token ID",
+          },
+          token_key: {
+            label: "Token Key（令牌密钥）",
+            description: "DNSPod 控制台生成的 API Token Key",
+          },
+          zone_id: {
+            label: "Zone ID（区域 ID）",
+            description: "服务商控制台中的 Zone 或站点 ID",
           },
         },
       },
@@ -1319,6 +1679,7 @@ export const zhCNServer = {
         requestFailed: "请求失败",
         updateFailed: "更新失败",
         createFailed: "创建失败",
+        recordIdMissing: "阿里云 DNS 返回的记录缺少 RecordId",
       },
       baidu: {
         label: "百度云 DNS",
@@ -1351,6 +1712,7 @@ export const zhCNServer = {
         requestFailed:
           "华为云 DNS 请求失败: HTTP {status} {statusText}, {detail}",
         zoneNotFound: "未找到华为云 Zone: {zone}",
+        recordsetIdMissing: "华为云 DNS 返回的记录集缺少 ID",
       },
       tencentcloud: {
         label: "腾讯云 DNS",
@@ -1601,6 +1963,9 @@ export const zhCNServer = {
     maxHostsExceeded: "单次最多扫描 {max} 台主机",
     selectAtLeastOneCidr: "请选择至少一个本地 IPv4 扫描网段",
     scanJobNotFound: "扫描任务不存在或已过期",
+    loadTargetsFailed: "读取扫描目标失败",
+    loadConfigFailed: "读取配置失败",
+    saveTargetsFailed: "保存扫描目标失败",
     targetLabels: {
       docker: "{cidr}（Docker 宿主机局域网）",
       loopback: "{cidr}（本机回环）",
@@ -1637,10 +2002,12 @@ export const zhCNServer = {
     clearFirewallUnavailable: "当前环境不可清空 SSH 防火墙",
     logSourceUnavailableShort: "SSH 日志源不可用",
     customCidrInvalid: "自定义 CIDR 格式不正确：{cidrs}",
+    customCidrsMustBeArray: "custom_cidrs 必须是数组",
     syncSshPolicyFailed: "同步 SSH 专用防火墙规则失败",
     clearSshPolicyFailed: "清空 SSH 专用防火墙规则失败",
     blockRecordInvalid: "封锁记录格式不正确",
     routes: {
+      loadConfigFailed: "加载 SSH 安全配置失败",
       updateConfigFailed: "更新 SSH 安全配置失败",
       syncFirewallSuccess:
         "已同步 {allowedCidrs} 条允许 CIDR 与 {synced} 个 SSH 封锁 IP 到 {ports} 端口",
@@ -1648,10 +2015,28 @@ export const zhCNServer = {
       clearFirewallSuccess: "已清空 SSH 专用防火墙规则",
       clearFirewallFailed: "清空 SSH 防火墙失败",
       readLoginLogsFailed: "读取 SSH 登录日志失败",
+      listBlocksFailed: "获取 SSH 封锁列表失败",
       blockNotFound: "封锁记录不存在",
+      loadBlockFailed: "读取 SSH 封锁记录失败",
       removeBlockFailed: "解除封锁失败",
       selectIps: "请选择要解除封锁的 IP",
       removeBlocksFailed: "批量解除封锁失败",
+    },
+  },
+  systemEvents: {
+    routes: {
+      unsupportedSystemEventType: "不支持的系统事件类型",
+      unsupportedSystemEventSource: "不支持的系统事件来源",
+      unsupportedSystemEventLevel: "不支持的系统事件级别",
+      unsupportedSubjectKind: "不支持的事件主体类型",
+      unsupportedEventType: "不支持的事件类型",
+      unsupportedEventLevel: "不支持的事件级别",
+      unsupportedEventSource: "不支持的事件来源",
+      loadConfigFailed: "加载系统事件配置失败",
+      writeEventFailed: "写入系统事件失败",
+      listEventsFailed: "获取系统事件列表失败",
+      deleteEventsFailed: "删除系统事件失败",
+      clearEventsFailed: "清空系统事件失败",
     },
   },
   notifications: {
@@ -2176,6 +2561,7 @@ export const zhCNServer = {
           },
         },
         pushplus: {
+          label: "PushPlus 推送",
           description:
             "通过 PushPlus 标准发送接口推送通知，可按规则选择公众号、App、邮件等渠道。",
           fields: {
@@ -2184,6 +2570,7 @@ export const zhCNServer = {
               description: "官方接口保持默认值即可。",
             },
             token: {
+              label: "令牌",
               description: "PushPlus 的用户 token 或消息 token，请妥善保管。",
             },
             timeout_seconds: {
@@ -2199,7 +2586,10 @@ export const zhCNServer = {
               description:
                 "默认使用 Markdown；如果目标渠道更适合纯文本或 HTML，也可以单独切换。",
               options: {
+                markdown: "Markdown 富文本",
+                html: "HTML 网页",
                 txt: "纯文本",
+                json: "JSON 原始数据",
               },
             },
             channel: {
@@ -2214,6 +2604,7 @@ export const zhCNServer = {
                 sms: "短信",
                 voice: "语音",
                 extension: "插件 / 桌面程序",
+                app: "App 应用",
                 clawbot: "微信 ClawBot",
               },
             },
@@ -2248,6 +2639,7 @@ export const zhCNServer = {
           },
         },
         wxpusher: {
+          label: "WxPusher 推送",
           description:
             "通过 WxPusher 标准推送接口向指定 UID 或 Topic 发送消息通知；规则 target 留空时会继承提供商里的默认目标配置。",
           fields: {
@@ -2256,6 +2648,7 @@ export const zhCNServer = {
               description: "官方服务保持默认值即可。",
             },
             app_token: {
+              label: "AppToken",
               description: "WxPusher 后台应用的 AppToken，请妥善保管。",
             },
             timeout_seconds: {
@@ -2312,6 +2705,7 @@ export const zhCNServer = {
           },
         },
         bark: {
+          label: "Bark 推送",
           description:
             "通过 Bark 官方在线版或自建 Bark Server 向 iPhone 发送 APNs 推送通知。",
           fields: {
@@ -2321,6 +2715,7 @@ export const zhCNServer = {
                 "官方在线版保持默认值即可；如果你使用自建 Bark Server，则填写服务根地址。",
             },
             device_key: {
+              label: "设备 Key",
               description:
                 "Bark App 中复制的设备 Key。可填写多个 key，并用英文逗号分隔。",
             },
@@ -2331,6 +2726,12 @@ export const zhCNServer = {
               label: "通知级别",
               description:
                 "active 为默认即时提醒；timeSensitive 可穿透专注模式；critical 为关键提醒。",
+              options: {
+                active: "即时提醒",
+                timeSensitive: "时效性通知",
+                passive: "静默通知",
+                critical: "关键提醒",
+              },
             },
             group: {
               label: "消息分组",
@@ -2378,6 +2779,7 @@ export const zhCNServer = {
               description: "官方接口保持默认值即可。",
             },
             sendkey: {
+              label: "SendKey",
               description: "Server酱·Turbo 提供的 SendKey，请妥善保管。",
             },
             timeout_seconds: {
@@ -2389,6 +2791,7 @@ export const zhCNServer = {
                 "可选。动态指定本次推送的通道，最多两个值，使用 | 分隔，例如 9|66。",
             },
             openid: {
+              label: "OpenID / UID",
               description:
                 "可选。测试号使用 openid，企业微信应用消息使用接收人的 UID；多个值请按 Server酱 文档格式填写。",
               placeholder: "openid1,openid2 或 uid1|uid2",
@@ -2419,6 +2822,7 @@ export const zhCNServer = {
             "通过钉钉机器人 Webhook 向群聊发送 Markdown 通知，并支持加签校验。",
           fields: {
             webhook_url: {
+              label: "Webhook 地址",
               description: "钉钉机器人生成的完整 Webhook 地址。",
             },
             secret: {
@@ -2467,6 +2871,7 @@ export const zhCNServer = {
             "通过飞书机器人 Webhook 向群聊发送 post 富文本通知，并支持签名校验。",
           fields: {
             webhook_url: {
+              label: "Webhook 地址",
               description: "飞书机器人生成的完整 Webhook 地址。",
             },
             secret: {
@@ -2500,9 +2905,11 @@ export const zhCNServer = {
           },
         },
         webhook: {
+          label: "Webhook 通知",
           description: "向任意支持 HTTP JSON 的地址发送标准通知消息。",
           fields: {
             url: {
+              label: "Webhook 地址",
               description: "接收标准通知 JSON 的目标地址。",
             },
             method: {
@@ -2555,6 +2962,7 @@ export const zhCNServer = {
               },
             },
             token: {
+              label: "令牌",
               description:
                 "MagicPush 接口令牌。标准推送会通过 Authorization: Bearer 发送；入站配置会拼接到 /api/inbound/:token。",
             },
@@ -2574,6 +2982,7 @@ export const zhCNServer = {
           },
         },
         telegram: {
+          label: "Telegram 机器人",
           description:
             "通过 Telegram Bot API 向指定聊天或频道发送文本通知，并附带内联操作按钮。",
           fields: {
@@ -2583,9 +2992,11 @@ export const zhCNServer = {
                 "官方 Bot API 保持默认值即可；如果由于网络因素无法访问官方地址，可以填写 https://tgapi.fnknock.cn 代为转发；如果你使用自建 Local Bot API Server，也可以填写其根地址。",
             },
             bot_token: {
+              label: "Bot 令牌",
               description: "通过 @BotFather 创建机器人后获取的 Bot Token。",
             },
             chat_id: {
+              label: "聊天 ID",
               description:
                 "目标聊天 ID，或频道用户名（如 @channelusername）。可以先向 @UserIdzhBot 发送消息来获取 Chat ID；测试发送也会使用这个目标。",
             },
@@ -2593,6 +3004,7 @@ export const zhCNServer = {
               label: "超时秒数",
             },
             message_thread_id: {
+              label: "话题 ID",
               description:
                 "可选。发送到群组话题时填写对应的话题 ID（message_thread_id）。",
             },
@@ -2617,6 +3029,7 @@ export const zhCNServer = {
             "通过企业微信消息推送（群 Webhook）向指定群聊发送 text 或 markdown 通知。",
           fields: {
             webhook_url: {
+              label: "Webhook 地址",
               description:
                 "企业微信消息推送页面生成的完整 Webhook 地址，请妥善保管。",
             },
@@ -2644,6 +3057,7 @@ export const zhCNServer = {
           },
         },
         pushdeer: {
+          label: "PushDeer 推送",
           description:
             "通过 PushDeer 官方在线版或自建服务向已绑定设备发送 Markdown 通知。",
           fields: {
@@ -2653,6 +3067,7 @@ export const zhCNServer = {
                 "官方在线版保持默认值即可；如果你使用自建 PushDeer，则填写自建服务根地址。",
             },
             pushkey: {
+              label: "PushKey",
               description:
                 "PushDeer 客户端中生成的 PushKey。可填写多个 key，并用英文逗号分隔。",
             },
@@ -2686,6 +3101,7 @@ export const zhCNServer = {
     },
     service: {
       unnamed: "未命名",
+      invalidJsonBody: "请求体必须是合法 JSON",
       invalidJson: "{field} 必须是合法 JSON",
       invalidSelectValue: "{field} 取值不合法",
       fieldRequired: "{field} 不能为空",
@@ -2702,10 +3118,13 @@ export const zhCNServer = {
       },
       providerNotFound: "通知提供商不存在",
       unsupportedProviderType: "不支持的通知提供商类型",
+      invalidProviderRecord: "通知提供商记录无效",
       providerDefinitionMissing: "通知提供商定义不存在",
       providerReferencedByRule: "该提供商仍被规则「{rule}」引用",
       testSendFailed: "测试发送失败",
       testSendSuccess: "测试发送成功",
+      providerRequestReturnedStatus: "{provider} 请求返回状态 {status}",
+      barkPartialFailed: "Bark {failed}/{total} 个目标发送失败",
       providerTypeMismatch: "提供商类型与已有配置不一致",
       providerTestName: "{provider} 测试",
       ruleProviderMissing: "规则引用了不存在的通知提供商",
@@ -2718,7 +3137,9 @@ export const zhCNServer = {
       targetRequired: "至少需要绑定一个通知目标",
       duplicateEventRule: "该事件已有通知规则，请先删除原规则",
       ruleNotFound: "通知规则不存在",
+      invalidRuleRecord: "通知规则记录无效",
       deletedProvider: "已删除提供商",
+      storageUnavailable: "通知存储暂不可用",
     },
   },
 };

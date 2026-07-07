@@ -1,4 +1,4 @@
 #!/usr/bin/env sh
 set -eu
 
-exec node /opt/fn-knock/server/server-admin/reset-docker-admin-panel.js "$@"
+exec /opt/fn-knock/bin/server-admin-rs reset-panel-password "$@"

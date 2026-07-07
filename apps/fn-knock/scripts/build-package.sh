@@ -2,13 +2,14 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+source "${ROOT_DIR}/scripts/version.sh"
 REMOTE_HOST="${FN_KNOCK_REMOTE_HOST:-root@192.168.31.98}"
 REMOTE_DIR="${FN_KNOCK_REMOTE_DIR:-/tmp/fn-knock-fpk}"
 LOCAL_FPK_PATH="${FN_KNOCK_LOCAL_FPK_PATH:-apps/fn-knock/dist/fn-knock.fpk}"
 APP_NAME="${FN_KNOCK_APP_NAME:-fn-knock}"
 REMOTE_FPK_AMD64_PATH="${REMOTE_DIR}/${APP_NAME}-amd64.fpk"
 REMOTE_FPK_ARM64_PATH="${REMOTE_DIR}/${APP_NAME}-arm64.fpk"
-VERSION_FILE="${ROOT_DIR}/apps/server-admin/src/lib/app-version.ts"
+VERSION_FILE="${ROOT_DIR}/version.json"
 MANIFEST_FILE="${ROOT_DIR}/apps/fn-knock/manifest"
 
 derive_arch_fpk_path() {
@@ -32,63 +33,115 @@ derive_arch_fpk_path() {
 
 LOCAL_FPK_AMD64_PATH="$(derive_arch_fpk_path "${LOCAL_FPK_PATH}" "amd64")"
 LOCAL_FPK_ARM64_PATH="$(derive_arch_fpk_path "${LOCAL_FPK_PATH}" "arm64")"
+RUST_BACKEND_OUTPUT_DIR="${ROOT_DIR}/dist/fn-knock-rust-backends"
+FPK_ARCHES=()
 
-sync_manifest_version() {
-  if [ ! -f "${VERSION_FILE}" ]; then
-    echo "[fn-knock] Missing version file: ${VERSION_FILE}" >&2
+read_fpk_arches() {
+  local raw="${FN_KNOCK_FPK_ARCHES:-amd64 arm64}"
+  raw="${raw//,/ }"
+
+  local arch
+  local normalized
+  local seen=" "
+
+  for arch in ${raw}; do
+    case "${arch}" in
+      amd64|x86|x86_64)
+        normalized="amd64"
+        ;;
+      arm64|aarch64)
+        normalized="arm64"
+        ;;
+      *)
+        echo "[fn-knock] Invalid FPK architecture: ${arch}; expected amd64/x86 or arm64" >&2
+        exit 1
+        ;;
+    esac
+
+    case "${seen}" in
+      *" ${normalized} "*) ;;
+      *)
+        FPK_ARCHES+=("${normalized}")
+        seen="${seen}${normalized} "
+        ;;
+    esac
+  done
+
+  if [ "${#FPK_ARCHES[@]}" -eq 0 ]; then
+    echo "[fn-knock] FPK architecture list is empty" >&2
     exit 1
   fi
+}
 
-  if [ ! -f "${MANIFEST_FILE}" ]; then
-    echo "[fn-knock] Missing manifest file: ${MANIFEST_FILE}" >&2
-    exit 1
+fpk_arch_enabled() {
+  local target="$1"
+  local arch
+
+  for arch in "${FPK_ARCHES[@]}"; do
+    if [ "${arch}" = "${target}" ]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+detect_cpu_count() {
+  local count
+
+  count="$(getconf _NPROCESSORS_ONLN 2>/dev/null || true)"
+  if [ -z "${count}" ]; then
+    count="$(sysctl -n hw.logicalcpu 2>/dev/null || true)"
+  fi
+  if ! printf '%s\n' "${count}" | grep -Eq '^[1-9][0-9]*$'; then
+    count="1"
   fi
 
-  local app_version
-  app_version="$(sed -nE 's/^[[:space:]]*export[[:space:]]+const[[:space:]]+APP_LOCAL_VERSION[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' "${VERSION_FILE}" | head -n1)"
-  if [ -z "${app_version}" ]; then
-    echo "[fn-knock] Failed to parse APP_LOCAL_VERSION from ${VERSION_FILE}" >&2
-    exit 1
+  echo "${count}"
+}
+
+configure_rust_build_parallelism() {
+  local parallel_release="${FN_KNOCK_RUST_PARALLEL_RELEASE:-0}"
+  local cpu_count
+
+  if [ -n "${CARGO_BUILD_JOBS:-}" ]; then
+    echo "[fn-knock] Cargo build jobs: ${CARGO_BUILD_JOBS}"
+  elif [ "${parallel_release}" = "1" ]; then
+    cpu_count="$(detect_cpu_count)"
+    export CARGO_BUILD_JOBS="${cpu_count}"
+    echo "[fn-knock] Cargo build jobs: ${CARGO_BUILD_JOBS}"
   fi
 
-  local current_manifest_version
-  current_manifest_version="$(sed -nE 's/^version=(.*)$/\1/p' "${MANIFEST_FILE}" | head -n1)"
-
-  if [ "${current_manifest_version}" = "${app_version}" ]; then
-    echo "[fn-knock] Manifest version is already up to date: ${app_version}"
+  if [ "${parallel_release}" != "1" ]; then
     return
   fi
 
-  local tmp_manifest
-  tmp_manifest="$(mktemp)"
-  awk -v version="${app_version}" '
-    BEGIN { updated = 0 }
-    /^version=/ {
-      print "version=" version
-      updated = 1
-      next
-    }
-    { print }
-    END {
-      if (!updated) {
-        print "version=" version
-      }
-    }
-  ' "${MANIFEST_FILE}" > "${tmp_manifest}"
-  mv "${tmp_manifest}" "${MANIFEST_FILE}"
+  cpu_count="${CARGO_BUILD_JOBS:-$(detect_cpu_count)}"
+  export CARGO_PROFILE_RELEASE_LTO="${CARGO_PROFILE_RELEASE_LTO:-thin}"
+  export CARGO_PROFILE_RELEASE_CODEGEN_UNITS="${CARGO_PROFILE_RELEASE_CODEGEN_UNITS:-${cpu_count}}"
 
-  echo "[fn-knock] Synced manifest version: ${current_manifest_version:-<empty>} -> ${app_version}"
+  echo "[fn-knock] Parallel release profile: lto=${CARGO_PROFILE_RELEASE_LTO}, codegen-units=${CARGO_PROFILE_RELEASE_CODEGEN_UNITS}"
+}
+
+sync_manifest_version() {
+  fn_knock_sync_manifest_version "${ROOT_DIR}" "${MANIFEST_FILE}" "[fn-knock]"
+  fn_knock_sync_rust_package_version "${ROOT_DIR}" "[fn-knock]"
 }
 
 build_package_assets() {
   cd "${ROOT_DIR}"
 
-  echo "[fn-knock] Syncing manifest version from server-admin app version..."
+  echo "[fn-knock] Target FPK architectures: ${FPK_ARCHES[*]}"
+  echo "[fn-knock] Syncing derived versions from version.json..."
   sync_manifest_version
   RUNTIME_DIR="${ROOT_DIR}/dist/fn-knock-runtime"
 
   echo "[fn-knock] Building shared runtime assets..."
-  bash "${ROOT_DIR}/scripts/assemble-runtime.sh" "${RUNTIME_DIR}"
+  FN_KNOCK_BUILD_RUST_BACKEND=0 \
+    FN_KNOCK_RUNTIME_GATEWAY_ARCHES="${FPK_ARCHES[*]}" \
+    bash "${ROOT_DIR}/scripts/assemble-runtime.sh" "${RUNTIME_DIR}"
+
+  build_fpk_rust_backends
 
   PKG_DIR="${ROOT_DIR}/apps/fn-knock/app"
   ADMIN_WWW_DIR="${PKG_DIR}/ui/www"
@@ -98,6 +151,10 @@ build_package_assets() {
 
   echo "[fn-knock] Preparing package directories..."
   mkdir -p "${ADMIN_WWW_DIR}" "${AUTH_DIST_DIR}" "${SERVER_ADMIN_DIR}" "${SERVER_DIR}"
+  rm -f \
+    "${SERVER_DIR}/server-admin-rs" \
+    "${SERVER_DIR}"/server-admin-rs-linux-* \
+    "${SERVER_DIR}"/go-reauth-proxy-linux-*
 
   echo "[fn-knock] Syncing server-admin-view dist -> app/ui/www"
   rsync -a --delete "${RUNTIME_DIR}/ui/www/" "${ADMIN_WWW_DIR}/"
@@ -105,30 +162,283 @@ build_package_assets() {
   echo "[fn-knock] Syncing server-auth-view dist -> app/server-auth-view/dist"
   rsync -a --delete "${RUNTIME_DIR}/server-auth-view/dist/" "${AUTH_DIST_DIR}/"
 
-  echo "[fn-knock] Syncing server-admin dist -> app/server/server-admin"
+  echo "[fn-knock] Syncing ACME resources -> app/server/server-admin"
   rsync -a --delete "${RUNTIME_DIR}/server/server-admin/" "${SERVER_ADMIN_DIR}/"
 
-  echo "[fn-knock] Copying gateway binaries"
-  cp "${RUNTIME_DIR}/server/go-reauth-proxy-linux-amd64" "${SERVER_DIR}/go-reauth-proxy-linux-amd64"
-  cp "${RUNTIME_DIR}/server/go-reauth-proxy-linux-arm64" "${SERVER_DIR}/go-reauth-proxy-linux-arm64"
+  echo "[fn-knock] Copying Rust server-admin backend binaries"
+  for arch in "${FPK_ARCHES[@]}"; do
+    cp "${RUST_BACKEND_OUTPUT_DIR}/server-admin-rs-linux-${arch}" "${SERVER_DIR}/server-admin-rs-linux-${arch}"
+  done
+  cp "${RUST_BACKEND_OUTPUT_DIR}/server-admin-rs-linux-${FPK_ARCHES[0]}" "${SERVER_DIR}/server-admin-rs"
 
-  chmod +x \
+  echo "[fn-knock] Copying gateway binaries"
+  for arch in "${FPK_ARCHES[@]}"; do
+    cp "${RUNTIME_DIR}/server/go-reauth-proxy-linux-${arch}" "${SERVER_DIR}/go-reauth-proxy-linux-${arch}"
+  done
+
+  local chmod_targets=(
     "${ROOT_DIR}/apps/fn-knock/cmd/main" \
     "${ROOT_DIR}/apps/fn-knock/app/ui/index.cgi" \
-    "${SERVER_DIR}/go-reauth-proxy-linux-amd64" \
-    "${SERVER_DIR}/go-reauth-proxy-linux-arm64"
+    "${SERVER_DIR}/server-admin-rs"
+  )
+  for arch in "${FPK_ARCHES[@]}"; do
+    chmod_targets+=(
+      "${SERVER_DIR}/server-admin-rs-linux-${arch}"
+      "${SERVER_DIR}/go-reauth-proxy-linux-${arch}"
+    )
+  done
+  chmod +x "${chmod_targets[@]}"
 
   echo "[fn-knock] Package assets are ready under apps/fn-knock/app"
+}
+
+build_fpk_rust_backends() {
+  if [ "${FN_KNOCK_FPK_BUILD_RUST_BACKENDS:-1}" != "1" ]; then
+    echo "[fn-knock] Skipping Linux Rust backend build (FN_KNOCK_FPK_BUILD_RUST_BACKENDS=0)"
+    return
+  fi
+
+  mkdir -p "${RUST_BACKEND_OUTPUT_DIR}"
+  configure_rust_build_parallelism
+
+  local builder="${FN_KNOCK_FPK_RUST_BUILDER:-auto}"
+  if [ "${builder}" = "auto" ]; then
+    if command -v zig >/dev/null 2>&1 && cargo zigbuild --version >/dev/null 2>&1; then
+      builder="zig"
+    else
+      builder="docker"
+    fi
+  fi
+
+  case "${builder}" in
+    zig)
+      for arch in "${FPK_ARCHES[@]}"; do
+        case "${arch}" in
+          amd64)
+            build_fpk_rust_backend_with_zig "amd64" "x86_64-unknown-linux-gnu"
+            ;;
+          arm64)
+            build_fpk_rust_backend_with_zig "arm64" "aarch64-unknown-linux-gnu"
+            ;;
+        esac
+      done
+      ;;
+    docker)
+      if ! command -v docker >/dev/null 2>&1; then
+        echo "[fn-knock] Docker is required to build Linux Rust backend binaries for FPK packaging when Zig is unavailable" >&2
+        exit 1
+      fi
+      for arch in "${FPK_ARCHES[@]}"; do
+        case "${arch}" in
+          amd64)
+            build_fpk_rust_backend_with_docker "amd64" "linux/amd64"
+            ;;
+          arm64)
+            build_fpk_rust_backend_with_docker "arm64" "linux/arm64"
+            ;;
+        esac
+      done
+      ;;
+    *)
+      echo "[fn-knock] Unsupported FN_KNOCK_FPK_RUST_BUILDER=${builder}; expected auto, zig, or docker" >&2
+      exit 1
+      ;;
+  esac
+}
+
+build_fpk_rust_backend_with_docker() {
+  local arch="$1"
+  local platform="$2"
+  local out_bin="${RUST_BACKEND_OUTPUT_DIR}/server-admin-rs-linux-${arch}"
+  local image="${FN_KNOCK_RUST_DOCKER_IMAGE:-rust:1-bookworm}"
+  local cargo_env_name
+  local docker_env_args=(
+    -e CARGO_HOME=/workspace/dist/cargo-home
+    -e CARGO_TARGET_DIR="/workspace/dist/server-admin-rs-target/${arch}"
+    -e FN_KNOCK_RUST_OUT="/workspace/dist/fn-knock-rust-backends/server-admin-rs-linux-${arch}"
+  )
+
+  for cargo_env_name in \
+    CARGO_BUILD_JOBS \
+    CARGO_PROFILE_RELEASE_LTO \
+    CARGO_PROFILE_RELEASE_CODEGEN_UNITS \
+    CARGO_PROFILE_RELEASE_OPT_LEVEL \
+    CARGO_PROFILE_RELEASE_INCREMENTAL \
+    RUSTFLAGS
+  do
+    if [ -n "${!cargo_env_name:-}" ]; then
+      docker_env_args+=(-e "${cargo_env_name}=${!cargo_env_name}")
+    fi
+  done
+
+  echo "[fn-knock] Building server-admin-rs for ${platform} with Docker..."
+  docker run --rm \
+    --platform "${platform}" \
+    "${docker_env_args[@]}" \
+    -v "${ROOT_DIR}:/workspace" \
+    -w /workspace \
+    "${image}" \
+    bash -lc 'export PATH=/usr/local/cargo/bin:$PATH; cargo build --release --manifest-path apps/server-admin-rs/Cargo.toml && cp "${CARGO_TARGET_DIR}/release/server-admin-rs" "${FN_KNOCK_RUST_OUT}" && { strip --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || true; }'
+
+  chmod 755 "${out_bin}"
+  optimize_rust_backend_binary "${out_bin}" "${arch}"
+  verify_linux_rust_backend "${out_bin}" "${arch}"
+  echo "[fn-knock] Prepared Rust backend ${arch}: ${out_bin}"
+}
+
+build_fpk_rust_backend_with_zig() {
+  local arch="$1"
+  local target_triple="$2"
+  local out_bin="${RUST_BACKEND_OUTPUT_DIR}/server-admin-rs-linux-${arch}"
+  local target_dir="${ROOT_DIR}/dist/server-admin-rs-target/zig-${arch}"
+  local target_arg="${target_triple}"
+  local glibc_version="${FN_KNOCK_ZIG_GLIBC_VERSION:-}"
+  local built_bin
+
+  if [ -n "${glibc_version}" ]; then
+    target_arg="${target_triple}.${glibc_version}"
+  fi
+
+  echo "[fn-knock] Building server-admin-rs for ${target_arg} with cargo-zigbuild..."
+  rustup target add "${target_triple}" >/dev/null
+  CARGO_TARGET_DIR="${target_dir}" cargo zigbuild \
+    --release \
+    --manifest-path "${ROOT_DIR}/apps/server-admin-rs/Cargo.toml" \
+    --target "${target_arg}"
+
+  built_bin="$(find "${target_dir}" -type f -path '*/release/server-admin-rs' | head -n1)"
+  if [ -z "${built_bin}" ]; then
+    echo "[fn-knock] cargo-zigbuild finished but server-admin-rs was not found under ${target_dir}" >&2
+    exit 1
+  fi
+  cp "${built_bin}" "${out_bin}"
+  chmod 755 "${out_bin}"
+  optimize_rust_backend_binary "${out_bin}" "${arch}"
+  verify_linux_rust_backend "${out_bin}" "${arch}"
+  echo "[fn-knock] Prepared Rust backend ${arch}: ${out_bin}"
+}
+
+optimize_rust_backend_binary() {
+  local bin="$1"
+  local arch="$2"
+  local before_bytes
+  local after_bytes
+
+  before_bytes="$(file_size_bytes "${bin}")"
+  maybe_compress_rust_backend_with_upx "${bin}" "${arch}"
+  after_bytes="$(file_size_bytes "${bin}")"
+
+  echo "[fn-knock] Rust backend ${arch} size: $(format_bytes "${before_bytes}") -> $(format_bytes "${after_bytes}")"
+}
+
+maybe_compress_rust_backend_with_upx() {
+  local bin="$1"
+  local arch="$2"
+  local mode="${FN_KNOCK_RUST_UPX:-auto}"
+  local upx_bin="${FN_KNOCK_UPX_BIN:-}"
+  local upx_args_string="${FN_KNOCK_RUST_UPX_ARGS:---best --lzma}"
+  local upx_args
+
+  case "${mode}" in
+    0|false|False|FALSE|no|No|NO|off|Off|OFF)
+      echo "[fn-knock] Skipping UPX compression for ${arch} (FN_KNOCK_RUST_UPX=${mode})"
+      return
+      ;;
+    auto|1|true|True|TRUE|yes|Yes|YES|on|On|ON|required)
+      ;;
+    *)
+      echo "[fn-knock] Unsupported FN_KNOCK_RUST_UPX=${mode}; expected auto, 0, 1, or required" >&2
+      exit 1
+      ;;
+  esac
+
+  if [ -z "${upx_bin}" ]; then
+    upx_bin="$(command -v upx || true)"
+  fi
+
+  if [ -z "${upx_bin}" ]; then
+    if [ "${mode}" = "auto" ]; then
+      echo "[fn-knock] UPX not found; leaving Rust backend ${arch} uncompressed"
+      return
+    fi
+    echo "[fn-knock] UPX is required but was not found; install upx or set FN_KNOCK_RUST_UPX=0" >&2
+    exit 1
+  fi
+
+  read -r -a upx_args <<< "${upx_args_string}"
+  echo "[fn-knock] Compressing Rust backend ${arch} with UPX (${upx_bin} ${upx_args_string})..."
+  if ! "${upx_bin}" "${upx_args[@]}" "${bin}"; then
+    echo "[fn-knock] UPX compression failed for ${bin}; set FN_KNOCK_RUST_UPX=0 to disable compression" >&2
+    exit 1
+  fi
+  chmod 755 "${bin}"
+}
+
+file_size_bytes() {
+  wc -c < "$1" | tr -d '[:space:]'
+}
+
+format_bytes() {
+  local bytes="$1"
+  awk -v bytes="${bytes}" 'BEGIN {
+    split("B KiB MiB GiB", units, " ");
+    value = bytes + 0;
+    unit = 1;
+    while (value >= 1024 && unit < 4) {
+      value /= 1024;
+      unit++;
+    }
+    if (unit == 1) {
+      printf "%d %s", value, units[unit];
+    } else {
+      printf "%.1f %s", value, units[unit];
+    }
+  }'
+}
+
+verify_linux_rust_backend() {
+  local bin="$1"
+  local arch="$2"
+  local file_info
+
+  if [ ! -x "${bin}" ]; then
+    echo "[fn-knock] Missing executable Rust backend: ${bin}" >&2
+    exit 1
+  fi
+
+  file_info="$(file -b "${bin}")"
+  case "${arch}" in
+    amd64)
+      if ! printf '%s\n' "${file_info}" | grep -Eq 'ELF 64-bit LSB.*x86-64'; then
+        echo "[fn-knock] Rust backend ${bin} is not a Linux x86-64 ELF: ${file_info}" >&2
+        exit 1
+      fi
+      ;;
+    arm64)
+      if ! printf '%s\n' "${file_info}" | grep -Eq 'ELF 64-bit LSB.*(ARM aarch64|aarch64)'; then
+        echo "[fn-knock] Rust backend ${bin} is not a Linux arm64 ELF: ${file_info}" >&2
+        exit 1
+      fi
+      ;;
+    *)
+      echo "[fn-knock] Unsupported Rust backend arch: ${arch}" >&2
+      exit 1
+      ;;
+  esac
 }
 
 copy_remote_fpk() {
   cd "${ROOT_DIR}"
   mkdir -p "$(dirname "${LOCAL_FPK_AMD64_PATH}")"
-  echo "[fn-knock] Pulling remote FPK: ${REMOTE_HOST}:${REMOTE_FPK_AMD64_PATH} -> ${LOCAL_FPK_AMD64_PATH}"
-  scp "${REMOTE_HOST}:${REMOTE_FPK_AMD64_PATH}" "${LOCAL_FPK_AMD64_PATH}"
-  echo "[fn-knock] Pulling remote FPK: ${REMOTE_HOST}:${REMOTE_FPK_ARM64_PATH} -> ${LOCAL_FPK_ARM64_PATH}"
-  scp "${REMOTE_HOST}:${REMOTE_FPK_ARM64_PATH}" "${LOCAL_FPK_ARM64_PATH}"
-  echo "[fn-knock] FPK copied to ${LOCAL_FPK_AMD64_PATH} and ${LOCAL_FPK_ARM64_PATH}"
+  if fpk_arch_enabled "amd64"; then
+    echo "[fn-knock] Pulling remote FPK: ${REMOTE_HOST}:${REMOTE_FPK_AMD64_PATH} -> ${LOCAL_FPK_AMD64_PATH}"
+    scp "${REMOTE_HOST}:${REMOTE_FPK_AMD64_PATH}" "${LOCAL_FPK_AMD64_PATH}"
+  fi
+  if fpk_arch_enabled "arm64"; then
+    echo "[fn-knock] Pulling remote FPK: ${REMOTE_HOST}:${REMOTE_FPK_ARM64_PATH} -> ${LOCAL_FPK_ARM64_PATH}"
+    scp "${REMOTE_HOST}:${REMOTE_FPK_ARM64_PATH}" "${LOCAL_FPK_ARM64_PATH}"
+  fi
+  echo "[fn-knock] FPK copied for architectures: ${FPK_ARCHES[*]}"
 }
 
 usage() {
@@ -138,9 +448,18 @@ Usage:
 
 Commands:
   build-assets  Build and sync package assets (default)
-  copy-fpk      Copy amd64/arm64 packaged FPKs from remote host to local dist paths
+  copy-fpk      Copy packaged FPKs from remote host to local dist paths
+
+Optional env overrides:
+  FN_KNOCK_FPK_ARCHES  Space/comma list: amd64/x86 and/or arm64 (default: amd64 arm64)
+  FN_KNOCK_RUST_PARALLEL_RELEASE  Set 1 to override release LTO/codegen for more parallel builds
+  CARGO_BUILD_JOBS  Cargo job count; defaults to CPU count when FN_KNOCK_RUST_PARALLEL_RELEASE=1
+  CARGO_PROFILE_RELEASE_LTO  Optional Cargo release LTO override, e.g. thin
+  CARGO_PROFILE_RELEASE_CODEGEN_UNITS  Optional release codegen units override
 EOF
 }
+
+read_fpk_arches
 
 cmd="${1:-build-assets}"
 case "${cmd}" in

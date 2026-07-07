@@ -2,49 +2,14 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+source "${ROOT_DIR}/scripts/version.sh"
 APP_DIR="${ROOT_DIR}/apps/fn-knock-docker"
-VERSION_FILE="${ROOT_DIR}/apps/server-admin/src/lib/app-version.ts"
+VERSION_FILE="${ROOT_DIR}/version.json"
 MANIFEST_FILE="${APP_DIR}/manifest"
 
 sync_manifest_version() {
-  if [ ! -f "${VERSION_FILE}" ]; then
-    echo "[fn-knock-docker-fpk] Missing version file: ${VERSION_FILE}" >&2
-    exit 1
-  fi
-
-  local app_version
-  app_version="$(sed -nE 's/^[[:space:]]*export[[:space:]]+const[[:space:]]+APP_LOCAL_VERSION[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' "${VERSION_FILE}" | head -n1)"
-  if [ -z "${app_version}" ]; then
-    echo "[fn-knock-docker-fpk] Failed to parse APP_LOCAL_VERSION from ${VERSION_FILE}" >&2
-    exit 1
-  fi
-
-  local current_manifest_version
-  current_manifest_version="$(sed -nE 's/^version=(.*)$/\1/p' "${MANIFEST_FILE}" | head -n1)"
-
-  if [ "${current_manifest_version}" = "${app_version}" ]; then
-    echo "[fn-knock-docker-fpk] Manifest version is already up to date: ${app_version}"
-    return 0
-  fi
-
-  local tmp_manifest
-  tmp_manifest="$(mktemp)"
-  awk -v version="${app_version}" '
-    /^version=/ {
-      print "version=" version
-      updated = 1
-      next
-    }
-    { print }
-    END {
-      if (!updated) {
-        print "version=" version
-      }
-    }
-  ' "${MANIFEST_FILE}" > "${tmp_manifest}"
-  mv "${tmp_manifest}" "${MANIFEST_FILE}"
-
-  echo "[fn-knock-docker-fpk] Synced manifest version: ${current_manifest_version:-<empty>} -> ${app_version}"
+  fn_knock_sync_manifest_version "${ROOT_DIR}" "${MANIFEST_FILE}" "[fn-knock-docker-fpk]"
+  fn_knock_sync_rust_package_version "${ROOT_DIR}" "[fn-knock-docker-fpk]"
 }
 
 prepare_package() {

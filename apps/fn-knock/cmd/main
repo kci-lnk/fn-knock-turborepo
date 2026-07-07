@@ -7,14 +7,13 @@ LOG_FILE="${PKG_VAR_DIR}/info.log"
 BACKEND_PID_FILE="${PKG_VAR_DIR}/backend.pid"
 GATEWAY_PID_FILE="${PKG_VAR_DIR}/gateway.pid"
 ALTCHA_HMAC_KEY_FILE="${PKG_VAR_DIR}/altcha_hmac_key"
+HMAC_SECRET_FILE="${PKG_VAR_DIR}/hmac_secret"
+ADMIN_PROXY_SECRET_FILE="${PKG_VAR_DIR}/admin_proxy_secret"
 RUNTIME_PORT_FILE=""
 GATEWAY_CONFIG_DIR="/usr/local/etc/fn-knock/"
 
 APP_HOME="${TRIM_APPDEST:-}"
-NODE_BIN_V20="/var/apps/nodejs_v20/target/bin/node"
-NODE_BIN_V24="/var/apps/nodejs_v24/target/bin/node"
-NODE_BIN="${NODE_BIN:-}"
-BACKEND_ENTRY="${APP_HOME}/server/server-admin/index.js"
+BACKEND_ENTRY="${APP_HOME}/server/server-admin-rs"
 GATEWAY_BIN_DIR="${APP_HOME}/server"
 GATEWAY_BIN="${GATEWAY_BIN_DIR}/go-reauth-proxy-linux-amd64"
 
@@ -24,10 +23,13 @@ ACME_BUNDLE_ZIP="${APP_HOME}/server/server-admin/resources/acmesh.zip"
 PORT_PATTERN='^([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$'
 
 BACKEND_PORT=""
+ADMIN_VIEW_PORT=""
 AUTH_PORT=""
 GO_BACKEND_PORT=""
 GO_REPROXY_PORT=""
 ALTCHA_HMAC_KEY="${ALTCHA_HMAC_KEY:-}"
+HMAC_SECRET="${HMAC_SECRET:-}"
+ADMIN_PROXY_SECRET="${ADMIN_PROXY_SECRET:-}"
 ROOT_SHARE_DIR="${FN_KNOCK_ROOT_SHARE_DIR:-${FN_KNOCK_CERT_SHARE_DIR:-}}"
 
 log_msg() {
@@ -70,7 +72,7 @@ log_backend_failure_debug() {
     log_msg "[debug] app_home=${APP_HOME}"
     log_msg "[debug] data_dir=${PKG_VAR_DIR}"
     log_msg "[debug] root_share_dir=${ROOT_SHARE_DIR:-<empty>}"
-    log_msg "[debug] ports backend=${BACKEND_PORT} auth=${AUTH_PORT} go_admin=${GO_BACKEND_PORT} go_proxy=${GO_REPROXY_PORT}"
+    log_msg "[debug] ports admin_view=${ADMIN_VIEW_PORT} backend=${BACKEND_PORT} auth=${AUTH_PORT} go_admin=${GO_BACKEND_PORT} go_proxy=${GO_REPROXY_PORT}"
 
     if [ -f "${BACKEND_PID_FILE}" ]; then
         log_debug_cmd "pid_file_stat" "ls -l \"${BACKEND_PID_FILE}\""
@@ -80,9 +82,9 @@ log_backend_failure_debug() {
 
     log_debug_cmd "runtime_dir_stat" "ls -ld \"${PKG_VAR_DIR}\" \"${PKG_VAR_DIR}/frp\" \"${PKG_VAR_DIR}/cloudflared\" \"${PKG_VAR_DIR}/updates\""
     log_debug_cmd "path_stat" "ls -ld \"${APP_HOME}\" \"${ADMIN_STATIC_PATH}\" \"${AUTH_STATIC_PATH}\""
-    log_debug_cmd "binary_stat" "ls -l \"${NODE_BIN}\" \"${BACKEND_ENTRY}\" \"${GATEWAY_BIN}\""
+    log_debug_cmd "binary_stat" "ls -l \"${BACKEND_ENTRY}\" \"${GATEWAY_BIN}\""
     log_debug_cmd "data_dir_writable" "test -w \"${PKG_VAR_DIR}\" && echo writable || echo not-writable"
-    log_debug_cmd "env_subset" "env | grep -E '^(TRIM_|FN_KNOCK_ROOT_SHARE_DIR|FN_KNOCK_CERT_SHARE_DIR|BACKEND_PORT|AUTH_PORT|GO_BACKEND_PORT|GO_REPROXY_PORT|NODE_ENV|PATH)=' | sort"
+    log_debug_cmd "env_subset" "env | grep -E '^(TRIM_|FN_KNOCK_ROOT_SHARE_DIR|FN_KNOCK_CERT_SHARE_DIR|ADMIN_VIEW_PORT|BACKEND_PORT|AUTH_PORT|GO_BACKEND_PORT|GO_REPROXY_PORT|PATH)=' | sort"
     log_debug_cmd "ulimit" "ulimit -a"
 
     if [ -n "${pid}" ]; then
@@ -95,9 +97,9 @@ log_backend_failure_debug() {
     fi
 
     if command -v ss >/dev/null 2>&1; then
-        log_debug_cmd "port_occupy" "ss -lntp 2>/dev/null | grep -E \":(${BACKEND_PORT}|${AUTH_PORT}|${GO_BACKEND_PORT}|${GO_REPROXY_PORT})\\b\" || true"
+        log_debug_cmd "port_occupy" "ss -lntp 2>/dev/null | grep -E \":(${ADMIN_VIEW_PORT}|${BACKEND_PORT}|${AUTH_PORT}|${GO_BACKEND_PORT}|${GO_REPROXY_PORT})\\b\" || true"
     elif command -v netstat >/dev/null 2>&1; then
-        log_debug_cmd "port_occupy" "netstat -lntp 2>/dev/null | grep -E \":(${BACKEND_PORT}|${AUTH_PORT}|${GO_BACKEND_PORT}|${GO_REPROXY_PORT})\\b\" || true"
+        log_debug_cmd "port_occupy" "netstat -lntp 2>/dev/null | grep -E \":(${ADMIN_VIEW_PORT}|${BACKEND_PORT}|${AUTH_PORT}|${GO_BACKEND_PORT}|${GO_REPROXY_PORT})\\b\" || true"
     else
         log_msg "[debug] port_occupy: ss/netstat unavailable"
     fi
@@ -125,49 +127,6 @@ temp_log_has_message() {
         return 0
     fi
 
-    return 1
-}
-
-handle_missing_node_runtime() {
-    local message="当前未检测到可用的 Node.js 运行环境，请先前往应用商店安装 nodejs_v24 后重新启用 fn-knock"
-    log_msg "${message}"
-    write_temp_log "${message}"
-    rm -f "${BACKEND_PID_FILE}"
-    return 1
-}
-
-resolve_node_bin() {
-    local explicit_node_bin="${NODE_BIN:-}"
-
-    if [ -n "${explicit_node_bin}" ] && [ -x "${explicit_node_bin}" ]; then
-        NODE_BIN="${explicit_node_bin}"
-        log_msg "Using NODE_BIN from environment: ${NODE_BIN}"
-        return 0
-    fi
-
-    if [ -n "${explicit_node_bin}" ]; then
-        log_msg "NODE_BIN from environment is not executable: ${explicit_node_bin}; falling back to bundled Node.js runtimes"
-    fi
-
-    if [ -x "${NODE_BIN_V20}" ]; then
-        NODE_BIN="${NODE_BIN_V20}"
-        log_msg "Using bundled Node.js runtime: ${NODE_BIN}"
-        return 0
-    fi
-
-    if [ -x "${NODE_BIN_V24}" ]; then
-        NODE_BIN="${NODE_BIN_V24}"
-        log_msg "Using bundled Node.js runtime: ${NODE_BIN}"
-        return 0
-    fi
-
-    NODE_BIN="$(command -v node 2>/dev/null || true)"
-    if [ -n "${NODE_BIN}" ] && [ -x "${NODE_BIN}" ]; then
-        log_msg "Using Node.js from PATH: ${NODE_BIN}"
-        return 0
-    fi
-
-    NODE_BIN=""
     return 1
 }
 
@@ -247,6 +206,49 @@ resolve_altcha_hmac_key() {
     return 0
 }
 
+resolve_secret_value() {
+    local var_name="$1"
+    local file_path="$2"
+    local label="$3"
+    local existing=""
+    local generated=""
+
+    eval "existing=\"\${${var_name}:-}\""
+    if [ -n "${existing}" ]; then
+        return 0
+    fi
+
+    existing="$(cat "${file_path}" 2>/dev/null || true)"
+    existing="$(printf '%s' "${existing}" | tr -d '\r\n')"
+    if [ -z "${existing}" ]; then
+        generated="$(generate_random_hex 32)"
+        generated="$(printf '%s' "${generated}" | tr -d '\r\n')"
+        if [ -z "${generated}" ]; then
+            log_msg "Failed to generate ${label}"
+            echo "failed to generate ${label}" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
+            return 1
+        fi
+        if ! printf '%s' "${generated}" > "${file_path}"; then
+            log_msg "Failed to persist ${label} to ${file_path}"
+            echo "failed to persist ${label}" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
+            return 1
+        fi
+        existing="${generated}"
+        log_msg "Generated runtime ${label} at ${file_path}"
+    fi
+    chmod 600 "${file_path}" 2>/dev/null || true
+    eval "${var_name}=\"\${existing}\""
+    return 0
+}
+
+resolve_hmac_secret() {
+    resolve_secret_value "HMAC_SECRET" "${HMAC_SECRET_FILE}" "HMAC_SECRET"
+}
+
+resolve_admin_proxy_secret() {
+    resolve_secret_value "ADMIN_PROXY_SECRET" "${ADMIN_PROXY_SECRET_FILE}" "ADMIN_PROXY_SECRET"
+}
+
 resolve_root_share_dir() {
     local share_paths=""
     local selected_path=""
@@ -323,6 +325,7 @@ resolve_port() {
 
 load_runtime_ports() {
     local default_proxy_port="${TRIM_SERVICE_PORT:-7999}"
+    ADMIN_VIEW_PORT="$(resolve_port "ADMIN_VIEW_PORT" "wizard_admin_view_port" "7991")"
     BACKEND_PORT="$(resolve_port "BACKEND_PORT" "wizard_backend_port" "7998")"
     AUTH_PORT="$(resolve_port "AUTH_PORT" "wizard_auth_port" "7997")"
     GO_BACKEND_PORT="$(resolve_port "GO_BACKEND_PORT" "wizard_go_backend_port" "7996")"
@@ -339,6 +342,7 @@ write_runtime_ports_file() {
     if ! (
         umask 077
         printf '%s\n' \
+            "ADMIN_VIEW_PORT=${ADMIN_VIEW_PORT}" \
             "BACKEND_PORT=${BACKEND_PORT}" \
             "AUTH_PORT=${AUTH_PORT}" \
             "GO_BACKEND_PORT=${GO_BACKEND_PORT}" \
@@ -366,18 +370,23 @@ validate_port() {
 }
 
 validate_runtime_ports() {
+    validate_port "ADMIN_VIEW_PORT" "${ADMIN_VIEW_PORT}" || return 1
     validate_port "BACKEND_PORT" "${BACKEND_PORT}" || return 1
     validate_port "AUTH_PORT" "${AUTH_PORT}" || return 1
     validate_port "GO_BACKEND_PORT" "${GO_BACKEND_PORT}" || return 1
     validate_port "GO_REPROXY_PORT" "${GO_REPROXY_PORT}" || return 1
 
-    if [ "${BACKEND_PORT}" = "${AUTH_PORT}" ] ||
+    if [ "${ADMIN_VIEW_PORT}" = "${BACKEND_PORT}" ] ||
+       [ "${ADMIN_VIEW_PORT}" = "${AUTH_PORT}" ] ||
+       [ "${ADMIN_VIEW_PORT}" = "${GO_BACKEND_PORT}" ] ||
+       [ "${ADMIN_VIEW_PORT}" = "${GO_REPROXY_PORT}" ] ||
+       [ "${BACKEND_PORT}" = "${AUTH_PORT}" ] ||
        [ "${BACKEND_PORT}" = "${GO_BACKEND_PORT}" ] ||
        [ "${BACKEND_PORT}" = "${GO_REPROXY_PORT}" ] ||
        [ "${AUTH_PORT}" = "${GO_BACKEND_PORT}" ] ||
        [ "${AUTH_PORT}" = "${GO_REPROXY_PORT}" ] ||
        [ "${GO_BACKEND_PORT}" = "${GO_REPROXY_PORT}" ]; then
-        local message="Invalid port configuration: BACKEND_PORT, AUTH_PORT, GO_BACKEND_PORT and GO_REPROXY_PORT must be different."
+        local message="Invalid port configuration: ADMIN_VIEW_PORT, BACKEND_PORT, AUTH_PORT, GO_BACKEND_PORT and GO_REPROXY_PORT must be different."
         log_msg "${message}"
         echo "${message}" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
         return 1
@@ -563,12 +572,11 @@ start_backend() {
         rm -f "${BACKEND_PID_FILE}"
     fi
 
-    if ! resolve_node_bin; then
-        handle_missing_node_runtime
-        return 1
+    if [ ! -x "${BACKEND_ENTRY}" ]; then
+        chmod +x "${BACKEND_ENTRY}" 2>/dev/null || true
     fi
-    if [ ! -f "${BACKEND_ENTRY}" ]; then
-        fail_backend_start "Backend entry not found: ${BACKEND_ENTRY}" ""
+    if [ ! -x "${BACKEND_ENTRY}" ]; then
+        fail_backend_start "Rust backend is missing or not executable: ${BACKEND_ENTRY}" ""
         return 1
     fi
     if [ ! -d "${ADMIN_STATIC_PATH}" ]; then
@@ -583,22 +591,37 @@ start_backend() {
         fail_backend_start "ALTCHA_HMAC_KEY is unavailable" ""
         return 1
     fi
+    if ! resolve_hmac_secret; then
+        fail_backend_start "HMAC_SECRET is unavailable" ""
+        return 1
+    fi
+    if ! resolve_admin_proxy_secret; then
+        fail_backend_start "ADMIN_PROXY_SECRET is unavailable" ""
+        return 1
+    fi
     resolve_root_share_dir
 
-    log_msg "Starting Node.js backend (node-bin=${NODE_BIN}, backend-port=${BACKEND_PORT}, auth-port=${AUTH_PORT})..."
+    log_msg "Starting Rust backend (admin-view-port=${ADMIN_VIEW_PORT}, backend-port=${BACKEND_PORT}, auth-port=${AUTH_PORT})..."
     (
         cd "${APP_HOME}" && \
         ADMIN_STATIC_PATH="${ADMIN_STATIC_PATH}" \
         AUTH_STATIC_PATH="${AUTH_STATIC_PATH}" \
+        FN_KNOCK_RUNTIME_TARGET="fpk" \
+        FN_KNOCK_BACKEND_IMPL="rust" \
         FN_KNOCK_DATA_DIR="${PKG_VAR_DIR}" \
+        FN_KNOCK_GATEWAY_CONFIG_DIR="${GATEWAY_CONFIG_DIR}" \
         FN_KNOCK_ROOT_SHARE_DIR="${ROOT_SHARE_DIR}" \
         ACME_BUNDLE_ZIP="${ACME_BUNDLE_ZIP}" \
+        ADMIN_VIEW_PORT="${ADMIN_VIEW_PORT}" \
         BACKEND_PORT="${BACKEND_PORT}" \
         AUTH_PORT="${AUTH_PORT}" \
         GO_BACKEND_PORT="${GO_BACKEND_PORT}" \
         GO_REPROXY_PORT="${GO_REPROXY_PORT}" \
+        GO_BACKEND_BASE_URL="http://127.0.0.1:${GO_BACKEND_PORT}" \
         ALTCHA_HMAC_KEY="${ALTCHA_HMAC_KEY}" \
-        "${NODE_BIN}" "${BACKEND_ENTRY}"
+        HMAC_SECRET="${HMAC_SECRET}" \
+        ADMIN_PROXY_SECRET="${ADMIN_PROXY_SECRET}" \
+        "${BACKEND_ENTRY}"
     ) >> "${LOG_FILE}" 2>&1 &
 
     echo "$!" > "${BACKEND_PID_FILE}"
@@ -635,12 +658,7 @@ start() {
         return 1
     fi
     log_msg "=== fn-knock start ==="
-    log_msg "Port config: backend=${BACKEND_PORT}, auth=${AUTH_PORT}, go-admin=${GO_BACKEND_PORT}, go-proxy=${GO_REPROXY_PORT}"
-
-    if ! resolve_node_bin; then
-        handle_missing_node_runtime
-        return 1
-    fi
+    log_msg "Port config: admin-view=${ADMIN_VIEW_PORT}, backend=${BACKEND_PORT}, auth=${AUTH_PORT}, go-admin=${GO_BACKEND_PORT}, go-proxy=${GO_REPROXY_PORT}"
 
     if ! start_gateway; then
         write_temp_log "fn-knock gateway start failed"

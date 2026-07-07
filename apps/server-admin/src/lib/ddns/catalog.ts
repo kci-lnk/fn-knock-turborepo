@@ -17,7 +17,6 @@ const translateDDNSCatalogText = (
   fallback: string | undefined,
   params?: Record<string, string | number | boolean | null | undefined>,
 ): string | undefined => {
-  if (fallback === undefined) return undefined;
   const fullKey = `server.ddns.${key}`;
   const translated = ddnsTranslate(key, params);
   return translated === fullKey ? fallback : translated;
@@ -50,15 +49,15 @@ const localizeProviderField = (
     );
   };
 
+  const description = localizeFieldPart("description", field.description);
+
   return {
     ...field,
     label: localizeFieldPart("label", field.label) ?? field.label,
     ...(field.placeholder !== undefined
       ? { placeholder: localizeFieldPart("placeholder", field.placeholder) }
       : {}),
-    ...(field.description !== undefined
-      ? { description: localizeFieldPart("description", field.description) }
-      : {}),
+    ...(description ? { description } : {}),
     ...(field.options
       ? {
           options: field.options.map((option) => ({

@@ -1482,14 +1482,25 @@ export const zhHantAdmin = {
     bbrTitle: "BBR 加速",
     bbrDescription:
       "開啟後使用 bbr 擁塞控制和 fq 佇列，提升跨網訪問吞吐與穩定性。",
+    desiredState: "配置目標：{state}",
+    desiredEnabled: "開啟",
+    desiredDisabled: "關閉",
     bbrCurrent:
       "目前：擁塞控制 {congestion}，預設佇列 {qdisc}，可用演算法 {available}",
+    bbrRuntimeInactiveAfterEnable:
+      "配置目標已開啟，但目前核心狀態尚未匹配，請查看上次錯誤或宿主配置。",
+    bbrRuntimeStillActiveAfterDisable:
+      "配置目標已關閉，但目前核心仍處於 BBR/fq，可能是啟用前狀態或被系統其它配置接管。",
     bbrSupported: "目前核心支援 BBR。",
     bbrUnsupported: "目前核心尚未暴露 BBR，保存時會嘗試載入 tcp_bbr 模組。",
     mtuTitle: "MTU 探測",
     mtuDescription:
       "開啟後啟用路徑 MTU 探測，減少鏈路 MTU 不一致造成的分片和重傳。",
     mtuCurrent: "目前：tcp_mtu_probing = {value}",
+    mtuRuntimeInactiveAfterEnable:
+      "配置目標已開啟，但目前核心值尚未匹配，請查看上次錯誤或宿主配置。",
+    mtuRuntimeStillActiveAfterDisable:
+      "配置目標已關閉，但目前核心值仍為 {value}，這是啟用前狀態或系統其它配置。",
   },
   gatewayLogging: {
     loadFailed: "載入失敗",
@@ -2930,6 +2941,12 @@ export const zhHantAdmin = {
     notConfigured: "未配置",
     refreshNow: "立即刷新",
     saveAndUpdate: "保存並更新",
+    configSaved: "DDNS 主域配置已保存",
+    configChangesDiscarded: "已放棄未保存的 DDNS 主域配置更改",
+    unsavedLeaveConfirm:
+      "目前 DDNS 主域配置有未保存的更改，離開頁面會放棄這些更改。確定繼續？",
+    unsavedSwitchProviderConfirm:
+      "目前 DDNS 主域配置有未保存的字段更改，切換提供商會放棄這些更改。確定繼續？",
     providerHint: "選擇您要用於解析的 DNS 服務商",
     interfaceHint: "測試更新和自動更新都會優先從這裡選擇的網卡發起請求",
     autoSelect: "自動選擇",
@@ -3016,10 +3033,10 @@ export const zhHantAdmin = {
       "配置 DDNS 從公網探測目前 IPv4/IPv6 時使用的地址和請求實作。",
     httpTransportLabel: "請求實作",
     httpTransportHint:
-      "curl 會沿用系統 curl；Node 內建 HTTP 會使用 Node 底層網路請求，並在選擇出站網卡時綁定該網卡的本機地址。",
+      "curl 會沿用系統 curl；內建 HTTP 會使用 Rust 後端內建網路請求，並在選擇出站網卡時綁定該網卡的本機地址。",
     httpTransport: {
       curl: "curl（預設）",
-      node: "Node 內建 HTTP",
+      node: "內建 HTTP",
     },
     publicCheckIpv4Title: "IPv4 探測地址",
     publicCheckIpv6Title: "IPv6 探測地址",

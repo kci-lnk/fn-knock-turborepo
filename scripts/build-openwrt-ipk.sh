@@ -2,10 +2,12 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${ROOT_DIR}/scripts/version.sh"
 cd "${ROOT_DIR}"
 
 APP_NAME="${FN_KNOCK_OPENWRT_PACKAGE_NAME:-fn-knock}"
 PACKAGE_RELEASE="${FN_KNOCK_OPENWRT_RELEASE:-1}"
+BACKEND_IMPL="${FN_KNOCK_BACKEND_IMPL:-rust}"
 OUTPUT_DIR="${FN_KNOCK_OPENWRT_OUTPUT_DIR:-${ROOT_DIR}/dist/openwrt}"
 case "${OUTPUT_DIR}" in
   /*) ;;
@@ -14,16 +16,26 @@ esac
 WORK_DIR="${OUTPUT_DIR}/work"
 RUNTIME_DIR="${OUTPUT_DIR}/runtime"
 TEMPLATE_DIR="${ROOT_DIR}/deploy/openwrt"
-VERSION_FILE="${ROOT_DIR}/apps/server-admin/src/lib/app-version.ts"
+RUST_BACKEND_BIN_DIR="${FN_KNOCK_OPENWRT_RUST_BACKEND_BIN_DIR:-}"
+RUST_BACKEND_OUTPUT_DIR="${FN_KNOCK_OPENWRT_RUST_BACKEND_OUTPUT_DIR:-${OUTPUT_DIR}/rust-backends}"
+VERSION_FILE="${ROOT_DIR}/version.json"
 DEFAULT_ARCH_MATRIX="aarch64_cortex-a53:arm64,aarch64_generic:arm64,arm_cortex-a7_neon-vfpv4:arm,arm_cortex-a5_vfpv4:arm,x86_64:amd64"
 ARCH_MATRIX="${FN_KNOCK_OPENWRT_ARCHES:-${DEFAULT_ARCH_MATRIX}}"
 PACKAGE_FORMATS_RAW="${FN_KNOCK_OPENWRT_FORMATS:-ipk,apk}"
-DEPENDS="${FN_KNOCK_OPENWRT_DEPENDS:-libc, node, redis-server, bash, curl, unzip, ca-bundle, ca-certificates, iptables-nft, ip6tables-nft, kmod-nf-conntrack, kmod-ipt-conntrack, kmod-nft-compat, luci-base}"
+DEPENDS="${FN_KNOCK_OPENWRT_DEPENDS:-libc, redis-server, bash, curl, unzip, ca-bundle, ca-certificates, iptables-nft, ip6tables-nft, kmod-nf-conntrack, kmod-ipt-conntrack, kmod-nft-compat, luci-base}"
 DESCRIPTION="${FN_KNOCK_OPENWRT_DESCRIPTION:-fn-knock secure reverse proxy and knock authentication gateway}"
 HOMEPAGE="${FN_KNOCK_OPENWRT_HOMEPAGE:-https://github.com/kci-lnk/fn-knock}"
 LICENSE="${FN_KNOCK_OPENWRT_LICENSE:-MIT}"
 IPK_CONTAINER_FORMAT="${FN_KNOCK_OPENWRT_IPK_FORMAT:-tar}"
 APK_DOCKER_IMAGE="${FN_KNOCK_OPENWRT_APK_DOCKER_IMAGE:-alpine:3.23}"
+RUST_MUSL_CROSS_IMAGE_PREFIX="${FN_KNOCK_OPENWRT_RUST_MUSL_CROSS_IMAGE_PREFIX:-messense/rust-musl-cross}"
+RUST_UPX_MODE="${FN_KNOCK_OPENWRT_RUST_UPX:-${FN_KNOCK_RUST_UPX:-auto}}"
+RUST_UPX_ARGS_STRING="${FN_KNOCK_OPENWRT_RUST_UPX_ARGS:-${FN_KNOCK_RUST_UPX_ARGS:---best --lzma}}"
+
+case "${BACKEND_IMPL}" in
+  rust) ;;
+  *) echo "[fn-knock-openwrt] ERROR: invalid FN_KNOCK_BACKEND_IMPL=${BACKEND_IMPL}; Rust is the only runtime backend" >&2; exit 1 ;;
+esac
 
 log() {
   echo "[fn-knock-openwrt] $*"
@@ -54,11 +66,7 @@ clean_output_dir() {
 }
 
 parse_app_version() {
-  local version
-  [ -f "${VERSION_FILE}" ] || fail "missing version file: ${VERSION_FILE}"
-  version="$(sed -nE 's/^[[:space:]]*export[[:space:]]+const[[:space:]]+APP_LOCAL_VERSION[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' "${VERSION_FILE}" | head -n1)"
-  [ -n "${version}" ] || fail "failed to parse APP_LOCAL_VERSION from ${VERSION_FILE}"
-  printf '%s\n' "${version}"
+  fn_knock_app_version "${ROOT_DIR}"
 }
 
 normalize_tar_listing() {
@@ -149,15 +157,214 @@ assert_gateway_arch() {
   esac
 }
 
+rust_musl_target_for_arch() {
+  case "$1" in
+    amd64)
+      printf '%s\n' "x86_64-unknown-linux-musl"
+      ;;
+    arm64)
+      printf '%s\n' "aarch64-unknown-linux-musl"
+      ;;
+    arm)
+      printf '%s\n' "armv7-unknown-linux-musleabihf"
+      ;;
+    *)
+      fail "unsupported Rust backend architecture: $1"
+      ;;
+  esac
+}
+
+rust_musl_image_for_arch() {
+  case "$1" in
+    amd64)
+      printf '%s\n' "${RUST_MUSL_CROSS_IMAGE_PREFIX}:x86_64-musl"
+      ;;
+    arm64)
+      printf '%s\n' "${RUST_MUSL_CROSS_IMAGE_PREFIX}:aarch64-musl"
+      ;;
+    arm)
+      printf '%s\n' "${RUST_MUSL_CROSS_IMAGE_PREFIX}:armv7-musleabihf"
+      ;;
+    *)
+      fail "unsupported Rust backend architecture: $1"
+      ;;
+  esac
+}
+
+file_size_bytes() {
+  wc -c < "$1" | tr -d '[:space:]'
+}
+
+format_bytes() {
+  local bytes="$1"
+
+  awk -v bytes="${bytes}" 'BEGIN {
+    split("B KiB MiB GiB", units, " ");
+    value = bytes + 0;
+    unit = 1;
+    while (value >= 1024 && unit < 4) {
+      value /= 1024;
+      unit++;
+    }
+    if (unit == 1) {
+      printf "%d %s", value, units[unit];
+    } else {
+      printf "%.1f %s", value, units[unit];
+    }
+  }'
+}
+
+validate_elf_arch() {
+  local bin="$1"
+  local gateway_arch="$2"
+  local label="$3"
+  local file_info
+
+  [ -f "${bin}" ] || fail "${label} is missing: ${bin}"
+  file_info="$(file -b "${bin}")"
+  case "${gateway_arch}" in
+    amd64)
+      printf '%s\n' "${file_info}" | grep -Eq 'ELF 64-bit LSB.*x86-64' || \
+        fail "${label} is not a Linux x86-64 ELF: ${file_info}"
+      ;;
+    arm64)
+      printf '%s\n' "${file_info}" | grep -Eq 'ELF 64-bit LSB.*(ARM aarch64|aarch64)' || \
+        fail "${label} is not a Linux arm64 ELF: ${file_info}"
+      ;;
+    arm)
+      printf '%s\n' "${file_info}" | grep -Eq 'ELF 32-bit LSB.*ARM' || \
+        fail "${label} is not a Linux armv7 ELF: ${file_info}"
+      ;;
+    *)
+      fail "unsupported architecture verifier: ${gateway_arch}"
+      ;;
+  esac
+}
+
+maybe_compress_rust_backend_with_upx() {
+  local bin="$1"
+  local gateway_arch="$2"
+  local upx_bin="${FN_KNOCK_UPX_BIN:-}"
+  local upx_args
+
+  case "${RUST_UPX_MODE}" in
+    0|false|False|FALSE|no|No|NO|off|Off|OFF)
+      log "Skipping UPX compression for OpenWrt Rust backend ${gateway_arch} (FN_KNOCK_OPENWRT_RUST_UPX=${RUST_UPX_MODE})"
+      return
+      ;;
+    auto|1|true|True|TRUE|yes|Yes|YES|on|On|ON|required)
+      ;;
+    *)
+      fail "unsupported FN_KNOCK_OPENWRT_RUST_UPX=${RUST_UPX_MODE}; expected auto, 0, 1, or required"
+      ;;
+  esac
+
+  if [ -z "${upx_bin}" ]; then
+    upx_bin="$(command -v upx || true)"
+  fi
+
+  if [ -z "${upx_bin}" ]; then
+    if [ "${RUST_UPX_MODE}" = "auto" ]; then
+      log "UPX not found; leaving OpenWrt Rust backend ${gateway_arch} uncompressed"
+      return
+    fi
+    fail "UPX is required but was not found; install upx or set FN_KNOCK_OPENWRT_RUST_UPX=0"
+  fi
+
+  read -r -a upx_args <<< "${RUST_UPX_ARGS_STRING}"
+  log "Compressing OpenWrt Rust backend ${gateway_arch} with UPX (${upx_bin} ${RUST_UPX_ARGS_STRING})"
+  "${upx_bin}" "${upx_args[@]}" "${bin}" || \
+    fail "UPX compression failed for ${bin}; set FN_KNOCK_OPENWRT_RUST_UPX=0 to disable compression"
+  chmod 755 "${bin}"
+}
+
+build_openwrt_rust_backend() {
+  local gateway_arch="$1"
+  local target
+  local image
+  local out_bin="${RUST_BACKEND_OUTPUT_DIR}/server-admin-rs-linux-${gateway_arch}"
+  local before_bytes
+  local after_bytes
+
+  target="$(rust_musl_target_for_arch "${gateway_arch}")"
+  image="$(rust_musl_image_for_arch "${gateway_arch}")"
+
+  mkdir -p "${RUST_BACKEND_OUTPUT_DIR}"
+  mkdir -p "${ROOT_DIR}/dist/cargo-registry-openwrt" "${ROOT_DIR}/dist/cargo-git-openwrt"
+  log "Building OpenWrt Rust backend ${gateway_arch} (${target}) with ${image}"
+  docker run --rm \
+    -e CARGO_TARGET_DIR="/workspace/dist/server-admin-rs-target/openwrt-${gateway_arch}" \
+    -e FN_KNOCK_RUST_TARGET="${target}" \
+    -e FN_KNOCK_RUST_OUT="/workspace/${out_bin#${ROOT_DIR}/}" \
+    -v "${ROOT_DIR}/dist/cargo-registry-openwrt:/root/.cargo/registry" \
+    -v "${ROOT_DIR}/dist/cargo-git-openwrt:/root/.cargo/git" \
+    -v "${ROOT_DIR}:/workspace" \
+    -w /workspace \
+    "${image}" \
+    sh -lc 'cargo build --release --manifest-path apps/server-admin-rs/Cargo.toml --target "${FN_KNOCK_RUST_TARGET}" && cp "${CARGO_TARGET_DIR}/${FN_KNOCK_RUST_TARGET}/release/server-admin-rs" "${FN_KNOCK_RUST_OUT}" && { "${FN_KNOCK_RUST_TARGET}-strip" --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || strip --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || true; }'
+
+  chmod 755 "${out_bin}"
+  validate_elf_arch "${out_bin}" "${gateway_arch}" "OpenWrt Rust backend ${gateway_arch}"
+  before_bytes="$(file_size_bytes "${out_bin}")"
+  maybe_compress_rust_backend_with_upx "${out_bin}" "${gateway_arch}"
+  validate_elf_arch "${out_bin}" "${gateway_arch}" "OpenWrt Rust backend ${gateway_arch}"
+  after_bytes="$(file_size_bytes "${out_bin}")"
+  log "OpenWrt Rust backend ${gateway_arch} size: $(format_bytes "${before_bytes}") -> $(format_bytes "${after_bytes}")"
+}
+
+prepare_openwrt_rust_backends() {
+  local gateway_arches=("$@")
+  local gateway_arch
+
+  if [ -n "${RUST_BACKEND_BIN_DIR}" ]; then
+    log "Using prebuilt OpenWrt Rust backend binaries from ${RUST_BACKEND_BIN_DIR}"
+    return
+  fi
+
+  require_cmd docker
+  rm -rf "${RUST_BACKEND_OUTPUT_DIR}"
+  mkdir -p "${RUST_BACKEND_OUTPUT_DIR}"
+  for gateway_arch in "${gateway_arches[@]}"; do
+    build_openwrt_rust_backend "${gateway_arch}"
+  done
+}
+
 prepare_runtime() {
   local gateway_arches=("$@")
 
   log "Assembling shared runtime"
   rm -rf "${RUNTIME_DIR}"
-  bash "${ROOT_DIR}/scripts/assemble-runtime.sh" "${RUNTIME_DIR}"
+  FN_KNOCK_BACKEND_IMPL=rust FN_KNOCK_BUILD_RUST_BACKEND=0 \
+    bash "${ROOT_DIR}/scripts/assemble-runtime.sh" "${RUNTIME_DIR}"
 
   log "Preparing gateway binaries: ${gateway_arches[*]}"
   bash "${ROOT_DIR}/scripts/prepare-go-reauth-proxy.sh" "${RUNTIME_DIR}/server" "${gateway_arches[@]}"
+  prepare_openwrt_rust_backends "${gateway_arches[@]}"
+}
+
+rust_backend_source_for_arch() {
+  local gateway_arch="$1"
+  local candidate
+
+  if [ -n "${RUST_BACKEND_BIN_DIR}" ]; then
+    for candidate in \
+      "${RUST_BACKEND_BIN_DIR}/server-admin-rs-linux-${gateway_arch}" \
+      "${RUST_BACKEND_BIN_DIR}/server-admin-rs-${gateway_arch}" \
+      "${RUST_BACKEND_BIN_DIR}/${gateway_arch}/server-admin-rs"; do
+      [ -f "${candidate}" ] && {
+        printf '%s\n' "${candidate}"
+        return 0
+      }
+    done
+    return 1
+  fi
+
+  candidate="${RUST_BACKEND_OUTPUT_DIR}/server-admin-rs-linux-${gateway_arch}"
+  [ -f "${candidate}" ] && {
+    printf '%s\n' "${candidate}"
+    return 0
+  }
+  return 1
 }
 
 ensure_apk_tooling() {
@@ -191,7 +398,7 @@ Homepage: ${HOMEPAGE}
 License: ${LICENSE}
 Installed-Size: ${installed_size}
 Description: ${DESCRIPTION}
- fn-knock packages the admin UI, auth UI, Node backend, Go gateway, and LuCI
+ fn-knock packages the admin UI, auth UI, Rust backend, Go gateway, and LuCI
  launcher/configuration page for OpenWrt.
 EOF
 
@@ -217,6 +424,13 @@ copy_runtime_payload() {
   rsync -a --delete "${RUNTIME_DIR}/ui/www/" "${app_root}/ui/www/"
   rsync -a --delete "${RUNTIME_DIR}/server-auth-view/dist/" "${app_root}/server-auth-view/dist/"
   rsync -a --delete "${RUNTIME_DIR}/server/server-admin/" "${app_root}/server/server-admin/"
+  local rust_backend_src=""
+  if ! rust_backend_src="$(rust_backend_source_for_arch "${gateway_arch}")"; then
+    fail "FN_KNOCK_BACKEND_IMPL=rust requires a Rust backend binary for ${gateway_arch}; set FN_KNOCK_OPENWRT_RUST_BACKEND_BIN_DIR with server-admin-rs-${gateway_arch}"
+  fi
+  cp "${rust_backend_src}" "${app_root}/server/server-admin-rs"
+  chmod 755 "${app_root}/server/server-admin-rs"
+  ln -s "../server/server-admin-rs" "${app_root}/bin/server-admin-rs"
 
   local gateway_src="${RUNTIME_DIR}/server/go-reauth-proxy-linux-${gateway_arch}"
   local gateway_dst="${app_root}/server/go-reauth-proxy-linux-${gateway_arch}"
@@ -291,10 +505,12 @@ validate_payload_listing() {
     fail "data payload missing /etc/config/fn-knock"
   printf '%s\n' "${listing}" | grep -Fxq "etc/init.d/fn-knock" || \
     fail "data payload missing /etc/init.d/fn-knock"
-  printf '%s\n' "${listing}" | grep -Fxq "usr/lib/fn-knock/server/server-admin/index.js" || \
-    fail "data payload missing server-admin index.js"
-  printf '%s\n' "${listing}" | grep -Fxq "usr/lib/fn-knock/server/server-admin/package.json" || \
-    fail "data payload missing server-admin package.json"
+  printf '%s\n' "${listing}" | grep -Fxq "usr/lib/fn-knock/server/server-admin/resources/acmesh.zip" || \
+    fail "data payload missing ACME bundled resource"
+  printf '%s\n' "${listing}" | grep -Fxq "usr/lib/fn-knock/server/server-admin-rs" || \
+    fail "data payload missing Rust server-admin-rs binary"
+  printf '%s\n' "${listing}" | grep -Fxq "usr/lib/fn-knock/bin/server-admin-rs" || \
+    fail "data payload missing Rust server-admin-rs symlink"
   printf '%s\n' "${listing}" | grep -Fxq "usr/lib/fn-knock/ui/www/index.html" || \
     fail "data payload missing admin UI index.html"
   printf '%s\n' "${listing}" | grep -Fxq "usr/lib/fn-knock/server/go-reauth-proxy-linux-${gateway_arch}" || \
@@ -332,6 +548,18 @@ validate_extracted_payload() {
     fail "gateway binary is not executable"
   [ -x "${extract_dir}/usr/lib/fn-knock/bin/go-reauth-proxy" ] || \
     fail "gateway symlink is not executable"
+  [ -x "${extract_dir}/usr/lib/fn-knock/server/server-admin-rs" ] || \
+    fail "Rust backend binary is not executable"
+  [ -x "${extract_dir}/usr/lib/fn-knock/bin/server-admin-rs" ] || \
+    fail "Rust backend symlink is not executable"
+  validate_elf_arch \
+    "${extract_dir}/usr/lib/fn-knock/server/go-reauth-proxy-linux-${gateway_arch}" \
+    "${gateway_arch}" \
+    "packaged gateway binary"
+  validate_elf_arch \
+    "${extract_dir}/usr/lib/fn-knock/server/server-admin-rs" \
+    "${gateway_arch}" \
+    "packaged Rust backend binary"
   [ -x "${extract_dir}/etc/init.d/fn-knock" ] || \
     fail "init script is not executable"
   [ -x "${extract_dir}/usr/bin/fn-knock-reset-panel-password" ] || \
@@ -743,6 +971,8 @@ build_packages_for_arch() {
 main() {
   require_cmd tar
   require_cmd rsync
+  require_cmd file
+  fn_knock_sync_rust_package_version "${ROOT_DIR}" "[fn-knock-openwrt]"
 
   if [ "${IPK_CONTAINER_FORMAT}" = "ar" ]; then
     require_cmd ar

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
-import { ChevronDown, RefreshCw, Trash2 } from "lucide-vue-next";
+import { ChevronDown, RefreshCw, Save, Trash2, Undo2 } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -83,8 +83,10 @@ defineProps<{
 
 const emit = defineEmits<{
   applyCredentialTransfer: [];
+  cancel: [];
   clearPrimaryConfig: [collapse: () => void];
   providerChange: [provider: string];
+  save: [];
   test: [];
 }>();
 
@@ -234,6 +236,27 @@ const { t } = useI18n();
             </DropdownMenuContent>
           </DropdownMenu>
           <Button
+            v-if="isDirty"
+            variant="outline"
+            :disabled="isSaving || isTesting"
+            @click="emit('cancel')"
+            class="gap-2"
+          >
+            <Undo2 class="h-4 w-4" />
+            {{ t("common.cancel") }}
+          </Button>
+          <Button
+            v-if="isDirty"
+            variant="outline"
+            :disabled="isSaving || isTesting || !selectedProvider"
+            @click="emit('save')"
+            class="min-w-[88px] gap-2"
+          >
+            <RefreshCw v-if="isSaving" class="h-4 w-4 animate-spin" />
+            <Save v-else class="h-4 w-4" />
+            {{ isSaving ? t("admin.ddns.saving") : t("common.save") }}
+          </Button>
+          <Button
             :disabled="isTesting || isSaving || !selectedProvider"
             @click="emit('test')"
             class="min-w-[100px] shadow-sm"
@@ -248,6 +271,27 @@ const { t } = useI18n();
         </template>
 
         <template #floating>
+          <Button
+            v-if="isDirty"
+            variant="outline"
+            :disabled="isSaving || isTesting"
+            @click="emit('cancel')"
+            class="gap-2 border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white"
+          >
+            <Undo2 class="h-4 w-4" />
+            {{ t("common.cancel") }}
+          </Button>
+          <Button
+            v-if="isDirty"
+            variant="outline"
+            :disabled="isSaving || isTesting || !selectedProvider"
+            @click="emit('save')"
+            class="min-w-[88px] gap-2 border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white"
+          >
+            <RefreshCw v-if="isSaving" class="h-4 w-4 animate-spin" />
+            <Save v-else class="h-4 w-4" />
+            {{ isSaving ? t("admin.ddns.saving") : t("common.save") }}
+          </Button>
           <Button
             :disabled="isTesting || isSaving || !selectedProvider"
             @click="emit('test')"

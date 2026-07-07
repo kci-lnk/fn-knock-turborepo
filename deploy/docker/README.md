@@ -394,10 +394,10 @@ npm run fn-knock:docker:local-deploy
 
 ### 镜像 tag 规则
 
-如果没有手工指定 `FN_KNOCK_DOCKER_IMAGE_TAG`，脚本会从 `apps/server-admin/src/lib/app-version.ts` 读取 `APP_LOCAL_VERSION`，先生成基础 tag：
+如果没有手工指定 `FN_KNOCK_DOCKER_IMAGE_TAG`，脚本会从根目录 `version.json` 读取 `version`，先生成基础 tag：
 
 ```text
-<APP_LOCAL_VERSION>-<YYYYMMDDHHMMSS>
+<version>-<YYYYMMDDHHMMSS>
 ```
 
 然后自动产出三套镜像：
@@ -416,7 +416,7 @@ fn-knock:1.4.1-20260409094530-arm64
 fn-knock:1.4.1-20260409094530-arm32
 ```
 
-推荐发布新版本时先更新 `APP_LOCAL_VERSION`，再执行部署命令。快速部署只会产出远端架构对应的 tag；完整部署会产出三套架构 tag。
+推荐发布新版本时先更新根目录 `version.json`，再执行部署命令。快速部署只会产出远端架构对应的 tag；完整部署会产出三套架构 tag。
 
 如果希望手工指定基础 tag：
 
@@ -471,7 +471,7 @@ FN_KNOCK_DOCKER_IMAGE_REPO=kcilnk/fn-knock
 如果没有手工指定 `FN_KNOCK_DOCKER_IMAGE_TAG`，Docker Hub 发布会直接沿用项目当前版本号：
 
 ```text
-apps/server-admin/src/lib/app-version.ts -> APP_LOCAL_VERSION
+version.json -> version
 ```
 
 例如当前版本为 `1.4.3` 时，发布命令会推送：

@@ -19,6 +19,7 @@
     "fn-knock:install:remote": "bash ./scripts/fn-knock-deploy.sh install-remote",
     "fn-knock:verify:remote": "bash ./scripts/fn-knock-deploy.sh verify-remote",
     "fn-knock:deploy": "bash ./scripts/fn-knock-deploy.sh deploy",
+    "fn-knock:deploy-fast": "FN_KNOCK_FPK_ARCHES=amd64 FN_KNOCK_RUST_PARALLEL_RELEASE=1 bash ./scripts/fn-knock-deploy.sh deploy",
     "fn-knock:openwrt:build": "bash ./scripts/build-openwrt-ipk.sh",
     "fn-knock:openwrt:build-ipk": "FN_KNOCK_OPENWRT_FORMATS=ipk bash ./scripts/build-openwrt-ipk.sh",
     "fn-knock:docker:build": "bash ./scripts/fn-knock-docker.sh build-local",
@@ -45,7 +46,9 @@
   },
   "packageManager": "npm@10.8.2",
   "workspaces": [
-    "apps/*",
+    "apps/server-admin-rs",
+    "apps/server-admin-view",
+    "apps/server-auth-view",
     "packages/*"
   ]
 }

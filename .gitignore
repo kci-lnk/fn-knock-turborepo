@@ -26,6 +26,7 @@ coverage
 out/
 build
 dist
+target
 
 
 # Debug
@@ -47,3 +48,5 @@ apps/fn-knock/app/server/server-admin/
 apps/fn-knock/app/server/go-reauth-proxy-linux-*
 apps/fn-knock/app/server-auth-view/dist/
 apps/fn-knock/dist/
+deploy/docker/rust-backends/server-admin-rs-linux-*
+!deploy/docker/rust-backends/.gitkeep

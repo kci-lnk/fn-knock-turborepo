@@ -1,6 +1,7 @@
 export const enServer = {
   success: "Success",
   notFound: "Not found",
+  apiPathNotFound: "API path not found",
   invalidLocale: "Unsupported locale",
   dockerAdminDenied:
     "Docker admin panel only allows private network or trusted proxy access",
@@ -108,6 +109,8 @@ export const enServer = {
     installStartFailed: "Failed to start installation",
     checkAndDownloadStarted: "Update check started and download queued",
     startFailed: "Failed to start",
+    loadStatusFailed: "Failed to load update status",
+    loadConfirmationFailed: "Failed to load update confirmation",
   },
   gatewayHostResponse: {
     runTypes: {
@@ -184,6 +187,20 @@ export const enServer = {
       passwordIncorrectWithRetry:
         "Admin panel password is incorrect. Retry in {seconds} seconds.",
     },
+    adminPanelRoutes: {
+      signInRequired: "Sign in to the admin panel first",
+      verifySessionFailed: "Failed to verify admin panel session",
+      loadStateFailed: "Failed to load admin panel state",
+      loadConfigFailed: "Failed to load config",
+      loadLocaleFailed: "Failed to load locale config",
+      loadAppearanceFailed: "Failed to load appearance config",
+      saveLocaleFailed: "Failed to save locale config",
+      saveAppearanceFailed: "Failed to save appearance config",
+      loadPasswordFailed: "Failed to load admin panel password",
+      createSessionFailed: "Failed to create admin panel session",
+      verifyPasswordFailed: "Failed to verify admin panel password",
+      checkLoginRateLimitFailed: "Failed to check login rate limit",
+    },
     runType: {
       switchFailed: "Failed to switch run mode",
       switchFailedRolledBack:
@@ -219,6 +236,24 @@ export const enServer = {
       unavailable:
         "The current runtime does not support FNOS FPK network optimization",
       updateFailed: "Failed to update FNOS FPK network optimization",
+      errors: {
+        bbrNotSupported: "The host kernel does not expose tcp_bbr",
+        bbrEnableVerificationFailed:
+          "BBR was requested, but the active kernel state is not bbr/fq",
+        bbrRollbackCongestionFailed:
+          "BBR rollback did not restore the previous congestion control",
+        bbrRollbackQdiscFailed:
+          "BBR rollback did not restore the previous qdisc",
+        bbrRollbackStillBbrFailed:
+          "BBR rollback did not leave bbr congestion control",
+        mtuEnableVerificationFailed:
+          "MTU probing was requested, but tcp_mtu_probing is not 1",
+        mtuRollbackFailed:
+          "MTU probing rollback did not restore the expected value",
+        emptyPatch: "Change at least one FNOS FPK network optimization option",
+        setSysctlFailed: "Failed to set {key}",
+        rollbackFailed: "{message}; rollback failed: {error}",
+      },
       blocked: {
         deployment:
           "FNOS FPK network optimization is only available in FPK deployments",
@@ -238,6 +273,9 @@ export const enServer = {
         "Failed to update gateway configuration; configuration was rolled back",
     },
     proxyMappings: {
+      payloadObjectRequired: "Path proxy mapping must be an object",
+      targetInvalid:
+        "Path proxy target must start with http://, https://, ws://, or wss:// and include a host",
       syncRulesFailed: "Failed to sync path proxy routes",
       restoreRulesFailed: "Failed to restore path proxy routes",
       updateFailed: "Failed to update path proxy mappings",
@@ -256,6 +294,51 @@ export const enServer = {
       updateFailedRolledBack:
         "Failed to update gateway proxy headers; configuration was rolled back",
     },
+    gatewaySettingsRoutes: {
+      loadGatewaySettingsFailed: "Failed to load gateway settings",
+      payloadObjectRequired: "Gateway payload must be an object",
+      loadConfigFailed: "Failed to load config",
+      saveGatewaySettingsFailed: "Failed to save gateway settings",
+      syncGatewaySettingsFailed: "Failed to sync gateway settings: {message}",
+      responseReloadFailed:
+        "Gateway settings were saved, but the response failed to reload",
+      loadGatewayVisibilityFailed: "Failed to load gateway visibility",
+      loadRuntimeFailed: "Failed to load runtime",
+      loadGatewayProxyHeadersFailed: "Failed to load gateway proxy headers",
+      loadGatewayHostResponseFailed: "Failed to load gateway Host response",
+    },
+    runtimeConfigRoutes: {
+      loadCaptchaFailed: "Failed to load captcha config",
+      saveCaptchaFailed: "Failed to save captcha config",
+      loadTerminalFeatureFailed: "Failed to load terminal feature config",
+      saveTerminalFeatureFailed: "Failed to save terminal feature config",
+      invalidRunType: "run_type is invalid",
+      loadProtocolMappingFeatureFailed:
+        "Failed to load protocol mapping feature config",
+      loadSmartConnectDetailsFailed: "Failed to load Smart Connect details",
+      loadFnosShareBypassFailed: "Failed to load FNOS share bypass config",
+      saveFnosShareBypassFailed: "Failed to save FNOS share bypass config",
+      loadFnosPortIconHijackFailed:
+        "Failed to load FNOS port icon hijack config",
+      loadAutoHttpsFailed: "Failed to load auto HTTPS config",
+      saveAutoHttpsFailed: "Failed to save auto HTTPS config",
+      saveAutoManageFirewallFailed:
+        "Failed to save auto manage firewall config",
+      loadConfigFailed: "Failed to load config",
+      loadDefaultRouteFailed: "Failed to load default route",
+      saveDefaultRouteFailed: "Failed to save default route",
+      unsupportedTunnelType: "Unsupported tunnel type",
+      saveDefaultTunnelFailed: "Failed to save default tunnel",
+      upstreamUnavailable: "Upstream service is unavailable",
+      proxyProtocolForceBooleanRequired:
+        "proxy_protocol_force must be a boolean",
+      loadRunModePromptPreferencesFailed:
+        "Failed to load run mode prompt preferences",
+      saveRunModePromptPreferencesFailed:
+        "Failed to save run mode prompt preferences",
+      loadWelcomeGuideFailed: "Failed to load welcome guide status",
+      saveWelcomeGuideFailed: "Failed to save welcome guide status",
+    },
     captcha: {
       turnstileKeysRequired:
         "When Cloudflare Turnstile is enabled, both site_key and secret_key are required",
@@ -263,6 +346,9 @@ export const enServer = {
     ipLocation: {
       ipLookupUrlLabel: "IP lookup database URL",
       cidrUrlLabel: "CIDR database URL",
+      loadSettingsFailed: "Failed to load IP location API settings",
+      saveSettingsFailed: "Failed to save IP location API settings",
+      modeInvalid: "Mode must be online or custom",
     },
     connectionTest: {
       httpStatus: "Service returned HTTP status {status}",
@@ -278,6 +364,10 @@ export const enServer = {
       startFailed: "Failed to start automatic HTTPS",
     },
     hostMappings: {
+      payloadObjectRequired: "Host mapping must be an object",
+      hostRequired: "Host mapping host is required",
+      targetInvalid:
+        "Host mapping {host} target must start with http://, https://, ws://, or wss:// and include a host",
       singleAuthPortMapping:
         "Only one Host mapping can point to AUTH_PORT as the auth service",
       authMappingMustBePublic:
@@ -296,6 +386,8 @@ export const enServer = {
       locationDuplicate: "Host mapping {host} has duplicate path rule {path}",
       locationTargetRequired:
         "Host mapping {host} path rule {path} requires a target",
+      locationTargetInvalid:
+        "Host mapping {host} path rule {path} target must start with http://, https://, ws://, or wss:// and include a host",
       locationStatusInvalid:
         "Host mapping {host} path rule {path} response status must be between 100 and 599",
       locationHeaderInvalid:
@@ -308,15 +400,20 @@ export const enServer = {
       updateFailedRolledBack:
         "Failed to update Host mappings; configuration was rolled back",
       metadataFailed: "Failed to refresh target title",
+      onlyHttpTargetsSupported: "Only http/https targets are supported",
+      metadataUpstreamStatus: "Upstream responded with {status}",
       bookmarkFolderForRoot: "{root} subdomain mappings",
       bookmarkFolderDefault: "fn-knock subdomain mappings",
     },
     streamMappings: {
+      payloadObjectRequired: "Stream mapping must be an object",
+      listenPortRequiredInteger: "Listen port must be a valid integer",
       listenPortNotInteger: "Listen port {port} is not a valid integer",
       listenPortOutOfRange: "Listen port {port} is out of range",
       duplicatePort:
         "{protocol} listen port {port} is duplicated. Keep protocol + port unique.",
       targetMustBeHostPort: "Target address {target} must be in host:port form",
+      saveFailed: "Failed to save protocol mappings",
       syncFailed:
         "Failed to sync protocol mappings and gateway port allow rules",
       syncFailedRolledBack:
@@ -329,14 +426,31 @@ export const enServer = {
         "Parent-domain Passkey RP ID {rpId} must match auth service {authHost} or be its parent domain.",
     },
     subdomainMode: {
+      payloadObjectRequired: "Subdomain mode payload must be an object",
+      saveFailed: "Failed to save subdomain mode config",
       sslAutoSelected:
         "Automatically switched to a certificate better suited to the current subdomain mode.",
       sslAutoSelectionSyncFailed:
         "A recommended certificate was found, but syncing it to the gateway failed, so it was not switched automatically.",
     },
+    authCredentialSettings: {
+      loadFailed: "Failed to load auth credential settings",
+      loadConfigFailed: "Failed to load config",
+      saveFailed: "Failed to save auth credential settings",
+    },
     totp: {
       invalidCode: "Verification code is incorrect. Try again.",
+      invalidSecretOrCode: "TOTP secret or verification code is incorrect",
       notFound: "TOTP not found",
+      loadFailed: "Failed to load TOTP credentials",
+      saveFailed: "Failed to save TOTP credential",
+      exportFailed: "Failed to export TOTP credentials",
+      importFailed: "Failed to import TOTP credentials",
+      deleteFailed: "Failed to delete TOTP credential",
+      updateFailed: "Failed to update TOTP credential",
+      bound: "TOTP credential bound",
+      deleted: "TOTP credential deleted",
+      updated: "TOTP credential updated",
     },
     totpImport: {
       payloadObject: "TOTP credential import payload must be an object",
@@ -347,6 +461,9 @@ export const enServer = {
     },
     passkeys: {
       notFound: "Passkey not found",
+      listFailed: "Failed to list passkeys",
+      deleteFailed: "Failed to delete passkey",
+      deleted: "Passkey deleted",
     },
     syncRoutes: {
       partialFailedGatewayLogging:
@@ -371,21 +488,40 @@ export const enServer = {
     },
     sessions: {
       notFound: "Session not found",
+      listFailed: "Failed to list sessions",
+      loadFailed: "Failed to load session",
+      updateFailed: "Failed to update session",
+      deleteFailed: "Failed to delete session",
+      mobilityLoadFailed: "Failed to load session mobility details",
+      deleted: "Session deleted",
     },
   },
   gatewayLogs: {
+    configLoadFailed: "Failed to read request log settings",
+    configSaveFailed: "Failed to save request log settings",
     configSyncFailed:
       "Request log settings were saved, but syncing them to the gateway failed",
     readDirectoryFailed: "Failed to read the log directory",
     readDatesFailed: "Failed to read log dates",
     readEntriesFailed: "Failed to read request logs",
     deleteEntriesFailed: "Failed to delete request logs",
+    invalidJsonObject: "Request body is not a valid JSON object",
   },
   backoffRoutes: {
     ipRequired: "ip parameter is missing",
+    listFailed: "Failed to load backoff list",
+    statusFailed: "Failed to load backoff status",
+    resetFailed: "Failed to reset backoff",
+  },
+  systemInfoRoutes: {
+    loadAccessEntryFailed: "Failed to load access entry",
+  },
+  securityOverviewRoutes: {
+    loadFailed: "Failed to load security overview",
   },
   ipLocationRoutes: {
     batchLimit: "Query at most {max} IPs at a time",
+    enqueueFailed: "Failed to enqueue IP location lookup",
   },
   gatewayPortal: {
     syncConfigFailed: "Failed to sync portal display configuration to gateway",
@@ -401,6 +537,15 @@ export const enServer = {
     syncFailed: "Failed to sync crawler blocker configuration",
   },
   scanner: {
+    settingsLoadFailed: "Failed to load scanner settings",
+    settingsUpdateFailed: "Failed to update scanner settings",
+    invalidRequestBody: "Invalid request body",
+    atLeastOneIpRequired: "At least one IP is required",
+    blacklistLoadFailed: "Failed to load scanner blacklist",
+    recordNotFound: "Record not found",
+    blacklistRecordLoadFailed: "Failed to load scanner blacklist record",
+    blacklistRecordDeleteFailed: "Failed to delete scanner blacklist record",
+    blacklistRecordsDeleteFailed: "Failed to delete scanner blacklist records",
     cidrExemptionsInvalid: "CIDR exemption format is invalid: {cidrs}",
   },
   gatewayLogging: {
@@ -411,16 +556,28 @@ export const enServer = {
     syncFailed: "Failed to sync gateway certificate",
   },
   sslRoutes: {
+    statusReadFailed: "Failed to load SSL status",
     gatewayStatusReadFailed: "Unable to read gateway SSL status",
     readSharedFileFailed: "Failed to read shared directory file",
     emptyDomains: "Domain list is empty. Add a domain or IP first.",
     certOrKeyInvalid: "Certificate or private key is invalid",
     hostRequired: "host is required",
     localCaCertificateLabel: "Local CA certificate",
+    rootCaNotInitialized: "Root CA is not initialized",
     success: "Succeeded",
     certNotInstalled: "Certificate is not installed",
+    certReadFailed: "Failed to read SSL certificate",
+    certZipCreateFailed: "Failed to create SSL certificate zip",
     manualCertificateLabel: "Manually uploaded certificate",
     certNotFound: "Certificate not found",
+    caInitFailed: "Failed to initialize local CA",
+    caHostLoadFailed: "Failed to load local CA host list",
+    caHostSaveFailed: "Failed to save local CA host list",
+    certSaveFailed: "Failed to save SSL certificate",
+    certActivateFailed: "Failed to activate SSL certificate",
+    deploymentModeSaveFailed: "Failed to save SSL deployment mode",
+    certDeleteFailed: "Failed to delete SSL certificate",
+    certClearFailed: "Failed to clear SSL certificate configuration",
   },
   redis: {
     defaultCredential: "Default credential",
@@ -522,6 +679,32 @@ export const enServer = {
       "The task has stopped. The process exit error was ignored.",
   },
   acmeRoutes: {
+    invalidRequestBody: "Invalid request body",
+    loadStatusFailed: "Failed to load ACME status",
+    loadClientSettingsFailed: "Failed to load ACME client settings",
+    saveClientSettingsFailed: "Failed to save ACME client settings",
+    switchCertificateAuthorityFailed:
+      "Failed to switch ACME certificate authority",
+    loadOverviewFailed: "Failed to load ACME overview",
+    loadApplicationOverviewFailed: "Failed to load ACME application overview",
+    loadConfigFailed: "Failed to load ACME config",
+    loadSubdomainRecommendationFailed:
+      "Failed to load subdomain certificate recommendation",
+    loadApplicationsFailed: "Failed to load ACME applications",
+    loadApplicationFailed: "Failed to load ACME application",
+    updateApplicationFailed: "Failed to update ACME application",
+    deleteApplicationFailed: "Failed to delete ACME application",
+    syncLibraryFailed: "Failed to sync ACME certificate to certificate library",
+    deployCertificateFailed: "Failed to deploy ACME certificate",
+    loadJobFailed: "Failed to load ACME job",
+    loadJobLogsFailed: "Failed to load ACME job logs",
+    loadJobPollFailed: "Failed to poll ACME job",
+    stopJobFailed: "Failed to stop ACME job",
+    loadCertificateInfoFailed: "Failed to load ACME certificate info",
+    deleteCertificateFailed: "Failed to delete ACME certificate",
+    uninstallFailed: "Failed to uninstall ACME client",
+    createCertificateZipFailed: "Failed to create ACME certificate zip",
+    loadCertificateFailed: "Failed to load ACME certificate",
     domainsInvalid: "Domain list is empty or invalid",
     dnsTypeRequired: "DNS verification type is missing",
     unsupportedDnsProvider: "Unsupported DNS provider",
@@ -612,6 +795,15 @@ export const enServer = {
     syncFailed:
       "Failed to sync common-location exemption configuration to gateway",
   },
+  generalBlacklist: {
+    invalidRequestBody: "Invalid request body",
+    invalidIp: "Invalid IP",
+    invalidIpWithValue: "Invalid IP: {ip}",
+    atLeastOneValidIpRequired: "At least one valid IP is required",
+    backendRequestFailed: "General blacklist backend request failed",
+    backendResponseMissingData:
+      "General blacklist backend response missing data",
+  },
   fnosDataShare: {
     invalidPath: "Invalid shared file path",
     shareMissing:
@@ -635,8 +827,14 @@ export const enServer = {
     defaultFolderTitle: "fn-knock subdomain mappings",
   },
   whitelist: {
+    listFailed: "Failed to load whitelist records",
     addFailed: "Failed to add whitelist record",
+    updateRecordsFailed: "Failed to update whitelist records",
+    deleteFailed: "Failed to delete whitelist record",
+    commentUpdateFailed: "Failed to update whitelist comment",
+    regionListFailed: "Failed to load region whitelist",
     regionAddFailed: "Failed to add region whitelist",
+    regionDeleteFailed: "Failed to delete region whitelist",
     regionRequired: "Select at least one region",
     regionEmpty: "No usable CIDRs were resolved for the selected regions",
     regionNotFound: "Region whitelist not found",
@@ -675,6 +873,8 @@ export const enServer = {
       "tmux was still not detected after installation completed",
     tmuxInstallCompleteWithVersion: "tmux installation completed: {version}",
     tmuxInstallFailed: "tmux installation failed",
+    operationFailed: "Terminal operation failed",
+    operationFailedWithMessage: "Terminal operation failed: {message}",
     cwdUnavailable:
       "Working directory does not exist or is inaccessible: {path}",
     webTerminalDisabled: "Web terminal is not enabled",
@@ -744,8 +944,12 @@ export const enServer = {
     keepOneEnabledRule:
       "Keep at least one rule file enabled while WAF is turned on",
     uploadSelectConf: "Select .conf files to upload",
+    base64Invalid: "Rule file content is not valid Base64",
     reloadRulesFailed: "Failed to reload WAF rules",
+    detailsLoadFailed: "Failed to load WAF details",
     statusReadFailed: "Failed to read WAF status",
+    invalidRequestBody: "Invalid request body",
+    dateInvalid: "Date format is invalid, expected YYYY-MM-DD",
     configSaveOrLoadFailed: "Failed to save or load WAF settings",
     systemRulesSyncFailed: "Failed to sync system rules",
     ruleToggleFailed: "Failed to enable or disable WAF rules",
@@ -755,6 +959,7 @@ export const enServer = {
     eventsDrainFailed: "Failed to pull WAF events",
     logsQueryFailed: "Failed to query WAF logs",
     logNotFound: "WAF log not found",
+    logLoadFailed: "Failed to load WAF log",
     logsDeleteFailed: "Failed to delete WAF logs",
   },
   oidc: {
@@ -792,16 +997,34 @@ export const enServer = {
     inviteExpired: "Binding invite link has expired",
     inviteProviderNotAllowed: "This invite link does not allow this provider",
     authorizationEndpointMissing: "authorization endpoint is not configured",
+    authorizationEndpointInvalid: "authorization endpoint is invalid",
     bindStateInvalid: "Binding invite state is invalid",
     accountNotBoundCannotLogin:
       "This external account is not bound and cannot sign in",
     tokenEndpointMissing: "token endpoint is not configured",
+    clientIdMissing: "client_id is not configured",
     bindProviderMismatch: "Binding invite does not match the sign-in provider",
     inviteTotpMissing:
       "The TOTP linked to this binding invite no longer exists",
     accountAlreadyBoundOtherTotp:
       "This external account is already bound to another TOTP",
     inviteUsed: "Binding invite link has already been used",
+    externalAccountFallback: "External account",
+    loginFailedWithDetail: "External sign-in failed: {detail}",
+    tokenRequestFailed: "Failed to fetch external sign-in token: {detail}",
+    readResponseFailed: "Failed to read external sign-in response: {detail}",
+    httpResponseFailed:
+      "External sign-in request failed: HTTP {status}: {detail}",
+    jsonResponseInvalid:
+      "External sign-in response is not valid JSON: {detail}",
+    jwksUriMissing: "OIDC JWKS URI is not configured",
+    jwksFetchFailed: "Failed to fetch OIDC JWKS: {detail}",
+    jwksInvalid: "OIDC JWKS response is invalid: {detail}",
+    tokenHeaderInvalid: "OIDC token header is invalid: {detail}",
+    signingKeyUnavailable: "OIDC signing key is unavailable",
+    signingKeyInvalid: "OIDC signing key is invalid: {detail}",
+    idTokenVerificationFailed: "OIDC id_token verification failed: {detail}",
+    githubProfileRequestFailed: "GitHub profile request failed: {detail}",
     providerErrors: {
       accessDenied:
         "You canceled external sign-in authorization, or the provider rejected the request.",
@@ -839,6 +1062,28 @@ export const enServer = {
     testProviderFailed: "Failed to test external sign-in provider",
     deleteBindingFailed: "Failed to delete external account binding",
     createInviteFailed: "Failed to create binding invite",
+    listProvidersFailed: "Failed to list external sign-in providers",
+    providerPayloadObject: "Provider payload must be an object",
+    loadProviderFailed: "Failed to load external sign-in provider",
+    listBindingsFailed: "Failed to list external account bindings",
+    invitationPayloadObject: "Invitation payload must be an object",
+    totpRequired: "TOTP credential is required",
+    loadTotpFailed: "Failed to load TOTP credentials",
+    loadConfigFailed: "Failed to load configuration",
+    inviteUrlBuildFailed: "Failed to build external account invite URL",
+    connectionConfigInvalid:
+      "External sign-in provider connection config is invalid",
+    oauthEndpointIncompleteWithField:
+      "OAuth2 endpoint configuration is incomplete: {field}",
+    discoveryHttpFailed:
+      "OIDC discovery request failed: HTTP {status}: {detail}",
+    discoveryInvalid: "OIDC discovery document is invalid",
+    discoveryMissingFieldsWithList:
+      "OIDC discovery document is missing required fields: {fields}",
+    providerTypeRequired: "External sign-in provider type is required",
+    storedProviderInvalid: "Stored external sign-in provider is invalid",
+    storedProviderTypeInvalid:
+      "Stored external sign-in provider type is invalid",
     catalog: {
       googleDescription: "Sign in with a Google account.",
       microsoftDescription: "Sign in with a Microsoft / Azure AD account.",
@@ -911,6 +1156,8 @@ export const enServer = {
       "The existing certificate inventory is better suited for future multi-certificate/SNI deployment.",
   },
   cloudflared: {
+    configReadFailed: "Failed to read Cloudflared config",
+    configWriteFailed: "Failed to save Cloudflared config",
     missingToken: "Configure the Cloudflare Token first",
     startFailedWithDetail: "Failed to start cloudflared: {detail}",
     processExited: "cloudflared process exited",
@@ -921,6 +1168,10 @@ export const enServer = {
     unknownError: "Unknown error",
     notInitialized: "Cloudflared is not initialized",
     startFailed: "Failed to start",
+    stopFailed: "Failed to stop Cloudflared",
+    logsListFailed: "Failed to list Cloudflared logs",
+    logsClearFailed: "Failed to clear Cloudflared logs",
+    logsPollFailed: "Failed to poll Cloudflared logs",
   },
   dnsmasq: {
     notDetectedInstallFirst: "dnsmasq was not detected. Install it first.",
@@ -1028,9 +1279,12 @@ export const enServer = {
       macAutoDownloadUnsupported:
         "Automatic app download is not supported on macOS. Install it manually with brew install cloudflared.",
       platformUnsupported: "This platform is not supported",
+      downloadStarted: "Cloudflared download started",
       responseBodyUnreadable: "Download response body is unreadable",
       downloadCancelled: "Download cancelled",
       unknownError: "Unknown error",
+      deleteSuccess: "Cloudflared deleted",
+      deleteFailed: "Failed to delete Cloudflared: {detail}",
       macManualRemove: "Remove cloudflared manually on macOS",
       notInstalledBrew:
         "Cloudflared is not installed. Install it with brew install cloudflared first.",
@@ -1040,11 +1294,14 @@ export const enServer = {
       platformUnsupported: "This platform is not supported",
       packageMissing: "FRP package is missing",
       extractFailed: "Extraction failed with exit code {code}",
+      downloadStarted: "FRP download started",
       responseBodyUnreadable: "Download response body is unreadable",
       connectionFailed: "Connection failed",
       downloadFailed: "Download failed: {detail}",
       unknownError: "Unknown error",
       downloadCancelled: "Download cancelled",
+      deleteSuccess: "FRP deleted",
+      deleteFailed: "Failed to delete FRP: {detail}",
       notInitialized: "FRP is not initialized. Download it first.",
     },
   },
@@ -1066,6 +1323,10 @@ export const enServer = {
     primaryDeleteDenied: "The primary FRP instance cannot be deleted",
     notInitialized: "FRP is not initialized",
     startFailedWithDetail: "Failed to start frpc: {detail}",
+    pidReadFailed: "Failed to read frpc pid",
+    startedWithPid: "frpc started pid={pid}",
+    stoppedWithPid: "frpc stopped pid={pid}",
+    alreadyStopped: "frpc already stopped",
     pidCleanedForInstance:
       "PID does not belong to this instance; this instance runtime record was cleared",
     resumeOnBoot:
@@ -1107,6 +1368,53 @@ export const enServer = {
     notFoundWithRetry: "Passkey not found. Retry in {seconds} seconds.",
     verifyFailedWithRetry: "Verification failed. Retry in {seconds} seconds.",
     bindTokenExpired: "Binding credential has expired",
+    loadStatusFailed: "Failed to load passkey status",
+    createOptionsFailed: "Failed to create passkey options",
+    loadPasskeysFailed: "Failed to load passkeys",
+    noPasskeyAvailable: "No passkey is available",
+    noValidPasskeyAvailable: "No valid passkey is available",
+    invalidRpConfig: "Invalid passkey relying-party configuration",
+    invalidResponse: "Invalid passkey response",
+    challengeExpired: "Passkey challenge expired",
+    verifyFailed: "Failed to verify passkey",
+    notFound: "Passkey not found",
+    createSessionFailed: "Failed to create auth session",
+    loginSuccessful: "Login successful",
+    unauthorizedOrMissingTotp: "Unauthorized or missing TOTP ID",
+    createBindTokenFailed: "Failed to create passkey bind token",
+    createRegistrationOptionsFailed:
+      "Failed to create passkey registration options",
+    registerFailed: "Failed to register passkey",
+    registrationFailed: "Passkey registration failed",
+    alreadyRegistered: "Passkey already registered",
+    unknownDevice: "Unknown Device",
+  },
+  authRoutes: {
+    pathNotFound: "Auth API path not found",
+    loadBootstrapFailed: "Failed to load auth bootstrap",
+    authenticationRequired: "Authentication required",
+    loadSessionFailed: "Failed to load auth session",
+    loadCaptchaConfigFailed: "Failed to load captcha config",
+    createCaptchaChallengeFailed: "Failed to create captcha challenge",
+    loadOidcProvidersFailed: "Failed to load OIDC providers",
+    loadOidcInviteFailed: "Failed to load OIDC invite",
+    inspectOidcInviteFailed: "Failed to inspect OIDC invite",
+    loadAuthConfigFailed: "Failed to load auth config",
+    loadLoginCredentialsFailed: "Failed to load login credentials",
+    createSessionFailed: "Failed to create auth session",
+    loginSuccessful: "Login successful",
+    verifyFailed: "Failed to verify auth",
+    localNetworkAccessAllowed: "Local network access allowed",
+    authenticated: "Authenticated",
+    invalidCaptchaProof: "Invalid captcha proof",
+    invalidCaptchaAlgorithm: "Invalid captcha algorithm",
+    invalidCaptchaChallenge: "Invalid captcha challenge",
+    invalidCaptchaSignature: "Invalid captcha signature",
+    captchaChallengeExpired: "Captcha challenge expired",
+    captchaChallengeAlreadyUsed: "Captcha challenge has already been used",
+    captchaVerifyFailed: "Failed to verify captcha",
+    turnstileResponseInvalid: "Turnstile response is invalid",
+    unknownTotp: "Unknown TOTP",
   },
   maintenanceBackup: {
     commandMissing: "System command is missing: {command}",
@@ -1130,6 +1438,7 @@ export const enServer = {
     unsupportedRedisExportType:
       "Unsupported Redis data type for export: {type} ({key})",
     createArchiveFailed: "Failed to create backup archive",
+    buildResponseFailed: "Failed to build backup download response",
     invalidBackupExtension: "Backup file extension must be {extension}",
     stringArrayRequired: "{label} must be an array of strings",
     stringArrayOnlyStrings: "{label} can only contain strings",
@@ -1161,6 +1470,7 @@ export const enServer = {
     archiveMissingPayload: "Backup archive is missing {filename}",
     archivePasswordInvalid: "Backup archive password verification failed",
     readArchiveFailed: "Failed to read .knock backup archive",
+    payloadUtf8Invalid: "Backup file content is not valid UTF-8 text",
     writeRedisFailed: "Failed to write Redis backup data",
     unknownError: "Unknown error",
     syncSteps: {
@@ -1172,6 +1482,9 @@ export const enServer = {
       systemResourceMonitorReset: "System resource monitor state reset",
     },
     archiveEmpty: "Backup archive content is empty",
+    archiveTooLarge: "Backup archive is too large to import",
+    directoryImportFileNotFound: "Backup file to import was not found",
+    directoryImportFileUnreadable: "Backup file to import cannot be read",
     directoryImportFileOnly:
       "Only files in the backup directory can be imported",
     directoryImportExtensionOnly:
@@ -1198,6 +1511,16 @@ export const enServer = {
     providerConfigMismatch:
       "Captcha provider does not match the current configuration",
   },
+  hmac: {
+    missingTimestamp: "Missing HMAC timestamp",
+    missingNonce: "Missing HMAC nonce",
+    missingSignature: "Missing HMAC signature",
+    timestampExpired: "HMAC timestamp expired",
+    invalidKey: "Invalid HMAC key",
+    invalidSignature: "Invalid HMAC signature",
+    nonceReused: "HMAC nonce has already been used",
+    nonceVerifyFailed: "Failed to verify HMAC nonce",
+  },
   cidr: {
     serviceError: "CIDR service error",
     emptyResponse: "<empty response>",
@@ -1209,7 +1532,9 @@ export const enServer = {
     requestId: "request ID: {requestId}",
     responsePreview: "response preview: {preview}",
     provinceRequired: "Province is required",
+    invalidApiUrl: "Invalid CIDR API URL: {error}",
     upstreamTimeout: "CIDR upstream request timed out",
+    upstreamRequestFailedGeneric: "CIDR upstream request failed: {error}",
     upstreamRequestFailed: "CIDR upstream request failed ({status})",
     invalidJson: "CIDR upstream returned invalid JSON",
     upstreamUnexpected: "CIDR upstream returned an unexpected response",
@@ -1220,6 +1545,9 @@ export const enServer = {
     outbound: "Outbound",
     upstreamUnavailable: "Upstream service is unavailable",
     hostRequired: "host is required",
+    statsLoadFailed: "Failed to load dashboard stats",
+    configLoadFailed: "Failed to load dashboard config",
+    displayConfigSaveFailed: "Failed to save dashboard display config",
   },
   acme: {
     alreadyInstalled: "acme.sh is already installed",
@@ -1317,13 +1645,13 @@ export const enServer = {
     requestCanceled: "Request was canceled",
     curlRequestFailed: "curl request failed: {detail}",
     nodeTransportInterfaceAddressUnavailable:
-      "Node HTTP request cannot bind interface {name}: no usable {family} local address",
+      "Built-in HTTP request cannot bind interface {name}: no usable {family} local address",
     nodeTransportInterfaceNoAddress:
-      "Node HTTP request cannot bind interface {name}: no usable local address",
+      "Built-in HTTP request cannot bind interface {name}: no usable local address",
     nodeTransportUnsupportedProtocol:
-      "Node HTTP request does not support protocol: {protocol}",
+      "Built-in HTTP request does not support protocol: {protocol}",
     nodeTransportRedirectLimitExceeded:
-      "Node HTTP request exceeded the redirect limit of {max}",
+      "Built-in HTTP request exceeded the redirect limit of {max}",
     triggerCron: "Scheduled check",
     triggerEnable: "Immediate check after enabling automatic updates",
     triggerStartup: "Startup check",
@@ -1367,7 +1695,13 @@ export const enServer = {
     updateSuccess: "Update succeeded: {message}",
     updateFailed: "Update failed: {message}",
     testError: "Test error: {message}",
+    statusLoadFailed: "Failed to load DDNS status",
+    toggleFailed: "Failed to update DDNS enabled state",
+    settingsLoadFailed: "Failed to load DDNS automatic sync settings",
     settingsSaveFailed: "Failed to save DDNS automatic sync settings",
+    logsLoadFailed: "Failed to load DDNS logs",
+    logsClearFailed: "Failed to clear DDNS logs",
+    pollFailed: "Failed to poll DDNS logs and status",
     providerSetFailed: "Failed to set provider",
     configSaveFailed: "Failed to save DDNS configuration",
     createTargetFailed: "Failed to create DDNS entry",
@@ -1389,6 +1723,56 @@ export const enServer = {
           },
           ttl: {
             description: "Default {seconds} seconds",
+          },
+          access_key_id: {
+            label: "Access key ID",
+            description:
+              "Cloud provider access key ID with DNS record read/write permissions",
+          },
+          access_key_secret: {
+            label: "Access key secret",
+            description: "Secret paired with the access key ID",
+          },
+          secret_access_key: {
+            label: "Access key secret",
+            description: "Secret paired with the access key ID",
+          },
+          secret_id: {
+            label: "SecretId",
+            description:
+              "Tencent Cloud API SecretId with permissions for the selected DNS service",
+          },
+          secret_key: {
+            label: "SecretKey",
+            description: "Tencent Cloud API SecretKey paired with SecretId",
+          },
+          api_key: {
+            label: "API key",
+            description: "API key generated in the provider console",
+          },
+          api_secret: {
+            label: "API secret",
+            description: "API secret paired with the API key",
+          },
+          secret_api_key: {
+            label: "Secret API key",
+            description: "Secret API key generated in the Porkbun console",
+          },
+          api_token: {
+            label: "API token",
+            description: "API token generated in the provider console",
+          },
+          token_id: {
+            label: "Token ID",
+            description: "API Token ID generated in the DNSPod console",
+          },
+          token_key: {
+            label: "Token Key",
+            description: "API Token Key generated in the DNSPod console",
+          },
+          zone_id: {
+            label: "Zone ID",
+            description: "Zone or site ID from the provider console",
           },
         },
       },
@@ -1497,6 +1881,7 @@ export const enServer = {
         requestFailed: "Request failed",
         updateFailed: "Update failed",
         createFailed: "Create failed",
+        recordIdMissing: "Aliyun DNS returned a record without RecordId",
       },
       baidu: {
         label: "Baidu Cloud DNS",
@@ -1529,6 +1914,8 @@ export const enServer = {
         requestFailed:
           "Huawei Cloud DNS request failed: HTTP {status} {statusText}, {detail}",
         zoneNotFound: "Huawei Cloud Zone not found: {zone}",
+        recordsetIdMissing:
+          "Huawei Cloud DNS returned a recordset without ID",
       },
       tencentcloud: {
         label: "Tencent Cloud DNS",
@@ -1800,6 +2187,9 @@ export const enServer = {
     maxHostsExceeded: "Scan at most {max} hosts at a time",
     selectAtLeastOneCidr: "Select at least one local IPv4 scan range",
     scanJobNotFound: "Scan job not found or expired",
+    loadTargetsFailed: "Failed to load scan targets",
+    loadConfigFailed: "Failed to load configuration",
+    saveTargetsFailed: "Failed to save scan targets",
     targetLabels: {
       docker: "{cidr} (Docker host LAN)",
       loopback: "{cidr} (local loopback)",
@@ -1841,10 +2231,12 @@ export const enServer = {
       "SSH firewall cannot be cleared in this environment",
     logSourceUnavailableShort: "SSH log source is unavailable",
     customCidrInvalid: "Custom CIDR format is invalid: {cidrs}",
+    customCidrsMustBeArray: "custom_cidrs must be an array",
     syncSshPolicyFailed: "Failed to sync SSH dedicated firewall rules",
     clearSshPolicyFailed: "Failed to clear SSH dedicated firewall rules",
     blockRecordInvalid: "Block record format is invalid",
     routes: {
+      loadConfigFailed: "Failed to load SSH security configuration",
       updateConfigFailed: "Failed to update SSH security configuration",
       syncFirewallSuccess:
         "Synced {allowedCidrs} allowed CIDRs and {synced} SSH blocked IPs to ports {ports}",
@@ -1852,10 +2244,28 @@ export const enServer = {
       clearFirewallSuccess: "Cleared SSH dedicated firewall rules",
       clearFirewallFailed: "Failed to clear SSH firewall",
       readLoginLogsFailed: "Failed to read SSH login logs",
+      listBlocksFailed: "Failed to list SSH blocks",
       blockNotFound: "Block record not found",
+      loadBlockFailed: "Failed to load SSH block",
       removeBlockFailed: "Failed to remove block",
       selectIps: "Select IPs to unblock",
       removeBlocksFailed: "Failed to remove blocks",
+    },
+  },
+  systemEvents: {
+    routes: {
+      unsupportedSystemEventType: "Unsupported system event type",
+      unsupportedSystemEventSource: "Unsupported system event source",
+      unsupportedSystemEventLevel: "Unsupported system event level",
+      unsupportedSubjectKind: "Unsupported subject kind",
+      unsupportedEventType: "Unsupported event type",
+      unsupportedEventLevel: "Unsupported event level",
+      unsupportedEventSource: "Unsupported event source",
+      loadConfigFailed: "Failed to load system event config",
+      writeEventFailed: "Failed to write system event",
+      listEventsFailed: "Failed to list system events",
+      deleteEventsFailed: "Failed to delete system events",
+      clearEventsFailed: "Failed to clear system events",
     },
   },
   notifications: {
@@ -2394,6 +2804,7 @@ export const enServer = {
           },
         },
         pushplus: {
+          label: "PushPlus",
           description:
             "Send notifications through the PushPlus standard API, with per-rule channel choices such as WeChat Official Account, App, and email.",
           fields: {
@@ -2402,6 +2813,7 @@ export const enServer = {
               description: "Keep the official API URL unless needed.",
             },
             token: {
+              label: "Token",
               description:
                 "PushPlus user token or message token. Keep it secret.",
             },
@@ -2418,7 +2830,10 @@ export const enServer = {
               description:
                 "Markdown is used by default. Switch per target if plain text or HTML fits the channel better.",
               options: {
+                markdown: "Markdown",
+                html: "HTML",
                 txt: "Plain text",
+                json: "JSON",
               },
             },
             channel: {
@@ -2433,6 +2848,7 @@ export const enServer = {
                 sms: "SMS",
                 voice: "Voice",
                 extension: "Plugin / desktop app",
+                app: "App",
                 clawbot: "WeChat ClawBot",
               },
             },
@@ -2467,6 +2883,7 @@ export const enServer = {
           },
         },
         wxpusher: {
+          label: "WxPusher",
           description:
             "Send notifications to specified UIDs or Topics through the WxPusher standard API. Empty rule targets inherit the provider defaults.",
           fields: {
@@ -2475,6 +2892,7 @@ export const enServer = {
               description: "Keep the official service URL unless needed.",
             },
             app_token: {
+              label: "AppToken",
               description:
                 "AppToken for the WxPusher backend app. Keep it secret.",
             },
@@ -2532,6 +2950,7 @@ export const enServer = {
           },
         },
         bark: {
+          label: "Bark",
           description:
             "Send APNs push notifications to iPhone through the official Bark service or a self-hosted Bark Server.",
           fields: {
@@ -2541,6 +2960,7 @@ export const enServer = {
                 "Keep the official online service URL unless you use a self-hosted Bark Server.",
             },
             device_key: {
+              label: "Device Key",
               description:
                 "Device Key copied from the Bark app. Multiple keys can be separated with commas.",
             },
@@ -2551,6 +2971,12 @@ export const enServer = {
               label: "Notification level",
               description:
                 "active is the default instant alert, timeSensitive can bypass Focus, and critical is a critical alert.",
+              options: {
+                active: "Active",
+                timeSensitive: "Time sensitive",
+                passive: "Passive",
+                critical: "Critical",
+              },
             },
             group: {
               label: "Message group",
@@ -2602,6 +3028,7 @@ export const enServer = {
               description: "Keep the official API URL unless needed.",
             },
             sendkey: {
+              label: "SendKey",
               description:
                 "SendKey provided by ServerChan Turbo. Keep it secret.",
             },
@@ -2614,6 +3041,7 @@ export const enServer = {
                 "Optional. Dynamically choose up to two channels for this push, separated by |, such as 9|66.",
             },
             openid: {
+              label: "OpenID / UID",
               description:
                 "Optional. Test accounts use openid, and WeCom app messages use recipient UIDs. For multiple values, follow the ServerChan documentation format.",
               placeholder: "openid1,openid2 or uid1|uid2",
@@ -2645,6 +3073,7 @@ export const enServer = {
             "Send Markdown notifications to group chats through a DingTalk bot Webhook, with optional signature verification.",
           fields: {
             webhook_url: {
+              label: "Webhook URL",
               description: "Full Webhook URL generated by the DingTalk bot.",
             },
             secret: {
@@ -2693,6 +3122,7 @@ export const enServer = {
             "Send rich post notifications to group chats through a Feishu bot Webhook, with optional signature verification.",
           fields: {
             webhook_url: {
+              label: "Webhook URL",
               description: "Full Webhook URL generated by the Feishu bot.",
             },
             secret: {
@@ -2726,10 +3156,12 @@ export const enServer = {
           },
         },
         webhook: {
+          label: "Webhook",
           description:
             "Send standard notification JSON to any endpoint that supports HTTP JSON.",
           fields: {
             url: {
+              label: "Webhook URL",
               description:
                 "Target address that receives standard notification JSON.",
             },
@@ -2784,6 +3216,7 @@ export const enServer = {
               },
             },
             token: {
+              label: "Token",
               description:
                 "MagicPush API token. Standard push sends it as Authorization: Bearer; inbound mode appends it to /api/inbound/:token.",
             },
@@ -2803,6 +3236,7 @@ export const enServer = {
           },
         },
         telegram: {
+          label: "Telegram",
           description:
             "Send text notifications through Telegram Bot API to a specified chat or channel, with inline action buttons.",
           fields: {
@@ -2812,10 +3246,12 @@ export const enServer = {
                 "Keep the official Bot API by default. If network access to the official endpoint is unavailable, use https://tgapi.fnknock.cn as a relay. If you run a self-hosted Local Bot API Server, enter its root URL.",
             },
             bot_token: {
+              label: "Bot Token",
               description:
                 "Bot Token obtained after creating a bot through @BotFather.",
             },
             chat_id: {
+              label: "Chat ID",
               description:
                 "Target chat ID or channel username, such as @channelusername. You can message @UserIdzhBot first to get a Chat ID; test sends use this target too.",
             },
@@ -2823,6 +3259,7 @@ export const enServer = {
               label: "Timeout seconds",
             },
             message_thread_id: {
+              label: "Topic ID",
               description:
                 "Optional. Topic ID (message_thread_id) for sending to a group topic.",
             },
@@ -2848,6 +3285,7 @@ export const enServer = {
             "Send text or markdown notifications to a specified group chat through WeCom group Webhook.",
           fields: {
             webhook_url: {
+              label: "Webhook URL",
               description:
                 "Full Webhook URL generated on the WeCom message push page. Keep it secret.",
             },
@@ -2875,6 +3313,7 @@ export const enServer = {
           },
         },
         pushdeer: {
+          label: "PushDeer",
           description:
             "Send Markdown notifications to bound devices through PushDeer official online service or a self-hosted service.",
           fields: {
@@ -2884,6 +3323,7 @@ export const enServer = {
                 "Keep the official online service URL unless you use a self-hosted PushDeer service.",
             },
             pushkey: {
+              label: "PushKey",
               description:
                 "PushKey generated in the PushDeer client. Multiple keys can be separated with commas.",
             },
@@ -2917,6 +3357,7 @@ export const enServer = {
     },
     service: {
       unnamed: "Unnamed",
+      invalidJsonBody: "Request body must be valid JSON",
       invalidJson: "{field} must be valid JSON",
       invalidSelectValue: "{field} has an invalid value",
       fieldRequired: "{field} cannot be empty",
@@ -2934,12 +3375,16 @@ export const enServer = {
       },
       providerNotFound: "Notification provider does not exist",
       unsupportedProviderType: "Unsupported notification provider type",
+      invalidProviderRecord: "Notification provider record is invalid",
       providerDefinitionMissing:
         "Notification provider definition does not exist",
       providerReferencedByRule:
         'This provider is still referenced by rule "{rule}"',
       testSendFailed: "Test send failed",
       testSendSuccess: "Test send succeeded",
+      providerRequestReturnedStatus:
+        "{provider} request returned status {status}",
+      barkPartialFailed: "Bark failed for {failed}/{total} target(s)",
       providerTypeMismatch:
         "Provider type does not match the existing configuration",
       providerTestName: "{provider} test",
@@ -2955,7 +3400,9 @@ export const enServer = {
       duplicateEventRule:
         "A notification rule already exists for this event. Delete the original rule first.",
       ruleNotFound: "Notification rule does not exist",
+      invalidRuleRecord: "Notification rule record is invalid",
       deletedProvider: "Deleted provider",
+      storageUnavailable: "Notification storage is temporarily unavailable",
     },
   },
 };

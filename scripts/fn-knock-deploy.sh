@@ -48,9 +48,60 @@ derive_arch_fpk_path() {
 
 LOCAL_FPK_AMD64_PATH="$(derive_arch_fpk_path "${LOCAL_FPK_PATH}" "amd64")"
 LOCAL_FPK_ARM64_PATH="$(derive_arch_fpk_path "${LOCAL_FPK_PATH}" "arm64")"
+FPK_ARCHES=()
 
 get_remote_status() {
   ssh "${REMOTE_HOST}" "appcenter-cli status '${APP_NAME}' 2>/dev/null || true"
+}
+
+read_fpk_arches() {
+  local raw="${FN_KNOCK_FPK_ARCHES:-amd64 arm64}"
+  raw="${raw//,/ }"
+
+  local arch
+  local normalized
+  local seen=" "
+
+  for arch in ${raw}; do
+    case "${arch}" in
+      amd64|x86|x86_64)
+        normalized="amd64"
+        ;;
+      arm64|aarch64)
+        normalized="arm64"
+        ;;
+      *)
+        echo "ERROR: invalid FPK architecture: ${arch}; expected amd64/x86 or arm64" >&2
+        exit 1
+        ;;
+    esac
+
+    case "${seen}" in
+      *" ${normalized} "*) ;;
+      *)
+        FPK_ARCHES+=("${normalized}")
+        seen="${seen}${normalized} "
+        ;;
+    esac
+  done
+
+  if [ "${#FPK_ARCHES[@]}" -eq 0 ]; then
+    echo "ERROR: FPK architecture list is empty" >&2
+    exit 1
+  fi
+}
+
+fpk_arch_enabled() {
+  local target="$1"
+  local arch
+
+  for arch in "${FPK_ARCHES[@]}"; do
+    if [ "${arch}" = "${target}" ]; then
+      return 0
+    fi
+  done
+
+  return 1
 }
 
 assert_remote_installed() {
@@ -72,7 +123,7 @@ resolve_remote_www_index() {
 }
 
 run_local_package() {
-  log "Step 1/4: Build package assets locally"
+  log "Step 1/4: Build package assets locally (${FPK_ARCHES[*]})"
   ./apps/fn-knock/scripts/build-package.sh
 }
 
@@ -100,12 +151,14 @@ gateway_bins=(
 case "${arch}" in
   amd64)
     keep_bin="go-reauth-proxy-linux-amd64"
-    install_dep_apps="nodejs_v20:redis"
+    keep_rust_bin="server-admin-rs-linux-amd64"
+    install_dep_apps="redis"
     manifest_platform="x86"
     ;;
   arm64)
     keep_bin="go-reauth-proxy-linux-arm64"
-    install_dep_apps="nodejs_v20"
+    keep_rust_bin="server-admin-rs-linux-arm64"
+    install_dep_apps="redis"
     manifest_platform="arm"
     ;;
   *)
@@ -125,6 +178,14 @@ for bin in "${gateway_bins[@]}"; do
 done
 
 chmod +x "${build_dir}/app/server/${keep_bin}" 2>/dev/null || true
+
+if [ ! -x "${build_dir}/app/server/${keep_rust_bin}" ]; then
+  echo "[remote-fn-knock] missing Rust backend for ${arch}: app/server/${keep_rust_bin}" >&2
+  exit 1
+fi
+cp -f "${build_dir}/app/server/${keep_rust_bin}" "${build_dir}/app/server/server-admin-rs"
+rm -f "${build_dir}"/app/server/server-admin-rs-linux-*
+chmod +x "${build_dir}/app/server/server-admin-rs"
 
 manifest_file="${build_dir}/manifest"
 tmp_manifest="$(mktemp)"
@@ -156,12 +217,15 @@ echo "[remote-fn-knock] built ${arch} package -> ${output_path}"
 EOF
 }
 
-verify_fpk_gateway_bins() {
+verify_fpk_payload() {
   local fpk_path="$1"
   local keep_bin="$2"
+  local rust_arch="$3"
   local app_listing
   local normalized_listing
   local bin
+  local rust_tmp
+  local rust_file_info
 
   if ! app_listing="$(tar -xOzf "${fpk_path}" app.tgz | tar -tzf -)"; then
     echo "ERROR: failed to inspect FPK app payload: ${fpk_path}" >&2
@@ -184,6 +248,42 @@ verify_fpk_gateway_bins() {
       exit 1
     fi
   done
+
+  if ! printf '%s\n' "${normalized_listing}" | grep -Fxq "server/server-admin-rs"; then
+    echo "ERROR: FPK ${fpk_path} is missing Rust backend: server/server-admin-rs" >&2
+    exit 1
+  fi
+  if printf '%s\n' "${normalized_listing}" | grep -Eq '^server/server-admin-rs-linux-'; then
+    echo "ERROR: FPK ${fpk_path} contains staging Rust backend binaries" >&2
+    exit 1
+  fi
+
+  rust_tmp="$(mktemp)"
+  if ! tar -xOzf "${fpk_path}" app.tgz | tar -xOzf - server/server-admin-rs > "${rust_tmp}" 2>/dev/null; then
+    rm -f "${rust_tmp}"
+    echo "ERROR: failed to extract Rust backend from FPK: ${fpk_path}" >&2
+    exit 1
+  fi
+  rust_file_info="$(file -b "${rust_tmp}")"
+  rm -f "${rust_tmp}"
+  case "${rust_arch}" in
+    amd64)
+      if ! printf '%s\n' "${rust_file_info}" | grep -Eq 'ELF 64-bit LSB.*x86-64'; then
+        echo "ERROR: FPK ${fpk_path} Rust backend is not Linux x86-64 ELF: ${rust_file_info}" >&2
+        exit 1
+      fi
+      ;;
+    arm64)
+      if ! printf '%s\n' "${rust_file_info}" | grep -Eq 'ELF 64-bit LSB.*(ARM aarch64|aarch64)'; then
+        echo "ERROR: FPK ${fpk_path} Rust backend is not Linux arm64 ELF: ${rust_file_info}" >&2
+        exit 1
+      fi
+      ;;
+    *)
+      echo "ERROR: unsupported Rust backend arch verifier: ${rust_arch}" >&2
+      exit 1
+      ;;
+  esac
 }
 
 run_remote_pack() {
@@ -191,18 +291,31 @@ run_remote_pack() {
   ssh "${REMOTE_HOST}" "mkdir -p '${REMOTE_DIR}' '${REMOTE_SOURCE_DIR}'"
   rsync -az --delete "${LOCAL_APP_DIR}/" "${REMOTE_HOST}:${REMOTE_SOURCE_DIR}/"
 
-  run_remote_pack_for_arch "amd64" "${REMOTE_BUILD_AMD64_DIR}" "${REMOTE_FPK_AMD64_PATH}"
-  run_remote_pack_for_arch "arm64" "${REMOTE_BUILD_ARM64_DIR}" "${REMOTE_FPK_ARM64_PATH}"
+  if fpk_arch_enabled "amd64"; then
+    run_remote_pack_for_arch "amd64" "${REMOTE_BUILD_AMD64_DIR}" "${REMOTE_FPK_AMD64_PATH}"
+  fi
+  if fpk_arch_enabled "arm64"; then
+    run_remote_pack_for_arch "arm64" "${REMOTE_BUILD_ARM64_DIR}" "${REMOTE_FPK_ARM64_PATH}"
+  fi
 
   log "Step 2/4: Pull generated FPKs back to local workspace"
   mkdir -p "$(dirname "${LOCAL_FPK_AMD64_PATH}")"
-  scp "${REMOTE_HOST}:${REMOTE_FPK_AMD64_PATH}" "${LOCAL_FPK_AMD64_PATH}"
-  scp "${REMOTE_HOST}:${REMOTE_FPK_ARM64_PATH}" "${LOCAL_FPK_ARM64_PATH}"
-  verify_fpk_gateway_bins "${LOCAL_FPK_AMD64_PATH}" "go-reauth-proxy-linux-amd64"
-  verify_fpk_gateway_bins "${LOCAL_FPK_ARM64_PATH}" "go-reauth-proxy-linux-arm64"
+  if fpk_arch_enabled "amd64"; then
+    scp "${REMOTE_HOST}:${REMOTE_FPK_AMD64_PATH}" "${LOCAL_FPK_AMD64_PATH}"
+    verify_fpk_payload "${LOCAL_FPK_AMD64_PATH}" "go-reauth-proxy-linux-amd64" "amd64"
+  fi
+  if fpk_arch_enabled "arm64"; then
+    scp "${REMOTE_HOST}:${REMOTE_FPK_ARM64_PATH}" "${LOCAL_FPK_ARM64_PATH}"
+    verify_fpk_payload "${LOCAL_FPK_ARM64_PATH}" "go-reauth-proxy-linux-arm64" "arm64"
+  fi
 }
 
 run_remote_install() {
+  if ! fpk_arch_enabled "amd64"; then
+    echo "ERROR: install-remote installs the x86/amd64 FPK; include amd64 in FN_KNOCK_FPK_ARCHES" >&2
+    exit 1
+  fi
+
   log "Step 3/4: Stop and uninstall old app version"
   ssh "${REMOTE_HOST}" "appcenter-cli stop '${APP_NAME}' || true"
   ssh "${REMOTE_HOST}" "appcenter-cli uninstall '${APP_NAME}' || true"
@@ -322,7 +435,7 @@ Usage:
   bash ./scripts/fn-knock-deploy.sh <command>
 
 Commands:
-  pack-remote     Run local package build + remote dual-arch fnpack build + download both FPKs
+  pack-remote     Run local package build + remote fnpack build + download generated FPKs
   install-remote  Install/start amd64 FPK on remote host and print runtime logs
   verify-remote   Verify installed index.cgi hash and print key lines
   deploy          Run all steps in order (pack-remote -> install-remote -> verify-remote)
@@ -333,12 +446,22 @@ Optional env overrides:
   FN_KNOCK_APP_NAME     (default: fn-knock)
   FN_KNOCK_LOCAL_APP_DIR (default: apps/fn-knock)
   FN_KNOCK_LOCAL_FPK_PATH (default: apps/fn-knock/dist/fn-knock.fpk; downloads as -amd64/-arm64)
+  FN_KNOCK_FPK_ARCHES (space/comma list: amd64/x86 and/or arm64; default: amd64 arm64)
   FN_KNOCK_WIZARD_BACKEND_PORT (default: 7998)
   FN_KNOCK_WIZARD_AUTH_PORT (default: 7997)
   FN_KNOCK_WIZARD_GO_BACKEND_PORT (default: 7996)
   FN_KNOCK_WIZARD_GO_REPROXY_PORT (default: 7999)
+  FN_KNOCK_FPK_RUST_BUILDER (auto|zig|docker; default: auto)
+  FN_KNOCK_RUST_UPX (auto|0|1|required; default: auto)
+  FN_KNOCK_RUST_UPX_ARGS (default: --best --lzma)
+  FN_KNOCK_RUST_PARALLEL_RELEASE (set 1 to use thin LTO + multi codegen units for faster builds)
+  CARGO_BUILD_JOBS (Cargo job count; defaults to CPU count when FN_KNOCK_RUST_PARALLEL_RELEASE=1)
+  CARGO_PROFILE_RELEASE_LTO (optional Cargo release LTO override, e.g. thin)
+  CARGO_PROFILE_RELEASE_CODEGEN_UNITS (optional release codegen units override)
 EOF
 }
+
+read_fpk_arches
 
 cmd="${1:-}"
 case "${cmd}" in

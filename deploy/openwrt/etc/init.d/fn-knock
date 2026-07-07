@@ -13,7 +13,8 @@ load_config() {
 	config_get app_home main app_home "/usr/lib/fn-knock"
 	config_get data_dir main data_dir "/var/lib/fn-knock"
 	config_get gateway_config_dir main gateway_config_dir "/etc/fn-knock/gateway"
-	config_get node_bin main node_bin "/usr/bin/node"
+	config_get backend_impl main backend_impl "rust"
+	config_get rust_backend_bin main rust_backend_bin "/usr/lib/fn-knock/bin/server-admin-rs"
 	config_get admin_view_host main admin_view_host "0.0.0.0"
 	config_get admin_view_port main admin_view_port "7991"
 	config_get backend_host main backend_host "127.0.0.1"
@@ -86,12 +87,20 @@ validate_port() {
 }
 
 validate_ports() {
+	case "$backend_impl" in
+		rust) ;;
+		*)
+			echo "$NAME: invalid backend_impl: $backend_impl" >&2
+			return 1
+			;;
+	esac
+
 	validate_port admin_view "$admin_view_port" &&
 	validate_port backend "$backend_port" &&
 	validate_port auth "$auth_port" &&
 	validate_port go_backend "$go_backend_port" &&
 	validate_port go_reproxy "$go_reproxy_port" &&
-	validate_port redis "$redis_port" &&
+	validate_port redis "$redis_port" || return 1
 	validate_unique_service_ports
 }
 
@@ -116,14 +125,14 @@ validate_unique_service_ports() {
 	check_unique_service_port backend "$backend_port" &&
 	check_unique_service_port auth "$auth_port" &&
 	check_unique_service_port go_backend "$go_backend_port" &&
-	check_unique_service_port go_reproxy "$go_reproxy_port"
+	check_unique_service_port go_reproxy "$go_reproxy_port" || return 1
 }
 
 append_common_env() {
 	procd_set_param env \
 		"PATH=/usr/sbin:/usr/bin:/sbin:/bin" \
 		"TZ=${TZ:-Asia/Shanghai}" \
-		"NODE_ENV=production" \
+		"FN_KNOCK_BACKEND_IMPL=rust" \
 		"FN_KNOCK_RUNTIME_TARGET=openwrt" \
 		"FN_KNOCK_DATA_DIR=$data_dir" \
 		"FN_KNOCK_GATEWAY_CONFIG_DIR=$gateway_config_dir" \
@@ -217,18 +226,14 @@ start_service() {
 	load_or_create_secret ADMIN_PROXY_SECRET "$data_dir/admin_proxy_secret" || return 1
 
 	local gateway_bin="$app_home/bin/go-reauth-proxy"
-	local backend_entry="$app_home/server/server-admin/index.js"
+	local rust_backend_entry="$rust_backend_bin"
 
-	[ -x "$node_bin" ] || {
-		echo "$NAME: node runtime is not executable: $node_bin" >&2
-		return 1
-	}
 	[ -x "$gateway_bin" ] || {
 		echo "$NAME: gateway binary is not executable: $gateway_bin" >&2
 		return 1
 	}
-	[ -f "$backend_entry" ] || {
-		echo "$NAME: backend entry is missing: $backend_entry" >&2
+	[ -x "$rust_backend_entry" ] || {
+		echo "$NAME: Rust backend is not executable: $rust_backend_entry" >&2
 		return 1
 	}
 
@@ -246,7 +251,7 @@ start_service() {
 	procd_close_instance
 
 	procd_open_instance backend
-	procd_set_param command "$node_bin" "$backend_entry"
+	procd_set_param command "$rust_backend_entry"
 	append_common_env
 	procd_set_param limits nofile="65535 65535"
 	procd_set_param respawn

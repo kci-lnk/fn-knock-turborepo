@@ -2,13 +2,14 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${ROOT_DIR}/scripts/version.sh"
 DOCKER_DIR="${ROOT_DIR}/deploy/docker"
 LOCAL_COMPOSE_FILE="${DOCKER_DIR}/compose.yaml"
 LOCAL_OVERRIDE_FILE="${DOCKER_DIR}/compose.override.yaml"
 REMOTE_COMPOSE_TEMPLATE="${DOCKER_DIR}/compose.remote.yaml"
 DEFAULT_ENV_FILE="${DOCKER_DIR}/.env"
 FALLBACK_ENV_FILE="${DOCKER_DIR}/.env.example"
-VERSION_FILE="${ROOT_DIR}/apps/server-admin/src/lib/app-version.ts"
+VERSION_FILE="${ROOT_DIR}/version.json"
 
 REMOTE_HOST="${FN_KNOCK_DOCKER_REMOTE_HOST:-root@192.168.31.135}"
 REMOTE_DIR="${FN_KNOCK_DOCKER_REMOTE_DIR:-/opt/fn-knock-docker}"
@@ -34,6 +35,12 @@ BUILD_PROXY_ENABLED=0
 DOCKER_ARCHES=(amd64 arm64 arm32)
 GATEWAY_BINARY_DIR="${ROOT_DIR}/apps/fn-knock/app/server"
 GATEWAY_BINARIES_PREPARED=0
+DOCKER_RUST_BACKEND_DIR="${FN_KNOCK_DOCKER_RUST_BACKEND_DIR:-${DOCKER_DIR}/rust-backends}"
+DOCKER_RUST_BACKEND_BIN_DIR="${FN_KNOCK_DOCKER_RUST_BACKEND_BIN_DIR:-}"
+DOCKER_RUST_BUILD_MODE="${FN_KNOCK_DOCKER_BUILD_RUST_BACKENDS:-auto}"
+RUST_MUSL_CROSS_IMAGE_PREFIX="${FN_KNOCK_DOCKER_RUST_MUSL_CROSS_IMAGE_PREFIX:-messense/rust-musl-cross}"
+RUST_UPX_MODE="${FN_KNOCK_DOCKER_RUST_UPX:-${FN_KNOCK_RUST_UPX:-auto}}"
+RUST_UPX_ARGS_STRING="${FN_KNOCK_DOCKER_RUST_UPX_ARGS:-${FN_KNOCK_RUST_UPX_ARGS:---best --lzma}}"
 
 cleanup_temp_files() {
   if [ "${#TEMP_FILES[@]}" -gt 0 ]; then
@@ -64,6 +71,256 @@ prepare_gateway_binaries() {
 
   bash "${ROOT_DIR}/scripts/prepare-go-reauth-proxy.sh" "${GATEWAY_BINARY_DIR}" amd64 arm64 arm
   GATEWAY_BINARIES_PREPARED=1
+}
+
+gateway_arch_for_docker_arch() {
+  case "$1" in
+    amd64)
+      echo "amd64"
+      ;;
+    arm64)
+      echo "arm64"
+      ;;
+    arm32)
+      echo "arm"
+      ;;
+    *)
+      fail "unsupported docker architecture: $1"
+      ;;
+  esac
+}
+
+rust_musl_target_for_gateway_arch() {
+  case "$1" in
+    amd64)
+      echo "x86_64-unknown-linux-musl"
+      ;;
+    arm64)
+      echo "aarch64-unknown-linux-musl"
+      ;;
+    arm)
+      echo "armv7-unknown-linux-musleabihf"
+      ;;
+    *)
+      fail "unsupported gateway architecture: $1"
+      ;;
+  esac
+}
+
+rust_musl_image_for_gateway_arch() {
+  case "$1" in
+    amd64)
+      echo "${RUST_MUSL_CROSS_IMAGE_PREFIX}:x86_64-musl"
+      ;;
+    arm64)
+      echo "${RUST_MUSL_CROSS_IMAGE_PREFIX}:aarch64-musl"
+      ;;
+    arm)
+      echo "${RUST_MUSL_CROSS_IMAGE_PREFIX}:armv7-musleabihf"
+      ;;
+    *)
+      fail "unsupported gateway architecture: $1"
+      ;;
+  esac
+}
+
+file_size_bytes() {
+  wc -c < "$1" | tr -d '[:space:]'
+}
+
+format_bytes() {
+  local bytes="$1"
+  awk -v bytes="${bytes}" 'BEGIN {
+    split("B KiB MiB GiB", units, " ");
+    value = bytes + 0;
+    unit = 1;
+    while (value >= 1024 && unit < 4) {
+      value /= 1024;
+      unit++;
+    }
+    if (unit == 1) {
+      printf "%d %s", value, units[unit];
+    } else {
+      printf "%.1f %s", value, units[unit];
+    }
+  }'
+}
+
+validate_elf_arch() {
+  local bin="$1"
+  local gateway_arch="$2"
+  local label="$3"
+  local file_info
+
+  [ -x "${bin}" ] || fail "${label} is missing or not executable: ${bin}"
+  file_info="$(file -b "${bin}")"
+  case "${gateway_arch}" in
+    amd64)
+      printf '%s\n' "${file_info}" | grep -Eq 'ELF 64-bit LSB.*x86-64' || \
+        fail "${label} is not a Linux x86-64 ELF: ${file_info}"
+      ;;
+    arm64)
+      printf '%s\n' "${file_info}" | grep -Eq 'ELF 64-bit LSB.*(ARM aarch64|aarch64)' || \
+        fail "${label} is not a Linux arm64 ELF: ${file_info}"
+      ;;
+    arm)
+      printf '%s\n' "${file_info}" | grep -Eq 'ELF 32-bit LSB.*ARM' || \
+        fail "${label} is not a Linux armv7 ELF: ${file_info}"
+      ;;
+    *)
+      fail "unsupported gateway architecture: ${gateway_arch}"
+      ;;
+  esac
+}
+
+rust_backend_is_fresh() {
+  local bin="$1"
+
+  [ -f "${bin}" ] || return 1
+  if find "${ROOT_DIR}/apps/server-admin-rs" \
+    \( -path "${ROOT_DIR}/apps/server-admin-rs/target" -o -path "${ROOT_DIR}/apps/server-admin-rs/target/*" \) -prune \
+    -o \( -name '*.rs' -o -name 'Cargo.toml' -o -name 'Cargo.lock' \) -newer "${bin}" -print -quit | grep -q .; then
+    return 1
+  fi
+  return 0
+}
+
+maybe_compress_docker_rust_backend_with_upx() {
+  local bin="$1"
+  local gateway_arch="$2"
+  local upx_bin="${FN_KNOCK_UPX_BIN:-}"
+  local upx_args
+
+  case "${RUST_UPX_MODE}" in
+    0|false|False|FALSE|no|No|NO|off|Off|OFF)
+      log "Skipping UPX compression for Docker Rust backend ${gateway_arch} (FN_KNOCK_DOCKER_RUST_UPX=${RUST_UPX_MODE})"
+      return
+      ;;
+    auto|1|true|True|TRUE|yes|Yes|YES|on|On|ON|required)
+      ;;
+    *)
+      fail "unsupported FN_KNOCK_DOCKER_RUST_UPX=${RUST_UPX_MODE}; expected auto, 0, 1, or required"
+      ;;
+  esac
+
+  if [ -z "${upx_bin}" ]; then
+    upx_bin="$(command -v upx || true)"
+  fi
+  if [ -z "${upx_bin}" ]; then
+    if [ "${RUST_UPX_MODE}" = "auto" ]; then
+      log "UPX not found; leaving Docker Rust backend ${gateway_arch} uncompressed"
+      return
+    fi
+    fail "UPX is required but was not found; install upx or set FN_KNOCK_DOCKER_RUST_UPX=0"
+  fi
+
+  read -r -a upx_args <<< "${RUST_UPX_ARGS_STRING}"
+  log "Compressing Docker Rust backend ${gateway_arch} with UPX (${upx_bin} ${RUST_UPX_ARGS_STRING})"
+  "${upx_bin}" "${upx_args[@]}" "${bin}" || \
+    fail "UPX compression failed for ${bin}; set FN_KNOCK_DOCKER_RUST_UPX=0 to disable compression"
+  chmod 755 "${bin}"
+}
+
+copy_docker_rust_backend() {
+  local src="$1"
+  local gateway_arch="$2"
+  local dst="${DOCKER_RUST_BACKEND_DIR}/server-admin-rs-linux-${gateway_arch}"
+
+  mkdir -p "${DOCKER_RUST_BACKEND_DIR}"
+  install -m 755 "${src}" "${dst}"
+  validate_elf_arch "${dst}" "${gateway_arch}" "Docker Rust backend ${gateway_arch}"
+  log "Prepared Docker Rust backend ${gateway_arch} from ${src}"
+}
+
+find_prebuilt_docker_rust_backend() {
+  local gateway_arch="$1"
+  local candidate
+
+  for candidate in \
+    "${DOCKER_RUST_BACKEND_BIN_DIR}/server-admin-rs-linux-${gateway_arch}" \
+    "${DOCKER_RUST_BACKEND_BIN_DIR}/server-admin-rs-${gateway_arch}" \
+    "${DOCKER_RUST_BACKEND_BIN_DIR}/${gateway_arch}/server-admin-rs" \
+    "${ROOT_DIR}/dist/openwrt/rust-backends/server-admin-rs-linux-${gateway_arch}"; do
+    [ -n "${candidate}" ] || continue
+    [ -f "${candidate}" ] || continue
+    rust_backend_is_fresh "${candidate}" || continue
+    printf '%s\n' "${candidate}"
+    return 0
+  done
+  return 1
+}
+
+build_docker_rust_backend() {
+  local gateway_arch="$1"
+  local target
+  local image
+  local out_bin="${DOCKER_RUST_BACKEND_DIR}/server-admin-rs-linux-${gateway_arch}"
+  local before_bytes
+  local after_bytes
+
+  target="$(rust_musl_target_for_gateway_arch "${gateway_arch}")"
+  image="$(rust_musl_image_for_gateway_arch "${gateway_arch}")"
+  mkdir -p "${DOCKER_RUST_BACKEND_DIR}"
+  mkdir -p "${ROOT_DIR}/dist/cargo-registry-docker" "${ROOT_DIR}/dist/cargo-git-docker"
+
+  log "Building Docker Rust backend ${gateway_arch} with ${image} (${target})"
+  docker run --rm \
+    -e CARGO_TARGET_DIR="/workspace/dist/server-admin-rs-target/docker-${gateway_arch}" \
+    -e FN_KNOCK_RUST_TARGET="${target}" \
+    -e FN_KNOCK_RUST_OUT="/workspace/${out_bin#${ROOT_DIR}/}" \
+    -v "${ROOT_DIR}/dist/cargo-registry-docker:/root/.cargo/registry" \
+    -v "${ROOT_DIR}/dist/cargo-git-docker:/root/.cargo/git" \
+    -v "${ROOT_DIR}:/workspace" \
+    -w /workspace \
+    "${image}" \
+    sh -lc 'cargo build --release --manifest-path apps/server-admin-rs/Cargo.toml --target "${FN_KNOCK_RUST_TARGET}" && cp "${CARGO_TARGET_DIR}/${FN_KNOCK_RUST_TARGET}/release/server-admin-rs" "${FN_KNOCK_RUST_OUT}" && { "${FN_KNOCK_RUST_TARGET}-strip" --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || strip --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || true; }'
+
+  chmod 755 "${out_bin}"
+  validate_elf_arch "${out_bin}" "${gateway_arch}" "Docker Rust backend ${gateway_arch}"
+  before_bytes="$(file_size_bytes "${out_bin}")"
+  maybe_compress_docker_rust_backend_with_upx "${out_bin}" "${gateway_arch}"
+  validate_elf_arch "${out_bin}" "${gateway_arch}" "Docker Rust backend ${gateway_arch}"
+  after_bytes="$(file_size_bytes "${out_bin}")"
+  log "Docker Rust backend ${gateway_arch} size: $(format_bytes "${before_bytes}") -> $(format_bytes "${after_bytes}")"
+}
+
+prepare_docker_rust_backend() {
+  local gateway_arch="$1"
+  local dst="${DOCKER_RUST_BACKEND_DIR}/server-admin-rs-linux-${gateway_arch}"
+  local prebuilt
+
+  case "${DOCKER_RUST_BUILD_MODE}" in
+    auto)
+      if rust_backend_is_fresh "${dst}"; then
+        validate_elf_arch "${dst}" "${gateway_arch}" "Docker Rust backend ${gateway_arch}"
+        log "Reusing Docker Rust backend ${gateway_arch}: ${dst}"
+        return
+      fi
+      if prebuilt="$(find_prebuilt_docker_rust_backend "${gateway_arch}")"; then
+        copy_docker_rust_backend "${prebuilt}" "${gateway_arch}"
+        return
+      fi
+      build_docker_rust_backend "${gateway_arch}"
+      ;;
+    1|true|True|TRUE|yes|Yes|YES|on|On|ON)
+      build_docker_rust_backend "${gateway_arch}"
+      ;;
+    0|false|False|FALSE|no|No|NO|off|Off|OFF)
+      if [ -f "${dst}" ]; then
+        validate_elf_arch "${dst}" "${gateway_arch}" "Docker Rust backend ${gateway_arch}"
+        log "Using existing Docker Rust backend ${gateway_arch}: ${dst}"
+        return
+      fi
+      if prebuilt="$(find_prebuilt_docker_rust_backend "${gateway_arch}")"; then
+        copy_docker_rust_backend "${prebuilt}" "${gateway_arch}"
+        return
+      fi
+      fail "Docker Rust backend ${gateway_arch} is missing; set FN_KNOCK_DOCKER_RUST_BACKEND_BIN_DIR or FN_KNOCK_DOCKER_BUILD_RUST_BACKENDS=auto"
+      ;;
+    *)
+      fail "unsupported FN_KNOCK_DOCKER_BUILD_RUST_BACKENDS=${DOCKER_RUST_BUILD_MODE}; expected auto, 0, or 1"
+      ;;
+  esac
 }
 
 read_proxy_value() {
@@ -232,13 +489,7 @@ resolve_local_image() {
 }
 
 parse_app_version() {
-  local version
-
-  [ -f "${VERSION_FILE}" ] || fail "missing version file: ${VERSION_FILE}"
-  version="$(sed -nE 's/^[[:space:]]*export[[:space:]]+const[[:space:]]+APP_LOCAL_VERSION[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' "${VERSION_FILE}" | head -n1)"
-  [ -n "${version}" ] || fail "failed to parse APP_LOCAL_VERSION from ${VERSION_FILE}"
-
-  echo "${version}"
+  fn_knock_app_version "${ROOT_DIR}"
 }
 
 normalize_arch() {
@@ -563,11 +814,16 @@ run_buildx_image() {
   local cache_dir="${CACHE_ROOT}/${cache_scope}"
   local cache_next="${cache_dir}-next"
   local platform
+  local gateway_arch
   local build_args=()
   local cache_export_enabled=1
 
   platform="$(docker_platform_for_arch "${arch}")"
+  gateway_arch="$(gateway_arch_for_docker_arch "${arch}")"
+  fn_knock_sync_rust_package_version "${ROOT_DIR}" "[fn-knock-docker]"
   prepare_gateway_binaries
+  require_cmd file
+  prepare_docker_rust_backend "${gateway_arch}"
   configure_build_proxy
   log "Building image ${image_ref} for ${platform} (${output_mode})"
   ensure_buildx_builder
@@ -1002,6 +1258,12 @@ Optional env overrides:
   FN_KNOCK_DOCKER_IMAGE_TAG       (base tag; fast deploy appends remote arch, full deploy/publish append all arches)
   FN_KNOCK_DOCKER_LOCAL_ARCH      (override local build arch; default: host arch)
   FN_KNOCK_DOCKER_CACHE_DIR       (default: $HOME/.cache/fn-knock-buildx)
+  FN_KNOCK_DOCKER_BUILD_RUST_BACKENDS (auto|0|1; default: auto)
+  FN_KNOCK_DOCKER_RUST_BACKEND_BIN_DIR (optional prebuilt server-admin-rs-linux-* source dir)
+  FN_KNOCK_DOCKER_RUST_BACKEND_DIR     (default: deploy/docker/rust-backends)
+  FN_KNOCK_DOCKER_RUST_MUSL_CROSS_IMAGE_PREFIX (default: messense/rust-musl-cross)
+  FN_KNOCK_DOCKER_RUST_UPX       (auto|0|1|required; default: FN_KNOCK_RUST_UPX or auto)
+  FN_KNOCK_DOCKER_RUST_UPX_ARGS  (default: FN_KNOCK_RUST_UPX_ARGS or --best --lzma)
   FN_KNOCK_DOCKER_BUILDER         (optional docker buildx builder name)
   FN_KNOCK_DOCKER_MANAGED_BUILDER (default: fn-knock-buildx)
   FN_KNOCK_DOCKER_HTTP_PROXY      (optional build proxy; falls back to HTTP_PROXY/http_proxy)

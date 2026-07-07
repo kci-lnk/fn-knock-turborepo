@@ -1569,8 +1569,15 @@ export const koKRAdmin = {
     bbrTitle: "BBR 가속",
     bbrDescription:
       "bbr 혼잡 제어와 fq 큐를 사용해 네트워크 간 처리량과 안정성을 높입니다.",
+    desiredState: "설정 목표: {state}",
+    desiredEnabled: "켜짐",
+    desiredDisabled: "꺼짐",
     bbrCurrent:
       "현재: 혼잡 제어 {congestion}, 기본 큐 {qdisc}, 사용 가능한 알고리즘 {available}",
+    bbrRuntimeInactiveAfterEnable:
+      "설정 목표는 켜짐이지만 현재 커널 상태가 아직 일치하지 않습니다. 마지막 오류 또는 호스트 구성을 확인하세요.",
+    bbrRuntimeStillActiveAfterDisable:
+      "설정 목표는 꺼짐이지만 커널은 여전히 BBR/fq를 사용 중입니다. 활성화 전 상태이거나 다른 시스템 설정이 관리 중일 수 있습니다.",
     bbrSupported: "현재 커널은 BBR을 지원합니다.",
     bbrUnsupported:
       "현재 커널이 아직 BBR을 노출하지 않았습니다. 저장 시 tcp_bbr 모듈 로드를 시도합니다.",
@@ -1578,6 +1585,10 @@ export const koKRAdmin = {
     mtuDescription:
       "경로 MTU 탐지를 활성화해 링크 MTU 불일치로 인한 조각화와 재전송을 줄입니다.",
     mtuCurrent: "현재: tcp_mtu_probing = {value}",
+    mtuRuntimeInactiveAfterEnable:
+      "설정 목표는 켜짐이지만 현재 커널 값이 아직 일치하지 않습니다. 마지막 오류 또는 호스트 구성을 확인하세요.",
+    mtuRuntimeStillActiveAfterDisable:
+      "설정 목표는 꺼짐이지만 현재 커널 값은 여전히 {value}입니다. 활성화 전 상태이거나 다른 시스템 설정일 수 있습니다.",
   },
   gatewayLogging: {
     loadFailed: "로드 실패",
@@ -3106,6 +3117,13 @@ export const koKRAdmin = {
     updating: "업데이트 중...",
     refreshNow: "지금 새로고침",
     saveAndUpdate: "저장 및 업데이트",
+    configSaved: "기본 DDNS 구성이 저장되었습니다.",
+    configChangesDiscarded:
+      "저장되지 않은 기본 DDNS 구성 변경사항을 취소했습니다.",
+    unsavedLeaveConfirm:
+      "기본 DDNS 구성에 저장되지 않은 변경사항이 있습니다. 이 페이지를 떠나면 변경사항이 취소됩니다. 계속하시겠습니까?",
+    unsavedSwitchProviderConfirm:
+      "기본 DDNS 구성에 저장되지 않은 필드 변경사항이 있습니다. 제공자를 전환하면 변경사항이 취소됩니다. 계속하시겠습니까?",
     providerLabel: "DDNS 제공업체",
     providerHint: "확인에 사용되는 DNS 공급자를 선택하세요.",
     selectProvider: "제공업체 선택",
@@ -3214,10 +3232,10 @@ export const koKRAdmin = {
       "DDNS가 현재 공개 IPv4/IPv6를 탐지할 때 사용할 주소와 요청 구현을 설정합니다.",
     httpTransportLabel: "요청 구현",
     httpTransportHint:
-      "curl은 시스템 curl을 사용합니다. Node 내장 HTTP는 Node의 저수준 네트워크 요청을 사용하며, 아웃바운드 인터페이스를 선택하면 해당 로컬 주소에 바인딩합니다.",
+      "curl은 시스템 curl을 사용합니다. 내장 HTTP는 Rust 백엔드의 내장 네트워크 요청을 사용하며, 아웃바운드 인터페이스를 선택하면 해당 로컬 주소에 바인딩합니다.",
     httpTransport: {
       curl: "curl(기본값)",
-      node: "Node 내장 HTTP",
+      node: "내장 HTTP",
     },
     publicCheckIpv4Title: "IPv4 탐지 주소",
     publicCheckIpv6Title: "IPv6 탐지 주소",

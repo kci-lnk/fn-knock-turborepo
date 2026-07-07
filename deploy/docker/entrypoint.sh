@@ -9,18 +9,16 @@ AUTH_PORT="${AUTH_PORT:-7997}"
 ADMIN_VIEW_PORT="${ADMIN_VIEW_PORT:-}"
 GO_BACKEND_PORT="${GO_BACKEND_PORT:-7996}"
 GO_REPROXY_PORT="${GO_REPROXY_PORT:-7999}"
-DOCKER_ADMIN_TRUSTED_PROXY_CIDRS="${DOCKER_ADMIN_TRUSTED_PROXY_CIDRS:-}"
-DOCKER_DISCOVER_LAN_IP="${DOCKER_DISCOVER_LAN_IP:-}"
 BACKEND_HOST="${BACKEND_HOST:-127.0.0.1}"
 AUTH_HOST="${AUTH_HOST:-127.0.0.1}"
 ADMIN_VIEW_HOST="${ADMIN_VIEW_HOST:-${BACKEND_HOST}}"
 GO_BACKEND_BASE_URL="${GO_BACKEND_BASE_URL:-http://127.0.0.1:${GO_BACKEND_PORT}}"
 REDIS_HOST="${REDIS_HOST:-redis}"
 REDIS_PORT="${REDIS_PORT:-6379}"
+REDIS_PASSWORD="${REDIS_PASSWORD:-}"
 REDIS_STARTUP_WAIT_SECONDS="${REDIS_STARTUP_WAIT_SECONDS:-120}"
 REDIS_STARTUP_RETRY_DELAY_SECONDS="${REDIS_STARTUP_RETRY_DELAY_SECONDS:-1}"
-NODE_BIN="${NODE_BIN:-node}"
-BACKEND_ENTRY="${APP_HOME}/server/server-admin/index.js"
+RUST_BACKEND_BIN="${RUST_BACKEND_BIN:-${APP_HOME}/bin/server-admin-rs}"
 GATEWAY_BIN="${APP_HOME}/bin/go-reauth-proxy"
 ADMIN_STATIC_PATH="${APP_HOME}/ui/www"
 AUTH_STATIC_PATH="${APP_HOME}/server-auth-view/dist"
@@ -30,7 +28,11 @@ HMAC_SECRET_FILE="${DATA_DIR}/hmac_secret"
 ADMIN_PROXY_SECRET_FILE="${DATA_DIR}/admin_proxy_secret"
 
 generate_random_hex() {
-  "${NODE_BIN}" -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -hex 32
+    return 0
+  fi
+  od -An -N32 -tx1 /dev/urandom | tr -d ' \n'
 }
 
 load_or_create_secret() {
@@ -39,6 +41,7 @@ load_or_create_secret() {
   local current_value="${!__var_name:-}"
 
   if [ -n "${current_value}" ]; then
+    export "${__var_name}=${current_value}"
     return 0
   fi
 
@@ -78,106 +81,44 @@ wait_for_process_or_fail() {
 }
 
 wait_for_redis() {
+  local wait_seconds="${REDIS_STARTUP_WAIT_SECONDS%.*}"
+  local retry_seconds="${REDIS_STARTUP_RETRY_DELAY_SECONDS%.*}"
+  local started_at
+  local now
+  local elapsed
+  local logged_waiting=0
+
+  case "${wait_seconds}" in
+    ''|*[!0-9]*) wait_seconds=120 ;;
+  esac
+  case "${retry_seconds}" in
+    ''|*[!0-9]*) retry_seconds=1 ;;
+  esac
+  [ "${wait_seconds}" -gt 0 ] || wait_seconds=120
+  [ "${retry_seconds}" -gt 0 ] || retry_seconds=1
+
   echo "[fn-knock] Waiting for Redis at ${REDIS_HOST}:${REDIS_PORT}"
-  REDIS_HOST="${REDIS_HOST}" \
-    REDIS_PORT="${REDIS_PORT}" \
-    REDIS_STARTUP_WAIT_SECONDS="${REDIS_STARTUP_WAIT_SECONDS}" \
-    REDIS_STARTUP_RETRY_DELAY_SECONDS="${REDIS_STARTUP_RETRY_DELAY_SECONDS}" \
-    "${NODE_BIN}" <<'NODE'
-const net = require("node:net");
+  started_at="$(date +%s)"
+  while true; do
+    if (exec 3<>"/dev/tcp/${REDIS_HOST}/${REDIS_PORT}") 2>/dev/null; then
+      exec 3<&- 3>&- || true
+      echo "[fn-knock] Redis is ready at ${REDIS_HOST}:${REDIS_PORT}"
+      return 0
+    fi
 
-const host = process.env.REDIS_HOST || "redis";
-const port = Number.parseInt(process.env.REDIS_PORT || "6379", 10);
-const waitSeconds = Number.parseFloat(
-  process.env.REDIS_STARTUP_WAIT_SECONDS || "120",
-);
-const retryDelaySeconds = Number.parseFloat(
-  process.env.REDIS_STARTUP_RETRY_DELAY_SECONDS || "1",
-);
-const waitMs =
-  Number.isFinite(waitSeconds) && waitSeconds > 0
-    ? Math.floor(waitSeconds * 1000)
-    : 120000;
-const retryDelayMs =
-  Number.isFinite(retryDelaySeconds) && retryDelaySeconds > 0
-    ? Math.floor(retryDelaySeconds * 1000)
-    : 1000;
+    now="$(date +%s)"
+    elapsed=$((now - started_at))
+    if [ "${elapsed}" -ge "${wait_seconds}" ]; then
+      echo "[fn-knock] Redis at ${REDIS_HOST}:${REDIS_PORT} was not ready after ${wait_seconds}s" >&2
+      exit 1
+    fi
 
-if (!Number.isInteger(port) || port <= 0 || port > 65535) {
-  console.error(`[fn-knock] Invalid REDIS_PORT: ${process.env.REDIS_PORT}`);
-  process.exit(1);
-}
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const probeRedis = () =>
-  new Promise((resolve, reject) => {
-    const socket = net.createConnection({ host, port, timeout: 1000 });
-    let settled = false;
-    const finish = (error) => {
-      if (settled) return;
-      settled = true;
-      socket.destroy();
-      if (error) {
-        reject(error);
-      } else {
-        resolve();
-      }
-    };
-
-    socket.once("connect", () => finish());
-    socket.once("timeout", () => finish(new Error("timeout")));
-    socket.once("error", finish);
-  });
-
-const main = async () => {
-  const startedAt = Date.now();
-  let attempts = 0;
-  let loggedWaiting = false;
-  let lastError = null;
-
-  while (true) {
-    attempts += 1;
-    try {
-      await probeRedis();
-      if (attempts > 1) {
-        console.log(`[fn-knock] Redis is ready at ${host}:${port}`);
-      }
-      return;
-    } catch (error) {
-      lastError = error;
-      const elapsedMs = Date.now() - startedAt;
-      if (elapsedMs >= waitMs) {
-        const message =
-          lastError instanceof Error ? lastError.message : String(lastError);
-        console.error(
-          `[fn-knock] Redis at ${host}:${port} was not ready after ${Math.ceil(
-            waitMs / 1000,
-          )}s: ${message}`,
-        );
-        process.exit(1);
-      }
-
-      if (!loggedWaiting) {
-        console.log(
-          `[fn-knock] Redis is not ready yet; waiting up to ${Math.ceil(
-            waitMs / 1000,
-          )}s`,
-        );
-        loggedWaiting = true;
-      }
-
-      await sleep(Math.min(retryDelayMs, waitMs - elapsedMs));
-    }
-  }
-};
-
-main().catch((error) => {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error(`[fn-knock] Failed while waiting for Redis: ${message}`);
-  process.exit(1);
-});
-NODE
+    if [ "${logged_waiting}" -eq 0 ]; then
+      echo "[fn-knock] Redis is not ready yet; waiting up to ${wait_seconds}s"
+      logged_waiting=1
+    fi
+    sleep "${retry_seconds}"
+  done
 }
 
 cleanup() {
@@ -203,6 +144,23 @@ load_or_create_secret ALTCHA_HMAC_KEY "${ALTCHA_HMAC_KEY_FILE}"
 load_or_create_secret HMAC_SECRET "${HMAC_SECRET_FILE}"
 load_or_create_secret ADMIN_PROXY_SECRET "${ADMIN_PROXY_SECRET_FILE}"
 
+[ -x "${GATEWAY_BIN}" ] || {
+  echo "[fn-knock] gateway is not executable: ${GATEWAY_BIN}" >&2
+  exit 1
+}
+[ -x "${RUST_BACKEND_BIN}" ] || {
+  echo "[fn-knock] Rust backend is not executable: ${RUST_BACKEND_BIN}" >&2
+  exit 1
+}
+[ -d "${ADMIN_STATIC_PATH}" ] || {
+  echo "[fn-knock] admin static path is missing: ${ADMIN_STATIC_PATH}" >&2
+  exit 1
+}
+[ -d "${AUTH_STATIC_PATH}" ] || {
+  echo "[fn-knock] auth static path is missing: ${AUTH_STATIC_PATH}" >&2
+  exit 1
+}
+
 echo "[fn-knock] Starting gateway on admin ${GO_BACKEND_PORT}, proxy ${GO_REPROXY_PORT}"
 BACKEND_PORT="${BACKEND_PORT}" \
   "${GATEWAY_BIN}" \
@@ -215,9 +173,9 @@ wait_for_process_or_fail "${GATEWAY_PID}" "gateway"
 wait_for_redis
 
 if [ -n "${ADMIN_VIEW_PORT}" ]; then
-  echo "[fn-knock] Starting backend on ${BACKEND_HOST}:${BACKEND_PORT} (admin view ${ADMIN_VIEW_HOST}:${ADMIN_VIEW_PORT})"
+  echo "[fn-knock] Starting Rust backend on ${BACKEND_HOST}:${BACKEND_PORT} (admin view ${ADMIN_VIEW_HOST}:${ADMIN_VIEW_PORT})"
 else
-  echo "[fn-knock] Starting backend on ${BACKEND_HOST}:${BACKEND_PORT}"
+  echo "[fn-knock] Starting Rust backend on ${BACKEND_HOST}:${BACKEND_PORT}"
 fi
 (
   cd "${APP_HOME}" && \
@@ -225,9 +183,11 @@ fi
   AUTH_STATIC_PATH="${AUTH_STATIC_PATH}" \
   FN_KNOCK_DATA_DIR="${DATA_DIR}" \
   FN_KNOCK_GATEWAY_CONFIG_DIR="${GATEWAY_CONFIG_DIR}" \
-  FN_KNOCK_RUNTIME_TARGET="${FN_KNOCK_RUNTIME_TARGET:-docker}" \
+  FN_KNOCK_RUNTIME_TARGET="docker" \
+  FN_KNOCK_BACKEND_IMPL="rust" \
   REDIS_HOST="${REDIS_HOST}" \
   REDIS_PORT="${REDIS_PORT}" \
+  REDIS_PASSWORD="${REDIS_PASSWORD}" \
   REDIS_STARTUP_WAIT_SECONDS="${REDIS_STARTUP_WAIT_SECONDS}" \
   ACME_BUNDLE_ZIP="${ACME_BUNDLE_ZIP}" \
   ADMIN_VIEW_PORT="${ADMIN_VIEW_PORT}" \
@@ -235,8 +195,6 @@ fi
   AUTH_PORT="${AUTH_PORT}" \
   GO_BACKEND_PORT="${GO_BACKEND_PORT}" \
   GO_REPROXY_PORT="${GO_REPROXY_PORT}" \
-  DOCKER_ADMIN_TRUSTED_PROXY_CIDRS="${DOCKER_ADMIN_TRUSTED_PROXY_CIDRS}" \
-  DOCKER_DISCOVER_LAN_IP="${DOCKER_DISCOVER_LAN_IP}" \
   GO_BACKEND_BASE_URL="${GO_BACKEND_BASE_URL}" \
   ADMIN_VIEW_HOST="${ADMIN_VIEW_HOST}" \
   BACKEND_HOST="${BACKEND_HOST}" \
@@ -244,10 +202,10 @@ fi
   ALTCHA_HMAC_KEY="${ALTCHA_HMAC_KEY}" \
   HMAC_SECRET="${HMAC_SECRET}" \
   ADMIN_PROXY_SECRET="${ADMIN_PROXY_SECRET}" \
-  "${NODE_BIN}" "${BACKEND_ENTRY}"
+  "${RUST_BACKEND_BIN}"
 ) &
 BACKEND_PID=$!
-wait_for_process_or_fail "${BACKEND_PID}" "backend"
+wait_for_process_or_fail "${BACKEND_PID}" "Rust backend"
 
 echo "[fn-knock] Services are up"
 wait -n "${GATEWAY_PID}" "${BACKEND_PID}"

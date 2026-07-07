@@ -1,0 +1,10 @@
+{
+  "name": "server-admin-rs",
+  "private": true,
+  "scripts": {
+    "build": "cargo build --release",
+    "check-types": "cargo check",
+    "dev": "cargo run",
+    "test": "cargo test"
+  }
+}

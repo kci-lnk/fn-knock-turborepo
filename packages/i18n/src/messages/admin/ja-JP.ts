@@ -1609,8 +1609,15 @@ export const jaJPAdmin = {
     bbrTitle: "BBR アクセラレーション",
     bbrDescription:
       "bbr 輻輳制御と fq キューを使用し、ネットワーク間のスループットと安定性を向上します。",
+    desiredState: "設定目標: {state}",
+    desiredEnabled: "オン",
+    desiredDisabled: "オフ",
     bbrCurrent:
       "現在: 輻輳制御 {congestion}、デフォルトキュー {qdisc}、利用可能なアルゴリズム {available}",
+    bbrRuntimeInactiveAfterEnable:
+      "設定目標はオンですが、現在のカーネル状態はまだ一致していません。前回のエラーまたはホスト設定を確認してください。",
+    bbrRuntimeStillActiveAfterDisable:
+      "設定目標はオフですが、カーネルはまだ BBR/fq を使用しています。オンにする前の状態、または別のシステム設定による管理の可能性があります。",
     bbrSupported: "現在のカーネルは BBR をサポートしています。",
     bbrUnsupported:
       "現在のカーネルではまだ BBR が公開されていません。保存時に tcp_bbr モジュールの読み込みを試みます。",
@@ -1618,6 +1625,10 @@ export const jaJPAdmin = {
     mtuDescription:
       "Path MTU 探測を有効にし、リンク MTU 不一致による断片化と再送を減らします。",
     mtuCurrent: "現在: tcp_mtu_probing = {value}",
+    mtuRuntimeInactiveAfterEnable:
+      "設定目標はオンですが、現在のカーネル値はまだ一致していません。前回のエラーまたはホスト設定を確認してください。",
+    mtuRuntimeStillActiveAfterDisable:
+      "設定目標はオフですが、現在のカーネル値はまだ {value} です。オンにする前の状態、または別のシステム設定の可能性があります。",
   },
   gatewayLogging: {
     loadFailed: "ロードに失敗しました",
@@ -3179,6 +3190,12 @@ export const jaJPAdmin = {
     updating: "更新中...",
     refreshNow: "今すぐ更新",
     saveAndUpdate: "保存して更新",
+    configSaved: "プライマリ DDNS 設定を保存しました",
+    configChangesDiscarded: "未保存のプライマリ DDNS 設定の変更を破棄しました",
+    unsavedLeaveConfirm:
+      "プライマリ DDNS 設定に未保存の変更があります。このページを離れると変更は破棄されます。続行しますか？",
+    unsavedSwitchProviderConfirm:
+      "プライマリ DDNS 設定に未保存のフィールド変更があります。プロバイダーを切り替えると変更は破棄されます。続行しますか？",
     providerLabel: "DDNS プロバイダー",
     providerHint: "解析に使用する DNS サービスプロバイダーを選択します",
     selectProvider: "プロバイダーの選択",
@@ -3291,10 +3308,10 @@ export const jaJPAdmin = {
       "DDNS が現在の公開 IPv4/IPv6 を検出するときに使用するアドレスとリクエスト実装を設定します。",
     httpTransportLabel: "リクエスト実装",
     httpTransportHint:
-      "curl はシステムの curl を使用します。Node 組み込み HTTP は Node の低レベルネットワークリクエストを使用し、送信インターフェイス選択時はそのローカルアドレスにバインドします。",
+      "curl はシステムの curl を使用します。組み込み HTTP は Rust バックエンドの組み込みネットワークリクエストを使用し、送信インターフェイス選択時はそのローカルアドレスにバインドします。",
     httpTransport: {
       curl: "curl（デフォルト）",
-      node: "Node 組み込み HTTP",
+      node: "組み込み HTTP",
     },
     publicCheckIpv4Title: "IPv4 検出アドレス",
     publicCheckIpv6Title: "IPv6 検出アドレス",

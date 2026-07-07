@@ -103,7 +103,7 @@ const autoHttpsEnabled = computed(
 );
 const autoHttpsRuntimeError = computed(() => {
   const runtime = autoHttpsDetails.value?.runtime;
-  if (runtime?.status !== "error") return "";
+  if (!runtime || (runtime.status !== "error" && !runtime.last_error)) return "";
   return runtime.last_error || t("admin.featuresSettings.autoHttpsListenFailed");
 });
 const showAutoHttpsEntry = computed(
@@ -296,7 +296,7 @@ const saveAutoHttpsEnabled = async (nextValue: boolean) => {
     {
       onSuccess: async (data) => {
         applyAutoHttpsDetails(data);
-        if (data.runtime.status === "error") {
+        if (data.runtime.status === "error" || data.runtime.last_error) {
           toast.error(t("admin.featuresSettings.autoHttpsStartFailed"), {
             description:
               data.runtime.last_error ||

@@ -1,0 +1,727 @@
+use std::{
+    collections::{BTreeSet, HashMap},
+    env, fs,
+    future::Future,
+    net::{IpAddr, Ipv4Addr, Ipv6Addr},
+    time::Duration,
+};
+
+mod config;
+mod i18n;
+mod providers;
+mod public_check;
+mod route_actions;
+mod settings;
+mod store;
+mod target;
+mod tasks;
+
+use config::*;
+use i18n::*;
+use providers::*;
+use public_check::*;
+use route_actions::*;
+use settings::*;
+use store::*;
+use target::*;
+use tasks::*;
+
+#[cfg(test)]
+mod tests;
+
+use axum::{
+    Json, Router,
+    extract::{Path, Query, State},
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    routing::{get, post},
+};
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
+use get_if_addrs::{IfAddr, get_if_addrs};
+use hmac::{Hmac, Mac};
+use serde::Deserialize;
+use serde_json::{Value, json};
+use sha1::Sha1;
+use sha2::{Digest, Sha256};
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
+use tokio::net::lookup_host;
+use tokio::time as tokio_time;
+use url::Url;
+use uuid::Uuid;
+
+use crate::{i18n::Translator, response, state::AppState, system_events, time_utils};
+
+const PRIMARY_TARGET_ID: &str = "primary";
+const PRIMARY_TARGET_NAME: &str = "主域名";
+
+const DDNS_ENABLED: &str = "fn_knock:ddns:enabled";
+const DDNS_SETTINGS: &str = "fn_knock:ddns:settings";
+const DDNS_LEGACY_PROVIDER: &str = "fn_knock:ddns:provider";
+const DDNS_LEGACY_CONFIG_PREFIX: &str = "fn_knock:ddns:config:";
+const DDNS_LEGACY_LAST_IP: &str = "fn_knock:ddns:last_ip";
+const DDNS_LEGACY_LAST_CHECK: &str = "fn_knock:ddns:last_check";
+const DDNS_TARGET_IDS: &str = "fn_knock:ddns:v2:target_ids";
+const DDNS_PRIMARY_TARGET_ID: &str = "fn_knock:ddns:v2:primary_target_id";
+const DDNS_TARGET_PREFIX: &str = "fn_knock:ddns:v2:target:";
+const DDNS_LOGS: &str = "fn_knock:ddns:logs";
+const DDNS_LOG_TTL_SECONDS: usize = 7 * 24 * 3600;
+const DDNS_LOG_MAX_LEN: usize = 2000;
+const DDNS_UPDATE_LOCK_NAME: &str = "ddns-update";
+const DDNS_UPDATE_LOCK_TTL_SECONDS: usize = 600;
+const DDNS_STARTUP_CHECK_DELAY_SECONDS: u64 = 30;
+const DDNS_UPDATE_SCOPE_FIELD: &str = "update_scope";
+const DDNS_NETWORK_INTERFACE_FIELD: &str = "network_interface";
+const DDNS_IP_SOURCE_FIELD: &str = "ip_source";
+const DDNS_INTERFACE_IPV4_INDEX_FIELD: &str = "interface_ipv4_index";
+const DDNS_INTERFACE_IPV6_INDEX_FIELD: &str = "interface_ipv6_index";
+const DDNS_STATIC_IPV4_FIELD: &str = "static_ipv4";
+const DDNS_STATIC_IPV6_FIELD: &str = "static_ipv6";
+const DDNS_SOURCE_DOMAIN_FIELD: &str = "source_domain";
+const DDNS_EDGEONE_OVERSEAS_ACCESS_FIELD: &str = "edgeone_overseas_access";
+
+const DEFAULT_PUBLIC_CHECK_IPV4: [&str; 2] = ["https://4.fnknock.cn", "http://ipv4.icanhazip.com"];
+const DEFAULT_PUBLIC_CHECK_IPV6: [&str; 2] =
+    ["https://6.fnknock.cn", "https://ipv6.icanhazip.com/"];
+const DOCKER_HOST_INTERFACE_PREFIX: &str = "docker-host:";
+const DEFAULT_DOCKER_HOST_IF_INET6_PATH: &str = "/host/proc/net/if_inet6";
+const IP_DETECTION_TIMEOUT_MS: u64 = 7000;
+const RESPONSE_PREVIEW_MAX_LENGTH: usize = 240;
+
+type HmacSha1 = Hmac<Sha1>;
+type HmacSha256 = Hmac<Sha256>;
+
+#[derive(Deserialize)]
+struct ToggleBody {
+    enabled: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SettingsBody {
+    update_interval_minutes: Option<i64>,
+    public_check_sources: Option<Value>,
+    http_transport: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PublicCheckTestBody {
+    public_check_sources: Value,
+    http_transport: Option<String>,
+    network_interface: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ProviderBody {
+    provider: String,
+}
+
+#[derive(Deserialize)]
+struct ConfigBody {
+    config: HashMap<String, String>,
+}
+
+#[derive(Deserialize)]
+struct TargetBody {
+    name: Option<String>,
+    provider: String,
+    enabled: Option<bool>,
+    config: Option<HashMap<String, String>>,
+}
+
+#[derive(Deserialize)]
+struct TargetEnabledBody {
+    enabled: bool,
+}
+
+#[derive(Deserialize)]
+struct LogsQuery {
+    limit: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct PollQuery {
+    cursor: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+struct DDNSTargetMeta {
+    id: String,
+    name: String,
+    is_primary: bool,
+    enabled: bool,
+    provider: Option<String>,
+    created_at: String,
+    updated_at: String,
+    sort_order: i64,
+}
+
+#[derive(Clone, Debug)]
+struct DDNSTargetRecord {
+    meta: DDNSTargetMeta,
+    config: HashMap<String, String>,
+    last_ip: Value,
+    last_check: Value,
+}
+
+#[derive(Clone, Debug)]
+struct ResolvedTargetIps {
+    ipv4: Option<String>,
+    ipv6: Option<String>,
+    source: &'static str,
+    source_label: String,
+    warnings: Vec<String>,
+    update_scope: &'static str,
+}
+
+#[derive(Clone, Debug)]
+struct DDNSProviderUpdateResult {
+    success: bool,
+    message: String,
+    ipv4_updated: bool,
+    ipv6_updated: bool,
+}
+
+pub fn ddns_status_routes() -> Router<AppState> {
+    Router::new()
+        .route("/api/admin/ddns/status", get(get_status))
+        .route("/api/admin/ddns/toggle", post(toggle))
+        .route("/api/admin/ddns/providers", get(get_providers))
+        .route(
+            "/api/admin/ddns/settings",
+            get(get_settings).post(update_settings),
+        )
+        .route(
+            "/api/admin/ddns/public-check/test",
+            post(test_public_check_sources),
+        )
+        .route("/api/admin/ddns/interfaces", get(get_interfaces))
+        .route("/api/admin/ddns/provider", post(set_provider))
+        .route(
+            "/api/admin/ddns/config/{provider}",
+            get(get_config).post(save_config),
+        )
+        .route(
+            "/api/admin/ddns/targets",
+            get(get_targets).post(create_target),
+        )
+        .route(
+            "/api/admin/ddns/targets/{id}",
+            get(get_target).put(update_target).delete(delete_target),
+        )
+        .route(
+            "/api/admin/ddns/targets/{id}/enabled",
+            post(set_target_enabled),
+        )
+        .route("/api/admin/ddns/test", post(test_primary_target))
+        .route("/api/admin/ddns/targets/{id}/test", post(test_target))
+        .route("/api/admin/ddns/logs", get(get_logs).delete(clear_logs))
+        .route("/api/admin/ddns/poll", get(poll))
+}
+
+pub fn start_ddns_tasks(state: AppState) {
+    tokio::spawn(async move {
+        tokio_time::sleep(Duration::from_secs(DDNS_STARTUP_CHECK_DELAY_SECONDS)).await;
+        if let Err(error) = run_automatic_ddns_check(&state, "startup", false, false).await {
+            tracing::warn!(%error, "DDNS startup check failed");
+        }
+
+        loop {
+            let interval_minutes = match ddns_update_interval_minutes(&state).await {
+                Ok(value) => value,
+                Err(error) => {
+                    tracing::warn!(%error, "failed to load DDNS scheduler interval");
+                    10
+                }
+            };
+            tokio_time::sleep(Duration::from_secs((interval_minutes.max(1) as u64) * 60)).await;
+            if let Err(error) = run_automatic_ddns_check(&state, "cron", true, false).await {
+                tracing::warn!(%error, "DDNS scheduled check failed");
+            }
+        }
+    });
+}
+
+async fn get_status(State(state): State<AppState>) -> Response {
+    let translator = Translator::from_state(&state).await;
+    match build_ddns_status(&state, &translator).await {
+        Ok(status) => response::ok(status).into_response(),
+        Err(error) => {
+            tracing::warn!(%error, "failed to build DDNS status");
+            response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ddns_text(&translator, "statusLoadFailed", &[]),
+            )
+        }
+    }
+}
+
+async fn toggle(State(state): State<AppState>, Json(body): Json<ToggleBody>) -> Response {
+    let translator = Translator::from_state(&state).await;
+    match state
+        .redis
+        .set_string_value(DDNS_ENABLED, if body.enabled { "true" } else { "false" })
+        .await
+    {
+        Ok(()) => response::success_empty().into_response(),
+        Err(error) => {
+            tracing::warn!(%error, "failed to toggle DDNS");
+            response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ddns_text(&translator, "toggleFailed", &[]),
+            )
+        }
+    }
+}
+
+async fn get_providers(State(state): State<AppState>) -> Response {
+    let translator = Translator::from_state(&state).await;
+    response::ok(provider_catalog(&translator)).into_response()
+}
+
+async fn get_settings(State(state): State<AppState>) -> Response {
+    let translator = Translator::from_state(&state).await;
+    match state.redis.get_string_value(DDNS_SETTINGS).await {
+        Ok(raw) => response::ok(parse_settings(raw.as_deref())).into_response(),
+        Err(error) => {
+            tracing::warn!(%error, "failed to load DDNS settings");
+            response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ddns_text(&translator, "settingsLoadFailed", &[]),
+            )
+        }
+    }
+}
+
+async fn update_settings(
+    State(state): State<AppState>,
+    Json(body): Json<SettingsBody>,
+) -> Response {
+    let translator = Translator::from_state(&state).await;
+    let current = match state.redis.get_string_value(DDNS_SETTINGS).await {
+        Ok(raw) => parse_settings(raw.as_deref()),
+        Err(error) => {
+            tracing::warn!(%error, "failed to load current DDNS settings");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ddns_text(&translator, "settingsLoadFailed", &[]),
+            );
+        }
+    };
+    let interval = match body.update_interval_minutes {
+        Some(value) if (5..=1440).contains(&value) => value,
+        Some(_) => {
+            return response::error(
+                StatusCode::BAD_REQUEST,
+                ddns_text(
+                    &translator,
+                    "intervalOutOfRange",
+                    &[("min", "5".to_string()), ("max", "1440".to_string())],
+                ),
+            );
+        }
+        None => current
+            .get("updateIntervalMinutes")
+            .and_then(Value::as_i64)
+            .unwrap_or(10),
+    };
+    let public_sources = match body.public_check_sources.as_ref() {
+        Some(value) => match normalize_public_check_sources_strict(
+            value,
+            current.get("publicCheckSources").unwrap_or(&Value::Null),
+            &translator,
+        ) {
+            Ok(value) => value,
+            Err(message) => return response::error(StatusCode::BAD_REQUEST, message),
+        },
+        None => current
+            .get("publicCheckSources")
+            .cloned()
+            .unwrap_or_else(default_public_check_sources),
+    };
+    let http_transport = match body.http_transport.as_deref() {
+        Some("node" | "fetch") => "node",
+        Some("curl") | None => current
+            .get("httpTransport")
+            .and_then(Value::as_str)
+            .unwrap_or("curl"),
+        Some(_) => "curl",
+    };
+    let stored = json!({
+        "updateIntervalMinutes": interval,
+        "publicCheckSources": public_sources,
+        "httpTransport": normalize_http_transport(Some(&Value::String(http_transport.to_string())))
+    });
+    let serialized = serde_json::to_string(&stored).unwrap_or_default();
+    match state
+        .redis
+        .set_string_value(DDNS_SETTINGS, &serialized)
+        .await
+    {
+        Ok(()) => response::ok(parse_settings(Some(serialized.as_str()))).into_response(),
+        Err(error) => {
+            tracing::warn!(%error, "failed to save DDNS settings");
+            response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ddns_text(&translator, "settingsSaveFailed", &[]),
+            )
+        }
+    }
+}
+
+async fn test_public_check_sources(
+    State(state): State<AppState>,
+    Json(body): Json<PublicCheckTestBody>,
+) -> Response {
+    let translator = Translator::from_state(&state).await;
+    let network_interface = normalize_network_interface(body.network_interface.as_deref());
+    if !network_interface.is_empty()
+        && !list_ddns_network_interfaces().iter().any(|item| {
+            item.get("name").and_then(Value::as_str) == Some(network_interface.as_str())
+        })
+    {
+        return response::error(
+            StatusCode::BAD_REQUEST,
+            ddns_text(
+                &translator,
+                "interfaceNotFound",
+                &[("name", network_interface)],
+            ),
+        );
+    }
+
+    let sources = match normalize_public_check_sources_strict(
+        &body.public_check_sources,
+        &json!({ "ipv4": [], "ipv6": [] }),
+        &translator,
+    ) {
+        Ok(value) => value,
+        Err(message) => return response::error(StatusCode::BAD_REQUEST, message),
+    };
+    let transport_value = body
+        .http_transport
+        .as_ref()
+        .map(|value| Value::String(value.clone()));
+    let transport = normalize_http_transport(transport_value.as_ref());
+    match test_public_check_sources_inner(&sources, transport, &translator).await {
+        Ok(results) => response::ok(json!({ "results": results })).into_response(),
+        Err(error) => {
+            tracing::warn!(%error, "failed to test DDNS public check sources");
+            response::error(
+                StatusCode::BAD_REQUEST,
+                localize_ddns_error(&translator, &error.to_string()),
+            )
+        }
+    }
+}
+
+async fn get_interfaces() -> Response {
+    response::ok(list_ddns_network_interfaces()).into_response()
+}
+
+async fn set_provider(State(state): State<AppState>, Json(body): Json<ProviderBody>) -> Response {
+    match set_primary_provider(&state, &body.provider).await {
+        Ok(()) => response::success_empty().into_response(),
+        Err(error) => ddns_error_response_from_state(&state, error).await,
+    }
+}
+
+async fn get_config(State(state): State<AppState>, Path(provider): Path<String>) -> Response {
+    match primary_target(&state).await {
+        Ok(primary) if primary.meta.provider.as_deref() == Some(provider.as_str()) => {
+            response::ok(primary.config).into_response()
+        }
+        Ok(_) => response::ok(json!({})).into_response(),
+        Err(error) => ddns_error_response_from_state(&state, error).await,
+    }
+}
+
+async fn save_config(
+    State(state): State<AppState>,
+    Path(provider): Path<String>,
+    Json(body): Json<ConfigBody>,
+) -> Response {
+    match save_primary_config(&state, &provider, body.config).await {
+        Ok(()) => response::success_empty().into_response(),
+        Err(error) => ddns_error_response_from_state(&state, error).await,
+    }
+}
+
+async fn get_targets(State(state): State<AppState>) -> Response {
+    let translator = Translator::from_state(&state).await;
+    match targets_overview(&state, &translator).await {
+        Ok(value) => response::ok(value).into_response(),
+        Err(error) => ddns_error_response_from_state(&state, error).await,
+    }
+}
+
+async fn get_target(State(state): State<AppState>, Path(id): Path<String>) -> Response {
+    let translator = Translator::from_state(&state).await;
+    match target_detail(&state, &id, &translator).await {
+        Ok(Some(value)) => response::ok(value).into_response(),
+        Ok(None) => response::error(
+            StatusCode::NOT_FOUND,
+            ddns_text(&translator, "targetNotFound", &[]),
+        ),
+        Err(error) => ddns_error_response_from_state(&state, error).await,
+    }
+}
+
+async fn create_target(State(state): State<AppState>, Json(body): Json<TargetBody>) -> Response {
+    let translator = Translator::from_state(&state).await;
+    match create_ddns_target(&state, body, &translator).await {
+        Ok(value) => response::ok(value).into_response(),
+        Err(error) => ddns_error_response_from_state(&state, error).await,
+    }
+}
+
+async fn update_target(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(body): Json<TargetBody>,
+) -> Response {
+    let translator = Translator::from_state(&state).await;
+    match update_ddns_target(&state, &id, body, &translator).await {
+        Ok(value) => response::ok(value).into_response(),
+        Err(error) => ddns_error_response_from_state(&state, error).await,
+    }
+}
+
+async fn delete_target(State(state): State<AppState>, Path(id): Path<String>) -> Response {
+    match delete_ddns_target(&state, &id).await {
+        Ok(()) => response::success_empty().into_response(),
+        Err(error) => ddns_error_response_from_state(&state, error).await,
+    }
+}
+
+async fn set_target_enabled(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Json(body): Json<TargetEnabledBody>,
+) -> Response {
+    match set_ddns_target_enabled(&state, &id, body.enabled).await {
+        Ok(()) => response::success_empty().into_response(),
+        Err(error) => ddns_error_response_from_state(&state, error).await,
+    }
+}
+
+async fn test_primary_target(State(state): State<AppState>) -> Response {
+    match primary_target(&state).await {
+        Ok(target) => manual_test_target(&state, &target.meta.id).await,
+        Err(error) => ddns_error_response_from_state(&state, error).await,
+    }
+}
+
+async fn test_target(State(state): State<AppState>, Path(id): Path<String>) -> Response {
+    manual_test_target(&state, &id).await
+}
+
+async fn get_logs(State(state): State<AppState>, Query(query): Query<LogsQuery>) -> Response {
+    let translator = Translator::from_state(&state).await;
+    match state
+        .redis
+        .list_log_buffer(
+            DDNS_LOGS,
+            parse_ddns_log_limit(query.limit.as_deref()),
+            DDNS_LOG_MAX_LEN,
+        )
+        .await
+    {
+        Ok(lines) => response::ok(parse_log_entries(lines)).into_response(),
+        Err(error) => {
+            tracing::warn!(%error, "failed to load DDNS logs");
+            response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ddns_text(&translator, "logsLoadFailed", &[]),
+            )
+        }
+    }
+}
+
+async fn manual_test_target(state: &AppState, id: &str) -> Response {
+    let translator = Translator::from_state(state).await;
+    let target = match find_target_or_err(state, id).await {
+        Ok(target) => target,
+        Err(error) => return ddns_error_response(&translator, error),
+    };
+    let Some(provider) = target.meta.provider.as_deref() else {
+        return response::error(
+            StatusCode::BAD_REQUEST,
+            ddns_text(&translator, "selectProviderFirst", &[]),
+        );
+    };
+    if let Some(message) = target_config_incomplete_message(&target, &translator) {
+        return response::error(StatusCode::BAD_REQUEST, message);
+    }
+
+    if let Err(error) = append_target_log(
+        state,
+        "info",
+        &target,
+        &ddns_text(&translator, "manualTestStart", &[]),
+        &translator,
+    )
+    .await
+    {
+        tracing::warn!(%error, "failed to append DDNS manual test start log");
+    }
+
+    let settings = match state.redis.get_string_value(DDNS_SETTINGS).await {
+        Ok(raw) => parse_settings(raw.as_deref()),
+        Err(error) => {
+            tracing::warn!(%error, "failed to load DDNS settings for manual test");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ddns_text(&translator, "settingsLoadFailed", &[]),
+            );
+        }
+    };
+
+    match resolve_target_ips(&target, &settings, &translator).await {
+        Ok(ips) => {
+            let current_message = ddns_text(
+                &translator,
+                "currentTargetIp",
+                &[
+                    ("source", ips.source_label.clone()),
+                    (
+                        "ipv4",
+                        ips.ipv4
+                            .clone()
+                            .unwrap_or_else(|| ddns_text(&translator, "none", &[])),
+                    ),
+                    (
+                        "ipv6",
+                        ips.ipv6
+                            .clone()
+                            .unwrap_or_else(|| ddns_text(&translator, "none", &[])),
+                    ),
+                ],
+            );
+            if let Err(error) =
+                append_target_log(state, "info", &target, &current_message, &translator).await
+            {
+                tracing::warn!(%error, "failed to append DDNS detected IP log");
+            }
+            for warning in &ips.warnings {
+                if let Err(error) =
+                    append_target_log(state, "warn", &target, warning, &translator).await
+                {
+                    tracing::warn!(%error, "failed to append DDNS warning log");
+                }
+            }
+
+            let (scoped_ipv4, scoped_ipv6) =
+                apply_update_scope(ips.update_scope, ips.ipv4.clone(), ips.ipv6.clone());
+            if scoped_ipv4.is_none() && scoped_ipv6.is_none() {
+                let message =
+                    target_ip_unavailable_message(&translator, ips.source, ips.update_scope);
+                let _ = set_target_last_check(state, &target, "error", &message).await;
+                let _ = append_target_log(
+                    state,
+                    "error",
+                    &target,
+                    &ddns_text(&translator, "testAborted", &[("message", message.clone())]),
+                    &translator,
+                )
+                .await;
+                return response::error(StatusCode::INTERNAL_SERVER_ERROR, message);
+            }
+
+            let result = match update_ddns_provider(
+                &translator,
+                provider,
+                &target.config,
+                scoped_ipv4.as_deref(),
+                scoped_ipv6.as_deref(),
+            )
+            .await
+            {
+                Ok(result) => result,
+                Err(error) => {
+                    let message = error.to_string();
+                    let _ = set_target_last_check(state, &target, "error", &message).await;
+                    let _ = append_target_log(
+                        state,
+                        "error",
+                        &target,
+                        &ddns_text(&translator, "testError", &[("message", message.clone())]),
+                        &translator,
+                    )
+                    .await;
+                    return response::error(StatusCode::INTERNAL_SERVER_ERROR, message);
+                }
+            };
+            if result.success {
+                let _ = set_target_last_ip(
+                    state,
+                    &target,
+                    scoped_ipv4.as_deref(),
+                    scoped_ipv6.as_deref(),
+                )
+                .await;
+                let _ = set_target_last_check(state, &target, "updated", &result.message).await;
+                let _ = append_target_log(
+                    state,
+                    "info",
+                    &target,
+                    &ddns_text(
+                        &translator,
+                        "updateSuccess",
+                        &[("message", result.message.clone())],
+                    ),
+                    &translator,
+                )
+                .await;
+            } else {
+                let _ = set_target_last_check(state, &target, "error", &result.message).await;
+                let _ = append_target_log(
+                    state,
+                    "error",
+                    &target,
+                    &ddns_text(
+                        &translator,
+                        "updateFailed",
+                        &[("message", result.message.clone())],
+                    ),
+                    &translator,
+                )
+                .await;
+            }
+            let status = if result.success {
+                StatusCode::OK
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            };
+            (
+                status,
+                Json(json!({
+                    "success": result.success,
+                    "message": result.message,
+                    "data": {
+                        "ipv4": ips.ipv4,
+                        "ipv6": ips.ipv6,
+                        "source": ips.source,
+                        "sourceLabel": ips.source_label,
+                        "ipv4Updated": result.ipv4_updated,
+                        "ipv6Updated": result.ipv6_updated,
+                    }
+                })),
+            )
+                .into_response()
+        }
+        Err(error) => {
+            let message = error.to_string();
+            let _ = set_target_last_check(state, &target, "error", &message).await;
+            let _ = append_target_log(
+                state,
+                "error",
+                &target,
+                &ddns_text(&translator, "testError", &[("message", message.clone())]),
+                &translator,
+            )
+            .await;
+            response::error(StatusCode::INTERNAL_SERVER_ERROR, message)
+        }
+    }
+}

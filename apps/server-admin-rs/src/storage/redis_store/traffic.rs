@@ -1,0 +1,152 @@
+use super::*;
+
+impl RedisStore {
+    pub async fn list_traffic_points(
+        &self,
+        user_id: &str,
+        direction: &str,
+        from_sec: i64,
+        to_sec: i64,
+        host: Option<&str>,
+    ) -> redis::RedisResult<Vec<TrafficDeltaPoint>> {
+        let key = traffic_key(user_id, direction, host);
+        let mut conn = self.conn();
+        let members: Vec<String> = conn.zrangebyscore(key, from_sec, to_sec).await?;
+        Ok(parse_traffic_points(&members))
+    }
+
+    pub async fn list_error5xx_points(
+        &self,
+        user_id: &str,
+        from_sec: i64,
+        to_sec: i64,
+        host: Option<&str>,
+    ) -> redis::RedisResult<Vec<TrafficDeltaPoint>> {
+        let key = error5xx_key(user_id, host);
+        let mut conn = self.conn();
+        let members: Vec<String> = conn.zrangebyscore(key, from_sec, to_sec).await?;
+        Ok(parse_traffic_points(&members))
+    }
+
+    pub async fn record_traffic_snapshot(
+        &self,
+        user_id: &str,
+        records: &[TrafficSnapshotRecord],
+        now_sec: i64,
+        keep_seconds: i64,
+    ) -> redis::RedisResult<(f64, f64, f64)> {
+        if records.is_empty() {
+            return Ok((0.0, 0.0, 0.0));
+        }
+
+        let keep_seconds = keep_seconds.clamp(60, 365 * 24 * 3600);
+        let expire_before_sec = now_sec - keep_seconds;
+        let mut last_keys = Vec::with_capacity(records.len() * 3);
+        for record in records {
+            last_keys.push(traffic_last_total_key(
+                user_id,
+                "in",
+                record.host.as_deref(),
+            ));
+            last_keys.push(traffic_last_total_key(
+                user_id,
+                "out",
+                record.host.as_deref(),
+            ));
+            last_keys.push(error5xx_last_total_key(user_id, record.host.as_deref()));
+        }
+
+        let mut conn = self.conn();
+        let last_values: Vec<Option<String>> = redis::cmd("MGET")
+            .arg(last_keys)
+            .query_async(&mut conn)
+            .await?;
+
+        let mut pipe = redis::pipe();
+        let mut global_delta_in = 0.0;
+        let mut global_delta_out = 0.0;
+        let mut global_delta_5xx = 0.0;
+
+        for (index, record) in records.iter().enumerate() {
+            let offset = index * 3;
+            let last_in = last_values
+                .get(offset)
+                .and_then(|value| parse_finite(value));
+            let last_out = last_values
+                .get(offset + 1)
+                .and_then(|value| parse_finite(value));
+            let last_5xx = last_values
+                .get(offset + 2)
+                .and_then(|value| parse_finite(value));
+            let delta_in = compute_counter_delta(record.total_in, last_in);
+            let delta_out = compute_counter_delta(record.total_out, last_out);
+            let delta_5xx = compute_counter_delta(record.error_5xx, last_5xx);
+
+            if record.host.is_none() {
+                global_delta_in = delta_in;
+                global_delta_out = delta_out;
+                global_delta_5xx = delta_5xx;
+            }
+
+            let key_in = traffic_key(user_id, "in", record.host.as_deref());
+            let key_out = traffic_key(user_id, "out", record.host.as_deref());
+            let key_5xx = error5xx_key(user_id, record.host.as_deref());
+
+            pipe.set(
+                traffic_last_total_key(user_id, "in", record.host.as_deref()),
+                finite_number_string(record.total_in),
+            )
+            .ignore();
+            pipe.set(
+                traffic_last_total_key(user_id, "out", record.host.as_deref()),
+                finite_number_string(record.total_out),
+            )
+            .ignore();
+            pipe.set(
+                error5xx_last_total_key(user_id, record.host.as_deref()),
+                finite_number_string(record.error_5xx),
+            )
+            .ignore();
+
+            pipe.zadd(&key_in, traffic_member(now_sec, delta_in), now_sec)
+                .ignore();
+            pipe.zadd(&key_out, traffic_member(now_sec, delta_out), now_sec)
+                .ignore();
+            pipe.zadd(&key_5xx, traffic_member(now_sec, delta_5xx), now_sec)
+                .ignore();
+            pipe.sadd(TRAFFIC_KEY_INDEX, &key_in).ignore();
+            pipe.sadd(TRAFFIC_KEY_INDEX, &key_out).ignore();
+            pipe.sadd(ERROR5XX_KEY_INDEX, &key_5xx).ignore();
+            pipe.zrembyscore(&key_in, 0, expire_before_sec).ignore();
+            pipe.zrembyscore(&key_out, 0, expire_before_sec).ignore();
+            pipe.zrembyscore(&key_5xx, 0, expire_before_sec).ignore();
+        }
+
+        let _: () = pipe.query_async(&mut conn).await?;
+        Ok((global_delta_in, global_delta_out, global_delta_5xx))
+    }
+
+    pub async fn cleanup_traffic_metrics(&self, keep_seconds: i64) -> redis::RedisResult<usize> {
+        let keep_seconds = keep_seconds.clamp(60, 365 * 24 * 3600);
+        let expire_before_sec = chrono_like_now_seconds() - keep_seconds;
+        let mut conn = self.conn();
+        let traffic_keys: Vec<String> = conn.smembers(TRAFFIC_KEY_INDEX).await?;
+        let error_keys: Vec<String> = conn.smembers(ERROR5XX_KEY_INDEX).await?;
+        let keys = traffic_keys
+            .into_iter()
+            .chain(error_keys.into_iter())
+            .filter(|key| !key.trim().is_empty())
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        if keys.is_empty() {
+            return Ok(0);
+        }
+        let mut pipe = redis::pipe();
+        for key in &keys {
+            pipe.zrembyscore(key, 0, expire_before_sec).ignore();
+        }
+        let _: () = pipe.query_async(&mut conn).await?;
+        Ok(keys.len())
+    }
+}

@@ -1,0 +1,9 @@
+pub(crate) mod app_version;
+pub(crate) mod go_backend;
+pub(crate) mod i18n;
+pub(crate) mod openapi_docs;
+pub(crate) mod response;
+pub(crate) mod runtime_profile;
+pub(crate) mod settings;
+pub(crate) mod state;
+pub(crate) mod static_files;

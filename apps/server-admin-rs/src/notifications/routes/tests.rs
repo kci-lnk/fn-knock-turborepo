@@ -1,0 +1,654 @@
+use super::*;
+
+fn schema_field<'a>(view: &'a Value, schema: &str, key: &str) -> &'a Value {
+    view.get(schema)
+        .and_then(Value::as_array)
+        .unwrap()
+        .iter()
+        .find(|field| field.get("key").and_then(Value::as_str) == Some(key))
+        .unwrap()
+}
+
+#[test]
+fn masks_sensitive_provider_values_like_node() {
+    assert_eq!(mask_sensitive_value(&json!("short")), json!("********"));
+    assert_eq!(
+        mask_sensitive_value(&json!("abcdefghijkl")),
+        json!("ab******")
+    );
+    assert_eq!(mask_sensitive_value(&json!(true)), json!("[configured]"));
+}
+
+#[test]
+fn provider_test_result_updates_provider_status_like_node() {
+    let mut provider = json!({
+        "id": "ntfprov_1",
+        "last_test_status": "idle",
+        "last_error": "old error"
+    });
+    apply_provider_test_result(
+        &mut provider,
+        &ProviderTestResult {
+            success: true,
+            message: "ok".to_string(),
+            request_summary: None,
+            response_summary: None,
+        },
+    );
+    assert_eq!(provider.get("last_test_status"), Some(&json!("success")));
+    assert_eq!(provider.get("last_error"), Some(&Value::Null));
+    assert!(
+        provider
+            .get("last_test_at")
+            .and_then(Value::as_str)
+            .is_some_and(|value| !value.is_empty())
+    );
+}
+
+#[test]
+fn applies_schema_defaults_and_required_validation() {
+    let definition = provider_definition("webhook").unwrap();
+    let mut raw = Map::new();
+    raw.insert("url".to_string(), json!(" https://example.com/hook "));
+    let normalized = normalize_schema_config(&raw, &definition.connection_schema).unwrap();
+    assert_eq!(
+        normalized.get("url"),
+        Some(&json!("https://example.com/hook"))
+    );
+    assert_eq!(normalized.get("method"), Some(&json!("POST")));
+    assert_eq!(normalized.get("timeout_seconds"), Some(&json!(5)));
+    validate_required_fields(&normalized, &definition.connection_schema).unwrap();
+}
+
+#[test]
+fn rejects_invalid_select_values() {
+    let definition = provider_definition("webhook").unwrap();
+    let mut raw = Map::new();
+    raw.insert("method".to_string(), json!("DELETE"));
+    assert!(normalize_schema_patch(&raw, &definition.connection_schema).is_err());
+}
+
+#[test]
+fn schema_boolean_values_follow_node_truthiness() {
+    let definition = provider_definition("bark").unwrap();
+    let mut raw = Map::new();
+
+    raw.insert("call".to_string(), json!("false"));
+    assert_eq!(
+        normalize_schema_patch(&raw, &definition.target_schema)
+            .unwrap()
+            .get("call"),
+        Some(&json!(true))
+    );
+
+    raw.insert("call".to_string(), json!(""));
+    assert_eq!(
+        normalize_schema_patch(&raw, &definition.target_schema)
+            .unwrap()
+            .get("call"),
+        Some(&json!(false))
+    );
+
+    raw.insert("call".to_string(), json!(0));
+    assert_eq!(
+        normalize_schema_patch(&raw, &definition.target_schema)
+            .unwrap()
+            .get("call"),
+        Some(&json!(false))
+    );
+
+    raw.insert("call".to_string(), json!({}));
+    assert_eq!(
+        normalize_schema_patch(&raw, &definition.target_schema)
+            .unwrap()
+            .get("call"),
+        Some(&json!(true))
+    );
+}
+
+#[test]
+fn schema_string_values_follow_node_string_coercion() {
+    let definition = provider_definition("webhook").unwrap();
+    let mut raw = Map::new();
+    raw.insert("endpoint_path".to_string(), json!({ "path": "/alerts" }));
+    assert_eq!(
+        normalize_schema_patch(&raw, &definition.target_schema)
+            .unwrap()
+            .get("endpoint_path"),
+        Some(&json!("[object Object]"))
+    );
+
+    raw.insert("endpoint_path".to_string(), json!(["alerts", 1, null]));
+    assert_eq!(
+        normalize_schema_patch(&raw, &definition.target_schema)
+            .unwrap()
+            .get("endpoint_path"),
+        Some(&json!("alerts,1,"))
+    );
+}
+
+#[test]
+fn json_schema_whitespace_matches_node_parse_behavior() {
+    let definition = provider_definition("webhook").unwrap();
+    let mut raw = Map::new();
+
+    raw.insert("extra_headers_json".to_string(), json!(""));
+    assert!(
+        !normalize_schema_patch(&raw, &definition.target_schema)
+            .unwrap()
+            .contains_key("extra_headers_json")
+    );
+
+    raw.insert("extra_headers_json".to_string(), json!("   "));
+    assert!(normalize_schema_patch(&raw, &definition.target_schema).is_err());
+
+    raw.insert(
+        "extra_headers_json".to_string(),
+        json!(" {\"X-Env\":\"prod\"} "),
+    );
+    assert_eq!(
+        normalize_schema_patch(&raw, &definition.target_schema)
+            .unwrap()
+            .get("extra_headers_json"),
+        Some(&json!({ "X-Env": "prod" }))
+    );
+}
+
+#[test]
+fn notification_number_fields_follow_node_number_coercion() {
+    assert_eq!(
+        number_field(
+            &json!({ "window_seconds": "" }),
+            "window_seconds",
+            60,
+            1,
+            86400
+        ),
+        1
+    );
+    assert_eq!(
+        number_field(
+            &json!({ "threshold_count": null }),
+            "threshold_count",
+            9,
+            1,
+            9999
+        ),
+        1
+    );
+    assert_eq!(
+        number_field(
+            &json!({ "cooldown_seconds": false }),
+            "cooldown_seconds",
+            60,
+            0,
+            86400
+        ),
+        0
+    );
+    assert_eq!(
+        number_field(
+            &json!({ "window_seconds": "2.9" }),
+            "window_seconds",
+            60,
+            1,
+            86400
+        ),
+        2
+    );
+    assert_eq!(
+        number_field(
+            &json!({ "window_seconds": "2x" }),
+            "window_seconds",
+            60,
+            1,
+            86400
+        ),
+        60
+    );
+    assert_eq!(
+        number_field(
+            &json!({ "window_seconds": "0x10" }),
+            "window_seconds",
+            60,
+            1,
+            86400
+        ),
+        16
+    );
+    assert_eq!(
+        number_field(
+            &json!({ "window_seconds": "0b10" }),
+            "window_seconds",
+            60,
+            1,
+            86400
+        ),
+        2
+    );
+    assert_eq!(
+        number_field(
+            &json!({ "window_seconds": "0o10" }),
+            "window_seconds",
+            60,
+            1,
+            86400
+        ),
+        8
+    );
+    assert_eq!(
+        number_field(
+            &json!({ "window_seconds": ["4.9"] }),
+            "window_seconds",
+            60,
+            1,
+            86400
+        ),
+        4
+    );
+}
+
+#[test]
+fn notification_provider_payload_helpers_match_node_edges() {
+    let message = json!({
+        "summary": " 概览 ",
+        "body_text": " 第一行 \n 第二行 ",
+        "facts": [{ "label": "状态", "value": "异常" }],
+        "actions": [{ "label": "查看", "url": "https://example.com/a" }],
+    });
+
+    assert_eq!(message_title(&json!({})), "fn-knock 通知");
+    assert_eq!(build_markdown_body(&json!({}), ""), "");
+    assert!(build_pushplus_markdown_content(&message).contains("- **状态**：异常"));
+
+    let pushplus_html = build_pushplus_html_content(&message);
+    assert!(!pushplus_html.contains("<h2>"));
+    assert!(pushplus_html.contains("<strong>状态</strong>：异常"));
+
+    let wxpusher_html = build_wxpusher_html_content(&message);
+    assert!(wxpusher_html.contains("<h2>概览</h2>"));
+    assert!(wxpusher_html.contains("<strong>状态</strong>：异常"));
+
+    assert_eq!(magicpush_facts_object(&message), json!({ "状态": "异常" }));
+    assert_eq!(
+        build_bark_payload(&message, &json!({ "target_config": { "badge": 0 } })).get("badge"),
+        Some(&json!(0))
+    );
+}
+
+#[test]
+fn notification_provider_parsers_follow_node_edges() {
+    assert_eq!(value_as_i64(&json!("200 OK")), Some(200));
+    assert_eq!(value_as_i64(&json!("0x10")), Some(0));
+    assert_eq!(value_as_i64(&json!("  -12x")), Some(-12));
+
+    let topic_value = json!("+1,01,abc");
+    let (topic_ids, invalid_topic_ids) = parse_topic_ids(Some(&topic_value));
+    assert_eq!(topic_ids, vec![1]);
+    assert_eq!(invalid_topic_ids, vec!["+1", "abc"]);
+
+    assert_eq!(
+        resolve_pushplus_url("https://push.example.com/BatchSend"),
+        "https://push.example.com/BatchSend"
+    );
+    assert_eq!(
+        resolve_magicpush_url("https://push.example.com/API/PUSH/token", "other", "push"),
+        "https://push.example.com/API/PUSH/token"
+    );
+    assert_eq!(
+        resolve_magicpush_url("https://push.example.com/API/INBOUND", "a b", "inbound"),
+        "https://push.example.com/API/INBOUND/a+b"
+    );
+}
+
+#[test]
+fn notification_page_parser_matches_node_parse_int_edges() {
+    assert_eq!(parse_positive_int(None, 1, i64::MAX), 1);
+    assert_eq!(parse_positive_int(Some(""), 20, 100), 20);
+    assert_eq!(parse_positive_int(Some("2x"), 1, 100), 2);
+    assert_eq!(parse_positive_int(Some("  +3.9"), 1, 100), 3);
+    assert_eq!(parse_positive_int(Some("-1"), 1, 100), 1);
+    assert_eq!(parse_positive_int(Some("0x10"), 7, 100), 7);
+    assert_eq!(parse_positive_int(Some("999"), 20, 100), 100);
+    assert_eq!(
+        parse_positive_int(Some("999999999999999999999999"), 20, 100),
+        100
+    );
+}
+
+#[test]
+fn builds_sequential_names() {
+    let names = vec!["Webhook 1".to_string(), "Webhook 3".to_string()];
+    assert_eq!(build_next_sequential_name("Webhook", &names), "Webhook 2");
+    assert_eq!(
+        build_next_sequential_name("", &["未命名 1".to_string()]),
+        "未命名 2"
+    );
+}
+
+#[test]
+fn provider_catalog_view_localizes_schema_text() {
+    let definition = provider_definition("email").unwrap();
+    let view = provider_definition_view(&definition, &Translator::new("zh-CN"));
+    assert_eq!(view.get("label"), Some(&json!("邮件")));
+    assert!(
+        view.get("description")
+            .and_then(Value::as_str)
+            .is_some_and(|value| value.contains("SMTP"))
+    );
+    let smtp_host = view
+        .get("connection_schema")
+        .and_then(Value::as_array)
+        .unwrap()
+        .iter()
+        .find(|field| field.get("key").and_then(Value::as_str) == Some("smtp_host"))
+        .unwrap();
+    assert_eq!(smtp_host.get("label"), Some(&json!("SMTP 主机")));
+    assert!(
+        smtp_host
+            .get("description")
+            .and_then(Value::as_str)
+            .is_some_and(|value| value.contains("邮件发送服务器"))
+    );
+
+    let pushplus = provider_definition_view(
+        &provider_definition("pushplus").unwrap(),
+        &Translator::new("zh-CN"),
+    );
+    assert_eq!(pushplus.get("label"), Some(&json!("PushPlus 推送")));
+    let token = schema_field(&pushplus, "connection_schema", "token");
+    assert_eq!(token.get("label"), Some(&json!("令牌")));
+
+    let dingtalk = provider_definition_view(
+        &provider_definition("dingtalk").unwrap(),
+        &Translator::new("zh-CN"),
+    );
+    let webhook_url = schema_field(&dingtalk, "connection_schema", "webhook_url");
+    assert_eq!(webhook_url.get("label"), Some(&json!("Webhook 地址")));
+
+    let bark = provider_definition_view(
+        &provider_definition("bark").unwrap(),
+        &Translator::new("zh-CN"),
+    );
+    let level = schema_field(&bark, "target_schema", "level");
+    assert_eq!(level.get("label"), Some(&json!("通知级别")));
+    assert!(
+        level
+            .get("options")
+            .and_then(Value::as_array)
+            .unwrap()
+            .iter()
+            .any(|option| option == &json!({"label": "时效性通知", "value": "timeSensitive"}))
+    );
+
+    let telegram = provider_definition_view(
+        &provider_definition("telegram").unwrap(),
+        &Translator::new("zh-CN"),
+    );
+    let chat_id = schema_field(&telegram, "connection_schema", "chat_id");
+    assert_eq!(chat_id.get("label"), Some(&json!("聊天 ID")));
+}
+
+#[test]
+fn provider_default_names_use_localized_label() {
+    let definition = provider_definition("email").unwrap();
+    let zh = Translator::new("zh-CN");
+    let base = provider_definition_label(&definition, &zh);
+
+    assert_eq!(base, "邮件");
+    assert_eq!(
+        build_next_sequential_name(&base, &["邮件 1".to_string()]),
+        "邮件 2"
+    );
+}
+
+#[test]
+fn provider_catalog_view_includes_node_schema_metadata() {
+    let translator = Translator::new("zh-CN");
+
+    let email = provider_definition_view(&provider_definition("email").unwrap(), &translator);
+    let smtp_host = schema_field(&email, "connection_schema", "smtp_host");
+    assert_eq!(
+        smtp_host.get("placeholder"),
+        Some(&json!("smtp.example.com"))
+    );
+    let smtp_port = schema_field(&email, "connection_schema", "smtp_port");
+    assert_eq!(smtp_port.get("min"), Some(&json!(1)));
+    assert_eq!(smtp_port.get("max"), Some(&json!(65535)));
+
+    let wxpusher = provider_definition_view(&provider_definition("wxpusher").unwrap(), &translator);
+    let default_uids = schema_field(&wxpusher, "connection_schema", "uids");
+    assert_eq!(default_uids.get("label"), Some(&json!("默认 UID 列表")));
+    assert_eq!(
+        default_uids.get("placeholder"),
+        Some(&json!("UID_xxx,UID_yyy"))
+    );
+    let target_verify = schema_field(&wxpusher, "target_schema", "verify_pay_type");
+    assert_eq!(
+        target_verify.get("default_value"),
+        Some(&json!("__inherit__"))
+    );
+
+    let wecom = provider_definition_view(&provider_definition("wecom").unwrap(), &translator);
+    assert_eq!(
+        schema_field(&wecom, "connection_schema", "webhook_url").get("placeholder"),
+        Some(&json!(
+            "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+        ))
+    );
+    assert!(
+        wecom
+            .get("connection_schema")
+            .and_then(Value::as_array)
+            .unwrap()
+            .iter()
+            .all(|field| field.get("key").and_then(Value::as_str) != Some("secret"))
+    );
+}
+
+#[test]
+fn provider_catalog_view_matches_node_capabilities() {
+    let translator = Translator::new("zh-CN");
+
+    let magicpush =
+        provider_definition_view(&provider_definition("magicpush").unwrap(), &translator);
+    assert_eq!(
+        magicpush.pointer("/capabilities/supports_markdown"),
+        Some(&json!(false))
+    );
+    assert_eq!(
+        magicpush.pointer("/capabilities/supports_actions"),
+        Some(&json!(false))
+    );
+
+    let bark = provider_definition_view(&provider_definition("bark").unwrap(), &translator);
+    assert_eq!(
+        bark.pointer("/capabilities/supports_markdown"),
+        Some(&json!(false))
+    );
+    assert_eq!(
+        bark.pointer("/capabilities/supports_actions"),
+        Some(&json!(true))
+    );
+
+    let feishu = provider_definition_view(&provider_definition("feishu").unwrap(), &translator);
+    assert_eq!(
+        feishu.pointer("/capabilities/supports_markdown"),
+        Some(&json!(false))
+    );
+    assert_eq!(
+        feishu.pointer("/capabilities/supports_actions"),
+        Some(&json!(true))
+    );
+    assert_eq!(
+        feishu.pointer("/capabilities/max_body_length"),
+        Some(&json!(20480))
+    );
+
+    let wecom = provider_definition_view(&provider_definition("wecom").unwrap(), &translator);
+    assert_eq!(
+        wecom.pointer("/capabilities/supports_mentions"),
+        Some(&json!(true))
+    );
+    assert_eq!(
+        wecom.pointer("/capabilities/max_body_length"),
+        Some(&json!(4096))
+    );
+
+    let serverchan =
+        provider_definition_view(&provider_definition("serverchan").unwrap(), &translator);
+    assert_eq!(
+        serverchan.pointer("/capabilities/max_body_length"),
+        Some(&json!(32768))
+    );
+
+    let telegram = provider_definition_view(&provider_definition("telegram").unwrap(), &translator);
+    assert_eq!(
+        telegram.pointer("/capabilities/max_body_length"),
+        Some(&json!(4096))
+    );
+
+    let webhook = provider_definition_view(&provider_definition("webhook").unwrap(), &translator);
+    assert_eq!(
+        webhook.pointer("/capabilities/max_body_length"),
+        Some(&Value::Null)
+    );
+}
+
+#[test]
+fn localizes_provider_test_builtin_messages() {
+    let zh = Translator::new("zh-CN");
+    assert_eq!(
+        parse_json_body(&Bytes::from_static(b"{"), &zh).expect_err("invalid json body should fail"),
+        "请求体必须是合法 JSON"
+    );
+    assert_eq!(
+        notification_service_text(&zh, "providerTestName", &[("provider", "Webhook".into())]),
+        "Webhook 测试"
+    );
+    assert_eq!(
+        localize_provider_test_message(&zh, "Notification provider test sent successfully"),
+        "测试发送成功"
+    );
+    assert_eq!(
+        localize_provider_test_message(&zh, "Webhook request returned status 503"),
+        "Webhook 请求返回状态 503"
+    );
+    assert_eq!(
+        localize_provider_test_result(
+            ProviderTestResult {
+                success: false,
+                message: "Telegram request returned status 429".to_string(),
+                request_summary: None,
+                response_summary: None,
+            },
+            &zh,
+        )
+        .message,
+        "Telegram 请求返回状态 429"
+    );
+    assert_eq!(
+        localize_provider_test_message(&zh, "Bark failed for 1/2 target(s)"),
+        "Bark 1/2 个目标发送失败"
+    );
+    assert_eq!(
+        localize_provider_test_message(&zh, "Invalid WxPusher topic id(s): abc"),
+        "Topic ID 格式不正确：abc"
+    );
+
+    let en = Translator::new("en");
+    assert_eq!(
+        localize_provider_test_message(&en, "缺少 Webhook URL"),
+        "Missing Webhook URL"
+    );
+    assert_eq!(
+        localize_provider_test_message(&en, "测试发送成功"),
+        "Test send succeeded"
+    );
+    assert_eq!(
+        localize_provider_test_message(&en, "Topic ID 格式不正确：abc"),
+        "Invalid Topic ID format: abc"
+    );
+}
+
+#[test]
+fn deleted_provider_snapshot_uses_config_locale() {
+    let snapshot = deleted_provider_snapshot(
+        "provider-1",
+        "2026-01-02T03:04:05Z",
+        &Translator::new("zh-CN"),
+    );
+    assert_eq!(snapshot.get("name"), Some(&json!("已删除提供商")));
+}
+
+#[test]
+fn localizes_rule_names_and_fallback_messages() {
+    let zh = Translator::new("zh-CN");
+    assert_eq!(
+        build_notification_rule_name("FN_EVENT_AUTH_LOGIN_SUCCESS", &zh),
+        "登录成功 通知"
+    );
+    let message = build_notification_message(
+        &json!({
+            "id": "evt_1",
+            "type": "FN_EVENT_AUTH_LOGIN_SUCCESS",
+            "level": "WARN",
+            "source": "GO_REAUTH_PROXY",
+            "happened_at": "2026-07-06T00:00:00.000Z",
+            "dedupe_key": "auth-login"
+        }),
+        &json!({
+            "id": "rule_1",
+            "window_seconds": 60
+        }),
+        2,
+        "global",
+        &zh,
+    );
+
+    assert_eq!(message.get("title"), Some(&json!("敲门 Knock 登录成功 x2")));
+    assert!(
+        message
+            .get("body_text")
+            .and_then(Value::as_str)
+            .is_some_and(|value| value.contains("本次通知已在 60 秒窗口内聚合 2 条相似事件"))
+    );
+    let facts = message.get("facts").and_then(Value::as_array).unwrap();
+    assert!(
+        facts
+            .iter()
+            .any(|fact| fact.get("label") == Some(&json!("事件类型")))
+    );
+    assert!(
+        facts
+            .iter()
+            .any(|fact| fact.get("label") == Some(&json!("风险级别")))
+    );
+    assert!(!serde_json::to_string(&message).unwrap().contains("Matched"));
+}
+
+#[test]
+fn localizes_email_address_validation_errors() {
+    let zh = Translator::new("zh-CN");
+    assert_eq!(
+        parse_mailboxes("bad-address", "to_addresses", &zh)
+            .expect_err("invalid mailbox should fail"),
+        "收件人 中包含无效邮箱地址: bad-address"
+    );
+    assert_eq!(
+        build_from_mailbox("bad-address", "", &zh).expect_err("invalid from should fail"),
+        "发件邮箱格式不正确"
+    );
+    assert!(
+        build_email_plain_text_body(
+            &json!({
+                "body_text": "正文",
+                "severity": "info",
+                "event_id": "evt_1",
+                "occurred_at": "2026-07-06T00:00:00.000Z"
+            }),
+            &zh
+        )
+        .contains("发生时间: 2026-07-06T00:00:00.000Z")
+    );
+}

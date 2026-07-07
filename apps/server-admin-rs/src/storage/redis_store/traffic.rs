@@ -133,9 +133,10 @@ impl RedisStore {
         let traffic_keys: Vec<String> = conn.smembers(TRAFFIC_KEY_INDEX).await?;
         let error_keys: Vec<String> = conn.smembers(ERROR5XX_KEY_INDEX).await?;
         let keys = traffic_keys
-            .into_iter()
-            .chain(error_keys.into_iter())
+            .iter()
+            .chain(error_keys.iter())
             .filter(|key| !key.trim().is_empty())
+            .cloned()
             .collect::<HashSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
@@ -147,6 +148,60 @@ impl RedisStore {
             pipe.zrembyscore(key, 0, expire_before_sec).ignore();
         }
         let _: () = pipe.query_async(&mut conn).await?;
+        self.cleanup_empty_traffic_metric_keys(&traffic_keys, TRAFFIC_KEY_INDEX)
+            .await?;
+        self.cleanup_empty_traffic_metric_keys(&error_keys, ERROR5XX_KEY_INDEX)
+            .await?;
         Ok(keys.len())
     }
+
+    async fn cleanup_empty_traffic_metric_keys(
+        &self,
+        keys: &[String],
+        index_key: &str,
+    ) -> redis::RedisResult<()> {
+        let mut conn = self.conn();
+        for chunk in keys
+            .iter()
+            .filter(|key| !key.trim().is_empty())
+            .collect::<Vec<_>>()
+            .chunks(100)
+        {
+            let mut empty_keys = Vec::new();
+            for key in chunk {
+                let count: i64 = conn.zcard(key.as_str()).await?;
+                if count == 0 {
+                    empty_keys.push((*key).clone());
+                }
+            }
+            if empty_keys.is_empty() {
+                continue;
+            }
+            let mut pipe = redis::pipe();
+            pipe.srem(index_key, empty_keys.clone()).ignore();
+            for key in &empty_keys {
+                pipe.del(key).ignore();
+                if let Some(last_key) = traffic_last_total_key_for_metric_key(key) {
+                    pipe.del(last_key).ignore();
+                }
+            }
+            let _: () = pipe.query_async(&mut conn).await?;
+        }
+        Ok(())
+    }
+}
+
+pub(super) fn traffic_last_total_key_for_metric_key(key: &str) -> Option<String> {
+    let key = key.trim();
+    if let Some(rest) = key.strip_prefix("fn_knock:traffic:")
+        && (rest.ends_with(":in") || rest.ends_with(":out"))
+    {
+        return Some(format!("fn_knock:traffic:last:{rest}"));
+    }
+    if let Some(rest) = key.strip_prefix("fn_knock:errors:")
+        && rest.ends_with(":5xx")
+    {
+        return Some(format!("fn_knock:errors:last:{rest}"));
+    }
+    None
 }

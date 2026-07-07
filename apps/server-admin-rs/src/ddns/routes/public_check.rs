@@ -2,14 +2,12 @@ use super::*;
 
 pub(super) async fn test_public_check_sources_inner(
     sources: &Value,
-    _transport: &str,
+    transport: &str,
+    network_interface: Option<&str>,
     translator: &Translator,
 ) -> anyhow::Result<Vec<Value>> {
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_millis(IP_DETECTION_TIMEOUT_MS))
-        .redirect(reqwest::redirect::Policy::limited(20))
-        .build()?;
-    let mut results = Vec::new();
+    let mut tasks = JoinSet::new();
+    let mut index = 0_usize;
     for (family, version) in [("ipv4", 4_u8), ("ipv6", 6_u8)] {
         let urls = sources
             .get(family)
@@ -20,64 +18,213 @@ pub(super) async fn test_public_check_sources_inner(
             .into_iter()
             .filter_map(|value| value.as_str().map(str::to_string))
         {
-            results.push(
-                test_single_public_check_source(&client, &url, family, version, translator).await,
-            );
+            let transport = transport.to_string();
+            let network_interface = network_interface.map(str::to_string);
+            let translator = translator.clone();
+            let current_index = index;
+            index += 1;
+            tasks.spawn(async move {
+                let result = test_single_public_check_source(
+                    &url,
+                    family,
+                    version,
+                    &transport,
+                    network_interface.as_deref(),
+                    &translator,
+                )
+                .await;
+                (current_index, result)
+            });
+        }
+    }
+    let mut results = vec![Value::Null; index];
+    while let Some(result) = tasks.join_next().await {
+        let (index, value) = result?;
+        if let Some(slot) = results.get_mut(index) {
+            *slot = value;
         }
     }
     Ok(results)
 }
 
+#[derive(Clone, Debug, Default)]
+pub(super) struct CurrentPublicIps {
+    pub(super) ipv4: Option<String>,
+    pub(super) ipv6: Option<String>,
+    pub(super) ipv4_error: Option<String>,
+    pub(super) ipv6_error: Option<String>,
+}
+
+pub(super) async fn detect_current_public_ips(
+    sources: &Value,
+    transport: &str,
+    network_interface: Option<&str>,
+    enable_ipv4: bool,
+    enable_ipv6: bool,
+    translator: &Translator,
+) -> CurrentPublicIps {
+    let ipv4_sources = public_check_source_urls(sources, "ipv4");
+    let ipv6_sources = public_check_source_urls(sources, "ipv6");
+    let network_interface = normalize_network_interface(network_interface);
+    let transport =
+        normalize_http_transport(Some(&Value::String(transport.to_string()))).to_string();
+    let translator_ipv4 = translator.clone();
+    let translator_ipv6 = translator.clone();
+    let ipv4_interface = network_interface.clone();
+    let ipv6_interface = network_interface.clone();
+    let ipv4_transport = transport.clone();
+    let ipv6_transport = transport.clone();
+
+    let (ipv4, ipv6) = tokio::join!(
+        async move {
+            if enable_ipv4 {
+                detect_public_ip_family(
+                    ipv4_sources,
+                    "ipv4",
+                    4,
+                    ipv4_transport,
+                    ipv4_interface,
+                    translator_ipv4,
+                )
+                .await
+            } else {
+                PublicIpFamilyDetection::default()
+            }
+        },
+        async move {
+            if enable_ipv6 {
+                detect_public_ip_family(
+                    ipv6_sources,
+                    "ipv6",
+                    6,
+                    ipv6_transport,
+                    ipv6_interface,
+                    translator_ipv6,
+                )
+                .await
+            } else {
+                PublicIpFamilyDetection::default()
+            }
+        }
+    );
+
+    CurrentPublicIps {
+        ipv4: ipv4.ip,
+        ipv6: ipv6.ip,
+        ipv4_error: ipv4.error,
+        ipv6_error: ipv6.error,
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+struct PublicIpFamilyDetection {
+    ip: Option<String>,
+    error: Option<String>,
+}
+
+async fn detect_public_ip_family(
+    sources: Vec<String>,
+    family: &'static str,
+    version: u8,
+    transport: String,
+    network_interface: String,
+    translator: Translator,
+) -> PublicIpFamilyDetection {
+    if sources.is_empty() {
+        return PublicIpFamilyDetection {
+            ip: None,
+            error: Some(ddns_text(
+                &translator,
+                "publicCheckSourceListEmpty",
+                &[(
+                    "family",
+                    if version == 4 { "IPv4" } else { "IPv6" }.to_string(),
+                )],
+            )),
+        };
+    }
+
+    let mut tasks = JoinSet::new();
+    for url in sources {
+        let transport = transport.clone();
+        let network_interface = network_interface.clone();
+        let translator = translator.clone();
+        tasks.spawn(async move {
+            test_single_public_check_source(
+                &url,
+                family,
+                version,
+                &transport,
+                Some(network_interface.as_str()),
+                &translator,
+            )
+            .await
+        });
+    }
+
+    let mut failures = Vec::new();
+    while let Some(result) = tasks.join_next().await {
+        match result {
+            Ok(value) => {
+                if value.get("success").and_then(Value::as_bool) == Some(true)
+                    && let Some(ip) = value.get("ip").and_then(Value::as_str)
+                {
+                    tasks.abort_all();
+                    return PublicIpFamilyDetection {
+                        ip: Some(ip.to_string()),
+                        error: None,
+                    };
+                }
+                if let Some(error) = value.get("error").and_then(Value::as_str) {
+                    failures.push(error.to_string());
+                }
+            }
+            Err(error) => failures.push(error.to_string()),
+        }
+    }
+
+    PublicIpFamilyDetection {
+        ip: None,
+        error: Some(
+            failures
+                .into_iter()
+                .filter(|value| !value.is_empty())
+                .collect::<Vec<_>>()
+                .join("; "),
+        ),
+    }
+}
+
+fn public_check_source_urls(sources: &Value, family: &str) -> Vec<String> {
+    sources
+        .get(family)
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|value| value.as_str().map(str::to_string))
+        .collect()
+}
+
 pub(super) async fn test_single_public_check_source(
-    client: &reqwest::Client,
     url: &str,
     family: &str,
     version: u8,
+    transport: &str,
+    network_interface: Option<&str>,
     translator: &Translator,
 ) -> Value {
-    match client
-        .get(url)
-        .header("Accept", "application/json, text/plain")
-        .send()
-        .await
+    let result = if normalize_http_transport(Some(&Value::String(transport.to_string()))) == "node"
     {
-        Ok(response) => {
-            let status = response.status().as_u16();
-            let ok = response.status().is_success();
-            let text = response.text().await.unwrap_or_default();
-            let preview = response_preview(&text);
-            if !ok {
-                return json!({
-                    "family": family,
-                    "url": url,
-                    "success": false,
-                    "status": status,
-                    "ip": null,
-                    "responsePreview": preview,
-                    "error": public_check_request_failed_message(translator, url, status)
-                });
-            }
-            let ip = parse_detected_ip_text(&text, version);
-            if let Some(ip) = ip {
-                json!({
-                    "family": family,
-                    "url": url,
-                    "success": true,
-                    "status": status,
-                    "ip": ip,
-                    "responsePreview": preview
-                })
-            } else {
-                json!({
-                    "family": family,
-                    "url": url,
-                    "success": false,
-                    "status": status,
-                    "ip": null,
-                    "responsePreview": preview,
-                    "error": public_check_invalid_payload_message(translator, url, version)
-                })
-            }
+        test_single_public_check_source_via_reqwest(url, version, network_interface, translator)
+            .await
+    } else {
+        test_single_public_check_source_via_curl(url, version, network_interface, translator).await
+    };
+
+    match result {
+        Ok((status, text)) => {
+            public_check_result_from_response(url, family, version, status, &text, translator)
         }
         Err(error) => json!({
             "family": family,
@@ -87,6 +234,258 @@ pub(super) async fn test_single_public_check_source(
             "ip": null,
             "error": error.to_string()
         }),
+    }
+}
+
+async fn test_single_public_check_source_via_reqwest(
+    url: &str,
+    version: u8,
+    network_interface: Option<&str>,
+    translator: &Translator,
+) -> anyhow::Result<(u16, String)> {
+    let mut builder = reqwest::Client::builder()
+        .timeout(Duration::from_millis(IP_DETECTION_TIMEOUT_MS))
+        .redirect(reqwest::redirect::Policy::limited(20))
+        .no_proxy();
+    let interface = normalize_network_interface(network_interface);
+    if !interface.is_empty() && !interface.starts_with(DOCKER_HOST_INTERFACE_PREFIX) {
+        let local_address = first_selectable_interface_ip(&interface, version, translator)?
+            .ok_or_else(|| {
+                anyhow::anyhow!(ddns_text(
+                    translator,
+                    "nodeTransportInterfaceAddressUnavailable",
+                    &[
+                        ("name", interface.clone()),
+                        (
+                            "family",
+                            if version == 4 { "IPv4" } else { "IPv6" }.to_string(),
+                        ),
+                    ],
+                ))
+            })?;
+        builder = builder.local_address(local_address);
+    } else {
+        builder = apply_reqwest_family_resolver(builder, url, version, translator).await?;
+    }
+    let response = builder
+        .build()?
+        .get(url)
+        .header("Accept", "application/json, text/plain")
+        .send()
+        .await?;
+    let status = response.status().as_u16();
+    let text = response.text().await.unwrap_or_default();
+    Ok((status, text))
+}
+
+async fn test_single_public_check_source_via_curl(
+    url: &str,
+    version: u8,
+    network_interface: Option<&str>,
+    translator: &Translator,
+) -> anyhow::Result<(u16, String)> {
+    const STATUS_MARKER: &str = "\n__FN_KNOCK_CURL_STATUS__";
+    const PROXY_ENV_KEYS: [&str; 8] = [
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "no_proxy",
+        "NO_PROXY",
+    ];
+
+    let mut command = tokio::process::Command::new("curl");
+    command
+        .arg("-q")
+        .arg("--silent")
+        .arg("--show-error")
+        .arg("--location")
+        .arg(if version == 4 { "-4" } else { "-6" })
+        .arg("--max-time")
+        .arg(format!("{:.3}", IP_DETECTION_TIMEOUT_MS as f64 / 1000.0))
+        .arg("--write-out")
+        .arg(format!("{STATUS_MARKER}%{{http_code}}"))
+        .arg("--header")
+        .arg("Accept: application/json, text/plain")
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    for key in PROXY_ENV_KEYS {
+        command.env_remove(key);
+    }
+    let interface = normalize_network_interface(network_interface);
+    if !interface.is_empty() && !interface.starts_with(DOCKER_HOST_INTERFACE_PREFIX) {
+        ensure_ddns_network_interface_exists(&interface, translator)?;
+        command.arg("--interface").arg(interface);
+    }
+    command.arg(url);
+    let output = command.output().await?;
+    if !output.status.success() {
+        let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        anyhow::bail!(
+            "{}",
+            ddns_text(
+                translator,
+                "curlRequestFailed",
+                &[(
+                    "detail",
+                    if detail.is_empty() {
+                        output
+                            .status
+                            .code()
+                            .map(|code| format!("exit {code}"))
+                            .unwrap_or_else(|| "terminated".to_string())
+                    } else {
+                        detail
+                    },
+                )],
+            )
+        );
+    }
+    let output_text = String::from_utf8_lossy(&output.stdout).to_string();
+    let Some((body, status_text)) = output_text.rsplit_once(STATUS_MARKER) else {
+        anyhow::bail!(
+            "{}",
+            ddns_text(
+                translator,
+                "curlRequestFailed",
+                &[("detail", "missing status".to_string())],
+            )
+        );
+    };
+    let status = status_text.trim().parse::<u16>().unwrap_or(0);
+    Ok((status, body.to_string()))
+}
+
+async fn apply_reqwest_family_resolver(
+    builder: reqwest::ClientBuilder,
+    url: &str,
+    version: u8,
+    translator: &Translator,
+) -> anyhow::Result<reqwest::ClientBuilder> {
+    let parsed = Url::parse(url)?;
+    if parsed.scheme() != "http" && parsed.scheme() != "https" {
+        anyhow::bail!(
+            "{}",
+            ddns_text(
+                translator,
+                "nodeTransportUnsupportedProtocol",
+                &[("protocol", format!("{}:", parsed.scheme()))],
+            )
+        );
+    }
+    let Some(host) = parsed.host_str() else {
+        return Ok(builder);
+    };
+    let Some(port) = parsed.port_or_known_default() else {
+        return Ok(builder);
+    };
+    let addrs = lookup_host((host, port))
+        .await?
+        .filter(|addr| {
+            (version == 4 && addr.ip().is_ipv4()) || (version == 6 && addr.ip().is_ipv6())
+        })
+        .collect::<Vec<_>>();
+    if addrs.is_empty() {
+        anyhow::bail!(
+            "no {} address found for {host}",
+            if version == 4 { "IPv4" } else { "IPv6" }
+        );
+    }
+    Ok(builder.resolve_to_addrs(host, &addrs))
+}
+
+fn ensure_ddns_network_interface_exists(
+    interface: &str,
+    translator: &Translator,
+) -> anyhow::Result<()> {
+    if list_ddns_network_interfaces()
+        .iter()
+        .any(|item| item.get("name").and_then(Value::as_str) == Some(interface))
+    {
+        Ok(())
+    } else {
+        anyhow::bail!(
+            "{}",
+            ddns_text(
+                translator,
+                "interfaceNotFound",
+                &[("name", interface.to_string())],
+            )
+        )
+    }
+}
+
+fn first_selectable_interface_ip(
+    interface: &str,
+    version: u8,
+    translator: &Translator,
+) -> anyhow::Result<Option<IpAddr>> {
+    ensure_ddns_network_interface_exists(interface, translator)?;
+    Ok(list_ddns_network_interfaces()
+        .into_iter()
+        .find(|item| item.get("name").and_then(Value::as_str) == Some(interface))
+        .and_then(|item| first_interface_ip_from_option(&item, version)))
+}
+
+pub(super) fn first_interface_ip_from_option(item: &Value, version: u8) -> Option<IpAddr> {
+    item.get("addresses")
+        .and_then(Value::as_array)
+        .cloned()
+        .into_iter()
+        .flatten()
+        .filter(|item| {
+            item.get("family").and_then(Value::as_str)
+                == Some(if version == 4 { "ipv4" } else { "ipv6" })
+        })
+        .find_map(|item| {
+            item.get("address")
+                .and_then(Value::as_str)
+                .and_then(|value| value.parse::<IpAddr>().ok())
+        })
+}
+
+fn public_check_result_from_response(
+    url: &str,
+    family: &str,
+    version: u8,
+    status: u16,
+    text: &str,
+    translator: &Translator,
+) -> Value {
+    let preview = response_preview(text);
+    if !(200..300).contains(&status) {
+        return json!({
+            "family": family,
+            "url": url,
+            "success": false,
+            "status": status,
+            "ip": null,
+            "responsePreview": preview,
+            "error": public_check_request_failed_message(translator, url, status)
+        });
+    }
+    let ip = parse_detected_ip_text(text, version);
+    if let Some(ip) = ip {
+        json!({
+            "family": family,
+            "url": url,
+            "success": true,
+            "status": status,
+            "ip": ip,
+            "responsePreview": preview
+        })
+    } else {
+        json!({
+            "family": family,
+            "url": url,
+            "success": false,
+            "status": status,
+            "ip": null,
+            "responsePreview": preview,
+            "error": public_check_invalid_payload_message(translator, url, version)
+        })
     }
 }
 
@@ -238,7 +637,7 @@ pub(super) fn interface_option(name: &str, source: &str, addresses: Vec<Value>) 
         })
         .collect::<Vec<_>>()
         .join(" / ");
-    if selectable.is_empty() {
+    if selectable.is_empty() && source == "docker_host" {
         return None;
     }
     Some(json!({

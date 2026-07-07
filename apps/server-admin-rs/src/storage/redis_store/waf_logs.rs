@@ -53,6 +53,9 @@ impl RedisStore {
             return Ok(());
         }
         let ttl_seconds = retention_days.clamp(1, 365) * 86_400;
+        let cutoff_date =
+            crate::time_utils::local_date_from_ms(crate::time_utils::now_ms() - ttl_seconds * 1000);
+        let cutoff_date_score = waf_log_date_score(&cutoff_date);
         let mut touched_dates = BTreeSet::new();
         let mut pipe = redis::pipe();
         let mut operations = 0_usize;
@@ -93,6 +96,12 @@ impl RedisStore {
                 .ignore();
             operations += 1;
         }
+        pipe.cmd("ZREMRANGEBYSCORE")
+            .arg(WAF_LOG_DATES_INDEX_KEY)
+            .arg(0)
+            .arg(format!("({cutoff_date_score}"))
+            .ignore();
+        operations += 1;
 
         if operations > 0 {
             let _: () = pipe.query_async(&mut self.conn()).await?;

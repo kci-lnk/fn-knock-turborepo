@@ -3,6 +3,7 @@ use super::*;
 pub(in crate::ddns::routes) async fn update_baiducloud(
     translator: &Translator,
     config: &HashMap<String, String>,
+    http_options: &DDNSHttpClientOptions,
     ipv4: Option<&str>,
     ipv6: Option<&str>,
 ) -> anyhow::Result<DDNSProviderUpdateResult> {
@@ -23,7 +24,7 @@ pub(in crate::ddns::routes) async fn update_baiducloud(
     }
     let ttl = positive_i64(config.get("ttl"), 300);
     let parsed = split_domain(translator, &domain, &root_domain)?;
-    let client = ddns_http_client()?;
+    let client = ddns_http_client(translator, http_options)?;
     let query_failed = ddns_text(translator, "providers.baidu.queryFailed", &[]);
     let update_failed = ddns_text(translator, "providers.baidu.updateFailed", &[]);
     let create_failed = ddns_text(translator, "providers.baidu.createFailed", &[]);

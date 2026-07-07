@@ -37,6 +37,99 @@ fn normalizes_legacy_ssl_into_library() {
     assert_eq!(ssl["certificates"].as_array().unwrap().len(), 1);
     assert_eq!(ssl["active_cert_id"], ssl["certificates"][0]["id"]);
     assert_eq!(ssl["certificates"][0]["label"], json!("当前证书"));
+    let certificate = ssl["certificates"][0].as_object().unwrap();
+    assert!(!certificate.contains_key("primary_domain"));
+    assert!(!certificate.contains_key("source_ref_id"));
+    assert_eq!(
+        ssl["certificates"][0]["created_at"],
+        json!("1970-01-01T00:00:00.000Z")
+    );
+    assert_eq!(
+        ssl["certificates"][0]["updated_at"],
+        json!("1970-01-01T00:00:00.000Z")
+    );
+}
+
+#[test]
+fn ssl_certificate_timestamps_match_node_normalization() {
+    assert_eq!(
+        normalize_timestamp(Some(&json!("2026-07-07T10:18:23.946511792Z"))),
+        Some("2026-07-07T10:18:23.946Z".to_string())
+    );
+    assert_eq!(normalize_timestamp(Some(&json!("invalid"))), None);
+
+    let ssl = normalize_ssl_config(Some(&json!({
+        "certificates": [
+            {
+                "id": "cert-1",
+                "label": "Manual",
+                "source": "manual",
+                "cert": "CERT",
+                "key": "KEY",
+                "created_at": "2026-07-07T10:18:23Z",
+                "updated_at": "invalid"
+            }
+        ]
+    })));
+
+    assert_eq!(
+        ssl["certificates"][0]["created_at"],
+        json!("2026-07-07T10:18:23.000Z")
+    );
+    assert_eq!(
+        ssl["certificates"][0]["updated_at"],
+        json!("2026-07-07T10:18:23.000Z")
+    );
+}
+
+#[test]
+fn ssl_status_omits_node_undefined_fields() {
+    let status = local_ssl_status(&json!({
+        "deployment_mode": "single_active",
+        "certificates": [
+            {
+                "id": "manual-1",
+                "label": "Manual",
+                "source": "manual",
+                "cert": "not a certificate",
+                "key": "not a key",
+                "created_at": "2026-07-07T00:00:00Z",
+                "updated_at": "2026-07-07T00:00:00Z"
+            }
+        ]
+    }));
+    let object = status.as_object().unwrap();
+    assert!(!object.contains_key("activeCertId"));
+    assert!(!object.contains_key("certInfo"));
+
+    let certificate = status["certificates"][0].as_object().unwrap();
+    assert!(!certificate.contains_key("primary_domain"));
+    assert!(!certificate.contains_key("source_ref_id"));
+    assert!(!certificate.contains_key("certInfo"));
+
+    let zh = Translator::new("zh-CN");
+    let gateway_ok = build_gateway_status_payload(
+        Some(json!({
+            "enabled": true,
+            "deployment_mode": "multi_sni",
+            "certificates": []
+        })),
+        None,
+        &zh,
+    );
+    assert!(!gateway_ok.as_object().unwrap().contains_key("sync_error"));
+
+    let gateway_failed = build_gateway_status_payload(None, Some("read failed".to_string()), &zh);
+    assert_eq!(gateway_failed["sync_error"], json!("read failed"));
+}
+
+#[test]
+fn ca_status_rejects_unparseable_existing_certificate() {
+    assert!(build_ca_status_payload("not a certificate").is_none());
+
+    let payload = build_ca_status_payload(SAMPLE_CERT).expect("valid status payload");
+    assert_eq!(payload["initialized"], json!(true));
+    assert_eq!(payload["info"]["subject"], json!("CN=example.test"));
 }
 
 #[test]
@@ -48,6 +141,21 @@ fn ssl_save_sync_condition_matches_node() {
         "single_active"
     ));
     assert!(!should_sync_ssl_deployment_after_save(false, "bad"));
+}
+
+#[test]
+fn ca_issue_save_payload_matches_node_fields() {
+    let body = build_ca_issue_certificate_body(
+        &["nas.example.test".to_string(), "192.168.1.10".to_string()],
+        "CERT".to_string(),
+        "KEY".to_string(),
+    );
+
+    assert_eq!(body.label.as_deref(), Some("nas.example.test"));
+    assert_eq!(body.source.as_deref(), Some("ca"));
+    assert_eq!(body.primary_domain, None);
+    assert_eq!(body.source_ref_id, None);
+    assert_eq!(body.activate, Some(true));
 }
 
 #[test]
@@ -205,6 +313,11 @@ fn builds_gateway_deployment_for_multi_sni_with_active_first() {
 #[test]
 fn parses_certificate_info_when_pem_is_valid() {
     let info = parse_cert_info(SAMPLE_CERT).expect("certificate should parse");
+    assert_eq!(info["subject"], json!("CN=example.test"));
+    assert_eq!(info["issuer"], json!("CN=example.test"));
+    assert_eq!(info["validFrom"], json!("Jul  4 20:51:37 2026 GMT"));
+    assert_eq!(info["validTo"], json!("Jul  1 20:51:37 2036 GMT"));
+    assert_eq!(info["serialNumber"], json!("C06F8520FFAF6798"));
     assert_eq!(info["dnsNames"][0], json!("example.test"));
     assert_eq!(info["dnsNames"][1], json!("alt.example.test"));
 }

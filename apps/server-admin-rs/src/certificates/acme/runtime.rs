@@ -15,7 +15,7 @@ pub(super) async fn stop_active_acme_job(
             json!({
                 "status": "stopped",
                 "progress": 100,
-                "finishedAt": time_utils::now_iso(),
+                "finishedAt": now_node_iso(),
                 "message": message,
             }),
         )

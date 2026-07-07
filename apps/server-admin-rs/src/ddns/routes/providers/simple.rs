@@ -1,8 +1,10 @@
 use super::*;
+use crate::app_version::{APP_GITHUB_URL, APP_LOCAL_VERSION};
 
 pub(in crate::ddns::routes) async fn update_duckdns(
     translator: &Translator,
     config: &HashMap<String, String>,
+    http_options: &DDNSHttpClientOptions,
     ipv4: Option<&str>,
     ipv6: Option<&str>,
 ) -> anyhow::Result<DDNSProviderUpdateResult> {
@@ -22,7 +24,8 @@ pub(in crate::ddns::routes) async fn update_duckdns(
             &[],
         )));
     }
-    let client = ddns_http_client()?;
+    let client = ddns_http_client(translator, http_options)
+        .map_err(|error| provider_request_error(translator, "duckdns", error))?;
     let response = client
         .post("https://ddns.duckdns.fnknock.cn/")
         .header(reqwest::header::ACCEPT, "text/plain")
@@ -34,9 +37,12 @@ pub(in crate::ddns::routes) async fn update_duckdns(
             "verbose": true,
         }))
         .send()
-        .await?;
+        .await
+        .map_err(|error| provider_request_error(translator, "duckdns", error))?;
     let status = response.status();
-    let text = response_text(response).await?;
+    let text = response_text(response)
+        .await
+        .map_err(|error| provider_request_error(translator, "duckdns", error))?;
     if !status.is_success() {
         return Ok(provider_failure(ddns_text(
             translator,
@@ -93,14 +99,13 @@ pub(in crate::ddns::routes) async fn update_duckdns(
                 &[("detail", format!(" ({detail})"))],
             )
         },
-        ipv4_updated: ipv4.is_some(),
-        ipv6_updated: ipv6.is_some(),
     })
 }
 
 pub(in crate::ddns::routes) async fn update_noip(
     translator: &Translator,
     config: &HashMap<String, String>,
+    http_options: &DDNSHttpClientOptions,
     ipv4: Option<&str>,
     ipv6: Option<&str>,
 ) -> anyhow::Result<DDNSProviderUpdateResult> {
@@ -131,7 +136,8 @@ pub(in crate::ddns::routes) async fn update_noip(
     } else if let Some(ipv6) = ipv6 {
         query.push(("myipv6", ipv6.to_string()));
     }
-    let client = ddns_http_client()?;
+    let client = ddns_http_client(translator, http_options)
+        .map_err(|error| provider_request_error(translator, "noip", error))?;
     let authorization = BASE64_STANDARD.encode(format!("{username}:{password}"));
     let response = client
         .get(build_query_url(
@@ -139,18 +145,18 @@ pub(in crate::ddns::routes) async fn update_noip(
             &query,
         ))
         .header(reqwest::header::ACCEPT, "text/plain")
-        .header(
-            reqwest::header::USER_AGENT,
-            "fn-knock-rust/1.0 https://github.com",
-        )
+        .header(reqwest::header::USER_AGENT, noip_user_agent())
         .header(
             reqwest::header::AUTHORIZATION,
             format!("Basic {authorization}"),
         )
         .send()
-        .await?;
+        .await
+        .map_err(|error| provider_request_error(translator, "noip", error))?;
     let status = response.status();
-    let text = response_text(response).await?;
+    let text = response_text(response)
+        .await
+        .map_err(|error| provider_request_error(translator, "noip", error))?;
     if !status.is_success() {
         return Ok(provider_failure(ddns_text(
             translator,
@@ -218,8 +224,6 @@ pub(in crate::ddns::routes) async fn update_noip(
                 &[("detail", noip_detail_suffix(&statuses))],
             )
         },
-        ipv4_updated: changed && ipv4.is_some(),
-        ipv6_updated: changed && ipv6.is_some(),
     })
 }
 
@@ -267,4 +271,8 @@ pub(in crate::ddns::routes) fn noip_detail_suffix(statuses: &[(String, String)])
     } else {
         format!(" ({})", details.join("; "))
     }
+}
+
+pub(in crate::ddns::routes) fn noip_user_agent() -> String {
+    format!("fn-knock/{APP_LOCAL_VERSION} ({APP_GITHUB_URL})")
 }

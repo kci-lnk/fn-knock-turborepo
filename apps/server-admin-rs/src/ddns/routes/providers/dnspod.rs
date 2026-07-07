@@ -3,6 +3,7 @@ use super::*;
 pub(in crate::ddns::routes) async fn update_dnspod(
     translator: &Translator,
     config: &HashMap<String, String>,
+    http_options: &DDNSHttpClientOptions,
     ipv4: Option<&str>,
     ipv6: Option<&str>,
 ) -> anyhow::Result<DDNSProviderUpdateResult> {
@@ -20,7 +21,7 @@ pub(in crate::ddns::routes) async fn update_dnspod(
     let ttl = positive_i64(config.get("ttl"), 600).to_string();
     let record_line = default_string(config_value(config, "record_line"), "默认");
     let parsed = split_domain(translator, &domain, &root_domain)?;
-    let client = ddns_http_client()?;
+    let client = ddns_http_client(translator, http_options)?;
     let query_failed = ddns_text(translator, "providers.dnspod.queryRecordFailed", &[]);
     let update_failed = ddns_text(translator, "providers.dnspod.updateRecordFailed", &[]);
     let create_failed = ddns_text(translator, "providers.dnspod.createRecordFailed", &[]);

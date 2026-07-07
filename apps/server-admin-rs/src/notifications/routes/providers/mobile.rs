@@ -26,23 +26,76 @@ pub(in crate::notifications::routes) async fn send_bark(
         let (status, ok, text, parsed) = post_json(state, &url, &payload, timeout_seconds).await;
         let bark_code = parsed.as_ref().and_then(|value| json_i64(value, "code"));
         let success = ok && bark_code.is_none_or(|code| code == 200);
-        results.push(json!({
-            "success": success,
+        let retryable = !success && (status >= 500 || status == 429);
+        let reason = parsed
+            .as_ref()
+            .and_then(|value| json_text(value, "message"))
+            .unwrap_or_else(|| {
+                if status == 599 && !text.is_empty() {
+                    return text.clone();
+                }
+                if ok {
+                    String::new()
+                } else {
+                    format!("Bark returned {status}")
+                }
+            });
+        let response_summary = if status == 599 && parsed.is_none() {
+            Value::Null
+        } else {
+            json!({
             "status": status,
             "ok": ok,
             "code": bark_code,
             "message": parsed.as_ref().and_then(|value| json_text(value, "message")),
             "body_preview": truncate_text(&text, 500)
-        }));
+            })
+        };
+        let mut result = Map::new();
+        result.insert("success".to_string(), Value::Bool(success));
+        result.insert("retryable".to_string(), Value::Bool(retryable));
+        if !success && !reason.is_empty() {
+            result.insert("reason".to_string(), Value::String(reason));
+        }
+        result.insert("response_summary".to_string(), response_summary);
+        results.push(Value::Object(result));
     }
     let failed_count = results
         .iter()
         .filter(|result| result.get("success").and_then(Value::as_bool) != Some(true))
         .count();
+    let response_results = if failed_count == 0 {
+        results
+            .iter()
+            .map(|result| {
+                result
+                    .get("response_summary")
+                    .cloned()
+                    .unwrap_or(Value::Null)
+            })
+            .collect::<Vec<_>>()
+    } else {
+        results.clone()
+    };
     ProviderTestResult {
         success: failed_count == 0,
+        retryable: results.iter().any(|result| {
+            result
+                .get("retryable")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+        }),
         message: if failed_count == 0 {
             notification_service_default_text("testSendSuccess", &[])
+        } else if failed_count == 1 {
+            results
+                .iter()
+                .find(|result| result.get("success").and_then(Value::as_bool) != Some(true))
+                .and_then(|result| result.get("reason"))
+                .and_then(Value::as_str)
+                .filter(|reason| !reason.is_empty())
+                .map(str::to_string)
+                .unwrap_or_else(|| notification_provider_error_default("bark", "pushFailed", &[]))
         } else {
             format!("Bark failed for {failed_count}/{} target(s)", results.len())
         },
@@ -57,7 +110,7 @@ pub(in crate::notifications::routes) async fn send_bark(
         response_summary: Some(json!({
             "success_count": results.len().saturating_sub(failed_count),
             "failed_count": failed_count,
-            "results": results
+            "results": response_results
         })),
     }
 }
@@ -172,6 +225,7 @@ pub(in crate::notifications::routes) async fn send_wxpusher(
     if !invalid_topic_ids.is_empty() {
         return ProviderTestResult {
             success: false,
+            retryable: false,
             message: notification_provider_error_default(
                 "wxpusher",
                 "invalidTopicIds",

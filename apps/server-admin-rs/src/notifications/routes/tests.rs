@@ -30,6 +30,7 @@ fn provider_test_result_updates_provider_status_like_node() {
         &mut provider,
         &ProviderTestResult {
             success: true,
+            retryable: false,
             message: "ok".to_string(),
             request_summary: None,
             response_summary: None,
@@ -246,6 +247,110 @@ fn notification_number_fields_follow_node_number_coercion() {
         ),
         4
     );
+}
+
+#[test]
+fn notification_group_keys_coerce_payload_values_like_node() {
+    assert_eq!(
+        build_notification_group_key(&json!({ "payload": { "ip": 123 } }), "IP"),
+        "123"
+    );
+    assert_eq!(
+        build_notification_group_key(&json!({ "payload": { "ip": false } }), "IP"),
+        "false"
+    );
+    assert_eq!(
+        build_notification_group_key(
+            &json!({ "payload": { "provider": ["cf", 1, null] } }),
+            "PROVIDER"
+        ),
+        "cf,1,"
+    );
+    assert_eq!(
+        build_notification_group_key(
+            &json!({
+                "payload": { "ip": "   ", "to_ip": "203.0.113.9" },
+                "subject": { "kind": "IP", "id": "subject-ip" }
+            }),
+            "IP"
+        ),
+        "subject-ip"
+    );
+    assert_eq!(
+        build_notification_group_key(
+            &json!({
+                "payload": { "ip": "", "to_ip": "203.0.113.9" },
+                "subject": { "kind": "IP", "id": "subject-ip" }
+            }),
+            "IP"
+        ),
+        "203.0.113.9"
+    );
+}
+
+#[test]
+fn notification_delivery_ready_time_matches_node_fallbacks() {
+    let next_retry = "2026-07-07T10:00:00.000Z";
+    let triggered = "2026-07-07T09:00:00.000Z";
+    assert_eq!(
+        resolve_delivery_ready_at_ms(&json!({
+            "next_retry_at": next_retry,
+            "triggered_at": triggered
+        })),
+        time_utils::parse_iso_ms(next_retry).unwrap()
+    );
+    assert_eq!(
+        resolve_delivery_ready_at_ms(&json!({
+            "next_retry_at": "bad",
+            "triggered_at": triggered
+        })),
+        time_utils::parse_iso_ms(triggered).unwrap()
+    );
+}
+
+#[test]
+fn notification_provider_retryability_matches_node_business_codes() {
+    assert!(provider_api_failure_retryable("Webhook", 500, &json!({})));
+    assert!(provider_api_failure_retryable("Webhook", 429, &json!({})));
+    assert!(!provider_api_failure_retryable("Webhook", 400, &json!({})));
+    assert!(provider_api_failure_retryable(
+        "PushPlus",
+        200,
+        &json!({ "code": 999 })
+    ));
+    assert!(provider_api_failure_retryable(
+        "PushPlus",
+        200,
+        &json!({ "code": "500" })
+    ));
+    assert!(provider_api_failure_retryable(
+        "Feishu",
+        200,
+        &json!({ "code": 11232 })
+    ));
+    assert!(provider_api_failure_retryable(
+        "Telegram",
+        400,
+        &json!({ "error_code": 429 })
+    ));
+    assert!(!provider_api_failure_retryable(
+        "PushDeer",
+        200,
+        &json!({ "code": 1 })
+    ));
+
+    let network_error = provider_result_from_api(
+        "PushPlus",
+        json!({ "method": "POST" }),
+        599,
+        false,
+        "connection refused".to_string(),
+        None,
+        |_| false,
+        |_| None,
+    );
+    assert!(network_error.retryable);
+    assert_eq!(network_error.response_summary, None);
 }
 
 #[test]
@@ -538,6 +643,7 @@ fn localizes_provider_test_builtin_messages() {
         localize_provider_test_result(
             ProviderTestResult {
                 success: false,
+                retryable: true,
                 message: "Telegram request returned status 429".to_string(),
                 request_summary: None,
                 response_summary: None,

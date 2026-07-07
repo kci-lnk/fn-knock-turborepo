@@ -3,6 +3,7 @@ use super::*;
 pub(in crate::ddns::routes) async fn update_alidns(
     translator: &Translator,
     config: &HashMap<String, String>,
+    http_options: &DDNSHttpClientOptions,
     ipv4: Option<&str>,
     ipv6: Option<&str>,
 ) -> anyhow::Result<DDNSProviderUpdateResult> {
@@ -24,7 +25,7 @@ pub(in crate::ddns::routes) async fn update_alidns(
     let ttl = positive_i64(config.get("ttl"), 600).to_string();
     let line = default_string(config_value(config, "line"), "default");
     let parsed = split_domain(translator, &domain, &root_domain)?;
-    let client = ddns_http_client()?;
+    let client = ddns_http_client(translator, http_options)?;
     let request_failed = ddns_text(translator, "providers.alidns.requestFailed", &[]);
     let update_failed = ddns_text(translator, "providers.alidns.updateFailed", &[]);
     let create_failed = ddns_text(translator, "providers.alidns.createFailed", &[]);
@@ -96,17 +97,17 @@ pub(in crate::ddns::routes) async fn update_alidns(
                         if record.get("Value").and_then(Value::as_str) == Some(ip.as_str()) {
                             continue;
                         }
-                        let record_id =
-                            record
-                                .get("RecordId")
-                                .and_then(Value::as_str)
-                                .ok_or_else(|| {
-                                    anyhow::anyhow!(ddns_text(
-                                        translator,
-                                        "providers.alidns.recordIdMissing",
-                                        &[],
-                                    ))
-                                })?;
+                        let record_id = record
+                            .get("RecordId")
+                            .filter(|value| json_value_js_truthy(Some(value)))
+                            .map(value_to_compact_string)
+                            .ok_or_else(|| {
+                                anyhow::anyhow!(ddns_text(
+                                    translator,
+                                    "providers.alidns.recordIdMissing",
+                                    &[],
+                                ))
+                            })?;
                         let result = alidns_request(
                             translator,
                             &client,
@@ -123,7 +124,7 @@ pub(in crate::ddns::routes) async fn update_alidns(
                             ],
                         )
                         .await?;
-                        if result.get("RecordId").and_then(Value::as_str).is_none() {
+                        if alidns_change_response_failed(&result) {
                             return Err(anyhow::anyhow!(
                                 "{}: {}",
                                 json_text(&result, "Code").unwrap_or_else(|| update_failed.clone()),
@@ -150,17 +151,21 @@ pub(in crate::ddns::routes) async fn update_alidns(
                     ],
                 )
                 .await?;
-                if result.get("RecordId").and_then(Value::as_str).is_some() {
-                    Ok(())
-                } else {
+                if alidns_change_response_failed(&result) {
                     Err(anyhow::anyhow!(
                         "{}: {}",
                         json_text(&result, "Code").unwrap_or_else(|| create_failed.clone()),
                         json_text(&result, "Message").unwrap_or_else(|| create_failed.clone())
                     ))
+                } else {
+                    Ok(())
                 }
             }
         },
     )
     .await
+}
+
+pub(in crate::ddns::routes) fn alidns_change_response_failed(result: &Value) -> bool {
+    json_value_js_truthy(result.get("Code")) || !json_value_js_truthy(result.get("RecordId"))
 }

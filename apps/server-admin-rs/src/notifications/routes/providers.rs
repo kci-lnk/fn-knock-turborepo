@@ -20,6 +20,7 @@ pub(super) use push::*;
 #[derive(Clone)]
 pub(super) struct ProviderTestResult {
     pub(super) success: bool,
+    pub(super) retryable: bool,
     pub(super) message: String,
     pub(super) request_summary: Option<Value>,
     pub(super) response_summary: Option<Value>,
@@ -62,6 +63,7 @@ pub(super) async fn run_provider_test(
         }
         _ => Ok(ProviderTestResult {
             success: false,
+            retryable: false,
             message: notification_service_text(translator, "unsupportedProviderType", &[]),
             request_summary: None,
             response_summary: None,
@@ -136,6 +138,7 @@ pub(super) async fn send_http_notification_provider(
         "telegram" => send_telegram(state, provider, target, message, timeout_seconds).await,
         _provider_type => ProviderTestResult {
             success: false,
+            retryable: false,
             message: notification_service_default_text("unsupportedProviderType", &[]),
             request_summary: None,
             response_summary: None,

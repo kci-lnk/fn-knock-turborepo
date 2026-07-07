@@ -34,41 +34,47 @@ pub(super) fn event_matches_notification_rule(event: &Value, rule: &Value) -> bo
 
 pub(super) fn build_notification_group_key(event: &Value, group_by: &str) -> String {
     match group_by {
-        "IP" => payload_text(event, &["ip", "to_ip", "from_ip"])
-            .or_else(|| subject_id_for_kind(event, "IP"))
-            .unwrap_or_else(|| "missing:ip".to_string()),
-        "SESSION" => payload_text(event, &["session_id"])
-            .or_else(|| subject_id_for_kind(event, "SESSION"))
-            .unwrap_or_else(|| "missing:session".to_string()),
+        "IP" => payload_group_key(event, &["ip", "to_ip", "from_ip"], "IP", "missing:ip"),
+        "SESSION" => payload_group_key(event, &["session_id"], "SESSION", "missing:session"),
         "SUBJECT" => event
             .get("subject")
             .and_then(|subject| subject.get("id"))
             .and_then(Value::as_str)
             .map(str::to_string)
             .unwrap_or_else(|| "missing:subject".to_string()),
-        "HOSTNAME" => payload_text(event, &["hostname"])
-            .or_else(|| subject_id_for_kind(event, "RESOURCE"))
-            .unwrap_or_else(|| "missing:hostname".to_string()),
-        "PROVIDER" => payload_text(event, &["provider"])
-            .or_else(|| subject_id_for_kind(event, "DDNS"))
-            .unwrap_or_else(|| "missing:provider".to_string()),
+        "HOSTNAME" => payload_group_key(event, &["hostname"], "RESOURCE", "missing:hostname"),
+        "PROVIDER" => payload_group_key(event, &["provider"], "DDNS", "missing:provider"),
         _ => "global".to_string(),
     }
 }
 
-pub(super) fn payload_text(event: &Value, keys: &[&str]) -> Option<String> {
-    let payload = event.get("payload").and_then(Value::as_object)?;
-    for key in keys {
-        let value = payload
-            .get(*key)
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .filter(|value| !value.is_empty());
-        if let Some(value) = value {
-            return Some(value.to_string());
-        }
+pub(super) fn payload_group_key(
+    event: &Value,
+    keys: &[&str],
+    subject_kind: &str,
+    missing: &str,
+) -> String {
+    let payload = payload_text(event, keys);
+    if !payload.is_empty() {
+        return payload;
     }
-    None
+    subject_id_for_kind(event, subject_kind).unwrap_or_else(|| missing.to_string())
+}
+
+pub(super) fn payload_text(event: &Value, keys: &[&str]) -> String {
+    let Some(payload) = event.get("payload").and_then(Value::as_object) else {
+        return String::new();
+    };
+    for key in keys {
+        let Some(value) = payload.get(*key) else {
+            continue;
+        };
+        if value.is_null() || value.as_str() == Some("") {
+            continue;
+        }
+        return value_to_trimmed_string(value);
+    }
+    String::new()
 }
 
 pub(super) fn subject_id_for_kind(event: &Value, kind: &str) -> Option<String> {

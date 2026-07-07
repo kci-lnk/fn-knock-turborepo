@@ -3,6 +3,7 @@ use super::*;
 pub(in crate::ddns::routes) async fn update_dynu(
     translator: &Translator,
     config: &HashMap<String, String>,
+    http_options: &DDNSHttpClientOptions,
     ipv4: Option<&str>,
     ipv6: Option<&str>,
 ) -> anyhow::Result<DDNSProviderUpdateResult> {
@@ -28,93 +29,121 @@ pub(in crate::ddns::routes) async fn update_dynu(
             &[],
         )));
     }
-    let client = ddns_http_client()?;
-    if wildcard {
-        return update_dynu_wildcard(translator, &client, &api_key, config, &domain, ipv4, ipv6)
-            .await;
-    }
-    let root = resolve_dynu_root(translator, &client, &api_key, &domain).await?;
-    let provider_label_text = provider_label(Some("dynu"), translator);
-    update_dual_stack(translator, &provider_label_text, ipv4, ipv6, |record_type, ip| {
-        let client = client.clone();
-        let api_key = api_key.clone();
-        let domain = domain.clone();
-        let root = root.clone();
-        let ttl_config = config_value(config, "ttl");
-        let group_config = config_value(config, "group");
-        async move {
-            let list = dynu_request(
-                translator,
-                &client,
-                &api_key,
-                &format!(
-                    "/dns/record/{}?recordType={}",
-                    url_encode_component(&domain),
-                    record_type
-                ),
-                None,
+    let client = ddns_http_client(translator, http_options)?;
+    let result = async {
+        if wildcard {
+            return update_dynu_wildcard(
+                translator, &client, &api_key, config, &domain, ipv4, ipv6,
             )
-            .await?;
-            let existing = list
-                .get("dnsRecords")
-                .and_then(Value::as_array)
-                .and_then(|records| find_dynu_record(records, record_type, &domain, &root.node_name));
-            if let Some(existing) = existing.clone()
-                && dynu_record_address(&existing, record_type) == ip
-            {
-                return Ok(());
-            }
-            let ttl = positive_i64(
-                Some(&ttl_config),
-                existing
-                    .as_ref()
-                    .and_then(|record| record.get("ttl"))
-                    .and_then(Value::as_i64)
-                    .filter(|value| *value > 0)
-                    .unwrap_or(300),
-            );
-            let group = default_string(
-                group_config.clone(),
-                existing
-                    .as_ref()
-                    .and_then(|record| record.get("group"))
-                    .and_then(Value::as_str)
-                    .unwrap_or(""),
-            );
-            let mut body = json!({
-                "nodeName": root.node_name,
-                "recordType": record_type,
-                "ttl": ttl,
-                "state": existing.as_ref().and_then(|record| record.get("state")).and_then(Value::as_bool).unwrap_or(true),
-                "group": group
-            });
-            if record_type == "A" {
-                insert_json_field(&mut body, "ipv4Address", json!(ip));
-            } else {
-                insert_json_field(&mut body, "ipv6Address", json!(ip));
-            }
-            let path = if let Some(existing) = existing {
-                let record_id = read_positive_id(existing.get("id")).ok_or_else(|| {
-                    anyhow::anyhow!(ddns_text(
-                        translator,
-                        "providers.dynu.recordIdMissing",
-                        &[],
-                    ))
-                })?;
-                format!("/dns/{}/record/{record_id}", root.domain_id)
-            } else {
-                format!("/dns/{}/record", root.domain_id)
-            };
-            dynu_request(translator, &client, &api_key, &path, Some(body)).await?;
-            Ok(())
+            .await;
         }
-    })
-    .await
+        let root = resolve_dynu_root(translator, &client, &api_key, &domain).await?;
+        let provider_label_text = provider_label(Some("dynu"), translator);
+        update_dual_stack(
+            translator,
+            &provider_label_text,
+            ipv4,
+            ipv6,
+            |record_type, ip| {
+                let client = client.clone();
+                let api_key = api_key.clone();
+                let domain = domain.clone();
+                let root = root.clone();
+                let ttl_config = config_value(config, "ttl");
+                let group_config = config_value(config, "group");
+                async move {
+                    let list = dynu_request(
+                        translator,
+                        &client,
+                        &api_key,
+                        &format!(
+                            "/dns/record/{}?recordType={}",
+                            url_encode_component(&domain),
+                            record_type
+                        ),
+                        None,
+                    )
+                    .await?;
+                    let existing = list
+                        .get("dnsRecords")
+                        .and_then(Value::as_array)
+                        .and_then(|records| {
+                            find_dynu_record(records, record_type, &domain, &root.node_name)
+                        });
+                    if let Some(existing) = existing.clone()
+                        && dynu_record_address(&existing, record_type) == ip
+                    {
+                        return Ok(());
+                    }
+                    let ttl = positive_i64(
+                        Some(&ttl_config),
+                        existing
+                            .as_ref()
+                            .and_then(|record| record.get("ttl"))
+                            .and_then(Value::as_i64)
+                            .filter(|value| *value > 0)
+                            .unwrap_or(300),
+                    );
+                    let group = default_string(
+                        group_config.clone(),
+                        existing
+                            .as_ref()
+                            .and_then(|record| record.get("group"))
+                            .and_then(Value::as_str)
+                            .unwrap_or(""),
+                    );
+                    let mut body = json!({
+                        "nodeName": root.node_name,
+                        "recordType": record_type,
+                        "ttl": ttl,
+                        "state": existing.as_ref().and_then(|record| record.get("state")).and_then(Value::as_bool).unwrap_or(true),
+                        "group": group
+                    });
+                    if record_type == "A" {
+                        insert_json_field(&mut body, "ipv4Address", json!(ip));
+                    } else {
+                        insert_json_field(&mut body, "ipv6Address", json!(ip));
+                    }
+                    let path = if let Some(existing) = existing {
+                        let record_id = read_positive_id(existing.get("id")).ok_or_else(|| {
+                            anyhow::anyhow!(ddns_text(
+                                translator,
+                                "providers.dynu.recordIdMissing",
+                                &[],
+                            ))
+                        })?;
+                        format!("/dns/{}/record/{record_id}", root.domain_id)
+                    } else {
+                        format!("/dns/{}/record", root.domain_id)
+                    };
+                    dynu_request(translator, &client, &api_key, &path, Some(body)).await?;
+                    Ok(())
+                }
+            },
+        )
+        .await
+    }
+    .await;
+    match result {
+        Ok(result) => Ok(result),
+        Err(error) => Ok(dynu_request_error_result(translator, &error.to_string())),
+    }
+}
+
+pub(in crate::ddns::routes) fn dynu_request_error_result(
+    translator: &Translator,
+    detail: &str,
+) -> DDNSProviderUpdateResult {
+    provider_failure(ddns_text(
+        translator,
+        "providers.dynu.requestError",
+        &[("detail", detail.to_string())],
+    ))
 }
 
 pub(in crate::ddns::routes) async fn update_dynu_wildcard(
     translator: &Translator,
-    client: &reqwest::Client,
+    client: &DDNSHttpClient,
     api_key: &str,
     config: &HashMap<String, String>,
     domain: &str,
@@ -155,8 +184,6 @@ pub(in crate::ddns::routes) async fn update_dynu_wildcard(
         return Ok(DDNSProviderUpdateResult {
             success: true,
             message: ddns_text(translator, "providers.dynu.wildcardUnchanged", &[]),
-            ipv4_updated: ipv4.is_some(),
-            ipv6_updated: ipv6.is_some(),
         });
     }
     let ttl = positive_i64(
@@ -199,7 +226,5 @@ pub(in crate::ddns::routes) async fn update_dynu_wildcard(
     Ok(DDNSProviderUpdateResult {
         success: true,
         message: ddns_text(translator, "providers.dynu.wildcardSuccess", &[]),
-        ipv4_updated: ipv4.is_some(),
-        ipv6_updated: ipv6.is_some(),
     })
 }

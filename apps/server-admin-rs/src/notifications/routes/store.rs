@@ -61,6 +61,29 @@ pub(super) async fn load_trigger(state: &AppState, id: &str) -> redis::RedisResu
         .await
 }
 
+fn history_cutoff_score_ms() -> i64 {
+    time_utils::now_ms() - HISTORY_RETENTION_TTL_SECONDS * 1000
+}
+
+pub(super) async fn touch_trigger_index(
+    state: &AppState,
+    trigger: &Value,
+) -> redis::RedisResult<()> {
+    let id = trigger
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let score = iso_score_ms(trigger.get("created_at").and_then(Value::as_str));
+    state
+        .redis
+        .zadd_string_member(TRIGGERS_INDEX_KEY, id, score)
+        .await?;
+    state
+        .redis
+        .zrem_range_by_score(TRIGGERS_INDEX_KEY, 0, history_cutoff_score_ms())
+        .await
+}
+
 pub(super) async fn save_trigger_raw(state: &AppState, trigger: &Value) -> redis::RedisResult<()> {
     let id = trigger
         .get("id")
@@ -68,14 +91,53 @@ pub(super) async fn save_trigger_raw(state: &AppState, trigger: &Value) -> redis
         .unwrap_or_default();
     let created_at = trigger.get("created_at").and_then(Value::as_str);
     let ttl = history_ttl_seconds(created_at);
-    let score = iso_score_ms(created_at);
     state
         .redis
         .set_json_value_ex(&format!("{TRIGGERS_DATA_PREFIX}{id}"), trigger, ttl)
         .await?;
+    touch_trigger_index(state, trigger).await
+}
+
+pub(super) async fn save_trigger_if_absent(
+    state: &AppState,
+    trigger: &Value,
+) -> redis::RedisResult<bool> {
+    let id = trigger
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let created_at = trigger.get("created_at").and_then(Value::as_str);
+    let ttl = history_ttl_seconds(created_at);
+    let saved = state
+        .redis
+        .set_json_value_nx_ex(&format!("{TRIGGERS_DATA_PREFIX}{id}"), trigger, ttl)
+        .await?;
+    if saved {
+        touch_trigger_index(state, trigger).await?;
+        return Ok(true);
+    }
+    if let Some(existing) = load_trigger(state, id).await? {
+        touch_trigger_index(state, &existing).await?;
+    }
+    Ok(false)
+}
+
+pub(super) async fn touch_delivery_index(
+    state: &AppState,
+    delivery: &Value,
+) -> redis::RedisResult<()> {
+    let id = delivery
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let score = iso_score_ms(delivery.get("triggered_at").and_then(Value::as_str));
     state
         .redis
-        .zadd_string_member(TRIGGERS_INDEX_KEY, id, score)
+        .zadd_string_member(DELIVERIES_INDEX_KEY, id, score)
+        .await?;
+    state
+        .redis
+        .zrem_range_by_score(DELIVERIES_INDEX_KEY, 0, history_cutoff_score_ms())
         .await
 }
 
@@ -93,15 +155,35 @@ pub(super) async fn save_delivery_raw(
         .unwrap_or_default();
     let triggered_at = delivery.get("triggered_at").and_then(Value::as_str);
     let ttl = history_ttl_seconds(triggered_at);
-    let score = iso_score_ms(triggered_at);
     state
         .redis
         .set_json_value_ex(&delivery_key(id), delivery, ttl)
         .await?;
-    state
+    touch_delivery_index(state, delivery).await
+}
+
+pub(super) async fn save_delivery_if_absent(
+    state: &AppState,
+    delivery: &Value,
+) -> redis::RedisResult<bool> {
+    let id = delivery
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let triggered_at = delivery.get("triggered_at").and_then(Value::as_str);
+    let ttl = history_ttl_seconds(triggered_at);
+    let saved = state
         .redis
-        .zadd_string_member(DELIVERIES_INDEX_KEY, id, score)
-        .await
+        .set_json_value_nx_ex(&delivery_key(id), delivery, ttl)
+        .await?;
+    if saved {
+        touch_delivery_index(state, delivery).await?;
+        return Ok(true);
+    }
+    if let Some(existing) = load_delivery(state, id).await? {
+        touch_delivery_index(state, &existing).await?;
+    }
+    Ok(false)
 }
 
 pub(super) fn history_ttl_seconds(happened_at: Option<&str>) -> usize {
@@ -191,6 +273,20 @@ pub(super) fn resolve_delivery_policy(value: Option<&Value>) -> DeliveryPolicy {
             .unwrap_or(30)
             .clamp(5, 3600),
     }
+}
+
+pub(super) fn resolve_delivery_ready_at_ms(delivery: &Value) -> i64 {
+    delivery
+        .get("next_retry_at")
+        .and_then(Value::as_str)
+        .and_then(time_utils::parse_iso_ms)
+        .or_else(|| {
+            delivery
+                .get("triggered_at")
+                .and_then(Value::as_str)
+                .and_then(time_utils::parse_iso_ms)
+        })
+        .unwrap_or_else(time_utils::now_ms)
 }
 
 pub(super) async fn load_indexed_values(

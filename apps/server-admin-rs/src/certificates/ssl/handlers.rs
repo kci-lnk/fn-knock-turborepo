@@ -98,16 +98,25 @@ pub(super) async fn ca_status(State(state): State<AppState>) -> Response {
         return response::ok(json!({ "initialized": false })).into_response();
     }
     match std::fs::read_to_string(&paths.cert) {
-        Ok(cert) => response::ok(json!({
-            "initialized": true,
-            "info": parse_cert_info(&cert)
-        }))
-        .into_response(),
+        Ok(cert) => match build_ca_status_payload(&cert) {
+            Some(payload) => response::ok(payload).into_response(),
+            None => response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ssl_route_text(&translator, "statusReadFailed"),
+            ),
+        },
         Err(error) => response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
             ssl_error_or_route_text(&translator, "statusReadFailed", &error),
         ),
     }
+}
+
+pub(super) fn build_ca_status_payload(cert: &str) -> Option<Value> {
+    Some(json!({
+        "initialized": true,
+        "info": parse_cert_info(cert)?,
+    }))
 }
 
 pub(super) async fn ca_init(State(state): State<AppState>) -> Response {
@@ -266,16 +275,7 @@ pub(super) async fn ca_issue(State(state): State<AppState>) -> Response {
             );
         }
     };
-    let body = SaveCertificateBody {
-        id: None,
-        label: hosts.first().cloned(),
-        source: Some("ca".to_string()),
-        primary_domain: hosts.first().cloned(),
-        source_ref_id: None,
-        cert,
-        key,
-        activate: Some(true),
-    };
+    let body = build_ca_issue_certificate_body(&hosts, cert, key);
     match save_ssl_certificate(&state, body, true).await {
         Ok(_) => match sync_ssl_deployment_to_gateway(&state, None).await {
             Ok(()) => {
@@ -290,6 +290,23 @@ pub(super) async fn ca_issue(State(state): State<AppState>) -> Response {
             StatusCode::BAD_REQUEST,
             ssl_error_or_route_text(&translator, "certSaveFailed", &error),
         ),
+    }
+}
+
+pub(super) fn build_ca_issue_certificate_body(
+    hosts: &[String],
+    cert: String,
+    key: String,
+) -> SaveCertificateBody {
+    SaveCertificateBody {
+        id: None,
+        label: hosts.first().cloned(),
+        source: Some("ca".to_string()),
+        primary_domain: None,
+        source_ref_id: None,
+        cert,
+        key,
+        activate: Some(true),
     }
 }
 

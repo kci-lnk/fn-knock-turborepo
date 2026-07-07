@@ -98,6 +98,7 @@ pub(in crate::notifications::routes) async fn send_email_notification(
         Err(error) => {
             return ProviderTestResult {
                 success: false,
+                retryable: false,
                 message: error.to_string(),
                 request_summary: None,
                 response_summary: None,
@@ -136,6 +137,7 @@ pub(in crate::notifications::routes) async fn send_email_notification(
     {
         Ok(Ok(response)) => ProviderTestResult {
             success: true,
+            retryable: false,
             message: notification_service_default_text("testSendSuccess", &[]),
             request_summary: Some(request_summary),
             response_summary: Some(json!({
@@ -146,12 +148,14 @@ pub(in crate::notifications::routes) async fn send_email_notification(
         },
         Ok(Err(error)) => ProviderTestResult {
             success: false,
+            retryable: true,
             message: error.to_string(),
             request_summary: Some(request_summary),
             response_summary: Some(json!({ "ok": false, "error": error.to_string() })),
         },
         Err(_) => ProviderTestResult {
             success: false,
+            retryable: true,
             message: notification_provider_error_default("email", "smtpConnectionTimeout", &[]),
             request_summary: Some(request_summary),
             response_summary: Some(json!({ "ok": false, "timeout": true })),
@@ -234,6 +238,7 @@ pub(in crate::notifications::routes) async fn send_webhook_test(
             if status.is_success() {
                 Ok(ProviderTestResult {
                     success: true,
+                    retryable: false,
                     message: notification_service_text(translator, "testSendSuccess", &[]),
                     request_summary: Some(request_summary),
                     response_summary: Some(response_summary),
@@ -241,6 +246,7 @@ pub(in crate::notifications::routes) async fn send_webhook_test(
             } else {
                 Ok(ProviderTestResult {
                     success: false,
+                    retryable: status.as_u16() >= 500 || status.as_u16() == 429,
                     message: notification_provider_error_text(
                         translator,
                         "webhook",
@@ -254,6 +260,7 @@ pub(in crate::notifications::routes) async fn send_webhook_test(
         }
         Err(error) => Ok(ProviderTestResult {
             success: false,
+            retryable: true,
             message: error.to_string(),
             request_summary: Some(request_summary),
             response_summary: None,
@@ -289,6 +296,7 @@ pub(in crate::notifications::routes) async fn send_webhook_delivery(
     else {
         return ProviderTestResult {
             success: false,
+            retryable: false,
             message: notification_provider_error_default("webhook", "missingUrl", &[]),
             request_summary: None,
             response_summary: None,
@@ -386,6 +394,7 @@ pub(in crate::notifications::routes) async fn send_webhook_delivery(
             if status.is_success() {
                 ProviderTestResult {
                     success: true,
+                    retryable: false,
                     message: notification_service_text(translator, "testSendSuccess", &[]),
                     request_summary: Some(request_summary),
                     response_summary: Some(response_summary),
@@ -393,6 +402,7 @@ pub(in crate::notifications::routes) async fn send_webhook_delivery(
             } else {
                 ProviderTestResult {
                     success: false,
+                    retryable: status.as_u16() >= 500 || status.as_u16() == 429,
                     message: notification_provider_error_text(
                         translator,
                         "webhook",
@@ -406,12 +416,14 @@ pub(in crate::notifications::routes) async fn send_webhook_delivery(
         }
         Ok(Err(error)) => ProviderTestResult {
             success: false,
+            retryable: true,
             message: error.to_string(),
             request_summary: Some(request_summary),
             response_summary: None,
         },
         Err(_) => ProviderTestResult {
             success: false,
+            retryable: true,
             message: notification_provider_error_default("webhook", "requestFailed", &[]),
             request_summary: Some(request_summary),
             response_summary: None,

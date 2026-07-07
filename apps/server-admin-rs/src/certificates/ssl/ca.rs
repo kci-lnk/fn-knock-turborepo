@@ -42,7 +42,7 @@ pub(super) fn init_root_ca(state: &AppState) -> anyhow::Result<Value> {
     chmod_private(&paths.cert);
     chmod_private(&paths.key);
     let cert = std::fs::read_to_string(&paths.cert)?;
-    Ok(parse_cert_info(&cert).unwrap_or_else(|| json!({})))
+    parse_cert_info(&cert).ok_or_else(|| anyhow!("generated root CA certificate is invalid"))
 }
 
 pub(super) fn issue_ca_server_cert(

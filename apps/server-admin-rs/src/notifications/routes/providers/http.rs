@@ -100,8 +100,12 @@ where
     let parsed_value = parsed.as_ref().unwrap_or(&Value::Null);
     let success = ok && success_check(parsed_value);
     let api_message = message_getter(parsed_value);
+    let retryable =
+        !success && provider_api_failure_retryable(provider_label, status, parsed_value);
+    let has_response_summary = !(status == 599 && parsed.is_none());
     ProviderTestResult {
         success,
+        retryable,
         message: if success {
             notification_service_default_text("testSendSuccess", &[])
         } else {
@@ -114,11 +118,28 @@ where
             })
         },
         request_summary: Some(request_summary),
-        response_summary: Some(json!({
-            "status": status,
-            "ok": ok,
-            "body_preview": truncate_text(&text, 500),
-            "json": parsed.unwrap_or(Value::Null)
-        })),
+        response_summary: has_response_summary.then(|| {
+            json!({
+                "status": status,
+                "ok": ok,
+                "body_preview": truncate_text(&text, 500),
+                "json": parsed.unwrap_or(Value::Null)
+            })
+        }),
     }
+}
+
+pub(in crate::notifications::routes) fn provider_api_failure_retryable(
+    provider_label: &str,
+    status: u16,
+    parsed: &Value,
+) -> bool {
+    status >= 500
+        || status == 429
+        || match provider_label {
+            "Feishu" => json_i64(parsed, "code") == Some(11232),
+            "PushPlus" => matches!(json_i64(parsed, "code"), Some(500 | 999)),
+            "Telegram" => json_i64(parsed, "error_code") == Some(429),
+            _ => false,
+        }
 }

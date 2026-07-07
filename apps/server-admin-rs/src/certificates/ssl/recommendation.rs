@@ -651,16 +651,31 @@ pub(super) fn default_certificate_label(source: &str, primary_domain: Option<&st
     }
 }
 
-pub(super) fn optional_string(value: Option<&Value>) -> Value {
-    value
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(|value| json!(value))
-        .unwrap_or(Value::Null)
-}
-
 pub(super) fn normalize_timestamp(value: Option<&Value>) -> Option<String> {
     let raw = value.and_then(Value::as_str)?.trim();
-    (!raw.is_empty()).then_some(raw.to_string())
+    if raw.is_empty() {
+        return None;
+    }
+    let timestamp = OffsetDateTime::parse(raw, &Rfc3339)
+        .ok()?
+        .to_offset(UtcOffset::UTC);
+    Some(format_node_iso_timestamp(timestamp))
+}
+
+pub(super) fn now_node_iso() -> String {
+    format_node_iso_timestamp(OffsetDateTime::now_utc())
+}
+
+fn format_node_iso_timestamp(timestamp: OffsetDateTime) -> String {
+    let timestamp = timestamp.to_offset(UtcOffset::UTC);
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:03}Z",
+        timestamp.year(),
+        u8::from(timestamp.month()),
+        timestamp.day(),
+        timestamp.hour(),
+        timestamp.minute(),
+        timestamp.second(),
+        timestamp.millisecond()
+    )
 }

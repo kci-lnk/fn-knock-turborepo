@@ -7,7 +7,8 @@ fn normalizes_acme_application_like_node() {
         "domains": ["Example.com", "example.com", "www.example.com"],
         "dnsType": " dns_cf ",
         "credentials": { " CF_Key ": " secret ", "empty": "" },
-        "createdAt": "2026-07-05T01:02:03Z",
+        "createdAt": "2026-07-05T01:02:03.946511792Z",
+        "updatedAt": "2026-07-05T09:02:03+08:00",
         "latestJobStatus": "bad"
     }))
     .expect("application");
@@ -16,7 +17,22 @@ fn normalizes_acme_application_like_node() {
     assert_eq!(value["domains"], json!(["example.com", "www.example.com"]));
     assert_eq!(value["credentials"], json!({ "CF_Key": "secret" }));
     assert_eq!(value["renewEnabled"], json!(true));
+    assert_eq!(value["createdAt"], json!("2026-07-05T01:02:03.946Z"));
+    assert_eq!(value["updatedAt"], json!("2026-07-05T01:02:03.000Z"));
     assert_eq!(value["latestJobStatus"], Value::Null);
+}
+
+#[test]
+fn normalizes_acme_timestamps_to_node_iso_shape() {
+    assert_eq!(
+        normalize_timestamp("2026-07-07T10:18:23.946511792Z"),
+        Some("2026-07-07T10:18:23.946Z".to_string())
+    );
+    assert_eq!(
+        normalize_timestamp("2026-07-07T18:18:23+08:00"),
+        Some("2026-07-07T10:18:23.000Z".to_string())
+    );
+    assert_eq!(normalize_timestamp("not-a-date"), None);
 }
 
 #[test]
@@ -281,4 +297,66 @@ fn wildcard_domains_cover_single_label_subdomains_only() {
         "deep.app.example.com",
         &domains
     ));
+}
+
+#[test]
+fn acme_zip_entry_names_preserve_requested_domain_like_node() {
+    let bytes = zip_acme_cert_pair("Example.COM", "CERT", "KEY").expect("zip should build");
+    let cursor = std::io::Cursor::new(bytes);
+    let mut archive = zip::ZipArchive::new(cursor).expect("zip should parse");
+
+    assert!(archive.by_name("Example.COM.cert.pem").is_ok());
+    assert!(archive.by_name("Example.COM.key.pem").is_ok());
+}
+
+#[test]
+fn acme_init_payload_matches_node_shape() {
+    let payload = build_init_acme_payload(
+        PathBuf::from("/data/.acme.sh/acme.sh"),
+        &json!({
+            "certificateAuthority": "letsencrypt",
+            "updatedAt": "2026-07-07T00:00:00Z",
+        }),
+    );
+    let keys = payload
+        .as_object()
+        .unwrap()
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>();
+
+    assert_eq!(keys, vec!["certificateAuthority", "executablePath"]);
+    assert_eq!(payload["certificateAuthority"], json!("letsencrypt"));
+    assert_eq!(payload["executablePath"], json!("/data/.acme.sh/acme.sh"));
+    assert!(payload.get("state").is_none());
+}
+
+#[test]
+fn analyzes_cloudflare_invalid_key_like_node() {
+    let t = Translator::new("en");
+    let logs = vec![
+        json!("Cloudflare API request failed"),
+        json!("{\"code\":6103,\"message\":\"Invalid format for X-Auth-Key header\"}"),
+    ];
+    let analysis = analyze_acme_logs(&json!({ "provider": "dns_cf" }), &logs, &t);
+
+    assert_eq!(analysis["reason"], json!("dns_credentials_invalid"));
+    assert_eq!(analysis["provider"], json!("dns_cf"));
+    assert!(analysis["message"].as_str().unwrap().contains("Cloudflare"));
+    assert_eq!(analysis["evidence"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn analyzes_retry_after_frequency_limit_like_node() {
+    let t = Translator::new("en");
+    let logs = vec![
+        json!("server asks retryafter=601, too large, will not retry"),
+        json!("final error"),
+    ];
+    let analysis = analyze_acme_logs(&json!({ "provider": "dns_ali" }), &logs, &t);
+
+    assert_eq!(analysis["reason"], json!("acme_frequency_limited"));
+    assert_eq!(analysis["provider"], json!("dns_ali"));
+    assert!(analysis["message"].as_str().unwrap().contains("601"));
+    assert_eq!(analysis["evidence"].as_array().unwrap().len(), 1);
 }

@@ -83,7 +83,7 @@ pub(super) async fn read_legacy_settings(state: &AppState) -> redis::RedisResult
             .get("updatedAt")
             .and_then(Value::as_str)
             .and_then(normalize_timestamp)
-            .unwrap_or_else(time_utils::now_iso),
+            .unwrap_or_else(now_node_iso),
     })))
 }
 
@@ -98,7 +98,7 @@ pub(super) async fn ensure_client_settings(state: &AppState) -> redis::RedisResu
     }
     let settings = json!({
         "certificateAuthority": default_certificate_authority(state),
-        "updatedAt": time_utils::now_iso(),
+        "updatedAt": now_node_iso(),
     });
     state
         .redis
@@ -262,7 +262,7 @@ pub(super) async fn link_issued_certificate_to_library(
             "libraryCertificateId".to_string(),
             json!(library_certificate_id),
         );
-        object.insert("libraryLinkedAt".to_string(), json!(time_utils::now_iso()));
+        object.insert("libraryLinkedAt".to_string(), json!(now_node_iso()));
     }
     let linked = issued[index].clone();
     state

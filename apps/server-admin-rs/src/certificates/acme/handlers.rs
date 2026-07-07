@@ -1,5 +1,19 @@
 use super::*;
 
+fn acme_false_message(message: String) -> Response {
+    Json(json!({ "success": false, "message": message })).into_response()
+}
+
+pub(super) fn build_init_acme_payload(executable_path: PathBuf, client_settings: &Value) -> Value {
+    json!({
+        "executablePath": executable_path,
+        "certificateAuthority": client_settings
+            .get("certificateAuthority")
+            .cloned()
+            .unwrap_or_else(|| json!(DEFAULT_ACME_CERTIFICATE_AUTHORITY)),
+    })
+}
+
 pub(super) async fn status(State(state): State<AppState>) -> Response {
     let t = Translator::from_state(&state).await;
     if let Err(error) = ensure_acme_data_migrated(&state).await {
@@ -134,10 +148,7 @@ pub(super) async fn uninstall_acme(State(state): State<AppState>) -> Response {
                 &[("detail", error.to_string())],
             )
             .await;
-            return response::error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                acme_route_text(&t, "uninstallFailed"),
-            );
+            return response::error(StatusCode::INTERNAL_SERVER_ERROR, error.to_string());
         }
     }
     set_acme_install_state(&state, "uninstalled", 0, "notInstalled", &[]).await;
@@ -167,14 +178,10 @@ pub(super) async fn init_acme(State(state): State<AppState>) -> Response {
             start_acme_install(install_state, certificate_authority).await;
         });
     }
-    response::ok(json!({
-        "executablePath": acme_executable_path(&state),
-        "certificateAuthority": client_settings
-            .get("certificateAuthority")
-            .cloned()
-            .unwrap_or_else(|| json!(DEFAULT_ACME_CERTIFICATE_AUTHORITY)),
-        "state": current_acme_install_state(&state, &t).await,
-    }))
+    response::ok(build_init_acme_payload(
+        acme_executable_path(&state),
+        &client_settings,
+    ))
     .into_response()
 }
 
@@ -368,7 +375,8 @@ pub(super) async fn save_client_settings_route(
         }
     };
 
-    if !acme_executable_path(&state).is_file() {
+    let install_state = current_acme_install_state(&state, &t).await;
+    if install_state.get("status").and_then(Value::as_str) != Some("installed") {
         let mut data = next;
         data["synced"] = json!(false);
         return response::ok(data).into_response();
@@ -389,10 +397,7 @@ pub(super) async fn save_client_settings_route(
                 .unwrap_or(DEFAULT_ACME_CERTIFICATE_AUTHORITY);
             save_client_settings(&state, previous_ca).await.ok();
             tracing::warn!(%error, "failed to switch ACME certificate authority");
-            response::error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                acme_route_text(&t, "switchCertificateAuthorityFailed"),
-            )
+            response::error(StatusCode::INTERNAL_SERVER_ERROR, error.to_string())
         }
     }
 }
@@ -466,6 +471,7 @@ pub(super) async fn save_config(State(state): State<AppState>, req: Request<Body
             .await
             {
                 tracing::warn!(%error, "failed to sync gateway after ACME config cleanup");
+                return response::error(StatusCode::BAD_REQUEST, error.to_string());
             }
             response::ok(json!({
                 "domains": saved.application.get("domains").cloned().unwrap_or_else(|| json!([])),
@@ -517,6 +523,7 @@ pub(super) async fn create_application(
             .await
             {
                 tracing::warn!(%error, "failed to sync gateway after ACME application cleanup");
+                return response::error(StatusCode::BAD_REQUEST, error.to_string());
             }
             if submit_now {
                 return match start_acme_application_job(
@@ -606,15 +613,15 @@ pub(super) async fn update_application(
             .await
             {
                 tracing::warn!(%error, "failed to sync gateway after ACME application update cleanup");
+                let message = error.to_string();
                 if let Some((job, lock)) = reservation.take() {
-                    let message = error.to_string();
                     fail_reserved_acme_application_job(
                         &state, &existing, &job, &lock, &message, &t,
                     )
                     .await
                     .ok();
-                    return response::error(StatusCode::BAD_REQUEST, message);
                 }
+                return response::error(StatusCode::BAD_REQUEST, message);
             }
             if let Some((job, lock)) = reservation.take() {
                 return match run_reserved_acme_application_job(
@@ -678,10 +685,7 @@ pub(super) async fn delete_application(
         Ok(_) => {}
         Err(error) => {
             tracing::warn!(%error, "failed to check active ACME lock before delete");
-            return response::error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                acme_route_text(&t, "deleteApplicationFailed"),
-            );
+            return response::error(StatusCode::BAD_REQUEST, error.to_string());
         }
     }
 
@@ -693,10 +697,7 @@ pub(super) async fn delete_application(
         ),
         Err(error) => {
             tracing::warn!(%error, "failed to delete ACME application");
-            response::error(
-                StatusCode::BAD_REQUEST,
-                acme_route_text(&t, "deleteApplicationFailed"),
-            )
+            response::error(StatusCode::BAD_REQUEST, error.to_string())
         }
     }
 }
@@ -714,10 +715,7 @@ pub(super) async fn delete_application_certificate(
         ),
         Err(error) => {
             tracing::warn!(%error, "failed to delete ACME application certificate");
-            response::error(
-                StatusCode::BAD_REQUEST,
-                acme_route_text(&t, "deleteCertificateFailed"),
-            )
+            response::error(StatusCode::BAD_REQUEST, error.to_string())
         }
     }
 }
@@ -763,19 +761,13 @@ pub(super) async fn sync_application_library(
             if let Err(error) = sync_gateway_if_acme_library_touched(&state, &certificate_id).await
             {
                 tracing::warn!(%error, "failed to sync gateway after ACME library sync");
-                return response::error(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    acme_route_text(&t, "syncLibraryFailed"),
-                );
+                return response::error(StatusCode::BAD_REQUEST, error.to_string());
             }
             response::ok(json!({ "certificateId": certificate_id, "linked": true })).into_response()
         }
         Err(error) => {
             tracing::warn!(%error, "failed to save ACME certificate to library");
-            response::error(
-                StatusCode::BAD_REQUEST,
-                acme_route_text(&t, "syncLibraryFailed"),
-            )
+            response::error(StatusCode::BAD_REQUEST, error.to_string())
         }
     }
 }
@@ -816,18 +808,12 @@ pub(super) async fn deploy_application_certificate(
             Ok(()) => response::success_message(t.t("server.acmeRoutes.success")).into_response(),
             Err(error) => {
                 tracing::warn!(%error, "failed to sync gateway after ACME certificate deploy");
-                response::error(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    acme_route_text(&t, "deployCertificateFailed"),
-                )
+                response::error(StatusCode::BAD_REQUEST, error.to_string())
             }
         },
         Err(error) => {
             tracing::warn!(%error, "failed to deploy ACME certificate from application");
-            response::error(
-                StatusCode::BAD_REQUEST,
-                acme_route_text(&t, "deployCertificateFailed"),
-            )
+            response::error(StatusCode::BAD_REQUEST, error.to_string())
         }
     }
 }
@@ -840,10 +826,7 @@ pub(super) async fn request_application_certificate(
     let application = match find_acme_application(&state, &id).await {
         Ok(Some(value)) => value,
         Ok(None) => {
-            return response::error(
-                StatusCode::NOT_FOUND,
-                t.t("server.acmeRoutes.applicationNotFound"),
-            );
+            return response::error(StatusCode::NOT_FOUND, t.t("server.acmeRoutes.notFound"));
         }
         Err(error) => {
             tracing::warn!(%error, "failed to load ACME application before request");
@@ -992,18 +975,62 @@ pub(super) async fn build_application_overview(
             find_library_certificate(&ssl_status, &application, certificate)
         });
 
-        output.push(json!({
-            "id": application.get("id").cloned().unwrap_or(Value::Null),
-            "name": application.get("name").cloned().unwrap_or(Value::Null),
-            "primaryDomain": application.get("primaryDomain").cloned().unwrap_or(Value::Null),
-            "domains": application.get("domains").cloned().unwrap_or_else(|| json!([])),
-            "dnsType": application.get("dnsType").cloned().unwrap_or(Value::Null),
-            "providerLabel": provider_label(t, application.get("dnsType").and_then(Value::as_str).unwrap_or("")),
-            "renewEnabled": application.get("renewEnabled").cloned().unwrap_or_else(|| json!(true)),
-            "createdAt": application.get("createdAt").cloned().unwrap_or(Value::Null),
-            "updatedAt": application.get("updatedAt").cloned().unwrap_or(Value::Null),
-            "latestJob": build_latest_job_summary(&application, latest_job.as_ref()),
-            "certificate": match issued_certificate.as_ref() {
+        let mut item = Map::new();
+        item.insert(
+            "id".to_string(),
+            application.get("id").cloned().unwrap_or(Value::Null),
+        );
+        insert_optional_string(&mut item, "name", application.get("name"));
+        item.insert(
+            "primaryDomain".to_string(),
+            application
+                .get("primaryDomain")
+                .cloned()
+                .unwrap_or(Value::Null),
+        );
+        item.insert(
+            "domains".to_string(),
+            application
+                .get("domains")
+                .cloned()
+                .unwrap_or_else(|| json!([])),
+        );
+        item.insert(
+            "dnsType".to_string(),
+            application.get("dnsType").cloned().unwrap_or(Value::Null),
+        );
+        item.insert(
+            "providerLabel".to_string(),
+            json!(provider_label(
+                t,
+                application
+                    .get("dnsType")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+            )),
+        );
+        item.insert(
+            "renewEnabled".to_string(),
+            application
+                .get("renewEnabled")
+                .cloned()
+                .unwrap_or_else(|| json!(true)),
+        );
+        item.insert(
+            "createdAt".to_string(),
+            application.get("createdAt").cloned().unwrap_or(Value::Null),
+        );
+        item.insert(
+            "updatedAt".to_string(),
+            application.get("updatedAt").cloned().unwrap_or(Value::Null),
+        );
+        item.insert(
+            "latestJob".to_string(),
+            build_latest_job_summary(&application, latest_job.as_ref()),
+        );
+        item.insert(
+            "certificate".to_string(),
+            match issued_certificate.as_ref() {
                 Some(certificate) => json!({
                     "exists": true,
                     "validFrom": certificate.pointer("/certInfo/validFrom").cloned().unwrap_or(Value::Null),
@@ -1013,7 +1040,10 @@ pub(super) async fn build_application_overview(
                 }),
                 None => json!({ "exists": false }),
             },
-            "library": match library_certificate {
+        );
+        item.insert(
+            "library".to_string(),
+            match library_certificate {
                 Some(certificate) => json!({
                     "linked": true,
                     "certificateId": certificate.get("id").cloned().unwrap_or(Value::Null),
@@ -1021,7 +1051,8 @@ pub(super) async fn build_application_overview(
                 }),
                 None => json!({ "linked": false }),
             },
-        }));
+        );
+        output.push(Value::Object(item));
     }
 
     Ok(output)
@@ -1048,10 +1079,7 @@ pub(super) async fn application(
     let t = Translator::from_state(&state).await;
     match find_acme_application(&state, &id).await {
         Ok(Some(value)) => response::ok(value).into_response(),
-        Ok(None) => response::error(
-            StatusCode::NOT_FOUND,
-            t.t("server.acmeRoutes.applicationNotFound"),
-        ),
+        Ok(None) => response::error(StatusCode::NOT_FOUND, t.t("server.acmeRoutes.notFound")),
         Err(error) => {
             tracing::warn!(%error, "failed to load ACME application");
             response::error(
@@ -1123,7 +1151,7 @@ pub(super) async fn job_poll(
         Ok(logs) => response::ok(json!({
             "job": job,
             "logs": logs,
-            "analysis": Value::Null,
+            "analysis": analyze_acme_logs(&job, &logs, &t),
         }))
         .into_response(),
         Err(error) => {
@@ -1147,7 +1175,7 @@ pub(super) async fn cert_info(
             "info": info,
         }))
         .into_response(),
-        Ok(None) => response::error(StatusCode::NOT_FOUND, t.t("server.acmeRoutes.certNotFound")),
+        Ok(None) => response::error(StatusCode::NOT_FOUND, t.t("server.acmeRoutes.notFound")),
         Err(error) => {
             tracing::warn!(%error, "failed to load ACME certificate info");
             response::error(
@@ -1186,20 +1214,14 @@ pub(super) async fn delete_cert(
                 ),
                 Err(error) => {
                     tracing::warn!(%error, "failed to delete ACME application certificate");
-                    response::error(
-                        StatusCode::BAD_REQUEST,
-                        acme_route_text(&t, "deleteCertificateFailed"),
-                    )
+                    response::error(StatusCode::BAD_REQUEST, error.to_string())
                 }
             }
         }
         Ok(None) => {
             if let Err(error) = delete_acme_cert_pair(&state, &normalized_domain).await {
                 tracing::warn!(%error, "failed to delete ACME certificate files");
-                return response::error(
-                    StatusCode::BAD_REQUEST,
-                    acme_route_text(&t, "deleteCertificateFailed"),
-                );
+                return response::error(StatusCode::BAD_REQUEST, error.to_string());
             }
             let (removed_count, removed_active) = match ssl::delete_acme_ssl_certificates(
                 &state,
@@ -1211,10 +1233,7 @@ pub(super) async fn delete_cert(
                 Ok(value) => value,
                 Err(error) => {
                     tracing::warn!(%error, "failed to delete ACME certificate from SSL library");
-                    return response::error(
-                        StatusCode::BAD_REQUEST,
-                        acme_route_text(&t, "deleteCertificateFailed"),
-                    );
+                    return response::error(StatusCode::BAD_REQUEST, error.to_string());
                 }
             };
             if let Err(error) =
@@ -1226,15 +1245,13 @@ pub(super) async fn delete_cert(
                 sync_gateway_if_acme_library_removed(&state, removed_active, removed_count).await
             {
                 tracing::warn!(%error, "failed to sync gateway after ACME cert delete");
+                return response::error(StatusCode::BAD_REQUEST, error.to_string());
             }
             response::success_empty().into_response()
         }
         Err(error) => {
             tracing::warn!(%error, "failed to resolve ACME certificate domain");
-            response::error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                acme_route_text(&t, "deleteCertificateFailed"),
-            )
+            response::error(StatusCode::BAD_REQUEST, error.to_string())
         }
     }
 }
@@ -1245,10 +1262,10 @@ pub(super) async fn cert_download(
 ) -> Response {
     let t = Translator::from_state(&state).await;
     match get_certificate_for_domain(&state, &domain).await {
-        Ok(Some((primary_domain, cert, key, _info))) => {
-            match zip_acme_cert_pair(&primary_domain, &cert, &key) {
+        Ok(Some((_primary_domain, cert, key, _info))) => {
+            match zip_acme_cert_pair(&domain, &cert, &key) {
                 Ok(bytes) => {
-                    ssl::binary_response(bytes, "application/zip", &format!("{primary_domain}.zip"))
+                    ssl::binary_response(bytes, "application/zip", &format!("{domain}.zip"))
                 }
                 Err(error) => {
                     tracing::warn!(%error, "failed to create ACME certificate zip");
@@ -1259,7 +1276,7 @@ pub(super) async fn cert_download(
                 }
             }
         }
-        Ok(None) => response::error(StatusCode::NOT_FOUND, t.t("server.acmeRoutes.certNotFound")),
+        Ok(None) => response::error(StatusCode::NOT_FOUND, t.t("server.acmeRoutes.notFound")),
         Err(error) => {
             tracing::warn!(%error, "failed to load ACME certificate for download");
             response::error(
@@ -1311,18 +1328,12 @@ pub(super) async fn deploy_domain_certificate(
                     }
                     Err(error) => {
                         tracing::warn!(%error, "failed to sync gateway after ACME certificate deploy");
-                        response::error(
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            acme_route_text(&t, "deployCertificateFailed"),
-                        )
+                        response::error(StatusCode::BAD_REQUEST, error.to_string())
                     }
                 },
                 Err(error) => {
                     tracing::warn!(%error, "failed to deploy ACME application certificate");
-                    response::error(
-                        StatusCode::BAD_REQUEST,
-                        acme_route_text(&t, "deployCertificateFailed"),
-                    )
+                    response::error(StatusCode::BAD_REQUEST, error.to_string())
                 }
             }
         }
@@ -1332,19 +1343,10 @@ pub(super) async fn deploy_domain_certificate(
                 .ok()
                 .flatten()
             else {
-                return response::error(
-                    StatusCode::NOT_FOUND,
-                    t.t("server.acmeRoutes.certNotFound"),
-                );
+                return acme_false_message(t.t("server.acmeRoutes.certNotFound"));
             };
-            if ssl::parse_cert_info(&cert).is_none()
-                || !key.contains("-----BEGIN ")
-                || !key.contains("PRIVATE KEY-----")
-            {
-                return response::error(
-                    StatusCode::BAD_REQUEST,
-                    t.t("server.acmeRoutes.certOrKeyInvalid"),
-                );
+            if let Err(message) = ssl::validate_ssl_cert_for_response(&cert, &key, &t) {
+                return acme_false_message(message);
             }
             match ssl::save_acme_certificate_to_library(
                 &state,
@@ -1364,27 +1366,18 @@ pub(super) async fn deploy_domain_certificate(
                     }
                     Err(error) => {
                         tracing::warn!(%error, "failed to sync gateway after ACME domain certificate deploy");
-                        response::error(
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            acme_route_text(&t, "deployCertificateFailed"),
-                        )
+                        response::error(StatusCode::BAD_REQUEST, error.to_string())
                     }
                 },
                 Err(error) => {
                     tracing::warn!(%error, "failed to deploy ACME domain certificate");
-                    response::error(
-                        StatusCode::BAD_REQUEST,
-                        acme_route_text(&t, "deployCertificateFailed"),
-                    )
+                    response::error(StatusCode::BAD_REQUEST, error.to_string())
                 }
             }
         }
         Err(error) => {
             tracing::warn!(%error, "failed to resolve ACME certificate domain before deploy");
-            response::error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                acme_route_text(&t, "deployCertificateFailed"),
-            )
+            response::error(StatusCode::BAD_REQUEST, error.to_string())
         }
     }
 }

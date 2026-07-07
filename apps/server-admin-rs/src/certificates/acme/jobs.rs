@@ -32,11 +32,18 @@ pub(super) async fn ensure_acme_installed_for_request(
     state: &AppState,
     t: &Translator,
 ) -> anyhow::Result<()> {
+    let install_state = current_acme_install_state(state, t).await;
+    match install_state.get("status").and_then(Value::as_str) {
+        Some("installed") => {
+            return Ok(());
+        }
+        Some("installing") => {
+            anyhow::bail!(acme_route_text(t, "installingRetryLater"));
+        }
+        _ => {}
+    }
     if acme_executable_path(state).is_file() {
         return Ok(());
-    }
-    if acme_install_is_installing(state).await {
-        anyhow::bail!(acme_route_text(t, "installingRetryLater"));
     }
     anyhow::bail!(acme_route_text(t, "installFirst"));
 }
@@ -168,7 +175,7 @@ pub(super) async fn fail_reserved_acme_application_job(
         )
         .await
         .ok();
-        let finished_at = time_utils::now_iso();
+        let finished_at = now_node_iso();
         if let Some(updated) = update_acme_job(
             state,
             job_id,
@@ -220,7 +227,7 @@ pub(super) fn build_queued_acme_job(
         "method": "dns",
         "provider": dns_type,
         "trigger": normalize_trigger_string(trigger),
-        "createdAt": time_utils::now_iso(),
+        "createdAt": now_node_iso(),
         "status": "queued",
         "progress": 0,
         "message": if trigger == "auto_renew" { "queued for renew" } else { "queued" },
@@ -240,8 +247,8 @@ pub(super) fn build_acme_runtime_lock(application: &Value, job: &Value, trigger:
 
 pub(super) fn with_runtime_lock_lease(mut lock: Value) -> Value {
     let ttl = acme_runtime_lock_ttl_seconds() as i64;
-    lock["heartbeatAt"] = json!(time_utils::now_iso());
-    lock["expiresAt"] = json!(time_utils::iso_after_seconds(ttl));
+    lock["heartbeatAt"] = json!(now_node_iso());
+    lock["expiresAt"] = json!(iso_after_seconds_node(ttl));
     lock
 }
 
@@ -309,6 +316,55 @@ pub(super) async fn update_acme_job(
     Ok(Some(job))
 }
 
+async fn update_running_acme_job(
+    state: &AppState,
+    id: &str,
+    patch: Value,
+    t: &Translator,
+) -> anyhow::Result<Option<Value>> {
+    let Some(mut job) = get_acme_job(state, id).await? else {
+        return Ok(None);
+    };
+    if job.get("status").and_then(Value::as_str) == Some("stopped")
+        && patch.get("status").and_then(Value::as_str) != Some("stopped")
+    {
+        anyhow::bail!(t.t("server.acmeJobRunner.manualStop"));
+    }
+    if let (Some(job_obj), Some(patch_obj)) = (job.as_object_mut(), patch.as_object()) {
+        for (key, value) in patch_obj {
+            job_obj.insert(key.clone(), value.clone());
+        }
+    }
+    let Some(job) = normalize_acme_job(job) else {
+        return Ok(None);
+    };
+    state
+        .redis
+        .set_json_value_ex(
+            &format!("{ACME_JOB_PREFIX}{id}"),
+            &job,
+            ACME_JOB_TTL_SECONDS,
+        )
+        .await?;
+    Ok(Some(job))
+}
+
+async fn acme_job_is_stopped(state: &AppState, id: &str) -> anyhow::Result<bool> {
+    Ok(get_acme_job(state, id)
+        .await?
+        .is_some_and(|job| job.get("status").and_then(Value::as_str) == Some("stopped")))
+}
+
+async fn append_stopped_ignored_log(state: &AppState, id: &str, t: &Translator) {
+    append_acme_log(
+        state,
+        id,
+        &t.t("server.acmeJobRunner.stoppedIgnoredProcessError"),
+    )
+    .await
+    .ok();
+}
+
 pub(super) async fn append_acme_log(
     state: &AppState,
     job_id: &str,
@@ -372,7 +428,7 @@ pub(super) async fn update_acme_application_job_state(
                 .or_else(|| job.get("startedAt"))
                 .or_else(|| job.get("createdAt"))
                 .cloned()
-                .unwrap_or_else(|| json!(time_utils::now_iso())),
+                .unwrap_or_else(|| json!(now_node_iso())),
         );
         if job.get("status").and_then(Value::as_str) == Some("failed") {
             if let Some(message) = job.get("message").and_then(Value::as_str) {
@@ -409,9 +465,9 @@ pub(super) async fn execute_acme_application_job(
     let heartbeat_stop = Arc::new(AtomicBool::new(false));
     let heartbeat_task =
         start_acme_lock_heartbeat(state.clone(), lock.clone(), heartbeat_stop.clone());
-    let started_at = time_utils::now_iso();
+    let started_at = now_node_iso();
     let running_message = t.t("server.acmeJobRunner.lockMessages.manualRequest");
-    if let Some(job) = update_acme_job(
+    if let Some(job) = update_running_acme_job(
         &state,
         &job_id,
         json!({
@@ -420,6 +476,7 @@ pub(super) async fn execute_acme_application_job(
             "startedAt": started_at,
             "message": running_message,
         }),
+        &t,
     )
     .await?
     {
@@ -434,13 +491,14 @@ pub(super) async fn execute_acme_application_job(
             .unwrap_or(DEFAULT_ACME_CERTIFICATE_AUTHORITY)
             .to_string();
         issue_acme_certificate(&state, &application, &job_id, &certificate_authority, &t).await?;
-        if let Some(job) = update_acme_job(
+        if let Some(job) = update_running_acme_job(
             &state,
             &job_id,
             json!({
                 "progress": 80,
                 "message": "saving",
             }),
+            &t,
         )
         .await?
         {
@@ -518,15 +576,18 @@ pub(super) async fn execute_acme_application_job(
 
     match result {
         Ok(()) => {
-            if let Some(job) = update_acme_job(
+            if acme_job_is_stopped(&state, &job_id).await? {
+                append_stopped_ignored_log(&state, &job_id, &t).await;
+            } else if let Some(job) = update_running_acme_job(
                 &state,
                 &job_id,
                 json!({
                     "status": "succeeded",
                     "progress": 100,
-                    "finishedAt": time_utils::now_iso(),
+                    "finishedAt": now_node_iso(),
                     "message": "succeeded",
                 }),
+                &t,
             )
             .await?
             {
@@ -535,29 +596,34 @@ pub(super) async fn execute_acme_application_job(
         }
         Err(error) => {
             let message = error.to_string();
-            append_acme_log(
-                &state,
-                &job_id,
-                &t.t_params(
-                    "server.acmeJobRunner.flowFailed",
-                    &[("message", message.clone())],
-                ),
-            )
-            .await
-            .ok();
-            if let Some(job) = update_acme_job(
-                &state,
-                &job_id,
-                json!({
-                    "status": "failed",
-                    "progress": 100,
-                    "finishedAt": time_utils::now_iso(),
-                    "message": message,
-                }),
-            )
-            .await?
-            {
-                update_acme_application_job_state(&state, &application, &job).await?;
+            if acme_job_is_stopped(&state, &job_id).await? {
+                append_stopped_ignored_log(&state, &job_id, &t).await;
+            } else {
+                append_acme_log(
+                    &state,
+                    &job_id,
+                    &t.t_params(
+                        "server.acmeJobRunner.flowFailed",
+                        &[("message", message.clone())],
+                    ),
+                )
+                .await
+                .ok();
+                if let Some(job) = update_running_acme_job(
+                    &state,
+                    &job_id,
+                    json!({
+                        "status": "failed",
+                        "progress": 100,
+                        "finishedAt": now_node_iso(),
+                        "message": message,
+                    }),
+                    &t,
+                )
+                .await?
+                {
+                    update_acme_application_job_state(&state, &application, &job).await?;
+                }
             }
         }
     }

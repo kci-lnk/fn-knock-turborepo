@@ -3,6 +3,7 @@ use super::*;
 pub(in crate::ddns::routes) async fn update_huaweicloud(
     translator: &Translator,
     config: &HashMap<String, String>,
+    http_options: &DDNSHttpClientOptions,
     ipv4: Option<&str>,
     ipv6: Option<&str>,
 ) -> anyhow::Result<DDNSProviderUpdateResult> {
@@ -26,7 +27,7 @@ pub(in crate::ddns::routes) async fn update_huaweicloud(
     let normalized_root = parsed.root_domain.trim_end_matches('.').to_string();
     let fqdn_with_dot = format!("{}.", parsed.fqdn.trim_end_matches('.'));
     let expected_zone_name = format!("{normalized_root}.");
-    let client = ddns_http_client()?;
+    let client = ddns_http_client(translator, http_options)?;
     let zone_response = huawei_request(
         translator,
         &client,

@@ -36,13 +36,19 @@ pub(super) async fn save_ssl_certificate(
         .iter()
         .find(|item| item.get("id").and_then(Value::as_str) == Some(id.as_str()))
         .cloned();
-    let now = time_utils::now_iso();
+    let now = now_node_iso();
     let source = normalize_certificate_source(input.source.as_deref());
     let primary_domain = input
         .primary_domain
         .as_deref()
         .map(|value| value.trim().to_ascii_lowercase())
         .filter(|value| !value.is_empty());
+    let source_ref_id = input
+        .source_ref_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
     let label = input
         .label
         .as_deref()
@@ -62,17 +68,21 @@ pub(super) async fn save_ssl_certificate(
         .filter(|value| !value.trim().is_empty())
         .unwrap_or(&now)
         .to_string();
-    let next = json!({
-        "id": id,
-        "label": label,
-        "source": source,
-        "primary_domain": primary_domain,
-        "source_ref_id": input.source_ref_id.as_deref().map(str::trim).filter(|value| !value.is_empty()),
-        "cert": cert,
-        "key": key,
-        "created_at": created_at,
-        "updated_at": now
-    });
+    let mut next = Map::new();
+    next.insert("id".to_string(), json!(id));
+    next.insert("label".to_string(), json!(label));
+    next.insert("source".to_string(), json!(source));
+    if let Some(primary_domain) = primary_domain {
+        next.insert("primary_domain".to_string(), json!(primary_domain));
+    }
+    if let Some(source_ref_id) = source_ref_id {
+        next.insert("source_ref_id".to_string(), json!(source_ref_id));
+    }
+    next.insert("cert".to_string(), json!(cert));
+    next.insert("key".to_string(), json!(key));
+    next.insert("created_at".to_string(), json!(created_at));
+    next.insert("updated_at".to_string(), json!(now));
+    let next = Value::Object(next);
     certificates.retain(|item| {
         item.get("id").and_then(Value::as_str) != next.get("id").and_then(Value::as_str)
     });

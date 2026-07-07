@@ -162,7 +162,7 @@ pub(super) async fn save_client_settings(
 ) -> redis::RedisResult<Value> {
     let settings = json!({
         "certificateAuthority": normalize_certificate_authority(Some(certificate_authority)),
-        "updatedAt": time_utils::now_iso(),
+        "updatedAt": now_node_iso(),
     });
     state
         .redis

@@ -3,6 +3,7 @@ use super::*;
 pub(in crate::ddns::routes) async fn update_esa(
     translator: &Translator,
     config: &HashMap<String, String>,
+    http_options: &DDNSHttpClientOptions,
     ipv4: Option<&str>,
     ipv6: Option<&str>,
 ) -> anyhow::Result<DDNSProviderUpdateResult> {
@@ -41,7 +42,7 @@ pub(in crate::ddns::routes) async fn update_esa(
             &[],
         )));
     }
-    let client = ddns_http_client()?;
+    let client = ddns_http_client(translator, http_options)?;
     let site_id = if !site_id.is_empty() {
         site_id
     } else {
@@ -72,7 +73,11 @@ pub(in crate::ddns::routes) async fn update_esa(
                             .and_then(Value::as_str)
                             .unwrap_or_default(),
                     ) == site_name)
-                        .then(|| site.get("SiteId").map(value_to_compact_string))
+                        .then(|| {
+                            site.get("SiteId")
+                                .filter(|value| json_value_js_truthy(Some(value)))
+                                .map(value_to_compact_string)
+                        })
                         .flatten()
                 })
             })
@@ -139,15 +144,13 @@ pub(in crate::ddns::routes) async fn update_esa(
             Vec::new(),
         )
         .await?;
-        if result.get("RecordId").is_some() {
+        if json_value_js_truthy(result.get("RecordId")) {
             return Ok(DDNSProviderUpdateResult {
                 success: true,
                 message: ddns_text(translator, "providers.esa.success", &[]),
-                ipv4_updated: ipv4.is_some(),
-                ipv6_updated: ipv6.is_some(),
             });
         }
-        return Ok(provider_failure(ddns_text(
+        return Err(anyhow::anyhow!(ddns_text(
             translator,
             "providers.esa.createRecordFailed",
             &[],
@@ -176,6 +179,7 @@ pub(in crate::ddns::routes) async fn update_esa(
         }
         let record_id = record
             .get("RecordId")
+            .filter(|value| json_value_js_truthy(Some(value)))
             .map(value_to_compact_string)
             .filter(|value| !value.is_empty())
             .ok_or_else(|| {
@@ -199,14 +203,13 @@ pub(in crate::ddns::routes) async fn update_esa(
     Ok(DDNSProviderUpdateResult {
         success: true,
         message: ddns_text(translator, "providers.esa.success", &[]),
-        ipv4_updated: ipv4.is_some(),
-        ipv6_updated: ipv6.is_some(),
     })
 }
 
 pub(in crate::ddns::routes) async fn update_dynv6(
     translator: &Translator,
     config: &HashMap<String, String>,
+    http_options: &DDNSHttpClientOptions,
     ipv4: Option<&str>,
     ipv6: Option<&str>,
 ) -> anyhow::Result<DDNSProviderUpdateResult> {
@@ -237,13 +240,17 @@ pub(in crate::ddns::routes) async fn update_dynv6(
     if !ipv6prefix.is_empty() {
         query.push(("ipv6prefix", ipv6prefix));
     }
-    let client = ddns_http_client()?;
+    let client = ddns_http_client(translator, http_options)
+        .map_err(|error| provider_request_error(translator, "dynv6", error))?;
     let response = client
         .get(build_query_url("https://dynv6.com/api/update", &query))
         .send()
-        .await?;
+        .await
+        .map_err(|error| provider_request_error(translator, "dynv6", error))?;
     let status = response.status();
-    let text = response_text(response).await?;
+    let text = response_text(response)
+        .await
+        .map_err(|error| provider_request_error(translator, "dynv6", error))?;
     if status.is_success() && (text.contains("updated") || text.contains("unchanged")) {
         Ok(DDNSProviderUpdateResult {
             success: true,
@@ -255,8 +262,6 @@ pub(in crate::ddns::routes) async fn update_dynv6(
                     ("params", dynv6_sent_params(translator, ipv4, ipv6, config)),
                 ],
             ),
-            ipv4_updated: ipv4.is_some(),
-            ipv6_updated: ipv6.is_some(),
         })
     } else {
         Ok(provider_failure(ddns_text(

@@ -3,6 +3,7 @@ use super::*;
 pub(in crate::ddns::routes) async fn update_porkbun(
     translator: &Translator,
     config: &HashMap<String, String>,
+    http_options: &DDNSHttpClientOptions,
     ipv4: Option<&str>,
     ipv6: Option<&str>,
 ) -> anyhow::Result<DDNSProviderUpdateResult> {
@@ -23,7 +24,7 @@ pub(in crate::ddns::routes) async fn update_porkbun(
     }
     let ttl = positive_i64(config.get("ttl"), 600).to_string();
     let parsed = split_domain(translator, &domain, &root_domain)?;
-    let client = ddns_http_client()?;
+    let client = ddns_http_client(translator, http_options)?;
     let query_failed = ddns_text(translator, "providers.porkbun.queryRecordFailed", &[]);
     let update_failed = ddns_text(translator, "providers.porkbun.updateRecordFailed", &[]);
     let create_failed = ddns_text(translator, "providers.porkbun.createRecordFailed", &[]);

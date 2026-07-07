@@ -3,6 +3,7 @@ use super::*;
 pub(in crate::notifications::routes) fn missing_config_result(message: &str) -> ProviderTestResult {
     ProviderTestResult {
         success: false,
+        retryable: false,
         message: message.to_string(),
         request_summary: None,
         response_summary: None,

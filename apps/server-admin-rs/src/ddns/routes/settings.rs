@@ -2,6 +2,7 @@ use super::*;
 
 pub(super) fn parse_settings(raw: Option<&str>) -> Value {
     let parsed = raw.and_then(|value| serde_json::from_str::<Value>(value).ok());
+    let is_record = parsed.as_ref().is_some_and(Value::is_object);
     let default_sources = default_public_check_sources();
     let public_sources = parsed
         .as_ref()
@@ -9,11 +10,15 @@ pub(super) fn parse_settings(raw: Option<&str>) -> Value {
         .map(normalize_public_check_sources)
         .unwrap_or_else(default_public_check_sources);
     json!({
-        "updateIntervalMinutes": parsed
-            .as_ref()
-            .and_then(|value| value.get("updateIntervalMinutes"))
-            .and_then(normalize_update_interval_minutes)
-            .unwrap_or(10),
+        "updateIntervalMinutes": if is_record {
+            parsed
+                .as_ref()
+                .and_then(|value| value.get("updateIntervalMinutes"))
+                .and_then(normalize_update_interval_minutes)
+                .unwrap_or(10)
+        } else {
+            default_update_interval_minutes()
+        },
         "publicCheckSources": public_sources,
         "defaultPublicCheckSources": default_sources,
         "httpTransport": normalize_http_transport(parsed.as_ref().and_then(|value| value.get("httpTransport")))
@@ -245,18 +250,95 @@ pub(super) fn default_public_check_sources() -> Value {
 }
 
 pub(super) fn normalize_update_interval_minutes(value: &Value) -> Option<i64> {
-    let parsed = value.as_i64().or_else(|| {
-        value
-            .as_str()
-            .and_then(|value| value.trim().parse::<i64>().ok())
-    })?;
+    let parsed = match value {
+        Value::Number(value) => value.as_f64()?,
+        Value::String(value) => js_number_from_string_like_node(value)?,
+        _ => return None,
+    };
+    if !parsed.is_finite() || parsed.fract() != 0.0 {
+        return None;
+    }
+    let parsed = parsed as i64;
     (5..=1440).contains(&parsed).then_some(parsed)
+}
+
+fn js_number_from_string_like_node(value: &str) -> Option<f64> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Some(0.0);
+    }
+
+    let radix_value = if let Some(rest) = trimmed
+        .strip_prefix("0x")
+        .or_else(|| trimmed.strip_prefix("0X"))
+    {
+        Some(u128::from_str_radix(rest, 16).ok()? as f64)
+    } else if let Some(rest) = trimmed
+        .strip_prefix("0b")
+        .or_else(|| trimmed.strip_prefix("0B"))
+    {
+        Some(u128::from_str_radix(rest, 2).ok()? as f64)
+    } else if let Some(rest) = trimmed
+        .strip_prefix("0o")
+        .or_else(|| trimmed.strip_prefix("0O"))
+    {
+        Some(u128::from_str_radix(rest, 8).ok()? as f64)
+    } else {
+        None
+    };
+    if let Some(value) = radix_value {
+        return Some(value);
+    }
+
+    trimmed.parse::<f64>().ok()
+}
+
+pub(super) fn default_update_interval_minutes() -> i64 {
+    parse_legacy_ddns_cron_interval_minutes(env::var("DDNS_CRON").ok().as_deref()).unwrap_or(10)
+}
+
+pub(super) fn parse_legacy_ddns_cron_interval_minutes(pattern: Option<&str>) -> Option<i64> {
+    let parts = pattern?
+        .trim()
+        .split_whitespace()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>();
+    if parts.len() != 5 && parts.len() != 6 {
+        return None;
+    }
+    if parts.len() == 6 && parts[0] != "0" {
+        return None;
+    }
+    let minute_part = if parts.len() == 6 { parts[1] } else { parts[0] };
+    let other_parts = if parts.len() == 6 {
+        &parts[2..]
+    } else {
+        &parts[1..]
+    };
+    if !other_parts.iter().all(|part| *part == "*") {
+        return None;
+    }
+    let interval = minute_part.strip_prefix("*/")?;
+    if interval.is_empty() || !interval.chars().all(|ch| ch.is_ascii_digit()) {
+        return None;
+    }
+    let minutes = interval.parse::<i64>().ok()?;
+    (5..=1440).contains(&minutes).then_some(minutes)
 }
 
 pub(super) fn normalize_http_transport(value: Option<&Value>) -> &'static str {
     match value.and_then(Value::as_str) {
         Some("node" | "fetch") => "node",
         _ => "curl",
+    }
+}
+
+pub(super) fn merge_http_transport_update(input: Option<&str>, current: &Value) -> &'static str {
+    match input {
+        Some("node" | "fetch") => "node",
+        Some("curl") => "curl",
+        None => normalize_http_transport(current.get("httpTransport")),
+        Some(_) => "curl",
     }
 }
 

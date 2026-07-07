@@ -141,9 +141,12 @@ pub(super) async fn fanout_notification_rule(
             "status": "created",
             "created_at": now
         });
-        save_trigger_raw(state, &draft).await?;
-        trigger = Some(draft);
-        trigger_created = true;
+        trigger_created = save_trigger_if_absent(state, &draft).await?;
+        trigger = if trigger_created {
+            Some(draft)
+        } else {
+            load_trigger(state, &trigger_id).await?
+        };
     }
 
     let Some(trigger) = trigger else {
@@ -238,9 +241,6 @@ pub(super) async fn fanout_trigger_targets(
             load_provider(state, provider_id).await?
         };
         let delivery_id = create_stable_id("ntfdel", &[trigger_id, target_id]);
-        if load_delivery(state, &delivery_id).await?.is_some() {
-            continue;
-        }
 
         let provider_enabled = provider
             .as_ref()
@@ -286,7 +286,7 @@ pub(super) async fn fanout_trigger_targets(
                 triggered_at: trigger_created_at.to_string(),
                 next_retry_at: None,
             });
-            save_delivery_raw(state, &skipped).await?;
+            let _ = save_delivery_if_absent(state, &skipped).await?;
             continue;
         }
 
@@ -312,11 +312,26 @@ pub(super) async fn fanout_trigger_targets(
             triggered_at: trigger_created_at.to_string(),
             next_retry_at: Some(trigger_created_at.to_string()),
         });
-        save_delivery_raw(state, &delivery).await?;
-        state
-            .redis
-            .enqueue_notification_delivery(&delivery_id, time_utils::now_ms())
-            .await?;
+        let delivery_created = save_delivery_if_absent(state, &delivery).await?;
+        if delivery_created {
+            state
+                .redis
+                .enqueue_notification_delivery(&delivery_id, time_utils::now_ms())
+                .await?;
+            continue;
+        }
+
+        if let Some(existing) = load_delivery(state, &delivery_id).await?
+            && !is_terminal_delivery_status(existing.get("status").and_then(Value::as_str))
+        {
+            state
+                .redis
+                .enqueue_notification_delivery(
+                    &delivery_id,
+                    resolve_delivery_ready_at_ms(&existing),
+                )
+                .await?;
+        }
     }
 
     if trigger_created {
@@ -468,12 +483,14 @@ pub(super) async fn process_delivery(state: &AppState, delivery_id: &str) -> any
         }
         Some(provider_type) => ProviderTestResult {
             success: false,
+            retryable: false,
             message: format!("unsupported_provider:{provider_type}"),
             request_summary: None,
             response_summary: None,
         },
         None => ProviderTestResult {
             success: false,
+            retryable: false,
             message: "unsupported_provider".to_string(),
             request_summary: None,
             response_summary: None,
@@ -482,12 +499,7 @@ pub(super) async fn process_delivery(state: &AppState, delivery_id: &str) -> any
     let result = localize_provider_test_result(result, &translator);
 
     let mut updated = sending.as_object().cloned().unwrap_or_default();
-    let retryable = result
-        .response_summary
-        .as_ref()
-        .and_then(|summary| summary.get("status"))
-        .and_then(Value::as_i64)
-        .is_some_and(|status| status >= 500 || status == 429);
+    let retryable = result.retryable;
     updated.insert(
         "request_summary".to_string(),
         result.request_summary.clone().unwrap_or(Value::Null),

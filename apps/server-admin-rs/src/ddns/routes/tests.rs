@@ -69,6 +69,253 @@ fn parses_ddns_settings_with_defaults() {
 }
 
 #[test]
+fn ddns_settings_record_interval_fallback_matches_node() {
+    assert_eq!(
+        parse_settings(Some("{}"))["updateIntervalMinutes"],
+        json!(10)
+    );
+    assert_eq!(
+        parse_settings(Some(r#"{"updateIntervalMinutes":"bad"}"#))["updateIntervalMinutes"],
+        json!(10)
+    );
+}
+
+#[test]
+fn ddns_settings_record_interval_uses_node_number_coercion() {
+    assert_eq!(
+        parse_settings(Some(r#"{"updateIntervalMinutes":5.0}"#))["updateIntervalMinutes"],
+        json!(5)
+    );
+    assert_eq!(
+        parse_settings(Some(r#"{"updateIntervalMinutes":"5.0"}"#))["updateIntervalMinutes"],
+        json!(5)
+    );
+    assert_eq!(
+        parse_settings(Some(r#"{"updateIntervalMinutes":"5e0"}"#))["updateIntervalMinutes"],
+        json!(5)
+    );
+    assert_eq!(
+        parse_settings(Some(r#"{"updateIntervalMinutes":"0x10"}"#))["updateIntervalMinutes"],
+        json!(16)
+    );
+    assert_eq!(
+        parse_settings(Some(r#"{"updateIntervalMinutes":"+0x10"}"#))["updateIntervalMinutes"],
+        json!(10)
+    );
+    assert_eq!(
+        parse_settings(Some(r#"{"updateIntervalMinutes":"10x"}"#))["updateIntervalMinutes"],
+        json!(10)
+    );
+}
+
+#[test]
+fn ddns_settings_http_transport_update_matches_node_merge() {
+    let current_node = json!({ "httpTransport": "node" });
+    let current_curl = json!({ "httpTransport": "curl" });
+    assert_eq!(
+        merge_http_transport_update(Some("curl"), &current_node),
+        "curl"
+    );
+    assert_eq!(
+        merge_http_transport_update(Some("node"), &current_curl),
+        "node"
+    );
+    assert_eq!(
+        merge_http_transport_update(Some("fetch"), &current_curl),
+        "node"
+    );
+    assert_eq!(merge_http_transport_update(None, &current_node), "node");
+    assert_eq!(
+        merge_http_transport_update(Some("invalid"), &current_node),
+        "curl"
+    );
+}
+
+#[test]
+fn ddns_provider_retry_options_follow_node_number_coercion() {
+    assert_eq!(ddns_provider_retry_max_attempts(None), 2);
+    assert_eq!(ddns_provider_retry_max_attempts(Some("")), 2);
+    assert_eq!(ddns_provider_retry_max_attempts(Some("0")), 1);
+    assert_eq!(ddns_provider_retry_max_attempts(Some("-1")), 1);
+    assert_eq!(ddns_provider_retry_max_attempts(Some("1.9")), 2);
+    assert_eq!(ddns_provider_retry_max_attempts(Some("  ")), 1);
+    assert_eq!(ddns_provider_retry_max_attempts(Some("0x10")), 17);
+    assert_eq!(ddns_provider_retry_max_attempts(Some("0b10")), 3);
+    assert_eq!(ddns_provider_retry_max_attempts(Some("0o10")), 9);
+    assert_eq!(ddns_provider_retry_max_attempts(Some("+0x10")), 0);
+    assert_eq!(ddns_provider_retry_max_attempts(Some("1x")), 0);
+
+    assert_eq!(ddns_provider_retry_delay_ms(None), 600);
+    assert_eq!(ddns_provider_retry_delay_ms(Some("")), 600);
+    assert_eq!(ddns_provider_retry_delay_ms(Some("250.9")), 250);
+    assert_eq!(ddns_provider_retry_delay_ms(Some("  ")), 0);
+    assert_eq!(ddns_provider_retry_delay_ms(Some("0b10")), 2);
+    assert_eq!(ddns_provider_retry_delay_ms(Some("+0x10")), 0);
+    assert_eq!(ddns_provider_retry_delay_ms(Some("bad")), 0);
+}
+
+#[test]
+fn ddns_provider_http_defaults_match_node() {
+    assert_eq!(DEFAULT_DDNS_PROVIDER_TIMEOUT_MS, 10_000);
+    assert_eq!(
+        noip_user_agent(),
+        format!(
+            "fn-knock/{} ({})",
+            crate::app_version::APP_LOCAL_VERSION,
+            crate::app_version::APP_GITHUB_URL
+        )
+    );
+}
+
+#[test]
+fn ddns_provider_timeout_env_matches_node_number_and_abortsignal_edges() {
+    assert_eq!(provider_timeout_ms_from_env_value(None).unwrap(), 10_000);
+    assert_eq!(
+        provider_timeout_ms_from_env_value(Some("")).unwrap(),
+        10_000
+    );
+    assert_eq!(
+        provider_timeout_ms_from_env_value(Some("  ")).unwrap(),
+        10_000
+    );
+    assert_eq!(
+        provider_timeout_ms_from_env_value(Some("0")).unwrap(),
+        10_000
+    );
+    assert_eq!(
+        provider_timeout_ms_from_env_value(Some("bad")).unwrap(),
+        10_000
+    );
+    assert_eq!(
+        provider_timeout_ms_from_env_value(Some("0x10")).unwrap(),
+        16
+    );
+    assert_eq!(
+        provider_timeout_ms_from_env_value(Some("250")).unwrap(),
+        250
+    );
+    assert!(
+        provider_timeout_ms_from_env_value(Some("250.9"))
+            .unwrap_err()
+            .to_string()
+            .contains("must be an integer")
+    );
+    assert!(
+        provider_timeout_ms_from_env_value(Some("4294967296"))
+            .unwrap_err()
+            .to_string()
+            .contains("<= 4294967295")
+    );
+}
+
+#[test]
+fn curl_header_parser_uses_final_response_block_like_node() {
+    let zh = Translator::new("zh-CN");
+    let (status, status_text) = parse_curl_headers_for_response(
+        &zh,
+        "HTTP/1.1 100 Continue\r\n\r\nHTTP/2 204 No Content\r\nserver: test\r\n\r\n",
+    )
+    .unwrap();
+    assert_eq!(status.as_u16(), 204);
+    assert_eq!(status_text, "No Content");
+    let error = parse_curl_headers_for_response(&zh, "").unwrap_err();
+    assert_eq!(error.to_string(), "curl 未返回任何响应头");
+}
+
+#[test]
+fn tencentcloud_tc3_canonical_headers_lowercase_values_like_node() {
+    assert_eq!(
+        tencentcloud_tc3_canonical_headers(
+            "application/json; charset=utf-8",
+            "Teo.TencentCloudAPI.Com",
+            "DescribeDnsRecords",
+        ),
+        "content-type:application/json; charset=utf-8\nhost:teo.tencentcloudapi.com\nx-tc-action:describednsrecords\n"
+    );
+}
+
+#[test]
+fn huawei_canonical_uri_decodes_segments_like_node() {
+    assert_eq!(
+        canonical_huawei_uri("/v2/zones/abc%2Fdef/recordsets"),
+        "/v2/zones/abc%2Fdef/recordsets/"
+    );
+    assert_eq!(
+        canonical_huawei_uri("/v2/zones/bad%ZZ/recordsets"),
+        "/v2/zones/bad%25ZZ/recordsets/"
+    );
+}
+
+#[test]
+fn huawei_error_detail_matches_node_safe_json_stringify() {
+    let translator = Translator::new("en");
+    assert_eq!(
+        huawei_error_detail(r#"{ "code": 1, "error": "bad" }"#),
+        r#"{"code":1,"error":"bad"}"#
+    );
+    assert_eq!(huawei_error_detail("plain failure"), "plain failure");
+    assert!(
+        huawei_request_failed_message(&translator, 403, "Forbidden", r#"{"error":"bad"}"#)
+            .contains(r#"HTTP 403 Forbidden, {"error":"bad"}"#)
+    );
+}
+
+#[test]
+fn alidns_change_response_fails_on_code_like_node() {
+    assert!(!alidns_change_response_failed(
+        &json!({ "RecordId": "123" })
+    ));
+    assert!(!alidns_change_response_failed(&json!({ "RecordId": 123 })));
+    assert!(alidns_change_response_failed(&json!({
+        "RecordId": "123",
+        "Code": "InvalidParameter",
+        "Message": "bad request"
+    })));
+    assert!(!json_value_js_truthy(Some(&json!(""))));
+    assert!(!json_value_js_truthy(Some(&json!(0))));
+    assert!(!json_value_js_truthy(Some(&json!(false))));
+    assert!(json_value_js_truthy(Some(&json!("0"))));
+    assert!(json_value_js_truthy(Some(&json!(123))));
+    assert!(alidns_change_response_failed(&json!({ "Code": "Missing" })));
+}
+
+#[test]
+fn dynu_provider_errors_are_failure_results_like_node() {
+    let translator = Translator::new("zh-CN");
+    let result = dynu_request_error_result(&translator, "network boom");
+    assert!(!result.success);
+    assert!(result.message.contains("network boom"));
+}
+
+#[test]
+fn ddns_default_interval_parses_legacy_cron_like_node() {
+    assert_eq!(
+        parse_legacy_ddns_cron_interval_minutes(Some("*/30 * * * *")),
+        Some(30)
+    );
+    assert_eq!(
+        parse_legacy_ddns_cron_interval_minutes(Some("0 */15 * * * *")),
+        Some(15)
+    );
+    assert_eq!(
+        parse_legacy_ddns_cron_interval_minutes(Some("*/4 * * * *")),
+        None
+    );
+    assert_eq!(
+        parse_legacy_ddns_cron_interval_minutes(Some("*/1441 * * * *")),
+        None
+    );
+    assert_eq!(
+        parse_legacy_ddns_cron_interval_minutes(Some("1 */15 * * * *")),
+        None
+    );
+    assert_eq!(
+        parse_legacy_ddns_cron_interval_minutes(Some("*/15 * * * 1")),
+        None
+    );
+}
+
+#[test]
 fn strict_public_check_sources_match_node_validation() {
     let zh = Translator::new("zh-CN");
     let fallback = json!({ "ipv4": ["https://fallback4.example.com"], "ipv6": ["https://fallback6.example.com"] });
@@ -101,6 +348,30 @@ fn strict_public_check_sources_match_node_validation() {
         )
         .expect_err("unsupported protocol should fail"),
         "IPv4 公网探测地址仅支持 HTTP/HTTPS: ftp://example.com"
+    );
+}
+
+#[tokio::test]
+async fn automatic_public_ip_detection_reports_empty_sources_like_node() {
+    let zh = Translator::new("zh-CN");
+    let detected = detect_current_public_ips(
+        &json!({ "ipv4": [], "ipv6": [] }),
+        "curl",
+        None,
+        true,
+        true,
+        &zh,
+    )
+    .await;
+    assert_eq!(detected.ipv4, None);
+    assert_eq!(detected.ipv6, None);
+    assert_eq!(
+        detected.ipv4_error.as_deref(),
+        Some("未配置 IPv4 公网探测地址")
+    );
+    assert_eq!(
+        detected.ipv6_error.as_deref(),
+        Some("未配置 IPv6 公网探测地址")
     );
 }
 
@@ -525,6 +796,83 @@ fn interface_selectability_filters_private_ranges() {
 }
 
 #[test]
+fn runtime_interfaces_keep_private_addresses_like_node() {
+    let item = interface_option(
+        "eth-private",
+        "runtime",
+        vec![json!({
+            "family": "ipv4",
+            "address": "192.168.1.10",
+            "cidr": "192.168.1.10/24",
+            "internal": false,
+            "source": "runtime"
+        })],
+    )
+    .unwrap();
+    assert_eq!(item["name"], json!("eth-private"));
+    assert_eq!(item["addresses"].as_array().unwrap().len(), 1);
+    assert_eq!(item["selectableAddresses"].as_array().unwrap().len(), 0);
+    assert!(
+        interface_option(
+            "docker-host:eth0",
+            "docker_host",
+            vec![json!({
+                "family": "ipv6",
+                "address": "fd00::1",
+                "cidr": "fd00::1/64",
+                "internal": false,
+                "source": "docker_host"
+            })],
+        )
+        .is_none()
+    );
+}
+
+#[test]
+fn node_transport_local_addresses_follow_node_order() {
+    let item = json!({
+        "source": "runtime",
+        "addresses": [
+            { "family": "ipv6", "address": "2001:db8::8" },
+            { "family": "ipv4", "address": "192.168.1.10" },
+            { "family": "ipv4", "address": "bad" }
+        ]
+    });
+    let addresses = node_transport_local_addresses_from_interface(&item)
+        .into_iter()
+        .map(|ip| ip.to_string())
+        .collect::<Vec<_>>();
+    assert_eq!(addresses, vec!["192.168.1.10", "2001:db8::8"]);
+    assert_eq!(
+        first_interface_ip_from_option(&item, 4)
+            .map(|ip| ip.to_string())
+            .as_deref(),
+        Some("192.168.1.10")
+    );
+}
+
+#[test]
+fn public_ipv6_selectability_warning_matches_node() {
+    let zh = Translator::new("zh-CN");
+    assert!(public_ipv6_not_selectable_warning_from_known(&[], "2001:db8::2", &zh).is_none());
+    assert!(
+        public_ipv6_not_selectable_warning_from_known(
+            &["2001:db8::2".to_string()],
+            "2001:db8::2",
+            &zh,
+        )
+        .is_none()
+    );
+    let warning = public_ipv6_not_selectable_warning_from_known(
+        &["2001:db8::1".to_string()],
+        "2001:db8::2",
+        &zh,
+    )
+    .unwrap();
+    assert!(warning.contains("2001:db8::2"));
+}
+
+#[test]
 fn builds_ddns_provider_query_urls() {
     let url = build_query_url(
         "https://example.com/update",
@@ -539,6 +887,34 @@ fn builds_ddns_provider_query_urls() {
     );
     let config = HashMap::from([("token".to_string(), " secret ".to_string())]);
     assert_eq!(config_value(&config, "token"), "secret");
+}
+
+#[test]
+fn edgeone_cname_origin_payload_and_host_header_errors_match_node() {
+    assert_eq!(
+        edgeone_cname_origin_info("203.0.113.8", Some("origin.example.com")),
+        json!({
+            "OriginType": "IP_DOMAIN",
+            "Origin": "203.0.113.8",
+            "HostHeader": "origin.example.com"
+        })
+    );
+    assert_eq!(
+        edgeone_cname_origin_info("203.0.113.8", None),
+        json!({
+            "OriginType": "IP_DOMAIN",
+            "Origin": "203.0.113.8"
+        })
+    );
+    assert!(is_edgeone_host_header_format_error(&anyhow::anyhow!(
+        "InvalidHostHeaderFormat: bad host"
+    )));
+    assert!(is_edgeone_host_header_format_error(&anyhow::anyhow!(
+        "HostHeaderInvalid"
+    )));
+    assert!(!is_edgeone_host_header_format_error(&anyhow::anyhow!(
+        "OtherError"
+    )));
 }
 
 #[test]
@@ -1068,4 +1444,13 @@ fn provider_catalog_contains_all_node_providers() {
             { "label": "Audio/video", "value": "image_video" }
         ]))
     );
+}
+
+#[test]
+fn provider_updater_map_covers_catalog() {
+    let providers = provider_catalog(&Translator::new("en"));
+    for provider in providers.as_array().unwrap() {
+        let name = provider.get("name").and_then(Value::as_str).unwrap();
+        assert!(is_known_ddns_provider(name), "missing updater for {name}");
+    }
 }

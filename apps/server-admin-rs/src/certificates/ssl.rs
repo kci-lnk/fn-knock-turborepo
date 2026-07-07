@@ -8,7 +8,7 @@ use std::{
     time::SystemTime,
 };
 
-use ::time::{OffsetDateTime, format_description::well_known::Rfc3339};
+use ::time::{OffsetDateTime, UtcOffset, format_description::well_known::Rfc3339};
 use anyhow::anyhow;
 use axum::{
     Json, Router,
@@ -19,10 +19,10 @@ use axum::{
     routing::{delete, get, post},
 };
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
-use x509_parser::{extensions::GeneralName, pem::parse_x509_pem};
+use x509_parser::{extensions::GeneralName, pem::parse_x509_pem, time::ASN1Time};
 use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
 
 use crate::{
@@ -83,7 +83,7 @@ fn ssl_gateway_error(translator: &Translator, detail: &str) -> String {
     }
 }
 
-fn validate_ssl_cert_for_response(
+pub(crate) fn validate_ssl_cert_for_response(
     cert: &str,
     key: &str,
     translator: &Translator,

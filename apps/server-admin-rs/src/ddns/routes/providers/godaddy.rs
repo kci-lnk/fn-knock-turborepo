@@ -3,6 +3,7 @@ use super::*;
 pub(in crate::ddns::routes) async fn update_godaddy(
     translator: &Translator,
     config: &HashMap<String, String>,
+    http_options: &DDNSHttpClientOptions,
     ipv4: Option<&str>,
     ipv6: Option<&str>,
 ) -> anyhow::Result<DDNSProviderUpdateResult> {
@@ -19,7 +20,7 @@ pub(in crate::ddns::routes) async fn update_godaddy(
     }
     let ttl = positive_i64(config.get("ttl"), 600);
     let parsed = split_domain(translator, &domain, &root_domain)?;
-    let client = ddns_http_client()?;
+    let client = ddns_http_client(translator, http_options)?;
     let provider_label_text = provider_label(Some("godaddy"), translator);
 
     update_dual_stack(
@@ -58,11 +59,21 @@ pub(in crate::ddns::routes) async fn update_godaddy(
                 if status.is_success() {
                     Ok(())
                 } else {
-                    Err(anyhow::anyhow!(
-                        "GoDaddy returned HTTP {}: {}",
-                        status.as_u16(),
-                        text
-                    ))
+                    Err(anyhow::anyhow!(ddns_text(
+                        translator,
+                        "providers.godaddy.updateFailedWithStatus",
+                        &[
+                            ("status", status.as_u16().to_string()),
+                            (
+                                "detail",
+                                if text.is_empty() {
+                                    ddns_text(translator, "providers.godaddy.updateFailed", &[])
+                                } else {
+                                    text
+                                },
+                            ),
+                        ],
+                    )))
                 }
             }
         },

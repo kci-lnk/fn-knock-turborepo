@@ -30,7 +30,7 @@ pub(super) async fn ensure_acme_data_migrated(state: &AppState) -> redis::RedisR
         return Ok(());
     }
 
-    let now = time_utils::now_iso();
+    let now = now_node_iso();
     let primary_domain = domains[0].clone();
     let updated_at = legacy
         .get("updatedAt")
@@ -158,7 +158,7 @@ pub(super) async fn save_acme_application_with_effects(
         ));
     }
 
-    let now = time_utils::now_iso();
+    let now = now_node_iso();
     let existing_id = existing
         .as_ref()
         .and_then(|value| value.get("id"))

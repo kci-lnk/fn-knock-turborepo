@@ -422,6 +422,31 @@ fn parses_traffic_members_and_ignores_invalid_values() {
 }
 
 #[test]
+fn traffic_cleanup_maps_metric_keys_to_last_total_keys() {
+    assert_eq!(
+        super::traffic::traffic_last_total_key_for_metric_key(
+            "fn_knock:traffic:global:host:example.com:in"
+        )
+        .as_deref(),
+        Some("fn_knock:traffic:last:global:host:example.com:in")
+    );
+    assert_eq!(
+        super::traffic::traffic_last_total_key_for_metric_key("fn_knock:traffic:global:out")
+            .as_deref(),
+        Some("fn_knock:traffic:last:global:out")
+    );
+    assert_eq!(
+        super::traffic::traffic_last_total_key_for_metric_key("fn_knock:errors:global:5xx")
+            .as_deref(),
+        Some("fn_knock:errors:last:global:5xx")
+    );
+    assert_eq!(
+        super::traffic::traffic_last_total_key_for_metric_key("fn_knock:traffic:global:bad"),
+        None
+    );
+}
+
+#[test]
 fn counter_delta_handles_first_sample_and_resets() {
     assert_eq!(compute_counter_delta(100.0, None), 100.0);
     assert_eq!(compute_counter_delta(120.0, Some(100.0)), 20.0);

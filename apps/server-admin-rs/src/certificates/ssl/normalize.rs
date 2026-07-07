@@ -1,5 +1,7 @@
 use super::*;
 
+const DEFAULT_SSL_CERT_TIMESTAMP: &str = "1970-01-01T00:00:00.000Z";
+
 pub(super) fn normalize_ssl_config(value: Option<&Value>) -> Value {
     let raw = value.cloned().unwrap_or_else(|| json!({}));
     let mut certificates = raw
@@ -98,17 +100,32 @@ pub(super) fn normalize_managed_certificate(value: Value) -> Option<Value> {
         .filter(|label| !label.is_empty())
         .map(str::to_string)
         .unwrap_or_else(|| default_certificate_label(source, primary_domain.as_deref()));
-    Some(json!({
-        "id": id,
-        "label": label,
-        "source": source,
-        "primary_domain": primary_domain,
-        "source_ref_id": optional_string(value.get("source_ref_id")),
-        "cert": cert,
-        "key": key,
-        "created_at": normalize_timestamp(value.get("created_at")).unwrap_or_else(|| "1970-01-01T00:00:00Z".to_string()),
-        "updated_at": normalize_timestamp(value.get("updated_at")).unwrap_or_else(|| normalize_timestamp(value.get("created_at")).unwrap_or_else(|| "1970-01-01T00:00:00Z".to_string()))
-    }))
+    let created_at = normalize_timestamp(value.get("created_at"))
+        .unwrap_or_else(|| DEFAULT_SSL_CERT_TIMESTAMP.to_string());
+    let updated_at = normalize_timestamp(value.get("updated_at")).unwrap_or_else(|| {
+        normalize_timestamp(value.get("created_at"))
+            .unwrap_or_else(|| DEFAULT_SSL_CERT_TIMESTAMP.to_string())
+    });
+    let mut object = Map::new();
+    object.insert("id".to_string(), json!(id));
+    object.insert("label".to_string(), json!(label));
+    object.insert("source".to_string(), json!(source));
+    if let Some(primary_domain) = primary_domain {
+        object.insert("primary_domain".to_string(), json!(primary_domain));
+    }
+    if let Some(source_ref_id) = value
+        .get("source_ref_id")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        object.insert("source_ref_id".to_string(), json!(source_ref_id));
+    }
+    object.insert("cert".to_string(), json!(cert));
+    object.insert("key".to_string(), json!(key));
+    object.insert("created_at".to_string(), json!(created_at));
+    object.insert("updated_at".to_string(), json!(updated_at));
+    Some(Value::Object(object))
 }
 
 pub(super) fn mirror_active_ssl_certificate(ssl: &Value, active_id: Option<&str>) -> Value {
@@ -201,9 +218,48 @@ pub(crate) fn parse_cert_info(cert_pem: &str) -> Option<Value> {
     Some(json!({
         "issuer": cert.issuer().to_string(),
         "subject": cert.subject().to_string(),
-        "validFrom": cert.validity().not_before.to_string(),
-        "validTo": cert.validity().not_after.to_string(),
+        "validFrom": format_node_x509_time(cert.validity().not_before),
+        "validTo": format_node_x509_time(cert.validity().not_after),
         "dnsNames": dns_names,
-        "serialNumber": cert.raw_serial_as_string()
+        "serialNumber": format_node_x509_serial(cert.raw_serial())
     }))
+}
+
+fn format_node_x509_time(value: ASN1Time) -> String {
+    let dt = value.to_datetime().to_offset(UtcOffset::UTC);
+    let month = match dt.month() {
+        ::time::Month::January => "Jan",
+        ::time::Month::February => "Feb",
+        ::time::Month::March => "Mar",
+        ::time::Month::April => "Apr",
+        ::time::Month::May => "May",
+        ::time::Month::June => "Jun",
+        ::time::Month::July => "Jul",
+        ::time::Month::August => "Aug",
+        ::time::Month::September => "Sep",
+        ::time::Month::October => "Oct",
+        ::time::Month::November => "Nov",
+        ::time::Month::December => "Dec",
+    };
+    format!(
+        "{month} {:>2} {:02}:{:02}:{:02} {} GMT",
+        dt.day(),
+        dt.hour(),
+        dt.minute(),
+        dt.second(),
+        dt.year()
+    )
+}
+
+fn format_node_x509_serial(raw: &[u8]) -> String {
+    let trimmed = raw
+        .iter()
+        .skip_while(|byte| **byte == 0)
+        .copied()
+        .collect::<Vec<_>>();
+    let bytes = if trimmed.is_empty() { vec![0] } else { trimmed };
+    bytes
+        .iter()
+        .map(|byte| format!("{byte:02X}"))
+        .collect::<String>()
 }

@@ -3,6 +3,7 @@ use super::*;
 pub(in crate::ddns::routes) async fn update_tencentcloud(
     translator: &Translator,
     config: &HashMap<String, String>,
+    http_options: &DDNSHttpClientOptions,
     ipv4: Option<&str>,
     ipv6: Option<&str>,
 ) -> anyhow::Result<DDNSProviderUpdateResult> {
@@ -22,7 +23,7 @@ pub(in crate::ddns::routes) async fn update_tencentcloud(
     let record_line = default_string(config_value(config, "record_line"), "默认");
     let record_line_id = config_value(config, "record_line_id");
     let parsed = split_domain(translator, &domain, &root_domain)?;
-    let client = ddns_http_client()?;
+    let client = ddns_http_client(translator, http_options)?;
     let missing_updated_record_id = ddns_text(
         translator,
         "providers.tencentcloud.missingUpdatedRecordId",
@@ -117,10 +118,11 @@ pub(in crate::ddns::routes) async fn update_tencentcloud(
                     }
                     let record_id = record
                         .get("RecordId")
-                        .and_then(Value::as_i64)
+                        .filter(|value| json_value_js_truthy(Some(value)))
+                        .cloned()
                         .ok_or_else(|| anyhow::anyhow!(missing_updated_record_id.clone()))?;
                     let mut payload = base_payload;
-                    payload.insert("RecordId".to_string(), json!(record_id));
+                    payload.insert("RecordId".to_string(), record_id);
                     payload.insert("SubDomain".to_string(), json!(parsed.record_name));
                     payload.insert("TTL".to_string(), json!(ttl));
                     payload.insert("Value".to_string(), json!(ip));
@@ -133,7 +135,7 @@ pub(in crate::ddns::routes) async fn update_tencentcloud(
                         Value::Object(payload),
                     )
                     .await?;
-                    if result.get("RecordId").and_then(Value::as_i64).is_some() {
+                    if json_value_js_truthy(result.get("RecordId")) {
                         return Ok(());
                     }
                     return Err(anyhow::anyhow!(missing_updated_record_id));
@@ -152,7 +154,7 @@ pub(in crate::ddns::routes) async fn update_tencentcloud(
                     Value::Object(payload),
                 )
                 .await?;
-                if result.get("RecordId").and_then(Value::as_i64).is_some() {
+                if json_value_js_truthy(result.get("RecordId")) {
                     Ok(())
                 } else {
                     Err(anyhow::anyhow!(missing_created_record_id))

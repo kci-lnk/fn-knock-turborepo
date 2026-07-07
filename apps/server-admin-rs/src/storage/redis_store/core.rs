@@ -188,6 +188,17 @@ return value
         conn.zrem(key, member).await
     }
 
+    pub async fn zrem_range_by_score(
+        &self,
+        key: &str,
+        min_score: i64,
+        max_score: i64,
+    ) -> redis::RedisResult<()> {
+        let mut conn = self.conn();
+        let _: () = conn.zrembyscore(key, min_score, max_score).await?;
+        Ok(())
+    }
+
     pub async fn zadd_trim_count_expire(
         &self,
         key: &str,

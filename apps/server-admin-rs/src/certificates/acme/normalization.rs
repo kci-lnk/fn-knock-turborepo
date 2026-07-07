@@ -153,8 +153,8 @@ pub(super) fn normalize_client_settings(value: Value) -> Option<Value> {
         "updatedAt": raw
             .get("updatedAt")
             .and_then(Value::as_str)
-            .and_then(normalize_timestamp)
-            .unwrap_or_else(time_utils::now_iso),
+            .map(str::to_string)
+            .unwrap_or_else(now_node_iso),
     }))
 }
 
@@ -257,7 +257,32 @@ pub(super) fn normalize_timestamp(value: &str) -> Option<String> {
     if trimmed.is_empty() {
         return None;
     }
-    time_utils::parse_iso_ms(trimmed).map(|_| trimmed.to_string())
+    let timestamp = OffsetDateTime::parse(trimmed, &Rfc3339)
+        .ok()?
+        .to_offset(UtcOffset::UTC);
+    Some(format_node_iso_timestamp(timestamp))
+}
+
+pub(super) fn now_node_iso() -> String {
+    format_node_iso_timestamp(OffsetDateTime::now_utc())
+}
+
+pub(super) fn iso_after_seconds_node(seconds: i64) -> String {
+    format_node_iso_timestamp(OffsetDateTime::now_utc() + Duration::seconds(seconds))
+}
+
+fn format_node_iso_timestamp(timestamp: OffsetDateTime) -> String {
+    let timestamp = timestamp.to_offset(UtcOffset::UTC);
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:03}Z",
+        timestamp.year(),
+        u8::from(timestamp.month()),
+        timestamp.day(),
+        timestamp.hour(),
+        timestamp.minute(),
+        timestamp.second(),
+        timestamp.millisecond()
+    )
 }
 
 pub(super) fn insert_optional_string(

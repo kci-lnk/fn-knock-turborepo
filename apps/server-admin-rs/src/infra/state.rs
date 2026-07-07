@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use serde_json::Value;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::{Mutex, Notify, RwLock};
 
 use crate::{
     auto_https::AutoHttpsRedirectManager, go_backend::GoBackendClient, redis_store::RedisStore,
@@ -22,6 +22,7 @@ pub struct AppStateInner {
     pub fallback_client: reqwest::Client,
     pub auto_https: AutoHttpsRedirectManager,
     pub acme_install_state: RwLock<Option<Value>>,
+    pub ddns_schedule_reload: Notify,
     pub fnos_network_tuning_update_lock: Mutex<()>,
 }
 
@@ -47,6 +48,7 @@ impl AppState {
                 fallback_client,
                 auto_https: AutoHttpsRedirectManager::new(),
                 acme_install_state: RwLock::new(None),
+                ddns_schedule_reload: Notify::new(),
                 fnos_network_tuning_update_lock: Mutex::new(()),
             }),
         })

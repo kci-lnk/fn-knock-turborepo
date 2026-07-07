@@ -42,17 +42,16 @@ pub(super) async fn run_automatic_ddns_check(
             .into_iter()
             .filter(|target| target.meta.is_primary || target.meta.enabled)
         {
-            if let Err(error) =
-                run_automatic_ddns_target(
-                    state,
-                    &target,
-                    &settings,
-                    trigger,
-                    emit_skip_log,
-                    emit_noop_log,
-                    &translator,
-                )
-                    .await
+            if let Err(error) = run_automatic_ddns_target(
+                state,
+                &target,
+                &settings,
+                trigger,
+                emit_skip_log,
+                emit_noop_log,
+                &translator,
+            )
+            .await
             {
                 let task_error = ddns_text(
                     &translator,
@@ -64,6 +63,18 @@ pub(super) async fn run_automatic_ddns_check(
                 let _ =
                     append_target_log(state, "error", &target, &message, &translator).await;
                 tracing::warn!(target_id = %target.meta.id, %error, "automatic DDNS target check failed");
+            }
+            if let Err(error) = state
+                .redis
+                .set_json_lock_if_owned_ex(
+                    &lock_key,
+                    &lock_id,
+                    &json!({ "lockId": lock_id.clone(), "createdAt": time_utils::now_iso() }),
+                    DDNS_UPDATE_LOCK_TTL_SECONDS,
+                )
+                .await
+            {
+                tracing::warn!(%error, "failed to refresh DDNS update lock");
             }
         }
         Ok::<(), anyhow::Error>(())
@@ -118,6 +129,17 @@ pub(super) async fn run_automatic_ddns_target(
         .await?;
         return Ok(());
     }
+
+    let http_options = DDNSHttpClientOptions::from_settings_and_config(settings, &target.config);
+    ensure_target_auxiliary_state(
+        state,
+        target,
+        &http_options,
+        true,
+        Some(&trigger_label(translator, trigger)),
+        translator,
+    )
+    .await?;
 
     let ips = resolve_target_ips(target, settings, translator).await?;
     for warning in &ips.warnings {
@@ -239,6 +261,7 @@ pub(super) async fn run_automatic_ddns_target(
         translator,
         provider,
         &target.config,
+        &http_options,
         scoped_ipv4.as_deref(),
         scoped_ipv6.as_deref(),
     )
@@ -310,6 +333,39 @@ pub(super) async fn record_automatic_ddns_skip(
     set_target_last_check(state, target, "skipped", &message).await?;
     if emit_log {
         append_target_log(state, "warn", target, &message, translator).await?;
+    }
+    Ok(())
+}
+
+pub(super) async fn ensure_target_auxiliary_state(
+    state: &AppState,
+    target: &DDNSTargetRecord,
+    http_options: &DDNSHttpClientOptions,
+    emit_log: bool,
+    log_prefix: Option<&str>,
+    translator: &Translator,
+) -> anyhow::Result<()> {
+    let Some(provider) = target.meta.provider.as_deref() else {
+        return Ok(());
+    };
+    let result = ensure_edgeone_overseas_access_synced(
+        state,
+        translator,
+        provider,
+        &target.config,
+        http_options,
+    )
+    .await?;
+    if emit_log
+        && result.changed
+        && let Some(message) = result.message.as_deref().filter(|value| !value.is_empty())
+    {
+        let message = if let Some(prefix) = log_prefix.filter(|value| !value.is_empty()) {
+            format!("{prefix}: {message}")
+        } else {
+            message.to_string()
+        };
+        append_target_log(state, "info", target, &message, translator).await?;
     }
     Ok(())
 }
@@ -487,45 +543,61 @@ pub(super) async fn resolve_target_ips(
             })
         }
         _ => {
+            let network_interface = normalize_network_interface(
+                target
+                    .config
+                    .get(DDNS_NETWORK_INTERFACE_FIELD)
+                    .map(String::as_str),
+            );
             let sources = settings
                 .get("publicCheckSources")
                 .map(normalize_public_check_sources)
                 .unwrap_or_else(default_public_check_sources);
-            let results = test_public_check_sources_inner(
+            let ips = detect_current_public_ips(
                 &sources,
                 settings
                     .get("httpTransport")
                     .and_then(Value::as_str)
                     .unwrap_or("curl"),
+                Some(network_interface.as_str()),
+                enable_ipv4,
+                enable_ipv6,
                 translator,
             )
-            .await?;
-            let ipv4 = if enable_ipv4 {
-                first_successful_public_ip(&results, "ipv4")
-            } else {
-                None
-            };
-            let ipv6 = if enable_ipv6 {
-                first_successful_public_ip(&results, "ipv6")
-            } else {
-                None
-            };
+            .await;
             let mut warnings = Vec::new();
-            if enable_ipv4
-                && ipv4.is_none()
-                && let Some(message) = first_public_check_error(&results, "ipv4")
-            {
-                warnings.push(ddns_text(translator, "ipv4Failed", &[("error", message)]));
+            if enable_ipv4 && let Some(message) = ips.ipv4_error.clone() {
+                warnings.push(ddns_text(
+                    translator,
+                    if ips.ipv6.is_some() {
+                        "ipv4FailedContinueIpv6"
+                    } else {
+                        "ipv4Failed"
+                    },
+                    &[("error", message)],
+                ));
+            }
+            if enable_ipv6 && let Some(message) = ips.ipv6_error.clone() {
+                warnings.push(ddns_text(
+                    translator,
+                    if ips.ipv4.is_some() {
+                        "ipv6FailedContinueIpv4"
+                    } else {
+                        "ipv6Failed"
+                    },
+                    &[("error", message)],
+                ));
             }
             if enable_ipv6
-                && ipv6.is_none()
-                && let Some(message) = first_public_check_error(&results, "ipv6")
+                && let Some(ipv6) = ips.ipv6.as_deref()
+                && let Some(warning) =
+                    public_ipv6_not_selectable_warning(&network_interface, ipv6, translator)
             {
-                warnings.push(ddns_text(translator, "ipv6Failed", &[("error", message)]));
+                warnings.push(warning);
             }
             Ok(ResolvedTargetIps {
-                ipv4,
-                ipv6,
+                ipv4: ips.ipv4,
+                ipv6: ips.ipv6,
                 source,
                 source_label: ddns_text(translator, "publicSourceLabel", &[]),
                 warnings,
@@ -533,6 +605,55 @@ pub(super) async fn resolve_target_ips(
             })
         }
     }
+}
+
+pub(super) fn public_ipv6_not_selectable_warning(
+    interface: &str,
+    ipv6: &str,
+    translator: &Translator,
+) -> Option<String> {
+    let known_ipv6_addresses = list_known_selectable_ipv6_addresses(interface);
+    public_ipv6_not_selectable_warning_from_known(&known_ipv6_addresses, ipv6, translator)
+}
+
+pub(super) fn public_ipv6_not_selectable_warning_from_known(
+    known_ipv6_addresses: &[String],
+    ipv6: &str,
+    translator: &Translator,
+) -> Option<String> {
+    if known_ipv6_addresses.is_empty() || known_ipv6_addresses.iter().any(|value| value == ipv6) {
+        return None;
+    }
+    Some(ddns_text(
+        translator,
+        "publicIpv6NotSelectable",
+        &[("ip", ipv6.to_string())],
+    ))
+}
+
+pub(super) fn list_known_selectable_ipv6_addresses(interface: &str) -> Vec<String> {
+    list_ddns_network_interfaces()
+        .into_iter()
+        .filter(|item| {
+            interface.is_empty() || item.get("name").and_then(Value::as_str) == Some(interface)
+        })
+        .flat_map(|item| {
+            item.get("selectableAddresses")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default()
+                .into_iter()
+        })
+        .filter_map(|item| {
+            (item.get("family").and_then(Value::as_str) == Some("ipv6"))
+                .then(|| {
+                    item.get("address")
+                        .and_then(Value::as_str)
+                        .map(str::to_string)
+                })
+                .flatten()
+        })
+        .collect()
 }
 
 pub(super) fn update_scope_flags(scope: &str) -> (bool, bool) {
@@ -729,25 +850,6 @@ pub(super) fn select_interface_address(
                 ],
             ))
         })
-}
-
-pub(super) fn first_successful_public_ip(results: &[Value], family: &str) -> Option<String> {
-    results
-        .iter()
-        .find(|item| {
-            item.get("family").and_then(Value::as_str) == Some(family)
-                && item.get("success").and_then(Value::as_bool) == Some(true)
-        })
-        .and_then(|item| item.get("ip").and_then(Value::as_str))
-        .map(str::to_string)
-}
-
-pub(super) fn first_public_check_error(results: &[Value], family: &str) -> Option<String> {
-    results
-        .iter()
-        .find(|item| item.get("family").and_then(Value::as_str) == Some(family))
-        .and_then(|item| item.get("error").and_then(Value::as_str))
-        .map(str::to_string)
 }
 
 pub(super) fn target_ip_unavailable_message(

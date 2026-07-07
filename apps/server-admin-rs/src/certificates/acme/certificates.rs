@@ -157,7 +157,7 @@ pub(super) async fn save_acme_issued_certificate(
         .iter()
         .find(|item| item.get("applicationId").and_then(Value::as_str) == Some(application_id))
         .cloned();
-    let now = time_utils::now_iso();
+    let now = now_node_iso();
     let mut next = Map::new();
     next.insert("applicationId".to_string(), json!(application_id));
     next.insert(

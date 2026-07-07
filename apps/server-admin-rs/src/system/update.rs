@@ -34,6 +34,8 @@ const UPDATE_PENDING_TTL_SECONDS: usize = 7 * 24 * 60 * 60;
 const UPDATE_CONFIRM_TTL_SECONDS: usize = 7 * 24 * 60 * 60;
 const UPDATE_CHECK_TIMEOUT_MS: u64 = 8_000;
 const UPDATE_DOWNLOAD_TIMEOUT_MS: u64 = 300_000;
+const DEFAULT_UPDATE_CRON: &str = "0 0 */2 * *";
+const DEFAULT_UPDATE_INTERVAL_SECONDS: u64 = 2 * 24 * 60 * 60;
 
 static UPDATE_MANAGER: OnceLock<UpdateManager> = OnceLock::new();
 
@@ -1077,7 +1079,34 @@ fn deployment_target(state: &AppState) -> String {
 }
 
 fn update_check_interval() -> Duration {
-    Duration::from_secs(2 * 60 * 60)
+    let cron = std::env::var("UPDATE_CRON").ok();
+    let interval_seconds = std::env::var("UPDATE_INTERVAL_SECONDS").ok();
+    update_check_interval_from_values(cron.as_deref(), interval_seconds.as_deref())
+}
+
+fn update_check_interval_from_values(
+    cron: Option<&str>,
+    interval_seconds: Option<&str>,
+) -> Duration {
+    let seconds = cron
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| {
+            crate::settings::parse_cron_interval_seconds(value, DEFAULT_UPDATE_INTERVAL_SECONDS)
+        })
+        .or_else(|| {
+            interval_seconds
+                .and_then(crate::node_compat::parse_i64_prefix_trim_start)
+                .and_then(|value| u64::try_from(value).ok())
+                .filter(|value| *value > 0)
+        })
+        .unwrap_or_else(|| {
+            crate::settings::parse_cron_interval_seconds(
+                DEFAULT_UPDATE_CRON,
+                DEFAULT_UPDATE_INTERVAL_SECONDS,
+            )
+        })
+        .max(60);
+    Duration::from_secs(seconds)
 }
 
 #[cfg(test)]
@@ -1090,6 +1119,26 @@ mod tests {
         assert_eq!(compare_version("1.8.6", "1.8.6"), 0);
         assert_eq!(compare_version("1.8.6-beta", "1.8.7"), -1);
         assert_eq!(compare_version("v1.8.8", "1.8.8"), 0);
+    }
+
+    #[test]
+    fn update_check_interval_matches_node_cron_defaults() {
+        assert_eq!(
+            update_check_interval_from_values(None, None).as_secs(),
+            2 * 24 * 3600
+        );
+        assert_eq!(
+            update_check_interval_from_values(Some("0 0 */2 * *"), Some("7200")).as_secs(),
+            2 * 24 * 3600
+        );
+        assert_eq!(
+            update_check_interval_from_values(Some("0 */6 * * *"), None).as_secs(),
+            6 * 3600
+        );
+        assert_eq!(
+            update_check_interval_from_values(None, Some("7200")).as_secs(),
+            7200
+        );
     }
 
     #[test]

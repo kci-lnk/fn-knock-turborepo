@@ -167,6 +167,7 @@ pub fn start_whitelist_tasks(state: AppState) {
     tokio::spawn(async move {
         let mut ticker = time::interval(std::time::Duration::from_secs(60));
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        ticker.tick().await;
         loop {
             ticker.tick().await;
             if let Err(error) = run_whitelist_maintenance_once(&maintenance_state).await {
@@ -177,6 +178,7 @@ pub fn start_whitelist_tasks(state: AppState) {
     tokio::spawn(async move {
         let mut ticker = time::interval(std::time::Duration::from_secs(2 * 60));
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        ticker.tick().await;
         loop {
             ticker.tick().await;
             sync_reverse_proxy_trusted_ips(&state).await;
@@ -1057,6 +1059,19 @@ pub async fn sync_reverse_proxy_trusted_ips(state: &AppState) {
                 .go_backend
                 .set_reverse_proxy_throttle_exempt_ips(&gateway_payload)
                 .await
+                .and_then(|value| {
+                    if crate::go_backend::response_success(&value) {
+                        Ok(value)
+                    } else {
+                        anyhow::bail!(
+                            "{}",
+                            crate::go_backend::response_message(
+                                &value,
+                                "Failed to sync reverse proxy trusted IP runtime",
+                            )
+                        )
+                    }
+                })
             {
                 tracing::warn!(%error, "failed to sync reverse proxy trusted IP runtime to Go backend");
             }

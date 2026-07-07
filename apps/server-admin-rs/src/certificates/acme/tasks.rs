@@ -1,5 +1,8 @@
 use super::*;
 
+const DEFAULT_ACME_RENEW_CRON: &str = "0 */6 * * *";
+const DEFAULT_ACME_RENEW_INTERVAL_SECONDS: u64 = 6 * 60 * 60;
+
 pub(super) async fn run_acme_auto_renew_once(state: AppState) -> anyhow::Result<()> {
     let acquired = state
         .redis
@@ -218,13 +221,34 @@ pub(super) async fn wait_for_acme_job_completion(
 }
 
 pub(super) fn acme_renew_interval() -> std::time::Duration {
-    std::time::Duration::from_secs(
-        env::var("ACME_RENEW_INTERVAL_SECONDS")
-            .ok()
-            .and_then(|value| value.parse::<u64>().ok())
-            .unwrap_or(6 * 60 * 60)
-            .clamp(60, 7 * 24 * 60 * 60),
-    )
+    let cron = env::var("ACME_RENEW_CRON").ok();
+    let interval_seconds = env::var("ACME_RENEW_INTERVAL_SECONDS").ok();
+    acme_renew_interval_from_values(cron.as_deref(), interval_seconds.as_deref())
+}
+
+pub(super) fn acme_renew_interval_from_values(
+    cron: Option<&str>,
+    interval_seconds: Option<&str>,
+) -> std::time::Duration {
+    let seconds = cron
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| {
+            crate::settings::parse_cron_interval_seconds(value, DEFAULT_ACME_RENEW_INTERVAL_SECONDS)
+        })
+        .or_else(|| {
+            interval_seconds
+                .and_then(crate::node_compat::parse_i64_prefix_trim_start)
+                .and_then(|value| u64::try_from(value).ok())
+                .filter(|value| *value > 0)
+        })
+        .unwrap_or_else(|| {
+            crate::settings::parse_cron_interval_seconds(
+                DEFAULT_ACME_RENEW_CRON,
+                DEFAULT_ACME_RENEW_INTERVAL_SECONDS,
+            )
+        })
+        .clamp(60, 7 * 24 * 60 * 60);
+    std::time::Duration::from_secs(seconds)
 }
 
 pub(super) fn acme_renew_days() -> i64 {

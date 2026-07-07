@@ -260,7 +260,7 @@ pub(super) async fn waf_drain_interval_seconds(state: &AppState) -> u64 {
                 .and_then(Value::as_i64)
         })
         .unwrap_or(2)
-        .clamp(1, 3600) as u64
+        .clamp(1, 60) as u64
 }
 
 pub(super) async fn set_waf_rule_enabled(

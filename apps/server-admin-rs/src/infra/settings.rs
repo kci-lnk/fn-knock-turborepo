@@ -236,7 +236,7 @@ fn parse_int_prefix_like_node(value: &str) -> Option<i64> {
     crate::node_compat::parse_i64_prefix_trim_start(value)
 }
 
-fn parse_cron_interval_seconds(value: &str, fallback: u64) -> u64 {
+pub(crate) fn parse_cron_interval_seconds(value: &str, fallback: u64) -> u64 {
     let trimmed = value.trim();
     if let Some(seconds) = parse_duration_seconds(trimmed) {
         return seconds.max(1);
@@ -244,25 +244,55 @@ fn parse_cron_interval_seconds(value: &str, fallback: u64) -> u64 {
 
     let fields = trimmed.split_whitespace().collect::<Vec<_>>();
     match fields.as_slice() {
-        [seconds, ..] if fields.len() == 6 => {
+        [seconds, minutes, hours, day_of_month, ..] if fields.len() == 6 => {
             if let Some(value) = parse_every_field(seconds) {
                 return value.max(1);
             }
-        }
-        [minutes, ..] if fields.len() == 5 => {
-            if let Some(value) = parse_every_field(minutes) {
-                return value.saturating_mul(60).max(60);
-            }
-            if *minutes == "0" {
-                if let Some(hours) = fields.get(1).and_then(|field| parse_every_field(field)) {
-                    return hours.saturating_mul(3600).max(3600);
+            if *seconds == "0" {
+                if let Some(value) =
+                    interval_from_minute_hour_day(minutes, hours, Some(*day_of_month))
+                {
+                    return value;
                 }
-                return 3600;
+            }
+        }
+        [minutes, hours, day_of_month, ..] if fields.len() == 5 => {
+            if let Some(value) = interval_from_minute_hour_day(minutes, hours, Some(*day_of_month))
+            {
+                return value;
             }
         }
         _ => {}
     }
     fallback.max(1)
+}
+
+fn interval_from_minute_hour_day(
+    minutes: &str,
+    hours: &str,
+    day_of_month: Option<&str>,
+) -> Option<u64> {
+    if let Some(value) = parse_every_field(minutes) {
+        return Some(value.saturating_mul(60).max(60));
+    }
+    if !is_fixed_cron_field(minutes) {
+        return None;
+    }
+
+    if let Some(value) = parse_every_field(hours) {
+        return Some(value.saturating_mul(3600).max(3600));
+    }
+    if hours == "*" {
+        return Some(3600);
+    }
+    if !is_fixed_cron_field(hours) {
+        return None;
+    }
+
+    if let Some(value) = day_of_month.and_then(parse_every_field) {
+        return Some(value.saturating_mul(24 * 3600).max(24 * 3600));
+    }
+    Some(24 * 3600)
 }
 
 fn parse_duration_seconds(value: &str) -> Option<u64> {
@@ -288,6 +318,10 @@ fn parse_every_field(value: &str) -> Option<u64> {
         .strip_prefix("*/")
         .and_then(|raw| raw.parse::<u64>().ok())
         .filter(|value| *value > 0)
+}
+
+fn is_fixed_cron_field(value: &str) -> bool {
+    value.trim().parse::<u64>().is_ok()
 }
 
 fn parse_optional_port(value: &str) -> Option<u16> {
@@ -356,6 +390,12 @@ mod tests {
         assert_eq!(parse_cron_interval_seconds("*/30 * * * * *", 1), 30);
         assert_eq!(parse_cron_interval_seconds("*/5 * * * *", 1), 300);
         assert_eq!(parse_cron_interval_seconds("0 * * * *", 1), 3600);
+        assert_eq!(parse_cron_interval_seconds("0 */6 * * *", 1), 21600);
+        assert_eq!(parse_cron_interval_seconds("0 0 */2 * *", 1), 2 * 24 * 3600);
+        assert_eq!(
+            parse_cron_interval_seconds("0 0 0 */2 * *", 1),
+            2 * 24 * 3600
+        );
         assert_eq!(parse_cron_interval_seconds("45s", 1), 45);
         assert_eq!(parse_cron_interval_seconds("2m", 1), 120);
     }

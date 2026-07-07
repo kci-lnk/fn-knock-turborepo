@@ -345,6 +345,7 @@ async fn update_dashboard_display(
 async fn run_traffic_collect_loop(state: AppState) {
     let mut ticker = interval(state.settings.traffic_collect_interval);
     ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
+    ticker.tick().await;
     loop {
         ticker.tick().await;
         if let Err(error) = collect_traffic_once(&state).await {
@@ -356,6 +357,7 @@ async fn run_traffic_collect_loop(state: AppState) {
 async fn run_traffic_cleanup_loop(state: AppState) {
     let mut ticker = interval(state.settings.traffic_cleanup_interval);
     ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
+    ticker.tick().await;
     loop {
         ticker.tick().await;
         if let Err(error) = cleanup_traffic_once(&state).await {

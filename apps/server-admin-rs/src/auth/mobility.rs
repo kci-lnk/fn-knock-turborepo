@@ -76,6 +76,7 @@ pub fn start_auth_mobility_tasks(state: AppState) {
             AUTH_MOBILITY_MAINTENANCE_INTERVAL_SECONDS,
         ));
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        ticker.tick().await;
         loop {
             ticker.tick().await;
             if let Err(error) = maintain_session_active_ips(&state).await {

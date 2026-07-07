@@ -95,6 +95,7 @@ pub fn start_ip_location_worker(state: AppState) {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(QUEUE_POLL_INTERVAL);
         interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+        interval.tick().await;
         loop {
             interval.tick().await;
             if let Err(error) = process_queue(&state).await {

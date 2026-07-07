@@ -19,6 +19,7 @@ pub fn start_system_monitor_tasks(state: AppState) {
     tokio::spawn(async move {
         let mut ticker = time::interval(system_monitor_interval());
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        ticker.tick().await;
         loop {
             ticker.tick().await;
             match state
@@ -366,13 +367,20 @@ fn parse_js_int(value: &Value) -> Option<i64> {
 }
 
 fn system_monitor_interval() -> std::time::Duration {
-    let seconds = parse_env_int_like_node(
-        std::env::var("SYSTEM_MONITOR_INTERVAL_SECONDS")
-            .ok()
-            .as_deref(),
-        5,
-    )
-    .clamp(1, 300) as u64;
+    let cron = std::env::var("SYSTEM_MONITOR_CRON").ok();
+    let interval_seconds = std::env::var("SYSTEM_MONITOR_INTERVAL_SECONDS").ok();
+    system_monitor_interval_from_values(cron.as_deref(), interval_seconds.as_deref())
+}
+
+fn system_monitor_interval_from_values(
+    cron: Option<&str>,
+    interval_seconds: Option<&str>,
+) -> std::time::Duration {
+    let seconds = cron
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| crate::settings::parse_cron_interval_seconds(value, 5) as i64)
+        .unwrap_or_else(|| parse_env_int_like_node(interval_seconds, 5))
+        .clamp(1, 300) as u64;
     std::time::Duration::from_secs(seconds)
 }
 
@@ -496,5 +504,21 @@ mod tests {
         assert_eq!(parse_env_int_like_node(Some("  +3.9"), 30), 3);
         assert_eq!(parse_env_int_like_node(Some("0x10"), 30), 0);
         assert_eq!(parse_env_int_like_node(Some("nope"), 30), 30);
+    }
+
+    #[test]
+    fn system_monitor_interval_prefers_node_cron_env() {
+        assert_eq!(
+            system_monitor_interval_from_values(Some("*/5 * * * * *"), Some("60")).as_secs(),
+            5
+        );
+        assert_eq!(
+            system_monitor_interval_from_values(Some("*/2 * * * *"), None).as_secs(),
+            120
+        );
+        assert_eq!(
+            system_monitor_interval_from_values(None, Some("60s")).as_secs(),
+            60
+        );
     }
 }

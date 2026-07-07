@@ -200,6 +200,7 @@ pub fn start_acme_tasks(state: AppState) {
     tokio::spawn(async move {
         let mut ticker = tokio_time::interval(acme_renew_interval());
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        ticker.tick().await;
         loop {
             ticker.tick().await;
             if let Err(error) = run_acme_auto_renew_once(state.clone()).await {

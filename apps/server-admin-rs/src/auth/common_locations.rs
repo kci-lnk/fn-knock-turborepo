@@ -65,6 +65,7 @@ pub fn start_common_auth_location_tasks(state: AppState) {
         }
         let mut ticker = time::interval(std::time::Duration::from_secs(5 * 60));
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        ticker.tick().await;
         loop {
             ticker.tick().await;
             if let Err(error) = rebuild_common_auth_locations_runtime_state(&state).await {

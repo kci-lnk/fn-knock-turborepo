@@ -197,6 +197,9 @@ pub fn start_waf_tasks(state: AppState) {
 
     let drain_state = state.clone();
     tokio::spawn(async move {
+        if let Err(error) = drain_waf_events_now(&drain_state).await {
+            tracing::debug!(%error, "failed to drain WAF events on boot");
+        }
         loop {
             let interval = waf_drain_interval_seconds(&drain_state).await;
             tokio_time::sleep(std::time::Duration::from_secs(interval)).await;
@@ -211,6 +214,7 @@ pub fn start_waf_tasks(state: AppState) {
             WAF_SYSTEM_RULES_AUTO_UPDATE_SECONDS,
         ));
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        ticker.tick().await;
         loop {
             ticker.tick().await;
             if let Err(error) = check_and_sync_system_waf_rules_if_needed(&state).await {

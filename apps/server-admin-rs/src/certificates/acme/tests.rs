@@ -20,6 +20,26 @@ fn normalizes_acme_application_like_node() {
 }
 
 #[test]
+fn acme_renew_interval_prefers_node_cron_env() {
+    assert_eq!(
+        acme_renew_interval_from_values(None, None).as_secs(),
+        6 * 3600
+    );
+    assert_eq!(
+        acme_renew_interval_from_values(Some("0 */6 * * *"), Some("7200")).as_secs(),
+        6 * 3600
+    );
+    assert_eq!(
+        acme_renew_interval_from_values(Some("*/30 * * * *"), None).as_secs(),
+        30 * 60
+    );
+    assert_eq!(
+        acme_renew_interval_from_values(None, Some("7200")).as_secs(),
+        7200
+    );
+}
+
+#[test]
 fn detects_issued_certificate_compatibility_by_domain_set() {
     let application = json!({
         "primaryDomain": "example.com",

@@ -88,6 +88,69 @@ fn normalizes_host_mapping_route_shape() {
 }
 
 #[test]
+fn preserves_host_location_target_path_for_gateway_payload() {
+    let mappings = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "app.example.com",
+            "target": "http://127.0.0.1:8080",
+            "locations": [
+                {
+                    "path": "/api/http",
+                    "match": "prefix",
+                    "action": "proxy",
+                    "target": " http://192.168.9.100:3043/ ",
+                    "strip_path": true,
+                    "rewrite_html": false
+                },
+                {
+                    "path": "/api/base",
+                    "match": "prefix",
+                    "action": "proxy",
+                    "target": "http://192.168.9.100:3043/base/",
+                    "strip_path": true,
+                    "rewrite_html": false
+                }
+            ]
+        })],
+        &json!({}),
+    )
+    .unwrap();
+
+    assert_eq!(
+        mappings[0]
+            .pointer("/locations/0/target")
+            .and_then(Value::as_str),
+        Some("http://192.168.9.100:3043/")
+    );
+    assert_eq!(
+        mappings[0]
+            .pointer("/locations/1/target")
+            .and_then(Value::as_str),
+        Some("http://192.168.9.100:3043/base/")
+    );
+
+    let payload = build_host_rules_payload(&mappings);
+    assert_eq!(
+        payload
+            .pointer("/0/locations/0/target")
+            .and_then(Value::as_str),
+        Some("http://192.168.9.100:3043/")
+    );
+    assert_eq!(
+        payload
+            .pointer("/0/locations/0/strip_path")
+            .and_then(Value::as_bool),
+        Some(true)
+    );
+    assert_eq!(
+        payload
+            .pointer("/0/locations/1/target")
+            .and_then(Value::as_str),
+        Some("http://192.168.9.100:3043/base/")
+    );
+}
+
+#[test]
 fn extracts_host_mapping_metadata_helpers() {
     assert!(has_basic_auth_challenge(Some(
         "Bearer token, Basic realm=\"admin\""

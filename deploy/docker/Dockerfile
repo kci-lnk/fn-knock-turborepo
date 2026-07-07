@@ -58,7 +58,7 @@ RUN apt-get update \
 
 COPY --from=admin-view-builder /workspace/apps/server-admin-view/dist/ /opt/fn-knock/ui/www/
 COPY --from=auth-view-builder /workspace/apps/server-auth-view/dist/ /opt/fn-knock/server-auth-view/dist/
-COPY apps/server-admin/resources/acmesh.zip /opt/fn-knock/server/server-admin/resources/acmesh.zip
+COPY apps/server-admin-rs/resources/acmesh.zip /opt/fn-knock/server/server-admin/resources/acmesh.zip
 COPY deploy/docker/rust-backends/ /opt/fn-knock/rust-backends/
 COPY apps/fn-knock/app/server/go-reauth-proxy-linux-amd64 /opt/fn-knock/server/go-reauth-proxy-linux-amd64
 COPY apps/fn-knock/app/server/go-reauth-proxy-linux-arm64 /opt/fn-knock/server/go-reauth-proxy-linux-arm64

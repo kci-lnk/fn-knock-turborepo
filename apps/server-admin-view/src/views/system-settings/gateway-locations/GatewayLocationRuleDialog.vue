@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +22,10 @@ import {
 import { Switch } from "@/components/ui/switch";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import ProxyTargetInputField from "@admin-shared/components/common/ProxyTargetInputField.vue";
+import {
+  buildProxyPathForwardingPreview,
+  type ProxyPathForwardingMode,
+} from "@admin-shared/utils/proxyPathForwarding";
 import { Trash2 } from "lucide-vue-next";
 import ResponseBodyEditor from "@/components/ResponseBodyEditor.vue";
 import ResponseContentTypeField from "@/components/ResponseContentTypeField.vue";
@@ -36,7 +41,7 @@ type LocationForm = Omit<HostLocation, "response"> & {
   headers: HeaderRow[];
 };
 
-defineProps<{
+const props = defineProps<{
   editingIndex: number | null;
   form: LocationForm;
   formError: string;
@@ -55,6 +60,21 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+const pathForwardingMode = computed<ProxyPathForwardingMode>({
+  get: () => (props.form.strip_path ? "strip" : "keep"),
+  set: (mode) => {
+    props.form.strip_path = mode === "strip";
+  },
+});
+
+const pathForwardingPreview = computed(() =>
+  buildProxyPathForwardingPreview({
+    routePath: props.form.path,
+    target: props.form.target,
+    mode: pathForwardingMode.value,
+  }),
+);
 </script>
 
 <template>
@@ -146,13 +166,43 @@ const { t } = useI18n();
             />
           </div>
           <div class="grid gap-3 sm:grid-cols-2">
-            <div
-              class="flex items-center justify-between gap-4 rounded-md border px-4 py-3"
-            >
-              <Label for="location-strip-path">
-                {{ t("admin.gatewayLocationsSettings.stripMatchedPath") }}
-              </Label>
-              <Switch id="location-strip-path" v-model="form.strip_path" />
+            <div class="space-y-3 rounded-md border px-4 py-3">
+              <div class="space-y-2">
+                <Label for="location-path-forwarding">
+                  {{ t("admin.gatewayLocationsSettings.pathForwarding") }}
+                </Label>
+                <Select v-model="pathForwardingMode">
+                  <SelectTrigger id="location-path-forwarding" class="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="strip">
+                      {{
+                        t("admin.gatewayLocationsSettings.pathForwardingStrip")
+                      }}
+                    </SelectItem>
+                    <SelectItem value="keep">
+                      {{
+                        t("admin.gatewayLocationsSettings.pathForwardingKeep")
+                      }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div class="space-y-1 text-xs text-muted-foreground">
+                <div class="font-medium text-foreground/80">
+                  {{ t("admin.gatewayLocationsSettings.pathPreview") }}
+                </div>
+                <div class="grid gap-1 font-mono">
+                  <span class="break-all">
+                    {{ pathForwardingPreview.requestPath }}
+                  </span>
+                  <span class="text-foreground">-&gt;</span>
+                  <span class="break-all">
+                    {{ pathForwardingPreview.upstreamPath }}
+                  </span>
+                </div>
+              </div>
             </div>
             <div
               v-if="!isProxyLocationWebSocketTarget"
@@ -225,7 +275,9 @@ const { t } = useI18n();
                       t('admin.gatewayLocationsSettings.unnamedHeader'),
                   })
                 "
-                :confirm-text="t('admin.gatewayLocationsSettings.confirmDelete')"
+                :confirm-text="
+                  t('admin.gatewayLocationsSettings.confirmDelete')
+                "
                 :on-confirm="() => emit('removeHeader', index)"
                 content-class="w-64 text-left"
               >

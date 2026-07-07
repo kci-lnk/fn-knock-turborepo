@@ -63,7 +63,7 @@ npm run lint
 
 | 路径                     | 说明                            |
 | ------------------------ | ------------------------------- |
-| `apps/server-admin`      | Node.js / Elysia 后端服务       |
+| `apps/server-admin-rs`   | Rust 管理后端服务               |
 | `apps/server-admin-view` | Vue 管理后台                    |
 | `apps/server-auth-view`  | 认证页前端                      |
 | `apps/fn-knock`          | 飞牛 FPK 打包目录               |

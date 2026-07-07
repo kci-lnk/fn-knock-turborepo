@@ -17,7 +17,7 @@
 - `compose.yaml`：本地 compose 主文件，包含 `build` 配置
 - `compose.override.yaml`：本地调试覆盖项
 - `compose.remote.yaml`：远端发布专用 compose 文件，只使用已加载镜像，不在远端构建
-- `entrypoint.sh`：在单容器内启动 Go 网关和 Node 后端
+- `entrypoint.sh`：在单容器内启动 Go 网关和 Rust 后端
 - `.env.example`：本地与远端通用的环境变量模板
 
 ## 从 Docker Hub 直接安装并运行
@@ -159,7 +159,7 @@ docker compose logs -f fn-knock
 
 - `7991`：管理后台入口。首次访问会进入 Docker 管理面板密码设置流程
 - `7999`：网关 / 代理入口。最终用户访问代理服务时通常使用这个端口
-- `7998`：Node 后端内部端口，不对宿主机暴露
+- `7998`：Rust 后端内部端口，不对宿主机暴露
 - `7997`：认证前端内部端口，不对宿主机暴露
 - `7996`：Go 后端内部端口，不对宿主机暴露
 - `6379`：Redis 仅在 compose 内部使用，不对宿主机暴露
@@ -323,7 +323,7 @@ location.reload();
 
 行为说明：
 
-- 该调试方式只覆盖 `apps/server-admin-view` 的前端判断，不会修改 Node 后端的真实 `deployment_target`
+- 该调试方式只覆盖 `apps/server-admin-view` 的前端判断，不会修改 Rust 后端的真实 `deployment_target`
 - 开启后，前端会按 Docker 模式展示对应的能力限制，例如禁用直连模式、宿主机防火墙能力、Smart Connect 等
 - 当阶段为 `setup` 时，前端提交成功的密码会自动保存到 `fn_knock:debug:docker-admin-password`
 - 当阶段为 `login` 时，前端会使用 `fn_knock:debug:docker-admin-password` 作为本地校验密码

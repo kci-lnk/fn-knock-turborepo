@@ -1054,6 +1054,10 @@ export const enAdmin = {
     ruleDialogDescription:
       "This rule inherits the current Host's login, whitelist, Host response, and credential injection settings.",
     stripMatchedPath: "Strip matched path",
+    pathForwarding: "Forwarded path",
+    pathForwardingStrip: "Strip matched path",
+    pathForwardingKeep: "Keep full path",
+    pathPreview: "Path preview",
     rewriteHtmlPath: "Rewrite HTML paths",
     statusCode: "Status code",
     responseHeaders: "Response headers",

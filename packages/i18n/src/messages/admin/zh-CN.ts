@@ -978,6 +978,10 @@ export const zhCNAdmin = {
     ruleDialogDescription:
       "这条规则会继承当前 Host 的登录、白名单、Host 响应和凭证注入设置。",
     stripMatchedPath: "剥离匹配路径",
+    pathForwarding: "转发路径",
+    pathForwardingStrip: "剥离匹配路径",
+    pathForwardingKeep: "保留完整路径",
+    pathPreview: "路径预览",
     rewriteHtmlPath: "改写 HTML 路径",
     statusCode: "状态码",
     responseHeaders: "响应头",

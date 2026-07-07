@@ -16,7 +16,7 @@ SERVER_DIR="${OUTPUT_DIR}/server"
 SERVER_ADMIN_DIR="${SERVER_DIR}/server-admin"
 SERVER_ADMIN_RES_DIR="${SERVER_ADMIN_DIR}/resources"
 SERVER_ADMIN_RS_BIN="${SERVER_DIR}/server-admin-rs"
-ACME_RESOURCE_SRC="${ROOT_DIR}/apps/server-admin/resources/acmesh.zip"
+ACME_RESOURCE_SRC="${ROOT_DIR}/apps/server-admin-rs/resources/acmesh.zip"
 
 case "${BACKEND_IMPL}" in
   rust) ;;

@@ -149,7 +149,7 @@ return view.extend({
 		addPortOption(s, 'admin_view_port', '管理后台端口', '7991', '从 LuCI 打开敲门 Knock 管理后台时使用的公网 Web 端口。');
 		addPortOption(s, 'go_reproxy_port', '网关代理端口', '7999', 'Go 网关对外提供服务的代理端口。');
 
-		addPortOption(s, 'backend_port', '内部后端 API 端口', '17998', '绑定到 127.0.0.1 的内部 Node 后端 API 端口。');
+		addPortOption(s, 'backend_port', '内部后端 API 端口', '17998', '绑定到 127.0.0.1 的内部 Rust 后端 API 端口。');
 		addPortOption(s, 'auth_port', '认证服务端口', '7997', '绑定到 127.0.0.1 的内部认证服务端口。');
 		addPortOption(s, 'go_backend_port', '网关管理 API 端口', '7996', '绑定到 127.0.0.1 的内部 Go 网关管理 API 端口。');
 

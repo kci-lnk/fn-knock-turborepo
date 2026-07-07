@@ -985,6 +985,10 @@ export const zhHantAdmin = {
     ruleDialogDescription:
       "這條規則會繼承當前 Host 的登入、白名單、Host 響應和憑證注入設定。",
     stripMatchedPath: "剝離匹配路徑",
+    pathForwarding: "轉發路徑",
+    pathForwardingStrip: "剝離匹配路徑",
+    pathForwardingKeep: "保留完整路徑",
+    pathPreview: "路徑預覽",
     rewriteHtmlPath: "改寫 HTML 路徑",
     statusCode: "狀態碼",
     responseHeaders: "響應頭",

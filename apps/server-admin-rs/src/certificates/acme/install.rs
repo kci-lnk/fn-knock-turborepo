@@ -331,7 +331,7 @@ pub(super) fn resolve_bundled_acme_zip_path() -> Option<PathBuf> {
     if let Ok(cwd) = env::current_dir() {
         candidates.extend([
             cwd.join("resources/acmesh.zip"),
-            cwd.join("apps/server-admin/resources/acmesh.zip"),
+            cwd.join("apps/server-admin-rs/resources/acmesh.zip"),
             cwd.join("server/server-admin/resources/acmesh.zip"),
         ]);
     }

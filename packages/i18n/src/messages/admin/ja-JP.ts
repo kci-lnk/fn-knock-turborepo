@@ -1074,6 +1074,10 @@ export const jaJPAdmin = {
     ruleDialogDescription:
       "このルールは、現在のホストのログイン、ホワイトリスト、ホストの応答、および資格情報の挿入設定を継承します。",
     stripMatchedPath: "一致するパスを削除します",
+    pathForwarding: "転送パス",
+    pathForwardingStrip: "一致パスを削除",
+    pathForwardingKeep: "完全なパスを保持",
+    pathPreview: "パスプレビュー",
     rewriteHtmlPath: "HTML パスを書き換えます",
     statusCode: "ステータスコード",
     responseHeaders: "レスポンスヘッダー",

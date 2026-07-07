@@ -1047,6 +1047,10 @@ export const koKRAdmin = {
     ruleDialogDescription:
       "이 규칙은 현재 호스트의 로그인, 화이트리스트, 호스트 응답 및 자격 증명 주입 설정을 상속합니다.",
     stripMatchedPath: "스트립 일치 경로",
+    pathForwarding: "전달 경로",
+    pathForwardingStrip: "일치 경로 제거",
+    pathForwardingKeep: "전체 경로 유지",
+    pathPreview: "경로 미리보기",
     rewriteHtmlPath: "HTML 경로 다시 작성",
     statusCode: "상태 코드",
     responseHeaders: "응답 헤더",

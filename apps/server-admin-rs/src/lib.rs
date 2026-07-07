@@ -36,8 +36,8 @@ pub(crate) use discovery::{ip_location, ip_location_config, scan_assets, scanner
 pub(crate) use events as system_events;
 pub(crate) use gateway::{logs as gateway_logs, proxy_config, settings as gateway_settings};
 pub(crate) use infra::{
-    app_version, go_backend, i18n, openapi_docs, response, runtime_profile, settings, state,
-    static_files,
+    app_version, go_backend, i18n, memory, openapi_docs, response, runtime_profile, settings,
+    state, static_files,
 };
 pub(crate) use security::{
     general_blacklist, overview as security_overview, ssh as ssh_security, whitelist,

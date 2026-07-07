@@ -4,6 +4,7 @@ const DEFAULT_TOKIO_WORKER_THREADS: usize = 2;
 const MAX_TOKIO_WORKER_THREADS: usize = 64;
 
 fn main() -> anyhow::Result<()> {
+    configure_allocator_for_low_memory();
     tokio::runtime::Builder::new_multi_thread()
         .worker_threads(tokio_worker_threads())
         .enable_all()
@@ -25,3 +26,19 @@ fn default_tokio_worker_threads() -> usize {
         .map(|value| value.get().min(DEFAULT_TOKIO_WORKER_THREADS))
         .unwrap_or(DEFAULT_TOKIO_WORKER_THREADS)
 }
+
+#[cfg(all(target_os = "linux", target_env = "gnu"))]
+fn configure_allocator_for_low_memory() {
+    // server-admin-rs is latency-light but memory-sensitive on NAS targets.
+    // Keep glibc from creating large per-thread arenas and return bursty startup
+    // allocations to the kernel more eagerly.
+    unsafe {
+        libc::mallopt(libc::M_ARENA_MAX, 1);
+        libc::mallopt(libc::M_TRIM_THRESHOLD, 128 * 1024);
+        libc::mallopt(libc::M_MMAP_THRESHOLD, 128 * 1024);
+        libc::mallopt(libc::M_TOP_PAD, 0);
+    }
+}
+
+#[cfg(not(all(target_os = "linux", target_env = "gnu")))]
+fn configure_allocator_for_low_memory() {}

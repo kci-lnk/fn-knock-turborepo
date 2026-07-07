@@ -119,12 +119,15 @@ pub(crate) async fn sync_waf_config_to_gateway(
 }
 
 pub(super) async fn sync_waf_on_boot(state: &AppState) -> anyhow::Result<()> {
-    ensure_waf_directories(state).await?;
     let config = load_waf_config(state).await?;
-    if config
+    let enabled = config
         .get("enabled")
         .and_then(Value::as_bool)
-        .unwrap_or(false)
+        .unwrap_or(false);
+    if enabled {
+        ensure_waf_directories(state).await?;
+    }
+    if enabled
         && config
             .get("system_rules_auto_update_enabled")
             .and_then(Value::as_bool)
@@ -148,7 +151,6 @@ pub(super) async fn sync_waf_on_boot(state: &AppState) -> anyhow::Result<()> {
 pub(super) async fn check_and_sync_system_waf_rules_if_needed(
     state: &AppState,
 ) -> anyhow::Result<Value> {
-    ensure_waf_directories(state).await?;
     let checked_at = time_utils::now_iso();
     let config = load_waf_config(state).await?;
     if !config
@@ -173,6 +175,7 @@ pub(super) async fn check_and_sync_system_waf_rules_if_needed(
             "skipped_reason": "disabled",
         }));
     }
+    ensure_waf_directories(state).await?;
     if !state
         .redis
         .set_lock_if_not_exists(
@@ -413,6 +416,18 @@ pub(super) async fn delete_custom_waf_rule(
 
 pub(super) async fn drain_waf_events_now(state: &AppState) -> anyhow::Result<Value> {
     let config = load_waf_config(state).await?;
+    if !config
+        .get("enabled")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        return Ok(json!({
+            "drained": 0,
+            "remaining": 0,
+            "skipped_reason": "waf_disabled",
+        }));
+    }
+
     let response = state
         .go_backend
         .drain_waf_events(DEFAULT_DRAIN_LIMIT)

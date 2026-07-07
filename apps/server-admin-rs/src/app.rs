@@ -1,4 +1,4 @@
-use std::env;
+use std::{env, time::Duration};
 
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -22,6 +22,7 @@ use crate::{
     frpc::start_frpc_tasks,
     i18n::{DEFAULT_LOCALE, Translator},
     ip_location::start_ip_location_worker,
+    memory,
     notifications::start_notification_tasks,
     runtime_profile,
     settings::Settings,
@@ -90,6 +91,7 @@ pub async fn run() -> anyhow::Result<()> {
     start_ssh_security_tasks(state.clone());
     start_cloudflared_tasks(state.clone());
     start_frpc_tasks(state.clone());
+    memory::trim_allocated_memory_after(Duration::from_secs(45));
 
     let backend_addr = settings.backend_addr()?;
     let auth_addr = settings.auth_addr()?;

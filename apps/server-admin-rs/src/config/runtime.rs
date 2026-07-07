@@ -207,7 +207,7 @@ pub(crate) async fn sync_runtime_config_on_boot(state: AppState) {
         tracing::warn!(%error, "failed to sync WAF config on boot");
     }
 
-    if let Err(error) = sync_smart_connect(&state, &config).await {
+    if let Err(error) = sync_smart_connect_on_boot(&state, &config).await {
         tracing::warn!(%error, "failed to sync smart connect on boot");
     }
 

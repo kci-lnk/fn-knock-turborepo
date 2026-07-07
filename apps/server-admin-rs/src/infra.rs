@@ -1,6 +1,7 @@
 pub(crate) mod app_version;
 pub(crate) mod go_backend;
 pub(crate) mod i18n;
+pub(crate) mod memory;
 pub(crate) mod openapi_docs;
 pub(crate) mod response;
 pub(crate) mod runtime_profile;

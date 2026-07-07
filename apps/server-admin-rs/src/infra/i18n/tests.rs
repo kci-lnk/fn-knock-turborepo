@@ -160,6 +160,36 @@ fn generated_catalog_wins_for_non_clock_runtime_messages() {
 }
 
 #[test]
+fn generated_catalog_serves_non_static_messages() {
+    let translator = Translator::new("en");
+    assert_eq!(translator.t("server.apiPathNotFound"), "API path not found");
+}
+
+#[test]
+fn locale_catalog_loader_extracts_requested_language_branch() {
+    assert_eq!(
+        load_locale_catalog("zh-Hant").message("acmeRoutes.certNotFound"),
+        Some("證書不存在")
+    );
+    assert_eq!(
+        load_locale_catalog("zh-Hant").message("apiPathNotFound"),
+        Some("接口不存在")
+    );
+    assert!(load_locale_catalog("missing").entries.is_empty());
+}
+
+#[test]
+fn locale_catalog_borrows_static_message_values() {
+    let catalog = load_locale_catalog("en");
+    let borrowed = catalog
+        .entries
+        .iter()
+        .filter(|(_, message)| matches!(message, std::borrow::Cow::Borrowed(_)))
+        .count();
+    assert!(borrowed > catalog.entries.len() / 2);
+}
+
+#[test]
 fn system_clock_messages_use_static_fast_path() {
     let translator = Translator::new("ko-KR");
     assert_eq!(

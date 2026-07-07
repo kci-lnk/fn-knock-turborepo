@@ -22,7 +22,7 @@ use tokio::time;
 use crate::{
     app_version::{APP_GITHUB_URL, APP_LOCAL_VERSION},
     i18n::Translator,
-    response, runtime_profile,
+    memory, response, runtime_profile,
     state::AppState,
     system_events, time_utils,
 };
@@ -38,6 +38,84 @@ const DEFAULT_UPDATE_CRON: &str = "0 0 */2 * *";
 const DEFAULT_UPDATE_INTERVAL_SECONDS: u64 = 2 * 24 * 60 * 60;
 
 static UPDATE_MANAGER: OnceLock<UpdateManager> = OnceLock::new();
+
+#[derive(Debug, PartialEq, Eq)]
+enum ManifestError {
+    FormatInvalid,
+    MissingVersion,
+    MissingUpdateAvailable,
+    MissingForceUpdate,
+    MissingDownloadUrl,
+    Arm64FieldsIncomplete,
+    FieldInvalid(String),
+}
+
+impl ManifestError {
+    fn localized(&self, translator: &Translator) -> String {
+        match self {
+            Self::FormatInvalid => update_manager_text(translator, "manifestFormatInvalid"),
+            Self::MissingVersion => update_manager_text(translator, "manifestMissingVersion"),
+            Self::MissingUpdateAvailable => {
+                update_manager_text(translator, "manifestMissingUpdateAvailable")
+            }
+            Self::MissingForceUpdate => {
+                update_manager_text(translator, "manifestMissingForceUpdate")
+            }
+            Self::MissingDownloadUrl => {
+                update_manager_text(translator, "manifestMissingDownloadUrl")
+            }
+            Self::Arm64FieldsIncomplete => {
+                update_manager_text(translator, "manifestArm64FieldsIncomplete")
+            }
+            Self::FieldInvalid(field) => update_manager_text_params(
+                translator,
+                "manifestFieldInvalid",
+                &[("field", field.clone())],
+            ),
+        }
+    }
+
+    fn fallback(&self) -> String {
+        match self {
+            Self::FormatInvalid => "update manifest format is invalid".to_string(),
+            Self::MissingVersion => "update manifest is missing version".to_string(),
+            Self::MissingUpdateAvailable => {
+                "update manifest is missing update_available".to_string()
+            }
+            Self::MissingForceUpdate => "update manifest is missing force_update".to_string(),
+            Self::MissingDownloadUrl => "update manifest is missing download_url".to_string(),
+            Self::Arm64FieldsIncomplete => {
+                "update manifest arm64 package fields are incomplete".to_string()
+            }
+            Self::FieldInvalid(field) => format!("update manifest field {field} is invalid"),
+        }
+    }
+}
+
+#[derive(Debug)]
+enum UpdateCheckError {
+    Message(String),
+    HttpStatus(u16),
+    Manifest(ManifestError),
+}
+
+impl UpdateCheckError {
+    fn message(&self, translator: Option<&Translator>) -> String {
+        match (self, translator) {
+            (Self::Message(message), _) => message.clone(),
+            (Self::HttpStatus(status), Some(translator)) => update_manager_text_params(
+                translator,
+                "checkHttpFailed",
+                &[("status", status.to_string())],
+            ),
+            (Self::HttpStatus(status), None) => {
+                format!("update check failed with HTTP status {status}")
+            }
+            (Self::Manifest(error), Some(translator)) => error.localized(translator),
+            (Self::Manifest(error), None) => error.fallback(),
+        }
+    }
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct OtaManifest {
@@ -145,7 +223,10 @@ pub fn start_update_tasks(state: AppState) {
         if let Err(error) = update_manager.ensure_confirm_by_pending(&state).await {
             tracing::warn!(%error, "failed to prepare update confirmation on boot");
         }
-        if let Err(error) = update_manager.check_now(state.clone(), "startup").await {
+        if let Err(error) = update_manager
+            .check_now_background(state.clone(), "startup")
+            .await
+        {
             tracing::warn!(%error, "startup update check failed");
         }
 
@@ -159,7 +240,10 @@ pub fn start_update_tasks(state: AppState) {
                 .await
             {
                 Ok(true) => {
-                    if let Err(error) = manager(&state).check_now(state.clone(), "cron").await {
+                    if let Err(error) = manager(&state)
+                        .check_now_background(state.clone(), "cron")
+                        .await
+                    {
                         tracing::warn!(%error, "scheduled update check failed");
                     }
                 }
@@ -187,7 +271,7 @@ async fn status(State(state): State<AppState>) -> Response {
 
 async fn check(State(state): State<AppState>) -> Response {
     let manager = manager(&state);
-    if let Err(error) = manager.check_now(state.clone(), "manual").await {
+    if let Err(error) = manager.check_now_localized(state.clone(), "manual").await {
         tracing::warn!(%error, "manual update check failed");
     }
     status(State(state)).await
@@ -248,7 +332,7 @@ async fn check_and_download(State(state): State<AppState>) -> Response {
     }
     let manager = manager(&state);
     if let Err(error) = manager
-        .check_now(state.clone(), "manual-check-and-download")
+        .check_now_localized(state.clone(), "manual-check-and-download")
         .await
     {
         tracing::warn!(%error, "check-and-download update check failed");
@@ -326,7 +410,20 @@ impl UpdateManager {
         }))
     }
 
-    async fn check_now(&self, state: AppState, reason: &str) -> anyhow::Result<()> {
+    async fn check_now_background(&self, state: AppState, reason: &str) -> anyhow::Result<()> {
+        self.check_now(state, reason, false).await
+    }
+
+    async fn check_now_localized(&self, state: AppState, reason: &str) -> anyhow::Result<()> {
+        self.check_now(state, reason, true).await
+    }
+
+    async fn check_now(
+        &self,
+        state: AppState,
+        reason: &str,
+        localize_errors: bool,
+    ) -> anyhow::Result<()> {
         let should_run = {
             let mut inner = self.inner.lock().unwrap();
             if inner.check_in_progress {
@@ -346,15 +443,22 @@ impl UpdateManager {
             }
         }
 
-        let result = self.check_now_inner(&state, reason).await;
-        let mut inner = self.inner.lock().unwrap();
-        inner.check_in_progress = false;
+        let result = self.check_now_inner(&state, reason, localize_errors).await;
+        {
+            let mut inner = self.inner.lock().unwrap();
+            inner.check_in_progress = false;
+        }
+        memory::trim_allocated_memory();
         result
     }
 
-    async fn check_now_inner(&self, state: &AppState, reason: &str) -> anyhow::Result<()> {
-        let translator = Translator::from_state(state).await;
-        match self.fetch_manifest(&translator).await {
+    async fn check_now_inner(
+        &self,
+        state: &AppState,
+        reason: &str,
+        localize_errors: bool,
+    ) -> anyhow::Result<()> {
+        match self.fetch_manifest().await {
             Ok(manifest) => {
                 let previous = {
                     let inner = self.inner.lock().unwrap();
@@ -363,6 +467,7 @@ impl UpdateManager {
                 let has_update = manifest.update_available
                     && compare_version(&manifest.version, APP_LOCAL_VERSION) > 0;
                 if has_update {
+                    let translator = Translator::from_state(state).await;
                     self.resolve_manifest_package(&manifest, &translator)
                         .map_err(anyhow::Error::msg)?;
                 }
@@ -421,6 +526,12 @@ impl UpdateManager {
                 }
             }
             Err(error) => {
+                let translator = if localize_errors {
+                    Some(Translator::from_state(state).await)
+                } else {
+                    None
+                };
+                let error = error.message(translator.as_ref());
                 let mut inner = self.inner.lock().unwrap();
                 inner.check_error = Some(error.clone());
                 inner.last_checked_at = Some(time_utils::now_ms());
@@ -441,7 +552,9 @@ impl UpdateManager {
             }
         }
         if self.inner.lock().unwrap().latest_manifest.is_none() {
-            let _ = self.check_now(state.clone(), "download-bootstrap").await;
+            let _ = self
+                .check_now_localized(state.clone(), "download-bootstrap")
+                .await;
         }
         let (manifest, target_package, target_path) = {
             let inner = self.inner.lock().unwrap();
@@ -579,11 +692,13 @@ impl UpdateManager {
         Ok(())
     }
 
-    async fn fetch_manifest(&self, translator: &Translator) -> Result<OtaManifest, String> {
-        let mut url = url::Url::parse(OTA_LATEST_URL).map_err(|error| error.to_string())?;
+    async fn fetch_manifest(&self) -> Result<OtaManifest, UpdateCheckError> {
+        let mut url = url::Url::parse(OTA_LATEST_URL)
+            .map_err(|error| UpdateCheckError::Message(error.to_string()))?;
         url.query_pairs_mut()
             .append_pair("t", &time_utils::now_ms().to_string());
-        let client = update_http_client(UPDATE_CHECK_TIMEOUT_MS)?;
+        let client =
+            update_http_client(UPDATE_CHECK_TIMEOUT_MS).map_err(UpdateCheckError::Message)?;
         let response = client
             .get(url)
             .header(reqwest::header::ACCEPT, "application/json")
@@ -591,17 +706,13 @@ impl UpdateManager {
             .header(reqwest::header::PRAGMA, "no-cache")
             .send()
             .await
-            .map_err(|error| error.to_string())?;
+            .map_err(|error| UpdateCheckError::Message(error.to_string()))?;
         let status = response.status();
         if !status.is_success() {
-            return Err(update_manager_text_params(
-                translator,
-                "checkHttpFailed",
-                &[("status", status.as_u16().to_string())],
-            ));
+            return Err(UpdateCheckError::HttpStatus(status.as_u16()));
         }
         let payload = response.json::<Value>().await.unwrap_or(Value::Null);
-        parse_manifest(&payload, translator)
+        parse_manifest_raw(&payload).map_err(UpdateCheckError::Manifest)
     }
 
     async fn download_internal(
@@ -855,43 +966,40 @@ fn is_valid_confirm_payload(payload: &Value) -> bool {
         .is_some_and(|version| !version.trim().is_empty())
 }
 
+#[cfg(test)]
 fn parse_manifest(value: &Value, translator: &Translator) -> Result<OtaManifest, String> {
+    parse_manifest_raw(value).map_err(|error| error.localized(translator))
+}
+
+fn parse_manifest_raw(value: &Value) -> Result<OtaManifest, ManifestError> {
     let Some(object) = value.as_object() else {
-        return Err(update_manager_text(translator, "manifestFormatInvalid"));
+        return Err(ManifestError::FormatInvalid);
     };
 
     let version = manifest_string(object, "version");
     let update_available = object.get("update_available").and_then(Value::as_bool);
     let force_update = object.get("force_update").and_then(Value::as_bool);
     let download_url = manifest_string(object, "download_url");
-    let sha256 = ensure_sha256(&manifest_string(object, "sha256"), "sha256", translator)?;
+    let sha256 = ensure_sha256_raw(&manifest_string(object, "sha256"), "sha256")?;
     let download_url_arm64 = manifest_string(object, "download_url_arm64");
     let sha256_arm64_raw = manifest_string(object, "sha256_arm64");
     let release_notes = manifest_raw_string(object, "release_notes");
 
     if version.is_empty() {
-        return Err(update_manager_text(translator, "manifestMissingVersion"));
+        return Err(ManifestError::MissingVersion);
     }
-    let update_available = update_available
-        .ok_or_else(|| update_manager_text(translator, "manifestMissingUpdateAvailable"))?;
-    let force_update = force_update
-        .ok_or_else(|| update_manager_text(translator, "manifestMissingForceUpdate"))?;
+    let update_available = update_available.ok_or(ManifestError::MissingUpdateAvailable)?;
+    let force_update = force_update.ok_or(ManifestError::MissingForceUpdate)?;
     if download_url.is_empty() {
-        return Err(update_manager_text(
-            translator,
-            "manifestMissingDownloadUrl",
-        ));
+        return Err(ManifestError::MissingDownloadUrl);
     }
     if download_url_arm64.is_empty() != sha256_arm64_raw.is_empty() {
-        return Err(update_manager_text(
-            translator,
-            "manifestArm64FieldsIncomplete",
-        ));
+        return Err(ManifestError::Arm64FieldsIncomplete);
     }
     let sha256_arm64 = if sha256_arm64_raw.is_empty() {
         String::new()
     } else {
-        ensure_sha256(&sha256_arm64_raw, "sha256_arm64", translator)?
+        ensure_sha256_raw(&sha256_arm64_raw, "sha256_arm64")?
     };
 
     Ok(OtaManifest {
@@ -923,16 +1031,17 @@ fn manifest_raw_string(object: &serde_json::Map<String, Value>, key: &str) -> St
         .unwrap_or_default()
 }
 
+#[cfg(test)]
 fn ensure_sha256(value: &str, field: &str, translator: &Translator) -> Result<String, String> {
+    ensure_sha256_raw(value, field).map_err(|error| error.localized(translator))
+}
+
+fn ensure_sha256_raw(value: &str, field: &str) -> Result<String, ManifestError> {
     let normalized = value.trim().to_ascii_lowercase();
     if normalized.len() == 64 && normalized.chars().all(|ch| ch.is_ascii_hexdigit()) {
         Ok(normalized)
     } else {
-        Err(update_manager_text_params(
-            translator,
-            "manifestFieldInvalid",
-            &[("field", field.to_string())],
-        ))
+        Err(ManifestError::FieldInvalid(field.to_string()))
     }
 }
 

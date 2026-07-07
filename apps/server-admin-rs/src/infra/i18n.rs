@@ -1,5 +1,6 @@
-use std::sync::OnceLock;
+use std::{borrow::Cow, sync::OnceLock};
 
+use serde::de::{DeserializeSeed, IgnoredAny, MapAccess, SeqAccess, Visitor};
 use serde_json::Value;
 
 use crate::state::AppState;
@@ -85,26 +86,29 @@ fn raw_to_static(value: &str) -> &'static str {
 }
 
 fn translate(locale: &str, key: &str, params: &[(&str, String)]) -> String {
-    let template = message_template(locale, key).unwrap_or_else(|| key.to_string());
-    interpolate(&template, params)
+    let template = message_template(locale, key).unwrap_or(key);
+    interpolate(template, params)
 }
 
-fn message_template(locale: &str, key: &str) -> Option<String> {
+fn message_template(locale: &str, key: &str) -> Option<&'static str> {
     if key.starts_with("server.systemClock.") {
         return message_for(locale, key)
-            .map(str::to_string)
             .or_else(|| generated_message_for(locale, key))
-            .or_else(|| message_for(DEFAULT_LOCALE, key).map(str::to_string))
+            .or_else(|| message_for(DEFAULT_LOCALE, key))
             .or_else(|| generated_message_for(DEFAULT_LOCALE, key));
     }
 
     generated_message_for(locale, key)
         .or_else(|| generated_message_for(DEFAULT_LOCALE, key))
-        .or_else(|| message_for(locale, key).map(str::to_string))
-        .or_else(|| message_for(DEFAULT_LOCALE, key).map(str::to_string))
+        .or_else(|| message_for(locale, key))
+        .or_else(|| message_for(DEFAULT_LOCALE, key))
 }
 
 fn interpolate(template: &str, params: &[(&str, String)]) -> String {
+    if params.is_empty() {
+        return template.to_string();
+    }
+
     let mut output = template.to_string();
     for (key, value) in params {
         output = output.replace(&format!("{{{key}}}"), value);
@@ -122,25 +126,251 @@ fn message_for(locale: &str, key: &str) -> Option<&'static str> {
     }
 }
 
-fn generated_message_for(locale: &str, key: &str) -> Option<String> {
+fn generated_message_for(locale: &str, key: &str) -> Option<&'static str> {
     let path = key.strip_prefix("server.").unwrap_or(key);
-    read_message_path(server_i18n_catalog().get(locale)?, path)
-        .and_then(Value::as_str)
-        .map(str::to_string)
+    server_i18n_locale_catalog(locale).message(path)
 }
 
-fn read_message_path<'a>(value: &'a Value, path: &str) -> Option<&'a Value> {
-    path.split('.')
-        .filter(|part| !part.is_empty())
-        .try_fold(value, |current, part| current.get(part))
+fn server_i18n_locale_catalog(locale: &str) -> &'static LocaleCatalog {
+    static ZH_CN: OnceLock<LocaleCatalog> = OnceLock::new();
+    static ZH_HANT: OnceLock<LocaleCatalog> = OnceLock::new();
+    static EN: OnceLock<LocaleCatalog> = OnceLock::new();
+    static KO_KR: OnceLock<LocaleCatalog> = OnceLock::new();
+    static JA_JP: OnceLock<LocaleCatalog> = OnceLock::new();
+
+    match normalize_locale(Some(locale)) {
+        "zh-Hant" => locale_catalog(&ZH_HANT, "zh-Hant"),
+        "en" => locale_catalog(&EN, "en"),
+        "ko-KR" => locale_catalog(&KO_KR, "ko-KR"),
+        "ja-JP" => locale_catalog(&JA_JP, "ja-JP"),
+        _ => locale_catalog(&ZH_CN, DEFAULT_LOCALE),
+    }
 }
 
-fn server_i18n_catalog() -> &'static Value {
-    static CATALOG: OnceLock<Value> = OnceLock::new();
-    CATALOG.get_or_init(|| {
-        serde_json::from_str(include_str!("server_i18n.json"))
-            .expect("server_i18n.json must be valid JSON")
-    })
+fn locale_catalog(
+    cell: &'static OnceLock<LocaleCatalog>,
+    locale: &'static str,
+) -> &'static LocaleCatalog {
+    let was_initialized = cell.get().is_some();
+    let value = cell.get_or_init(|| load_locale_catalog(locale));
+    if !was_initialized {
+        super::memory::trim_allocated_memory();
+    }
+    value
+}
+
+#[derive(Debug, Default)]
+struct LocaleCatalog {
+    entries: Box<[(Box<str>, CatalogMessage)]>,
+}
+
+type CatalogMessage = Cow<'static, str>;
+const SERVER_I18N_LOCALE_ENTRY_CAPACITY: usize = 2111;
+
+impl LocaleCatalog {
+    fn message(&self, path: &str) -> Option<&str> {
+        self.entries
+            .binary_search_by(|(key, _)| key.as_ref().cmp(path))
+            .ok()
+            .map(|index| self.entries[index].1.as_ref())
+    }
+}
+
+fn load_locale_catalog(locale: &str) -> LocaleCatalog {
+    let mut deserializer = serde_json::Deserializer::from_str(include_str!("server_i18n.json"));
+    LocaleCatalogSeed { locale }
+        .deserialize(&mut deserializer)
+        .expect("server_i18n.json must be valid JSON")
+}
+
+struct LocaleCatalogSeed<'a> {
+    locale: &'a str,
+}
+
+impl DeserializeSeed<'static> for LocaleCatalogSeed<'_> {
+    type Value = LocaleCatalog;
+
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: serde::Deserializer<'static>,
+    {
+        deserializer.deserialize_map(LocaleCatalogVisitor {
+            locale: self.locale,
+        })
+    }
+}
+
+struct LocaleCatalogVisitor<'a> {
+    locale: &'a str,
+}
+
+impl Visitor<'static> for LocaleCatalogVisitor<'_> {
+    type Value = LocaleCatalog;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("server i18n top-level locale object")
+    }
+
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+    where
+        A: MapAccess<'static>,
+    {
+        let mut entries = None;
+        while let Some(key) = map.next_key::<String>()? {
+            if entries.is_none() && key == self.locale {
+                let mut locale_entries = Vec::with_capacity(SERVER_I18N_LOCALE_ENTRY_CAPACITY);
+                map.next_value_seed(LocaleEntriesSeed {
+                    prefix: String::new(),
+                    entries: &mut locale_entries,
+                })?;
+                entries = Some(locale_entries);
+            } else {
+                map.next_value::<IgnoredAny>()?;
+            }
+        }
+        let mut entries = entries.unwrap_or_default();
+        entries.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+        Ok(LocaleCatalog {
+            entries: entries.into_boxed_slice(),
+        })
+    }
+}
+
+struct LocaleEntriesSeed<'a> {
+    prefix: String,
+    entries: &'a mut Vec<(Box<str>, CatalogMessage)>,
+}
+
+impl DeserializeSeed<'static> for LocaleEntriesSeed<'_> {
+    type Value = ();
+
+    fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+    where
+        D: serde::Deserializer<'static>,
+    {
+        deserializer.deserialize_any(LocaleEntriesVisitor {
+            prefix: self.prefix,
+            entries: self.entries,
+        })
+    }
+}
+
+struct LocaleEntriesVisitor<'a> {
+    prefix: String,
+    entries: &'a mut Vec<(Box<str>, CatalogMessage)>,
+}
+
+impl Visitor<'static> for LocaleEntriesVisitor<'_> {
+    type Value = ();
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("server i18n nested message object or string")
+    }
+
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+    where
+        A: MapAccess<'static>,
+    {
+        while let Some(key) = map.next_key::<String>()? {
+            let path = if self.prefix.is_empty() {
+                key
+            } else {
+                format!("{}.{key}", self.prefix)
+            };
+            map.next_value_seed(LocaleEntriesSeed {
+                prefix: path,
+                entries: &mut *self.entries,
+            })?;
+        }
+        Ok(())
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        if !self.prefix.is_empty() {
+            self.entries.push((
+                self.prefix.into_boxed_str(),
+                CatalogMessage::Owned(value.to_string()),
+            ));
+        }
+        Ok(())
+    }
+
+    fn visit_borrowed_str<E>(self, value: &'static str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        if !self.prefix.is_empty() {
+            self.entries.push((
+                self.prefix.into_boxed_str(),
+                CatalogMessage::Borrowed(value),
+            ));
+        }
+        Ok(())
+    }
+
+    fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        if !self.prefix.is_empty() {
+            self.entries
+                .push((self.prefix.into_boxed_str(), CatalogMessage::Owned(value)));
+        }
+        Ok(())
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+    where
+        A: SeqAccess<'static>,
+    {
+        while seq.next_element::<IgnoredAny>()?.is_some() {}
+        Ok(())
+    }
+
+    fn visit_bool<E>(self, _value: bool) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(())
+    }
+
+    fn visit_i64<E>(self, _value: i64) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(())
+    }
+
+    fn visit_u64<E>(self, _value: u64) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(())
+    }
+
+    fn visit_f64<E>(self, _value: f64) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(())
+    }
+
+    fn visit_none<E>(self) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(())
+    }
+
+    fn visit_unit<E>(self) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(())
+    }
 }
 
 fn zh_cn_message(key: &str) -> Option<&'static str> {

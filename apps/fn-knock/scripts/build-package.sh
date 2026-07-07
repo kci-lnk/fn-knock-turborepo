@@ -418,7 +418,7 @@ Commands:
 
 Optional env overrides:
   FN_KNOCK_FPK_ARCHES  Space/comma list: amd64/x86 and/or arm64 (default: amd64 arm64)
-  FN_KNOCK_FPK_RUST_BUILDER  Rust backend builder: auto, zig, or docker (deploy uses zig)
+  FN_KNOCK_FPK_RUST_BUILDER  Rust backend builder: auto, zig, or docker (default: auto)
   FN_KNOCK_RUST_PARALLEL_RELEASE  Set 1 to override release LTO/codegen for more parallel builds
   CARGO_BUILD_JOBS  Cargo job count; defaults to CPU count when FN_KNOCK_RUST_PARALLEL_RELEASE=1
   CARGO_PROFILE_RELEASE_LTO  Optional Cargo release LTO override, e.g. thin

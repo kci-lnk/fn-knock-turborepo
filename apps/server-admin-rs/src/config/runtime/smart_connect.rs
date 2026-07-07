@@ -98,6 +98,45 @@ pub(super) async fn sync_smart_connect(state: &AppState, config: &Value) -> Resu
     ))
 }
 
+pub(super) async fn sync_smart_connect_on_boot(
+    state: &AppState,
+    config: &Value,
+) -> Result<(), String> {
+    let smart = normalize_smart_connect_config(config.get("smart_connect"));
+    let available =
+        host_firewall_available(state) && config.get("run_type").and_then(Value::as_i64) == Some(3);
+    let enabled = smart.get("enabled").and_then(Value::as_bool) == Some(true);
+    if available && enabled {
+        sync_smart_connect(state, config).await?;
+        return Ok(());
+    }
+
+    let selected_ipv4 = smart
+        .get("selected_ipv4")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if Path::new(SMART_CONNECT_MANAGED_CONF_PATH).exists() {
+        fs::remove_file(SMART_CONNECT_MANAGED_CONF_PATH).map_err(|error| error.to_string())?;
+        let translator = Translator::from_state(state).await;
+        restart_dnsmasq_service(&translator)?;
+    }
+    let runtime = json!({
+        "selected_ipv4": selected_ipv4,
+        "synced_domains": [],
+        "managed_rule_count": 0,
+        "last_sync_at": time_utils::now_iso(),
+        "last_sync_error": Value::Null,
+    });
+    state
+        .redis
+        .set_json_value(SMART_CONNECT_RUNTIME_KEY, &runtime)
+        .await
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
 pub(crate) fn schedule_smart_connect_sync_after_host_mappings_change(
     state: AppState,
     config: Value,

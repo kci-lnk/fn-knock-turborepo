@@ -96,6 +96,9 @@ message LoggingConfig {
   bool enabled = 1;
   int32 max_days = 2;
   string logs_dir = 3;
+  uint64 dropped_entries = 4;
+  int32 queue_size = 5;
+  int32 queue_depth = 6;
 }
 
 message ReverseProxyThrottleConfig {

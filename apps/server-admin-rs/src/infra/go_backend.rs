@@ -402,6 +402,15 @@ impl GoBackendClient {
         }
     }
 
+    pub async fn get_logging_config(&self) -> anyhow::Result<Value> {
+        let mut client = self.logs.clone();
+        let result = match client.get_logging_config(self.request(())).await {
+            Ok(response) => ok(logging_to_json(response.into_inner())),
+            Err(error) => grpc_error(error),
+        };
+        status_value("get_logging_config", result)
+    }
+
     pub async fn get_logging_directory(&self) -> anyhow::Result<Value> {
         let mut client = self.logs.clone();
         let result = match client.get_logging_directory(self.request(())).await {
@@ -1014,6 +1023,9 @@ fn parse_logging(value: &Value) -> LoggingConfig {
         enabled: bool_field(value, "enabled", false),
         max_days: i32_field(value, "max_days", 0),
         logs_dir: string_field(value, "logs_dir"),
+        dropped_entries: 0,
+        queue_size: 0,
+        queue_depth: 0,
     }
 }
 
@@ -1218,7 +1230,10 @@ fn logging_to_json(config: LoggingConfig) -> Value {
     json!({
         "enabled": config.enabled,
         "max_days": config.max_days,
-        "logs_dir": config.logs_dir
+        "logs_dir": config.logs_dir,
+        "dropped_entries": config.dropped_entries,
+        "queue_size": config.queue_size,
+        "queue_depth": config.queue_depth
     })
 }
 
@@ -1578,5 +1593,48 @@ mod tests {
         ) {
             panic!("GoBackendClient rejected a non-empty token: {error}");
         }
+    }
+
+    #[test]
+    fn logging_config_json_includes_runtime_queue_metrics() {
+        let value = logging_to_json(LoggingConfig {
+            enabled: true,
+            max_days: 9,
+            logs_dir: "/var/log/fn-knock".to_string(),
+            dropped_entries: 12,
+            queue_size: 4096,
+            queue_depth: 7,
+        });
+
+        assert_eq!(
+            value,
+            json!({
+                "enabled": true,
+                "max_days": 9,
+                "logs_dir": "/var/log/fn-knock",
+                "dropped_entries": 12,
+                "queue_size": 4096,
+                "queue_depth": 7
+            })
+        );
+    }
+
+    #[test]
+    fn parse_logging_ignores_runtime_queue_metrics_for_set_requests() {
+        let parsed = parse_logging(&json!({
+            "enabled": true,
+            "max_days": 14,
+            "logs_dir": "/ignored",
+            "dropped_entries": 99,
+            "queue_size": 88,
+            "queue_depth": 77
+        }));
+
+        assert!(parsed.enabled);
+        assert_eq!(parsed.max_days, 14);
+        assert_eq!(parsed.logs_dir, "/ignored");
+        assert_eq!(parsed.dropped_entries, 0);
+        assert_eq!(parsed.queue_size, 0);
+        assert_eq!(parsed.queue_depth, 0);
     }
 }

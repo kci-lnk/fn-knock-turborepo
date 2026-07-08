@@ -1514,6 +1514,11 @@ export const zhCNAdmin = {
     retentionLabel: "日志保留天数",
     retentionDescription:
       "按天切分日志文件，只保留最近 N 天。超出的旧文件会自动清理。",
+    runtimeLabel: "写入队列状态",
+    runtimeDescription: "当前异步写入队列：{queue}，累计丢弃 {dropped} 条。",
+    dropWarningTitle: "请求日志正在丢弃",
+    dropWarningDescription:
+      "异步写入队列已发生拥塞，已有 {count} 条请求日志未写入磁盘。",
     daysUnit: "天",
     reset: "重置",
     saveSettings: "保存设置",

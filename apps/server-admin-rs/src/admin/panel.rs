@@ -200,24 +200,22 @@ async fn enrich_gateway_logging_config(state: &AppState, config: &mut Value) {
         .and_then(Value::as_i64)
         .filter(|value| *value > 0)
         .unwrap_or(7);
-    let logs_dir = match state.go_backend.get_logging_directory().await {
-        Ok(value) if value.get("success").and_then(Value::as_bool) == Some(true) => value
-            .pointer("/data/logs_dir")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .to_string(),
+    let runtime = match state.go_backend.get_logging_config().await {
+        Ok(value) if value.get("success").and_then(Value::as_bool) == Some(true) => {
+            value.pointer("/data").cloned().unwrap_or(Value::Null)
+        }
         Ok(value) => {
             let message = value
                 .get("message")
                 .and_then(Value::as_str)
                 .unwrap_or("")
                 .to_string();
-            tracing::warn!(%message, "Go backend rejected gateway logging directory request");
-            String::new()
+            tracing::warn!(%message, "Go backend rejected gateway logging config request");
+            Value::Null
         }
         Err(error) => {
-            tracing::warn!(%error, "failed to read gateway logging directory");
-            String::new()
+            tracing::warn!(%error, "failed to read gateway logging runtime config");
+            Value::Null
         }
     };
     if let Some(object) = config.as_object_mut() {
@@ -226,7 +224,10 @@ async fn enrich_gateway_logging_config(state: &AppState, config: &mut Value) {
             json!({
                 "enabled": enabled,
                 "max_days": max_days,
-                "logs_dir": logs_dir,
+                "logs_dir": runtime.get("logs_dir").and_then(Value::as_str).unwrap_or(""),
+                "dropped_entries": runtime.get("dropped_entries").and_then(Value::as_u64).unwrap_or(0),
+                "queue_size": runtime.get("queue_size").and_then(Value::as_i64).unwrap_or(0),
+                "queue_depth": runtime.get("queue_depth").and_then(Value::as_i64).unwrap_or(0),
             }),
         );
     }

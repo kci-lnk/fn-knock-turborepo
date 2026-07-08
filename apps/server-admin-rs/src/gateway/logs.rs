@@ -2,7 +2,7 @@ use anyhow::Context;
 use axum::{
     Json, Router,
     body::Bytes,
-    extract::{Query, State},
+    extract::{DefaultBodyLimit, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::get,
@@ -41,6 +41,8 @@ struct GatewayLoggingConfigBody {
     max_days: i64,
 }
 
+const GATEWAY_LOGS_JSON_BODY_LIMIT_BYTES: usize = 1024 * 1024;
+
 pub fn gateway_logs_routes() -> Router<AppState> {
     Router::new()
         .route(
@@ -53,6 +55,7 @@ pub fn gateway_logs_routes() -> Router<AppState> {
             "/api/admin/gateway-logs/entries",
             get(entries).delete(delete_entries),
         )
+        .layer(DefaultBodyLimit::max(GATEWAY_LOGS_JSON_BODY_LIMIT_BYTES))
 }
 
 async fn get_config(State(state): State<AppState>) -> Response {
@@ -67,28 +70,19 @@ async fn get_config(State(state): State<AppState>) -> Response {
             );
         }
     };
-    let logs_dir = match state
+    let runtime = match state
         .go_backend
-        .get_logging_directory()
+        .get_logging_config()
         .await
         .and_then(go_backend_data)
     {
-        Ok(data) => data
-            .get("logs_dir")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .to_string(),
+        Ok(data) => data,
         Err(error) => {
-            tracing::warn!(%error, "failed to read gateway logging directory");
-            String::new()
+            tracing::warn!(%error, "failed to read gateway logging runtime config");
+            Value::Null
         }
     };
-    response::ok(json!({
-        "enabled": settings.enabled,
-        "max_days": settings.max_days,
-        "logs_dir": logs_dir
-    }))
-    .into_response()
+    response::ok(gateway_logging_config_response(settings, &runtime)).into_response()
 }
 
 async fn update_config(
@@ -131,12 +125,7 @@ async fn update_config(
         .await
         .and_then(go_backend_data)
     {
-        Ok(data) => response::ok(json!({
-            "enabled": settings.enabled,
-            "max_days": settings.max_days,
-            "logs_dir": data.get("logs_dir").and_then(Value::as_str).unwrap_or("")
-        }))
-        .into_response(),
+        Ok(data) => response::ok(gateway_logging_config_response(settings, &data)).into_response(),
         Err(error) => {
             tracing::warn!(%error, "failed to sync gateway logging config to Go backend");
             response::error(
@@ -523,6 +512,39 @@ fn append_if_present(
     }
 }
 
+fn gateway_logging_config_response(settings: GatewayLoggingSettings, runtime: &Value) -> Value {
+    json!({
+        "enabled": settings.enabled,
+        "max_days": settings.max_days,
+        "logs_dir": runtime.get("logs_dir").and_then(Value::as_str).unwrap_or(""),
+        "dropped_entries": runtime_u64_field(runtime, "dropped_entries"),
+        "queue_size": runtime_i64_field(runtime, "queue_size"),
+        "queue_depth": runtime_i64_field(runtime, "queue_depth")
+    })
+}
+
+fn runtime_u64_field(value: &Value, key: &str) -> u64 {
+    value
+        .get(key)
+        .and_then(|raw| {
+            raw.as_u64()
+                .or_else(|| raw.as_i64().and_then(|signed| u64::try_from(signed).ok()))
+        })
+        .unwrap_or(0)
+}
+
+fn runtime_i64_field(value: &Value, key: &str) -> i64 {
+    value
+        .get(key)
+        .and_then(|raw| {
+            raw.as_i64().or_else(|| {
+                raw.as_u64()
+                    .and_then(|unsigned| i64::try_from(unsigned).ok())
+            })
+        })
+        .unwrap_or(0)
+}
+
 fn hydrate_entries_response(mut data: Value) -> Value {
     if let Some(items) = data.get_mut("items").and_then(Value::as_array_mut) {
         for entry in items {
@@ -667,6 +689,12 @@ use crate::json_utils::ensure_object;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::{
+        body::Body,
+        http::{Method, Request},
+        routing::{delete, post},
+    };
+    use tower::ServiceExt;
 
     #[test]
     fn infers_client_ip_from_provider_and_forwarded_headers() {
@@ -751,6 +779,108 @@ mod tests {
         assert_eq!(normalize_gateway_logging_max_days(0), 1);
         assert_eq!(normalize_gateway_logging_max_days(7), 7);
         assert_eq!(normalize_gateway_logging_max_days(999), 999);
+    }
+
+    #[test]
+    fn gateway_logging_config_response_merges_runtime_metrics() {
+        let payload = gateway_logging_config_response(
+            GatewayLoggingSettings {
+                enabled: true,
+                max_days: 14,
+            },
+            &json!({
+                "enabled": false,
+                "max_days": 1,
+                "logs_dir": "/runtime/logs",
+                "dropped_entries": 5,
+                "queue_size": 4096,
+                "queue_depth": 12
+            }),
+        );
+
+        assert_eq!(
+            payload,
+            json!({
+                "enabled": true,
+                "max_days": 14,
+                "logs_dir": "/runtime/logs",
+                "dropped_entries": 5,
+                "queue_size": 4096,
+                "queue_depth": 12
+            })
+        );
+    }
+
+    #[test]
+    fn gateway_logging_config_response_defaults_runtime_metrics() {
+        let payload = gateway_logging_config_response(
+            GatewayLoggingSettings {
+                enabled: false,
+                max_days: 7,
+            },
+            &Value::Null,
+        );
+
+        assert_eq!(payload["logs_dir"], "");
+        assert_eq!(payload["dropped_entries"], 0);
+        assert_eq!(payload["queue_size"], 0);
+        assert_eq!(payload["queue_depth"], 0);
+    }
+
+    #[tokio::test]
+    async fn gateway_logging_json_body_limit_rejects_oversized_config() {
+        async fn accept_config(Json(_body): Json<GatewayLoggingConfigBody>) -> StatusCode {
+            StatusCode::NO_CONTENT
+        }
+
+        let app = Router::new()
+            .route("/test", post(accept_config))
+            .layer(DefaultBodyLimit::max(GATEWAY_LOGS_JSON_BODY_LIMIT_BYTES));
+        let payload = json!({
+            "enabled": true,
+            "max_days": 7,
+            "padding": "x".repeat(GATEWAY_LOGS_JSON_BODY_LIMIT_BYTES)
+        })
+        .to_string();
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::POST)
+                    .uri("/test")
+                    .header("content-type", "application/json")
+                    .body(Body::from(payload))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+    }
+
+    #[tokio::test]
+    async fn gateway_logging_bytes_body_limit_rejects_oversized_delete() {
+        async fn accept_bytes(_body: Bytes) -> StatusCode {
+            StatusCode::NO_CONTENT
+        }
+
+        let app = Router::new()
+            .route("/test", delete(accept_bytes))
+            .layer(DefaultBodyLimit::max(GATEWAY_LOGS_JSON_BODY_LIMIT_BYTES));
+        let payload = vec![b' '; GATEWAY_LOGS_JSON_BODY_LIMIT_BYTES + 1];
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method(Method::DELETE)
+                    .uri("/test")
+                    .body(Body::from(payload))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
     }
 
     #[test]

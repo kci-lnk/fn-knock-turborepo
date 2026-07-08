@@ -1622,6 +1622,12 @@ export const enAdmin = {
     retentionLabel: "Log retention days",
     retentionDescription:
       "Log files are split by day and only the most recent N days are kept. Older files are cleaned automatically.",
+    runtimeLabel: "Write queue status",
+    runtimeDescription:
+      "Current async write queue: {queue}; dropped request logs: {dropped}.",
+    dropWarningTitle: "Request logs are being dropped",
+    dropWarningDescription:
+      "The async write queue has been congested, and {count} request logs were not written to disk.",
     daysUnit: "days",
     reset: "Reset",
     saveSettings: "Save settings",

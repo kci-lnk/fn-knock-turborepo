@@ -1611,6 +1611,11 @@ export const koKRAdmin = {
     retentionLabel: "로그 보관 일수",
     retentionDescription:
       "로그 파일은 날짜별로 분할되며 가장 최근 N일만 보관됩니다. 오래된 파일은 자동으로 정리됩니다.",
+    runtimeLabel: "쓰기 큐 상태",
+    runtimeDescription: "현재 비동기 쓰기 큐: {queue}, 누적 삭제: {dropped}건.",
+    dropWarningTitle: "요청 로그가 삭제되고 있습니다",
+    dropWarningDescription:
+      "비동기 쓰기 큐가 혼잡해 {count}건의 요청 로그가 디스크에 기록되지 않았습니다.",
     daysUnit: "일",
     reset: "재설정",
     saveSettings: "설정 저장",

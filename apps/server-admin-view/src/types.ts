@@ -306,6 +306,9 @@ export interface GatewayLoggingConfig {
   enabled: boolean;
   max_days: number;
   logs_dir: string;
+  dropped_entries?: number;
+  queue_size?: number;
+  queue_depth?: number;
 }
 
 export * from "./types/waf";

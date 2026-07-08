@@ -1522,6 +1522,11 @@ export const zhHantAdmin = {
     retentionLabel: "日誌保留天數",
     retentionDescription:
       "按天切分日誌文件，只保留最近 N 天。超出的舊文件會自動清理。",
+    runtimeLabel: "寫入佇列狀態",
+    runtimeDescription: "目前非同步寫入佇列：{queue}，累計丟棄 {dropped} 條。",
+    dropWarningTitle: "請求日誌正在丟棄",
+    dropWarningDescription:
+      "非同步寫入佇列已發生壅塞，已有 {count} 條請求日誌未寫入磁碟。",
     daysUnit: "天",
     reset: "重置",
     saveSettings: "保存設定",

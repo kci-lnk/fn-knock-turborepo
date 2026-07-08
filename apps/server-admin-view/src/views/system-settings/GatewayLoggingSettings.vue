@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
+import { TriangleAlert } from "lucide-vue-next";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Card,
   CardContent,
@@ -29,7 +31,7 @@ import { useConfigStore } from "../../store/config";
 const configStore = useConfigStore();
 const { t } = useI18n();
 const settings = ref<GatewayLoggingConfig | null>(null);
-const form = reactive<GatewayLoggingConfig>({
+const form = reactive<Pick<GatewayLoggingConfig, "enabled" | "max_days" | "logs_dir">>({
   enabled: false,
   max_days: 7,
   logs_dir: "",
@@ -64,6 +66,19 @@ const isDirty = computed(() => {
     settings.value.max_days !== Number(form.max_days)
   );
 });
+const droppedEntries = computed(() =>
+  Math.max(0, Number(settings.value?.dropped_entries ?? 0)),
+);
+const queueSize = computed(() =>
+  Math.max(0, Number(settings.value?.queue_size ?? 0)),
+);
+const queueDepth = computed(() =>
+  Math.max(0, Number(settings.value?.queue_depth ?? 0)),
+);
+const queueUsageLabel = computed(() =>
+  queueSize.value > 0 ? `${queueDepth.value}/${queueSize.value}` : "0/0",
+);
+const formatCount = (value: number) => new Intl.NumberFormat().format(value);
 
 const applyFromSettings = (data: GatewayLoggingConfig) => {
   settings.value = data;
@@ -168,6 +183,38 @@ onMounted(fetchSettings);
             t("admin.gatewayLogging.daysUnit")
           }}</span>
         </div>
+      </div>
+
+      <div v-if="settings" class="space-y-4 p-6">
+        <div class="space-y-1">
+          <Label class="text-base">
+            {{ t("admin.gatewayLogging.runtimeLabel") }}
+          </Label>
+          <div class="text-sm text-muted-foreground">
+            {{
+              t("admin.gatewayLogging.runtimeDescription", {
+                queue: queueUsageLabel,
+                dropped: formatCount(droppedEntries),
+              })
+            }}
+          </div>
+        </div>
+        <Alert
+          v-if="droppedEntries > 0"
+          class="border-amber-200 bg-amber-50 text-amber-950"
+        >
+          <TriangleAlert class="mt-0.5 h-4 w-4" />
+          <AlertTitle>
+            {{ t("admin.gatewayLogging.dropWarningTitle") }}
+          </AlertTitle>
+          <AlertDescription class="text-sm leading-6 text-amber-900">
+            {{
+              t("admin.gatewayLogging.dropWarningDescription", {
+                count: formatCount(droppedEntries),
+              })
+            }}
+          </AlertDescription>
+        </Alert>
       </div>
 
       <FloatingActionDock

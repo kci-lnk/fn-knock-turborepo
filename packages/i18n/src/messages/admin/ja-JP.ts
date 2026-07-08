@@ -1650,6 +1650,12 @@ export const jaJPAdmin = {
     retentionLabel: "ログの保存日数",
     retentionDescription:
       "ログ ファイルを日ごとに分割し、過去 N 日間のみを保持します。過剰な古いファイルは自動的に消去されます。",
+    runtimeLabel: "書き込みキューの状態",
+    runtimeDescription:
+      "現在の非同期書き込みキュー: {queue}、累計破棄: {dropped} 件。",
+    dropWarningTitle: "リクエストログが破棄されています",
+    dropWarningDescription:
+      "非同期書き込みキューが混雑し、{count} 件のリクエストログがディスクに書き込まれませんでした。",
     daysUnit: "日",
     reset: "リセット",
     saveSettings: "設定を保存",

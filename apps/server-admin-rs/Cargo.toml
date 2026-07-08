@@ -48,7 +48,7 @@ tokio-rusqlite = { version = "0.7", features = ["bundled", "serde_json"] }
 tonic = { version = "0.12", default-features = false, features = ["channel", "codegen", "prost"] }
 prost = "0.13"
 totp-rs = { version = "5.7.2", features = ["gen_secret"] }
-tower = "0.5"
+tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.7.0", features = ["compression-gzip", "cors", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

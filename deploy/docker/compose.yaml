@@ -23,6 +23,10 @@ services:
     ports:
       - "${ADMIN_VIEW_PORT:-7991}:${ADMIN_VIEW_PORT:-7991}"
       - "${GO_REPROXY_PORT:-7999}:${GO_REPROXY_PORT:-7999}"
+    ulimits:
+      nofile:
+        soft: 1048576
+        hard: 1048576
     networks:
       - fn_knock_net
     volumes:

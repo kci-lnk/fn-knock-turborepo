@@ -21,6 +21,10 @@ services:
     ports:
       - "${wizard_admin_view_port:-7991}:${wizard_admin_view_port:-7991}"
       - "${wizard_go_reproxy_port:-8999}:${wizard_go_reproxy_port:-8999}"
+    ulimits:
+      nofile:
+        soft: 1048576
+        hard: 1048576
     networks:
       - fn_knock_net
     volumes:

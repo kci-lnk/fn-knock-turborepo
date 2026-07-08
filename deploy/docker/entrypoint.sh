@@ -22,6 +22,7 @@ ALTCHA_HMAC_KEY_FILE="${DATA_DIR}/altcha_hmac_key"
 HMAC_SECRET_FILE="${DATA_DIR}/hmac_secret"
 INTERNAL_RPC_TOKEN_FILE="${DATA_DIR}/internal_rpc_token"
 ADMIN_PROXY_SECRET_FILE="${DATA_DIR}/admin_proxy_secret"
+NOFILE_LIMIT="${FN_KNOCK_NOFILE_LIMIT:-1048576}"
 
 generate_random_hex() {
   if command -v openssl >/dev/null 2>&1; then
@@ -64,6 +65,27 @@ ensure_runtime_layout() {
     "${GATEWAY_CONFIG_DIR}"
 }
 
+raise_nofile_limit() {
+  local limit="${1:-${NOFILE_LIMIT}}"
+  local inherited_hard=""
+
+  if ulimit -Hn "${limit}" >/dev/null 2>&1 && ulimit -Sn "${limit}" >/dev/null 2>&1; then
+    echo "[fn-knock] Raised nofile limit to soft=${limit}, hard=${limit}"
+    return 0
+  fi
+
+  inherited_hard="$(ulimit -Hn 2>/dev/null || true)"
+  if [ -n "${inherited_hard}" ] && [ "${inherited_hard}" != "unlimited" ]; then
+    if ulimit -Sn "${inherited_hard}" >/dev/null 2>&1; then
+      echo "[fn-knock] Unable to raise nofile hard limit to ${limit}; raised soft limit to inherited hard=${inherited_hard}" >&2
+      return 0
+    fi
+  fi
+
+  echo "[fn-knock] Unable to raise nofile limit to soft=${limit}, hard=${limit}" >&2
+  return 1
+}
+
 wait_for_process_or_fail() {
   local pid="$1"
   local name="$2"
@@ -95,6 +117,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 ensure_runtime_layout
+raise_nofile_limit "${NOFILE_LIMIT}" || true
 load_or_create_secret ALTCHA_HMAC_KEY "${ALTCHA_HMAC_KEY_FILE}"
 load_or_create_secret HMAC_SECRET "${HMAC_SECRET_FILE}"
 load_or_create_secret FN_KNOCK_INTERNAL_RPC_TOKEN "${INTERNAL_RPC_TOKEN_FILE}"

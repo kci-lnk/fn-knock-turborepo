@@ -22,6 +22,7 @@ ADMIN_STATIC_PATH="${APP_HOME}/ui/www"
 AUTH_STATIC_PATH="${APP_HOME}/server-auth-view/dist"
 ACME_BUNDLE_ZIP="${APP_HOME}/server/server-admin/resources/acmesh.zip"
 PORT_PATTERN='^([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$'
+NOFILE_LIMIT="${FN_KNOCK_NOFILE_LIMIT:-1048576}"
 
 BACKEND_PORT=""
 ADMIN_VIEW_PORT=""
@@ -63,6 +64,27 @@ log_debug_cmd() {
     while IFS= read -r line; do
         log_msg "[debug] ${title}: ${line}"
     done <<< "${output}"
+}
+
+raise_nofile_limit() {
+    local limit="${1:-${NOFILE_LIMIT}}"
+    local inherited_hard=""
+
+    if ulimit -Hn "${limit}" >/dev/null 2>&1 && ulimit -Sn "${limit}" >/dev/null 2>&1; then
+        log_msg "Raised nofile limit to soft=${limit}, hard=${limit}"
+        return 0
+    fi
+
+    inherited_hard="$(ulimit -Hn 2>/dev/null || true)"
+    if [ -n "${inherited_hard}" ] && [ "${inherited_hard}" != "unlimited" ]; then
+        if ulimit -Sn "${inherited_hard}" >/dev/null 2>&1; then
+            log_msg "Unable to raise nofile hard limit to ${limit}; raised soft limit to inherited hard=${inherited_hard}"
+            return 0
+        fi
+    fi
+
+    log_msg "Unable to raise nofile limit to soft=${limit}, hard=${limit}"
+    return 1
 }
 
 log_backend_failure_debug() {
@@ -679,6 +701,7 @@ start() {
     fi
     log_msg "=== fn-knock start ==="
     log_msg "Port config: admin-view=${ADMIN_VIEW_PORT}, backend=${BACKEND_PORT}, auth=${AUTH_PORT}, go-admin=${GO_BACKEND_PORT}, go-proxy=${GO_REPROXY_PORT}"
+    raise_nofile_limit "${NOFILE_LIMIT}" || true
 
     if ! start_gateway; then
         write_temp_log "fn-knock gateway start failed"

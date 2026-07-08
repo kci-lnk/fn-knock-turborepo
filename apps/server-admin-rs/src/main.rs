@@ -2,8 +2,10 @@ use std::env;
 
 const DEFAULT_TOKIO_WORKER_THREADS: usize = 2;
 const MAX_TOKIO_WORKER_THREADS: usize = 64;
+const TARGET_NOFILE_LIMIT: u64 = 1_048_576;
 
 fn main() -> anyhow::Result<()> {
+    configure_open_file_limit();
     configure_allocator_for_low_memory();
     tokio::runtime::Builder::new_multi_thread()
         .worker_threads(tokio_worker_threads())
@@ -26,6 +28,51 @@ fn default_tokio_worker_threads() -> usize {
         .map(|value| value.get().min(DEFAULT_TOKIO_WORKER_THREADS))
         .unwrap_or(DEFAULT_TOKIO_WORKER_THREADS)
 }
+
+#[cfg(target_family = "unix")]
+fn configure_open_file_limit() {
+    let target = TARGET_NOFILE_LIMIT as libc::rlim_t;
+
+    // SAFETY: getrlimit/setrlimit operate on process resource limits. This runs
+    // before the async runtime starts so child tasks inherit the final value.
+    unsafe {
+        let target_limit = libc::rlimit {
+            rlim_cur: target,
+            rlim_max: target,
+        };
+        if libc::setrlimit(libc::RLIMIT_NOFILE, &target_limit) == 0 {
+            return;
+        }
+
+        let target_error = std::io::Error::last_os_error();
+        let mut inherited = libc::rlimit {
+            rlim_cur: 0,
+            rlim_max: 0,
+        };
+        if libc::getrlimit(libc::RLIMIT_NOFILE, &mut inherited) == 0
+            && inherited.rlim_cur < inherited.rlim_max
+        {
+            let fallback_limit = libc::rlimit {
+                rlim_cur: inherited.rlim_max,
+                rlim_max: inherited.rlim_max,
+            };
+            if libc::setrlimit(libc::RLIMIT_NOFILE, &fallback_limit) == 0 {
+                eprintln!(
+                    "server-admin-rs: failed to set RLIMIT_NOFILE to {TARGET_NOFILE_LIMIT}; raised soft limit to inherited hard limit {} instead: {target_error}",
+                    inherited.rlim_max
+                );
+                return;
+            }
+        }
+
+        eprintln!(
+            "server-admin-rs: failed to set RLIMIT_NOFILE to {TARGET_NOFILE_LIMIT}: {target_error}"
+        );
+    }
+}
+
+#[cfg(not(target_family = "unix"))]
+fn configure_open_file_limit() {}
 
 #[cfg(all(target_os = "linux", target_env = "gnu"))]
 fn configure_allocator_for_low_memory() {

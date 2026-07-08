@@ -9,9 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import { ChevronRight } from "lucide-vue-next";
 import { toast } from "@admin-shared/utils/toast";
 import { ConfigAPI, SSHSecurityAPI, SystemAPI } from "../../lib/api";
@@ -27,6 +25,7 @@ import {
 } from "@admin-shared/composables/useAsyncAction";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { useConfigStore } from "../../store/config";
+import FeatureSwitchRow from "./FeatureSwitchRow.vue";
 
 const router = useRouter();
 const configStore = useConfigStore();
@@ -103,8 +102,11 @@ const autoHttpsEnabled = computed(
 );
 const autoHttpsRuntimeError = computed(() => {
   const runtime = autoHttpsDetails.value?.runtime;
-  if (!runtime || (runtime.status !== "error" && !runtime.last_error)) return "";
-  return runtime.last_error || t("admin.featuresSettings.autoHttpsListenFailed");
+  if (!runtime || (runtime.status !== "error" && !runtime.last_error))
+    return "";
+  return (
+    runtime.last_error || t("admin.featuresSettings.autoHttpsListenFailed")
+  );
 });
 const showAutoHttpsEntry = computed(
   () => !configStore.isDockerDeployment && !configStore.isOpenWrtDeployment,
@@ -397,154 +399,52 @@ watch(
     </CardContent>
 
     <CardContent v-else-if="!isLoading" class="border-t p-0 divide-y">
-      <div class="flex items-center justify-between bg-muted/10 p-6">
-        <div class="space-y-1 pr-6">
-          <Label
-            class="cursor-pointer text-base font-medium"
-            @click="saveShowEntryStatusModule(!showEntryStatusModule)"
-          >
-            {{ t("admin.featuresSettings.showEntryStatusModule") }}
-          </Label>
-          <div class="text-sm text-muted-foreground">
-            {{ t("admin.featuresSettings.showEntryStatusModuleHint") }}
-          </div>
-        </div>
-        <Switch
-          :model-value="showEntryStatusModule"
-          :disabled="isDashboardDisplaySwitchDisabled"
-          @update:model-value="saveShowEntryStatusModule($event === true)"
-        />
-      </div>
+      <FeatureSwitchRow
+        :title="t('admin.featuresSettings.showEntryStatusModule')"
+        :description="t('admin.featuresSettings.showEntryStatusModuleHint')"
+        :model-value="showEntryStatusModule"
+        :disabled="isDashboardDisplaySwitchDisabled"
+        @change="saveShowEntryStatusModule"
+      />
 
-      <div class="flex items-center justify-between bg-muted/10 p-6">
-        <div class="space-y-1 pr-6">
-          <Label
-            class="cursor-pointer text-base font-medium"
-            @click="savePasskeyBindPromptEnabled(!passkeyBindPromptEnabled)"
-          >
-            {{ t("admin.featuresSettings.passkeyBindPrompt") }}
-          </Label>
-          <div class="text-sm text-muted-foreground">
-            {{ t("admin.featuresSettings.passkeyBindPromptHint") }}
-          </div>
-        </div>
-        <Switch
-          :model-value="passkeyBindPromptEnabled"
-          :disabled="isSaving"
-          @update:model-value="savePasskeyBindPromptEnabled($event === true)"
-        />
-      </div>
+      <FeatureSwitchRow
+        :title="t('admin.featuresSettings.passkeyBindPrompt')"
+        :description="t('admin.featuresSettings.passkeyBindPromptHint')"
+        :model-value="passkeyBindPromptEnabled"
+        :disabled="isSaving"
+        @change="savePasskeyBindPromptEnabled"
+      />
 
-      <div
+      <FeatureSwitchRow
         v-if="showAutoHttpsEntry"
-        class="flex items-center justify-between bg-muted/10 p-6"
-      >
-        <div class="space-y-1 pr-6">
-          <Label
-            class="cursor-pointer text-base font-medium"
-            :class="autoHttpsRuntimeError ? 'text-red-600' : ''"
-            @click="saveAutoHttpsEnabled(!autoHttpsEnabled)"
-          >
-            {{ t("admin.featuresSettings.autoHttps") }}
-          </Label>
-          <div
-            class="text-sm"
-            :class="
-              autoHttpsRuntimeError ? 'text-red-600' : 'text-muted-foreground'
-            "
-          >
-            {{ t("admin.featuresSettings.autoHttpsHint") }}
-          </div>
-          <div
-            v-if="autoHttpsRuntimeError"
-            class="text-xs leading-5 text-red-600"
-          >
-            {{ autoHttpsRuntimeError }}
-          </div>
-        </div>
-        <Switch
-          :model-value="autoHttpsEnabled"
-          :disabled="isSaving"
-          @update:model-value="saveAutoHttpsEnabled($event === true)"
-        />
-      </div>
+        :title="t('admin.featuresSettings.autoHttps')"
+        :description="t('admin.featuresSettings.autoHttpsHint')"
+        :model-value="autoHttpsEnabled"
+        :disabled="isSaving"
+        :error="autoHttpsRuntimeError"
+        @change="saveAutoHttpsEnabled"
+      />
 
-      <div
+      <FeatureSwitchRow
         v-if="showSSHSecurityEntry"
-        class="flex items-center justify-between bg-muted/10 p-6"
-      >
-        <div class="space-y-1 pr-6">
-          <Label
-            class="text-base font-medium"
-            :class="
-              isSSHSecurityAvailable
-                ? 'cursor-pointer'
-                : 'cursor-not-allowed text-zinc-500'
-            "
-            @click="saveSSHSecurityEnabled(!sshSecurityEnabled)"
-          >
-            {{ t("admin.featuresSettings.sshSecurity") }}
-          </Label>
-          <div
-            class="text-sm"
-            :class="
-              isSSHSecurityAvailable ? 'text-muted-foreground' : 'text-zinc-500'
-            "
-          >
-            {{ t("admin.featuresSettings.sshSecurityHint") }}
-          </div>
-          <div
-            v-if="!isSSHSecurityAvailable"
-            class="text-xs leading-5 text-zinc-500"
-          >
-            {{ sshSecurityDisabledReason }}
-          </div>
-        </div>
-        <Switch
-          :model-value="isSSHSecurityAvailable ? sshSecurityEnabled : false"
-          :disabled="!isSSHSecurityAvailable || isSaving"
-          @update:model-value="saveSSHSecurityEnabled($event === true)"
-        />
-      </div>
+        :title="t('admin.featuresSettings.sshSecurity')"
+        :description="t('admin.featuresSettings.sshSecurityHint')"
+        :model-value="sshSecurityEnabled"
+        :available="isSSHSecurityAvailable"
+        :disabled="isSaving"
+        :disabled-reason="sshSecurityDisabledReason"
+        @change="saveSSHSecurityEnabled"
+      />
 
-      <div class="flex items-center justify-between bg-muted/10 p-6">
-        <div class="space-y-1 pr-6">
-          <Label
-            class="text-base font-medium"
-            :class="
-              isProtocolMappingAvailable
-                ? 'cursor-pointer'
-                : 'cursor-not-allowed text-zinc-500'
-            "
-            @click="saveProtocolMappingEnabled(!protocolMappingEnabled)"
-          >
-            {{ t("admin.featuresSettings.protocolMapping") }}
-          </Label>
-          <div
-            class="text-sm"
-            :class="
-              isProtocolMappingAvailable
-                ? 'text-muted-foreground'
-                : 'text-zinc-500'
-            "
-          >
-            {{ t("admin.featuresSettings.protocolMappingHint") }}
-          </div>
-          <div
-            v-if="!isProtocolMappingAvailable"
-            class="text-xs leading-5 text-zinc-500"
-          >
-            {{ protocolMappingDisabledReason }}
-          </div>
-        </div>
-        <Switch
-          :model-value="
-            isProtocolMappingAvailable ? protocolMappingEnabled : false
-          "
-          :disabled="!isProtocolMappingAvailable || isSaving"
-          @update:model-value="saveProtocolMappingEnabled($event === true)"
-        />
-      </div>
+      <FeatureSwitchRow
+        :title="t('admin.featuresSettings.protocolMapping')"
+        :description="t('admin.featuresSettings.protocolMappingHint')"
+        :model-value="protocolMappingEnabled"
+        :available="isProtocolMappingAvailable"
+        :disabled="isSaving"
+        :disabled-reason="protocolMappingDisabledReason"
+        @change="saveProtocolMappingEnabled"
+      />
 
       <button
         v-if="showSmartConnectEntry"

@@ -1,84 +1,82 @@
 <template>
-  <div class="auth-safe-shell auth-visual-shell flex flex-col">
-    <div class="flex flex-1 items-center justify-center">
-      <Card v-if="isCheckingAuth" class="auth-glass-card w-full max-w-sm">
-        <CardHeader>
+  <AuthShell>
+    <AuthCard v-if="isCheckingAuth" content-class="flex flex-col gap-4">
+      <template #header>
+        <div
+          class="grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-6"
+        >
           <Skeleton class="h-8 w-44 mx-auto" />
           <Skeleton class="h-4 w-48 mx-auto mt-2" />
-        </CardHeader>
-        <CardContent class="flex flex-col gap-4">
-          <Skeleton class="h-4 w-full" />
-          <Skeleton class="h-9 w-full rounded-md" />
-        </CardContent>
-      </Card>
+        </div>
+      </template>
+      <Skeleton class="h-4 w-full" />
+      <Skeleton class="h-9 w-full rounded-md" />
+    </AuthCard>
 
-      <Card v-else class="auth-glass-card w-full max-w-sm">
-        <CardHeader>
-          <CardTitle class="text-2xl text-center">{{ statusTitle }}</CardTitle>
-          <CardDescription class="text-center">
-            {{ statusDescription }}
-          </CardDescription>
-        </CardHeader>
+    <AuthCard
+      v-else
+      :title="statusTitle"
+      :description="statusDescription"
+      content-class="flex flex-col gap-4"
+    >
+      <p class="text-sm text-center text-muted-foreground">
+        {{ logoutHint }}
+      </p>
+      <div
+        v-if="isPasskeySupported && !isPasskeyAvailable"
+        class="flex flex-col gap-2"
+      >
+        <Button
+          class="w-full"
+          :disabled="isPasskeyBinding"
+          @click="handlePasskeyBind"
+        >
+          <span
+            v-if="isPasskeyBinding"
+            class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+          ></span>
+          {{ t("auth.home.enablePasskey") }}
+        </Button>
+        <p class="text-xs text-center text-muted-foreground">
+          {{ t("auth.home.passkeySupportedUnbound") }}
+        </p>
+      </div>
+      <p v-if="passkeyError" class="text-xs text-center text-destructive">
+        {{ passkeyError }}
+      </p>
+      <p
+        v-if="!canShowLogoutButton"
+        class="text-xs text-center text-muted-foreground"
+      >
+        {{
+          t("auth.home.logoutDelay", {
+            seconds: logoutDelayRemainingSeconds,
+          })
+        }}
+      </p>
+      <Button
+        v-else
+        variant="destructive"
+        @click="openLogoutConfirm"
+        class="w-full"
+        :disabled="isLoading"
+      >
+        <span
+          v-if="isLoading"
+          class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+        ></span>
+        {{ t("auth.home.logout") }}
+      </Button>
+    </AuthCard>
 
-        <CardContent class="flex flex-col gap-4">
-          <p class="text-sm text-center text-muted-foreground">
-            {{ logoutHint }}
-          </p>
-          <div
-            v-if="isPasskeySupported && !isPasskeyAvailable"
-            class="flex flex-col gap-2"
-          >
-            <Button
-              class="w-full"
-              :disabled="isPasskeyBinding"
-              @click="handlePasskeyBind"
-            >
-              <span
-                v-if="isPasskeyBinding"
-                class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
-              ></span>
-              {{ t("auth.home.enablePasskey") }}
-            </Button>
-            <p class="text-xs text-center text-muted-foreground">
-              {{ t("auth.home.passkeySupportedUnbound") }}
-            </p>
-          </div>
-          <p v-if="passkeyError" class="text-xs text-center text-destructive">
-            {{ passkeyError }}
-          </p>
-          <p
-            v-if="!canShowLogoutButton"
-            class="text-xs text-center text-muted-foreground"
-          >
-            {{
-              t("auth.home.logoutDelay", {
-                seconds: logoutDelayRemainingSeconds,
-              })
-            }}
-          </p>
-          <Button
-            v-else
-            variant="destructive"
-            @click="openLogoutConfirm"
-            class="w-full"
-            :disabled="isLoading"
-          >
-            <span
-              v-if="isLoading"
-              class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
-            ></span>
-            {{ t("auth.home.logout") }}
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
-
-    <AuthFooter
-      :client-ip="clientIp"
-      :ip-location="ipLocation"
-      :ip-location-status="ipLocationStatus"
-    />
-  </div>
+    <template #footer>
+      <AuthFooter
+        :client-ip="clientIp"
+        :ip-location="ipLocation"
+        :ip-location-status="ipLocationStatus"
+      />
+    </template>
+  </AuthShell>
 
   <Dialog
     :open="showLogoutConfirmDialog"
@@ -106,8 +104,8 @@
         >
           <span
             v-if="isLoading"
-              class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
-            ></span>
+            class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+          ></span>
           {{ t("auth.home.confirmLogout") }}
         </Button>
       </DialogFooter>
@@ -119,13 +117,6 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -136,26 +127,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  normalizeCreationOptions,
-  serializeCredential,
-} from "@frontend-core/passkey/utils";
 import type { AuthGrantType } from "@frontend-core/auth/types";
 import { apiClient, AuthAPI } from "@/lib/api";
-import { applyAppearanceConfig } from "@/lib/appearance";
 import { useClientIpLocation } from "@/lib/client-ip-location";
 import {
   consumePendingLogoutDelay,
   POST_LOGIN_LOGOUT_DELAY_MS,
 } from "@/lib/post-login";
 import AuthFooter from "@/components/AuthFooter.vue";
-import { setFnKnockLocale } from "@fn-knock/i18n/vue/auth";
+import AuthCard from "@/components/AuthCard.vue";
+import AuthShell from "@/components/AuthShell.vue";
+import { useAuthBrowserCapabilities } from "@/composables/useAuthBrowserCapabilities";
+import { useAuthSystemConfig } from "@/composables/useAuthSystemConfig";
+import { usePasskeyRegistration } from "@/composables/usePasskeyRegistration";
 
 const router = useRouter();
 const i18n = useI18n();
 const { t } = i18n;
 const isLoading = ref(false);
-const isPasskeySupported = ref(false);
 const isPasskeyAvailable = ref(false);
 const isPasskeyBinding = ref(false);
 const passkeyError = ref("");
@@ -166,10 +155,10 @@ const canShowLogoutButton = ref(true);
 const logoutDelayRemainingSeconds = ref(0);
 const showLogoutConfirmDialog = ref(false);
 const authGrantType = ref<AuthGrantType | undefined>(undefined);
-
-const applySystemLocale = async (value: string | null | undefined) => {
-  await setFnKnockLocale(i18n, value);
-};
+const { isPasskeySupported, refreshBrowserCapabilities } =
+  useAuthBrowserCapabilities();
+const { applyAuthSystemConfig } = useAuthSystemConfig(i18n);
+const { registerPasskeyCredential } = usePasskeyRegistration();
 
 const resolveGrantKey = (grantType?: AuthGrantType) => {
   switch (grantType) {
@@ -201,9 +190,7 @@ const statusDescription = computed(() =>
   t(`auth.home.statusDescriptions.${grantKey.value}`),
 );
 
-const logoutHint = computed(() =>
-  t(`auth.home.logoutHints.${grantKey.value}`),
-);
+const logoutHint = computed(() => t(`auth.home.logoutHints.${grantKey.value}`));
 
 const logoutDialogKey = computed(() =>
   authGrantType.value ? grantKey.value : "default",
@@ -216,11 +203,6 @@ const logoutDialogDescription = computed(() =>
 let logoutDelayTimer: ReturnType<typeof window.setTimeout> | null = null;
 let logoutDelayCountdownTimer: ReturnType<typeof window.setInterval> | null =
   null;
-
-function initPasskeySupport() {
-  isPasskeySupported.value =
-    typeof window !== "undefined" && !!window.PublicKeyCredential;
-}
 
 function clearLogoutDelayTimers() {
   if (logoutDelayTimer) {
@@ -268,8 +250,7 @@ function initLogoutAvailability() {
 async function loadSession() {
   try {
     const session = await AuthAPI.getSession();
-    await applySystemLocale(session.locale.default_locale);
-    applyAppearanceConfig(session.appearance);
+    await applyAuthSystemConfig(session);
     startLocationPolling(session.client);
     isPasskeyAvailable.value = !!session.passkey.available;
     authGrantType.value = session.auth.grant_type;
@@ -288,7 +269,7 @@ async function loadSession() {
   }
 }
 onMounted(async () => {
-  initPasskeySupport();
+  refreshBrowserCapabilities();
   const isAuthenticated = await loadSession();
   if (!isAuthenticated) {
     return;
@@ -337,31 +318,11 @@ async function handlePasskeyBind() {
     if (!bindToken) {
       throw new Error(t("auth.home.passkeyTokenMissing"));
     }
-    const optionsRes = await apiClient.post("/passkey/register/options", {
-      token: bindToken,
+    await registerPasskeyCredential(bindToken, {
+      bindFailed: t("auth.passkeyBindFailed"),
+      noResponse: t("auth.passkeyNoResponse"),
     });
-    const creationOptions = normalizeCreationOptions(optionsRes.data.data);
-    const credential = await navigator.credentials.create({
-      publicKey: creationOptions,
-    });
-    if (!credential) {
-      throw new Error(t("auth.passkeyNoResponse"));
-    }
-    const deviceName =
-      (navigator as any).userAgentData?.platform ||
-      navigator.platform ||
-      "Unknown Device";
-    const payload = serializeCredential(credential as PublicKeyCredential);
-    const verifyRes = await apiClient.post("/passkey/register/verify", {
-      token: bindToken,
-      deviceName,
-      credential: payload,
-    });
-    if (verifyRes.data.success) {
-      isPasskeyAvailable.value = true;
-      return;
-    }
-    throw new Error(verifyRes.data.message || t("auth.passkeyBindFailed"));
+    isPasskeyAvailable.value = true;
   } catch (e: any) {
     passkeyError.value =
       e?.response?.data?.message || e?.message || t("auth.passkeyBindFailed");

@@ -48,207 +48,35 @@
         </Button>
       </div>
     </CardHeader>
-    <CardContent v-if="isLoading && showLoadingSkeleton && !credentials.length">
-      <div class="border rounded-md overflow-hidden">
-        <Table :class="totpTableClass" container-class="overflow-x-auto">
-          <colgroup>
-            <col :class="showAdminPanelAccessColumn ? 'w-[24%]' : 'w-[27%]'" />
-            <col :class="showAdminPanelAccessColumn ? 'w-[16%]' : 'w-[18%]'" />
-            <col :class="showAdminPanelAccessColumn ? 'w-[16%]' : 'w-[19%]'" />
-            <col :class="showAdminPanelAccessColumn ? 'w-[18%]' : 'w-[22%]'" />
-            <col v-if="showAdminPanelAccessColumn" class="w-[14%]" />
-            <col :class="showAdminPanelAccessColumn ? 'w-[12%]' : 'w-[14%]'" />
-          </colgroup>
-          <TableHeader>
-            <TableRow>
-              <TableHead class="whitespace-normal">
-                {{ t("admin.authSettings.comment") }}
-              </TableHead>
-              <TableHead class="whitespace-normal">{{
-                t("admin.authSettings.boundAt")
-              }}</TableHead>
-              <TableHead class="whitespace-normal">
-                {{ t("admin.authSettings.deviceAssociation") }}
-              </TableHead>
-              <TableHead class="whitespace-normal">
-                {{ t("admin.authSettings.permission") }}
-              </TableHead>
-              <TableHead
-                v-if="showAdminPanelAccessColumn"
-                class="whitespace-normal"
-              >
-                {{ t("admin.authSettings.adminPanelAccess") }}
-              </TableHead>
-              <TableHead class="text-right">
-                {{ t("admin.authSettings.actions") }}
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TableRow v-for="n in 4" :key="n">
-              <TableCell><Skeleton class="h-4 w-40 max-w-full" /></TableCell>
-              <TableCell><Skeleton class="h-4 w-36 max-w-full" /></TableCell>
-              <TableCell><Skeleton class="h-4 w-52 max-w-full" /></TableCell>
-              <TableCell><Skeleton class="h-8 w-40 max-w-full" /></TableCell>
-              <TableCell v-if="showAdminPanelAccessColumn">
-                <Skeleton class="h-6 w-24 max-w-full" />
-              </TableCell>
-              <TableCell class="text-right"
-                ><Skeleton class="h-8 w-16 rounded-md ml-auto sm:w-24"
-              /></TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
-      </div>
-    </CardContent>
-    <CardContent v-else-if="!isLoading || credentials.length">
-      <Table :class="totpTableClass" container-class="overflow-x-auto">
-        <colgroup>
-          <col :class="showAdminPanelAccessColumn ? 'w-[24%]' : 'w-[27%]'" />
-          <col :class="showAdminPanelAccessColumn ? 'w-[16%]' : 'w-[18%]'" />
-          <col :class="showAdminPanelAccessColumn ? 'w-[16%]' : 'w-[19%]'" />
-          <col :class="showAdminPanelAccessColumn ? 'w-[18%]' : 'w-[22%]'" />
-          <col v-if="showAdminPanelAccessColumn" class="w-[14%]" />
-          <col :class="showAdminPanelAccessColumn ? 'w-[12%]' : 'w-[14%]'" />
-        </colgroup>
-        <TableHeader>
-          <TableRow>
-            <TableHead class="whitespace-normal">
-              {{ t("admin.authSettings.comment") }}
-            </TableHead>
-            <TableHead class="whitespace-normal">{{
-              t("admin.authSettings.boundAt")
-            }}</TableHead>
-            <TableHead class="whitespace-normal">
-              {{ t("admin.authSettings.deviceAssociation") }}
-            </TableHead>
-            <TableHead class="whitespace-normal">
-              {{ t("admin.authSettings.permission") }}
-            </TableHead>
-            <TableHead
-              v-if="showAdminPanelAccessColumn"
-              class="whitespace-normal"
-            >
-              {{ t("admin.authSettings.adminPanelAccess") }}
-            </TableHead>
-            <TableHead class="text-right">
-              {{ t("admin.authSettings.actions") }}
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          <TableRow v-for="totp in credentials" :key="totp.id">
-            <TableCell class="min-w-0 whitespace-normal">
-              <InlineCommentEditor
-                :text="totp.comment"
-                :allow-empty="false"
-                :validate="(value) => validateComment(value, totp.id)"
-                :save="(value) => saveComment(totp.id, value)"
-              />
-            </TableCell>
-            <TableCell><HumanFriendlyTime :value="totp.createdAt" /></TableCell>
-            <TableCell class="whitespace-normal">
-              <Button
-                variant="link"
-                class="h-auto whitespace-normal p-0 text-left"
-                @click="goToPasskeys(totp.id)"
-              >
-                {{ t("admin.authSettings.managePasskey") }}
-              </Button>
-            </TableCell>
-            <TableCell class="min-w-0 whitespace-normal">
-              <div class="flex min-w-0 flex-col gap-1">
-                <button
-                  type="button"
-                  class="min-w-0 text-left text-sm font-medium text-primary underline-offset-4 hover:underline disabled:pointer-events-none disabled:opacity-60"
-                  :disabled="isSubdomainAccessUpdating(totp.id)"
-                  @click="openSubdomainAccessDialog(totp)"
-                >
-                  {{ getSubdomainAccessSummary(totp) }}
-                </button>
-                <span
-                  v-if="getSubdomainAccessPreview(totp)"
-                  class="truncate text-xs text-muted-foreground"
-                  :title="getSubdomainAccessPreview(totp)"
-                >
-                  {{ getSubdomainAccessPreview(totp) }}
-                </span>
-              </div>
-            </TableCell>
-            <TableCell v-if="showAdminPanelAccessColumn">
-              <TooltipProvider>
-                <Tooltip
-                  :open="isAdminPanelAccessTooltipOpen(totp.id)"
-                  @update:open="
-                    handleAdminPanelAccessTooltipOpenChange(totp.id, $event)
-                  "
-                >
-                  <TooltipTrigger as-child>
-                    <div
-                      class="inline-flex cursor-help items-center gap-2"
-                      tabindex="0"
-                      @click="handleAdminPanelAccessTooltipClick(totp.id)"
-                    >
-                      <Switch
-                        :model-value="hasDockerAdminPanelAccess(totp)"
-                        :disabled="isAccessScopeUpdating(totp.id)"
-                        :aria-label="t('admin.authSettings.adminPanelAccess')"
-                        @update:model-value="
-                          handleDockerAdminPanelAccessChange(
-                            totp,
-                            $event === true,
-                          )
-                        "
-                      />
-                      <span class="text-xs text-muted-foreground">
-                        {{
-                          hasDockerAdminPanelAccess(totp)
-                            ? t("admin.authSettings.adminPanelAllowed")
-                            : t("admin.authSettings.adminPanelDenied")
-                        }}
-                      </span>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent class="max-w-72 text-left">
-                    <p>{{ t("admin.authSettings.adminPanelAccessTooltip") }}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </TableCell>
-            <TableCell class="text-right">
-              <ConfirmDangerPopover
-                :title="t('admin.authSettings.deleteTitle')"
-                :description="
-                  t('admin.authSettings.deleteDescription', {
-                    name: totp.comment || t('admin.authSettings.tokenFallback'),
-                  })
-                "
-                :loading="isDeleting"
-                :disabled="isDeleting"
-                :on-confirm="() => handleDelete(totp.id)"
-              >
-                <template #trigger>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    :disabled="isDeleting"
-                  >
-                    {{ t("admin.authSettings.delete") }}
-                  </Button>
-                </template>
-              </ConfirmDangerPopover>
-            </TableCell>
-          </TableRow>
-          <TableEmpty
-            v-if="credentials.length === 0"
-            :colspan="totpTableColspan"
-          >
-            {{ t("admin.authSettings.empty") }}
-          </TableEmpty>
-        </TableBody>
-      </Table>
-    </CardContent>
-    <CardContent v-else class="min-h-[180px]" aria-hidden="true"></CardContent>
+    <TotpCredentialTable
+      :credentials="credentials"
+      :get-subdomain-access-preview="getSubdomainAccessPreview"
+      :get-subdomain-access-summary="getSubdomainAccessSummary"
+      :go-to-passkeys="goToPasskeys"
+      :handle-admin-panel-access-tooltip-click="
+        handleAdminPanelAccessTooltipClick
+      "
+      :handle-admin-panel-access-tooltip-open-change="
+        handleAdminPanelAccessTooltipOpenChange
+      "
+      :handle-delete="handleDelete"
+      :handle-docker-admin-panel-access-change="
+        handleDockerAdminPanelAccessChange
+      "
+      :has-docker-admin-panel-access="hasDockerAdminPanelAccess"
+      :is-access-scope-updating="isAccessScopeUpdating"
+      :is-admin-panel-access-tooltip-open="isAdminPanelAccessTooltipOpen"
+      :is-deleting="isDeleting"
+      :is-loading="isLoading"
+      :is-subdomain-access-updating="isSubdomainAccessUpdating"
+      :open-subdomain-access-dialog="openSubdomainAccessDialog"
+      :save-comment="saveComment"
+      :show-admin-panel-access-column="showAdminPanelAccessColumn"
+      :show-loading-skeleton="showLoadingSkeleton"
+      :table-class="totpTableClass"
+      :table-colspan="totpTableColspan"
+      :validate-comment="validateComment"
+    />
   </Card>
 
   <input
@@ -259,285 +87,42 @@
     @change="handleCredentialImportFileChange"
   />
 
-  <Dialog
-    :open="showCredentialTransferDialog"
-    @update:open="showCredentialTransferDialog = $event"
-  >
-    <DialogContent class="max-h-[88vh] overflow-y-auto sm:max-w-[520px]">
-      <DialogHeader>
-        <DialogTitle>{{
-          t("admin.authSettings.credentialTransfer")
-        }}</DialogTitle>
-        <DialogDescription>
-          {{ t("admin.authSettings.credentialTransferDescription") }}
-        </DialogDescription>
-      </DialogHeader>
-      <div class="grid gap-3 sm:grid-cols-2">
-        <Button
-          variant="outline"
-          class="h-auto justify-start gap-3 px-4 py-3 text-left"
-          :disabled="credentials.length === 0 || isCredentialTransferBusy"
-          @click="openExportDialogFromCredentialTransferDialog"
-        >
-          <Download class="h-4 w-4 shrink-0" />
-          <span class="min-w-0 whitespace-normal font-medium">
-            {{ t("admin.authSettings.exportCredentials") }}
-          </span>
-        </Button>
-        <Button
-          variant="outline"
-          class="h-auto justify-start gap-3 px-4 py-3 text-left"
-          :disabled="isCredentialTransferBusy"
-          @click="triggerImportFilePickerFromCredentialTransferDialog"
-        >
-          <Upload class="h-4 w-4 shrink-0" />
-          <span class="min-w-0 whitespace-normal font-medium">
-            {{ t("admin.authSettings.importCredentials") }}
-          </span>
-        </Button>
-      </div>
-      <DialogFooter>
-        <Button
-          variant="outline"
-          :disabled="isCredentialTransferBusy"
-          @click="showCredentialTransferDialog = false"
-        >
-          {{ t("admin.authSettings.cancel") }}
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+  <CredentialTransferDialogs
+    v-model:credential-transfer-open="showCredentialTransferDialog"
+    v-model:export-open="showExportDialog"
+    v-model:import-open="showImportDialog"
+    :credential-count="credentials.length"
+    :is-credential-transfer-busy="isCredentialTransferBusy"
+    :is-exporting-credentials="isExportingCredentials"
+    :is-importing-credentials="isImportingCredentials"
+    :pending-credential-import-filename="pendingCredentialImportFilename"
+    @export-from-transfer="openExportDialogFromCredentialTransferDialog"
+    @import-from-transfer="triggerImportFilePickerFromCredentialTransferDialog"
+    @confirm-export="handleExportCredentials"
+    @confirm-import="handleImportCredentials"
+    @reset-import="resetPendingCredentialImport"
+  />
 
-  <Dialog :open="showExportDialog" @update:open="showExportDialog = $event">
-    <DialogContent class="max-h-[88vh] overflow-y-auto sm:max-w-[520px]">
-      <DialogHeader>
-        <DialogTitle>{{
-          t("admin.authSettings.exportCredentialsTitle")
-        }}</DialogTitle>
-        <DialogDescription>
-          {{ t("admin.authSettings.exportCredentialsDescription") }}
-        </DialogDescription>
-      </DialogHeader>
-      <DialogFooter class="gap-2">
-        <Button
-          variant="outline"
-          :disabled="isExportingCredentials"
-          @click="showExportDialog = false"
-        >
-          {{ t("admin.authSettings.cancel") }}
-        </Button>
-        <Button
-          :disabled="isExportingCredentials"
-          @click="handleExportCredentials"
-        >
-          <span
-            v-if="isExportingCredentials"
-            class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
-          ></span>
-          {{ t("admin.authSettings.confirmExportCredentials") }}
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
-
-  <Dialog
-    :open="showImportDialog"
-    @update:open="
-      showImportDialog = $event;
-      if (!$event) resetPendingCredentialImport();
+  <SubdomainAccessDialog
+    v-model:open="showSubdomainAccessDialog"
+    v-model:mode="subdomainAccessMode"
+    v-model:search="subdomainAccessSearch"
+    :has-target="Boolean(editingSubdomainAccessTotp)"
+    :is-saving="isSavingSubdomainAccess"
+    :option-count="subdomainAccessOptions.length"
+    :options="filteredSubdomainAccessOptions"
+    :selected-count="selectedSubdomainHostCount"
+    :selected-hosts="selectedSubdomainHosts"
+    :target-name="
+      editingSubdomainAccessTotp?.comment ||
+      t('admin.authSettings.tokenFallback')
     "
-  >
-    <DialogContent class="max-h-[88vh] overflow-y-auto sm:max-w-[520px]">
-      <DialogHeader>
-        <DialogTitle>{{
-          t("admin.authSettings.importCredentialsTitle")
-        }}</DialogTitle>
-        <DialogDescription>
-          {{ t("admin.authSettings.importCredentialsDescription") }}
-        </DialogDescription>
-      </DialogHeader>
-      <div class="rounded-md border bg-muted/20 px-3 py-2 text-sm">
-        <p class="break-all font-medium">
-          {{ pendingCredentialImportFilename }}
-        </p>
-      </div>
-      <DialogFooter class="gap-2">
-        <Button
-          variant="outline"
-          :disabled="isImportingCredentials"
-          @click="
-            showImportDialog = false;
-            resetPendingCredentialImport();
-          "
-        >
-          {{ t("admin.authSettings.cancel") }}
-        </Button>
-        <Button
-          :disabled="isImportingCredentials"
-          @click="handleImportCredentials"
-        >
-          <span
-            v-if="isImportingCredentials"
-            class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
-          ></span>
-          {{ t("admin.authSettings.confirmImportCredentials") }}
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
-
-  <Dialog
-    :open="showSubdomainAccessDialog"
-    @update:open="handleSubdomainAccessDialogOpenChange"
-  >
-    <DialogContent class="max-h-[88vh] overflow-y-auto sm:max-w-[640px]">
-      <DialogHeader>
-        <DialogTitle>
-          {{ t("admin.authSettings.permissionDialogTitle") }}
-        </DialogTitle>
-        <DialogDescription>
-          {{
-            t("admin.authSettings.permissionDialogDescription", {
-              name:
-                editingSubdomainAccessTotp?.comment ||
-                t("admin.authSettings.tokenFallback"),
-            })
-          }}
-        </DialogDescription>
-      </DialogHeader>
-
-      <div class="space-y-4">
-        <div class="grid grid-cols-2 gap-2">
-          <Button
-            type="button"
-            :variant="subdomainAccessMode === 'all' ? 'default' : 'outline'"
-            class="h-auto justify-start px-4 py-3 text-left"
-            @click="subdomainAccessMode = 'all'"
-          >
-            <span class="min-w-0 whitespace-normal">
-              {{ t("admin.authSettings.permissionAll") }}
-            </span>
-          </Button>
-          <Button
-            type="button"
-            :variant="subdomainAccessMode === 'custom' ? 'default' : 'outline'"
-            class="h-auto justify-start px-4 py-3 text-left"
-            @click="subdomainAccessMode = 'custom'"
-          >
-            <span class="min-w-0 whitespace-normal">
-              {{ t("admin.authSettings.permissionCustom") }}
-            </span>
-          </Button>
-        </div>
-
-        <div v-if="subdomainAccessMode === 'custom'" class="space-y-3">
-          <Input
-            v-model.trim="subdomainAccessSearch"
-            :placeholder="t('admin.authSettings.permissionSearchPlaceholder')"
-          />
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <p class="text-sm text-muted-foreground">
-              {{
-                t("admin.authSettings.permissionSelectedCount", {
-                  count: selectedSubdomainHostCount,
-                })
-              }}
-            </p>
-            <div class="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                :disabled="filteredSubdomainAccessOptions.length === 0"
-                @click="selectAllFilteredSubdomainHosts"
-              >
-                {{ t("admin.authSettings.permissionSelectAll") }}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                :disabled="selectedSubdomainHostCount === 0"
-                @click="clearSelectedSubdomainHosts"
-              >
-                {{ t("admin.authSettings.permissionClear") }}
-              </Button>
-            </div>
-          </div>
-
-          <div
-            class="max-h-72 overflow-y-auto rounded-md border"
-            role="group"
-            :aria-label="t('admin.authSettings.permissionCustom')"
-          >
-            <label
-              v-for="option in filteredSubdomainAccessOptions"
-              :key="option.host"
-              class="flex cursor-pointer items-start gap-3 border-b px-3 py-3 last:border-b-0 hover:bg-muted/40"
-            >
-              <Checkbox
-                class="mt-0.5"
-                :model-value="isSubdomainHostSelected(option.host)"
-                @update:model-value="
-                  toggleSubdomainHost(option.host, $event === true)
-                "
-              />
-              <span class="min-w-0 flex-1">
-                <span class="block truncate text-sm font-medium">
-                  {{ option.label }}
-                </span>
-                <span class="block truncate text-xs text-muted-foreground">
-                  {{ option.description }}
-                </span>
-              </span>
-              <span
-                v-if="option.builtin"
-                class="shrink-0 rounded border px-1.5 py-0.5 text-xs text-muted-foreground"
-              >
-                {{ t("admin.authSettings.permissionBuiltin") }}
-              </span>
-              <span
-                v-else-if="option.stale"
-                class="shrink-0 rounded border px-1.5 py-0.5 text-xs text-muted-foreground"
-              >
-                {{ t("admin.authSettings.permissionStaleHost") }}
-              </span>
-            </label>
-            <div
-              v-if="filteredSubdomainAccessOptions.length === 0"
-              class="px-3 py-8 text-center text-sm text-muted-foreground"
-            >
-              {{
-                subdomainAccessOptions.length === 0
-                  ? t("admin.authSettings.permissionNoHosts")
-                  : t("admin.authSettings.permissionNoSearchResults")
-              }}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <DialogFooter class="gap-2">
-        <Button
-          variant="outline"
-          :disabled="isSavingSubdomainAccess"
-          @click="closeSubdomainAccessDialog"
-        >
-          {{ t("admin.authSettings.cancel") }}
-        </Button>
-        <Button
-          :disabled="isSavingSubdomainAccess || !editingSubdomainAccessTotp"
-          @click="handleSaveSubdomainAccess"
-        >
-          <span
-            v-if="isSavingSubdomainAccess"
-            class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
-          ></span>
-          {{ t("common.save") }}
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+    @clear-selected="clearSelectedSubdomainHosts"
+    @close="closeSubdomainAccessDialog"
+    @save="handleSaveSubdomainAccess"
+    @select-all-filtered="selectAllFilteredSubdomainHosts"
+    @toggle-host="toggleSubdomainHost"
+  />
 
   <Dialog
     :open="showSetupDialog"
@@ -719,37 +304,20 @@ import {
   CardHeader,
   CardTitle,
   CardDescription,
-  CardContent,
 } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableEmpty,
-} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Copy,
-  Download,
-  FileKey2,
-  Upload,
-} from "lucide-vue-next";
+import { ChevronLeft, ChevronRight, Copy, FileKey2 } from "lucide-vue-next";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
-import InlineCommentEditor from "@admin-shared/components/InlineCommentEditor.vue";
-import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
+import CredentialTransferDialogs from "./auth-settings/CredentialTransferDialogs.vue";
+import SubdomainAccessDialog from "./auth-settings/SubdomainAccessDialog.vue";
+import TotpCredentialTable from "./auth-settings/TotpCredentialTable.vue";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
@@ -757,16 +325,6 @@ import {
   InputOTPGroup,
   InputOTPSlot,
 } from "@/components/ui/input-otp";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import {
   extractErrorMessage,
   useAsyncAction,
@@ -891,19 +449,17 @@ const { run: runSetupInit } = useAsyncAction({
 const { run: runSaveComment } = useAsyncAction({
   rethrow: true,
 });
-const {
-  isPending: isSavingSubdomainAccess,
-  run: runSaveSubdomainAccess,
-} = useAsyncAction({
-  onError: (error) => {
-    toast.error(
-      extractErrorMessage(
-        error,
-        t("admin.authSettings.permissionUpdateFailed"),
-      ),
-    );
-  },
-});
+const { isPending: isSavingSubdomainAccess, run: runSaveSubdomainAccess } =
+  useAsyncAction({
+    onError: (error) => {
+      toast.error(
+        extractErrorMessage(
+          error,
+          t("admin.authSettings.permissionUpdateFailed"),
+        ),
+      );
+    },
+  });
 
 // Delete state
 const { isPending: isDeleting, run: runDeleteTotp } = useAsyncAction({
@@ -1088,7 +644,9 @@ async function fetchStatus() {
 }
 
 function normalizeSubdomainHost(value: unknown) {
-  const raw = String(value ?? "").trim().toLowerCase();
+  const raw = String(value ?? "")
+    .trim()
+    .toLowerCase();
   if (!raw) return "";
   if (
     raw === BUILTIN_SELECT_PAGE_ACCESS_HOST ||
@@ -1127,9 +685,7 @@ function formatSubdomainAccessHostLabel(host: string) {
     : host;
 }
 
-function normalizeTOTPSubdomainAccess(
-  value: unknown,
-): TOTPSubdomainAccess {
+function normalizeTOTPSubdomainAccess(value: unknown): TOTPSubdomainAccess {
   if (
     typeof value !== "object" ||
     value === null ||
@@ -1140,8 +696,9 @@ function normalizeTOTPSubdomainAccess(
 
   const hostsValue = (value as { hosts?: unknown }).hosts;
   const hosts = Array.isArray(hostsValue)
-    ? [...new Set(hostsValue.map(normalizeSubdomainHost).filter(Boolean))]
-        .sort(compareSubdomainAccessHosts)
+    ? [...new Set(hostsValue.map(normalizeSubdomainHost).filter(Boolean))].sort(
+        compareSubdomainAccessHosts,
+      )
     : [];
   return {
     mode: "custom",
@@ -1153,9 +710,7 @@ function normalizeCredential(credential: TOTPCredential): TOTPCredential {
   return {
     ...credential,
     access_scopes: credential.access_scopes || [],
-    subdomain_access: normalizeTOTPSubdomainAccess(
-      credential.subdomain_access,
-    ),
+    subdomain_access: normalizeTOTPSubdomainAccess(credential.subdomain_access),
   };
 }
 
@@ -1363,24 +918,12 @@ function openSubdomainAccessDialog(totp: TOTPCredential) {
   showSubdomainAccessDialog.value = true;
 }
 
-function handleSubdomainAccessDialogOpenChange(open: boolean) {
-  if (open) {
-    showSubdomainAccessDialog.value = true;
-    return;
-  }
-  closeSubdomainAccessDialog();
-}
-
 function closeSubdomainAccessDialog() {
   showSubdomainAccessDialog.value = false;
   editingSubdomainAccessTotp.value = null;
   subdomainAccessMode.value = "all";
   selectedSubdomainHosts.value = new Set();
   subdomainAccessSearch.value = "";
-}
-
-function isSubdomainHostSelected(host: string) {
-  return selectedSubdomainHosts.value.has(host);
 }
 
 function toggleSubdomainHost(host: string, checked: boolean) {

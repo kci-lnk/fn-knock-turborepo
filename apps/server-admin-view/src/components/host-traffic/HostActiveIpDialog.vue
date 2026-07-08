@@ -43,8 +43,7 @@
                   size="sm"
                   class="h-8 border-destructive/30 px-2.5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
                   :disabled="
-                    selectedUnblockedIps.length === 0 ||
-                    isMutatingBlacklistIps
+                    selectedUnblockedIps.length === 0 || isMutatingBlacklistIps
                   "
                 >
                   <Ban class="h-3.5 w-3.5" />
@@ -205,8 +204,12 @@
                   <ConfirmDangerPopover
                     :title="
                       isGeneralBlacklisted(item.ip)
-                        ? t('admin.hostTraffic.activeIpDialog.unblacklistOneTitle')
-                        : t('admin.hostTraffic.activeIpDialog.blacklistOneTitle')
+                        ? t(
+                            'admin.hostTraffic.activeIpDialog.unblacklistOneTitle',
+                          )
+                        : t(
+                            'admin.hostTraffic.activeIpDialog.blacklistOneTitle',
+                          )
                     "
                     :description="
                       isGeneralBlacklisted(item.ip)
@@ -245,7 +248,9 @@
                         :disabled="isMutatingBlacklistIps"
                         :aria-label="
                           isGeneralBlacklisted(item.ip)
-                            ? t('admin.hostTraffic.activeIpDialog.unblacklistOne')
+                            ? t(
+                                'admin.hostTraffic.activeIpDialog.unblacklistOne',
+                              )
                             : t('admin.hostTraffic.activeIpDialog.blacklistOne')
                         "
                       >
@@ -271,6 +276,7 @@
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Ban, RefreshCw, Unlock } from "lucide-vue-next";
+import { useLogIpSelection } from "@/composables/useLogIpSelection";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -291,14 +297,7 @@ import {
 } from "@/components/ui/table";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
-import {
-  extractErrorMessage,
-  useAsyncAction,
-} from "@admin-shared/composables/useAsyncAction";
-import { toast } from "@admin-shared/utils/toast";
 import type { HostActiveIpDisplayItem } from "../../composables/useHostActiveIps";
-import { useGeneralBlacklistStatus } from "../../composables/useGeneralBlacklistStatus";
-import { GeneralBlacklistAPI } from "../../lib/api";
 
 const props = withDefaults(
   defineProps<{
@@ -331,123 +330,44 @@ const displayTitle = computed(
   () => props.title?.trim() || t("admin.hostTraffic.activeIpDialog.title"),
 );
 
-const { isPending: isBlockingIps, run: runBlockIps } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.hostTraffic.activeIpDialog.blacklistFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.hostTraffic.activeIpDialog.blacklistFailed"),
-      ),
-    });
-  },
-});
-const { isPending: isReleasingIps, run: runReleaseIps } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.hostTraffic.activeIpDialog.unblacklistFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.hostTraffic.activeIpDialog.unblacklistFailed"),
-      ),
-    });
-  },
-});
-const isMutatingBlacklistIps = computed(
-  () => isBlockingIps.value || isReleasingIps.value,
-);
-
 const visibleIps = computed(() =>
   Array.from(new Set(props.items.map((item) => item.ip).filter(Boolean))),
 );
+const displayedIpEntries = computed(() =>
+  visibleIps.value.map((ip) => ({
+    actionIp: ip,
+    selectionKey: ip,
+  })),
+);
 const {
-  refresh: refreshGeneralBlacklistStatus,
-  isBlacklisted: isGeneralBlacklisted,
-} = useGeneralBlacklistStatus(visibleIps);
-const selectedIpList = computed(() => Array.from(selectedIps.value));
-const selectedBlockedIps = computed(() =>
-  selectedIpList.value.filter((ip) => isGeneralBlacklisted(ip)),
-);
-const selectedUnblockedIps = computed(() =>
-  selectedIpList.value.filter((ip) => !isGeneralBlacklisted(ip)),
-);
-
-const isAllSelected = computed({
-  get: () =>
-    visibleIps.value.length > 0 &&
-    visibleIps.value.every((ip) => selectedIps.value.has(ip)),
-  set: (checked: boolean) => {
-    const next = new Set(selectedIps.value);
-    if (checked) {
-      visibleIps.value.forEach((ip) => next.add(ip));
-    } else {
-      visibleIps.value.forEach((ip) => next.delete(ip));
-    }
-    selectedIps.value = next;
+  blockIps,
+  isAllDisplayedRowsSelected: isAllSelected,
+  isBlockingIps,
+  isGeneralBlacklisted,
+  isMutatingBlacklistIps,
+  isReleasingIps,
+  releaseIps,
+  selectedBlockedIps,
+  selectedUnblockedIps,
+  toggleEntrySelection: toggleSelect,
+} = useLogIpSelection({
+  displayedEntries: displayedIpEntries,
+  messageKeys: {
+    blacklistFailed: "admin.hostTraffic.activeIpDialog.blacklistFailed",
+    blacklistSuccess: "admin.hostTraffic.activeIpDialog.blacklistSuccess",
+    blacklistSuccessDetail:
+      "admin.hostTraffic.activeIpDialog.blacklistSuccessDetail",
+    unblacklistFailed: "admin.hostTraffic.activeIpDialog.unblacklistFailed",
+    unblacklistSuccess: "admin.hostTraffic.activeIpDialog.unblacklistSuccess",
+    unblacklistSuccessDetail:
+      "admin.hostTraffic.activeIpDialog.unblacklistSuccessDetail",
   },
+  onMutated: () => emit("refresh"),
+  pruneInvisibleSelection: true,
+  selectedEntryKeys: selectedIps,
+  source: "active_ip",
+  translate: t,
 });
-
-const toggleSelect = (ip: string) => {
-  const next = new Set(selectedIps.value);
-  if (next.has(ip)) {
-    next.delete(ip);
-  } else {
-    next.add(ip);
-  }
-  selectedIps.value = next;
-};
-
-const removeSelectedIps = (ips: string[]) => {
-  const operatedIps = new Set(ips);
-  selectedIps.value = new Set(
-    Array.from(selectedIps.value).filter((ip) => !operatedIps.has(ip)),
-  );
-};
-
-const blockIps = async (ips: string[]) => {
-  const uniqueIps = Array.from(new Set(ips.filter(Boolean))).filter(
-    (ip) => !isGeneralBlacklisted(ip),
-  );
-  if (uniqueIps.length === 0) return;
-
-  await runBlockIps(() => GeneralBlacklistAPI.add(uniqueIps, "active_ip"), {
-    onSuccess: async (result) => {
-      toast.success(t("admin.hostTraffic.activeIpDialog.blacklistSuccess"), {
-        description: t(
-          "admin.hostTraffic.activeIpDialog.blacklistSuccessDetail",
-          {
-            added: result?.added ?? 0,
-            updated: result?.updated ?? 0,
-          },
-        ),
-      });
-      removeSelectedIps(uniqueIps);
-      await refreshGeneralBlacklistStatus();
-      emit("refresh");
-    },
-  });
-};
-
-const releaseIps = async (ips: string[]) => {
-  const uniqueIps = Array.from(new Set(ips.filter(Boolean))).filter((ip) =>
-    isGeneralBlacklisted(ip),
-  );
-  if (uniqueIps.length === 0) return;
-
-  await runReleaseIps(() => GeneralBlacklistAPI.delete(uniqueIps), {
-    onSuccess: async (result) => {
-      toast.success(t("admin.hostTraffic.activeIpDialog.unblacklistSuccess"), {
-        description: t(
-          "admin.hostTraffic.activeIpDialog.unblacklistSuccessDetail",
-          {
-            removed: result?.removed ?? 0,
-          },
-        ),
-      });
-      removeSelectedIps(uniqueIps);
-      await refreshGeneralBlacklistStatus();
-      emit("refresh");
-    },
-  });
-};
 
 const activeWindowText = computed(() => {
   const seconds = Math.max(1, Number(props.windowSeconds || 120));
@@ -477,11 +397,4 @@ watch(
     }
   },
 );
-
-watch(visibleIps, (ips) => {
-  const visible = new Set(ips);
-  selectedIps.value = new Set(
-    Array.from(selectedIps.value).filter((ip) => visible.has(ip)),
-  );
-});
 </script>

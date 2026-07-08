@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
@@ -30,6 +30,36 @@ const isChartChunk = createChunkMatcher([
   'node_modules/uplot/',
 ])
 
+const createGhosttyExternalWasmPlugin = (): Plugin => ({
+  name: 'fn-knock:ghostty-external-wasm',
+  enforce: 'pre',
+  transform(code, id) {
+    const normalizedId = id.split(path.sep).join('/')
+    if (!normalizedId.endsWith('/node_modules/ghostty-web/dist/ghostty-web.js')) {
+      return null
+    }
+
+    const inlineLoadPattern =
+      /  static async load\(A\) \{\n    if \(A\)\n      return q\.loadFromPath\(A\);\n    const B = new URL\("data:application\/wasm;base64,[\s\S]*?\n  static async loadFromPath\(A\) \{/
+    const externalLoad = `  static async load(A) {
+    if (!A)
+      throw new Error("ghostty-web requires an explicit WASM URL in this build");
+    return q.loadFromPath(A);
+  }
+  static async loadFromPath(A) {`
+    const nextCode = code.replace(inlineLoadPattern, externalLoad)
+
+    if (nextCode === code) {
+      throw new Error('Failed to strip ghostty-web inline WASM fallback')
+    }
+
+    return {
+      code: nextCode,
+      map: null,
+    }
+  },
+})
+
 const isCriticalHtmlPreload = (dep: string) => {
   const name = path.basename(dep)
   return (
@@ -48,6 +78,7 @@ export default defineConfig({
   base: './',
   publicDir: path.resolve(__dirname, '../../packages/icons'),
   plugins: [
+    createGhosttyExternalWasmPlugin(),
     vue(),
     tailwindcss({
       optimize: false,

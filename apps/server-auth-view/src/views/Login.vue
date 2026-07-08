@@ -1,364 +1,345 @@
 <template>
-  <div class="auth-safe-shell auth-visual-shell flex flex-col">
-    <div class="flex flex-1 items-center justify-center">
-      <Card class="auth-glass-card w-full max-w-sm">
-        <CardHeader>
-          <CardTitle class="text-2xl text-center">{{ t("auth.title") }}</CardTitle>
-          <CardDescription class="text-center" v-if="!isCaptchaVerified">
-            {{ t("auth.captchaFirst") }}
-          </CardDescription>
-          <CardDescription class="text-center" v-else>
-            {{ t("auth.otpPrompt") }}
-          </CardDescription>
-          <div
-            v-if="logoutNotice"
-            class="mt-3 rounded-lg border border-border/70 bg-muted/50 px-3 py-2 text-sm text-muted-foreground"
+  <AuthShell>
+    <AuthCard
+      :title="t('auth.title')"
+      :description="
+        isCaptchaVerified ? t('auth.otpPrompt') : t('auth.captchaFirst')
+      "
+    >
+      <template #header-extra>
+        <div
+          v-if="logoutNotice"
+          class="mt-3 rounded-lg border border-border/70 bg-muted/50 px-3 py-2 text-sm text-muted-foreground"
+        >
+          {{ logoutNotice }}
+        </div>
+        <div
+          v-if="oidcError"
+          class="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+        >
+          {{ oidcError }}
+        </div>
+      </template>
+
+      <form class="flex flex-col gap-6 items-center" autocomplete="off">
+        <div
+          v-if="
+            !isCaptchaVerified &&
+            activeCaptchaProvider === 'pow' &&
+            isCaptchaProviderAvailable &&
+            canUseNativePow
+          "
+          class="w-full flex justify-center mt-2"
+        >
+          <altcha-widget
+            ref="powWidgetRef"
+            :challengeurl="powChallengeUrl"
+            :customfetch.prop="powChallengeFetch"
+            @statechange="onPowStateChange"
+            hidefooter
+            hidelogo
+            class="w-full"
+            style="
+              --altcha-color-border: pink;
+              --altcha-border-width: 3px;
+              --altcha-border-radius: 8px;
+              --altcha-max-width: 360px;
+            "
+            :strings="powWidgetStrings"
           >
-            {{ logoutNotice }}
-          </div>
-          <div
-            v-if="oidcError"
-            class="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+          </altcha-widget>
+        </div>
+        <div
+          v-else-if="!isCaptchaVerified && isCaptchaConfigLoading"
+          class="w-full mt-2 space-y-3"
+        >
+          <Skeleton class="h-11 w-full rounded-md" />
+          <Skeleton class="h-4 w-2/3 rounded-md mx-auto" />
+        </div>
+        <div
+          v-else-if="
+            !isCaptchaVerified &&
+            activeCaptchaProvider === 'pow' &&
+            isCaptchaProviderAvailable
+          "
+          class="w-full mt-2 space-y-3"
+        >
+          <Button
+            type="button"
+            class="w-full"
+            :disabled="isPowFallbackLoading"
+            @click="handlePowFallbackVerify"
           >
-            {{ oidcError }}
+            <span
+              v-if="isPowFallbackLoading"
+              class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+            ></span>
+            {{
+              isPowFallbackLoading ? t("auth.verifying") : t("auth.notRobot")
+            }}
+          </Button>
+        </div>
+        <div
+          v-else-if="
+            !isCaptchaVerified &&
+            activeCaptchaProvider === 'turnstile' &&
+            isCaptchaProviderAvailable
+          "
+          class="w-full mt-2 space-y-3"
+        >
+          <TurnstileWidget
+            v-if="hasTurnstileSiteKey"
+            ref="turnstileWidgetRef"
+            :site-key="captchaConfig?.turnstile.site_key || ''"
+            :disabled="isLoading || isPasskeyLoading"
+            @verified="handleTurnstileVerified"
+            @expired="handleCaptchaReset"
+            @reset="handleCaptchaReset"
+            @error="handleTurnstileError"
+          />
+          <div
+            v-else
+            class="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+          >
+            {{ t("auth.turnstileMissing") }}
           </div>
-        </CardHeader>
+        </div>
+        <div
+          v-else-if="!isCaptchaVerified"
+          class="w-full rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+        >
+          {{ captchaUnavailableReason }}
+        </div>
 
-        <CardContent>
-          <form class="flex flex-col gap-6 items-center" autocomplete="off">
-            <div
-              v-if="
-                !isCaptchaVerified &&
-                activeCaptchaProvider === 'pow' &&
-                isCaptchaProviderAvailable &&
-                canUseNativePow
-              "
-              class="w-full flex justify-center mt-2"
-            >
-              <altcha-widget
-                ref="powWidgetRef"
-                :challengeurl="powChallengeUrl"
-                :customfetch.prop="powChallengeFetch"
-                @statechange="onPowStateChange"
-                hidefooter
-                hidelogo
-                class="w-full"
-                style="
-                  --altcha-color-border: pink;
-                  --altcha-border-width: 3px;
-                  --altcha-border-radius: 8px;
-                  --altcha-max-width: 360px;
-                "
-                :strings="
-                  powWidgetStrings
-                "
-              >
-              </altcha-widget>
-            </div>
-            <div
-              v-else-if="!isCaptchaVerified && isCaptchaConfigLoading"
-              class="w-full mt-2 space-y-3"
-            >
-              <Skeleton class="h-11 w-full rounded-md" />
-              <Skeleton class="h-4 w-2/3 rounded-md mx-auto" />
-            </div>
-            <div
-              v-else-if="
-                !isCaptchaVerified &&
-                activeCaptchaProvider === 'pow' &&
-                isCaptchaProviderAvailable
-              "
-              class="w-full mt-2 space-y-3"
-            >
-              <Button
-                type="button"
-                class="w-full"
-                :disabled="isPowFallbackLoading"
-                @click="handlePowFallbackVerify"
-              >
-                <span
-                  v-if="isPowFallbackLoading"
-                  class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
-                ></span>
-                {{ isPowFallbackLoading ? t("auth.verifying") : t("auth.notRobot") }}
-              </Button>
-            </div>
-            <div
-              v-else-if="
-                !isCaptchaVerified &&
-                activeCaptchaProvider === 'turnstile' &&
-                isCaptchaProviderAvailable
-              "
-              class="w-full mt-2 space-y-3"
-            >
-              <TurnstileWidget
-                v-if="hasTurnstileSiteKey"
-                ref="turnstileWidgetRef"
-                :site-key="captchaConfig?.turnstile.site_key || ''"
-                :disabled="isLoading || isPasskeyLoading"
-                @verified="handleTurnstileVerified"
-                @expired="handleCaptchaReset"
-                @reset="handleCaptchaReset"
-                @error="handleTurnstileError"
-              />
-              <div
-                v-else
-                class="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
-              >
-                {{ t("auth.turnstileMissing") }}
-              </div>
-            </div>
-            <div
-              v-else-if="!isCaptchaVerified"
-              class="w-full rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
-            >
-              {{ captchaUnavailableReason }}
-            </div>
+        <div class="w-full" v-if="isPasskeySupported && isPasskeyAvailable">
+          <Button
+            type="button"
+            :variant="isCaptchaVerified ? 'secondary' : 'default'"
+            class="w-full"
+            :disabled="isPasskeyLoading || isLoginCoolingDown"
+            @click="handlePasskeyLogin"
+          >
+            <span
+              v-if="isPasskeyLoading"
+              class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+            ></span>
+            {{ passkeyButtonLabel }}
+          </Button>
+        </div>
 
-            <div class="w-full" v-if="isPasskeySupported && isPasskeyAvailable">
-              <Button
-                type="button"
-                :variant="isCaptchaVerified ? 'secondary' : 'default'"
-                class="w-full"
-                :disabled="isPasskeyLoading || isLoginCoolingDown"
-                @click="handlePasskeyLogin"
-              >
-                <span
-                  v-if="isPasskeyLoading"
-                  class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
-                ></span>
-                {{ passkeyButtonLabel }}
-              </Button>
-            </div>
+        <div
+          v-if="
+            isPasskeySupported &&
+            isPasskeyAvailable &&
+            !isCaptchaVerified &&
+            oidcProviders.length > 0
+          "
+          class="flex w-full items-center gap-3 text-sm text-muted-foreground"
+          aria-hidden="true"
+        >
+          <div class="h-px flex-1 bg-border"></div>
+          <span class="shrink-0">OR</span>
+          <div class="h-px flex-1 bg-border"></div>
+        </div>
 
-            <div
-              v-if="
-                isPasskeySupported &&
-                isPasskeyAvailable &&
-                !isCaptchaVerified &&
-                oidcProviders.length > 0
-              "
-              class="flex w-full items-center gap-3 text-sm text-muted-foreground"
+        <div
+          v-if="!isCaptchaVerified && oidcProviders.length > 0"
+          class="w-full space-y-2"
+        >
+          <Button
+            v-for="provider in oidcProviders"
+            :key="provider.id"
+            type="button"
+            variant="outline"
+            class="w-full"
+            :disabled="isOidcLoading || isLoginCoolingDown"
+            @click="handleOidcLogin(provider.id)"
+          >
+            <span
+              v-if="activeOidcProviderId === provider.id && isOidcLoading"
+              class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"
+            ></span>
+            <Github
+              v-else-if="providerIconKind(provider) === 'github'"
+              class="size-4"
+              aria-hidden="true"
+            />
+            <svg
+              v-else-if="providerIconKind(provider) === 'google'"
+              class="size-4"
+              viewBox="0 0 24 24"
               aria-hidden="true"
             >
-              <div class="h-px flex-1 bg-border"></div>
-              <span class="shrink-0">OR</span>
-              <div class="h-px flex-1 bg-border"></div>
-            </div>
-
-            <div
-              v-if="!isCaptchaVerified && oidcProviders.length > 0"
-              class="w-full space-y-2"
+              <path
+                fill="#4285F4"
+                d="M23.77 12.28c0-.82-.07-1.63-.21-2.44H12.24v4.62h6.48a5.54 5.54 0 0 1-2.4 3.64v3.02h3.89c2.28-2.1 3.56-5.19 3.56-8.84Z"
+              />
+              <path
+                fill="#34A853"
+                d="M12.24 24c3.24 0 5.97-1.06 7.95-2.88L16.3 18.1c-1.08.73-2.47 1.15-4.06 1.15-3.13 0-5.78-2.11-6.73-4.95H1.49v3.11A12 12 0 0 0 12.24 24Z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M5.51 14.3a7.19 7.19 0 0 1 0-4.6V6.59H1.49a12.01 12.01 0 0 0 0 10.82L5.51 14.3Z"
+              />
+              <path
+                fill="#EA4335"
+                d="M12.24 4.75a6.52 6.52 0 0 1 4.6 1.8l3.45-3.45A11.58 11.58 0 0 0 12.24 0 12 12 0 0 0 1.49 6.59L5.51 9.7c.95-2.84 3.6-4.95 6.73-4.95Z"
+              />
+            </svg>
+            <span
+              v-else-if="providerIconKind(provider) === 'microsoft'"
+              class="grid size-4 grid-cols-2 gap-0.5"
+              aria-hidden="true"
             >
-              <Button
-                v-for="provider in oidcProviders"
-                :key="provider.id"
-                type="button"
-                variant="outline"
-                class="w-full"
-                :disabled="isOidcLoading || isLoginCoolingDown"
-                @click="handleOidcLogin(provider.id)"
+              <span class="bg-[#f25022]"></span>
+              <span class="bg-[#7fba00]"></span>
+              <span class="bg-[#00a4ef]"></span>
+              <span class="bg-[#ffb900]"></span>
+            </span>
+            <Cloud
+              v-else-if="providerIconKind(provider) === 'custom_oidc'"
+              class="size-4"
+              aria-hidden="true"
+            />
+            <CircleUserRound v-else class="size-4" aria-hidden="true" />
+            {{ t("auth.loginWithProvider", { provider: provider.name }) }}
+          </Button>
+        </div>
+
+        <div class="w-full flex justify-center" v-if="isCaptchaVerified">
+          <InputOTP
+            inputmode="numeric"
+            :maxlength="6"
+            v-model="token"
+            @complete="handleOtpComplete"
+            :disabled="isLoading || isLoginCoolingDown"
+            :autofocus="true"
+            autocomplete="off"
+            data-form-type="other"
+            data-1p-ignore="true"
+            data-lpignore="true"
+            data-bwignore="true"
+          >
+            <InputOTPGroup>
+              <InputOTPSlot v-for="i in 6" :key="i - 1" :index="i - 1" />
+            </InputOTPGroup>
+          </InputOTP>
+        </div>
+
+        <Dialog :open="showErrorDialog" @update:open="showErrorDialog = $event">
+          <DialogContent :show-close-button="false">
+            <DialogHeader>
+              <DialogTitle>{{ t("auth.tip") }}</DialogTitle>
+              <DialogDescription>
+                {{ errorMessage }}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button @click="showErrorDialog = false">{{
+                t("auth.ok")
+              }}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        <Dialog
+          :open="showPasskeyBindDialog"
+          @update:open="handlePasskeyBindDialogOpenChange"
+        >
+          <DialogContent
+            :show-close-button="false"
+            overlay-class="bg-black/50 backdrop-blur-sm"
+          >
+            <DialogHeader>
+              <DialogTitle>{{ t("auth.passkeyBindTitle") }}</DialogTitle>
+              <DialogDescription>
+                {{ t("auth.passkeyBindDescription") }}
+              </DialogDescription>
+            </DialogHeader>
+            <div v-if="passkeyBindError" class="text-sm text-destructive">
+              {{ passkeyBindError }}
+            </div>
+            <div
+              class="flex items-center space-x-3 rounded-lg border bg-muted/40 px-3 py-2"
+            >
+              <Checkbox
+                id="skipPasskeyBindPrompt"
+                v-model="skipPasskeyBindPrompt"
+                :disabled="isBindingPasskey"
+              />
+              <label
+                for="skipPasskeyBindPrompt"
+                class="cursor-pointer select-none text-sm text-muted-foreground"
               >
+                {{ t("auth.passkeyBindSkipPrompt") }}
+              </label>
+            </div>
+            <DialogFooter class="gap-2">
+              <Button variant="outline" @click="skipPasskeyBind">{{
+                t("auth.passkeyBindLater")
+              }}</Button>
+              <Button :disabled="isBindingPasskey" @click="handlePasskeyBind">
                 <span
-                  v-if="activeOidcProviderId === provider.id && isOidcLoading"
-                  class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"
+                  v-if="isBindingPasskey"
+                  class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
                 ></span>
-                <Github
-                  v-else-if="providerIconKind(provider) === 'github'"
-                  class="size-4"
-                  aria-hidden="true"
-                />
-                <svg
-                  v-else-if="providerIconKind(provider) === 'google'"
-                  class="size-4"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <path
-                    fill="#4285F4"
-                    d="M23.77 12.28c0-.82-.07-1.63-.21-2.44H12.24v4.62h6.48a5.54 5.54 0 0 1-2.4 3.64v3.02h3.89c2.28-2.1 3.56-5.19 3.56-8.84Z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12.24 24c3.24 0 5.97-1.06 7.95-2.88L16.3 18.1c-1.08.73-2.47 1.15-4.06 1.15-3.13 0-5.78-2.11-6.73-4.95H1.49v3.11A12 12 0 0 0 12.24 24Z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.51 14.3a7.19 7.19 0 0 1 0-4.6V6.59H1.49a12.01 12.01 0 0 0 0 10.82L5.51 14.3Z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12.24 4.75a6.52 6.52 0 0 1 4.6 1.8l3.45-3.45A11.58 11.58 0 0 0 12.24 0 12 12 0 0 0 1.49 6.59L5.51 9.7c.95-2.84 3.6-4.95 6.73-4.95Z"
-                  />
-                </svg>
-                <span
-                  v-else-if="providerIconKind(provider) === 'microsoft'"
-                  class="grid size-4 grid-cols-2 gap-0.5"
-                  aria-hidden="true"
-                >
-                  <span class="bg-[#f25022]"></span>
-                  <span class="bg-[#7fba00]"></span>
-                  <span class="bg-[#00a4ef]"></span>
-                  <span class="bg-[#ffb900]"></span>
-                </span>
-                <Cloud
-                  v-else-if="providerIconKind(provider) === 'custom_oidc'"
-                  class="size-4"
-                  aria-hidden="true"
-                />
-                <CircleUserRound v-else class="size-4" aria-hidden="true" />
-                {{ t("auth.loginWithProvider", { provider: provider.name }) }}
+                {{ t("auth.passkeyBindNow") }}
               </Button>
-            </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        <Button
+          type="button"
+          class="w-full"
+          :disabled="isLoading || isLoginCoolingDown"
+          v-if="isCaptchaVerified"
+          @click="handleLogin"
+        >
+          <span
+            v-if="isLoading"
+            class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+          ></span>
+          {{ loginButtonLabel }}
+        </Button>
 
-            <div class="w-full flex justify-center" v-if="isCaptchaVerified">
-              <InputOTP
-                inputmode="numeric"
-                :maxlength="6"
-                v-model="token"
-                @complete="handleOtpComplete"
-                :disabled="isLoading || isLoginCoolingDown"
-                :autofocus="true"
-                autocomplete="off"
-                data-form-type="other"
-                data-1p-ignore="true"
-                data-lpignore="true"
-                data-bwignore="true"
-              >
-                <InputOTPGroup>
-                  <InputOTPSlot v-for="i in 6" :key="i - 1" :index="i - 1" />
-                </InputOTPGroup>
-              </InputOTP>
-            </div>
+        <div
+          class="w-full flex justify-center"
+          v-if="isCaptchaVerified || oidcProviders.length > 0"
+        >
+          <div
+            class="flex items-center justify-center space-x-3 py-2 px-4 rounded-lg transition-colors hover:bg-muted/50 cursor-pointer group"
+          >
+            <Checkbox
+              id="rememberMe"
+              v-model="rememberMe"
+              class="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+            />
+            <label
+              for="rememberMe"
+              class="text-sm font-medium leading-none cursor-pointer select-none text-muted-foreground group-hover:text-foreground transition-colors"
+            >
+              {{ t("auth.rememberMe") }}
+            </label>
+          </div>
+        </div>
+      </form>
+    </AuthCard>
 
-            <Dialog
-              :open="showErrorDialog"
-              @update:open="showErrorDialog = $event"
-            >
-              <DialogContent :show-close-button="false">
-                <DialogHeader>
-                  <DialogTitle>{{ t("auth.tip") }}</DialogTitle>
-                  <DialogDescription>
-                    {{ errorMessage }}
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <Button @click="showErrorDialog = false">{{ t("auth.ok") }}</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-            <Dialog
-              :open="showPasskeyBindDialog"
-              @update:open="handlePasskeyBindDialogOpenChange"
-            >
-              <DialogContent
-                :show-close-button="false"
-                overlay-class="bg-black/50 backdrop-blur-sm"
-              >
-                <DialogHeader>
-                  <DialogTitle>{{ t("auth.passkeyBindTitle") }}</DialogTitle>
-                  <DialogDescription>
-                    {{ t("auth.passkeyBindDescription") }}
-                  </DialogDescription>
-                </DialogHeader>
-                <div v-if="passkeyBindError" class="text-sm text-destructive">
-                  {{ passkeyBindError }}
-                </div>
-                <div
-                  class="flex items-center space-x-3 rounded-lg border bg-muted/40 px-3 py-2"
-                >
-                  <Checkbox
-                    id="skipPasskeyBindPrompt"
-                    v-model="skipPasskeyBindPrompt"
-                    :disabled="isBindingPasskey"
-                  />
-                  <label
-                    for="skipPasskeyBindPrompt"
-                    class="cursor-pointer select-none text-sm text-muted-foreground"
-                  >
-                    {{ t("auth.passkeyBindSkipPrompt") }}
-                  </label>
-                </div>
-                <DialogFooter class="gap-2">
-                  <Button variant="outline" @click="skipPasskeyBind"
-                    >{{ t("auth.passkeyBindLater") }}</Button
-                  >
-                  <Button
-                    :disabled="isBindingPasskey"
-                    @click="handlePasskeyBind"
-                  >
-                    <span
-                      v-if="isBindingPasskey"
-                      class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
-                    ></span>
-                    {{ t("auth.passkeyBindNow") }}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-            <Button
-              type="button"
-              class="w-full"
-              :disabled="isLoading || isLoginCoolingDown"
-              v-if="isCaptchaVerified"
-              @click="handleLogin"
-            >
-              <span
-                v-if="isLoading"
-                class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
-              ></span>
-              {{ loginButtonLabel }}
-            </Button>
-
-            <div
-              class="w-full flex justify-center"
-              v-if="isCaptchaVerified || oidcProviders.length > 0"
-            >
-              <div
-                class="flex items-center justify-center space-x-3 py-2 px-4 rounded-lg transition-colors hover:bg-muted/50 cursor-pointer group"
-              >
-                <Checkbox
-                  id="rememberMe"
-                  v-model="rememberMe"
-                  class="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                />
-                <label
-                  for="rememberMe"
-                  class="text-sm font-medium leading-none cursor-pointer select-none text-muted-foreground group-hover:text-foreground transition-colors"
-                >
-                  {{ t("auth.rememberMe") }}
-                </label>
-              </div>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
-
-    <AuthFooter
-      :client-ip="clientIp"
-      :ip-location="ipLocation"
-      :ip-location-status="ipLocationStatus"
-    />
-  </div>
+    <template #footer>
+      <AuthFooter
+        :client-ip="clientIp"
+        :ip-location="ipLocation"
+        :ip-location-status="ipLocationStatus"
+      />
+    </template>
+  </AuthShell>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
-import {
-  CircleUserRound,
-  Cloud,
-  Github,
-} from "lucide-vue-next";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@/components/ui/card";
+import { CircleUserRound, Cloud, Github } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -376,7 +357,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  normalizeCreationOptions,
   normalizeRequestOptions,
   serializeCredential,
 } from "@frontend-core/passkey/utils";
@@ -395,7 +375,6 @@ import {
   CaptchaAPI,
   fetchNoStore,
 } from "@/lib/api";
-import { applyAppearanceConfig } from "@/lib/appearance";
 import { useClientIpLocation } from "@/lib/client-ip-location";
 import {
   buildPowSubmission,
@@ -405,8 +384,12 @@ import {
 } from "@/lib/captcha";
 import { markPendingLogoutDelay } from "@/lib/post-login";
 import AuthFooter from "@/components/AuthFooter.vue";
+import AuthCard from "@/components/AuthCard.vue";
+import AuthShell from "@/components/AuthShell.vue";
 import TurnstileWidget from "@/components/captcha/TurnstileWidget.vue";
-import { setFnKnockLocale } from "@fn-knock/i18n/vue/auth";
+import { useAuthBrowserCapabilities } from "@/composables/useAuthBrowserCapabilities";
+import { useAuthSystemConfig } from "@/composables/useAuthSystemConfig";
+import { usePasskeyRegistration } from "@/composables/usePasskeyRegistration";
 
 import "altcha";
 
@@ -420,7 +403,6 @@ const errorMessage = ref("");
 const showErrorDialog = ref(false);
 const isLoading = ref(false);
 const loginCooldownSeconds = ref(0);
-const isPasskeySupported = ref(false);
 const isPasskeyAvailable = ref(false);
 const isPasskeyLoading = ref(false);
 const isOidcLoading = ref(false);
@@ -450,9 +432,12 @@ const turnstileWidgetRef = ref<InstanceType<typeof TurnstileWidget> | null>(
 );
 const isCaptchaVerified = ref(false);
 const captchaSubmission = ref<CaptchaSubmission | null>(null);
-const canUseNativePow = ref(true);
 const isPowFallbackLoading = ref(false);
 const isCaptchaConfigLoading = ref(true);
+const { canUseNativePow, isPasskeySupported, refreshBrowserCapabilities } =
+  useAuthBrowserCapabilities();
+const { applyAuthSystemConfig } = useAuthSystemConfig(i18n);
+const { registerPasskeyCredential } = usePasskeyRegistration();
 
 const powChallengeUrl = buildAuthApiPath("/challenge");
 const powChallengeFetch = (input: string | URL, init?: RequestInit) =>
@@ -472,9 +457,6 @@ const hasTurnstileSiteKey = computed(
   () => !!captchaConfig.value?.turnstile.site_key.trim(),
 );
 const isLoginCoolingDown = computed(() => loginCooldownSeconds.value > 0);
-const applySystemLocale = async (value: string | null | undefined) => {
-  await setFnKnockLocale(i18n, value);
-};
 const powWidgetStrings = computed(() =>
   JSON.stringify({
     label: t("auth.notRobot"),
@@ -564,7 +546,7 @@ function onPowStateChange(ev: CustomEvent) {
 }
 
 onMounted(async () => {
-  initBrowserCapabilities();
+  refreshBrowserCapabilities();
   await loadBootstrap();
 });
 
@@ -572,22 +554,10 @@ onUnmounted(() => {
   clearLoginCooldownTimer();
 });
 
-function initBrowserCapabilities() {
-  isPasskeySupported.value =
-    typeof window !== "undefined" && !!window.PublicKeyCredential;
-  canUseNativePow.value =
-    typeof window !== "undefined" &&
-    window.isSecureContext &&
-    typeof window.crypto !== "undefined" &&
-    !!window.crypto.subtle &&
-    typeof window.crypto.subtle.digest === "function";
-}
-
 async function loadBootstrap() {
   try {
     const bootstrap = await AuthAPI.getBootstrap(redirectUri);
-    await applySystemLocale(bootstrap.locale.default_locale);
-    applyAppearanceConfig(bootstrap.appearance);
+    await applyAuthSystemConfig(bootstrap);
     startLocationPolling(bootstrap.client);
     captchaConfig.value = bootstrap.captcha;
     isPasskeyAvailable.value = !!bootstrap.passkey.available;
@@ -1010,9 +980,7 @@ async function handlePasskeyLogin() {
   } catch (e: any) {
     const retryAfter = startLoginCooldown(extractRetryAfterSeconds(e));
     errorMessage.value = resolveRetryAfterMessage(
-      e?.response?.data?.message ||
-        e?.message ||
-        t("auth.passkeyLoginFailed"),
+      e?.response?.data?.message || e?.message || t("auth.passkeyLoginFailed"),
       retryAfter,
     );
     showErrorDialog.value = true;
@@ -1058,38 +1026,21 @@ async function handlePasskeyBind() {
   isBindingPasskey.value = true;
   passkeyBindError.value = "";
   try {
-    const optionsRes = await apiClient.post("/passkey/register/options", {
-      token: passkeyBindToken.value,
-    });
-    const creationOptions = normalizeCreationOptions(optionsRes.data.data);
-    const credential = await navigator.credentials.create({
-      publicKey: creationOptions,
-    });
-    if (!credential) {
-      throw new Error(t("auth.passkeyNoResponse"));
+    const { credentialId } = await registerPasskeyCredential(
+      passkeyBindToken.value,
+      {
+        bindFailed: t("auth.passkeyBindFailed"),
+        noResponse: t("auth.passkeyNoResponse"),
+      },
+    );
+    await rememberKnownPasskeyCredentialId(credentialId);
+    isPasskeyAvailable.value = true;
+    showPasskeyBindDialog.value = false;
+    passkeyBindToken.value = "";
+    skipPasskeyBindPrompt.value = false;
+    if (pendingRunType.value !== null) {
+      completeLogin(pendingRunType.value, pendingRedirectTo.value);
     }
-    const deviceName =
-      (navigator as any).userAgentData?.platform ||
-      navigator.platform ||
-      "Unknown Device";
-    const payload = serializeCredential(credential as PublicKeyCredential);
-    const verifyRes = await apiClient.post("/passkey/register/verify", {
-      token: passkeyBindToken.value,
-      deviceName,
-      credential: payload,
-    });
-    if (verifyRes.data.success) {
-      await rememberKnownPasskeyCredentialId(payload.id);
-      isPasskeyAvailable.value = true;
-      showPasskeyBindDialog.value = false;
-      passkeyBindToken.value = "";
-      skipPasskeyBindPrompt.value = false;
-      if (pendingRunType.value !== null) {
-        completeLogin(pendingRunType.value, pendingRedirectTo.value);
-      }
-      return;
-    }
-    throw new Error(verifyRes.data.message || t("auth.passkeyBindFailed"));
   } catch (e: any) {
     passkeyBindError.value =
       e?.response?.data?.message || e?.message || t("auth.passkeyBindFailed");

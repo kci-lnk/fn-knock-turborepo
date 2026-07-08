@@ -3,6 +3,36 @@ import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 
+const createChunkMatcher = (patterns: string[]) => (id: string) =>
+  patterns.some((pattern) => id.includes(pattern))
+
+const isFrameworkChunk = createChunkMatcher([
+  'node_modules/vue/',
+  'node_modules/@vue/',
+  'node_modules/vue-router/',
+  'node_modules/vue-i18n/',
+  'node_modules/@vueuse/',
+  'node_modules/pinia/',
+])
+
+const isUiChunk = createChunkMatcher([
+  'node_modules/lucide-vue-next/',
+  'node_modules/reka-ui/',
+  'node_modules/@floating-ui/',
+  'node_modules/class-variance-authority/',
+  'node_modules/clsx/',
+  'node_modules/tailwind-merge/',
+  'node_modules/vue-input-otp/',
+])
+
+const isAuthCoreChunk = createChunkMatcher([
+  'node_modules/axios/',
+  'node_modules/crypto-js/',
+  'node_modules/altcha/',
+  'node_modules/@altcha/',
+  'packages/frontend-core/src/',
+])
+
 export default defineConfig({
   base: './',
   publicDir: path.resolve(__dirname, '../../packages/icons'),
@@ -13,9 +43,27 @@ export default defineConfig({
                     isCustomElement: function (tag) { return tag === 'altcha-widget'; }
                 }
             }
-        }),
+    }),
     tailwindcss(),
   ],
+  build: {
+    cssMinify: 'esbuild',
+    rolldownOptions: {
+      output: {
+        manualChunks(id) {
+          if (isFrameworkChunk(id)) {
+            return 'framework'
+          }
+          if (isUiChunk(id)) {
+            return 'ui-vendor'
+          }
+          if (isAuthCoreChunk(id)) {
+            return 'auth-core'
+          }
+        },
+      },
+    },
+  },
   resolve: {
     alias: {
       '@/components/ui': path.resolve(__dirname, '../../packages/ui-vue/src/components/ui'),

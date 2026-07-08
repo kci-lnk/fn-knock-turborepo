@@ -275,6 +275,7 @@ export interface FnosNetworkTuningKernelState {
   tcp_available_congestion_control: string[];
   default_qdisc: string | null;
   tcp_mtu_probing: string | null;
+  mtu_probing_supported: boolean;
   bbr_module_loaded: boolean;
   bbr_supported: boolean;
   bbr_active: boolean;
@@ -300,6 +301,7 @@ export interface FnosNetworkTuningStatus {
   mtu_probing: {
     desired_enabled: boolean;
     active: boolean;
+    supported: boolean;
     current_value: string | null;
   };
   last_error: string | null;

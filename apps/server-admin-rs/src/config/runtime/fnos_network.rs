@@ -202,6 +202,7 @@ pub(super) fn build_fnos_network_tuning_status_with_state(
         "mtu_probing": {
             "desired_enabled": config.get("mtu_probing_enabled").and_then(Value::as_bool).unwrap_or(false),
             "active": kernel_state.get("mtu_probing_active").and_then(Value::as_bool).unwrap_or(false),
+            "supported": kernel_state.get("mtu_probing_supported").and_then(Value::as_bool).unwrap_or(false),
             "current_value": kernel_state.get("tcp_mtu_probing").cloned().unwrap_or(Value::Null),
         },
         "last_error": config.get("last_error").cloned().unwrap_or(Value::Null),
@@ -322,6 +323,7 @@ pub(super) fn read_fnos_kernel_state() -> Value {
         .unwrap_or_default();
     let qdisc = read_sysctl("net.core.default_qdisc");
     let mtu = read_sysctl("net.ipv4.tcp_mtu_probing");
+    let mtu_supported = mtu.is_some();
     let bbr_module_loaded = read_bbr_module_loaded();
     let bbr_supported =
         available.iter().any(|value| value == "bbr") || congestion.as_deref() == Some("bbr");
@@ -331,6 +333,7 @@ pub(super) fn read_fnos_kernel_state() -> Value {
         "tcp_available_congestion_control": available,
         "default_qdisc": qdisc.map(Value::String).unwrap_or(Value::Null),
         "tcp_mtu_probing": mtu.clone().map(Value::String).unwrap_or(Value::Null),
+        "mtu_probing_supported": mtu_supported,
         "bbr_module_loaded": bbr_module_loaded,
         "bbr_supported": bbr_supported,
         "bbr_active": bbr_active,

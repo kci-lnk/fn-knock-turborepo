@@ -97,6 +97,12 @@ const isRestrictedByRunMode = computed(
 const isNetworkTuningAvailable = computed(
   () => networkTuningStatus.value?.available === true,
 );
+const isBbrSupported = computed(
+  () => networkTuningStatus.value?.bbr.supported === true,
+);
+const isMtuProbingSupported = computed(
+  () => networkTuningStatus.value?.mtu_probing.supported === true,
+);
 const networkTuningUnavailableText = computed(
   () =>
     networkTuningStatus.value?.blocked_reason ||
@@ -318,6 +324,7 @@ const toggleIconHijack = () => {
 };
 
 const toggleBbr = () => {
+  if (!isBbrSupported.value) return;
   void saveNetworkTuning(
     { bbr_enabled: !networkTuningForm.bbr_enabled },
     "admin.fnosSettings.bbrUpdated",
@@ -325,6 +332,7 @@ const toggleBbr = () => {
 };
 
 const toggleMtuProbing = () => {
+  if (!isMtuProbingSupported.value) return;
   void saveNetworkTuning(
     { mtu_probing_enabled: !networkTuningForm.mtu_probing_enabled },
     "admin.fnosSettings.mtuUpdated",
@@ -394,9 +402,9 @@ onMounted(fetchSettings);
             {{ t("admin.fnosSettings.iconHijackTitle") }}
           </Label>
           <div class="text-sm text-muted-foreground">
-            {{ t("admin.fnosSettings.iconHijackDescriptionPrefix") }}<u>{{
-              t("admin.fnosSettings.iconHijackDescriptionHighlight")
-            }}</u>{{ t("admin.fnosSettings.iconHijackDescriptionSuffix") }}
+            {{ t("admin.fnosSettings.iconHijackDescriptionPrefix")
+            }}<u>{{ t("admin.fnosSettings.iconHijackDescriptionHighlight") }}</u
+            >{{ t("admin.fnosSettings.iconHijackDescriptionSuffix") }}
           </div>
         </div>
         <Switch
@@ -406,7 +414,10 @@ onMounted(fetchSettings);
         />
       </div>
 
-      <div class="flex items-center justify-between bg-muted/10 p-6">
+      <div
+        v-if="isBbrSupported"
+        class="flex items-center justify-between bg-muted/10 p-6"
+      >
         <div class="space-y-1 pr-6">
           <Label
             class="text-base font-medium"
@@ -481,7 +492,10 @@ onMounted(fetchSettings);
         />
       </div>
 
-      <div class="flex items-center justify-between bg-muted/10 p-6">
+      <div
+        v-if="isMtuProbingSupported"
+        class="flex items-center justify-between bg-muted/10 p-6"
+      >
         <div class="space-y-1 pr-6">
           <Label
             class="text-base font-medium"

@@ -11,9 +11,6 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
 import { toast } from "@admin-shared/utils/toast";
@@ -25,7 +22,10 @@ import {
 } from "@admin-shared/composables/useAsyncAction";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { useConfigStore } from "../../store/config";
-import { isAnySubdomainRoutingMode } from "../../lib/reverse-proxy-submode";
+import GatewayEditorRow from "./GatewayEditorRow.vue";
+import FeatureSwitchRow from "./FeatureSwitchRow.vue";
+import GatewayNumberSettingRow from "./GatewayNumberSettingRow.vue";
+import { useGatewaySubdomainEditorAvailability } from "./useGatewaySubdomainEditorAvailability";
 
 const configStore = useConfigStore();
 const router = useRouter();
@@ -124,20 +124,6 @@ const authCacheFailHint = computed(() =>
       }),
 );
 
-const runTypeLabelKeyMap = {
-  0: "admin.gatewaySettings.runTypes.direct",
-  1: "admin.gatewaySettings.runTypes.reverse",
-  3: "admin.gatewaySettings.runTypes.subdomain",
-} as const;
-
-const currentRunTypeLabel = computed(() => {
-  const runType = configStore.config?.run_type;
-  if (runType === 0 || runType === 1 || runType === 3) {
-    return t(runTypeLabelKeyMap[runType]);
-  }
-  return t("admin.gatewaySettings.runTypes.current");
-});
-
 const visibilitySummary = computed(() => settings.value?.visibility ?? null);
 const portalSummary = computed(() => settings.value?.portal ?? null);
 const portalEnabledSummary = computed(() =>
@@ -156,33 +142,14 @@ const portalIconSummary = computed(() =>
     : t("admin.gatewaySettings.disabled"),
 );
 
-const isProxyHeadersAvailable = computed(() =>
-  isAnySubdomainRoutingMode(configStore.config),
-);
-const proxyHeadersDisabledReason = computed(() => {
-  if (isProxyHeadersAvailable.value) return "";
-  return t("admin.gatewaySettings.subdomainOnlyReason", {
-    mode: currentRunTypeLabel.value,
-  });
-});
-const isHostResponseAvailable = computed(() =>
-  isAnySubdomainRoutingMode(configStore.config),
-);
-const hostResponseDisabledReason = computed(() => {
-  if (isHostResponseAvailable.value) return "";
-  return t("admin.gatewaySettings.subdomainOnlyReason", {
-    mode: currentRunTypeLabel.value,
-  });
-});
-const isLocationsAvailable = computed(() =>
-  isAnySubdomainRoutingMode(configStore.config),
-);
-const locationsDisabledReason = computed(() => {
-  if (isLocationsAvailable.value) return "";
-  return t("admin.gatewaySettings.subdomainOnlyReason", {
-    mode: currentRunTypeLabel.value,
-  });
-});
+const {
+  isProxyHeadersAvailable,
+  proxyHeadersDisabledReason,
+  isHostResponseAvailable,
+  hostResponseDisabledReason,
+  isLocationsAvailable,
+  locationsDisabledReason,
+} = useGatewaySubdomainEditorAvailability();
 
 const openVisibilityEditor = () => {
   void router.push("/system/gateway-visibility");
@@ -214,16 +181,6 @@ const openLocationsEditor = () => {
   }
 
   void router.push("/system/gateway-locations");
-};
-
-const toggleThrottleEnabled = () => {
-  if (isGatewaySettingsBusy.value) return;
-  form.reverse_proxy_throttle.enabled = !form.reverse_proxy_throttle.enabled;
-};
-
-const toggleCrawlerBlockerEnabled = () => {
-  if (isGatewaySettingsBusy.value) return;
-  form.crawler_blocker.enabled = !form.crawler_blocker.enabled;
 };
 
 const buildSettingsSnapshot = (data: GatewaySettings): GatewaySettings => ({
@@ -337,373 +294,172 @@ onMounted(fetchSettings);
     </CardContent>
 
     <CardContent v-else-if="!isLoading" class="border-t p-0 divide-y">
-      <div
-        class="grid gap-3 p-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
+      <GatewayNumberSettingRow
+        v-model="form.auth_cache_ttl_seconds"
+        :title="t('admin.gatewaySettings.authCacheTitle')"
+        :unit-label="t('admin.gatewaySettings.seconds')"
+        unit-width-class="w-12"
+        :min="0"
+        :disabled="isGatewaySettingsBusy"
+        :summary="authCacheHint"
       >
-        <div class="space-y-1 pr-6">
-          <Label class="text-base">{{
-            t("admin.gatewaySettings.authCacheTitle")
-          }}</Label>
-          <div class="text-sm text-muted-foreground">
-            {{ t("admin.gatewaySettings.authCacheDescriptionBefore") }}
-            <code>0</code>
-            {{ t("admin.gatewaySettings.authCacheDescriptionAfter") }}
-          </div>
-        </div>
-        <div class="flex items-center gap-2 shrink-0">
-          <Input
-            v-model.number="form.auth_cache_ttl_seconds"
-            type="number"
-            min="0"
-            step="1"
-            class="w-24 text-center"
-            :disabled="isGatewaySettingsBusy"
-          />
-          <span class="w-12 text-sm text-muted-foreground">{{
-            t("admin.gatewaySettings.seconds")
-          }}</span>
-        </div>
-        <div class="sm:col-span-2 -mt-1 text-xs text-muted-foreground">
-          {{ authCacheHint }}
-        </div>
-      </div>
+        <template #description>
+          {{ t("admin.gatewaySettings.authCacheDescriptionBefore") }}
+          <code>0</code>
+          {{ t("admin.gatewaySettings.authCacheDescriptionAfter") }}
+        </template>
+      </GatewayNumberSettingRow>
 
-      <div
-        class="grid gap-3 p-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
+      <GatewayNumberSettingRow
+        v-model="form.auth_cache_unauthorized_ttl_seconds"
+        :title="t('admin.gatewaySettings.authFailCacheTitle')"
+        :unit-label="t('admin.gatewaySettings.seconds')"
+        unit-width-class="w-12"
+        :min="0"
+        :disabled="isGatewaySettingsBusy"
+        :summary="authCacheFailHint"
       >
-        <div class="space-y-1 pr-6">
-          <Label class="text-base">{{
-            t("admin.gatewaySettings.authFailCacheTitle")
-          }}</Label>
-          <div class="text-sm text-muted-foreground">
-            {{ t("admin.gatewaySettings.authFailCacheDescriptionBefore") }}
-            <code>0</code>
-            {{ t("admin.gatewaySettings.authFailCacheDescriptionAfter") }}
-          </div>
-        </div>
-        <div class="flex items-center gap-2 shrink-0">
-          <Input
-            v-model.number="form.auth_cache_unauthorized_ttl_seconds"
-            type="number"
-            min="0"
-            step="1"
-            class="w-24 text-center"
-            :disabled="isGatewaySettingsBusy"
-          />
-          <span class="w-12 text-sm text-muted-foreground">{{
-            t("admin.gatewaySettings.seconds")
-          }}</span>
-        </div>
-        <div class="sm:col-span-2 -mt-1 text-xs text-muted-foreground">
-          {{ authCacheFailHint }}
-        </div>
-      </div>
+        <template #description>
+          {{ t("admin.gatewaySettings.authFailCacheDescriptionBefore") }}
+          <code>0</code>
+          {{ t("admin.gatewaySettings.authFailCacheDescriptionAfter") }}
+        </template>
+      </GatewayNumberSettingRow>
 
-      <div class="flex items-center justify-between bg-muted/10 p-6">
-        <div class="space-y-1 pr-6">
-          <Label
-            class="cursor-pointer text-base font-medium"
-            @click="toggleThrottleEnabled"
-          >
-            {{ t("admin.gatewaySettings.throttleTitle") }}
-          </Label>
-          <div class="text-sm text-muted-foreground">
-            {{ t("admin.gatewaySettings.throttleDescription") }}
-          </div>
-        </div>
-        <Switch
-          v-model="form.reverse_proxy_throttle.enabled"
-          :disabled="isGatewaySettingsBusy"
-        />
-      </div>
+      <FeatureSwitchRow
+        :title="t('admin.gatewaySettings.throttleTitle')"
+        :description="t('admin.gatewaySettings.throttleDescription')"
+        :model-value="form.reverse_proxy_throttle.enabled"
+        :disabled="isGatewaySettingsBusy"
+        @change="form.reverse_proxy_throttle.enabled = $event"
+      />
 
       <div
         v-show="form.reverse_proxy_throttle.enabled"
         class="divide-y animate-in fade-in slide-in-from-top-2 duration-300"
       >
-        <div
-          class="grid gap-3 p-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
-        >
-          <div class="space-y-1 pr-6">
-            <Label class="text-base">{{
-              t("admin.gatewaySettings.requestsPerSecond")
-            }}</Label>
-            <div class="text-sm text-muted-foreground">
-              {{ t("admin.gatewaySettings.requestsPerSecondDescription") }}
-            </div>
-          </div>
-          <div class="flex items-center gap-2 shrink-0">
-            <Input
-              v-model.number="form.reverse_proxy_throttle.requests_per_second"
-              type="number"
-              min="1"
-              step="1"
-              class="w-24 text-center"
-              :disabled="isGatewaySettingsBusy"
-            />
-            <span class="w-16 text-sm text-muted-foreground">req/s</span>
-          </div>
-        </div>
-
-        <div
-          class="grid gap-3 p-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
-        >
-          <div class="space-y-1 pr-6">
-            <Label class="text-base">{{
-              t("admin.gatewaySettings.burst")
-            }}</Label>
-            <div class="text-sm text-muted-foreground">
-              {{ t("admin.gatewaySettings.burstDescription") }}
-            </div>
-          </div>
-          <div class="flex items-center gap-2 shrink-0">
-            <Input
-              v-model.number="form.reverse_proxy_throttle.burst"
-              type="number"
-              min="1"
-              step="1"
-              class="w-24 text-center"
-              :disabled="isGatewaySettingsBusy"
-            />
-            <span class="w-16 text-sm text-muted-foreground">tokens</span>
-          </div>
-        </div>
-
-        <div
-          class="grid gap-3 p-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
-        >
-          <div class="space-y-1 pr-6">
-            <Label class="text-base">{{
-              t("admin.gatewaySettings.blockSeconds")
-            }}</Label>
-            <div class="text-sm text-muted-foreground">
-              {{ t("admin.gatewaySettings.blockSecondsDescription") }}
-            </div>
-          </div>
-          <div class="flex items-center gap-2 shrink-0">
-            <Input
-              v-model.number="form.reverse_proxy_throttle.block_seconds"
-              type="number"
-              min="1"
-              step="1"
-              class="w-24 text-center"
-              :disabled="isGatewaySettingsBusy"
-            />
-            <span class="w-12 text-sm text-muted-foreground">{{
-              t("admin.gatewaySettings.seconds")
-            }}</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="flex items-center justify-between bg-muted/10 p-6">
-        <div class="space-y-1 pr-6">
-          <Label
-            class="cursor-pointer text-base font-medium"
-            @click="toggleCrawlerBlockerEnabled"
-          >
-            {{ t("admin.gatewaySettings.crawlerBlockerTitle") }}
-          </Label>
-          <div class="text-sm text-muted-foreground">
-            {{ t("admin.gatewaySettings.crawlerBlockerDescription") }}
-          </div>
-        </div>
-        <Switch
-          v-model="form.crawler_blocker.enabled"
+        <GatewayNumberSettingRow
+          v-model="form.reverse_proxy_throttle.requests_per_second"
+          :title="t('admin.gatewaySettings.requestsPerSecond')"
+          unit-label="req/s"
           :disabled="isGatewaySettingsBusy"
-        />
+        >
+          <template #description>
+            {{ t("admin.gatewaySettings.requestsPerSecondDescription") }}
+          </template>
+        </GatewayNumberSettingRow>
+
+        <GatewayNumberSettingRow
+          v-model="form.reverse_proxy_throttle.burst"
+          :title="t('admin.gatewaySettings.burst')"
+          unit-label="tokens"
+          :disabled="isGatewaySettingsBusy"
+        >
+          <template #description>
+            {{ t("admin.gatewaySettings.burstDescription") }}
+          </template>
+        </GatewayNumberSettingRow>
+
+        <GatewayNumberSettingRow
+          v-model="form.reverse_proxy_throttle.block_seconds"
+          :title="t('admin.gatewaySettings.blockSeconds')"
+          :unit-label="t('admin.gatewaySettings.seconds')"
+          unit-width-class="w-12"
+          :disabled="isGatewaySettingsBusy"
+        >
+          <template #description>
+            {{ t("admin.gatewaySettings.blockSecondsDescription") }}
+          </template>
+        </GatewayNumberSettingRow>
       </div>
 
-      <div
-        class="grid gap-4 p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
-      >
-        <div class="space-y-3">
-          <div class="flex flex-wrap items-center gap-2">
-            <Label class="text-base">{{
-              t("admin.gatewaySettings.portal")
-            }}</Label>
-            <Badge
-              :variant="
-                portalSummary?.enabled !== false ? 'default' : 'secondary'
-              "
-              class="rounded-full px-2.5"
-            >
-              {{ portalEnabledSummary }}
-            </Badge>
-            <Badge variant="secondary" class="rounded-full px-2.5">
-              {{ portalDisplaySummary }}
-            </Badge>
-            <Badge
-              :variant="
-                portalSummary?.show_app_icon !== false ? 'default' : 'secondary'
-              "
-              class="rounded-full px-2.5"
-            >
-              {{
-                t("admin.gatewaySettings.portalIconSummary", {
-                  state: portalIconSummary,
-                })
-              }}
-            </Badge>
-          </div>
-          <div class="text-sm leading-6 text-muted-foreground">
-            {{ t("admin.gatewaySettings.portalDescription") }}
-          </div>
-        </div>
-        <div class="flex justify-start lg:justify-end">
-          <Button variant="outline" @click="openPortalEditor">{{
-            t("admin.gatewaySettings.editPortal")
-          }}</Button>
-        </div>
-      </div>
+      <FeatureSwitchRow
+        :title="t('admin.gatewaySettings.crawlerBlockerTitle')"
+        :description="t('admin.gatewaySettings.crawlerBlockerDescription')"
+        :model-value="form.crawler_blocker.enabled"
+        :disabled="isGatewaySettingsBusy"
+        @change="form.crawler_blocker.enabled = $event"
+      />
 
-      <div
-        class="grid gap-4 p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
+      <GatewayEditorRow
+        :title="t('admin.gatewaySettings.portal')"
+        :description="t('admin.gatewaySettings.portalDescription')"
+        :action-label="t('admin.gatewaySettings.editPortal')"
+        @action="openPortalEditor"
       >
-        <div class="space-y-3">
-          <div class="flex flex-wrap items-center gap-2">
-            <Label class="text-base">{{
-              t("admin.gatewaySettings.visibility")
-            }}</Label>
-            <Badge
-              :variant="visibilitySummary?.enabled ? 'default' : 'secondary'"
-              class="rounded-full px-2.5"
-            >
-              {{
-                visibilitySummary?.enabled
-                  ? t("admin.gatewaySettings.enabled")
-                  : t("admin.gatewaySettings.disabled")
-              }}
-            </Badge>
-          </div>
-          <div class="text-sm leading-6 text-muted-foreground">
-            {{ t("admin.gatewaySettings.visibilityDescription") }}
-          </div>
-        </div>
-        <div class="flex justify-start lg:justify-end">
-          <Button variant="outline" @click="openVisibilityEditor">{{
-            t("admin.gatewaySettings.editVisibility")
-          }}</Button>
-        </div>
-      </div>
-
-      <div
-        class="grid gap-4 p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
-      >
-        <div class="space-y-3">
-          <div class="flex flex-wrap items-center gap-2">
-            <Label
-              class="text-base"
-              :class="isProxyHeadersAvailable ? '' : 'text-zinc-500'"
-            >
-              {{ t("admin.gatewaySettings.proxyHeaders") }}
-            </Label>
-          </div>
-          <div
-            class="text-sm leading-6"
-            :class="
-              isProxyHeadersAvailable
-                ? 'text-muted-foreground'
-                : 'text-zinc-500'
+        <template #badges>
+          <Badge
+            :variant="
+              portalSummary?.enabled !== false ? 'default' : 'secondary'
             "
+            class="rounded-full px-2.5"
           >
-            {{ t("admin.gatewaySettings.proxyHeadersDescription") }}
-          </div>
-          <div
-            v-if="!isProxyHeadersAvailable"
-            class="text-xs leading-5 text-zinc-500"
-          >
-            {{ proxyHeadersDisabledReason }}
-          </div>
-        </div>
-        <div class="flex justify-start lg:justify-end">
-          <Button
-            variant="outline"
-            :disabled="!isProxyHeadersAvailable"
-            @click="openProxyHeadersEditor"
-          >
-            {{ t("admin.gatewaySettings.editProxyHeaders") }}
-          </Button>
-        </div>
-      </div>
-
-      <div
-        class="grid gap-4 p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
-      >
-        <div class="space-y-3">
-          <div class="flex flex-wrap items-center gap-2">
-            <Label
-              class="text-base"
-              :class="isHostResponseAvailable ? '' : 'text-zinc-500'"
-            >
-              {{ t("admin.gatewaySettings.hostResponse") }}
-            </Label>
-          </div>
-          <div
-            class="text-sm leading-6"
-            :class="
-              isHostResponseAvailable
-                ? 'text-muted-foreground'
-                : 'text-zinc-500'
+            {{ portalEnabledSummary }}
+          </Badge>
+          <Badge variant="secondary" class="rounded-full px-2.5">
+            {{ portalDisplaySummary }}
+          </Badge>
+          <Badge
+            :variant="
+              portalSummary?.show_app_icon !== false ? 'default' : 'secondary'
             "
+            class="rounded-full px-2.5"
           >
-            {{ t("admin.gatewaySettings.hostResponseDescription") }}
-          </div>
-          <div
-            v-if="!isHostResponseAvailable"
-            class="text-xs leading-5 text-zinc-500"
-          >
-            {{ hostResponseDisabledReason }}
-          </div>
-        </div>
-        <div class="flex justify-start lg:justify-end">
-          <Button
-            variant="outline"
-            :disabled="!isHostResponseAvailable"
-            @click="openHostResponseEditor"
-          >
-            {{ t("admin.gatewaySettings.editHostResponse") }}
-          </Button>
-        </div>
-      </div>
+            {{
+              t("admin.gatewaySettings.portalIconSummary", {
+                state: portalIconSummary,
+              })
+            }}
+          </Badge>
+        </template>
+      </GatewayEditorRow>
 
-      <div
-        class="grid gap-4 p-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
+      <GatewayEditorRow
+        :title="t('admin.gatewaySettings.visibility')"
+        :description="t('admin.gatewaySettings.visibilityDescription')"
+        :action-label="t('admin.gatewaySettings.editVisibility')"
+        @action="openVisibilityEditor"
       >
-        <div class="space-y-3">
-          <div class="flex flex-wrap items-center gap-2">
-            <Label
-              class="text-base"
-              :class="isLocationsAvailable ? '' : 'text-zinc-500'"
-            >
-              {{ t("admin.gatewaySettings.locations") }}
-            </Label>
-          </div>
-          <div
-            class="text-sm leading-6"
-            :class="
-              isLocationsAvailable ? 'text-muted-foreground' : 'text-zinc-500'
-            "
+        <template #badges>
+          <Badge
+            :variant="visibilitySummary?.enabled ? 'default' : 'secondary'"
+            class="rounded-full px-2.5"
           >
-            {{ t("admin.gatewaySettings.locationsDescription") }}
-          </div>
-          <div
-            v-if="!isLocationsAvailable"
-            class="text-xs leading-5 text-zinc-500"
-          >
-            {{ locationsDisabledReason }}
-          </div>
-        </div>
-        <div class="flex justify-start lg:justify-end">
-          <Button
-            variant="outline"
-            :disabled="!isLocationsAvailable"
-            @click="openLocationsEditor"
-          >
-            {{ t("admin.gatewaySettings.editLocations") }}
-          </Button>
-        </div>
-      </div>
+            {{
+              visibilitySummary?.enabled
+                ? t("admin.gatewaySettings.enabled")
+                : t("admin.gatewaySettings.disabled")
+            }}
+          </Badge>
+        </template>
+      </GatewayEditorRow>
+
+      <GatewayEditorRow
+        :title="t('admin.gatewaySettings.proxyHeaders')"
+        :description="t('admin.gatewaySettings.proxyHeadersDescription')"
+        :action-label="t('admin.gatewaySettings.editProxyHeaders')"
+        :disabled="!isProxyHeadersAvailable"
+        :disabled-reason="proxyHeadersDisabledReason"
+        @action="openProxyHeadersEditor"
+      />
+
+      <GatewayEditorRow
+        :title="t('admin.gatewaySettings.hostResponse')"
+        :description="t('admin.gatewaySettings.hostResponseDescription')"
+        :action-label="t('admin.gatewaySettings.editHostResponse')"
+        :disabled="!isHostResponseAvailable"
+        :disabled-reason="hostResponseDisabledReason"
+        @action="openHostResponseEditor"
+      />
+
+      <GatewayEditorRow
+        :title="t('admin.gatewaySettings.locations')"
+        :description="t('admin.gatewaySettings.locationsDescription')"
+        :action-label="t('admin.gatewaySettings.editLocations')"
+        :disabled="!isLocationsAvailable"
+        :disabled-reason="locationsDisabledReason"
+        @action="openLocationsEditor"
+      />
 
       <FloatingActionDock
         :active="isDirty"

@@ -1,6 +1,12 @@
-export type GhosttyModule = typeof import("ghostty-web");
+import ghosttyWasmUrl from "ghostty-web/ghostty-vt.wasm?url";
 
-let ghosttyModulePromise: Promise<GhosttyModule> | null = null;
+export type GhosttyModule = typeof import("ghostty-web");
+type GhosttyInstance = Awaited<ReturnType<GhosttyModule["Ghostty"]["load"]>>;
+export type GhosttyRuntime = GhosttyModule & {
+  ghostty: GhosttyInstance;
+};
+
+let ghosttyModulePromise: Promise<GhosttyRuntime> | null = null;
 
 export const textEncoder = new TextEncoder();
 export const LEGACY_MOUSE_SEQUENCE_PREFIX = "\u001b[M";
@@ -10,8 +16,11 @@ export const ASCII_TERMINAL_RESPONSE_PATTERN = /^[\u0000-\u007f]*$/;
 export const ensureGhostty = async () => {
   if (!ghosttyModulePromise) {
     ghosttyModulePromise = import("ghostty-web").then(async (module) => {
-      await module.init();
-      return module;
+      const ghostty = await module.Ghostty.load(ghosttyWasmUrl);
+      return {
+        ...module,
+        ghostty,
+      };
     });
   }
   return ghosttyModulePromise;

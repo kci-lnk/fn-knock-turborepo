@@ -1,10 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
-import Login from '../views/Login.vue'
-import Home from '../views/Home.vue' // We will create this
-import OidcBind from '../views/OidcBind.vue'
-import NotFound from '../views/NotFound.vue'
-
 const detectAuthBasePrefix = () => {
   if (typeof window === 'undefined') return '/'
   const pathname = window.location.pathname || '/'
@@ -65,22 +60,22 @@ const router = createRouter({
     {
       path: '/',
       name: 'Home',
-      component: Home
+      component: () => import('../views/Home.vue')
     },
     {
       path: '/login',
       name: 'Login',
-      component: Login
+      component: () => import('../views/Login.vue')
     },
     {
       path: '/oidc/bind',
       name: 'OidcBind',
-      component: OidcBind
+      component: () => import('../views/OidcBind.vue')
     },
     {
       path: '/:pathMatch(.*)*',
       name: 'NotFound',
-      component: NotFound
+      component: () => import('../views/NotFound.vue')
     }
   ]
 })

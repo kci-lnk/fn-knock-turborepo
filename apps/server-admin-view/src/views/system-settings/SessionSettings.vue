@@ -11,15 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
@@ -37,6 +29,7 @@ import type {
   PostLoginIpGrantMode,
 } from "../../types";
 import { useConfigStore } from "../../store/config";
+import SessionDurationFieldRow from "./SessionDurationFieldRow.vue";
 
 type DurationUnit = "second" | "minute" | "hour" | "day" | "week" | "year";
 
@@ -54,12 +47,36 @@ const durationUnits: Array<{
   labelKey: string;
   seconds: number;
 }> = [
-  { value: "second", labelKey: "admin.sessionSettings.units.second", seconds: 1 },
-  { value: "minute", labelKey: "admin.sessionSettings.units.minute", seconds: 60 },
-  { value: "hour", labelKey: "admin.sessionSettings.units.hour", seconds: 3600 },
-  { value: "day", labelKey: "admin.sessionSettings.units.day", seconds: 24 * 3600 },
-  { value: "week", labelKey: "admin.sessionSettings.units.week", seconds: 7 * 24 * 3600 },
-  { value: "year", labelKey: "admin.sessionSettings.units.year", seconds: 365 * 24 * 3600 },
+  {
+    value: "second",
+    labelKey: "admin.sessionSettings.units.second",
+    seconds: 1,
+  },
+  {
+    value: "minute",
+    labelKey: "admin.sessionSettings.units.minute",
+    seconds: 60,
+  },
+  {
+    value: "hour",
+    labelKey: "admin.sessionSettings.units.hour",
+    seconds: 3600,
+  },
+  {
+    value: "day",
+    labelKey: "admin.sessionSettings.units.day",
+    seconds: 24 * 3600,
+  },
+  {
+    value: "week",
+    labelKey: "admin.sessionSettings.units.week",
+    seconds: 7 * 24 * 3600,
+  },
+  {
+    value: "year",
+    labelKey: "admin.sessionSettings.units.year",
+    seconds: 365 * 24 * 3600,
+  },
 ];
 
 const ipGrantDurationUnits = durationUnits.filter(
@@ -112,7 +129,9 @@ const postLoginIpGrantModeOptions = computed<
   {
     value: "follow_session",
     title: t("admin.sessionSettings.grantModes.followSession.title"),
-    description: t("admin.sessionSettings.grantModes.followSession.description"),
+    description: t(
+      "admin.sessionSettings.grantModes.followSession.description",
+    ),
   },
   {
     value: "disabled",
@@ -173,8 +192,7 @@ const splitDuration = (
 const formatDuration = (seconds: number, units = durationUnits): string => {
   const normalized = splitDuration(seconds, units);
   const label =
-    units.find((item) => item.value === normalized.unit)?.labelKey ||
-    "";
+    units.find((item) => item.value === normalized.unit)?.labelKey || "";
   const unitLabel = label ? t(label) : normalized.unit;
   return `${normalized.value} ${unitLabel}`;
 };
@@ -253,7 +271,10 @@ const grantModeSummary = computed(() => {
       return t("admin.sessionSettings.grantSummary.disabled");
     case "custom":
       return t("admin.sessionSettings.grantSummary.custom", {
-        duration: formatDuration(customGrantTtlSeconds.value, ipGrantDurationUnits),
+        duration: formatDuration(
+          customGrantTtlSeconds.value,
+          ipGrantDurationUnits,
+        ),
       });
     default:
       return "";
@@ -400,93 +421,31 @@ onMounted(fetchSettings);
         </Alert>
       </div>
 
-      <div
-        class="grid gap-3 p-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
-      >
-        <div class="space-y-1 pr-6">
-          <Label class="text-base">
-            {{ t("admin.sessionSettings.sessionTtl") }}
-          </Label>
-          <div class="text-sm text-muted-foreground">
-            {{ t("admin.sessionSettings.sessionTtlDescription") }}
-          </div>
-        </div>
-        <div class="flex items-center gap-2 shrink-0">
-          <Input
-            v-model.number="form.session.value"
-            type="number"
-            min="1"
-            step="1"
-            class="w-24 text-center"
-            :disabled="isSaving"
-          />
-          <Select v-model="form.session.unit" :disabled="isSaving">
-            <SelectTrigger class="w-[110px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem
-                v-for="unit in durationUnits"
-                :key="unit.value"
-                :value="unit.value"
-              >
-                {{ t(unit.labelKey) }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div class="sm:col-span-2 -mt-1 text-xs text-muted-foreground">
-          {{
-            t("admin.sessionSettings.willSaveAs", {
-              duration: formatDuration(sessionTtlSeconds),
-            })
-          }}
-        </div>
-      </div>
+      <SessionDurationFieldRow
+        v-model="form.session"
+        :title="t('admin.sessionSettings.sessionTtl')"
+        :description="t('admin.sessionSettings.sessionTtlDescription')"
+        :units="durationUnits"
+        :disabled="isSaving"
+        :summary="
+          t('admin.sessionSettings.willSaveAs', {
+            duration: formatDuration(sessionTtlSeconds),
+          })
+        "
+      />
 
-      <div
-        class="grid gap-3 p-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
-      >
-        <div class="space-y-1 pr-6">
-          <Label class="text-base">
-            {{ t("admin.sessionSettings.rememberMeTtl") }}
-          </Label>
-          <div class="text-sm text-muted-foreground">
-            {{ t("admin.sessionSettings.rememberMeTtlDescription") }}
-          </div>
-        </div>
-        <div class="flex items-center gap-2 shrink-0">
-          <Input
-            v-model.number="form.rememberMe.value"
-            type="number"
-            min="1"
-            step="1"
-            class="w-24 text-center"
-            :disabled="isSaving"
-          />
-          <Select v-model="form.rememberMe.unit" :disabled="isSaving">
-            <SelectTrigger class="w-[110px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem
-                v-for="unit in durationUnits"
-                :key="unit.value"
-                :value="unit.value"
-              >
-                {{ t(unit.labelKey) }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div class="sm:col-span-2 -mt-1 text-xs text-muted-foreground">
-          {{
-            t("admin.sessionSettings.willSaveAs", {
-              duration: formatDuration(rememberMeTtlSeconds),
-            })
-          }}
-        </div>
-      </div>
+      <SessionDurationFieldRow
+        v-model="form.rememberMe"
+        :title="t('admin.sessionSettings.rememberMeTtl')"
+        :description="t('admin.sessionSettings.rememberMeTtlDescription')"
+        :units="durationUnits"
+        :disabled="isSaving"
+        :summary="
+          t('admin.sessionSettings.willSaveAs', {
+            duration: formatDuration(rememberMeTtlSeconds),
+          })
+        "
+      />
 
       <div class="space-y-4 p-6">
         <div
@@ -533,43 +492,17 @@ onMounted(fetchSettings);
           </button>
         </div>
 
-        <div
+        <SessionDurationFieldRow
           v-if="form.postLoginIpGrantMode === 'custom'"
-          class="grid gap-3 rounded-xl border bg-muted/15 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
-        >
-          <div class="space-y-1 pr-6">
-            <Label class="text-base">
-              {{ t("admin.sessionSettings.customGrantDuration") }}
-            </Label>
-            <div class="text-sm text-muted-foreground">
-              {{ t("admin.sessionSettings.customGrantDurationDescription") }}
-            </div>
-          </div>
-          <div class="flex items-center gap-2 shrink-0">
-            <Input
-              v-model.number="form.customGrant.value"
-              type="number"
-              min="1"
-              step="1"
-              class="w-24 text-center"
-              :disabled="isSaving"
-            />
-            <Select v-model="form.customGrant.unit" :disabled="isSaving">
-              <SelectTrigger class="w-[110px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem
-                  v-for="unit in ipGrantDurationUnits"
-                  :key="unit.value"
-                  :value="unit.value"
-                >
-                  {{ t(unit.labelKey) }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+          v-model="form.customGrant"
+          :title="t('admin.sessionSettings.customGrantDuration')"
+          :description="
+            t('admin.sessionSettings.customGrantDurationDescription')
+          "
+          :units="ipGrantDurationUnits"
+          :disabled="isSaving"
+          framed
+        />
 
         <div
           class="rounded-lg bg-muted/20 px-4 py-3 text-sm text-muted-foreground"
@@ -600,46 +533,16 @@ onMounted(fetchSettings);
             />
           </div>
 
-          <div
+          <SessionDurationFieldRow
             v-if="form.sessionIpMobilityEnabled"
-            class="mt-4 grid gap-3 rounded-xl border bg-muted/15 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
-          >
-            <div class="space-y-1 pr-6">
-              <Label class="text-base">
-                {{ t("admin.sessionSettings.ipRetentionTime") }}
-              </Label>
-              <div class="text-sm leading-6 text-muted-foreground">
-                {{ t("admin.sessionSettings.ipRetentionTimeDescription") }}
-              </div>
-            </div>
-            <div class="flex items-center gap-2 shrink-0">
-              <Input
-                v-model.number="form.sessionIpMobilityWindow.value"
-                type="number"
-                min="1"
-                step="1"
-                class="w-24 text-center"
-                :disabled="isSaving"
-              />
-              <Select
-                v-model="form.sessionIpMobilityWindow.unit"
-                :disabled="isSaving"
-              >
-                <SelectTrigger class="w-[110px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem
-                    v-for="unit in mobilityWindowDurationUnits"
-                    :key="unit.value"
-                    :value="unit.value"
-                  >
-                    {{ t(unit.labelKey) }}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+            v-model="form.sessionIpMobilityWindow"
+            class="mt-4"
+            :title="t('admin.sessionSettings.ipRetentionTime')"
+            :description="t('admin.sessionSettings.ipRetentionTimeDescription')"
+            :units="mobilityWindowDurationUnits"
+            :disabled="isSaving"
+            framed
+          />
 
           <div class="mt-3 text-sm leading-6 text-muted-foreground">
             {{ sessionIpMobilitySummary }}

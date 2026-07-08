@@ -703,8 +703,9 @@ const destroySelectedSession = async () => {
 
 const initializeTerminal = async () => {
   if (!terminalMountRef.value || term) return;
-  const { Terminal, FitAddon } = await ensureGhostty();
+  const { Terminal, FitAddon, ghostty } = await ensureGhostty();
   term = new Terminal({
+    ghostty,
     fontSize: terminalFontSize.value,
     cursorBlink: true,
     fontFamily:

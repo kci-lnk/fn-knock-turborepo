@@ -1,73 +1,59 @@
 <template>
-  <div class="auth-safe-shell auth-visual-shell flex flex-col">
-    <div class="flex flex-1 items-center justify-center">
-      <Card class="auth-glass-card w-full max-w-sm">
-        <CardHeader>
-          <CardTitle class="text-2xl text-center">
-            {{ t("auth.oidcBind.title") }}
-          </CardTitle>
-          <CardDescription class="text-center">
-            {{ description }}
-          </CardDescription>
-        </CardHeader>
-        <CardContent class="space-y-4">
-          <div
-            v-if="isLoading"
-            class="py-8 text-center text-sm text-muted-foreground"
-          >
-            {{ t("auth.oidcBind.checkingInvite") }}
+  <AuthShell>
+    <AuthCard
+      :title="t('auth.oidcBind.title')"
+      :description="description"
+      content-class="space-y-4"
+    >
+      <div
+        v-if="isLoading"
+        class="py-8 text-center text-sm text-muted-foreground"
+      >
+        {{ t("auth.oidcBind.checkingInvite") }}
+      </div>
+      <div
+        v-else-if="errorMessage"
+        class="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+      >
+        {{ errorMessage }}
+      </div>
+      <div v-else class="space-y-4">
+        <div class="rounded-lg border bg-muted/40 px-3 py-2 text-sm">
+          <div class="text-muted-foreground">
+            {{ t("auth.oidcBind.bindTo") }}
           </div>
-          <div
-            v-else-if="errorMessage"
-            class="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
-          >
-            {{ errorMessage }}
-          </div>
-          <div v-else class="space-y-4">
-            <div class="rounded-lg border bg-muted/40 px-3 py-2 text-sm">
-              <div class="text-muted-foreground">
-                {{ t("auth.oidcBind.bindTo") }}
-              </div>
-              <div class="font-medium">{{ invite?.totp.comment || "TOTP" }}</div>
-            </div>
-            <Button
-              v-for="provider in invite?.providers || []"
-              :key="provider.id"
-              type="button"
-              variant="outline"
-              class="w-full"
-              :disabled="isStarting"
-              @click="startBind(provider.id)"
-            >
-              <span
-                v-if="activeProviderId === provider.id && isStarting"
-                class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"
-              ></span>
-              {{ t("auth.oidcBind.useProvider", { provider: provider.name }) }}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  </div>
+          <div class="font-medium">{{ invite?.totp.comment || "TOTP" }}</div>
+        </div>
+        <Button
+          v-for="provider in invite?.providers || []"
+          :key="provider.id"
+          type="button"
+          variant="outline"
+          class="w-full"
+          :disabled="isStarting"
+          @click="startBind(provider.id)"
+        >
+          <span
+            v-if="activeProviderId === provider.id && isStarting"
+            class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"
+          ></span>
+          {{ t("auth.oidcBind.useProvider", { provider: provider.name }) }}
+        </Button>
+      </div>
+    </AuthCard>
+  </AuthShell>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api";
-import { applyAppearanceConfig } from "@/lib/appearance";
+import { useAuthSystemConfig } from "@/composables/useAuthSystemConfig";
 import type { LocaleConfig } from "@fn-knock/i18n/core";
 import type { AppearanceConfig } from "@admin-shared/utils/appearance";
-import { setFnKnockLocale } from "@fn-knock/i18n/vue/auth";
+import AuthCard from "@/components/AuthCard.vue";
+import AuthShell from "@/components/AuthShell.vue";
 
 type InviteDetails = {
   locale: LocaleConfig;
@@ -90,10 +76,7 @@ const isStarting = ref(false);
 const activeProviderId = ref("");
 const i18n = useI18n();
 const { t } = i18n;
-
-const applySystemLocale = async (value: string | null | undefined) => {
-  await setFnKnockLocale(i18n, value);
-};
+const { applyAuthSystemConfig } = useAuthSystemConfig(i18n);
 
 const description = computed(() => {
   if (errorMessage.value) return t("auth.oidcBind.invalidInvite");
@@ -112,14 +95,12 @@ async function loadInvite() {
       params: { token },
     });
     invite.value = res.data.data;
-    await applySystemLocale(invite.value?.locale?.default_locale);
-    applyAppearanceConfig(invite.value?.appearance);
+    await applyAuthSystemConfig(invite.value);
     if (!invite.value?.providers.length) {
       throw new Error(t("auth.oidcBind.noProviders"));
     }
   } catch (error: any) {
-    await applySystemLocale(error?.response?.data?.data?.locale?.default_locale);
-    applyAppearanceConfig(error?.response?.data?.data?.appearance);
+    await applyAuthSystemConfig(error?.response?.data?.data);
     errorMessage.value =
       error?.response?.data?.message ||
       error?.message ||

@@ -4,28 +4,38 @@ mod baidu;
 mod cloudflare;
 mod common;
 mod dnspod;
+mod duckdns;
 mod dynu;
+mod dynv6;
 mod edgeone;
-mod esa_dynv6;
+mod edgeone_cname;
+mod edgeone_common;
+mod esa;
 mod godaddy;
 mod huawei;
+mod noip;
 mod porkbun;
-mod simple;
 mod tencentcloud;
+mod tencentcloud_tc3;
 
 pub(super) use alidns::*;
 pub(super) use baidu::*;
 pub(super) use cloudflare::*;
 pub(super) use common::*;
 pub(super) use dnspod::*;
+pub(super) use duckdns::*;
 pub(super) use dynu::*;
+pub(super) use dynv6::*;
 pub(super) use edgeone::*;
-pub(super) use esa_dynv6::*;
+pub(super) use edgeone_cname::*;
+pub(super) use edgeone_common::*;
+pub(super) use esa::*;
 pub(super) use godaddy::*;
 pub(super) use huawei::*;
+pub(super) use noip::*;
 pub(super) use porkbun::*;
-pub(super) use simple::*;
 pub(super) use tencentcloud::*;
+pub(super) use tencentcloud_tc3::*;
 
 pub(super) async fn update_ddns_provider(
     translator: &Translator,

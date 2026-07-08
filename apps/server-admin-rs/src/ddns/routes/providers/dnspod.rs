@@ -1,5 +1,26 @@
 use super::*;
 
+pub(in crate::ddns::routes) fn dnspod_catalog_entry() -> Value {
+    provider(
+        "dnspod",
+        "DNSPod",
+        vec![
+            field("token_id", "Token ID", "text", "DNSPod Token ID", true),
+            field(
+                "token_key",
+                "Token Key",
+                "password",
+                "DNSPod Token Key",
+                true,
+            ),
+            field("root_domain", "Root Domain", "text", "example.com", true),
+            field("domain", "Domain", "text", "home.example.com", true),
+            field("record_line", "Record Line", "text", "默认", false),
+            field("ttl", "TTL", "text", "600", false),
+        ],
+    )
+}
+
 pub(in crate::ddns::routes) async fn update_dnspod(
     translator: &Translator,
     config: &HashMap<String, String>,
@@ -137,4 +158,33 @@ pub(in crate::ddns::routes) async fn update_dnspod(
         },
     )
     .await
+}
+
+pub(in crate::ddns::routes) async fn dnspod_request(
+    translator: &Translator,
+    client: &DDNSHttpClient,
+    api: &str,
+    token_id: &str,
+    token_key: &str,
+    params: Vec<(&str, String)>,
+) -> anyhow::Result<Value> {
+    let mut form = vec![
+        ("login_token", format!("{token_id},{token_key}")),
+        ("format", "json".to_string()),
+    ];
+    form.extend(params);
+    let (_status, value, _text) = response_json(
+        translator,
+        client
+            .post(api)
+            .header(
+                reqwest::header::CONTENT_TYPE,
+                "application/x-www-form-urlencoded",
+            )
+            .body(form_body(&form))
+            .send()
+            .await?,
+    )
+    .await?;
+    Ok(value)
 }

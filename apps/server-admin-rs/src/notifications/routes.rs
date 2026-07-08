@@ -149,54 +149,6 @@ struct PageQuery {
     status: Option<String>,
 }
 
-#[derive(Clone)]
-struct SchemaField {
-    key: &'static str,
-    label: &'static str,
-    field_type: &'static str,
-    required: bool,
-    sensitive: bool,
-    placeholder: Option<&'static str>,
-    default_value: Option<Value>,
-    min: Option<i64>,
-    max: Option<i64>,
-    options: Vec<(&'static str, &'static str)>,
-}
-
-impl SchemaField {
-    fn placeholder(mut self, value: &'static str) -> Self {
-        if !value.is_empty() {
-            self.placeholder = Some(value);
-        }
-        self
-    }
-
-    fn bounds(mut self, min: i64, max: i64) -> Self {
-        self.min = Some(min);
-        self.max = Some(max);
-        self
-    }
-
-    fn min(mut self, min: i64) -> Self {
-        self.min = Some(min);
-        self
-    }
-}
-
-#[derive(Clone)]
-struct ProviderDefinition {
-    provider_type: &'static str,
-    label: &'static str,
-    description: &'static str,
-    connection_schema: Vec<SchemaField>,
-    target_schema: Vec<SchemaField>,
-    sensitive_fields: Vec<&'static str>,
-    supports_markdown: bool,
-    supports_actions: bool,
-    supports_mentions: bool,
-    supports_provider_dedupe_key: bool,
-}
-
 pub fn notification_routes() -> Router<AppState> {
     Router::new()
         .route(

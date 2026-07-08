@@ -1,5 +1,25 @@
 use super::*;
 
+pub(in crate::ddns::routes) fn huaweicloud_catalog_entry() -> Value {
+    provider(
+        "huaweicloud",
+        "华为云 DNS",
+        vec![
+            field("access_key_id", "Access Key", "text", "Access Key", true),
+            field(
+                "secret_access_key",
+                "Secret Key",
+                "password",
+                "Secret Key",
+                true,
+            ),
+            field("root_domain", "Root Domain", "text", "example.com", true),
+            field("domain", "Domain", "text", "home.example.com", true),
+            field("ttl", "TTL", "text", "300", false),
+        ],
+    )
+}
+
 pub(in crate::ddns::routes) async fn update_huaweicloud(
     translator: &Translator,
     config: &HashMap<String, String>,
@@ -161,4 +181,143 @@ pub(in crate::ddns::routes) async fn update_huaweicloud(
         },
     )
     .await
+}
+
+pub(in crate::ddns::routes) async fn huawei_request(
+    translator: &Translator,
+    client: &DDNSHttpClient,
+    access_key_id: &str,
+    secret_access_key: &str,
+    path: &str,
+    method: &str,
+    body: Option<Value>,
+) -> anyhow::Result<Value> {
+    let url = format!("https://dns.myhuaweicloud.com{path}");
+    let body_string = body
+        .as_ref()
+        .map(serde_json::to_string)
+        .transpose()?
+        .unwrap_or_default();
+    let (x_sdk_date, authorization) = huawei_sdk_authorization(
+        method,
+        &url,
+        "application/json",
+        access_key_id,
+        secret_access_key,
+        &body_string,
+    )?;
+    let method = reqwest::Method::from_bytes(method.as_bytes())?;
+    let mut request = client
+        .request(method, &url)
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .header(reqwest::header::HOST, "dns.myhuaweicloud.com")
+        .header("X-Sdk-Date", x_sdk_date)
+        .header(reqwest::header::AUTHORIZATION, authorization);
+    if !body_string.is_empty() {
+        request = request.body(body_string);
+    }
+    let response = request.send().await?;
+    let status = response.status();
+    let status_text = response.status_text().to_string();
+    let text = response.text().await?.trim().to_string();
+    if !status.is_success() {
+        return Err(anyhow::anyhow!(huawei_request_failed_message(
+            translator,
+            status.as_u16(),
+            &status_text,
+            &text,
+        )));
+    }
+    if text.is_empty() {
+        return Ok(json!({}));
+    }
+    serde_json::from_str::<Value>(&text).map_err(|_| {
+        anyhow::anyhow!(ddns_text(
+            translator,
+            "invalidJsonResponse",
+            &[("text", text.clone())],
+        ))
+    })
+}
+
+pub(in crate::ddns::routes) fn huawei_request_failed_message(
+    translator: &Translator,
+    status: u16,
+    status_text: &str,
+    text: &str,
+) -> String {
+    ddns_text(
+        translator,
+        "providers.huawei.requestFailed",
+        &[
+            ("status", status.to_string()),
+            ("statusText", status_text.to_string()),
+            ("detail", huawei_error_detail(text)),
+        ],
+    )
+}
+
+pub(in crate::ddns::routes) fn huawei_error_detail(text: &str) -> String {
+    serde_json::from_str::<Value>(text)
+        .ok()
+        .and_then(|value| serde_json::to_string(&value).ok())
+        .unwrap_or_else(|| text.to_string())
+}
+
+pub(in crate::ddns::routes) fn canonical_huawei_uri(path: &str) -> String {
+    let mut uri = path
+        .split('/')
+        .map(|segment| rfc3986_encode(&safe_decode_uri_component(segment)))
+        .collect::<Vec<_>>()
+        .join("/");
+    if !uri.starts_with('/') {
+        uri.insert(0, '/');
+    }
+    if !uri.ends_with('/') {
+        uri.push('/');
+    }
+    uri
+}
+
+pub(in crate::ddns::routes) fn huawei_sdk_authorization(
+    method: &str,
+    url: &str,
+    content_type: &str,
+    access_key_id: &str,
+    secret_access_key: &str,
+    payload: &str,
+) -> anyhow::Result<(String, String)> {
+    let url = url::Url::parse(url)?;
+    let x_sdk_date = compact_utc_timestamp();
+    let canonical_uri = canonical_huawei_uri(url.path());
+    let canonical_query = canonical_query_from_url(&url);
+    let payload_hash = sha256_hex(payload);
+    let canonical_headers = format!(
+        "content-type:{}\nhost:{}\nx-sdk-date:{}\n",
+        content_type.trim(),
+        url.host_str().unwrap_or_default(),
+        x_sdk_date
+    );
+    let signed_headers = "content-type;host;x-sdk-date";
+    let canonical_request = [
+        method,
+        &canonical_uri,
+        &canonical_query,
+        &canonical_headers,
+        signed_headers,
+        &payload_hash,
+    ]
+    .join("\n");
+    let string_to_sign = format!(
+        "SDK-HMAC-SHA256\n{}\n{}",
+        x_sdk_date,
+        sha256_hex(&canonical_request)
+    );
+    let signature = hmac_sha256_hex(secret_access_key.as_bytes(), string_to_sign.as_bytes());
+    Ok((
+        x_sdk_date,
+        format!(
+            "SDK-HMAC-SHA256 Access={access_key_id}, SignedHeaders={signed_headers}, Signature={signature}"
+        ),
+    ))
 }

@@ -1,5 +1,42 @@
 use super::*;
 
+pub(in crate::ddns::routes) fn esa_catalog_entry() -> Value {
+    provider(
+        "esa",
+        "阿里云 ESA",
+        vec![
+            field("access_key_id", "AccessKey ID", "text", "LTAI...", true),
+            field(
+                "access_key_secret",
+                "AccessKey Secret",
+                "password",
+                "AccessKey Secret",
+                true,
+            ),
+            field("site_name", "Site Name", "text", "example.com", true),
+            field("site_id", "Site ID", "text", "123456", false),
+            field("domain", "Domain", "text", "home.example.com", true),
+            select_field(
+                "proxied",
+                "Proxied",
+                false,
+                vec![("DNS only", "false"), ("Enabled", "true")],
+            ),
+            select_field(
+                "biz_name",
+                "Business",
+                false,
+                vec![
+                    ("Web", "web"),
+                    ("API", "api"),
+                    ("Image/Video", "image_video"),
+                ],
+            ),
+            field("ttl", "TTL", "text", "30", false),
+        ],
+    )
+}
+
 pub(in crate::ddns::routes) async fn update_esa(
     translator: &Translator,
     config: &HashMap<String, String>,
@@ -206,86 +243,171 @@ pub(in crate::ddns::routes) async fn update_esa(
     })
 }
 
-pub(in crate::ddns::routes) async fn update_dynv6(
+pub(in crate::ddns::routes) async fn aliyun_acs3_request(
     translator: &Translator,
-    config: &HashMap<String, String>,
-    http_options: &DDNSHttpClientOptions,
-    ipv4: Option<&str>,
-    ipv6: Option<&str>,
-) -> anyhow::Result<DDNSProviderUpdateResult> {
-    let token = config_value(config, "token");
-    let zone = config_value(config, "zone");
-    if token.is_empty() || zone.is_empty() {
-        return Ok(provider_failure(ddns_text(
-            translator,
-            "providers.dynv6.configIncomplete",
-            &[],
-        )));
+    client: &DDNSHttpClient,
+    access_key_id: &str,
+    access_key_secret: &str,
+    action: &str,
+    version: &str,
+    method: &str,
+    query: Vec<(String, String)>,
+    form_data: Vec<(String, String)>,
+) -> anyhow::Result<Value> {
+    let endpoint = "https://esa.cn-hangzhou.aliyuncs.com/";
+    let url = url::Url::parse(endpoint)?;
+    let query_string = aliyun_canonical_param_string(&query);
+    let body_string = aliyun_canonical_param_string(&form_data);
+    let payload_hash = sha256_hex(&body_string);
+    let acs_date = iso8601_utc_without_millis();
+    let nonce = uuid::Uuid::new_v4().to_string();
+    let mut headers = vec![
+        (
+            "host".to_string(),
+            url.host_str().unwrap_or_default().to_string(),
+        ),
+        ("x-acs-action".to_string(), action.to_string()),
+        ("x-acs-content-sha256".to_string(), payload_hash.clone()),
+        ("x-acs-date".to_string(), acs_date.clone()),
+        ("x-acs-signature-nonce".to_string(), nonce),
+        ("x-acs-version".to_string(), version.to_string()),
+    ];
+    if !body_string.is_empty() {
+        headers.push((
+            "content-type".to_string(),
+            "application/x-www-form-urlencoded".to_string(),
+        ));
     }
-    if ipv4.is_none() && ipv6.is_none() && config_value(config, "ipv6prefix").is_empty() {
-        return Ok(provider_failure(ddns_text(
-            translator,
-            "dualStackUnavailable",
-            &[],
-        )));
-    }
-    let mut query = vec![("hostname", zone), ("token", token)];
-    if let Some(ipv4) = ipv4 {
-        query.push(("ipv4", ipv4.to_string()));
-    }
-    if let Some(ipv6) = ipv6 {
-        query.push(("ipv6", ipv6.to_string()));
-    }
-    let ipv6prefix = config_value(config, "ipv6prefix");
-    if !ipv6prefix.is_empty() {
-        query.push(("ipv6prefix", ipv6prefix));
-    }
-    let client = ddns_http_client(translator, http_options)
-        .map_err(|error| provider_request_error(translator, "dynv6", error))?;
-    let response = client
-        .get(build_query_url("https://dynv6.com/api/update", &query))
-        .send()
-        .await
-        .map_err(|error| provider_request_error(translator, "dynv6", error))?;
-    let status = response.status();
-    let text = response_text(response)
-        .await
-        .map_err(|error| provider_request_error(translator, "dynv6", error))?;
-    if status.is_success() && (text.contains("updated") || text.contains("unchanged")) {
-        Ok(DDNSProviderUpdateResult {
-            success: true,
-            message: ddns_text(
-                translator,
-                "providers.dynv6.success",
-                &[
-                    ("detail", text),
-                    ("params", dynv6_sent_params(translator, ipv4, ipv6, config)),
-                ],
-            ),
-        })
+    headers.sort_by(|left, right| left.0.cmp(&right.0));
+    let canonical_headers = format!(
+        "{}\n",
+        headers
+            .iter()
+            .map(|(key, value)| format!("{key}:{}", value.trim()))
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+    let signed_headers = headers
+        .iter()
+        .map(|(key, _)| key.as_str())
+        .collect::<Vec<_>>()
+        .join(";");
+    let canonical_request = [
+        method,
+        url.path(),
+        &query_string,
+        &canonical_headers,
+        &signed_headers,
+        &payload_hash,
+    ]
+    .join("\n");
+    let string_to_sign = format!("ACS3-HMAC-SHA256\n{}", sha256_hex(&canonical_request));
+    let signature = hmac_sha256_hex(access_key_secret.as_bytes(), string_to_sign.as_bytes());
+    let authorization = format!(
+        "ACS3-HMAC-SHA256 Credential={access_key_id},SignedHeaders={signed_headers},Signature={signature}"
+    );
+    let request_url = if query_string.is_empty() {
+        endpoint.to_string()
     } else {
-        Ok(provider_failure(ddns_text(
-            translator,
-            "providers.dynv6.updateFailed",
-            &[("status", status.as_u16().to_string()), ("detail", text)],
-        )))
+        format!("{endpoint}?{query_string}")
+    };
+    let method = reqwest::Method::from_bytes(method.as_bytes())?;
+    let mut request = client
+        .request(method, request_url)
+        .header(reqwest::header::HOST, url.host_str().unwrap_or_default())
+        .header("x-acs-action", action)
+        .header("x-acs-content-sha256", payload_hash)
+        .header("x-acs-date", acs_date)
+        .header(
+            "x-acs-signature-nonce",
+            headers
+                .iter()
+                .find(|(key, _)| key == "x-acs-signature-nonce")
+                .map(|(_, value)| value.as_str())
+                .unwrap_or_default(),
+        )
+        .header("x-acs-version", version)
+        .header(reqwest::header::AUTHORIZATION, authorization);
+    if !body_string.is_empty() {
+        request = request
+            .header(
+                reqwest::header::CONTENT_TYPE,
+                "application/x-www-form-urlencoded",
+            )
+            .body(body_string);
     }
+    let (status, data, text) = response_json(translator, request.send().await?).await?;
+    if !status.is_success() || data.get("Code").is_some() {
+        return Err(anyhow::anyhow!(
+            "{}: {}",
+            data.get("Code")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+                .unwrap_or_else(|| format!("HTTP {}", status.as_u16())),
+            data.get("Message")
+                .and_then(Value::as_str)
+                .unwrap_or(if text.is_empty() {
+                    "Aliyun ACS3 request failed"
+                } else {
+                    &text
+                })
+        ));
+    }
+    Ok(data)
 }
 
-pub(in crate::ddns::routes) fn dynv6_sent_params(
-    translator: &Translator,
-    ipv4: Option<&str>,
-    ipv6: Option<&str>,
-    config: &HashMap<String, String>,
+pub(in crate::ddns::routes) fn aliyun_canonical_param_string(
+    params: &[(String, String)],
 ) -> String {
-    let empty = ddns_text(translator, "providers.dynv6.empty", &[]);
-    let mut parts = vec![
-        format!("ipv4={}", ipv4.unwrap_or(empty.as_str())),
-        format!("ipv6={}", ipv6.unwrap_or(empty.as_str())),
+    let mut values = params.to_vec();
+    values.sort_by(|left, right| {
+        let key_order = left.0.cmp(&right.0);
+        if key_order == std::cmp::Ordering::Equal {
+            left.1.cmp(&right.1)
+        } else {
+            key_order
+        }
+    });
+    values
+        .into_iter()
+        .map(|(key, value)| format!("{}={}", rfc3986_encode(&key), rfc3986_encode(&value)))
+        .collect::<Vec<_>>()
+        .join("&")
+}
+
+pub(in crate::ddns::routes) fn esa_record_payload(
+    value: &str,
+    ttl: i64,
+    proxied: bool,
+    biz_name: &str,
+) -> Vec<(String, String)> {
+    let mut payload = vec![
+        ("Data".to_string(), json!({ "Value": value }).to_string()),
+        ("Proxied".to_string(), proxied.to_string()),
+        ("Ttl".to_string(), ttl.to_string()),
+        ("Type".to_string(), "A/AAAA".to_string()),
     ];
-    let ipv6prefix = config_value(config, "ipv6prefix");
-    if !ipv6prefix.is_empty() {
-        parts.push(format!("ipv6prefix={ipv6prefix}"));
+    if proxied {
+        payload.push((
+            "BizName".to_string(),
+            default_string(biz_name.to_string(), "web"),
+        ));
     }
-    parts.join(", ")
+    payload
+}
+
+pub(in crate::ddns::routes) fn same_csv_values(left: &str, right: &str) -> bool {
+    let mut left_values = left
+        .split(',')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
+    let mut right_values = right
+        .split(',')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
+    left_values.sort_unstable();
+    right_values.sort_unstable();
+    left_values == right_values
 }

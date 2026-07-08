@@ -1,5 +1,25 @@
 use super::*;
 
+pub(in crate::ddns::routes) fn baiducloud_catalog_entry() -> Value {
+    provider(
+        "baiducloud",
+        "百度智能云",
+        vec![
+            field("access_key_id", "Access Key", "text", "Access Key", true),
+            field(
+                "secret_access_key",
+                "Secret Key",
+                "password",
+                "Secret Key",
+                true,
+            ),
+            field("root_domain", "Root Domain", "text", "example.com", true),
+            field("domain", "Domain", "text", "home.example.com", true),
+            field("ttl", "TTL", "text", "300", false),
+        ],
+    )
+}
+
 pub(in crate::ddns::routes) async fn update_baiducloud(
     translator: &Translator,
     config: &HashMap<String, String>,
@@ -126,4 +146,76 @@ pub(in crate::ddns::routes) async fn update_baiducloud(
         }
     })
     .await
+}
+
+pub(in crate::ddns::routes) async fn baidu_request(
+    translator: &Translator,
+    client: &DDNSHttpClient,
+    access_key_id: &str,
+    secret_access_key: &str,
+    path: &str,
+    body: Value,
+) -> anyhow::Result<Value> {
+    let url = format!("https://bcd.baidubce.com{path}");
+    let body_string = serde_json::to_string(&body)?;
+    let (timestamp, authorization) =
+        baidu_bce_authorization("POST", &url, access_key_id, secret_access_key)?;
+    let (_status, data, _text) = response_json(
+        translator,
+        client
+            .post(&url)
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .header(reqwest::header::HOST, "bcd.baidubce.com")
+            .header("x-bce-date", timestamp)
+            .header(reqwest::header::AUTHORIZATION, authorization)
+            .body(body_string)
+            .send()
+            .await?,
+    )
+    .await?;
+    Ok(data)
+}
+
+pub(in crate::ddns::routes) fn baidu_bce_authorization(
+    method: &str,
+    url: &str,
+    access_key_id: &str,
+    secret_access_key: &str,
+) -> anyhow::Result<(String, String)> {
+    let url = url::Url::parse(url)?;
+    let timestamp = iso8601_utc_without_millis();
+    let signed_header_names = ["content-type", "host", "x-bce-date"];
+    let header_values = [
+        ("content-type", "application/json"),
+        ("host", url.host_str().unwrap_or_default()),
+        ("x-bce-date", timestamp.as_str()),
+    ];
+    let canonical_headers = signed_header_names
+        .iter()
+        .filter_map(|name| {
+            header_values
+                .iter()
+                .find(|(key, _)| key == name)
+                .map(|(_, value)| format!("{name}:{}", rfc3986_encode(value.trim())))
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let auth_string_prefix = format!("bce-auth-v1/{access_key_id}/{timestamp}/1800");
+    let signing_key = hmac_sha256_hex(secret_access_key.as_bytes(), auth_string_prefix.as_bytes());
+    let canonical_request = [
+        method,
+        url.path(),
+        &canonical_query_from_url(&url),
+        &canonical_headers,
+    ]
+    .join("\n");
+    let signature = hmac_sha256_hex(signing_key.as_bytes(), canonical_request.as_bytes());
+    Ok((
+        timestamp,
+        format!(
+            "{auth_string_prefix}/{}/{}",
+            signed_header_names.join(";"),
+            signature
+        ),
+    ))
 }

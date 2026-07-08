@@ -1,21 +1,37 @@
 use super::*;
-mod chat;
+mod bark;
 mod config;
 mod content;
-mod email_webhook;
+mod dingtalk;
+mod email;
+mod feishu;
 mod http;
+mod magicpush;
 mod misc;
-mod mobile;
-mod push;
+mod pushdeer;
+mod pushplus;
+mod serverchan;
+mod telegram;
+mod webhook;
+mod wecom;
+mod wxpusher;
 
-pub(super) use chat::*;
+pub(super) use bark::*;
 pub(super) use config::*;
 pub(super) use content::*;
-pub(super) use email_webhook::*;
+pub(super) use dingtalk::*;
+pub(super) use email::*;
+pub(super) use feishu::*;
 pub(super) use http::*;
+pub(super) use magicpush::*;
 pub(super) use misc::*;
-pub(super) use mobile::*;
-pub(super) use push::*;
+pub(super) use pushdeer::*;
+pub(super) use pushplus::*;
+pub(super) use serverchan::*;
+pub(super) use telegram::*;
+pub(super) use webhook::*;
+pub(super) use wecom::*;
+pub(super) use wxpusher::*;
 
 #[derive(Clone)]
 pub(super) struct ProviderTestResult {

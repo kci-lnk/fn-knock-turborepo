@@ -1,5 +1,26 @@
 use super::*;
 
+pub(in crate::ddns::routes) fn alidns_catalog_entry() -> Value {
+    provider(
+        "alidns",
+        "阿里云 DNS",
+        vec![
+            field("access_key_id", "AccessKey ID", "text", "LTAI...", true),
+            field(
+                "access_key_secret",
+                "AccessKey Secret",
+                "password",
+                "AccessKey Secret",
+                true,
+            ),
+            field("root_domain", "Root Domain", "text", "example.com", true),
+            field("domain", "Domain", "text", "home.example.com", true),
+            field("line", "Line", "text", "default", false),
+            field("ttl", "TTL", "text", "600", false),
+        ],
+    )
+}
+
 pub(in crate::ddns::routes) async fn update_alidns(
     translator: &Translator,
     config: &HashMap<String, String>,
@@ -168,4 +189,75 @@ pub(in crate::ddns::routes) async fn update_alidns(
 
 pub(in crate::ddns::routes) fn alidns_change_response_failed(result: &Value) -> bool {
     json_value_js_truthy(result.get("Code")) || !json_value_js_truthy(result.get("RecordId"))
+}
+
+pub(in crate::ddns::routes) async fn alidns_request(
+    translator: &Translator,
+    client: &DDNSHttpClient,
+    access_key_id: &str,
+    access_key_secret: &str,
+    params: Vec<(&str, String)>,
+) -> anyhow::Result<Value> {
+    let body = build_aliyun_signed_params(access_key_id, access_key_secret, params, "POST");
+    let (_status, value, _text) = response_json(
+        translator,
+        client
+            .post("https://alidns.aliyuncs.com/")
+            .header(
+                reqwest::header::CONTENT_TYPE,
+                "application/x-www-form-urlencoded",
+            )
+            .body(body)
+            .send()
+            .await?,
+    )
+    .await?;
+    Ok(value)
+}
+
+pub(in crate::ddns::routes) fn build_aliyun_signed_params(
+    access_key_id: &str,
+    access_key_secret: &str,
+    extra_params: Vec<(&str, String)>,
+    method: &str,
+) -> String {
+    let mut params = vec![
+        ("AccessKeyId".to_string(), access_key_id.to_string()),
+        ("Format".to_string(), "JSON".to_string()),
+        ("SignatureMethod".to_string(), "HMAC-SHA1".to_string()),
+        (
+            "SignatureNonce".to_string(),
+            uuid::Uuid::new_v4().to_string(),
+        ),
+        ("SignatureVersion".to_string(), "1.0".to_string()),
+        ("Timestamp".to_string(), iso8601_utc_without_millis()),
+        ("Version".to_string(), "2015-01-09".to_string()),
+    ];
+    params.extend(
+        extra_params
+            .into_iter()
+            .map(|(key, value)| (key.to_string(), value)),
+    );
+    params.sort_by(|left, right| left.0.cmp(&right.0));
+    let canonicalized = params
+        .iter()
+        .map(|(key, value)| format!("{}={}", rfc3986_encode(key), rfc3986_encode(value)))
+        .collect::<Vec<_>>()
+        .join("&");
+    let string_to_sign = format!(
+        "{}&{}&{}",
+        method,
+        rfc3986_encode("/"),
+        rfc3986_encode(&canonicalized)
+    );
+    let signature = hmac_sha1_base64(
+        format!("{access_key_secret}&").as_bytes(),
+        string_to_sign.as_bytes(),
+    );
+    params.push(("Signature".to_string(), signature));
+    params
+        .iter()
+        .map(|(key, value)| format!("{}={}", rfc3986_encode(key), rfc3986_encode(value)))
+        .collect::<Vec<_>>()
+        .join("&")
 }

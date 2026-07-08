@@ -25,6 +25,54 @@ impl<T> OptionBadRequest<T> for Option<T> {
     }
 }
 
+#[derive(Clone)]
+pub(in crate::notifications::routes) struct SchemaField {
+    pub(in crate::notifications::routes) key: &'static str,
+    pub(in crate::notifications::routes) label: &'static str,
+    pub(in crate::notifications::routes) field_type: &'static str,
+    pub(in crate::notifications::routes) required: bool,
+    pub(in crate::notifications::routes) sensitive: bool,
+    pub(in crate::notifications::routes) placeholder: Option<&'static str>,
+    pub(in crate::notifications::routes) default_value: Option<Value>,
+    pub(in crate::notifications::routes) min: Option<i64>,
+    pub(in crate::notifications::routes) max: Option<i64>,
+    pub(in crate::notifications::routes) options: Vec<(&'static str, &'static str)>,
+}
+
+impl SchemaField {
+    pub(in crate::notifications::routes) fn placeholder(mut self, value: &'static str) -> Self {
+        if !value.is_empty() {
+            self.placeholder = Some(value);
+        }
+        self
+    }
+
+    pub(in crate::notifications::routes) fn bounds(mut self, min: i64, max: i64) -> Self {
+        self.min = Some(min);
+        self.max = Some(max);
+        self
+    }
+
+    pub(in crate::notifications::routes) fn min(mut self, min: i64) -> Self {
+        self.min = Some(min);
+        self
+    }
+}
+
+#[derive(Clone)]
+pub(in crate::notifications::routes) struct ProviderDefinition {
+    pub(in crate::notifications::routes) provider_type: &'static str,
+    pub(in crate::notifications::routes) label: &'static str,
+    pub(in crate::notifications::routes) description: &'static str,
+    pub(in crate::notifications::routes) connection_schema: Vec<SchemaField>,
+    pub(in crate::notifications::routes) target_schema: Vec<SchemaField>,
+    pub(in crate::notifications::routes) sensitive_fields: Vec<&'static str>,
+    pub(in crate::notifications::routes) supports_markdown: bool,
+    pub(in crate::notifications::routes) supports_actions: bool,
+    pub(in crate::notifications::routes) supports_mentions: bool,
+    pub(in crate::notifications::routes) supports_provider_dedupe_key: bool,
+}
+
 pub(super) fn provider_key(id: &str) -> String {
     format!("{PROVIDERS_DATA_PREFIX}{id}")
 }
@@ -39,402 +87,18 @@ pub(super) fn delivery_key(id: &str) -> String {
 
 pub(super) fn provider_definition(provider_type: &str) -> Option<ProviderDefinition> {
     match provider_type {
-        "webhook" => Some(ProviderDefinition {
-            provider_type: "webhook",
-            label: "Webhook",
-            description: "Send a JSON payload to a custom webhook endpoint.",
-            connection_schema: vec![
-                string_schema("url", "Webhook URL", true, true, None)
-                    .placeholder("https://example.com/hooks/fn-knock"),
-                select_schema("method", "Method", true, Some("POST"), &["POST", "PUT"]),
-                number_schema("timeout_seconds", "Timeout seconds", true, Some(5)).bounds(1, 30),
-                string_schema("shared_secret", "Shared secret", false, true, None)
-                    .placeholder("secret"),
-            ],
-            target_schema: vec![
-                string_schema("endpoint_path", "Endpoint path", false, false, None)
-                    .placeholder("/alerts"),
-                json_schema("extra_headers_json", "Extra headers", false)
-                    .placeholder(r#"{"X-Env":"prod"}"#),
-                json_schema("extra_body_json", "Extra body", false)
-                    .placeholder(r#"{"service":"gateway"}"#),
-            ],
-            sensitive_fields: vec!["url", "shared_secret"],
-            supports_markdown: true,
-            supports_actions: true,
-            supports_mentions: true,
-            supports_provider_dedupe_key: true,
-        }),
-        "wxpusher" => Some(ProviderDefinition {
-            provider_type: "wxpusher",
-            label: "WxPusher",
-            description: "Send notifications through WxPusher.",
-            connection_schema: vec![
-                string_schema(
-                    "server_url",
-                    "Server URL",
-                    true,
-                    false,
-                    Some("https://wxpusher.zjiecode.com"),
-                )
-                .placeholder("https://wxpusher.zjiecode.com"),
-                string_schema("app_token", "AppToken", true, true, None).placeholder("AT_xxx"),
-                number_schema("timeout_seconds", "Timeout seconds", true, Some(5)).bounds(1, 30),
-                string_schema("uids", "UIDs", false, false, None).placeholder("UID_xxx,UID_yyy"),
-                string_schema("topic_ids", "Topic IDs", false, false, None).placeholder("123,456"),
-                string_schema("url", "URL", false, false, None)
-                    .placeholder("https://example.com/events/123"),
-                select_schema(
-                    "verify_pay_type",
-                    "Verify pay type",
-                    false,
-                    Some("0"),
-                    &["0", "1", "2"],
-                ),
-            ],
-            target_schema: vec![
-                string_schema("uids", "UIDs", false, false, None).placeholder("UID_xxx,UID_yyy"),
-                string_schema("topic_ids", "Topic IDs", false, false, None).placeholder("123,456"),
-                string_schema("url", "URL", false, false, None)
-                    .placeholder("https://example.com/events/123"),
-                select_schema(
-                    "verify_pay_type",
-                    "Verify pay type",
-                    false,
-                    Some("__inherit__"),
-                    &["__inherit__", "0", "1", "2"],
-                ),
-            ],
-            sensitive_fields: vec!["app_token"],
-            supports_markdown: true,
-            supports_actions: true,
-            supports_mentions: false,
-            supports_provider_dedupe_key: false,
-        }),
-        "serverchan" => Some(ProviderDefinition {
-            provider_type: "serverchan",
-            label: "ServerChan",
-            description: "Send notifications through ServerChan.",
-            connection_schema: vec![
-                string_schema(
-                    "server_url",
-                    "Server URL",
-                    true,
-                    false,
-                    Some("https://sctapi.ftqq.com"),
-                )
-                .placeholder("https://sctapi.ftqq.com"),
-                string_schema("sendkey", "SendKey", true, true, None)
-                    .placeholder("SCTxxxxxxxxxxxxxxxxxxxxxxxxxxxx"),
-                number_schema("timeout_seconds", "Timeout seconds", true, Some(5)).bounds(1, 30),
-            ],
-            target_schema: vec![
-                string_schema("channel", "Channel", false, false, None).placeholder("9|66"),
-                string_schema("openid", "OpenID / UID", false, false, None)
-                    .placeholder("openid1,openid2 or uid1|uid2"),
-                string_schema("short", "Short text", false, false, None)
-                    .placeholder("Login anomaly, please check"),
-                bool_schema("noip", "Hide caller IP", false, Some(false)),
-            ],
-            sensitive_fields: vec!["sendkey"],
-            supports_markdown: true,
-            supports_actions: true,
-            supports_mentions: false,
-            supports_provider_dedupe_key: false,
-        }),
-        "pushplus" => Some(ProviderDefinition {
-            provider_type: "pushplus",
-            label: "PushPlus",
-            description: "Send notifications through PushPlus.",
-            connection_schema: vec![
-                string_schema(
-                    "server_url",
-                    "Server URL",
-                    true,
-                    false,
-                    Some("https://www.pushplus.plus"),
-                )
-                .placeholder("https://www.pushplus.plus"),
-                string_schema("token", "Token", true, true, None)
-                    .placeholder("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"),
-                number_schema("timeout_seconds", "Timeout seconds", true, Some(5)).bounds(1, 30),
-            ],
-            target_schema: vec![
-                string_schema("topic", "Topic", false, false, None).placeholder("alarm-topic"),
-                select_schema(
-                    "template",
-                    "Template",
-                    false,
-                    Some("markdown"),
-                    &["markdown", "html", "txt", "json"],
-                ),
-                select_schema(
-                    "channel",
-                    "Channel",
-                    false,
-                    Some("wechat"),
-                    &[
-                        "wechat",
-                        "webhook",
-                        "cp",
-                        "mail",
-                        "sms",
-                        "voice",
-                        "extension",
-                        "app",
-                        "clawbot",
-                    ],
-                ),
-                string_schema("option", "Option", false, false, None)
-                    .placeholder("my-channel-code"),
-                string_schema("to", "Recipient", false, false, None)
-                    .placeholder("friend_token or user1,user2"),
-                string_schema("callback_url", "Callback URL", false, false, None)
-                    .placeholder("https://example.com/hooks/pushplus"),
-                string_schema("pre", "Pre", false, false, None).placeholder("appendMsg"),
-            ],
-            sensitive_fields: vec!["token"],
-            supports_markdown: true,
-            supports_actions: true,
-            supports_mentions: false,
-            supports_provider_dedupe_key: false,
-        }),
-        "wecom" => Some(webhook_like_definition(
-            "wecom",
-            "WeCom",
-            "Send notifications through WeCom robot webhook.",
-            &["webhook_url"],
-            vec![
-                string_schema("mentioned_list", "Mentioned users", false, false, None)
-                    .placeholder("zhangsan,@all"),
-                string_schema(
-                    "mentioned_mobile_list",
-                    "Mentioned mobile list",
-                    false,
-                    false,
-                    None,
-                )
-                .placeholder("13800001111,@all"),
-            ],
-        )),
-        "dingtalk" => Some(webhook_like_definition(
-            "dingtalk",
-            "DingTalk",
-            "Send notifications through DingTalk robot webhook.",
-            &["webhook_url", "secret"],
-            vec![
-                string_schema("at_mobiles", "At mobiles", false, false, None)
-                    .placeholder("13800001111,13900002222"),
-                string_schema("at_user_ids", "At user IDs", false, false, None)
-                    .placeholder("manager7675,user123"),
-                bool_schema("is_at_all", "At all", false, Some(false)),
-            ],
-        )),
-        "feishu" => Some(webhook_like_definition(
-            "feishu",
-            "Feishu",
-            "Send notifications through Feishu robot webhook.",
-            &["webhook_url", "secret"],
-            vec![
-                string_schema("mention_user_ids", "Mention user IDs", false, false, None)
-                    .placeholder("ou_xxx,all"),
-            ],
-        )),
-        "email" => Some(ProviderDefinition {
-            provider_type: "email",
-            label: "Email",
-            description: "Send notifications through SMTP.",
-            connection_schema: vec![
-                string_schema("smtp_host", "SMTP host", true, false, None)
-                    .placeholder("smtp.example.com"),
-                number_schema("smtp_port", "SMTP port", true, Some(465)).bounds(1, 65535),
-                select_schema(
-                    "smtp_security",
-                    "SMTP security",
-                    true,
-                    Some("ssl_tls"),
-                    &["ssl_tls", "starttls", "none"],
-                ),
-                select_schema(
-                    "smtp_auth_mode",
-                    "SMTP auth mode",
-                    true,
-                    Some("auto"),
-                    &["auto", "plain", "login", "none"],
-                ),
-                string_schema("smtp_username", "SMTP username", false, false, None)
-                    .placeholder("no-reply@example.com"),
-                string_schema("smtp_password", "SMTP password", false, true, None)
-                    .placeholder("password"),
-                string_schema("from_address", "From address", true, false, None)
-                    .placeholder("no-reply@example.com"),
-                string_schema("from_name", "From name", false, false, None).placeholder("fn-knock"),
-                string_schema("to_addresses", "To addresses", true, false, None)
-                    .placeholder("ops@example.com, admin@example.com"),
-                string_schema("cc_addresses", "CC addresses", false, false, None)
-                    .placeholder("audit@example.com"),
-                string_schema("bcc_addresses", "BCC addresses", false, false, None)
-                    .placeholder("archive@example.com"),
-                string_schema("reply_to", "Reply-To", false, false, None)
-                    .placeholder("support@example.com"),
-                bool_schema("allow_invalid_tls", "Allow invalid TLS", false, Some(false)),
-                number_schema("timeout_seconds", "Timeout seconds", true, Some(10)).bounds(1, 30),
-                string_schema("imap_host", "IMAP host", false, false, None)
-                    .placeholder("imap.example.com"),
-                number_schema("imap_port", "IMAP port", false, Some(993)).bounds(1, 65535),
-                select_schema(
-                    "imap_security",
-                    "IMAP security",
-                    false,
-                    Some("ssl_tls"),
-                    &["ssl_tls", "starttls", "none"],
-                ),
-                string_schema("imap_username", "IMAP username", false, false, None)
-                    .placeholder("no-reply@example.com"),
-                string_schema("imap_password", "IMAP password", false, true, None)
-                    .placeholder("password"),
-                string_schema("imap_mailbox", "IMAP mailbox", false, false, Some("INBOX"))
-                    .placeholder("INBOX"),
-            ],
-            target_schema: vec![
-                string_schema("to_addresses", "To addresses", false, false, None)
-                    .placeholder("team@example.com"),
-                string_schema("cc_addresses", "CC addresses", false, false, None)
-                    .placeholder("audit@example.com"),
-                string_schema("bcc_addresses", "BCC addresses", false, false, None)
-                    .placeholder("archive@example.com"),
-                string_schema("reply_to", "Reply-To", false, false, None)
-                    .placeholder("support@example.com"),
-                string_schema("subject_prefix", "Subject prefix", false, false, None),
-            ],
-            sensitive_fields: vec!["smtp_password", "imap_password"],
-            supports_markdown: false,
-            supports_actions: true,
-            supports_mentions: false,
-            supports_provider_dedupe_key: false,
-        }),
-        "pushdeer" => Some(ProviderDefinition {
-            provider_type: "pushdeer",
-            label: "PushDeer",
-            description: "Send notifications through PushDeer.",
-            connection_schema: vec![
-                string_schema(
-                    "server_url",
-                    "Server URL",
-                    true,
-                    false,
-                    Some("https://api2.pushdeer.com"),
-                )
-                .placeholder("https://api2.pushdeer.com"),
-                string_schema("pushkey", "PushKey", true, true, None)
-                    .placeholder("PDUxxxx,PDUyyyy"),
-                number_schema("timeout_seconds", "Timeout seconds", true, Some(5)).bounds(1, 30),
-            ],
-            target_schema: Vec::new(),
-            sensitive_fields: vec!["pushkey"],
-            supports_markdown: true,
-            supports_actions: true,
-            supports_mentions: false,
-            supports_provider_dedupe_key: false,
-        }),
-        "magicpush" => Some(ProviderDefinition {
-            provider_type: "magicpush",
-            label: "MagicPush",
-            description: "Send notifications through MagicPush.",
-            connection_schema: vec![
-                string_schema("server_url", "Server URL", true, false, None)
-                    .placeholder("http://192.168.31.98:3000"),
-                select_schema(
-                    "delivery_mode",
-                    "Delivery mode",
-                    true,
-                    Some("push"),
-                    &["push", "inbound"],
-                ),
-                string_schema("token", "Token", true, false, None).placeholder("your_token"),
-                number_schema("timeout_seconds", "Timeout seconds", true, Some(5)).bounds(1, 30),
-            ],
-            target_schema: Vec::new(),
-            sensitive_fields: Vec::new(),
-            supports_markdown: false,
-            supports_actions: false,
-            supports_mentions: false,
-            supports_provider_dedupe_key: false,
-        }),
-        "bark" => Some(ProviderDefinition {
-            provider_type: "bark",
-            label: "Bark",
-            description: "Send notifications through Bark.",
-            connection_schema: vec![
-                string_schema(
-                    "server_url",
-                    "Server URL",
-                    true,
-                    false,
-                    Some("https://api.day.app"),
-                )
-                .placeholder("https://api.day.app"),
-                string_schema("device_key", "Device Key", true, true, None)
-                    .placeholder("ynJ5Ft4atkMkWeo2PAvFhF"),
-                number_schema("timeout_seconds", "Timeout seconds", true, Some(5)).bounds(1, 30),
-            ],
-            target_schema: vec![
-                select_schema(
-                    "level",
-                    "Level",
-                    false,
-                    Some("active"),
-                    &["active", "timeSensitive", "passive", "critical"],
-                ),
-                string_schema("group", "Group", false, false, None).placeholder("fn-knock"),
-                string_schema("sound", "Sound", false, false, None).placeholder("alarm"),
-                string_schema("url", "URL", false, false, None)
-                    .placeholder("https://example.com/events/123"),
-                string_schema("icon", "Icon", false, false, None)
-                    .placeholder("https://day.app/assets/images/avatar.jpg"),
-                number_schema("badge", "Badge", false, None).bounds(0, 99999),
-                bool_schema("call", "Call", false, Some(false)),
-            ],
-            sensitive_fields: vec!["device_key"],
-            supports_markdown: false,
-            supports_actions: true,
-            supports_mentions: false,
-            supports_provider_dedupe_key: false,
-        }),
-        "telegram" => Some(ProviderDefinition {
-            provider_type: "telegram",
-            label: "Telegram",
-            description: "Send notifications through Telegram bot API.",
-            connection_schema: vec![
-                string_schema(
-                    "server_url",
-                    "Server URL",
-                    true,
-                    false,
-                    Some("https://api.telegram.org"),
-                )
-                .placeholder("https://api.telegram.org"),
-                string_schema("bot_token", "Bot Token", true, true, None)
-                    .placeholder("123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"),
-                string_schema("chat_id", "Chat ID", true, false, None)
-                    .placeholder("-1001234567890"),
-                number_schema("timeout_seconds", "Timeout seconds", true, Some(5)).bounds(1, 30),
-            ],
-            target_schema: vec![
-                number_schema("message_thread_id", "Topic ID", false, None).min(1),
-                bool_schema(
-                    "disable_notification",
-                    "Disable notification",
-                    false,
-                    Some(false),
-                ),
-            ],
-            sensitive_fields: vec!["bot_token"],
-            supports_markdown: false,
-            supports_actions: true,
-            supports_mentions: false,
-            supports_provider_dedupe_key: false,
-        }),
+        "webhook" => Some(webhook_definition()),
+        "wxpusher" => Some(wxpusher_definition()),
+        "serverchan" => Some(serverchan_definition()),
+        "pushplus" => Some(pushplus_definition()),
+        "wecom" => Some(wecom_definition()),
+        "dingtalk" => Some(dingtalk_definition()),
+        "feishu" => Some(feishu_definition()),
+        "email" => Some(email_definition()),
+        "pushdeer" => Some(pushdeer_definition()),
+        "magicpush" => Some(magicpush_definition()),
+        "bark" => Some(bark_definition()),
+        "telegram" => Some(telegram_definition()),
         _ => None,
     }
 }

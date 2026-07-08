@@ -1,5 +1,29 @@
 use super::*;
 
+pub(in crate::ddns::routes) fn cloudflare_catalog_entry() -> Value {
+    provider(
+        "cloudflare",
+        "Cloudflare",
+        vec![
+            field(
+                "api_token",
+                "API Token",
+                "password",
+                "Cloudflare API Token",
+                true,
+            ),
+            field("zone_id", "Zone ID", "text", "Zone ID", true),
+            field("domain", "Domain", "text", "home.example.com", true),
+            select_field(
+                "proxied",
+                "Proxied",
+                false,
+                vec![("DNS only", "false"), ("Orange cloud", "true")],
+            ),
+        ],
+    )
+}
+
 pub(in crate::ddns::routes) async fn update_cloudflare(
     translator: &Translator,
     config: &HashMap<String, String>,

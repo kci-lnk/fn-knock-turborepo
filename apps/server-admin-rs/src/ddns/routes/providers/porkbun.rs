@@ -1,5 +1,25 @@
 use super::*;
 
+pub(in crate::ddns::routes) fn porkbun_catalog_entry() -> Value {
+    provider(
+        "porkbun",
+        "Porkbun",
+        vec![
+            field("api_key", "API Key", "text", "Porkbun API Key", true),
+            field(
+                "secret_api_key",
+                "Secret API Key",
+                "password",
+                "Porkbun Secret API Key",
+                true,
+            ),
+            field("root_domain", "Root Domain", "text", "example.com", true),
+            field("domain", "Domain", "text", "home.example.com", true),
+            field("ttl", "TTL", "text", "600", false),
+        ],
+    )
+}
+
 pub(in crate::ddns::routes) async fn update_porkbun(
     translator: &Translator,
     config: &HashMap<String, String>,
@@ -115,4 +135,27 @@ pub(in crate::ddns::routes) async fn update_porkbun(
         },
     )
     .await
+}
+
+pub(in crate::ddns::routes) async fn porkbun_request(
+    translator: &Translator,
+    client: &DDNSHttpClient,
+    path: &str,
+    api_key: &str,
+    secret_api_key: &str,
+    body: Value,
+) -> anyhow::Result<Value> {
+    let mut payload = body.as_object().cloned().unwrap_or_default();
+    payload.insert("apikey".to_string(), json!(api_key));
+    payload.insert("secretapikey".to_string(), json!(secret_api_key));
+    let (_status, value, _text) = response_json(
+        translator,
+        client
+            .post(format!("https://porkbun.com/api/json/v3/dns{path}"))
+            .json(&Value::Object(payload))
+            .send()
+            .await?,
+    )
+    .await?;
+    Ok(value)
 }

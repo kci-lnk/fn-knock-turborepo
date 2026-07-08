@@ -1,5 +1,25 @@
 use super::*;
 
+pub(in crate::ddns::routes) fn godaddy_catalog_entry() -> Value {
+    provider(
+        "godaddy",
+        "GoDaddy",
+        vec![
+            field("api_key", "API Key", "text", "GoDaddy API Key", true),
+            field(
+                "api_secret",
+                "API Secret",
+                "password",
+                "GoDaddy API Secret",
+                true,
+            ),
+            field("root_domain", "Root Domain", "text", "example.com", true),
+            field("domain", "Domain", "text", "home.example.com", true),
+            field("ttl", "TTL", "text", "600", false),
+        ],
+    )
+}
+
 pub(in crate::ddns::routes) async fn update_godaddy(
     translator: &Translator,
     config: &HashMap<String, String>,

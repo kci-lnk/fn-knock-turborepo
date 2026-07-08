@@ -1,4 +1,4 @@
-use serde_json::{Map, Value, json};
+use serde_json::{Value, json};
 
 use super::{
     AUTH_MAX_TTL_SECONDS, AUTH_POST_LOGIN_IP_GRANT_TTL_SECONDS_DEFAULT,
@@ -143,9 +143,4 @@ pub(super) fn node_totp_bind_comment(comment: Option<String>) -> String {
     }
 }
 
-pub(super) fn ensure_object(value: &mut Value) -> &mut Map<String, Value> {
-    if !value.is_object() {
-        *value = json!({});
-    }
-    value.as_object_mut().expect("value is object")
-}
+pub(super) use crate::json_utils::ensure_object;

@@ -1,6 +1,6 @@
 use std::fs;
 
-use crate::{i18n::Translator, runtime_profile, state::AppState};
+use crate::{i18n::Translator, state::AppState};
 
 pub(super) fn detect_system_timezone() -> Option<String> {
     if let Ok(value) = std::env::var("TZ")
@@ -54,19 +54,9 @@ pub(super) fn smart_connect_unavailable_message(
     }
 }
 
-pub(super) fn deployment_target(state: &AppState) -> String {
-    runtime_profile::deployment_target(state)
-}
+pub(super) use crate::runtime_profile::deployment_target;
 
 #[cfg(unix)]
 pub(super) fn is_running_as_root() -> bool {
-    unsafe extern "C" {
-        fn getuid() -> u32;
-    }
-    unsafe { getuid() == 0 }
-}
-
-#[cfg(not(unix))]
-pub(super) fn is_running_as_root() -> bool {
-    false
+    crate::unix::is_root_process()
 }

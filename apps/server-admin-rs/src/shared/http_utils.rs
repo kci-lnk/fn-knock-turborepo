@@ -1,6 +1,6 @@
 use std::net::IpAddr;
 
-use axum::http::{HeaderMap, Uri};
+use axum::http::{HeaderMap, HeaderValue, Uri, header};
 use url::Url;
 
 pub fn get_client_ip(headers: &HeaderMap) -> String {
@@ -29,6 +29,38 @@ pub fn first_header_value(headers: &HeaderMap, name: &str) -> Option<String> {
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(ToString::to_string)
+}
+
+pub fn user_agent(headers: &HeaderMap) -> String {
+    headers
+        .get(header::USER_AGENT)
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.trim().chars().take(512).collect::<String>())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "Unknown".to_string())
+}
+
+pub fn apply_no_store_headers(headers: &mut HeaderMap) {
+    headers.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, no-store, no-cache, max-age=0, must-revalidate"),
+    );
+    headers.insert(header::PRAGMA, HeaderValue::from_static("no-cache"));
+    headers.insert(header::EXPIRES, HeaderValue::from_static("0"));
+    headers.insert(
+        "CDN-Cache-Control",
+        HeaderValue::from_static("private, no-store"),
+    );
+    headers.insert("Surrogate-Control", HeaderValue::from_static("no-store"));
+}
+
+pub fn html_escape(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
 }
 
 pub fn forwarded_header_value(headers: &HeaderMap, key: &str) -> Option<String> {
@@ -90,6 +122,10 @@ pub fn normalize_api_base_url(value: &str, default_path: &str) -> Result<String,
     url.set_query(None);
     url.set_fragment(None);
     Ok(url.as_str().trim_end_matches('/').to_string())
+}
+
+pub fn url_encode_component(value: &str) -> String {
+    url::form_urlencoded::byte_serialize(value.as_bytes()).collect()
 }
 
 fn strip_bracketed_host(candidate: &str) -> Option<&str> {
@@ -197,5 +233,52 @@ mod tests {
         assert!(is_private_or_local_ip("192.168.31.2"));
         assert!(is_private_or_local_ip("172.16.0.1"));
         assert!(!is_private_or_local_ip("8.8.8.8"));
+    }
+
+    #[test]
+    fn url_component_encoding_preserves_existing_form_urlencoded_behavior() {
+        assert_eq!(url_encode_component("a b/c?d=e"), "a+b%2Fc%3Fd%3De");
+    }
+
+    #[test]
+    fn user_agent_trims_limits_and_defaults() {
+        let mut headers = HeaderMap::new();
+        assert_eq!(user_agent(&headers), "Unknown");
+
+        headers.insert(
+            header::USER_AGENT,
+            HeaderValue::from_static("  KnockTest  "),
+        );
+        assert_eq!(user_agent(&headers), "KnockTest");
+
+        let long = "a".repeat(600);
+        headers.insert(header::USER_AGENT, HeaderValue::from_str(&long).unwrap());
+        assert_eq!(user_agent(&headers).len(), 512);
+    }
+
+    #[test]
+    fn no_store_headers_match_auth_response_contract() {
+        let mut headers = HeaderMap::new();
+        apply_no_store_headers(&mut headers);
+
+        assert_eq!(
+            headers.get(header::CACHE_CONTROL).unwrap(),
+            "private, no-store, no-cache, max-age=0, must-revalidate"
+        );
+        assert_eq!(headers.get(header::PRAGMA).unwrap(), "no-cache");
+        assert_eq!(headers.get(header::EXPIRES).unwrap(), "0");
+        assert_eq!(
+            headers.get("CDN-Cache-Control").unwrap(),
+            "private, no-store"
+        );
+        assert_eq!(headers.get("Surrogate-Control").unwrap(), "no-store");
+    }
+
+    #[test]
+    fn html_escape_covers_attribute_sensitive_characters() {
+        assert_eq!(
+            html_escape("<tag attr=\"x\">'&"),
+            "&lt;tag attr=&quot;x&quot;&gt;&#39;&amp;"
+        );
     }
 }

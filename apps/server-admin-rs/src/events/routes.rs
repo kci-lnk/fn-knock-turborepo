@@ -75,15 +75,12 @@ struct DeleteEventsBody {
 }
 
 pub fn internal_system_event_routes() -> Router<AppState> {
-    Router::new()
-        .route("/api/internal/system-events", post(publish_internal_event))
-        .route("/api/internal/system-events/", post(publish_internal_event))
+    Router::new().route("/api/internal/system-events", post(publish_internal_event))
 }
 
 pub fn admin_event_routes() -> Router<AppState> {
     Router::new()
         .route("/api/admin/events", get(list_events).delete(delete_events))
-        .route("/api/admin/events/", get(list_events).delete(delete_events))
         .route("/api/admin/events/clear", delete(clear_events))
 }
 

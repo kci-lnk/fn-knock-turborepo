@@ -97,8 +97,7 @@ pub(super) fn validate_pow_proof(
         return Err(auth_route_text(translator, "invalidCaptchaChallenge"));
     }
 
-    let expected_signature = hmac_sha256_hex(key.as_bytes(), raw_challenge.as_bytes())
-        .map_err(|_| auth_route_text(translator, "invalidCaptchaSignature"))?;
+    let expected_signature = hmac_sha256_hex(key.as_bytes(), raw_challenge.as_bytes());
     if expected_signature
         .as_bytes()
         .ct_eq(signature.as_bytes())

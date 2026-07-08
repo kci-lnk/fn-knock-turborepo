@@ -12,11 +12,7 @@ pub(in crate::notifications::routes) fn apply_keyword_prefix(value: &str, keywor
     }
 }
 
-pub(in crate::notifications::routes) fn hmac_sha256_base64(key: &[u8], payload: &[u8]) -> String {
-    let mut mac = HmacSha256::new_from_slice(key).expect("HMAC accepts keys of any size");
-    mac.update(payload);
-    BASE64_STANDARD.encode(mac.finalize().into_bytes())
-}
+pub(in crate::notifications::routes) use crate::crypto_utils::hmac_sha256_base64;
 
 pub(in crate::notifications::routes) fn append_query_params(
     url: &str,
@@ -121,9 +117,7 @@ pub(in crate::notifications::routes) fn path_matches_magicpush_endpoint_with_tai
     prefix.ends_with(endpoint) && !tail.is_empty() && !tail.contains('/')
 }
 
-pub(in crate::notifications::routes) fn url_encode_component(value: &str) -> String {
-    url::form_urlencoded::byte_serialize(value.as_bytes()).collect()
-}
+pub(in crate::notifications::routes) use crate::http_utils::url_encode_component;
 
 pub(in crate::notifications::routes) fn json_i64(value: &Value, key: &str) -> Option<i64> {
     value.get(key).and_then(value_as_i64)

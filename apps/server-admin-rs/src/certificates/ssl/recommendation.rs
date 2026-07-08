@@ -1,5 +1,10 @@
 use super::*;
 
+pub(super) use crate::certificates::domain_utils::{
+    is_requirement_covered_by_certificate_domains, normalize_domain_name, uniq_domain_strings,
+};
+pub(super) use crate::time_utils::node_iso_now as now_node_iso;
+
 pub(super) fn build_subdomain_certificate_recommendation(
     auth_port: u16,
     config: &Value,
@@ -518,84 +523,7 @@ pub(super) fn is_auth_service_mapping(auth_port: u16, mapping: &Value) -> bool {
     parse_target_port(target) == Some(auth_port)
 }
 
-pub(super) fn parse_target_port(target: &str) -> Option<u16> {
-    let parsed = url::Url::parse(target.trim()).ok()?;
-    if let Some(port) = parsed.port() {
-        return Some(port);
-    }
-    match parsed.scheme() {
-        "https" | "wss" => Some(443),
-        "http" | "ws" => Some(80),
-        _ => None,
-    }
-}
-
-pub(super) fn uniq_domain_strings<'a>(values: impl IntoIterator<Item = &'a str>) -> Vec<String> {
-    let mut seen = BTreeSet::new();
-    let mut output = Vec::new();
-    for value in values {
-        let normalized = normalize_domain_name(value);
-        if normalized.is_empty() || !seen.insert(normalized.clone()) {
-            continue;
-        }
-        output.push(normalized);
-    }
-    output
-}
-
-pub(super) fn normalize_domain_name(value: &str) -> String {
-    value.trim().trim_end_matches('.').to_ascii_lowercase()
-}
-
-pub(super) fn is_wildcard_domain(value: &str) -> bool {
-    normalize_domain_name(value).starts_with("*.")
-}
-
-pub(super) fn strip_wildcard_prefix(value: &str) -> String {
-    let normalized = normalize_domain_name(value);
-    normalized
-        .strip_prefix("*.")
-        .unwrap_or(normalized.as_str())
-        .to_string()
-}
-
-pub(super) fn does_pattern_cover_concrete_host(concrete_host: &str, pattern: &str) -> bool {
-    let normalized_host = normalize_domain_name(concrete_host);
-    let normalized_pattern = normalize_domain_name(pattern);
-    if normalized_host.is_empty()
-        || normalized_pattern.is_empty()
-        || is_wildcard_domain(&normalized_host)
-    {
-        return false;
-    }
-    if !is_wildcard_domain(&normalized_pattern) {
-        return normalized_host == normalized_pattern;
-    }
-    let suffix = strip_wildcard_prefix(&normalized_pattern);
-    if suffix.is_empty() || !normalized_host.ends_with(&format!(".{suffix}")) {
-        return false;
-    }
-    let label = &normalized_host[..normalized_host.len() - suffix.len() - 1];
-    !label.is_empty() && !label.contains('.')
-}
-
-pub(super) fn is_requirement_covered_by_certificate_domains(
-    requirement: &str,
-    certificate_domains: &[String],
-) -> bool {
-    let requirement = normalize_domain_name(requirement);
-    if requirement.is_empty() {
-        return false;
-    }
-    if is_wildcard_domain(&requirement) {
-        return certificate_domains
-            .iter()
-            .any(|domain| normalize_domain_name(domain) == requirement);
-    }
-    certificate_domains
-        .iter()
-        .any(|domain| does_pattern_cover_concrete_host(&requirement, domain))
-}
+pub(super) use crate::proxy_utils::parse_url_target_port_u16 as parse_target_port;
 
 pub(super) fn subdomain_text(translator: &Translator, key: &str) -> String {
     translator.t(&format!("server.subdomainMode.{key}"))
@@ -653,29 +581,5 @@ pub(super) fn default_certificate_label(source: &str, primary_domain: Option<&st
 
 pub(super) fn normalize_timestamp(value: Option<&Value>) -> Option<String> {
     let raw = value.and_then(Value::as_str)?.trim();
-    if raw.is_empty() {
-        return None;
-    }
-    let timestamp = OffsetDateTime::parse(raw, &Rfc3339)
-        .ok()?
-        .to_offset(UtcOffset::UTC);
-    Some(format_node_iso_timestamp(timestamp))
-}
-
-pub(super) fn now_node_iso() -> String {
-    format_node_iso_timestamp(OffsetDateTime::now_utc())
-}
-
-fn format_node_iso_timestamp(timestamp: OffsetDateTime) -> String {
-    let timestamp = timestamp.to_offset(UtcOffset::UTC);
-    format!(
-        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:03}Z",
-        timestamp.year(),
-        u8::from(timestamp.month()),
-        timestamp.day(),
-        timestamp.hour(),
-        timestamp.minute(),
-        timestamp.second(),
-        timestamp.millisecond()
-    )
+    time_utils::normalize_node_iso(raw)
 }

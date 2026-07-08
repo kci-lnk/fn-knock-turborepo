@@ -11,7 +11,7 @@ use std::{
     },
 };
 
-use ::time::{Duration, OffsetDateTime, UtcOffset, format_description::well_known::Rfc3339};
+use ::time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use axum::{
     Json, Router,
     body::{Body, to_bytes},
@@ -115,28 +115,9 @@ fn acme_route_text(t: &Translator, key: &str) -> String {
 pub fn acme_routes() -> Router<AppState> {
     Router::new()
         .route("/api/admin/acme", delete(uninstall_acme))
-        .route("/api/admin/acme/", delete(uninstall_acme))
         .route("/api/admin/acme/status", get(status))
         .route("/api/admin/acme/overview", get(overview))
         .route("/api/admin/acme/dns-providers", get(dns_providers))
-        .route("/api/admin/acme/check", get(legacy_scan_acme_check))
-        .route(
-            "/api/admin/acme/install",
-            axum::routing::post(legacy_scan_acme_install),
-        )
-        .route(
-            "/api/admin/acme/issue",
-            axum::routing::post(legacy_scan_acme_issue),
-        )
-        .route("/api/admin/scan/check", get(legacy_scan_acme_check))
-        .route(
-            "/api/admin/scan/install",
-            axum::routing::post(legacy_scan_acme_install),
-        )
-        .route(
-            "/api/admin/scan/issue",
-            axum::routing::post(legacy_scan_acme_issue),
-        )
         .route(
             "/api/admin/acme/subdomain-recommendation",
             get(subdomain_recommendation),

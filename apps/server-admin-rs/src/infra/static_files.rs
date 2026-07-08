@@ -43,24 +43,6 @@ pub fn auth_static_routes() -> Router<AppState> {
             "/__auth__/__fn-knock/runtime-hmac-secret",
             get(runtime_hmac_secret),
         )
-        .route("/oidc/bind", get(redirect_legacy_oidc_bind_route))
-        .route("/oidc/bind/", get(redirect_legacy_oidc_bind_route))
-        .route("/auth/oidc/bind", get(redirect_legacy_oidc_bind_route))
-        .route("/auth/oidc/bind/", get(redirect_legacy_oidc_bind_route))
-        .route("/__auth__/oidc/bind", get(redirect_legacy_oidc_bind_route))
-        .route("/__auth__/oidc/bind/", get(redirect_legacy_oidc_bind_route))
-}
-
-async fn admin_index(State(state): State<AppState>) -> Response {
-    serve_index(&state.settings.admin_static_path, None).await
-}
-
-async fn auth_index(State(state): State<AppState>) -> Response {
-    serve_index(
-        &state.settings.auth_static_path,
-        Some(index_injection_script(&state)),
-    )
-    .await
 }
 
 async fn runtime_hmac_secret(State(state): State<AppState>) -> Response {
@@ -81,32 +63,16 @@ async fn runtime_hmac_secret(State(state): State<AppState>) -> Response {
         .into_response()
 }
 
-async fn redirect_legacy_oidc_bind_route(OriginalUri(original_uri): OriginalUri) -> Response {
-    let path = original_uri.path();
-    let base_prefix = if path.starts_with("/__auth__/") {
-        "/__auth__"
-    } else if path.starts_with("/auth/") {
-        "/auth"
-    } else {
-        ""
-    };
-    let query = original_uri
-        .query()
-        .map(|query| format!("?{query}"))
-        .unwrap_or_default();
-    let location = format!("{base_prefix}/api/auth/oidc/bind{query}");
-    (
-        StatusCode::FOUND,
-        [
-            (header::CACHE_CONTROL, HeaderValue::from_static("no-store")),
-            (
-                header::LOCATION,
-                HeaderValue::from_str(&location)
-                    .unwrap_or_else(|_| HeaderValue::from_static("/api/auth/oidc/bind")),
-            ),
-        ],
+async fn admin_index(State(state): State<AppState>) -> Response {
+    serve_index(&state.settings.admin_static_path, None).await
+}
+
+async fn auth_index(State(state): State<AppState>) -> Response {
+    serve_index(
+        &state.settings.auth_static_path,
+        Some(index_injection_script(&state)),
     )
-        .into_response()
+    .await
 }
 
 pub async fn auth_fallback(State(state): State<AppState>, req: Request<Body>) -> Response {

@@ -71,7 +71,7 @@ impl Settings {
         let redis_url = if let Some(password) = redis_password {
             format!(
                 "redis://:{}@{}:{}/",
-                url_escape(&password),
+                crate::http_utils::url_encode_component(&password),
                 redis_host,
                 redis_port
             )
@@ -130,20 +130,29 @@ impl Settings {
             )),
             runtime_target,
             traffic_user_id: traffic_user_id_from_env(),
-            traffic_keep_seconds: env_i64_like_node("TRAFFIC_KEEP_SECONDS", 7 * 24 * 3600)
-                .clamp(60, 365 * 24 * 3600),
+            traffic_keep_seconds: crate::node_compat::env_i64(
+                "TRAFFIC_KEEP_SECONDS",
+                7 * 24 * 3600,
+            )
+            .clamp(60, 365 * 24 * 3600),
             traffic_collect_interval: Duration::from_secs(parse_cron_interval_seconds(
                 &env_string("TRAFFIC_COLLECT_CRON", "*/30 * * * * *"),
                 30,
             )),
-            traffic_collect_lock_ttl_seconds: env_i64_like_node("TRAFFIC_COLLECT_LOCK_TTL", 60)
-                .clamp(1, 3600) as usize,
+            traffic_collect_lock_ttl_seconds: crate::node_compat::env_i64(
+                "TRAFFIC_COLLECT_LOCK_TTL",
+                60,
+            )
+            .clamp(1, 3600) as usize,
             traffic_cleanup_interval: Duration::from_secs(parse_cron_interval_seconds(
                 &env_string("TRAFFIC_CLEANUP_CRON", "0 * * * *"),
                 3600,
             )),
-            traffic_cleanup_lock_ttl_seconds: env_i64_like_node("TRAFFIC_CLEANUP_LOCK_TTL", 300)
-                .clamp(30, 3600) as usize,
+            traffic_cleanup_lock_ttl_seconds: crate::node_compat::env_i64(
+                "TRAFFIC_CLEANUP_LOCK_TTL",
+                300,
+            )
+            .clamp(30, 3600) as usize,
         }
     }
 
@@ -225,18 +234,10 @@ fn env_optional_port(name: &str, fallback: u16) -> u16 {
 fn env_u64_like_node(name: &str, fallback: u64) -> u64 {
     env::var(name)
         .ok()
-        .and_then(|value| parse_int_prefix_like_node(&value))
+        .and_then(|value| crate::node_compat::parse_i64_prefix_trim_start(&value))
         .and_then(|value| u64::try_from(value).ok())
         .filter(|value| *value > 0)
         .unwrap_or(fallback)
-}
-
-fn env_i64_like_node(name: &str, fallback: i64) -> i64 {
-    crate::node_compat::env_i64(name, fallback)
-}
-
-fn parse_int_prefix_like_node(value: &str) -> Option<i64> {
-    crate::node_compat::parse_i64_prefix_trim_start(value)
 }
 
 pub(crate) fn parse_cron_interval_seconds(value: &str, fallback: u64) -> u64 {
@@ -352,48 +353,14 @@ fn parse_addr(host: &str, port: u16) -> anyhow::Result<SocketAddr> {
         .with_context(|| format!("invalid listen address: {value}"))
 }
 
-fn url_escape(value: &str) -> String {
-    url::form_urlencoded::byte_serialize(value.as_bytes()).collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::ffi::{OsStr, OsString};
-    use std::sync::Mutex;
+    use crate::test_support::EnvGuard;
 
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
-
-    fn set_env(key: &str, value: impl AsRef<OsStr>) {
-        unsafe {
-            env::set_var(key, value);
-        }
-    }
-
-    fn remove_env(key: &str) {
-        unsafe {
-            env::remove_var(key);
-        }
-    }
-
-    fn restore_env(key: &str, value: Option<OsString>) {
-        if let Some(value) = value {
-            set_env(key, value);
-        } else {
-            remove_env(key);
-        }
-    }
-
-    fn with_env_vars<T>(keys: &[&str], run: impl FnOnce() -> T) -> T {
-        let previous = keys
-            .iter()
-            .map(|key| ((*key).to_string(), env::var_os(key)))
-            .collect::<Vec<_>>();
-        let result = run();
-        for (key, value) in previous {
-            restore_env(&key, value);
-        }
-        result
+    fn with_env_vars<T>(keys: &[&str], run: impl FnOnce(&EnvGuard) -> T) -> T {
+        let env = EnvGuard::new(keys);
+        run(&env)
     }
 
     #[test]
@@ -431,7 +398,6 @@ mod tests {
 
     #[test]
     fn openwrt_startup_defaults_match_node() {
-        let _guard = ENV_LOCK.lock().unwrap();
         with_env_vars(
             &[
                 "FN_KNOCK_RUNTIME_TARGET",
@@ -440,12 +406,12 @@ mod tests {
                 "ADMIN_VIEW_HOST",
                 "BACKEND_HOST",
             ],
-            || {
-                set_env("FN_KNOCK_RUNTIME_TARGET", "openwrt");
-                remove_env("BACKEND_PORT");
-                remove_env("ADMIN_VIEW_PORT");
-                remove_env("ADMIN_VIEW_HOST");
-                remove_env("BACKEND_HOST");
+            |env| {
+                env.set("FN_KNOCK_RUNTIME_TARGET", "openwrt");
+                env.remove("BACKEND_PORT");
+                env.remove("ADMIN_VIEW_PORT");
+                env.remove("ADMIN_VIEW_HOST");
+                env.remove("BACKEND_HOST");
 
                 let settings = Settings::from_env();
 
@@ -458,7 +424,6 @@ mod tests {
 
     #[test]
     fn non_protected_runtime_ignores_admin_view_port_like_node() {
-        let _guard = ENV_LOCK.lock().unwrap();
         with_env_vars(
             &[
                 "FN_KNOCK_RUNTIME_TARGET",
@@ -466,11 +431,11 @@ mod tests {
                 "ADMIN_VIEW_HOST",
                 "BACKEND_HOST",
             ],
-            || {
-                set_env("FN_KNOCK_RUNTIME_TARGET", "dev");
-                set_env("ADMIN_VIEW_PORT", "7991");
-                remove_env("ADMIN_VIEW_HOST");
-                set_env("BACKEND_HOST", "127.0.0.2");
+            |env| {
+                env.set("FN_KNOCK_RUNTIME_TARGET", "dev");
+                env.set("ADMIN_VIEW_PORT", "7991");
+                env.remove("ADMIN_VIEW_HOST");
+                env.set("BACKEND_HOST", "127.0.0.2");
 
                 let settings = Settings::from_env();
 
@@ -482,46 +447,59 @@ mod tests {
 
     #[test]
     fn runtime_secret_exposure_matches_node_env_logic() {
-        let _guard = ENV_LOCK.lock().unwrap();
-        with_env_vars(&["EXPOSE_RUNTIME_HMAC_SECRET", "NODE_ENV"], || {
-            remove_env("EXPOSE_RUNTIME_HMAC_SECRET");
-            set_env("NODE_ENV", "production");
+        with_env_vars(&["EXPOSE_RUNTIME_HMAC_SECRET", "NODE_ENV"], |env| {
+            env.remove("EXPOSE_RUNTIME_HMAC_SECRET");
+            env.set("NODE_ENV", "production");
             assert!(!should_expose_runtime_hmac_secret());
 
-            set_env("EXPOSE_RUNTIME_HMAC_SECRET", "1");
+            env.set("EXPOSE_RUNTIME_HMAC_SECRET", "1");
             assert!(should_expose_runtime_hmac_secret());
 
-            remove_env("EXPOSE_RUNTIME_HMAC_SECRET");
-            set_env("NODE_ENV", "development");
+            env.remove("EXPOSE_RUNTIME_HMAC_SECRET");
+            env.set("NODE_ENV", "development");
             assert!(should_expose_runtime_hmac_secret());
         });
     }
 
     #[test]
     fn internal_rpc_token_uses_only_explicit_env() {
-        let _guard = ENV_LOCK.lock().unwrap();
-        with_env_vars(&["FN_KNOCK_INTERNAL_RPC_TOKEN", "HMAC_SECRET"], || {
-            set_env("FN_KNOCK_INTERNAL_RPC_TOKEN", " explicit-token ");
-            set_env("HMAC_SECRET", "hmac-token");
+        with_env_vars(&["FN_KNOCK_INTERNAL_RPC_TOKEN", "HMAC_SECRET"], |env| {
+            env.set("FN_KNOCK_INTERNAL_RPC_TOKEN", " explicit-token ");
+            env.set("HMAC_SECRET", "hmac-token");
             assert_eq!(Settings::from_env().internal_rpc_token, "explicit-token");
 
-            remove_env("FN_KNOCK_INTERNAL_RPC_TOKEN");
-            set_env("HMAC_SECRET", " hmac-token ");
+            env.remove("FN_KNOCK_INTERNAL_RPC_TOKEN");
+            env.set("HMAC_SECRET", " hmac-token ");
             assert_eq!(Settings::from_env().internal_rpc_token, "");
 
-            set_env("FN_KNOCK_INTERNAL_RPC_TOKEN", " ");
-            set_env("HMAC_SECRET", " fallback-token ");
+            env.set("FN_KNOCK_INTERNAL_RPC_TOKEN", " ");
+            env.set("HMAC_SECRET", " fallback-token ");
             assert_eq!(Settings::from_env().internal_rpc_token, "");
         });
     }
 
     #[test]
     fn env_int_parser_matches_node_parse_int_prefixes() {
-        assert_eq!(parse_int_prefix_like_node("60s"), Some(60));
-        assert_eq!(parse_int_prefix_like_node("  +3.9"), Some(3));
-        assert_eq!(parse_int_prefix_like_node("-1x"), Some(-1));
-        assert_eq!(parse_int_prefix_like_node("0x10"), Some(0));
-        assert_eq!(parse_int_prefix_like_node("nope"), None);
-        assert_eq!(parse_int_prefix_like_node("+"), None);
+        assert_eq!(
+            crate::node_compat::parse_i64_prefix_trim_start("60s"),
+            Some(60)
+        );
+        assert_eq!(
+            crate::node_compat::parse_i64_prefix_trim_start("  +3.9"),
+            Some(3)
+        );
+        assert_eq!(
+            crate::node_compat::parse_i64_prefix_trim_start("-1x"),
+            Some(-1)
+        );
+        assert_eq!(
+            crate::node_compat::parse_i64_prefix_trim_start("0x10"),
+            Some(0)
+        );
+        assert_eq!(
+            crate::node_compat::parse_i64_prefix_trim_start("nope"),
+            None
+        );
+        assert_eq!(crate::node_compat::parse_i64_prefix_trim_start("+"), None);
     }
 }

@@ -1,14 +1,12 @@
 use std::{
     collections::BTreeSet,
-    env,
     io::{Cursor, Write},
     net::IpAddr,
     path::{Path, PathBuf},
     process::{Command, Stdio},
-    time::SystemTime,
 };
 
-use ::time::{OffsetDateTime, UtcOffset, format_description::well_known::Rfc3339};
+use ::time::UtcOffset;
 use anyhow::anyhow;
 use axum::{
     Json, Router,
@@ -234,17 +232,6 @@ struct SaveCertificateBody {
 }
 
 #[derive(Deserialize)]
-struct LegacySaveBody {
-    ssl: LegacySslPayload,
-}
-
-#[derive(Deserialize)]
-struct LegacySslPayload {
-    cert: String,
-    key: String,
-}
-
-#[derive(Deserialize)]
 struct ActivateBody {
     id: String,
 }
@@ -295,6 +282,5 @@ pub fn ssl_routes() -> Router<AppState> {
         )
         .route("/api/admin/ssl/activate", post(activate_certificate))
         .route("/api/admin/ssl/deployment-mode", post(set_deployment_mode))
-        .route("/api/admin/ssl", post(save_legacy_ssl).delete(clear_ssl))
-        .route("/api/admin/ssl/", post(save_legacy_ssl).delete(clear_ssl))
+        .route("/api/admin/ssl", delete(clear_ssl))
 }

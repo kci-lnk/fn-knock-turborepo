@@ -5,6 +5,8 @@ pub(crate) fn trim_allocated_memory() -> bool {
     {
         // glibc can keep freed startup arenas resident. Trimming after bursty work
         // lowers RSS on NAS targets without changing application state.
+        // SAFETY: malloc_trim only asks glibc to release free heap pages; it does
+        // not dereference Rust pointers or invalidate live allocations.
         unsafe {
             libc::malloc_trim(0);
         }

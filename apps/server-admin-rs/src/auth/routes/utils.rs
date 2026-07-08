@@ -1,5 +1,7 @@
 use super::*;
 
+pub(crate) use crate::http_utils::{apply_no_store_headers, user_agent};
+
 pub(super) fn normalize_pathname(pathname: &str) -> String {
     let pathname = pathname.trim();
     if pathname.is_empty() {
@@ -50,15 +52,6 @@ pub(crate) fn client_ip_for_auth(headers: &HeaderMap) -> String {
     http_utils::get_client_ip(headers)
 }
 
-pub(crate) fn user_agent(headers: &HeaderMap) -> String {
-    headers
-        .get(header::USER_AGENT)
-        .and_then(|value| value.to_str().ok())
-        .map(|value| value.trim().chars().take(512).collect::<String>())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| "Unknown".to_string())
-}
-
 pub(super) fn credential_name(credential: &TotpCredential, translator: &Translator) -> String {
     let name = credential.comment.trim();
     if name.is_empty() {
@@ -103,20 +96,6 @@ pub(crate) fn with_auth_headers(mut response: Response) -> Response {
     response
 }
 
-pub(crate) fn apply_no_store_headers(headers: &mut HeaderMap) {
-    headers.insert(
-        header::CACHE_CONTROL,
-        HeaderValue::from_static("private, no-store, no-cache, max-age=0, must-revalidate"),
-    );
-    headers.insert(header::PRAGMA, HeaderValue::from_static("no-cache"));
-    headers.insert(header::EXPIRES, HeaderValue::from_static("0"));
-    headers.insert(
-        "CDN-Cache-Control",
-        HeaderValue::from_static("private, no-store"),
-    );
-    headers.insert("Surrogate-Control", HeaderValue::from_static("no-store"));
-}
-
 pub(super) fn parse_pow_expires(salt: &str) -> Option<i64> {
     let query = salt.split_once('?')?.1;
     for pair in query.split('&') {
@@ -129,19 +108,9 @@ pub(super) fn parse_pow_expires(salt: &str) -> Option<i64> {
     None
 }
 
-pub(super) fn sha256_hex(input: &[u8]) -> String {
-    hex::encode(Sha256::digest(input))
-}
-
-pub(super) fn hmac_sha256_hex(key: &[u8], value: &[u8]) -> anyhow::Result<String> {
-    let mut mac = HmacSha256::new_from_slice(key)?;
-    mac.update(value);
-    Ok(hex::encode(mac.finalize().into_bytes()))
-}
-
-pub(super) fn random_bytes<const N: usize>() -> [u8; N] {
-    rand::random::<[u8; N]>()
-}
+pub(super) use crate::crypto_utils::{
+    hmac_sha256_hex, random_bytes, sha256_hex_bytes as sha256_hex,
+};
 
 #[allow(dead_code)]
 pub(super) fn _method_is_head(method: &Method) -> bool {

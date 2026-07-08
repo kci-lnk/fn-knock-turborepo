@@ -208,7 +208,10 @@ impl Default for AutoHttpsRedirectManager {
 }
 
 pub async fn sync_auto_https_on_boot(state: AppState) {
-    if matches!(deployment_target(&state).as_str(), "docker" | "openwrt") {
+    if matches!(
+        runtime_profile::deployment_target(&state).as_str(),
+        "docker" | "openwrt"
+    ) {
         let _ = state.auto_https.apply_config(false).await;
         return;
     }
@@ -337,10 +340,6 @@ fn strip_default_http_port(host: &str) -> String {
         return host[..host.len() - 3].to_string();
     }
     host.to_string()
-}
-
-fn deployment_target(state: &AppState) -> String {
-    runtime_profile::deployment_target(state)
 }
 
 #[cfg(test)]

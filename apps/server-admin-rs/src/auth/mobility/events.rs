@@ -77,6 +77,4 @@ pub(super) fn resolve_proxy_session_ttl(expire_at: Option<i64>) -> Option<i64> {
     (remaining > 0).then_some(remaining)
 }
 
-pub(super) fn now_seconds() -> i64 {
-    time_utils::now_ms().div_euclid(1000)
-}
+pub(super) use crate::time_utils::now_seconds;

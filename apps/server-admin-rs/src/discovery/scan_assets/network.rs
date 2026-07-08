@@ -1,4 +1,5 @@
 use super::*;
+use crate::net_utils::ipv4_prefix_len;
 
 pub(super) fn normalize_allowed_scan_cidrs(
     values: impl IntoIterator<Item = String>,
@@ -225,10 +226,6 @@ pub(super) fn is_private_ipv4(ip: Ipv4Addr) -> bool {
         || (octets[0] == 192 && octets[1] == 168)
 }
 
-pub(super) fn ipv4_prefix_len(mask: Ipv4Addr) -> u32 {
-    mask.octets().iter().map(|byte| byte.count_ones()).sum()
-}
-
 pub(super) fn extract_ipv4_from_target(value: &str) -> Option<String> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
@@ -307,23 +304,11 @@ pub(super) fn is_usable_private_discover_ipv4(value: &str) -> bool {
     value.parse::<Ipv4Addr>().is_ok() && is_allowed_scan_ipv4(value) && !value.starts_with("127.")
 }
 
-pub(super) fn deployment_target(state: &AppState) -> String {
-    runtime_profile::deployment_target(state)
-}
+pub(super) use crate::runtime_profile::deployment_target;
 
-pub(super) fn resolve_env_port_with_fallback(name: &str, fallback: u16) -> u16 {
-    resolve_env_port_with_fallback_value(env::var(name).ok(), fallback)
-}
-
-pub(super) fn resolve_env_port_with_fallback_value(value: Option<String>, fallback: u16) -> u16 {
-    let raw = value
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| fallback.to_string());
-    parse_js_parse_int_radix_10(raw.trim_start())
-        .filter(|port| *port > 0 && *port <= u16::MAX as i64)
-        .map(|port| port as u16)
-        .unwrap_or(fallback)
-}
+pub(super) use crate::proxy_utils::parse_env_port_u16_with_fallback as resolve_env_port_with_fallback;
+#[cfg(test)]
+pub(super) use crate::proxy_utils::parse_env_port_u16_with_fallback_value as resolve_env_port_with_fallback_value;
 
 pub(super) fn excluded_env_port(name: &str, fallback: u16) -> Option<u16> {
     excluded_env_port_value(env::var(name).ok(), fallback)
@@ -338,13 +323,6 @@ pub(super) fn excluded_env_port_value(value: Option<String>, fallback: u16) -> O
         .map(|port| port as u16)
 }
 
-pub(super) fn parse_js_parse_int_radix_10(value: &str) -> Option<i64> {
-    crate::node_compat::parse_i64_prefix_trim_start(value)
-}
+pub(super) use crate::node_compat::parse_i64_prefix_trim_start as parse_js_parse_int_radix_10;
 
-pub(super) fn ensure_object(value: &mut Value) -> &mut serde_json::Map<String, Value> {
-    if !value.is_object() {
-        *value = json!({});
-    }
-    value.as_object_mut().expect("value just set to object")
-}
+pub(super) use crate::json_utils::ensure_object;

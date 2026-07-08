@@ -1,5 +1,8 @@
 use super::*;
 
+pub(super) use crate::auth::oidc_tokens::{create_oidc_id, create_public_token};
+pub(super) use crate::http_utils::{apply_no_store_headers, html_escape, user_agent};
+
 pub(super) fn update_binding_profile_fields(binding: &mut Value, profile: &ExternalProfile) {
     if let Some(object) = binding.as_object_mut() {
         if let Some(value) = profile
@@ -196,8 +199,8 @@ pub(super) fn request_origin(
     uri: &Uri,
     translator: &Translator,
 ) -> Result<String, String> {
-    let trust_forwarded = env_bool("OIDC_TRUST_FORWARDED_HEADERS", false)
-        || env_bool("AUTH_TRUST_FORWARDED_HEADERS", false);
+    let trust_forwarded = crate::node_compat::env_bool("OIDC_TRUST_FORWARDED_HEADERS", false)
+        || crate::node_compat::env_bool("AUTH_TRUST_FORWARDED_HEADERS", false);
     let request_proto = uri.scheme_str().unwrap_or("http");
     let proto = if trust_forwarded {
         first_header(headers, "x-forwarded-proto")
@@ -229,17 +232,11 @@ pub(super) fn request_origin(
     Ok(format!("{proto}://{host}"))
 }
 
-pub(super) fn public_auth_base_url(config: &Value) -> Option<String> {
-    crate::auth::resolve_public_auth_base_url(config)
-}
+pub(super) use crate::auth::resolve_public_auth_base_url as public_auth_base_url;
 
-pub(super) fn resolve_cookie_domain(config: &Value, headers: &HeaderMap) -> Option<String> {
-    crate::auth::resolve_cookie_domain(config, headers)
-}
+pub(super) use crate::auth::resolve_cookie_domain;
 
-pub(super) fn first_header(headers: &HeaderMap, name: &str) -> Option<String> {
-    crate::http_utils::first_header_value(headers, name)
-}
+pub(super) use crate::http_utils::first_header_value as first_header;
 
 pub(super) fn client_ip_for_headers(headers: &HeaderMap) -> String {
     let ip = get_client_ip(headers);
@@ -248,15 +245,6 @@ pub(super) fn client_ip_for_headers(headers: &HeaderMap) -> String {
     } else {
         ip
     }
-}
-
-pub(super) fn user_agent(headers: &HeaderMap) -> String {
-    headers
-        .get(header::USER_AGENT)
-        .and_then(|value| value.to_str().ok())
-        .map(|value| value.trim().chars().take(512).collect::<String>())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| "Unknown".to_string())
 }
 
 pub(super) fn locale_code(config: &Value) -> String {
@@ -275,30 +263,20 @@ pub(super) fn oidc_flow_token_valid(state: &str, flow_token: Option<&str>) -> bo
     expected.as_bytes().ct_eq(flow_token.as_bytes()).unwrap_u8() == 1
 }
 
-pub(super) fn create_oidc_id(prefix: &str) -> String {
-    format!("{prefix}_{}", hex::encode(rand::random::<[u8; 10]>()))
-}
-
-pub(super) fn create_public_token() -> String {
-    URL_SAFE_NO_PAD.encode(rand::random::<[u8; 32]>())
-}
-
 pub(super) fn create_pkce_verifier() -> String {
     create_public_token()
 }
 
 pub(super) fn create_pkce_challenge(verifier: &str) -> String {
-    URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()))
+    crate::crypto_utils::sha256_base64_url_no_pad(verifier.as_bytes())
 }
 
 pub(super) fn hash_oidc_token(value: &str) -> String {
-    hex::encode(Sha256::digest(value.as_bytes()))
+    crate::crypto_utils::sha256_hex_str(value)
 }
 
 pub(super) fn build_subject_key(provider_id: &str, issuer: &str, subject: &str) -> String {
-    hex::encode(Sha256::digest(format!(
-        "{provider_id}\0{issuer}\0{subject}"
-    )))
+    crate::crypto_utils::sha256_hex_str(&format!("{provider_id}\0{issuer}\0{subject}"))
 }
 
 pub(super) fn normalize_login_error_message(message: &str, translator: &Translator) -> String {
@@ -310,42 +288,13 @@ pub(super) fn normalize_login_error_message(message: &str, translator: &Translat
     }
 }
 
-pub(super) fn apply_no_store_headers(headers: &mut HeaderMap) {
-    headers.insert(
-        header::CACHE_CONTROL,
-        HeaderValue::from_static("private, no-store, no-cache, max-age=0, must-revalidate"),
-    );
-    headers.insert(header::PRAGMA, HeaderValue::from_static("no-cache"));
-    headers.insert(header::EXPIRES, HeaderValue::from_static("0"));
-    headers.insert(
-        "CDN-Cache-Control",
-        HeaderValue::from_static("private, no-store"),
-    );
-    headers.insert("Surrogate-Control", HeaderValue::from_static("no-store"));
-}
-
 pub(super) fn append_set_cookie(headers: &mut HeaderMap, cookie: &str) {
     if let Ok(value) = HeaderValue::from_str(cookie) {
         headers.append(header::SET_COOKIE, value);
     }
 }
 
-pub(super) fn encode_query(value: &str) -> String {
-    url::form_urlencoded::byte_serialize(value.as_bytes()).collect()
-}
-
-pub(super) fn html_escape(value: &str) -> String {
-    value
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&#39;")
-}
-
-pub(super) fn env_bool(name: &str, fallback: bool) -> bool {
-    crate::node_compat::env_bool(name, fallback)
-}
+pub(super) use crate::http_utils::url_encode_component as encode_query;
 
 trait EmptyFallback {
     fn if_empty(self, fallback: &str) -> String;

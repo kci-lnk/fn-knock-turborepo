@@ -940,7 +940,7 @@ async fn create_panel_session(
 fn session_ttl_seconds() -> i64 {
     env::var("DOCKER_ADMIN_SESSION_TTL_SECONDS")
         .ok()
-        .and_then(|value| parse_int_prefix_like_node(&value))
+        .and_then(|value| crate::node_compat::parse_i64_prefix_trim_start(&value))
         .map(|value| value.clamp(MIN_SESSION_TTL_SECONDS, MAX_SESSION_TTL_SECONDS))
         .unwrap_or(DEFAULT_SESSION_TTL_SECONDS)
 }
@@ -959,10 +959,6 @@ fn normalize_session_record_ttl(ttl_seconds: i64) -> i64 {
     } else {
         session_ttl_seconds()
     }
-}
-
-fn parse_int_prefix_like_node(value: &str) -> Option<i64> {
-    crate::node_compat::parse_i64_prefix_trim_start(value)
 }
 
 fn make_password_record(
@@ -1134,43 +1130,16 @@ fn normalize_appearance_config(value: &Value) -> Value {
     json!({ "theme_color_preset": theme_color_preset })
 }
 
-fn random_bytes<const N: usize>() -> [u8; N] {
-    rand::random::<[u8; N]>()
-}
+use crate::crypto_utils::random_bytes;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::ffi::{OsStr, OsString};
-    use std::sync::Mutex;
+    use crate::test_support::EnvGuard;
 
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
-
-    fn set_env(key: &str, value: impl AsRef<OsStr>) {
-        unsafe {
-            env::set_var(key, value);
-        }
-    }
-
-    fn remove_env(key: &str) {
-        unsafe {
-            env::remove_var(key);
-        }
-    }
-
-    fn restore_env(key: &str, value: Option<OsString>) {
-        if let Some(value) = value {
-            set_env(key, value);
-        } else {
-            remove_env(key);
-        }
-    }
-
-    fn with_env_var<T>(key: &str, run: impl FnOnce() -> T) -> T {
-        let previous = env::var_os(key);
-        let result = run();
-        restore_env(key, previous);
-        result
+    fn with_env_var<T>(key: &str, run: impl FnOnce(&EnvGuard) -> T) -> T {
+        let env = EnvGuard::new(&[key]);
+        run(&env)
     }
 
     #[test]
@@ -1208,30 +1177,28 @@ mod tests {
 
     #[test]
     fn docker_admin_session_ttl_matches_node_env_rules() {
-        let _guard = ENV_LOCK.lock().unwrap();
-        with_env_var("DOCKER_ADMIN_SESSION_TTL_SECONDS", || {
-            remove_env("DOCKER_ADMIN_SESSION_TTL_SECONDS");
+        with_env_var("DOCKER_ADMIN_SESSION_TTL_SECONDS", |env| {
+            env.remove("DOCKER_ADMIN_SESSION_TTL_SECONDS");
             assert_eq!(session_ttl_seconds(), DEFAULT_SESSION_TTL_SECONDS);
 
-            set_env("DOCKER_ADMIN_SESSION_TTL_SECONDS", "60s");
+            env.set("DOCKER_ADMIN_SESSION_TTL_SECONDS", "60s");
             assert_eq!(session_ttl_seconds(), MIN_SESSION_TTL_SECONDS);
 
-            set_env("DOCKER_ADMIN_SESSION_TTL_SECONDS", "3600.9");
+            env.set("DOCKER_ADMIN_SESSION_TTL_SECONDS", "3600.9");
             assert_eq!(session_ttl_seconds(), 3600);
 
-            set_env("DOCKER_ADMIN_SESSION_TTL_SECONDS", "999999999");
+            env.set("DOCKER_ADMIN_SESSION_TTL_SECONDS", "999999999");
             assert_eq!(session_ttl_seconds(), MAX_SESSION_TTL_SECONDS);
 
-            set_env("DOCKER_ADMIN_SESSION_TTL_SECONDS", "nope");
+            env.set("DOCKER_ADMIN_SESSION_TTL_SECONDS", "nope");
             assert_eq!(session_ttl_seconds(), DEFAULT_SESSION_TTL_SECONDS);
         });
     }
 
     #[test]
     fn docker_admin_session_record_ttl_falls_back_like_node() {
-        let _guard = ENV_LOCK.lock().unwrap();
-        with_env_var("DOCKER_ADMIN_SESSION_TTL_SECONDS", || {
-            set_env("DOCKER_ADMIN_SESSION_TTL_SECONDS", "7200");
+        with_env_var("DOCKER_ADMIN_SESSION_TTL_SECONDS", |env| {
+            env.set("DOCKER_ADMIN_SESSION_TTL_SECONDS", "7200");
             assert_eq!(normalize_session_create_ttl(0), 7200);
             assert_eq!(normalize_session_record_ttl(-1), 7200);
             assert_eq!(

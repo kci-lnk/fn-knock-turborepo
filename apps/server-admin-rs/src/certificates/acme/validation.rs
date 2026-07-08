@@ -218,15 +218,6 @@ pub(super) fn value_to_trimmed_string(value: &Value) -> Option<String> {
     .filter(|value| !value.is_empty())
 }
 
-pub(super) fn ensure_object(value: &mut Value) -> &mut Map<String, Value> {
-    if !value.is_object() {
-        *value = Value::Object(Map::new());
-    }
-    value
-        .as_object_mut()
-        .expect("value was normalized to object")
-}
-
 pub(super) fn normalize_acme_dns_type(value: &str) -> Option<String> {
     let value = value.trim();
     if value.is_empty() {

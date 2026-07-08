@@ -782,9 +782,7 @@ pub(super) fn parse_forwarded_header_host(headers: &HeaderMap) -> Option<String>
     crate::http_utils::forwarded_header_value(headers, "host")
 }
 
-pub(super) fn first_header_value(headers: &HeaderMap, name: &str) -> Option<String> {
-    crate::http_utils::first_header_value(headers, name)
-}
+pub(super) use crate::http_utils::first_header_value;
 
 pub(super) fn extract_hostname(value: &str) -> String {
     normalize_subdomain_access_host(value)

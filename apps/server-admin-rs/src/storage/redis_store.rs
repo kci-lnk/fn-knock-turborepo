@@ -13,9 +13,17 @@ use redis::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
-use sha2::{Digest, Sha256};
 
 use crate::{
+    auth_mobility_keys::{
+        active_ip_details_key as auth_mobility_active_ip_details_key,
+        active_ip_zset_key as auth_mobility_active_ip_zset_key,
+        binding_key as auth_mobility_binding_key,
+        session_index_key as auth_mobility_session_index_key,
+        subject_hash as auth_mobility_subject_hash, summary_key as auth_mobility_summary_key,
+        timeline_key as auth_mobility_timeline_key,
+        whitelist_owner_key as auth_mobility_whitelist_owner_key,
+    },
     http_utils::normalize_ip,
     time_utils::{iso_after_seconds, now_iso},
 };
@@ -341,7 +349,6 @@ const WHITELIST_DELETED: &str = "fn_knock:whitelist:deleted";
 const WHITELIST_REGION_GROUP_RECORDS: &str = "fn_knock:whitelist:region_groups:records";
 const WHITELIST_REGION_GROUP_ORDER: &str = "fn_knock:whitelist:region_groups:order";
 const WHITELIST_REGION_GROUP_EXPIRY: &str = "fn_knock:whitelist:region_groups:expiry";
-const AUTH_MOBILITY_PREFIX: &str = "fn_knock:auth_mobility";
 const REVERSE_PROXY_TRUSTED_IPS_RUNTIME: &str = "fn_knock:reverse-proxy:trusted-ips:runtime";
 const EVENTS_STREAM_KEY: &str = "fn_knock:events:stream";
 const EVENTS_INDEX_KEY: &str = "fn_knock:events:index";
@@ -443,45 +450,11 @@ fn whitelist_ip_records_key(ip: &str) -> String {
     format!("fn_knock:whitelist:ip_records:{ip}")
 }
 
-fn auth_mobility_active_ip_details_key(session_id: &str) -> String {
-    format!("{AUTH_MOBILITY_PREFIX}:active_ip_details:{session_id}")
-}
-
-fn auth_mobility_active_ip_zset_key(session_id: &str) -> String {
-    format!("{AUTH_MOBILITY_PREFIX}:active_ips:{session_id}")
-}
-
-fn auth_mobility_binding_key(subject_type: &str, subject_hash: &str) -> String {
-    format!("{AUTH_MOBILITY_PREFIX}:binding:{subject_type}:{subject_hash}")
-}
-
-fn auth_mobility_session_index_key(session_id: &str) -> String {
-    format!("{AUTH_MOBILITY_PREFIX}:session:{session_id}")
-}
-
-fn auth_mobility_summary_key(session_id: &str) -> String {
-    format!("{AUTH_MOBILITY_PREFIX}:summary:{session_id}")
-}
-
-fn auth_mobility_timeline_key(session_id: &str) -> String {
-    format!("{AUTH_MOBILITY_PREFIX}:timeline:{session_id}")
-}
-
-fn auth_mobility_whitelist_owner_key(whitelist_record_id: &str) -> String {
-    format!("{AUTH_MOBILITY_PREFIX}:whitelist:{whitelist_record_id}:session")
-}
-
-fn auth_mobility_subject_hash(subject_type: &str, subject_key: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(format!("{subject_type}:{subject_key}"));
-    hex::encode(hasher.finalize())
-}
-
 fn traffic_scope_segment(user_id: &str, host: Option<&str>) -> String {
     let host = host.map(str::trim).filter(|value| !value.is_empty());
     match host {
         Some(host) => {
-            let encoded: String = url::form_urlencoded::byte_serialize(host.as_bytes()).collect();
+            let encoded = crate::http_utils::url_encode_component(host);
             format!("{user_id}:host:{encoded}")
         }
         None => user_id.to_string(),

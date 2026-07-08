@@ -1,5 +1,7 @@
 use super::*;
 
+pub(super) use crate::http_utils::html_escape as escape_html;
+
 pub(super) fn build_bookmarks_document(
     config: &Value,
     translator: &crate::i18n::Translator,
@@ -177,12 +179,4 @@ pub(super) fn normalize_bookmark_filename_part(value: &str) -> String {
         }
     }
     output.trim_matches('-').to_string()
-}
-
-pub(super) fn escape_html(value: &str) -> String {
-    value
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
 }

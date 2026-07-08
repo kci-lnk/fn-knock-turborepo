@@ -6,6 +6,7 @@ pub(crate) mod hmac;
 pub(crate) mod mobility;
 pub(crate) mod oidc_admin;
 pub(crate) mod oidc_runtime;
+pub(crate) mod oidc_tokens;
 pub(crate) mod passkey;
 pub(crate) mod routes;
 

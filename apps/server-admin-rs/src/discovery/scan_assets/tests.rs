@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::EnvGuard;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpListener,
@@ -1033,9 +1034,8 @@ fn scan_excluded_env_ports_match_node_truthy_parse_int() {
 
 #[test]
 fn detects_auth_service_target_by_port() {
-    unsafe {
-        env::set_var("AUTH_PORT", "7997");
-    }
+    let env = EnvGuard::new(&["AUTH_PORT"]);
+    env.set("AUTH_PORT", "7997");
     assert!(is_auth_service_target("http://127.0.0.1:7997"));
     assert!(!is_auth_service_target("ws://127.0.0.1:7997"));
     assert!(!is_auth_service_target("http://127.0.0.1:8080"));

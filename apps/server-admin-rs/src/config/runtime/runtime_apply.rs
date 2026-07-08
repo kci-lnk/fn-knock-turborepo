@@ -618,7 +618,7 @@ pub(super) fn gateway_port_from_env(value: Option<String>) -> i64 {
     let raw = value
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| "7999".to_string());
-    parse_i64_prefix(raw.trim_start())
+    crate::node_compat::parse_i64_prefix(raw.trim_start())
         .filter(|port| *port > 0)
         .unwrap_or(7999)
 }

@@ -9,11 +9,9 @@ use base64::{
     Engine as _,
     engine::general_purpose::{STANDARD as BASE64_STANDARD, URL_SAFE_NO_PAD},
 };
-use hmac::{Hmac, Mac};
 use ipnet::IpNet;
 use serde::Deserialize;
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, env, net::IpAddr};
 use subtle::ConstantTimeEq;
 use totp_rs::{Algorithm, Secret, TOTP};
@@ -69,8 +67,6 @@ const TOTP_SUBDOMAIN_ACCESS_SELECT_PAGE: &str = "__builtin_select__";
 const TOTP_SUBDOMAIN_ACCESS_SELECT_PAGE_PATH: &str = "/__select__";
 const AUTH_IDENTITY_HEADER_MAX_LENGTH: usize = 256;
 const AUTH_IDENTITY_HEADER_ENCODING_PREFIX: &str = "b64:";
-
-type HmacSha256 = Hmac<Sha256>;
 
 #[derive(Deserialize)]
 struct BootstrapQuery {

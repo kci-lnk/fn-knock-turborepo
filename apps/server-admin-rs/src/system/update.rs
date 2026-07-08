@@ -25,6 +25,7 @@ use crate::{
     memory, response, runtime_profile,
     state::AppState,
     system_events, time_utils,
+    version_utils::compare_version,
 };
 
 const OTA_LATEST_URL: &str = "https://cor.fnknock.cn/latest.json";
@@ -1045,38 +1046,6 @@ fn ensure_sha256_raw(value: &str, field: &str) -> Result<String, ManifestError> 
     }
 }
 
-fn compare_version(a: &str, b: &str) -> i32 {
-    let left = normalize_version(a);
-    let right = normalize_version(b);
-    let max_len = left.len().max(right.len()).max(3);
-    for index in 0..max_len {
-        let l = *left.get(index).unwrap_or(&0);
-        let r = *right.get(index).unwrap_or(&0);
-        if l > r {
-            return 1;
-        }
-        if l < r {
-            return -1;
-        }
-    }
-    0
-}
-
-fn normalize_version(value: &str) -> Vec<i64> {
-    value
-        .trim()
-        .split('.')
-        .map(|part| {
-            let digits = part
-                .chars()
-                .skip_while(|ch| !ch.is_ascii_digit())
-                .take_while(|ch| ch.is_ascii_digit())
-                .collect::<String>();
-            digits.parse::<i64>().unwrap_or_default()
-        })
-        .collect()
-}
-
 fn detect_architecture(translator: &Translator) -> Result<&'static str, String> {
     match std::env::consts::ARCH {
         "x86_64" | "amd64" => Ok("amd64"),
@@ -1175,16 +1144,12 @@ fn shell_escape_path(path: &Path) -> String {
 }
 
 fn self_update_available(state: &AppState) -> bool {
-    deployment_target(state) == "fpk"
+    runtime_profile::deployment_target(state) == "fpk"
 }
 
 fn self_update_unavailable_message(state: &AppState, translator: &Translator) -> String {
     let profile = runtime_profile::get_runtime_profile(state);
     runtime_profile::capability_unavailable_message("self_update_available", &profile, translator)
-}
-
-fn deployment_target(state: &AppState) -> String {
-    runtime_profile::deployment_target(state)
 }
 
 fn update_check_interval() -> Duration {

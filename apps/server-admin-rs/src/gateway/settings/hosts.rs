@@ -26,34 +26,7 @@ pub(super) fn is_http_proxy_target_url(target: &str) -> bool {
     })
 }
 
-pub(super) fn parse_target_port(target: &str) -> Option<i64> {
-    let normalized = target.trim();
-    if normalized.is_empty() {
-        return None;
-    }
-    if let Ok(parsed) = Url::parse(normalized) {
-        if let Some(port) = parsed.port() {
-            return Some(i64::from(port));
-        }
-        return match parsed.scheme() {
-            "https" | "wss" => Some(443),
-            "http" | "ws" => Some(80),
-            _ => None,
-        };
-    }
-    let (_, tail) = normalized.rsplit_once(':')?;
-    let digits = tail
-        .chars()
-        .take_while(|ch| ch.is_ascii_digit())
-        .collect::<String>();
-    if digits.is_empty() {
-        return None;
-    }
-    digits
-        .parse::<i64>()
-        .ok()
-        .filter(|port| *port > 0 && *port <= 65535)
-}
+pub(super) use crate::proxy_utils::parse_target_port_i64 as parse_target_port;
 
 pub(super) fn resolve_auth_service_port() -> i64 {
     std::env::var("AUTH_PORT")

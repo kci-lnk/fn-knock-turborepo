@@ -360,7 +360,7 @@ fn pow_validation_uses_original_challenge_for_signature_and_nonce_like_node() {
     let salt = "abc?expires=9999999999";
     let number = 7;
     let challenge = sha256_hex(format!("{salt}{number}").as_bytes()).to_ascii_uppercase();
-    let signature = hmac_sha256_hex(key.as_bytes(), challenge.as_bytes()).unwrap();
+    let signature = hmac_sha256_hex(key.as_bytes(), challenge.as_bytes());
 
     let validation = validate_pow_proof(
         PowProof {
@@ -383,9 +383,10 @@ fn pow_validation_uses_original_challenge_for_signature_and_nonce_like_node() {
             challenge: Some(challenge.clone()),
             number: Some(json!(number)),
             salt: Some(salt.to_string()),
-            signature: Some(
-                hmac_sha256_hex(key.as_bytes(), challenge.to_ascii_lowercase().as_bytes()).unwrap(),
-            ),
+            signature: Some(hmac_sha256_hex(
+                key.as_bytes(),
+                challenge.to_ascii_lowercase().as_bytes(),
+            )),
         },
         key,
         1,

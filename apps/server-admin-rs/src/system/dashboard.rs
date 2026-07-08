@@ -8,7 +8,7 @@ use axum::{
     routing::get,
 };
 use serde::Deserialize;
-use serde_json::{Map, Value, json};
+use serde_json::{Value, json};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tokio::time::{MissedTickBehavior, interval};
 
@@ -42,7 +42,6 @@ struct ActiveIpsQuery {
 
 pub fn dashboard_routes() -> Router<AppState> {
     Router::new()
-        .route("/api/admin/traffic", get(realtime))
         .route("/api/admin/dashboard/stats", get(stats))
         .route("/api/admin/dashboard/realtime", get(realtime))
         .route("/api/admin/dashboard/active-ips", get(active_ips))
@@ -70,7 +69,8 @@ async fn stats(
     let translator = Translator::from_state(&state).await;
     let user_id = dashboard_user_id(query.user_id.as_deref(), &state.settings.traffic_user_id);
     let host = normalize_traffic_host(query.host.as_deref().unwrap_or(""));
-    let range_sec = parse_i64_safe(query.range_sec.as_deref(), 3600).clamp(60, 30 * 24 * 3600);
+    let range_sec = crate::node_compat::parse_i64_or(query.range_sec.as_deref(), 3600)
+        .clamp(60, 30 * 24 * 3600);
     let now_sec = now_unix_seconds();
     let from_sec = now_sec - range_sec;
     let host_ref = (!host.is_empty()).then_some(host.as_str());
@@ -624,12 +624,7 @@ fn normalize_dashboard_display(value: Option<&Value>) -> Value {
     })
 }
 
-fn ensure_object(value: &mut Value) -> &mut Map<String, Value> {
-    if !value.is_object() {
-        *value = json!({});
-    }
-    value.as_object_mut().expect("value is object")
-}
+use crate::json_utils::ensure_object;
 
 fn envelope_code(envelope: &Value) -> Option<u16> {
     envelope
@@ -676,48 +671,11 @@ fn to_iso_string_safe(value: Option<&Value>) -> String {
         .unwrap_or_default()
 }
 
-fn parse_i64_safe(value: Option<&str>, fallback: i64) -> i64 {
-    value.and_then(parse_i64_prefix).unwrap_or(fallback)
-}
-
 fn dashboard_user_id(query_user_id: Option<&str>, default_user_id: &str) -> String {
     query_user_id
         .filter(|value| !value.is_empty())
         .unwrap_or(default_user_id)
         .to_string()
-}
-
-fn parse_i64_prefix(value: &str) -> Option<i64> {
-    let mut chars = value.trim_start().chars().peekable();
-    let negative = match chars.peek().copied() {
-        Some('-') => {
-            chars.next();
-            true
-        }
-        Some('+') => {
-            chars.next();
-            false
-        }
-        _ => false,
-    };
-
-    let mut seen_digit = false;
-    let mut number = 0_i64;
-    for ch in chars {
-        let Some(digit) = ch.to_digit(10) else {
-            break;
-        };
-        seen_digit = true;
-        number = number.saturating_mul(10).saturating_add(i64::from(digit));
-    }
-    if !seen_digit {
-        return None;
-    }
-    if negative {
-        Some(number.checked_neg().unwrap_or(i64::MIN))
-    } else {
-        Some(number)
-    }
 }
 
 fn normalize_traffic_host_value(value: Option<&Value>) -> String {
@@ -856,12 +814,12 @@ mod tests {
         assert_eq!(dashboard_user_id(Some("   "), "global"), "   ");
         assert_eq!(dashboard_user_id(Some(" user "), "global"), " user ");
 
-        assert_eq!(parse_i64_safe(None, 3600), 3600);
-        assert_eq!(parse_i64_safe(Some("30x"), 3600), 30);
-        assert_eq!(parse_i64_safe(Some("  +3.9"), 3600), 3);
-        assert_eq!(parse_i64_safe(Some("-1abc"), 3600), -1);
-        assert_eq!(parse_i64_safe(Some("0x10"), 3600), 0);
-        assert_eq!(parse_i64_safe(Some("abc"), 3600), 3600);
+        assert_eq!(crate::node_compat::parse_i64_or(None, 3600), 3600);
+        assert_eq!(crate::node_compat::parse_i64_or(Some("30x"), 3600), 30);
+        assert_eq!(crate::node_compat::parse_i64_or(Some("  +3.9"), 3600), 3);
+        assert_eq!(crate::node_compat::parse_i64_or(Some("-1abc"), 3600), -1);
+        assert_eq!(crate::node_compat::parse_i64_or(Some("0x10"), 3600), 0);
+        assert_eq!(crate::node_compat::parse_i64_or(Some("abc"), 3600), 3600);
     }
 
     #[test]

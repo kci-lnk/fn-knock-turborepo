@@ -866,28 +866,7 @@ fn is_auth_service_target(target: &str) -> bool {
     parse_target_port(target) == Some(resolve_auth_service_port())
 }
 
-fn parse_target_port(target: &str) -> Option<u16> {
-    let trimmed = target.trim();
-    if let Ok(parsed) = Url::parse(trimmed) {
-        if let Some(port) = parsed.port() {
-            return Some(port);
-        }
-        return match parsed.scheme() {
-            "https" | "wss" => Some(443),
-            "http" | "ws" => Some(80),
-            _ => None,
-        };
-    }
-    let port_part = trimmed.rsplit_once(':')?.1;
-    let digits = port_part
-        .split('/')
-        .next()
-        .unwrap_or("")
-        .chars()
-        .take_while(|value| value.is_ascii_digit())
-        .collect::<String>();
-    digits.parse::<u16>().ok().filter(|value| *value > 0)
-}
+use crate::proxy_utils::parse_target_port_u16 as parse_target_port;
 
 fn resolve_auth_service_port() -> u16 {
     env::var("AUTH_PORT")
@@ -897,9 +876,7 @@ fn resolve_auth_service_port() -> u16 {
         .unwrap_or(7997)
 }
 
-fn is_any_subdomain_routing_mode(config: &Value) -> bool {
-    crate::proxy_utils::is_any_subdomain_routing_mode(config)
-}
+use crate::proxy_utils::is_any_subdomain_routing_mode;
 
 fn is_fnos_locale_payload(value: &Value) -> bool {
     let Some(app) = value.get("app").and_then(Value::as_object) else {

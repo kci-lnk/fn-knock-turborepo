@@ -392,7 +392,7 @@ pub(super) async fn create_invitation(
         "invite_url": format!(
             "{}/api/auth/oidc/bind?token={}",
             base_url.trim_end_matches('/'),
-            url::form_urlencoded::byte_serialize(token.as_bytes()).collect::<String>()
+            crate::http_utils::url_encode_component(&token)
         ),
         "expires_at": expires_at,
     }))

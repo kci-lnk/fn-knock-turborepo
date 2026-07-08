@@ -136,9 +136,7 @@ fn header_value(headers: &HeaderMap, name: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-fn parse_js_parse_int_radix_10(value: &str) -> Option<i64> {
-    crate::node_compat::parse_i64_prefix_trim_start(value)
-}
+use crate::node_compat::parse_i64_prefix_trim_start as parse_js_parse_int_radix_10;
 
 fn requires_hmac(path: &str) -> bool {
     let normalized = normalize_auth_api_path(path);

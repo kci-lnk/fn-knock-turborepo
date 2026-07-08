@@ -1,5 +1,10 @@
 use super::*;
 
+pub(super) use crate::{
+    http_utils::url_encode_component as percent_encode_uri_component,
+    node_compat::{env_i64, floor_to_i64, parse_i64_or as parse_i64},
+};
+
 pub(super) fn parse_blacklist_delete_ips(body: &[u8]) -> Result<Vec<String>, &'static str> {
     let parsed = parse_json_body(body)?;
     if let Some(array) = parsed.as_array() {
@@ -218,10 +223,6 @@ pub(super) fn cidr_cache_key(province: &str, city: Option<&str>) -> String {
     }
 }
 
-pub(super) fn percent_encode_uri_component(value: &str) -> String {
-    url::form_urlencoded::byte_serialize(value.as_bytes()).collect()
-}
-
 pub(super) fn json_string_array(value: Option<&Value>) -> Vec<String> {
     value
         .and_then(Value::as_array)
@@ -246,14 +247,6 @@ pub(super) fn positive_i64(value: Option<&Value>) -> Option<i64> {
         .or_else(|| value.as_f64().map(floor_to_i64))
         .or_else(|| value.as_str().and_then(|text| text.trim().parse().ok()))?;
     (parsed > 0).then_some(parsed)
-}
-
-pub(super) fn floor_to_i64(value: f64) -> i64 {
-    crate::node_compat::floor_to_i64(value)
-}
-
-pub(super) fn parse_i64(value: Option<&str>, fallback: i64) -> i64 {
-    crate::node_compat::parse_i64_or(value, fallback)
 }
 
 pub(super) fn normalize_required_province(value: &str) -> Result<String, ScannerError> {
@@ -310,10 +303,6 @@ pub(super) fn js_number_like_i64_floor(value: &Value) -> Option<i64> {
         Value::Object(_) => return None,
     };
     parsed.is_finite().then(|| floor_to_i64(parsed))
-}
-
-pub(super) fn env_i64(name: &str, fallback: i64) -> i64 {
-    crate::node_compat::env_i64(name, fallback)
 }
 
 pub(super) fn normalize_string(value: &str) -> String {

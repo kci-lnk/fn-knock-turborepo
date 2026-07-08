@@ -401,23 +401,15 @@ pub(super) fn resolve_auth_public_port_for_scheme(
     resolve_public_port_for_scheme(config, scheme, raw_public_base_url, gateway_fallback, true)
 }
 
-pub(super) fn resolve_public_gateway_port(config: &Value) -> Option<u16> {
-    crate::system_info::resolve_public_gateway_port(config)
-        .filter(|port| *port <= u16::MAX as i64)
-        .map(|port| port as u16)
-}
+pub(super) use crate::system_info::resolve_public_gateway_port_u16 as resolve_public_gateway_port;
 
 pub(super) fn is_default_scheme_port(scheme: &str, port: u16) -> bool {
     (scheme == "https" && port == 443) || (scheme == "http" && port == 80)
 }
 
-pub(super) fn is_any_subdomain_routing_mode(config: &Value) -> bool {
-    crate::proxy_utils::is_any_subdomain_routing_mode(config)
-}
-
-pub(super) fn is_reverse_proxy_subdomain_mode(config: &Value) -> bool {
-    crate::proxy_utils::is_reverse_proxy_subdomain_mode(config)
-}
+pub(super) use crate::proxy_utils::{
+    is_any_subdomain_routing_mode, is_reverse_proxy_subdomain_mode,
+};
 
 pub(super) fn is_cloudflared_reverse_proxy_subdomain_mode(config: &Value) -> bool {
     is_reverse_proxy_subdomain_mode(config)

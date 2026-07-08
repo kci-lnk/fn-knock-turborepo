@@ -15,13 +15,9 @@ pub(super) fn string_array(value: Option<&Value>) -> Vec<Value> {
         .unwrap_or_default()
 }
 
-pub(super) fn is_reverse_proxy_subdomain_mode(config: &Value) -> bool {
-    crate::proxy_utils::is_reverse_proxy_subdomain_mode(config)
-}
-
-pub(super) fn is_any_subdomain_routing_mode(config: &Value) -> bool {
-    crate::proxy_utils::is_any_subdomain_routing_mode(config)
-}
+pub(super) use crate::proxy_utils::{
+    is_any_subdomain_routing_mode, is_reverse_proxy_subdomain_mode,
+};
 
 pub(super) fn config_array_len(config: &Value, key: &str) -> usize {
     config
@@ -44,9 +40,7 @@ pub(super) fn go_response_message(value: &Value, fallback: &str) -> String {
     crate::go_backend::response_message(value, fallback)
 }
 
-pub(super) fn host_runtime_available(state: &AppState) -> bool {
-    runtime_profile::host_runtime_available(state)
-}
+pub(super) use crate::runtime_profile::host_runtime_available;
 
 pub(super) fn ensure_go_success(value: Value) -> anyhow::Result<()> {
     if crate::go_backend::response_success(&value) {
@@ -58,10 +52,6 @@ pub(super) fn ensure_go_success(value: Value) -> anyhow::Result<()> {
     )
 }
 
-pub(super) fn host_firewall_available(state: &AppState) -> bool {
-    runtime_profile::host_firewall_available(state)
-}
+pub(super) use crate::runtime_profile::host_firewall_available;
 
-pub(super) fn deployment_target(state: &AppState) -> String {
-    runtime_profile::deployment_target(state)
-}
+pub(super) use crate::runtime_profile::deployment_target;

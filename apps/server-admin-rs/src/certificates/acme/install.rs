@@ -1,4 +1,5 @@
 use super::*;
+use crate::fs_utils::chmod_executable;
 
 pub(super) async fn current_acme_install_state(state: &AppState, t: &Translator) -> Value {
     if let Some(raw) = state.acme_install_state.read().await.clone()
@@ -417,20 +418,6 @@ pub(super) fn legacy_acme_home_dir() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
         .join(".acme.sh")
 }
-
-#[cfg(unix)]
-pub(super) fn chmod_executable(path: &Path) {
-    use std::os::unix::fs::PermissionsExt;
-
-    if let Ok(metadata) = std::fs::metadata(path) {
-        let mut permissions = metadata.permissions();
-        permissions.set_mode(0o755);
-        let _ = std::fs::set_permissions(path, permissions);
-    }
-}
-
-#[cfg(not(unix))]
-pub(super) fn chmod_executable(_path: &Path) {}
 
 pub(super) struct AcmeCommandResult {
     pub(super) exit_code: i32,

@@ -5,14 +5,12 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use jsonwebtoken::{
     DecodingKey, Validation, decode, decode_header,
     jwk::{Jwk, JwkSet},
 };
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
-use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 use url::Url;
 

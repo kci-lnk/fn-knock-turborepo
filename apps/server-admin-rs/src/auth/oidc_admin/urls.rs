@@ -6,8 +6,8 @@ pub(super) fn callback_base_url(headers: &HeaderMap, uri: &Uri, config: &Value) 
 }
 
 pub(super) fn callback_origin(headers: &HeaderMap, uri: &Uri) -> Option<String> {
-    let trust_forwarded = env_bool("OIDC_TRUST_FORWARDED_HEADERS", false)
-        || env_bool("AUTH_TRUST_FORWARDED_HEADERS", false);
+    let trust_forwarded = crate::node_compat::env_bool("OIDC_TRUST_FORWARDED_HEADERS", false)
+        || crate::node_compat::env_bool("AUTH_TRUST_FORWARDED_HEADERS", false);
     let request_proto = uri.scheme_str().unwrap_or("http");
     let proto = if trust_forwarded {
         first_header(headers, "x-forwarded-proto")
@@ -43,14 +43,6 @@ pub(super) fn invite_base_url(headers: &HeaderMap, uri: &Uri, config: &Value) ->
     callback_base_url(headers, uri, config)
 }
 
-pub(super) fn public_auth_base_url(config: &Value) -> Option<String> {
-    crate::auth::resolve_public_auth_base_url(config)
-}
+pub(super) use crate::auth::resolve_public_auth_base_url as public_auth_base_url;
 
-pub(super) fn env_bool(name: &str, fallback: bool) -> bool {
-    crate::node_compat::env_bool(name, fallback)
-}
-
-pub(super) fn first_header(headers: &HeaderMap, name: &str) -> Option<String> {
-    crate::http_utils::first_header_value(headers, name)
-}
+pub(super) use crate::http_utils::first_header_value as first_header;

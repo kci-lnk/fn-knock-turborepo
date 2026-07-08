@@ -161,26 +161,13 @@ pub fn scan_asset_routes() -> Router<AppState> {
             "/api/admin/scan/discover-targets",
             get(get_discover_targets).post(save_discover_targets),
         )
-        .route(
-            "/api/admin/assets/discover-targets",
-            get(get_discover_targets).post(save_discover_targets),
-        )
         .route("/api/admin/scan/discover/jobs", post(start_discover_job))
-        .route("/api/admin/assets/discover/jobs", post(start_discover_job))
         .route(
             "/api/admin/scan/discover/jobs/{job_id}",
             get(get_discover_job).delete(cancel_discover_job_route),
         )
         .route(
-            "/api/admin/assets/discover/jobs/{job_id}",
-            get(get_discover_job).delete(cancel_discover_job_route),
-        )
-        .route(
             "/api/admin/scan/host-mappings/probe",
-            post(probe_host_mappings),
-        )
-        .route(
-            "/api/admin/assets/host-mappings/probe",
             post(probe_host_mappings),
         )
 }

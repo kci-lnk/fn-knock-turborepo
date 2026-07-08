@@ -38,11 +38,8 @@ use axum::{
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use get_if_addrs::{IfAddr, get_if_addrs};
-use hmac::{Hmac, Mac};
 use serde::Deserialize;
 use serde_json::{Value, json};
-use sha1::Sha1;
-use sha2::{Digest, Sha256};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tokio::time as tokio_time;
 use tokio::{net::lookup_host, task::JoinSet};
@@ -86,9 +83,6 @@ const DOCKER_HOST_INTERFACE_PREFIX: &str = "docker-host:";
 const DEFAULT_DOCKER_HOST_IF_INET6_PATH: &str = "/host/proc/net/if_inet6";
 const IP_DETECTION_TIMEOUT_MS: u64 = 7000;
 const RESPONSE_PREVIEW_MAX_LENGTH: usize = 240;
-
-type HmacSha1 = Hmac<Sha1>;
-type HmacSha256 = Hmac<Sha256>;
 
 #[derive(Deserialize)]
 struct ToggleBody {

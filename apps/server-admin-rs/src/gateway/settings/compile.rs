@@ -314,6 +314,4 @@ pub(super) fn sanitize_disabled_hosts_config(config: &Value, raw_config: &Value)
     json!({ "disabled_hosts": disabled_hosts })
 }
 
-pub(super) fn is_any_subdomain_routing_mode(config: &Value) -> bool {
-    crate::proxy_utils::is_any_subdomain_routing_mode(config)
-}
+pub(super) use crate::proxy_utils::is_any_subdomain_routing_mode;

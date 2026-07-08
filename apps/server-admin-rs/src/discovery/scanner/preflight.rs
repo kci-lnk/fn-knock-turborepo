@@ -388,9 +388,7 @@ pub(super) fn resolve_forwarded_path(headers: &HeaderMap, uri: &Uri) -> String {
         .unwrap_or_else(|| "/".to_string())
 }
 
-pub(super) fn first_header_value(headers: &HeaderMap, name: &str) -> Option<String> {
-    crate::http_utils::first_header_value(headers, name)
-}
+pub(super) use crate::http_utils::first_header_value;
 
 pub(super) fn normalize_scanner_host(value: &str) -> String {
     let normalized = value.trim().to_ascii_lowercase();
@@ -569,6 +567,4 @@ pub(super) fn resolve_default_proxy_mapping<'a>(
     })
 }
 
-pub(super) fn is_any_subdomain_routing_mode(config: &Value) -> bool {
-    crate::proxy_utils::is_any_subdomain_routing_mode(config)
-}
+pub(super) use crate::proxy_utils::is_any_subdomain_routing_mode;

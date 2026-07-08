@@ -8,7 +8,7 @@ use axum::{
     routing::get,
 };
 use serde::Deserialize;
-use serde_json::{Map, Value, json};
+use serde_json::{Value, json};
 
 use crate::{
     http_utils::{is_private_or_local_ip, normalize_ip},
@@ -660,12 +660,7 @@ fn normalize_gateway_logging_max_days(value: i64) -> i64 {
     value.max(1)
 }
 
-fn ensure_object(value: &mut Value) -> &mut Map<String, Value> {
-    if !value.is_object() {
-        *value = json!({});
-    }
-    value.as_object_mut().expect("value is object")
-}
+use crate::json_utils::ensure_object;
 
 #[cfg(test)]
 mod tests {

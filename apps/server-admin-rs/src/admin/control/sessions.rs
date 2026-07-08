@@ -6,7 +6,11 @@ use std::{
 use serde_json::{Map, Value, json};
 
 use crate::{
-    auth_mobility, http_utils,
+    auth_mobility,
+    auth_mobility_keys::{
+        summary_key as auth_mobility_summary_key, timeline_key as auth_mobility_timeline_key,
+    },
+    http_utils,
     i18n::Translator,
     ip_location,
     redis_store::{LoginSession, WhitelistRecord},
@@ -501,14 +505,6 @@ pub(super) fn apply_mobility_event_ip_locations(
             }
         }
     }
-}
-
-pub(super) fn auth_mobility_timeline_key(session_id: &str) -> String {
-    format!("fn_knock:auth_mobility:timeline:{session_id}")
-}
-
-pub(super) fn auth_mobility_summary_key(session_id: &str) -> String {
-    format!("fn_knock:auth_mobility:summary:{session_id}")
 }
 
 pub(super) fn build_mobility_login_event(session: &Value) -> Option<Value> {

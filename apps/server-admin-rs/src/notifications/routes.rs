@@ -38,8 +38,6 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, patch, post},
 };
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
-use hmac::{Hmac, Mac};
 use lettre::{
     Address, AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
     message::Mailbox,
@@ -140,8 +138,6 @@ const SYSTEM_EVENT_TYPES: &[&str] = &[
     "FN_EVENT_TUNNEL_CLOUDFLARED_CONNECTED",
     "FN_EVENT_TUNNEL_CLOUDFLARED_DISCONNECTED",
 ];
-
-type HmacSha256 = Hmac<Sha256>;
 
 #[derive(Deserialize)]
 struct PageQuery {

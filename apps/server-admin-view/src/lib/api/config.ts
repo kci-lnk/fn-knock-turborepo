@@ -49,7 +49,6 @@ import type {
   TOTPCredentialImportSummary,
   TOTPSubdomainAccess,
   TOTPAccessScope,
-  TrafficStats,
   UrlMetadataPreview,
   WelcomeGuideStatus,
 } from "../../types";
@@ -110,7 +109,6 @@ export type {
   TOTPCredentialImportSummary,
   TOTPSubdomainAccess,
   TOTPAccessScope,
-  TrafficStats,
   UrlMetadataPreview,
   WelcomeGuideStatus,
 } from "../../types";
@@ -860,10 +858,6 @@ export const SystemAPI = {
   async deleteCloudflared() {
     const res = await apiClient.delete("/system/cloudflared");
     return res.data;
-  },
-  async getTrafficStats(): Promise<TrafficStats> {
-    const res = await apiClient.get("/traffic");
-    return res.data.data;
   },
 };
 

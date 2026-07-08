@@ -53,6 +53,4 @@ pub(super) fn ssh_security_availability(
     }
 }
 
-pub(super) fn host_firewall_available(state: &AppState) -> bool {
-    runtime_profile::host_firewall_available(state)
-}
+pub(super) use crate::runtime_profile::host_firewall_available;

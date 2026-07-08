@@ -202,34 +202,7 @@ pub(super) fn is_auth_service_target(target: &str) -> bool {
         && parse_target_port(target).is_some_and(|port| port == resolve_auth_service_port())
 }
 
-pub(super) fn parse_target_port(target: &str) -> Option<i64> {
-    let normalized = target.trim();
-    if normalized.is_empty() {
-        return None;
-    }
-    if let Ok(parsed) = Url::parse(normalized) {
-        if let Some(port) = parsed.port() {
-            return Some(i64::from(port));
-        }
-        return match parsed.scheme() {
-            "https" | "wss" => Some(443),
-            "http" | "ws" => Some(80),
-            _ => None,
-        };
-    }
-    let (_, tail) = normalized.rsplit_once(':')?;
-    let digits = tail
-        .chars()
-        .take_while(|ch| ch.is_ascii_digit())
-        .collect::<String>();
-    if digits.is_empty() {
-        return None;
-    }
-    digits
-        .parse::<i64>()
-        .ok()
-        .filter(|port| *port > 0 && *port <= 65535)
-}
+pub(super) use crate::proxy_utils::parse_target_port_i64 as parse_target_port;
 
 pub(super) fn resolve_auth_service_port() -> i64 {
     parse_env_port_with_fallback("AUTH_PORT", 7997)
@@ -326,12 +299,7 @@ pub(super) fn forbidden_response_header(value: &str) -> bool {
     )
 }
 
-pub(super) fn ensure_object(value: &mut Value) -> &mut Map<String, Value> {
-    if !value.is_object() {
-        *value = json!({});
-    }
-    value.as_object_mut().expect("value is object")
-}
+pub(super) use crate::json_utils::ensure_object;
 
 pub(super) fn json_integer(value: &Value) -> Option<i64> {
     if let Some(value) = value.as_i64() {
@@ -376,13 +344,9 @@ pub(super) fn json_number_floor_value_or_parse(value: Option<&Value>) -> Option<
     }
 }
 
-pub(super) fn is_any_subdomain_routing_mode(config: &Value) -> bool {
-    crate::proxy_utils::is_any_subdomain_routing_mode(config)
-}
-
-pub(super) fn is_reverse_proxy_subdomain_mode(config: &Value) -> bool {
-    crate::proxy_utils::is_reverse_proxy_subdomain_mode(config)
-}
+pub(super) use crate::proxy_utils::{
+    is_any_subdomain_routing_mode, is_reverse_proxy_subdomain_mode,
+};
 
 pub(super) fn is_cloudflared_reverse_proxy_subdomain_mode(config: &Value) -> bool {
     is_reverse_proxy_subdomain_mode(config)
@@ -410,26 +374,13 @@ pub(super) fn should_omit_public_access_entry_port(config: &Value) -> bool {
                     .unwrap_or(false)))
 }
 
-pub(super) fn resolve_public_gateway_port(config: &Value) -> Option<i64> {
-    crate::system_info::resolve_public_gateway_port(config)
-}
+pub(super) use crate::system_info::resolve_public_gateway_port;
 
-pub(super) fn parse_env_port_with_fallback(name: &str, fallback: i64) -> i64 {
-    parse_env_port_with_fallback_value(std::env::var(name).ok(), fallback)
-}
+pub(super) use crate::proxy_utils::parse_env_port_i64_with_fallback as parse_env_port_with_fallback;
+#[cfg(test)]
+pub(super) use crate::proxy_utils::parse_env_port_i64_with_fallback_value as parse_env_port_with_fallback_value;
 
-pub(super) fn parse_env_port_with_fallback_value(value: Option<String>, fallback: i64) -> i64 {
-    let raw = value
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| fallback.to_string());
-    parse_js_parse_int_radix_10(raw.trim_start())
-        .filter(|port| *port > 0)
-        .unwrap_or(fallback)
-}
-
-pub(super) fn parse_js_parse_int_radix_10(value: &str) -> Option<i64> {
-    crate::node_compat::parse_i64_prefix(value)
-}
+pub(super) use crate::node_compat::parse_i64_prefix as parse_js_parse_int_radix_10;
 
 pub(super) fn parse_explicit_url_port(raw_url: &str, scheme: &str) -> Option<i64> {
     let parsed = Url::parse(raw_url.trim()).ok()?;

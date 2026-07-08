@@ -272,7 +272,7 @@ pub(super) fn mask_provider(provider: Value, callback_origin: Option<&str>) -> V
             Value::String(format!(
                 "{}/api/auth/oidc/callback/{}",
                 origin.trim_end_matches('/'),
-                url::form_urlencoded::byte_serialize(id.as_bytes()).collect::<String>()
+                crate::http_utils::url_encode_component(id)
             )),
         );
     }

@@ -1,5 +1,9 @@
 use super::*;
 
+pub(super) use crate::time_utils::{
+    node_iso_after_seconds as iso_after_seconds_node, node_iso_now as now_node_iso,
+};
+
 pub(super) fn normalize_acme_application(value: Value) -> Option<Value> {
     let raw = value.as_object()?;
     let id = non_empty_string(raw.get("id"))?;
@@ -253,36 +257,7 @@ pub(super) fn non_empty_string(value: Option<&Value>) -> Option<String> {
 }
 
 pub(super) fn normalize_timestamp(value: &str) -> Option<String> {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        return None;
-    }
-    let timestamp = OffsetDateTime::parse(trimmed, &Rfc3339)
-        .ok()?
-        .to_offset(UtcOffset::UTC);
-    Some(format_node_iso_timestamp(timestamp))
-}
-
-pub(super) fn now_node_iso() -> String {
-    format_node_iso_timestamp(OffsetDateTime::now_utc())
-}
-
-pub(super) fn iso_after_seconds_node(seconds: i64) -> String {
-    format_node_iso_timestamp(OffsetDateTime::now_utc() + Duration::seconds(seconds))
-}
-
-fn format_node_iso_timestamp(timestamp: OffsetDateTime) -> String {
-    let timestamp = timestamp.to_offset(UtcOffset::UTC);
-    format!(
-        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:03}Z",
-        timestamp.year(),
-        u8::from(timestamp.month()),
-        timestamp.day(),
-        timestamp.hour(),
-        timestamp.minute(),
-        timestamp.second(),
-        timestamp.millisecond()
-    )
+    time_utils::normalize_node_iso(value)
 }
 
 pub(super) fn insert_optional_string(

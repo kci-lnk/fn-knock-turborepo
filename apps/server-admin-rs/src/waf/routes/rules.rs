@@ -1,4 +1,5 @@
 use super::*;
+use crate::time_utils::system_time_iso;
 
 pub(super) async fn ensure_waf_directories(state: &AppState) -> io::Result<()> {
     fs::create_dir_all(system_dir(state)).await?;
@@ -603,20 +604,6 @@ pub(super) fn cache_busted_url(input: &str, base: Option<&str>) -> anyhow::Resul
         &format!("{}-{}", time_utils::now_ms(), uuid::Uuid::new_v4()),
     );
     Ok(url.to_string())
-}
-
-pub(super) fn system_time_iso(time: SystemTime) -> String {
-    let duration = time
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default();
-    time::OffsetDateTime::from_unix_timestamp(duration.as_secs() as i64)
-        .ok()
-        .and_then(|value| {
-            value
-                .format(&time::format_description::well_known::Rfc3339)
-                .ok()
-        })
-        .unwrap_or_else(time_utils::now_iso)
 }
 
 pub(super) fn waf_root_dir(state: &AppState) -> PathBuf {

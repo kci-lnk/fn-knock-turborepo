@@ -1,10 +1,10 @@
 use std::collections::BTreeSet;
 
 use serde_json::{Map, Value, json};
-use sha2::{Digest, Sha256};
 use tokio::time::{self, MissedTickBehavior};
 
 use crate::{
+    auth_mobility_keys::subject_hash as auth_mobility_subject_hash,
     http_utils::normalize_ip,
     i18n::{DEFAULT_LOCALE, Translator},
     ip_location,
@@ -351,12 +351,6 @@ async fn cached_ip_location(state: &AppState, ip: &str) -> Option<String> {
                 .filter(|value| !value.is_empty())
                 .map(ToString::to_string)
         })
-}
-
-fn auth_mobility_subject_hash(subject_type: &str, subject_key: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(format!("{subject_type}:{subject_key}"));
-    hex::encode(hasher.finalize())
 }
 
 mod active_ips;

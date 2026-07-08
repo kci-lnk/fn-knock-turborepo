@@ -1029,15 +1029,7 @@ pub(in crate::ddns::routes) fn normalize_dynu_node_name(value: Option<&str>) -> 
     }
 }
 
-pub(in crate::ddns::routes) trait EmptyDynuString {
-    fn if_empty(self, fallback: String) -> String;
-}
-
-impl EmptyDynuString for String {
-    fn if_empty(self, fallback: String) -> String {
-        if self.is_empty() { fallback } else { self }
-    }
-}
+pub(in crate::ddns::routes) use crate::text_utils::EmptyStringExt;
 
 pub(in crate::ddns::routes) fn build_dynu_fallback_node_name(
     domain: &str,
@@ -1513,13 +1505,7 @@ pub(in crate::ddns::routes) fn form_body(params: &[(&str, String)]) -> String {
     serializer.finish()
 }
 
-pub(in crate::ddns::routes) fn default_string(value: String, fallback: &str) -> String {
-    if value.trim().is_empty() {
-        fallback.to_string()
-    } else {
-        value
-    }
-}
+pub(in crate::ddns::routes) use crate::text_utils::default_string;
 
 pub(in crate::ddns::routes) fn iso8601_utc_without_millis() -> String {
     let value = OffsetDateTime::now_utc()
@@ -1623,26 +1609,11 @@ pub(in crate::ddns::routes) fn rfc3986_encode(value: &str) -> String {
     output
 }
 
-pub(in crate::ddns::routes) fn sha256_hex(value: &str) -> String {
-    let digest = Sha256::digest(value.as_bytes());
-    hex::encode(digest)
-}
+pub(in crate::ddns::routes) use crate::crypto_utils::sha256_hex_str as sha256_hex;
 
-pub(in crate::ddns::routes) fn hmac_sha1_base64(key: &[u8], payload: &[u8]) -> String {
-    let mut mac = HmacSha1::new_from_slice(key).expect("HMAC accepts keys of any size");
-    mac.update(payload);
-    BASE64_STANDARD.encode(mac.finalize().into_bytes())
-}
-
-pub(in crate::ddns::routes) fn hmac_sha256_bytes(key: &[u8], payload: &[u8]) -> Vec<u8> {
-    let mut mac = HmacSha256::new_from_slice(key).expect("HMAC accepts keys of any size");
-    mac.update(payload);
-    mac.finalize().into_bytes().to_vec()
-}
-
-pub(in crate::ddns::routes) fn hmac_sha256_hex(key: &[u8], payload: &[u8]) -> String {
-    hex::encode(hmac_sha256_bytes(key, payload))
-}
+pub(in crate::ddns::routes) use crate::crypto_utils::{
+    hmac_sha1_base64, hmac_sha256_bytes, hmac_sha256_hex,
+};
 
 pub(in crate::ddns::routes) fn compact_json(value: &Value) -> String {
     serde_json::to_string(value).unwrap_or_else(|_| value.to_string())
@@ -1657,9 +1628,7 @@ pub(in crate::ddns::routes) fn json_text(value: &Value, key: &str) -> Option<Str
         .map(str::to_string)
 }
 
-pub(in crate::ddns::routes) fn url_encode_component(value: &str) -> String {
-    url::form_urlencoded::byte_serialize(value.as_bytes()).collect()
-}
+pub(in crate::ddns::routes) use crate::http_utils::url_encode_component;
 
 pub(in crate::ddns::routes) fn build_query_url(base: &str, pairs: &[(&str, String)]) -> String {
     let query = pairs

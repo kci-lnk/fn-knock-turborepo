@@ -83,12 +83,7 @@ pub(super) fn merge_objects(previous: &Value, patch: &Value) -> Value {
     Value::Object(merged)
 }
 
-pub(super) fn ensure_object(value: &mut Value) -> &mut Map<String, Value> {
-    if !value.is_object() {
-        *value = json!({});
-    }
-    value.as_object_mut().expect("value is object")
-}
+pub(super) use crate::json_utils::ensure_object;
 
 pub(super) fn string_list(value: Option<&Value>) -> Vec<Value> {
     value

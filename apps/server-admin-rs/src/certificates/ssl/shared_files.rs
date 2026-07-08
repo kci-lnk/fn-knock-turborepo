@@ -1,4 +1,8 @@
 use super::*;
+use crate::{
+    runtime_profile::configured_share_directory_with_legacy_env_precedence as configured_share_directory,
+    time_utils::system_time_iso,
+};
 
 pub(super) fn list_ssl_shared_files() -> Value {
     let Some(directory) = configured_share_directory() else {
@@ -86,24 +90,6 @@ impl std::fmt::Display for SharedFileForbidden {
 
 impl std::error::Error for SharedFileForbidden {}
 
-pub(super) fn configured_share_directory() -> Option<PathBuf> {
-    if let Ok(value) =
-        env::var("FN_KNOCK_ROOT_SHARE_DIR").or_else(|_| env::var("FN_KNOCK_CERT_SHARE_DIR"))
-    {
-        let trimmed = value.trim();
-        if !trimmed.is_empty() {
-            return Some(PathBuf::from(trimmed));
-        }
-    }
-    let paths = env::var("TRIM_DATA_SHARE_PATHS").ok()?;
-    paths
-        .split(':')
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .min_by_key(|value| value.len())
-        .map(PathBuf::from)
-}
-
 pub(super) fn walk_shared_files(
     root: &Path,
     current: &Path,
@@ -166,17 +152,6 @@ pub(super) fn resolve_share_path(root: &Path, relative_path: &str) -> anyhow::Re
         return Err(anyhow!("Invalid shared file path"));
     }
     Ok(resolved)
-}
-
-pub(super) fn system_time_iso(time: SystemTime) -> String {
-    let duration = time
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default();
-    let seconds = duration.as_secs() as i64;
-    OffsetDateTime::from_unix_timestamp(seconds)
-        .ok()
-        .and_then(|value| value.format(&Rfc3339).ok())
-        .unwrap_or_else(time_utils::now_iso)
 }
 
 pub(crate) fn zip_cert_pair(cert: &str, key: &str) -> anyhow::Result<Vec<u8>> {

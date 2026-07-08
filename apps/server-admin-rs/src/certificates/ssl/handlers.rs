@@ -363,40 +363,6 @@ pub(super) async fn save_certificate(
     }
 }
 
-pub(super) async fn save_legacy_ssl(
-    State(state): State<AppState>,
-    Json(body): Json<LegacySaveBody>,
-) -> Response {
-    let translator = Translator::from_state(&state).await;
-    if let Err(message) = validate_ssl_cert_for_response(&body.ssl.cert, &body.ssl.key, &translator)
-    {
-        return response::error(StatusCode::BAD_REQUEST, message);
-    }
-    let body = SaveCertificateBody {
-        id: None,
-        label: Some(ssl_route_text(&translator, "manualCertificateLabel")),
-        source: Some("manual".to_string()),
-        primary_domain: None,
-        source_ref_id: None,
-        cert: body.ssl.cert,
-        key: body.ssl.key,
-        activate: Some(true),
-    };
-    match save_ssl_certificate(&state, body, true).await {
-        Ok(_) => match sync_ssl_deployment_to_gateway(&state, None).await {
-            Ok(()) => response::success_empty().into_response(),
-            Err(error) => response::error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                ssl_gateway_error(&translator, &error.to_string()),
-            ),
-        },
-        Err(error) => response::error(
-            StatusCode::BAD_REQUEST,
-            ssl_error_or_route_text(&translator, "certSaveFailed", &error),
-        ),
-    }
-}
-
 pub(super) async fn activate_certificate(
     State(state): State<AppState>,
     Json(body): Json<ActivateBody>,

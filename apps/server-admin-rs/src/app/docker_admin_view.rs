@@ -13,7 +13,10 @@ use ipnet::IpNet;
 use subtle::ConstantTimeEq;
 
 use crate::{
-    admin_panel::resolve_panel_auth_context, http_utils, i18n::Translator, response,
+    admin_panel::resolve_panel_auth_context,
+    http_utils::{self, html_escape},
+    i18n::Translator,
+    response,
     state::AppState,
 };
 
@@ -373,15 +376,6 @@ fn build_docker_admin_denied_html(translator: &Translator, client_ip: &str) -> S
   </body>
 </html>"#
     )
-}
-
-fn html_escape(value: &str) -> String {
-    value
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&#39;")
 }
 
 #[cfg(test)]

@@ -68,6 +68,11 @@ fn frpc_exit_watcher_only_handles_current_attached_pid_like_node() {
 }
 
 #[test]
+fn process_alive_rejects_pid_values_outside_pid_t_range() {
+    assert!(!is_process_alive(u32::MAX));
+}
+
+#[test]
 fn default_tunnel_state_matches_node_absent_key_shape() {
     let state = Value::Object(default_tunnel_state());
     assert_eq!(state["frp_enabled"], false);

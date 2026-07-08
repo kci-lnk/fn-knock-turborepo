@@ -14,6 +14,8 @@ use super::{
     text::{totp_import_error, totp_import_error_with_max},
 };
 
+pub(super) use crate::http_utils::url_encode_component as percent_encode;
+
 pub(super) fn build_totp_import_plan(
     existing: &[TotpCredential],
     payload: &Value,
@@ -181,8 +183,4 @@ pub(super) fn normalize_totp_created_at(value: Option<&Value>, fallback: &str) -
     } else {
         fallback.to_string()
     }
-}
-
-pub(super) fn percent_encode(value: &str) -> String {
-    url::form_urlencoded::byte_serialize(value.as_bytes()).collect()
 }

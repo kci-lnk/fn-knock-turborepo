@@ -185,7 +185,7 @@ fn has_shared_root() -> bool {
     configured_share_directory().is_some_and(|path| path.exists())
 }
 
-fn configured_share_directory() -> Option<std::path::PathBuf> {
+pub fn configured_share_directory() -> Option<std::path::PathBuf> {
     ["FN_KNOCK_ROOT_SHARE_DIR", "FN_KNOCK_CERT_SHARE_DIR"]
         .into_iter()
         .filter_map(|key| std::env::var(key).ok())
@@ -193,35 +193,36 @@ fn configured_share_directory() -> Option<std::path::PathBuf> {
         .filter(|value| !value.is_empty())
         .map(std::path::PathBuf::from)
         .next()
-        .or_else(|| {
-            let raw = std::env::var("TRIM_DATA_SHARE_PATHS").ok()?;
-            raw.split(':')
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .min_by_key(|value| value.len())
-                .map(std::path::PathBuf::from)
-        })
+        .or_else(trim_data_share_paths)
+}
+
+pub fn configured_share_directory_with_legacy_env_precedence() -> Option<std::path::PathBuf> {
+    std::env::var("FN_KNOCK_ROOT_SHARE_DIR")
+        .or_else(|_| std::env::var("FN_KNOCK_CERT_SHARE_DIR"))
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .map(std::path::PathBuf::from)
+        .or_else(trim_data_share_paths)
+}
+
+fn trim_data_share_paths() -> Option<std::path::PathBuf> {
+    let raw = std::env::var("TRIM_DATA_SHARE_PATHS").ok()?;
+    raw.split(':')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .min_by_key(|value| value.len())
+        .map(std::path::PathBuf::from)
 }
 
 fn is_root_process() -> bool {
-    #[cfg(unix)]
-    {
-        // SAFETY: geteuid has no preconditions and does not dereference pointers.
-        unsafe { libc::geteuid() == 0 }
-    }
-    #[cfg(not(unix))]
-    {
-        false
-    }
+    crate::unix::is_root_process()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::ffi::{OsStr, OsString};
-    use std::sync::Mutex;
-
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
+    use crate::test_support::EnvGuard;
 
     fn profile(target: &str, linux: bool, root: bool) -> RuntimeProfile {
         RuntimeProfile {
@@ -229,26 +230,6 @@ mod tests {
             is_docker: target == "docker",
             is_linux: linux,
             is_root_process: root,
-        }
-    }
-
-    fn set_env(key: &str, value: impl AsRef<OsStr>) {
-        unsafe {
-            std::env::set_var(key, value);
-        }
-    }
-
-    fn remove_env(key: &str) {
-        unsafe {
-            std::env::remove_var(key);
-        }
-    }
-
-    fn restore_env(key: &str, value: Option<OsString>) {
-        if let Some(value) = value {
-            set_env(key, value);
-        } else {
-            remove_env(key);
         }
     }
 
@@ -262,25 +243,21 @@ mod tests {
 
     #[test]
     fn detects_fpk_from_shared_root_environment_when_target_is_missing() {
-        let _guard = ENV_LOCK.lock().unwrap();
-        let previous_root = std::env::var_os("FN_KNOCK_ROOT_SHARE_DIR");
-        set_env("FN_KNOCK_ROOT_SHARE_DIR", "/vol1/@appdata/fn-knock");
+        let env = EnvGuard::new(&["FN_KNOCK_ROOT_SHARE_DIR"]);
+        env.set("FN_KNOCK_ROOT_SHARE_DIR", "/vol1/@appdata/fn-knock");
 
         let is_fpk = detect_fpk_environment();
 
-        restore_env("FN_KNOCK_ROOT_SHARE_DIR", previous_root);
         assert!(is_fpk);
     }
 
     #[test]
     fn detects_strong_fpk_environment_before_container_markers() {
-        let _guard = ENV_LOCK.lock().unwrap();
-        let previous_trim = std::env::var_os("TRIM_APPDEST");
-        set_env("TRIM_APPDEST", "/trim/app/fn-knock");
+        let env = EnvGuard::new(&["TRIM_APPDEST"]);
+        env.set("TRIM_APPDEST", "/trim/app/fn-knock");
 
         let target = detect_deployment_target(None);
 
-        restore_env("TRIM_APPDEST", previous_trim);
         assert_eq!(target, "fpk");
     }
 
@@ -297,21 +274,69 @@ mod tests {
 
     #[test]
     fn shared_root_available_uses_trim_data_share_paths_when_root_env_is_empty() {
-        let _guard = ENV_LOCK.lock().unwrap();
-        let previous_root = std::env::var_os("FN_KNOCK_ROOT_SHARE_DIR");
-        let previous_cert = std::env::var_os("FN_KNOCK_CERT_SHARE_DIR");
-        let previous_trim = std::env::var_os("TRIM_DATA_SHARE_PATHS");
+        let env = EnvGuard::new(&[
+            "FN_KNOCK_ROOT_SHARE_DIR",
+            "FN_KNOCK_CERT_SHARE_DIR",
+            "TRIM_DATA_SHARE_PATHS",
+        ]);
         let directory = tempfile::tempdir().unwrap();
-        set_env("FN_KNOCK_ROOT_SHARE_DIR", "");
-        remove_env("FN_KNOCK_CERT_SHARE_DIR");
-        set_env("TRIM_DATA_SHARE_PATHS", directory.path().as_os_str());
+        env.set("FN_KNOCK_ROOT_SHARE_DIR", "");
+        env.remove("FN_KNOCK_CERT_SHARE_DIR");
+        env.set("TRIM_DATA_SHARE_PATHS", directory.path().as_os_str());
 
         let capabilities = get_runtime_capabilities(&profile("fpk", true, true));
 
-        restore_env("FN_KNOCK_ROOT_SHARE_DIR", previous_root);
-        restore_env("FN_KNOCK_CERT_SHARE_DIR", previous_cert);
-        restore_env("TRIM_DATA_SHARE_PATHS", previous_trim);
         assert!(capabilities.shared_root_available);
+    }
+
+    #[test]
+    fn configured_share_directory_preserves_environment_priority_and_fallback() {
+        let env = EnvGuard::new(&[
+            "FN_KNOCK_ROOT_SHARE_DIR",
+            "FN_KNOCK_CERT_SHARE_DIR",
+            "TRIM_DATA_SHARE_PATHS",
+        ]);
+        env.set("FN_KNOCK_ROOT_SHARE_DIR", " /root-share ");
+        env.set("FN_KNOCK_CERT_SHARE_DIR", " /cert-share ");
+        env.set("TRIM_DATA_SHARE_PATHS", "/very/long/share:/short");
+
+        assert_eq!(
+            configured_share_directory(),
+            Some(std::path::PathBuf::from("/root-share"))
+        );
+
+        env.set("FN_KNOCK_ROOT_SHARE_DIR", " ");
+        assert_eq!(
+            configured_share_directory(),
+            Some(std::path::PathBuf::from("/cert-share"))
+        );
+
+        env.set("FN_KNOCK_CERT_SHARE_DIR", "");
+        assert_eq!(
+            configured_share_directory(),
+            Some(std::path::PathBuf::from("/short"))
+        );
+    }
+
+    #[test]
+    fn legacy_share_directory_preserves_empty_root_shadowing_cert_env() {
+        let env = EnvGuard::new(&[
+            "FN_KNOCK_ROOT_SHARE_DIR",
+            "FN_KNOCK_CERT_SHARE_DIR",
+            "TRIM_DATA_SHARE_PATHS",
+        ]);
+        env.set("FN_KNOCK_ROOT_SHARE_DIR", " ");
+        env.set("FN_KNOCK_CERT_SHARE_DIR", " /cert-share ");
+        env.set("TRIM_DATA_SHARE_PATHS", "/very/long/share:/short");
+
+        assert_eq!(
+            configured_share_directory(),
+            Some(std::path::PathBuf::from("/cert-share"))
+        );
+        assert_eq!(
+            configured_share_directory_with_legacy_env_precedence(),
+            Some(std::path::PathBuf::from("/short"))
+        );
     }
 
     #[test]

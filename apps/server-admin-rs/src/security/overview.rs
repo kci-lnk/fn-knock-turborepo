@@ -28,7 +28,8 @@ pub fn security_overview_routes() -> Router<AppState> {
 }
 
 async fn overview(State(state): State<AppState>, Query(query): Query<OverviewQuery>) -> Response {
-    let range_sec = parse_i64_safe(query.range_sec.as_deref(), 3600).clamp(60, 30 * 24 * 3600);
+    let range_sec = crate::node_compat::parse_i64_or(query.range_sec.as_deref(), 3600)
+        .clamp(60, 30 * 24 * 3600);
     let now_ms = time_utils::now_ms();
     let from_ms = now_ms - range_sec * 1000;
     let bucket_count = ((range_sec as f64 / 900.0).round() as i64).clamp(12, 48);
@@ -134,10 +135,6 @@ fn build_bucket_series(from_ms: i64, to_ms: i64, bucket_count: i64) -> Vec<(i64,
         .collect()
 }
 
-fn parse_i64_safe(value: Option<&str>, fallback: i64) -> i64 {
-    crate::node_compat::parse_i64_or(value, fallback)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -165,11 +162,11 @@ mod tests {
 
     #[test]
     fn range_sec_parser_matches_node_parse_int_safe() {
-        assert_eq!(parse_i64_safe(None, 3600), 3600);
-        assert_eq!(parse_i64_safe(Some("900x"), 3600), 900);
-        assert_eq!(parse_i64_safe(Some("  +3.9"), 3600), 3);
-        assert_eq!(parse_i64_safe(Some("0x10"), 3600), 0);
-        assert_eq!(parse_i64_safe(Some("nope"), 3600), 3600);
+        assert_eq!(crate::node_compat::parse_i64_or(None, 3600), 3600);
+        assert_eq!(crate::node_compat::parse_i64_or(Some("900x"), 3600), 900);
+        assert_eq!(crate::node_compat::parse_i64_or(Some("  +3.9"), 3600), 3);
+        assert_eq!(crate::node_compat::parse_i64_or(Some("0x10"), 3600), 0);
+        assert_eq!(crate::node_compat::parse_i64_or(Some("nope"), 3600), 3600);
     }
 
     #[test]

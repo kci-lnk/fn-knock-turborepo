@@ -22,6 +22,68 @@ pub(crate) mod system;
 pub(crate) mod tunnels;
 pub(crate) mod waf;
 
+#[cfg(test)]
+pub(crate) mod test_support {
+    use std::{
+        env,
+        ffi::{OsStr, OsString},
+        sync::{Mutex, MutexGuard},
+    };
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    pub(crate) struct EnvGuard {
+        _lock: MutexGuard<'static, ()>,
+        previous: Vec<(String, Option<OsString>)>,
+    }
+
+    impl EnvGuard {
+        pub(crate) fn new(keys: &[&str]) -> Self {
+            let lock = ENV_LOCK.lock().unwrap_or_else(|error| error.into_inner());
+            let previous = keys
+                .iter()
+                .map(|key| ((*key).to_string(), env::var_os(key)))
+                .collect();
+            Self {
+                _lock: lock,
+                previous,
+            }
+        }
+
+        pub(crate) fn set(&self, key: &str, value: impl AsRef<OsStr>) {
+            // SAFETY: tests serialize every process-environment mutation through
+            // ENV_LOCK and hold the guard until values are restored.
+            unsafe {
+                env::set_var(key, value);
+            }
+        }
+
+        pub(crate) fn remove(&self, key: &str) {
+            // SAFETY: tests serialize every process-environment mutation through
+            // ENV_LOCK and hold the guard until values are restored.
+            unsafe {
+                env::remove_var(key);
+            }
+        }
+    }
+
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            for (key, value) in self.previous.iter().rev() {
+                // SAFETY: EnvGuard owns the process-wide test environment lock
+                // while restoring the values captured at construction time.
+                unsafe {
+                    if let Some(value) = value {
+                        env::set_var(key, value);
+                    } else {
+                        env::remove_var(key);
+                    }
+                }
+            }
+        }
+    }
+}
+
 pub(crate) use admin::{control as admin_control, panel as admin_panel};
 pub(crate) use app::cleanup_legacy_auth_log_storage;
 pub(crate) use auth::{
@@ -42,7 +104,10 @@ pub(crate) use infra::{
 pub(crate) use security::{
     general_blacklist, overview as security_overview, ssh as ssh_security, whitelist,
 };
-pub(crate) use shared::{http_utils, node_compat, proxy_utils, time_utils};
+pub(crate) use shared::{
+    auth_mobility_keys, crypto_utils, frp_utils, fs_utils, http_utils, json_utils, net_utils,
+    node_compat, proxy_utils, text_utils, time_utils, unix, version_utils,
+};
 pub(crate) use storage::redis_store;
 pub(crate) use system::{
     dashboard, maintenance, system_assets, system_info, system_monitor, terminal, terminal_paths,

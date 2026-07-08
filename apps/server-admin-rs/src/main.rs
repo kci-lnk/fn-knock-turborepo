@@ -32,6 +32,8 @@ fn configure_allocator_for_low_memory() {
     // server-admin-rs is latency-light but memory-sensitive on NAS targets.
     // Keep glibc from creating large per-thread arenas and return bursty startup
     // allocations to the kernel more eagerly.
+    // SAFETY: mallopt mutates process-wide glibc allocator tunables before the
+    // Tokio runtime starts and does not access Rust-managed memory.
     unsafe {
         libc::mallopt(libc::M_ARENA_MAX, 1);
         libc::mallopt(libc::M_TRIM_THRESHOLD, 128 * 1024);

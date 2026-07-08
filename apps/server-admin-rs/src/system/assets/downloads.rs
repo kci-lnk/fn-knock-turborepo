@@ -1,19 +1,16 @@
-use std::{
-    fs,
-    io::Write,
-    path::{Path, PathBuf},
-    process::Command,
-    sync::Mutex,
-};
+use std::{fs, io::Write, path::Path, process::Command, sync::Mutex};
 
 use serde_json::{Value, json};
 
-use crate::{i18n::Translator, state::AppState};
+use crate::{frp_utils, fs_utils::chmod_executable, i18n::Translator, state::AppState};
+
+pub(super) use crate::frp_utils::{
+    detect_frp_platform, frp_archive_name, frp_binary_path, frp_extracted_dir,
+};
 
 use super::{
     ASSET_DOWNLOADS, AssetDownloads, CLOUDFLARED_MIRROR_BASE, DOWNLOAD_CANCELLED_ERROR,
-    DownloadProgress, FRP_DOWNLOAD_FAILED_PREFIX, FRP_GITHUB_BASE, FRP_MIRROR_BASE, FRP_VERSION,
-    UNKNOWN_DOWNLOAD_ERROR,
+    DownloadProgress, FRP_DOWNLOAD_FAILED_PREFIX, FRP_MIRROR_BASE, UNKNOWN_DOWNLOAD_ERROR,
     process::command_succeeds,
     text::{tunnel_manager_text, tunnel_manager_text_params},
 };
@@ -81,7 +78,7 @@ pub(super) async fn download_frp(state: AppState) {
         let archive = frp_archive_name(platform).ok_or("FRP platform is unsupported")?;
         let candidates = [
             format!("{FRP_MIRROR_BASE}/{archive}.tar.gz"),
-            format!("{FRP_GITHUB_BASE}/{archive}.tar.gz"),
+            frp_utils::frp_github_archive_url(&archive),
         ];
         let frp_dir = state.settings.data_dir.join("frp");
         fs::create_dir_all(&frp_dir).map_err(|error| error.to_string())?;
@@ -184,21 +181,6 @@ pub(super) fn detect_cloudflared_platform() -> &'static str {
         ("linux", "arm") | ("linux", "armv7") => "linux-arm",
         _ => "unsupported",
     }
-}
-
-pub(super) fn detect_frp_platform() -> &'static str {
-    match (std::env::consts::OS, std::env::consts::ARCH) {
-        ("macos", "aarch64") => "darwin-arm64",
-        ("linux", "x86_64") => "linux-amd64",
-        ("linux", "aarch64") => "linux-arm64",
-        ("linux", "arm") | ("linux", "armv7") => "linux-arm",
-        _ => "unsupported",
-    }
-}
-
-pub(super) fn frp_binary_path(data_dir: &Path, platform: &str, binary: &str) -> Option<PathBuf> {
-    frp_archive_name(platform)
-        .map(|archive_name| data_dir.join("frp").join(archive_name).join(binary))
 }
 
 pub(super) fn downloads() -> &'static Mutex<AssetDownloads> {
@@ -363,32 +345,4 @@ pub(super) fn reset_download_file(path: &Path) {
     if path.exists() {
         let _ = fs::remove_file(path);
     }
-}
-
-#[cfg(unix)]
-pub(super) fn chmod_executable(path: &Path) {
-    use std::os::unix::fs::PermissionsExt;
-
-    if let Ok(metadata) = fs::metadata(path) {
-        let mut permissions = metadata.permissions();
-        permissions.set_mode(0o755);
-        let _ = fs::set_permissions(path, permissions);
-    }
-}
-
-#[cfg(not(unix))]
-pub(super) fn chmod_executable(_path: &Path) {}
-
-pub(super) fn frp_archive_name(platform: &str) -> Option<String> {
-    match platform {
-        "linux-amd64" => Some(format!("frp_{FRP_VERSION}_linux_amd64")),
-        "linux-arm64" => Some(format!("frp_{FRP_VERSION}_linux_arm64")),
-        "linux-arm" => Some(format!("frp_{FRP_VERSION}_linux_arm")),
-        "darwin-arm64" => Some(format!("frp_{FRP_VERSION}_darwin_arm64")),
-        _ => None,
-    }
-}
-
-pub(super) fn frp_extracted_dir(data_dir: &Path, platform: &str) -> Option<PathBuf> {
-    frp_archive_name(platform).map(|archive_name| data_dir.join("frp").join(archive_name))
 }

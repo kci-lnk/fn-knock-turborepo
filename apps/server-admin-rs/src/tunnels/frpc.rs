@@ -34,7 +34,6 @@ use crate::{
 };
 
 const FRPC_PRIMARY_INSTANCE_ID: &str = "primary";
-const FRPC_VERSION: &str = "0.67.0";
 const KEY_PREFIX: &str = "fn_knock:frpc:v2";
 const INSTANCE_IDS_KEY: &str = "fn_knock:frpc:v2:instance_ids";
 const PRIMARY_INSTANCE_ID_KEY: &str = "fn_knock:frpc:v2:primary_instance_id";

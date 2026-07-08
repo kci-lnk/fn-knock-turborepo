@@ -298,10 +298,6 @@ pub fn scanner_routes() -> Router<AppState> {
             get(list_blacklist).delete(delete_blacklist),
         )
         .route(
-            "/api/admin/scanner/blacklist/",
-            get(list_blacklist).delete(delete_blacklist),
-        )
-        .route(
             "/api/admin/scanner/blacklist/{ip}",
             get(get_blacklist_record).delete(delete_blacklist_record),
         )

@@ -48,14 +48,12 @@ use std::path::Path;
 #[cfg(test)]
 use text::{dnsmasq_text, tunnel_manager_text, tunnel_manager_text_params};
 
-const FRP_VERSION: &str = "0.67.0";
 const EXPECTED_TIME_ZONE: &str = "Asia/Shanghai";
 const TIME_DRIFT_THRESHOLD_MS: i64 = 90_000;
 const SMART_CONNECT_LOCAL_TTL_SECONDS: u16 = 30;
 const SMART_CONNECT_MANAGED_CONF_PATH: &str = "/etc/dnsmasq.d/fn-knock-smart-connect.conf";
 const CLOUDFLARED_MIRROR_BASE: &str = "https://cor.fnknock.cn/alldata/cloudflared";
 const FRP_MIRROR_BASE: &str = "https://cor.fnknock.cn/alldata/frp";
-const FRP_GITHUB_BASE: &str = "https://github.com/fatedier/frp/releases/download/v0.67.0";
 const DOWNLOAD_CANCELLED_ERROR: &str = "Download cancelled";
 const FRP_DOWNLOAD_FAILED_PREFIX: &str = "FRP download failed: ";
 const UNKNOWN_DOWNLOAD_ERROR: &str = "Unknown error";

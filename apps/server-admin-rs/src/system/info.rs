@@ -75,6 +75,10 @@ pub(crate) fn resolve_public_gateway_port(config: &Value) -> Option<i64> {
     )
 }
 
+pub(crate) fn resolve_public_gateway_port_u16(config: &Value) -> Option<u16> {
+    resolve_public_gateway_port(config).and_then(|port| u16::try_from(port).ok())
+}
+
 pub(crate) fn resolve_access_entry_port(config: &Value) -> String {
     resolve_access_entry_info(config).port
 }
@@ -108,9 +112,7 @@ fn resolve_local_gateway_port_from_env(value: Option<String>) -> AccessEntryInfo
     }
 }
 
-fn is_reverse_proxy_subdomain_mode(config: &Value) -> bool {
-    crate::proxy_utils::is_reverse_proxy_subdomain_mode(config)
-}
+use crate::proxy_utils::is_reverse_proxy_subdomain_mode;
 
 fn resolve_frpc_remote_port() -> Option<u16> {
     let content = fs::read_to_string(data_dir().join("frp").join("frpc.toml")).ok()?;
@@ -139,9 +141,7 @@ fn extract_frpc_remote_port(content: &str) -> Option<u16> {
     None
 }
 
-fn parse_js_parse_int_radix_10(value: &str) -> Option<i64> {
-    crate::node_compat::parse_i64_prefix(value)
-}
+use crate::node_compat::parse_i64_prefix as parse_js_parse_int_radix_10;
 
 fn data_dir() -> PathBuf {
     if let Ok(path) = env::var("FN_KNOCK_DATA_DIR") {

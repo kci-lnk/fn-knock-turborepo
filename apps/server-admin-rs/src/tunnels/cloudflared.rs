@@ -631,9 +631,7 @@ fn parse_log_limit(value: Option<&str>, fallback: usize, max: usize) -> usize {
     parsed.clamp(1, max as i64) as usize
 }
 
-fn parse_node_parse_int(value: &str) -> Option<i64> {
-    crate::node_compat::parse_i64_prefix_trim_start(value)
-}
+use crate::node_compat::parse_i64_prefix_trim_start as parse_node_parse_int;
 
 async fn should_resume_tunnel(state: &AppState) -> redis::RedisResult<bool> {
     let runtime = tunnel_runtime_state(state).await?;

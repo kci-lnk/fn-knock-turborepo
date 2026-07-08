@@ -1,5 +1,7 @@
 use super::*;
 
+pub(in crate::notifications::routes) use crate::http_utils::html_escape as escape_html;
+
 pub(in crate::notifications::routes) fn build_text_body(message: &Value) -> String {
     let mut sections = Vec::new();
     push_if_non_empty(&mut sections, message_summary(message));
@@ -804,15 +806,6 @@ pub(in crate::notifications::routes) fn truncate_utf8_bytes(value: &str, limit: 
         output.push(ch);
     }
     output
-}
-
-pub(in crate::notifications::routes) fn escape_html(value: &str) -> String {
-    value
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&#39;")
 }
 
 pub(in crate::notifications::routes) fn sanitize_wecom_text(value: &str) -> String {

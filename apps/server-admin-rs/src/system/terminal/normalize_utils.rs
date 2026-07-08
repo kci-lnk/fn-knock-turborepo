@@ -301,17 +301,7 @@ pub(super) fn resolve_home_dir(
 
 #[cfg(unix)]
 pub(super) fn platform_home_dir() -> Option<PathBuf> {
-    unsafe {
-        let passwd = libc::getpwuid(libc::geteuid());
-        if passwd.is_null() || (*passwd).pw_dir.is_null() {
-            return None;
-        }
-        let value = std::ffi::CStr::from_ptr((*passwd).pw_dir)
-            .to_string_lossy()
-            .trim()
-            .to_string();
-        (!value.is_empty()).then(|| PathBuf::from(value))
-    }
+    crate::unix::current_user_home_dir()
 }
 
 #[cfg(not(unix))]
@@ -409,15 +399,6 @@ pub(super) fn is_fifo(_metadata: &std::fs::Metadata) -> bool {
     false
 }
 
-#[cfg(unix)]
 pub(super) fn is_running_as_root() -> bool {
-    unsafe extern "C" {
-        fn getuid() -> u32;
-    }
-    unsafe { getuid() == 0 }
-}
-
-#[cfg(not(unix))]
-pub(super) fn is_running_as_root() -> bool {
-    false
+    crate::unix::is_root_process()
 }

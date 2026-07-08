@@ -310,10 +310,6 @@ pub(super) fn parse_int_field_value(value: &Value) -> Option<i64> {
     crate::node_compat::parse_i64_from_json_like_node(value)
 }
 
-pub(super) fn parse_i64_prefix(value: &str) -> Option<i64> {
-    crate::node_compat::parse_i64_prefix(value)
-}
-
 pub(super) fn ensure_config_object(value: &mut Value) -> &mut Map<String, Value> {
     if !value.is_object() {
         *value = redis_store::default_config();

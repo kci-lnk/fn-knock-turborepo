@@ -122,11 +122,11 @@ pub async fn rebuild_common_auth_locations_runtime_state(
         return sync_disabled_common_auth_locations_runtime(state).await;
     }
 
-    let max_recent_ips = env_i64("COMMON_AUTH_LOCATIONS_MAX_IPS", 1000).max(10) as usize;
-    let max_locations = env_i64("COMMON_AUTH_LOCATIONS_MAX_LOCATIONS", 5).max(1) as usize;
-    let max_cidrs = env_i64("COMMON_AUTH_LOCATIONS_MAX_CIDRS", 1000).max(1) as usize;
+    let max_recent_ips = strict_env_i64("COMMON_AUTH_LOCATIONS_MAX_IPS", 1000).max(10) as usize;
+    let max_locations = strict_env_i64("COMMON_AUTH_LOCATIONS_MAX_LOCATIONS", 5).max(1) as usize;
+    let max_cidrs = strict_env_i64("COMMON_AUTH_LOCATIONS_MAX_CIDRS", 1000).max(1) as usize;
     let max_region_cidrs =
-        env_i64("COMMON_AUTH_LOCATIONS_MAX_REGION_CIDRS_PER_LOCATION", 128).max(0) as usize;
+        strict_env_i64("COMMON_AUTH_LOCATIONS_MAX_REGION_CIDRS_PER_LOCATION", 128).max(0) as usize;
 
     let entries = state
         .redis
@@ -334,13 +334,13 @@ fn schedule_common_auth_locations_rebuild_after(
 
 fn common_auth_locations_rebuild_debounce() -> Duration {
     Duration::from_millis(
-        env_i64("COMMON_AUTH_LOCATIONS_REBUILD_DEBOUNCE_MS", 5000).max(1000) as u64,
+        strict_env_i64("COMMON_AUTH_LOCATIONS_REBUILD_DEBOUNCE_MS", 5000).max(1000) as u64,
     )
 }
 
 fn common_auth_locations_location_retry_delay() -> Duration {
     Duration::from_millis(
-        env_i64("COMMON_AUTH_LOCATIONS_LOCATION_RETRY_MS", 30000).max(5000) as u64,
+        strict_env_i64("COMMON_AUTH_LOCATIONS_LOCATION_RETRY_MS", 30000).max(5000) as u64,
     )
 }
 
@@ -638,22 +638,19 @@ fn string_field(value: &Value, key: &str) -> String {
         .to_string()
 }
 
-fn env_i64(key: &str, fallback: i64) -> i64 {
+fn strict_env_i64(key: &str, fallback: i64) -> i64 {
     env::var(key)
         .ok()
         .and_then(|value| value.parse::<i64>().ok())
         .unwrap_or(fallback)
 }
 
-fn now_seconds() -> i64 {
-    time_utils::now_ms().div_euclid(1000)
-}
+use crate::time_utils::now_seconds;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    use crate::test_support::EnvGuard;
 
     fn recent_entry(ip: &str, seen_count: i64) -> RecentAuthIpEntry {
         RecentAuthIpEntry {
@@ -701,32 +698,22 @@ mod tests {
 
     #[test]
     fn rebuild_debounce_has_node_floor() {
-        let _guard = ENV_LOCK.lock().unwrap();
-        unsafe {
-            env::set_var("COMMON_AUTH_LOCATIONS_REBUILD_DEBOUNCE_MS", "0");
-        }
+        let env = EnvGuard::new(&["COMMON_AUTH_LOCATIONS_REBUILD_DEBOUNCE_MS"]);
+        env.set("COMMON_AUTH_LOCATIONS_REBUILD_DEBOUNCE_MS", "0");
         assert_eq!(
             common_auth_locations_rebuild_debounce(),
             Duration::from_millis(1_000)
         );
-        unsafe {
-            env::remove_var("COMMON_AUTH_LOCATIONS_REBUILD_DEBOUNCE_MS");
-        }
     }
 
     #[test]
     fn location_retry_delay_has_node_floor() {
-        let _guard = ENV_LOCK.lock().unwrap();
-        unsafe {
-            env::set_var("COMMON_AUTH_LOCATIONS_LOCATION_RETRY_MS", "1");
-        }
+        let env = EnvGuard::new(&["COMMON_AUTH_LOCATIONS_LOCATION_RETRY_MS"]);
+        env.set("COMMON_AUTH_LOCATIONS_LOCATION_RETRY_MS", "1");
         assert_eq!(
             common_auth_locations_location_retry_delay(),
             Duration::from_millis(5_000)
         );
-        unsafe {
-            env::remove_var("COMMON_AUTH_LOCATIONS_LOCATION_RETRY_MS");
-        }
     }
 
     #[test]

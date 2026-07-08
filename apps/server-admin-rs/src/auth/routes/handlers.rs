@@ -153,16 +153,7 @@ pub(super) async fn challenge(State(state): State<AppState>) -> Response {
     let salt_with_params = format!("{salt}?expires={expires}");
     let secret_number = pow_secret_number_from_random(rand::random::<u32>());
     let challenge = sha256_hex(format!("{salt_with_params}{secret_number}").as_bytes());
-    let signature = match hmac_sha256_hex(key.as_bytes(), challenge.as_bytes()) {
-        Ok(value) => value,
-        Err(error) => {
-            tracing::warn!(%error, "failed to sign captcha challenge");
-            return with_auth_headers(response::error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                auth_route_text(&translator, "createCaptchaChallengeFailed"),
-            ));
-        }
-    };
+    let signature = hmac_sha256_hex(key.as_bytes(), challenge.as_bytes());
 
     with_auth_headers(
         Json(json!({

@@ -1365,9 +1365,7 @@ fn normalize_host_like(value: &str) -> String {
     value.trim_end_matches('.').to_string()
 }
 
-fn resolve_cookie_domain(config: &Value, headers: &HeaderMap) -> Option<String> {
-    crate::auth::resolve_cookie_domain(config, headers)
-}
+use crate::auth::resolve_cookie_domain;
 
 fn request_hostname(headers: &HeaderMap) -> String {
     parse_forwarded_header_value(headers, "host")
@@ -1409,9 +1407,7 @@ fn normalize_host(value: &str) -> String {
     host
 }
 
-fn first_header(headers: &HeaderMap, name: &str) -> Option<String> {
-    crate::http_utils::first_header_value(headers, name)
-}
+use crate::http_utils::first_header_value as first_header;
 
 fn string_field<'a>(value: &'a Value, key: &str) -> Option<&'a str> {
     value.get(key).and_then(Value::as_str)

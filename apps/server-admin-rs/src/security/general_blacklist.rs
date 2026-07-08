@@ -74,10 +74,6 @@ pub fn general_blacklist_routes() -> Router<AppState> {
             "/api/admin/general-blacklist",
             get(list).post(add).delete(remove),
         )
-        .route(
-            "/api/admin/general-blacklist/",
-            get(list).post(add).delete(remove),
-        )
         .route("/api/admin/general-blacklist/status", post(status))
         .route("/api/admin/general-blacklist/{ip}", delete(remove_ip))
 }

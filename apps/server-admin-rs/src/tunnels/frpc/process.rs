@@ -1,11 +1,7 @@
 use super::*;
 
 pub(super) fn pid_path_for_meta(meta: &FrpcInstanceMeta) -> PathBuf {
-    if meta.is_primary {
-        PathBuf::from(&meta.work_dir).join("frpc.pid")
-    } else {
-        PathBuf::from(&meta.work_dir).join("frpc.pid")
-    }
+    PathBuf::from(&meta.work_dir).join("frpc.pid")
 }
 
 pub(super) async fn read_pid_file(path: &Path) -> Option<u32> {
@@ -54,24 +50,13 @@ pub(super) async fn terminate_pid(pid: u32) -> FrpcResult<()> {
 }
 
 pub(super) fn send_signal(pid: u32, signal: libc::c_int) {
-    #[cfg(unix)]
-    unsafe {
-        libc::kill(pid as libc::pid_t, signal);
+    if let Ok(pid) = i32::try_from(pid) {
+        let _ = crate::unix::send_signal(pid, signal);
     }
 }
 
 pub(super) fn is_process_alive(pid: u32) -> bool {
-    if pid == 0 || pid == std::process::id() {
-        return false;
-    }
-    #[cfg(unix)]
-    unsafe {
-        libc::kill(pid as libc::pid_t, 0) == 0
-    }
-    #[cfg(not(unix))]
-    {
-        false
-    }
+    i32::try_from(pid).is_ok_and(crate::unix::process_exists)
 }
 
 pub(super) async fn is_owned_frpc_pid(pid: u32, config_path: &str) -> bool {

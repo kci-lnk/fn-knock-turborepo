@@ -161,23 +161,7 @@ pub(in crate::notifications::routes) fn message_summary(message: &Value) -> Stri
     message_text(message, "summary")
 }
 
-pub(in crate::notifications::routes) trait EmptyStringExt {
-    fn if_empty(self, fallback: String) -> String;
-}
-
-impl EmptyStringExt for String {
-    fn if_empty(self, fallback: String) -> String {
-        if self.is_empty() { fallback } else { self }
-    }
-}
-
-pub(in crate::notifications::routes) fn default_string(value: String, fallback: &str) -> String {
-    if value.trim().is_empty() {
-        fallback.to_string()
-    } else {
-        value
-    }
-}
+pub(in crate::notifications::routes) use crate::text_utils::{EmptyStringExt, default_string};
 
 pub(in crate::notifications::routes) fn non_empty_or(
     first: String,

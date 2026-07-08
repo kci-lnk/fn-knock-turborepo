@@ -1,4 +1,8 @@
 use super::*;
+use crate::{
+    runtime_profile::configured_share_directory_with_legacy_env_precedence as configured_share_directory,
+    time_utils::system_time_iso,
+};
 
 pub(super) async fn list_backup_directory_files() -> anyhow::Result<Value> {
     let Some(directory) = configured_share_directory().map(|path| path.join(BACKUP_DIRECTORY_NAME))
@@ -96,35 +100,4 @@ pub(super) async fn ensure_backup_directory() -> Result<PathBuf, BackupImportErr
         .await
         .map_err(|error| BackupImportError::internal(error.to_string()))?;
     Ok(directory)
-}
-
-pub(super) fn configured_share_directory() -> Option<PathBuf> {
-    std::env::var("FN_KNOCK_ROOT_SHARE_DIR")
-        .or_else(|_| std::env::var("FN_KNOCK_CERT_SHARE_DIR"))
-        .ok()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .map(PathBuf::from)
-        .or_else(|| {
-            let raw = std::env::var("TRIM_DATA_SHARE_PATHS").ok()?;
-            raw.split(':')
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-                .min_by_key(|value| value.len())
-                .map(PathBuf::from)
-        })
-}
-
-pub(super) fn system_time_iso(time: SystemTime) -> String {
-    let duration = time
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default();
-    time::OffsetDateTime::from_unix_timestamp(duration.as_secs() as i64)
-        .ok()
-        .and_then(|value| {
-            value
-                .format(&time::format_description::well_known::Rfc3339)
-                .ok()
-        })
-        .unwrap_or_else(time_utils::now_iso)
 }

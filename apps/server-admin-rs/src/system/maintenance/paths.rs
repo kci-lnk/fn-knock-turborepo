@@ -152,40 +152,8 @@ pub(super) fn js_number_from_string(value: &str) -> Option<f64> {
 }
 
 pub(super) fn backup_app_version_supported(version: &str) -> bool {
-    compare_version(version, APP_BACKUP_IMPORT_MIN_VERSION) >= 0
-        && compare_version(version, APP_LOCAL_VERSION) <= 0
-}
-
-pub(super) fn compare_version(left: &str, right: &str) -> i8 {
-    let left_parts = version_parts(left);
-    let right_parts = version_parts(right);
-    let max_len = left_parts.len().max(right_parts.len()).max(3);
-    for index in 0..max_len {
-        let left = *left_parts.get(index).unwrap_or(&0);
-        let right = *right_parts.get(index).unwrap_or(&0);
-        if left > right {
-            return 1;
-        }
-        if left < right {
-            return -1;
-        }
-    }
-    0
-}
-
-pub(super) fn version_parts(value: &str) -> Vec<i64> {
-    value
-        .trim()
-        .split('.')
-        .map(|part| {
-            let digits = part
-                .chars()
-                .skip_while(|ch| !ch.is_ascii_digit())
-                .take_while(|ch| ch.is_ascii_digit())
-                .collect::<String>();
-            digits.parse::<i64>().unwrap_or(0)
-        })
-        .collect()
+    crate::version_utils::compare_version(version, APP_BACKUP_IMPORT_MIN_VERSION) >= 0
+        && crate::version_utils::compare_version(version, APP_LOCAL_VERSION) <= 0
 }
 
 pub(super) fn summarize_command_failure(stdout: &[u8], stderr: &[u8]) -> Option<String> {

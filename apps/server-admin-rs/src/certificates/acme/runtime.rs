@@ -49,18 +49,15 @@ pub(super) async fn stop_all_acme_processes(t: &Translator) -> Value {
     let matched_pids = find_acme_process_ids().await.unwrap_or_default();
     let mut errors = Vec::new();
     for pid in &matched_pids {
-        #[cfg(unix)]
-        unsafe {
-            if libc::kill(*pid, libc::SIGTERM) != 0 {
-                errors.push(t.t_params(
-                    "server.acmeService.sendSignalFailed",
-                    &[
-                        ("signal", "SIGTERM".to_string()),
-                        ("target", pid.to_string()),
-                        ("detail", std::io::Error::last_os_error().to_string()),
-                    ],
-                ));
-            }
+        if let Err(error) = crate::unix::send_signal(*pid, libc::SIGTERM) {
+            errors.push(t.t_params(
+                "server.acmeService.sendSignalFailed",
+                &[
+                    ("signal", "SIGTERM".to_string()),
+                    ("target", pid.to_string()),
+                    ("detail", error.to_string()),
+                ],
+            ));
         }
     }
     tokio::time::sleep(std::time::Duration::from_millis(1000)).await;

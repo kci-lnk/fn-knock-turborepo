@@ -140,10 +140,6 @@ pub fn whitelist_routes() -> Router<AppState> {
             get(list_whitelist).post(add_whitelist),
         )
         .route(
-            "/api/admin/whitelist/",
-            get(list_whitelist).post(add_whitelist),
-        )
-        .route(
             "/api/admin/whitelist/regions",
             get(list_whitelist_regions).post(add_whitelist_regions),
         )
@@ -1405,12 +1401,7 @@ fn diff_targets(
         .collect()
 }
 
-fn now_seconds() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|duration| duration.as_secs() as i64)
-        .unwrap_or_default()
-}
+use crate::time_utils::now_seconds;
 
 fn failure_with_data(status: StatusCode, message: String, data: Value) -> Response {
     (

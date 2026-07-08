@@ -1,4 +1,5 @@
 use super::*;
+use crate::net_utils::{ipv4_prefix_len, ipv6_prefix_len};
 
 pub(super) async fn test_public_check_sources_inner(
     sources: &Value,
@@ -771,12 +772,4 @@ pub(super) fn is_private_ipv4(ip: Ipv4Addr) -> bool {
 pub(super) fn is_unique_local_ipv6(ip: Ipv6Addr) -> bool {
     let first = ip.octets()[0];
     first == 0xfc || first == 0xfd
-}
-
-pub(super) fn ipv4_prefix_len(mask: Ipv4Addr) -> u32 {
-    mask.octets().iter().map(|byte| byte.count_ones()).sum()
-}
-
-pub(super) fn ipv6_prefix_len(mask: Ipv6Addr) -> u32 {
-    mask.octets().iter().map(|byte| byte.count_ones()).sum()
 }

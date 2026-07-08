@@ -13,6 +13,7 @@ fi
 GO_REAUTH_PROXY_DIR="${FN_KNOCK_GO_REAUTH_PROXY_DIR:-${ROOT_DIR}/../Go-Reauth-Proxy}"
 GO_REAUTH_PROXY_BUILD_DIR="${FN_KNOCK_GO_REAUTH_PROXY_BUILD_DIR:-${GO_REAUTH_PROXY_DIR}/build}"
 SKIP_BUILD="${FN_KNOCK_GO_REAUTH_PROXY_SKIP_BUILD:-0}"
+FORCE_BUILD="${FN_KNOCK_GO_REAUTH_PROXY_FORCE_BUILD:-0}"
 
 log() {
   echo "[fn-knock] $*"
@@ -25,6 +26,11 @@ fail() {
 
 needs_build() {
   local arch
+
+  if [ "${FORCE_BUILD}" = "1" ]; then
+    return 0
+  fi
+
   for arch in "${ARCHES[@]}"; do
     if [ ! -f "${GO_REAUTH_PROXY_BUILD_DIR}/go-reauth-proxy-linux-${arch}" ]; then
       return 0
@@ -45,7 +51,11 @@ if needs_build; then
   command -v task >/dev/null 2>&1 || \
     fail "missing required command: task"
 
-  log "Building go-reauth-proxy binaries with task build in ${GO_REAUTH_PROXY_DIR}"
+  if [ "${FORCE_BUILD}" = "1" ]; then
+    log "Force rebuilding go-reauth-proxy binaries with task build in ${GO_REAUTH_PROXY_DIR}"
+  else
+    log "Building go-reauth-proxy binaries with task build in ${GO_REAUTH_PROXY_DIR}"
+  fi
   (cd "${GO_REAUTH_PROXY_DIR}" && task build)
 fi
 

@@ -57,6 +57,9 @@ npm run dev
 npm run build
 npm run check-types
 npm run lint
+
+# 全部构建
+FN_KNOCK_FORCE_ARTIFACT_REBUILD=1 bun run fn-knock:deploy-all
 ```
 
 ## 仓库结构

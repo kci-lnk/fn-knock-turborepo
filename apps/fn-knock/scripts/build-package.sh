@@ -132,63 +132,17 @@ build_package_assets() {
   cd "${ROOT_DIR}"
 
   echo "[fn-knock] Target FPK architectures: ${FPK_ARCHES[*]}"
-  echo "[fn-knock] Syncing derived versions from version.json..."
-  sync_manifest_version
-  RUNTIME_DIR="${ROOT_DIR}/dist/fn-knock-runtime"
-
-  echo "[fn-knock] Building shared runtime assets..."
-  FN_KNOCK_BUILD_RUST_BACKEND=0 \
-    FN_KNOCK_RUNTIME_GATEWAY_ARCHES="${FPK_ARCHES[*]}" \
-    bash "${ROOT_DIR}/scripts/assemble-runtime.sh" "${RUNTIME_DIR}"
-
-  build_fpk_rust_backends
-
-  PKG_DIR="${ROOT_DIR}/apps/fn-knock/app"
-  ADMIN_WWW_DIR="${PKG_DIR}/ui/www"
-  AUTH_DIST_DIR="${PKG_DIR}/server-auth-view/dist"
-  SERVER_ADMIN_DIR="${PKG_DIR}/server/server-admin"
-  SERVER_DIR="${PKG_DIR}/server"
-
-  echo "[fn-knock] Preparing package directories..."
-  mkdir -p "${ADMIN_WWW_DIR}" "${AUTH_DIST_DIR}" "${SERVER_ADMIN_DIR}" "${SERVER_DIR}"
-  rm -f \
-    "${SERVER_DIR}/server-admin-rs" \
-    "${SERVER_DIR}"/server-admin-rs-linux-* \
-    "${SERVER_DIR}"/go-reauth-proxy-linux-*
-
-  echo "[fn-knock] Syncing server-admin-view dist -> app/ui/www"
-  rsync -a --delete "${RUNTIME_DIR}/ui/www/" "${ADMIN_WWW_DIR}/"
-
-  echo "[fn-knock] Syncing server-auth-view dist -> app/server-auth-view/dist"
-  rsync -a --delete "${RUNTIME_DIR}/server-auth-view/dist/" "${AUTH_DIST_DIR}/"
-
-  echo "[fn-knock] Syncing ACME resources -> app/server/server-admin"
-  rsync -a --delete "${RUNTIME_DIR}/server/server-admin/" "${SERVER_ADMIN_DIR}/"
-
-  echo "[fn-knock] Copying Rust server-admin backend binaries"
-  for arch in "${FPK_ARCHES[@]}"; do
-    cp "${RUST_BACKEND_OUTPUT_DIR}/server-admin-rs-linux-${arch}" "${SERVER_DIR}/server-admin-rs-linux-${arch}"
-  done
-  cp "${RUST_BACKEND_OUTPUT_DIR}/server-admin-rs-linux-${FPK_ARCHES[0]}" "${SERVER_DIR}/server-admin-rs"
-
-  echo "[fn-knock] Copying gateway binaries"
-  for arch in "${FPK_ARCHES[@]}"; do
-    cp "${RUNTIME_DIR}/server/go-reauth-proxy-linux-${arch}" "${SERVER_DIR}/go-reauth-proxy-linux-${arch}"
-  done
-
-  local chmod_targets=(
+  if [ "${FN_KNOCK_ARTIFACTS_ALREADY_PREPARED:-0}" = "1" ]; then
+    echo "[fn-knock] Using already prepared shared artifacts for FPK package assets"
+  else
+    echo "[fn-knock] Preparing shared artifacts for FPK package assets..."
+    FN_KNOCK_FPK_ARCHES="${FPK_ARCHES[*]}" \
+      FN_KNOCK_RUNTIME_GATEWAY_ARCHES="${FPK_ARCHES[*]}" \
+      bash "${ROOT_DIR}/scripts/fn-knock-prepare-artifacts.sh" fpk
+  fi
+  chmod +x \
     "${ROOT_DIR}/apps/fn-knock/cmd/main" \
-    "${ROOT_DIR}/apps/fn-knock/app/ui/index.cgi" \
-    "${SERVER_DIR}/server-admin-rs"
-  )
-  for arch in "${FPK_ARCHES[@]}"; do
-    chmod_targets+=(
-      "${SERVER_DIR}/server-admin-rs-linux-${arch}"
-      "${SERVER_DIR}/go-reauth-proxy-linux-${arch}"
-    )
-  done
-  chmod +x "${chmod_targets[@]}"
-
+    "${ROOT_DIR}/apps/fn-knock/app/ui/index.cgi"
   echo "[fn-knock] Package assets are ready under apps/fn-knock/app"
 }
 

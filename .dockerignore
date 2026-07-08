@@ -14,3 +14,7 @@ coverage
 .env
 .env.*
 !.env.example
+!apps/fn-knock/app/server-auth-view/dist
+!apps/fn-knock/app/server-auth-view/dist/**
+apps/fn-knock/app/server/server-admin/**
+apps/fn-knock/app/server/server-admin-rs*

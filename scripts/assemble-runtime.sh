@@ -37,8 +37,11 @@ read_gateway_arches() {
       arm64|aarch64)
         normalized="arm64"
         ;;
+      arm32|armv8l|armv7|armv7l|armhf|arm)
+        normalized="arm"
+        ;;
       *)
-        echo "[fn-knock] Invalid gateway architecture: ${arch}; expected amd64/x86 or arm64" >&2
+        echo "[fn-knock] Invalid gateway architecture: ${arch}; expected amd64/x86, arm64, or arm" >&2
         exit 1
         ;;
     esac

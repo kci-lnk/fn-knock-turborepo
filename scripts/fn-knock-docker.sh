@@ -37,6 +37,11 @@ DOCKER_RUST_BACKEND_DIR="${FN_KNOCK_DOCKER_RUST_BACKEND_DIR:-${DOCKER_DIR}/rust-
 DOCKER_RUST_BACKEND_BIN_DIR="${FN_KNOCK_DOCKER_RUST_BACKEND_BIN_DIR:-}"
 DOCKER_RUST_BUILD_MODE="${FN_KNOCK_DOCKER_BUILD_RUST_BACKENDS:-auto}"
 RUST_MUSL_CROSS_IMAGE_PREFIX="${FN_KNOCK_DOCKER_RUST_MUSL_CROSS_IMAGE_PREFIX:-messense/rust-musl-cross}"
+ARTIFACTS_DIR="${FN_KNOCK_ARTIFACTS_DIR:-${ROOT_DIR}/dist/fn-knock-artifacts}"
+PREPARED_RUNTIME_DIR="${FN_KNOCK_PREPARED_RUNTIME_DIR:-${ARTIFACTS_DIR}/runtime}"
+PREPARED_MUSL_RUST_BACKEND_DIR="${FN_KNOCK_PREPARED_MUSL_RUST_BACKEND_DIR:-${ARTIFACTS_DIR}/musl-rust-backends}"
+USE_PREPARED_ARTIFACTS="${FN_KNOCK_USE_PREPARED_ARTIFACTS:-1}"
+DOCKER_ARTIFACTS_PREPARED=0
 
 cleanup_temp_files() {
   if [ "${#TEMP_FILES[@]}" -gt 0 ]; then
@@ -277,6 +282,33 @@ prepare_docker_rust_backend() {
       fail "unsupported FN_KNOCK_DOCKER_BUILD_RUST_BACKENDS=${DOCKER_RUST_BUILD_MODE}; expected auto, 0, or 1"
       ;;
   esac
+}
+
+ensure_docker_artifacts() {
+  if [ "${USE_PREPARED_ARTIFACTS}" != "1" ]; then
+    return
+  fi
+  if [ "${DOCKER_ARTIFACTS_PREPARED}" = "1" ]; then
+    return
+  fi
+
+  if [ "${FN_KNOCK_ARTIFACTS_ALREADY_PREPARED:-0}" = "1" ]; then
+    log "Using already prepared shared artifacts for Docker images"
+  else
+    log "Preparing shared artifacts for Docker images"
+    FN_KNOCK_RUNTIME_GATEWAY_ARCHES="amd64 arm64 arm" \
+      FN_KNOCK_MUSL_ARCHES="amd64 arm64 arm" \
+      FN_KNOCK_DOCKER_RUST_BACKEND_DIR="${DOCKER_RUST_BACKEND_DIR}" \
+      bash "${ROOT_DIR}/scripts/fn-knock-prepare-artifacts.sh" docker
+  fi
+
+  if [ -z "${DOCKER_RUST_BACKEND_BIN_DIR}" ]; then
+    DOCKER_RUST_BACKEND_BIN_DIR="${PREPARED_MUSL_RUST_BACKEND_DIR}"
+  fi
+  GATEWAY_BINARIES_PREPARED=1
+  DOCKER_ARTIFACTS_PREPARED=1
+  log "Using prepared runtime: ${PREPARED_RUNTIME_DIR}"
+  log "Using prepared Rust backends: ${DOCKER_RUST_BACKEND_BIN_DIR}"
 }
 
 read_proxy_value() {
@@ -693,6 +725,7 @@ run_buildx_image() {
   platform="$(docker_platform_for_arch "${arch}")"
   gateway_arch="$(gateway_arch_for_docker_arch "${arch}")"
   fn_knock_sync_rust_package_version "${ROOT_DIR}" "[fn-knock-docker]"
+  ensure_docker_artifacts
   prepare_gateway_binaries
   require_cmd file
   prepare_docker_rust_backend "${gateway_arch}"
@@ -1161,6 +1194,8 @@ Optional env overrides:
   FN_KNOCK_DOCKER_RUST_BACKEND_BIN_DIR (optional prebuilt server-admin-rs-linux-* source dir)
   FN_KNOCK_DOCKER_RUST_BACKEND_DIR     (default: deploy/docker/rust-backends)
   FN_KNOCK_DOCKER_RUST_MUSL_CROSS_IMAGE_PREFIX (default: messense/rust-musl-cross)
+  FN_KNOCK_USE_PREPARED_ARTIFACTS (default: 1; set 0 to use legacy per-command preparation)
+  FN_KNOCK_ARTIFACTS_DIR          (default: dist/fn-knock-artifacts)
   FN_KNOCK_DOCKER_BUILDER         (optional docker buildx builder name)
   FN_KNOCK_DOCKER_MANAGED_BUILDER (default: fn-knock-buildx)
   FN_KNOCK_DOCKER_HTTP_PROXY      (optional build proxy; falls back to HTTP_PROXY/http_proxy)

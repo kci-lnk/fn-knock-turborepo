@@ -18,6 +18,10 @@ RUNTIME_DIR="${OUTPUT_DIR}/runtime"
 TEMPLATE_DIR="${ROOT_DIR}/deploy/openwrt"
 RUST_BACKEND_BIN_DIR="${FN_KNOCK_OPENWRT_RUST_BACKEND_BIN_DIR:-}"
 RUST_BACKEND_OUTPUT_DIR="${FN_KNOCK_OPENWRT_RUST_BACKEND_OUTPUT_DIR:-${OUTPUT_DIR}/rust-backends}"
+ARTIFACTS_DIR="${FN_KNOCK_ARTIFACTS_DIR:-${ROOT_DIR}/dist/fn-knock-artifacts}"
+PREPARED_RUNTIME_DIR="${FN_KNOCK_PREPARED_RUNTIME_DIR:-${ARTIFACTS_DIR}/runtime}"
+PREPARED_MUSL_RUST_BACKEND_DIR="${FN_KNOCK_PREPARED_MUSL_RUST_BACKEND_DIR:-${ARTIFACTS_DIR}/musl-rust-backends}"
+USE_PREPARED_ARTIFACTS="${FN_KNOCK_USE_PREPARED_ARTIFACTS:-1}"
 VERSION_FILE="${ROOT_DIR}/version.json"
 DEFAULT_ARCH_MATRIX="aarch64_cortex-a53:arm64,aarch64_generic:arm64,arm_cortex-a7_neon-vfpv4:arm,arm_cortex-a5_vfpv4:arm,x86_64:amd64"
 ARCH_MATRIX="${FN_KNOCK_OPENWRT_ARCHES:-${DEFAULT_ARCH_MATRIX}}"
@@ -288,6 +292,24 @@ prepare_openwrt_rust_backends() {
 
 prepare_runtime() {
   local gateway_arches=("$@")
+
+  if [ "${USE_PREPARED_ARTIFACTS}" = "1" ]; then
+    if [ "${FN_KNOCK_ARTIFACTS_ALREADY_PREPARED:-0}" = "1" ]; then
+      log "Using already prepared shared artifacts for OpenWrt"
+    else
+      log "Preparing shared artifacts for OpenWrt (${gateway_arches[*]})"
+      FN_KNOCK_RUNTIME_GATEWAY_ARCHES="${gateway_arches[*]}" \
+        FN_KNOCK_MUSL_ARCHES="${gateway_arches[*]}" \
+        bash "${ROOT_DIR}/scripts/fn-knock-prepare-artifacts.sh" openwrt
+    fi
+    RUNTIME_DIR="${PREPARED_RUNTIME_DIR}"
+    if [ -z "${RUST_BACKEND_BIN_DIR}" ]; then
+      RUST_BACKEND_BIN_DIR="${PREPARED_MUSL_RUST_BACKEND_DIR}"
+    fi
+    log "Using prepared runtime: ${RUNTIME_DIR}"
+    log "Using prepared Rust backends: ${RUST_BACKEND_BIN_DIR}"
+    return
+  fi
 
   log "Assembling shared runtime"
   rm -rf "${RUNTIME_DIR}"

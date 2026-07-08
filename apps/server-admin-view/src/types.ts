@@ -65,6 +65,12 @@ export interface HostMappingBasicAuth {
   password: string;
 }
 
+export interface HostMappingAvailability {
+  enabled: boolean;
+  start_time: string;
+  end_time: string;
+}
+
 export type HostLocationMatch = "exact" | "prefix";
 export type HostLocationAction = "proxy" | "response";
 
@@ -93,6 +99,8 @@ export interface HostMapping {
   suppress_toolbar: boolean;
   preserve_host: boolean;
   is_default: boolean;
+  disabled: boolean;
+  availability: HostMappingAvailability | null;
   basic_auth: HostMappingBasicAuth;
   locations: HostLocation[];
   service_role: HostServiceRole;

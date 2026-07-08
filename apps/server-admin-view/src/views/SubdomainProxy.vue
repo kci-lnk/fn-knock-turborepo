@@ -33,7 +33,9 @@
       :discover-button-variant="discoverButtonVariant"
       :docs-href="docsUrls.guides.subdomainProxy"
       :filtered-mappings="filteredMappings"
+      :format-availability-window="formatAvailabilityWindow"
       :format-host="formatHostWithAccessEntryPort"
+      :get-availability-state="getAvailabilityState"
       :get-host-traffic-sample="getHostTrafficSample"
       :get-mapping-title-for-display="getMappingTitleForDisplay"
       :handle-location-rules-tooltip-open-change="
@@ -53,6 +55,7 @@
       :is-exporting-bookmarks="isExportingBookmarks"
       :is-favicon-broken="isFaviconBroken"
       :is-gateway-portal-enabled="isGatewayPortalEnabled"
+      :is-mapping-unavailable="isMappingUnavailable"
       :is-location-rules-tooltip-open="isLocationRulesTooltipOpen"
       :is-protocol-headers-warning-open="isProtocolHeadersWarningOpen"
       :is-refreshing-titles="isRefreshingTitles"
@@ -79,12 +82,14 @@
       @open-clear-all-config="openClearAllConfigDialog"
       @open-create="openCreateDialog"
       @open-discover="openDiscoverDialog"
+      @open-availability="openAvailabilityDialog"
       @open-gateway-locations="openGatewayLocations"
       @open-stale-cleanup="openStaleCleanupDialog"
       @refresh-all-titles="refreshAllTitles"
       @save-order="saveMappingOrder"
       @set-default="setDefaultMapping"
       @sync-routes="syncRoutes"
+      @toggle-enabled="openToggleMappingDialog"
     />
 
     <SubdomainMappingDialog
@@ -163,6 +168,35 @@
       @confirm="confirmDelete"
     />
 
+    <SubdomainActionConfirmDialog
+      :open="isToggleDialogOpen"
+      :title="toggleDialogTitle"
+      :description="toggleDialogDescription"
+      :cancel-label="t('admin.subdomainProxy.cancel')"
+      :confirm-label="toggleDialogConfirmLabel"
+      :confirm-variant="toggleDialogConfirmVariant"
+      :loading="isSavingMappings"
+      @update:open="handleToggleDialogOpenChange"
+      @cancel="closeToggleDialog"
+      @confirm="confirmToggleMapping"
+    />
+
+    <SubdomainAvailabilityDialog
+      :open="isAvailabilityDialogOpen"
+      :host="availabilityDialogHostLabel"
+      :enabled="availabilityFormEnabled"
+      :start-time="availabilityFormStartTime"
+      :end-time="availabilityFormEndTime"
+      :loading="isSavingMappings"
+      :validation-message="availabilityValidationMessage"
+      @update:open="handleAvailabilityDialogOpenChange"
+      @update:enabled="availabilityFormEnabled = $event"
+      @update:start-time="availabilityFormStartTime = $event"
+      @update:end-time="availabilityFormEndTime = $event"
+      @cancel="closeAvailabilityDialog"
+      @save="saveAvailabilityDialog"
+    />
+
     <SubdomainDiscoverDialog
       :ref="setDiscoverDialogRef"
       :open="isDiscoverDialogOpen"
@@ -200,6 +234,8 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import StaleHostMappingsCleanupDialog from "@/components/StaleHostMappingsCleanupDialog.vue";
+import SubdomainActionConfirmDialog from "./subdomain-proxy/SubdomainActionConfirmDialog.vue";
+import SubdomainAvailabilityDialog from "./subdomain-proxy/SubdomainAvailabilityDialog.vue";
 import SubdomainDeleteDialog from "./subdomain-proxy/SubdomainDeleteDialog.vue";
 import SubdomainDiscoverDialog from "./subdomain-proxy/SubdomainDiscoverDialog.vue";
 import SubdomainMappingDialog from "./subdomain-proxy/SubdomainMappingDialog.vue";
@@ -227,6 +263,8 @@ import {
   resolveDefaultAuthServiceTarget,
 } from "./subdomain-proxy/model";
 import { useAccessEntryPort } from "./subdomain-proxy/useAccessEntryPort";
+import { useSubdomainAvailabilityActions } from "./subdomain-proxy/useSubdomainAvailabilityActions";
+import { useSubdomainAvailabilityStatus } from "./subdomain-proxy/useSubdomainAvailabilityStatus";
 import { useDelayedHostPopover } from "./subdomain-proxy/useDelayedHostPopover";
 import { useMappingFaviconState } from "./subdomain-proxy/useMappingFaviconState";
 import { useTouchInteractionMode } from "./subdomain-proxy/useTouchInteractionMode";
@@ -399,6 +437,44 @@ const isGatewayAdvancedAvailableByMode = computed(() =>
 
 const getMappingTitleForDisplay = (mapping: HostMapping): string =>
   getMappingDisplayTitle(mapping) || t("admin.subdomainProxy.notFetched");
+
+const {
+  formatAvailabilityWindow,
+  getAvailabilityState,
+  isMappingUnavailable,
+  startAvailabilityClock,
+  stopAvailabilityClock,
+} = useSubdomainAvailabilityStatus();
+
+const {
+  availabilityDialogHostLabel,
+  availabilityFormEnabled,
+  availabilityFormEndTime,
+  availabilityFormStartTime,
+  availabilityValidationMessage,
+  closeAvailabilityDialog,
+  closeToggleDialog,
+  confirmToggleMapping,
+  handleAvailabilityDialogOpenChange,
+  handleToggleDialogOpenChange,
+  isAvailabilityDialogOpen,
+  isToggleDialogOpen,
+  openAvailabilityDialog,
+  openToggleMappingDialog,
+  saveAvailabilityDialog,
+  toggleDialogConfirmLabel,
+  toggleDialogConfirmVariant,
+  toggleDialogDescription,
+  toggleDialogTitle,
+} = useSubdomainAvailabilityActions({
+  allMappings,
+  formatHostWithAccessEntryPort,
+  isAuthServiceTarget,
+  isSavingMappings,
+  runSaveMappings,
+  saveHostMappings: (mappings) => configStore.saveHostMappings(mappings),
+  translate: (key, params) => (params ? t(key, params) : t(key)),
+});
 
 const {
   basicAuthInjectionModel,
@@ -615,6 +691,7 @@ watch(
 
 onMounted(async () => {
   startTouchInteractionTracking();
+  startAvailabilityClock();
 
   window.visualViewport?.addEventListener(
     "resize",
@@ -632,6 +709,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  stopAvailabilityClock();
   window.visualViewport?.removeEventListener(
     "resize",
     handleMappingDialogViewportResize,
@@ -704,6 +782,8 @@ async function addAuthService() {
         suppress_toolbar: false,
         preserve_host: true,
         is_default: false,
+        disabled: false,
+        availability: null,
         basic_auth: createDisabledMappingBasicAuth(),
         locations: [],
         service_role: "auth",

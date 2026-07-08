@@ -13,11 +13,11 @@ use crate::grpc_proto::{
     AuthConfig, BasicAuthConfig, BoolValue, CommonLocationExemptionsRuntime, CrawlerBlockerConfig,
     FnosPortIconHijackConfig, GatewayLogQuery, GatewayPortalConfig, GatewayVisibilityConfig,
     GeneralBlacklistListRequest, HostActiveIpStats, HostLocation, HostLocationResponse,
-    HostRequest, HostRule, HostRules, IpListRequest, IpRequest, IptablesInitRequest, LocaleConfig,
-    LoggingConfig, OmitTargetsConfig, ReverseProxyThrottleConfig,
-    ReverseProxyThrottleExemptIpsRuntime, Rule, Rules, SshFirewallClearRequest,
-    SshFirewallSyncRequest, SslConfig, SslDeployedCertificate, StreamRule, StreamRules,
-    StringValue, TcpRedirectRequest, WafBundleRequest, WafConfig, WafDrainRequest,
+    HostRequest, HostRule, HostRuleAvailability, HostRules, IpListRequest, IpRequest,
+    IptablesInitRequest, LocaleConfig, LoggingConfig, OmitTargetsConfig,
+    ReverseProxyThrottleConfig, ReverseProxyThrottleExemptIpsRuntime, Rule, Rules,
+    SshFirewallClearRequest, SshFirewallSyncRequest, SslConfig, SslDeployedCertificate, StreamRule,
+    StreamRules, StringValue, TcpRedirectRequest, WafBundleRequest, WafConfig, WafDrainRequest,
     firewall_service_client::FirewallServiceClient,
     gateway_control_service_client::GatewayControlServiceClient,
     gateway_logs_service_client::GatewayLogsServiceClient,
@@ -950,6 +950,20 @@ fn parse_host_locations(value: &Value) -> Vec<HostLocation> {
         .unwrap_or_default()
 }
 
+fn parse_host_rule_availability(value: &Value) -> Option<HostRuleAvailability> {
+    if !value.is_object() {
+        return None;
+    }
+    if !bool_field(value, "enabled", false) {
+        return None;
+    }
+    Some(HostRuleAvailability {
+        enabled: true,
+        start_time: string_field(value, "start_time"),
+        end_time: string_field(value, "end_time"),
+    })
+}
+
 fn parse_host_rules(value: &Value) -> Vec<HostRule> {
     value
         .as_array()
@@ -964,6 +978,10 @@ fn parse_host_rules(value: &Value) -> Vec<HostRule> {
                     suppress_toolbar: bool_field(item, "suppress_toolbar", false),
                     preserve_host: bool_field(item, "preserve_host", true),
                     is_default: bool_field(item, "is_default", false),
+                    disabled: bool_field(item, "disabled", false),
+                    availability: item
+                        .get("availability")
+                        .and_then(parse_host_rule_availability),
                     title: string_field(item, "title"),
                     favicon: string_field(item, "favicon"),
                     basic_auth: item.get("basic_auth").map(parse_basic_auth),
@@ -1171,6 +1189,17 @@ fn host_location_response_to_json(response: Option<HostLocationResponse>) -> Val
     }
 }
 
+fn host_rule_availability_to_json(availability: Option<HostRuleAvailability>) -> Value {
+    match availability {
+        Some(availability) => json!({
+            "enabled": availability.enabled,
+            "start_time": availability.start_time,
+            "end_time": availability.end_time,
+        }),
+        None => Value::Null,
+    }
+}
+
 fn host_rules_to_json(items: Vec<HostRule>) -> Value {
     Value::Array(
         items
@@ -1184,6 +1213,8 @@ fn host_rules_to_json(items: Vec<HostRule>) -> Value {
                     "suppress_toolbar": item.suppress_toolbar,
                     "preserve_host": item.preserve_host,
                     "is_default": item.is_default,
+                    "disabled": item.disabled,
+                    "availability": host_rule_availability_to_json(item.availability),
                     "title": item.title,
                     "favicon": item.favicon,
                     "basic_auth": item.basic_auth.map(|auth| json!({

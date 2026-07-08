@@ -2,14 +2,17 @@
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import {
+  CalendarClock,
   ChevronDown,
   CircleAlert,
   Download,
   Eraser,
   GripVertical,
   Image,
-  PanelsTopLeft,
+  MoreHorizontal,
   Plus,
+  Power,
+  PowerOff,
   RefreshCw,
   Route as RouteIcon,
   Search,
@@ -18,7 +21,6 @@ import {
   StarOff,
   Trash2,
 } from "lucide-vue-next";
-import { Badge } from "@/components/ui/badge";
 import { Button, type ButtonVariants } from "@/components/ui/button";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
 import {
@@ -33,6 +35,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -40,12 +45,6 @@ import {
   PopoverAnchor,
   PopoverContent,
 } from "@/components/ui/popover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import {
   Table,
   TableCell,
@@ -57,13 +56,13 @@ import { VueDraggable } from "vue-draggable-plus";
 import HostTrafficActivity from "@/components/HostTrafficActivity.vue";
 import InlineCommentEditor from "@admin-shared/components/InlineCommentEditor.vue";
 import SearchInput from "@admin-shared/components/SearchInput.vue";
-import { isWebSocketProxyTargetUrl } from "@admin-shared/utils/proxyTargetInput";
 import type { HostTrafficStats, HostMapping } from "@/types";
 import {
-  getLocationRulesCount,
   getMappingDisplayTitle,
   getMappingFaviconSrc,
+  type HostMappingAvailabilityState,
 } from "./model";
+import SubdomainMappingStatusIndicators from "./SubdomainMappingStatusIndicators.vue";
 
 const props = defineProps<{
   allMappingsCount: number;
@@ -75,6 +74,8 @@ const props = defineProps<{
   draggableMappings: HostMapping[];
   filteredMappings: HostMapping[];
   formatHost: (host: string) => string;
+  formatAvailabilityWindow: (mapping: HostMapping) => string;
+  getAvailabilityState: (mapping: HostMapping) => HostMappingAvailabilityState;
   getHostTrafficSample: (host: string) => HostTrafficStats | null;
   getMappingTitleForDisplay: (mapping: HostMapping) => string;
   handleLocationRulesTooltipOpenChange: (host: string, open: boolean) => void;
@@ -87,6 +88,7 @@ const props = defineProps<{
   isExportingBookmarks: boolean;
   isFaviconBroken: (mapping: HostMapping) => boolean;
   isGatewayPortalEnabled: boolean;
+  isMappingUnavailable: (mapping: HostMapping) => boolean;
   isLocationRulesTooltipOpen: (host: string) => boolean;
   isProtocolHeadersWarningOpen: (host: string) => boolean;
   isRefreshingTitles: boolean;
@@ -119,12 +121,14 @@ const emit = defineEmits<{
   "open-clear-all-config": [];
   "open-create": [];
   "open-discover": [];
+  "open-availability": [mapping: HostMapping];
   "open-gateway-locations": [host: string];
   "open-stale-cleanup": [];
   "refresh-all-titles": [];
   "save-order": [];
   "set-default": [mapping: HostMapping];
   "sync-routes": [];
+  "toggle-enabled": [mapping: HostMapping];
   "update:draggableMappings": [mappings: HostMapping[]];
   "update:searchQuery": [value: string];
 }>();
@@ -335,7 +339,7 @@ const handleMappingTableScroll = (event: Event) => {
               <TableHead class="w-[7rem] min-w-[7rem] max-w-[7rem]">
                 {{ t("admin.subdomainProxy.columns.traffic") }}
               </TableHead>
-              <TableHead class="w-[5.5rem] min-w-[5.5rem]">
+              <TableHead class="w-[8rem] min-w-[8rem]">
                 {{ t("admin.subdomainProxy.columns.status") }}
               </TableHead>
               <TableHead class="text-right">
@@ -365,7 +369,10 @@ const handleMappingTableScroll = (event: Event) => {
             <TableRow
               v-for="mapping in draggableModel"
               :key="mapping.host"
-              class="group"
+              :class="[
+                'group',
+                isMappingUnavailable(mapping) ? 'text-muted-foreground' : '',
+              ]"
             >
               <TableCell
                 class="mapping-sticky-cell mapping-order-cell mapping-icon-cell"
@@ -388,7 +395,8 @@ const handleMappingTableScroll = (event: Event) => {
                   "
                   :src="getMappingFaviconSrc(mapping)"
                   :alt="`${getMappingTitleForDisplay(mapping)} favicon`"
-                  class="h-4 w-4 object-contain"
+                  class="h-4 w-4 object-contain transition-opacity"
+                  :class="{ 'opacity-45': isMappingUnavailable(mapping) }"
                   @error="markFaviconBroken(mapping)"
                 />
               </TableCell>
@@ -487,6 +495,10 @@ const handleMappingTableScroll = (event: Event) => {
                 <button
                   type="button"
                   class="break-all rounded-sm text-left transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  :class="{
+                    'text-muted-foreground hover:text-foreground':
+                      isMappingUnavailable(mapping),
+                  }"
                   :title="
                     t('admin.subdomainProxy.copyHostTitle', {
                       host: formatHost(mapping.host),
@@ -502,7 +514,13 @@ const handleMappingTableScroll = (event: Event) => {
                   {{ formatHost(mapping.host) }}
                 </button>
               </TableCell>
-              <TableCell>{{ mapping.target }}</TableCell>
+              <TableCell
+                :class="{
+                  'text-muted-foreground': isMappingUnavailable(mapping),
+                }"
+              >
+                {{ mapping.target }}
+              </TableCell>
               <TableCell class="w-[7rem] min-w-[7rem] max-w-[7rem]">
                 <HostTrafficActivity
                   :host="mapping.host"
@@ -511,91 +529,22 @@ const handleMappingTableScroll = (event: Event) => {
                   :timestamp="trafficTimestamp ?? null"
                 />
               </TableCell>
-              <TableCell class="w-[5.5rem] min-w-[5.5rem]">
-                <div
-                  class="flex min-w-max flex-nowrap items-center gap-2 text-xs text-muted-foreground"
-                >
-                  <Badge
-                    v-if="isAuthServiceTarget(mapping.target)"
-                    variant="default"
-                  >
-                    {{ t("admin.subdomainProxy.authServiceBadge") }}
-                  </Badge>
-                  <TooltipProvider v-if="mapping.is_default">
-                    <Tooltip>
-                      <TooltipTrigger as-child>
-                        <span
-                          class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-muted-foreground"
-                          :aria-label="
-                            t('admin.subdomainProxy.defaultDomainAria', {
-                              host: formatHost(mapping.host),
-                            })
-                          "
-                        >
-                          <Star class="h-3.5 w-3.5" />
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" align="center">
-                        <p>{{ t("admin.subdomainProxy.defaultDomain") }}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                  <ShieldCheck
-                    v-if="mapping.use_auth"
-                    class="h-3.5 w-3.5 shrink-0"
-                  />
-                  <Badge v-else variant="secondary">
-                    {{ t("admin.subdomainProxy.publicAccess") }}
-                  </Badge>
-                  <PanelsTopLeft
-                    v-if="
-                      isGatewayPortalEnabled &&
-                      mapping.use_auth &&
-                      !mapping.suppress_toolbar &&
-                      !isWebSocketProxyTargetUrl(mapping.target)
-                    "
-                    class="h-3.5 w-3.5 shrink-0"
-                  />
-                  <TooltipProvider v-if="getLocationRulesCount(mapping) > 0">
-                    <Tooltip
-                      :open="isLocationRulesTooltipOpen(mapping.host)"
-                      @update:open="
-                        (nextOpen) =>
-                          handleLocationRulesTooltipOpenChange(
-                            mapping.host,
-                            nextOpen,
-                          )
-                      "
-                    >
-                      <TooltipTrigger as-child>
-                        <button
-                          type="button"
-                          class="inline-flex h-5 w-5 shrink-0 cursor-help items-center justify-center rounded-md transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-                          :aria-label="
-                            t('admin.subdomainProxy.locationRulesAria', {
-                              host: formatHost(mapping.host),
-                              count: getLocationRulesCount(mapping),
-                            })
-                          "
-                          @click="
-                            handleLocationRulesTooltipTriggerClick(mapping.host)
-                          "
-                        >
-                          <RouteIcon class="h-3.5 w-3.5" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" align="center">
-                        <p>
-                          {{
-                            t("admin.subdomainProxy.locationRulesCount", {
-                              count: getLocationRulesCount(mapping),
-                            })
-                          }}
-                        </p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
+              <TableCell class="w-[8rem] min-w-[8rem]">
+                <SubdomainMappingStatusIndicators
+                  :mapping="mapping"
+                  :availability-state="getAvailabilityState(mapping)"
+                  :availability-window="formatAvailabilityWindow(mapping)"
+                  :format-host="formatHost"
+                  :is-auth-service="isAuthServiceTarget(mapping.target)"
+                  :is-gateway-portal-enabled="isGatewayPortalEnabled"
+                  :is-location-rules-tooltip-open="isLocationRulesTooltipOpen"
+                  :handle-location-rules-tooltip-open-change="
+                    handleLocationRulesTooltipOpenChange
+                  "
+                  :handle-location-rules-tooltip-trigger-click="
+                    handleLocationRulesTooltipTriggerClick
+                  "
+                />
               </TableCell>
               <TableCell class="text-right">
                 <div class="flex justify-end">
@@ -644,6 +593,36 @@ const handleMappingTableScroll = (event: Event) => {
                         <Star class="mr-2 h-4 w-4" />
                         {{ t("admin.subdomainProxy.setDefaultDomain") }}
                       </DropdownMenuItem>
+                      <DropdownMenuItem
+                        v-if="!isAuthServiceTarget(mapping.target)"
+                        :disabled="isSavingMappings"
+                        @select="emit('toggle-enabled', mapping)"
+                      >
+                        <Power v-if="mapping.disabled" class="mr-2 h-4 w-4" />
+                        <PowerOff v-else class="mr-2 h-4 w-4" />
+                        {{
+                          mapping.disabled
+                            ? t("admin.subdomainProxy.enableMapping")
+                            : t("admin.subdomainProxy.disableMapping")
+                        }}
+                      </DropdownMenuItem>
+                      <DropdownMenuSub
+                        v-if="!isAuthServiceTarget(mapping.target)"
+                      >
+                        <DropdownMenuSubTrigger :disabled="isSavingMappings">
+                          <MoreHorizontal class="mr-2 h-4 w-4" />
+                          {{ t("admin.subdomainProxy.moreActions") }}
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent class="w-48">
+                          <DropdownMenuItem
+                            :disabled="isSavingMappings"
+                            @select="emit('open-availability', mapping)"
+                          >
+                            <CalendarClock class="mr-2 h-4 w-4" />
+                            {{ t("admin.subdomainProxy.scheduleAvailability") }}
+                          </DropdownMenuItem>
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         variant="destructive"

@@ -2324,8 +2324,19 @@ export const enAdmin = {
     publicAccess: "Public access",
     locationRulesAria: "{host} has {count} path rules",
     locationRulesCount: "{count} path rules configured",
+    disabledBadge: "Disabled",
+    unavailableBadge: "Closed",
+    scheduleOpenAria: "Currently inside the scheduled open window",
+    scheduleOpenTooltip:
+      "Access follows open window {window}. It is currently available.",
+    scheduleClosedTooltip:
+      "Currently outside the open window. Open window: {window}.",
     edit: "Edit",
     paths: "Paths",
+    disableMapping: "Disable",
+    enableMapping: "Enable",
+    moreActions: "More",
+    scheduleAvailability: "Schedule enable or disable",
     delete: "Delete",
     backToBasicAria: "Back to basic information",
     advancedConfig: "Advanced configuration",
@@ -2403,7 +2414,15 @@ export const enAdmin = {
       "This is the final confirmation. The auth service and all subdomain mappings will be cleared immediately, while subdomain-mode settings remain unchanged. This cannot be undone.",
     deleteMappingDescription:
       "You are about to delete Host mapping {host}. This cannot be undone.",
+    disableMappingTitle: "Disable this domain?",
+    disableMappingDescription:
+      "{host} will stop proxying requests and visitors will see a temporarily unavailable page.",
+    enableMappingTitle: "Enable this domain?",
+    enableMappingDescription:
+      "{host} will become available again. If a schedule is configured, access will still follow the open window.",
     confirm: "Confirm",
+    confirmDisable: "Disable",
+    confirmEnable: "Enable",
     continueConfirm: "Continue",
     confirmClear: "Confirm clear",
     deleteMapping: "Delete mapping",
@@ -2509,6 +2528,20 @@ export const enAdmin = {
     mappingUpdated: "Host mapping updated",
     mappingAdded: "Host mapping added",
     mappingDeleted: "Host mapping deleted",
+    mappingDisabled: "Domain disabled",
+    mappingEnabled: "Domain enabled",
+    availabilityTitle: "Schedule enable or disable",
+    availabilityDescription: "Set the daily open window for {host}.",
+    availabilityEnabled: "Enable schedule",
+    availabilityStartTime: "Enable time",
+    availabilityEndTime: "Disable time",
+    availabilityServerTimeHint:
+      "Repeats daily using the server's local time. Overnight windows continue into the next day.",
+    availabilityInvalidTime: "Enter a valid HH:mm time.",
+    availabilitySameTimeInvalid:
+      "Enable time and disable time cannot be the same.",
+    availabilitySaved: "Schedule saved",
+    availabilityCleared: "Schedule disabled",
     cannotDiscover: "Cannot discover services yet",
     rootDirtyDiscover:
       "The root domain has unsaved changes. Save it before discovering services.",

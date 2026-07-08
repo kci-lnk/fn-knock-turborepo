@@ -22,6 +22,8 @@ pub(crate) fn build_host_rules_payload(mappings: &[Value]) -> Value {
                     "suppress_toolbar": object.get("suppress_toolbar").cloned().unwrap_or(Value::Bool(false)),
                     "preserve_host": object.get("preserve_host").cloned().unwrap_or(Value::Bool(true)),
                     "is_default": object.get("is_default").cloned().unwrap_or(Value::Bool(false)),
+                    "disabled": object.get("disabled").cloned().unwrap_or(Value::Bool(false)),
+                    "availability": object.get("availability").cloned().unwrap_or(Value::Null),
                     "title": title,
                     "favicon": favicon,
                     "basic_auth": object.get("basic_auth").cloned().unwrap_or_else(disabled_host_basic_auth),

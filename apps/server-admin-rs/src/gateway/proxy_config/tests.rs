@@ -88,6 +88,105 @@ fn normalizes_host_mapping_route_shape() {
 }
 
 #[test]
+fn normalizes_host_mapping_disabled_and_availability() {
+    let mappings = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "app.example.com",
+            "target": "http://127.0.0.1:8080",
+            "disabled": true,
+            "availability": {
+                "enabled": true,
+                "start_time": " 22:00 ",
+                "end_time": "06:00"
+            }
+        })],
+        &json!({}),
+    )
+    .unwrap();
+
+    assert_eq!(
+        mappings[0].get("disabled").and_then(Value::as_bool),
+        Some(true)
+    );
+    assert_eq!(
+        mappings[0]
+            .pointer("/availability/start_time")
+            .and_then(Value::as_str),
+        Some("22:00")
+    );
+    assert_eq!(
+        mappings[0]
+            .pointer("/availability/end_time")
+            .and_then(Value::as_str),
+        Some("06:00")
+    );
+
+    let payload = build_host_rules_payload(&mappings);
+    assert_eq!(
+        payload.pointer("/0/disabled").and_then(Value::as_bool),
+        Some(true)
+    );
+    assert_eq!(
+        payload
+            .pointer("/0/availability/start_time")
+            .and_then(Value::as_str),
+        Some("22:00")
+    );
+}
+
+#[test]
+fn normalizes_disabled_availability_to_null() {
+    let mappings = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "app.example.com",
+            "target": "http://127.0.0.1:8080",
+            "availability": {
+                "enabled": false,
+                "start_time": "09:00",
+                "end_time": "18:00"
+            }
+        })],
+        &json!({}),
+    )
+    .unwrap();
+
+    assert_eq!(mappings[0].get("availability"), Some(&Value::Null));
+}
+
+#[test]
+fn validates_host_availability_window_once() {
+    assert_eq!(validate_host_availability_window("09:00", "18:00"), Ok(()));
+    assert_eq!(validate_host_availability_window("22:00", "06:00"), Ok(()));
+    assert_eq!(
+        validate_host_availability_window("9:00", "18:00"),
+        Err(HostAvailabilityWindowError::InvalidStartTime)
+    );
+    assert_eq!(
+        validate_host_availability_window("09:00", "09:00"),
+        Err(HostAvailabilityWindowError::SameTime)
+    );
+}
+
+#[test]
+fn rejects_equal_host_mapping_availability_times() {
+    let error = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "app.example.com",
+            "target": "http://127.0.0.1:8080",
+            "availability": {
+                "enabled": true,
+                "start_time": "09:00",
+                "end_time": "09:00"
+            }
+        })],
+        &json!({}),
+    )
+    .unwrap_err();
+
+    assert!(error.contains("must be different"));
+}
+
+#[test]
 fn preserves_host_location_target_path_for_gateway_payload() {
     let mappings = normalize_host_mappings_for_route(
         vec![json!({

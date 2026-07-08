@@ -4,7 +4,19 @@ import {
   isSupportedProxyTargetUrl,
 } from "@admin-shared/utils/proxyTargetInput";
 import type { DiscoveredServiceInfo, ScanDiscoverResponse } from "@/lib/api";
+import { normalizeHostMappingAvailability } from "@/lib/host-mapping-availability";
 import type { HostMapping, SubdomainModeConfig } from "@/types";
+export {
+  formatHostMappingAvailabilityWindow,
+  getAvailabilityWindowValidationError,
+  getHostMappingAvailabilityState,
+  isAvailabilityWindowOpen,
+  isAvailabilityWindowValid,
+  isHostMappingUnavailable,
+  normalizeHostMappingAvailability,
+  parseAvailabilityTimeToMinutes,
+  type HostMappingAvailabilityState,
+} from "@/lib/host-mapping-availability";
 
 export type MappingInputMode = "subdomain" | "full_host";
 export type MappingDialogView = "basic" | "advanced";
@@ -283,6 +295,8 @@ export const buildDiscoveredServiceMappings = ({
     suppress_toolbar: false,
     preserve_host: true,
     is_default: false,
+    disabled: false,
+    availability: null,
     basic_auth: createDisabledMappingBasicAuth(),
     locations: [],
     service_role: "app",
@@ -590,6 +604,8 @@ export const createDefaultMapping = (): HostMapping => ({
   suppress_toolbar: false,
   preserve_host: true,
   is_default: false,
+  disabled: false,
+  availability: null,
   basic_auth: createDisabledMappingBasicAuth(),
   locations: [],
   service_role: "app",
@@ -662,6 +678,11 @@ export const normalizeMappingForm = (
           : input.suppress_toolbar,
     preserve_host: input.preserve_host === true,
     is_default: serviceRole === "auth" ? false : input.is_default === true,
+    disabled: serviceRole === "auth" ? false : input.disabled === true,
+    availability:
+      serviceRole === "auth"
+        ? null
+        : normalizeHostMappingAvailability(input.availability),
     basic_auth: basicAuth.enabled
       ? basicAuth
       : createDisabledMappingBasicAuth(),

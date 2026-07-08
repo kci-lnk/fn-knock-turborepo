@@ -1,4 +1,5 @@
 import type { HostMapping, HostMappingBasicAuth } from "../../types";
+import { normalizeHostMappingAvailability } from "../host-mapping-availability";
 
 type HostMappingUpdatePayload = Pick<
   HostMapping,
@@ -9,6 +10,8 @@ type HostMappingUpdatePayload = Pick<
   | "suppress_toolbar"
   | "preserve_host"
   | "is_default"
+  | "disabled"
+  | "availability"
   | "basic_auth"
   | "locations"
   | "title_override"
@@ -32,6 +35,8 @@ export const toHostMappingUpdatePayload = (
   suppress_toolbar: mapping.suppress_toolbar,
   preserve_host: mapping.preserve_host,
   is_default: mapping.is_default === true,
+  disabled: mapping.disabled === true,
+  availability: normalizeHostMappingAvailability(mapping.availability),
   basic_auth: toHostMappingBasicAuthPayload(mapping.basic_auth),
   locations: (mapping.locations ?? []).map((location) => ({
     path: location.path.trim(),

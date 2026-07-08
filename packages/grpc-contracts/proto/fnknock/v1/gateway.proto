@@ -44,6 +44,12 @@ message HostLocation {
   HostLocationResponse response = 7;
 }
 
+message HostRuleAvailability {
+  bool enabled = 1;
+  string start_time = 2;
+  string end_time = 3;
+}
+
 message Rule {
   string path = 1;
   string target = 2;
@@ -65,6 +71,8 @@ message HostRule {
   string favicon = 9;
   BasicAuthConfig basic_auth = 10;
   repeated HostLocation locations = 11;
+  bool disabled = 12;
+  HostRuleAvailability availability = 13;
 }
 
 message StreamRule {

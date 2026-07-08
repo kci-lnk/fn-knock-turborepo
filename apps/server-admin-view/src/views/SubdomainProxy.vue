@@ -111,16 +111,13 @@
       :handle-portal-disabled-tooltip-trigger-click="
         handlePortalDisabledTooltipTriggerClick
       "
+      :is-gateway-advanced-loading="isGatewayAdvancedLoading"
       :is-mapping-auth-service="isMappingAuthService"
       :is-mapping-valid="isMappingValid"
       :is-mapping-web-socket-target="isMappingWebSocketTarget"
       :is-portal-disabled-tooltip-open="isPortalDisabledTooltipOpen"
       :is-refreshing-mapping-metadata="isRefreshingMappingMetadata"
       :is-saving-mappings="isSavingMappings"
-      :mapping-advanced-host-label="mappingAdvancedHostLabel"
-      :mapping-advanced-summary="mappingAdvancedSummary"
-      :mapping-advanced-target-label="mappingAdvancedTargetLabel"
-      :mapping-dialog-view="mappingDialogView"
       :mapping-form="mappingForm"
       :mapping-input-label="mappingInputLabel"
       :mapping-input-mode="mappingInputMode"
@@ -129,10 +126,8 @@
       :mapping-subdomain="mappingSubdomain"
       :mapping-use-auth="mappingUseAuth"
       :open="isDialogOpen"
-      :open-advanced-view="openMappingAdvancedView"
       :preserve-host="preserveHostModel"
       :refresh-mapping-metadata="refreshMappingMetadata"
-      :return-basic-view="returnMappingBasicView"
       :saved-root-domain="savedRootDomain"
       :scroll-style="mappingDialogScrollStyle"
       :send-proxy-headers="sendProxyHeadersModel"
@@ -145,10 +140,6 @@
       :set-show-toolbar="setShowToolbar"
       :should-show-portal-disabled-tooltip="shouldShowPortalDisabledTooltip"
       :show-toolbar="showToolbar"
-      :transition-enter-active-class="mappingViewTransitionEnterActiveClass"
-      :transition-enter-from-class="mappingViewTransitionEnterFromClass"
-      :transition-leave-active-class="mappingViewTransitionLeaveActiveClass"
-      :transition-leave-to-class="mappingViewTransitionLeaveToClass"
       :update-mapping-basic-auth="updateMappingBasicAuth"
       :update-mapping-form="updateMappingForm"
       @close="closeDialog"
@@ -491,17 +482,14 @@ const {
   handleMappingDialogFocusIn,
   handleMappingDialogViewportResize,
   handleMappingInputModeChange,
+  isGatewayAdvancedLoading,
   isDialogOpen,
   isMappingAuthService,
   isMappingValid,
   isMappingWebSocketTarget,
   isRefreshingMappingMetadata,
-  mappingAdvancedHostLabel,
-  mappingAdvancedSummary,
-  mappingAdvancedTargetLabel,
   mappingDialogContentStyle,
   mappingDialogScrollStyle,
-  mappingDialogView,
   mappingForm,
   mappingInputLabel,
   mappingInputMode,
@@ -509,16 +497,10 @@ const {
   mappingResolvedTitle,
   mappingSubdomain,
   mappingUseAuth,
-  mappingViewTransitionEnterActiveClass,
-  mappingViewTransitionEnterFromClass,
-  mappingViewTransitionLeaveActiveClass,
-  mappingViewTransitionLeaveToClass,
   openCreateDialog,
   openEditDialog,
-  openMappingAdvancedView,
   preserveHostModel,
   refreshMappingMetadata,
-  returnMappingBasicView,
   saveMapping,
   sendProxyHeadersModel,
   setBasicAuthInjection,

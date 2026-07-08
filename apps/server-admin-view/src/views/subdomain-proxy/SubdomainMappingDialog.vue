@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, type ComponentPublicInstance, type StyleValue } from "vue";
 import { useI18n } from "vue-i18n";
-import { ChevronLeft, ChevronRight, RefreshCw, Settings } from "lucide-vue-next";
+import { RefreshCw } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/tooltip";
 import ProxyTargetInputField from "@admin-shared/components/common/ProxyTargetInputField.vue";
 import type { HostMapping } from "@/types";
-import type { MappingDialogView, MappingInputMode } from "./model";
+import type { MappingInputMode } from "./model";
 
 const props = defineProps<{
   basicAuthInjection: boolean;
@@ -32,16 +32,13 @@ const props = defineProps<{
   handleInputModeChange: (mode: MappingInputMode) => void;
   handlePortalDisabledTooltipOpenChange: (open: boolean) => void;
   handlePortalDisabledTooltipTriggerClick: () => void;
+  isGatewayAdvancedLoading: boolean;
   isMappingAuthService: boolean;
   isMappingValid: boolean;
   isMappingWebSocketTarget: boolean;
   isPortalDisabledTooltipOpen: boolean;
   isRefreshingMappingMetadata: boolean;
   isSavingMappings: boolean;
-  mappingAdvancedHostLabel: string;
-  mappingAdvancedSummary: string;
-  mappingAdvancedTargetLabel: string;
-  mappingDialogView: MappingDialogView;
   mappingForm: HostMapping;
   mappingInputLabel: string;
   mappingInputMode: MappingInputMode;
@@ -50,10 +47,8 @@ const props = defineProps<{
   mappingSubdomain: string;
   mappingUseAuth: boolean;
   open: boolean;
-  openAdvancedView: () => void;
   preserveHost: boolean;
   refreshMappingMetadata: () => void | Promise<unknown>;
-  returnBasicView: () => void;
   savedRootDomain: string;
   scrollStyle: StyleValue;
   sendProxyHeaders: boolean;
@@ -66,10 +61,6 @@ const props = defineProps<{
   setShowToolbar: (value: boolean) => void;
   shouldShowPortalDisabledTooltip: boolean;
   showToolbar: boolean;
-  transitionEnterActiveClass: string;
-  transitionEnterFromClass: string;
-  transitionLeaveActiveClass: string;
-  transitionLeaveToClass: string;
   updateMappingBasicAuth: (patch: Partial<HostMapping["basic_auth"]>) => void;
   updateMappingForm: (patch: Partial<HostMapping>) => void;
 }>();
@@ -141,407 +132,339 @@ const preserveHostModel = computed({
       :show-close-button="false"
     >
       <div
-        v-if="mappingDialogView === 'advanced'"
-        class="shrink-0 border-b bg-background px-6 pb-3 pt-8"
-      >
-        <button
-          type="button"
-          class="-mx-2 inline-flex w-[calc(100%+1rem)] items-center gap-3 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          :aria-label="t('admin.subdomainProxy.backToBasicAria')"
-          @click="returnBasicView"
-        >
-          <ChevronLeft class="h-4 w-4 shrink-0" />
-          <span class="text-sm font-semibold">
-            {{ t("admin.subdomainProxy.advancedConfig") }}
-          </span>
-        </button>
-      </div>
-      <div
         :ref="setScrollElement"
         class="relative min-h-0 flex-1 overscroll-contain overflow-x-hidden overflow-y-auto px-6 [overflow-anchor:none]"
         :style="scrollStyle"
         @focusin="handleFocusIn"
       >
-        <Transition
-          :enter-active-class="transitionEnterActiveClass"
-          :leave-active-class="transitionLeaveActiveClass"
-          :enter-from-class="transitionEnterFromClass"
-          enter-to-class="translate-x-0 opacity-100"
-          leave-from-class="translate-x-0 opacity-100"
-          :leave-to-class="transitionLeaveToClass"
-        >
-          <div
-            v-if="mappingDialogView === 'basic'"
-            key="mapping-basic"
-            class="grid gap-4 pb-4 pt-6"
-          >
-            <div class="space-y-2">
-              <div class="flex items-center justify-between gap-3">
-                <Label for="mapping-display-title">
-                  {{ t("admin.subdomainProxy.displayTitle") }}
-                </Label>
-                <Button
-                  variant="link"
-                  size="sm"
-                  class="h-auto p-0 text-xs"
-                  :disabled="
-                    !canRefreshMappingMetadata || isRefreshingMappingMetadata
-                  "
-                  @click="refreshMappingMetadata"
-                >
-                  <RefreshCw
-                    v-if="isRefreshingMappingMetadata"
-                    class="mr-1 h-3.5 w-3.5 animate-spin"
-                  />
-                  {{
-                    isRefreshingMappingMetadata
-                      ? t("admin.subdomainProxy.refreshing")
-                      : t("admin.subdomainProxy.refreshTitle")
-                  }}
-                </Button>
-              </div>
-              <Input
-                id="mapping-display-title"
-                v-model="titleOverrideModel"
-                :placeholder="t('admin.subdomainProxy.titleAutoPlaceholder')"
-              />
-              <p class="text-xs text-muted-foreground">
-                {{ t("admin.subdomainProxy.titleHelp") }}
-                <span v-if="mappingResolvedTitle">
-                  {{
-                    t("admin.subdomainProxy.fetchedTitle", {
-                      title: mappingResolvedTitle,
-                    })
-                  }}
-                </span>
-                <span v-else-if="mappingForm.target.trim()">
-                  {{ t("admin.subdomainProxy.noFetchedTitle") }}
-                </span>
-              </p>
-            </div>
-
-            <div class="space-y-2">
-              <div
-                class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"
+        <div class="grid gap-4 pb-4 pt-6">
+          <div class="space-y-2">
+            <div class="flex items-center justify-between gap-3">
+              <Label for="mapping-display-title">
+                {{ t("admin.subdomainProxy.displayTitle") }}
+              </Label>
+              <Button
+                variant="link"
+                size="sm"
+                class="h-auto p-0 text-xs"
+                :disabled="
+                  !canRefreshMappingMetadata || isRefreshingMappingMetadata
+                "
+                @click="refreshMappingMetadata"
               >
-                <div class="space-y-1">
-                  <Label for="mapping-subdomain">
-                    {{ mappingInputLabel }}
-                  </Label>
-                  <p class="text-xs text-muted-foreground">
-                    {{ mappingModeDescription }}
-                  </p>
-                </div>
-                <div
-                  role="radiogroup"
-                  :aria-label="t('admin.subdomainProxy.hostInputModeAria')"
-                  class="grid w-full grid-cols-2 rounded-lg bg-muted p-[3px] text-muted-foreground sm:w-[216px]"
-                >
-                  <button
-                    type="button"
-                    role="radio"
-                    :aria-checked="mappingInputMode === 'subdomain'"
-                    :disabled="!canUseRootDomainSuffix"
-                    class="inline-flex h-8 items-center justify-center rounded-md px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
-                    :class="
-                      mappingInputMode === 'subdomain'
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'hover:text-foreground'
-                    "
-                    @click="handleInputModeChange('subdomain')"
-                  >
-                    {{ t("admin.subdomainProxy.fixedSuffix") }}
-                  </button>
-                  <button
-                    type="button"
-                    role="radio"
-                    :aria-checked="mappingInputMode === 'full_host'"
-                    class="inline-flex h-8 items-center justify-center rounded-md px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    :class="
-                      mappingInputMode === 'full_host'
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'hover:text-foreground'
-                    "
-                    @click="handleInputModeChange('full_host')"
-                  >
-                    {{ t("admin.subdomainProxy.fullHost") }}
-                  </button>
-                </div>
-              </div>
-              <template v-if="mappingInputMode === 'subdomain'">
-                <div class="flex items-stretch rounded-md border">
-                  <Input
-                    id="mapping-subdomain"
-                    v-model="mappingSubdomainModel"
-                    placeholder="redis"
-                    class="rounded-none border-0 shadow-none focus-visible:ring-0"
-                  />
-                  <div
-                    class="flex items-center border-l bg-muted/30 px-3 text-sm text-muted-foreground"
-                  >
-                    .{{ savedRootDomain }}
-                  </div>
-                </div>
+                <RefreshCw
+                  v-if="isRefreshingMappingMetadata"
+                  class="mr-1 h-3.5 w-3.5 animate-spin"
+                />
+                {{
+                  isRefreshingMappingMetadata
+                    ? t("admin.subdomainProxy.refreshing")
+                    : t("admin.subdomainProxy.refreshTitle")
+                }}
+              </Button>
+            </div>
+            <Input
+              id="mapping-display-title"
+              v-model="titleOverrideModel"
+              :placeholder="t('admin.subdomainProxy.titleAutoPlaceholder')"
+            />
+            <p class="text-xs text-muted-foreground">
+              {{ t("admin.subdomainProxy.titleHelp") }}
+              <span v-if="mappingResolvedTitle">
+                {{
+                  t("admin.subdomainProxy.fetchedTitle", {
+                    title: mappingResolvedTitle,
+                  })
+                }}
+              </span>
+              <span v-else-if="mappingForm.target.trim()">
+                {{ t("admin.subdomainProxy.noFetchedTitle") }}
+              </span>
+            </p>
+          </div>
+
+          <div class="space-y-2">
+            <div
+              class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"
+            >
+              <div class="space-y-1">
+                <Label for="mapping-subdomain">
+                  {{ mappingInputLabel }}
+                </Label>
                 <p class="text-xs text-muted-foreground">
-                  {{
-                    t("admin.subdomainProxy.finalHost", {
-                      host:
-                        composedPreviewHost ||
-                        t("admin.subdomainProxy.notFilled"),
-                    })
-                  }}
+                  {{ mappingModeDescription }}
                 </p>
-              </template>
-              <template v-else>
+              </div>
+              <div
+                role="radiogroup"
+                :aria-label="t('admin.subdomainProxy.hostInputModeAria')"
+                class="grid w-full grid-cols-2 rounded-lg bg-muted p-[3px] text-muted-foreground sm:w-[216px]"
+              >
+                <button
+                  type="button"
+                  role="radio"
+                  :aria-checked="mappingInputMode === 'subdomain'"
+                  :disabled="!canUseRootDomainSuffix"
+                  class="inline-flex h-8 items-center justify-center rounded-md px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                  :class="
+                    mappingInputMode === 'subdomain'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'hover:text-foreground'
+                  "
+                  @click="handleInputModeChange('subdomain')"
+                >
+                  {{ t("admin.subdomainProxy.fixedSuffix") }}
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  :aria-checked="mappingInputMode === 'full_host'"
+                  class="inline-flex h-8 items-center justify-center rounded-md px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  :class="
+                    mappingInputMode === 'full_host'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'hover:text-foreground'
+                  "
+                  @click="handleInputModeChange('full_host')"
+                >
+                  {{ t("admin.subdomainProxy.fullHost") }}
+                </button>
+              </div>
+            </div>
+            <template v-if="mappingInputMode === 'subdomain'">
+              <div class="flex items-stretch rounded-md border">
                 <Input
                   id="mapping-subdomain"
                   v-model="mappingSubdomainModel"
-                  placeholder="auth.other-domain.example"
+                  placeholder="redis"
+                  class="rounded-none border-0 shadow-none focus-visible:ring-0"
                 />
-                <p class="text-xs text-muted-foreground">
-                  {{ fullHostInputHint }}
-                </p>
-              </template>
-            </div>
+                <div
+                  class="flex items-center border-l bg-muted/30 px-3 text-sm text-muted-foreground"
+                >
+                  .{{ savedRootDomain }}
+                </div>
+              </div>
+              <p class="text-xs text-muted-foreground">
+                {{
+                  t("admin.subdomainProxy.finalHost", {
+                    host:
+                      composedPreviewHost || t("admin.subdomainProxy.notFilled"),
+                  })
+                }}
+              </p>
+            </template>
+            <template v-else>
+              <Input
+                id="mapping-subdomain"
+                v-model="mappingSubdomainModel"
+                placeholder="auth.other-domain.example"
+              />
+              <p class="text-xs text-muted-foreground">
+                {{ fullHostInputHint }}
+              </p>
+            </template>
+          </div>
 
-            <div class="space-y-2">
-              <Label for="mapping-target">
-                {{ t("admin.subdomainProxy.targetLabel") }}
-              </Label>
-              <ProxyTargetInputField
-                v-model="targetModel"
-                input-id="mapping-target"
-                protocol-id="mapping-target-protocol"
-                placeholder="127.0.0.1:5173"
-                :suggestions="['127.0.0.1:']"
+          <div class="space-y-2">
+            <Label for="mapping-target">
+              {{ t("admin.subdomainProxy.targetLabel") }}
+            </Label>
+            <ProxyTargetInputField
+              v-model="targetModel"
+              input-id="mapping-target"
+              protocol-id="mapping-target-protocol"
+              placeholder="127.0.0.1:5173"
+              :suggestions="['127.0.0.1:']"
+            />
+          </div>
+
+          <div class="space-y-3 pt-2">
+            <h3 class="text-sm font-semibold">
+              {{ t("admin.subdomainProxy.advancedConfig") }}
+            </h3>
+
+            <div
+              class="flex items-center justify-between gap-4 rounded-lg border px-4 py-3"
+            >
+              <div class="min-w-0 space-y-1">
+                <Label for="mapping-auth">
+                  {{ t("admin.subdomainProxy.authRequired") }}
+                </Label>
+                <p class="text-xs leading-5 text-muted-foreground">
+                  {{ t("admin.subdomainProxy.authRequiredDescription") }}
+                </p>
+              </div>
+              <Switch
+                id="mapping-auth"
+                v-model="mappingUseAuthModel"
+                :disabled="isMappingAuthService"
               />
             </div>
 
-            <Button
-              type="button"
-              variant="outline"
-              class="h-auto w-full justify-between gap-3 px-4 py-3 text-left"
-              @click="openAdvancedView"
+            <div
+              v-if="!isMappingWebSocketTarget"
+              class="flex items-center justify-between gap-4 rounded-lg border px-4 py-3"
             >
-              <span class="flex min-w-0 flex-1 items-start gap-3">
-                <Settings class="mt-0.5 h-4 w-4 text-muted-foreground" />
-                <span class="min-w-0 flex-1 space-y-1">
-                  <span class="block text-sm font-medium">
-                    {{ t("admin.subdomainProxy.advancedConfig") }}
-                  </span>
-                  <span
-                    class="block whitespace-normal break-words text-xs font-normal leading-5 text-muted-foreground"
+              <div class="min-w-0 space-y-1">
+                <Label for="mapping-toolbar">
+                  {{ t("admin.subdomainProxy.toolbar") }}
+                </Label>
+                <p class="text-xs leading-5 text-muted-foreground">
+                  {{ t("admin.subdomainProxy.toolbarDescription") }}
+                  <a
+                    href="#/system/gateway-portal"
+                    class="font-medium text-foreground underline underline-offset-4 transition hover:text-primary"
                   >
-                    {{ mappingAdvancedSummary }}
-                  </span>
-                </span>
-              </span>
-              <ChevronRight class="h-4 w-4 shrink-0 text-muted-foreground" />
-            </Button>
-          </div>
-
-          <div v-else key="mapping-advanced" class="space-y-4 pb-4 pt-4">
-            <div class="space-y-3">
-              <div class="rounded-lg border bg-muted/20 px-4 py-2.5">
-                <div
-                  class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
-                >
-                  <div class="min-w-0 space-y-1">
-                    <p class="text-xs text-muted-foreground">Host</p>
-                    <p class="truncate text-sm font-medium">
-                      {{ mappingAdvancedHostLabel }}
-                    </p>
-                  </div>
-                  <div class="min-w-0 space-y-1">
-                    <p class="text-xs text-muted-foreground">
-                      {{ t("admin.subdomainProxy.targetLabel") }}
-                    </p>
-                    <p class="truncate text-sm">
-                      {{ mappingAdvancedTargetLabel }}
-                    </p>
-                  </div>
-                </div>
+                    {{ t("admin.subdomainProxy.toolbarSettingsLink") }}
+                  </a>
+                  {{ t("admin.subdomainProxy.toolbarSettingsSuffix") }}
+                </p>
               </div>
+              <TooltipProvider v-if="shouldShowPortalDisabledTooltip">
+                <Tooltip
+                  :open="isPortalDisabledTooltipOpen"
+                  @update:open="handlePortalDisabledTooltipOpenChange"
+                >
+                  <TooltipTrigger as-child>
+                    <span
+                      class="inline-flex cursor-help rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                      tabindex="0"
+                      @click="handlePortalDisabledTooltipTriggerClick"
+                    >
+                      <Switch
+                        id="mapping-toolbar"
+                        class="pointer-events-none"
+                        :model-value="showToolbar"
+                        disabled
+                      />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" align="end" class="max-w-xs">
+                    <p>
+                      {{ t("admin.subdomainProxy.portalDisabledDescription") }}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <Switch v-else id="mapping-toolbar" v-model="showToolbarModel" />
             </div>
 
-            <div class="space-y-3">
-              <div
-                class="flex items-center justify-between gap-4 rounded-lg border px-4 py-3"
-              >
+            <div
+              v-if="canShowBasicAuthInjection"
+              class="space-y-3 rounded-lg border px-4 py-3"
+            >
+              <div class="flex items-center justify-between gap-4">
                 <div class="min-w-0 space-y-1">
-                  <Label for="mapping-auth">
-                    {{ t("admin.subdomainProxy.authRequired") }}
+                  <Label for="mapping-basic-auth">
+                    {{ t("admin.subdomainProxy.basicAuthSkip") }}
                   </Label>
                   <p class="text-xs leading-5 text-muted-foreground">
-                    {{ t("admin.subdomainProxy.authRequiredDescription") }}
+                    {{ t("admin.subdomainProxy.basicAuthSkipDescription") }}
                   </p>
                 </div>
                 <Switch
-                  id="mapping-auth"
-                  v-model="mappingUseAuthModel"
+                  id="mapping-basic-auth"
+                  v-model="basicAuthInjectionModel"
                   :disabled="isMappingAuthService"
                 />
               </div>
 
               <div
-                v-if="!isMappingWebSocketTarget"
-                class="flex items-center justify-between gap-4 rounded-lg border px-4 py-3"
+                v-if="basicAuthInjectionModel"
+                class="grid gap-3 sm:grid-cols-2"
               >
-                <div class="min-w-0 space-y-1">
-                  <Label for="mapping-toolbar">
-                    {{ t("admin.subdomainProxy.toolbar") }}
+                <div class="space-y-2">
+                  <Label for="mapping-basic-auth-username">
+                    {{ t("admin.subdomainProxy.username") }}
                   </Label>
-                  <p class="text-xs leading-5 text-muted-foreground">
-                    {{ t("admin.subdomainProxy.toolbarDescription") }}
-                    <a
-                      href="#/system/gateway-portal"
-                      class="font-medium text-foreground underline underline-offset-4 transition hover:text-primary"
-                    >
-                      {{ t("admin.subdomainProxy.toolbarSettingsLink") }}
-                    </a>
-                    {{ t("admin.subdomainProxy.toolbarSettingsSuffix") }}
-                  </p>
-                </div>
-                <TooltipProvider v-if="shouldShowPortalDisabledTooltip">
-                  <Tooltip
-                    :open="isPortalDisabledTooltipOpen"
-                    @update:open="handlePortalDisabledTooltipOpenChange"
-                  >
-                    <TooltipTrigger as-child>
-                      <span
-                        class="inline-flex cursor-help rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-                        tabindex="0"
-                        @click="handlePortalDisabledTooltipTriggerClick"
-                      >
-                        <Switch
-                          id="mapping-toolbar"
-                          class="pointer-events-none"
-                          :model-value="showToolbar"
-                          disabled
-                        />
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" align="end" class="max-w-xs">
-                      <p>
-                        {{ t("admin.subdomainProxy.portalDisabledDescription") }}
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                <Switch v-else id="mapping-toolbar" v-model="showToolbarModel" />
-              </div>
-
-              <div
-                v-if="canShowBasicAuthInjection"
-                class="space-y-3 rounded-lg border px-4 py-3"
-              >
-                <div class="flex items-center justify-between gap-4">
-                  <div class="min-w-0 space-y-1">
-                    <Label for="mapping-basic-auth">
-                      {{ t("admin.subdomainProxy.basicAuthSkip") }}
-                    </Label>
-                    <p class="text-xs leading-5 text-muted-foreground">
-                      {{ t("admin.subdomainProxy.basicAuthSkipDescription") }}
-                    </p>
-                  </div>
-                  <Switch
-                    id="mapping-basic-auth"
-                    v-model="basicAuthInjectionModel"
-                    :disabled="isMappingAuthService"
+                  <Input
+                    id="mapping-basic-auth-username"
+                    v-model="basicAuthUsernameModel"
+                    autocomplete="username"
+                    placeholder="admin"
                   />
                 </div>
-
-                <div
-                  v-if="basicAuthInjectionModel"
-                  class="grid gap-3 sm:grid-cols-2"
+                <div class="space-y-2">
+                  <Label for="mapping-basic-auth-password">
+                    {{ t("admin.subdomainProxy.password") }}
+                  </Label>
+                  <Input
+                    id="mapping-basic-auth-password"
+                    v-model="basicAuthPasswordModel"
+                    type="password"
+                    autocomplete="new-password"
+                  />
+                </div>
+                <p
+                  v-if="basicAuthValidationMessage"
+                  class="text-xs text-destructive sm:col-span-2"
                 >
-                  <div class="space-y-2">
-                    <Label for="mapping-basic-auth-username">
-                      {{ t("admin.subdomainProxy.username") }}
-                    </Label>
-                    <Input
-                      id="mapping-basic-auth-username"
-                      v-model="basicAuthUsernameModel"
-                      autocomplete="username"
-                      placeholder="admin"
-                    />
-                  </div>
-                  <div class="space-y-2">
-                    <Label for="mapping-basic-auth-password">
-                      {{ t("admin.subdomainProxy.password") }}
-                    </Label>
-                    <Input
-                      id="mapping-basic-auth-password"
-                      v-model="basicAuthPasswordModel"
-                      type="password"
-                      autocomplete="new-password"
-                    />
-                  </div>
-                  <p
-                    v-if="basicAuthValidationMessage"
-                    class="sm:col-span-2 text-xs text-destructive"
-                  >
-                    {{ basicAuthValidationMessage }}
-                  </p>
-                </div>
-              </div>
-
-              <div
-                class="flex items-center justify-between gap-4 rounded-lg border px-4 py-3"
-              >
-                <div class="min-w-0 space-y-1">
-                  <Label for="mapping-proxy-headers">
-                    {{ t("admin.subdomainProxy.proxyHeaders") }}
-                  </Label>
-                  <p class="text-xs leading-5 text-muted-foreground">
-                    <template v-if="gatewayProxyHeadersBlockedReason">
-                      {{ gatewayProxyHeadersBlockedReason }}
-                    </template>
-                    <template v-else>
-                      {{ t("admin.subdomainProxy.proxyHeadersDescription") }}
-                    </template>
-                  </p>
-                </div>
-                <Switch
-                  id="mapping-proxy-headers"
-                  v-model="sendProxyHeadersModel"
-                  :disabled="isSavingMappings || !!gatewayProxyHeadersBlockedReason"
-                />
-              </div>
-
-              <div
-                class="flex items-center justify-between gap-4 rounded-lg border px-4 py-3"
-              >
-                <div class="min-w-0 space-y-1">
-                  <Label for="mapping-host-response">
-                    {{ t("admin.subdomainProxy.hostResponse") }}
-                  </Label>
-                  <p class="text-xs leading-5 text-muted-foreground">
-                    <template v-if="gatewayHostResponseBlockedReason">
-                      {{ gatewayHostResponseBlockedReason }}
-                    </template>
-                    <template v-else>
-                      {{ t("admin.subdomainProxy.hostResponseDescription") }}
-                    </template>
-                  </p>
-                </div>
-                <Switch
-                  id="mapping-host-response"
-                  v-model="preserveHostModel"
-                  :disabled="isSavingMappings || !!gatewayHostResponseBlockedReason"
-                />
+                  {{ basicAuthValidationMessage }}
+                </p>
               </div>
             </div>
+
+            <div
+              class="flex items-center justify-between gap-4 rounded-lg border px-4 py-3"
+            >
+              <div class="min-w-0 space-y-1">
+                <Label for="mapping-proxy-headers">
+                  {{ t("admin.subdomainProxy.proxyHeaders") }}
+                </Label>
+                <p class="text-xs leading-5 text-muted-foreground">
+                  <template v-if="gatewayProxyHeadersBlockedReason">
+                    {{ gatewayProxyHeadersBlockedReason }}
+                  </template>
+                  <template v-else>
+                    {{ t("admin.subdomainProxy.proxyHeadersDescription") }}
+                  </template>
+                </p>
+              </div>
+              <Switch
+                id="mapping-proxy-headers"
+                v-model="sendProxyHeadersModel"
+                :disabled="isSavingMappings || !!gatewayProxyHeadersBlockedReason"
+              />
+            </div>
+
+            <div
+              class="flex items-center justify-between gap-4 rounded-lg border px-4 py-3"
+            >
+              <div class="min-w-0 space-y-1">
+                <Label for="mapping-host-response">
+                  {{ t("admin.subdomainProxy.hostResponse") }}
+                </Label>
+                <p class="text-xs leading-5 text-muted-foreground">
+                  <template v-if="gatewayHostResponseBlockedReason">
+                    {{ gatewayHostResponseBlockedReason }}
+                  </template>
+                  <template v-else>
+                    {{ t("admin.subdomainProxy.hostResponseDescription") }}
+                  </template>
+                </p>
+              </div>
+              <Switch
+                id="mapping-host-response"
+                v-model="preserveHostModel"
+                :disabled="isSavingMappings || !!gatewayHostResponseBlockedReason"
+              />
+            </div>
           </div>
-        </Transition>
+        </div>
       </div>
       <DialogFooter
-        class="shrink-0 border-t px-6 py-4 max-sm:pb-[calc(env(safe-area-inset-bottom)+1rem)]"
+        class="shrink-0 border-t bg-background px-6 py-4 max-sm:pb-[calc(env(safe-area-inset-bottom)+1rem)]"
       >
         <Button variant="outline" @click="emit('close')">
           {{ t("admin.subdomainProxy.cancel") }}
         </Button>
-        <Button :disabled="!isMappingValid || isSavingMappings" @click="emit('save')">
+        <Button
+          :disabled="
+            !isMappingValid || isSavingMappings || isGatewayAdvancedLoading
+          "
+          @click="emit('save')"
+        >
           {{ t("admin.subdomainProxy.saveMapping") }}
         </Button>
       </DialogFooter>

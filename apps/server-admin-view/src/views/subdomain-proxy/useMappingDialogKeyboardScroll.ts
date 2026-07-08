@@ -1,5 +1,7 @@
 import { computed, ref, type ComponentPublicInstance, type Ref } from "vue";
 
+const MAPPING_DIALOG_MOBILE_MAX_HEIGHT_DVH = 82;
+
 export const useMappingDialogKeyboardScroll = ({
   isDialogOpen,
 }: {
@@ -9,10 +11,15 @@ export const useMappingDialogKeyboardScroll = ({
   const mappingDialogKeyboardInset = ref(0);
   let mappingDialogKeyboardScrollTimer: number | null = null;
 
-  const mappingDialogContentStyle = computed(() => ({
-    "--mapping-dialog-keyboard-inset": `${mappingDialogKeyboardInset.value}px`,
-    "--mapping-dialog-mobile-max-height": `calc(88dvh - ${mappingDialogKeyboardInset.value}px)`,
-  }));
+  const mappingDialogContentStyle = computed(() => {
+    const keyboardInset = `${mappingDialogKeyboardInset.value}px`;
+    const mobileMaxHeight = `calc(${MAPPING_DIALOG_MOBILE_MAX_HEIGHT_DVH}dvh - ${keyboardInset})`;
+
+    return {
+      "--mapping-dialog-keyboard-inset": keyboardInset,
+      "--mapping-dialog-mobile-max-height": mobileMaxHeight,
+    };
+  });
 
   const mappingDialogScrollStyle = computed(() => ({
     scrollPaddingTop: "96px",

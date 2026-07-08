@@ -19,8 +19,6 @@ export {
 } from "@/lib/host-mapping-availability";
 
 export type MappingInputMode = "subdomain" | "full_host";
-export type MappingDialogView = "basic" | "advanced";
-export type MappingDialogMotionDirection = "forward" | "back";
 
 export type DiscoveredHostService = DiscoveredServiceInfo & {
   suggestedSubdomain: string;

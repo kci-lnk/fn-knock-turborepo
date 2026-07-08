@@ -1,5 +1,4 @@
 import { computed, ref, type ComputedRef } from "vue";
-import type { HostMapping } from "@/types";
 import {
   composeHostFromSubdomain,
   extractSubdomainFromHost,
@@ -11,13 +10,11 @@ import {
 
 export const useSubdomainMappingDraft = ({
   canUseRootDomainSuffix,
-  mappingForm,
   onSubdomainExtractionMiss,
   savedRootDomain,
   translate,
 }: {
   canUseRootDomainSuffix: ComputedRef<boolean>;
-  mappingForm: HostMapping;
   onSubdomainExtractionMiss: (domain: string) => void;
   savedRootDomain: ComputedRef<string>;
   translate: (key: string, params?: TranslationParams) => string;
@@ -72,15 +69,6 @@ export const useSubdomainMappingDraft = ({
   });
 
   const mappingDraftHost = computed(() => composedPreviewHost.value);
-  const mappingAdvancedHostLabel = computed(
-    () =>
-      mappingDraftHost.value || translate("admin.subdomainProxy.missingHost"),
-  );
-  const mappingAdvancedTargetLabel = computed(
-    () =>
-      mappingForm.target.trim() ||
-      translate("admin.subdomainProxy.missingTarget"),
-  );
 
   const setMappingSubdomain = (value: string) => {
     mappingSubdomain.value = value;
@@ -142,8 +130,6 @@ export const useSubdomainMappingDraft = ({
     composedPreviewHost,
     fullHostInputHint,
     handleMappingInputModeChange,
-    mappingAdvancedHostLabel,
-    mappingAdvancedTargetLabel,
     mappingDraftHost,
     mappingInputLabel,
     mappingInputMode,

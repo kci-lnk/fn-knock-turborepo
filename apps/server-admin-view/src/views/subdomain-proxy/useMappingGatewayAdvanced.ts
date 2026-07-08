@@ -53,6 +53,10 @@ export const useMappingGatewayAdvanced = ({
   const sendProxyHeadersTouched = ref(false);
   const preserveHostTouched = ref(false);
   const mappingAdvancedCleanupHosts = ref<string[]>([]);
+  const isGatewayAdvancedLoading = computed(
+    () =>
+      isLoadingGatewayProxyHeaders.value || isLoadingGatewayHostResponse.value,
+  );
 
   let gatewayProxyHeadersRequestId = 0;
   let gatewayHostResponseRequestId = 0;
@@ -431,6 +435,7 @@ export const useMappingGatewayAdvanced = ({
 
   return {
     gatewayHostResponseBlockedReason,
+    isGatewayAdvancedLoading,
     gatewayProxyHeadersBlockedReason,
     loadGatewayAdvancedDetails,
     preserveHost,

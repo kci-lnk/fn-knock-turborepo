@@ -13,8 +13,6 @@ import {
   isMappingDraftValid,
   normalizeMappingBasicAuth,
   normalizeMappingForm,
-  type MappingDialogMotionDirection,
-  type MappingDialogView,
   type TranslationParams,
 } from "./model";
 import { useBasicAuthProbe } from "./useBasicAuthProbe";
@@ -61,9 +59,6 @@ export const useSubdomainMappingDialogController = ({
   visibleMappings: ComputedRef<HostMapping[]>;
 }) => {
   const isDialogOpen = ref(false);
-  const mappingDialogView = ref<MappingDialogView>("basic");
-  const mappingDialogMotionDirection =
-    ref<MappingDialogMotionDirection>("forward");
   const editingHost = ref<string | null>(null);
   const mappingMetadataTarget = ref("");
   const mappingForm = reactive<HostMapping>(createDefaultMapping());
@@ -84,8 +79,6 @@ export const useSubdomainMappingDialogController = ({
     composedPreviewHost,
     fullHostInputHint,
     handleMappingInputModeChange,
-    mappingAdvancedHostLabel,
-    mappingAdvancedTargetLabel,
     mappingDraftHost,
     mappingInputLabel,
     mappingInputMode,
@@ -96,7 +89,6 @@ export const useSubdomainMappingDialogController = ({
     setMappingSubdomain,
   } = useSubdomainMappingDraft({
     canUseRootDomainSuffix,
-    mappingForm,
     onSubdomainExtractionMiss: (domain) => {
       toast.info(translate("admin.subdomainProxy.switchedToSuffixMode"), {
         description: translate(
@@ -182,31 +174,15 @@ export const useSubdomainMappingDialogController = ({
         currentBasicAuthProbeResult.value?.requiresBasicAuth === true),
   );
 
-  const mappingViewTransitionEnterActiveClass =
-    "motion-safe:transition-[opacity,transform] motion-safe:duration-200 motion-safe:ease-out motion-safe:will-change-transform motion-reduce:transition-none";
-  const mappingViewTransitionLeaveActiveClass =
-    "absolute inset-x-6 top-0 motion-safe:transition-[opacity,transform] motion-safe:duration-200 motion-safe:ease-out motion-safe:will-change-transform motion-reduce:hidden";
-  const mappingViewTransitionEnterFromClass = computed(() =>
-    mappingDialogMotionDirection.value === "forward"
-      ? "opacity-0 motion-safe:translate-x-6"
-      : "opacity-0 motion-safe:-translate-x-6",
-  );
-  const mappingViewTransitionLeaveToClass = computed(() =>
-    mappingDialogMotionDirection.value === "forward"
-      ? "opacity-0 motion-safe:-translate-x-6"
-      : "opacity-0 motion-safe:translate-x-6",
-  );
-
   const {
     addMappingAdvancedCleanupHost,
     gatewayHostResponseBlockedReason,
     gatewayProxyHeadersBlockedReason,
+    isGatewayAdvancedLoading,
     loadGatewayAdvancedDetails,
-    preserveHost,
     preserveHostModel,
     resetGatewayAdvancedState,
     saveMappingGatewayAdvanced,
-    sendProxyHeaders,
     sendProxyHeadersModel,
     shouldShowProtocolHeadersWarning,
   } = useMappingGatewayAdvanced({
@@ -220,41 +196,6 @@ export const useSubdomainMappingDialogController = ({
     setGatewayProxyHeadersDisabledHosts,
     translate: (key) => translate(key),
     visibleMappings,
-  });
-
-  const mappingAdvancedSummary = computed(() => {
-    const items = [
-      mappingUseAuth.value
-        ? translate("admin.subdomainProxy.authRequired")
-        : translate("admin.subdomainProxy.publicAccess"),
-    ];
-    if (!isMappingWebSocketTarget.value) {
-      items.push(
-        showToolbar.value
-          ? translate("admin.subdomainProxy.toolbar")
-          : translate("admin.subdomainProxy.hideToolbar"),
-      );
-    }
-
-    if (isMappingAuthService.value) {
-      items.push(translate("admin.subdomainProxy.authEntry"));
-    } else {
-      if (basicAuthInjectionModel.value) {
-        items.push(translate("admin.subdomainProxy.injectCredentials"));
-      }
-      items.push(
-        sendProxyHeaders.value
-          ? translate("admin.subdomainProxy.sendProxyHeaders")
-          : translate("admin.subdomainProxy.disableProxyHeaders"),
-      );
-      items.push(
-        preserveHost.value
-          ? translate("admin.subdomainProxy.preserveHost")
-          : translate("admin.subdomainProxy.useUpstreamHost"),
-      );
-    }
-
-    return items.join(" · ");
   });
 
   const isMappingValid = computed(() =>
@@ -310,20 +251,7 @@ export const useSubdomainMappingDialogController = ({
   }
 
   function resetMappingAdvancedState(host = "") {
-    mappingDialogView.value = "basic";
-    mappingDialogMotionDirection.value = "forward";
     resetGatewayAdvancedState(host);
-  }
-
-  function openMappingAdvancedView() {
-    mappingDialogMotionDirection.value = "forward";
-    mappingDialogView.value = "advanced";
-    void loadGatewayAdvancedDetails();
-  }
-
-  function returnMappingBasicView() {
-    mappingDialogMotionDirection.value = "back";
-    mappingDialogView.value = "basic";
   }
 
   function openCreateDialog() {
@@ -403,6 +331,7 @@ export const useSubdomainMappingDialogController = ({
 
   async function saveMapping() {
     if (!isMappingValid.value) return;
+    if (isGatewayAdvancedLoading.value) return;
 
     const normalized = normalizeMappingForm(mappingForm, {
       hasFreshMetadata:
@@ -460,8 +389,6 @@ export const useSubdomainMappingDialogController = ({
       try {
         await saveMappingGatewayAdvanced(normalized, previousHost);
       } catch (error) {
-        mappingDialogMotionDirection.value = "forward";
-        mappingDialogView.value = "advanced";
         toast.error(translate("admin.subdomainProxy.advancedSaveFailed"), {
           description: extractErrorMessage(
             error,
@@ -495,17 +422,14 @@ export const useSubdomainMappingDialogController = ({
     handleMappingDialogFocusIn,
     handleMappingDialogViewportResize,
     handleMappingInputModeChange,
+    isGatewayAdvancedLoading,
     isDialogOpen,
     isMappingAuthService,
     isMappingValid,
     isMappingWebSocketTarget,
     isRefreshingMappingMetadata,
-    mappingAdvancedHostLabel,
-    mappingAdvancedSummary,
-    mappingAdvancedTargetLabel,
     mappingDialogContentStyle,
     mappingDialogScrollStyle,
-    mappingDialogView,
     mappingForm,
     mappingInputLabel,
     mappingInputMode,
@@ -513,16 +437,10 @@ export const useSubdomainMappingDialogController = ({
     mappingResolvedTitle,
     mappingSubdomain,
     mappingUseAuth,
-    mappingViewTransitionEnterActiveClass,
-    mappingViewTransitionEnterFromClass,
-    mappingViewTransitionLeaveActiveClass,
-    mappingViewTransitionLeaveToClass,
     openCreateDialog,
     openEditDialog,
-    openMappingAdvancedView,
     preserveHostModel,
     refreshMappingMetadata,
-    returnMappingBasicView,
     saveMapping,
     sendProxyHeadersModel,
     setBasicAuthInjection,

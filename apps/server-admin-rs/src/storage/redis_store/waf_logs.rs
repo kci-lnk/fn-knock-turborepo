@@ -1,11 +1,11 @@
 use super::*;
 
-impl RedisStore {
+impl Store {
     pub async fn count_waf_logs_for_buckets(
         &self,
         bucket_starts: &[i64],
         to_ms: i64,
-    ) -> redis::RedisResult<(i64, Vec<i64>)> {
+    ) -> crate::storage::StorageResult<(i64, Vec<i64>)> {
         if bucket_starts.is_empty() {
             return Ok((0, Vec::new()));
         }
@@ -48,7 +48,7 @@ impl RedisStore {
         &self,
         events: &[Value],
         retention_days: i64,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         if events.is_empty() {
             return Ok(());
         }
@@ -109,7 +109,10 @@ impl RedisStore {
         Ok(())
     }
 
-    pub async fn list_waf_log_dates(&self, today: &str) -> redis::RedisResult<Vec<String>> {
+    pub async fn list_waf_log_dates(
+        &self,
+        today: &str,
+    ) -> crate::storage::StorageResult<Vec<String>> {
         let migrated = self
             .get_string_value(WAF_LOG_DATES_INDEX_MIGRATED_KEY)
             .await?;
@@ -149,7 +152,7 @@ impl RedisStore {
     async fn scan_waf_log_dates_and_backfill_index(
         &self,
         today: &str,
-    ) -> redis::RedisResult<Vec<String>> {
+    ) -> crate::storage::StorageResult<Vec<String>> {
         let mut conn = self.conn();
         let mut cursor = "0".to_string();
         let mut dates = BTreeSet::new();
@@ -185,7 +188,7 @@ impl RedisStore {
         Ok(descending_strings(dates))
     }
 
-    pub async fn waf_log_date_total(&self, date: &str) -> redis::RedisResult<i64> {
+    pub async fn waf_log_date_total(&self, date: &str) -> crate::storage::StorageResult<i64> {
         let mut conn = self.conn();
         conn.zcard(waf_log_date_key(date)).await
     }
@@ -195,7 +198,7 @@ impl RedisStore {
         date: &str,
         start: isize,
         end: isize,
-    ) -> redis::RedisResult<Vec<String>> {
+    ) -> crate::storage::StorageResult<Vec<String>> {
         let mut conn = self.conn();
         conn.zrevrange(waf_log_date_key(date), start, end).await
     }
@@ -203,7 +206,7 @@ impl RedisStore {
     pub async fn waf_log_events_by_ids(
         &self,
         ids: &[String],
-    ) -> redis::RedisResult<Vec<Option<Value>>> {
+    ) -> crate::storage::StorageResult<Vec<Option<Value>>> {
         if ids.is_empty() {
             return Ok(Vec::new());
         }
@@ -222,7 +225,10 @@ impl RedisStore {
             .collect())
     }
 
-    pub async fn get_waf_log_event(&self, trace_id: &str) -> redis::RedisResult<Option<Value>> {
+    pub async fn get_waf_log_event(
+        &self,
+        trace_id: &str,
+    ) -> crate::storage::StorageResult<Option<Value>> {
         self.get_json_value(&waf_log_event_key(trace_id)).await
     }
 
@@ -230,7 +236,7 @@ impl RedisStore {
         &self,
         date: &str,
         ids: &[String],
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let unique_ids = unique_non_empty_strings(ids);
         if unique_ids.is_empty() {
             return Ok(());
@@ -244,7 +250,7 @@ impl RedisStore {
         Ok(())
     }
 
-    pub async fn delete_waf_log_date(&self, date: &str) -> redis::RedisResult<bool> {
+    pub async fn delete_waf_log_date(&self, date: &str) -> crate::storage::StorageResult<bool> {
         let mut conn = self.conn();
         let mut deleted_count = 0usize;
         loop {

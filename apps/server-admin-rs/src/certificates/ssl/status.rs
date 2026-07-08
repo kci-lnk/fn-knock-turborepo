@@ -9,7 +9,7 @@ pub(super) async fn build_ssl_status_with_translator(
     state: &AppState,
     translator: &Translator,
 ) -> anyhow::Result<Value> {
-    let config = state.redis.get_config().await?;
+    let config = state.store.get_config().await?;
     let ssl = normalize_ssl_config(config.get("ssl"));
     let local_status = local_ssl_status(&ssl);
     let gateway = gateway_ssl_status(state, translator).await;

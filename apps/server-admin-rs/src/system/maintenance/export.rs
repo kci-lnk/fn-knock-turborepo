@@ -24,12 +24,12 @@ pub(super) async fn export_backup_archive(state: &AppState) -> anyhow::Result<Ba
 
 pub(super) async fn export_backup_payload(state: &AppState) -> anyhow::Result<Value> {
     let keys = state
-        .redis
+        .store
         .scan_keys(KNOCK_BACKUP_PREFIX, SCAN_COUNT)
         .await?;
     let mut entries = Vec::new();
     for key in keys.into_iter().filter(|key| should_export_backup_key(key)) {
-        let Some(entry) = state.redis.export_redis_backup_entry(&key).await? else {
+        let Some(entry) = state.store.export_backup_entry(&key).await? else {
             continue;
         };
         if !is_supported_backup_type(entry.get("type").and_then(Value::as_str)) {

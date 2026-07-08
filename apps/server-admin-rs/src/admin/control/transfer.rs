@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 
 use crate::{
     app_version::APP_LOCAL_VERSION,
-    redis_store::{TotpCredential, normalize_totp_access_scopes, normalize_totp_subdomain_access},
+    store::{TotpCredential, normalize_totp_access_scopes, normalize_totp_subdomain_access},
     time_utils,
 };
 

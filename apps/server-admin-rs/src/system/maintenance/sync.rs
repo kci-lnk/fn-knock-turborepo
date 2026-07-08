@@ -6,7 +6,7 @@ pub(super) async fn sync_runtime_after_import(
 ) -> (Vec<String>, Vec<String>) {
     let mut warnings = Vec::new();
     let mut synced_steps = Vec::new();
-    let config = match state.redis.get_config().await {
+    let config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             warnings.push(format!(
@@ -88,7 +88,7 @@ pub(super) async fn sync_runtime_after_import(
 pub(super) async fn sync_direct_mode_whitelist_after_import(
     state: &AppState,
 ) -> anyhow::Result<()> {
-    let records = state.redis.list_whitelist_active_concrete_targets().await?;
+    let records = state.store.list_whitelist_active_concrete_targets().await?;
     for record in records {
         let value = state.go_backend.allow_ip(&record.target).await?;
         if value.get("success").and_then(Value::as_bool) == Some(false) {

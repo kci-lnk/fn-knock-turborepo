@@ -26,7 +26,7 @@ pub(super) async fn update_gateway(
         );
     };
 
-    let previous_config = match state.redis.get_config().await {
+    let previous_config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before gateway update");
@@ -40,7 +40,7 @@ pub(super) async fn update_gateway(
     let mut updated_config = previous_config.clone();
     apply_gateway_patch(&mut updated_config, patch);
 
-    if let Err(error) = state.redis.save_config(&updated_config).await {
+    if let Err(error) = state.store.save_config(&updated_config).await {
         tracing::warn!(%error, "failed to save gateway settings");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -108,7 +108,7 @@ pub(super) async fn update_gateway_visibility(
     Json(body): Json<Value>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let previous_config = match state.redis.get_config().await {
+    let previous_config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before gateway visibility update");
@@ -119,7 +119,7 @@ pub(super) async fn update_gateway_visibility(
         }
     };
     let previous_runtime = match state
-        .redis
+        .store
         .get_json_value(GATEWAY_VISIBILITY_RUNTIME_KEY)
         .await
     {
@@ -173,7 +173,7 @@ pub(super) async fn update_gateway_proxy_headers(
     Json(body): Json<Value>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let previous_config = match state.redis.get_config().await {
+    let previous_config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before gateway proxy headers update");
@@ -190,7 +190,7 @@ pub(super) async fn update_gateway_proxy_headers(
         );
     }
     let previous_runtime = match state
-        .redis
+        .store
         .get_json_value(GATEWAY_PROXY_HEADERS_RUNTIME_KEY)
         .await
     {
@@ -244,7 +244,7 @@ pub(super) async fn update_gateway_host_response(
     Json(body): Json<Value>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let previous_config = match state.redis.get_config().await {
+    let previous_config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before gateway host response update");
@@ -261,7 +261,7 @@ pub(super) async fn update_gateway_host_response(
         );
     }
     let previous_runtime = match state
-        .redis
+        .store
         .get_json_value(GATEWAY_HOST_RESPONSE_RUNTIME_KEY)
         .await
     {

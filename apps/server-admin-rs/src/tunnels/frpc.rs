@@ -27,9 +27,9 @@ use uuid::Uuid;
 
 use crate::{
     i18n::{DEFAULT_LOCALE, Translator},
-    redis_store::RedisStore,
     response,
     state::AppState,
+    store::Store,
     system_events, time_utils,
 };
 

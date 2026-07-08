@@ -25,10 +25,10 @@ use crate::{
     oidc_admin::{oidc_inspect_invite, oidc_public_providers},
     oidc_runtime::{consume_login_error_for_bootstrap, oidc_runtime_routes},
     passkey_runtime::{build_passkey_bind_info, passkey_routes, public_passkey_status},
-    redis_store::{LoginSession, TotpCredential},
     response::{self, ApiEnvelope},
     scanner,
     state::AppState,
+    store::{LoginSession, TotpCredential},
     system_events, time_utils, whitelist,
 };
 

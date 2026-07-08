@@ -72,7 +72,7 @@ pub(super) fn schedule_host_mappings_metadata_refresh(
             return;
         }
 
-        let current_config = match state.redis.get_config().await {
+        let current_config = match state.store.get_config().await {
             Ok(config) => config,
             Err(error) => {
                 tracing::warn!(
@@ -98,7 +98,7 @@ pub(super) fn schedule_host_mappings_metadata_refresh(
             "host_mappings".to_string(),
             Value::Array(next_mappings.clone()),
         );
-        if let Err(error) = state.redis.save_config(&next_config).await {
+        if let Err(error) = state.store.save_config(&next_config).await {
             tracing::warn!(
                 %error,
                 "failed to save host mappings after metadata background refresh"

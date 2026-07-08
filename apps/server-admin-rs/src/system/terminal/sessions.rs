@@ -4,19 +4,19 @@ pub(super) async fn terminal_list_sessions(
     state: &AppState,
 ) -> anyhow::Result<Vec<TerminalSessionRecord>> {
     cleanup_expired_sessions(state).await?;
-    store_list_sessions(&state.redis).await
+    store_list_sessions(&state.store).await
 }
 
 pub(super) async fn terminal_get_session(
     state: &AppState,
     id: &str,
 ) -> anyhow::Result<Option<TerminalSessionRecord>> {
-    let Some(session) = store_get_session(&state.redis, id).await? else {
+    let Some(session) = store_get_session(&state.store, id).await? else {
         return Ok(None);
     };
     if !tmux_session_exists(&session.backend_session_name).await {
         cleanup_session_artifacts(&session).await;
-        store_delete_session(&state.redis, id).await?;
+        store_delete_session(&state.store, id).await?;
         return Ok(None);
     }
     Ok(Some(session))
@@ -32,7 +32,7 @@ pub(super) async fn terminal_create_session(
 
     let config = terminal_feature_config(state).await?;
     let translator = Translator::from_state(state).await;
-    let existing = store_list_sessions(&state.redis).await?;
+    let existing = store_list_sessions(&state.store).await?;
     if existing.len() as i64 >= config.max_sessions {
         return Err(anyhow!(terminal_default_text(
             "sessionLimitReached",
@@ -114,7 +114,7 @@ pub(super) async fn terminal_rename_session(
     id: &str,
     title: &str,
 ) -> anyhow::Result<Option<TerminalSessionRecord>> {
-    let Some(session) = store_get_session(&state.redis, id).await? else {
+    let Some(session) = store_get_session(&state.store, id).await? else {
         return Ok(None);
     };
     let title = sanitize_title(Some(title)).unwrap_or_default();
@@ -122,7 +122,7 @@ pub(super) async fn terminal_rename_session(
         return Err(anyhow!(terminal_default_text("sessionTitleRequired", &[])));
     }
     store_save_session(
-        &state.redis,
+        &state.store,
         normalize_session(TerminalSessionRecord {
             title,
             updated_at: now_iso(),
@@ -134,12 +134,12 @@ pub(super) async fn terminal_rename_session(
 }
 
 pub(super) async fn terminal_kill_session(state: &AppState, id: &str) -> anyhow::Result<()> {
-    let Some(session) = store_get_session(&state.redis, id).await? else {
+    let Some(session) = store_get_session(&state.store, id).await? else {
         return Ok(());
     };
     let _ = run_tmux(&["kill-session", "-t", &session.backend_session_name]).await;
     cleanup_session_artifacts(&session).await;
-    store_delete_session(&state.redis, id).await?;
+    store_delete_session(&state.store, id).await?;
     Ok(())
 }
 
@@ -169,7 +169,7 @@ pub(super) async fn terminal_create_attachment(
     let now = now_iso();
     let config = terminal_feature_config(state).await?;
     store_save_session(
-        &state.redis,
+        &state.store,
         normalize_session(TerminalSessionRecord {
             status: "attached".to_string(),
             updated_at: now.clone(),
@@ -182,7 +182,7 @@ pub(super) async fn terminal_create_attachment(
     .await?;
 
     store_save_attachment(
-        &state.redis,
+        &state.store,
         normalize_attachment(TerminalAttachmentRecord {
             id: Uuid::new_v4().to_string(),
             session_id: runtime_session.id,
@@ -200,12 +200,12 @@ pub(super) async fn terminal_detach_attachment(
     state: &AppState,
     attachment_id: &str,
 ) -> anyhow::Result<()> {
-    let Some(attachment) = store_get_attachment(&state.redis, attachment_id).await? else {
+    let Some(attachment) = store_get_attachment(&state.store, attachment_id).await? else {
         return Ok(());
     };
-    store_delete_attachment(&state.redis, attachment_id).await?;
+    store_delete_attachment(&state.store, attachment_id).await?;
     let remaining =
-        store_list_attachment_ids_for_session(&state.redis, &attachment.session_id).await?;
+        store_list_attachment_ids_for_session(&state.store, &attachment.session_id).await?;
     if remaining.is_empty() {
         mark_session_detached(state, &attachment.session_id).await?;
     }
@@ -217,10 +217,10 @@ pub(super) async fn terminal_send_input(
     attachment_id: &str,
     data_base64: &str,
 ) -> anyhow::Result<()> {
-    let Some(attachment) = store_get_attachment(&state.redis, attachment_id).await? else {
+    let Some(attachment) = store_get_attachment(&state.store, attachment_id).await? else {
         return Err(anyhow!(terminal_default_text("attachmentExpired", &[])));
     };
-    let Some(session) = store_get_session(&state.redis, &attachment.session_id).await? else {
+    let Some(session) = store_get_session(&state.store, &attachment.session_id).await? else {
         return Err(anyhow!(terminal_default_text(
             "sessionMissingOrExpired",
             &[]
@@ -270,7 +270,7 @@ pub(super) async fn terminal_resize_attachment(
     rows: f64,
 ) -> anyhow::Result<TerminalSessionRecord> {
     let Some(attachment) =
-        store_refresh_attachment(&state.redis, attachment_id, DEFAULT_ATTACHMENT_TTL_SECONDS)
+        store_refresh_attachment(&state.store, attachment_id, DEFAULT_ATTACHMENT_TTL_SECONDS)
             .await?
     else {
         return Err(anyhow!(terminal_default_text("attachmentExpired", &[])));
@@ -321,7 +321,7 @@ pub(super) async fn terminal_wait_for_output(
     timeout_ms: Option<f64>,
 ) -> anyhow::Result<TerminalPollResult> {
     let Some(attachment) =
-        store_refresh_attachment(&state.redis, attachment_id, DEFAULT_ATTACHMENT_TTL_SECONDS)
+        store_refresh_attachment(&state.store, attachment_id, DEFAULT_ATTACHMENT_TTL_SECONDS)
             .await?
     else {
         return Err(anyhow!(terminal_default_text("attachmentExpired", &[])));
@@ -354,7 +354,7 @@ pub(super) async fn terminal_wait_for_output(
 }
 
 pub(super) async fn cleanup_expired_sessions(state: &AppState) -> anyhow::Result<()> {
-    let sessions = store_list_sessions(&state.redis).await?;
+    let sessions = store_list_sessions(&state.store).await?;
     let now = now_ms();
     for session in sessions {
         if parse_iso_ms(&session.expires_at).is_some_and(|expires_at| expires_at <= now) {
@@ -365,12 +365,12 @@ pub(super) async fn cleanup_expired_sessions(state: &AppState) -> anyhow::Result
         }
         if !tmux_session_exists(&session.backend_session_name).await {
             cleanup_session_artifacts(&session).await;
-            store_delete_session(&state.redis, &session.id).await?;
+            store_delete_session(&state.store, &session.id).await?;
             continue;
         }
         if session.status == "attached" {
             let attachments =
-                store_list_attachment_ids_for_session(&state.redis, &session.id).await?;
+                store_list_attachment_ids_for_session(&state.store, &session.id).await?;
             if attachments.is_empty() {
                 mark_session_detached(state, &session.id).await?;
             }
@@ -518,7 +518,7 @@ pub(super) async fn configure_session_runtime(
     let (pane_tty_path, cols, rows) = read_pane_runtime_metadata(&session).await?;
     configure_relay_pipe(&session, &output_log_path, &input_pipe_path).await?;
     store_save_session(
-        &state.redis,
+        &state.store,
         normalize_session(TerminalSessionRecord {
             cols,
             rows,
@@ -564,7 +564,7 @@ pub(super) async fn ensure_session_runtime(
             return Ok(session);
         }
         return store_save_session(
-            &state.redis,
+            &state.store,
             normalize_session(TerminalSessionRecord {
                 input_pipe_path: input_pipe_path.to_string_lossy().to_string(),
                 output_log_path: output_log_path.to_string_lossy().to_string(),
@@ -592,7 +592,7 @@ pub(super) async fn refresh_session_expiry(
 ) -> anyhow::Result<TerminalSessionRecord> {
     let config = terminal_feature_config(state).await?;
     store_save_session(
-        &state.redis,
+        &state.store,
         normalize_session(TerminalSessionRecord {
             updated_at: now_iso(),
             expires_at: iso_after_seconds(config.idle_timeout_seconds),
@@ -631,7 +631,7 @@ pub(super) async fn mark_session_detached(
     state: &AppState,
     session_id: &str,
 ) -> anyhow::Result<Option<TerminalSessionRecord>> {
-    let Some(session) = store_get_session(&state.redis, session_id).await? else {
+    let Some(session) = store_get_session(&state.store, session_id).await? else {
         return Ok(None);
     };
     let saved = refresh_session_expiry(

@@ -411,7 +411,7 @@ pub(super) async fn sync_gateway_if_acme_library_removed(
     if !removed_active && removed_count == 0 {
         return Ok(());
     }
-    let config = state.redis.get_config().await?;
+    let config = state.store.get_config().await?;
     let should_sync = removed_active
         || (removed_count > 0
             && config

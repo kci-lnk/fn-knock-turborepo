@@ -108,7 +108,7 @@ pub(crate) use shared::{
     auth_mobility_keys, crypto_utils, frp_utils, fs_utils, http_utils, json_utils, net_utils,
     node_compat, proxy_utils, text_utils, time_utils, unix, version_utils,
 };
-pub(crate) use storage::redis_store;
+pub(crate) use storage::store;
 pub(crate) use system::{
     dashboard, maintenance, system_assets, system_info, system_monitor, terminal, terminal_paths,
     update,

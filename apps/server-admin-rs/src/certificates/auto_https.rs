@@ -215,7 +215,7 @@ pub async fn sync_auto_https_on_boot(state: AppState) {
         let _ = state.auto_https.apply_config(false).await;
         return;
     }
-    let config = match state.redis.get_config().await {
+    let config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to read config for auto HTTPS boot sync");
@@ -232,7 +232,7 @@ pub async fn sync_auto_https_on_boot(state: AppState) {
         if let Some(object) = next_config.as_object_mut() {
             object.insert("auto_https".to_string(), json!({ "enabled": false }));
         }
-        if let Err(error) = state.redis.save_config(&next_config).await {
+        if let Err(error) = state.store.save_config(&next_config).await {
             tracing::warn!(%error, "failed to disable auto HTTPS after boot sync error");
         }
     }

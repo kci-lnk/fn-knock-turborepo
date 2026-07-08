@@ -6,7 +6,7 @@ pub(super) async fn save_ssl_certificate(
     activate: bool,
 ) -> anyhow::Result<Value> {
     validate_ssl_cert(&input.cert, &input.key)?;
-    let mut config = state.redis.get_config().await?;
+    let mut config = state.store.get_config().await?;
     let ssl = normalize_ssl_config(config.get("ssl"));
     let mut certificates = ssl
         .get("certificates")
@@ -94,7 +94,7 @@ pub(super) async fn save_ssl_certificate(
         next_ssl = mirror_active_ssl_certificate(&next_ssl, Some(id));
     }
     config["ssl"] = next_ssl;
-    state.redis.save_config(&config).await?;
+    state.store.save_config(&config).await?;
     Ok(next)
 }
 
@@ -155,7 +155,7 @@ pub(crate) async fn get_acme_ssl_certificate_by_source_ref(
 }
 
 pub(crate) async fn active_ssl_certificate_id(state: &AppState) -> anyhow::Result<Option<String>> {
-    let config = state.redis.get_config().await?;
+    let config = state.store.get_config().await?;
     Ok(normalize_ssl_config(config.get("ssl"))
         .get("active_cert_id")
         .and_then(Value::as_str)
@@ -168,7 +168,7 @@ pub(crate) async fn auto_select_certificate_for_subdomain(
     state: &AppState,
     translator: &Translator,
 ) -> anyhow::Result<Option<Value>> {
-    let config = state.redis.get_config().await?;
+    let config = state.store.get_config().await?;
     let ssl = normalize_ssl_config(config.get("ssl"));
     let certificates = ssl
         .get("certificates")
@@ -254,7 +254,7 @@ pub(super) async fn find_acme_ssl_certificate(
     source_ref_id: Option<&str>,
     primary_domain: Option<&str>,
 ) -> anyhow::Result<Option<Value>> {
-    let config = state.redis.get_config().await?;
+    let config = state.store.get_config().await?;
     let ssl = normalize_ssl_config(config.get("ssl"));
     let normalized_ref = source_ref_id
         .map(str::trim)
@@ -291,7 +291,7 @@ pub(super) async fn set_active_ssl_certificate(
     state: &AppState,
     id: Option<&str>,
 ) -> anyhow::Result<Option<Value>> {
-    let mut config = state.redis.get_config().await?;
+    let mut config = state.store.get_config().await?;
     let ssl = normalize_ssl_config(config.get("ssl"));
     let normalized_id = id.map(str::trim).filter(|value| !value.is_empty());
     let candidate = normalized_id.and_then(|id| {
@@ -305,7 +305,7 @@ pub(super) async fn set_active_ssl_certificate(
         return Ok(None);
     }
     config["ssl"] = mirror_active_ssl_certificate(&ssl, normalized_id);
-    state.redis.save_config(&config).await?;
+    state.store.save_config(&config).await?;
     Ok(candidate)
 }
 
@@ -313,7 +313,7 @@ pub(super) async fn delete_ssl_certificate(
     state: &AppState,
     id: &str,
 ) -> anyhow::Result<(bool, bool)> {
-    let mut config = state.redis.get_config().await?;
+    let mut config = state.store.get_config().await?;
     let ssl = normalize_ssl_config(config.get("ssl"));
     let active_id = ssl
         .get("active_cert_id")
@@ -348,7 +348,7 @@ pub(super) async fn delete_ssl_certificate(
         },
     );
     config["ssl"] = next_ssl;
-    state.redis.save_config(&config).await?;
+    state.store.save_config(&config).await?;
     Ok((true, removed_active))
 }
 
@@ -357,7 +357,7 @@ pub(crate) async fn delete_acme_ssl_certificates(
     application_id: Option<&str>,
     primary_domain: Option<&str>,
 ) -> anyhow::Result<(usize, bool)> {
-    let mut config = state.redis.get_config().await?;
+    let mut config = state.store.get_config().await?;
     let ssl = normalize_ssl_config(config.get("ssl"));
     let active_id = ssl
         .get("active_cert_id")
@@ -413,23 +413,23 @@ pub(crate) async fn delete_acme_ssl_certificates(
         },
     );
     config["ssl"] = next_ssl;
-    state.redis.save_config(&config).await?;
+    state.store.save_config(&config).await?;
     Ok((removed.len(), removed_active))
 }
 
 pub(super) async fn clear_ssl_certificate_library(state: &AppState) -> anyhow::Result<()> {
-    let mut config = state.redis.get_config().await?;
+    let mut config = state.store.get_config().await?;
     let mut ssl = normalize_ssl_config(config.get("ssl"));
     ssl["certificates"] = json!([]);
     config["ssl"] = mirror_active_ssl_certificate(&ssl, None);
-    state.redis.save_config(&config).await?;
+    state.store.save_config(&config).await?;
     Ok(())
 }
 
 pub(super) async fn clear_active_ssl(state: &AppState) -> anyhow::Result<()> {
-    let mut config = state.redis.get_config().await?;
+    let mut config = state.store.get_config().await?;
     let ssl = normalize_ssl_config(config.get("ssl"));
     config["ssl"] = mirror_active_ssl_certificate(&ssl, None);
-    state.redis.save_config(&config).await?;
+    state.store.save_config(&config).await?;
     Ok(())
 }

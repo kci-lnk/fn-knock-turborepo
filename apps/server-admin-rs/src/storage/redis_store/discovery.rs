@@ -1,11 +1,11 @@
 use super::*;
 
-impl RedisStore {
-    pub async fn scanner_settings_raw(&self) -> redis::RedisResult<Option<Value>> {
+impl Store {
+    pub async fn scanner_settings_raw(&self) -> crate::storage::StorageResult<Option<Value>> {
         self.get_json_value(SCANNER_SETTINGS_KEY).await
     }
 
-    pub async fn save_scanner_settings(&self, value: &Value) -> redis::RedisResult<()> {
+    pub async fn save_scanner_settings(&self, value: &Value) -> crate::storage::StorageResult<()> {
         self.set_json_value(SCANNER_SETTINGS_KEY, value).await
     }
 
@@ -14,7 +14,7 @@ impl RedisStore {
         page: i64,
         limit: i64,
         search: &str,
-    ) -> redis::RedisResult<Value> {
+    ) -> crate::storage::StorageResult<Value> {
         let safe_page = page.max(1);
         let safe_limit = limit.clamp(1, 200);
         let start = (safe_page - 1) * safe_limit;
@@ -71,13 +71,13 @@ impl RedisStore {
     pub async fn get_scanner_blacklist_record(
         &self,
         ip: &str,
-    ) -> redis::RedisResult<Option<Value>> {
+    ) -> crate::storage::StorageResult<Option<Value>> {
         let mut conn = self.conn();
         let raw: Option<String> = conn.get(scanner_blacklist_data_key(ip)).await?;
         Ok(raw.and_then(|value| scanner_blacklist_record_from_raw(ip, &value)))
     }
 
-    pub async fn scanner_blacklist_exists(&self, ip: &str) -> redis::RedisResult<bool> {
+    pub async fn scanner_blacklist_exists(&self, ip: &str) -> crate::storage::StorageResult<bool> {
         let mut conn = self.conn();
         let exists: i64 = conn.exists(scanner_blacklist_data_key(ip)).await?;
         Ok(exists == 1)
@@ -91,7 +91,7 @@ impl RedisStore {
         min_score_ms: i64,
         window_min_score_ms: i64,
         ttl_seconds: i64,
-    ) -> redis::RedisResult<i64> {
+    ) -> crate::storage::StorageResult<i64> {
         let key = scanner_suspicious_key(ip);
         let serialized = serde_json::to_string(hit).unwrap_or_else(|_| "{}".to_string());
         let mut conn = self.conn();
@@ -112,7 +112,7 @@ impl RedisStore {
         &self,
         ip: &str,
         min_score_ms: i64,
-    ) -> redis::RedisResult<Vec<Value>> {
+    ) -> crate::storage::StorageResult<Vec<Value>> {
         let key = scanner_suspicious_key(ip);
         let mut conn = self.conn();
         let raws: Vec<String> = redis::cmd("ZRANGEBYSCORE")
@@ -133,7 +133,7 @@ impl RedisStore {
         record: &Value,
         blocked_at_ms: i64,
         ttl_seconds: i64,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let ttl_seconds = ttl_seconds.max(1);
         let index_min_score = blocked_at_ms - ttl_seconds * 1000;
         let mut conn = self.conn();
@@ -159,7 +159,10 @@ impl RedisStore {
         Ok(())
     }
 
-    pub async fn remove_scanner_blacklist(&self, ips: &[String]) -> redis::RedisResult<()> {
+    pub async fn remove_scanner_blacklist(
+        &self,
+        ips: &[String],
+    ) -> crate::storage::StorageResult<()> {
         let clean_ips = sanitize_scanner_ips(ips);
         if clean_ips.is_empty() {
             return Ok(());
@@ -179,7 +182,7 @@ impl RedisStore {
     async fn scanner_blacklist_records_by_ips(
         &self,
         ips: &[String],
-    ) -> redis::RedisResult<Vec<Value>> {
+    ) -> crate::storage::StorageResult<Vec<Value>> {
         if ips.is_empty() {
             return Ok(Vec::new());
         }
@@ -213,11 +216,17 @@ impl RedisStore {
         Ok(records)
     }
 
-    pub async fn get_ip_location_cache(&self, ip: &str) -> redis::RedisResult<Option<Value>> {
+    pub async fn get_ip_location_cache(
+        &self,
+        ip: &str,
+    ) -> crate::storage::StorageResult<Option<Value>> {
         self.get_json_value(&ip_location_cache_key(ip)).await
     }
 
-    pub async fn get_ip_location_state(&self, ip: &str) -> redis::RedisResult<Option<Value>> {
+    pub async fn get_ip_location_state(
+        &self,
+        ip: &str,
+    ) -> crate::storage::StorageResult<Option<Value>> {
         self.get_json_value(&ip_location_state_key(ip)).await
     }
 
@@ -226,7 +235,7 @@ impl RedisStore {
         ip: &str,
         state: &Value,
         ttl_seconds: usize,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         self.set_json_value_ex(&ip_location_state_key(ip), state, ttl_seconds)
             .await
     }
@@ -237,7 +246,7 @@ impl RedisStore {
         state: &Value,
         next_attempt_at_ms: i64,
         ttl_seconds: usize,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         let mut pipe = redis::pipe();
         pipe.set_ex(
@@ -256,7 +265,7 @@ impl RedisStore {
         &self,
         now_ms: i64,
         limit: usize,
-    ) -> redis::RedisResult<Vec<String>> {
+    ) -> crate::storage::StorageResult<Vec<String>> {
         let mut conn = self.conn();
         redis::cmd("ZRANGEBYSCORE")
             .arg(IP_LOCATION_QUEUE_KEY)
@@ -274,7 +283,7 @@ impl RedisStore {
         ip: &str,
         now_ms: i64,
         ttl_seconds: usize,
-    ) -> redis::RedisResult<bool> {
+    ) -> crate::storage::StorageResult<bool> {
         let mut conn = self.conn();
         let result: Option<String> = redis::cmd("SET")
             .arg(ip_location_lock_key(ip))
@@ -287,12 +296,15 @@ impl RedisStore {
         Ok(result.as_deref() == Some("OK"))
     }
 
-    pub async fn release_ip_location_lock(&self, ip: &str) -> redis::RedisResult<()> {
+    pub async fn release_ip_location_lock(&self, ip: &str) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         conn.del(ip_location_lock_key(ip)).await
     }
 
-    pub async fn remove_ip_location_queue_entry(&self, ip: &str) -> redis::RedisResult<()> {
+    pub async fn remove_ip_location_queue_entry(
+        &self,
+        ip: &str,
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         conn.zrem(IP_LOCATION_QUEUE_KEY, ip).await
     }
@@ -303,7 +315,7 @@ impl RedisStore {
         result: &Value,
         state: &Value,
         ttl_seconds: usize,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         let mut pipe = redis::pipe();
         pipe.set_ex(
@@ -323,7 +335,10 @@ impl RedisStore {
         Ok(())
     }
 
-    pub async fn ip_location_references(&self, ip: &str) -> redis::RedisResult<Vec<String>> {
+    pub async fn ip_location_references(
+        &self,
+        ip: &str,
+    ) -> crate::storage::StorageResult<Vec<String>> {
         let mut conn = self.conn();
         conn.smembers(ip_location_refs_key(ip)).await
     }
@@ -333,7 +348,7 @@ impl RedisStore {
         ip: &str,
         refs: &[String],
         ttl_seconds: usize,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         if refs.is_empty() {
             return Ok(());
         }
@@ -354,7 +369,7 @@ impl RedisStore {
         &self,
         ip: &str,
         refs: &[String],
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         if refs.is_empty() {
             return Ok(());
         }
@@ -362,7 +377,11 @@ impl RedisStore {
         conn.srem(ip_location_refs_key(ip), refs).await
     }
 
-    pub async fn record_recent_auth_ip(&self, ip: &str, now: i64) -> redis::RedisResult<()> {
+    pub async fn record_recent_auth_ip(
+        &self,
+        ip: &str,
+        now: i64,
+    ) -> crate::storage::StorageResult<()> {
         let expire_at = now + RECENT_AUTH_IPS_TTL_SECONDS;
         let mut conn = self.conn();
         let expired_ips: Vec<String> = redis::cmd("ZRANGEBYSCORE")
@@ -410,7 +429,11 @@ impl RedisStore {
         Ok(())
     }
 
-    pub async fn is_recent_auth_ip_active(&self, ip: &str, now: i64) -> redis::RedisResult<bool> {
+    pub async fn is_recent_auth_ip_active(
+        &self,
+        ip: &str,
+        now: i64,
+    ) -> crate::storage::StorageResult<bool> {
         let mut conn = self.conn();
         let score: Option<i64> = conn.zscore(RECENT_AUTH_IPS_ZSET_KEY, ip).await.ok();
         Ok(score.is_some_and(|expires_at| expires_at > now))
@@ -420,7 +443,7 @@ impl RedisStore {
         &self,
         now: i64,
         limit: usize,
-    ) -> redis::RedisResult<Vec<Value>> {
+    ) -> crate::storage::StorageResult<Vec<Value>> {
         let mut conn = self.conn();
         let raw: Vec<String> = redis::cmd("ZREVRANGEBYSCORE")
             .arg(RECENT_AUTH_IPS_ZSET_KEY)
@@ -488,7 +511,7 @@ impl RedisStore {
     pub async fn get_json_value_with_ttl(
         &self,
         key: &str,
-    ) -> redis::RedisResult<(Option<Value>, i64)> {
+    ) -> crate::storage::StorageResult<(Option<Value>, i64)> {
         let mut conn = self.conn();
         let raw: Option<String> = conn.get(key).await?;
         let ttl: i64 = conn.ttl(key).await?;
@@ -500,7 +523,7 @@ impl RedisStore {
         key: &str,
         value: &Value,
         ttl: i64,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let serialized = serde_json::to_string(value).unwrap_or_else(|_| "{}".to_string());
         let mut conn = self.conn();
         if ttl > 0 {
@@ -515,7 +538,7 @@ impl RedisStore {
         &self,
         key: &str,
         field: &str,
-    ) -> redis::RedisResult<Option<Value>> {
+    ) -> crate::storage::StorageResult<Option<Value>> {
         let mut conn = self.conn();
         let raw: Option<String> = conn.hget(key, field).await?;
         Ok(raw.and_then(|value| serde_json::from_str(&value).ok()))
@@ -526,7 +549,7 @@ impl RedisStore {
         key: &str,
         field: &str,
         value: &Value,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         conn.hset(
             key,

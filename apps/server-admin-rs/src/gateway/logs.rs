@@ -100,7 +100,7 @@ async fn update_config(
         enabled: body.enabled,
         max_days: normalize_gateway_logging_max_days(body.max_days),
     };
-    let mut config = match state.redis.get_config().await {
+    let mut config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to read config before gateway logging update");
@@ -114,7 +114,7 @@ async fn update_config(
         "gateway_logging".to_string(),
         json!({ "enabled": settings.enabled, "max_days": settings.max_days }),
     );
-    if let Err(error) = state.redis.save_config(&config).await {
+    if let Err(error) = state.store.save_config(&config).await {
         tracing::warn!(%error, "failed to save gateway logging config");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -459,8 +459,10 @@ struct GatewayLoggingSettings {
     max_days: i64,
 }
 
-async fn gateway_logging_settings(state: &AppState) -> redis::RedisResult<GatewayLoggingSettings> {
-    let config = state.redis.get_config().await?;
+async fn gateway_logging_settings(
+    state: &AppState,
+) -> crate::storage::StorageResult<GatewayLoggingSettings> {
+    let config = state.store.get_config().await?;
     let raw = config
         .get("gateway_logging")
         .and_then(Value::as_object)

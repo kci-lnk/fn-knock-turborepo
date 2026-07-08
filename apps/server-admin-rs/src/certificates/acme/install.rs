@@ -160,13 +160,13 @@ pub(super) fn normalize_certificate_authority(value: Option<&str>) -> String {
 pub(super) async fn save_client_settings(
     state: &AppState,
     certificate_authority: &str,
-) -> redis::RedisResult<Value> {
+) -> crate::storage::StorageResult<Value> {
     let settings = json!({
         "certificateAuthority": normalize_certificate_authority(Some(certificate_authority)),
         "updatedAt": now_node_iso(),
     });
     state
-        .redis
+        .store
         .set_json_value(ACME_CLIENT_SETTINGS_KEY, &settings)
         .await?;
     Ok(settings)

@@ -70,17 +70,17 @@ pub(super) async fn restore_app_token_binding(
     }
 
     let mut binding = state
-        .redis
+        .store
         .get_auth_mobility_binding(subject_type, subject_key)
         .await?;
     if let Some(owner_session_id) = binding.as_ref().and_then(binding_owner_session_id)
-        && state.redis.get_session(&owner_session_id).await?.is_none()
+        && state.store.get_session(&owner_session_id).await?.is_none()
     {
         if let Some(mut orphaned) = binding.take() {
             clear_binding_owner_session(&mut orphaned);
             set_binding_last_seen(&mut orphaned);
             state
-                .redis
+                .store
                 .save_auth_mobility_orphaned_binding(
                     subject_type,
                     subject_key,
@@ -116,7 +116,7 @@ pub(super) async fn restore_app_token_binding(
             None,
         );
         state
-            .redis
+            .store
             .save_auth_mobility_owned_binding(
                 subject_type,
                 subject_key,
@@ -132,7 +132,7 @@ pub(super) async fn restore_app_token_binding(
     let Some(owner_session_id) = binding.as_ref().and_then(binding_owner_session_id) else {
         return Ok(false);
     };
-    let Some(owner_session) = state.redis.get_session(&owner_session_id).await? else {
+    let Some(owner_session) = state.store.get_session(&owner_session_id).await? else {
         return Ok(false);
     };
     let expire_at = parse_iso_unix(owner_session.expires_at.as_deref());
@@ -150,7 +150,7 @@ pub(super) async fn restore_app_token_binding(
         whitelist_record_id,
     );
     state
-        .redis
+        .store
         .save_auth_mobility_binding_with_ttl(subject_type, subject_key, &next_binding, ttl_seconds)
         .await?;
 
@@ -160,7 +160,7 @@ pub(super) async fn restore_app_token_binding(
         let session_ttl =
             resolve_proxy_session_ttl(parse_iso_unix(updated_session.expires_at.as_deref()));
         state
-            .redis
+            .store
             .add_auth_mobility_session_binding(
                 &owner_session_id,
                 subject_type,
@@ -223,7 +223,7 @@ pub(super) async fn restore_proxy_session(
     session_id: &str,
     client_ip: &str,
 ) -> anyhow::Result<bool> {
-    let Some(session) = state.redis.get_session(session_id).await? else {
+    let Some(session) = state.store.get_session(session_id).await? else {
         return Ok(false);
     };
     let normalized_ip = normalized_or_trimmed_ip(client_ip);
@@ -231,10 +231,10 @@ pub(super) async fn restore_proxy_session(
         return Ok(false);
     }
 
-    let config = state.redis.get_config().await?;
+    let config = state.store.get_config().await?;
     let settings = AuthCredentialSettings::from_config(&config);
     let binding = state
-        .redis
+        .store
         .get_auth_mobility_binding("proxy-session", session_id)
         .await?;
 
@@ -254,7 +254,7 @@ pub(super) async fn restore_proxy_session(
                 whitelist_record_id,
             );
             state
-                .redis
+                .store
                 .save_auth_mobility_binding_keep_ttl("proxy-session", session_id, &next_binding)
                 .await?;
         }
@@ -285,7 +285,7 @@ pub(super) async fn restore_proxy_session(
         Some(whitelist_record_id),
     );
     state
-        .redis
+        .store
         .save_auth_mobility_binding_keep_ttl("proxy-session", session_id, &next_binding)
         .await?;
     sync_browser_session_ip(state, session_id, &normalized_ip, "proxy-session").await?;
@@ -310,9 +310,9 @@ pub(super) async fn list_active_sessions_by_ip(
     if normalized_ip.is_empty() {
         return Ok(Vec::new());
     }
-    let config = state.redis.get_config().await?;
+    let config = state.store.get_config().await?;
     let mut owners = Vec::new();
-    for (session_id, session) in state.redis.list_login_sessions().await? {
+    for (session_id, session) in state.store.list_login_sessions().await? {
         let ips = effective_session_ips(state, &session_id, &session, &config).await?;
         if ips.iter().any(|ip| ip == &normalized_ip) {
             owners.push((session_id, session));

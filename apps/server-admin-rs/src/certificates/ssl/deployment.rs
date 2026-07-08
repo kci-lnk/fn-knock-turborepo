@@ -8,7 +8,7 @@ pub(crate) async fn sync_ssl_deployment_to_gateway(
     let config = match config {
         Some(config) => config,
         None => {
-            owned_config = state.redis.get_config().await?;
+            owned_config = state.store.get_config().await?;
             &owned_config
         }
     };

@@ -62,14 +62,14 @@ const RUNTIME_I18N_KEYS: &[&str] = &[
     "server.acmeJobRunner.addedToLibrary",
     "server.acmeJobRunner.addToLibraryFailed",
     "server.acmeJobRunner.stoppedIgnoredProcessError",
-    "server.redis.acme.domainRequired",
-    "server.redis.acme.domainsRequired",
-    "server.redis.acme.dnsProviderRequired",
-    "server.redis.acme.primaryDomainDuplicated",
-    "server.redis.acme.applicationNotFound",
-    "server.redis.acme.noMatchingIssuedCertificate",
-    "server.redis.ssl.certNotFound",
-    "server.redis.ssl.certOrKeyInvalid",
+    "server.store.acme.domainRequired",
+    "server.store.acme.domainsRequired",
+    "server.store.acme.dnsProviderRequired",
+    "server.store.acme.primaryDomainDuplicated",
+    "server.store.acme.applicationNotFound",
+    "server.store.acme.noMatchingIssuedCertificate",
+    "server.store.ssl.certNotFound",
+    "server.store.ssl.certOrKeyInvalid",
     "server.acmeDnsProviders.groups.common",
     "server.acmeDnsProviders.groups.domestic",
     "server.acmeDnsProviders.groups.international",
@@ -146,7 +146,7 @@ fn translates_and_interpolates() {
     let translator = Translator::new("en");
     assert_eq!(
         translator.t_params(
-            "server.redis.acme.primaryDomainDuplicated",
+            "server.store.acme.primaryDomainDuplicated",
             &[("primaryDomain", "example.com".to_string())]
         ),
         "Primary domain example.com already exists in another request item"

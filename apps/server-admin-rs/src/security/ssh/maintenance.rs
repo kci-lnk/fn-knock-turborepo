@@ -57,7 +57,7 @@ pub(super) async fn disable_ssh_security(
             "updated_at": time_utils::now_iso(),
         });
         if runtime != &next {
-            state.redis.set_json_value(RUNTIME_KEY, &next).await?;
+            state.store.set_json_value(RUNTIME_KEY, &next).await?;
         }
     }
     Ok(())
@@ -95,7 +95,9 @@ pub(super) async fn sync_firewall_blocks_now(
     }))
 }
 
-pub(super) async fn reconcile_expired_blocks(state: &AppState) -> redis::RedisResult<()> {
+pub(super) async fn reconcile_expired_blocks(
+    state: &AppState,
+) -> crate::storage::StorageResult<()> {
     for record in expired_active_blocks(state).await? {
         if let Some(ip) = record.get("ip").and_then(Value::as_str) {
             let _ = mark_block_removed(state, ip, "expired").await?;
@@ -104,13 +106,15 @@ pub(super) async fn reconcile_expired_blocks(state: &AppState) -> redis::RedisRe
     Ok(())
 }
 
-pub(super) async fn expired_active_blocks(state: &AppState) -> redis::RedisResult<Vec<Value>> {
-    let keys = state.redis.scan_keys(BLOCK_DATA_PREFIX, 100).await?;
+pub(super) async fn expired_active_blocks(
+    state: &AppState,
+) -> crate::storage::StorageResult<Vec<Value>> {
+    let keys = state.store.scan_keys(BLOCK_DATA_PREFIX, 100).await?;
     let mut records = Vec::new();
     let now = time_utils::now_ms();
     for key in keys {
         if let Some(record) = state
-            .redis
+            .store
             .get_json_value(&key)
             .await?
             .and_then(normalize_block_record)
@@ -427,17 +431,23 @@ pub(super) async fn create_ssh_block(
     Ok(())
 }
 
-pub(super) async fn is_processed(state: &AppState, id: &str) -> redis::RedisResult<bool> {
+pub(super) async fn is_processed(
+    state: &AppState,
+    id: &str,
+) -> crate::storage::StorageResult<bool> {
     Ok(state
-        .redis
+        .store
         .get_string_value(&format!("{PROCESSED_PREFIX}{id}"))
         .await?
         .is_some())
 }
 
-pub(super) async fn mark_processed(state: &AppState, id: &str) -> redis::RedisResult<()> {
+pub(super) async fn mark_processed(
+    state: &AppState,
+    id: &str,
+) -> crate::storage::StorageResult<()> {
     state
-        .redis
+        .store
         .set_string_value_with_optional_ttl(
             &format!("{PROCESSED_PREFIX}{id}"),
             "1",
@@ -452,7 +462,7 @@ pub(super) async fn add_failure(
     id: &str,
     entry: &Value,
     window_minutes: i64,
-) -> redis::RedisResult<i64> {
+) -> crate::storage::StorageResult<i64> {
     let score = iso_score(entry.get("happened_at").and_then(Value::as_str));
     let score = if score > 0 {
         score
@@ -461,7 +471,7 @@ pub(super) async fn add_failure(
     };
     let window_ms = window_minutes.max(1) * 60 * 1000;
     state
-        .redis
+        .store
         .zadd_trim_count_expire(
             &format!("{FAILURES_PREFIX}{ip}"),
             id,
@@ -472,14 +482,20 @@ pub(super) async fn add_failure(
         .await
 }
 
-pub(super) async fn clear_failures(state: &AppState, ip: &str) -> redis::RedisResult<()> {
+pub(super) async fn clear_failures(
+    state: &AppState,
+    ip: &str,
+) -> crate::storage::StorageResult<()> {
     state
-        .redis
+        .store
         .delete_key(&format!("{FAILURES_PREFIX}{ip}"))
         .await
 }
 
-pub(super) async fn is_active_blocked(state: &AppState, ip: &str) -> redis::RedisResult<bool> {
+pub(super) async fn is_active_blocked(
+    state: &AppState,
+    ip: &str,
+) -> crate::storage::StorageResult<bool> {
     Ok(load_block(state, ip)
         .await?
         .is_some_and(|record| is_active_block(&record, time_utils::now_ms())))

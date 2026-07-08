@@ -23,9 +23,6 @@ load_config() {
 	config_get auth_port main auth_port "7997"
 	config_get go_backend_port main go_backend_port "7996"
 	config_get go_reproxy_port main go_reproxy_port "7999"
-	config_get redis_host main redis_host "127.0.0.1"
-	config_get redis_port main redis_port "6379"
-	config_get redis_password main redis_password ""
 	config_get root_share_dir main root_share_dir ""
 }
 
@@ -99,8 +96,7 @@ validate_ports() {
 	validate_port backend "$backend_port" &&
 	validate_port auth "$auth_port" &&
 	validate_port go_backend "$go_backend_port" &&
-	validate_port go_reproxy "$go_reproxy_port" &&
-	validate_port redis "$redis_port" || return 1
+	validate_port go_reproxy "$go_reproxy_port" || return 1
 	validate_unique_service_ports
 }
 
@@ -144,23 +140,15 @@ append_common_env() {
 		"BACKEND_HOST=$backend_host" \
 		"BACKEND_PORT=$backend_port" \
 		"AUTH_HOST=$auth_host" \
-			"AUTH_PORT=$auth_port" \
-			"GO_BACKEND_PORT=$go_backend_port" \
-			"GO_REPROXY_PORT=$go_reproxy_port" \
-			"GO_BACKEND_GRPC_ADDR=127.0.0.1:$go_backend_port" \
-			"FN_KNOCK_INTERNAL_RPC_TOKEN=$FN_KNOCK_INTERNAL_RPC_TOKEN" \
-			"REDIS_HOST=$redis_host" \
-		"REDIS_PORT=$redis_port" \
+		"AUTH_PORT=$auth_port" \
+		"GO_BACKEND_PORT=$go_backend_port" \
+		"GO_REPROXY_PORT=$go_reproxy_port" \
+		"GO_BACKEND_GRPC_ADDR=127.0.0.1:$go_backend_port" \
+		"FN_KNOCK_INTERNAL_RPC_TOKEN=$FN_KNOCK_INTERNAL_RPC_TOKEN" \
 		"ALTCHA_HMAC_KEY=$ALTCHA_HMAC_KEY" \
 		"HMAC_SECRET=$HMAC_SECRET" \
 		"ADMIN_PROXY_SECRET=$ADMIN_PROXY_SECRET"
-	[ -n "$redis_password" ] && procd_append_param env "REDIS_PASSWORD=$redis_password"
 	[ -n "$root_share_dir" ] && procd_append_param env "FN_KNOCK_ROOT_SHARE_DIR=$root_share_dir"
-}
-
-start_redis_if_present() {
-	[ -x /etc/init.d/redis ] || return 0
-	/etc/init.d/redis start >/dev/null 2>&1 || true
 }
 
 start_config_watcher() {
@@ -220,7 +208,6 @@ start_service() {
 
 	validate_ports || return 1
 	ensure_runtime_layout || return 1
-	start_redis_if_present
 
 	load_or_create_secret ALTCHA_HMAC_KEY "$data_dir/altcha_hmac_key" || return 1
 	load_or_create_secret HMAC_SECRET "$data_dir/hmac_secret" || return 1

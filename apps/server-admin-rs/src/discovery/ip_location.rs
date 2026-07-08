@@ -108,14 +108,17 @@ pub fn start_ip_location_worker(state: AppState) {
 pub async fn ensure_ip_locations_enqueued(
     state: &AppState,
     ips: Vec<String>,
-) -> redis::RedisResult<()> {
+) -> crate::storage::StorageResult<()> {
     for ip in ips {
         let _ = ensure_enqueued(state, &ip).await?;
     }
     Ok(())
 }
 
-pub async fn ensure_ip_location_enqueued(state: &AppState, ip: &str) -> redis::RedisResult<Value> {
+pub async fn ensure_ip_location_enqueued(
+    state: &AppState,
+    ip: &str,
+) -> crate::storage::StorageResult<Value> {
     Ok(serde_json::to_value(ensure_enqueued(state, ip).await?).unwrap_or_else(|_| json!({})))
 }
 
@@ -139,7 +142,7 @@ pub async fn register_usage(
     };
     if !references.is_empty() {
         state
-            .redis
+            .store
             .add_ip_location_references(
                 &normalized_ip,
                 &references,
@@ -148,7 +151,7 @@ pub async fn register_usage(
             .await?;
     }
 
-    if let Some(cached) = state.redis.get_ip_location_cache(&normalized_ip).await?
+    if let Some(cached) = state.store.get_ip_location_cache(&normalized_ip).await?
         && let Ok(result) = serde_json::from_value::<IpLocationResult>(cached)
     {
         if !references.is_empty() {
@@ -201,7 +204,7 @@ fn ip_location_route_text_params(
 async fn ensure_enqueued_batch(
     state: &AppState,
     ips: Vec<String>,
-) -> redis::RedisResult<Vec<IpLocationSnapshot>> {
+) -> crate::storage::StorageResult<Vec<IpLocationSnapshot>> {
     let mut seen = HashSet::new();
     let mut unique_ips = Vec::new();
     for ip in ips {
@@ -227,7 +230,10 @@ async fn ensure_enqueued_batch(
     Ok(snapshots)
 }
 
-async fn ensure_enqueued(state: &AppState, ip: &str) -> redis::RedisResult<IpLocationSnapshot> {
+async fn ensure_enqueued(
+    state: &AppState,
+    ip: &str,
+) -> crate::storage::StorageResult<IpLocationSnapshot> {
     let normalized_ip = http_utils::normalize_ip(ip);
     if normalized_ip.is_empty() {
         return Ok(build_snapshot(
@@ -245,7 +251,7 @@ async fn ensure_enqueued(state: &AppState, ip: &str) -> redis::RedisResult<IpLoc
         ));
     }
 
-    if let Some(cached) = state.redis.get_ip_location_cache(&normalized_ip).await? {
+    if let Some(cached) = state.store.get_ip_location_cache(&normalized_ip).await? {
         if let Ok(result) = serde_json::from_value::<IpLocationResult>(cached) {
             let current = get_state(state, &normalized_ip).await?;
             let state_value = if current.status == "success" {
@@ -254,7 +260,7 @@ async fn ensure_enqueued(state: &AppState, ip: &str) -> redis::RedisResult<IpLoc
                 build_success_state(result, current.attempts)
             };
             state
-                .redis
+                .store
                 .set_ip_location_state(
                     &normalized_ip,
                     &serde_json::to_value(&state_value).unwrap_or_else(|_| json!({})),
@@ -276,7 +282,7 @@ async fn ensure_enqueued(state: &AppState, ip: &str) -> redis::RedisResult<IpLoc
             result: None,
         };
         state
-            .redis
+            .store
             .set_ip_location_state(
                 &normalized_ip,
                 &serde_json::to_value(&state_value).unwrap_or_else(|_| json!({})),
@@ -305,7 +311,7 @@ async fn ensure_enqueued(state: &AppState, ip: &str) -> redis::RedisResult<IpLoc
         result: None,
     };
     state
-        .redis
+        .store
         .enqueue_ip_location(
             &normalized_ip,
             &serde_json::to_value(&next_state).unwrap_or_else(|_| json!({})),
@@ -319,7 +325,7 @@ async fn ensure_enqueued(state: &AppState, ip: &str) -> redis::RedisResult<IpLoc
 
 async fn process_queue(state: &AppState) -> anyhow::Result<()> {
     let due_ips = state
-        .redis
+        .store
         .due_ip_location_ips(time_utils::now_ms(), QUEUE_BATCH_SIZE)
         .await?;
     if due_ips.is_empty() {
@@ -341,7 +347,7 @@ async fn process_one(state: &AppState, ip: &str) -> anyhow::Result<()> {
     let lookup_timeout = lookup_timeout();
     let lock_ttl_seconds = (lookup_timeout.as_secs() + 5).max(10) as usize;
     let locked = state
-        .redis
+        .store
         .acquire_ip_location_lock(ip, time_utils::now_ms(), lock_ttl_seconds)
         .await?;
     if !locked {
@@ -349,7 +355,7 @@ async fn process_one(state: &AppState, ip: &str) -> anyhow::Result<()> {
     }
 
     let result = async {
-        state.redis.remove_ip_location_queue_entry(ip).await?;
+        state.store.remove_ip_location_queue_entry(ip).await?;
         let current = get_state(state, ip).await?;
         let attempts = current.attempts.max(0);
         if attempts >= MAX_ATTEMPTS {
@@ -366,7 +372,7 @@ async fn process_one(state: &AppState, ip: &str) -> anyhow::Result<()> {
                 result: None,
             };
             state
-                .redis
+                .store
                 .set_ip_location_state(
                     ip,
                     &serde_json::to_value(failed).unwrap_or_else(|_| json!({})),
@@ -386,7 +392,7 @@ async fn process_one(state: &AppState, ip: &str) -> anyhow::Result<()> {
             result: None,
         };
         state
-            .redis
+            .store
             .set_ip_location_state(
                 ip,
                 &serde_json::to_value(processing).unwrap_or_else(|_| json!({})),
@@ -399,7 +405,7 @@ async fn process_one(state: &AppState, ip: &str) -> anyhow::Result<()> {
             LookupOutcome::Success(result) => {
                 let success_state = build_success_state(result.clone(), next_attempt);
                 state
-                    .redis
+                    .store
                     .complete_ip_location_lookup(
                         ip,
                         &serde_json::to_value(&result).unwrap_or_else(|_| json!({})),
@@ -421,7 +427,7 @@ async fn process_one(state: &AppState, ip: &str) -> anyhow::Result<()> {
                         result: None,
                     };
                     state
-                        .redis
+                        .store
                         .set_ip_location_state(
                             ip,
                             &serde_json::to_value(failed).unwrap_or_else(|_| json!({})),
@@ -440,7 +446,7 @@ async fn process_one(state: &AppState, ip: &str) -> anyhow::Result<()> {
                         result: None,
                     };
                     state
-                        .redis
+                        .store
                         .enqueue_ip_location(
                             ip,
                             &serde_json::to_value(queued).unwrap_or_else(|_| json!({})),
@@ -455,7 +461,7 @@ async fn process_one(state: &AppState, ip: &str) -> anyhow::Result<()> {
     }
     .await;
 
-    let release_result = state.redis.release_ip_location_lock(ip).await;
+    let release_result = state.store.release_ip_location_lock(ip).await;
     if let Err(error) = release_result {
         tracing::warn!(%error, %ip, "failed to release IP location lock");
     }
@@ -515,7 +521,7 @@ async fn lookup_remote(state: &AppState, ip: &str, timeout: Duration) -> LookupO
 
 async fn ip_lookup_api_url(state: &AppState) -> Result<Url, String> {
     let raw = state
-        .redis
+        .store
         .get_json_value(IP_LOCATION_API_SETTINGS_KEY)
         .await
         .map_err(|error| error.to_string())?;
@@ -660,8 +666,8 @@ fn js_array_item_string(value: &Value) -> String {
     }
 }
 
-async fn get_state(state: &AppState, ip: &str) -> redis::RedisResult<IpLocationState> {
-    let raw = state.redis.get_ip_location_state(ip).await?;
+async fn get_state(state: &AppState, ip: &str) -> crate::storage::StorageResult<IpLocationState> {
+    let raw = state.store.get_ip_location_state(ip).await?;
     Ok(raw
         .and_then(|value| serde_json::from_value::<IpLocationState>(value).ok())
         .unwrap_or_else(|| IpLocationState {
@@ -710,7 +716,7 @@ async fn sync_references(
     ip: &str,
     result: &IpLocationResult,
 ) -> anyhow::Result<()> {
-    let refs = state.redis.ip_location_references(ip).await?;
+    let refs = state.store.ip_location_references(ip).await?;
     sync_tracked_references(state, ip, result, &refs).await
 }
 
@@ -732,7 +738,7 @@ async fn sync_tracked_references(
     }
     if !stale_refs.is_empty() {
         state
-            .redis
+            .store
             .remove_ip_location_references(ip, &stale_refs)
             .await?;
     }
@@ -776,7 +782,7 @@ async fn sync_hash_ip_location(
     field: &str,
     result: &IpLocationResult,
 ) -> anyhow::Result<bool> {
-    let Some(mut record) = state.redis.hget_json_value(key, field).await? else {
+    let Some(mut record) = state.store.hget_json_value(key, field).await? else {
         return Ok(false);
     };
     if !record_matches_ip(&record, &result.normalized_ip, "ip") {
@@ -790,7 +796,7 @@ async fn sync_hash_ip_location(
     } else {
         return Ok(false);
     }
-    state.redis.hset_json_value(key, field, &record).await?;
+    state.store.hset_json_value(key, field, &record).await?;
     Ok(true)
 }
 
@@ -799,7 +805,7 @@ async fn sync_json_ip_location(
     key: &str,
     result: &IpLocationResult,
 ) -> anyhow::Result<bool> {
-    let (Some(mut record), ttl) = state.redis.get_json_value_with_ttl(key).await? else {
+    let (Some(mut record), ttl) = state.store.get_json_value_with_ttl(key).await? else {
         return Ok(false);
     };
     if !record_matches_ip(&record, &result.normalized_ip, "ip") {
@@ -814,7 +820,7 @@ async fn sync_json_ip_location(
         return Ok(false);
     }
     state
-        .redis
+        .store
         .set_json_value_preserve_ttl(key, &record, ttl)
         .await?;
     Ok(true)
@@ -826,7 +832,7 @@ async fn sync_session_timeline(
     result: &IpLocationResult,
 ) -> anyhow::Result<bool> {
     let key = format!("fn_knock:auth_mobility:timeline:{session_id}");
-    let (Some(record), ttl) = state.redis.get_json_value_with_ttl(&key).await? else {
+    let (Some(record), ttl) = state.store.get_json_value_with_ttl(&key).await? else {
         return Ok(false);
     };
     let Some(events) = record.as_array() else {
@@ -863,7 +869,7 @@ async fn sync_session_timeline(
         return Ok(true);
     }
     state
-        .redis
+        .store
         .set_json_value_preserve_ttl(&key, &Value::Array(next_events), ttl)
         .await?;
     Ok(true)
@@ -875,7 +881,7 @@ async fn sync_system_event(
     result: &IpLocationResult,
 ) -> anyhow::Result<bool> {
     let key = format!("fn_knock:events:data:{event_id}");
-    let (Some(mut event), ttl) = state.redis.get_json_value_with_ttl(&key).await? else {
+    let (Some(mut event), ttl) = state.store.get_json_value_with_ttl(&key).await? else {
         return Ok(false);
     };
     let event_type = event
@@ -912,7 +918,7 @@ async fn sync_system_event(
         return Ok(true);
     }
     state
-        .redis
+        .store
         .set_json_value_preserve_ttl(&key, &event, ttl)
         .await?;
     Ok(true)

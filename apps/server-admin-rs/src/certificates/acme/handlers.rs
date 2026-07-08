@@ -776,7 +776,7 @@ pub(super) async fn dns_providers(State(state): State<AppState>) -> Response {
 
 pub(super) async fn subdomain_recommendation(State(state): State<AppState>) -> Response {
     let t = Translator::from_state(&state).await;
-    match state.redis.get_config().await {
+    match state.store.get_config().await {
         Ok(config) => response::ok(build_subdomain_certificate_recommendation(
             &state, &config, &t,
         ))
@@ -794,7 +794,7 @@ pub(super) async fn subdomain_recommendation(State(state): State<AppState>) -> R
 pub(super) async fn build_application_overview(
     state: &AppState,
     t: &Translator,
-) -> redis::RedisResult<Vec<Value>> {
+) -> crate::storage::StorageResult<Vec<Value>> {
     let applications = read_acme_applications(state).await?;
     let issued_certificates = read_issued_certificates(state).await?;
     let ssl_status = ssl::build_ssl_status(state)
@@ -1044,7 +1044,7 @@ pub(super) async fn delete_cert(
     if normalized_domain.is_empty() {
         return response::error(
             StatusCode::BAD_REQUEST,
-            t.t("server.redis.acme.domainRequired"),
+            t.t("server.store.acme.domainRequired"),
         );
     }
     match find_application_by_primary_domain(&state, &normalized_domain).await {
@@ -1145,7 +1145,7 @@ pub(super) async fn deploy_domain_certificate(
     if normalized_domain.is_empty() {
         return response::error(
             StatusCode::BAD_REQUEST,
-            t.t("server.redis.acme.domainRequired"),
+            t.t("server.store.acme.domainRequired"),
         );
     }
 

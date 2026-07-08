@@ -4,8 +4,8 @@ pub(super) async fn load_config_section(
     state: &AppState,
     key: &str,
     normalize: fn(Option<&Value>) -> Value,
-) -> redis::RedisResult<Value> {
-    let config = state.redis.get_config().await?;
+) -> crate::storage::StorageResult<Value> {
+    let config = state.store.get_config().await?;
     Ok(normalize(config.get(key)))
 }
 
@@ -14,10 +14,10 @@ pub(super) async fn update_config_section(
     key: &str,
     patch: &Value,
     normalize: fn(Option<&Value>) -> Value,
-) -> redis::RedisResult<Value> {
-    let mut config = state.redis.get_config().await?;
+) -> crate::storage::StorageResult<Value> {
+    let mut config = state.store.get_config().await?;
     if !config.is_object() {
-        config = redis_store::default_config();
+        config = app_store::default_config();
     }
     let mut next = normalize(config.get(key));
     merge_object(&mut next, patch);
@@ -25,7 +25,7 @@ pub(super) async fn update_config_section(
     if let Some(object) = config.as_object_mut() {
         object.insert(key.to_string(), next.clone());
     }
-    state.redis.save_config(&config).await?;
+    state.store.save_config(&config).await?;
     Ok(next)
 }
 
@@ -33,23 +33,23 @@ pub(super) async fn save_top_level_config_value(
     state: &AppState,
     key: &str,
     value: Value,
-) -> redis::RedisResult<()> {
-    let mut config = state.redis.get_config().await?;
+) -> crate::storage::StorageResult<()> {
+    let mut config = state.store.get_config().await?;
     if !config.is_object() {
-        config = redis_store::default_config();
+        config = app_store::default_config();
     }
     if let Some(object) = config.as_object_mut() {
         object.insert(key.to_string(), value);
     }
-    state.redis.save_config(&config).await
+    state.store.save_config(&config).await
 }
 
 pub(crate) async fn load_protocol_mapping_feature(
     state: &AppState,
     fallback_config: Option<&Value>,
-) -> redis::RedisResult<Value> {
+) -> crate::storage::StorageResult<Value> {
     if let Some(value) = state
-        .redis
+        .store
         .get_json_value(PROTOCOL_MAPPING_FEATURE_KEY)
         .await?
     {
@@ -63,20 +63,22 @@ pub(crate) async fn load_protocol_mapping_feature(
 pub(super) async fn save_protocol_mapping_feature(
     state: &AppState,
     value: &Value,
-) -> redis::RedisResult<()> {
+) -> crate::storage::StorageResult<()> {
     let next = normalize_protocol_mapping_feature(Some(value));
     state
-        .redis
+        .store
         .set_json_value(PROTOCOL_MAPPING_FEATURE_KEY, &next)
         .await
 }
 
-pub(super) async fn load_captcha_settings(state: &AppState) -> redis::RedisResult<Value> {
-    let value = match state.redis.get_json_value(CAPTCHA_SETTINGS_KEY).await? {
+pub(super) async fn load_captcha_settings(
+    state: &AppState,
+) -> crate::storage::StorageResult<Value> {
+    let value = match state.store.get_json_value(CAPTCHA_SETTINGS_KEY).await? {
         Some(value) => Some(value),
         None => {
             state
-                .redis
+                .store
                 .get_json_value(LEGACY_CAPTCHA_SETTINGS_KEY)
                 .await?
         }
@@ -87,7 +89,7 @@ pub(super) async fn load_captcha_settings(state: &AppState) -> redis::RedisResul
 pub(super) async fn update_captcha_settings(
     state: &AppState,
     patch: &Value,
-) -> redis::RedisResult<Value> {
+) -> crate::storage::StorageResult<Value> {
     let current = load_captcha_settings(state).await?;
     let mut next = current.clone();
     merge_object(&mut next, patch);
@@ -106,7 +108,7 @@ pub(super) async fn update_captcha_settings(
     }
     next = normalize_captcha_settings(Some(&next));
     state
-        .redis
+        .store
         .set_json_value(CAPTCHA_SETTINGS_KEY, &next)
         .await?;
     Ok(next)
@@ -114,19 +116,21 @@ pub(super) async fn update_captcha_settings(
 
 pub(super) async fn load_run_mode_prompt_preferences(
     state: &AppState,
-) -> redis::RedisResult<Value> {
+) -> crate::storage::StorageResult<Value> {
     Ok(normalize_run_mode_prompt_preferences(
         state
-            .redis
+            .store
             .get_json_value(RUN_MODE_PROMPT_PREFERENCES_KEY)
             .await?
             .as_ref(),
     ))
 }
 
-pub(super) async fn load_welcome_guide_status(state: &AppState) -> redis::RedisResult<Value> {
+pub(super) async fn load_welcome_guide_status(
+    state: &AppState,
+) -> crate::storage::StorageResult<Value> {
     let raw = state
-        .redis
+        .store
         .get_string_value(WELCOME_GUIDE_STATUS_KEY)
         .await?;
     Ok(match raw.as_deref() {
@@ -312,7 +316,7 @@ pub(super) fn parse_int_field_value(value: &Value) -> Option<i64> {
 
 pub(super) fn ensure_config_object(value: &mut Value) -> &mut Map<String, Value> {
     if !value.is_object() {
-        *value = redis_store::default_config();
+        *value = app_store::default_config();
     }
     value.as_object_mut().expect("config is object")
 }

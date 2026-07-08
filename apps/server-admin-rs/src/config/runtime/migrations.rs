@@ -3,14 +3,14 @@ use super::*;
 pub(super) async fn apply_boot_config_migrations(
     state: &AppState,
     config: &mut Value,
-) -> redis::RedisResult<Vec<&'static str>> {
+) -> crate::storage::StorageResult<Vec<&'static str>> {
     let mut applied = Vec::new();
     let mut config_changed = false;
     let mut mark_throttle_patch_done = false;
     let mut mark_resource_alerts_patch_done = false;
 
     if state
-        .redis
+        .store
         .get_string_value(LEGACY_REVERSE_PROXY_THROTTLE_PATCH_FLAG_KEY)
         .await?
         .as_deref()
@@ -36,7 +36,7 @@ pub(super) async fn apply_boot_config_migrations(
     }
 
     if state
-        .redis
+        .store
         .get_string_value(LEGACY_EVENT_SYSTEM_RESOURCE_ALERTS_PATCH_FLAG_KEY)
         .await?
         .as_deref()
@@ -52,17 +52,17 @@ pub(super) async fn apply_boot_config_migrations(
     }
 
     if config_changed {
-        state.redis.save_config(config).await?;
+        state.store.save_config(config).await?;
     }
     if mark_throttle_patch_done {
         state
-            .redis
+            .store
             .set_string_value(LEGACY_REVERSE_PROXY_THROTTLE_PATCH_FLAG_KEY, "1")
             .await?;
     }
     if mark_resource_alerts_patch_done {
         state
-            .redis
+            .store
             .set_string_value(LEGACY_EVENT_SYSTEM_RESOURCE_ALERTS_PATCH_FLAG_KEY, "1")
             .await?;
     }
@@ -72,7 +72,7 @@ pub(super) async fn apply_boot_config_migrations(
 pub(super) async fn apply_runtime_constraints_on_boot(
     state: &AppState,
     config: &mut Value,
-) -> redis::RedisResult<Vec<String>> {
+) -> crate::storage::StorageResult<Vec<String>> {
     let mut corrected = Vec::new();
     let target = deployment_target(state);
     let host_runtime = host_runtime_available(state);
@@ -147,7 +147,7 @@ pub(super) async fn apply_runtime_constraints_on_boot(
     }
 
     if !corrected.is_empty() {
-        state.redis.save_config(config).await?;
+        state.store.save_config(config).await?;
     }
     Ok(corrected)
 }

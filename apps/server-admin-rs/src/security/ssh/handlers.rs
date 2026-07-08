@@ -23,7 +23,7 @@ pub(super) async fn update_config(
         Ok(details) => response::ok(details).into_response(),
         Err(SshError::BadRequest(message)) => response::error(StatusCode::BAD_REQUEST, message),
         Err(SshError::Runtime(message)) => response::error(StatusCode::BAD_REQUEST, message),
-        Err(SshError::Redis(error)) => {
+        Err(SshError::Storage(error)) => {
             tracing::warn!(%error, "failed to update SSH security config");
             response::error(
                 StatusCode::INTERNAL_SERVER_ERROR,

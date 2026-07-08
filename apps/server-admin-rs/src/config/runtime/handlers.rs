@@ -106,7 +106,7 @@ pub(super) async fn update_run_type(
         );
     }
 
-    let previous_config = match state.redis.get_config().await {
+    let previous_config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before run_type update");
@@ -156,7 +156,7 @@ pub(super) async fn update_run_type(
         Value::String(reverse_proxy_submode),
     );
 
-    if let Err(error) = state.redis.save_config(&next_config).await {
+    if let Err(error) = state.store.save_config(&next_config).await {
         tracing::warn!(%error, "failed to save run_type config");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -167,7 +167,7 @@ pub(super) async fn update_run_type(
         let disabled = json!({ "enabled": false });
         if let Err(error) = save_protocol_mapping_feature(&state, &disabled).await {
             tracing::warn!(%error, "failed to disable protocol mapping feature after run_type update");
-            if let Err(rollback_error) = state.redis.save_config(&previous_config).await {
+            if let Err(rollback_error) = state.store.save_config(&previous_config).await {
                 tracing::warn!(%rollback_error, "failed to rollback run_type config");
             }
             return response::error(
@@ -224,7 +224,7 @@ pub(super) async fn cleanup_auto_whitelist_after_direct_mode(state: &AppState, r
 }
 
 pub(super) async fn get_protocol_mapping_feature(State(state): State<AppState>) -> Response {
-    let fallback_config = state.redis.get_config().await.ok();
+    let fallback_config = state.store.get_config().await.ok();
     match load_protocol_mapping_feature(&state, fallback_config.as_ref()).await {
         Ok(config) => response::ok(config).into_response(),
         Err(error) => {
@@ -243,7 +243,7 @@ pub(super) async fn update_protocol_mapping_feature(
     Json(body): Json<Value>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let previous_config = match state.redis.get_config().await {
+    let previous_config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before protocol mapping update");
@@ -292,7 +292,7 @@ pub(super) async fn update_protocol_mapping_feature(
         );
     }
     if next.get("enabled").and_then(Value::as_bool) == Some(false) {
-        if let Err(error) = state.redis.save_config(&next_config).await {
+        if let Err(error) = state.store.save_config(&next_config).await {
             tracing::warn!(%error, "failed to clear stream mappings after protocol mapping disabled");
             if let Err(rollback_error) =
                 save_protocol_mapping_feature(&state, &previous_settings).await
@@ -353,7 +353,7 @@ pub(super) async fn update_smart_connect(
         );
     }
 
-    let previous_config = match state.redis.get_config().await {
+    let previous_config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before smart connect update");
@@ -395,7 +395,7 @@ pub(super) async fn update_smart_connect(
     smart = normalize_smart_connect_config(Some(&smart));
     ensure_config_object(&mut next_config).insert("smart_connect".to_string(), smart);
 
-    if let Err(error) = state.redis.save_config(&next_config).await {
+    if let Err(error) = state.store.save_config(&next_config).await {
         tracing::warn!(%error, "failed to save smart connect config");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -535,7 +535,7 @@ pub(super) async fn update_fnos_port_icon_hijack(
     Json(body): Json<Value>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let previous_config = match state.redis.get_config().await {
+    let previous_config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before fnos port icon hijack update");
@@ -557,13 +557,13 @@ pub(super) async fn update_fnos_port_icon_hijack(
     let next = normalize_fnos_port_icon_hijack(Some(&current));
     let mut next_config = previous_config.clone();
     if !next_config.is_object() {
-        next_config = redis_store::default_config();
+        next_config = app_store::default_config();
     }
     if let Some(object) = next_config.as_object_mut() {
         object.insert("fnos_port_icon_hijack".to_string(), next.clone());
     }
 
-    if let Err(error) = state.redis.save_config(&next_config).await {
+    if let Err(error) = state.store.save_config(&next_config).await {
         tracing::warn!(%error, "failed to save fnos port icon hijack config");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -580,7 +580,7 @@ pub(super) async fn update_fnos_port_icon_hijack(
         Ok(()) => response::ok(next).into_response(),
         Err(error) => {
             tracing::warn!(%error, "failed to sync fnos port icon hijack config to Go backend");
-            if let Err(rollback_error) = state.redis.save_config(&previous_config).await {
+            if let Err(rollback_error) = state.store.save_config(&previous_config).await {
                 tracing::warn!(
                     %rollback_error,
                     "failed to rollback fnos port icon hijack config"
@@ -791,7 +791,7 @@ pub(super) async fn clear_firewall(State(state): State<AppState>) -> Response {
 
 pub(super) async fn sync_routes(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    let config = match state.redis.get_config().await {
+    let config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before route sync");
@@ -897,7 +897,7 @@ pub(super) async fn sync_routes(State(state): State<AppState>) -> Response {
 }
 
 pub(super) async fn get_default_route(State(state): State<AppState>) -> Response {
-    match state.redis.get_config().await {
+    match state.store.get_config().await {
         Ok(config) => response::ok(json!({
             "default_route": config
                 .get("default_route")
@@ -1059,7 +1059,7 @@ pub(super) async fn update_run_mode_prompt_preferences(
     merge_object(&mut current, &body);
     let next = normalize_run_mode_prompt_preferences(Some(&current));
     match state
-        .redis
+        .store
         .set_json_value(RUN_MODE_PROMPT_PREFERENCES_KEY, &next)
         .await
     {
@@ -1106,7 +1106,7 @@ pub(super) async fn complete_welcome_guide(State(state): State<AppState>) -> Res
             .unwrap_or_else(time_utils::now_iso),
     });
     match state
-        .redis
+        .store
         .set_json_value(WELCOME_GUIDE_STATUS_KEY, &next)
         .await
     {

@@ -4,10 +4,10 @@ pub(super) async fn build_ddns_status(
     state: &AppState,
     translator: &Translator,
 ) -> anyhow::Result<Value> {
-    let enabled = state.redis.get_string_value(DDNS_ENABLED).await?.as_deref() == Some("true");
+    let enabled = state.store.get_string_value(DDNS_ENABLED).await?.as_deref() == Some("true");
     let settings = parse_settings(
         state
-            .redis
+            .store
             .get_string_value(DDNS_SETTINGS)
             .await?
             .as_deref(),
@@ -61,7 +61,7 @@ pub(super) async fn build_ddns_status(
 
 pub(super) async fn list_targets(state: &AppState) -> anyhow::Result<Vec<DDNSTargetRecord>> {
     let primary_id = state
-        .redis
+        .store
         .get_string_value(DDNS_PRIMARY_TARGET_ID)
         .await?
         .map(|value| value.trim().to_string())
@@ -69,7 +69,7 @@ pub(super) async fn list_targets(state: &AppState) -> anyhow::Result<Vec<DDNSTar
         .unwrap_or_else(|| PRIMARY_TARGET_ID.to_string());
     let mut ids = BTreeSet::new();
     ids.insert(primary_id.clone());
-    for id in state.redis.smembers_strings(DDNS_TARGET_IDS).await? {
+    for id in state.store.smembers_strings(DDNS_TARGET_IDS).await? {
         let id = id.trim();
         if !id.is_empty() {
             ids.insert(id.to_string());
@@ -95,7 +95,7 @@ pub(super) async fn read_target(
     primary_hint: bool,
 ) -> anyhow::Result<Option<DDNSTargetRecord>> {
     let meta_key = target_meta_key(id);
-    let meta_hash = state.redis.hgetall_string_map(&meta_key).await?;
+    let meta_hash = state.store.hgetall_string_map(&meta_key).await?;
     if meta_hash.is_empty() {
         if id == PRIMARY_TARGET_ID || primary_hint {
             return Ok(Some(read_legacy_primary_target(state).await?));
@@ -104,18 +104,18 @@ pub(super) async fn read_target(
     }
     let meta = parse_target_meta(id, &meta_hash, primary_hint);
     let config = state
-        .redis
+        .store
         .hgetall_string_map(&target_config_key(id))
         .await?;
     let last_ip = parse_last_ip(
         &state
-            .redis
+            .store
             .hgetall_string_map(&target_last_ip_key(id))
             .await?,
     );
     let last_check = parse_last_check(
         &state
-            .redis
+            .store
             .hgetall_string_map(&target_last_check_key(id))
             .await?,
     );
@@ -131,22 +131,22 @@ pub(super) async fn read_legacy_primary_target(
     state: &AppState,
 ) -> anyhow::Result<DDNSTargetRecord> {
     let provider = state
-        .redis
+        .store
         .get_string_value(DDNS_LEGACY_PROVIDER)
         .await?
         .and_then(|value| normalize_provider_name(&value));
     let config = if let Some(provider) = provider.as_deref() {
         state
-            .redis
+            .store
             .hgetall_string_map(&(DDNS_LEGACY_CONFIG_PREFIX.to_string() + provider))
             .await?
     } else {
         HashMap::new()
     };
-    let last_ip = parse_last_ip(&state.redis.hgetall_string_map(DDNS_LEGACY_LAST_IP).await?);
+    let last_ip = parse_last_ip(&state.store.hgetall_string_map(DDNS_LEGACY_LAST_IP).await?);
     let last_check = parse_last_check(
         &state
-            .redis
+            .store
             .hgetall_string_map(DDNS_LEGACY_LAST_CHECK)
             .await?,
     );

@@ -1,11 +1,11 @@
 use super::*;
 
-impl RedisStore {
+impl Store {
     pub async fn append_system_event(
         &self,
         event: &Value,
         retention_days: i64,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let event_id = event.get("id").and_then(Value::as_str).unwrap_or("");
         if event_id.trim().is_empty() {
             return Ok(());
@@ -59,7 +59,9 @@ impl RedisStore {
         Ok(())
     }
 
-    pub async fn latest_system_event_stream_id(&self) -> redis::RedisResult<Option<String>> {
+    pub async fn latest_system_event_stream_id(
+        &self,
+    ) -> crate::storage::StorageResult<Option<String>> {
         let mut conn = self.conn();
         let reply: StreamRangeReply = conn.xrevrange_count(EVENTS_STREAM_KEY, "+", "-", 1).await?;
         Ok(reply.ids.first().map(|entry| entry.id.clone()))
@@ -69,7 +71,7 @@ impl RedisStore {
         &self,
         last_id: &str,
         count: usize,
-    ) -> redis::RedisResult<Vec<(String, Value)>> {
+    ) -> crate::storage::StorageResult<Vec<(String, Value)>> {
         let mut conn = self.conn();
         let options = StreamReadOptions::default().count(count.max(1));
         let reply: Option<StreamReadReply> = conn
@@ -92,12 +94,17 @@ impl RedisStore {
         Ok(events)
     }
 
-    pub async fn get_notification_last_stream_id(&self) -> redis::RedisResult<Option<String>> {
+    pub async fn get_notification_last_stream_id(
+        &self,
+    ) -> crate::storage::StorageResult<Option<String>> {
         self.get_string_value(NOTIFICATION_RUNTIME_LAST_STREAM_KEY)
             .await
     }
 
-    pub async fn set_notification_last_stream_id(&self, id: &str) -> redis::RedisResult<()> {
+    pub async fn set_notification_last_stream_id(
+        &self,
+        id: &str,
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         conn.set(NOTIFICATION_RUNTIME_LAST_STREAM_KEY, id).await
     }
@@ -107,7 +114,7 @@ impl RedisStore {
         name: &str,
         token: &str,
         ttl_seconds: usize,
-    ) -> redis::RedisResult<bool> {
+    ) -> crate::storage::StorageResult<bool> {
         let mut conn = self.conn();
         let result: Option<String> = redis::cmd("SET")
             .arg(notification_runtime_lock_key(name))
@@ -124,7 +131,7 @@ impl RedisStore {
         &self,
         name: &str,
         token: &str,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         let _: i64 = redis::cmd("EVAL")
             .arg(
@@ -150,7 +157,7 @@ impl RedisStore {
         event_id: &str,
         happened_at_ms: i64,
         window_seconds: i64,
-    ) -> redis::RedisResult<i64> {
+    ) -> crate::storage::StorageResult<i64> {
         let key = notification_window_key(rule_id, group_key);
         let window_ms = window_seconds.max(1) * 1000;
         let start_score = (happened_at_ms - window_ms).max(0);
@@ -167,7 +174,7 @@ impl RedisStore {
         &self,
         rule_id: &str,
         group_key: &str,
-    ) -> redis::RedisResult<Option<String>> {
+    ) -> crate::storage::StorageResult<Option<String>> {
         self.get_string_value(&notification_cooldown_key(rule_id, group_key))
             .await
     }
@@ -178,7 +185,7 @@ impl RedisStore {
         group_key: &str,
         until: &str,
         cooldown_seconds: i64,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         if cooldown_seconds <= 0 {
             return Ok(());
         }
@@ -195,7 +202,7 @@ impl RedisStore {
         &self,
         id: &str,
         ready_at_ms: i64,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         conn.zadd(NOTIFICATION_DELIVERIES_READY_KEY, id, ready_at_ms)
             .await
@@ -205,7 +212,7 @@ impl RedisStore {
         &self,
         limit: usize,
         now_ms: i64,
-    ) -> redis::RedisResult<Vec<String>> {
+    ) -> crate::storage::StorageResult<Vec<String>> {
         let mut conn = self.conn();
         let ids: Vec<String> = redis::cmd("EVAL")
             .arg(
@@ -239,7 +246,7 @@ impl RedisStore {
         &self,
         key: &str,
         ttl_seconds: i64,
-    ) -> redis::RedisResult<bool> {
+    ) -> crate::storage::StorageResult<bool> {
         let mut conn = self.conn();
         let result: Option<String> = redis::cmd("SET")
             .arg(format!("{EVENTS_DEDUPE_PREFIX}{key}"))
@@ -252,7 +259,10 @@ impl RedisStore {
         Ok(result.as_deref() == Some("OK"))
     }
 
-    pub async fn release_system_event_dedupe(&self, key: &str) -> redis::RedisResult<()> {
+    pub async fn release_system_event_dedupe(
+        &self,
+        key: &str,
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         conn.del(format!("{EVENTS_DEDUPE_PREFIX}{key}")).await
     }
@@ -265,7 +275,7 @@ impl RedisStore {
         event_type: Option<&str>,
         level: Option<&str>,
         source: Option<&str>,
-    ) -> redis::RedisResult<Value> {
+    ) -> crate::storage::StorageResult<Value> {
         let safe_page = page.max(1);
         let safe_limit = limit.clamp(1, 100);
         let has_filter = !search.trim().is_empty()
@@ -344,7 +354,7 @@ impl RedisStore {
         from_ms: i64,
         to_ms: i64,
         types: &[&str],
-    ) -> redis::RedisResult<Vec<(Value, i64)>> {
+    ) -> crate::storage::StorageResult<Vec<(Value, i64)>> {
         let mut conn = self.conn();
         let pairs: Vec<String> = redis::cmd("ZRANGEBYSCORE")
             .arg(EVENTS_INDEX_KEY)
@@ -414,7 +424,7 @@ impl RedisStore {
         Ok(events)
     }
 
-    pub async fn delete_system_events(&self, ids: &[String]) -> redis::RedisResult<()> {
+    pub async fn delete_system_events(&self, ids: &[String]) -> crate::storage::StorageResult<()> {
         let unique_ids = unique_non_empty_strings(ids);
         if unique_ids.is_empty() {
             return Ok(());
@@ -456,7 +466,7 @@ impl RedisStore {
         Ok(())
     }
 
-    pub async fn clear_system_events(&self) -> redis::RedisResult<usize> {
+    pub async fn clear_system_events(&self) -> crate::storage::StorageResult<usize> {
         let mut conn = self.conn();
         let ids: Vec<String> = conn.zrange(EVENTS_INDEX_KEY, 0, -1).await?;
         let mut pipe = redis::pipe();
@@ -485,7 +495,7 @@ impl RedisStore {
     async fn system_events_by_ids(
         &self,
         ids: &[String],
-    ) -> redis::RedisResult<(Vec<Value>, Vec<String>)> {
+    ) -> crate::storage::StorageResult<(Vec<Value>, Vec<String>)> {
         if ids.is_empty() {
             return Ok((Vec::new(), Vec::new()));
         }
@@ -513,7 +523,10 @@ impl RedisStore {
         Ok((events, stale_ids))
     }
 
-    async fn remove_stale_system_event_ids(&self, ids: &[String]) -> redis::RedisResult<()> {
+    async fn remove_stale_system_event_ids(
+        &self,
+        ids: &[String],
+    ) -> crate::storage::StorageResult<()> {
         if ids.is_empty() {
             return Ok(());
         }

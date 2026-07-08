@@ -20,7 +20,7 @@ pub(super) async fn bootstrap(
     match build_auth_shell_data(&state, &headers, &uri, query.redirect_uri.as_deref(), true).await {
         Ok((mut data, access)) => {
             let mut clear_cookie = None;
-            if let Ok(config) = state.redis.get_config().await
+            if let Ok(config) = state.store.get_config().await
                 && let Some((message, cookie)) =
                     consume_login_error_for_bootstrap(&state, &headers, &uri, &config).await
             {
@@ -114,7 +114,7 @@ pub(super) async fn captcha_config(State(state): State<AppState>) -> Response {
 
 pub(super) async fn challenge(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    let config = match state.redis.get_config().await {
+    let config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load captcha config for challenge");
@@ -218,7 +218,7 @@ pub(super) async fn oidc_invite(
     State(state): State<AppState>,
     Query(query): Query<OidcInviteQuery>,
 ) -> Response {
-    let config = match state.redis.get_config().await {
+    let config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             let translator = Translator::from_state(&state).await;
@@ -296,7 +296,7 @@ pub(super) async fn login(
 ) -> Response {
     let client_ip = client_ip_for_auth(&headers);
     let tracking_ip = normalize_auth_failure_tracking_ip(&client_ip);
-    let config = match state.redis.get_config().await {
+    let config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config during login");
@@ -309,7 +309,7 @@ pub(super) async fn login(
     };
     let translator = translator_from_config(&config);
 
-    match state.redis.get_login_backoff_status(&tracking_ip).await {
+    match state.store.get_login_backoff_status(&tracking_ip).await {
         Ok(status) if status.blocked => {
             let retry_after = status.retry_after.unwrap_or(1).max(1);
             return with_auth_headers(backoff_login_response(
@@ -334,7 +334,7 @@ pub(super) async fn login(
         return with_auth_headers(response::error(StatusCode::BAD_REQUEST, message));
     }
 
-    let totps = match state.redis.get_totps().await {
+    let totps = match state.store.get_totps().await {
         Ok(totps) => totps,
         Err(error) => {
             tracing::warn!(%error, "failed to load TOTP credentials");
@@ -353,7 +353,7 @@ pub(super) async fn login(
 
     let Some(credential) = find_matching_totp(&totps, &body.token) else {
         match state
-            .redis
+            .store
             .register_login_backoff_failure(&tracking_ip)
             .await
         {
@@ -460,7 +460,7 @@ pub(super) async fn login(
             auth_route_text(&translator, "createSessionFailed"),
         ));
     }
-    if let Err(error) = state.redis.reset_login_backoff(&tracking_ip).await {
+    if let Err(error) = state.store.reset_login_backoff(&tracking_ip).await {
         tracing::warn!(%error, %tracking_ip, "failed to reset auth login backoff after success");
     }
 
@@ -536,7 +536,7 @@ pub(super) async fn logout(
     headers: HeaderMap,
     uri: Uri,
 ) -> Response {
-    let config = match state.redis.get_config().await {
+    let config = match state.store.get_config().await {
         Ok(config) => Some(config),
         Err(error) => {
             tracing::warn!(%error, "failed to load config for logout");
@@ -548,12 +548,12 @@ pub(super) async fn logout(
     let mut session = None;
     let mut login_ip_from_session = None;
     if let Some(session_id) = session_id.as_deref() {
-        session = state.redis.get_session(session_id).await.ok().flatten();
+        session = state.store.get_session(session_id).await.ok().flatten();
         login_ip_from_session = session.as_ref().map(|session| session.ip.clone());
         if let Err(error) = auth_mobility::destroy_session(&state, &session_id).await {
             tracing::warn!(%error, %session_id, "failed to cleanup auth mobility session on logout");
         }
-        let _ = state.redis.delete_session(&session_id).await;
+        let _ = state.store.delete_session(&session_id).await;
     }
 
     let client_ip = client_ip_for_auth(&headers);

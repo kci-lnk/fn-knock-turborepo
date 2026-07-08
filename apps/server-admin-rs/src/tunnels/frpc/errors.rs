@@ -34,8 +34,8 @@ impl From<std::io::Error> for FrpcHttpError {
     }
 }
 
-impl From<redis::RedisError> for FrpcHttpError {
-    fn from(value: redis::RedisError) -> Self {
+impl From<crate::storage::StorageError> for FrpcHttpError {
+    fn from(value: crate::storage::StorageError) -> Self {
         frpc_internal(value)
     }
 }

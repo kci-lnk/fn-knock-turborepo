@@ -227,9 +227,9 @@ pub(super) fn normalize_public_key_pem(value: &str) -> String {
         .join("\n")
 }
 
-pub(super) async fn get_ca_hosts(state: &AppState) -> redis::RedisResult<Vec<String>> {
+pub(super) async fn get_ca_hosts(state: &AppState) -> crate::storage::StorageResult<Vec<String>> {
     Ok(state
-        .redis
+        .store
         .get_json_value(CA_HOSTS_KEY)
         .await?
         .and_then(|value| {
@@ -244,9 +244,12 @@ pub(super) async fn get_ca_hosts(state: &AppState) -> redis::RedisResult<Vec<Str
         .unwrap_or_default())
 }
 
-pub(super) async fn save_ca_hosts(state: &AppState, hosts: &[String]) -> redis::RedisResult<()> {
+pub(super) async fn save_ca_hosts(
+    state: &AppState,
+    hosts: &[String],
+) -> crate::storage::StorageResult<()> {
     state
-        .redis
+        .store
         .set_json_value(CA_HOSTS_KEY, &json!(hosts))
         .await
 }
@@ -254,7 +257,7 @@ pub(super) async fn save_ca_hosts(state: &AppState, hosts: &[String]) -> redis::
 pub(super) async fn add_ca_host_inner(
     state: &AppState,
     host: &str,
-) -> redis::RedisResult<Vec<String>> {
+) -> crate::storage::StorageResult<Vec<String>> {
     let mut hosts = get_ca_hosts(state).await?;
     let host = host.trim();
     if !host.is_empty() && !hosts.iter().any(|item| item == host) {
@@ -267,7 +270,7 @@ pub(super) async fn add_ca_host_inner(
 pub(super) async fn remove_ca_host_inner(
     state: &AppState,
     host: &str,
-) -> redis::RedisResult<Vec<String>> {
+) -> crate::storage::StorageResult<Vec<String>> {
     let mut hosts = get_ca_hosts(state).await?;
     let before = hosts.len();
     hosts.retain(|item| item != host.trim());

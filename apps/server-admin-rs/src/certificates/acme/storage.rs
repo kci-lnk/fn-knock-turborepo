@@ -1,10 +1,12 @@
 use super::*;
 
-pub(super) async fn ensure_acme_data_migrated(state: &AppState) -> redis::RedisResult<()> {
+pub(super) async fn ensure_acme_data_migrated(
+    state: &AppState,
+) -> crate::storage::StorageResult<()> {
     let existing = read_acme_applications_raw(state).await?;
     if !existing.is_empty() {
         state
-            .redis
+            .store
             .set_string_value(ACME_MIGRATION_VERSION_KEY, "1")
             .await?;
         return Ok(());
@@ -12,7 +14,7 @@ pub(super) async fn ensure_acme_data_migrated(state: &AppState) -> redis::RedisR
 
     let Some(legacy) = read_legacy_settings(state).await? else {
         state
-            .redis
+            .store
             .set_string_value(ACME_MIGRATION_VERSION_KEY, "1")
             .await?;
         return Ok(());
@@ -24,7 +26,7 @@ pub(super) async fn ensure_acme_data_migrated(state: &AppState) -> redis::RedisR
         .unwrap_or_default();
     if domains.is_empty() {
         state
-            .redis
+            .store
             .set_string_value(ACME_MIGRATION_VERSION_KEY, "1")
             .await?;
         return Ok(());
@@ -69,23 +71,25 @@ pub(super) async fn ensure_acme_data_migrated(state: &AppState) -> redis::RedisR
     }
 
     state
-        .redis
+        .store
         .set_json_value(ACME_APPLICATIONS_KEY, &Value::Array(vec![application]))
         .await?;
     state
-        .redis
+        .store
         .set_json_value(
             ACME_ISSUED_CERTIFICATES_KEY,
             &Value::Array(issued_certificates),
         )
         .await?;
     state
-        .redis
+        .store
         .set_string_value(ACME_MIGRATION_VERSION_KEY, "1")
         .await
 }
 
-pub(super) async fn read_acme_applications(state: &AppState) -> redis::RedisResult<Vec<Value>> {
+pub(super) async fn read_acme_applications(
+    state: &AppState,
+) -> crate::storage::StorageResult<Vec<Value>> {
     ensure_acme_data_migrated(state).await?;
     let mut applications = read_acme_applications_raw(state).await?;
     applications.sort_by(|left, right| {
@@ -98,9 +102,11 @@ pub(super) async fn read_acme_applications(state: &AppState) -> redis::RedisResu
     Ok(applications)
 }
 
-pub(super) async fn read_acme_applications_raw(state: &AppState) -> redis::RedisResult<Vec<Value>> {
+pub(super) async fn read_acme_applications_raw(
+    state: &AppState,
+) -> crate::storage::StorageResult<Vec<Value>> {
     Ok(state
-        .redis
+        .store
         .get_json_value(ACME_APPLICATIONS_KEY)
         .await?
         .and_then(|value| value.as_array().cloned())
@@ -113,9 +119,9 @@ pub(super) async fn read_acme_applications_raw(state: &AppState) -> redis::Redis
 pub(super) async fn write_acme_applications(
     state: &AppState,
     applications: &[Value],
-) -> redis::RedisResult<()> {
+) -> crate::storage::StorageResult<()> {
     state
-        .redis
+        .store
         .set_json_value(ACME_APPLICATIONS_KEY, &Value::Array(applications.to_vec()))
         .await
 }
@@ -131,10 +137,10 @@ pub(super) async fn save_acme_application_with_effects(
     let primary_domain = normalized_domains.first().cloned().unwrap_or_default();
     let dns_type = input.dns_type.trim().to_string();
     if normalized_domains.is_empty() {
-        anyhow::bail!(t.t("server.redis.acme.domainsRequired"));
+        anyhow::bail!(t.t("server.store.acme.domainsRequired"));
     }
     if dns_type.is_empty() {
-        anyhow::bail!(t.t("server.redis.acme.dnsProviderRequired"));
+        anyhow::bail!(t.t("server.store.acme.dnsProviderRequired"));
     }
 
     let existing = input.id.as_ref().and_then(|id| {
@@ -153,7 +159,7 @@ pub(super) async fn save_acme_application_with_effects(
     });
     if duplicated {
         anyhow::bail!(t.t_params(
-            "server.redis.acme.primaryDomainDuplicated",
+            "server.store.acme.primaryDomainDuplicated",
             &[("primaryDomain", primary_domain.clone())]
         ));
     }
@@ -305,7 +311,7 @@ pub(super) async fn resolve_legacy_application_for_mutation(
         return Ok(applications.first().cloned());
     }
     if applications.len() > 1 {
-        anyhow::bail!(t.t("server.redis.acme.multipleApplicationsUseNewApi"));
+        anyhow::bail!(t.t("server.store.acme.multipleApplicationsUseNewApi"));
     }
     Ok(None)
 }
@@ -329,7 +335,7 @@ pub(super) async fn delete_acme_application_internal(
         .collect::<Vec<_>>();
     write_acme_applications(state, &next_applications).await?;
     if next_applications.is_empty() {
-        state.redis.delete_key(ACME_LEGACY_SETTINGS_KEY).await?;
+        state.store.delete_key(ACME_LEGACY_SETTINGS_KEY).await?;
     }
     let deleted_issued_certificate = delete_acme_issued_certificate(state, id).await?;
     let primary_domain = existing
@@ -393,7 +399,7 @@ pub(super) async fn cleanup_acme_application_artifacts(
 pub(super) async fn delete_acme_issued_certificate(
     state: &AppState,
     application_id: &str,
-) -> redis::RedisResult<Option<Value>> {
+) -> crate::storage::StorageResult<Option<Value>> {
     let issued_certificates = read_issued_certificates(state).await?;
     let mut deleted = None;
     let next = issued_certificates
@@ -408,7 +414,7 @@ pub(super) async fn delete_acme_issued_certificate(
         })
         .collect::<Vec<_>>();
     state
-        .redis
+        .store
         .set_json_value(ACME_ISSUED_CERTIFICATES_KEY, &Value::Array(next))
         .await?;
     Ok(deleted)
@@ -417,9 +423,9 @@ pub(super) async fn delete_acme_issued_certificate(
 pub(super) async fn delete_acme_cert_pair(
     state: &AppState,
     domain: &str,
-) -> redis::RedisResult<()> {
+) -> crate::storage::StorageResult<()> {
     state
-        .redis
+        .store
         .delete_key(&format!("{ACME_CERT_PREFIX}{domain}"))
         .await
 }

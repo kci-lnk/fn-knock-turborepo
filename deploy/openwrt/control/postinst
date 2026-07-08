@@ -16,11 +16,6 @@ if command -v uci >/dev/null 2>&1; then
 	fi
 fi
 
-if [ -x /etc/init.d/redis ]; then
-	/etc/init.d/redis enable >/dev/null 2>&1 || true
-	/etc/init.d/redis start >/dev/null 2>&1 || true
-fi
-
 if [ -x /etc/init.d/fn-knock ]; then
 	/etc/init.d/fn-knock enable >/dev/null 2>&1 || true
 	/etc/init.d/fn-knock restart >/dev/null 2>&1 || true

@@ -25,13 +25,12 @@ use crate::{
     auth_mobility,
     http_utils::{is_private_or_local_ip, normalize_ip},
     i18n::Translator,
-    ip_location,
-    redis_store::{
+    ip_location, response, scanner,
+    state::AppState,
+    store::{
         LoginSession, WhitelistConcreteTarget, WhitelistRecord, WhitelistRegionGroupRecord,
         WhitelistRegionInput,
     },
-    response, scanner,
-    state::AppState,
     time_utils,
 };
 
@@ -191,7 +190,7 @@ pub async fn add_auto_whitelist_record(
     let (target, target_type) =
         normalize_target(ip, "auto", Some("ip")).map_err(|message| anyhow::anyhow!(message))?;
     let existing = state
-        .redis
+        .store
         .find_whitelist_records_by_target(&target, &target_type, Some("auto"))
         .await?;
     for record in existing {
@@ -215,7 +214,7 @@ pub async fn add_auto_whitelist_record(
         resolve_status: None,
         resolve_message: None,
     };
-    state.redis.insert_whitelist_record(&record).await?;
+    state.store.insert_whitelist_record(&record).await?;
     let _ =
         ip_location::register_usage(state, &target, vec![format!("whitelist|{}", record.id)]).await;
     sync_allowed_target(state, &target).await;
@@ -239,7 +238,7 @@ pub async fn ensure_session_auto_whitelist(
     let (target, target_type) =
         normalize_target(ip, "auto", Some("ip")).map_err(|message| anyhow::anyhow!(message))?;
     let owner_record_key = whitelist_auto_owner_record_key(owner_key);
-    let owner_record_id = state.redis.get_string_value(&owner_record_key).await?;
+    let owner_record_id = state.store.get_string_value(&owner_record_key).await?;
     let mut candidate_ids = Vec::new();
     for id in [existing_record_id, owner_record_id.as_deref()]
         .into_iter()
@@ -256,7 +255,7 @@ pub async fn ensure_session_auto_whitelist(
     }
 
     for candidate_id in candidate_ids {
-        let Some(existing) = state.redis.get_whitelist_record(&candidate_id).await? else {
+        let Some(existing) = state.store.get_whitelist_record(&candidate_id).await? else {
             continue;
         };
         if existing.source != "auto" || existing.target_type() != "ip" {
@@ -279,11 +278,11 @@ pub async fn ensure_session_auto_whitelist(
         next.comment = comment.clone();
         next.ip_location = cached_ip_location(state, &target).await;
         state
-            .redis
+            .store
             .replace_whitelist_record(&existing, &next)
             .await?;
         state
-            .redis
+            .store
             .set_string_value_with_optional_ttl(
                 &owner_record_key,
                 &next.id,
@@ -313,11 +312,11 @@ pub async fn ensure_session_auto_whitelist(
         resolve_status: None,
         resolve_message: None,
     };
-    state.redis.insert_whitelist_record(&record).await?;
+    state.store.insert_whitelist_record(&record).await?;
     let _ =
         ip_location::register_usage(state, &target, vec![format!("whitelist|{}", record.id)]).await;
     state
-        .redis
+        .store
         .set_string_value_with_optional_ttl(
             &owner_record_key,
             &record.id,
@@ -330,7 +329,7 @@ pub async fn ensure_session_auto_whitelist(
 }
 
 pub async fn remove_whitelist_record_by_id(state: &AppState, id: &str) -> anyhow::Result<bool> {
-    match state.redis.delete_whitelist_record(id).await? {
+    match state.store.delete_whitelist_record(id).await? {
         Some(record) => {
             let targets = record.concrete_targets();
             cleanup_removed_targets(state, &targets).await;
@@ -345,7 +344,7 @@ pub async fn remove_whitelist_records_by_source(
     state: &AppState,
     source: &str,
 ) -> anyhow::Result<usize> {
-    let records = state.redis.list_whitelist_records().await?;
+    let records = state.store.list_whitelist_records().await?;
     let ids = whitelist_record_ids_by_source(&records, source);
     let mut removed = 0usize;
     for id in ids {
@@ -372,7 +371,7 @@ pub async fn remove_whitelist_records_by_ip(
     }
 
     let records = state
-        .redis
+        .store
         .find_whitelist_records_by_target(&target, "ip", source)
         .await?;
     let mut removed = false;
@@ -389,7 +388,7 @@ pub async fn move_record_to_ip(
     id: &str,
     new_ip: &str,
 ) -> anyhow::Result<Option<WhitelistRecord>> {
-    let Some(record) = state.redis.get_whitelist_record(id).await? else {
+    let Some(record) = state.store.get_whitelist_record(id).await? else {
         return Ok(None);
     };
     if !record.is_active() || record.target_type() != "ip" {
@@ -428,7 +427,7 @@ pub async fn move_record_to_ip(
     if let Some(ip_location) = cached_ip_location(state, &target).await {
         next.ip_location = Some(ip_location);
     }
-    state.redis.replace_whitelist_record(&record, &next).await?;
+    state.store.replace_whitelist_record(&record, &next).await?;
     let _ =
         ip_location::register_usage(state, &target, vec![format!("whitelist|{}", next.id)]).await;
     sync_allowed_target(state, &target).await;
@@ -449,11 +448,11 @@ async fn run_whitelist_maintenance_once(state: &AppState) -> anyhow::Result<()> 
     let now = now_seconds();
     let mut changed = false;
 
-    for record in state.redis.list_whitelist_records().await? {
+    for record in state.store.list_whitelist_records().await? {
         if record.expire_at.is_some_and(|expire_at| expire_at <= now) {
             let targets = record.concrete_targets();
             if state
-                .redis
+                .store
                 .expire_whitelist_record(&record.id)
                 .await?
                 .is_some()
@@ -481,11 +480,11 @@ async fn run_whitelist_maintenance_once(state: &AppState) -> anyhow::Result<()> 
         }
     }
 
-    for group in state.redis.list_whitelist_region_groups().await? {
+    for group in state.store.list_whitelist_region_groups().await? {
         if group.expire_at.is_some_and(|expire_at| expire_at <= now) {
             let targets = group.concrete_targets();
             if state
-                .redis
+                .store
                 .expire_whitelist_region_group(&group.id)
                 .await?
                 .is_some()
@@ -517,7 +516,7 @@ fn cname_refresh_due(record: &WhitelistRecord, now: i64) -> bool {
 
 async fn list_whitelist_regions(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.redis.list_whitelist_region_groups().await {
+    match state.store.list_whitelist_region_groups().await {
         Ok(groups) => response::ok(
             groups
                 .into_iter()
@@ -578,7 +577,7 @@ async fn add_whitelist_regions(
         comment,
     };
 
-    if let Err(error) = state.redis.insert_whitelist_region_group(&record).await {
+    if let Err(error) = state.store.insert_whitelist_region_group(&record).await {
         tracing::warn!(%error, "failed to insert whitelist region group");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -602,7 +601,7 @@ async fn delete_whitelist_region(
     Path(id): Path<String>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.redis.delete_whitelist_region_group(&id).await {
+    match state.store.delete_whitelist_region_group(&id).await {
         Ok(Some(group)) => {
             let targets = group.concrete_targets();
             cleanup_removed_targets(&state, &targets).await;
@@ -625,7 +624,7 @@ async fn delete_whitelist_region(
 
 async fn list_whitelist(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.redis.list_whitelist_records().await {
+    match state.store.list_whitelist_records().await {
         Ok(records) => {
             let mut hydrated = Vec::with_capacity(records.len());
             for record in records {
@@ -688,7 +687,7 @@ async fn add_whitelist(
         };
 
     let existing = match state
-        .redis
+        .store
         .find_whitelist_records_by_target(&target, &target_type, Some(&source))
         .await
     {
@@ -703,7 +702,7 @@ async fn add_whitelist(
     };
 
     for record in existing {
-        if let Ok(Some(deleted)) = state.redis.delete_whitelist_record(&record.id).await {
+        if let Ok(Some(deleted)) = state.store.delete_whitelist_record(&record.id).await {
             let targets = deleted.concrete_targets();
             cleanup_removed_targets(&state, &targets).await;
         }
@@ -735,7 +734,7 @@ async fn add_whitelist(
         resolve_message: None,
     };
 
-    if let Err(error) = state.redis.insert_whitelist_record(&record).await {
+    if let Err(error) = state.store.insert_whitelist_record(&record).await {
         tracing::warn!(%error, "failed to insert whitelist record");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -758,7 +757,7 @@ async fn add_whitelist(
 
 async fn delete_whitelist(State(state): State<AppState>, Path(id): Path<String>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.redis.delete_whitelist_record(&id).await {
+    match state.store.delete_whitelist_record(&id).await {
         Ok(Some(record)) => {
             let targets = record.concrete_targets();
             cleanup_removed_targets(&state, &targets).await;
@@ -786,7 +785,7 @@ async fn update_whitelist_comment(
 ) -> Response {
     let translator = Translator::from_state(&state).await;
     match state
-        .redis
+        .store
         .update_whitelist_comment(&id, body.comment)
         .await
     {
@@ -843,7 +842,7 @@ async fn refresh_whitelist_cname(
 }
 
 async fn refresh_cname_record(state: &AppState, id: &str) -> anyhow::Result<Option<Value>> {
-    let Some(record) = state.redis.get_whitelist_record(id).await? else {
+    let Some(record) = state.store.get_whitelist_record(id).await? else {
         return Ok(None);
     };
     if record.target_type() != "cname" || !record.is_active() {
@@ -882,7 +881,7 @@ async fn refresh_cname_record(state: &AppState, id: &str) -> anyhow::Result<Opti
                     &[("count", resolved_targets.len().to_string())],
                 )
             });
-            state.redis.replace_whitelist_record(&record, &next).await?;
+            state.store.replace_whitelist_record(&record, &next).await?;
 
             let next_targets = next.concrete_targets();
             let added = diff_targets(&next_targets, &previous_targets);
@@ -902,7 +901,7 @@ async fn refresh_cname_record(state: &AppState, id: &str) -> anyhow::Result<Opti
             next.resolved_targets = Some(Vec::new());
             next.resolve_status = Some("error".to_string());
             next.resolve_message = Some(message);
-            state.redis.replace_whitelist_record(&record, &next).await?;
+            state.store.replace_whitelist_record(&record, &next).await?;
             cleanup_removed_targets(state, &previous_targets).await;
             sync_reverse_proxy_trusted_ips(state).await;
             Ok(Some(json!({
@@ -964,7 +963,7 @@ fn is_node_no_data_lookup_error(error: &io::Error) -> bool {
 
 async fn cleanup_removed_targets(state: &AppState, targets: &[WhitelistConcreteTarget]) {
     match state
-        .redis
+        .store
         .cleanup_whitelist_concrete_targets(targets)
         .await
     {
@@ -998,7 +997,7 @@ async fn sync_removed_target(state: &AppState, target: &str) {
 }
 
 async fn should_sync_direct_firewall(state: &AppState) -> bool {
-    let config = match state.redis.get_config().await {
+    let config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to read config for whitelist firewall sync");
@@ -1017,7 +1016,7 @@ pub async fn sync_reverse_proxy_trusted_ips(state: &AppState) {
     match compile_reverse_proxy_trusted_ips(state).await {
         Ok(runtime) => {
             if let Err(error) = state
-                .redis
+                .store
                 .save_reverse_proxy_trusted_ips_runtime(&runtime)
                 .await
             {
@@ -1079,7 +1078,7 @@ pub async fn sync_reverse_proxy_trusted_ips(state: &AppState) {
 }
 
 async fn compile_reverse_proxy_trusted_ips(state: &AppState) -> anyhow::Result<Value> {
-    let config = state.redis.get_config().await?;
+    let config = state.store.get_config().await?;
     let enabled = config
         .pointer("/reverse_proxy_throttle/enabled")
         .and_then(Value::as_bool)
@@ -1088,8 +1087,8 @@ async fn compile_reverse_proxy_trusted_ips(state: &AppState) -> anyhow::Result<V
         .pointer("/auth_credential_settings/session_ip_mobility_enabled")
         .and_then(Value::as_bool)
         .unwrap_or(false);
-    let sessions = state.redis.list_session_values().await?;
-    let whitelist_targets = state.redis.list_whitelist_active_concrete_targets().await?;
+    let sessions = state.store.list_session_values().await?;
+    let whitelist_targets = state.store.list_whitelist_active_concrete_targets().await?;
 
     let mut source_map: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     let mut session_linked_auto_whitelist_final_ip_by_record_id = BTreeMap::<String, String>::new();
@@ -1201,7 +1200,7 @@ fn whitelist_auto_owner_record_key(owner_key: &str) -> String {
 
 async fn cached_ip_location(state: &AppState, ip: &str) -> Option<String> {
     state
-        .redis
+        .store
         .get_ip_location_cache(ip)
         .await
         .ok()

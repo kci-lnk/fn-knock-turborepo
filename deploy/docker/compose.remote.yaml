@@ -5,8 +5,6 @@ services:
     environment:
       TZ: ${TZ:-Asia/Shanghai}
       FN_KNOCK_RUNTIME_TARGET: docker
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
       FN_KNOCK_DATA_DIR: /var/lib/fn-knock
       FN_KNOCK_GATEWAY_CONFIG_DIR: /usr/local/etc/fn-knock
       ADMIN_VIEW_PORT: ${ADMIN_VIEW_PORT:-7991}
@@ -28,9 +26,6 @@ services:
       - fn_knock_data:/var/lib/fn-knock
       - fn_knock_gateway:/usr/local/etc/fn-knock
       - /proc/1/net:/host/proc/net:ro
-    depends_on:
-      redis:
-        condition: service_healthy
     healthcheck:
       test:
         [
@@ -41,27 +36,9 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
-
-  redis:
-    image: redis:7-bookworm
-    restart: unless-stopped
-    environment:
-      TZ: ${TZ:-Asia/Shanghai}
-    command: ["redis-server", "--appendonly", "yes"]
-    networks:
-      - fn_knock_net
-    volumes:
-      - fn_knock_redis:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-
 volumes:
   fn_knock_data:
   fn_knock_gateway:
-  fn_knock_redis:
 
 networks:
   fn_knock_net:

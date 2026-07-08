@@ -1,25 +1,31 @@
 use super::*;
 
-pub(super) async fn load_block(state: &AppState, ip: &str) -> redis::RedisResult<Option<Value>> {
+pub(super) async fn load_block(
+    state: &AppState,
+    ip: &str,
+) -> crate::storage::StorageResult<Option<Value>> {
     let normalized = normalize_ip(ip);
     if normalized.is_empty() {
         return Ok(None);
     }
     Ok(state
-        .redis
+        .store
         .get_json_value(&format!("{BLOCK_DATA_PREFIX}{normalized}"))
         .await?
         .and_then(normalize_block_record))
 }
 
-pub(super) async fn save_block(state: &AppState, record: &Value) -> redis::RedisResult<()> {
+pub(super) async fn save_block(
+    state: &AppState,
+    record: &Value,
+) -> crate::storage::StorageResult<()> {
     let Some(record) = normalize_block_record(record.clone()) else {
         return Ok(());
     };
     let ip = record.get("ip").and_then(Value::as_str).unwrap_or_default();
     let ttl = block_ttl_seconds(&record);
     state
-        .redis
+        .store
         .set_json_value_ex(&format!("{BLOCK_DATA_PREFIX}{ip}"), &record, ttl)
         .await?;
     if record
@@ -29,22 +35,22 @@ pub(super) async fn save_block(state: &AppState, record: &Value) -> redis::Redis
     {
         let score = iso_score(record.get("expires_at").and_then(Value::as_str));
         state
-            .redis
+            .store
             .zadd_string_member(BLOCKS_INDEX_KEY, ip, score)
             .await?;
     } else {
-        state.redis.zrem_string_member(BLOCKS_INDEX_KEY, ip).await?;
+        state.store.zrem_string_member(BLOCKS_INDEX_KEY, ip).await?;
     }
     Ok(())
 }
 
-pub(super) async fn active_blocks(state: &AppState) -> redis::RedisResult<Vec<Value>> {
-    let keys = state.redis.scan_keys(BLOCK_DATA_PREFIX, 100).await?;
+pub(super) async fn active_blocks(state: &AppState) -> crate::storage::StorageResult<Vec<Value>> {
+    let keys = state.store.scan_keys(BLOCK_DATA_PREFIX, 100).await?;
     let mut records = Vec::new();
     let now = time_utils::now_ms();
     for key in keys {
         if let Some(record) = state
-            .redis
+            .store
             .get_json_value(&key)
             .await?
             .and_then(normalize_block_record)
@@ -52,7 +58,7 @@ pub(super) async fn active_blocks(state: &AppState) -> redis::RedisResult<Vec<Va
             if is_active_block(&record, now) {
                 records.push(record);
             } else if let Some(ip) = record.get("ip").and_then(Value::as_str) {
-                state.redis.zrem_string_member(BLOCKS_INDEX_KEY, ip).await?;
+                state.store.zrem_string_member(BLOCKS_INDEX_KEY, ip).await?;
             }
         }
     }
@@ -68,7 +74,7 @@ pub(super) async fn list_active_blocks(
     page: i64,
     limit: i64,
     search: &str,
-) -> redis::RedisResult<(Vec<Value>, usize)> {
+) -> crate::storage::StorageResult<(Vec<Value>, usize)> {
     let mut records = active_blocks(state).await?;
     if !search.is_empty() {
         records.retain(|record| {
@@ -134,7 +140,7 @@ pub(super) async fn mark_block_removed(
     state: &AppState,
     ip: &str,
     reason: &str,
-) -> redis::RedisResult<bool> {
+) -> crate::storage::StorageResult<bool> {
     let Some(record) = load_block(state, ip).await? else {
         return Ok(false);
     };

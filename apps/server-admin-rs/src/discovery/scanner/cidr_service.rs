@@ -26,12 +26,12 @@ pub(super) async fn lookup_region_cidrs(
         .filter(|value| !value.is_empty() && value != CIDR_PROVINCE_WIDE_VALUE);
     let cache_key = cidr_cache_key(&province, city.as_deref());
 
-    let data = match state.redis.get_json_value(&cache_key).await? {
+    let data = match state.store.get_json_value(&cache_key).await? {
         Some(data) => data,
         None => {
             let data = fetch_cidr_data(state, &province, city.as_deref()).await?;
             state
-                .redis
+                .store
                 .set_json_value_ex(&cache_key, &data, CIDR_SUCCESS_CACHE_TTL_SECONDS)
                 .await?;
             data
@@ -221,12 +221,12 @@ pub(super) async fn get_cached_or_fetch_cidr_data(
     path: &str,
     query: &[(&str, &str)],
 ) -> Result<Value, ScannerError> {
-    match state.redis.get_json_value(cache_key).await? {
+    match state.store.get_json_value(cache_key).await? {
         Some(data) => Ok(data),
         None => {
             let data = fetch_cidr_api_data(state, path, query).await?;
             state
-                .redis
+                .store
                 .set_json_value_ex(cache_key, &data, CIDR_SUCCESS_CACHE_TTL_SECONDS)
                 .await?;
             Ok(data)
@@ -297,7 +297,7 @@ pub(super) async fn fetch_cidr_api_data(
 
 pub(super) async fn resolve_cidr_api_base_url(state: &AppState) -> Result<String, ScannerError> {
     let settings = state
-        .redis
+        .store
         .get_json_value(IP_LOCATION_API_SETTINGS_KEY)
         .await?
         .unwrap_or_else(|| {

@@ -63,8 +63,8 @@ fn ssl_route_text(translator: &Translator, key: &str) -> String {
     translator.t(&format!("server.sslRoutes.{key}"))
 }
 
-fn ssl_redis_text_params(translator: &Translator, key: &str, params: &[(&str, String)]) -> String {
-    translator.t_params(&format!("server.redis.ssl.{key}"), params)
+fn ssl_text_params(translator: &Translator, key: &str, params: &[(&str, String)]) -> String {
+    translator.t_params(&format!("server.store.ssl.{key}"), params)
 }
 
 fn fnos_data_share_text(translator: &Translator, key: &str) -> String {
@@ -87,7 +87,7 @@ pub(crate) fn validate_ssl_cert_for_response(
     translator: &Translator,
 ) -> Result<(), String> {
     if cert.trim().is_empty() || key.trim().is_empty() {
-        return Err(translator.t("server.redis.ssl.certContentRequired"));
+        return Err(translator.t("server.store.ssl.certContentRequired"));
     }
     validate_ssl_cert_pair(cert, key)
         .map_err(|error| ssl_validation_error_message(translator, &error))
@@ -103,18 +103,18 @@ enum SslValidationError {
 
 fn ssl_validation_error_message(translator: &Translator, error: &SslValidationError) -> String {
     match error {
-        SslValidationError::CertFormatInvalid(message) => ssl_redis_text_params(
+        SslValidationError::CertFormatInvalid(message) => ssl_text_params(
             translator,
             "certFormatInvalid",
             &[("message", message.clone())],
         ),
-        SslValidationError::KeyFormatInvalid(message) => ssl_redis_text_params(
+        SslValidationError::KeyFormatInvalid(message) => ssl_text_params(
             translator,
             "keyFormatInvalid",
             &[("message", message.clone())],
         ),
-        SslValidationError::CertKeyMismatch => translator.t("server.redis.ssl.certKeyMismatch"),
-        SslValidationError::CertKeyCheckFailed(message) => ssl_redis_text_params(
+        SslValidationError::CertKeyMismatch => translator.t("server.store.ssl.certKeyMismatch"),
+        SslValidationError::CertKeyCheckFailed(message) => ssl_text_params(
             translator,
             "certKeyCheckFailed",
             &[("message", message.clone())],

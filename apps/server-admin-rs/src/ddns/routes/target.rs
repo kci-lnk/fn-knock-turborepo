@@ -134,9 +134,9 @@ pub(super) async fn delete_ddns_target(state: &AppState, id: &str) -> anyhow::Re
     if target.meta.is_primary {
         return Err(anyhow::anyhow!("Primary DDNS target cannot be deleted"));
     }
-    state.redis.srem_string_member(DDNS_TARGET_IDS, id).await?;
+    state.store.srem_string_member(DDNS_TARGET_IDS, id).await?;
     state
-        .redis
+        .store
         .delete_keys(&[
             target_meta_key(id),
             target_config_key(id),
@@ -229,19 +229,19 @@ pub(super) async fn primary_target(state: &AppState) -> anyhow::Result<DDNSTarge
 
 pub(super) async fn ensure_primary_initialized(state: &AppState) -> anyhow::Result<()> {
     let primary_id = state
-        .redis
+        .store
         .get_string_value(DDNS_PRIMARY_TARGET_ID)
         .await?
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| PRIMARY_TARGET_ID.to_string());
     if !state
-        .redis
+        .store
         .hgetall_string_map(&target_meta_key(&primary_id))
         .await?
         .is_empty()
     {
         state
-            .redis
+            .store
             .sadd_string_member(DDNS_TARGET_IDS, &primary_id)
             .await?;
         return Ok(());
@@ -292,16 +292,16 @@ pub(super) async fn save_target_meta(
     payload.insert("updated_at".to_string(), meta.updated_at.clone());
     payload.insert("sort_order".to_string(), meta.sort_order.to_string());
     state
-        .redis
+        .store
         .replace_hash_string_map(&target_meta_key(&meta.id), &payload)
         .await?;
     state
-        .redis
+        .store
         .sadd_string_member(DDNS_TARGET_IDS, &meta.id)
         .await?;
     if meta.is_primary {
         state
-            .redis
+            .store
             .set_string_value(DDNS_PRIMARY_TARGET_ID, &meta.id)
             .await?;
     }
@@ -316,7 +316,7 @@ pub(super) async fn save_target_config(
     let provider = meta.provider.as_deref();
     let prepared = prepare_config_for_storage(provider, normalize_config_map(provider, config));
     state
-        .redis
+        .store
         .replace_hash_string_map(&target_config_key(&meta.id), &prepared)
         .await?;
     if meta.is_primary
@@ -335,7 +335,7 @@ pub(super) async fn save_legacy_config_draft(
     let prepared =
         prepare_config_for_storage(Some(provider), normalize_config_map(Some(provider), config));
     state
-        .redis
+        .store
         .replace_hash_string_map(
             &(DDNS_LEGACY_CONFIG_PREFIX.to_string() + provider),
             &prepared,
@@ -349,7 +349,7 @@ pub(super) async fn read_legacy_config_draft(
     provider: &str,
 ) -> anyhow::Result<HashMap<String, String>> {
     let raw = state
-        .redis
+        .store
         .hgetall_string_map(&(DDNS_LEGACY_CONFIG_PREFIX.to_string() + provider))
         .await?;
     Ok(normalize_config(provider, raw))
@@ -361,11 +361,11 @@ pub(super) async fn mirror_primary_provider(
 ) -> anyhow::Result<()> {
     if let Some(provider) = provider.filter(|value| !value.trim().is_empty()) {
         state
-            .redis
+            .store
             .set_string_value(DDNS_LEGACY_PROVIDER, provider)
             .await?;
     } else {
-        state.redis.delete_key(DDNS_LEGACY_PROVIDER).await?;
+        state.store.delete_key(DDNS_LEGACY_PROVIDER).await?;
     }
     Ok(())
 }
@@ -375,20 +375,20 @@ pub(super) async fn reset_target_runtime_state(
     meta: &DDNSTargetMeta,
 ) -> anyhow::Result<()> {
     state
-        .redis
+        .store
         .replace_hash_string_map(&target_last_ip_key(&meta.id), &HashMap::new())
         .await?;
     state
-        .redis
+        .store
         .replace_hash_string_map(&target_last_check_key(&meta.id), &HashMap::new())
         .await?;
     if meta.is_primary {
         state
-            .redis
+            .store
             .replace_hash_string_map(DDNS_LEGACY_LAST_IP, &HashMap::new())
             .await?;
         state
-            .redis
+            .store
             .replace_hash_string_map(DDNS_LEGACY_LAST_CHECK, &HashMap::new())
             .await?;
     }

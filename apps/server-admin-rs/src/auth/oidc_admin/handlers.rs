@@ -45,7 +45,7 @@ pub(super) async fn list_providers(
             );
         }
     };
-    let config = match state.redis.get_config().await {
+    let config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config for OIDC provider callback URLs");
@@ -228,7 +228,7 @@ pub(super) async fn list_bindings_by_totp(
     match oidc_list_bindings(&state).await {
         Ok(bindings) => {
             let providers = oidc_list_providers(&state).await.unwrap_or_default();
-            let totps = state.redis.get_totps().await.unwrap_or_default();
+            let totps = state.store.get_totps().await.unwrap_or_default();
             let views = bindings
                 .into_iter()
                 .filter(|binding| binding.get("totp_id").and_then(Value::as_str) == Some(&totp_id))
@@ -300,7 +300,7 @@ pub(super) async fn create_invitation(
         );
     };
 
-    let totps = match state.redis.get_totps().await {
+    let totps = match state.store.get_totps().await {
         Ok(totps) => totps,
         Err(error) => {
             tracing::warn!(%error, "failed to load TOTP credentials for OIDC invite");
@@ -342,7 +342,7 @@ pub(super) async fn create_invitation(
         );
     }
 
-    let config = match state.redis.get_config().await {
+    let config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config for OIDC invite URL");
@@ -373,7 +373,7 @@ pub(super) async fn create_invitation(
     }
     let invite_value = Value::Object(invite);
     if let Err(error) = state
-        .redis
+        .store
         .set_json_value_ex(
             &invite_key(&token_hash),
             &invite_value,

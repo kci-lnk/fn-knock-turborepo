@@ -23,7 +23,7 @@ pub fn start_system_monitor_tasks(state: AppState) {
         loop {
             ticker.tick().await;
             match state
-                .redis
+                .store
                 .set_lock_if_not_exists(
                     "system-resource-monitor",
                     system_monitor_lock_ttl_seconds(),
@@ -45,7 +45,7 @@ pub fn start_system_monitor_tasks(state: AppState) {
 }
 
 async fn tick_system_monitor(state: &AppState) -> anyhow::Result<()> {
-    let config = state.redis.get_config().await?;
+    let config = state.store.get_config().await?;
     if !event_system_monitor_enabled(&config) {
         reset_states(state).await;
         return Ok(());
@@ -68,12 +68,12 @@ async fn process_metric(
     let rule = normalize_rule(rule);
     let state_key = metric_state_key(metric);
     if !rule.enabled {
-        state.redis.delete_key(state_key).await?;
+        state.store.delete_key(state_key).await?;
         return Ok(());
     }
 
     let current = state
-        .redis
+        .store
         .get_json_value(state_key)
         .await?
         .unwrap_or_else(|| json!({ "status": "normal" }));
@@ -103,7 +103,7 @@ async fn process_metric(
 
     let Some(usage_percent) = usage_percent else {
         state
-            .redis
+            .store
             .set_json_value(state_key, &Value::Object(next))
             .await?;
         return Ok(());
@@ -134,7 +134,7 @@ async fn process_metric(
             }
         }
         state
-            .redis
+            .store
             .set_json_value(state_key, &Value::Object(next))
             .await?;
         return Ok(());
@@ -164,7 +164,7 @@ async fn process_metric(
             next.insert("belowRecoverSince".to_string(), Value::Null);
         }
         state
-            .redis
+            .store
             .set_json_value(state_key, &Value::Object(next))
             .await?;
         return Ok(());
@@ -176,7 +176,7 @@ async fn process_metric(
         next.insert("aboveThresholdSince".to_string(), Value::Null);
     }
     state
-        .redis
+        .store
         .set_json_value(state_key, &Value::Object(next))
         .await?;
     Ok(())
@@ -214,8 +214,8 @@ async fn publish_resource_event(
 }
 
 pub(crate) async fn reset_states(state: &AppState) {
-    let _ = state.redis.delete_key(CPU_STATE_KEY).await;
-    let _ = state.redis.delete_key(MEMORY_STATE_KEY).await;
+    let _ = state.store.delete_key(CPU_STATE_KEY).await;
+    let _ = state.store.delete_key(MEMORY_STATE_KEY).await;
 }
 
 fn read_cpu_usage_percent(previous: Option<&Value>) -> (Option<f64>, Option<CpuSnapshot>) {

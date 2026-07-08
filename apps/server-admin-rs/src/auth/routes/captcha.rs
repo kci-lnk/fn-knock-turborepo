@@ -59,7 +59,7 @@ pub(super) async fn verify_pow_captcha(
         .map_err(|_| auth_route_text(translator, "invalidCaptchaProof"))?;
     let validation = validate_pow_proof(data, key, time_utils::now_ms() / 1000, translator)?;
     match state
-        .redis
+        .store
         .set_nonce_if_not_exists(&validation.nonce, 86_400)
         .await
     {

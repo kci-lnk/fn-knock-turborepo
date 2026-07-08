@@ -4,14 +4,14 @@ pub async fn destroy_sessions_for_totp_credential(
     state: &AppState,
     totp_id: &str,
 ) -> anyhow::Result<usize> {
-    let sessions = state.redis.list_login_sessions().await?;
+    let sessions = state.store.list_login_sessions().await?;
     let mut destroyed = 0usize;
     for (session_id, session) in sessions {
         if session.totp_id != totp_id {
             continue;
         }
         destroy_session(state, &session_id).await?;
-        state.redis.delete_session(&session_id).await?;
+        state.store.delete_session(&session_id).await?;
         destroyed += 1;
     }
     if destroyed > 0 {
@@ -22,7 +22,7 @@ pub async fn destroy_sessions_for_totp_credential(
 
 pub async fn destroy_session(state: &AppState, session_id: &str) -> anyhow::Result<()> {
     let whitelist_ids = state
-        .redis
+        .store
         .destroy_auth_mobility_session(session_id)
         .await?;
     for whitelist_id in whitelist_ids {
@@ -37,7 +37,7 @@ pub async fn clear_auto_ip_grants_for_totp_credential(
     state: &AppState,
     totp_id: &str,
 ) -> anyhow::Result<bool> {
-    let sessions = state.redis.list_login_sessions().await?;
+    let sessions = state.store.list_login_sessions().await?;
     let mut changed = false;
     for (session_id, session) in sessions {
         if session.totp_id != totp_id {
@@ -73,7 +73,7 @@ pub async fn clear_auto_ip_grants_for_totp_credential(
             updates.insert("postLoginIpGrantMode".to_string(), Value::Null);
             updates.insert("postLoginIpGrantRecordId".to_string(), Value::Null);
             state
-                .redis
+                .store
                 .update_session_value(&session_id, updates)
                 .await?;
             changed = true;
@@ -91,7 +91,7 @@ pub async fn list_session_whitelist_record_ids(
 ) -> anyhow::Result<Vec<String>> {
     let mut record_ids = BTreeSet::new();
     if let Some(binding) = state
-        .redis
+        .store
         .get_auth_mobility_binding("proxy-session", session_id)
         .await?
         && let Some(record_id) = binding_whitelist_record_id(&binding)
@@ -99,7 +99,7 @@ pub async fn list_session_whitelist_record_ids(
         record_ids.insert(record_id);
     }
     for detail in state
-        .redis
+        .store
         .list_auth_mobility_active_ip_details(session_id)
         .await?
         .into_iter()
@@ -120,7 +120,7 @@ pub async fn reconcile_session_ip_mobility_policy(
 ) -> anyhow::Result<()> {
     let previous = AuthCredentialSettings::from_raw(previous_settings);
     let next = AuthCredentialSettings::from_raw(next_settings);
-    let sessions = state.redis.list_login_sessions().await?;
+    let sessions = state.store.list_login_sessions().await?;
     if !next.session_ip_mobility_enabled {
         for (session_id, session) in sessions {
             cleanup_session_active_ip_state(state, &session_id, &session, true).await?;
@@ -177,7 +177,7 @@ pub(super) async fn cleanup_session_active_ip_state(
     preserve_legacy_single_slot: bool,
 ) -> anyhow::Result<()> {
     let details = state
-        .redis
+        .store
         .list_auth_mobility_active_ip_details(session_id)
         .await?
         .into_iter()
@@ -196,7 +196,7 @@ pub(super) async fn cleanup_session_active_ip_state(
                 .filter(|value| !value.is_empty())
                 .map(ToString::to_string)
                 .or_else(|| current_detail.and_then(|detail| detail.whitelist_record_id.clone()));
-            let config = state.redis.get_config().await?;
+            let config = state.store.get_config().await?;
             let auto_comment = normalize_auto_ip_grant_comment(session.comment.as_deref(), &config)
                 .unwrap_or_else(|| auto_ip_grant_comment(&config));
             let record = whitelist::ensure_session_auto_whitelist(
@@ -218,7 +218,7 @@ pub(super) async fn cleanup_session_active_ip_state(
                     Value::String(record.id.clone()),
                 );
                 state
-                    .redis
+                    .store
                     .update_session_value(session_id, updates)
                     .await?;
             }
@@ -226,7 +226,7 @@ pub(super) async fn cleanup_session_active_ip_state(
     }
 
     state
-        .redis
+        .store
         .clear_auth_mobility_active_ip_session(session_id)
         .await?;
     for detail in details {
@@ -253,7 +253,7 @@ pub(super) async fn ensure_legacy_proxy_binding(
         return Ok(());
     };
     let existing = state
-        .redis
+        .store
         .get_auth_mobility_binding("proxy-session", session_id)
         .await?;
     let next_binding = build_or_update_mobility_binding(
@@ -266,7 +266,7 @@ pub(super) async fn ensure_legacy_proxy_binding(
         Some(whitelist_record_id.to_string()),
     );
     state
-        .redis
+        .store
         .save_auth_mobility_owned_binding(
             "proxy-session",
             session_id,
@@ -277,7 +277,7 @@ pub(super) async fn ensure_legacy_proxy_binding(
         )
         .await?;
     state
-        .redis
+        .store
         .set_auth_mobility_whitelist_owner(whitelist_record_id, session_id, ttl_seconds)
         .await?;
     Ok(())

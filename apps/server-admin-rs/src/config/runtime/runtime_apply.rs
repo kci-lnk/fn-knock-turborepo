@@ -365,7 +365,7 @@ pub(super) async fn rollback_config_protocol_feature_and_runtime(
     previous_protocol_mapping_feature: &Value,
     run_type: i64,
 ) {
-    if let Err(error) = state.redis.save_config(previous_config).await {
+    if let Err(error) = state.store.save_config(previous_config).await {
         tracing::warn!(%error, "failed to rollback runtime config");
         return;
     }
@@ -389,7 +389,7 @@ pub(super) async fn reset_firewall_for_run_type(
     run_type: i64,
 ) -> Result<Value, String> {
     let config = state
-        .redis
+        .store
         .get_config()
         .await
         .map_err(|error| error.to_string())?;
@@ -489,7 +489,7 @@ pub(super) async fn sync_active_whitelist_targets(
     strict: bool,
 ) -> Result<usize, String> {
     let targets = state
-        .redis
+        .store
         .list_whitelist_active_concrete_targets()
         .await
         .map_err(|error| error.to_string())?;

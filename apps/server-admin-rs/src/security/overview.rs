@@ -35,7 +35,7 @@ async fn overview(State(state): State<AppState>, Query(query): Query<OverviewQue
     let bucket_count = ((range_sec as f64 / 900.0).round() as i64).clamp(12, 48);
 
     let events = match state
-        .redis
+        .store
         .list_system_events_by_range(
             from_ms,
             now_ms,
@@ -65,7 +65,7 @@ async fn overview(State(state): State<AppState>, Query(query): Query<OverviewQue
         .map(|point| point.0)
         .collect::<Vec<_>>();
     let (waf_total, waf_counts) = match state
-        .redis
+        .store
         .count_waf_logs_for_buckets(&bucket_starts, now_ms)
         .await
     {

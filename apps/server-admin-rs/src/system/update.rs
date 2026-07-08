@@ -236,7 +236,7 @@ pub fn start_update_tasks(state: AppState) {
         loop {
             interval.tick().await;
             match state
-                .redis
+                .store
                 .set_lock_if_not_exists("ota-update-check", 600)
                 .await
             {
@@ -644,7 +644,7 @@ impl UpdateManager {
             "requestedAt": time_utils::now_iso()
         });
         state
-            .redis
+            .store
             .set_json_value_ex(UPDATE_PENDING_KEY, &pending, UPDATE_PENDING_TTL_SECONDS)
             .await
             .map_err(|error| error.to_string())?;
@@ -659,7 +659,7 @@ impl UpdateManager {
     async fn consume_confirm_message(&self, state: &AppState) -> anyhow::Result<Option<Value>> {
         self.ensure_confirm_by_pending(state).await?;
         Ok(state
-            .redis
+            .store
             .consume_json_value(UPDATE_CONFIRM_KEY)
             .await?
             .filter(is_valid_confirm_payload))
@@ -672,7 +672,7 @@ impl UpdateManager {
                 return Ok(());
             }
         }
-        let pending = state.redis.get_json_value(UPDATE_PENDING_KEY).await?;
+        let pending = state.store.get_json_value(UPDATE_PENDING_KEY).await?;
         if let Some(pending) = pending {
             if let Some(target_version) = pending_confirmed_target_version(&pending) {
                 let confirm = json!({
@@ -680,11 +680,11 @@ impl UpdateManager {
                     "completedAt": time_utils::now_iso()
                 });
                 state
-                    .redis
+                    .store
                     .set_json_value_ex(UPDATE_CONFIRM_KEY, &confirm, UPDATE_CONFIRM_TTL_SECONDS)
                     .await?;
                 state
-                    .redis
+                    .store
                     .delete_keys(&[UPDATE_PENDING_KEY.to_string()])
                     .await?;
             }

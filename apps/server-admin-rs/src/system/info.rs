@@ -29,7 +29,7 @@ pub fn system_info_routes() -> Router<AppState> {
 }
 
 async fn access_entry(State(state): State<AppState>) -> Response {
-    match state.redis.get_config().await {
+    match state.store.get_config().await {
         Ok(config) => response::ok(resolve_access_entry_info(&config)).into_response(),
         Err(error) => {
             let translator = Translator::from_state(&state).await;

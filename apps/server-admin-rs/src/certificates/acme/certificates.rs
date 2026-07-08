@@ -13,11 +13,11 @@ pub(super) async fn save_acme_issued_cert_from_fs(
     let application_id = application
         .get("id")
         .and_then(Value::as_str)
-        .ok_or_else(|| anyhow::anyhow!(t.t("server.redis.acme.jobDataInvalid")))?;
+        .ok_or_else(|| anyhow::anyhow!(t.t("server.store.acme.jobDataInvalid")))?;
     let primary_domain = application
         .get("primaryDomain")
         .and_then(Value::as_str)
-        .ok_or_else(|| anyhow::anyhow!(t.t("server.redis.acme.jobDataInvalid")))?;
+        .ok_or_else(|| anyhow::anyhow!(t.t("server.store.acme.jobDataInvalid")))?;
     install_acme_cert_to_data_dir(state, primary_domain, job_id).await?;
     let (cert, key) = read_acme_cert_pair_from_fs(state, primary_domain)
         .await?
@@ -194,11 +194,11 @@ pub(super) async fn save_acme_issued_certificate(
     issued.retain(|item| item.get("applicationId").and_then(Value::as_str) != Some(application_id));
     issued.insert(0, next.clone());
     state
-        .redis
+        .store
         .set_json_value(ACME_ISSUED_CERTIFICATES_KEY, &Value::Array(issued))
         .await?;
     state
-        .redis
+        .store
         .set_json_value(
             &format!(
                 "{ACME_CERT_PREFIX}{}",
@@ -219,7 +219,7 @@ pub(super) async fn sync_acme_library_after_issue(
     let application_id = application
         .get("id")
         .and_then(Value::as_str)
-        .ok_or_else(|| anyhow::anyhow!(t.t("server.redis.acme.jobDataInvalid")))?;
+        .ok_or_else(|| anyhow::anyhow!(t.t("server.store.acme.jobDataInvalid")))?;
     let linked = ssl::get_acme_ssl_certificate_by_source_ref(state, application_id).await?;
     if let Some(linked_certificate) = linked {
         let linked_id = linked_certificate
@@ -241,7 +241,7 @@ pub(super) async fn sync_acme_library_after_issue(
             t,
         )
         .await?;
-        let config = state.redis.get_config().await?;
+        let config = state.store.get_config().await?;
         let should_sync = should_activate
             || config
                 .pointer("/ssl/deployment_mode")
@@ -268,7 +268,7 @@ pub(super) async fn sync_acme_library_after_issue(
     match save_acme_certificate_to_library_by_application(state, application, false, label, t).await
     {
         Ok(_) => {
-            let config = state.redis.get_config().await?;
+            let config = state.store.get_config().await?;
             if config
                 .pointer("/ssl/deployment_mode")
                 .and_then(Value::as_str)

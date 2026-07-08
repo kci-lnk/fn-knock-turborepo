@@ -31,7 +31,7 @@ pub(super) async fn shared_file_content(
 
 pub(super) async fn active_cert_pem(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.redis.get_config().await {
+    match state.store.get_config().await {
         Ok(config) => {
             let ssl = normalize_ssl_config(config.get("ssl"));
             let cert = ssl.get("cert").and_then(Value::as_str).unwrap_or("");
@@ -59,7 +59,7 @@ pub(super) async fn active_cert_pem(State(state): State<AppState>) -> Response {
 
 pub(super) async fn active_cert_zip(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.redis.get_config().await {
+    match state.store.get_config().await {
         Ok(config) => {
             let ssl = normalize_ssl_config(config.get("ssl"));
             let cert = ssl.get("cert").and_then(Value::as_str).unwrap_or("");
@@ -325,7 +325,7 @@ pub(super) async fn save_certificate(
             let deployment_mode = if activate {
                 "single_active"
             } else {
-                let config = match state.redis.get_config().await {
+                let config = match state.store.get_config().await {
                     Ok(config) => config,
                     Err(error) => {
                         return response::error(
@@ -392,7 +392,7 @@ pub(super) async fn set_deployment_mode(
     Json(body): Json<DeploymentModeBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let mut config = match state.redis.get_config().await {
+    let mut config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             return response::error(
@@ -426,14 +426,14 @@ pub(super) async fn set_deployment_mode(
         }
     }
     config["ssl"] = ssl;
-    if let Err(error) = state.redis.save_config(&config).await {
+    if let Err(error) = state.store.save_config(&config).await {
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
             ssl_error_or_route_text(&translator, "deploymentModeSaveFailed", &error),
         );
     }
     if let Err(error) = sync_ssl_deployment_to_gateway(&state, Some(&config)).await {
-        let _ = state.redis.save_config(&previous).await;
+        let _ = state.store.save_config(&previous).await;
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
             ssl_gateway_error(&translator, &error.to_string()),
@@ -455,7 +455,7 @@ pub(super) async fn delete_certificate(
     let translator = Translator::from_state(&state).await;
     match delete_ssl_certificate(&state, &id).await {
         Ok((true, removed_active)) => {
-            let config = match state.redis.get_config().await {
+            let config = match state.store.get_config().await {
                 Ok(config) => config,
                 Err(error) => {
                     return response::error(

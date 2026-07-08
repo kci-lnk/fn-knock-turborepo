@@ -702,7 +702,7 @@ async fn publish_system_event_body(
     let acquired_dedupe = if let Some(key) = dedupe_key.as_deref() {
         dedupe_ttl_seconds > 0
             && state
-                .redis
+                .store
                 .acquire_system_event_dedupe(key, dedupe_ttl_seconds)
                 .await?
     } else {
@@ -714,13 +714,13 @@ async fn publish_system_event_body(
 
     let event = build_event_envelope(body, subject, dedupe_key);
     if let Err(error) = state
-        .redis
+        .store
         .append_system_event(&event, event_config.retention_days)
         .await
     {
         if acquired_dedupe {
             if let Some(key) = event.get("dedupe_key").and_then(Value::as_str) {
-                let _ = state.redis.release_system_event_dedupe(key).await;
+                let _ = state.store.release_system_event_dedupe(key).await;
             }
         }
         return Err(error.into());
@@ -797,7 +797,7 @@ async fn publish_internal_event(
     let acquired_dedupe = if let Some(key) = dedupe_key.as_deref() {
         if dedupe_ttl_seconds > 0 {
             match state
-                .redis
+                .store
                 .acquire_system_event_dedupe(key, dedupe_ttl_seconds)
                 .await
             {
@@ -823,7 +823,7 @@ async fn publish_internal_event(
 
     let event = build_event_envelope(body, subject, dedupe_key);
     match state
-        .redis
+        .store
         .append_system_event(&event, event_config.retention_days)
         .await
     {
@@ -835,7 +835,7 @@ async fn publish_internal_event(
         Err(error) => {
             if acquired_dedupe {
                 if let Some(key) = event.get("dedupe_key").and_then(Value::as_str) {
-                    let _ = state.redis.release_system_event_dedupe(key).await;
+                    let _ = state.store.release_system_event_dedupe(key).await;
                 }
             }
             tracing::warn!(%error, "failed to append system event");
@@ -893,7 +893,7 @@ async fn list_events(
     };
 
     match state
-        .redis
+        .store
         .list_system_events(
             parse_positive_int(query.page.as_deref(), 1),
             parse_positive_int(query.limit.as_deref(), 20).min(100),
@@ -925,7 +925,7 @@ async fn delete_events(
     Json(body): Json<DeleteEventsBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.redis.delete_system_events(&body.ids).await {
+    match state.store.delete_system_events(&body.ids).await {
         Ok(()) => response::success_empty().into_response(),
         Err(error) => {
             tracing::warn!(%error, "failed to delete system events");
@@ -939,7 +939,7 @@ async fn delete_events(
 
 async fn clear_events(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.redis.clear_system_events().await {
+    match state.store.clear_system_events().await {
         Ok(deleted_count) => {
             response::ok(json!({ "deleted_count": deleted_count })).into_response()
         }
@@ -1056,8 +1056,10 @@ struct EventSystemConfig {
     rules: Map<String, Value>,
 }
 
-async fn load_event_system_config(state: &AppState) -> redis::RedisResult<EventSystemConfig> {
-    let config = state.redis.get_config().await?;
+async fn load_event_system_config(
+    state: &AppState,
+) -> crate::storage::StorageResult<EventSystemConfig> {
+    let config = state.store.get_config().await?;
     let event_system = config
         .get("event_system")
         .and_then(Value::as_object)

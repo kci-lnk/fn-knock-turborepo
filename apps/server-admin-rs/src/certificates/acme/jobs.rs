@@ -64,7 +64,7 @@ pub(super) async fn reserve_acme_application_job(
     let lock = build_acme_runtime_lock(&application, &job, trigger);
     let leased_lock = with_runtime_lock_lease(lock);
     let acquired = state
-        .redis
+        .store
         .set_json_value_nx_ex(
             ACME_RUNTIME_LOCK_KEY,
             &leased_lock,
@@ -108,7 +108,7 @@ pub(super) async fn run_reserved_acme_application_job(
         .unwrap_or("")
         .to_string();
     if job_id.is_empty() {
-        anyhow::bail!(t.t("server.redis.acme.jobDataInvalid"));
+        anyhow::bail!(t.t("server.store.acme.jobDataInvalid"));
     }
     let domains = application
         .get("domains")
@@ -276,10 +276,10 @@ pub(super) async fn create_acme_job(
     t: &Translator,
 ) -> anyhow::Result<()> {
     let job = normalize_acme_job(job.clone())
-        .ok_or_else(|| anyhow::anyhow!(t.t("server.redis.acme.jobDataInvalid")))?;
+        .ok_or_else(|| anyhow::anyhow!(t.t("server.store.acme.jobDataInvalid")))?;
     let id = job.get("id").and_then(Value::as_str).unwrap_or("");
     state
-        .redis
+        .store
         .set_json_value_ex(
             &format!("{ACME_JOB_PREFIX}{id}"),
             &job,
@@ -306,7 +306,7 @@ pub(super) async fn update_acme_job(
         return Ok(None);
     };
     state
-        .redis
+        .store
         .set_json_value_ex(
             &format!("{ACME_JOB_PREFIX}{id}"),
             &job,
@@ -339,7 +339,7 @@ async fn update_running_acme_job(
         return Ok(None);
     };
     state
-        .redis
+        .store
         .set_json_value_ex(
             &format!("{ACME_JOB_PREFIX}{id}"),
             &job,
@@ -369,13 +369,13 @@ pub(super) async fn append_acme_log(
     state: &AppState,
     job_id: &str,
     line: &str,
-) -> redis::RedisResult<()> {
+) -> crate::storage::StorageResult<()> {
     let line = line.trim();
     if line.is_empty() {
         return Ok(());
     }
     state
-        .redis
+        .store
         .append_log_buffer(
             &format!("{ACME_LOGS_PREFIX}{job_id}"),
             &[line.to_string()],
@@ -385,9 +385,12 @@ pub(super) async fn append_acme_log(
         .await
 }
 
-pub(super) async fn clear_acme_logs(state: &AppState, job_id: &str) -> redis::RedisResult<()> {
+pub(super) async fn clear_acme_logs(
+    state: &AppState,
+    job_id: &str,
+) -> crate::storage::StorageResult<()> {
     state
-        .redis
+        .store
         .clear_log_buffer(&format!("{ACME_LOGS_PREFIX}{job_id}"))
         .await
 }
@@ -445,12 +448,12 @@ pub(super) async fn update_acme_application_job_state(
 pub(super) async fn release_acme_runtime_lock(
     state: &AppState,
     lock: &Value,
-) -> redis::RedisResult<bool> {
+) -> crate::storage::StorageResult<bool> {
     let Some(lock_id) = lock.get("lockId").and_then(Value::as_str) else {
         return Ok(false);
     };
     state
-        .redis
+        .store
         .delete_lock_if_owned(ACME_RUNTIME_LOCK_KEY, lock_id)
         .await
 }
@@ -507,7 +510,7 @@ pub(super) async fn execute_acme_application_job(
         let application_id = application
             .get("id")
             .and_then(Value::as_str)
-            .ok_or_else(|| anyhow::anyhow!(t.t("server.redis.acme.jobDataInvalid")))?;
+            .ok_or_else(|| anyhow::anyhow!(t.t("server.store.acme.jobDataInvalid")))?;
         let latest_application = find_acme_application(&state, application_id)
             .await?
             .ok_or_else(|| {
@@ -655,7 +658,7 @@ pub(super) fn start_acme_lock_heartbeat(
             }
             let next = with_runtime_lock_lease(lock.clone());
             match state
-                .redis
+                .store
                 .set_json_lock_if_owned_ex(
                     ACME_RUNTIME_LOCK_KEY,
                     &lock_id,
@@ -691,7 +694,7 @@ pub(super) async fn issue_acme_certificate(
         .map(|values| normalize_domain_list(values.iter()))
         .unwrap_or_default();
     if domains.is_empty() {
-        anyhow::bail!(t.t("server.redis.acme.domainsRequired"));
+        anyhow::bail!(t.t("server.store.acme.domainsRequired"));
     }
     let dns_type = application
         .get("dnsType")

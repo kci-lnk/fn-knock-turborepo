@@ -5,10 +5,12 @@ pub(super) use crate::certificates::domain_utils::{
     uniq_domain_strings as uniq_strings,
 };
 
-pub(super) async fn read_issued_certificates(state: &AppState) -> redis::RedisResult<Vec<Value>> {
+pub(super) async fn read_issued_certificates(
+    state: &AppState,
+) -> crate::storage::StorageResult<Vec<Value>> {
     ensure_acme_data_migrated(state).await?;
     Ok(state
-        .redis
+        .store
         .get_json_value(ACME_ISSUED_CERTIFICATES_KEY)
         .await?
         .and_then(|value| value.as_array().cloned())
@@ -21,7 +23,7 @@ pub(super) async fn read_issued_certificates(state: &AppState) -> redis::RedisRe
 pub(super) async fn find_acme_application(
     state: &AppState,
     id: &str,
-) -> redis::RedisResult<Option<Value>> {
+) -> crate::storage::StorageResult<Option<Value>> {
     Ok(read_acme_applications(state)
         .await?
         .into_iter()
@@ -31,7 +33,7 @@ pub(super) async fn find_acme_application(
 pub(super) async fn find_application_by_primary_domain(
     state: &AppState,
     domain: &str,
-) -> redis::RedisResult<Option<Value>> {
+) -> crate::storage::StorageResult<Option<Value>> {
     let domain = domain.trim().to_ascii_lowercase();
     if domain.is_empty() {
         return Ok(None);
@@ -46,7 +48,7 @@ pub(super) async fn find_application_by_primary_domain(
         }))
 }
 
-pub(super) async fn get_acme_settings(state: &AppState) -> redis::RedisResult<Value> {
+pub(super) async fn get_acme_settings(state: &AppState) -> crate::storage::StorageResult<Value> {
     let applications = read_acme_applications(state).await?;
     if let Some(application) = applications.first() {
         return Ok(json!({
@@ -59,8 +61,10 @@ pub(super) async fn get_acme_settings(state: &AppState) -> redis::RedisResult<Va
     Ok(read_legacy_settings(state).await?.unwrap_or(Value::Null))
 }
 
-pub(super) async fn read_legacy_settings(state: &AppState) -> redis::RedisResult<Option<Value>> {
-    let Some(value) = state.redis.get_json_value(ACME_LEGACY_SETTINGS_KEY).await? else {
+pub(super) async fn read_legacy_settings(
+    state: &AppState,
+) -> crate::storage::StorageResult<Option<Value>> {
+    let Some(value) = state.store.get_json_value(ACME_LEGACY_SETTINGS_KEY).await? else {
         return Ok(None);
     };
     let Some(object) = value.as_object() else {
@@ -92,9 +96,11 @@ pub(super) async fn read_legacy_settings(state: &AppState) -> redis::RedisResult
     })))
 }
 
-pub(super) async fn ensure_client_settings(state: &AppState) -> redis::RedisResult<Value> {
+pub(super) async fn ensure_client_settings(
+    state: &AppState,
+) -> crate::storage::StorageResult<Value> {
     if let Some(settings) = state
-        .redis
+        .store
         .get_json_value(ACME_CLIENT_SETTINGS_KEY)
         .await?
         .and_then(normalize_client_settings)
@@ -106,13 +112,13 @@ pub(super) async fn ensure_client_settings(state: &AppState) -> redis::RedisResu
         "updatedAt": now_node_iso(),
     });
     state
-        .redis
+        .store
         .set_json_value(ACME_CLIENT_SETTINGS_KEY, &settings)
         .await?;
     Ok(settings)
 }
 
-pub(super) async fn status_certificate(state: &AppState) -> redis::RedisResult<Value> {
+pub(super) async fn status_certificate(state: &AppState) -> crate::storage::StorageResult<Value> {
     let applications = read_acme_applications(state).await?;
     let issued = read_issued_certificates(state).await?;
     for application in applications {
@@ -136,7 +142,7 @@ pub(super) async fn status_certificate(state: &AppState) -> redis::RedisResult<V
 pub(super) async fn get_certificate_for_domain(
     state: &AppState,
     domain: &str,
-) -> redis::RedisResult<Option<(String, String, String, Value)>> {
+) -> crate::storage::StorageResult<Option<(String, String, String, Value)>> {
     if let Some(application) = find_application_by_primary_domain(state, domain).await? {
         let Some(application_id) = application.get("id").and_then(Value::as_str) else {
             return Ok(None);
@@ -184,7 +190,7 @@ pub(super) async fn get_certificate_for_domain(
 pub(super) async fn get_usable_issued_certificate_for_application(
     state: &AppState,
     application: &Value,
-) -> redis::RedisResult<Option<Value>> {
+) -> crate::storage::StorageResult<Option<Value>> {
     let Some(application_id) = application.get("id").and_then(Value::as_str) else {
         return Ok(None);
     };
@@ -207,22 +213,22 @@ pub(super) async fn save_acme_certificate_to_library_by_application(
     let application_id = application
         .get("id")
         .and_then(Value::as_str)
-        .ok_or_else(|| anyhow::anyhow!(t.t("server.redis.acme.jobDataInvalid")))?;
+        .ok_or_else(|| anyhow::anyhow!(t.t("server.store.acme.jobDataInvalid")))?;
     let issued = get_usable_issued_certificate_for_application(state, application)
         .await?
-        .ok_or_else(|| anyhow::anyhow!(t.t("server.redis.acme.noMatchingIssuedCertificate")))?;
+        .ok_or_else(|| anyhow::anyhow!(t.t("server.store.acme.noMatchingIssuedCertificate")))?;
     let primary_domain = issued
         .get("primaryDomain")
         .and_then(Value::as_str)
-        .ok_or_else(|| anyhow::anyhow!(t.t("server.redis.acme.jobDataInvalid")))?;
+        .ok_or_else(|| anyhow::anyhow!(t.t("server.store.acme.jobDataInvalid")))?;
     let cert = issued
         .get("cert")
         .and_then(Value::as_str)
-        .ok_or_else(|| anyhow::anyhow!(t.t("server.redis.ssl.certNotFound")))?;
+        .ok_or_else(|| anyhow::anyhow!(t.t("server.store.ssl.certNotFound")))?;
     let key = issued
         .get("key")
         .and_then(Value::as_str)
-        .ok_or_else(|| anyhow::anyhow!(t.t("server.redis.ssl.certNotFound")))?;
+        .ok_or_else(|| anyhow::anyhow!(t.t("server.store.ssl.certNotFound")))?;
     let existing_id = issued
         .get("libraryCertificateId")
         .and_then(Value::as_str)
@@ -254,7 +260,7 @@ pub(super) async fn link_issued_certificate_to_library(
     state: &AppState,
     application_id: &str,
     library_certificate_id: &str,
-) -> redis::RedisResult<Option<Value>> {
+) -> crate::storage::StorageResult<Option<Value>> {
     let mut issued = read_issued_certificates(state).await?;
     let Some(index) = issued
         .iter()
@@ -271,7 +277,7 @@ pub(super) async fn link_issued_certificate_to_library(
     }
     let linked = issued[index].clone();
     state
-        .redis
+        .store
         .set_json_value(ACME_ISSUED_CERTIFICATES_KEY, &Value::Array(issued))
         .await?;
     Ok(Some(linked))
@@ -281,7 +287,7 @@ pub(super) async fn sync_gateway_if_acme_library_touched(
     state: &AppState,
     certificate_id: &str,
 ) -> anyhow::Result<()> {
-    let config = state.redis.get_config().await?;
+    let config = state.store.get_config().await?;
     let should_sync = config
         .pointer("/ssl/active_cert_id")
         .and_then(Value::as_str)
@@ -299,9 +305,9 @@ pub(super) async fn sync_gateway_if_acme_library_touched(
 pub(super) async fn read_acme_cert_pair(
     state: &AppState,
     domain: &str,
-) -> redis::RedisResult<Option<(String, String)>> {
+) -> crate::storage::StorageResult<Option<(String, String)>> {
     let key = format!("{ACME_CERT_PREFIX}{domain}");
-    let Some(value) = state.redis.get_json_value(&key).await? else {
+    let Some(value) = state.store.get_json_value(&key).await? else {
         return Ok(None);
     };
     let cert = value
@@ -319,9 +325,12 @@ pub(super) async fn read_acme_cert_pair(
     Ok(cert.zip(key))
 }
 
-pub(super) async fn get_acme_job(state: &AppState, id: &str) -> redis::RedisResult<Option<Value>> {
+pub(super) async fn get_acme_job(
+    state: &AppState,
+    id: &str,
+) -> crate::storage::StorageResult<Option<Value>> {
     Ok(state
-        .redis
+        .store
         .get_json_value(&format!("{ACME_JOB_PREFIX}{id}"))
         .await?
         .and_then(normalize_acme_job))
@@ -332,9 +341,9 @@ pub(super) async fn get_acme_logs(
     id: &str,
     limit: usize,
     order: &str,
-) -> redis::RedisResult<Vec<Value>> {
+) -> crate::storage::StorageResult<Vec<Value>> {
     let mut logs = state
-        .redis
+        .store
         .list_log_buffer(
             &format!("{ACME_LOGS_PREFIX}{id}"),
             limit,
@@ -350,8 +359,10 @@ pub(super) async fn get_acme_logs(
     Ok(logs)
 }
 
-pub(super) async fn get_active_acme_runtime_lock(state: &AppState) -> redis::RedisResult<Value> {
-    let Some(raw_lock) = state.redis.get_json_value(ACME_RUNTIME_LOCK_KEY).await? else {
+pub(super) async fn get_active_acme_runtime_lock(
+    state: &AppState,
+) -> crate::storage::StorageResult<Value> {
+    let Some(raw_lock) = state.store.get_json_value(ACME_RUNTIME_LOCK_KEY).await? else {
         return Ok(json!({ "locked": false }));
     };
     let lock = normalize_runtime_lock(&raw_lock);

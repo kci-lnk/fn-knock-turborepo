@@ -56,7 +56,7 @@ pub fn error(status: StatusCode, message: impl Into<String>) -> axum::response::
 }
 
 pub async fn healthz(State(state): State<AppState>) -> axum::response::Response {
-    let (redis_reachable, redis_error) = match state.redis.ping().await {
+    let (storage_reachable, storage_error) = match state.store.ping().await {
         Ok(()) => (true, Value::Null),
         Err(error) => (false, Value::String(error.to_string())),
     };
@@ -84,7 +84,7 @@ pub async fn healthz(State(state): State<AppState>) -> axum::response::Response 
         ),
         Err(error) => (false, Value::Null, Value::String(error.to_string())),
     };
-    let healthy = redis_reachable && gateway_reachable;
+    let healthy = storage_reachable && gateway_reachable;
     let body = json!({
         "success": healthy,
         "data": {
@@ -92,9 +92,10 @@ pub async fn healthz(State(state): State<AppState>) -> axum::response::Response 
                 "alive": true,
                 "pid": std::process::id(),
             },
-            "redis": {
-                "reachable": redis_reachable,
-                "error": redis_error,
+            "storage": {
+                "type": "sqlite",
+                "reachable": storage_reachable,
+                "error": storage_error,
             },
             "runtime_profile": runtime_profile(&state),
             "gateway_admin": {

@@ -263,7 +263,7 @@ async fn get_status(State(state): State<AppState>) -> Response {
 
 async fn toggle(State(state): State<AppState>, Json(body): Json<ToggleBody>) -> Response {
     let translator = Translator::from_state(&state).await;
-    let was_enabled = match state.redis.get_string_value(DDNS_ENABLED).await {
+    let was_enabled = match state.store.get_string_value(DDNS_ENABLED).await {
         Ok(value) => value.as_deref() == Some("true"),
         Err(error) => {
             tracing::warn!(%error, "failed to read DDNS enabled state");
@@ -274,7 +274,7 @@ async fn toggle(State(state): State<AppState>, Json(body): Json<ToggleBody>) -> 
         }
     };
     match state
-        .redis
+        .store
         .set_string_value(DDNS_ENABLED, if body.enabled { "true" } else { "false" })
         .await
     {
@@ -308,7 +308,7 @@ async fn get_providers(State(state): State<AppState>) -> Response {
 
 async fn get_settings(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.redis.get_string_value(DDNS_SETTINGS).await {
+    match state.store.get_string_value(DDNS_SETTINGS).await {
         Ok(raw) => response::ok(parse_settings(raw.as_deref())).into_response(),
         Err(error) => {
             tracing::warn!(%error, "failed to load DDNS settings");
@@ -325,7 +325,7 @@ async fn update_settings(
     Json(body): Json<SettingsBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let current = match state.redis.get_string_value(DDNS_SETTINGS).await {
+    let current = match state.store.get_string_value(DDNS_SETTINGS).await {
         Ok(raw) => parse_settings(raw.as_deref()),
         Err(error) => {
             tracing::warn!(%error, "failed to load current DDNS settings");
@@ -379,7 +379,7 @@ async fn update_settings(
     });
     let serialized = serde_json::to_string(&stored).unwrap_or_default();
     match state
-        .redis
+        .store
         .set_string_value(DDNS_SETTINGS, &serialized)
         .await
     {
@@ -434,7 +434,7 @@ async fn test_public_check_sources(
     let transport = if let Some(value) = body.http_transport.as_ref() {
         normalize_http_transport(Some(&Value::String(value.clone()))).to_string()
     } else {
-        match state.redis.get_string_value(DDNS_SETTINGS).await {
+        match state.store.get_string_value(DDNS_SETTINGS).await {
             Ok(raw) => parse_settings(raw.as_deref())
                 .get("httpTransport")
                 .and_then(Value::as_str)
@@ -577,7 +577,7 @@ async fn test_target(State(state): State<AppState>, Path(id): Path<String>) -> R
 async fn get_logs(State(state): State<AppState>, Query(query): Query<LogsQuery>) -> Response {
     let translator = Translator::from_state(&state).await;
     match state
-        .redis
+        .store
         .list_log_buffer(
             DDNS_LOGS,
             parse_ddns_log_limit(query.limit.as_deref()),
@@ -624,7 +624,7 @@ async fn manual_test_target(state: &AppState, id: &str) -> Response {
         tracing::warn!(%error, "failed to append DDNS manual test start log");
     }
 
-    let settings = match state.redis.get_string_value(DDNS_SETTINGS).await {
+    let settings = match state.store.get_string_value(DDNS_SETTINGS).await {
         Ok(raw) => parse_settings(raw.as_deref()),
         Err(error) => {
             tracing::warn!(%error, "failed to load DDNS settings for manual test");

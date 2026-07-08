@@ -97,20 +97,9 @@ pub(super) async fn import_backup_archive_buffer(
         })
         .collect::<Vec<_>>();
 
-    let keys = state
-        .redis
-        .scan_keys(KNOCK_BACKUP_PREFIX, SCAN_COUNT)
-        .await
-        .map_err(|error| BackupImportError::internal(error.to_string()))?;
-    let cleared_keys = keys.len();
-    state
-        .redis
-        .delete_keys(&keys)
-        .await
-        .map_err(|error| BackupImportError::internal(error.to_string()))?;
-    state
-        .redis
-        .restore_redis_backup_entries(&importable_entries)
+    let cleared_keys = state
+        .store
+        .replace_backup_entries_by_prefix(KNOCK_BACKUP_PREFIX, &importable_entries, SCAN_COUNT)
         .await
         .map_err(|error| BackupImportError::internal(error.to_string()))?;
 
@@ -197,7 +186,13 @@ pub(super) fn parse_backup_payload(raw: &str) -> Result<Value, BackupImportError
             "Backup payload must be an object",
         ));
     };
-    if object.get("version").and_then(Value::as_i64) != Some(APP_BACKUP_SCHEMA_VERSION) {
+    let schema_version = object
+        .get("version")
+        .or_else(|| object.get("backupSchemaVersion"))
+        .and_then(js_number_from_json)
+        .filter(|value| value.is_finite())
+        .map(|value| value.trunc() as i64);
+    if schema_version != Some(APP_BACKUP_SCHEMA_VERSION) {
         return Err(BackupImportError::bad_request(format!(
             "Unsupported backup schema version. Expected {APP_BACKUP_SCHEMA_VERSION}"
         )));

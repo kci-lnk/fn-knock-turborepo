@@ -5,7 +5,7 @@ const DEFAULT_ACME_RENEW_INTERVAL_SECONDS: u64 = 6 * 60 * 60;
 
 pub(super) async fn run_acme_auto_renew_once(state: AppState) -> anyhow::Result<()> {
     let acquired = state
-        .redis
+        .store
         .set_lock_if_not_exists("acme-renew", acme_renew_lock_ttl_seconds())
         .await?;
     if !acquired {
@@ -74,7 +74,7 @@ pub(super) async fn run_acme_auto_renew_once(state: AppState) -> anyhow::Result<
 pub(super) async fn reconcile_acme_ssl_deployment(state: &AppState) -> anyhow::Result<()> {
     let applications = read_acme_applications(state).await?;
     let t = Translator::from_state(state).await;
-    let mut config = state.redis.get_config().await?;
+    let mut config = state.store.get_config().await?;
     let mut deployment_changed = false;
 
     for application in applications {
@@ -147,7 +147,7 @@ pub(super) async fn reconcile_acme_ssl_deployment(state: &AppState) -> anyhow::R
                 &t,
             )
             .await?;
-            config = state.redis.get_config().await?;
+            config = state.store.get_config().await?;
             Ok(should_activate
                 || config
                     .pointer("/ssl/deployment_mode")

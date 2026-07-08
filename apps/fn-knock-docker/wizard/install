@@ -4,7 +4,7 @@
     "items": [
       {
         "type": "tips",
-        "helpText": "Docker 版将使用 kcilnk/fn-knock:latest 镜像，并通过 Docker Compose 启动 fn-knock 与 Redis。端口必须是 1-65535 的数字，且不能重复。"
+        "helpText": "Docker 版将使用 kcilnk/fn-knock:latest 镜像，并通过 Docker Compose 启动 fn-knock。端口必须是 1-65535 的数字，且不能重复。"
       },
       {
         "type": "text",

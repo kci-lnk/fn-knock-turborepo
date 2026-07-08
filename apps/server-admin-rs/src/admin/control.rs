@@ -25,7 +25,7 @@ use handlers::{
 #[cfg(test)]
 use crate::{
     i18n::Translator,
-    redis_store::{LoginSession, TotpCredential},
+    store::{LoginSession, TotpCredential},
     time_utils,
 };
 #[cfg(test)]

@@ -1,7 +1,7 @@
 use super::*;
 
 pub(super) async fn build_gateway_settings_response(state: &AppState) -> anyhow::Result<Value> {
-    let config = state.redis.get_config().await?;
+    let config = state.store.get_config().await?;
     build_gateway_settings_response_from_config(state, config).await
 }
 
@@ -10,17 +10,17 @@ pub(super) async fn build_gateway_settings_response_from_config(
     config: Value,
 ) -> anyhow::Result<Value> {
     let visibility_runtime = state
-        .redis
+        .store
         .get_json_value(GATEWAY_VISIBILITY_RUNTIME_KEY)
         .await?
         .unwrap_or_else(default_gateway_visibility_runtime);
     let proxy_headers_runtime = state
-        .redis
+        .store
         .get_json_value(GATEWAY_PROXY_HEADERS_RUNTIME_KEY)
         .await?
         .unwrap_or_else(default_gateway_proxy_headers_runtime);
     let host_response_runtime = state
-        .redis
+        .store
         .get_json_value(GATEWAY_HOST_RESPONSE_RUNTIME_KEY)
         .await?
         .unwrap_or_else(default_gateway_host_response_runtime);
@@ -91,14 +91,14 @@ pub(super) async fn build_gateway_settings_response_from_config(
 }
 
 pub(super) async fn get_gateway_visibility_details(state: &AppState) -> anyhow::Result<Value> {
-    let config = state.redis.get_config().await?;
+    let config = state.store.get_config().await?;
     let visibility_config = normalize_gateway_visibility(
         config
             .get("gateway_visibility")
             .unwrap_or(&default_gateway_visibility()),
     );
     let runtime = state
-        .redis
+        .store
         .get_json_value(GATEWAY_VISIBILITY_RUNTIME_KEY)
         .await?
         .unwrap_or_else(default_gateway_visibility_runtime);
@@ -117,7 +117,7 @@ pub(super) async fn update_gateway_visibility_inner(
     };
     let compiled = compile_gateway_visibility_config(state, object).await?;
     let mut next_config = state
-        .redis
+        .store
         .get_config()
         .await
         .map_err(|error| error.to_string())?;
@@ -125,12 +125,12 @@ pub(super) async fn update_gateway_visibility_inner(
         .insert("gateway_visibility".to_string(), compiled.config.clone());
 
     state
-        .redis
+        .store
         .save_config(&next_config)
         .await
         .map_err(|error| error.to_string())?;
     state
-        .redis
+        .store
         .set_json_value(GATEWAY_VISIBILITY_RUNTIME_KEY, &compiled.runtime)
         .await
         .map_err(|error| error.to_string())?;
@@ -146,7 +146,7 @@ pub(super) async fn get_gateway_proxy_headers_details(
     state: &AppState,
     translator: &Translator,
 ) -> anyhow::Result<Value> {
-    let config = state.redis.get_config().await?;
+    let config = state.store.get_config().await?;
     let proxy_config = normalize_disabled_hosts_config(
         config
             .get("gateway_proxy_headers")
@@ -157,7 +157,7 @@ pub(super) async fn get_gateway_proxy_headers_details(
     let visible_hosts = visible_host_mappings(&host_mappings);
     let items = build_gateway_proxy_header_items(&visible_hosts, &sanitized_config);
     let runtime = state
-        .redis
+        .store
         .get_json_value(GATEWAY_PROXY_HEADERS_RUNTIME_KEY)
         .await?
         .unwrap_or_else(default_gateway_proxy_headers_runtime);
@@ -182,12 +182,12 @@ pub(super) async fn update_gateway_proxy_headers_inner(
         .insert("gateway_proxy_headers".to_string(), compiled.config.clone());
 
     state
-        .redis
+        .store
         .save_config(&next_config)
         .await
         .map_err(|error| error.to_string())?;
     state
-        .redis
+        .store
         .set_json_value(GATEWAY_PROXY_HEADERS_RUNTIME_KEY, &compiled.runtime)
         .await
         .map_err(|error| error.to_string())?;
@@ -202,7 +202,7 @@ pub(super) async fn get_gateway_host_response_details(
     state: &AppState,
     translator: &Translator,
 ) -> anyhow::Result<Value> {
-    let config = state.redis.get_config().await?;
+    let config = state.store.get_config().await?;
     let host_response_config = normalize_disabled_hosts_config(
         config
             .get("gateway_host_response")
@@ -213,7 +213,7 @@ pub(super) async fn get_gateway_host_response_details(
     let visible_hosts = visible_host_mappings(&host_mappings);
     let items = build_gateway_host_response_items(&visible_hosts, &sanitized_config);
     let runtime = state
-        .redis
+        .store
         .get_json_value(GATEWAY_HOST_RESPONSE_RUNTIME_KEY)
         .await?
         .unwrap_or_else(default_gateway_host_response_runtime);
@@ -239,12 +239,12 @@ pub(super) async fn update_gateway_host_response_inner(
         .insert("gateway_host_response".to_string(), compiled.config.clone());
 
     state
-        .redis
+        .store
         .save_config(&next_config)
         .await
         .map_err(|error| error.to_string())?;
     state
-        .redis
+        .store
         .set_json_value(GATEWAY_HOST_RESPONSE_RUNTIME_KEY, &compiled.runtime)
         .await
         .map_err(|error| error.to_string())?;

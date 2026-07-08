@@ -1,6 +1,6 @@
 use super::*;
 
-impl RedisStore {
+impl Store {
     pub async fn list_traffic_points(
         &self,
         user_id: &str,
@@ -8,7 +8,7 @@ impl RedisStore {
         from_sec: i64,
         to_sec: i64,
         host: Option<&str>,
-    ) -> redis::RedisResult<Vec<TrafficDeltaPoint>> {
+    ) -> crate::storage::StorageResult<Vec<TrafficDeltaPoint>> {
         let key = traffic_key(user_id, direction, host);
         let mut conn = self.conn();
         let members: Vec<String> = conn.zrangebyscore(key, from_sec, to_sec).await?;
@@ -21,7 +21,7 @@ impl RedisStore {
         from_sec: i64,
         to_sec: i64,
         host: Option<&str>,
-    ) -> redis::RedisResult<Vec<TrafficDeltaPoint>> {
+    ) -> crate::storage::StorageResult<Vec<TrafficDeltaPoint>> {
         let key = error5xx_key(user_id, host);
         let mut conn = self.conn();
         let members: Vec<String> = conn.zrangebyscore(key, from_sec, to_sec).await?;
@@ -34,7 +34,7 @@ impl RedisStore {
         records: &[TrafficSnapshotRecord],
         now_sec: i64,
         keep_seconds: i64,
-    ) -> redis::RedisResult<(f64, f64, f64)> {
+    ) -> crate::storage::StorageResult<(f64, f64, f64)> {
         if records.is_empty() {
             return Ok((0.0, 0.0, 0.0));
         }
@@ -126,7 +126,10 @@ impl RedisStore {
         Ok((global_delta_in, global_delta_out, global_delta_5xx))
     }
 
-    pub async fn cleanup_traffic_metrics(&self, keep_seconds: i64) -> redis::RedisResult<usize> {
+    pub async fn cleanup_traffic_metrics(
+        &self,
+        keep_seconds: i64,
+    ) -> crate::storage::StorageResult<usize> {
         let keep_seconds = keep_seconds.clamp(60, 365 * 24 * 3600);
         let expire_before_sec = chrono_like_now_seconds() - keep_seconds;
         let mut conn = self.conn();
@@ -159,7 +162,7 @@ impl RedisStore {
         &self,
         keys: &[String],
         index_key: &str,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         for chunk in keys
             .iter()

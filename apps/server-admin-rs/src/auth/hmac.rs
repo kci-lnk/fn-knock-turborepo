@@ -74,7 +74,7 @@ pub async fn hmac_middleware(
     }
 
     match state
-        .redis
+        .store
         .set_nonce_if_not_exists(&headers.nonce, 600)
         .await
     {

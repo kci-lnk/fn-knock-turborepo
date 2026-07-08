@@ -70,8 +70,6 @@ services:
     environment:
       TZ: ${TZ:-Asia/Shanghai}
       FN_KNOCK_RUNTIME_TARGET: docker
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
       FN_KNOCK_DATA_DIR: /var/lib/fn-knock
       FN_KNOCK_GATEWAY_CONFIG_DIR: /usr/local/etc/fn-knock
       ADMIN_VIEW_PORT: ${ADMIN_VIEW_PORT:-7991}
@@ -93,9 +91,6 @@ services:
       - fn_knock_data:/var/lib/fn-knock
       - fn_knock_gateway:/usr/local/etc/fn-knock
       - /proc/1/net:/host/proc/net:ro
-    depends_on:
-      redis:
-        condition: service_healthy
     healthcheck:
       test:
         [
@@ -106,27 +101,9 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
-
-  redis:
-    image: redis:7-bookworm
-    restart: unless-stopped
-    environment:
-      TZ: ${TZ:-Asia/Shanghai}
-    command: ["redis-server", "--appendonly", "yes"]
-    networks:
-      - fn_knock_net
-    volumes:
-      - fn_knock_redis:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-
 volumes:
   fn_knock_data:
   fn_knock_gateway:
-  fn_knock_redis:
 
 networks:
   fn_knock_net:
@@ -139,12 +116,12 @@ networks:
 
 这份 compose 配置的要点：
 
-- `fn-knock` 和 `redis` 都使用 `unless-stopped`，重启后会自动拉起
+- `fn-knock` 使用 `unless-stopped`，重启后会自动拉起
 - 只对宿主机开放 `ADMIN_VIEW_PORT` 和 `GO_REPROXY_PORT`
 - 默认启用容器 IPv6 网络，避免宿主机 IPv6 入口被 Docker 转接到容器 IPv4 后丢失真实来访 IP
 - 只读挂载宿主机 `/proc/1/net`，让 Docker 内的 DDNS 可以直接选择宿主机公网 IPv6；如果设备没有 IPv6 地址，DDNS 会自动退回原有公网探测逻辑
-- `fn_knock_data` 保存业务数据，`fn_knock_gateway` 保存网关配置，`fn_knock_redis` 保存 Redis 持久化数据
-- `depends_on + healthcheck` 会让 `fn-knock` 等 Redis 就绪后再启动
+- `fn_knock_data` 保存 secret、备份、FRP/Cloudflared 资源等运行数据
+- `fn_knock_gateway` 保存网关配置和默认 SQLite 数据库（`storage/fn-knock.sqlite3`）
 
 ### 4. 拉取并启动
 
@@ -162,7 +139,6 @@ docker compose logs -f fn-knock
 - `7998`：Rust 后端内部端口，不对宿主机暴露
 - `7997`：认证前端内部端口，不对宿主机暴露
 - `7996`：Go 后端内部端口，不对宿主机暴露
-- `6379`：Redis 仅在 compose 内部使用，不对宿主机暴露
 
 ### 6. 请求来源 IP
 
@@ -187,6 +163,17 @@ docker compose up -d
 ```
 
 如果你使用的是 `latest`，这个流程会直接更新到最新镜像；如果你要固定版本，修改 `.env` 里的 `FN_KNOCK_IMAGE=kcilnk/fn-knock:<version>` 后再执行同样的命令。
+
+旧版本从 Redis 升级时，先在旧 Redis 服务仍可访问的 compose 网络里执行一次迁移：
+
+```bash
+docker compose exec -e FN_KNOCK_LEGACY_REDIS_URL=redis://redis:6379/ fn-knock \
+  /opt/fn-knock/bin/server-admin-rs migrate-redis-to-sqlite
+```
+
+迁移成功后会删除源 Redis 中的 `fn_knock:*` key，避免旧 Redis 残留数据被误用。确认 SQLite 数据正常后，再使用当前无 Redis 的 compose 文件重建服务；如需覆盖已有 SQLite keyspace，可在迁移命令末尾追加 `--force`。
+
+默认 SQLite 路径为 `${FN_KNOCK_GATEWAY_CONFIG_DIR:-$GATEWAY_CONFIG_DIR}/storage/fn-knock.sqlite3`，也可用 `FN_KNOCK_SQLITE_PATH` 显式覆盖。
 
 ## 本地测试
 

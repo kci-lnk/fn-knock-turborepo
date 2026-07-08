@@ -173,13 +173,13 @@ case "${arch}" in
   amd64)
     keep_bin="go-reauth-proxy-linux-amd64"
     keep_rust_bin="server-admin-rs-linux-amd64"
-    install_dep_apps="redis"
+    install_dep_apps=""
     manifest_platform="x86"
     ;;
   arm64)
     keep_bin="go-reauth-proxy-linux-arm64"
     keep_rust_bin="server-admin-rs-linux-arm64"
-    install_dep_apps="redis"
+    install_dep_apps=""
     manifest_platform="arm"
     ;;
   *)

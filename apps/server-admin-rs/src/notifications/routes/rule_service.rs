@@ -337,8 +337,8 @@ pub(super) async fn update_rule_value(
 }
 
 pub(super) async fn delete_rule_value(state: &AppState, id: &str) -> NotifyResult<()> {
-    state.redis.delete_keys(&[rule_key(id)]).await?;
-    state.redis.zrem_string_member(RULES_INDEX_KEY, id).await?;
+    state.store.delete_keys(&[rule_key(id)]).await?;
+    state.store.zrem_string_member(RULES_INDEX_KEY, id).await?;
     Ok(())
 }
 

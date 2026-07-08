@@ -572,10 +572,10 @@ pub(super) fn default_certificate_label(source: &str, primary_domain: Option<&st
     }
     let translator = Translator::new(DEFAULT_LOCALE);
     match source {
-        "acme" => translator.t("server.redis.certificateLabels.acme"),
-        "ca" => translator.t("server.redis.certificateLabels.ca"),
-        "current" => translator.t("server.redis.certificateLabels.current"),
-        _ => translator.t("server.redis.certificateLabels.manual"),
+        "acme" => translator.t("server.store.certificateLabels.acme"),
+        "ca" => translator.t("server.store.certificateLabels.ca"),
+        "current" => translator.t("server.store.certificateLabels.current"),
+        _ => translator.t("server.store.certificateLabels.manual"),
     }
 }
 

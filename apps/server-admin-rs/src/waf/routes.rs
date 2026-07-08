@@ -23,7 +23,7 @@ use tokio::{
 };
 use zip::ZipArchive;
 
-use crate::{i18n::Translator, redis_store, response, state::AppState, system_events, time_utils};
+use crate::{i18n::Translator, response, state::AppState, store, system_events, time_utils};
 
 mod logs;
 mod rules;
@@ -473,8 +473,8 @@ async fn delete_logs(
         }
     };
 
-    match state.redis.delete_waf_log_date(&date).await {
-        Ok(deleted) => match state.redis.list_waf_log_dates(&today()).await {
+    match state.store.delete_waf_log_date(&date).await {
+        Ok(deleted) => match state.store.list_waf_log_dates(&today()).await {
             Ok(available_dates) => response::ok(json!({
                 "date": date,
                 "deleted": deleted,

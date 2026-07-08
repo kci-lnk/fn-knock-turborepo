@@ -174,9 +174,9 @@ pub(super) async fn delete_provider_value(state: &AppState, id: &str) -> NotifyR
         )));
     }
     let key = provider_key(id);
-    state.redis.delete_keys(&[key]).await?;
+    state.store.delete_keys(&[key]).await?;
     state
-        .redis
+        .store
         .zrem_string_member(PROVIDERS_INDEX_KEY, id)
         .await?;
     Ok(())

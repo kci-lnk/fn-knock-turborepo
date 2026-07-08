@@ -5,7 +5,7 @@ pub(super) async fn get_discover_targets(
     headers: HeaderMap,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.redis.get_config().await {
+    match state.store.get_config().await {
         Ok(config) => response::ok(build_discover_targets_payload(
             &state,
             &headers,
@@ -38,7 +38,7 @@ pub(super) async fn save_discover_targets(
         );
     }
 
-    let mut config = match state.redis.get_config().await {
+    let mut config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to read scan discover targets config");
@@ -55,7 +55,7 @@ pub(super) async fn save_discover_targets(
             "selected_cidrs": selected_cidrs
         }),
     );
-    if let Err(error) = state.redis.save_config(&config).await {
+    if let Err(error) = state.store.save_config(&config).await {
         tracing::warn!(%error, "failed to save scan discover targets config");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -92,7 +92,7 @@ pub(super) async fn start_discover_job(
             );
         }
     };
-    let config = match state.redis.get_config().await {
+    let config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before scan discover job");
@@ -154,7 +154,7 @@ pub(super) async fn probe_host_mappings(
     Json(body): Json<HostMappingProbeBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let config = match state.redis.get_config().await {
+    let config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to read host mappings for probe");

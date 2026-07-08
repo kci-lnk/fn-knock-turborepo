@@ -91,7 +91,7 @@ pub async fn create_login_session(
         ip_location: ip_location.clone(),
     };
     state
-        .redis
+        .store
         .add_session(&session_id, &session, ttl_seconds)
         .await?;
 

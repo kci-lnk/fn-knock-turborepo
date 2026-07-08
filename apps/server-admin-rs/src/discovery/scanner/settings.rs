@@ -3,7 +3,7 @@ use super::*;
 pub(super) async fn load_scanner_settings(
     state: &AppState,
 ) -> Result<ScannerSettings, ScannerError> {
-    let raw = state.redis.scanner_settings_raw().await?;
+    let raw = state.store.scanner_settings_raw().await?;
     Ok(scanner_settings_from_raw(
         raw.as_ref(),
         scanner_env_defaults(),
@@ -75,7 +75,7 @@ pub(super) async fn save_scanner_settings(
         "cidrExemptionRegionCidrs": region_cidrs,
         "cidrExemptionCidrs": effective_cidr_exemptions,
     });
-    state.redis.save_scanner_settings(&stored).await?;
+    state.store.save_scanner_settings(&stored).await?;
     load_scanner_settings(state).await
 }
 

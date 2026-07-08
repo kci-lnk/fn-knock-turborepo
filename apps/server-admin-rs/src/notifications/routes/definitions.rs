@@ -3,14 +3,14 @@ use super::*;
 #[derive(Debug)]
 pub(super) enum NotifyError {
     BadRequest(String),
-    Redis(redis::RedisError),
+    Storage(crate::storage::StorageError),
 }
 
 pub(super) type NotifyResult<T> = Result<T, NotifyError>;
 
-impl From<redis::RedisError> for NotifyError {
-    fn from(value: redis::RedisError) -> Self {
-        Self::Redis(value)
+impl From<crate::storage::StorageError> for NotifyError {
+    fn from(value: crate::storage::StorageError) -> Self {
+        Self::Storage(value)
     }
 }
 

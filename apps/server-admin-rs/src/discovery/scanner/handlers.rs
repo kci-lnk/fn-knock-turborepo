@@ -48,7 +48,7 @@ pub(super) async fn list_blacklist(
     let limit = parse_i64(query.limit.as_deref(), 20);
     let search = query.search.as_deref().unwrap_or("");
     match state
-        .redis
+        .store
         .list_scanner_blacklist(page, limit, search)
         .await
     {
@@ -68,7 +68,7 @@ pub(super) async fn get_blacklist_record(
     Path(ip): Path<String>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.redis.get_scanner_blacklist_record(&ip).await {
+    match state.store.get_scanner_blacklist_record(&ip).await {
         Ok(Some(record)) => response::ok(record).into_response(),
         Ok(None) => response::error(
             StatusCode::NOT_FOUND,
@@ -90,7 +90,7 @@ pub(super) async fn delete_blacklist_record(
 ) -> Response {
     let translator = Translator::from_state(&state).await;
     let ips = sanitize_scanner_ips([ip]);
-    match state.redis.remove_scanner_blacklist(&ips).await {
+    match state.store.remove_scanner_blacklist(&ips).await {
         Ok(()) => response::success_empty().into_response(),
         Err(error) => {
             tracing::warn!(%error, "failed to delete scanner blacklist record");
@@ -119,7 +119,7 @@ pub(super) async fn delete_blacklist(State(state): State<AppState>, body: Bytes)
             scanner_text(&translator, "atLeastOneIpRequired"),
         );
     }
-    match state.redis.remove_scanner_blacklist(&ips).await {
+    match state.store.remove_scanner_blacklist(&ips).await {
         Ok(()) => response::success_empty().into_response(),
         Err(error) => {
             tracing::warn!(%error, "failed to delete scanner blacklist records");

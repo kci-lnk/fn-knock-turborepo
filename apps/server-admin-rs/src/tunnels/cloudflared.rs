@@ -207,7 +207,7 @@ async fn logs(State(state): State<AppState>, Query(query): Query<LogsQuery>) -> 
     let translator = Translator::from_state(&state).await;
     let limit = parse_log_limit(query.limit.as_deref(), 200, LOG_MAX_LEN);
     match state
-        .redis
+        .store
         .list_log_buffer(LOG_KEY, limit, LOG_MAX_LEN)
         .await
     {
@@ -224,7 +224,7 @@ async fn logs(State(state): State<AppState>, Query(query): Query<LogsQuery>) -> 
 
 async fn clear_logs(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.redis.clear_log_buffer(LOG_KEY).await {
+    match state.store.clear_log_buffer(LOG_KEY).await {
         Ok(()) => response::success_empty().into_response(),
         Err(error) => {
             tracing::warn!(%error, "failed to clear cloudflared logs");
@@ -239,7 +239,7 @@ async fn clear_logs(State(state): State<AppState>) -> Response {
 async fn poll(State(state): State<AppState>, Query(query): Query<LogsQuery>) -> Response {
     let translator = Translator::from_state(&state).await;
     match state
-        .redis
+        .store
         .poll_log_buffer(LOG_KEY, query.cursor.as_deref())
         .await
     {
@@ -524,7 +524,7 @@ where
     });
 }
 
-async fn append_logs(state: &AppState, lines: Vec<String>) -> redis::RedisResult<()> {
+async fn append_logs(state: &AppState, lines: Vec<String>) -> crate::storage::StorageResult<()> {
     let normalized = lines
         .into_iter()
         .map(|line| line.trim_end().to_string())
@@ -535,7 +535,7 @@ async fn append_logs(state: &AppState, lines: Vec<String>) -> redis::RedisResult
     }
     handle_runtime_signals(state, &normalized).await;
     state
-        .redis
+        .store
         .append_log_buffer(LOG_KEY, &normalized, LOG_TTL_SECONDS, LOG_MAX_LEN)
         .await
 }
@@ -633,7 +633,7 @@ fn parse_log_limit(value: Option<&str>, fallback: usize, max: usize) -> usize {
 
 use crate::node_compat::parse_i64_prefix_trim_start as parse_node_parse_int;
 
-async fn should_resume_tunnel(state: &AppState) -> redis::RedisResult<bool> {
+async fn should_resume_tunnel(state: &AppState) -> crate::storage::StorageResult<bool> {
     let runtime = tunnel_runtime_state(state).await?;
     Ok(runtime
         .get("cloudflared_enabled")
@@ -656,7 +656,7 @@ async fn mark_tunnel_running(state: &AppState) -> Result<(), String> {
         Value::String(time_utils::now_iso()),
     );
     state
-        .redis
+        .store
         .set_json_value(TUNNEL_RUNTIME_KEY, &runtime)
         .await
         .map_err(|error| error.to_string())
@@ -673,14 +673,14 @@ async fn mark_tunnel_stopped(state: &AppState) -> Result<(), String> {
         Value::String(time_utils::now_iso()),
     );
     state
-        .redis
+        .store
         .set_json_value(TUNNEL_RUNTIME_KEY, &runtime)
         .await
         .map_err(|error| error.to_string())
 }
 
-async fn tunnel_runtime_state(state: &AppState) -> redis::RedisResult<Value> {
-    let raw = state.redis.get_json_value(TUNNEL_RUNTIME_KEY).await?;
+async fn tunnel_runtime_state(state: &AppState) -> crate::storage::StorageResult<Value> {
+    let raw = state.store.get_json_value(TUNNEL_RUNTIME_KEY).await?;
     Ok(normalize_tunnel_runtime_state(raw))
 }
 

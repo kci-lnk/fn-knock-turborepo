@@ -1,14 +1,15 @@
 use std::{
     cmp::Ordering,
     collections::{BTreeSet, HashMap, HashSet},
+    path::{Path, PathBuf},
     str::FromStr,
 };
 
+use crate::storage::redis_compat as redis;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use ipnet::IpNet;
 use redis::{
-    AsyncCommands,
-    aio::ConnectionManager,
+    ConnectionManager,
     streams::{StreamRangeReply, StreamReadOptions, StreamReadReply},
 };
 use serde::{Deserialize, Serialize};
@@ -46,8 +47,9 @@ pub use types::*;
 mod tests;
 
 #[derive(Clone)]
-pub struct RedisStore {
+pub struct Store {
     manager: ConnectionManager,
+    path: PathBuf,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -541,15 +543,20 @@ fn ip_location_lock_key(ip: &str) -> String {
     format!("{IP_LOCATION_PREFIX}:lock:{ip}")
 }
 
-impl RedisStore {
-    pub async fn connect(redis_url: &str) -> redis::RedisResult<Self> {
-        let client = redis::Client::open(redis_url)?;
-        let manager = client.get_connection_manager().await?;
-        Ok(Self { manager })
+impl Store {
+    pub async fn connect(sqlite_path: impl AsRef<Path>) -> crate::storage::StorageResult<Self> {
+        let path = sqlite_path.as_ref().to_path_buf();
+        let manager = ConnectionManager::open(&path).await?;
+        Ok(Self { manager, path })
     }
 
     fn conn(&self) -> ConnectionManager {
         self.manager.clone()
+    }
+
+    #[allow(dead_code)]
+    pub fn path(&self) -> &Path {
+        &self.path
     }
 }
 

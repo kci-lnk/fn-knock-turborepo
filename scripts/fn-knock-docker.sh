@@ -16,8 +16,6 @@ REMOTE_DIR="${FN_KNOCK_DOCKER_REMOTE_DIR:-/opt/fn-knock-docker}"
 REMOTE_COMPOSE_PATH="${REMOTE_DIR}/compose.yaml"
 REMOTE_ENV_PATH="${REMOTE_DIR}/.env"
 SERVICE_NAME="${FN_KNOCK_DOCKER_SERVICE_NAME:-fn-knock}"
-REDIS_SERVICE_NAME="${FN_KNOCK_DOCKER_REDIS_SERVICE_NAME:-redis}"
-REDIS_AOF_MANIFEST_PATH="${FN_KNOCK_DOCKER_REDIS_AOF_MANIFEST_PATH:-/data/appendonlydir/appendonly.aof.manifest}"
 WAIT_TIMEOUT="${FN_KNOCK_DOCKER_WAIT_TIMEOUT:-180}"
 CACHE_ROOT="${FN_KNOCK_DOCKER_CACHE_DIR:-${HOME}/.cache/fn-knock-buildx}"
 BUILDER_NAME="${FN_KNOCK_DOCKER_BUILDER:-}"
@@ -606,96 +604,12 @@ run_remote_compose() {
     "cd $(printf "%q" "${REMOTE_DIR}") && docker compose --env-file $(printf "%q" "${REMOTE_ENV_PATH}") -f $(printf "%q" "${REMOTE_COMPOSE_PATH}") ${escaped_args[*]}"
 }
 
-redis_aof_repair_script() {
-  cat <<'EOF'
-set -eu
-
-manifest="${REDIS_AOF_MANIFEST_PATH:-/data/appendonlydir/appendonly.aof.manifest}"
-if [ ! -f "${manifest}" ] && [ -f /data/appendonly.aof ]; then
-  manifest="/data/appendonly.aof"
-fi
-
-if [ ! -f "${manifest}" ]; then
-  echo "Redis AOF manifest not found at ${manifest}; skipping repair"
-  exit 2
-fi
-
-if redis-check-aof "${manifest}"; then
-  echo "Redis AOF is valid; repair is not needed"
-  exit 0
-fi
-
-backup_root="${REDIS_AOF_BACKUP_ROOT:-/data/redis-aof-repair-backups}"
-backup_dir="${backup_root}/$(date +%Y%m%d%H%M%S)"
-manifest_dir="$(dirname "${manifest}")"
-mkdir -p "${backup_dir}"
-
-if [ "${manifest_dir}" = "/data" ]; then
-  cp -a "${manifest}" "${backup_dir}/"
-else
-  cp -a "${manifest_dir}" "${backup_dir}/"
-fi
-
-echo "Backed up Redis AOF data to ${backup_dir}"
-printf 'y\n' | redis-check-aof --fix "${manifest}"
-EOF
-}
-
-repair_remote_redis_aof() {
-  local container_id
-  local redis_image
-  local quoted_container_id
-  local quoted_env
-  local quoted_image
-
-  container_id="$(run_remote_compose ps -a -q "${REDIS_SERVICE_NAME}" | tr -d '\r' | tail -n1)"
-  if [ -z "${container_id}" ]; then
-    log "No remote Redis container found; skipping Redis AOF repair"
-    return 1
-  fi
-
-  log "Checking remote Redis AOF after compose startup failure"
-  run_remote_compose stop "${REDIS_SERVICE_NAME}" >/dev/null 2>&1 || true
-
-  quoted_container_id="$(printf "%q" "${container_id}")"
-  redis_image="$(
-    ssh "${REMOTE_HOST}" \
-      "docker inspect --format '{{.Config.Image}}' ${quoted_container_id} 2>/dev/null || true" |
-      tr -d '\r' |
-      tail -n1
-  )"
-  if [ -z "${redis_image}" ]; then
-    redis_image="redis:7-bookworm"
-  fi
-
-  log "Attempting remote Redis AOF repair with ${redis_image}"
-  quoted_env="$(printf "%q" "REDIS_AOF_MANIFEST_PATH=${REDIS_AOF_MANIFEST_PATH}")"
-  quoted_image="$(printf "%q" "${redis_image}")"
-
-  if redis_aof_repair_script | ssh "${REMOTE_HOST}" \
-    "docker run --rm -i --volumes-from ${quoted_container_id} -e ${quoted_env} ${quoted_image} sh"; then
-    log "Remote Redis AOF repair check completed"
-    return 0
-  fi
-
-  log "Remote Redis AOF repair was not applicable or failed"
-  return 1
-}
-
 restart_remote_compose_stack() {
   log "Restarting remote compose stack"
   if run_remote_compose up -d --remove-orphans --force-recreate; then
     return 0
   fi
 
-  repair_remote_redis_aof || true
-
-  log "Retrying remote compose stack after Redis AOF repair check"
-  if run_remote_compose up -d --remove-orphans --force-recreate; then
-    return 0
-  fi
-
-  run_remote_compose logs --tail=200 "${REDIS_SERVICE_NAME}" || true
   show_remote_logs
   fail "remote docker compose up failed"
 }
@@ -1055,6 +969,19 @@ cmd_reset_panel_password_local() {
   compose_local exec -T "${SERVICE_NAME}" fn-knock-reset-panel-password
 }
 
+cmd_migrate_redis_to_sqlite_local() {
+  local legacy_url="${FN_KNOCK_LEGACY_REDIS_URL:-redis://redis:6379/}"
+  require_cmd docker
+  require_env_file
+
+  log "Using env file ${ENV_FILE}"
+  log "Migrating legacy Redis data from ${legacy_url}"
+  compose_local exec -T \
+    -e "FN_KNOCK_LEGACY_REDIS_URL=${legacy_url}" \
+    "${SERVICE_NAME}" \
+    /opt/fn-knock/bin/server-admin-rs migrate-redis-to-sqlite "$@"
+}
+
 cmd_remote_ps() {
   require_cmd ssh
   ensure_remote_prerequisites
@@ -1071,6 +998,18 @@ cmd_reset_panel_password_remote() {
   require_cmd ssh
   ensure_remote_prerequisites
   run_remote_compose exec -T "${SERVICE_NAME}" fn-knock-reset-panel-password
+}
+
+cmd_migrate_redis_to_sqlite_remote() {
+  local legacy_url="${FN_KNOCK_LEGACY_REDIS_URL:-redis://redis:6379/}"
+  require_cmd ssh
+  ensure_remote_prerequisites
+
+  log "Migrating remote legacy Redis data from ${legacy_url}"
+  run_remote_compose exec -T \
+    -e "FN_KNOCK_LEGACY_REDIS_URL=${legacy_url}" \
+    "${SERVICE_NAME}" \
+    /opt/fn-knock/bin/server-admin-rs migrate-redis-to-sqlite "$@"
 }
 
 cmd_local_deploy() {
@@ -1202,12 +1141,14 @@ Commands:
   down-local    Stop the local Docker stack
   logs-local    Tail local fn-knock container logs
   reset-panel-password-local   Clear Docker admin panel password for the local compose stack
+  migrate-redis-to-sqlite-local [--force]  Import legacy Redis data into local SQLite storage, then delete source keys
   local-deploy-fast  Build and upload only the remote host architecture, then restart remote compose
   local-deploy  Build amd64, arm64, and arm32 images, upload them via SSH, and restart remote compose
   publish-hub   Push amd64, arm64, and arm32 images to a registry, then update version and latest manifest tags
   remote-ps     Show remote compose status
   remote-logs   Tail remote fn-knock container logs
   reset-panel-password-remote  Clear Docker admin panel password on the remote compose stack
+  migrate-redis-to-sqlite-remote [--force] Import legacy Redis data into remote SQLite storage, then delete source keys
 
 Optional env overrides:
   FN_KNOCK_DOCKER_ENV_FILE        (default: deploy/docker/.env, fallback: deploy/docker/.env.example)
@@ -1232,8 +1173,7 @@ Optional env overrides:
   FN_KNOCK_DOCKER_REMOTE_HOST     (default: root@192.168.31.135)
   FN_KNOCK_DOCKER_REMOTE_DIR      (default: /opt/fn-knock-docker)
   FN_KNOCK_DOCKER_SERVICE_NAME    (default: fn-knock)
-  FN_KNOCK_DOCKER_REDIS_SERVICE_NAME (default: redis)
-  FN_KNOCK_DOCKER_REDIS_AOF_MANIFEST_PATH (default: /data/appendonlydir/appendonly.aof.manifest)
+  FN_KNOCK_LEGACY_REDIS_URL       (default for migration commands: redis://redis:6379/)
   FN_KNOCK_DOCKER_WAIT_TIMEOUT    (default: 180)
 EOF
 }
@@ -1256,6 +1196,9 @@ case "${1:-}" in
   reset-panel-password-local)
     cmd_reset_panel_password_local
     ;;
+  migrate-redis-to-sqlite-local)
+    cmd_migrate_redis_to_sqlite_local "${@:2}"
+    ;;
   local-deploy-fast)
     cmd_local_deploy_fast
     ;;
@@ -1273,6 +1216,9 @@ case "${1:-}" in
     ;;
   reset-panel-password-remote)
     cmd_reset_panel_password_remote
+    ;;
+  migrate-redis-to-sqlite-remote)
+    cmd_migrate_redis_to_sqlite_remote "${@:2}"
     ;;
   *)
     usage

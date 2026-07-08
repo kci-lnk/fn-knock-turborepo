@@ -5,8 +5,11 @@ use serde_json::Value;
 use tokio::sync::{Mutex, Notify, RwLock};
 
 use crate::{
-    auto_https::AutoHttpsRedirectManager, go_backend::GoBackendClient, redis_store::RedisStore,
+    auto_https::AutoHttpsRedirectManager,
+    go_backend::GoBackendClient,
     settings::Settings,
+    storage::legacy_redis_migration::{self, LegacyRedisMigrationOptions},
+    store::Store,
 };
 
 #[derive(Clone)]
@@ -16,7 +19,7 @@ pub struct AppState {
 
 pub struct AppStateInner {
     pub settings: Settings,
-    pub redis: RedisStore,
+    pub store: Store,
     #[allow(dead_code)]
     pub go_backend: GoBackendClient,
     pub fallback_client: reqwest::Client,
@@ -28,9 +31,21 @@ pub struct AppStateInner {
 
 impl AppState {
     pub async fn new(settings: Settings) -> anyhow::Result<Self> {
-        let redis = RedisStore::connect(&settings.redis_url)
+        let store = Store::connect(&settings.sqlite_path)
             .await
-            .context("connect redis")?;
+            .context("open sqlite storage")?;
+        let migration = legacy_redis_migration::migrate_if_available(
+            &store,
+            &settings.legacy_redis_url,
+            LegacyRedisMigrationOptions {
+                require_source: false,
+                force: false,
+                cleanup_source: true,
+            },
+        )
+        .await
+        .context("migrate legacy Redis data into SQLite")?;
+        tracing::info!("{}", migration.summary());
         let go_backend = GoBackendClient::new(
             settings.go_backend_grpc_addr.clone(),
             settings.internal_rpc_token.clone(),
@@ -44,7 +59,7 @@ impl AppState {
         Ok(Self {
             inner: Arc::new(AppStateInner {
                 settings,
-                redis,
+                store,
                 go_backend,
                 fallback_client,
                 auto_https: AutoHttpsRedirectManager::new(),

@@ -452,7 +452,7 @@ async fn host_mapping_metadata(State(state): State<AppState>, Json(body): Json<V
 
 async fn refresh_host_mapping_titles(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    let mut config = match state.redis.get_config().await {
+    let mut config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to read host mappings before metadata refresh");
@@ -472,7 +472,7 @@ async fn refresh_host_mapping_titles(State(state): State<AppState>) -> Response 
         "host_mappings".to_string(),
         Value::Array(next_mappings.clone()),
     );
-    if let Err(error) = state.redis.save_config(&config).await {
+    if let Err(error) = state.store.save_config(&config).await {
         tracing::warn!(%error, "failed to save host mappings after metadata refresh");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -495,7 +495,7 @@ async fn refresh_host_mapping_titles(State(state): State<AppState>) -> Response 
 
 async fn export_host_mapping_bookmarks(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    let config = match state.redis.get_config().await {
+    let config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to read host mappings for bookmarks export");
@@ -532,7 +532,7 @@ async fn get_subdomain_mode(State(state): State<AppState>) -> Response {
 }
 
 async fn get_config_section(state: AppState, key: &str, fallback: Value) -> Response {
-    match state.redis.get_config().await {
+    match state.store.get_config().await {
         Ok(config) => response::ok(config.get(key).cloned().unwrap_or(fallback)).into_response(),
         Err(error) => {
             let translator = Translator::from_state(&state).await;
@@ -560,7 +560,7 @@ async fn update_proxy_mappings(
         }
     };
 
-    let previous_config = match state.redis.get_config().await {
+    let previous_config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before proxy mappings update");
@@ -576,7 +576,7 @@ async fn update_proxy_mappings(
         Value::Array(normalized.clone()),
     );
 
-    if let Err(error) = state.redis.save_config(&updated_config).await {
+    if let Err(error) = state.store.save_config(&updated_config).await {
         tracing::warn!(%error, "failed to save proxy mappings");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -606,7 +606,7 @@ async fn update_host_mappings(
     Json(body): Json<MappingsBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let previous_config = match state.redis.get_config().await {
+    let previous_config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before host mappings update");
@@ -639,7 +639,7 @@ async fn update_host_mappings(
         );
     }
 
-    if let Err(error) = state.redis.save_config(&updated_config).await {
+    if let Err(error) = state.store.save_config(&updated_config).await {
         tracing::warn!(%error, "failed to save host mappings");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -689,7 +689,7 @@ async fn update_stream_mappings(
         }
     };
 
-    let previous_config = match state.redis.get_config().await {
+    let previous_config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before stream mappings update");
@@ -705,7 +705,7 @@ async fn update_stream_mappings(
         Value::Array(normalized.clone()),
     );
 
-    if let Err(error) = state.redis.save_config(&updated_config).await {
+    if let Err(error) = state.store.save_config(&updated_config).await {
         tracing::warn!(%error, "failed to save stream mappings");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -738,7 +738,7 @@ async fn update_subdomain_mode(State(state): State<AppState>, Json(body): Json<V
         );
     };
 
-    let previous_config = match state.redis.get_config().await {
+    let previous_config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before subdomain mode update");
@@ -774,7 +774,7 @@ async fn update_subdomain_mode(State(state): State<AppState>, Json(body): Json<V
         );
     }
 
-    if let Err(error) = state.redis.save_config(&updated_config).await {
+    if let Err(error) = state.store.save_config(&updated_config).await {
         tracing::warn!(%error, "failed to save subdomain mode config");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,

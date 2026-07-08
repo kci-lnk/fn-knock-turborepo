@@ -308,7 +308,7 @@ async fn create_provider(State(state): State<AppState>, Json(body): Json<Value>)
     match create_provider_value(&state, body).await {
         Ok(provider) => response::ok(provider).into_response(),
         Err(NotifyError::BadRequest(message)) => response::error(StatusCode::BAD_REQUEST, message),
-        Err(NotifyError::Redis(error)) => {
+        Err(NotifyError::Storage(error)) => {
             internal_error(&state, "failed to create notification provider", error).await
         }
     }
@@ -322,7 +322,7 @@ async fn update_provider(
     match update_provider_value(&state, &id, body).await {
         Ok(provider) => response::ok(provider).into_response(),
         Err(NotifyError::BadRequest(message)) => response::error(StatusCode::BAD_REQUEST, message),
-        Err(NotifyError::Redis(error)) => {
+        Err(NotifyError::Storage(error)) => {
             internal_error(&state, "failed to update notification provider", error).await
         }
     }
@@ -332,7 +332,7 @@ async fn delete_provider(State(state): State<AppState>, Path(id): Path<String>) 
     match delete_provider_value(&state, &id).await {
         Ok(()) => response::success_empty().into_response(),
         Err(NotifyError::BadRequest(message)) => response::error(StatusCode::BAD_REQUEST, message),
-        Err(NotifyError::Redis(error)) => {
+        Err(NotifyError::Storage(error)) => {
             internal_error(&state, "failed to delete notification provider", error).await
         }
     }
@@ -381,7 +381,7 @@ async fn test_provider_draft(State(state): State<AppState>, Json(body): Json<Val
             Err(message) => response::error(StatusCode::BAD_REQUEST, message),
         },
         Err(NotifyError::BadRequest(message)) => response::error(StatusCode::BAD_REQUEST, message),
-        Err(NotifyError::Redis(error)) => {
+        Err(NotifyError::Storage(error)) => {
             internal_error(
                 &state,
                 "failed to build notification provider test draft",
@@ -403,7 +403,7 @@ async fn create_rule(State(state): State<AppState>, Json(body): Json<Value>) -> 
     match create_rule_value(&state, body).await {
         Ok(rule) => response::ok(rule).into_response(),
         Err(NotifyError::BadRequest(message)) => response::error(StatusCode::BAD_REQUEST, message),
-        Err(NotifyError::Redis(error)) => {
+        Err(NotifyError::Storage(error)) => {
             internal_error(&state, "failed to create notification rule", error).await
         }
     }
@@ -417,7 +417,7 @@ async fn update_rule(
     match update_rule_value(&state, &id, body).await {
         Ok(rule) => response::ok(rule).into_response(),
         Err(NotifyError::BadRequest(message)) => response::error(StatusCode::BAD_REQUEST, message),
-        Err(NotifyError::Redis(error)) => {
+        Err(NotifyError::Storage(error)) => {
             internal_error(&state, "failed to update notification rule", error).await
         }
     }
@@ -427,7 +427,7 @@ async fn delete_rule(State(state): State<AppState>, Path(id): Path<String>) -> R
     match delete_rule_value(&state, &id).await {
         Ok(()) => response::success_empty().into_response(),
         Err(NotifyError::BadRequest(message)) => response::error(StatusCode::BAD_REQUEST, message),
-        Err(NotifyError::Redis(error)) => {
+        Err(NotifyError::Storage(error)) => {
             internal_error(&state, "failed to delete notification rule", error).await
         }
     }

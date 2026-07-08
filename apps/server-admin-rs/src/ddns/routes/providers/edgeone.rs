@@ -498,9 +498,9 @@ fn normalize_edgeone_overseas_access_mode(value: Option<&str>) -> &'static str {
 async fn read_edgeone_overseas_access_state(
     state: &AppState,
     provider_name: &str,
-) -> redis::RedisResult<Option<Value>> {
+) -> crate::storage::StorageResult<Option<Value>> {
     Ok(state
-        .redis
+        .store
         .get_json_value(&edgeone_overseas_access_state_key(provider_name))
         .await?
         .filter(|value| {
@@ -519,9 +519,9 @@ async fn write_edgeone_overseas_access_state(
     state: &AppState,
     provider_name: &str,
     value: Value,
-) -> redis::RedisResult<()> {
+) -> crate::storage::StorageResult<()> {
     state
-        .redis
+        .store
         .set_json_value(&edgeone_overseas_access_state_key(provider_name), &value)
         .await
 }

@@ -1,7 +1,7 @@
 use super::*;
 
-impl RedisStore {
-    pub async fn get_totps(&self) -> redis::RedisResult<Vec<TotpCredential>> {
+impl Store {
+    pub async fn get_totps(&self) -> crate::storage::StorageResult<Vec<TotpCredential>> {
         let raw: Option<String> = {
             let mut conn = self.conn();
             conn.get("fn_knock:totps").await?
@@ -55,7 +55,7 @@ impl RedisStore {
         Ok(normalize_totp_credentials_value(&value))
     }
 
-    pub async fn set_totps(&self, totps: &[TotpCredential]) -> redis::RedisResult<()> {
+    pub async fn set_totps(&self, totps: &[TotpCredential]) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         let normalized = normalize_totp_credentials(totps);
         conn.set(
@@ -65,7 +65,7 @@ impl RedisStore {
         .await
     }
 
-    pub async fn add_totp(&self, credential: TotpCredential) -> redis::RedisResult<()> {
+    pub async fn add_totp(&self, credential: TotpCredential) -> crate::storage::StorageResult<()> {
         let mut totps = self.get_totps().await?;
         if let Some(credential) = normalize_totp_credential_value(
             &serde_json::to_value(credential).unwrap_or(Value::Null),
@@ -79,7 +79,7 @@ impl RedisStore {
         &self,
         id: &str,
         comment: String,
-    ) -> redis::RedisResult<Option<TotpCredential>> {
+    ) -> crate::storage::StorageResult<Option<TotpCredential>> {
         let mut totps = self.get_totps().await?;
         let mut updated = None;
         for credential in &mut totps {
@@ -99,7 +99,7 @@ impl RedisStore {
         &self,
         id: &str,
         access_scopes: Value,
-    ) -> redis::RedisResult<Option<TotpCredential>> {
+    ) -> crate::storage::StorageResult<Option<TotpCredential>> {
         let mut totps = self.get_totps().await?;
         let normalized = normalize_totp_access_scopes(access_scopes);
         let mut updated = None;
@@ -120,7 +120,7 @@ impl RedisStore {
         &self,
         id: &str,
         subdomain_access: Value,
-    ) -> redis::RedisResult<Option<TotpCredential>> {
+    ) -> crate::storage::StorageResult<Option<TotpCredential>> {
         let mut totps = self.get_totps().await?;
         let normalized = normalize_totp_subdomain_access(subdomain_access);
         let mut updated = None;
@@ -137,7 +137,7 @@ impl RedisStore {
         Ok(updated)
     }
 
-    pub async fn delete_totp(&self, id: &str) -> redis::RedisResult<bool> {
+    pub async fn delete_totp(&self, id: &str) -> crate::storage::StorageResult<bool> {
         let mut totps = self.get_totps().await?;
         let original_len = totps.len();
         totps.retain(|credential| credential.id != id);
@@ -159,7 +159,7 @@ impl RedisStore {
         &self,
         nonce: &str,
         ttl_seconds: usize,
-    ) -> redis::RedisResult<bool> {
+    ) -> crate::storage::StorageResult<bool> {
         let mut conn = self.conn();
         let key = format!("fn_knock:nonce:{nonce}");
         let result: Option<String> = redis::cmd("SET")
@@ -177,7 +177,7 @@ impl RedisStore {
         &self,
         lock_name: &str,
         ttl_seconds: usize,
-    ) -> redis::RedisResult<bool> {
+    ) -> crate::storage::StorageResult<bool> {
         let mut conn = self.conn();
         let key = format!("fn_knock:lock:{lock_name}");
         let result: Option<String> = redis::cmd("SET")
@@ -194,7 +194,7 @@ impl RedisStore {
     pub async fn get_login_backoff_status(
         &self,
         ip: &str,
-    ) -> redis::RedisResult<LoginBackoffStatus> {
+    ) -> crate::storage::StorageResult<LoginBackoffStatus> {
         let mut conn = self.conn();
         let raw: Option<String> = conn.get(login_backoff_key(ip)).await?;
         Ok(login_backoff_status_from_raw(
@@ -207,7 +207,7 @@ impl RedisStore {
     pub async fn register_login_backoff_failure(
         &self,
         ip: &str,
-    ) -> redis::RedisResult<LoginBackoffStatus> {
+    ) -> crate::storage::StorageResult<LoginBackoffStatus> {
         let now = crate::time_utils::now_ms();
         let mut conn = self.conn();
         let result: Vec<i64> = redis::cmd("EVAL")
@@ -234,12 +234,14 @@ impl RedisStore {
         })
     }
 
-    pub async fn reset_login_backoff(&self, ip: &str) -> redis::RedisResult<()> {
+    pub async fn reset_login_backoff(&self, ip: &str) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         conn.del(login_backoff_key(ip)).await
     }
 
-    pub async fn list_blocked_login_backoffs(&self) -> redis::RedisResult<Vec<LoginBackoffStatus>> {
+    pub async fn list_blocked_login_backoffs(
+        &self,
+    ) -> crate::storage::StorageResult<Vec<LoginBackoffStatus>> {
         let mut conn = self.conn();
         let mut cursor = "0".to_string();
         let mut keys = Vec::<String>::new();
@@ -291,7 +293,7 @@ impl RedisStore {
         session_id: &str,
         session: &LoginSession,
         ttl_seconds: i64,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         let key = format!("fn_knock:session:{session_id}");
         conn.set_ex(
@@ -302,20 +304,25 @@ impl RedisStore {
         .await
     }
 
-    pub async fn get_session(&self, session_id: &str) -> redis::RedisResult<Option<LoginSession>> {
+    pub async fn get_session(
+        &self,
+        session_id: &str,
+    ) -> crate::storage::StorageResult<Option<LoginSession>> {
         let mut conn = self.conn();
         let key = format!("fn_knock:session:{session_id}");
         let raw: Option<String> = conn.get(key).await?;
         Ok(raw.and_then(|value| serde_json::from_str(&value).ok()))
     }
 
-    pub async fn delete_session(&self, session_id: &str) -> redis::RedisResult<()> {
+    pub async fn delete_session(&self, session_id: &str) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         let key = format!("fn_knock:session:{session_id}");
         conn.del(key).await
     }
 
-    pub async fn list_login_sessions(&self) -> redis::RedisResult<Vec<(String, LoginSession)>> {
+    pub async fn list_login_sessions(
+        &self,
+    ) -> crate::storage::StorageResult<Vec<(String, LoginSession)>> {
         let values = self.list_session_values().await?;
         Ok(values
             .into_iter()
@@ -327,7 +334,7 @@ impl RedisStore {
             .collect())
     }
 
-    pub async fn list_session_values(&self) -> redis::RedisResult<Vec<(String, Value)>> {
+    pub async fn list_session_values(&self) -> crate::storage::StorageResult<Vec<(String, Value)>> {
         let mut conn = self.conn();
         let mut cursor = "0".to_string();
         let mut keys: Vec<String> = Vec::new();
@@ -374,7 +381,10 @@ impl RedisStore {
         Ok(sessions)
     }
 
-    pub async fn get_session_value(&self, session_id: &str) -> redis::RedisResult<Option<Value>> {
+    pub async fn get_session_value(
+        &self,
+        session_id: &str,
+    ) -> crate::storage::StorageResult<Option<Value>> {
         let mut conn = self.conn();
         let key = format!("fn_knock:session:{session_id}");
         let raw: Option<String> = conn.get(key).await?;
@@ -385,7 +395,7 @@ impl RedisStore {
         &self,
         session_id: &str,
         updates: Map<String, Value>,
-    ) -> redis::RedisResult<Option<Value>> {
+    ) -> crate::storage::StorageResult<Option<Value>> {
         let mut conn = self.conn();
         let key = format!("fn_knock:session:{session_id}");
         let raw: Option<String> = conn.get(&key).await?;
@@ -418,7 +428,7 @@ impl RedisStore {
         summary: &Value,
         whitelist_record_id: &str,
         ttl_seconds: i64,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let ttl_seconds = ttl_seconds.max(1) as u64;
         let binding_key = auth_mobility_binding_key("proxy-session", subject_hash);
         let session_index_key = auth_mobility_session_index_key(session_id);
@@ -458,7 +468,7 @@ impl RedisStore {
         &self,
         subject_type: &str,
         subject_key: &str,
-    ) -> redis::RedisResult<Option<Value>> {
+    ) -> crate::storage::StorageResult<Option<Value>> {
         let subject_hash = auth_mobility_subject_hash(subject_type, subject_key);
         self.get_json_value(&auth_mobility_binding_key(subject_type, &subject_hash))
             .await
@@ -470,7 +480,7 @@ impl RedisStore {
         subject_key: &str,
         binding: &Value,
         ttl_seconds: i64,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let subject_hash = auth_mobility_subject_hash(subject_type, subject_key);
         let binding_key = auth_mobility_binding_key(subject_type, &subject_hash);
         let mut conn = self.conn();
@@ -490,7 +500,7 @@ impl RedisStore {
         owner_session_id: &str,
         binding_ttl_seconds: i64,
         session_index_ttl_seconds: Option<i64>,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let subject_hash = auth_mobility_subject_hash(subject_type, subject_key);
         let binding_key = auth_mobility_binding_key(subject_type, &subject_hash);
         let mut conn = self.conn();
@@ -520,7 +530,7 @@ impl RedisStore {
         subject_key: &str,
         binding: &Value,
         previous_owner_session_id: &str,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let subject_hash = auth_mobility_subject_hash(subject_type, subject_key);
         let binding_key = auth_mobility_binding_key(subject_type, &subject_hash);
         let ttl: i64 = {
@@ -542,7 +552,7 @@ impl RedisStore {
         subject_type: &str,
         subject_key: &str,
         binding: &Value,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let subject_hash = auth_mobility_subject_hash(subject_type, subject_key);
         let binding_key = auth_mobility_binding_key(subject_type, &subject_hash);
         let ttl: i64 = {
@@ -559,7 +569,7 @@ impl RedisStore {
         subject_type: &str,
         subject_key: &str,
         session_index_ttl_seconds: Option<i64>,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let subject_hash = auth_mobility_subject_hash(subject_type, subject_key);
         let binding_key = auth_mobility_binding_key(subject_type, &subject_hash);
         let mut conn = self.conn();
@@ -580,7 +590,7 @@ impl RedisStore {
     pub async fn list_auth_mobility_session_binding_keys(
         &self,
         session_id: &str,
-    ) -> redis::RedisResult<Vec<String>> {
+    ) -> crate::storage::StorageResult<Vec<String>> {
         let mut conn = self.conn();
         conn.smembers(auth_mobility_session_index_key(session_id))
             .await
@@ -590,7 +600,7 @@ impl RedisStore {
         &self,
         session_id: &str,
         binding_keys: &[String],
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         if binding_keys.is_empty() {
             return Ok(());
         }
@@ -605,7 +615,7 @@ impl RedisStore {
         event: &Value,
         seed_login_event: Option<&Value>,
         fallback_ttl_seconds: Option<i64>,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let timeline_key = auth_mobility_timeline_key(session_id);
         let summary_key = auth_mobility_summary_key(session_id);
         let (current_events, timeline_ttl) = self.get_json_value_with_ttl(&timeline_key).await?;
@@ -661,7 +671,7 @@ impl RedisStore {
         &self,
         session_id: &str,
         ip: &str,
-    ) -> redis::RedisResult<Option<Value>> {
+    ) -> crate::storage::StorageResult<Option<Value>> {
         self.hget_json_value(&auth_mobility_active_ip_details_key(session_id), ip)
             .await
     }
@@ -669,7 +679,7 @@ impl RedisStore {
     pub async fn list_auth_mobility_active_ip_details(
         &self,
         session_id: &str,
-    ) -> redis::RedisResult<Vec<Value>> {
+    ) -> crate::storage::StorageResult<Vec<Value>> {
         let mut conn = self.conn();
         let raws: Vec<String> = conn
             .hvals(auth_mobility_active_ip_details_key(session_id))
@@ -683,7 +693,7 @@ impl RedisStore {
     pub async fn clear_auth_mobility_active_ip_session(
         &self,
         session_id: &str,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let keys = vec![
             auth_mobility_active_ip_zset_key(session_id),
             auth_mobility_active_ip_details_key(session_id),
@@ -698,7 +708,7 @@ impl RedisStore {
         score: i64,
         detail: &Value,
         ttl_seconds: i64,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let ttl_seconds = ttl_seconds.max(1);
         let zset_key = auth_mobility_active_ip_zset_key(session_id);
         let detail_key = auth_mobility_active_ip_details_key(session_id);
@@ -721,7 +731,7 @@ impl RedisStore {
         &self,
         session_id: &str,
         since: i64,
-    ) -> redis::RedisResult<Vec<Value>> {
+    ) -> crate::storage::StorageResult<Vec<Value>> {
         let mut conn = self.conn();
         let ips: Vec<String> = redis::cmd("ZRANGEBYSCORE")
             .arg(auth_mobility_active_ip_zset_key(session_id))
@@ -749,7 +759,7 @@ impl RedisStore {
         cutoff: i64,
         keep_ip: Option<&str>,
         max_entries: usize,
-    ) -> redis::RedisResult<Vec<String>> {
+    ) -> crate::storage::StorageResult<Vec<String>> {
         let zset_key = auth_mobility_active_ip_zset_key(session_id);
         let mut conn = self.conn();
         let expired_ips: Vec<String> = redis::cmd("ZRANGEBYSCORE")
@@ -782,7 +792,7 @@ impl RedisStore {
         &self,
         session_id: &str,
         ips: &[String],
-    ) -> redis::RedisResult<Vec<Value>> {
+    ) -> crate::storage::StorageResult<Vec<Value>> {
         if ips.is_empty() {
             return Ok(Vec::new());
         }
@@ -809,7 +819,7 @@ impl RedisStore {
         &self,
         session_id: &str,
         ttl_seconds: i64,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let ttl_seconds = ttl_seconds.max(1);
         let mut conn = self.conn();
         let mut pipe = redis::pipe();
@@ -826,7 +836,7 @@ impl RedisStore {
         whitelist_record_id: &str,
         session_id: &str,
         ttl_seconds: i64,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         conn.set_ex(
             auth_mobility_whitelist_owner_key(whitelist_record_id),
@@ -839,7 +849,7 @@ impl RedisStore {
     pub async fn destroy_auth_mobility_session(
         &self,
         session_id: &str,
-    ) -> redis::RedisResult<Vec<String>> {
+    ) -> crate::storage::StorageResult<Vec<String>> {
         let session_index_key = auth_mobility_session_index_key(session_id);
         let active_details_key = auth_mobility_active_ip_details_key(session_id);
         let active_zset_key = auth_mobility_active_ip_zset_key(session_id);
@@ -899,7 +909,7 @@ impl RedisStore {
         Ok(whitelist_ids.into_iter().collect())
     }
 
-    pub async fn get_passkeys(&self) -> redis::RedisResult<Vec<Value>> {
+    pub async fn get_passkeys(&self) -> crate::storage::StorageResult<Vec<Value>> {
         let mut conn = self.conn();
         let raw: Option<String> = conn.get("fn_knock:passkeys").await?;
         let Some(raw) = raw else {
@@ -908,7 +918,7 @@ impl RedisStore {
         Ok(serde_json::from_str::<Vec<Value>>(&raw).unwrap_or_default())
     }
 
-    pub async fn delete_passkey(&self, id: &str) -> redis::RedisResult<bool> {
+    pub async fn delete_passkey(&self, id: &str) -> crate::storage::StorageResult<bool> {
         let mut passkeys = self.get_passkeys().await?;
         let original_len = passkeys.len();
         passkeys.retain(|passkey| passkey.get("id").and_then(Value::as_str) != Some(id));
@@ -920,7 +930,7 @@ impl RedisStore {
         Ok(true)
     }
 
-    pub async fn add_passkey(&self, passkey: &Value) -> redis::RedisResult<()> {
+    pub async fn add_passkey(&self, passkey: &Value) -> crate::storage::StorageResult<()> {
         let mut passkeys = self.get_passkeys().await?;
         passkeys.push(passkey.clone());
         self.set_json_value("fn_knock:passkeys", &Value::Array(passkeys))
@@ -934,7 +944,7 @@ impl RedisStore {
         last_used_at: &str,
         backup_eligible: Option<bool>,
         backup_state: Option<bool>,
-    ) -> redis::RedisResult<bool> {
+    ) -> crate::storage::StorageResult<bool> {
         let mut passkeys = self.get_passkeys().await?;
         let mut found = false;
         for passkey in &mut passkeys {
@@ -968,7 +978,7 @@ impl RedisStore {
         challenge: &str,
         challenge_type: &str,
         ttl_seconds: usize,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         conn.set_ex(
             format!("fn_knock:passkey:challenge:{challenge}"),
@@ -982,7 +992,7 @@ impl RedisStore {
         &self,
         challenge: &str,
         challenge_type: &str,
-    ) -> redis::RedisResult<bool> {
+    ) -> crate::storage::StorageResult<bool> {
         let mut conn = self.conn();
         let result: i64 = redis::cmd("EVAL")
             .arg(
@@ -1007,7 +1017,7 @@ return 0
         &self,
         totp_id: &str,
         ttl_seconds: usize,
-    ) -> redis::RedisResult<String> {
+    ) -> crate::storage::StorageResult<String> {
         let token = hex::encode(rand::random::<[u8; 24]>());
         let mut conn = self.conn();
         let _: () = conn
@@ -1020,7 +1030,10 @@ return 0
         Ok(token)
     }
 
-    pub async fn is_passkey_bind_token_valid(&self, token: &str) -> redis::RedisResult<bool> {
+    pub async fn is_passkey_bind_token_valid(
+        &self,
+        token: &str,
+    ) -> crate::storage::StorageResult<bool> {
         let mut conn = self.conn();
         let value: Option<String> = conn.get(format!("fn_knock:passkey:bind:{token}")).await?;
         Ok(value.is_some())
@@ -1029,7 +1042,7 @@ return 0
     pub async fn consume_passkey_bind_token(
         &self,
         token: &str,
-    ) -> redis::RedisResult<Option<String>> {
+    ) -> crate::storage::StorageResult<Option<String>> {
         let mut conn = self.conn();
         redis::cmd("EVAL")
             .arg(
@@ -1053,7 +1066,7 @@ return value
         challenge: &str,
         state: &Value,
         ttl_seconds: usize,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         self.set_json_value_ex(
             &format!("fn_knock:passkey:state:{challenge}"),
             state,
@@ -1065,7 +1078,7 @@ return value
     pub async fn consume_passkey_state(
         &self,
         challenge: &str,
-    ) -> redis::RedisResult<Option<Value>> {
+    ) -> crate::storage::StorageResult<Option<Value>> {
         self.consume_json_value(&format!("fn_knock:passkey:state:{challenge}"))
             .await
     }

@@ -20,7 +20,7 @@ impl Translator {
     }
 
     pub async fn from_state(state: &AppState) -> Self {
-        let locale = state.redis.locale().await.ok().and_then(|value| {
+        let locale = state.store.locale().await.ok().and_then(|value| {
             value
                 .get("default_locale")
                 .and_then(Value::as_str)
@@ -486,18 +486,18 @@ fn zh_cn_message(key: &str) -> Option<&'static str> {
             "证书已签发并保存，但自动加入证书库失败: {message}"
         }
         "server.acmeJobRunner.stoppedIgnoredProcessError" => "任务已停止，已忽略进程退出后的错误",
-        "server.redis.acme.domainRequired" => "域名不能为空",
-        "server.redis.acme.domainsRequired" => "域名列表不能为空",
-        "server.redis.acme.dnsProviderRequired" => "DNS 服务商不能为空",
-        "server.redis.acme.primaryDomainDuplicated" => {
+        "server.store.acme.domainRequired" => "域名不能为空",
+        "server.store.acme.domainsRequired" => "域名列表不能为空",
+        "server.store.acme.dnsProviderRequired" => "DNS 服务商不能为空",
+        "server.store.acme.primaryDomainDuplicated" => {
             "主域名 {primaryDomain} 已存在于其他申请项中"
         }
-        "server.redis.acme.applicationNotFound" => "申请项不存在",
-        "server.redis.acme.noMatchingIssuedCertificate" => {
+        "server.store.acme.applicationNotFound" => "申请项不存在",
+        "server.store.acme.noMatchingIssuedCertificate" => {
             "当前申请项还没有与域名配置匹配的已签发证书"
         }
-        "server.redis.ssl.certNotFound" => "证书不存在",
-        "server.redis.ssl.certOrKeyInvalid" => "证书或私钥无效",
+        "server.store.ssl.certNotFound" => "证书不存在",
+        "server.store.ssl.certOrKeyInvalid" => "证书或私钥无效",
         "server.acmeDnsProviders.groups.common" => "常用",
         "server.acmeDnsProviders.groups.domestic" => "国内",
         "server.acmeDnsProviders.groups.international" => "国际",
@@ -725,18 +725,18 @@ fn en_message(key: &str) -> Option<&'static str> {
         "server.acmeJobRunner.stoppedIgnoredProcessError" => {
             "The task has stopped. The process exit error was ignored."
         }
-        "server.redis.acme.domainRequired" => "Domain is required",
-        "server.redis.acme.domainsRequired" => "Domain list is required",
-        "server.redis.acme.dnsProviderRequired" => "DNS provider is required",
-        "server.redis.acme.primaryDomainDuplicated" => {
+        "server.store.acme.domainRequired" => "Domain is required",
+        "server.store.acme.domainsRequired" => "Domain list is required",
+        "server.store.acme.dnsProviderRequired" => "DNS provider is required",
+        "server.store.acme.primaryDomainDuplicated" => {
             "Primary domain {primaryDomain} already exists in another request item"
         }
-        "server.redis.acme.applicationNotFound" => "Request item not found",
-        "server.redis.acme.noMatchingIssuedCertificate" => {
+        "server.store.acme.applicationNotFound" => "Request item not found",
+        "server.store.acme.noMatchingIssuedCertificate" => {
             "This request item has no issued certificate matching the domain configuration"
         }
-        "server.redis.ssl.certNotFound" => "Certificate not found",
-        "server.redis.ssl.certOrKeyInvalid" => "Certificate or private key is invalid",
+        "server.store.ssl.certNotFound" => "Certificate not found",
+        "server.store.ssl.certOrKeyInvalid" => "Certificate or private key is invalid",
         "server.acmeDnsProviders.groups.common" => "Common",
         "server.acmeDnsProviders.groups.domestic" => "China",
         "server.acmeDnsProviders.groups.international" => "International",
@@ -976,18 +976,18 @@ fn zh_hant_message(key: &str) -> Option<&'static str> {
             "憑證已簽發並儲存，但自動加入憑證庫失敗: {message}"
         }
         "server.acmeJobRunner.stoppedIgnoredProcessError" => "任務已停止，已忽略程序退出後的錯誤",
-        "server.redis.acme.domainRequired" => "域名不能為空",
-        "server.redis.acme.domainsRequired" => "域名列表不能為空",
-        "server.redis.acme.dnsProviderRequired" => "DNS 服務商不能為空",
-        "server.redis.acme.primaryDomainDuplicated" => {
+        "server.store.acme.domainRequired" => "域名不能為空",
+        "server.store.acme.domainsRequired" => "域名列表不能為空",
+        "server.store.acme.dnsProviderRequired" => "DNS 服務商不能為空",
+        "server.store.acme.primaryDomainDuplicated" => {
             "主域名 {primaryDomain} 已存在於其他申請項中"
         }
-        "server.redis.acme.applicationNotFound" => "申請項不存在",
-        "server.redis.acme.noMatchingIssuedCertificate" => {
+        "server.store.acme.applicationNotFound" => "申請項不存在",
+        "server.store.acme.noMatchingIssuedCertificate" => {
             "目前申請項還沒有與域名設定相符的已簽發憑證"
         }
-        "server.redis.ssl.certNotFound" => "憑證不存在",
-        "server.redis.ssl.certOrKeyInvalid" => "憑證或私鑰無效",
+        "server.store.ssl.certNotFound" => "憑證不存在",
+        "server.store.ssl.certOrKeyInvalid" => "憑證或私鑰無效",
         "server.acmeDnsProviders.groups.common" => "常用",
         "server.acmeDnsProviders.groups.domestic" => "國內",
         "server.acmeDnsProviders.groups.international" => "國際",
@@ -1213,18 +1213,18 @@ fn ko_kr_message(key: &str) -> Option<&'static str> {
         "server.acmeJobRunner.stoppedIgnoredProcessError" => {
             "작업이 중지되어 프로세스 종료 오류를 무시했습니다"
         }
-        "server.redis.acme.domainRequired" => "도메인은 필수입니다",
-        "server.redis.acme.domainsRequired" => "도메인 목록은 필수입니다",
-        "server.redis.acme.dnsProviderRequired" => "DNS 공급자는 필수입니다",
-        "server.redis.acme.primaryDomainDuplicated" => {
+        "server.store.acme.domainRequired" => "도메인은 필수입니다",
+        "server.store.acme.domainsRequired" => "도메인 목록은 필수입니다",
+        "server.store.acme.dnsProviderRequired" => "DNS 공급자는 필수입니다",
+        "server.store.acme.primaryDomainDuplicated" => {
             "기본 도메인 {primaryDomain}이 다른 요청 항목에 이미 있습니다"
         }
-        "server.redis.acme.applicationNotFound" => "요청 항목을 찾을 수 없습니다",
-        "server.redis.acme.noMatchingIssuedCertificate" => {
+        "server.store.acme.applicationNotFound" => "요청 항목을 찾을 수 없습니다",
+        "server.store.acme.noMatchingIssuedCertificate" => {
             "이 요청 항목에는 도메인 구성과 일치하는 발급된 인증서가 없습니다"
         }
-        "server.redis.ssl.certNotFound" => "인증서를 찾을 수 없습니다",
-        "server.redis.ssl.certOrKeyInvalid" => "인증서 또는 개인 키가 유효하지 않습니다",
+        "server.store.ssl.certNotFound" => "인증서를 찾을 수 없습니다",
+        "server.store.ssl.certOrKeyInvalid" => "인증서 또는 개인 키가 유효하지 않습니다",
         "server.acmeDnsProviders.groups.common" => "공통",
         "server.acmeDnsProviders.groups.domestic" => "중국",
         "server.acmeDnsProviders.groups.international" => "국제",
@@ -1506,18 +1506,18 @@ fn ja_jp_message(key: &str) -> Option<&'static str> {
         "server.acmeJobRunner.stoppedIgnoredProcessError" => {
             "タスクは停止済みのため、プロセス終了エラーを無視しました"
         }
-        "server.redis.acme.domainRequired" => "ドメインは必須です",
-        "server.redis.acme.domainsRequired" => "ドメインリストは必須です",
-        "server.redis.acme.dnsProviderRequired" => "DNS プロバイダーは必須です",
-        "server.redis.acme.primaryDomainDuplicated" => {
+        "server.store.acme.domainRequired" => "ドメインは必須です",
+        "server.store.acme.domainsRequired" => "ドメインリストは必須です",
+        "server.store.acme.dnsProviderRequired" => "DNS プロバイダーは必須です",
+        "server.store.acme.primaryDomainDuplicated" => {
             "プライマリドメイン {primaryDomain} は別の申請項目に既に存在します"
         }
-        "server.redis.acme.applicationNotFound" => "申請項目が見つかりません",
-        "server.redis.acme.noMatchingIssuedCertificate" => {
+        "server.store.acme.applicationNotFound" => "申請項目が見つかりません",
+        "server.store.acme.noMatchingIssuedCertificate" => {
             "この申請項目にはドメイン設定に一致する発行済み証明書がありません"
         }
-        "server.redis.ssl.certNotFound" => "証明書が見つかりません",
-        "server.redis.ssl.certOrKeyInvalid" => "証明書または秘密鍵が無効です",
+        "server.store.ssl.certNotFound" => "証明書が見つかりません",
+        "server.store.ssl.certOrKeyInvalid" => "証明書または秘密鍵が無効です",
         "server.acmeDnsProviders.groups.common" => "よく使う",
         "server.acmeDnsProviders.groups.domestic" => "中国",
         "server.acmeDnsProviders.groups.international" => "国際",

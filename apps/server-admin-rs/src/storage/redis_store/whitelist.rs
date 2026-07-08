@@ -1,16 +1,18 @@
 use super::*;
 
-impl RedisStore {
+impl Store {
     pub async fn get_whitelist_record(
         &self,
         id: &str,
-    ) -> redis::RedisResult<Option<WhitelistRecord>> {
+    ) -> crate::storage::StorageResult<Option<WhitelistRecord>> {
         let mut conn = self.conn();
         let raw: Option<String> = conn.hget(WHITELIST_RECORDS, id).await?;
         Ok(raw.and_then(|value| deserialize_whitelist_record(&value)))
     }
 
-    pub async fn list_whitelist_records(&self) -> redis::RedisResult<Vec<WhitelistRecord>> {
+    pub async fn list_whitelist_records(
+        &self,
+    ) -> crate::storage::StorageResult<Vec<WhitelistRecord>> {
         let mut conn = self.conn();
         let ids: Vec<String> = conn.zrevrange(WHITELIST_RECORD_ORDER, 0, -1).await?;
         if ids.is_empty() {
@@ -63,7 +65,7 @@ impl RedisStore {
     pub async fn insert_whitelist_record(
         &self,
         record: &WhitelistRecord,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         let mut pipe = redis::pipe();
         pipe.hset(
@@ -86,7 +88,7 @@ impl RedisStore {
         &self,
         previous: &WhitelistRecord,
         next: &WhitelistRecord,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         let mut pipe = redis::pipe();
         pipe.hset(
@@ -109,7 +111,7 @@ impl RedisStore {
     pub async fn delete_whitelist_record(
         &self,
         id: &str,
-    ) -> redis::RedisResult<Option<WhitelistRecord>> {
+    ) -> crate::storage::StorageResult<Option<WhitelistRecord>> {
         let Some(record) = self.get_whitelist_record(id).await? else {
             return Ok(None);
         };
@@ -127,7 +129,7 @@ impl RedisStore {
     pub async fn expire_whitelist_record(
         &self,
         id: &str,
-    ) -> redis::RedisResult<Option<WhitelistRecord>> {
+    ) -> crate::storage::StorageResult<Option<WhitelistRecord>> {
         let Some(record) = self.get_whitelist_record(id).await? else {
             return Ok(None);
         };
@@ -155,7 +157,7 @@ impl RedisStore {
         &self,
         id: &str,
         comment: String,
-    ) -> redis::RedisResult<Option<WhitelistRecord>> {
+    ) -> crate::storage::StorageResult<Option<WhitelistRecord>> {
         let Some(mut record) = self.get_whitelist_record(id).await? else {
             return Ok(None);
         };
@@ -176,7 +178,7 @@ impl RedisStore {
         target: &str,
         target_type: &str,
         source: Option<&str>,
-    ) -> redis::RedisResult<Vec<WhitelistRecord>> {
+    ) -> crate::storage::StorageResult<Vec<WhitelistRecord>> {
         let records = self.list_whitelist_records().await?;
         let mut matched = records
             .into_iter()
@@ -200,7 +202,7 @@ impl RedisStore {
     pub async fn get_whitelist_region_group(
         &self,
         id: &str,
-    ) -> redis::RedisResult<Option<WhitelistRegionGroupRecord>> {
+    ) -> crate::storage::StorageResult<Option<WhitelistRegionGroupRecord>> {
         let mut conn = self.conn();
         let raw: Option<String> = conn.hget(WHITELIST_REGION_GROUP_RECORDS, id).await?;
         Ok(raw.and_then(|value| deserialize_whitelist_region_group(&value)))
@@ -208,7 +210,7 @@ impl RedisStore {
 
     pub async fn list_whitelist_region_groups(
         &self,
-    ) -> redis::RedisResult<Vec<WhitelistRegionGroupRecord>> {
+    ) -> crate::storage::StorageResult<Vec<WhitelistRegionGroupRecord>> {
         let mut conn = self.conn();
         let ids: Vec<String> = conn.zrevrange(WHITELIST_REGION_GROUP_ORDER, 0, -1).await?;
         let mut stale_ids = Vec::new();
@@ -261,7 +263,7 @@ impl RedisStore {
     pub async fn insert_whitelist_region_group(
         &self,
         record: &WhitelistRegionGroupRecord,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         let mut pipe = redis::pipe();
         pipe.hset(
@@ -283,7 +285,7 @@ impl RedisStore {
     pub async fn delete_whitelist_region_group(
         &self,
         id: &str,
-    ) -> redis::RedisResult<Option<WhitelistRegionGroupRecord>> {
+    ) -> crate::storage::StorageResult<Option<WhitelistRegionGroupRecord>> {
         let Some(record) = self.get_whitelist_region_group(id).await? else {
             return Ok(None);
         };
@@ -310,7 +312,7 @@ impl RedisStore {
     pub async fn expire_whitelist_region_group(
         &self,
         id: &str,
-    ) -> redis::RedisResult<Option<WhitelistRegionGroupRecord>> {
+    ) -> crate::storage::StorageResult<Option<WhitelistRegionGroupRecord>> {
         let Some(record) = self.get_whitelist_region_group(id).await? else {
             return Ok(None);
         };
@@ -337,7 +339,7 @@ impl RedisStore {
     pub async fn cleanup_whitelist_concrete_targets(
         &self,
         targets: &[WhitelistConcreteTarget],
-    ) -> redis::RedisResult<Vec<WhitelistConcreteTarget>> {
+    ) -> crate::storage::StorageResult<Vec<WhitelistConcreteTarget>> {
         let active_records = self.list_whitelist_records().await?;
         let active_region_targets = self.list_whitelist_region_group_concrete_targets().await?;
         let mut removed = Vec::new();
@@ -380,7 +382,7 @@ impl RedisStore {
 
     pub async fn list_whitelist_active_concrete_targets(
         &self,
-    ) -> redis::RedisResult<Vec<WhitelistConcreteTarget>> {
+    ) -> crate::storage::StorageResult<Vec<WhitelistConcreteTarget>> {
         let now = chrono_like_now_seconds();
         let mut targets = Vec::new();
         for record in self.list_whitelist_records().await? {
@@ -399,12 +401,14 @@ impl RedisStore {
     pub async fn save_reverse_proxy_trusted_ips_runtime(
         &self,
         runtime: &Value,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         self.set_json_value(REVERSE_PROXY_TRUSTED_IPS_RUNTIME, runtime)
             .await
     }
 
-    async fn rebuild_whitelist_indexes(&self) -> redis::RedisResult<Vec<WhitelistRecord>> {
+    async fn rebuild_whitelist_indexes(
+        &self,
+    ) -> crate::storage::StorageResult<Vec<WhitelistRecord>> {
         let mut conn = self.conn();
         let all: HashMap<String, String> = conn.hgetall(WHITELIST_RECORDS).await?;
         let existing_ips: Vec<String> = conn.smembers(WHITELIST_IPS).await.unwrap_or_default();
@@ -442,7 +446,7 @@ impl RedisStore {
 
     async fn list_whitelist_region_group_concrete_targets(
         &self,
-    ) -> redis::RedisResult<Vec<WhitelistConcreteTarget>> {
+    ) -> crate::storage::StorageResult<Vec<WhitelistConcreteTarget>> {
         let mut conn = self.conn();
         let ids: Vec<String> = conn.zrevrange(WHITELIST_REGION_GROUP_ORDER, 0, -1).await?;
         let raws: Vec<String> = if ids.is_empty() {

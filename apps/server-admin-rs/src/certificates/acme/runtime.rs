@@ -32,7 +32,7 @@ pub(super) async fn stop_active_acme_job(
     let process_result = stop_all_acme_processes(t).await;
     if let Some(lock_id) = lock.get("lockId").and_then(Value::as_str) {
         state
-            .redis
+            .store
             .delete_lock_if_owned(ACME_RUNTIME_LOCK_KEY, lock_id)
             .await
             .ok();

@@ -1,6 +1,8 @@
 use super::*;
 
-pub(super) async fn ssh_security_details(state: &AppState) -> Result<Value, redis::RedisError> {
+pub(super) async fn ssh_security_details(
+    state: &AppState,
+) -> Result<Value, crate::storage::StorageError> {
     let translator = Translator::from_state(state).await;
     let config = load_config(state).await?;
     let runtime = load_runtime(state).await?;
@@ -36,26 +38,26 @@ pub(super) async fn update_ssh_security_config(
             return Err(SshError::Runtime(availability.reason));
         }
     }
-    let mut all = state.redis.get_config().await?;
+    let mut all = state.store.get_config().await?;
     if let Some(object) = all.as_object_mut() {
         object.insert("ssh_security".to_string(), config.clone());
     }
-    state.redis.save_config(&all).await?;
-    state.redis.set_json_value(RUNTIME_KEY, &runtime).await?;
+    state.store.save_config(&all).await?;
+    state.store.set_json_value(RUNTIME_KEY, &runtime).await?;
     apply_ssh_security_config_once(state, &config, &runtime)
         .await
         .map_err(|error| SshError::Runtime(error.to_string()))?;
-    ssh_security_details(state).await.map_err(SshError::Redis)
+    ssh_security_details(state).await.map_err(SshError::Storage)
 }
 
-pub(super) async fn load_config(state: &AppState) -> redis::RedisResult<Value> {
-    let config = state.redis.get_config().await?;
+pub(super) async fn load_config(state: &AppState) -> crate::storage::StorageResult<Value> {
+    let config = state.store.get_config().await?;
     Ok(normalize_config(config.get("ssh_security").cloned()))
 }
 
-pub(super) async fn load_runtime(state: &AppState) -> redis::RedisResult<Value> {
+pub(super) async fn load_runtime(state: &AppState) -> crate::storage::StorageResult<Value> {
     Ok(normalize_runtime(
-        state.redis.get_json_value(RUNTIME_KEY).await?,
+        state.store.get_json_value(RUNTIME_KEY).await?,
     ))
 }
 

@@ -2,7 +2,7 @@ use super::*;
 
 pub(super) async fn clear_logs(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.redis.clear_log_buffer(DDNS_LOGS).await {
+    match state.store.clear_log_buffer(DDNS_LOGS).await {
         Ok(()) => response::success_empty().into_response(),
         Err(error) => {
             tracing::warn!(%error, "failed to clear DDNS logs");
@@ -20,7 +20,7 @@ pub(super) async fn poll(
 ) -> Response {
     let translator = Translator::from_state(&state).await;
     let logs = match state
-        .redis
+        .store
         .poll_log_buffer(DDNS_LOGS, query.cursor.as_deref())
         .await
     {

@@ -1,17 +1,20 @@
 use super::*;
 
-pub(super) async fn load_providers(state: &AppState) -> redis::RedisResult<Vec<Value>> {
+pub(super) async fn load_providers(state: &AppState) -> crate::storage::StorageResult<Vec<Value>> {
     load_indexed_values(state, PROVIDERS_INDEX_KEY, PROVIDERS_DATA_PREFIX).await
 }
 
-pub(super) async fn load_provider(state: &AppState, id: &str) -> redis::RedisResult<Option<Value>> {
-    state.redis.get_json_value(&provider_key(id)).await
+pub(super) async fn load_provider(
+    state: &AppState,
+    id: &str,
+) -> crate::storage::StorageResult<Option<Value>> {
+    state.store.get_json_value(&provider_key(id)).await
 }
 
 pub(super) async fn save_provider_raw(
     state: &AppState,
     provider: &Value,
-) -> redis::RedisResult<()> {
+) -> crate::storage::StorageResult<()> {
     let id = provider
         .get("id")
         .and_then(Value::as_str)
@@ -23,40 +26,49 @@ pub(super) async fn save_provider_raw(
             .or_else(|| provider.get("created_at").and_then(Value::as_str)),
     );
     state
-        .redis
+        .store
         .set_json_value(&provider_key(id), provider)
         .await?;
     state
-        .redis
+        .store
         .zadd_string_member(PROVIDERS_INDEX_KEY, id, score)
         .await
 }
 
-pub(super) async fn load_rules(state: &AppState) -> redis::RedisResult<Vec<Value>> {
+pub(super) async fn load_rules(state: &AppState) -> crate::storage::StorageResult<Vec<Value>> {
     load_indexed_values(state, RULES_INDEX_KEY, RULES_DATA_PREFIX).await
 }
 
-pub(super) async fn load_rule(state: &AppState, id: &str) -> redis::RedisResult<Option<Value>> {
-    state.redis.get_json_value(&rule_key(id)).await
+pub(super) async fn load_rule(
+    state: &AppState,
+    id: &str,
+) -> crate::storage::StorageResult<Option<Value>> {
+    state.store.get_json_value(&rule_key(id)).await
 }
 
-pub(super) async fn save_rule_raw(state: &AppState, rule: &Value) -> redis::RedisResult<()> {
+pub(super) async fn save_rule_raw(
+    state: &AppState,
+    rule: &Value,
+) -> crate::storage::StorageResult<()> {
     let id = rule.get("id").and_then(Value::as_str).unwrap_or_default();
     let score = iso_score_ms(
         rule.get("updated_at")
             .and_then(Value::as_str)
             .or_else(|| rule.get("created_at").and_then(Value::as_str)),
     );
-    state.redis.set_json_value(&rule_key(id), rule).await?;
+    state.store.set_json_value(&rule_key(id), rule).await?;
     state
-        .redis
+        .store
         .zadd_string_member(RULES_INDEX_KEY, id, score)
         .await
 }
 
-pub(super) async fn load_trigger(state: &AppState, id: &str) -> redis::RedisResult<Option<Value>> {
+pub(super) async fn load_trigger(
+    state: &AppState,
+    id: &str,
+) -> crate::storage::StorageResult<Option<Value>> {
     state
-        .redis
+        .store
         .get_json_value(&format!("{TRIGGERS_DATA_PREFIX}{id}"))
         .await
 }
@@ -68,23 +80,26 @@ fn history_cutoff_score_ms() -> i64 {
 pub(super) async fn touch_trigger_index(
     state: &AppState,
     trigger: &Value,
-) -> redis::RedisResult<()> {
+) -> crate::storage::StorageResult<()> {
     let id = trigger
         .get("id")
         .and_then(Value::as_str)
         .unwrap_or_default();
     let score = iso_score_ms(trigger.get("created_at").and_then(Value::as_str));
     state
-        .redis
+        .store
         .zadd_string_member(TRIGGERS_INDEX_KEY, id, score)
         .await?;
     state
-        .redis
+        .store
         .zrem_range_by_score(TRIGGERS_INDEX_KEY, 0, history_cutoff_score_ms())
         .await
 }
 
-pub(super) async fn save_trigger_raw(state: &AppState, trigger: &Value) -> redis::RedisResult<()> {
+pub(super) async fn save_trigger_raw(
+    state: &AppState,
+    trigger: &Value,
+) -> crate::storage::StorageResult<()> {
     let id = trigger
         .get("id")
         .and_then(Value::as_str)
@@ -92,7 +107,7 @@ pub(super) async fn save_trigger_raw(state: &AppState, trigger: &Value) -> redis
     let created_at = trigger.get("created_at").and_then(Value::as_str);
     let ttl = history_ttl_seconds(created_at);
     state
-        .redis
+        .store
         .set_json_value_ex(&format!("{TRIGGERS_DATA_PREFIX}{id}"), trigger, ttl)
         .await?;
     touch_trigger_index(state, trigger).await
@@ -101,7 +116,7 @@ pub(super) async fn save_trigger_raw(state: &AppState, trigger: &Value) -> redis
 pub(super) async fn save_trigger_if_absent(
     state: &AppState,
     trigger: &Value,
-) -> redis::RedisResult<bool> {
+) -> crate::storage::StorageResult<bool> {
     let id = trigger
         .get("id")
         .and_then(Value::as_str)
@@ -109,7 +124,7 @@ pub(super) async fn save_trigger_if_absent(
     let created_at = trigger.get("created_at").and_then(Value::as_str);
     let ttl = history_ttl_seconds(created_at);
     let saved = state
-        .redis
+        .store
         .set_json_value_nx_ex(&format!("{TRIGGERS_DATA_PREFIX}{id}"), trigger, ttl)
         .await?;
     if saved {
@@ -125,30 +140,33 @@ pub(super) async fn save_trigger_if_absent(
 pub(super) async fn touch_delivery_index(
     state: &AppState,
     delivery: &Value,
-) -> redis::RedisResult<()> {
+) -> crate::storage::StorageResult<()> {
     let id = delivery
         .get("id")
         .and_then(Value::as_str)
         .unwrap_or_default();
     let score = iso_score_ms(delivery.get("triggered_at").and_then(Value::as_str));
     state
-        .redis
+        .store
         .zadd_string_member(DELIVERIES_INDEX_KEY, id, score)
         .await?;
     state
-        .redis
+        .store
         .zrem_range_by_score(DELIVERIES_INDEX_KEY, 0, history_cutoff_score_ms())
         .await
 }
 
-pub(super) async fn load_delivery(state: &AppState, id: &str) -> redis::RedisResult<Option<Value>> {
-    state.redis.get_json_value(&delivery_key(id)).await
+pub(super) async fn load_delivery(
+    state: &AppState,
+    id: &str,
+) -> crate::storage::StorageResult<Option<Value>> {
+    state.store.get_json_value(&delivery_key(id)).await
 }
 
 pub(super) async fn save_delivery_raw(
     state: &AppState,
     delivery: &Value,
-) -> redis::RedisResult<()> {
+) -> crate::storage::StorageResult<()> {
     let id = delivery
         .get("id")
         .and_then(Value::as_str)
@@ -156,7 +174,7 @@ pub(super) async fn save_delivery_raw(
     let triggered_at = delivery.get("triggered_at").and_then(Value::as_str);
     let ttl = history_ttl_seconds(triggered_at);
     state
-        .redis
+        .store
         .set_json_value_ex(&delivery_key(id), delivery, ttl)
         .await?;
     touch_delivery_index(state, delivery).await
@@ -165,7 +183,7 @@ pub(super) async fn save_delivery_raw(
 pub(super) async fn save_delivery_if_absent(
     state: &AppState,
     delivery: &Value,
-) -> redis::RedisResult<bool> {
+) -> crate::storage::StorageResult<bool> {
     let id = delivery
         .get("id")
         .and_then(Value::as_str)
@@ -173,7 +191,7 @@ pub(super) async fn save_delivery_if_absent(
     let triggered_at = delivery.get("triggered_at").and_then(Value::as_str);
     let ttl = history_ttl_seconds(triggered_at);
     let saved = state
-        .redis
+        .store
         .set_json_value_nx_ex(&delivery_key(id), delivery, ttl)
         .await?;
     if saved {
@@ -293,13 +311,13 @@ pub(super) async fn load_indexed_values(
     state: &AppState,
     index_key: &str,
     data_prefix: &str,
-) -> redis::RedisResult<Vec<Value>> {
-    let ids = state.redis.zrevrange_strings(index_key).await?;
+) -> crate::storage::StorageResult<Vec<Value>> {
+    let ids = state.store.zrevrange_strings(index_key).await?;
     let mut values = Vec::new();
     let mut stale_ids = Vec::new();
     for id in ids {
         match state
-            .redis
+            .store
             .get_json_value(&format!("{data_prefix}{id}"))
             .await?
         {
@@ -308,7 +326,7 @@ pub(super) async fn load_indexed_values(
         }
     }
     for id in stale_ids {
-        state.redis.zrem_string_member(index_key, &id).await?;
+        state.store.zrem_string_member(index_key, &id).await?;
     }
     Ok(values)
 }
@@ -320,11 +338,11 @@ pub(super) async fn list_history<F>(
     page: i64,
     limit: i64,
     matches: F,
-) -> redis::RedisResult<(Vec<Value>, i64)>
+) -> crate::storage::StorageResult<(Vec<Value>, i64)>
 where
     F: Fn(&Value) -> bool,
 {
-    let ids = state.redis.zrevrange_strings(index_key).await?;
+    let ids = state.store.zrevrange_strings(index_key).await?;
     let page_start = (page.saturating_sub(1)).saturating_mul(limit);
     let mut matched_total = 0_i64;
     let mut items = Vec::new();
@@ -332,7 +350,7 @@ where
 
     for id in ids {
         let value = state
-            .redis
+            .store
             .get_json_value(&format!("{data_prefix}{id}"))
             .await?;
         let Some(value) = value else {
@@ -348,7 +366,7 @@ where
         matched_total += 1;
     }
     for id in stale_ids {
-        state.redis.zrem_string_member(index_key, &id).await?;
+        state.store.zrem_string_member(index_key, &id).await?;
     }
     Ok((items, matched_total))
 }
@@ -363,12 +381,12 @@ pub(super) struct ClearDeliveryFilter {
 pub(super) async fn clear_delivery_values(
     state: &AppState,
     filter: ClearDeliveryFilter,
-) -> redis::RedisResult<usize> {
-    let ids = state.redis.zrevrange_strings(DELIVERIES_INDEX_KEY).await?;
+) -> crate::storage::StorageResult<usize> {
+    let ids = state.store.zrevrange_strings(DELIVERIES_INDEX_KEY).await?;
     let mut matched_ids = Vec::new();
     let mut stale_ids = Vec::new();
     for id in ids {
-        match state.redis.get_json_value(&delivery_key(&id)).await? {
+        match state.store.get_json_value(&delivery_key(&id)).await? {
             Some(value) => {
                 if matches_optional_string(&value, "rule_id", filter.rule_id.as_deref())
                     && matches_optional_string(&value, "provider_id", filter.provider_id.as_deref())
@@ -386,16 +404,16 @@ pub(super) async fn clear_delivery_values(
         .iter()
         .map(|id| delivery_key(id))
         .collect::<Vec<_>>();
-    state.redis.delete_keys(&delete_keys).await?;
+    state.store.delete_keys(&delete_keys).await?;
     for id in stale_ids.iter().chain(matched_ids.iter()) {
         state
-            .redis
+            .store
             .zrem_string_member(DELIVERIES_INDEX_KEY, id)
             .await?;
     }
     for id in &matched_ids {
         state
-            .redis
+            .store
             .zrem_string_member(DELIVERIES_READY_KEY, id)
             .await?;
     }

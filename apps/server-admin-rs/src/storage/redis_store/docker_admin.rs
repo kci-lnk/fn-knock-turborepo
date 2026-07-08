@@ -1,9 +1,9 @@
 use super::*;
 
-impl RedisStore {
+impl Store {
     pub async fn docker_admin_password(
         &self,
-    ) -> redis::RedisResult<Option<DockerAdminPasswordRecord>> {
+    ) -> crate::storage::StorageResult<Option<DockerAdminPasswordRecord>> {
         let mut conn = self.conn();
         let raw: Option<String> = conn.get(DOCKER_ADMIN_PASSWORD_KEY).await?;
         Ok(raw.and_then(|value| serde_json::from_str(&value).ok()))
@@ -12,7 +12,7 @@ impl RedisStore {
     pub async fn set_docker_admin_password(
         &self,
         record: &DockerAdminPasswordRecord,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         conn.set(
             DOCKER_ADMIN_PASSWORD_KEY,
@@ -24,7 +24,7 @@ impl RedisStore {
     pub async fn docker_admin_session(
         &self,
         session_id: &str,
-    ) -> redis::RedisResult<Option<DockerAdminSessionRecord>> {
+    ) -> crate::storage::StorageResult<Option<DockerAdminSessionRecord>> {
         let mut conn = self.conn();
         let raw: Option<String> = conn
             .get(format!("{DOCKER_ADMIN_SESSION_PREFIX}{session_id}"))
@@ -35,7 +35,7 @@ impl RedisStore {
     pub async fn set_docker_admin_session(
         &self,
         record: &DockerAdminSessionRecord,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         let ttl = crate::time_utils::parse_iso_ms(&record.expires_at)
             .map(|expires_ms| ((expires_ms - crate::time_utils::now_ms()).max(1000) / 1000) as u64)
@@ -48,7 +48,10 @@ impl RedisStore {
         .await
     }
 
-    pub async fn delete_docker_admin_session(&self, session_id: &str) -> redis::RedisResult<()> {
+    pub async fn delete_docker_admin_session(
+        &self,
+        session_id: &str,
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         conn.del(format!("{DOCKER_ADMIN_SESSION_PREFIX}{session_id}"))
             .await
@@ -57,7 +60,7 @@ impl RedisStore {
     pub async fn docker_admin_login_attempt(
         &self,
         ip: &str,
-    ) -> redis::RedisResult<Option<LoginAttemptRecord>> {
+    ) -> crate::storage::StorageResult<Option<LoginAttemptRecord>> {
         let mut conn = self.conn();
         let raw: Option<String> = conn
             .get(format!("{DOCKER_ADMIN_LOGIN_BACKOFF_PREFIX}{ip}"))
@@ -68,7 +71,7 @@ impl RedisStore {
     pub async fn set_docker_admin_login_attempt(
         &self,
         record: &LoginAttemptRecord,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         conn.set_ex(
             format!("{DOCKER_ADMIN_LOGIN_BACKOFF_PREFIX}{}", record.ip),
@@ -78,25 +81,28 @@ impl RedisStore {
         .await
     }
 
-    pub async fn reset_docker_admin_login_attempt(&self, ip: &str) -> redis::RedisResult<()> {
+    pub async fn reset_docker_admin_login_attempt(
+        &self,
+        ip: &str,
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         conn.del(format!("{DOCKER_ADMIN_LOGIN_BACKOFF_PREFIX}{ip}"))
             .await
     }
 
-    pub async fn clear_docker_admin_sessions(&self) -> redis::RedisResult<usize> {
+    pub async fn clear_docker_admin_sessions(&self) -> crate::storage::StorageResult<usize> {
         self.clear_keys_by_prefix(DOCKER_ADMIN_SESSION_PREFIX, 200)
             .await
     }
 
-    pub async fn clear_docker_admin_login_failures(&self) -> redis::RedisResult<usize> {
+    pub async fn clear_docker_admin_login_failures(&self) -> crate::storage::StorageResult<usize> {
         self.clear_keys_by_prefix(DOCKER_ADMIN_LOGIN_BACKOFF_PREFIX, 200)
             .await
     }
 
     pub async fn reset_docker_admin_password_state(
         &self,
-    ) -> redis::RedisResult<DockerAdminResetSummary> {
+    ) -> crate::storage::StorageResult<DockerAdminResetSummary> {
         let password_deleted = self.delete_key_count(DOCKER_ADMIN_PASSWORD_KEY).await?;
         let sessions_cleared = self.clear_docker_admin_sessions().await?;
         let login_failures_cleared = self.clear_docker_admin_login_failures().await?;

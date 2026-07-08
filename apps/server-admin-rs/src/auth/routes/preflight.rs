@@ -28,7 +28,7 @@ pub(super) async fn apply_preflight_behavior(
     let client_ip = client_ip_for_auth(headers);
     let forwarded_path = preflight_forwarded_path(headers);
     let access_mode = requested_access_mode(headers);
-    let config = state.redis.get_config().await?;
+    let config = state.store.get_config().await?;
     let mut share_decision_handled = false;
 
     let normal_access =
@@ -62,7 +62,7 @@ pub(super) async fn apply_preflight_behavior(
                 .headers_mut()
                 .insert("X-Option", HeaderValue::from_static("Deny"));
         } else if !state
-            .redis
+            .store
             .is_recent_auth_ip_active(&client_ip, time_utils::now_ms() / 1000)
             .await?
             && !share_decision_handled
@@ -203,7 +203,7 @@ pub(super) async fn resolve_preflight_normal_access(
     let identity = inspect_auth_mobility_request(headers);
     let mut session_scope_headers = Vec::new();
     let browser_session = if let Some(session_id) = identity.session_id.as_deref() {
-        match state.redis.get_session(session_id).await? {
+        match state.store.get_session(session_id).await? {
             Some(session) => {
                 let scope =
                     resolve_session_subdomain_access(state, headers, uri, config, &session).await?;
@@ -353,7 +353,7 @@ pub(super) async fn has_preflight_whitelist_access_from_sources(
     }
 
     let client_ip = normalized_ip.parse::<IpAddr>()?;
-    let targets = state.redis.list_whitelist_active_concrete_targets().await?;
+    let targets = state.store.list_whitelist_active_concrete_targets().await?;
     Ok(targets.iter().any(|target| {
         sources.is_none_or(|sources| sources.contains(&target.source.as_str()))
             && whitelist_target_matches_ip(&target.target, &target.target_type, client_ip)
@@ -529,7 +529,7 @@ pub(super) async fn resolve_auth_mobility_owner_sessions(
     let mut owners = Vec::new();
     let mut seen = BTreeSet::new();
     if let Some(session_id) = identity.session_id.as_deref()
-        && let Some(session) = state.redis.get_session(session_id).await?
+        && let Some(session) = state.store.get_session(session_id).await?
         && seen.insert(session_id.to_string())
     {
         owners.push((session_id.to_string(), session));
@@ -575,7 +575,7 @@ pub(super) async fn auth_mobility_binding_owner_session(
     subject_key: &str,
 ) -> anyhow::Result<Option<(String, LoginSession)>> {
     let Some(binding) = state
-        .redis
+        .store
         .get_auth_mobility_binding(subject_type, subject_key)
         .await?
     else {
@@ -590,7 +590,7 @@ pub(super) async fn auth_mobility_binding_owner_session(
         return Ok(None);
     };
     Ok(state
-        .redis
+        .store
         .get_session(owner_session_id)
         .await?
         .map(|session| (owner_session_id.to_string(), session)))
@@ -620,9 +620,9 @@ pub(super) async fn list_auth_mobility_owner_sessions_by_ip(
         return Ok(Vec::new());
     }
 
-    let config = state.redis.get_config().await?;
+    let config = state.store.get_config().await?;
     let mut owners = Vec::new();
-    for (session_id, session) in state.redis.list_login_sessions().await? {
+    for (session_id, session) in state.store.list_login_sessions().await? {
         let ips =
             auth_mobility::effective_session_ips(state, &session_id, &session, &config).await?;
         if ips.iter().any(|ip| ip == &target_ip) {
@@ -697,7 +697,7 @@ pub(super) async fn resolve_session_subdomain_access(
     config: &Value,
     session: &LoginSession,
 ) -> anyhow::Result<SessionSubdomainAccessDecision> {
-    let totps = state.redis.get_totps().await?;
+    let totps = state.store.get_totps().await?;
     let credential = totps
         .iter()
         .find(|credential| credential.id == session.totp_id);

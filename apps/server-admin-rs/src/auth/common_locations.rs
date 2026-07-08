@@ -81,7 +81,7 @@ pub async fn record_recent_verified_ip(state: &AppState, ip: &str) -> anyhow::Re
         return Ok(());
     }
     state
-        .redis
+        .store
         .record_recent_auth_ip(&normalized, now_seconds())
         .await?;
     schedule_common_auth_locations_rebuild(state.clone(), "recent-auth-ip");
@@ -95,7 +95,7 @@ pub async fn is_common_auth_location_exempt_ip(state: &AppState, ip: &str) -> an
     }
 
     let runtime = state
-        .redis
+        .store
         .get_json_value(RUNTIME_KEY)
         .await?
         .unwrap_or_else(|| json!({}));
@@ -129,7 +129,7 @@ pub async fn rebuild_common_auth_locations_runtime_state(
         strict_env_i64("COMMON_AUTH_LOCATIONS_MAX_REGION_CIDRS_PER_LOCATION", 128).max(0) as usize;
 
     let entries = state
-        .redis
+        .store
         .list_recent_auth_ips_with_scores(now_seconds(), max_recent_ips)
         .await?
         .into_iter()
@@ -139,7 +139,7 @@ pub async fn rebuild_common_auth_locations_runtime_state(
     let mut samples = Vec::new();
     let mut pending_ips = Vec::new();
     for entry in &entries {
-        let cached = state.redis.get_ip_location_cache(&entry.ip).await?;
+        let cached = state.store.get_ip_location_cache(&entry.ip).await?;
         collect_resolved_sample_or_pending(entry, cached, &mut samples, &mut pending_ips);
     }
     if !pending_ips.is_empty() {
@@ -223,7 +223,7 @@ pub async fn rebuild_common_auth_locations_runtime_state(
         "updated_at": time_utils::now_iso(),
     });
     state
-        .redis
+        .store
         .set_string_value(RUNTIME_KEY, &serde_json::to_string(&runtime)?)
         .await?;
     sync_common_auth_locations_to_gateway(state, &runtime).await?;
@@ -238,14 +238,14 @@ pub async fn rebuild_common_auth_locations_runtime_state(
 }
 
 async fn common_auth_location_exemptions_enabled(state: &AppState) -> anyhow::Result<bool> {
-    let config = state.redis.get_config().await?;
+    let config = state.store.get_config().await?;
     let waf = config.get("waf").unwrap_or(&Value::Null);
     let waf_enabled = waf.get("enabled").and_then(Value::as_bool) == Some(true)
         && waf
             .get("common_location_exempt_enabled")
             .and_then(Value::as_bool)
             == Some(true);
-    let scanner_settings = state.redis.scanner_settings_raw().await?;
+    let scanner_settings = state.store.scanner_settings_raw().await?;
     let scanner_enabled = scanner_settings
         .as_ref()
         .and_then(|value| value.get("enabled"))
@@ -261,7 +261,7 @@ async fn common_auth_location_exemptions_enabled(state: &AppState) -> anyhow::Re
 
 async fn sync_disabled_common_auth_locations_runtime(state: &AppState) -> anyhow::Result<Value> {
     if let Some(runtime) = state
-        .redis
+        .store
         .get_string_value(RUNTIME_KEY)
         .await?
         .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
@@ -284,7 +284,7 @@ async fn sync_disabled_common_auth_locations_runtime(state: &AppState) -> anyhow
         "updated_at": time_utils::now_iso(),
     });
     state
-        .redis
+        .store
         .set_string_value(RUNTIME_KEY, &serde_json::to_string(&runtime)?)
         .await?;
     sync_common_auth_locations_to_gateway(state, &runtime).await?;
@@ -348,7 +348,7 @@ async fn sync_common_auth_locations_to_gateway(
     state: &AppState,
     runtime: &Value,
 ) -> anyhow::Result<()> {
-    let config = state.redis.get_config().await?;
+    let config = state.store.get_config().await?;
     let waf = config.get("waf").unwrap_or(&Value::Null);
     let cidrs = runtime
         .get("cidrs")

@@ -55,9 +55,9 @@ pub(super) async fn get_waf_details(state: &AppState) -> anyhow::Result<Value> {
 }
 
 pub(super) async fn apply_waf_config(state: &AppState, patch: &Value) -> anyhow::Result<Value> {
-    let mut full_config = state.redis.get_config().await?;
+    let mut full_config = state.store.get_config().await?;
     if !full_config.is_object() {
-        full_config = redis_store::default_config();
+        full_config = store::default_config();
     }
     let current = normalize_fixed_waf_config(full_config.get("waf"), state);
     let mut next_raw = current.as_object().cloned().unwrap_or_default();
@@ -82,7 +82,7 @@ pub(super) async fn apply_waf_config(state: &AppState, patch: &Value) -> anyhow:
     if let Some(object) = full_config.as_object_mut() {
         object.insert("waf".to_string(), next.clone());
     }
-    state.redis.save_config(&full_config).await?;
+    state.store.save_config(&full_config).await?;
 
     let should_apply_to_gateway = has_any_key(
         patch,
@@ -177,7 +177,7 @@ pub(super) async fn check_and_sync_system_waf_rules_if_needed(
     }
     ensure_waf_directories(state).await?;
     if !state
-        .redis
+        .store
         .set_lock_if_not_exists(
             "waf-system-rules-auto-update",
             WAF_SYSTEM_RULES_AUTO_UPDATE_LOCK_TTL_SECONDS as usize,
@@ -248,7 +248,7 @@ pub(super) async fn has_system_rule_files(state: &AppState) -> anyhow::Result<bo
 }
 
 pub(super) async fn waf_drain_interval_seconds(state: &AppState) -> u64 {
-    let Ok(config) = state.redis.get_config().await else {
+    let Ok(config) = state.store.get_config().await else {
         return DEFAULT_WAF_DRAIN_INTERVAL_SECONDS;
     };
     let waf = config.get("waf");
@@ -444,7 +444,7 @@ pub(super) async fn drain_waf_events_now(state: &AppState) -> anyhow::Result<Val
         .collect::<Vec<_>>();
     if !events.is_empty() {
         state
-            .redis
+            .store
             .persist_waf_events(
                 &events,
                 config
@@ -465,8 +465,8 @@ pub(super) async fn drain_waf_events_now(state: &AppState) -> anyhow::Result<Val
     }))
 }
 
-pub(super) async fn load_waf_config(state: &AppState) -> redis::RedisResult<Value> {
-    let config = state.redis.get_config().await?;
+pub(super) async fn load_waf_config(state: &AppState) -> crate::storage::StorageResult<Value> {
+    let config = state.store.get_config().await?;
     Ok(normalize_fixed_waf_config(config.get("waf"), state))
 }
 
@@ -577,7 +577,7 @@ pub(super) async fn sync_common_auth_location_exemptions_to_gateway(
     waf_config: &Value,
 ) -> anyhow::Result<()> {
     let runtime = state
-        .redis
+        .store
         .get_string_value("fn_knock:common_auth_locations:runtime")
         .await?
         .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())

@@ -17,11 +17,11 @@ use crate::{
     cookies::{self, ADMIN_PANEL_SESSION_COOKIE_NAME, SESSION_COOKIE_NAME},
     http_utils,
     i18n::Translator,
-    redis_store::{DockerAdminPasswordRecord, DockerAdminSessionRecord, LoginAttemptRecord},
     response::{self, ApiEnvelope},
     runtime_config,
     runtime_profile::{self, RuntimeProfile},
     state::AppState,
+    store::{DockerAdminPasswordRecord, DockerAdminSessionRecord, LoginAttemptRecord},
     time_utils,
 };
 
@@ -158,7 +158,7 @@ async fn bootstrap(
 }
 
 async fn config(State(state): State<AppState>) -> Response {
-    match state.redis.get_config().await {
+    match state.store.get_config().await {
         Ok(mut config) => {
             enrich_gateway_logging_config(&state, &mut config).await;
             let protocol_mapping_feature =
@@ -238,7 +238,7 @@ pub(crate) fn build_safe_app_config(
     protocol_mapping_feature: Value,
 ) -> Value {
     if !config.is_object() {
-        config = crate::redis_store::default_config();
+        config = crate::store::default_config();
     }
     let capabilities = runtime_profile::get_runtime_capabilities(&profile);
     let ssl = safe_ssl_config(config.get("ssl"));
@@ -324,7 +324,7 @@ fn safe_ssl_config(value: Option<&Value>) -> Value {
 }
 
 async fn locale(State(state): State<AppState>) -> Response {
-    match state.redis.locale().await {
+    match state.store.locale().await {
         Ok(locale) => response::ok(locale).into_response(),
         Err(error) => {
             let translator = Translator::from_state(&state).await;
@@ -338,7 +338,7 @@ async fn locale(State(state): State<AppState>) -> Response {
 }
 
 async fn appearance(State(state): State<AppState>) -> Response {
-    match state.redis.appearance().await {
+    match state.store.appearance().await {
         Ok(appearance) => response::ok(appearance).into_response(),
         Err(error) => {
             let translator = Translator::from_state(&state).await;
@@ -408,7 +408,7 @@ async fn set_password(
         );
     }
 
-    match state.redis.docker_admin_password().await {
+    match state.store.docker_admin_password().await {
         Ok(Some(_)) => {
             return response::error(
                 StatusCode::BAD_REQUEST,
@@ -435,7 +435,7 @@ async fn set_password(
             );
         }
     };
-    if let Err(error) = state.redis.set_docker_admin_password(&record).await {
+    if let Err(error) = state.store.set_docker_admin_password(&record).await {
         tracing::warn!(%error, "failed to store docker admin password");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -455,7 +455,7 @@ async fn set_password(
         }
     };
     let _ = state
-        .redis
+        .store
         .reset_docker_admin_login_attempt(&client_ip_for_tracking(&headers))
         .await;
 
@@ -494,7 +494,7 @@ async fn change_password(
         );
     }
 
-    let existing = match state.redis.docker_admin_password().await {
+    let existing = match state.store.docker_admin_password().await {
         Ok(Some(record)) => record,
         Ok(None) => {
             return response::error(
@@ -538,7 +538,7 @@ async fn change_password(
             );
         }
     };
-    if let Err(error) = state.redis.set_docker_admin_password(&record).await {
+    if let Err(error) = state.store.set_docker_admin_password(&record).await {
         tracing::warn!(%error, "failed to store docker admin password");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -546,14 +546,14 @@ async fn change_password(
         );
     }
 
-    if let Err(error) = state.redis.clear_docker_admin_sessions().await {
+    if let Err(error) = state.store.clear_docker_admin_sessions().await {
         tracing::warn!(%error, "failed to clear docker admin sessions after password change");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
             admin_panel_text(&translator, "dockerPanel.changePasswordFailed"),
         );
     }
-    if let Err(error) = state.redis.clear_docker_admin_login_failures().await {
+    if let Err(error) = state.store.clear_docker_admin_login_failures().await {
         tracing::warn!(%error, "failed to clear docker admin login failures after password change");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -638,7 +638,7 @@ async fn login(
         }
     }
 
-    let Some(password_record) = (match state.redis.docker_admin_password().await {
+    let Some(password_record) = (match state.store.docker_admin_password().await {
         Ok(record) => record,
         Err(error) => {
             tracing::warn!(%error, "failed to load docker admin password");
@@ -695,7 +695,7 @@ async fn login(
     }
 
     let _ = state
-        .redis
+        .store
         .reset_docker_admin_login_attempt(&client_ip)
         .await;
     let ttl = if body.remember_me {
@@ -735,7 +735,7 @@ async fn logout(
     uri: Uri,
 ) -> Response {
     if let Some(session_id) = cookies::read_cookie(&headers, ADMIN_PANEL_SESSION_COOKIE_NAME) {
-        let _ = state.redis.delete_docker_admin_session(&session_id).await;
+        let _ = state.store.delete_docker_admin_session(&session_id).await;
     }
     panel_success_with_cookie(
         &state,
@@ -801,8 +801,8 @@ async fn build_bootstrap_state_with_session(
     runtime_enabled: bool,
     new_session: Option<&DockerAdminSessionRecord>,
 ) -> anyhow::Result<Value> {
-    let locale = state.redis.locale().await?;
-    let appearance = state.redis.appearance().await?;
+    let locale = state.store.locale().await?;
+    let appearance = state.store.appearance().await?;
     let deployment_target = runtime_profile::deployment_target(state);
 
     if !runtime_enabled {
@@ -818,7 +818,7 @@ async fn build_bootstrap_state_with_session(
         }));
     }
 
-    let password_configured = state.redis.docker_admin_password().await?.is_some();
+    let password_configured = state.store.docker_admin_password().await?.is_some();
     let auth_context = if let Some(session) = new_session {
         json!({
             "authenticated": true,
@@ -846,7 +846,7 @@ pub(crate) async fn resolve_panel_auth_context(
     headers: &HeaderMap,
 ) -> anyhow::Result<Value> {
     if let Some(session_id) = cookies::read_cookie(headers, ADMIN_PANEL_SESSION_COOKIE_NAME) {
-        if let Some(mut record) = state.redis.docker_admin_session(&session_id).await? {
+        if let Some(mut record) = state.store.docker_admin_session(&session_id).await? {
             let now = time_utils::now_ms();
             if time_utils::parse_iso_ms(&record.expires_at).is_some_and(|expires| expires > now)
                 && record.ip == client_ip_for_tracking(headers)
@@ -855,20 +855,20 @@ pub(crate) async fn resolve_panel_auth_context(
                 record.ttl_seconds = normalize_session_record_ttl(record.ttl_seconds);
                 record.updated_at = time_utils::now_iso();
                 record.expires_at = time_utils::iso_after_seconds(record.ttl_seconds);
-                state.redis.set_docker_admin_session(&record).await?;
+                state.store.set_docker_admin_session(&record).await?;
                 return Ok(json!({
                     "authenticated": true,
                     "auth_source": "panel_session",
                     "session_expires_at": record.expires_at
                 }));
             }
-            let _ = state.redis.delete_docker_admin_session(&session_id).await;
+            let _ = state.store.delete_docker_admin_session(&session_id).await;
         }
     }
 
     if let Some(session_id) = cookies::read_cookie(headers, SESSION_COOKIE_NAME) {
-        if let Some(session) = state.redis.get_session(&session_id).await? {
-            let totps = state.redis.get_totps().await?;
+        if let Some(session) = state.store.get_session(&session_id).await? {
+            let totps = state.store.get_totps().await?;
             if is_docker_admin_panel_reauth_session_allowed(&session, &totps) {
                 return Ok(json!({
                     "authenticated": true,
@@ -887,8 +887,8 @@ pub(crate) async fn resolve_panel_auth_context(
 }
 
 fn is_docker_admin_panel_reauth_session_allowed(
-    session: &crate::redis_store::LoginSession,
-    totps: &[crate::redis_store::TotpCredential],
+    session: &crate::store::LoginSession,
+    totps: &[crate::store::TotpCredential],
 ) -> bool {
     if session.totp_id.trim().is_empty() {
         return false;
@@ -933,7 +933,7 @@ async fn create_panel_session(
         ip: client_ip_for_tracking(headers),
         user_agent: user_agent_for_tracking(headers),
     };
-    state.redis.set_docker_admin_session(&record).await?;
+    state.store.set_docker_admin_session(&record).await?;
     Ok(record)
 }
 
@@ -1042,7 +1042,7 @@ fn validate_password(password: &str) -> Result<(), &'static str> {
 }
 
 async fn ensure_login_allowed(state: &AppState, ip: &str) -> anyhow::Result<Option<(i64, i64)>> {
-    let Some(record) = state.redis.docker_admin_login_attempt(ip).await? else {
+    let Some(record) = state.store.docker_admin_login_attempt(ip).await? else {
         return Ok(None);
     };
     let now = time_utils::now_ms();
@@ -1057,7 +1057,7 @@ async fn ensure_login_allowed(state: &AppState, ip: &str) -> anyhow::Result<Opti
 
 async fn register_login_failure(state: &AppState, ip: &str) -> anyhow::Result<(i64, i64)> {
     let previous_attempts = state
-        .redis
+        .store
         .docker_admin_login_attempt(ip)
         .await?
         .map(|record| record.attempts)
@@ -1073,7 +1073,7 @@ async fn register_login_failure(state: &AppState, ip: &str) -> anyhow::Result<(i
         last_attempt_at: time_utils::now_iso(),
         blocked_until,
     };
-    state.redis.set_docker_admin_login_attempt(&record).await?;
+    state.store.set_docker_admin_login_attempt(&record).await?;
     Ok(((backoff_ms + 999) / 1000, blocked_until))
 }
 
@@ -1095,15 +1095,19 @@ fn user_agent_for_tracking(headers: &HeaderMap) -> String {
         .unwrap_or_else(|| "unknown".to_string())
 }
 
-async fn save_config_section(state: &AppState, key: &str, value: Value) -> redis::RedisResult<()> {
-    let mut config = state.redis.get_config().await?;
+async fn save_config_section(
+    state: &AppState,
+    key: &str,
+    value: Value,
+) -> crate::storage::StorageResult<()> {
+    let mut config = state.store.get_config().await?;
     if !config.is_object() {
-        config = crate::redis_store::default_config();
+        config = crate::store::default_config();
     }
     if let Some(object) = config.as_object_mut() {
         object.insert(key.to_string(), value);
     }
-    state.redis.save_config(&config).await
+    state.store.save_config(&config).await
 }
 
 pub(crate) fn normalize_locale_config(value: &Value) -> Value {
@@ -1211,7 +1215,7 @@ mod tests {
 
     #[test]
     fn docker_admin_reauth_session_requires_access_scope() {
-        let session = crate::redis_store::LoginSession {
+        let session = crate::store::LoginSession {
             totp_id: "totp-1".to_string(),
             method: "totp".to_string(),
             credential_id: "totp-1".to_string(),
@@ -1227,7 +1231,7 @@ mod tests {
             expires_at: Some(time_utils::iso_after_seconds(60)),
             ip_location: None,
         };
-        let allowed = crate::redis_store::TotpCredential {
+        let allowed = crate::store::TotpCredential {
             id: "totp-1".to_string(),
             secret: "secret".to_string(),
             comment: String::new(),
@@ -1235,7 +1239,7 @@ mod tests {
             access_scopes: json!(["docker_admin_panel"]),
             subdomain_access: Value::Null,
         };
-        let denied = crate::redis_store::TotpCredential {
+        let denied = crate::store::TotpCredential {
             access_scopes: json!(["other"]),
             ..allowed.clone()
         };

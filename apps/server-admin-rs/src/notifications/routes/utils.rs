@@ -403,7 +403,7 @@ pub(super) fn truncate_text(value: &str, max_len: usize) -> String {
 pub(super) async fn internal_error(
     state: &AppState,
     context: &str,
-    error: redis::RedisError,
+    error: crate::storage::StorageError,
 ) -> Response {
     let translator = Translator::from_state(state).await;
     tracing::warn!(%error, "{context}");

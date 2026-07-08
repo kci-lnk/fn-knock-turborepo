@@ -84,6 +84,22 @@ fn parses_import_payload_with_supported_redis_types() {
 }
 
 #[test]
+fn parses_import_payload_with_legacy_backup_schema_version_field() {
+    let payload = json!({
+        "backupSchemaVersion": APP_BACKUP_SCHEMA_VERSION,
+        "app_version": APP_LOCAL_VERSION,
+        "prefix": KNOCK_BACKUP_PREFIX,
+        "exported_at": "2026-07-05T00:00:00Z",
+        "entries": [
+            {"key":"fn_knock:string","type":"string","ttl_ms":null,"value":"v"}
+        ]
+    });
+    let parsed = parse_backup_payload(&payload.to_string()).unwrap();
+    assert_eq!(parsed["version"], json!(APP_BACKUP_SCHEMA_VERSION));
+    assert_eq!(parsed["entry_count"], json!(1));
+}
+
+#[test]
 fn parses_import_payload_number_coercions_like_node() {
     let payload = json!({
         "version": APP_BACKUP_SCHEMA_VERSION,

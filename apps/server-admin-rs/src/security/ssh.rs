@@ -124,7 +124,7 @@ async fn ssh_security_tick_interval(state: &AppState) -> Duration {
     }
 }
 
-async fn ssh_security_config_active(state: &AppState) -> redis::RedisResult<bool> {
+async fn ssh_security_config_active(state: &AppState) -> crate::storage::StorageResult<bool> {
     let config = load_config(state).await?;
     let runtime = load_runtime(state).await?;
     Ok(config.get("enabled").and_then(Value::as_bool) == Some(true)
@@ -135,12 +135,12 @@ async fn ssh_security_config_active(state: &AppState) -> redis::RedisResult<bool
 enum SshError {
     BadRequest(String),
     Runtime(String),
-    Redis(redis::RedisError),
+    Storage(crate::storage::StorageError),
 }
 
-impl From<redis::RedisError> for SshError {
-    fn from(value: redis::RedisError) -> Self {
-        Self::Redis(value)
+impl From<crate::storage::StorageError> for SshError {
+    fn from(value: crate::storage::StorageError) -> Self {
+        Self::Storage(value)
     }
 }
 

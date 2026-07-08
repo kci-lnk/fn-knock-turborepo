@@ -1,4 +1,9 @@
-use std::{env, net::SocketAddr, path::PathBuf, time::Duration};
+use std::{
+    env,
+    net::SocketAddr,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 use anyhow::Context;
 
@@ -17,7 +22,9 @@ pub struct Settings {
     #[allow(dead_code)]
     pub data_dir: PathBuf,
     pub gateway_config_dir: PathBuf,
-    pub redis_url: String,
+    pub sqlite_path: PathBuf,
+    #[allow(dead_code)]
+    pub legacy_redis_url: String,
     pub go_backend_grpc_addr: String,
     pub internal_rpc_token: String,
     pub hmac_secret: String,
@@ -56,28 +63,10 @@ impl Settings {
         } else {
             None
         };
-        let redis_host = env::var("REDIS_HOST").unwrap_or_else(|_| {
-            if runtime_target == "docker" {
-                "redis".to_string()
-            } else {
-                "127.0.0.1".to_string()
-            }
-        });
-        let redis_port = env_port("REDIS_PORT", 6379);
-        let redis_password = env::var("REDIS_PASSWORD")
+        let legacy_redis_url = env::var("FN_KNOCK_LEGACY_REDIS_URL")
             .ok()
-            .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty());
-        let redis_url = if let Some(password) = redis_password {
-            format!(
-                "redis://:{}@{}:{}/",
-                crate::http_utils::url_encode_component(&password),
-                redis_host,
-                redis_port
-            )
-        } else {
-            format!("redis://{}:{}/", redis_host, redis_port)
-        };
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(legacy_redis_url_from_redis_env);
 
         let data_dir = env_path("FN_KNOCK_DATA_DIR", &default_data_dir());
         let gateway_config_dir = env::var("FN_KNOCK_GATEWAY_CONFIG_DIR")
@@ -85,6 +74,8 @@ impl Settings {
             .ok()
             .map(PathBuf::from)
             .unwrap_or_else(|| data_dir.clone());
+        let default_sqlite_path = default_sqlite_path(&gateway_config_dir);
+        let sqlite_path = env_optional_path("FN_KNOCK_SQLITE_PATH").unwrap_or(default_sqlite_path);
 
         let expose_runtime_hmac_secret = should_expose_runtime_hmac_secret();
 
@@ -111,7 +102,8 @@ impl Settings {
             auth_static_path: env_path("AUTH_STATIC_PATH", "server-auth-view/dist"),
             data_dir,
             gateway_config_dir,
-            redis_url,
+            sqlite_path,
+            legacy_redis_url,
             go_backend_grpc_addr: env::var("GO_BACKEND_GRPC_ADDR")
                 .ok()
                 .filter(|value| !value.trim().is_empty())
@@ -171,12 +163,34 @@ impl Settings {
     }
 }
 
+const SQLITE_FILE_NAME: &str = "fn-knock.sqlite3";
+const SQLITE_STORAGE_DIR: &str = "storage";
+
 fn env_string(name: &str, fallback: &str) -> String {
     env::var(name)
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| fallback.to_string())
+}
+
+fn legacy_redis_url_from_redis_env() -> String {
+    let redis_host = env_string("REDIS_HOST", "127.0.0.1");
+    let redis_port = env_port("REDIS_PORT", 6379);
+    let redis_password = env::var("REDIS_PASSWORD")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    if let Some(password) = redis_password {
+        format!(
+            "redis://:{}@{}:{}/",
+            crate::http_utils::url_encode_component(&password),
+            redis_host,
+            redis_port
+        )
+    } else {
+        format!("redis://{}:{}/", redis_host, redis_port)
+    }
 }
 
 fn traffic_user_id_from_env() -> String {
@@ -204,6 +218,20 @@ fn env_path(name: &str, fallback: &str) -> PathBuf {
         .ok()
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(fallback))
+}
+
+fn env_optional_path(name: &str) -> Option<PathBuf> {
+    env::var(name)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+}
+
+fn default_sqlite_path(gateway_config_dir: &Path) -> PathBuf {
+    gateway_config_dir
+        .join(SQLITE_STORAGE_DIR)
+        .join(SQLITE_FILE_NAME)
 }
 
 fn default_data_dir() -> String {
@@ -441,6 +469,81 @@ mod tests {
 
                 assert_eq!(settings.admin_view_port, None);
                 assert_eq!(settings.admin_view_host, "127.0.0.2");
+            },
+        );
+    }
+
+    #[test]
+    fn sqlite_default_path_uses_gateway_config_dir() {
+        with_env_vars(
+            &[
+                "FN_KNOCK_DATA_DIR",
+                "FN_KNOCK_GATEWAY_CONFIG_DIR",
+                "GATEWAY_CONFIG_DIR",
+                "FN_KNOCK_SQLITE_PATH",
+            ],
+            |env| {
+                env.set("FN_KNOCK_DATA_DIR", "/tmp/fn-knock-runtime");
+                env.set("FN_KNOCK_GATEWAY_CONFIG_DIR", "/usr/local/etc/fn-knock");
+                env.set("GATEWAY_CONFIG_DIR", "/ignored/gateway");
+                env.remove("FN_KNOCK_SQLITE_PATH");
+
+                let settings = Settings::from_env();
+
+                assert_eq!(
+                    settings.sqlite_path,
+                    PathBuf::from("/usr/local/etc/fn-knock/storage/fn-knock.sqlite3")
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn sqlite_default_path_falls_back_to_gateway_config_dir_env() {
+        with_env_vars(
+            &[
+                "FN_KNOCK_DATA_DIR",
+                "FN_KNOCK_GATEWAY_CONFIG_DIR",
+                "GATEWAY_CONFIG_DIR",
+                "FN_KNOCK_SQLITE_PATH",
+            ],
+            |env| {
+                env.set("FN_KNOCK_DATA_DIR", "/tmp/fn-knock-runtime");
+                env.remove("FN_KNOCK_GATEWAY_CONFIG_DIR");
+                env.set("GATEWAY_CONFIG_DIR", "/etc/fn-knock/gateway");
+                env.remove("FN_KNOCK_SQLITE_PATH");
+
+                let settings = Settings::from_env();
+
+                assert_eq!(
+                    settings.sqlite_path,
+                    PathBuf::from("/etc/fn-knock/gateway/storage/fn-knock.sqlite3")
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn sqlite_path_override_uses_explicit_path() {
+        with_env_vars(
+            &[
+                "FN_KNOCK_DATA_DIR",
+                "FN_KNOCK_GATEWAY_CONFIG_DIR",
+                "GATEWAY_CONFIG_DIR",
+                "FN_KNOCK_SQLITE_PATH",
+            ],
+            |env| {
+                env.set("FN_KNOCK_DATA_DIR", "/tmp/fn-knock-runtime");
+                env.set("FN_KNOCK_GATEWAY_CONFIG_DIR", "/usr/local/etc/fn-knock");
+                env.remove("GATEWAY_CONFIG_DIR");
+                env.set("FN_KNOCK_SQLITE_PATH", "/custom/fn-knock.sqlite3");
+
+                let settings = Settings::from_env();
+
+                assert_eq!(
+                    settings.sqlite_path,
+                    PathBuf::from("/custom/fn-knock.sqlite3")
+                );
             },
         );
     }

@@ -44,6 +44,7 @@ thiserror = "2.0"
 time = { version = "0.3.53", features = ["formatting", "local-offset", "parsing", "serde"] }
 tokio = { version = "1.48", features = ["fs", "io-util", "macros", "net", "process", "rt-multi-thread", "signal", "time"] }
 tokio-stream = "0.1"
+tokio-rusqlite = { version = "0.7", features = ["bundled", "serde_json"] }
 tonic = { version = "0.12", default-features = false, features = ["channel", "codegen", "prost"] }
 prost = "0.13"
 totp-rs = { version = "5.7.2", features = ["gen_secret"] }

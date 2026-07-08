@@ -484,7 +484,7 @@
       "certDeleteFailed": "删除 SSL 证书失败",
       "certClearFailed": "清空 SSL 证书配置失败"
     },
-    "redis": {
+    "store": {
       "defaultCredential": "默认凭据",
       "certificateLabels": {
         "acme": "ACME 证书",
@@ -1227,7 +1227,7 @@
       "archivePasswordInvalid": "备份归档密码校验失败",
       "readArchiveFailed": "读取 .knock 备份归档失败",
       "payloadUtf8Invalid": "备份文件内容不是有效的 UTF-8 文本",
-      "writeRedisFailed": "写入 Redis 备份数据失败",
+      "writeRedisFailed": "写入存储备份数据失败",
       "unknownError": "未知错误",
       "syncSteps": {
         "runModeGatewayRoutes": "运行模式与网关路由",
@@ -3425,7 +3425,7 @@
       "certDeleteFailed": "刪除 SSL 證書失敗",
       "certClearFailed": "清空 SSL 證書配置失敗"
     },
-    "redis": {
+    "store": {
       "defaultCredential": "默認憑據",
       "certificateLabels": {
         "acme": "ACME 證書",
@@ -4168,7 +4168,7 @@
       "archivePasswordInvalid": "備份歸檔密碼校驗失敗",
       "readArchiveFailed": "讀取 .knock 備份歸檔失敗",
       "payloadUtf8Invalid": "備份文件內容不是有效的 UTF-8 文字",
-      "writeRedisFailed": "寫入 Redis 備份數據失敗",
+      "writeRedisFailed": "寫入儲存備份數據失敗",
       "unknownError": "未知錯誤",
       "syncSteps": {
         "runModeGatewayRoutes": "運行模式與網關路由",
@@ -6366,7 +6366,7 @@
       "certDeleteFailed": "Failed to delete SSL certificate",
       "certClearFailed": "Failed to clear SSL certificate configuration"
     },
-    "redis": {
+    "store": {
       "defaultCredential": "Default credential",
       "certificateLabels": {
         "acme": "ACME certificate",
@@ -7109,7 +7109,7 @@
       "archivePasswordInvalid": "Backup archive password verification failed",
       "readArchiveFailed": "Failed to read .knock backup archive",
       "payloadUtf8Invalid": "Backup file content is not valid UTF-8 text",
-      "writeRedisFailed": "Failed to write Redis backup data",
+      "writeRedisFailed": "Failed to write backup data to storage",
       "unknownError": "Unknown error",
       "syncSteps": {
         "runModeGatewayRoutes": "Run mode and gateway routes",
@@ -9307,7 +9307,7 @@
       "certDeleteFailed": "SSL 인증서 삭제에 실패했습니다.",
       "certClearFailed": "SSL 인증서 구성 초기화에 실패했습니다."
     },
-    "redis": {
+    "store": {
       "defaultCredential": "기본 자격 증명",
       "certificateLabels": {
         "acme": "ACME 인증서",
@@ -10050,7 +10050,7 @@
       "archivePasswordInvalid": "백업 아카이브 비밀번호 확인에 실패했습니다.",
       "readArchiveFailed": ".knock 백업 아카이브를 읽지 못했습니다.",
       "payloadUtf8Invalid": "백업 파일 콘텐츠가 유효한 UTF-8 텍스트가 아닙니다.",
-      "writeRedisFailed": "Redis 백업 데이터를 쓰지 못했습니다.",
+      "writeRedisFailed": "스토리지에 백업 데이터를 쓰지 못했습니다.",
       "unknownError": "알 수 없는 오류",
       "syncSteps": {
         "runModeGatewayRoutes": "실행 모드 및 게이트웨이 경로",
@@ -12248,7 +12248,7 @@
       "certDeleteFailed": "SSL 証明書の削除に失敗しました",
       "certClearFailed": "SSL 証明書設定のクリアに失敗しました"
     },
-    "redis": {
+    "store": {
       "defaultCredential": "デフォルトの認証情報",
       "certificateLabels": {
         "acme": "ACME 証明書",
@@ -12991,7 +12991,7 @@
       "archivePasswordInvalid": "バックアップ アーカイブのパスワード検証に失敗しました",
       "readArchiveFailed": ".knock バックアップ アーカイブの読み取りに失敗しました",
       "payloadUtf8Invalid": "バックアップ ファイルの内容は有効な UTF-8 テキストではありません",
-      "writeRedisFailed": "Redis バックアップ データの書き込みに失敗しました",
+      "writeRedisFailed": "ストレージへのバックアップ データの書き込みに失敗しました",
       "unknownError": "不明なエラー",
       "syncSteps": {
         "runModeGatewayRoutes": "動作モードとゲートウェイルーティング",

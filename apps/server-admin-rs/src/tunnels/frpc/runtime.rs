@@ -49,7 +49,7 @@ pub(super) async fn reconcile_runtime(
     state: &AppState,
     meta: &FrpcInstanceMeta,
 ) -> FrpcResult<(FrpcInstanceRuntime, bool, bool)> {
-    let runtime = read_runtime(&state.redis, &meta.id).await?;
+    let runtime = read_runtime(&state.store, &meta.id).await?;
     let original_runtime = runtime.clone();
     let pid = read_candidate_pid(meta, &runtime).await;
     let attached = if let Some(pid) = pid {
@@ -60,7 +60,7 @@ pub(super) async fn reconcile_runtime(
     if let Some(pid) = pid {
         let next = merge_detected_frpc_runtime(runtime, pid);
         if should_persist_detected_runtime(&original_runtime, &next) {
-            write_runtime(&state.redis, &meta.id, &next).await?;
+            write_runtime(&state.store, &meta.id, &next).await?;
         }
         write_pid_file(&pid_path_for_meta(meta), pid).await;
         return Ok((next, true, attached));
@@ -76,7 +76,7 @@ pub(super) async fn reconcile_runtime(
         if next.last_message.is_none() {
             next.last_message = Some("frpc pid is no longer running".to_string());
         }
-        write_runtime(&state.redis, &meta.id, &next).await?;
+        write_runtime(&state.store, &meta.id, &next).await?;
         return Ok((next, false, false));
     }
     Ok((runtime, false, false))
@@ -201,10 +201,10 @@ pub(super) async fn start_instance_inner(state: &AppState, id: &str) -> FrpcResu
     let current = build_status(state, &meta).await?;
     if current.running {
         if let Some(pid) = current.pid {
-            let mut runtime = read_runtime(&state.redis, &meta.id).await?;
+            let mut runtime = read_runtime(&state.store, &meta.id).await?;
             runtime.desired_running = true;
             runtime.pid = Some(pid);
-            write_runtime(&state.redis, &meta.id, &runtime).await?;
+            write_runtime(&state.store, &meta.id, &runtime).await?;
             return Ok(pid);
         }
     }
@@ -234,7 +234,7 @@ pub(super) async fn start_instance_inner(state: &AppState, id: &str) -> FrpcResu
     ATTACHED_PIDS.lock().await.insert(meta.id.clone(), pid);
     write_pid_file(&pid_path_for_meta(&meta), pid).await;
     write_runtime(
-        &state.redis,
+        &state.store,
         &meta.id,
         &FrpcInstanceRuntime {
             desired_running: true,
@@ -303,14 +303,14 @@ pub(super) fn spawn_exit_watcher(
             Ok(_) => format!("frpc exited with code {code}"),
             Err(error) => format!("frpc process error: {error}"),
         };
-        let mut runtime = read_runtime(&state.redis, &meta.id)
+        let mut runtime = read_runtime(&state.store, &meta.id)
             .await
             .unwrap_or_else(|_| default_runtime());
         runtime.pid = None;
         runtime.stopped_at = Some(time_utils::now_iso());
         runtime.last_exit_code = Some(code);
         runtime.last_message = Some(message.clone());
-        let _ = write_runtime(&state.redis, &meta.id, &runtime).await;
+        let _ = write_runtime(&state.store, &meta.id, &runtime).await;
         let _ = append_logs(&state, &meta, &[message]).await;
         if !expected_stop {
             let exit_message = runtime.last_message.as_deref();
@@ -343,7 +343,7 @@ pub(super) async fn stop_instance_inner(state: &AppState, id: &str) -> FrpcResul
     }
     ATTACHED_PIDS.lock().await.remove(&meta.id);
     remove_pid_file(&pid_path_for_meta(&meta)).await;
-    let mut runtime = read_runtime(&state.redis, &meta.id).await?;
+    let mut runtime = read_runtime(&state.store, &meta.id).await?;
     runtime.desired_running = false;
     runtime.pid = None;
     runtime.stopped_at = Some(time_utils::now_iso());
@@ -353,7 +353,7 @@ pub(super) async fn stop_instance_inner(state: &AppState, id: &str) -> FrpcResul
             .map(|pid| format!("frpc stopped pid={pid}"))
             .unwrap_or_else(|| "frpc already stopped".to_string()),
     );
-    write_runtime(&state.redis, &meta.id, &runtime).await?;
+    write_runtime(&state.store, &meta.id, &runtime).await?;
     if let Some(pid) = status.pid {
         append_logs(state, &meta, &[format!("frpc stopped pid={pid}")]).await?;
     }
@@ -371,14 +371,14 @@ pub(super) async fn list_logs_inner(
 ) -> FrpcResult<Vec<String>> {
     let meta = get_meta_or_error(state, id).await?;
     Ok(state
-        .redis
+        .store
         .list_log_buffer(&log_key(&meta.id), limit, log_max_len(&meta.id))
         .await?)
 }
 
 pub(super) async fn clear_logs_inner(state: &AppState, id: &str) -> FrpcResult<()> {
     let meta = get_meta_or_error(state, id).await?;
-    state.redis.clear_log_buffer(&log_key(&meta.id)).await?;
+    state.store.clear_log_buffer(&log_key(&meta.id)).await?;
     Ok(())
 }
 
@@ -389,7 +389,7 @@ pub(super) async fn poll_inner(
 ) -> FrpcResult<Value> {
     let meta = get_meta_or_error(state, id).await?;
     let logs = state
-        .redis
+        .store
         .poll_log_buffer(&log_key(&meta.id), cursor)
         .await?;
     let status = build_status(state, &meta).await?;
@@ -412,7 +412,7 @@ pub(super) async fn append_logs(
         .filter(|line| !line.is_empty())
         .collect::<Vec<_>>();
     state
-        .redis
+        .store
         .append_log_buffer(
             &log_key(&meta.id),
             &normalized,
@@ -531,9 +531,9 @@ pub(super) async fn restore_on_boot(state: &AppState) -> FrpcResult<()> {
     let had_runtime = has_any_runtime_data(state).await?;
     ensure_primary_instance(state).await?;
     if !had_runtime && should_resume_tunnel(state).await {
-        let mut runtime = read_runtime(&state.redis, FRPC_PRIMARY_INSTANCE_ID).await?;
+        let mut runtime = read_runtime(&state.store, FRPC_PRIMARY_INSTANCE_ID).await?;
         runtime.desired_running = true;
-        write_runtime(&state.redis, FRPC_PRIMARY_INSTANCE_ID, &runtime).await?;
+        write_runtime(&state.store, FRPC_PRIMARY_INSTANCE_ID, &runtime).await?;
     }
     let metas = all_metas(state).await?;
     for meta in metas {
@@ -551,9 +551,9 @@ pub(super) async fn restore_on_boot(state: &AppState) -> FrpcResult<()> {
 }
 
 pub(super) async fn has_any_runtime_data(state: &AppState) -> FrpcResult<bool> {
-    for id in read_instance_ids(&state.redis).await? {
+    for id in read_instance_ids(&state.store).await? {
         if state
-            .redis
+            .store
             .get_json_value(&instance_key(&id, "runtime"))
             .await?
             .is_some()
@@ -593,7 +593,7 @@ pub(super) async fn mark_tunnel_running(state: &AppState) {
         Value::String(time_utils::now_iso()),
     );
     let _ = state
-        .redis
+        .store
         .set_json_value(TUNNEL_RUNTIME_KEY, &Value::Object(object))
         .await;
 }
@@ -611,7 +611,7 @@ pub(super) async fn mark_tunnel_stopped(state: &AppState) {
             Value::String(time_utils::now_iso()),
         );
         let _ = state
-            .redis
+            .store
             .set_json_value(TUNNEL_RUNTIME_KEY, &Value::Object(object))
             .await;
     }
@@ -619,7 +619,7 @@ pub(super) async fn mark_tunnel_stopped(state: &AppState) {
 
 pub(super) async fn load_tunnel_state(state: &AppState) -> serde_json::Map<String, Value> {
     let Some(raw) = state
-        .redis
+        .store
         .get_json_value(TUNNEL_RUNTIME_KEY)
         .await
         .ok()

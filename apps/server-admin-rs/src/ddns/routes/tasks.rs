@@ -1,7 +1,7 @@
 use super::*;
 
 pub(super) async fn ddns_update_interval_minutes(state: &AppState) -> anyhow::Result<i64> {
-    let raw = state.redis.get_string_value(DDNS_SETTINGS).await?;
+    let raw = state.store.get_string_value(DDNS_SETTINGS).await?;
     Ok(parse_settings(raw.as_deref())
         .get("updateIntervalMinutes")
         .and_then(Value::as_i64)
@@ -15,14 +15,14 @@ pub(super) async fn run_automatic_ddns_check(
     emit_skip_log: bool,
     emit_noop_log: bool,
 ) -> anyhow::Result<()> {
-    if state.redis.get_string_value(DDNS_ENABLED).await?.as_deref() != Some("true") {
+    if state.store.get_string_value(DDNS_ENABLED).await?.as_deref() != Some("true") {
         return Ok(());
     }
 
     let lock_key = format!("fn_knock:lock:{DDNS_UPDATE_LOCK_NAME}");
     let lock_id = Uuid::new_v4().to_string();
     let acquired = state
-        .redis
+        .store
         .set_json_value_nx_ex(
             &lock_key,
             &json!({ "lockId": lock_id, "createdAt": time_utils::now_iso() }),
@@ -36,7 +36,7 @@ pub(super) async fn run_automatic_ddns_check(
     let translator = Translator::from_state(state).await;
     let result = async {
         let targets = list_targets(state).await?;
-        let settings_raw = state.redis.get_string_value(DDNS_SETTINGS).await?;
+        let settings_raw = state.store.get_string_value(DDNS_SETTINGS).await?;
         let settings = parse_settings(settings_raw.as_deref());
         for target in targets
             .into_iter()
@@ -65,7 +65,7 @@ pub(super) async fn run_automatic_ddns_check(
                 tracing::warn!(target_id = %target.meta.id, %error, "automatic DDNS target check failed");
             }
             if let Err(error) = state
-                .redis
+                .store
                 .set_json_lock_if_owned_ex(
                     &lock_key,
                     &lock_id,
@@ -81,7 +81,7 @@ pub(super) async fn run_automatic_ddns_check(
     }
     .await;
 
-    if let Err(error) = state.redis.delete_lock_if_owned(&lock_key, &lock_id).await {
+    if let Err(error) = state.store.delete_lock_if_owned(&lock_key, &lock_id).await {
         tracing::warn!(%error, "failed to release DDNS update lock");
     }
     result
@@ -1147,7 +1147,7 @@ pub(super) async fn append_target_log(
         "isPrimary": target.meta.is_primary
     });
     state
-        .redis
+        .store
         .append_log_buffer(
             DDNS_LOGS,
             &[serde_json::to_string(&entry)?],
@@ -1194,12 +1194,12 @@ pub(super) async fn set_target_last_check(
         ("message".to_string(), message.to_string()),
     ]);
     state
-        .redis
+        .store
         .replace_hash_string_map(&target_last_check_key(&target.meta.id), &payload)
         .await?;
     if target.meta.is_primary {
         state
-            .redis
+            .store
             .replace_hash_string_map(DDNS_LEGACY_LAST_CHECK, &payload)
             .await?;
     }
@@ -1227,12 +1227,12 @@ pub(super) async fn set_target_last_ip(
     }
     payload.insert("updated_at".to_string(), time_utils::now_iso());
     state
-        .redis
+        .store
         .replace_hash_string_map(&target_last_ip_key(&target.meta.id), &payload)
         .await?;
     if target.meta.is_primary {
         state
-            .redis
+            .store
             .replace_hash_string_map(DDNS_LEGACY_LAST_IP, &payload)
             .await?;
     }

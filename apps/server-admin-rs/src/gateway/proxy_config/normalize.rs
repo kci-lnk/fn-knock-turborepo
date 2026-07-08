@@ -11,7 +11,7 @@ pub(super) fn ensure_go_success(value: Value) -> Result<(), String> {
 }
 
 pub(super) async fn rollback_proxy_mappings(state: &AppState, previous_config: &Value) {
-    if let Err(error) = state.redis.save_config(previous_config).await {
+    if let Err(error) = state.store.save_config(previous_config).await {
         tracing::warn!(%error, "failed to rollback proxy mappings config");
         return;
     }
@@ -25,7 +25,7 @@ pub(super) async fn rollback_proxy_mappings(state: &AppState, previous_config: &
 }
 
 pub(super) async fn rollback_host_mappings(state: &AppState, previous_config: &Value) {
-    if let Err(error) = state.redis.save_config(previous_config).await {
+    if let Err(error) = state.store.save_config(previous_config).await {
         tracing::warn!(%error, "failed to rollback host mappings config");
         return;
     }
@@ -41,7 +41,7 @@ pub(super) async fn rollback_host_mappings(state: &AppState, previous_config: &V
 }
 
 pub(super) async fn rollback_stream_mappings(state: &AppState, previous_config: &Value) {
-    if let Err(error) = state.redis.save_config(previous_config).await {
+    if let Err(error) = state.store.save_config(previous_config).await {
         tracing::warn!(%error, "failed to rollback stream mappings config");
         return;
     }
@@ -51,7 +51,7 @@ pub(super) async fn rollback_stream_mappings(state: &AppState, previous_config: 
 }
 
 pub(super) async fn rollback_subdomain_mode(state: &AppState, previous_config: &Value) {
-    if let Err(error) = state.redis.save_config(previous_config).await {
+    if let Err(error) = state.store.save_config(previous_config).await {
         tracing::warn!(%error, "failed to rollback subdomain mode config");
         return;
     }

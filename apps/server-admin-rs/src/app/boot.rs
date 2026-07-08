@@ -109,11 +109,11 @@ pub(crate) async fn cleanup_legacy_auth_log_storage(state: &AppState) -> anyhow:
     const REF_PREFIX: &str = "fn_knock:ip_location:refs:";
     const LEGACY_REF_PREFIX: &str = "auth-log|";
 
-    if state.redis.get_string_value(STATE_KEY).await?.as_deref() == Some("done") {
+    if state.store.get_string_value(STATE_KEY).await?.as_deref() == Some("done") {
         return Ok(());
     }
     if !state
-        .redis
+        .store
         .set_key_if_not_exists_with_ttl(LOCK_KEY, &time_utils::now_ms().to_string(), 3600)
         .await?
     {
@@ -122,37 +122,37 @@ pub(crate) async fn cleanup_legacy_auth_log_storage(state: &AppState) -> anyhow:
 
     let cleanup_result = async {
         state
-            .redis
+            .store
             .set_string_value_with_optional_ttl(STATE_KEY, "running", Some(3600))
             .await?;
-        let data_keys = state.redis.scan_keys(DATA_PREFIX, 200).await?;
+        let data_keys = state.store.scan_keys(DATA_PREFIX, 200).await?;
         for chunk in data_keys.chunks(200) {
-            state.redis.delete_keys(chunk).await?;
+            state.store.delete_keys(chunk).await?;
         }
-        state.redis.delete_key(INDEX_KEY).await?;
+        state.store.delete_key(INDEX_KEY).await?;
 
-        let ref_keys = state.redis.scan_keys(REF_PREFIX, 200).await?;
+        let ref_keys = state.store.scan_keys(REF_PREFIX, 200).await?;
         for key in ref_keys {
-            let members = state.redis.smembers_strings(&key).await?;
+            let members = state.store.smembers_strings(&key).await?;
             let legacy_members = members
                 .into_iter()
                 .filter(|member| member.starts_with(LEGACY_REF_PREFIX))
                 .collect::<Vec<_>>();
             state
-                .redis
+                .store
                 .srem_string_members(&key, &legacy_members)
                 .await?;
         }
-        state.redis.set_string_value(STATE_KEY, "done").await
+        state.store.set_string_value(STATE_KEY, "done").await
     }
     .await;
 
-    let _ = state.redis.delete_key(LOCK_KEY).await;
+    let _ = state.store.delete_key(LOCK_KEY).await;
     cleanup_result.map_err(Into::into)
 }
 
 async fn sync_locale_config_on_boot(state: &AppState) {
-    let config = match state.redis.get_config().await {
+    let config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config for locale boot sync");

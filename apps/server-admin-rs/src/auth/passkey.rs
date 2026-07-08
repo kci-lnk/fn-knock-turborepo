@@ -75,7 +75,7 @@ fn passkey_text_params(translator: &Translator, key: &str, params: &[(&str, Stri
 
 async fn status(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let translator = Translator::from_state(&state).await;
-    let config = match state.redis.get_config().await {
+    let config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config for passkey status");
@@ -86,7 +86,7 @@ async fn status(State(state): State<AppState>, headers: HeaderMap) -> Response {
         }
     };
     let passkey_count = state
-        .redis
+        .store
         .get_passkeys()
         .await
         .map(|items| items.len())
@@ -104,7 +104,7 @@ async fn status(State(state): State<AppState>, headers: HeaderMap) -> Response {
 
 async fn auth_options(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let translator = Translator::from_state(&state).await;
-    let config = match state.redis.get_config().await {
+    let config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config for passkey auth options");
@@ -114,7 +114,7 @@ async fn auth_options(State(state): State<AppState>, headers: HeaderMap) -> Resp
             ));
         }
     };
-    let passkeys = match state.redis.get_passkeys().await {
+    let passkeys = match state.store.get_passkeys().await {
         Ok(passkeys) => passkeys,
         Err(error) => {
             tracing::warn!(%error, "failed to load passkeys");
@@ -165,7 +165,7 @@ async fn auth_options(State(state): State<AppState>, headers: HeaderMap) -> Resp
     };
     let challenge = URL_SAFE_NO_PAD.encode(&options.public_key.challenge);
     if let Err(error) = state
-        .redis
+        .store
         .set_passkey_challenge(&challenge, "auth", PASSKEY_CHALLENGE_TTL_SECONDS)
         .await
     {
@@ -183,7 +183,7 @@ async fn auth_options(State(state): State<AppState>, headers: HeaderMap) -> Resp
         "mode": rp_info.mode
     });
     if let Err(error) = state
-        .redis
+        .store
         .set_passkey_state(&challenge, &state_json, PASSKEY_CHALLENGE_TTL_SECONDS)
         .await
     {
@@ -205,7 +205,7 @@ async fn auth_verify(
     let translator = Translator::from_state(&state).await;
     let client_ip = client_ip_for_auth(&headers);
     let tracking_ip = normalize_auth_failure_tracking_ip(&client_ip);
-    match state.redis.get_login_backoff_status(&tracking_ip).await {
+    match state.store.get_login_backoff_status(&tracking_ip).await {
         Ok(status) if status.blocked => {
             let retry_after = status.retry_after.unwrap_or(1).max(1);
             return with_auth_headers(passkey_backoff_response(
@@ -243,7 +243,7 @@ async fn auth_verify(
         }
     };
     match state
-        .redis
+        .store
         .consume_passkey_challenge(&challenge, "auth")
         .await
     {
@@ -262,7 +262,7 @@ async fn auth_verify(
             ));
         }
     }
-    let mut state_json = match state.redis.consume_passkey_state(&challenge).await {
+    let mut state_json = match state.store.consume_passkey_state(&challenge).await {
         Ok(Some(value)) => value,
         Ok(None) => {
             return with_auth_headers(response::error(
@@ -294,7 +294,7 @@ async fn auth_verify(
             }
         };
 
-    let passkeys = match state.redis.get_passkeys().await {
+    let passkeys = match state.store.get_passkeys().await {
         Ok(passkeys) => passkeys,
         Err(error) => {
             tracing::warn!(%error, "failed to load passkeys for verification");
@@ -373,7 +373,7 @@ async fn auth_verify(
         }
     };
 
-    let config = match state.redis.get_config().await {
+    let config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config after passkey verification");
@@ -384,7 +384,7 @@ async fn auth_verify(
         }
     };
     let totp_credential = state
-        .redis
+        .store
         .get_totps()
         .await
         .ok()
@@ -423,7 +423,7 @@ async fn auth_verify(
         ));
     }
     if let Err(error) = state
-        .redis
+        .store
         .update_passkey_counter(
             &credential.id,
             auth_result.counter(),
@@ -435,7 +435,7 @@ async fn auth_verify(
     {
         tracing::warn!(%error, id = %credential.id, "failed to update passkey counter");
     }
-    if let Err(error) = state.redis.reset_login_backoff(&tracking_ip).await {
+    if let Err(error) = state.store.reset_login_backoff(&tracking_ip).await {
         tracing::warn!(%error, %tracking_ip, "failed to reset passkey login backoff");
     }
 
@@ -482,7 +482,7 @@ async fn bind_token(State(state): State<AppState>, headers: HeaderMap) -> Respon
             passkey_text(&translator, "unauthorizedOrMissingTotp"),
         ));
     };
-    let session = match state.redis.get_session(&session_id).await {
+    let session = match state.store.get_session(&session_id).await {
         Ok(Some(session)) => session,
         Ok(None) => {
             return with_auth_headers(response::error(
@@ -550,7 +550,7 @@ async fn register_options(
     Json(body): Json<RegisterOptionsBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.redis.is_passkey_bind_token_valid(&body.token).await {
+    match state.store.is_passkey_bind_token_valid(&body.token).await {
         Ok(true) => {}
         Ok(false) => {
             return with_auth_headers(response::error(
@@ -566,7 +566,7 @@ async fn register_options(
             ));
         }
     }
-    let config = match state.redis.get_config().await {
+    let config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config for passkey registration");
@@ -576,7 +576,7 @@ async fn register_options(
             ));
         }
     };
-    let passkeys = match state.redis.get_passkeys().await {
+    let passkeys = match state.store.get_passkeys().await {
         Ok(passkeys) => passkeys,
         Err(error) => {
             tracing::warn!(%error, "failed to load passkeys for registration");
@@ -622,7 +622,7 @@ async fn register_options(
     };
     let challenge = URL_SAFE_NO_PAD.encode(&options.public_key.challenge);
     if let Err(error) = state
-        .redis
+        .store
         .set_passkey_challenge(&challenge, "register", PASSKEY_CHALLENGE_TTL_SECONDS)
         .await
     {
@@ -640,7 +640,7 @@ async fn register_options(
         "mode": rp_info.mode
     });
     if let Err(error) = state
-        .redis
+        .store
         .set_passkey_state(&challenge, &state_json, PASSKEY_CHALLENGE_TTL_SECONDS)
         .await
     {
@@ -659,7 +659,7 @@ async fn register_verify(
     Json(body): Json<RegisterVerifyBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let totp_id = match state.redis.consume_passkey_bind_token(&body.token).await {
+    let totp_id = match state.store.consume_passkey_bind_token(&body.token).await {
         Ok(Some(value)) if !value.trim().is_empty() => value,
         Ok(_) => {
             return with_auth_headers(response::error(
@@ -685,7 +685,7 @@ async fn register_verify(
         }
     };
     match state
-        .redis
+        .store
         .consume_passkey_challenge(&challenge, "register")
         .await
     {
@@ -704,7 +704,7 @@ async fn register_verify(
             ));
         }
     }
-    let state_json = match state.redis.consume_passkey_state(&challenge).await {
+    let state_json = match state.store.consume_passkey_state(&challenge).await {
         Ok(Some(value)) => value,
         Ok(None) => {
             return with_auth_headers(response::error(
@@ -782,7 +782,7 @@ async fn register_verify(
         };
     let stored_credential: Credential = security_key.into();
     let id = URL_SAFE_NO_PAD.encode(&stored_credential.cred_id);
-    let passkeys = match state.redis.get_passkeys().await {
+    let passkeys = match state.store.get_passkeys().await {
         Ok(passkeys) => passkeys,
         Err(error) => {
             tracing::warn!(%error, "failed to inspect passkeys after registration");
@@ -830,7 +830,7 @@ async fn register_verify(
         "createdAt": time_utils::now_iso(),
         "webauthnCredential": stored_credential
     });
-    if let Err(error) = state.redis.add_passkey(&passkey).await {
+    if let Err(error) = state.store.add_passkey(&passkey).await {
         tracing::warn!(%error, "failed to store registered passkey");
         return with_auth_headers(response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -846,7 +846,7 @@ pub(crate) async fn public_passkey_status(
     config: &Value,
 ) -> Value {
     let passkey_count = state
-        .redis
+        .store
         .get_passkeys()
         .await
         .map(|items| items.len())
@@ -871,7 +871,7 @@ pub(crate) async fn build_passkey_bind_info(
     state: &AppState,
     totp_id: &str,
 ) -> anyhow::Result<Value> {
-    let passkeys = state.redis.get_passkeys().await?;
+    let passkeys = state.store.get_passkeys().await?;
     let credential_ids = passkeys
         .iter()
         .filter(|passkey| passkey.get("totpId").and_then(Value::as_str) == Some(totp_id))
@@ -883,7 +883,7 @@ pub(crate) async fn build_passkey_bind_info(
         })
         .collect::<Vec<_>>();
     let token = state
-        .redis
+        .store
         .create_passkey_bind_token(totp_id, PASSKEY_BIND_TTL_SECONDS)
         .await?;
     Ok(json!({
@@ -897,7 +897,7 @@ pub(crate) async fn build_passkey_bind_info(
 
 async fn linked_totp_name(state: &AppState, totp_id: &str) -> Option<String> {
     state
-        .redis
+        .store
         .get_totps()
         .await
         .ok()?
@@ -920,7 +920,7 @@ async fn register_passkey_failure(
     status: StatusCode,
 ) -> Response {
     match state
-        .redis
+        .store
         .register_login_backoff_failure(tracking_ip)
         .await
     {
@@ -1303,7 +1303,7 @@ fn public_auth_base_host(config: &Value) -> String {
 }
 
 async fn configured_rp_host(state: &AppState) -> Option<String> {
-    let hosts = state.redis.get_json_value(CA_HOSTS_KEY).await.ok()??;
+    let hosts = state.store.get_json_value(CA_HOSTS_KEY).await.ok()??;
     hosts
         .as_array()?
         .iter()

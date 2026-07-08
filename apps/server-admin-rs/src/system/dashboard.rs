@@ -14,9 +14,9 @@ use tokio::time::{MissedTickBehavior, interval};
 
 use crate::{
     i18n::Translator,
-    redis_store::{TrafficDeltaPoint, TrafficSnapshotRecord},
     response,
     state::AppState,
+    store::{TrafficDeltaPoint, TrafficSnapshotRecord},
     time_utils,
 };
 
@@ -77,19 +77,19 @@ async fn stats(
 
     let result = tokio::try_join!(
         state
-            .redis
+            .store
             .list_traffic_points(&user_id, "in", from_sec, now_sec, host_ref),
         state
-            .redis
+            .store
             .list_traffic_points(&user_id, "out", from_sec, now_sec, host_ref),
         state
-            .redis
+            .store
             .list_error5xx_points(&user_id, from_sec, now_sec, host_ref),
         state
-            .redis
+            .store
             .list_error5xx_points(&user_id, now_sec - 24 * 3600, now_sec, host_ref),
         state
-            .redis
+            .store
             .list_error5xx_points(&user_id, now_sec - 7 * 24 * 3600, now_sec, host_ref)
     );
 
@@ -284,7 +284,7 @@ async fn active_ips(
 
 async fn get_dashboard_display(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.redis.get_config().await {
+    match state.store.get_config().await {
         Ok(config) => response::ok(normalize_dashboard_display(config.get("dashboard_display")))
             .into_response(),
         Err(error) => {
@@ -302,7 +302,7 @@ async fn update_dashboard_display(
     Json(body): Json<Value>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let mut config = match state.redis.get_config().await {
+    let mut config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load dashboard display config before update");
@@ -322,7 +322,7 @@ async fn update_dashboard_display(
     }
     ensure_object(&mut config).insert("dashboard_display".to_string(), next.clone());
 
-    if let Err(error) = state.redis.save_config(&config).await {
+    if let Err(error) = state.store.save_config(&config).await {
         tracing::warn!(%error, "failed to save dashboard display config");
         return response::error(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -359,7 +359,7 @@ async fn run_traffic_cleanup_loop(state: AppState) {
 
 async fn collect_traffic_once(state: &AppState) -> anyhow::Result<()> {
     let acquired = state
-        .redis
+        .store
         .set_lock_if_not_exists(
             "traffic-collect",
             state.settings.traffic_collect_lock_ttl_seconds,
@@ -372,7 +372,7 @@ async fn collect_traffic_once(state: &AppState) -> anyhow::Result<()> {
     let snapshot = fetch_traffic_stats(state).await?;
     let records = build_snapshot_records(&snapshot);
     state
-        .redis
+        .store
         .record_traffic_snapshot(
             &state.settings.traffic_user_id,
             &records,
@@ -385,7 +385,7 @@ async fn collect_traffic_once(state: &AppState) -> anyhow::Result<()> {
 
 async fn cleanup_traffic_once(state: &AppState) -> anyhow::Result<()> {
     let acquired = state
-        .redis
+        .store
         .set_lock_if_not_exists(
             "traffic-cleanup",
             state.settings.traffic_cleanup_lock_ttl_seconds,
@@ -395,7 +395,7 @@ async fn cleanup_traffic_once(state: &AppState) -> anyhow::Result<()> {
         return Ok(());
     }
     let _ = state
-        .redis
+        .store
         .cleanup_traffic_metrics(state.settings.traffic_keep_seconds)
         .await?;
     Ok(())

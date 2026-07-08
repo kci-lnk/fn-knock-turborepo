@@ -32,7 +32,7 @@ pub fn backoff_routes() -> Router<AppState> {
 }
 
 async fn list(State(state): State<AppState>) -> Response {
-    match state.redis.list_blocked_login_backoffs().await {
+    match state.store.list_blocked_login_backoffs().await {
         Ok(items) => response::ok(items).into_response(),
         Err(error) => {
             let translator = Translator::from_state(&state).await;
@@ -56,7 +56,7 @@ async fn status(
             backoff_route_text(&translator, "ipRequired"),
         );
     };
-    match state.redis.get_login_backoff_status(&ip).await {
+    match state.store.get_login_backoff_status(&ip).await {
         Ok(status) => response::ok(status).into_response(),
         Err(error) => {
             tracing::warn!(%error, %ip, "failed to inspect login backoff status");
@@ -71,7 +71,7 @@ async fn status(
 async fn reset(State(state): State<AppState>, Json(body): Json<BackoffResetBody>) -> Response {
     let translator = Translator::from_state(&state).await;
     let ip = normalize_auth_failure_tracking_ip(&body.ip);
-    match state.redis.reset_login_backoff(&ip).await {
+    match state.store.reset_login_backoff(&ip).await {
         Ok(()) => response::ok(json!({})).into_response(),
         Err(error) => {
             tracing::warn!(%error, %ip, "failed to reset login backoff");

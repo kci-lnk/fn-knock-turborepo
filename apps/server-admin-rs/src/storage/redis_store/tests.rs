@@ -40,6 +40,106 @@ fn sorts_backup_strings_like_node_locale_compare() {
     assert_eq!(node_locale_compare_ordering("中", "z"), Ordering::Greater);
 }
 
+#[tokio::test]
+async fn backup_restore_roundtrips_stream_field_order_and_duplicates() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
+        .await
+        .expect("open store");
+    let entry = json!({
+        "key": "fn_knock:test:stream",
+        "type": "stream",
+        "ttl_ms": null,
+        "value": [
+            {
+                "id": "1-0",
+                "fields": ["z", "last", "a", "first", "z", "again"]
+            }
+        ]
+    });
+
+    let cleared = store
+        .replace_backup_entries_by_prefix("fn_knock:", &[entry], 200)
+        .await
+        .expect("restore entry");
+    assert_eq!(cleared, 0);
+
+    let exported = store
+        .export_backup_entry("fn_knock:test:stream")
+        .await
+        .expect("export entry")
+        .expect("entry exists");
+    assert_eq!(
+        exported["value"][0]["fields"],
+        json!(["z", "last", "a", "first", "z", "again"])
+    );
+}
+
+#[tokio::test]
+async fn poll_log_buffer_recovers_when_sequence_lags_existing_items() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
+        .await
+        .expect("open store");
+    let key = "fn_knock:test:logs";
+    let seq_key = format!("{key}:seq");
+    let mut conn = store.conn();
+    let _: () = redis::cmd("RPUSH")
+        .arg(key)
+        .arg("old")
+        .arg("middle")
+        .arg("latest")
+        .query_async(&mut conn)
+        .await
+        .expect("seed log list");
+    conn.set(&seq_key, 2).await.expect("seed stale seq");
+
+    let result = store
+        .poll_log_buffer(key, Some("2"))
+        .await
+        .expect("poll logs");
+
+    assert_eq!(result["cursor"], json!(3));
+    assert_eq!(result["reset"], json!(false));
+    assert_eq!(result["items"], json!(["latest"]));
+}
+
+#[tokio::test]
+async fn append_log_buffer_continues_sequence_from_existing_items_without_seq() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
+        .await
+        .expect("open store");
+    let key = "fn_knock:test:logs-without-seq";
+    let mut conn = store.conn();
+    let _: () = redis::cmd("RPUSH")
+        .arg(key)
+        .arg("old")
+        .query_async(&mut conn)
+        .await
+        .expect("seed log list without seq");
+
+    store
+        .append_log_buffer(key, &["new-1".to_string(), "new-2".to_string()], 60, 100)
+        .await
+        .expect("append logs");
+
+    let result = store
+        .poll_log_buffer(key, Some("1"))
+        .await
+        .expect("poll appended logs");
+    assert_eq!(result["cursor"], json!(3));
+    assert_eq!(result["reset"], json!(false));
+    assert_eq!(result["items"], json!(["new-1", "new-2"]));
+
+    let empty = store
+        .poll_log_buffer(key, Some("3"))
+        .await
+        .expect("poll after current cursor");
+    assert_eq!(empty["cursor"], json!(3));
+    assert_eq!(empty["items"], json!([]));
+}
+
 #[test]
 fn default_config_top_level_keys_match_node_default_config() {
     let config = default_config();

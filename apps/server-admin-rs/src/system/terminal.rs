@@ -33,9 +33,9 @@ use uuid::Uuid;
 
 use crate::{
     i18n::Translator,
-    redis_store::RedisStore,
     response, runtime_profile,
     state::AppState,
+    store::Store,
     terminal_paths::{is_terminal_runtime_cwd, normalize_terminal_default_cwd},
     time_utils::{iso_after_seconds, now_iso, now_ms, parse_iso_ms},
 };

@@ -510,7 +510,7 @@ async fn validate_share_link(
     let lock_key = validation_lock_key(share_id);
     let lock_token = hex::encode(rand::random::<[u8; 12]>());
     let acquired = state
-        .redis
+        .store
         .set_key_if_not_exists_with_ttl(
             &lock_key,
             &lock_token,
@@ -536,7 +536,7 @@ async fn validate_share_link(
         let _ = cache_validation(state, &cache_key, &fresh.data, config).await;
     }
     let _ = state
-        .redis
+        .store
         .delete_key_if_value(&lock_key, &lock_token)
         .await;
     fresh.data
@@ -618,7 +618,7 @@ async fn cache_validation(
     config: &ResolvedFnosShareConfig,
 ) -> anyhow::Result<()> {
     state
-        .redis
+        .store
         .set_json_value_ex(
             key,
             &serde_json::to_value(value).unwrap_or_else(|_| json!({})),
@@ -633,7 +633,7 @@ async fn get_cached_validation(
     key: &str,
 ) -> anyhow::Result<Option<ShareValidationCacheRecord>> {
     Ok(state
-        .redis
+        .store
         .get_json_value(key)
         .await?
         .and_then(|value| serde_json::from_value::<ShareValidationCacheRecord>(value).ok())
@@ -660,7 +660,7 @@ async fn get_share_session(
     session_id: &str,
 ) -> anyhow::Result<Option<ShareSessionRecord>> {
     Ok(state
-        .redis
+        .store
         .get_json_value(&share_session_key(session_id))
         .await?
         .and_then(|value| serde_json::from_value::<ShareSessionRecord>(value).ok())
@@ -680,7 +680,7 @@ async fn save_share_session(
     }
     next.last_seen_at = time_utils::now_iso();
     state
-        .redis
+        .store
         .set_json_value_ex(
             &share_session_key(session_id),
             &serde_json::to_value(next).unwrap_or_else(|_| json!({})),

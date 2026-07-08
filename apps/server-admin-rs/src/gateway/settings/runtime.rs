@@ -17,7 +17,7 @@ pub(crate) async fn sync_gateway_visibility_runtime_from_store(
     state: &AppState,
 ) -> Result<(), String> {
     let runtime = state
-        .redis
+        .store
         .get_json_value(GATEWAY_VISIBILITY_RUNTIME_KEY)
         .await
         .map_err(|error| error.to_string())?
@@ -97,21 +97,21 @@ pub(crate) async fn sync_gateway_target_runtime_for_config(
             host_response_compiled.config.clone(),
         );
         state
-            .redis
+            .store
             .save_config(&effective_config)
             .await
             .map_err(|error| error.to_string())?;
     }
 
     state
-        .redis
+        .store
         .set_json_value(GATEWAY_PROXY_HEADERS_RUNTIME_KEY, &proxy_compiled.runtime)
         .await
         .map_err(|error| error.to_string())?;
     sync_gateway_proxy_headers_runtime(state, &proxy_compiled.runtime).await?;
 
     state
-        .redis
+        .store
         .set_json_value(
             GATEWAY_HOST_RESPONSE_RUNTIME_KEY,
             &host_response_compiled.runtime,
@@ -274,7 +274,7 @@ pub(super) async fn apply_gateway_portal_host_rules_patch_if_needed(
         return Ok(false);
     }
     if state
-        .redis
+        .store
         .get_string_value(flag_key)
         .await
         .map_err(|error| error.to_string())?
@@ -293,7 +293,7 @@ pub(super) async fn apply_gateway_portal_host_rules_patch_if_needed(
             .map_err(|error| error.to_string())?,
     )?;
 
-    if let Err(error) = state.redis.set_string_value(flag_key, "1").await {
+    if let Err(error) = state.store.set_string_value(flag_key, "1").await {
         tracing::warn!(%error, %flag_key, "failed to mark gateway portal host-rules patch applied");
     }
     Ok(true)

@@ -13,7 +13,7 @@ pub(super) async fn bind_profile_and_resolve_login(
         .and_then(Value::as_str)
         .ok_or_else(|| oidc_text(translator, "bindStateInvalid"))?;
     let invite = state
-        .redis
+        .store
         .get_json_value(&format!("fn_knock:oidc:invite:{invite_hash}"))
         .await
         .map_err(|error| error.to_string())?
@@ -28,7 +28,7 @@ pub(super) async fn bind_profile_and_resolve_login(
         .and_then(Value::as_str)
         .ok_or_else(|| oidc_text(translator, "inviteTotpMissing"))?;
     let totps = state
-        .redis
+        .store
         .get_totps()
         .await
         .map_err(|error| error.to_string())?;
@@ -127,7 +127,7 @@ pub(super) async fn create_oidc_session_response(
         .get("totp_id")
         .and_then(Value::as_str)
         .unwrap_or("");
-    let totp_credentials = state.redis.get_totps().await?;
+    let totp_credentials = state.store.get_totps().await?;
     let totp_credential = totp_credentials
         .iter()
         .find(|totp| totp.id == totp_id)
@@ -166,7 +166,7 @@ pub(super) async fn create_oidc_session_response(
     )
     .await?;
     let tracking_ip = normalize_auth_failure_tracking_ip(&client_ip);
-    if let Err(error) = state.redis.reset_login_backoff(&tracking_ip).await {
+    if let Err(error) = state.store.reset_login_backoff(&tracking_ip).await {
         tracing::warn!(%error, %tracking_ip, "failed to reset OIDC login backoff");
     }
     let domain = resolve_cookie_domain(config, headers);

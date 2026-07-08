@@ -155,7 +155,7 @@ pub(super) fn localize_tmux_install_state(
 pub(super) async fn terminal_feature_config(
     state: &AppState,
 ) -> anyhow::Result<TerminalFeatureConfig> {
-    let config = state.redis.get_config().await?;
+    let config = state.store.get_config().await?;
     Ok(normalize_terminal_feature(config.get("terminal_feature")))
 }
 

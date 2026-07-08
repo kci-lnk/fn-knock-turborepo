@@ -8,8 +8,8 @@ use crate::{
     http_utils::normalize_ip,
     i18n::{DEFAULT_LOCALE, Translator},
     ip_location,
-    redis_store::{LoginSession, TotpCredential},
     state::AppState,
+    store::{LoginSession, TotpCredential},
     system_events, time_utils, whitelist,
 };
 
@@ -338,7 +338,7 @@ async fn cached_ip_location(state: &AppState, ip: &str) -> Option<String> {
         return None;
     }
     state
-        .redis
+        .store
         .get_ip_location_cache(ip)
         .await
         .ok()

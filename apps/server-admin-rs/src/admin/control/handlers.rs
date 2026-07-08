@@ -9,8 +9,8 @@ use totp_rs::Secret;
 
 use crate::{
     auth::verify_totp_token, auth_mobility, i18n::Translator,
-    oidc_admin::oidc_delete_bindings_by_totp, redis_store::TotpCredential, response,
-    state::AppState, system_events, time_utils, whitelist,
+    oidc_admin::oidc_delete_bindings_by_totp, response, state::AppState, store::TotpCredential,
+    system_events, time_utils, whitelist,
 };
 
 use super::{
@@ -33,7 +33,7 @@ use super::{
 
 pub(super) async fn get_auth_credential_settings(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.redis.get_config().await {
+    match state.store.get_config().await {
         Ok(config) => response::ok(auth_credential_settings_from_config(&config)).into_response(),
         Err(error) => {
             tracing::warn!(%error, "failed to load auth credential settings");
@@ -50,7 +50,7 @@ pub(super) async fn update_auth_credential_settings(
     Json(body): Json<AuthCredentialSettingsBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let mut config = match state.redis.get_config().await {
+    let mut config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config before auth settings update");
@@ -90,7 +90,7 @@ pub(super) async fn update_auth_credential_settings(
     }
     ensure_object(&mut config).insert("auth_credential_settings".to_string(), normalized.clone());
 
-    match state.redis.save_config(&config).await {
+    match state.store.save_config(&config).await {
         Ok(()) => {
             if session_ip_mobility_changed {
                 whitelist::sync_reverse_proxy_trusted_ips(&state).await;
@@ -126,7 +126,7 @@ pub(super) async fn update_auth_credential_settings(
 
 pub(super) async fn totp_status(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.redis.get_totps().await {
+    match state.store.get_totps().await {
         Ok(credentials) => response::ok(json!({
             "bound": !credentials.is_empty(),
             "credentials": credentials
@@ -187,7 +187,7 @@ pub(super) async fn totp_bind(
         subdomain_access: json!({ "mode": "all", "hosts": [] }),
     };
 
-    match state.redis.add_totp(credential).await {
+    match state.store.add_totp(credential).await {
         Ok(()) => {
             response::success_message(admin_control_text(&translator, "totp.bound")).into_response()
         }
@@ -203,7 +203,7 @@ pub(super) async fn totp_bind(
 
 pub(super) async fn totp_export(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.redis.get_totps().await {
+    match state.store.get_totps().await {
         Ok(credentials) => {
             let exported_at = time_utils::now_iso();
             let payload = build_totp_export_payload(&credentials, &exported_at);
@@ -244,7 +244,7 @@ pub(super) async fn totp_import(
     Json(body): Json<TotpImportBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let existing = match state.redis.get_totps().await {
+    let existing = match state.store.get_totps().await {
         Ok(credentials) => credentials,
         Err(error) => {
             tracing::warn!(%error, "failed to load existing TOTP credentials for import");
@@ -265,7 +265,7 @@ pub(super) async fn totp_import(
     if !credentials.is_empty() {
         let mut next = existing;
         next.extend(credentials);
-        if let Err(error) = state.redis.set_totps(&next).await {
+        if let Err(error) = state.store.set_totps(&next).await {
             tracing::warn!(%error, "failed to import TOTP credentials");
             return response::error(
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -279,7 +279,7 @@ pub(super) async fn totp_import(
 
 pub(super) async fn totp_delete(State(state): State<AppState>, Path(id): Path<String>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.redis.delete_totp(&id).await {
+    match state.store.delete_totp(&id).await {
         Ok(true) => {
             if let Err(error) =
                 auth_mobility::destroy_sessions_for_totp_credential(&state, &id).await
@@ -328,7 +328,7 @@ pub(super) async fn totp_update_access_scopes(
 ) -> Response {
     let translator = Translator::from_state(&state).await;
     match state
-        .redis
+        .store
         .update_totp_access_scopes(&id, body.access_scopes)
         .await
     {
@@ -354,7 +354,7 @@ pub(super) async fn totp_update_subdomain_access(
 ) -> Response {
     let translator = Translator::from_state(&state).await;
     match state
-        .redis
+        .store
         .update_totp_subdomain_access(&id, body.subdomain_access)
         .await
     {
@@ -398,7 +398,7 @@ pub(super) async fn totp_update_comment(
     Json(body): Json<TotpCommentBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.redis.update_totp_comment(&id, body.comment).await {
+    match state.store.update_totp_comment(&id, body.comment).await {
         Ok(Some(_)) => response::success_message(admin_control_text(&translator, "totp.updated"))
             .into_response(),
         Ok(None) => response::error(
@@ -420,7 +420,7 @@ pub(super) async fn totp_passkeys(
     Path(totp_id): Path<String>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.redis.get_passkeys().await {
+    match state.store.get_passkeys().await {
         Ok(passkeys) => {
             let filtered = passkeys
                 .into_iter()
@@ -443,7 +443,7 @@ pub(super) async fn passkey_delete(
     Path(id): Path<String>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.redis.delete_passkey(&id).await {
+    match state.store.delete_passkey(&id).await {
         Ok(true) => response::success_message(admin_control_text(&translator, "passkeys.deleted"))
             .into_response(),
         Ok(false) => response::error(
@@ -462,7 +462,7 @@ pub(super) async fn passkey_delete(
 
 pub(super) async fn sessions_list(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.redis.list_session_values().await {
+    match state.store.list_session_values().await {
         Ok(sessions) => {
             let mut records = Vec::with_capacity(sessions.len());
             for (id, data) in sessions {
@@ -483,7 +483,7 @@ pub(super) async fn sessions_list(State(state): State<AppState>) -> Response {
 
 pub(super) async fn session_get(State(state): State<AppState>, Path(id): Path<String>) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.redis.get_session_value(&id).await {
+    match state.store.get_session_value(&id).await {
         Ok(Some(data)) => {
             let data = ensure_session_comment(&state, &id, data, &translator).await;
             response::ok(session_record_with_mobility(&state, id, data).await).into_response()
@@ -511,7 +511,7 @@ pub(super) async fn session_update_comment(
     let mut updates = Map::new();
     let comment = body.comment;
     updates.insert("comment".to_string(), Value::String(comment.clone()));
-    match state.redis.update_session_value(&id, updates).await {
+    match state.store.update_session_value(&id, updates).await {
         Ok(Some(data)) => {
             if let Err(error) = sync_session_whitelist_comments(&state, &id, &data, &comment).await
             {
@@ -538,9 +538,9 @@ pub(super) async fn session_delete(
     Path(id): Path<String>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let session = state.redis.get_session(&id).await.ok().flatten();
+    let session = state.store.get_session(&id).await.ok().flatten();
     let config = if session.is_some() {
-        state.redis.get_config().await.ok()
+        state.store.get_config().await.ok()
     } else {
         None
     };
@@ -578,7 +578,7 @@ pub(super) async fn session_delete(
             }
         }
     }
-    match state.redis.delete_session(&id).await {
+    match state.store.delete_session(&id).await {
         Ok(()) => response::success_message(admin_control_text(&translator, "sessions.deleted"))
             .into_response(),
         Err(error) => {
@@ -596,7 +596,7 @@ pub(super) async fn session_mobility_details(
     Path(id): Path<String>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    match state.redis.get_session_value(&id).await {
+    match state.store.get_session_value(&id).await {
         Ok(Some(session)) => {
             let mut details = session_mobility_details_value(&state, &id, Some(&session)).await;
             hydrate_mobility_event_ip_locations(&state, &id, &mut details).await;

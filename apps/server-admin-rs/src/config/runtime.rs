@@ -13,9 +13,9 @@ use crate::{
     auto_https, gateway_settings,
     i18n::Translator,
     proxy_config::{build_gateway_auth_config, build_host_rules_payload},
-    redis_store, response, runtime_profile,
+    response, runtime_profile,
     state::AppState,
-    system_assets,
+    store as app_store, system_assets,
     terminal_paths::normalize_terminal_default_cwd,
     time_utils, waf, whitelist,
 };
@@ -167,7 +167,7 @@ fn capability_blocked_text(state: &AppState, capability: &str, translator: &Tran
 }
 
 pub(crate) async fn sync_runtime_config_on_boot(state: AppState) {
-    let mut config = match state.redis.get_config().await {
+    let mut config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config for boot runtime sync");

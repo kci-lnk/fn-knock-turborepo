@@ -11,8 +11,10 @@ use super::{
     },
 };
 
-pub(super) async fn oidc_list_providers(state: &AppState) -> redis::RedisResult<Vec<Value>> {
-    let ids = state.redis.zrevrange_strings(PROVIDERS_INDEX_KEY).await?;
+pub(super) async fn oidc_list_providers(
+    state: &AppState,
+) -> crate::storage::StorageResult<Vec<Value>> {
+    let ids = state.store.zrevrange_strings(PROVIDERS_INDEX_KEY).await?;
     let mut providers = Vec::new();
     let mut stale = Vec::new();
     for id in ids {
@@ -23,14 +25,16 @@ pub(super) async fn oidc_list_providers(state: &AppState) -> redis::RedisResult<
     }
     for id in stale {
         state
-            .redis
+            .store
             .zrem_string_member(PROVIDERS_INDEX_KEY, &id)
             .await?;
     }
     Ok(providers)
 }
 
-pub(crate) async fn oidc_public_providers(state: &AppState) -> redis::RedisResult<Vec<Value>> {
+pub(crate) async fn oidc_public_providers(
+    state: &AppState,
+) -> crate::storage::StorageResult<Vec<Value>> {
     Ok(oidc_list_providers(state)
         .await?
         .into_iter()
@@ -50,13 +54,13 @@ pub(crate) async fn oidc_public_providers(state: &AppState) -> redis::RedisResul
 pub(crate) async fn oidc_inspect_invite(
     state: &AppState,
     token: &str,
-) -> redis::RedisResult<Option<Value>> {
+) -> crate::storage::StorageResult<Option<Value>> {
     let normalized_token = token.trim();
     if normalized_token.is_empty() {
         return Ok(None);
     }
     let token_hash = sha256_hex(normalized_token);
-    let Some(invite) = state.redis.get_json_value(&invite_key(&token_hash)).await? else {
+    let Some(invite) = state.store.get_json_value(&invite_key(&token_hash)).await? else {
         return Ok(None);
     };
     let expires_at = invite
@@ -70,7 +74,7 @@ pub(crate) async fn oidc_inspect_invite(
     }
     let totp_id = invite.get("totp_id").and_then(Value::as_str).unwrap_or("");
     let Some(totp) = state
-        .redis
+        .store
         .get_totps()
         .await?
         .into_iter()
@@ -100,21 +104,21 @@ pub(crate) async fn oidc_inspect_invite(
 pub(crate) async fn oidc_get_provider(
     state: &AppState,
     id: &str,
-) -> redis::RedisResult<Option<Value>> {
-    state.redis.get_json_value(&provider_key(id)).await
+) -> crate::storage::StorageResult<Option<Value>> {
+    state.store.get_json_value(&provider_key(id)).await
 }
 
 pub(super) async fn oidc_save_provider(
     state: &AppState,
     provider: &Value,
-) -> redis::RedisResult<()> {
+) -> crate::storage::StorageResult<()> {
     let id = provider.get("id").and_then(Value::as_str).unwrap_or("");
     state
-        .redis
+        .store
         .set_json_value(&provider_key(id), provider)
         .await?;
     state
-        .redis
+        .store
         .zadd_string_member(
             PROVIDERS_INDEX_KEY,
             id,
@@ -127,11 +131,14 @@ pub(super) async fn oidc_save_provider(
         .await
 }
 
-pub(super) async fn oidc_delete_provider(state: &AppState, id: &str) -> redis::RedisResult<()> {
+pub(super) async fn oidc_delete_provider(
+    state: &AppState,
+    id: &str,
+) -> crate::storage::StorageResult<()> {
     let bindings = oidc_list_bindings(state).await?;
-    state.redis.delete_keys(&[provider_key(id)]).await?;
+    state.store.delete_keys(&[provider_key(id)]).await?;
     state
-        .redis
+        .store
         .zrem_string_member(PROVIDERS_INDEX_KEY, id)
         .await?;
     for binding in bindings
@@ -145,19 +152,21 @@ pub(super) async fn oidc_delete_provider(state: &AppState, id: &str) -> redis::R
     Ok(())
 }
 
-pub(crate) async fn oidc_list_bindings(state: &AppState) -> redis::RedisResult<Vec<Value>> {
-    let ids = state.redis.zrevrange_strings(BINDINGS_INDEX_KEY).await?;
+pub(crate) async fn oidc_list_bindings(
+    state: &AppState,
+) -> crate::storage::StorageResult<Vec<Value>> {
+    let ids = state.store.zrevrange_strings(BINDINGS_INDEX_KEY).await?;
     let mut bindings = Vec::new();
     let mut stale = Vec::new();
     for id in ids {
-        match state.redis.get_json_value(&binding_key(&id)).await? {
+        match state.store.get_json_value(&binding_key(&id)).await? {
             Some(binding) => bindings.push(binding),
             None => stale.push(id),
         }
     }
     for id in stale {
         state
-            .redis
+            .store
             .zrem_string_member(BINDINGS_INDEX_KEY, &id)
             .await?;
     }
@@ -167,35 +176,38 @@ pub(crate) async fn oidc_list_bindings(state: &AppState) -> redis::RedisResult<V
 pub(crate) async fn oidc_get_binding_by_subject(
     state: &AppState,
     subject_key: &str,
-) -> redis::RedisResult<Option<Value>> {
+) -> crate::storage::StorageResult<Option<Value>> {
     let Some(binding_id) = state
-        .redis
+        .store
         .get_string_value(&subject_binding_key(subject_key))
         .await?
     else {
         return Ok(None);
     };
-    state.redis.get_json_value(&binding_key(&binding_id)).await
+    state.store.get_json_value(&binding_key(&binding_id)).await
 }
 
-pub(crate) async fn oidc_save_binding(state: &AppState, binding: &Value) -> redis::RedisResult<()> {
+pub(crate) async fn oidc_save_binding(
+    state: &AppState,
+    binding: &Value,
+) -> crate::storage::StorageResult<()> {
     let id = binding.get("id").and_then(Value::as_str).unwrap_or("");
     let subject_key = binding
         .get("subject_key")
         .and_then(Value::as_str)
         .unwrap_or("");
     state
-        .redis
+        .store
         .set_json_value(&binding_key(id), binding)
         .await?;
     if !subject_key.is_empty() {
         state
-            .redis
+            .store
             .set_string_value(&subject_binding_key(subject_key), id)
             .await?;
     }
     state
-        .redis
+        .store
         .zadd_string_member(
             BINDINGS_INDEX_KEY,
             id,
@@ -211,7 +223,7 @@ pub(crate) async fn oidc_save_binding(state: &AppState, binding: &Value) -> redi
 pub(crate) async fn oidc_save_binding_if_subject_available(
     state: &AppState,
     binding: &Value,
-) -> redis::RedisResult<bool> {
+) -> crate::storage::StorageResult<bool> {
     let subject_key = binding
         .get("subject_key")
         .and_then(Value::as_str)
@@ -221,7 +233,7 @@ pub(crate) async fn oidc_save_binding_if_subject_available(
     }
     let id = binding.get("id").and_then(Value::as_str).unwrap_or("");
     if let Some(existing_id) = state
-        .redis
+        .store
         .get_string_value(&subject_binding_key(subject_key))
         .await?
         && existing_id != id
@@ -232,17 +244,20 @@ pub(crate) async fn oidc_save_binding_if_subject_available(
     Ok(true)
 }
 
-pub(super) async fn oidc_delete_binding(state: &AppState, id: &str) -> redis::RedisResult<bool> {
-    let Some(binding) = state.redis.get_json_value(&binding_key(id)).await? else {
+pub(super) async fn oidc_delete_binding(
+    state: &AppState,
+    id: &str,
+) -> crate::storage::StorageResult<bool> {
+    let Some(binding) = state.store.get_json_value(&binding_key(id)).await? else {
         return Ok(false);
     };
     let mut keys = vec![binding_key(id)];
     if let Some(subject_key) = binding.get("subject_key").and_then(Value::as_str) {
         keys.push(subject_binding_key(subject_key));
     }
-    state.redis.delete_keys(&keys).await?;
+    state.store.delete_keys(&keys).await?;
     state
-        .redis
+        .store
         .zrem_string_member(BINDINGS_INDEX_KEY, id)
         .await?;
     Ok(true)
@@ -251,7 +266,7 @@ pub(super) async fn oidc_delete_binding(state: &AppState, id: &str) -> redis::Re
 pub(crate) async fn oidc_delete_bindings_by_totp(
     state: &AppState,
     totp_id: &str,
-) -> redis::RedisResult<usize> {
+) -> crate::storage::StorageResult<usize> {
     let bindings = oidc_list_bindings(state).await?;
     let mut deleted = 0usize;
     for binding in bindings {
@@ -271,9 +286,9 @@ pub(crate) async fn oidc_delete_bindings_by_totp(
 pub(crate) async fn oidc_consume_invite(
     state: &AppState,
     token_hash: &str,
-) -> redis::RedisResult<Option<Value>> {
+) -> crate::storage::StorageResult<Option<Value>> {
     state
-        .redis
+        .store
         .consume_json_value(&invite_key(token_hash))
         .await
 }
@@ -282,13 +297,13 @@ pub(crate) async fn oidc_save_state(
     state: &AppState,
     auth_state: &Value,
     ttl_seconds: usize,
-) -> redis::RedisResult<()> {
+) -> crate::storage::StorageResult<()> {
     let state_hash = auth_state
         .get("state_hash")
         .and_then(Value::as_str)
         .unwrap_or("");
     state
-        .redis
+        .store
         .set_json_value_ex(&state_key(state_hash), auth_state, ttl_seconds)
         .await
 }
@@ -296,21 +311,21 @@ pub(crate) async fn oidc_save_state(
 pub(crate) async fn oidc_consume_state(
     state: &AppState,
     state_hash: &str,
-) -> redis::RedisResult<Option<Value>> {
-    state.redis.consume_json_value(&state_key(state_hash)).await
+) -> crate::storage::StorageResult<Option<Value>> {
+    state.store.consume_json_value(&state_key(state_hash)).await
 }
 
 pub(crate) async fn oidc_save_login_error_notice(
     state: &AppState,
     notice: &Value,
     ttl_seconds: usize,
-) -> redis::RedisResult<()> {
+) -> crate::storage::StorageResult<()> {
     let token_hash = notice
         .get("token_hash")
         .and_then(Value::as_str)
         .unwrap_or("");
     state
-        .redis
+        .store
         .set_json_value_ex(&login_error_key(token_hash), notice, ttl_seconds)
         .await
 }
@@ -318,9 +333,9 @@ pub(crate) async fn oidc_save_login_error_notice(
 pub(crate) async fn oidc_consume_login_error_notice(
     state: &AppState,
     token_hash: &str,
-) -> redis::RedisResult<Option<Value>> {
+) -> crate::storage::StorageResult<Option<Value>> {
     state
-        .redis
+        .store
         .consume_json_value(&login_error_key(token_hash))
         .await
 }

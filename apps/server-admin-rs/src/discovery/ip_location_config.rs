@@ -56,7 +56,7 @@ pub fn ip_location_config_routes() -> Router<AppState> {
 async fn get_settings(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
     match state
-        .redis
+        .store
         .get_json_value(IP_LOCATION_API_SETTINGS_KEY)
         .await
     {
@@ -81,7 +81,7 @@ async fn update_settings(
         Err(message) => return response::error(StatusCode::BAD_REQUEST, message),
     };
     match state
-        .redis
+        .store
         .set_json_value(IP_LOCATION_API_SETTINGS_KEY, &settings)
         .await
     {

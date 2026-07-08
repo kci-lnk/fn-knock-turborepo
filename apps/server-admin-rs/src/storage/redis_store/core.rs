@@ -1,18 +1,21 @@
 use super::*;
 
-impl RedisStore {
-    pub async fn ping(&self) -> redis::RedisResult<()> {
+impl Store {
+    pub async fn ping(&self) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         redis::cmd("PING").query_async(&mut conn).await
     }
 
-    pub async fn get_json_value(&self, key: &str) -> redis::RedisResult<Option<Value>> {
+    pub async fn get_json_value(&self, key: &str) -> crate::storage::StorageResult<Option<Value>> {
         let mut conn = self.conn();
         let raw: Option<String> = conn.get(key).await?;
         Ok(raw.and_then(|value| serde_json::from_str(&value).ok()))
     }
 
-    pub async fn get_string_value(&self, key: &str) -> redis::RedisResult<Option<String>> {
+    pub async fn get_string_value(
+        &self,
+        key: &str,
+    ) -> crate::storage::StorageResult<Option<String>> {
         let mut conn = self.conn();
         conn.get(key).await
     }
@@ -22,7 +25,7 @@ impl RedisStore {
         key: &str,
         value: &str,
         ttl_seconds: Option<i64>,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         if let Some(ttl_seconds) = ttl_seconds.filter(|value| *value > 0) {
             let _: () = conn.set_ex(key, value, ttl_seconds as u64).await?;
@@ -32,7 +35,11 @@ impl RedisStore {
         Ok(())
     }
 
-    pub async fn set_string_value(&self, key: &str, value: &str) -> redis::RedisResult<()> {
+    pub async fn set_string_value(
+        &self,
+        key: &str,
+        value: &str,
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         conn.set(key, value).await
     }
@@ -42,7 +49,7 @@ impl RedisStore {
         key: &str,
         value: &str,
         ttl_seconds: usize,
-    ) -> redis::RedisResult<bool> {
+    ) -> crate::storage::StorageResult<bool> {
         let mut conn = self.conn();
         let result: Option<String> = redis::cmd("SET")
             .arg(key)
@@ -55,7 +62,11 @@ impl RedisStore {
         Ok(result.as_deref() == Some("OK"))
     }
 
-    pub async fn delete_key_if_value(&self, key: &str, value: &str) -> redis::RedisResult<()> {
+    pub async fn delete_key_if_value(
+        &self,
+        key: &str,
+        value: &str,
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         let _: i64 = redis::cmd("EVAL")
             .arg(
@@ -74,12 +85,12 @@ impl RedisStore {
         Ok(())
     }
 
-    pub async fn delete_key(&self, key: &str) -> redis::RedisResult<()> {
+    pub async fn delete_key(&self, key: &str) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         conn.del(key).await
     }
 
-    pub async fn delete_key_count(&self, key: &str) -> redis::RedisResult<usize> {
+    pub async fn delete_key_count(&self, key: &str) -> crate::storage::StorageResult<usize> {
         let mut conn = self.conn();
         conn.del(key).await
     }
@@ -87,7 +98,7 @@ impl RedisStore {
     pub async fn mget_string_values(
         &self,
         keys: &[String],
-    ) -> redis::RedisResult<Vec<Option<String>>> {
+    ) -> crate::storage::StorageResult<Vec<Option<String>>> {
         if keys.is_empty() {
             return Ok(Vec::new());
         }
@@ -95,7 +106,10 @@ impl RedisStore {
         redis::cmd("MGET").arg(keys).query_async(&mut conn).await
     }
 
-    pub async fn consume_json_value(&self, key: &str) -> redis::RedisResult<Option<Value>> {
+    pub async fn consume_json_value(
+        &self,
+        key: &str,
+    ) -> crate::storage::StorageResult<Option<Value>> {
         let mut conn = self.conn();
         let raw: Option<String> = redis::cmd("EVAL")
             .arg(
@@ -118,7 +132,7 @@ return value
     pub async fn hgetall_string_map(
         &self,
         key: &str,
-    ) -> redis::RedisResult<HashMap<String, String>> {
+    ) -> crate::storage::StorageResult<HashMap<String, String>> {
         let mut conn = self.conn();
         conn.hgetall(key).await
     }
@@ -127,7 +141,7 @@ return value
         &self,
         key: &str,
         values: &HashMap<String, String>,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         if values.is_empty() {
             conn.del(key).await
@@ -141,17 +155,25 @@ return value
         }
     }
 
-    pub async fn smembers_strings(&self, key: &str) -> redis::RedisResult<Vec<String>> {
+    pub async fn smembers_strings(&self, key: &str) -> crate::storage::StorageResult<Vec<String>> {
         let mut conn = self.conn();
         conn.smembers(key).await
     }
 
-    pub async fn sadd_string_member(&self, key: &str, member: &str) -> redis::RedisResult<()> {
+    pub async fn sadd_string_member(
+        &self,
+        key: &str,
+        member: &str,
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         conn.sadd(key, member).await
     }
 
-    pub async fn srem_string_member(&self, key: &str, member: &str) -> redis::RedisResult<()> {
+    pub async fn srem_string_member(
+        &self,
+        key: &str,
+        member: &str,
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         conn.srem(key, member).await
     }
@@ -160,7 +182,7 @@ return value
         &self,
         key: &str,
         members: &[String],
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         if members.is_empty() {
             return Ok(());
         }
@@ -168,7 +190,7 @@ return value
         conn.srem(key, members).await
     }
 
-    pub async fn zrevrange_strings(&self, key: &str) -> redis::RedisResult<Vec<String>> {
+    pub async fn zrevrange_strings(&self, key: &str) -> crate::storage::StorageResult<Vec<String>> {
         let mut conn = self.conn();
         conn.zrevrange(key, 0, -1).await
     }
@@ -178,12 +200,16 @@ return value
         key: &str,
         member: &str,
         score: i64,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         conn.zadd(key, member, score).await
     }
 
-    pub async fn zrem_string_member(&self, key: &str, member: &str) -> redis::RedisResult<()> {
+    pub async fn zrem_string_member(
+        &self,
+        key: &str,
+        member: &str,
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         conn.zrem(key, member).await
     }
@@ -193,7 +219,7 @@ return value
         key: &str,
         min_score: i64,
         max_score: i64,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         let _: () = conn.zrembyscore(key, min_score, max_score).await?;
         Ok(())
@@ -206,7 +232,7 @@ return value
         score: i64,
         min_score: i64,
         ttl_seconds: usize,
-    ) -> redis::RedisResult<i64> {
+    ) -> crate::storage::StorageResult<i64> {
         let mut conn = self.conn();
         let mut pipe = redis::pipe();
         pipe.zadd(key, member, score).ignore();
@@ -224,7 +250,7 @@ return value
         index_key: &str,
         member: &str,
         score: i64,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         let mut pipe = redis::pipe();
         pipe.set(data_key, value)
@@ -239,7 +265,7 @@ return value
         data_key: &str,
         index_key: &str,
         member: &str,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         let mut pipe = redis::pipe();
         pipe.del(data_key).ignore().zrem(index_key, member).ignore();
@@ -253,7 +279,7 @@ return value
         ttl_seconds: usize,
         set_key: &str,
         member: &str,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         let ttl = ttl_seconds.max(1);
         let mut pipe = redis::pipe();
@@ -271,14 +297,14 @@ return value
         data_key: &str,
         set_key: &str,
         member: &str,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         let mut pipe = redis::pipe();
         pipe.del(data_key).ignore().srem(set_key, member).ignore();
         pipe.query_async(&mut conn).await
     }
 
-    pub async fn delete_keys(&self, keys: &[String]) -> redis::RedisResult<()> {
+    pub async fn delete_keys(&self, keys: &[String]) -> crate::storage::StorageResult<()> {
         if keys.is_empty() {
             return Ok(());
         }
@@ -286,7 +312,7 @@ return value
         conn.del(keys).await
     }
 
-    pub async fn delete_keys_count(&self, keys: &[String]) -> redis::RedisResult<usize> {
+    pub async fn delete_keys_count(&self, keys: &[String]) -> crate::storage::StorageResult<usize> {
         if keys.is_empty() {
             return Ok(0);
         }
@@ -294,7 +320,11 @@ return value
         conn.del(keys).await
     }
 
-    pub async fn scan_keys(&self, prefix: &str, count: usize) -> redis::RedisResult<Vec<String>> {
+    pub async fn scan_keys(
+        &self,
+        prefix: &str,
+        count: usize,
+    ) -> crate::storage::StorageResult<Vec<String>> {
         let mut conn = self.conn();
         let mut cursor = "0".to_string();
         let mut keys = BTreeSet::new();
@@ -322,7 +352,7 @@ return value
         &self,
         prefix: &str,
         count: usize,
-    ) -> redis::RedisResult<usize> {
+    ) -> crate::storage::StorageResult<usize> {
         let keys = self.scan_keys(prefix, count).await?;
         let mut deleted = 0;
         for chunk in keys.chunks(200) {
@@ -331,18 +361,49 @@ return value
         Ok(deleted)
     }
 
+    pub async fn storage_meta_value(
+        &self,
+        key: &str,
+    ) -> crate::storage::StorageResult<Option<String>> {
+        self.manager.meta_value(key).await
+    }
+
+    pub async fn set_storage_meta_value(
+        &self,
+        key: &str,
+        value: &str,
+    ) -> crate::storage::StorageResult<()> {
+        self.manager.set_meta_value(key, value).await
+    }
+
+    pub async fn count_keys_by_prefix(&self, prefix: &str) -> crate::storage::StorageResult<i64> {
+        self.manager.key_count_by_prefix(prefix).await
+    }
+
     pub async fn append_log_buffer(
         &self,
         key: &str,
         lines: &[String],
         ttl_seconds: usize,
         max_len: usize,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         if lines.is_empty() {
             return Ok(());
         }
         let seq_key = format!("{key}:seq");
         let mut conn = self.conn();
+        let ttl_seconds = ttl_seconds.max(1) as u64;
+        let max_len = max_len.max(1);
+        let current_len = conn.llen(key).await?.max(0);
+        let raw_seq: Option<String> = conn.get(&seq_key).await?;
+        let current_seq = raw_seq
+            .as_deref()
+            .and_then(|value| value.parse::<i64>().ok())
+            .filter(|value| *value >= 0);
+        let repaired_seq = current_seq.unwrap_or(current_len).max(current_len);
+        if current_seq != Some(repaired_seq) {
+            conn.set_ex(&seq_key, repaired_seq, ttl_seconds).await?;
+        }
         let mut pipe = redis::pipe();
         pipe.cmd("RPUSH")
             .arg(key)
@@ -350,7 +411,7 @@ return value
             .ignore()
             .cmd("LTRIM")
             .arg(key)
-            .arg(-(max_len.max(1) as i64))
+            .arg(-(max_len as i64))
             .arg(-1)
             .ignore()
             .cmd("INCRBY")
@@ -359,11 +420,11 @@ return value
             .ignore()
             .cmd("EXPIRE")
             .arg(key)
-            .arg(ttl_seconds.max(1))
+            .arg(ttl_seconds)
             .ignore()
             .cmd("EXPIRE")
             .arg(&seq_key)
-            .arg(ttl_seconds.max(1))
+            .arg(ttl_seconds)
             .ignore();
         pipe.query_async(&mut conn).await
     }
@@ -373,13 +434,13 @@ return value
         key: &str,
         limit: usize,
         max_len: usize,
-    ) -> redis::RedisResult<Vec<String>> {
+    ) -> crate::storage::StorageResult<Vec<String>> {
         let mut conn = self.conn();
         let safe_limit = limit.max(1).min(max_len.max(1)) as i64;
         conn.lrange(key, -(safe_limit as isize), -1).await
     }
 
-    pub async fn clear_log_buffer(&self, key: &str) -> redis::RedisResult<()> {
+    pub async fn clear_log_buffer(&self, key: &str) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         let seq_key = format!("{key}:seq");
         conn.del(&[key, seq_key.as_str()]).await
@@ -389,7 +450,7 @@ return value
         &self,
         key: &str,
         cursor: Option<&str>,
-    ) -> redis::RedisResult<Value> {
+    ) -> crate::storage::StorageResult<Value> {
         let mut conn = self.conn();
         let seq_key = format!("{key}:seq");
         let total_len: i64 = conn.llen(key).await?;
@@ -397,7 +458,8 @@ return value
         let total_seq = raw_seq
             .and_then(|value| value.parse::<i64>().ok())
             .filter(|value| *value >= 0)
-            .unwrap_or(total_len);
+            .unwrap_or(total_len)
+            .max(total_len);
         let retained_start_seq = (total_seq - total_len).max(0);
         let requested_cursor = cursor
             .and_then(|value| value.parse::<i64>().ok())
@@ -421,7 +483,10 @@ return value
         }))
     }
 
-    pub async fn export_redis_backup_entry(&self, key: &str) -> redis::RedisResult<Option<Value>> {
+    pub async fn export_backup_entry(
+        &self,
+        key: &str,
+    ) -> crate::storage::StorageResult<Option<Value>> {
         let mut conn = self.conn();
         let value_type: String = redis::cmd("TYPE").arg(key).query_async(&mut conn).await?;
         if value_type == "none" {
@@ -521,7 +586,11 @@ return value
         }
     }
 
-    pub async fn restore_redis_backup_entries(&self, entries: &[Value]) -> redis::RedisResult<()> {
+    #[allow(dead_code)]
+    pub async fn restore_backup_entries(
+        &self,
+        entries: &[Value],
+    ) -> crate::storage::StorageResult<()> {
         const PIPELINE_BATCH_SIZE: usize = 100;
 
         let mut conn = self.conn();
@@ -529,117 +598,7 @@ return value
         let mut batched_commands = 0usize;
 
         for entry in entries {
-            let key = entry.get("key").and_then(Value::as_str).unwrap_or("");
-            let value_type = entry.get("type").and_then(Value::as_str).unwrap_or("");
-            let ttl_ms = entry
-                .get("ttl_ms")
-                .and_then(Value::as_i64)
-                .filter(|value| *value > 0);
-            if key.is_empty() {
-                continue;
-            }
-
-            match value_type {
-                "string" => {
-                    let command = pipe
-                        .cmd("SET")
-                        .arg(key)
-                        .arg(entry.get("value").and_then(Value::as_str).unwrap_or(""));
-                    if let Some(ttl_ms) = ttl_ms {
-                        command.arg("PX").arg(ttl_ms);
-                    }
-                    command.ignore();
-                    batched_commands += 1;
-                }
-                "hash" => {
-                    if let Some(object) = entry.get("value").and_then(Value::as_object)
-                        && !object.is_empty()
-                    {
-                        let pairs = object
-                            .iter()
-                            .filter_map(|(field, value)| {
-                                value.as_str().map(|text| (field.as_str(), text))
-                            })
-                            .collect::<Vec<_>>();
-                        if pairs.is_empty() {
-                            continue;
-                        }
-                        pipe.cmd("HSET").arg(key);
-                        for (field, value) in pairs {
-                            pipe.arg(field).arg(value);
-                        }
-                        pipe.ignore();
-                        batched_commands += 1;
-                    }
-                }
-                "list" => {
-                    if let Some(items) = entry.get("value").and_then(Value::as_array)
-                        && !items.is_empty()
-                    {
-                        pipe.cmd("RPUSH").arg(key);
-                        for item in items {
-                            pipe.arg(item.as_str().unwrap_or(""));
-                        }
-                        pipe.ignore();
-                        batched_commands += 1;
-                    }
-                }
-                "set" => {
-                    if let Some(items) = entry.get("value").and_then(Value::as_array)
-                        && !items.is_empty()
-                    {
-                        pipe.cmd("SADD").arg(key);
-                        for item in items {
-                            pipe.arg(item.as_str().unwrap_or(""));
-                        }
-                        pipe.ignore();
-                        batched_commands += 1;
-                    }
-                }
-                "zset" => {
-                    if let Some(items) = entry.get("value").and_then(Value::as_array)
-                        && !items.is_empty()
-                    {
-                        pipe.cmd("ZADD").arg(key);
-                        for item in items {
-                            pipe.arg(item.get("score").and_then(Value::as_f64).unwrap_or(0.0))
-                                .arg(item.get("member").and_then(Value::as_str).unwrap_or(""));
-                        }
-                        pipe.ignore();
-                        batched_commands += 1;
-                    }
-                }
-                "stream" => {
-                    if let Some(items) = entry.get("value").and_then(Value::as_array) {
-                        for item in items {
-                            let id = item.get("id").and_then(Value::as_str).unwrap_or("*");
-                            let Some(fields) = item.get("fields").and_then(Value::as_array) else {
-                                continue;
-                            };
-                            if fields.is_empty() || fields.len() % 2 != 0 {
-                                continue;
-                            }
-                            pipe.cmd("XADD").arg(key).arg(id);
-                            for field in fields {
-                                pipe.arg(field.as_str().unwrap_or(""));
-                            }
-                            pipe.ignore();
-                            batched_commands += 1;
-                            if batched_commands >= PIPELINE_BATCH_SIZE {
-                                pipe.query_async::<()>(&mut conn).await?;
-                                pipe = redis::pipe();
-                                batched_commands = 0;
-                            }
-                        }
-                    }
-                }
-                _ => {}
-            }
-
-            if ttl_ms.is_some() && !matches!(value_type, "none" | "string") {
-                pipe.cmd("PEXPIRE").arg(key).arg(ttl_ms.unwrap()).ignore();
-                batched_commands += 1;
-            }
+            batched_commands += append_backup_restore_commands(&mut pipe, entry);
 
             if batched_commands >= PIPELINE_BATCH_SIZE {
                 pipe.query_async::<()>(&mut conn).await?;
@@ -654,8 +613,28 @@ return value
         Ok(())
     }
 
+    pub async fn replace_backup_entries_by_prefix(
+        &self,
+        prefix: &str,
+        entries: &[Value],
+        _count: usize,
+    ) -> crate::storage::StorageResult<usize> {
+        let mut conn = self.conn();
+        let mut pipe = redis::pipe();
+        for entry in entries {
+            append_backup_restore_commands(&mut pipe, entry);
+        }
+        let (cleared_keys, _): (usize, ()) =
+            pipe.query_async_replacing_prefix(&mut conn, prefix).await?;
+        Ok(cleared_keys)
+    }
+
     #[allow(dead_code)]
-    pub async fn set_json_value(&self, key: &str, value: &Value) -> redis::RedisResult<()> {
+    pub async fn set_json_value(
+        &self,
+        key: &str,
+        value: &Value,
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         conn.set(
             key,
@@ -669,7 +648,7 @@ return value
         key: &str,
         value: &Value,
         ttl_seconds: usize,
-    ) -> redis::RedisResult<()> {
+    ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         conn.set_ex(
             key,
@@ -684,7 +663,7 @@ return value
         key: &str,
         value: &Value,
         ttl_seconds: usize,
-    ) -> redis::RedisResult<bool> {
+    ) -> crate::storage::StorageResult<bool> {
         let mut conn = self.conn();
         let serialized = serde_json::to_string(value).unwrap_or_else(|_| "{}".to_string());
         let result: Option<String> = redis::cmd("SET")
@@ -704,7 +683,7 @@ return value
         lock_id: &str,
         value: &Value,
         ttl_seconds: usize,
-    ) -> redis::RedisResult<bool> {
+    ) -> crate::storage::StorageResult<bool> {
         let mut conn = self.conn();
         let serialized = serde_json::to_string(value).unwrap_or_else(|_| "{}".to_string());
         let result: i64 = redis::cmd("EVAL")
@@ -732,7 +711,11 @@ return 1
         Ok(result == 1)
     }
 
-    pub async fn delete_lock_if_owned(&self, key: &str, lock_id: &str) -> redis::RedisResult<bool> {
+    pub async fn delete_lock_if_owned(
+        &self,
+        key: &str,
+        lock_id: &str,
+    ) -> crate::storage::StorageResult<bool> {
         let mut conn = self.conn();
         let result: i64 = redis::cmd("EVAL")
             .arg(
@@ -757,7 +740,7 @@ return 1
         Ok(result == 1)
     }
 
-    pub async fn get_config(&self) -> redis::RedisResult<Value> {
+    pub async fn get_config(&self) -> crate::storage::StorageResult<Value> {
         Ok(self
             .get_json_value("fn_knock:config")
             .await?
@@ -765,11 +748,11 @@ return 1
     }
 
     #[allow(dead_code)]
-    pub async fn save_config(&self, value: &Value) -> redis::RedisResult<()> {
+    pub async fn save_config(&self, value: &Value) -> crate::storage::StorageResult<()> {
         self.set_json_value("fn_knock:config", value).await
     }
 
-    pub async fn locale(&self) -> redis::RedisResult<Value> {
+    pub async fn locale(&self) -> crate::storage::StorageResult<Value> {
         let config = self.get_config().await?;
         Ok(config
             .get("locale")
@@ -777,7 +760,7 @@ return 1
             .unwrap_or_else(|| json!({ "default_locale": "zh-CN" })))
     }
 
-    pub async fn appearance(&self) -> redis::RedisResult<Value> {
+    pub async fn appearance(&self) -> crate::storage::StorageResult<Value> {
         let config = self.get_config().await?;
         Ok(config
             .get("appearance")
@@ -786,7 +769,7 @@ return 1
     }
 
     #[allow(dead_code)]
-    pub async fn captcha_public_settings(&self) -> redis::RedisResult<Value> {
+    pub async fn captcha_public_settings(&self) -> crate::storage::StorageResult<Value> {
         let config = self.get_config().await?;
         let settings = config.get("captcha").cloned().unwrap_or_else(|| {
             json!({
@@ -813,4 +796,113 @@ return 1
             "turnstile": { "site_key": site_key }
         }))
     }
+}
+
+fn append_backup_restore_commands(pipe: &mut redis::Pipeline, entry: &Value) -> usize {
+    let key = entry.get("key").and_then(Value::as_str).unwrap_or("");
+    let value_type = entry.get("type").and_then(Value::as_str).unwrap_or("");
+    let ttl_ms = entry
+        .get("ttl_ms")
+        .and_then(Value::as_i64)
+        .filter(|value| *value > 0);
+    if key.is_empty() {
+        return 0;
+    }
+
+    let mut command_count = 0usize;
+    match value_type {
+        "string" => {
+            let command = pipe
+                .cmd("SET")
+                .arg(key)
+                .arg(entry.get("value").and_then(Value::as_str).unwrap_or(""));
+            if let Some(ttl_ms) = ttl_ms {
+                command.arg("PX").arg(ttl_ms);
+            }
+            command.ignore();
+            command_count += 1;
+        }
+        "hash" => {
+            if let Some(object) = entry.get("value").and_then(Value::as_object)
+                && !object.is_empty()
+            {
+                let pairs = object
+                    .iter()
+                    .filter_map(|(field, value)| value.as_str().map(|text| (field.as_str(), text)))
+                    .collect::<Vec<_>>();
+                if pairs.is_empty() {
+                    return command_count;
+                }
+                pipe.cmd("HSET").arg(key);
+                for (field, value) in pairs {
+                    pipe.arg(field).arg(value);
+                }
+                pipe.ignore();
+                command_count += 1;
+            }
+        }
+        "list" => {
+            if let Some(items) = entry.get("value").and_then(Value::as_array)
+                && !items.is_empty()
+            {
+                pipe.cmd("RPUSH").arg(key);
+                for item in items {
+                    pipe.arg(item.as_str().unwrap_or(""));
+                }
+                pipe.ignore();
+                command_count += 1;
+            }
+        }
+        "set" => {
+            if let Some(items) = entry.get("value").and_then(Value::as_array)
+                && !items.is_empty()
+            {
+                pipe.cmd("SADD").arg(key);
+                for item in items {
+                    pipe.arg(item.as_str().unwrap_or(""));
+                }
+                pipe.ignore();
+                command_count += 1;
+            }
+        }
+        "zset" => {
+            if let Some(items) = entry.get("value").and_then(Value::as_array)
+                && !items.is_empty()
+            {
+                pipe.cmd("ZADD").arg(key);
+                for item in items {
+                    pipe.arg(item.get("score").and_then(Value::as_f64).unwrap_or(0.0))
+                        .arg(item.get("member").and_then(Value::as_str).unwrap_or(""));
+                }
+                pipe.ignore();
+                command_count += 1;
+            }
+        }
+        "stream" => {
+            if let Some(items) = entry.get("value").and_then(Value::as_array) {
+                for item in items {
+                    let id = item.get("id").and_then(Value::as_str).unwrap_or("*");
+                    let Some(fields) = item.get("fields").and_then(Value::as_array) else {
+                        continue;
+                    };
+                    if fields.is_empty() || fields.len() % 2 != 0 {
+                        continue;
+                    }
+                    pipe.cmd("XADD").arg(key).arg(id);
+                    for field in fields {
+                        pipe.arg(field.as_str().unwrap_or(""));
+                    }
+                    pipe.ignore();
+                    command_count += 1;
+                }
+            }
+        }
+        _ => {}
+    }
+
+    if ttl_ms.is_some() && !matches!(value_type, "none" | "string") {
+        pipe.cmd("PEXPIRE").arg(key).arg(ttl_ms.unwrap()).ignore();
+        command_count += 1;
+    }
+    command_count
 }

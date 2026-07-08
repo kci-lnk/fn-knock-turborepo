@@ -62,6 +62,13 @@ pub async fn run() -> anyhow::Result<()> {
                 }
                 return Ok(());
             }
+            "migrate-redis-to-sqlite" => {
+                if let Err(error) = cli::migrate_redis_to_sqlite_command().await {
+                    eprintln!("legacy Redis migration failed: {error}");
+                    std::process::exit(1);
+                }
+                return Ok(());
+            }
             "-h" | "--help" => {
                 cli::print_help();
                 return Ok(());

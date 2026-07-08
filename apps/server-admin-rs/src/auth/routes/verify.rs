@@ -45,7 +45,7 @@ pub(super) async fn build_auth_shell_data(
     redirect_uri: Option<&str>,
     include_redirect: bool,
 ) -> anyhow::Result<(Value, AuthAccess)> {
-    let config = state.redis.get_config().await?;
+    let config = state.store.get_config().await?;
     let locale = config
         .get("locale")
         .cloned()
@@ -108,7 +108,7 @@ pub(super) async fn resolve_auth_access(
     translator: &Translator,
 ) -> anyhow::Result<AuthAccess> {
     let client_ip = client_ip_for_auth(headers);
-    let config = state.redis.get_config().await?;
+    let config = state.store.get_config().await?;
     let access_mode = requested_access_mode(headers);
     let normal_access =
         resolve_preflight_normal_access(state, headers, uri, &config, &client_ip, access_mode)
@@ -202,7 +202,7 @@ pub(super) async fn resolve_auth_access(
 }
 
 pub(super) async fn public_captcha_settings(state: &AppState) -> anyhow::Result<Value> {
-    let config = state.redis.get_config().await?;
+    let config = state.store.get_config().await?;
     let translator = translator_from_config(&config);
     Ok(public_captcha_settings_from_config(
         state,

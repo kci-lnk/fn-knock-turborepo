@@ -74,7 +74,7 @@ pub fn gateway_settings_routes() -> Router<AppState> {
 }
 
 pub(crate) async fn sync_gateway_settings_on_boot(state: AppState) {
-    let config = match state.redis.get_config().await {
+    let config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to load config for gateway settings boot sync");
@@ -87,7 +87,7 @@ pub(crate) async fn sync_gateway_settings_on_boot(state: AppState) {
     }
 
     let visibility_runtime = match state
-        .redis
+        .store
         .get_json_value(GATEWAY_VISIBILITY_RUNTIME_KEY)
         .await
     {
@@ -103,7 +103,7 @@ pub(crate) async fn sync_gateway_settings_on_boot(state: AppState) {
     }
 
     let proxy_headers_runtime = match state
-        .redis
+        .store
         .get_json_value(GATEWAY_PROXY_HEADERS_RUNTIME_KEY)
         .await
     {
@@ -119,7 +119,7 @@ pub(crate) async fn sync_gateway_settings_on_boot(state: AppState) {
     }
 
     let host_response_runtime = match state
-        .redis
+        .store
         .get_json_value(GATEWAY_HOST_RESPONSE_RUNTIME_KEY)
         .await
     {

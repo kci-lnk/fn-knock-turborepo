@@ -186,7 +186,7 @@ enum ScannerError {
     #[error("{0}")]
     Cidr(String),
     #[error(transparent)]
-    Redis(#[from] redis::RedisError),
+    Storage(#[from] crate::storage::StorageError),
 }
 
 #[derive(Deserialize)]

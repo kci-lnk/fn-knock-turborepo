@@ -13,11 +13,6 @@ BACKEND_HOST="${BACKEND_HOST:-127.0.0.1}"
 AUTH_HOST="${AUTH_HOST:-127.0.0.1}"
 ADMIN_VIEW_HOST="${ADMIN_VIEW_HOST:-${BACKEND_HOST}}"
 GO_BACKEND_GRPC_ADDR="${GO_BACKEND_GRPC_ADDR:-127.0.0.1:${GO_BACKEND_PORT}}"
-REDIS_HOST="${REDIS_HOST:-redis}"
-REDIS_PORT="${REDIS_PORT:-6379}"
-REDIS_PASSWORD="${REDIS_PASSWORD:-}"
-REDIS_STARTUP_WAIT_SECONDS="${REDIS_STARTUP_WAIT_SECONDS:-120}"
-REDIS_STARTUP_RETRY_DELAY_SECONDS="${REDIS_STARTUP_RETRY_DELAY_SECONDS:-1}"
 RUST_BACKEND_BIN="${RUST_BACKEND_BIN:-${APP_HOME}/bin/server-admin-rs}"
 GATEWAY_BIN="${APP_HOME}/bin/go-reauth-proxy"
 ADMIN_STATIC_PATH="${APP_HOME}/ui/www"
@@ -81,47 +76,6 @@ wait_for_process_or_fail() {
   fi
 }
 
-wait_for_redis() {
-  local wait_seconds="${REDIS_STARTUP_WAIT_SECONDS%.*}"
-  local retry_seconds="${REDIS_STARTUP_RETRY_DELAY_SECONDS%.*}"
-  local started_at
-  local now
-  local elapsed
-  local logged_waiting=0
-
-  case "${wait_seconds}" in
-    ''|*[!0-9]*) wait_seconds=120 ;;
-  esac
-  case "${retry_seconds}" in
-    ''|*[!0-9]*) retry_seconds=1 ;;
-  esac
-  [ "${wait_seconds}" -gt 0 ] || wait_seconds=120
-  [ "${retry_seconds}" -gt 0 ] || retry_seconds=1
-
-  echo "[fn-knock] Waiting for Redis at ${REDIS_HOST}:${REDIS_PORT}"
-  started_at="$(date +%s)"
-  while true; do
-    if (exec 3<>"/dev/tcp/${REDIS_HOST}/${REDIS_PORT}") 2>/dev/null; then
-      exec 3<&- 3>&- || true
-      echo "[fn-knock] Redis is ready at ${REDIS_HOST}:${REDIS_PORT}"
-      return 0
-    fi
-
-    now="$(date +%s)"
-    elapsed=$((now - started_at))
-    if [ "${elapsed}" -ge "${wait_seconds}" ]; then
-      echo "[fn-knock] Redis at ${REDIS_HOST}:${REDIS_PORT} was not ready after ${wait_seconds}s" >&2
-      exit 1
-    fi
-
-    if [ "${logged_waiting}" -eq 0 ]; then
-      echo "[fn-knock] Redis is not ready yet; waiting up to ${wait_seconds}s"
-      logged_waiting=1
-    fi
-    sleep "${retry_seconds}"
-  done
-}
-
 cleanup() {
   local exit_code=$?
   trap - EXIT INT TERM
@@ -173,8 +127,6 @@ BACKEND_PORT="${BACKEND_PORT}" \
 GATEWAY_PID=$!
 wait_for_process_or_fail "${GATEWAY_PID}" "gateway"
 
-wait_for_redis
-
 if [ -n "${ADMIN_VIEW_PORT}" ]; then
   echo "[fn-knock] Starting Rust backend on ${BACKEND_HOST}:${BACKEND_PORT} (admin view ${ADMIN_VIEW_HOST}:${ADMIN_VIEW_PORT})"
 else
@@ -188,10 +140,6 @@ fi
   FN_KNOCK_GATEWAY_CONFIG_DIR="${GATEWAY_CONFIG_DIR}" \
   FN_KNOCK_RUNTIME_TARGET="docker" \
   FN_KNOCK_BACKEND_IMPL="rust" \
-  REDIS_HOST="${REDIS_HOST}" \
-  REDIS_PORT="${REDIS_PORT}" \
-  REDIS_PASSWORD="${REDIS_PASSWORD}" \
-  REDIS_STARTUP_WAIT_SECONDS="${REDIS_STARTUP_WAIT_SECONDS}" \
   ACME_BUNDLE_ZIP="${ACME_BUNDLE_ZIP}" \
   ADMIN_VIEW_PORT="${ADMIN_VIEW_PORT}" \
   BACKEND_PORT="${BACKEND_PORT}" \

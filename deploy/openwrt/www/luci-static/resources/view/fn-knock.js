@@ -29,8 +29,7 @@ var servicePortLabels = {
 	backend_port: '内部后端 API 端口',
 	auth_port: '认证服务端口',
 	go_backend_port: '网关内部 gRPC 端口',
-	go_reproxy_port: '网关代理端口',
-	redis_port: 'Redis 端口'
+	go_reproxy_port: '网关代理端口'
 };
 
 function buildExternalLinks() {
@@ -157,17 +156,6 @@ return view.extend({
 		o.placeholder = '0.0.0.0';
 		o.datatype = 'ipaddr';
 		o.rmempty = false;
-
-		o = s.option(form.Value, 'redis_host', 'Redis 地址');
-		o.placeholder = '127.0.0.1';
-		o.datatype = 'host';
-		o.rmempty = false;
-
-		addPortOption(s, 'redis_port', 'Redis 端口', '6379', '敲门 Knock 连接 Redis 服务时使用的端口。');
-
-		o = s.option(form.Value, 'redis_password', 'Redis 密码');
-		o.password = true;
-		o.rmempty = true;
 
 		o = s.option(form.Value, 'data_dir', '数据目录');
 		o.placeholder = '/var/lib/fn-knock';

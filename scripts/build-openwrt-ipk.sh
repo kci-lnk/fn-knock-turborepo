@@ -6,6 +6,7 @@ source "${ROOT_DIR}/scripts/version.sh"
 cd "${ROOT_DIR}"
 
 APP_NAME="${FN_KNOCK_OPENWRT_PACKAGE_NAME:-fn-knock}"
+ISTORE_META_PACKAGE_NAME="${FN_KNOCK_OPENWRT_ISTORE_META_PACKAGE_NAME:-app-meta-${APP_NAME}}"
 PACKAGE_RELEASE="${FN_KNOCK_OPENWRT_RELEASE:-1}"
 BACKEND_IMPL="${FN_KNOCK_BACKEND_IMPL:-rust}"
 OUTPUT_DIR="${FN_KNOCK_OPENWRT_OUTPUT_DIR:-${ROOT_DIR}/dist/openwrt}"
@@ -16,6 +17,10 @@ esac
 WORK_DIR="${OUTPUT_DIR}/work"
 RUNTIME_DIR="${OUTPUT_DIR}/runtime"
 TEMPLATE_DIR="${ROOT_DIR}/deploy/openwrt"
+ISTORE_META_ICON_SOURCE="${FN_KNOCK_OPENWRT_ISTORE_ICON_SOURCE:-${TEMPLATE_DIR}/www/luci-static/resources/fn-knock/fn-knock.png}"
+ISTORE_META_DESCRIPTION="${FN_KNOCK_OPENWRT_ISTORE_DESCRIPTION:-敲门knock是一款针对飞牛OS的安全防护软件，内置了防火墙控制和反代安全}"
+ISTORE_META_DESCRIPTION_EN="${FN_KNOCK_OPENWRT_ISTORE_DESCRIPTION_EN:-Secure reverse proxy and knock authentication gateway.}"
+ISTORE_META_PACKAGE_DESCRIPTION="${FN_KNOCK_OPENWRT_ISTORE_PACKAGE_DESCRIPTION:-敲门 Knock iStore 元数据}"
 RUST_BACKEND_BIN_DIR="${FN_KNOCK_OPENWRT_RUST_BACKEND_BIN_DIR:-}"
 RUST_BACKEND_OUTPUT_DIR="${FN_KNOCK_OPENWRT_RUST_BACKEND_OUTPUT_DIR:-${OUTPUT_DIR}/rust-backends}"
 ARTIFACTS_DIR="${FN_KNOCK_ARTIFACTS_DIR:-${ROOT_DIR}/dist/fn-knock-artifacts}"
@@ -386,6 +391,92 @@ EOF
   chmod 755 "${control_dir}/postinst" "${control_dir}/prerm" "${control_dir}/postrm"
 }
 
+istore_meta_release_number() {
+  local release="${PACKAGE_RELEASE#r}"
+
+  case "${release}" in
+    ""|*[!0-9]*)
+      printf '1\n'
+      ;;
+    *)
+      printf '%s\n' "${release}"
+      ;;
+  esac
+}
+
+write_istore_meta_cache_script() {
+  local output_file="$1"
+
+  {
+    printf '#!/bin/sh\n'
+    printf 'rm -f /tmp/cache/istore/installed.json\n'
+    printf 'exit 0\n'
+  } > "${output_file}"
+  chmod 755 "${output_file}"
+}
+
+write_istore_meta_control_files() {
+  local control_dir="$1"
+  local meta_version="$2"
+  local installed_size="$3"
+
+  mkdir -p "${control_dir}"
+  cat > "${control_dir}/control" <<EOF
+Package: ${ISTORE_META_PACKAGE_NAME}
+Version: ${meta_version}
+Architecture: all
+Maintainer: kci-lnk <https://github.com/kci-lnk>
+Section: meta
+Priority: optional
+Depends: ${APP_NAME}
+Provides: ${ISTORE_META_PACKAGE_NAME}-any
+Homepage: ${HOMEPAGE}
+License: ${LICENSE}
+Installed-Size: ${installed_size}
+Description: ${ISTORE_META_PACKAGE_DESCRIPTION}
+EOF
+
+  write_istore_meta_cache_script "${control_dir}/postinst"
+  write_istore_meta_cache_script "${control_dir}/prerm"
+  write_istore_meta_cache_script "${control_dir}/postrm"
+}
+
+copy_istore_meta_payload() {
+  local data_dir="$1"
+  local meta_dir="$2"
+  local version="$3"
+  local release_number
+
+  [ -f "${ISTORE_META_ICON_SOURCE}" ] || \
+    fail "missing iStore app icon source: ${ISTORE_META_ICON_SOURCE}"
+
+  release_number="$(istore_meta_release_number)"
+
+  mkdir -p \
+    "${data_dir}/${meta_dir}" \
+    "${data_dir}/www/luci-static/resources/app-icons"
+  cp "${ISTORE_META_ICON_SOURCE}" \
+    "${data_dir}/www/luci-static/resources/app-icons/${APP_NAME}.png"
+
+  cat > "${data_dir}/${meta_dir}/${APP_NAME}.json" <<EOF
+{
+  "name": "${APP_NAME}",
+  "title": "\u6572\u95e8 Knock",
+  "title_en": "fn-knock",
+  "entry": "/cgi-bin/luci/admin/services/fn-knock",
+  "author": "kci-lnk",
+  "website": "https://www.fnknock.cn/",
+  "version": "${version}",
+  "release": ${release_number},
+  "arch": ["x86_64", "aarch64", "arm"],
+  "description": "${ISTORE_META_DESCRIPTION}",
+  "description_en": "${ISTORE_META_DESCRIPTION_EN}",
+  "tags": ["net", "tool"],
+  "depends": ["${APP_NAME}"]
+}
+EOF
+}
+
 copy_runtime_payload() {
   local data_dir="$1"
   local gateway_arch="$2"
@@ -734,7 +825,9 @@ apk_package_version() {
 }
 
 apk_package_depends() {
-  printf '%s\n' "${DEPENDS}" | tr ',' ' ' | xargs
+  local depends="${1:-${DEPENDS}}"
+
+  printf '%s\n' "${depends}" | tr ',' ' ' | xargs
 }
 
 write_apk_lifecycle_script() {
@@ -780,11 +873,12 @@ prepare_apk_lifecycle_scripts() {
 prepare_apk_metadata_files() {
   local data_dir="$1"
   local control_dir="$2"
+  local package_name="${3:-${APP_NAME}}"
   local metadata_dir="${data_dir}/lib/apk/packages"
   local conffiles_src="${control_dir}/conffiles"
-  local conffiles_dst="${metadata_dir}/${APP_NAME}.conffiles"
-  local conffiles_static_dst="${metadata_dir}/${APP_NAME}.conffiles_static"
-  local list_dst="${metadata_dir}/${APP_NAME}.list"
+  local conffiles_dst="${metadata_dir}/${package_name}.conffiles"
+  local conffiles_static_dst="${metadata_dir}/${package_name}.conffiles_static"
+  local list_dst="${metadata_dir}/${package_name}.list"
   local config_file
   local normalized_file
   local full_path
@@ -821,23 +915,28 @@ create_apk_archive() {
   local apk_path="$3"
   local openwrt_arch="$4"
   local version="$5"
+  local package_name="${6:-${APP_NAME}}"
+  local package_description="${7:-${DESCRIPTION}}"
+  local package_url="${8:-${HOMEPAGE}}"
+  local package_origin="${9:-fn-knock/openwrt}"
+  local package_depends="${10:-${DEPENDS}}"
   local apk_file_name
   local apk_version
   local apk_depends
 
   apk_file_name="$(basename "${apk_path}")"
   apk_version="$(apk_package_version "${version}")"
-  apk_depends="$(apk_package_depends)"
+  apk_depends="$(apk_package_depends "${package_depends}")"
 
   docker run --rm \
-    -e APK_PACKAGE_NAME="${APP_NAME}" \
+    -e APK_PACKAGE_NAME="${package_name}" \
     -e APK_PACKAGE_VERSION="${apk_version}" \
     -e APK_PACKAGE_ARCH="${openwrt_arch}" \
-    -e APK_PACKAGE_DESCRIPTION="${DESCRIPTION}" \
+    -e APK_PACKAGE_DESCRIPTION="${package_description}" \
     -e APK_PACKAGE_LICENSE="${LICENSE}" \
-    -e APK_PACKAGE_URL="${HOMEPAGE}" \
+    -e APK_PACKAGE_URL="${package_url}" \
     -e APK_PACKAGE_MAINTAINER="kci-lnk <https://github.com/kci-lnk>" \
-    -e APK_PACKAGE_ORIGIN="fn-knock/openwrt" \
+    -e APK_PACKAGE_ORIGIN="${package_origin}" \
     -e APK_PACKAGE_DEPENDS="${apk_depends}" \
     -e APK_OUTPUT_NAME="${apk_file_name}" \
     -v "${data_dir}:/src:ro" \
@@ -897,6 +996,190 @@ validate_apk() {
   rm -rf "${extract_dir}"
 }
 
+validate_istore_meta_control_metadata() {
+  local control_tar="$1"
+  local meta_version="$2"
+  local control_text
+
+  control_text="$(tar -xOzf "${control_tar}" ./control)"
+  printf '%s\n' "${control_text}" | grep -Fxq "Package: ${ISTORE_META_PACKAGE_NAME}" || \
+    fail "iStore meta control metadata missing package name"
+  printf '%s\n' "${control_text}" | grep -Fxq "Version: ${meta_version}" || \
+    fail "iStore meta control metadata missing version"
+  printf '%s\n' "${control_text}" | grep -Fxq "Architecture: all" || \
+    fail "iStore meta control metadata missing all architecture"
+  printf '%s\n' "${control_text}" | grep -Fxq "Depends: ${APP_NAME}" || \
+    fail "iStore meta control metadata missing dependency on ${APP_NAME}"
+  printf '%s\n' "${control_text}" | grep -Fxq "Description: ${ISTORE_META_PACKAGE_DESCRIPTION}" || \
+    fail "iStore meta control metadata missing package description"
+}
+
+validate_istore_meta_payload_listing() {
+  local listing="$1"
+  local meta_path="$2"
+  local icon_path="www/luci-static/resources/app-icons/${APP_NAME}.png"
+
+  printf '%s\n' "${listing}" | grep -Fxq "${meta_path}" || \
+    fail "iStore meta payload missing ${meta_path}"
+  printf '%s\n' "${listing}" | grep -Fxq "${icon_path}" || \
+    fail "iStore meta payload missing ${icon_path}"
+}
+
+validate_istore_meta_extracted_payload() {
+  local extract_dir="$1"
+  local meta_path="$2"
+  local version="$3"
+  local meta_file="${extract_dir}/${meta_path}"
+  local icon_file="${extract_dir}/www/luci-static/resources/app-icons/${APP_NAME}.png"
+  local icon_info
+
+  [ -f "${meta_file}" ] || fail "iStore meta JSON is missing: ${meta_file}"
+  [ -f "${icon_file}" ] || fail "iStore app icon is missing: ${icon_file}"
+
+  grep -Fq "\"name\": \"${APP_NAME}\"" "${meta_file}" || \
+    fail "iStore meta JSON has incorrect name"
+  grep -Fq '"title": "\u6572\u95e8 Knock"' "${meta_file}" || \
+    fail "iStore meta JSON has incorrect title"
+  grep -Fq '"entry": "/cgi-bin/luci/admin/services/fn-knock"' "${meta_file}" || \
+    fail "iStore meta JSON has incorrect entry"
+  grep -Fq "\"version\": \"${version}\"" "${meta_file}" || \
+    fail "iStore meta JSON has incorrect version"
+  grep -Fq "\"release\": $(istore_meta_release_number)" "${meta_file}" || \
+    fail "iStore meta JSON has incorrect release"
+  grep -Fq "\"description\": \"${ISTORE_META_DESCRIPTION}\"" "${meta_file}" || \
+    fail "iStore meta JSON has incorrect description"
+  grep -Fq "\"description_en\": \"${ISTORE_META_DESCRIPTION_EN}\"" "${meta_file}" || \
+    fail "iStore meta JSON has incorrect English description"
+  grep -Fq "\"depends\": [\"${APP_NAME}\"]" "${meta_file}" || \
+    fail "iStore meta JSON has incorrect depends"
+
+  icon_info="$(file -b "${icon_file}")"
+  printf '%s\n' "${icon_info}" | grep -Fq "PNG image data" || \
+    fail "iStore app icon is not a PNG: ${icon_info}"
+}
+
+validate_istore_meta_data_payload() {
+  local data_tar="$1"
+  local meta_path="$2"
+  local extract_dir="$3"
+  local version="$4"
+  local listing
+
+  listing="$(tar -tzf "${data_tar}" | normalize_tar_listing)"
+  validate_istore_meta_payload_listing "${listing}" "${meta_path}"
+
+  rm -rf "${extract_dir}"
+  mkdir -p "${extract_dir}"
+  tar -xzf "${data_tar}" -C "${extract_dir}"
+  validate_istore_meta_extracted_payload "${extract_dir}" "${meta_path}" "${version}"
+}
+
+validate_istore_meta_ar_ipk() {
+  local ipk_path="$1"
+  local control_tar="$2"
+  local data_tar="$3"
+  local meta_version="$4"
+  local version="$5"
+  local ar_listing
+  local extract_dir
+
+  ar_listing="$(ar -t "${ipk_path}" | sed 's#/$##')"
+  [ "${ar_listing}" = $'debian-binary\ncontrol.tar.gz\ndata.tar.gz' ] || {
+    printf '%s\n' "${ar_listing}" >&2
+    fail "unexpected ar member order for ${ipk_path}"
+  }
+
+  validate_istore_meta_control_metadata "${control_tar}" "${meta_version}"
+  validate_root_ownership "${control_tar}"
+  validate_root_ownership "${data_tar}"
+
+  extract_dir="$(mktemp -d "${WORK_DIR}/inspect-istore-meta.XXXXXX")"
+  validate_istore_meta_data_payload \
+    "${data_tar}" \
+    "usr/lib/opkg/meta/${APP_NAME}.json" \
+    "${extract_dir}" \
+    "${version}"
+  rm -rf "${extract_dir}"
+}
+
+validate_istore_meta_tar_ipk() {
+  local ipk_path="$1"
+  local control_tar="$2"
+  local data_tar="$3"
+  local meta_version="$4"
+  local version="$5"
+  local listing
+  local extract_dir
+
+  listing="$(tar -tzf "${ipk_path}" | normalize_tar_listing)"
+  [ "${listing}" = $'debian-binary\ndata.tar.gz\ncontrol.tar.gz' ] || {
+    printf '%s\n' "${listing}" >&2
+    fail "unexpected tar ipk member order for ${ipk_path}"
+  }
+
+  validate_istore_meta_control_metadata "${control_tar}" "${meta_version}"
+  validate_root_ownership "${control_tar}"
+  validate_root_ownership "${data_tar}"
+  validate_root_ownership "${ipk_path}"
+
+  extract_dir="$(mktemp -d "${WORK_DIR}/inspect-istore-meta.XXXXXX")"
+  validate_istore_meta_data_payload \
+    "${data_tar}" \
+    "usr/lib/opkg/meta/${APP_NAME}.json" \
+    "${extract_dir}" \
+    "${version}"
+  rm -rf "${extract_dir}"
+}
+
+validate_istore_meta_ipk() {
+  local ipk_path="$1"
+  local control_tar="$2"
+  local data_tar="$3"
+  local meta_version="$4"
+  local version="$5"
+
+  case "${IPK_CONTAINER_FORMAT}" in
+    tar|tar.gz|tgz)
+      validate_istore_meta_tar_ipk "${ipk_path}" "${control_tar}" "${data_tar}" "${meta_version}" "${version}"
+      ;;
+    ar)
+      validate_istore_meta_ar_ipk "${ipk_path}" "${control_tar}" "${data_tar}" "${meta_version}" "${version}"
+      ;;
+  esac
+}
+
+validate_istore_meta_apk() {
+  local apk_path="$1"
+  local version="$2"
+  local apk_dir
+  local apk_file_name
+  local extract_dir
+
+  apk_dir="$(dirname "${apk_path}")"
+  apk_file_name="$(basename "${apk_path}")"
+  extract_dir="$(mktemp -d "${WORK_DIR}/apk-istore-meta-inspect.XXXXXX")"
+
+  docker run --rm \
+    -e APK_FILE_NAME="${apk_file_name}" \
+    -v "${apk_dir}:/packages:ro" \
+    -v "${extract_dir}:/inspect" \
+    "${APK_DOCKER_IMAGE}" \
+    sh -eu -c '
+      apk extract --allow-untrusted --destination /inspect "/packages/${APK_FILE_NAME}" >/dev/null
+      bad_entry="$(find /inspect \( ! -user root -o ! -group root \) -print -quit)"
+      if [ -n "${bad_entry}" ]; then
+        echo "APK extract contains non-root-owned entry: ${bad_entry}" >&2
+        exit 1
+      fi
+    '
+
+  validate_istore_meta_extracted_payload \
+    "${extract_dir}" \
+    "lib/apk/meta/${APP_NAME}.json" \
+    "${version}"
+  rm -rf "${extract_dir}"
+}
+
 build_packages_for_arch() {
   local item="$1"
   local version="$2"
@@ -944,6 +1227,94 @@ build_packages_for_arch() {
 
     validate_apk "${apk_path}" "${gateway_arch}"
     log "Built ${apk_path}"
+  fi
+}
+
+build_istore_meta_ipk() {
+  local version="$1"
+  local meta_version
+  local package_work_dir="${WORK_DIR}/istore-meta-ipk"
+  local control_dir="${package_work_dir}/CONTROL"
+  local data_dir="${package_work_dir}/data"
+  local control_tar="${package_work_dir}/control.tar.gz"
+  local data_tar="${package_work_dir}/data.tar.gz"
+  local debian_binary="${package_work_dir}/debian-binary"
+  local ipk_path
+  local installed_size
+
+  meta_version="$(apk_package_version "${version}")"
+  ipk_path="${OUTPUT_DIR}/${ISTORE_META_PACKAGE_NAME}_${meta_version}_all.ipk"
+
+  rm -rf "${package_work_dir}"
+  mkdir -p "${control_dir}" "${data_dir}"
+
+  copy_istore_meta_payload "${data_dir}" "usr/lib/opkg/meta" "${version}"
+  installed_size="$(du -sk "${data_dir}" | awk '{ print $1 }')"
+  write_istore_meta_control_files "${control_dir}" "${meta_version}" "${installed_size}"
+
+  printf '2.0\n' > "${debian_binary}"
+  create_tarball "${control_dir}" "${control_tar}"
+  create_tarball "${data_dir}" "${data_tar}"
+
+  rm -f "${ipk_path}"
+  create_ipk_archive "${package_work_dir}" "${ipk_path}" "${debian_binary}" "${control_tar}" "${data_tar}"
+
+  validate_istore_meta_ipk "${ipk_path}" "${control_tar}" "${data_tar}" "${meta_version}" "${version}"
+  log "Built ${ipk_path}"
+}
+
+build_istore_meta_apk() {
+  local version="$1"
+  local meta_version
+  local package_work_dir="${WORK_DIR}/istore-meta-apk"
+  local control_dir="${package_work_dir}/CONTROL"
+  local data_dir="${package_work_dir}/data"
+  local apk_scripts_dir="${package_work_dir}/apk-scripts"
+  local apk_path
+  local installed_size
+
+  meta_version="$(apk_package_version "${version}")"
+  apk_path="${OUTPUT_DIR}/${ISTORE_META_PACKAGE_NAME}-${meta_version}.apk"
+
+  rm -rf "${package_work_dir}"
+  mkdir -p "${control_dir}" "${data_dir}"
+
+  copy_istore_meta_payload "${data_dir}" "lib/apk/meta" "${version}"
+  installed_size="$(du -sk "${data_dir}" | awk '{ print $1 }')"
+  write_istore_meta_control_files "${control_dir}" "${meta_version}" "${installed_size}"
+  prepare_apk_lifecycle_scripts "${control_dir}" "${apk_scripts_dir}"
+  prepare_apk_metadata_files "${data_dir}" "${control_dir}" "${ISTORE_META_PACKAGE_NAME}"
+
+  rm -f "${apk_path}"
+  create_apk_archive \
+    "${data_dir}" \
+    "${apk_scripts_dir}" \
+    "${apk_path}" \
+    "all" \
+    "${version}" \
+    "${ISTORE_META_PACKAGE_NAME}" \
+    "${ISTORE_META_PACKAGE_DESCRIPTION}" \
+    "${HOMEPAGE}" \
+    "fn-knock/istore-meta" \
+    "${APP_NAME}"
+
+  validate_istore_meta_apk "${apk_path}" "${version}"
+  log "Built ${apk_path}"
+}
+
+build_istore_meta_packages() {
+  local version="$1"
+  shift
+  local package_formats=("$@")
+
+  log "Preparing iStore metadata package ${ISTORE_META_PACKAGE_NAME}"
+
+  if format_enabled ipk "${package_formats[@]}"; then
+    build_istore_meta_ipk "${version}"
+  fi
+
+  if format_enabled apk "${package_formats[@]}"; then
+    build_istore_meta_apk "${version}"
   fi
 }
 
@@ -1003,6 +1374,8 @@ main() {
   for item in "${matrix_items[@]}"; do
     build_packages_for_arch "${item}" "${version}" "${package_formats[@]}"
   done
+
+  build_istore_meta_packages "${version}" "${package_formats[@]}"
 
   log "OpenWrt package build completed (${package_formats[*]})"
 }

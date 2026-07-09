@@ -22,7 +22,11 @@
 
 ## 从 Docker Hub 直接安装并运行
 
-如果你是镜像使用者，而不是要在这个仓库里二次开发，推荐直接拉取 Docker Hub 镜像运行，不需要本地构建。
+[官网](https://www.fnknock.cn) / [文档](https://docs.fnknock.cn)
+
+fnknock 是一款鉴权网关，帮助你更方便地暴露公网服务，支持 SSL、DDNS、反代鉴权和内网穿透。
+
+当前 Docker 镜像已经切换为 Rust 后端，并使用内置 SQLite 兼容存储；新部署只需要 `fn-knock` 一个容器，不需要 Redis，也不需要在 compose 里再配置 `redis` 服务。
 
 ### 1. 准备运行目录
 
@@ -31,7 +35,13 @@ mkdir -p /opt/fn-knock-docker
 cd /opt/fn-knock-docker
 ```
 
-### 2. 准备 `.env`
+### 2. 拉取最新镜像
+
+```bash
+docker pull kcilnk/fn-knock:latest
+```
+
+### 3. 准备 `.env`
 
 下面这份配置适合绝大多数场景，默认直接使用正式发布镜像：
 
@@ -60,7 +70,7 @@ DOCKER_DISCOVER_LAN_IP=
 - `DOCKER_ADMIN_TRUSTED_PROXY_CIDRS`：如果 `7991` 需要挂在可信反代后面，填反代出口 IP 或 CIDR
 - `DOCKER_DISCOVER_LAN_IP`：仅第三方反代无法自动识别宿主机局域网地址时作为兜底
 
-### 3. 准备 `docker-compose.yml`
+### 4. 准备 `docker-compose.yml`
 
 ```yaml
 services:
@@ -85,6 +95,10 @@ services:
     ports:
       - "${ADMIN_VIEW_PORT:-7991}:${ADMIN_VIEW_PORT:-7991}"
       - "${GO_REPROXY_PORT:-7999}:${GO_REPROXY_PORT:-7999}"
+    ulimits:
+      nofile:
+        soft: 1048576
+        hard: 1048576
     networks:
       - fn_knock_net
     volumes:
@@ -118,35 +132,36 @@ networks:
 
 - `fn-knock` 使用 `unless-stopped`，重启后会自动拉起
 - 只对宿主机开放 `ADMIN_VIEW_PORT` 和 `GO_REPROXY_PORT`
+- 不再启动 Redis；默认数据会写入 `fn_knock_gateway` 卷中的 SQLite 数据库
 - 默认启用容器 IPv6 网络，避免宿主机 IPv6 入口被 Docker 转接到容器 IPv4 后丢失真实来访 IP
 - 只读挂载宿主机 `/proc/1/net`，让 Docker 内的 DDNS 可以直接选择宿主机公网 IPv6；如果设备没有 IPv6 地址，DDNS 会自动退回原有公网探测逻辑
 - `fn_knock_data` 保存 secret、备份、FRP/Cloudflared 资源等运行数据
 - `fn_knock_gateway` 保存网关配置和默认 SQLite 数据库（`storage/fn-knock.sqlite3`）
 
-### 4. 拉取并启动
+### 5. 启动
 
 ```bash
-docker compose pull
 docker compose up -d
 docker compose ps
 docker compose logs -f fn-knock
 ```
 
-### 5. 端口说明
+### 6. 端口说明
 
 - `7991`：管理后台入口。首次访问会进入 Docker 管理面板密码设置流程
 - `7999`：网关 / 代理入口。最终用户访问代理服务时通常使用这个端口
 - `7998`：Rust 后端内部端口，不对宿主机暴露
 - `7997`：认证前端内部端口，不对宿主机暴露
 - `7996`：Go 后端内部端口，不对宿主机暴露
+- 当前版本不再提供 `6379` Redis 端口
 
-### 6. 请求来源 IP
+### 7. 请求来源 IP
 
 Docker bridge 发布端口时，本机回环访问会经过 Docker 的本地转发层，因此 `curl http://127.0.0.1:7999` 这类探测日志可能显示 `172.30.0.1` 或其它 Docker 网关地址。局域网或公网 IPv4 从宿主机网卡进入时，通常会保留真实 TCP 来源；如果经过上游反代，真实访问者需要由可信反代写入 `X-Forwarded-For`、`X-Real-IP` 或云厂商真实 IP 头。
 
 请求日志中的“客户端 IP”会优先展示由上游真实 IP 头推断出的访问者；“连接来源 IP”保留网关实际看到的 TCP 对端，便于排查 Docker 端口发布、本机探测和反代链路。
 
-### 7. 首次配置与后续更新
+### 8. 首次配置与后续更新
 
 首次运行后：
 
@@ -154,6 +169,8 @@ Docker bridge 发布端口时，本机回环访问会经过 Docker 的本地转�
 2. 设置并登录 Docker 管理面板密码
 3. 在管理后台中继续配置代理规则、鉴权、证书、白名单等业务项
 4. 对外提供服务时，让流量进入 `7999`
+5. 如果 `7991` 需要放到可信反向代理后面，设置 `DOCKER_ADMIN_TRUSTED_PROXY_CIDRS`
+6. 只有在第三方反向代理无法自动识别宿主机局域网地址时，才额外设置 `DOCKER_DISCOVER_LAN_IP`
 
 后续升级：
 
@@ -164,7 +181,11 @@ docker compose up -d
 
 如果你使用的是 `latest`，这个流程会直接更新到最新镜像；如果你要固定版本，修改 `.env` 里的 `FN_KNOCK_IMAGE=kcilnk/fn-knock:<version>` 后再执行同样的命令。
 
-旧版本从 Redis 升级时，先在旧 Redis 服务仍可访问的 compose 网络里执行一次迁移：
+### 9. 旧版 Redis 数据迁移
+
+这一节只适用于历史 compose 曾经包含 Redis、并且需要保留旧数据的用户；全新安装可以跳过。
+
+从旧版本升级时，先在旧 Redis 服务仍可访问的 compose 网络里执行一次迁移：
 
 ```bash
 docker compose exec -e FN_KNOCK_LEGACY_REDIS_URL=redis://redis:6379/ fn-knock \

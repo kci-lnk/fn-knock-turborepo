@@ -59,57 +59,55 @@ const { t } = useI18n();
 
 <template>
   <CardContent v-if="isLoading && showLoadingSkeleton && !credentials.length">
-    <div class="overflow-hidden rounded-md border">
-      <Table :class="tableClass" container-class="overflow-x-auto">
-        <colgroup>
-          <col :class="showAdminPanelAccessColumn ? 'w-[24%]' : 'w-[27%]'" />
-          <col :class="showAdminPanelAccessColumn ? 'w-[16%]' : 'w-[18%]'" />
-          <col :class="showAdminPanelAccessColumn ? 'w-[16%]' : 'w-[19%]'" />
-          <col :class="showAdminPanelAccessColumn ? 'w-[18%]' : 'w-[22%]'" />
-          <col v-if="showAdminPanelAccessColumn" class="w-[14%]" />
-          <col :class="showAdminPanelAccessColumn ? 'w-[12%]' : 'w-[14%]'" />
-        </colgroup>
-        <TableHeader>
-          <TableRow>
-            <TableHead class="whitespace-normal">
-              {{ t("admin.authSettings.comment") }}
-            </TableHead>
-            <TableHead class="whitespace-normal">
-              {{ t("admin.authSettings.boundAt") }}
-            </TableHead>
-            <TableHead class="whitespace-normal">
-              {{ t("admin.authSettings.deviceAssociation") }}
-            </TableHead>
-            <TableHead class="whitespace-normal">
-              {{ t("admin.authSettings.permission") }}
-            </TableHead>
-            <TableHead
-              v-if="showAdminPanelAccessColumn"
-              class="whitespace-normal"
-            >
-              {{ t("admin.authSettings.adminPanelAccess") }}
-            </TableHead>
-            <TableHead class="text-right">
-              {{ t("admin.authSettings.actions") }}
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          <TableRow v-for="n in 4" :key="n">
-            <TableCell><Skeleton class="h-4 w-40 max-w-full" /></TableCell>
-            <TableCell><Skeleton class="h-4 w-36 max-w-full" /></TableCell>
-            <TableCell><Skeleton class="h-4 w-52 max-w-full" /></TableCell>
-            <TableCell><Skeleton class="h-8 w-40 max-w-full" /></TableCell>
-            <TableCell v-if="showAdminPanelAccessColumn">
-              <Skeleton class="h-6 w-24 max-w-full" />
-            </TableCell>
-            <TableCell class="text-right">
-              <Skeleton class="ml-auto h-8 w-16 rounded-md sm:w-24" />
-            </TableCell>
-          </TableRow>
-        </TableBody>
-      </Table>
-    </div>
+    <Table :class="tableClass" container-class="overflow-x-auto">
+      <colgroup>
+        <col :class="showAdminPanelAccessColumn ? 'w-[24%]' : 'w-[27%]'" />
+        <col :class="showAdminPanelAccessColumn ? 'w-[16%]' : 'w-[18%]'" />
+        <col :class="showAdminPanelAccessColumn ? 'w-[16%]' : 'w-[19%]'" />
+        <col :class="showAdminPanelAccessColumn ? 'w-[18%]' : 'w-[22%]'" />
+        <col v-if="showAdminPanelAccessColumn" class="w-[14%]" />
+        <col :class="showAdminPanelAccessColumn ? 'w-[12%]' : 'w-[14%]'" />
+      </colgroup>
+      <TableHeader>
+        <TableRow>
+          <TableHead class="whitespace-normal">
+            {{ t("admin.authSettings.comment") }}
+          </TableHead>
+          <TableHead class="whitespace-normal">
+            {{ t("admin.authSettings.boundAt") }}
+          </TableHead>
+          <TableHead class="whitespace-normal">
+            {{ t("admin.authSettings.deviceAssociation") }}
+          </TableHead>
+          <TableHead class="whitespace-normal">
+            {{ t("admin.authSettings.permission") }}
+          </TableHead>
+          <TableHead
+            v-if="showAdminPanelAccessColumn"
+            class="whitespace-normal"
+          >
+            {{ t("admin.authSettings.adminPanelAccess") }}
+          </TableHead>
+          <TableHead class="text-right">
+            {{ t("admin.authSettings.actions") }}
+          </TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        <TableRow v-for="n in 4" :key="n">
+          <TableCell><Skeleton class="h-4 w-40 max-w-full" /></TableCell>
+          <TableCell><Skeleton class="h-4 w-36 max-w-full" /></TableCell>
+          <TableCell><Skeleton class="h-4 w-52 max-w-full" /></TableCell>
+          <TableCell><Skeleton class="h-8 w-40 max-w-full" /></TableCell>
+          <TableCell v-if="showAdminPanelAccessColumn">
+            <Skeleton class="h-6 w-24 max-w-full" />
+          </TableCell>
+          <TableCell class="text-right">
+            <Skeleton class="ml-auto h-8 w-16 rounded-md sm:w-24" />
+          </TableCell>
+        </TableRow>
+      </TableBody>
+    </Table>
   </CardContent>
   <CardContent v-else-if="!isLoading || credentials.length">
     <Table :class="tableClass" container-class="overflow-x-auto">

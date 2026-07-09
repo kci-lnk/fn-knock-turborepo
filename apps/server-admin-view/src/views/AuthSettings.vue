@@ -1,14 +1,18 @@
 <template>
-  <Card class="min-h-[600px]">
-    <CardHeader
-      class="gap-4 sm:flex sm:flex-row sm:items-center sm:justify-between"
-    >
-      <div class="min-w-0 space-y-1.5">
+  <div
+    class="dynamic-white-page-card dynamic-white-settings-surface h-full flex flex-col gap-4"
+  >
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div class="min-w-0 space-y-1">
         <div class="flex items-center justify-between gap-3">
-          <CardTitle>{{ authSettingsTitle }}</CardTitle>
+          <h1 class="text-lg font-semibold tracking-tight">
+            {{ authSettingsTitle }}
+          </h1>
           <DocsLinkButton class="sm:hidden" :href="docsUrls.guides.auth" />
         </div>
-        <CardDescription>{{ authSettingsDescription }}</CardDescription>
+        <p class="text-sm text-muted-foreground">
+          {{ authSettingsDescription }}
+        </p>
       </div>
       <div class="flex w-full items-center gap-2 sm:w-auto">
         <DocsLinkButton
@@ -63,69 +67,72 @@
           </DropdownMenu>
         </div>
       </div>
-    </CardHeader>
-    <TotpCredentialTable
-      v-if="authLoginMode === 'totp'"
-      :credentials="credentials"
-      :get-subdomain-access-preview="getSubdomainAccessPreview"
-      :get-subdomain-access-summary="getSubdomainAccessSummary"
-      :go-to-passkeys="goToPasskeys"
-      :handle-admin-panel-access-tooltip-click="
-        handleAdminPanelAccessTooltipClick
-      "
-      :handle-admin-panel-access-tooltip-open-change="
-        handleAdminPanelAccessTooltipOpenChange
-      "
-      :handle-delete="handleDelete"
-      :handle-docker-admin-panel-access-change="
-        handleDockerAdminPanelAccessChange
-      "
-      :has-docker-admin-panel-access="hasDockerAdminPanelAccess"
-      :is-access-scope-updating="isAccessScopeUpdating"
-      :is-admin-panel-access-tooltip-open="isAdminPanelAccessTooltipOpen"
-      :is-deleting="isDeleting"
-      :is-loading="isLoading"
-      :is-subdomain-access-updating="isSubdomainAccessUpdating"
-      :open-subdomain-access-dialog="openSubdomainAccessDialog"
-      :save-comment="saveComment"
-      :show-admin-panel-access-column="showAdminPanelAccessColumn"
-      :show-loading-skeleton="showLoadingSkeleton"
-      :table-class="totpTableClass"
-      :table-colspan="totpTableColspan"
-      :validate-comment="validateComment"
-    />
-    <AuthAccountTable
-      v-else
-      :accounts="authAccounts"
-      :get-subdomain-access-preview="getSubdomainAccessPreview"
-      :get-subdomain-access-summary="getSubdomainAccessSummary"
-      :handle-admin-panel-access-tooltip-click="
-        handleAdminPanelAccessTooltipClick
-      "
-      :handle-admin-panel-access-tooltip-open-change="
-        handleAdminPanelAccessTooltipOpenChange
-      "
-      :handle-delete="handleDeleteAccount"
-      :handle-docker-admin-panel-access-change="
-        handleAccountDockerAdminPanelAccessChange
-      "
-      :has-docker-admin-panel-access="hasDockerAdminPanelAccess"
-      :is-access-scope-updating="isAccessScopeUpdating"
-      :is-admin-panel-access-tooltip-open="isAdminPanelAccessTooltipOpen"
-      :is-deleting="isDeleting"
-      :is-loading="isLoading"
-      :is-subdomain-access-updating="isSubdomainAccessUpdating"
-      :open-create-account-dialog="openCreateAuthAccountDialog"
-      :open-password-dialog="openAccountPasswordDialog"
-      :open-subdomain-access-dialog="openAccountSubdomainAccessDialog"
-      :save-username="saveAccountUsername"
-      :show-admin-panel-access-column="showAdminPanelAccessColumn"
-      :show-loading-skeleton="showLoadingSkeleton"
-      :table-class="authAccountTableClass"
-      :table-colspan="authAccountTableColspan"
-      :validate-username="validateAccountUsername"
-    />
-  </Card>
+    </div>
+
+    <Card>
+      <TotpCredentialTable
+        v-if="authLoginMode === 'totp'"
+        :credentials="credentials"
+        :get-subdomain-access-preview="getSubdomainAccessPreview"
+        :get-subdomain-access-summary="getSubdomainAccessSummary"
+        :go-to-passkeys="goToPasskeys"
+        :handle-admin-panel-access-tooltip-click="
+          handleAdminPanelAccessTooltipClick
+        "
+        :handle-admin-panel-access-tooltip-open-change="
+          handleAdminPanelAccessTooltipOpenChange
+        "
+        :handle-delete="handleDelete"
+        :handle-docker-admin-panel-access-change="
+          handleDockerAdminPanelAccessChange
+        "
+        :has-docker-admin-panel-access="hasDockerAdminPanelAccess"
+        :is-access-scope-updating="isAccessScopeUpdating"
+        :is-admin-panel-access-tooltip-open="isAdminPanelAccessTooltipOpen"
+        :is-deleting="isDeleting"
+        :is-loading="isLoading"
+        :is-subdomain-access-updating="isSubdomainAccessUpdating"
+        :open-subdomain-access-dialog="openSubdomainAccessDialog"
+        :save-comment="saveComment"
+        :show-admin-panel-access-column="showAdminPanelAccessColumn"
+        :show-loading-skeleton="showLoadingSkeleton"
+        :table-class="totpTableClass"
+        :table-colspan="totpTableColspan"
+        :validate-comment="validateComment"
+      />
+      <AuthAccountTable
+        v-else
+        :accounts="authAccounts"
+        :get-subdomain-access-preview="getSubdomainAccessPreview"
+        :get-subdomain-access-summary="getSubdomainAccessSummary"
+        :handle-admin-panel-access-tooltip-click="
+          handleAdminPanelAccessTooltipClick
+        "
+        :handle-admin-panel-access-tooltip-open-change="
+          handleAdminPanelAccessTooltipOpenChange
+        "
+        :handle-delete="handleDeleteAccount"
+        :handle-docker-admin-panel-access-change="
+          handleAccountDockerAdminPanelAccessChange
+        "
+        :has-docker-admin-panel-access="hasDockerAdminPanelAccess"
+        :is-access-scope-updating="isAccessScopeUpdating"
+        :is-admin-panel-access-tooltip-open="isAdminPanelAccessTooltipOpen"
+        :is-deleting="isDeleting"
+        :is-loading="isLoading"
+        :is-subdomain-access-updating="isSubdomainAccessUpdating"
+        :open-create-account-dialog="openCreateAuthAccountDialog"
+        :open-password-dialog="openAccountPasswordDialog"
+        :open-subdomain-access-dialog="openAccountSubdomainAccessDialog"
+        :save-username="saveAccountUsername"
+        :show-admin-panel-access-column="showAdminPanelAccessColumn"
+        :show-loading-skeleton="showLoadingSkeleton"
+        :table-class="authAccountTableClass"
+        :table-colspan="authAccountTableColspan"
+        :validate-username="validateAccountUsername"
+      />
+    </Card>
+  </div>
 
   <AuthModeSwitchDialog
     v-model:open="showAuthModeSwitchDialog"
@@ -505,12 +512,7 @@ import {
 } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,

@@ -18,6 +18,8 @@ export const enServer = {
   loginCredentialMissing: "No login credentials are configured on the server",
   invalidOtpWithRetry:
     "The verification code is incorrect. Please retry in {seconds} seconds.",
+  invalidPasswordWithRetry:
+    "The username or password is incorrect. Please retry in {seconds} seconds.",
   runtimeProfile: {
     capabilities: {
       default: "The current runtime does not support this capability",
@@ -432,6 +434,32 @@ export const enServer = {
         "Automatically switched to a certificate better suited to the current subdomain mode.",
       sslAutoSelectionSyncFailed:
         "A recommended certificate was found, but syncing it to the gateway failed, so it was not switched automatically.",
+    },
+    authMode: {
+      loadFailed: "Failed to load auth login mode",
+      invalidMode: "Unsupported login mode",
+      previewFailed: "Failed to preview login mode switch",
+      switchFailed: "Failed to switch login mode",
+      blockingIssues: "The sign-in mode cannot be switched while blocking issues remain",
+    },
+    authAccounts: {
+      loadFailed: "Failed to load auth accounts",
+      notFound: "Auth account not found",
+      saveFailed: "Failed to save auth account",
+      syncFailed: "Failed to sync auth account to TOTP",
+      usernameExists: "Username already exists",
+      usernameTooShort: "Username must be at least 3 characters",
+      usernameTooLong: "Username cannot exceed 64 characters",
+      usernameInvalid: "Username can only contain letters, numbers, dots, underscores, or hyphens, and cannot contain spaces",
+      passwordTooShort: "Account password must be at least 6 characters",
+      passwordTooLong: "Account password cannot exceed 128 characters",
+      passwordWhitespace: "Account password cannot contain whitespace",
+      passwordNeedsLettersAndNumbers:
+        "Account password must contain both letters and numbers",
+      passwordSaveFailed: "Failed to save account password",
+      deleteFailed: "Failed to delete auth account",
+      deleted: "Auth account deleted",
+      totpAlreadyBound: "The account already has a usable TOTP credential",
     },
     authCredentialSettings: {
       loadFailed: "Failed to load auth credential settings",
@@ -965,6 +993,8 @@ export const enServer = {
   oidc: {
     callbackStateExpired: "Login state has expired. Start sign-in again.",
     loginFailedRetry: "External sign-in failed. Start sign-in again.",
+    loginMethodUnavailable:
+      "External sign-in is not available in the current sign-in mode.",
     reservedExtraAuthParam:
       "extra_auth_params contains a reserved OIDC parameter: {key}",
     urlInvalid: "{label} must be a valid URL",
@@ -1368,6 +1398,8 @@ export const enServer = {
     notFoundWithRetry: "Passkey not found. Retry in {seconds} seconds.",
     verifyFailedWithRetry: "Verification failed. Retry in {seconds} seconds.",
     bindTokenExpired: "Binding credential has expired",
+    loginMethodUnavailable:
+      "Passkey sign-in is not available in the current sign-in mode.",
     loadStatusFailed: "Failed to load passkey status",
     createOptionsFailed: "Failed to create passkey options",
     loadPasskeysFailed: "Failed to load passkeys",
@@ -1403,6 +1435,7 @@ export const enServer = {
     loadLoginCredentialsFailed: "Failed to load login credentials",
     createSessionFailed: "Failed to create auth session",
     loginSuccessful: "Login successful",
+    loginMethodUnavailable: "This sign-in method is not available.",
     verifyFailed: "Failed to verify auth",
     localNetworkAccessAllowed: "Local network access allowed",
     authenticated: "Authenticated",

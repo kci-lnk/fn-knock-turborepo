@@ -3,7 +3,11 @@ import type { CaptchaSettings } from "@frontend-core/captcha/types";
 import type {
   AppConfig,
   AppearanceConfig,
+  AuthAccount,
   AuthCredentialSettings,
+  AuthLoginMode,
+  AuthLoginModePreview,
+  AuthLoginModeStatus,
   AutoHttpsConfig,
   AutoHttpsDetails,
   BackupDirectoryFilesPayload,
@@ -61,7 +65,11 @@ import {
 export type {
   AppConfig,
   AppearanceConfig,
+  AuthAccount,
   AuthCredentialSettings,
+  AuthLoginMode,
+  AuthLoginModePreview,
+  AuthLoginModeStatus,
   AutoHttpsConfig,
   AutoHttpsDetails,
   BackupDirectoryFilesPayload,
@@ -445,6 +453,107 @@ export const ConfigAPI = {
     credentials: TOTPCredential[];
   }> {
     const res = await apiClient.get("/totp/status");
+    return res.data.data;
+  },
+  async getAuthLoginMode(): Promise<AuthLoginModeStatus> {
+    const res = await apiClient.get("/auth/mode");
+    return res.data.data;
+  },
+  async previewAuthLoginMode(
+    mode: AuthLoginMode,
+  ): Promise<AuthLoginModePreview> {
+    const res = await apiClient.post("/auth/mode/preview", { mode });
+    return res.data.data;
+  },
+  async switchAuthLoginMode(mode: AuthLoginMode): Promise<AuthLoginModeStatus> {
+    const res = await apiClient.post("/auth/mode/switch", { mode });
+    return res.data.data;
+  },
+  async getAuthAccounts(): Promise<AuthAccount[]> {
+    const res = await apiClient.get("/auth/accounts");
+    return res.data.data.accounts || [];
+  },
+  async createAuthAccount(payload: {
+    username: string;
+    password: string;
+  }): Promise<AuthAccount> {
+    const res = await apiClient.post("/auth/accounts", payload);
+    return res.data.data;
+  },
+  async updateAuthAccount(
+    id: string,
+    payload: { username?: string },
+  ): Promise<AuthAccount> {
+    const res = await apiClient.patch(
+      `/auth/accounts/${encodeURIComponent(id)}`,
+      payload,
+    );
+    return res.data.data;
+  },
+  async deleteAuthAccount(id: string): Promise<void> {
+    await apiClient.delete(`/auth/accounts/${encodeURIComponent(id)}`);
+  },
+  async setAuthAccountPassword(
+    id: string,
+    password: string,
+  ): Promise<AuthAccount> {
+    const res = await apiClient.post(
+      `/auth/accounts/${encodeURIComponent(id)}/password`,
+      { password },
+    );
+    return res.data.data;
+  },
+  async setupAuthAccount(
+    id: string,
+    payload: { username: string; password: string },
+  ): Promise<AuthAccount> {
+    const res = await apiClient.post(
+      `/auth/accounts/${encodeURIComponent(id)}/setup`,
+      payload,
+    );
+    return res.data.data;
+  },
+  async setupAuthAccountTOTP(
+    id: string,
+  ): Promise<{ secret: string; uri: string }> {
+    const res = await apiClient.post(
+      `/auth/accounts/${encodeURIComponent(id)}/totp/setup`,
+    );
+    return res.data.data;
+  },
+  async bindAuthAccountTOTP(
+    id: string,
+    secret: string,
+    token: string,
+  ): Promise<AuthAccount> {
+    const res = await apiClient.post(
+      `/auth/accounts/${encodeURIComponent(id)}/totp/bind`,
+      { secret, token },
+    );
+    return res.data.data;
+  },
+  async updateAuthAccountAccessScopes(
+    id: string,
+    accessScopes: TOTPAccessScope[],
+  ): Promise<AuthAccount> {
+    const res = await apiClient.patch(
+      `/auth/accounts/${encodeURIComponent(id)}/access-scopes`,
+      {
+        access_scopes: accessScopes,
+      },
+    );
+    return res.data.data;
+  },
+  async updateAuthAccountSubdomainAccess(
+    id: string,
+    subdomainAccess: TOTPSubdomainAccess,
+  ): Promise<AuthAccount> {
+    const res = await apiClient.patch(
+      `/auth/accounts/${encodeURIComponent(id)}/subdomain-access`,
+      {
+        subdomain_access: subdomainAccess,
+      },
+    );
     return res.data.data;
   },
   async setupTOTP(): Promise<{ secret: string; uri: string }> {

@@ -2649,7 +2649,7 @@ export const jaJPAdmin = {
   },
   oidcProviders: {
     breadcrumbTotp: "TOTP 管理人",
-    breadcrumbExternalLogin: "外部アカウントログイン",
+    breadcrumbExternalLogin: "OIDC 設定",
     title: "OIDC プロバイダー",
     description:
       "サードパーティ コンソールのコールバック アドレスは、以下のコールバック URL と一致している必要があります。",
@@ -3463,11 +3463,84 @@ export const jaJPAdmin = {
     title: "TOTP トークン管理",
     description:
       "管理者ログインで使用されるすべての TOTP 両端認証システムを管理します。",
-    oidcLogin: "外部アカウントログイン",
+    totpLoginMode: "TOTP ログインモード",
+    passwordLoginMode: "ユーザー名とパスワードのログインモード",
+    switchAuthMode: "ログインモードを切り替え",
+    switchAuthModeTitle: "ログインモードを切り替え",
+    switchAuthModeDescription:
+      "「{mode}」に切り替えます。名前と権限は自動的に同期されます。",
+    switchAuthModeIdempotentHint:
+      "切り替え操作は冪等です。繰り返してもアカウントは重複作成されず、設定済みパスワードやクイックログイン連携もリセットされません。",
+    confirmSwitchAuthMode: "切り替えを確認",
+    switchAuthModeCompleted: "ログインモードを切り替えました",
+    previewAuthModeFailed: "ログインモード切り替えのプレビューに失敗しました",
+    switchAuthModeFailed: "ログインモードの切り替えに失敗しました",
+    previewTotpCount: "TOTP 認証情報",
+    previewAccountCount: "アカウント",
+    previewCreateAccountCount: "作成されるアカウント",
+    previewUpdateAccountCount: "更新されるアカウント",
+    previewPasswordConfigured: "パスワード設定済み {count} 件",
+    previewPasswordMissing: "パスワード未設定 {count} 件",
+    previewBlockingIssues: "ブロック項目 {count} 件",
+    previewPasswordRequiredBeforeSwitch:
+      "先に少なくとも 1 つのアカウントにパスワードを設定してください。",
+    passwordAccountsTitle: "パスワードログインアカウント",
+    passwordAccountsDescription:
+      "ユーザー名/パスワードログインに使用するアカウントと権限を管理します。",
+    moreActions: "その他の操作",
+    passwordAccountsPreparationTitle: "パスワードログインの準備",
+    passwordAccountsPreparationDescription:
+      "パスワードを設定すると切り替えできます。",
+    accountUsername: "ユーザー名",
+    editAccount: "ユーザー名を変更",
+    editAccountDescription: "アカウントのログインユーザー名を変更します。",
+    password: "パスワード",
+    showPassword: "パスワードを表示",
+    hidePassword: "パスワードを非表示",
+    sourceTotp: "元の TOTP",
+    quickLogin: "クイックログイン",
+    viewQuickLogin: "表示",
+    none: "なし",
+    totpMissing: "TOTP 未バインド",
+    bindTotp: "TOTP をバインド",
+    totpUnavailableHint: "TOTP ログインに戻す前にバインドしてください。",
+    totpAccountsPreparationTitle: "TOTP ログインの準備",
+    totpAccountsPreparationDescription:
+      "これらのアカウントにはまだ TOTP がありません。TOTP ログインに戻す前にバインドしてください。",
+    previewTotpRequiredBeforeSwitch:
+      "切り替える前に、あと {count} 件のアカウントで TOTP バインドが必要です。",
+    accountTotpBindDialogTitle: "アカウント TOTP をバインド",
+    accountTotpBindDialogDescription:
+      "アカウント「{username}」に TOTP をバインドします。検証後、TOTP ログインモードで使用できます。",
+    accountTotpBound: "アカウント TOTP をバインドしました",
+    passwordConfigured: "設定済み",
+    passwordUnset: "未設定",
+    createAccount: "ユーザーを作成",
+    createAccountDescription:
+      "ユーザー名とパスワードでログインする新しいユーザーを作成します。",
+    accountCreated: "ユーザーを作成しました",
+    setupAccountPassword: "アカウントとパスワードを設定",
+    setupAccountPasswordDescription:
+      "初回有効化時は、ユーザー名とログインパスワードを設定してください。",
+    setPassword: "パスワード設定",
+    changePassword: "パスワード変更",
+    emptyAccounts: "アカウントはまだありません。「ユーザーを作成」から作成してください。",
+    accountPasswordDescription:
+      "アカウント「{username}」のログインパスワードを設定します。",
+    passwordRuleHint:
+      "パスワードは 6-128 文字、空白なし、英字と数字の両方を含めてください。",
+    accountUsernameRequired: "ユーザー名を入力してください",
+    accountUsernameDuplicate: "ユーザー名は既に存在します",
+    accountSaved: "アカウントを保存しました",
+    accountSaveFailed: "アカウントの保存に失敗しました",
+    accountPasswordRequired: "パスワードを入力してください",
+    accountPasswordSaved: "アカウントパスワードを保存しました",
+    accountPasswordSaveFailed: "アカウントパスワードの保存に失敗しました",
+    oidcLogin: "OIDC 設定",
     credentialTransfer: "認証情報のインポート/エクスポート",
     credentialTransferShort: "インポート/エクスポート",
     credentialTransferDescription:
-      "TOTP 認証情報をインポートまたはエクスポートします。エクスポートされた JSON にはログインに使える secret が含まれるため、安全に保管してください。",
+      "現在のログインモードに応じて認証情報をインポートまたはエクスポートします。エクスポートされた JSON にはログインに使える secret またはパスワードハッシュが含まれるため、安全に保管してください。",
     exportCredentials: "認証情報をエクスポート",
     importCredentials: "認証情報をインポート",
     bindNewToken: "新しいトークンをバインドします",
@@ -3503,7 +3576,12 @@ export const jaJPAdmin = {
     adminPanelAccessUpdated: "管理パネル権限を更新しました",
     adminPanelAccessUpdateFailed: "管理パネル権限の更新に失敗しました",
     actions: "動作",
+    edit: "変更",
     managePasskey: "管理クイックログイン",
+    accountDeleteTitle: "ユーザーを削除しますか？",
+    accountDeleteDescription:
+      "「{name}」を削除してもよろしいですか？関連する TOTP、Passkey、外部アカウント連携、ログインセッションも削除されます。",
+    accountDeleted: "ユーザーを削除しました",
     deleteTitle: "削除を確認",
     tokenFallback: "トークン",
     deleteDescription:
@@ -3547,15 +3625,15 @@ export const jaJPAdmin = {
     commentUpdated: "注意事項を更新しました",
     tokenDeleted: "トークンが削除されました",
     cancel: "キャンセル",
-    exportCredentialsTitle: "TOTP 認証情報をエクスポートしますか？",
+    exportCredentialsTitle: "認証情報をエクスポートしますか？",
     exportCredentialsDescription:
-      "エクスポートされる JSON ファイルには、ログインに使用できる TOTP secret が含まれます。信頼できる場所にのみ保存してください。",
+      "TOTP モードでは TOTP secret を、パスワードモードではユーザー、パスワードハッシュ、関連する TOTP secret をエクスポートします。信頼できる場所にのみ保存してください。",
     confirmExportCredentials: "エクスポート",
     exportCredentialsStarted: "認証情報ファイルのダウンロードを開始しました",
     exportCredentialsFailed: "認証情報のエクスポートに失敗しました",
-    importCredentialsTitle: "TOTP 認証情報をインポートしますか？",
+    importCredentialsTitle: "認証情報をインポートしますか？",
     importCredentialsDescription:
-      "インポートは TOTP 認証情報を追加マージします。重複はスキップされ、Passkey や外部アカウントの関連付けは復元されません。",
+      "ファイル種別に応じて TOTP またはパスワード認証情報をマージします。重複はスキップされ、Passkey や外部アカウントの関連付けは復元されません。",
     confirmImportCredentials: "インポート",
     importCredentialsCompleted: "認証情報をインポートしました",
     importCredentialsFailed: "認証情報のインポートに失敗しました",
@@ -3567,6 +3645,8 @@ export const jaJPAdmin = {
     importCredentialsChooseFileFirst: "先に認証情報ファイルを選択してください",
     importCredentialsSummary:
       "合計 {total} 件、インポート {imported} 件、既存 ID でスキップ {skippedExistingId} 件、既存 secret でスキップ {skippedExistingSecret} 件、ファイル内重複でスキップ {skippedFileDuplicate} 件、無効 {invalid} 件。",
+    importPasswordCredentialsSummary:
+      "アカウント合計 {total} 件、インポート {imported} 件、既存 ID でスキップ {skippedExistingId} 件、既存ユーザー名 {skippedExistingUsername} 件、ファイル内重複 {skippedFileDuplicate} 件、無効 {invalid} 件。パスワードハッシュ: 合計 {passwordTotal} 件、インポート {passwordImported} 件、既存 {passwordSkippedExisting} 件、アカウントなし {passwordSkippedMissingAccount} 件、ファイル内重複 {passwordSkippedFileDuplicate} 件、無効 {passwordInvalid} 件。関連 TOTP: 合計 {totpTotal} 件、インポート {totpImported} 件。",
   },
   passkeySettings: {
     title: "クイックログイン認証情報",
@@ -3586,7 +3666,7 @@ export const jaJPAdmin = {
       "Google、Microsoft、GitHub、またはカスタム OIDC アカウントをバインドします。",
     generateInvite: "バインディング招待状の生成",
     noProviders:
-      "外部ログインプロバイダーはまだ設定されていません。まず「外部アカウント ログイン」に移動してプロバイダーを追加してください。",
+      "外部ログインプロバイダーはまだ設定されていません。まず「OIDC 設定」に移動してプロバイダーを追加してください。",
     provider: "プロバイダー",
     account: "アカウント",
     lastUsed: "最近使用したもの",

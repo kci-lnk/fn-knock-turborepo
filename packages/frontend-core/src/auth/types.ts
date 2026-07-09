@@ -36,6 +36,7 @@ export type AuthAccessState = {
   authenticated: boolean;
   message: string;
   grant_type?: AuthGrantType;
+  login_mode?: "totp" | "password";
 };
 
 export type AuthPasskeyState = {

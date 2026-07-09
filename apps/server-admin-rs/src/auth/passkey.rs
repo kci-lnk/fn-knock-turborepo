@@ -18,7 +18,11 @@ use webauthn_rs_core::proto::{
 };
 
 use crate::{
-    auth::{client_ip_for_auth, effective_login_redirect, user_agent, with_auth_headers},
+    auth::{
+        client_ip_for_auth, effective_login_redirect,
+        mode::{AuthLoginMode, AuthMethod},
+        user_agent, with_auth_headers,
+    },
     auth_mobility::{self, CreateLoginSessionInput},
     backoff::normalize_auth_failure_tracking_ip,
     cookies,
@@ -73,6 +77,26 @@ fn passkey_text_params(translator: &Translator, key: &str, params: &[(&str, Stri
     translator.t_params(&format!("server.passkeyRoutes.{key}"), params)
 }
 
+async fn ensure_passkey_login_mode(
+    state: &AppState,
+    translator: &Translator,
+) -> Result<(), Response> {
+    match state.store.get_auth_login_mode().await {
+        Ok(AuthLoginMode::Totp) => Ok(()),
+        Ok(_) => Err(with_auth_headers(response::error(
+            StatusCode::BAD_REQUEST,
+            passkey_text(translator, "loginMethodUnavailable"),
+        ))),
+        Err(error) => {
+            tracing::warn!(%error, "failed to load auth login mode for passkey");
+            Err(with_auth_headers(response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                passkey_text(translator, "loadStatusFailed"),
+            )))
+        }
+    }
+}
+
 async fn status(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let translator = Translator::from_state(&state).await;
     let config = match state.store.get_config().await {
@@ -91,10 +115,16 @@ async fn status(State(state): State<AppState>, headers: HeaderMap) -> Response {
         .await
         .map(|items| items.len())
         .unwrap_or(0);
+    let passkey_login_enabled = state
+        .store
+        .get_auth_login_mode()
+        .await
+        .map(AuthLoginMode::allows_totp_family)
+        .unwrap_or(false);
     let rp = rp_info(&state, &config, &headers).await;
     with_auth_headers(
         response::ok(json!({
-            "available": passkey_count > 0,
+            "available": passkey_login_enabled && passkey_count > 0,
             "mode": rp.mode,
             "rp_id": rp.rp_id
         }))
@@ -104,6 +134,9 @@ async fn status(State(state): State<AppState>, headers: HeaderMap) -> Response {
 
 async fn auth_options(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let translator = Translator::from_state(&state).await;
+    if let Err(response) = ensure_passkey_login_mode(&state, &translator).await {
+        return response;
+    }
     let config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
@@ -203,6 +236,9 @@ async fn auth_verify(
     Json(body): Json<AuthVerifyBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
+    if let Err(response) = ensure_passkey_login_mode(&state, &translator).await {
+        return response;
+    }
     let client_ip = client_ip_for_auth(&headers);
     let tracking_ip = normalize_auth_failure_tracking_ip(&client_ip);
     match state.store.get_login_backoff_status(&tracking_ip).await {
@@ -393,7 +429,7 @@ async fn auth_verify(
         &state,
         &config,
         CreateLoginSessionInput {
-            auth_method: "PASSKEY".to_string(),
+            auth_method: AuthMethod::Passkey.as_session_str().to_string(),
             auth_provider_name: None,
             credential_id: credential.id.clone(),
             credential_name: credential_name.to_string(),
@@ -450,6 +486,19 @@ async fn auth_verify(
         created.ttl_seconds,
         resolve_cookie_domain(&config, &headers).as_deref(),
     );
+    let cookie_header = match HeaderValue::from_str(&cookie) {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::warn!(%error, session_id = %created.session_id, "failed to build passkey session cookie header");
+            if let Err(error) = auth_mobility::destroy_session(&state, &created.session_id).await {
+                tracing::warn!(%error, session_id = %created.session_id, "failed to destroy passkey session after cookie header failure");
+            }
+            return with_auth_headers(response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                passkey_text(&translator, "createSessionFailed"),
+            ));
+        }
+    };
     let mut data = json!({
         "run_type": config.get("run_type").and_then(Value::as_i64).unwrap_or(3),
         "grant_type": created.grant_type
@@ -458,10 +507,7 @@ async fn auth_verify(
         data["redirect_to"] = Value::String(redirect_to);
     }
     let mut response = (
-        [(
-            header::SET_COOKIE,
-            HeaderValue::from_str(&cookie).unwrap_or_else(|_| HeaderValue::from_static("")),
-        )],
+        [(header::SET_COOKIE, cookie_header)],
         Json(json!({
             "success": true,
             "message": passkey_text(&translator, "loginSuccessful"),
@@ -475,6 +521,9 @@ async fn auth_verify(
 
 async fn bind_token(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let translator = Translator::from_state(&state).await;
+    if let Err(response) = ensure_passkey_login_mode(&state, &translator).await {
+        return response;
+    }
     let Some(session_id) = parse_passkey_cookie_value(&headers, cookies::SESSION_COOKIE_NAME)
     else {
         return with_auth_headers(response::error(
@@ -550,6 +599,9 @@ async fn register_options(
     Json(body): Json<RegisterOptionsBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
+    if let Err(response) = ensure_passkey_login_mode(&state, &translator).await {
+        return response;
+    }
     match state.store.is_passkey_bind_token_valid(&body.token).await {
         Ok(true) => {}
         Ok(false) => {
@@ -659,6 +711,9 @@ async fn register_verify(
     Json(body): Json<RegisterVerifyBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
+    if let Err(response) = ensure_passkey_login_mode(&state, &translator).await {
+        return response;
+    }
     let totp_id = match state.store.consume_passkey_bind_token(&body.token).await {
         Ok(Some(value)) if !value.trim().is_empty() => value,
         Ok(_) => {
@@ -851,6 +906,12 @@ pub(crate) async fn public_passkey_status(
         .await
         .map(|items| items.len())
         .unwrap_or(0);
+    let passkey_login_enabled = state
+        .store
+        .get_auth_login_mode()
+        .await
+        .map(AuthLoginMode::allows_totp_family)
+        .unwrap_or(false);
     let rp = rp_info(state, config, headers).await;
     let request_host = request_hostname(headers);
     let shared_auth_host = public_auth_base_host(config);
@@ -861,7 +922,7 @@ pub(crate) async fn public_passkey_status(
         shared_auth_host.is_empty() || request_host == shared_auth_host
     };
     json!({
-        "available": passkey_count > 0 && available_on_host,
+        "available": passkey_login_enabled && passkey_count > 0 && available_on_host,
         "mode": rp.mode,
         "rp_id": rp.rp_id
     })
@@ -933,7 +994,7 @@ async fn register_passkey_failure(
                     "attempts": failure.attempts,
                     "retry_after_seconds": retry_after,
                     "blocked_until": failure.blocked_until.map(time_utils::iso_from_ms),
-                    "method": "PASSKEY",
+                    "method": AuthMethod::Passkey.as_session_str(),
                     "credential_name": credential_name,
                     "linked_totp_name": linked_totp_name,
                     "user_agent": user_agent,

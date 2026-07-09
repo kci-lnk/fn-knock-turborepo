@@ -33,6 +33,9 @@ pub struct Settings {
     pub admin_proxy_secret: String,
     pub expose_runtime_hmac_secret: bool,
     pub request_timeout: Duration,
+    pub asset_download_connect_timeout: Duration,
+    pub asset_download_read_timeout: Duration,
+    pub asset_download_total_timeout: Duration,
     pub runtime_target: String,
     pub traffic_user_id: String,
     pub traffic_keep_seconds: i64,
@@ -118,7 +121,19 @@ impl Settings {
             expose_runtime_hmac_secret,
             request_timeout: Duration::from_millis(env_u64_like_node(
                 "GO_BACKEND_TIMEOUT_MS",
-                5000,
+                DEFAULT_REQUEST_TIMEOUT_MS,
+            )),
+            asset_download_connect_timeout: Duration::from_millis(env_u64_like_node(
+                "FN_KNOCK_ASSET_DOWNLOAD_CONNECT_TIMEOUT_MS",
+                DEFAULT_ASSET_DOWNLOAD_CONNECT_TIMEOUT_MS,
+            )),
+            asset_download_read_timeout: Duration::from_millis(env_u64_like_node(
+                "FN_KNOCK_ASSET_DOWNLOAD_READ_TIMEOUT_MS",
+                DEFAULT_ASSET_DOWNLOAD_READ_TIMEOUT_MS,
+            )),
+            asset_download_total_timeout: Duration::from_millis(env_u64_like_node(
+                "FN_KNOCK_ASSET_DOWNLOAD_TOTAL_TIMEOUT_MS",
+                DEFAULT_ASSET_DOWNLOAD_TOTAL_TIMEOUT_MS,
             )),
             runtime_target,
             traffic_user_id: traffic_user_id_from_env(),
@@ -165,6 +180,10 @@ impl Settings {
 
 const SQLITE_FILE_NAME: &str = "fn-knock.sqlite3";
 const SQLITE_STORAGE_DIR: &str = "storage";
+const DEFAULT_REQUEST_TIMEOUT_MS: u64 = 5_000;
+const DEFAULT_ASSET_DOWNLOAD_CONNECT_TIMEOUT_MS: u64 = 30_000;
+const DEFAULT_ASSET_DOWNLOAD_READ_TIMEOUT_MS: u64 = 120_000;
+const DEFAULT_ASSET_DOWNLOAD_TOTAL_TIMEOUT_MS: u64 = 30 * 60 * 1_000;
 
 fn env_string(name: &str, fallback: &str) -> String {
     env::var(name)
@@ -469,6 +488,62 @@ mod tests {
 
                 assert_eq!(settings.admin_view_port, None);
                 assert_eq!(settings.admin_view_host, "127.0.0.2");
+            },
+        );
+    }
+
+    #[test]
+    fn asset_download_timeouts_are_independent_from_backend_timeout() {
+        with_env_vars(
+            &[
+                "GO_BACKEND_TIMEOUT_MS",
+                "FN_KNOCK_ASSET_DOWNLOAD_CONNECT_TIMEOUT_MS",
+                "FN_KNOCK_ASSET_DOWNLOAD_READ_TIMEOUT_MS",
+                "FN_KNOCK_ASSET_DOWNLOAD_TOTAL_TIMEOUT_MS",
+            ],
+            |env| {
+                env.set("GO_BACKEND_TIMEOUT_MS", "5000");
+                env.remove("FN_KNOCK_ASSET_DOWNLOAD_CONNECT_TIMEOUT_MS");
+                env.remove("FN_KNOCK_ASSET_DOWNLOAD_READ_TIMEOUT_MS");
+                env.remove("FN_KNOCK_ASSET_DOWNLOAD_TOTAL_TIMEOUT_MS");
+
+                let settings = Settings::from_env();
+
+                assert_eq!(
+                    settings.request_timeout,
+                    Duration::from_millis(DEFAULT_REQUEST_TIMEOUT_MS)
+                );
+                assert_eq!(
+                    settings.asset_download_connect_timeout,
+                    Duration::from_millis(DEFAULT_ASSET_DOWNLOAD_CONNECT_TIMEOUT_MS)
+                );
+                assert_eq!(
+                    settings.asset_download_read_timeout,
+                    Duration::from_millis(DEFAULT_ASSET_DOWNLOAD_READ_TIMEOUT_MS)
+                );
+                assert_eq!(
+                    settings.asset_download_total_timeout,
+                    Duration::from_millis(DEFAULT_ASSET_DOWNLOAD_TOTAL_TIMEOUT_MS)
+                );
+
+                env.set("FN_KNOCK_ASSET_DOWNLOAD_CONNECT_TIMEOUT_MS", "45000ms");
+                env.set("FN_KNOCK_ASSET_DOWNLOAD_READ_TIMEOUT_MS", "180000ms");
+                env.set("FN_KNOCK_ASSET_DOWNLOAD_TOTAL_TIMEOUT_MS", "3600000ms");
+
+                let settings = Settings::from_env();
+
+                assert_eq!(
+                    settings.asset_download_connect_timeout,
+                    Duration::from_millis(45_000)
+                );
+                assert_eq!(
+                    settings.asset_download_read_timeout,
+                    Duration::from_millis(180_000)
+                );
+                assert_eq!(
+                    settings.asset_download_total_timeout,
+                    Duration::from_millis(3_600_000)
+                );
             },
         );
     }

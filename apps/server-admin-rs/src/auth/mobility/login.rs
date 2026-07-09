@@ -35,6 +35,12 @@ pub async fn create_login_session(
     let mut whitelist_record_id = None::<String>;
     let mut session_comment = None::<String>;
     let mut grant_type = "browser_session".to_string();
+    let session_access_scopes = input.totp_credential.as_ref().map(|credential| {
+        crate::store::normalize_totp_access_scopes(credential.access_scopes.clone())
+    });
+    let session_subdomain_access = input.totp_credential.as_ref().map(|credential| {
+        crate::store::normalize_totp_subdomain_access(credential.subdomain_access.clone())
+    });
 
     if !normalized_client_ip.is_empty() && effective_post_login_mode != "disabled" {
         let grant_expire_at = if effective_post_login_mode == "custom" {
@@ -77,6 +83,8 @@ pub async fn create_login_session(
         credential_id: input.credential_id.clone(),
         credential_name: input.credential_name.clone(),
         linked_totp_name: input.linked_totp_name.clone(),
+        access_scopes: session_access_scopes,
+        subdomain_access: session_subdomain_access,
         grant_type: Some(grant_type.clone()),
         post_login_ip_grant_mode: (grant_type == "login_ip_grant")
             .then(|| effective_post_login_mode.clone()),

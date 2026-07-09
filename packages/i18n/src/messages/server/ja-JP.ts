@@ -19,6 +19,8 @@ export const jaJPServer = {
   loginCredentialMissing: "サーバーにはログイン認証情報が設定されていません",
   invalidOtpWithRetry:
     "確認コードが正しくありません。{seconds} 秒後にもう一度お試しください。",
+  invalidPasswordWithRetry:
+    "ユーザー名またはパスワードが正しくありません。{seconds} 秒後にもう一度お試しください。",
   runtimeProfile: {
     capabilities: {
       default: "現在の動作環境はこの機能をサポートしていません",
@@ -458,6 +460,33 @@ export const jaJPServer = {
         "は、現在のサブドメイン モードにより適した証明書に自動的に切り替わりました。",
       sslAutoSelectionSyncFailed:
         "推奨証明書は見つかりましたが、ゲートウェイとの同期に失敗し、自動切り替えが行われませんでした。",
+    },
+    authMode: {
+      loadFailed: "認証ログインモードの読み込みに失敗しました",
+      invalidMode: "サポートされていないログインモードです",
+      previewFailed: "ログインモード切り替えのプレビューに失敗しました",
+      switchFailed: "ログインモードの切り替えに失敗しました",
+      blockingIssues: "ブロック項目が残っているため、ログインモードを切り替えられません",
+    },
+    authAccounts: {
+      loadFailed: "認証アカウントの読み込みに失敗しました",
+      notFound: "認証アカウントが見つかりません",
+      saveFailed: "認証アカウントの保存に失敗しました",
+      syncFailed: "認証アカウントを TOTP に同期できませんでした",
+      usernameExists: "ユーザー名は既に存在します",
+      usernameTooShort: "ユーザー名は 3 文字以上にしてください",
+      usernameTooLong: "ユーザー名は 64 文字以内にしてください",
+      usernameInvalid:
+        "ユーザー名には英数字、ドット、アンダースコア、ハイフンのみ使用でき、空白は使用できません",
+      passwordTooShort: "アカウントパスワードは 6 文字以上にしてください",
+      passwordTooLong: "アカウントパスワードは 128 文字以内にしてください",
+      passwordWhitespace: "アカウントパスワードに空白文字は使用できません",
+      passwordNeedsLettersAndNumbers:
+        "アカウントパスワードには英字と数字の両方を含めてください",
+      passwordSaveFailed: "アカウントパスワードの保存に失敗しました",
+      deleteFailed: "認証アカウントの削除に失敗しました",
+      deleted: "認証アカウントを削除しました",
+      totpAlreadyBound: "このアカウントには利用可能な TOTP が既にバインドされています",
     },
     authCredentialSettings: {
       loadFailed: "認証情報設定の読み込みに失敗しました",
@@ -1017,6 +1046,8 @@ export const jaJPServer = {
     callbackStateExpired:
       "ログインステータスの有効期限が切れています。再度ログインしてください。",
     loginFailedRetry: "外部ログインに失敗しました。もう一度お試しください。",
+    loginMethodUnavailable:
+      "現在のログインモードでは外部ログインは利用できません。",
     reservedExtraAuthParam:
       "extra_auth_params には OIDC 予約パラメータ: {key} が含まれます",
     urlInvalid: "{label} は合法である必要があります URL",
@@ -1439,6 +1470,8 @@ export const jaJPServer = {
     verifyFailedWithRetry:
       "認証に失敗しました。{seconds} 秒後にもう一度お試しください",
     bindTokenExpired: "結合証明書の有効期限が切れています",
+    loginMethodUnavailable:
+      "現在のログインモードでは Passkey ログインは利用できません。",
     loadStatusFailed: "Passkey ステータスの読み込みに失敗しました",
     createOptionsFailed: "Passkey オプションの作成に失敗しました",
     loadPasskeysFailed: "Passkey 一覧の読み込みに失敗しました",
@@ -1474,6 +1507,7 @@ export const jaJPServer = {
     loadLoginCredentialsFailed: "ログイン認証情報の読み込みに失敗しました",
     createSessionFailed: "認証セッションの作成に失敗しました",
     loginSuccessful: "ログインしました",
+    loginMethodUnavailable: "現在のログイン方法は利用できません。",
     verifyFailed: "認証状態の確認に失敗しました",
     localNetworkAccessAllowed: "ローカルネットワークアクセスが許可されました",
     authenticated: "認証済みです",

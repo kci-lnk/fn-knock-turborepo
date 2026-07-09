@@ -15,6 +15,7 @@ export const zhCNServer = {
   tooManyAttemptsWithRetry: "尝试过于频繁，请在 {seconds} 秒后重试",
   loginCredentialMissing: "服务器尚未配置登录凭据",
   invalidOtpWithRetry: "验证码不正确，请在 {seconds} 秒后重试",
+  invalidPasswordWithRetry: "用户名或密码不正确，请在 {seconds} 秒后重试",
   runtimeProfile: {
     capabilities: {
       default: "当前运行环境不支持该能力",
@@ -102,7 +103,7 @@ export const zhCNServer = {
   gatewayHostResponse: {
     runTypes: {
       direct: "直连模式",
-      reverseProxy: "反代模式",
+      reverseProxy: "内网穿透",
       subdomain: "子域模式",
     },
     unavailableReason: "仅子域模式可用，当前为{mode}。",
@@ -119,7 +120,7 @@ export const zhCNServer = {
   admin: {
     runTypes: {
       direct: "直连模式",
-      reverseProxy: "反代模式",
+      reverseProxy: "内网穿透",
       subdomain: "子域模式",
     },
     validation: {
@@ -363,6 +364,31 @@ export const zhCNServer = {
       sslAutoSelected: "已自动切换到更适合当前子域模式的证书。",
       sslAutoSelectionSyncFailed:
         "已找到推荐证书，但同步到网关失败，未自动切换。",
+    },
+    authMode: {
+      loadFailed: "加载认证登录模式失败",
+      invalidMode: "不支持的登录模式",
+      previewFailed: "预览登录模式切换失败",
+      switchFailed: "切换登录模式失败",
+      blockingIssues: "当前存在阻断项，无法切换登录模式",
+    },
+    authAccounts: {
+      loadFailed: "加载认证账号失败",
+      notFound: "认证账号不存在",
+      saveFailed: "保存认证账号失败",
+      syncFailed: "同步认证账号到 TOTP 失败",
+      usernameExists: "用户名已存在",
+      usernameTooShort: "用户名至少需要 3 个字符",
+      usernameTooLong: "用户名不能超过 64 个字符",
+      usernameInvalid: "用户名只能包含字母、数字、点、下划线或连字符，且不能包含空格",
+      passwordTooShort: "账号密码至少需要 6 位",
+      passwordTooLong: "账号密码不能超过 128 位",
+      passwordWhitespace: "账号密码不能包含空白字符",
+      passwordNeedsLettersAndNumbers: "账号密码需要同时包含字母和数字",
+      passwordSaveFailed: "保存账号密码失败",
+      deleteFailed: "删除认证账号失败",
+      deleted: "认证账号已删除",
+      totpAlreadyBound: "账号已绑定可用的 TOTP",
     },
     authCredentialSettings: {
       loadFailed: "加载认证凭据配置失败",
@@ -856,6 +882,7 @@ export const zhCNServer = {
   oidc: {
     callbackStateExpired: "登录状态已过期，请重新发起登录",
     loginFailedRetry: "外部登录失败，请重新发起登录。",
+    loginMethodUnavailable: "当前登录模式不允许外部登录",
     reservedExtraAuthParam: "extra_auth_params 包含 OIDC 保留参数: {key}",
     urlInvalid: "{label} 必须是合法 URL",
     urlMustUseHttps: "{label} 必须使用 HTTPS",
@@ -1203,6 +1230,7 @@ export const zhCNServer = {
     notFoundWithRetry: "未找到 Passkey，请在 {seconds} 秒后重试",
     verifyFailedWithRetry: "验证失败，请在 {seconds} 秒后重试",
     bindTokenExpired: "绑定凭证已失效",
+    loginMethodUnavailable: "当前登录模式不允许 Passkey 登录",
     loadStatusFailed: "加载 Passkey 状态失败",
     createOptionsFailed: "创建 Passkey 登录选项失败",
     loadPasskeysFailed: "加载 Passkey 列表失败",
@@ -1237,6 +1265,7 @@ export const zhCNServer = {
     loadLoginCredentialsFailed: "加载登录凭据失败",
     createSessionFailed: "创建认证会话失败",
     loginSuccessful: "登录成功",
+    loginMethodUnavailable: "当前登录方式不可用",
     verifyFailed: "验证认证状态失败",
     localNetworkAccessAllowed: "已允许内网访问",
     authenticated: "已认证",
@@ -1944,7 +1973,7 @@ export const zhCNServer = {
   smartConnect: {
     runTypes: {
       direct: "直连模式",
-      reverseProxy: "反代模式",
+      reverseProxy: "内网穿透",
       subdomain: "子域模式",
     },
     currentMode: "当前模式",
@@ -1988,7 +2017,7 @@ export const zhCNServer = {
   gatewayProxyHeaders: {
     runTypes: {
       direct: "直连模式",
-      reverseProxy: "反代模式",
+      reverseProxy: "内网穿透",
       subdomain: "子域模式",
     },
     unavailableReason: "仅子域模式可用，当前为{mode}。",

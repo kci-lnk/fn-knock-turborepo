@@ -12,6 +12,7 @@ pub(super) async fn build_authorization_url(
     invite_token: Option<&str>,
     remember_me: bool,
 ) -> Result<AuthorizationBuild, String> {
+    ensure_oidc_login_mode(state, translator).await?;
     let provider = oidc_get_provider(state, provider_id)
         .await
         .map_err(|error| error.to_string())?
@@ -130,6 +131,7 @@ pub(super) async fn resolve_callback(
         .map_err(|error| error.to_string())?
         .filter(|value| value.get("provider_id").and_then(Value::as_str) == Some(provider_id))
         .ok_or_else(|| oidc_text(translator, "callbackStateExpired"))?;
+    ensure_oidc_login_mode(state, translator).await?;
     let provider = oidc_get_provider(state, provider_id)
         .await
         .map_err(|error| error.to_string())?

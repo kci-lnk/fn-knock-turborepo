@@ -3,7 +3,11 @@
     <AuthCard
       :title="t('auth.title')"
       :description="
-        isCaptchaVerified ? t('auth.otpPrompt') : t('auth.captchaFirst')
+        isCaptchaVerified
+          ? loginMode === 'password'
+            ? t('auth.passwordPrompt')
+            : t('auth.otpPrompt')
+          : t('auth.captchaFirst')
       "
     >
       <template #header-extra>
@@ -207,7 +211,61 @@
           </Button>
         </div>
 
-        <div class="w-full flex justify-center" v-if="isCaptchaVerified">
+        <div
+          v-if="isCaptchaVerified && loginMode === 'password'"
+          class="w-full space-y-3"
+        >
+          <div class="space-y-2">
+            <Label>{{ t("auth.username") }}</Label>
+            <Input
+              v-model="username"
+              autocomplete="username"
+              :disabled="isLoading || isLoginCoolingDown"
+              @keyup.enter="handleLogin"
+            />
+          </div>
+          <div class="space-y-2">
+            <Label>{{ t("auth.password") }}</Label>
+            <div class="relative">
+              <Input
+                v-model="password"
+                :type="isPasswordVisible ? 'text' : 'password'"
+                autocomplete="current-password"
+                class="pr-10"
+                :disabled="isLoading || isLoginCoolingDown"
+                @keyup.enter="handleLogin"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                class="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                :disabled="isLoading || isLoginCoolingDown"
+                :title="
+                  isPasswordVisible
+                    ? t('auth.hidePassword')
+                    : t('auth.showPassword')
+                "
+                :aria-label="
+                  isPasswordVisible
+                    ? t('auth.hidePassword')
+                    : t('auth.showPassword')
+                "
+                @click="isPasswordVisible = !isPasswordVisible"
+              >
+                <component
+                  :is="isPasswordVisible ? EyeOff : Eye"
+                  class="h-4 w-4"
+                />
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="w-full flex justify-center"
+          v-if="isCaptchaVerified && loginMode === 'totp'"
+        >
           <InputOTP
             inputmode="numeric"
             :maxlength="6"
@@ -339,14 +397,16 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
-import { CircleUserRound, Cloud, Github } from "lucide-vue-next";
+import { CircleUserRound, Cloud, Eye, EyeOff, Github } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import {
   InputOTP,
   InputOTPGroup,
   InputOTPSlot,
 } from "@/components/ui/input-otp";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -398,6 +458,9 @@ const i18n = useI18n();
 const { t } = i18n;
 
 const token = ref("");
+const username = ref("");
+const password = ref("");
+const isPasswordVisible = ref(false);
 const rememberMe = ref(false);
 const errorMessage = ref("");
 const showErrorDialog = ref(false);
@@ -495,6 +558,7 @@ const queryParams =
 const redirectUri = queryParams?.get("redirect_uri") ?? null;
 const suppressAutoRedirect = queryParams?.get("logged_out") === "1";
 const bootstrapGrantType = ref<AuthGrantType | undefined>(undefined);
+const loginMode = ref<"totp" | "password">("totp");
 const logoutNotice = computed(() => {
   if (!suppressAutoRedirect) {
     return "";
@@ -564,6 +628,7 @@ async function loadBootstrap() {
     oidcProviders.value = bootstrap.oidc?.providers || [];
     oidcError.value = bootstrap.oidc?.login_error || "";
     bootstrapGrantType.value = bootstrap.auth.grant_type;
+    loginMode.value = bootstrap.auth.login_mode === "password" ? "password" : "totp";
     if (bootstrap.redirect_to && !suppressAutoRedirect) {
       window.location.replace(bootstrap.redirect_to);
       return;
@@ -836,10 +901,17 @@ async function handleLogin() {
   ) {
     return;
   }
-  if (token.value.length !== 6) {
+  if (loginMode.value === "totp" && token.value.length !== 6) {
     errorMessage.value = t("auth.invalidOtpLength");
     showErrorDialog.value = true;
     return;
+  }
+  if (loginMode.value === "password") {
+    if (!username.value.trim() || !password.value) {
+      errorMessage.value = t("auth.usernamePasswordRequired");
+      showErrorDialog.value = true;
+      return;
+    }
   }
   if (!isCaptchaVerified.value || !captchaSubmission.value) {
     errorMessage.value = t("auth.captchaFirst");
@@ -858,7 +930,11 @@ async function handleLogin() {
 
   try {
     const res = await apiClient.post("/login", {
-      token: token.value,
+      method: loginMode.value,
+      token: loginMode.value === "totp" ? token.value : undefined,
+      username:
+        loginMode.value === "password" ? username.value.trim() : undefined,
+      password: loginMode.value === "password" ? password.value : undefined,
       captcha: captchaSubmission.value,
       rememberMe: rememberMe.value,
       redirect_uri: redirectUri || undefined,
@@ -904,7 +980,6 @@ async function handleLogin() {
       resetLoginState();
     }
   } catch (e: any) {
-    console.error("Login error:", e);
     const retryAfter = startLoginCooldown(extractRetryAfterSeconds(e));
     errorMessage.value = resolveRetryAfterMessage(
       e?.response?.data?.message || t("auth.loginFailed"),
@@ -1062,6 +1137,7 @@ function skipPasskeyBind() {
 
 function resetLoginState() {
   token.value = "";
+  password.value = "";
   handleCaptchaReset();
   if (
     activeCaptchaProvider.value === "pow" &&

@@ -15,6 +15,7 @@ export const zhHantServer = {
   tooManyAttemptsWithRetry: "嘗試過於頻繁，請在 {seconds} 秒後重試",
   loginCredentialMissing: "伺服器尚未配置登入憑證",
   invalidOtpWithRetry: "驗證碼不正確，請在 {seconds} 秒後重試",
+  invalidPasswordWithRetry: "使用者名稱或密碼不正確，請在 {seconds} 秒後重試",
   runtimeProfile: {
     capabilities: {
       default: "目前運行環境不支援該能力",
@@ -102,7 +103,7 @@ export const zhHantServer = {
   gatewayHostResponse: {
     runTypes: {
       direct: "直連模式",
-      reverseProxy: "反代模式",
+      reverseProxy: "内网穿透",
       subdomain: "子域模式",
     },
     unavailableReason: "僅子域模式可用，目前為{mode}。",
@@ -119,7 +120,7 @@ export const zhHantServer = {
   admin: {
     runTypes: {
       direct: "直連模式",
-      reverseProxy: "反代模式",
+      reverseProxy: "内网穿透",
       subdomain: "子域模式",
     },
     validation: {
@@ -363,6 +364,31 @@ export const zhHantServer = {
       sslAutoSelected: "已自動切換到更適合目前子域模式的證書。",
       sslAutoSelectionSyncFailed:
         "已找到推薦證書，但同步到網關失敗，未自動切換。",
+    },
+    authMode: {
+      loadFailed: "載入認證登入模式失敗",
+      invalidMode: "不支援的登入模式",
+      previewFailed: "預覽登入模式切換失敗",
+      switchFailed: "切換登入模式失敗",
+      blockingIssues: "目前存在阻斷項，無法切換登入模式",
+    },
+    authAccounts: {
+      loadFailed: "載入認證帳號失敗",
+      notFound: "認證帳號不存在",
+      saveFailed: "儲存認證帳號失敗",
+      syncFailed: "同步認證帳號到 TOTP 失敗",
+      usernameExists: "使用者名稱已存在",
+      usernameTooShort: "使用者名稱至少需要 3 個字元",
+      usernameTooLong: "使用者名稱不能超過 64 個字元",
+      usernameInvalid: "使用者名稱只能包含字母、數字、點、底線或連字號，且不能包含空格",
+      passwordTooShort: "帳號密碼至少需要 6 位",
+      passwordTooLong: "帳號密碼不能超過 128 位",
+      passwordWhitespace: "帳號密碼不能包含空白字元",
+      passwordNeedsLettersAndNumbers: "帳號密碼需要同時包含字母和數字",
+      passwordSaveFailed: "儲存帳號密碼失敗",
+      deleteFailed: "刪除認證帳號失敗",
+      deleted: "認證帳號已刪除",
+      totpAlreadyBound: "帳號已綁定可用的 TOTP",
     },
     authCredentialSettings: {
       loadFailed: "載入認證憑據配置失敗",
@@ -856,6 +882,7 @@ export const zhHantServer = {
   oidc: {
     callbackStateExpired: "登入狀態已過期，請重新發起登入",
     loginFailedRetry: "外部登入失敗，請重新發起登入。",
+    loginMethodUnavailable: "目前登入模式不允許外部登入",
     reservedExtraAuthParam: "extra_auth_params 包含 OIDC 保留參數: {key}",
     urlInvalid: "{label} 必須是合法 URL",
     urlMustUseHttps: "{label} 必須使用 HTTPS",
@@ -1203,6 +1230,7 @@ export const zhHantServer = {
     notFoundWithRetry: "未找到 Passkey，請在 {seconds} 秒後重試",
     verifyFailedWithRetry: "驗證失敗，請在 {seconds} 秒後重試",
     bindTokenExpired: "綁定憑證已失效",
+    loginMethodUnavailable: "目前登入模式不允許 Passkey 登入",
     loadStatusFailed: "載入 Passkey 狀態失敗",
     createOptionsFailed: "建立 Passkey 登入選項失敗",
     loadPasskeysFailed: "載入 Passkey 列表失敗",
@@ -1237,6 +1265,7 @@ export const zhHantServer = {
     loadLoginCredentialsFailed: "載入登入憑據失敗",
     createSessionFailed: "建立認證會話失敗",
     loginSuccessful: "登入成功",
+    loginMethodUnavailable: "目前登入方式不可用",
     verifyFailed: "驗證認證狀態失敗",
     localNetworkAccessAllowed: "已允許內網訪問",
     authenticated: "已認證",
@@ -1944,7 +1973,7 @@ export const zhHantServer = {
   smartConnect: {
     runTypes: {
       direct: "直連模式",
-      reverseProxy: "反代模式",
+      reverseProxy: "内网穿透",
       subdomain: "子域模式",
     },
     currentMode: "目前模式",
@@ -1988,7 +2017,7 @@ export const zhHantServer = {
   gatewayProxyHeaders: {
     runTypes: {
       direct: "直連模式",
-      reverseProxy: "反代模式",
+      reverseProxy: "内网穿透",
       subdomain: "子域模式",
     },
     unavailableReason: "僅子域模式可用，目前為{mode}。",

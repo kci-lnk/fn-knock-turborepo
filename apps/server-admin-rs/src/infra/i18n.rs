@@ -128,7 +128,13 @@ fn message_for(locale: &str, key: &str) -> Option<&'static str> {
 
 fn generated_message_for(locale: &str, key: &str) -> Option<&'static str> {
     let path = key.strip_prefix("server.").unwrap_or(key);
-    server_i18n_locale_catalog(locale).message(path)
+    let catalog = server_i18n_locale_catalog(locale);
+    catalog.message(path).or_else(|| {
+        path.strip_prefix("store.").and_then(|suffix| {
+            let legacy_path = format!("redis.{suffix}");
+            catalog.message(&legacy_path)
+        })
+    })
 }
 
 fn server_i18n_locale_catalog(locale: &str) -> &'static LocaleCatalog {
@@ -543,12 +549,12 @@ fn zh_cn_message(key: &str) -> Option<&'static str> {
         }
         "server.gatewayVisibility.syncFailed" => "同步网关可见性配置失败",
         "server.gatewayProxyHeaders.runTypes.direct" => "直连模式",
-        "server.gatewayProxyHeaders.runTypes.reverseProxy" => "反代模式",
+        "server.gatewayProxyHeaders.runTypes.reverseProxy" => "内网穿透",
         "server.gatewayProxyHeaders.runTypes.subdomain" => "子域模式",
         "server.gatewayProxyHeaders.unavailableReason" => "仅子域模式可用，当前为{mode}。",
         "server.gatewayProxyHeaders.syncFailed" => "同步网关协议头配置失败",
         "server.gatewayHostResponse.runTypes.direct" => "直连模式",
-        "server.gatewayHostResponse.runTypes.reverseProxy" => "反代模式",
+        "server.gatewayHostResponse.runTypes.reverseProxy" => "内网穿透",
         "server.gatewayHostResponse.runTypes.subdomain" => "子域模式",
         "server.gatewayHostResponse.unavailableReason" => "仅子域模式可用，当前为{mode}。",
         "server.gatewayHostResponse.editSubdomainOnly" => "Host 响应仅可在子域映射模式下编辑",
@@ -1033,12 +1039,12 @@ fn zh_hant_message(key: &str) -> Option<&'static str> {
         }
         "server.gatewayVisibility.syncFailed" => "同步閘道可見性設定失敗",
         "server.gatewayProxyHeaders.runTypes.direct" => "直連模式",
-        "server.gatewayProxyHeaders.runTypes.reverseProxy" => "反代模式",
+        "server.gatewayProxyHeaders.runTypes.reverseProxy" => "内网穿透",
         "server.gatewayProxyHeaders.runTypes.subdomain" => "子域模式",
         "server.gatewayProxyHeaders.unavailableReason" => "僅子域模式可用，目前為{mode}。",
         "server.gatewayProxyHeaders.syncFailed" => "同步閘道協議頭設定失敗",
         "server.gatewayHostResponse.runTypes.direct" => "直連模式",
-        "server.gatewayHostResponse.runTypes.reverseProxy" => "反代模式",
+        "server.gatewayHostResponse.runTypes.reverseProxy" => "内网穿透",
         "server.gatewayHostResponse.runTypes.subdomain" => "子域模式",
         "server.gatewayHostResponse.unavailableReason" => "僅子域模式可用，目前為{mode}。",
         "server.gatewayHostResponse.editSubdomainOnly" => "Host 響應僅可在子域映射模式下編輯",

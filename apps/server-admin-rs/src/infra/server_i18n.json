@@ -15,6 +15,7 @@
     "tooManyAttemptsWithRetry": "尝试过于频繁，请在 {seconds} 秒后重试",
     "loginCredentialMissing": "服务器尚未配置登录凭据",
     "invalidOtpWithRetry": "验证码不正确，请在 {seconds} 秒后重试",
+    "invalidPasswordWithRetry": "用户名或密码不正确，请在 {seconds} 秒后重试",
     "runtimeProfile": {
       "capabilities": {
         "default": "当前运行环境不支持该能力",
@@ -100,7 +101,7 @@
     "gatewayHostResponse": {
       "runTypes": {
         "direct": "直连模式",
-        "reverseProxy": "反代模式",
+        "reverseProxy": "内网穿透",
         "subdomain": "子域模式"
       },
       "unavailableReason": "仅子域模式可用，当前为{mode}。",
@@ -117,7 +118,7 @@
     "admin": {
       "runTypes": {
         "direct": "直连模式",
-        "reverseProxy": "反代模式",
+        "reverseProxy": "内网穿透",
         "subdomain": "子域模式"
       },
       "validation": {
@@ -345,6 +346,31 @@
         "sslAutoSelected": "已自动切换到更适合当前子域模式的证书。",
         "sslAutoSelectionSyncFailed": "已找到推荐证书，但同步到网关失败，未自动切换。"
       },
+      "authMode": {
+        "loadFailed": "加载认证登录模式失败",
+        "invalidMode": "不支持的登录模式",
+        "previewFailed": "预览登录模式切换失败",
+        "switchFailed": "切换登录模式失败",
+        "blockingIssues": "当前存在阻断项，无法切换登录模式"
+      },
+      "authAccounts": {
+        "loadFailed": "加载认证账号失败",
+        "notFound": "认证账号不存在",
+        "saveFailed": "保存认证账号失败",
+        "deleteFailed": "删除认证账号失败",
+        "deleted": "认证账号已删除",
+        "syncFailed": "同步认证账号到 TOTP 失败",
+        "usernameExists": "用户名已存在",
+        "usernameTooShort": "用户名至少需要 3 个字符",
+        "usernameTooLong": "用户名不能超过 64 个字符",
+        "usernameInvalid": "用户名只能包含字母、数字、点、下划线或连字符，且不能包含空格",
+        "passwordTooShort": "账号密码至少需要 6 位",
+        "passwordTooLong": "账号密码不能超过 128 位",
+        "passwordWhitespace": "账号密码不能包含空白字符",
+        "passwordNeedsLettersAndNumbers": "账号密码需要同时包含字母和数字",
+        "passwordSaveFailed": "保存账号密码失败",
+        "totpAlreadyBound": "账号已绑定可用的 TOTP"
+      },
       "authCredentialSettings": {
         "loadFailed": "加载认证凭据配置失败",
         "loadConfigFailed": "加载配置失败",
@@ -369,7 +395,11 @@
         "unsupportedKind": "不支持的 TOTP 凭证导入格式",
         "unsupportedVersion": "不支持的 TOTP 凭证导入版本",
         "credentialsArray": "TOTP 凭证列表必须是数组",
-        "countExceeded": "单次最多导入 {max} 个 TOTP 凭证"
+        "accountsArray": "账号凭证列表必须是数组",
+        "passwordArray": "账号密码凭证列表必须是数组",
+        "countExceeded": "单次最多导入 {max} 个 TOTP 凭证",
+        "accountCountExceeded": "单次最多导入 {max} 个账号凭证",
+        "passwordCountExceeded": "单次最多导入 {max} 个账号密码凭证"
       },
       "passkeys": {
         "notFound": "Passkey 不存在",
@@ -484,7 +514,7 @@
       "certDeleteFailed": "删除 SSL 证书失败",
       "certClearFailed": "清空 SSL 证书配置失败"
     },
-    "store": {
+    "redis": {
       "defaultCredential": "默认凭据",
       "certificateLabels": {
         "acme": "ACME 证书",
@@ -818,6 +848,7 @@
     "oidc": {
       "callbackStateExpired": "登录状态已过期，请重新发起登录",
       "loginFailedRetry": "外部登录失败，请重新发起登录。",
+      "loginMethodUnavailable": "当前登录模式不允许外部登录",
       "reservedExtraAuthParam": "extra_auth_params 包含 OIDC 保留参数: {key}",
       "urlInvalid": "{label} 必须是合法 URL",
       "urlMustUseHttps": "{label} 必须使用 HTTPS",
@@ -1134,6 +1165,7 @@
       "notFoundWithRetry": "未找到 Passkey，请在 {seconds} 秒后重试",
       "verifyFailedWithRetry": "验证失败，请在 {seconds} 秒后重试",
       "bindTokenExpired": "绑定凭证已失效",
+      "loginMethodUnavailable": "当前登录模式不允许 Passkey 登录",
       "loadStatusFailed": "加载 Passkey 状态失败",
       "createOptionsFailed": "创建 Passkey 登录选项失败",
       "loadPasskeysFailed": "加载 Passkey 列表失败",
@@ -1168,6 +1200,7 @@
       "loadLoginCredentialsFailed": "加载登录凭据失败",
       "createSessionFailed": "创建认证会话失败",
       "loginSuccessful": "登录成功",
+      "loginMethodUnavailable": "当前登录方式不可用",
       "verifyFailed": "验证认证状态失败",
       "localNetworkAccessAllowed": "已允许内网访问",
       "authenticated": "已认证",
@@ -1227,7 +1260,7 @@
       "archivePasswordInvalid": "备份归档密码校验失败",
       "readArchiveFailed": "读取 .knock 备份归档失败",
       "payloadUtf8Invalid": "备份文件内容不是有效的 UTF-8 文本",
-      "writeRedisFailed": "写入存储备份数据失败",
+      "writeRedisFailed": "写入 Redis 备份数据失败",
       "unknownError": "未知错误",
       "syncSteps": {
         "runModeGatewayRoutes": "运行模式与网关路由",
@@ -1834,7 +1867,7 @@
     "smartConnect": {
       "runTypes": {
         "direct": "直连模式",
-        "reverseProxy": "反代模式",
+        "reverseProxy": "内网穿透",
         "subdomain": "子域模式"
       },
       "currentMode": "当前模式",
@@ -1877,7 +1910,7 @@
     "gatewayProxyHeaders": {
       "runTypes": {
         "direct": "直连模式",
-        "reverseProxy": "反代模式",
+        "reverseProxy": "内网穿透",
         "subdomain": "子域模式"
       },
       "unavailableReason": "仅子域模式可用，当前为{mode}。",
@@ -2956,6 +2989,7 @@
     "tooManyAttemptsWithRetry": "嘗試過於頻繁，請在 {seconds} 秒後重試",
     "loginCredentialMissing": "伺服器尚未配置登入憑證",
     "invalidOtpWithRetry": "驗證碼不正確，請在 {seconds} 秒後重試",
+    "invalidPasswordWithRetry": "使用者名稱或密碼不正確，請在 {seconds} 秒後重試",
     "runtimeProfile": {
       "capabilities": {
         "default": "目前運行環境不支援該能力",
@@ -3041,7 +3075,7 @@
     "gatewayHostResponse": {
       "runTypes": {
         "direct": "直連模式",
-        "reverseProxy": "反代模式",
+        "reverseProxy": "内网穿透",
         "subdomain": "子域模式"
       },
       "unavailableReason": "僅子域模式可用，目前為{mode}。",
@@ -3058,7 +3092,7 @@
     "admin": {
       "runTypes": {
         "direct": "直連模式",
-        "reverseProxy": "反代模式",
+        "reverseProxy": "内网穿透",
         "subdomain": "子域模式"
       },
       "validation": {
@@ -3286,6 +3320,31 @@
         "sslAutoSelected": "已自動切換到更適合目前子域模式的證書。",
         "sslAutoSelectionSyncFailed": "已找到推薦證書，但同步到網關失敗，未自動切換。"
       },
+      "authMode": {
+        "loadFailed": "載入認證登入模式失敗",
+        "invalidMode": "不支援的登入模式",
+        "previewFailed": "預覽登入模式切換失敗",
+        "switchFailed": "切換登入模式失敗",
+        "blockingIssues": "目前存在阻斷項，無法切換登入模式"
+      },
+      "authAccounts": {
+        "loadFailed": "載入認證帳號失敗",
+        "notFound": "認證帳號不存在",
+        "saveFailed": "儲存認證帳號失敗",
+        "deleteFailed": "刪除認證帳號失敗",
+        "deleted": "認證帳號已刪除",
+        "syncFailed": "同步認證帳號到 TOTP 失敗",
+        "usernameExists": "使用者名稱已存在",
+        "usernameTooShort": "使用者名稱至少需要 3 個字元",
+        "usernameTooLong": "使用者名稱不能超過 64 個字元",
+        "usernameInvalid": "使用者名稱只能包含字母、數字、點、底線或連字號，且不能包含空格",
+        "passwordTooShort": "帳號密碼至少需要 6 位",
+        "passwordTooLong": "帳號密碼不能超過 128 位",
+        "passwordWhitespace": "帳號密碼不能包含空白字元",
+        "passwordNeedsLettersAndNumbers": "帳號密碼需要同時包含字母和數字",
+        "passwordSaveFailed": "儲存帳號密碼失敗",
+        "totpAlreadyBound": "帳號已綁定可用的 TOTP"
+      },
       "authCredentialSettings": {
         "loadFailed": "載入認證憑據配置失敗",
         "loadConfigFailed": "載入配置失敗",
@@ -3310,7 +3369,11 @@
         "unsupportedKind": "不支援的 TOTP 憑證匯入格式",
         "unsupportedVersion": "不支援的 TOTP 憑證匯入版本",
         "credentialsArray": "TOTP 憑證列表必須是陣列",
-        "countExceeded": "單次最多匯入 {max} 個 TOTP 憑證"
+        "accountsArray": "帳號憑證列表必須是陣列",
+        "passwordArray": "帳號密碼憑證列表必須是陣列",
+        "countExceeded": "單次最多匯入 {max} 個 TOTP 憑證",
+        "accountCountExceeded": "單次最多匯入 {max} 個帳號憑證",
+        "passwordCountExceeded": "單次最多匯入 {max} 個帳號密碼憑證"
       },
       "passkeys": {
         "notFound": "Passkey 不存在",
@@ -3425,7 +3488,7 @@
       "certDeleteFailed": "刪除 SSL 證書失敗",
       "certClearFailed": "清空 SSL 證書配置失敗"
     },
-    "store": {
+    "redis": {
       "defaultCredential": "默認憑據",
       "certificateLabels": {
         "acme": "ACME 證書",
@@ -3759,6 +3822,7 @@
     "oidc": {
       "callbackStateExpired": "登入狀態已過期，請重新發起登入",
       "loginFailedRetry": "外部登入失敗，請重新發起登入。",
+      "loginMethodUnavailable": "目前登入模式不允許外部登入",
       "reservedExtraAuthParam": "extra_auth_params 包含 OIDC 保留參數: {key}",
       "urlInvalid": "{label} 必須是合法 URL",
       "urlMustUseHttps": "{label} 必須使用 HTTPS",
@@ -4075,6 +4139,7 @@
       "notFoundWithRetry": "未找到 Passkey，請在 {seconds} 秒後重試",
       "verifyFailedWithRetry": "驗證失敗，請在 {seconds} 秒後重試",
       "bindTokenExpired": "綁定憑證已失效",
+      "loginMethodUnavailable": "目前登入模式不允許 Passkey 登入",
       "loadStatusFailed": "載入 Passkey 狀態失敗",
       "createOptionsFailed": "建立 Passkey 登入選項失敗",
       "loadPasskeysFailed": "載入 Passkey 列表失敗",
@@ -4109,6 +4174,7 @@
       "loadLoginCredentialsFailed": "載入登入憑據失敗",
       "createSessionFailed": "建立認證會話失敗",
       "loginSuccessful": "登入成功",
+      "loginMethodUnavailable": "目前登入方式不可用",
       "verifyFailed": "驗證認證狀態失敗",
       "localNetworkAccessAllowed": "已允許內網訪問",
       "authenticated": "已認證",
@@ -4168,7 +4234,7 @@
       "archivePasswordInvalid": "備份歸檔密碼校驗失敗",
       "readArchiveFailed": "讀取 .knock 備份歸檔失敗",
       "payloadUtf8Invalid": "備份文件內容不是有效的 UTF-8 文字",
-      "writeRedisFailed": "寫入儲存備份數據失敗",
+      "writeRedisFailed": "寫入 Redis 備份數據失敗",
       "unknownError": "未知錯誤",
       "syncSteps": {
         "runModeGatewayRoutes": "運行模式與網關路由",
@@ -4775,7 +4841,7 @@
     "smartConnect": {
       "runTypes": {
         "direct": "直連模式",
-        "reverseProxy": "反代模式",
+        "reverseProxy": "内网穿透",
         "subdomain": "子域模式"
       },
       "currentMode": "目前模式",
@@ -4818,7 +4884,7 @@
     "gatewayProxyHeaders": {
       "runTypes": {
         "direct": "直連模式",
-        "reverseProxy": "反代模式",
+        "reverseProxy": "内网穿透",
         "subdomain": "子域模式"
       },
       "unavailableReason": "僅子域模式可用，目前為{mode}。",
@@ -5897,6 +5963,7 @@
     "tooManyAttemptsWithRetry": "Too many attempts. Please try again in {seconds} seconds.",
     "loginCredentialMissing": "No login credentials are configured on the server",
     "invalidOtpWithRetry": "The verification code is incorrect. Please retry in {seconds} seconds.",
+    "invalidPasswordWithRetry": "The username or password is incorrect. Please retry in {seconds} seconds.",
     "runtimeProfile": {
       "capabilities": {
         "default": "The current runtime does not support this capability",
@@ -6227,6 +6294,31 @@
         "sslAutoSelected": "Automatically switched to a certificate better suited to the current subdomain mode.",
         "sslAutoSelectionSyncFailed": "A recommended certificate was found, but syncing it to the gateway failed, so it was not switched automatically."
       },
+      "authMode": {
+        "loadFailed": "Failed to load auth login mode",
+        "invalidMode": "Unsupported login mode",
+        "previewFailed": "Failed to preview login mode switch",
+        "switchFailed": "Failed to switch login mode",
+        "blockingIssues": "The sign-in mode cannot be switched while blocking issues remain"
+      },
+      "authAccounts": {
+        "loadFailed": "Failed to load auth accounts",
+        "notFound": "Auth account not found",
+        "saveFailed": "Failed to save auth account",
+        "deleteFailed": "Failed to delete auth account",
+        "deleted": "Auth account deleted",
+        "syncFailed": "Failed to sync auth account to TOTP",
+        "usernameExists": "Username already exists",
+        "usernameTooShort": "Username must be at least 3 characters",
+        "usernameTooLong": "Username cannot exceed 64 characters",
+        "usernameInvalid": "Username can only contain letters, numbers, dots, underscores, or hyphens, and cannot contain spaces",
+        "passwordTooShort": "Account password must be at least 6 characters",
+        "passwordTooLong": "Account password cannot exceed 128 characters",
+        "passwordWhitespace": "Account password cannot contain whitespace",
+        "passwordNeedsLettersAndNumbers": "Account password must contain both letters and numbers",
+        "passwordSaveFailed": "Failed to save account password",
+        "totpAlreadyBound": "The account already has a usable TOTP credential"
+      },
       "authCredentialSettings": {
         "loadFailed": "Failed to load auth credential settings",
         "loadConfigFailed": "Failed to load config",
@@ -6251,7 +6343,11 @@
         "unsupportedKind": "Unsupported TOTP credential import format",
         "unsupportedVersion": "Unsupported TOTP credential import version",
         "credentialsArray": "TOTP credential list must be an array",
-        "countExceeded": "At most {max} TOTP credentials can be imported at once"
+        "accountsArray": "Account credential list must be an array",
+        "passwordArray": "Account password credential list must be an array",
+        "countExceeded": "At most {max} TOTP credentials can be imported at once",
+        "accountCountExceeded": "At most {max} account credentials can be imported at once",
+        "passwordCountExceeded": "At most {max} account password credentials can be imported at once"
       },
       "passkeys": {
         "notFound": "Passkey not found",
@@ -6366,7 +6462,7 @@
       "certDeleteFailed": "Failed to delete SSL certificate",
       "certClearFailed": "Failed to clear SSL certificate configuration"
     },
-    "store": {
+    "redis": {
       "defaultCredential": "Default credential",
       "certificateLabels": {
         "acme": "ACME certificate",
@@ -6700,6 +6796,7 @@
     "oidc": {
       "callbackStateExpired": "Login state has expired. Start sign-in again.",
       "loginFailedRetry": "External sign-in failed. Start sign-in again.",
+      "loginMethodUnavailable": "External sign-in is not available in the current sign-in mode.",
       "reservedExtraAuthParam": "extra_auth_params contains a reserved OIDC parameter: {key}",
       "urlInvalid": "{label} must be a valid URL",
       "urlMustUseHttps": "{label} must use HTTPS",
@@ -7016,6 +7113,7 @@
       "notFoundWithRetry": "Passkey not found. Retry in {seconds} seconds.",
       "verifyFailedWithRetry": "Verification failed. Retry in {seconds} seconds.",
       "bindTokenExpired": "Binding credential has expired",
+      "loginMethodUnavailable": "Passkey sign-in is not available in the current sign-in mode.",
       "loadStatusFailed": "Failed to load passkey status",
       "createOptionsFailed": "Failed to create passkey options",
       "loadPasskeysFailed": "Failed to load passkeys",
@@ -7050,6 +7148,7 @@
       "loadLoginCredentialsFailed": "Failed to load login credentials",
       "createSessionFailed": "Failed to create auth session",
       "loginSuccessful": "Login successful",
+      "loginMethodUnavailable": "This sign-in method is not available.",
       "verifyFailed": "Failed to verify auth",
       "localNetworkAccessAllowed": "Local network access allowed",
       "authenticated": "Authenticated",
@@ -7109,7 +7208,7 @@
       "archivePasswordInvalid": "Backup archive password verification failed",
       "readArchiveFailed": "Failed to read .knock backup archive",
       "payloadUtf8Invalid": "Backup file content is not valid UTF-8 text",
-      "writeRedisFailed": "Failed to write backup data to storage",
+      "writeRedisFailed": "Failed to write Redis backup data",
       "unknownError": "Unknown error",
       "syncSteps": {
         "runModeGatewayRoutes": "Run mode and gateway routes",
@@ -8838,6 +8937,7 @@
     "tooManyAttemptsWithRetry": "시도 횟수가 너무 많습니다. {seconds}초 후에 다시 시도해 주세요.",
     "loginCredentialMissing": "서버에 로그인 자격 증명이 구성되어 있지 않습니다.",
     "invalidOtpWithRetry": "인증코드가 올바르지 않습니다. {seconds}초 후에 다시 시도하세요.",
+    "invalidPasswordWithRetry": "사용자 이름 또는 비밀번호가 올바르지 않습니다. {seconds}초 후 다시 시도하세요.",
     "runtimeProfile": {
       "capabilities": {
         "default": "현재 런타임은 이 기능을 지원하지 않습니다.",
@@ -9168,6 +9268,31 @@
         "sslAutoSelected": "현재 하위 도메인 모드에 더 적합한 인증서로 자동 전환됩니다.",
         "sslAutoSelectionSyncFailed": "권장 인증서를 찾았지만 게이트웨이와의 동기화에 실패하여 자동으로 전환되지 않았습니다."
       },
+      "authMode": {
+        "loadFailed": "인증 로그인 모드를 불러오지 못했습니다",
+        "invalidMode": "지원하지 않는 로그인 모드입니다",
+        "previewFailed": "로그인 모드 전환 미리보기에 실패했습니다",
+        "switchFailed": "로그인 모드 전환에 실패했습니다",
+        "blockingIssues": "차단 항목이 남아 있어 로그인 모드를 전환할 수 없습니다"
+      },
+      "authAccounts": {
+        "loadFailed": "인증 계정을 불러오지 못했습니다",
+        "notFound": "인증 계정을 찾을 수 없습니다",
+        "saveFailed": "인증 계정을 저장하지 못했습니다",
+        "deleteFailed": "인증 계정을 삭제하지 못했습니다",
+        "deleted": "인증 계정이 삭제되었습니다",
+        "syncFailed": "인증 계정을 TOTP로 동기화하지 못했습니다",
+        "usernameExists": "사용자 이름이 이미 존재합니다",
+        "usernameTooShort": "사용자 이름은 3자 이상이어야 합니다",
+        "usernameTooLong": "사용자 이름은 64자를 초과할 수 없습니다",
+        "usernameInvalid": "사용자 이름은 문자, 숫자, 점, 밑줄, 하이픈만 포함할 수 있으며 공백은 사용할 수 없습니다",
+        "passwordTooShort": "계정 비밀번호는 6자 이상이어야 합니다",
+        "passwordTooLong": "계정 비밀번호는 128자를 초과할 수 없습니다",
+        "passwordWhitespace": "계정 비밀번호에는 공백을 포함할 수 없습니다",
+        "passwordNeedsLettersAndNumbers": "계정 비밀번호에는 문자와 숫자가 모두 포함되어야 합니다",
+        "passwordSaveFailed": "계정 비밀번호를 저장하지 못했습니다",
+        "totpAlreadyBound": "계정에 이미 사용 가능한 TOTP가 바인딩되어 있습니다"
+      },
       "authCredentialSettings": {
         "loadFailed": "인증 자격 증명 설정을 불러오지 못했습니다.",
         "loadConfigFailed": "구성을 불러오지 못했습니다.",
@@ -9192,7 +9317,11 @@
         "unsupportedKind": "지원되지 않는 TOTP 자격 증명 가져오기 형식입니다.",
         "unsupportedVersion": "지원되지 않는 TOTP 자격 증명 가져오기 버전입니다.",
         "credentialsArray": "TOTP 자격 증명 목록은 배열이어야 합니다.",
-        "countExceeded": "한 번에 최대 {max}개의 TOTP 자격 증명을 가져올 수 있습니다."
+        "accountsArray": "계정 자격 증명 목록은 배열이어야 합니다.",
+        "passwordArray": "계정 비밀번호 자격 증명 목록은 배열이어야 합니다.",
+        "countExceeded": "한 번에 최대 {max}개의 TOTP 자격 증명을 가져올 수 있습니다.",
+        "accountCountExceeded": "한 번에 최대 {max}개의 계정 자격 증명을 가져올 수 있습니다.",
+        "passwordCountExceeded": "한 번에 최대 {max}개의 계정 비밀번호 자격 증명을 가져올 수 있습니다."
       },
       "passkeys": {
         "notFound": "패스키를 찾을 수 없습니다.",
@@ -9307,7 +9436,7 @@
       "certDeleteFailed": "SSL 인증서 삭제에 실패했습니다.",
       "certClearFailed": "SSL 인증서 구성 초기화에 실패했습니다."
     },
-    "store": {
+    "redis": {
       "defaultCredential": "기본 자격 증명",
       "certificateLabels": {
         "acme": "ACME 인증서",
@@ -9641,6 +9770,7 @@
     "oidc": {
       "callbackStateExpired": "로그인 상태가 만료되었습니다. 다시 로그인을 시작하세요.",
       "loginFailedRetry": "외부 로그인에 실패했습니다. 다시 로그인을 시작하세요.",
+      "loginMethodUnavailable": "현재 로그인 모드에서는 외부 로그인을 사용할 수 없습니다.",
       "reservedExtraAuthParam": "extra_auth_params에는 예약된 OIDC 매개변수인 {key}이 포함되어 있습니다.",
       "urlInvalid": "{label}은 유효한 URL이어야 합니다.",
       "urlMustUseHttps": "{label}은 HTTPS를 사용해야 합니다.",
@@ -9957,6 +10087,7 @@
       "notFoundWithRetry": "패스키를 찾을 수 없습니다. {seconds} 초 후에 다시 시도하세요.",
       "verifyFailedWithRetry": "확인에 실패했습니다. {seconds} 초 후에 다시 시도하세요.",
       "bindTokenExpired": "바인딩 자격 증명이 만료되었습니다.",
+      "loginMethodUnavailable": "현재 로그인 모드에서는 패스키 로그인을 사용할 수 없습니다.",
       "loadStatusFailed": "패스키 상태를 불러오지 못했습니다.",
       "createOptionsFailed": "패스키 옵션을 만들지 못했습니다.",
       "loadPasskeysFailed": "패스키 목록을 불러오지 못했습니다.",
@@ -9991,6 +10122,7 @@
       "loadLoginCredentialsFailed": "로그인 자격 증명을 불러오지 못했습니다.",
       "createSessionFailed": "인증 세션을 만들지 못했습니다.",
       "loginSuccessful": "로그인했습니다.",
+      "loginMethodUnavailable": "현재 로그인 방법을 사용할 수 없습니다.",
       "verifyFailed": "인증 상태를 확인하지 못했습니다.",
       "localNetworkAccessAllowed": "로컬 네트워크 접근이 허용되었습니다.",
       "authenticated": "인증되었습니다.",
@@ -10050,7 +10182,7 @@
       "archivePasswordInvalid": "백업 아카이브 비밀번호 확인에 실패했습니다.",
       "readArchiveFailed": ".knock 백업 아카이브를 읽지 못했습니다.",
       "payloadUtf8Invalid": "백업 파일 콘텐츠가 유효한 UTF-8 텍스트가 아닙니다.",
-      "writeRedisFailed": "스토리지에 백업 데이터를 쓰지 못했습니다.",
+      "writeRedisFailed": "Redis 백업 데이터를 쓰지 못했습니다.",
       "unknownError": "알 수 없는 오류",
       "syncSteps": {
         "runModeGatewayRoutes": "실행 모드 및 게이트웨이 경로",
@@ -11779,6 +11911,7 @@
     "tooManyAttemptsWithRetry": "試行回数が多すぎます。{seconds} 秒後にもう一度お試しください",
     "loginCredentialMissing": "サーバーにはログイン認証情報が設定されていません",
     "invalidOtpWithRetry": "確認コードが正しくありません。{seconds} 秒後にもう一度お試しください。",
+    "invalidPasswordWithRetry": "ユーザー名またはパスワードが正しくありません。{seconds} 秒後にもう一度お試しください。",
     "runtimeProfile": {
       "capabilities": {
         "default": "現在の動作環境はこの機能をサポートしていません",
@@ -12109,6 +12242,31 @@
         "sslAutoSelected": "は、現在のサブドメイン モードにより適した証明書に自動的に切り替わりました。",
         "sslAutoSelectionSyncFailed": "推奨証明書は見つかりましたが、ゲートウェイとの同期に失敗し、自動切り替えが行われませんでした。"
       },
+      "authMode": {
+        "loadFailed": "認証ログインモードの読み込みに失敗しました",
+        "invalidMode": "サポートされていないログインモードです",
+        "previewFailed": "ログインモード切り替えのプレビューに失敗しました",
+        "switchFailed": "ログインモードの切り替えに失敗しました",
+        "blockingIssues": "ブロック項目が残っているため、ログインモードを切り替えられません"
+      },
+      "authAccounts": {
+        "loadFailed": "認証アカウントの読み込みに失敗しました",
+        "notFound": "認証アカウントが見つかりません",
+        "saveFailed": "認証アカウントの保存に失敗しました",
+        "deleteFailed": "認証アカウントの削除に失敗しました",
+        "deleted": "認証アカウントを削除しました",
+        "syncFailed": "認証アカウントを TOTP に同期できませんでした",
+        "usernameExists": "ユーザー名は既に存在します",
+        "usernameTooShort": "ユーザー名は 3 文字以上にしてください",
+        "usernameTooLong": "ユーザー名は 64 文字以内にしてください",
+        "usernameInvalid": "ユーザー名には英数字、ドット、アンダースコア、ハイフンのみ使用でき、空白は使用できません",
+        "passwordTooShort": "アカウントパスワードは 6 文字以上にしてください",
+        "passwordTooLong": "アカウントパスワードは 128 文字以内にしてください",
+        "passwordWhitespace": "アカウントパスワードに空白文字は使用できません",
+        "passwordNeedsLettersAndNumbers": "アカウントパスワードには英字と数字の両方を含めてください",
+        "passwordSaveFailed": "アカウントパスワードの保存に失敗しました",
+        "totpAlreadyBound": "このアカウントには利用可能な TOTP が既にバインドされています"
+      },
       "authCredentialSettings": {
         "loadFailed": "認証情報設定の読み込みに失敗しました",
         "loadConfigFailed": "設定の読み込みに失敗しました",
@@ -12133,7 +12291,11 @@
         "unsupportedKind": "サポートされていない TOTP 認証情報インポート形式です",
         "unsupportedVersion": "サポートされていない TOTP 認証情報インポートバージョンです",
         "credentialsArray": "TOTP 認証情報リストは配列である必要があります",
-        "countExceeded": "一度にインポートできる TOTP 認証情報は最大 {max} 件です"
+        "accountsArray": "アカウント認証情報リストは配列である必要があります",
+        "passwordArray": "アカウントパスワード認証情報リストは配列である必要があります",
+        "countExceeded": "一度にインポートできる TOTP 認証情報は最大 {max} 件です",
+        "accountCountExceeded": "一度にインポートできるアカウント認証情報は最大 {max} 件です",
+        "passwordCountExceeded": "一度にインポートできるアカウントパスワード認証情報は最大 {max} 件です"
       },
       "passkeys": {
         "notFound": "Passkey が見つかりません",
@@ -12248,7 +12410,7 @@
       "certDeleteFailed": "SSL 証明書の削除に失敗しました",
       "certClearFailed": "SSL 証明書設定のクリアに失敗しました"
     },
-    "store": {
+    "redis": {
       "defaultCredential": "デフォルトの認証情報",
       "certificateLabels": {
         "acme": "ACME 証明書",
@@ -12582,6 +12744,7 @@
     "oidc": {
       "callbackStateExpired": "ログインステータスの有効期限が切れています。再度ログインしてください。",
       "loginFailedRetry": "外部ログインに失敗しました。もう一度お試しください。",
+      "loginMethodUnavailable": "現在のログインモードでは外部ログインは利用できません。",
       "reservedExtraAuthParam": "extra_auth_params には OIDC 予約パラメータ: {key} が含まれます",
       "urlInvalid": "{label} は合法である必要があります URL",
       "urlMustUseHttps": "{label} は HTTPS を使用する必要があります",
@@ -12898,6 +13061,7 @@
       "notFoundWithRetry": "Passkey が見つかりません。{seconds} 秒後にもう一度お試しください",
       "verifyFailedWithRetry": "認証に失敗しました。{seconds} 秒後にもう一度お試しください",
       "bindTokenExpired": "結合証明書の有効期限が切れています",
+      "loginMethodUnavailable": "現在のログインモードでは Passkey ログインは利用できません。",
       "loadStatusFailed": "Passkey ステータスの読み込みに失敗しました",
       "createOptionsFailed": "Passkey オプションの作成に失敗しました",
       "loadPasskeysFailed": "Passkey 一覧の読み込みに失敗しました",
@@ -12932,6 +13096,7 @@
       "loadLoginCredentialsFailed": "ログイン認証情報の読み込みに失敗しました",
       "createSessionFailed": "認証セッションの作成に失敗しました",
       "loginSuccessful": "ログインしました",
+      "loginMethodUnavailable": "現在のログイン方法は利用できません。",
       "verifyFailed": "認証状態の確認に失敗しました",
       "localNetworkAccessAllowed": "ローカルネットワークアクセスが許可されました",
       "authenticated": "認証済みです",
@@ -12991,7 +13156,7 @@
       "archivePasswordInvalid": "バックアップ アーカイブのパスワード検証に失敗しました",
       "readArchiveFailed": ".knock バックアップ アーカイブの読み取りに失敗しました",
       "payloadUtf8Invalid": "バックアップ ファイルの内容は有効な UTF-8 テキストではありません",
-      "writeRedisFailed": "ストレージへのバックアップ データの書き込みに失敗しました",
+      "writeRedisFailed": "Redis バックアップ データの書き込みに失敗しました",
       "unknownError": "不明なエラー",
       "syncSteps": {
         "runModeGatewayRoutes": "動作モードとゲートウェイルーティング",

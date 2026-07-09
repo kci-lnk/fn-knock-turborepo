@@ -18,6 +18,8 @@ export const koKRServer = {
   loginCredentialMissing: "서버에 로그인 자격 증명이 구성되어 있지 않습니다.",
   invalidOtpWithRetry:
     "인증코드가 올바르지 않습니다. {seconds}초 후에 다시 시도하세요.",
+  invalidPasswordWithRetry:
+    "사용자 이름 또는 비밀번호가 올바르지 않습니다. {seconds}초 후 다시 시도하세요.",
   runtimeProfile: {
     capabilities: {
       default: "현재 런타임은 이 기능을 지원하지 않습니다.",
@@ -434,6 +436,33 @@ export const koKRServer = {
         "현재 하위 도메인 모드에 더 적합한 인증서로 자동 전환됩니다.",
       sslAutoSelectionSyncFailed:
         "권장 인증서를 찾았지만 게이트웨이와의 동기화에 실패하여 자동으로 전환되지 않았습니다.",
+    },
+    authMode: {
+      loadFailed: "인증 로그인 모드를 불러오지 못했습니다",
+      invalidMode: "지원하지 않는 로그인 모드입니다",
+      previewFailed: "로그인 모드 전환 미리보기에 실패했습니다",
+      switchFailed: "로그인 모드 전환에 실패했습니다",
+      blockingIssues: "차단 항목이 남아 있어 로그인 모드를 전환할 수 없습니다",
+    },
+    authAccounts: {
+      loadFailed: "인증 계정을 불러오지 못했습니다",
+      notFound: "인증 계정을 찾을 수 없습니다",
+      saveFailed: "인증 계정을 저장하지 못했습니다",
+      syncFailed: "인증 계정을 TOTP로 동기화하지 못했습니다",
+      usernameExists: "사용자 이름이 이미 존재합니다",
+      usernameTooShort: "사용자 이름은 3자 이상이어야 합니다",
+      usernameTooLong: "사용자 이름은 64자를 초과할 수 없습니다",
+      usernameInvalid:
+        "사용자 이름은 문자, 숫자, 점, 밑줄, 하이픈만 포함할 수 있으며 공백은 사용할 수 없습니다",
+      passwordTooShort: "계정 비밀번호는 6자 이상이어야 합니다",
+      passwordTooLong: "계정 비밀번호는 128자를 초과할 수 없습니다",
+      passwordWhitespace: "계정 비밀번호에는 공백을 포함할 수 없습니다",
+      passwordNeedsLettersAndNumbers:
+        "계정 비밀번호에는 문자와 숫자가 모두 포함되어야 합니다",
+      passwordSaveFailed: "계정 비밀번호를 저장하지 못했습니다",
+      deleteFailed: "인증 계정을 삭제하지 못했습니다",
+      deleted: "인증 계정이 삭제되었습니다",
+      totpAlreadyBound: "계정에 이미 사용 가능한 TOTP가 바인딩되어 있습니다",
     },
     authCredentialSettings: {
       loadFailed: "인증 자격 증명 설정을 불러오지 못했습니다.",
@@ -973,6 +1002,8 @@ export const koKRServer = {
     callbackStateExpired:
       "로그인 상태가 만료되었습니다. 다시 로그인을 시작하세요.",
     loginFailedRetry: "외부 로그인에 실패했습니다. 다시 로그인을 시작하세요.",
+    loginMethodUnavailable:
+      "현재 로그인 모드에서는 외부 로그인을 사용할 수 없습니다.",
     reservedExtraAuthParam:
       "extra_auth_params에는 예약된 OIDC 매개변수인 {key}이 포함되어 있습니다.",
     urlInvalid: "{label}은 유효한 URL이어야 합니다.",
@@ -1384,6 +1415,8 @@ export const koKRServer = {
     verifyFailedWithRetry:
       "확인에 실패했습니다. {seconds} 초 후에 다시 시도하세요.",
     bindTokenExpired: "바인딩 자격 증명이 만료되었습니다.",
+    loginMethodUnavailable:
+      "현재 로그인 모드에서는 패스키 로그인을 사용할 수 없습니다.",
     loadStatusFailed: "패스키 상태를 불러오지 못했습니다.",
     createOptionsFailed: "패스키 옵션을 만들지 못했습니다.",
     loadPasskeysFailed: "패스키 목록을 불러오지 못했습니다.",
@@ -1418,6 +1451,7 @@ export const koKRServer = {
     loadLoginCredentialsFailed: "로그인 자격 증명을 불러오지 못했습니다.",
     createSessionFailed: "인증 세션을 만들지 못했습니다.",
     loginSuccessful: "로그인했습니다.",
+    loginMethodUnavailable: "현재 로그인 방법을 사용할 수 없습니다.",
     verifyFailed: "인증 상태를 확인하지 못했습니다.",
     localNetworkAccessAllowed: "로컬 네트워크 접근이 허용되었습니다.",
     authenticated: "인증되었습니다.",

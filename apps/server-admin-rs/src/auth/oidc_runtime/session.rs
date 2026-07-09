@@ -152,7 +152,7 @@ pub(super) async fn create_oidc_session_response(
         state,
         config,
         CreateLoginSessionInput {
-            auth_method: "OIDC".to_string(),
+            auth_method: AuthMethod::Oidc.as_session_str().to_string(),
             auth_provider_name: provider_name.map(str::to_string),
             credential_id,
             credential_name: credential_name.to_string(),

@@ -23,6 +23,7 @@ pub struct AppStateInner {
     #[allow(dead_code)]
     pub go_backend: GoBackendClient,
     pub fallback_client: reqwest::Client,
+    pub asset_download_client: reqwest::Client,
     pub auto_https: AutoHttpsRedirectManager,
     pub acme_install_state: RwLock<Option<Value>>,
     pub ddns_schedule_reload: Notify,
@@ -55,6 +56,13 @@ impl AppState {
             .timeout(settings.request_timeout)
             .build()
             .context("build fallback http client")?;
+        // Large binary downloads use per-read timeouts so slow but active transfers can finish.
+        let asset_download_client = reqwest::Client::builder()
+            .connect_timeout(settings.asset_download_connect_timeout)
+            .read_timeout(settings.asset_download_read_timeout)
+            .no_gzip()
+            .build()
+            .context("build asset download http client")?;
 
         Ok(Self {
             inner: Arc::new(AppStateInner {
@@ -62,6 +70,7 @@ impl AppState {
                 store,
                 go_backend,
                 fallback_client,
+                asset_download_client,
                 auto_https: AutoHttpsRedirectManager::new(),
                 acme_install_state: RwLock::new(None),
                 ddns_schedule_reload: Notify::new(),

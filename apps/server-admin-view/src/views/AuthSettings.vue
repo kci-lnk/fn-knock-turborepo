@@ -5,50 +5,67 @@
     >
       <div class="min-w-0 space-y-1.5">
         <div class="flex items-center justify-between gap-3">
-          <CardTitle>{{ t("admin.authSettings.title") }}</CardTitle>
+          <CardTitle>{{ authSettingsTitle }}</CardTitle>
           <DocsLinkButton class="sm:hidden" :href="docsUrls.guides.auth" />
         </div>
-        <CardDescription>{{
-          t("admin.authSettings.description")
-        }}</CardDescription>
+        <CardDescription>{{ authSettingsDescription }}</CardDescription>
       </div>
-      <div
-        class="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center"
-      >
+      <div class="flex w-full items-center gap-2 sm:w-auto">
         <DocsLinkButton
           class="hidden sm:inline-flex"
           :href="docsUrls.guides.auth"
           size="default"
         />
-        <Button
-          class="order-3 h-11 w-full justify-center px-3 sm:order-none sm:size-9 sm:w-auto sm:px-0"
-          variant="outline"
-          :aria-label="t('admin.authSettings.credentialTransfer')"
-          :title="t('admin.authSettings.credentialTransfer')"
-          :disabled="isCredentialTransferBusy"
-          @click="showCredentialTransferDialog = true"
+        <div
+          class="grid flex-1 grid-cols-[minmax(0,1fr)_auto] gap-0 sm:flex-none"
         >
-          <FileKey2 class="h-4 w-4" />
-          <span class="sm:hidden">
-            {{ t("admin.authSettings.credentialTransferShort") }}
-          </span>
-        </Button>
-        <Button
-          class="order-2 h-11 min-w-0 w-full sm:order-none sm:h-9 sm:w-auto"
-          variant="outline"
-          @click="goToOidcProviders"
-        >
-          {{ t("admin.authSettings.oidcLogin") }}
-        </Button>
-        <Button
-          class="order-1 col-span-2 h-11 w-full sm:order-none sm:h-9 sm:w-auto"
-          @click="openSetupDialog"
-        >
-          {{ t("admin.authSettings.bindNewToken") }}
-        </Button>
+          <Button
+            class="h-11 min-w-0 rounded-r-none sm:h-9"
+            @click="handlePrimaryAuthAction"
+          >
+            <Plus class="h-4 w-4" aria-hidden="true" />
+            {{ primaryAuthActionLabel }}
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <Button
+                size="icon"
+                class="h-11 rounded-l-none border-l border-primary-foreground/25 px-2 sm:h-9"
+                :aria-label="t('admin.authSettings.moreActions')"
+                :title="t('admin.authSettings.moreActions')"
+              >
+                <ChevronDown class="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" class="w-56">
+              <DropdownMenuItem
+                :disabled="isCredentialTransferBusy"
+                @select="showCredentialTransferDialog = true"
+              >
+                <FileKey2 class="mr-2 h-4 w-4" />
+                {{ t("admin.authSettings.credentialTransfer") }}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                :disabled="isAuthModeBusy"
+                @select="openAuthModeSwitchDialog"
+              >
+                <RefreshCw
+                  class="mr-2 h-4 w-4"
+                  :class="{ 'animate-spin': isAuthModeBusy }"
+                />
+                {{ t("admin.authSettings.switchAuthMode") }}
+              </DropdownMenuItem>
+              <DropdownMenuItem @select="goToOidcProviders">
+                <Settings2 class="mr-2 h-4 w-4" />
+                {{ t("admin.authSettings.oidcLogin") }}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     </CardHeader>
     <TotpCredentialTable
+      v-if="authLoginMode === 'totp'"
       :credentials="credentials"
       :get-subdomain-access-preview="getSubdomainAccessPreview"
       :get-subdomain-access-summary="getSubdomainAccessSummary"
@@ -77,7 +94,51 @@
       :table-colspan="totpTableColspan"
       :validate-comment="validateComment"
     />
+    <AuthAccountTable
+      v-else
+      :accounts="authAccounts"
+      :get-subdomain-access-preview="getSubdomainAccessPreview"
+      :get-subdomain-access-summary="getSubdomainAccessSummary"
+      :handle-admin-panel-access-tooltip-click="
+        handleAdminPanelAccessTooltipClick
+      "
+      :handle-admin-panel-access-tooltip-open-change="
+        handleAdminPanelAccessTooltipOpenChange
+      "
+      :handle-delete="handleDeleteAccount"
+      :handle-docker-admin-panel-access-change="
+        handleAccountDockerAdminPanelAccessChange
+      "
+      :has-docker-admin-panel-access="hasDockerAdminPanelAccess"
+      :is-access-scope-updating="isAccessScopeUpdating"
+      :is-admin-panel-access-tooltip-open="isAdminPanelAccessTooltipOpen"
+      :is-deleting="isDeleting"
+      :is-loading="isLoading"
+      :is-subdomain-access-updating="isSubdomainAccessUpdating"
+      :open-create-account-dialog="openCreateAuthAccountDialog"
+      :open-password-dialog="openAccountPasswordDialog"
+      :open-subdomain-access-dialog="openAccountSubdomainAccessDialog"
+      :save-username="saveAccountUsername"
+      :show-admin-panel-access-column="showAdminPanelAccessColumn"
+      :show-loading-skeleton="showLoadingSkeleton"
+      :table-class="authAccountTableClass"
+      :table-colspan="authAccountTableColspan"
+      :validate-username="validateAccountUsername"
+    />
   </Card>
+
+  <AuthModeSwitchDialog
+    v-model:open="showAuthModeSwitchDialog"
+    :current-mode="authLoginMode"
+    :accounts="authAccounts"
+    :preview="authModePreview"
+    :is-previewing="isPreviewingAuthMode"
+    :is-switching="isSwitchingAuthMode"
+    @bind-totp="openAccountTotpSetupDialogFromSwitch"
+    @confirm="handleSwitchAuthMode"
+    @edit-account="openAuthAccountDialog"
+    @set-password="openAccountPasswordDialogFromSwitch"
+  />
 
   <input
     ref="credentialImportInputRef"
@@ -91,7 +152,7 @@
     v-model:credential-transfer-open="showCredentialTransferDialog"
     v-model:export-open="showExportDialog"
     v-model:import-open="showImportDialog"
-    :credential-count="credentials.length"
+    :credential-count="exportableCredentialCount"
     :is-credential-transfer-busy="isCredentialTransferBusy"
     :is-exporting-credentials="isExportingCredentials"
     :is-importing-credentials="isImportingCredentials"
@@ -107,13 +168,16 @@
     v-model:open="showSubdomainAccessDialog"
     v-model:mode="subdomainAccessMode"
     v-model:search="subdomainAccessSearch"
-    :has-target="Boolean(editingSubdomainAccessTotp)"
+    :has-target="
+      Boolean(editingSubdomainAccessTotp || editingSubdomainAccessAccount)
+    "
     :is-saving="isSavingSubdomainAccess"
     :option-count="subdomainAccessOptions.length"
     :options="filteredSubdomainAccessOptions"
     :selected-count="selectedSubdomainHostCount"
     :selected-hosts="selectedSubdomainHosts"
     :target-name="
+      editingSubdomainAccessAccount?.username ||
       editingSubdomainAccessTotp?.comment ||
       t('admin.authSettings.tokenFallback')
     "
@@ -123,6 +187,148 @@
     @select-all-filtered="selectAllFilteredSubdomainHosts"
     @toggle-host="toggleSubdomainHost"
   />
+
+  <Dialog
+    :open="showAuthAccountDialog"
+    @update:open="
+      showAuthAccountDialog = $event;
+      if (!$event) closeAuthAccountDialog();
+    "
+  >
+    <DialogContent class="max-h-[88vh] overflow-y-auto sm:max-w-[440px]">
+      <DialogHeader>
+        <DialogTitle>
+          {{ t("admin.authSettings.editAccount") }}
+        </DialogTitle>
+        <DialogDescription>
+          {{ t("admin.authSettings.editAccountDescription") }}
+        </DialogDescription>
+      </DialogHeader>
+      <div class="space-y-4">
+        <div class="space-y-2">
+          <Label for="auth-account-username">
+            {{ t("admin.authSettings.accountUsername") }}
+          </Label>
+          <Input
+            id="auth-account-username"
+            v-model="authAccountUsernameInput"
+            autocomplete="off"
+            :disabled="isSavingAuthAccount"
+            @keyup.enter="handleSaveAuthAccount"
+          />
+        </div>
+      </div>
+      <DialogFooter class="gap-2">
+        <Button
+          variant="outline"
+          :disabled="isSavingAuthAccount"
+          @click="closeAuthAccountDialog"
+        >
+          {{ t("admin.authSettings.cancel") }}
+        </Button>
+        <Button :disabled="isSavingAuthAccount" @click="handleSaveAuthAccount">
+          <span
+            v-if="isSavingAuthAccount"
+            class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+          ></span>
+          {{ t("common.save") }}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
+  <Dialog
+    :open="showAccountPasswordDialog"
+    @update:open="
+      showAccountPasswordDialog = $event;
+      if (!$event) closeAccountPasswordDialog();
+    "
+  >
+    <DialogContent class="max-h-[88vh] overflow-y-auto sm:max-w-[440px]">
+      <DialogHeader>
+        <DialogTitle>
+          {{ accountPasswordDialogTitle }}
+        </DialogTitle>
+        <DialogDescription>
+          {{ accountPasswordDialogDescription }}
+        </DialogDescription>
+      </DialogHeader>
+      <div class="space-y-4">
+        <template v-if="isAccountPasswordSetupMode">
+          <div class="space-y-2">
+            <Label for="auth-account-setup-username">
+              {{ t("admin.authSettings.accountUsername") }}
+            </Label>
+            <Input
+              id="auth-account-setup-username"
+              v-model="accountPasswordUsernameInput"
+              autocomplete="off"
+              :disabled="isSavingAccountPassword"
+              @keyup.enter="handleSaveAccountPassword"
+            />
+          </div>
+        </template>
+        <div class="space-y-2">
+          <Label>{{ t("admin.authSettings.password") }}</Label>
+          <div class="relative">
+            <Input
+              v-model="accountPasswordInput"
+              :type="isAccountPasswordVisible ? 'text' : 'password'"
+              autocomplete="new-password"
+              class="pr-10"
+              :disabled="isSavingAccountPassword"
+              @keyup.enter="handleSaveAccountPassword"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              class="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              :disabled="isSavingAccountPassword"
+              :title="
+                isAccountPasswordVisible
+                  ? t('admin.authSettings.hidePassword')
+                  : t('admin.authSettings.showPassword')
+              "
+              :aria-label="
+                isAccountPasswordVisible
+                  ? t('admin.authSettings.hidePassword')
+                  : t('admin.authSettings.showPassword')
+              "
+              @click="isAccountPasswordVisible = !isAccountPasswordVisible"
+            >
+              <component
+                :is="isAccountPasswordVisible ? EyeOff : Eye"
+                class="h-4 w-4"
+              />
+            </Button>
+          </div>
+          <p class="text-xs text-muted-foreground">
+            {{ t("admin.authSettings.passwordRuleHint") }}
+          </p>
+        </div>
+      </div>
+      <DialogFooter class="gap-2">
+        <Button
+          variant="outline"
+          :disabled="isSavingAccountPassword"
+          @click="closeAccountPasswordDialog"
+        >
+          {{ t("admin.authSettings.cancel") }}
+        </Button>
+        <Button
+          :disabled="isSavingAccountPassword"
+          @click="handleSaveAccountPassword"
+        >
+          <span
+            v-if="isSavingAccountPassword"
+            class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
+          ></span>
+          {{ t("common.save") }}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 
   <Dialog
     :open="showSetupDialog"
@@ -136,9 +342,9 @@
       @focusin="handleDialogFocusIn"
     >
       <DialogHeader>
-        <DialogTitle>{{ t("admin.authSettings.bindDialogTitle") }}</DialogTitle>
+        <DialogTitle>{{ setupDialogTitle }}</DialogTitle>
         <DialogDescription>
-          {{ t("admin.authSettings.bindDialogDescription") }}
+          {{ setupDialogDescription }}
         </DialogDescription>
       </DialogHeader>
       <div
@@ -306,15 +512,35 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Copy, FileKey2 } from "lucide-vue-next";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  Eye,
+  EyeOff,
+  FileKey2,
+  Plus,
+  RefreshCw,
+  Settings2,
+} from "lucide-vue-next";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
+import AuthAccountTable from "./auth-settings/AuthAccountTable.vue";
+import AuthModeSwitchDialog from "./auth-settings/AuthModeSwitchDialog.vue";
 import CredentialTransferDialogs from "./auth-settings/CredentialTransferDialogs.vue";
 import SubdomainAccessDialog from "./auth-settings/SubdomainAccessDialog.vue";
 import TotpCredentialTable from "./auth-settings/TotpCredentialTable.vue";
@@ -338,6 +564,10 @@ import { useDockerAdminAuthStore } from "../store/dockerAdminAuth";
 import QrcodeVue from "qrcode.vue";
 import { toast } from "@admin-shared/utils/toast";
 import type {
+  AuthAccount,
+  AuthLoginMode,
+  AuthLoginModePreview,
+  AuthLoginModeStatus,
   HostMapping,
   TOTPCredential,
   TOTPCredentialImportSummary,
@@ -353,7 +583,7 @@ const DEFAULT_SUBDOMAIN_ACCESS: TOTPSubdomainAccess = {
   mode: "all",
   hosts: [],
 };
-const MAX_TOTP_CREDENTIAL_IMPORT_FILE_SIZE = 256 * 1024;
+const MAX_AUTH_CREDENTIAL_IMPORT_FILE_SIZE = 512 * 1024;
 
 type SubdomainAccessOption = {
   host: string;
@@ -363,11 +593,21 @@ type SubdomainAccessOption = {
   builtin?: boolean;
 };
 
+type AuthPermissionRecord = {
+  id: string;
+  access_scopes: TOTPAccessScope[];
+  subdomain_access: TOTPSubdomainAccess;
+};
+
 const { t } = useI18n();
 const router = useRouter();
 const dockerAdminAuthStore = useDockerAdminAuthStore();
 
 const credentials = ref<TOTPCredential[]>([]);
+const authAccounts = ref<AuthAccount[]>([]);
+const authLoginMode = ref<AuthLoginMode>("totp");
+const authModeStatus = ref<AuthLoginModeStatus | null>(null);
+const authModePreview = ref<AuthLoginModePreview | null>(null);
 const hostMappings = ref<HostMapping[]>([]);
 const updatingAccessScopeIds = ref<Set<string>>(new Set());
 const updatingSubdomainAccessIds = ref<Set<string>>(new Set());
@@ -377,8 +617,19 @@ const credentialImportInputRef = ref<HTMLInputElement | null>(null);
 const showCredentialTransferDialog = ref(false);
 const showExportDialog = ref(false);
 const showImportDialog = ref(false);
+const showAuthModeSwitchDialog = ref(false);
+const showAuthAccountDialog = ref(false);
+const showAccountPasswordDialog = ref(false);
 const showSubdomainAccessDialog = ref(false);
 const editingSubdomainAccessTotp = ref<TOTPCredential | null>(null);
+const editingSubdomainAccessAccount = ref<AuthAccount | null>(null);
+const editingAuthAccount = ref<AuthAccount | null>(null);
+const authAccountUsernameInput = ref("");
+const isCreatingAuthAccount = ref(false);
+const editingPasswordAccount = ref<AuthAccount | null>(null);
+const accountPasswordUsernameInput = ref("");
+const accountPasswordInput = ref("");
+const isAccountPasswordVisible = ref(false);
 const subdomainAccessMode = ref<TOTPSubdomainAccessMode>("all");
 const selectedSubdomainHosts = ref<Set<string>>(new Set());
 const subdomainAccessSearch = ref("");
@@ -391,6 +642,33 @@ const { isPending: isLoading, run: runLoadStatus } = useAsyncAction({
   },
 });
 const showLoadingSkeleton = useDelayedLoading(isLoading);
+const isAccountPasswordSetupMode = computed(
+  () =>
+    isCreatingAuthAccount.value ||
+    editingPasswordAccount.value?.passwordConfigured === false,
+);
+const accountPasswordDialogTitle = computed(() => {
+  if (isCreatingAuthAccount.value) {
+    return t("admin.authSettings.createAccount");
+  }
+  if (isAccountPasswordSetupMode.value) {
+    return t("admin.authSettings.setupAccountPassword");
+  }
+  return editingPasswordAccount.value?.passwordConfigured
+    ? t("admin.authSettings.changePassword")
+    : t("admin.authSettings.setPassword");
+});
+const accountPasswordDialogDescription = computed(() => {
+  if (isCreatingAuthAccount.value) {
+    return t("admin.authSettings.createAccountDescription");
+  }
+  if (isAccountPasswordSetupMode.value) {
+    return t("admin.authSettings.setupAccountPasswordDescription");
+  }
+  return t("admin.authSettings.accountPasswordDescription", {
+    username: editingPasswordAccount.value?.username || "",
+  });
+});
 const { isPending: isExportingCredentials, run: runExportCredentials } =
   useAsyncAction({
     onError: (error) => {
@@ -413,10 +691,54 @@ const { isPending: isImportingCredentials, run: runImportCredentials } =
       );
     },
   });
+const { isPending: isPreviewingAuthMode, run: runPreviewAuthMode } =
+  useAsyncAction({
+    onError: (error) => {
+      toast.error(
+        extractErrorMessage(
+          error,
+          t("admin.authSettings.previewAuthModeFailed"),
+        ),
+      );
+    },
+  });
+const { isPending: isSwitchingAuthMode, run: runSwitchAuthMode } =
+  useAsyncAction({
+    onError: (error) => {
+      toast.error(
+        extractErrorMessage(
+          error,
+          t("admin.authSettings.switchAuthModeFailed"),
+        ),
+      );
+    },
+  });
+const { isPending: isSavingAccountPassword, run: runSaveAccountPassword } =
+  useAsyncAction({
+    onError: (error) => {
+      toast.error(
+        extractErrorMessage(
+          error,
+          t("admin.authSettings.accountPasswordSaveFailed"),
+        ),
+      );
+    },
+  });
+const { isPending: isSavingAuthAccount, run: runSaveAuthAccount } =
+  useAsyncAction({
+    onError: (error) => {
+      toast.error(
+        extractErrorMessage(error, t("admin.authSettings.accountSaveFailed")),
+      );
+    },
+  });
 
 // Setup state
 const showSetupDialog = ref(false);
 const setupData = ref<{ secret: string; uri: string } | null>(null);
+const bindingTotpAccount = ref<AuthAccount | null>(null);
+const reopenAuthModeSwitchAfterTotpBind = ref(false);
+const reopenAuthModeSwitchAfterPasswordSave = ref(false);
 const verifyToken = ref("");
 const newTotpComment = ref("");
 const bindErrorMessage = ref("");
@@ -462,7 +784,7 @@ const { isPending: isSavingSubdomainAccess, run: runSaveSubdomainAccess } =
   });
 
 // Delete state
-const { isPending: isDeleting, run: runDeleteTotp } = useAsyncAction({
+const { isPending: isDeleting, run: runDeleteCredential } = useAsyncAction({
   onError: (error) => {
     toast.error(
       extractErrorMessage(error, t("admin.authSettings.deleteFailed")),
@@ -482,13 +804,59 @@ const totpTableClass = computed(() =>
 const totpTableColspan = computed(() =>
   showAdminPanelAccessColumn.value ? 6 : 5,
 );
+const authAccountTableClass = computed(() =>
+  showAdminPanelAccessColumn.value
+    ? "min-w-[840px] table-fixed"
+    : "min-w-[680px] table-fixed",
+);
+const authAccountTableColspan = computed(() =>
+  showAdminPanelAccessColumn.value ? 4 : 3,
+);
 const isCredentialTransferBusy = computed(
   () => isExportingCredentials.value || isImportingCredentials.value,
+);
+const exportableCredentialCount = computed(() =>
+  authLoginMode.value === "password"
+    ? authAccounts.value.length
+    : credentials.value.length,
+);
+const isAuthModeBusy = computed(
+  () => isPreviewingAuthMode.value || isSwitchingAuthMode.value,
+);
+const authSettingsTitle = computed(() =>
+  authLoginMode.value === "password"
+    ? t("admin.authSettings.passwordAccountsTitle")
+    : t("admin.authSettings.title"),
+);
+const authSettingsDescription = computed(() =>
+  authLoginMode.value === "password"
+    ? t("admin.authSettings.passwordAccountsDescription")
+    : t("admin.authSettings.description"),
+);
+const primaryAuthActionLabel = computed(() =>
+  authLoginMode.value === "password"
+    ? t("admin.authSettings.createAccount")
+    : t("admin.authSettings.bindNewToken"),
+);
+const targetAuthLoginMode = computed<AuthLoginMode>(() =>
+  authLoginMode.value === "totp" ? "password" : "totp",
 );
 const setupSecretDisplay = computed(() => {
   const secret = setupData.value?.secret || "";
   return formatTOTPSecretForDisplay(secret);
 });
+const setupDialogTitle = computed(() =>
+  bindingTotpAccount.value
+    ? t("admin.authSettings.accountTotpBindDialogTitle")
+    : t("admin.authSettings.bindDialogTitle"),
+);
+const setupDialogDescription = computed(() =>
+  bindingTotpAccount.value
+    ? t("admin.authSettings.accountTotpBindDialogDescription", {
+        username: bindingTotpAccount.value.username,
+      })
+    : t("admin.authSettings.bindDialogDescription"),
+);
 const setupBindTransitionEnterFromClass = computed(() => {
   return setupBindMotionDirection.value === "forward"
     ? "translate-x-4 opacity-0"
@@ -631,15 +999,23 @@ watch(
 
 async function fetchStatus() {
   await runLoadStatus(async () => {
-    const [res, mappings] = await Promise.all([
+    const [res, mappings, modeStatus, accounts] = await Promise.all([
       ConfigAPI.getTOTPStatus(),
       ConfigAPI.getHostMappings().catch((error) => {
         console.error("Failed to get host mappings:", error);
         return [] as HostMapping[];
       }),
+      ConfigAPI.getAuthLoginMode(),
+      ConfigAPI.getAuthAccounts().catch((error) => {
+        console.error("Failed to get auth accounts:", error);
+        return [] as AuthAccount[];
+      }),
     ]);
     hostMappings.value = mappings;
     credentials.value = (res.credentials || []).map(normalizeCredential);
+    authModeStatus.value = modeStatus;
+    authLoginMode.value = modeStatus.mode || "totp";
+    authAccounts.value = (accounts || []).map(normalizeAuthAccount);
   });
 }
 
@@ -714,8 +1090,64 @@ function normalizeCredential(credential: TOTPCredential): TOTPCredential {
   };
 }
 
-function buildTOTPCredentialExportFilename() {
-  return `fn-knock-totp-credentials-${new Date()
+function normalizeAuthAccount(account: AuthAccount): AuthAccount {
+  return {
+    ...account,
+    displayName: account.username,
+    access_scopes: account.access_scopes || [],
+    subdomain_access: normalizeTOTPSubdomainAccess(account.subdomain_access),
+    passwordConfigured: account.passwordConfigured === true,
+    totpConfigured: account.totpConfigured === true,
+  };
+}
+
+function replaceAuthAccount(account: AuthAccount) {
+  const normalized = normalizeAuthAccount(account);
+  const index = authAccounts.value.findIndex((item) => item.id === account.id);
+  if (index >= 0) {
+    authAccounts.value.splice(index, 1, normalized);
+    return;
+  }
+  authAccounts.value.push(normalized);
+}
+
+function openAuthAccountDialog(account: AuthAccount) {
+  editingAuthAccount.value = account;
+  authAccountUsernameInput.value = account.username;
+  showAuthAccountDialog.value = true;
+}
+
+function closeAuthAccountDialog() {
+  showAuthAccountDialog.value = false;
+  editingAuthAccount.value = null;
+  authAccountUsernameInput.value = "";
+}
+
+function openCreateAuthAccountDialog() {
+  isCreatingAuthAccount.value = true;
+  editingPasswordAccount.value = null;
+  reopenAuthModeSwitchAfterPasswordSave.value = false;
+  accountPasswordUsernameInput.value = "";
+  accountPasswordInput.value = "";
+  isAccountPasswordVisible.value = false;
+  showAccountPasswordDialog.value = true;
+}
+
+function handlePrimaryAuthAction() {
+  if (authLoginMode.value === "password") {
+    openCreateAuthAccountDialog();
+    return;
+  }
+
+  void openSetupDialog();
+}
+
+function buildCredentialExportFilename() {
+  const prefix =
+    authLoginMode.value === "password"
+      ? "fn-knock-password-credentials"
+      : "fn-knock-totp-credentials";
+  return `${prefix}-${new Date()
     .toISOString()
     .replace(/[:.]/g, "-")}.json`;
 }
@@ -730,6 +1162,163 @@ function splitTOTPSecretGroups(secret: string) {
 
 function formatTOTPSecretForDisplay(secret: string) {
   return splitTOTPSecretGroups(secret).join(" ");
+}
+
+async function openAuthModeSwitchDialog() {
+  if (isAuthModeBusy.value) return;
+  authModePreview.value = null;
+  showAuthModeSwitchDialog.value = true;
+  await refreshAuthModePreview();
+}
+
+async function refreshAuthModePreview() {
+  await runPreviewAuthMode(async () => {
+    authModePreview.value = await ConfigAPI.previewAuthLoginMode(
+      targetAuthLoginMode.value,
+    );
+  });
+}
+
+async function handleSwitchAuthMode() {
+  await runSwitchAuthMode(async () => {
+    authModeStatus.value = await ConfigAPI.switchAuthLoginMode(
+      targetAuthLoginMode.value,
+    );
+    showAuthModeSwitchDialog.value = false;
+    authModePreview.value = null;
+    await fetchStatus();
+    toast.success(t("admin.authSettings.switchAuthModeCompleted"));
+  });
+}
+
+async function handleSaveAuthAccount() {
+  const account = editingAuthAccount.value;
+  if (!account) return;
+  const username = authAccountUsernameInput.value.trim();
+  const validationMessage = validateAccountUsername(username, account);
+  if (validationMessage) {
+    toast.error(validationMessage);
+    return;
+  }
+  await runSaveAuthAccount(async () => {
+    const updated = await ConfigAPI.updateAuthAccount(account.id, {
+      username,
+    });
+    replaceAuthAccount(updated);
+    closeAuthAccountDialog();
+    if (showAuthModeSwitchDialog.value) {
+      await refreshAuthModePreview();
+    }
+    toast.success(t("admin.authSettings.accountSaved"));
+  });
+}
+
+function validateAccountUsername(value: string, account: AuthAccount) {
+  const username = value.trim();
+  if (!username) {
+    return t("admin.authSettings.accountUsernameRequired");
+  }
+  const isDuplicate = authAccounts.value.some(
+    (item) => item.id !== account.id && item.username === username,
+  );
+  if (isDuplicate) {
+    return t("admin.authSettings.accountUsernameDuplicate");
+  }
+}
+
+async function saveAccountUsername(account: AuthAccount, value: string) {
+  const username = value.trim();
+  try {
+    const updated = await ConfigAPI.updateAuthAccount(account.id, {
+      username,
+    });
+    replaceAuthAccount(updated);
+    if (showAuthModeSwitchDialog.value) {
+      await refreshAuthModePreview();
+    }
+    toast.success(t("admin.authSettings.accountSaved"));
+  } catch (error) {
+    throw new Error(
+      extractErrorMessage(error, t("admin.authSettings.accountSaveFailed")),
+    );
+  }
+}
+
+function openAccountPasswordDialog(
+  account: AuthAccount,
+  reopenSwitchAfterSave = false,
+) {
+  isCreatingAuthAccount.value = false;
+  editingPasswordAccount.value = account;
+  reopenAuthModeSwitchAfterPasswordSave.value = reopenSwitchAfterSave;
+  accountPasswordUsernameInput.value = account.username;
+  accountPasswordInput.value = "";
+  isAccountPasswordVisible.value = false;
+  showAccountPasswordDialog.value = true;
+}
+
+function openAccountPasswordDialogFromSwitch(account: AuthAccount) {
+  showAuthModeSwitchDialog.value = false;
+  openAccountPasswordDialog(account, true);
+}
+
+function closeAccountPasswordDialog() {
+  showAccountPasswordDialog.value = false;
+  isCreatingAuthAccount.value = false;
+  editingPasswordAccount.value = null;
+  reopenAuthModeSwitchAfterPasswordSave.value = false;
+  accountPasswordUsernameInput.value = "";
+  accountPasswordInput.value = "";
+  isAccountPasswordVisible.value = false;
+}
+
+async function handleSaveAccountPassword() {
+  const account = editingPasswordAccount.value;
+  if (!isCreatingAuthAccount.value && !account) return;
+  const password = accountPasswordInput.value;
+  const username = accountPasswordUsernameInput.value.trim();
+  if (isAccountPasswordSetupMode.value && !username) {
+    toast.error(t("admin.authSettings.accountUsernameRequired"));
+    return;
+  }
+  if (!password) {
+    toast.error(t("admin.authSettings.accountPasswordRequired"));
+    return;
+  }
+  await runSaveAccountPassword(async () => {
+    let updated: AuthAccount | null = null;
+    const wasCreating = isCreatingAuthAccount.value;
+    if (isCreatingAuthAccount.value) {
+      updated = await ConfigAPI.createAuthAccount({
+        username,
+        password,
+      });
+    } else if (isAccountPasswordSetupMode.value && account) {
+      updated = await ConfigAPI.setupAuthAccount(account.id, {
+        username,
+        password,
+      });
+    } else if (account) {
+      updated = await ConfigAPI.setAuthAccountPassword(account.id, password);
+    }
+    if (!updated) return;
+    const shouldReopenSwitch = reopenAuthModeSwitchAfterPasswordSave.value;
+    replaceAuthAccount(updated);
+    closeAccountPasswordDialog();
+    if (shouldReopenSwitch) {
+      showAuthModeSwitchDialog.value = true;
+      await refreshAuthModePreview();
+    } else if (showAuthModeSwitchDialog.value) {
+      await refreshAuthModePreview();
+    }
+    toast.success(
+      t(
+        wasCreating
+          ? "admin.authSettings.accountCreated"
+          : "admin.authSettings.accountPasswordSaved",
+      ),
+    );
+  });
 }
 
 async function copySetupSecret() {
@@ -765,7 +1354,8 @@ function returnQRCodeSetupView() {
 }
 
 function openExportDialog() {
-  if (credentials.value.length === 0 || isCredentialTransferBusy.value) return;
+  if (exportableCredentialCount.value === 0 || isCredentialTransferBusy.value)
+    return;
   showExportDialog.value = true;
 }
 
@@ -777,7 +1367,7 @@ function openExportDialogFromCredentialTransferDialog() {
 async function handleExportCredentials() {
   await runExportCredentials(async () => {
     const blob = await ConfigAPI.downloadTOTPCredentials();
-    downloadBlob(blob, buildTOTPCredentialExportFilename());
+    downloadBlob(blob, buildCredentialExportFilename());
     showExportDialog.value = false;
     toast.success(t("admin.authSettings.exportCredentialsStarted"));
   });
@@ -821,10 +1411,10 @@ async function handleCredentialImportFileChange(event: Event) {
     return;
   }
 
-  if (file.size > MAX_TOTP_CREDENTIAL_IMPORT_FILE_SIZE) {
+  if (file.size > MAX_AUTH_CREDENTIAL_IMPORT_FILE_SIZE) {
     toast.error(t("admin.authSettings.importCredentialsFileTooLarge"), {
       description: t("admin.authSettings.importCredentialsFileTooLargeDetail", {
-        size: Math.floor(MAX_TOTP_CREDENTIAL_IMPORT_FILE_SIZE / 1024),
+        size: Math.floor(MAX_AUTH_CREDENTIAL_IMPORT_FILE_SIZE / 1024),
       }),
     });
     resetCredentialImportInput();
@@ -843,6 +1433,30 @@ async function handleCredentialImportFileChange(event: Event) {
 }
 
 function buildImportSummaryDescription(summary: TOTPCredentialImportSummary) {
+  if (
+    summary.kind === "password" ||
+    summary.login_mode === "password" ||
+    typeof summary.password_total === "number"
+  ) {
+    return t("admin.authSettings.importPasswordCredentialsSummary", {
+      total: summary.total,
+      imported: summary.imported,
+      skippedExistingId: summary.skipped_existing_id,
+      skippedExistingUsername: summary.skipped_existing_username ?? 0,
+      skippedFileDuplicate: summary.skipped_file_duplicate,
+      invalid: summary.invalid,
+      passwordTotal: summary.password_total ?? 0,
+      passwordImported: summary.password_imported ?? 0,
+      passwordSkippedExisting: summary.password_skipped_existing ?? 0,
+      passwordSkippedMissingAccount:
+        summary.password_skipped_missing_account ?? 0,
+      passwordSkippedFileDuplicate:
+        summary.password_skipped_file_duplicate ?? 0,
+      passwordInvalid: summary.password_invalid ?? 0,
+      totpTotal: summary.totp_total ?? 0,
+      totpImported: summary.totp_imported ?? 0,
+    });
+  }
   return t("admin.authSettings.importCredentialsSummary", {
     imported: summary.imported,
     skippedExistingId: summary.skipped_existing_id,
@@ -871,16 +1485,16 @@ async function handleImportCredentials() {
   });
 }
 
-function hasDockerAdminPanelAccess(totp: TOTPCredential) {
-  return (totp.access_scopes || []).includes(DOCKER_ADMIN_PANEL_ACCESS_SCOPE);
+function hasDockerAdminPanelAccess(record: AuthPermissionRecord) {
+  return (record.access_scopes || []).includes(DOCKER_ADMIN_PANEL_ACCESS_SCOPE);
 }
 
-function getSubdomainAccess(totp: TOTPCredential) {
-  return normalizeTOTPSubdomainAccess(totp.subdomain_access);
+function getSubdomainAccess(record: AuthPermissionRecord) {
+  return normalizeTOTPSubdomainAccess(record.subdomain_access);
 }
 
-function getSubdomainAccessSummary(totp: TOTPCredential) {
-  const access = getSubdomainAccess(totp);
+function getSubdomainAccessSummary(record: AuthPermissionRecord) {
+  const access = getSubdomainAccess(record);
   if (access.mode !== "custom") {
     return t("admin.authSettings.permissionAll");
   }
@@ -892,8 +1506,8 @@ function getSubdomainAccessSummary(totp: TOTPCredential) {
   });
 }
 
-function getSubdomainAccessPreview(totp: TOTPCredential) {
-  const access = getSubdomainAccess(totp);
+function getSubdomainAccessPreview(record: AuthPermissionRecord) {
+  const access = getSubdomainAccess(record);
   if (access.mode !== "custom") return "";
   if (access.hosts.length === 0) {
     return t("admin.authSettings.permissionNoAllowedHosts");
@@ -912,6 +1526,17 @@ function getSubdomainAccessPreview(totp: TOTPCredential) {
 function openSubdomainAccessDialog(totp: TOTPCredential) {
   const access = getSubdomainAccess(totp);
   editingSubdomainAccessTotp.value = totp;
+  editingSubdomainAccessAccount.value = null;
+  subdomainAccessMode.value = access.mode;
+  selectedSubdomainHosts.value = new Set(access.hosts);
+  subdomainAccessSearch.value = "";
+  showSubdomainAccessDialog.value = true;
+}
+
+function openAccountSubdomainAccessDialog(account: AuthAccount) {
+  const access = getSubdomainAccess(account);
+  editingSubdomainAccessTotp.value = null;
+  editingSubdomainAccessAccount.value = account;
   subdomainAccessMode.value = access.mode;
   selectedSubdomainHosts.value = new Set(access.hosts);
   subdomainAccessSearch.value = "";
@@ -921,6 +1546,7 @@ function openSubdomainAccessDialog(totp: TOTPCredential) {
 function closeSubdomainAccessDialog() {
   showSubdomainAccessDialog.value = false;
   editingSubdomainAccessTotp.value = null;
+  editingSubdomainAccessAccount.value = null;
   subdomainAccessMode.value = "all";
   selectedSubdomainHosts.value = new Set();
   subdomainAccessSearch.value = "";
@@ -965,7 +1591,8 @@ function setSubdomainAccessUpdating(totpId: string, pending: boolean) {
 }
 
 async function handleSaveSubdomainAccess() {
-  const target = editingSubdomainAccessTotp.value;
+  const target =
+    editingSubdomainAccessAccount.value || editingSubdomainAccessTotp.value;
   if (!target) return;
 
   const subdomainAccess: TOTPSubdomainAccess =
@@ -981,12 +1608,22 @@ async function handleSaveSubdomainAccess() {
   setSubdomainAccessUpdating(target.id, true);
   try {
     await runSaveSubdomainAccess(async () => {
-      const updated = normalizeCredential(
-        await ConfigAPI.updateTOTPSubdomainAccess(target.id, subdomainAccess),
-      );
-      const existing = credentials.value.find((item) => item.id === target.id);
-      if (existing) {
-        Object.assign(existing, updated);
+      if (editingSubdomainAccessAccount.value) {
+        const updated = await ConfigAPI.updateAuthAccountSubdomainAccess(
+          target.id,
+          subdomainAccess,
+        );
+        replaceAuthAccount(updated);
+      } else {
+        const updated = normalizeCredential(
+          await ConfigAPI.updateTOTPSubdomainAccess(target.id, subdomainAccess),
+        );
+        const existing = credentials.value.find(
+          (item) => item.id === target.id,
+        );
+        if (existing) {
+          Object.assign(existing, updated);
+        }
       }
       toast.success(t("admin.authSettings.permissionUpdated"));
       closeSubdomainAccessDialog();
@@ -1063,6 +1700,42 @@ async function handleDockerAdminPanelAccessChange(
   }
 }
 
+async function handleAccountDockerAdminPanelAccessChange(
+  account: AuthAccount,
+  enabled: boolean,
+) {
+  const previousScopes = [...(account.access_scopes || [])];
+  const nextScopeSet = new Set<TOTPAccessScope>(previousScopes);
+  if (enabled) {
+    nextScopeSet.add(DOCKER_ADMIN_PANEL_ACCESS_SCOPE);
+  } else {
+    nextScopeSet.delete(DOCKER_ADMIN_PANEL_ACCESS_SCOPE);
+  }
+
+  const nextScopes = [...nextScopeSet];
+  account.access_scopes = nextScopes;
+  setAccessScopeUpdating(account.id, true);
+
+  try {
+    const updated = await ConfigAPI.updateAuthAccountAccessScopes(
+      account.id,
+      nextScopes,
+    );
+    replaceAuthAccount(updated);
+    toast.success(t("admin.authSettings.adminPanelAccessUpdated"));
+  } catch (error) {
+    account.access_scopes = previousScopes;
+    toast.error(
+      extractErrorMessage(
+        error,
+        t("admin.authSettings.adminPanelAccessUpdateFailed"),
+      ),
+    );
+  } finally {
+    setAccessScopeUpdating(account.id, false);
+  }
+}
+
 function scrollOtpIntoView(behavior: ScrollBehavior = "smooth") {
   otpInputAreaRef.value?.scrollIntoView({
     block: "center",
@@ -1098,6 +1771,8 @@ function handleVisualViewportResize() {
 }
 
 async function openSetupDialog() {
+  bindingTotpAccount.value = null;
+  reopenAuthModeSwitchAfterTotpBind.value = false;
   showSetupDialog.value = true;
   bindErrorMessage.value = "";
   verifyToken.value = "";
@@ -1112,8 +1787,35 @@ async function openSetupDialog() {
   });
 }
 
+async function openAccountTotpSetupDialog(
+  account: AuthAccount,
+  reopenSwitchAfterBind = false,
+) {
+  bindingTotpAccount.value = account;
+  reopenAuthModeSwitchAfterTotpBind.value = reopenSwitchAfterBind;
+  showSetupDialog.value = true;
+  bindErrorMessage.value = "";
+  verifyToken.value = "";
+  newTotpComment.value = account.username;
+  setupData.value = null;
+  setupStep.value = "BIND";
+  setupBindView.value = "qr";
+  setupBindMotionDirection.value = "forward";
+  boundTotpId.value = null;
+  await runSetupInit(async () => {
+    setupData.value = await ConfigAPI.setupAuthAccountTOTP(account.id);
+  });
+}
+
+async function openAccountTotpSetupDialogFromSwitch(account: AuthAccount) {
+  showAuthModeSwitchDialog.value = false;
+  await openAccountTotpSetupDialog(account, true);
+}
+
 function handleCancelSetup() {
   setupData.value = null;
+  bindingTotpAccount.value = null;
+  reopenAuthModeSwitchAfterTotpBind.value = false;
   verifyToken.value = "";
   bindErrorMessage.value = "";
   setupStep.value = "BIND";
@@ -1128,6 +1830,26 @@ async function handleBind() {
   bindingMode.value = "bind";
   bindErrorMessage.value = "";
   await runBindingAction(async () => {
+    const account = bindingTotpAccount.value;
+    if (account) {
+      const updated = await ConfigAPI.bindAuthAccountTOTP(
+        account.id,
+        setup.secret,
+        verifyToken.value,
+      );
+      const shouldReopenSwitch = reopenAuthModeSwitchAfterTotpBind.value;
+      replaceAuthAccount(updated);
+      await fetchStatus();
+      showSetupDialog.value = false;
+      bindingTotpAccount.value = null;
+      reopenAuthModeSwitchAfterTotpBind.value = false;
+      toast.success(t("admin.authSettings.accountTotpBound"));
+      if (shouldReopenSwitch) {
+        showAuthModeSwitchDialog.value = true;
+        await refreshAuthModePreview();
+      }
+      return;
+    }
     const randomSuffix = Math.random().toString(36).substring(2, 8);
     const randomName =
       t("admin.authSettings.randomDevicePrefix") + randomSuffix;
@@ -1195,10 +1917,18 @@ async function saveComment(id: string, newText: string) {
 }
 
 async function handleDelete(totpId: string) {
-  await runDeleteTotp(async () => {
+  await runDeleteCredential(async () => {
     await ConfigAPI.deleteTOTP(totpId);
     await fetchStatus();
     toast.success(t("admin.authSettings.tokenDeleted"));
+  });
+}
+
+async function handleDeleteAccount(accountId: string) {
+  await runDeleteCredential(async () => {
+    await ConfigAPI.deleteAuthAccount(accountId);
+    await fetchStatus();
+    toast.success(t("admin.authSettings.accountDeleted"));
   });
 }
 

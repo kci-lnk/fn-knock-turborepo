@@ -17,6 +17,7 @@ use subtle::ConstantTimeEq;
 use totp_rs::{Algorithm, Secret, TOTP};
 
 use crate::{
+    auth::mode::{AuthLoginMode, AuthMethod},
     auth_mobility::{self, CreateLoginSessionInput},
     backoff::normalize_auth_failure_tracking_ip,
     common_auth_locations, cookies, fnos_share_bypass, http_utils,
@@ -80,7 +81,10 @@ struct OidcInviteQuery {
 
 #[derive(Deserialize)]
 struct LoginBody {
-    token: String,
+    method: Option<String>,
+    token: Option<String>,
+    username: Option<String>,
+    password: Option<String>,
     captcha: CaptchaSubmission,
     #[serde(default, rename = "rememberMe")]
     remember_me: bool,

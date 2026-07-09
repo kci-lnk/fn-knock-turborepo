@@ -15,6 +15,39 @@ pub struct TotpCredential {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AuthAccount {
+    pub id: String,
+    pub username: String,
+    #[serde(default, rename = "displayName")]
+    pub display_name: String,
+    #[serde(default, rename = "sourceTotpId")]
+    pub source_totp_id: String,
+    #[serde(default, rename = "createdAt")]
+    pub created_at: String,
+    #[serde(default, rename = "updatedAt")]
+    pub updated_at: String,
+    #[serde(default)]
+    pub access_scopes: Value,
+    #[serde(default)]
+    pub subdomain_access: Value,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AuthPasswordCredential {
+    #[serde(rename = "accountId")]
+    pub account_id: String,
+    pub algorithm: String,
+    pub salt: String,
+    pub hash: String,
+    pub n: u32,
+    pub r: u32,
+    pub p: u32,
+    pub key_length: usize,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LoginSession {
     #[serde(rename = "totpId")]
     pub totp_id: String,
@@ -25,6 +58,18 @@ pub struct LoginSession {
     pub credential_name: String,
     #[serde(rename = "linkedTotpName", skip_serializing_if = "Option::is_none")]
     pub linked_totp_name: Option<String>,
+    #[serde(
+        default,
+        rename = "accessScopes",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub access_scopes: Option<Value>,
+    #[serde(
+        default,
+        rename = "subdomainAccess",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub subdomain_access: Option<Value>,
     #[serde(rename = "grantType", skip_serializing_if = "Option::is_none")]
     pub grant_type: Option<String>,
     #[serde(

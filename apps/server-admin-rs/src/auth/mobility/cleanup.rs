@@ -20,6 +20,46 @@ pub async fn destroy_sessions_for_totp_credential(
     Ok(destroyed)
 }
 
+pub async fn destroy_sessions_for_auth_credential(
+    state: &AppState,
+    credential_id: &str,
+) -> anyhow::Result<usize> {
+    let sessions = state.store.list_login_sessions().await?;
+    let mut destroyed = 0usize;
+    for (session_id, session) in sessions {
+        if session.credential_id != credential_id {
+            continue;
+        }
+        destroy_session(state, &session_id).await?;
+        state.store.delete_session(&session_id).await?;
+        destroyed += 1;
+    }
+    if destroyed > 0 {
+        whitelist::sync_reverse_proxy_trusted_ips(state).await;
+    }
+    Ok(destroyed)
+}
+
+pub async fn destroy_sessions_for_auth_method(
+    state: &AppState,
+    auth_method: &str,
+) -> anyhow::Result<usize> {
+    let sessions = state.store.list_login_sessions().await?;
+    let mut destroyed = 0usize;
+    for (session_id, session) in sessions {
+        if !session.method.eq_ignore_ascii_case(auth_method) {
+            continue;
+        }
+        destroy_session(state, &session_id).await?;
+        state.store.delete_session(&session_id).await?;
+        destroyed += 1;
+    }
+    if destroyed > 0 {
+        whitelist::sync_reverse_proxy_trusted_ips(state).await;
+    }
+    Ok(destroyed)
+}
+
 pub async fn destroy_session(state: &AppState, session_id: &str) -> anyhow::Result<()> {
     let whitelist_ids = state
         .store
@@ -37,10 +77,30 @@ pub async fn clear_auto_ip_grants_for_totp_credential(
     state: &AppState,
     totp_id: &str,
 ) -> anyhow::Result<bool> {
+    clear_auto_ip_grants_for_matching_sessions(state, |session| session.totp_id == totp_id).await
+}
+
+pub async fn clear_auto_ip_grants_for_auth_credential(
+    state: &AppState,
+    credential_id: &str,
+) -> anyhow::Result<bool> {
+    clear_auto_ip_grants_for_matching_sessions(state, |session| {
+        session.credential_id == credential_id
+    })
+    .await
+}
+
+async fn clear_auto_ip_grants_for_matching_sessions<F>(
+    state: &AppState,
+    matches_session: F,
+) -> anyhow::Result<bool>
+where
+    F: Fn(&LoginSession) -> bool,
+{
     let sessions = state.store.list_login_sessions().await?;
     let mut changed = false;
     for (session_id, session) in sessions {
-        if session.totp_id != totp_id {
+        if !matches_session(&session) {
             continue;
         }
 

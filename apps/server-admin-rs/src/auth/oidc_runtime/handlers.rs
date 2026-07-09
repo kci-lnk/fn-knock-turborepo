@@ -22,6 +22,15 @@ pub(super) async fn bind(
     };
     let translator = translator_from_config(&config);
     let locale = locale_code(&config);
+    if let Err(message) = ensure_oidc_login_mode(&state, &translator).await {
+        return bind_html_response(
+            StatusCode::BAD_REQUEST,
+            &oidc_text(&translator, "bindFailedTitle"),
+            &message,
+            &locale,
+            None,
+        );
+    }
     let token = query.token.as_deref().map(str::trim).unwrap_or("");
     if token.is_empty() {
         return bind_html_response(
@@ -394,6 +403,19 @@ pub(super) async fn callback(
                     clear_flow_cookie(),
                 )
                 .await
+            } else if error == oidc_text(&translator, "loginMethodUnavailable") {
+                login_error_redirect_response(
+                    &state,
+                    &headers,
+                    &uri,
+                    &config,
+                    error,
+                    &translator,
+                    None,
+                    true,
+                    clear_flow_cookie(),
+                )
+                .await
             } else if is_oidc_operation_aborted_error(&error) {
                 login_error_redirect_response(
                     &state,
@@ -423,7 +445,7 @@ pub(super) async fn callback(
                                 "attempts": failure.attempts,
                                 "retry_after_seconds": retry_after,
                                 "blocked_until": failure.blocked_until.map(time_utils::iso_from_ms),
-                                "method": "OIDC",
+                                "method": AuthMethod::Oidc.as_session_str(),
                                 "credential_name": provider_id.clone(),
                                 "user_agent": user_agent(&headers),
                             }),

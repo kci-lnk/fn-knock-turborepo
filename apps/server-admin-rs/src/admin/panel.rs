@@ -869,8 +869,7 @@ pub(crate) async fn resolve_panel_auth_context(
 
     if let Some(session_id) = cookies::read_cookie(headers, SESSION_COOKIE_NAME) {
         if let Some(session) = state.store.get_session(&session_id).await? {
-            let totps = state.store.get_totps().await?;
-            if is_docker_admin_panel_reauth_session_allowed(&session, &totps) {
+            if is_docker_admin_panel_reauth_session_allowed(&state, &session).await? {
                 return Ok(json!({
                     "authenticated": true,
                     "auth_source": "reauth_session",
@@ -887,19 +886,37 @@ pub(crate) async fn resolve_panel_auth_context(
     }))
 }
 
-fn is_docker_admin_panel_reauth_session_allowed(
+async fn is_docker_admin_panel_reauth_session_allowed(
+    state: &AppState,
     session: &crate::store::LoginSession,
-    totps: &[crate::store::TotpCredential],
-) -> bool {
-    if session.totp_id.trim().is_empty() {
-        return false;
-    }
+) -> anyhow::Result<bool> {
     if !session
         .expires_at
         .as_deref()
         .and_then(time_utils::parse_iso_ms)
         .is_some_and(|expires| expires > time_utils::now_ms())
     {
+        return Ok(false);
+    }
+    if session.method.eq_ignore_ascii_case("PASSWORD") {
+        let Some(account) = state.store.get_auth_account(&session.credential_id).await? else {
+            return Ok(false);
+        };
+        return Ok(has_docker_admin_panel_access_scope(
+            &crate::store::normalize_totp_access_scopes(account.access_scopes),
+        ));
+    }
+    let totps = state.store.get_totps().await?;
+    Ok(is_docker_admin_panel_totp_reauth_session_allowed(
+        session, &totps,
+    ))
+}
+
+fn is_docker_admin_panel_totp_reauth_session_allowed(
+    session: &crate::store::LoginSession,
+    totps: &[crate::store::TotpCredential],
+) -> bool {
+    if session.totp_id.trim().is_empty() {
         return false;
     }
     totps
@@ -1222,6 +1239,8 @@ mod tests {
             credential_id: "totp-1".to_string(),
             credential_name: "Admin".to_string(),
             linked_totp_name: None,
+            access_scopes: None,
+            subdomain_access: None,
             grant_type: Some("browser_session".to_string()),
             post_login_ip_grant_mode: None,
             post_login_ip_grant_record_id: None,
@@ -1245,11 +1264,11 @@ mod tests {
             ..allowed.clone()
         };
 
-        assert!(is_docker_admin_panel_reauth_session_allowed(
+        assert!(is_docker_admin_panel_totp_reauth_session_allowed(
             &session,
             &[allowed]
         ));
-        assert!(!is_docker_admin_panel_reauth_session_allowed(
+        assert!(!is_docker_admin_panel_totp_reauth_session_allowed(
             &session,
             &[denied]
         ));

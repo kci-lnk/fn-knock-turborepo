@@ -229,7 +229,7 @@ export const zhHantAdmin = {
     authCacheFailEnabled: "未通過鑒權結果會快取 {seconds} 秒。",
     runTypes: {
       direct: "直連模式",
-      reverse: "反代模式",
+      reverse: "内网穿透",
       subdomain: "子域模式",
       current: "目前模式",
     },
@@ -480,7 +480,7 @@ export const zhHantAdmin = {
     ...zhCNAdmin.featuresSettings,
     runTypes: {
       direct: "直連模式",
-      reverse: "反代模式",
+      reverse: "内网穿透",
       subdomain: "子域模式",
       current: "目前模式",
     },
@@ -675,7 +675,7 @@ export const zhHantAdmin = {
     directModeBadge: "端口放行",
     directModeDescription:
       "使用端口訪問你的服務，比如 example.com:7999 登入後可以訪問 example.com:5666 的飛牛服務。",
-    reverseModeTitle: "反代模式",
+    reverseModeTitle: "内网穿透",
     reverseModeBadge: "內網穿透專用",
     reverseModeDescription: "沒有公網 IP，通過內網穿透轉發請求。",
     pathMapping: "路徑模式",
@@ -711,7 +711,7 @@ export const zhHantAdmin = {
     hostFirewallUnavailableDescription:
       "當前運行環境沒有宿主機防火牆管理能力，因此不會暴露相關設定。",
     directAccessTitle: "直連模式訪問說明",
-    reverseAccessTitle: "反代模式 / {submode}訪問說明",
+    reverseAccessTitle: "内网穿透 / {submode}訪問說明",
     subdomainAccessTitle: "子域名模式訪問說明",
     directAccessDescription: "請讓用戶直接訪問伺服器的 {port} 端口。",
     reverseSubdomainAccessDescription:
@@ -728,7 +728,7 @@ export const zhHantAdmin = {
       "後續切換模式等運行態同步將跳過系統防火牆，右側「操作」按鈕仍可手動執行；直連模式 run_type=0 仍會繼續處理。",
     directUnsupportedTitle: "當前部署不支援直連模式",
     directUnsupportedDescription:
-      "Docker 部署不支援宿主機直連防火牆模式，請改用反代模式或子域模式。",
+      "Docker 部署不支援宿主機直連防火牆模式，請改用内网穿透或子域模式。",
     updated: "運行模式已更新",
     firewallUnsupportedTitle: "當前部署不支援防火牆操作",
     firewallReset: "防火牆已重設",
@@ -738,11 +738,11 @@ export const zhHantAdmin = {
     tunnelsStopped: "已關閉隧道服務",
     tunnelsStoppedDescription: "{names} 已停止，正在切換到{mode}",
     directModeName: "直連模式",
-    reverseModeName: "反代模式 / {submode}",
+    reverseModeName: "内网穿透 / {submode}",
     subdomainModeName: "子域模式",
     firewallResetReverseSubdomain:
-      "已按反代模式 / 子域映射清理 Linux 防火牆規則。",
-    firewallResetReversePath: "已按反代模式 / 路徑映射清理 Linux 防火牆規則。",
+      "已按内网穿透 / 子域映射清理 Linux 防火牆規則。",
+    firewallResetReversePath: "已按内网穿透 / 路徑映射清理 Linux 防火牆規則。",
     firewallResetDirectWhitelistSynced: "，並同步 {count} 條白名單 IP",
     firewallResetDirectNoWhitelist: "，當前沒有需要重新放行的白名單 IP",
     firewallResetDirect:
@@ -756,15 +756,15 @@ export const zhHantAdmin = {
       "已清空 {count} 條路徑映射{defaultRoute}。",
     successSubdomainNoMappings: "已進入子域模式，路徑映射入口已停用。",
     successReverseSubdomainWithMappings:
-      "已切換到反代模式 / 子域映射，現有 {count} 條路徑映射會保留，但入口已隱藏，可繼續使用 FRP 或 Cloudflared。",
+      "已切換到内网穿透 / 子域映射，現有 {count} 條路徑映射會保留，但入口已隱藏，可繼續使用 FRP 或 Cloudflared。",
     successReverseSubdomainNoMappings:
-      "已切換到反代模式 / 子域映射，路徑映射入口已隱藏，可繼續使用 FRP 或 Cloudflared。",
+      "已切換到内网穿透 / 子域映射，路徑映射入口已隱藏，可繼續使用 FRP 或 Cloudflared。",
     hostMappingsCount: "{count} 條子域映射",
     streamMappingsCount: "{count} 條協議映射",
     successReversePathWithPreserved:
-      "已切換到反代模式 / 路徑映射，現有 {items} 會保留，但當前子模式下不顯示。",
+      "已切換到内网穿透 / 路徑映射，現有 {items} 會保留，但當前子模式下不顯示。",
     successReversePathNoPreserved:
-      "已切換到反代模式 / 路徑映射，可繼續使用 FRP 或 Cloudflared。",
+      "已切換到内网穿透 / 路徑映射，可繼續使用 FRP 或 Cloudflared。",
     successRulesApplied: "入口規則已按目標模式重新生效。",
     subdomainResetNoMappings:
       "切換後不再使用「路徑映射」，當前沒有需要清理的路徑規則。",
@@ -814,7 +814,7 @@ export const zhHantAdmin = {
     promptSubdomainItemIptables:
       "此模式默認不依賴 iptables，適合公網 Web 服務網關化保護",
     promptReverseGenericDescription:
-      "請確認你已經理解反代模式會如何調整對外入口。",
+      "請確認你已經理解内网穿透會如何調整對外入口。",
     promptReverseItemCentralEntry: "集中入口訪問",
     promptReverseItemSubdomainCompatible:
       "該子模式支援 FRP 或 Cloudflared，並且完全不影響現有的子域模式",
@@ -1466,14 +1466,14 @@ export const zhHantAdmin = {
     saveNetworkTuningDescription: "保存飛牛 FPK 網路優化設定失敗",
     unavailableTitle: "當前運行模式不可用",
     unavailableDescription:
-      "此功能僅在反代模式和子域模式下可用。直連模式下，需要完成鑒權後才能開啟對應端口供其他人訪問。",
+      "此功能僅在内网穿透和子域模式下可用。直連模式下，需要完成鑒權後才能開啟對應端口供其他人訪問。",
     shareBypassUpdated: "飛牛分享直通設定已更新",
     iconHijackUpdated: "飛牛端口圖標接管設定已更新",
     bbrUpdated: "BBR 加速設定已更新",
     mtuUpdated: "MTU 探測設定已更新",
     shareBypassTitle: "飛牛分享直通",
     shareBypassDescription:
-      "開啟後，分享連結可按飛牛校驗結果直通訪問；反代模式和子域模式可用。",
+      "開啟後，分享連結可按飛牛校驗結果直通訪問；内网穿透和子域模式可用。",
     shareBypassDirectUnavailable: "當前為直連模式，此功能暫不可用。",
     iconHijackTitle: "端口類圖標接管",
     iconHijackDescriptionPrefix:
@@ -2434,7 +2434,7 @@ export const zhHantAdmin = {
   },
   oidcProviders: {
     breadcrumbTotp: "TOTP 管理",
-    breadcrumbExternalLogin: "外部帳號登入",
+    breadcrumbExternalLogin: "OIDC 設定",
     title: "OIDC 提供商",
     description: "第三方控制台中的回調地址需要與下方 Callback URL 保持一致。",
     addProvider: "添加提供商",
@@ -3173,11 +3173,78 @@ export const zhHantAdmin = {
     ...zhCNAdmin.authSettings,
     title: "TOTP 令牌管理",
     description: "管理管理員登入使用的所有 TOTP 雙端驗證器。",
-    oidcLogin: "外部帳號登入",
+    totpLoginMode: "TOTP 登入模式",
+    passwordLoginMode: "帳號密碼登入模式",
+    switchAuthMode: "切換登入模式",
+    switchAuthModeTitle: "切換登入模式",
+    switchAuthModeDescription:
+      "切換為「{mode}」。名稱和權限會自動同步。",
+    switchAuthModeIdempotentHint:
+      "切換操作是冪等的：重複執行不會重複建立帳號，也不會重設已設定的密碼或複製快捷登入綁定。",
+    confirmSwitchAuthMode: "確認切換",
+    switchAuthModeCompleted: "登入模式已切換",
+    previewAuthModeFailed: "預覽登入模式切換失敗",
+    switchAuthModeFailed: "切換登入模式失敗",
+    previewTotpCount: "TOTP 憑據",
+    previewAccountCount: "帳號",
+    previewCreateAccountCount: "將建立帳號",
+    previewUpdateAccountCount: "將更新帳號",
+    previewPasswordConfigured: "已設定密碼 {count} 個",
+    previewPasswordMissing: "未設定密碼 {count} 個",
+    previewBlockingIssues: "阻斷項 {count} 個",
+    previewPasswordRequiredBeforeSwitch:
+      "請先為至少一個帳號設定密碼。",
+    passwordAccountsTitle: "帳號密碼登入",
+    passwordAccountsDescription: "管理用於使用者名稱密碼登入的帳號和權限。",
+    moreActions: "更多操作",
+    passwordAccountsPreparationTitle: "帳號密碼登入準備",
+    passwordAccountsPreparationDescription: "設定密碼後即可切換。",
+    accountUsername: "使用者名稱",
+    editAccount: "修改使用者名稱",
+    editAccountDescription: "修改帳號的登入使用者名稱。",
+    password: "密碼",
+    showPassword: "顯示密碼",
+    hidePassword: "隱藏密碼",
+    sourceTotp: "來源 TOTP",
+    quickLogin: "快捷登入",
+    viewQuickLogin: "查看",
+    none: "沒有",
+    totpMissing: "未綁定 TOTP",
+    bindTotp: "綁定 TOTP",
+    totpUnavailableHint: "切回 TOTP 登入前需要先綁定。",
+    totpAccountsPreparationTitle: "TOTP 登入準備",
+    totpAccountsPreparationDescription:
+      "這些帳號還沒有綁定 TOTP，切回 TOTP 登入前請先完成綁定。",
+    previewTotpRequiredBeforeSwitch:
+      "還有 {count} 個帳號未綁定 TOTP，請先完成綁定。",
+    accountTotpBindDialogTitle: "綁定帳號 TOTP",
+    accountTotpBindDialogDescription:
+      "為帳號「{username}」綁定 TOTP。驗證成功後可用於 TOTP 登入模式。",
+    accountTotpBound: "帳號 TOTP 已綁定",
+    passwordConfigured: "已設定",
+    passwordUnset: "未設定",
+    createAccount: "新增使用者",
+    createAccountDescription: "建立一個使用使用者名稱和密碼登入的新使用者。",
+    accountCreated: "使用者已建立",
+    setupAccountPassword: "設定帳號和密碼",
+    setupAccountPasswordDescription: "首次啟用時，請設定使用者名稱和登入密碼。",
+    setPassword: "設定密碼",
+    changePassword: "修改密碼",
+    emptyAccounts: "暫無帳號。點擊「新增使用者」建立帳號。",
+    accountPasswordDescription: "為帳號「{username}」設定登入密碼。",
+    passwordRuleHint: "密碼需為 6-128 位，不能包含空格，且需同時包含字母和數字。",
+    accountUsernameRequired: "請輸入使用者名稱",
+    accountUsernameDuplicate: "使用者名稱已存在",
+    accountSaved: "帳號已儲存",
+    accountSaveFailed: "儲存帳號失敗",
+    accountPasswordRequired: "請輸入密碼",
+    accountPasswordSaved: "帳號密碼已儲存",
+    accountPasswordSaveFailed: "儲存帳號密碼失敗",
+    oidcLogin: "OIDC 設定",
     credentialTransfer: "匯入/匯出憑證",
     credentialTransferShort: "匯入/匯出",
     credentialTransferDescription:
-      "匯入或匯出 TOTP 憑證。匯出的 JSON 包含可用於登入的 secret，請妥善保管。",
+      "依目前登入模式匯入或匯出認證憑證。匯出的 JSON 包含可用於登入的 secret 或密碼雜湊，請妥善保管。",
     exportCredentials: "匯出憑證",
     importCredentials: "匯入憑證",
     bindNewToken: "綁定新令牌",
@@ -3213,7 +3280,12 @@ export const zhHantAdmin = {
     adminPanelAccessUpdated: "管理面板權限已更新",
     adminPanelAccessUpdateFailed: "更新管理面板權限失敗",
     actions: "操作",
+    edit: "修改",
     managePasskey: "管理快捷登入",
+    accountDeleteTitle: "確認刪除使用者",
+    accountDeleteDescription:
+      "確定要刪除使用者「{name}」嗎？關聯的 TOTP、Passkey、外部帳號綁定和登入會話也會被刪除。",
+    accountDeleted: "使用者已刪除",
     deleteTitle: "確認刪除",
     tokenFallback: "該令牌",
     deleteDescription:
@@ -3251,15 +3323,15 @@ export const zhHantAdmin = {
     commentUpdated: "備註已更新",
     tokenDeleted: "令牌已刪除",
     cancel: "取消",
-    exportCredentialsTitle: "匯出 TOTP 憑證？",
+    exportCredentialsTitle: "匯出認證憑證？",
     exportCredentialsDescription:
-      "匯出的 JSON 檔案包含可用於登入的 TOTP secret，請只保存在可信位置。",
+      "TOTP 模式會匯出 TOTP secret；帳號密碼模式會匯出帳號、密碼雜湊與關聯 TOTP secret。請只保存在可信位置。",
     confirmExportCredentials: "確認匯出",
     exportCredentialsStarted: "憑證檔案已開始下載",
     exportCredentialsFailed: "匯出憑證失敗",
-    importCredentialsTitle: "匯入 TOTP 憑證？",
+    importCredentialsTitle: "匯入認證憑證？",
     importCredentialsDescription:
-      "匯入會追加合併 TOTP 憑證，重複憑證會跳過；不會恢復 Passkey 或外部帳號綁定。",
+      "匯入會依檔案類型合併 TOTP 或帳號密碼憑證，重複項目會跳過；不會恢復 Passkey 或外部帳號綁定。",
     confirmImportCredentials: "確認匯入",
     importCredentialsCompleted: "憑證已匯入",
     importCredentialsFailed: "匯入憑證失敗",
@@ -3270,6 +3342,8 @@ export const zhHantAdmin = {
     importCredentialsChooseFileFirst: "請先選擇憑證檔案",
     importCredentialsSummary:
       "共 {total} 條，匯入 {imported} 條，跳過相同 ID {skippedExistingId} 條，跳過相同 secret {skippedExistingSecret} 條，跳過檔案內重複 {skippedFileDuplicate} 條，無效 {invalid} 條。",
+    importPasswordCredentialsSummary:
+      "帳號共 {total} 個，匯入 {imported} 個，跳過相同 ID {skippedExistingId} 個、相同使用者名稱 {skippedExistingUsername} 個、檔案內重複 {skippedFileDuplicate} 個，無效 {invalid} 個；密碼雜湊共 {passwordTotal} 個，匯入 {passwordImported} 個，已有 {passwordSkippedExisting} 個，缺少帳號 {passwordSkippedMissingAccount} 個，檔案內重複 {passwordSkippedFileDuplicate} 個，無效 {passwordInvalid} 個；關聯 TOTP 共 {totpTotal} 個，匯入 {totpImported} 個。",
   },
   passkeySettings: {
     title: "快捷登入憑據",
@@ -3286,7 +3360,7 @@ export const zhHantAdmin = {
     oidcTitle: "外部帳號綁定",
     oidcDescription: "綁定 Google、Microsoft、GitHub 或自訂 OIDC 帳號。",
     generateInvite: "生成綁定邀請",
-    noProviders: "尚未配置外部登入提供商，請先到「外部帳號登入」中新增提供商。",
+    noProviders: "尚未配置外部登入提供商，請先到「OIDC 設定」中新增提供商。",
     provider: "提供商",
     account: "帳號",
     lastUsed: "最近使用",

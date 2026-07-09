@@ -15,6 +15,7 @@ use subtle::ConstantTimeEq;
 use url::Url;
 
 use crate::{
+    auth::mode::{AuthLoginMode, AuthMethod},
     auth_mobility::{self, CreateLoginSessionInput},
     backoff::normalize_auth_failure_tracking_ip,
     cookies,
@@ -34,6 +35,17 @@ use crate::{
 
 const OIDC_STATE_TTL_SECONDS: usize = 10 * 60;
 const LOGIN_ERROR_TTL_SECONDS: usize = 5 * 60;
+
+async fn ensure_oidc_login_mode(state: &AppState, translator: &Translator) -> Result<(), String> {
+    match state.store.get_auth_login_mode().await {
+        Ok(AuthLoginMode::Totp) => Ok(()),
+        Ok(_) => Err(oidc_text(translator, "loginMethodUnavailable")),
+        Err(error) => {
+            tracing::warn!(%error, "failed to load auth login mode for OIDC");
+            Err(oidc_text(translator, "loadConfigFailed"))
+        }
+    }
+}
 
 #[derive(Deserialize)]
 struct BindQuery {

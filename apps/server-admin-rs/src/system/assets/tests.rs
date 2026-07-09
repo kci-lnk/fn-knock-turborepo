@@ -156,6 +156,34 @@ fn localizes_asset_progress_errors() {
         localize_asset_progress_error(&zh, "frp", "Download failed"),
         "下载失败：未知错误"
     );
+    assert_eq!(
+        localize_asset_progress_error(
+            &zh,
+            "frp",
+            "FRP download failed: Download response timed out after 120s without receiving data"
+        ),
+        "下载失败：连接超时"
+    );
+    assert_eq!(
+        localize_asset_progress_error(
+            &zh,
+            "frp",
+            "FRP download failed: Download connection timed out after 30s"
+        ),
+        "下载失败：连接超时"
+    );
+    assert_eq!(
+        localize_asset_progress_error(
+            &zh,
+            "frp",
+            "FRP download failed: Download timed out after 1800s total"
+        ),
+        "下载失败：连接超时"
+    );
+    assert_eq!(
+        localize_asset_progress_error(&zh, "cloudflared", "Download response body is unreadable"),
+        "下载响应体不可读"
+    );
 }
 
 #[test]

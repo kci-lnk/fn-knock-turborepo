@@ -57,7 +57,16 @@ pub(super) async fn build_auth_shell_data(
         .unwrap_or_else(|| json!({ "theme_color_preset": "default" }));
     let access = resolve_auth_access(state, headers, uri, &translator).await?;
     let client_ip = client_ip_for_auth(headers);
-    let oidc_providers = oidc_public_providers(state).await.unwrap_or_default();
+    let login_mode = state
+        .store
+        .get_auth_login_mode()
+        .await
+        .unwrap_or(AuthLoginMode::Totp);
+    let oidc_providers = if login_mode.allows_totp_family() {
+        oidc_public_providers(state).await.unwrap_or_default()
+    } else {
+        Vec::new()
+    };
     let passkey = public_passkey_status(state, headers, &config).await;
     let mut data = json!({
         "locale": locale,
@@ -65,7 +74,8 @@ pub(super) async fn build_auth_shell_data(
         "auth": {
             "authenticated": access.authenticated,
             "message": access.message,
-            "grant_type": access.grant_type
+            "grant_type": access.grant_type,
+            "login_mode": login_mode.as_str()
         },
         "client": { "ip": client_ip },
         "captcha": public_captcha_settings_from_config(state, &config, &translator),

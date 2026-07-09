@@ -697,23 +697,29 @@ pub(super) async fn resolve_session_subdomain_access(
     config: &Value,
     session: &LoginSession,
 ) -> anyhow::Result<SessionSubdomainAccessDecision> {
-    let totps = state.store.get_totps().await?;
-    let credential = totps
-        .iter()
-        .find(|credential| credential.id == session.totp_id);
+    let credential = if AuthMethod::Password.matches_session_str(&session.method) {
+        password_session_account_credential(state, session).await?
+    } else {
+        state
+            .store
+            .get_totps()
+            .await?
+            .into_iter()
+            .find(|credential| credential.id == session.totp_id)
+    };
     let host = resolve_request_subdomain_access_key(headers, uri);
     let normalized_host = normalize_subdomain_access_host(&host);
     let protected_host = is_protected_subdomain_auth_host(&normalized_host, config);
     let allowed = if !protected_host {
         true
     } else {
-        credential.is_some_and(|credential| {
+        credential.as_ref().is_some_and(|credential| {
             is_host_allowed_by_totp_subdomain_access(&credential.subdomain_access, &normalized_host)
         })
     };
 
     let mut response_headers = build_session_credential_response_headers(session);
-    if let Some(credential) = credential {
+    if let Some(credential) = credential.as_ref() {
         response_headers.extend(build_credential_subdomain_access_response_headers(
             credential,
         ));
@@ -724,6 +730,34 @@ pub(super) async fn resolve_session_subdomain_access(
         allowed,
         response_headers,
     })
+}
+
+async fn password_session_account_credential(
+    state: &AppState,
+    session: &LoginSession,
+) -> anyhow::Result<Option<TotpCredential>> {
+    if !AuthMethod::Password.matches_session_str(&session.method) {
+        return Ok(None);
+    }
+    let Some(account) = state.store.get_auth_account(&session.credential_id).await? else {
+        return Ok(None);
+    };
+    Ok(Some(password_account_to_credential(account)))
+}
+
+fn password_account_to_credential(account: crate::store::AuthAccount) -> TotpCredential {
+    TotpCredential {
+        id: account.source_totp_id,
+        secret: String::new(),
+        comment: if account.display_name.trim().is_empty() {
+            account.username
+        } else {
+            account.display_name
+        },
+        created_at: account.created_at,
+        access_scopes: crate::store::normalize_totp_access_scopes(account.access_scopes),
+        subdomain_access: crate::store::normalize_totp_subdomain_access(account.subdomain_access),
+    }
 }
 
 pub(super) fn resolve_request_subdomain_access_key(headers: &HeaderMap, uri: &Uri) -> String {
@@ -962,4 +996,37 @@ pub(super) fn normalize_credential_header_value(value: &str) -> String {
         .chars()
         .take(AUTH_IDENTITY_HEADER_MAX_LENGTH)
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn password_account_credential_uses_current_account_permissions() {
+        let credential = password_account_to_credential(crate::store::AuthAccount {
+            id: "account-a".to_string(),
+            username: "alice".to_string(),
+            display_name: String::new(),
+            source_totp_id: String::new(),
+            created_at: "2026-01-01T00:00:00Z".to_string(),
+            updated_at: "2026-01-02T00:00:00Z".to_string(),
+            access_scopes: json!(["docker_admin_panel", "other"]),
+            subdomain_access: json!({
+                "mode": "custom",
+                "hosts": ["HTTPS://App.Example.com/path", "__builtin_select__"]
+            }),
+        });
+
+        assert_eq!(credential.id, "");
+        assert_eq!(credential.comment, "alice");
+        assert_eq!(credential.access_scopes, json!(["docker_admin_panel"]));
+        assert_eq!(
+            credential.subdomain_access,
+            json!({
+                "mode": "custom",
+                "hosts": ["__builtin_select__", "app.example.com"]
+            })
+        );
+    }
 }

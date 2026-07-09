@@ -10,7 +10,10 @@ pub(super) use crate::frp_utils::{
 
 use super::{
     ASSET_DOWNLOADS, AssetDownloads, CLOUDFLARED_MIRROR_BASE, DOWNLOAD_CANCELLED_ERROR,
-    DownloadProgress, FRP_DOWNLOAD_FAILED_PREFIX, FRP_MIRROR_BASE, UNKNOWN_DOWNLOAD_ERROR,
+    DOWNLOAD_CONNECTION_FAILED_ERROR, DOWNLOAD_CONNECTION_TIMED_OUT_PREFIX,
+    DOWNLOAD_RESPONSE_BODY_UNREADABLE_ERROR, DOWNLOAD_RESPONSE_TIMED_OUT_PREFIX,
+    DOWNLOAD_TIMED_OUT_PREFIX, DownloadProgress, FRP_DOWNLOAD_FAILED_PREFIX, FRP_MIRROR_BASE,
+    UNKNOWN_DOWNLOAD_ERROR,
     process::command_succeeds,
     text::{tunnel_manager_text, tunnel_manager_text_params},
 };
@@ -147,19 +150,41 @@ pub(super) async fn download_to_file(
     url: &str,
     path: &Path,
 ) -> Result<(), String> {
+    tokio::time::timeout(
+        state.settings.asset_download_total_timeout,
+        download_to_file_inner(state, asset, url, path),
+    )
+    .await
+    .unwrap_or_else(|_| {
+        Err(format_download_total_timeout_error(
+            state.settings.asset_download_total_timeout,
+        ))
+    })
+}
+
+async fn download_to_file_inner(
+    state: &AppState,
+    asset: &str,
+    url: &str,
+    path: &Path,
+) -> Result<(), String> {
     let mut file = fs::File::create(path).map_err(|error| error.to_string())?;
     let mut response = state
-        .fallback_client
+        .asset_download_client
         .get(url)
         .send()
         .await
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| format_download_request_error(error, &state.settings))?;
     if !response.status().is_success() {
         return Err(format!("HTTP {}", response.status()));
     }
     let total = response.content_length().unwrap_or(0);
     let mut loaded = 0u64;
-    while let Some(chunk) = response.chunk().await.map_err(|error| error.to_string())? {
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|error| format_download_request_error(error, &state.settings))?
+    {
         if is_cancel_requested(asset) {
             return Err(DOWNLOAD_CANCELLED_ERROR.to_string());
         }
@@ -171,6 +196,42 @@ pub(super) async fn download_to_file(
         }
     }
     file.flush().map_err(|error| error.to_string())
+}
+
+pub(super) fn format_download_request_error(
+    error: reqwest::Error,
+    settings: &crate::settings::Settings,
+) -> String {
+    if error.is_connect() {
+        if error.is_timeout() {
+            return format!(
+                "{DOWNLOAD_CONNECTION_TIMED_OUT_PREFIX} after {}s",
+                timeout_seconds(settings.asset_download_connect_timeout)
+            );
+        }
+        return DOWNLOAD_CONNECTION_FAILED_ERROR.to_string();
+    }
+    if error.is_timeout() {
+        return format!(
+            "{DOWNLOAD_RESPONSE_TIMED_OUT_PREFIX} after {}s without receiving data",
+            timeout_seconds(settings.asset_download_read_timeout)
+        );
+    }
+    if error.is_body() || error.is_decode() {
+        return DOWNLOAD_RESPONSE_BODY_UNREADABLE_ERROR.to_string();
+    }
+    error.without_url().to_string()
+}
+
+fn format_download_total_timeout_error(total_timeout: std::time::Duration) -> String {
+    format!(
+        "{DOWNLOAD_TIMED_OUT_PREFIX} after {}s total",
+        timeout_seconds(total_timeout)
+    )
+}
+
+fn timeout_seconds(duration: std::time::Duration) -> u64 {
+    duration.as_secs().max(1)
 }
 
 pub(super) fn detect_cloudflared_platform() -> &'static str {
@@ -232,11 +293,7 @@ pub(super) fn localize_asset_progress_error(
             if asset == "frp"
                 && let Some(detail) = error.strip_prefix(FRP_DOWNLOAD_FAILED_PREFIX)
             {
-                let detail = if detail == UNKNOWN_DOWNLOAD_ERROR || detail == "Download failed" {
-                    tunnel_manager_text(translator, "frp", "unknownError")
-                } else {
-                    detail.to_string()
-                };
+                let detail = localize_download_error_detail(translator, asset, detail);
                 return tunnel_manager_text_params(
                     translator,
                     "frp",
@@ -251,7 +308,7 @@ pub(super) fn localize_asset_progress_error(
                     "downloadFailed",
                     &[(
                         "detail",
-                        tunnel_manager_text(translator, "frp", "unknownError"),
+                        localize_download_error_detail(translator, asset, error),
                     )],
                 );
             }
@@ -263,9 +320,28 @@ pub(super) fn localize_asset_progress_error(
                     &[("code", code.to_string())],
                 );
             }
-            error.to_string()
+            localize_download_error_detail(translator, asset, error)
         }
     }
+}
+
+fn localize_download_error_detail(translator: &Translator, asset: &str, detail: &str) -> String {
+    if detail == UNKNOWN_DOWNLOAD_ERROR || detail == "Download failed" {
+        return tunnel_manager_text(translator, asset, "unknownError");
+    }
+    if detail == DOWNLOAD_CONNECTION_FAILED_ERROR {
+        return translator.t("admin.connectionTest.failed");
+    }
+    if detail == DOWNLOAD_RESPONSE_BODY_UNREADABLE_ERROR {
+        return tunnel_manager_text(translator, asset, "responseBodyUnreadable");
+    }
+    if detail.starts_with(DOWNLOAD_CONNECTION_TIMED_OUT_PREFIX)
+        || detail.starts_with(DOWNLOAD_RESPONSE_TIMED_OUT_PREFIX)
+        || detail.starts_with(DOWNLOAD_TIMED_OUT_PREFIX)
+    {
+        return translator.t("admin.connectionTest.timeout");
+    }
+    detail.to_string()
 }
 
 pub(super) fn start_download(asset: &str) -> bool {

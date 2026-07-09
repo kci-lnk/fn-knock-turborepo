@@ -1367,6 +1367,8 @@ pub fn new_login_session(
         credential_id: totp_id.to_string(),
         credential_name: credential_name.to_string(),
         linked_totp_name: None,
+        access_scopes: None,
+        subdomain_access: None,
         grant_type: Some("browser_session".to_string()),
         post_login_ip_grant_mode: None,
         post_login_ip_grant_record_id: None,

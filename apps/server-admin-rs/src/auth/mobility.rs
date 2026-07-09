@@ -366,7 +366,8 @@ use active_ips::{
     record_browser_session_login, record_session_active_ip, register_login_session,
 };
 pub use cleanup::{
-    clear_auto_ip_grants_for_totp_credential, destroy_session,
+    clear_auto_ip_grants_for_auth_credential, clear_auto_ip_grants_for_totp_credential,
+    destroy_session, destroy_sessions_for_auth_credential, destroy_sessions_for_auth_method,
     destroy_sessions_for_totp_credential, list_session_whitelist_record_ids,
     reconcile_session_ip_mobility_policy,
 };

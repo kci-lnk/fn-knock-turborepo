@@ -78,7 +78,7 @@
             ? 'border-primary/70 bg-primary/5 ring-1 ring-primary/20 shadow-sm'
             : 'border-border bg-background hover:border-primary/40 hover:bg-muted/30'
         "
-        @click="mode = 1"
+        @click="selectReverseProxyMode"
       >
         <div
           class="mt-1 flex h-5 w-5 items-center justify-center rounded-full border shrink-0 transition-colors"
@@ -98,11 +98,6 @@
             <p class="text-base font-semibold leading-none">
               {{ t("admin.runModeSettings.reverseModeTitle") }}
             </p>
-            <span
-              class="inline-flex items-center rounded-md border border-border bg-muted/40 px-2 py-0.5 text-xs font-medium text-muted-foreground"
-            >
-              {{ t("admin.runModeSettings.reverseModeBadge") }}
-            </span>
           </div>
           <p class="text-sm text-muted-foreground">
             {{ t("admin.runModeSettings.reverseModeDescription") }}
@@ -602,6 +597,13 @@ function reset() {
     mode.value = configStore.config.run_type;
     reverseProxySubmode.value = savedReverseProxySubmode.value;
   }
+}
+
+function selectReverseProxyMode() {
+  if (mode.value !== 1) {
+    reverseProxySubmode.value = "subdomain";
+  }
+  mode.value = 1;
 }
 
 async function handleAutoManageFirewallChange(

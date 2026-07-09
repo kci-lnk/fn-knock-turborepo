@@ -693,12 +693,65 @@ export type TOTPCredential = {
 };
 
 export type TOTPCredentialImportSummary = {
+  kind?: "totp" | "password";
+  login_mode?: AuthLoginMode;
   imported: number;
   skipped_existing_id: number;
   skipped_existing_secret: number;
+  skipped_existing_username?: number;
   skipped_file_duplicate: number;
   invalid: number;
   total: number;
+  password_total?: number;
+  password_imported?: number;
+  password_skipped_existing?: number;
+  password_skipped_missing_account?: number;
+  password_skipped_file_duplicate?: number;
+  password_invalid?: number;
+  totp_total?: number;
+  totp_imported?: number;
+  totp_skipped_existing_id?: number;
+  totp_skipped_existing_secret?: number;
+  totp_skipped_file_duplicate?: number;
+  totp_invalid?: number;
+};
+
+export type AuthLoginMode = "totp" | "password";
+
+export type AuthLoginModeStatus = {
+  mode: AuthLoginMode;
+  totpCount: number;
+  accountCount: number;
+  passwordConfiguredCount: number;
+  passwordMissingCount: number;
+};
+
+export type AuthLoginModePreview = {
+  currentMode: AuthLoginMode;
+  targetMode: AuthLoginMode;
+  totpCount: number;
+  accountCount: number;
+  createAccountCount: number;
+  updateAccountCount: number;
+  passwordConfiguredCount: number;
+  passwordMissingCount: number;
+  blockingIssueCount: number;
+  passwordRequiredBeforeSwitch?: boolean;
+  missingSourceTotpCount?: number;
+};
+
+export type AuthAccount = {
+  id: string;
+  username: string;
+  displayName: string;
+  sourceTotpId: string;
+  sourceTotpName: string;
+  createdAt: string;
+  updatedAt: string;
+  access_scopes: TOTPAccessScope[];
+  subdomain_access: TOTPSubdomainAccess;
+  passwordConfigured: boolean;
+  totpConfigured: boolean;
 };
 
 export type PasskeyCredential = {

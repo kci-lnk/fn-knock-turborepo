@@ -148,6 +148,7 @@ fn export_payload_normalizes_totp_metadata_like_node() {
     );
     assert_eq!(payload["kind"], TOTP_TRANSFER_KIND);
     assert_eq!(payload["version"], TOTP_TRANSFER_VERSION);
+    assert_eq!(payload["login_mode"], "totp");
     assert_eq!(
         payload["credentials"][0],
         json!({
@@ -162,6 +163,206 @@ fn export_payload_normalizes_totp_metadata_like_node() {
             }
         })
     );
+}
+
+#[test]
+fn export_payload_includes_password_mode_credentials() {
+    let hash = "ab".repeat(64);
+    let payload = build_password_export_payload(
+        &[AuthAccount {
+            id: " account-1 ".to_string(),
+            username: "alice".to_string(),
+            display_name: "Alice".to_string(),
+            source_totp_id: "totp-1".to_string(),
+            created_at: "not-a-date".to_string(),
+            updated_at: "2026-01-02T03:04:05.000Z".to_string(),
+            access_scopes: json!(["docker_admin_panel", "unknown"]),
+            subdomain_access: json!({ "mode": "all", "hosts": ["ignored.example"] }),
+        }],
+        &[AuthPasswordCredential {
+            account_id: "account-1".to_string(),
+            algorithm: "scrypt".to_string(),
+            salt: "00112233445566778899aabbccddeeff".to_string(),
+            hash,
+            n: 16_384,
+            r: 8,
+            p: 1,
+            key_length: 64,
+            created_at: "bad-date".to_string(),
+            updated_at: "2026-01-03T03:04:05.000Z".to_string(),
+        }],
+        &[TotpCredential {
+            id: "totp-1".to_string(),
+            secret: " SECRET ".to_string(),
+            comment: " Alice ".to_string(),
+            created_at: "bad-date".to_string(),
+            access_scopes: json!(["docker_admin_panel"]),
+            subdomain_access: json!({ "mode": "all", "hosts": [] }),
+        }],
+        "2026-01-02T03:04:05.000Z",
+    );
+
+    assert_eq!(payload["kind"], PASSWORD_TRANSFER_KIND);
+    assert_eq!(payload["version"], PASSWORD_TRANSFER_VERSION);
+    assert_eq!(payload["login_mode"], "password");
+    assert_eq!(payload["accounts"][0]["id"], "account-1");
+    assert_eq!(payload["accounts"][0]["username"], "alice");
+    assert_eq!(payload["accounts"][0]["sourceTotpId"], "totp-1");
+    assert_eq!(
+        payload["accounts"][0]["access_scopes"],
+        json!(["docker_admin_panel"])
+    );
+    assert_eq!(payload["password_credentials"][0]["accountId"], "account-1");
+    assert_eq!(payload["password_credentials"][0]["algorithm"], "scrypt");
+    assert_eq!(payload["totp_credentials"][0]["id"], "totp-1");
+    assert_eq!(payload["totp_credentials"][0]["secret"], "SECRET");
+}
+
+#[test]
+fn password_import_plan_merges_accounts_passwords_and_linked_totps() {
+    let existing_accounts = vec![AuthAccount {
+        id: "existing-account".to_string(),
+        username: "taken".to_string(),
+        display_name: "taken".to_string(),
+        source_totp_id: "existing-totp".to_string(),
+        created_at: "2026-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2026-01-01T00:00:00.000Z".to_string(),
+        access_scopes: Value::Array(Vec::new()),
+        subdomain_access: json!({ "mode": "all", "hosts": [] }),
+    }];
+    let existing_totps = vec![TotpCredential {
+        id: "existing-totp".to_string(),
+        secret: "EXISTING".to_string(),
+        comment: "taken".to_string(),
+        created_at: "2026-01-01T00:00:00.000Z".to_string(),
+        access_scopes: Value::Array(Vec::new()),
+        subdomain_access: json!({ "mode": "all", "hosts": [] }),
+    }];
+    let hash = "ab".repeat(64);
+    let payload = json!({
+        "kind": PASSWORD_TRANSFER_KIND,
+        "version": PASSWORD_TRANSFER_VERSION,
+        "accounts": [
+            { "id": "existing-account", "username": "other" },
+            { "id": "new-username-conflict", "username": "TAKEN" },
+            {
+                "id": "new-account",
+                "username": "Alice",
+                "sourceTotpId": "new-totp",
+                "createdAt": "bad-date",
+                "access_scopes": ["docker_admin_panel", "nope"],
+                "subdomain_access": {
+                    "mode": "custom",
+                    "hosts": ["https://Example.com:8443/path"]
+                }
+            },
+            { "id": "invalid-account", "username": "x" }
+        ],
+        "password_credentials": [
+            {
+                "accountId": "new-account",
+                "algorithm": "scrypt",
+                "salt": "00112233445566778899aabbccddeeff",
+                "hash": hash,
+                "n": 16384,
+                "r": 8,
+                "p": 1,
+                "key_length": 64,
+                "created_at": "bad-date"
+            },
+            {
+                "accountId": "missing-account",
+                "algorithm": "scrypt",
+                "salt": "00112233445566778899aabbccddeeff",
+                "hash": "ab".repeat(64),
+                "n": 16384,
+                "r": 8,
+                "p": 1,
+                "key_length": 64
+            }
+        ],
+        "totp_credentials": [
+            { "id": "new-totp", "secret": " NEWSECRET ", "comment": " Alice " }
+        ]
+    });
+
+    let plan = build_credential_import_plan(
+        &existing_totps,
+        &existing_accounts,
+        &HashSet::from(["existing-account".to_string()]),
+        &payload,
+    )
+    .unwrap();
+    let CredentialImportPlan::Password(plan) = plan else {
+        panic!("expected password import plan");
+    };
+
+    assert_eq!(plan.accounts.len(), 1);
+    assert_eq!(plan.accounts[0].id, "new-account");
+    assert_eq!(plan.accounts[0].username, "alice");
+    assert_eq!(plan.accounts[0].source_totp_id, "new-totp");
+    assert_eq!(
+        plan.accounts[0].access_scopes,
+        json!(["docker_admin_panel"])
+    );
+    assert_eq!(
+        plan.accounts[0].subdomain_access,
+        json!({ "mode": "custom", "hosts": ["example.com"] })
+    );
+    assert_eq!(plan.password_credentials.len(), 1);
+    assert_eq!(plan.password_credentials[0].account_id, "new-account");
+    assert_eq!(plan.totp_credentials.len(), 1);
+    assert_eq!(plan.totp_credentials[0].id, "new-totp");
+    assert_eq!(plan.totp_credentials[0].secret, "NEWSECRET");
+    assert_eq!(plan.summary["imported"], 1);
+    assert_eq!(plan.summary["skipped_existing_id"], 1);
+    assert_eq!(plan.summary["skipped_existing_username"], 1);
+    assert_eq!(plan.summary["invalid"], 1);
+    assert_eq!(plan.summary["password_imported"], 1);
+    assert_eq!(plan.summary["password_skipped_missing_account"], 1);
+    assert_eq!(plan.summary["totp_imported"], 1);
+}
+
+#[test]
+fn password_import_plan_rejects_unsupported_hash_parameters() {
+    let payload = json!({
+        "kind": PASSWORD_TRANSFER_KIND,
+        "version": PASSWORD_TRANSFER_VERSION,
+        "accounts": [
+            { "id": "new-account", "username": "alice" }
+        ],
+        "password_credentials": [
+            {
+                "accountId": "new-account",
+                "algorithm": "scrypt",
+                "salt": "00112233445566778899aabbccddeeff",
+                "hash": "ab".repeat(64),
+                "n": 1048576,
+                "r": 8,
+                "p": 1,
+                "key_length": 64
+            },
+            {
+                "accountId": "new-account-2",
+                "algorithm": "scrypt",
+                "salt": "00112233445566778899aabbccddeeff",
+                "hash": "abcdef",
+                "n": 16384,
+                "r": 8,
+                "p": 1,
+                "key_length": 64
+            }
+        ]
+    });
+
+    let plan = build_credential_import_plan(&[], &[], &HashSet::new(), &payload).unwrap();
+    let CredentialImportPlan::Password(plan) = plan else {
+        panic!("expected password import plan");
+    };
+
+    assert_eq!(plan.accounts.len(), 1);
+    assert!(plan.password_credentials.is_empty());
+    assert_eq!(plan.summary["password_invalid"], 2);
 }
 
 #[test]
@@ -289,6 +490,8 @@ fn custom_post_login_grant_revoke_condition_matches_node() {
         credential_id: "cred".to_string(),
         credential_name: "Credential".to_string(),
         linked_totp_name: None,
+        access_scopes: None,
+        subdomain_access: None,
         grant_type: Some("login_ip_grant".to_string()),
         post_login_ip_grant_mode: Some("custom".to_string()),
         post_login_ip_grant_record_id: None,

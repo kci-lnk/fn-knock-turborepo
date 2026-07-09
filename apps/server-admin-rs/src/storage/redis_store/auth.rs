@@ -1,6 +1,121 @@
 use super::*;
 
 impl Store {
+    pub async fn get_auth_login_mode(
+        &self,
+    ) -> crate::storage::StorageResult<crate::auth::mode::AuthLoginMode> {
+        let mut conn = self.conn();
+        let raw: Option<String> = conn.get("fn_knock:auth:login_mode:v1").await?;
+        Ok(normalize_auth_login_mode(raw.as_deref()))
+    }
+
+    pub async fn set_auth_login_mode(
+        &self,
+        mode: crate::auth::mode::AuthLoginMode,
+    ) -> crate::storage::StorageResult<()> {
+        let mut conn = self.conn();
+        conn.set("fn_knock:auth:login_mode:v1", mode.as_str()).await
+    }
+
+    pub async fn get_auth_accounts(&self) -> crate::storage::StorageResult<Vec<AuthAccount>> {
+        let mut conn = self.conn();
+        let raw: Option<String> = conn.get("fn_knock:auth:accounts:v1").await?;
+        let Some(raw) = raw else {
+            return Ok(Vec::new());
+        };
+        if raw.trim().is_empty() {
+            return Ok(Vec::new());
+        }
+        let value = serde_json::from_str::<Value>(&raw)?;
+        Ok(normalize_auth_accounts_value(&value))
+    }
+
+    pub async fn set_auth_accounts(
+        &self,
+        accounts: &[AuthAccount],
+    ) -> crate::storage::StorageResult<()> {
+        let mut conn = self.conn();
+        let normalized = normalize_auth_accounts(accounts);
+        conn.set(
+            "fn_knock:auth:accounts:v1",
+            serde_json::to_string(&normalized)?,
+        )
+        .await
+    }
+
+    pub async fn get_auth_account(
+        &self,
+        id: &str,
+    ) -> crate::storage::StorageResult<Option<AuthAccount>> {
+        Ok(self
+            .get_auth_accounts()
+            .await?
+            .into_iter()
+            .find(|account| account.id == id))
+    }
+
+    pub async fn get_auth_account_by_username(
+        &self,
+        normalized_username: &str,
+    ) -> crate::storage::StorageResult<Option<AuthAccount>> {
+        Ok(self.get_auth_accounts().await?.into_iter().find(|account| {
+            normalize_auth_username(&account.username)
+                == normalize_auth_username(normalized_username)
+        }))
+    }
+
+    pub async fn save_auth_account(
+        &self,
+        account: AuthAccount,
+    ) -> crate::storage::StorageResult<AuthAccount> {
+        let mut accounts = self.get_auth_accounts().await?;
+        let normalized = normalize_auth_account(account);
+        let mut found = false;
+        for existing in &mut accounts {
+            if existing.id == normalized.id {
+                *existing = normalized.clone();
+                found = true;
+                break;
+            }
+        }
+        if !found {
+            accounts.push(normalized.clone());
+        }
+        self.set_auth_accounts(&accounts).await?;
+        Ok(normalized)
+    }
+
+    pub async fn get_auth_password_credential(
+        &self,
+        account_id: &str,
+    ) -> crate::storage::StorageResult<Option<AuthPasswordCredential>> {
+        let mut conn = self.conn();
+        let raw: Option<String> = conn.get(auth_password_credential_key(account_id)).await?;
+        raw.map(|value| serde_json::from_str(&value))
+            .transpose()
+            .map_err(Into::into)
+    }
+
+    pub async fn set_auth_password_credential(
+        &self,
+        credential: &AuthPasswordCredential,
+    ) -> crate::storage::StorageResult<()> {
+        let mut conn = self.conn();
+        conn.set(
+            auth_password_credential_key(&credential.account_id),
+            serde_json::to_string(credential)?,
+        )
+        .await
+    }
+
+    pub async fn delete_auth_password_credential(
+        &self,
+        account_id: &str,
+    ) -> crate::storage::StorageResult<()> {
+        let mut conn = self.conn();
+        conn.del(auth_password_credential_key(account_id)).await
+    }
+
     pub async fn get_totps(&self) -> crate::storage::StorageResult<Vec<TotpCredential>> {
         let raw: Option<String> = {
             let mut conn = self.conn();
@@ -58,18 +173,15 @@ impl Store {
     pub async fn set_totps(&self, totps: &[TotpCredential]) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         let normalized = normalize_totp_credentials(totps);
-        conn.set(
-            "fn_knock:totps",
-            serde_json::to_string(&normalized).unwrap_or_default(),
-        )
-        .await
+        conn.set("fn_knock:totps", serde_json::to_string(&normalized)?)
+            .await
     }
 
     pub async fn add_totp(&self, credential: TotpCredential) -> crate::storage::StorageResult<()> {
         let mut totps = self.get_totps().await?;
-        if let Some(credential) = normalize_totp_credential_value(
-            &serde_json::to_value(credential).unwrap_or(Value::Null),
-        ) {
+        if let Some(credential) =
+            normalize_totp_credential_value(&serde_json::to_value(credential)?)
+        {
             totps.push(credential);
         }
         self.set_totps(&totps).await
@@ -296,12 +408,8 @@ impl Store {
     ) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
         let key = format!("fn_knock:session:{session_id}");
-        conn.set_ex(
-            key,
-            serde_json::to_string(session).unwrap_or_default(),
-            ttl_seconds as u64,
-        )
-        .await
+        conn.set_ex(key, serde_json::to_string(session)?, ttl_seconds as u64)
+            .await
     }
 
     pub async fn get_session(
@@ -403,14 +511,14 @@ impl Store {
         let Some(raw) = raw else {
             return Ok(None);
         };
-        let mut current: Value = serde_json::from_str(&raw).unwrap_or_else(|_| json!({}));
+        let mut current: Value = serde_json::from_str(&raw)?;
         let Some(object) = current.as_object_mut() else {
             return Ok(None);
         };
         for (key, value) in updates {
             object.insert(key, value);
         }
-        let serialized = serde_json::to_string(&current).unwrap_or_default();
+        let serialized = serde_json::to_string(&current)?;
         if ttl > 0 {
             let _: () = conn.set_ex(&key, serialized, ttl as u64).await?;
         } else {
@@ -1082,4 +1190,57 @@ return value
         self.consume_json_value(&format!("fn_knock:passkey:state:{challenge}"))
             .await
     }
+}
+
+fn normalize_auth_login_mode(value: Option<&str>) -> crate::auth::mode::AuthLoginMode {
+    crate::auth::mode::AuthLoginMode::from_storage(value)
+}
+
+fn auth_password_credential_key(account_id: &str) -> String {
+    format!("fn_knock:auth:password_credentials:v1:{account_id}")
+}
+
+pub(crate) fn normalize_auth_username(value: &str) -> String {
+    value.trim().to_lowercase()
+}
+
+fn normalize_auth_accounts(accounts: &[AuthAccount]) -> Vec<AuthAccount> {
+    accounts
+        .iter()
+        .cloned()
+        .map(normalize_auth_account)
+        .collect()
+}
+
+fn normalize_auth_accounts_value(value: &Value) -> Vec<AuthAccount> {
+    match value {
+        Value::Array(items) => items
+            .iter()
+            .filter_map(normalize_auth_account_value)
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn normalize_auth_account_value(value: &Value) -> Option<AuthAccount> {
+    serde_json::from_value::<AuthAccount>(value.clone())
+        .ok()
+        .map(normalize_auth_account)
+        .filter(|account| !account.id.trim().is_empty() && !account.username.trim().is_empty())
+}
+
+fn normalize_auth_account(mut account: AuthAccount) -> AuthAccount {
+    account.id = account.id.trim().to_string();
+    account.username = account.username.trim().to_string();
+    account.display_name = account.display_name.trim().to_string();
+    account.source_totp_id = account.source_totp_id.trim().to_string();
+    if account.created_at.trim().is_empty() {
+        account.created_at = now_iso();
+    }
+    if account.updated_at.trim().is_empty() {
+        account.updated_at = account.created_at.clone();
+    }
+    account.access_scopes = normalize_totp_access_scopes(account.access_scopes);
+    account.subdomain_access = normalize_totp_subdomain_access(account.subdomain_access);
+    account
 }

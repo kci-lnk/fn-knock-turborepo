@@ -525,9 +525,7 @@ pub(in crate::ddns::routes) fn strip_fractional_seconds(value: &str) -> String {
 }
 
 pub(in crate::ddns::routes) fn compact_utc_timestamp() -> String {
-    iso8601_utc_without_millis()
-        .replace(['-', ':'], "")
-        .replace('Z', "Z")
+    iso8601_utc_without_millis().replace(['-', ':'], "")
 }
 
 pub(in crate::ddns::routes) fn canonical_query_from_url(url: &url::Url) -> String {
@@ -648,7 +646,7 @@ pub(in crate::ddns::routes) fn parse_curl_headers_for_response(
         .next()
         .and_then(|value| value.parse::<u16>().ok())
         .and_then(|value| StatusCode::from_u16(value).ok());
-    if !http_version.starts_with("HTTP/") || status.is_none() {
+    let Some(status) = status.filter(|_| http_version.starts_with("HTTP/")) else {
         anyhow::bail!(
             "{}",
             ddns_text(
@@ -657,8 +655,8 @@ pub(in crate::ddns::routes) fn parse_curl_headers_for_response(
                 &[("line", status_line.to_string())],
             )
         );
-    }
-    Ok((status.unwrap(), parts.collect::<Vec<_>>().join(" ")))
+    };
+    Ok((status, parts.collect::<Vec<_>>().join(" ")))
 }
 
 pub(in crate::ddns::routes) fn ddns_http_client(

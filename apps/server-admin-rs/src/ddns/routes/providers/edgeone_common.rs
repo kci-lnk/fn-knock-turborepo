@@ -240,6 +240,7 @@ fn edgeone_overseas_access_config_signature(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn sync_edgeone_overseas_access_scope(
     translator: &Translator,
     client: &DDNSHttpClient,
@@ -365,6 +366,7 @@ async fn describe_edgeone_custom_rules(
         .unwrap_or_default())
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn modify_edgeone_custom_rules(
     translator: &Translator,
     client: &DDNSHttpClient,

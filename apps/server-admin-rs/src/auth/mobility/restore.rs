@@ -75,21 +75,20 @@ pub(super) async fn restore_app_token_binding(
         .await?;
     if let Some(owner_session_id) = binding.as_ref().and_then(binding_owner_session_id)
         && state.store.get_session(&owner_session_id).await?.is_none()
+        && let Some(mut orphaned) = binding.take()
     {
-        if let Some(mut orphaned) = binding.take() {
-            clear_binding_owner_session(&mut orphaned);
-            set_binding_last_seen(&mut orphaned);
-            state
-                .store
-                .save_auth_mobility_orphaned_binding(
-                    subject_type,
-                    subject_key,
-                    &orphaned,
-                    &owner_session_id,
-                )
-                .await?;
-            binding = Some(orphaned);
-        }
+        clear_binding_owner_session(&mut orphaned);
+        set_binding_last_seen(&mut orphaned);
+        state
+            .store
+            .save_auth_mobility_orphaned_binding(
+                subject_type,
+                subject_key,
+                &orphaned,
+                &owner_session_id,
+            )
+            .await?;
+        binding = Some(orphaned);
     }
 
     if binding

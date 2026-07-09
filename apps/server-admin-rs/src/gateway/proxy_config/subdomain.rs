@@ -102,7 +102,9 @@ pub(super) fn normalize_host_basic_auth(value: Option<&Value>) -> Value {
     if host_basic_auth_invalid(value) || !host_basic_auth_enabled(value) {
         return disabled_host_basic_auth();
     }
-    let object = value.and_then(Value::as_object).expect("basic auth object");
+    let Some(object) = value.and_then(Value::as_object) else {
+        return disabled_host_basic_auth();
+    };
     json!({
         "enabled": true,
         "username": object.get("username").and_then(Value::as_str).unwrap_or("").trim(),

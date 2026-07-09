@@ -4,6 +4,16 @@ pub(super) fn discover_jobs() -> &'static Mutex<HashMap<String, DiscoverJobHandl
     DISCOVER_JOBS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+fn discover_jobs_guard() -> MutexGuard<'static, HashMap<String, DiscoverJobHandle>> {
+    discover_jobs()
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+}
+
+pub(super) fn discover_job_guard(job: &DiscoverJobHandle) -> MutexGuard<'_, DiscoverJob> {
+    job.lock().unwrap_or_else(|error| error.into_inner())
+}
+
 pub(super) fn create_discover_job(
     scan_cidrs: Vec<String>,
     full_range_cidrs: Vec<String>,
@@ -28,10 +38,7 @@ pub(super) fn create_discover_job(
         result: None,
         error: None,
     }));
-    discover_jobs()
-        .lock()
-        .expect("discover jobs lock")
-        .insert(id, job.clone());
+    discover_jobs_guard().insert(id, job.clone());
     enforce_discover_job_limits();
 
     let job_for_task = job.clone();
@@ -50,11 +57,7 @@ pub(super) fn create_discover_job(
 }
 
 pub(super) fn get_discover_job_handle(job_id: &str) -> Option<DiscoverJobHandle> {
-    discover_jobs()
-        .lock()
-        .expect("discover jobs lock")
-        .get(job_id)
-        .cloned()
+    discover_jobs_guard().get(job_id).cloned()
 }
 
 pub(super) fn is_terminal_discover_state(state: &str) -> bool {
@@ -62,7 +65,7 @@ pub(super) fn is_terminal_discover_state(state: &str) -> bool {
 }
 
 pub(super) fn cancel_discover_job(job: &DiscoverJobHandle) {
-    let mut locked = job.lock().expect("discover job lock");
+    let mut locked = discover_job_guard(job);
     if is_terminal_discover_state(&locked.state) {
         return;
     }
@@ -78,13 +81,13 @@ pub(super) fn cleanup_discover_jobs() {
     let jobs = discover_jobs();
     let handles = jobs
         .lock()
-        .expect("discover jobs lock")
+        .unwrap_or_else(|error| error.into_inner())
         .iter()
         .map(|(id, job)| (id.clone(), job.clone()))
         .collect::<Vec<_>>();
     let mut delete_ids = Vec::new();
     for (id, job) in handles {
-        let mut locked = job.lock().expect("discover job lock");
+        let mut locked = discover_job_guard(&job);
         if is_terminal_discover_state(&locked.state) {
             if now - locked.updated_at > DISCOVER_JOB_DONE_TTL_MS {
                 delete_ids.push(id);
@@ -100,7 +103,7 @@ pub(super) fn cleanup_discover_jobs() {
         }
     }
     if !delete_ids.is_empty() {
-        let mut locked = jobs.lock().expect("discover jobs lock");
+        let mut locked = jobs.lock().unwrap_or_else(|error| error.into_inner());
         for id in delete_ids {
             locked.remove(&id);
         }
@@ -112,13 +115,13 @@ pub(super) fn enforce_discover_job_limits() {
     let jobs = discover_jobs();
     let handles = jobs
         .lock()
-        .expect("discover jobs lock")
+        .unwrap_or_else(|error| error.into_inner())
         .iter()
         .map(|(id, job)| (id.clone(), job.clone()))
         .collect::<Vec<_>>();
     let mut active = Vec::new();
     for (_id, job) in &handles {
-        let locked = job.lock().expect("discover job lock");
+        let locked = discover_job_guard(job);
         if !is_terminal_discover_state(&locked.state) {
             active.push((locked.created_at, job.clone()));
         }
@@ -133,7 +136,7 @@ pub(super) fn enforce_discover_job_limits() {
 
     let mut ids_by_age = Vec::new();
     for (id, job) in handles {
-        let locked = job.lock().expect("discover job lock");
+        let locked = discover_job_guard(&job);
         ids_by_age.push((
             locked.created_at,
             id,
@@ -145,7 +148,7 @@ pub(super) fn enforce_discover_job_limits() {
     if overflow == 0 {
         return;
     }
-    let mut locked_jobs = jobs.lock().expect("discover jobs lock");
+    let mut locked_jobs = jobs.lock().unwrap_or_else(|error| error.into_inner());
     for (_, id, terminal) in ids_by_age.into_iter().take(overflow) {
         if terminal {
             locked_jobs.remove(&id);
@@ -156,7 +159,7 @@ pub(super) fn enforce_discover_job_limits() {
 }
 
 pub(super) fn serialize_discover_job(job: &DiscoverJobHandle, cursor: Option<&str>) -> Value {
-    let locked = job.lock().expect("discover job lock");
+    let locked = discover_job_guard(job);
     let service_cursor = normalize_service_cursor(cursor, locked.service_events.len());
     json!({
         "jobId": locked.id,
@@ -270,7 +273,7 @@ pub(super) fn build_discovery_host_groups(
     let mut groups = Vec::new();
 
     for cidr in normalize_allowed_scan_cidrs(scan_cidrs.iter().cloned()) {
-        let hosts = expand_scan_cidrs(&[cidr.clone()])
+        let hosts = expand_scan_cidrs(std::slice::from_ref(&cidr))
             .into_iter()
             .filter(|host| {
                 if allowed_hosts

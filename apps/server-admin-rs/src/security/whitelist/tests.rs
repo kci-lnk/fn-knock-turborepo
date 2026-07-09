@@ -158,16 +158,13 @@ fn classifies_dns_no_data_errors_like_node() {
         std::io::ErrorKind::NotFound,
         "resolver returned no record"
     )));
-    assert!(is_node_no_data_lookup_error(&std::io::Error::new(
-        std::io::ErrorKind::Other,
+    assert!(is_node_no_data_lookup_error(&std::io::Error::other(
         "query failed: ENOTFOUND"
     )));
-    assert!(is_node_no_data_lookup_error(&std::io::Error::new(
-        std::io::ErrorKind::Other,
+    assert!(is_node_no_data_lookup_error(&std::io::Error::other(
         "nodename nor servname provided, or not known"
     )));
-    assert!(!is_node_no_data_lookup_error(&std::io::Error::new(
-        std::io::ErrorKind::Other,
+    assert!(!is_node_no_data_lookup_error(&std::io::Error::other(
         "temporary failure in name resolution"
     )));
 }

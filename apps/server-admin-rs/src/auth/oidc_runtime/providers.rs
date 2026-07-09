@@ -317,19 +317,15 @@ pub(super) async fn verify_standard_oidc_profile(
         .and_then(Value::as_str)
         .filter(|value| !value.trim().is_empty())
         && let Some(access_token) = token_payload.get("access_token").and_then(Value::as_str)
-    {
-        if let Ok(response) =
+        && let Ok(response) =
             oidc_http_request(state.fallback_client.get(endpoint), "application/json")
                 .bearer_auth(access_token)
                 .send()
                 .await
-        {
-            if response.status().is_success()
-                && let Ok(payload) = parse_http_payload(response, translator).await
-            {
-                userinfo = payload;
-            }
-        }
+        && response.status().is_success()
+        && let Ok(payload) = parse_http_payload(response, translator).await
+    {
+        userinfo = payload;
     }
     let pick = |key: &str| userinfo.get(key).or_else(|| payload.get(key));
     Ok(ExternalProfile {
@@ -348,14 +344,13 @@ pub(super) async fn verify_standard_oidc_profile(
 }
 
 pub(super) fn select_jwk<'a>(jwks: &'a JwkSet, kid: Option<&str>) -> Option<&'a Jwk> {
-    if let Some(kid) = kid {
-        if let Some(jwk) = jwks
+    if let Some(kid) = kid
+        && let Some(jwk) = jwks
             .keys
             .iter()
             .find(|jwk| jwk.common.key_id.as_deref() == Some(kid))
-        {
-            return Some(jwk);
-        }
+    {
+        return Some(jwk);
     }
     jwks.keys.first()
 }
@@ -389,28 +384,23 @@ pub(super) async fn fetch_github_profile(
         .ok_or_else(|| oidc_text(translator, "githubUserIdEmpty"))?;
     let mut email = optional_string(user.get("email"));
     let mut email_verified = false;
-    if let Some(endpoint) = string_field(config, "emails_endpoint") {
-        if let Ok(response) = github_api_request(&state.fallback_client, endpoint, access_token)
+    if let Some(endpoint) = string_field(config, "emails_endpoint")
+        && let Ok(response) = github_api_request(&state.fallback_client, endpoint, access_token)
             .send()
             .await
-        {
-            if response.status().is_success()
-                && let Ok(emails) = response.json::<Value>().await
-                && let Some(items) = emails.as_array()
-            {
-                if let Some(primary) = items
-                    .iter()
-                    .find(|item| item.get("primary").and_then(Value::as_bool) == Some(true))
-                    .or_else(|| items.first())
-                {
-                    email = optional_string(primary.get("email")).or(email);
-                    email_verified = primary
-                        .get("verified")
-                        .and_then(Value::as_bool)
-                        .unwrap_or(email.is_some());
-                }
-            }
-        }
+        && response.status().is_success()
+        && let Ok(emails) = response.json::<Value>().await
+        && let Some(items) = emails.as_array()
+        && let Some(primary) = items
+            .iter()
+            .find(|item| item.get("primary").and_then(Value::as_bool) == Some(true))
+            .or_else(|| items.first())
+    {
+        email = optional_string(primary.get("email")).or(email);
+        email_verified = primary
+            .get("verified")
+            .and_then(Value::as_bool)
+            .unwrap_or(email.is_some());
     }
     Ok(ExternalProfile {
         issuer: "github".to_string(),

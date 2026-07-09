@@ -153,7 +153,7 @@ pub(super) fn crc32_update(crc: u32, byte: u8) -> u32 {
 pub(super) fn dos_datetime(ms: i64) -> (u16, u16) {
     let timestamp = ms.div_euclid(1000);
     let utc = time::OffsetDateTime::from_unix_timestamp(timestamp)
-        .unwrap_or_else(|_| time::OffsetDateTime::UNIX_EPOCH);
+        .unwrap_or(time::OffsetDateTime::UNIX_EPOCH);
     let local = time::UtcOffset::current_local_offset()
         .map(|offset| utc.to_offset(offset))
         .unwrap_or(utc);

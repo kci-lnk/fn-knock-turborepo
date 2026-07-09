@@ -58,7 +58,7 @@ impl Store {
             }
             let _: () = pipe.query_async(&mut conn).await?;
         }
-        records.sort_by(|left, right| right.created_at.cmp(&left.created_at));
+        records.sort_by_key(|record| std::cmp::Reverse(record.created_at));
         Ok(records)
     }
 
@@ -183,10 +183,10 @@ impl Store {
         let mut matched = records
             .into_iter()
             .filter(|record| {
-                if let Some(source) = source {
-                    if record.source != source {
-                        return false;
-                    }
+                if let Some(source) = source
+                    && record.source != source
+                {
+                    return false;
                 }
                 match target_type {
                     "cidr" => record.target_type() == "cidr" && record.ip == target,
@@ -195,7 +195,7 @@ impl Store {
                 }
             })
             .collect::<Vec<_>>();
-        matched.sort_by(|left, right| right.created_at.cmp(&left.created_at));
+        matched.sort_by_key(|record| std::cmp::Reverse(record.created_at));
         Ok(matched)
     }
 
@@ -422,7 +422,7 @@ impl Store {
                 records.push(record);
             }
         }
-        records.sort_by(|left, right| right.created_at.cmp(&left.created_at));
+        records.sort_by_key(|record| std::cmp::Reverse(record.created_at));
 
         let mut pipe = redis::pipe();
         pipe.del(WHITELIST_RECORD_ORDER).ignore();

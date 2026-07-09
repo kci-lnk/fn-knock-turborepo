@@ -995,6 +995,7 @@ async fn linked_totp_name(state: &AppState, totp_id: &str) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn register_passkey_failure(
     state: &AppState,
     tracking_ip: &str,
@@ -1324,7 +1325,7 @@ fn rp_info_with_configured_host(
     headers: &HeaderMap,
     configured_host: Option<&str>,
 ) -> RpInfo {
-    let request_url = Url::parse("http://127.0.0.1").unwrap();
+    let request_url = Url::parse("http://127.0.0.1").expect("static loopback URL is valid");
     let forwarded_proto = parse_forwarded_header_value(headers, "proto");
     let proto = forwarded_proto
         .or_else(|| first_header(headers, "x-forwarded-proto"))
@@ -1375,7 +1376,7 @@ fn rp_info_with_configured_host(
     {
         selected_url.host_str().unwrap_or("").to_string()
     } else if let Some(configured_host) = configured_host
-        && let Some(configured_url) = build_absolute_url_from_host(Some(&configured_host), &proto)
+        && let Some(configured_url) = build_absolute_url_from_host(Some(configured_host), &proto)
     {
         configured_url.host_str().unwrap_or("").to_string()
     } else {

@@ -65,10 +65,10 @@ pub(super) fn build_discovered_service_value(
             "isDefault": rule.is_default,
         },
     });
-    if has_basic_auth_challenge(result.headers.get("www-authenticate").map(String::as_str)) {
-        if let Some(object) = service.as_object_mut() {
-            object.insert("requiresBasicAuth".to_string(), json!(true));
-        }
+    if has_basic_auth_challenge(result.headers.get("www-authenticate").map(String::as_str))
+        && let Some(object) = service.as_object_mut()
+    {
+        object.insert("requiresBasicAuth".to_string(), json!(true));
     }
     service
 }

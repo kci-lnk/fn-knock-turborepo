@@ -42,8 +42,7 @@ pub(in crate::notifications::routes) async fn send_wecom(
     let mentioned_list = split_values(target_config.get("mentioned_list"));
     let mentioned_mobile_list = split_values(target_config.get("mentioned_mobile_list"));
     let markdown_content = build_wecom_markdown_content(message, &mentioned_list);
-    let use_text_payload =
-        !mentioned_mobile_list.is_empty() || markdown_content.as_bytes().len() > 4096;
+    let use_text_payload = !mentioned_mobile_list.is_empty() || markdown_content.len() > 4096;
     let body = if use_text_payload {
         json!({
             "msgtype": "text",

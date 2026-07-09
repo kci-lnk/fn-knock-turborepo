@@ -61,6 +61,7 @@ pub(super) async fn read_replayable_json_body(
     Ok((value, replayable))
 }
 
+#[allow(clippy::result_large_err)]
 pub(super) fn parse_json_bytes(bytes: &Bytes, t: &Translator) -> Result<Value, Response> {
     if bytes.is_empty() {
         return Err(response::error(

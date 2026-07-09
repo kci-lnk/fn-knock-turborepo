@@ -131,7 +131,7 @@ pub(super) fn validate_cidrs(
 
 pub(super) fn normalize_duration_unit(value: Option<&str>) -> String {
     match value {
-        Some("minute" | "hour" | "day") => value.unwrap().to_string(),
+        Some(value @ ("minute" | "hour" | "day")) => value.to_string(),
         _ => "day".to_string(),
     }
 }

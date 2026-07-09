@@ -90,10 +90,10 @@ pub fn normalize_ip(value: &str) -> String {
     } else if let Some(ipv4) = strip_ipv4_port(&candidate) {
         candidate = ipv4.to_string();
     }
-    if let Some((ip, _zone)) = candidate.split_once('%') {
-        if !ip.is_empty() {
-            candidate = ip.to_string();
-        }
+    if let Some((ip, _zone)) = candidate.split_once('%')
+        && !ip.is_empty()
+    {
+        candidate = ip.to_string();
     }
     if let Some(mapped) = candidate.strip_prefix("::ffff:")
         && is_valid_ipv4(mapped)

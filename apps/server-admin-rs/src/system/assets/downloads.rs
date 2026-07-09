@@ -1,4 +1,10 @@
-use std::{fs, io::Write, path::Path, process::Command, sync::Mutex};
+use std::{
+    fs,
+    io::Write,
+    path::Path,
+    process::Command,
+    sync::{Mutex, MutexGuard},
+};
 
 use serde_json::{Value, json};
 
@@ -36,8 +42,8 @@ pub(super) fn build_cloudflared_status(data_dir: &Path, translator: &Translator)
 
 pub(super) fn build_frp_status(data_dir: &Path, translator: &Translator) -> Value {
     let platform = detect_frp_platform();
-    let downloaded = frp_binary_path(data_dir, &platform, "frpc").is_some_and(|path| path.exists())
-        || frp_binary_path(data_dir, &platform, "frps").is_some_and(|path| path.exists());
+    let downloaded = frp_binary_path(data_dir, platform, "frpc").is_some_and(|path| path.exists())
+        || frp_binary_path(data_dir, platform, "frps").is_some_and(|path| path.exists());
     json!({
         "supported": platform != "unsupported",
         "platform": platform,
@@ -190,8 +196,11 @@ async fn download_to_file_inner(
         }
         file.write_all(&chunk).map_err(|error| error.to_string())?;
         loaded += chunk.len() as u64;
-        if total > 0 {
-            let percent = ((loaded * 100) / total).min(100) as i64;
+        if let Some(percent) = loaded
+            .checked_mul(100)
+            .and_then(|value| value.checked_div(total))
+        {
+            let percent = percent.min(100) as i64;
             set_progress(asset, "downloading", percent, None);
         }
     }
@@ -248,6 +257,12 @@ pub(super) fn downloads() -> &'static Mutex<AssetDownloads> {
     ASSET_DOWNLOADS.get_or_init(|| Mutex::new(AssetDownloads::default()))
 }
 
+fn downloads_guard() -> MutexGuard<'static, AssetDownloads> {
+    downloads()
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+}
+
 pub(super) fn asset_progress_mut<'a>(
     downloads: &'a mut AssetDownloads,
     asset: &str,
@@ -259,7 +274,7 @@ pub(super) fn asset_progress_mut<'a>(
 }
 
 pub(super) fn progress_json(asset: &str, translator: &Translator) -> Value {
-    let guard = downloads().lock().expect("asset downloads mutex poisoned");
+    let guard = downloads_guard();
     let progress = match asset {
         "frp" => &guard.frp,
         _ => &guard.cloudflared,
@@ -345,7 +360,7 @@ fn localize_download_error_detail(translator: &Translator, asset: &str, detail: 
 }
 
 pub(super) fn start_download(asset: &str) -> bool {
-    let mut guard = downloads().lock().expect("asset downloads mutex poisoned");
+    let mut guard = downloads_guard();
     let progress = asset_progress_mut(&mut guard, asset);
     if progress.status == "downloading" {
         return false;
@@ -358,7 +373,7 @@ pub(super) fn start_download(asset: &str) -> bool {
 }
 
 pub(super) fn request_cancel(asset: &str) {
-    let mut guard = downloads().lock().expect("asset downloads mutex poisoned");
+    let mut guard = downloads_guard();
     let progress = asset_progress_mut(&mut guard, asset);
     if progress.status == "downloading" {
         progress.cancel_requested = true;
@@ -372,12 +387,12 @@ pub(super) fn request_cancel(asset: &str) {
 }
 
 pub(super) fn reset_progress(asset: &str) {
-    let mut guard = downloads().lock().expect("asset downloads mutex poisoned");
+    let mut guard = downloads_guard();
     *asset_progress_mut(&mut guard, asset) = DownloadProgress::default();
 }
 
 pub(super) fn set_progress(asset: &str, status: &str, percent: i64, error: Option<String>) {
-    let mut guard = downloads().lock().expect("asset downloads mutex poisoned");
+    let mut guard = downloads_guard();
     let progress = asset_progress_mut(&mut guard, asset);
     progress.status = status.to_string();
     progress.percent = percent.clamp(0, 100);
@@ -385,7 +400,7 @@ pub(super) fn set_progress(asset: &str, status: &str, percent: i64, error: Optio
 }
 
 pub(super) fn finish_download(asset: &str, result: Result<(), String>) {
-    let mut guard = downloads().lock().expect("asset downloads mutex poisoned");
+    let mut guard = downloads_guard();
     let progress = asset_progress_mut(&mut guard, asset);
     match result {
         Ok(()) => {
@@ -410,7 +425,7 @@ pub(super) fn finish_download(asset: &str, result: Result<(), String>) {
 }
 
 pub(super) fn is_cancel_requested(asset: &str) -> bool {
-    let guard = downloads().lock().expect("asset downloads mutex poisoned");
+    let guard = downloads_guard();
     match asset {
         "frp" => guard.frp.cancel_requested,
         _ => guard.cloudflared.cancel_requested,

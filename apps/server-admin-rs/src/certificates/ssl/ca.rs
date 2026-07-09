@@ -138,10 +138,7 @@ pub(super) fn openssl_server_cert_config(hosts: &[String]) -> String {
 }
 
 pub(super) fn openssl_dn_value(value: &str) -> String {
-    value
-        .replace('\\', "\\\\")
-        .replace('\n', "")
-        .replace('\r', "")
+    value.replace('\\', "\\\\").replace(['\n', '\r'], "")
 }
 
 pub(super) fn run_openssl(args: Vec<String>) -> anyhow::Result<()> {

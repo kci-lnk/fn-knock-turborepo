@@ -137,7 +137,7 @@ pub(super) async fn latest_active_whitelist_record_by_ip(
             _ => false,
         })
         .collect::<Vec<_>>();
-    records.sort_by(|left, right| right.created_at.cmp(&left.created_at));
+    records.sort_by_key(|record| std::cmp::Reverse(record.created_at));
     Ok(records.into_iter().next())
 }
 
@@ -422,10 +422,9 @@ pub(super) async fn session_mobility_details_value(
     });
     if events.is_empty()
         && let Some(session) = fallback_session
+        && let Some(login_event) = build_mobility_login_event(session)
     {
-        if let Some(login_event) = build_mobility_login_event(session) {
-            events.push(login_event);
-        }
+        events.push(login_event);
     }
 
     let stored_summary = state

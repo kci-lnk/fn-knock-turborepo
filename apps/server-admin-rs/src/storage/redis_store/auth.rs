@@ -527,6 +527,7 @@ impl Store {
         Ok(Some(current))
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn initialize_auth_mobility_login_session(
         &self,
         session_id: &str,

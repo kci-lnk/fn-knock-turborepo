@@ -846,37 +846,36 @@ pub(crate) async fn resolve_panel_auth_context(
     state: &AppState,
     headers: &HeaderMap,
 ) -> anyhow::Result<Value> {
-    if let Some(session_id) = cookies::read_cookie(headers, ADMIN_PANEL_SESSION_COOKIE_NAME) {
-        if let Some(mut record) = state.store.docker_admin_session(&session_id).await? {
-            let now = time_utils::now_ms();
-            if time_utils::parse_iso_ms(&record.expires_at).is_some_and(|expires| expires > now)
-                && record.ip == client_ip_for_tracking(headers)
-                && record.user_agent == user_agent_for_tracking(headers)
-            {
-                record.ttl_seconds = normalize_session_record_ttl(record.ttl_seconds);
-                record.updated_at = time_utils::now_iso();
-                record.expires_at = time_utils::iso_after_seconds(record.ttl_seconds);
-                state.store.set_docker_admin_session(&record).await?;
-                return Ok(json!({
-                    "authenticated": true,
-                    "auth_source": "panel_session",
-                    "session_expires_at": record.expires_at
-                }));
-            }
-            let _ = state.store.delete_docker_admin_session(&session_id).await;
+    if let Some(session_id) = cookies::read_cookie(headers, ADMIN_PANEL_SESSION_COOKIE_NAME)
+        && let Some(mut record) = state.store.docker_admin_session(&session_id).await?
+    {
+        let now = time_utils::now_ms();
+        if time_utils::parse_iso_ms(&record.expires_at).is_some_and(|expires| expires > now)
+            && record.ip == client_ip_for_tracking(headers)
+            && record.user_agent == user_agent_for_tracking(headers)
+        {
+            record.ttl_seconds = normalize_session_record_ttl(record.ttl_seconds);
+            record.updated_at = time_utils::now_iso();
+            record.expires_at = time_utils::iso_after_seconds(record.ttl_seconds);
+            state.store.set_docker_admin_session(&record).await?;
+            return Ok(json!({
+                "authenticated": true,
+                "auth_source": "panel_session",
+                "session_expires_at": record.expires_at
+            }));
         }
+        let _ = state.store.delete_docker_admin_session(&session_id).await;
     }
 
-    if let Some(session_id) = cookies::read_cookie(headers, SESSION_COOKIE_NAME) {
-        if let Some(session) = state.store.get_session(&session_id).await? {
-            if is_docker_admin_panel_reauth_session_allowed(&state, &session).await? {
-                return Ok(json!({
-                    "authenticated": true,
-                    "auth_source": "reauth_session",
-                    "session_expires_at": session.expires_at
-                }));
-            }
-        }
+    if let Some(session_id) = cookies::read_cookie(headers, SESSION_COOKIE_NAME)
+        && let Some(session) = state.store.get_session(&session_id).await?
+        && is_docker_admin_panel_reauth_session_allowed(state, &session).await?
+    {
+        return Ok(json!({
+            "authenticated": true,
+            "auth_source": "reauth_session",
+            "session_expires_at": session.expires_at
+        }));
     }
 
     Ok(json!({
@@ -890,11 +889,11 @@ async fn is_docker_admin_panel_reauth_session_allowed(
     state: &AppState,
     session: &crate::store::LoginSession,
 ) -> anyhow::Result<bool> {
-    if !session
+    if session
         .expires_at
         .as_deref()
         .and_then(time_utils::parse_iso_ms)
-        .is_some_and(|expires| expires > time_utils::now_ms())
+        .is_none_or(|expires| expires <= time_utils::now_ms())
     {
         return Ok(false);
     }

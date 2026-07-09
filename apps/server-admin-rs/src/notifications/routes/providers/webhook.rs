@@ -134,6 +134,7 @@ pub(in crate::notifications::routes) async fn send_webhook_test(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(in crate::notifications::routes) async fn send_webhook_delivery(
     state: &AppState,
     provider: &Value,

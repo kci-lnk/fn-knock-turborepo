@@ -153,16 +153,16 @@ async fn serve_file_with_kind(
     };
 
     let mut response_bytes = bytes;
-    if let Some(script) = injection {
-        if path.file_name().and_then(|name| name.to_str()) == Some("index.html") {
-            let mut html = String::from_utf8_lossy(&response_bytes).into_owned();
-            if html.contains("</head>") {
-                html = html.replacen("</head>", &format!("{script}</head>"), 1);
-            } else {
-                html.push_str(&script);
-            }
-            response_bytes = html.into_bytes();
+    if let Some(script) = injection
+        && path.file_name().and_then(|name| name.to_str()) == Some("index.html")
+    {
+        let mut html = String::from_utf8_lossy(&response_bytes).into_owned();
+        if html.contains("</head>") {
+            html = html.replacen("</head>", &format!("{script}</head>"), 1);
+        } else {
+            html.push_str(&script);
         }
+        response_bytes = html.into_bytes();
     }
 
     let mime = mime_guess::from_path(&path).first_or_octet_stream();

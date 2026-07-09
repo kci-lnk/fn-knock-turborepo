@@ -879,10 +879,10 @@ pub(super) async fn logout(
     if let Some(session_id) = session_id.as_deref() {
         session = state.store.get_session(session_id).await.ok().flatten();
         login_ip_from_session = session.as_ref().map(|session| session.ip.clone());
-        if let Err(error) = auth_mobility::destroy_session(&state, &session_id).await {
+        if let Err(error) = auth_mobility::destroy_session(&state, session_id).await {
             tracing::warn!(%error, %session_id, "failed to cleanup auth mobility session on logout");
         }
-        let _ = state.store.delete_session(&session_id).await;
+        let _ = state.store.delete_session(session_id).await;
     }
 
     let client_ip = client_ip_for_auth(&headers);

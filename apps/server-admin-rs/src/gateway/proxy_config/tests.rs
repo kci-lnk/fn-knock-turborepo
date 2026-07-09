@@ -159,11 +159,11 @@ fn validates_host_availability_window_once() {
     assert_eq!(validate_host_availability_window("22:00", "06:00"), Ok(()));
     assert_eq!(
         validate_host_availability_window("9:00", "18:00"),
-        Err(HostAvailabilityWindowError::InvalidStartTime)
+        Err(HostAvailabilityWindowError::InvalidStart)
     );
     assert_eq!(
         validate_host_availability_window("09:00", "09:00"),
-        Err(HostAvailabilityWindowError::SameTime)
+        Err(HostAvailabilityWindowError::Same)
     );
 }
 

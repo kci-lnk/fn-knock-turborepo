@@ -106,7 +106,7 @@ pub(super) fn build_notification_message(
     let happened_at = event
         .get("happened_at")
         .and_then(Value::as_str)
-        .unwrap_or_else(|| "");
+        .unwrap_or("");
     let event_id = event.get("id").and_then(Value::as_str).unwrap_or("");
     let window_seconds = rule
         .get("window_seconds")

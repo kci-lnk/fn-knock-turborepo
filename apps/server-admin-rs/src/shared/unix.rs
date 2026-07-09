@@ -77,9 +77,7 @@ pub(crate) fn current_user_home_dir() -> Option<PathBuf> {
         };
 
         if code == libc::ERANGE {
-            let Some(next_buffer_size) = next_getpwuid_buffer_size(buffer_size) else {
-                return None;
-            };
+            let next_buffer_size = next_getpwuid_buffer_size(buffer_size)?;
             buffer_size = next_buffer_size;
             continue;
         }

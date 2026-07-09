@@ -603,12 +603,12 @@ pub fn normalize_traffic_host(value: &str) -> String {
         return host;
     }
 
-    if let Some(last_colon) = host.rfind(':') {
-        if host[..last_colon].find(':').is_none() {
-            let possible_port = &host[last_colon + 1..];
-            if possible_port.chars().all(|ch| ch.is_ascii_digit()) {
-                host.truncate(last_colon);
-            }
+    if let Some(last_colon) = host.rfind(':')
+        && host[..last_colon].find(':').is_none()
+    {
+        let possible_port = &host[last_colon + 1..];
+        if possible_port.chars().all(|ch| ch.is_ascii_digit()) {
+            host.truncate(last_colon);
         }
     }
 

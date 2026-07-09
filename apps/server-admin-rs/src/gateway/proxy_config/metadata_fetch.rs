@@ -158,19 +158,19 @@ pub(super) async fn fetch_host_mapping_metadata(
         FALLBACK_FAVICON_FETCH_RESERVE,
     )
     .await;
-    if favicon.is_empty() {
-        if let Some(manifest_url) = manifest_url {
-            let manifest_icons =
-                fetch_manifest_icon_urls(&client, &manifest_url, basic_auth_context.as_ref()).await;
-            favicon = fetch_first_favicon_as_data_url(
-                &client,
-                &manifest_icons,
-                basic_auth_context.as_ref(),
-                &mut favicon_budget,
-                FALLBACK_FAVICON_FETCH_RESERVE,
-            )
-            .await;
-        }
+    if favicon.is_empty()
+        && let Some(manifest_url) = manifest_url
+    {
+        let manifest_icons =
+            fetch_manifest_icon_urls(&client, &manifest_url, basic_auth_context.as_ref()).await;
+        favicon = fetch_first_favicon_as_data_url(
+            &client,
+            &manifest_icons,
+            basic_auth_context.as_ref(),
+            &mut favicon_budget,
+            FALLBACK_FAVICON_FETCH_RESERVE,
+        )
+        .await;
     }
     if favicon.is_empty() {
         favicon = fetch_first_favicon_as_data_url(

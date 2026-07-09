@@ -47,24 +47,22 @@ pub(in crate::ddns::routes) async fn update_cloudflare(
     let base_url = format!("https://api.cloudflare.com/client/v4/zones/{zone_id}/dns_records");
     let mut errors = Vec::new();
 
-    if let Some(ipv4) = ipv4 {
-        if let Some(message) = update_cloudflare_record(
+    if let Some(ipv4) = ipv4
+        && let Some(message) = update_cloudflare_record(
             translator, &client, &base_url, &api_token, &domain, proxied, "A", ipv4,
         )
         .await?
-        {
-            errors.push(message);
-        }
+    {
+        errors.push(message);
     }
 
-    if let Some(ipv6) = ipv6 {
-        if let Some(message) = update_cloudflare_record(
+    if let Some(ipv6) = ipv6
+        && let Some(message) = update_cloudflare_record(
             translator, &client, &base_url, &api_token, &domain, proxied, "AAAA", ipv6,
         )
         .await?
-        {
-            errors.push(message);
-        }
+    {
+        errors.push(message);
     }
 
     if errors.is_empty() {
@@ -77,6 +75,7 @@ pub(in crate::ddns::routes) async fn update_cloudflare(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn update_cloudflare_record(
     translator: &Translator,
     client: &DDNSHttpClient,

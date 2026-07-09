@@ -31,6 +31,8 @@ fn main() {
     println!("cargo:rerun-if-changed={}", proto_file.display());
 
     let protoc = protoc_bin_vendored::protoc_bin_path().expect("resolve vendored protoc");
+    // SAFETY: build scripts run single-threaded here before tonic_build reads
+    // PROTOC, so no concurrent environment access is introduced.
     unsafe {
         env::set_var("PROTOC", protoc);
     }

@@ -1211,12 +1211,11 @@ fn project_totps_to_accounts(
 
     for totp in totps {
         let existing_account = existing_by_totp.get(&totp.id).cloned();
-        let initial_timestamp = totp
-            .created_at
-            .trim()
-            .is_empty()
-            .then(|| now.clone())
-            .unwrap_or_else(|| totp.created_at.clone());
+        let initial_timestamp = if totp.created_at.trim().is_empty() {
+            now.clone()
+        } else {
+            totp.created_at.clone()
+        };
         let mut account = existing_by_totp
             .get(&totp.id)
             .cloned()
@@ -1265,12 +1264,11 @@ fn project_totps_to_accounts(
     }) {
         let mut account = existing_account.clone();
         let original = account.clone();
-        let initial_timestamp = account
-            .created_at
-            .trim()
-            .is_empty()
-            .then(|| now.clone())
-            .unwrap_or_else(|| account.created_at.clone());
+        let initial_timestamp = if account.created_at.trim().is_empty() {
+            now.clone()
+        } else {
+            account.created_at.clone()
+        };
         if account.created_at.trim().is_empty() {
             account.created_at = initial_timestamp.clone();
         }

@@ -1,5 +1,6 @@
 use super::*;
 
+#[allow(clippy::too_many_arguments)]
 pub(super) async fn build_authorization_url(
     state: &AppState,
     headers: &HeaderMap,
@@ -111,6 +112,7 @@ pub(super) async fn build_authorization_url(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) async fn resolve_callback(
     state: &AppState,
     headers: &HeaderMap,

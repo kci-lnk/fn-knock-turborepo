@@ -9,11 +9,8 @@ pub(super) async fn ensure_waf_directories(state: &AppState) -> io::Result<()> {
 pub(super) async fn get_manifest_cache_for_details(state: &AppState) -> anyhow::Result<Value> {
     let mut cache = read_manifest_cache(state).await?;
     if cache.get("manifest").is_none_or(Value::is_null) || is_manifest_stale(&cache) {
-        if refresh_system_manifest_cache(state).await.is_ok() {
-            cache = read_manifest_cache(state).await?;
-        } else {
-            cache = read_manifest_cache(state).await?;
-        }
+        let _ = refresh_system_manifest_cache(state).await;
+        cache = read_manifest_cache(state).await?;
     }
     Ok(cache)
 }

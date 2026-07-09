@@ -102,7 +102,7 @@ pub(super) fn parse_int_prefix_like_node(value: &str, radix: u32) -> Option<i64>
         chars.next();
     }
     for (index, ch) in chars {
-        if ch.to_digit(radix).is_some() {
+        if ch.is_digit(radix) {
             saw_digit = true;
             end = index + ch.len_utf8();
         } else {
@@ -186,7 +186,7 @@ pub(super) fn parse_i64_prefix_like_node(value: &str) -> Option<i64> {
     }
     let magnitude = digits.parse::<u128>().unwrap_or(u128::MAX);
     if negative {
-        if magnitude >= (i64::MAX as u128) + 1 {
+        if magnitude > (i64::MAX as u128) {
             Some(i64::MIN)
         } else {
             Some(-(magnitude as i64))

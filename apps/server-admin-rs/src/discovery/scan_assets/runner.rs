@@ -132,6 +132,7 @@ pub(super) fn discovery_http_client_builder() -> reqwest::ClientBuilder {
         .danger_accept_invalid_certs(true)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) async fn scan_discovery_host(
     job: DiscoverJobHandle,
     client: reqwest::Client,
@@ -238,7 +239,7 @@ pub(super) fn update_discover_progress(
 }
 
 pub(super) fn update_discover_job(job: &DiscoverJobHandle, update: impl FnOnce(&mut DiscoverJob)) {
-    let mut locked = job.lock().expect("discover job lock");
+    let mut locked = discover_job_guard(job);
     update(&mut locked);
     locked.updated_at = now_millis();
 }
@@ -254,7 +255,7 @@ pub(super) fn fail_discover_job(job: &DiscoverJobHandle, message: String) {
 }
 
 pub(super) fn job_cancelled(job: &DiscoverJobHandle) -> bool {
-    let locked = job.lock().expect("discover job lock");
+    let locked = discover_job_guard(job);
     locked.cancel.load(Ordering::SeqCst) || locked.state == "cancelled"
 }
 

@@ -162,10 +162,10 @@ pub(super) fn build_default_session_title(
             .strip_prefix(&prefix)
             .or_else(|| title.strip_prefix(LEGACY_DEFAULT_SESSION_TITLE_PREFIX));
         let Some(suffix) = suffix else { continue };
-        if let Ok(index) = suffix.parse::<i64>() {
-            if index > 0 {
-                used.insert(index);
-            }
+        if let Ok(index) = suffix.parse::<i64>()
+            && index > 0
+        {
+            used.insert(index);
         }
     }
     let mut next = 1;
@@ -369,15 +369,13 @@ pub(super) fn detect_client_ip(headers: &HeaderMap) -> String {
     if let Some(forwarded) = headers
         .get("x-forwarded-for")
         .and_then(|value| value.to_str().ok())
-    {
-        if let Some(first) = forwarded
+        && let Some(first) = forwarded
             .split(',')
             .next()
             .map(str::trim)
             .filter(|value| !value.is_empty())
-        {
-            return first.to_string();
-        }
+    {
+        return first.to_string();
     }
     headers
         .get("x-real-ip")

@@ -24,7 +24,7 @@ fn auth_credential_settings_runtime_normalizes_like_node() {
         "session_ttl_seconds": 120,
         "remember_me_ttl_seconds": 240,
         "post_login_ip_grant_mode": "custom",
-        "post_login_ip_grant_ttl_seconds": 3.14,
+        "post_login_ip_grant_ttl_seconds": 3.5,
         "session_ip_mobility_window_seconds": "30"
     }));
     assert_eq!(custom.post_login_ip_grant_mode, "custom");

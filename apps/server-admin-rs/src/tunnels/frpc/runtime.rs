@@ -117,20 +117,20 @@ pub(super) async fn read_candidate_pid(
     meta: &FrpcInstanceMeta,
     runtime: &FrpcInstanceRuntime,
 ) -> Option<u32> {
-    if let Some(pid) = ATTACHED_PIDS.lock().await.get(&meta.id).copied() {
-        if is_owned_frpc_pid(pid, &meta.config_path).await {
-            return Some(pid);
-        }
+    if let Some(pid) = ATTACHED_PIDS.lock().await.get(&meta.id).copied()
+        && is_owned_frpc_pid(pid, &meta.config_path).await
+    {
+        return Some(pid);
     }
-    if let Some(pid) = runtime.pid {
-        if is_owned_frpc_pid(pid, &meta.config_path).await {
-            return Some(pid);
-        }
+    if let Some(pid) = runtime.pid
+        && is_owned_frpc_pid(pid, &meta.config_path).await
+    {
+        return Some(pid);
     }
-    if let Some(pid) = read_pid_file(&pid_path_for_meta(meta)).await {
-        if is_owned_frpc_pid(pid, &meta.config_path).await {
-            return Some(pid);
-        }
+    if let Some(pid) = read_pid_file(&pid_path_for_meta(meta)).await
+        && is_owned_frpc_pid(pid, &meta.config_path).await
+    {
+        return Some(pid);
     }
     find_frpc_pid_by_config_path(&meta.config_path).await
 }
@@ -199,14 +199,14 @@ pub(super) async fn start_instance_inner(state: &AppState, id: &str) -> FrpcResu
     let content = read_config_for_meta(&meta).await?;
     verify_frpc_config(state, &meta, &content).await?;
     let current = build_status(state, &meta).await?;
-    if current.running {
-        if let Some(pid) = current.pid {
-            let mut runtime = read_runtime(&state.store, &meta.id).await?;
-            runtime.desired_running = true;
-            runtime.pid = Some(pid);
-            write_runtime(&state.store, &meta.id, &runtime).await?;
-            return Ok(pid);
-        }
+    if current.running
+        && let Some(pid) = current.pid
+    {
+        let mut runtime = read_runtime(&state.store, &meta.id).await?;
+        runtime.desired_running = true;
+        runtime.pid = Some(pid);
+        write_runtime(&state.store, &meta.id, &runtime).await?;
+        return Ok(pid);
     }
     {
         let mut states = CONNECTION_STATES.lock().await;
@@ -336,10 +336,10 @@ pub(super) async fn stop_instance_inner(state: &AppState, id: &str) -> FrpcResul
         connection.stop_requested = true;
         connection.connected = false;
     }
-    if let Some(pid) = status.pid {
-        if is_owned_frpc_pid(pid, &meta.config_path).await {
-            terminate_pid(pid).await?;
-        }
+    if let Some(pid) = status.pid
+        && is_owned_frpc_pid(pid, &meta.config_path).await
+    {
+        terminate_pid(pid).await?;
     }
     ATTACHED_PIDS.lock().await.remove(&meta.id);
     remove_pid_file(&pid_path_for_meta(&meta)).await;

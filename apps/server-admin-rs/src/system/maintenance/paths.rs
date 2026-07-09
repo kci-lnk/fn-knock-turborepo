@@ -57,7 +57,7 @@ pub(super) fn is_backup_archive_file(value: &str) -> bool {
 
 pub(super) fn is_node_base64(value: &str) -> bool {
     let bytes = value.as_bytes();
-    if bytes.is_empty() || bytes.len() % 4 != 0 {
+    if bytes.is_empty() || !bytes.len().is_multiple_of(4) {
         return false;
     }
 

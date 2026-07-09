@@ -370,6 +370,7 @@ pub(super) async fn ensure_target_auxiliary_state(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) async fn emit_ddns_update_completed_event(
     state: &AppState,
     target: &DDNSTargetRecord,

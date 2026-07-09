@@ -314,10 +314,10 @@ pub(super) fn set_acme_install_state_blocking(
 
 pub(super) fn resolve_bundled_acme_zip_path() -> Option<PathBuf> {
     let mut candidates = Vec::new();
-    if let Ok(value) = env::var("ACME_BUNDLE_ZIP") {
-        if !value.trim().is_empty() {
-            candidates.push(PathBuf::from(value.trim()));
-        }
+    if let Ok(value) = env::var("ACME_BUNDLE_ZIP")
+        && !value.trim().is_empty()
+    {
+        candidates.push(PathBuf::from(value.trim()));
     }
     if let Ok(exe) = env::current_exe()
         && let Some(meta_dir) = exe.parent()

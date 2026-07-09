@@ -107,10 +107,10 @@ pub(super) fn validate_pow_proof(
         return Err(auth_route_text(translator, "invalidCaptchaSignature"));
     }
 
-    if let Some(expires) = parse_pow_expires(&salt) {
-        if now_seconds > expires {
-            return Err(auth_route_text(translator, "captchaChallengeExpired"));
-        }
+    if let Some(expires) = parse_pow_expires(&salt)
+        && now_seconds > expires
+    {
+        return Err(auth_route_text(translator, "captchaChallengeExpired"));
     }
 
     Ok(PowValidation {

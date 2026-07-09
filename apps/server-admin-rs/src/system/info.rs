@@ -55,14 +55,14 @@ fn resolve_access_entry_info_from_sources(
     frpc_remote_port: Option<u16>,
     local_gateway_port: Option<String>,
 ) -> AccessEntryInfo {
-    if is_reverse_proxy_subdomain_mode(config) {
-        if let Some(port) = frpc_remote_port {
-            return AccessEntryInfo {
-                env: "FRP_REMOTE_PORT",
-                port: port.to_string(),
-                is_default: false,
-            };
-        }
+    if is_reverse_proxy_subdomain_mode(config)
+        && let Some(port) = frpc_remote_port
+    {
+        return AccessEntryInfo {
+            env: "FRP_REMOTE_PORT",
+            port: port.to_string(),
+            is_default: false,
+        };
     }
     resolve_local_gateway_port_from_env(local_gateway_port)
 }

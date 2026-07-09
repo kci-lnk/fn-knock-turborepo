@@ -83,7 +83,7 @@ struct IpLocationSnapshot {
 }
 
 enum LookupOutcome {
-    Success(IpLocationResult),
+    Success(Box<IpLocationResult>),
     Failure(String),
 }
 
@@ -251,24 +251,24 @@ async fn ensure_enqueued(
         ));
     }
 
-    if let Some(cached) = state.store.get_ip_location_cache(&normalized_ip).await? {
-        if let Ok(result) = serde_json::from_value::<IpLocationResult>(cached) {
-            let current = get_state(state, &normalized_ip).await?;
-            let state_value = if current.status == "success" {
-                current
-            } else {
-                build_success_state(result, current.attempts)
-            };
-            state
-                .store
-                .set_ip_location_state(
-                    &normalized_ip,
-                    &serde_json::to_value(&state_value).unwrap_or_else(|_| json!({})),
-                    LOOKUP_SUCCESS_CACHE_TTL_SECONDS,
-                )
-                .await?;
-            return Ok(build_snapshot(ip, &normalized_ip, &state_value));
-        }
+    if let Some(cached) = state.store.get_ip_location_cache(&normalized_ip).await?
+        && let Ok(result) = serde_json::from_value::<IpLocationResult>(cached)
+    {
+        let current = get_state(state, &normalized_ip).await?;
+        let state_value = if current.status == "success" {
+            current
+        } else {
+            build_success_state(result, current.attempts)
+        };
+        state
+            .store
+            .set_ip_location_state(
+                &normalized_ip,
+                &serde_json::to_value(&state_value).unwrap_or_else(|_| json!({})),
+                LOOKUP_SUCCESS_CACHE_TTL_SECONDS,
+            )
+            .await?;
+        return Ok(build_snapshot(ip, &normalized_ip, &state_value));
     }
 
     if http_utils::is_private_or_local_ip(&normalized_ip) {
@@ -403,6 +403,7 @@ async fn process_one(state: &AppState, ip: &str) -> anyhow::Result<()> {
         let next_attempt = attempts + 1;
         match lookup_remote(state, ip, lookup_timeout).await {
             LookupOutcome::Success(result) => {
+                let result = *result;
                 let success_state = build_success_state(result.clone(), next_attempt);
                 state
                     .store
@@ -514,7 +515,7 @@ async fn lookup_remote(state: &AppState, ip: &str, timeout: Duration) -> LookupO
     }
 
     match to_location_result(ip, &payload) {
-        Some(result) => LookupOutcome::Success(result),
+        Some(result) => LookupOutcome::Success(Box::new(result)),
         None => LookupOutcome::Failure("empty lookup result".to_string()),
     }
 }

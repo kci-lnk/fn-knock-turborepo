@@ -116,7 +116,7 @@ pub(super) fn localize_ddns_provider(provider: &mut Value, translator: &Translat
         }
         if let Some(fields) = object.get_mut("fields").and_then(Value::as_array_mut) {
             for field in fields {
-                localize_ddns_field(field, &provider_key, translator);
+                localize_ddns_field(field, provider_key, translator);
             }
         }
     }
@@ -320,12 +320,12 @@ pub(super) fn ddns_catalog_text(
 
 pub(super) fn ddns_text(translator: &Translator, key: &str, params: &[(&str, String)]) -> String {
     let full_key = format!("server.ddns.{key}");
-    let translated = if params.is_empty() {
+
+    if params.is_empty() {
         translator.t(&full_key)
     } else {
         translator.t_params(&full_key, params)
-    };
-    translated
+    }
 }
 
 pub(super) fn ddns_provider_i18n_key(provider_name: &str) -> &str {

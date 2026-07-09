@@ -1,4 +1,9 @@
-use std::{fs, path::Path, sync::Mutex, time::Instant};
+use std::{
+    fs,
+    path::Path,
+    sync::{Mutex, MutexGuard},
+    time::Instant,
+};
 
 use ::time::{OffsetDateTime, UtcOffset, format_description::well_known::Rfc2822};
 use axum::http::header;
@@ -12,7 +17,7 @@ use super::{
 };
 
 pub(super) async fn cached_clock_status(state: &AppState, translator: &Translator) -> Value {
-    if let Some(status) = clock_status_lock().lock().unwrap().clone() {
+    if let Some(status) = clock_status_guard().clone() {
         return localize_clock_status(status, translator);
     }
     build_clock_status(state, false, translator).await
@@ -20,7 +25,7 @@ pub(super) async fn cached_clock_status(state: &AppState, translator: &Translato
 
 pub(super) async fn refresh_clock_status(state: &AppState, translator: &Translator) -> Value {
     let status = build_clock_status(state, true, translator).await;
-    *clock_status_lock().lock().unwrap() = Some(status.clone());
+    *clock_status_guard() = Some(status.clone());
     status
 }
 
@@ -282,12 +287,12 @@ pub(super) async fn sync_system_clock_inner(
     next["lastSyncAt"] = json!(time_utils::now_iso());
     next["lastSyncError"] = Value::Null;
     next["syncSummary"] = json!(message.clone());
-    *clock_status_lock().lock().unwrap() = Some(next.clone());
+    *clock_status_guard() = Some(next.clone());
     Ok((message, next))
 }
 
 pub(super) fn preserve_clock_sync_metadata(status: &mut Value) {
-    let previous = clock_status_lock().lock().unwrap().clone();
+    let previous = clock_status_guard().clone();
     preserve_clock_sync_metadata_from(status, previous.as_ref());
 }
 
@@ -327,7 +332,7 @@ pub(super) fn set_clock_sync_error(message: String) {
 }
 
 pub(super) fn update_cached_clock_sync_metadata(update: impl FnOnce(&mut Value)) {
-    let mut guard = clock_status_lock().lock().unwrap();
+    let mut guard = clock_status_guard();
     let mut status = guard.take().unwrap_or_else(initial_clock_status);
     update(&mut status);
     *guard = Some(status);
@@ -357,6 +362,12 @@ pub(super) fn initial_clock_status() -> Value {
         "lastSyncError": Value::Null,
         "syncSummary": Value::Null
     })
+}
+
+fn clock_status_guard() -> MutexGuard<'static, Option<Value>> {
+    clock_status_lock()
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
 }
 
 pub(super) fn clock_sync_target_epoch_ms(

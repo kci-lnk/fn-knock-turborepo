@@ -163,7 +163,7 @@ pub async fn create_login_session(
         expires_at,
         whitelist_record_id,
         post_login_ip_grant_mode: (session.grant_type.as_deref() == Some("login_ip_grant"))
-            .then(|| effective_post_login_mode),
+            .then_some(effective_post_login_mode),
         session_comment,
     })
 }

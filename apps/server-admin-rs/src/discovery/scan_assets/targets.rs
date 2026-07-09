@@ -144,10 +144,10 @@ pub(super) fn normalize_discover_self_hosts(
 
 pub(super) fn collect_excluded_ports(state: &AppState) -> Vec<u16> {
     let mut ports = Vec::new();
-    if !runtime_profile::admin_panel_protected_runtime(state) {
-        if let Some(port) = excluded_env_port("ADMIN_VIEW_PORT", 7991) {
-            ports.push(port);
-        }
+    if !runtime_profile::admin_panel_protected_runtime(state)
+        && let Some(port) = excluded_env_port("ADMIN_VIEW_PORT", 7991)
+    {
+        ports.push(port);
     }
     let default_backend_port = if deployment_target(state) == "openwrt" {
         17_998

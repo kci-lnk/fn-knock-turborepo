@@ -630,14 +630,15 @@ pub(super) fn exempt_ports(
 ) -> Vec<String> {
     let mut ports = BTreeSet::new();
     ports.insert(gateway_port().to_string());
-    if run_type == 3 && protocol_mapping_enabled {
-        if let Some(mappings) = config.get("stream_mappings").and_then(Value::as_array) {
-            for mapping in mappings {
-                if let Some(port) = mapping.get("listen_port").and_then(Value::as_i64)
-                    && (1..=65535).contains(&port)
-                {
-                    ports.insert(port.to_string());
-                }
+    if run_type == 3
+        && protocol_mapping_enabled
+        && let Some(mappings) = config.get("stream_mappings").and_then(Value::as_array)
+    {
+        for mapping in mappings {
+            if let Some(port) = mapping.get("listen_port").and_then(Value::as_i64)
+                && (1..=65535).contains(&port)
+            {
+                ports.insert(port.to_string());
             }
         }
     }

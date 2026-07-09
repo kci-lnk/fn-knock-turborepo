@@ -79,10 +79,10 @@ async fn run_auth_bridge_once(state: AppState) -> anyhow::Result<()> {
         let state = state.clone();
         tokio::spawn(async move {
             let _permit = permit;
-            if let Some(response) = handle_bridge_message(state, message).await {
-                if let Err(error) = tx.send(response).await {
-                    tracing::debug!(%error, "failed to send auth bridge response");
-                }
+            if let Some(response) = handle_bridge_message(state, message).await
+                && let Err(error) = tx.send(response).await
+            {
+                tracing::debug!(%error, "failed to send auth bridge response");
             }
         });
     }

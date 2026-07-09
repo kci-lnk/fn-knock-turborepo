@@ -204,7 +204,7 @@ fn localize_connection_test_error(message: &str, translator: &Translator) -> Str
         "connectionTest.invalidData" | "Invalid response data" => {
             admin_text(translator, "connectionTest.invalidData")
         }
-        value if value.is_empty() => admin_text(translator, "connectionTest.failed"),
+        "" => admin_text(translator, "connectionTest.failed"),
         value => value.to_string(),
     }
 }

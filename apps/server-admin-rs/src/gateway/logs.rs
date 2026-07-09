@@ -494,10 +494,10 @@ fn append_if_some(
     key: &str,
     value: Option<&str>,
 ) {
-    if let Some(value) = value {
-        if !value.is_empty() {
-            serializer.append_pair(key, value);
-        }
+    if let Some(value) = value
+        && !value.is_empty()
+    {
+        serializer.append_pair(key, value);
     }
 }
 

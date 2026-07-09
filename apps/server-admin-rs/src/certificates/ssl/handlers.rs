@@ -342,16 +342,15 @@ pub(super) async fn save_certificate(
                 config_for_sync = Some(config);
                 deployment_mode
             };
-            if should_sync_ssl_deployment_after_save(activate, deployment_mode) {
-                if let Err(error) =
+            if should_sync_ssl_deployment_after_save(activate, deployment_mode)
+                && let Err(error) =
                     sync_ssl_deployment_to_gateway(&state, config_for_sync.as_ref()).await
-                {
-                    tracing::warn!(%error, "failed to sync SSL deployment after save");
-                    return response::error(
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        ssl_gateway_error(&translator, &error.to_string()),
-                    );
-                }
+            {
+                tracing::warn!(%error, "failed to sync SSL deployment after save");
+                return response::error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    ssl_gateway_error(&translator, &error.to_string()),
+                );
             }
             response::ok(json!({ "id": saved.get("id").and_then(Value::as_str).unwrap_or("") }))
                 .into_response()
@@ -410,20 +409,18 @@ pub(super) async fn set_deployment_mode(
             .and_then(Value::as_str)
             .unwrap_or("")
             .is_empty()
-    {
-        if let Some(first) = ssl
+        && let Some(first) = ssl
             .get("certificates")
             .and_then(Value::as_array)
             .and_then(|items| items.first())
             .cloned()
-        {
-            let active_id = first
-                .get("id")
-                .and_then(Value::as_str)
-                .unwrap_or("")
-                .to_string();
-            ssl = mirror_active_ssl_certificate(&ssl, Some(&active_id));
-        }
+    {
+        let active_id = first
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        ssl = mirror_active_ssl_certificate(&ssl, Some(&active_id));
     }
     config["ssl"] = ssl;
     if let Err(error) = state.store.save_config(&config).await {
@@ -468,13 +465,13 @@ pub(super) async fn delete_certificate(
                 .pointer("/ssl/deployment_mode")
                 .and_then(Value::as_str)
                 .unwrap_or("single_active");
-            if removed_active || deployment_mode == "multi_sni" {
-                if let Err(error) = sync_ssl_deployment_to_gateway(&state, Some(&config)).await {
-                    return response::error(
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        ssl_gateway_error(&translator, &error.to_string()),
-                    );
-                }
+            if (removed_active || deployment_mode == "multi_sni")
+                && let Err(error) = sync_ssl_deployment_to_gateway(&state, Some(&config)).await
+            {
+                return response::error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    ssl_gateway_error(&translator, &error.to_string()),
+                );
             }
             response::success_empty().into_response()
         }

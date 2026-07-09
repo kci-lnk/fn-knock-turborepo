@@ -83,6 +83,7 @@ pub(in crate::notifications::routes) async fn read_provider_response(
     (status.as_u16(), ok, text, parsed)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(in crate::notifications::routes) fn provider_result_from_api<S, M>(
     provider_label: &str,
     request_summary: Value,

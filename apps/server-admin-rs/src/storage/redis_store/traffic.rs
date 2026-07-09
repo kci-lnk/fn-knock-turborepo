@@ -69,15 +69,9 @@ impl Store {
 
         for (index, record) in records.iter().enumerate() {
             let offset = index * 3;
-            let last_in = last_values
-                .get(offset)
-                .and_then(|value| parse_finite(value));
-            let last_out = last_values
-                .get(offset + 1)
-                .and_then(|value| parse_finite(value));
-            let last_5xx = last_values
-                .get(offset + 2)
-                .and_then(|value| parse_finite(value));
+            let last_in = last_values.get(offset).and_then(parse_finite);
+            let last_out = last_values.get(offset + 1).and_then(parse_finite);
+            let last_5xx = last_values.get(offset + 2).and_then(parse_finite);
             let delta_in = compute_counter_delta(record.total_in, last_in);
             let delta_out = compute_counter_delta(record.total_out, last_out);
             let delta_5xx = compute_counter_delta(record.error_5xx, last_5xx);

@@ -56,7 +56,7 @@ pub(super) async fn register_login_session(
         "lastSeenAt": now_iso,
     });
     let login_event = mobility_login_event(ip, ip_location, None);
-    let summary = mobility_summary(&[login_event.clone()]);
+    let summary = mobility_summary(std::slice::from_ref(&login_event));
     state
         .store
         .initialize_auth_mobility_login_session(

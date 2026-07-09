@@ -243,6 +243,7 @@ pub(in crate::ddns::routes) async fn update_esa(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(in crate::ddns::routes) async fn aliyun_acs3_request(
     translator: &Translator,
     client: &DDNSHttpClient,

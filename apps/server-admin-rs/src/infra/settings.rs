@@ -299,12 +299,11 @@ pub(crate) fn parse_cron_interval_seconds(value: &str, fallback: u64) -> u64 {
             if let Some(value) = parse_every_field(seconds) {
                 return value.max(1);
             }
-            if *seconds == "0" {
-                if let Some(value) =
+            if *seconds == "0"
+                && let Some(value) =
                     interval_from_minute_hour_day(minutes, hours, Some(*day_of_month))
-                {
-                    return value;
-                }
+            {
+                return value;
             }
         }
         [minutes, hours, day_of_month, ..] if fields.len() == 5 => {

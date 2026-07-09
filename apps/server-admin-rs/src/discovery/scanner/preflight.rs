@@ -30,11 +30,10 @@ pub(crate) fn is_request_exempt_from_scan(headers: &HeaderMap, uri: &Uri, config
         .map(Vec::as_slice)
         .unwrap_or(&[]);
     if let Some(mapping) = find_best_matching_proxy_mapping(&forwarded_path, proxy_mappings) {
-        return mapping
+        return !mapping
             .get("use_auth")
             .and_then(Value::as_bool)
-            .unwrap_or(true)
-            == false;
+            .unwrap_or(true);
     }
 
     resolve_default_proxy_mapping(config, proxy_mappings)

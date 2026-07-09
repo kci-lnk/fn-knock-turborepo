@@ -900,8 +900,8 @@ fn append_backup_restore_commands(pipe: &mut redis::Pipeline, entry: &Value) -> 
         _ => {}
     }
 
-    if ttl_ms.is_some() && !matches!(value_type, "none" | "string") {
-        pipe.cmd("PEXPIRE").arg(key).arg(ttl_ms.unwrap()).ignore();
+    if let Some(ttl_ms) = ttl_ms.filter(|_| !matches!(value_type, "none" | "string")) {
+        pipe.cmd("PEXPIRE").arg(key).arg(ttl_ms).ignore();
         command_count += 1;
     }
     command_count

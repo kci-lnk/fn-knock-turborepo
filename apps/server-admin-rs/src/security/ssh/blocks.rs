@@ -246,12 +246,7 @@ pub(super) fn normalize_block_record(value: Value) -> Option<Value> {
     record.insert(
         "remove_reason".to_string(),
         match raw.get("remove_reason").and_then(Value::as_str) {
-            Some("manual" | "expired" | "disabled") => Value::String(
-                raw.get("remove_reason")
-                    .and_then(Value::as_str)
-                    .unwrap()
-                    .to_string(),
-            ),
+            Some(reason @ ("manual" | "expired" | "disabled")) => Value::String(reason.to_string()),
             _ => Value::Null,
         },
     );

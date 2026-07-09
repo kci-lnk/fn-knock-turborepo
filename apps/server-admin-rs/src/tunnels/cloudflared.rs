@@ -3,7 +3,7 @@ use std::{
     io::{BufRead, BufReader, Read},
     path::{Path, PathBuf},
     process::{Command, Stdio},
-    sync::{Mutex, OnceLock},
+    sync::{Mutex, MutexGuard, OnceLock},
 };
 
 use axum::{
@@ -246,10 +246,7 @@ async fn poll(State(state): State<AppState>, Query(query): Query<LogsQuery>) -> 
         Ok(mut result) => {
             let run = manager(&state).run_status();
             let cursor = result.get("cursor").cloned().unwrap_or_else(|| json!(0));
-            let reset = result
-                .get("reset")
-                .cloned()
-                .unwrap_or_else(|| Value::Bool(false));
+            let reset = result.get("reset").cloned().unwrap_or(Value::Bool(false));
             let logs = result
                 .as_object_mut()
                 .and_then(|object| object.remove("items"))
@@ -290,8 +287,12 @@ impl CloudflaredManager {
         let _ = fs::create_dir_all(&self.dir);
     }
 
+    fn state_guard(&self) -> MutexGuard<'_, RunState> {
+        self.state.lock().unwrap_or_else(|error| error.into_inner())
+    }
+
     fn run_status(&self) -> (bool, Value) {
-        let state = self.state.lock().unwrap();
+        let state = self.state_guard();
         (
             state.running,
             state.pid.map(Value::from).unwrap_or(Value::Null),
@@ -373,7 +374,7 @@ impl CloudflaredManager {
 
     async fn start(&'static self, state: AppState) -> Result<u32, String> {
         {
-            let run = self.state.lock().unwrap();
+            let run = self.state_guard();
             if run.running {
                 return Ok(run.pid.unwrap_or_default());
             }
@@ -396,7 +397,7 @@ impl CloudflaredManager {
         let stdout = child.stdout.take();
         let stderr = child.stderr.take();
         {
-            let mut run = self.state.lock().unwrap();
+            let mut run = self.state_guard();
             run.running = true;
             run.pid = Some(pid);
             run.stop_requested = false;
@@ -423,7 +424,7 @@ impl CloudflaredManager {
                 Err(error) => format!("cloudflared process error: {error}"),
             };
             let (expected_stop, was_connected) = {
-                let mut run = self.state.lock().unwrap();
+                let mut run = self.state_guard();
                 if run.pid != Some(pid) {
                     return;
                 }
@@ -439,8 +440,9 @@ impl CloudflaredManager {
             handle.block_on(async move {
                 let _ = mark_tunnel_stopped(&state_for_async).await;
                 let _ = append_logs(&state_for_async, vec![exit_message.clone()]).await;
-                if !expected_stop && was_connected {
-                    if let Err(error) = system_events::publish_tunnel_connectivity_event(
+                if !expected_stop
+                    && was_connected
+                    && let Err(error) = system_events::publish_tunnel_connectivity_event(
                         &state_for_async,
                         "cloudflared",
                         false,
@@ -451,9 +453,8 @@ impl CloudflaredManager {
                         None,
                     )
                     .await
-                    {
-                        tracing::warn!(%error, pid, "failed to publish cloudflared disconnect event");
-                    }
+                {
+                    tracing::warn!(%error, pid, "failed to publish cloudflared disconnect event");
                 }
                 if !expected_stop {
                     tracing::info!(pid, "cloudflared stopped unexpectedly");
@@ -465,7 +466,7 @@ impl CloudflaredManager {
 
     async fn stop(&'static self, state: &AppState) -> Result<(), String> {
         let pid = {
-            let mut run = self.state.lock().unwrap();
+            let mut run = self.state_guard();
             run.stop_requested = true;
             run.connected = false;
             run.running = false;
@@ -563,7 +564,7 @@ async fn emit_cloudflared_connectivity(
     pid: Option<u32>,
 ) {
     let (should_emit, event_pid) = {
-        let mut run = manager(state).state.lock().unwrap();
+        let mut run = manager(state).state_guard();
         if connected {
             if run.connected {
                 return;
@@ -645,7 +646,9 @@ async fn mark_tunnel_running(state: &AppState) -> Result<(), String> {
     let mut runtime = tunnel_runtime_state(state)
         .await
         .map_err(|error| error.to_string())?;
-    let object = runtime.as_object_mut().unwrap();
+    let object = runtime
+        .as_object_mut()
+        .ok_or_else(|| "invalid tunnel runtime state".to_string())?;
     object.insert("cloudflared_enabled".to_string(), Value::Bool(true));
     object.insert(
         "last_tunnel".to_string(),
@@ -666,7 +669,9 @@ async fn mark_tunnel_stopped(state: &AppState) -> Result<(), String> {
     let mut runtime = tunnel_runtime_state(state)
         .await
         .map_err(|error| error.to_string())?;
-    let object = runtime.as_object_mut().unwrap();
+    let object = runtime
+        .as_object_mut()
+        .ok_or_else(|| "invalid tunnel runtime state".to_string())?;
     object.insert("cloudflared_enabled".to_string(), Value::Bool(false));
     object.insert(
         "updated_at".to_string(),

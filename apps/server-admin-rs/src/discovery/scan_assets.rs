@@ -3,7 +3,7 @@ use std::{
     env,
     net::{Ipv4Addr, ToSocketAddrs},
     sync::{
-        Arc, Mutex, OnceLock,
+        Arc, Mutex, MutexGuard, OnceLock,
         atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     time::{Duration, Instant},

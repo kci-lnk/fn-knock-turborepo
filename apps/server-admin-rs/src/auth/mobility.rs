@@ -279,10 +279,9 @@ fn build_or_update_mobility_binding(
     whitelist_record_id: Option<String>,
 ) -> Value {
     let now_iso = time_utils::now_iso();
-    let mut value = existing
-        .filter(Value::is_object)
-        .unwrap_or_else(|| json!({}));
-    let object = value.as_object_mut().expect("binding object");
+    let mut object: Map<String, Value> = existing
+        .and_then(|value| value.as_object().cloned())
+        .unwrap_or_default();
     object.insert("version".to_string(), json!(1));
     object.insert(
         "subjectType".to_string(),
@@ -321,7 +320,7 @@ fn build_or_update_mobility_binding(
     } else {
         object.remove("whitelistRecordId");
     }
-    value
+    Value::Object(object)
 }
 
 fn normalized_or_trimmed_ip(value: &str) -> String {

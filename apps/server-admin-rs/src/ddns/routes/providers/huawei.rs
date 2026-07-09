@@ -69,14 +69,14 @@ pub(in crate::ddns::routes) async fn update_huaweicloud(
             })
         });
     let Some(zone_id) = zone_id else {
-        return Ok(provider_failure(format!(
-            "{}",
+        return Ok(provider_failure(
             ddns_text(
                 translator,
                 "providers.huawei.zoneNotFound",
                 &[("zone", expected_zone_name.clone())],
             )
-        )));
+            .to_string(),
+        ));
     };
 
     let provider_label_text = provider_label(Some("huaweicloud"), translator);

@@ -3,7 +3,7 @@ use std::{
     io::{Read, Write},
     path::{Path, PathBuf},
     process::Command,
-    sync::{Mutex, OnceLock},
+    sync::{Mutex, MutexGuard, OnceLock},
     time::Duration,
 };
 
@@ -393,9 +393,13 @@ impl UpdateManager {
         let _ = fs::create_dir_all(&self.package_download_dir);
     }
 
+    fn inner_guard(&self) -> MutexGuard<'_, UpdateInner> {
+        self.inner.lock().unwrap_or_else(|error| error.into_inner())
+    }
+
     async fn status(&self, state: &AppState) -> anyhow::Result<Value> {
         self.ensure_confirm_by_pending(state).await?;
-        let inner = self.inner.lock().unwrap();
+        let inner = self.inner_guard();
         Ok(json!({
             "githubUrl": APP_GITHUB_URL,
             "localVersion": APP_LOCAL_VERSION,
@@ -426,7 +430,7 @@ impl UpdateManager {
         localize_errors: bool,
     ) -> anyhow::Result<()> {
         let should_run = {
-            let mut inner = self.inner.lock().unwrap();
+            let mut inner = self.inner_guard();
             if inner.check_in_progress {
                 false
             } else {
@@ -437,7 +441,7 @@ impl UpdateManager {
 
         if !should_run {
             loop {
-                if !self.inner.lock().unwrap().check_in_progress {
+                if !self.inner_guard().check_in_progress {
                     return Ok(());
                 }
                 time::sleep(Duration::from_millis(50)).await;
@@ -446,7 +450,7 @@ impl UpdateManager {
 
         let result = self.check_now_inner(&state, reason, localize_errors).await;
         {
-            let mut inner = self.inner.lock().unwrap();
+            let mut inner = self.inner_guard();
             inner.check_in_progress = false;
         }
         memory::trim_allocated_memory();
@@ -462,7 +466,7 @@ impl UpdateManager {
         match self.fetch_manifest().await {
             Ok(manifest) => {
                 let previous = {
-                    let inner = self.inner.lock().unwrap();
+                    let inner = self.inner_guard();
                     (inner.latest_manifest.clone(), inner.has_update)
                 };
                 let has_update = manifest.update_available
@@ -474,7 +478,7 @@ impl UpdateManager {
                 }
                 let force_update = has_update && manifest.force_update;
                 let should_publish_update_event = {
-                    let mut inner = self.inner.lock().unwrap();
+                    let mut inner = self.inner_guard();
                     let stale_download = inner
                         .download
                         .target_version
@@ -533,7 +537,7 @@ impl UpdateManager {
                     None
                 };
                 let error = error.message(translator.as_ref());
-                let mut inner = self.inner.lock().unwrap();
+                let mut inner = self.inner_guard();
                 inner.check_error = Some(error.clone());
                 inner.last_checked_at = Some(time_utils::now_ms());
                 tracing::warn!(%error, reason, "update check failed");
@@ -545,20 +549,20 @@ impl UpdateManager {
     async fn trigger_download(&'static self, state: AppState) -> Result<(), String> {
         let translator = Translator::from_state(&state).await;
         {
-            let inner = self.inner.lock().unwrap();
+            let inner = self.inner_guard();
             if inner.download_in_progress
                 || matches!(inner.download.status.as_str(), "downloading" | "verifying")
             {
                 return Ok(());
             }
         }
-        if self.inner.lock().unwrap().latest_manifest.is_none() {
+        if self.inner_guard().latest_manifest.is_none() {
             let _ = self
                 .check_now_localized(state.clone(), "download-bootstrap")
                 .await;
         }
         let (manifest, target_package, target_path) = {
-            let inner = self.inner.lock().unwrap();
+            let inner = self.inner_guard();
             let manifest = inner
                 .latest_manifest
                 .clone()
@@ -582,7 +586,7 @@ impl UpdateManager {
             (manifest, target_package, target_path)
         };
         {
-            let mut inner = self.inner.lock().unwrap();
+            let mut inner = self.inner_guard();
             inner.download_in_progress = true;
             inner.download = DownloadState {
                 status: "downloading".to_string(),
@@ -601,7 +605,7 @@ impl UpdateManager {
                 self.set_download_error(&error);
                 tracing::warn!(%error, "update download failed");
             }
-            self.inner.lock().unwrap().download_in_progress = false;
+            self.inner_guard().download_in_progress = false;
         });
         Ok(())
     }
@@ -609,7 +613,7 @@ impl UpdateManager {
     async fn trigger_install(&self, state: &AppState) -> Result<(), String> {
         let translator = Translator::from_state(state).await;
         let (manifest, target_package, downloaded_path) = {
-            let inner = self.inner.lock().unwrap();
+            let inner = self.inner_guard();
             if inner.download.status == "installing" {
                 return Ok(());
             }
@@ -649,7 +653,7 @@ impl UpdateManager {
             .await
             .map_err(|error| error.to_string())?;
         {
-            let mut inner = self.inner.lock().unwrap();
+            let mut inner = self.inner_guard();
             inner.download.status = "installing".to_string();
             inner.download.error = None;
         }
@@ -667,29 +671,29 @@ impl UpdateManager {
 
     async fn ensure_confirm_by_pending(&self, state: &AppState) -> anyhow::Result<()> {
         {
-            let inner = self.inner.lock().unwrap();
+            let inner = self.inner_guard();
             if inner.confirmed_pending_on_boot {
                 return Ok(());
             }
         }
         let pending = state.store.get_json_value(UPDATE_PENDING_KEY).await?;
-        if let Some(pending) = pending {
-            if let Some(target_version) = pending_confirmed_target_version(&pending) {
-                let confirm = json!({
-                    "version": target_version,
-                    "completedAt": time_utils::now_iso()
-                });
-                state
-                    .store
-                    .set_json_value_ex(UPDATE_CONFIRM_KEY, &confirm, UPDATE_CONFIRM_TTL_SECONDS)
-                    .await?;
-                state
-                    .store
-                    .delete_keys(&[UPDATE_PENDING_KEY.to_string()])
-                    .await?;
-            }
+        if let Some(pending) = pending
+            && let Some(target_version) = pending_confirmed_target_version(&pending)
+        {
+            let confirm = json!({
+                "version": target_version,
+                "completedAt": time_utils::now_iso()
+            });
+            state
+                .store
+                .set_json_value_ex(UPDATE_CONFIRM_KEY, &confirm, UPDATE_CONFIRM_TTL_SECONDS)
+                .await?;
+            state
+                .store
+                .delete_keys(&[UPDATE_PENDING_KEY.to_string()])
+                .await?;
         }
-        self.inner.lock().unwrap().confirmed_pending_on_boot = true;
+        self.inner_guard().confirmed_pending_on_boot = true;
         Ok(())
     }
 
@@ -754,7 +758,7 @@ impl UpdateManager {
                 file.write_all(&chunk).map_err(|error| error.to_string())?;
                 loaded += chunk.len() as i64;
                 let percent = download_percent(loaded, total);
-                let mut inner = self.inner.lock().unwrap();
+                let mut inner = self.inner_guard();
                 inner.download = DownloadState {
                     status: "downloading".to_string(),
                     percent,
@@ -766,7 +770,7 @@ impl UpdateManager {
             }
             file.flush().map_err(|error| error.to_string())?;
             {
-                let mut inner = self.inner.lock().unwrap();
+                let mut inner = self.inner_guard();
                 inner.download.status = "verifying".to_string();
                 inner.download.percent = 100;
             }
@@ -787,7 +791,7 @@ impl UpdateManager {
             let size = fs::metadata(&target_path)
                 .map(|metadata| metadata.len() as i64)
                 .unwrap_or(loaded);
-            let mut inner = self.inner.lock().unwrap();
+            let mut inner = self.inner_guard();
             inner.downloaded_path = Some(target_path);
             inner.downloaded_sha256 = Some(sha256);
             inner.download = DownloadState {
@@ -845,14 +849,14 @@ impl UpdateManager {
     }
 
     fn reset_download_state(&self) {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner_guard();
         inner.download = DownloadState::default();
         inner.downloaded_path = None;
         inner.downloaded_sha256 = None;
     }
 
     fn set_download_error(&self, message: &str) {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner_guard();
         inner.download.status = "error".to_string();
         inner.download.error = Some(message.to_string());
     }

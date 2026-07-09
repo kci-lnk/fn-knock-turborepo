@@ -299,7 +299,6 @@ pub(super) fn default_update_interval_minutes() -> i64 {
 
 pub(super) fn parse_legacy_ddns_cron_interval_minutes(pattern: Option<&str>) -> Option<i64> {
     let parts = pattern?
-        .trim()
         .split_whitespace()
         .filter(|part| !part.is_empty())
         .collect::<Vec<_>>();

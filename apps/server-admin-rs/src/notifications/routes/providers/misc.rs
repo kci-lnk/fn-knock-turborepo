@@ -65,7 +65,7 @@ pub(in crate::notifications::routes) fn redact_query_value(value: &str, key: &st
 
 pub(in crate::notifications::routes) fn redact_path_tail(value: &str) -> String {
     if let Ok(mut url) = url::Url::parse(value) {
-        if let Some(mut segments) = url.path_segments_mut().ok() {
+        if let Ok(mut segments) = url.path_segments_mut() {
             segments.pop().push("<redacted>");
         }
         return url.to_string();

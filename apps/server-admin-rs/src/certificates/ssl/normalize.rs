@@ -30,21 +30,21 @@ pub(super) fn normalize_ssl_config(value: Option<&Value>) -> Value {
             .and_then(|item| item.get("id").and_then(Value::as_str))
             .unwrap_or("")
             .to_string();
-        if legacy_match_id.is_empty() {
-            if let Some(migrated) = normalize_managed_certificate(json!({
+        if legacy_match_id.is_empty()
+            && let Some(migrated) = normalize_managed_certificate(json!({
                 "id": build_ssl_certificate_id(legacy_cert, legacy_key),
                 "label": default_certificate_label("current", None),
                 "source": "manual",
                 "cert": legacy_cert,
                 "key": legacy_key
-            })) {
-                legacy_match_id = migrated
-                    .get("id")
-                    .and_then(Value::as_str)
-                    .unwrap_or("")
-                    .to_string();
-                certificates.insert(0, migrated);
-            }
+            }))
+        {
+            legacy_match_id = migrated
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
+            certificates.insert(0, migrated);
         }
     }
     let active_id = raw
@@ -207,13 +207,11 @@ pub(crate) fn parse_cert_info(cert_pem: &str) -> Option<Value> {
         .next()
         .and_then(|cn| cn.as_str().ok())
         .map(str::to_string)
-    {
-        if !dns_names
+        && !dns_names
             .iter()
             .any(|entry| entry.eq_ignore_ascii_case(&cn))
-        {
-            dns_names.push(cn);
-        }
+    {
+        dns_names.push(cn);
     }
     Some(json!({
         "issuer": cert.issuer().to_string(),

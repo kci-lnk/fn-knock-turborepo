@@ -23,6 +23,7 @@ pub fn read_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
     None
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn build_cookie(
     name: &str,
     value: &str,

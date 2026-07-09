@@ -41,6 +41,7 @@ pub(super) async fn consume_callback_state_for_notice(
         .filter(|value| value.get("provider_id").and_then(Value::as_str) == Some(provider_id))
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) async fn login_error_redirect_response(
     state: &AppState,
     headers: &HeaderMap,

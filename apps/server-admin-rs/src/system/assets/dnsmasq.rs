@@ -364,7 +364,7 @@ pub(super) fn has_init_script() -> bool {
 pub(super) fn dnsmasq_install_state() -> DnsmasqInstallState {
     dnsmasq_install_state_lock()
         .lock()
-        .expect("dnsmasq install mutex poisoned")
+        .unwrap_or_else(|error| error.into_inner())
         .clone()
 }
 
@@ -405,7 +405,7 @@ pub(super) fn set_dnsmasq_install_state(
 ) {
     let mut guard = dnsmasq_install_state_lock()
         .lock()
-        .expect("dnsmasq install mutex poisoned");
+        .unwrap_or_else(|error| error.into_inner());
     guard.status = status.into();
     guard.progress = progress.clamp(0, 100);
     guard.message = message.into();

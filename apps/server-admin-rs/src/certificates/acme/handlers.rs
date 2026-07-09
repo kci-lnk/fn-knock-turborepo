@@ -863,7 +863,7 @@ pub(super) async fn build_application_overview(
             application
                 .get("renewEnabled")
                 .cloned()
-                .unwrap_or_else(|| json!(true)),
+                .unwrap_or(json!(true)),
         );
         item.insert(
             "createdAt".to_string(),
@@ -896,7 +896,7 @@ pub(super) async fn build_application_overview(
                 Some(certificate) => json!({
                     "linked": true,
                     "certificateId": certificate.get("id").cloned().unwrap_or(Value::Null),
-                    "isActive": certificate.get("is_active").cloned().unwrap_or_else(|| json!(false)),
+                    "isActive": certificate.get("is_active").cloned().unwrap_or(json!(false)),
                 }),
                 None => json!({ "linked": false }),
             },
@@ -1086,7 +1086,7 @@ pub(super) async fn delete_cert(
                 }
             };
             if let Err(error) =
-                remove_acme_domain_artifacts(&state, &[normalized_domain.clone()]).await
+                remove_acme_domain_artifacts(&state, std::slice::from_ref(&normalized_domain)).await
             {
                 tracing::warn!(%error, "failed to remove ACME certificate files");
             }

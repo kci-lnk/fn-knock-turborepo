@@ -668,5 +668,7 @@ fn json_usize(value: Option<&Value>) -> Option<usize> {
 }
 
 fn is_hex_string(value: &str) -> bool {
-    !value.is_empty() && value.len() % 2 == 0 && value.chars().all(|ch| ch.is_ascii_hexdigit())
+    !value.is_empty()
+        && value.len().is_multiple_of(2)
+        && value.chars().all(|ch| ch.is_ascii_hexdigit())
 }

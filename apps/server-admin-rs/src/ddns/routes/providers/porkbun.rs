@@ -109,11 +109,11 @@ pub(in crate::ddns::routes) async fn update_porkbun(
                     "content": ip,
                     "ttl": ttl
                 });
-                if existing_content.is_none() {
-                    if let Some(object) = body.as_object_mut() {
-                        object.insert("name".to_string(), json!(record_name));
-                        object.insert("type".to_string(), json!(record_type));
-                    }
+                if existing_content.is_none()
+                    && let Some(object) = body.as_object_mut()
+                {
+                    object.insert("name".to_string(), json!(record_name));
+                    object.insert("type".to_string(), json!(record_type));
                 }
                 let result =
                     porkbun_request(translator, &client, &path, &api_key, &secret_api_key, body)

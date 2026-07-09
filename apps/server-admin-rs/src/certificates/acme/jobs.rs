@@ -55,13 +55,13 @@ pub(super) async fn reserve_acme_application_job(
     t: &Translator,
 ) -> anyhow::Result<(Value, Value)> {
     ensure_acme_installed_for_request(state, t).await?;
-    let active_lock = get_active_acme_runtime_lock(&state).await?;
+    let active_lock = get_active_acme_runtime_lock(state).await?;
     if active_lock.get("locked").and_then(Value::as_bool) == Some(true) {
         anyhow::bail!(t.t("server.acmeJobRunner.activeTaskRunning"));
     }
 
-    let job = build_queued_acme_job(&application, trigger, &t)?;
-    let lock = build_acme_runtime_lock(&application, &job, trigger);
+    let job = build_queued_acme_job(application, trigger, t)?;
+    let lock = build_acme_runtime_lock(application, &job, trigger);
     let leased_lock = with_runtime_lock_lease(lock);
     let acquired = state
         .store
@@ -81,13 +81,13 @@ pub(super) async fn reserve_acme_application_job(
         .unwrap_or("")
         .to_string();
     if let Err(error) = async {
-        create_acme_job(&state, &job, &t).await?;
-        clear_acme_logs(&state, &job_id).await?;
-        update_acme_application_job_state(&state, &application, &job).await
+        create_acme_job(state, &job, t).await?;
+        clear_acme_logs(state, &job_id).await?;
+        update_acme_application_job_state(state, application, &job).await
     }
     .await
     {
-        release_acme_runtime_lock(&state, &leased_lock).await.ok();
+        release_acme_runtime_lock(state, &leased_lock).await.ok();
         return Err(error);
     }
 

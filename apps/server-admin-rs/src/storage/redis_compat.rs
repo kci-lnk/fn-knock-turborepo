@@ -793,7 +793,7 @@ impl ConnectionManager {
         T: Send + 'static,
         F: FnOnce(&mut rusqlite::Connection) -> RedisResult<T> + Send + 'static,
     {
-        Ok(self.db.call(f).await.map_err(StorageError::from)?)
+        self.db.call(f).await.map_err(StorageError::from)
     }
 
     pub(crate) async fn get<K: IntoKey, T: FromOptionalString>(
@@ -1647,14 +1647,12 @@ fn execute_command_tx(
         "RPUSH" => {
             let key = arg(&args, 0)?.to_string();
             ensure_key_tx(tx, &key, "list", None)?;
-            let mut idx =
-                count_rows_tx(tx, "SELECT COUNT(*) FROM kv_list WHERE key = ?1", &[&key])?;
-            for value in &args[1..] {
+            let idx = count_rows_tx(tx, "SELECT COUNT(*) FROM kv_list WHERE key = ?1", &[&key])?;
+            for (offset, value) in args[1..].iter().enumerate() {
                 tx.execute(
                     "INSERT INTO kv_list(key, idx, value) VALUES (?1, ?2, ?3)",
-                    params![key, idx, value],
+                    params![key, idx + offset as i64, value],
                 )?;
-                idx += 1;
             }
             Ok(CmdOutput::Nil)
         }
@@ -2008,7 +2006,7 @@ fn xadd_command_tx(tx: &rusqlite::Transaction<'_>, args: &[String]) -> RedisResu
     } else {
         raw_id
     };
-    if args.len() <= 2 || args[2..].len() % 2 != 0 {
+    if args.len() <= 2 || !args[2..].len().is_multiple_of(2) {
         return Err(storage_error("XADD requires field/value pairs"));
     }
     let mut fields = Vec::with_capacity(args[2..].len());
@@ -2250,10 +2248,12 @@ fn run_schema_migrations(conn: &mut rusqlite::Connection, path: &Path) -> RedisR
         conn.query_row("SELECT MAX(version) FROM schema_migrations", [], |row| {
             row.get(0)
         })?;
-    if latest_applied_version.is_some_and(|version| version > latest_known_version) {
+    if let Some(applied_version) =
+        latest_applied_version.filter(|version| *version > latest_known_version)
+    {
         return Err(storage_error(format!(
             "SQLite schema version {} is newer than this server supports ({latest_known_version})",
-            latest_applied_version.unwrap()
+            applied_version
         )));
     }
 

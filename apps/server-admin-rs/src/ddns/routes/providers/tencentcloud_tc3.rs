@@ -1,5 +1,6 @@
 use super::*;
 
+#[allow(clippy::too_many_arguments)]
 pub(in crate::ddns::routes) async fn tencentcloud_tc3_request(
     translator: &Translator,
     client: &DDNSHttpClient,

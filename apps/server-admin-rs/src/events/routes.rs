@@ -147,10 +147,10 @@ fn waf_blocked_body(event: &Value) -> Option<InternalSystemEventBody> {
         "route_key",
         "bundle_id",
     ] {
-        if let Some(value) = event.get(key).and_then(Value::as_str) {
-            if !value.is_empty() {
-                payload.insert(key.to_string(), Value::String(value.to_string()));
-            }
+        if let Some(value) = event.get(key).and_then(Value::as_str)
+            && !value.is_empty()
+        {
+            payload.insert(key.to_string(), Value::String(value.to_string()));
         }
     }
     if let Some(status) = event
@@ -416,6 +416,7 @@ fn auth_session_ip_drift_body(payload: Value) -> InternalSystemEventBody {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn publish_tunnel_connectivity_event(
     state: &AppState,
     tunnel: &str,
@@ -718,10 +719,8 @@ async fn publish_system_event_body(
         .append_system_event(&event, event_config.retention_days)
         .await
     {
-        if acquired_dedupe {
-            if let Some(key) = event.get("dedupe_key").and_then(Value::as_str) {
-                let _ = state.store.release_system_event_dedupe(key).await;
-            }
+        if acquired_dedupe && let Some(key) = event.get("dedupe_key").and_then(Value::as_str) {
+            let _ = state.store.release_system_event_dedupe(key).await;
         }
         return Err(error.into());
     }
@@ -754,13 +753,13 @@ async fn publish_internal_event(
             system_event_route_text(&translator, "unsupportedSystemEventSource"),
         );
     }
-    if let Some(level) = body.level.as_deref().filter(|value| !value.is_empty()) {
-        if !is_allowed(SYSTEM_EVENT_LEVELS, level) {
-            return response::error(
-                StatusCode::BAD_REQUEST,
-                system_event_route_text(&translator, "unsupportedSystemEventLevel"),
-            );
-        }
+    if let Some(level) = body.level.as_deref().filter(|value| !value.is_empty())
+        && !is_allowed(SYSTEM_EVENT_LEVELS, level)
+    {
+        return response::error(
+            StatusCode::BAD_REQUEST,
+            system_event_route_text(&translator, "unsupportedSystemEventLevel"),
+        );
     }
     let subject = match normalize_subject(body.subject.clone()) {
         Ok(subject) => subject,
@@ -833,10 +832,8 @@ async fn publish_internal_event(
             Json(json!({ "success": true, "skipped": false, "data": event })).into_response()
         }
         Err(error) => {
-            if acquired_dedupe {
-                if let Some(key) = event.get("dedupe_key").and_then(Value::as_str) {
-                    let _ = state.store.release_system_event_dedupe(key).await;
-                }
+            if acquired_dedupe && let Some(key) = event.get("dedupe_key").and_then(Value::as_str) {
+                let _ = state.store.release_system_event_dedupe(key).await;
             }
             tracing::warn!(%error, "failed to append system event");
             response::error(

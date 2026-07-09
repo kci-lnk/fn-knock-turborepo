@@ -301,28 +301,25 @@ pub(super) async fn resolve_preflight_normal_access(
         });
     }
 
-    if access_mode != RequestedAccessMode::StrictWhitelist {
-        if identity.has_app_mobility_signal() {
-            let mobility = resolve_mobility_subdomain_access(
-                state, headers, uri, config, client_ip, &identity,
-            )
-            .await?;
-            if has_resolvable_auth_mobility_access(state, client_ip, &identity).await? {
-                if mobility.protected_host && (!mobility.has_owner_session || !mobility.allowed) {
-                    return Ok(PreflightNormalAccess {
-                        authorized: false,
-                        deny_reason: Some(REAUTH_SCOPE_DENIED.to_string()),
-                        response_headers: mobility.response_headers,
-                        ..Default::default()
-                    });
-                }
+    if access_mode != RequestedAccessMode::StrictWhitelist && identity.has_app_mobility_signal() {
+        let mobility =
+            resolve_mobility_subdomain_access(state, headers, uri, config, client_ip, &identity)
+                .await?;
+        if has_resolvable_auth_mobility_access(state, client_ip, &identity).await? {
+            if mobility.protected_host && (!mobility.has_owner_session || !mobility.allowed) {
                 return Ok(PreflightNormalAccess {
-                    authorized: true,
-                    grant_type: Some("fnos_fingerprint_session".to_string()),
+                    authorized: false,
+                    deny_reason: Some(REAUTH_SCOPE_DENIED.to_string()),
                     response_headers: mobility.response_headers,
                     ..Default::default()
                 });
             }
+            return Ok(PreflightNormalAccess {
+                authorized: true,
+                grant_type: Some("fnos_fingerprint_session".to_string()),
+                response_headers: mobility.response_headers,
+                ..Default::default()
+            });
         }
     }
 

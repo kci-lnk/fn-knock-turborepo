@@ -98,6 +98,7 @@ pub(super) async fn save_ssl_certificate(
     Ok(next)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn save_acme_certificate_to_library(
     state: &AppState,
     id: Option<&str>,

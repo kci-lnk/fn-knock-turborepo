@@ -546,7 +546,10 @@ pub(in crate::notifications::routes) fn build_bark_payload(
     for key in ["group", "sound", "url", "icon"] {
         insert_non_empty(&mut payload, key, config_text(&target_config, key));
     }
-    if let Some(action_url) = (!payload.get("url").is_some()).then(|| primary_action_url(message))
+    if let Some(action_url) = payload
+        .get("url")
+        .is_none()
+        .then(|| primary_action_url(message))
         && !action_url.is_empty()
     {
         insert_string(&mut payload, "url", action_url);

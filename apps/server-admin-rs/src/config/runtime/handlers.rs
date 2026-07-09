@@ -291,22 +291,21 @@ pub(super) async fn update_protocol_mapping_feature(
             admin_text(&translator, "protocolMapping.updateFeatureFailed"),
         );
     }
-    if next.get("enabled").and_then(Value::as_bool) == Some(false) {
-        if let Err(error) = state.store.save_config(&next_config).await {
-            tracing::warn!(%error, "failed to clear stream mappings after protocol mapping disabled");
-            if let Err(rollback_error) =
-                save_protocol_mapping_feature(&state, &previous_settings).await
-            {
-                tracing::warn!(
-                    %rollback_error,
-                    "failed to rollback protocol mapping feature key"
-                );
-            }
-            return response::error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                admin_text(&translator, "protocolMapping.updateFeatureFailed"),
+    if next.get("enabled").and_then(Value::as_bool) == Some(false)
+        && let Err(error) = state.store.save_config(&next_config).await
+    {
+        tracing::warn!(%error, "failed to clear stream mappings after protocol mapping disabled");
+        if let Err(rollback_error) = save_protocol_mapping_feature(&state, &previous_settings).await
+        {
+            tracing::warn!(
+                %rollback_error,
+                "failed to rollback protocol mapping feature key"
             );
         }
+        return response::error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            admin_text(&translator, "protocolMapping.updateFeatureFailed"),
+        );
     }
 
     match apply_run_type_config(&state, &next_config, run_type).await {

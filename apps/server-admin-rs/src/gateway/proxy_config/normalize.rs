@@ -303,17 +303,17 @@ fn normalize_host_mapping_availability_for_route(
         .unwrap_or("");
     match validate_host_availability_window(start_time, end_time) {
         Ok(()) => {}
-        Err(HostAvailabilityWindowError::InvalidStartTime) => {
+        Err(HostAvailabilityWindowError::InvalidStart) => {
             return Err(format!(
                 "Host mapping {host} availability start_time must use HH:mm"
             ));
         }
-        Err(HostAvailabilityWindowError::InvalidEndTime) => {
+        Err(HostAvailabilityWindowError::InvalidEnd) => {
             return Err(format!(
                 "Host mapping {host} availability end_time must use HH:mm"
             ));
         }
-        Err(HostAvailabilityWindowError::SameTime) => {
+        Err(HostAvailabilityWindowError::Same) => {
             return Err(format!(
                 "Host mapping {host} availability start_time and end_time must be different"
             ));
@@ -329,9 +329,9 @@ fn normalize_host_mapping_availability_for_route(
 
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum HostAvailabilityWindowError {
-    InvalidStartTime,
-    InvalidEndTime,
-    SameTime,
+    InvalidStart,
+    InvalidEnd,
+    Same,
 }
 
 pub(super) fn validate_host_availability_window(
@@ -339,11 +339,11 @@ pub(super) fn validate_host_availability_window(
     end_time: &str,
 ) -> Result<(), HostAvailabilityWindowError> {
     let start_minute = parse_host_availability_minute(start_time)
-        .ok_or(HostAvailabilityWindowError::InvalidStartTime)?;
-    let end_minute = parse_host_availability_minute(end_time)
-        .ok_or(HostAvailabilityWindowError::InvalidEndTime)?;
+        .ok_or(HostAvailabilityWindowError::InvalidStart)?;
+    let end_minute =
+        parse_host_availability_minute(end_time).ok_or(HostAvailabilityWindowError::InvalidEnd)?;
     if start_minute == end_minute {
-        return Err(HostAvailabilityWindowError::SameTime);
+        return Err(HostAvailabilityWindowError::Same);
     }
     Ok(())
 }

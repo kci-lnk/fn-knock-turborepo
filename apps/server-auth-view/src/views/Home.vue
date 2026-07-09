@@ -23,7 +23,7 @@
         {{ logoutHint }}
       </p>
       <div
-        v-if="isPasskeySupported && !isPasskeyAvailable"
+        v-if="canShowPasskeyBind"
         class="flex flex-col gap-2"
       >
         <Button
@@ -127,7 +127,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { AuthGrantType } from "@frontend-core/auth/types";
+import type {
+  AuthAccessState,
+  AuthGrantType,
+} from "@frontend-core/auth/types";
 import { apiClient, AuthAPI } from "@/lib/api";
 import { useClientIpLocation } from "@/lib/client-ip-location";
 import {
@@ -155,6 +158,7 @@ const canShowLogoutButton = ref(true);
 const logoutDelayRemainingSeconds = ref(0);
 const showLogoutConfirmDialog = ref(false);
 const authGrantType = ref<AuthGrantType | undefined>(undefined);
+const authLoginMode = ref<AuthAccessState["login_mode"]>(undefined);
 const { isPasskeySupported, refreshBrowserCapabilities } =
   useAuthBrowserCapabilities();
 const { applyAuthSystemConfig } = useAuthSystemConfig(i18n);
@@ -198,6 +202,13 @@ const logoutDialogKey = computed(() =>
 
 const logoutDialogDescription = computed(() =>
   t(`auth.home.logoutDialogDescriptions.${logoutDialogKey.value}`),
+);
+
+const canShowPasskeyBind = computed(
+  () =>
+    isPasskeySupported.value &&
+    !isPasskeyAvailable.value &&
+    authLoginMode.value !== "password",
 );
 
 let logoutDelayTimer: ReturnType<typeof window.setTimeout> | null = null;
@@ -254,6 +265,7 @@ async function loadSession() {
     startLocationPolling(session.client);
     isPasskeyAvailable.value = !!session.passkey.available;
     authGrantType.value = session.auth.grant_type;
+    authLoginMode.value = session.auth.login_mode;
     return true;
   } catch (e: any) {
     console.error("Auth session request failed:", e);
@@ -305,8 +317,7 @@ async function handleLogout() {
 async function handlePasskeyBind() {
   if (
     isPasskeyBinding.value ||
-    !isPasskeySupported.value ||
-    isPasskeyAvailable.value
+    !canShowPasskeyBind.value
   ) {
     return;
   }

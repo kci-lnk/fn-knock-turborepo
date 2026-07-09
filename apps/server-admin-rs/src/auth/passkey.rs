@@ -655,7 +655,7 @@ async fn register_options(
             ));
         }
     };
-    let (options, registration_state) = match webauthn.start_securitykey_registration(
+    let (mut options, registration_state) = match webauthn.start_securitykey_registration(
         PASSKEY_ADMIN_UUID,
         "admin",
         "admin",
@@ -672,6 +672,17 @@ async fn register_options(
             ));
         }
     };
+    let registration_state =
+        match require_registration_user_verification(&mut options, registration_state) {
+            Ok(value) => value,
+            Err(error) => {
+                tracing::warn!(%error, "failed to normalize passkey registration state");
+                return with_auth_headers(response::error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    passkey_text(&translator, "createRegistrationOptionsFailed"),
+                ));
+            }
+        };
     let challenge = URL_SAFE_NO_PAD.encode(&options.public_key.challenge);
     if let Err(error) = state
         .store
@@ -704,6 +715,21 @@ async fn register_options(
     }
 
     with_auth_headers(response::ok(options.public_key).into_response())
+}
+
+fn require_registration_user_verification(
+    options: &mut CreationChallengeResponse,
+    registration_state: SecurityKeyRegistration,
+) -> serde_json::Result<Value> {
+    if let Some(selection) = options.public_key.authenticator_selection.as_mut() {
+        selection.user_verification = UserVerificationPolicy::Required;
+    }
+
+    let mut state = serde_json::to_value(registration_state)?;
+    if let Some(policy) = state.pointer_mut("/rs/policy") {
+        *policy = Value::String("required".to_string());
+    }
+    Ok(state)
 }
 
 async fn register_verify(
@@ -1050,6 +1076,16 @@ fn passkey_backoff_response(
 }
 
 fn passkey_to_security_key(value: &Value) -> Option<SecurityKey> {
+    if let Some(credential) = value.get("webauthnCredential") {
+        return match serde_json::from_value::<Credential>(credential.clone()) {
+            Ok(credential) => Some(SecurityKey::from(credential)),
+            Err(error) => {
+                tracing::warn!(%error, "failed to decode stored passkey credential");
+                None
+            }
+        };
+    }
+
     let id = string_field(value, "id")?;
     let public_key = string_field(value, "publicKey")?;
     let cred_id = URL_SAFE_NO_PAD.decode(id).ok()?;

@@ -144,6 +144,66 @@ fn passkey_device_name_matches_node_fallback_without_trimming() {
 }
 
 #[test]
+fn registration_options_require_uv_when_credprotect_requires_uv() {
+    let rp_info = RpInfo {
+        rp_id: "auth.example.com".to_string(),
+        origin: "https://auth.example.com".to_string(),
+        mode: "auth_host".to_string(),
+    };
+    let webauthn = build_webauthn(&rp_info).expect("valid rp config");
+    let (mut options, registration_state) = webauthn
+        .start_securitykey_registration(PASSKEY_ADMIN_UUID, "admin", "admin", None, None, None)
+        .expect("registration options");
+
+    let state = require_registration_user_verification(&mut options, registration_state)
+        .expect("registration state serializes");
+    let options = serde_json::to_value(options.public_key).expect("options serialize");
+
+    assert_eq!(
+        options.pointer("/authenticatorSelection/userVerification"),
+        Some(&json!("required"))
+    );
+    assert_eq!(
+        options.pointer("/extensions/credentialProtectionPolicy"),
+        Some(&json!("userVerificationRequired"))
+    );
+    assert_eq!(state.pointer("/rs/policy"), Some(&json!("required")));
+}
+
+#[test]
+fn malformed_stored_webauthn_credential_does_not_fallback_to_legacy_fields() {
+    let legacy_key = COSEKey {
+        type_: COSEAlgorithm::ES256,
+        key: COSEKeyType::EC_EC2(COSEEC2Key {
+            curve: ECDSACurve::SECP256R1,
+            x: vec![
+                194, 126, 127, 109, 252, 23, 131, 21, 252, 6, 223, 99, 44, 254, 140, 27, 230, 17,
+                94, 5, 133, 28, 104, 41, 144, 69, 171, 149, 161, 26, 200, 243,
+            ],
+            y: vec![
+                143, 123, 183, 156, 24, 178, 21, 248, 117, 159, 162, 69, 171, 52, 188, 252, 26, 59,
+                6, 47, 103, 92, 19, 58, 117, 103, 249, 0, 219, 8, 95, 196,
+            ],
+        }),
+    };
+    let mut passkey = json!({
+        "id": URL_SAFE_NO_PAD.encode([1u8, 2, 3, 4]),
+        "publicKey": cose_key_to_base64url(&legacy_key).expect("legacy public key encodes"),
+        "webauthnCredential": {
+            "registration_policy": "required"
+        }
+    });
+
+    assert!(passkey_to_security_key(&passkey).is_none());
+
+    passkey
+        .as_object_mut()
+        .expect("fixture is object")
+        .remove("webauthnCredential");
+    assert!(passkey_to_security_key(&passkey).is_some());
+}
+
+#[test]
 fn rejects_unrelated_cookie_domain() {
     let mut headers = HeaderMap::new();
     headers.insert("host", HeaderValue::from_static("auth.example.com"));

@@ -1,0 +1,18 @@
+[Unit]
+Description=fn-knock reverse proxy and administration service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/fn-knock/fn-knock.env
+ExecStart=/opt/fn-knock/current/bin/fn-knock-entrypoint
+Restart=on-failure
+RestartSec=3s
+TimeoutStopSec=30s
+KillMode=control-group
+LimitNOFILE=1048576
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

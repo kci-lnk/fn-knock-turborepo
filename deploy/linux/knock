@@ -1,0 +1,621 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SERVICE_NAME="${FN_KNOCK_SERVICE_NAME:-fn-knock}"
+APP_ROOT="${FN_KNOCK_APP_ROOT:-/opt/fn-knock}"
+RELEASES_DIR="${APP_ROOT}/releases"
+CURRENT_LINK="${APP_ROOT}/current"
+PREVIOUS_LINK="${APP_ROOT}/previous"
+CONFIG_DIR="${FN_KNOCK_CONFIG_DIR:-/etc/fn-knock}"
+ENV_FILE="${FN_KNOCK_ENV_FILE:-${CONFIG_DIR}/fn-knock.env}"
+DATA_DIR="${FN_KNOCK_DATA_DIR:-/var/lib/fn-knock}"
+UNIT_FILE="${FN_KNOCK_UNIT_FILE:-/etc/systemd/system/fn-knock.service}"
+COMMAND_FILE="${FN_KNOCK_COMMAND_FILE:-/usr/local/bin/knock}"
+DEFAULT_BASE_URL="https://cdn.fnknock.cn"
+
+log() { printf '[fn-knock] %s\n' "$*"; }
+warn() { printf '[fn-knock] WARNING: %s\n' "$*" >&2; }
+fail() { printf '[fn-knock] ERROR: %s\n' "$*" >&2; exit 1; }
+
+require_root() {
+  [ "$(id -u)" -eq 0 ] || fail "root privilege is required; run: sudo knock $*"
+}
+
+load_local_env() {
+  if [ -f "${ENV_FILE}" ]; then
+    set -a
+    # shellcheck disable=SC1090
+    . "${ENV_FILE}"
+    set +a
+  fi
+  FN_KNOCK_BASE_URL="${FN_KNOCK_BASE_URL:-${DEFAULT_BASE_URL}}"
+}
+
+normalize_arch() {
+  case "${1:-$(uname -m)}" in
+    x86_64|amd64) printf '%s\n' amd64 ;;
+    aarch64|arm64) printf '%s\n' arm64 ;;
+    armv7l|armv8l|armhf|arm) printf '%s\n' arm ;;
+    *) return 1 ;;
+  esac
+}
+
+download_file() {
+  local url="$1"
+  local output="$2"
+  if command -v curl >/dev/null 2>&1; then
+    curl --fail --silent --show-error --location --retry 3 --connect-timeout 15 -o "${output}" "${url}"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q --tries=3 --timeout=30 -O "${output}" "${url}"
+  else
+    fail "curl or wget is required"
+  fi
+}
+
+manifest_value() {
+  local file="$1"
+  local key="$2"
+  awk -v wanted="${key}" '
+    index($0, wanted "=") == 1 {
+      count++
+      value = substr($0, length(wanted) + 2)
+    }
+    END {
+      if (count != 1) exit 1
+      print value
+    }
+  ' "${file}"
+}
+
+validate_manifest() {
+  MANIFEST_VERSION="$(manifest_value "$1" VERSION)" || fail "manifest VERSION is missing or duplicated"
+  MANIFEST_URL="$(manifest_value "$1" URL)" || fail "manifest URL is missing or duplicated"
+  MANIFEST_SHA256="$(manifest_value "$1" SHA256)" || fail "manifest SHA256 is missing or duplicated"
+  MANIFEST_SIZE="$(manifest_value "$1" SIZE)" || fail "manifest SIZE is missing or duplicated"
+
+  printf '%s' "${MANIFEST_VERSION}" | grep -Eq '^[0-9][0-9A-Za-z._+-]*$' || fail "invalid manifest version"
+  printf '%s' "${MANIFEST_SHA256}" | grep -Eq '^[0-9a-fA-F]{64}$' || fail "invalid manifest SHA256"
+  printf '%s' "${MANIFEST_SIZE}" | grep -Eq '^[1-9][0-9]*$' || fail "invalid manifest size"
+  case "${MANIFEST_URL}" in
+    https://*) ;;
+    http://*) [ "${FN_KNOCK_ALLOW_INSECURE_HTTP:-0}" = "1" ] || fail "manifest URL must use HTTPS" ;;
+    *) fail "manifest URL must be absolute" ;;
+  esac
+}
+
+file_sha256() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  elif command -v openssl >/dev/null 2>&1; then
+    openssl dgst -sha256 "$1" | awk '{print $NF}'
+  else
+    fail "sha256sum or openssl is required"
+  fi
+}
+
+fetch_release() {
+  local arch="$1"
+  DOWNLOAD_DIR="$(mktemp -d /tmp/fn-knock-download.XXXXXX)"
+  local manifest="${DOWNLOAD_DIR}/latest.env"
+  local archive="${DOWNLOAD_DIR}/release.tar.gz"
+  local base="${FN_KNOCK_BASE_URL%/}"
+
+  download_file "${base}/linux/latest/${arch}.env" "${manifest}"
+  validate_manifest "${manifest}"
+  download_file "${MANIFEST_URL}" "${archive}"
+
+  local actual_size actual_sha
+  actual_size="$(wc -c < "${archive}" | tr -d '[:space:]')"
+  [ "${actual_size}" = "${MANIFEST_SIZE}" ] || fail "download size mismatch: expected ${MANIFEST_SIZE}, got ${actual_size}"
+  actual_sha="$(file_sha256 "${archive}")"
+  [ "${actual_sha}" = "${MANIFEST_SHA256}" ] || fail "download SHA256 mismatch"
+
+  tar --warning=no-unknown-keyword --warning=no-timestamp -tzf "${archive}" > "${DOWNLOAD_DIR}/archive.list"
+  grep -qx 'fn-knock/release.json' "${DOWNLOAD_DIR}/archive.list" || fail "release archive has an invalid layout"
+  tar --warning=no-unknown-keyword --warning=no-timestamp -xzf "${archive}" -C "${DOWNLOAD_DIR}"
+  DOWNLOADED_SOURCE="${DOWNLOAD_DIR}/fn-knock"
+  [ -x "${DOWNLOADED_SOURCE}/bin/knock" ] || fail "release is missing the knock command"
+}
+
+release_version() {
+  local release_dir="$1"
+  sed -nE 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "${release_dir}/release.json" | head -n1
+}
+
+current_version() {
+  if [ -f "${CURRENT_LINK}/release.json" ]; then
+    release_version "${CURRENT_LINK}"
+  else
+    printf '%s\n' unknown
+  fi
+}
+
+atomic_link() {
+  local target="$1"
+  local link="$2"
+  local temporary="${link}.new.$$"
+  ln -s "${target}" "${temporary}"
+  mv -Tf "${temporary}" "${link}"
+}
+
+install_management_files() {
+  local release_dir="$1"
+  local command_tmp="${COMMAND_FILE}.new.$$"
+  local unit_tmp="${UNIT_FILE}.new.$$"
+  install -m 0755 "${release_dir}/bin/knock" "${command_tmp}"
+  mv -f "${command_tmp}" "${COMMAND_FILE}"
+  install -m 0644 "${release_dir}/systemd/fn-knock.service" "${unit_tmp}"
+  mv -f "${unit_tmp}" "${UNIT_FILE}"
+  systemctl daemon-reload
+}
+
+snapshot_link_state() {
+  local path="$1" name="$2" snapshot_dir="$3"
+  if [ -L "${path}" ]; then
+    readlink "${path}" > "${snapshot_dir}/${name}.link"
+  elif [ -e "${path}" ]; then
+    warn "refusing to replace non-symlink path during transaction: ${path}"
+    return 1
+  else
+    : > "${snapshot_dir}/${name}.absent"
+  fi
+}
+
+snapshot_file_state() {
+  local path="$1" name="$2" snapshot_dir="$3"
+  if [ -f "${path}" ]; then
+    cp -p "${path}" "${snapshot_dir}/${name}.file"
+  elif [ -e "${path}" ] || [ -L "${path}" ]; then
+    warn "refusing to replace non-regular management file: ${path}"
+    return 1
+  else
+    : > "${snapshot_dir}/${name}.absent"
+  fi
+}
+
+create_transaction_snapshot() {
+  local snapshot_dir="$1"
+  snapshot_link_state "${CURRENT_LINK}" current "${snapshot_dir}" || return 1
+  snapshot_link_state "${PREVIOUS_LINK}" previous "${snapshot_dir}" || return 1
+  snapshot_file_state "${COMMAND_FILE}" command "${snapshot_dir}" || return 1
+  snapshot_file_state "${UNIT_FILE}" unit "${snapshot_dir}" || return 1
+
+  if systemctl is-enabled --quiet "${SERVICE_NAME}" >/dev/null 2>&1; then
+    printf '%s\n' enabled > "${snapshot_dir}/service.enabled"
+  else
+    printf '%s\n' disabled > "${snapshot_dir}/service.enabled"
+  fi
+  if systemctl is-active --quiet "${SERVICE_NAME}" >/dev/null 2>&1; then
+    printf '%s\n' active > "${snapshot_dir}/service.active"
+  else
+    printf '%s\n' inactive > "${snapshot_dir}/service.active"
+  fi
+}
+
+restore_link_state() {
+  local path="$1" name="$2" snapshot_dir="$3"
+  if [ -f "${snapshot_dir}/${name}.link" ]; then
+    atomic_link "$(< "${snapshot_dir}/${name}.link")" "${path}"
+  else
+    rm -f "${path}"
+  fi
+}
+
+restore_file_state() {
+  local path="$1" name="$2" snapshot_dir="$3"
+  local temporary="${path}.restore.$$"
+  if [ -f "${snapshot_dir}/${name}.file" ]; then
+    cp -p "${snapshot_dir}/${name}.file" "${temporary}" || return 1
+    mv -f "${temporary}" "${path}" || { rm -f "${temporary}"; return 1; }
+  else
+    rm -f "${path}"
+  fi
+}
+
+restore_transaction_snapshot() {
+  local snapshot_dir="$1"
+  local enabled_state active_state restore_failed=0
+  enabled_state="$(< "${snapshot_dir}/service.enabled")"
+  active_state="$(< "${snapshot_dir}/service.active")"
+
+  # Stop a possibly running candidate before restoring its executable links.
+  if ! systemctl stop "${SERVICE_NAME}" >/dev/null 2>&1; then
+    if systemctl is-active --quiet "${SERVICE_NAME}" >/dev/null 2>&1; then
+      warn "failed to stop the candidate service during restoration"
+      restore_failed=1
+    fi
+  fi
+  if [ "${enabled_state}" = "disabled" ]; then
+    if ! systemctl disable "${SERVICE_NAME}" >/dev/null 2>&1; then
+      if systemctl is-enabled --quiet "${SERVICE_NAME}" >/dev/null 2>&1; then
+        warn "failed to restore the disabled service state"
+        restore_failed=1
+      fi
+    fi
+  fi
+
+  restore_link_state "${CURRENT_LINK}" current "${snapshot_dir}" || restore_failed=1
+  restore_link_state "${PREVIOUS_LINK}" previous "${snapshot_dir}" || restore_failed=1
+  restore_file_state "${COMMAND_FILE}" command "${snapshot_dir}" || restore_failed=1
+  restore_file_state "${UNIT_FILE}" unit "${snapshot_dir}" || restore_failed=1
+
+  if ! systemctl daemon-reload; then
+    warn "systemd daemon-reload failed while restoring the previous release"
+    restore_failed=1
+  fi
+  if [ "${enabled_state}" = "enabled" ] && ! systemctl enable "${SERVICE_NAME}" >/dev/null; then
+    warn "failed to restore the enabled service state"
+    restore_failed=1
+  fi
+  if [ "${active_state}" = "active" ]; then
+    if ! systemctl start "${SERVICE_NAME}"; then
+      warn "failed to restore the running service state"
+      restore_failed=1
+    fi
+  else
+    systemctl stop "${SERVICE_NAME}" >/dev/null 2>&1 || true
+    systemctl reset-failed "${SERVICE_NAME}" >/dev/null 2>&1 || true
+  fi
+
+  return "${restore_failed}"
+}
+
+wait_for_health() {
+  load_local_env
+  local port="${ADMIN_VIEW_PORT:-7991}"
+  local attempts="${FN_KNOCK_HEALTH_ATTEMPTS:-30}"
+  local i
+  for ((i = 1; i <= attempts; i++)); do
+    if curl --fail --silent --max-time 2 "http://127.0.0.1:${port}/api/admin/healthz" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 2
+  done
+  return 1
+}
+
+ensure_default_config() {
+  local release_dir="$1"
+  mkdir -p "${CONFIG_DIR}/gateway" "${DATA_DIR}" "${RELEASES_DIR}"
+  chmod 700 "${CONFIG_DIR}" "${DATA_DIR}" 2>/dev/null || true
+  if [ ! -f "${ENV_FILE}" ]; then
+    install -m 0600 "${release_dir}/config/fn-knock.env" "${ENV_FILE}"
+  else
+    chmod 600 "${ENV_FILE}"
+  fi
+}
+
+cleanup_releases() {
+  local current previous keep_extra=""
+  current="$(readlink -f "${CURRENT_LINK}" 2>/dev/null || true)"
+  previous="$(readlink -f "${PREVIOUS_LINK}" 2>/dev/null || true)"
+  while IFS= read -r dir; do
+    [ -n "${dir}" ] || continue
+    if [ "${dir}" = "${current}" ] || [ "${dir}" = "${previous}" ]; then
+      continue
+    fi
+    if [ -z "${keep_extra}" ]; then
+      keep_extra="${dir}"
+      continue
+    fi
+    rm -rf -- "${dir}"
+  done < <(find "${RELEASES_DIR}" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null | xargs -0 -r ls -1dt 2>/dev/null || true)
+}
+
+install_release() {
+  local source_dir="$1"
+  local version="$2"
+  local target_dir="${RELEASES_DIR}/${version}"
+  local stage_dir="${RELEASES_DIR}/.${version}.new.$$"
+  local old_current="" transaction_dir transaction_status
+
+  [ "$(release_version "${source_dir}")" = "${version}" ] || fail "release.json version does not match ${version}"
+  mkdir -p "${RELEASES_DIR}"
+  if [ ! -d "${target_dir}" ]; then
+    rm -rf "${stage_dir}"
+    mkdir -p "${stage_dir}"
+    cp -a "${source_dir}/." "${stage_dir}/"
+    chmod 0755 "${stage_dir}/bin/knock" "${stage_dir}/bin/fn-knock-entrypoint" \
+      "${stage_dir}/bin/go-reauth-proxy" "${stage_dir}/bin/server-admin-rs"
+    mv "${stage_dir}" "${target_dir}"
+  fi
+
+  ensure_default_config "${target_dir}"
+  old_current="$(readlink -f "${CURRENT_LINK}" 2>/dev/null || true)"
+  transaction_dir="$(mktemp -d "${TMPDIR:-/tmp}/fn-knock-transaction.XXXXXX")"
+  if ! create_transaction_snapshot "${transaction_dir}"; then
+    rm -rf "${transaction_dir}"
+    fail "could not snapshot the installed release before switching versions"
+  fi
+
+  # Run the mutation in an errexit-enabled subshell while the parent retains
+  # control and can restore every externally visible state on any failure.
+  set +e
+  (
+    set -e
+    if [ -n "${old_current}" ] && [ "${old_current}" != "${target_dir}" ]; then
+      atomic_link "${old_current}" "${PREVIOUS_LINK}"
+    fi
+    atomic_link "${target_dir}" "${CURRENT_LINK}"
+    install_management_files "${target_dir}"
+    systemctl enable "${SERVICE_NAME}" >/dev/null
+    systemctl restart "${SERVICE_NAME}"
+    wait_for_health
+  )
+  transaction_status=$?
+  set -e
+
+  if [ "${transaction_status}" -ne 0 ]; then
+    journalctl -u "${SERVICE_NAME}" -n 80 --no-pager >&2 || true
+    warn "release activation failed; restoring links, management files, unit, and service state"
+    if ! restore_transaction_snapshot "${transaction_dir}"; then
+      rm -rf "${transaction_dir}"
+      fail "release ${version} failed and the previous installation could not be restored completely"
+    fi
+    rm -rf "${transaction_dir}"
+    fail "release ${version} failed to activate; the previous installation was restored"
+  fi
+
+  rm -rf "${transaction_dir}"
+  cleanup_releases
+  log "release ${version} is running"
+}
+
+port_valid() { printf '%s' "$1" | grep -Eq '^[0-9]+$' && [ "$1" -ge 1 ] && [ "$1" -le 65535 ]; }
+
+port_in_use() {
+  local port="$1"
+  if command -v ss >/dev/null 2>&1; then
+    ss -lnt 2>/dev/null | awk -v suffix=":${port}" 'NR > 1 { split($4, a, ":"); if (a[length(a)] == substr(suffix, 2)) found=1 } END { exit !found }'
+  elif command -v netstat >/dev/null 2>&1; then
+    netstat -lnt 2>/dev/null | awk -v port="${port}" 'NR > 2 { split($4, a, ":"); if (a[length(a)] == port) found=1 } END { exit !found }'
+  else
+    return 1
+  fi
+}
+
+prompt_port() {
+  local label="$1" current="$2" value
+  while true; do
+    read -r -p "${label} [${current}]: " value </dev/tty
+    value="${value:-${current}}"
+    if port_valid "${value}"; then
+      printf '%s\n' "${value}"
+      return
+    fi
+    warn "port must be between 1 and 65535"
+  done
+}
+
+config_command() {
+  require_root config
+  load_local_env
+  local old_admin="${ADMIN_VIEW_PORT:-7991}" old_backend="${BACKEND_PORT:-7998}"
+  local old_auth="${AUTH_PORT:-7997}" old_go_admin="${GO_BACKEND_PORT:-7996}"
+  local old_proxy="${GO_REPROXY_PORT:-7999}"
+  local admin backend auth go_admin proxy unique_count
+
+  admin="$(prompt_port '管理面板端口' "${old_admin}")"
+  backend="$(prompt_port '内部管理后端端口' "${old_backend}")"
+  auth="$(prompt_port '认证服务端口' "${old_auth}")"
+  go_admin="$(prompt_port 'Go 内部管理端口' "${old_go_admin}")"
+  proxy="$(prompt_port '反向代理端口' "${old_proxy}")"
+  unique_count="$(printf '%s\n' "${admin}" "${backend}" "${auth}" "${go_admin}" "${proxy}" | sort -u | wc -l | tr -d ' ')"
+  [ "${unique_count}" = "5" ] || fail "all five ports must be different"
+
+  for pair in "${old_admin}:${admin}" "${old_backend}:${backend}" "${old_auth}:${auth}" "${old_go_admin}:${go_admin}" "${old_proxy}:${proxy}"; do
+    if [ "${pair%%:*}" != "${pair##*:}" ] && port_in_use "${pair##*:}"; then
+      warn "port ${pair##*:} is currently in use"
+    fi
+  done
+
+  local temporary="${ENV_FILE}.new.$$"
+  umask 077
+  cat > "${temporary}" <<EOF
+FN_KNOCK_RUNTIME_TARGET=linux
+FN_KNOCK_DATA_DIR=/var/lib/fn-knock
+FN_KNOCK_GATEWAY_CONFIG_DIR=/etc/fn-knock/gateway
+FN_KNOCK_BASE_URL=${FN_KNOCK_BASE_URL:-${DEFAULT_BASE_URL}}
+ADMIN_VIEW_PORT=${admin}
+BACKEND_PORT=${backend}
+AUTH_PORT=${auth}
+GO_BACKEND_PORT=${go_admin}
+GO_REPROXY_PORT=${proxy}
+ADMIN_VIEW_HOST=0.0.0.0
+BACKEND_HOST=127.0.0.1
+AUTH_HOST=127.0.0.1
+EOF
+  mv -f "${temporary}" "${ENV_FILE}"
+  chmod 600 "${ENV_FILE}"
+  log "configuration saved to ${ENV_FILE}"
+  read -r -p "现在重启服务？[Y/n] " answer </dev/tty
+  if [ "${answer:-Y}" != "n" ] && [ "${answer:-Y}" != "N" ]; then
+    systemctl restart "${SERVICE_NAME}"
+    wait_for_health || fail "service failed its health check after configuration change"
+  fi
+}
+
+update_command() {
+  require_root update
+  load_local_env
+  local arch installed answer
+  arch="$(normalize_arch)" || fail "unsupported architecture: $(uname -m)"
+  installed="$(current_version)"
+  fetch_release "${arch}"
+  trap 'rm -rf "${DOWNLOAD_DIR:-}"' EXIT
+
+  if [ "${installed}" = "${MANIFEST_VERSION}" ]; then
+    log "already running the latest release: ${installed}"
+    return
+  fi
+  if [ "${1:-}" != "--yes" ]; then
+    read -r -p "升级 ${installed} -> ${MANIFEST_VERSION}？[Y/n] " answer </dev/tty
+    [ "${answer:-Y}" != "n" ] && [ "${answer:-Y}" != "N" ] || return
+  fi
+  install_release "${DOWNLOADED_SOURCE}" "${MANIFEST_VERSION}"
+}
+
+rollback_command() {
+  require_root rollback
+  [ -L "${PREVIOUS_LINK}" ] || fail "no previous release is available"
+  local current previous transaction_dir transaction_status
+  current="$(readlink -f "${CURRENT_LINK}")"
+  previous="$(readlink -f "${PREVIOUS_LINK}")"
+  [ -d "${previous}" ] || fail "previous release directory is missing"
+
+  transaction_dir="$(mktemp -d "${TMPDIR:-/tmp}/fn-knock-transaction.XXXXXX")"
+  if ! create_transaction_snapshot "${transaction_dir}"; then
+    rm -rf "${transaction_dir}"
+    fail "could not snapshot the current installation before rollback"
+  fi
+
+  set +e
+  (
+    set -e
+    atomic_link "${previous}" "${CURRENT_LINK}"
+    atomic_link "${current}" "${PREVIOUS_LINK}"
+    install_management_files "${previous}"
+    systemctl restart "${SERVICE_NAME}"
+    wait_for_health
+  )
+  transaction_status=$?
+  set -e
+
+  if [ "${transaction_status}" -ne 0 ]; then
+    warn "rollback activation failed; restoring the pre-rollback installation"
+    if ! restore_transaction_snapshot "${transaction_dir}"; then
+      rm -rf "${transaction_dir}"
+      fail "rollback failed and the pre-rollback installation could not be restored completely"
+    fi
+    rm -rf "${transaction_dir}"
+    fail "rollback target failed to activate; the pre-rollback installation was restored"
+  fi
+
+  rm -rf "${transaction_dir}"
+  log "rolled back to $(release_version "${previous}")"
+}
+
+uninstall_command() {
+  require_root uninstall
+  local purge=0 yes=0 answer
+  for arg in "$@"; do
+    [ "${arg}" = "--purge" ] && purge=1
+    [ "${arg}" = "--yes" ] && yes=1
+  done
+  if [ "${yes}" != "1" ]; then
+    read -r -p "卸载 fn-knock？配置和数据默认保留。[y/N] " answer </dev/tty
+    [ "${answer:-N}" = "y" ] || [ "${answer:-N}" = "Y" ] || return
+  fi
+  if [ "${purge}" = "1" ]; then
+    [ -t 0 ] || fail "purge requires an interactive terminal and an independent DELETE confirmation"
+    if ! read -r -p "输入 DELETE 确认永久删除配置和数据: " answer </dev/tty; then
+      fail "purge requires an interactive terminal and an independent DELETE confirmation"
+    fi
+    [ "${answer}" = "DELETE" ] || fail "purge cancelled"
+  fi
+  systemctl disable --now "${SERVICE_NAME}" >/dev/null 2>&1 || true
+  rm -f "${UNIT_FILE}"
+  systemctl daemon-reload
+  rm -rf "${APP_ROOT}"
+  if [ "${purge}" = "1" ]; then
+    rm -rf "${CONFIG_DIR}" "${DATA_DIR}"
+    log "application, configuration, and data removed"
+  else
+    log "application removed; configuration and data were kept"
+  fi
+  rm -f "${COMMAND_FILE}"
+}
+
+nginx_command() {
+  load_local_env
+  local port="${ADMIN_VIEW_PORT:-7991}"
+  cat <<EOF
+# 7991 是 fn-knock 控制面入口，Linux 默认只监听 127.0.0.1，不能直接从公网访问。
+# 请通过 Nginx 提供 HTTPS；请替换域名和证书路径。
+server {
+    listen 443 ssl http2;
+    server_name knock.example.com;
+
+    ssl_certificate     /etc/nginx/ssl/knock.example.com.fullchain.pem;
+    ssl_certificate_key /etc/nginx/ssl/knock.example.com.key;
+
+    location / {
+        proxy_pass http://127.0.0.1:${port};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+}
+
+# 保存后先执行 nginx -t，再执行 systemctl reload nginx。
+# 不要将 ${port} 直接暴露到公网；公网入口应使用 HTTPS 和访问控制。
+EOF
+}
+
+show_menu() {
+  while true; do
+    printf '\nfn-knock 管理菜单（当前版本：%s）\n' "$(current_version)"
+    cat <<'EOF'
+1. 重启服务
+2. 配置端口
+3. 查看状态
+4. 启动服务
+5. 停止服务
+6. 查看/跟随日志
+7. 检查并安装更新
+8. 回滚上一版本
+9. 卸载
+10. 查看 Nginx 反向代理示例
+0. 退出
+EOF
+    read -r -p "请选择: " choice </dev/tty
+    case "${choice}" in
+      1) systemctl restart "${SERVICE_NAME}" ;;
+      2) config_command ;;
+      3) systemctl status "${SERVICE_NAME}" --no-pager || true ;;
+      4) systemctl start "${SERVICE_NAME}" ;;
+      5) systemctl stop "${SERVICE_NAME}" ;;
+      6) journalctl -u "${SERVICE_NAME}" -n 100 -f ;;
+      7) update_command ;;
+      8) rollback_command ;;
+      9) uninstall_command; return ;;
+      10) nginx_command ;;
+      0) return ;;
+      *) warn "invalid selection" ;;
+    esac
+  done
+}
+
+case "${1:-}" in
+  "") require_root; show_menu ;;
+  restart) require_root restart; systemctl restart "${SERVICE_NAME}" ;;
+  config) config_command ;;
+  status) systemctl status "${SERVICE_NAME}" --no-pager || true ;;
+  start) require_root start; systemctl start "${SERVICE_NAME}" ;;
+  stop) require_root stop; systemctl stop "${SERVICE_NAME}" ;;
+  logs)
+    shift
+    if [ "${1:-}" = "--follow" ] || [ "${1:-}" = "-f" ]; then
+      journalctl -u "${SERVICE_NAME}" -n 100 -f
+    else
+      journalctl -u "${SERVICE_NAME}" -n 100 --no-pager
+    fi
+    ;;
+  update) shift; update_command "$@" ;;
+  rollback) rollback_command ;;
+  uninstall) shift; uninstall_command "$@" ;;
+  nginx) nginx_command ;;
+  version) current_version ;;
+  _install-extracted)
+    require_root install
+    [ "$#" -ge 3 ] || fail "internal install arguments are missing"
+    install_release "$2" "$3"
+    ;;
+  *) fail "usage: knock [restart|config|status|start|stop|logs|update|rollback|uninstall|nginx|version]" ;;
+esac

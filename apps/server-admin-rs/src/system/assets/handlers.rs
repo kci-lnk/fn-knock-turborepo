@@ -21,7 +21,8 @@ use super::{
         reset_progress, start_download,
     },
     runtime::{
-        host_runtime_available, smart_connect_unavailable_message, system_clock_unavailable_message,
+        smart_connect_available, smart_connect_unavailable_message, system_clock_sync_available,
+        system_clock_unavailable_message,
     },
     text::{dnsmasq_text, tunnel_manager_text, tunnel_manager_text_params},
 };
@@ -38,7 +39,7 @@ pub(super) async fn clock_check(State(state): State<AppState>) -> Response {
 
 pub(super) async fn clock_sync(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    if !host_runtime_available(&state) {
+    if !system_clock_sync_available(&state) {
         return response::error(
             StatusCode::FORBIDDEN,
             system_clock_unavailable_message(&state, &translator),
@@ -187,7 +188,7 @@ pub(super) async fn dnsmasq_status(State(state): State<AppState>) -> Response {
 
 pub(super) async fn dnsmasq_install(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    if !host_runtime_available(&state) {
+    if !smart_connect_available(&state) {
         return response::error(
             StatusCode::FORBIDDEN,
             smart_connect_unavailable_message(&state, &translator),

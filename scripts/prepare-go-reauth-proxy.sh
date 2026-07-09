@@ -35,6 +35,12 @@ needs_build() {
     if [ ! -f "${GO_REAUTH_PROXY_BUILD_DIR}/go-reauth-proxy-linux-${arch}" ]; then
       return 0
     fi
+    if find "${GO_REAUTH_PROXY_DIR}" \
+      \( -path "${GO_REAUTH_PROXY_BUILD_DIR}" -o -path "${GO_REAUTH_PROXY_BUILD_DIR}/*" \) -prune \
+      -o \( -name '*.go' -o -name 'go.mod' -o -name 'go.sum' -o -name 'Taskfile.yml' \) \
+      -newer "${GO_REAUTH_PROXY_BUILD_DIR}/go-reauth-proxy-linux-${arch}" -print -quit | grep -q .; then
+      return 0
+    fi
   done
 
   return 1

@@ -35,6 +35,7 @@ const showCloudflaredTab = computed(() =>
 );
 const showTerminalTab = computed(() => configStore.canUseTerminal);
 const showPanelTab = computed(() => configStore.isProtectedAdminPanelDeployment);
+const showFnosTab = computed(() => !configStore.isLinuxDeployment);
 const allowedTabs = computed(() => {
   const tabs = [
     "run-mode",
@@ -51,6 +52,10 @@ const allowedTabs = computed(() => {
     "captcha",
     "maintenance",
   ];
+  if (!showFnosTab.value) {
+    const fnosIndex = tabs.indexOf("fnos");
+    if (fnosIndex >= 0) tabs.splice(fnosIndex, 1);
+  }
   if (showTerminalTab.value) {
     tabs.splice(7, 0, "terminal");
   }
@@ -108,7 +113,7 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
           <TabsTrigger value="ip-location" class="flex-none shrink-0 px-3"
             >{{ t("admin.systemSettingsTabs.ipLocation") }}</TabsTrigger
           >
-          <TabsTrigger value="fnos" class="flex-none shrink-0 px-3"
+          <TabsTrigger v-if="showFnosTab" value="fnos" class="flex-none shrink-0 px-3"
             >{{ t("admin.systemSettingsTabs.fnos") }}</TabsTrigger
           >
           <TabsTrigger value="scanner-firewall" class="flex-none shrink-0 px-3"
@@ -168,7 +173,7 @@ const { currentTab, navigateTo } = useSyncedQueryTab({
       <TabsContent value="ip-location" class="pt-2">
         <IpLocationSettings />
       </TabsContent>
-      <TabsContent value="fnos" class="pt-2">
+      <TabsContent v-if="showFnosTab" value="fnos" class="pt-2">
         <FnosSettings />
       </TabsContent>
       <TabsContent value="scanner-firewall" class="pt-2">

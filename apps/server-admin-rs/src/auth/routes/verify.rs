@@ -123,11 +123,33 @@ pub(super) async fn resolve_auth_access(
     let normal_access =
         resolve_preflight_normal_access(state, headers, uri, &config, &client_ip, access_mode)
             .await?;
+
+    resolve_auth_access_with_normal_access(
+        state,
+        headers,
+        uri,
+        translator,
+        &config,
+        &client_ip,
+        &normal_access,
+    )
+    .await
+}
+
+pub(super) async fn resolve_auth_access_with_normal_access(
+    state: &AppState,
+    headers: &HeaderMap,
+    uri: &Uri,
+    translator: &Translator,
+    config: &Value,
+    client_ip: &str,
+    normal_access: &PreflightNormalAccess,
+) -> anyhow::Result<AuthAccess> {
     if normal_access.authorized {
         let identity = inspect_auth_mobility_request(headers);
         if let Err(error) = auth_mobility::sync_trusted_request(
             state,
-            &client_ip,
+            client_ip,
             auth_mobility::AuthMobilityRestoreIdentity {
                 session_id: identity.session_id.as_deref(),
                 fnos_token: identity.fnos_token.as_deref(),
@@ -139,8 +161,7 @@ pub(super) async fn resolve_auth_access(
         {
             tracing::warn!(%error, %client_ip, "failed to sync trusted auth mobility request");
         }
-        if let Err(error) =
-            common_auth_locations::record_recent_verified_ip(state, &client_ip).await
+        if let Err(error) = common_auth_locations::record_recent_verified_ip(state, client_ip).await
         {
             tracing::debug!(%error, %client_ip, "failed to record recent verified auth IP");
         }
@@ -155,11 +176,11 @@ pub(super) async fn resolve_auth_access(
             grant_type,
             deny_reason: None,
             set_cookies: Vec::new(),
-            response_headers: normal_access.response_headers,
+            response_headers: normal_access.response_headers.clone(),
         });
     }
     if normal_access.deny_reason.as_deref() == Some(REAUTH_SCOPE_DENIED) {
-        let mut response_headers = normal_access.response_headers;
+        let mut response_headers = normal_access.response_headers.clone();
         if !response_headers
             .iter()
             .any(|(key, _)| key.eq_ignore_ascii_case(REAUTH_ACCESS_DENIED_HEADER))
@@ -179,7 +200,7 @@ pub(super) async fn resolve_auth_access(
         });
     }
 
-    let share_access = fnos_share_bypass::authorize(state, headers, uri, &config).await?;
+    let share_access = fnos_share_bypass::authorize(state, headers, uri, config).await?;
     if share_access.authorized {
         return Ok(AuthAccess {
             authenticated: true,

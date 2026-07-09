@@ -9,6 +9,7 @@
     "check-types": "turbo run check-types",
     "fn-knock:assemble-runtime": "bash ./scripts/assemble-runtime.sh",
     "fn-knock:prepare-artifacts": "bash ./scripts/fn-knock-prepare-artifacts.sh",
+    "fn-knock:linux:prepare": "bash ./scripts/fn-knock-prepare-artifacts.sh linux",
     "fn-knock:build-package": "./apps/fn-knock/scripts/build-package.sh",
     "fn-knock:fpk:copy-back": "./apps/fn-knock/scripts/build-package.sh copy-fpk",
     "fn-knock:fpk:remote": "bash ./scripts/fn-knock-deploy.sh pack-remote",

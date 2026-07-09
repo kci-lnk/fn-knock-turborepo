@@ -25,7 +25,7 @@ export interface WelcomeGuideStatus {
   completed_at: string | null;
 }
 
-export type DeploymentTarget = "fpk" | "docker" | "openwrt" | "dev";
+export type DeploymentTarget = "fpk" | "docker" | "openwrt" | "linux" | "dev";
 
 export interface RuntimeProfile {
   deployment_target: DeploymentTarget;

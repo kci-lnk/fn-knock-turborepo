@@ -26,14 +26,38 @@ pub(super) async fn apply_preflight_behavior(
     response: &mut Response,
 ) -> anyhow::Result<()> {
     let client_ip = client_ip_for_auth(headers);
-    let forwarded_path = preflight_forwarded_path(headers);
     let access_mode = requested_access_mode(headers);
     let config = state.store.get_config().await?;
-    let mut share_decision_handled = false;
-
     let normal_access =
         resolve_preflight_normal_access(state, headers, uri, &config, &client_ip, access_mode)
             .await?;
+
+    apply_preflight_behavior_with_normal_access(
+        state,
+        headers,
+        uri,
+        response,
+        &config,
+        &client_ip,
+        access_mode,
+        &normal_access,
+    )
+    .await
+}
+
+pub(super) async fn apply_preflight_behavior_with_normal_access(
+    state: &AppState,
+    headers: &HeaderMap,
+    uri: &Uri,
+    response: &mut Response,
+    config: &Value,
+    client_ip: &str,
+    access_mode: RequestedAccessMode,
+    normal_access: &PreflightNormalAccess,
+) -> anyhow::Result<()> {
+    let forwarded_path = preflight_forwarded_path(headers);
+    let mut share_decision_handled = false;
+
     if normal_access.deny_reason.as_deref() == Some(REAUTH_SCOPE_DENIED) {
         insert_preflight_headers(response, &normal_access.response_headers);
         response.headers_mut().insert(
@@ -41,13 +65,13 @@ pub(super) async fn apply_preflight_behavior(
             HeaderValue::from_static(REAUTH_SCOPE_DENIED),
         );
     } else if access_mode == RequestedAccessMode::StrictWhitelist
-        && !has_preflight_whitelist_access(state, &client_ip).await?
+        && !has_preflight_whitelist_access(state, client_ip).await?
     {
         response
             .headers_mut()
             .insert("X-Option", HeaderValue::from_static("Deny"));
     } else if !normal_access.authorized {
-        let decision = fnos_share_bypass::resolve_preflight(state, headers, uri, &config).await?;
+        let decision = fnos_share_bypass::resolve_preflight(state, headers, uri, config).await?;
         share_decision_handled = decision.handled;
         if let Some(location) = decision.redirect_location {
             insert_header_value(response, "X-Reauth-Redirect-Location", &location);
@@ -55,21 +79,21 @@ pub(super) async fn apply_preflight_behavior(
     }
 
     if config.get("run_type").and_then(Value::as_i64).unwrap_or(0) != 0
-        && !scanner::is_request_exempt_from_scan(headers, uri, &config)
+        && !scanner::is_request_exempt_from_scan(headers, uri, config)
     {
-        if scanner::is_blacklisted_for_preflight(state, &client_ip).await? {
+        if scanner::is_blacklisted_for_preflight(state, client_ip).await? {
             response
                 .headers_mut()
                 .insert("X-Option", HeaderValue::from_static("Deny"));
         } else if !state
             .store
-            .is_recent_auth_ip_active(&client_ip, time_utils::now_ms() / 1000)
+            .is_recent_auth_ip_active(client_ip, time_utils::now_ms() / 1000)
             .await?
             && !share_decision_handled
             && !forwarded_path.is_empty()
             && !scanner::is_common_path_for_preflight(state, &forwarded_path).await?
         {
-            let _ = scanner::record_uncommon_path_for_preflight(state, &client_ip, &forwarded_path)
+            let _ = scanner::record_uncommon_path_for_preflight(state, client_ip, &forwarded_path)
                 .await?;
         }
     }

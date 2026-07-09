@@ -307,9 +307,12 @@ export const useConfigStore = defineStore("config", () => {
   const isOpenWrtDeployment = computed(
     () => runtimeProfile.value?.deployment_target === "openwrt",
   );
+  const isLinuxDeployment = computed(
+    () => runtimeProfile.value?.deployment_target === "linux",
+  );
   const isProtectedAdminPanelDeployment = computed(() => {
     const target = runtimeProfile.value?.deployment_target;
-    return target === "docker" || target === "openwrt";
+    return target === "docker" || target === "openwrt" || target === "linux";
   });
   const canUseDirectMode = computed(
     () => capabilities.value?.direct_mode_available === true,
@@ -342,6 +345,7 @@ export const useConfigStore = defineStore("config", () => {
     isDockerDeployment,
     isFpkDeployment,
     isOpenWrtDeployment,
+    isLinuxDeployment,
     isProtectedAdminPanelDeployment,
     canUseDirectMode,
     canManageHostFirewall,

@@ -1,5 +1,45 @@
 use super::*;
 
+async fn generic_linux_test_state() -> (tempfile::TempDir, AppState) {
+    let directory = tempfile::tempdir().unwrap();
+    let mut settings = {
+        let _environment = crate::test_support::EnvGuard::new(&[]);
+        crate::settings::Settings::from_env()
+    };
+    settings.runtime_target = "linux".to_string();
+    settings.data_dir = directory.path().join("data");
+    settings.gateway_config_dir = directory.path().join("gateway");
+    settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
+    settings.legacy_redis_url = String::new();
+    settings.internal_rpc_token = "test-internal-rpc-token".to_string();
+
+    let state = AppState::new(settings).await.unwrap();
+    (directory, state)
+}
+
+#[tokio::test]
+async fn generic_linux_root_rejects_clock_sync_and_dnsmasq_install() {
+    let profile = crate::runtime_profile::RuntimeProfile {
+        deployment_target: "linux".to_string(),
+        is_docker: false,
+        is_linux: true,
+        is_root_process: true,
+    };
+    assert!(!super::runtime::system_clock_sync_available_for_profile(
+        &profile
+    ));
+    assert!(!super::runtime::smart_connect_available_for_profile(
+        &profile
+    ));
+
+    let (_directory, state) = generic_linux_test_state().await;
+    let clock_response = clock_sync(axum::extract::State(state.clone())).await;
+    let dnsmasq_response = dnsmasq_install(axum::extract::State(state)).await;
+
+    assert_eq!(clock_response.status(), axum::http::StatusCode::FORBIDDEN);
+    assert_eq!(dnsmasq_response.status(), axum::http::StatusCode::FORBIDDEN);
+}
+
 #[test]
 fn detects_frp_platform_names_like_node() {
     let platform = detect_frp_platform();

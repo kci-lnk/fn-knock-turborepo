@@ -12,15 +12,16 @@ use uuid::Uuid;
 
 use super::*;
 use crate::grpc_proto::{
-    AuthBridgeEnvelope, AuthBridgeReady, AuthContext, Header, PreflightAuthRequest,
-    PreflightAuthResponse, VerifyAuthRequest, VerifyAuthResponse, VerifyStreamAuthRequest,
-    VerifyStreamAuthResponse, auth_bridge_envelope,
-    auth_bridge_service_client::AuthBridgeServiceClient,
+    AuthBridgeEnvelope, AuthBridgeReady, AuthCacheScope, AuthContext, AuthorizeHttpRequest,
+    AuthorizeHttpResponse, Header, HttpAuthMode, PreflightAuthRequest, PreflightAuthResponse,
+    VerifyAuthRequest, VerifyAuthResponse, VerifyStreamAuthRequest, VerifyStreamAuthResponse,
+    auth_bridge_envelope, auth_bridge_service_client::AuthBridgeServiceClient,
 };
 
 const INTERNAL_TOKEN_METADATA_KEY: &str = "x-fn-knock-internal-rpc-token";
 const INTERNAL_GRPC_MAX_MESSAGE_SIZE: usize = 16 * 1024 * 1024;
 const AUTH_BRIDGE_MAX_IN_FLIGHT: usize = 128;
+const AUTHORIZE_HTTP_V1_CAPABILITY: &str = "authorize_http_v1";
 
 pub(crate) fn start_auth_bridge(state: AppState) {
     tokio::spawn(async move {
@@ -64,6 +65,7 @@ async fn run_auth_bridge_once(state: AppState) -> anyhow::Result<()> {
         request_id: String::new(),
         payload: Some(auth_bridge_envelope::Payload::Ready(AuthBridgeReady {
             instance_id: Uuid::new_v4().to_string(),
+            capabilities: vec![AUTHORIZE_HTTP_V1_CAPABILITY.to_string()],
         })),
     })
     .await
@@ -110,6 +112,11 @@ async fn handle_bridge_message(
                 handle_verify_stream_auth(state, request).await,
             )
         }
+        auth_bridge_envelope::Payload::AuthorizeHttpRequest(request) => {
+            auth_bridge_envelope::Payload::AuthorizeHttpResponse(
+                handle_authorize_http(state, request).await,
+            )
+        }
         _ => return None,
     };
     Some(AuthBridgeEnvelope {
@@ -118,41 +125,190 @@ async fn handle_bridge_message(
     })
 }
 
+async fn handle_authorize_http(
+    state: AppState,
+    request: AuthorizeHttpRequest,
+) -> AuthorizeHttpResponse {
+    let (run_preflight, run_verify) = http_auth_stages(request.mode);
+    let headers = headers_from_auth_context(request.context.as_ref());
+    let uri = uri_from_auth_context(request.context.as_ref());
+    let client_ip = client_ip_for_auth(&headers);
+    let access_mode = requested_access_mode(&headers);
+    let mut response = empty_authorize_http_response();
+
+    let config = match state.store.get_config().await {
+        Ok(config) => config,
+        Err(error) => {
+            tracing::warn!(%error, "auth bridge authorize HTTP config resolution failed");
+            return authorize_http_preparation_error(&state, run_preflight, run_verify).await;
+        }
+    };
+    let translator = translator_from_config(&config);
+    let normal_access = match resolve_preflight_normal_access(
+        &state,
+        &headers,
+        &uri,
+        &config,
+        &client_ip,
+        access_mode,
+    )
+    .await
+    {
+        Ok(access) => access,
+        Err(error) => {
+            tracing::warn!(%error, "auth bridge authorize HTTP normal access resolution failed");
+            return authorize_http_preparation_error(&state, run_preflight, run_verify).await;
+        }
+    };
+
+    let mut preflight_rejected = false;
+    if run_preflight {
+        let mut preflight = new_preflight_response();
+        match apply_preflight_behavior_with_normal_access(
+            &state,
+            &headers,
+            &uri,
+            &mut preflight,
+            &config,
+            &client_ip,
+            access_mode,
+            &normal_access,
+        )
+        .await
+        {
+            Ok(()) => {
+                response.preflight_cache_scope = AuthCacheScope::ExactRequest as i32;
+            }
+            Err(error) => {
+                tracing::warn!(%error, "auth bridge authorize HTTP preflight failed");
+            }
+        }
+        let preflight = preflight_auth_response_from_http(&preflight);
+        preflight_rejected = preflight_rejects_request(&preflight);
+        response.preflight = Some(preflight);
+    }
+
+    if run_verify && !preflight_rejected {
+        match resolve_auth_access_with_normal_access(
+            &state,
+            &headers,
+            &uri,
+            &translator,
+            &config,
+            &client_ip,
+            &normal_access,
+        )
+        .await
+        {
+            Ok(access) => {
+                response.verify_cache_scope = verify_cache_scope(&access) as i32;
+                response.verify = Some(verify_auth_response_from_access(access));
+            }
+            Err(error) => {
+                tracing::warn!(%error, "auth bridge authorize HTTP verify failed");
+                response.verify = Some(verify_auth_error_response(&translator));
+            }
+        }
+    }
+
+    response
+}
+
+fn empty_authorize_http_response() -> AuthorizeHttpResponse {
+    AuthorizeHttpResponse {
+        preflight: None,
+        verify: None,
+        preflight_cache_scope: AuthCacheScope::None as i32,
+        verify_cache_scope: AuthCacheScope::None as i32,
+    }
+}
+
+async fn authorize_http_preparation_error(
+    state: &AppState,
+    run_preflight: bool,
+    run_verify: bool,
+) -> AuthorizeHttpResponse {
+    let mut response = empty_authorize_http_response();
+    if run_preflight {
+        response.preflight = Some(preflight_auth_response_from_http(&new_preflight_response()));
+    }
+    if run_verify {
+        let translator = Translator::from_state(state).await;
+        response.verify = Some(verify_auth_error_response(&translator));
+    }
+    response
+}
+
+fn http_auth_stages(mode: i32) -> (bool, bool) {
+    match HttpAuthMode::try_from(mode).unwrap_or(HttpAuthMode::Unspecified) {
+        HttpAuthMode::PreflightOnly => (true, false),
+        HttpAuthMode::VerifyOnly => (false, true),
+        HttpAuthMode::PreflightAndVerify | HttpAuthMode::Unspecified => (true, true),
+    }
+}
+
 async fn handle_verify_auth(state: AppState, request: VerifyAuthRequest) -> VerifyAuthResponse {
     let headers = headers_from_auth_context(request.context.as_ref());
     let uri = uri_from_auth_context(request.context.as_ref());
     let translator = Translator::from_state(&state).await;
     match resolve_auth_access(&state, &headers, &uri, &translator).await {
-        Ok(access) => {
-            let status = if access.authenticated {
-                StatusCode::OK
-            } else {
-                auth_verify_denied_status(&access)
-            };
-            VerifyAuthResponse {
-                success: access.authenticated,
-                message: access.message,
-                status: status.as_u16() as i32,
-                set_cookies: access.set_cookies,
-                suppress_toolbar: access.grant_type.as_deref() == Some("fnos_share"),
-                redirect_location: String::new(),
-                access_denied_reason: access.deny_reason.unwrap_or_default(),
-                response_headers: headers_from_pairs(&access.response_headers),
-            }
-        }
+        Ok(access) => verify_auth_response_from_access(access),
         Err(error) => {
             tracing::warn!(%error, "auth bridge verify failed");
-            VerifyAuthResponse {
-                success: false,
-                message: auth_route_text(&translator, "verifyFailed"),
-                status: StatusCode::INTERNAL_SERVER_ERROR.as_u16() as i32,
-                set_cookies: Vec::new(),
-                suppress_toolbar: false,
-                redirect_location: String::new(),
-                access_denied_reason: String::new(),
-                response_headers: Vec::new(),
-            }
+            verify_auth_error_response(&translator)
         }
+    }
+}
+
+fn verify_auth_response_from_access(access: AuthAccess) -> VerifyAuthResponse {
+    let status = if access.authenticated {
+        StatusCode::OK
+    } else {
+        auth_verify_denied_status(&access)
+    };
+    VerifyAuthResponse {
+        success: access.authenticated,
+        message: access.message,
+        status: status.as_u16() as i32,
+        set_cookies: access.set_cookies,
+        suppress_toolbar: access.grant_type.as_deref() == Some("fnos_share"),
+        redirect_location: String::new(),
+        access_denied_reason: access.deny_reason.unwrap_or_default(),
+        response_headers: headers_from_pairs(&access.response_headers),
+    }
+}
+
+fn verify_auth_error_response(translator: &Translator) -> VerifyAuthResponse {
+    VerifyAuthResponse {
+        success: false,
+        message: auth_route_text(translator, "verifyFailed"),
+        status: StatusCode::INTERNAL_SERVER_ERROR.as_u16() as i32,
+        set_cookies: Vec::new(),
+        suppress_toolbar: false,
+        redirect_location: String::new(),
+        access_denied_reason: String::new(),
+        response_headers: Vec::new(),
+    }
+}
+
+fn verify_cache_scope(access: &AuthAccess) -> AuthCacheScope {
+    if !access.set_cookies.is_empty()
+        || access
+            .response_headers
+            .iter()
+            .any(|(name, _)| name.eq_ignore_ascii_case(header::SET_COOKIE.as_str()))
+    {
+        return AuthCacheScope::None;
+    }
+    if access.authenticated
+        && matches!(
+            access.grant_type.as_deref(),
+            Some("local_exempt" | "manual_whitelist" | "browser_session" | "login_ip_grant")
+        )
+    {
+        AuthCacheScope::Host
+    } else {
+        AuthCacheScope::ExactRequest
     }
 }
 
@@ -162,15 +318,24 @@ async fn handle_preflight_auth(
 ) -> PreflightAuthResponse {
     let headers = headers_from_auth_context(request.context.as_ref());
     let uri = uri_from_auth_context(request.context.as_ref());
+    let mut response = new_preflight_response();
+
+    if let Err(error) = apply_preflight_behavior(&state, &headers, &uri, &mut response).await {
+        tracing::warn!(%error, "auth bridge preflight failed");
+    }
+    preflight_auth_response_from_http(&response)
+}
+
+fn new_preflight_response() -> Response<Body> {
     let mut response = Response::builder()
         .status(StatusCode::NO_CONTENT)
         .body(Body::empty())
         .unwrap_or_else(|_| Response::new(Body::empty()));
     apply_no_store_headers(response.headers_mut());
+    response
+}
 
-    if let Err(error) = apply_preflight_behavior(&state, &headers, &uri, &mut response).await {
-        tracing::warn!(%error, "auth bridge preflight failed");
-    }
+fn preflight_auth_response_from_http(response: &Response<Body>) -> PreflightAuthResponse {
     let response_headers = response.headers();
     PreflightAuthResponse {
         deny: response_headers
@@ -189,6 +354,12 @@ async fn handle_preflight_auth(
             .to_string(),
         response_headers: headers_from_header_map(response_headers),
     }
+}
+
+fn preflight_rejects_request(response: &PreflightAuthResponse) -> bool {
+    response.deny
+        || !response.redirect_location.trim().is_empty()
+        || !response.access_denied_reason.trim().is_empty()
 }
 
 async fn handle_verify_stream_auth(
@@ -263,6 +434,12 @@ fn headers_from_auth_context(context: Option<&AuthContext>) -> HeaderMap {
         &mut headers,
         header::USER_AGENT.as_str(),
         &context.user_agent,
+    );
+    insert_header(&mut headers, "accesstoken", &context.access_token);
+    insert_header(
+        &mut headers,
+        "access-token",
+        &context.access_token_hyphenated,
     );
     headers
 }
@@ -350,4 +527,115 @@ fn metadata_token(token: &str) -> anyhow::Result<MetadataValue<tonic::metadata::
         anyhow::bail!("FN_KNOCK_INTERNAL_RPC_TOKEN must be set for auth bridge");
     }
     MetadataValue::try_from(token).context("encode FN_KNOCK_INTERNAL_RPC_TOKEN metadata")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn access(grant_type: Option<&str>) -> AuthAccess {
+        AuthAccess {
+            authenticated: grant_type.is_some(),
+            message: String::new(),
+            grant_type: grant_type.map(ToString::to_string),
+            deny_reason: None,
+            set_cookies: Vec::new(),
+            response_headers: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn authorize_http_capability_and_modes_are_stable() {
+        assert_eq!(AUTHORIZE_HTTP_V1_CAPABILITY, "authorize_http_v1");
+        assert_eq!(
+            http_auth_stages(HttpAuthMode::PreflightOnly as i32),
+            (true, false)
+        );
+        assert_eq!(
+            http_auth_stages(HttpAuthMode::VerifyOnly as i32),
+            (false, true)
+        );
+        assert_eq!(
+            http_auth_stages(HttpAuthMode::PreflightAndVerify as i32),
+            (true, true)
+        );
+        assert_eq!(http_auth_stages(i32::MAX), (true, true));
+    }
+
+    #[test]
+    fn dedicated_access_token_fields_replace_legacy_header_copies() {
+        let context = AuthContext {
+            access_token: "compact-token".to_string(),
+            access_token_hyphenated: "hyphenated-token".to_string(),
+            extra_headers: vec![
+                Header {
+                    name: "AccessToken".to_string(),
+                    values: vec!["legacy-compact".to_string()],
+                },
+                Header {
+                    name: "Access-Token".to_string(),
+                    values: vec!["legacy-hyphenated".to_string()],
+                },
+            ],
+            ..Default::default()
+        };
+
+        let headers = headers_from_auth_context(Some(&context));
+        assert_eq!(headers["accesstoken"], "compact-token");
+        assert_eq!(headers["access-token"], "hyphenated-token");
+    }
+
+    #[test]
+    fn preflight_rejection_stops_combined_verification() {
+        assert!(!preflight_rejects_request(&PreflightAuthResponse::default()));
+        assert!(preflight_rejects_request(&PreflightAuthResponse {
+            redirect_location: "/login".to_string(),
+            ..Default::default()
+        }));
+        assert!(preflight_rejects_request(&PreflightAuthResponse {
+            access_denied_reason: REAUTH_SCOPE_DENIED.to_string(),
+            ..Default::default()
+        }));
+    }
+
+    #[test]
+    fn verify_cache_scope_is_host_only_for_stable_normal_access() {
+        for grant_type in [
+            "local_exempt",
+            "manual_whitelist",
+            "browser_session",
+            "login_ip_grant",
+        ] {
+            assert_eq!(
+                verify_cache_scope(&access(Some(grant_type))),
+                AuthCacheScope::Host
+            );
+        }
+
+        assert_eq!(
+            verify_cache_scope(&access(Some("fnos_share"))),
+            AuthCacheScope::ExactRequest
+        );
+        assert_eq!(
+            verify_cache_scope(&access(Some("fnos_fingerprint_session"))),
+            AuthCacheScope::ExactRequest
+        );
+        assert_eq!(
+            verify_cache_scope(&access(None)),
+            AuthCacheScope::ExactRequest
+        );
+
+        let mut cookie_access = access(Some("browser_session"));
+        cookie_access.set_cookies.push("sid=rotated".to_string());
+        assert_eq!(verify_cache_scope(&cookie_access), AuthCacheScope::None);
+
+        let mut header_cookie_access = access(Some("browser_session"));
+        header_cookie_access
+            .response_headers
+            .push(("Set-Cookie".to_string(), "sid=rotated".to_string()));
+        assert_eq!(
+            verify_cache_scope(&header_cookie_access),
+            AuthCacheScope::None
+        );
+    }
 }

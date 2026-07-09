@@ -536,6 +536,22 @@ message AuthContext {
   string user_agent = 13;
   string access_mode = 14;
   repeated Header extra_headers = 15;
+  string access_token = 16;
+  string access_token_hyphenated = 17;
+}
+
+enum HttpAuthMode {
+  HTTP_AUTH_MODE_UNSPECIFIED = 0;
+  HTTP_AUTH_MODE_PREFLIGHT_ONLY = 1;
+  HTTP_AUTH_MODE_VERIFY_ONLY = 2;
+  HTTP_AUTH_MODE_PREFLIGHT_AND_VERIFY = 3;
+}
+
+enum AuthCacheScope {
+  AUTH_CACHE_SCOPE_UNSPECIFIED = 0;
+  AUTH_CACHE_SCOPE_NONE = 1;
+  AUTH_CACHE_SCOPE_EXACT_REQUEST = 2;
+  AUTH_CACHE_SCOPE_HOST = 3;
 }
 
 message VerifyAuthRequest {
@@ -565,6 +581,19 @@ message PreflightAuthResponse {
   repeated Header response_headers = 4;
 }
 
+message AuthorizeHttpRequest {
+  AuthContext context = 1;
+  bool matched = 2;
+  HttpAuthMode mode = 3;
+}
+
+message AuthorizeHttpResponse {
+  PreflightAuthResponse preflight = 1;
+  VerifyAuthResponse verify = 2;
+  AuthCacheScope preflight_cache_scope = 3;
+  AuthCacheScope verify_cache_scope = 4;
+}
+
 message VerifyStreamAuthRequest {
   string client_ip = 1;
   string protocol = 2;
@@ -581,6 +610,7 @@ message VerifyStreamAuthResponse {
 
 message AuthBridgeReady {
   string instance_id = 1;
+  repeated string capabilities = 2;
 }
 
 message AuthBridgeEnvelope {
@@ -593,6 +623,8 @@ message AuthBridgeEnvelope {
     PreflightAuthResponse preflight_auth_response = 6;
     VerifyStreamAuthRequest verify_stream_auth_request = 7;
     VerifyStreamAuthResponse verify_stream_auth_response = 8;
+    AuthorizeHttpRequest authorize_http_request = 9;
+    AuthorizeHttpResponse authorize_http_response = 10;
   }
 }
 

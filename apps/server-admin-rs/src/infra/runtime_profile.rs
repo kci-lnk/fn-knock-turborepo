@@ -34,8 +34,10 @@ pub fn get_runtime_profile(state: &AppState) -> RuntimeProfile {
 }
 
 pub fn get_runtime_capabilities(profile: &RuntimeProfile) -> RuntimeCapabilities {
-    let host_runtime_available =
-        profile.deployment_target != "docker" && profile.is_linux && profile.is_root_process;
+    let host_runtime_available = profile.deployment_target != "docker"
+        && profile.deployment_target != "linux"
+        && profile.is_linux
+        && profile.is_root_process;
 
     RuntimeCapabilities {
         direct_mode_available: host_runtime_available,
@@ -52,7 +54,7 @@ pub fn get_runtime_capabilities(profile: &RuntimeProfile) -> RuntimeCapabilities
 pub fn admin_panel_protected_runtime(state: &AppState) -> bool {
     matches!(
         get_runtime_profile(state).deployment_target.as_str(),
-        "docker" | "openwrt"
+        "docker" | "openwrt" | "linux"
     )
 }
 
@@ -158,6 +160,7 @@ fn normalize_deployment_target(value: &str) -> Option<&'static str> {
         "docker" => Some("docker"),
         "fpk" => Some("fpk"),
         "openwrt" => Some("openwrt"),
+        "linux" => Some("linux"),
         "dev" | "development" => Some("dev"),
         _ => None,
     }
@@ -270,6 +273,18 @@ mod tests {
         assert!(capabilities.system_clock_sync_available);
         assert!(capabilities.self_update_available);
         assert!(capabilities.terminal_available);
+    }
+
+    #[test]
+    fn generic_linux_disables_host_mutation_capabilities_without_web_self_update() {
+        let capabilities = get_runtime_capabilities(&profile("linux", true, true));
+        assert!(!capabilities.direct_mode_available);
+        assert!(!capabilities.host_firewall_available);
+        assert!(!capabilities.smart_connect_available);
+        assert!(!capabilities.system_clock_sync_available);
+        assert!(capabilities.terminal_available);
+        assert!(!capabilities.self_update_available);
+        assert_eq!(normalize_deployment_target("linux"), Some("linux"));
     }
 
     #[test]

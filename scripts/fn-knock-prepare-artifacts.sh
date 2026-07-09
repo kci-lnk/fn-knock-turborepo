@@ -8,6 +8,7 @@ ARTIFACTS_DIR="${FN_KNOCK_ARTIFACTS_DIR:-${ROOT_DIR}/dist/fn-knock-artifacts}"
 RUNTIME_DIR="${FN_KNOCK_PREPARED_RUNTIME_DIR:-${ARTIFACTS_DIR}/runtime}"
 FPK_RUST_BACKEND_DIR="${FN_KNOCK_PREPARED_FPK_RUST_BACKEND_DIR:-${ARTIFACTS_DIR}/fpk-rust-backends}"
 MUSL_RUST_BACKEND_DIR="${FN_KNOCK_PREPARED_MUSL_RUST_BACKEND_DIR:-${ARTIFACTS_DIR}/musl-rust-backends}"
+LINUX_DIR="${FN_KNOCK_PREPARED_LINUX_DIR:-${ARTIFACTS_DIR}/linux}"
 APP_DIR="${ROOT_DIR}/apps/fn-knock/app"
 DOCKER_RUST_BACKEND_DIR="${FN_KNOCK_DOCKER_RUST_BACKEND_DIR:-${ROOT_DIR}/deploy/docker/rust-backends}"
 MANIFEST_FILE="${ROOT_DIR}/apps/fn-knock/manifest"
@@ -16,6 +17,7 @@ RUST_MUSL_CROSS_IMAGE_PREFIX="${FN_KNOCK_RUST_MUSL_CROSS_IMAGE_PREFIX:-messense/
 NEED_RUNTIME=0
 NEED_FPK_RUST=0
 NEED_MUSL_RUST=0
+NEED_LINUX=0
 SYNC_APP_RUNTIME=0
 SYNC_APP_FPK=0
 SYNC_DOCKER=0
@@ -103,6 +105,7 @@ configure_modes() {
         NEED_RUNTIME=1
         NEED_FPK_RUST=1
         NEED_MUSL_RUST=1
+        NEED_LINUX=1
         SYNC_APP_RUNTIME=1
         SYNC_APP_FPK=1
         SYNC_DOCKER=1
@@ -126,8 +129,13 @@ configure_modes() {
         SYNC_APP_RUNTIME=1
         SYNC_DOCKER=1
         ;;
+      linux)
+        NEED_RUNTIME=1
+        NEED_MUSL_RUST=1
+        NEED_LINUX=1
+        ;;
       *)
-        fail "unknown artifact mode: ${mode}; expected all, runtime, fpk, openwrt, or docker"
+        fail "unknown artifact mode: ${mode}; expected all, runtime, fpk, openwrt, docker, or linux"
         ;;
     esac
   done
@@ -522,6 +530,98 @@ build_musl_rust_backends() {
   done
 }
 
+sha256_file() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | awk '{print $1}'
+  else
+    openssl dgst -sha256 "$1" | awk '{print $NF}'
+  fi
+}
+
+create_linux_archive() {
+  local stage_dir="$1"
+  local archive="$2"
+  local temp_archive="${archive}.tmp"
+  local -a owner_args
+
+  find "${stage_dir}/fn-knock" -depth -exec touch -t 197001010000 {} +
+  if tar --version 2>/dev/null | grep -qi bsdtar; then
+    owner_args=(--uid 0 --gid 0 --uname root --gname root)
+  else
+    owner_args=(--owner=0 --group=0 --numeric-owner --sort=name)
+  fi
+
+  rm -f "${temp_archive}"
+  COPYFILE_DISABLE=1 tar "${owner_args[@]}" -cf - -C "${stage_dir}" fn-knock | gzip -n -9 > "${temp_archive}"
+  tar -tzf "${temp_archive}" > "${temp_archive}.list"
+  grep -qx 'fn-knock/release.json' "${temp_archive}.list" || fail "invalid Linux archive layout: ${temp_archive}"
+  rm -f "${temp_archive}.list"
+  mv "${temp_archive}" "${archive}"
+}
+
+build_linux_packages() {
+  local version arch stage_root release_root archive checksum
+
+  [ "${NEED_LINUX}" = "1" ] || return 0
+  require_cmd tar
+  require_cmd gzip
+  require_cmd rsync
+  require_cmd openssl
+  version="$(fn_knock_app_version "${ROOT_DIR}")"
+  mkdir -p "${LINUX_DIR}"
+  rm -f "${LINUX_DIR}"/fn-knock-linux-*.tar.gz "${LINUX_DIR}"/fn-knock-linux-*.tar.gz.sha256
+
+  for arch in "${MUSL_ARCHES[@]}"; do
+    stage_root="$(mktemp -d "${ARTIFACTS_DIR}/linux-stage-${arch}.XXXXXX")"
+    release_root="${stage_root}/fn-knock"
+    archive="${LINUX_DIR}/fn-knock-linux-${version}-${arch}.tar.gz"
+    mkdir -p \
+      "${release_root}/bin" \
+      "${release_root}/config" \
+      "${release_root}/systemd" \
+      "${release_root}/ui/www" \
+      "${release_root}/server-auth-view/dist" \
+      "${release_root}/server/server-admin/resources" \
+      "${release_root}/install"
+
+    cp "${RUNTIME_DIR}/server/go-reauth-proxy-linux-${arch}" "${release_root}/bin/go-reauth-proxy"
+    cp "${MUSL_RUST_BACKEND_DIR}/server-admin-rs-linux-${arch}" "${release_root}/bin/server-admin-rs"
+    cp "${ROOT_DIR}/deploy/linux/fn-knock-entrypoint" "${release_root}/bin/fn-knock-entrypoint"
+    cp "${ROOT_DIR}/deploy/linux/knock" "${release_root}/bin/knock"
+    cp "${ROOT_DIR}/deploy/linux/fn-knock.env" "${release_root}/config/fn-knock.env"
+    cp "${ROOT_DIR}/deploy/linux/fn-knock.service" "${release_root}/systemd/fn-knock.service"
+    cp "${ROOT_DIR}/deploy/linux/install.sh" "${release_root}/install/install.sh"
+    rsync -a "${RUNTIME_DIR}/ui/www/" "${release_root}/ui/www/"
+    rsync -a "${RUNTIME_DIR}/server-auth-view/dist/" "${release_root}/server-auth-view/dist/"
+    cp "${RUNTIME_DIR}/server/server-admin/resources/acmesh.zip" \
+      "${release_root}/server/server-admin/resources/acmesh.zip"
+    chmod 755 \
+      "${release_root}/bin/go-reauth-proxy" \
+      "${release_root}/bin/server-admin-rs" \
+      "${release_root}/bin/fn-knock-entrypoint" \
+      "${release_root}/bin/knock" \
+      "${release_root}/install/install.sh"
+
+    cat > "${release_root}/release.json" <<EOF
+{
+  "version": "${version}",
+  "architecture": "${arch}",
+  "runtime_target": "linux"
+}
+EOF
+
+    validate_elf_arch "${release_root}/bin/go-reauth-proxy" "${arch}" "Linux gateway ${arch}"
+    validate_elf_arch "${release_root}/bin/server-admin-rs" "${arch}" "Linux Rust backend ${arch}"
+    create_linux_archive "${stage_root}" "${archive}"
+    checksum="$(sha256_file "${archive}")"
+    printf '%s  %s\n' "${checksum}" "$(basename "${archive}")" > "${archive}.sha256"
+    rm -rf "${stage_root}"
+    log "Linux package ${arch}: ${archive} ($(format_bytes "$(file_size_bytes "${archive}")"), sha256=${checksum})"
+  done
+}
+
 sync_runtime_to_app() {
   local admin_www_dir="${APP_DIR}/ui/www"
   local auth_dist_dir="${APP_DIR}/server-auth-view/dist"
@@ -586,12 +686,15 @@ print_summary() {
   if [ "${NEED_MUSL_RUST}" = "1" ]; then
     log "musl Rust backends: ${MUSL_RUST_BACKEND_DIR}"
   fi
+  if [ "${NEED_LINUX}" = "1" ]; then
+    log "Linux packages: ${LINUX_DIR}"
+  fi
 }
 
 usage() {
   cat <<'EOF'
 Usage:
-  bash ./scripts/fn-knock-prepare-artifacts.sh [all|runtime|fpk|openwrt|docker ...]
+  bash ./scripts/fn-knock-prepare-artifacts.sh [all|runtime|fpk|openwrt|docker|linux ...]
 
 Modes:
   all      Build runtime, FPK Rust, musl Rust, and sync FPK/Docker contexts
@@ -599,6 +702,7 @@ Modes:
   fpk      Build runtime + GNU Linux Rust backends and sync apps/fn-knock/app
   openwrt  Build runtime + musl Rust backends for OpenWrt packaging
   docker   Build runtime + musl Rust backends and sync Docker build context
+  linux    Build runtime + static musl Rust backends and package systemd releases
 
 Useful env:
   FN_KNOCK_ARTIFACTS_DIR
@@ -631,6 +735,7 @@ sync_versions
 build_runtime
 build_fpk_rust_backends
 build_musl_rust_backends
+build_linux_packages
 sync_runtime_to_app
 sync_fpk_rust_to_app
 sync_docker_rust_context

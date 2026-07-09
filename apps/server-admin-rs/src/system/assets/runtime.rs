@@ -1,6 +1,6 @@
 use std::fs;
 
-use crate::{i18n::Translator, state::AppState};
+use crate::{i18n::Translator, runtime_profile, state::AppState};
 
 pub(super) fn detect_system_timezone() -> Option<String> {
     if let Ok(value) = std::env::var("TZ")
@@ -24,39 +24,44 @@ pub(super) fn detect_system_timezone() -> Option<String> {
     None
 }
 
-pub(super) fn host_runtime_available(state: &AppState) -> bool {
-    deployment_target(state) != "docker" && std::env::consts::OS == "linux" && is_running_as_root()
+pub(super) fn system_clock_sync_available(state: &AppState) -> bool {
+    let profile = runtime_profile::get_runtime_profile(state);
+    system_clock_sync_available_for_profile(&profile)
+}
+
+pub(super) fn system_clock_sync_available_for_profile(
+    profile: &runtime_profile::RuntimeProfile,
+) -> bool {
+    runtime_profile::get_runtime_capabilities(profile).system_clock_sync_available
+}
+
+pub(super) fn smart_connect_available(state: &AppState) -> bool {
+    let profile = runtime_profile::get_runtime_profile(state);
+    smart_connect_available_for_profile(&profile)
+}
+
+pub(super) fn smart_connect_available_for_profile(
+    profile: &runtime_profile::RuntimeProfile,
+) -> bool {
+    runtime_profile::get_runtime_capabilities(profile).smart_connect_available
 }
 
 pub(super) fn system_clock_unavailable_message(
     state: &AppState,
     translator: &Translator,
 ) -> String {
-    if deployment_target(state) == "docker" {
-        translator.t("server.runtimeProfile.capabilities.system_clock_sync_available.docker")
-    } else if std::env::consts::OS != "linux" {
-        translator.t("server.runtimeProfile.capabilities.system_clock_sync_available.platform")
-    } else {
-        translator.t("server.runtimeProfile.capabilities.system_clock_sync_available.permission")
-    }
+    let profile = runtime_profile::get_runtime_profile(state);
+    runtime_profile::capability_unavailable_message(
+        "system_clock_sync_available",
+        &profile,
+        translator,
+    )
 }
 
 pub(super) fn smart_connect_unavailable_message(
     state: &AppState,
     translator: &Translator,
 ) -> String {
-    if deployment_target(state) == "docker" {
-        translator.t("server.runtimeProfile.capabilities.smart_connect_available.docker")
-    } else if std::env::consts::OS != "linux" {
-        translator.t("server.runtimeProfile.capabilities.smart_connect_available.platform")
-    } else {
-        translator.t("server.runtimeProfile.capabilities.smart_connect_available.permission")
-    }
-}
-
-pub(super) use crate::runtime_profile::deployment_target;
-
-#[cfg(unix)]
-pub(super) fn is_running_as_root() -> bool {
-    crate::unix::is_root_process()
+    let profile = runtime_profile::get_runtime_profile(state);
+    runtime_profile::capability_unavailable_message("smart_connect_available", &profile, translator)
 }

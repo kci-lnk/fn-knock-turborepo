@@ -51,8 +51,10 @@ impl Settings {
             normalize_runtime_target_env(&env_string("FN_KNOCK_RUNTIME_TARGET", ""));
         let detected_runtime_target =
             runtime_profile::detect_deployment_target(Some(&runtime_target));
-        let protected_admin_runtime =
-            matches!(detected_runtime_target.as_str(), "docker" | "openwrt");
+        let protected_admin_runtime = matches!(
+            detected_runtime_target.as_str(),
+            "docker" | "openwrt" | "linux"
+        );
         let backend_port_default = if detected_runtime_target == "openwrt" {
             17998
         } else {
@@ -227,6 +229,7 @@ fn normalize_runtime_target_env(value: &str) -> String {
         "docker" => "docker".to_string(),
         "fpk" => "fpk".to_string(),
         "openwrt" => "openwrt".to_string(),
+        "linux" => "linux".to_string(),
         "dev" | "development" => "dev".to_string(),
         _ => String::new(),
     }
@@ -439,6 +442,7 @@ mod tests {
     fn normalizes_runtime_target_env_values() {
         assert_eq!(normalize_runtime_target_env(" FPK "), "fpk");
         assert_eq!(normalize_runtime_target_env("development"), "dev");
+        assert_eq!(normalize_runtime_target_env("linux"), "linux");
         assert_eq!(normalize_runtime_target_env("unknown"), "");
     }
 
@@ -462,6 +466,33 @@ mod tests {
                 let settings = Settings::from_env();
 
                 assert_eq!(settings.backend_port, 17998);
+                assert_eq!(settings.admin_view_port, Some(7991));
+                assert_eq!(settings.admin_view_host, "0.0.0.0");
+            },
+        );
+    }
+
+    #[test]
+    fn generic_linux_exposes_only_the_protected_admin_view() {
+        with_env_vars(
+            &[
+                "FN_KNOCK_RUNTIME_TARGET",
+                "BACKEND_PORT",
+                "ADMIN_VIEW_PORT",
+                "ADMIN_VIEW_HOST",
+                "BACKEND_HOST",
+            ],
+            |env| {
+                env.set("FN_KNOCK_RUNTIME_TARGET", "linux");
+                env.remove("BACKEND_PORT");
+                env.remove("ADMIN_VIEW_PORT");
+                env.set("ADMIN_VIEW_HOST", "0.0.0.0");
+                env.set("BACKEND_HOST", "127.0.0.1");
+
+                let settings = Settings::from_env();
+
+                assert_eq!(settings.backend_port, 7998);
+                assert_eq!(settings.backend_host, "127.0.0.1");
                 assert_eq!(settings.admin_view_port, Some(7991));
                 assert_eq!(settings.admin_view_host, "0.0.0.0");
             },

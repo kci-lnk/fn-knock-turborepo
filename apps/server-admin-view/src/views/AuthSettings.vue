@@ -571,6 +571,7 @@ import CredentialTransferDialogs from "./auth-settings/CredentialTransferDialogs
 import SubdomainAccessDialog from "./auth-settings/SubdomainAccessDialog.vue";
 import TotpCredentialTable from "./auth-settings/TotpCredentialTable.vue";
 import { useAuthCredentialTransfer } from "./auth-settings/useAuthCredentialTransfer";
+import { useAuthSubdomainAccess } from "./auth-settings/useAuthSubdomainAccess";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
@@ -598,7 +599,6 @@ import type {
   HostMapping,
   TOTPCredential,
   TOTPSubdomainAccess,
-  TOTPSubdomainAccessMode,
   TOTPAccessScope,
 } from "../types";
 
@@ -635,7 +635,6 @@ const authModeStatus = ref<AuthLoginModeStatus | null>(null);
 const authModePreview = ref<AuthLoginModePreview | null>(null);
 const hostMappings = ref<HostMapping[]>([]);
 const updatingAccessScopeIds = ref<Set<string>>(new Set());
-const updatingSubdomainAccessIds = ref<Set<string>>(new Set());
 const openAdminPanelAccessTooltipId = ref<string | null>(null);
 const isTouchInteraction = useMediaQueryMatch(
   "(hover: none), (pointer: coarse)",
@@ -643,9 +642,6 @@ const isTouchInteraction = useMediaQueryMatch(
 const showAuthModeSwitchDialog = ref(false);
 const showAuthAccountDialog = ref(false);
 const showAccountPasswordDialog = ref(false);
-const showSubdomainAccessDialog = ref(false);
-const editingSubdomainAccessTotp = ref<TOTPCredential | null>(null);
-const editingSubdomainAccessAccount = ref<AuthAccount | null>(null);
 const editingAuthAccount = ref<AuthAccount | null>(null);
 const authAccountUsernameInput = ref("");
 const isCreatingAuthAccount = ref(false);
@@ -653,15 +649,38 @@ const editingPasswordAccount = ref<AuthAccount | null>(null);
 const accountPasswordUsernameInput = ref("");
 const accountPasswordInput = ref("");
 const isAccountPasswordVisible = ref(false);
-const subdomainAccessMode = ref<TOTPSubdomainAccessMode>("all");
-const selectedSubdomainHosts = ref<Set<string>>(new Set());
-const subdomainAccessSearch = ref("");
 const { isPending: isLoading, run: runLoadStatus } = useAsyncAction({
   onError: (error) => {
     console.error("Failed to get TOTP status:", error);
   },
 });
 const showLoadingSkeleton = useDelayedLoading(isLoading);
+const {
+  clearSelectedSubdomainHosts,
+  closeSubdomainAccessDialog,
+  editingSubdomainAccessAccount,
+  editingSubdomainAccessTotp,
+  getSubdomainAccess,
+  handleSaveSubdomainAccess,
+  isSavingSubdomainAccess,
+  isSubdomainAccessUpdating,
+  openAccountSubdomainAccessDialog,
+  openSubdomainAccessDialog,
+  selectHosts,
+  selectedSubdomainHosts,
+  showSubdomainAccessDialog,
+  subdomainAccessMode,
+  subdomainAccessSearch,
+  toggleSubdomainHost,
+} = useAuthSubdomainAccess({
+  compareHosts: compareSubdomainAccessHosts,
+  credentials,
+  normalizeAccess: normalizeTOTPSubdomainAccess,
+  normalizeCredential,
+  normalizeHost: normalizeSubdomainHost,
+  replaceAuthAccount,
+  translate: (key) => t(key),
+});
 const {
   exportableCredentialCount,
   handleCredentialImportFileChange,
@@ -792,18 +811,6 @@ const { run: runSetupInit } = useAsyncAction({
 const { run: runSaveComment } = useAsyncAction({
   rethrow: true,
 });
-const { isPending: isSavingSubdomainAccess, run: runSaveSubdomainAccess } =
-  useAsyncAction({
-    onError: (error) => {
-      toast.error(
-        extractErrorMessage(
-          error,
-          t("admin.authSettings.permissionUpdateFailed"),
-        ),
-      );
-    },
-  });
-
 // Delete state
 const { isPending: isDeleting, run: runDeleteCredential } = useAsyncAction({
   onError: (error) => {
@@ -1331,10 +1338,6 @@ function hasDockerAdminPanelAccess(record: AuthPermissionRecord) {
   return (record.access_scopes || []).includes(DOCKER_ADMIN_PANEL_ACCESS_SCOPE);
 }
 
-function getSubdomainAccess(record: AuthPermissionRecord) {
-  return normalizeTOTPSubdomainAccess(record.subdomain_access);
-}
-
 function getSubdomainAccessSummary(record: AuthPermissionRecord) {
   const access = getSubdomainAccess(record);
   if (access.mode !== "custom") {
@@ -1365,114 +1368,10 @@ function getSubdomainAccessPreview(record: AuthPermissionRecord) {
   });
 }
 
-function openSubdomainAccessDialog(totp: TOTPCredential) {
-  const access = getSubdomainAccess(totp);
-  editingSubdomainAccessTotp.value = totp;
-  editingSubdomainAccessAccount.value = null;
-  subdomainAccessMode.value = access.mode;
-  selectedSubdomainHosts.value = new Set(access.hosts);
-  subdomainAccessSearch.value = "";
-  showSubdomainAccessDialog.value = true;
-}
-
-function openAccountSubdomainAccessDialog(account: AuthAccount) {
-  const access = getSubdomainAccess(account);
-  editingSubdomainAccessTotp.value = null;
-  editingSubdomainAccessAccount.value = account;
-  subdomainAccessMode.value = access.mode;
-  selectedSubdomainHosts.value = new Set(access.hosts);
-  subdomainAccessSearch.value = "";
-  showSubdomainAccessDialog.value = true;
-}
-
-function closeSubdomainAccessDialog() {
-  showSubdomainAccessDialog.value = false;
-  editingSubdomainAccessTotp.value = null;
-  editingSubdomainAccessAccount.value = null;
-  subdomainAccessMode.value = "all";
-  selectedSubdomainHosts.value = new Set();
-  subdomainAccessSearch.value = "";
-}
-
-function toggleSubdomainHost(host: string, checked: boolean) {
-  const normalizedHost = normalizeSubdomainHost(host);
-  if (!normalizedHost) return;
-  const next = new Set(selectedSubdomainHosts.value);
-  if (checked) {
-    next.add(normalizedHost);
-  } else {
-    next.delete(normalizedHost);
-  }
-  selectedSubdomainHosts.value = next;
-}
-
 function selectAllFilteredSubdomainHosts() {
-  const next = new Set(selectedSubdomainHosts.value);
-  for (const option of filteredSubdomainAccessOptions.value) {
-    next.add(option.host);
-  }
-  selectedSubdomainHosts.value = next;
-}
-
-function clearSelectedSubdomainHosts() {
-  selectedSubdomainHosts.value = new Set();
-}
-
-function isSubdomainAccessUpdating(totpId: string) {
-  return updatingSubdomainAccessIds.value.has(totpId);
-}
-
-function setSubdomainAccessUpdating(totpId: string, pending: boolean) {
-  const next = new Set(updatingSubdomainAccessIds.value);
-  if (pending) {
-    next.add(totpId);
-  } else {
-    next.delete(totpId);
-  }
-  updatingSubdomainAccessIds.value = next;
-}
-
-async function handleSaveSubdomainAccess() {
-  const target =
-    editingSubdomainAccessAccount.value || editingSubdomainAccessTotp.value;
-  if (!target) return;
-
-  const subdomainAccess: TOTPSubdomainAccess =
-    subdomainAccessMode.value === "custom"
-      ? {
-          mode: "custom",
-          hosts: [...selectedSubdomainHosts.value].sort(
-            compareSubdomainAccessHosts,
-          ),
-        }
-      : { ...DEFAULT_SUBDOMAIN_ACCESS };
-
-  setSubdomainAccessUpdating(target.id, true);
-  try {
-    await runSaveSubdomainAccess(async () => {
-      if (editingSubdomainAccessAccount.value) {
-        const updated = await ConfigAPI.updateAuthAccountSubdomainAccess(
-          target.id,
-          subdomainAccess,
-        );
-        replaceAuthAccount(updated);
-      } else {
-        const updated = normalizeCredential(
-          await ConfigAPI.updateTOTPSubdomainAccess(target.id, subdomainAccess),
-        );
-        const existing = credentials.value.find(
-          (item) => item.id === target.id,
-        );
-        if (existing) {
-          Object.assign(existing, updated);
-        }
-      }
-      toast.success(t("admin.authSettings.permissionUpdated"));
-      closeSubdomainAccessDialog();
-    });
-  } finally {
-    setSubdomainAccessUpdating(target.id, false);
-  }
+  selectHosts(
+    filteredSubdomainAccessOptions.value.map((option) => option.host),
+  );
 }
 
 function isAdminPanelAccessTooltipOpen(totpId: string) {

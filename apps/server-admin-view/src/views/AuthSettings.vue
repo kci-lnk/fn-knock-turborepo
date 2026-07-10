@@ -151,7 +151,7 @@
   />
 
   <input
-    ref="credentialImportInputRef"
+    :ref="setCredentialImportInput"
     type="file"
     accept=".json,application/json"
     class="hidden"
@@ -570,6 +570,7 @@ import AuthModeSwitchDialog from "./auth-settings/AuthModeSwitchDialog.vue";
 import CredentialTransferDialogs from "./auth-settings/CredentialTransferDialogs.vue";
 import SubdomainAccessDialog from "./auth-settings/SubdomainAccessDialog.vue";
 import TotpCredentialTable from "./auth-settings/TotpCredentialTable.vue";
+import { useAuthCredentialTransfer } from "./auth-settings/useAuthCredentialTransfer";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
@@ -584,7 +585,6 @@ import {
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { useMediaQueryMatch } from "@admin-shared/composables/useMediaQueryMatch";
 import { copyTextToClipboard } from "@admin-shared/utils/copyTextToClipboard";
-import { downloadBlob } from "@admin-shared/utils/downloadBlob";
 import { ConfigAPI } from "../lib/api";
 import { docsUrls } from "../lib/docs";
 import { useDockerAdminAuthStore } from "../store/dockerAdminAuth";
@@ -597,7 +597,6 @@ import type {
   AuthLoginModeStatus,
   HostMapping,
   TOTPCredential,
-  TOTPCredentialImportSummary,
   TOTPSubdomainAccess,
   TOTPSubdomainAccessMode,
   TOTPAccessScope,
@@ -610,7 +609,6 @@ const DEFAULT_SUBDOMAIN_ACCESS: TOTPSubdomainAccess = {
   mode: "all",
   hosts: [],
 };
-const MAX_AUTH_CREDENTIAL_IMPORT_FILE_SIZE = 512 * 1024;
 
 type SubdomainAccessOption = {
   host: string;
@@ -642,10 +640,6 @@ const openAdminPanelAccessTooltipId = ref<string | null>(null);
 const isTouchInteraction = useMediaQueryMatch(
   "(hover: none), (pointer: coarse)",
 );
-const credentialImportInputRef = ref<HTMLInputElement | null>(null);
-const showCredentialTransferDialog = ref(false);
-const showExportDialog = ref(false);
-const showImportDialog = ref(false);
 const showAuthModeSwitchDialog = ref(false);
 const showAuthAccountDialog = ref(false);
 const showAccountPasswordDialog = ref(false);
@@ -662,14 +656,35 @@ const isAccountPasswordVisible = ref(false);
 const subdomainAccessMode = ref<TOTPSubdomainAccessMode>("all");
 const selectedSubdomainHosts = ref<Set<string>>(new Set());
 const subdomainAccessSearch = ref("");
-const pendingCredentialImportPayload = ref<unknown>(null);
-const pendingCredentialImportFilename = ref("");
 const { isPending: isLoading, run: runLoadStatus } = useAsyncAction({
   onError: (error) => {
     console.error("Failed to get TOTP status:", error);
   },
 });
 const showLoadingSkeleton = useDelayedLoading(isLoading);
+const {
+  exportableCredentialCount,
+  handleCredentialImportFileChange,
+  handleExportCredentials,
+  handleImportCredentials,
+  isCredentialTransferBusy,
+  isExportingCredentials,
+  isImportingCredentials,
+  openExportDialogFromCredentialTransferDialog,
+  pendingCredentialImportFilename,
+  resetPendingCredentialImport,
+  setCredentialImportInput,
+  showCredentialTransferDialog,
+  showExportDialog,
+  showImportDialog,
+  triggerImportFilePickerFromCredentialTransferDialog,
+} = useAuthCredentialTransfer({
+  authAccounts,
+  authLoginMode,
+  credentials,
+  refreshStatus: fetchStatus,
+  translate: (key, params) => (params ? t(key, params) : t(key)),
+});
 const isAccountPasswordSetupMode = computed(
   () =>
     isCreatingAuthAccount.value ||
@@ -697,28 +712,6 @@ const accountPasswordDialogDescription = computed(() => {
     username: editingPasswordAccount.value?.username || "",
   });
 });
-const { isPending: isExportingCredentials, run: runExportCredentials } =
-  useAsyncAction({
-    onError: (error) => {
-      toast.error(
-        extractErrorMessage(
-          error,
-          t("admin.authSettings.exportCredentialsFailed"),
-        ),
-      );
-    },
-  });
-const { isPending: isImportingCredentials, run: runImportCredentials } =
-  useAsyncAction({
-    onError: (error) => {
-      toast.error(
-        extractErrorMessage(
-          error,
-          t("admin.authSettings.importCredentialsFailed"),
-        ),
-      );
-    },
-  });
 const { isPending: isPreviewingAuthMode, run: runPreviewAuthMode } =
   useAsyncAction({
     onError: (error) => {
@@ -839,14 +832,6 @@ const authAccountTableClass = computed(() =>
 );
 const authAccountTableColspan = computed(() =>
   showAdminPanelAccessColumn.value ? 4 : 3,
-);
-const isCredentialTransferBusy = computed(
-  () => isExportingCredentials.value || isImportingCredentials.value,
-);
-const exportableCredentialCount = computed(() =>
-  authLoginMode.value === "password"
-    ? authAccounts.value.length
-    : credentials.value.length,
 );
 const isAuthModeBusy = computed(
   () => isPreviewingAuthMode.value || isSwitchingAuthMode.value,
@@ -1122,14 +1107,6 @@ function handlePrimaryAuthAction() {
   void openSetupDialog();
 }
 
-function buildCredentialExportFilename() {
-  const prefix =
-    authLoginMode.value === "password"
-      ? "fn-knock-password-credentials"
-      : "fn-knock-totp-credentials";
-  return `${prefix}-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
-}
-
 function normalizeTOTPSecret(secret: string) {
   return secret.replace(/\s+/g, "").toUpperCase();
 }
@@ -1348,138 +1325,6 @@ function openManualSetupView() {
 function returnQRCodeSetupView() {
   setupBindMotionDirection.value = "back";
   setupBindView.value = "qr";
-}
-
-function openExportDialog() {
-  if (exportableCredentialCount.value === 0 || isCredentialTransferBusy.value)
-    return;
-  showExportDialog.value = true;
-}
-
-function openExportDialogFromCredentialTransferDialog() {
-  showCredentialTransferDialog.value = false;
-  openExportDialog();
-}
-
-async function handleExportCredentials() {
-  await runExportCredentials(async () => {
-    const blob = await ConfigAPI.downloadTOTPCredentials();
-    downloadBlob(blob, buildCredentialExportFilename());
-    showExportDialog.value = false;
-    toast.success(t("admin.authSettings.exportCredentialsStarted"));
-  });
-}
-
-function resetPendingCredentialImport() {
-  pendingCredentialImportPayload.value = null;
-  pendingCredentialImportFilename.value = "";
-}
-
-function resetCredentialImportInput() {
-  if (credentialImportInputRef.value) {
-    credentialImportInputRef.value.value = "";
-  }
-}
-
-function triggerImportFilePicker() {
-  if (isCredentialTransferBusy.value) return;
-  resetCredentialImportInput();
-  credentialImportInputRef.value?.click();
-}
-
-function triggerImportFilePickerFromCredentialTransferDialog() {
-  showCredentialTransferDialog.value = false;
-  triggerImportFilePicker();
-}
-
-async function handleCredentialImportFileChange(event: Event) {
-  const input = event.target as HTMLInputElement | null;
-  const file = input?.files?.[0] ?? null;
-  resetPendingCredentialImport();
-
-  if (!file) return;
-
-  if (
-    !file.name.toLowerCase().endsWith(".json") &&
-    file.type !== "application/json"
-  ) {
-    toast.error(t("admin.authSettings.importCredentialsInvalidFile"));
-    resetCredentialImportInput();
-    return;
-  }
-
-  if (file.size > MAX_AUTH_CREDENTIAL_IMPORT_FILE_SIZE) {
-    toast.error(t("admin.authSettings.importCredentialsFileTooLarge"), {
-      description: t("admin.authSettings.importCredentialsFileTooLargeDetail", {
-        size: Math.floor(MAX_AUTH_CREDENTIAL_IMPORT_FILE_SIZE / 1024),
-      }),
-    });
-    resetCredentialImportInput();
-    return;
-  }
-
-  try {
-    pendingCredentialImportPayload.value = JSON.parse(await file.text());
-    pendingCredentialImportFilename.value = file.name;
-    showImportDialog.value = true;
-  } catch {
-    toast.error(t("admin.authSettings.importCredentialsParseFailed"));
-  } finally {
-    resetCredentialImportInput();
-  }
-}
-
-function buildImportSummaryDescription(summary: TOTPCredentialImportSummary) {
-  if (
-    summary.kind === "password" ||
-    summary.login_mode === "password" ||
-    typeof summary.password_total === "number"
-  ) {
-    return t("admin.authSettings.importPasswordCredentialsSummary", {
-      total: summary.total,
-      imported: summary.imported,
-      skippedExistingId: summary.skipped_existing_id,
-      skippedExistingUsername: summary.skipped_existing_username ?? 0,
-      skippedFileDuplicate: summary.skipped_file_duplicate,
-      invalid: summary.invalid,
-      passwordTotal: summary.password_total ?? 0,
-      passwordImported: summary.password_imported ?? 0,
-      passwordSkippedExisting: summary.password_skipped_existing ?? 0,
-      passwordSkippedMissingAccount:
-        summary.password_skipped_missing_account ?? 0,
-      passwordSkippedFileDuplicate:
-        summary.password_skipped_file_duplicate ?? 0,
-      passwordInvalid: summary.password_invalid ?? 0,
-      totpTotal: summary.totp_total ?? 0,
-      totpImported: summary.totp_imported ?? 0,
-    });
-  }
-  return t("admin.authSettings.importCredentialsSummary", {
-    imported: summary.imported,
-    skippedExistingId: summary.skipped_existing_id,
-    skippedExistingSecret: summary.skipped_existing_secret,
-    skippedFileDuplicate: summary.skipped_file_duplicate,
-    invalid: summary.invalid,
-    total: summary.total,
-  });
-}
-
-async function handleImportCredentials() {
-  const payload = pendingCredentialImportPayload.value;
-  if (!payload) {
-    toast.error(t("admin.authSettings.importCredentialsChooseFileFirst"));
-    return;
-  }
-
-  await runImportCredentials(async () => {
-    const summary = await ConfigAPI.importTOTPCredentials(payload);
-    showImportDialog.value = false;
-    resetPendingCredentialImport();
-    await fetchStatus();
-    toast.success(t("admin.authSettings.importCredentialsCompleted"), {
-      description: buildImportSummaryDescription(summary),
-    });
-  });
 }
 
 function hasDockerAdminPanelAccess(record: AuthPermissionRecord) {

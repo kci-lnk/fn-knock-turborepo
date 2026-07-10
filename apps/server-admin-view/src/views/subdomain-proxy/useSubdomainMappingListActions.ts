@@ -1,5 +1,4 @@
 import type { ComputedRef, Ref } from "vue";
-import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { copyTextToClipboard } from "@admin-shared/utils/copyTextToClipboard";
 import { downloadBlob } from "@admin-shared/utils/downloadBlob";
 import { toast } from "@admin-shared/utils/toast";
@@ -165,45 +164,6 @@ export const useSubdomainMappingListActions = ({
     });
   };
 
-  const saveMappingTitleOverride = async (
-    mapping: HostMapping,
-    value: string,
-  ) => {
-    const nextTitleOverride = value.trim();
-    const currentTitleOverride = mapping.title_override.trim();
-    const currentFetchedTitle = mapping.title.trim();
-    if (
-      nextTitleOverride === currentTitleOverride ||
-      (!currentTitleOverride &&
-        (nextTitleOverride === currentFetchedTitle || !nextTitleOverride))
-    ) {
-      return;
-    }
-
-    if (isSavingMappings.value) {
-      throw new Error(translate("admin.subdomainProxy.concurrentSave"));
-    }
-
-    try {
-      await saveHostMappings(
-        allMappings.value.map((item) =>
-          item.host === mapping.host
-            ? { ...item, title_override: nextTitleOverride }
-            : item,
-        ),
-      );
-      toast.success(translate("admin.subdomainProxy.titleUpdated"));
-    } catch (error) {
-      toast.error(translate("admin.subdomainProxy.saveFailed"), {
-        description: extractErrorMessage(
-          error,
-          translate("admin.subdomainProxy.titleSaveFailed"),
-        ),
-      });
-      throw error;
-    }
-  };
-
   const syncRoutes = async () => {
     await runSyncRoutes(() => syncRoutesApi(), {
       onSuccess: (result) => {
@@ -268,7 +228,6 @@ export const useSubdomainMappingListActions = ({
     openGatewayLocations,
     refreshAllTitles,
     saveMappingOrder,
-    saveMappingTitleOverride,
     setDefaultMapping,
     syncRoutes,
   };

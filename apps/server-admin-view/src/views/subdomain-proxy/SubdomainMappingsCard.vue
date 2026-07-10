@@ -54,7 +54,6 @@ import {
 } from "@/components/ui/table";
 import { VueDraggable } from "vue-draggable-plus";
 import HostTrafficActivity from "@/components/HostTrafficActivity.vue";
-import InlineCommentEditor from "@admin-shared/components/InlineCommentEditor.vue";
 import SearchInput from "@admin-shared/components/SearchInput.vue";
 import type { HostTrafficStats, HostMapping } from "@/types";
 import {
@@ -98,10 +97,6 @@ const props = defineProps<{
   isAuthServiceTarget: (target: string) => boolean;
   markFaviconBroken: (mapping: HostMapping) => void;
   openProtocolHeadersWarning: (host: string) => void;
-  saveMappingTitleOverride: (
-    mapping: HostMapping,
-    value: string,
-  ) => Promise<void>;
   savedRootDomain: string;
   scheduleCloseProtocolHeadersWarning: (host: string) => void;
   searchQuery: string;
@@ -479,16 +474,21 @@ const handleMappingTableScroll = (event: Event) => {
                       </div>
                     </PopoverContent>
                   </Popover>
-                  <div class="min-w-0 flex-1">
-                    <InlineCommentEditor
-                      :text="getMappingDisplayTitle(mapping)"
-                      :placeholder="t('admin.subdomainProxy.titlePlaceholder')"
-                      :empty-text="t('admin.subdomainProxy.notFetched')"
-                      :save="
-                        (value) => saveMappingTitleOverride(mapping, value)
-                      "
-                    />
-                  </div>
+                  <button
+                    type="button"
+                    class="min-w-0 flex-1 rounded-sm text-left text-sm transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    :title="t('admin.subdomainProxy.edit')"
+                    :aria-label="
+                      t('admin.subdomainProxy.editMappingAria', {
+                        host: formatHost(mapping.host),
+                      })
+                    "
+                    @click="emit('edit', mapping)"
+                  >
+                    <span class="block truncate">
+                      {{ getMappingDisplayTitle(mapping) }}
+                    </span>
+                  </button>
                 </div>
               </TableCell>
               <TableCell class="break-all font-medium">

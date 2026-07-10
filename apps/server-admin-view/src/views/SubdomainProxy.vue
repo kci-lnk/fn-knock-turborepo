@@ -64,7 +64,6 @@
       :is-syncing="isSyncing"
       :mark-favicon-broken="markFaviconBroken"
       :open-protocol-headers-warning="openProtocolHeadersWarning"
-      :save-mapping-title-override="saveMappingTitleOverride"
       :saved-root-domain="savedRootDomain"
       :schedule-close-protocol-headers-warning="
         scheduleCloseProtocolHeadersWarning
@@ -631,7 +630,6 @@ const {
   openGatewayLocations,
   refreshAllTitles,
   saveMappingOrder,
-  saveMappingTitleOverride,
   setDefaultMapping,
   syncRoutes,
 } = useSubdomainMappingListActions({

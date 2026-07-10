@@ -1,10 +1,19 @@
-use std::collections::BTreeSet;
+use std::{
+    collections::BTreeSet,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
 use serde_json::{Map, Value, json};
 use tokio::time::{self, MissedTickBehavior};
 
 use crate::{
-    auth_mobility_keys::subject_hash as auth_mobility_subject_hash,
+    auth_mobility_keys::{
+        session_mutation_lock_key as auth_mobility_session_mutation_lock_key,
+        subject_hash as auth_mobility_subject_hash,
+    },
     http_utils::normalize_ip,
     i18n::{DEFAULT_LOCALE, Translator},
     ip_location,
@@ -20,6 +29,133 @@ const DEFAULT_POST_LOGIN_IP_GRANT_TTL_SECONDS: i64 = 3600;
 const DEFAULT_SESSION_IP_MOBILITY_WINDOW_SECONDS: i64 = 20 * 60;
 const MAX_AUTH_TTL_SECONDS: i64 = 5 * 365 * 24 * 3600;
 const AUTH_MOBILITY_MAINTENANCE_INTERVAL_SECONDS: u64 = 60;
+// Activity timestamps are housekeeping data, not authorization state. Coalescing
+// identical touches keeps segmented media requests from rewriting the same
+// session/binding/active-IP records for every segment while still refreshing at
+// least twice inside the minimum (60 second) mobility window.
+const AUTH_ACTIVITY_TOUCH_MIN_INTERVAL_SECONDS: i64 = 30;
+const AUTH_MOBILITY_SESSION_LOCK_TTL_SECONDS: usize = 120;
+const AUTH_MOBILITY_SESSION_LOCK_WAIT_SECONDS: u64 = 10;
+
+struct AuthMobilitySessionMutationLease {
+    state: AppState,
+    key: String,
+    lock_id: String,
+    valid: Arc<AtomicBool>,
+    heartbeat: Option<tokio::task::JoinHandle<()>>,
+}
+
+async fn acquire_auth_mobility_session_mutation_lease(
+    state: &AppState,
+    session_id: &str,
+) -> anyhow::Result<Option<AuthMobilitySessionMutationLease>> {
+    let key = auth_mobility_session_mutation_lock_key(session_id);
+    let lock_id = uuid::Uuid::new_v4().to_string();
+    let deadline = time::Instant::now()
+        + std::time::Duration::from_secs(AUTH_MOBILITY_SESSION_LOCK_WAIT_SECONDS);
+    loop {
+        if state
+            .store
+            .set_json_value_nx_ex(
+                &key,
+                &json!({
+                    "lockId": lock_id,
+                    "sessionId": session_id,
+                    "createdAt": time_utils::now_iso(),
+                }),
+                AUTH_MOBILITY_SESSION_LOCK_TTL_SECONDS,
+            )
+            .await?
+        {
+            let heartbeat_state = state.clone();
+            let heartbeat_key = key.clone();
+            let heartbeat_lock_id = lock_id.clone();
+            let valid = Arc::new(AtomicBool::new(true));
+            let heartbeat_valid = Arc::clone(&valid);
+            let heartbeat = tokio::spawn(async move {
+                let mut interval = time::interval(std::time::Duration::from_secs(
+                    (AUTH_MOBILITY_SESSION_LOCK_TTL_SECONDS as u64 / 3).max(1),
+                ));
+                interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
+                interval.tick().await;
+                loop {
+                    interval.tick().await;
+                    let refreshed = heartbeat_state
+                        .store
+                        .set_json_lock_if_owned_ex(
+                            &heartbeat_key,
+                            &heartbeat_lock_id,
+                            &json!({
+                                "lockId": heartbeat_lock_id,
+                                "refreshedAt": time_utils::now_iso(),
+                            }),
+                            AUTH_MOBILITY_SESSION_LOCK_TTL_SECONDS,
+                        )
+                        .await;
+                    if !matches!(refreshed, Ok(true)) {
+                        heartbeat_valid.store(false, Ordering::Release);
+                        break;
+                    }
+                }
+            });
+            return Ok(Some(AuthMobilitySessionMutationLease {
+                state: state.clone(),
+                key,
+                lock_id,
+                valid,
+                heartbeat: Some(heartbeat),
+            }));
+        }
+        if time::Instant::now() >= deadline {
+            return Ok(None);
+        }
+        time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+}
+
+impl AuthMobilitySessionMutationLease {
+    async fn ensure_valid(&self) -> anyhow::Result<bool> {
+        if !self.valid.load(Ordering::Acquire) {
+            return Ok(false);
+        }
+        let refreshed = self
+            .state
+            .store
+            .set_json_lock_if_owned_ex(
+                &self.key,
+                &self.lock_id,
+                &json!({
+                    "lockId": self.lock_id,
+                    "refreshedAt": time_utils::now_iso(),
+                }),
+                AUTH_MOBILITY_SESSION_LOCK_TTL_SECONDS,
+            )
+            .await?;
+        if !refreshed {
+            self.valid.store(false, Ordering::Release);
+        }
+        Ok(refreshed)
+    }
+
+    async fn release(mut self) -> anyhow::Result<bool> {
+        if let Some(heartbeat) = self.heartbeat.take() {
+            heartbeat.abort();
+        }
+        self.state
+            .store
+            .delete_lock_if_owned(&self.key, &self.lock_id)
+            .await
+            .map_err(Into::into)
+    }
+}
+
+impl Drop for AuthMobilitySessionMutationLease {
+    fn drop(&mut self) {
+        if let Some(heartbeat) = self.heartbeat.take() {
+            heartbeat.abort();
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct CreateLoginSessionInput {
@@ -257,6 +393,30 @@ fn binding_whitelist_record_id(value: &Value) -> Option<String> {
         .map(ToString::to_string)
 }
 
+fn mobility_touch_is_fresh(last_seen_at: i64, now: i64, interval_seconds: i64) -> bool {
+    last_seen_at > 0 && now >= last_seen_at && now - last_seen_at < interval_seconds.max(1)
+}
+
+fn mobility_binding_touch_is_fresh(
+    binding: &Value,
+    current_ip: &str,
+    owner_session_id: &str,
+    now: i64,
+) -> bool {
+    binding_owner_session_id(binding).as_deref() == Some(owner_session_id)
+        && binding
+            .get("currentIp")
+            .and_then(Value::as_str)
+            .is_some_and(|value| {
+                normalized_or_trimmed_ip(value) == normalized_or_trimmed_ip(current_ip)
+            })
+        && mobility_touch_is_fresh(
+            parse_iso_unix(binding.get("lastSeenAt").and_then(Value::as_str)).unwrap_or_default(),
+            now,
+            AUTH_ACTIVITY_TOUCH_MIN_INTERVAL_SECONDS,
+        )
+}
+
 fn clear_binding_owner_session(value: &mut Value) {
     if let Some(object) = value.as_object_mut() {
         object.remove("ownerSessionId");
@@ -332,6 +492,12 @@ fn normalized_or_trimmed_ip(value: &str) -> String {
     }
 }
 
+pub(crate) fn session_ip_matches(session: &LoginSession, client_ip: &str) -> bool {
+    let normalized_client_ip = normalized_or_trimmed_ip(client_ip);
+    !normalized_client_ip.is_empty()
+        && normalized_or_trimmed_ip(&session.ip) == normalized_client_ip
+}
+
 async fn cached_ip_location(state: &AppState, ip: &str) -> Option<String> {
     if ip.is_empty() {
         return None;
@@ -361,6 +527,7 @@ mod trusted_sync;
 
 pub use active_ips::effective_session_ips;
 use active_ips::{
+    active_ip_touch_is_fresh_for_session, initialize_login_session_mobility_metadata,
     maintain_session_active_ips, parse_active_ip_detail, prune_session_active_ips,
     record_browser_session_login, record_session_active_ip, register_login_session,
 };
@@ -374,6 +541,7 @@ use events::*;
 pub use login::create_login_session;
 use restore::resolve_bootstrap_owner;
 pub use restore::try_restore_access;
+pub(crate) use trusted_sync::sync_browser_session_ip_with_session;
 pub use trusted_sync::{sync_browser_session_ip, sync_trusted_request};
 
 #[cfg(test)]

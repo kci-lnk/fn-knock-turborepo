@@ -72,6 +72,20 @@ pub(super) fn schedule_host_mappings_metadata_refresh(
             return;
         }
 
+        let _update_guard = state.host_mappings_update_lock.lock().await;
+        let transaction_lease = match acquire_host_mappings_transaction_lease(&state).await {
+            Ok(Some(lease)) => lease,
+            Ok(None) => {
+                tracing::debug!(
+                    "host mappings transaction is busy; dropping stale metadata refresh"
+                );
+                return;
+            }
+            Err(error) => {
+                tracing::warn!(%error, "failed to acquire host mappings transaction lease");
+                return;
+            }
+        };
         let current_config = match state.store.get_config().await {
             Ok(config) => config,
             Err(error) => {
@@ -88,21 +102,50 @@ pub(super) fn schedule_host_mappings_metadata_refresh(
             .cloned()
             .unwrap_or_default();
         let (next_mappings, changed) =
-            merge_metadata_into_current_mappings(current_mappings, items);
+            merge_metadata_into_current_mappings(current_mappings.clone(), items);
         if !changed {
             return;
         }
+        match transaction_lease.ensure_valid().await {
+            Ok(true) => {}
+            Ok(false) => {
+                tracing::debug!(
+                    "host mappings transaction lease expired; dropping metadata refresh"
+                );
+                return;
+            }
+            Err(error) => {
+                tracing::warn!(%error, "failed to refresh host mappings transaction lease");
+                return;
+            }
+        }
 
-        let mut next_config = current_config.clone();
-        ensure_object(&mut next_config).insert(
-            "host_mappings".to_string(),
-            Value::Array(next_mappings.clone()),
-        );
-        if let Err(error) = state.store.save_config(&next_config).await {
-            tracing::warn!(
-                %error,
-                "failed to save host mappings after metadata background refresh"
-            );
+        let next_config = match state
+            .store
+            .compare_and_set_host_mappings(&current_mappings, &next_mappings)
+            .await
+        {
+            Ok(Some(config)) => config,
+            Ok(None) => {
+                tracing::debug!(
+                    "host mappings changed while metadata was being merged; dropping stale refresh"
+                );
+                return;
+            }
+            Err(error) => {
+                tracing::warn!(
+                    %error,
+                    "failed to save host mappings after metadata background refresh"
+                );
+                return;
+            }
+        };
+        if let Err(error) = transaction_lease.ensure_owned().await {
+            tracing::warn!(%error, "host mappings transaction lease was lost before metadata runtime sync");
+            let _ = state
+                .store
+                .compare_and_set_host_mappings(&next_mappings, &current_mappings)
+                .await;
             return;
         }
         if let Err(message) =
@@ -112,6 +155,9 @@ pub(super) fn schedule_host_mappings_metadata_refresh(
                 %message,
                 "failed to sync refreshed host mapping metadata to gateway"
             );
+        }
+        if let Err(error) = transaction_lease.release().await {
+            tracing::warn!(%error, "failed to release host mappings transaction lease");
         }
     });
 }
@@ -259,7 +305,7 @@ pub(super) async fn sync_gateway_portal_host_rules_if_title_mode(
     if !is_gateway_portal_title_mode(config) || !is_any_subdomain_routing_mode(config) {
         return Ok(false);
     }
-    sync_go_host_rules(state, &build_host_rules_payload(mappings)).await?;
+    sync_go_host_rules_locked(state, &build_host_rules_payload(mappings)).await?;
     Ok(true)
 }
 

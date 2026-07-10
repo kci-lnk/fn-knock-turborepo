@@ -24,18 +24,54 @@ pub(super) async fn rollback_proxy_mappings(state: &AppState, previous_config: &
     }
 }
 
-pub(super) async fn rollback_host_mappings(state: &AppState, previous_config: &Value) {
-    if let Err(error) = state.store.save_config(previous_config).await {
-        tracing::warn!(%error, "failed to rollback host mappings config");
-        return;
-    }
+pub(super) async fn rollback_host_mappings(
+    state: &AppState,
+    previous_config: &Value,
+    expected_current_mappings: &[Value],
+) {
+    rollback_host_mappings_with_runtime_sync(
+        state,
+        previous_config,
+        expected_current_mappings,
+        |state, config, mappings| async move {
+            sync_host_mappings_runtime(&state, &config, &mappings).await
+        },
+    )
+    .await;
+}
+
+pub(super) async fn rollback_host_mappings_with_runtime_sync<Sync, SyncFuture>(
+    state: &AppState,
+    previous_config: &Value,
+    expected_current_mappings: &[Value],
+    sync_runtime: Sync,
+) where
+    Sync: FnOnce(AppState, Value, Vec<Value>) -> SyncFuture,
+    SyncFuture: std::future::Future<Output = Result<(), String>>,
+{
     let previous_mappings = previous_config
         .get("host_mappings")
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
-    if let Err(error) = sync_host_mappings_runtime(state, previous_config, &previous_mappings).await
+    let restored_config = match state
+        .store
+        .compare_and_set_host_mappings(expected_current_mappings, &previous_mappings)
+        .await
     {
+        Ok(Some(config)) => config,
+        Ok(None) => {
+            tracing::warn!(
+                "host mappings changed before rollback; preserving the newer configuration"
+            );
+            return;
+        }
+        Err(error) => {
+            tracing::warn!(%error, "failed to rollback host mappings config");
+            return;
+        }
+    };
+    if let Err(error) = sync_runtime(state.clone(), restored_config, previous_mappings).await {
         tracing::warn!(%error, "failed to rollback host mappings runtime");
     }
 }
@@ -55,7 +91,7 @@ pub(super) async fn rollback_subdomain_mode(state: &AppState, previous_config: &
         tracing::warn!(%error, "failed to rollback subdomain mode config");
         return;
     }
-    if let Err(error) = sync_go_auth_config(state, previous_config).await {
+    if let Err(error) = sync_current_go_auth_config(state).await {
         tracing::warn!(%error, "failed to rollback subdomain mode runtime");
     }
 }
@@ -89,6 +125,7 @@ pub(super) fn normalize_host_mappings_for_route(
     let mut normalized = Vec::with_capacity(mappings.len());
     let mut has_default_mapping = false;
     let mut auth_mapping_count = 0;
+    let mut seen_hosts = HashSet::with_capacity(mappings.len());
 
     for mapping in mappings {
         let Some(mut object) = mapping.as_object().cloned() else {
@@ -97,6 +134,9 @@ pub(super) fn normalize_host_mappings_for_route(
         let host = normalize_host_value(object.get("host").and_then(Value::as_str).unwrap_or(""));
         if host.is_empty() {
             return Err("Host mapping host is required".to_string());
+        }
+        if !seen_hosts.insert(host.clone()) {
+            return Err(format!("Duplicate host mapping {host}"));
         }
 
         let target = object
@@ -156,6 +196,13 @@ pub(super) fn normalize_host_mappings_for_route(
             Value::Null
         } else {
             normalize_host_mapping_availability_for_route(&host, availability_source)?
+        };
+        let protocol_mode = if object.contains_key("protocol_mode") {
+            parse_explicit_protocol_mode(object.get("protocol_mode")).ok_or_else(|| {
+                format!("Host mapping {host} HTTPS protocol mode must be auto, http1 or http2")
+            })?
+        } else {
+            normalize_protocol_mode(previous.and_then(|value| value.get("protocol_mode")))
         };
 
         let locations = if service_role == "auth" {
@@ -229,6 +276,7 @@ pub(super) fn normalize_host_mappings_for_route(
         object.insert("is_default".to_string(), Value::Bool(is_default));
         object.insert("disabled".to_string(), Value::Bool(disabled));
         object.insert("availability".to_string(), availability);
+        object.insert("protocol_mode".to_string(), Value::String(protocol_mode));
         object.insert("basic_auth".to_string(), normalized_basic_auth);
         object.insert("locations".to_string(), Value::Array(locations));
         object.insert(

@@ -3,14 +3,8 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { toast } from "@admin-shared/utils/toast";
-import {
-  DashboardAPI,
-  FrpcAPI,
-  CloudflaredAPI,
-  DDNSAPI,
-  SecurityAPI,
-} from "../lib/api";
-import type { DashboardStats, TrafficStats, ThreatOverview } from "../types";
+import { DashboardAPI, DDNSAPI, SecurityAPI } from "../lib/api";
+import type { DashboardStats, ThreatOverview } from "../types";
 import { isCloudflaredTunnelAvailable } from "../lib/reverse-proxy-submode";
 import {
   Card,
@@ -51,8 +45,9 @@ import {
 import { useAsyncAction } from "@admin-shared/composables/useAsyncAction";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
-import { useTargetPolling } from "../composables/useTargetPolling";
 import { useConfigStore } from "../store/config";
+import { useDashboardTunnelStatus } from "./dashboard/useDashboardTunnelStatus";
+import { useDashboardRealtimeTraffic } from "./dashboard/useDashboardRealtimeTraffic";
 import { buildDDNSTimestampTooltipLines } from "../lib/ddns-time";
 import TimeSeriesChart, {
   type TimeSeriesChartSeries,
@@ -97,37 +92,11 @@ const errorMessage = ref("");
 const stats = ref<DashboardStats | null>(null);
 const threatOverview = ref<ThreatOverview | null>(null);
 const lastUpdatedAt = ref<Date | null>(null);
-const realtimeStats = ref<TrafficStats | null>(null);
-const realtimeInBps = ref<number | null>(null);
-const realtimeOutBps = ref<number | null>(null);
 let refreshTimer: number | null = null;
-let lastRealtimeSample: {
-  at: number;
-  totalIn: number;
-  totalOut: number;
-} | null = null;
-let tunnelStatusTimer: number | null = null;
-let tunnelStatusInFlight: Promise<void> | null = null;
 
 const router = useRouter();
 const configStore = useConfigStore();
 const { locale, t } = useI18n();
-
-type TunnelStatus = {
-  running: boolean;
-  pid: number | null;
-  initialized: boolean;
-};
-
-const frpStatus = ref<TunnelStatus | null>(null);
-const cfStatus = ref<TunnelStatus | null>(null);
-const defaultTunnel = ref<"frp" | "cloudflared">("frp");
-const isTunnelInitializing = ref(true);
-const { isPending: isTunnelPending, run: runLoadTunnelStatus } =
-  useAsyncAction();
-const isTunnelLoading = computed(
-  () => isTunnelInitializing.value || isTunnelPending.value,
-);
 
 const ddnsStatus = ref<{
   enabled: boolean;
@@ -163,6 +132,19 @@ const showDdnsSkeleton = useDelayedLoading(() => isDdnsLoading.value);
 const showTunnelSkeleton = useDelayedLoading(() => isTunnelLoading.value);
 const ddnsError = ref("");
 const showTunnelSection = computed(() => configStore.config?.run_type === 1);
+const {
+  cfStatus,
+  defaultTunnel,
+  dispose: disposeTunnelStatus,
+  frpStatus,
+  isLoading: isTunnelLoading,
+  reset: resetTunnelStatus,
+  scheduleLoad: scheduleTunnelStatusLoad,
+} = useDashboardTunnelStatus({
+  getConfig: () => configStore.config,
+  loadConfig: () => configStore.loadConfig(),
+  showTunnelSection,
+});
 const showEntryStatusModule = computed(
   () =>
     configStore.config?.dashboard_display?.show_entry_status_module !== false,
@@ -191,86 +173,6 @@ const translateTrafficSeriesName = (name: unknown) => {
   const value = String(name ?? "");
   const key = trafficSeriesLabelKeys[value];
   return key ? t(key) : value;
-};
-
-const resetTunnelStatus = () => {
-  frpStatus.value = null;
-  cfStatus.value = null;
-  defaultTunnel.value = "frp";
-  isTunnelInitializing.value = false;
-};
-
-const runTunnelStatusLoad = async () => {
-  if (!showTunnelSection.value) {
-    resetTunnelStatus();
-    return;
-  }
-
-  await runLoadTunnelStatus(
-    () =>
-      Promise.all([
-        FrpcAPI.getStatus().catch(() => null),
-        CloudflaredAPI.getStatus().catch(() => null),
-        (configStore.config
-          ? Promise.resolve(configStore.config)
-          : configStore.loadConfig()
-        ).catch(() => null),
-      ]),
-    {
-      onSuccess: ([frp, cf, config]) => {
-        if (frp)
-          frpStatus.value = {
-            running: frp.running,
-            pid: frp.pid,
-            initialized: frp.initialized,
-          };
-        if (cf)
-          cfStatus.value = {
-            running: cf.running,
-            pid: cf.pid,
-            initialized: cf.initialized,
-          };
-        if (config) {
-          defaultTunnel.value =
-            config.default_tunnel === "cloudflared" &&
-            !isCloudflaredTunnelAvailable(config)
-              ? "frp"
-              : config.default_tunnel || "frp";
-        }
-      },
-      onFinally: () => {
-        isTunnelInitializing.value = false;
-      },
-    },
-  );
-};
-
-const loadTunnelStatus = async () => {
-  if (tunnelStatusInFlight) return tunnelStatusInFlight;
-
-  tunnelStatusInFlight = runTunnelStatusLoad().finally(() => {
-    tunnelStatusInFlight = null;
-  });
-  return tunnelStatusInFlight;
-};
-
-const scheduleTunnelStatusLoad = () => {
-  if (tunnelStatusTimer !== null) {
-    window.clearTimeout(tunnelStatusTimer);
-    tunnelStatusTimer = null;
-  }
-
-  if (!showTunnelSection.value) {
-    resetTunnelStatus();
-    return;
-  }
-
-  if (tunnelStatusInFlight) return;
-  isTunnelInitializing.value = true;
-  tunnelStatusTimer = window.setTimeout(() => {
-    tunnelStatusTimer = null;
-    void loadTunnelStatus();
-  }, 0);
 };
 
 const gotoTunnel = (tab: "frp" | "cloudflared") => {
@@ -407,42 +309,12 @@ const threatSeries = computed<TimeSeriesChartSeries[]>(() => {
   ];
 });
 
-const applyRealtimeStats = (payload: TrafficStats) => {
-  if (
-    !payload ||
-    !Number.isFinite(payload.total_in) ||
-    !Number.isFinite(payload.total_out)
-  )
-    return;
-  realtimeStats.value = payload;
-  const now = Number(payload.timestamp ?? Date.now());
-  if (lastRealtimeSample) {
-    const dt = Math.max(1, (now - lastRealtimeSample.at) / 1000);
-    const deltaIn = Math.max(0, payload.total_in - lastRealtimeSample.totalIn);
-    const deltaOut = Math.max(
-      0,
-      payload.total_out - lastRealtimeSample.totalOut,
-    );
-    realtimeInBps.value = deltaIn / dt;
-    realtimeOutBps.value = deltaOut / dt;
-  } else {
-    realtimeInBps.value = null;
-    realtimeOutBps.value = null;
-  }
-  lastRealtimeSample = {
-    at: now,
-    totalIn: payload.total_in,
-    totalOut: payload.total_out,
-  };
-};
-
-const realtimePolling = useTargetPolling({
-  target: "dashboard",
-  intervalMs: 1000,
-  onData: (payload) => {
-    applyRealtimeStats(payload);
-  },
-});
+const {
+  polling: realtimePolling,
+  realtimeInBps,
+  realtimeOutBps,
+  realtimeStats,
+} = useDashboardRealtimeTraffic();
 
 const loadDdnsStatus = async () => {
   ddnsError.value = "";
@@ -551,7 +423,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (refreshTimer) window.clearInterval(refreshTimer);
-  if (tunnelStatusTimer !== null) window.clearTimeout(tunnelStatusTimer);
+  disposeTunnelStatus();
   realtimePolling.stop();
 });
 
@@ -660,7 +532,8 @@ const ddnsState = computed(() => {
 const ddnsCards = computed(() => [
   {
     label: t("admin.dashboard.ddns.provider"),
-    value: ddnsStatus.value?.provider || t("admin.dashboard.ddns.notConfigured"),
+    value:
+      ddnsStatus.value?.provider || t("admin.dashboard.ddns.notConfigured"),
     hint:
       (ddnsStatus.value?.extraTargetCount || 0) > 0
         ? t("admin.dashboard.ddns.primaryDynamicServiceWithExtra", {
@@ -763,7 +636,9 @@ const tunnelCards = computed(() => [
         <div
           class="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground"
         >
-          <span>{{ t("admin.dashboard.labels.range") }}: {{ titleRangeText }}</span>
+          <span
+            >{{ t("admin.dashboard.labels.range") }}: {{ titleRangeText }}</span
+          >
           <span class="text-border">|</span>
           <span class="font-medium text-foreground"
             >{{ t("admin.dashboard.labels.online") }}:
@@ -807,7 +682,9 @@ const tunnelCards = computed(() => [
             </DialogTrigger>
             <DialogContent class="sm:max-w-[460px]">
               <DialogHeader>
-                <DialogTitle>{{ t("admin.dashboard.theme.title") }}</DialogTitle>
+                <DialogTitle>{{
+                  t("admin.dashboard.theme.title")
+                }}</DialogTitle>
                 <DialogDescription>
                   {{ t("admin.dashboard.theme.description") }}
                 </DialogDescription>

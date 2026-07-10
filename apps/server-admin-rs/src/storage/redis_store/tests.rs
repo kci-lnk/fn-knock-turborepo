@@ -1,4 +1,5 @@
 use super::*;
+use tokio_rusqlite::OptionalExtension;
 
 #[test]
 fn sorts_backup_strings_like_node_locale_compare() {
@@ -76,6 +77,55 @@ async fn backup_restore_roundtrips_stream_field_order_and_duplicates() {
 }
 
 #[tokio::test]
+async fn backup_prefix_replace_ignores_imported_host_generation_and_sets_trusted_value() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
+        .await
+        .expect("open store");
+    store
+        .save_config(&json!({
+            "host_mappings": [{ "host": "before.example.com" }]
+        }))
+        .await
+        .expect("seed config and generation");
+    let restored_config = json!({
+        "host_mappings": [{ "host": "restored.example.com" }],
+        "unrelated": { "restored": true }
+    });
+    let entries = vec![
+        json!({
+            "key": CONFIG_KEY,
+            "type": "string",
+            "ttl_ms": null,
+            "value": restored_config.to_string()
+        }),
+        json!({
+            "key": HOST_MAPPINGS_GENERATION_KEY,
+            "type": "string",
+            "ttl_ms": null,
+            "value": "999999"
+        }),
+    ];
+
+    store
+        .replace_backup_entries_by_prefix("fn_knock:", &entries, 200)
+        .await
+        .expect("replace backup prefix");
+
+    assert_eq!(
+        store
+            .get_string_value(HOST_MAPPINGS_GENERATION_KEY)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("2")
+    );
+    let restored = store.get_config().await.unwrap();
+    assert_eq!(restored["host_mappings"], restored_config["host_mappings"]);
+    assert_eq!(restored["unrelated"], restored_config["unrelated"]);
+}
+
+#[tokio::test]
 async fn poll_log_buffer_recovers_when_sequence_lags_existing_items() {
     let dir = tempfile::tempdir().expect("create temp dir");
     let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
@@ -138,6 +188,724 @@ async fn append_log_buffer_continues_sequence_from_existing_items_without_seq() 
         .expect("poll after current cursor");
     assert_eq!(empty["cursor"], json!(3));
     assert_eq!(empty["items"], json!([]));
+}
+
+#[tokio::test]
+async fn json_locks_refresh_and_release_only_for_the_owner() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
+        .await
+        .expect("open store");
+    let key = "fn_knock:test:json-lock";
+    let initial = json!({ "lockId": "owner", "createdAt": "initial" });
+    assert!(
+        store
+            .set_json_value_nx_ex(key, &initial, 30)
+            .await
+            .expect("acquire JSON lock")
+    );
+
+    assert!(
+        !store
+            .set_json_lock_if_owned_ex(
+                key,
+                "other",
+                &json!({ "lockId": "other", "createdAt": "wrong" }),
+                120,
+            )
+            .await
+            .expect("reject wrong owner refresh")
+    );
+    assert_eq!(
+        store.get_json_value(key).await.unwrap(),
+        Some(initial.clone())
+    );
+
+    let refreshed = json!({ "lockId": "owner", "createdAt": "refreshed" });
+    assert!(
+        store
+            .set_json_lock_if_owned_ex(key, "owner", &refreshed, 120)
+            .await
+            .expect("refresh owned lock")
+    );
+    assert_eq!(store.get_json_value(key).await.unwrap(), Some(refreshed));
+    let mut conn = store.conn();
+    assert!(conn.ttl(key).await.expect("read refreshed TTL") > 30);
+
+    assert!(
+        !store
+            .delete_lock_if_owned(key, "other")
+            .await
+            .expect("reject wrong owner release")
+    );
+    assert!(store.get_json_value(key).await.unwrap().is_some());
+    assert!(
+        store
+            .delete_lock_if_owned(key, "owner")
+            .await
+            .expect("release owned lock")
+    );
+    assert_eq!(store.get_json_value(key).await.unwrap(), None);
+    assert!(
+        !store
+            .delete_lock_if_owned(key, "owner")
+            .await
+            .expect("repeat release")
+    );
+
+    store
+        .set_string_value(key, "not-json")
+        .await
+        .expect("seed invalid JSON lock");
+    assert!(
+        !store
+            .delete_lock_if_owned(key, "owner")
+            .await
+            .expect("invalid JSON is not owned")
+    );
+    assert_eq!(
+        store.get_string_value(key).await.unwrap().as_deref(),
+        Some("not-json")
+    );
+}
+
+#[tokio::test]
+async fn host_mapping_section_cas_requires_an_exact_array_and_preserves_other_sections() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
+        .await
+        .expect("open store");
+    let structurally_invalid = json!({
+        "host_mappings": {},
+        "unrelated": { "generation": 7 }
+    });
+    store
+        .save_config(&structurally_invalid)
+        .await
+        .expect("seed non-array host mappings");
+
+    assert!(
+        store
+            .compare_and_set_host_mappings(&[], &[json!({ "host": "a.example.com" })])
+            .await
+            .expect("compare structural mismatch")
+            .is_none()
+    );
+    let mut stored = store.get_config().await.unwrap();
+    strip_internal_config_metadata(&mut stored);
+    assert_eq!(stored, structurally_invalid);
+
+    let expected = vec![json!({
+        "host": "a.example.com",
+        "target": "http://127.0.0.1:8080"
+    })];
+    store
+        .replace_config(&json!({
+            "host_mappings": expected,
+            "unrelated": { "generation": 8 }
+        }))
+        .await
+        .expect("seed valid host mappings");
+    let expected = store.get_config().await.unwrap()["host_mappings"]
+        .as_array()
+        .cloned()
+        .unwrap();
+    let mut forbidden_full_writer = store.get_config().await.unwrap();
+    forbidden_full_writer["host_mappings"] = json!([{
+        "host": "forbidden.example.com"
+    }]);
+    assert!(store.save_config(&forbidden_full_writer).await.is_err());
+    assert_eq!(
+        store.get_config().await.unwrap()["host_mappings"],
+        json!(expected)
+    );
+    let replacement = vec![json!({
+        "host": "a.example.com",
+        "target": "http://127.0.0.1:8080",
+        "protocol_mode": "http1"
+    })];
+    let updated = store
+        .compare_and_set_host_mappings(&expected, &replacement)
+        .await
+        .expect("apply exact host mappings CAS")
+        .expect("expected value matched");
+
+    assert_eq!(updated["host_mappings"], json!(replacement));
+    assert_eq!(updated["unrelated"]["generation"], json!(8));
+    assert_eq!(store.get_config().await.unwrap(), updated);
+
+    let emptied = store
+        .compare_and_set_host_mappings(&replacement, &[])
+        .await
+        .expect("replace host mappings with an empty array")
+        .expect("non-empty expected value matched");
+    assert_eq!(emptied["host_mappings"], json!([]));
+    assert!(emptied["host_mappings"].is_array());
+    assert_eq!(emptied["unrelated"]["generation"], json!(8));
+    assert_eq!(store.get_config().await.unwrap(), emptied);
+}
+
+#[tokio::test]
+async fn gateway_target_section_merge_preserves_newer_config_and_section_writes() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let path = dir.path().join("fn-knock.sqlite3");
+    let stale_store = Store::connect(&path).await.expect("open stale store");
+    let newer_store = Store::connect(&path).await.expect("open newer store");
+    stale_store
+        .save_config(&json!({
+            "run_type": 3,
+            "host_mappings": [{
+                "host": "video.example.com",
+                "target": "http://127.0.0.1:8080",
+                "protocol_mode": "http1"
+            }],
+            "gateway_proxy_headers": { "disabled_hosts": [] },
+            "gateway_host_response": { "disabled_hosts": [] },
+            "unrelated": { "generation": 1 }
+        }))
+        .await
+        .expect("seed config");
+
+    let stale = stale_store.get_config().await.expect("load stale config");
+    let expected_proxy_headers = stale.get("gateway_proxy_headers").cloned();
+    let expected_host_response = stale.get("gateway_host_response").cloned();
+
+    let mut newer = newer_store.get_config().await.expect("load newer config");
+    newer["run_type"] = json!(0);
+    newer["gateway_proxy_headers"] = json!({
+        "disabled_hosts": ["video.example.com"]
+    });
+    newer["unrelated"]["generation"] = json!(2);
+    newer_store
+        .save_config(&newer)
+        .await
+        .expect("save interleaved config update");
+
+    let merged = stale_store
+        .merge_gateway_target_config_sections(
+            expected_proxy_headers.as_ref(),
+            &json!({ "disabled_hosts": [] }),
+            expected_host_response.as_ref(),
+            &json!({ "disabled_hosts": ["video.example.com"] }),
+        )
+        .await
+        .expect("merge stale target sections");
+
+    assert_eq!(merged["run_type"], json!(0));
+    assert_eq!(merged["unrelated"]["generation"], json!(2));
+    assert_eq!(
+        merged["gateway_proxy_headers"],
+        json!({ "disabled_hosts": ["video.example.com"] }),
+        "a newer write to the same section must win"
+    );
+    assert_eq!(
+        merged["gateway_host_response"],
+        json!({ "disabled_hosts": ["video.example.com"] }),
+        "an unchanged section may receive the compiled replacement"
+    );
+    assert_eq!(stale_store.get_config().await.unwrap(), merged);
+}
+
+#[tokio::test]
+async fn gateway_target_section_merge_distinguishes_absent_from_present() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let path = dir.path().join("fn-knock.sqlite3");
+    let stale_store = Store::connect(&path).await.expect("open stale store");
+    let newer_store = Store::connect(&path).await.expect("open newer store");
+    stale_store
+        .save_config(&json!({
+            "run_type": 3,
+            "host_mappings": []
+        }))
+        .await
+        .expect("seed config without target sections");
+
+    let mut newer = newer_store.get_config().await.expect("load newer config");
+    newer["gateway_proxy_headers"] = json!({ "disabled_hosts": ["new.example.com"] });
+    newer_store
+        .save_config(&newer)
+        .await
+        .expect("add proxy section concurrently");
+
+    let merged = stale_store
+        .merge_gateway_target_config_sections(
+            None,
+            &json!({ "disabled_hosts": [] }),
+            None,
+            &json!({ "disabled_hosts": ["compiled.example.com"] }),
+        )
+        .await
+        .expect("merge sections with absent preconditions");
+
+    assert_eq!(
+        merged["gateway_proxy_headers"],
+        json!({ "disabled_hosts": ["new.example.com"] }),
+        "present does not match an absent expected section"
+    );
+    assert_eq!(
+        merged["gateway_host_response"],
+        json!({ "disabled_hosts": ["compiled.example.com"] }),
+        "a section that remains absent may be inserted"
+    );
+}
+
+#[tokio::test]
+async fn config_generation_fence_handles_missing_reset_and_explicit_full_replacements() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
+        .await
+        .expect("open store");
+    let host_a = vec![json!({ "host": "a.example.com" })];
+    let host_b = vec![json!({ "host": "b.example.com" })];
+    let host_c = vec![json!({ "host": "c.example.com" })];
+    let host_d = vec![json!({ "host": "d.example.com" })];
+
+    store
+        .save_config(&json!({
+            "host_mappings": host_a,
+            "unrelated": { "generation": 1 }
+        }))
+        .await
+        .expect("seed explicit full config");
+    // A marker-free value is an intentional full replacement and may update
+    // host_mappings while advancing the companion generation.
+    store
+        .replace_config(&json!({
+            "host_mappings": host_b,
+            "unrelated": { "generation": 2 }
+        }))
+        .await
+        .expect("explicit full replacement");
+    assert_eq!(
+        store
+            .get_string_value(HOST_MAPPINGS_GENERATION_KEY)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("2")
+    );
+
+    // A snapshot from before a companion-key reset must fail closed even when
+    // its host fingerprint still matches the stored config.
+    let mut ahead_of_reset = store.get_config().await.unwrap();
+    store
+        .delete_key(HOST_MAPPINGS_GENERATION_KEY)
+        .await
+        .unwrap();
+    ahead_of_reset["unrelated"]["generation"] = json!(99);
+    assert!(store.save_config(&ahead_of_reset).await.is_err());
+    assert_eq!(
+        store.get_config().await.unwrap()["unrelated"]["generation"],
+        json!(2)
+    );
+
+    // A fresh read after a missing generation is represented as generation
+    // zero. Its host fingerprint still fences the snapshot if the companion
+    // key is reset independently after a host change.
+    let mut stale_full_config = store.get_config().await.unwrap();
+    assert_eq!(
+        stale_full_config.pointer(&format!("/{CONFIG_GENERATION_MARKER}/generation")),
+        Some(&json!(0))
+    );
+    store
+        .compare_and_set_host_mappings(&host_b, &host_c)
+        .await
+        .unwrap()
+        .expect("host CAS after missing generation");
+    store
+        .delete_key(HOST_MAPPINGS_GENERATION_KEY)
+        .await
+        .unwrap();
+    stale_full_config["unrelated"]["generation"] = json!(3);
+    let stale_save = store.save_config(&stale_full_config).await;
+    assert!(stale_save.is_err());
+    let after_reset = store.get_config().await.unwrap();
+    assert_eq!(after_reset["host_mappings"], json!(host_c));
+    assert_eq!(after_reset["unrelated"]["generation"], json!(2));
+    assert_eq!(
+        store
+            .get_string_value(HOST_MAPPINGS_GENERATION_KEY)
+            .await
+            .unwrap()
+            .as_deref(),
+        None
+    );
+
+    store
+        .replace_config(&json!({
+            "host_mappings": host_d,
+            "unrelated": { "generation": 4 }
+        }))
+        .await
+        .expect("marker-free import remains an explicit replacement");
+    let imported = store.get_config().await.unwrap();
+    assert_eq!(imported["host_mappings"], json!(host_d));
+    assert_eq!(imported["unrelated"]["generation"], json!(4));
+    assert_eq!(
+        store
+            .get_string_value(HOST_MAPPINGS_GENERATION_KEY)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("1")
+    );
+    let persisted_raw = store.get_string_value(CONFIG_KEY).await.unwrap().unwrap();
+    assert!(!persisted_raw.contains(CONFIG_GENERATION_MARKER));
+}
+
+#[tokio::test]
+async fn every_application_eval_operation_runs_on_sqlite() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
+        .await
+        .expect("open store");
+
+    store
+        .set_string_value("fn_knock:test:compare", "owner")
+        .await
+        .unwrap();
+    store
+        .delete_key_if_value("fn_knock:test:compare", "other")
+        .await
+        .unwrap();
+    assert_eq!(
+        store
+            .get_string_value("fn_knock:test:compare")
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("owner")
+    );
+    store
+        .delete_key_if_value("fn_knock:test:compare", "owner")
+        .await
+        .unwrap();
+    assert_eq!(
+        store
+            .get_string_value("fn_knock:test:compare")
+            .await
+            .unwrap(),
+        None
+    );
+
+    store
+        .set_json_value("fn_knock:test:consume", &json!({ "value": 1 }))
+        .await
+        .unwrap();
+    assert_eq!(
+        store
+            .consume_json_value("fn_knock:test:consume")
+            .await
+            .unwrap(),
+        Some(json!({ "value": 1 }))
+    );
+    assert_eq!(
+        store
+            .consume_json_value("fn_knock:test:consume")
+            .await
+            .unwrap(),
+        None
+    );
+
+    let backoff = store
+        .register_login_backoff_failure("192.0.2.1")
+        .await
+        .unwrap();
+    assert_eq!(backoff.attempts, 1);
+
+    store
+        .set_passkey_challenge("challenge", "auth", 60)
+        .await
+        .unwrap();
+    assert!(
+        !store
+            .consume_passkey_challenge("challenge", "register")
+            .await
+            .unwrap()
+    );
+    assert!(
+        store
+            .consume_passkey_challenge("challenge", "auth")
+            .await
+            .unwrap()
+    );
+    assert!(
+        !store
+            .consume_passkey_challenge("challenge", "auth")
+            .await
+            .unwrap()
+    );
+
+    let bind_token = store.create_passkey_bind_token("totp", 60).await.unwrap();
+    assert_eq!(
+        store
+            .consume_passkey_bind_token(&bind_token)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("totp")
+    );
+    assert_eq!(
+        store.consume_passkey_bind_token(&bind_token).await.unwrap(),
+        None
+    );
+
+    assert!(
+        store
+            .acquire_notification_runtime_lease("test", "owner", 60)
+            .await
+            .unwrap()
+    );
+    store
+        .release_notification_runtime_lease("test", "other")
+        .await
+        .unwrap();
+    assert!(
+        !store
+            .acquire_notification_runtime_lease("test", "new", 60)
+            .await
+            .unwrap()
+    );
+    store
+        .release_notification_runtime_lease("test", "owner")
+        .await
+        .unwrap();
+    assert!(
+        store
+            .acquire_notification_runtime_lease("test", "new", 60)
+            .await
+            .unwrap()
+    );
+
+    store
+        .enqueue_notification_delivery("ready", 10)
+        .await
+        .unwrap();
+    store
+        .enqueue_notification_delivery("future", 30)
+        .await
+        .unwrap();
+    assert_eq!(
+        store
+            .pull_ready_notification_delivery_ids(10, 20)
+            .await
+            .unwrap(),
+        vec!["ready".to_string()]
+    );
+    assert!(
+        store
+            .pull_ready_notification_delivery_ids(10, 20)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        store
+            .pull_ready_notification_delivery_ids(10, 30)
+            .await
+            .unwrap(),
+        vec!["future".to_string()]
+    );
+}
+
+#[tokio::test]
+async fn session_merge_is_atomic_preserves_absolute_expiry_and_never_recreates() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let path = dir.path().join("fn-knock.sqlite3");
+    let store = Store::connect(&path).await.expect("open store");
+    let session_key = "fn_knock:session:atomic-merge";
+    let mut conn = store.conn();
+    conn.set_ex(
+        session_key,
+        json!({
+            "ip": "192.0.2.1",
+            "userAgent": "before",
+            "accessScopes": [],
+            "subdomainAccess": { "mode": "custom", "items": [] },
+            "shapeSentinel": [[], {}, { "nested": [] }]
+        })
+        .to_string(),
+        600,
+    )
+    .await
+    .expect("seed session");
+
+    let expiry_before = sqlite_key_expiry_at_ms(&path, session_key)
+        .await
+        .expect("session expiry");
+    let mut updates = Map::new();
+    updates.insert("ip".to_string(), json!("192.0.2.2"));
+    let updated = store
+        .update_session_value("atomic-merge", updates)
+        .await
+        .expect("atomic session merge")
+        .expect("live session");
+    assert_eq!(updated["ip"], json!("192.0.2.2"));
+    assert_eq!(updated["userAgent"], json!("before"));
+    assert_eq!(updated["accessScopes"], json!([]));
+    assert_eq!(
+        updated["subdomainAccess"],
+        json!({ "mode": "custom", "items": [] })
+    );
+    assert_eq!(updated["shapeSentinel"], json!([[], {}, { "nested": [] }]));
+    let stored = store
+        .get_session_value("atomic-merge")
+        .await
+        .expect("stored merged session")
+        .expect("stored live session");
+    assert_eq!(stored["accessScopes"], json!([]));
+    assert_eq!(stored["subdomainAccess"]["items"], json!([]));
+    assert_eq!(stored["shapeSentinel"], json!([[], {}, { "nested": [] }]));
+    assert_eq!(
+        sqlite_key_expiry_at_ms(&path, session_key).await,
+        Some(expiry_before),
+        "the absolute millisecond deadline must not be rounded or extended"
+    );
+
+    for round in 0..16 {
+        let session_id = format!("atomic-delete-{round}");
+        let key = format!("fn_knock:session:{session_id}");
+        let mut conn = store.conn();
+        conn.set_ex(&key, json!({ "round": round }).to_string(), 600)
+            .await
+            .expect("seed raced session");
+        let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(3));
+        let update_store = store.clone();
+        let update_barrier = std::sync::Arc::clone(&barrier);
+        let update_id = session_id.clone();
+        let updater = tokio::spawn(async move {
+            update_barrier.wait().await;
+            let mut updates = Map::new();
+            updates.insert("updated".to_string(), Value::Bool(true));
+            update_store.update_session_value(&update_id, updates).await
+        });
+        let delete_store = store.clone();
+        let delete_barrier = std::sync::Arc::clone(&barrier);
+        let delete_id = session_id.clone();
+        let deleter = tokio::spawn(async move {
+            delete_barrier.wait().await;
+            delete_store.delete_session(&delete_id).await
+        });
+        barrier.wait().await;
+        updater.await.expect("updater task").expect("update result");
+        deleter.await.expect("deleter task").expect("delete result");
+        assert!(
+            store
+                .get_session_value(&session_id)
+                .await
+                .expect("final session lookup")
+                .is_none(),
+            "round {round} recreated a deleted session"
+        );
+    }
+
+    let mut missing_update = Map::new();
+    missing_update.insert("ip".to_string(), json!("192.0.2.99"));
+    assert!(
+        store
+            .update_session_value("does-not-exist", missing_update)
+            .await
+            .expect("missing update")
+            .is_none()
+    );
+    assert!(
+        store
+            .get_string_value("fn_knock:session:does-not-exist")
+            .await
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[tokio::test]
+async fn binding_keep_ttl_rejects_missing_keys_and_preserves_persistent_keys() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
+        .await
+        .expect("open store");
+    store
+        .set_json_value("fn_knock:session:binding-owner", &json!({ "live": true }))
+        .await
+        .expect("seed live owner");
+
+    let binding = json!({
+        "ownerSessionId": "binding-owner",
+        "currentIp": "192.0.2.10"
+    });
+    assert!(
+        !store
+            .save_auth_mobility_binding_keep_ttl(
+                "proxy-session",
+                "missing-binding",
+                &binding,
+                "binding-owner",
+            )
+            .await
+            .expect("missing binding is rejected")
+    );
+    assert!(
+        store
+            .get_auth_mobility_binding("proxy-session", "missing-binding")
+            .await
+            .unwrap()
+            .is_none()
+    );
+
+    let subject_hash = auth_mobility_subject_hash("proxy-session", "persistent-binding");
+    let binding_key = auth_mobility_binding_key("proxy-session", &subject_hash);
+    store
+        .set_json_value(&binding_key, &binding)
+        .await
+        .expect("seed persistent binding");
+    let next = json!({
+        "ownerSessionId": "binding-owner",
+        "currentIp": "192.0.2.11"
+    });
+    assert!(
+        store
+            .save_auth_mobility_binding_keep_ttl(
+                "proxy-session",
+                "persistent-binding",
+                &next,
+                "binding-owner",
+            )
+            .await
+            .expect("persistent binding update")
+    );
+    let mut conn = store.conn();
+    let ttl: i64 = redis::cmd("PTTL")
+        .arg(&binding_key)
+        .query_async(&mut conn)
+        .await
+        .expect("persistent PTTL");
+    assert_eq!(ttl, -1);
+    assert_eq!(
+        store
+            .get_auth_mobility_binding("proxy-session", "persistent-binding")
+            .await
+            .unwrap(),
+        Some(next)
+    );
+}
+
+async fn sqlite_key_expiry_at_ms(path: &Path, key: &str) -> Option<i64> {
+    let connection = tokio_rusqlite::Connection::open(path)
+        .await
+        .expect("open expiry observer");
+    let key = key.to_string();
+    connection
+        .call(move |connection| {
+            connection
+                .query_row(
+                    "SELECT expires_at_ms FROM kv_keys WHERE key = ?1",
+                    [&key],
+                    |row| row.get::<_, Option<i64>>(0),
+                )
+                .optional()
+        })
+        .await
+        .expect("query expiry")
+        .flatten()
 }
 
 #[test]

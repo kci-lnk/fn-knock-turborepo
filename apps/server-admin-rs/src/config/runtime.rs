@@ -12,7 +12,7 @@ use serde_json::{Map, Value, json};
 use crate::{
     auto_https, gateway_settings,
     i18n::Translator,
-    proxy_config::{build_gateway_auth_config, build_host_rules_payload},
+    proxy_config::{self, build_gateway_auth_config},
     response, runtime_profile,
     state::AppState,
     store as app_store, system_assets,

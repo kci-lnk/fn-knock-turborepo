@@ -7,9 +7,15 @@ Build them from the repository root with:
 npm run fn-knock:linux:prepare
 ```
 
-The installer is published as `install.sh`. It keeps the control plane on
-`127.0.0.1:7991`; expose it through an HTTPS reverse proxy instead of opening
-7991 to the Internet:
+The installer is published as `install.sh`. It first detects whether fn-knock
+is already installed and lets the user install/update, open the management
+menu, check status, or uninstall. Before activation it checks all five runtime
+ports. If a port is occupied, the installer opens the port configuration menu
+so a replacement can be selected before continuing.
+
+The management panel defaults to `0.0.0.0:7991`. For public Internet use,
+place it behind an HTTPS reverse proxy with access controls instead of exposing
+7991 directly:
 
 ```nginx
 server {
@@ -34,3 +40,8 @@ server {
 
 Run `sudo knock nginx` to print the same template after installation. Linux
 runtime mode never manages host firewall rules and does not invoke iptables.
+
+Run `sudo knock config` to change ports after installation. The command shows
+the current mapping, offers a one-step panel-port change for the common case,
+and exposes the other listeners only through an advanced option. It will not
+save a configuration that uses a duplicate or occupied port.

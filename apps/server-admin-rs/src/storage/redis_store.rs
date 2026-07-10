@@ -21,6 +21,7 @@ use crate::{
         active_ip_zset_key as auth_mobility_active_ip_zset_key,
         binding_key as auth_mobility_binding_key,
         session_index_key as auth_mobility_session_index_key,
+        session_pending_whitelist_key as auth_mobility_session_pending_whitelist_key,
         subject_hash as auth_mobility_subject_hash, summary_key as auth_mobility_summary_key,
         timeline_key as auth_mobility_timeline_key,
         whitelist_owner_key as auth_mobility_whitelist_owner_key,
@@ -42,6 +43,16 @@ mod whitelist;
 
 pub use config::default_config;
 pub use types::*;
+
+const CONFIG_KEY: &str = "fn_knock:config";
+const HOST_MAPPINGS_GENERATION_KEY: &str = "fn_knock:config:host_mappings:generation";
+pub(crate) const CONFIG_GENERATION_MARKER: &str = "__fn_knock_internal_host_mappings_generation";
+
+pub(crate) fn strip_internal_config_metadata(config: &mut Value) {
+    if let Some(object) = config.as_object_mut() {
+        object.remove(CONFIG_GENERATION_MARKER);
+    }
+}
 
 #[cfg(test)]
 mod tests;
@@ -181,6 +192,7 @@ fn deserialize_whitelist_record(raw: &str) -> Option<WhitelistRecord> {
         "manual"
     };
     let status = match object.get("status").and_then(Value::as_str) {
+        Some("pending") => "pending",
         Some("expired") => "expired",
         Some("deleted") => "deleted",
         _ => "active",
@@ -389,6 +401,7 @@ const EVENT_LIST_SCAN_CHUNK_SIZE: isize = 200;
 const EVENT_CLEAR_CHUNK_SIZE: usize = 500;
 const MAX_EVENT_RETENTION_DAYS: i64 = 90;
 const LOGIN_BACKOFF_REGISTER_FAILURE_SCRIPT: &str = r#"
+-- fn-knock:eval:login-backoff:v1
 local key = KEYS[1]
 local ip = ARGV[1]
 local now = tonumber(ARGV[2])

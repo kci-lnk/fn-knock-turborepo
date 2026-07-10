@@ -51,6 +51,7 @@ import {
   normalizeIpKey,
   useIpLocationBatch,
 } from "../composables/useIpLocationBatch";
+import { useCursorPagination } from "../composables/useCursorPagination";
 import { useWafLogIpSelection } from "./waf-logs/useWafLogIpSelection";
 import { useWafLogDisplay } from "./waf-logs/useWafLogDisplay";
 
@@ -79,17 +80,23 @@ const loading = ref(false);
 const isDetailsOpen = ref(false);
 const activeEvent = ref<WAFEvent | null>(null);
 const selectedWafEntryKeys = ref<Set<string>>(new Set());
-const currentCursor = ref("");
-const nextCursor = ref("");
-const cursorHistory = ref<string[]>([]);
+const {
+  canLoadNewer,
+  canLoadOlder,
+  currentCursor,
+  cursorHistory,
+  loadFirst: loadCursorFirst,
+  loadNewer: loadCursorNewer,
+  loadOlder: loadCursorOlder,
+  nextCursor,
+  reset: resetCursorPagination,
+} = useCursorPagination({ loading });
 let autoRefreshTimer: number | null = null;
 
 const { trackIps, getSnapshot } = useIpLocationBatch();
 const isWAFEnabled = computed(() => configStore.config?.waf?.enabled ?? false);
-const canLoadNewer = computed(() => cursorHistory.value.length > 0);
-const canLoadOlder = computed(() => Boolean(nextCursor.value));
-const cursorPageLabel = computed(
-  () => t("admin.wafLogs.cursorPage", { page: cursorHistory.value.length + 1 }),
+const cursorPageLabel = computed(() =>
+  t("admin.wafLogs.cursorPage", { page: cursorHistory.value.length + 1 }),
 );
 const shouldFloatPagination = computed(
   () => entries.value.length > 0 || canLoadNewer.value || canLoadOlder.value,
@@ -118,12 +125,6 @@ const applyDates = (dates: string[], preferred?: string) => {
   selectedDate.value = nextDates.includes(fallbackToday)
     ? fallbackToday
     : nextDates[0] || fallbackToday;
-};
-
-const resetCursorPagination = () => {
-  currentCursor.value = "";
-  nextCursor.value = "";
-  cursorHistory.value = [];
 };
 
 const drainEventsSilently = async (silent = true) => {
@@ -203,24 +204,17 @@ const handleLimitChange = async (value: unknown) => {
 };
 
 const handleLoadOlder = async () => {
-  if (!nextCursor.value || loading.value) return;
-  cursorHistory.value = [...cursorHistory.value, currentCursor.value];
-  currentCursor.value = nextCursor.value;
+  if (!loadCursorOlder()) return;
   await fetchEntries();
 };
 
 const handleLoadNewer = async () => {
-  if (cursorHistory.value.length === 0 || loading.value) return;
-  const history = [...cursorHistory.value];
-  const previousCursor = history.pop() ?? "";
-  cursorHistory.value = history;
-  currentCursor.value = previousCursor;
+  if (!loadCursorNewer()) return;
   await fetchEntries();
 };
 
 const handleLoadFirst = async () => {
-  if (cursorHistory.value.length === 0 || loading.value) return;
-  resetCursorPagination();
+  if (!loadCursorFirst()) return;
   await fetchEntries();
 };
 
@@ -533,7 +527,9 @@ onBeforeUnmount(() => {
             >
               <div class="w-[148px]">
                 <SelectTrigger>
-                  <SelectValue :placeholder="t('admin.wafLogs.datePlaceholder')" />
+                  <SelectValue
+                    :placeholder="t('admin.wafLogs.datePlaceholder')"
+                  />
                 </SelectTrigger>
               </div>
               <SelectContent>
@@ -556,18 +552,14 @@ onBeforeUnmount(() => {
             {{ cursorPageLabel }} ·
             {{ t("admin.wafLogs.rowsCount", { count: entries.length }) }}
           </span>
-          <span v-if="traceFilter.trim()" class="font-mono"
-            >{{
-              t("admin.wafLogs.traceFilter", { trace: traceFilter.trim() })
-            }}</span
-          >
-          <span v-if="searchQuery.trim()"
-            >{{
-              t("admin.wafLogs.keywordFilter", {
-                keyword: searchQuery.trim(),
-              })
-            }}</span
-          >
+          <span v-if="traceFilter.trim()" class="font-mono">{{
+            t("admin.wafLogs.traceFilter", { trace: traceFilter.trim() })
+          }}</span>
+          <span v-if="searchQuery.trim()">{{
+            t("admin.wafLogs.keywordFilter", {
+              keyword: searchQuery.trim(),
+            })
+          }}</span>
         </div>
       </div>
 

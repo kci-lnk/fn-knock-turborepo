@@ -16,6 +16,7 @@ import LogViewer from '@admin-shared/components/LogViewer.vue'
 import ConfigCollapsibleCard from '@admin-shared/components/ConfigCollapsibleCard.vue'
 import { extractErrorMessage, useAsyncAction } from '@admin-shared/composables/useAsyncAction'
 import { DEFAULT_LOG_WINDOW_SIZE, mergePollingLogWindow } from '@admin-shared/utils/log-window'
+import { useAccessEntryPort } from '../../composables/useAccessEntryPort'
 import { useTargetPolling } from '../../composables/useTargetPolling'
 import { useConfigStore } from '../../store/config'
 
@@ -78,7 +79,11 @@ const showInitDialog = ref(false)
 const showToken = ref(true)
 const configLoaded = ref(false)
 const hasCloudflaredLogBaseline = ref(false)
-const accessEntryPort = ref('7999')
+const { accessEntryPort, loadAccessEntryPort } = useAccessEntryPort({
+  onError: (error) => {
+    console.warn('load cloudflared access entry port failed:', error)
+  },
+})
 
 const token = ref<string>('')
 const protocol = ref<CloudflaredProtocol>('auto')
@@ -237,15 +242,6 @@ async function loadConfig() {
       },
     },
   )
-}
-
-async function loadAccessEntryPort() {
-  try {
-    const info = await SystemAPI.getAccessEntry()
-    accessEntryPort.value = info.port.trim() || '7999'
-  } catch (error) {
-    console.warn('load cloudflared access entry port failed:', error)
-  }
 }
 
 async function saveConfig() {

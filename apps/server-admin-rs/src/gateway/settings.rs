@@ -12,7 +12,7 @@ use url::Url;
 
 use crate::{
     i18n::Translator,
-    proxy_config::{build_gateway_auth_config, build_host_rules_payload},
+    proxy_config::{self, build_gateway_auth_config},
     response, scanner,
     state::AppState,
     time_utils, whitelist,

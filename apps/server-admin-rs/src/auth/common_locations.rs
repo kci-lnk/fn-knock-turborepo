@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     env,
     net::IpAddr,
     str::FromStr,
@@ -27,6 +27,10 @@ const RECENT_WINDOW_SECONDS: i64 = 7 * 24 * 3600;
 const KNOWN_COUNTRY_CHINA: &str = "中国";
 static SCHEDULED_REBUILD: LazyLock<Mutex<ScheduledRebuild>> =
     LazyLock::new(|| Mutex::new(ScheduledRebuild::default()));
+static RECENT_AUTH_IP_TOUCHES: LazyLock<Mutex<HashMap<(String, String), i64>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+const RECENT_AUTH_IP_TOUCH_MIN_INTERVAL_SECONDS: i64 = 30;
+const MAX_RECENT_AUTH_IP_TOUCHES: usize = 4096;
 
 #[derive(Default)]
 struct ScheduledRebuild {
@@ -80,12 +84,57 @@ pub async fn record_recent_verified_ip(state: &AppState, ip: &str) -> anyhow::Re
     if normalized.is_empty() {
         return Ok(());
     }
-    state
-        .store
-        .record_recent_auth_ip(&normalized, now_seconds())
-        .await?;
+    let now = now_seconds();
+    let store_key = state.settings.sqlite_path.to_string_lossy().into_owned();
+    if !claim_recent_auth_ip_touch(&store_key, &normalized, now) {
+        return Ok(());
+    }
+    if let Err(error) = state.store.record_recent_auth_ip(&normalized, now).await {
+        release_recent_auth_ip_touch(&store_key, &normalized, now);
+        return Err(error.into());
+    }
     schedule_common_auth_locations_rebuild(state.clone(), "recent-auth-ip");
     Ok(())
+}
+
+fn claim_recent_auth_ip_touch(store_key: &str, ip: &str, now: i64) -> bool {
+    let mut touches = RECENT_AUTH_IP_TOUCHES
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    claim_recent_auth_ip_touch_in(&mut touches, store_key, ip, now)
+}
+
+fn claim_recent_auth_ip_touch_in(
+    touches: &mut HashMap<(String, String), i64>,
+    store_key: &str,
+    ip: &str,
+    now: i64,
+) -> bool {
+    let key = (store_key.to_string(), ip.to_string());
+    if touches.get(&key).is_some_and(|last_seen| {
+        now >= *last_seen && now - *last_seen < RECENT_AUTH_IP_TOUCH_MIN_INTERVAL_SECONDS
+    }) {
+        return false;
+    }
+    if touches.len() >= MAX_RECENT_AUTH_IP_TOUCHES {
+        touches.retain(|_, last_seen| now >= *last_seen && now - *last_seen < 3600);
+        if touches.len() >= MAX_RECENT_AUTH_IP_TOUCHES {
+            // Clearing only loses write coalescing; it never grants access.
+            touches.clear();
+        }
+    }
+    touches.insert(key, now);
+    true
+}
+
+fn release_recent_auth_ip_touch(store_key: &str, ip: &str, claimed_at: i64) {
+    let mut touches = RECENT_AUTH_IP_TOUCHES
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let key = (store_key.to_string(), ip.to_string());
+    if touches.get(&key) == Some(&claimed_at) {
+        touches.remove(&key);
+    }
 }
 
 pub async fn is_common_auth_location_exempt_ip(state: &AppState, ip: &str) -> anyhow::Result<bool> {
@@ -659,6 +708,47 @@ mod tests {
             last_seen_at: 2_000,
             seen_count,
         }
+    }
+
+    #[test]
+    fn recent_verified_ip_writes_are_coalesced_per_store_and_ip() {
+        let mut touches = HashMap::new();
+        assert!(claim_recent_auth_ip_touch_in(
+            &mut touches,
+            "store-a",
+            "203.0.113.10",
+            100,
+        ));
+        assert!(!claim_recent_auth_ip_touch_in(
+            &mut touches,
+            "store-a",
+            "203.0.113.10",
+            129,
+        ));
+        assert!(claim_recent_auth_ip_touch_in(
+            &mut touches,
+            "store-a",
+            "203.0.113.10",
+            130,
+        ));
+        assert!(claim_recent_auth_ip_touch_in(
+            &mut touches,
+            "store-b",
+            "203.0.113.10",
+            130,
+        ));
+        assert!(claim_recent_auth_ip_touch_in(
+            &mut touches,
+            "store-a",
+            "203.0.113.11",
+            130,
+        ));
+        assert!(claim_recent_auth_ip_touch_in(
+            &mut touches,
+            "store-a",
+            "203.0.113.10",
+            99,
+        ));
     }
 
     #[test]

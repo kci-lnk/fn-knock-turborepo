@@ -40,7 +40,7 @@ import {
   resolveExplicitPublicAccessEntryPort,
   shouldOmitPublicAccessEntryPort,
 } from "../../lib/reverse-proxy-submode";
-import { SystemAPI } from "../../lib/api";
+import { useAccessEntryPort } from "../../composables/useAccessEntryPort";
 import { useConfigStore } from "../../store/config";
 
 type GatewayHostToggleField = "preserve_host" | "send_proxy_headers";
@@ -85,7 +85,7 @@ const props = defineProps<{
 const details = ref<GatewayHostToggleDetails | null>(null);
 const formItems = ref<GatewayHostToggleItem[]>([]);
 const loadError = ref("");
-const accessEntryPort = ref("7999");
+const { accessEntryPort, loadAccessEntryPort } = useAccessEntryPort();
 const configStore = useConfigStore();
 const { t } = useI18n();
 
@@ -191,15 +191,6 @@ const fetchHostToggleDetails = async () => {
     loadError.value = "";
     applyDetails(value);
   });
-};
-
-const loadAccessEntryPort = async () => {
-  try {
-    const info = await SystemAPI.getAccessEntry();
-    accessEntryPort.value = info.port.trim() || "7999";
-  } catch (error) {
-    console.warn("load access entry port failed:", error);
-  }
 };
 
 const resetForm = () => {

@@ -17,6 +17,7 @@ use crate::{
     cookies::{self, ADMIN_PANEL_SESSION_COOKIE_NAME, SESSION_COOKIE_NAME},
     http_utils,
     i18n::Translator,
+    proxy_config,
     response::{self, ApiEnvelope},
     runtime_config,
     runtime_profile::{self, RuntimeProfile},
@@ -160,6 +161,7 @@ async fn bootstrap(
 async fn config(State(state): State<AppState>) -> Response {
     match state.store.get_config().await {
         Ok(mut config) => {
+            let host_mappings_revision = proxy_config::host_mappings_revision_from_config(&config);
             enrich_gateway_logging_config(&state, &mut config).await;
             let protocol_mapping_feature =
                 match runtime_config::load_protocol_mapping_feature(&state, Some(&config)).await {
@@ -171,12 +173,21 @@ async fn config(State(state): State<AppState>) -> Response {
                         )
                     }
                 };
-            response::ok(build_safe_app_config(
+            let mut response = response::ok(build_safe_app_config(
                 config,
                 runtime_profile::get_runtime_profile(&state),
                 protocol_mapping_feature,
             ))
-            .into_response()
+            .into_response();
+            if let Ok(value) = HeaderValue::from_str(&host_mappings_revision) {
+                response.headers_mut().insert(
+                    axum::http::HeaderName::from_static(
+                        proxy_config::HOST_MAPPINGS_REVISION_HEADER,
+                    ),
+                    value,
+                );
+            }
+            response
         }
         Err(error) => {
             let translator = Translator::from_state(&state).await;
@@ -238,6 +249,7 @@ pub(crate) fn build_safe_app_config(
     profile: RuntimeProfile,
     protocol_mapping_feature: Value,
 ) -> Value {
+    crate::store::strip_internal_config_metadata(&mut config);
     if !config.is_object() {
         config = crate::store::default_config();
     }
@@ -1297,6 +1309,10 @@ mod tests {
     fn safe_app_config_injects_runtime_capabilities_and_redacts_ssl() {
         let config = build_safe_app_config(
             json!({
+                "__fn_knock_internal_host_mappings_generation": {
+                    "generation": 42,
+                    "host_fingerprint": "internal"
+                },
                 "ssl": {
                     "cert": "CERT",
                     "key": "KEY",
@@ -1321,6 +1337,7 @@ mod tests {
             config.pointer("/runtime_profile/deployment_target"),
             Some(&json!("fpk"))
         );
+        assert!(config.get(crate::store::CONFIG_GENERATION_MARKER).is_none());
         assert_eq!(
             config.pointer("/capabilities/host_firewall_available"),
             Some(&json!(true))

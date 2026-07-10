@@ -32,6 +32,7 @@ export type EdgeClientIpProvider = "aliyun_esa" | "tencent_edgeone";
 
 export const DEFAULT_AUTH_SUBDOMAIN = "auth";
 export const DEFAULT_ACCESS_MODE: HostMapping["access_mode"] = "login_first";
+export const DEFAULT_PROTOCOL_MODE: HostMapping["protocol_mode"] = "auto";
 export const HOME_ASSISTANT_TARGET_PORT = 8123;
 
 export type DeleteDialogState =
@@ -95,13 +96,22 @@ export const buildDeleteDialogCopy = (
   };
 };
 
-export const normalizeHostLike = (value: string): string =>
-  value
+export const normalizeHostLike = (value: string): string => {
+  const authority = value
     .trim()
     .toLowerCase()
     .replace(/^[a-z]+:\/\//i, "")
     .replace(/\/.*$/, "")
     .replace(/\.+$/, "");
+  if (authority.startsWith("[")) {
+    const end = authority.indexOf("]");
+    return end >= 0 ? authority.slice(0, end + 1) : authority;
+  }
+  const separator = authority.lastIndexOf(":");
+  return separator >= 0 && !authority.slice(0, separator).includes(":")
+    ? authority.slice(0, separator).replace(/\.+$/, "")
+    : authority;
+};
 
 export const normalizeRootDomainValue = (value: string): string =>
   normalizeHostLike(value);
@@ -295,6 +305,7 @@ export const buildDiscoveredServiceMappings = ({
     is_default: false,
     disabled: false,
     availability: null,
+    protocol_mode: DEFAULT_PROTOCOL_MODE,
     basic_auth: createDisabledMappingBasicAuth(),
     locations: [],
     service_role: "app",
@@ -604,6 +615,7 @@ export const createDefaultMapping = (): HostMapping => ({
   is_default: false,
   disabled: false,
   availability: null,
+  protocol_mode: DEFAULT_PROTOCOL_MODE,
   basic_auth: createDisabledMappingBasicAuth(),
   locations: [],
   service_role: "app",
@@ -681,6 +693,10 @@ export const normalizeMappingForm = (
       serviceRole === "auth"
         ? null
         : normalizeHostMappingAvailability(input.availability),
+    protocol_mode:
+      input.protocol_mode === "http1" || input.protocol_mode === "http2"
+        ? input.protocol_mode
+        : DEFAULT_PROTOCOL_MODE,
     basic_auth: basicAuth.enabled
       ? basicAuth
       : createDisabledMappingBasicAuth(),

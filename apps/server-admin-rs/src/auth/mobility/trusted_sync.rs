@@ -9,11 +9,72 @@ pub async fn sync_browser_session_ip(
     let Some(session) = state.store.get_session(session_id).await? else {
         return Ok(None);
     };
+    sync_browser_session_ip_current(state, session_id, &session, client_ip, source).await
+}
+
+pub(crate) async fn sync_browser_session_ip_with_session(
+    state: &AppState,
+    session_id: &str,
+    session: &LoginSession,
+    client_ip: &str,
+    source: &str,
+) -> anyhow::Result<Option<LoginSession>> {
     let config = state.store.get_config().await?;
     let settings = AuthCredentialSettings::from_config(&config);
     let normalized_client_ip = normalized_or_trimmed_ip(client_ip);
     if normalized_client_ip.is_empty() {
-        return Ok(Some(session));
+        return Ok(Some(session.clone()));
+    }
+
+    let session_needs_update = session.ip.trim() != normalized_client_ip
+        || (session
+            .ip_location
+            .as_deref()
+            .is_none_or(|value| value.trim().is_empty())
+            && cached_ip_location(state, &normalized_client_ip)
+                .await
+                .is_some());
+    if !session_needs_update
+        && active_ip_touch_is_fresh_for_session(
+            state,
+            session_id,
+            session,
+            &normalized_client_ip,
+            &settings,
+        )
+        .await?
+    {
+        // A borrowed preflight snapshot is safe only while this path is
+        // provably read-only. Any slow path below reloads the live session so a
+        // concurrent logout cannot recreate mobility/whitelist state.
+        return Ok(Some(session.clone()));
+    }
+
+    let Some(live_session) = state.store.get_session(session_id).await? else {
+        return Ok(None);
+    };
+    sync_browser_session_ip_current(
+        state,
+        session_id,
+        &live_session,
+        &normalized_client_ip,
+        source,
+    )
+    .await
+}
+
+async fn sync_browser_session_ip_current(
+    state: &AppState,
+    session_id: &str,
+    session: &LoginSession,
+    client_ip: &str,
+    source: &str,
+) -> anyhow::Result<Option<LoginSession>> {
+    let config = state.store.get_config().await?;
+    let settings = AuthCredentialSettings::from_config(&config);
+    let normalized_client_ip = normalized_or_trimmed_ip(client_ip);
+    if normalized_client_ip.is_empty() {
+        return Ok(Some(session.clone()));
     }
 
     let previous_ip = session.ip.clone();
@@ -21,44 +82,51 @@ pub async fn sync_browser_session_ip(
     let normalized_previous_ip = normalized_or_trimmed_ip(&previous_ip);
     let ip_changed =
         !normalized_previous_ip.is_empty() && normalized_previous_ip != normalized_client_ip;
-    let next_ip_location = cached_ip_location(state, &normalized_client_ip).await;
-    let mut updates = Map::new();
-    updates.insert(
-        "ip".to_string(),
-        Value::String(normalized_client_ip.clone()),
-    );
-    if ip_changed {
-        if let Some(ip_location) = next_ip_location
-            .as_deref()
-            .filter(|value| !value.is_empty())
-        {
-            updates.insert(
-                "ipLocation".to_string(),
-                Value::String(ip_location.to_string()),
-            );
-        }
-    } else if let Some(ip_location) = next_ip_location
+    // Preserve the previous canonicalization behavior once, then stop rewriting
+    // the record after the stored representation matches the normalized IP.
+    let ip_needs_update = previous_ip.trim() != normalized_client_ip;
+    let location_needs_enrichment = session
+        .ip_location
         .as_deref()
+        .is_none_or(|value| value.trim().is_empty());
+    let next_ip_location = if ip_needs_update || location_needs_enrichment {
+        cached_ip_location(state, &normalized_client_ip).await
+    } else {
+        None
+    };
+    let mut updates = Map::new();
+    if ip_needs_update {
+        updates.insert(
+            "ip".to_string(),
+            Value::String(normalized_client_ip.clone()),
+        );
+    }
+    if let Some(ip_location) = next_ip_location
+        .as_deref()
+        .map(str::trim)
         .filter(|value| !value.is_empty())
+        .filter(|value| session.ip_location.as_deref() != Some(*value))
     {
         updates.insert(
             "ipLocation".to_string(),
             Value::String(ip_location.to_string()),
         );
     }
-    let updated = state
-        .store
-        .update_session_value(session_id, updates)
-        .await?
-        .and_then(|value| serde_json::from_value::<LoginSession>(value).ok())
-        .unwrap_or_else(|| {
-            let mut fallback = session.clone();
-            fallback.ip = normalized_client_ip.clone();
-            if let Some(ip_location) = next_ip_location.clone() {
-                fallback.ip_location = Some(ip_location);
-            }
-            fallback
-        });
+    let updated = if updates.is_empty() {
+        session.clone()
+    } else {
+        let Some(updated) = state
+            .store
+            .update_session_value(session_id, updates)
+            .await?
+        else {
+            // update_session_value never recreates a missing session. Treat a
+            // concurrent deletion as revocation and stop before mobility writes.
+            return Ok(None);
+        };
+        serde_json::from_value::<LoginSession>(updated)
+            .map_err(|error| anyhow::anyhow!("updated login session is invalid: {error}"))?
+    };
 
     if ip_changed && !settings.session_ip_mobility_enabled {
         let seed_login_event = mobility_login_event(
@@ -73,7 +141,7 @@ pub async fn sync_browser_session_ip(
             &normalized_client_ip,
             next_ip_location.as_deref(),
         );
-        state
+        if !state
             .store
             .append_auth_mobility_timeline_event(
                 session_id,
@@ -81,7 +149,10 @@ pub async fn sync_browser_session_ip(
                 Some(&seed_login_event),
                 resolve_proxy_session_ttl(parse_iso_unix(session.expires_at.as_deref())),
             )
-            .await?;
+            .await?
+        {
+            return Ok(None);
+        }
         if let Err(error) = system_events::publish_auth_session_ip_drift_event(
             state,
             json!({
@@ -106,19 +177,22 @@ pub async fn sync_browser_session_ip(
         whitelist::sync_reverse_proxy_trusted_ips(state).await;
     }
 
-    record_session_active_ip(RecordSessionActiveIpArgs {
+    let active_ip = record_session_active_ip(RecordSessionActiveIpArgs {
         state,
         session_id,
         session: Some(&updated),
         client_ip: &normalized_client_ip,
         source,
-        ip_location: next_ip_location.as_deref(),
+        ip_location: updated.ip_location.as_deref(),
         whitelist_record_id: None,
         settings: Some(&settings),
         sync_reason: "browser-session-ip-refresh",
         schedule_sync: true,
     })
     .await?;
+    if settings.session_ip_mobility_enabled && active_ip.is_none() {
+        return Ok(None);
+    }
 
     Ok(Some(updated))
 }
@@ -168,6 +242,17 @@ pub(super) async fn refresh_proxy_session_binding(
         .get_auth_mobility_binding("proxy-session", session_id)
         .await?;
     if let Some(binding) = binding {
+        if mobility_binding_touch_is_fresh(&binding, &normalized_ip, session_id, now_seconds()) {
+            sync_browser_session_ip_current(
+                state,
+                session_id,
+                &session,
+                &normalized_ip,
+                "session-refresh",
+            )
+            .await?;
+            return Ok(());
+        }
         let whitelist_record_id = binding_whitelist_record_id(&binding);
         let next_binding = build_or_update_mobility_binding(
             Some(binding),
@@ -178,18 +263,40 @@ pub(super) async fn refresh_proxy_session_binding(
             Some(session_id),
             whitelist_record_id,
         );
-        state
+        if !state
             .store
-            .save_auth_mobility_binding_keep_ttl("proxy-session", session_id, &next_binding)
-            .await?;
-        sync_browser_session_ip(state, session_id, &normalized_ip, "session-refresh").await?;
+            .save_auth_mobility_binding_keep_ttl(
+                "proxy-session",
+                session_id,
+                &next_binding,
+                session_id,
+            )
+            .await?
+        {
+            return Ok(());
+        }
+        sync_browser_session_ip_current(
+            state,
+            session_id,
+            &session,
+            &normalized_ip,
+            "session-refresh",
+        )
+        .await?;
         return Ok(());
     }
 
     let config = state.store.get_config().await?;
     let settings = AuthCredentialSettings::from_config(&config);
     if settings.session_ip_mobility_enabled {
-        sync_browser_session_ip(state, session_id, &normalized_ip, "session-refresh").await?;
+        sync_browser_session_ip_current(
+            state,
+            session_id,
+            &session,
+            &normalized_ip,
+            "session-refresh",
+        )
+        .await?;
     }
     Ok(())
 }
@@ -224,7 +331,7 @@ pub(super) async fn refresh_app_token_binding(
             if let Some(mut orphaned) = binding.take() {
                 clear_binding_owner_session(&mut orphaned);
                 set_binding_last_seen(&mut orphaned);
-                state
+                if !state
                     .store
                     .save_auth_mobility_orphaned_binding(
                         subject_type,
@@ -232,7 +339,10 @@ pub(super) async fn refresh_app_token_binding(
                         &orphaned,
                         &existing_owner_id,
                     )
-                    .await?;
+                    .await?
+                {
+                    return Ok(());
+                }
                 binding = Some(orphaned);
             }
         }
@@ -240,6 +350,11 @@ pub(super) async fn refresh_app_token_binding(
         let Some(ttl_seconds) = resolve_proxy_session_ttl(expire_at) else {
             return Ok(());
         };
+        if binding.as_ref().is_some_and(|value| {
+            mobility_binding_touch_is_fresh(value, &normalized_ip, session_id, now_seconds())
+        }) {
+            return Ok(());
+        }
         let next_binding = build_or_update_mobility_binding(
             binding,
             subject_type,
@@ -249,7 +364,7 @@ pub(super) async fn refresh_app_token_binding(
             Some(session_id),
             None,
         );
-        state
+        if !state
             .store
             .save_auth_mobility_owned_binding(
                 subject_type,
@@ -259,7 +374,10 @@ pub(super) async fn refresh_app_token_binding(
                 ttl_seconds,
                 resolve_proxy_session_ttl(expire_at),
             )
-            .await?;
+            .await?
+        {
+            return Ok(());
+        }
         return Ok(());
     }
 
@@ -269,6 +387,16 @@ pub(super) async fn refresh_app_token_binding(
             let Some(ttl_seconds) = resolve_proxy_session_ttl(expire_at) else {
                 return Ok(());
             };
+            if binding.as_ref().is_some_and(|value| {
+                mobility_binding_touch_is_fresh(
+                    value,
+                    &normalized_ip,
+                    &owner_session_id,
+                    now_seconds(),
+                )
+            }) {
+                return Ok(());
+            }
             let whitelist_record_id = binding.as_ref().and_then(binding_whitelist_record_id);
             let next_binding = build_or_update_mobility_binding(
                 binding,
@@ -279,7 +407,7 @@ pub(super) async fn refresh_app_token_binding(
                 Some(&owner_session_id),
                 whitelist_record_id,
             );
-            state
+            if !state
                 .store
                 .save_auth_mobility_owned_binding(
                     subject_type,
@@ -289,13 +417,16 @@ pub(super) async fn refresh_app_token_binding(
                     ttl_seconds,
                     resolve_proxy_session_ttl(expire_at),
                 )
-                .await?;
+                .await?
+            {
+                return Ok(());
+            }
             return Ok(());
         }
         if let Some(mut orphaned) = binding.take() {
             clear_binding_owner_session(&mut orphaned);
             set_binding_last_seen(&mut orphaned);
-            state
+            if !state
                 .store
                 .save_auth_mobility_orphaned_binding(
                     subject_type,
@@ -303,7 +434,10 @@ pub(super) async fn refresh_app_token_binding(
                     &orphaned,
                     &owner_session_id,
                 )
-                .await?;
+                .await?
+            {
+                return Ok(());
+            }
             binding = Some(orphaned);
         }
     }
@@ -326,7 +460,7 @@ pub(super) async fn refresh_app_token_binding(
         Some(&owner_session_id),
         None,
     );
-    state
+    if !state
         .store
         .save_auth_mobility_owned_binding(
             subject_type,
@@ -336,6 +470,9 @@ pub(super) async fn refresh_app_token_binding(
             ttl_seconds,
             resolve_proxy_session_ttl(expire_at),
         )
-        .await?;
+        .await?
+    {
+        return Ok(());
+    }
     Ok(())
 }

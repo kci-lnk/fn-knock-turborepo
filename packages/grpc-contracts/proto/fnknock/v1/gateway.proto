@@ -73,6 +73,7 @@ message HostRule {
   repeated HostLocation locations = 11;
   bool disabled = 12;
   HostRuleAvailability availability = 13;
+  string protocol_mode = 14;
 }
 
 message StreamRule {

@@ -36,8 +36,37 @@ pub(super) fn log_go_status_value_result(
 
 pub(crate) async fn apply_run_type_config(
     state: &AppState,
+    _config: &Value,
+    _run_type: i64,
+) -> Result<(), String> {
+    proxy_config::with_host_mappings_runtime_transaction(state, |state| async move {
+        let current_config = state
+            .store
+            .get_config()
+            .await
+            .map_err(|error| error.to_string())?;
+        let current_run_type = current_config
+            .get("run_type")
+            .and_then(Value::as_i64)
+            .unwrap_or(3);
+        apply_run_type_config_inner(&state, &current_config, current_run_type, true).await
+    })
+    .await
+}
+
+pub(crate) async fn apply_run_type_config_with_host_rules_lock(
+    state: &AppState,
     config: &Value,
     run_type: i64,
+) -> Result<(), String> {
+    apply_run_type_config_inner(state, config, run_type, true).await
+}
+
+async fn apply_run_type_config_inner(
+    state: &AppState,
+    config: &Value,
+    run_type: i64,
+    host_rules_lock_held: bool,
 ) -> Result<(), String> {
     log_go_value_result(
         state
@@ -83,8 +112,13 @@ pub(crate) async fn apply_run_type_config(
             "failed to sync gateway visibility runtime during run type apply"
         );
     }
-    if let Err(error) =
-        gateway_settings::sync_gateway_target_runtime_for_config(state, config, false).await
+    if let Err(error) = gateway_settings::sync_gateway_target_runtime_for_config(
+        state,
+        config,
+        false,
+        host_rules_lock_held,
+    )
+    .await
     {
         tracing::warn!(
             %error,
@@ -128,7 +162,7 @@ pub(crate) async fn apply_run_type_config(
                     .map_err(|error| error.to_string()),
                 "flush path rules",
             );
-            sync_host_rules(state, config).await;
+            sync_host_rules(state, config, host_rules_lock_held).await?;
             log_go_status_value_result(
                 state
                     .go_backend
@@ -140,14 +174,7 @@ pub(crate) async fn apply_run_type_config(
             return Ok(());
         }
 
-        log_go_value_result(
-            state
-                .go_backend
-                .flush_host_rules()
-                .await
-                .map_err(|error| error.to_string()),
-            "flush host rules",
-        );
+        sync_host_rules(state, config, host_rules_lock_held).await?;
         sync_path_rules(state, config).await;
         sync_default_route(state, config).await;
         return Ok(());
@@ -171,7 +198,7 @@ pub(crate) async fn apply_run_type_config(
                 .map_err(|error| error.to_string()),
             "flush path rules",
         );
-        sync_host_rules(state, config).await;
+        sync_host_rules(state, config, host_rules_lock_held).await?;
         if protocol_mapping_enabled {
             sync_stream_rules(state, config).await;
         } else {
@@ -189,14 +216,7 @@ pub(crate) async fn apply_run_type_config(
         return Ok(());
     }
 
-    log_go_value_result(
-        state
-            .go_backend
-            .flush_host_rules()
-            .await
-            .map_err(|error| error.to_string()),
-        "flush host rules",
-    );
+    sync_host_rules(state, config, host_rules_lock_held).await?;
     log_go_value_result(
         state
             .go_backend
@@ -228,20 +248,16 @@ pub(super) async fn sync_path_rules(state: &AppState, config: &Value) {
     );
 }
 
-pub(super) async fn sync_host_rules(state: &AppState, config: &Value) {
-    let mappings = config
-        .get("host_mappings")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    log_go_value_result(
-        state
-            .go_backend
-            .set_host_rules(&build_host_rules_payload(&mappings))
-            .await
-            .map_err(|error| error.to_string()),
-        "sync host rules",
-    );
+pub(super) async fn sync_host_rules(
+    state: &AppState,
+    config: &Value,
+    host_rules_lock_held: bool,
+) -> Result<(), String> {
+    if host_rules_lock_held {
+        proxy_config::sync_go_host_rules_for_config_locked(state, config).await
+    } else {
+        proxy_config::sync_current_go_host_rules(state).await
+    }
 }
 
 pub(super) async fn sync_stream_rules(state: &AppState, config: &Value) {

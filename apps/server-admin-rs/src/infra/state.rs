@@ -28,6 +28,10 @@ pub struct AppStateInner {
     pub acme_install_state: RwLock<Option<Value>>,
     pub ddns_schedule_reload: Notify,
     pub fnos_network_tuning_update_lock: Mutex<()>,
+    /// Serializes the host-mapping config -> Go runtime transaction, including
+    /// rollback and background metadata merges. Without this guard, two admin
+    /// requests can persist in one order and reach the runtime in another.
+    pub host_mappings_update_lock: Mutex<()>,
 }
 
 impl AppState {
@@ -75,6 +79,7 @@ impl AppState {
                 acme_install_state: RwLock::new(None),
                 ddns_schedule_reload: Notify::new(),
                 fnos_network_tuning_update_lock: Mutex::new(()),
+                host_mappings_update_lock: Mutex::new(()),
             }),
         })
     }

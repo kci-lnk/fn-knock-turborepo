@@ -45,6 +45,7 @@ pub(super) async fn apply_preflight_behavior(
     .await
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) async fn apply_preflight_behavior_with_normal_access(
     state: &AppState,
     headers: &HeaderMap,
@@ -299,10 +300,15 @@ pub(super) async fn resolve_preflight_normal_access(
         }
     }
 
-    if let Some((session_id, _session)) = browser_session.as_ref() {
-        if let Err(error) =
-            auth_mobility::sync_browser_session_ip(state, session_id, client_ip, "browser-session")
-                .await
+    if let Some((session_id, session)) = browser_session.as_ref() {
+        if let Err(error) = auth_mobility::sync_browser_session_ip_with_session(
+            state,
+            session_id,
+            session,
+            client_ip,
+            "browser-session",
+        )
+        .await
         {
             tracing::warn!(%error, %session_id, "failed to sync browser session IP");
         }

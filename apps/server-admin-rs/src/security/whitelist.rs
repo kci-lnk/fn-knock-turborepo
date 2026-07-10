@@ -37,6 +37,13 @@ use crate::{
 const DEFAULT_CNAME_CHECK_INTERVAL_MINUTES: i64 = 5;
 const MIN_CNAME_CHECK_INTERVAL_MINUTES: i64 = 1;
 const MAX_CNAME_CHECK_INTERVAL_MINUTES: i64 = 24 * 60;
+const AUTO_WHITELIST_OWNER_LOCK_TTL_SECONDS: usize = 60;
+const AUTO_WHITELIST_OWNER_LOCK_WAIT_SECONDS: u64 = 10;
+
+pub(crate) struct DeferredSessionAutoWhitelist {
+    pub(crate) record: WhitelistRecord,
+    previous_targets: Vec<WhitelistConcreteTarget>,
+}
 
 fn whitelist_text(translator: &Translator, key: &str) -> String {
     translator.t(&format!("server.whitelist.{key}"))
@@ -181,47 +188,6 @@ pub fn start_whitelist_tasks(state: AppState) {
     });
 }
 
-pub async fn add_auto_whitelist_record(
-    state: &AppState,
-    ip: &str,
-    expire_at: Option<i64>,
-    comment: Option<String>,
-) -> anyhow::Result<WhitelistRecord> {
-    let (target, target_type) =
-        normalize_target(ip, "auto", Some("ip")).map_err(|message| anyhow::anyhow!(message))?;
-    let existing = state
-        .store
-        .find_whitelist_records_by_target(&target, &target_type, Some("auto"))
-        .await?;
-    for record in existing {
-        remove_whitelist_record_by_id(state, &record.id).await?;
-    }
-
-    let record = WhitelistRecord {
-        id: format!("whitelist:{}", Uuid::new_v4()),
-        ip: target.clone(),
-        target_type,
-        expire_at,
-        source: "auto".to_string(),
-        created_at: now_seconds(),
-        status: "active".to_string(),
-        comment,
-        ip_location: cached_ip_location(state, &target).await,
-        resolved_targets: None,
-        check_interval_minutes: None,
-        last_checked_at: None,
-        last_resolved_at: None,
-        resolve_status: None,
-        resolve_message: None,
-    };
-    state.store.insert_whitelist_record(&record).await?;
-    let _ =
-        ip_location::register_usage(state, &target, vec![format!("whitelist|{}", record.id)]).await;
-    sync_allowed_target(state, &target).await;
-    sync_reverse_proxy_trusted_ips(state).await;
-    Ok(record)
-}
-
 pub async fn ensure_session_auto_whitelist(
     state: &AppState,
     owner_key: &str,
@@ -230,11 +196,111 @@ pub async fn ensure_session_auto_whitelist(
     comment: Option<String>,
     existing_record_id: Option<&str>,
 ) -> anyhow::Result<WhitelistRecord> {
+    let deferred = ensure_session_auto_whitelist_deferred(
+        state,
+        owner_key,
+        ip,
+        expire_at,
+        comment,
+        existing_record_id,
+        None,
+        "active",
+    )
+    .await?;
+    publish_deferred_session_auto_whitelist(state, deferred).await
+}
+
+pub(crate) async fn ensure_pending_session_auto_whitelist(
+    state: &AppState,
+    owner_key: &str,
+    ip: &str,
+    expire_at: Option<i64>,
+    comment: Option<String>,
+    existing_record_id: Option<&str>,
+    candidate_record_id: &str,
+) -> anyhow::Result<DeferredSessionAutoWhitelist> {
+    ensure_session_auto_whitelist_deferred(
+        state,
+        owner_key,
+        ip,
+        expire_at,
+        comment,
+        existing_record_id,
+        Some(candidate_record_id),
+        "pending",
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn ensure_session_auto_whitelist_deferred(
+    state: &AppState,
+    owner_key: &str,
+    ip: &str,
+    expire_at: Option<i64>,
+    comment: Option<String>,
+    existing_record_id: Option<&str>,
+    candidate_record_id: Option<&str>,
+    new_record_status: &str,
+) -> anyhow::Result<DeferredSessionAutoWhitelist> {
     let owner_key = owner_key.trim();
     if owner_key.is_empty() {
         anyhow::bail!("Auto whitelist owner is missing");
     }
+    let owner_record_key = whitelist_auto_owner_record_key(owner_key);
+    let lock_key = format!("{owner_record_key}:lock");
+    let lock_id = Uuid::new_v4().to_string();
+    let deadline = time::Instant::now()
+        + std::time::Duration::from_secs(AUTO_WHITELIST_OWNER_LOCK_WAIT_SECONDS);
+    loop {
+        if state
+            .store
+            .set_json_value_nx_ex(
+                &lock_key,
+                &json!({ "lockId": lock_id, "createdAt": time_utils::now_iso() }),
+                AUTO_WHITELIST_OWNER_LOCK_TTL_SECONDS,
+            )
+            .await?
+        {
+            break;
+        }
+        if time::Instant::now() >= deadline {
+            anyhow::bail!("Timed out waiting for auto whitelist owner lock");
+        }
+        time::sleep(std::time::Duration::from_millis(10)).await;
+    }
 
+    let result = ensure_session_auto_whitelist_locked(
+        state,
+        owner_key,
+        ip,
+        expire_at,
+        comment,
+        existing_record_id,
+        candidate_record_id,
+        new_record_status,
+    )
+    .await;
+    let release_result = state.store.delete_lock_if_owned(&lock_key, &lock_id).await;
+    if let Err(error) = release_result {
+        // The lock is leased and expires on its own. Do not turn an already
+        // persisted owner result into an error that the caller cannot clean up.
+        tracing::warn!(%error, %owner_key, "failed to release auto whitelist owner lock");
+    }
+    result
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn ensure_session_auto_whitelist_locked(
+    state: &AppState,
+    owner_key: &str,
+    ip: &str,
+    expire_at: Option<i64>,
+    comment: Option<String>,
+    existing_record_id: Option<&str>,
+    candidate_record_id: Option<&str>,
+    new_record_status: &str,
+) -> anyhow::Result<DeferredSessionAutoWhitelist> {
     let (target, target_type) =
         normalize_target(ip, "auto", Some("ip")).map_err(|message| anyhow::anyhow!(message))?;
     let owner_record_key = whitelist_auto_owner_record_key(owner_key);
@@ -261,7 +327,8 @@ pub async fn ensure_session_auto_whitelist(
         if existing.source != "auto" || existing.target_type() != "ip" {
             continue;
         }
-        if !existing.is_active()
+        let reusable_pending = new_record_status == "pending" && existing.status == "pending";
+        if (!existing.is_active() && !reusable_pending)
             || existing
                 .expire_at
                 .is_some_and(|value| value <= now_seconds())
@@ -276,6 +343,9 @@ pub async fn ensure_session_auto_whitelist(
         next.target_type = target_type.clone();
         next.expire_at = expire_at;
         next.comment = comment.clone();
+        if !existing.is_active() {
+            next.status = new_record_status.to_string();
+        }
         next.ip_location = cached_ip_location(state, &target).await;
         state
             .store
@@ -289,20 +359,24 @@ pub async fn ensure_session_auto_whitelist(
                 expire_at.map(|value| value - now_seconds()),
             )
             .await?;
-        sync_allowed_target(state, &target).await;
-        cleanup_removed_targets(state, &previous_targets).await;
-        sync_reverse_proxy_trusted_ips(state).await;
-        return Ok(next);
+        return Ok(DeferredSessionAutoWhitelist {
+            record: next,
+            previous_targets,
+        });
     }
 
     let record = WhitelistRecord {
-        id: format!("whitelist:{}", Uuid::new_v4()),
+        id: candidate_record_id
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToString::to_string)
+            .unwrap_or_else(|| format!("whitelist:{}", Uuid::new_v4())),
         ip: target.clone(),
         target_type,
         expire_at,
         source: "auto".to_string(),
         created_at: now_seconds(),
-        status: "active".to_string(),
+        status: new_record_status.to_string(),
         comment,
         ip_location: cached_ip_location(state, &target).await,
         resolved_targets: None,
@@ -315,17 +389,54 @@ pub async fn ensure_session_auto_whitelist(
     state.store.insert_whitelist_record(&record).await?;
     let _ =
         ip_location::register_usage(state, &target, vec![format!("whitelist|{}", record.id)]).await;
-    state
+    if let Err(error) = state
         .store
         .set_string_value_with_optional_ttl(
             &owner_record_key,
             &record.id,
             expire_at.map(|value| value - now_seconds()),
         )
-        .await?;
-    sync_allowed_target(state, &target).await;
+        .await
+    {
+        let _ = state.store.delete_whitelist_record(&record.id).await;
+        return Err(error.into());
+    }
+    Ok(DeferredSessionAutoWhitelist {
+        record,
+        previous_targets: Vec::new(),
+    })
+}
+
+pub(crate) async fn publish_deferred_session_auto_whitelist(
+    state: &AppState,
+    mut deferred: DeferredSessionAutoWhitelist,
+) -> anyhow::Result<WhitelistRecord> {
+    if !deferred.record.is_active() {
+        let previous = deferred.record.clone();
+        deferred.record.status = "active".to_string();
+        state
+            .store
+            .replace_whitelist_record(&previous, &deferred.record)
+            .await?;
+    }
+    sync_allowed_target(state, &deferred.record.ip).await;
+    cleanup_removed_targets(state, &deferred.previous_targets).await;
     sync_reverse_proxy_trusted_ips(state).await;
-    Ok(record)
+    Ok(deferred.record)
+}
+
+pub async fn rollback_session_auto_whitelist(
+    state: &AppState,
+    owner_key: &str,
+    whitelist_record_id: &str,
+) -> anyhow::Result<()> {
+    let owner_record_key = whitelist_auto_owner_record_key(owner_key);
+    state
+        .store
+        .delete_key_if_value(&owner_record_key, whitelist_record_id)
+        .await?;
+    remove_whitelist_record_by_id(state, whitelist_record_id).await?;
+    Ok(())
 }
 
 pub async fn remove_whitelist_record_by_id(state: &AppState, id: &str) -> anyhow::Result<bool> {
@@ -1189,7 +1300,7 @@ fn add_ip_source(source_map: &mut BTreeMap<String, BTreeSet<String>>, ip: &str, 
     source_map.entry(normalized).or_default().insert(source);
 }
 
-fn whitelist_auto_owner_record_key(owner_key: &str) -> String {
+pub(crate) fn whitelist_auto_owner_record_key(owner_key: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(owner_key.trim());
     format!(

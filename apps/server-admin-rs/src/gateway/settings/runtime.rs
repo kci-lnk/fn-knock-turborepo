@@ -41,6 +41,14 @@ pub(super) async fn sync_gateway_proxy_headers_runtime(
 pub(super) async fn sync_gateway_host_response_runtime(
     state: &AppState,
     config: &Value,
+    _runtime: &Value,
+) -> Result<(), String> {
+    sync_gateway_target_runtime_for_config(state, config, false, false).await
+}
+
+async fn sync_gateway_host_response_runtime_locked(
+    state: &AppState,
+    config: &Value,
     runtime: &Value,
 ) -> Result<(), String> {
     ensure_go_success(
@@ -50,39 +58,83 @@ pub(super) async fn sync_gateway_host_response_runtime(
             .await
             .map_err(|error| error.to_string())?,
     )?;
-    if is_any_subdomain_routing_mode(config) {
-        let host_mappings = config_host_mappings(config);
-        ensure_go_success(
-            state
-                .go_backend
-                .set_host_rules(&build_host_rules_payload(&host_mappings))
-                .await
-                .map_err(|error| error.to_string())?,
-        )?;
-    }
-    Ok(())
+    proxy_config::sync_go_host_rules_for_config_locked(state, config).await
 }
 
 pub(crate) async fn sync_gateway_target_runtime_for_config(
     state: &AppState,
     config: &Value,
     save_config: bool,
+    host_rules_lock_held: bool,
 ) -> Result<(), String> {
-    let proxy_source = config
+    if host_rules_lock_held {
+        return sync_gateway_target_runtime_for_config_locked(state, config, save_config).await;
+    }
+    proxy_config::with_host_mappings_runtime_transaction(state, |state| async move {
+        let current_config = state
+            .store
+            .get_config()
+            .await
+            .map_err(|error| error.to_string())?;
+        sync_gateway_target_runtime_for_config_locked(&state, &current_config, save_config).await
+    })
+    .await
+}
+
+async fn sync_gateway_target_runtime_for_config_locked(
+    state: &AppState,
+    config: &Value,
+    save_config: bool,
+) -> Result<(), String> {
+    // Keep the exact original section values (including absence) as the
+    // optimistic-merge precondition. A gateway settings request may update
+    // either section after this snapshot was read; in that case storage must
+    // retain the newer section instead of replacing it with this stale
+    // compiled value.
+    let expected_proxy_source = config.get("gateway_proxy_headers").cloned();
+    let proxy_source = expected_proxy_source
+        .clone()
+        .unwrap_or_else(default_disabled_hosts_config);
+    let proxy_requested = normalize_disabled_hosts_config(&proxy_source);
+    let requested_proxy_compiled = compile_gateway_proxy_headers_state(config, &proxy_requested);
+
+    let mut requested_config = config.clone();
+    ensure_object(&mut requested_config).insert(
+        "gateway_proxy_headers".to_string(),
+        requested_proxy_compiled.config.clone(),
+    );
+
+    let expected_host_response_source = config.get("gateway_host_response").cloned();
+    let host_response_source = expected_host_response_source
+        .clone()
+        .unwrap_or_else(default_disabled_hosts_config);
+    let host_response_requested = normalize_disabled_hosts_config(&host_response_source);
+    let requested_host_response_compiled =
+        compile_gateway_host_response_state(&requested_config, &host_response_requested);
+
+    let effective_config = if save_config {
+        state
+            .store
+            .merge_gateway_target_config_sections(
+                expected_proxy_source.as_ref(),
+                &requested_proxy_compiled.config,
+                expected_host_response_source.as_ref(),
+                &requested_host_response_compiled.config,
+            )
+            .await
+            .map_err(|error| error.to_string())?
+    } else {
+        config.clone()
+    };
+
+    // The section merge may have rebased onto a newer run_type/submode. Build
+    // runtime payloads again from the complete config returned by storage.
+    let proxy_source = effective_config
         .get("gateway_proxy_headers")
         .cloned()
         .unwrap_or_else(default_disabled_hosts_config);
     let proxy_requested = normalize_disabled_hosts_config(&proxy_source);
-    let proxy_compiled = compile_gateway_proxy_headers_state(config, &proxy_requested);
-
-    let mut effective_config = config.clone();
-    if save_config {
-        ensure_object(&mut effective_config).insert(
-            "gateway_proxy_headers".to_string(),
-            proxy_compiled.config.clone(),
-        );
-    }
-
+    let proxy_compiled = compile_gateway_proxy_headers_state(&effective_config, &proxy_requested);
     let host_response_source = effective_config
         .get("gateway_host_response")
         .cloned()
@@ -90,18 +142,6 @@ pub(crate) async fn sync_gateway_target_runtime_for_config(
     let host_response_requested = normalize_disabled_hosts_config(&host_response_source);
     let host_response_compiled =
         compile_gateway_host_response_state(&effective_config, &host_response_requested);
-
-    if save_config {
-        ensure_object(&mut effective_config).insert(
-            "gateway_host_response".to_string(),
-            host_response_compiled.config.clone(),
-        );
-        state
-            .store
-            .save_config(&effective_config)
-            .await
-            .map_err(|error| error.to_string())?;
-    }
 
     state
         .store
@@ -118,8 +158,12 @@ pub(crate) async fn sync_gateway_target_runtime_for_config(
         )
         .await
         .map_err(|error| error.to_string())?;
-    sync_gateway_host_response_runtime(state, &effective_config, &host_response_compiled.runtime)
-        .await
+    sync_gateway_host_response_runtime_locked(
+        state,
+        &effective_config,
+        &host_response_compiled.runtime,
+    )
+    .await
 }
 
 pub(super) fn visibility_sync_payload(runtime: &Value) -> Value {
@@ -180,7 +224,19 @@ pub(super) fn omit_targets_sync_payload(runtime: &Value) -> Value {
     Value::Object(payload)
 }
 
-pub(super) async fn sync_gateway_runtime(state: &AppState, config: &Value) -> Result<(), String> {
+pub(super) async fn sync_gateway_runtime(state: &AppState, _config: &Value) -> Result<(), String> {
+    proxy_config::with_host_mappings_runtime_transaction(state, |state| async move {
+        let current_config = state
+            .store
+            .get_config()
+            .await
+            .map_err(|error| error.to_string())?;
+        sync_gateway_runtime_locked(&state, &current_config).await
+    })
+    .await
+}
+
+async fn sync_gateway_runtime_locked(state: &AppState, config: &Value) -> Result<(), String> {
     ensure_go_success(
         state
             .go_backend
@@ -284,14 +340,7 @@ pub(super) async fn apply_gateway_portal_host_rules_patch_if_needed(
         return Ok(false);
     }
 
-    let host_mappings = config_host_mappings(config);
-    ensure_go_success(
-        state
-            .go_backend
-            .set_host_rules(&build_host_rules_payload(&host_mappings))
-            .await
-            .map_err(|error| error.to_string())?,
-    )?;
+    proxy_config::sync_current_go_host_rules(state).await?;
 
     if let Err(error) = state.store.set_string_value(flag_key, "1").await {
         tracing::warn!(%error, %flag_key, "failed to mark gateway portal host-rules patch applied");

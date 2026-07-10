@@ -38,6 +38,11 @@ impl Store {
             };
             if record.is_active() {
                 records.push(record);
+            } else if record.status == "pending" {
+                // Pending login/mobility grants are intentionally invisible to
+                // authorization compilers, but their indexes must remain in
+                // place so the live-session transaction can promote them.
+                continue;
             } else {
                 for target in whitelist_stale_ip_index_targets(&record) {
                     stale_ip_targets.insert(target);

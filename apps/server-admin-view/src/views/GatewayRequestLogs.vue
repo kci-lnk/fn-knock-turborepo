@@ -39,6 +39,7 @@ import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
 import { docsUrls } from "../lib/docs";
 import { useIpLocationBatch } from "../composables/useIpLocationBatch";
+import { useCursorPagination } from "../composables/useCursorPagination";
 import {
   LIMIT_OPTIONS,
   LOGIN_FILTER_OPTIONS,
@@ -78,9 +79,17 @@ const isDetailsOpen = ref(false);
 const activeEntry = ref<GatewayLogEntry | null>(null);
 const credentialOptions = ref<TOTPCredential[]>([]);
 const selectedLogEntryKeys = ref<Set<string>>(new Set());
-const currentCursor = ref("");
-const nextCursor = ref("");
-const cursorHistory = ref<string[]>([]);
+const {
+  canLoadNewer,
+  canLoadOlder,
+  currentCursor,
+  cursorHistory,
+  loadFirst: loadCursorFirst,
+  loadNewer: loadCursorNewer,
+  loadOlder: loadCursorOlder,
+  nextCursor,
+  reset: resetCursorPagination,
+} = useCursorPagination({ loading });
 
 const showTableSkeleton = useDelayedLoading(
   () => loading.value && entries.value.length === 0,
@@ -157,8 +166,6 @@ const activeWAFStatusLabel = computed(() =>
     t,
   ),
 );
-const canLoadNewer = computed(() => cursorHistory.value.length > 0);
-const canLoadOlder = computed(() => Boolean(nextCursor.value));
 const cursorPageLabel = computed(() =>
   t("admin.gatewayRequestLogs.cursorPage", {
     page: cursorHistory.value.length + 1,
@@ -256,12 +263,6 @@ const refreshAll = async () => {
   await fetchEntries();
 };
 
-const resetCursorPagination = () => {
-  currentCursor.value = "";
-  nextCursor.value = "";
-  cursorHistory.value = [];
-};
-
 const handleDateChange = async (value: unknown) => {
   if (!value) return;
   selectedDate.value = String(value);
@@ -309,24 +310,17 @@ const handleLimitChange = async (value: unknown) => {
 };
 
 const handleLoadOlder = async () => {
-  if (!nextCursor.value || loading.value) return;
-  cursorHistory.value = [...cursorHistory.value, currentCursor.value];
-  currentCursor.value = nextCursor.value;
+  if (!loadCursorOlder()) return;
   await fetchEntries();
 };
 
 const handleLoadNewer = async () => {
-  if (cursorHistory.value.length === 0 || loading.value) return;
-  const history = [...cursorHistory.value];
-  const previousCursor = history.pop() ?? "";
-  cursorHistory.value = history;
-  currentCursor.value = previousCursor;
+  if (!loadCursorNewer()) return;
   await fetchEntries();
 };
 
 const handleLoadFirst = async () => {
-  if (cursorHistory.value.length === 0 || loading.value) return;
-  resetCursorPagination();
+  if (!loadCursorFirst()) return;
   await fetchEntries();
 };
 

@@ -136,6 +136,7 @@ impl Store {
         let _: i64 = redis::cmd("EVAL")
             .arg(
                 r#"
+                -- fn-knock:eval:delete-if-value:v1
                 if redis.call('GET', KEYS[1]) == ARGV[1] then
                     return redis.call('DEL', KEYS[1])
                 end
@@ -217,6 +218,7 @@ impl Store {
         let ids: Vec<String> = redis::cmd("EVAL")
             .arg(
                 r#"
+                -- fn-knock:eval:zset-claim:v1
                 local ids = redis.call(
                     'ZRANGEBYSCORE',
                     KEYS[1],

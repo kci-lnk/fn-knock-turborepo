@@ -12,6 +12,7 @@ type HostMappingUpdatePayload = Pick<
   | "is_default"
   | "disabled"
   | "availability"
+  | "protocol_mode"
   | "basic_auth"
   | "locations"
   | "title_override"
@@ -37,6 +38,10 @@ export const toHostMappingUpdatePayload = (
   is_default: mapping.is_default === true,
   disabled: mapping.disabled === true,
   availability: normalizeHostMappingAvailability(mapping.availability),
+  protocol_mode:
+    mapping.protocol_mode === "http1" || mapping.protocol_mode === "http2"
+      ? mapping.protocol_mode
+      : "auto",
   basic_auth: toHostMappingBasicAuthPayload(mapping.basic_auth),
   locations: (mapping.locations ?? []).map((location) => ({
     path: location.path.trim(),

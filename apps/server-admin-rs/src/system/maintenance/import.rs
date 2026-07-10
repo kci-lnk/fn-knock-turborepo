@@ -97,6 +97,22 @@ pub(super) async fn import_backup_archive_buffer(
         })
         .collect::<Vec<_>>();
 
+    // Backup replacement clears the complete fn_knock: prefix. Serialize it
+    // with Host Mapping config/runtime updates using a lease whose own key is
+    // deliberately outside that prefix, and retain it until runtime sync has
+    // consumed the restored config.
+    let _host_mappings_guard = state.host_mappings_update_lock.lock().await;
+    let host_mappings_lease = proxy_config::acquire_host_mappings_transaction_lease(state)
+        .await
+        .map_err(|error| BackupImportError::internal(error.to_string()))?
+        .ok_or_else(|| {
+            BackupImportError::internal("Host mappings transaction is busy during backup import")
+        })?;
+    host_mappings_lease
+        .ensure_owned()
+        .await
+        .map_err(|error| BackupImportError::internal(error.to_string()))?;
+
     let cleared_keys = state
         .store
         .replace_backup_entries_by_prefix(KNOCK_BACKUP_PREFIX, &importable_entries, SCAN_COUNT)
@@ -104,6 +120,10 @@ pub(super) async fn import_backup_archive_buffer(
         .map_err(|error| BackupImportError::internal(error.to_string()))?;
 
     let (warnings, synced_steps) = sync_runtime_after_import(state, translator).await;
+    let ownership_result = host_mappings_lease.ensure_owned().await;
+    let release_result = host_mappings_lease.release().await;
+    ownership_result.map_err(|error| BackupImportError::internal(error.to_string()))?;
+    release_result.map_err(|error| BackupImportError::internal(error.to_string()))?;
     Ok(json!({
         "cleared_keys": cleared_keys,
         "imported_keys": importable_entries.len(),

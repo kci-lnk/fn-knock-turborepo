@@ -468,7 +468,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   Card,
@@ -514,24 +514,19 @@ import {
   SlidersHorizontal,
   X,
 } from "lucide-vue-next";
-import { toast } from "@admin-shared/utils/toast";
 import { useConfigStore } from "../store/config";
-import { ConfigAPI, ScanAPI, SystemAPI } from "../lib/api";
+import { ConfigAPI } from "../lib/api";
 import type { ProxyMapping } from "../types";
-import type {
-  DiscoveredServiceInfo,
-  ScanDiscoverPollEvent,
-  ScanDiscoverProgress,
-  ScanDiscoverResponse,
-} from "../lib/api";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import PagedTableFooter from "@admin-shared/components/list/PagedTableFooter.vue";
 import ReverseProxyDefaultRouteDialog from "./reverse-proxy/ReverseProxyDefaultRouteDialog.vue";
 import ReverseProxyMappingDialog from "./reverse-proxy/ReverseProxyMappingDialog.vue";
 import { useAsyncAction } from "@admin-shared/composables/useAsyncAction";
-import { useDiscoverServicesSelection } from "@admin-shared/composables/useDiscoverServicesSelection";
+import { useAccessEntryPort } from "@/composables/useAccessEntryPort";
 import { useDefaultRouteConfirm } from "@admin-shared/composables/useDefaultRouteConfirm";
 import { useProxyMappingDialogForm } from "@admin-shared/composables/useProxyMappingDialogForm";
+import { useReverseProxyDiscoverFlow } from "./reverse-proxy/useReverseProxyDiscoverFlow";
+import { useReverseProxyMappingActions } from "./reverse-proxy/useReverseProxyMappingActions";
 import { useLocalPagedList } from "@admin-shared/composables/useLocalPagedList";
 import { docsUrls } from "../lib/docs";
 import {
@@ -539,22 +534,13 @@ import {
   needsSetDefaultRouteConfirm,
 } from "@admin-shared/utils/defaultRouteGuard";
 import { extractPortFromTarget } from "@admin-shared/utils/extractPortFromTarget";
-import { persistProxyMappings } from "@admin-shared/utils/persistProxyMappings";
 import { isWebSocketProxyTargetUrl } from "@admin-shared/utils/proxyTargetInput";
-import {
-  buildProxyMapping,
-  DEFAULT_PROXY_MAPPING_FLAGS,
-} from "@admin-shared/utils/proxyMapping";
+import { DEFAULT_PROXY_MAPPING_FLAGS } from "@admin-shared/utils/proxyMapping";
 import {
   createReverseProxyMessages,
   showReverseProxyActionError,
   showReverseProxyBooleanResultToast,
-  showReverseProxyDuplicateItemsError,
 } from "@admin-shared/utils/reverseProxyFeedback";
-import {
-  validateBatchMappingDuplicates,
-  validateSingleMappingDuplicates,
-} from "@admin-shared/utils/validateProxyMappingDuplicates";
 
 const currentHostname = window.location.hostname;
 const { t } = useI18n();
@@ -562,7 +548,6 @@ const reverseProxyMessages = createReverseProxyMessages(t);
 const discoverTargetsSettingsRef = ref<InstanceType<
   typeof ScanDiscoveryTargetsSettings
 > | null>(null);
-const isDiscoverSettingsOpen = ref(false);
 
 const isDefaultRoute = (path: string) => {
   return configStore.config?.default_route === path;
@@ -571,28 +556,8 @@ const isDefaultRoute = (path: string) => {
 const DEFAULT_SYSTEM_PORT = 5666;
 
 const configStore = useConfigStore();
-const accessEntryPort = ref("7999");
+const { accessEntryPort, loadAccessEntryPort } = useAccessEntryPort();
 
-const removingPath = ref<string | null>(null);
-const { run: runRemoveMapping } = useAsyncAction({
-  onError: (error) => {
-    showReverseProxyActionError(
-      reverseProxyMessages.deleteFailed,
-      error,
-      reverseProxyMessages.unknownError,
-    );
-  },
-});
-
-const { isPending: isSaving, run: runSaveAction } = useAsyncAction({
-  onError: (error) => {
-    showReverseProxyActionError(
-      reverseProxyMessages.saveFailed,
-      error,
-      reverseProxyMessages.unknownError,
-    );
-  },
-});
 const {
   open: isMappingDialogOpen,
   isEditing,
@@ -721,6 +686,23 @@ const {
     mapping.target.toLowerCase().includes(query),
 });
 
+const { isSaving, removeMapping, removingPath, runSaveAction, saveMapping } =
+  useReverseProxyMappingActions({
+    allMappings,
+    closeMappingDialog,
+    currentPage,
+    editingOriginalMapping,
+    form: newMapping,
+    isDefaultRoute,
+    isEditing,
+    isValid,
+    messages: reverseProxyMessages,
+    paginatedMappings,
+    saveDefaultRoute: (path) => configStore.saveDefaultRoute(path),
+    saveProxyMappings: (mappings) => configStore.saveProxyMappings(mappings),
+    searchQuery,
+  });
+
 onMounted(() => {
   void loadAccessEntryPort();
 });
@@ -728,113 +710,6 @@ onMounted(() => {
 onUnmounted(() => {
   stopDiscoverScan();
 });
-
-async function loadAccessEntryPort() {
-  try {
-    const info = await SystemAPI.getAccessEntry();
-    accessEntryPort.value = info.port;
-  } catch (error) {
-    console.warn("load access entry port failed:", error);
-  }
-}
-
-async function removeMapping(mapping: ProxyMapping) {
-  removingPath.value = mapping.path;
-  await runRemoveMapping(
-    async () => {
-      const newList = allMappings.value.filter((item) => item !== mapping);
-      await configStore.saveProxyMappings(newList);
-
-      if (isDefaultRoute(mapping.path)) {
-        await configStore.saveDefaultRoute("/__select__");
-      }
-
-      if (paginatedMappings.value.length === 1 && currentPage.value > 1) {
-        currentPage.value--;
-      }
-
-      toast.success(reverseProxyMessages.deleteSuccess);
-    },
-    {
-      onFinally: () => {
-        removingPath.value = null;
-      },
-    },
-  );
-}
-
-async function saveMapping() {
-  if (!isValid.value) return;
-  const isWebSocketTarget = isWebSocketProxyTargetUrl(newMapping.target);
-  const normalizedMapping = buildProxyMapping({
-    ...newMapping,
-    rewrite_html: isWebSocketTarget ? false : newMapping.rewrite_html,
-    use_root_mode: isWebSocketTarget ? false : newMapping.use_root_mode,
-  });
-  const { path: trimmedPath, target: trimmedTarget } = normalizedMapping;
-  const ignorePath =
-    isEditing.value && editingOriginalMapping.value
-      ? editingOriginalMapping.value.path.trim()
-      : null;
-  const ignoreTarget =
-    isEditing.value && editingOriginalMapping.value
-      ? editingOriginalMapping.value.target.trim()
-      : null;
-  const { duplicatePath, duplicateTarget } = validateSingleMappingDuplicates(
-    allMappings.value,
-    { path: trimmedPath, target: trimmedTarget },
-    { ignorePath, ignoreTarget },
-  );
-
-  if (duplicatePath) {
-    toast.error(reverseProxyMessages.duplicatePath(trimmedPath));
-    return;
-  }
-  if (duplicateTarget) {
-    toast.error(reverseProxyMessages.duplicateTarget(trimmedTarget));
-    return;
-  }
-
-  const isCreate = !isEditing.value;
-  await runSaveAction(async () => {
-    const newList = [...allMappings.value];
-    if (isEditing.value && editingOriginalMapping.value) {
-      const index = newList.indexOf(editingOriginalMapping.value);
-      if (index !== -1) {
-        newList[index] = normalizedMapping;
-      }
-    } else {
-      newList.push(normalizedMapping);
-    }
-
-    await persistProxyMappings(
-      newList,
-      {
-        saveMappings: (list) => configStore.saveProxyMappings(list),
-        saveDefaultRoute: (path) => configStore.saveDefaultRoute(path),
-        resetPage: () => {
-          currentPage.value = 1;
-        },
-        resetSearch: () => {
-          searchQuery.value = "";
-        },
-      },
-      {
-        resetPage: isCreate,
-        resetSearch: isCreate,
-        onAfterPersist: () => {
-          closeMappingDialog(true);
-        },
-      },
-    );
-
-    toast.success(
-      isCreate
-        ? reverseProxyMessages.createSuccess
-        : reverseProxyMessages.updateSuccess,
-    );
-  });
-}
 
 async function syncRoutes() {
   await runSyncRoutes(() => ConfigAPI.syncRoutes(), {
@@ -850,294 +725,35 @@ async function syncRoutes() {
   });
 }
 
-const { isPending: isDiscovering, run: runDiscoverServices } = useAsyncAction({
-  onError: (error) => {
-    if (isDiscoverAbortError(error)) return;
-    showReverseProxyActionError(
-      reverseProxyMessages.scanFailed,
-      error,
-      reverseProxyMessages.unknownError,
-    );
-  },
-});
-const discoverAbortController = ref<AbortController | null>(null);
-const discoverProgress = ref<ScanDiscoverProgress | null>(null);
 const {
-  open: isDiscoverDialogOpen,
   discoveredData,
-  selectedServices,
+  discoverFooterScannedPorts,
+  dismissDiscoverDialog,
+  handleDiscoverDialogOpenChange,
   isAllSelected,
-  isSelectionValid: isDiscoverSelectionValid,
-  setAllSelected,
-  resetSelection: resetDiscoverSelection,
-  setDiscoveredData,
-  openDialog: openDiscoverDialogState,
-  closeDialog: closeDiscoverDialog,
-} = useDiscoverServicesSelection<DiscoveredServiceInfo, ScanDiscoverResponse>({
-  getPath: (svc) => svc.detail.rule.path,
+  isDiscoverDialogOpen,
+  isDiscovering,
+  isDiscoverSelectionValid,
+  isDiscoverSettingsOpen,
+  onToggleAllDiscoverSelect,
+  openDiscoverDialog,
+  resolveDiscoveredServiceHost,
+  saveDiscoveredServices,
+  selectedServices,
+  showDiscoverHostColumn,
+  stopDiscoverScan,
+  toggleDiscoverSettings,
+  triggerScan,
+} = useReverseProxyDiscoverFlow({
+  allMappings,
+  currentHostname,
+  currentPage,
+  discoverTargetsSettingsRef,
+  messages: reverseProxyMessages,
+  runSaveAction,
+  saveDefaultRoute: (path) => configStore.saveDefaultRoute(path),
+  saveProxyMappings: (mappings) => configStore.saveProxyMappings(mappings),
+  searchQuery,
+  translate: (key, params) => (params ? t(key, params) : t(key)),
 });
-const showDiscoverHostColumn = computed(() => {
-  const hosts = new Set(
-    (discoveredData.value?.services || [])
-      .map((service) => service.host?.trim())
-      .filter(Boolean),
-  );
-  return hosts.size > 1;
-});
-const resolveDiscoveredServiceHost = (service: DiscoveredServiceInfo) =>
-  service.host?.trim() || discoveredData.value?.host?.trim() || currentHostname;
-const discoverFooterScannedPorts = computed(() => {
-  return discoveredData.value?.totalPortsScanned || 0;
-});
-
-const isDiscoverAbortError = (error: unknown): boolean =>
-  error instanceof DOMException
-    ? error.name === "AbortError"
-    : error instanceof Error && error.name === "AbortError";
-
-const createEmptyDiscoverResponse = (
-  patch: Partial<ScanDiscoverResponse> = {},
-): ScanDiscoverResponse => ({
-  host: patch.host || "",
-  totalPortsScanned: patch.totalPortsScanned || 0,
-  foundServices: patch.foundServices || 0,
-  scannedHosts: patch.scannedHosts,
-  scanHostCount: patch.scanHostCount,
-  scanScope: patch.scanScope,
-  scanCidrs: patch.scanCidrs,
-  services: [],
-});
-
-const cloneDiscoveredService = (
-  service: DiscoveredServiceInfo,
-): DiscoveredServiceInfo => ({
-  ...service,
-  detail: {
-    ...service.detail,
-    rule: { ...service.detail.rule },
-  },
-});
-
-const upsertDiscoveredService = (service: DiscoveredServiceInfo) => {
-  const current = discoveredData.value || createEmptyDiscoverResponse();
-  const nextService = cloneDiscoveredService(service);
-  const serviceKey =
-    nextService.serviceKey ||
-    `${nextService.host?.trim() || current.host}:${nextService.port}`;
-  const nextServices = [...current.services];
-  const existingIndex = nextServices.findIndex((item) => {
-    const itemKey =
-      item.serviceKey || `${item.host?.trim() || current.host}:${item.port}`;
-    return itemKey === serviceKey;
-  });
-
-  if (existingIndex >= 0) {
-    const previous = nextServices[existingIndex]!;
-    nextServices[existingIndex] = nextService;
-    const selectedIndex = selectedServices.value.indexOf(previous);
-    if (selectedIndex >= 0) {
-      selectedServices.value[selectedIndex] = nextService;
-    }
-  } else {
-    nextServices.push(nextService);
-    if (nextService.detail.rule.path?.trim()) {
-      selectedServices.value.push(nextService);
-    }
-  }
-
-  setDiscoveredData({
-    ...current,
-    foundServices: nextServices.length,
-    services: nextServices,
-  });
-};
-
-const applyDiscoverPollEvent = (event: ScanDiscoverPollEvent) => {
-  if (event.type === "meta") {
-    setDiscoveredData(createEmptyDiscoverResponse(event.data));
-    return;
-  }
-
-  if (event.type === "progress") {
-    discoverProgress.value = event.data;
-    return;
-  }
-
-  if (event.type === "service") {
-    upsertDiscoveredService(event.data.service);
-    return;
-  }
-
-  if (event.type === "done") {
-    const current = discoveredData.value;
-    if (!current) {
-      setDiscoveredData(event.data);
-      selectedServices.value = event.data.services.filter((svc) =>
-        Boolean(svc.detail.rule.path?.trim()),
-      );
-      return;
-    }
-
-    setDiscoveredData({
-      ...current,
-      ...event.data,
-      foundServices: current.services.length,
-      services: current.services,
-    });
-  }
-};
-
-const onToggleAllDiscoverSelect = (e: Event) => {
-  const checked = (e.target as HTMLInputElement).checked;
-  setAllSelected(checked);
-};
-
-const handleDiscoverDialogOpenChange = (nextOpen: boolean) => {
-  if (!nextOpen) {
-    dismissDiscoverDialog();
-  }
-};
-
-function dismissDiscoverDialog() {
-  stopDiscoverScan();
-  closeDiscoverDialog(true);
-  isDiscoverSettingsOpen.value = false;
-}
-
-function openDiscoverDialog() {
-  openDiscoverDialogState();
-  // Trigger the initial scan only when no previous scan data exists.
-  if (!discoveredData.value) {
-    void nextTick().then(() => triggerScan());
-  }
-}
-
-async function toggleDiscoverSettings() {
-  isDiscoverSettingsOpen.value = !isDiscoverSettingsOpen.value;
-  if (isDiscoverSettingsOpen.value) {
-    await nextTick();
-    void discoverTargetsSettingsRef.value?.loadTargets();
-  }
-}
-
-async function triggerScan() {
-  let targetCidrs: string[];
-  try {
-    await nextTick();
-    const selectedCidrs =
-      await discoverTargetsSettingsRef.value?.ensureSaved();
-    if (!selectedCidrs || selectedCidrs.length === 0) return;
-    targetCidrs = selectedCidrs;
-  } catch {
-    return;
-  }
-
-  resetDiscoverSelection();
-  discoverProgress.value = null;
-  discoverAbortController.value?.abort();
-  const abortController = new AbortController();
-  discoverAbortController.value = abortController;
-  await runDiscoverServices(
-    () =>
-      ScanAPI.discoverPolling(
-        { target_cidrs: targetCidrs },
-        {
-          signal: abortController.signal,
-          onEvent: applyDiscoverPollEvent,
-        },
-      ),
-    {
-      onFinally: () => {
-        if (discoverAbortController.value === abortController) {
-          discoverAbortController.value = null;
-        }
-      },
-    },
-  );
-}
-
-function stopDiscoverScan() {
-  discoverAbortController.value?.abort();
-  discoverAbortController.value = null;
-}
-
-async function saveDiscoveredServices() {
-  if (!isDiscoverSelectionValid.value || !discoveredData.value) return;
-  const candidates = selectedServices.value.map((svc) => ({
-    path: svc.detail.rule.path?.trim() || "",
-    target: `http://${resolveDiscoveredServiceHost(svc)}:${svc.port}/`.trim(),
-  }));
-  const { duplicatePaths, duplicateTargets } = validateBatchMappingDuplicates(
-    allMappings.value,
-    candidates,
-  );
-
-  if (duplicatePaths.length > 0) {
-    showReverseProxyDuplicateItemsError(
-      reverseProxyMessages.duplicateItems(
-        t("admin.reverseProxy.duplicatePathLabel"),
-        duplicatePaths,
-      ),
-    );
-    return;
-  }
-  if (duplicateTargets.length > 0) {
-    showReverseProxyDuplicateItemsError(
-      reverseProxyMessages.duplicateItems(
-        t("admin.reverseProxy.duplicateTargetLabel"),
-        duplicateTargets,
-      ),
-    );
-    return;
-  }
-
-  stopDiscoverScan();
-  await runSaveAction(async () => {
-    const newList = [...allMappings.value];
-    let defaultRouteToSet: string | null = null;
-    let addedCount = 0;
-
-    for (const svc of selectedServices.value) {
-      const rule = svc.detail.rule;
-      const discoveredHost = resolveDiscoveredServiceHost(svc);
-      const newMap = buildProxyMapping({
-        path: rule.path,
-        target: `http://${discoveredHost}:${svc.port}/`,
-        rewrite_html: rule.rewrite_html,
-        use_auth: rule.use_auth,
-        use_root_mode: rule.use_root_mode,
-        strip_path: rule.strip_path,
-      });
-
-      newList.push(newMap);
-      addedCount++;
-
-      if (svc.detail.isDefault) {
-        defaultRouteToSet = newMap.path;
-      }
-    }
-
-    await persistProxyMappings(
-      newList,
-      {
-        saveMappings: (list) => configStore.saveProxyMappings(list),
-        saveDefaultRoute: (path) => configStore.saveDefaultRoute(path),
-        resetPage: () => {
-          currentPage.value = 1;
-        },
-        resetSearch: () => {
-          searchQuery.value = "";
-        },
-      },
-      {
-        defaultRoutePath: defaultRouteToSet,
-        resetPage: true,
-        onAfterPersist: () => {
-          toast.success(reverseProxyMessages.discoverSaveSuccess(addedCount));
-          dismissDiscoverDialog();
-        },
-      },
-    );
-  });
-}
 </script>

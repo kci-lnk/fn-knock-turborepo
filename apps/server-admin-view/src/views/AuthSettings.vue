@@ -427,6 +427,7 @@ import TotpSetupDialog from "./auth-settings/TotpSetupDialog.vue";
 import { useAuthCredentialTransfer } from "./auth-settings/useAuthCredentialTransfer";
 import { useAuthSubdomainAccess } from "./auth-settings/useAuthSubdomainAccess";
 import { useDockerAdminAccessScopes } from "./auth-settings/useDockerAdminAccessScopes";
+import { useTotpSetupWorkflow } from "./auth-settings/useTotpSetupWorkflow";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
@@ -435,7 +436,6 @@ import {
 } from "@admin-shared/composables/useAsyncAction";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { useMediaQueryMatch } from "@admin-shared/composables/useMediaQueryMatch";
-import { copyTextToClipboard } from "@admin-shared/utils/copyTextToClipboard";
 import { ConfigAPI } from "../lib/api";
 import { docsUrls } from "../lib/docs";
 import { useDockerAdminAuthStore } from "../store/dockerAdminAuth";
@@ -537,6 +537,38 @@ const {
   translate: (key) => t(key),
 });
 const {
+  bindErrorMessage,
+  copySetupSecret,
+  handleBind,
+  handleCancelSetup,
+  handleSaveSetupName,
+  isBinding,
+  newTotpComment,
+  openAccountTotpSetupDialog,
+  openManualSetupView,
+  openSetupDialog,
+  returnQRCodeSetupView,
+  setupBindTransitionEnterFromClass,
+  setupBindTransitionLeaveToClass,
+  setupBindView,
+  setupData,
+  setupDialogDescription,
+  setupDialogTitle,
+  setupSecretDisplay,
+  setupStep,
+  showSetupDialog,
+  verifyToken,
+} = useTotpSetupWorkflow({
+  credentials,
+  onReopenAuthModeSwitch: async () => {
+    showAuthModeSwitchDialog.value = true;
+    await refreshAuthModePreview();
+  },
+  refreshStatus: fetchStatus,
+  replaceAuthAccount,
+  translate: (key, params) => (params ? t(key, params) : t(key)),
+});
+const {
   exportableCredentialCount,
   handleCredentialImportFileChange,
   handleExportCredentials,
@@ -628,39 +660,7 @@ const { isPending: isSavingAuthAccount, run: runSaveAuthAccount } =
     },
   });
 
-// Setup state
-const showSetupDialog = ref(false);
-const setupData = ref<{ secret: string; uri: string } | null>(null);
-const bindingTotpAccount = ref<AuthAccount | null>(null);
-const reopenAuthModeSwitchAfterTotpBind = ref(false);
 const reopenAuthModeSwitchAfterPasswordSave = ref(false);
-const verifyToken = ref("");
-const newTotpComment = ref("");
-const bindErrorMessage = ref("");
-const setupStep = ref<"BIND" | "NAME">("BIND");
-const setupBindView = ref<"qr" | "manual">("qr");
-const setupBindMotionDirection = ref<"forward" | "back">("forward");
-const boundTotpId = ref<string | null>(null);
-const bindingMode = ref<"bind" | "rename">("bind");
-const { isPending: isBinding, run: runBindingAction } = useAsyncAction({
-  onError: (error) => {
-    const fallback =
-      bindingMode.value === "bind"
-        ? t("admin.authSettings.bindError")
-        : t("admin.authSettings.renameError");
-    bindErrorMessage.value = extractErrorMessage(error, fallback);
-    if (bindingMode.value === "bind") {
-      verifyToken.value = "";
-    }
-  },
-});
-const { run: runSetupInit } = useAsyncAction({
-  onError: (error) => {
-    console.error("Failed to setup TOTP:", error);
-    bindErrorMessage.value = t("admin.authSettings.setupFailed");
-    setupData.value = null;
-  },
-});
 const { run: runSaveComment } = useAsyncAction({
   rethrow: true,
 });
@@ -714,32 +714,6 @@ const primaryAuthActionLabel = computed(() =>
 const targetAuthLoginMode = computed<AuthLoginMode>(() =>
   authLoginMode.value === "totp" ? "password" : "totp",
 );
-const setupSecretDisplay = computed(() => {
-  const secret = setupData.value?.secret || "";
-  return formatTOTPSecretForDisplay(secret);
-});
-const setupDialogTitle = computed(() =>
-  bindingTotpAccount.value
-    ? t("admin.authSettings.accountTotpBindDialogTitle")
-    : t("admin.authSettings.bindDialogTitle"),
-);
-const setupDialogDescription = computed(() =>
-  bindingTotpAccount.value
-    ? t("admin.authSettings.accountTotpBindDialogDescription", {
-        username: bindingTotpAccount.value.username,
-      })
-    : t("admin.authSettings.bindDialogDescription"),
-);
-const setupBindTransitionEnterFromClass = computed(() => {
-  return setupBindMotionDirection.value === "forward"
-    ? "translate-x-4 opacity-0"
-    : "-translate-x-4 opacity-0";
-});
-const setupBindTransitionLeaveToClass = computed(() => {
-  return setupBindMotionDirection.value === "forward"
-    ? "-translate-x-4 opacity-0"
-    : "translate-x-4 opacity-0";
-});
 const selectedSubdomainHostCount = computed(
   () => selectedSubdomainHosts.value.size,
 );
@@ -805,10 +779,12 @@ async function fetchStatus() {
   await runLoadStatus(async () => {
     const [res, mappings, modeStatus, accounts] = await Promise.all([
       ConfigAPI.getTOTPStatus(),
-      ConfigAPI.getHostMappings().catch((error) => {
-        console.error("Failed to get host mappings:", error);
-        return [] as HostMapping[];
-      }),
+      ConfigAPI.getHostMappings()
+        .then((snapshot) => snapshot.mappings)
+        .catch((error) => {
+          console.error("Failed to get host mappings:", error);
+          return [] as HostMapping[];
+        }),
       ConfigAPI.getAuthLoginMode(),
       ConfigAPI.getAuthAccounts().catch((error) => {
         console.error("Failed to get auth accounts:", error);
@@ -944,18 +920,6 @@ function handlePrimaryAuthAction() {
   }
 
   void openSetupDialog();
-}
-
-function normalizeTOTPSecret(secret: string) {
-  return secret.replace(/\s+/g, "").toUpperCase();
-}
-
-function splitTOTPSecretGroups(secret: string) {
-  return normalizeTOTPSecret(secret).match(/.{1,4}/g) || [];
-}
-
-function formatTOTPSecretForDisplay(secret: string) {
-  return splitTOTPSecretGroups(secret).join(" ");
 }
 
 async function openAuthModeSwitchDialog() {
@@ -1134,38 +1098,6 @@ async function handleSaveAccountPassword() {
   });
 }
 
-async function copySetupSecret() {
-  const secret = setupData.value?.secret;
-  if (!secret) return;
-
-  try {
-    const result = await copyTextToClipboard(secret);
-    if (result.verified) {
-      toast.success(t("admin.authSettings.setupSecretCopied"));
-      return;
-    }
-
-    toast.info(t("admin.authSettings.setupSecretCopyUnverified"), {
-      description: t("admin.authSettings.setupSecretCopyUnverifiedDescription"),
-    });
-  } catch (error) {
-    console.error("copySetupSecret:", error);
-    toast.error(t("admin.authSettings.setupSecretCopyFailed"), {
-      description: t("admin.authSettings.setupSecretManualCopyHint"),
-    });
-  }
-}
-
-function openManualSetupView() {
-  setupBindMotionDirection.value = "forward";
-  setupBindView.value = "manual";
-}
-
-function returnQRCodeSetupView() {
-  setupBindMotionDirection.value = "back";
-  setupBindView.value = "qr";
-}
-
 function getSubdomainAccessSummary(record: AuthPermissionRecord) {
   const access = getSubdomainAccess(record);
   if (access.mode !== "custom") {
@@ -1219,127 +1151,9 @@ function handleAdminPanelAccessTooltipClick(totpId: string) {
     openAdminPanelAccessTooltipId.value === totpId ? null : totpId;
 }
 
-async function openSetupDialog() {
-  bindingTotpAccount.value = null;
-  reopenAuthModeSwitchAfterTotpBind.value = false;
-  showSetupDialog.value = true;
-  bindErrorMessage.value = "";
-  verifyToken.value = "";
-  newTotpComment.value = "";
-  setupData.value = null;
-  setupStep.value = "BIND";
-  setupBindView.value = "qr";
-  setupBindMotionDirection.value = "forward";
-  boundTotpId.value = null;
-  await runSetupInit(async () => {
-    setupData.value = await ConfigAPI.setupTOTP();
-  });
-}
-
-async function openAccountTotpSetupDialog(
-  account: AuthAccount,
-  reopenSwitchAfterBind = false,
-) {
-  bindingTotpAccount.value = account;
-  reopenAuthModeSwitchAfterTotpBind.value = reopenSwitchAfterBind;
-  showSetupDialog.value = true;
-  bindErrorMessage.value = "";
-  verifyToken.value = "";
-  newTotpComment.value = account.username;
-  setupData.value = null;
-  setupStep.value = "BIND";
-  setupBindView.value = "qr";
-  setupBindMotionDirection.value = "forward";
-  boundTotpId.value = null;
-  await runSetupInit(async () => {
-    setupData.value = await ConfigAPI.setupAuthAccountTOTP(account.id);
-  });
-}
-
 async function openAccountTotpSetupDialogFromSwitch(account: AuthAccount) {
   showAuthModeSwitchDialog.value = false;
   await openAccountTotpSetupDialog(account, true);
-}
-
-function handleCancelSetup() {
-  setupData.value = null;
-  bindingTotpAccount.value = null;
-  reopenAuthModeSwitchAfterTotpBind.value = false;
-  verifyToken.value = "";
-  bindErrorMessage.value = "";
-  setupStep.value = "BIND";
-  setupBindView.value = "qr";
-  setupBindMotionDirection.value = "forward";
-  boundTotpId.value = null;
-}
-
-async function handleBind() {
-  const setup = setupData.value;
-  if (!setup || verifyToken.value.length !== 6) return;
-  bindingMode.value = "bind";
-  bindErrorMessage.value = "";
-  await runBindingAction(async () => {
-    const account = bindingTotpAccount.value;
-    if (account) {
-      const updated = await ConfigAPI.bindAuthAccountTOTP(
-        account.id,
-        setup.secret,
-        verifyToken.value,
-      );
-      const shouldReopenSwitch = reopenAuthModeSwitchAfterTotpBind.value;
-      replaceAuthAccount(updated);
-      await fetchStatus();
-      showSetupDialog.value = false;
-      bindingTotpAccount.value = null;
-      reopenAuthModeSwitchAfterTotpBind.value = false;
-      toast.success(t("admin.authSettings.accountTotpBound"));
-      if (shouldReopenSwitch) {
-        showAuthModeSwitchDialog.value = true;
-        await refreshAuthModePreview();
-      }
-      return;
-    }
-    const randomSuffix = Math.random().toString(36).substring(2, 8);
-    const randomName =
-      t("admin.authSettings.randomDevicePrefix") + randomSuffix;
-    await ConfigAPI.bindTOTP(setup.secret, verifyToken.value, randomName);
-    await fetchStatus();
-
-    const newCred = credentials.value.find((c) => c.comment === randomName);
-    if (newCred) {
-      boundTotpId.value = newCred.id;
-      newTotpComment.value = randomName;
-      setupStep.value = "NAME";
-    } else {
-      showSetupDialog.value = false;
-    }
-  });
-}
-
-async function handleSaveSetupName() {
-  if (!newTotpComment.value.trim()) {
-    bindErrorMessage.value = t("admin.authSettings.commentRequired");
-    return;
-  }
-  if (
-    credentials.value.some(
-      (t) => t.comment === newTotpComment.value && t.id !== boundTotpId.value,
-    )
-  ) {
-    bindErrorMessage.value = t("admin.authSettings.commentDuplicateDetailed");
-    return;
-  }
-  const totpId = boundTotpId.value;
-  if (!totpId) return;
-
-  bindingMode.value = "rename";
-  bindErrorMessage.value = "";
-  await runBindingAction(async () => {
-    await ConfigAPI.updateTOTPComment(totpId, newTotpComment.value);
-    showSetupDialog.value = false;
-    await fetchStatus();
-    toast.success(t("admin.authSettings.deviceSaved"));
-  });
 }
 
 function validateComment(newText: string, id: string) {

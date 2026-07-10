@@ -6,6 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
   Tooltip,
@@ -121,6 +128,14 @@ const sendProxyHeadersModel = computed({
 const preserveHostModel = computed({
   get: () => props.preserveHost,
   set: (value: boolean) => props.setPreserveHost(value),
+});
+
+const protocolModeModel = computed({
+  get: () => props.mappingForm.protocol_mode || "auto",
+  set: (value) =>
+    props.updateMappingForm({
+      protocol_mode: value === "http1" || value === "http2" ? value : "auto",
+    }),
 });
 </script>
 
@@ -249,7 +264,8 @@ const preserveHostModel = computed({
                 {{
                   t("admin.subdomainProxy.finalHost", {
                     host:
-                      composedPreviewHost || t("admin.subdomainProxy.notFilled"),
+                      composedPreviewHost ||
+                      t("admin.subdomainProxy.notFilled"),
                   })
                 }}
               </p>
@@ -424,7 +440,9 @@ const preserveHostModel = computed({
               <Switch
                 id="mapping-proxy-headers"
                 v-model="sendProxyHeadersModel"
-                :disabled="isSavingMappings || !!gatewayProxyHeadersBlockedReason"
+                :disabled="
+                  isSavingMappings || !!gatewayProxyHeadersBlockedReason
+                "
               />
             </div>
 
@@ -447,8 +465,41 @@ const preserveHostModel = computed({
               <Switch
                 id="mapping-host-response"
                 v-model="preserveHostModel"
-                :disabled="isSavingMappings || !!gatewayHostResponseBlockedReason"
+                :disabled="
+                  isSavingMappings || !!gatewayHostResponseBlockedReason
+                "
               />
+            </div>
+
+            <div class="space-y-2 rounded-lg border px-4 py-3">
+              <div class="space-y-1">
+                <Label for="mapping-protocol-mode">
+                  {{ t("admin.subdomainProxy.protocolMode") }}
+                </Label>
+                <p class="text-xs leading-5 text-muted-foreground">
+                  {{ t("admin.subdomainProxy.protocolModeDescription") }}
+                </p>
+              </div>
+              <Select v-model="protocolModeModel" :disabled="isSavingMappings">
+                <SelectTrigger
+                  id="mapping-protocol-mode"
+                  class="w-full"
+                  :disabled="isSavingMappings"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">
+                    {{ t("admin.subdomainProxy.protocolModeAuto") }}
+                  </SelectItem>
+                  <SelectItem value="http1">
+                    {{ t("admin.subdomainProxy.protocolModeHttp1") }}
+                  </SelectItem>
+                  <SelectItem value="http2">
+                    {{ t("admin.subdomainProxy.protocolModeHttp2") }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>

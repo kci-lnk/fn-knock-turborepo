@@ -245,6 +245,7 @@ import {
 import {
   DEFAULT_ACCESS_MODE,
   DEFAULT_AUTH_SUBDOMAIN,
+  DEFAULT_PROTOCOL_MODE,
   composeHostFromSubdomain,
   createDisabledMappingBasicAuth,
   getMappingDisplayTitle,
@@ -253,7 +254,7 @@ import {
   parseTargetPort,
   resolveDefaultAuthServiceTarget,
 } from "./subdomain-proxy/model";
-import { useAccessEntryPort } from "./subdomain-proxy/useAccessEntryPort";
+import { useAccessEntryPort } from "@/composables/useAccessEntryPort";
 import { useSubdomainAvailabilityActions } from "./subdomain-proxy/useSubdomainAvailabilityActions";
 import { useSubdomainAvailabilityStatus } from "./subdomain-proxy/useSubdomainAvailabilityStatus";
 import { useDelayedHostPopover } from "./subdomain-proxy/useDelayedHostPopover";
@@ -762,6 +763,7 @@ async function addAuthService() {
         is_default: false,
         disabled: false,
         availability: null,
+        protocol_mode: DEFAULT_PROTOCOL_MODE,
         basic_auth: createDisabledMappingBasicAuth(),
         locations: [],
         service_role: "auth",

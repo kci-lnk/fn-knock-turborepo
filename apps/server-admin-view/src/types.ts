@@ -56,6 +56,7 @@ export interface DockerAdminBootstrapState {
 }
 
 export type HostAccessMode = "login_first" | "strict_whitelist";
+export type HostProtocolMode = "auto" | "http1" | "http2";
 export type HostServiceRole = "app" | "auth";
 export type StreamMappingProtocol = "tcp" | "udp";
 
@@ -101,6 +102,7 @@ export interface HostMapping {
   is_default: boolean;
   disabled: boolean;
   availability: HostMappingAvailability | null;
+  protocol_mode: HostProtocolMode;
   basic_auth: HostMappingBasicAuth;
   locations: HostLocation[];
   service_role: HostServiceRole;

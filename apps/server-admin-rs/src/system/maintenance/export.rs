@@ -125,6 +125,7 @@ pub(super) fn matches_excluded_backup_pattern(key: &str) -> bool {
     matches!(
         key,
         "fn_knock:acme:runtime-lock"
+            | "fn_knock:config:host_mappings:generation"
             | "fn_knock:ddns:last_ip"
             | "fn_knock:ddns:last_check"
             | "fn_knock:ddns:logs"

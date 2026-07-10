@@ -2328,6 +2328,12 @@ export const koKRAdmin = {
     delete: "삭제",
     backToBasicAria: "기본정보로 돌아가기",
     advancedConfig: "고급 구성",
+    protocolMode: "HTTPS 프로토콜",
+    protocolModeDescription:
+      "브라우저가 이 하위 도메인에 HTTPS로 연결할 때 사용할 HTTP 버전을 제어합니다. 동영상 전송 속도가 비정상적으로 느리면 HTTP/1.1을 사용해 보세요.",
+    protocolModeAuto: "자동 협상(기본값)",
+    protocolModeHttp1: "HTTP/1.1 전용(호환 모드)",
+    protocolModeHttp2: "HTTP/2 강제",
     displayTitle: "표시 제목",
     refreshTitle: "제목 새로고침",
     titleAutoPlaceholder: "비어 있는 경우 가져온 페이지 제목 사용",

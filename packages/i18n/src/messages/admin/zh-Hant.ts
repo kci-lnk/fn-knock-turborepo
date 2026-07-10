@@ -2200,6 +2200,12 @@ export const zhHantAdmin = {
     delete: "刪除",
     backToBasicAria: "返回基礎資訊",
     advancedConfig: "進階配置",
+    protocolMode: "HTTPS 協議",
+    protocolModeDescription:
+      "控制瀏覽器與此子網域建立 HTTPS 連線時使用的 HTTP 版本。遇到影片傳輸速度異常時可嘗試 HTTP/1.1。",
+    protocolModeAuto: "自動協商（預設）",
+    protocolModeHttp1: "僅 HTTP/1.1（相容模式）",
+    protocolModeHttp2: "強制 HTTP/2",
     displayTitle: "展示標題",
     refreshTitle: "刷新標題",
     titleAutoPlaceholder: "為空時自動使用抓取到的頁面標題",

@@ -2376,6 +2376,12 @@ export const jaJPAdmin = {
     delete: "削除",
     backToBasicAria: "基本情報に戻る",
     advancedConfig: "高度な構成",
+    protocolMode: "HTTPS プロトコル",
+    protocolModeDescription:
+      "このサブドメインへの HTTPS 接続でブラウザーが使用する HTTP バージョンを制御します。動画の転送速度が異常に遅い場合は HTTP/1.1 をお試しください。",
+    protocolModeAuto: "自動ネゴシエーション（デフォルト）",
+    protocolModeHttp1: "HTTP/1.1 のみ（互換モード）",
+    protocolModeHttp2: "HTTP/2 を強制",
     displayTitle: "タイトル表示",
     refreshTitle: "タイトルを更新",
     titleAutoPlaceholder:

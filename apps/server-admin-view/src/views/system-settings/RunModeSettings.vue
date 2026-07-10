@@ -2,7 +2,9 @@
   <Card>
     <CardHeader>
       <CardTitle>{{ t("admin.runModeSettings.title") }}</CardTitle>
-      <CardDescription>{{ t("admin.runModeSettings.description") }}</CardDescription>
+      <CardDescription>{{
+        t("admin.runModeSettings.description")
+      }}</CardDescription>
     </CardHeader>
     <CardContent class="grid gap-6">
       <Alert
@@ -22,7 +24,9 @@
         class="items-start rounded-xl border-border/70 bg-muted/30 text-foreground"
       >
         <Info class="mt-0.5 h-4 w-4" />
-        <AlertTitle>{{ t("admin.runModeSettings.hostFirewallUnavailableTitle") }}</AlertTitle>
+        <AlertTitle>{{
+          t("admin.runModeSettings.hostFirewallUnavailableTitle")
+        }}</AlertTitle>
         <AlertDescription>
           <div class="space-y-2 text-sm leading-6">
             <p>{{ hostFirewallUnavailableDescription }}</p>
@@ -135,7 +139,9 @@
               "
               @click="reverseProxySubmode = 'path'"
             >
-              <p class="flex flex-wrap items-center gap-2 text-sm font-medium text-foreground">
+              <p
+                class="flex flex-wrap items-center gap-2 text-sm font-medium text-foreground"
+              >
                 <span>{{ t("admin.runModeSettings.pathMapping") }}</span>
                 <span
                   class="inline-flex items-center rounded border border-border bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted-foreground"
@@ -339,7 +345,9 @@
           </li>
         </ul>
 
-        <label class="mt-6 flex items-center gap-3 text-sm text-muted-foreground">
+        <label
+          class="mt-6 flex items-center gap-3 text-sm text-muted-foreground"
+        >
           <Checkbox
             :model-value="dontShowAgainChecked"
             @update:model-value="dontShowAgainChecked = $event === true"
@@ -349,9 +357,9 @@
       </div>
 
       <DialogFooter class="border-t border-border bg-muted/20 px-8 py-4">
-        <Button variant="outline" @click="isConfirmDialogOpen = false"
-          >{{ t("common.cancel") }}</Button
-        >
+        <Button variant="outline" @click="closeConfirmation">{{
+          t("common.cancel")
+        }}</Button>
         <Button @click="confirmSave" :disabled="isSaving">
           <span
             v-if="isSaving"
@@ -414,6 +422,7 @@ import {
   resolveReverseProxySubmode,
 } from "../../lib/reverse-proxy-submode";
 import type { ReverseProxySubmode } from "../../types";
+import { useRunModePromptConfirmation } from "./useRunModePromptConfirmation";
 
 const configStore = useConfigStore();
 const { locale, t } = useI18n();
@@ -423,17 +432,20 @@ const autoManageFirewall = ref(true);
 const reverseProxySubmode = ref<ReverseProxySubmode>(
   DEFAULT_REVERSE_PROXY_SUBMODE,
 );
-const pendingMode = ref<0 | 1 | 3 | null>(null);
-const pendingSubmode = ref<ReverseProxySubmode | null>(null);
-const pendingPromptKey = ref<keyof RunModePromptPreferences | null>(null);
-const isConfirmDialogOpen = ref(false);
-const dontShowAgainChecked = ref(false);
-const runModePromptPreferences = ref<RunModePromptPreferences>({
-  directToReverseProxy: false,
-  reverseProxyToDirect: false,
-  switchToSubdomain: false,
-  subdomainToReverseProxy: false,
-});
+const {
+  closeConfirmation,
+  confirm: confirmRunModeChange,
+  dontShowAgainChecked,
+  handleConfirmDialogOpenChange,
+  isConfirmDialogOpen,
+  loadRunModePromptPreferences,
+  pendingPromptKey,
+  pendingSubmode,
+  queueConfirmation,
+  runModePromptPreferences,
+} = useRunModePromptConfirmation();
+
+const confirmSave = () => confirmRunModeChange(applyRunModeChange);
 const accessEntry = ref<AccessEntryInfo>({
   port: "7999",
   env: "GO_REPROXY_PORT" as const,
@@ -657,13 +669,13 @@ async function save() {
     return;
   }
 
-  const promptKey = getPromptPreferenceKey(currentMode, mode.value);
-  if (promptKey && !runModePromptPreferences.value[promptKey]) {
-    pendingMode.value = mode.value;
-    pendingSubmode.value = mode.value === 1 ? reverseProxySubmode.value : null;
-    pendingPromptKey.value = promptKey;
-    dontShowAgainChecked.value = false;
-    isConfirmDialogOpen.value = true;
+  if (
+    queueConfirmation({
+      currentMode,
+      nextMode: mode.value,
+      nextSubmode: reverseProxySubmode.value,
+    })
+  ) {
     return;
   }
 
@@ -673,39 +685,12 @@ async function save() {
   );
 }
 
-async function confirmSave() {
-  if (pendingMode.value === null) return;
-  const nextMode = pendingMode.value;
-  const nextSubmode = pendingSubmode.value;
-
-  await applyRunModeChange(nextMode, nextMode === 1 ? nextSubmode : null, {
-    promptPreferenceKey: pendingPromptKey.value,
-    disablePrompt: dontShowAgainChecked.value,
-    onSuccess: () => {
-      isConfirmDialogOpen.value = false;
-      pendingMode.value = null;
-      pendingSubmode.value = null;
-      pendingPromptKey.value = null;
-      dontShowAgainChecked.value = false;
-    },
-  });
-}
-
 async function loadAccessEntry() {
   try {
     const info = await SystemAPI.getAccessEntry();
     accessEntry.value = info;
   } catch (error) {
     console.warn("load access entry failed:", error);
-  }
-}
-
-async function loadRunModePromptPreferences() {
-  try {
-    runModePromptPreferences.value =
-      await SystemAPI.getRunModePromptPreferences();
-  } catch (error) {
-    console.warn("load run mode prompt preferences failed:", error);
   }
 }
 
@@ -807,8 +792,7 @@ async function ensureTunnelsStoppedForTargetMode(
       stop: () => Promise<void>;
     } => item !== null,
   );
-  const tunnelsToStop =
-    nextMode === 1 ? [] : runningTunnels;
+  const tunnelsToStop = nextMode === 1 ? [] : runningTunnels;
 
   if (tunnelsToStop.length === 0) return;
 
@@ -884,27 +868,6 @@ function buildUnsavedModeNotice() {
     current: getRunModeLabel(currentMode, currentSubmode),
     target: getRunModeLabel(mode.value, reverseProxySubmode.value),
   });
-}
-
-function handleConfirmDialogOpenChange(nextOpen: boolean) {
-  isConfirmDialogOpen.value = nextOpen;
-  if (!nextOpen) {
-    pendingMode.value = null;
-    pendingSubmode.value = null;
-    pendingPromptKey.value = null;
-    dontShowAgainChecked.value = false;
-  }
-}
-
-function getPromptPreferenceKey(
-  currentMode: 0 | 1 | 3,
-  nextMode: 0 | 1 | 3,
-): keyof RunModePromptPreferences | null {
-  if (currentMode === 0 && nextMode === 1) return "directToReverseProxy";
-  if (currentMode === 1 && nextMode === 0) return "reverseProxyToDirect";
-  if (nextMode === 3) return "switchToSubdomain";
-  if (currentMode === 3 && nextMode === 1) return "subdomainToReverseProxy";
-  return null;
 }
 
 function buildRunModeChangeSuccessDescription(

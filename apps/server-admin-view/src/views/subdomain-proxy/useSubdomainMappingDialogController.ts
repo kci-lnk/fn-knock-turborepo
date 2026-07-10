@@ -10,6 +10,7 @@ import type { AppConfig, HostMapping } from "@/types";
 import {
   canRefreshHostMappingMetadata,
   createDefaultMapping,
+  DEFAULT_PROTOCOL_MODE,
   isMappingDraftValid,
   normalizeMappingBasicAuth,
   normalizeMappingForm,
@@ -269,6 +270,7 @@ export const useSubdomainMappingDialogController = ({
     setMappingDraftInputFromHost(mapping.host);
     Object.assign(mappingForm, {
       ...mapping,
+      protocol_mode: mapping.protocol_mode || DEFAULT_PROTOCOL_MODE,
       basic_auth: normalizeMappingBasicAuth(mapping.basic_auth),
     });
     mappingMetadataTarget.value = mapping.target.trim();
@@ -341,7 +343,8 @@ export const useSubdomainMappingDialogController = ({
       isWebSocketTarget: isWebSocketProxyTargetUrl,
     });
     const duplicateHost = allMappings.value.find(
-      (item) => item.host === normalized.host && item.host !== editingHost.value,
+      (item) =>
+        item.host === normalized.host && item.host !== editingHost.value,
     );
     if (duplicateHost) {
       toast.error(translate("admin.subdomainProxy.hostExists"), {

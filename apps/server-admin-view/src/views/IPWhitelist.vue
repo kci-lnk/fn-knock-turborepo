@@ -697,7 +697,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -753,241 +753,27 @@ import {
 } from "@/components/ui/tags-input";
 import RefreshButton from "@/components/RefreshButton.vue";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
-import { toast } from "@admin-shared/utils/toast";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import PagedTableFooter from "@admin-shared/components/list/PagedTableFooter.vue";
 import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
-import {
-  extractErrorMessage,
-  useAsyncAction,
-} from "@admin-shared/composables/useAsyncAction";
 import { useLocalPagedList } from "@admin-shared/composables/useLocalPagedList";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
-import { isValidCIDR } from "@admin-shared/utils/cidr";
 import { docsUrls } from "../lib/docs";
-import { useCidrRegionSelector } from "../composables/useCidrRegionSelector";
+import { useWhitelistAddRecord } from "./ip-whitelist/useWhitelistAddRecord";
+import { useWhitelistRecordActions } from "./ip-whitelist/useWhitelistRecordActions";
+import { useWhitelistRecords } from "./ip-whitelist/useWhitelistRecords";
 
 import {
-  CidrAPI,
-  WhitelistAPI,
-  type CidrProvinceOption,
-  type GatewayVisibilitySelection,
   type WhiteListRecord,
   type WhitelistRegionGroupRecord,
   type WhitelistRegionInput,
 } from "../lib/api";
 
 const { t } = useI18n();
-const records = ref<WhiteListRecord[]>([]);
-const regionGroups = ref<WhitelistRegionGroupRecord[]>([]);
-const isInitializing = ref(true);
+const { fetchRecords, isInitializing, loading, records, regionGroups } =
+  useWhitelistRecords((key) => t(key));
 const showInitializingSkeleton = useDelayedLoading(isInitializing);
 const pageDescription = computed(() => t("admin.ipWhitelist.pageDescription"));
-
-const removingId = ref<string | null>(null);
-const removingRegionGroupId = ref<string | null>(null);
-const refreshingId = ref<string | null>(null);
-const { run: runRemoveRecord } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.ipWhitelist.networkDeleteTitle"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.ipWhitelist.deleteFailed"),
-      ),
-    });
-  },
-});
-const { run: runRemoveRegionGroup } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.ipWhitelist.networkRegionDeleteTitle"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.ipWhitelist.regionGroupDeleteFailed"),
-      ),
-    });
-  },
-});
-const { run: runSaveComment } = useAsyncAction({
-  rethrow: true,
-});
-const { run: runRefreshRecord } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.ipWhitelist.networkRefreshTitle"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.ipWhitelist.refreshFailed"),
-      ),
-    });
-  },
-});
-const { isPending: loading, run: runFetchRecords } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.ipWhitelist.networkLoadTitle"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.ipWhitelist.loadFailed"),
-      ),
-    });
-  },
-});
-
-// Add dialog states
-const showAddDialog = ref(false);
-const { isPending: isSaving, run: runAddRecord } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.ipWhitelist.networkAddTitle"), {
-      description: extractErrorMessage(error, t("admin.ipWhitelist.addFailed")),
-    });
-  },
-});
-const durationSetting = ref("permanent");
-const customHours = ref(24);
-const newRecord = ref({
-  ip: "",
-  targetType: "ip" as "ip" | "cidr" | "cname",
-  checkIntervalMinutes: 5,
-  comment: "",
-});
-const cidrInputMode = ref<"manual" | "region">("manual");
-const whitelistRegionSelections = ref<GatewayVisibilitySelection[]>([]);
-const provinces = ref<CidrProvinceOption[]>([]);
-const isLoadingProvinces = ref(false);
-const provincesLoaded = ref(false);
-const newRecordPlaceholder = computed(() =>
-  newRecord.value.targetType === "cidr"
-    ? t("admin.ipWhitelist.placeholderCidr")
-    : newRecord.value.targetType === "cname"
-      ? t("admin.ipWhitelist.placeholderCname")
-      : t("admin.ipWhitelist.placeholderIp"),
-);
-const isRegionCidrMode = computed(
-  () =>
-    newRecord.value.targetType === "cidr" && cidrInputMode.value === "region",
-);
-const regionInputsDisabled = computed(
-  () => isSaving.value || !isRegionCidrMode.value,
-);
-const canSaveNewRecord = computed(() =>
-  isRegionCidrMode.value
-    ? whitelistRegionSelections.value.length > 0
-    : Boolean(newRecord.value.ip.trim()),
-);
-
-const whitelistRegionTranslate = (
-  key:
-    | "loading"
-    | "selectProvinceFirst"
-    | "selectCityOrProvince"
-    | "selectCity"
-    | "regionsLoadFailed"
-    | "regionsLoadDescription",
-  params?: Record<string, string | number>,
-) => {
-  const keyMap = {
-    loading: "admin.ipWhitelist.loading",
-    selectProvinceFirst: "admin.ipWhitelist.selectProvinceFirst",
-    selectCityOrProvince: "admin.ipWhitelist.selectCityOrProvince",
-    selectCity: "admin.ipWhitelist.selectCity",
-    regionsLoadFailed: "admin.ipWhitelist.regionsLoadFailed",
-    regionsLoadDescription: "admin.ipWhitelist.regionsLoadDescription",
-  } as const;
-  const resolvedKey = keyMap[key];
-  return params ? t(resolvedKey, params) : t(resolvedKey);
-};
-
-const {
-  addRegion,
-  canAddRegion,
-  cityOptions,
-  cityOptionsLoading,
-  citySelectKey,
-  citySelectPlaceholder,
-  handleRegionDialogOpenChange,
-  isRegionDialogOpen,
-  openRegionDialog,
-  regionDraft,
-  removeRegion,
-  selectionKey,
-} = useCidrRegionSelector({
-  selections: whitelistRegionSelections,
-  isEnabled: isRegionCidrMode,
-  loadCities: (province) => CidrAPI.getCities(province),
-  provinces,
-  regionInputsDisabled,
-  translate: whitelistRegionTranslate,
-});
-
-const loadProvinces = async () => {
-  if (provincesLoaded.value || isLoadingProvinces.value) return;
-
-  isLoadingProvinces.value = true;
-  try {
-    const payload = await CidrAPI.getProvinces();
-    provinces.value = payload.options;
-    provincesLoaded.value = true;
-  } catch (error) {
-    toast.error(t("admin.ipWhitelist.regionsLoadFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.ipWhitelist.regionsLoadDescription"),
-      ),
-    });
-  } finally {
-    isLoadingProvinces.value = false;
-  }
-};
-
-const openWhitelistRegionDialog = async () => {
-  if (regionInputsDisabled.value) return;
-  await loadProvinces();
-  openRegionDialog();
-};
-
-const fetchRecords = async () => {
-  await runFetchRecords(
-    async () => {
-      const [recordsRes, regionsRes] = await Promise.all([
-        WhitelistAPI.getRecords(),
-        WhitelistAPI.getRegions(),
-      ]);
-      if (recordsRes.success) {
-        records.value = recordsRes.data;
-      } else {
-        toast.error(t("admin.ipWhitelist.getFailed"), {
-          description: recordsRes.message,
-        });
-      }
-
-      if (regionsRes.success && regionsRes.data) {
-        regionGroups.value = regionsRes.data;
-      } else {
-        toast.error(t("admin.ipWhitelist.regionGroupsLoadFailed"), {
-          description: regionsRes.message,
-        });
-      }
-    },
-    {
-      onFinally: () => {
-        isInitializing.value = false;
-      },
-    },
-  );
-};
-
-let refreshIntervalId: ReturnType<typeof setInterval> | null = null;
-
-onMounted(() => {
-  fetchRecords();
-  // Optional: Auto-refresh every 30 seconds
-  refreshIntervalId = setInterval(fetchRecords, 30000);
-});
-
-onUnmounted(() => {
-  if (refreshIntervalId) {
-    clearInterval(refreshIntervalId);
-    refreshIntervalId = null;
-  }
-});
 
 const {
   searchQuery,
@@ -1010,14 +796,55 @@ const {
       ),
     ),
 });
-
-const replaceRecord = (nextRecord: WhiteListRecord) => {
-  const index = records.value.findIndex(
-    (record) => record.id === nextRecord.id,
-  );
-  if (index < 0) return;
-  records.value.splice(index, 1, nextRecord);
-};
+const {
+  refreshRecord,
+  refreshingId,
+  removeRecord,
+  removeRegionGroup,
+  removingId,
+  removingRegionGroupId,
+  saveComment,
+} = useWhitelistRecordActions({
+  currentPage,
+  fetchRecords,
+  paginatedRecords,
+  records,
+  translate: (key, params) => (params ? t(key, params) : t(key)),
+});
+const {
+  addRecord,
+  addRegion,
+  canAddRegion,
+  canSaveNewRecord,
+  cidrInputMode,
+  cityOptions,
+  cityOptionsLoading,
+  citySelectKey,
+  citySelectPlaceholder,
+  customHours,
+  durationSetting,
+  handleRegionDialogOpenChange,
+  isLoadingProvinces,
+  isRegionCidrMode,
+  isRegionDialogOpen,
+  isSaving,
+  newRecord,
+  newRecordPlaceholder,
+  openWhitelistRegionDialog,
+  provinces,
+  provincesLoaded,
+  regionDraft,
+  regionInputsDisabled,
+  removeRegion,
+  selectionKey,
+  showAddDialog,
+  whitelistRegionSelections,
+} = useWhitelistAddRecord({
+  currentPage,
+  fetchRecords,
+  searchQuery,
+  translate: (key, params) => (params ? t(key, params) : t(key)),
+});
 
 const getResolveStatusLabel = (record: WhiteListRecord) => {
   switch (record.resolveStatus) {
@@ -1079,251 +906,4 @@ const formatRegionInput = (region: WhitelistRegionInput) =>
 const regionGroupLabel = (group: WhitelistRegionGroupRecord) =>
   group.regions.map(formatRegionInput).join(", ");
 
-const getNewRecordExpireAt = () => {
-  let expireAt: number | null = null;
-  const now = Math.floor(Date.now() / 1000);
-
-  if (durationSetting.value !== "permanent") {
-    let addHours = 0;
-    switch (durationSetting.value) {
-      case "1h":
-        addHours = 1;
-        break;
-      case "24h":
-        addHours = 24;
-        break;
-      case "7d":
-        addHours = 24 * 7;
-        break;
-      case "custom":
-        addHours = customHours.value || 1;
-        break;
-    }
-    expireAt = now + addHours * 3600;
-  }
-
-  return expireAt;
-};
-
-const resetAddForm = () => {
-  newRecord.value = {
-    ip: "",
-    targetType: "ip",
-    checkIntervalMinutes: 5,
-    comment: "",
-  };
-  cidrInputMode.value = "manual";
-  whitelistRegionSelections.value = [];
-  durationSetting.value = "permanent";
-  customHours.value = 24;
-  handleRegionDialogOpenChange(false);
-};
-
-// Actions
-const addRecord = async () => {
-  if (isRegionCidrMode.value) {
-    if (whitelistRegionSelections.value.length === 0) {
-      toast.error(t("admin.ipWhitelist.regionRequiredTitle"), {
-        description: t("admin.ipWhitelist.regionRequiredDescription"),
-      });
-      return;
-    }
-
-    const expireAt = getNewRecordExpireAt();
-    const comment = newRecord.value.comment.trim() || undefined;
-
-    await runAddRecord(async () => {
-      const res = await WhitelistAPI.addRegions({
-        regions: whitelistRegionSelections.value.map((item) => ({
-          province: item.province,
-          query_city: item.query_city,
-        })),
-        expireAt,
-        ...(comment ? { comment } : {}),
-      });
-
-      if (!res.success || !res.data) {
-        toast.error(t("admin.ipWhitelist.addFailed"), {
-          description: res.message,
-        });
-        return;
-      }
-
-      const result = res.data;
-      toast.success(t("admin.ipWhitelist.addRegionsSuccess"), {
-        description: t("admin.ipWhitelist.addRegionsResult", {
-          regions: result.group.regions.length,
-          total: result.total,
-        }),
-      });
-
-      showAddDialog.value = false;
-      resetAddForm();
-      currentPage.value = 1;
-      searchQuery.value = "";
-      await fetchRecords();
-    });
-    return;
-  }
-
-  const ip = newRecord.value.ip.trim();
-  if (!ip) return;
-  if (newRecord.value.targetType === "cidr" && !isValidCIDR(ip)) {
-    toast.error(t("admin.ipWhitelist.invalidCidrTitle"), {
-      description: t("admin.ipWhitelist.invalidCidrDescription"),
-    });
-    return;
-  }
-  if (
-    newRecord.value.targetType === "cname" &&
-    (!Number.isFinite(newRecord.value.checkIntervalMinutes) ||
-      newRecord.value.checkIntervalMinutes < 1)
-  ) {
-    toast.error(t("admin.ipWhitelist.invalidIntervalTitle"), {
-      description: t("admin.ipWhitelist.invalidIntervalDescription"),
-    });
-    return;
-  }
-
-  const expireAt = getNewRecordExpireAt();
-
-  await runAddRecord(async () => {
-    const res = await WhitelistAPI.addRecord({
-      ip,
-      targetType: newRecord.value.targetType,
-      expireAt,
-      source: "manual",
-      comment: newRecord.value.comment.trim() || undefined,
-      checkIntervalMinutes:
-        newRecord.value.targetType === "cname"
-          ? Math.floor(newRecord.value.checkIntervalMinutes || 5)
-          : undefined,
-    });
-
-    if (res.success) {
-      toast.success(t("admin.ipWhitelist.addSuccess"));
-      showAddDialog.value = false;
-      resetAddForm();
-      currentPage.value = 1;
-      searchQuery.value = "";
-      await fetchRecords();
-    } else {
-      toast.error(t("admin.ipWhitelist.addFailed"), {
-        description: res.message,
-      });
-    }
-  });
-};
-
-const removeRegionGroup = async (id: string) => {
-  removingRegionGroupId.value = id;
-  await runRemoveRegionGroup(
-    async () => {
-      const res = await WhitelistAPI.deleteRegion(id);
-      if (res.success) {
-        toast.success(t("admin.ipWhitelist.regionGroupDeleteSuccess"));
-        await fetchRecords();
-      } else {
-        toast.error(t("admin.ipWhitelist.regionGroupDeleteFailed"), {
-          description: res.message,
-        });
-      }
-    },
-    {
-      onFinally: () => {
-        removingRegionGroupId.value = null;
-      },
-    },
-  );
-};
-
-const removeRecord = async (id: string) => {
-  removingId.value = id;
-  await runRemoveRecord(
-    async () => {
-      const res = await WhitelistAPI.deleteRecord(id);
-      if (res.success) {
-        toast.success(t("admin.ipWhitelist.deleteSuccess"));
-        await fetchRecords();
-        if (paginatedRecords.value.length === 1 && currentPage.value > 1) {
-          currentPage.value--;
-        }
-      } else {
-        toast.error(t("admin.ipWhitelist.deleteFailed"), {
-          description: res.message,
-        });
-      }
-    },
-    {
-      onFinally: () => {
-        removingId.value = null;
-      },
-    },
-  );
-};
-
-const refreshRecord = async (id: string) => {
-  refreshingId.value = id;
-  await runRefreshRecord(
-    async () => {
-      const res = await WhitelistAPI.refreshRecord(id);
-      const result = res.data;
-      const nextRecord = result?.record;
-      if (nextRecord) {
-        replaceRecord(nextRecord);
-      }
-
-      if (
-        !res.success ||
-        !result ||
-        !nextRecord ||
-        nextRecord.resolveStatus === "error"
-      ) {
-        toast.error(t("admin.ipWhitelist.refreshFailed"), {
-          description:
-            res.message ||
-            nextRecord?.resolveMessage ||
-            t("admin.ipWhitelist.refreshFallbackError"),
-        });
-        return;
-      }
-
-      toast.success(t("admin.ipWhitelist.refreshSuccessTitle"), {
-        description: result.changed
-          ? t("admin.ipWhitelist.refreshChanged")
-          : t("admin.ipWhitelist.refreshUnchanged"),
-      });
-    },
-    {
-      onFinally: () => {
-        refreshingId.value = null;
-      },
-    },
-  );
-};
-
-const saveComment = async (id: string, newComment: string) => {
-  const record = records.value.find((r) => r.id === id);
-
-  if (record && (record.comment || "") === newComment) {
-    return;
-  }
-
-  await runSaveComment(() => WhitelistAPI.updateComment(id, newComment), {
-    onSuccess: (res) => {
-      if (!res.success) {
-        throw new Error(
-          res.message || t("admin.ipWhitelist.commentUpdateFailed"),
-        );
-      }
-      if (record) record.comment = newComment;
-      toast.success(t("admin.ipWhitelist.commentUpdated"));
-    },
-    onError: (error) => {
-      throw new Error(
-        extractErrorMessage(error, t("admin.ipWhitelist.commentUpdateFailed")),
-      );
-    },
-  });
-};
 </script>

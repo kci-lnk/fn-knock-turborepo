@@ -62,6 +62,25 @@ import {
   toHostMappingUpdatePayload,
 } from "./host-mapping-payload";
 
+const HOST_MAPPINGS_REVISION_HEADER = "x-host-mappings-revision";
+
+const hostMappingsRevisionFromHeaders = (
+  headers: Record<string, unknown>,
+): string | null => {
+  const value = String(headers[HOST_MAPPINGS_REVISION_HEADER] ?? "").trim();
+  return value || null;
+};
+
+export interface RevisionedConfig {
+  config: AppConfig;
+  hostMappingsRevision: string | null;
+}
+
+export interface RevisionedHostMappings {
+  mappings: HostMapping[];
+  revision: string | null;
+}
+
 export type {
   AppConfig,
   AppearanceConfig,
@@ -155,9 +174,12 @@ export const ConfigAPI = {
     const res = await apiClient.post("/panel/logout");
     return res.data.data;
   },
-  async getConfig(): Promise<AppConfig> {
+  async getConfig(): Promise<RevisionedConfig> {
     const res = await apiClient.get("/config");
-    return res.data.data;
+    return {
+      config: res.data.data,
+      hostMappingsRevision: hostMappingsRevisionFromHeaders(res.headers),
+    };
   },
   async getLocaleConfig(): Promise<LocaleConfig> {
     const res = await apiClient.get("/config/locale");
@@ -239,15 +261,25 @@ export const ConfigAPI = {
   async updateProxyMappings(mappings: ProxyMapping[]): Promise<void> {
     await apiClient.post("/config/proxy_mappings", { mappings });
   },
-  async getHostMappings(): Promise<HostMapping[]> {
+  async getHostMappings(): Promise<RevisionedHostMappings> {
     const res = await apiClient.get("/config/host_mappings");
-    return res.data.data;
+    return {
+      mappings: res.data.data,
+      revision: hostMappingsRevisionFromHeaders(res.headers),
+    };
   },
-  async updateHostMappings(mappings: HostMapping[]): Promise<HostMapping[]> {
+  async updateHostMappings(
+    mappings: HostMapping[],
+    revision: string | null,
+  ): Promise<RevisionedHostMappings> {
     const res = await apiClient.post("/config/host_mappings", {
       mappings: mappings.map(toHostMappingUpdatePayload),
+      ...(revision ? { revision } : {}),
     });
-    return res.data.data;
+    return {
+      mappings: res.data.data,
+      revision: hostMappingsRevisionFromHeaders(res.headers),
+    };
   },
   async refreshAllHostMappingTitles(): Promise<HostMappingRefreshSummary> {
     const res = await apiClient.post("/config/host_mappings/refresh_titles");

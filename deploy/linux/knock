@@ -361,78 +361,234 @@ install_release() {
   log "release ${version} is running"
 }
 
+PORT_KEYS=(ADMIN_VIEW_PORT BACKEND_PORT AUTH_PORT GO_BACKEND_PORT GO_REPROXY_PORT)
+PORT_LABELS=("管理面板（对外）" "管理后端（仅本机）" "认证服务（仅本机）" "Go 管理接口（仅本机）" "代理服务（对外）")
+PORT_DEFAULTS=(7991 7998 7997 7996 7999)
+PORT_VALUES=()
+CURRENT_PORT_VALUES=()
+
 port_valid() { printf '%s' "$1" | grep -Eq '^[0-9]+$' && [ "$1" -ge 1 ] && [ "$1" -le 65535 ]; }
 
-port_in_use() {
-  local port="$1"
-  if command -v ss >/dev/null 2>&1; then
-    ss -lnt 2>/dev/null | awk -v suffix=":${port}" 'NR > 1 { split($4, a, ":"); if (a[length(a)] == substr(suffix, 2)) found=1 } END { exit !found }'
-  elif command -v netstat >/dev/null 2>&1; then
-    netstat -lnt 2>/dev/null | awk -v port="${port}" 'NR > 2 { split($4, a, ":"); if (a[length(a)] == port) found=1 } END { exit !found }'
-  else
-    return 1
-  fi
+read_tty() {
+  local prompt="$1"
+  read -r -p "${prompt}" REPLY </dev/tty || fail "an interactive terminal is required"
 }
 
-prompt_port() {
-  local label="$1" current="$2" value
-  while true; do
-    read -r -p "${label} [${current}]: " value </dev/tty
-    value="${value:-${current}}"
-    if port_valid "${value}"; then
-      printf '%s\n' "${value}"
-      return
+load_port_values() {
+  PORT_VALUES=(
+    "${ADMIN_VIEW_PORT:-7991}"
+    "${BACKEND_PORT:-7998}"
+    "${AUTH_PORT:-7997}"
+    "${GO_BACKEND_PORT:-7996}"
+    "${GO_REPROXY_PORT:-7999}"
+  )
+  CURRENT_PORT_VALUES=("${PORT_VALUES[@]}")
+}
+
+port_listener_details() {
+  local port="$1"
+  command -v ss >/dev/null 2>&1 || fail "cannot check ports: install iproute2 (the ss command) first"
+  # The ss filter matches IPv4 and IPv6 listeners without relying on a
+  # particular address-column format.
+  ss -H -ltn "sport = :${port}" 2>/dev/null | sed '/^[[:space:]]*$/d' || true
+}
+
+port_is_current_running_listener() {
+  local index="$1" port="$2"
+  systemctl is-active --quiet "${SERVICE_NAME}" >/dev/null 2>&1 && \
+    [ "${CURRENT_PORT_VALUES[${index}]}" = "${port}" ]
+}
+
+validate_port_plan() {
+  local i j port details conflicts=0
+  for ((i = 0; i < ${#PORT_VALUES[@]}; i++)); do
+    port="${PORT_VALUES[${i}]}"
+    port_valid "${port}" || { warn "${PORT_LABELS[${i}]} 的端口无效：${port}"; return 1; }
+    for ((j = 0; j < i; j++)); do
+      [ "${PORT_VALUES[${j}]}" != "${port}" ] || {
+        warn "端口 ${port} 同时分配给 ${PORT_LABELS[${j}]} 和 ${PORT_LABELS[${i}]}"
+        return 1
+      }
+    done
+  done
+
+  for ((i = 0; i < ${#PORT_VALUES[@]}; i++)); do
+    port="${PORT_VALUES[${i}]}"
+    details="$(port_listener_details "${port}")"
+    [ -z "${details}" ] && continue
+    if port_is_current_running_listener "${i}" "${port}"; then
+      continue
     fi
-    warn "port must be between 1 and 65535"
+    warn "端口 ${port} 已被占用，无法用于 ${PORT_LABELS[${i}]}："
+    printf '%s\n' "${details}" >&2
+    conflicts=1
+  done
+  [ "${conflicts}" = "0" ]
+}
+
+show_port_plan() {
+  local i
+  printf '\n当前端口规划：\n'
+  for ((i = 0; i < ${#PORT_VALUES[@]}; i++)); do
+    printf '  %d. %-24s %s\n' "$((i + 1))" "${PORT_LABELS[${i}]}" "${PORT_VALUES[${i}]}"
+  done
+  printf '%s\n' '  管理面板和代理服务会监听所有网卡；其余服务仅监听本机。'
+}
+
+change_port() {
+  local index="$1" value details
+  while true; do
+    read_tty "${PORT_LABELS[${index}]} 的端口 [${PORT_VALUES[${index}]}]: "
+    value="${REPLY:-${PORT_VALUES[${index}]}}"
+    if ! port_valid "${value}"; then
+      warn "端口必须是 1 到 65535 之间的数字"
+      continue
+    fi
+    details="$(port_listener_details "${value}")"
+    if [ -n "${details}" ] && ! port_is_current_running_listener "${index}" "${value}"; then
+      warn "端口 ${value} 已被占用："
+      printf '%s\n' "${details}" >&2
+      continue
+    fi
+    PORT_VALUES[${index}]="${value}"
+    return
+  done
+}
+
+write_port_config() {
+  local temporary="${ENV_FILE}.new.$$"
+  mkdir -p "${CONFIG_DIR}"
+  umask 077
+  if [ -f "${ENV_FILE}" ]; then
+    awk \
+      -v admin="${PORT_VALUES[0]}" -v backend="${PORT_VALUES[1]}" \
+      -v auth="${PORT_VALUES[2]}" -v go_admin="${PORT_VALUES[3]}" -v proxy="${PORT_VALUES[4]}" '
+      BEGIN {
+        value["ADMIN_VIEW_PORT"] = admin
+        value["BACKEND_PORT"] = backend
+        value["AUTH_PORT"] = auth
+        value["GO_BACKEND_PORT"] = go_admin
+        value["GO_REPROXY_PORT"] = proxy
+      }
+      $0 ~ /^(ADMIN_VIEW_PORT|BACKEND_PORT|AUTH_PORT|GO_BACKEND_PORT|GO_REPROXY_PORT)=/ {
+        split($0, parts, "=")
+        print parts[1] "=" value[parts[1]]
+        seen[parts[1]] = 1
+        next
+      }
+      { print }
+      END {
+        for (key in value) if (!seen[key]) print key "=" value[key]
+      }
+    ' "${ENV_FILE}" > "${temporary}"
+  else
+    cat > "${temporary}" <<EOF
+FN_KNOCK_RUNTIME_TARGET=linux
+FN_KNOCK_DATA_DIR=/var/lib/fn-knock
+FN_KNOCK_GATEWAY_CONFIG_DIR=/etc/fn-knock/gateway
+FN_KNOCK_BASE_URL=${FN_KNOCK_BASE_URL:-${DEFAULT_BASE_URL}}
+ADMIN_VIEW_PORT=${PORT_VALUES[0]}
+BACKEND_PORT=${PORT_VALUES[1]}
+AUTH_PORT=${PORT_VALUES[2]}
+GO_BACKEND_PORT=${PORT_VALUES[3]}
+GO_REPROXY_PORT=${PORT_VALUES[4]}
+ADMIN_VIEW_HOST=0.0.0.0
+BACKEND_HOST=127.0.0.1
+AUTH_HOST=127.0.0.1
+EOF
+  fi
+  mv -f "${temporary}" "${ENV_FILE}"
+  chmod 600 "${ENV_FILE}"
+  log "port configuration saved to ${ENV_FILE}"
+}
+
+configure_ports_menu() {
+  local choice index
+  while true; do
+    show_port_plan
+    cat <<'EOF'
+
+1. 修改管理面板端口（常用）
+2. 修改任意端口（高级）
+3. 恢复默认端口
+4. 校验并保存
+0. 取消
+EOF
+    read_tty "请选择: "
+    choice="${REPLY}"
+    case "${choice}" in
+      1) change_port 0 ;;
+      2)
+        read_tty "输入要修改的编号（1-5）: "
+        index="${REPLY}"
+        if printf '%s' "${index}" | grep -Eq '^[1-5]$'; then
+          change_port "$((index - 1))"
+        else
+          warn "请输入 1 到 5"
+        fi
+        ;;
+      3)
+        PORT_VALUES=("${PORT_DEFAULTS[@]}")
+        log "已恢复默认端口；保存前仍会检查是否被占用"
+        ;;
+      4)
+        if validate_port_plan; then
+          write_port_config
+          return 0
+        fi
+        warn "请修改冲突端口后再保存"
+        ;;
+      0) return 1 ;;
+      *) warn "无效选择" ;;
+    esac
   done
 }
 
 config_command() {
   require_root config
   load_local_env
-  local old_admin="${ADMIN_VIEW_PORT:-7991}" old_backend="${BACKEND_PORT:-7998}"
-  local old_auth="${AUTH_PORT:-7997}" old_go_admin="${GO_BACKEND_PORT:-7996}"
-  local old_proxy="${GO_REPROXY_PORT:-7999}"
-  local admin backend auth go_admin proxy unique_count
-
-  admin="$(prompt_port '管理面板端口' "${old_admin}")"
-  backend="$(prompt_port '内部管理后端端口' "${old_backend}")"
-  auth="$(prompt_port '认证服务端口' "${old_auth}")"
-  go_admin="$(prompt_port 'Go 内部管理端口' "${old_go_admin}")"
-  proxy="$(prompt_port '反向代理端口' "${old_proxy}")"
-  unique_count="$(printf '%s\n' "${admin}" "${backend}" "${auth}" "${go_admin}" "${proxy}" | sort -u | wc -l | tr -d ' ')"
-  [ "${unique_count}" = "5" ] || fail "all five ports must be different"
-
-  for pair in "${old_admin}:${admin}" "${old_backend}:${backend}" "${old_auth}:${auth}" "${old_go_admin}:${go_admin}" "${old_proxy}:${proxy}"; do
-    if [ "${pair%%:*}" != "${pair##*:}" ] && port_in_use "${pair##*:}"; then
-      warn "port ${pair##*:} is currently in use"
-    fi
-  done
-
-  local temporary="${ENV_FILE}.new.$$"
-  umask 077
-  cat > "${temporary}" <<EOF
-FN_KNOCK_RUNTIME_TARGET=linux
-FN_KNOCK_DATA_DIR=/var/lib/fn-knock
-FN_KNOCK_GATEWAY_CONFIG_DIR=/etc/fn-knock/gateway
-FN_KNOCK_BASE_URL=${FN_KNOCK_BASE_URL:-${DEFAULT_BASE_URL}}
-ADMIN_VIEW_PORT=${admin}
-BACKEND_PORT=${backend}
-AUTH_PORT=${auth}
-GO_BACKEND_PORT=${go_admin}
-GO_REPROXY_PORT=${proxy}
-ADMIN_VIEW_HOST=0.0.0.0
-BACKEND_HOST=127.0.0.1
-AUTH_HOST=127.0.0.1
-EOF
-  mv -f "${temporary}" "${ENV_FILE}"
-  chmod 600 "${ENV_FILE}"
-  log "configuration saved to ${ENV_FILE}"
-  read -r -p "现在重启服务？[Y/n] " answer </dev/tty
-  if [ "${answer:-Y}" != "n" ] && [ "${answer:-Y}" != "N" ]; then
+  load_port_values
+  if ! configure_ports_menu; then
+    log "port configuration unchanged"
+    return
+  fi
+  read_tty "现在重启服务以应用新端口？[Y/n] "
+  if [ "${REPLY:-Y}" != "n" ] && [ "${REPLY:-Y}" != "N" ]; then
     systemctl restart "${SERVICE_NAME}"
     wait_for_health || fail "service failed its health check after configuration change"
+  else
+    warn "端口配置已保存，服务仍在使用旧端口；请稍后执行 sudo knock restart"
   fi
+}
+
+prepare_install_command() {
+  require_root install
+  local answer has_config=0
+  [ -f "${ENV_FILE}" ] && has_config=1
+  load_local_env
+  load_port_values
+
+  if [ "${has_config}" = "1" ]; then
+    log "existing port configuration detected"
+    show_port_plan
+    read_tty "沿用以上端口并校验可用性？[Y/n] "
+    if [ "${REPLY:-Y}" != "n" ] && [ "${REPLY:-Y}" != "N" ] && validate_port_plan; then
+      return
+    fi
+  else
+    log "checking default ports before the first installation"
+    if validate_port_plan; then
+      read_tty "默认端口均可用，使用默认配置？[Y/n] "
+      if [ "${REPLY:-Y}" != "n" ] && [ "${REPLY:-Y}" != "N" ]; then
+        write_port_config
+        return
+      fi
+    else
+      warn "检测到端口冲突；请为冲突服务选择其他端口"
+    fi
+  fi
+
+  configure_ports_menu || fail "installation cancelled before port configuration was saved"
 }
 
 update_command() {
@@ -530,8 +686,8 @@ nginx_command() {
   load_local_env
   local port="${ADMIN_VIEW_PORT:-7991}"
   cat <<EOF
-# 7991 是 fn-knock 控制面入口，Linux 默认只监听 127.0.0.1，不能直接从公网访问。
-# 请通过 Nginx 提供 HTTPS；请替换域名和证书路径。
+# ${port} 是 fn-knock 控制面入口，默认监听所有网卡。
+# 如需从公网访问，请通过 Nginx 提供 HTTPS，并设置访问控制；请替换域名和证书路径。
 server {
     listen 443 ssl http2;
     server_name knock.example.com;
@@ -554,7 +710,7 @@ server {
 }
 
 # 保存后先执行 nginx -t，再执行 systemctl reload nginx。
-# 不要将 ${port} 直接暴露到公网；公网入口应使用 HTTPS 和访问控制。
+# 不要直接将 ${port} 暴露到公网；公网入口应使用 HTTPS 和访问控制。
 EOF
 }
 
@@ -563,7 +719,7 @@ show_menu() {
     printf '\nfn-knock 管理菜单（当前版本：%s）\n' "$(current_version)"
     cat <<'EOF'
 1. 重启服务
-2. 配置端口
+2. 配置端口（按需修改并校验）
 3. 查看状态
 4. 启动服务
 5. 停止服务
@@ -617,5 +773,6 @@ case "${1:-}" in
     [ "$#" -ge 3 ] || fail "internal install arguments are missing"
     install_release "$2" "$3"
     ;;
+  _prepare-install) prepare_install_command ;;
   *) fail "usage: knock [restart|config|status|start|stop|logs|update|rollback|uninstall|nginx|version]" ;;
 esac

@@ -19,7 +19,8 @@ pub(super) async fn sync_runtime_after_import(
     let run_type = config.get("run_type").and_then(Value::as_i64).unwrap_or(3);
 
     let run_mode_label = maintenance_backup_text(translator, "syncSteps.runModeGatewayRoutes");
-    match runtime_config::apply_run_type_config(state, &config, run_type).await {
+    match runtime_config::apply_run_type_config_with_host_rules_lock(state, &config, run_type).await
+    {
         Ok(()) => synced_steps.push(run_mode_label),
         Err(error) => warnings.push(format!(
             "{}: {}",

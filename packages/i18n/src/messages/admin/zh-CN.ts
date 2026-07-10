@@ -2192,6 +2192,12 @@ export const zhCNAdmin = {
     delete: "删除",
     backToBasicAria: "返回基础信息",
     advancedConfig: "高级配置",
+    protocolMode: "HTTPS 协议",
+    protocolModeDescription:
+      "控制浏览器与此子域建立 HTTPS 连接时使用的 HTTP 版本。遇到视频传输速度异常时可尝试 HTTP/1.1。",
+    protocolModeAuto: "自动协商（默认）",
+    protocolModeHttp1: "仅 HTTP/1.1（兼容模式）",
+    protocolModeHttp2: "强制 HTTP/2",
     displayTitle: "展示标题",
     refreshTitle: "刷新标题",
     titleAutoPlaceholder: "为空时自动使用抓取到的页面标题",

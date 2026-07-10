@@ -4,6 +4,37 @@ use tokio::{
     net::TcpListener,
 };
 
+async fn proxy_config_test_state(go_backend_grpc_addr: String) -> (tempfile::TempDir, AppState) {
+    let directory = tempfile::tempdir().unwrap();
+    let settings = proxy_config_test_settings(&directory, go_backend_grpc_addr);
+    let state = AppState::new(settings).await.unwrap();
+    (directory, state)
+}
+
+fn proxy_config_test_settings(
+    directory: &tempfile::TempDir,
+    go_backend_grpc_addr: String,
+) -> crate::settings::Settings {
+    let mut settings = {
+        let _environment = crate::test_support::EnvGuard::new(&[]);
+        crate::settings::Settings::from_env()
+    };
+    settings.runtime_target = "linux".to_string();
+    settings.data_dir = directory.path().join("data");
+    settings.gateway_config_dir = directory.path().join("gateway");
+    settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
+    settings.legacy_redis_url = String::new();
+    settings.go_backend_grpc_addr = go_backend_grpc_addr;
+    settings.internal_rpc_token = "test-internal-rpc-token".to_string();
+    settings.request_timeout = Duration::from_millis(100);
+    settings
+}
+
+fn config_without_internal_metadata(mut config: Value) -> Value {
+    crate::store::strip_internal_config_metadata(&mut config);
+    config
+}
+
 #[test]
 fn validates_supported_proxy_target_urls() {
     assert!(is_supported_proxy_target_url("http://127.0.0.1:8080"));
@@ -48,6 +79,7 @@ fn normalizes_host_mapping_route_shape() {
             "target": " http://127.0.0.1:8080 ",
             "use_auth": true,
             "access_mode": "strict_whitelist",
+            "protocol_mode": "http1",
             "locations": [{
                 "path": "/api/../health",
                 "match": "exact",
@@ -72,8 +104,17 @@ fn normalizes_host_mapping_route_shape() {
         Some("Old title")
     );
     assert_eq!(
+        mapping.get("protocol_mode").and_then(Value::as_str),
+        Some("http1")
+    );
+    assert_eq!(
         mapping_value.pointer("/basic_auth/enabled"),
         Some(&Value::Bool(true))
+    );
+    let payload = build_host_rules_payload(&mappings);
+    assert_eq!(
+        payload.pointer("/0/protocol_mode").and_then(Value::as_str),
+        Some("http1")
     );
     assert_eq!(
         mapping_value
@@ -84,6 +125,218 @@ fn normalizes_host_mapping_route_shape() {
     assert_eq!(
         mapping_value.pointer("/locations/0/response/headers/X-Test"),
         Some(&Value::String("ok".to_string()))
+    );
+}
+
+#[test]
+fn rejects_explicit_invalid_host_protocol_mode() {
+    for protocol_mode in [Value::Null, json!("h3"), json!(1)] {
+        let error = normalize_host_mappings_for_route(
+            vec![json!({
+                "host": "app.example.com",
+                "target": "http://127.0.0.1:8080",
+                "protocol_mode": protocol_mode,
+            })],
+            &json!({}),
+        )
+        .unwrap_err();
+        assert!(error.contains("protocol mode must be auto, http1 or http2"));
+    }
+}
+
+#[test]
+fn defaults_missing_host_protocol_mode_to_auto() {
+    let mappings = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "app.example.com",
+            "target": "http://127.0.0.1:8080",
+        })],
+        &json!({}),
+    )
+    .unwrap();
+    assert_eq!(
+        mappings[0].get("protocol_mode").and_then(Value::as_str),
+        Some("auto")
+    );
+}
+
+#[test]
+fn normalizes_host_protocol_mode_case_and_whitespace() {
+    let mappings = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "app.example.com",
+            "target": "http://127.0.0.1:8080",
+            "protocol_mode": " HTTP2 ",
+        })],
+        &json!({}),
+    )
+    .unwrap();
+
+    assert_eq!(
+        mappings[0].get("protocol_mode").and_then(Value::as_str),
+        Some("http2")
+    );
+}
+
+#[test]
+fn preserves_previous_host_protocol_mode_when_legacy_request_omits_it() {
+    let mappings = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "video.example.com",
+            "target": "http://127.0.0.1:8080",
+        })],
+        &json!({
+            "host_mappings": [{
+                "host": "video.example.com",
+                "target": "http://127.0.0.1:8080",
+                "protocol_mode": "http1",
+            }]
+        }),
+    )
+    .unwrap();
+
+    assert_eq!(
+        mappings[0].get("protocol_mode").and_then(Value::as_str),
+        Some("http1")
+    );
+}
+
+#[test]
+fn canonicalizes_host_ports_and_rejects_duplicates() {
+    assert_eq!(
+        normalize_host_value("HTTPS://Video.Example.com:443/path"),
+        "video.example.com"
+    );
+    let error = normalize_host_mappings_for_route(
+        vec![
+            json!({
+                "host": "video.example.com",
+                "target": "http://127.0.0.1:8080",
+            }),
+            json!({
+                "host": "VIDEO.EXAMPLE.COM:443",
+                "target": "http://127.0.0.1:8081",
+            }),
+        ],
+        &json!({}),
+    )
+    .unwrap_err();
+    assert!(error.contains("Duplicate host mapping video.example.com"));
+}
+
+#[test]
+fn validates_go_backend_echoed_protocol_modes() {
+    let requested = json!([{
+        "host": "video.example.com",
+        "protocol_mode": "http1"
+    }]);
+    let applied = json!({
+        "success": true,
+        "data": [{"host": "video.example.com", "protocol_mode": "http1"}]
+    });
+    ensure_go_host_protocol_modes_applied(&requested, &applied).unwrap();
+
+    let old_backend = json!({
+        "success": true,
+        "data": [{"host": "video.example.com"}]
+    });
+    let error = ensure_go_host_protocol_modes_applied(&requested, &old_backend).unwrap_err();
+    assert!(error.contains("did not apply HTTPS protocol mode http1"));
+
+    let automatic = json!([{
+        "host": "video.example.com",
+        "protocol_mode": "auto"
+    }]);
+    ensure_go_host_protocol_modes_applied(&automatic, &old_backend).unwrap();
+}
+
+#[test]
+fn rejects_go_backend_echoed_unexpected_hosts() {
+    let requested = json!([{
+        "host": "video.example.com",
+        "protocol_mode": "http1"
+    }]);
+    let response_with_stale_host = json!({
+        "success": true,
+        "data": [
+            {"host": "video.example.com", "protocol_mode": "http1"},
+            {"host": "stale.example.com", "protocol_mode": "auto"}
+        ]
+    });
+    let error =
+        ensure_go_host_protocol_modes_applied(&requested, &response_with_stale_host).unwrap_err();
+    assert!(error.contains("retained unexpected host mapping stale.example.com"));
+
+    let empty_replacement = json!([]);
+    let stale_only_response = json!({
+        "success": true,
+        "data": [{"host": "stale.example.com", "protocol_mode": "auto"}]
+    });
+    let error = ensure_go_host_protocol_modes_applied(&empty_replacement, &stale_only_response)
+        .unwrap_err();
+    assert!(error.contains("retained unexpected host mapping stale.example.com"));
+}
+
+#[test]
+fn rejects_duplicate_canonical_hosts_in_go_host_rules_exchange() {
+    let duplicate_request = json!([
+        {"host": "video.example.com", "protocol_mode": "http1"},
+        {"host": "VIDEO.EXAMPLE.COM:443", "protocol_mode": "http1"}
+    ]);
+    let error = ensure_go_host_protocol_modes_applied(
+        &duplicate_request,
+        &json!({"success": true, "data": []}),
+    )
+    .unwrap_err();
+    assert!(error.contains(
+        "Host-rules request contains duplicate canonical host mapping video.example.com"
+    ));
+
+    let requested = json!([{"host": "video.example.com", "protocol_mode": "http1"}]);
+    let duplicate_response = json!({
+        "success": true,
+        "data": [
+            {"host": "video.example.com", "protocol_mode": "http1"},
+            {"host": "VIDEO.EXAMPLE.COM:443", "protocol_mode": "http1"}
+        ]
+    });
+    let error = ensure_go_host_protocol_modes_applied(&requested, &duplicate_response).unwrap_err();
+    assert!(error.contains(
+        "Go backend response contains duplicate canonical host mapping video.example.com"
+    ));
+}
+
+#[test]
+fn host_mapping_revision_tracks_user_config_but_ignores_fetched_metadata() {
+    let initial = vec![json!({
+        "host": "video.example.com",
+        "target": "http://127.0.0.1:8080",
+        "protocol_mode": "http1",
+        "title": "Old title",
+        "favicon": "old.ico"
+    })];
+    let metadata_only = vec![json!({
+        "host": "video.example.com",
+        "target": "http://127.0.0.1:8080",
+        "protocol_mode": "http1",
+        "title": "New title",
+        "favicon": "new.ico"
+    })];
+    let changed_mode = vec![json!({
+        "host": "video.example.com",
+        "target": "http://127.0.0.1:8080",
+        "protocol_mode": "http2",
+        "title": "New title",
+        "favicon": "new.ico"
+    })];
+
+    assert_eq!(
+        host_mappings_revision(&initial),
+        host_mappings_revision(&metadata_only)
+    );
+    assert_ne!(
+        host_mappings_revision(&initial),
+        host_mappings_revision(&changed_mode)
     );
 }
 
@@ -448,6 +701,508 @@ async fn fetches_metadata_manifest_icon_as_data_url_like_node() {
     );
 }
 
+#[tokio::test]
+async fn manual_metadata_refresh_rolls_back_config_when_runtime_sync_fails() {
+    let metadata_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let metadata_addr = metadata_listener.local_addr().unwrap();
+    let (metadata_requested_tx, metadata_requested_rx) = tokio::sync::oneshot::channel();
+    tokio::spawn(async move {
+        let Ok((mut socket, _)) = metadata_listener.accept().await else {
+            return;
+        };
+        let mut buffer = [0_u8; 2048];
+        let Ok(read_len) = socket.read(&mut buffer).await else {
+            return;
+        };
+        if read_len == 0 {
+            return;
+        }
+        let _ = metadata_requested_tx.send(());
+        let body = br#"<!doctype html><title>After refresh</title><link rel="icon" href="data:image/png;base64,AQID">"#;
+        let header = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            body.len()
+        );
+        let _ = socket.write_all(header.as_bytes()).await;
+        let _ = socket.write_all(body).await;
+    });
+
+    let unavailable_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let unavailable_grpc_addr = unavailable_listener.local_addr().unwrap();
+    drop(unavailable_listener);
+
+    let (_directory, state) = proxy_config_test_state(unavailable_grpc_addr.to_string()).await;
+
+    let previous_config = json!({
+        "run_type": 3,
+        "host_mappings": [{
+            "host": "video.example.com",
+            "target": format!("http://{metadata_addr}/"),
+            "protocol_mode": "http1",
+            "title": "Before refresh",
+            "favicon": "before.ico"
+        }]
+    });
+    state.store.save_config(&previous_config).await.unwrap();
+
+    let response = refresh_host_mapping_titles(State(state.clone())).await;
+
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+    metadata_requested_rx.await.unwrap();
+    assert_eq!(
+        config_without_internal_metadata(state.store.get_config().await.unwrap()),
+        previous_config
+    );
+}
+
+#[tokio::test]
+async fn host_mapping_rollback_replays_previous_runtime_payload_after_restoring_store() {
+    let (_directory, state) = proxy_config_test_state("127.0.0.1:1".to_string()).await;
+    let previous_config = json!({
+        "run_type": 3,
+        "host_mappings": [{
+            "host": "video.example.com",
+            "target": "http://127.0.0.1:8080",
+            "protocol_mode": "http1",
+            "title": "Before refresh"
+        }]
+    });
+    let changed_config = json!({
+        "run_type": 3,
+        "host_mappings": [{
+            "host": "video.example.com",
+            "target": "http://127.0.0.1:8080",
+            "protocol_mode": "http2",
+            "title": "After refresh"
+        }]
+    });
+    state.store.save_config(&changed_config).await.unwrap();
+
+    let runtime_calls = std::sync::Arc::new(tokio::sync::Mutex::new(Vec::new()));
+    let captured_calls = runtime_calls.clone();
+    let changed_mappings = changed_config
+        .get("host_mappings")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap();
+    rollback_host_mappings_with_runtime_sync(
+        &state,
+        &previous_config,
+        &changed_mappings,
+        move |state, config, mappings| async move {
+            let stored = state
+                .store
+                .get_config()
+                .await
+                .map_err(|error| error.to_string())?;
+            captured_calls.lock().await.push((config, mappings, stored));
+            Ok(())
+        },
+    )
+    .await;
+
+    let calls = runtime_calls.lock().await;
+    assert_eq!(calls.len(), 1);
+    assert_eq!(
+        config_without_internal_metadata(calls[0].0.clone()),
+        previous_config
+    );
+    assert_eq!(
+        calls[0].1,
+        previous_config
+            .get("host_mappings")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap()
+    );
+    assert_eq!(
+        config_without_internal_metadata(calls[0].2.clone()),
+        previous_config
+    );
+    assert_eq!(
+        config_without_internal_metadata(state.store.get_config().await.unwrap()),
+        previous_config
+    );
+}
+
+#[tokio::test]
+async fn host_mapping_rollback_does_not_overwrite_a_newer_mapping_commit() {
+    let (_directory, state) = proxy_config_test_state("127.0.0.1:1".to_string()).await;
+    let previous_config = json!({
+        "run_type": 3,
+        "host_mappings": [{
+            "host": "video.example.com",
+            "target": "http://127.0.0.1:8080",
+            "protocol_mode": "auto"
+        }]
+    });
+    let failed_update = vec![json!({
+        "host": "video.example.com",
+        "target": "http://127.0.0.1:8080",
+        "protocol_mode": "http1"
+    })];
+    let newer_config = json!({
+        "run_type": 3,
+        "host_mappings": [{
+            "host": "video.example.com",
+            "target": "http://127.0.0.1:8080",
+            "protocol_mode": "http2"
+        }]
+    });
+    state.store.save_config(&newer_config).await.unwrap();
+
+    let runtime_calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let captured_calls = runtime_calls.clone();
+    rollback_host_mappings_with_runtime_sync(
+        &state,
+        &previous_config,
+        &failed_update,
+        move |_state, _config, _mappings| async move {
+            captured_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(())
+        },
+    )
+    .await;
+
+    assert_eq!(runtime_calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+    assert_eq!(
+        config_without_internal_metadata(state.store.get_config().await.unwrap()),
+        newer_config
+    );
+}
+
+#[tokio::test]
+async fn host_mapping_cas_is_shared_across_app_states_and_preserves_other_sections() {
+    let directory = tempfile::tempdir().unwrap();
+    let settings = proxy_config_test_settings(&directory, "127.0.0.1:1".to_string());
+    let first_state = AppState::new(settings.clone()).await.unwrap();
+    let second_state = AppState::new(settings).await.unwrap();
+
+    let expected = vec![json!({
+        "host": "video.example.com",
+        "target": "http://127.0.0.1:8080",
+        "protocol_mode": "auto"
+    })];
+    first_state
+        .store
+        .save_config(&json!({
+            "host_mappings": expected,
+            "unrelated": { "generation": 1 },
+            "run_type": 3
+        }))
+        .await
+        .unwrap();
+    let expected = first_state
+        .store
+        .get_config()
+        .await
+        .unwrap()
+        .get("host_mappings")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap();
+    let first_revision = host_mappings_revision(&expected);
+    let second_revision = host_mappings_revision(
+        second_state.store.get_config().await.unwrap()["host_mappings"]
+            .as_array()
+            .unwrap(),
+    );
+    assert_eq!(first_revision, second_revision);
+
+    // Commit an unrelated section from the second state after both writers
+    // obtained the same host-mapping revision. The section CAS must merge into
+    // this latest full document instead of restoring generation 1.
+    let mut unrelated_update = second_state.store.get_config().await.unwrap();
+    unrelated_update["unrelated"]["generation"] = json!(2);
+    second_state
+        .store
+        .save_config(&unrelated_update)
+        .await
+        .unwrap();
+
+    let first_replacement = vec![json!({
+        "host": "video.example.com",
+        "target": "http://127.0.0.1:8080",
+        "protocol_mode": "http1"
+    })];
+    let second_replacement = vec![json!({
+        "host": "video.example.com",
+        "target": "http://127.0.0.1:8080",
+        "protocol_mode": "http2"
+    })];
+    let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(3));
+    let first_task = {
+        let state = first_state.clone();
+        let barrier = barrier.clone();
+        let expected = expected.clone();
+        let replacement = first_replacement.clone();
+        tokio::spawn(async move {
+            barrier.wait().await;
+            state
+                .store
+                .compare_and_set_host_mappings(&expected, &replacement)
+                .await
+                .unwrap()
+        })
+    };
+    let second_task = {
+        let state = second_state.clone();
+        let barrier = barrier.clone();
+        let expected = expected.clone();
+        let replacement = second_replacement.clone();
+        tokio::spawn(async move {
+            barrier.wait().await;
+            state
+                .store
+                .compare_and_set_host_mappings(&expected, &replacement)
+                .await
+                .unwrap()
+        })
+    };
+    barrier.wait().await;
+    let first_result = first_task.await.unwrap();
+    let second_result = second_task.await.unwrap();
+
+    assert_ne!(first_result.is_some(), second_result.is_some());
+    let final_config = first_state.store.get_config().await.unwrap();
+    assert_eq!(final_config["unrelated"]["generation"], json!(2));
+    let final_mappings = final_config["host_mappings"].as_array().unwrap();
+    assert!(final_mappings == &first_replacement || final_mappings == &second_replacement);
+}
+
+#[tokio::test]
+async fn host_mapping_transaction_lease_serializes_independent_app_states() {
+    let directory = tempfile::tempdir().unwrap();
+    let settings = proxy_config_test_settings(&directory, "127.0.0.1:1".to_string());
+    let first_state = AppState::new(settings.clone()).await.unwrap();
+    let second_state = AppState::new(settings).await.unwrap();
+
+    let first_lease = acquire_host_mappings_transaction_lease(&first_state)
+        .await
+        .unwrap()
+        .expect("first state acquires transaction lease");
+    let second_task = tokio::spawn(async move {
+        acquire_host_mappings_transaction_lease(&second_state)
+            .await
+            .unwrap()
+            .expect("second state eventually acquires transaction lease")
+    });
+    tokio::time::sleep(Duration::from_millis(40)).await;
+    assert!(
+        !second_task.is_finished(),
+        "a distinct AppState must not enter the config/runtime transaction concurrently"
+    );
+
+    assert!(first_lease.release().await.unwrap());
+    let second_lease = tokio::time::timeout(Duration::from_secs(1), second_task)
+        .await
+        .expect("second state acquires after release")
+        .unwrap();
+    assert!(second_lease.ensure_valid().await.unwrap());
+    assert!(second_lease.release().await.unwrap());
+}
+
+#[test]
+fn host_rules_runtime_payload_follows_run_type_and_reverse_proxy_submode() {
+    let mappings = json!([{
+        "host": "video.example.com",
+        "target": "http://127.0.0.1:8080",
+        "protocol_mode": "http1"
+    }]);
+    let config = |run_type, reverse_proxy_submode| {
+        json!({
+            "run_type": run_type,
+            "reverse_proxy_submode": reverse_proxy_submode,
+            "host_mappings": mappings
+        })
+    };
+
+    assert!(
+        super::runtime::host_rules_payload_for_config(&config(3, "path")).is_some(),
+        "protocol-mapping mode must install HostRules"
+    );
+    assert!(
+        super::runtime::host_rules_payload_for_config(&config(1, "subdomain")).is_some(),
+        "reverse-proxy subdomain mode must install HostRules"
+    );
+    assert!(
+        super::runtime::host_rules_payload_for_config(&config(1, "path")).is_none(),
+        "reverse-proxy path mode must flush HostRules"
+    );
+    assert!(
+        super::runtime::host_rules_payload_for_config(&config(0, "subdomain")).is_none(),
+        "direct mode must flush HostRules"
+    );
+}
+
+#[tokio::test]
+async fn host_mapping_lease_loss_is_reported_by_release_and_runtime_transaction() {
+    let directory = tempfile::tempdir().unwrap();
+    let settings = proxy_config_test_settings(&directory, "127.0.0.1:1".to_string());
+    let state = AppState::new(settings).await.unwrap();
+
+    let lease = acquire_host_mappings_transaction_lease(&state)
+        .await
+        .unwrap()
+        .unwrap();
+    state
+        .store
+        .set_json_value(
+            HOST_MAPPINGS_TRANSACTION_LOCK_KEY,
+            &json!({ "lockId": "new-owner" }),
+        )
+        .await
+        .unwrap();
+    assert!(lease.release().await.is_err());
+    state
+        .store
+        .delete_key(HOST_MAPPINGS_TRANSACTION_LOCK_KEY)
+        .await
+        .unwrap();
+
+    let result = with_host_mappings_runtime_transaction(&state, |state| async move {
+        state
+            .store
+            .set_json_value(
+                HOST_MAPPINGS_TRANSACTION_LOCK_KEY,
+                &json!({ "lockId": "replacement-owner" }),
+            )
+            .await
+            .map_err(|error| error.to_string())?;
+        Ok(())
+    })
+    .await;
+    assert!(result.unwrap_err().contains("lease ownership was lost"));
+    state
+        .store
+        .delete_key(HOST_MAPPINGS_TRANSACTION_LOCK_KEY)
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn delayed_runtime_host_sync_reads_latest_mapping_after_acquiring_lease() {
+    let directory = tempfile::tempdir().unwrap();
+    let settings = proxy_config_test_settings(&directory, "127.0.0.1:1".to_string());
+    let mutation_state = AppState::new(settings.clone()).await.unwrap();
+    let runtime_state = AppState::new(settings).await.unwrap();
+    let initial_mappings = vec![json!({
+        "host": "video.example.com",
+        "target": "http://127.0.0.1:8080",
+        "protocol_mode": "auto"
+    })];
+    mutation_state
+        .store
+        .save_config(&json!({ "host_mappings": initial_mappings }))
+        .await
+        .unwrap();
+    let initial_mappings = mutation_state.store.get_config().await.unwrap()["host_mappings"]
+        .as_array()
+        .cloned()
+        .unwrap();
+    let mutation_lease = acquire_host_mappings_transaction_lease(&mutation_state)
+        .await
+        .unwrap()
+        .unwrap();
+    let (captured_tx, captured_rx) = tokio::sync::oneshot::channel();
+    let runtime_task = tokio::spawn(async move {
+        with_host_mappings_runtime_transaction(&runtime_state, move |state| async move {
+            let mappings = state.store.get_config().await.unwrap()["host_mappings"]
+                .as_array()
+                .cloned()
+                .unwrap();
+            captured_tx.send(mappings).unwrap();
+            Ok(())
+        })
+        .await
+    });
+    tokio::time::sleep(Duration::from_millis(40)).await;
+    assert!(!runtime_task.is_finished());
+
+    let latest_mappings = vec![json!({
+        "host": "video.example.com",
+        "target": "http://127.0.0.1:8080",
+        "protocol_mode": "http1"
+    })];
+    mutation_state
+        .store
+        .compare_and_set_host_mappings(&initial_mappings, &latest_mappings)
+        .await
+        .unwrap()
+        .unwrap();
+    mutation_lease.release().await.unwrap();
+
+    runtime_task.await.unwrap().unwrap();
+    assert_eq!(captured_rx.await.unwrap(), latest_mappings);
+}
+
+#[tokio::test]
+async fn stale_full_config_writer_preserves_new_host_mapping_across_app_states() {
+    let directory = tempfile::tempdir().unwrap();
+    let settings = proxy_config_test_settings(&directory, "127.0.0.1:1".to_string());
+    let host_state = AppState::new(settings.clone()).await.unwrap();
+    let full_writer_state = AppState::new(settings).await.unwrap();
+    let initial_mappings = vec![json!({
+        "host": "video.example.com",
+        "target": "http://127.0.0.1:8080",
+        "protocol_mode": "auto"
+    })];
+    host_state
+        .store
+        .save_config(&json!({
+            "host_mappings": initial_mappings,
+            "unrelated": { "generation": 1 }
+        }))
+        .await
+        .unwrap();
+
+    // This snapshot carries generation N and is intentionally held until
+    // after another AppState commits host generation N+1.
+    let mut stale_full_config = full_writer_state.store.get_config().await.unwrap();
+    let initial_mappings = stale_full_config["host_mappings"]
+        .as_array()
+        .cloned()
+        .unwrap();
+    let next_mappings = vec![json!({
+        "host": "video.example.com",
+        "target": "http://127.0.0.1:8080",
+        "protocol_mode": "http1"
+    })];
+    host_state
+        .store
+        .compare_and_set_host_mappings(&initial_mappings, &next_mappings)
+        .await
+        .unwrap()
+        .expect("host section CAS succeeds");
+
+    stale_full_config["unrelated"]["generation"] = json!(2);
+    let stale_save = full_writer_state
+        .store
+        .save_config(&stale_full_config)
+        .await;
+    assert!(stale_save.is_err());
+
+    let final_config = host_state.store.get_config().await.unwrap();
+    assert_eq!(final_config["host_mappings"], json!(next_mappings));
+    assert_eq!(final_config["unrelated"]["generation"], json!(1));
+    assert_eq!(
+        host_state
+            .store
+            .get_string_value("fn_knock:config:host_mappings:generation")
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("2")
+    );
+    let persisted_raw = host_state
+        .store
+        .get_string_value("fn_knock:config")
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(!persisted_raw.contains(crate::store::CONFIG_GENERATION_MARKER));
+}
+
 #[test]
 fn host_mapping_metadata_refresh_decision_matches_node_save_rules() {
     let previous_mappings = vec![json!({
@@ -741,6 +1496,24 @@ fn localizes_proxy_config_route_errors() {
     assert_eq!(
         localize_proxy_config_error(&translator, "Only http/https targets are supported"),
         "仅支持 http/https 目标地址"
+    );
+    assert_eq!(
+        localize_proxy_config_error(&translator, "Duplicate host mapping video.example.com"),
+        "Host 映射域名 video.example.com 重复"
+    );
+    assert_eq!(
+        localize_proxy_config_error(
+            &translator,
+            "Host mapping video.example.com HTTPS protocol mode must be auto, http1 or http2"
+        ),
+        "Host 映射 video.example.com 的 HTTPS 协议必须是 auto、http1 或 http2"
+    );
+    assert_eq!(
+        localize_proxy_config_error(
+            &translator,
+            "Go backend did not apply HTTPS protocol mode http1 for video.example.com (reported auto); upgrade the gateway backend"
+        ),
+        "网关后端未应用 video.example.com 的 HTTPS 协议 http1，请升级网关后端"
     );
 }
 

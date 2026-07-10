@@ -3,6 +3,8 @@ set -euo pipefail
 
 DEFAULT_BASE_URL="https://cdn.fnknock.cn"
 BASE_URL="${FN_KNOCK_BASE_URL:-${DEFAULT_BASE_URL}}"
+COMMAND_FILE="${FN_KNOCK_COMMAND_FILE:-/usr/local/bin/knock}"
+APP_ROOT="${FN_KNOCK_APP_ROOT:-/opt/fn-knock}"
 WORK_DIR=""
 
 log() { printf '[fn-knock-installer] %s\n' "$*"; }
@@ -30,7 +32,7 @@ normalize_arch() {
 
 install_dependencies() {
   local missing=0
-  for command_name in curl openssl unzip tar gzip; do
+  for command_name in curl openssl unzip tar gzip ss; do
     command -v "${command_name}" >/dev/null 2>&1 || missing=1
   done
   [ "${missing}" = "1" ] || return 0
@@ -38,14 +40,60 @@ install_dependencies() {
   log "installing required system packages"
   if command -v apt-get >/dev/null 2>&1; then
     DEBIAN_FRONTEND=noninteractive apt-get update -y
-    DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl openssl unzip tar gzip
+    DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl openssl unzip tar gzip iproute2
   elif command -v dnf >/dev/null 2>&1; then
-    dnf install -y ca-certificates curl openssl unzip tar gzip
+    dnf install -y ca-certificates curl openssl unzip tar gzip iproute
   elif command -v yum >/dev/null 2>&1; then
-    yum install -y ca-certificates curl openssl unzip tar gzip
+    yum install -y ca-certificates curl openssl unzip tar gzip iproute
   else
     fail "missing runtime dependencies and no supported package manager was found"
   fi
+}
+
+installed_version() {
+  local release_file="${APP_ROOT}/current/release.json"
+  if [ -f "${release_file}" ]; then
+    sed -nE 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "${release_file}" | head -n1
+  fi
+}
+
+choose_action() {
+  local answer version
+  if [ -x "${COMMAND_FILE}" ] && [ -f "${APP_ROOT}/current/release.json" ]; then
+    version="$(installed_version)"
+    log "检测到已安装的 fn-knock${version:+（版本 ${version}）}"
+    cat >&2 <<'EOF'
+
+请选择操作：
+  1. 下载并安装最新版本
+  2. 打开 fn-knock 管理菜单
+  3. 查看服务状态
+  4. 卸载 fn-knock
+  0. 退出
+EOF
+    read -r -p "请选择 [1]: " answer </dev/tty || fail "需要可交互的终端"
+    case "${answer:-1}" in
+      1) return 0 ;;
+      2) exec "${COMMAND_FILE}" ;;
+      3) exec "${COMMAND_FILE}" status ;;
+      4) exec "${COMMAND_FILE}" uninstall ;;
+      0) exit 0 ;;
+      *) fail "invalid selection" ;;
+    esac
+  fi
+
+  cat >&2 <<'EOF'
+
+未检测到已安装的 fn-knock。
+  1. 安装 fn-knock
+  0. 退出
+EOF
+  read -r -p "请选择 [1]: " answer </dev/tty || fail "需要可交互的终端"
+  case "${answer:-1}" in
+    1) ;;
+    0) exit 0 ;;
+    *) fail "invalid selection" ;;
+  esac
 }
 
 manifest_value() {
@@ -64,6 +112,7 @@ file_sha256() {
   fi
 }
 
+choose_action
 install_dependencies
 ARCH="$(normalize_arch)" || fail "unsupported architecture: $(uname -m)"
 WORK_DIR="$(mktemp -d /tmp/fn-knock-installer.XXXXXX)"
@@ -101,6 +150,8 @@ grep -qx 'fn-knock/release.json' "${WORK_DIR}/archive.list" || fail "invalid rel
 tar --warning=no-unknown-keyword --warning=no-timestamp -xzf "${ARCHIVE_FILE}" -C "${WORK_DIR}"
 [ -x "${WORK_DIR}/fn-knock/bin/knock" ] || fail "release does not contain the management command"
 
+log "checking required ports before installation"
+"${WORK_DIR}/fn-knock/bin/knock" _prepare-install
 "${WORK_DIR}/fn-knock/bin/knock" _install-extracted "${WORK_DIR}/fn-knock" "${VERSION}"
 
 log "installation completed"

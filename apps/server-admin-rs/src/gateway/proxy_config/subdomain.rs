@@ -221,14 +221,23 @@ pub(super) fn normalize_host_value(value: &str) -> String {
         .split_once("://")
         .map(|(_, rest)| rest.to_string())
         .unwrap_or_else(|| value.trim().to_ascii_lowercase());
-    without_scheme
+    let authority = without_scheme
         .split('/')
         .next()
         .unwrap_or("")
         .trim()
-        .trim_start_matches('.')
-        .trim_end_matches('.')
-        .to_string()
+        .trim_start_matches('.');
+    let without_port = if authority.starts_with('[') {
+        authority
+            .find(']')
+            .map(|end| &authority[..=end])
+            .unwrap_or(authority)
+    } else if let Some((host, _port)) = authority.rsplit_once(':') {
+        if host.contains(':') { authority } else { host }
+    } else {
+        authority
+    };
+    without_port.trim_end_matches('.').to_string()
 }
 
 pub(super) fn normalize_access_mode(value: Option<&Value>) -> String {
@@ -236,6 +245,28 @@ pub(super) fn normalize_access_mode(value: Option<&Value>) -> String {
         "strict_whitelist".to_string()
     } else {
         "login_first".to_string()
+    }
+}
+
+pub(super) fn normalize_protocol_mode(value: Option<&Value>) -> String {
+    match value.and_then(Value::as_str).map(str::trim) {
+        Some(value) if value.eq_ignore_ascii_case("auto") => "auto".to_string(),
+        Some(value) if value.eq_ignore_ascii_case("http1") => "http1".to_string(),
+        Some(value) if value.eq_ignore_ascii_case("http2") => "http2".to_string(),
+        _ => "auto".to_string(),
+    }
+}
+
+pub(super) fn parse_explicit_protocol_mode(value: Option<&Value>) -> Option<String> {
+    let value = value?.as_str()?.trim();
+    if value.eq_ignore_ascii_case("auto") {
+        Some("auto".to_string())
+    } else if value.eq_ignore_ascii_case("http1") {
+        Some("http1".to_string())
+    } else if value.eq_ignore_ascii_case("http2") {
+        Some("http2".to_string())
+    } else {
+        None
     }
 }
 

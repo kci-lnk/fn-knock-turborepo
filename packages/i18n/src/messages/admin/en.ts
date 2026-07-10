@@ -2340,6 +2340,12 @@ export const enAdmin = {
     delete: "Delete",
     backToBasicAria: "Back to basic information",
     advancedConfig: "Advanced configuration",
+    protocolMode: "HTTPS protocol",
+    protocolModeDescription:
+      "Controls the HTTP version browsers use for HTTPS connections to this subdomain. Try HTTP/1.1 when video transfer speed is unexpectedly low.",
+    protocolModeAuto: "Automatic negotiation (default)",
+    protocolModeHttp1: "HTTP/1.1 only (compatibility mode)",
+    protocolModeHttp2: "Force HTTP/2",
     displayTitle: "Display title",
     refreshTitle: "Refresh title",
     titleAutoPlaceholder: "Use the fetched page title when empty",

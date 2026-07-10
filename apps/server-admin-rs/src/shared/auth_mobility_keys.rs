@@ -16,6 +16,14 @@ pub(crate) fn session_index_key(session_id: &str) -> String {
     format!("{AUTH_MOBILITY_PREFIX}:session:{session_id}")
 }
 
+pub(crate) fn session_mutation_lock_key(session_id: &str) -> String {
+    format!("{AUTH_MOBILITY_PREFIX}:session_mutation_lock:{session_id}")
+}
+
+pub(crate) fn session_pending_whitelist_key(session_id: &str) -> String {
+    format!("{AUTH_MOBILITY_PREFIX}:session_pending_whitelist:{session_id}")
+}
+
 pub(crate) fn summary_key(session_id: &str) -> String {
     format!("{AUTH_MOBILITY_PREFIX}:summary:{session_id}")
 }

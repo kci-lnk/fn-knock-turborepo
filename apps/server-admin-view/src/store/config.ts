@@ -26,6 +26,10 @@ export const useConfigStore = defineStore("config", () => {
   let hostMappingsFollowUpRefreshAttempts = 0;
   let loadConfigPromise: Promise<AppConfig | null> | null = null;
   let loadConfigRequestId = 0;
+  let hostMappingsRevision: string | null = null;
+  let hostMappingsSnapshot: HostMapping[] | null = null;
+  let hostMappingsSnapshotRequestId = 0;
+  let hostMappingsSavePromise: Promise<HostMapping[]> | null = null;
 
   const normalizeComparableBasicAuth = (
     value: HostMapping["basic_auth"],
@@ -97,16 +101,24 @@ export const useConfigStore = defineStore("config", () => {
   };
 
   const refreshHostMappingsOnly = async () => {
-    const nextMappings = await ConfigAPI.getHostMappings();
-    if (config.value) {
-      config.value = {
-        ...config.value,
-        host_mappings: nextMappings,
-      };
-    } else {
-      await loadConfig();
+    if (hostMappingsSavePromise) {
+      await hostMappingsSavePromise;
     }
-    return nextMappings;
+    const requestId = ++hostMappingsSnapshotRequestId;
+    const snapshot = await ConfigAPI.getHostMappings();
+    if (requestId === hostMappingsSnapshotRequestId) {
+      hostMappingsRevision = snapshot.revision;
+      hostMappingsSnapshot = snapshot.mappings;
+      if (config.value) {
+        config.value = {
+          ...config.value,
+          host_mappings: snapshot.mappings,
+        };
+      } else {
+        await loadConfig();
+      }
+    }
+    return snapshot.mappings;
   };
 
   const clearHostMappingsFollowUpRefresh = () => {
@@ -169,9 +181,28 @@ export const useConfigStore = defineStore("config", () => {
     loadConfigRequestId = requestId;
     isLoading.value = true;
     isError.value = false;
-    const request = ConfigAPI.getConfig()
-      .then((next) => {
+    const request = (async () => {
+      if (hostMappingsSavePromise) {
+        await hostMappingsSavePromise;
+      }
+      const hostMappingsRequestId = ++hostMappingsSnapshotRequestId;
+      return {
+        snapshot: await ConfigAPI.getConfig(),
+        hostMappingsRequestId,
+      };
+    })()
+      .then(({ snapshot, hostMappingsRequestId }) => {
+        let next = snapshot.config;
         if (requestId === loadConfigRequestId) {
+          if (hostMappingsRequestId === hostMappingsSnapshotRequestId) {
+            hostMappingsRevision = snapshot.hostMappingsRevision;
+            hostMappingsSnapshot = next.host_mappings;
+          } else if (hostMappingsSnapshot) {
+            next = {
+              ...next,
+              host_mappings: hostMappingsSnapshot,
+            };
+          }
           config.value = next;
           applyAppearanceConfig(next.appearance);
         }
@@ -238,19 +269,47 @@ export const useConfigStore = defineStore("config", () => {
   }
 
   async function saveHostMappings(mappings: HostMapping[]) {
-    const nextMappings = await ConfigAPI.updateHostMappings(mappings);
-    if (!config.value) {
-      scheduleHostMappingsFollowUpRefresh(nextMappings);
-      await loadConfig({ force: true });
-      return nextMappings;
+    if (hostMappingsSavePromise) {
+      await hostMappingsSavePromise;
     }
+    const requestId = ++hostMappingsSnapshotRequestId;
+    let reloadConfigAfterSave = false;
+    const request = (async () => {
+      const snapshot = await ConfigAPI.updateHostMappings(
+        mappings,
+        hostMappingsRevision,
+      );
+      if (requestId === hostMappingsSnapshotRequestId) {
+        hostMappingsRevision = snapshot.revision;
+        hostMappingsSnapshot = snapshot.mappings;
+      }
+      const nextMappings = snapshot.mappings;
+      if (!config.value) {
+        scheduleHostMappingsFollowUpRefresh(nextMappings);
+        reloadConfigAfterSave = true;
+        return nextMappings;
+      }
 
-    const previousMappings = config.value.host_mappings;
-    config.value = {
-      ...config.value,
-      host_mappings: nextMappings,
-    };
-    scheduleHostMappingsFollowUpRefresh(nextMappings, previousMappings);
+      const previousMappings = config.value.host_mappings;
+      config.value = {
+        ...config.value,
+        host_mappings: nextMappings,
+      };
+      scheduleHostMappingsFollowUpRefresh(nextMappings, previousMappings);
+      return nextMappings;
+    })();
+    hostMappingsSavePromise = request;
+    let nextMappings: HostMapping[];
+    try {
+      nextMappings = await request;
+    } finally {
+      if (hostMappingsSavePromise === request) {
+        hostMappingsSavePromise = null;
+      }
+    }
+    if (reloadConfigAfterSave) {
+      await loadConfig({ force: true });
+    }
     return nextMappings;
   }
 

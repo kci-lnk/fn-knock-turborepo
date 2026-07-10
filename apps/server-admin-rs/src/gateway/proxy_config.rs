@@ -1,5 +1,9 @@
 use std::{
     collections::{HashMap, HashSet},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     time::Duration,
 };
 
@@ -13,6 +17,7 @@ use axum::{
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
+use tokio::time::{self as tokio_time, MissedTickBehavior};
 use url::Url;
 
 use crate::{gateway_settings, i18n::Translator, response, runtime_config, ssl, state::AppState};
@@ -34,7 +39,12 @@ use metadata_html::*;
 use metadata_refresh::*;
 use metadata_special::*;
 use normalize::*;
-use runtime::*;
+#[cfg(test)]
+use runtime::ensure_go_host_protocol_modes_applied;
+use runtime::{
+    sync_go_auth_config, sync_go_rules, sync_host_mappings_runtime, sync_stream_mappings_runtime,
+};
+pub(crate) use runtime::{sync_go_host_rules_for_config_locked, sync_go_host_rules_locked};
 use subdomain::*;
 
 #[cfg(test)]
@@ -51,6 +61,7 @@ const MAX_FAVICON_FETCH_ATTEMPTS: i32 = 8;
 const FALLBACK_FAVICON_FETCH_RESERVE: i32 = 3;
 const HEURISTIC_FAVICON_MIN_PRIORITY: i32 = 350;
 const STRONG_HEURISTIC_FAVICON_MIN_PRIORITY: i32 = 520;
+pub(crate) const HOST_MAPPINGS_REVISION_HEADER: &str = "x-host-mappings-revision";
 const MAX_FAVICON_BYTES: usize = 128 * 1024;
 const ONE_PANEL_TITLE: &str = "1Panel";
 const ONE_PANEL_LOADING_TITLE: &str = "loading...";
@@ -71,6 +82,225 @@ const FAVICON_CANDIDATE_ATTRIBUTE_NAMES: [&str; 9] = [
     "data-favicon",
 ];
 const GO_BACKEND_UNSUCCESSFUL_RESPONSE: &str = "Go backend returned an unsuccessful response";
+const HOST_MAPPINGS_TRANSACTION_LOCK_KEY: &str =
+    "__fn_knock_internal:host-mappings-config-runtime-transaction";
+const HOST_MAPPINGS_TRANSACTION_LOCK_TTL_SECONDS: usize = 120;
+const HOST_MAPPINGS_TRANSACTION_LOCK_WAIT_SECONDS: u64 = 10;
+
+pub(crate) struct HostMappingsTransactionLease {
+    state: AppState,
+    lock_id: String,
+    valid: Arc<AtomicBool>,
+    heartbeat: Option<tokio::task::JoinHandle<()>>,
+    release_on_drop: bool,
+}
+
+pub(crate) async fn acquire_host_mappings_transaction_lease(
+    state: &AppState,
+) -> crate::storage::StorageResult<Option<HostMappingsTransactionLease>> {
+    let lock_id = uuid::Uuid::new_v4().to_string();
+    let deadline = tokio_time::Instant::now()
+        + Duration::from_secs(HOST_MAPPINGS_TRANSACTION_LOCK_WAIT_SECONDS);
+    loop {
+        if state
+            .store
+            .set_json_value_nx_ex(
+                HOST_MAPPINGS_TRANSACTION_LOCK_KEY,
+                &json!({
+                    "lockId": lock_id,
+                    "createdAt": crate::time_utils::now_iso(),
+                }),
+                HOST_MAPPINGS_TRANSACTION_LOCK_TTL_SECONDS,
+            )
+            .await?
+        {
+            let heartbeat_state = state.clone();
+            let heartbeat_lock_id = lock_id.clone();
+            let valid = Arc::new(AtomicBool::new(true));
+            let heartbeat_valid = Arc::clone(&valid);
+            let heartbeat = tokio::spawn(async move {
+                let mut interval = tokio_time::interval(Duration::from_secs(
+                    (HOST_MAPPINGS_TRANSACTION_LOCK_TTL_SECONDS as u64 / 3).max(1),
+                ));
+                interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
+                interval.tick().await;
+                loop {
+                    interval.tick().await;
+                    let refreshed = heartbeat_state
+                        .store
+                        .set_json_lock_if_owned_ex(
+                            HOST_MAPPINGS_TRANSACTION_LOCK_KEY,
+                            &heartbeat_lock_id,
+                            &json!({
+                                "lockId": heartbeat_lock_id,
+                                "refreshedAt": crate::time_utils::now_iso(),
+                            }),
+                            HOST_MAPPINGS_TRANSACTION_LOCK_TTL_SECONDS,
+                        )
+                        .await;
+                    if !matches!(refreshed, Ok(true)) {
+                        heartbeat_valid.store(false, Ordering::Release);
+                        break;
+                    }
+                }
+            });
+            return Ok(Some(HostMappingsTransactionLease {
+                state: state.clone(),
+                lock_id,
+                valid,
+                heartbeat: Some(heartbeat),
+                release_on_drop: true,
+            }));
+        }
+        if tokio_time::Instant::now() >= deadline {
+            return Ok(None);
+        }
+        tokio_time::sleep(Duration::from_millis(10)).await;
+    }
+}
+
+impl HostMappingsTransactionLease {
+    async fn ensure_valid(&self) -> crate::storage::StorageResult<bool> {
+        if !self.valid.load(Ordering::Acquire) {
+            return Ok(false);
+        }
+        let refreshed = self
+            .state
+            .store
+            .set_json_lock_if_owned_ex(
+                HOST_MAPPINGS_TRANSACTION_LOCK_KEY,
+                &self.lock_id,
+                &json!({
+                    "lockId": self.lock_id,
+                    "refreshedAt": crate::time_utils::now_iso(),
+                }),
+                HOST_MAPPINGS_TRANSACTION_LOCK_TTL_SECONDS,
+            )
+            .await?;
+        if !refreshed {
+            self.valid.store(false, Ordering::Release);
+        }
+        Ok(refreshed)
+    }
+
+    pub(crate) async fn ensure_owned(&self) -> crate::storage::StorageResult<()> {
+        if self.ensure_valid().await? {
+            return Ok(());
+        }
+        Err(crate::storage::storage_error(
+            "host mappings transaction lease ownership was lost",
+        ))
+    }
+
+    pub(crate) async fn release(mut self) -> crate::storage::StorageResult<bool> {
+        if let Some(heartbeat) = self.heartbeat.take() {
+            heartbeat.abort();
+        }
+        let result = self
+            .state
+            .store
+            .delete_lock_if_owned(HOST_MAPPINGS_TRANSACTION_LOCK_KEY, &self.lock_id)
+            .await;
+        match result {
+            Ok(true) => {
+                self.release_on_drop = false;
+                Ok(true)
+            }
+            Ok(false) => {
+                self.valid.store(false, Ordering::Release);
+                // The key is absent or belongs to a newer owner. Never let
+                // Drop attempt to delete that owner's lease.
+                self.release_on_drop = false;
+                Err(crate::storage::storage_error(
+                    "host mappings transaction lease ownership was lost before release",
+                ))
+            }
+            Err(error) => Err(error),
+        }
+    }
+}
+
+impl Drop for HostMappingsTransactionLease {
+    fn drop(&mut self) {
+        if let Some(heartbeat) = self.heartbeat.take() {
+            heartbeat.abort();
+        }
+        if !self.release_on_drop {
+            return;
+        }
+        let state = self.state.clone();
+        let lock_id = self.lock_id.clone();
+        if let Ok(runtime) = tokio::runtime::Handle::try_current() {
+            runtime.spawn(async move {
+                if let Err(error) = state
+                    .store
+                    .delete_lock_if_owned(HOST_MAPPINGS_TRANSACTION_LOCK_KEY, &lock_id)
+                    .await
+                {
+                    tracing::warn!(%error, "failed to release host mappings transaction lease");
+                }
+            });
+        }
+    }
+}
+
+pub(crate) async fn with_host_mappings_runtime_transaction<Sync, SyncFuture>(
+    state: &AppState,
+    sync: Sync,
+) -> Result<(), String>
+where
+    Sync: FnOnce(AppState) -> SyncFuture,
+    SyncFuture: std::future::Future<Output = Result<(), String>>,
+{
+    let _update_guard = state.host_mappings_update_lock.lock().await;
+    let lease = acquire_host_mappings_transaction_lease(state)
+        .await
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "Host mappings transaction is busy".to_string())?;
+    lease
+        .ensure_owned()
+        .await
+        .map_err(|error| error.to_string())?;
+    let sync_result = sync(state.clone()).await;
+    let ownership_result = lease
+        .ensure_owned()
+        .await
+        .map_err(|error| error.to_string());
+    let release_result = lease.release().await.map_err(|error| error.to_string());
+    match (sync_result, ownership_result, release_result) {
+        (Err(error), _, _) => Err(error),
+        (Ok(()), Err(error), _) => Err(error),
+        (Ok(()), Ok(()), Err(error)) => Err(error),
+        (Ok(()), Ok(()), Ok(true)) => Ok(()),
+        (Ok(()), Ok(()), Ok(false)) => {
+            Err("host mappings transaction lease ownership was lost before release".to_string())
+        }
+    }
+}
+
+pub(crate) async fn sync_current_go_host_rules(state: &AppState) -> Result<(), String> {
+    with_host_mappings_runtime_transaction(state, |state| async move {
+        let config = state
+            .store
+            .get_config()
+            .await
+            .map_err(|error| error.to_string())?;
+        sync_go_host_rules_for_config_locked(&state, &config).await
+    })
+    .await
+}
+
+pub(crate) async fn sync_current_go_auth_config(state: &AppState) -> Result<(), String> {
+    with_host_mappings_runtime_transaction(state, |state| async move {
+        let config = state
+            .store
+            .get_config()
+            .await
+            .map_err(|error| error.to_string())?;
+        sync_go_auth_config(&state, &config).await
+    })
+    .await
+}
 
 fn admin_config_text(translator: &Translator, key: &str) -> String {
     translator.t(&format!("server.admin.{key}"))
@@ -149,6 +379,34 @@ fn localize_proxy_config_error(translator: &Translator, message: &str) -> String
             translator,
             "hostMappings.targetInvalid",
             &[("host", host.to_string())],
+        );
+    }
+    if let Some(host) = message.strip_prefix("Duplicate host mapping ") {
+        return admin_config_text_params(
+            translator,
+            "hostMappings.duplicateHost",
+            &[("host", host.to_string())],
+        );
+    }
+    if let Some(host) = extract_between(
+        message,
+        "Host mapping ",
+        " HTTPS protocol mode must be auto, http1 or http2",
+    ) {
+        return admin_config_text_params(
+            translator,
+            "hostMappings.protocolModeInvalid",
+            &[("host", host.to_string())],
+        );
+    }
+    if let Some(rest) = message.strip_prefix("Go backend did not apply HTTPS protocol mode ")
+        && let Some((mode, host_and_reported)) = rest.split_once(" for ")
+        && let Some((host, _)) = host_and_reported.split_once(" (reported ")
+    {
+        return admin_config_text_params(
+            translator,
+            "hostMappings.backendProtocolUnsupported",
+            &[("host", host.to_string()), ("mode", mode.to_string())],
         );
     }
     if let Some(host) = extract_between(message, "Auth host mapping ", " must be public") {
@@ -342,6 +600,8 @@ fn extract_host_location_header<'a>(
 #[derive(Deserialize)]
 struct MappingsBody {
     mappings: Vec<Value>,
+    #[serde(default)]
+    revision: Option<String>,
 }
 
 #[derive(Clone)]
@@ -429,7 +689,63 @@ pub fn proxy_config_routes() -> Router<AppState> {
 }
 
 async fn get_host_mappings(State(state): State<AppState>) -> Response {
-    get_config_section(state, "host_mappings", Value::Array(Vec::new())).await
+    let translator = Translator::from_state(&state).await;
+    let config = match state.store.get_config().await {
+        Ok(config) => config,
+        Err(error) => {
+            tracing::warn!(%error, "failed to load host mappings");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                load_config_failed(&translator),
+            );
+        }
+    };
+    let mappings = config
+        .get("host_mappings")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    host_mappings_response(mappings)
+}
+
+fn host_mappings_revision(mappings: &[Value]) -> String {
+    let semantic = mappings
+        .iter()
+        .map(|mapping| {
+            let Some(mut object) = mapping.as_object().cloned() else {
+                return mapping.clone();
+            };
+            // These two fields are populated asynchronously from upstream
+            // metadata and must not invalidate an in-progress user edit.
+            object.remove("title");
+            object.remove("favicon");
+            Value::Object(object)
+        })
+        .collect::<Vec<_>>();
+    crate::crypto_utils::sha256_hex_bytes(
+        serde_json::to_vec(&semantic).unwrap_or_else(|_| b"[]".to_vec()),
+    )
+}
+
+pub(crate) fn host_mappings_revision_from_config(config: &Value) -> String {
+    let mappings = config
+        .get("host_mappings")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
+    host_mappings_revision(mappings)
+}
+
+fn host_mappings_response(mappings: Vec<Value>) -> Response {
+    let revision = host_mappings_revision(&mappings);
+    let mut response = response::ok(Value::Array(mappings)).into_response();
+    if let Ok(value) = HeaderValue::from_str(&revision) {
+        response.headers_mut().insert(
+            axum::http::HeaderName::from_static(HOST_MAPPINGS_REVISION_HEADER),
+            value,
+        );
+    }
+    response
 }
 
 async fn basic_auth_probe(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
@@ -452,7 +768,24 @@ async fn host_mapping_metadata(State(state): State<AppState>, Json(body): Json<V
 
 async fn refresh_host_mapping_titles(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    let mut config = match state.store.get_config().await {
+    let _update_guard = state.host_mappings_update_lock.lock().await;
+    let transaction_lease = match acquire_host_mappings_transaction_lease(&state).await {
+        Ok(Some(lease)) => lease,
+        Ok(None) => {
+            return response::error(
+                StatusCode::CONFLICT,
+                admin_config_text(&translator, "hostMappings.revisionConflict"),
+            );
+        }
+        Err(error) => {
+            tracing::warn!(%error, "failed to acquire host mappings transaction lease");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                admin_config_text(&translator, "hostMappings.updateFailed"),
+            );
+        }
+    };
+    let previous_config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to read host mappings before metadata refresh");
@@ -462,24 +795,61 @@ async fn refresh_host_mapping_titles(State(state): State<AppState>) -> Response 
             );
         }
     };
-    let mappings = config
+    let mappings = previous_config
         .get("host_mappings")
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
-    let (next_mappings, summary) = refresh_host_mapping_metadata(mappings).await;
-    ensure_object(&mut config).insert(
-        "host_mappings".to_string(),
-        Value::Array(next_mappings.clone()),
-    );
-    if let Err(error) = state.store.save_config(&config).await {
-        tracing::warn!(%error, "failed to save host mappings after metadata refresh");
+    let (next_mappings, summary) = refresh_host_mapping_metadata(mappings.clone()).await;
+    match transaction_lease.ensure_valid().await {
+        Ok(true) => {}
+        Ok(false) => {
+            return response::error(
+                StatusCode::CONFLICT,
+                admin_config_text(&translator, "hostMappings.revisionConflict"),
+            );
+        }
+        Err(error) => {
+            tracing::warn!(%error, "failed to refresh host mappings transaction lease");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                admin_config_text(&translator, "hostMappings.updateFailed"),
+            );
+        }
+    }
+    let config = match state
+        .store
+        .compare_and_set_host_mappings(&mappings, &next_mappings)
+        .await
+    {
+        Ok(Some(config)) => config,
+        Ok(None) => {
+            return response::error(
+                StatusCode::CONFLICT,
+                admin_config_text(&translator, "hostMappings.revisionConflict"),
+            );
+        }
+        Err(error) => {
+            tracing::warn!(%error, "failed to save host mappings after metadata refresh");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                admin_config_text(&translator, "hostMappings.updateFailed"),
+            );
+        }
+    };
+    if let Err(error) = transaction_lease.ensure_owned().await {
+        tracing::warn!(%error, "host mappings transaction lease was lost before runtime sync");
+        let _ = state
+            .store
+            .compare_and_set_host_mappings(&next_mappings, &mappings)
+            .await;
         return response::error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            admin_config_text(&translator, "hostMappings.updateFailed"),
+            StatusCode::CONFLICT,
+            admin_config_text(&translator, "hostMappings.revisionConflict"),
         );
     }
     if let Err(message) = sync_host_mappings_runtime(&state, &config, &next_mappings).await {
+        rollback_host_mappings(&state, &previous_config, &next_mappings).await;
         tracing::warn!(%message, "failed to sync host mappings after metadata refresh");
         return response::error(
             StatusCode::BAD_GATEWAY,
@@ -488,6 +858,13 @@ async fn refresh_host_mapping_titles(State(state): State<AppState>) -> Response 
                 &message,
                 "server.admin.hostMappings.syncHostRulesFailed",
             ),
+        );
+    }
+    if let Err(error) = transaction_lease.release().await {
+        tracing::warn!(%error, "failed to release host mappings transaction lease");
+        return response::error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            admin_config_text(&translator, "hostMappings.updateFailed"),
         );
     }
     response::ok(summary).into_response()
@@ -606,6 +983,26 @@ async fn update_host_mappings(
     Json(body): Json<MappingsBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
+    // Keep persistence, runtime sync and any rollback in one transaction. The
+    // mutex covers this AppState; the leased storage lock covers other states
+    // and processes that share the same config database.
+    let _update_guard = state.host_mappings_update_lock.lock().await;
+    let transaction_lease = match acquire_host_mappings_transaction_lease(&state).await {
+        Ok(Some(lease)) => lease,
+        Ok(None) => {
+            return response::error(
+                StatusCode::CONFLICT,
+                admin_config_text(&translator, "hostMappings.revisionConflict"),
+            );
+        }
+        Err(error) => {
+            tracing::warn!(%error, "failed to acquire host mappings transaction lease");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                admin_config_text(&translator, "hostMappings.updateFailed"),
+            );
+        }
+    };
     let previous_config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
@@ -616,6 +1013,19 @@ async fn update_host_mappings(
             );
         }
     };
+    let previous_mappings = previous_config
+        .get("host_mappings")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    if let Some(revision) = body.revision.as_deref().map(str::trim)
+        && revision != host_mappings_revision(&previous_mappings)
+    {
+        return response::error(
+            StatusCode::CONFLICT,
+            admin_config_text(&translator, "hostMappings.revisionConflict"),
+        );
+    }
 
     let normalized = match normalize_host_mappings_for_route(body.mappings, &previous_config) {
         Ok(value) => value,
@@ -627,28 +1037,113 @@ async fn update_host_mappings(
         }
     };
 
-    let mut updated_config = previous_config.clone();
-    ensure_object(&mut updated_config).insert(
+    let mut candidate_config = previous_config.clone();
+    ensure_object(&mut candidate_config).insert(
         "host_mappings".to_string(),
         Value::Array(normalized.clone()),
     );
-    if let Err(message) = validate_passkey_rp_config(&updated_config) {
+    if let Err(message) = validate_passkey_rp_config(&candidate_config) {
         return response::error(
             StatusCode::BAD_REQUEST,
             localize_proxy_config_error(&translator, &message),
         );
     }
+    match transaction_lease.ensure_valid().await {
+        Ok(true) => {}
+        Ok(false) => {
+            return response::error(
+                StatusCode::CONFLICT,
+                admin_config_text(&translator, "hostMappings.revisionConflict"),
+            );
+        }
+        Err(error) => {
+            tracing::warn!(%error, "failed to refresh host mappings transaction lease");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                admin_config_text(&translator, "hostMappings.updateFailed"),
+            );
+        }
+    }
 
-    if let Err(error) = state.store.save_config(&updated_config).await {
-        tracing::warn!(%error, "failed to save host mappings");
+    let updated_config = match state
+        .store
+        .compare_and_set_host_mappings(&previous_mappings, &normalized)
+        .await
+    {
+        Ok(Some(config)) => config,
+        Ok(None) => {
+            return response::error(
+                StatusCode::CONFLICT,
+                admin_config_text(&translator, "hostMappings.revisionConflict"),
+            );
+        }
+        Err(error) => {
+            tracing::warn!(%error, "failed to save host mappings");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                admin_config_text(&translator, "hostMappings.updateFailed"),
+            );
+        }
+    };
+    if let Err(message) = validate_passkey_rp_config(&updated_config) {
+        tracing::warn!(
+            %message,
+            "concurrent config update made the persisted host mappings invalid; rolling back"
+        );
+        match state
+            .store
+            .compare_and_set_host_mappings(&normalized, &previous_mappings)
+            .await
+        {
+            Ok(Some(_)) => {}
+            Ok(None) => {
+                let current_is_valid = state
+                    .store
+                    .get_config()
+                    .await
+                    .is_ok_and(|config| validate_passkey_rp_config(&config).is_ok());
+                if current_is_valid {
+                    return response::error(
+                        StatusCode::CONFLICT,
+                        admin_config_text(&translator, "hostMappings.revisionConflict"),
+                    );
+                }
+                tracing::warn!(
+                    "host mappings changed while rolling back an invalid config combination"
+                );
+                return response::error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    admin_config_text(&translator, "hostMappings.updateFailed"),
+                );
+            }
+            Err(error) => {
+                tracing::warn!(%error, "failed to rollback invalid host mappings combination");
+                return response::error(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    admin_config_text(&translator, "hostMappings.updateFailed"),
+                );
+            }
+        }
         return response::error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            admin_config_text(&translator, "hostMappings.updateFailed"),
+            StatusCode::CONFLICT,
+            admin_config_text(&translator, "hostMappings.revisionConflict"),
+        );
+    }
+
+    if let Err(error) = transaction_lease.ensure_owned().await {
+        tracing::warn!(%error, "host mappings transaction lease was lost before runtime sync");
+        let _ = state
+            .store
+            .compare_and_set_host_mappings(&normalized, &previous_mappings)
+            .await;
+        return response::error(
+            StatusCode::CONFLICT,
+            admin_config_text(&translator, "hostMappings.revisionConflict"),
         );
     }
 
     if let Err(message) = sync_host_mappings_runtime(&state, &updated_config, &normalized).await {
-        rollback_host_mappings(&state, &previous_config).await;
+        rollback_host_mappings(&state, &previous_config, &normalized).await;
         tracing::warn!(%message, "failed to sync host mappings runtime");
         return response::error(
             StatusCode::BAD_GATEWAY,
@@ -660,18 +1155,21 @@ async fn update_host_mappings(
         );
     }
 
-    let previous_mappings = previous_config
-        .get("host_mappings")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
+    if let Err(error) = transaction_lease.release().await {
+        tracing::warn!(%error, "failed to release host mappings transaction lease");
+        return response::error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            admin_config_text(&translator, "hostMappings.updateFailed"),
+        );
+    }
+
     schedule_host_mappings_metadata_refresh(state.clone(), normalized.clone(), previous_mappings);
     runtime_config::schedule_smart_connect_sync_after_host_mappings_change(
         state.clone(),
         updated_config.clone(),
     );
 
-    response::ok(Value::Array(normalized)).into_response()
+    host_mappings_response(normalized)
 }
 
 async fn update_stream_mappings(
@@ -782,7 +1280,7 @@ async fn update_subdomain_mode(State(state): State<AppState>, Json(body): Json<V
         );
     }
 
-    if let Err(message) = sync_go_auth_config(&state, &updated_config).await {
+    if let Err(message) = sync_current_go_auth_config(&state).await {
         rollback_subdomain_mode(&state, &previous_config).await;
         tracing::warn!(%message, "failed to sync subdomain mode auth config");
         return response::error(

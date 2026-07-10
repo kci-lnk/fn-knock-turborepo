@@ -61,16 +61,36 @@ pub async fn destroy_sessions_for_auth_method(
 }
 
 pub async fn destroy_session(state: &AppState, session_id: &str) -> anyhow::Result<()> {
-    let whitelist_ids = state
-        .store
-        .destroy_auth_mobility_session(session_id)
-        .await?;
-    for whitelist_id in whitelist_ids {
-        if let Err(error) = whitelist::remove_whitelist_record_by_id(state, &whitelist_id).await {
-            tracing::warn!(%error, %session_id, %whitelist_id, "failed to remove mobility whitelist record");
+    let lease = loop {
+        if let Some(lease) = acquire_auth_mobility_session_mutation_lease(state, session_id).await?
+        {
+            break lease;
         }
+        tracing::warn!(%session_id, "still waiting for auth mobility mutation lock during revocation");
+    };
+    let result = async {
+        // With the mutation lease held, publication and revocation are ordered:
+        // state committed before this delete is collected below, while later
+        // writers recheck the missing authoritative Session and fail closed.
+        state.store.delete_session(session_id).await?;
+        let whitelist_ids = state
+            .store
+            .destroy_auth_mobility_session(session_id)
+            .await?;
+        for whitelist_id in whitelist_ids {
+            if let Err(error) =
+                whitelist::remove_whitelist_record_by_id(state, &whitelist_id).await
+            {
+                tracing::warn!(%error, %session_id, %whitelist_id, "failed to remove mobility whitelist record");
+            }
+        }
+        Ok(())
     }
-    Ok(())
+    .await;
+    if let Err(error) = lease.release().await {
+        tracing::warn!(%error, %session_id, "failed to release auth mobility session mutation lock after revocation");
+    }
+    result
 }
 
 pub async fn clear_auto_ip_grants_for_totp_credential(
@@ -233,6 +253,34 @@ pub async fn reconcile_session_ip_mobility_policy(
 pub(super) async fn cleanup_session_active_ip_state(
     state: &AppState,
     session_id: &str,
+    _session: &LoginSession,
+    preserve_legacy_single_slot: bool,
+) -> anyhow::Result<()> {
+    let Some(lease) = acquire_auth_mobility_session_mutation_lease(state, session_id).await? else {
+        anyhow::bail!("Timed out waiting for auth mobility session mutation lock");
+    };
+    let result = async {
+        let Some(live_session) = state.store.get_session(session_id).await? else {
+            return Ok(());
+        };
+        cleanup_session_active_ip_state_locked(
+            state,
+            session_id,
+            &live_session,
+            preserve_legacy_single_slot,
+        )
+        .await
+    }
+    .await;
+    if let Err(error) = lease.release().await {
+        tracing::warn!(%error, %session_id, "failed to release auth mobility session mutation lock after policy cleanup");
+    }
+    result
+}
+
+async fn cleanup_session_active_ip_state_locked(
+    state: &AppState,
+    session_id: &str,
     session: &LoginSession,
     preserve_legacy_single_slot: bool,
 ) -> anyhow::Result<()> {
@@ -269,8 +317,12 @@ pub(super) async fn cleanup_session_active_ip_state(
             )
             .await?;
             preserve_record_id = Some(record.id.clone());
-            ensure_legacy_proxy_binding(state, session_id, session, &current_ip, &record.id)
-                .await?;
+            if !ensure_legacy_proxy_binding(state, session_id, session, &current_ip, &record.id)
+                .await?
+            {
+                whitelist::remove_whitelist_record_by_id(state, &record.id).await?;
+                return Ok(());
+            }
             if session.post_login_ip_grant_record_id.as_deref() != Some(record.id.as_str()) {
                 let mut updates = Map::new();
                 updates.insert(
@@ -307,10 +359,10 @@ pub(super) async fn ensure_legacy_proxy_binding(
     session: &LoginSession,
     current_ip: &str,
     whitelist_record_id: &str,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<bool> {
     let expire_at = parse_iso_unix(session.expires_at.as_deref());
     let Some(ttl_seconds) = resolve_proxy_session_ttl(expire_at) else {
-        return Ok(());
+        return Ok(false);
     };
     let existing = state
         .store
@@ -325,7 +377,7 @@ pub(super) async fn ensure_legacy_proxy_binding(
         Some(session_id),
         Some(whitelist_record_id.to_string()),
     );
-    state
+    if !state
         .store
         .save_auth_mobility_owned_binding(
             "proxy-session",
@@ -335,10 +387,16 @@ pub(super) async fn ensure_legacy_proxy_binding(
             ttl_seconds,
             Some(ttl_seconds),
         )
-        .await?;
-    state
+        .await?
+    {
+        return Ok(false);
+    }
+    if !state
         .store
         .set_auth_mobility_whitelist_owner(whitelist_record_id, session_id, ttl_seconds)
-        .await?;
-    Ok(())
+        .await?
+    {
+        return Ok(false);
+    }
+    Ok(true)
 }

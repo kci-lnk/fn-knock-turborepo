@@ -1,5 +1,154 @@
 use super::*;
 
+struct ConfigFenceSnapshot {
+    config_raw: Option<String>,
+    generation_raw: Option<String>,
+    config: Value,
+    generation: u64,
+}
+
+struct ConfigGenerationMarker {
+    generation: u64,
+    host_fingerprint: String,
+}
+
+async fn load_config_fence_snapshot(
+    conn: &mut ConnectionManager,
+) -> crate::storage::StorageResult<ConfigFenceSnapshot> {
+    let values: Vec<Option<String>> = redis::cmd("MGET")
+        .arg(vec![
+            CONFIG_KEY.to_string(),
+            HOST_MAPPINGS_GENERATION_KEY.to_string(),
+        ])
+        .query_async(conn)
+        .await?;
+    let config_raw = values.first().cloned().flatten();
+    let generation_raw = values.get(1).cloned().flatten();
+    let config = match config_raw.as_deref() {
+        Some(raw) => serde_json::from_str(raw)?,
+        None => default_config(),
+    };
+    let generation = generation_raw
+        .as_deref()
+        .unwrap_or("0")
+        .parse::<u64>()
+        .map_err(|_| crate::storage::storage_error("host mappings generation is invalid"))?;
+    Ok(ConfigFenceSnapshot {
+        config_raw,
+        generation_raw,
+        config,
+        generation,
+    })
+}
+
+async fn compare_and_set_config_fence_snapshot(
+    conn: &mut ConnectionManager,
+    snapshot: &ConfigFenceSnapshot,
+    replacement_raw: &str,
+    replacement_generation: u64,
+) -> crate::storage::StorageResult<bool> {
+    let applied: i64 = redis::cmd("EVAL")
+        .arg(
+            r#"
+-- fn-knock:eval:cas-config-host-generation-raw:v1
+local current_config = redis.call("GET", KEYS[1])
+local current_generation = redis.call("GET", KEYS[2])
+local function raw_matches(current, expected_exists, expected)
+  if expected_exists == "0" then
+    return not current
+  end
+  return current and current == expected
+end
+if not raw_matches(current_config, ARGV[1], ARGV[2])
+    or not raw_matches(current_generation, ARGV[3], ARGV[4]) then
+  return 0
+end
+redis.call("SET", KEYS[1], ARGV[5])
+redis.call("SET", KEYS[2], ARGV[6])
+return 1
+"#,
+        )
+        .arg(2)
+        .arg(CONFIG_KEY)
+        .arg(HOST_MAPPINGS_GENERATION_KEY)
+        .arg(if snapshot.config_raw.is_some() {
+            "1"
+        } else {
+            "0"
+        })
+        .arg(snapshot.config_raw.as_deref().unwrap_or(""))
+        .arg(if snapshot.generation_raw.is_some() {
+            "1"
+        } else {
+            "0"
+        })
+        .arg(snapshot.generation_raw.as_deref().unwrap_or(""))
+        .arg(replacement_raw)
+        .arg(replacement_generation.to_string())
+        .query_async(conn)
+        .await?;
+    Ok(applied == 1)
+}
+
+fn config_host_mappings(config: &Value) -> Value {
+    config
+        .get("host_mappings")
+        .cloned()
+        .unwrap_or_else(|| Value::Array(Vec::new()))
+}
+
+fn config_host_mappings_fingerprint(config: &Value) -> crate::storage::StorageResult<String> {
+    Ok(crate::crypto_utils::sha256_hex_bytes(serde_json::to_vec(
+        &config_host_mappings(config),
+    )?))
+}
+
+fn take_config_generation_marker(
+    config: &mut Value,
+) -> crate::storage::StorageResult<Option<ConfigGenerationMarker>> {
+    let Some(object) = config.as_object_mut() else {
+        return Ok(None);
+    };
+    let Some(marker) = object.remove(CONFIG_GENERATION_MARKER) else {
+        return Ok(None);
+    };
+    let generation = marker
+        .get("generation")
+        .and_then(Value::as_u64)
+        .ok_or_else(|| {
+            crate::storage::storage_error("host mappings generation marker is invalid")
+        })?;
+    let host_fingerprint = marker
+        .get("host_fingerprint")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            crate::storage::storage_error("host mappings generation fingerprint is invalid")
+        })?
+        .to_string();
+    Ok(Some(ConfigGenerationMarker {
+        generation,
+        host_fingerprint,
+    }))
+}
+
+fn inject_config_generation_marker(
+    config: &mut Value,
+    generation: u64,
+) -> crate::storage::StorageResult<()> {
+    let host_fingerprint = config_host_mappings_fingerprint(config)?;
+    if let Some(object) = config.as_object_mut() {
+        object.insert(
+            CONFIG_GENERATION_MARKER.to_string(),
+            json!({
+                "generation": generation,
+                "host_fingerprint": host_fingerprint,
+            }),
+        );
+    }
+    Ok(())
+}
+
 impl Store {
     pub async fn ping(&self) -> crate::storage::StorageResult<()> {
         let mut conn = self.conn();
@@ -71,6 +220,7 @@ impl Store {
         let _: i64 = redis::cmd("EVAL")
             .arg(
                 r#"
+                -- fn-knock:eval:delete-if-value:v1
                 if redis.call('GET', KEYS[1]) == ARGV[1] then
                     return redis.call('DEL', KEYS[1])
                 end
@@ -114,6 +264,7 @@ impl Store {
         let raw: Option<String> = redis::cmd("EVAL")
             .arg(
                 r#"
+-- fn-knock:eval:consume-value:v1
 local value = redis.call("GET", KEYS[1])
 if not value then
   return nil
@@ -598,6 +749,9 @@ return value
         let mut batched_commands = 0usize;
 
         for entry in entries {
+            if entry.get("key").and_then(Value::as_str) == Some(HOST_MAPPINGS_GENERATION_KEY) {
+                continue;
+            }
             batched_commands += append_backup_restore_commands(&mut pipe, entry);
 
             if batched_commands >= PIPELINE_BATCH_SIZE {
@@ -620,9 +774,29 @@ return value
         _count: usize,
     ) -> crate::storage::StorageResult<usize> {
         let mut conn = self.conn();
+        let trusted_generation = if prefix == "fn_knock:" {
+            Some(
+                load_config_fence_snapshot(&mut conn)
+                    .await?
+                    .generation
+                    .checked_add(1)
+                    .ok_or_else(|| {
+                        crate::storage::storage_error("host mappings generation overflow")
+                    })?,
+            )
+        } else {
+            None
+        };
         let mut pipe = redis::pipe();
         for entry in entries {
+            if entry.get("key").and_then(Value::as_str) == Some(HOST_MAPPINGS_GENERATION_KEY) {
+                continue;
+            }
             append_backup_restore_commands(&mut pipe, entry);
+        }
+        if let Some(generation) = trusted_generation {
+            pipe.set(HOST_MAPPINGS_GENERATION_KEY, generation.to_string())
+                .ignore();
         }
         let (cleared_keys, _): (usize, ()) =
             pipe.query_async_replacing_prefix(&mut conn, prefix).await?;
@@ -689,6 +863,7 @@ return value
         let result: i64 = redis::cmd("EVAL")
             .arg(
                 r#"
+-- fn-knock:eval:json-lock-refresh:v1
 local raw = redis.call("GET", KEYS[1])
 if not raw then
   return 0
@@ -720,6 +895,7 @@ return 1
         let result: i64 = redis::cmd("EVAL")
             .arg(
                 r#"
+-- fn-knock:eval:json-lock-release:v1
 local raw = redis.call("GET", KEYS[1])
 if not raw then
   return 0
@@ -741,15 +917,241 @@ return 1
     }
 
     pub async fn get_config(&self) -> crate::storage::StorageResult<Value> {
-        Ok(self
-            .get_json_value("fn_knock:config")
-            .await?
-            .unwrap_or_else(default_config))
+        let mut conn = self.conn();
+        let snapshot = load_config_fence_snapshot(&mut conn).await?;
+        let mut config = snapshot.config;
+        inject_config_generation_marker(&mut config, snapshot.generation)?;
+        Ok(config)
     }
 
-    #[allow(dead_code)]
+    /// Atomically replaces only the `host_mappings` section when its current
+    /// value still exactly matches `expected`.
+    ///
+    /// The returned value is the complete config that was persisted. This is
+    /// intentionally produced inside the storage transaction so callers do
+    /// not have to reconstruct a full config from a stale read and therefore
+    /// cannot overwrite unrelated top-level sections.
+    pub async fn compare_and_set_host_mappings(
+        &self,
+        expected: &[Value],
+        replacement: &[Value],
+    ) -> crate::storage::StorageResult<Option<Value>> {
+        let mut conn = self.conn();
+        // An unrelated top-level section may change between our read and the
+        // raw-string CAS. Re-read and merge in that case; if host_mappings
+        // itself changed, the exact structural comparison below returns a
+        // conflict instead of overwriting the newer value.
+        for _ in 0..32 {
+            let snapshot = load_config_fence_snapshot(&mut conn).await?;
+            let mut current_config = snapshot.config.clone();
+            strip_internal_config_metadata(&mut current_config);
+            let Some(current_object) = current_config.as_object_mut() else {
+                return Err(crate::storage::storage_error(
+                    "stored config must be a JSON object",
+                ));
+            };
+            let current_mappings = match current_object.get("host_mappings") {
+                None => &[][..],
+                Some(Value::Array(mappings)) => mappings.as_slice(),
+                Some(_) => return Ok(None),
+            };
+            if current_mappings != expected {
+                return Ok(None);
+            }
+            let mappings_changed = current_mappings != replacement;
+            current_object.insert(
+                "host_mappings".to_string(),
+                Value::Array(replacement.to_vec()),
+            );
+            let replacement_raw = serde_json::to_string(&current_config)?;
+            let replacement_generation = if mappings_changed {
+                snapshot.generation.checked_add(1).ok_or_else(|| {
+                    crate::storage::storage_error("host mappings generation overflow")
+                })?
+            } else {
+                snapshot.generation
+            };
+            if compare_and_set_config_fence_snapshot(
+                &mut conn,
+                &snapshot,
+                &replacement_raw,
+                replacement_generation,
+            )
+            .await?
+            {
+                inject_config_generation_marker(&mut current_config, replacement_generation)?;
+                return Ok(Some(current_config));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Atomically merges the two gateway target configuration sections into
+    /// the latest full config. Host runtime synchronization may overlap both
+    /// a non-Host writer (for example a run_type update) and a newer writer of
+    /// either target section. A section is replaced only while its exact
+    /// original value, including absence, still matches; otherwise the newer
+    /// stored section is retained.
+    pub async fn merge_gateway_target_config_sections(
+        &self,
+        expected_gateway_proxy_headers: Option<&Value>,
+        gateway_proxy_headers: &Value,
+        expected_gateway_host_response: Option<&Value>,
+        gateway_host_response: &Value,
+    ) -> crate::storage::StorageResult<Value> {
+        let mut conn = self.conn();
+        for _ in 0..32 {
+            let snapshot = load_config_fence_snapshot(&mut conn).await?;
+            let mut current_config = snapshot.config.clone();
+            strip_internal_config_metadata(&mut current_config);
+            let Some(object) = current_config.as_object_mut() else {
+                return Err(crate::storage::storage_error(
+                    "stored config must be a JSON object",
+                ));
+            };
+            let proxy_headers_unchanged = match (
+                object.get("gateway_proxy_headers"),
+                expected_gateway_proxy_headers,
+            ) {
+                (None, None) => true,
+                (Some(current), Some(expected)) => current == expected,
+                _ => false,
+            };
+            if proxy_headers_unchanged {
+                object.insert(
+                    "gateway_proxy_headers".to_string(),
+                    gateway_proxy_headers.clone(),
+                );
+            }
+            let host_response_unchanged = match (
+                object.get("gateway_host_response"),
+                expected_gateway_host_response,
+            ) {
+                (None, None) => true,
+                (Some(current), Some(expected)) => current == expected,
+                _ => false,
+            };
+            if host_response_unchanged {
+                object.insert(
+                    "gateway_host_response".to_string(),
+                    gateway_host_response.clone(),
+                );
+            }
+            let replacement_raw = serde_json::to_string(&current_config)?;
+            if compare_and_set_config_fence_snapshot(
+                &mut conn,
+                &snapshot,
+                &replacement_raw,
+                snapshot.generation,
+            )
+            .await?
+            {
+                inject_config_generation_marker(&mut current_config, snapshot.generation)?;
+                return Ok(current_config);
+            }
+        }
+        Err(crate::storage::storage_error(
+            "config changed too frequently while merging gateway target sections",
+        ))
+    }
+
     pub async fn save_config(&self, value: &Value) -> crate::storage::StorageResult<()> {
-        self.set_json_value("fn_knock:config", value).await
+        let mut requested_config = value.clone();
+        let requested_generation = take_config_generation_marker(&mut requested_config)?;
+        strip_internal_config_metadata(&mut requested_config);
+        let requested_host_mappings = config_host_mappings(&requested_config);
+        let requested_host_fingerprint = config_host_mappings_fingerprint(&requested_config)?;
+        if let Some(marker) = requested_generation.as_ref()
+            && marker.host_fingerprint != requested_host_fingerprint
+        {
+            return Err(crate::storage::storage_error(
+                "host mappings must be updated through compare_and_set_host_mappings",
+            ));
+        }
+        let mut conn = self.conn();
+
+        for _ in 0..32 {
+            let snapshot = load_config_fence_snapshot(&mut conn).await?;
+            let current_host_mappings = config_host_mappings(&snapshot.config);
+            let current_host_fingerprint = config_host_mappings_fingerprint(&snapshot.config)?;
+            let mut replacement_config = requested_config.clone();
+            let replacement_generation = match requested_generation.as_ref() {
+                Some(marker)
+                    if marker.host_fingerprint != current_host_fingerprint
+                        || marker.generation != snapshot.generation =>
+                {
+                    return Err(crate::storage::storage_error(
+                        "host mappings changed after this config snapshot was read",
+                    ));
+                }
+                Some(_) => snapshot.generation,
+                None => {
+                    if snapshot.config_raw.is_some() {
+                        return Err(crate::storage::storage_error(
+                            "config generation marker is required for an existing config",
+                        ));
+                    }
+                    if requested_host_mappings == current_host_mappings {
+                        snapshot.generation
+                    } else {
+                        snapshot.generation.checked_add(1).ok_or_else(|| {
+                            crate::storage::storage_error("host mappings generation overflow")
+                        })?
+                    }
+                }
+            };
+            strip_internal_config_metadata(&mut replacement_config);
+            let replacement_raw = serde_json::to_string(&replacement_config)?;
+            if compare_and_set_config_fence_snapshot(
+                &mut conn,
+                &snapshot,
+                &replacement_raw,
+                replacement_generation,
+            )
+            .await?
+            {
+                return Ok(());
+            }
+        }
+        Err(crate::storage::storage_error(
+            "config changed too frequently while saving",
+        ))
+    }
+
+    /// Explicitly replaces the complete persisted config. Normal application
+    /// updates must use `get_config` followed by `save_config`; this test-only
+    /// method sets up explicit full replacements.
+    #[cfg(test)]
+    pub async fn replace_config(&self, value: &Value) -> crate::storage::StorageResult<()> {
+        let mut replacement_config = value.clone();
+        strip_internal_config_metadata(&mut replacement_config);
+        let replacement_host_mappings = config_host_mappings(&replacement_config);
+        let replacement_raw = serde_json::to_string(&replacement_config)?;
+        let mut conn = self.conn();
+        for _ in 0..32 {
+            let snapshot = load_config_fence_snapshot(&mut conn).await?;
+            let replacement_generation =
+                if replacement_host_mappings == config_host_mappings(&snapshot.config) {
+                    snapshot.generation
+                } else {
+                    snapshot.generation.checked_add(1).ok_or_else(|| {
+                        crate::storage::storage_error("host mappings generation overflow")
+                    })?
+                };
+            if compare_and_set_config_fence_snapshot(
+                &mut conn,
+                &snapshot,
+                &replacement_raw,
+                replacement_generation,
+            )
+            .await?
+            {
+                return Ok(());
+            }
+        }
+        Err(crate::storage::storage_error(
+            "config changed too frequently while replacing",
+        ))
     }
 
     pub async fn locale(&self) -> crate::storage::StorageResult<Value> {

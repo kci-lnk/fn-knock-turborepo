@@ -24,6 +24,7 @@ pub(crate) fn build_host_rules_payload(mappings: &[Value]) -> Value {
                     "is_default": object.get("is_default").cloned().unwrap_or(Value::Bool(false)),
                     "disabled": object.get("disabled").cloned().unwrap_or(Value::Bool(false)),
                     "availability": object.get("availability").cloned().unwrap_or(Value::Null),
+                    "protocol_mode": normalize_protocol_mode(object.get("protocol_mode")),
                     "title": title,
                     "favicon": favicon,
                     "basic_auth": object.get("basic_auth").cloned().unwrap_or_else(disabled_host_basic_auth),

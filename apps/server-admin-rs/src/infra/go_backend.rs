@@ -982,6 +982,7 @@ fn parse_host_rules(value: &Value) -> Vec<HostRule> {
                     availability: item
                         .get("availability")
                         .and_then(parse_host_rule_availability),
+                    protocol_mode: string_field(item, "protocol_mode"),
                     title: string_field(item, "title"),
                     favicon: string_field(item, "favicon"),
                     basic_auth: item.get("basic_auth").map(parse_basic_auth),
@@ -1215,6 +1216,7 @@ fn host_rules_to_json(items: Vec<HostRule>) -> Value {
                     "is_default": item.is_default,
                     "disabled": item.disabled,
                     "availability": host_rule_availability_to_json(item.availability),
+                    "protocol_mode": item.protocol_mode,
                     "title": item.title,
                     "favicon": item.favicon,
                     "basic_auth": item.basic_auth.map(|auth| json!({

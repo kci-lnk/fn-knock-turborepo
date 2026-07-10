@@ -2,7 +2,7 @@
 use std::os::unix::fs::PermissionsExt;
 use std::{
     cmp::Ordering,
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     fmt::Display,
     path::{Path, PathBuf},
 };
@@ -503,12 +503,72 @@ CREATE TABLE IF NOT EXISTS kv_stream (
 CREATE INDEX IF NOT EXISTS idx_kv_stream_key_seq ON kv_stream(key, seq);
 "#;
 
-const SCHEMA_MIGRATIONS: &[SchemaMigration] = &[SchemaMigration {
-    version: 1,
-    name: "redis_compatible_keyspace",
-    sql: REDIS_COMPATIBLE_KEYSPACE_SQL,
-    destructive: false,
-}];
+const REDIS_COMPATIBLE_STREAM_METADATA_SQL: &str = r#"
+CREATE TABLE kv_stream_v2 (
+  key TEXT NOT NULL REFERENCES kv_keys(key) ON DELETE CASCADE,
+  id TEXT NOT NULL,
+  id_ms INTEGER NOT NULL CHECK (id_ms >= 0),
+  id_sequence INTEGER NOT NULL CHECK (id_sequence >= 0),
+  seq INTEGER PRIMARY KEY AUTOINCREMENT,
+  fields_json TEXT NOT NULL,
+  CHECK (id = printf('%lld-%lld', id_ms, id_sequence)),
+  UNIQUE (key, id)
+);
+INSERT INTO kv_stream_v2(key, id, id_ms, id_sequence, seq, fields_json)
+SELECT
+  key,
+  id,
+  CAST(substr(id, 1, instr(id, '-') - 1) AS INTEGER),
+  CAST(substr(id, instr(id, '-') + 1) AS INTEGER),
+  seq,
+  fields_json
+FROM kv_stream;
+DROP TABLE kv_stream;
+ALTER TABLE kv_stream_v2 RENAME TO kv_stream;
+CREATE INDEX idx_kv_stream_key_seq ON kv_stream(key, seq);
+CREATE INDEX idx_kv_stream_key_id_parts
+  ON kv_stream(key, id_ms, id_sequence);
+
+CREATE TABLE IF NOT EXISTS kv_stream_meta (
+  key TEXT PRIMARY KEY REFERENCES kv_keys(key) ON DELETE CASCADE,
+  last_generated_ms INTEGER NOT NULL,
+  last_generated_seq INTEGER NOT NULL
+);
+
+INSERT INTO kv_stream_meta(key, last_generated_ms, last_generated_seq)
+SELECT stream.key, stream.id_ms, stream.id_sequence
+FROM kv_stream AS stream
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM kv_stream AS newer
+  WHERE newer.key = stream.key
+    AND (newer.id_ms, newer.id_sequence) > (stream.id_ms, stream.id_sequence)
+);
+
+DELETE FROM kv_keys
+WHERE kind = 'hash' AND NOT EXISTS (SELECT 1 FROM kv_hash WHERE kv_hash.key = kv_keys.key);
+DELETE FROM kv_keys
+WHERE kind = 'list' AND NOT EXISTS (SELECT 1 FROM kv_list WHERE kv_list.key = kv_keys.key);
+DELETE FROM kv_keys
+WHERE kind = 'set' AND NOT EXISTS (SELECT 1 FROM kv_set WHERE kv_set.key = kv_keys.key);
+DELETE FROM kv_keys
+WHERE kind = 'zset' AND NOT EXISTS (SELECT 1 FROM kv_zset WHERE kv_zset.key = kv_keys.key);
+"#;
+
+const SCHEMA_MIGRATIONS: &[SchemaMigration] = &[
+    SchemaMigration {
+        version: 1,
+        name: "redis_compatible_keyspace",
+        sql: REDIS_COMPATIBLE_KEYSPACE_SQL,
+        destructive: false,
+    },
+    SchemaMigration {
+        version: 2,
+        name: "redis_compatible_stream_metadata",
+        sql: REDIS_COMPATIBLE_STREAM_METADATA_SQL,
+        destructive: true,
+    },
+];
 
 pub(crate) struct Cmd {
     spec: CommandSpec,
@@ -1003,6 +1063,7 @@ impl ConnectionManager {
                     params![key, field],
                 )?;
             }
+            delete_collection_key_if_empty_tx(&tx, &key, "hash")?;
             tx.commit()?;
             Ok(())
         })
@@ -1063,6 +1124,7 @@ impl ConnectionManager {
                     params![key, member],
                 )?;
             }
+            delete_collection_key_if_empty_tx(&tx, &key, "set")?;
             tx.commit()?;
             Ok(())
         })
@@ -1107,6 +1169,7 @@ impl ConnectionManager {
                     params![key, member],
                 )?;
             }
+            delete_collection_key_if_empty_tx(&tx, &key, "zset")?;
             tx.commit()?;
             Ok(())
         })
@@ -1121,11 +1184,15 @@ impl ConnectionManager {
     ) -> RedisResult<()> {
         let key = key.into_key();
         self.call(move |conn| {
-            purge_expired(conn, &key)?;
-            conn.execute(
-                "DELETE FROM kv_zset WHERE key = ?1 AND score >= ?2 AND score <= ?3",
-                params![key, min_score as f64, max_score as f64],
+            let tx = immediate_transaction(conn)?;
+            purge_expired_tx(&tx, &key)?;
+            delete_zset_score_range_tx(
+                &tx,
+                &key,
+                ScoreBound::inclusive(min_score as f64),
+                ScoreBound::inclusive(max_score as f64),
             )?;
+            tx.commit()?;
             Ok(())
         })
         .await
@@ -1252,20 +1319,21 @@ impl ConnectionManager {
     pub(crate) async fn xrevrange_count<K: IntoKey>(
         &mut self,
         key: K,
-        _max: &str,
-        _min: &str,
+        max: &str,
+        min: &str,
         count: usize,
     ) -> RedisResult<streams::StreamRangeReply> {
         let key = key.into_key();
+        let max = max.to_string();
+        let min = min.to_string();
         self.call(move |conn| {
             purge_expired(conn, &key)?;
-            let mut stmt = conn.prepare(
-                "SELECT id, fields_json FROM kv_stream WHERE key = ?1 ORDER BY seq DESC LIMIT ?2",
-            )?;
-            let rows = stmt.query_map(params![key, count as i64], |row| {
-                stream_id_from_row(row.get(0)?, row.get(1)?)
-            })?;
-            let ids = rows.collect::<Result<Vec<_>, _>>()?;
+            let min = parse_stream_bound(&min, true)?;
+            let max = parse_stream_bound(&max, false)?;
+            let ids = query_stream_rows(conn, &key, min, false, max, true, count)?
+                .into_iter()
+                .map(|(id, fields_json)| stream_id_from_row(id, fields_json))
+                .collect::<Result<Vec<_>, _>>()?;
             Ok(streams::StreamRangeReply { ids })
         })
         .await
@@ -1283,26 +1351,11 @@ impl ConnectionManager {
         self.call(move |conn| {
             purge_expired(conn, &key)?;
             let last_stream_id = parse_stream_id(&last_id).unwrap_or_default();
-            let mut stmt = conn.prepare(
-                "SELECT id, fields_json FROM kv_stream
-                 WHERE key = ?1
-                 ORDER BY seq ASC",
-            )?;
-            let rows = stmt.query_map(params![key], |row| {
-                let id: String = row.get(0)?;
-                let fields_json: String = row.get(1)?;
-                Ok((id, fields_json))
-            })?;
-            let mut ids = Vec::new();
-            for row in rows {
-                let (id, fields_json) = row?;
-                if parse_stream_id(&id).is_some_and(|stream_id| stream_id > last_stream_id) {
-                    ids.push(stream_id_from_row(id, fields_json)?);
-                    if ids.len() >= count {
-                        break;
-                    }
-                }
-            }
+            let ids =
+                query_stream_rows(conn, &key, Some(last_stream_id), true, None, false, count)?
+                    .into_iter()
+                    .map(|(id, fields_json)| stream_id_from_row(id, fields_json))
+                    .collect::<Result<Vec<_>, _>>()?;
             if ids.is_empty() {
                 Ok(None)
             } else {
@@ -1530,6 +1583,7 @@ fn execute_command_tx(
                     params![key, field],
                 )?;
             }
+            delete_collection_key_if_empty_tx(tx, key, "hash")?;
             Ok(CmdOutput::Nil)
         }
         "HMGET" => {
@@ -1589,6 +1643,7 @@ fn execute_command_tx(
                     params![key, member],
                 )?;
             }
+            delete_collection_key_if_empty_tx(tx, key, "set")?;
             Ok(CmdOutput::Nil)
         }
         "ZADD" => {
@@ -1613,6 +1668,7 @@ fn execute_command_tx(
                     params![key, member],
                 )?;
             }
+            delete_collection_key_if_empty_tx(tx, key, "zset")?;
             Ok(CmdOutput::Nil)
         }
         "ZREMRANGEBYSCORE" => {
@@ -1669,6 +1725,7 @@ fn execute_command_tx(
                     params![key, idx as i64, value],
                 )?;
             }
+            delete_collection_key_if_empty_tx(tx, &key, "list")?;
             Ok(CmdOutput::Nil)
         }
         "INCRBY" => {
@@ -1694,29 +1751,28 @@ fn execute_command_tx(
         "XADD" => xadd_command_tx(tx, &args),
         "XRANGE" => {
             let key = arg(&args, 0)?;
+            let min = parse_stream_bound(arg(&args, 1)?, true)?;
+            let max = parse_stream_bound(arg(&args, 2)?, false)?;
             purge_expired_tx(tx, key)?;
-            let mut stmt = tx
-                .prepare("SELECT id, fields_json FROM kv_stream WHERE key = ?1 ORDER BY seq ASC")?;
-            let rows = stmt.query_map(params![key], |row| {
-                let id: String = row.get(0)?;
-                let fields_json: String = row.get(1)?;
-                let fields = stream_fields_vec(&fields_json)?;
-                Ok((id, fields))
-            })?;
+            let entries = query_stream_rows(tx, key, min, false, max, false, usize::MAX)?;
             Ok(CmdOutput::StreamEntries(
-                rows.collect::<Result<Vec<_>, _>>()?,
+                entries
+                    .into_iter()
+                    .map(|(id, fields_json)| Ok((id, stream_fields_vec(&fields_json)?)))
+                    .collect::<Result<Vec<_>, rusqlite::Error>>()?,
             ))
         }
         "XTRIM" => {
             let key = arg(&args, 0)?;
-            let min_id = args.last().cloned().unwrap_or_default();
+            let min_id = parse_stream_id(arg(&args, args.len().saturating_sub(1))?)
+                .ok_or_else(|| storage_error("XTRIM MINID requires a valid stream ID"))?;
             purge_expired_tx(tx, key)?;
-            if !min_id.is_empty() {
-                tx.execute(
-                    "DELETE FROM kv_stream WHERE key = ?1 AND id < ?2",
-                    params![key, min_id],
-                )?;
-            }
+            let (min_ms, min_sequence) = stream_id_sql_tuple(min_id)?;
+            tx.execute(
+                "DELETE FROM kv_stream
+                 WHERE key = ?1 AND (id_ms, id_sequence) < (?2, ?3)",
+                params![key, min_ms, min_sequence],
+            )?;
             Ok(CmdOutput::Nil)
         }
         "XDEL" => {
@@ -1739,13 +1795,624 @@ fn execute_command_tx(
 
 fn eval_command_tx(tx: &rusqlite::Transaction<'_>, args: &[String]) -> RedisResult<CmdOutput> {
     let script = arg(args, 0)?;
-    let key_count = parse_i64(arg(args, 1)?)? as usize;
-    let keys_start = 2;
-    let argv_start = keys_start + key_count;
-    let keys = &args[keys_start..argv_start.min(args.len())];
-    let argv = &args[argv_start.min(args.len())..];
+    let key_count = usize::try_from(parse_i64(arg(args, 1)?)?)
+        .map_err(|_| storage_error("EVAL key count must be non-negative"))?;
+    let keys_start = 2_usize;
+    let argv_start = keys_start
+        .checked_add(key_count)
+        .filter(|index| *index <= args.len())
+        .ok_or_else(|| storage_error("EVAL key count exceeds supplied arguments"))?;
+    let keys = &args[keys_start..argv_start];
+    let argv = &args[argv_start..];
 
-    if script.contains("redis.call('GET', KEYS[1]) == ARGV[1]")
+    if script.contains("fn-knock:eval:cas-config-host-generation-raw:v1") {
+        let config_key = keys
+            .first()
+            .ok_or_else(|| storage_error("config CAS config key missing"))?;
+        let generation_key = keys
+            .get(1)
+            .ok_or_else(|| storage_error("config CAS generation key missing"))?;
+        let config_expected_exists = argv
+            .first()
+            .ok_or_else(|| storage_error("config CAS config exists flag missing"))?;
+        let config_expected_raw = argv
+            .get(1)
+            .ok_or_else(|| storage_error("config CAS expected config missing"))?;
+        let generation_expected_exists = argv
+            .get(2)
+            .ok_or_else(|| storage_error("config CAS generation exists flag missing"))?;
+        let generation_expected_raw = argv
+            .get(3)
+            .ok_or_else(|| storage_error("config CAS expected generation missing"))?;
+        let replacement_config_raw = argv
+            .get(4)
+            .ok_or_else(|| storage_error("config CAS replacement config missing"))?;
+        let replacement_generation_raw = argv
+            .get(5)
+            .ok_or_else(|| storage_error("config CAS replacement generation missing"))?;
+
+        let read_raw = |key: &str| -> RedisResult<Option<String>> {
+            purge_expired_tx(tx, key)?;
+            match key_kind_tx(tx, key)? {
+                None => Ok(None),
+                Some(kind) if kind == "string" => string_get_tx(tx, key),
+                Some(_) => Err(storage_error("config CAS key must contain a string")),
+            }
+        };
+        let raw_matches = |current: Option<&str>, exists: &str, expected: &str| match exists {
+            "0" => Ok(current.is_none()),
+            "1" => Ok(current == Some(expected)),
+            _ => Err(storage_error("config CAS exists flag is invalid")),
+        };
+        let current_config_raw = read_raw(config_key)?;
+        let current_generation_raw = read_raw(generation_key)?;
+        if !raw_matches(
+            current_config_raw.as_deref(),
+            config_expected_exists,
+            config_expected_raw,
+        )? || !raw_matches(
+            current_generation_raw.as_deref(),
+            generation_expected_exists,
+            generation_expected_raw,
+        )? {
+            return Ok(CmdOutput::Int(0));
+        }
+        set_string_tx(tx, config_key, replacement_config_raw, None)?;
+        set_string_tx(tx, generation_key, replacement_generation_raw, None)?;
+        return Ok(CmdOutput::Int(1));
+    }
+
+    if script.contains("fn-knock:eval:update-session-json-cas:v2") {
+        let key = keys
+            .first()
+            .ok_or_else(|| storage_error("session update EVAL key missing"))?;
+        let expected_raw = argv
+            .first()
+            .ok_or_else(|| storage_error("session update EVAL expected value missing"))?;
+        let next_raw = argv
+            .get(1)
+            .ok_or_else(|| storage_error("session update EVAL next value missing"))?;
+        let Some(current_raw) = string_get_tx(tx, key)? else {
+            return Ok(CmdOutput::Int(-1));
+        };
+        if current_raw != *expected_raw {
+            return Ok(CmdOutput::Int(0));
+        }
+        let changed = tx.execute(
+            "UPDATE kv_strings SET value = ?2 WHERE key = ?1",
+            params![key, next_raw],
+        )?;
+        if changed == 0 {
+            return Ok(CmdOutput::Int(-1));
+        }
+        return Ok(CmdOutput::Int(1));
+    }
+
+    if script.contains("fn-knock:eval:initialize-login-mobility-if-session-live:v1") {
+        let session_key = keys
+            .first()
+            .ok_or_else(|| storage_error("login mobility EVAL session key missing"))?;
+        if string_get_tx(tx, session_key)?.is_none() {
+            return Ok(CmdOutput::Int(0));
+        }
+        let binding_key = keys
+            .get(1)
+            .ok_or_else(|| storage_error("login mobility EVAL binding key missing"))?;
+        let timeline_key = keys
+            .get(2)
+            .ok_or_else(|| storage_error("login mobility EVAL timeline key missing"))?;
+        let summary_key = keys
+            .get(3)
+            .ok_or_else(|| storage_error("login mobility EVAL summary key missing"))?;
+        let index_key = keys
+            .get(4)
+            .ok_or_else(|| storage_error("login mobility EVAL index key missing"))?;
+        let whitelist_owner_key = keys
+            .get(5)
+            .ok_or_else(|| storage_error("login mobility EVAL whitelist owner key missing"))?;
+        let ttl = parse_i64(
+            argv.get(3)
+                .ok_or_else(|| storage_error("login mobility EVAL TTL missing"))?,
+        )?
+        .max(1);
+        for (key, value_index) in [
+            (binding_key, 0_usize),
+            (timeline_key, 1_usize),
+            (summary_key, 2_usize),
+        ] {
+            let value = argv
+                .get(value_index)
+                .ok_or_else(|| storage_error("login mobility EVAL value missing"))?;
+            execute_command_tx(
+                tx,
+                CommandSpec {
+                    name: "SETEX".to_string(),
+                    args: vec![key.clone(), ttl.to_string(), value.clone()],
+                    ignore: false,
+                },
+            )?;
+        }
+        execute_command_tx(
+            tx,
+            CommandSpec {
+                name: "SADD".to_string(),
+                args: vec![index_key.clone(), binding_key.clone()],
+                ignore: false,
+            },
+        )?;
+        execute_command_tx(
+            tx,
+            CommandSpec {
+                name: "EXPIRE".to_string(),
+                args: vec![index_key.clone(), ttl.to_string()],
+                ignore: false,
+            },
+        )?;
+        let session_id = argv
+            .get(4)
+            .ok_or_else(|| storage_error("login mobility EVAL session ID missing"))?;
+        execute_command_tx(
+            tx,
+            CommandSpec {
+                name: "SETEX".to_string(),
+                args: vec![
+                    whitelist_owner_key.clone(),
+                    ttl.to_string(),
+                    session_id.clone(),
+                ],
+                ignore: false,
+            },
+        )?;
+        return Ok(CmdOutput::Int(1));
+    }
+
+    if script.contains("fn-knock:eval:add-pending-whitelist-if-session-live:v1") {
+        let session_key = keys
+            .first()
+            .ok_or_else(|| storage_error("pending whitelist EVAL session key missing"))?;
+        let pending_key = keys
+            .get(1)
+            .ok_or_else(|| storage_error("pending whitelist EVAL pending key missing"))?;
+        if string_get_tx(tx, session_key)?.is_none() {
+            return Ok(CmdOutput::Int(0));
+        }
+        let record_id = argv
+            .first()
+            .ok_or_else(|| storage_error("pending whitelist EVAL record ID missing"))?;
+        let owner_record_key = argv
+            .get(1)
+            .ok_or_else(|| storage_error("pending whitelist EVAL owner key missing"))?;
+        let ttl = parse_i64(
+            argv.get(2)
+                .ok_or_else(|| storage_error("pending whitelist EVAL TTL missing"))?,
+        )?
+        .max(1);
+        execute_command_tx(
+            tx,
+            CommandSpec {
+                name: "HSET".to_string(),
+                args: vec![
+                    pending_key.clone(),
+                    record_id.clone(),
+                    owner_record_key.clone(),
+                ],
+                ignore: false,
+            },
+        )?;
+        execute_command_tx(
+            tx,
+            CommandSpec {
+                name: "EXPIRE".to_string(),
+                args: vec![pending_key.clone(), ttl.to_string()],
+                ignore: false,
+            },
+        )?;
+        return Ok(CmdOutput::Int(1));
+    }
+
+    if script.contains("fn-knock:eval:save-timeline-if-session-live:v1") {
+        let session_key = keys
+            .first()
+            .ok_or_else(|| storage_error("timeline EVAL session key missing"))?;
+        if string_get_tx(tx, session_key)?.is_none() {
+            return Ok(CmdOutput::Int(0));
+        }
+        let timeline_key = keys
+            .get(1)
+            .ok_or_else(|| storage_error("timeline EVAL timeline key missing"))?;
+        let summary_key = keys
+            .get(2)
+            .ok_or_else(|| storage_error("timeline EVAL summary key missing"))?;
+        let events = argv
+            .first()
+            .ok_or_else(|| storage_error("timeline EVAL events missing"))?;
+        let summary = argv
+            .get(1)
+            .ok_or_else(|| storage_error("timeline EVAL summary missing"))?;
+        let ttl = parse_i64(
+            argv.get(2)
+                .ok_or_else(|| storage_error("timeline EVAL TTL missing"))?,
+        )?;
+        let expires_at = (ttl > 0).then(|| now_ms().saturating_add(ttl.saturating_mul(1000)));
+        set_string_tx(tx, timeline_key, events, expires_at)?;
+        set_string_tx(tx, summary_key, summary, expires_at)?;
+        return Ok(CmdOutput::Int(1));
+    }
+
+    if script.contains("fn-knock:eval:destroy-mobility-session:v1") {
+        if keys.len() < 7 {
+            return Err(storage_error("destroy mobility EVAL keys missing"));
+        }
+        let session_id = argv
+            .first()
+            .ok_or_else(|| storage_error("destroy mobility EVAL session ID missing"))?;
+        let owner_prefix = argv
+            .get(1)
+            .ok_or_else(|| storage_error("destroy mobility EVAL owner prefix missing"))?;
+        for key in keys {
+            purge_expired_tx(tx, key)?;
+        }
+
+        let mut binding_keys = {
+            let mut statement = tx.prepare("SELECT member FROM kv_set WHERE key = ?1")?;
+            let rows = statement.query_map(params![&keys[0]], |row| row.get::<_, String>(0))?;
+            rows.collect::<Result<Vec<_>, _>>()?
+        };
+        if !binding_keys.iter().any(|key| key == &keys[5]) {
+            binding_keys.push(keys[5].clone());
+        }
+
+        let mut whitelist_ids = BTreeSet::new();
+        for binding_key in binding_keys {
+            let Some(raw) = string_get_tx(tx, &binding_key)? else {
+                continue;
+            };
+            let parsed = serde_json::from_str::<serde_json::Value>(&raw).ok();
+            let owner_matches = binding_key == keys[5]
+                || parsed
+                    .as_ref()
+                    .and_then(|value| value.get("ownerSessionId"))
+                    .and_then(serde_json::Value::as_str)
+                    == Some(session_id.as_str());
+            if !owner_matches {
+                continue;
+            }
+            if let Some(id) = parsed
+                .as_ref()
+                .and_then(|value| value.get("whitelistRecordId"))
+                .and_then(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+            {
+                whitelist_ids.insert(id.to_string());
+            }
+            delete_key_tx(tx, &binding_key)?;
+        }
+
+        let active_values = {
+            let mut statement = tx.prepare("SELECT value FROM kv_hash WHERE key = ?1")?;
+            let rows = statement.query_map(params![&keys[1]], |row| row.get::<_, String>(0))?;
+            rows.collect::<Result<Vec<_>, _>>()?
+        };
+        let mut owner_record_keys = BTreeSet::new();
+        for raw in active_values {
+            let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw) else {
+                continue;
+            };
+            if let Some(id) = value
+                .get("whitelistRecordId")
+                .and_then(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+            {
+                whitelist_ids.insert(id.to_string());
+            }
+            if let Some(key) = value
+                .get("autoWhitelistOwnerRecordKey")
+                .and_then(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+            {
+                owner_record_keys.insert(key.to_string());
+            }
+        }
+
+        let pending = {
+            let mut statement = tx.prepare("SELECT field, value FROM kv_hash WHERE key = ?1")?;
+            let rows = statement.query_map(params![&keys[6]], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?;
+            rows.collect::<Result<Vec<_>, _>>()?
+        };
+        for (record_id, owner_record_key) in pending {
+            if !record_id.trim().is_empty() {
+                whitelist_ids.insert(record_id);
+            }
+            if !owner_record_key.trim().is_empty() {
+                owner_record_keys.insert(owner_record_key);
+            }
+        }
+
+        for owner_record_key in owner_record_keys {
+            delete_key_tx(tx, &owner_record_key)?;
+        }
+        for record_id in &whitelist_ids {
+            let owner_key = format!("{owner_prefix}{record_id}:session");
+            if string_get_tx(tx, &owner_key)?.as_deref() == Some(session_id.as_str()) {
+                delete_key_tx(tx, &owner_key)?;
+            }
+        }
+        for key in [&keys[0], &keys[1], &keys[2], &keys[3], &keys[4], &keys[6]] {
+            delete_key_tx(tx, key)?;
+        }
+        return Ok(CmdOutput::Strings(whitelist_ids.into_iter().collect()));
+    }
+
+    if script.contains("fn-knock:eval:save-active-ip-if-session-live:v1") {
+        let session_key = keys
+            .first()
+            .ok_or_else(|| storage_error("active IP EVAL session key missing"))?;
+        let zset_key = keys
+            .get(1)
+            .ok_or_else(|| storage_error("active IP EVAL zset key missing"))?;
+        let detail_key = keys
+            .get(2)
+            .ok_or_else(|| storage_error("active IP EVAL detail key missing"))?;
+        if string_get_tx(tx, session_key)?.is_none() {
+            return Ok(CmdOutput::Int(0));
+        }
+        let ip = argv
+            .first()
+            .ok_or_else(|| storage_error("active IP EVAL IP missing"))?;
+        let score = argv
+            .get(1)
+            .ok_or_else(|| storage_error("active IP EVAL score missing"))?;
+        let detail = argv
+            .get(2)
+            .ok_or_else(|| storage_error("active IP EVAL detail missing"))?;
+        let ttl = parse_i64(
+            argv.get(3)
+                .ok_or_else(|| storage_error("active IP EVAL TTL missing"))?,
+        )?
+        .max(1);
+        execute_command_tx(
+            tx,
+            CommandSpec {
+                name: "ZADD".to_string(),
+                args: vec![zset_key.clone(), score.clone(), ip.clone()],
+                ignore: false,
+            },
+        )?;
+        execute_command_tx(
+            tx,
+            CommandSpec {
+                name: "HSET".to_string(),
+                args: vec![detail_key.clone(), ip.clone(), detail.clone()],
+                ignore: false,
+            },
+        )?;
+        for key in [zset_key, detail_key] {
+            execute_command_tx(
+                tx,
+                CommandSpec {
+                    name: "EXPIRE".to_string(),
+                    args: vec![key.clone(), ttl.to_string()],
+                    ignore: false,
+                },
+            )?;
+        }
+        return Ok(CmdOutput::Int(1));
+    }
+
+    if script.contains("fn-knock:eval:save-owned-binding-if-session-live:v1") {
+        let session_key = keys
+            .first()
+            .ok_or_else(|| storage_error("owned binding EVAL session key missing"))?;
+        let binding_key = keys
+            .get(1)
+            .ok_or_else(|| storage_error("owned binding EVAL binding key missing"))?;
+        let index_key = keys
+            .get(2)
+            .ok_or_else(|| storage_error("owned binding EVAL index key missing"))?;
+        if string_get_tx(tx, session_key)?.is_none() {
+            return Ok(CmdOutput::Int(0));
+        }
+        let binding = argv
+            .first()
+            .ok_or_else(|| storage_error("owned binding EVAL value missing"))?;
+        let binding_ttl = parse_i64(
+            argv.get(1)
+                .ok_or_else(|| storage_error("owned binding EVAL TTL missing"))?,
+        )?
+        .max(1);
+        let index_ttl = parse_i64(
+            argv.get(2)
+                .ok_or_else(|| storage_error("owned binding EVAL index TTL missing"))?,
+        )?;
+        execute_command_tx(
+            tx,
+            CommandSpec {
+                name: "SETEX".to_string(),
+                args: vec![
+                    binding_key.clone(),
+                    binding_ttl.to_string(),
+                    binding.clone(),
+                ],
+                ignore: false,
+            },
+        )?;
+        execute_command_tx(
+            tx,
+            CommandSpec {
+                name: "SADD".to_string(),
+                args: vec![index_key.clone(), binding_key.clone()],
+                ignore: false,
+            },
+        )?;
+        if index_ttl > 0 {
+            execute_command_tx(
+                tx,
+                CommandSpec {
+                    name: "EXPIRE".to_string(),
+                    args: vec![index_key.clone(), index_ttl.to_string()],
+                    ignore: false,
+                },
+            )?;
+        }
+        return Ok(CmdOutput::Int(1));
+    }
+
+    if script.contains("fn-knock:eval:save-binding-keep-ttl-if-session-live:v1") {
+        let session_key = keys
+            .first()
+            .ok_or_else(|| storage_error("binding keep-TTL EVAL session key missing"))?;
+        let binding_key = keys
+            .get(1)
+            .ok_or_else(|| storage_error("binding keep-TTL EVAL binding key missing"))?;
+        if string_get_tx(tx, session_key)?.is_none() || string_get_tx(tx, binding_key)?.is_none() {
+            return Ok(CmdOutput::Int(0));
+        }
+        let binding = argv
+            .first()
+            .ok_or_else(|| storage_error("binding keep-TTL EVAL value missing"))?;
+        let changed = tx.execute(
+            "UPDATE kv_strings SET value = ?2 WHERE key = ?1",
+            params![binding_key, binding],
+        )?;
+        return Ok(CmdOutput::Int((changed > 0) as i64));
+    }
+
+    if script.contains("fn-knock:eval:update-binding-keep-ttl-if-exists:v1") {
+        let binding_key = keys
+            .first()
+            .ok_or_else(|| storage_error("binding update EVAL key missing"))?;
+        let index_key = keys
+            .get(1)
+            .ok_or_else(|| storage_error("binding update EVAL index key missing"))?;
+        let Some(current_raw) = string_get_tx(tx, binding_key)? else {
+            return Ok(CmdOutput::Int(0));
+        };
+        let expected_owner = argv
+            .get(1)
+            .ok_or_else(|| storage_error("binding update EVAL expected owner missing"))?;
+        let current_owner = serde_json::from_str::<serde_json::Value>(&current_raw)
+            .ok()
+            .and_then(|value| {
+                value
+                    .get("ownerSessionId")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_string)
+            });
+        if current_owner.as_deref() != Some(expected_owner.as_str()) {
+            return Ok(CmdOutput::Int(0));
+        }
+        let binding = argv
+            .first()
+            .ok_or_else(|| storage_error("binding update EVAL value missing"))?;
+        let changed = tx.execute(
+            "UPDATE kv_strings SET value = ?2 WHERE key = ?1",
+            params![binding_key, binding],
+        )?;
+        if changed > 0 {
+            execute_command_tx(
+                tx,
+                CommandSpec {
+                    name: "SREM".to_string(),
+                    args: vec![index_key.clone(), binding_key.clone()],
+                    ignore: false,
+                },
+            )?;
+        }
+        return Ok(CmdOutput::Int((changed > 0) as i64));
+    }
+
+    if script.contains("fn-knock:eval:set-whitelist-owner-if-session-live:v1") {
+        let session_key = keys
+            .first()
+            .ok_or_else(|| storage_error("whitelist owner EVAL session key missing"))?;
+        let owner_key = keys
+            .get(1)
+            .ok_or_else(|| storage_error("whitelist owner EVAL owner key missing"))?;
+        if string_get_tx(tx, session_key)?.is_none() {
+            return Ok(CmdOutput::Int(0));
+        }
+        let session_id = argv
+            .first()
+            .ok_or_else(|| storage_error("whitelist owner EVAL session ID missing"))?;
+        let ttl = parse_i64(
+            argv.get(1)
+                .ok_or_else(|| storage_error("whitelist owner EVAL TTL missing"))?,
+        )?
+        .max(1);
+        execute_command_tx(
+            tx,
+            CommandSpec {
+                name: "SETEX".to_string(),
+                args: vec![owner_key.clone(), ttl.to_string(), session_id.clone()],
+                ignore: false,
+            },
+        )?;
+        return Ok(CmdOutput::Int(1));
+    }
+
+    if script.contains("fn-knock:eval:json-lock-refresh:v1")
+        || script.contains("fn-knock:eval:json-lock-release:v1")
+        || script.contains("pcall(cjson.decode, raw)")
+            && script.contains("decoded[\"lockId\"] ~= ARGV[1]")
+    {
+        let key = keys
+            .first()
+            .ok_or_else(|| storage_error("JSON lock EVAL key missing"))?;
+        let expected_lock_id = argv
+            .first()
+            .ok_or_else(|| storage_error("JSON lock EVAL lock id missing"))?;
+        let owned = string_get_tx(tx, key)?
+            .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+            .and_then(|value| {
+                value
+                    .get("lockId")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_string)
+            })
+            .is_some_and(|lock_id| lock_id == *expected_lock_id);
+        if !owned {
+            return Ok(CmdOutput::Int(0));
+        }
+
+        if script.contains("fn-knock:eval:json-lock-refresh:v1")
+            || script.contains("redis.call(\"SET\", KEYS[1], ARGV[2]")
+        {
+            let value = argv
+                .get(1)
+                .ok_or_else(|| storage_error("JSON lock EVAL value missing"))?;
+            let ttl_seconds = parse_i64(
+                argv.get(2)
+                    .ok_or_else(|| storage_error("JSON lock EVAL TTL missing"))?,
+            )?;
+            if ttl_seconds <= 0 {
+                return Err(storage_error("JSON lock EVAL TTL must be positive"));
+            }
+            set_string_tx(
+                tx,
+                key,
+                value,
+                Some(now_ms().saturating_add(ttl_seconds.saturating_mul(1000))),
+            )?;
+            return Ok(CmdOutput::Int(1));
+        }
+
+        if script.contains("fn-knock:eval:json-lock-release:v1")
+            || script.contains("redis.call(\"DEL\", KEYS[1])")
+        {
+            delete_key_tx(tx, key)?;
+            return Ok(CmdOutput::Int(1));
+        }
+
+        return Err(storage_error("unsupported JSON lock EVAL operation"));
+    }
+
+    if script.contains("fn-knock:eval:delete-if-value:v1")
+        || script.contains("redis.call('GET', KEYS[1]) == ARGV[1]")
         || script.contains("redis.call(\"GET\", KEYS[1])") && script.contains("value == ARGV[1]")
     {
         let key = keys
@@ -1762,8 +2429,9 @@ fn eval_command_tx(tx: &rusqlite::Transaction<'_>, args: &[String]) -> RedisResu
         return Ok(CmdOutput::Int(0));
     }
 
-    if script.contains("local value = redis.call(\"GET\", KEYS[1])")
-        && script.contains("redis.call(\"DEL\", KEYS[1])")
+    if script.contains("fn-knock:eval:consume-value:v1")
+        || script.contains("local value = redis.call(\"GET\", KEYS[1])")
+            && script.contains("redis.call(\"DEL\", KEYS[1])")
     {
         let key = keys
             .first()
@@ -1775,7 +2443,9 @@ fn eval_command_tx(tx: &rusqlite::Transaction<'_>, args: &[String]) -> RedisResu
         return Ok(CmdOutput::OptionalString(value));
     }
 
-    if script.contains("local key = KEYS[1]") && script.contains("blockedUntil") {
+    if script.contains("fn-knock:eval:login-backoff:v1")
+        || script.contains("local key = KEYS[1]") && script.contains("blockedUntil")
+    {
         let key = keys
             .first()
             .ok_or_else(|| storage_error("EVAL key missing"))?;
@@ -1833,7 +2503,10 @@ fn eval_command_tx(tx: &rusqlite::Transaction<'_>, args: &[String]) -> RedisResu
         ]));
     }
 
-    if script.contains("ZRANGEBYSCORE") && script.contains("ZREM") && script.contains("unpack(ids)")
+    if script.contains("fn-knock:eval:zset-claim:v1")
+        || script.contains("ZRANGEBYSCORE")
+            && script.contains("ZREM")
+            && script.contains("unpack(ids)")
     {
         let key = keys
             .first()
@@ -1860,6 +2533,7 @@ fn eval_command_tx(tx: &rusqlite::Transaction<'_>, args: &[String]) -> RedisResu
                 params![key, id],
             )?;
         }
+        delete_collection_key_if_empty_tx(tx, key, "zset")?;
         return Ok(CmdOutput::Strings(ids));
     }
 
@@ -1999,24 +2673,56 @@ fn zrangebyscore_command_tx(
 fn xadd_command_tx(tx: &rusqlite::Transaction<'_>, args: &[String]) -> RedisResult<CmdOutput> {
     let key = arg(args, 0)?.to_string();
     let raw_id = arg(args, 1)?.to_string();
-    ensure_key_tx(tx, &key, "stream", None)?;
-    let id = if raw_id == "*" {
-        let seq = count_rows_tx(tx, "SELECT COUNT(*) FROM kv_stream WHERE key = ?1", &[&key])? + 1;
-        format!("{}-{}", now_ms(), seq)
-    } else {
-        raw_id
-    };
     if args.len() <= 2 || !args[2..].len().is_multiple_of(2) {
         return Err(storage_error("XADD requires field/value pairs"));
     }
+    ensure_key_tx(tx, &key, "stream", None)?;
+    let last_id = stream_last_generated_id_tx(tx, &key)?;
+    let next_id = if raw_id == "*" {
+        let now = now_ms().max(0) as u128;
+        if now > last_id.milliseconds {
+            ParsedStreamId {
+                milliseconds: now,
+                sequence: 0,
+            }
+        } else {
+            ParsedStreamId {
+                milliseconds: last_id.milliseconds,
+                sequence: last_id
+                    .sequence
+                    .checked_add(1)
+                    .ok_or_else(|| storage_error("stream ID sequence overflow"))?,
+            }
+        }
+    } else {
+        let explicit = parse_stream_id(&raw_id)
+            .ok_or_else(|| storage_error(format!("invalid XADD stream ID: {raw_id}")))?;
+        if explicit == ParsedStreamId::default() || explicit <= last_id {
+            return Err(storage_error(
+                "XADD stream ID must be greater than the last generated ID",
+            ));
+        }
+        explicit
+    };
+    let id = format!("{}-{}", next_id.milliseconds, next_id.sequence);
     let mut fields = Vec::with_capacity(args[2..].len());
     for value in &args[2..] {
         fields.push(value.clone());
     }
     tx.execute(
-        "INSERT OR REPLACE INTO kv_stream(key, id, fields_json) VALUES (?1, ?2, ?3)",
-        params![key, id, serde_json::to_string(&fields)?],
+        "INSERT INTO kv_stream(key, id, id_ms, id_sequence, fields_json)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![
+            key,
+            id,
+            i64::try_from(next_id.milliseconds)
+                .map_err(|_| storage_error("stream ID milliseconds exceed SQLite range"))?,
+            i64::try_from(next_id.sequence)
+                .map_err(|_| storage_error("stream ID sequence exceed SQLite range"))?,
+            serde_json::to_string(&fields)?
+        ],
     )?;
+    set_stream_last_generated_id_tx(tx, &key, next_id)?;
     Ok(CmdOutput::String(id))
 }
 
@@ -2098,8 +2804,9 @@ fn delete_zset_score_range_tx(
     let max_op = if max.exclusive { "<" } else { "<=" };
     let sql =
         format!("DELETE FROM kv_zset WHERE key = ?1 AND score {min_op} ?2 AND score {max_op} ?3");
-    tx.execute(&sql, params![key, min.value, max.value])
-        .map_err(Into::into)
+    let deleted = tx.execute(&sql, params![key, min.value, max.value])?;
+    delete_collection_key_if_empty_tx(tx, key, "zset")?;
+    Ok(deleted)
 }
 
 fn count_zset_score_range_tx(
@@ -2230,6 +2937,33 @@ fn ensure_key_with_ttl_policy_tx(
 
 fn delete_key_tx(tx: &rusqlite::Transaction<'_>, key: &str) -> RedisResult<usize> {
     Ok(tx.execute("DELETE FROM kv_keys WHERE key = ?1", params![key])?)
+}
+
+fn delete_collection_key_if_empty_tx(
+    tx: &rusqlite::Transaction<'_>,
+    key: &str,
+    kind: &str,
+) -> RedisResult<()> {
+    let table = match kind {
+        "hash" => "kv_hash",
+        "list" => "kv_list",
+        "set" => "kv_set",
+        "zset" => "kv_zset",
+        _ => {
+            return Err(storage_error(format!(
+                "unsupported collection kind: {kind}"
+            )));
+        }
+    };
+    if key_kind_tx(tx, key)?.as_deref() != Some(kind) {
+        return Ok(());
+    }
+    let sql = format!("SELECT EXISTS(SELECT 1 FROM {table} WHERE key = ?1)");
+    let has_members = tx.query_row(&sql, params![key], |row| row.get::<_, bool>(0))?;
+    if !has_members {
+        delete_key_tx(tx, key)?;
+    }
+    Ok(())
 }
 
 fn immediate_transaction(
@@ -2466,10 +3200,15 @@ fn normalize_range(len: i64, start: isize, end: isize) -> Option<(i64, i64)> {
         return None;
     }
     let len = len as isize;
-    let mut start = if start < 0 { len + start } else { start };
-    let mut end = if end < 0 { len + end } else { end };
-    start = start.clamp(0, len - 1);
-    end = end.clamp(0, len - 1);
+    let start = if start < 0 {
+        (len + start).max(0)
+    } else {
+        start
+    };
+    let end = if end < 0 { len + end } else { end.min(len - 1) };
+    if start >= len || end < 0 {
+        return None;
+    }
     if start > end {
         return None;
     }
@@ -2546,6 +3285,115 @@ fn parse_stream_id(value: &str) -> Option<ParsedStreamId> {
         milliseconds: milliseconds.parse().ok()?,
         sequence: sequence.parse().ok()?,
     })
+}
+
+fn parse_stream_bound(value: &str, is_min: bool) -> RedisResult<Option<ParsedStreamId>> {
+    if (is_min && value == "-") || (!is_min && value == "+") {
+        return Ok(None);
+    }
+    parse_stream_id(value)
+        .map(Some)
+        .ok_or_else(|| storage_error(format!("invalid stream ID bound: {value}")))
+}
+
+fn stream_id_sql_tuple(id: ParsedStreamId) -> RedisResult<(i64, i64)> {
+    Ok((
+        i64::try_from(id.milliseconds)
+            .map_err(|_| storage_error("stream ID milliseconds exceed SQLite range"))?,
+        i64::try_from(id.sequence)
+            .map_err(|_| storage_error("stream ID sequence exceeds SQLite range"))?,
+    ))
+}
+
+fn query_stream_rows(
+    conn: &rusqlite::Connection,
+    key: &str,
+    min: Option<ParsedStreamId>,
+    min_exclusive: bool,
+    max: Option<ParsedStreamId>,
+    reverse: bool,
+    count: usize,
+) -> RedisResult<Vec<(String, String)>> {
+    let (min_ms, min_sequence) = stream_id_sql_tuple(min.unwrap_or_default())?;
+    let (max_ms, max_sequence) = stream_id_sql_tuple(max.unwrap_or(ParsedStreamId {
+        milliseconds: i64::MAX as u128,
+        sequence: i64::MAX as u128,
+    }))?;
+    let min_operator = if min_exclusive { ">" } else { ">=" };
+    let order = if reverse { "DESC" } else { "ASC" };
+    let sql = format!(
+        "SELECT id, fields_json
+         FROM kv_stream
+         WHERE key = ?1
+           AND (id_ms, id_sequence) {min_operator} (?2, ?3)
+           AND (id_ms, id_sequence) <= (?4, ?5)
+         ORDER BY id_ms {order}, id_sequence {order}
+         LIMIT ?6"
+    );
+    let limit = i64::try_from(count).unwrap_or(i64::MAX);
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map(
+        params![key, min_ms, min_sequence, max_ms, max_sequence, limit],
+        |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+    )?;
+    rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+}
+
+fn stream_last_generated_id_tx(
+    tx: &rusqlite::Transaction<'_>,
+    key: &str,
+) -> RedisResult<ParsedStreamId> {
+    if let Some((milliseconds, sequence)) = tx
+        .query_row(
+            "SELECT last_generated_ms, last_generated_seq FROM kv_stream_meta WHERE key = ?1",
+            params![key],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+        )
+        .optional()?
+    {
+        return Ok(ParsedStreamId {
+            milliseconds: milliseconds.max(0) as u128,
+            sequence: sequence.max(0) as u128,
+        });
+    }
+
+    tx.query_row(
+        "SELECT id_ms, id_sequence
+         FROM kv_stream
+         WHERE key = ?1
+         ORDER BY id_ms DESC, id_sequence DESC
+         LIMIT 1",
+        params![key],
+        |row| {
+            Ok(ParsedStreamId {
+                milliseconds: row.get::<_, i64>(0)?.max(0) as u128,
+                sequence: row.get::<_, i64>(1)?.max(0) as u128,
+            })
+        },
+    )
+    .optional()
+    .map(Option::unwrap_or_default)
+    .map_err(Into::into)
+}
+
+fn set_stream_last_generated_id_tx(
+    tx: &rusqlite::Transaction<'_>,
+    key: &str,
+    id: ParsedStreamId,
+) -> RedisResult<()> {
+    let milliseconds = i64::try_from(id.milliseconds)
+        .map_err(|_| storage_error("stream ID milliseconds exceed SQLite range"))?;
+    let sequence = i64::try_from(id.sequence)
+        .map_err(|_| storage_error("stream ID sequence exceeds SQLite range"))?;
+    tx.execute(
+        "INSERT INTO kv_stream_meta(key, last_generated_ms, last_generated_seq)
+         VALUES (?1, ?2, ?3)
+         ON CONFLICT(key) DO UPDATE SET
+           last_generated_ms = excluded.last_generated_ms,
+           last_generated_seq = excluded.last_generated_seq",
+        params![key, milliseconds, sequence],
+    )?;
+    Ok(())
 }
 
 #[cfg(unix)]
@@ -2681,6 +3529,91 @@ mod tests {
         assert_eq!(checksum, migration_checksum(REDIS_COMPATIBLE_KEYSPACE_SQL));
     }
 
+    #[tokio::test]
+    async fn schema_migration_v2_backfills_numeric_stream_ids_and_metadata() {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let path = dir.path().join("fn-knock.sqlite3");
+        let future_ms = now_ms() + 60_000;
+        let future_id = format!("{future_ms}-0");
+        {
+            let conn = rusqlite::Connection::open(&path).expect("open legacy sqlite");
+            conn.pragma_update(None, "foreign_keys", "ON")
+                .expect("enable foreign keys");
+            conn.execute_batch(SCHEMA_MIGRATIONS_SQL)
+                .expect("create migration table");
+            conn.execute_batch(REDIS_COMPATIBLE_KEYSPACE_SQL)
+                .expect("create v1 keyspace");
+            conn.execute(
+                "INSERT INTO schema_migrations(version, name, checksum, applied_at_ms)
+                 VALUES (1, 'redis_compatible_keyspace', ?1, ?2)",
+                params![migration_checksum(REDIS_COMPATIBLE_KEYSPACE_SQL), now_ms()],
+            )
+            .expect("record v1 migration");
+            conn.execute(
+                "INSERT INTO kv_keys(key, kind) VALUES ('fn_knock:test:legacy-stream', 'stream')",
+                [],
+            )
+            .expect("create legacy stream key");
+            for id in ["10-0".to_string(), "9-0".to_string(), future_id.clone()] {
+                conn.execute(
+                    "INSERT INTO kv_stream(key, id, fields_json) VALUES (?1, ?2, ?3)",
+                    params![
+                        "fn_knock:test:legacy-stream",
+                        id,
+                        serde_json::to_string(&vec!["value", id.as_str()]).unwrap()
+                    ],
+                )
+                .expect("seed legacy stream entry");
+            }
+        }
+
+        let mut manager = ConnectionManager::open(&path)
+            .await
+            .expect("migrate v1 database");
+        let read = manager
+            .xread_options(
+                &["fn_knock:test:legacy-stream"],
+                &["0-0"],
+                &streams::StreamReadOptions::default().count(10),
+            )
+            .await
+            .expect("read migrated stream")
+            .expect("stream has rows");
+        assert_eq!(
+            read.keys[0]
+                .ids
+                .iter()
+                .map(|entry| entry.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["9-0", "10-0", future_id.as_str()]
+        );
+
+        let _: () = cmd("XDEL")
+            .arg("fn_knock:test:legacy-stream")
+            .arg(vec![
+                "9-0".to_string(),
+                "10-0".to_string(),
+                future_id.clone(),
+            ])
+            .query_async(&mut manager)
+            .await
+            .expect("empty migrated stream");
+        drop(manager);
+
+        let mut reopened = ConnectionManager::open(&path)
+            .await
+            .expect("reopen database");
+        let generated: String = cmd("XADD")
+            .arg("fn_knock:test:legacy-stream")
+            .arg("*")
+            .arg("value")
+            .arg("after-reopen")
+            .query_async(&mut reopened)
+            .await
+            .expect("append after reopen");
+        assert_eq!(generated, format!("{future_ms}-1"));
+    }
+
     #[cfg(unix)]
     #[tokio::test]
     async fn sqlite_database_file_is_owner_only() {
@@ -2791,6 +3724,230 @@ mod tests {
                 .expect("zrange remaining"),
             vec!["b".to_string(), "c".to_string()]
         );
+    }
+
+    #[tokio::test]
+    async fn ranges_outside_collection_bounds_are_empty() {
+        let mut conn = temp_manager().await;
+        let _: () = cmd("RPUSH")
+            .arg("fn_knock:test:range-list")
+            .arg(vec!["a".to_string(), "b".to_string(), "c".to_string()])
+            .query_async(&mut conn)
+            .await
+            .expect("seed list");
+        for (member, score) in [("a", 1), ("b", 2), ("c", 3)] {
+            conn.zadd("fn_knock:test:range-zset", member, score)
+                .await
+                .expect("seed zset");
+        }
+
+        assert!(
+            conn.lrange("fn_knock:test:range-list", 3, -1)
+                .await
+                .expect("list start at length")
+                .is_empty()
+        );
+        assert!(
+            conn.zrange("fn_knock:test:range-zset", 4, 10)
+                .await
+                .expect("zset start beyond length")
+                .is_empty()
+        );
+        assert!(
+            conn.lrange("fn_knock:test:range-list", 0, -4)
+                .await
+                .expect("list end before first item")
+                .is_empty()
+        );
+        assert_eq!(
+            conn.zrange("fn_knock:test:range-zset", -100, -1)
+                .await
+                .expect("large negative start"),
+            vec!["a".to_string(), "b".to_string(), "c".to_string()]
+        );
+    }
+
+    #[tokio::test]
+    async fn empty_collections_remove_their_redis_keys() {
+        let mut conn = temp_manager().await;
+
+        conn.hset("fn_knock:test:empty-hash", "field", "value")
+            .await
+            .expect("seed hash");
+        conn.hdel("fn_knock:test:empty-hash", "field")
+            .await
+            .expect("empty hash");
+        assert_eq!(conn.exists("fn_knock:test:empty-hash").await.unwrap(), 0);
+
+        conn.sadd("fn_knock:test:empty-set", "member")
+            .await
+            .expect("seed set");
+        conn.srem("fn_knock:test:empty-set", "member")
+            .await
+            .expect("empty set");
+        assert_eq!(conn.exists("fn_knock:test:empty-set").await.unwrap(), 0);
+
+        conn.zadd("fn_knock:test:empty-zset", "member", 1)
+            .await
+            .expect("seed zset");
+        let _: () = cmd("ZREMRANGEBYSCORE")
+            .arg("fn_knock:test:empty-zset")
+            .arg("-inf")
+            .arg("+inf")
+            .query_async(&mut conn)
+            .await
+            .expect("empty zset");
+        assert_eq!(conn.exists("fn_knock:test:empty-zset").await.unwrap(), 0);
+
+        let _: () = cmd("RPUSH")
+            .arg("fn_knock:test:empty-list")
+            .arg("value")
+            .query_async(&mut conn)
+            .await
+            .expect("seed list");
+        let _: () = cmd("LTRIM")
+            .arg("fn_knock:test:empty-list")
+            .arg(1)
+            .arg(0)
+            .query_async(&mut conn)
+            .await
+            .expect("empty list");
+        assert_eq!(conn.exists("fn_knock:test:empty-list").await.unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn stream_ids_follow_numeric_order_and_remain_monotonic() {
+        let mut conn = temp_manager().await;
+        for id in ["9-0", "10-0"] {
+            let inserted: String = cmd("XADD")
+                .arg("fn_knock:test:numeric-stream")
+                .arg(id)
+                .arg("value")
+                .arg(id)
+                .query_async(&mut conn)
+                .await
+                .expect("insert explicit stream ID");
+            assert_eq!(inserted, id);
+        }
+
+        let ascending: Vec<(String, Vec<String>)> = cmd("XRANGE")
+            .arg("fn_knock:test:numeric-stream")
+            .arg("-")
+            .arg("+")
+            .query_async(&mut conn)
+            .await
+            .expect("numeric xrange");
+        assert_eq!(
+            ascending
+                .iter()
+                .map(|(id, _)| id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["9-0", "10-0"]
+        );
+
+        let read = conn
+            .xread_options(
+                &["fn_knock:test:numeric-stream"],
+                &["0-0"],
+                &streams::StreamReadOptions::default().count(10),
+            )
+            .await
+            .expect("numeric xread")
+            .expect("xread rows");
+        assert_eq!(
+            read.keys[0]
+                .ids
+                .iter()
+                .map(|entry| entry.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["9-0", "10-0"]
+        );
+
+        let descending = conn
+            .xrevrange_count("fn_knock:test:numeric-stream", "+", "-", 10)
+            .await
+            .expect("numeric xrevrange");
+        assert_eq!(
+            descending
+                .ids
+                .iter()
+                .map(|entry| entry.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["10-0", "9-0"]
+        );
+
+        let _: () = cmd("XTRIM")
+            .arg("fn_knock:test:numeric-stream")
+            .arg("MINID")
+            .arg("~")
+            .arg("10-0")
+            .query_async(&mut conn)
+            .await
+            .expect("numeric xtrim");
+        let remaining: Vec<(String, Vec<String>)> = cmd("XRANGE")
+            .arg("fn_knock:test:numeric-stream")
+            .arg("-")
+            .arg("+")
+            .query_async(&mut conn)
+            .await
+            .expect("remaining stream entries");
+        assert_eq!(remaining[0].0, "10-0");
+
+        let _: () = cmd("XDEL")
+            .arg("fn_knock:test:numeric-stream")
+            .arg("10-0")
+            .query_async(&mut conn)
+            .await
+            .expect("empty stream");
+        assert_eq!(
+            conn.exists("fn_knock:test:numeric-stream").await.unwrap(),
+            1
+        );
+
+        let generated: String = cmd("XADD")
+            .arg("fn_knock:test:numeric-stream")
+            .arg("*")
+            .arg("value")
+            .arg("generated")
+            .query_async(&mut conn)
+            .await
+            .expect("generate monotonic ID");
+        assert!(parse_stream_id(&generated).unwrap() > parse_stream_id("10-0").unwrap());
+
+        let duplicate = cmd("XADD")
+            .arg("fn_knock:test:numeric-stream")
+            .arg("10-0")
+            .arg("value")
+            .arg("duplicate")
+            .query_async::<String>(&mut conn)
+            .await;
+        assert!(duplicate.is_err());
+
+        let future_ms = now_ms() + 60_000;
+        let future_id = format!("{future_ms}-0");
+        let _: String = cmd("XADD")
+            .arg("fn_knock:test:clock-rollback-stream")
+            .arg(&future_id)
+            .arg("value")
+            .arg("future")
+            .query_async(&mut conn)
+            .await
+            .expect("seed future stream ID");
+        let _: () = cmd("XDEL")
+            .arg("fn_knock:test:clock-rollback-stream")
+            .arg(&future_id)
+            .query_async(&mut conn)
+            .await
+            .expect("remove future stream entry");
+        let after_rollback: String = cmd("XADD")
+            .arg("fn_knock:test:clock-rollback-stream")
+            .arg("*")
+            .arg("value")
+            .arg("after-rollback")
+            .query_async(&mut conn)
+            .await
+            .expect("generate after clock rollback");
+        assert_eq!(after_rollback, format!("{future_ms}-1"));
     }
 
     #[tokio::test]

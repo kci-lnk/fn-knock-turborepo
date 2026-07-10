@@ -42,6 +42,17 @@ Run `sudo knock nginx` to print the same template after installation. Linux
 runtime mode never manages host firewall rules and does not invoke iptables.
 
 Run `sudo knock config` to change ports after installation. The command shows
-the current mapping, offers a one-step panel-port change for the common case,
-and exposes the other listeners only through an advanced option. It will not
-save a configuration that uses a duplicate or occupied port.
+the current mapping in a numbered list. `7999` (the Go proxy) is listed first;
+enter a number to modify that listener. It will not save a configuration that
+uses a duplicate or occupied port.
+
+Useful management commands:
+
+```bash
+sudo knock status                # systemd status, PIDs, and RSS memory totals
+sudo knock update                # compare local/online versions, then update or redeploy
+sudo knock reset-panel-password  # clear panel password, sessions, and login backoff
+```
+
+The password reset command asks for confirmation. After it completes, the next
+visit to the management panel enters the first-time password setup flow again.

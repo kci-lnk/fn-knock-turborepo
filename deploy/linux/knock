@@ -13,12 +13,38 @@ UNIT_FILE="${FN_KNOCK_UNIT_FILE:-/etc/systemd/system/fn-knock.service}"
 COMMAND_FILE="${FN_KNOCK_COMMAND_FILE:-/usr/local/bin/knock}"
 DEFAULT_BASE_URL="https://cdn.fnknock.cn"
 
-log() { printf '[fn-knock] %s\n' "$*"; }
-warn() { printf '[fn-knock] WARNING: %s\n' "$*" >&2; }
-fail() { printf '[fn-knock] ERROR: %s\n' "$*" >&2; exit 1; }
+if [ -t 1 ] && [ "${NO_COLOR:-}" != "1" ]; then
+  C_RESET=$'\033[0m'
+  C_TITLE=$'\033[1;38;5;45m'
+  C_ACCENT=$'\033[1;38;5;213m'
+  C_OK=$'\033[1;38;5;82m'
+  C_WARN=$'\033[1;38;5;220m'
+  C_ERR=$'\033[1;38;5;203m'
+  C_DIM=$'\033[38;5;245m'
+else
+  C_RESET='' C_TITLE='' C_ACCENT='' C_OK='' C_WARN='' C_ERR='' C_DIM=''
+fi
+
+log() { printf '%s【fn-knock】%s %s\n' "${C_TITLE}" "${C_RESET}" "$*"; }
+success() { printf '%s✓ %s%s\n' "${C_OK}" "$*" "${C_RESET}"; }
+warn() { printf '%s⚠ %s%s\n' "${C_WARN}" "$*" "${C_RESET}" >&2; }
+fail() { printf '%s✗ %s%s\n' "${C_ERR}" "$*" "${C_RESET}" >&2; exit 1; }
+
+show_banner() {
+  cat <<EOF
+${C_TITLE}
+ ███████╗███╗   ██╗      ██╗  ██╗███╗   ██╗ ██████╗  ██████╗██╗  ██╗
+ ██╔════╝████╗  ██║      ██║ ██╔╝████╗  ██║██╔═══██╗██╔════╝██║ ██╔╝
+ █████╗  ██╔██╗ ██║█████╗█████╔╝ ██╔██╗ ██║██║   ██║██║     █████╔╝
+ ██╔══╝  ██║╚██╗██║╚════╝██╔═██╗ ██║╚██╗██║██║   ██║██║     ██╔═██╗
+ ██║     ██║ ╚████║      ██║  ██╗██║ ╚████║╚██████╔╝╚██████╗██║  ██╗
+ ╚═╝     ╚═╝  ╚═══╝      ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝${C_RESET}
+${C_DIM}                         Linux 控制台 · 安全管理入口${C_RESET}
+EOF
+}
 
 require_root() {
-  [ "$(id -u)" -eq 0 ] || fail "root privilege is required; run: sudo knock $*"
+  [ "$(id -u)" -eq 0 ] || fail "需要 root 权限，请运行：sudo knock $*"
 }
 
 load_local_env() {
@@ -29,6 +55,12 @@ load_local_env() {
     set +a
   fi
   FN_KNOCK_BASE_URL="${FN_KNOCK_BASE_URL:-${DEFAULT_BASE_URL}}"
+}
+
+cache_bust_url() {
+  local url="$1" separator="?"
+  case "${url}" in *\?*) separator="&" ;; esac
+  printf '%s%scb=%s-%s-%s\n' "${url}" "${separator}" "$(date +%s)" "$$" "${RANDOM}"
 }
 
 normalize_arch() {
@@ -44,11 +76,12 @@ download_file() {
   local url="$1"
   local output="$2"
   if command -v curl >/dev/null 2>&1; then
-    curl --fail --silent --show-error --location --retry 3 --connect-timeout 15 -o "${output}" "${url}"
+    curl --fail --silent --show-error --location --retry 3 --connect-timeout 15 \
+      -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' -o "${output}" "${url}"
   elif command -v wget >/dev/null 2>&1; then
-    wget -q --tries=3 --timeout=30 -O "${output}" "${url}"
+    wget -q --tries=3 --timeout=30 --header='Cache-Control: no-cache' --header='Pragma: no-cache' -O "${output}" "${url}"
   else
-    fail "curl or wget is required"
+    fail "需要安装 curl 或 wget"
   fi
 }
 
@@ -68,18 +101,18 @@ manifest_value() {
 }
 
 validate_manifest() {
-  MANIFEST_VERSION="$(manifest_value "$1" VERSION)" || fail "manifest VERSION is missing or duplicated"
-  MANIFEST_URL="$(manifest_value "$1" URL)" || fail "manifest URL is missing or duplicated"
-  MANIFEST_SHA256="$(manifest_value "$1" SHA256)" || fail "manifest SHA256 is missing or duplicated"
-  MANIFEST_SIZE="$(manifest_value "$1" SIZE)" || fail "manifest SIZE is missing or duplicated"
+  MANIFEST_VERSION="$(manifest_value "$1" VERSION)" || fail "线上清单中的 VERSION 缺失或重复"
+  MANIFEST_URL="$(manifest_value "$1" URL)" || fail "线上清单中的 URL 缺失或重复"
+  MANIFEST_SHA256="$(manifest_value "$1" SHA256)" || fail "线上清单中的 SHA256 缺失或重复"
+  MANIFEST_SIZE="$(manifest_value "$1" SIZE)" || fail "线上清单中的 SIZE 缺失或重复"
 
-  printf '%s' "${MANIFEST_VERSION}" | grep -Eq '^[0-9][0-9A-Za-z._+-]*$' || fail "invalid manifest version"
-  printf '%s' "${MANIFEST_SHA256}" | grep -Eq '^[0-9a-fA-F]{64}$' || fail "invalid manifest SHA256"
-  printf '%s' "${MANIFEST_SIZE}" | grep -Eq '^[1-9][0-9]*$' || fail "invalid manifest size"
+  printf '%s' "${MANIFEST_VERSION}" | grep -Eq '^[0-9][0-9A-Za-z._+-]*$' || fail "线上清单版本号无效"
+  printf '%s' "${MANIFEST_SHA256}" | grep -Eq '^[0-9a-fA-F]{64}$' || fail "线上清单 SHA256 无效"
+  printf '%s' "${MANIFEST_SIZE}" | grep -Eq '^[1-9][0-9]*$' || fail "线上清单文件大小无效"
   case "${MANIFEST_URL}" in
     https://*) ;;
-    http://*) [ "${FN_KNOCK_ALLOW_INSECURE_HTTP:-0}" = "1" ] || fail "manifest URL must use HTTPS" ;;
-    *) fail "manifest URL must be absolute" ;;
+    http://*) [ "${FN_KNOCK_ALLOW_INSECURE_HTTP:-0}" = "1" ] || fail "线上清单 URL 必须使用 HTTPS" ;;
+    *) fail "线上清单 URL 必须为绝对地址" ;;
   esac
 }
 
@@ -89,7 +122,7 @@ file_sha256() {
   elif command -v openssl >/dev/null 2>&1; then
     openssl dgst -sha256 "$1" | awk '{print $NF}'
   else
-    fail "sha256sum or openssl is required"
+    fail "需要安装 sha256sum 或 openssl"
   fi
 }
 
@@ -100,21 +133,22 @@ fetch_release() {
   local archive="${DOWNLOAD_DIR}/release.tar.gz"
   local base="${FN_KNOCK_BASE_URL%/}"
 
-  download_file "${base}/linux/latest/${arch}.env" "${manifest}"
+  log "正在从线上获取最新版本信息（已绕过 CDN 缓存）…"
+  download_file "$(cache_bust_url "${base}/linux/latest/${arch}.env")" "${manifest}"
   validate_manifest "${manifest}"
   download_file "${MANIFEST_URL}" "${archive}"
 
   local actual_size actual_sha
   actual_size="$(wc -c < "${archive}" | tr -d '[:space:]')"
-  [ "${actual_size}" = "${MANIFEST_SIZE}" ] || fail "download size mismatch: expected ${MANIFEST_SIZE}, got ${actual_size}"
+  [ "${actual_size}" = "${MANIFEST_SIZE}" ] || fail "下载文件大小不匹配：应为 ${MANIFEST_SIZE}，实际为 ${actual_size}"
   actual_sha="$(file_sha256 "${archive}")"
-  [ "${actual_sha}" = "${MANIFEST_SHA256}" ] || fail "download SHA256 mismatch"
+  [ "${actual_sha}" = "${MANIFEST_SHA256}" ] || fail "下载文件 SHA256 校验不匹配"
 
   tar --warning=no-unknown-keyword --warning=no-timestamp -tzf "${archive}" > "${DOWNLOAD_DIR}/archive.list"
-  grep -qx 'fn-knock/release.json' "${DOWNLOAD_DIR}/archive.list" || fail "release archive has an invalid layout"
+  grep -qx 'fn-knock/release.json' "${DOWNLOAD_DIR}/archive.list" || fail "发布包目录结构无效"
   tar --warning=no-unknown-keyword --warning=no-timestamp -xzf "${archive}" -C "${DOWNLOAD_DIR}"
   DOWNLOADED_SOURCE="${DOWNLOAD_DIR}/fn-knock"
-  [ -x "${DOWNLOADED_SOURCE}/bin/knock" ] || fail "release is missing the knock command"
+  [ -x "${DOWNLOADED_SOURCE}/bin/knock" ] || fail "发布包缺少 knock 管理命令"
 }
 
 release_version() {
@@ -154,7 +188,7 @@ snapshot_link_state() {
   if [ -L "${path}" ]; then
     readlink "${path}" > "${snapshot_dir}/${name}.link"
   elif [ -e "${path}" ]; then
-    warn "refusing to replace non-symlink path during transaction: ${path}"
+    warn "事务期间拒绝替换非符号链接路径：${path}"
     return 1
   else
     : > "${snapshot_dir}/${name}.absent"
@@ -166,7 +200,7 @@ snapshot_file_state() {
   if [ -f "${path}" ]; then
     cp -p "${path}" "${snapshot_dir}/${name}.file"
   elif [ -e "${path}" ] || [ -L "${path}" ]; then
-    warn "refusing to replace non-regular management file: ${path}"
+    warn "事务期间拒绝替换非普通管理文件：${path}"
     return 1
   else
     : > "${snapshot_dir}/${name}.absent"
@@ -221,14 +255,14 @@ restore_transaction_snapshot() {
   # Stop a possibly running candidate before restoring its executable links.
   if ! systemctl stop "${SERVICE_NAME}" >/dev/null 2>&1; then
     if systemctl is-active --quiet "${SERVICE_NAME}" >/dev/null 2>&1; then
-      warn "failed to stop the candidate service during restoration"
+      warn "恢复时无法停止候选服务"
       restore_failed=1
     fi
   fi
   if [ "${enabled_state}" = "disabled" ]; then
     if ! systemctl disable "${SERVICE_NAME}" >/dev/null 2>&1; then
       if systemctl is-enabled --quiet "${SERVICE_NAME}" >/dev/null 2>&1; then
-        warn "failed to restore the disabled service state"
+        warn "无法恢复服务的禁用状态"
         restore_failed=1
       fi
     fi
@@ -240,16 +274,16 @@ restore_transaction_snapshot() {
   restore_file_state "${UNIT_FILE}" unit "${snapshot_dir}" || restore_failed=1
 
   if ! systemctl daemon-reload; then
-    warn "systemd daemon-reload failed while restoring the previous release"
+    warn "恢复上一版本时 systemd daemon-reload 失败"
     restore_failed=1
   fi
   if [ "${enabled_state}" = "enabled" ] && ! systemctl enable "${SERVICE_NAME}" >/dev/null; then
-    warn "failed to restore the enabled service state"
+    warn "无法恢复服务的启用状态"
     restore_failed=1
   fi
   if [ "${active_state}" = "active" ]; then
     if ! systemctl start "${SERVICE_NAME}"; then
-      warn "failed to restore the running service state"
+      warn "无法恢复服务的运行状态"
       restore_failed=1
     fi
   else
@@ -305,11 +339,16 @@ cleanup_releases() {
 install_release() {
   local source_dir="$1"
   local version="$2"
-  local target_dir="${RELEASES_DIR}/${version}"
-  local stage_dir="${RELEASES_DIR}/.${version}.new.$$"
+  local force_reinstall="${3:-0}"
+  local target_name="${version}"
+  if [ "${force_reinstall}" = "1" ] && [ -d "${RELEASES_DIR}/${target_name}" ]; then
+    target_name="${version}.reinstall.$(date +%s).$$"
+  fi
+  local target_dir="${RELEASES_DIR}/${target_name}"
+  local stage_dir="${RELEASES_DIR}/.${target_name}.new.$$"
   local old_current="" transaction_dir transaction_status
 
-  [ "$(release_version "${source_dir}")" = "${version}" ] || fail "release.json version does not match ${version}"
+  [ "$(release_version "${source_dir}")" = "${version}" ] || fail "发布包 release.json 的版本与 ${version} 不一致"
   mkdir -p "${RELEASES_DIR}"
   if [ ! -d "${target_dir}" ]; then
     rm -rf "${stage_dir}"
@@ -325,7 +364,7 @@ install_release() {
   transaction_dir="$(mktemp -d "${TMPDIR:-/tmp}/fn-knock-transaction.XXXXXX")"
   if ! create_transaction_snapshot "${transaction_dir}"; then
     rm -rf "${transaction_dir}"
-    fail "could not snapshot the installed release before switching versions"
+    fail "切换版本前无法创建当前安装快照"
   fi
 
   # Run the mutation in an errexit-enabled subshell while the parent retains
@@ -347,23 +386,23 @@ install_release() {
 
   if [ "${transaction_status}" -ne 0 ]; then
     journalctl -u "${SERVICE_NAME}" -n 80 --no-pager >&2 || true
-    warn "release activation failed; restoring links, management files, unit, and service state"
+    warn "新版本启动失败，正在恢复链接、管理命令、服务配置和运行状态"
     if ! restore_transaction_snapshot "${transaction_dir}"; then
       rm -rf "${transaction_dir}"
-      fail "release ${version} failed and the previous installation could not be restored completely"
+      fail "版本 ${version} 启动失败，且无法完整恢复上一安装状态"
     fi
     rm -rf "${transaction_dir}"
-    fail "release ${version} failed to activate; the previous installation was restored"
+    fail "版本 ${version} 启动失败，已恢复上一版本"
   fi
 
   rm -rf "${transaction_dir}"
   cleanup_releases
-  log "release ${version} is running"
+  success "版本 ${version} 已启动运行"
 }
 
-PORT_KEYS=(ADMIN_VIEW_PORT BACKEND_PORT AUTH_PORT GO_BACKEND_PORT GO_REPROXY_PORT)
-PORT_LABELS=("管理面板（对外）" "管理后端（仅本机）" "认证服务（仅本机）" "Go 管理接口（仅本机）" "代理服务（对外）")
-PORT_DEFAULTS=(7991 7998 7997 7996 7999)
+PORT_KEYS=(GO_REPROXY_PORT ADMIN_VIEW_PORT BACKEND_PORT AUTH_PORT GO_BACKEND_PORT)
+PORT_LABELS=("Go 代理服务（对外 · 重要）" "管理面板（对外）" "管理后端（仅本机）" "认证服务（仅本机）" "Go 管理接口（仅本机）")
+PORT_DEFAULTS=(7999 7991 7998 7997 7996)
 PORT_VALUES=()
 CURRENT_PORT_VALUES=()
 
@@ -371,23 +410,23 @@ port_valid() { printf '%s' "$1" | grep -Eq '^[0-9]+$' && [ "$1" -ge 1 ] && [ "$1
 
 read_tty() {
   local prompt="$1"
-  read -r -p "${prompt}" REPLY </dev/tty || fail "an interactive terminal is required"
+  read -r -p "${prompt}" REPLY </dev/tty || fail "需要可交互的终端"
 }
 
 load_port_values() {
   PORT_VALUES=(
+    "${GO_REPROXY_PORT:-7999}"
     "${ADMIN_VIEW_PORT:-7991}"
     "${BACKEND_PORT:-7998}"
     "${AUTH_PORT:-7997}"
     "${GO_BACKEND_PORT:-7996}"
-    "${GO_REPROXY_PORT:-7999}"
   )
   CURRENT_PORT_VALUES=("${PORT_VALUES[@]}")
 }
 
 port_listener_details() {
   local port="$1"
-  command -v ss >/dev/null 2>&1 || fail "cannot check ports: install iproute2 (the ss command) first"
+  command -v ss >/dev/null 2>&1 || fail "无法检测端口：请先安装 iproute2（提供 ss 命令）"
   # The ss filter matches IPv4 and IPv6 listeners without relying on a
   # particular address-column format.
   ss -H -ltn "sport = :${port}" 2>/dev/null | sed '/^[[:space:]]*$/d' || true
@@ -428,11 +467,13 @@ validate_port_plan() {
 
 show_port_plan() {
   local i
-  printf '\n当前端口规划：\n'
+  printf '\n%s━━━ 端口配置 ━━━%s\n' "${C_ACCENT}" "${C_RESET}"
   for ((i = 0; i < ${#PORT_VALUES[@]}; i++)); do
-    printf '  %d. %-24s %s\n' "$((i + 1))" "${PORT_LABELS[${i}]}" "${PORT_VALUES[${i}]}"
+    printf '  %s[%d]%s %-28s %s%s%s\n' \
+      "${C_ACCENT}" "$((i + 1))" "${C_RESET}" "${PORT_LABELS[${i}]}" \
+      "${C_OK}" "${PORT_VALUES[${i}]}" "${C_RESET}"
   done
-  printf '%s\n' '  管理面板和代理服务会监听所有网卡；其余服务仅监听本机。'
+  printf '%s  提示：管理面板和 Go 代理监听所有网卡；其余服务仅监听本机。%s\n' "${C_DIM}" "${C_RESET}"
 }
 
 change_port() {
@@ -499,7 +540,7 @@ EOF
   fi
   mv -f "${temporary}" "${ENV_FILE}"
   chmod 600 "${ENV_FILE}"
-  log "port configuration saved to ${ENV_FILE}"
+  success "端口配置已保存到 ${ENV_FILE}"
 }
 
 configure_ports_menu() {
@@ -508,30 +549,21 @@ configure_ports_menu() {
     show_port_plan
     cat <<'EOF'
 
-1. 修改管理面板端口（常用）
-2. 修改任意端口（高级）
-3. 恢复默认端口
-4. 校验并保存
-0. 取消
+输入端口编号 [1-5] 修改对应端口
+S. 校验并保存    R. 恢复默认端口    0. 取消
 EOF
     read_tty "请选择: "
     choice="${REPLY}"
     case "${choice}" in
-      1) change_port 0 ;;
-      2)
-        read_tty "输入要修改的编号（1-5）: "
-        index="${REPLY}"
-        if printf '%s' "${index}" | grep -Eq '^[1-5]$'; then
-          change_port "$((index - 1))"
-        else
-          warn "请输入 1 到 5"
-        fi
+      1|2|3|4|5)
+        index="$((choice - 1))"
+        change_port "${index}"
         ;;
-      3)
+      r|R)
         PORT_VALUES=("${PORT_DEFAULTS[@]}")
         log "已恢复默认端口；保存前仍会检查是否被占用"
         ;;
-      4)
+      s|S)
         if validate_port_plan; then
           write_port_config
           return 0
@@ -549,16 +581,104 @@ config_command() {
   load_local_env
   load_port_values
   if ! configure_ports_menu; then
-    log "port configuration unchanged"
+    log "端口配置未变更"
     return
   fi
   read_tty "现在重启服务以应用新端口？[Y/n] "
   if [ "${REPLY:-Y}" != "n" ] && [ "${REPLY:-Y}" != "N" ]; then
     systemctl restart "${SERVICE_NAME}"
-    wait_for_health || fail "service failed its health check after configuration change"
+    wait_for_health || fail "端口修改后服务健康检查失败"
   else
     warn "端口配置已保存，服务仍在使用旧端口；请稍后执行 sudo knock restart"
   fi
+}
+
+format_memory() {
+  local kib="${1:-0}"
+  awk -v kib="${kib}" 'BEGIN {
+    if (kib >= 1048576) printf "%.2f GiB", kib / 1048576;
+    else if (kib >= 1024) printf "%.1f MiB", kib / 1024;
+    else printf "%d KiB", kib;
+  }'
+}
+
+show_process_memory() {
+  local process_name="$1" label="$2" rows pid rss elapsed total_rss=0 count=0
+  rows="$(ps -C "${process_name}" -o pid=,rss=,etime= 2>/dev/null || true)"
+  if [ -z "${rows//[[:space:]]/}" ]; then
+    printf '  %-24s %s未运行%s\n' "${label}" "${C_ERR}" "${C_RESET}"
+    return
+  fi
+
+  while read -r pid rss elapsed; do
+    [ -n "${pid:-}" ] || continue
+    total_rss=$((total_rss + rss))
+    count=$((count + 1))
+    printf '  %-24s %s运行中%s  PID: %-7s RSS: %-10s 已运行: %s\n' \
+      "${label}" "${C_OK}" "${C_RESET}" "${pid}" "$(format_memory "${rss}")" "${elapsed}"
+  done <<< "${rows}"
+  PROCESS_TOTAL_RSS=$((PROCESS_TOTAL_RSS + total_rss))
+  PROCESS_TOTAL_COUNT=$((PROCESS_TOTAL_COUNT + count))
+}
+
+status_command() {
+  local active enabled main_pid exec_status since
+  log "正在收集运行状态…"
+  active="$(systemctl is-active "${SERVICE_NAME}" 2>/dev/null || true)"
+  enabled="$(systemctl is-enabled "${SERVICE_NAME}" 2>/dev/null || true)"
+  main_pid="$(systemctl show "${SERVICE_NAME}" -p MainPID --value 2>/dev/null || true)"
+  exec_status="$(systemctl show "${SERVICE_NAME}" -p ExecMainStatus --value 2>/dev/null || true)"
+  since="$(systemctl show "${SERVICE_NAME}" -p ActiveEnterTimestamp --value 2>/dev/null || true)"
+
+  printf '\n%s━━━ 服务状态 ━━━%s\n' "${C_ACCENT}" "${C_RESET}"
+  if [ "${active}" = "active" ]; then
+    printf '  服务：%s运行中%s    开机启动：%s\n' "${C_OK}" "${C_RESET}" "${enabled:-未知}"
+  else
+    printf '  服务：%s%s%s    开机启动：%s\n' "${C_ERR}" "${active:-未知}" "${C_RESET}" "${enabled:-未知}"
+  fi
+  printf '  systemd 主 PID：%s    最近退出码：%s\n' "${main_pid:-无}" "${exec_status:-未知}"
+  [ -z "${since}" ] || printf '  本次启动时间：%s\n' "${since}"
+
+  printf '\n%s━━━ 核心进程内存（RSS）━━━%s\n' "${C_ACCENT}" "${C_RESET}"
+  PROCESS_TOTAL_RSS=0
+  PROCESS_TOTAL_COUNT=0
+  show_process_memory "server-admin-rs" "server-admin-rs"
+  show_process_memory "go-reauth-proxy" "go-reauth-proxy"
+  printf '  %s合计：%d 个进程，RSS %s%s\n' \
+    "${C_TITLE}" "${PROCESS_TOTAL_COUNT}" "$(format_memory "${PROCESS_TOTAL_RSS}")" "${C_RESET}"
+
+  printf '\n%s━━━ systemctl 摘要 ━━━%s\n' "${C_ACCENT}" "${C_RESET}"
+  systemctl status "${SERVICE_NAME}" --no-pager --lines=8 || true
+}
+
+service_action() {
+  local action="$1" action_name="$2" state
+  log "正在${action_name}服务…"
+  if systemctl "${action}" "${SERVICE_NAME}"; then
+    state="$(systemctl is-active "${SERVICE_NAME}" 2>/dev/null || true)"
+    success "服务${action_name}完成，当前状态：${state:-未知}"
+  else
+    warn "服务${action_name}失败，请执行 sudo knock status 或 sudo knock logs 查看详情"
+  fi
+}
+
+reset_panel_password_command() {
+  require_root reset-panel-password
+  load_local_env
+  local backend="${CURRENT_LINK}/bin/server-admin-rs"
+  [ -x "${backend}" ] || fail "未找到可执行的管理后端：${backend}"
+  read_tty "将清除面板密码、所有登录会话和失败退避记录；确认继续？[y/N] "
+  case "${REPLY:-N}" in
+    y|Y) ;;
+    *) log "已取消清除面板登录密码"; return ;;
+  esac
+  log "正在清除面板登录密码…"
+  FN_KNOCK_RUNTIME_TARGET=linux \
+    FN_KNOCK_DATA_DIR="${FN_KNOCK_DATA_DIR:-${DATA_DIR}}" \
+    FN_KNOCK_GATEWAY_CONFIG_DIR="${FN_KNOCK_GATEWAY_CONFIG_DIR:-${CONFIG_DIR}/gateway}" \
+    FN_KNOCK_LOCALE=zh-CN \
+    "${backend}" reset-panel-password
+  success "面板登录密码已清除；下次访问管理面板时请重新设置密码"
 }
 
 prepare_install_command() {
@@ -569,14 +689,14 @@ prepare_install_command() {
   load_port_values
 
   if [ "${has_config}" = "1" ]; then
-    log "existing port configuration detected"
+    log "检测到已有端口配置"
     show_port_plan
     read_tty "沿用以上端口并校验可用性？[Y/n] "
     if [ "${REPLY:-Y}" != "n" ] && [ "${REPLY:-Y}" != "N" ] && validate_port_plan; then
       return
     fi
   else
-    log "checking default ports before the first installation"
+    log "正在检查首次安装的默认端口"
     if validate_port_plan; then
       read_tty "默认端口均可用，使用默认配置？[Y/n] "
       if [ "${REPLY:-Y}" != "n" ] && [ "${REPLY:-Y}" != "N" ]; then
@@ -588,41 +708,52 @@ prepare_install_command() {
     fi
   fi
 
-  configure_ports_menu || fail "installation cancelled before port configuration was saved"
+  configure_ports_menu || fail "安装已取消，端口配置未保存"
 }
 
 update_command() {
   require_root update
   load_local_env
-  local arch installed answer
-  arch="$(normalize_arch)" || fail "unsupported architecture: $(uname -m)"
+  local arch installed answer force_reinstall=0
+  arch="$(normalize_arch)" || fail "不支持的系统架构：$(uname -m)"
   installed="$(current_version)"
   fetch_release "${arch}"
   trap 'rm -rf "${DOWNLOAD_DIR:-}"' EXIT
 
+  printf '\n%s━━━ 版本检查 ━━━%s\n' "${C_ACCENT}" "${C_RESET}"
+  printf '  本地版本：%s%s%s\n' "${C_OK}" "${installed}" "${C_RESET}"
+  printf '  线上版本：%s%s%s\n' "${C_ACCENT}" "${MANIFEST_VERSION}" "${C_RESET}"
   if [ "${installed}" = "${MANIFEST_VERSION}" ]; then
-    log "already running the latest release: ${installed}"
-    return
-  fi
-  if [ "${1:-}" != "--yes" ]; then
-    read -r -p "升级 ${installed} -> ${MANIFEST_VERSION}？[Y/n] " answer </dev/tty
+    log "本地已是线上版本 ${installed}"
+    force_reinstall=1
+    if [ "${1:-}" != "--yes" ]; then
+      read_tty "仍要重新下载并部署该版本吗？[y/N] "
+      case "${REPLY:-N}" in
+        y|Y) ;;
+        *) log "已取消更新"; return ;;
+      esac
+    fi
+  elif [ "${1:-}" != "--yes" ]; then
+    read_tty "确认升级 ${installed} -> ${MANIFEST_VERSION}？[Y/n] "
+    answer="${REPLY}"
     [ "${answer:-Y}" != "n" ] && [ "${answer:-Y}" != "N" ] || return
   fi
-  install_release "${DOWNLOADED_SOURCE}" "${MANIFEST_VERSION}"
+  log "正在部署版本 ${MANIFEST_VERSION}…"
+  install_release "${DOWNLOADED_SOURCE}" "${MANIFEST_VERSION}" "${force_reinstall}"
 }
 
 rollback_command() {
   require_root rollback
-  [ -L "${PREVIOUS_LINK}" ] || fail "no previous release is available"
+  [ -L "${PREVIOUS_LINK}" ] || fail "没有可回滚的上一版本"
   local current previous transaction_dir transaction_status
   current="$(readlink -f "${CURRENT_LINK}")"
   previous="$(readlink -f "${PREVIOUS_LINK}")"
-  [ -d "${previous}" ] || fail "previous release directory is missing"
+  [ -d "${previous}" ] || fail "上一版本目录不存在"
 
   transaction_dir="$(mktemp -d "${TMPDIR:-/tmp}/fn-knock-transaction.XXXXXX")"
   if ! create_transaction_snapshot "${transaction_dir}"; then
     rm -rf "${transaction_dir}"
-    fail "could not snapshot the current installation before rollback"
+    fail "回滚前无法创建当前安装快照"
   fi
 
   set +e
@@ -638,17 +769,17 @@ rollback_command() {
   set -e
 
   if [ "${transaction_status}" -ne 0 ]; then
-    warn "rollback activation failed; restoring the pre-rollback installation"
+    warn "回滚目标启动失败，正在恢复回滚前的安装状态"
     if ! restore_transaction_snapshot "${transaction_dir}"; then
       rm -rf "${transaction_dir}"
-      fail "rollback failed and the pre-rollback installation could not be restored completely"
+      fail "回滚失败，且无法完整恢复回滚前的安装状态"
     fi
     rm -rf "${transaction_dir}"
-    fail "rollback target failed to activate; the pre-rollback installation was restored"
+    fail "回滚目标启动失败，已恢复回滚前版本"
   fi
 
   rm -rf "${transaction_dir}"
-  log "rolled back to $(release_version "${previous}")"
+  success "已回滚到版本 $(release_version "${previous}")"
 }
 
 uninstall_command() {
@@ -663,21 +794,22 @@ uninstall_command() {
     [ "${answer:-N}" = "y" ] || [ "${answer:-N}" = "Y" ] || return
   fi
   if [ "${purge}" = "1" ]; then
-    [ -t 0 ] || fail "purge requires an interactive terminal and an independent DELETE confirmation"
+    [ -t 0 ] || fail "彻底清除需要可交互终端和独立的 DELETE 确认"
     if ! read -r -p "输入 DELETE 确认永久删除配置和数据: " answer </dev/tty; then
-      fail "purge requires an interactive terminal and an independent DELETE confirmation"
+      fail "彻底清除需要可交互终端和独立的 DELETE 确认"
     fi
-    [ "${answer}" = "DELETE" ] || fail "purge cancelled"
+    [ "${answer}" = "DELETE" ] || fail "已取消彻底清除"
   fi
+  log "正在停止并移除 fn-knock 服务…"
   systemctl disable --now "${SERVICE_NAME}" >/dev/null 2>&1 || true
   rm -f "${UNIT_FILE}"
   systemctl daemon-reload
   rm -rf "${APP_ROOT}"
   if [ "${purge}" = "1" ]; then
     rm -rf "${CONFIG_DIR}" "${DATA_DIR}"
-    log "application, configuration, and data removed"
+    success "程序、配置和数据已全部移除"
   else
-    log "application removed; configuration and data were kept"
+    success "程序已移除，配置和数据已保留"
   fi
   rm -f "${COMMAND_FILE}"
 }
@@ -716,11 +848,13 @@ EOF
 
 show_menu() {
   while true; do
-    printf '\nfn-knock 管理菜单（当前版本：%s）\n' "$(current_version)"
+    show_banner
+    printf '\n%s━━━ 管理菜单 ━━━%s  当前版本：%s%s%s\n' \
+      "${C_ACCENT}" "${C_RESET}" "${C_OK}" "$(current_version)" "${C_RESET}"
     cat <<'EOF'
 1. 重启服务
-2. 配置端口（按需修改并校验）
-3. 查看状态
+2. 配置端口
+3. 查看运行状态与内存占用
 4. 启动服务
 5. 停止服务
 6. 查看/跟随日志
@@ -728,51 +862,59 @@ show_menu() {
 8. 回滚上一版本
 9. 卸载
 10. 查看 Nginx 反向代理示例
+11. 清除面板登录密码
 0. 退出
 EOF
-    read -r -p "请选择: " choice </dev/tty
+    read_tty "请选择: "
+    choice="${REPLY}"
     case "${choice}" in
-      1) systemctl restart "${SERVICE_NAME}" ;;
+      1) service_action restart "重启" ;;
       2) config_command ;;
-      3) systemctl status "${SERVICE_NAME}" --no-pager || true ;;
-      4) systemctl start "${SERVICE_NAME}" ;;
-      5) systemctl stop "${SERVICE_NAME}" ;;
-      6) journalctl -u "${SERVICE_NAME}" -n 100 -f ;;
+      3) status_command ;;
+      4) service_action start "启动" ;;
+      5) service_action stop "停止" ;;
+      6) log "正在显示服务日志（按 Ctrl+C 返回菜单）…"; journalctl -u "${SERVICE_NAME}" -n 100 -f || true ;;
       7) update_command ;;
       8) rollback_command ;;
       9) uninstall_command; return ;;
-      10) nginx_command ;;
+      10) log "Nginx 反向代理配置示例："; nginx_command ;;
+      11) reset_panel_password_command ;;
       0) return ;;
-      *) warn "invalid selection" ;;
+      *) warn "无效选择，请输入菜单中的编号" ;;
     esac
+    printf '\n%s按 Enter 返回管理菜单…%s' "${C_DIM}" "${C_RESET}"
+    read -r _ </dev/tty || true
   done
 }
 
 case "${1:-}" in
   "") require_root; show_menu ;;
-  restart) require_root restart; systemctl restart "${SERVICE_NAME}" ;;
+  restart) require_root restart; service_action restart "重启" ;;
   config) config_command ;;
-  status) systemctl status "${SERVICE_NAME}" --no-pager || true ;;
-  start) require_root start; systemctl start "${SERVICE_NAME}" ;;
-  stop) require_root stop; systemctl stop "${SERVICE_NAME}" ;;
+  status) status_command ;;
+  start) require_root start; service_action start "启动" ;;
+  stop) require_root stop; service_action stop "停止" ;;
   logs)
     shift
     if [ "${1:-}" = "--follow" ] || [ "${1:-}" = "-f" ]; then
+      log "正在跟随服务日志（按 Ctrl+C 退出）…"
       journalctl -u "${SERVICE_NAME}" -n 100 -f
     else
+      log "最近 100 行服务日志："
       journalctl -u "${SERVICE_NAME}" -n 100 --no-pager
     fi
     ;;
   update) shift; update_command "$@" ;;
   rollback) rollback_command ;;
   uninstall) shift; uninstall_command "$@" ;;
-  nginx) nginx_command ;;
+  nginx) log "Nginx 反向代理配置示例："; nginx_command ;;
+  reset-panel-password|reset-admin-panel-password) reset_panel_password_command ;;
   version) current_version ;;
   _install-extracted)
     require_root install
-    [ "$#" -ge 3 ] || fail "internal install arguments are missing"
+    [ "$#" -ge 3 ] || fail "安装器内部参数缺失"
     install_release "$2" "$3"
     ;;
   _prepare-install) prepare_install_command ;;
-  *) fail "usage: knock [restart|config|status|start|stop|logs|update|rollback|uninstall|nginx|version]" ;;
+  *) fail "用法：knock [restart|config|status|start|stop|logs|update|rollback|uninstall|nginx|reset-panel-password|version]" ;;
 esac

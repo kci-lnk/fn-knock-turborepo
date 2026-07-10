@@ -8,13 +8,26 @@ APP_ROOT="${FN_KNOCK_APP_ROOT:-/opt/fn-knock}"
 WORK_DIR=""
 
 if [ -t 1 ] && [ "${NO_COLOR:-}" != "1" ]; then
-  C_RESET=$'\033[0m' C_TITLE=$'\033[1;38;5;45m' C_OK=$'\033[1;38;5;82m' C_ERR=$'\033[1;38;5;203m'
+  C_RESET=$'\033[0m' C_TITLE=$'\033[1;38;5;45m' C_ACCENT=$'\033[1;38;5;213m' C_OK=$'\033[1;38;5;82m' C_ERR=$'\033[1;38;5;203m' C_DIM=$'\033[38;5;245m'
 else
-  C_RESET='' C_TITLE='' C_OK='' C_ERR=''
+  C_RESET='' C_TITLE='' C_ACCENT='' C_OK='' C_ERR='' C_DIM=''
 fi
 log() { printf '%s【fn-knock 安装器】%s %s\n' "${C_TITLE}" "${C_RESET}" "$*"; }
 success() { printf '%s✓ %s%s\n' "${C_OK}" "$*" "${C_RESET}"; }
 fail() { printf '%s✗ %s%s\n' "${C_ERR}" "$*" "${C_RESET}" >&2; exit 1; }
+
+show_banner() {
+  cat <<EOF
+${C_TITLE}
+ ███████╗███╗   ██╗      ██╗  ██╗███╗   ██╗ ██████╗  ██████╗██╗  ██╗
+ ██╔════╝████╗  ██║      ██║ ██╔╝████╗  ██║██╔═══██╗██╔════╝██║ ██╔╝
+ █████╗  ██╔██╗ ██║█████╗█████╔╝ ██╔██╗ ██║██║   ██║██║     █████╔╝
+ ██╔══╝  ██║╚██╗██║╚════╝██╔═██╗ ██║╚██╗██║██║   ██║██║     ██╔═██╗
+ ██║     ██║ ╚████║      ██║  ██╗██║ ╚████║╚██████╔╝╚██████╗██║  ██╗
+ ╚═╝     ╚═╝  ╚═══╝      ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝${C_RESET}
+${C_DIM}                         Linux 一键安装器${C_RESET}
+EOF
+}
 
 cache_bust_url() {
   local url="$1" separator="?"
@@ -28,6 +41,7 @@ cleanup() {
 trap cleanup EXIT
 
 [ -n "${BASH_VERSION:-}" ] || fail "安装脚本需要使用 bash 执行"
+show_banner
 [ "$(id -u)" -eq 0 ] || fail "需要 root 权限，请使用：sudo bash"
 [ "$(uname -s)" = "Linux" ] || fail "仅支持 Linux 系统"
 command -v systemctl >/dev/null 2>&1 || fail "系统缺少 systemd"
@@ -74,15 +88,12 @@ choose_action() {
   if [ -x "${COMMAND_FILE}" ] && [ -f "${APP_ROOT}/current/release.json" ]; then
     version="$(installed_version)"
     log "检测到已安装的 fn-knock${version:+（版本 ${version}）}"
-    cat >&2 <<'EOF'
-
-请选择操作：
-  1. 下载并安装最新版本
-  2. 打开 fn-knock 管理菜单
-  3. 查看服务状态
-  4. 卸载 fn-knock
-  0. 退出
-EOF
+    printf '\n%s━━━ 请选择操作 ━━━%s\n' "${C_ACCENT}" "${C_RESET}" >&2
+    printf '  %s[1]%s 下载并安装最新版本\n' "${C_OK}" "${C_RESET}" >&2
+    printf '  %s[2]%s 打开 fn-knock 管理菜单\n' "${C_ACCENT}" "${C_RESET}" >&2
+    printf '  %s[3]%s 查看服务状态\n' "${C_ACCENT}" "${C_RESET}" >&2
+    printf '  %s[4]%s 卸载 fn-knock（需输入 Y 确认）\n' "${C_ERR}" "${C_RESET}" >&2
+    printf '  %s[0]%s 退出\n' "${C_DIM}" "${C_RESET}" >&2
     read -r -p "请选择 [1]: " answer </dev/tty || fail "需要可交互的终端"
     case "${answer:-1}" in
       1) return 0 ;;
@@ -94,12 +105,9 @@ EOF
     esac
   fi
 
-  cat >&2 <<'EOF'
-
-未检测到已安装的 fn-knock。
-  1. 安装 fn-knock
-  0. 退出
-EOF
+  printf '\n%s未检测到已安装的 fn-knock%s\n' "${C_ACCENT}" "${C_RESET}" >&2
+  printf '  %s[1]%s 安装 fn-knock\n' "${C_OK}" "${C_RESET}" >&2
+  printf '  %s[0]%s 退出\n' "${C_DIM}" "${C_RESET}" >&2
   read -r -p "请选择 [1]: " answer </dev/tty || fail "需要可交互的终端"
   case "${answer:-1}" in
     1) ;;
@@ -114,6 +122,16 @@ manifest_value() {
     index($0, wanted "=") == 1 { count++; value = substr($0, length(wanted) + 2) }
     END { if (count != 1) exit 1; print value }
   ' "${file}"
+}
+
+configured_port() {
+  local key="$1" fallback="$2" config_file="${FN_KNOCK_ENV_FILE:-/etc/fn-knock/fn-knock.env}" value=""
+  if [ -f "${config_file}" ]; then
+    value="$(awk -v wanted="${key}" '
+      index($0, wanted "=") == 1 { print substr($0, length(wanted) + 2); exit }
+    ' "${config_file}")"
+  fi
+  printf '%s\n' "${value:-${fallback}}"
 }
 
 file_sha256() {
@@ -168,9 +186,16 @@ log "正在安装前检测所需端口…"
 "${WORK_DIR}/fn-knock/bin/knock" _install-extracted "${WORK_DIR}/fn-knock" "${VERSION}"
 
 success "fn-knock ${VERSION} 安装完成！"
-log "管理面板：http://<设备 IP>:7991（默认监听所有网卡）"
-log "Go 代理端口：7999"
-log "7998 是仅本机可访问的 Rust 内部 API，请勿对外转发"
-log "如需公网访问，建议使用 HTTPS Nginx 反向代理与来源 IP 限制；运行 sudo knock nginx 可查看模板"
-log "随时运行 sudo knock 可打开彩色管理菜单"
-log "fn-knock 不会修改主机防火墙；请仅开放部署所需端口"
+ADMIN_PORT="$(configured_port ADMIN_VIEW_PORT 7991)"
+PROXY_PORT="$(configured_port GO_REPROXY_PORT 7999)"
+printf '\n%s━━━ 下一步 ━━━%s\n' "${C_ACCENT}" "${C_RESET}"
+printf '%s局域网配置：%s请在局域网浏览器打开 %shttp://<服务器局域网 IP>:%s/%s\n' \
+  "${C_OK}" "${C_RESET}" "${C_TITLE}" "${ADMIN_PORT}" "${C_RESET}"
+printf '%s公网管理：%s不要直接暴露或端口转发 %s%s%s；必须通过 HTTPS 反向代理访问，并设置访问控制。\n' \
+  "${C_ERR}" "${C_RESET}" "${C_TITLE}" "${ADMIN_PORT}" "${C_RESET}"
+printf '%s反向代理：%s运行 %ssudo knock nginx%s 查看 Nginx 配置模板。\n' \
+  "${C_ACCENT}" "${C_RESET}" "${C_TITLE}" "${C_RESET}"
+printf '%s管理菜单：%s随时运行 %ssudo knock%s 打开服务管理、端口配置、更新和日志。\n' \
+  "${C_ACCENT}" "${C_RESET}" "${C_TITLE}" "${C_RESET}"
+printf '%s网关入口：%sGo 代理默认端口为 %s%s%s；仅开放部署实际需要的端口。\n' \
+  "${C_DIM}" "${C_RESET}" "${C_TITLE}" "${PROXY_PORT}" "${C_RESET}"

@@ -502,8 +502,8 @@ write_port_config() {
   umask 077
   if [ -f "${ENV_FILE}" ]; then
     awk \
-      -v admin="${PORT_VALUES[0]}" -v backend="${PORT_VALUES[1]}" \
-      -v auth="${PORT_VALUES[2]}" -v go_admin="${PORT_VALUES[3]}" -v proxy="${PORT_VALUES[4]}" '
+      -v proxy="${PORT_VALUES[0]}" -v admin="${PORT_VALUES[1]}" \
+      -v backend="${PORT_VALUES[2]}" -v auth="${PORT_VALUES[3]}" -v go_admin="${PORT_VALUES[4]}" '
       BEGIN {
         value["ADMIN_VIEW_PORT"] = admin
         value["BACKEND_PORT"] = backend
@@ -528,11 +528,11 @@ FN_KNOCK_RUNTIME_TARGET=linux
 FN_KNOCK_DATA_DIR=/var/lib/fn-knock
 FN_KNOCK_GATEWAY_CONFIG_DIR=/etc/fn-knock/gateway
 FN_KNOCK_BASE_URL=${FN_KNOCK_BASE_URL:-${DEFAULT_BASE_URL}}
-ADMIN_VIEW_PORT=${PORT_VALUES[0]}
-BACKEND_PORT=${PORT_VALUES[1]}
-AUTH_PORT=${PORT_VALUES[2]}
-GO_BACKEND_PORT=${PORT_VALUES[3]}
-GO_REPROXY_PORT=${PORT_VALUES[4]}
+GO_REPROXY_PORT=${PORT_VALUES[0]}
+ADMIN_VIEW_PORT=${PORT_VALUES[1]}
+BACKEND_PORT=${PORT_VALUES[2]}
+AUTH_PORT=${PORT_VALUES[3]}
+GO_BACKEND_PORT=${PORT_VALUES[4]}
 ADMIN_VIEW_HOST=0.0.0.0
 BACKEND_HOST=127.0.0.1
 AUTH_HOST=127.0.0.1
@@ -621,9 +621,30 @@ show_process_memory() {
   PROCESS_TOTAL_COUNT=$((PROCESS_TOTAL_COUNT + count))
 }
 
+show_listener_status() {
+  local label="$1" process_name="$2" port="$3" details
+  printf '  %-24s 配置端口：%s%s%s\n' \
+    "${label}" "${C_OK}" "${port}" "${C_RESET}"
+  if ! command -v ss >/dev/null 2>&1; then
+    printf '  %s  无法读取实际监听状态：缺少 ss 命令%s\n' "${C_DIM}" "${C_RESET}"
+    return
+  fi
+  details="$(ss -H -ltnp "sport = :${port}" 2>/dev/null || true)"
+  if [ -z "${details//[[:space:]]/}" ]; then
+    printf '  %s  实际监听：未发现 %s 的 TCP 监听%s\n' \
+      "${C_ERR}" "${process_name}" "${C_RESET}"
+    return
+  fi
+  printf '  %s  实际监听：%s\n' "${C_OK}" "${C_RESET}"
+  printf '%s\n' "${details}" | sed 's/^/    /'
+}
+
 status_command() {
-  local active enabled main_pid exec_status since
+  local active enabled main_pid exec_status since admin_port proxy_port
   log "正在收集运行状态…"
+  load_local_env
+  admin_port="${ADMIN_VIEW_PORT:-7991}"
+  proxy_port="${GO_REPROXY_PORT:-7999}"
   active="$(systemctl is-active "${SERVICE_NAME}" 2>/dev/null || true)"
   enabled="$(systemctl is-enabled "${SERVICE_NAME}" 2>/dev/null || true)"
   main_pid="$(systemctl show "${SERVICE_NAME}" -p MainPID --value 2>/dev/null || true)"
@@ -638,6 +659,10 @@ status_command() {
   fi
   printf '  systemd 主 PID：%s    最近退出码：%s\n' "${main_pid:-无}" "${exec_status:-未知}"
   [ -z "${since}" ] || printf '  本次启动时间：%s\n' "${since}"
+
+  printf '\n%s━━━ 对外监听端口 ━━━%s\n' "${C_ACCENT}" "${C_RESET}"
+  show_listener_status "go-reauth-proxy（网关）" "go-reauth-proxy" "${proxy_port}"
+  show_listener_status "server-admin-rs（管理面板）" "server-admin-rs" "${admin_port}"
 
   printf '\n%s━━━ 核心进程内存（RSS）━━━%s\n' "${C_ACCENT}" "${C_RESET}"
   PROCESS_TOTAL_RSS=0
@@ -683,18 +708,58 @@ reset_panel_password_command() {
 
 prepare_install_command() {
   require_root install
-  local answer has_config=0
+  local answer has_config=0 installed=0
   [ -f "${ENV_FILE}" ] && has_config=1
+  [ -e "${CURRENT_LINK}" ] && installed=1
   load_local_env
   load_port_values
 
   if [ "${has_config}" = "1" ]; then
-    log "检测到已有端口配置"
-    show_port_plan
-    read_tty "沿用以上端口并校验可用性？[Y/n] "
-    if [ "${REPLY:-Y}" != "n" ] && [ "${REPLY:-Y}" != "N" ] && validate_port_plan; then
-      return
+    if [ "${installed}" = "1" ]; then
+      log "检测到已安装实例的端口配置"
+    else
+      warn "未检测到已安装实例，但发现残留端口配置：${ENV_FILE}"
     fi
+    show_port_plan
+    cat <<'EOF'
+
+1. 沿用并校验现有端口配置
+2. 修改现有端口配置
+3. 清除旧端口配置，恢复默认端口
+0. 取消安装
+EOF
+    read_tty "请选择 [1]: "
+    case "${REPLY:-1}" in
+      1)
+        if validate_port_plan; then
+          return
+        fi
+        warn "现有端口配置无法直接使用，请修改或恢复默认端口"
+        configure_ports_menu || fail "安装已取消，端口配置未保存"
+        return
+        ;;
+      2)
+        configure_ports_menu || fail "安装已取消，端口配置未保存"
+        return
+        ;;
+      3)
+        rm -f "${ENV_FILE}"
+        PORT_VALUES=("${PORT_DEFAULTS[@]}")
+        # A deleted configuration must not treat a running service as owning
+        # the new defaults; every default port is checked again below.
+        CURRENT_PORT_VALUES=("" "" "" "" "")
+        log "已清除旧端口配置；正在检查默认端口"
+        if validate_port_plan; then
+          write_port_config
+          return
+        fi
+        warn "默认端口存在冲突，请选择要修改的端口"
+        configure_ports_menu || fail "安装已取消，端口配置未保存"
+        return
+        ;;
+      0) fail "已取消安装" ;;
+      *) fail "无效选择，请输入菜单中的编号" ;;
+    esac
   else
     log "正在检查首次安装的默认端口"
     if validate_port_plan; then
@@ -790,8 +855,9 @@ uninstall_command() {
     [ "${arg}" = "--yes" ] && yes=1
   done
   if [ "${yes}" != "1" ]; then
-    read -r -p "卸载 fn-knock？配置和数据默认保留。[y/N] " answer </dev/tty
-    [ "${answer:-N}" = "y" ] || [ "${answer:-N}" = "Y" ] || return
+    warn "将卸载 fn-knock 程序和 systemd 服务；配置与数据会保留"
+    read_tty "确认卸载？请输入 Y 继续："
+    [ "${REPLY:-}" = "y" ] || [ "${REPLY:-}" = "Y" ] || { log "已取消卸载"; return; }
   fi
   if [ "${purge}" = "1" ]; then
     [ -t 0 ] || fail "彻底清除需要可交互终端和独立的 DELETE 确认"
@@ -860,7 +926,7 @@ show_menu() {
 6. 查看/跟随日志
 7. 检查并安装更新
 8. 回滚上一版本
-9. 卸载
+9. 卸载 fn-knock（保留配置和数据）
 10. 查看 Nginx 反向代理示例
 11. 清除面板登录密码
 0. 退出

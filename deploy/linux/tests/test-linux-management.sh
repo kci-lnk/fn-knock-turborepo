@@ -228,6 +228,30 @@ test_noninteractive_purge_is_rejected() {
   printf '%s\n' 'ok - --purge --yes still requires an interactive DELETE confirmation'
 }
 
+test_numbered_port_configuration_keeps_service_mapping() {
+  local root="${TEST_ROOT}/port-mapping" library actual expected
+  root="${TEST_ROOT}/port-mapping"
+  library="${root}/knock-library"
+  mkdir -p "${root}/config"
+
+  # Load only the function definitions so the test can exercise the config
+  # writer directly without entering the interactive command dispatcher.
+  sed '/^case "${1:-}" in$/,$d' "${KNOCK}" > "${library}"
+  env \
+    FN_KNOCK_CONFIG_DIR="${root}/config" \
+    FN_KNOCK_ENV_FILE="${root}/config/fn-knock.env" \
+    bash -c '
+      source "$1"
+      PORT_VALUES=(19099 19091 19098 19097 19096)
+      write_port_config
+    ' _ "${library}"
+
+  expected=$'GO_REPROXY_PORT=19099\nADMIN_VIEW_PORT=19091\nBACKEND_PORT=19098\nAUTH_PORT=19097\nGO_BACKEND_PORT=19096'
+  actual="$(grep -E '^(GO_REPROXY_PORT|ADMIN_VIEW_PORT|BACKEND_PORT|AUTH_PORT|GO_BACKEND_PORT)=' "${root}/config/fn-knock.env")"
+  assert_equal "${expected}" "${actual}" "numbered port configuration wrote the wrong service mapping"
+  printf '%s\n' 'ok - numbered port configuration keeps the Go proxy and panel ports mapped correctly'
+}
+
 make_entrypoint_fixture() {
   local root="$1" backend_mode="$2"
   mkdir -p \
@@ -325,5 +349,6 @@ test_install_failures_restore_everything
 test_failed_first_install_restores_absent_state
 test_failed_manual_rollback_restores_everything
 test_noninteractive_purge_is_rejected
+test_numbered_port_configuration_keeps_service_mapping
 test_child_exit_forces_failure
 test_explicit_stop_is_graceful

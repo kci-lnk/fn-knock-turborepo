@@ -441,6 +441,7 @@ import {
   extractErrorMessage,
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
+import { copyTextToClipboard } from "@admin-shared/utils/copyTextToClipboard";
 import { toast } from "@admin-shared/utils/toast";
 import { ConfigAPI } from "../lib/api";
 import type {
@@ -591,41 +592,6 @@ function providerStatus(provider: OIDCProviderView) {
   return provider.enabled
     ? t("admin.oidcProviders.enabled")
     : t("admin.oidcProviders.disabled");
-}
-
-async function copyTextToClipboard(text: string) {
-  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(text);
-      return;
-    } catch {
-      // Fall back below for non-secure or embedded browser contexts.
-    }
-  }
-
-  if (typeof document === "undefined") {
-    throw new Error("Clipboard API unavailable");
-  }
-
-  const textarea = document.createElement("textarea");
-  textarea.value = text;
-  textarea.setAttribute("readonly", "");
-  textarea.style.position = "fixed";
-  textarea.style.top = "0";
-  textarea.style.left = "0";
-  textarea.style.opacity = "0";
-
-  document.body.appendChild(textarea);
-  textarea.focus();
-  textarea.select();
-  textarea.setSelectionRange(0, textarea.value.length);
-
-  const copied = document.execCommand("copy");
-  document.body.removeChild(textarea);
-
-  if (!copied) {
-    throw new Error("execCommand copy failed");
-  }
 }
 
 async function copyCallbackUrl(url: string) {

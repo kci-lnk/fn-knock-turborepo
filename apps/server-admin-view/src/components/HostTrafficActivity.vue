@@ -277,7 +277,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { ArrowDownLeft, ArrowUpRight, Network } from "lucide-vue-next";
 import {
@@ -300,6 +300,7 @@ import TimeSeriesChart, {
   type TimeSeriesChartSeries,
 } from "@/components/charts/TimeSeriesChart.vue";
 import { useHostActiveIps } from "@/composables/useHostActiveIps";
+import { useMediaQueryMatch } from "@admin-shared/composables/useMediaQueryMatch";
 import { DashboardAPI } from "../lib/api";
 import type { DashboardStats, HostTrafficStats } from "../types";
 
@@ -331,7 +332,9 @@ const { t } = useI18n();
 const open = ref(false);
 const dialogOpen = ref(false);
 const activeIpDialogOpen = ref(false);
-const isTouchInteraction = ref(false);
+const isTouchInteraction = useMediaQueryMatch(
+  "(hover: none), (pointer: coarse), (max-width: 767px)",
+);
 const lastTriggerPointerType = ref<string | null>(null);
 const suppressNextFocusOpen = ref(false);
 const rangeKey = ref<RangeKey>("1h");
@@ -347,7 +350,6 @@ let lastRealtimeSample: {
   totalIn: number;
   totalOut: number;
 } | null = null;
-let interactionMediaQuery: MediaQueryList | null = null;
 
 const {
   displayItems: activeIpItems,
@@ -479,10 +481,7 @@ const clearCloseTimer = () => {
   }
 };
 
-const updateInteractionMode = () => {
-  const nextIsTouchInteraction = Boolean(interactionMediaQuery?.matches);
-  isTouchInteraction.value = nextIsTouchInteraction;
-
+const handleInteractionModeChange = (nextIsTouchInteraction: boolean) => {
   if (nextIsTouchInteraction) {
     open.value = false;
     clearCloseTimer();
@@ -491,6 +490,8 @@ const updateInteractionMode = () => {
 
   dialogOpen.value = false;
 };
+
+watch(isTouchInteraction, handleInteractionModeChange, { immediate: true });
 
 function openPanel() {
   if (isTouchInteraction.value) return;
@@ -658,32 +659,7 @@ watch(
   { immediate: true },
 );
 
-onMounted(() => {
-  if (typeof window === "undefined") return;
-
-  interactionMediaQuery = window.matchMedia(
-    "(hover: none), (pointer: coarse), (max-width: 767px)",
-  );
-  updateInteractionMode();
-
-  if (typeof interactionMediaQuery.addEventListener === "function") {
-    interactionMediaQuery.addEventListener("change", updateInteractionMode);
-    return;
-  }
-
-  interactionMediaQuery.addListener(updateInteractionMode);
-});
-
 onUnmounted(() => {
   clearCloseTimer();
-
-  if (!interactionMediaQuery) return;
-
-  if (typeof interactionMediaQuery.removeEventListener === "function") {
-    interactionMediaQuery.removeEventListener("change", updateInteractionMode);
-    return;
-  }
-
-  interactionMediaQuery.removeListener(updateInteractionMode);
 });
 </script>

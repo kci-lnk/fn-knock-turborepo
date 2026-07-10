@@ -258,7 +258,7 @@ import { useSubdomainAvailabilityActions } from "./subdomain-proxy/useSubdomainA
 import { useSubdomainAvailabilityStatus } from "./subdomain-proxy/useSubdomainAvailabilityStatus";
 import { useDelayedHostPopover } from "./subdomain-proxy/useDelayedHostPopover";
 import { useMappingFaviconState } from "./subdomain-proxy/useMappingFaviconState";
-import { useTouchInteractionMode } from "./subdomain-proxy/useTouchInteractionMode";
+import { useMediaQueryMatch } from "@admin-shared/composables/useMediaQueryMatch";
 import { useTrafficRealtime } from "./subdomain-proxy/useTrafficRealtime";
 import { useSubdomainTouchTooltips } from "./subdomain-proxy/useSubdomainTouchTooltips";
 import { useSubdomainPortDisplay } from "./subdomain-proxy/useSubdomainPortDisplay";
@@ -307,11 +307,9 @@ const {
     console.warn("load host traffic realtime failed:", error);
   },
 });
-const {
-  isTouchInteraction,
-  startTouchInteractionTracking,
-  stopTouchInteractionTracking,
-} = useTouchInteractionMode();
+const isTouchInteraction = useMediaQueryMatch(
+  "(hover: none), (pointer: coarse)",
+);
 const { accessEntryPort, loadAccessEntryPort } = useAccessEntryPort();
 
 const {
@@ -672,7 +670,6 @@ watch(
 );
 
 onMounted(async () => {
-  startTouchInteractionTracking();
   startAvailabilityClock();
 
   window.visualViewport?.addEventListener(
@@ -701,7 +698,6 @@ onUnmounted(() => {
     handleMappingDialogViewportResize,
   );
   clearMappingDialogKeyboardScrollTimer();
-  stopTouchInteractionTracking();
   clearProtocolHeadersWarningCloseTimer();
   stopTrafficRealtimePolling();
   stopDiscoverScan();

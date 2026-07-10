@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Textarea } from '@/components/ui/textarea';
 import { ChevronRight, FolderTree, Laptop, Smartphone, Upload } from 'lucide-vue-next';
+import { useMediaQueryMatch } from '@admin-shared/composables/useMediaQueryMatch';
 import DataShareFilePicker from '../common/DataShareFilePicker.vue';
 
 type CertFieldKey = 'cert' | 'sslKey';
@@ -52,10 +53,7 @@ const { t } = useI18n();
 const localFileInput = ref<HTMLInputElement | null>(null);
 const sourceChooserOpen = ref(false);
 const pickerOpen = ref(false);
-const isMobileViewport = ref(false);
-
-let viewportQuery: MediaQueryList | null = null;
-let viewportQueryListener: ((event: MediaQueryListEvent) => void) | null = null;
+const isMobileViewport = useMediaQueryMatch('(max-width: 768px)');
 let overlayTimer: ReturnType<typeof window.setTimeout> | null = null;
 
 const uploadLabel = computed(() =>
@@ -65,41 +63,10 @@ const uploadLabel = computed(() =>
 );
 const supportedTypesLabel = computed(() => props.supportedFileTypes.join(' / '));
 
-onMounted(() => {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  viewportQuery = window.matchMedia('(max-width: 768px)');
-  isMobileViewport.value = viewportQuery.matches;
-
-  viewportQueryListener = (event: MediaQueryListEvent) => {
-    isMobileViewport.value = event.matches;
-  };
-
-  if (typeof viewportQuery.addEventListener === 'function') {
-    viewportQuery.addEventListener('change', viewportQueryListener);
-    return;
-  }
-
-  viewportQuery.addListener(viewportQueryListener);
-});
-
 onBeforeUnmount(() => {
   if (overlayTimer) {
     window.clearTimeout(overlayTimer);
   }
-
-  if (!viewportQuery || !viewportQueryListener) {
-    return;
-  }
-
-  if (typeof viewportQuery.removeEventListener === 'function') {
-    viewportQuery.removeEventListener('change', viewportQueryListener);
-    return;
-  }
-
-  viewportQuery.removeListener(viewportQueryListener);
 });
 
 function scheduleOverlayAction(action: () => void) {

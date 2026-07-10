@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import type { HTMLAttributes } from 'vue';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { useMediaQueryMatch } from '@admin-shared/composables/useMediaQueryMatch';
 
 const props = withDefaults(defineProps<{
   text: string | number | null | undefined;
@@ -21,11 +22,10 @@ const props = withDefaults(defineProps<{
 
 const open = ref(false);
 const isOverflowing = ref(false);
-const isTouchInteraction = ref(false);
+const isTouchInteraction = useMediaQueryMatch('(hover: none), (pointer: coarse)');
 const textRef = ref<HTMLElement | null>(null);
 
 let resizeObserver: ResizeObserver | null = null;
-let interactionMediaQuery: MediaQueryList | null = null;
 
 const resolvedText = computed(() => {
   const value = props.text;
@@ -36,14 +36,6 @@ const resolvedText = computed(() => {
 });
 
 const showTooltip = computed(() => isOverflowing.value && resolvedText.value !== props.emptyText);
-
-const updateInteractionMode = () => {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  isTouchInteraction.value = window.matchMedia('(hover: none), (pointer: coarse)').matches;
-};
 
 const measureOverflow = async () => {
   await nextTick();
@@ -98,36 +90,12 @@ watch(showTooltip, (visible) => {
 });
 
 onMounted(() => {
-  updateInteractionMode();
   void measureOverflow();
-
-  if (typeof window !== 'undefined') {
-    interactionMediaQuery = window.matchMedia('(hover: none), (pointer: coarse)');
-
-    if (typeof interactionMediaQuery.addEventListener === 'function') {
-      interactionMediaQuery.addEventListener('change', updateInteractionMode);
-    }
-    else {
-      interactionMediaQuery.addListener(updateInteractionMode);
-    }
-  }
-
   reconnectResizeObserver(textRef.value);
 });
 
 onUnmounted(() => {
   resizeObserver?.disconnect();
-
-  if (!interactionMediaQuery) {
-    return;
-  }
-
-  if (typeof interactionMediaQuery.removeEventListener === 'function') {
-    interactionMediaQuery.removeEventListener('change', updateInteractionMode);
-    return;
-  }
-
-  interactionMediaQuery.removeListener(updateInteractionMode);
 });
 </script>
 

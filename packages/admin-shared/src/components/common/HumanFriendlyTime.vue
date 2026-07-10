@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   Tooltip,
@@ -12,6 +12,7 @@ import {
   formatHumanFriendlyTime,
   resolveDateValue,
 } from "@admin-shared/utils/formatHumanFriendlyTime";
+import { useMediaQueryMatch } from "@admin-shared/composables/useMediaQueryMatch";
 
 const props = withDefaults(
   defineProps<{
@@ -33,19 +34,10 @@ const props = withDefaults(
 const { locale: globalLocale } = useI18n({ useScope: "global" });
 const now = ref(Date.now());
 const open = ref(false);
-const isTouchInteraction = ref(false);
+const isTouchInteraction = useMediaQueryMatch(
+  "(hover: none), (pointer: coarse)",
+);
 let timer: number | null = null;
-let interactionMediaQuery: MediaQueryList | null = null;
-
-const updateInteractionMode = () => {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  isTouchInteraction.value = window.matchMedia(
-    "(hover: none), (pointer: coarse)",
-  ).matches;
-};
 
 const stopTimer = () => {
   if (timer !== null) {
@@ -126,35 +118,8 @@ watch(showTooltip, (visible) => {
   }
 });
 
-onMounted(() => {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  interactionMediaQuery = window.matchMedia("(hover: none), (pointer: coarse)");
-  updateInteractionMode();
-
-  if (typeof interactionMediaQuery.addEventListener === "function") {
-    interactionMediaQuery.addEventListener("change", updateInteractionMode);
-    return;
-  }
-
-  interactionMediaQuery.addListener(updateInteractionMode);
-});
-
 onUnmounted(() => {
   stopTimer();
-
-  if (!interactionMediaQuery) {
-    return;
-  }
-
-  if (typeof interactionMediaQuery.removeEventListener === "function") {
-    interactionMediaQuery.removeEventListener("change", updateInteractionMode);
-    return;
-  }
-
-  interactionMediaQuery.removeListener(updateInteractionMode);
 });
 </script>
 

@@ -582,6 +582,7 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
+import { useMediaQueryMatch } from "@admin-shared/composables/useMediaQueryMatch";
 import { copyTextToClipboard } from "@admin-shared/utils/copyTextToClipboard";
 import { downloadBlob } from "@admin-shared/utils/downloadBlob";
 import { ConfigAPI } from "../lib/api";
@@ -638,7 +639,9 @@ const hostMappings = ref<HostMapping[]>([]);
 const updatingAccessScopeIds = ref<Set<string>>(new Set());
 const updatingSubdomainAccessIds = ref<Set<string>>(new Set());
 const openAdminPanelAccessTooltipId = ref<string | null>(null);
-const isTouchInteraction = ref(false);
+const isTouchInteraction = useMediaQueryMatch(
+  "(hover: none), (pointer: coarse)",
+);
 const credentialImportInputRef = ref<HTMLInputElement | null>(null);
 const showCredentialTransferDialog = ref(false);
 const showExportDialog = ref(false);
@@ -661,7 +664,6 @@ const selectedSubdomainHosts = ref<Set<string>>(new Set());
 const subdomainAccessSearch = ref("");
 const pendingCredentialImportPayload = ref<unknown>(null);
 const pendingCredentialImportFilename = ref("");
-let adminPanelAccessTooltipMediaQuery: MediaQueryList | null = null;
 const { isPending: isLoading, run: runLoadStatus } = useAsyncAction({
   onError: (error) => {
     console.error("Failed to get TOTP status:", error);
@@ -951,13 +953,11 @@ const filteredSubdomainAccessOptions = computed(() => {
 });
 
 onMounted(async () => {
-  setupAdminPanelAccessTooltipInteraction();
   window.visualViewport?.addEventListener("resize", handleVisualViewportResize);
   await fetchStatus();
 });
 
 onBeforeUnmount(() => {
-  teardownAdminPanelAccessTooltipInteraction();
   window.visualViewport?.removeEventListener(
     "resize",
     handleVisualViewportResize,
@@ -967,52 +967,6 @@ onBeforeUnmount(() => {
     viewportResizeTimer = null;
   }
 });
-
-function updateInteractionMode() {
-  if (typeof window === "undefined") return;
-  isTouchInteraction.value = window.matchMedia(
-    "(hover: none), (pointer: coarse)",
-  ).matches;
-}
-
-function setupAdminPanelAccessTooltipInteraction() {
-  if (typeof window === "undefined") return;
-
-  adminPanelAccessTooltipMediaQuery = window.matchMedia(
-    "(hover: none), (pointer: coarse)",
-  );
-  updateInteractionMode();
-
-  if (
-    typeof adminPanelAccessTooltipMediaQuery.addEventListener === "function"
-  ) {
-    adminPanelAccessTooltipMediaQuery.addEventListener(
-      "change",
-      updateInteractionMode,
-    );
-    return;
-  }
-
-  adminPanelAccessTooltipMediaQuery.addListener(updateInteractionMode);
-}
-
-function teardownAdminPanelAccessTooltipInteraction() {
-  if (!adminPanelAccessTooltipMediaQuery) return;
-
-  if (
-    typeof adminPanelAccessTooltipMediaQuery.removeEventListener === "function"
-  ) {
-    adminPanelAccessTooltipMediaQuery.removeEventListener(
-      "change",
-      updateInteractionMode,
-    );
-    adminPanelAccessTooltipMediaQuery = null;
-    return;
-  }
-
-  adminPanelAccessTooltipMediaQuery.removeListener(updateInteractionMode);
-  adminPanelAccessTooltipMediaQuery = null;
-}
 
 watch(
   () => [showSetupDialog.value, setupStep.value, setupData.value] as const,

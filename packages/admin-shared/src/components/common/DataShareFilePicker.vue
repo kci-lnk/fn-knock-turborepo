@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -28,6 +28,7 @@ import {
   Info,
   RefreshCw,
 } from "lucide-vue-next";
+import { useMediaQueryMatch } from "@admin-shared/composables/useMediaQueryMatch";
 
 interface SharedDataFileEntry {
   name: string;
@@ -80,7 +81,7 @@ const emit = defineEmits<{
 
 const searchQuery = ref("");
 const selectedRelativePath = ref("");
-const isMobileViewport = ref(false);
+const isMobileViewport = useMediaQueryMatch("(max-width: 768px)");
 const titleText = computed(
   () => props.title ?? t("shared.dataShareFilePicker.title"),
 );
@@ -102,8 +103,6 @@ const confirmTextLabel = computed(
   () => props.confirmText ?? t("shared.dataShareFilePicker.confirmText"),
 );
 
-let viewportQuery: MediaQueryList | null = null;
-let viewportQueryListener: ((event: MediaQueryListEvent) => void) | null = null;
 
 const normalizedSupportedTypes = computed(() =>
   props.supportedFileTypes
@@ -166,39 +165,6 @@ watch(filteredFiles, () => {
   if (!selectedFile.value) {
     selectFirstAvailableFile();
   }
-});
-
-onMounted(() => {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  viewportQuery = window.matchMedia("(max-width: 768px)");
-  isMobileViewport.value = viewportQuery.matches;
-
-  viewportQueryListener = (event: MediaQueryListEvent) => {
-    isMobileViewport.value = event.matches;
-  };
-
-  if (typeof viewportQuery.addEventListener === "function") {
-    viewportQuery.addEventListener("change", viewportQueryListener);
-    return;
-  }
-
-  viewportQuery.addListener(viewportQueryListener);
-});
-
-onBeforeUnmount(() => {
-  if (!viewportQuery || !viewportQueryListener) {
-    return;
-  }
-
-  if (typeof viewportQuery.removeEventListener === "function") {
-    viewportQuery.removeEventListener("change", viewportQueryListener);
-    return;
-  }
-
-  viewportQuery.removeListener(viewportQueryListener);
 });
 
 function normalizeExtension(value: string) {

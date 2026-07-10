@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   Popover,
@@ -9,6 +9,7 @@ import {
 import fnosIconUrl from "@/assets/fnos.png";
 import type { SessionAppAttachmentRecord } from "../../types";
 import { formatHumanFriendlyTime } from "@admin-shared/utils/formatHumanFriendlyTime";
+import { useMediaQueryMatch } from "@admin-shared/composables/useMediaQueryMatch";
 
 const props = defineProps<{
   attachments: SessionAppAttachmentRecord[];
@@ -23,11 +24,12 @@ const props = defineProps<{
 const { t, locale } = useI18n();
 
 const open = ref(false);
-const isTouchInteraction = ref(false);
+const isTouchInteraction = useMediaQueryMatch(
+  "(hover: none), (pointer: coarse)",
+);
 const isPointerOnTrigger = ref(false);
 const isPointerOnContent = ref(false);
 
-let interactionMediaQuery: MediaQueryList | null = null;
 let closeTimer: number | null = null;
 
 const orderedAttachments = computed(() => {
@@ -54,16 +56,6 @@ const resolvedItemLabel = computed(
 const resolvedFooterText = computed(
   () => props.footerText || t("admin.sessions.attachments.fnosFooter"),
 );
-
-const updateInteractionMode = () => {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  isTouchInteraction.value = window.matchMedia(
-    "(hover: none), (pointer: coarse)",
-  ).matches;
-};
 
 const clearCloseTimer = () => {
   if (closeTimer !== null) {
@@ -164,35 +156,8 @@ watch(
   },
 );
 
-onMounted(() => {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  interactionMediaQuery = window.matchMedia("(hover: none), (pointer: coarse)");
-  updateInteractionMode();
-
-  if (typeof interactionMediaQuery.addEventListener === "function") {
-    interactionMediaQuery.addEventListener("change", updateInteractionMode);
-    return;
-  }
-
-  interactionMediaQuery.addListener(updateInteractionMode);
-});
-
 onUnmounted(() => {
   clearCloseTimer();
-
-  if (!interactionMediaQuery) {
-    return;
-  }
-
-  if (typeof interactionMediaQuery.removeEventListener === "function") {
-    interactionMediaQuery.removeEventListener("change", updateInteractionMode);
-    return;
-  }
-
-  interactionMediaQuery.removeListener(updateInteractionMode);
 });
 </script>
 

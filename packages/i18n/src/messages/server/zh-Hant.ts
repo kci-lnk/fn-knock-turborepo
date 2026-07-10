@@ -378,10 +378,11 @@ export const zhHantServer = {
       saveFailed: "儲存認證帳號失敗",
       syncFailed: "同步認證帳號到 TOTP 失敗",
       usernameExists: "使用者名稱已存在",
-      usernameTooShort: "使用者名稱至少需要 3 個字元",
+      usernameTooShort: "使用者名稱不能為空",
       usernameTooLong: "使用者名稱不能超過 64 個字元",
-      usernameInvalid: "使用者名稱只能包含字母、數字、點、底線或連字號，且不能包含空格",
-      passwordTooShort: "帳號密碼至少需要 6 位",
+      usernameInvalid:
+        "使用者名稱只能包含字母、數字、點、底線或連字號，且不能包含空格",
+      passwordTooShort: "帳號密碼不能為空",
       passwordTooLong: "帳號密碼不能超過 128 位",
       passwordWhitespace: "帳號密碼不能包含空白字元",
       passwordNeedsLettersAndNumbers: "帳號密碼需要同時包含字母和數字",
@@ -1586,7 +1587,8 @@ export const zhHantServer = {
           },
           secret_id: {
             label: "SecretId（密鑰 ID）",
-            description: "騰訊雲 API 訪問密鑰 SecretId，需具備對應 DNS 服務權限",
+            description:
+              "騰訊雲 API 訪問密鑰 SecretId，需具備對應 DNS 服務權限",
           },
           secret_key: {
             label: "SecretKey（密鑰）",

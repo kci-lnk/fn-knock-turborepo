@@ -1395,7 +1395,7 @@ fn sync_totp_metadata_from_account(totp: &mut TotpCredential, account: &AuthAcco
 
 fn validate_username(value: &str) -> Result<String, &'static str> {
     let username = value.trim().to_lowercase();
-    if username.len() < 3 {
+    if username.is_empty() {
         return Err("authAccounts.usernameTooShort");
     }
     if username.len() > 64 {
@@ -1496,7 +1496,8 @@ mod tests {
     #[test]
     fn validates_username_shape() {
         assert_eq!(validate_username("Admin_01").unwrap(), "admin_01");
-        assert!(validate_username("ab").is_err());
+        assert_eq!(validate_username("a").unwrap(), "a");
+        assert!(validate_username("").is_err());
         assert!(validate_username("a b").is_err());
         assert!(validate_username("中文").is_err());
     }

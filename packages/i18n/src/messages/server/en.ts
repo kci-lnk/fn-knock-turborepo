@@ -440,7 +440,8 @@ export const enServer = {
       invalidMode: "Unsupported login mode",
       previewFailed: "Failed to preview login mode switch",
       switchFailed: "Failed to switch login mode",
-      blockingIssues: "The sign-in mode cannot be switched while blocking issues remain",
+      blockingIssues:
+        "The sign-in mode cannot be switched while blocking issues remain",
     },
     authAccounts: {
       loadFailed: "Failed to load auth accounts",
@@ -448,10 +449,11 @@ export const enServer = {
       saveFailed: "Failed to save auth account",
       syncFailed: "Failed to sync auth account to TOTP",
       usernameExists: "Username already exists",
-      usernameTooShort: "Username must be at least 3 characters",
+      usernameTooShort: "Username cannot be empty",
       usernameTooLong: "Username cannot exceed 64 characters",
-      usernameInvalid: "Username can only contain letters, numbers, dots, underscores, or hyphens, and cannot contain spaces",
-      passwordTooShort: "Account password must be at least 6 characters",
+      usernameInvalid:
+        "Username can only contain letters, numbers, dots, underscores, or hyphens, and cannot contain spaces",
+      passwordTooShort: "Account password cannot be empty",
       passwordTooLong: "Account password cannot exceed 128 characters",
       passwordWhitespace: "Account password cannot contain whitespace",
       passwordNeedsLettersAndNumbers:
@@ -1971,8 +1973,7 @@ export const enServer = {
         requestFailed:
           "Huawei Cloud DNS request failed: HTTP {status} {statusText}, {detail}",
         zoneNotFound: "Huawei Cloud Zone not found: {zone}",
-        recordsetIdMissing:
-          "Huawei Cloud DNS returned a recordset without ID",
+        recordsetIdMissing: "Huawei Cloud DNS returned a recordset without ID",
       },
       tencentcloud: {
         label: "Tencent Cloud DNS",

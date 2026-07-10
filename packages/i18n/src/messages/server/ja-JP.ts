@@ -466,7 +466,8 @@ export const jaJPServer = {
       invalidMode: "サポートされていないログインモードです",
       previewFailed: "ログインモード切り替えのプレビューに失敗しました",
       switchFailed: "ログインモードの切り替えに失敗しました",
-      blockingIssues: "ブロック項目が残っているため、ログインモードを切り替えられません",
+      blockingIssues:
+        "ブロック項目が残っているため、ログインモードを切り替えられません",
     },
     authAccounts: {
       loadFailed: "認証アカウントの読み込みに失敗しました",
@@ -474,11 +475,11 @@ export const jaJPServer = {
       saveFailed: "認証アカウントの保存に失敗しました",
       syncFailed: "認証アカウントを TOTP に同期できませんでした",
       usernameExists: "ユーザー名は既に存在します",
-      usernameTooShort: "ユーザー名は 3 文字以上にしてください",
+      usernameTooShort: "ユーザー名を入力してください",
       usernameTooLong: "ユーザー名は 64 文字以内にしてください",
       usernameInvalid:
         "ユーザー名には英数字、ドット、アンダースコア、ハイフンのみ使用でき、空白は使用できません",
-      passwordTooShort: "アカウントパスワードは 6 文字以上にしてください",
+      passwordTooShort: "アカウントパスワードを入力してください",
       passwordTooLong: "アカウントパスワードは 128 文字以内にしてください",
       passwordWhitespace: "アカウントパスワードに空白文字は使用できません",
       passwordNeedsLettersAndNumbers:
@@ -486,7 +487,8 @@ export const jaJPServer = {
       passwordSaveFailed: "アカウントパスワードの保存に失敗しました",
       deleteFailed: "認証アカウントの削除に失敗しました",
       deleted: "認証アカウントを削除しました",
-      totpAlreadyBound: "このアカウントには利用可能な TOTP が既にバインドされています",
+      totpAlreadyBound:
+        "このアカウントには利用可能な TOTP が既にバインドされています",
     },
     authCredentialSettings: {
       loadFailed: "認証情報設定の読み込みに失敗しました",
@@ -1812,8 +1814,7 @@ export const jaJPServer = {
       tooMany: "完全なドメイン名は 2 件まで設定できます",
       invalidPair:
         "2 件の完全なドメイン名はワイルドカードと対応する基準ドメインの組み合わせにしてください",
-      mismatchedPair:
-        "ワイルドカードドメインと基準ドメインが一致しません",
+      mismatchedPair: "ワイルドカードドメインと基準ドメインが一致しません",
       pairUnsupported:
         "{provider} はワイルドカードと基準ドメインの同時更新をサポートしていません",
       rootMissing:
@@ -1879,7 +1880,8 @@ export const jaJPServer = {
           },
           access_key_id: {
             label: "アクセスキー ID",
-            description: "DNS レコードの読み書き権限を持つクラウドプロバイダーのアクセスキー ID",
+            description:
+              "DNS レコードの読み書き権限を持つクラウドプロバイダーのアクセスキー ID",
           },
           access_key_secret: {
             label: "アクセスキー Secret",
@@ -1891,11 +1893,13 @@ export const jaJPServer = {
           },
           secret_id: {
             label: "SecretId",
-            description: "選択した DNS サービス権限を持つ Tencent Cloud API SecretId",
+            description:
+              "選択した DNS サービス権限を持つ Tencent Cloud API SecretId",
           },
           secret_key: {
             label: "SecretKey",
-            description: "SecretId と組み合わせて使用する Tencent Cloud API SecretKey",
+            description:
+              "SecretId と組み合わせて使用する Tencent Cloud API SecretKey",
           },
           api_key: {
             label: "API キー",
@@ -2039,7 +2043,8 @@ export const jaJPServer = {
         requestFailed: "リクエストが失敗しました",
         updateFailed: "アップデートに失敗しました",
         createFailed: "作成に失敗しました",
-        recordIdMissing: "Alibaba Cloud DNS が RecordId のないレコードを返しました",
+        recordIdMissing:
+          "Alibaba Cloud DNS が RecordId のないレコードを返しました",
       },
       baidu: {
         label: "百度クラウド DNS",
@@ -2175,7 +2180,8 @@ export const jaJPServer = {
         },
         configIncomplete: "Alibaba Cloud ESA DNS 構成が不完全",
         siteNameMissing: "Alibaba Cloud ESA DNS サイト名がありません",
-        siteLookupFailed: "Alibaba Cloud ESA サイトの照会に失敗しました: {detail}",
+        siteLookupFailed:
+          "Alibaba Cloud ESA サイトの照会に失敗しました: {detail}",
         siteMismatch:
           "設定された Site ID がサイトの照会結果と一致しません（設定 {expected}、照会結果 {actual}）",
         siteNotFound: "見つかりません ESA サイト: {site}",

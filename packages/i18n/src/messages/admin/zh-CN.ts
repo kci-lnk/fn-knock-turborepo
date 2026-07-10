@@ -3195,8 +3195,7 @@ export const zhCNAdmin = {
     passwordLoginMode: "账号密码登录模式",
     switchAuthMode: "切换登录模式",
     switchAuthModeTitle: "切换登录模式",
-    switchAuthModeDescription:
-      "切换为「{mode}」。名称和权限会自动同步。",
+    switchAuthModeDescription: "切换为「{mode}」。名称和权限会自动同步。",
     switchAuthModeIdempotentHint:
       "切换操作是幂等的：重复执行不会重复创建账号，也不会重置已设置的密码或复制快捷登录绑定。",
     confirmSwitchAuthMode: "确认切换",
@@ -3210,8 +3209,7 @@ export const zhCNAdmin = {
     previewPasswordConfigured: "已设置密码 {count} 个",
     previewPasswordMissing: "未设置密码 {count} 个",
     previewBlockingIssues: "阻断项 {count} 个",
-    previewPasswordRequiredBeforeSwitch:
-      "请先为至少一个账号设置密码。",
+    previewPasswordRequiredBeforeSwitch: "请先为至少一个账号设置密码。",
     passwordAccountsTitle: "账号密码登录",
     passwordAccountsDescription: "管理用于用户名密码登录的账号和权限。",
     moreActions: "更多操作",
@@ -3250,7 +3248,10 @@ export const zhCNAdmin = {
     changePassword: "修改密码",
     emptyAccounts: "暂无账号。点击“新建用户”创建账号。",
     accountPasswordDescription: "为账号「{username}」设置登录密码。",
-    passwordRuleHint: "密码需为 6-128 位，不能包含空格，且需同时包含字母和数字。",
+    passwordRuleHint:
+      "密码可使用 1-128 位字符。建议使用至少 6 位、包含字母和数字且不含空格的密码。",
+    shortUsernameWarning: "用户名较短，容易被猜测；仍可继续保存。",
+    weakPasswordWarning: "该密码安全性较低；仍可继续保存。",
     accountUsernameRequired: "请输入用户名",
     accountUsernameDuplicate: "用户名已存在",
     accountSaved: "账号已保存",

@@ -3537,11 +3537,16 @@ export const jaJPAdmin = {
       "初回有効化時は、ユーザー名とログインパスワードを設定してください。",
     setPassword: "パスワード設定",
     changePassword: "パスワード変更",
-    emptyAccounts: "アカウントはまだありません。「ユーザーを作成」から作成してください。",
+    emptyAccounts:
+      "アカウントはまだありません。「ユーザーを作成」から作成してください。",
     accountPasswordDescription:
       "アカウント「{username}」のログインパスワードを設定します。",
     passwordRuleHint:
-      "パスワードは 6-128 文字、空白なし、英字と数字の両方を含めてください。",
+      "パスワードは 1〜128 文字で設定できます。6 文字以上、英字と数字を含み、空白を使わないことを推奨します。",
+    shortUsernameWarning:
+      "ユーザー名が短いため推測されやすくなりますが、そのまま保存できます。",
+    weakPasswordWarning:
+      "このパスワードは安全性が低めですが、そのまま保存できます。",
     accountUsernameRequired: "ユーザー名を入力してください",
     accountUsernameDuplicate: "ユーザー名は既に存在します",
     accountSaved: "アカウントを保存しました",

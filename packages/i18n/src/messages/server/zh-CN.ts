@@ -378,10 +378,11 @@ export const zhCNServer = {
       saveFailed: "保存认证账号失败",
       syncFailed: "同步认证账号到 TOTP 失败",
       usernameExists: "用户名已存在",
-      usernameTooShort: "用户名至少需要 3 个字符",
+      usernameTooShort: "用户名不能为空",
       usernameTooLong: "用户名不能超过 64 个字符",
-      usernameInvalid: "用户名只能包含字母、数字、点、下划线或连字符，且不能包含空格",
-      passwordTooShort: "账号密码至少需要 6 位",
+      usernameInvalid:
+        "用户名只能包含字母、数字、点、下划线或连字符，且不能包含空格",
+      passwordTooShort: "账号密码不能为空",
       passwordTooLong: "账号密码不能超过 128 位",
       passwordWhitespace: "账号密码不能包含空白字符",
       passwordNeedsLettersAndNumbers: "账号密码需要同时包含字母和数字",
@@ -1586,7 +1587,8 @@ export const zhCNServer = {
           },
           secret_id: {
             label: "SecretId（密钥 ID）",
-            description: "腾讯云 API 访问密钥 SecretId，需具备对应 DNS 服务权限",
+            description:
+              "腾讯云 API 访问密钥 SecretId，需具备对应 DNS 服务权限",
           },
           secret_key: {
             label: "SecretKey（密钥）",

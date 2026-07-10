@@ -3189,8 +3189,7 @@ export const zhHantAdmin = {
     passwordLoginMode: "帳號密碼登入模式",
     switchAuthMode: "切換登入模式",
     switchAuthModeTitle: "切換登入模式",
-    switchAuthModeDescription:
-      "切換為「{mode}」。名稱和權限會自動同步。",
+    switchAuthModeDescription: "切換為「{mode}」。名稱和權限會自動同步。",
     switchAuthModeIdempotentHint:
       "切換操作是冪等的：重複執行不會重複建立帳號，也不會重設已設定的密碼或複製快捷登入綁定。",
     confirmSwitchAuthMode: "確認切換",
@@ -3204,8 +3203,7 @@ export const zhHantAdmin = {
     previewPasswordConfigured: "已設定密碼 {count} 個",
     previewPasswordMissing: "未設定密碼 {count} 個",
     previewBlockingIssues: "阻斷項 {count} 個",
-    previewPasswordRequiredBeforeSwitch:
-      "請先為至少一個帳號設定密碼。",
+    previewPasswordRequiredBeforeSwitch: "請先為至少一個帳號設定密碼。",
     passwordAccountsTitle: "帳號密碼登入",
     passwordAccountsDescription: "管理用於使用者名稱密碼登入的帳號和權限。",
     moreActions: "更多操作",
@@ -3244,7 +3242,10 @@ export const zhHantAdmin = {
     changePassword: "修改密碼",
     emptyAccounts: "暫無帳號。點擊「新增使用者」建立帳號。",
     accountPasswordDescription: "為帳號「{username}」設定登入密碼。",
-    passwordRuleHint: "密碼需為 6-128 位，不能包含空格，且需同時包含字母和數字。",
+    passwordRuleHint:
+      "密碼可使用 1-128 位字元。建議使用至少 6 位、包含字母和數字且不含空格的密碼。",
+    shortUsernameWarning: "使用者名稱較短，容易被猜測；仍可繼續儲存。",
+    weakPasswordWarning: "此密碼安全性較低；仍可繼續儲存。",
     accountUsernameRequired: "請輸入使用者名稱",
     accountUsernameDuplicate: "使用者名稱已存在",
     accountSaved: "帳號已儲存",

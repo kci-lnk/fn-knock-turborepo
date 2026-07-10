@@ -603,7 +603,7 @@ fn parse_auth_password_import_item(value: &Value) -> Option<AuthPasswordCredenti
 
 fn normalize_import_username(value: &str) -> Option<String> {
     let username = value.trim().to_lowercase();
-    if username.len() < 3 || username.len() > 64 {
+    if username.is_empty() || username.len() > 64 {
         return None;
     }
     if username

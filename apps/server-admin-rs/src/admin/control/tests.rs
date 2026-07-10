@@ -297,7 +297,7 @@ fn password_import_plan_merges_accounts_passwords_and_linked_totps() {
         panic!("expected password import plan");
     };
 
-    assert_eq!(plan.accounts.len(), 1);
+    assert_eq!(plan.accounts.len(), 2);
     assert_eq!(plan.accounts[0].id, "new-account");
     assert_eq!(plan.accounts[0].username, "alice");
     assert_eq!(plan.accounts[0].source_totp_id, "new-totp");
@@ -309,15 +309,17 @@ fn password_import_plan_merges_accounts_passwords_and_linked_totps() {
         plan.accounts[0].subdomain_access,
         json!({ "mode": "custom", "hosts": ["example.com"] })
     );
+    assert_eq!(plan.accounts[1].id, "invalid-account");
+    assert_eq!(plan.accounts[1].username, "x");
     assert_eq!(plan.password_credentials.len(), 1);
     assert_eq!(plan.password_credentials[0].account_id, "new-account");
     assert_eq!(plan.totp_credentials.len(), 1);
     assert_eq!(plan.totp_credentials[0].id, "new-totp");
     assert_eq!(plan.totp_credentials[0].secret, "NEWSECRET");
-    assert_eq!(plan.summary["imported"], 1);
+    assert_eq!(plan.summary["imported"], 2);
     assert_eq!(plan.summary["skipped_existing_id"], 1);
     assert_eq!(plan.summary["skipped_existing_username"], 1);
-    assert_eq!(plan.summary["invalid"], 1);
+    assert_eq!(plan.summary["invalid"], 0);
     assert_eq!(plan.summary["password_imported"], 1);
     assert_eq!(plan.summary["password_skipped_missing_account"], 1);
     assert_eq!(plan.summary["totp_imported"], 1);

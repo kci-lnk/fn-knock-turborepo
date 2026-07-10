@@ -88,19 +88,11 @@ pub(crate) fn consume_dummy_auth_password_hash(password: &str) -> anyhow::Result
 }
 
 pub(crate) fn validate_auth_password(password: &str) -> Result<(), &'static str> {
-    if password.len() < 6 {
+    if password.is_empty() {
         return Err("passwordTooShort");
     }
     if password.len() > 128 {
         return Err("passwordTooLong");
-    }
-    if password.chars().any(char::is_whitespace) {
-        return Err("passwordWhitespace");
-    }
-    if !password.chars().any(|value| value.is_ascii_alphabetic())
-        || !password.chars().any(|value| value.is_ascii_digit())
-    {
-        return Err("passwordNeedsLettersAndNumbers");
     }
     Ok(())
 }
@@ -132,10 +124,11 @@ mod tests {
     #[test]
     fn validates_auth_password_rules() {
         assert!(validate_auth_password("abc123").is_ok());
-        assert!(validate_auth_password("abc12").is_err());
-        assert!(validate_auth_password("abcdef").is_err());
-        assert!(validate_auth_password("123456").is_err());
-        assert!(validate_auth_password("abc 123").is_err());
+        assert!(validate_auth_password("a").is_ok());
+        assert!(validate_auth_password("abcdef").is_ok());
+        assert!(validate_auth_password("123456").is_ok());
+        assert!(validate_auth_password("abc 123").is_ok());
+        assert!(validate_auth_password("").is_err());
     }
 
     #[test]

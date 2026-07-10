@@ -3420,7 +3420,8 @@ export const koKRAdmin = {
       "사용자 이름/비밀번호 로그인에 사용할 계정과 권한을 관리합니다.",
     moreActions: "추가 작업",
     passwordAccountsPreparationTitle: "비밀번호 로그인 준비",
-    passwordAccountsPreparationDescription: "비밀번호를 설정하면 전환할 수 있습니다.",
+    passwordAccountsPreparationDescription:
+      "비밀번호를 설정하면 전환할 수 있습니다.",
     accountUsername: "사용자 이름",
     editAccount: "사용자 이름 변경",
     editAccountDescription: "계정의 로그인 사용자 이름을 변경합니다.",
@@ -3455,9 +3456,14 @@ export const koKRAdmin = {
     setPassword: "비밀번호 설정",
     changePassword: "비밀번호 변경",
     emptyAccounts: "아직 계정이 없습니다. 새 사용자를 눌러 계정을 생성하세요.",
-    accountPasswordDescription: "계정 “{username}”의 로그인 비밀번호를 설정합니다.",
+    accountPasswordDescription:
+      "계정 “{username}”의 로그인 비밀번호를 설정합니다.",
     passwordRuleHint:
-      "비밀번호는 6-128자, 공백 없음, 문자와 숫자를 모두 포함해야 합니다.",
+      "비밀번호는 1-128자로 설정할 수 있습니다. 6자 이상, 문자와 숫자 포함, 공백 미사용을 권장합니다.",
+    shortUsernameWarning:
+      "사용자 이름이 짧아 추측하기 쉽지만 계속 저장할 수 있습니다.",
+    weakPasswordWarning:
+      "이 비밀번호는 보안성이 낮지만 계속 저장할 수 있습니다.",
     accountUsernameRequired: "사용자 이름을 입력하세요",
     accountUsernameDuplicate: "사용자 이름이 이미 있습니다",
     accountSaved: "계정이 저장되었습니다",

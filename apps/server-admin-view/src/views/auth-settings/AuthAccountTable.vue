@@ -54,6 +54,7 @@ const props = defineProps<{
   showLoadingSkeleton: boolean;
   tableClass: string;
   tableColspan: number;
+  usernameSecurityWarning: (value: string) => string | undefined;
   validateUsername: (value: string, account: AuthAccount) => string | undefined;
 }>();
 
@@ -141,7 +142,9 @@ const { t } = useI18n();
           >
             {{ t("admin.authSettings.adminPanelAccess") }}
           </TableHead>
-          <TableHead class="h-12 whitespace-normal px-5 text-right text-sm font-semibold">
+          <TableHead
+            class="h-12 whitespace-normal px-5 text-right text-sm font-semibold"
+          >
             {{ t("admin.authSettings.actions") }}
           </TableHead>
         </TableRow>
@@ -152,6 +155,7 @@ const { t } = useI18n();
             <InlineCommentEditor
               :text="account.username"
               :allow-empty="false"
+              :warning="usernameSecurityWarning"
               :validate="(value) => validateUsername(value, account)"
               :save="(value) => saveUsername(account, value)"
             />
@@ -216,7 +220,9 @@ const { t } = useI18n();
             </TooltipProvider>
           </TableCell>
           <TableCell class="px-5 py-4">
-            <div class="flex flex-wrap items-center justify-end gap-x-3 gap-y-2 whitespace-nowrap">
+            <div
+              class="flex flex-wrap items-center justify-end gap-x-3 gap-y-2 whitespace-nowrap"
+            >
               <Button
                 size="sm"
                 variant="link"

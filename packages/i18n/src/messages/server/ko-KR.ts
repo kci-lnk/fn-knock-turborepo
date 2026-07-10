@@ -450,11 +450,11 @@ export const koKRServer = {
       saveFailed: "인증 계정을 저장하지 못했습니다",
       syncFailed: "인증 계정을 TOTP로 동기화하지 못했습니다",
       usernameExists: "사용자 이름이 이미 존재합니다",
-      usernameTooShort: "사용자 이름은 3자 이상이어야 합니다",
+      usernameTooShort: "사용자 이름은 비워 둘 수 없습니다",
       usernameTooLong: "사용자 이름은 64자를 초과할 수 없습니다",
       usernameInvalid:
         "사용자 이름은 문자, 숫자, 점, 밑줄, 하이픈만 포함할 수 있으며 공백은 사용할 수 없습니다",
-      passwordTooShort: "계정 비밀번호는 6자 이상이어야 합니다",
+      passwordTooShort: "계정 비밀번호는 비워 둘 수 없습니다",
       passwordTooLong: "계정 비밀번호는 128자를 초과할 수 없습니다",
       passwordWhitespace: "계정 비밀번호에는 공백을 포함할 수 없습니다",
       passwordNeedsLettersAndNumbers:
@@ -1728,8 +1728,7 @@ export const koKRServer = {
       tooMany: "전체 도메인은 최대 두 개까지 설정할 수 있습니다",
       invalidPair:
         "전체 도메인 두 개는 와일드카드와 대응하는 기준 도메인 조합이어야 합니다",
-      mismatchedPair:
-        "와일드카드 도메인과 기준 도메인이 일치하지 않습니다",
+      mismatchedPair: "와일드카드 도메인과 기준 도메인이 일치하지 않습니다",
       pairUnsupported:
         "{provider}는 와일드카드와 기준 도메인의 동시 업데이트를 지원하지 않습니다",
       rootMissing:
@@ -1794,7 +1793,8 @@ export const koKRServer = {
           },
           access_key_id: {
             label: "액세스 키 ID",
-            description: "DNS 레코드 읽기/쓰기 권한이 있는 클라우드 공급자 액세스 키 ID",
+            description:
+              "DNS 레코드 읽기/쓰기 권한이 있는 클라우드 공급자 액세스 키 ID",
           },
           access_key_secret: {
             label: "액세스 키 Secret",
@@ -1806,7 +1806,8 @@ export const koKRServer = {
           },
           secret_id: {
             label: "SecretId",
-            description: "선택한 DNS 서비스 권한이 있는 Tencent Cloud API SecretId",
+            description:
+              "선택한 DNS 서비스 권한이 있는 Tencent Cloud API SecretId",
           },
           secret_key: {
             label: "SecretKey",

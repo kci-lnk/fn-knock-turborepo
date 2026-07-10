@@ -2,7 +2,9 @@
   <div
     class="dynamic-white-page-card dynamic-white-settings-surface h-full flex flex-col gap-4"
   >
-    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div
+      class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+    >
       <div class="min-w-0 space-y-1">
         <div class="flex items-center justify-between gap-3">
           <h1 class="text-lg font-semibold tracking-tight">
@@ -129,6 +131,7 @@
         :show-loading-skeleton="showLoadingSkeleton"
         :table-class="authAccountTableClass"
         :table-colspan="authAccountTableColspan"
+        :username-security-warning="usernameSecurityWarning"
         :validate-username="validateAccountUsername"
       />
     </Card>
@@ -223,6 +226,13 @@
             :disabled="isSavingAuthAccount"
             @keyup.enter="handleSaveAuthAccount"
           />
+          <p
+            v-if="usernameSecurityWarning(authAccountUsernameInput)"
+            class="text-xs text-amber-600 dark:text-amber-400"
+            role="status"
+          >
+            {{ usernameSecurityWarning(authAccountUsernameInput) }}
+          </p>
         </div>
       </div>
       <DialogFooter class="gap-2">
@@ -273,6 +283,13 @@
               :disabled="isSavingAccountPassword"
               @keyup.enter="handleSaveAccountPassword"
             />
+            <p
+              v-if="usernameSecurityWarning(accountPasswordUsernameInput)"
+              class="text-xs text-amber-600 dark:text-amber-400"
+              role="status"
+            >
+              {{ usernameSecurityWarning(accountPasswordUsernameInput) }}
+            </p>
           </div>
         </template>
         <div class="space-y-2">
@@ -312,6 +329,13 @@
           </div>
           <p class="text-xs text-muted-foreground">
             {{ t("admin.authSettings.passwordRuleHint") }}
+          </p>
+          <p
+            v-if="passwordSecurityWarning(accountPasswordInput)"
+            class="text-xs text-amber-600 dark:text-amber-400"
+            role="status"
+          >
+            {{ passwordSecurityWarning(accountPasswordInput) }}
           </p>
         </div>
       </div>
@@ -1149,9 +1173,7 @@ function buildCredentialExportFilename() {
     authLoginMode.value === "password"
       ? "fn-knock-password-credentials"
       : "fn-knock-totp-credentials";
-  return `${prefix}-${new Date()
-    .toISOString()
-    .replace(/[:.]/g, "-")}.json`;
+  return `${prefix}-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
 }
 
 function normalizeTOTPSecret(secret: string) {
@@ -1226,6 +1248,25 @@ function validateAccountUsername(value: string, account: AuthAccount) {
   if (isDuplicate) {
     return t("admin.authSettings.accountUsernameDuplicate");
   }
+}
+
+function usernameSecurityWarning(value: string) {
+  const username = value.trim();
+  return username && username.length < 3
+    ? t("admin.authSettings.shortUsernameWarning")
+    : "";
+}
+
+function passwordSecurityWarning(password: string) {
+  if (!password) return "";
+  const hasLetters = /[A-Za-z]/.test(password);
+  const hasNumbers = /\d/.test(password);
+  return password.length < 6 ||
+    /\s/.test(password) ||
+    !hasLetters ||
+    !hasNumbers
+    ? t("admin.authSettings.weakPasswordWarning")
+    : "";
 }
 
 async function saveAccountUsername(account: AuthAccount, value: string) {

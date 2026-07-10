@@ -3442,7 +3442,8 @@ export const enAdmin = {
       "Manage accounts and permissions used for username/password sign-in.",
     moreActions: "More actions",
     passwordAccountsPreparationTitle: "Prepare password sign-in",
-    passwordAccountsPreparationDescription: "Set a password to enable switching.",
+    passwordAccountsPreparationDescription:
+      "Set a password to enable switching.",
     accountUsername: "Username",
     editAccount: "Edit username",
     editAccountDescription: "Change the account username.",
@@ -3468,7 +3469,8 @@ export const enAdmin = {
     passwordConfigured: "Configured",
     passwordUnset: "Unset",
     createAccount: "New user",
-    createAccountDescription: "Create a new user who signs in with username and password.",
+    createAccountDescription:
+      "Create a new user who signs in with username and password.",
     accountCreated: "User created",
     setupAccountPassword: "Set up account and password",
     setupAccountPasswordDescription:
@@ -3478,7 +3480,10 @@ export const enAdmin = {
     emptyAccounts: "No accounts yet. Click New user to create one.",
     accountPasswordDescription: 'Set the sign-in password for "{username}".',
     passwordRuleHint:
-      "Use 6-128 characters, no spaces, with both letters and numbers.",
+      "Passwords can use 1-128 characters. We recommend at least 6 characters, letters and numbers, and no spaces.",
+    shortUsernameWarning:
+      "This username is short and easier to guess; you can still save it.",
+    weakPasswordWarning: "This password is less secure; you can still save it.",
     accountUsernameRequired: "Enter a username",
     accountUsernameDuplicate: "Username already exists",
     accountSaved: "Account saved",

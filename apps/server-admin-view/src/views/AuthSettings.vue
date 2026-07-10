@@ -572,6 +572,7 @@ import SubdomainAccessDialog from "./auth-settings/SubdomainAccessDialog.vue";
 import TotpCredentialTable from "./auth-settings/TotpCredentialTable.vue";
 import { useAuthCredentialTransfer } from "./auth-settings/useAuthCredentialTransfer";
 import { useAuthSubdomainAccess } from "./auth-settings/useAuthSubdomainAccess";
+import { useDockerAdminAccessScopes } from "./auth-settings/useDockerAdminAccessScopes";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
@@ -599,10 +600,8 @@ import type {
   HostMapping,
   TOTPCredential,
   TOTPSubdomainAccess,
-  TOTPAccessScope,
 } from "../types";
 
-const DOCKER_ADMIN_PANEL_ACCESS_SCOPE: TOTPAccessScope = "docker_admin_panel";
 const BUILTIN_SELECT_PAGE_ACCESS_HOST = "__builtin_select__";
 const BUILTIN_SELECT_PAGE_PATH = "/__select__";
 const DEFAULT_SUBDOMAIN_ACCESS: TOTPSubdomainAccess = {
@@ -618,11 +617,10 @@ type SubdomainAccessOption = {
   builtin?: boolean;
 };
 
-type AuthPermissionRecord = {
-  id: string;
-  access_scopes: TOTPAccessScope[];
-  subdomain_access: TOTPSubdomainAccess;
-};
+type AuthPermissionRecord = Pick<
+  TOTPCredential,
+  "id" | "access_scopes" | "subdomain_access"
+>;
 
 const { t } = useI18n();
 const router = useRouter();
@@ -634,7 +632,6 @@ const authLoginMode = ref<AuthLoginMode>("totp");
 const authModeStatus = ref<AuthLoginModeStatus | null>(null);
 const authModePreview = ref<AuthLoginModePreview | null>(null);
 const hostMappings = ref<HostMapping[]>([]);
-const updatingAccessScopeIds = ref<Set<string>>(new Set());
 const openAdminPanelAccessTooltipId = ref<string | null>(null);
 const isTouchInteraction = useMediaQueryMatch(
   "(hover: none), (pointer: coarse)",
@@ -678,6 +675,16 @@ const {
   normalizeAccess: normalizeTOTPSubdomainAccess,
   normalizeCredential,
   normalizeHost: normalizeSubdomainHost,
+  replaceAuthAccount,
+  translate: (key) => t(key),
+});
+const {
+  handleAccountDockerAdminPanelAccessChange,
+  handleDockerAdminPanelAccessChange,
+  hasDockerAdminPanelAccess,
+  isAccessScopeUpdating,
+} = useDockerAdminAccessScopes({
+  credentials,
   replaceAuthAccount,
   translate: (key) => t(key),
 });
@@ -1334,10 +1341,6 @@ function returnQRCodeSetupView() {
   setupBindView.value = "qr";
 }
 
-function hasDockerAdminPanelAccess(record: AuthPermissionRecord) {
-  return (record.access_scopes || []).includes(DOCKER_ADMIN_PANEL_ACCESS_SCOPE);
-}
-
 function getSubdomainAccessSummary(record: AuthPermissionRecord) {
   const access = getSubdomainAccess(record);
   if (access.mode !== "custom") {
@@ -1389,92 +1392,6 @@ function handleAdminPanelAccessTooltipClick(totpId: string) {
   if (!isTouchInteraction.value) return;
   openAdminPanelAccessTooltipId.value =
     openAdminPanelAccessTooltipId.value === totpId ? null : totpId;
-}
-
-function isAccessScopeUpdating(totpId: string) {
-  return updatingAccessScopeIds.value.has(totpId);
-}
-
-function setAccessScopeUpdating(totpId: string, pending: boolean) {
-  const next = new Set(updatingAccessScopeIds.value);
-  if (pending) {
-    next.add(totpId);
-  } else {
-    next.delete(totpId);
-  }
-  updatingAccessScopeIds.value = next;
-}
-
-async function handleDockerAdminPanelAccessChange(
-  totp: TOTPCredential,
-  enabled: boolean,
-) {
-  const previousScopes = [...(totp.access_scopes || [])];
-  const nextScopeSet = new Set<TOTPAccessScope>(previousScopes);
-  if (enabled) {
-    nextScopeSet.add(DOCKER_ADMIN_PANEL_ACCESS_SCOPE);
-  } else {
-    nextScopeSet.delete(DOCKER_ADMIN_PANEL_ACCESS_SCOPE);
-  }
-
-  const nextScopes = [...nextScopeSet];
-  totp.access_scopes = nextScopes;
-  setAccessScopeUpdating(totp.id, true);
-
-  try {
-    const updated = await ConfigAPI.updateTOTPAccessScopes(totp.id, nextScopes);
-    const target = credentials.value.find((item) => item.id === totp.id);
-    if (target) {
-      target.access_scopes = updated.access_scopes || [];
-    }
-    toast.success(t("admin.authSettings.adminPanelAccessUpdated"));
-  } catch (error) {
-    totp.access_scopes = previousScopes;
-    toast.error(
-      extractErrorMessage(
-        error,
-        t("admin.authSettings.adminPanelAccessUpdateFailed"),
-      ),
-    );
-  } finally {
-    setAccessScopeUpdating(totp.id, false);
-  }
-}
-
-async function handleAccountDockerAdminPanelAccessChange(
-  account: AuthAccount,
-  enabled: boolean,
-) {
-  const previousScopes = [...(account.access_scopes || [])];
-  const nextScopeSet = new Set<TOTPAccessScope>(previousScopes);
-  if (enabled) {
-    nextScopeSet.add(DOCKER_ADMIN_PANEL_ACCESS_SCOPE);
-  } else {
-    nextScopeSet.delete(DOCKER_ADMIN_PANEL_ACCESS_SCOPE);
-  }
-
-  const nextScopes = [...nextScopeSet];
-  account.access_scopes = nextScopes;
-  setAccessScopeUpdating(account.id, true);
-
-  try {
-    const updated = await ConfigAPI.updateAuthAccountAccessScopes(
-      account.id,
-      nextScopes,
-    );
-    replaceAuthAccount(updated);
-    toast.success(t("admin.authSettings.adminPanelAccessUpdated"));
-  } catch (error) {
-    account.access_scopes = previousScopes;
-    toast.error(
-      extractErrorMessage(
-        error,
-        t("admin.authSettings.adminPanelAccessUpdateFailed"),
-      ),
-    );
-  } finally {
-    setAccessScopeUpdating(account.id, false);
-  }
 }
 
 function scrollOtpIntoView(behavior: ScrollBehavior = "smooth") {

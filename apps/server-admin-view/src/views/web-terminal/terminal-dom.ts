@@ -2,6 +2,7 @@ import {
   MAX_TERMINAL_FONT_SIZE,
   MIN_TERMINAL_FONT_SIZE,
 } from "./terminal-runtime";
+export { copyTextToClipboard } from "@admin-shared/utils/copyTextToClipboard";
 
 export const detectCompactViewport = (): boolean => {
   if (typeof window === "undefined") return false;
@@ -32,37 +33,6 @@ export const getVisualViewportMetrics = () => {
     visibleBottom,
     keyboardInset,
   };
-};
-
-export const copyTextToClipboard = async (text: string) => {
-  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text);
-    return;
-  }
-
-  if (typeof document === "undefined") {
-    throw new Error("Clipboard API unavailable");
-  }
-
-  const textarea = document.createElement("textarea");
-  textarea.value = text;
-  textarea.setAttribute("readonly", "");
-  textarea.style.position = "fixed";
-  textarea.style.top = "0";
-  textarea.style.left = "0";
-  textarea.style.opacity = "0";
-
-  document.body.appendChild(textarea);
-  textarea.focus();
-  textarea.select();
-  textarea.setSelectionRange(0, textarea.value.length);
-
-  const copied = document.execCommand("copy");
-  document.body.removeChild(textarea);
-
-  if (!copied) {
-    throw new Error("execCommand copy failed");
-  }
 };
 
 export const focusElementWithoutScroll = (element: HTMLElement) => {

@@ -37,6 +37,7 @@
     "fn-knock:docker:remote-logs": "bash ./scripts/fn-knock-docker.sh remote-logs",
     "fn-knock:docker:remote-reset-panel-password": "bash ./scripts/fn-knock-docker.sh reset-panel-password-remote",
     "i18n:check": "tsx ./packages/i18n/scripts/check.mjs",
+    "i18n:export-server": "tsx ./packages/i18n/scripts/export-server.mjs",
     "i18n:scan": "node ./packages/i18n/scripts/scan.mjs"
   },
   "devDependencies": {

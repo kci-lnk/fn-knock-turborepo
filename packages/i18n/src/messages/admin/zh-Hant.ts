@@ -3099,6 +3099,18 @@ export const zhHantAdmin = {
     publicCheckTestCompletedWithErrors: "公網探測地址測試完成，部分地址失敗",
     publicCheckNoTestSourcesConfigured: "請至少配置一個公網探測地址後再測試",
     wildcardHint: "子域模式下可填寫如 *.example.com，使用星號可設定泛解析。",
+    domainTargetsPairHint:
+      "可填寫單個完整域名，或填寫通配符與對應基礎域名（如 *.r.example.com,r.example.com）；基礎域名可等於供應商 Zone 或位於其下。支援半形逗號、全形逗號或空格分隔，失去焦點後會自動格式化。",
+    domainTargetsSingleHint:
+      "目前供應商僅支援填寫一個完整域名，不能同時更新通配符與基礎域名。",
+    invalidDomainTarget: "完整域名格式不正確",
+    tooManyDomainTargets: "完整域名最多填寫兩項",
+    duplicateDomainTargets: "完整域名不能重複",
+    invalidDomainTargetPair:
+      "兩項必須是通配符域名與其對應基礎域名，例如 *.r.example.com,r.example.com",
+    domainTargetPairUnsupported: "目前供應商不支援同時更新通配符與基礎域名",
+    domainTargetRootMismatch:
+      "{rootField} 為 {rootDomain}，雙域組合的基礎域名必須等於該域名或位於其下。",
     saveConfigFailed: "保存配置失敗",
     clearPrimaryConfigFailed: "清空主域配置失敗",
     updateFailed: "更新失敗",

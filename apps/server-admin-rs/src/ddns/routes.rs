@@ -7,6 +7,7 @@ use std::{
 };
 
 mod config;
+mod domain_targets;
 mod i18n;
 mod providers;
 mod public_check;
@@ -17,6 +18,7 @@ mod target;
 mod tasks;
 
 use config::*;
+use domain_targets::*;
 use i18n::*;
 use providers::*;
 use public_check::*;
@@ -636,6 +638,26 @@ async fn manual_test_target(state: &AppState, id: &str) -> Response {
     };
     let http_options = DDNSHttpClientOptions::from_settings_and_config(&settings, &target.config);
 
+    let update_plan =
+        match prepare_ddns_provider_update(&translator, provider, &target.config, &http_options)
+            .await
+        {
+            Ok(plan) => plan,
+            Err(error) => {
+                let message = error.to_string();
+                let _ = set_target_last_check(state, &target, "error", &message).await;
+                let _ = append_target_log(
+                    state,
+                    "error",
+                    &target,
+                    &ddns_text(&translator, "testError", &[("message", message.clone())]),
+                    &translator,
+                )
+                .await;
+                return response::error(StatusCode::INTERNAL_SERVER_ERROR, message);
+            }
+        };
+
     if let Err(error) = ensure_target_auxiliary_state(
         state,
         &target,
@@ -712,10 +734,10 @@ async fn manual_test_target(state: &AppState, id: &str) -> Response {
 
             let previous_ipv4 = target.last_ip.get("ipv4").and_then(Value::as_str);
             let previous_ipv6 = target.last_ip.get("ipv6").and_then(Value::as_str);
-            let result = match update_ddns_provider(
+            let result = match execute_ddns_provider_update(
                 &translator,
                 provider,
-                &target.config,
+                &update_plan,
                 &http_options,
                 scoped_ipv4.as_deref(),
                 scoped_ipv6.as_deref(),
@@ -751,6 +773,7 @@ async fn manual_test_target(state: &AppState, id: &str) -> Response {
                 &translator,
             )
             .await;
+            let result_message = manual_test_result_message(&translator, &result);
             if result.success {
                 let _ = set_target_last_ip(
                     state,
@@ -759,33 +782,13 @@ async fn manual_test_target(state: &AppState, id: &str) -> Response {
                     scoped_ipv6.as_deref(),
                 )
                 .await;
-                let _ = set_target_last_check(state, &target, "updated", &result.message).await;
-                let _ = append_target_log(
-                    state,
-                    "info",
-                    &target,
-                    &ddns_text(
-                        &translator,
-                        "updateSuccess",
-                        &[("message", result.message.clone())],
-                    ),
-                    &translator,
-                )
-                .await;
+                let _ = set_target_last_check(state, &target, "updated", &result_message).await;
+                let _ =
+                    append_target_log(state, "info", &target, &result_message, &translator).await;
             } else {
-                let _ = set_target_last_check(state, &target, "error", &result.message).await;
-                let _ = append_target_log(
-                    state,
-                    "error",
-                    &target,
-                    &ddns_text(
-                        &translator,
-                        "updateFailed",
-                        &[("message", result.message.clone())],
-                    ),
-                    &translator,
-                )
-                .await;
+                let _ = set_target_last_check(state, &target, "error", &result_message).await;
+                let _ =
+                    append_target_log(state, "error", &target, &result_message, &translator).await;
             }
             let status = if result.success {
                 StatusCode::OK
@@ -821,4 +824,19 @@ async fn manual_test_target(state: &AppState, id: &str) -> Response {
             response::error(StatusCode::INTERNAL_SERVER_ERROR, message)
         }
     }
+}
+
+fn manual_test_result_message(
+    translator: &Translator,
+    result: &DDNSProviderUpdateResult,
+) -> String {
+    ddns_text(
+        translator,
+        if result.success {
+            "updateSuccess"
+        } else {
+            "updateFailed"
+        },
+        &[("message", result.message.clone())],
+    )
 }

@@ -1592,7 +1592,9 @@
           "updateRecordFailed": "更新 {type} 记录失败: {detail}",
           "createRecordFailed": "创建 {type} 记录失败: {detail}",
           "recordOperationError": "{type} 记录操作异常: {detail}",
-          "success": "Cloudflare DNS 更新成功"
+          "success": "Cloudflare DNS 更新成功",
+          "zoneLookupFailed": "Cloudflare Zone 查询失败: {detail}",
+          "zoneMismatch": "双域组合的基础域名不在 Cloudflare Zone 内（Zone {expected}，组合 {actual}）"
         },
         "godaddy": {
           "configIncomplete": "GoDaddy 配置不完整",
@@ -1743,7 +1745,9 @@
           "noIpAvailable": "阿里云 ESA DNS 缺少可更新的 IP 地址",
           "createRecordFailed": "CreateFailed: 创建记录失败",
           "success": "阿里云 ESA DNS 更新成功",
-          "recordIdMissing": "UpdateFailed: 记录缺少 RecordId"
+          "recordIdMissing": "UpdateFailed: 记录缺少 RecordId",
+          "siteLookupFailed": "阿里云 ESA 站点查询失败: {detail}",
+          "siteMismatch": "配置的 Site ID 与站点查询结果不一致（配置 {expected}，查询到 {actual}）"
         },
         "dynu": {
           "fields": {
@@ -1751,7 +1755,7 @@
               "description": "在 Dynu API Credentials 中生成的 API-Key"
             },
             "domain": {
-              "description": "要更新的完整 Dynu hostname"
+              "description": "要更新的完整 Dynu hostname；双域组合的基础域名必须已在 Dynu 中配置为独立 DDNS Service，不能是该 Service 下的普通子域。更新时会设置其 IP 并启用 Wildcard Alias，不会额外创建基础域名记录"
             },
             "group": {
               "description": "可选；写入 Dynu DNS 记录的 group"
@@ -1822,7 +1826,9 @@
             "cleanupAllScopesFailed": "EdgeOne 海外访问控制清理失败：所有规则作用域均尝试失败",
             "syncSuccess": "已同步 EdgeOne 海外 IP 屏蔽策略，仅允许中国大陆、香港、澳门、台湾访问",
             "cleanupSuccess": "已清理 EdgeOne 海外 IP 屏蔽策略"
-          }
+          },
+          "zoneLookupFailed": "EdgeOne 站点查询失败: {detail}",
+          "zoneMismatch": "双域组合的基础域名不在 EdgeOne Zone 内（Zone {expected}，组合 {actual}）"
         },
         "edgeone_cname": {
           "label": "腾讯云 EdgeOne（CNAME 接入）",
@@ -1862,6 +1868,18 @@
           "successWithInvalidHostHeaderIgnored": "腾讯云 EdgeOne（CNAME 接入）源站更新成功（已忽略无效 Host Header）",
           "success": "腾讯云 EdgeOne（CNAME 接入）源站更新成功"
         }
+      },
+      "domainTargets": {
+        "invalidDomain": "完整域名格式无效: {domain}",
+        "tooMany": "完整域名最多只能填写两个",
+        "invalidPair": "填写两个完整域名时，必须是通配符与对应基础域名组合",
+        "mismatchedPair": "通配符域名与基础域名不匹配",
+        "pairUnsupported": "{provider} 不支持同时更新通配符与基础域名",
+        "rootMissing": "使用双域组合前必须填写 {field}",
+        "rootMismatch": "双域组合的基础域名不在 {field} 管理范围内（Zone {expected}，组合 {actual}）",
+        "allSucceeded": "共 {count} 个域名",
+        "itemSucceeded": "{domain}: 成功",
+        "itemFailed": "{domain}: 失败（{detail}）"
       }
     },
     "smartConnect": {
@@ -4566,7 +4584,9 @@
           "updateRecordFailed": "更新 {type} 記錄失敗: {detail}",
           "createRecordFailed": "建立 {type} 記錄失敗: {detail}",
           "recordOperationError": "{type} 記錄操作異常: {detail}",
-          "success": "Cloudflare DNS 更新成功"
+          "success": "Cloudflare DNS 更新成功",
+          "zoneLookupFailed": "Cloudflare Zone 查詢失敗: {detail}",
+          "zoneMismatch": "雙域組合的基礎域名不在 Cloudflare Zone 內（Zone {expected}，組合 {actual}）"
         },
         "godaddy": {
           "configIncomplete": "GoDaddy 配置不完整",
@@ -4717,7 +4737,9 @@
           "noIpAvailable": "阿里雲 ESA DNS 缺少可更新的 IP 地址",
           "createRecordFailed": "CreateFailed: 建立記錄失敗",
           "success": "阿里雲 ESA DNS 更新成功",
-          "recordIdMissing": "UpdateFailed: 記錄缺少 RecordId"
+          "recordIdMissing": "UpdateFailed: 記錄缺少 RecordId",
+          "siteLookupFailed": "阿里雲 ESA 站點查詢失敗: {detail}",
+          "siteMismatch": "設定的 Site ID 與站點查詢結果不一致（設定 {expected}，查詢到 {actual}）"
         },
         "dynu": {
           "fields": {
@@ -4725,7 +4747,7 @@
               "description": "在 Dynu API Credentials 中生成的 API-Key"
             },
             "domain": {
-              "description": "要更新的完整 Dynu hostname"
+              "description": "要更新的完整 Dynu hostname；雙域組合的基礎域名必須已在 Dynu 中設定為獨立 DDNS Service，不能是該 Service 下的一般子域。更新時會設定其 IP 並啟用 Wildcard Alias，不會額外建立基礎域名記錄"
             },
             "group": {
               "description": "可選；寫入 Dynu DNS 記錄的 group"
@@ -4796,7 +4818,9 @@
             "cleanupAllScopesFailed": "EdgeOne 海外訪問控制清理失敗：所有規則作用域均嘗試失敗",
             "syncSuccess": "已同步 EdgeOne 海外 IP 屏蔽策略，僅允許中國大陸、香港、澳門、台灣訪問",
             "cleanupSuccess": "已清理 EdgeOne 海外 IP 屏蔽策略"
-          }
+          },
+          "zoneLookupFailed": "EdgeOne 站點查詢失敗: {detail}",
+          "zoneMismatch": "雙域組合的基礎域名不在 EdgeOne Zone 內（Zone {expected}，組合 {actual}）"
         },
         "edgeone_cname": {
           "label": "騰訊雲 EdgeOne（CNAME 接入）",
@@ -4836,6 +4860,18 @@
           "successWithInvalidHostHeaderIgnored": "騰訊雲 EdgeOne（CNAME 接入）源站更新成功（已忽略無效 Host Header）",
           "success": "騰訊雲 EdgeOne（CNAME 接入）源站更新成功"
         }
+      },
+      "domainTargets": {
+        "invalidDomain": "完整域名格式無效: {domain}",
+        "tooMany": "完整域名最多只能填寫兩個",
+        "invalidPair": "填寫兩個完整域名時，必須是通配符與對應基礎域名組合",
+        "mismatchedPair": "通配符域名與基礎域名不匹配",
+        "pairUnsupported": "{provider} 不支援同時更新通配符與基礎域名",
+        "rootMissing": "使用雙域組合前必須填寫 {field}",
+        "rootMismatch": "雙域組合的基礎域名不在 {field} 管理範圍內（Zone {expected}，組合 {actual}）",
+        "allSucceeded": "共 {count} 個域名",
+        "itemSucceeded": "{domain}: 成功",
+        "itemFailed": "{domain}: 失敗（{detail}）"
       }
     },
     "smartConnect": {
@@ -7540,7 +7576,9 @@
           "updateRecordFailed": "Failed to update {type} record: {detail}",
           "createRecordFailed": "Failed to create {type} record: {detail}",
           "recordOperationError": "{type} record operation error: {detail}",
-          "success": "Cloudflare DNS update succeeded"
+          "success": "Cloudflare DNS update succeeded",
+          "zoneLookupFailed": "Failed to look up the Cloudflare zone: {detail}",
+          "zoneMismatch": "The pair base is outside the Cloudflare zone (zone {expected}, pair {actual})"
         },
         "godaddy": {
           "configIncomplete": "GoDaddy configuration is incomplete",
@@ -7691,7 +7729,9 @@
           "noIpAvailable": "Aliyun ESA DNS has no IP address to update",
           "createRecordFailed": "CreateFailed: failed to create record",
           "success": "Aliyun ESA DNS update succeeded",
-          "recordIdMissing": "UpdateFailed: record is missing RecordId"
+          "recordIdMissing": "UpdateFailed: record is missing RecordId",
+          "siteLookupFailed": "Failed to look up the Aliyun ESA site: {detail}",
+          "siteMismatch": "The configured Site ID does not match the site lookup result (configured {expected}, found {actual})"
         },
         "dynu": {
           "fields": {
@@ -7699,7 +7739,7 @@
               "description": "API-Key generated in Dynu API Credentials"
             },
             "domain": {
-              "description": "Full Dynu hostname to update"
+              "description": "Full Dynu hostname to update. For a wildcard/base pair, the base must already be an independent Dynu DDNS Service, not a regular child of another service. The update sets its IP and enables Wildcard Alias without creating a separate base record."
             },
             "group": {
               "description": "Optional. Group written to the Dynu DNS record."
@@ -7770,7 +7810,9 @@
             "cleanupAllScopesFailed": "EdgeOne overseas access control cleanup failed: all rule scopes failed",
             "syncSuccess": "EdgeOne overseas IP blocking policy synced. Only mainland China, Hong Kong, Macau, and Taiwan are allowed.",
             "cleanupSuccess": "EdgeOne overseas IP blocking policy was cleared"
-          }
+          },
+          "zoneLookupFailed": "Failed to look up the EdgeOne site: {detail}",
+          "zoneMismatch": "The pair base is outside the EdgeOne zone (zone {expected}, pair {actual})"
         },
         "edgeone_cname": {
           "label": "Tencent Cloud EdgeOne (CNAME access)",
@@ -7810,6 +7852,18 @@
           "successWithInvalidHostHeaderIgnored": "Tencent Cloud EdgeOne (CNAME access) origin updated successfully (ignored invalid Host Header)",
           "success": "Tencent Cloud EdgeOne (CNAME access) origin updated successfully"
         }
+      },
+      "domainTargets": {
+        "invalidDomain": "Invalid full domain: {domain}",
+        "tooMany": "At most two full domains may be configured",
+        "invalidPair": "Two full domains must be a wildcard and its matching base domain",
+        "mismatchedPair": "The wildcard domain and base domain do not match",
+        "pairUnsupported": "{provider} does not support updating a wildcard/base pair together",
+        "rootMissing": "Configure {field} before using a wildcard/base pair",
+        "rootMismatch": "The pair base is outside {field} (zone {expected}, pair {actual})",
+        "allSucceeded": "{count} domains",
+        "itemSucceeded": "{domain}: succeeded",
+        "itemFailed": "{domain}: failed ({detail})"
       }
     },
     "smartConnect": {
@@ -10514,7 +10568,9 @@
           "updateRecordFailed": "{type} 레코드 업데이트 실패: {detail}",
           "createRecordFailed": "{type} 레코드 생성 실패: {detail}",
           "recordOperationError": "{type} 레코드 작업 오류: {detail}",
-          "success": "Cloudflare DNS 업데이트 성공"
+          "success": "Cloudflare DNS 업데이트 성공",
+          "zoneLookupFailed": "Cloudflare Zone을 조회하지 못했습니다: {detail}",
+          "zoneMismatch": "조합의 기준 도메인이 Cloudflare Zone을 벗어났습니다(Zone {expected}, 조합 {actual})"
         },
         "godaddy": {
           "configIncomplete": "GoDaddy 구성이 불완전합니다",
@@ -10665,7 +10721,9 @@
           "noIpAvailable": "Aliyun ESA DNS에 업데이트할 IP 주소가 없습니다.",
           "createRecordFailed": "CreateFailed: 레코드를 생성하지 못했습니다.",
           "success": "Aliyun ESA DNS 업데이트 성공",
-          "recordIdMissing": "업데이트 실패: 레코드에 RecordId가 없습니다."
+          "recordIdMissing": "업데이트 실패: 레코드에 RecordId가 없습니다.",
+          "siteLookupFailed": "Aliyun ESA 사이트를 조회하지 못했습니다: {detail}",
+          "siteMismatch": "설정된 Site ID가 사이트 조회 결과와 일치하지 않습니다(설정 {expected}, 조회 {actual})"
         },
         "dynu": {
           "fields": {
@@ -10673,7 +10731,7 @@
               "description": "Dynu API 자격 증명에서 생성된 API 키"
             },
             "domain": {
-              "description": "업데이트할 전체 Dynu 호스트 이름"
+              "description": "업데이트할 전체 Dynu 호스트 이름입니다. 와일드카드/기준 도메인 조합의 기준 도메인은 다른 Service의 일반 하위 도메인이 아니라 Dynu에 독립 DDNS Service로 등록되어 있어야 합니다. 업데이트 시 별도의 기준 도메인 레코드를 만들지 않고 IP를 설정하고 Wildcard Alias를 활성화합니다."
             },
             "group": {
               "description": "선택사항. Dynu DNS 레코드에 기록된 그룹입니다."
@@ -10744,7 +10802,9 @@
             "cleanupAllScopesFailed": "EdgeOne 해외 액세스 제어 정리 실패: 모든 규칙 범위 실패",
             "syncSuccess": "EdgeOne 해외 IP 차단 정책이 동기화되었습니다. 중국 본토, 홍콩, 마카오, 대만만 허용됩니다.",
             "cleanupSuccess": "EdgeOne 해외 IP 차단 정책이 해제되었습니다."
-          }
+          },
+          "zoneLookupFailed": "EdgeOne 사이트를 조회하지 못했습니다: {detail}",
+          "zoneMismatch": "조합의 기준 도메인이 EdgeOne Zone을 벗어났습니다(Zone {expected}, 조합 {actual})"
         },
         "edgeone_cname": {
           "label": "Tencent Cloud EdgeOne(CNAME 액세스)",
@@ -10784,6 +10844,18 @@
           "successWithInvalidHostHeaderIgnored": "Tencent Cloud EdgeOne(CNAME 액세스) 원본이 성공적으로 업데이트되었습니다(잘못된 호스트 헤더 무시).",
           "success": "Tencent Cloud EdgeOne(CNAME 액세스) 원본이 성공적으로 업데이트되었습니다."
         }
+      },
+      "domainTargets": {
+        "invalidDomain": "전체 도메인 형식이 올바르지 않습니다: {domain}",
+        "tooMany": "전체 도메인은 최대 두 개까지 설정할 수 있습니다",
+        "invalidPair": "전체 도메인 두 개는 와일드카드와 대응하는 기준 도메인 조합이어야 합니다",
+        "mismatchedPair": "와일드카드 도메인과 기준 도메인이 일치하지 않습니다",
+        "pairUnsupported": "{provider}는 와일드카드와 기준 도메인의 동시 업데이트를 지원하지 않습니다",
+        "rootMissing": "와일드카드와 기준 도메인 조합을 사용하기 전에 {field}을(를) 설정하세요",
+        "rootMismatch": "조합의 기준 도메인이 {field} 관리 범위를 벗어났습니다(Zone {expected}, 조합 {actual})",
+        "allSucceeded": "도메인 {count}개",
+        "itemSucceeded": "{domain}: 성공",
+        "itemFailed": "{domain}: 실패({detail})"
       }
     },
     "smartConnect": {
@@ -13488,7 +13560,9 @@
           "updateRecordFailed": "更新 {type} 記録に失敗しました: {detail}",
           "createRecordFailed": "{type} レコードの作成に失敗しました: {detail}",
           "recordOperationError": "{type} 録画動作例外: {detail}",
-          "success": "Cloudflare DNS 正常に更新されました"
+          "success": "Cloudflare DNS 正常に更新されました",
+          "zoneLookupFailed": "Cloudflare Zone の照会に失敗しました: {detail}",
+          "zoneMismatch": "組み合わせの基準ドメインが Cloudflare Zone の範囲外です（Zone {expected}、組み合わせ {actual}）"
         },
         "godaddy": {
           "configIncomplete": "GoDaddy の設定が不完全です",
@@ -13639,7 +13713,9 @@
           "noIpAvailable": "Alibaba Cloud ESA DNS には更新可能な IP アドレスがありません",
           "createRecordFailed": "CreateFailed: レコードの作成に失敗しました",
           "success": "Alibaba Cloud ESA DNS 正常に更新されました",
-          "recordIdMissing": "更新失敗: レコードに RecordId がありません"
+          "recordIdMissing": "更新失敗: レコードに RecordId がありません",
+          "siteLookupFailed": "Alibaba Cloud ESA サイトの照会に失敗しました: {detail}",
+          "siteMismatch": "設定された Site ID がサイトの照会結果と一致しません（設定 {expected}、照会結果 {actual}）"
         },
         "dynu": {
           "fields": {
@@ -13647,7 +13723,7 @@
               "description": "API-Dynu で生成されたキー API 認証情報"
             },
             "domain": {
-              "description": "更新する完全な Dynu ホスト名"
+              "description": "更新する完全な Dynu ホスト名です。ワイルドカードと基準ドメインの組み合わせでは、基準ドメインが別 Service 配下の通常のサブドメインではなく、Dynu に独立した DDNS Service として登録されている必要があります。更新時は個別の基準ドメインレコードを作成せず、IP を設定して Wildcard Alias を有効にします。"
             },
             "group": {
               "description": "オプション;グループを Dynu DNS レコードに書き込みます"
@@ -13718,7 +13794,9 @@
             "cleanupAllScopesFailed": "EdgeOne 海外アクセス制御のクリーンアップに失敗しました: すべてのルール スコープの試行が失敗しました",
             "syncSuccess": "同期 EdgeOne 海外 IP ブロックポリシー、中国本土、香港、マカオ、台湾からのアクセスのみ許可",
             "cleanupSuccess": "クリーニング済み EdgeOne 海外 IP ブロックポリシー"
-          }
+          },
+          "zoneLookupFailed": "EdgeOne サイトの照会に失敗しました: {detail}",
+          "zoneMismatch": "組み合わせの基準ドメインが EdgeOne Zone の範囲外です（Zone {expected}、組み合わせ {actual}）"
         },
         "edgeone_cname": {
           "label": "Tencent Cloud EdgeOne (CNAME アクセス)",
@@ -13758,6 +13836,18 @@
           "successWithInvalidHostHeaderIgnored": "Tencent Cloud EdgeOne (CNAME アクセス) オリジン サイトが正常に更新されました (無効なホスト ヘッダーは無視されました)",
           "success": "Tencent Cloud EdgeOne (CNAME アクセス) オリジンサイトが正常に更新されました"
         }
+      },
+      "domainTargets": {
+        "invalidDomain": "完全なドメイン名の形式が無効です: {domain}",
+        "tooMany": "完全なドメイン名は 2 件まで設定できます",
+        "invalidPair": "2 件の完全なドメイン名はワイルドカードと対応する基準ドメインの組み合わせにしてください",
+        "mismatchedPair": "ワイルドカードドメインと基準ドメインが一致しません",
+        "pairUnsupported": "{provider} はワイルドカードと基準ドメインの同時更新をサポートしていません",
+        "rootMissing": "ワイルドカードと基準ドメインを組み合わせる前に {field} を設定してください",
+        "rootMismatch": "組み合わせの基準ドメインが {field} の管理範囲外です（Zone {expected}、組み合わせ {actual}）",
+        "allSucceeded": "{count} 件のドメイン",
+        "itemSucceeded": "{domain}: 成功",
+        "itemFailed": "{domain}: 失敗（{detail}）"
       }
     },
     "smartConnect": {

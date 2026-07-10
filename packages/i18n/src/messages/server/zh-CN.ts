@@ -414,7 +414,11 @@ export const zhCNServer = {
       unsupportedKind: "不支持的 TOTP 凭证导入格式",
       unsupportedVersion: "不支持的 TOTP 凭证导入版本",
       credentialsArray: "TOTP 凭证列表必须是数组",
+      accountsArray: "账号凭证列表必须是数组",
+      passwordArray: "账号密码凭证列表必须是数组",
       countExceeded: "单次最多导入 {max} 个 TOTP 凭证",
+      accountCountExceeded: "单次最多导入 {max} 个账号凭证",
+      passwordCountExceeded: "单次最多导入 {max} 个账号密码凭证",
     },
     passkeys: {
       notFound: "Passkey 不存在",
@@ -1508,6 +1512,19 @@ export const zhCNServer = {
     primaryDomainName: "主域",
     noProviderSelected: "未选择提供商",
     duplicateTarget: "已存在相同提供商和域名摘要的 DDNS 条目",
+    domainTargets: {
+      invalidDomain: "完整域名格式无效: {domain}",
+      tooMany: "完整域名最多只能填写两个",
+      invalidPair: "填写两个完整域名时，必须是通配符与对应基础域名组合",
+      mismatchedPair: "通配符域名与基础域名不匹配",
+      pairUnsupported: "{provider} 不支持同时更新通配符与基础域名",
+      rootMissing: "使用双域组合前必须填写 {field}",
+      rootMismatch:
+        "双域组合的基础域名不在 {field} 管理范围内（Zone {expected}，组合 {actual}）",
+      allSucceeded: "共 {count} 个域名",
+      itemSucceeded: "{domain}: 成功",
+      itemFailed: "{domain}: 失败（{detail}）",
+    },
     primaryInitFailed: "主域 DDNS 条目初始化失败",
     primaryDomainScope: "主域",
     additionalDomainScope: "附加域",
@@ -1676,6 +1693,9 @@ export const zhCNServer = {
           },
         },
         configIncomplete: "Cloudflare 配置不完整",
+        zoneLookupFailed: "Cloudflare Zone 查询失败: {detail}",
+        zoneMismatch:
+          "双域组合的基础域名不在 Cloudflare Zone 内（Zone {expected}，组合 {actual}）",
         searchRecordFailed: "查询 {type} 记录失败: {detail}",
         updateRecordFailed: "更新 {type} 记录失败: {detail}",
         createRecordFailed: "创建 {type} 记录失败: {detail}",
@@ -1830,6 +1850,9 @@ export const zhCNServer = {
         },
         configIncomplete: "阿里云 ESA DNS 配置不完整",
         siteNameMissing: "阿里云 ESA DNS 缺少站点名称",
+        siteLookupFailed: "阿里云 ESA 站点查询失败: {detail}",
+        siteMismatch:
+          "配置的 Site ID 与站点查询结果不一致（配置 {expected}，查询到 {actual}）",
         siteNotFound: "未找到 ESA 站点: {site}",
         noIpAvailable: "阿里云 ESA DNS 缺少可更新的 IP 地址",
         createRecordFailed: "CreateFailed: 创建记录失败",
@@ -1842,7 +1865,8 @@ export const zhCNServer = {
             description: "在 Dynu API Credentials 中生成的 API-Key",
           },
           domain: {
-            description: "要更新的完整 Dynu hostname",
+            description:
+              "要更新的完整 Dynu hostname；双域组合的基础域名必须已在 Dynu 中配置为独立 DDNS Service，不能是该 Service 下的普通子域。更新时会设置其 IP 并启用 Wildcard Alias，不会额外创建基础域名记录",
           },
           group: {
             description: "可选；写入 Dynu DNS 记录的 group",
@@ -1906,6 +1930,9 @@ export const zhCNServer = {
           },
         },
         configIncomplete: "腾讯云 EdgeOne 配置不完整",
+        zoneLookupFailed: "EdgeOne 站点查询失败: {detail}",
+        zoneMismatch:
+          "双域组合的基础域名不在 EdgeOne Zone 内（Zone {expected}，组合 {actual}）",
         configTargetIncomplete:
           "腾讯云 EdgeOne 配置不完整，缺少 Zone ID 或域名",
         missingRecordId: "EdgeOne 返回的记录缺少 RecordId",

@@ -59,6 +59,7 @@ type AddressOption = {
 
 defineProps<{
   description: string;
+  formatDomainField: () => void;
   formatOptionLabel: (
     option: LabelKeyOption<DDNSIpSource | DDNSUpdateScope>,
   ) => string;
@@ -256,7 +257,10 @@ const { t } = useI18n();
             class="p-4 sm:p-5 grid gap-2 sm:grid-cols-[180px_1fr] md:grid-cols-[220px_1fr] items-start transition-colors hover:bg-muted/10"
           >
             <div class="space-y-1 mt-1.5">
-              <Label for="ddns-target-source-domain" class="text-sm font-medium">
+              <Label
+                for="ddns-target-source-domain"
+                class="text-sm font-medium"
+              >
                 {{ t("admin.ddns.sourceDomainLabel") }}
               </Label>
               <p class="text-xs text-muted-foreground hidden sm:block pr-4">
@@ -334,7 +338,9 @@ const { t } = useI18n();
             </div>
             <div class="w-full max-w-md space-y-2">
               <Select
-                :modelValue="state.config[IP_SOURCE_KEY] || DEFAULT_DDNS_IP_SOURCE"
+                :modelValue="
+                  state.config[IP_SOURCE_KEY] || DEFAULT_DDNS_IP_SOURCE
+                "
                 @update:modelValue="
                   (val: any) =>
                     (state.config[IP_SOURCE_KEY] = normalizeIpSource(
@@ -350,7 +356,9 @@ const { t } = useI18n();
                     v-for="option in IP_SOURCE_OPTIONS"
                     :key="option.value"
                     :value="option.value"
-                    :disabled="isIpSourceOptionDisabled(state.provider, option.value)"
+                    :disabled="
+                      isIpSourceOptionDisabled(state.provider, option.value)
+                    "
                   >
                     {{ formatOptionLabel(option) }}
                   </SelectItem>
@@ -379,7 +387,9 @@ const { t } = useI18n();
             <div class="w-full max-w-md space-y-2">
               <Select
                 :modelValue="
-                  toNetworkInterfaceSelectValue(state.config[NETWORK_INTERFACE_KEY])
+                  toNetworkInterfaceSelectValue(
+                    state.config[NETWORK_INTERFACE_KEY],
+                  )
                 "
                 @update:modelValue="
                   (val: any) =>
@@ -552,7 +562,10 @@ const { t } = useI18n();
                   class="text-sm font-medium flex items-center gap-1"
                 >
                   {{ field.label }}
-                  <span v-if="field.required !== false" class="text-destructive">
+                  <span
+                    v-if="field.required !== false"
+                    class="text-destructive"
+                  >
                     *
                   </span>
                 </Label>
@@ -571,8 +584,7 @@ const { t } = useI18n();
                     state.config[field.key] || field.options[0]?.value || ''
                   "
                   @update:modelValue="
-                    (val: any) =>
-                      (state.config[field.key] = String(val ?? ''))
+                    (val: any) => (state.config[field.key] = String(val ?? ''))
                   "
                 >
                   <SelectTrigger :id="`ddns-target-field-${field.key}`">
@@ -617,6 +629,7 @@ const { t } = useI18n();
                   :type="field.type"
                   :placeholder="field.placeholder"
                   :autocomplete="getFieldAutocomplete(field)"
+                  @blur="field.key === 'domain' && formatDomainField()"
                 />
 
                 <p

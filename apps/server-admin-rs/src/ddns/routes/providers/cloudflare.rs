@@ -24,6 +24,103 @@ pub(in crate::ddns::routes) fn cloudflare_catalog_entry() -> Value {
     )
 }
 
+pub(in crate::ddns::routes) async fn validate_cloudflare_pair_root_in_zone(
+    translator: &Translator,
+    config: &HashMap<String, String>,
+    http_options: &DDNSHttpClientOptions,
+    pair_root: &str,
+) -> anyhow::Result<()> {
+    let api_token = config_value(config, "api_token");
+    let zone_id = config_value(config, "zone_id");
+    if api_token.is_empty() || zone_id.is_empty() {
+        anyhow::bail!(
+            "{}",
+            ddns_text(translator, "providers.cloudflare.configIncomplete", &[])
+        );
+    }
+    let client = ddns_http_client(translator, http_options).map_err(|error| {
+        anyhow::anyhow!(ddns_text(
+            translator,
+            "providers.cloudflare.zoneLookupFailed",
+            &[("detail", error.to_string())],
+        ))
+    })?;
+    let response = client
+        .get(format!(
+            "https://api.cloudflare.com/client/v4/zones/{zone_id}"
+        ))
+        .bearer_auth(&api_token)
+        .header(reqwest::header::ACCEPT, "application/json")
+        .send()
+        .await
+        .map_err(|error| {
+            anyhow::anyhow!(ddns_text(
+                translator,
+                "providers.cloudflare.zoneLookupFailed",
+                &[("detail", error.to_string())],
+            ))
+        })?;
+    let (status, data, text) = response_json(translator, response).await.map_err(|error| {
+        anyhow::anyhow!(ddns_text(
+            translator,
+            "providers.cloudflare.zoneLookupFailed",
+            &[("detail", error.to_string())],
+        ))
+    })?;
+    if !status.is_success() || data.get("success").and_then(Value::as_bool) != Some(true) {
+        let detail = if text.is_empty() {
+            compact_json(data.get("errors").unwrap_or(&data))
+        } else {
+            text
+        };
+        anyhow::bail!(
+            "{}",
+            ddns_text(
+                translator,
+                "providers.cloudflare.zoneLookupFailed",
+                &[("detail", detail)],
+            )
+        );
+    }
+    let remote_root = cloudflare_zone_name_from_response(&data, &zone_id).unwrap_or_default();
+    if !ddns_domain_is_same_or_subdomain(pair_root, &remote_root) {
+        anyhow::bail!(
+            "{}",
+            ddns_text(
+                translator,
+                "providers.cloudflare.zoneMismatch",
+                &[
+                    (
+                        "expected",
+                        if remote_root.is_empty() {
+                            "<unknown>".to_string()
+                        } else {
+                            remote_root
+                        },
+                    ),
+                    ("actual", pair_root.to_string()),
+                ],
+            )
+        );
+    }
+    Ok(())
+}
+
+pub(in crate::ddns::routes) fn cloudflare_zone_name_from_response(
+    data: &Value,
+    zone_id: &str,
+) -> Option<String> {
+    let result = data.get("result")?;
+    if result.get("id").and_then(Value::as_str) != Some(zone_id) {
+        return None;
+    }
+    result
+        .get("name")
+        .and_then(Value::as_str)
+        .map(|name| normalize_domain(name).to_ascii_lowercase())
+        .filter(|name| !name.is_empty())
+}
+
 pub(in crate::ddns::routes) async fn update_cloudflare(
     translator: &Translator,
     config: &HashMap<String, String>,

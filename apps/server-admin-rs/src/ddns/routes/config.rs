@@ -7,6 +7,15 @@ pub(super) fn normalize_config(
     normalize_config_map(Some(provider), &config)
 }
 
+pub(super) fn normalize_and_validate_config(
+    provider: &str,
+    config: HashMap<String, String>,
+) -> anyhow::Result<HashMap<String, String>> {
+    let mut normalized = normalize_config(provider, config);
+    normalize_and_validate_ddns_domain_config(provider, &mut normalized)?;
+    Ok(normalized)
+}
+
 pub(super) fn normalize_config_map(
     provider: Option<&str>,
     config: &HashMap<String, String>,

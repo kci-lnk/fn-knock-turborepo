@@ -3380,6 +3380,19 @@ export const jaJPAdmin = {
       "テストする前に公開検出アドレスを少なくとも 1 つ設定してください",
     wildcardHint:
       "サブドメイン モードでは、*.example.com を入力し、アスタリスクを使用して汎解像度を設定できます。",
+    domainTargetsPairHint:
+      "完全なドメイン名を 1 件入力するか、*.r.example.com,r.example.com のようにワイルドカードと基準ドメインを組み合わせて入力できます。基準ドメインはプロバイダーの Zone と同一、またはそのサブドメインにできます。半角・全角カンマまたは空白で区切ることができ、フォーカスを外すと自動整形されます。",
+    domainTargetsSingleHint:
+      "このプロバイダーは完全なドメイン名を 1 件だけ受け付け、ワイルドカードと基準ドメインを同時には更新できません。",
+    invalidDomainTarget: "有効な完全ドメイン名を入力してください",
+    tooManyDomainTargets: "完全なドメイン名は 2 件以内で入力してください",
+    duplicateDomainTargets: "同じ完全ドメイン名を重複して入力できません",
+    invalidDomainTargetPair:
+      "2 件入力する場合は、*.r.example.com,r.example.com のようにワイルドカードドメインと対応する基準ドメインを指定してください",
+    domainTargetPairUnsupported:
+      "このプロバイダーはワイルドカードと基準ドメインの同時更新をサポートしていません",
+    domainTargetRootMismatch:
+      "組み合わせの基準ドメインは {rootField}（{rootDomain}）と同一、またはそのサブドメインである必要があります。",
     saveConfigFailed: "設定の保存に失敗しました",
     clearPrimaryConfigFailed: "プライマリ ドメイン設定をクリアできませんでした",
     updateFailed: "アップデートに失敗しました",

@@ -38,6 +38,7 @@ defineProps<{
   credentialTransferSuggestion: DnsCredentialTransferSuggestion | null;
   enableFieldEditing: (key: string) => void;
   fieldVisibility: Record<string, boolean>;
+  formatDomainField: () => void;
   formatOptionLabel: (option: { labelKey: string }) => string;
   getFieldAutocomplete: (field: ProviderField) => string;
   getFieldDescription: (field: ProviderField) => string;
@@ -184,6 +185,7 @@ const { t } = useI18n();
           :credential-transfer-suggestion="credentialTransferSuggestion"
           :enable-field-editing="enableFieldEditing"
           :field-visibility="fieldVisibility"
+          :format-domain-field="formatDomainField"
           :get-field-autocomplete="getFieldAutocomplete"
           :get-field-description="getFieldDescription"
           :get-field-dom-id="getFieldDomId"

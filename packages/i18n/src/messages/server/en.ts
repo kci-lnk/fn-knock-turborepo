@@ -485,7 +485,13 @@ export const enServer = {
       unsupportedKind: "Unsupported TOTP credential import format",
       unsupportedVersion: "Unsupported TOTP credential import version",
       credentialsArray: "TOTP credential list must be an array",
+      accountsArray: "Account credential list must be an array",
+      passwordArray: "Account password credential list must be an array",
       countExceeded: "At most {max} TOTP credentials can be imported at once",
+      accountCountExceeded:
+        "At most {max} account credentials can be imported at once",
+      passwordCountExceeded:
+        "At most {max} account password credentials can be imported at once",
     },
     passkeys: {
       notFound: "Passkey not found",
@@ -1707,6 +1713,21 @@ export const enServer = {
     noProviderSelected: "No provider selected",
     duplicateTarget:
       "A DDNS entry with the same provider and domain summary already exists",
+    domainTargets: {
+      invalidDomain: "Invalid full domain: {domain}",
+      tooMany: "At most two full domains may be configured",
+      invalidPair:
+        "Two full domains must be a wildcard and its matching base domain",
+      mismatchedPair: "The wildcard domain and base domain do not match",
+      pairUnsupported:
+        "{provider} does not support updating a wildcard/base pair together",
+      rootMissing: "Configure {field} before using a wildcard/base pair",
+      rootMismatch:
+        "The pair base is outside {field} (zone {expected}, pair {actual})",
+      allSucceeded: "{count} domains",
+      itemSucceeded: "{domain}: succeeded",
+      itemFailed: "{domain}: failed ({detail})",
+    },
     primaryInitFailed: "Failed to initialize the primary DDNS entry",
     primaryDomainScope: "Primary domain",
     additionalDomainScope: "Additional domain",
@@ -1882,6 +1903,9 @@ export const enServer = {
           },
         },
         configIncomplete: "Cloudflare configuration is incomplete",
+        zoneLookupFailed: "Failed to look up the Cloudflare zone: {detail}",
+        zoneMismatch:
+          "The pair base is outside the Cloudflare zone (zone {expected}, pair {actual})",
         searchRecordFailed: "Failed to query {type} record: {detail}",
         updateRecordFailed: "Failed to update {type} record: {detail}",
         createRecordFailed: "Failed to create {type} record: {detail}",
@@ -2049,6 +2073,9 @@ export const enServer = {
         },
         configIncomplete: "Aliyun ESA DNS configuration is incomplete",
         siteNameMissing: "Aliyun ESA DNS site name is missing",
+        siteLookupFailed: "Failed to look up the Aliyun ESA site: {detail}",
+        siteMismatch:
+          "The configured Site ID does not match the site lookup result (configured {expected}, found {actual})",
         siteNotFound: "ESA site not found: {site}",
         noIpAvailable: "Aliyun ESA DNS has no IP address to update",
         createRecordFailed: "CreateFailed: failed to create record",
@@ -2061,7 +2088,8 @@ export const enServer = {
             description: "API-Key generated in Dynu API Credentials",
           },
           domain: {
-            description: "Full Dynu hostname to update",
+            description:
+              "Full Dynu hostname to update. For a wildcard/base pair, the base must already be an independent Dynu DDNS Service, not a regular child of another service. The update sets its IP and enables Wildcard Alias without creating a separate base record.",
           },
           group: {
             description: "Optional. Group written to the Dynu DNS record.",
@@ -2127,6 +2155,9 @@ export const enServer = {
           },
         },
         configIncomplete: "Tencent Cloud EdgeOne configuration is incomplete",
+        zoneLookupFailed: "Failed to look up the EdgeOne site: {detail}",
+        zoneMismatch:
+          "The pair base is outside the EdgeOne zone (zone {expected}, pair {actual})",
         configTargetIncomplete:
           "Tencent Cloud EdgeOne configuration is incomplete: Zone ID or domain is missing",
         missingRecordId: "EdgeOne returned a record without RecordId",

@@ -131,6 +131,11 @@ pub(super) async fn run_automatic_ddns_target(
     }
 
     let http_options = DDNSHttpClientOptions::from_settings_and_config(settings, &target.config);
+    let mut update_plan = build_ddns_provider_update_plan(provider, &target.config)?;
+    if ddns_preflight_required_before_auxiliary(provider, &update_plan) {
+        preflight_ddns_provider_update(translator, provider, &mut update_plan, &http_options)
+            .await?;
+    }
     ensure_target_auxiliary_state(
         state,
         target,
@@ -257,10 +262,12 @@ pub(super) async fn run_automatic_ddns_target(
     )
     .await?;
 
-    let result = update_ddns_provider(
+    preflight_ddns_provider_update(translator, provider, &mut update_plan, &http_options).await?;
+
+    let result = execute_ddns_provider_update(
         translator,
         provider,
-        &target.config,
+        &update_plan,
         &http_options,
         scoped_ipv4.as_deref(),
         scoped_ipv6.as_deref(),
@@ -921,6 +928,10 @@ pub(super) fn target_config_incomplete_reason(
             ),
             missing.join(", ")
         ));
+    }
+
+    if let Err(error) = validated_ddns_domain_targets(provider_name, &target.config) {
+        return Some(localize_ddns_domain_config_error(translator, &error));
     }
 
     let update_scope = normalize_update_scope(

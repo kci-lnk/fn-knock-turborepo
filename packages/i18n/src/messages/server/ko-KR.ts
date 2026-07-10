@@ -488,8 +488,14 @@ export const koKRServer = {
       unsupportedKind: "지원되지 않는 TOTP 자격 증명 가져오기 형식입니다.",
       unsupportedVersion: "지원되지 않는 TOTP 자격 증명 가져오기 버전입니다.",
       credentialsArray: "TOTP 자격 증명 목록은 배열이어야 합니다.",
+      accountsArray: "계정 자격 증명 목록은 배열이어야 합니다.",
+      passwordArray: "계정 비밀번호 자격 증명 목록은 배열이어야 합니다.",
       countExceeded:
         "한 번에 최대 {max}개의 TOTP 자격 증명을 가져올 수 있습니다.",
+      accountCountExceeded:
+        "한 번에 최대 {max}개의 계정 자격 증명을 가져올 수 있습니다.",
+      passwordCountExceeded:
+        "한 번에 최대 {max}개의 계정 비밀번호 자격 증명을 가져올 수 있습니다.",
     },
     passkeys: {
       notFound: "패스키를 찾을 수 없습니다.",
@@ -1717,6 +1723,23 @@ export const koKRServer = {
     noProviderSelected: "선택한 제공업체가 없습니다.",
     duplicateTarget:
       "공급자 및 도메인 요약이 동일한 DDNS 항목이 이미 존재합니다.",
+    domainTargets: {
+      invalidDomain: "전체 도메인 형식이 올바르지 않습니다: {domain}",
+      tooMany: "전체 도메인은 최대 두 개까지 설정할 수 있습니다",
+      invalidPair:
+        "전체 도메인 두 개는 와일드카드와 대응하는 기준 도메인 조합이어야 합니다",
+      mismatchedPair:
+        "와일드카드 도메인과 기준 도메인이 일치하지 않습니다",
+      pairUnsupported:
+        "{provider}는 와일드카드와 기준 도메인의 동시 업데이트를 지원하지 않습니다",
+      rootMissing:
+        "와일드카드와 기준 도메인 조합을 사용하기 전에 {field}을(를) 설정하세요",
+      rootMismatch:
+        "조합의 기준 도메인이 {field} 관리 범위를 벗어났습니다(Zone {expected}, 조합 {actual})",
+      allSucceeded: "도메인 {count}개",
+      itemSucceeded: "{domain}: 성공",
+      itemFailed: "{domain}: 실패({detail})",
+    },
     primaryInitFailed: "기본 DDNS 항목을 초기화하지 못했습니다.",
     primaryDomainScope: "기본 도메인",
     additionalDomainScope: "추가 도메인",
@@ -1892,6 +1915,9 @@ export const koKRServer = {
           },
         },
         configIncomplete: "Cloudflare 구성이 불완전합니다",
+        zoneLookupFailed: "Cloudflare Zone을 조회하지 못했습니다: {detail}",
+        zoneMismatch:
+          "조합의 기준 도메인이 Cloudflare Zone을 벗어났습니다(Zone {expected}, 조합 {actual})",
         searchRecordFailed: "{type} 레코드 쿼리 실패: {detail}",
         updateRecordFailed: "{type} 레코드 업데이트 실패: {detail}",
         createRecordFailed: "{type} 레코드 생성 실패: {detail}",
@@ -2059,6 +2085,9 @@ export const koKRServer = {
         },
         configIncomplete: "Aliyun ESA DNS 구성이 불완전합니다.",
         siteNameMissing: "Aliyun ESA DNS 사이트 이름이 없습니다.",
+        siteLookupFailed: "Aliyun ESA 사이트를 조회하지 못했습니다: {detail}",
+        siteMismatch:
+          "설정된 Site ID가 사이트 조회 결과와 일치하지 않습니다(설정 {expected}, 조회 {actual})",
         siteNotFound: "ESA 사이트를 찾을 수 없습니다: {site}",
         noIpAvailable: "Aliyun ESA DNS에 업데이트할 IP 주소가 없습니다.",
         createRecordFailed: "CreateFailed: 레코드를 생성하지 못했습니다.",
@@ -2071,7 +2100,8 @@ export const koKRServer = {
             description: "Dynu API 자격 증명에서 생성된 API 키",
           },
           domain: {
-            description: "업데이트할 전체 Dynu 호스트 이름",
+            description:
+              "업데이트할 전체 Dynu 호스트 이름입니다. 와일드카드/기준 도메인 조합의 기준 도메인은 다른 Service의 일반 하위 도메인이 아니라 Dynu에 독립 DDNS Service로 등록되어 있어야 합니다. 업데이트 시 별도의 기준 도메인 레코드를 만들지 않고 IP를 설정하고 Wildcard Alias를 활성화합니다.",
           },
           group: {
             description: "선택사항. Dynu DNS 레코드에 기록된 그룹입니다.",
@@ -2140,6 +2170,9 @@ export const koKRServer = {
           },
         },
         configIncomplete: "Tencent Cloud EdgeOne 구성이 불완전합니다.",
+        zoneLookupFailed: "EdgeOne 사이트를 조회하지 못했습니다: {detail}",
+        zoneMismatch:
+          "조합의 기준 도메인이 EdgeOne Zone을 벗어났습니다(Zone {expected}, 조합 {actual})",
         configTargetIncomplete:
           "Tencent Cloud EdgeOne 구성이 불완전합니다: 영역 ID 또는 도메인이 누락되었습니다.",
         missingRecordId: "EdgeOne이 RecordId 없이 레코드를 반환했습니다.",

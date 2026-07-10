@@ -58,11 +58,11 @@ pub(super) async fn create_ddns_target(
     body: TargetBody,
     translator: &Translator,
 ) -> anyhow::Result<Value> {
-    ensure_primary_initialized(state).await?;
     let provider = normalize_provider_name(&body.provider)
         .ok_or_else(|| anyhow::anyhow!("Unknown DDNS provider: {}", body.provider))?;
-    let config = normalize_config(&provider, body.config.unwrap_or_default());
+    let config = normalize_and_validate_config(&provider, body.config.unwrap_or_default())?;
     assert_no_duplicate_target(state, &provider, &config, None).await?;
+    ensure_primary_initialized(state).await?;
     let targets = list_targets(state).await?;
     let sort_order = targets
         .iter()
@@ -96,10 +96,10 @@ pub(super) async fn update_ddns_target(
     body: TargetBody,
     translator: &Translator,
 ) -> anyhow::Result<Value> {
-    let mut target = find_target_or_err(state, id).await?;
     let provider = normalize_provider_name(&body.provider)
         .ok_or_else(|| anyhow::anyhow!("Unknown DDNS provider: {}", body.provider))?;
-    let config = normalize_config(&provider, body.config.unwrap_or_default());
+    let config = normalize_and_validate_config(&provider, body.config.unwrap_or_default())?;
+    let mut target = find_target_or_err(state, id).await?;
     assert_no_duplicate_target(state, &provider, &config, Some(id)).await?;
     let should_reset = comparable_config_key(target.meta.provider.as_deref(), &target.config)
         != comparable_config_key(Some(&provider), &config);
@@ -115,10 +115,12 @@ pub(super) async fn update_ddns_target(
     };
     target.meta.updated_at = time_utils::now_iso();
     target.config = config;
-    save_target_record(state, &target).await?;
-    if should_reset {
-        reset_target_runtime_state(state, &target.meta).await?;
-    }
+    write_config_after_runtime_reset(
+        should_reset,
+        reset_target_runtime_state(state, &target.meta),
+        save_target_record(state, &target),
+    )
+    .await?;
     if target.meta.is_primary {
         save_legacy_config_draft(state, &provider, &target.config).await?;
         mirror_primary_provider(state, Some(&provider)).await?;
@@ -156,6 +158,9 @@ pub(super) async fn set_ddns_target_enabled(
     if target.meta.is_primary && !enabled {
         return Err(anyhow::anyhow!("Primary DDNS target cannot be disabled"));
     }
+    if enabled && let Some(provider) = target.meta.provider.as_deref() {
+        validated_ddns_domain_targets(provider, &target.config)?;
+    }
     target.meta.enabled = if target.meta.is_primary {
         true
     } else {
@@ -169,27 +174,33 @@ pub(super) async fn set_primary_provider(state: &AppState, provider: &str) -> an
     let provider = normalize_provider_name(provider)
         .ok_or_else(|| anyhow::anyhow!("Unknown DDNS provider: {provider}"))?;
     let mut primary = primary_target(state).await?;
+    if primary.meta.provider.as_deref() == Some(provider.as_str()) {
+        validated_ddns_domain_targets(&provider, &primary.config)?;
+        mirror_primary_provider(state, Some(&provider)).await?;
+        return Ok(());
+    }
+    let next_config = normalize_and_validate_config(
+        &provider,
+        read_legacy_config_draft(state, &provider).await?,
+    )?;
+    assert_no_duplicate_target(state, &provider, &next_config, Some(&primary.meta.id)).await?;
     if let Some(previous) = primary.meta.provider.as_deref()
         && previous != provider
     {
         save_legacy_config_draft(state, previous, &primary.config).await?;
     }
-    if primary.meta.provider.as_deref() == Some(provider.as_str()) {
-        mirror_primary_provider(state, Some(&provider)).await?;
-        return Ok(());
-    }
-    let next_config = read_legacy_config_draft(state, &provider).await?;
-    assert_no_duplicate_target(state, &provider, &next_config, Some(&primary.meta.id)).await?;
     let should_reset = comparable_config_key(primary.meta.provider.as_deref(), &primary.config)
         != comparable_config_key(Some(&provider), &next_config);
     primary.meta.provider = Some(provider.clone());
     primary.meta.enabled = true;
     primary.meta.updated_at = time_utils::now_iso();
     primary.config = next_config;
-    save_target_record(state, &primary).await?;
-    if should_reset {
-        reset_target_runtime_state(state, &primary.meta).await?;
-    }
+    write_config_after_runtime_reset(
+        should_reset,
+        reset_target_runtime_state(state, &primary.meta),
+        save_target_record(state, &primary),
+    )
+    .await?;
     mirror_primary_provider(state, Some(&provider)).await
 }
 
@@ -200,17 +211,19 @@ pub(super) async fn save_primary_config(
 ) -> anyhow::Result<()> {
     let provider = normalize_provider_name(provider)
         .ok_or_else(|| anyhow::anyhow!("Unknown DDNS provider: {provider}"))?;
+    let normalized = normalize_and_validate_config(&provider, config)?;
     let mut primary = primary_target(state).await?;
-    let normalized = normalize_config(&provider, config);
     if primary.meta.provider.as_deref() == Some(provider.as_str()) {
         assert_no_duplicate_target(state, &provider, &normalized, Some(&primary.meta.id)).await?;
         let should_reset = comparable_config_key(primary.meta.provider.as_deref(), &primary.config)
             != comparable_config_key(Some(&provider), &normalized);
         primary.config = normalized.clone();
-        save_target_config(state, &primary.meta, &normalized).await?;
-        if should_reset {
-            reset_target_runtime_state(state, &primary.meta).await?;
-        }
+        write_config_after_runtime_reset(
+            should_reset,
+            reset_target_runtime_state(state, &primary.meta),
+            save_target_config(state, &primary.meta, &normalized),
+        )
+        .await?;
         save_legacy_config_draft(state, &provider, &normalized).await?;
     } else {
         save_legacy_config_draft(state, &provider, &normalized).await?;
@@ -395,6 +408,21 @@ pub(super) async fn reset_target_runtime_state(
     Ok(())
 }
 
+pub(super) async fn write_config_after_runtime_reset<T, Reset, Write>(
+    should_reset: bool,
+    reset: Reset,
+    write: Write,
+) -> anyhow::Result<T>
+where
+    Reset: Future<Output = anyhow::Result<()>>,
+    Write: Future<Output = anyhow::Result<T>>,
+{
+    if should_reset {
+        reset.await?;
+    }
+    write.await
+}
+
 pub(super) async fn assert_no_duplicate_target(
     state: &AppState,
     provider: &str,
@@ -402,18 +430,25 @@ pub(super) async fn assert_no_duplicate_target(
     except_id: Option<&str>,
 ) -> anyhow::Result<()> {
     let next = duplicate_key(provider, config);
-    if next.is_empty() {
+    let next_domains = ddns_domain_target_set(provider, config);
+    if next.is_empty() && next_domains.is_none() {
         return Ok(());
     }
     for target in list_targets(state).await? {
         if except_id == Some(target.meta.id.as_str()) {
             continue;
         }
-        if duplicate_key(
-            target.meta.provider.as_deref().unwrap_or(""),
-            &target.config,
-        ) == next
-        {
+        let target_provider = target.meta.provider.as_deref().unwrap_or("");
+        if target_provider != provider {
+            continue;
+        }
+        let domains_overlap = next_domains.as_ref().is_some_and(|next_domains| {
+            ddns_domain_target_set(target_provider, &target.config)
+                .is_some_and(|existing| !next_domains.is_disjoint(&existing))
+        });
+        let legacy_duplicate =
+            !next.is_empty() && duplicate_key(target_provider, &target.config) == next;
+        if domains_overlap || legacy_duplicate {
             return Err(anyhow::anyhow!("Duplicate DDNS target"));
         }
     }

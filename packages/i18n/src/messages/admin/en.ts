@@ -3324,6 +3324,19 @@ export const enAdmin = {
       "Configure at least one public detection source before testing",
     wildcardHint:
       "In subdomain mode, values such as *.example.com are allowed. Use an asterisk for wildcard records.",
+    domainTargetsPairHint:
+      "Enter one full domain, or a wildcard/base pair such as *.r.example.com,r.example.com. The base may be the provider zone itself or any subdomain within it. ASCII commas, full-width commas, and whitespace are accepted and normalized on blur.",
+    domainTargetsSingleHint:
+      "This provider accepts only one full domain and cannot update a wildcard/base pair together.",
+    invalidDomainTarget: "Enter a valid full domain name",
+    tooManyDomainTargets: "Enter no more than two full domains",
+    duplicateDomainTargets: "Full domains must not be duplicated",
+    invalidDomainTargetPair:
+      "Two values must be a wildcard and its matching base domain, for example *.r.example.com,r.example.com",
+    domainTargetPairUnsupported:
+      "This provider does not support updating a wildcard/base pair together",
+    domainTargetRootMismatch:
+      "The pair base must be {rootField} ({rootDomain}) or one of its subdomains.",
     saveConfigFailed: "Failed to save config",
     clearPrimaryConfigFailed: "Failed to clear primary config",
     updateFailed: "Update failed",

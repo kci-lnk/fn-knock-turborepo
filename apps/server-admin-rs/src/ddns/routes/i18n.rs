@@ -1,6 +1,12 @@
 use super::*;
 
 pub(super) fn ddns_error_response(translator: &Translator, error: anyhow::Error) -> Response {
+    if let Some(domain_error) = error.downcast_ref::<DDNSDomainConfigError>() {
+        return response::error(
+            StatusCode::BAD_REQUEST,
+            localize_ddns_domain_config_error(translator, domain_error),
+        );
+    }
     let message = error.to_string();
     let status = if message.contains("not found") {
         StatusCode::NOT_FOUND
@@ -89,6 +95,7 @@ pub(super) fn provider_catalog(translator: &Translator) -> Value {
 pub(super) fn localize_ddns_provider_catalog(mut catalog: Value, translator: &Translator) -> Value {
     if let Some(providers) = catalog.as_array_mut() {
         for provider in providers {
+            apply_ddns_domain_targets_capability(provider);
             localize_ddns_provider(provider, translator);
         }
     }

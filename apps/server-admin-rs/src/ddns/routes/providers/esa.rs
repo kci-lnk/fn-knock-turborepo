@@ -37,6 +37,104 @@ pub(in crate::ddns::routes) fn esa_catalog_entry() -> Value {
     )
 }
 
+pub(in crate::ddns::routes) async fn resolve_and_validate_esa_site_id(
+    translator: &Translator,
+    config: &HashMap<String, String>,
+    http_options: &DDNSHttpClientOptions,
+    pair_root: &str,
+) -> anyhow::Result<String> {
+    let access_key_id = config_value(config, "access_key_id");
+    let access_key_secret = config_value(config, "access_key_secret");
+    let configured_site_id = config_value(config, "site_id");
+    let site_name = normalize_domain(&config_value(config, "site_name")).to_ascii_lowercase();
+    if access_key_id.is_empty()
+        || access_key_secret.is_empty()
+        || site_name.is_empty()
+        || !ddns_domain_is_same_or_subdomain(pair_root, &site_name)
+    {
+        anyhow::bail!(
+            "{}",
+            ddns_text(translator, "providers.esa.configIncomplete", &[])
+        );
+    }
+    let client = ddns_http_client(translator, http_options).map_err(|error| {
+        anyhow::anyhow!(ddns_text(
+            translator,
+            "providers.esa.siteLookupFailed",
+            &[("detail", error.to_string())],
+        ))
+    })?;
+    let response = aliyun_acs3_request(
+        translator,
+        &client,
+        &access_key_id,
+        &access_key_secret,
+        "ListSites",
+        "2024-09-10",
+        "GET",
+        vec![
+            ("PageNumber".to_string(), "1".to_string()),
+            ("PageSize".to_string(), "100".to_string()),
+            ("SiteName".to_string(), site_name.clone()),
+            ("SiteSearchType".to_string(), "exact".to_string()),
+        ],
+        Vec::new(),
+    )
+    .await
+    .map_err(|error| {
+        anyhow::anyhow!(ddns_text(
+            translator,
+            "providers.esa.siteLookupFailed",
+            &[("detail", error.to_string())],
+        ))
+    })?;
+    let actual_site_id = esa_site_id_from_response(&response, &site_name).ok_or_else(|| {
+        anyhow::anyhow!(ddns_text(
+            translator,
+            "providers.esa.siteLookupFailed",
+            &[(
+                "detail",
+                ddns_text(
+                    translator,
+                    "providers.esa.siteNotFound",
+                    &[("site", site_name.clone())],
+                ),
+            )],
+        ))
+    })?;
+    if !configured_site_id.is_empty() && configured_site_id != actual_site_id {
+        anyhow::bail!(
+            "{}",
+            ddns_text(
+                translator,
+                "providers.esa.siteMismatch",
+                &[("expected", configured_site_id), ("actual", actual_site_id),],
+            )
+        );
+    }
+    Ok(actual_site_id)
+}
+
+pub(in crate::ddns::routes) fn esa_site_id_from_response(
+    data: &Value,
+    site_name: &str,
+) -> Option<String> {
+    data.get("Sites")
+        .and_then(Value::as_array)?
+        .iter()
+        .find(|site| {
+            normalize_domain(
+                site.get("SiteName")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+            )
+            .eq_ignore_ascii_case(site_name)
+        })?
+        .get("SiteId")
+        .map(value_to_compact_string)
+        .filter(|site_id| !site_id.is_empty())
+}
+
 pub(in crate::ddns::routes) async fn update_esa(
     translator: &Translator,
     config: &HashMap<String, String>,

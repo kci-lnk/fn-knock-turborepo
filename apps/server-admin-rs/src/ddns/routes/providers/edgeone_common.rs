@@ -204,13 +204,18 @@ fn edgeone_domain_target(
     config: &HashMap<String, String>,
 ) -> anyhow::Result<EdgeOneDomainTarget> {
     let zone_id = config_value(config, "zone_id");
-    let domain = normalize_domain(&config_value(config, "domain"));
-    if zone_id.is_empty() || domain.is_empty() {
+    let raw_domain = config_value(config, "domain");
+    if zone_id.is_empty() || raw_domain.is_empty() {
         anyhow::bail!(
             "{}",
             ddns_text(translator, "providers.edgeone.configTargetIncomplete", &[])
         );
     }
+    let targets = parse_ddns_domain_targets(&raw_domain)?;
+    let domain = targets
+        .pair_root()
+        .map(str::to_string)
+        .unwrap_or_else(|| targets.canonical());
     let region = config
         .get("region")
         .map(|value| value.trim().to_string())
@@ -551,6 +556,90 @@ pub(in crate::ddns::routes) async fn edgeone_request(
         },
     )
     .await
+}
+
+pub(in crate::ddns::routes) async fn validate_edgeone_pair_root_in_zone(
+    translator: &Translator,
+    config: &HashMap<String, String>,
+    http_options: &DDNSHttpClientOptions,
+    pair_root: &str,
+) -> anyhow::Result<()> {
+    let secret_id = config_value(config, "secret_id");
+    let secret_key = config_value(config, "secret_key");
+    let zone_id = config_value(config, "zone_id");
+    if secret_id.is_empty() || secret_key.is_empty() || zone_id.is_empty() {
+        anyhow::bail!(
+            "{}",
+            ddns_text(translator, "providers.edgeone.configIncomplete", &[])
+        );
+    }
+    let client = ddns_http_client(translator, http_options).map_err(|error| {
+        anyhow::anyhow!(ddns_text(
+            translator,
+            "providers.edgeone.zoneLookupFailed",
+            &[("detail", error.to_string())],
+        ))
+    })?;
+    let response = edgeone_request(
+        translator,
+        &client,
+        config,
+        &secret_id,
+        &secret_key,
+        "DescribeZones",
+        json!({
+            "Offset": 0,
+            "Limit": 20,
+            "Filters": [{
+                "Name": "zone-id",
+                "Values": [zone_id],
+            }],
+        }),
+    )
+    .await
+    .map_err(|error| {
+        anyhow::anyhow!(ddns_text(
+            translator,
+            "providers.edgeone.zoneLookupFailed",
+            &[("detail", error.to_string())],
+        ))
+    })?;
+    let remote_root = edgeone_zone_name_from_response(&response, &zone_id).unwrap_or_default();
+    if !ddns_domain_is_same_or_subdomain(pair_root, &remote_root) {
+        anyhow::bail!(
+            "{}",
+            ddns_text(
+                translator,
+                "providers.edgeone.zoneMismatch",
+                &[
+                    (
+                        "expected",
+                        if remote_root.is_empty() {
+                            "<unknown>".to_string()
+                        } else {
+                            remote_root
+                        },
+                    ),
+                    ("actual", pair_root.to_string()),
+                ],
+            )
+        );
+    }
+    Ok(())
+}
+
+pub(in crate::ddns::routes) fn edgeone_zone_name_from_response(
+    data: &Value,
+    zone_id: &str,
+) -> Option<String> {
+    data.get("Zones")
+        .and_then(Value::as_array)?
+        .iter()
+        .find(|zone| zone.get("ZoneId").and_then(Value::as_str) == Some(zone_id))?
+        .get("ZoneName")
+        .and_then(Value::as_str)
+        .map(|name| normalize_domain(name).to_ascii_lowercase())
+        .filter(|name| !name.is_empty())
 }
 
 pub(in crate::ddns::routes) fn normalize_edgeone_location(value: Option<&str>) -> String {

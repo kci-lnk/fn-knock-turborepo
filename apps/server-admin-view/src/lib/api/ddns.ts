@@ -1,4 +1,5 @@
 import { apiClient } from "./client";
+import type { DDNSDomainTargetsCapability } from "../ddns-domain";
 
 export type DDNSLogEntry = {
   time: string;
@@ -9,6 +10,12 @@ export type DDNSLogEntry = {
 export type DDNSIpSource = "public" | "interface" | "static" | "domain";
 export type DDNSUpdateScope = "dual_stack" | "ipv6_only" | "ipv4_only";
 export type DDNSHttpTransport = "curl" | "node";
+
+export type DDNSProviderCapabilities = {
+  addressMode?: "dual_stack" | "single_address";
+  ipSources?: DDNSIpSource[];
+  domainTargets?: DDNSDomainTargetsCapability;
+};
 
 export type DDNSPublicCheckFamily = "ipv4" | "ipv6";
 
@@ -178,10 +185,7 @@ export const DDNSAPI = {
         options?: Array<{ label: string; value: string }>;
         description?: string;
       }>;
-      capabilities?: {
-        addressMode?: "dual_stack" | "single_address";
-        ipSources?: DDNSIpSource[];
-      };
+      capabilities?: DDNSProviderCapabilities;
     }>
   > {
     const res = await apiClient.get("/ddns/providers");

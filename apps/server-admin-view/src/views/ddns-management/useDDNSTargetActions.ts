@@ -71,6 +71,7 @@ export const useDDNSTargetActions = ({
   testingTargetId,
   togglingTargetId,
   translate,
+  normalizeDomainForSubmit,
 }: {
   api: TargetActionsApi;
   loadStatus: () => Promise<void>;
@@ -95,6 +96,7 @@ export const useDDNSTargetActions = ({
   testingTargetId: Ref<string>;
   togglingTargetId: Ref<string>;
   translate: Translate;
+  normalizeDomainForSubmit: () => void;
 }) => {
   const resetTargetDialogState = (next?: Partial<TargetDialogState>) => {
     resetTargetFieldVisibility();
@@ -177,6 +179,7 @@ export const useDDNSTargetActions = ({
   };
 
   const saveTargetDialog = async () => {
+    normalizeDomainForSubmit();
     if (!validateTargetDialogConfig()) {
       return;
     }

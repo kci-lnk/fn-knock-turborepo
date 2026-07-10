@@ -2,12 +2,21 @@ import type {
   DDNSIpSource,
   DDNSHttpTransport,
   DDNSNetworkInterfacePayload,
+  DDNSProviderCapabilities,
   DDNSPublicCheckSourcesPayload,
   DDNSTargetSummaryPayload,
   DDNSUpdateScope,
 } from "@/lib/api";
+import {
+  validateDDNSDomainTargets,
+  type DDNSDomainTargetErrorCode,
+} from "@/lib/ddns-domain";
 
-export type { DDNSHttpTransport, DDNSIpSource, DDNSUpdateScope } from "@/lib/api";
+export type {
+  DDNSHttpTransport,
+  DDNSIpSource,
+  DDNSUpdateScope,
+} from "@/lib/api";
 
 export interface ProviderField {
   key: string;
@@ -23,10 +32,7 @@ export interface Provider {
   name: string;
   label: string;
   fields: ProviderField[];
-  capabilities?: {
-    addressMode?: "dual_stack" | "single_address";
-    ipSources?: DDNSIpSource[];
-  };
+  capabilities?: DDNSProviderCapabilities;
 }
 
 export interface LogEntry {
@@ -429,6 +435,55 @@ const validateProviderConfigFields = (
   });
 };
 
+const DOMAIN_TARGET_ERROR_KEYS: Record<DDNSDomainTargetErrorCode, string> = {
+  empty: "admin.ddns.invalidDomainTarget",
+  invalid_domain: "admin.ddns.invalidDomainTarget",
+  too_many_targets: "admin.ddns.tooManyDomainTargets",
+  duplicate_targets: "admin.ddns.duplicateDomainTargets",
+  invalid_pair: "admin.ddns.invalidDomainTargetPair",
+  pair_unsupported: "admin.ddns.domainTargetPairUnsupported",
+  root_mismatch: "admin.ddns.domainTargetRootMismatch",
+};
+
+export const validateProviderDomainTargetConfig = (
+  config: Record<string, string>,
+  providerDef: Provider | null | undefined,
+): DDNSValidationIssue | null => {
+  if (!providerDef?.fields.some((field) => field.key === "domain")) {
+    return null;
+  }
+
+  const domain = config.domain ?? "";
+  if (!domain || /^\p{White_Space}*$/u.test(domain)) {
+    return null;
+  }
+
+  const capability = providerDef.capabilities?.domainTargets;
+  const result = validateDDNSDomainTargets(domain, {
+    capability,
+    rootDomain: capability?.rootField
+      ? config[capability.rootField]
+      : undefined,
+  });
+  if (result.ok) {
+    return null;
+  }
+
+  if (result.error === "root_mismatch" && capability?.rootField) {
+    const rootField = providerDef.fields.find(
+      (field) => field.key === capability.rootField,
+    );
+    return createValidationIssue(DOMAIN_TARGET_ERROR_KEYS[result.error], {
+      messageParams: {
+        rootField: rootField?.label || capability.rootField,
+        rootDomain: config[capability.rootField]?.trim() || "-",
+      },
+    });
+  }
+
+  return createValidationIssue(DOMAIN_TARGET_ERROR_KEYS[result.error]);
+};
+
 const validateSingleAddressProviderScope = (
   providers: Provider[],
   providerName: string,
@@ -566,6 +621,12 @@ export const validateDDNSCommonConfig = ({
   providers: Provider[];
   updateScope: DDNSUpdateScope;
 }): DDNSValidationIssue | null => {
+  const providerDef = findProviderDef(providers, providerName);
+  const domainIssue = validateProviderDomainTargetConfig(config, providerDef);
+  if (domainIssue) {
+    return domainIssue;
+  }
+
   const scopeIssue = validateSingleAddressProviderScope(
     providers,
     providerName,
@@ -623,6 +684,11 @@ export const validateDDNSTargetConfig = ({
   const fieldIssue = validateProviderConfigFields(config, providerDef);
   if (fieldIssue) {
     return fieldIssue;
+  }
+
+  const domainIssue = validateProviderDomainTargetConfig(config, providerDef);
+  if (domainIssue) {
+    return domainIssue;
   }
 
   const scopeIssue = validateSingleAddressProviderScope(

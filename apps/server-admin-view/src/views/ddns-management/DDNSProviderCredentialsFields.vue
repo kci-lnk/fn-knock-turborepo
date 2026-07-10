@@ -19,6 +19,7 @@ defineProps<{
   credentialTransferSuggestion: DnsCredentialTransferSuggestion | null;
   enableFieldEditing: (key: string) => void;
   fieldVisibility: Record<string, boolean>;
+  formatDomainField: () => void;
   getFieldAutocomplete: (field: ProviderField) => string;
   getFieldDescription: (field: ProviderField) => string;
   getFieldDomId: (index: number) => string;
@@ -138,7 +139,8 @@ const { t } = useI18n();
             :model-value="providerConfig[field.key] || ''"
             class="pr-10"
             @update:model-value="
-              (value: string | number) => setFieldValue(field.key, String(value))
+              (value: string | number) =>
+                setFieldValue(field.key, String(value))
             "
             @focus="enableFieldEditing(field.key)"
             @pointerdown="enableFieldEditing(field.key)"
@@ -169,6 +171,7 @@ const { t } = useI18n();
           "
           @focus="enableFieldEditing(field.key)"
           @pointerdown="enableFieldEditing(field.key)"
+          @blur="field.key === 'domain' && formatDomainField()"
         />
 
         <p

@@ -3303,6 +3303,19 @@ export const koKRAdmin = {
       "테스트하기 전에 공개 탐지 주소를 하나 이상 설정하세요.",
     wildcardHint:
       "하위 도메인 모드에서는 *.example.com과 같은 값이 허용됩니다. 와일드카드 레코드에는 별표를 사용합니다.",
+    domainTargetsPairHint:
+      "전체 도메인 하나를 입력하거나 *.r.example.com,r.example.com처럼 와일드카드와 기준 도메인 쌍을 입력할 수 있습니다. 기준 도메인은 공급자 Zone 자체이거나 그 하위 도메인일 수 있습니다. 반각/전각 쉼표 또는 공백으로 구분할 수 있으며 포커스를 잃으면 자동으로 정리됩니다.",
+    domainTargetsSingleHint:
+      "이 공급자는 전체 도메인 하나만 허용하며 와일드카드와 기준 도메인을 함께 업데이트할 수 없습니다.",
+    invalidDomainTarget: "올바른 전체 도메인 이름을 입력하세요",
+    tooManyDomainTargets: "전체 도메인은 최대 두 개까지 입력할 수 있습니다",
+    duplicateDomainTargets: "전체 도메인을 중복해서 입력할 수 없습니다",
+    invalidDomainTargetPair:
+      "두 값은 *.r.example.com,r.example.com처럼 와일드카드 도메인과 그에 대응하는 기준 도메인이어야 합니다",
+    domainTargetPairUnsupported:
+      "이 공급자는 와일드카드와 기준 도메인의 동시 업데이트를 지원하지 않습니다",
+    domainTargetRootMismatch:
+      "조합의 기준 도메인은 {rootField}({rootDomain}) 자체이거나 그 하위 도메인이어야 합니다.",
     saveConfigFailed: "구성을 저장하지 못했습니다.",
     clearPrimaryConfigFailed: "기본 구성을 지우지 못했습니다.",
     updateFailed: "업데이트 실패",

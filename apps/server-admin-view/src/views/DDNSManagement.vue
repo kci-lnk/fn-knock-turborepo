@@ -66,10 +66,10 @@ import {
   type LastIP,
   type LogEntry,
   type Provider,
-  type ProviderField,
   type TargetDialogState,
 } from "./ddns-management/model";
 import { useDDNSFieldState } from "./ddns-management/useDDNSFieldState";
+import { useDDNSDomainField } from "./ddns-management/useDDNSDomainField";
 import { useDDNSAddressSourceState } from "./ddns-management/useDDNSAddressSourceState";
 import DDNSClearPrimaryConfigDialog from "./ddns-management/DDNSClearPrimaryConfigDialog.vue";
 import DDNSExtraTargetsCard from "./ddns-management/DDNSExtraTargetsCard.vue";
@@ -456,22 +456,42 @@ const isProviderSelectDisabled = computed(
 const isSubdomainMode = computed(() =>
   isAnySubdomainRoutingMode(configStore.config),
 );
+const targetDialogConfig = computed({
+  get: () => targetDialogState.value.config,
+  set: (config: Record<string, string>) => {
+    targetDialogState.value = { ...targetDialogState.value, config };
+  },
+});
+const targetDialogProviderName = computed(
+  () => targetDialogState.value.provider,
+);
+const {
+  formatOnBlur: formatPrimaryDomainOnBlur,
+  getFieldDescription: getPrimaryFieldDescription,
+  normalizeForSubmit: normalizePrimaryDomainForSubmit,
+} = useDDNSDomainField({
+  config: providerConfig,
+  includeWildcardHint: isSubdomainMode,
+  providerName: selectedProvider,
+  providers,
+  translate: (key, params) => (params ? t(key, params) : t(key)),
+});
+const {
+  formatOnBlur: formatTargetDomainOnBlur,
+  getFieldDescription: getTargetFieldDescription,
+  normalizeForSubmit: normalizeTargetDomainForSubmit,
+} = useDDNSDomainField({
+  config: targetDialogConfig,
+  includeWildcardHint: isSubdomainMode,
+  providerName: targetDialogProviderName,
+  providers,
+  translate: (key, params) => (params ? t(key, params) : t(key)),
+});
 const updateIntervalLabel = computed(() =>
   t("admin.ddns.updateIntervalLabel", {
     minutes: updateIntervalMinutes.value,
   }),
 );
-
-const getFieldDescription = (field: ProviderField) => {
-  const description = field.description?.trim() || "";
-
-  if (isSubdomainMode.value && field.key === "domain") {
-    const wildcardHint = t("admin.ddns.wildcardHint");
-    return description ? `${description} ${wildcardHint}` : wildcardHint;
-  }
-
-  return description;
-};
 
 async function loadStatus() {
   await runLoadStatus(async () => {
@@ -834,6 +854,7 @@ const {
   testingTargetId,
   togglingTargetId,
   translate: (key, params) => (params ? t(key, params) : t(key)),
+  normalizeDomainForSubmit: normalizeTargetDomainForSubmit,
 });
 
 function validateCommonConfig() {
@@ -852,6 +873,7 @@ function validateCommonConfig() {
 
 async function onSaveConfigSilent() {
   if (!selectedProvider.value) return false;
+  normalizePrimaryDomainForSubmit();
   if (!validateCommonConfig()) return false;
   const provider = selectedProvider.value;
   try {
@@ -1104,7 +1126,7 @@ onUnmounted(() => {
       :field-visibility="fieldVisibility"
       :format-option-label="formatOptionLabel"
       :get-field-autocomplete="getFieldAutocomplete"
-      :get-field-description="getFieldDescription"
+      :get-field-description="getPrimaryFieldDescription"
       :get-field-dom-id="getFieldDomId"
       :get-field-input-name="getFieldInputName"
       :has-saved-provider-config="hasSavedProviderConfig"
@@ -1127,6 +1149,7 @@ onUnmounted(() => {
       :selected-network-interface-detail="selectedNetworkInterfaceDetail"
       :selected-provider="selectedProvider"
       :set-field-value="setProviderConfigField"
+      :format-domain-field="formatPrimaryDomainOnBlur"
       :show-interface-address-block="shouldShowInterfaceAddressBlock"
       :show-interface-i-pv4-select="showInterfaceIPv4Select"
       :show-interface-i-pv6-select="showInterfaceIPv6Select"
@@ -1186,8 +1209,9 @@ onUnmounted(() => {
       :format-option-label="formatOptionLabel"
       :is-update-scope-option-disabled="isProviderUpdateScopeOptionDisabled"
       :is-ip-source-option-disabled="isProviderIpSourceOptionDisabled"
-      :get-field-description="getFieldDescription"
+      :get-field-description="getTargetFieldDescription"
       :get-field-autocomplete="getFieldAutocomplete"
+      :format-domain-field="formatTargetDomainOnBlur"
       :is-field-visible="isTargetFieldVisible"
       :toggle-field-visibility="toggleTargetFieldVisibility"
       @update:open="showTargetDialog = $event"

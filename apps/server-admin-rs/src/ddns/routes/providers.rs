@@ -37,7 +37,233 @@ pub(super) use porkbun::*;
 pub(super) use tencentcloud::*;
 pub(super) use tencentcloud_tc3::*;
 
-pub(super) async fn update_ddns_provider(
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct DDNSDomainUpdatePlan {
+    pub(super) config: HashMap<String, String>,
+    pub(super) targets: Option<DdnsDomainTargets>,
+    pub(super) execution: DdnsDomainUpdateExecution,
+    preflight_complete: bool,
+}
+
+pub(super) fn build_ddns_provider_update_plan(
+    provider: &str,
+    config: &HashMap<String, String>,
+) -> anyhow::Result<DDNSDomainUpdatePlan> {
+    let mut normalized = config.clone();
+    let targets = normalize_and_validate_ddns_domain_config(provider, &mut normalized)?;
+    let execution = match targets.as_ref() {
+        Some(targets) if targets.is_pair() => ddns_provider_domain_policy(provider)
+            .map(|policy| policy.pair_execution)
+            .unwrap_or(DdnsDomainUpdateExecution::Single),
+        _ => DdnsDomainUpdateExecution::Single,
+    };
+    let preflight = targets
+        .as_ref()
+        .filter(|targets| targets.is_pair())
+        .and_then(|_| ddns_provider_domain_policy(provider))
+        .map(|policy| policy.preflight)
+        .unwrap_or(DdnsDomainRootPreflight::None);
+    Ok(DDNSDomainUpdatePlan {
+        config: normalized,
+        targets,
+        execution,
+        preflight_complete: !matches!(
+            preflight,
+            DdnsDomainRootPreflight::CloudflareZone
+                | DdnsDomainRootPreflight::EdgeOneZone
+                | DdnsDomainRootPreflight::EsaSite
+        ),
+    })
+}
+
+pub(super) async fn prepare_ddns_provider_update(
+    translator: &Translator,
+    provider: &str,
+    config: &HashMap<String, String>,
+    http_options: &DDNSHttpClientOptions,
+) -> anyhow::Result<DDNSDomainUpdatePlan> {
+    let mut plan = build_ddns_provider_update_plan(provider, config)?;
+    preflight_ddns_provider_update(translator, provider, &mut plan, http_options).await?;
+    Ok(plan)
+}
+
+pub(super) fn ddns_preflight_required_before_auxiliary(
+    provider: &str,
+    plan: &DDNSDomainUpdatePlan,
+) -> bool {
+    !plan.preflight_complete
+        && ddns_provider_domain_policy(provider)
+            .is_some_and(|policy| policy.preflight == DdnsDomainRootPreflight::EdgeOneZone)
+}
+
+pub(super) async fn preflight_ddns_provider_update(
+    translator: &Translator,
+    provider: &str,
+    plan: &mut DDNSDomainUpdatePlan,
+    http_options: &DDNSHttpClientOptions,
+) -> anyhow::Result<()> {
+    if plan.preflight_complete {
+        return Ok(());
+    }
+    let root = plan
+        .targets
+        .as_ref()
+        .and_then(DdnsDomainTargets::pair_root)
+        .map(str::to_string)
+        .ok_or_else(|| anyhow::anyhow!("missing DDNS pair root for preflight"))?;
+    let preflight = ddns_provider_domain_policy(provider)
+        .map(|policy| policy.preflight)
+        .unwrap_or(DdnsDomainRootPreflight::None);
+    match preflight {
+        DdnsDomainRootPreflight::CloudflareZone => {
+            validate_cloudflare_pair_root_in_zone(translator, &plan.config, http_options, &root)
+                .await?;
+        }
+        DdnsDomainRootPreflight::EdgeOneZone => {
+            validate_edgeone_pair_root_in_zone(translator, &plan.config, http_options, &root)
+                .await?;
+        }
+        DdnsDomainRootPreflight::EsaSite => {
+            let site_id =
+                resolve_and_validate_esa_site_id(translator, &plan.config, http_options, &root)
+                    .await?;
+            plan.config.insert("site_id".to_string(), site_id);
+        }
+        DdnsDomainRootPreflight::None | DdnsDomainRootPreflight::DynuService => {}
+    }
+    plan.preflight_complete = true;
+    Ok(())
+}
+
+pub(super) async fn execute_ddns_provider_update(
+    translator: &Translator,
+    provider: &str,
+    plan: &DDNSDomainUpdatePlan,
+    http_options: &DDNSHttpClientOptions,
+    ipv4: Option<&str>,
+    ipv6: Option<&str>,
+) -> anyhow::Result<DDNSProviderUpdateResult> {
+    if !plan.preflight_complete {
+        anyhow::bail!("DDNS domain update plan must be preflighted before execution");
+    }
+    match plan.execution {
+        DdnsDomainUpdateExecution::Single => {
+            update_ddns_provider_single(
+                translator,
+                provider,
+                &plan.config,
+                http_options,
+                ipv4,
+                ipv6,
+            )
+            .await
+        }
+        DdnsDomainUpdateExecution::DynuWildcardAlias => {
+            let mut config = plan.config.clone();
+            let wildcard = plan
+                .targets
+                .as_ref()
+                .and_then(DdnsDomainTargets::wildcard)
+                .ok_or_else(|| anyhow::anyhow!("missing Dynu wildcard target"))?;
+            config.insert("domain".to_string(), wildcard.to_string());
+            update_ddns_provider_single(translator, provider, &config, http_options, ipv4, ipv6)
+                .await
+        }
+        DdnsDomainUpdateExecution::FanOut => {
+            let targets = plan
+                .targets
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("missing DDNS domain targets"))?;
+            Ok(execute_ddns_domain_fanout(translator, targets, |domain| {
+                let mut config = plan.config.clone();
+                config.insert("domain".to_string(), domain);
+                async move {
+                    update_ddns_provider_single(
+                        translator,
+                        provider,
+                        &config,
+                        http_options,
+                        ipv4,
+                        ipv6,
+                    )
+                    .await
+                }
+            })
+            .await)
+        }
+    }
+}
+
+pub(super) async fn execute_ddns_domain_fanout<F, Fut>(
+    translator: &Translator,
+    targets: &DdnsDomainTargets,
+    mut update: F,
+) -> DDNSProviderUpdateResult
+where
+    F: FnMut(String) -> Fut,
+    Fut: Future<Output = anyhow::Result<DDNSProviderUpdateResult>>,
+{
+    let mut results = Vec::new();
+    for domain in targets.domains() {
+        let domain = domain.to_string();
+        let result = match update(domain.clone()).await {
+            Ok(result) => result,
+            Err(error) => provider_failure(error.to_string()),
+        };
+        results.push((domain, result));
+    }
+    aggregate_domain_update_results(translator, results)
+}
+
+pub(super) fn aggregate_domain_update_results(
+    translator: &Translator,
+    results: Vec<(String, DDNSProviderUpdateResult)>,
+) -> DDNSProviderUpdateResult {
+    let success = results.iter().all(|(_, result)| result.success);
+    if success {
+        return DDNSProviderUpdateResult {
+            success: true,
+            message: ddns_text(
+                translator,
+                "domainTargets.allSucceeded",
+                &[("count", results.len().to_string())],
+            ),
+        };
+    }
+    let message = results
+        .into_iter()
+        .map(|(domain, result)| {
+            if result.success {
+                ddns_text(
+                    translator,
+                    "domainTargets.itemSucceeded",
+                    &[("domain", domain)],
+                )
+            } else {
+                let detail = result.message.trim();
+                ddns_text(
+                    translator,
+                    "domainTargets.itemFailed",
+                    &[
+                        ("domain", domain),
+                        (
+                            "detail",
+                            if detail.is_empty() {
+                                ddns_text(translator, "requestFailed", &[])
+                            } else {
+                                detail.to_string()
+                            },
+                        ),
+                    ],
+                )
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("; ");
+    DDNSProviderUpdateResult { success, message }
+}
+
+async fn update_ddns_provider_single(
     translator: &Translator,
     provider: &str,
     config: &HashMap<String, String>,

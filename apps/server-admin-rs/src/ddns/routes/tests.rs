@@ -1,5 +1,21 @@
 use super::*;
 
+async fn ddns_test_state() -> (tempfile::TempDir, AppState) {
+    let directory = tempfile::tempdir().unwrap();
+    let mut settings = {
+        let _environment = crate::test_support::EnvGuard::new(&[]);
+        crate::settings::Settings::from_env()
+    };
+    settings.runtime_target = "linux".to_string();
+    settings.data_dir = directory.path().join("data");
+    settings.gateway_config_dir = directory.path().join("gateway");
+    settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
+    settings.legacy_redis_url = String::new();
+    settings.internal_rpc_token = "test-internal-rpc-token".to_string();
+    let state = AppState::new(settings).await.unwrap();
+    (directory, state)
+}
+
 fn provider_by_name<'a>(providers: &'a Value, name: &str) -> &'a Value {
     providers
         .as_array()
@@ -45,9 +61,16 @@ fn catalog_signature(providers: &Value) -> Value {
                     })
                 })
                 .collect::<Vec<_>>();
+            let mut capabilities = provider.get("capabilities").cloned().unwrap_or(Value::Null);
+            if let Some(object) = capabilities.as_object_mut() {
+                object.remove("domainTargets");
+                if object.is_empty() {
+                    capabilities = Value::Null;
+                }
+            }
             json!({
                 "name": provider.get("name").and_then(Value::as_str).unwrap(),
-                "capabilities": provider.get("capabilities").cloned().unwrap_or(Value::Null),
+                "capabilities": capabilities,
                 "fields": fields,
             })
         })
@@ -1453,4 +1476,791 @@ fn provider_updater_map_covers_catalog() {
         let name = provider.get("name").and_then(Value::as_str).unwrap();
         assert!(is_known_ddns_provider(name), "missing updater for {name}");
     }
+}
+
+#[test]
+fn ddns_domain_targets_parser_canonicalizes_supported_inputs() {
+    let cases = [
+        ("Home.Example.COM.", "home.example.com"),
+        ("*.Example.COM.", "*.example.com"),
+        ("*.Example.COM， Example.COM.", "*.example.com,example.com"),
+        ("example.com   *.example.com", "*.example.com,example.com"),
+        (
+            " ,，  *.xn--fsqu00a.xn--0zwm56d,,,xn--fsqu00a.xn--0zwm56d ",
+            "*.xn--fsqu00a.xn--0zwm56d,xn--fsqu00a.xn--0zwm56d",
+        ),
+    ];
+    for (input, expected) in cases {
+        assert_eq!(
+            parse_ddns_domain_targets(input).unwrap().canonical(),
+            expected,
+            "input={input}"
+        );
+    }
+}
+
+#[test]
+fn ddns_domain_targets_parser_rejects_invalid_inputs() {
+    let invalid = [
+        "",
+        ", ， ",
+        "example",
+        "*.com",
+        "https://example.com",
+        "example.com:443",
+        "example.com/path",
+        "exa_mple.com",
+        "-bad.example.com",
+        "bad-.example.com",
+        "bad..example.com",
+        "foo.*.example.com",
+        "**.example.com",
+        "例子.测试",
+        "192.0.2.1",
+        "01.02.03.04",
+        "example.com,other.example.com",
+        "*.example.com,*.other.example.com",
+        "*.example.com,other.example.com",
+        "*.example.com,example.com,third.example.com",
+    ];
+    for input in invalid {
+        assert!(
+            parse_ddns_domain_targets(input).is_err(),
+            "input should be rejected: {input}"
+        );
+    }
+    let long_label = format!("{}.example.com", "a".repeat(64));
+    assert!(parse_ddns_domain_targets(&long_label).is_err());
+    let long_domain = format!(
+        "{}.{}.{}.{}.com",
+        "a".repeat(63),
+        "b".repeat(63),
+        "c".repeat(63),
+        "d".repeat(63)
+    );
+    assert!(parse_ddns_domain_targets(&long_domain).is_err());
+}
+
+#[test]
+fn ddns_domain_target_policy_validates_explicit_roots_and_single_only_providers() {
+    for provider in [
+        "alidns",
+        "baiducloud",
+        "dnspod",
+        "godaddy",
+        "huaweicloud",
+        "porkbun",
+        "tencentcloud",
+    ] {
+        let mut valid = HashMap::from([
+            (
+                "domain".to_string(),
+                "Example.COM *.Example.COM.".to_string(),
+            ),
+            ("root_domain".to_string(), "EXAMPLE.com.".to_string()),
+        ]);
+        let targets = normalize_and_validate_ddns_domain_config(provider, &mut valid)
+            .unwrap()
+            .unwrap();
+        assert!(targets.is_pair(), "provider={provider}");
+        assert_eq!(valid["domain"], "*.example.com,example.com");
+        assert_eq!(valid["root_domain"], "example.com");
+
+        let mut subdomain = HashMap::from([
+            (
+                "domain".to_string(),
+                "*.R.Example.COM,R.Example.COM".to_string(),
+            ),
+            ("root_domain".to_string(), "EXAMPLE.com.".to_string()),
+        ]);
+        normalize_and_validate_ddns_domain_config(provider, &mut subdomain).unwrap();
+        assert_eq!(
+            subdomain["domain"], "*.r.example.com,r.example.com",
+            "provider={provider}"
+        );
+
+        let mut wrong = valid.clone();
+        wrong.insert("root_domain".to_string(), "other.example.com".to_string());
+        assert_eq!(
+            normalize_and_validate_ddns_domain_config(provider, &mut wrong),
+            Err(DDNSDomainConfigError::PairRootMismatch {
+                field: "root_domain".to_string(),
+                expected: "other.example.com".to_string(),
+                actual: "example.com".to_string(),
+            })
+        );
+    }
+
+    let mut esa = HashMap::from([
+        (
+            "domain".to_string(),
+            "*.r.sub.example.com,r.sub.example.com".to_string(),
+        ),
+        ("site_name".to_string(), "SUB.EXAMPLE.COM.".to_string()),
+    ]);
+    normalize_and_validate_ddns_domain_config("esa", &mut esa).unwrap();
+    assert_eq!(esa["site_name"], "sub.example.com");
+
+    let mut edgeone_cname = HashMap::from([(
+        "domain".to_string(),
+        "*.example.com,example.com".to_string(),
+    )]);
+    assert!(matches!(
+        normalize_and_validate_ddns_domain_config("edgeone_cname", &mut edgeone_cname),
+        Err(DDNSDomainConfigError::PairUnsupported { .. })
+    ));
+}
+
+#[test]
+fn ddns_zone_containment_uses_strict_label_boundaries() {
+    assert!(ddns_domain_is_same_or_subdomain("wxlnk.com", "wxlnk.com"));
+    assert!(ddns_domain_is_same_or_subdomain("r.wxlnk.com", "wxlnk.com"));
+    assert!(ddns_domain_is_same_or_subdomain(
+        "deep.r.wxlnk.com",
+        "wxlnk.com"
+    ));
+    assert!(!ddns_domain_is_same_or_subdomain(
+        "evilsuffixwxlnk.com",
+        "wxlnk.com"
+    ));
+    assert!(!ddns_domain_is_same_or_subdomain(
+        "wxlnk.com.evil",
+        "wxlnk.com"
+    ));
+    assert!(!ddns_domain_is_same_or_subdomain("", "wxlnk.com"));
+    assert!(!ddns_domain_is_same_or_subdomain("wxlnk.com", ""));
+
+    let mut explicit_root = HashMap::from([
+        (
+            "domain".to_string(),
+            "*.evilsuffixwxlnk.com,evilsuffixwxlnk.com".to_string(),
+        ),
+        ("root_domain".to_string(), "wxlnk.com".to_string()),
+    ]);
+    assert!(matches!(
+        normalize_and_validate_ddns_domain_config("alidns", &mut explicit_root),
+        Err(DDNSDomainConfigError::PairRootMismatch { .. })
+    ));
+}
+
+#[test]
+fn ddns_domain_config_keeps_empty_drafts_and_non_domain_providers_compatible() {
+    let empty = HashMap::from([("domain".to_string(), "   ".to_string())]);
+    let normalized = normalize_and_validate_config("cloudflare", empty).unwrap();
+    assert_eq!(normalized.get("domain").map(String::as_str), Some(""));
+
+    let duckdns = HashMap::from([("domains".to_string(), "one,two".to_string())]);
+    assert_eq!(
+        normalize_and_validate_config("duckdns", duckdns.clone()).unwrap()["domains"],
+        duckdns["domains"]
+    );
+}
+
+#[test]
+fn ddns_single_domain_normalizes_explicit_root_for_provider_splitters() {
+    for (provider, root_field) in [
+        ("alidns", "root_domain"),
+        ("baiducloud", "root_domain"),
+        ("dnspod", "root_domain"),
+        ("godaddy", "root_domain"),
+        ("huaweicloud", "root_domain"),
+        ("porkbun", "root_domain"),
+        ("tencentcloud", "root_domain"),
+        ("esa", "site_name"),
+    ] {
+        let mut config = HashMap::from([
+            ("domain".to_string(), "Home.Example.COM.".to_string()),
+            (root_field.to_string(), "Example.COM.".to_string()),
+        ]);
+        normalize_and_validate_ddns_domain_config(provider, &mut config).unwrap();
+        assert_eq!(config["domain"], "home.example.com", "provider={provider}");
+        assert_eq!(config[root_field], "example.com", "provider={provider}");
+    }
+}
+
+#[test]
+fn ddns_domain_update_plans_select_fanout_and_dynu_wildcard_alias() {
+    let alidns = build_ddns_provider_update_plan(
+        "alidns",
+        &HashMap::from([
+            (
+                "domain".to_string(),
+                "example.com，*.example.com".to_string(),
+            ),
+            ("root_domain".to_string(), "example.com".to_string()),
+        ]),
+    )
+    .unwrap();
+    assert_eq!(alidns.execution, DdnsDomainUpdateExecution::FanOut);
+    assert_eq!(alidns.config["domain"], "*.example.com,example.com");
+    assert_eq!(
+        alidns.targets.unwrap().domains(),
+        vec!["*.example.com", "example.com"]
+    );
+
+    let dynu = build_ddns_provider_update_plan(
+        "dynu",
+        &HashMap::from([(
+            "domain".to_string(),
+            "*.example.com example.com".to_string(),
+        )]),
+    )
+    .unwrap();
+    assert_eq!(dynu.execution, DdnsDomainUpdateExecution::DynuWildcardAlias);
+
+    let single = build_ddns_provider_update_plan(
+        "cloudflare",
+        &HashMap::from([("domain".to_string(), "home.example.com".to_string())]),
+    )
+    .unwrap();
+    assert_eq!(single.execution, DdnsDomainUpdateExecution::Single);
+}
+
+#[test]
+fn edgeone_pair_preflight_is_required_before_auxiliary_writes() {
+    let pair_config = HashMap::from([(
+        "domain".to_string(),
+        "*.example.com,example.com".to_string(),
+    )]);
+    let edgeone = build_ddns_provider_update_plan("edgeone", &pair_config).unwrap();
+    assert!(ddns_preflight_required_before_auxiliary(
+        "edgeone", &edgeone
+    ));
+
+    for provider in ["cloudflare", "esa"] {
+        let mut config = pair_config.clone();
+        if provider == "esa" {
+            config.insert("site_name".to_string(), "example.com".to_string());
+        }
+        let plan = build_ddns_provider_update_plan(provider, &config).unwrap();
+        assert!(
+            !ddns_preflight_required_before_auxiliary(provider, &plan),
+            "provider={provider}"
+        );
+    }
+}
+
+#[test]
+fn ddns_pair_results_are_aggregated_without_hiding_partial_failure() {
+    let translator = Translator::new("en");
+    let result = aggregate_domain_update_results(
+        &translator,
+        vec![
+            (
+                "*.example.com".to_string(),
+                DDNSProviderUpdateResult {
+                    success: false,
+                    message: "first failed".to_string(),
+                },
+            ),
+            (
+                "example.com".to_string(),
+                DDNSProviderUpdateResult {
+                    success: true,
+                    message: "second succeeded".to_string(),
+                },
+            ),
+        ],
+    );
+    assert!(!result.success);
+    assert!(result.message.contains("*.example.com"));
+    assert!(result.message.contains("example.com"));
+    assert!(result.message.contains("first failed"));
+    assert!(!result.message.contains("second succeeded"));
+}
+
+#[test]
+fn ddns_pair_all_success_summary_uses_only_the_target_count() {
+    let translator = Translator::new("en");
+    let result = aggregate_domain_update_results(
+        &translator,
+        vec![
+            (
+                "*.example.com".to_string(),
+                DDNSProviderUpdateResult {
+                    success: true,
+                    message: "Cloudflare DNS update succeeded".to_string(),
+                },
+            ),
+            (
+                "example.com".to_string(),
+                DDNSProviderUpdateResult {
+                    success: true,
+                    message: "Cloudflare DNS update succeeded".to_string(),
+                },
+            ),
+        ],
+    );
+    assert!(result.success);
+    assert!(result.message.contains('2'));
+    assert!(!result.message.contains("example.com"));
+    assert!(!result.message.contains("Cloudflare"));
+    assert!(!result.message.contains("DNS update succeeded"));
+
+    let zh = Translator::new("zh-CN");
+    let zh_result = aggregate_domain_update_results(
+        &zh,
+        vec![
+            (
+                "*.r.wxlnk.com".to_string(),
+                DDNSProviderUpdateResult {
+                    success: true,
+                    message: "Cloudflare DNS 更新成功".to_string(),
+                },
+            ),
+            (
+                "r.wxlnk.com".to_string(),
+                DDNSProviderUpdateResult {
+                    success: true,
+                    message: "Cloudflare DNS 更新成功".to_string(),
+                },
+            ),
+        ],
+    );
+    assert_eq!(zh_result.message, "共 2 个域名");
+    assert_eq!(
+        ddns_text(&zh, "updateSuccess", &[("message", zh_result.message)]),
+        "更新成功: 共 2 个域名"
+    );
+}
+
+#[test]
+fn manual_test_result_message_wraps_provider_result_once() {
+    let translator = Translator::new("en");
+    assert_eq!(
+        manual_test_result_message(
+            &translator,
+            &DDNSProviderUpdateResult {
+                success: true,
+                message: "2 domains".to_string(),
+            },
+        ),
+        "Update succeeded: 2 domains"
+    );
+    assert_eq!(
+        manual_test_result_message(
+            &translator,
+            &DDNSProviderUpdateResult {
+                success: false,
+                message: "*.example.com: failed (denied)".to_string(),
+            },
+        ),
+        "Update failed: *.example.com: failed (denied)"
+    );
+}
+
+#[tokio::test]
+async fn ddns_domain_fanout_preserves_order_and_continues_after_error() {
+    let translator = Translator::new("en");
+    let targets = parse_ddns_domain_targets("example.com,*.example.com").unwrap();
+    let attempts = std::cell::RefCell::new(Vec::new());
+
+    let result = execute_ddns_domain_fanout(&translator, &targets, |domain| {
+        attempts.borrow_mut().push(domain.clone());
+        async move {
+            if domain.starts_with("*.") {
+                anyhow::bail!("wildcard failed");
+            }
+            Ok(DDNSProviderUpdateResult {
+                success: true,
+                message: "root succeeded".to_string(),
+            })
+        }
+    })
+    .await;
+
+    assert_eq!(
+        attempts.into_inner(),
+        vec!["*.example.com".to_string(), "example.com".to_string()]
+    );
+    assert!(!result.success);
+    assert!(result.message.contains("wildcard failed"));
+    assert!(!result.message.contains("root succeeded"));
+}
+
+#[test]
+fn ddns_domain_target_sets_detect_pair_single_overlap() {
+    let pair = HashMap::from([
+        (
+            "domain".to_string(),
+            "*.example.com,example.com".to_string(),
+        ),
+        ("root_domain".to_string(), "example.com".to_string()),
+    ]);
+    let root = HashMap::from([("domain".to_string(), "example.com".to_string())]);
+    let wildcard = HashMap::from([("domain".to_string(), "*.example.com".to_string())]);
+    let other = HashMap::from([("domain".to_string(), "other.example.com".to_string())]);
+    let pair_set = ddns_domain_target_set("alidns", &pair).unwrap();
+    assert!(!pair_set.is_disjoint(&ddns_domain_target_set("alidns", &root).unwrap()));
+    assert!(!pair_set.is_disjoint(&ddns_domain_target_set("alidns", &wildcard).unwrap()));
+    assert!(pair_set.is_disjoint(&ddns_domain_target_set("alidns", &other).unwrap()));
+}
+
+#[test]
+fn provider_catalog_exposes_domain_target_capabilities_from_policy() {
+    let providers = provider_catalog(&Translator::new("en"));
+    for provider in [
+        "alidns",
+        "baiducloud",
+        "dnspod",
+        "godaddy",
+        "huaweicloud",
+        "porkbun",
+        "tencentcloud",
+    ] {
+        assert_eq!(
+            provider_by_name(&providers, provider).pointer("/capabilities/domainTargets"),
+            Some(&json!({
+                "mode": "single_or_wildcard_root_pair",
+                "rootField": "root_domain"
+            })),
+            "provider={provider}"
+        );
+    }
+    assert_eq!(
+        provider_by_name(&providers, "esa").pointer("/capabilities/domainTargets"),
+        Some(&json!({
+            "mode": "single_or_wildcard_root_pair",
+            "rootField": "site_name"
+        }))
+    );
+    for provider in ["cloudflare", "edgeone", "dynu"] {
+        assert_eq!(
+            provider_by_name(&providers, provider).pointer("/capabilities/domainTargets"),
+            Some(&json!({ "mode": "single_or_wildcard_root_pair" })),
+            "provider={provider}"
+        );
+    }
+    assert_eq!(
+        provider_by_name(&providers, "edgeone_cname").pointer("/capabilities/domainTargets/mode"),
+        Some(&json!("single"))
+    );
+    for provider in ["duckdns", "dynv6", "noip"] {
+        assert!(
+            provider_by_name(&providers, provider)
+                .pointer("/capabilities/domainTargets")
+                .is_none(),
+            "provider={provider}"
+        );
+    }
+}
+
+#[test]
+fn remote_zone_and_site_response_parsers_require_exact_ids_and_names() {
+    let cloudflare = json!({
+        "result": { "id": "zone-1", "name": "Example.COM." },
+        "success": true
+    });
+    assert_eq!(
+        cloudflare_zone_name_from_response(&cloudflare, "zone-1").as_deref(),
+        Some("example.com")
+    );
+    assert_eq!(
+        cloudflare_zone_name_from_response(&cloudflare, "zone-2"),
+        None
+    );
+    assert_eq!(
+        cloudflare_zone_name_from_response(
+            &json!({ "result": { "name": "example.com" }, "success": true }),
+            "zone-1"
+        ),
+        None
+    );
+
+    let edgeone = json!({
+        "Zones": [
+            { "ZoneId": "zone-a", "ZoneName": "a.example.com" },
+            { "ZoneId": "zone-b", "ZoneName": "Example.COM." }
+        ]
+    });
+    assert_eq!(
+        edgeone_zone_name_from_response(&edgeone, "zone-b").as_deref(),
+        Some("example.com")
+    );
+    assert_eq!(edgeone_zone_name_from_response(&edgeone, "zone-c"), None);
+
+    let esa = json!({
+        "Sites": [
+            { "SiteId": 123, "SiteName": "Example.COM." },
+            { "SiteId": "456", "SiteName": "other.example.com" }
+        ]
+    });
+    assert_eq!(
+        esa_site_id_from_response(&esa, "Example.COM").as_deref(),
+        Some("123")
+    );
+    assert_eq!(esa_site_id_from_response(&esa, "missing.example.com"), None);
+}
+
+#[test]
+fn typed_domain_config_errors_are_http_bad_requests() {
+    let translator = Translator::new("en");
+    let error = DDNSDomainConfigError::PairUnsupported {
+        provider: "edgeone_cname".to_string(),
+    };
+    let response = ddns_error_response(&translator, anyhow::Error::new(error));
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn wildcard_root_pair_is_stored_canonically_and_conflicts_with_each_member() {
+    let (_directory, state) = ddns_test_state().await;
+    let translator = Translator::new("en");
+    let created = create_ddns_target(
+        &state,
+        TargetBody {
+            name: Some("pair".to_string()),
+            provider: "alidns".to_string(),
+            enabled: Some(true),
+            config: Some(HashMap::from([
+                (
+                    "domain".to_string(),
+                    "Example.COM.，*.Example.COM.".to_string(),
+                ),
+                ("root_domain".to_string(), "Example.COM.".to_string()),
+            ])),
+        },
+        &translator,
+    )
+    .await
+    .unwrap();
+    let id = created.get("id").and_then(Value::as_str).unwrap();
+    let stored = state
+        .store
+        .hgetall_string_map(&target_config_key(id))
+        .await
+        .unwrap();
+    assert_eq!(stored["domain"], "*.example.com,example.com");
+    assert_eq!(stored["root_domain"], "example.com");
+
+    for domain in ["*.example.com", "example.com"] {
+        let error = create_ddns_target(
+            &state,
+            TargetBody {
+                name: Some(domain.to_string()),
+                provider: "alidns".to_string(),
+                enabled: Some(true),
+                config: Some(HashMap::from([
+                    ("domain".to_string(), domain.to_string()),
+                    ("root_domain".to_string(), "example.com".to_string()),
+                ])),
+            },
+            &translator,
+        )
+        .await
+        .unwrap_err();
+        assert!(error.to_string().contains("Duplicate DDNS target"));
+    }
+}
+
+#[tokio::test]
+async fn invalid_domain_target_writes_are_atomic() {
+    let (_directory, state) = ddns_test_state().await;
+    let translator = Translator::new("en");
+
+    let ids_before = state.store.smembers_strings(DDNS_TARGET_IDS).await.unwrap();
+    let create_error = create_ddns_target(
+        &state,
+        TargetBody {
+            name: Some("invalid".to_string()),
+            provider: "edgeone_cname".to_string(),
+            enabled: Some(true),
+            config: Some(HashMap::from([(
+                "domain".to_string(),
+                "*.example.com,example.com".to_string(),
+            )])),
+        },
+        &translator,
+    )
+    .await
+    .unwrap_err();
+    assert!(
+        create_error
+            .downcast_ref::<DDNSDomainConfigError>()
+            .is_some()
+    );
+    assert_eq!(
+        state.store.smembers_strings(DDNS_TARGET_IDS).await.unwrap(),
+        ids_before
+    );
+
+    let update_error = update_ddns_target(
+        &state,
+        "missing-target",
+        TargetBody {
+            name: Some("invalid".to_string()),
+            provider: "edgeone_cname".to_string(),
+            enabled: Some(true),
+            config: Some(HashMap::from([(
+                "domain".to_string(),
+                "*.example.com,example.com".to_string(),
+            )])),
+        },
+        &translator,
+    )
+    .await
+    .unwrap_err();
+    assert!(
+        update_error
+            .downcast_ref::<DDNSDomainConfigError>()
+            .is_some()
+    );
+    assert_eq!(
+        state.store.smembers_strings(DDNS_TARGET_IDS).await.unwrap(),
+        ids_before
+    );
+
+    let created = create_ddns_target(
+        &state,
+        TargetBody {
+            name: Some("valid".to_string()),
+            provider: "alidns".to_string(),
+            enabled: Some(true),
+            config: Some(HashMap::from([
+                ("domain".to_string(), "home.example.com".to_string()),
+                ("root_domain".to_string(), "example.com".to_string()),
+            ])),
+        },
+        &translator,
+    )
+    .await
+    .unwrap();
+    let id = created.get("id").and_then(Value::as_str).unwrap();
+    let meta_key = target_meta_key(id);
+    let config_key = target_config_key(id);
+    let last_ip_key = target_last_ip_key(id);
+    let last_check_key = target_last_check_key(id);
+    let before_meta = state.store.hgetall_string_map(&meta_key).await.unwrap();
+    let before_config = state.store.hgetall_string_map(&config_key).await.unwrap();
+    let before_last_ip = state.store.hgetall_string_map(&last_ip_key).await.unwrap();
+    let before_last_check = state
+        .store
+        .hgetall_string_map(&last_check_key)
+        .await
+        .unwrap();
+
+    let update_error = update_ddns_target(
+        &state,
+        id,
+        TargetBody {
+            name: Some("must not be saved".to_string()),
+            provider: "alidns".to_string(),
+            enabled: Some(false),
+            config: Some(HashMap::from([
+                (
+                    "domain".to_string(),
+                    "*.example.com,other.example.com".to_string(),
+                ),
+                ("root_domain".to_string(), "example.com".to_string()),
+            ])),
+        },
+        &translator,
+    )
+    .await
+    .unwrap_err();
+    assert!(
+        update_error
+            .downcast_ref::<DDNSDomainConfigError>()
+            .is_some()
+    );
+    assert_eq!(
+        state.store.hgetall_string_map(&meta_key).await.unwrap(),
+        before_meta
+    );
+    assert_eq!(
+        state.store.hgetall_string_map(&config_key).await.unwrap(),
+        before_config
+    );
+    assert_eq!(
+        state.store.hgetall_string_map(&last_ip_key).await.unwrap(),
+        before_last_ip
+    );
+    assert_eq!(
+        state
+            .store
+            .hgetall_string_map(&last_check_key)
+            .await
+            .unwrap(),
+        before_last_check
+    );
+
+    let draft_key = format!("{DDNS_LEGACY_CONFIG_PREFIX}cloudflare");
+    let before_draft = state.store.hgetall_string_map(&draft_key).await.unwrap();
+    assert!(
+        save_primary_config(
+            &state,
+            "cloudflare",
+            HashMap::from([(
+                "domain".to_string(),
+                "*.example.com,other.example.com".to_string(),
+            )]),
+        )
+        .await
+        .unwrap_err()
+        .downcast_ref::<DDNSDomainConfigError>()
+        .is_some()
+    );
+    assert_eq!(
+        state.store.hgetall_string_map(&draft_key).await.unwrap(),
+        before_draft
+    );
+}
+
+#[tokio::test]
+async fn changed_config_resets_runtime_before_write_and_stops_when_reset_fails() {
+    use std::sync::{Arc, Mutex};
+
+    let steps = Arc::new(Mutex::new(Vec::new()));
+    let reset_steps = steps.clone();
+    let write_steps = steps.clone();
+    write_config_after_runtime_reset(
+        true,
+        async move {
+            reset_steps.lock().unwrap().push("reset");
+            Ok(())
+        },
+        async move {
+            write_steps.lock().unwrap().push("write");
+            Ok(())
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(*steps.lock().unwrap(), vec!["reset", "write"]);
+
+    let steps = Arc::new(Mutex::new(Vec::new()));
+    let reset_steps = steps.clone();
+    let write_steps = steps.clone();
+    let result = write_config_after_runtime_reset(
+        true,
+        async move {
+            reset_steps.lock().unwrap().push("reset");
+            anyhow::bail!("reset failed")
+        },
+        async move {
+            write_steps.lock().unwrap().push("write");
+            Ok(())
+        },
+    )
+    .await;
+    assert!(result.is_err());
+    assert_eq!(*steps.lock().unwrap(), vec!["reset"]);
+
+    let steps = Arc::new(Mutex::new(Vec::new()));
+    let reset_steps = steps.clone();
+    let write_steps = steps.clone();
+    write_config_after_runtime_reset(
+        false,
+        async move {
+            reset_steps.lock().unwrap().push("reset");
+            Ok(())
+        },
+        async move {
+            write_steps.lock().unwrap().push("write");
+            Ok(())
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(*steps.lock().unwrap(), vec!["write"]);
 }

@@ -515,7 +515,14 @@ export const jaJPServer = {
       unsupportedVersion:
         "サポートされていない TOTP 認証情報インポートバージョンです",
       credentialsArray: "TOTP 認証情報リストは配列である必要があります",
+      accountsArray: "アカウント認証情報リストは配列である必要があります",
+      passwordArray:
+        "アカウントパスワード認証情報リストは配列である必要があります",
       countExceeded: "一度にインポートできる TOTP 認証情報は最大 {max} 件です",
+      accountCountExceeded:
+        "一度にインポートできるアカウント認証情報は最大 {max} 件です",
+      passwordCountExceeded:
+        "一度にインポートできるアカウントパスワード認証情報は最大 {max} 件です",
     },
     passkeys: {
       notFound: "Passkey が見つかりません",
@@ -1800,6 +1807,23 @@ export const jaJPServer = {
     noProviderSelected: "プロバイダーが選択されていません",
     duplicateTarget:
       "同じプロバイダーとドメイン ダイジェストにはすでに DDNS のエントリがあります",
+    domainTargets: {
+      invalidDomain: "完全なドメイン名の形式が無効です: {domain}",
+      tooMany: "完全なドメイン名は 2 件まで設定できます",
+      invalidPair:
+        "2 件の完全なドメイン名はワイルドカードと対応する基準ドメインの組み合わせにしてください",
+      mismatchedPair:
+        "ワイルドカードドメインと基準ドメインが一致しません",
+      pairUnsupported:
+        "{provider} はワイルドカードと基準ドメインの同時更新をサポートしていません",
+      rootMissing:
+        "ワイルドカードと基準ドメインを組み合わせる前に {field} を設定してください",
+      rootMismatch:
+        "組み合わせの基準ドメインが {field} の管理範囲外です（Zone {expected}、組み合わせ {actual}）",
+      allSucceeded: "{count} 件のドメイン",
+      itemSucceeded: "{domain}: 成功",
+      itemFailed: "{domain}: 失敗（{detail}）",
+    },
     primaryInitFailed: "プライマリドメイン DDNS エントリの初期化に失敗しました",
     primaryDomainScope: "メインドメイン",
     additionalDomainScope: "追加フィールド",
@@ -1979,6 +2003,9 @@ export const jaJPServer = {
           },
         },
         configIncomplete: "Cloudflare 構成が不完全です",
+        zoneLookupFailed: "Cloudflare Zone の照会に失敗しました: {detail}",
+        zoneMismatch:
+          "組み合わせの基準ドメインが Cloudflare Zone の範囲外です（Zone {expected}、組み合わせ {actual}）",
         searchRecordFailed: "クエリ {type} レコードが失敗しました: {detail}",
         updateRecordFailed: "更新 {type} 記録に失敗しました: {detail}",
         createRecordFailed: "{type} レコードの作成に失敗しました: {detail}",
@@ -2148,6 +2175,9 @@ export const jaJPServer = {
         },
         configIncomplete: "Alibaba Cloud ESA DNS 構成が不完全",
         siteNameMissing: "Alibaba Cloud ESA DNS サイト名がありません",
+        siteLookupFailed: "Alibaba Cloud ESA サイトの照会に失敗しました: {detail}",
+        siteMismatch:
+          "設定された Site ID がサイトの照会結果と一致しません（設定 {expected}、照会結果 {actual}）",
         siteNotFound: "見つかりません ESA サイト: {site}",
         noIpAvailable:
           "Alibaba Cloud ESA DNS には更新可能な IP アドレスがありません",
@@ -2161,7 +2191,8 @@ export const jaJPServer = {
             description: "API-Dynu で生成されたキー API 認証情報",
           },
           domain: {
-            description: "更新する完全な Dynu ホスト名",
+            description:
+              "更新する完全な Dynu ホスト名です。ワイルドカードと基準ドメインの組み合わせでは、基準ドメインが別 Service 配下の通常のサブドメインではなく、Dynu に独立した DDNS Service として登録されている必要があります。更新時は個別の基準ドメインレコードを作成せず、IP を設定して Wildcard Alias を有効にします。",
           },
           group: {
             description:
@@ -2233,6 +2264,9 @@ export const jaJPServer = {
           },
         },
         configIncomplete: "Tencent Cloud EdgeOne 構成が不完全",
+        zoneLookupFailed: "EdgeOne サイトの照会に失敗しました: {detail}",
+        zoneMismatch:
+          "組み合わせの基準ドメインが EdgeOne Zone の範囲外です（Zone {expected}、組み合わせ {actual}）",
         configTargetIncomplete:
           "Tencent Cloud EdgeOne の構成が不完全で、ゾーン ID またはドメイン名がありません",
         missingRecordId: "EdgeOne 返されたレコードに RecordId がありません",

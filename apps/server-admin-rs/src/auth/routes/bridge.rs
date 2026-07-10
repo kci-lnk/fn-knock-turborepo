@@ -50,6 +50,20 @@ async fn run_auth_bridge_once(state: AppState) -> anyhow::Result<()> {
         .max_encoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE);
     let (tx, rx) = mpsc::channel::<AuthBridgeEnvelope>(128);
     let limiter = Arc::new(Semaphore::new(AUTH_BRIDGE_MAX_IN_FLIGHT));
+
+    // Queue the handshake before opening the stream. The Go server sends its
+    // initial headers eagerly, but having Ready available immediately also
+    // avoids coupling the client handshake to response-stream scheduling.
+    tx.send(AuthBridgeEnvelope {
+        request_id: String::new(),
+        payload: Some(auth_bridge_envelope::Payload::Ready(AuthBridgeReady {
+            instance_id: Uuid::new_v4().to_string(),
+            capabilities: vec![AUTHORIZE_HTTP_V1_CAPABILITY.to_string()],
+        })),
+    })
+    .await
+    .context("queue auth bridge ready")?;
+
     let mut request = Request::new(ReceiverStream::new(rx));
     request.metadata_mut().insert(
         INTERNAL_TOKEN_METADATA_KEY,
@@ -61,15 +75,6 @@ async fn run_auth_bridge_once(state: AppState) -> anyhow::Result<()> {
         .await
         .context("connect auth bridge stream")?
         .into_inner();
-    tx.send(AuthBridgeEnvelope {
-        request_id: String::new(),
-        payload: Some(auth_bridge_envelope::Payload::Ready(AuthBridgeReady {
-            instance_id: Uuid::new_v4().to_string(),
-            capabilities: vec![AUTHORIZE_HTTP_V1_CAPABILITY.to_string()],
-        })),
-    })
-    .await
-    .context("send auth bridge ready")?;
 
     while let Some(message) = stream.message().await.context("read auth bridge message")? {
         let permit = limiter

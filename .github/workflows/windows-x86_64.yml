@@ -94,82 +94,23 @@ jobs:
           git -C Go-Reauth-Proxy diff --exit-code -- pkg/grpc/pb
           if ($LASTEXITCODE -ne 0) { throw "Go protobuf stubs drifted from the shared contract" }
 
-      - name: Build native runtime without release signing
+      - name: Install NSIS
         shell: pwsh
-        run: >-
-          ./scripts/fn-knock-windows.ps1
-          -Mode Build
-          -SkipDesktopBundle
-          -RequireCleanTree
-          -GoRepository "${{ github.workspace }}\Go-Reauth-Proxy"
+        run: choco install nsis --no-progress -y
 
-      # The Tauri updater configuration needs a valid public key even when
-      # code/update signing is intentionally disabled. Generate an ephemeral
-      # pair, write only its public half to a runner-temp config, then delete
-      # both key files before any PR artifact is built.
-      - name: Create ephemeral unsigned Tauri config
-        id: unsigned-tauri
-        working-directory: apps/fn-knock-desktop
+      - name: Build unsigned native runtime and installer
+        id: unsigned-installer
         shell: pwsh
         run: |
-          $suffix = "$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
-          $keyPath = Join-Path $env:RUNNER_TEMP "fn-knock-pr-updater-$suffix.key"
-          $configPath = Join-Path $env:RUNNER_TEMP "fn-knock-pr-tauri-$suffix.conf.json"
-
-          npm run tauri -- signer generate --ci --write-keys $keyPath
-          if ($LASTEXITCODE -ne 0) { throw "failed to generate ephemeral Tauri updater key" }
-
-          $publicKeyPath = "$keyPath.pub"
-          if (-not (Test-Path -LiteralPath $publicKeyPath -PathType Leaf)) {
-            throw "ephemeral Tauri public key was not created"
-          }
-          $publicKey = (Get-Content -Raw -LiteralPath $publicKeyPath).Trim()
-          if ([string]::IsNullOrWhiteSpace($publicKey)) {
-            throw "ephemeral Tauri public key is empty"
-          }
-
-          $config = @{
-            plugins = @{
-              updater = @{
-                pubkey = $publicKey
-                endpoints = @("https://updates.invalid/fn-knock/windows/latest.json")
-                windows = @{ installMode = "passive" }
-              }
-            }
-          } | ConvertTo-Json -Depth 10
-          [System.IO.File]::WriteAllText($configPath, "$config`n", [System.Text.UTF8Encoding]::new($false))
-
-          Remove-Item -LiteralPath $keyPath, $publicKeyPath -Force
-          "config=$configPath" >> $env:GITHUB_OUTPUT
-
-      - name: Build unsigned Windows desktop executable
-        working-directory: apps/fn-knock-desktop
-        shell: pwsh
-        env:
-          FN_KNOCK_UNSIGNED_TAURI_CONFIG: ${{ steps.unsigned-tauri.outputs.config }}
-        run: |
-          npm run tauri -- build --target x86_64-pc-windows-msvc --no-bundle --no-sign --config $env:FN_KNOCK_UNSIGNED_TAURI_CONFIG --ci
-          if ($LASTEXITCODE -ne 0) { throw "unsigned Tauri executable build failed" }
+          ./scripts/fn-knock-windows.ps1 -Mode Build -BundleInstaller -RequireCleanTree -GoRepository "${{ github.workspace }}\Go-Reauth-Proxy"
+          if ($LASTEXITCODE -ne 0) { throw "unsigned native installer build failed" }
+          $setup = (Resolve-Path "dist\windows\fn-knock-*-windows-x86_64-unsigned-setup.exe").Path
+          "setup=$setup" >> $env:GITHUB_OUTPUT
 
       - name: Smoke test the native Windows runtime group
         shell: pwsh
         timeout-minutes: 15
         run: ./scripts/fn-knock-windows-smoke.ps1
-
-      - name: Build unsigned NSIS installer
-        id: unsigned-installer
-        working-directory: apps/fn-knock-desktop
-        shell: pwsh
-        env:
-          FN_KNOCK_UNSIGNED_TAURI_CONFIG: ${{ steps.unsigned-tauri.outputs.config }}
-        run: |
-          npm run tauri -- bundle --target x86_64-pc-windows-msvc --bundles nsis --no-sign --config $env:FN_KNOCK_UNSIGNED_TAURI_CONFIG --ci
-          if ($LASTEXITCODE -ne 0) { throw "unsigned Tauri NSIS bundle failed" }
-          $setups = @(Get-ChildItem "src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\*-setup.exe")
-          if ($setups.Count -ne 1) {
-            throw "Expected exactly one unsigned NSIS setup, found $($setups.Count)"
-          }
-          "setup=$($setups[0].FullName)" >> $env:GITHUB_OUTPUT
 
       - name: Install and uninstall unsigned NSIS installer
         shell: pwsh
@@ -187,8 +128,8 @@ jobs:
       AZURE_CORE_OUTPUT: none
       CARGO_TERM_COLOR: always
       FN_KNOCK_UPDATER_PUBLIC_KEY: ${{ secrets.FN_KNOCK_UPDATER_PUBLIC_KEY }}
-      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      FN_KNOCK_UPDATER_PRIVATE_KEY: ${{ secrets.FN_KNOCK_UPDATER_PRIVATE_KEY }}
+      FN_KNOCK_UPDATER_PRIVATE_KEY_PASSWORD: ${{ secrets.FN_KNOCK_UPDATER_PRIVATE_KEY_PASSWORD }}
       FN_KNOCK_GO_SOURCE_COMMIT: ${{ inputs.go_gateway_commit || vars.FN_KNOCK_GO_GATEWAY_COMMIT }}
 
     steps:
@@ -238,6 +179,11 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm ci
 
+      - name: Install NSIS and minisign
+        shell: pwsh
+        run: |
+          choco install nsis minisign --no-progress -y
+
       - name: Verify generated Go control-plane stubs
         shell: pwsh
         run: |
@@ -284,11 +230,11 @@ jobs:
           files: |
             ${{ github.workspace }}\apps\fn-knock-desktop\bundle\windows\fn-knock-service.exe
             ${{ github.workspace }}\apps\fn-knock-desktop\bundle\windows\fn-knock-gateway.exe
-            ${{ github.workspace }}\apps\fn-knock-desktop\src-tauri\target\x86_64-pc-windows-msvc\release\fn-knock.exe
+            ${{ github.workspace }}\apps\fn-knock-desktop\native\target\x86_64-pc-windows-msvc\release\fn-knock.exe
           file-digest: SHA256
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
           timestamp-digest: SHA256
-          description: FnKnock Windows Gateway
+          description: Knock 敲门 Windows Gateway
           description-url: https://github.com/kci-lnk/fn-knock-turborepo
 
       - name: Verify signed executables
@@ -297,7 +243,7 @@ jobs:
           $files = @(
             "apps\fn-knock-desktop\bundle\windows\fn-knock-service.exe",
             "apps\fn-knock-desktop\bundle\windows\fn-knock-gateway.exe",
-            "apps\fn-knock-desktop\src-tauri\target\x86_64-pc-windows-msvc\release\fn-knock.exe"
+            "apps\fn-knock-desktop\native\target\x86_64-pc-windows-msvc\release\fn-knock.exe"
           )
           foreach ($file in $files) {
             $signature = Get-AuthenticodeSignature $file
@@ -308,16 +254,10 @@ jobs:
 
       - name: Build NSIS package from signed components
         id: bundle
-        working-directory: apps/fn-knock-desktop
         shell: pwsh
         run: |
-          npm run tauri -- bundle --target x86_64-pc-windows-msvc --bundles nsis --config src-tauri/tauri.ci.conf.json
-          if ($LASTEXITCODE -ne 0) { throw "Tauri NSIS bundle failed" }
-          $setups = @(Get-ChildItem "src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\*-setup.exe")
-          if ($setups.Count -ne 1) {
-            throw "Expected exactly one NSIS setup, found $($setups.Count)"
-          }
-          $setup = $setups[0].FullName
+          $setup = (& ./scripts/fn-knock-windows-package.ps1 | Select-Object -Last 1)
+          if (-not (Test-Path -LiteralPath $setup -PathType Leaf)) { throw "native NSIS package was not created" }
           "setup=$setup" >> $env:GITHUB_OUTPUT
 
       - name: Authenticode-sign final setup
@@ -330,7 +270,7 @@ jobs:
           file-digest: SHA256
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
           timestamp-digest: SHA256
-          description: FnKnock Windows Installer
+          description: Knock 敲门 Windows Installer
           description-url: https://github.com/kci-lnk/fn-knock-turborepo
 
       - name: Verify signed NSIS installer
@@ -349,14 +289,17 @@ jobs:
 
       - name: Generate updater signature after Authenticode
         shell: pwsh
-        working-directory: apps/fn-knock-desktop
         run: |
           $setup = "${{ steps.bundle.outputs.setup }}"
           $signature = "$setup.sig"
           Remove-Item -Force -ErrorAction SilentlyContinue $signature
-          npm run tauri -- signer sign $setup
+          $keyPath = Join-Path $env:RUNNER_TEMP "fn-knock-updater.key"
+          [System.IO.File]::WriteAllText($keyPath, $env:FN_KNOCK_UPDATER_PRIVATE_KEY, [System.Text.UTF8Encoding]::new($false))
+          $env:MINISIGN_PASSWORD = $env:FN_KNOCK_UPDATER_PRIVATE_KEY_PASSWORD
+          minisign -S -s $keyPath -m $setup -x $signature
+          Remove-Item -LiteralPath $keyPath -Force
           if ($LASTEXITCODE -ne 0 -or -not (Test-Path $signature)) {
-            throw "Tauri updater signature generation failed"
+            throw "minisign updater signature generation failed"
           }
           $authenticode = Get-AuthenticodeSignature $setup
           if ($authenticode.Status -ne "Valid") {

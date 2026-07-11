@@ -3211,8 +3211,6 @@ export const jaJPAdmin = {
       loginTitle: "管理パネルにログインします",
       setupDescription:
         "初めて入る前に管理者パスワードを設定する必要があります。",
-      setupDescriptionWindows:
-        "初回設定 · 2/2 ステップ。ローカル管理コンソールを保護するパスワードを設定してください。",
       loginDescription:
         "管理バックエンドへのアクセスを続けるには、管理パスワードを入力してください。",
       setupHelper: "少なくとも 6 桁で、文字と数字の両方が含まれています。",

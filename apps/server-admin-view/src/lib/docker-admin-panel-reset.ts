@@ -13,5 +13,5 @@ export const openWrtAdminPanelResetCommands = {
 
 export const windowsAdminPanelResetCommands = {
   reset:
-    '& "$env:ProgramFiles\\FnKnock\\current\\fn-knock-service.exe" reset-panel-password',
+    '& "$env:ProgramFiles\\Knock 敲门\\fn-knock-service.exe" reset-panel-password',
 } as const;

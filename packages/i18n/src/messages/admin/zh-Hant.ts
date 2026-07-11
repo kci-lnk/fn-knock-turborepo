@@ -2963,8 +2963,6 @@ export const zhHantAdmin = {
       setupTitle: "設定管理面板密碼",
       loginTitle: "登入管理面板",
       setupDescription: "首次進入需要先設定一個管理密碼。",
-      setupDescriptionWindows:
-        "首次設定 · 第 2 步（共 2 步）。請設定用於保護本機管理台的密碼。",
       loginDescription: "請輸入管理密碼繼續訪問管理後台。",
       setupHelper: "至少 6 位，並同時包含字母和數字。",
       rememberMe: "記住我",

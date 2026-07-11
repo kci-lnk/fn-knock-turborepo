@@ -41,6 +41,14 @@ pub(super) async fn current_acme_install_state(state: &AppState, t: &Translator)
 }
 
 pub(super) fn acme_executable_path(state: &AppState) -> PathBuf {
+    if crate::runtime_profile::deployment_target(state) == "windows" {
+        return lego_executable_path(state).unwrap_or_else(|| {
+            state
+                .settings
+                .data_dir
+                .join("resources/lego/missing/lego.exe")
+        });
+    }
     state.settings.data_dir.join(".acme.sh").join("acme.sh")
 }
 
@@ -161,8 +169,29 @@ pub(super) async fn save_client_settings(
     state: &AppState,
     certificate_authority: &str,
 ) -> crate::storage::StorageResult<Value> {
+    save_client_settings_with_email(state, certificate_authority, None).await
+}
+
+pub(super) async fn save_client_settings_with_email(
+    state: &AppState,
+    certificate_authority: &str,
+    account_email: Option<&str>,
+) -> crate::storage::StorageResult<Value> {
+    let existing_email = state
+        .store
+        .get_json_value(ACME_CLIENT_SETTINGS_KEY)
+        .await
+        .ok()
+        .flatten()
+        .and_then(|value| {
+            value
+                .get("accountEmail")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        });
     let settings = json!({
         "certificateAuthority": normalize_certificate_authority(Some(certificate_authority)),
+        "accountEmail": account_email.map(str::trim).filter(|value| is_valid_email(value)).map(str::to_string).or(existing_email),
         "updatedAt": now_node_iso(),
     });
     state
@@ -173,6 +202,9 @@ pub(super) async fn save_client_settings(
 }
 
 pub(super) async fn migrate_legacy_acme_install_if_needed(state: &AppState) -> anyhow::Result<()> {
+    if crate::runtime_profile::deployment_target(state) == "windows" {
+        return Ok(());
+    }
     let acme_home = acme_home_dir(state);
     let legacy_home = legacy_acme_home_dir();
     if acme_home == legacy_home || !legacy_home.join("acme.sh").is_file() {
@@ -192,6 +224,13 @@ pub(super) async fn migrate_legacy_acme_install_if_needed(state: &AppState) -> a
 }
 
 pub(super) async fn start_acme_install(state: AppState, certificate_authority: String) {
+    if crate::runtime_profile::deployment_target(&state) == "windows" {
+        let _ = certificate_authority;
+        if let Err(error) = initialize_resource_task(state).await {
+            set_progress("error", 0, Some(error.to_string()));
+        }
+        return;
+    }
     if acme_install_is_installing(&state).await || acme_executable_path(&state).is_file() {
         return;
     }
@@ -430,6 +469,10 @@ pub(super) async fn switch_certificate_authority(
     certificate_authority: &str,
     t: &Translator,
 ) -> anyhow::Result<String> {
+    if crate::runtime_profile::deployment_target(state) == "windows" {
+        save_client_settings(state, certificate_authority).await?;
+        return Ok(resolve_account_email(state, None).await);
+    }
     if !acme_executable_path(state).is_file() {
         anyhow::bail!(t.t("server.acmeService.installFirst"));
     }
@@ -445,6 +488,9 @@ pub(super) async fn register_acme_account(
     t: &Translator,
 ) -> anyhow::Result<String> {
     let account_email = resolve_account_email(state, email).await;
+    if crate::runtime_profile::deployment_target(state) == "windows" {
+        return Ok(account_email);
+    }
     let mut args = vec![
         "--register-account".to_string(),
         "-m".to_string(),
@@ -479,6 +525,10 @@ pub(super) async fn set_default_certificate_authority(
     certificate_authority: &str,
     t: &Translator,
 ) -> anyhow::Result<()> {
+    if crate::runtime_profile::deployment_target(state) == "windows" {
+        save_client_settings(state, certificate_authority).await?;
+        return Ok(());
+    }
     let mut args = vec![
         "--set-default-ca".to_string(),
         "--server".to_string(),
@@ -572,6 +622,12 @@ pub(super) async fn resolve_account_email(state: &AppState, email: Option<&str>)
         && is_valid_email(value.trim())
     {
         return value.trim().to_string();
+    }
+    if let Ok(Some(settings)) = state.store.get_json_value(ACME_CLIENT_SETTINGS_KEY).await
+        && let Some(value) = settings.get("accountEmail").and_then(Value::as_str)
+        && is_valid_email(value)
+    {
+        return value.to_string();
     }
     if let Some(value) = get_existing_account_email(state).await {
         return value;

@@ -127,6 +127,9 @@ pub(super) async fn overview(State(state): State<AppState>) -> Response {
 }
 
 pub(super) async fn uninstall_acme(State(state): State<AppState>) -> Response {
+    if crate::runtime_profile::deployment_target(&state) == "windows" {
+        return delete_resource(State(state)).await;
+    }
     let t = Translator::from_state(&state).await;
     if acme_install_is_installing(&state).await {
         return response::error(
@@ -203,6 +206,13 @@ pub(super) async fn save_client_settings_route(
     };
     let certificate_authority =
         normalize_certificate_authority(body.get("certificateAuthority").and_then(Value::as_str));
+    let account_email = body
+        .get("accountEmail")
+        .and_then(Value::as_str)
+        .map(str::trim);
+    if account_email.is_some_and(|value| !is_valid_email(value)) {
+        return response::error(StatusCode::BAD_REQUEST, "ACME account email is invalid");
+    }
     let previous = match ensure_client_settings(&state).await {
         Ok(value) => value,
         Err(error) => {
@@ -213,7 +223,9 @@ pub(super) async fn save_client_settings_route(
             );
         }
     };
-    let next = match save_client_settings(&state, &certificate_authority).await {
+    let next = match save_client_settings_with_email(&state, &certificate_authority, account_email)
+        .await
+    {
         Ok(value) => value,
         Err(error) => {
             tracing::warn!(%error, "failed to save ACME client settings");
@@ -771,7 +783,17 @@ pub(super) async fn stop_active_job(State(state): State<AppState>) -> Response {
 
 pub(super) async fn dns_providers(State(state): State<AppState>) -> Response {
     let t = Translator::from_state(&state).await;
-    response::ok(Value::Array(acme_dns_providers(&t))).into_response()
+    let mut providers = acme_dns_providers(&t);
+    if crate::runtime_profile::deployment_target(&state) == "windows" {
+        let supported = lego_provider_ids().iter().copied().collect::<BTreeSet<_>>();
+        providers.retain(|provider| {
+            provider
+                .get("dnsType")
+                .and_then(Value::as_str)
+                .is_some_and(|id| supported.contains(id))
+        });
+    }
+    response::ok(Value::Array(providers)).into_response()
 }
 
 pub(super) async fn subdomain_recommendation(State(state): State<AppState>) -> Response {

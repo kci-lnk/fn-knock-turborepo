@@ -270,11 +270,7 @@ const title = computed(() =>
 );
 const description = computed(() =>
   props.mode === "setup"
-    ? t(
-        isWindowsMode.value
-          ? "admin.components.dockerAdminGate.setupDescriptionWindows"
-          : "admin.components.dockerAdminGate.setupDescription",
-      )
+    ? t("admin.components.dockerAdminGate.setupDescription")
     : t("admin.components.dockerAdminGate.loginDescription"),
 );
 const helperText = computed(() =>

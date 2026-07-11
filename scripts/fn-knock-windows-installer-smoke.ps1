@@ -30,7 +30,7 @@ if (-not (Test-Path -LiteralPath $SetupPath -PathType Leaf) -or
 $ServiceName = "FnKnock"
 $FirewallRuleName = "FnKnock Gateway"
 $ProgramDataRoot = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::CommonApplicationData)) "FnKnock"
-$ProductRoot = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFiles)) "FnKnock"
+$ProductRoot = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFiles)) "Knock 敲门"
 $InstallRoot = $ProductRoot
 $ServiceExecutable = Join-Path $InstallRoot "fn-knock-service.exe"
 $GatewayExecutable = Join-Path $InstallRoot "fn-knock-gateway.exe"
@@ -38,12 +38,12 @@ $DesktopExecutable = Join-Path $InstallRoot "fn-knock.exe"
 $BundleIdentityPath = Join-Path $InstallRoot "bundle.json"
 $RuntimeConfigPath = Join-Path $ProgramDataRoot "config\runtime.json"
 $RegistryPaths = @(
-  "Registry::HKEY_LOCAL_MACHINE\Software\fnknock\FnKnock",
-  "Registry::HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Uninstall\FnKnock"
+  "Registry::HKEY_LOCAL_MACHINE\Software\KCI-LNK Corporation\Knock 敲门",
+  "Registry::HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Uninstall\Knock 敲门"
 )
 $ShortcutPaths = @(
-  (Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::CommonPrograms)) "FnKnock.lnk"),
-  (Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::CommonDesktopDirectory)) "FnKnock.lnk")
+  (Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::CommonPrograms)) "Knock 敲门.lnk"),
+  (Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::CommonDesktopDirectory)) "Knock 敲门.lnk")
 )
 $ClassificationFixtureRoot = Join-Path ([IO.Path]::GetTempPath()) "FnKnock-installer-smoke-$PID"
 $script:CleanupAuthorized = $false

@@ -1,6 +1,9 @@
 use super::*;
 
 pub(super) fn acme_home_dir(state: &AppState) -> PathBuf {
+    if crate::runtime_profile::deployment_target(state) == "windows" {
+        return state.settings.data_dir.join(".lego");
+    }
     state.settings.data_dir.join(".acme.sh")
 }
 
@@ -46,6 +49,24 @@ pub(super) async fn install_acme_cert_to_data_dir(
     tokio::fs::create_dir_all(&domain_dir).await?;
     let installed_key_path = domain_dir.join(format!("{normalized}.key"));
     let installed_fullchain_path = domain_dir.join("fullchain.cer");
+    if crate::runtime_profile::deployment_target(state) == "windows" {
+        let certificate_dir = acme_home_dir(state).join("certificates");
+        let names = [
+            normalized.clone(),
+            normalized.replace('*', "_"),
+            normalized.trim_start_matches("*.").to_string(),
+        ];
+        for name in names {
+            let cert = certificate_dir.join(format!("{name}.crt"));
+            let key = certificate_dir.join(format!("{name}.key"));
+            if cert.is_file() && key.is_file() {
+                tokio::fs::copy(cert, &installed_fullchain_path).await?;
+                tokio::fs::copy(key, &installed_key_path).await?;
+                return Ok(());
+            }
+        }
+        anyhow::bail!("Lego issued the certificate but its PEM files were not found");
+    }
     let executable = acme_executable_path(state);
     if !executable.is_file() {
         return Ok(());

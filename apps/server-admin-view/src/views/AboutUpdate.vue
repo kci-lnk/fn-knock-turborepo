@@ -174,9 +174,7 @@ onMounted(async () => {
   if (!configStore.config) {
     await configStore.loadConfig();
   }
-  if (!desktopUpdateManaged.value) {
-    await updateStore.initialize();
-  }
+  await updateStore.initialize();
 });
 </script>
 
@@ -218,7 +216,7 @@ onMounted(async () => {
           </AlertDescription>
         </Alert>
 
-        <template v-else>
+        <template>
           <Alert
             v-if="!canSelfUpdate"
             class="rounded-xl border-border/70 bg-muted/30 text-foreground shadow-none"

@@ -405,6 +405,9 @@ export const useConfigStore = defineStore("config", () => {
   const canUseAcme = computed(
     () => capabilities.value?.acme_available !== false,
   );
+  const isAcmeResourceRequired = computed(
+    () => capabilities.value?.acme_resource_required === true,
+  );
   const canUseCloudflared = computed(
     () => capabilities.value?.cloudflared_available !== false,
   );
@@ -444,6 +447,7 @@ export const useConfigStore = defineStore("config", () => {
     canUseTerminal,
     hasSharedRoot,
     canUseAcme,
+    isAcmeResourceRequired,
     canUseCloudflared,
     canUseFrpc,
     canUseSshSecurity,

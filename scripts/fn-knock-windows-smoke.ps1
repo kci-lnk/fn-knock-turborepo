@@ -26,7 +26,7 @@ if ([string]::IsNullOrWhiteSpace($BundleRoot)) {
   $BundleRoot = Join-Path $Root "apps\fn-knock-desktop\bundle\windows"
 }
 if ([string]::IsNullOrWhiteSpace($DesktopExecutable)) {
-  $DesktopExecutable = Join-Path $Root "apps\fn-knock-desktop\src-tauri\target\x86_64-pc-windows-msvc\release\fn-knock.exe"
+  $DesktopExecutable = Join-Path $Root "apps\fn-knock-desktop\native\target\x86_64-pc-windows-msvc\release\fn-knock.exe"
 }
 $BundleRoot = (Resolve-Path -LiteralPath $BundleRoot).Path
 $DesktopExecutable = (Resolve-Path -LiteralPath $DesktopExecutable).Path

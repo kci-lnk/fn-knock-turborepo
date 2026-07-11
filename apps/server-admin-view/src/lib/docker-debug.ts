@@ -211,6 +211,7 @@ export const getEffectiveRuntimeCapabilities = (
     terminal_available: false,
     shared_root_available: capabilities?.shared_root_available ?? false,
     acme_available: capabilities?.acme_available ?? true,
+    acme_resource_required: capabilities?.acme_resource_required ?? false,
     cloudflared_available: capabilities?.cloudflared_available ?? true,
     frpc_available: capabilities?.frpc_available ?? true,
     ssh_security_available: false,

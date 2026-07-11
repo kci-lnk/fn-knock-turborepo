@@ -3157,8 +3157,6 @@ export const enAdmin = {
       setupTitle: "Set admin panel password",
       loginTitle: "Sign in to admin panel",
       setupDescription: "Set an admin password before first entry.",
-      setupDescriptionWindows:
-        "First-time setup · Step 2 of 2. Set the password used to protect the local management console.",
       loginDescription:
         "Enter the admin password to continue to the admin console.",
       setupHelper: "At least 6 characters, with both letters and numbers.",

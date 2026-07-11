@@ -2,7 +2,8 @@
 param(
   [Parameter(Mandatory = $true)]
   [string]$SetupPath,
-  [string]$OutputDirectory = ""
+  [string]$OutputDirectory = "",
+  [string]$ReleaseNotesPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -36,7 +37,7 @@ Copy-Item -Force $SetupPath $ArtifactPath
 
 $SignatureSource = "$SetupPath.sig"
 if (-not (Test-Path $SignatureSource)) {
-  throw "Missing Tauri signature $SignatureSource. Generate it only after Authenticode signing the setup."
+  throw "Missing updater minisign signature $SignatureSource. Generate it only after Authenticode signing the setup."
 }
 $SignaturePath = "$ArtifactPath.sig"
 Copy-Item -Force $SignatureSource $SignaturePath
@@ -52,6 +53,16 @@ $ShaPath = "$ArtifactPath.sha256"
 $Signature = (Get-Content -Raw $SignaturePath).Trim()
 $Url = "https://cdn.fnknock.cn/files/$Version/windows/x86_64/$ArtifactName"
 $PublishedAt = [DateTimeOffset]::UtcNow.ToString("o")
+if (-not $ReleaseNotesPath) {
+  $ReleaseNotesPath = Join-Path $Root "release-notes\$Version.md"
+}
+if (-not (Test-Path -LiteralPath $ReleaseNotesPath -PathType Leaf)) {
+  throw "Windows release notes are required: $ReleaseNotesPath"
+}
+$ReleaseNotes = (Get-Content -Raw -LiteralPath $ReleaseNotesPath).Trim()
+if ([string]::IsNullOrWhiteSpace($ReleaseNotes)) {
+  throw "Windows release notes must not be empty"
+}
 
 $Release = @{
   version = $Version
@@ -61,6 +72,7 @@ $Release = @{
   architecture = "x86_64"
   channel = "stable"
   published_at = $PublishedAt
+  release_notes = $ReleaseNotes
   file_name = $ArtifactName
   sha256 = $Sha256
   signature = $Signature
@@ -79,12 +91,14 @@ $Release = @{
 
 $Updater = @{
   version = $Version
-  notes = "FnKnock $Version"
+  notes = $ReleaseNotes
   pub_date = $PublishedAt
   platforms = @{
     "windows-x86_64" = @{
       url = $Url
       signature = $Signature
+      sha256 = $Sha256
+      size = (Get-Item $ArtifactPath).Length
     }
   }
 } | ConvertTo-Json -Depth 12

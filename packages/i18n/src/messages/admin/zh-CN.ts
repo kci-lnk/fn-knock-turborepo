@@ -2953,8 +2953,6 @@ export const zhCNAdmin = {
       setupTitle: "设置管理面板密码",
       loginTitle: "登录管理面板",
       setupDescription: "首次进入需要先设置一个管理密码。",
-      setupDescriptionWindows:
-        "首次设置 · 第 2 步（共 2 步）。请设置用于保护本机管理台的密码。",
       loginDescription: "请输入管理密码继续访问管理后台。",
       setupHelper: "至少 6 位，并同时包含字母和数字。",
       rememberMe: "记住我",

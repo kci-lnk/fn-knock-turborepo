@@ -1,1 +1,0 @@
-{"status":{"identifier":"status","description":"Minimal local-only capability for the trusted FnKnock status window.","local":true,"windows":["status"],"permissions":["status-commands"]}}

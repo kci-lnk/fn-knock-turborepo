@@ -3137,8 +3137,6 @@ export const koKRAdmin = {
       setupTitle: "관리자 패널 비밀번호 설정",
       loginTitle: "관리자 패널에 로그인",
       setupDescription: "처음 입력하기 전에 관리자 비밀번호를 설정하세요.",
-      setupDescriptionWindows:
-        "최초 설정 · 2/2단계. 로컬 관리 콘솔을 보호할 비밀번호를 설정하세요.",
       loginDescription:
         "관리 콘솔로 계속 진행하려면 관리자 비밀번호를 입력하세요.",
       setupHelper: "문자와 숫자를 모두 포함하여 6자 이상이어야 합니다.",

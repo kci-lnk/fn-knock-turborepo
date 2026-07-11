@@ -29,6 +29,7 @@ use crate::{
 };
 
 const OTA_LATEST_URL: &str = "https://cor.fnknock.cn/latest.json";
+const WINDOWS_OTA_LATEST_URL: &str = "https://cdn.fnknock.cn/windows/stable/latest.json";
 const UPDATE_PENDING_KEY: &str = "fn_knock:update:pending";
 const UPDATE_CONFIRM_KEY: &str = "fn_knock:update:confirm";
 const UPDATE_PENDING_TTL_SECONDS: usize = 7 * 24 * 60 * 60;
@@ -710,7 +711,12 @@ impl UpdateManager {
     }
 
     async fn fetch_manifest(&self) -> Result<OtaManifest, UpdateCheckError> {
-        let mut url = url::Url::parse(OTA_LATEST_URL)
+        let endpoint = if cfg!(windows) {
+            WINDOWS_OTA_LATEST_URL
+        } else {
+            OTA_LATEST_URL
+        };
+        let mut url = url::Url::parse(endpoint)
             .map_err(|error| UpdateCheckError::Message(error.to_string()))?;
         url.query_pairs_mut()
             .append_pair("t", &time_utils::now_ms().to_string());
@@ -729,7 +735,11 @@ impl UpdateManager {
             return Err(UpdateCheckError::HttpStatus(status.as_u16()));
         }
         let payload = response.json::<Value>().await.unwrap_or(Value::Null);
-        parse_manifest_raw(&payload).map_err(UpdateCheckError::Manifest)
+        if cfg!(windows) {
+            parse_windows_manifest_raw(&payload).map_err(UpdateCheckError::Manifest)
+        } else {
+            parse_manifest_raw(&payload).map_err(UpdateCheckError::Manifest)
+        }
     }
 
     async fn download_internal(
@@ -1031,6 +1041,35 @@ fn parse_manifest_raw(value: &Value) -> Result<OtaManifest, ManifestError> {
     })
 }
 
+fn parse_windows_manifest_raw(value: &Value) -> Result<OtaManifest, ManifestError> {
+    let object = value.as_object().ok_or(ManifestError::FormatInvalid)?;
+    let version = manifest_string(object, "version");
+    if version.is_empty() {
+        return Err(ManifestError::MissingVersion);
+    }
+    let package = object
+        .get("platforms")
+        .and_then(Value::as_object)
+        .and_then(|platforms| platforms.get("windows-x86_64"))
+        .and_then(Value::as_object)
+        .ok_or(ManifestError::MissingDownloadUrl)?;
+    let download_url = manifest_string(package, "url");
+    if download_url.is_empty() {
+        return Err(ManifestError::MissingDownloadUrl);
+    }
+    let sha256 = ensure_sha256_raw(&manifest_string(package, "sha256"), "sha256")?;
+    Ok(OtaManifest {
+        update_available: compare_version(&version, APP_LOCAL_VERSION) > 0,
+        version,
+        force_update: false,
+        download_url,
+        sha256,
+        download_url_arm64: String::new(),
+        sha256_arm64: String::new(),
+        release_notes: manifest_raw_string(object, "notes"),
+    })
+}
+
 fn manifest_string(object: &serde_json::Map<String, Value>, key: &str) -> String {
     object
         .get(key)
@@ -1209,6 +1248,28 @@ mod tests {
         assert_eq!(compare_version("1.8.6", "1.8.6"), 0);
         assert_eq!(compare_version("1.8.6-beta", "1.8.7"), -1);
         assert_eq!(compare_version("v1.8.8", "1.8.8"), 0);
+    }
+
+    #[test]
+    fn parses_windows_updater_manifest_with_release_notes_and_checksum() {
+        let manifest = parse_windows_manifest_raw(&json!({
+            "version": "99.0.0",
+            "notes": "Windows release notes",
+            "platforms": {
+                "windows-x86_64": {
+                    "url": "https://cdn.fnknock.cn/files/99.0.0/windows/x86_64/setup.exe",
+                    "signature": "minisign",
+                    "sha256": "a".repeat(64),
+                    "size": 12345
+                }
+            }
+        }))
+        .unwrap();
+
+        assert!(manifest.update_available);
+        assert_eq!(manifest.version, "99.0.0");
+        assert_eq!(manifest.release_notes, "Windows release notes");
+        assert_eq!(manifest.sha256, "a".repeat(64));
     }
 
     #[test]

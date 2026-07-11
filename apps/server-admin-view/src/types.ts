@@ -50,6 +50,7 @@ export interface RuntimeCapabilities {
   terminal_available: boolean;
   shared_root_available: boolean;
   acme_available?: boolean;
+  acme_resource_required?: boolean;
   cloudflared_available?: boolean;
   frpc_available?: boolean;
   ssh_security_available?: boolean;

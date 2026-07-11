@@ -139,8 +139,30 @@ export type AcmeApplicationPayload = {
 };
 
 export const AcmeAPI = {
+  async resourceStatus(): Promise<{
+    supported: boolean;
+    initialized: boolean;
+    platform: string;
+    installedVersion?: string;
+    availableVersion?: string;
+    progress: { status: "idle" | "downloading" | "verifying" | "completed" | "cancelled" | "error"; percent: number; error?: string };
+    providerIds: string[];
+  }> {
+    const res = await apiClient.get("/acme/resource/status");
+    return res.data.data;
+  },
+  async initializeResource(): Promise<void> {
+    await apiClient.post("/acme/resource/initialize");
+  },
+  async cancelResourceInitialization(): Promise<void> {
+    await apiClient.post("/acme/resource/cancel");
+  },
+  async deleteResource(): Promise<void> {
+    await apiClient.delete("/acme/resource");
+  },
   async updateClientSettings(payload: {
     certificateAuthority: AcmeCertificateAuthority;
+    accountEmail?: string;
   }): Promise<{
     certificateAuthority: AcmeCertificateAuthority;
     updatedAt: string;

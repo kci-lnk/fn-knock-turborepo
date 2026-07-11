@@ -98,9 +98,7 @@ pub(super) fn backend_router(state: AppState, protected_admin_view: bool) -> Rou
     if capabilities.frpc_available {
         api = api.merge(frpc_routes());
     }
-    if !capabilities.desktop_update_managed {
-        api = api.merge(update_routes());
-    }
+    api = api.merge(update_routes());
     let api = api.fallback(api_not_found);
     let api = if protected_admin_view {
         api.layer(middleware::from_fn_with_state(

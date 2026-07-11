@@ -701,6 +701,18 @@ pub(super) async fn issue_acme_certificate(
         .and_then(Value::as_str)
         .and_then(normalize_acme_dns_type)
         .ok_or_else(|| anyhow::anyhow!(t.t("server.acmeRoutes.dnsTypeRequired")))?;
+    if crate::runtime_profile::deployment_target(state) == "windows" {
+        return issue_lego_certificate(
+            state,
+            application,
+            job_id,
+            certificate_authority,
+            &domains,
+            &dns_type,
+            t,
+        )
+        .await;
+    }
     let acme_home = acme_home_dir(state);
     apply_acme_dns_provider_patches(state, &dns_type, job_id, t).await?;
     register_acme_account(state, None, Some(certificate_authority), t).await?;
@@ -770,6 +782,149 @@ pub(super) async fn issue_acme_certificate(
             ("brief", String::new())
         ],
     ))
+}
+
+async fn issue_lego_certificate(
+    state: &AppState,
+    application: &Value,
+    job_id: &str,
+    certificate_authority: &str,
+    domains: &[String],
+    dns_type: &str,
+    t: &Translator,
+) -> anyhow::Result<()> {
+    let provider = match dns_type {
+        "dns_cf" => "cloudflare",
+        "dns_ali" => "alidns",
+        "dns_dp" => "dnspod",
+        "dns_duckdns" => "duckdns",
+        "dns_gd" => "godaddy",
+        "dns_dgon" => "digitalocean",
+        _ => {
+            anyhow::bail!("The selected DNS provider is not available in the Windows Lego adapter")
+        }
+    };
+    let executable = acme_executable_path(state);
+    anyhow::ensure!(executable.is_file(), t.t("server.acmeService.installFirst"));
+    let email = resolve_account_email(state, None).await;
+    let server = if certificate_authority == "letsencrypt" {
+        "https://acme-v02.api.letsencrypt.org/directory"
+    } else {
+        "https://acme.zerossl.com/v2/DV90"
+    };
+    let mut args = vec![
+        "--path".to_string(),
+        acme_home_dir(state).to_string_lossy().to_string(),
+        "--email".to_string(),
+        email,
+        "--server".to_string(),
+        server.to_string(),
+        "--accept-tos".to_string(),
+        "--dns".to_string(),
+        provider.to_string(),
+    ];
+    for domain in domains {
+        args.push("--domains".to_string());
+        args.push(domain.clone());
+    }
+    args.push("run".to_string());
+    append_acme_log(
+        state,
+        job_id,
+        &format!("$ lego --dns {provider} [credentials redacted] run"),
+    )
+    .await
+    .ok();
+    let credentials = normalize_acme_env_vars(dns_type, application.get("credentials"));
+    let mut env = Map::new();
+    let get = |name: &str| {
+        credentials
+            .get(name)
+            .and_then(Value::as_str)
+            .map(str::to_string)
+    };
+    match dns_type {
+        "dns_cf" => {
+            if let Some(value) = get("CF_Token") {
+                env.insert("CLOUDFLARE_DNS_API_TOKEN".into(), json!(value));
+            }
+            if let Some(value) = get("CF_Email") {
+                env.insert("CLOUDFLARE_EMAIL".into(), json!(value));
+            }
+            if let Some(value) = get("CF_Key") {
+                env.insert("CLOUDFLARE_API_KEY".into(), json!(value));
+            }
+        }
+        "dns_ali" => {
+            if let Some(value) = get("Ali_Key") {
+                env.insert("ALICLOUD_ACCESS_KEY".into(), json!(value));
+            }
+            if let Some(value) = get("Ali_Secret") {
+                env.insert("ALICLOUD_SECRET_KEY".into(), json!(value));
+            }
+        }
+        "dns_dp" => {
+            if let (Some(id), Some(key)) = (get("DP_Id"), get("DP_Key")) {
+                env.insert("DNSPOD_API_KEY".into(), json!(format!("{id},{key}")));
+            }
+        }
+        "dns_duckdns" => {
+            if let Some(value) = get("DuckDNS_Token") {
+                env.insert("DUCKDNS_TOKEN".into(), json!(value));
+            }
+        }
+        "dns_gd" => {
+            if let Some(value) = get("GD_Key") {
+                env.insert("GODADDY_API_KEY".into(), json!(value));
+            }
+            if let Some(value) = get("GD_Secret") {
+                env.insert("GODADDY_API_SECRET".into(), json!(value));
+            }
+        }
+        "dns_dgon" => {
+            if let Some(value) = get("DO_API_KEY") {
+                env.insert("DO_AUTH_TOKEN".into(), json!(value));
+            }
+        }
+        _ => {}
+    }
+    let mut command = Command::new(&executable);
+    command
+        .args(&args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.as_std_mut().creation_flags(0x0800_0000);
+    }
+    for (key, value) in env {
+        if let Some(value) = value.as_str() {
+            command.env(key, value);
+        }
+    }
+    let child = command.spawn()?;
+    LEGO_ACTIVE_PID.store(child.id().unwrap_or(0), Ordering::Release);
+    let output = child.wait_with_output().await;
+    LEGO_ACTIVE_PID.store(0, Ordering::Release);
+    let output = output?;
+    for line in String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .chain(String::from_utf8_lossy(&output.stderr).lines())
+    {
+        append_acme_log(state, job_id, line).await.ok();
+    }
+    if output.status.success() {
+        Ok(())
+    } else {
+        anyhow::bail!(t.t_params(
+            "server.acmeService.issueFailed",
+            &[
+                ("code", output.status.code().unwrap_or(-1).to_string()),
+                ("brief", String::new())
+            ]
+        ))
+    }
 }
 
 pub(super) async fn append_acme_stream_lines<R>(state: AppState, job_id: String, stream: R)

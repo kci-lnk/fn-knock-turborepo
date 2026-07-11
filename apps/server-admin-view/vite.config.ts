@@ -88,6 +88,7 @@ export default defineConfig({
     exclude: ['qrcode.vue'],
   },
   build: {
+    target: 'chrome109',
     cssMinify: 'esbuild',
     modulePreload: {
       resolveDependencies(_filename, deps, context) {

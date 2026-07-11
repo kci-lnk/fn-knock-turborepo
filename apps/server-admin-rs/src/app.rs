@@ -113,9 +113,7 @@ pub(crate) async fn run_with_settings(
     start_notification_tasks(state.clone());
     let profile = runtime_profile::get_runtime_profile(&state);
     let capabilities = runtime_profile::get_runtime_capabilities(&profile);
-    if !capabilities.desktop_update_managed {
-        start_update_tasks(state.clone());
-    }
+    start_update_tasks(state.clone());
     start_ddns_tasks(state.clone());
     if capabilities.acme_available {
         start_acme_tasks(state.clone());

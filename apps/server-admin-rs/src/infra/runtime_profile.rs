@@ -23,6 +23,7 @@ pub struct RuntimeCapabilities {
     pub terminal_available: bool,
     pub shared_root_available: bool,
     pub acme_available: bool,
+    pub acme_resource_required: bool,
     pub cloudflared_available: bool,
     pub frpc_available: bool,
     pub ssh_security_available: bool,
@@ -52,7 +53,8 @@ pub fn get_runtime_capabilities(profile: &RuntimeProfile) -> RuntimeCapabilities
             self_update_available: false,
             terminal_available: false,
             shared_root_available: false,
-            acme_available: false,
+            acme_available: true,
+            acme_resource_required: true,
             cloudflared_available: false,
             frpc_available: false,
             ssh_security_available: false,
@@ -75,6 +77,7 @@ pub fn get_runtime_capabilities(profile: &RuntimeProfile) -> RuntimeCapabilities
             && profile.deployment_target != "openwrt",
         shared_root_available: has_shared_root(),
         acme_available: true,
+        acme_resource_required: false,
         cloudflared_available: true,
         frpc_available: true,
         ssh_security_available: true,
@@ -334,7 +337,8 @@ mod tests {
         assert!(!capabilities.self_update_available);
         assert!(!capabilities.terminal_available);
         assert!(!capabilities.shared_root_available);
-        assert!(!capabilities.acme_available);
+        assert!(capabilities.acme_available);
+        assert!(capabilities.acme_resource_required);
         assert!(!capabilities.cloudflared_available);
         assert!(!capabilities.frpc_available);
         assert!(!capabilities.ssh_security_available);

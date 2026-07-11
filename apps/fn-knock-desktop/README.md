@@ -1,20 +1,14 @@
-# FnKnock for Windows
+# fn-knock for Windows
 
 Windows x86_64 版由一个完整签名安装包交付，运行时包含三个进程：
 
-- `fn-knock.exe`：Tauri v2 状态窗口、托盘和更新入口；退出不停止网关。
+- `fn-knock.exe`：纯 Rust + Win32 API 管理程序、托盘和更新入口；release 构建默认请求管理员权限，退出不停止网关。
 - `fn-knock-service.exe`：唯一注册到 SCM 的 `FnKnock` 服务，账户为 `NT SERVICE\FnKnock`。
 - `fn-knock-gateway.exe`：由 Rust 服务监督并加入 kill-on-close Job Object 的 Go 数据面。
 
-程序安装在 `%ProgramFiles%\FnKnock\current`。配置、SQLite、证书、WAF、日志、状态和回滚数据位于 `%ProgramData%\FnKnock`。管理、Rust API、认证、Go gRPC 和代理的默认端口依次为 `7991`、`7998`、`7997`、`7996`、`7999`；新安装的代理默认只监听 loopback。
+程序安装在 `%ProgramFiles%\Knock 敲门`。配置、SQLite、证书、WAF、日志、状态和回滚数据位于 `%ProgramData%\FnKnock`。管理、Rust API、认证、Go gRPC 和代理的默认端口依次为 `7991`、`7998`、`7997`、`7996`、`7999`；新安装的代理默认只监听 loopback。
 
-首次打开桌面端时，先确认代理端口、监听范围和 Domain/Private 防火墙状态，随后进入现有管理台设置管理密码。忘记密码时，在管理员 PowerShell 中运行：
-
-```powershell
-& "$env:ProgramFiles\FnKnock\current\fn-knock-service.exe" reset-panel-password
-```
-
-桌面端只在 SCM 报告 `FnKnock` 为 Running、管理端口的监听 PID 与服务 PID 一致，并且 `readyz` 的版本、控制协议及五项组件状态全部匹配时加载管理台。运行期间身份连续失配会直接销毁管理 WebView，避免停止服务后的 localhost 端口接管。
+桌面管理程序通过 SCM API 启停和重启服务，端口配置采用原子写入、就绪检查与失败回滚。清除管理密码也由管理程序完成，子进程统一使用 `CREATE_NO_WINDOW`，不会弹出 CMD 或 PowerShell 窗口。7991 管理后台在系统浏览器中打开，桌面程序不包含 WebView 或前端运行时。
 
 ## 原生 Windows 构建
 
@@ -24,22 +18,22 @@ Windows x86_64 版由一个完整签名安装包交付，运行时包含三个�
 npm run fn-knock:windows:build
 ```
 
-命令允许工作树包含当前开发改动。未设置 `FN_KNOCK_UPDATER_PUBLIC_KEY` 时会在系统临时目录生成一次性 updater 密钥，私钥会在读取公钥后立即删除；安装包输出到 `dist\windows\fn-knock-<version>-windows-x86_64-unsigned-setup.exe`。该安装包只用于本机验证，不可作为正式发布包。
+命令允许工作树包含当前开发改动，并要求系统已安装 NSIS 3；也可通过 `FN_KNOCK_MAKENSIS` 指定 `makensis.exe`。未设置 `FN_KNOCK_UPDATER_PUBLIC_KEY` 时，本机构建的检查更新功能保持禁用。安装包输出到 `dist\windows\fn-knock-<version>-windows-x86_64-unsigned-setup.exe`，只用于本机验证，不可作为正式发布包。
 
 发布门禁只在 Windows Server 2022 x64 runner 上执行：
 
 ```powershell
 npm ci
-./scripts/fn-knock-windows.ps1 -Mode Build -RequireCleanTree -GoRepository C:\src\Go-Reauth-Proxy
+./scripts/fn-knock-windows.ps1 -Mode Build -BundleInstaller -RequireCleanTree -GoRepository C:\src\Go-Reauth-Proxy
 ```
 
-构建需要用 40 位提交 SHA 锁定 Go 仓库，并从根目录 `version.json` 注入统一版本。CI 会重新生成 Go protobuf stub 并拒绝协议漂移，再运行 Go/Rust/Vue/Tauri 测试、Windows 服务崩溃恢复 smoke test 和 release build。
+构建需要用 40 位提交 SHA 锁定 Go 仓库，并从根目录 `version.json` 注入统一版本。CI 会重新生成 Go protobuf stub 并拒绝协议漂移，再运行 Go、Rust、Vue、原生管理程序、Windows 服务崩溃恢复和安装/卸载 smoke test。
 
 签名顺序固定为：
 
 1. 用 Azure Artifact Signing 给 GUI、Rust 服务和 Go 网关做 Authenticode + RFC3161 时间戳。
-2. 从已签名的三个 EXE 生成 per-machine NSIS setup。
+2. 原生 NSIS 3 脚本从已签名的三个 EXE 生成 per-machine setup；桌面程序和安装器均不依赖 WebView 或其他 GUI 框架。
 3. 给最终 setup 做 Authenticode + RFC3161 时间戳。
-4. 对最终字节生成 Tauri updater `.sig` 和 SHA-256；此后不得改动 setup。
+4. 对最终字节生成兼容现有更新协议的 minisign `.sig` 和 SHA-256；此后不得改动 setup。
 
-`scripts/fn-knock-windows-finalize.ps1` 输出固定的五个发布文件。Updater 私钥只允许来自 CI secret，客户端和发布校验器只使用公钥。
+`scripts/fn-knock-windows-finalize.ps1` 输出固定的五个发布文件。Updater 私钥只允许来自 CI secrets `FN_KNOCK_UPDATER_PRIVATE_KEY` 和 `FN_KNOCK_UPDATER_PRIVATE_KEY_PASSWORD`，客户端和发布校验器只使用 `FN_KNOCK_UPDATER_PUBLIC_KEY`。Lego CDN 初始化文件及无 `.sig` 的清单规范见 [`../../docs/windows-lego-cdn.md`](../../docs/windows-lego-cdn.md)。

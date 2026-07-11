@@ -29,7 +29,7 @@ $Version = [string]$VersionDocument.version
 $Commit = (git -C $Root rev-parse HEAD).Trim()
 $Target = "x86_64-pc-windows-msvc"
 $DesktopRoot = Join-Path $Root "apps\fn-knock-desktop"
-$DesktopTauri = Join-Path $DesktopRoot "src-tauri"
+$DesktopNative = Join-Path $DesktopRoot "native"
 $BundleRoot = Join-Path $DesktopRoot "bundle\windows"
 $RuntimeRoot = Join-Path $BundleRoot "runtime"
 
@@ -86,8 +86,7 @@ function Set-CargoVersion([string]$Path) {
 
 function Sync-Versions {
   Set-JsonVersion (Join-Path $DesktopRoot "package.json")
-  Set-JsonVersion (Join-Path $DesktopTauri "tauri.conf.json")
-  Set-CargoVersion (Join-Path $DesktopTauri "Cargo.toml")
+  Set-CargoVersion (Join-Path $DesktopNative "Cargo.toml")
   Set-CargoVersion (Join-Path $Root "apps\server-admin-rs\Cargo.toml")
 }
 
@@ -169,68 +168,52 @@ function Stage-WindowsBundle {
   )
 }
 
-function New-TauriBuildConfig {
-  $temporaryRoot = $null
-  $publicKey = ""
-  $endpoint = "https://cdn.fnknock.cn/windows/stable/latest.json"
-  $path = Join-Path $DesktopTauri "tauri.ci.conf.json"
+function Resolve-MakeNsis {
+  if ($env:FN_KNOCK_MAKENSIS) {
+    $candidate = $env:FN_KNOCK_MAKENSIS
+    if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+      return (Resolve-Path -LiteralPath $candidate).Path
+    }
+    throw "FN_KNOCK_MAKENSIS does not point to makensis.exe: $candidate"
+  }
+  $command = Get-Command makensis.exe -ErrorAction SilentlyContinue
+  if ($command) {
+    return $command.Source
+  }
+  foreach ($candidate in @(
+    (Join-Path ${env:ProgramFiles(x86)} "NSIS\makensis.exe"),
+    (Join-Path $env:ProgramFiles "NSIS\makensis.exe")
+  )) {
+    if ($candidate -and (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+      return (Resolve-Path -LiteralPath $candidate).Path
+    }
+  }
+  throw "NSIS 3 is required. Install NSIS or set FN_KNOCK_MAKENSIS to makensis.exe."
+}
 
-  if (-not [string]::IsNullOrWhiteSpace($env:FN_KNOCK_UPDATER_PUBLIC_KEY)) {
-    $publicKey = $env:FN_KNOCK_UPDATER_PUBLIC_KEY.Trim()
-  } else {
-    if (-not $BundleInstaller) {
-      throw "FN_KNOCK_UPDATER_PUBLIC_KEY is required for a Windows release build"
-    }
-    $temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("fn-knock-tauri-" + [guid]::NewGuid().ToString("N"))
-    New-Item -ItemType Directory -Force $temporaryRoot | Out-Null
-    $keyPath = Join-Path $temporaryRoot "updater.key"
-    try {
-      Push-Location $DesktopRoot
-      try {
-        npm run tauri -- signer generate --ci --write-keys $keyPath *> $null
-        Assert-LastExitCode "temporary Tauri updater key generation"
-      } finally {
-        Pop-Location
-      }
-      $publicKeyPath = "$keyPath.pub"
-      if (-not (Test-Path -LiteralPath $publicKeyPath -PathType Leaf)) {
-        throw "Temporary Tauri updater public key was not created"
-      }
-      $publicKey = (Get-Content -Raw -LiteralPath $publicKeyPath).Trim()
-      if (-not $publicKey) {
-        throw "Temporary Tauri updater public key is empty"
-      }
-      Remove-Item -LiteralPath $keyPath, $publicKeyPath -Force
-    } catch {
-      Remove-Item -LiteralPath $temporaryRoot -Recurse -Force -ErrorAction SilentlyContinue
-      throw
-    }
-    $endpoint = "https://updates.invalid/fn-knock/windows/latest.json"
-    $path = Join-Path $temporaryRoot "tauri.local.conf.json"
-    Write-Warning "FN_KNOCK_UPDATER_PUBLIC_KEY is not set; this unsigned local build uses an ephemeral updater public key"
+function New-NativeNsisInstaller {
+  $makeNsis = Resolve-MakeNsis
+  $releaseRoot = Join-Path $DesktopNative "target\$Target\release"
+  $installerRoot = Join-Path $releaseRoot "installer"
+  New-Item -ItemType Directory -Force $installerRoot | Out-Null
+  $setupPath = Join-Path $installerRoot "Knock 敲门_${Version}_x64-setup.exe"
+  Remove-Item -LiteralPath $setupPath -Force -ErrorAction SilentlyContinue
+  $parts = @($Version.Split('.'))
+  if ($parts.Count -gt 4 -or @($parts | Where-Object { $_ -notmatch '^\d+$' }).Count -gt 0) {
+    throw "Version cannot be represented as a Windows file version: $Version"
   }
-
-  $config = @{
-    plugins = @{
-      updater = @{
-        pubkey = $publicKey
-        endpoints = @($endpoint)
-        windows = @{ installMode = "passive" }
-      }
-    }
-  } | ConvertTo-Json -Depth 10
-  try {
-    [System.IO.File]::WriteAllText($path, "$config`n", [System.Text.UTF8Encoding]::new($false))
-  } catch {
-    if ($temporaryRoot) {
-      Remove-Item -LiteralPath $temporaryRoot -Recurse -Force -ErrorAction SilentlyContinue
-    }
-    throw
+  while ($parts.Count -lt 4) { $parts += "0" }
+  $numericVersion = $parts -join "."
+  $script = Join-Path $DesktopNative "installer\installer.nsi"
+  $desktopExe = Join-Path $releaseRoot "fn-knock.exe"
+  $icon = Join-Path $DesktopNative "assets\icon.ico"
+  $nsisOutput = @(& $makeNsis "/INPUTCHARSET" "UTF8" "/DVERSION=$Version" "/DNUMERIC_VERSION=$numericVersion" "/DOUTPUT_FILE=$setupPath" "/DDESKTOP_EXE=$desktopExe" "/DBUNDLE_ROOT=$BundleRoot" "/DRUNTIME_ROOT=$RuntimeRoot" "/DICON_FILE=$icon" $script 2>&1)
+  $nsisOutput | ForEach-Object { Write-Host $_ }
+  Assert-LastExitCode "native NSIS bundle"
+  if (-not (Test-Path -LiteralPath $setupPath -PathType Leaf)) {
+    throw "NSIS did not produce the expected setup: $setupPath"
   }
-  return [pscustomobject]@{
-    Path = $path
-    TemporaryRoot = $temporaryRoot
-  }
+  return (Resolve-Path -LiteralPath $setupPath).Path
 }
 
 function Publish-UnsignedInstaller([string]$SetupPath) {
@@ -282,34 +265,13 @@ Invoke-RustChecksAndBuild
 Stage-WindowsBundle
 
 if (-not $SkipDesktopBundle) {
-  $buildConfig = New-TauriBuildConfig
-  try {
-    Push-Location $DesktopRoot
-    try {
-      npm run tauri -- build --target $Target --no-bundle --no-sign --config $buildConfig.Path --ci
-      Assert-LastExitCode "Tauri Windows executable build"
+  cargo build --release --manifest-path (Join-Path $DesktopNative "Cargo.toml") --target $Target
+  Assert-LastExitCode "native Win32 controller release build"
 
-      if ($BundleInstaller) {
-        $bundleStartedAt = [DateTime]::UtcNow.AddSeconds(-2)
-        npm run tauri -- bundle --target $Target --bundles nsis --no-sign --config $buildConfig.Path --ci
-        Assert-LastExitCode "Tauri unsigned NSIS bundle"
-        $setupRoot = Join-Path $DesktopTauri "target\$Target\release\bundle\nsis"
-        $setups = @(Get-ChildItem -LiteralPath $setupRoot -Filter "*-setup.exe" -File |
-          Where-Object LastWriteTimeUtc -ge $bundleStartedAt |
-          Sort-Object LastWriteTimeUtc -Descending)
-        if ($setups.Count -ne 1) {
-          throw "Expected exactly one newly generated NSIS setup in $setupRoot, found $($setups.Count)"
-        }
-        $publishedSetup = Publish-UnsignedInstaller $setups[0].FullName
-        Write-Host "Unsigned NSIS installer: $publishedSetup"
-      }
-    } finally {
-      Pop-Location
-    }
-  } finally {
-    if ($buildConfig.TemporaryRoot) {
-      Remove-Item -LiteralPath $buildConfig.TemporaryRoot -Recurse -Force -ErrorAction SilentlyContinue
-    }
+  if ($BundleInstaller) {
+    $setup = New-NativeNsisInstaller
+    $publishedSetup = Publish-UnsignedInstaller $setup
+    Write-Host "Unsigned NSIS installer: $publishedSetup"
   }
 }
 
@@ -317,5 +279,5 @@ if ($BundleInstaller) {
   Write-Host "The local installer is unsigned and intended for development/testing only."
 } else {
   Write-Host "Windows binaries and runtime are ready for Authenticode signing."
-  Write-Host "After signing all three EXEs, run: npm run tauri -- bundle --target $Target --bundles nsis --config <ci-config>"
+  Write-Host "After signing all three EXEs, run the native NSIS packaging step to create the installer."
 }

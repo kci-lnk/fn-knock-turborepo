@@ -45,30 +45,56 @@ pub(super) async fn stop_active_acme_job(
     }))
 }
 
-pub(super) async fn stop_all_acme_processes(t: &Translator) -> Value {
-    let matched_pids = find_acme_process_ids().await.unwrap_or_default();
-    let mut errors = Vec::new();
-    for pid in &matched_pids {
-        if let Err(error) = crate::unix::send_signal(*pid, libc::SIGTERM) {
-            errors.push(t.t_params(
-                "server.acmeService.sendSignalFailed",
-                &[
-                    ("signal", "SIGTERM".to_string()),
-                    ("target", pid.to_string()),
-                    ("detail", error.to_string()),
-                ],
-            ));
+pub(super) async fn stop_all_acme_processes(_t: &Translator) -> Value {
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::{
+            Foundation::CloseHandle,
+            System::Threading::{OpenProcess, PROCESS_TERMINATE, TerminateProcess},
+        };
+        let pid = LEGO_ACTIVE_PID.swap(0, Ordering::AcqRel);
+        if pid == 0 {
+            return json!({ "matchedPids": [], "remainingPids": [], "errors": [] });
         }
+        let handle = unsafe { OpenProcess(PROCESS_TERMINATE, 0, pid) };
+        if handle.is_null() {
+            return json!({ "matchedPids": [pid], "remainingPids": [pid], "errors": ["Unable to open the active Lego process"] });
+        }
+        let terminated = unsafe { TerminateProcess(handle, 1) } != 0;
+        unsafe { CloseHandle(handle) };
+        return json!({
+            "matchedPids": [pid],
+            "remainingPids": if terminated { Vec::<u32>::new() } else { vec![pid] },
+            "errors": if terminated { Vec::<String>::new() } else { vec!["Unable to terminate the active Lego process".to_string()] },
+        });
     }
-    tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
-    let remaining_pids = find_acme_process_ids().await.unwrap_or_default();
-    json!({
-        "matchedPids": matched_pids,
-        "remainingPids": remaining_pids,
-        "errors": errors,
-    })
+    #[cfg(not(windows))]
+    {
+        let matched_pids = find_acme_process_ids().await.unwrap_or_default();
+        let mut errors = Vec::new();
+        for pid in &matched_pids {
+            if let Err(error) = crate::unix::send_signal(*pid, libc::SIGTERM) {
+                errors.push(_t.t_params(
+                    "server.acmeService.sendSignalFailed",
+                    &[
+                        ("signal", "SIGTERM".to_string()),
+                        ("target", pid.to_string()),
+                        ("detail", error.to_string()),
+                    ],
+                ));
+            }
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+        let remaining_pids = find_acme_process_ids().await.unwrap_or_default();
+        json!({
+            "matchedPids": matched_pids,
+            "remainingPids": remaining_pids,
+            "errors": errors,
+        })
+    }
 }
 
+#[cfg(not(windows))]
 pub(super) async fn find_acme_process_ids() -> anyhow::Result<Vec<i32>> {
     let output = Command::new("ps")
         .args(["-eo", "pid=,command="])

@@ -18,11 +18,19 @@ Windows x86_64 版由一个完整签名安装包交付，运行时包含三个�
 
 ## 原生 Windows 构建
 
+本机开发和安装测试可从仓库根目录一键生成 unsigned NSIS 安装包：
+
+```powershell
+npm run fn-knock:windows:build
+```
+
+命令允许工作树包含当前开发改动。未设置 `FN_KNOCK_UPDATER_PUBLIC_KEY` 时会在系统临时目录生成一次性 updater 密钥，私钥会在读取公钥后立即删除；安装包输出到 `dist\windows\fn-knock-<version>-windows-x86_64-unsigned-setup.exe`。该安装包只用于本机验证，不可作为正式发布包。
+
 发布门禁只在 Windows Server 2022 x64 runner 上执行：
 
 ```powershell
 npm ci
-./scripts/fn-knock-windows.ps1 -Mode Build -GoRepository C:\src\Go-Reauth-Proxy
+./scripts/fn-knock-windows.ps1 -Mode Build -RequireCleanTree -GoRepository C:\src\Go-Reauth-Proxy
 ```
 
 构建需要用 40 位提交 SHA 锁定 Go 仓库，并从根目录 `version.json` 注入统一版本。CI 会重新生成 Go protobuf stub 并拒绝协议漂移，再运行 Go/Rust/Vue/Tauri 测试、Windows 服务崩溃恢复 smoke test 和 release build。

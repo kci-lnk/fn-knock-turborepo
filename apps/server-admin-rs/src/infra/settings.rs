@@ -21,7 +21,9 @@ pub struct Settings {
     pub auth_static_path: PathBuf,
     #[allow(dead_code)]
     pub data_dir: PathBuf,
+    #[allow(dead_code)]
     pub gateway_config_dir: PathBuf,
+    pub waf_dir: PathBuf,
     pub sqlite_path: PathBuf,
     #[allow(dead_code)]
     pub legacy_redis_url: String,
@@ -79,6 +81,8 @@ impl Settings {
             .ok()
             .map(PathBuf::from)
             .unwrap_or_else(|| data_dir.clone());
+        let waf_dir =
+            env_optional_path("FN_KNOCK_WAF_DIR").unwrap_or_else(|| gateway_config_dir.join("waf"));
         let default_sqlite_path = default_sqlite_path(&gateway_config_dir);
         let sqlite_path = env_optional_path("FN_KNOCK_SQLITE_PATH").unwrap_or(default_sqlite_path);
 
@@ -111,6 +115,7 @@ impl Settings {
             auth_static_path: env_path("AUTH_STATIC_PATH", "server-auth-view/dist"),
             data_dir,
             gateway_config_dir,
+            waf_dir,
             sqlite_path,
             legacy_redis_url,
             go_backend_grpc_addr: env::var("GO_BACKEND_GRPC_ADDR")
@@ -645,6 +650,53 @@ mod tests {
                     settings.sqlite_path,
                     PathBuf::from("/usr/local/etc/fn-knock/storage/fn-knock.sqlite3")
                 );
+            },
+        );
+    }
+
+    #[test]
+    fn waf_dir_defaults_to_gateway_config_subdirectory() {
+        with_env_vars(
+            &[
+                "FN_KNOCK_DATA_DIR",
+                "FN_KNOCK_GATEWAY_CONFIG_DIR",
+                "GATEWAY_CONFIG_DIR",
+                "FN_KNOCK_WAF_DIR",
+            ],
+            |env| {
+                env.set("FN_KNOCK_DATA_DIR", "/tmp/fn-knock-runtime");
+                env.set("FN_KNOCK_GATEWAY_CONFIG_DIR", "/etc/fn-knock/gateway");
+                env.remove("GATEWAY_CONFIG_DIR");
+                env.remove("FN_KNOCK_WAF_DIR");
+
+                let settings = Settings::from_env();
+
+                assert_eq!(
+                    settings.waf_dir,
+                    PathBuf::from("/etc/fn-knock/gateway").join("waf")
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn waf_dir_uses_explicit_override() {
+        with_env_vars(
+            &[
+                "FN_KNOCK_DATA_DIR",
+                "FN_KNOCK_GATEWAY_CONFIG_DIR",
+                "GATEWAY_CONFIG_DIR",
+                "FN_KNOCK_WAF_DIR",
+            ],
+            |env| {
+                env.set("FN_KNOCK_DATA_DIR", "/tmp/fn-knock-runtime");
+                env.set("FN_KNOCK_GATEWAY_CONFIG_DIR", "/etc/fn-knock/gateway");
+                env.remove("GATEWAY_CONFIG_DIR");
+                env.set("FN_KNOCK_WAF_DIR", "/var/lib/fn-knock/waf");
+
+                let settings = Settings::from_env();
+
+                assert_eq!(settings.waf_dir, PathBuf::from("/var/lib/fn-knock/waf"));
             },
         );
     }

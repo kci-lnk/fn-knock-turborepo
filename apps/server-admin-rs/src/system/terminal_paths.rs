@@ -98,7 +98,11 @@ fn push_runtime_dir_candidate(candidates: &mut Vec<PathBuf>, path: PathBuf) {
 }
 
 fn normalize_absolute_path(path: &Path) -> Option<PathBuf> {
-    if !path.is_absolute() {
+    // Windows treats a separator-rooted legacy Unix path (for example
+    // `/opt/fn-knock`) as rooted but not fully absolute because it has no
+    // drive prefix. Keep the check lexical so old Linux runtime values can be
+    // recognized and migrated when the same config is opened on Windows.
+    if !path.has_root() {
         return None;
     }
     let mut normalized = PathBuf::new();

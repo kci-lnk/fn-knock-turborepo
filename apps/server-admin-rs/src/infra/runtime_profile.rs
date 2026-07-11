@@ -246,9 +246,9 @@ pub fn configured_share_directory_with_legacy_env_precedence() -> Option<std::pa
 }
 
 fn trim_data_share_paths() -> Option<std::path::PathBuf> {
-    let raw = std::env::var("TRIM_DATA_SHARE_PATHS").ok()?;
-    raw.split(':')
-        .map(str::trim)
+    let raw = std::env::var_os("TRIM_DATA_SHARE_PATHS")?;
+    std::env::split_paths(&raw)
+        .map(|value| value.to_string_lossy().trim().to_string())
         .filter(|value| !value.is_empty())
         .min_by_key(|value| value.len())
         .map(std::path::PathBuf::from)
@@ -369,7 +369,8 @@ mod tests {
         ]);
         env.set("FN_KNOCK_ROOT_SHARE_DIR", " /root-share ");
         env.set("FN_KNOCK_CERT_SHARE_DIR", " /cert-share ");
-        env.set("TRIM_DATA_SHARE_PATHS", "/very/long/share:/short");
+        let trim_paths = std::env::join_paths(["/very/long/share", "/short"]).unwrap();
+        env.set("TRIM_DATA_SHARE_PATHS", &trim_paths);
 
         assert_eq!(
             configured_share_directory(),
@@ -398,7 +399,8 @@ mod tests {
         ]);
         env.set("FN_KNOCK_ROOT_SHARE_DIR", " ");
         env.set("FN_KNOCK_CERT_SHARE_DIR", " /cert-share ");
-        env.set("TRIM_DATA_SHARE_PATHS", "/very/long/share:/short");
+        let trim_paths = std::env::join_paths(["/very/long/share", "/short"]).unwrap();
+        env.set("TRIM_DATA_SHARE_PATHS", &trim_paths);
 
         assert_eq!(
             configured_share_directory(),

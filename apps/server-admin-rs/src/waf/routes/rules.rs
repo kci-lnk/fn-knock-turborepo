@@ -604,7 +604,7 @@ pub(super) fn cache_busted_url(input: &str, base: Option<&str>) -> anyhow::Resul
 }
 
 pub(super) fn waf_root_dir(state: &AppState) -> PathBuf {
-    state.settings.gateway_config_dir.join("waf")
+    state.settings.waf_dir.clone()
 }
 
 pub(super) fn system_dir(state: &AppState) -> PathBuf {

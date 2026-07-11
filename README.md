@@ -92,7 +92,7 @@ FN_KNOCK_FORCE_ARTIFACT_REBUILD=1 bun run fn-knock:deploy-all
 | `npm run fn-knock:docker:up`          | 启动本地 Docker 环境        |
 | `npm run fn-knock:docker:hub-publish` | 发布 Docker Hub 镜像        |
 | `npm run fn-knock:windows:test`       | Windows 原生测试与构建检查  |
-| `npm run fn-knock:windows:build`      | Windows x86_64 完整发布构建 |
+| `npm run fn-knock:windows:build`      | Windows x86_64 本地 unsigned NSIS 安装包 |
 
 ## 开发提示
 

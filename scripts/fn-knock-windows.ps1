@@ -3,7 +3,10 @@ param(
   [ValidateSet("Prepare", "Test", "Build")]
   [string]$Mode = "Build",
   [string]$GoRepository = "",
-  [switch]$SkipDesktopBundle
+  [switch]$SkipDesktopBundle,
+  [switch]$BundleInstaller,
+  [switch]$RequireCleanTree,
+  [string]$OutputDirectory = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -30,13 +33,24 @@ $DesktopTauri = Join-Path $DesktopRoot "src-tauri"
 $BundleRoot = Join-Path $DesktopRoot "bundle\windows"
 $RuntimeRoot = Join-Path $BundleRoot "runtime"
 
-if ($Mode -eq "Build") {
+if ($SkipDesktopBundle -and $BundleInstaller) {
+  throw "SkipDesktopBundle and BundleInstaller cannot be used together"
+}
+if ($BundleInstaller -and $Mode -ne "Build") {
+  throw "BundleInstaller is only valid in Build mode"
+}
+
+function Assert-CleanReleaseTrees([string]$Phase) {
   if (git -C $Root status --porcelain) {
-    throw "Windows release builds require a clean fn-knock source tree"
+    throw "Windows release builds require a clean fn-knock source tree ($Phase)"
   }
   if (git -C $GoRepository status --porcelain) {
-    throw "Windows release builds require a clean Go gateway source tree"
+    throw "Windows release builds require a clean Go gateway source tree ($Phase)"
   }
+}
+
+if ($Mode -eq "Build" -and $RequireCleanTree) {
+  Assert-CleanReleaseTrees "before version synchronization"
 }
 
 function Assert-LastExitCode([string]$Operation) {
@@ -47,6 +61,9 @@ function Assert-LastExitCode([string]$Operation) {
 
 function Set-JsonVersion([string]$Path) {
   $document = Get-Content -Raw $Path | ConvertFrom-Json
+  if ([string]$document.version -eq $Version) {
+    return
+  }
   $document.version = $Version
   $json = $document | ConvertTo-Json -Depth 30
   [System.IO.File]::WriteAllText($Path, "$json`n", [System.Text.UTF8Encoding]::new($false))
@@ -54,12 +71,16 @@ function Set-JsonVersion([string]$Path) {
 
 function Set-CargoVersion([string]$Path) {
   $content = Get-Content -Raw $Path
-  $pattern = [regex]::new('(?ms)(\[package\].*?^version\s*=\s*)"[^"]+"')
+  $pattern = [regex]::new('(?ms)(\[package\].*?^version\s*=\s*)"([^"]+)"')
+  $match = $pattern.Match($content)
+  if (-not $match.Success) {
+    throw "Unable to locate the Cargo package version in $Path"
+  }
+  if ($match.Groups[2].Value -eq $Version) {
+    return
+  }
   $replacement = '${1}"' + $Version + '"'
   $updated = $pattern.Replace($content, $replacement, 1)
-  if ($updated -eq $content -and $content -notmatch "version\s*=\s*`"$([regex]::Escape($Version))`"") {
-    throw "Unable to synchronize Cargo version in $Path"
-  }
   [System.IO.File]::WriteAllText($Path, $updated, [System.Text.UTF8Encoding]::new($false))
 }
 
@@ -148,25 +169,87 @@ function Stage-WindowsBundle {
   )
 }
 
-function New-TauriCiConfig {
-  if (-not $env:FN_KNOCK_UPDATER_PUBLIC_KEY) {
-    throw "FN_KNOCK_UPDATER_PUBLIC_KEY is required for a Windows release build"
+function New-TauriBuildConfig {
+  $temporaryRoot = $null
+  $publicKey = ""
+  $endpoint = "https://cdn.fnknock.cn/windows/stable/latest.json"
+  $path = Join-Path $DesktopTauri "tauri.ci.conf.json"
+
+  if (-not [string]::IsNullOrWhiteSpace($env:FN_KNOCK_UPDATER_PUBLIC_KEY)) {
+    $publicKey = $env:FN_KNOCK_UPDATER_PUBLIC_KEY.Trim()
+  } else {
+    if (-not $BundleInstaller) {
+      throw "FN_KNOCK_UPDATER_PUBLIC_KEY is required for a Windows release build"
+    }
+    $temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("fn-knock-tauri-" + [guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Force $temporaryRoot | Out-Null
+    $keyPath = Join-Path $temporaryRoot "updater.key"
+    try {
+      Push-Location $DesktopRoot
+      try {
+        npm run tauri -- signer generate --ci --write-keys $keyPath *> $null
+        Assert-LastExitCode "temporary Tauri updater key generation"
+      } finally {
+        Pop-Location
+      }
+      $publicKeyPath = "$keyPath.pub"
+      if (-not (Test-Path -LiteralPath $publicKeyPath -PathType Leaf)) {
+        throw "Temporary Tauri updater public key was not created"
+      }
+      $publicKey = (Get-Content -Raw -LiteralPath $publicKeyPath).Trim()
+      if (-not $publicKey) {
+        throw "Temporary Tauri updater public key is empty"
+      }
+      Remove-Item -LiteralPath $keyPath, $publicKeyPath -Force
+    } catch {
+      Remove-Item -LiteralPath $temporaryRoot -Recurse -Force -ErrorAction SilentlyContinue
+      throw
+    }
+    $endpoint = "https://updates.invalid/fn-knock/windows/latest.json"
+    $path = Join-Path $temporaryRoot "tauri.local.conf.json"
+    Write-Warning "FN_KNOCK_UPDATER_PUBLIC_KEY is not set; this unsigned local build uses an ephemeral updater public key"
   }
+
   $config = @{
     plugins = @{
       updater = @{
-        pubkey = $env:FN_KNOCK_UPDATER_PUBLIC_KEY
-        endpoints = @("https://cdn.fnknock.cn/windows/stable/latest.json")
+        pubkey = $publicKey
+        endpoints = @($endpoint)
         windows = @{ installMode = "passive" }
       }
     }
   } | ConvertTo-Json -Depth 10
-  $path = Join-Path $DesktopTauri "tauri.ci.conf.json"
-  [System.IO.File]::WriteAllText($path, "$config`n", [System.Text.UTF8Encoding]::new($false))
-  return $path
+  try {
+    [System.IO.File]::WriteAllText($path, "$config`n", [System.Text.UTF8Encoding]::new($false))
+  } catch {
+    if ($temporaryRoot) {
+      Remove-Item -LiteralPath $temporaryRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    throw
+  }
+  return [pscustomobject]@{
+    Path = $path
+    TemporaryRoot = $temporaryRoot
+  }
+}
+
+function Publish-UnsignedInstaller([string]$SetupPath) {
+  if (-not $OutputDirectory) {
+    $script:OutputDirectory = Join-Path $Root "dist\windows"
+  } elseif (-not [System.IO.Path]::IsPathRooted($OutputDirectory)) {
+    $script:OutputDirectory = Join-Path $Root $OutputDirectory
+  }
+  New-Item -ItemType Directory -Force $OutputDirectory | Out-Null
+  $artifactPath = Join-Path $OutputDirectory "fn-knock-$Version-windows-x86_64-unsigned-setup.exe"
+  Copy-Item -LiteralPath $SetupPath -Destination $artifactPath -Force
+  return (Resolve-Path -LiteralPath $artifactPath).Path
 }
 
 Sync-Versions
+
+if ($Mode -eq "Build" -and $RequireCleanTree) {
+  Assert-CleanReleaseTrees "after version synchronization; commit synchronized version metadata before release"
+}
 
 if ($Mode -eq "Prepare") {
   Invoke-FrontendBuilds
@@ -199,15 +282,40 @@ Invoke-RustChecksAndBuild
 Stage-WindowsBundle
 
 if (-not $SkipDesktopBundle) {
-  $ciConfig = New-TauriCiConfig
-  Push-Location $DesktopRoot
+  $buildConfig = New-TauriBuildConfig
   try {
-    npm run tauri -- build --target $Target --no-bundle --config $ciConfig
-    Assert-LastExitCode "Tauri Windows executable build"
+    Push-Location $DesktopRoot
+    try {
+      npm run tauri -- build --target $Target --no-bundle --no-sign --config $buildConfig.Path --ci
+      Assert-LastExitCode "Tauri Windows executable build"
+
+      if ($BundleInstaller) {
+        $bundleStartedAt = [DateTime]::UtcNow.AddSeconds(-2)
+        npm run tauri -- bundle --target $Target --bundles nsis --no-sign --config $buildConfig.Path --ci
+        Assert-LastExitCode "Tauri unsigned NSIS bundle"
+        $setupRoot = Join-Path $DesktopTauri "target\$Target\release\bundle\nsis"
+        $setups = @(Get-ChildItem -LiteralPath $setupRoot -Filter "*-setup.exe" -File |
+          Where-Object LastWriteTimeUtc -ge $bundleStartedAt |
+          Sort-Object LastWriteTimeUtc -Descending)
+        if ($setups.Count -ne 1) {
+          throw "Expected exactly one newly generated NSIS setup in $setupRoot, found $($setups.Count)"
+        }
+        $publishedSetup = Publish-UnsignedInstaller $setups[0].FullName
+        Write-Host "Unsigned NSIS installer: $publishedSetup"
+      }
+    } finally {
+      Pop-Location
+    }
   } finally {
-    Pop-Location
+    if ($buildConfig.TemporaryRoot) {
+      Remove-Item -LiteralPath $buildConfig.TemporaryRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
   }
 }
 
-Write-Host "Windows binaries and runtime are ready for Authenticode signing."
-Write-Host "After signing all three EXEs, run: npm run tauri -- bundle --target $Target --bundles nsis --config <ci-config>"
+if ($BundleInstaller) {
+  Write-Host "The local installer is unsigned and intended for development/testing only."
+} else {
+  Write-Host "Windows binaries and runtime are ready for Authenticode signing."
+  Write-Host "After signing all three EXEs, run: npm run tauri -- bundle --target $Target --bundles nsis --config <ci-config>"
+}

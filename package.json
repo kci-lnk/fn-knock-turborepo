@@ -27,7 +27,7 @@
     "fn-knock:openwrt:build-ipk": "FN_KNOCK_OPENWRT_FORMATS=ipk bash ./scripts/build-openwrt-ipk.sh",
     "fn-knock:windows:prepare": "pwsh -NoProfile -File ./scripts/fn-knock-windows.ps1 -Mode Prepare",
     "fn-knock:windows:test": "pwsh -NoProfile -File ./scripts/fn-knock-windows.ps1 -Mode Test",
-    "fn-knock:windows:build": "pwsh -NoProfile -File ./scripts/fn-knock-windows.ps1 -Mode Build",
+    "fn-knock:windows:build": "pwsh -NoProfile -File ./scripts/fn-knock-windows.ps1 -Mode Build -BundleInstaller",
     "fn-knock:docker:build": "bash ./scripts/fn-knock-docker.sh build-local",
     "fn-knock:docker:up": "bash ./scripts/fn-knock-docker.sh up-local",
     "fn-knock:docker:down": "bash ./scripts/fn-knock-docker.sh down-local",
@@ -58,5 +58,10 @@
     "apps/server-auth-view",
     "apps/fn-knock-desktop",
     "packages/*"
-  ]
+  ],
+  "allowScripts": {
+    "vue-demi@0.14.10": true,
+    "@parcel/watcher@2.5.6": true,
+    "esbuild@0.27.7": true
+  }
 }

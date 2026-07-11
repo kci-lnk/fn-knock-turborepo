@@ -24,7 +24,11 @@ pub(super) fn resolve_backup_archive_path_like_node(
 }
 
 pub(super) fn normalize_path_like_node(path: &Path) -> PathBuf {
-    let path = if path.is_absolute() {
+    // Node's path normalization keeps a separator-rooted path at the root.
+    // On Windows, Path::is_absolute additionally requires a drive prefix,
+    // which would incorrectly prepend the process working directory to
+    // legacy Unix paths such as `/share/backup`.
+    let path = if path.has_root() {
         path.to_path_buf()
     } else {
         std::env::current_dir()

@@ -31,13 +31,21 @@ $ServiceName = "FnKnock"
 $FirewallRuleName = "FnKnock Gateway"
 $ProgramDataRoot = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::CommonApplicationData)) "FnKnock"
 $ProductRoot = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFiles)) "FnKnock"
-# hooks.nsh fixes the per-machine install directory at Program Files\FnKnock\current.
-$InstallRoot = Join-Path $ProductRoot "current"
+$InstallRoot = $ProductRoot
 $ServiceExecutable = Join-Path $InstallRoot "fn-knock-service.exe"
 $GatewayExecutable = Join-Path $InstallRoot "fn-knock-gateway.exe"
 $DesktopExecutable = Join-Path $InstallRoot "fn-knock.exe"
 $BundleIdentityPath = Join-Path $InstallRoot "bundle.json"
 $RuntimeConfigPath = Join-Path $ProgramDataRoot "config\runtime.json"
+$RegistryPaths = @(
+  "Registry::HKEY_LOCAL_MACHINE\Software\fnknock\FnKnock",
+  "Registry::HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Uninstall\FnKnock"
+)
+$ShortcutPaths = @(
+  (Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::CommonPrograms)) "FnKnock.lnk"),
+  (Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::CommonDesktopDirectory)) "FnKnock.lnk")
+)
+$ClassificationFixtureRoot = Join-Path ([IO.Path]::GetTempPath()) "FnKnock-installer-smoke-$PID"
 $script:CleanupAuthorized = $false
 $script:InstallAttempted = $false
 $script:TestSucceeded = $false
@@ -210,6 +218,213 @@ function Wait-FnKnockReady {
   throw "FnKnock did not satisfy the readyz contract within $TimeoutSeconds seconds: $lastDetail"
 }
 
+function Assert-InstalledRuntime {
+  param(
+    [Parameter(Mandatory = $true)][int]$TimeoutSeconds
+  )
+
+  foreach ($file in @(
+    $DesktopExecutable,
+    $ServiceExecutable,
+    $GatewayExecutable,
+    $BundleIdentityPath,
+    (Join-Path $InstallRoot "uninstall.exe")
+  )) {
+    Assert-File $file
+  }
+
+  $bundleIdentity = Get-Content -Raw -LiteralPath $BundleIdentityPath | ConvertFrom-Json
+  Assert-Condition ([string]$bundleIdentity.target -eq "windows-x86_64") `
+    "The installed bundle target is not windows-x86_64"
+  Assert-Condition (-not [string]::IsNullOrWhiteSpace([string]$bundleIdentity.version)) `
+    "The installed bundle has no version"
+  Assert-Condition ([int]$bundleIdentity.control_api_version -eq 1) `
+    "The installed bundle does not use control API version 1"
+  foreach ($path in $RegistryPaths) {
+    Assert-Condition (Test-Path -LiteralPath $path) `
+      "Installer did not create required 64-bit registry metadata: $path"
+  }
+  Assert-File $ShortcutPaths[0]
+
+  Wait-ServiceState -State "Running" -TimeoutSeconds $TimeoutSeconds
+  Wait-FnKnockReady `
+    -ExpectedVersion ([string]$bundleIdentity.version) `
+    -ExpectedControlApiVersion ([int]$bundleIdentity.control_api_version) `
+    -TimeoutSeconds $TimeoutSeconds
+  Assert-Condition ((Get-FnKnockFirewallRules).Count -gt 0) `
+    "Installer did not create the '$FirewallRuleName' firewall rule"
+}
+
+function Assert-InstallerMetadataAbsent {
+  foreach ($path in $RegistryPaths) {
+    Assert-Condition (-not (Test-Path -LiteralPath $path)) `
+      "Installer registry metadata was not removed: $path"
+  }
+  foreach ($path in $ShortcutPaths) {
+    Assert-Condition (-not (Test-Path -LiteralPath $path)) `
+      "Installer left a broken all-users shortcut: $path"
+  }
+}
+
+function Invoke-NativeExpectFailure {
+  param(
+    [Parameter(Mandatory = $true)][string]$FilePath,
+    [string[]]$Arguments = @()
+  )
+  $output = & $FilePath @Arguments 2>&1
+  $exitCode = $LASTEXITCODE
+  if ($output) {
+    $output | ForEach-Object { Write-Host $_ }
+  }
+  if ($exitCode -eq 0) {
+    throw "$FilePath unexpectedly succeeded"
+  }
+}
+
+function Assert-UninstalledRuntime {
+  param(
+    [Parameter(Mandatory = $true)][int]$TimeoutSeconds
+  )
+
+  Wait-ServiceAbsent -TimeoutSeconds $TimeoutSeconds
+  Wait-FirewallRulesAbsent -TimeoutSeconds $TimeoutSeconds
+  Assert-Condition (-not (Test-Path -LiteralPath $ProductRoot)) `
+    "NSIS uninstall left the Program Files install root behind"
+  Assert-Condition (Test-Path -LiteralPath $ProgramDataRoot -PathType Container) `
+    "NSIS uninstall removed ProgramData instead of retaining it"
+  Assert-InstallerMetadataAbsent
+}
+
+function Save-BundleClassificationFixture {
+  if (Test-Path -LiteralPath $ClassificationFixtureRoot) {
+    throw "Classification fixture already exists: $ClassificationFixtureRoot"
+  }
+  New-Item -ItemType Directory -Path $ClassificationFixtureRoot | Out-Null
+  Copy-Item -LiteralPath $ServiceExecutable -Destination $ClassificationFixtureRoot
+  Copy-Item -LiteralPath $GatewayExecutable -Destination $ClassificationFixtureRoot
+}
+
+function Assert-InstallerRejectsMalformedCompleteBundle {
+  New-Item -ItemType Directory -Force -Path $ProductRoot | Out-Null
+  foreach ($name in @("fn-knock-service.exe", "fn-knock-gateway.exe")) {
+    Copy-Item -LiteralPath (Join-Path $ClassificationFixtureRoot $name) -Destination $ProductRoot
+  }
+  $malformedIdentity = '{"version":"","control_api_version":0,"target":"not-windows"}'
+  [IO.File]::WriteAllText($BundleIdentityPath, $malformedIdentity)
+  $beforeHashes = @{}
+  foreach ($path in @($ServiceExecutable, $GatewayExecutable)) {
+    $beforeHashes[$path] = (Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash
+  }
+
+  Write-Host "Verifying that upgrade classification rejects and preserves an invalid complete bundle"
+  Invoke-NativeExpectFailure -FilePath $SetupPath -Arguments @("/S")
+  foreach ($path in @($ServiceExecutable, $GatewayExecutable)) {
+    Assert-File $path
+    Assert-Condition ((Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash -eq $beforeHashes[$path]) `
+      "The rejected invalid bundle was modified: $path"
+  }
+  Assert-Condition ((Get-Content -Raw -LiteralPath $BundleIdentityPath) -eq $malformedIdentity) `
+    "The rejected invalid bundle identity was modified"
+  Assert-Condition ($null -eq (Get-FnKnockService)) `
+    "The rejected invalid bundle unexpectedly registered the service"
+  Assert-Condition ((Get-FnKnockFirewallRules).Count -eq 0) `
+    "The rejected invalid bundle unexpectedly created a firewall rule"
+  Assert-InstallerMetadataAbsent
+  Assert-Condition (-not (Test-Path -LiteralPath (Join-Path $ProgramDataRoot "rollback\pending\transaction.pending") -PathType Leaf)) `
+    "The rejected invalid bundle left an armed transaction marker"
+
+  Remove-TestOwnedDirectory -Path $ProductRoot
+}
+
+function Assert-InstallerUpgradesLegacyBundleIdentity {
+  New-Item -ItemType Directory -Force -Path $ProductRoot | Out-Null
+  foreach ($name in @("fn-knock-service.exe", "fn-knock-gateway.exe")) {
+    Copy-Item -LiteralPath (Join-Path $ClassificationFixtureRoot $name) -Destination $ProductRoot
+  }
+  # Releases produced before control_api_version was added used this shape.
+  # They already implement control API v1 and must remain upgradeable.
+  $legacyIdentity = @{
+    version = "2.0.1"
+    target = "windows-x86_64"
+    files = @("fn-knock-service.exe", "fn-knock-gateway.exe")
+  } | ConvertTo-Json -Depth 5
+  [IO.File]::WriteAllText($BundleIdentityPath, $legacyIdentity)
+
+  Write-Host "Verifying upgrade compatibility with a legacy bundle identity"
+  Invoke-NativeChecked -FilePath $SetupPath -Arguments @("/S")
+  Assert-InstalledRuntime -TimeoutSeconds $ReadyTimeoutSeconds
+
+  Write-Host "Uninstalling the legacy-identity upgrade fixture"
+  Invoke-NativeChecked -FilePath (Join-Path $InstallRoot "uninstall.exe") -Arguments @("/S")
+  Assert-UninstalledRuntime -TimeoutSeconds $UninstallTimeoutSeconds
+}
+
+function Add-DanglingServiceFixture {
+  Assert-Condition (-not (Test-Path -LiteralPath $ServiceExecutable)) `
+    "The repair-first fixture requires the service executable to be absent"
+  $expected = "`"$ServiceExecutable`" --service"
+  New-Service `
+    -Name $ServiceName `
+    -BinaryPathName $expected `
+    -DisplayName "fn-knock Gateway" `
+    -StartupType Automatic | Out-Null
+  Invoke-NativeChecked -FilePath "$env:SystemRoot\System32\sc.exe" -Arguments @(
+    "sidtype", $ServiceName, "unrestricted"
+  )
+  $record = Get-CimInstance -ClassName Win32_Service -Filter "Name='FnKnock'" -ErrorAction Stop
+  Assert-Condition ([string]$record.PathName -eq $expected) `
+    "The repair-first fixture registered an unexpected service command: $($record.PathName)"
+  Write-Host "Prepared a matching dangling SCM service for repair-first coverage"
+}
+
+function Add-RestrictedProgramDataFixture {
+  $fixture = Join-Path $ProgramDataRoot "logs\installer-acl-regression"
+  New-Item -ItemType Directory -Force -Path $fixture | Out-Null
+  [IO.File]::WriteAllText(
+    (Join-Path $fixture "system-owned.txt"),
+    "The installer must recover this deliberately restricted stale entry."
+  )
+
+  # Reproduce state left by an older SYSTEM-owned install. The service has
+  # already been uninstalled, so the next setup must recover this tree before
+  # its transaction helper can enumerate or replace ACLs.
+  Invoke-NativeChecked -FilePath "$env:SystemRoot\System32\icacls.exe" -Arguments @(
+    $fixture,
+    "/setowner", "*S-1-5-18",
+    "/T", "/L", "/Q"
+  )
+  Invoke-NativeChecked -FilePath "$env:SystemRoot\System32\icacls.exe" -Arguments @(
+    $fixture,
+    "/inheritance:r",
+    "/grant:r", "*S-1-5-18:(OI)(CI)F",
+    "/T", "/L", "/Q"
+  )
+  Write-Host "Prepared a SYSTEM-only ProgramData ACL regression fixture"
+}
+
+function Assert-FirstInstallPreservesNonEmptyDirectory {
+  $legacyRoot = Join-Path $ProductRoot "current"
+  $sentinel = Join-Path $legacyRoot "pre-existing-sentinel.txt"
+  $sentinelContent = "This pre-existing legacy content must never be deleted."
+  New-Item -ItemType Directory -Force -Path $legacyRoot | Out-Null
+  [IO.File]::WriteAllText($sentinel, $sentinelContent)
+
+  Write-Host "Verifying that first install rejects and preserves a non-empty/legacy install root"
+  Invoke-NativeExpectFailure -FilePath $SetupPath -Arguments @("/S")
+  Assert-File $sentinel
+  Assert-Condition ((Get-Content -Raw -LiteralPath $sentinel) -eq $sentinelContent) `
+    "The rejected first install modified the pre-existing sentinel"
+  Assert-Condition ($null -eq (Get-FnKnockService)) `
+    "The rejected first install unexpectedly registered the service"
+  Assert-Condition ((Get-FnKnockFirewallRules).Count -eq 0) `
+    "The rejected first install unexpectedly created a firewall rule"
+  Assert-InstallerMetadataAbsent
+  Assert-Condition (-not (Test-Path -LiteralPath (Join-Path $ProgramDataRoot "rollback\pending\transaction.pending") -PathType Leaf)) `
+    "The rejected first install left an armed transaction marker"
+
+  Remove-TestOwnedDirectory -Path $ProductRoot
+}
+
 function Write-InstallerDiagnostics {
   Write-Warning "FnKnock installer smoke test diagnostics follow"
   try {
@@ -238,8 +453,16 @@ function Remove-TestOwnedDirectory {
 
   # The installer deliberately makes its trees SYSTEM-owned. Retake only the
   # two fixed locations whose absence was verified before this test began.
-  try { & takeown.exe /F $Path /R /D Y | Out-Null } catch { Write-Verbose $_.Exception.Message }
-  try { & icacls.exe $Path /grant "*S-1-5-32-544:(OI)(CI)F" /T /C | Out-Null } catch { Write-Verbose $_.Exception.Message }
+  $takeownHelp = (& takeown.exe /? 2>&1 | Out-String)
+  if ($LASTEXITCODE -ne 0 -or $takeownHelp -notmatch '(?im)(^|\s)/SKIPSL(\s|$)') {
+    throw "Refusing recursive cleanup because takeown.exe lacks /SKIPSL"
+  }
+  Invoke-NativeChecked -FilePath "$env:SystemRoot\System32\takeown.exe" -Arguments @(
+    "/F", $Path, "/R", "/D", "Y", "/SKIPSL"
+  )
+  Invoke-NativeChecked -FilePath "$env:SystemRoot\System32\icacls.exe" -Arguments @(
+    $Path, "/grant", "*S-1-5-32-544:(OI)(CI)F", "/T", "/C", "/L"
+  )
   Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
 }
 
@@ -284,6 +507,30 @@ function Invoke-InstallerCleanup {
     }
   }
 
+  foreach ($path in $ShortcutPaths) {
+    try {
+      if (Test-Path -LiteralPath $path -PathType Leaf) {
+        Remove-Item -LiteralPath $path -Force -ErrorAction Stop
+      }
+    } catch {
+      Write-Warning "Cleanup could not remove shortcut ${path}: $($_.Exception.Message)"
+    }
+  }
+  foreach ($path in $RegistryPaths) {
+    try {
+      Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction SilentlyContinue
+    } catch {
+      Write-Warning "Cleanup could not remove registry metadata ${path}: $($_.Exception.Message)"
+    }
+  }
+  try {
+    if (Test-Path -LiteralPath $ClassificationFixtureRoot) {
+      Remove-Item -LiteralPath $ClassificationFixtureRoot -Recurse -Force -ErrorAction Stop
+    }
+  } catch {
+    Write-Warning "Cleanup could not remove classification fixture: $($_.Exception.Message)"
+  }
+
   if ($script:TestSucceeded) {
     $leftovers = [System.Collections.Generic.List[string]]::new()
     if ($null -ne (Get-FnKnockService)) {
@@ -297,6 +544,14 @@ function Invoke-InstallerCleanup {
     }
     if (Test-Path -LiteralPath $ProgramDataRoot) {
       $leftovers.Add("ProgramData")
+    }
+    foreach ($path in @($RegistryPaths + $ShortcutPaths)) {
+      if (Test-Path -LiteralPath $path) {
+        $leftovers.Add("installer metadata: $path")
+      }
+    }
+    if (Test-Path -LiteralPath $ClassificationFixtureRoot) {
+      $leftovers.Add("classification fixture")
     }
     if ($leftovers.Count -ne 0) {
       throw "Installer smoke test passed, but final cleanup left: $($leftovers -join ', ')"
@@ -319,6 +574,7 @@ try {
   if ((Get-FnKnockProcesses).Count -ne 0) {
     throw "Refusing to run: an existing FnKnock process is running"
   }
+  Assert-InstallerMetadataAbsent
 
   # Re-check immediately before allowing cleanup. This prevents a stale
   # preflight from granting deletion rights over a concurrently-created install.
@@ -332,46 +588,32 @@ try {
       (Get-FnKnockProcesses).Count -ne 0) {
     throw "Refusing to install: FnKnock state appeared after the initial safety check"
   }
+  Assert-InstallerMetadataAbsent
   $script:CleanupAuthorized = $true
 
   Write-Host "Installing NSIS package silently: $SetupPath"
   $script:InstallAttempted = $true
   Invoke-NativeChecked -FilePath $SetupPath -Arguments @("/S")
-
-  foreach ($file in @(
-    $DesktopExecutable,
-    $ServiceExecutable,
-    $GatewayExecutable,
-    $BundleIdentityPath,
-    (Join-Path $InstallRoot "uninstall.exe")
-  )) {
-    Assert-File $file
-  }
-
-  $bundleIdentity = Get-Content -Raw -LiteralPath $BundleIdentityPath | ConvertFrom-Json
-  Assert-Condition ([string]$bundleIdentity.target -eq "windows-x86_64") `
-    "The installed bundle target is not windows-x86_64"
-  Assert-Condition (-not [string]::IsNullOrWhiteSpace([string]$bundleIdentity.version)) `
-    "The installed bundle has no version"
-  Assert-Condition ([int]$bundleIdentity.control_api_version -eq 1) `
-    "The installed bundle does not use control API version 1"
-
-  Wait-ServiceState -State "Running" -TimeoutSeconds $ReadyTimeoutSeconds
-  Wait-FnKnockReady `
-    -ExpectedVersion ([string]$bundleIdentity.version) `
-    -ExpectedControlApiVersion ([int]$bundleIdentity.control_api_version) `
-    -TimeoutSeconds $ReadyTimeoutSeconds
-  Assert-Condition ((Get-FnKnockFirewallRules).Count -gt 0) `
-    "Installer did not create the '$FirewallRuleName' firewall rule"
+  Assert-InstalledRuntime -TimeoutSeconds $ReadyTimeoutSeconds
+  Save-BundleClassificationFixture
 
   Write-Host "Uninstalling NSIS package silently"
   Invoke-NativeChecked -FilePath (Join-Path $InstallRoot "uninstall.exe") -Arguments @("/S")
-  Wait-ServiceAbsent -TimeoutSeconds $UninstallTimeoutSeconds
-  Wait-FirewallRulesAbsent -TimeoutSeconds $UninstallTimeoutSeconds
-  Assert-Condition (-not (Test-Path -LiteralPath $ProductRoot)) `
-    "NSIS uninstall left the Program Files install root behind"
-  Assert-Condition (Test-Path -LiteralPath $ProgramDataRoot -PathType Container) `
-    "NSIS uninstall removed ProgramData instead of retaining it"
+  Assert-UninstalledRuntime -TimeoutSeconds $UninstallTimeoutSeconds
+
+  Assert-InstallerRejectsMalformedCompleteBundle
+  Assert-InstallerUpgradesLegacyBundleIdentity
+  Assert-FirstInstallPreservesNonEmptyDirectory
+  Add-DanglingServiceFixture
+  Add-RestrictedProgramDataFixture
+
+  Write-Host "Reinstalling NSIS package over retained ProgramData"
+  Invoke-NativeChecked -FilePath $SetupPath -Arguments @("/S")
+  Assert-InstalledRuntime -TimeoutSeconds $ReadyTimeoutSeconds
+
+  Write-Host "Uninstalling NSIS package after retained-ProgramData reinstall"
+  Invoke-NativeChecked -FilePath (Join-Path $InstallRoot "uninstall.exe") -Arguments @("/S")
+  Assert-UninstalledRuntime -TimeoutSeconds $UninstallTimeoutSeconds
 
   $script:TestSucceeded = $true
   Write-Host "FnKnock NSIS installer smoke test passed"

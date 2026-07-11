@@ -68,15 +68,28 @@ const SERVICE_ACCOUNT: &str = r"NT SERVICE\FnKnock";
 const FIREWALL_RULE_NAME: &str = "FnKnock Gateway";
 const SCM_RESTART_DELAYS_SECONDS: [u64; 3] = [5, 30, 60];
 const ROOT_ACL_GRANTS: &[&str] = &[
+    "*S-1-5-18:F",
     "*S-1-5-18:(OI)(CI)F",
+    "*S-1-5-32-544:F",
     "*S-1-5-32-544:(OI)(CI)F",
+    r"NT SERVICE\FnKnock:M",
     r"NT SERVICE\FnKnock:(OI)(CI)M",
 ];
 const STATE_ACL_GRANTS: &[&str] = &[
+    "*S-1-5-18:F",
     "*S-1-5-18:(OI)(CI)F",
+    "*S-1-5-32-544:F",
     "*S-1-5-32-544:(OI)(CI)F",
+    r"NT SERVICE\FnKnock:M",
     r"NT SERVICE\FnKnock:(OI)(CI)M",
+    "*S-1-5-32-545:RX",
     "*S-1-5-32-545:(OI)(CI)RX",
+];
+const ROLLBACK_ACL_GRANTS: &[&str] = &[
+    "*S-1-5-18:F",
+    "*S-1-5-18:(OI)(CI)F",
+    "*S-1-5-32-544:F",
+    "*S-1-5-32-544:(OI)(CI)F",
 ];
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(60);
 const START_PENDING_UPDATE_INTERVAL: Duration = Duration::from_secs(10);
@@ -1228,6 +1241,7 @@ fn configure_program_data_environment(paths: &WindowsPaths) {
     set_env("FN_KNOCK_RUNTIME_TARGET", "windows");
     set_env("FN_KNOCK_DATA_DIR", &paths.data);
     set_env("FN_KNOCK_GATEWAY_CONFIG_DIR", &paths.gateway);
+    set_env("FN_KNOCK_WAF_DIR", &paths.waf);
     set_env(
         "FN_KNOCK_SQLITE_PATH",
         paths.data.join("storage/fn-knock.sqlite3"),
@@ -1624,18 +1638,31 @@ fn wait_for_service_stopped(service: &Service, timeout: Duration) -> anyhow::Res
 
 fn configure_program_data_acl(paths: &WindowsPaths) -> anyhow::Result<()> {
     let root = paths.root.to_string_lossy().into_owned();
+    let root_reset_args = [root.as_str(), "/reset", "/T", "/L"];
+    run_system_checked("icacls.exe", &root_reset_args)?;
     let mut root_args = vec![root.as_str(), "/inheritance:r", "/grant:r"];
     root_args.extend_from_slice(ROOT_ACL_GRANTS);
-    root_args.extend_from_slice(&["/T", "/C"]);
+    root_args.push("/L");
     run_system_checked("icacls.exe", &root_args)?;
     let state = paths.state.to_string_lossy().into_owned();
-    let mut state_args = vec![state.as_str(), "/grant:r"];
+    let state_reset_args = [state.as_str(), "/reset", "/T", "/L"];
+    run_system_checked("icacls.exe", &state_reset_args)?;
+    let mut state_args = vec![state.as_str(), "/inheritance:r", "/grant:r"];
     state_args.extend_from_slice(STATE_ACL_GRANTS);
-    state_args.extend_from_slice(&["/T", "/C"]);
+    state_args.push("/L");
     // Built-in Users are intentionally granted only this subtree. Windows'
     // default Bypass Traverse Checking privilege permits opening the known
     // status path without exposing listings or files under the protected root.
-    run_system_checked("icacls.exe", &state_args)
+    run_system_checked("icacls.exe", &state_args)?;
+    let rollback = paths.rollback.to_string_lossy().into_owned();
+    let rollback_reset_args = [rollback.as_str(), "/reset", "/T", "/L"];
+    run_system_checked("icacls.exe", &rollback_reset_args)?;
+    let mut rollback_args = vec![rollback.as_str(), "/inheritance:r", "/grant:r"];
+    rollback_args.extend_from_slice(ROLLBACK_ACL_GRANTS);
+    rollback_args.push("/L");
+    // The running service never reads installer snapshots or transaction
+    // markers. Keep this subtree writable only by SYSTEM and administrators.
+    run_system_checked("icacls.exe", &rollback_args)
 }
 
 fn configure_firewall_rule(service_executable: &Path) -> anyhow::Result<()> {
@@ -1713,6 +1740,20 @@ mod tests {
                 .iter()
                 .any(|grant| *grant == "*S-1-5-32-545:(OI)(CI)RX")
         );
+        assert!(
+            !ROLLBACK_ACL_GRANTS
+                .iter()
+                .any(|grant| grant.contains("NT SERVICE\\FnKnock"))
+        );
+        for grants in [ROOT_ACL_GRANTS, STATE_ACL_GRANTS, ROLLBACK_ACL_GRANTS] {
+            assert!(grants.contains(&"*S-1-5-18:F"));
+            assert!(grants.contains(&"*S-1-5-18:(OI)(CI)F"));
+            assert!(grants.contains(&"*S-1-5-32-544:F"));
+            assert!(grants.contains(&"*S-1-5-32-544:(OI)(CI)F"));
+        }
+        assert!(ROOT_ACL_GRANTS.contains(&r"NT SERVICE\FnKnock:M"));
+        assert!(STATE_ACL_GRANTS.contains(&"*S-1-5-32-545:RX"));
+        assert_eq!(ROLLBACK_ACL_GRANTS.len(), 4);
     }
 
     #[test]

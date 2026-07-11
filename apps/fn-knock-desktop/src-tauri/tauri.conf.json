@@ -23,7 +23,9 @@
       }
     ],
     "security": {
-      "capabilities": ["status"],
+      "capabilities": [
+        "status"
+      ],
       "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'none'"
     }
   },
@@ -33,6 +35,9 @@
     "copyright": "Copyright © FnKnock",
     "shortDescription": "FnKnock Windows gateway",
     "longDescription": "FnKnock native Windows gateway service and management application.",
-    "icon": ["../fn-knock/ICON_64.PNG", "../fn-knock/ICON_256.PNG"]
+    "icon": [
+      "../fn-knock/ICON_64.PNG",
+      "../fn-knock/ICON_256.PNG"
+    ]
   }
 }

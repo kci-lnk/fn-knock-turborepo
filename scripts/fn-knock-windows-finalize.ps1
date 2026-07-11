@@ -15,6 +15,15 @@ $BundleIdentity = Get-Content -Raw $BundleIdentityPath | ConvertFrom-Json
 if ([string]$BundleIdentity.version -ne $Version) {
   throw "Staged bundle identity does not match release version $Version"
 }
+foreach ($property in @("commit", "gateway_commit")) {
+  $value = [string]$BundleIdentity.$property
+  if ($value -notmatch '^[0-9a-fA-F]{40}$') {
+    throw "Staged bundle identity has an invalid or missing $property"
+  }
+}
+if ([int]$BundleIdentity.control_api_version -ne 1) {
+  throw "Staged bundle identity has an invalid or missing control_api_version"
+}
 $SetupPath = (Resolve-Path $SetupPath).Path
 if (-not $OutputDirectory) {
   $OutputDirectory = Join-Path $Root "dist\fn-knock-artifacts\windows\x86_64"

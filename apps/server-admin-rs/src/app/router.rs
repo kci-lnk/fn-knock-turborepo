@@ -18,6 +18,7 @@ use crate::{
     cloudflared::cloudflared_routes,
     dashboard::dashboard_routes,
     ddns_status::ddns_status_routes,
+    fnos_certificate_sync::fnos_certificate_sync_routes,
     frpc::frpc_routes,
     gateway_logs::gateway_logs_routes,
     gateway_settings::gateway_settings_routes,
@@ -85,6 +86,9 @@ pub(super) fn backend_router(state: AppState, protected_admin_view: bool) -> Rou
         .merge(waf_routes());
     if capabilities.acme_available {
         api = api.merge(acme_routes());
+    }
+    if capabilities.fnos_certificate_sync_available {
+        api = api.merge(fnos_certificate_sync_routes());
     }
     if capabilities.terminal_available {
         api = api.merge(terminal_routes());

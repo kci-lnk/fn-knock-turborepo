@@ -1554,6 +1554,53 @@ export const enAdmin = {
     deleteConfirmTitle: "Delete the Cloudflared resource?",
     deleteConfirmDescription: "You must download it again before use.",
   },
+  fnosCertificateSync: {
+    entryTitle: "FNOS SSL certificate sync",
+    entryDescription:
+      "Update matching existing FNOS certificates from this certificate library",
+    entrySummary: "{total} FNOS certificates, {syncable} pending sync",
+    systemSettings: "System settings",
+    fnos: "FNOS",
+    title: "FNOS SSL certificate sync",
+    description:
+      "Compare both certificate libraries and safely update existing FNOS certificates with exactly matching domain sets.",
+    noInsertNotice:
+      "This feature only updates existing FNOS records with matching domain sets. It never creates or deletes FNOS certificate records.",
+    autoSync: "Automatic sync",
+    autoSyncDescription:
+      "After library changes, wait about 3 seconds, batch updates, and refresh FNOS services once.",
+    autoSyncUpdated: "Automatic sync setting updated",
+    lastSync: "Last sync: {time}",
+    summary: "{total} total · {syncable} pending · {up_to_date} up to date",
+    syncAll: "Sync all ({count})",
+    syncOne: "Sync",
+    syncing: "Syncing…",
+    syncCompleted: "Sync complete: {synced} updated, {skipped} skipped",
+    syncFailed: "Sync failed",
+    loadFailed: "Failed to load FNOS certificates",
+    unavailable:
+      "The FNOS certificate synchronization environment is unavailable",
+    saveFailed: "Failed to save automatic sync setting",
+    renewalWarning:
+      "FNOS renewal is enabled and may overwrite this certificate later.",
+    empty: "FNOS has no certificate records",
+    columns: {
+      target: "FNOS certificate",
+      validity: "Validity",
+      local: "Local match",
+      status: "Status",
+      action: "Action",
+    },
+    status: {
+      unmatched: "No match",
+      up_to_date: "Up to date",
+      syncable: "Ready to sync",
+      source_invalid: "Invalid local certificate",
+      target_invalid: "Invalid FNOS data",
+      protected: "Protected system certificate",
+      sync_failed: "Last sync failed",
+    },
+  },
   fnosSettings: {
     loadFailed: "Load failed",
     loadDescription: "Failed to load FNOS settings",

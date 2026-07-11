@@ -159,7 +159,7 @@ pub(super) fn mirror_active_ssl_certificate(ssl: &Value, active_id: Option<&str>
     next
 }
 
-pub(super) fn validate_ssl_cert(cert: &str, key: &str) -> anyhow::Result<()> {
+pub(crate) fn validate_ssl_cert(cert: &str, key: &str) -> anyhow::Result<()> {
     validate_ssl_cert_pair(cert, key).map_err(|error| anyhow!(ssl_validation_error_plain(error)))
 }
 

@@ -18,6 +18,8 @@ import type {
   FnKnockBackupExportToDirectoryResult,
   FnKnockBackupImportArchiveRequest,
   FnKnockBackupImportResult,
+  FnosCertificateSyncDetails,
+  FnosCertificateSyncResponse,
   FnosNetworkTuningStatus,
   FnosNetworkTuningUpdatePayload,
   FnosPortIconHijackConfig,
@@ -966,6 +968,26 @@ export const SystemAPI = {
     payload: FnosNetworkTuningUpdatePayload,
   ): Promise<FnosNetworkTuningStatus> {
     const res = await apiClient.post("/config/fnos_network_tuning", payload);
+    return res.data.data;
+  },
+  async getFnosCertificateSyncDetails(): Promise<FnosCertificateSyncDetails> {
+    const res = await apiClient.get("/config/fnos_certificate_sync/details");
+    return res.data.data;
+  },
+  async updateFnosCertificateSyncConfig(
+    auto_sync_enabled: boolean,
+  ): Promise<FnosCertificateSyncDetails> {
+    const res = await apiClient.post("/config/fnos_certificate_sync", {
+      auto_sync_enabled,
+    });
+    return res.data.data;
+  },
+  async syncFnosCertificates(
+    target_ids: string[] = [],
+  ): Promise<FnosCertificateSyncResponse> {
+    const res = await apiClient.post("/config/fnos_certificate_sync/sync", {
+      target_ids,
+    });
     return res.data.data;
   },
   async getFrpStatus() {

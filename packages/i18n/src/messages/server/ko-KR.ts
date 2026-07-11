@@ -40,6 +40,12 @@ export const koKRServer = {
         permission:
           "현재 프로세스에는 Smart Connect에 필요한 호스트 관리 기능이 없습니다.",
       },
+      fnos_certificate_sync_available: {
+        docker: "Docker 배포는 FNOS SSL 인증서 동기화를 지원하지 않습니다",
+        platform: "FNOS SSL 인증서 동기화는 FPK 배포에서만 사용할 수 있습니다",
+        permission:
+          "현재 프로세스에 FNOS SSL 인증서 동기화에 필요한 root 권한이 없습니다",
+      },
       system_clock_sync_available: {
         docker: "Docker 배포는 호스트 시스템 시간 동기화를 지원하지 않습니다.",
         platform: "현재 런타임은 시스템 시간 동기화를 지원하지 않습니다.",

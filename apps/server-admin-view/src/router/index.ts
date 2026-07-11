@@ -148,6 +148,12 @@ const router = createRouter({
             import("../views/system-settings/SmartConnectSettings.vue"),
         },
         {
+          path: "system/fnos-certificate-sync",
+          name: "FnosCertificateSyncSettings",
+          component: () =>
+            import("../views/system-settings/FnosCertificateSyncSettings.vue"),
+        },
+        {
           path: "sessions",
           name: "SessionManagement",
           component: () => import("../views/SessionManagement.vue"),
@@ -225,7 +231,8 @@ router.beforeEach(async (to, from) => {
     to.path !== "/ssh-security" &&
     to.path !== "/tunnel" &&
     !to.path.startsWith("/tunnel/") &&
-    to.path !== "/system/smart-connect"
+    to.path !== "/system/smart-connect" &&
+    to.path !== "/system/fnos-certificate-sync"
   ) {
     return true;
   }
@@ -291,6 +298,13 @@ router.beforeEach(async (to, from) => {
         tab: "features",
       },
     };
+  }
+
+  if (
+    to.path === "/system/fnos-certificate-sync" &&
+    !configStore.canUseFnosCertificateSync
+  ) {
+    return { path: "/system", query: { tab: "fnos" } };
   }
 
   const isProtocolMappingVisible =

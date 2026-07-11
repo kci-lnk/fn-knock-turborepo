@@ -35,6 +35,11 @@ export const zhHantServer = {
         platform: "目前運行環境暫不支援 Smart Connect",
         permission: "目前進程沒有 Smart Connect 所需的宿主機管理能力",
       },
+      fnos_certificate_sync_available: {
+        docker: "Docker 部署不支援飛牛 SSL 證書庫同步",
+        platform: "飛牛 SSL 證書庫同步僅支援 FPK 部署",
+        permission: "目前進程沒有同步飛牛 SSL 證書所需的 root 權限",
+      },
       system_clock_sync_available: {
         docker: "Docker 部署不支援宿主機系統時間同步",
         platform: "目前運行環境不支援系統時間同步",

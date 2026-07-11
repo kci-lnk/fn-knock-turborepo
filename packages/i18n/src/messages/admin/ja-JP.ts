@@ -1583,6 +1583,52 @@ export const jaJPAdmin = {
     deleteConfirmDescription:
       "削除後、使用する前に再ダウンロードする必要があります。",
   },
+  fnosCertificateSync: {
+    entryTitle: "FNOS SSL 証明書同期",
+    entryDescription:
+      "ローカル証明書ライブラリから一致する既存の FNOS 証明書を更新します",
+    entrySummary: "FNOS 証明書 {total} 件、同期待ち {syncable} 件",
+    systemSettings: "システム設定",
+    fnos: "FNOS",
+    title: "FNOS SSL 証明書同期",
+    description:
+      "両方の証明書ライブラリを比較し、ドメイン集合が完全に一致する既存の FNOS 証明書を安全に更新します。",
+    noInsertNotice:
+      "この機能はドメインが一致する既存の FNOS レコードだけを更新し、レコードの追加や削除は行いません。",
+    autoSync: "自動同期",
+    autoSyncDescription:
+      "ライブラリ変更後に約 3 秒待機し、一括同期して FNOS サービスを一度だけ更新します。",
+    autoSyncUpdated: "自動同期設定を更新しました",
+    lastSync: "最終同期：{time}",
+    summary: "合計 {total} 件 · 同期待ち {syncable} 件 · 最新 {up_to_date} 件",
+    syncAll: "すべて同期（{count}）",
+    syncOne: "同期",
+    syncing: "同期中…",
+    syncCompleted: "同期完了：{synced} 件成功、{skipped} 件スキップ",
+    syncFailed: "同期に失敗しました",
+    loadFailed: "FNOS 証明書を読み込めませんでした",
+    unavailable: "FNOS 証明書同期環境を使用できません",
+    saveFailed: "自動同期設定を保存できませんでした",
+    renewalWarning:
+      "FNOS 自動更新が有効なため、後で上書きされる可能性があります。",
+    empty: "FNOS に証明書レコードがありません",
+    columns: {
+      target: "FNOS 証明書",
+      validity: "有効期間",
+      local: "ローカル一致",
+      status: "状態",
+      action: "操作",
+    },
+    status: {
+      unmatched: "一致なし",
+      up_to_date: "最新",
+      syncable: "同期可能",
+      source_invalid: "ローカル証明書が無効",
+      target_invalid: "FNOS データが無効",
+      protected: "保護されたシステム証明書",
+      sync_failed: "前回の同期に失敗",
+    },
+  },
   fnosSettings: {
     loadFailed: "ロードに失敗しました",
     loadDescription: "Feiniu設定を取得できません",

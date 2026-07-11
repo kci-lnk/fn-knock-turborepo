@@ -35,6 +35,11 @@ export const zhCNServer = {
         platform: "当前运行环境暂不支持 Smart Connect",
         permission: "当前进程没有 Smart Connect 所需的宿主机管理能力",
       },
+      fnos_certificate_sync_available: {
+        docker: "Docker 部署不支持飞牛 SSL 证书库同步",
+        platform: "飞牛 SSL 证书库同步仅支持 FPK 部署",
+        permission: "当前进程没有同步飞牛 SSL 证书所需的 root 权限",
+      },
       system_clock_sync_available: {
         docker: "Docker 部署不支持宿主机系统时间同步",
         platform: "当前运行环境不支持系统时间同步",

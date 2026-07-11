@@ -45,6 +45,7 @@ export interface RuntimeCapabilities {
   direct_mode_available: boolean;
   host_firewall_available: boolean;
   smart_connect_available: boolean;
+  fnos_certificate_sync_available?: boolean;
   system_clock_sync_available: boolean;
   self_update_available: boolean;
   terminal_available: boolean;
@@ -273,6 +274,60 @@ export interface FnosShareBypassConfig {
 export interface FnosPortIconHijackConfig {
   enabled: boolean;
   updated_at: string | null;
+}
+
+export type FnosCertificateSyncStatus =
+  | "unmatched"
+  | "up_to_date"
+  | "syncable"
+  | "source_invalid"
+  | "target_invalid"
+  | "protected"
+  | "sync_failed";
+
+export interface FnosCertificateSyncItem {
+  target_id: string;
+  domain: string;
+  san: string[];
+  source: string;
+  renewal: boolean;
+  valid_from: number | null;
+  valid_to: number | null;
+  fingerprint: string | null;
+  status: FnosCertificateSyncStatus;
+  reason: string | null;
+  local: {
+    id: string;
+    label: string;
+    valid_from: number | null;
+    valid_to: number | null;
+    fingerprint: string | null;
+  } | null;
+}
+
+export interface FnosCertificateSyncDetails {
+  availability: { available: boolean; reason: string | null };
+  config: { auto_sync_enabled: boolean };
+  runtime: {
+    running: boolean;
+    last_sync_at: number | null;
+    last_result: FnosCertificateSyncSummary | null;
+    last_error: string | null;
+  };
+  summary: { total: number; syncable: number; up_to_date: number };
+  certificates: FnosCertificateSyncItem[];
+}
+
+export interface FnosCertificateSyncSummary {
+  synced: number;
+  skipped: number;
+  failed: number;
+  rolled_back: boolean;
+}
+
+export interface FnosCertificateSyncResponse {
+  summary: FnosCertificateSyncSummary;
+  details: FnosCertificateSyncDetails;
 }
 
 export interface FnosNetworkTuningConfig {
@@ -661,6 +716,7 @@ export interface AppConfig {
   fnos_share_bypass?: FnosShareBypassConfig;
   fnos_port_icon_hijack?: FnosPortIconHijackConfig;
   fnos_network_tuning?: FnosNetworkTuningConfig;
+  fnos_certificate_sync?: { auto_sync_enabled: boolean };
   gateway_logging?: GatewayLoggingConfig;
   waf?: WAFConfig;
   reverse_proxy_throttle?: ReverseProxyThrottleConfig;

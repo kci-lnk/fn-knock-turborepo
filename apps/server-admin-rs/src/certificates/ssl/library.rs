@@ -95,6 +95,7 @@ pub(super) async fn save_ssl_certificate(
     }
     config["ssl"] = next_ssl;
     state.store.save_config(&config).await?;
+    crate::fnos_certificate_sync::notify_certificate_library_changed(state);
     Ok(next)
 }
 
@@ -350,6 +351,7 @@ pub(super) async fn delete_ssl_certificate(
     );
     config["ssl"] = next_ssl;
     state.store.save_config(&config).await?;
+    crate::fnos_certificate_sync::notify_certificate_library_changed(state);
     Ok((true, removed_active))
 }
 
@@ -415,6 +417,7 @@ pub(crate) async fn delete_acme_ssl_certificates(
     );
     config["ssl"] = next_ssl;
     state.store.save_config(&config).await?;
+    crate::fnos_certificate_sync::notify_certificate_library_changed(state);
     Ok((removed.len(), removed_active))
 }
 
@@ -424,6 +427,7 @@ pub(super) async fn clear_ssl_certificate_library(state: &AppState) -> anyhow::R
     ssl["certificates"] = json!([]);
     config["ssl"] = mirror_active_ssl_certificate(&ssl, None);
     state.store.save_config(&config).await?;
+    crate::fnos_certificate_sync::notify_certificate_library_changed(state);
     Ok(())
 }
 

@@ -15,6 +15,7 @@ pub(super) fn ca_paths(state: &AppState) -> CaPaths {
     }
 }
 
+#[cfg(not(windows))]
 pub(super) fn init_root_ca(state: &AppState) -> anyhow::Result<Value> {
     let paths = ca_paths(state);
     std::fs::create_dir_all(&paths.dir)?;
@@ -45,6 +46,19 @@ pub(super) fn init_root_ca(state: &AppState) -> anyhow::Result<Value> {
     parse_cert_info(&cert).ok_or_else(|| anyhow!("generated root CA certificate is invalid"))
 }
 
+#[cfg(windows)]
+pub(super) fn init_root_ca(state: &AppState) -> anyhow::Result<Value> {
+    let paths = ca_paths(state);
+    std::fs::create_dir_all(&paths.dir)?;
+    let (cert, key) = generate_windows_root_ca()?;
+    std::fs::write(&paths.cert, &cert)?;
+    std::fs::write(&paths.key, key)?;
+    chmod_private(&paths.cert);
+    chmod_private(&paths.key);
+    parse_cert_info(&cert).ok_or_else(|| anyhow!("generated root CA certificate is invalid"))
+}
+
+#[cfg(not(windows))]
 pub(super) fn issue_ca_server_cert(
     state: &AppState,
     hosts: &[String],
@@ -114,6 +128,110 @@ pub(super) fn issue_ca_server_cert(
     result
 }
 
+#[cfg(windows)]
+pub(super) fn issue_ca_server_cert(
+    state: &AppState,
+    hosts: &[String],
+) -> anyhow::Result<(String, String)> {
+    let paths = ca_paths(state);
+    if !paths.cert.exists() || !paths.key.exists() {
+        anyhow::bail!("Root CA not initialized");
+    }
+    let clean_hosts = hosts
+        .iter()
+        .map(|host| host.trim().to_string())
+        .filter(|host| !host.is_empty())
+        .collect::<Vec<_>>();
+    if clean_hosts.is_empty() {
+        anyhow::bail!("No hosts configured");
+    }
+    let ca_cert = std::fs::read_to_string(paths.cert)?;
+    let ca_key = std::fs::read_to_string(paths.key)?;
+    let (cert, key) = generate_windows_ca_server_cert(&ca_cert, &ca_key, &clean_hosts)?;
+    validate_ssl_cert(&cert, &key)?;
+    Ok((cert, key))
+}
+
+#[cfg(any(windows, test))]
+fn windows_certificate_validity() -> (::time::OffsetDateTime, ::time::OffsetDateTime) {
+    let now = ::time::OffsetDateTime::now_utc();
+    (
+        now - ::time::Duration::days(1),
+        now + ::time::Duration::days(20 * 365),
+    )
+}
+
+#[cfg(any(windows, test))]
+fn generate_windows_root_ca() -> anyhow::Result<(String, String)> {
+    use rcgen::{
+        BasicConstraints, CertificateParams, DistinguishedName, DnType, IsCa, KeyPair,
+        KeyUsagePurpose,
+    };
+
+    let (not_before, not_after) = windows_certificate_validity();
+    let mut distinguished_name = DistinguishedName::new();
+    distinguished_name.push(DnType::CommonName, "KCI-LNK Root Certificate Authority");
+    distinguished_name.push(DnType::OrganizationName, "KCI-LNK Corporation");
+    distinguished_name.push(
+        DnType::OrganizationalUnitName,
+        "Information Security Department",
+    );
+    distinguished_name.push(DnType::CountryName, "TW");
+    distinguished_name.push(DnType::StateOrProvinceName, "Taiwan");
+    distinguished_name.push(DnType::LocalityName, "Taipei");
+
+    let mut params = CertificateParams::default();
+    params.not_before = not_before;
+    params.not_after = not_after;
+    params.distinguished_name = distinguished_name;
+    params.is_ca = IsCa::Ca(BasicConstraints::Constrained(0));
+    params.key_usages = vec![
+        KeyUsagePurpose::KeyCertSign,
+        KeyUsagePurpose::CrlSign,
+        KeyUsagePurpose::DigitalSignature,
+    ];
+    let key = KeyPair::generate()?;
+    let cert = params.self_signed(&key)?;
+    Ok((cert.pem(), key.serialize_pem()))
+}
+
+#[cfg(any(windows, test))]
+fn generate_windows_ca_server_cert(
+    ca_cert: &str,
+    ca_key: &str,
+    hosts: &[String],
+) -> anyhow::Result<(String, String)> {
+    use rcgen::{
+        CertificateParams, DistinguishedName, DnType, ExtendedKeyUsagePurpose, IsCa, Issuer,
+        KeyPair, KeyUsagePurpose,
+    };
+
+    let common_name = hosts
+        .first()
+        .map(String::as_str)
+        .unwrap_or("KCI-LNK Root Certificate");
+    let ca_key = KeyPair::from_pem(ca_key)?;
+    let issuer = Issuer::from_ca_cert_pem(ca_cert, ca_key)?;
+    let (not_before, not_after) = windows_certificate_validity();
+    let mut distinguished_name = DistinguishedName::new();
+    distinguished_name.push(DnType::CommonName, common_name);
+    let mut params = CertificateParams::new(hosts.to_vec())?;
+    params.not_before = not_before;
+    params.not_after = not_after;
+    params.distinguished_name = distinguished_name;
+    params.is_ca = IsCa::ExplicitNoCa;
+    params.key_usages = vec![
+        KeyUsagePurpose::DigitalSignature,
+        KeyUsagePurpose::KeyEncipherment,
+    ];
+    params.extended_key_usages = vec![ExtendedKeyUsagePurpose::ServerAuth];
+    params.use_authority_key_identifier_extension = true;
+
+    let key = KeyPair::generate()?;
+    let cert = params.signed_by(&key, &issuer)?;
+    Ok((cert.pem(), key.serialize_pem()))
+}
+
 pub(super) fn openssl_server_cert_config(hosts: &[String]) -> String {
     let common_name = hosts
         .first()
@@ -178,6 +296,7 @@ pub(super) fn run_openssl_capture(args: Vec<String>) -> anyhow::Result<String> {
     ))
 }
 
+#[cfg(not(windows))]
 pub(super) fn validate_ssl_cert_pair(cert: &str, key: &str) -> Result<(), SslValidationError> {
     let temp_dir = std::env::temp_dir().join(format!("fn-knock-ssl-{}", Uuid::new_v4()));
     std::fs::create_dir_all(&temp_dir)
@@ -213,6 +332,47 @@ pub(super) fn validate_ssl_cert_pair(cert: &str, key: &str) -> Result<(), SslVal
     })();
     let _ = std::fs::remove_dir_all(temp_dir);
     result
+}
+
+#[cfg(windows)]
+pub(super) fn validate_ssl_cert_pair(cert: &str, key: &str) -> Result<(), SslValidationError> {
+    validate_ssl_cert_pair_native(cert, key)
+}
+
+#[cfg(any(windows, test))]
+fn validate_ssl_cert_pair_native(cert: &str, key: &str) -> Result<(), SslValidationError> {
+    use rustls::{
+        InconsistentKeys,
+        pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
+        sign::CertifiedKey,
+    };
+
+    // PEM decoding alone does not prove that the first block contains a valid
+    // X.509 certificate. Keep the parser used by the rest of the application as
+    // the format gate before asking rustls to compare public keys.
+    if parse_cert_info(cert).is_none() {
+        return Err(SslValidationError::CertFormatInvalid(
+            "unable to parse X.509 certificate".to_string(),
+        ));
+    }
+    let cert_chain = CertificateDer::pem_slice_iter(cert.as_bytes())
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| SslValidationError::CertFormatInvalid(error.to_string()))?;
+    if cert_chain.is_empty() {
+        return Err(SslValidationError::CertFormatInvalid(
+            "no certificate PEM block found".to_string(),
+        ));
+    }
+    let private_key = PrivateKeyDer::from_pem_slice(key.as_bytes())
+        .map_err(|error| SslValidationError::KeyFormatInvalid(error.to_string()))?;
+    let provider = rustls::crypto::ring::default_provider();
+    match CertifiedKey::from_der(cert_chain, private_key, &provider) {
+        Ok(_) => Ok(()),
+        Err(rustls::Error::InconsistentKeys(InconsistentKeys::KeyMismatch)) => {
+            Err(SslValidationError::CertKeyMismatch)
+        }
+        Err(error) => Err(SslValidationError::KeyFormatInvalid(error.to_string())),
+    }
 }
 
 pub(super) fn normalize_public_key_pem(value: &str) -> String {
@@ -290,3 +450,36 @@ pub(super) fn chmod_private(path: &Path) {
 
 #[cfg(not(unix))]
 pub(super) fn chmod_private(_path: &Path) {}
+
+#[cfg(test)]
+mod windows_tests {
+    use super::*;
+
+    #[test]
+    fn native_ca_issues_and_validates_dns_and_ip_certificate() {
+        let (ca_cert, ca_key) = generate_windows_root_ca().expect("generate Windows root CA");
+        let hosts = vec!["example.test".to_string(), "127.0.0.1".to_string()];
+        let (cert, key) = generate_windows_ca_server_cert(&ca_cert, &ca_key, &hosts)
+            .expect("issue Windows server certificate");
+
+        validate_ssl_cert_pair_native(&cert, &key).expect("certificate and key must match");
+        let info = parse_cert_info(&cert).expect("certificate must parse");
+        assert_eq!(info["dnsNames"][0], json!("example.test"));
+        assert_eq!(info["dnsNames"][1], json!("127.0.0.1"));
+    }
+
+    #[test]
+    fn native_validator_rejects_mismatched_private_key() {
+        let (ca_cert, ca_key) = generate_windows_root_ca().expect("generate Windows root CA");
+        let hosts = vec!["example.test".to_string()];
+        let (cert, _) = generate_windows_ca_server_cert(&ca_cert, &ca_key, &hosts)
+            .expect("issue first Windows server certificate");
+        let (_, other_key) = generate_windows_ca_server_cert(&ca_cert, &ca_key, &hosts)
+            .expect("issue second Windows server certificate");
+
+        assert!(matches!(
+            validate_ssl_cert_pair_native(&cert, &other_key),
+            Err(SslValidationError::CertKeyMismatch)
+        ));
+    }
+}

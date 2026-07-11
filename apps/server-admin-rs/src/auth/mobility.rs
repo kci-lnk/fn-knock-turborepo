@@ -54,6 +54,9 @@ async fn acquire_auth_mobility_session_mutation_lease(
     let deadline = time::Instant::now()
         + std::time::Duration::from_secs(AUTH_MOBILITY_SESSION_LOCK_WAIT_SECONDS);
     loop {
+        if state.shutdown.is_cancelled() {
+            return Ok(None);
+        }
         if state
             .store
             .set_json_value_nx_ex(
@@ -79,19 +82,29 @@ async fn acquire_auth_mobility_session_mutation_lease(
                 interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
                 interval.tick().await;
                 loop {
-                    interval.tick().await;
-                    let refreshed = heartbeat_state
-                        .store
-                        .set_json_lock_if_owned_ex(
+                    tokio::select! {
+                        _ = heartbeat_state.shutdown.cancelled() => {
+                            heartbeat_valid.store(false, Ordering::Release);
+                            break;
+                        }
+                        _ = interval.tick() => {}
+                    }
+                    let heartbeat_payload = json!({
+                        "lockId": heartbeat_lock_id,
+                        "refreshedAt": time_utils::now_iso(),
+                    });
+                    let refreshed = tokio::select! {
+                        _ = heartbeat_state.shutdown.cancelled() => {
+                            heartbeat_valid.store(false, Ordering::Release);
+                            break;
+                        }
+                        result = heartbeat_state.store.set_json_lock_if_owned_ex(
                             &heartbeat_key,
                             &heartbeat_lock_id,
-                            &json!({
-                                "lockId": heartbeat_lock_id,
-                                "refreshedAt": time_utils::now_iso(),
-                            }),
+                            &heartbeat_payload,
                             AUTH_MOBILITY_SESSION_LOCK_TTL_SECONDS,
-                        )
-                        .await;
+                        ) => result,
+                    };
                     if !matches!(refreshed, Ok(true)) {
                         heartbeat_valid.store(false, Ordering::Release);
                         break;
@@ -109,7 +122,10 @@ async fn acquire_auth_mobility_session_mutation_lease(
         if time::Instant::now() >= deadline {
             return Ok(None);
         }
-        time::sleep(std::time::Duration::from_millis(10)).await;
+        tokio::select! {
+            _ = state.shutdown.cancelled() => return Ok(None),
+            _ = time::sleep(std::time::Duration::from_millis(10)) => {}
+        }
     }
 }
 
@@ -214,9 +230,17 @@ pub fn start_auth_mobility_tasks(state: AppState) {
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
         ticker.tick().await;
         loop {
-            ticker.tick().await;
-            if let Err(error) = maintain_session_active_ips(&state).await {
-                tracing::warn!(%error, "auth mobility active IP maintenance failed");
+            tokio::select! {
+                _ = state.shutdown.cancelled() => break,
+                _ = ticker.tick() => {}
+            }
+            tokio::select! {
+                _ = state.shutdown.cancelled() => break,
+                result = maintain_session_active_ips(&state) => {
+                    if let Err(error) = result {
+                        tracing::warn!(%error, "auth mobility active IP maintenance failed");
+                    }
+                }
             }
         }
     });

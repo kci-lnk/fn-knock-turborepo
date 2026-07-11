@@ -190,6 +190,7 @@ export const getEffectiveRuntimeProfile = (
     deployment_target: "docker",
     is_docker: true,
     is_linux: profile?.is_linux ?? true,
+    is_windows: false,
     is_root_process: profile?.is_root_process ?? false,
   };
 };
@@ -209,5 +210,12 @@ export const getEffectiveRuntimeCapabilities = (
     self_update_available: false,
     terminal_available: false,
     shared_root_available: capabilities?.shared_root_available ?? false,
+    acme_available: capabilities?.acme_available ?? true,
+    cloudflared_available: capabilities?.cloudflared_available ?? true,
+    frpc_available: capabilities?.frpc_available ?? true,
+    ssh_security_available: false,
+    system_resource_monitor_available:
+      capabilities?.system_resource_monitor_available ?? true,
+    desktop_update_managed: false,
   };
 };

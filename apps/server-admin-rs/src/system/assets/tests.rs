@@ -23,6 +23,7 @@ async fn generic_linux_root_rejects_clock_sync_and_dnsmasq_install() {
         deployment_target: "linux".to_string(),
         is_docker: false,
         is_linux: true,
+        is_windows: false,
         is_root_process: true,
     };
     assert!(!super::runtime::system_clock_sync_available_for_profile(

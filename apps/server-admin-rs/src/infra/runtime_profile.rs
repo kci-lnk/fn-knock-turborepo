@@ -9,6 +9,7 @@ pub struct RuntimeProfile {
     pub deployment_target: String,
     pub is_docker: bool,
     pub is_linux: bool,
+    pub is_windows: bool,
     pub is_root_process: bool,
 }
 
@@ -21,19 +22,44 @@ pub struct RuntimeCapabilities {
     pub self_update_available: bool,
     pub terminal_available: bool,
     pub shared_root_available: bool,
+    pub acme_available: bool,
+    pub cloudflared_available: bool,
+    pub frpc_available: bool,
+    pub ssh_security_available: bool,
+    pub system_resource_monitor_available: bool,
+    pub desktop_update_managed: bool,
 }
 
 pub fn get_runtime_profile(state: &AppState) -> RuntimeProfile {
     let deployment_target = detect_deployment_target(Some(&state.settings.runtime_target));
+    let is_windows = std::env::consts::OS == "windows" || deployment_target == "windows";
     RuntimeProfile {
         is_docker: deployment_target == "docker",
-        is_linux: std::env::consts::OS == "linux",
+        is_linux: std::env::consts::OS == "linux" && !is_windows,
+        is_windows,
         is_root_process: is_root_process(),
         deployment_target,
     }
 }
 
 pub fn get_runtime_capabilities(profile: &RuntimeProfile) -> RuntimeCapabilities {
+    if profile.is_windows || profile.deployment_target == "windows" {
+        return RuntimeCapabilities {
+            direct_mode_available: false,
+            host_firewall_available: false,
+            smart_connect_available: false,
+            system_clock_sync_available: false,
+            self_update_available: false,
+            terminal_available: false,
+            shared_root_available: false,
+            acme_available: false,
+            cloudflared_available: false,
+            frpc_available: false,
+            ssh_security_available: false,
+            system_resource_monitor_available: false,
+            desktop_update_managed: true,
+        };
+    }
     let host_runtime_available = profile.deployment_target != "docker"
         && profile.deployment_target != "linux"
         && profile.is_linux
@@ -48,13 +74,19 @@ pub fn get_runtime_capabilities(profile: &RuntimeProfile) -> RuntimeCapabilities
         terminal_available: profile.deployment_target != "docker"
             && profile.deployment_target != "openwrt",
         shared_root_available: has_shared_root(),
+        acme_available: true,
+        cloudflared_available: true,
+        frpc_available: true,
+        ssh_security_available: true,
+        system_resource_monitor_available: true,
+        desktop_update_managed: false,
     }
 }
 
 pub fn admin_panel_protected_runtime(state: &AppState) -> bool {
     matches!(
         get_runtime_profile(state).deployment_target.as_str(),
-        "docker" | "openwrt" | "linux"
+        "docker" | "openwrt" | "linux" | "windows"
     )
 }
 
@@ -139,6 +171,9 @@ pub(crate) fn detect_deployment_target(explicit: Option<&str>) -> String {
     if detect_fpk_environment() {
         return "fpk".to_string();
     }
+    if cfg!(target_os = "windows") {
+        return "windows".to_string();
+    }
     "dev".to_string()
 }
 
@@ -161,6 +196,7 @@ fn normalize_deployment_target(value: &str) -> Option<&'static str> {
         "fpk" => Some("fpk"),
         "openwrt" => Some("openwrt"),
         "linux" => Some("linux"),
+        "windows" => Some("windows"),
         "dev" | "development" => Some("dev"),
         _ => None,
     }
@@ -232,6 +268,7 @@ mod tests {
             deployment_target: target.to_string(),
             is_docker: target == "docker",
             is_linux: linux,
+            is_windows: target == "windows",
             is_root_process: root,
         }
     }
@@ -285,6 +322,25 @@ mod tests {
         assert!(capabilities.terminal_available);
         assert!(!capabilities.self_update_available);
         assert_eq!(normalize_deployment_target("linux"), Some("linux"));
+    }
+
+    #[test]
+    fn windows_uses_desktop_managed_capabilities_only() {
+        let capabilities = get_runtime_capabilities(&profile("windows", false, false));
+        assert!(!capabilities.direct_mode_available);
+        assert!(!capabilities.host_firewall_available);
+        assert!(!capabilities.smart_connect_available);
+        assert!(!capabilities.system_clock_sync_available);
+        assert!(!capabilities.self_update_available);
+        assert!(!capabilities.terminal_available);
+        assert!(!capabilities.shared_root_available);
+        assert!(!capabilities.acme_available);
+        assert!(!capabilities.cloudflared_available);
+        assert!(!capabilities.frpc_available);
+        assert!(!capabilities.ssh_security_available);
+        assert!(!capabilities.system_resource_monitor_available);
+        assert!(capabilities.desktop_update_managed);
+        assert_eq!(normalize_deployment_target("WINDOWS"), Some("windows"));
     }
 
     #[test]

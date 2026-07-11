@@ -2,7 +2,15 @@ use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use serde::Serialize;
 use serde_json::{Value, json};
 
-use crate::{runtime_profile, state::AppState};
+use crate::{
+    app_version::APP_LOCAL_VERSION,
+    go_backend::{
+        GATEWAY_CONTROL_API_VERSION, GATEWAY_HEALTH_AUTH_BRIDGE, GATEWAY_HEALTH_DATAPLANE,
+        GATEWAY_HEALTH_PROCESS,
+    },
+    runtime_profile,
+    state::AppState,
+};
 
 #[derive(Serialize)]
 pub struct ApiEnvelope<T: Serialize> {
@@ -106,6 +114,42 @@ pub async fn healthz(State(state): State<AppState>) -> axum::response::Response 
         },
     });
     if healthy {
+        Json(body).into_response()
+    } else {
+        (StatusCode::SERVICE_UNAVAILABLE, Json(body)).into_response()
+    }
+}
+
+/// Minimal, non-sensitive readiness endpoint consumed by the Windows desktop
+/// shell and installer rollback check. Detailed errors remain in service logs.
+pub async fn readyz(State(state): State<AppState>) -> axum::response::Response {
+    let (storage, bundle, process, dataplane, auth_bridge) = tokio::join!(
+        state.store.ping(),
+        state.go_backend.verify_bundle_compatibility(),
+        state.go_backend.health_serving(GATEWAY_HEALTH_PROCESS),
+        state.go_backend.health_serving(GATEWAY_HEALTH_DATAPLANE),
+        state.go_backend.health_serving(GATEWAY_HEALTH_AUTH_BRIDGE),
+    );
+    let storage_ready = storage.is_ok();
+    let bundle_ready = bundle.is_ok();
+    let process_ready = process.unwrap_or(false);
+    let dataplane_ready = dataplane.unwrap_or(false);
+    let auth_bridge_ready = auth_bridge.unwrap_or(false);
+    let ready =
+        storage_ready && bundle_ready && process_ready && dataplane_ready && auth_bridge_ready;
+    let body = json!({
+        "ready": ready,
+        "version": APP_LOCAL_VERSION,
+        "control_api_version": GATEWAY_CONTROL_API_VERSION,
+        "components": {
+            "storage": storage_ready,
+            "gateway_bundle": bundle_ready,
+            "gateway_process": process_ready,
+            "gateway_dataplane": dataplane_ready,
+            "auth_bridge": auth_bridge_ready,
+        }
+    });
+    if ready {
         Json(body).into_response()
     } else {
         (StatusCode::SERVICE_UNAVAILABLE, Json(body)).into_response()

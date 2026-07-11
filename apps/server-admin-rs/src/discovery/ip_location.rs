@@ -97,9 +97,17 @@ pub fn start_ip_location_worker(state: AppState) {
         interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
         interval.tick().await;
         loop {
-            interval.tick().await;
-            if let Err(error) = process_queue(&state).await {
-                tracing::warn!(%error, "IP location queue tick failed");
+            tokio::select! {
+                _ = state.shutdown.cancelled() => break,
+                _ = interval.tick() => {}
+            }
+            tokio::select! {
+                _ = state.shutdown.cancelled() => break,
+                result = process_queue(&state) => {
+                    if let Err(error) = result {
+                        tracing::warn!(%error, "IP location queue tick failed");
+                    }
+                }
             }
         }
     });
@@ -335,8 +343,13 @@ async fn process_queue(state: &AppState) -> anyhow::Result<()> {
     for ip in due_ips {
         let state = state.clone();
         tokio::spawn(async move {
-            if let Err(error) = process_one(&state, &ip).await {
-                tracing::warn!(%error, %ip, "failed to process IP location lookup");
+            tokio::select! {
+                _ = state.shutdown.cancelled() => {}
+                result = process_one(&state, &ip) => {
+                    if let Err(error) = result {
+                        tracing::warn!(%error, %ip, "failed to process IP location lookup");
+                    }
+                }
             }
         });
     }

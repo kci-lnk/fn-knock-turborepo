@@ -1,6 +1,8 @@
 <template>
   <div class="relative min-h-screen overflow-hidden bg-muted/40 p-4">
-    <div class="theme-grid-background pointer-events-none absolute inset-0 z-0"></div>
+    <div
+      class="theme-grid-background pointer-events-none absolute inset-0 z-0"
+    ></div>
     <div
       class="fixed right-[calc(env(safe-area-inset-right)+1rem)] top-[calc(env(safe-area-inset-top)+1rem)] z-30"
     >
@@ -116,7 +118,13 @@
             t("admin.components.dockerAdminGate.resetTitle")
           }}</DialogTitle>
           <DialogDescription>
-            {{ t("admin.components.dockerAdminGate.resetDescription") }}
+            {{
+              t(
+                isWindowsMode
+                  ? "admin.components.dockerAdminGate.resetDescriptionWindows"
+                  : "admin.components.dockerAdminGate.resetDescription",
+              )
+            }}
           </DialogDescription>
         </DialogHeader>
 
@@ -127,48 +135,63 @@
             {{ t("admin.components.dockerAdminGate.resetNotice") }}
           </div>
 
-          <div class="min-w-0 space-y-2">
+          <div v-if="isWindowsMode" class="min-w-0 space-y-2">
             <p class="text-sm font-medium">
-              {{
-                t(
-                  isOpenWrtMode
-                    ? "admin.components.dockerAdminGate.resetStepOpenWrtSsh"
-                    : "admin.components.dockerAdminGate.resetStepSsh",
-                )
-              }}
+              {{ t("admin.components.dockerAdminGate.resetStepWindows") }}
             </p>
             <pre
               class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
-            ><code>{{ resetSshCommand }}</code></pre>
-          </div>
-
-          <div v-if="isOpenWrtMode" class="min-w-0 space-y-2">
-            <p class="text-sm font-medium">
-              {{ t("admin.components.dockerAdminGate.resetStepOpenWrtCommand") }}
-            </p>
-            <pre
-              class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
-            ><code>{{ openWrtResetCommand }}</code></pre>
+            ><code>{{ windowsResetCommand }}</code></pre>
           </div>
 
           <template v-else>
             <div class="min-w-0 space-y-2">
               <p class="text-sm font-medium">
-                {{ t("admin.components.dockerAdminGate.resetStepCompose") }}
+                {{
+                  t(
+                    isOpenWrtMode
+                      ? "admin.components.dockerAdminGate.resetStepOpenWrtSsh"
+                      : "admin.components.dockerAdminGate.resetStepSsh",
+                  )
+                }}
               </p>
               <pre
                 class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
-              ><code>{{ dockerComposeResetCommand }}</code></pre>
+              ><code>{{ resetSshCommand }}</code></pre>
             </div>
 
-            <div class="min-w-0 space-y-2">
+            <div v-if="isOpenWrtMode" class="min-w-0 space-y-2">
               <p class="text-sm font-medium">
-                {{ t("admin.components.dockerAdminGate.resetStepDockerExec") }}
+                {{
+                  t("admin.components.dockerAdminGate.resetStepOpenWrtCommand")
+                }}
               </p>
               <pre
                 class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
-              ><code>{{ dockerExecResetCommand }}</code></pre>
+              ><code>{{ openWrtResetCommand }}</code></pre>
             </div>
+
+            <template v-else>
+              <div class="min-w-0 space-y-2">
+                <p class="text-sm font-medium">
+                  {{ t("admin.components.dockerAdminGate.resetStepCompose") }}
+                </p>
+                <pre
+                  class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
+                ><code>{{ dockerComposeResetCommand }}</code></pre>
+              </div>
+
+              <div class="min-w-0 space-y-2">
+                <p class="text-sm font-medium">
+                  {{
+                    t("admin.components.dockerAdminGate.resetStepDockerExec")
+                  }}
+                </p>
+                <pre
+                  class="w-full max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-muted/40 px-3 py-3 text-sm leading-6"
+                ><code>{{ dockerExecResetCommand }}</code></pre>
+              </div>
+            </template>
           </template>
         </div>
 
@@ -207,6 +230,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   dockerAdminPanelResetCommands,
   openWrtAdminPanelResetCommands,
+  windowsAdminPanelResetCommands,
 } from "../lib/docker-admin-panel-reset";
 import type { DeploymentTarget } from "../types";
 
@@ -228,6 +252,7 @@ const rememberMe = ref(false);
 const showResetDialog = ref(false);
 const { t } = useI18n();
 const isOpenWrtMode = computed(() => props.deploymentTarget === "openwrt");
+const isWindowsMode = computed(() => props.deploymentTarget === "windows");
 const resetSshCommand = computed(() =>
   isOpenWrtMode.value
     ? openWrtAdminPanelResetCommands.ssh
@@ -236,6 +261,7 @@ const resetSshCommand = computed(() =>
 const openWrtResetCommand = openWrtAdminPanelResetCommands.reset;
 const dockerComposeResetCommand = dockerAdminPanelResetCommands.compose;
 const dockerExecResetCommand = dockerAdminPanelResetCommands.dockerExec;
+const windowsResetCommand = windowsAdminPanelResetCommands.reset;
 
 const title = computed(() =>
   props.mode === "setup"
@@ -244,7 +270,11 @@ const title = computed(() =>
 );
 const description = computed(() =>
   props.mode === "setup"
-    ? t("admin.components.dockerAdminGate.setupDescription")
+    ? t(
+        isWindowsMode.value
+          ? "admin.components.dockerAdminGate.setupDescriptionWindows"
+          : "admin.components.dockerAdminGate.setupDescription",
+      )
     : t("admin.components.dockerAdminGate.loginDescription"),
 );
 const helperText = computed(() =>

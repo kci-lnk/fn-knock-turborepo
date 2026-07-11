@@ -53,7 +53,7 @@ impl Settings {
             runtime_profile::detect_deployment_target(Some(&runtime_target));
         let protected_admin_runtime = matches!(
             detected_runtime_target.as_str(),
-            "docker" | "openwrt" | "linux"
+            "docker" | "openwrt" | "linux" | "windows"
         );
         let backend_port_default = if detected_runtime_target == "openwrt" {
             17998
@@ -92,16 +92,20 @@ impl Settings {
             backend_port,
             auth_host: env_string("AUTH_HOST", "127.0.0.1"),
             auth_port,
-            admin_view_host: env::var("ADMIN_VIEW_HOST")
-                .ok()
-                .filter(|value| !value.trim().is_empty())
-                .unwrap_or_else(|| {
-                    if protected_admin_runtime {
-                        "0.0.0.0".to_string()
-                    } else {
-                        backend_host.clone()
-                    }
-                }),
+            admin_view_host: if detected_runtime_target == "windows" {
+                "127.0.0.1".to_string()
+            } else {
+                env::var("ADMIN_VIEW_HOST")
+                    .ok()
+                    .filter(|value| !value.trim().is_empty())
+                    .unwrap_or_else(|| {
+                        if protected_admin_runtime {
+                            "0.0.0.0".to_string()
+                        } else {
+                            backend_host.clone()
+                        }
+                    })
+            },
             admin_view_port,
             admin_static_path: env_path("ADMIN_STATIC_PATH", "ui/www"),
             auth_static_path: env_path("AUTH_STATIC_PATH", "server-auth-view/dist"),
@@ -230,6 +234,7 @@ fn normalize_runtime_target_env(value: &str) -> String {
         "fpk" => "fpk".to_string(),
         "openwrt" => "openwrt".to_string(),
         "linux" => "linux".to_string(),
+        "windows" => "windows".to_string(),
         "dev" | "development" => "dev".to_string(),
         _ => String::new(),
     }
@@ -257,6 +262,15 @@ fn default_sqlite_path(gateway_config_dir: &Path) -> PathBuf {
 }
 
 fn default_data_dir() -> String {
+    if cfg!(target_os = "windows") {
+        return env::var("PROGRAMDATA")
+            .ok()
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from(r"C:\ProgramData"))
+            .join("FnKnock")
+            .to_string_lossy()
+            .into_owned();
+    }
     let home = env::var("HOME").unwrap_or_else(|_| ".".to_string());
     if cfg!(target_os = "macos") {
         format!("{home}/Library/Application Support/fn-knock")
@@ -443,6 +457,7 @@ mod tests {
         assert_eq!(normalize_runtime_target_env(" FPK "), "fpk");
         assert_eq!(normalize_runtime_target_env("development"), "dev");
         assert_eq!(normalize_runtime_target_env("linux"), "linux");
+        assert_eq!(normalize_runtime_target_env("windows"), "windows");
         assert_eq!(normalize_runtime_target_env("unknown"), "");
     }
 
@@ -518,6 +533,37 @@ mod tests {
 
                 assert_eq!(settings.admin_view_port, None);
                 assert_eq!(settings.admin_view_host, "127.0.0.2");
+            },
+        );
+    }
+
+    #[test]
+    fn windows_uses_protected_loopback_admin_view() {
+        with_env_vars(
+            &[
+                "FN_KNOCK_RUNTIME_TARGET",
+                "ADMIN_VIEW_PORT",
+                "ADMIN_VIEW_HOST",
+                "BACKEND_HOST",
+                "FN_KNOCK_DATA_DIR",
+            ],
+            |env| {
+                env.set("FN_KNOCK_RUNTIME_TARGET", "windows");
+                env.remove("ADMIN_VIEW_PORT");
+                env.set("ADMIN_VIEW_HOST", "0.0.0.0");
+                env.remove("BACKEND_HOST");
+                env.set("FN_KNOCK_DATA_DIR", r"C:\ProgramData\FnKnock");
+
+                let settings = Settings::from_env();
+
+                assert_eq!(settings.backend_host, "127.0.0.1");
+                assert_eq!(settings.backend_port, 7998);
+                assert_eq!(settings.auth_host, "127.0.0.1");
+                assert_eq!(settings.auth_port, 7997);
+                assert_eq!(settings.admin_view_host, "127.0.0.1");
+                assert_eq!(settings.admin_view_port, Some(7991));
+                assert_eq!(settings.go_backend_grpc_addr, "127.0.0.1:7996");
+                assert_eq!(settings.data_dir, PathBuf::from(r"C:\ProgramData\FnKnock"));
             },
         );
     }

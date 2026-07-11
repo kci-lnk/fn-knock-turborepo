@@ -26,6 +26,7 @@ const showInstallingOverlay = ref(false);
 
 const status = computed(() => updateStore.status);
 const canSelfUpdate = computed(() => configStore.canSelfUpdate);
+const desktopUpdateManaged = computed(() => configStore.isDesktopUpdateManaged);
 const nonSelfUpdateTarget = computed(() => {
   if (configStore.isOpenWrtDeployment) return "OpenWrt";
   if (configStore.isDockerDeployment) return "Docker";
@@ -52,7 +53,9 @@ const versionCheckHintKey = computed(() =>
     : `admin.aboutUpdate.versionCheckHint${nonSelfUpdateTarget.value}`,
 );
 const releaseNotesHtml = computed(() => {
-  const raw = status.value?.latest?.release_notes || t("admin.aboutUpdate.noReleaseNotes");
+  const raw =
+    status.value?.latest?.release_notes ||
+    t("admin.aboutUpdate.noReleaseNotes");
   let html = raw
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -167,11 +170,13 @@ const oneClickUpdate = async () => {
   await updateStore.checkAndDownload();
 };
 
-onMounted(() => {
+onMounted(async () => {
   if (!configStore.config) {
-    void configStore.loadConfig();
+    await configStore.loadConfig();
   }
-  void updateStore.initialize();
+  if (!desktopUpdateManaged.value) {
+    await updateStore.initialize();
+  }
 });
 </script>
 
@@ -185,9 +190,7 @@ onMounted(() => {
               {{ t("admin.aboutUpdate.title") }}
             </h2>
             <p class="text-sm text-muted-foreground mt-1">
-              {{
-                t(updateSubtitleKey)
-              }}
+              {{ t(updateSubtitleKey) }}
             </p>
           </div>
           <Button
@@ -203,155 +206,177 @@ onMounted(() => {
         </div>
 
         <Alert
-          v-if="!canSelfUpdate"
-          class="rounded-xl border-border/70 bg-muted/30 text-foreground shadow-none"
+          v-if="desktopUpdateManaged"
+          class="rounded-xl border-primary/20 bg-primary/5 text-foreground shadow-none"
         >
-          <AlertCircle class="w-4 h-4" />
-          <AlertTitle>{{ t("admin.aboutUpdate.selfUpdateUnsupportedTitle") }}</AlertTitle>
+          <MonitorUp class="h-4 w-4" />
+          <AlertTitle>{{
+            t("admin.aboutUpdate.desktopManagedTitle")
+          }}</AlertTitle>
           <AlertDescription>
-            {{ t(unsupportedDescriptionKey) }}
+            {{ t("admin.aboutUpdate.desktopManagedDescription") }}
           </AlertDescription>
         </Alert>
 
-        <div
-          class="flex items-center justify-center rounded-2xl border border-border/50 bg-muted/[0.16] px-4 py-6"
-        >
-          <div class="flex flex-col items-center flex-1 space-y-1">
-            <span class="text-sm font-medium text-muted-foreground"
-              >{{ t("admin.aboutUpdate.currentVersion") }}</span
-            >
-            <span
-              class="text-2xl font-bold font-mono tracking-tight text-foreground"
-            >
-              {{ status?.localVersion || "..." }}
-            </span>
-          </div>
-
-          <div class="px-4 md:px-8 text-muted-foreground/40">
-            <ArrowRight class="w-6 h-6" />
-          </div>
-
-          <div class="flex flex-col items-center flex-1 space-y-1">
-            <span class="text-sm font-medium text-muted-foreground"
-              >{{ t("admin.aboutUpdate.latestVersion") }}</span
-            >
-            <span
-              class="text-2xl font-bold font-mono tracking-tight"
-              :class="status?.hasUpdate ? 'text-primary' : 'text-foreground'"
-            >
-              {{ status?.latest?.version || "..." }}
-            </span>
-          </div>
-        </div>
-
-        <div
-          class="flex flex-col items-stretch justify-between gap-6 rounded-xl border border-border/50 bg-muted/[0.14] p-4 sm:flex-row sm:items-center"
-        >
-          <div class="flex items-center gap-3 w-full sm:w-auto">
-            <div
-              class="flex items-center justify-center w-10 h-10 rounded-full"
-              :class="
-                status?.hasUpdate
-                  ? 'bg-primary/10 text-primary'
-                  : 'bg-muted text-muted-foreground'
-              "
-            >
-              <Sparkles v-if="status?.hasUpdate" class="w-5 h-5" />
-              <CheckCircle2 v-else-if="status?.updateEnabled" class="w-5 h-5" />
-              <AlertCircle v-else class="w-5 h-5" />
-            </div>
-            <div class="space-y-0.5">
-              <p class="text-sm font-medium">
-                {{
-                  status?.hasUpdate
-                    ? canSelfUpdate
-                      ? t("admin.aboutUpdate.newVersionSelfUpdate")
-                      : t(nonSelfUpdateVersionMessageKey)
-                    : canSelfUpdate
-                      ? status?.updateEnabled
-                        ? t("admin.aboutUpdate.alreadyLatest")
-                        : t("admin.aboutUpdate.updateDisabled")
-                      : t("admin.aboutUpdate.versionCheckOnly")
-                }}
-              </p>
-              <p class="text-xs text-muted-foreground">
-                {{
-                  status?.hasUpdate
-                    ? canSelfUpdate
-                      ? t("admin.aboutUpdate.newVersionSelfUpdateHint")
-                      : t(nonSelfUpdateVersionHintKey)
-                    : t(versionCheckHintKey)
-                }}
-              </p>
-            </div>
-          </div>
-
-          <div class="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
-            <Button
-              variant="outline"
-              class="flex-1 min-w-0 border-border/70 bg-card shadow-none hover:bg-muted/60 sm:flex-none sm:w-auto dark:bg-muted/20 dark:hover:bg-muted/35"
-              :disabled="updateStore.isChecking"
-              @click="checkNow"
-            >
-              <RefreshCw
-                class="mr-2 h-4 w-4"
-                :class="updateStore.isChecking ? 'animate-spin' : ''"
-              />
-              {{ t("admin.aboutUpdate.checkUpdate") }}
-            </Button>
-            <Button
-              v-if="showOneClickUpdateButton"
-              class="flex-1 min-w-0 sm:flex-none sm:w-auto shadow-sm"
-              :disabled="!canTriggerOneClick"
-              :variant="updateStore.canInstall ? 'destructive' : 'default'"
-              @click="oneClickUpdate"
-            >
-              <Rocket class="mr-2 h-4 w-4" />
-              <span class="sm:hidden">{{
-                updateStore.canInstall ? t("admin.aboutUpdate.installRestart") : oneClickLabel
-              }}</span>
-              <span class="hidden sm:inline">{{ oneClickLabel }}</span>
-            </Button>
-          </div>
-        </div>
-
-        <Alert
-          v-if="status?.check.error"
-          variant="destructive"
-          class="rounded-xl"
-        >
-          <AlertCircle class="w-4 h-4" />
-          <AlertTitle>{{ t("admin.aboutUpdate.checkFailed") }}</AlertTitle>
-          <AlertDescription>{{ status.check.error }}</AlertDescription>
-        </Alert>
-
-        <Alert
-          v-if="status?.download.error"
-          variant="destructive"
-          class="rounded-xl"
-        >
-          <AlertCircle class="w-4 h-4" />
-          <AlertTitle>{{ t("admin.aboutUpdate.updateFailed") }}</AlertTitle>
-          <AlertDescription>{{ status.download.error }}</AlertDescription>
-        </Alert>
-
-        <div
-          v-if="status?.latest?.release_notes"
-          class="pt-4 border-t border-border/40"
-        >
-          <h3
-            class="text-sm font-medium flex items-center gap-2 mb-4 text-foreground"
+        <template v-else>
+          <Alert
+            v-if="!canSelfUpdate"
+            class="rounded-xl border-border/70 bg-muted/30 text-foreground shadow-none"
           >
-            <Terminal class="w-4 h-4 text-muted-foreground" />
-            {{ t("admin.aboutUpdate.releaseNotes") }}
-          </h3>
-          <div class="p-5 rounded-2xl bg-muted/30 border border-border/40">
-            <div
-              class="text-sm text-muted-foreground font-sans whitespace-pre-wrap break-words leading-relaxed"
-              v-html="releaseNotesHtml"
-            ></div>
+            <AlertCircle class="w-4 h-4" />
+            <AlertTitle>{{
+              t("admin.aboutUpdate.selfUpdateUnsupportedTitle")
+            }}</AlertTitle>
+            <AlertDescription>
+              {{ t(unsupportedDescriptionKey) }}
+            </AlertDescription>
+          </Alert>
+
+          <div
+            class="flex items-center justify-center rounded-2xl border border-border/50 bg-muted/[0.16] px-4 py-6"
+          >
+            <div class="flex flex-col items-center flex-1 space-y-1">
+              <span class="text-sm font-medium text-muted-foreground">{{
+                t("admin.aboutUpdate.currentVersion")
+              }}</span>
+              <span
+                class="text-2xl font-bold font-mono tracking-tight text-foreground"
+              >
+                {{ status?.localVersion || "..." }}
+              </span>
+            </div>
+
+            <div class="px-4 md:px-8 text-muted-foreground/40">
+              <ArrowRight class="w-6 h-6" />
+            </div>
+
+            <div class="flex flex-col items-center flex-1 space-y-1">
+              <span class="text-sm font-medium text-muted-foreground">{{
+                t("admin.aboutUpdate.latestVersion")
+              }}</span>
+              <span
+                class="text-2xl font-bold font-mono tracking-tight"
+                :class="status?.hasUpdate ? 'text-primary' : 'text-foreground'"
+              >
+                {{ status?.latest?.version || "..." }}
+              </span>
+            </div>
           </div>
-        </div>
+
+          <div
+            class="flex flex-col items-stretch justify-between gap-6 rounded-xl border border-border/50 bg-muted/[0.14] p-4 sm:flex-row sm:items-center"
+          >
+            <div class="flex items-center gap-3 w-full sm:w-auto">
+              <div
+                class="flex items-center justify-center w-10 h-10 rounded-full"
+                :class="
+                  status?.hasUpdate
+                    ? 'bg-primary/10 text-primary'
+                    : 'bg-muted text-muted-foreground'
+                "
+              >
+                <Sparkles v-if="status?.hasUpdate" class="w-5 h-5" />
+                <CheckCircle2
+                  v-else-if="status?.updateEnabled"
+                  class="w-5 h-5"
+                />
+                <AlertCircle v-else class="w-5 h-5" />
+              </div>
+              <div class="space-y-0.5">
+                <p class="text-sm font-medium">
+                  {{
+                    status?.hasUpdate
+                      ? canSelfUpdate
+                        ? t("admin.aboutUpdate.newVersionSelfUpdate")
+                        : t(nonSelfUpdateVersionMessageKey)
+                      : canSelfUpdate
+                        ? status?.updateEnabled
+                          ? t("admin.aboutUpdate.alreadyLatest")
+                          : t("admin.aboutUpdate.updateDisabled")
+                        : t("admin.aboutUpdate.versionCheckOnly")
+                  }}
+                </p>
+                <p class="text-xs text-muted-foreground">
+                  {{
+                    status?.hasUpdate
+                      ? canSelfUpdate
+                        ? t("admin.aboutUpdate.newVersionSelfUpdateHint")
+                        : t(nonSelfUpdateVersionHintKey)
+                      : t(versionCheckHintKey)
+                  }}
+                </p>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+              <Button
+                variant="outline"
+                class="flex-1 min-w-0 border-border/70 bg-card shadow-none hover:bg-muted/60 sm:flex-none sm:w-auto dark:bg-muted/20 dark:hover:bg-muted/35"
+                :disabled="updateStore.isChecking"
+                @click="checkNow"
+              >
+                <RefreshCw
+                  class="mr-2 h-4 w-4"
+                  :class="updateStore.isChecking ? 'animate-spin' : ''"
+                />
+                {{ t("admin.aboutUpdate.checkUpdate") }}
+              </Button>
+              <Button
+                v-if="showOneClickUpdateButton"
+                class="flex-1 min-w-0 sm:flex-none sm:w-auto shadow-sm"
+                :disabled="!canTriggerOneClick"
+                :variant="updateStore.canInstall ? 'destructive' : 'default'"
+                @click="oneClickUpdate"
+              >
+                <Rocket class="mr-2 h-4 w-4" />
+                <span class="sm:hidden">{{
+                  updateStore.canInstall
+                    ? t("admin.aboutUpdate.installRestart")
+                    : oneClickLabel
+                }}</span>
+                <span class="hidden sm:inline">{{ oneClickLabel }}</span>
+              </Button>
+            </div>
+          </div>
+
+          <Alert
+            v-if="status?.check.error"
+            variant="destructive"
+            class="rounded-xl"
+          >
+            <AlertCircle class="w-4 h-4" />
+            <AlertTitle>{{ t("admin.aboutUpdate.checkFailed") }}</AlertTitle>
+            <AlertDescription>{{ status.check.error }}</AlertDescription>
+          </Alert>
+
+          <Alert
+            v-if="status?.download.error"
+            variant="destructive"
+            class="rounded-xl"
+          >
+            <AlertCircle class="w-4 h-4" />
+            <AlertTitle>{{ t("admin.aboutUpdate.updateFailed") }}</AlertTitle>
+            <AlertDescription>{{ status.download.error }}</AlertDescription>
+          </Alert>
+
+          <div
+            v-if="status?.latest?.release_notes"
+            class="pt-4 border-t border-border/40"
+          >
+            <h3
+              class="text-sm font-medium flex items-center gap-2 mb-4 text-foreground"
+            >
+              <Terminal class="w-4 h-4 text-muted-foreground" />
+              {{ t("admin.aboutUpdate.releaseNotes") }}
+            </h3>
+            <div class="p-5 rounded-2xl bg-muted/30 border border-border/40">
+              <div
+                class="text-sm text-muted-foreground font-sans whitespace-pre-wrap break-words leading-relaxed"
+                v-html="releaseNotesHtml"
+              ></div>
+            </div>
+          </div>
+        </template>
       </CardContent>
     </Card>
 

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "status",
+  "description": "Minimal local-only capability for the trusted FnKnock status window.",
+  "windows": ["status"],
+  "permissions": ["status-commands"]
+}

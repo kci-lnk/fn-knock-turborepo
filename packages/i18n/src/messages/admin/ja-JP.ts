@@ -78,6 +78,9 @@ export const jaJPAdmin = {
     modalInstallDescription:
       "システムはアップデートをインストールしています。このページを閉じないでください。 <br>「ノックノック」アプリケーションは後でデスクトップに再び表示されます。",
     title: "バージョンとアップデート",
+    desktopManagedTitle: "更新は Windows デスクトップアプリで管理されます",
+    desktopManagedDescription:
+      "FnKnock のトレイメニューから「実行状態」を開き、更新の確認とインストールを行ってください。デスクトップ更新では GUI、Rust サービス、Go ゲートウェイ、フロントエンド資産がまとめて置き換えられます。",
     subtitleSelfUpdate: "Fn-Knock のバージョンとアップグレードを管理",
     subtitleDocker: "バージョン情報とDockerのアップグレード方法を表示します",
     subtitleOpenWrt:
@@ -3191,9 +3194,12 @@ export const jaJPAdmin = {
       resetTitle: "管理パネルのパスワードをリセット",
       resetDescription:
         "リセットコマンドはデバイスまたはコンテナの外部で実行する必要があります。この操作では、パネル パスワード、パネル セッション、およびログイン取り消しステータスのみがクリアされ、ビジネス設定は削除されません。",
+      resetDescriptionWindows:
+        "管理者権限の PowerShell でリセットコマンドを実行してください。パネルのパスワード、セッション、ログインのバックオフ状態だけが消去され、ゲートウェイの設定とデータは保持されます。",
       resetNotice:
         "クリーンアップ完了後、次回管理ポータルにアクセスする際は、再度「初回パスワード設定」の作業を行っていただきます。",
       resetStepSsh: "1. まず、Docker ホストにログインします。",
+      resetStepWindows: "管理者 PowerShell で実行",
       resetStepOpenWrtSsh: "1. まず、OpenWrt デバイスにログインします。",
       resetStepCompose:
         "2. 推奨事項: compose デプロイメントディレクトリで実行する",
@@ -3205,6 +3211,8 @@ export const jaJPAdmin = {
       loginTitle: "管理パネルにログインします",
       setupDescription:
         "初めて入る前に管理者パスワードを設定する必要があります。",
+      setupDescriptionWindows:
+        "初回設定 · 2/2 ステップ。ローカル管理コンソールを保護するパスワードを設定してください。",
       loginDescription:
         "管理バックエンドへのアクセスを続けるには、管理パスワードを入力してください。",
       setupHelper: "少なくとも 6 桁で、文字と数字の両方が含まれています。",

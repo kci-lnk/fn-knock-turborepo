@@ -25,12 +25,19 @@ export interface WelcomeGuideStatus {
   completed_at: string | null;
 }
 
-export type DeploymentTarget = "fpk" | "docker" | "openwrt" | "linux" | "dev";
+export type DeploymentTarget =
+  | "fpk"
+  | "docker"
+  | "openwrt"
+  | "linux"
+  | "windows"
+  | "dev";
 
 export interface RuntimeProfile {
   deployment_target: DeploymentTarget;
   is_docker: boolean;
   is_linux: boolean;
+  is_windows: boolean;
   is_root_process: boolean;
 }
 
@@ -42,6 +49,12 @@ export interface RuntimeCapabilities {
   self_update_available: boolean;
   terminal_available: boolean;
   shared_root_available: boolean;
+  acme_available?: boolean;
+  cloudflared_available?: boolean;
+  frpc_available?: boolean;
+  ssh_security_available?: boolean;
+  system_resource_monitor_available?: boolean;
+  desktop_update_managed?: boolean;
 }
 
 export interface DockerAdminBootstrapState {

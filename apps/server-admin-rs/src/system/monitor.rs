@@ -21,18 +21,26 @@ pub fn start_system_monitor_tasks(state: AppState) {
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
         ticker.tick().await;
         loop {
-            ticker.tick().await;
-            match state
-                .store
-                .set_lock_if_not_exists(
+            tokio::select! {
+                _ = state.shutdown.cancelled() => break,
+                _ = ticker.tick() => {}
+            }
+            let lock_result = tokio::select! {
+                _ = state.shutdown.cancelled() => break,
+                result = state.store.set_lock_if_not_exists(
                     "system-resource-monitor",
                     system_monitor_lock_ttl_seconds(),
-                )
-                .await
-            {
+                ) => result,
+            };
+            match lock_result {
                 Ok(true) => {
-                    if let Err(error) = tick_system_monitor(&state).await {
-                        tracing::warn!(%error, "system resource monitor tick failed");
+                    tokio::select! {
+                        _ = state.shutdown.cancelled() => break,
+                        result = tick_system_monitor(&state) => {
+                            if let Err(error) = result {
+                                tracing::warn!(%error, "system resource monitor tick failed");
+                            }
+                        }
                     }
                 }
                 Ok(false) => {}

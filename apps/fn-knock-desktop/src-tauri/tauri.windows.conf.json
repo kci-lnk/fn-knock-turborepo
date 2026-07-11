@@ -1,0 +1,35 @@
+{
+  "bundle": {
+    "targets": ["nsis"],
+    "createUpdaterArtifacts": false,
+    "icon": ["icons/icon.ico"],
+    "resources": {
+      "../bundle/windows/fn-knock-service.exe": "fn-knock-service.exe",
+      "../bundle/windows/fn-knock-gateway.exe": "fn-knock-gateway.exe",
+      "../bundle/windows/runtime/ui/": "ui/",
+      "../bundle/windows/runtime/server-auth-view/": "server-auth-view/",
+      "../bundle/windows/runtime/bundle.json": "bundle.json"
+    },
+    "windows": {
+      "minimumWebview2Version": "109.0.1518.0",
+      "webviewInstallMode": {
+        "type": "embedBootstrapper",
+        "silent": true
+      },
+      "nsis": {
+        "installMode": "perMachine",
+        "installerHooks": "./windows/hooks.nsh",
+        "languages": ["SimpChinese", "English"]
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "__FN_KNOCK_UPDATER_PUBLIC_KEY__",
+      "endpoints": ["https://cdn.fnknock.cn/windows/stable/latest.json"],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

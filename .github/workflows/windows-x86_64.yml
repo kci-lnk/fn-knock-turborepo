@@ -1,0 +1,374 @@
+name: Windows x86_64
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      go_gateway_commit:
+        description: Immutable 40-character Go-Reauth-Proxy commit SHA
+        required: true
+        type: string
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-pr:
+    if: github.event_name == 'pull_request'
+    runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      CARGO_TERM_COLOR: always
+      # A repository variable may advance this dependency, but the fallback is
+      # deliberately a public, immutable commit so fork PR validation is
+      # reproducible without reading any secret.
+      FN_KNOCK_GO_SOURCE_COMMIT: ${{ vars.FN_KNOCK_GO_GATEWAY_COMMIT || 'b3c59f29fd225657bc74644a1234f7cc9c8b81aa' }}
+
+    steps:
+      - name: Checkout fn-knock
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Validate immutable Go source lock
+        shell: pwsh
+        run: |
+          if (
+            $env:FN_KNOCK_GO_SOURCE_COMMIT -notmatch '^[0-9a-fA-F]{40}$'
+          ) {
+            throw "FN_KNOCK_GO_GATEWAY_COMMIT must be an immutable 40-character SHA"
+          }
+
+      # This repository is public. Deliberately do not use FN_KNOCK_SOURCE_TOKEN
+      # here: pull_request workflows, including forks, must remain secret-free.
+      - name: Checkout public Go gateway for integration tests
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: kci-lnk/Go-Reauth-Proxy
+          path: Go-Reauth-Proxy
+          ref: ${{ env.FN_KNOCK_GO_SOURCE_COMMIT }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: "1.25.x"
+          cache-dependency-path: Go-Reauth-Proxy/go.sum
+
+      - name: Set up protobuf compiler
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
+        with:
+          version: "35.1"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Verify generated Go control-plane stubs
+        shell: pwsh
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.6
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
+          $env:PATH = "$(go env GOPATH)\bin;$env:PATH"
+          protoc `
+            --proto_path "packages\grpc-contracts\proto" `
+            --go_out "Go-Reauth-Proxy" `
+            --go_opt module=go-reauth-proxy `
+            --go-grpc_out "Go-Reauth-Proxy" `
+            --go-grpc_opt module=go-reauth-proxy `
+            "packages\grpc-contracts\proto\fnknock\v1\gateway.proto"
+          if ($LASTEXITCODE -ne 0) { throw "protobuf generation failed" }
+          git -C Go-Reauth-Proxy diff --exit-code -- pkg/grpc/pb
+          if ($LASTEXITCODE -ne 0) { throw "Go protobuf stubs drifted from the shared contract" }
+
+      - name: Build native runtime without release signing
+        shell: pwsh
+        run: >-
+          ./scripts/fn-knock-windows.ps1
+          -Mode Build
+          -SkipDesktopBundle
+          -GoRepository "${{ github.workspace }}\Go-Reauth-Proxy"
+
+      # The Tauri updater configuration needs a valid public key even when
+      # code/update signing is intentionally disabled. Generate an ephemeral
+      # pair, write only its public half to a runner-temp config, then delete
+      # both key files before any PR artifact is built.
+      - name: Create ephemeral unsigned Tauri config
+        id: unsigned-tauri
+        working-directory: apps/fn-knock-desktop
+        shell: pwsh
+        run: |
+          $suffix = "$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          $keyPath = Join-Path $env:RUNNER_TEMP "fn-knock-pr-updater-$suffix.key"
+          $configPath = Join-Path $env:RUNNER_TEMP "fn-knock-pr-tauri-$suffix.conf.json"
+
+          npm run tauri -- signer generate --ci --write-keys $keyPath
+          if ($LASTEXITCODE -ne 0) { throw "failed to generate ephemeral Tauri updater key" }
+
+          $publicKeyPath = "$keyPath.pub"
+          if (-not (Test-Path -LiteralPath $publicKeyPath -PathType Leaf)) {
+            throw "ephemeral Tauri public key was not created"
+          }
+          $publicKey = (Get-Content -Raw -LiteralPath $publicKeyPath).Trim()
+          if ([string]::IsNullOrWhiteSpace($publicKey)) {
+            throw "ephemeral Tauri public key is empty"
+          }
+
+          $config = @{
+            plugins = @{
+              updater = @{
+                pubkey = $publicKey
+                endpoints = @("https://updates.invalid/fn-knock/windows/latest.json")
+                windows = @{ installMode = "passive" }
+              }
+            }
+          } | ConvertTo-Json -Depth 10
+          [System.IO.File]::WriteAllText($configPath, "$config`n", [System.Text.UTF8Encoding]::new($false))
+
+          Remove-Item -LiteralPath $keyPath, $publicKeyPath -Force
+          "config=$configPath" >> $env:GITHUB_OUTPUT
+
+      - name: Build unsigned Windows desktop executable
+        working-directory: apps/fn-knock-desktop
+        shell: pwsh
+        env:
+          FN_KNOCK_UNSIGNED_TAURI_CONFIG: ${{ steps.unsigned-tauri.outputs.config }}
+        run: |
+          npm run tauri -- build --target x86_64-pc-windows-msvc --no-bundle --no-sign --config $env:FN_KNOCK_UNSIGNED_TAURI_CONFIG --ci
+          if ($LASTEXITCODE -ne 0) { throw "unsigned Tauri executable build failed" }
+
+      - name: Smoke test the native Windows runtime group
+        shell: pwsh
+        timeout-minutes: 15
+        run: ./scripts/fn-knock-windows-smoke.ps1
+
+      - name: Build unsigned NSIS installer
+        id: unsigned-installer
+        working-directory: apps/fn-knock-desktop
+        shell: pwsh
+        env:
+          FN_KNOCK_UNSIGNED_TAURI_CONFIG: ${{ steps.unsigned-tauri.outputs.config }}
+        run: |
+          npm run tauri -- bundle --target x86_64-pc-windows-msvc --bundles nsis --no-sign --config $env:FN_KNOCK_UNSIGNED_TAURI_CONFIG --ci
+          if ($LASTEXITCODE -ne 0) { throw "unsigned Tauri NSIS bundle failed" }
+          $setups = @(Get-ChildItem "src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\*-setup.exe")
+          if ($setups.Count -ne 1) {
+            throw "Expected exactly one unsigned NSIS setup, found $($setups.Count)"
+          }
+          "setup=$($setups[0].FullName)" >> $env:GITHUB_OUTPUT
+
+      - name: Install and uninstall unsigned NSIS installer
+        shell: pwsh
+        timeout-minutes: 15
+        run: ./scripts/fn-knock-windows-installer-smoke.ps1 -SetupPath "${{ steps.unsigned-installer.outputs.setup }}"
+
+  build-sign-package:
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      AZURE_CORE_OUTPUT: none
+      CARGO_TERM_COLOR: always
+      FN_KNOCK_UPDATER_PUBLIC_KEY: ${{ secrets.FN_KNOCK_UPDATER_PUBLIC_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      FN_KNOCK_GO_SOURCE_COMMIT: ${{ inputs.go_gateway_commit || vars.FN_KNOCK_GO_GATEWAY_COMMIT }}
+
+    steps:
+      - name: Checkout fn-knock
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Validate immutable Go source lock
+        shell: pwsh
+        run: |
+          if ($env:FN_KNOCK_GO_SOURCE_COMMIT -notmatch '^[0-9a-fA-F]{40}$') {
+            throw "Set go_gateway_commit (manual run) or FN_KNOCK_GO_GATEWAY_COMMIT (tag run) to an immutable 40-character SHA"
+          }
+
+      - name: Checkout Go gateway
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: kci-lnk/Go-Reauth-Proxy
+          token: ${{ secrets.FN_KNOCK_SOURCE_TOKEN }}
+          path: Go-Reauth-Proxy
+          ref: ${{ env.FN_KNOCK_GO_SOURCE_COMMIT }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: "1.25.x"
+          cache-dependency-path: Go-Reauth-Proxy/go.sum
+
+      - name: Set up protobuf compiler
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
+        with:
+          version: "35.1"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Verify generated Go control-plane stubs
+        shell: pwsh
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.6
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
+          $env:PATH = "$(go env GOPATH)\bin;$env:PATH"
+          protoc `
+            --proto_path "packages\grpc-contracts\proto" `
+            --go_out "Go-Reauth-Proxy" `
+            --go_opt module=go-reauth-proxy `
+            --go-grpc_out "Go-Reauth-Proxy" `
+            --go-grpc_opt module=go-reauth-proxy `
+            "packages\grpc-contracts\proto\fnknock\v1\gateway.proto"
+          if ($LASTEXITCODE -ne 0) { throw "protobuf generation failed" }
+          git -C Go-Reauth-Proxy diff --exit-code -- pkg/grpc/pb
+          if ($LASTEXITCODE -ne 0) { throw "Go protobuf stubs drifted from the shared contract" }
+
+      - name: Build and test the complete Windows bundle
+        shell: pwsh
+        run: >-
+          ./scripts/fn-knock-windows.ps1
+          -Mode Build
+          -GoRepository "${{ github.workspace }}\Go-Reauth-Proxy"
+
+      - name: Smoke test the native Windows runtime group
+        shell: pwsh
+        timeout-minutes: 15
+        run: ./scripts/fn-knock-windows-smoke.ps1
+
+      - name: Azure login for Artifact Signing
+        uses: Azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Authenticode-sign GUI, service, and gateway
+        uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2
+        with:
+          endpoint: ${{ vars.ARTIFACT_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.ARTIFACT_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.ARTIFACT_SIGNING_PROFILE }}
+          files: |
+            ${{ github.workspace }}\apps\fn-knock-desktop\bundle\windows\fn-knock-service.exe
+            ${{ github.workspace }}\apps\fn-knock-desktop\bundle\windows\fn-knock-gateway.exe
+            ${{ github.workspace }}\apps\fn-knock-desktop\src-tauri\target\x86_64-pc-windows-msvc\release\fn-knock.exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          description: FnKnock Windows Gateway
+          description-url: https://github.com/kci-lnk/fn-knock-turborepo
+
+      - name: Verify signed executables
+        shell: pwsh
+        run: |
+          $files = @(
+            "apps\fn-knock-desktop\bundle\windows\fn-knock-service.exe",
+            "apps\fn-knock-desktop\bundle\windows\fn-knock-gateway.exe",
+            "apps\fn-knock-desktop\src-tauri\target\x86_64-pc-windows-msvc\release\fn-knock.exe"
+          )
+          foreach ($file in $files) {
+            $signature = Get-AuthenticodeSignature $file
+            if ($signature.Status -ne "Valid") {
+              throw "Invalid Authenticode signature for $file: $($signature.Status)"
+            }
+          }
+
+      - name: Build NSIS package from signed components
+        id: bundle
+        working-directory: apps/fn-knock-desktop
+        shell: pwsh
+        run: |
+          npm run tauri -- bundle --target x86_64-pc-windows-msvc --bundles nsis --config src-tauri/tauri.ci.conf.json
+          if ($LASTEXITCODE -ne 0) { throw "Tauri NSIS bundle failed" }
+          $setups = @(Get-ChildItem "src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\*-setup.exe")
+          if ($setups.Count -ne 1) {
+            throw "Expected exactly one NSIS setup, found $($setups.Count)"
+          }
+          $setup = $setups[0].FullName
+          "setup=$setup" >> $env:GITHUB_OUTPUT
+
+      - name: Authenticode-sign final setup
+        uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2
+        with:
+          endpoint: ${{ vars.ARTIFACT_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.ARTIFACT_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.ARTIFACT_SIGNING_PROFILE }}
+          files: ${{ steps.bundle.outputs.setup }}
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          description: FnKnock Windows Installer
+          description-url: https://github.com/kci-lnk/fn-knock-turborepo
+
+      - name: Verify signed NSIS installer
+        shell: pwsh
+        run: |
+          $setup = "${{ steps.bundle.outputs.setup }}"
+          $signature = Get-AuthenticodeSignature $setup
+          if ($signature.Status -ne "Valid") {
+            throw "Invalid Authenticode signature for NSIS setup: $($signature.Status)"
+          }
+
+      - name: Install and uninstall signed NSIS installer
+        shell: pwsh
+        timeout-minutes: 15
+        run: ./scripts/fn-knock-windows-installer-smoke.ps1 -SetupPath "${{ steps.bundle.outputs.setup }}"
+
+      - name: Generate updater signature after Authenticode
+        shell: pwsh
+        working-directory: apps/fn-knock-desktop
+        run: |
+          $setup = "${{ steps.bundle.outputs.setup }}"
+          $signature = "$setup.sig"
+          Remove-Item -Force -ErrorAction SilentlyContinue $signature
+          npm run tauri -- signer sign $setup
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path $signature)) {
+            throw "Tauri updater signature generation failed"
+          }
+          $authenticode = Get-AuthenticodeSignature $setup
+          if ($authenticode.Status -ne "Valid") {
+            throw "Setup Authenticode signature is invalid after updater signing"
+          }
+
+      - name: Finalize fixed-name release artifacts
+        shell: pwsh
+        run: ./scripts/fn-knock-windows-finalize.ps1 -SetupPath "${{ steps.bundle.outputs.setup }}"
+
+      - name: Upload immutable release input
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: fn-knock-windows-x86_64
+          path: dist/fn-knock-artifacts/windows/x86_64/
+          if-no-files-found: error
+          retention-days: 30

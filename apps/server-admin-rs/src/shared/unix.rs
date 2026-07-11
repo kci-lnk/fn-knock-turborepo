@@ -125,6 +125,7 @@ fn next_getpwuid_buffer_size(current: usize) -> Option<usize> {
 }
 
 #[cfg(not(unix))]
+#[allow(dead_code)]
 pub(crate) fn current_user_home_dir() -> Option<PathBuf> {
     None
 }

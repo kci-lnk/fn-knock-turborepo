@@ -369,9 +369,17 @@ export const useConfigStore = defineStore("config", () => {
   const isLinuxDeployment = computed(
     () => runtimeProfile.value?.deployment_target === "linux",
   );
+  const isWindowsDeployment = computed(
+    () => runtimeProfile.value?.deployment_target === "windows",
+  );
   const isProtectedAdminPanelDeployment = computed(() => {
     const target = runtimeProfile.value?.deployment_target;
-    return target === "docker" || target === "openwrt" || target === "linux";
+    return (
+      target === "docker" ||
+      target === "openwrt" ||
+      target === "linux" ||
+      target === "windows"
+    );
   });
   const canUseDirectMode = computed(
     () => capabilities.value?.direct_mode_available === true,
@@ -394,6 +402,27 @@ export const useConfigStore = defineStore("config", () => {
   const hasSharedRoot = computed(
     () => capabilities.value?.shared_root_available === true,
   );
+  const canUseAcme = computed(
+    () => capabilities.value?.acme_available !== false,
+  );
+  const canUseCloudflared = computed(
+    () => capabilities.value?.cloudflared_available !== false,
+  );
+  const canUseFrpc = computed(
+    () => capabilities.value?.frpc_available !== false,
+  );
+  const canUseSshSecurity = computed(
+    () =>
+      capabilities.value?.ssh_security_available ??
+      capabilities.value?.host_firewall_available ??
+      false,
+  );
+  const canUseSystemResourceMonitor = computed(
+    () => capabilities.value?.system_resource_monitor_available !== false,
+  );
+  const isDesktopUpdateManaged = computed(
+    () => capabilities.value?.desktop_update_managed === true,
+  );
 
   return {
     config,
@@ -405,6 +434,7 @@ export const useConfigStore = defineStore("config", () => {
     isFpkDeployment,
     isOpenWrtDeployment,
     isLinuxDeployment,
+    isWindowsDeployment,
     isProtectedAdminPanelDeployment,
     canUseDirectMode,
     canManageHostFirewall,
@@ -413,6 +443,12 @@ export const useConfigStore = defineStore("config", () => {
     canSyncSystemClock,
     canUseTerminal,
     hasSharedRoot,
+    canUseAcme,
+    canUseCloudflared,
+    canUseFrpc,
+    canUseSshSecurity,
+    canUseSystemResourceMonitor,
+    isDesktopUpdateManaged,
     loadConfig,
     setRunType,
     saveAutoManageFirewall,

@@ -1,5 +1,10 @@
 use super::*;
 
+#[cfg(unix)]
+const FORCE_TERMINATE_SIGNAL: libc::c_int = libc::SIGKILL;
+#[cfg(not(unix))]
+const FORCE_TERMINATE_SIGNAL: libc::c_int = libc::SIGTERM;
+
 pub(super) fn pid_path_for_meta(meta: &FrpcInstanceMeta) -> PathBuf {
     PathBuf::from(&meta.work_dir).join("frpc.pid")
 }
@@ -34,7 +39,7 @@ pub(super) async fn terminate_pid(pid: u32) -> FrpcResult<()> {
         }
         sleep(Duration::from_millis(100)).await;
     }
-    send_signal(pid, libc::SIGKILL);
+    send_signal(pid, FORCE_TERMINATE_SIGNAL);
     for _ in 0..10 {
         if !is_process_alive(pid) {
             return Ok(());

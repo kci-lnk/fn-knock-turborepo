@@ -18,7 +18,7 @@
     "@fn-knock/i18n": "^0.0.0",
     "@tanstack/vue-table": "^8.21.3",
     "@vueuse/core": "^14.2.1",
-    "axios": "^1.13.5",
+    "axios": "^1.16.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "crypto-js": "^4.2.0",

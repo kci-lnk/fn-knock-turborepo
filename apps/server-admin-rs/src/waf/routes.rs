@@ -192,21 +192,42 @@ pub fn waf_routes() -> Router<AppState> {
 pub fn start_waf_tasks(state: AppState) {
     let boot_state = state.clone();
     tokio::spawn(async move {
-        if let Err(error) = sync_waf_on_boot(&boot_state).await {
-            tracing::warn!(%error, "failed to sync WAF on boot");
+        tokio::select! {
+            _ = boot_state.shutdown.cancelled() => {}
+            result = sync_waf_on_boot(&boot_state) => {
+                if let Err(error) = result {
+                    tracing::warn!(%error, "failed to sync WAF on boot");
+                }
+            }
         }
     });
 
     let drain_state = state.clone();
     tokio::spawn(async move {
-        if let Err(error) = drain_waf_events_now(&drain_state).await {
-            tracing::debug!(%error, "failed to drain WAF events on boot");
+        tokio::select! {
+            _ = drain_state.shutdown.cancelled() => return,
+            result = drain_waf_events_now(&drain_state) => {
+                if let Err(error) = result {
+                    tracing::debug!(%error, "failed to drain WAF events on boot");
+                }
+            }
         }
         loop {
-            let interval = waf_drain_interval_seconds(&drain_state).await;
-            tokio_time::sleep(std::time::Duration::from_secs(interval)).await;
-            if let Err(error) = drain_waf_events_now(&drain_state).await {
-                tracing::debug!(%error, "failed to drain WAF events");
+            let interval = tokio::select! {
+                _ = drain_state.shutdown.cancelled() => break,
+                interval = waf_drain_interval_seconds(&drain_state) => interval,
+            };
+            tokio::select! {
+                _ = drain_state.shutdown.cancelled() => break,
+                _ = tokio_time::sleep(std::time::Duration::from_secs(interval)) => {}
+            }
+            tokio::select! {
+                _ = drain_state.shutdown.cancelled() => break,
+                result = drain_waf_events_now(&drain_state) => {
+                    if let Err(error) = result {
+                        tracing::debug!(%error, "failed to drain WAF events");
+                    }
+                }
             }
         }
     });
@@ -218,9 +239,17 @@ pub fn start_waf_tasks(state: AppState) {
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
         ticker.tick().await;
         loop {
-            ticker.tick().await;
-            if let Err(error) = check_and_sync_system_waf_rules_if_needed(&state).await {
-                tracing::warn!(%error, "failed to auto update WAF system rules");
+            tokio::select! {
+                _ = state.shutdown.cancelled() => break,
+                _ = ticker.tick() => {}
+            }
+            tokio::select! {
+                _ = state.shutdown.cancelled() => break,
+                result = check_and_sync_system_waf_rules_if_needed(&state) => {
+                    if let Err(error) = result {
+                        tracing::warn!(%error, "failed to auto update WAF system rules");
+                    }
+                }
             }
         }
     });

@@ -185,9 +185,17 @@ pub fn start_acme_tasks(state: AppState) {
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
         ticker.tick().await;
         loop {
-            ticker.tick().await;
-            if let Err(error) = run_acme_auto_renew_once(state.clone()).await {
-                tracing::warn!(%error, "ACME auto-renew task failed");
+            tokio::select! {
+                _ = state.shutdown.cancelled() => break,
+                _ = ticker.tick() => {}
+            }
+            tokio::select! {
+                _ = state.shutdown.cancelled() => break,
+                result = run_acme_auto_renew_once(state.clone()) => {
+                    if let Err(error) = result {
+                        tracing::warn!(%error, "ACME auto-renew task failed");
+                    }
+                }
             }
         }
     });

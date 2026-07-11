@@ -1,6 +1,6 @@
+#[cfg(unix)]
+use std::{fs, path::Path};
 use std::{
-    fs,
-    path::Path,
     sync::{Mutex, MutexGuard},
     time::Instant,
 };
@@ -379,33 +379,42 @@ pub(super) fn clock_sync_target_epoch_ms(
 }
 
 pub(super) fn set_system_timezone(translator: &Translator) -> Result<String, String> {
-    if run_process_success("timedatectl", &["set-timezone", EXPECTED_TIME_ZONE]).is_ok() {
-        return Ok(translator.t_params(
-            "server.systemClock.timezoneSet",
-            &[("timezone", EXPECTED_TIME_ZONE.to_string())],
-        ));
+    #[cfg(not(unix))]
+    {
+        let _ = translator;
+        return Err("system timezone mutation is unsupported on this platform".to_string());
     }
 
-    let zoneinfo_path = format!("/usr/share/zoneinfo/{EXPECTED_TIME_ZONE}");
-    if !Path::new(&zoneinfo_path).exists() {
-        return Err(translator.t_params(
-            "server.systemClock.missingZoneinfoFile",
-            &[("path", zoneinfo_path)],
-        ));
+    #[cfg(unix)]
+    {
+        if run_process_success("timedatectl", &["set-timezone", EXPECTED_TIME_ZONE]).is_ok() {
+            return Ok(translator.t_params(
+                "server.systemClock.timezoneSet",
+                &[("timezone", EXPECTED_TIME_ZONE.to_string())],
+            ));
+        }
+
+        let zoneinfo_path = format!("/usr/share/zoneinfo/{EXPECTED_TIME_ZONE}");
+        if !Path::new(&zoneinfo_path).exists() {
+            return Err(translator.t_params(
+                "server.systemClock.missingZoneinfoFile",
+                &[("path", zoneinfo_path)],
+            ));
+        }
+        let _ = fs::remove_file("/etc/localtime");
+        match std::os::unix::fs::symlink(&zoneinfo_path, "/etc/localtime") {
+            Ok(()) => {}
+            Err(_) => fs::copy(&zoneinfo_path, "/etc/localtime")
+                .map(|_| ())
+                .map_err(|error| error.to_string())?,
+        }
+        fs::write("/etc/timezone", format!("{EXPECTED_TIME_ZONE}\n"))
+            .map_err(|error| error.to_string())?;
+        Ok(translator.t_params(
+            "server.systemClock.timezoneWritten",
+            &[("timezone", EXPECTED_TIME_ZONE.to_string())],
+        ))
     }
-    let _ = fs::remove_file("/etc/localtime");
-    match std::os::unix::fs::symlink(&zoneinfo_path, "/etc/localtime") {
-        Ok(()) => {}
-        Err(_) => fs::copy(&zoneinfo_path, "/etc/localtime")
-            .map(|_| ())
-            .map_err(|error| error.to_string())?,
-    }
-    fs::write("/etc/timezone", format!("{EXPECTED_TIME_ZONE}\n"))
-        .map_err(|error| error.to_string())?;
-    Ok(translator.t_params(
-        "server.systemClock.timezoneWritten",
-        &[("timezone", EXPECTED_TIME_ZONE.to_string())],
-    ))
 }
 
 pub(super) fn set_system_clock(

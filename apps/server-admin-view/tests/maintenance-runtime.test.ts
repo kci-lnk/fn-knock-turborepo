@@ -12,6 +12,7 @@ const profile = (
   deployment_target,
   is_docker: deployment_target === "docker",
   is_linux: true,
+  is_windows: deployment_target === "windows",
   is_root_process: true,
 });
 

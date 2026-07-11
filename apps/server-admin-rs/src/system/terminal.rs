@@ -312,9 +312,17 @@ pub fn start_terminal_tasks(state: AppState) {
         let mut ticker = interval(Duration::from_secs(60));
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
         loop {
-            ticker.tick().await;
-            if let Err(error) = cleanup_expired_sessions(&state).await {
-                tracing::warn!(%error, "failed to cleanup expired terminal sessions");
+            tokio::select! {
+                _ = state.shutdown.cancelled() => break,
+                _ = ticker.tick() => {}
+            }
+            tokio::select! {
+                _ = state.shutdown.cancelled() => break,
+                result = cleanup_expired_sessions(&state) => {
+                    if let Err(error) = result {
+                        tracing::warn!(%error, "failed to cleanup expired terminal sessions");
+                    }
+                }
             }
         }
     });

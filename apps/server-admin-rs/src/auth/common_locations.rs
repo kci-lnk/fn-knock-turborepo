@@ -64,16 +64,29 @@ struct LocationGroup {
 
 pub fn start_common_auth_location_tasks(state: AppState) {
     tokio::spawn(async move {
-        if let Err(error) = rebuild_common_auth_locations_runtime_state(&state).await {
-            tracing::warn!(%error, "failed to rebuild common auth locations on boot");
+        tokio::select! {
+            _ = state.shutdown.cancelled() => return,
+            result = rebuild_common_auth_locations_runtime_state(&state) => {
+                if let Err(error) = result {
+                    tracing::warn!(%error, "failed to rebuild common auth locations on boot");
+                }
+            }
         }
         let mut ticker = time::interval(std::time::Duration::from_secs(5 * 60));
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
         ticker.tick().await;
         loop {
-            ticker.tick().await;
-            if let Err(error) = rebuild_common_auth_locations_runtime_state(&state).await {
-                tracing::warn!(%error, "failed to rebuild common auth locations");
+            tokio::select! {
+                _ = state.shutdown.cancelled() => break,
+                _ = ticker.tick() => {}
+            }
+            tokio::select! {
+                _ = state.shutdown.cancelled() => break,
+                result = rebuild_common_auth_locations_runtime_state(&state) => {
+                    if let Err(error) = result {
+                        tracing::warn!(%error, "failed to rebuild common auth locations");
+                    }
+                }
             }
         }
     });
@@ -364,7 +377,10 @@ fn schedule_common_auth_locations_rebuild_after(
     scheduled.task = Some((
         task_id,
         tokio::spawn(async move {
-            time::sleep(delay).await;
+            tokio::select! {
+                _ = state.shutdown.cancelled() => return,
+                _ = time::sleep(delay) => {}
+            }
             {
                 let Ok(mut scheduled) = SCHEDULED_REBUILD.lock() else {
                     return;
@@ -374,8 +390,13 @@ fn schedule_common_auth_locations_rebuild_after(
                 }
                 scheduled.task = None;
             }
-            if let Err(error) = rebuild_common_auth_locations_runtime_state(&state).await {
-                tracing::warn!(%error, %reason, "failed to rebuild common auth locations");
+            tokio::select! {
+                _ = state.shutdown.cancelled() => {}
+                result = rebuild_common_auth_locations_runtime_state(&state) => {
+                    if let Err(error) = result {
+                        tracing::warn!(%error, %reason, "failed to rebuild common auth locations");
+                    }
+                }
             }
         }),
     ));

@@ -216,16 +216,27 @@ pub fn ddns_status_routes() -> Router<AppState> {
 pub fn start_ddns_tasks(state: AppState) {
     let startup_state = state.clone();
     tokio::spawn(async move {
-        tokio_time::sleep(Duration::from_secs(DDNS_STARTUP_CHECK_DELAY_SECONDS)).await;
-        if let Err(error) = run_automatic_ddns_check(&startup_state, "startup", false, false).await
-        {
-            tracing::warn!(%error, "DDNS startup check failed");
+        tokio::select! {
+            _ = startup_state.shutdown.cancelled() => return,
+            _ = tokio_time::sleep(Duration::from_secs(DDNS_STARTUP_CHECK_DELAY_SECONDS)) => {}
+        }
+        tokio::select! {
+            _ = startup_state.shutdown.cancelled() => {}
+            result = run_automatic_ddns_check(&startup_state, "startup", false, false) => {
+                if let Err(error) = result {
+                    tracing::warn!(%error, "DDNS startup check failed");
+                }
+            }
         }
     });
 
     tokio::spawn(async move {
         loop {
-            let interval_minutes = match ddns_update_interval_minutes(&state).await {
+            let interval_result = tokio::select! {
+                _ = state.shutdown.cancelled() => break,
+                result = ddns_update_interval_minutes(&state) => result,
+            };
+            let interval_minutes = match interval_result {
                 Ok(value) => value,
                 Err(error) => {
                     tracing::warn!(%error, "failed to load DDNS scheduler interval");
@@ -233,13 +244,19 @@ pub fn start_ddns_tasks(state: AppState) {
                 }
             };
             tokio::select! {
+                _ = state.shutdown.cancelled() => break,
                 _ = tokio_time::sleep(Duration::from_secs((interval_minutes.max(1) as u64) * 60)) => {}
                 _ = state.ddns_schedule_reload.notified() => {
                     continue;
                 }
             }
-            if let Err(error) = run_automatic_ddns_check(&state, "cron", true, false).await {
-                tracing::warn!(%error, "DDNS scheduled check failed");
+            tokio::select! {
+                _ = state.shutdown.cancelled() => break,
+                result = run_automatic_ddns_check(&state, "cron", true, false) => {
+                    if let Err(error) = result {
+                        tracing::warn!(%error, "DDNS scheduled check failed");
+                    }
+                }
             }
         }
     });
@@ -284,10 +301,13 @@ async fn toggle(State(state): State<AppState>, Json(body): Json<ToggleBody>) -> 
             if body.enabled && !was_enabled {
                 let run_state = state.clone();
                 tokio::spawn(async move {
-                    if let Err(error) =
-                        run_automatic_ddns_check(&run_state, "enable", true, false).await
-                    {
-                        tracing::warn!(%error, "DDNS enable check failed");
+                    tokio::select! {
+                        _ = run_state.shutdown.cancelled() => {}
+                        result = run_automatic_ddns_check(&run_state, "enable", true, false) => {
+                            if let Err(error) = result {
+                                tracing::warn!(%error, "DDNS enable check failed");
+                            }
+                        }
                     }
                 });
             }

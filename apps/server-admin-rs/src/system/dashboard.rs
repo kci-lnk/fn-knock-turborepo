@@ -338,9 +338,17 @@ async fn run_traffic_collect_loop(state: AppState) {
     ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
     ticker.tick().await;
     loop {
-        ticker.tick().await;
-        if let Err(error) = collect_traffic_once(&state).await {
-            tracing::warn!(%error, "traffic collect task failed");
+        tokio::select! {
+            _ = state.shutdown.cancelled() => break,
+            _ = ticker.tick() => {}
+        }
+        tokio::select! {
+            _ = state.shutdown.cancelled() => break,
+            result = collect_traffic_once(&state) => {
+                if let Err(error) = result {
+                    tracing::warn!(%error, "traffic collect task failed");
+                }
+            }
         }
     }
 }
@@ -350,9 +358,17 @@ async fn run_traffic_cleanup_loop(state: AppState) {
     ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
     ticker.tick().await;
     loop {
-        ticker.tick().await;
-        if let Err(error) = cleanup_traffic_once(&state).await {
-            tracing::warn!(%error, "traffic cleanup task failed");
+        tokio::select! {
+            _ = state.shutdown.cancelled() => break,
+            _ = ticker.tick() => {}
+        }
+        tokio::select! {
+            _ = state.shutdown.cancelled() => break,
+            result = cleanup_traffic_once(&state) => {
+                if let Err(error) = result {
+                    tracing::warn!(%error, "traffic cleanup task failed");
+                }
+            }
         }
     }
 }

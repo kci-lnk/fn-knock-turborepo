@@ -53,4 +53,8 @@ apps/fn-knock/dist/
 deploy/docker/rust-backends/server-admin-rs-linux-*
 !deploy/docker/rust-backends/.gitkeep
 videos
+apps/fn-knock-desktop/bundle/windows/
+apps/fn-knock-desktop/src-tauri/tauri.ci.conf.json
+dist/windows/
+/Go-Reauth-Proxy/
 apps/fn-knock/app/server/server-admin-rs-linux-arm64

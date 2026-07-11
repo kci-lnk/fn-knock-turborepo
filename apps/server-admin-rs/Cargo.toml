@@ -39,13 +39,16 @@ serde_cbor_2 = "0.13"
 serde_json = "1.0"
 sha1 = "0.10"
 sha2 = "0.10"
+socket2 = "0.6"
 subtle = "2.6"
 thiserror = "2.0"
 time = { version = "0.3.53", features = ["formatting", "local-offset", "parsing", "serde"] }
-tokio = { version = "1.48", features = ["fs", "io-util", "macros", "net", "process", "rt-multi-thread", "signal", "time"] }
+tokio = { version = "1.48", features = ["fs", "io-util", "macros", "net", "process", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-stream = "0.1"
+tokio-util = { version = "0.7", features = ["rt"] }
 tokio-rusqlite = { version = "0.7", features = ["bundled", "serde_json"] }
 tonic = { version = "0.12", default-features = false, features = ["channel", "codegen", "prost"] }
+tonic-health = "0.12"
 prost = "0.13"
 totp-rs = { version = "5.7.2", features = ["gen_secret"] }
 tower = { version = "0.5", features = ["util"] }
@@ -60,7 +63,22 @@ x509-parser = "0.18"
 zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 libc = "0.2"
 
+[target.'cfg(windows)'.dependencies]
+rcgen = { version = "0.14.8", features = ["pem", "x509-parser"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+windows-service = "0.8"
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Com",
+    "Win32_System_JobObjects",
+    "Win32_System_Threading",
+    "Win32_UI_Shell",
+] }
+
 [dev-dependencies]
+rcgen = { version = "0.14.8", features = ["pem", "x509-parser"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 tempfile = "3.23"
 
 [build-dependencies]

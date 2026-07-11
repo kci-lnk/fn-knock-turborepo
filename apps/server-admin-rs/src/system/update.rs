@@ -221,31 +221,43 @@ pub fn start_update_tasks(state: AppState) {
     update_manager.ensure_dirs();
     tokio::spawn(async move {
         let update_manager = manager(&state);
-        if let Err(error) = update_manager.ensure_confirm_by_pending(&state).await {
-            tracing::warn!(%error, "failed to prepare update confirmation on boot");
+        tokio::select! {
+            _ = state.shutdown.cancelled() => return,
+            result = update_manager.ensure_confirm_by_pending(&state) => {
+                if let Err(error) = result {
+                    tracing::warn!(%error, "failed to prepare update confirmation on boot");
+                }
+            }
         }
-        if let Err(error) = update_manager
-            .check_now_background(state.clone(), "startup")
-            .await
-        {
-            tracing::warn!(%error, "startup update check failed");
+        tokio::select! {
+            _ = state.shutdown.cancelled() => return,
+            result = update_manager.check_now_background(state.clone(), "startup") => {
+                if let Err(error) = result {
+                    tracing::warn!(%error, "startup update check failed");
+                }
+            }
         }
 
         let mut interval = time::interval(update_check_interval());
         interval.tick().await;
         loop {
-            interval.tick().await;
-            match state
-                .store
-                .set_lock_if_not_exists("ota-update-check", 600)
-                .await
-            {
+            tokio::select! {
+                _ = state.shutdown.cancelled() => break,
+                _ = interval.tick() => {}
+            }
+            let lock_result = tokio::select! {
+                _ = state.shutdown.cancelled() => break,
+                result = state.store.set_lock_if_not_exists("ota-update-check", 600) => result,
+            };
+            match lock_result {
                 Ok(true) => {
-                    if let Err(error) = manager(&state)
-                        .check_now_background(state.clone(), "cron")
-                        .await
-                    {
-                        tracing::warn!(%error, "scheduled update check failed");
+                    tokio::select! {
+                        _ = state.shutdown.cancelled() => break,
+                        result = manager(&state).check_now_background(state.clone(), "cron") => {
+                            if let Err(error) = result {
+                                tracing::warn!(%error, "scheduled update check failed");
+                            }
+                        }
                     }
                 }
                 Ok(false) => {}

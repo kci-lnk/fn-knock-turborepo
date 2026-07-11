@@ -8,13 +8,17 @@ use tonic::{
     metadata::MetadataValue,
     transport::{Channel, Endpoint},
 };
+use tonic_health::pb::{
+    HealthCheckRequest, health_check_response::ServingStatus, health_client::HealthClient,
+};
 
+use crate::app_version::APP_LOCAL_VERSION;
 use crate::grpc_proto::{
     AuthConfig, BasicAuthConfig, BoolValue, CommonLocationExemptionsRuntime, CrawlerBlockerConfig,
-    FnosPortIconHijackConfig, GatewayLogQuery, GatewayPortalConfig, GatewayVisibilityConfig,
-    GeneralBlacklistListRequest, HostActiveIpStats, HostLocation, HostLocationResponse,
-    HostRequest, HostRule, HostRuleAvailability, HostRules, IpListRequest, IpRequest,
-    IptablesInitRequest, LocaleConfig, LoggingConfig, OmitTargetsConfig,
+    FnosPortIconHijackConfig, GatewayListenerConfig, GatewayLogQuery, GatewayPortalConfig,
+    GatewayVisibilityConfig, GeneralBlacklistListRequest, HostActiveIpStats, HostLocation,
+    HostLocationResponse, HostRequest, HostRule, HostRuleAvailability, HostRules, IpListRequest,
+    IpRequest, IptablesInitRequest, LocaleConfig, LoggingConfig, OmitTargetsConfig,
     ReverseProxyThrottleConfig, ReverseProxyThrottleExemptIpsRuntime, Rule, Rules,
     SshFirewallClearRequest, SshFirewallSyncRequest, SslConfig, SslDeployedCertificate, StreamRule,
     StreamRules, StringValue, TcpRedirectRequest, WafBundleRequest, WafConfig, WafDrainRequest,
@@ -27,6 +31,18 @@ use crate::grpc_proto::{
 
 const INTERNAL_TOKEN_METADATA_KEY: &str = "x-fn-knock-internal-rpc-token";
 const INTERNAL_GRPC_MAX_MESSAGE_SIZE: usize = 16 * 1024 * 1024;
+pub(crate) const GATEWAY_CONTROL_API_VERSION: u64 = 1;
+pub(crate) const GATEWAY_HEALTH_PROCESS: &str = "fnknock.gateway.process";
+pub(crate) const GATEWAY_HEALTH_DATAPLANE: &str = "fnknock.gateway.dataplane";
+pub(crate) const GATEWAY_HEALTH_AUTH_BRIDGE: &str = "fnknock.gateway.auth_bridge";
+
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum BundleCompatibilityError {
+    #[error("gateway compatibility probe failed: {0:#}")]
+    Unavailable(#[source] anyhow::Error),
+    #[error("{0}")]
+    Incompatible(String),
+}
 
 pub(crate) fn response_success(value: &Value) -> bool {
     value
@@ -55,6 +71,7 @@ pub struct GoBackendClient {
     waf: WafServiceClient<Channel>,
     ssl: SslServiceClient<Channel>,
     firewall: FirewallServiceClient<Channel>,
+    health: HealthClient<Channel>,
     timeout: Duration,
     token: MetadataValue<tonic::metadata::Ascii>,
 }
@@ -92,9 +109,10 @@ impl GoBackendClient {
             ssl: SslServiceClient::new(channel.clone())
                 .max_decoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE)
                 .max_encoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE),
-            firewall: FirewallServiceClient::new(channel)
+            firewall: FirewallServiceClient::new(channel.clone())
                 .max_decoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE)
                 .max_encoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE),
+            health: HealthClient::new(channel),
             timeout,
             token,
         })
@@ -113,12 +131,163 @@ impl GoBackendClient {
         status_value("get_server_info", self.get_server_info_status().await?)
     }
 
+    pub async fn verify_bundle_compatibility(&self) -> Result<Value, BundleCompatibilityError> {
+        let response = self
+            .get_server_info()
+            .await
+            .map_err(BundleCompatibilityError::Unavailable)?;
+        let Some(info) = response.get("data") else {
+            return Err(BundleCompatibilityError::Incompatible(
+                "Go gateway server info response is missing data".to_string(),
+            ));
+        };
+        let version = info.get("version").and_then(Value::as_str).unwrap_or("");
+        if version != APP_LOCAL_VERSION {
+            return Err(BundleCompatibilityError::Incompatible(format!(
+                "bundle version mismatch: Rust={APP_LOCAL_VERSION}, Go={version}"
+            )));
+        }
+        let control_api_version = info
+            .get("control_api_version")
+            .and_then(Value::as_u64)
+            .unwrap_or_default();
+        if control_api_version != GATEWAY_CONTROL_API_VERSION {
+            return Err(BundleCompatibilityError::Incompatible(format!(
+                "control API mismatch: Rust={}, Go={control_api_version}",
+                GATEWAY_CONTROL_API_VERSION
+            )));
+        }
+        let Some(capabilities) = info.get("capabilities").and_then(Value::as_array) else {
+            return Err(BundleCompatibilityError::Incompatible(
+                "Go gateway server info is missing capabilities".to_string(),
+            ));
+        };
+        for required in [
+            "http",
+            "https",
+            "http2",
+            "websocket",
+            "tcp",
+            "udp",
+            "waf",
+            "blacklist",
+            "logs",
+            "lifecycle",
+        ] {
+            if !capabilities
+                .iter()
+                .any(|value| value.as_str() == Some(required))
+            {
+                return Err(BundleCompatibilityError::Incompatible(format!(
+                    "Go gateway is missing required capability {required}"
+                )));
+            }
+        }
+        let local_commit = option_env!("FN_KNOCK_GATEWAY_COMMIT").unwrap_or("").trim();
+        let gateway_commit = info
+            .get("commit")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .trim();
+        if cfg!(target_os = "windows") && (local_commit.is_empty() || gateway_commit.is_empty()) {
+            return Err(BundleCompatibilityError::Incompatible(
+                "release gateway source commit metadata is missing".to_string(),
+            ));
+        }
+        if !local_commit.is_empty() && !gateway_commit.is_empty() && local_commit != gateway_commit
+        {
+            return Err(BundleCompatibilityError::Incompatible(format!(
+                "gateway source commit mismatch: expected={local_commit}, reported={gateway_commit}"
+            )));
+        }
+        if cfg!(target_os = "windows") {
+            let gateway_os = info.get("os").and_then(Value::as_str).unwrap_or("");
+            let gateway_arch = info.get("arch").and_then(Value::as_str).unwrap_or("");
+            if gateway_os != "windows" || !matches!(gateway_arch, "amd64" | "x86_64") {
+                return Err(BundleCompatibilityError::Incompatible(format!(
+                    "gateway platform mismatch: expected windows/x86_64, got {gateway_os}/{gateway_arch}"
+                )));
+            }
+            if capabilities.iter().any(|value| {
+                value
+                    .as_str()
+                    .is_some_and(|capability| capability.starts_with("firewall."))
+            }) {
+                return Err(BundleCompatibilityError::Incompatible(
+                    "Windows gateway must not advertise host firewall capabilities".to_string(),
+                ));
+            }
+        }
+        Ok(response)
+    }
+
     async fn get_server_info_status(&self) -> anyhow::Result<(StatusCode, Value)> {
         let mut client = self.control.clone();
         match client.get_server_info(self.request(())).await {
-            Ok(response) => Ok(ok(json!({ "version": response.into_inner().version }))),
+            Ok(response) => {
+                let info = response.into_inner();
+                Ok(ok(json!({
+                    "version": info.version,
+                    "os": info.os,
+                    "arch": info.arch,
+                    "control_api_version": info.control_api_version,
+                    "capabilities": info.capabilities,
+                    "commit": info.commit,
+                })))
+            }
             Err(error) => Ok(grpc_error(error)),
         }
+    }
+
+    pub async fn health_serving(&self, service: &str) -> anyhow::Result<bool> {
+        let mut client = self.health.clone();
+        let response = client
+            .check(self.request(HealthCheckRequest {
+                service: service.to_string(),
+            }))
+            .await
+            .with_context(|| format!("check Go gRPC health service {service}"))?
+            .into_inner();
+        Ok(response.status == ServingStatus::Serving as i32)
+    }
+
+    pub async fn request_shutdown(&self) -> anyhow::Result<()> {
+        let mut client = self.control.clone();
+        let response = client
+            .request_shutdown(self.request(()))
+            .await
+            .context("request graceful Go gateway shutdown")?
+            .into_inner();
+        if response.success {
+            Ok(())
+        } else {
+            anyhow::bail!(
+                "Go gateway rejected shutdown request: {}",
+                response.message.trim()
+            )
+        }
+    }
+
+    pub async fn set_gateway_listener_scope(&self, scope: &str) -> anyhow::Result<String> {
+        let mut client = self.control.clone();
+        let response = client
+            .set_gateway_listener_config(self.request(GatewayListenerConfig {
+                scope: scope.to_string(),
+            }))
+            .await
+            .context("set Go gateway listener scope")?
+            .into_inner();
+        Ok(response.scope)
+    }
+
+    pub async fn get_gateway_listener_scope(&self) -> anyhow::Result<String> {
+        let mut client = self.control.clone();
+        let response = client
+            .get_gateway_listener_config(self.request(()))
+            .await
+            .context("get Go gateway listener scope")?
+            .into_inner();
+        Ok(response.scope)
     }
 
     pub async fn set_rules(&self, rules: &Value) -> anyhow::Result<Value> {

@@ -261,7 +261,8 @@ router.beforeEach(async (to, from) => {
 
   if (
     (to.path === "/tunnel" || to.path.startsWith("/tunnel/")) &&
-    configStore.config?.run_type !== 1
+    (configStore.config?.run_type !== 1 ||
+      (!configStore.canUseFrpc && !configStore.canUseCloudflared))
   ) {
     return "/system";
   }
@@ -272,8 +273,7 @@ router.beforeEach(async (to, from) => {
 
   if (
     to.path === "/ssh-security" &&
-    (configStore.isDockerDeployment ||
-      configStore.isOpenWrtDeployment ||
+    (!configStore.canUseSshSecurity ||
       configStore.config?.ssh_security?.enabled !== true)
   ) {
     return {

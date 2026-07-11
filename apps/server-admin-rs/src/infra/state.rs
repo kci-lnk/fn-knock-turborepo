@@ -3,6 +3,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use serde_json::Value;
 use tokio::sync::{Mutex, Notify, RwLock};
+use tokio_util::sync::CancellationToken;
 
 use crate::{
     auto_https::AutoHttpsRedirectManager,
@@ -19,6 +20,9 @@ pub struct AppState {
 
 pub struct AppStateInner {
     pub settings: Settings,
+    /// Process-wide cooperative shutdown signal. Long-running background
+    /// workers should observe this token instead of relying on runtime drop.
+    pub shutdown: CancellationToken,
     pub store: Store,
     #[allow(dead_code)]
     pub go_backend: GoBackendClient,
@@ -35,7 +39,15 @@ pub struct AppStateInner {
 }
 
 impl AppState {
+    #[allow(dead_code)]
     pub async fn new(settings: Settings) -> anyhow::Result<Self> {
+        Self::new_with_shutdown(settings, CancellationToken::new()).await
+    }
+
+    pub async fn new_with_shutdown(
+        settings: Settings,
+        shutdown: CancellationToken,
+    ) -> anyhow::Result<Self> {
         let store = Store::connect(&settings.sqlite_path)
             .await
             .context("open sqlite storage")?;
@@ -71,6 +83,7 @@ impl AppState {
         Ok(Self {
             inner: Arc::new(AppStateInner {
                 settings,
+                shutdown,
                 store,
                 go_backend,
                 fallback_client,

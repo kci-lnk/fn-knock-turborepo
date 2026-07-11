@@ -111,9 +111,7 @@ const autoHttpsRuntimeError = computed(() => {
 const showAutoHttpsEntry = computed(
   () => !configStore.isDockerDeployment && !configStore.isOpenWrtDeployment,
 );
-const showSSHSecurityEntry = computed(
-  () => !configStore.isDockerDeployment && !configStore.isOpenWrtDeployment,
-);
+const showSSHSecurityEntry = computed(() => configStore.canUseSshSecurity);
 const isSSHSecurityAvailable = computed(
   () =>
     configStore.canManageHostFirewall && !sshSecurityUnavailableReason.value,

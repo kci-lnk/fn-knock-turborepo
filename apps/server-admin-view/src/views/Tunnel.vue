@@ -24,11 +24,13 @@ const configStore = useConfigStore();
 const { t } = useI18n();
 
 const defaultTunnel = ref<string>("frp");
-const allowedTabs = computed(() =>
+const allowedTabs = computed(() => [
+  ...(configStore.canUseFrpc ? ["frp"] : []),
+  ...(configStore.canUseCloudflared &&
   isCloudflaredTunnelAvailable(configStore.config)
-    ? ["frp", "cloudflared"]
-    : ["frp"],
-);
+    ? ["cloudflared"]
+    : []),
+]);
 const showTabSwitcher = computed(() => allowedTabs.value.length > 1);
 const isInitialized = ref(false);
 const { isPending: isLoading, run: runLoadConfig } = useAsyncAction({
@@ -42,7 +44,9 @@ const { isPending: isLoading, run: runLoadConfig } = useAsyncAction({
 
 function resolveDefaultTunnel(value: string | null | undefined) {
   const availableTabs = new Set(allowedTabs.value);
-  return value && availableTabs.has(value) ? value : "frp";
+  return value && availableTabs.has(value)
+    ? value
+    : (allowedTabs.value[0] ?? "frp");
 }
 
 watch(
@@ -79,7 +83,7 @@ async function loadConfig() {
       await configStore.loadConfig();
     }
     const config = configStore.config;
-    if (!config || config.run_type !== 1) {
+    if (!config || config.run_type !== 1 || allowedTabs.value.length === 0) {
       await router.replace({ path: "/system" });
       return;
     }
@@ -119,7 +123,7 @@ onMounted(() => {
         <DocsLinkButton v-if="showTabSwitcher" :href="docsUrls.guides.tunnel" />
       </div>
 
-      <TabsContent value="frp" class="pt-2">
+      <TabsContent v-if="configStore.canUseFrpc" value="frp" class="pt-2">
         <FrpTunnel :show-docs-button="!showTabSwitcher" />
       </TabsContent>
       <TabsContent

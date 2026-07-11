@@ -210,7 +210,11 @@
 
       <main class="flex-1 w-full min-w-0" :aria-busy="isRouteNavigating">
         <div
-          v-if="systemClockStore.shouldShowBanner && systemClockStore.status"
+          v-if="
+            configStore.canSyncSystemClock &&
+            systemClockStore.shouldShowBanner &&
+            systemClockStore.status
+          "
           :class="[
             'mx-auto mt-3 mb-6 w-full max-w-7xl rounded-lg border px-4 py-3',
             systemClockStore.status.timeMismatch
@@ -262,7 +266,11 @@
           </div>
         </div>
         <div
-          v-if="updateStore.shouldShowBanner && updateStore.status"
+          v-if="
+            !configStore.isDesktopUpdateManaged &&
+            updateStore.shouldShowBanner &&
+            updateStore.status
+          "
           :class="[
             'mx-auto mt-3 mb-6 w-full max-w-7xl rounded-lg border px-4 py-3',
             updateStore.isForceUpdate
@@ -614,10 +622,15 @@ const runAfterFirstPaint = (callback: () => void) => {
 };
 
 onMounted(() => {
-  void configStore.loadConfig();
-  runAfterFirstPaint(() => {
-    void systemClockStore.initialize();
-    void updateStore.initialize();
+  void configStore.loadConfig().finally(() => {
+    runAfterFirstPaint(() => {
+      if (configStore.canSyncSystemClock) {
+        void systemClockStore.initialize();
+      }
+      if (!configStore.isDesktopUpdateManaged) {
+        void updateStore.initialize();
+      }
+    });
   });
 });
 
@@ -770,12 +783,15 @@ const navItems = computed(() => {
         ? Globe2
         : RouteIcon,
     });
-    items.splice(2, 0, {
-      name: t("admin.nav.tunnel"),
-      path: "/tunnel",
-      icon: RadioTower,
-    });
-    items.splice(3, 0, {
+    const showTunnel = configStore.canUseFrpc || configStore.canUseCloudflared;
+    if (showTunnel) {
+      items.splice(2, 0, {
+        name: t("admin.nav.tunnel"),
+        path: "/tunnel",
+        icon: RadioTower,
+      });
+    }
+    items.splice(showTunnel ? 3 : 2, 0, {
       name: t("admin.nav.sessions"),
       path: "/sessions",
       icon: UsersRound,
@@ -807,8 +823,7 @@ const navItems = computed(() => {
     icon: Fingerprint,
   });
   if (
-    !configStore.isDockerDeployment &&
-    !configStore.isOpenWrtDeployment &&
+    configStore.canUseSshSecurity &&
     configStore.config?.ssh_security?.enabled === true
   ) {
     items.push({

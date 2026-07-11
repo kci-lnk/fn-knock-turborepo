@@ -5,8 +5,12 @@ use axum::{
     body::Body,
     http::{HeaderMap, HeaderName, HeaderValue, Response, StatusCode, Uri, header},
 };
-use tokio::sync::{Semaphore, mpsc};
+use tokio::{
+    sync::{Semaphore, mpsc},
+    task::{JoinHandle, JoinSet},
+};
 use tokio_stream::wrappers::ReceiverStream;
+use tokio_util::sync::CancellationToken;
 use tonic::{Request, metadata::MetadataValue, transport::Endpoint};
 use uuid::Uuid;
 
@@ -23,28 +27,41 @@ const INTERNAL_GRPC_MAX_MESSAGE_SIZE: usize = 16 * 1024 * 1024;
 const AUTH_BRIDGE_MAX_IN_FLIGHT: usize = 128;
 const AUTHORIZE_HTTP_V1_CAPABILITY: &str = "authorize_http_v1";
 
-pub(crate) fn start_auth_bridge(state: AppState) {
+pub(crate) fn start_auth_bridge(state: AppState) -> JoinHandle<()> {
+    let shutdown = state.shutdown.clone();
     tokio::spawn(async move {
         loop {
-            if let Err(error) = run_auth_bridge_once(state.clone()).await {
+            if shutdown.is_cancelled() {
+                break;
+            }
+            if let Err(error) = run_auth_bridge_once(state.clone(), &shutdown).await {
+                if shutdown.is_cancelled() {
+                    break;
+                }
                 tracing::warn!(%error, "auth bridge disconnected");
             }
-            tokio::time::sleep(Duration::from_secs(1)).await;
+            tokio::select! {
+                _ = shutdown.cancelled() => break,
+                _ = tokio::time::sleep(Duration::from_secs(1)) => {}
+            }
         }
-    });
+    })
 }
 
-async fn run_auth_bridge_once(state: AppState) -> anyhow::Result<()> {
+async fn run_auth_bridge_once(state: AppState, shutdown: &CancellationToken) -> anyhow::Result<()> {
     let endpoint = format!(
         "http://{}",
         normalize_grpc_addr(&state.settings.go_backend_grpc_addr)
     );
-    let channel = Endpoint::from_shared(endpoint.clone())?
+    let endpoint_config = Endpoint::from_shared(endpoint.clone())?
         .timeout(state.settings.request_timeout)
-        .connect_timeout(state.settings.request_timeout)
-        .connect()
-        .await
-        .with_context(|| format!("connect Go gRPC backend at {endpoint}"))?;
+        .connect_timeout(state.settings.request_timeout);
+    let connect = endpoint_config.connect();
+    let channel = tokio::select! {
+        _ = shutdown.cancelled() => return Ok(()),
+        result = connect => result
+            .with_context(|| format!("connect Go gRPC backend at {endpoint}"))?,
+    };
     let mut client = AuthBridgeServiceClient::new(channel)
         .max_decoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE)
         .max_encoding_message_size(INTERNAL_GRPC_MAX_MESSAGE_SIZE);
@@ -76,23 +93,45 @@ async fn run_auth_bridge_once(state: AppState) -> anyhow::Result<()> {
         .context("connect auth bridge stream")?
         .into_inner();
 
-    while let Some(message) = stream.message().await.context("read auth bridge message")? {
-        let permit = limiter
-            .clone()
-            .acquire_owned()
-            .await
-            .context("auth bridge concurrency limiter closed")?;
+    let mut workers = JoinSet::new();
+    loop {
+        let message = tokio::select! {
+            _ = shutdown.cancelled() => break,
+            result = stream.message() => result.context("read auth bridge message")?,
+            Some(result) = workers.join_next(), if !workers.is_empty() => {
+                if let Err(error) = result {
+                    tracing::debug!(%error, "auth bridge worker stopped unexpectedly");
+                }
+                continue;
+            }
+        };
+        let Some(message) = message else {
+            break;
+        };
+        let permit = tokio::select! {
+            _ = shutdown.cancelled() => break,
+            result = limiter.clone().acquire_owned() => {
+                result.context("auth bridge concurrency limiter closed")?
+            }
+        };
         let tx = tx.clone();
         let state = state.clone();
-        tokio::spawn(async move {
+        let worker_shutdown = shutdown.clone();
+        workers.spawn(async move {
             let _permit = permit;
-            if let Some(response) = handle_bridge_message(state, message).await
+            let response = tokio::select! {
+                _ = worker_shutdown.cancelled() => None,
+                response = handle_bridge_message(state, message) => response,
+            };
+            if let Some(response) = response
                 && let Err(error) = tx.send(response).await
             {
                 tracing::debug!(%error, "failed to send auth bridge response");
             }
         });
     }
+    workers.abort_all();
+    while workers.join_next().await.is_some() {}
     Ok(())
 }
 

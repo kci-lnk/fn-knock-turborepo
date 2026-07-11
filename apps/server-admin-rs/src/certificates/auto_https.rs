@@ -227,6 +227,12 @@ pub async fn sync_auto_https_on_boot(state: AppState) {
         .auto_https
         .apply_config(auto_https["enabled"].as_bool().unwrap_or(false))
         .await;
+    let shutdown = state.shutdown.clone();
+    let redirect_manager = state.auto_https.clone();
+    tokio::spawn(async move {
+        shutdown.cancelled().await;
+        let _ = redirect_manager.apply_config(false).await;
+    });
     if runtime.get("status").and_then(Value::as_str) == Some("error") {
         let mut next_config = config;
         if let Some(object) = next_config.as_object_mut() {

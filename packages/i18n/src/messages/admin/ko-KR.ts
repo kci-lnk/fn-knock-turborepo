@@ -75,6 +75,9 @@ export const koKRAdmin = {
     modalInstallDescription:
       "시스템이 업데이트를 설치하는 중입니다. 이 페이지를 닫지 마세요.<br>Knock 앱이 곧 바탕화면에 다시 나타납니다.",
     title: "버전 및 업데이트",
+    desktopManagedTitle: "업데이트는 Windows 데스크톱 앱에서 관리됩니다",
+    desktopManagedDescription:
+      "FnKnock 트레이 메뉴에서 실행 상태를 열어 업데이트를 확인하고 설치하세요. 데스크톱 업데이트는 GUI, Rust 서비스, Go 게이트웨이 및 프런트엔드 자산을 함께 교체합니다.",
     subtitleSelfUpdate: "Fn-Knock 버전 및 업그레이드 관리",
     subtitleDocker: "버전 세부정보 및 Docker 업그레이드 지침 보기",
     subtitleOpenWrt: "버전 세부정보 및 OpenWrt IPK 업그레이드 지침 보기",
@@ -3119,9 +3122,12 @@ export const koKRAdmin = {
       resetTitle: "관리자 패널 비밀번호 재설정",
       resetDescription:
         "장치 또는 컨테이너 외부에서 재설정 명령을 실행하십시오. 이렇게 하면 패널 비밀번호, 패널 세션 및 로그인 백오프 상태만 지워집니다. 비즈니스 구성은 삭제되지 않습니다.",
+      resetDescriptionWindows:
+        "관리자 권한 PowerShell에서 재설정 명령을 실행하세요. 패널 비밀번호, 세션 및 로그인 백오프 상태만 지워지며 게이트웨이 구성과 데이터는 유지됩니다.",
       resetNotice:
         "정리 후 관리자 항목을 다음에 방문하면 최초 비밀번호 설정 흐름으로 돌아갑니다.",
       resetStepSsh: "1. Docker 호스트에 로그인합니다.",
+      resetStepWindows: "관리자 PowerShell에서 실행",
       resetStepOpenWrtSsh: "1. OpenWrt 장치에 로그인합니다.",
       resetStepCompose: "2. 권장 사항: Compose 배포 디렉터리에서 실행하세요.",
       resetStepDockerExec:
@@ -3131,6 +3137,8 @@ export const koKRAdmin = {
       setupTitle: "관리자 패널 비밀번호 설정",
       loginTitle: "관리자 패널에 로그인",
       setupDescription: "처음 입력하기 전에 관리자 비밀번호를 설정하세요.",
+      setupDescriptionWindows:
+        "최초 설정 · 2/2단계. 로컬 관리 콘솔을 보호할 비밀번호를 설정하세요.",
       loginDescription:
         "관리 콘솔로 계속 진행하려면 관리자 비밀번호를 입력하세요.",
       setupHelper: "문자와 숫자를 모두 포함하여 6자 이상이어야 합니다.",

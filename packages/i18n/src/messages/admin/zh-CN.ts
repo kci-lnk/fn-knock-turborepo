@@ -69,6 +69,9 @@ export const zhCNAdmin = {
     modalInstallDescription:
       "系统正在安装更新，请勿关闭此页面。<br>稍后桌面会重新出现“敲门 knock”应用。",
     title: "版本与更新",
+    desktopManagedTitle: "更新由 Windows 桌面程序管理",
+    desktopManagedDescription:
+      "请从 FnKnock 托盘菜单打开“运行状态”，再执行检查和安装更新。桌面更新会同时替换 GUI、Rust 服务、Go 网关和前端资源。",
     subtitleSelfUpdate: "管理 Fn-Knock 的版本与升级",
     subtitleDocker: "查看版本信息与 Docker 升级方式",
     subtitleOpenWrt: "查看版本信息与 OpenWrt IPK 升级方式",
@@ -2937,8 +2940,11 @@ export const zhCNAdmin = {
       resetTitle: "重设管理面板密码",
       resetDescription:
         "需要在设备或容器外执行重置命令。该操作只会清除面板密码、面板会话和登录退避状态，不会删除业务配置。",
+      resetDescriptionWindows:
+        "请在管理员 PowerShell 中执行重置命令。该操作只会清除面板密码、面板会话和登录退避状态，不会删除网关配置和数据。",
       resetNotice: "清理完成后，下次访问管理入口会重新进入“首次设置密码”流程。",
       resetStepSsh: "1. 先登录 Docker 主机",
+      resetStepWindows: "在管理员 PowerShell 中执行",
       resetStepOpenWrtSsh: "1. 先登录 OpenWrt 设备",
       resetStepCompose: "2. 推荐：在 compose 部署目录执行",
       resetStepDockerExec: "3. 如果只知道容器在跑 Docker，可直接执行",
@@ -2947,6 +2953,8 @@ export const zhCNAdmin = {
       setupTitle: "设置管理面板密码",
       loginTitle: "登录管理面板",
       setupDescription: "首次进入需要先设置一个管理密码。",
+      setupDescriptionWindows:
+        "首次设置 · 第 2 步（共 2 步）。请设置用于保护本机管理台的密码。",
       loginDescription: "请输入管理密码继续访问管理后台。",
       setupHelper: "至少 6 位，并同时包含字母和数字。",
       rememberMe: "记住我",

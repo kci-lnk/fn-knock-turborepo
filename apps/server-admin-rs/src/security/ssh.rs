@@ -104,14 +104,31 @@ pub fn ssh_security_routes() -> Router<AppState> {
 
 pub fn start_ssh_security_tasks(state: AppState) {
     tokio::spawn(async move {
-        if let Err(error) = ssh_security_maintenance_tick(&state).await {
-            tracing::warn!(%error, "SSH security boot sync failed");
+        tokio::select! {
+            _ = state.shutdown.cancelled() => return,
+            result = ssh_security_maintenance_tick(&state) => {
+                if let Err(error) = result {
+                    tracing::warn!(%error, "SSH security boot sync failed");
+                }
+            }
         }
 
         loop {
-            tokio_time::sleep(ssh_security_tick_interval(&state).await).await;
-            if let Err(error) = ssh_security_maintenance_tick(&state).await {
-                tracing::debug!(%error, "SSH security maintenance tick failed");
+            let interval = tokio::select! {
+                _ = state.shutdown.cancelled() => break,
+                interval = ssh_security_tick_interval(&state) => interval,
+            };
+            tokio::select! {
+                _ = state.shutdown.cancelled() => break,
+                _ = tokio_time::sleep(interval) => {}
+            }
+            tokio::select! {
+                _ = state.shutdown.cancelled() => break,
+                result = ssh_security_maintenance_tick(&state) => {
+                    if let Err(error) = result {
+                        tracing::debug!(%error, "SSH security maintenance tick failed");
+                    }
+                }
             }
         }
     });

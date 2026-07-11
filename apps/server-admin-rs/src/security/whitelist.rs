@@ -171,9 +171,17 @@ pub fn start_whitelist_tasks(state: AppState) {
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
         ticker.tick().await;
         loop {
-            ticker.tick().await;
-            if let Err(error) = run_whitelist_maintenance_once(&maintenance_state).await {
-                tracing::warn!(%error, "whitelist maintenance task failed");
+            tokio::select! {
+                _ = maintenance_state.shutdown.cancelled() => break,
+                _ = ticker.tick() => {}
+            }
+            tokio::select! {
+                _ = maintenance_state.shutdown.cancelled() => break,
+                result = run_whitelist_maintenance_once(&maintenance_state) => {
+                    if let Err(error) = result {
+                        tracing::warn!(%error, "whitelist maintenance task failed");
+                    }
+                }
             }
         }
     });
@@ -182,8 +190,14 @@ pub fn start_whitelist_tasks(state: AppState) {
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
         ticker.tick().await;
         loop {
-            ticker.tick().await;
-            sync_reverse_proxy_trusted_ips(&state).await;
+            tokio::select! {
+                _ = state.shutdown.cancelled() => break,
+                _ = ticker.tick() => {}
+            }
+            tokio::select! {
+                _ = state.shutdown.cancelled() => break,
+                _ = sync_reverse_proxy_trusted_ips(&state) => {}
+            }
         }
     });
 }

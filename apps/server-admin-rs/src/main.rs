@@ -2,6 +2,7 @@ use std::env;
 
 const DEFAULT_TOKIO_WORKER_THREADS: usize = 2;
 const MAX_TOKIO_WORKER_THREADS: usize = 64;
+#[cfg(target_family = "unix")]
 const TARGET_NOFILE_LIMIT: u64 = 1_048_576;
 
 fn main() -> anyhow::Result<()> {

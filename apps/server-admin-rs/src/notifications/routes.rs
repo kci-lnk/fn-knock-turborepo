@@ -197,9 +197,17 @@ async fn notification_dispatch_loop(state: AppState) {
     let mut interval = time::interval(DISPATCH_INTERVAL);
     interval.tick().await;
     loop {
-        interval.tick().await;
-        if let Err(error) = notification_dispatch_tick(&state).await {
-            tracing::warn!(%error, "notification dispatch tick failed");
+        tokio::select! {
+            _ = state.shutdown.cancelled() => break,
+            _ = interval.tick() => {}
+        }
+        tokio::select! {
+            _ = state.shutdown.cancelled() => break,
+            result = notification_dispatch_tick(&state) => {
+                if let Err(error) = result {
+                    tracing::warn!(%error, "notification dispatch tick failed");
+                }
+            }
         }
     }
 }
@@ -208,9 +216,17 @@ async fn notification_delivery_loop(state: AppState) {
     let mut interval = time::interval(DELIVERY_INTERVAL);
     interval.tick().await;
     loop {
-        interval.tick().await;
-        if let Err(error) = process_ready_deliveries(&state, DELIVERY_BATCH_SIZE).await {
-            tracing::warn!(%error, "notification delivery tick failed");
+        tokio::select! {
+            _ = state.shutdown.cancelled() => break,
+            _ = interval.tick() => {}
+        }
+        tokio::select! {
+            _ = state.shutdown.cancelled() => break,
+            result = process_ready_deliveries(&state, DELIVERY_BATCH_SIZE) => {
+                if let Err(error) = result {
+                    tracing::warn!(%error, "notification delivery tick failed");
+                }
+            }
         }
     }
 }

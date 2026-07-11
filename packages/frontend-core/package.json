@@ -5,7 +5,7 @@
   "type": "module",
   "dependencies": {
     "@fn-knock/i18n": "^0.0.0",
-    "axios": "^1.13.5",
+    "axios": "^1.16.0",
     "crypto-js": "^4.2.0"
   },
   "devDependencies": {

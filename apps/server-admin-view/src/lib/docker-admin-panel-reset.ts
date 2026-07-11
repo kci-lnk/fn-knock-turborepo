@@ -10,3 +10,8 @@ export const openWrtAdminPanelResetCommands = {
   ssh: "ssh root@<openwrt-host>",
   reset: "fn-knock-reset-panel-password",
 } as const;
+
+export const windowsAdminPanelResetCommands = {
+  reset:
+    '& "$env:ProgramFiles\\FnKnock\\current\\fn-knock-service.exe" reset-panel-password',
+} as const;

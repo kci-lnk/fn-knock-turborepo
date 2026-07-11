@@ -131,7 +131,11 @@ const showMainSkeleton = useDelayedLoading(isInitializing);
 const showDdnsSkeleton = useDelayedLoading(() => isDdnsLoading.value);
 const showTunnelSkeleton = useDelayedLoading(() => isTunnelLoading.value);
 const ddnsError = ref("");
-const showTunnelSection = computed(() => configStore.config?.run_type === 1);
+const showTunnelSection = computed(
+  () =>
+    configStore.config?.run_type === 1 &&
+    (configStore.canUseFrpc || configStore.canUseCloudflared),
+);
 const {
   cfStatus,
   defaultTunnel,
@@ -149,8 +153,10 @@ const showEntryStatusModule = computed(
   () =>
     configStore.config?.dashboard_display?.show_entry_status_module !== false,
 );
-const showCloudflaredTunnel = computed(() =>
-  isCloudflaredTunnelAvailable(configStore.config),
+const showCloudflaredTunnel = computed(
+  () =>
+    configStore.canUseCloudflared &&
+    isCloudflaredTunnelAvailable(configStore.config),
 );
 const ddnsUpdateScopeLabelKeys = {
   dual_stack: "admin.dashboard.ddns.updateScopes.dualStack",
@@ -608,12 +614,16 @@ const entryStatusCardDescription = computed(() =>
 );
 
 const tunnelCards = computed(() => [
-  {
-    key: "frp" as const,
-    label: t("admin.dashboard.tunnel.frp"),
-    status: frpStatus.value,
-    isDefault: defaultTunnel.value === "frp",
-  },
+  ...(configStore.canUseFrpc
+    ? [
+        {
+          key: "frp" as const,
+          label: t("admin.dashboard.tunnel.frp"),
+          status: frpStatus.value,
+          isDefault: defaultTunnel.value === "frp",
+        },
+      ]
+    : []),
   ...(showCloudflaredTunnel.value
     ? [
         {

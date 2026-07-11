@@ -1,5 +1,8 @@
 pub mod app;
 
+#[cfg(windows)]
+pub mod windows_service;
+
 pub(crate) mod grpc_proto {
     #![allow(dead_code)]
     tonic::include_proto!("fnknock.v1");

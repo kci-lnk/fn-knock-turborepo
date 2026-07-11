@@ -25,7 +25,7 @@
         <TabsTrigger value="self-signed">{{
           t("admin.sslSettings.selfSigned")
         }}</TabsTrigger>
-        <TabsTrigger value="acme-cert">{{
+        <TabsTrigger v-if="configStore.canUseAcme" value="acme-cert">{{
           t("admin.sslSettings.acme")
         }}</TabsTrigger>
       </TabsList>
@@ -35,7 +35,7 @@
       <TabsContent value="self-signed" class="pt-2">
         <SelfSignedCA />
       </TabsContent>
-      <TabsContent value="acme-cert" class="pt-2">
+      <TabsContent v-if="configStore.canUseAcme" value="acme-cert" class="pt-2">
         <AcmeCert />
       </TabsContent>
     </Tabs>
@@ -43,6 +43,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -52,13 +53,19 @@ import SelfSignedCA from "./ssl-settings/SelfSignedCA.vue";
 import AcmeCert from "./ssl-settings/AcmeCert.vue";
 import { useSyncedQueryTab } from "@admin-shared/composables/useSyncedQueryTab";
 import { docsUrls } from "../lib/docs";
+import { useConfigStore } from "../store/config";
 
 const router = useRouter();
 const route = useRoute();
 const { t } = useI18n();
+const configStore = useConfigStore();
 
 const defaultTab = "cert-config";
-const allowedTabs = new Set([defaultTab, "self-signed", "acme-cert"]);
+const allowedTabs = computed(() => [
+  defaultTab,
+  "self-signed",
+  ...(configStore.canUseAcme ? ["acme-cert"] : []),
+]);
 const { currentTab, navigateTo } = useSyncedQueryTab({
   route,
   router,

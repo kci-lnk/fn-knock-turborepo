@@ -75,6 +75,9 @@ export const enAdmin = {
     modalInstallDescription:
       "The system is installing the update. Do not close this page.<br>The Knock app will reappear on the desktop shortly.",
     title: "Version and updates",
+    desktopManagedTitle: "Updates are managed by the Windows desktop app",
+    desktopManagedDescription:
+      "Open Runtime Status from the FnKnock tray menu to check for and install updates. A desktop update replaces the GUI, Rust service, Go gateway, and frontend assets together.",
     subtitleSelfUpdate: "Manage Fn-Knock versions and upgrades",
     subtitleDocker: "View version details and Docker upgrade instructions",
     subtitleOpenWrt:
@@ -3138,9 +3141,12 @@ export const enAdmin = {
       resetTitle: "Reset admin panel password",
       resetDescription:
         "Run the reset command on the device or outside the container. This only clears the panel password, panel sessions, and login backoff state. Business configuration is not deleted.",
+      resetDescriptionWindows:
+        "Run the reset command in an Administrator PowerShell window. It only clears the panel password, panel sessions, and login backoff state; gateway configuration and data are retained.",
       resetNotice:
         "After cleanup, the next visit to the admin entry will return to the first-time password setup flow.",
       resetStepSsh: "1. Sign in to the Docker host",
+      resetStepWindows: "Run in Administrator PowerShell",
       resetStepOpenWrtSsh: "1. Sign in to the OpenWrt device",
       resetStepCompose:
         "2. Recommended: run this in the compose deployment directory",
@@ -3151,6 +3157,8 @@ export const enAdmin = {
       setupTitle: "Set admin panel password",
       loginTitle: "Sign in to admin panel",
       setupDescription: "Set an admin password before first entry.",
+      setupDescriptionWindows:
+        "First-time setup · Step 2 of 2. Set the password used to protect the local management console.",
       loginDescription:
         "Enter the admin password to continue to the admin console.",
       setupHelper: "At least 6 characters, with both letters and numbers.",

@@ -18,6 +18,14 @@
           {{ logoutNotice }}
         </div>
         <div
+          v-if="redirectGuardNotice"
+          class="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+          role="alert"
+          aria-live="polite"
+        >
+          {{ redirectGuardNotice }}
+        </div>
+        <div
           v-if="oidcError"
           class="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
         >
@@ -442,6 +450,12 @@ import {
   normalizePowChallenge,
   solvePowChallenge,
 } from "@/lib/captcha";
+import {
+  guardAuthAutoRedirect,
+  resetAuthAutoRedirectGuard,
+  type AuthRedirectBlockReason,
+  type RedirectGuardStorage,
+} from "@/lib/auth-redirect-guard";
 import { markPendingLogoutDelay } from "@/lib/post-login";
 import AuthFooter from "@/components/AuthFooter.vue";
 import AuthCard from "@/components/AuthCard.vue";
@@ -472,6 +486,7 @@ const isOidcLoading = ref(false);
 const activeOidcProviderId = ref("");
 const oidcProviders = ref<AuthOidcProvider[]>([]);
 const oidcError = ref("");
+const redirectGuardBlockReason = ref<AuthRedirectBlockReason | null>(null);
 const showPasskeyBindDialog = ref(false);
 const isBindingPasskey = ref(false);
 const passkeyBindError = ref("");
@@ -575,6 +590,25 @@ const logoutNotice = computed(() => {
       return t("auth.loggedOutDefault");
   }
 });
+const redirectGuardNotice = computed(() => {
+  if (!redirectGuardBlockReason.value) {
+    return "";
+  }
+  return redirectGuardBlockReason.value === "repeat_redirect"
+    ? t("auth.redirectLoopBlocked")
+    : t("auth.redirectTargetBlocked");
+});
+
+function getRedirectGuardStorage(): RedirectGuardStorage | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
 
 type ProviderIconKind =
   | "github"
@@ -628,9 +662,19 @@ async function loadBootstrap() {
     oidcProviders.value = bootstrap.oidc?.providers || [];
     oidcError.value = bootstrap.oidc?.login_error || "";
     bootstrapGrantType.value = bootstrap.auth.grant_type;
-    loginMode.value = bootstrap.auth.login_mode === "password" ? "password" : "totp";
+    loginMode.value =
+      bootstrap.auth.login_mode === "password" ? "password" : "totp";
     if (bootstrap.redirect_to && !suppressAutoRedirect) {
-      window.location.replace(bootstrap.redirect_to);
+      const decision = guardAuthAutoRedirect({
+        redirectTo: bootstrap.redirect_to,
+        currentUrl: window.location.href,
+        storage: getRedirectGuardStorage(),
+      });
+      if (!decision.allowed) {
+        redirectGuardBlockReason.value = decision.reason;
+        return;
+      }
+      window.location.replace(decision.redirectUrl);
       return;
     }
     if (bootstrap.auth.authenticated && !suppressAutoRedirect) {
@@ -995,9 +1039,21 @@ async function handleLogin() {
 function completeLogin(runType: 0 | 1 | 3, redirectTo?: string | null) {
   pendingRunType.value = null;
   pendingRedirectTo.value = null;
+  const redirectGuardStorage = getRedirectGuardStorage();
+  resetAuthAutoRedirectGuard(redirectGuardStorage);
+  redirectGuardBlockReason.value = null;
   markPendingLogoutDelay();
   if (redirectTo) {
-    window.location.replace(redirectTo);
+    const decision = guardAuthAutoRedirect({
+      redirectTo,
+      currentUrl: window.location.href,
+      storage: redirectGuardStorage,
+    });
+    if (!decision.allowed) {
+      redirectGuardBlockReason.value = decision.reason;
+      return;
+    }
+    window.location.replace(decision.redirectUrl);
     return;
   }
   if (runType === 0) {
@@ -1080,6 +1136,8 @@ async function handleOidcLogin(providerId: string) {
     if (!authorizationUrl) {
       throw new Error(res.data?.message || t("auth.oidcStartFailed"));
     }
+    resetAuthAutoRedirectGuard(getRedirectGuardStorage());
+    redirectGuardBlockReason.value = null;
     window.location.assign(authorizationUrl);
   } catch (e: any) {
     errorMessage.value =

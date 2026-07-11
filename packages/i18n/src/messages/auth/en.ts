@@ -52,6 +52,10 @@ export const enAuth = {
   loggedOutLocalExempt:
     "Your browser session has signed out. This network is still exempt from whitelist checks.",
   loggedOutDefault: "Your browser session has signed out. Verify again.",
+  redirectLoopBlocked:
+    "Repeated redirects between this verification page and the target service were detected, so automatic redirection has been paused. Verify again here to continue.",
+  redirectTargetBlocked:
+    "The sign-in destination is invalid or points back to this verification page, so the repeated redirect was stopped. Open the original service again or contact the administrator.",
   retrySuffix: " Retry in {seconds} seconds.",
   invalidOtpLength: "Enter the complete 6-digit verification code",
   loginFailed: "Verification failed. Please try again.",

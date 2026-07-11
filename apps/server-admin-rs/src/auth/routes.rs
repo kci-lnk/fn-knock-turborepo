@@ -45,6 +45,7 @@ pub(crate) use bridge::start_auth_bridge;
 use captcha::*;
 use handlers::*;
 use preflight::*;
+pub(crate) use preflight::{login_session_has_expired, revoke_expired_presented_session};
 pub(crate) use redirect::*;
 pub(crate) use utils::*;
 use verify::*;

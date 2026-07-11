@@ -19,8 +19,9 @@ use webauthn_rs_core::proto::{
 
 use crate::{
     auth::{
-        client_ip_for_auth, effective_login_redirect,
+        client_ip_for_auth, effective_login_redirect, login_session_has_expired,
         mode::{AuthLoginMode, AuthMethod},
+        resolve_cookie_clear_domains, resolve_cookie_domain, revoke_expired_presented_session,
         user_agent, with_auth_headers,
     },
     auth_mobility::{self, CreateLoginSessionInput},
@@ -534,10 +535,8 @@ async fn bind_token(State(state): State<AppState>, headers: HeaderMap) -> Respon
     let session = match state.store.get_session(&session_id).await {
         Ok(Some(session)) => session,
         Ok(None) => {
-            return with_auth_headers(response::error(
-                StatusCode::UNAUTHORIZED,
-                passkey_text(&translator, "unauthorizedOrMissingTotp"),
-            ));
+            let config = state.store.get_config().await.ok();
+            return passkey_bind_unauthorized_response(&headers, &translator, config.as_ref());
         }
         Err(error) => {
             tracing::warn!(%error, "failed to load passkey bind session");
@@ -547,6 +546,17 @@ async fn bind_token(State(state): State<AppState>, headers: HeaderMap) -> Respon
             ));
         }
     };
+    if login_session_has_expired(&session) {
+        let config = match state.store.get_config().await {
+            Ok(config) => config,
+            Err(error) => {
+                tracing::warn!(%error, %session_id, "failed to load config while revoking expired passkey bind session");
+                Value::Null
+            }
+        };
+        revoke_expired_presented_session(&state, &session_id, &session, &config).await;
+        return passkey_bind_unauthorized_response(&headers, &translator, Some(&config));
+    }
     if session.totp_id.trim().is_empty() {
         return with_auth_headers(response::error(
             StatusCode::UNAUTHORIZED,
@@ -563,6 +573,24 @@ async fn bind_token(State(state): State<AppState>, headers: HeaderMap) -> Respon
             ))
         }
     }
+}
+
+fn passkey_bind_unauthorized_response(
+    headers: &HeaderMap,
+    translator: &Translator,
+    config: Option<&Value>,
+) -> Response {
+    let mut response = with_auth_headers(response::error(
+        StatusCode::UNAUTHORIZED,
+        passkey_text(translator, "unauthorizedOrMissingTotp"),
+    ));
+    for domain in resolve_cookie_clear_domains(config, headers) {
+        if let Ok(value) = HeaderValue::from_str(&cookies::session_clear_cookie(domain.as_deref()))
+        {
+            response.headers_mut().append(header::SET_COOKIE, value);
+        }
+    }
+    response
 }
 
 fn parse_passkey_cookie_value(headers: &HeaderMap, name: &str) -> Option<String> {
@@ -1462,8 +1490,6 @@ fn normalize_host_like(value: &str) -> String {
     value = value.split('/').next().unwrap_or("").to_string();
     value.trim_end_matches('.').to_string()
 }
-
-use crate::auth::resolve_cookie_domain;
 
 fn request_hostname(headers: &HeaderMap) -> String {
     parse_forwarded_header_value(headers, "host")

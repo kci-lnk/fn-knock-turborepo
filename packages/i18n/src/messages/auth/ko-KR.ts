@@ -54,6 +54,10 @@ export const koKRAuth = {
   loggedOutLocalExempt:
     "브라우저 세션이 로그아웃되었습니다. 이 네트워크는 여전히 허용 목록 확인에서 제외됩니다.",
   loggedOutDefault: "브라우저 세션이 로그아웃되었습니다. 다시 확인하세요.",
+  redirectLoopBlocked:
+    "이 확인 페이지와 대상 서비스 사이에서 반복 리디렉션이 감지되어 자동 리디렉션을 일시 중지했습니다. 계속하려면 이 페이지에서 다시 확인하세요.",
+  redirectTargetBlocked:
+    "로그인 대상이 잘못되었거나 현재 확인 페이지를 가리켜 반복 리디렉션을 중지했습니다. 원래 서비스를 다시 열거나 관리자에게 로그인 대상 설정을 확인해 달라고 요청하세요.",
   retrySuffix: " {seconds} 초 후에 다시 시도하세요.",
   invalidOtpLength: "전체 6자리 인증 코드를 입력하세요.",
   loginFailed: "확인에 실패했습니다. 다시 시도해 주세요.",

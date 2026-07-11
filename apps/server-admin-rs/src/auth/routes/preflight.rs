@@ -1,5 +1,9 @@
 use super::*;
 
+const EXPIRED_SESSION_BACKGROUND_CLEANUP_TIMEOUT: std::time::Duration =
+    std::time::Duration::from_secs(12);
+const EXPIRED_SESSION_CLEANUP_MARKER_TTL_SECONDS: usize = 30;
+
 pub(super) async fn preflight(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -58,6 +62,16 @@ pub(super) async fn apply_preflight_behavior_with_normal_access(
 ) -> anyhow::Result<()> {
     let forwarded_path = preflight_forwarded_path(headers);
     let mut share_decision_handled = false;
+
+    if normal_access.invalid_session_cookie {
+        for domain in resolve_cookie_clear_domains(Some(config), headers) {
+            if let Ok(value) =
+                HeaderValue::from_str(&cookies::session_clear_cookie(domain.as_deref()))
+            {
+                response.headers_mut().append(header::SET_COOKIE, value);
+            }
+        }
+    }
 
     if normal_access.deny_reason.as_deref() == Some(REAUTH_SCOPE_DENIED) {
         insert_preflight_headers(response, &normal_access.response_headers);
@@ -169,6 +183,7 @@ pub(super) struct PreflightNormalAccess {
     pub(super) authorized: bool,
     pub(super) grant_type: Option<String>,
     pub(super) deny_reason: Option<String>,
+    pub(super) invalid_session_cookie: bool,
     pub(super) response_headers: Vec<(String, String)>,
 }
 
@@ -209,10 +224,30 @@ pub(super) async fn resolve_preflight_normal_access(
     client_ip: &str,
     access_mode: RequestedAccessMode,
 ) -> anyhow::Result<PreflightNormalAccess> {
+    let identity = inspect_auth_mobility_request(headers);
+    let mut invalid_session_cookie = false;
+    let browser_session = if let Some(session_id) = identity.session_id.as_deref() {
+        match state.store.get_session(session_id).await? {
+            Some(session) if login_session_has_expired(&session) => {
+                invalid_session_cookie = true;
+                revoke_expired_presented_session(state, session_id, &session, config).await;
+                None
+            }
+            Some(session) => Some((session_id.to_string(), session)),
+            None => {
+                invalid_session_cookie = true;
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     if http_utils::is_private_or_local_ip(client_ip) {
         return Ok(PreflightNormalAccess {
             authorized: true,
             grant_type: Some("local_exempt".to_string()),
+            invalid_session_cookie,
             ..Default::default()
         });
     }
@@ -221,33 +256,25 @@ pub(super) async fn resolve_preflight_normal_access(
         return Ok(PreflightNormalAccess {
             authorized: true,
             grant_type: Some("manual_whitelist".to_string()),
+            invalid_session_cookie,
             ..Default::default()
         });
     }
 
-    let identity = inspect_auth_mobility_request(headers);
     let mut session_scope_headers = Vec::new();
-    let browser_session = if let Some(session_id) = identity.session_id.as_deref() {
-        match state.store.get_session(session_id).await? {
-            Some(session) => {
-                let scope =
-                    resolve_session_subdomain_access(state, headers, uri, config, &session).await?;
-                if !scope.allowed {
-                    return Ok(PreflightNormalAccess {
-                        authorized: false,
-                        deny_reason: Some(REAUTH_SCOPE_DENIED.to_string()),
-                        response_headers: scope.response_headers,
-                        ..Default::default()
-                    });
-                }
-                session_scope_headers = scope.response_headers;
-                Some((session_id.to_string(), session))
-            }
-            None => None,
+    if let Some((_session_id, session)) = browser_session.as_ref() {
+        let scope = resolve_session_subdomain_access(state, headers, uri, config, session).await?;
+        if !scope.allowed {
+            return Ok(PreflightNormalAccess {
+                authorized: false,
+                deny_reason: Some(REAUTH_SCOPE_DENIED.to_string()),
+                invalid_session_cookie,
+                response_headers: scope.response_headers,
+                ..Default::default()
+            });
         }
-    } else {
-        None
-    };
+        session_scope_headers = scope.response_headers;
+    }
 
     if identity.has_app_mobility_signal() {
         let mobility =
@@ -257,6 +284,7 @@ pub(super) async fn resolve_preflight_normal_access(
             return Ok(PreflightNormalAccess {
                 authorized: false,
                 deny_reason: Some(REAUTH_SCOPE_DENIED.to_string()),
+                invalid_session_cookie,
                 response_headers: mobility.response_headers,
                 ..Default::default()
             });
@@ -283,6 +311,7 @@ pub(super) async fn resolve_preflight_normal_access(
             return Ok(PreflightNormalAccess {
                 authorized: false,
                 deny_reason: Some(REAUTH_SCOPE_DENIED.to_string()),
+                invalid_session_cookie,
                 response_headers: mobility.response_headers,
                 ..Default::default()
             });
@@ -294,6 +323,7 @@ pub(super) async fn resolve_preflight_normal_access(
                     .grant_type
                     .map(ToString::to_string)
                     .or_else(|| Some("browser_session".to_string())),
+                invalid_session_cookie,
                 response_headers: mobility.response_headers,
                 ..Default::default()
             });
@@ -317,6 +347,7 @@ pub(super) async fn resolve_preflight_normal_access(
             return Ok(PreflightNormalAccess {
                 authorized: true,
                 grant_type: Some("browser_session".to_string()),
+                invalid_session_cookie,
                 response_headers: session_scope_headers,
                 ..Default::default()
             });
@@ -327,6 +358,7 @@ pub(super) async fn resolve_preflight_normal_access(
         return Ok(PreflightNormalAccess {
             authorized: true,
             grant_type: Some("login_ip_grant".to_string()),
+            invalid_session_cookie,
             ..Default::default()
         });
     }
@@ -340,6 +372,7 @@ pub(super) async fn resolve_preflight_normal_access(
                 return Ok(PreflightNormalAccess {
                     authorized: false,
                     deny_reason: Some(REAUTH_SCOPE_DENIED.to_string()),
+                    invalid_session_cookie,
                     response_headers: mobility.response_headers,
                     ..Default::default()
                 });
@@ -347,6 +380,7 @@ pub(super) async fn resolve_preflight_normal_access(
             return Ok(PreflightNormalAccess {
                 authorized: true,
                 grant_type: Some("fnos_fingerprint_session".to_string()),
+                invalid_session_cookie,
                 response_headers: mobility.response_headers,
                 ..Default::default()
             });
@@ -355,8 +389,90 @@ pub(super) async fn resolve_preflight_normal_access(
 
     Ok(PreflightNormalAccess {
         authorized: false,
+        invalid_session_cookie,
         ..Default::default()
     })
+}
+
+pub(crate) fn login_session_has_expired(session: &LoginSession) -> bool {
+    session
+        .expires_at
+        .as_deref()
+        .and_then(time_utils::parse_iso_ms)
+        .is_some_and(|expires_at| expires_at <= time_utils::now_ms())
+}
+
+pub(crate) async fn revoke_expired_presented_session(
+    state: &AppState,
+    session_id: &str,
+    session: &LoginSession,
+    config: &Value,
+) {
+    // Revoke the authoritative key before touching lease-protected secondary
+    // state. Writers recheck this key before publication, so authorization
+    // fails closed immediately even if another request holds the mobility
+    // mutation lease indefinitely.
+    if let Err(error) = state.store.delete_session(session_id).await {
+        tracing::warn!(%error, %session_id, "failed to delete expired auth session authority");
+    }
+
+    let cleanup_marker_key = format!(
+        "fn_knock:auth:expired_session_cleanup:{}",
+        crate::crypto_utils::sha256_hex_str(session_id)
+    );
+    let should_start_cleanup = match state
+        .store
+        .set_json_value_nx_ex(
+            &cleanup_marker_key,
+            &json!({
+                "sessionId": session_id,
+                "createdAt": time_utils::now_iso(),
+            }),
+            EXPIRED_SESSION_CLEANUP_MARKER_TTL_SECONDS,
+        )
+        .await
+    {
+        Ok(created) => created,
+        Err(error) => {
+            tracing::warn!(%error, %session_id, "failed to deduplicate expired session cleanup");
+            true
+        }
+    };
+    if !should_start_cleanup {
+        return;
+    }
+
+    let state = state.clone();
+    let session_id = session_id.to_string();
+    let session = session.clone();
+    let config = config.clone();
+    tokio::spawn(async move {
+        let cleanup = async {
+            if let Err(error) = auth_mobility::destroy_session(&state, &session_id).await {
+                tracing::warn!(%error, %session_id, "failed to destroy expired auth session state");
+            }
+            if let Err(error) = revoke_custom_post_login_ip_grant(
+                &state,
+                Some(&session),
+                Some(&config),
+                &session.ip,
+            )
+            .await
+            {
+                tracing::warn!(%error, %session_id, "failed to revoke expired session IP grant");
+            }
+            whitelist::sync_reverse_proxy_trusted_ips(&state).await;
+        };
+        if tokio::time::timeout(EXPIRED_SESSION_BACKGROUND_CLEANUP_TIMEOUT, cleanup)
+            .await
+            .is_err()
+        {
+            tracing::warn!(%session_id, "timed out cleaning expired auth session secondary state");
+        }
+        if let Err(error) = state.store.delete_key(&cleanup_marker_key).await {
+            tracing::debug!(%error, %session_id, "failed to remove expired session cleanup marker");
+        }
+    });
 }
 
 pub(super) async fn has_preflight_whitelist_access(

@@ -55,7 +55,8 @@ pub(super) async fn build_auth_shell_data(
         .get("appearance")
         .cloned()
         .unwrap_or_else(|| json!({ "theme_color_preset": "default" }));
-    let access = resolve_auth_access(state, headers, uri, &translator).await?;
+    let mut access = resolve_auth_access(state, headers, uri, &translator).await?;
+    append_shared_session_cookie_for_auth_shell(state, headers, &config, &mut access).await?;
     let client_ip = client_ip_for_auth(headers);
     let login_mode = state
         .store
@@ -111,6 +112,64 @@ pub(super) struct AuthAccess {
     pub(super) response_headers: Vec<(String, String)>,
 }
 
+async fn append_shared_session_cookie_for_auth_shell(
+    state: &AppState,
+    headers: &HeaderMap,
+    config: &Value,
+    access: &mut AuthAccess,
+) -> anyhow::Result<()> {
+    if !access.authenticated {
+        return Ok(());
+    }
+    let Some(current_hostname) = resolve_request_hostname_from_headers(headers) else {
+        return Ok(());
+    };
+    let Some(public_auth_url) =
+        resolve_public_auth_base_url(config).and_then(|value| url::Url::parse(&value).ok())
+    else {
+        return Ok(());
+    };
+    if public_auth_url
+        .host_str()
+        .map(normalize_subdomain_access_host)
+        .as_deref()
+        != Some(current_hostname.as_str())
+    {
+        return Ok(());
+    }
+
+    let identity = inspect_auth_mobility_request(headers);
+    let Some(session_id) = identity.session_id.as_deref() else {
+        return Ok(());
+    };
+    let Some(session) = state.store.get_session(session_id).await? else {
+        return Ok(());
+    };
+    let Some(expires_at) = session
+        .expires_at
+        .as_deref()
+        .and_then(time_utils::parse_iso_ms)
+    else {
+        // Legacy sessions without a parseable absolute expiry remain valid,
+        // but cannot be safely migrated with a client-side lifetime.
+        return Ok(());
+    };
+    let remaining_ms = expires_at - time_utils::now_ms();
+    if remaining_ms <= 0 {
+        return Ok(());
+    }
+    let Some(cookie_domain) = resolve_cookie_domain(config, headers) else {
+        return Ok(());
+    };
+    let max_age = remaining_ms.saturating_add(999).div_euclid(1000).max(1);
+    access.set_cookies.push(cookies::session_cookie(
+        session_id,
+        max_age,
+        Some(&cookie_domain),
+    ));
+    Ok(())
+}
+
 pub(super) async fn resolve_auth_access(
     state: &AppState,
     headers: &HeaderMap,
@@ -145,6 +204,15 @@ pub(super) async fn resolve_auth_access_with_normal_access(
     client_ip: &str,
     normal_access: &PreflightNormalAccess,
 ) -> anyhow::Result<AuthAccess> {
+    let invalid_session_cookies = if normal_access.invalid_session_cookie {
+        resolve_cookie_clear_domains(Some(config), headers)
+            .into_iter()
+            .map(|domain| cookies::session_clear_cookie(domain.as_deref()))
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
+
     if normal_access.authorized {
         let identity = inspect_auth_mobility_request(headers);
         if let Err(error) = auth_mobility::sync_trusted_request(
@@ -175,7 +243,7 @@ pub(super) async fn resolve_auth_access_with_normal_access(
             message,
             grant_type,
             deny_reason: None,
-            set_cookies: Vec::new(),
+            set_cookies: invalid_session_cookies,
             response_headers: normal_access.response_headers.clone(),
         });
     }
@@ -195,29 +263,33 @@ pub(super) async fn resolve_auth_access_with_normal_access(
             message: "Access denied by credential scope".to_string(),
             grant_type: None,
             deny_reason: Some(REAUTH_SCOPE_DENIED.to_string()),
-            set_cookies: Vec::new(),
+            set_cookies: invalid_session_cookies,
             response_headers,
         });
     }
 
     let share_access = fnos_share_bypass::authorize(state, headers, uri, config).await?;
     if share_access.authorized {
+        let mut set_cookies = invalid_session_cookies;
+        set_cookies.extend(share_access.set_cookies);
         return Ok(AuthAccess {
             authenticated: true,
             message: auth_route_text(translator, "authenticated"),
             grant_type: Some("fnos_share".to_string()),
             deny_reason: None,
-            set_cookies: share_access.set_cookies,
+            set_cookies,
             response_headers: share_access.response_headers,
         });
     }
     if !share_access.set_cookies.is_empty() || !share_access.response_headers.is_empty() {
+        let mut set_cookies = invalid_session_cookies;
+        set_cookies.extend(share_access.set_cookies);
         return Ok(AuthAccess {
             authenticated: false,
             message: auth_route_text(translator, "authenticationRequired"),
             grant_type: None,
             deny_reason: None,
-            set_cookies: share_access.set_cookies,
+            set_cookies,
             response_headers: share_access.response_headers,
         });
     }
@@ -227,7 +299,7 @@ pub(super) async fn resolve_auth_access_with_normal_access(
         message: auth_route_text(translator, "authenticationRequired"),
         grant_type: None,
         deny_reason: None,
-        set_cookies: Vec::new(),
+        set_cookies: invalid_session_cookies,
         response_headers: Vec::new(),
     })
 }

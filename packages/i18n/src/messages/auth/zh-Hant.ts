@@ -46,6 +46,10 @@ export const zhHantAuth = {
   loggedOutManualWhitelist: "目前瀏覽器會話已退出。管理員白名單仍然有效。",
   loggedOutLocalExempt: "目前瀏覽器會話已退出。目前網路仍屬於免白名單範圍。",
   loggedOutDefault: "目前瀏覽器會話已退出，請重新驗證。",
+  redirectLoopBlocked:
+    "偵測到驗證頁與目標服務之間發生重複跳轉，已暫停自動跳轉。請在此頁重新驗證，驗證成功後將繼續存取目標服務。",
+  redirectTargetBlocked:
+    "登入跳轉目標無效或指向目前驗證頁，已阻止重複跳轉。請重新開啟原服務，或聯絡管理員檢查登入回跳設定。",
   retrySuffix: "，請在 {seconds} 秒後重試",
   invalidOtpLength: "請輸入完整的 6 位身份驗證碼",
   loginFailed: "驗證失敗，請重試",

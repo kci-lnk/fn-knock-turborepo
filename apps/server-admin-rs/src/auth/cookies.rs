@@ -66,10 +66,8 @@ pub fn session_cookie(session_id: &str, max_age: i64, domain: Option<&str>) -> S
 }
 
 pub fn session_clear_cookie(domain: Option<&str>) -> String {
-    build_cookie(
+    build_clear_cookie(
         SESSION_COOKIE_NAME,
-        "",
-        0,
         "/",
         domain,
         true,
@@ -101,10 +99,8 @@ fn admin_panel_cookie_with_same_site(
 }
 
 pub fn admin_panel_clear_cookie(secure: bool) -> String {
-    build_cookie(
+    build_clear_cookie(
         ADMIN_PANEL_SESSION_COOKIE_NAME,
-        "",
-        0,
         "/",
         None,
         true,
@@ -114,10 +110,8 @@ pub fn admin_panel_clear_cookie(secure: bool) -> String {
 }
 
 pub fn fnos_share_clear_cookie(domain: Option<&str>) -> String {
-    build_cookie(
+    build_clear_cookie(
         FNOS_SHARE_SESSION_COOKIE_NAME,
-        "",
-        0,
         "/s",
         domain,
         true,
@@ -158,10 +152,8 @@ pub fn oidc_login_error_cookie(
 }
 
 pub fn oidc_login_error_clear_cookie(domain: Option<&str>, path: &str) -> String {
-    build_cookie(
+    build_clear_cookie(
         OIDC_LOGIN_ERROR_COOKIE_NAME,
-        "",
-        0,
         path,
         domain,
         true,
@@ -184,15 +176,29 @@ pub fn oidc_flow_cookie(token: &str, max_age: i64, domain: Option<&str>, path: &
 }
 
 pub fn oidc_flow_clear_cookie(domain: Option<&str>, path: &str) -> String {
-    build_cookie(
+    build_clear_cookie(
         OIDC_FLOW_COOKIE_NAME,
-        "",
-        0,
         path,
         domain,
         true,
         session_cookie_secure(true),
         "Lax",
+    )
+}
+
+fn build_clear_cookie(
+    name: &str,
+    path: &str,
+    domain: Option<&str>,
+    http_only: bool,
+    secure: bool,
+    same_site: &str,
+) -> String {
+    // Max-Age is authoritative for modern clients, while the past Expires
+    // value also removes cookies retained by older clients and proxies.
+    format!(
+        "{}; Expires=Thu, 01 Jan 1970 00:00:00 GMT",
+        build_cookie(name, "", 0, path, domain, http_only, secure, same_site)
     )
 }
 
@@ -313,6 +319,14 @@ mod tests {
         assert!(cookie.contains("HttpOnly"));
         assert!(cookie.contains("Secure"));
         assert!(cookie.contains("SameSite=Lax"));
+    }
+
+    #[test]
+    fn clear_cookie_has_both_deletion_expirations() {
+        let cookie = session_clear_cookie(Some("example.com"));
+        assert!(cookie.contains("Max-Age=0"));
+        assert!(cookie.contains("Expires=Thu, 01 Jan 1970 00:00:00 GMT"));
+        assert!(cookie.contains("Domain=example.com"));
     }
 
     #[test]

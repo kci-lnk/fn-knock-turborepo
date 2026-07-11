@@ -38,12 +38,28 @@ fn safe_redirect_allows_relative_current_origin_and_configured_hosts() {
 }
 
 #[test]
-fn safe_redirect_matches_node_scheme_relative_and_unknown_scheme_rules() {
+fn safe_redirect_rejects_network_path_and_unsafe_url_variants() {
     let config = json!({});
     let headers = forwarded_headers("app.example.com");
+    for unsafe_redirect in [
+        "//example.com",
+        "///example.com",
+        r"\\example.com",
+        r"/\example.com",
+        r"\/example.com",
+        r"https:\example.com",
+        "/\t/example.com",
+        "/\n/example.com",
+        "/\r/example.com",
+    ] {
+        assert!(
+            safe_redirect(&config, &headers, Some(unsafe_redirect)).is_none(),
+            "network-path redirect must be rejected: {unsafe_redirect}"
+        );
+    }
     assert_eq!(
-        safe_redirect(&config, &headers, Some("//example.com")).as_deref(),
-        Some("//example.com")
+        safe_redirect(&config, &headers, Some("/example.com/app")).as_deref(),
+        Some("/example.com/app")
     );
     assert!(safe_redirect(&config, &headers, Some("javascript:alert(1)")).is_none());
     assert!(safe_redirect(&config, &headers, Some("https://evil.example/app")).is_none());
@@ -93,6 +109,7 @@ fn shared_auth_redirect_targets_public_auth_origin() {
         "run_type": 3,
         "subdomain_mode": {
             "root_domain": "example.com",
+            "cookie_domain": "example.com",
             "auth_host": "auth.example.com",
             "public_https_port": 443
         }
@@ -127,6 +144,22 @@ fn public_auth_base_url_applies_configured_public_https_port() {
 }
 
 #[test]
+fn shared_auth_redirect_does_not_redirect_to_same_hostname_with_mismatched_origin() {
+    let config = shared_auth_test_config();
+    let mut headers = forwarded_headers("auth.example.com:7999");
+    headers.insert("x-forwarded-proto", HeaderValue::from_static("http"));
+
+    assert!(
+        resolve_shared_auth_login_redirect(
+            &config,
+            &headers,
+            Some("https://app.example.com/dashboard")
+        )
+        .is_none()
+    );
+}
+
+#[test]
 fn forwarded_header_parsing_matches_node_fallbacks() {
     let config = json!({});
     let mut headers = HeaderMap::new();
@@ -158,6 +191,20 @@ fn resolve_cookie_domain_matches_subdomain_mode_scope() {
     assert_eq!(
         resolve_cookie_domain(&config, &headers).as_deref(),
         Some("example.com")
+    );
+}
+
+#[test]
+fn cookie_clear_domains_cover_host_only_shared_and_current_host_scopes() {
+    let config = shared_auth_test_config();
+    let headers = forwarded_headers("auth.example.com:7999");
+    assert_eq!(
+        resolve_cookie_clear_domains(Some(&config), &headers),
+        vec![
+            None,
+            Some("example.com".to_string()),
+            Some("auth.example.com".to_string())
+        ]
     );
 }
 
@@ -305,6 +352,193 @@ fn auth_mobility_resolvable_access_requires_live_owner_session_like_node() {
 
     session.expires_at = None;
     assert!(!auth_mobility_session_has_remaining_ttl(&session));
+}
+
+#[test]
+fn presented_session_expiry_preserves_unparseable_legacy_values() {
+    let mut session = auth_route_test_session("203.0.113.10", "2999-01-01T00:00:00Z");
+    assert!(!login_session_has_expired(&session));
+
+    session.expires_at = Some("2000-01-01T00:00:00Z".to_string());
+    assert!(login_session_has_expired(&session));
+
+    session.expires_at = Some("legacy-value".to_string());
+    assert!(!login_session_has_expired(&session));
+
+    session.expires_at = None;
+    assert!(!login_session_has_expired(&session));
+}
+
+#[tokio::test]
+async fn verify_clears_all_stale_cookie_scopes_even_when_local_access_is_allowed() {
+    let (_directory, state) = auth_route_test_state("missing-session").await;
+    let mut headers = forwarded_headers("auth.example.com:7999");
+    headers.insert(
+        header::COOKIE,
+        HeaderValue::from_static("x-go-reauth-proxy-session-id=missing-session"),
+    );
+    headers.insert("x-forwarded-for", HeaderValue::from_static("127.0.0.1"));
+
+    let response = verify(State(state), headers, Uri::from_static("/api/auth/verify")).await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let cookies = response_set_cookies(&response);
+    assert_eq!(cookies.len(), 3);
+    assert_clear_cookie_scopes(&cookies);
+}
+
+#[tokio::test]
+async fn logout_clears_session_and_share_cookies_from_all_legacy_scopes() {
+    let (_directory, state) = auth_route_test_state("logout-cookie-scopes").await;
+    let headers = forwarded_headers("auth.example.com:7999");
+
+    let response = logout(State(state), headers, Uri::from_static("/api/auth/logout")).await;
+
+    assert_eq!(response.status(), StatusCode::FOUND);
+    let cookies = response_set_cookies(&response);
+    assert_eq!(cookies.len(), 6);
+    let session_cookies = cookies
+        .iter()
+        .filter(|cookie| cookie.starts_with(cookies::SESSION_COOKIE_NAME))
+        .cloned()
+        .collect::<Vec<_>>();
+    let share_cookies = cookies
+        .iter()
+        .filter(|cookie| cookie.starts_with(cookies::FNOS_SHARE_SESSION_COOKIE_NAME))
+        .cloned()
+        .collect::<Vec<_>>();
+    assert_clear_cookie_scopes(&session_cookies);
+    assert_clear_cookie_scopes(&share_cookies);
+}
+
+#[tokio::test]
+async fn verify_rejects_and_destroys_expired_presented_session() {
+    let (_directory, state) = auth_route_test_state("expired-session").await;
+    let session_id = "expired-session";
+    state
+        .store
+        .add_session(
+            session_id,
+            &auth_route_test_session("203.0.113.10", "2000-01-01T00:00:00Z"),
+            3600,
+        )
+        .await
+        .expect("store expired session fixture");
+    let mut headers = forwarded_headers("auth.example.com:7999");
+    headers.insert(
+        header::COOKIE,
+        HeaderValue::from_static("x-go-reauth-proxy-session-id=expired-session"),
+    );
+    headers.insert("x-forwarded-for", HeaderValue::from_static("203.0.113.10"));
+
+    let response = verify(
+        State(state.clone()),
+        headers,
+        Uri::from_static("/api/auth/verify"),
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    assert_clear_cookie_scopes(&response_set_cookies(&response));
+    assert!(
+        state
+            .store
+            .get_session(session_id)
+            .await
+            .expect("read expired session after verify")
+            .is_none()
+    );
+}
+
+#[tokio::test]
+async fn expired_session_response_is_not_blocked_by_held_mobility_lease() {
+    let (_directory, state) = auth_route_test_state("expired-session-lock-contention").await;
+    let session_id = "expired-session-with-held-lock";
+    state
+        .store
+        .add_session(
+            session_id,
+            &auth_route_test_session("203.0.113.12", "2000-01-01T00:00:00Z"),
+            3600,
+        )
+        .await
+        .expect("store expired session fixture");
+    let lock_key = crate::auth_mobility_keys::session_mutation_lock_key(session_id);
+    assert!(
+        state
+            .store
+            .set_json_value_nx_ex(
+                &lock_key,
+                &json!({ "lockId": "held-by-another-request" }),
+                60,
+            )
+            .await
+            .expect("hold session mutation lock")
+    );
+    let mut headers = forwarded_headers("auth.example.com:7999");
+    headers.insert(
+        header::COOKIE,
+        HeaderValue::from_static("x-go-reauth-proxy-session-id=expired-session-with-held-lock"),
+    );
+    headers.insert("x-forwarded-for", HeaderValue::from_static("203.0.113.12"));
+
+    let response = tokio::time::timeout(
+        std::time::Duration::from_millis(500),
+        verify(
+            State(state.clone()),
+            headers,
+            Uri::from_static("/api/auth/verify"),
+        ),
+    )
+    .await
+    .expect("expired-session response must not wait for mobility lease cleanup");
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    assert_clear_cookie_scopes(&response_set_cookies(&response));
+    assert!(
+        state
+            .store
+            .get_session(session_id)
+            .await
+            .expect("authoritative expired session was deleted")
+            .is_none()
+    );
+}
+
+#[tokio::test]
+async fn bootstrap_migrates_valid_auth_host_session_to_shared_cookie_domain() {
+    let (_directory, state) = auth_route_test_state("shared-cookie-migration").await;
+    let session_id = "valid-auth-host-session";
+    let session = auth_route_test_session("203.0.113.11", &time_utils::iso_after_seconds(3600));
+    state
+        .store
+        .add_session(session_id, &session, 3600)
+        .await
+        .expect("store valid session fixture");
+    let mut headers = forwarded_headers("auth.example.com:7999");
+    headers.insert("x-forwarded-proto", HeaderValue::from_static("http"));
+    headers.insert(
+        header::COOKIE,
+        HeaderValue::from_static("x-go-reauth-proxy-session-id=valid-auth-host-session"),
+    );
+    headers.insert("x-forwarded-for", HeaderValue::from_static("203.0.113.11"));
+
+    let response = bootstrap(
+        State(state),
+        headers,
+        Uri::from_static("/api/auth/bootstrap"),
+        Query(BootstrapQuery {
+            redirect_uri: Some("https://app.example.com/dashboard".to_string()),
+        }),
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let cookies = response_set_cookies(&response);
+    assert_eq!(cookies.len(), 1);
+    assert!(cookies[0].contains("x-go-reauth-proxy-session-id=valid-auth-host-session"));
+    assert!(cookies[0].contains("Domain=example.com"));
+    assert!(!cookies[0].contains("Max-Age=0"));
 }
 
 #[test]
@@ -498,4 +732,90 @@ fn localizes_auth_route_text() {
         subdomain_access: Value::Null,
     };
     assert_eq!(credential_name(&credential, &translator), "未知 TOTP");
+}
+
+fn shared_auth_test_config() -> Value {
+    json!({
+        "run_type": 3,
+        "subdomain_mode": {
+            "root_domain": "example.com",
+            "auth_host": "auth.example.com",
+            "public_https_port": 443
+        }
+    })
+}
+
+async fn auth_route_test_state(name: &str) -> (tempfile::TempDir, AppState) {
+    let directory = tempfile::tempdir().expect("temporary auth route database");
+    let mut settings = {
+        let _environment = crate::test_support::EnvGuard::new(&[]);
+        crate::settings::Settings::from_env()
+    };
+    settings.data_dir = directory.path().join("data");
+    settings.gateway_config_dir = directory.path().join("gateway");
+    settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
+    settings.legacy_redis_url = String::new();
+    settings.go_backend_grpc_addr = "127.0.0.1:1".to_string();
+    settings.internal_rpc_token = format!("auth-route-{name}-test");
+    let state = AppState::new(settings)
+        .await
+        .expect("auth route test state");
+    state
+        .store
+        .save_config(&shared_auth_test_config())
+        .await
+        .expect("auth route test config");
+    (directory, state)
+}
+
+fn auth_route_test_session(ip: &str, expires_at: &str) -> LoginSession {
+    LoginSession {
+        totp_id: "totp-1".to_string(),
+        method: "TOTP".to_string(),
+        credential_id: "totp-1".to_string(),
+        credential_name: "TOTP".to_string(),
+        linked_totp_name: None,
+        access_scopes: None,
+        subdomain_access: None,
+        grant_type: Some("browser_session".to_string()),
+        post_login_ip_grant_mode: None,
+        post_login_ip_grant_record_id: None,
+        comment: None,
+        ip: ip.to_string(),
+        user_agent: "auth-route-test".to_string(),
+        login_time: time_utils::now_iso(),
+        expires_at: Some(expires_at.to_string()),
+        ip_location: None,
+    }
+}
+
+fn response_set_cookies(response: &Response) -> Vec<String> {
+    response
+        .headers()
+        .get_all(header::SET_COOKIE)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .map(ToString::to_string)
+        .collect()
+}
+
+fn assert_clear_cookie_scopes(cookies: &[String]) {
+    assert_eq!(cookies.len(), 3);
+    assert!(cookies.iter().all(|cookie| cookie.contains("Max-Age=0")));
+    assert!(
+        cookies
+            .iter()
+            .all(|cookie| cookie.contains("Expires=Thu, 01 Jan 1970 00:00:00 GMT"))
+    );
+    assert!(cookies.iter().any(|cookie| !cookie.contains("Domain=")));
+    assert!(
+        cookies
+            .iter()
+            .any(|cookie| cookie.contains("Domain=example.com"))
+    );
+    assert!(
+        cookies
+            .iter()
+            .any(|cookie| cookie.contains("Domain=auth.example.com"))
+    );
 }

@@ -22,7 +22,11 @@ pub(crate) fn safe_redirect(
     headers: &HeaderMap,
     redirect_uri: Option<&str>,
 ) -> Option<String> {
-    let value = redirect_uri?.trim();
+    let raw_value = redirect_uri?;
+    if is_unsafe_redirect_reference(raw_value) {
+        return None;
+    }
+    let value = raw_value.trim();
     if value.is_empty() {
         return None;
     }
@@ -91,6 +95,21 @@ pub(crate) fn safe_redirect(
     None
 }
 
+fn is_unsafe_redirect_reference(value: &str) -> bool {
+    if value.contains('\\') || value.chars().any(|character| character.is_ascii_control()) {
+        return true;
+    }
+    let value = value.trim();
+    let mut chars = value.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    let Some(second) = chars.next() else {
+        return false;
+    };
+    first == '/' && second == '/'
+}
+
 pub(crate) fn effective_login_redirect(
     config: &Value,
     headers: &HeaderMap,
@@ -111,6 +130,36 @@ pub(crate) fn resolve_cookie_domain(config: &Value, headers: &HeaderMap) -> Opti
     resolve_cookie_domain_for_request_host(config, request_host.as_deref())
 }
 
+pub(crate) fn resolve_cookie_clear_domains(
+    config: Option<&Value>,
+    headers: &HeaderMap,
+) -> Vec<Option<String>> {
+    // A host-only cookie and Domain cookies with the same name can coexist.
+    // Clear every scope that this deployment (including older releases) may
+    // have used, rather than relying on Cookie header ordering.
+    let mut domains = vec![None];
+    let mut seen = BTreeSet::new();
+    let mut push_domain = |raw: &str| {
+        let domain = normalize_subdomain_access_host(raw)
+            .trim_start_matches('.')
+            .to_string();
+        if domain.is_empty() || domain.parse::<IpAddr>().is_ok() || !seen.insert(domain.clone()) {
+            return;
+        }
+        domains.push(Some(domain));
+    };
+
+    if let Some(config) = config
+        && let Some(domain) = resolve_cookie_domain(config, headers)
+    {
+        push_domain(&domain);
+    }
+    if let Some(hostname) = resolve_request_hostname_from_headers(headers) {
+        push_domain(&hostname);
+    }
+    domains
+}
+
 pub(super) fn resolve_shared_auth_login_redirect(
     config: &Value,
     headers: &HeaderMap,
@@ -121,6 +170,17 @@ pub(super) fn resolve_shared_auth_login_redirect(
     }
     let shared_auth_base_url = resolve_public_auth_base_url(config)?;
     let shared_auth_url = url::Url::parse(&shared_auth_base_url).ok()?;
+    let shared_auth_hostname = shared_auth_url
+        .host_str()
+        .map(normalize_subdomain_access_host)?;
+    if resolve_request_hostname_from_headers(headers).as_deref()
+        == Some(shared_auth_hostname.as_str())
+    {
+        // Forwarded scheme/port can reflect the internal proxy hop rather
+        // than the public listener. Host identity is sufficient to prevent a
+        // shared auth page from redirecting to itself in that case.
+        return None;
+    }
     let request_proto = resolve_forwarded_proto(headers);
     let request_host = resolve_forwarded_host(headers)?;
     let current_origin = format!("{request_proto}://{request_host}");

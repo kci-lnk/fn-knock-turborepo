@@ -48,6 +48,10 @@ export const zhCNAuth = {
   loggedOutManualWhitelist: "当前浏览器会话已退出。管理员白名单仍然有效。",
   loggedOutLocalExempt: "当前浏览器会话已退出。当前网络仍属于免白名单范围。",
   loggedOutDefault: "当前浏览器会话已退出，请重新验证。",
+  redirectLoopBlocked:
+    "检测到验证页与目标服务之间发生重复跳转，已暂停自动跳转。请在此页重新验证，验证成功后将继续访问目标服务。",
+  redirectTargetBlocked:
+    "登录跳转目标无效或指向当前验证页，已阻止重复跳转。请重新打开原服务，或联系管理员检查登录回跳配置。",
   retrySuffix: "，请在 {seconds} 秒后重试",
   invalidOtpLength: "请输入完整的 6 位身份验证码",
   loginFailed: "验证失败，请重试",

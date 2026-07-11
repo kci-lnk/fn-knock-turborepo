@@ -1,4 +1,5 @@
 use super::*;
+use crate::store::LoginSession;
 use axum::http::HeaderMap;
 
 #[test]
@@ -134,6 +135,49 @@ fn passkey_bind_cookie_parser_matches_node_last_value_rules() {
     );
 }
 
+#[tokio::test]
+async fn passkey_bind_token_rejects_expired_session_and_clears_all_cookie_scopes() {
+    let (_directory, state) = passkey_test_state("expired-bind-session").await;
+    let session_id = "expired-passkey-bind-session";
+    state
+        .store
+        .add_session(
+            session_id,
+            &passkey_test_session("2000-01-01T00:00:00Z"),
+            3600,
+        )
+        .await
+        .expect("expired passkey bind session fixture");
+    let headers = passkey_bind_test_headers(session_id);
+
+    let response = bind_token(State(state.clone()), headers).await;
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    assert_passkey_session_clear_cookie_scopes(&response);
+    assert!(
+        state
+            .store
+            .get_session(session_id)
+            .await
+            .expect("read expired passkey bind session")
+            .is_none()
+    );
+}
+
+#[tokio::test]
+async fn passkey_bind_token_clears_cookie_when_session_key_is_missing() {
+    let (_directory, state) = passkey_test_state("missing-bind-session").await;
+
+    let response = bind_token(
+        State(state),
+        passkey_bind_test_headers("missing-passkey-bind-session"),
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    assert_passkey_session_clear_cookie_scopes(&response);
+}
+
 #[test]
 fn passkey_device_name_matches_node_fallback_without_trimming() {
     assert_eq!(passkey_device_name(String::new()), "Unknown Device");
@@ -235,5 +279,90 @@ fn localizes_passkey_route_text() {
             &[("seconds", "30".to_string())]
         ),
         "未找到 Passkey，请在 30 秒后重试"
+    );
+}
+
+async fn passkey_test_state(name: &str) -> (tempfile::TempDir, AppState) {
+    let directory = tempfile::tempdir().expect("temporary passkey database");
+    let mut settings = {
+        let _environment = crate::test_support::EnvGuard::new(&[]);
+        crate::settings::Settings::from_env()
+    };
+    settings.data_dir = directory.path().join("data");
+    settings.gateway_config_dir = directory.path().join("gateway");
+    settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
+    settings.legacy_redis_url = String::new();
+    settings.go_backend_grpc_addr = "127.0.0.1:1".to_string();
+    settings.internal_rpc_token = format!("passkey-{name}-test");
+    let state = AppState::new(settings).await.expect("passkey test state");
+    state
+        .store
+        .save_config(&json!({
+            "run_type": 3,
+            "subdomain_mode": {
+                "root_domain": "example.com",
+                "cookie_domain": "example.com",
+                "auth_host": "auth.example.com"
+            }
+        }))
+        .await
+        .expect("passkey test config");
+    (directory, state)
+}
+
+fn passkey_test_session(expires_at: &str) -> LoginSession {
+    LoginSession {
+        totp_id: "totp-1".to_string(),
+        method: "TOTP".to_string(),
+        credential_id: "totp-1".to_string(),
+        credential_name: "TOTP".to_string(),
+        linked_totp_name: None,
+        access_scopes: None,
+        subdomain_access: None,
+        grant_type: Some("browser_session".to_string()),
+        post_login_ip_grant_mode: None,
+        post_login_ip_grant_record_id: None,
+        comment: None,
+        ip: "203.0.113.20".to_string(),
+        user_agent: "passkey-test".to_string(),
+        login_time: time_utils::now_iso(),
+        expires_at: Some(expires_at.to_string()),
+        ip_location: None,
+    }
+}
+
+fn passkey_bind_test_headers(session_id: &str) -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        header::COOKIE,
+        HeaderValue::from_str(&format!("{}={session_id}", cookies::SESSION_COOKIE_NAME))
+            .expect("passkey test cookie header"),
+    );
+    headers.insert(
+        "x-forwarded-host",
+        HeaderValue::from_static("auth.example.com:7999"),
+    );
+    headers
+}
+
+fn assert_passkey_session_clear_cookie_scopes(response: &Response) {
+    let cookies = response
+        .headers()
+        .get_all(header::SET_COOKIE)
+        .iter()
+        .map(|value| value.to_str().expect("valid Set-Cookie").to_string())
+        .collect::<Vec<_>>();
+    assert_eq!(cookies.len(), 3);
+    assert!(cookies.iter().all(|cookie| cookie.contains("Max-Age=0")));
+    assert!(cookies.iter().any(|cookie| !cookie.contains("Domain=")));
+    assert!(
+        cookies
+            .iter()
+            .any(|cookie| cookie.contains("Domain=example.com"))
+    );
+    assert!(
+        cookies
+            .iter()
+            .any(|cookie| cookie.contains("Domain=auth.example.com"))
     );
 }

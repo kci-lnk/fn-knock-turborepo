@@ -926,25 +926,25 @@ pub(super) async fn logout(
         tracing::warn!(%error, %session_id, "failed to publish auth logout event");
     }
 
-    let cookie_domain = config
-        .as_ref()
-        .and_then(|config| resolve_cookie_domain(config, &headers));
+    let cookie_domains = resolve_cookie_clear_domains(config.as_ref(), &headers);
     let mut response = Response::builder()
         .status(StatusCode::FOUND)
         .header(header::LOCATION, post_logout_location(&headers, &uri))
         .body(axum::body::Body::empty())
         .unwrap_or_else(|_| Response::new(axum::body::Body::empty()));
     apply_no_store_headers(response.headers_mut());
-    append_set_cookie_header(
-        response.headers_mut(),
-        cookies::session_clear_cookie(cookie_domain.as_deref()),
-        "session clear cookie",
-    );
-    append_set_cookie_header(
-        response.headers_mut(),
-        cookies::fnos_share_clear_cookie(cookie_domain.as_deref()),
-        "share clear cookie",
-    );
+    for domain in &cookie_domains {
+        append_set_cookie_header(
+            response.headers_mut(),
+            cookies::session_clear_cookie(domain.as_deref()),
+            "session clear cookie",
+        );
+        append_set_cookie_header(
+            response.headers_mut(),
+            cookies::fnos_share_clear_cookie(domain.as_deref()),
+            "share clear cookie",
+        );
+    }
     response
 }
 

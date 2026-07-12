@@ -627,9 +627,9 @@ onMounted(() => {
       if (configStore.canSyncSystemClock) {
         void systemClockStore.initialize();
       }
-      if (!configStore.isDesktopUpdateManaged) {
-        void updateStore.initialize();
-      }
+      // Every platform polls update status so version and update notices stay
+      // current. Installation remains capability-gated in the update page.
+      void updateStore.initialize();
     });
   });
 });
@@ -945,6 +945,10 @@ const updateBannerDescription = computed(() => {
 
   if (configStore.isDockerDeployment) {
     return t("admin.banner.dockerUpdateInfo");
+  }
+
+  if (configStore.isDesktopUpdateManaged) {
+    return t("admin.banner.windowsUpdateInfo");
   }
 
   return t("admin.banner.genericUpdateInfo");

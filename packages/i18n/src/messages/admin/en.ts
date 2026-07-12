@@ -41,6 +41,8 @@ export const enAdmin = {
       "Open System Update for version details and Docker upgrade instructions.",
     openWrtUpdateInfo:
       "Open System Update for version details and OpenWrt IPK upgrade instructions.",
+    windowsUpdateInfo:
+      "Use the Knock Windows Manager to check for and install the update.",
     genericUpdateInfo:
       "Open System Update for version details and manual upgrade instructions.",
   },
@@ -75,10 +77,12 @@ export const enAdmin = {
     modalInstallDescription:
       "The system is installing the update. Do not close this page.<br>The Knock app will reappear on the desktop shortly.",
     title: "Version and updates",
-    desktopManagedTitle: "Updates are managed by the Windows desktop app",
+    desktopManagedTitle: "Upgrade in the Knock Windows Manager",
     desktopManagedDescription:
-      "Open Runtime Status from the FnKnock tray menu to check for and install updates. A desktop update replaces the GUI, Rust service, Go gateway, and frontend assets together.",
+      "This page can check versions and show release notes, but it cannot install updates. Open the Knock Windows Manager and use Runtime Status to check for and install the update.",
     subtitleSelfUpdate: "Manage Fn-Knock versions and upgrades",
+    subtitleDesktop:
+      "View version details and Windows Manager upgrade instructions",
     subtitleDocker: "View version details and Docker upgrade instructions",
     subtitleOpenWrt:
       "View version details and OpenWrt IPK upgrade instructions",
@@ -99,6 +103,8 @@ export const enAdmin = {
     newVersionSelfUpdate: "New version found. Update soon.",
     newVersionDocker: "New version found. Upgrade by updating the image.",
     newVersionOpenWrt: "New version found. Upgrade by installing a new IPK.",
+    newVersionDesktop:
+      "New version found. Upgrade in the Knock Windows Manager.",
     newVersionGeneric:
       "New version found. Upgrade manually for this deployment.",
     alreadyLatest: "You are already on the latest version",
@@ -109,6 +115,8 @@ export const enAdmin = {
       "Pull the new image and recreate the container to upgrade.",
     newVersionOpenWrtHint:
       "Download the matching architecture IPK, install it through LuCI Software upload, or use opkg install --force-reinstall.",
+    newVersionDesktopHint:
+      "Open the Knock Windows Manager and use Runtime Status to check for and install the update.",
     newVersionGenericHint:
       "Download the matching package and upgrade using this deployment's installation method.",
     latestHint: "Thanks for using the latest version.",
@@ -118,6 +126,8 @@ export const enAdmin = {
       "You can keep checking the latest release and Docker image upgrade notes.",
     versionCheckHintOpenWrt:
       "You can keep checking the latest release and OpenWrt IPK upgrade notes.",
+    versionCheckHintDesktop:
+      "You can keep checking releases here; use the Knock Windows Manager to install updates.",
     versionCheckHintGeneric:
       "You can keep checking the latest release and manual upgrade notes.",
     checkUpdate: "Check for updates",

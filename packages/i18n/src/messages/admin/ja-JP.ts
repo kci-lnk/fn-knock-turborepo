@@ -43,6 +43,8 @@ export const jaJPAdmin = {
       "システム更新ページに移動して、バージョン情報と Docker アップグレード手順を表示できます。",
     openWrtUpdateInfo:
       "システム更新ページに移動して、バージョン情報と OpenWrt IPK のアップグレード手順を表示できます。",
+    windowsUpdateInfo:
+      "Knock Windows 管理プログラムで更新を確認してインストールしてください。",
     genericUpdateInfo:
       "システム更新ページに移動して、バージョン情報と手動アップグレード手順を表示できます。",
   },
@@ -78,10 +80,12 @@ export const jaJPAdmin = {
     modalInstallDescription:
       "システムはアップデートをインストールしています。このページを閉じないでください。 <br>「ノックノック」アプリケーションは後でデスクトップに再び表示されます。",
     title: "バージョンとアップデート",
-    desktopManagedTitle: "更新は Windows デスクトップアプリで管理されます",
+    desktopManagedTitle: "Knock Windows 管理プログラムでアップグレードしてください",
     desktopManagedDescription:
-      "FnKnock のトレイメニューから「実行状態」を開き、更新の確認とインストールを行ってください。デスクトップ更新では GUI、Rust サービス、Go ゲートウェイ、フロントエンド資産がまとめて置き換えられます。",
+      "このページではバージョン確認とリリースノートの表示ができますが、更新のインストールはできません。「Knock 敲門 · Windows 管理プログラム」を開き、「実行状態」で更新を確認してインストールしてください。",
     subtitleSelfUpdate: "Fn-Knock のバージョンとアップグレードを管理",
+    subtitleDesktop:
+      "バージョン情報と Windows 管理プログラムでのアップグレード手順を表示します",
     subtitleDocker: "バージョン情報とDockerのアップグレード方法を表示します",
     subtitleOpenWrt:
       "バージョン情報とOpenWrt IPKのアップグレード方法を表示します",
@@ -105,6 +109,8 @@ export const jaJPAdmin = {
       "新しいバージョンが見つかりました。アップデート イメージを通じてアップグレードしてください。",
     newVersionOpenWrt:
       "新しいバージョンが見つかりました。アップデートを通じてアップグレードしてください IPK",
+    newVersionDesktop:
+      "新しいバージョンが見つかりました。Windows 管理プログラムでアップグレードしてください。",
     newVersionGeneric:
       "新しいバージョンが見つかりました。展開方法に従って手動でアップグレードしてください",
     alreadyLatest: "が現在の最新バージョンです",
@@ -115,6 +121,8 @@ export const jaJPAdmin = {
       "新しいイメージをプルし、コンテナを再作成してアップグレードします。",
     newVersionOpenWrtHint:
       "アーキテクチャに一致する IPK をダウンロードするか、LuCI パッケージを介してアップロードしてインストールするか、opkg install --force-reinstall を使用してインストールします。",
+    newVersionDesktopHint:
+      "「Knock 敲門 · Windows 管理プログラム」を開き、「実行状態」で更新を確認してインストールしてください。",
     newVersionGenericHint:
       "対応するインストール パッケージをダウンロードし、現在の展開方法に従ってアップグレードしてください。",
     latestHint: "最新バージョンをご利用いただきありがとうございます。",
@@ -123,6 +131,8 @@ export const jaJPAdmin = {
       "最新リリースと Docker イメージのアップグレード手順を引き続き確認できます。",
     versionCheckHintOpenWrt:
       "最新リリースと OpenWrt IPK アップグレード手順を引き続き確認できます。",
+    versionCheckHintDesktop:
+      "ここで最新リリースを確認できます。更新のインストールには Knock Windows 管理プログラムを使用してください。",
     versionCheckHintGeneric:
       "最新リリースと手動アップグレード手順を引き続き確認できます。",
     checkUpdate: "アップデートをチェック",

@@ -41,6 +41,8 @@ export const koKRAdmin = {
       "시스템 업데이트를 열어 버전 정보와 Docker 업그레이드 안내를 확인하세요.",
     openWrtUpdateInfo:
       "시스템 업데이트를 열어 버전 정보와 OpenWrt IPK 업그레이드 안내를 확인하세요.",
+    windowsUpdateInfo:
+      "Knock Windows 관리 프로그램에서 업데이트를 확인하고 설치하세요.",
     genericUpdateInfo:
       "시스템 업데이트를 열어 버전 정보와 수동 업그레이드 안내를 확인하세요.",
   },
@@ -75,10 +77,11 @@ export const koKRAdmin = {
     modalInstallDescription:
       "시스템이 업데이트를 설치하는 중입니다. 이 페이지를 닫지 마세요.<br>Knock 앱이 곧 바탕화면에 다시 나타납니다.",
     title: "버전 및 업데이트",
-    desktopManagedTitle: "업데이트는 Windows 데스크톱 앱에서 관리됩니다",
+    desktopManagedTitle: "Knock Windows 관리 프로그램에서 업그레이드하세요",
     desktopManagedDescription:
-      "FnKnock 트레이 메뉴에서 실행 상태를 열어 업데이트를 확인하고 설치하세요. 데스크톱 업데이트는 GUI, Rust 서비스, Go 게이트웨이 및 프런트엔드 자산을 함께 교체합니다.",
+      "이 페이지에서는 버전과 릴리스 노트를 확인할 수 있지만 업데이트를 설치할 수는 없습니다. Knock Windows 관리 프로그램을 열고 실행 상태에서 업데이트를 확인하고 설치하세요.",
     subtitleSelfUpdate: "Fn-Knock 버전 및 업그레이드 관리",
+    subtitleDesktop: "버전 정보 및 Windows 관리 프로그램 업그레이드 안내 보기",
     subtitleDocker: "버전 세부정보 및 Docker 업그레이드 지침 보기",
     subtitleOpenWrt: "버전 세부정보 및 OpenWrt IPK 업그레이드 지침 보기",
     subtitleGeneric: "버전 세부정보 및 수동 업그레이드 지침 보기",
@@ -99,6 +102,8 @@ export const koKRAdmin = {
       "새 버전이 발견되었습니다. 이미지를 업데이트하여 업그레이드하세요.",
     newVersionOpenWrt:
       "새 버전이 발견되었습니다. 새 IPK를 설치하여 업그레이드하세요.",
+    newVersionDesktop:
+      "새 버전이 발견되었습니다. Windows 관리 프로그램에서 업그레이드하세요.",
     newVersionGeneric:
       "새 버전이 발견되었습니다. 현재 배포 방식에 맞게 수동 업그레이드하세요.",
     alreadyLatest: "이미 최신 버전을 사용 중입니다.",
@@ -109,6 +114,8 @@ export const koKRAdmin = {
       "새 이미지를 가져와 업그레이드할 컨테이너를 다시 만듭니다.",
     newVersionOpenWrtHint:
       "아키텍처에 맞는 IPK를 다운로드하여 LuCI Software 업로드로 설치하거나 opkg install --force-reinstall을 사용하세요.",
+    newVersionDesktopHint:
+      "Knock Windows 관리 프로그램을 열고 실행 상태에서 업데이트를 확인하고 설치하세요.",
     newVersionGenericHint:
       "맞는 설치 패키지를 다운로드하고 현재 배포 방식에 맞게 업그레이드하세요.",
     latestHint: "최신 버전을 사용해 주셔서 감사합니다.",
@@ -117,6 +124,8 @@ export const koKRAdmin = {
       "최신 릴리스와 Docker 이미지 업그레이드 안내를 계속 확인할 수 있습니다.",
     versionCheckHintOpenWrt:
       "최신 릴리스와 OpenWrt IPK 업그레이드 안내를 계속 확인할 수 있습니다.",
+    versionCheckHintDesktop:
+      "여기에서 최신 릴리스를 계속 확인할 수 있으며 업데이트 설치는 Knock Windows 관리 프로그램을 사용하세요.",
     versionCheckHintGeneric:
       "최신 릴리스와 수동 업그레이드 안내를 계속 확인할 수 있습니다.",
     checkUpdate: "업데이트 확인",

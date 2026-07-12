@@ -38,6 +38,7 @@ export const zhCNAdmin = {
     normalUpdate: "可前往系统更新页查看详情并更新。",
     dockerUpdateInfo: "可前往系统更新页查看版本信息与 Docker 升级说明。",
     openWrtUpdateInfo: "可前往系统更新页查看版本信息与 OpenWrt IPK 升级说明。",
+    windowsUpdateInfo: "请前往“Knock 敲门 · Windows 管理程序”检查并安装更新。",
     genericUpdateInfo: "可前往系统更新页查看版本信息与手动升级说明。",
   },
   route: {
@@ -69,10 +70,11 @@ export const zhCNAdmin = {
     modalInstallDescription:
       "系统正在安装更新，请勿关闭此页面。<br>稍后桌面会重新出现“敲门 knock”应用。",
     title: "版本与更新",
-    desktopManagedTitle: "更新由 Windows 桌面程序管理",
+    desktopManagedTitle: "请在 Knock Windows 管理程序中升级",
     desktopManagedDescription:
-      "请从 FnKnock 托盘菜单打开“运行状态”，再执行检查和安装更新。桌面更新会同时替换 GUI、Rust 服务、Go 网关和前端资源。",
+      "此页面可检查版本和查看更新说明，但不能一键更新。请打开“Knock 敲门 · Windows 管理程序”，在“运行状态”中检查并安装更新。",
     subtitleSelfUpdate: "管理 Fn-Knock 的版本与升级",
+    subtitleDesktop: "查看版本信息与 Windows 管理程序升级说明",
     subtitleDocker: "查看版本信息与 Docker 升级方式",
     subtitleOpenWrt: "查看版本信息与 OpenWrt IPK 升级方式",
     subtitleGeneric: "查看版本信息与手动升级方式",
@@ -91,6 +93,7 @@ export const zhCNAdmin = {
     newVersionSelfUpdate: "发现新版本，建议立即更新",
     newVersionDocker: "发现新版本，请通过更新镜像升级",
     newVersionOpenWrt: "发现新版本，请通过更新 IPK 升级",
+    newVersionDesktop: "发现新版本，请在 Windows 管理程序中升级",
     newVersionGeneric: "发现新版本，请按部署方式手动升级",
     alreadyLatest: "当前已是最新版本",
     updateDisabled: "更新功能暂未启用",
@@ -99,11 +102,14 @@ export const zhCNAdmin = {
     newVersionDockerHint: "拉取新镜像后重新创建容器即可升级。",
     newVersionOpenWrtHint:
       "下载匹配架构的 IPK，通过 LuCI 软件包上传安装，或使用 opkg install --force-reinstall 安装。",
+    newVersionDesktopHint:
+      "打开“Knock 敲门 · Windows 管理程序”，在“运行状态”中检查并安装更新。",
     newVersionGenericHint: "请下载对应安装包并按当前部署方式升级。",
     latestHint: "感谢使用最新版本。",
     versionCheckHint: "可继续检查最新发布与更新说明。",
     versionCheckHintDocker: "可继续检查最新发布与 Docker 镜像升级说明。",
     versionCheckHintOpenWrt: "可继续检查最新发布与 OpenWrt IPK 升级说明。",
+    versionCheckHintDesktop: "可继续检查最新发布；安装更新请使用 Knock Windows 管理程序。",
     versionCheckHintGeneric: "可继续检查最新发布与手动升级说明。",
     checkUpdate: "检查更新",
     installRestart: "安装重启",

@@ -28,6 +28,7 @@ const status = computed(() => updateStore.status);
 const canSelfUpdate = computed(() => configStore.canSelfUpdate);
 const desktopUpdateManaged = computed(() => configStore.isDesktopUpdateManaged);
 const nonSelfUpdateTarget = computed(() => {
+  if (desktopUpdateManaged.value) return "Desktop";
   if (configStore.isOpenWrtDeployment) return "OpenWrt";
   if (configStore.isDockerDeployment) return "Docker";
   return "Generic";
@@ -52,6 +53,19 @@ const versionCheckHintKey = computed(() =>
     ? "admin.aboutUpdate.latestHint"
     : `admin.aboutUpdate.versionCheckHint${nonSelfUpdateTarget.value}`,
 );
+const versionStatusMessage = computed(() => {
+  if (status.value?.hasUpdate) {
+    return canSelfUpdate.value
+      ? t("admin.aboutUpdate.newVersionSelfUpdate")
+      : t(nonSelfUpdateVersionMessageKey.value);
+  }
+  if (canSelfUpdate.value || desktopUpdateManaged.value) {
+    return status.value?.updateEnabled
+      ? t("admin.aboutUpdate.alreadyLatest")
+      : t("admin.aboutUpdate.updateDisabled");
+  }
+  return t("admin.aboutUpdate.versionCheckOnly");
+});
 const releaseNotesHtml = computed(() => {
   const raw =
     status.value?.latest?.release_notes ||
@@ -216,9 +230,8 @@ onMounted(async () => {
           </AlertDescription>
         </Alert>
 
-        <template>
           <Alert
-            v-if="!canSelfUpdate"
+            v-if="!canSelfUpdate && !desktopUpdateManaged"
             class="rounded-xl border-border/70 bg-muted/30 text-foreground shadow-none"
           >
             <AlertCircle class="w-4 h-4" />
@@ -282,17 +295,7 @@ onMounted(async () => {
               </div>
               <div class="space-y-0.5">
                 <p class="text-sm font-medium">
-                  {{
-                    status?.hasUpdate
-                      ? canSelfUpdate
-                        ? t("admin.aboutUpdate.newVersionSelfUpdate")
-                        : t(nonSelfUpdateVersionMessageKey)
-                      : canSelfUpdate
-                        ? status?.updateEnabled
-                          ? t("admin.aboutUpdate.alreadyLatest")
-                          : t("admin.aboutUpdate.updateDisabled")
-                        : t("admin.aboutUpdate.versionCheckOnly")
-                  }}
+                  {{ versionStatusMessage }}
                 </p>
                 <p class="text-xs text-muted-foreground">
                   {{
@@ -374,7 +377,6 @@ onMounted(async () => {
               ></div>
             </div>
           </div>
-        </template>
       </CardContent>
     </Card>
 

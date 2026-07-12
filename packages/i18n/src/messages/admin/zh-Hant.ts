@@ -35,6 +35,7 @@ export const zhHantAdmin = {
     normalUpdate: "可前往系統更新頁查看詳情並更新。",
     dockerUpdateInfo: "可前往系統更新頁查看版本資訊與 Docker 升級說明。",
     openWrtUpdateInfo: "可前往系統更新頁查看版本資訊與 OpenWrt IPK 升級說明。",
+    windowsUpdateInfo: "請前往「Knock 敲門 · Windows 管理程式」檢查並安裝更新。",
     genericUpdateInfo: "可前往系統更新頁查看版本資訊與手動升級說明。",
   },
   route: {
@@ -66,10 +67,11 @@ export const zhHantAdmin = {
     modalInstallDescription:
       "系統正在安裝更新，請勿關閉此頁面。<br>稍後桌面會重新出現「敲門 knock」應用。",
     title: "版本與更新",
-    desktopManagedTitle: "更新由 Windows 桌面程式管理",
+    desktopManagedTitle: "請在 Knock Windows 管理程式中升級",
     desktopManagedDescription:
-      "請從 FnKnock 系統匣選單開啟「運行狀態」，再執行檢查和安裝更新。桌面更新會同時替換 GUI、Rust 服務、Go 閘道和前端資源。",
+      "此頁面可檢查版本和查看更新說明，但不能一鍵更新。請開啟「Knock 敲門 · Windows 管理程式」，在「運行狀態」中檢查並安裝更新。",
     subtitleSelfUpdate: "管理 Fn-Knock 的版本與升級",
+    subtitleDesktop: "查看版本資訊與 Windows 管理程式升級說明",
     subtitleDocker: "查看版本資訊與 Docker 升級方式",
     subtitleOpenWrt: "查看版本資訊與 OpenWrt IPK 升級方式",
     subtitleGeneric: "查看版本資訊與手動升級方式",
@@ -88,6 +90,7 @@ export const zhHantAdmin = {
     newVersionSelfUpdate: "發現新版本，建議立即更新",
     newVersionDocker: "發現新版本，請通過更新鏡像升級",
     newVersionOpenWrt: "發現新版本，請通過更新 IPK 升級",
+    newVersionDesktop: "發現新版本，請在 Windows 管理程式中升級",
     newVersionGeneric: "發現新版本，請按部署方式手動升級",
     alreadyLatest: "目前已是最新版本",
     updateDisabled: "更新功能暫未啟用",
@@ -96,11 +99,14 @@ export const zhHantAdmin = {
     newVersionDockerHint: "拉取新鏡像後重新創建容器即可升級。",
     newVersionOpenWrtHint:
       "下載匹配架構的 IPK，通過 LuCI 軟體包上傳安裝，或使用 opkg install --force-reinstall 安裝。",
+    newVersionDesktopHint:
+      "開啟「Knock 敲門 · Windows 管理程式」，在「運行狀態」中檢查並安裝更新。",
     newVersionGenericHint: "請下載對應安裝包並按當前部署方式升級。",
     latestHint: "感謝使用最新版本。",
     versionCheckHint: "可繼續檢查最新發布與更新說明。",
     versionCheckHintDocker: "可繼續檢查最新發布與 Docker 鏡像升級說明。",
     versionCheckHintOpenWrt: "可繼續檢查最新發布與 OpenWrt IPK 升級說明。",
+    versionCheckHintDesktop: "可繼續檢查最新發布；安裝更新請使用 Knock Windows 管理程式。",
     versionCheckHintGeneric: "可繼續檢查最新發布與手動升級說明。",
     checkUpdate: "檢查更新",
     installRestart: "安裝重啟",

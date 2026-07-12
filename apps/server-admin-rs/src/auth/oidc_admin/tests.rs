@@ -18,6 +18,16 @@ fn normalizes_google_provider_config_with_defaults() {
 }
 
 #[test]
+fn normalizes_fnknock_qq_as_public_oidc_client() {
+    let translator = Translator::new("zh-CN");
+    let config = normalize_connection_config("fnknock_qq", Map::new(), false, &translator).unwrap();
+    assert_eq!(config["client_id"], "fnknock-qq-public");
+    assert_eq!(config["issuer"], "https://api.fnknock.cn/oidc/qq");
+    assert_eq!(config["scopes"], json!(["openid", "profile"]));
+    assert!(config.get("client_secret").is_some_and(|value| value == ""));
+}
+
+#[test]
 fn normalizes_oidc_scopes_like_node_array_vs_string_inputs() {
     assert_eq!(
         normalize_scopes(Some(&json!("openid profile,email")), &["fallback"]),

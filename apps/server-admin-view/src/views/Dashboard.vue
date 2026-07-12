@@ -129,7 +129,6 @@ const isDdnsLoading = computed(
 );
 const showMainSkeleton = useDelayedLoading(isInitializing);
 const showDdnsSkeleton = useDelayedLoading(() => isDdnsLoading.value);
-const showTunnelSkeleton = useDelayedLoading(() => isTunnelLoading.value);
 const ddnsError = ref("");
 const showTunnelSection = computed(
   () =>
@@ -149,6 +148,7 @@ const {
   loadConfig: () => configStore.loadConfig(),
   showTunnelSection,
 });
+const showTunnelSkeleton = useDelayedLoading(() => isTunnelLoading.value);
 const showEntryStatusModule = computed(
   () =>
     configStore.config?.dashboard_display?.show_entry_status_module !== false,

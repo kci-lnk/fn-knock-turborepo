@@ -151,6 +151,7 @@ fn requires_hmac(path: &str) -> bool {
         "/api/auth/preflight",
         "/api/auth/oidc/bind",
         "/api/auth/oidc/bind/",
+        "/api/auth/oidc/client-metadata",
         "/api/internal/system-events",
     ];
     const IGNORED_PATH_PREFIXES: &[&str] = &["/api/auth/oidc/callback/"];
@@ -247,6 +248,7 @@ mod tests {
         assert!(!requires_hmac("/api/auth/preflight"));
         assert!(!requires_hmac("/api/auth/oidc/bind"));
         assert!(!requires_hmac("/api/auth/oidc/bind/"));
+        assert!(!requires_hmac("/api/auth/oidc/client-metadata"));
         assert!(!requires_hmac("/api/auth/oidc/callback/provider-1"));
         assert!(!requires_hmac("/api/internal/system-events"));
 
@@ -255,6 +257,7 @@ mod tests {
         assert!(requires_hmac("/api/auth/logout/"));
         assert!(requires_hmac("/api/auth/preflight/"));
         assert!(requires_hmac("/api/auth/oidc/bind/foo"));
+        assert!(requires_hmac("/api/auth/oidc/client-metadata/"));
         assert!(requires_hmac("/api/auth/oidc/callback"));
         assert!(requires_hmac("/api/internal/system-events/"));
         assert!(requires_hmac("/api/auth/oidc/providers"));
@@ -268,6 +271,7 @@ mod tests {
         assert!(requires_hmac("/auth/api"));
         assert!(requires_hmac("/__auth__/api"));
         assert!(!requires_hmac("/auth/api/auth/oidc/bind"));
+        assert!(!requires_hmac("/auth/api/auth/oidc/client-metadata"));
         assert!(!requires_hmac(
             "/__auth__/api/auth/oidc/callback/provider-1"
         ));

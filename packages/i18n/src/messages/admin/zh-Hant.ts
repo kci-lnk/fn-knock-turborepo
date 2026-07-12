@@ -35,7 +35,8 @@ export const zhHantAdmin = {
     normalUpdate: "可前往系統更新頁查看詳情並更新。",
     dockerUpdateInfo: "可前往系統更新頁查看版本資訊與 Docker 升級說明。",
     openWrtUpdateInfo: "可前往系統更新頁查看版本資訊與 OpenWrt IPK 升級說明。",
-    windowsUpdateInfo: "請前往「Knock 敲門 · Windows 管理程式」檢查並安裝更新。",
+    windowsUpdateInfo:
+      "請前往「Knock 敲門 · Windows 管理程式」檢查並安裝更新。",
     genericUpdateInfo: "可前往系統更新頁查看版本資訊與手動升級說明。",
   },
   route: {
@@ -106,7 +107,8 @@ export const zhHantAdmin = {
     versionCheckHint: "可繼續檢查最新發布與更新說明。",
     versionCheckHintDocker: "可繼續檢查最新發布與 Docker 鏡像升級說明。",
     versionCheckHintOpenWrt: "可繼續檢查最新發布與 OpenWrt IPK 升級說明。",
-    versionCheckHintDesktop: "可繼續檢查最新發布；安裝更新請使用 Knock Windows 管理程式。",
+    versionCheckHintDesktop:
+      "可繼續檢查最新發布；安裝更新請使用 Knock Windows 管理程式。",
     versionCheckHintGeneric: "可繼續檢查最新發布與手動升級說明。",
     checkUpdate: "檢查更新",
     installRestart: "安裝重啟",
@@ -2539,6 +2541,13 @@ export const zhHantAdmin = {
     copyRestricted: "目前頁面可能運行在受限環境中，請手動複製。",
     providerAdded: "外部登入提供商已添加",
     providerDraftAdded: "外部登入提供商草稿已添加",
+    qqBindingTitle: "QQ 提供商添加成功",
+    qqBindingSummary: "還需將 QQ 帳號綁定到具體使用者後才能使用快捷登入。",
+    qqBindingAlertTitle: "下一步：綁定 QQ 帳號",
+    qqBindingInstructions:
+      "請返回 TOTP 管理，選中需要使用 QQ 登入的使用者，點擊「快捷登入」，再透過產生的綁定連結完成 QQ 帳號綁定。",
+    qqBindingLater: "稍後處理",
+    returnToTotpManagement: "返回 TOTP 管理",
     providerSaved: "外部登入提供商已保存",
     providerDeleted: "外部登入提供商已刪除",
   },

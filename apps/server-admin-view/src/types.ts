@@ -838,6 +838,7 @@ export type PasskeyCredential = {
 };
 
 export type ExternalAuthProviderType =
+  | "fnknock_qq"
   | "google"
   | "microsoft"
   | "github"

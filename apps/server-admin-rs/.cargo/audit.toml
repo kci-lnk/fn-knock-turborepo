@@ -1,0 +1,7 @@
+# RUSTSEC-2023-0071 affects RSA private-key operations. This dependency is
+# pulled in by webauthn-rs/crypto-glue and FnKnock only uses that path to verify
+# public-key WebAuthn assertions; no RSA private key is loaded or operated on.
+# Upstream currently has no fixed release. Remove this exception as soon as a
+# fixed webauthn-rs/crypto-glue/rsa dependency chain is available.
+[advisories]
+ignore = ["RUSTSEC-2023-0071"]

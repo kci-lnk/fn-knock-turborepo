@@ -37,6 +37,11 @@
             v-if="activeProviderId === provider.id && isStarting"
             class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"
           ></span>
+          <QqIcon
+            v-else-if="provider.type === 'fnknock_qq'"
+            class="mr-2 size-4 text-[#1ebafc]"
+            aria-hidden="true"
+          />
           {{ t("auth.oidcBind.useProvider", { provider: provider.name }) }}
         </Button>
       </div>
@@ -54,6 +59,7 @@ import type { LocaleConfig } from "@fn-knock/i18n/core";
 import type { AppearanceConfig } from "@frontend-core/appearance";
 import AuthCard from "@/components/AuthCard.vue";
 import AuthShell from "@/components/AuthShell.vue";
+import QqIcon from "@/components/QqIcon.vue";
 
 type InviteDetails = {
   locale: LocaleConfig;

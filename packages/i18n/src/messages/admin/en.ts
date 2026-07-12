@@ -2716,6 +2716,14 @@ export const enAdmin = {
       "This page may be running in a restricted environment. Copy manually.",
     providerAdded: "External sign-in provider added",
     providerDraftAdded: "External sign-in provider draft added",
+    qqBindingTitle: "QQ provider added",
+    qqBindingSummary:
+      "A QQ account must be bound to a specific user before Quick Sign-in can be used.",
+    qqBindingAlertTitle: "Next step: bind a QQ account",
+    qqBindingInstructions:
+      'Return to TOTP management, select the user who will sign in with QQ, click "Quick Sign-in", then use the generated binding link to bind the QQ account.',
+    qqBindingLater: "Do this later",
+    returnToTotpManagement: "Return to TOTP management",
     providerSaved: "External sign-in provider saved",
     providerDeleted: "External sign-in provider deleted",
   },

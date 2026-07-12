@@ -55,12 +55,12 @@
               <TableHead class="whitespace-normal">{{
                 t("admin.oidcProviders.columns.name")
               }}</TableHead>
-              <TableHead class="hidden whitespace-normal sm:table-cell"
-                >{{ t("admin.oidcProviders.columns.type") }}</TableHead
-              >
-              <TableHead class="hidden whitespace-normal md:table-cell"
-                >{{ t("admin.oidcProviders.columns.status") }}</TableHead
-              >
+              <TableHead class="hidden whitespace-normal sm:table-cell">{{
+                t("admin.oidcProviders.columns.type")
+              }}</TableHead>
+              <TableHead class="hidden whitespace-normal md:table-cell">{{
+                t("admin.oidcProviders.columns.status")
+              }}</TableHead>
               <TableHead class="min-w-0 whitespace-nowrap">
                 Callback URL
               </TableHead>
@@ -196,7 +196,10 @@
               </SelectContent>
             </Select>
           </div>
-          <div class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5">
+          <div
+            v-if="form.type !== 'fnknock_qq'"
+            class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5"
+          >
             <Label for="oidc-provider-name">{{
               t("admin.oidcProviders.displayName")
             }}</Label>
@@ -217,7 +220,10 @@
               placeholder="common / organizations / tenant id"
             />
           </div>
-          <div class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5">
+          <div
+            v-if="form.type !== 'fnknock_qq'"
+            class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5"
+          >
             <Label for="oidc-provider-client-id">Client ID</Label>
             <Input
               id="oidc-provider-client-id"
@@ -225,7 +231,10 @@
               autocomplete="off"
             />
           </div>
-          <div class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5">
+          <div
+            v-if="form.type !== 'fnknock_qq'"
+            class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5"
+          >
             <Label for="oidc-provider-client-secret">Client Secret</Label>
             <Input
               id="oidc-provider-client-secret"
@@ -245,7 +254,10 @@
               placeholder="https://idp.example.com"
             />
           </div>
-          <div class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5">
+          <div
+            v-if="form.type !== 'fnknock_qq'"
+            class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5"
+          >
             <Label for="oidc-provider-scopes">Scopes</Label>
             <Input
               id="oidc-provider-scopes"
@@ -270,6 +282,39 @@
                 ? t("admin.oidcProviders.adding")
                 : t("admin.oidcProviders.addProvider")
             }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog
+      :open="showQqBindingAlert"
+      @update:open="showQqBindingAlert = $event"
+    >
+      <DialogContent class="sm:max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle>{{
+            t("admin.oidcProviders.qqBindingTitle")
+          }}</DialogTitle>
+          <DialogDescription>
+            {{ t("admin.oidcProviders.qqBindingSummary") }}
+          </DialogDescription>
+        </DialogHeader>
+        <Alert class="border-amber-200 bg-amber-50 text-amber-950">
+          <CircleAlert class="h-4 w-4" />
+          <AlertTitle>{{
+            t("admin.oidcProviders.qqBindingAlertTitle")
+          }}</AlertTitle>
+          <AlertDescription class="leading-6 text-amber-900">
+            {{ t("admin.oidcProviders.qqBindingInstructions") }}
+          </AlertDescription>
+        </Alert>
+        <DialogFooter class="gap-2">
+          <Button variant="outline" @click="showQqBindingAlert = false">
+            {{ t("admin.oidcProviders.qqBindingLater") }}
+          </Button>
+          <Button @click="returnToTotpManagement">
+            {{ t("admin.oidcProviders.returnToTotpManagement") }}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -311,7 +356,10 @@
               placeholder="common / organizations / tenant id"
             />
           </div>
-          <div class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5">
+          <div
+            v-if="editForm.type !== 'fnknock_qq'"
+            class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5"
+          >
             <Label for="oidc-edit-provider-client-id">Client ID</Label>
             <Input
               id="oidc-edit-provider-client-id"
@@ -319,7 +367,10 @@
               autocomplete="off"
             />
           </div>
-          <div class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5">
+          <div
+            v-if="editForm.type !== 'fnknock_qq'"
+            class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5"
+          >
             <Label for="oidc-edit-provider-client-secret">
               Client Secret
             </Label>
@@ -342,7 +393,10 @@
               placeholder="https://idp.example.com"
             />
           </div>
-          <div class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5">
+          <div
+            v-if="editForm.type !== 'fnknock_qq'"
+            class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5"
+          >
             <Label for="oidc-edit-provider-scopes">Scopes</Label>
             <Input
               id="oidc-edit-provider-scopes"
@@ -385,6 +439,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
+import { useRouter } from "vue-router";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -425,11 +480,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
+  CircleAlert,
   Copy,
   LoaderCircle,
   Pencil,
@@ -451,6 +508,7 @@ import type {
 } from "../types";
 
 const { t } = useI18n();
+const router = useRouter();
 const catalog = ref<OIDCProviderCatalogItem[]>([]);
 const providers = ref<OIDCProviderView[]>([]);
 const form = reactive({
@@ -463,6 +521,7 @@ const form = reactive({
   scopes: "",
 });
 const showCreateDialog = ref(false);
+const showQqBindingAlert = ref(false);
 const showEditDialog = ref(false);
 const editForm = reactive({
   id: "",
@@ -482,12 +541,16 @@ const selectedDefinition = computed(() =>
 
 const { isPending: isLoading, run: runLoad } = useAsyncAction({
   onError: (error) => {
-    toast.error(extractErrorMessage(error, t("admin.oidcProviders.loadFailed")));
+    toast.error(
+      extractErrorMessage(error, t("admin.oidcProviders.loadFailed")),
+    );
   },
 });
 const { isPending: isSaving, run: runSave } = useAsyncAction({
   onError: (error) => {
-    toast.error(extractErrorMessage(error, t("admin.oidcProviders.saveFailed")));
+    toast.error(
+      extractErrorMessage(error, t("admin.oidcProviders.saveFailed")),
+    );
   },
 });
 const { isPending: isMutating, run: runMutate } = useAsyncAction({
@@ -563,6 +626,7 @@ function hasConnectionValue(value: unknown) {
 function isCreateConfigComplete() {
   const definition = selectedDefinition.value;
   if (!definition) return false;
+  if (definition.type === "fnknock_qq") return true;
   const values: Record<string, unknown> = {
     client_id: form.clientId.trim(),
     client_secret: form.clientSecret.trim(),
@@ -624,12 +688,14 @@ async function loadAll() {
 
 async function handleCreateProvider() {
   await runSave(async () => {
+    const isQqProvider = form.type === "fnknock_qq";
     const scopes = normalizeScopes(form.scopes);
     const enabled = isCreateConfigComplete();
-    await ConfigAPI.createOIDCProvider({
+    const provider = await ConfigAPI.createOIDCProvider({
       type: form.type,
       name: form.name.trim(),
-      enabled,
+      // Keep the public QQ provider out of the login page until discovery succeeds.
+      enabled: isQqProvider ? false : enabled,
       connection_config: {
         client_id: form.clientId.trim(),
         client_secret: form.clientSecret.trim(),
@@ -638,6 +704,20 @@ async function handleCreateProvider() {
         ...(scopes.length ? { scopes } : {}),
       },
     });
+    if (isQqProvider) {
+      const testResult = await ConfigAPI.testOIDCProvider(provider.id);
+      if (!testResult.success) {
+        try {
+          await ConfigAPI.deleteOIDCProvider(provider.id);
+        } catch {
+          // It remains disabled, so a cleanup failure cannot expose a broken login option.
+        }
+        throw new Error(
+          testResult.message || t("admin.oidcProviders.operationFailed"),
+        );
+      }
+      await ConfigAPI.updateOIDCProvider(provider.id, { enabled: true });
+    }
     form.clientId = "";
     form.clientSecret = "";
     showCreateDialog.value = false;
@@ -647,7 +727,13 @@ async function handleCreateProvider() {
         : t("admin.oidcProviders.providerDraftAdded"),
     );
     await loadAll();
+    if (isQqProvider) showQqBindingAlert.value = true;
   });
+}
+
+async function returnToTotpManagement() {
+  showQqBindingAlert.value = false;
+  await router.push({ name: "AuthSettings" });
 }
 
 function openEditDialog(provider: OIDCProviderView) {

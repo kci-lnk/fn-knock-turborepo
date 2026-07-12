@@ -1,7 +1,7 @@
 use axum::http::{HeaderMap, Uri};
 use serde_json::Value;
 
-pub(super) fn callback_base_url(headers: &HeaderMap, uri: &Uri, config: &Value) -> Option<String> {
+pub(crate) fn callback_base_url(headers: &HeaderMap, uri: &Uri, config: &Value) -> Option<String> {
     public_auth_base_url(config).or_else(|| callback_origin(headers, uri))
 }
 

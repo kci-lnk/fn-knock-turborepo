@@ -80,7 +80,8 @@ export const jaJPAdmin = {
     modalInstallDescription:
       "システムはアップデートをインストールしています。このページを閉じないでください。 <br>「ノックノック」アプリケーションは後でデスクトップに再び表示されます。",
     title: "バージョンとアップデート",
-    desktopManagedTitle: "Knock Windows 管理プログラムでアップグレードしてください",
+    desktopManagedTitle:
+      "Knock Windows 管理プログラムでアップグレードしてください",
     desktopManagedDescription:
       "このページではバージョン確認とリリースノートの表示ができますが、更新のインストールはできません。「Knock 敲門 · Windows 管理プログラム」を開き、「実行状態」で更新を確認してインストールしてください。",
     subtitleSelfUpdate: "Fn-Knock のバージョンとアップグレードを管理",
@@ -2765,6 +2766,14 @@ export const jaJPAdmin = {
       "現在のページは制限された環境で実行されている可能性があります。手動でコピーしてください。",
     providerAdded: "外部ログインプロバイダーが追加されました",
     providerDraftAdded: "ドラフト外部ログインプロバイダーが追加されました",
+    qqBindingTitle: "QQ プロバイダーを追加しました",
+    qqBindingSummary:
+      "クイックログインを使用するには、QQ アカウントを特定のユーザーに紐付ける必要があります。",
+    qqBindingAlertTitle: "次のステップ：QQ アカウントを紐付ける",
+    qqBindingInstructions:
+      "TOTP 管理に戻り、QQ でログインするユーザーを選択して「クイックログイン」をクリックし、生成された紐付けリンクから QQ アカウントを紐付けてください。",
+    qqBindingLater: "後で行う",
+    returnToTotpManagement: "TOTP 管理に戻る",
     providerSaved: "外部ログインプロバイダーが保存されました",
     providerDeleted: "外部ログインプロバイダーが削除されました",
   },

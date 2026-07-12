@@ -28,6 +28,7 @@ pub(crate) use storage::{
     oidc_inspect_invite, oidc_public_providers, oidc_save_binding,
     oidc_save_binding_if_subject_available, oidc_save_login_error_notice, oidc_save_state,
 };
+pub(crate) use urls::callback_base_url;
 
 #[cfg(test)]
 use crate::i18n::Translator;
@@ -43,7 +44,7 @@ use serde_json::{Map, Value, json};
 #[cfg(test)]
 use text::oidc_text_params;
 #[cfg(test)]
-use urls::{callback_base_url, callback_origin, public_auth_base_url};
+use urls::{callback_origin, public_auth_base_url};
 
 const PROVIDERS_INDEX_KEY: &str = "fn_knock:oidc:providers:index";
 const PROVIDERS_DATA_KEY_PREFIX: &str = "fn_knock:oidc:providers:data:";

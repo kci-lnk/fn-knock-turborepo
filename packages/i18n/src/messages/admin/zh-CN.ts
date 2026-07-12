@@ -109,7 +109,8 @@ export const zhCNAdmin = {
     versionCheckHint: "可继续检查最新发布与更新说明。",
     versionCheckHintDocker: "可继续检查最新发布与 Docker 镜像升级说明。",
     versionCheckHintOpenWrt: "可继续检查最新发布与 OpenWrt IPK 升级说明。",
-    versionCheckHintDesktop: "可继续检查最新发布；安装更新请使用 Knock Windows 管理程序。",
+    versionCheckHintDesktop:
+      "可继续检查最新发布；安装更新请使用 Knock Windows 管理程序。",
     versionCheckHintGeneric: "可继续检查最新发布与手动升级说明。",
     checkUpdate: "检查更新",
     installRestart: "安装重启",
@@ -2531,6 +2532,13 @@ export const zhCNAdmin = {
     copyRestricted: "当前页面可能运行在受限环境中，请手动复制。",
     providerAdded: "外部登录提供商已添加",
     providerDraftAdded: "外部登录提供商草稿已添加",
+    qqBindingTitle: "QQ 提供商添加成功",
+    qqBindingSummary: "还需将 QQ 账号绑定到具体用户后才能使用快捷登录。",
+    qqBindingAlertTitle: "下一步：绑定 QQ 账号",
+    qqBindingInstructions:
+      "请返回 TOTP 管理，选中需要使用 QQ 登录的用户，点击“快捷登录”，再通过生成的绑定链接完成 QQ 账号绑定。",
+    qqBindingLater: "稍后处理",
+    returnToTotpManagement: "返回 TOTP 管理",
     providerSaved: "外部登录提供商已保存",
     providerDeleted: "外部登录提供商已删除",
   },

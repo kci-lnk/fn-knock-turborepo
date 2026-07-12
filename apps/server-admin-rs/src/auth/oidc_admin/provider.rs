@@ -153,7 +153,14 @@ pub(super) fn normalize_connection_config(
     insert_string(
         &mut config,
         "client_id",
-        normalize_string(raw.get("client_id")).unwrap_or_default(),
+        normalize_string(raw.get("client_id"))
+            .or_else(|| {
+                defaults
+                    .get("client_id")
+                    .and_then(Value::as_str)
+                    .map(ToString::to_string)
+            })
+            .unwrap_or_default(),
     );
     insert_string(
         &mut config,
@@ -280,7 +287,7 @@ pub(super) fn mask_provider(provider: Value, callback_origin: Option<&str>) -> V
 }
 
 pub(super) fn provider_catalog(translator: &Translator) -> Vec<Value> {
-    ["google", "microsoft", "github", "custom_oidc"]
+    ["fnknock_qq", "google", "microsoft", "github", "custom_oidc"]
         .into_iter()
         .filter_map(provider_definition)
         .map(|definition| {
@@ -349,6 +356,18 @@ pub(super) struct ProviderDefinition {
 
 pub(super) fn provider_definition(provider_type: &str) -> Option<ProviderDefinition> {
     match provider_type {
+        "fnknock_qq" => Some(ProviderDefinition {
+            provider_type: "fnknock_qq",
+            protocol: "oidc",
+            label: "QQ",
+            description: "Sign in with QQ through FnKnock without registering a QQ application",
+            default_name: "QQ",
+            default_scopes: &["openid", "profile"],
+            required_fields: &["client_id", "issuer"],
+            optional_fields: &["scopes"],
+            supports_pkce: true,
+            supports_discovery: true,
+        }),
         "google" => Some(ProviderDefinition {
             provider_type: "google",
             protocol: "oidc",
@@ -410,6 +429,10 @@ pub(super) fn provider_definition(provider_type: &str) -> Option<ProviderDefinit
 
 pub(super) fn default_connection_config(provider_type: &str) -> Map<String, Value> {
     match provider_type {
+        "fnknock_qq" => map_from_pairs(&[
+            ("client_id", "fnknock-qq-public"),
+            ("issuer", "https://api.fnknock.cn/oidc/qq"),
+        ]),
         "google" => map_from_pairs(&[("issuer", "https://accounts.google.com")]),
         "microsoft" => map_from_pairs(&[
             ("tenant", "common"),

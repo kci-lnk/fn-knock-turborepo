@@ -176,6 +176,11 @@
               class="size-4"
               aria-hidden="true"
             />
+            <QqIcon
+              v-else-if="providerIconKind(provider) === 'qq'"
+              class="size-4 text-[#1ebafc]"
+              aria-hidden="true"
+            />
             <svg
               v-else-if="providerIconKind(provider) === 'google'"
               class="size-4"
@@ -449,6 +454,7 @@ import { markPendingLogoutDelay } from "@/lib/post-login";
 import AuthFooter from "@/components/AuthFooter.vue";
 import AuthCard from "@/components/AuthCard.vue";
 import AuthShell from "@/components/AuthShell.vue";
+import QqIcon from "@/components/QqIcon.vue";
 import TurnstileWidget from "@/components/captcha/TurnstileWidget.vue";
 import { useAuthBrowserCapabilities } from "@/composables/useAuthBrowserCapabilities";
 import { useAuthSystemConfig } from "@/composables/useAuthSystemConfig";
@@ -608,6 +614,7 @@ function getRedirectGuardStorage(): RedirectGuardStorage | null {
 }
 
 type ProviderIconKind =
+  | "qq"
   | "github"
   | "google"
   | "microsoft"
@@ -618,6 +625,9 @@ function providerIconKind(provider: AuthOidcProvider): ProviderIconKind {
   const token = `${provider.type || ""} ${provider.name || ""} ${
     provider.protocol || ""
   }`.toLowerCase();
+  if (provider.type === "fnknock_qq" || token.includes(" tencent qq")) {
+    return "qq";
+  }
   if (token.includes("github")) return "github";
   if (token.includes("google")) return "google";
   if (token.includes("microsoft") || token.includes("azure")) {

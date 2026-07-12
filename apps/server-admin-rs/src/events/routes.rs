@@ -9,7 +9,8 @@ use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
 use crate::{
-    http_utils::normalize_ip, i18n::Translator, ip_location, response, state::AppState, time_utils,
+    http_utils::normalize_ip, i18n::Translator, ip_location, oidc_admin::oidc_get_provider,
+    response, state::AppState, time_utils,
 };
 
 const SYSTEM_EVENT_TYPES: &[&str] = &[
@@ -372,6 +373,8 @@ fn auth_login_failure_body(payload: Value) -> InternalSystemEventBody {
             &[
                 "blocked_until",
                 "method",
+                "provider_id",
+                "auth_provider_name",
                 "credential_name",
                 "linked_totp_name",
                 "user_agent",
@@ -904,6 +907,7 @@ async fn list_events(
         Ok(mut result) => {
             if let Some(events) = result.get_mut("events").and_then(Value::as_array_mut) {
                 hydrate_system_event_ip_locations(&state, events).await;
+                hydrate_oidc_failure_provider_names(&state, events).await;
             }
             response::ok(result).into_response()
         }
@@ -914,6 +918,74 @@ async fn list_events(
                 system_event_route_text(&translator, "listEventsFailed"),
             )
         }
+    }
+}
+
+fn oidc_failure_provider_id(event: &Value) -> Option<String> {
+    if event.get("type").and_then(Value::as_str) != Some("FN_EVENT_AUTH_LOGIN_FAILURE") {
+        return None;
+    }
+    let payload = event.get("payload")?.as_object()?;
+    if payload.get("method").and_then(Value::as_str) != Some("OIDC") {
+        return None;
+    }
+    payload
+        .get("provider_id")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            payload
+                .get("credential_name")
+                .and_then(Value::as_str)
+                .filter(|value| value.starts_with("oidc_provider_"))
+        })
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
+async fn hydrate_oidc_failure_provider_names(state: &AppState, events: &mut [Value]) {
+    let mut names = std::collections::BTreeMap::<String, Option<String>>::new();
+    for event in events.iter() {
+        let Some(provider_id) = oidc_failure_provider_id(event) else {
+            continue;
+        };
+        if names.contains_key(&provider_id) {
+            continue;
+        }
+        let name = oidc_get_provider(state, &provider_id)
+            .await
+            .ok()
+            .flatten()
+            .and_then(|provider| {
+                provider
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .map(str::to_string)
+            });
+        names.insert(provider_id, name);
+    }
+
+    for event in events {
+        let Some(provider_id) = oidc_failure_provider_id(event) else {
+            continue;
+        };
+        let Some(Some(provider_name)) = names.get(&provider_id) else {
+            continue;
+        };
+        let Some(payload) = event.get_mut("payload").and_then(Value::as_object_mut) else {
+            continue;
+        };
+        payload.insert("provider_id".to_string(), Value::String(provider_id));
+        payload.insert(
+            "auth_provider_name".to_string(),
+            Value::String(provider_name.clone()),
+        );
+        payload.insert(
+            "credential_name".to_string(),
+            Value::String(provider_name.clone()),
+        );
     }
 }
 

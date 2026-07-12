@@ -2698,6 +2698,14 @@ export const koKRAdmin = {
       "이 페이지는 제한된 환경에서 실행 중일 수 있습니다. 수동으로 복사하세요.",
     providerAdded: "외부 로그인 제공업체가 추가됨",
     providerDraftAdded: "외부 로그인 제공업체 초안이 추가됨",
+    qqBindingTitle: "QQ 제공업체가 추가되었습니다",
+    qqBindingSummary:
+      "빠른 로그인을 사용하려면 먼저 QQ 계정을 특정 사용자에게 연결해야 합니다.",
+    qqBindingAlertTitle: "다음 단계: QQ 계정 연결",
+    qqBindingInstructions:
+      'TOTP 관리로 돌아가 QQ로 로그인할 사용자를 선택하고 "빠른 로그인"을 클릭한 다음 생성된 연결 링크를 통해 QQ 계정을 연결하세요.',
+    qqBindingLater: "나중에 처리",
+    returnToTotpManagement: "TOTP 관리로 돌아가기",
     providerSaved: "외부 로그인 제공업체가 저장되었습니다.",
     providerDeleted: "외부 로그인 제공업체가 삭제되었습니다.",
   },

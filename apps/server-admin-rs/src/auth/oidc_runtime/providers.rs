@@ -32,6 +32,19 @@ pub(super) async fn build_standard_oidc_authorization_url(
         params.append_pair("nonce", nonce);
         params.append_pair("code_challenge", &create_pkce_challenge(code_verifier));
         params.append_pair("code_challenge_method", "S256");
+        if provider.get("type").and_then(Value::as_str) == Some("fnknock_qq") {
+            let provider_id = provider.get("id").and_then(Value::as_str).unwrap_or("");
+            let mut metadata_url = Url::parse(callback_url)
+                .map_err(|_| oidc_text(translator, "authorizationEndpointInvalid"))?;
+            let callback_suffix = format!("/callback/{provider_id}");
+            let path = metadata_url.path().to_string();
+            let Some(prefix) = path.strip_suffix(&callback_suffix) else {
+                return Err(oidc_text(translator, "authorizationEndpointInvalid"));
+            };
+            metadata_url.set_path(&format!("{prefix}/client-metadata"));
+            metadata_url.set_query(Some(&format!("provider_id={}", encode_query(provider_id))));
+            params.append_pair("client_metadata_uri", metadata_url.as_str());
+        }
         for (key, value) in extra_auth_params(config) {
             params.append_pair(&key, &value);
         }

@@ -192,6 +192,56 @@ fn builds_auth_login_failure_event_like_node() {
     assert_eq!(body.payload.get("method"), Some(&json!("PASSKEY")));
     assert_eq!(body.payload.get("credential_name"), Some(&json!("MacBook")));
     assert!(body.payload.get("linked_totp_name").is_none());
+
+    let oidc_body = auth_login_failure_body(json!({
+        "ip": "203.0.113.11",
+        "attempts": 1,
+        "method": "OIDC",
+        "provider_id": "oidc_provider_123",
+        "auth_provider_name": "QQ",
+        "credential_name": "QQ",
+    }));
+    assert_eq!(
+        oidc_body.payload.get("provider_id"),
+        Some(&json!("oidc_provider_123"))
+    );
+    assert_eq!(
+        oidc_body.payload.get("auth_provider_name"),
+        Some(&json!("QQ"))
+    );
+    assert_eq!(oidc_body.payload.get("credential_name"), Some(&json!("QQ")));
+}
+
+#[test]
+fn resolves_oidc_provider_id_from_current_and_legacy_failure_events() {
+    assert_eq!(
+        oidc_failure_provider_id(&json!({
+            "type": "FN_EVENT_AUTH_LOGIN_FAILURE",
+            "payload": {
+                "method": "OIDC",
+                "provider_id": "oidc_provider_current",
+                "credential_name": "QQ"
+            }
+        })),
+        Some("oidc_provider_current".to_string())
+    );
+    assert_eq!(
+        oidc_failure_provider_id(&json!({
+            "type": "FN_EVENT_AUTH_LOGIN_FAILURE",
+            "payload": {
+                "method": "OIDC",
+                "credential_name": "oidc_provider_legacy"
+            }
+        })),
+        Some("oidc_provider_legacy".to_string())
+    );
+    assert_eq!(
+        oidc_failure_provider_id(&json!({
+            "type": "FN_EVENT_AUTH_LOGIN_FAILURE",
+            "payload": { "method": "PASSKEY", "credential_name": "oidc_provider_nope" }
+        })),
+        None
+    );
 }
 
 #[test]

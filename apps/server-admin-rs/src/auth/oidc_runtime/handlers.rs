@@ -438,6 +438,18 @@ pub(super) async fn callback(
                 {
                     Ok(failure) => {
                         let retry_after = failure.retry_after.unwrap_or(1).max(1);
+                        let provider_name = oidc_get_provider(&state, &provider_id)
+                            .await
+                            .ok()
+                            .flatten()
+                            .and_then(|provider| {
+                                provider
+                                    .get("name")
+                                    .and_then(Value::as_str)
+                                    .map(str::trim)
+                                    .filter(|name| !name.is_empty())
+                                    .map(str::to_string)
+                            });
                         if let Err(event_error) = system_events::publish_auth_login_failure_event(
                             &state,
                             json!({
@@ -446,7 +458,9 @@ pub(super) async fn callback(
                                 "retry_after_seconds": retry_after,
                                 "blocked_until": failure.blocked_until.map(time_utils::iso_from_ms),
                                 "method": AuthMethod::Oidc.as_session_str(),
-                                "credential_name": provider_id.clone(),
+                                "provider_id": provider_id.clone(),
+                                "auth_provider_name": provider_name.clone(),
+                                "credential_name": provider_name.unwrap_or_else(|| provider_id.clone()),
                                 "user_agent": user_agent(&headers),
                             }),
                         )

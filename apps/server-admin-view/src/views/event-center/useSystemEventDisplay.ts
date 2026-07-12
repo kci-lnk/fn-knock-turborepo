@@ -656,13 +656,18 @@ export const useSystemEventDisplay = ({
       case "FN_EVENT_AUTH_LOGIN_FAILURE": {
         const attempts = String(payload.attempts || "-");
         const retryAfterSeconds = Number(payload.retry_after_seconds);
-        const credentialName = String(payload.credential_name ?? "").trim();
+        const isOidcFailure = String(payload.method ?? "").trim() === "OIDC";
+        const credentialName = String(
+          (isOidcFailure && payload.auth_provider_name) ||
+            payload.credential_name ||
+            "",
+        ).trim();
         const hasCredentialContext =
           (!!credentialName && !credentialName.startsWith("!")) ||
           payload.linked_totp_name !== undefined;
         const credentialContext = hasCredentialContext
           ? formatCredentialDisplay(
-              payload.credential_name,
+              credentialName,
               payload.linked_totp_name,
               payload.method,
             )

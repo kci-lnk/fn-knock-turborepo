@@ -214,6 +214,65 @@ pub(super) async fn oidc_providers(State(state): State<AppState>) -> Response {
     }
 }
 
+pub(super) async fn oidc_client_metadata(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    uri: Uri,
+    Query(query): Query<OidcClientMetadataQuery>,
+) -> Response {
+    let Some(provider_id) = query
+        .provider_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+    else {
+        return response::error(StatusCode::BAD_REQUEST, "provider_id is required");
+    };
+    let provider = match oidc_get_provider(&state, provider_id).await {
+        Ok(Some(provider))
+            if provider.get("type").and_then(Value::as_str) == Some("fnknock_qq")
+                && provider.get("enabled").and_then(Value::as_bool) == Some(true) =>
+        {
+            provider
+        }
+        _ => return response::error(StatusCode::NOT_FOUND, "QQ OIDC provider not found"),
+    };
+    let client_id = provider
+        .pointer("/connection_config/client_id")
+        .and_then(Value::as_str)
+        .unwrap_or("fnknock-qq-public");
+    let config = match state.store.get_config().await {
+        Ok(config) => config,
+        Err(_) => {
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to load auth config",
+            );
+        }
+    };
+    let Some(base_url) = callback_base_url(&headers, &uri, &config) else {
+        return response::error(
+            StatusCode::BAD_REQUEST,
+            "Unable to determine public auth URL",
+        );
+    };
+    let callback_url = format!(
+        "{}/api/auth/oidc/callback/{}",
+        base_url.trim_end_matches('/'),
+        crate::http_utils::url_encode_component(provider_id),
+    );
+    let mut response = Json(json!({
+        "client_id": client_id,
+        "redirect_uris": [callback_url],
+        "software_id": "fn-knock",
+    }))
+    .into_response();
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    response
+}
+
 pub(super) async fn oidc_invite(
     State(state): State<AppState>,
     Query(query): Query<OidcInviteQuery>,

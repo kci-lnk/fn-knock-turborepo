@@ -23,7 +23,9 @@ use crate::{
     common_auth_locations, cookies, fnos_share_bypass, http_utils,
     i18n::Translator,
     ip_location,
-    oidc_admin::{oidc_inspect_invite, oidc_public_providers},
+    oidc_admin::{
+        callback_base_url, oidc_get_provider, oidc_inspect_invite, oidc_public_providers,
+    },
     oidc_runtime::{consume_login_error_for_bootstrap, oidc_runtime_routes},
     passkey_runtime::{build_passkey_bind_info, passkey_routes, public_passkey_status},
     response::{self, ApiEnvelope},
@@ -78,6 +80,11 @@ struct BootstrapQuery {
 #[derive(Deserialize)]
 struct OidcInviteQuery {
     token: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct OidcClientMetadataQuery {
+    provider_id: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -161,6 +168,7 @@ pub fn auth_api_routes() -> Router<AppState> {
         .route("/preflight", head(preflight))
         .route("/verify", get(verify))
         .route("/oidc/providers", get(oidc_providers))
+        .route("/oidc/client-metadata", get(oidc_client_metadata))
         .route("/oidc/invite", get(oidc_invite))
         .merge(passkey_routes())
         .merge(oidc_runtime_routes())

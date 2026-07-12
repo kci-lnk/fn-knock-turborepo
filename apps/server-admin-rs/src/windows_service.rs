@@ -1095,7 +1095,7 @@ impl Default for WindowsRuntimeConfig {
             auth_port: 7997,
             grpc_port: 7996,
             proxy_port: 7999,
-            listener_scope: "loopback".to_string(),
+            listener_scope: "all".to_string(),
         }
     }
 }
@@ -1139,6 +1139,15 @@ fn load_runtime_config(path: &Path) -> anyhow::Result<WindowsRuntimeConfig> {
     let mut config = serde_json::from_slice::<WindowsRuntimeConfig>(&content)
         .with_context(|| format!("parse {}", path.display()))?;
     config.validate()?;
+    // Windows gateway port 7999 is the public data-plane entry. Older desktop
+    // releases defaulted it to loopback, which made the gateway unreachable
+    // from other machines even when the firewall rule allowed the port.
+    // Migrate persisted installations as well as using the corrected default
+    // for new installs.
+    if config.listener_scope == "loopback" {
+        config.listener_scope = "all".to_string();
+        atomic_write_json(path, &config)?;
+    }
     Ok(config)
 }
 
@@ -1778,5 +1787,36 @@ mod tests {
 
         assert!(!config.onboarding_complete);
         assert!(!ServiceStateFile::starting(&config, None, "test").onboarding_complete);
+    }
+
+    #[test]
+    fn runtime_config_defaults_gateway_to_all_interfaces() {
+        assert_eq!(WindowsRuntimeConfig::default().listener_scope, "all");
+    }
+
+    #[test]
+    fn legacy_loopback_gateway_config_is_migrated_to_all_interfaces() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("runtime.json");
+        fs::write(
+            &path,
+            r#"{
+                "schema_version": 1,
+                "admin_port": 7991,
+                "backend_port": 7998,
+                "auth_port": 7997,
+                "grpc_port": 7996,
+                "proxy_port": 7999,
+                "listener_scope": "loopback"
+            }"#,
+        )
+        .unwrap();
+
+        let config = load_runtime_config(&path).unwrap();
+        assert_eq!(config.listener_scope, "all");
+
+        let persisted: WindowsRuntimeConfig =
+            serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+        assert_eq!(persisted.listener_scope, "all");
     }
 }

@@ -47,7 +47,7 @@ impl Default for RuntimeConfig {
             auth_port: 7997,
             grpc_port: 7996,
             proxy_port: 7999,
-            listener_scope: ListenerScope::Loopback,
+            listener_scope: ListenerScope::All,
         }
     }
 }
@@ -348,6 +348,7 @@ mod tests {
         assert_eq!(config.auth_port, 7997);
         assert_eq!(config.grpc_port, 7996);
         assert_eq!(config.proxy_port, 7999);
+        assert!(matches!(config.listener_scope, ListenerScope::All));
         assert!(!config.onboarding_complete);
         assert!(config.validate().is_ok());
     }

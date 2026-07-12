@@ -6,7 +6,7 @@ Windows x86_64 版由一个完整签名安装包交付，运行时包含三个�
 - `fn-knock-service.exe`：唯一注册到 SCM 的 `FnKnock` 服务，账户为 `NT SERVICE\FnKnock`。
 - `fn-knock-gateway.exe`：由 Rust 服务监督并加入 kill-on-close Job Object 的 Go 数据面。
 
-程序安装在 `%ProgramFiles%\Knock 敲门`。配置、SQLite、证书、WAF、日志、状态和回滚数据位于 `%ProgramData%\FnKnock`。管理、Rust API、认证、Go gRPC 和代理的默认端口依次为 `7991`、`7998`、`7997`、`7996`、`7999`；新安装的代理默认只监听 loopback。
+程序安装在 `%ProgramFiles%\Knock 敲门`。配置、SQLite、证书、WAF、日志、状态和回滚数据位于 `%ProgramData%\FnKnock`。管理、Rust API、认证、Go gRPC 和代理的默认端口依次为 `7991`、`7998`、`7997`、`7996`、`7999`；代理入口默认监听所有 IPv4 网络接口（`0.0.0.0`）。
 
 桌面管理程序通过 SCM API 启停和重启服务，端口配置采用原子写入、就绪检查与失败回滚。清除管理密码也由管理程序完成，子进程统一使用 `CREATE_NO_WINDOW`，不会弹出 CMD 或 PowerShell 窗口。7991 管理后台在系统浏览器中打开，桌面程序不包含 WebView 或前端运行时。
 

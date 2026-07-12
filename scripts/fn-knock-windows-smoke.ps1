@@ -574,7 +574,7 @@ try {
     auth_port = $(Get-AvailableTcpPort -UsedPorts $usedPorts)
     grpc_port = $(Get-AvailableTcpPort -UsedPorts $usedPorts)
     proxy_port = $(Get-AvailableTcpPort -UsedPorts $usedPorts)
-    listener_scope = "loopback"
+    listener_scope = "all"
   }
   $runtimeJson = $runtimeConfig | ConvertTo-Json -Depth 5
   [IO.File]::WriteAllText($RuntimeConfigPath, "$runtimeJson`n", [Text.UTF8Encoding]::new($false))
@@ -619,6 +619,15 @@ try {
     -TimeoutSeconds $ReadyTimeoutSeconds
   Assert-ProcessImage -ProcessId $baseline.ServiceProcessId -ExpectedPath $ServiceExecutable
   Assert-ProcessImage -ProcessId $baseline.GatewayProcessId -ExpectedPath $GatewayExecutable
+  $proxyListener = Get-NetTCPConnection `
+    -State Listen `
+    -LocalAddress "0.0.0.0" `
+    -LocalPort ([int]$runtimeConfig.proxy_port) `
+    -ErrorAction SilentlyContinue |
+    Where-Object { [uint32]$_.OwningProcess -eq $baseline.GatewayProcessId } |
+    Select-Object -First 1
+  Assert-Condition ($null -ne $proxyListener) `
+    "The Go gateway is not listening on 0.0.0.0:$($runtimeConfig.proxy_port)"
 
   Write-Host "Crashing Go and verifying whole-group SCM recovery"
   Stop-Process -Id $baseline.GatewayProcessId -Force

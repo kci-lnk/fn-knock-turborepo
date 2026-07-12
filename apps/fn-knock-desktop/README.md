@@ -18,7 +18,7 @@ Windows x86_64 版由一个完整签名安装包交付，运行时包含三个�
 npm run fn-knock:windows:build
 ```
 
-命令允许工作树包含当前开发改动，并要求系统已安装 NSIS 3；也可通过 `FN_KNOCK_MAKENSIS` 指定 `makensis.exe`。未设置 `FN_KNOCK_UPDATER_PUBLIC_KEY` 时，本机构建的检查更新功能保持禁用。安装包输出到 `dist\windows\fn-knock-<version>-windows-x86_64-unsigned-setup.exe`，只用于本机验证，不可作为正式发布包。
+命令允许工作树包含当前开发改动，并要求系统已安装 NSIS 3；也可通过 `FN_KNOCK_MAKENSIS` 指定 `makensis.exe`。安装包输出到 `dist\windows\fn-knock-<version>-windows-x86_64-unsigned-setup.exe`，只用于本机验证，不可作为正式发布包。
 
 发布门禁只在 Windows Server 2022 x64 runner 上执行：
 
@@ -34,6 +34,6 @@ npm ci
 1. 用 Azure Artifact Signing 给 GUI、Rust 服务和 Go 网关做 Authenticode + RFC3161 时间戳。
 2. 原生 NSIS 3 脚本从已签名的三个 EXE 生成 per-machine setup；桌面程序和安装器均不依赖 WebView 或其他 GUI 框架。
 3. 给最终 setup 做 Authenticode + RFC3161 时间戳。
-4. 对最终字节生成兼容现有更新协议的 minisign `.sig` 和 SHA-256；此后不得改动 setup。
+4. 对最终字节生成 SHA-256；此后不得改动 setup。
 
-`scripts/fn-knock-windows-finalize.ps1` 输出固定的五个发布文件。Updater 私钥只允许来自 CI secrets `FN_KNOCK_UPDATER_PRIVATE_KEY` 和 `FN_KNOCK_UPDATER_PRIVATE_KEY_PASSWORD`，客户端和发布校验器只使用 `FN_KNOCK_UPDATER_PUBLIC_KEY`。Windows 安装包同时内置并签名 `rust-acmesh.exe`，用于 DNS-01 证书申请。
+`scripts/fn-knock-windows-finalize.ps1` 输出 EXE、SHA-256、`release.json` 和 `updater.json` 四个发布文件。Windows 安装包同时内置并签名 `rust-acmesh.exe`，用于 DNS-01 证书申请。

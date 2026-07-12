@@ -1,6 +1,5 @@
 use std::{fs, path::PathBuf, process::Command, time::Duration};
 
-use minisign_verify::{PublicKey, Signature};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
@@ -10,7 +9,6 @@ const ENDPOINT: &str = "https://cor.fnknock.cn/latest.json";
 pub struct UpdatePackage {
     #[serde(rename = "download_url")]
     pub url: String,
-    pub signature: String,
     pub sha256: String,
     pub size: u64,
 }
@@ -74,15 +72,6 @@ pub fn check() -> Result<Option<UpdateOffer>, String> {
     }
 }
 
-fn public_key() -> Result<PublicKey, String> {
-    let raw = option_env!("FN_KNOCK_UPDATER_PUBLIC_KEY")
-        .filter(|value| !value.trim().is_empty())
-        .ok_or("此构建未嵌入 Windows 更新公钥")?;
-    PublicKey::decode(raw)
-        .or_else(|_| PublicKey::from_base64(raw))
-        .map_err(|e| e.to_string())
-}
-
 pub fn install(offer: &UpdateOffer) -> Result<(), String> {
     let package = &offer.package;
     if !package.url.starts_with("https://cdn.fnknock.cn/") {
@@ -107,11 +96,6 @@ pub fn install(offer: &UpdateOffer) -> Result<(), String> {
     if !digest.eq_ignore_ascii_case(&package.sha256) {
         return Err("更新安装包 SHA-256 不匹配".to_string());
     }
-    let signature =
-        Signature::decode(&package.signature).map_err(|e| format!("更新签名无效：{e}"))?;
-    public_key()?
-        .verify(&bytes, &signature, false)
-        .map_err(|e| format!("更新签名校验失败：{e}"))?;
     let directory = crate::platform::program_data_dir()?.join("updates");
     fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
     let path: PathBuf = directory.join(format!("fn-knock-{}-setup.exe", offer.version));
@@ -139,7 +123,6 @@ mod tests {
                     "x86_64": {
                         "version": "2.0.2",
                         "download_url": "https://cdn.fnknock.cn/files/2.0.2/windows/x86_64/setup.exe",
-                        "signature": "signature",
                         "sha256": "abc123",
                         "size": 42,
                         "release_notes": "Windows notes"

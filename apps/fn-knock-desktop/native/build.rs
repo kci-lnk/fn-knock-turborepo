@@ -29,7 +29,6 @@ fn validate_windows_bundle_identity() {
 }
 
 fn main() {
-    println!("cargo:rerun-if-env-changed=FN_KNOCK_UPDATER_PUBLIC_KEY");
     validate_windows_bundle_identity();
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
         let execution_level = if std::env::var("PROFILE").as_deref() == Ok("release") {

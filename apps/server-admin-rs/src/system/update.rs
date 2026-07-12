@@ -1267,7 +1267,6 @@ mod tests {
                     "type": "windows",
                     "version": "99.0.0",
                     "download_url": "https://cdn.fnknock.cn/files/99.0.0/windows/x86_64/setup.exe",
-                    "signature": "minisign",
                     "sha256": "a".repeat(64),
                     "size": 12345,
                     "release_notes": "Windows release notes",

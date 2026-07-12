@@ -35,13 +35,6 @@ $ArtifactName = "fn-knock-$Version-windows-x86_64-setup.exe"
 $ArtifactPath = Join-Path $OutputDirectory $ArtifactName
 Copy-Item -Force $SetupPath $ArtifactPath
 
-$SignatureSource = "$SetupPath.sig"
-if (-not (Test-Path $SignatureSource)) {
-  throw "Missing updater minisign signature $SignatureSource. Generate it only after Authenticode signing the setup."
-}
-$SignaturePath = "$ArtifactPath.sig"
-Copy-Item -Force $SignatureSource $SignaturePath
-
 $Sha256 = (Get-FileHash -Algorithm SHA256 $ArtifactPath).Hash.ToLowerInvariant()
 $ShaPath = "$ArtifactPath.sha256"
 [System.IO.File]::WriteAllText(
@@ -50,7 +43,6 @@ $ShaPath = "$ArtifactPath.sha256"
   [System.Text.UTF8Encoding]::new($false)
 )
 
-$Signature = (Get-Content -Raw $SignaturePath).Trim()
 $Url = "https://cdn.fnknock.cn/files/$Version/windows/x86_64/$ArtifactName"
 $PublishedAt = [DateTimeOffset]::UtcNow.ToString("o")
 if (-not $ReleaseNotesPath) {
@@ -75,14 +67,12 @@ $Release = @{
   release_notes = $ReleaseNotes
   file_name = $ArtifactName
   sha256 = $Sha256
-  signature = $Signature
   size = (Get-Item $ArtifactPath).Length
   packages = @{
     windows = @{
       x86_64 = @{
         url = $Url
         sha256 = $Sha256
-        signature = $Signature
         size = (Get-Item $ArtifactPath).Length
       }
     }
@@ -96,7 +86,6 @@ $Updater = @{
   platforms = @{
     "windows-x86_64" = @{
       url = $Url
-      signature = $Signature
       sha256 = $Sha256
       size = (Get-Item $ArtifactPath).Length
     }

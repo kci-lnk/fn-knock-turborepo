@@ -34,6 +34,7 @@ $ProductRoot = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolde
 $InstallRoot = $ProductRoot
 $ServiceExecutable = Join-Path $InstallRoot "fn-knock-service.exe"
 $GatewayExecutable = Join-Path $InstallRoot "fn-knock-gateway.exe"
+$RustAcmeshExecutable = Join-Path $InstallRoot "rust-acmesh.exe"
 $DesktopExecutable = Join-Path $InstallRoot "fn-knock.exe"
 $BundleIdentityPath = Join-Path $InstallRoot "bundle.json"
 $RuntimeConfigPath = Join-Path $ProgramDataRoot "config\runtime.json"
@@ -227,6 +228,7 @@ function Assert-InstalledRuntime {
     $DesktopExecutable,
     $ServiceExecutable,
     $GatewayExecutable,
+    $RustAcmeshExecutable,
     $BundleIdentityPath,
     (Join-Path $InstallRoot "uninstall.exe")
   )) {

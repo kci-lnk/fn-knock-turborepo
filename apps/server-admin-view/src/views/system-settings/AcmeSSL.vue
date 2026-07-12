@@ -1,51 +1,10 @@
 <template>
-  <Card v-if="resourceRequired" class="mb-4 w-full border-primary/20">
-    <CardHeader>
-      <CardTitle class="flex items-center justify-between gap-3">
-        <span>Lego ACME 资源</span>
-        <Badge :variant="resourceState?.initialized ? 'default' : 'outline'">
-          {{ resourceState?.initialized ? `v${resourceState.installedVersion}` : '未初始化' }}
-        </Badge>
-      </CardTitle>
-      <CardDescription>
-        Windows 不内置 Lego。首次使用时将从 fn-knock CDN 下载签名资源并完成校验。
-      </CardDescription>
-    </CardHeader>
-    <CardContent class="grid gap-3">
-      <Progress v-if="resourceBusy" :model-value="resourceState?.progress.percent || 0" />
-      <div v-if="resourceState?.progress.error" class="rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
-        {{ resourceState.progress.error }}
-      </div>
-      <div class="flex flex-wrap gap-2">
-        <input
-          v-if="!resourceState?.initialized"
-          v-model="accountEmail"
-          type="email"
-          required
-          placeholder="ACME 账户邮箱"
-          class="h-10 min-w-64 rounded-md border border-input bg-background px-3 text-sm"
-        />
-        <Button v-if="!resourceState?.initialized" :disabled="resourceBusy" @click="initializeLegoResource">
-          {{ resourceBusy ? '正在下载并校验…' : '下载并初始化' }}
-        </Button>
-        <Button v-if="resourceBusy" variant="outline" @click="cancelLegoResource">取消</Button>
-        <ConfirmDangerPopover
-          v-if="resourceState?.initialized"
-          title="删除 Lego 资源"
-          description="仅删除 Lego 可执行资源，不会删除证书、申请配置或证书库。"
-          :on-confirm="deleteLegoResource"
-        >
-          <template #trigger><Button variant="destructive">删除资源</Button></template>
-        </ConfirmDangerPopover>
-      </div>
-    </CardContent>
-  </Card>
   <Card class="w-full">
     <CardHeader>
       <div class="flex items-start justify-between gap-4">
         <div class="grid gap-1">
           <CardTitle class="flex items-center gap-2">
-            {{ resourceRequired ? 'Lego ACME' : 'ACME.sh' }}
+            ACME.sh
             <Badge :variant="statusBadgeVariant">{{ statusLabel }}</Badge>
           </CardTitle>
           <CardDescription>{{ t("admin.acmeSsl.description") }}</CardDescription>
@@ -274,7 +233,6 @@ import { usePollingResourceStatus } from '@admin-shared/composables/usePollingRe
 import ConfirmDangerPopover from '@admin-shared/components/common/ConfirmDangerPopover.vue';
 import { extractErrorMessage, useAsyncAction } from '@admin-shared/composables/useAsyncAction';
 import { useDelayedLoading } from '@admin-shared/composables/useDelayedLoading';
-import { useConfigStore } from '../../store/config';
 
 type AcmeCertificateAuthority = 'zerossl' | 'letsencrypt';
 type AcmeState = {
@@ -286,12 +244,6 @@ type AcmeState = {
 };
 
 const { t } = useI18n();
-const configStore = useConfigStore();
-const resourceRequired = computed(() => configStore.isAcmeResourceRequired);
-type LegoResourceState = Awaited<ReturnType<typeof AcmeAPI.resourceStatus>>;
-const resourceState = ref<LegoResourceState | null>(null);
-const accountEmail = ref('');
-const resourceBusy = computed(() => ['downloading', 'verifying'].includes(resourceState.value?.progress.status || ''));
 
 const certificateAuthorityOptions = computed<Array<{
   value: AcmeCertificateAuthority;
@@ -377,16 +329,13 @@ const statusBadgeVariant = computed(() => {
 
 const { isInitializing, refresh: fetchStatus } = usePollingResourceStatus<AcmeState | null>({
   fetcher: async () => {
-    if (resourceRequired.value) {
-      resourceState.value = await AcmeAPI.resourceStatus();
-    }
     const data = await runFetchStatus(() => AcmeAPI.status());
     return data ?? state.value;
   },
   onData: (data) => {
     state.value = data;
   },
-  isDownloading: (data) => data?.status === 'installing' || resourceBusy.value,
+  isDownloading: (data) => data?.status === 'installing',
 });
 const showInitializingSkeleton = useDelayedLoading(isInitializing);
 
@@ -403,37 +352,10 @@ async function startInstall() {
   );
 }
 
-async function initializeLegoResource() {
-  if (!accountEmail.value.trim() || !accountEmail.value.includes('@')) {
-    toast.error('请先填写有效的 ACME 账户邮箱');
-    return;
-  }
-  await AcmeAPI.updateClientSettings({
-    certificateAuthority: currentCertificateAuthority.value,
-    accountEmail: accountEmail.value.trim(),
-  });
-  await AcmeAPI.initializeResource();
-  toast.success('Lego 下载与初始化任务已开始');
-  await fetchStatus();
-}
-
-async function cancelLegoResource() {
-  await AcmeAPI.cancelResourceInitialization();
-  toast.info('已请求取消 Lego 初始化');
-  await fetchStatus();
-}
-
-async function deleteLegoResource() {
-  await AcmeAPI.deleteResource();
-  toast.success('Lego 资源已删除');
-  await fetchStatus();
-}
-
 async function uninstall() {
   if (!isInstalled.value) return;
   await runUninstall(async () => {
-    if (resourceRequired.value) await AcmeAPI.deleteResource();
-    else await AcmeAPI.uninstall();
+    await AcmeAPI.uninstall();
     toast.success(t('admin.acmeSsl.deleted'));
     await fetchStatus();
   });

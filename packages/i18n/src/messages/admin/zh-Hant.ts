@@ -1204,6 +1204,9 @@ export const zhHantAdmin = {
   },
   acmeCert: {
     title: "ACME 證書申請",
+    dns01Title: "DNS-01 證書申請",
+    dns01Description:
+      "透過內建 Windows DNS-01 客戶端申請及續期證書，申請成功後會自動同步到證書庫。",
     description:
       "管理多個 ACME 申請項、簽發證書和證書庫關聯狀態。申請成功後會自動同步到證書庫。",
     newApplication: "新申請",
@@ -1903,6 +1906,7 @@ export const zhHantAdmin = {
     certConfig: "證書配置",
     selfSigned: "自簽證書",
     acme: "ACME 證書",
+    dns01: "DNS-01 證書",
   },
   certConfig: {
     title: "SSL 證書",

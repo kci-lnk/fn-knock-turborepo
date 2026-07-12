@@ -300,6 +300,26 @@ fn wildcard_domains_cover_single_label_subdomains_only() {
 }
 
 #[test]
+fn windows_wildcard_certificate_uses_safe_paths_and_apex_issue_storage() {
+    let application = json!({
+        "primaryDomain": "*.fs.wxlnk.com",
+        "domains": ["*.fs.wxlnk.com", "fs.wxlnk.com"],
+    });
+    assert_eq!(
+        acme_data_dir_name_for_target("*.fs.wxlnk.com", true),
+        "wildcard_fs.wxlnk.com"
+    );
+    assert_eq!(
+        acme_issued_storage_domain_for_target(&application, true),
+        "fs.wxlnk.com"
+    );
+    assert_eq!(
+        acme_issued_storage_domain_for_target(&application, false),
+        "*.fs.wxlnk.com"
+    );
+}
+
+#[test]
 fn acme_zip_entry_names_preserve_requested_domain_like_node() {
     let bytes = zip_acme_cert_pair("Example.COM", "CERT", "KEY").expect("zip should build");
     let cursor = std::io::Cursor::new(bytes);

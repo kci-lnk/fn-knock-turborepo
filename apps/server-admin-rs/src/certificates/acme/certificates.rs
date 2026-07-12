@@ -2,9 +2,57 @@ use super::*;
 
 pub(super) fn acme_home_dir(state: &AppState) -> PathBuf {
     if crate::runtime_profile::deployment_target(state) == "windows" {
-        return state.settings.data_dir.join(".lego");
+        return state.settings.data_dir.join("acme");
     }
     state.settings.data_dir.join(".acme.sh")
+}
+
+pub(super) fn acme_data_dir_name(state: &AppState, domain: &str) -> String {
+    acme_data_dir_name_for_target(
+        domain,
+        crate::runtime_profile::deployment_target(state) == "windows",
+    )
+}
+
+pub(super) fn acme_data_dir_name_for_target(domain: &str, is_windows: bool) -> String {
+    let normalized = normalize_domain_name(domain);
+    if is_windows {
+        return normalized
+            .strip_prefix("*.")
+            .map(|suffix| format!("wildcard_{suffix}"))
+            .unwrap_or(normalized);
+    }
+    normalized
+}
+
+pub(super) fn acme_issued_storage_domain(state: &AppState, application: &Value) -> String {
+    acme_issued_storage_domain_for_target(
+        application,
+        crate::runtime_profile::deployment_target(state) == "windows",
+    )
+}
+
+pub(super) fn acme_issued_storage_domain_for_target(
+    application: &Value,
+    is_windows: bool,
+) -> String {
+    let primary_domain = application
+        .get("primaryDomain")
+        .and_then(Value::as_str)
+        .map(normalize_domain_name)
+        .unwrap_or_default();
+    if !is_windows {
+        return primary_domain;
+    }
+    application
+        .get("domains")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .map(normalize_domain_name)
+        .find(|domain| !domain.starts_with("*."))
+        .unwrap_or(primary_domain)
 }
 
 pub(super) async fn save_acme_issued_cert_from_fs(
@@ -21,7 +69,8 @@ pub(super) async fn save_acme_issued_cert_from_fs(
         .get("primaryDomain")
         .and_then(Value::as_str)
         .ok_or_else(|| anyhow::anyhow!(t.t("server.store.acme.jobDataInvalid")))?;
-    install_acme_cert_to_data_dir(state, primary_domain, job_id).await?;
+    let issued_storage_domain = acme_issued_storage_domain(state, application);
+    install_acme_cert_to_data_dir(state, primary_domain, &issued_storage_domain, job_id).await?;
     let (cert, key) = read_acme_cert_pair_from_fs(state, primary_domain)
         .await?
         .ok_or_else(|| anyhow::anyhow!(t.t("server.acmeJobRunner.issuedButCertReadFailed")))?;
@@ -42,43 +91,31 @@ pub(super) async fn save_acme_issued_cert_from_fs(
 pub(super) async fn install_acme_cert_to_data_dir(
     state: &AppState,
     primary_domain: &str,
+    issued_storage_domain: &str,
     job_id: &str,
 ) -> anyhow::Result<()> {
     let normalized = normalize_domain_name(primary_domain);
-    let domain_dir = state.settings.data_dir.join("ssl").join(&normalized);
+    let data_dir_name = acme_data_dir_name(state, &normalized);
+    let source_domain = normalize_domain_name(issued_storage_domain);
+    let domain_dir = state.settings.data_dir.join("ssl").join(&data_dir_name);
     tokio::fs::create_dir_all(&domain_dir).await?;
-    let installed_key_path = domain_dir.join(format!("{normalized}.key"));
+    let installed_key_path = domain_dir.join(format!("{data_dir_name}.key"));
     let installed_fullchain_path = domain_dir.join("fullchain.cer");
-    if crate::runtime_profile::deployment_target(state) == "windows" {
-        let certificate_dir = acme_home_dir(state).join("certificates");
-        let names = [
-            normalized.clone(),
-            normalized.replace('*', "_"),
-            normalized.trim_start_matches("*.").to_string(),
-        ];
-        for name in names {
-            let cert = certificate_dir.join(format!("{name}.crt"));
-            let key = certificate_dir.join(format!("{name}.key"));
-            if cert.is_file() && key.is_file() {
-                tokio::fs::copy(cert, &installed_fullchain_path).await?;
-                tokio::fs::copy(key, &installed_key_path).await?;
-                return Ok(());
-            }
-        }
-        anyhow::bail!("Lego issued the certificate but its PEM files were not found");
-    }
     let executable = acme_executable_path(state);
     if !executable.is_file() {
         return Ok(());
     }
     let candidates = [
-        (acme_home_dir(state).join(format!("{normalized}_ecc")), true),
-        (acme_home_dir(state).join(&normalized), false),
         (
-            legacy_acme_home_dir().join(format!("{normalized}_ecc")),
+            acme_home_dir(state).join(format!("{source_domain}_ecc")),
             true,
         ),
-        (legacy_acme_home_dir().join(&normalized), false),
+        (acme_home_dir(state).join(&source_domain), false),
+        (
+            legacy_acme_home_dir().join(format!("{source_domain}_ecc")),
+            true,
+        ),
+        (legacy_acme_home_dir().join(&source_domain), false),
     ];
     let mut variants = candidates
         .iter()
@@ -100,7 +137,7 @@ pub(super) async fn install_acme_cert_to_data_dir(
             acme_home_dir(state).to_string_lossy().to_string(),
             "--install-cert".to_string(),
             "-d".to_string(),
-            normalized.clone(),
+            source_domain.clone(),
             "--key-file".to_string(),
             installed_key_path.to_string_lossy().to_string(),
             "--fullchain-file".to_string(),
@@ -139,13 +176,18 @@ pub(super) async fn read_acme_cert_pair_from_fs(
     domain: &str,
 ) -> anyhow::Result<Option<(String, String)>> {
     let normalized = normalize_domain_name(domain);
+    let data_dir_name = acme_data_dir_name(state, &normalized);
     let candidates = [
-        state.settings.data_dir.join("ssl").join(&normalized),
+        state.settings.data_dir.join("ssl").join(&data_dir_name),
         acme_home_dir(state).join(format!("{normalized}_ecc")),
         acme_home_dir(state).join(&normalized),
     ];
     for dir in candidates {
-        let key_path = dir.join(format!("{normalized}.key"));
+        let key_path = if dir == state.settings.data_dir.join("ssl").join(&data_dir_name) {
+            dir.join(format!("{data_dir_name}.key"))
+        } else {
+            dir.join(format!("{normalized}.key"))
+        };
         let cert_paths = [
             dir.join("fullchain.cer"),
             dir.join(format!("{normalized}.cer")),
@@ -329,9 +371,10 @@ pub(super) async fn clear_acme_domain_working_state(
     if normalized.is_empty() {
         return Ok(());
     }
+    let working_dir_name = acme_data_dir_name(state, &normalized);
     for dir in [
-        acme_home_dir(state).join(&normalized),
-        acme_home_dir(state).join(format!("{normalized}_ecc")),
+        acme_home_dir(state).join(&working_dir_name),
+        acme_home_dir(state).join(format!("{working_dir_name}_ecc")),
     ] {
         match tokio::fs::remove_dir_all(&dir).await {
             Ok(()) => {}

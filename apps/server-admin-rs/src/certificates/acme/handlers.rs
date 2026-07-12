@@ -783,16 +783,11 @@ pub(super) async fn stop_active_job(State(state): State<AppState>) -> Response {
 
 pub(super) async fn dns_providers(State(state): State<AppState>) -> Response {
     let t = Translator::from_state(&state).await;
-    let mut providers = acme_dns_providers(&t);
-    if crate::runtime_profile::deployment_target(&state) == "windows" {
-        let supported = lego_provider_ids().iter().copied().collect::<BTreeSet<_>>();
-        providers.retain(|provider| {
-            provider
-                .get("dnsType")
-                .and_then(Value::as_str)
-                .is_some_and(|id| supported.contains(id))
-        });
-    }
+    let providers = if crate::runtime_profile::deployment_target(&state) == "windows" {
+        windows_acme_dns_providers(&t)
+    } else {
+        acme_dns_providers(&t)
+    };
     response::ok(Value::Array(providers)).into_response()
 }
 

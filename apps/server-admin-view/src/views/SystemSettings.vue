@@ -41,7 +41,9 @@ const showCloudflaredTab = computed(
 const showTunnelTabs = computed(
   () => showFrpTab.value || showCloudflaredTab.value,
 );
-const showAcmeTab = computed(() => configStore.canUseAcme);
+const showAcmeTab = computed(
+  () => configStore.canUseAcme && !configStore.isWindowsDeployment,
+);
 const showTerminalTab = computed(() => configStore.canUseTerminal);
 const showPanelTab = computed(
   () => configStore.isProtectedAdminPanelDeployment,

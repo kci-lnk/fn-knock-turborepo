@@ -1312,6 +1312,9 @@ export const jaJPAdmin = {
   },
   acmeCert: {
     title: "ACME 証明書申請書",
+    dns01Title: "DNS-01 証明書申請",
+    dns01Description:
+      "組み込みの Windows DNS-01 クライアントで証明書を発行・更新し、成功後に証明書ライブラリへ自動同期します。",
     description:
       "複数の ACME アプリケーション項目、発行された証明書、および証明書ストアの関連付けステータスを管理します。アプリケーションが成功すると、証明書ストアに自動的に同期されます。",
     newApplication: "新規申請",
@@ -2064,6 +2067,7 @@ export const jaJPAdmin = {
     certConfig: "証明書の構成",
     selfSigned: "自己署名証明書",
     acme: "ACME 証明書",
+    dns01: "DNS-01 証明書",
   },
   certConfig: {
     title: "SSL 証明書",

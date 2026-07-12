@@ -36,4 +36,4 @@ npm ci
 3. 给最终 setup 做 Authenticode + RFC3161 时间戳。
 4. 对最终字节生成兼容现有更新协议的 minisign `.sig` 和 SHA-256；此后不得改动 setup。
 
-`scripts/fn-knock-windows-finalize.ps1` 输出固定的五个发布文件。Updater 私钥只允许来自 CI secrets `FN_KNOCK_UPDATER_PRIVATE_KEY` 和 `FN_KNOCK_UPDATER_PRIVATE_KEY_PASSWORD`，客户端和发布校验器只使用 `FN_KNOCK_UPDATER_PUBLIC_KEY`。Lego CDN 初始化文件及无 `.sig` 的清单规范见 [`../../docs/windows-lego-cdn.md`](../../docs/windows-lego-cdn.md)。
+`scripts/fn-knock-windows-finalize.ps1` 输出固定的五个发布文件。Updater 私钥只允许来自 CI secrets `FN_KNOCK_UPDATER_PRIVATE_KEY` 和 `FN_KNOCK_UPDATER_PRIVATE_KEY_PASSWORD`，客户端和发布校验器只使用 `FN_KNOCK_UPDATER_PUBLIC_KEY`。Windows 安装包同时内置并签名 `rust-acmesh.exe`，用于 DNS-01 证书申请。

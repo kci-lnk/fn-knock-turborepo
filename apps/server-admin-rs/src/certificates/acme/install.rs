@@ -42,12 +42,7 @@ pub(super) async fn current_acme_install_state(state: &AppState, t: &Translator)
 
 pub(super) fn acme_executable_path(state: &AppState) -> PathBuf {
     if crate::runtime_profile::deployment_target(state) == "windows" {
-        return lego_executable_path(state).unwrap_or_else(|| {
-            state
-                .settings
-                .data_dir
-                .join("resources/lego/missing/lego.exe")
-        });
+        return rust_acmesh_executable_path().unwrap_or_else(|| PathBuf::from("rust-acmesh.exe"));
     }
     state.settings.data_dir.join(".acme.sh").join("acme.sh")
 }
@@ -136,6 +131,9 @@ pub(super) fn localize_acme_install_state(mut raw: Value, t: &Translator) -> Val
 const DEFAULT_ACME_LOCALE: &str = "zh-CN";
 
 pub(super) fn default_certificate_authority(state: &AppState) -> &'static str {
+    if crate::runtime_profile::deployment_target(state) == "windows" {
+        return "letsencrypt";
+    }
     let account_conf = state
         .settings
         .data_dir
@@ -225,9 +223,17 @@ pub(super) async fn migrate_legacy_acme_install_if_needed(state: &AppState) -> a
 
 pub(super) async fn start_acme_install(state: AppState, certificate_authority: String) {
     if crate::runtime_profile::deployment_target(&state) == "windows" {
-        let _ = certificate_authority;
-        if let Err(error) = initialize_resource_task(state).await {
-            set_progress("error", 0, Some(error.to_string()));
+        if acme_executable_path(&state).is_file() {
+            let _ = save_client_settings(&state, &certificate_authority).await;
+        } else {
+            set_acme_install_state(
+                &state,
+                "error",
+                0,
+                "installFailed",
+                &[("detail", "bundled rust-acmesh.exe is missing".to_string())],
+            )
+            .await;
         }
         return;
     }

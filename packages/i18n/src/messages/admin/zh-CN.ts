@@ -1196,6 +1196,9 @@ export const zhCNAdmin = {
   },
   acmeCert: {
     title: "ACME 证书申请",
+    dns01Title: "DNS-01 证书申请",
+    dns01Description:
+      "通过内置 Windows DNS-01 客户端申请和续期证书，申请成功后会自动同步到证书库。",
     description:
       "管理多个 ACME 申请项、签发证书和证书库关联状态。申请成功后会自动同步到证书库。",
     newApplication: "新申请",
@@ -1895,6 +1898,7 @@ export const zhCNAdmin = {
     certConfig: "证书配置",
     selfSigned: "自签证书",
     acme: "ACME 证书",
+    dns01: "DNS-01 证书",
   },
   certConfig: {
     title: "SSL 证书",

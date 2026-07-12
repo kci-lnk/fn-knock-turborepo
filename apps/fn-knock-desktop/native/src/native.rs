@@ -629,9 +629,15 @@ mod windows_ui {
             unsafe { message(hwnd, "当前已经是最新稳定版本。", false) };
             return Ok(());
         };
+        let update_kind = if offer.force_update {
+            "检测到必须安装的重要更新。"
+        } else {
+            "检测到版本更新。"
+        };
         let prompt = wide(&format!(
-            "发现 fn-knock {}。\r\n\r\n{}\r\n\r\n现在下载并安装吗？",
-            offer.version, offer.notes
+            "{update_kind}\r\n\r\n当前版本：{}\r\n最新版本：{}\r\n\r\n确认要更新吗？",
+            env!("CARGO_PKG_VERSION"),
+            offer.version
         ));
         let title = wide("Knock 敲门 · 更新");
         if unsafe {

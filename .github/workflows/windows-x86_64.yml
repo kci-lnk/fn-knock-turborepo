@@ -127,9 +127,6 @@ jobs:
     env:
       AZURE_CORE_OUTPUT: none
       CARGO_TERM_COLOR: always
-      FN_KNOCK_UPDATER_PUBLIC_KEY: ${{ secrets.FN_KNOCK_UPDATER_PUBLIC_KEY }}
-      FN_KNOCK_UPDATER_PRIVATE_KEY: ${{ secrets.FN_KNOCK_UPDATER_PRIVATE_KEY }}
-      FN_KNOCK_UPDATER_PRIVATE_KEY_PASSWORD: ${{ secrets.FN_KNOCK_UPDATER_PRIVATE_KEY_PASSWORD }}
       FN_KNOCK_GO_SOURCE_COMMIT: ${{ inputs.go_gateway_commit || vars.FN_KNOCK_GO_GATEWAY_COMMIT }}
 
     steps:
@@ -179,10 +176,10 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm ci
 
-      - name: Install NSIS and minisign
+      - name: Install NSIS
         shell: pwsh
         run: |
-          choco install nsis minisign --no-progress -y
+          choco install nsis --no-progress -y
 
       - name: Verify generated Go control-plane stubs
         shell: pwsh
@@ -288,25 +285,6 @@ jobs:
         shell: pwsh
         timeout-minutes: 15
         run: ./scripts/fn-knock-windows-installer-smoke.ps1 -SetupPath "${{ steps.bundle.outputs.setup }}"
-
-      - name: Generate updater signature after Authenticode
-        shell: pwsh
-        run: |
-          $setup = "${{ steps.bundle.outputs.setup }}"
-          $signature = "$setup.sig"
-          Remove-Item -Force -ErrorAction SilentlyContinue $signature
-          $keyPath = Join-Path $env:RUNNER_TEMP "fn-knock-updater.key"
-          [System.IO.File]::WriteAllText($keyPath, $env:FN_KNOCK_UPDATER_PRIVATE_KEY, [System.Text.UTF8Encoding]::new($false))
-          $env:MINISIGN_PASSWORD = $env:FN_KNOCK_UPDATER_PRIVATE_KEY_PASSWORD
-          minisign -S -s $keyPath -m $setup -x $signature
-          Remove-Item -LiteralPath $keyPath -Force
-          if ($LASTEXITCODE -ne 0 -or -not (Test-Path $signature)) {
-            throw "minisign updater signature generation failed"
-          }
-          $authenticode = Get-AuthenticodeSignature $setup
-          if ($authenticode.Status -ne "Valid") {
-            throw "Setup Authenticode signature is invalid after updater signing"
-          }
 
       - name: Finalize fixed-name release artifacts
         shell: pwsh

@@ -67,7 +67,7 @@ impl RuntimeConfig {
             self.grpc_port,
             self.proxy_port,
         ];
-        if ports.iter().any(|port| *port == 0) {
+        if ports.contains(&0) {
             return Err("ports must be between 1 and 65535".to_string());
         }
         if [

@@ -266,11 +266,7 @@
           </div>
         </div>
         <div
-          v-if="
-            !configStore.isDesktopUpdateManaged &&
-            updateStore.shouldShowBanner &&
-            updateStore.status
-          "
+          v-if="updateStore.shouldShowBanner && updateStore.status"
           :class="[
             'mx-auto mt-3 mb-6 w-full max-w-7xl rounded-lg border px-4 py-3',
             updateStore.isForceUpdate

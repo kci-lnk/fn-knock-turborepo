@@ -44,8 +44,10 @@
     "i18n:scan": "node ./packages/i18n/scripts/scan.mjs"
   },
   "devDependencies": {
+    "esbuild": "0.27.7",
     "prettier": "^3.7.4",
     "turbo": "^2.8.12",
+    "tsx": "4.21.0",
     "typescript": "5.9.2"
   },
   "engines": {

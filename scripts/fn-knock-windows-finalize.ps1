@@ -9,6 +9,40 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+function Assert-WindowsInstaller([string]$Path) {
+  $item = Get-Item -LiteralPath $Path
+  if ($item.Length -lt 64) {
+    throw "Windows installer is too small to contain a valid PE header: $Path"
+  }
+
+  $stream = [System.IO.File]::OpenRead($item.FullName)
+  try {
+    $dosHeader = [byte[]]::new(64)
+    if ($stream.Read($dosHeader, 0, $dosHeader.Length) -ne $dosHeader.Length -or
+        $dosHeader[0] -ne [byte][char]'M' -or $dosHeader[1] -ne [byte][char]'Z') {
+      throw "Windows installer does not have a valid MZ header: $Path"
+    }
+    $peOffset = [BitConverter]::ToUInt32($dosHeader, 0x3c)
+    if ([uint64]$peOffset + 4 -gt [uint64]$item.Length) {
+      throw "Windows installer PE header is outside the file: $Path"
+    }
+    $stream.Position = $peOffset
+    $peSignature = [byte[]]::new(4)
+    if ($stream.Read($peSignature, 0, $peSignature.Length) -ne $peSignature.Length -or
+        $peSignature[0] -ne [byte][char]'P' -or $peSignature[1] -ne [byte][char]'E' -or
+        $peSignature[2] -ne 0 -or $peSignature[3] -ne 0) {
+      throw "Windows installer does not have a valid PE signature: $Path"
+    }
+  } finally {
+    $stream.Dispose()
+  }
+
+  $signature = Get-AuthenticodeSignature -LiteralPath $item.FullName
+  if ($signature.Status -ne "Valid") {
+    throw "Windows installer Authenticode signature is invalid: $($signature.Status) ($Path)"
+  }
+}
+
 $Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $Version = [string](Get-Content -Raw (Join-Path $Root "version.json") | ConvertFrom-Json).version
 $BundleIdentityPath = Join-Path $Root "apps\fn-knock-desktop\bundle\windows\runtime\bundle.json"
@@ -34,6 +68,7 @@ New-Item -ItemType Directory -Force $OutputDirectory | Out-Null
 $ArtifactName = "fn-knock-$Version-windows-x86_64-setup.exe"
 $ArtifactPath = Join-Path $OutputDirectory $ArtifactName
 Copy-Item -Force $SetupPath $ArtifactPath
+Assert-WindowsInstaller $ArtifactPath
 
 $Sha256 = (Get-FileHash -Algorithm SHA256 $ArtifactPath).Hash.ToLowerInvariant()
 $ShaPath = "$ArtifactPath.sha256"

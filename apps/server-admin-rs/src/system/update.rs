@@ -1037,6 +1037,18 @@ fn parse_manifest_raw(value: &Value) -> Result<OtaManifest, ManifestError> {
 
 fn parse_windows_manifest_raw(value: &Value) -> Result<OtaManifest, ManifestError> {
     let object = value.as_object().ok_or(ManifestError::FormatInvalid)?;
+    let version = manifest_string(object, "version");
+    if version.is_empty() {
+        return Err(ManifestError::MissingVersion);
+    }
+    let update_available = object
+        .get("update_available")
+        .and_then(Value::as_bool)
+        .ok_or(ManifestError::MissingUpdateAvailable)?;
+    let force_update = object
+        .get("force_update")
+        .and_then(Value::as_bool)
+        .ok_or(ManifestError::MissingForceUpdate)?;
     let package = object
         .get("packages")
         .and_then(Value::as_object)
@@ -1045,25 +1057,15 @@ fn parse_windows_manifest_raw(value: &Value) -> Result<OtaManifest, ManifestErro
         .and_then(|windows| windows.get("x86_64"))
         .and_then(Value::as_object)
         .ok_or(ManifestError::MissingDownloadUrl)?;
-    let version = manifest_string(package, "version");
-    if version.is_empty() {
-        return Err(ManifestError::MissingVersion);
-    }
     let download_url = manifest_string(package, "download_url");
     if download_url.is_empty() {
         return Err(ManifestError::MissingDownloadUrl);
     }
     let sha256 = ensure_sha256_raw(&manifest_string(package, "sha256"), "sha256")?;
     Ok(OtaManifest {
-        update_available: package
-            .get("update_available")
-            .and_then(Value::as_bool)
-            .unwrap_or(true),
+        update_available,
         version,
-        force_update: package
-            .get("force_update")
-            .and_then(Value::as_bool)
-            .unwrap_or(false),
+        force_update,
         download_url,
         sha256,
         download_url_arm64: String::new(),
@@ -1260,18 +1262,16 @@ mod tests {
     fn parses_windows_package_from_shared_latest_manifest() {
         let manifest = parse_windows_manifest_raw(&json!({
             "version": "2.0.0",
+            "update_available": true,
+            "force_update": true,
             "release_notes": "core notes",
             "packages": {
                 "windows": {
                   "x86_64": {
                     "type": "windows",
-                    "version": "99.0.0",
                     "download_url": "https://cdn.fnknock.cn/files/99.0.0/windows/x86_64/setup.exe",
                     "sha256": "a".repeat(64),
-                    "size": 12345,
-                    "release_notes": "Windows release notes",
-                    "update_available": true,
-                    "force_update": false
+                    "size": 12345
                   }
                 }
             }
@@ -1279,8 +1279,9 @@ mod tests {
         .unwrap();
 
         assert!(manifest.update_available);
-        assert_eq!(manifest.version, "99.0.0");
-        assert_eq!(manifest.release_notes, "Windows release notes");
+        assert!(manifest.force_update);
+        assert_eq!(manifest.version, "2.0.0");
+        assert_eq!(manifest.release_notes, "core notes");
         assert_eq!(manifest.sha256, "a".repeat(64));
     }
 

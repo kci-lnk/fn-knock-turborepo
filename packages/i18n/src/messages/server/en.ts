@@ -44,6 +44,13 @@ export const enServer = {
         permission:
           "The current process does not have the host management capability required by Smart Connect",
       },
+      fnos_certificate_sync_available: {
+        docker: "Docker deployments do not support FNOS SSL certificate sync",
+        platform:
+          "FNOS SSL certificate sync is only available in FPK deployments",
+        permission:
+          "The current process lacks root permission for FNOS SSL certificate sync",
+      },
       system_clock_sync_available: {
         docker: "Docker deployments do not support host system time sync",
         platform: "The current runtime does not support system time sync",

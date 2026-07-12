@@ -48,6 +48,12 @@ export const jaJPServer = {
         permission:
           "現在のプロセスには、スマート コネクトに必要なホスト管理機能がありません",
       },
+      fnos_certificate_sync_available: {
+        docker: "Docker 展開では FNOS SSL 証明書同期を使用できません",
+        platform: "FNOS SSL 証明書同期は FPK 展開でのみ使用できます",
+        permission:
+          "現在のプロセスには FNOS SSL 証明書同期に必要な root 権限がありません",
+      },
       system_clock_sync_available: {
         docker: "Docker 導入ではホスト システムの時刻同期がサポートされません",
         platform: "現在の動作環境はシステム時刻同期をサポートしていません",

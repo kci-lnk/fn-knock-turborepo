@@ -51,6 +51,11 @@
         },
         "shared_root_available": {
           "missing": "当前运行环境没有可用的共享目录挂载"
+        },
+        "fnos_certificate_sync_available": {
+          "docker": "Docker 部署不支持飞牛 SSL 证书库同步",
+          "platform": "飞牛 SSL 证书库同步仅支持 FPK 部署",
+          "permission": "当前进程没有同步飞牛 SSL 证书所需的 root 权限"
         }
       }
     },
@@ -3047,6 +3052,11 @@
         },
         "shared_root_available": {
           "missing": "目前運行環境沒有可用的共享目錄掛載"
+        },
+        "fnos_certificate_sync_available": {
+          "docker": "Docker 部署不支援飛牛 SSL 證書庫同步",
+          "platform": "飛牛 SSL 證書庫同步僅支援 FPK 部署",
+          "permission": "目前進程沒有同步飛牛 SSL 證書所需的 root 權限"
         }
       }
     },
@@ -6043,6 +6053,11 @@
         },
         "shared_root_available": {
           "missing": "No shared directory mount is available in the current runtime"
+        },
+        "fnos_certificate_sync_available": {
+          "docker": "Docker deployments do not support FNOS SSL certificate sync",
+          "platform": "FNOS SSL certificate sync is only available in FPK deployments",
+          "permission": "The current process lacks root permission for FNOS SSL certificate sync"
         }
       }
     },
@@ -9039,6 +9054,11 @@
         },
         "shared_root_available": {
           "missing": "현재 런타임에서는 공유 디렉터리 마운트를 사용할 수 없습니다."
+        },
+        "fnos_certificate_sync_available": {
+          "docker": "Docker 배포는 FNOS SSL 인증서 동기화를 지원하지 않습니다",
+          "platform": "FNOS SSL 인증서 동기화는 FPK 배포에서만 사용할 수 있습니다",
+          "permission": "현재 프로세스에 FNOS SSL 인증서 동기화에 필요한 root 권한이 없습니다"
         }
       }
     },
@@ -12035,6 +12055,11 @@
         },
         "shared_root_available": {
           "missing": "現在の実行環境にはマウントできる共有ディレクトリがありません。"
+        },
+        "fnos_certificate_sync_available": {
+          "docker": "Docker 展開では FNOS SSL 証明書同期を使用できません",
+          "platform": "FNOS SSL 証明書同期は FPK 展開でのみ使用できます",
+          "permission": "現在のプロセスには FNOS SSL 証明書同期に必要な root 権限がありません"
         }
       }
     },

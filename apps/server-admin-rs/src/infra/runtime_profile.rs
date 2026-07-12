@@ -18,6 +18,7 @@ pub struct RuntimeCapabilities {
     pub direct_mode_available: bool,
     pub host_firewall_available: bool,
     pub smart_connect_available: bool,
+    pub fnos_certificate_sync_available: bool,
     pub system_clock_sync_available: bool,
     pub self_update_available: bool,
     pub terminal_available: bool,
@@ -49,6 +50,7 @@ pub fn get_runtime_capabilities(profile: &RuntimeProfile) -> RuntimeCapabilities
             direct_mode_available: false,
             host_firewall_available: false,
             smart_connect_available: false,
+            fnos_certificate_sync_available: false,
             system_clock_sync_available: false,
             self_update_available: false,
             terminal_available: false,
@@ -71,6 +73,9 @@ pub fn get_runtime_capabilities(profile: &RuntimeProfile) -> RuntimeCapabilities
         direct_mode_available: host_runtime_available,
         host_firewall_available: host_runtime_available,
         smart_connect_available: host_runtime_available,
+        fnos_certificate_sync_available: profile.deployment_target == "fpk"
+            && profile.is_linux
+            && profile.is_root_process,
         system_clock_sync_available: host_runtime_available,
         self_update_available: profile.deployment_target == "fpk",
         terminal_available: profile.deployment_target != "docker"
@@ -128,6 +133,15 @@ pub fn capability_unavailable_message(
             if profile.is_docker {
                 "docker"
             } else if !profile.is_linux {
+                "platform"
+            } else {
+                "permission"
+            }
+        }
+        "fnos_certificate_sync_available" => {
+            if profile.is_docker {
+                "docker"
+            } else if profile.deployment_target != "fpk" || !profile.is_linux {
                 "platform"
             } else {
                 "permission"
@@ -310,6 +324,7 @@ mod tests {
         assert!(capabilities.direct_mode_available);
         assert!(capabilities.host_firewall_available);
         assert!(capabilities.smart_connect_available);
+        assert!(capabilities.fnos_certificate_sync_available);
         assert!(capabilities.system_clock_sync_available);
         assert!(capabilities.self_update_available);
         assert!(capabilities.terminal_available);
@@ -321,6 +336,7 @@ mod tests {
         assert!(!capabilities.direct_mode_available);
         assert!(!capabilities.host_firewall_available);
         assert!(!capabilities.smart_connect_available);
+        assert!(!capabilities.fnos_certificate_sync_available);
         assert!(!capabilities.system_clock_sync_available);
         assert!(capabilities.terminal_available);
         assert!(!capabilities.self_update_available);
@@ -333,6 +349,7 @@ mod tests {
         assert!(!capabilities.direct_mode_available);
         assert!(!capabilities.host_firewall_available);
         assert!(!capabilities.smart_connect_available);
+        assert!(!capabilities.fnos_certificate_sync_available);
         assert!(!capabilities.system_clock_sync_available);
         assert!(!capabilities.self_update_available);
         assert!(!capabilities.terminal_available);
@@ -422,6 +439,7 @@ mod tests {
         assert!(!capabilities.direct_mode_available);
         assert!(!capabilities.host_firewall_available);
         assert!(!capabilities.smart_connect_available);
+        assert!(!capabilities.fnos_certificate_sync_available);
         assert!(!capabilities.system_clock_sync_available);
         assert!(!capabilities.self_update_available);
         assert!(!capabilities.terminal_available);
@@ -433,6 +451,7 @@ mod tests {
         assert!(capabilities.direct_mode_available);
         assert!(capabilities.host_firewall_available);
         assert!(capabilities.smart_connect_available);
+        assert!(!capabilities.fnos_certificate_sync_available);
         assert!(capabilities.system_clock_sync_available);
         assert!(!capabilities.self_update_available);
         assert!(!capabilities.terminal_available);

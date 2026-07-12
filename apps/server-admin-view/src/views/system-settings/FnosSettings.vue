@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
+import { useRouter } from "vue-router";
+import { ChevronRight } from "lucide-vue-next";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -12,6 +14,7 @@ import type {
   FnosPortIconHijackConfig,
   FnosShareBypassConfig,
   FnosNetworkTuningUpdatePayload,
+  FnosCertificateSyncDetails,
 } from "../../types";
 import {
   extractErrorMessage,
@@ -21,6 +24,7 @@ import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { useConfigStore } from "../../store/config";
 
 const configStore = useConfigStore();
+const router = useRouter();
 const { t } = useI18n();
 const DEFAULT_FNOS_SHARE_BYPASS_VALUES = {
   upstream_timeout_ms: 2500,
@@ -39,6 +43,7 @@ const iconHijackForm = reactive<FnosPortIconHijackConfig>({
   updated_at: null,
 });
 const networkTuningStatus = ref<FnosNetworkTuningStatus | null>(null);
+const certificateSyncDetails = ref<FnosCertificateSyncDetails | null>(null);
 const networkTuningForm = reactive({
   bbr_enabled: false,
   mtu_probing_enabled: false,
@@ -218,6 +223,14 @@ const fetchSettings = async () => {
     applyFromSettings(shareBypass);
     applyIconHijackFromSettings(iconHijack);
     applyNetworkTuningFromStatus(networkTuning);
+    if (configStore.canUseFnosCertificateSync) {
+      try {
+        certificateSyncDetails.value =
+          await SystemAPI.getFnosCertificateSyncDetails();
+      } catch {
+        certificateSyncDetails.value = null;
+      }
+    }
   });
 };
 
@@ -339,6 +352,10 @@ const toggleMtuProbing = () => {
   );
 };
 
+const openCertificateSync = () => {
+  void router.push("/system/fnos-certificate-sync");
+};
+
 onMounted(fetchSettings);
 </script>
 
@@ -358,6 +375,31 @@ onMounted(fetchSettings);
     </CardContent>
 
     <CardContent v-else-if="!isLoading" class="p-0 divide-y">
+      <button
+        v-if="configStore.canUseFnosCertificateSync"
+        type="button"
+        class="flex w-full items-center justify-between bg-muted/10 p-6 text-left transition-colors hover:bg-muted/20"
+        @click="openCertificateSync"
+      >
+        <div class="space-y-1 pr-6">
+          <div class="text-base font-medium">
+            {{ t("admin.fnosCertificateSync.entryTitle") }}
+          </div>
+          <div class="text-sm text-muted-foreground">
+            {{ t("admin.fnosCertificateSync.entryDescription") }}
+          </div>
+          <div v-if="certificateSyncDetails" class="text-xs text-zinc-500">
+            {{
+              t("admin.fnosCertificateSync.entrySummary", {
+                total: certificateSyncDetails.summary.total,
+                syncable: certificateSyncDetails.summary.syncable,
+              })
+            }}
+          </div>
+        </div>
+        <ChevronRight class="h-5 w-5 shrink-0 text-muted-foreground" />
+      </button>
+
       <div class="flex items-center justify-between bg-muted/10 p-6">
         <div class="space-y-1 pr-6">
           <Label

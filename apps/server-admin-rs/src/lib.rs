@@ -32,7 +32,7 @@ pub(crate) use auth::{
     hmac as hmac_auth, mobility as auth_mobility, oidc_admin, oidc_runtime,
     passkey as passkey_runtime,
 };
-pub(crate) use certificates::{acme, auto_https, ssl};
+pub(crate) use certificates::{acme, auto_https, fnos_certificate_sync, ssl};
 pub(crate) use config::runtime as runtime_config;
 pub(crate) use ddns as ddns_status;
 pub(crate) use discovery::{ip_location, ip_location_config, scan_assets, scanner};

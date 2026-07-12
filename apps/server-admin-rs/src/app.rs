@@ -21,6 +21,7 @@ use crate::{
     common_auth_locations::start_common_auth_location_tasks,
     dashboard::start_traffic_tasks,
     ddns_status::start_ddns_tasks,
+    fnos_certificate_sync::start_fnos_certificate_sync_tasks,
     frpc::start_frpc_tasks,
     i18n::{DEFAULT_LOCALE, Translator},
     ip_location::start_ip_location_worker,
@@ -117,6 +118,9 @@ pub(crate) async fn run_with_settings(
     start_ddns_tasks(state.clone());
     if capabilities.acme_available {
         start_acme_tasks(state.clone());
+    }
+    if capabilities.fnos_certificate_sync_available {
+        start_fnos_certificate_sync_tasks(state.clone());
     }
     if capabilities.system_resource_monitor_available {
         start_system_monitor_tasks(state.clone());

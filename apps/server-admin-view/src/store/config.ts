@@ -390,6 +390,9 @@ export const useConfigStore = defineStore("config", () => {
   const canUseSmartConnect = computed(
     () => capabilities.value?.smart_connect_available === true,
   );
+  const canUseFnosCertificateSync = computed(
+    () => capabilities.value?.fnos_certificate_sync_available === true,
+  );
   const canSelfUpdate = computed(
     () => capabilities.value?.self_update_available === true,
   );
@@ -442,6 +445,7 @@ export const useConfigStore = defineStore("config", () => {
     canUseDirectMode,
     canManageHostFirewall,
     canUseSmartConnect,
+    canUseFnosCertificateSync,
     canSelfUpdate,
     canSyncSystemClock,
     canUseTerminal,

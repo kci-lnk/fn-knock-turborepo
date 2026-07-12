@@ -1,5 +1,100 @@
 use super::*;
 
+pub(super) fn windows_acme_dns_providers(t: &Translator) -> Vec<Value> {
+    let common_label = t.t("server.acmeDnsProviders.groups.common");
+    let domestic_label = t.t("server.acmeDnsProviders.groups.domestic");
+    let international_label = t.t("server.acmeDnsProviders.groups.international");
+    let common = common_label.as_str();
+    let domestic = domestic_label.as_str();
+    let international = international_label.as_str();
+    let mut providers = vec![
+        simple_provider(
+            "dns_ali",
+            &t.t("server.acmeDnsProviders.labels.aliyun"),
+            common,
+            &["Ali_Key", "Ali_Secret", "Ali_Domain"],
+            &["Ali_Domain"],
+        ),
+        simple_provider(
+            "dns_baiducloud",
+            "Baidu Cloud DNS",
+            domestic,
+            &[
+                "BAIDU_ACCESS_KEY_ID",
+                "BAIDU_SECRET_ACCESS_KEY",
+                "root_domain",
+            ],
+            &["root_domain"],
+        ),
+        json!({
+            "dnsType": "dns_cf",
+            "label": "Cloudflare",
+            "group": common,
+            "credentialSchemes": [
+                scheme("api-token", "API Token", &["CF_Token", "CF_Zone_ID", "CF_Account_ID"], &["CF_Zone_ID", "CF_Account_ID"]),
+                scheme("global-key", "Global API Key", &["CF_Key", "CF_Email", "CF_Zone_ID", "CF_Account_ID"], &["CF_Zone_ID", "CF_Account_ID"]),
+            ],
+        }),
+        simple_provider(
+            "dns_dp",
+            "DNSPod",
+            common,
+            &["DP_Id", "DP_Key", "DP_Domain"],
+            &["DP_Domain"],
+        ),
+        simple_provider(
+            "dns_tencent",
+            &t.t("server.acmeDnsProviders.labels.tencentCloudDnspod"),
+            common,
+            &["Tencent_SecretId", "Tencent_SecretKey"],
+            &[],
+        ),
+        simple_provider("dns_duckdns", "DuckDNS", common, &["DuckDNS_Token"], &[]),
+        simple_provider(
+            "dns_dynu",
+            "Dynu",
+            international,
+            &["Dynu_ClientId", "Dynu_Secret"],
+            &[],
+        ),
+        simple_provider("dns_dynv6", "dynv6", international, &["DYNV6_TOKEN"], &[]),
+        simple_provider(
+            "dns_gd",
+            "GoDaddy",
+            international,
+            &["GD_Key", "GD_Secret", "GD_Domain"],
+            &["GD_Domain"],
+        ),
+        simple_provider(
+            "dns_huaweicloud",
+            &t.t("server.acmeDnsProviders.labels.huaweiCloudDns"),
+            domestic,
+            &[
+                "HUAWEICLOUD_Username",
+                "HUAWEICLOUD_Password",
+                "HUAWEICLOUD_DomainName",
+                "HUAWEICLOUD_Region",
+                "HUAWEICLOUD_ProjectName",
+            ],
+            &["HUAWEICLOUD_Region", "HUAWEICLOUD_ProjectName"],
+        ),
+        simple_provider(
+            "dns_porkbun",
+            "Porkbun",
+            international,
+            &[
+                "PORKBUN_API_KEY",
+                "PORKBUN_SECRET_API_KEY",
+                "PORKBUN_DOMAIN",
+            ],
+            &["PORKBUN_DOMAIN"],
+        ),
+    ];
+    let default_credential_label = t.t("server.acmeDnsProviders.credentialSchemes.default");
+    localize_default_credential_labels(&mut providers, &default_credential_label);
+    providers
+}
+
 pub(super) fn acme_dns_providers(t: &Translator) -> Vec<Value> {
     let common_label = t.t("server.acmeDnsProviders.groups.common");
     let domestic_label = t.t("server.acmeDnsProviders.groups.domestic");

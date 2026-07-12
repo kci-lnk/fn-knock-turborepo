@@ -32,6 +32,7 @@ $DesktopRoot = Join-Path $Root "apps\fn-knock-desktop"
 $DesktopNative = Join-Path $DesktopRoot "native"
 $BundleRoot = Join-Path $DesktopRoot "bundle\windows"
 $RuntimeRoot = Join-Path $BundleRoot "runtime"
+$RustAcmeshExecutable = Join-Path $Root "apps\server-admin-rs\resources\rust-acmesh.exe"
 
 if ($SkipDesktopBundle -and $BundleInstaller) {
   throw "SkipDesktopBundle and BundleInstaller cannot be used together"
@@ -141,8 +142,13 @@ function Stage-WindowsBundle {
   }
   New-Item -ItemType Directory -Force $RuntimeRoot | Out-Null
 
+  if (-not (Test-Path -LiteralPath $RustAcmeshExecutable -PathType Leaf)) {
+    throw "Bundled rust-acmesh.exe is missing: $RustAcmeshExecutable"
+  }
+
   Copy-Item (Join-Path $GoRepository "build\go-reauth-proxy-windows-amd64.exe") (Join-Path $BundleRoot "fn-knock-gateway.exe")
   Copy-Item (Join-Path $Root "apps\server-admin-rs\target\$Target\release\fn-knock-service.exe") (Join-Path $BundleRoot "fn-knock-service.exe")
+  Copy-Item $RustAcmeshExecutable (Join-Path $BundleRoot "rust-acmesh.exe")
 
   Copy-DirectoryContents (Join-Path $Root "apps\server-admin-view\dist") (Join-Path $RuntimeRoot "ui\www")
   Copy-DirectoryContents (Join-Path $Root "apps\server-auth-view\dist") (Join-Path $RuntimeRoot "server-auth-view\dist")
@@ -157,6 +163,7 @@ function Stage-WindowsBundle {
       "fn-knock.exe",
       "fn-knock-service.exe",
       "fn-knock-gateway.exe",
+      "rust-acmesh.exe",
       "ui/www",
       "server-auth-view/dist"
     )

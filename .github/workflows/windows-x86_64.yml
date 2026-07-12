@@ -230,6 +230,7 @@ jobs:
           files: |
             ${{ github.workspace }}\apps\fn-knock-desktop\bundle\windows\fn-knock-service.exe
             ${{ github.workspace }}\apps\fn-knock-desktop\bundle\windows\fn-knock-gateway.exe
+            ${{ github.workspace }}\apps\fn-knock-desktop\bundle\windows\rust-acmesh.exe
             ${{ github.workspace }}\apps\fn-knock-desktop\native\target\x86_64-pc-windows-msvc\release\fn-knock.exe
           file-digest: SHA256
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
@@ -243,6 +244,7 @@ jobs:
           $files = @(
             "apps\fn-knock-desktop\bundle\windows\fn-knock-service.exe",
             "apps\fn-knock-desktop\bundle\windows\fn-knock-gateway.exe",
+            "apps\fn-knock-desktop\bundle\windows\rust-acmesh.exe",
             "apps\fn-knock-desktop\native\target\x86_64-pc-windows-msvc\release\fn-knock.exe"
           )
           foreach ($file in $files) {

@@ -7,7 +7,11 @@
         >
           <div class="grid gap-1">
             <CardTitle class="flex flex-wrap items-center gap-2">
-              {{ t("admin.acmeCert.title") }}
+              {{
+                configStore.isWindowsDeployment
+                  ? t("admin.acmeCert.dns01Title")
+                  : t("admin.acmeCert.title")
+              }}
               <Badge :variant="acmeStatusBadgeVariant">{{
                 acmeStatusLabel
               }}</Badge>
@@ -16,7 +20,11 @@
               </Badge>
             </CardTitle>
             <CardDescription>
-              {{ t("admin.acmeCert.description") }}
+              {{
+                configStore.isWindowsDeployment
+                  ? t("admin.acmeCert.dns01Description")
+                  : t("admin.acmeCert.description")
+              }}
             </CardDescription>
           </div>
           <div class="flex flex-wrap items-center gap-2">
@@ -446,6 +454,7 @@ import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerP
 import AcmeApplicationDialog from "./AcmeApplicationDialog.vue";
 import AcmeJobPanel from "./AcmeJobPanel.vue";
 import { AlertTriangle, ChevronDown, Trash2 } from "lucide-vue-next";
+import { useConfigStore } from "@/store/config";
 
 type CertificateStatusKey =
   | "none"
@@ -456,6 +465,7 @@ type CertificateStatusKey =
 
 const { locale, t } = useI18n();
 const router = useRouter();
+const configStore = useConfigStore();
 const overview = ref<AcmeOverview | null>(null);
 const dnsProviders = ref<AcmeDnsProvider[]>([]);
 const isDialogOpen = ref(false);

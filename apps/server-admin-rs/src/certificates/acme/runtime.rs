@@ -52,20 +52,20 @@ pub(super) async fn stop_all_acme_processes(_t: &Translator) -> Value {
             Foundation::CloseHandle,
             System::Threading::{OpenProcess, PROCESS_TERMINATE, TerminateProcess},
         };
-        let pid = LEGO_ACTIVE_PID.swap(0, Ordering::AcqRel);
+        let pid = WINDOWS_ACME_ACTIVE_PID.swap(0, Ordering::AcqRel);
         if pid == 0 {
             return json!({ "matchedPids": [], "remainingPids": [], "errors": [] });
         }
         let handle = unsafe { OpenProcess(PROCESS_TERMINATE, 0, pid) };
         if handle.is_null() {
-            return json!({ "matchedPids": [pid], "remainingPids": [pid], "errors": ["Unable to open the active Lego process"] });
+            return json!({ "matchedPids": [pid], "remainingPids": [pid], "errors": ["Unable to open the active Windows ACME process"] });
         }
         let terminated = unsafe { TerminateProcess(handle, 1) } != 0;
         unsafe { CloseHandle(handle) };
         return json!({
             "matchedPids": [pid],
             "remainingPids": if terminated { Vec::<u32>::new() } else { vec![pid] },
-            "errors": if terminated { Vec::<String>::new() } else { vec!["Unable to terminate the active Lego process".to_string()] },
+            "errors": if terminated { Vec::<String>::new() } else { vec!["Unable to terminate the active Windows ACME process".to_string()] },
         });
     }
     #[cfg(not(windows))]

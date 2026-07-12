@@ -470,6 +470,10 @@ function Invoke-SmokeCleanup {
 try {
   Assert-File (Join-Path $BundleRoot "fn-knock-service.exe")
   Assert-File (Join-Path $BundleRoot "fn-knock-gateway.exe")
+  Assert-File (Join-Path $BundleRoot "rust-acmesh.exe")
+  $rustAcmeshVersion = & (Join-Path $BundleRoot "rust-acmesh.exe") version
+  Assert-Condition ($LASTEXITCODE -eq 0 -and $rustAcmeshVersion -match '^rust-acmesh ') `
+    "The bundled rust-acmesh.exe version check failed"
   Assert-File (Join-Path $BundleRoot "runtime\bundle.json")
   Assert-File $DesktopExecutable
 
@@ -494,6 +498,8 @@ try {
   New-Item -ItemType Directory -Force -Path $CurrentRoot | Out-Null
   Copy-Item -LiteralPath (Join-Path $BundleRoot "fn-knock-service.exe") -Destination $ServiceExecutable
   Copy-Item -LiteralPath (Join-Path $BundleRoot "fn-knock-gateway.exe") -Destination $GatewayExecutable
+  Copy-Item -LiteralPath (Join-Path $BundleRoot "rust-acmesh.exe") `
+    -Destination (Join-Path $CurrentRoot "rust-acmesh.exe")
   Copy-Item -LiteralPath $DesktopExecutable -Destination (Join-Path $CurrentRoot "fn-knock.exe")
   Copy-Item -LiteralPath (Join-Path $BundleRoot "runtime\bundle.json") `
     -Destination (Join-Path $CurrentRoot "bundle.json")

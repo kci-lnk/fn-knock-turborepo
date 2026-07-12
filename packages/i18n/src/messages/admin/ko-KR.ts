@@ -1281,6 +1281,9 @@ export const koKRAdmin = {
   },
   acmeCert: {
     title: "ACME 인증서 요청",
+    dns01Title: "DNS-01 인증서 요청",
+    dns01Description:
+      "내장 Windows DNS-01 클라이언트로 인증서를 발급 및 갱신하며 성공 후 인증서 라이브러리에 자동으로 동기화합니다.",
     description:
       "여러 ACME 요청 항목, 발급된 인증서 및 인증서 라이브러리 링크를 관리합니다. 성공적인 요청은 인증서 라이브러리에 자동으로 동기화됩니다.",
     newApplication: "새로운 요청",
@@ -2063,6 +2066,7 @@ export const koKRAdmin = {
     certConfig: "인증서 구성",
     selfSigned: "자체 서명된 인증서",
     acme: "ACME 인증서",
+    dns01: "DNS-01 인증서",
   },
   certConfig: {
     title: "SSL 인증서",

@@ -38,6 +38,7 @@ foreach ($required in @(
   (Join-Path $ReleaseRoot "fn-knock.exe"),
   (Join-Path $BundleRoot "fn-knock-service.exe"),
   (Join-Path $BundleRoot "fn-knock-gateway.exe"),
+  (Join-Path $BundleRoot "rust-acmesh.exe"),
   (Join-Path $RuntimeRoot "bundle.json")
 )) {
   if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {

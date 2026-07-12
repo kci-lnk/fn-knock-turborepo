@@ -80,7 +80,7 @@ const MAX_ACME_BODY_BYTES: usize = 1024 * 1024;
 const ACME_JOB_TTL_SECONDS: usize = 86_400;
 const ACME_RUNTIME_LOCK_MIN_TTL_SECONDS: usize = 300;
 const ACME_RUNTIME_LOCK_MAX_TTL_SECONDS: usize = 6 * 60 * 60;
-static LEGO_ACTIVE_PID: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+static WINDOWS_ACME_ACTIVE_PID: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 
 #[derive(Deserialize)]
 struct AcmeLogsQuery {

@@ -436,7 +436,11 @@ pub(super) async fn remove_acme_domain_artifacts(
 ) -> anyhow::Result<()> {
     for domain in domains {
         delete_acme_cert_pair(state, domain).await?;
-        let dir = state.settings.data_dir.join("ssl").join(domain);
+        let dir = state
+            .settings
+            .data_dir
+            .join("ssl")
+            .join(acme_data_dir_name(state, domain));
         match tokio::fs::remove_dir_all(&dir).await {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}

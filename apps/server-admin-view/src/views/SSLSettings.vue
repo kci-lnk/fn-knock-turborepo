@@ -26,7 +26,9 @@
           t("admin.sslSettings.selfSigned")
         }}</TabsTrigger>
         <TabsTrigger v-if="configStore.canUseAcme" value="acme-cert">{{
-          t("admin.sslSettings.acme")
+          configStore.isWindowsDeployment
+            ? t("admin.sslSettings.dns01")
+            : t("admin.sslSettings.acme")
         }}</TabsTrigger>
       </TabsList>
       <TabsContent value="cert-config" class="pt-2">

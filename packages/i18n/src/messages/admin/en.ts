@@ -1293,6 +1293,9 @@ export const enAdmin = {
   },
   acmeCert: {
     title: "ACME certificate requests",
+    dns01Title: "DNS-01 certificate requests",
+    dns01Description:
+      "Issue and renew certificates with the bundled Windows DNS-01 client. Successful requests sync to the certificate library automatically.",
     description:
       "Manage multiple ACME request items, issued certificates, and certificate library links. Successful requests sync to the certificate library automatically.",
     newApplication: "New request",
@@ -2078,6 +2081,7 @@ export const enAdmin = {
     certConfig: "Certificate config",
     selfSigned: "Self-signed certificate",
     acme: "ACME certificate",
+    dns01: "DNS-01 certificate",
   },
   certConfig: {
     title: "SSL certificates",

@@ -56,7 +56,7 @@ pub fn get_runtime_capabilities(profile: &RuntimeProfile) -> RuntimeCapabilities
             terminal_available: false,
             shared_root_available: false,
             acme_available: true,
-            acme_resource_required: true,
+            acme_resource_required: false,
             cloudflared_available: false,
             frpc_available: false,
             ssh_security_available: false,
@@ -355,7 +355,7 @@ mod tests {
         assert!(!capabilities.terminal_available);
         assert!(!capabilities.shared_root_available);
         assert!(capabilities.acme_available);
-        assert!(capabilities.acme_resource_required);
+        assert!(!capabilities.acme_resource_required);
         assert!(!capabilities.cloudflared_available);
         assert!(!capabilities.frpc_available);
         assert!(!capabilities.ssh_security_available);

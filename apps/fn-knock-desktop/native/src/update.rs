@@ -4,10 +4,11 @@ use minisign_verify::{PublicKey, Signature};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
-const ENDPOINT: &str = "https://cdn.fnknock.cn/windows/stable/latest.json";
+const ENDPOINT: &str = "https://cor.fnknock.cn/latest.json";
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct UpdatePackage {
+    #[serde(rename = "download_url")]
     pub url: String,
     pub signature: String,
     pub sha256: String,
@@ -17,8 +18,20 @@ pub struct UpdatePackage {
 #[derive(Clone, Debug, Deserialize)]
 pub struct UpdateOffer {
     pub version: String,
+    #[serde(default, rename = "release_notes")]
     pub notes: String,
-    platforms: std::collections::HashMap<String, UpdatePackage>,
+    #[serde(flatten)]
+    pub package: UpdatePackage,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct SharedLatestManifest {
+    packages: SharedPackages,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct SharedPackages {
+    windows: std::collections::HashMap<String, UpdateOffer>,
 }
 
 fn version_tuple(value: &str) -> Vec<u64> {
@@ -34,7 +47,7 @@ pub fn check() -> Result<Option<UpdateOffer>, String> {
         .timeout(Duration::from_secs(10))
         .build()
         .map_err(|e| e.to_string())?;
-    let offer = client
+    let mut offer = client
         .get(format!(
             "{ENDPOINT}?t={}",
             std::time::SystemTime::now()
@@ -47,8 +60,13 @@ pub fn check() -> Result<Option<UpdateOffer>, String> {
         .map_err(|e| format!("检查更新失败：{e}"))?
         .error_for_status()
         .map_err(|e| format!("检查更新失败：{e}"))?
-        .json::<UpdateOffer>()
+        .json::<SharedLatestManifest>()
         .map_err(|e| format!("更新清单无效：{e}"))?;
+    let offer = offer
+        .packages
+        .windows
+        .remove("x86_64")
+        .ok_or("更新清单缺少 packages.windows.x86_64")?;
     if version_tuple(&offer.version) > version_tuple(env!("CARGO_PKG_VERSION")) {
         Ok(Some(offer))
     } else {
@@ -66,10 +84,7 @@ fn public_key() -> Result<PublicKey, String> {
 }
 
 pub fn install(offer: &UpdateOffer) -> Result<(), String> {
-    let package = offer
-        .platforms
-        .get("windows-x86_64")
-        .ok_or("更新清单缺少 windows-x86_64")?;
+    let package = &offer.package;
     if !package.url.starts_with("https://cdn.fnknock.cn/") {
         return Err("更新下载地址不受信任".to_string());
     }
@@ -108,4 +123,37 @@ pub fn install(offer: &UpdateOffer) -> Result<(), String> {
         .spawn()
         .map_err(|e| format!("启动更新安装器失败：{e}"))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_windows_offer_from_shared_latest_document() {
+        let manifest: SharedLatestManifest = serde_json::from_value(serde_json::json!({
+            "version": "2.0.0",
+            "packages": {
+                "fpk": { "amd64": { "sha256": "core" } },
+                "windows": {
+                    "x86_64": {
+                        "version": "2.0.2",
+                        "download_url": "https://cdn.fnknock.cn/files/2.0.2/windows/x86_64/setup.exe",
+                        "signature": "signature",
+                        "sha256": "abc123",
+                        "size": 42,
+                        "release_notes": "Windows notes"
+                    }
+                }
+            }
+        }))
+        .unwrap();
+        let offer = manifest.packages.windows.get("x86_64").unwrap();
+        assert_eq!(offer.version, "2.0.2");
+        assert_eq!(offer.notes, "Windows notes");
+        assert_eq!(
+            offer.package.url,
+            "https://cdn.fnknock.cn/files/2.0.2/windows/x86_64/setup.exe"
+        );
+    }
 }

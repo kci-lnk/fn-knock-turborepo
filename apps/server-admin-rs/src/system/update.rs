@@ -29,7 +29,6 @@ use crate::{
 };
 
 const OTA_LATEST_URL: &str = "https://cor.fnknock.cn/latest.json";
-const WINDOWS_OTA_LATEST_URL: &str = "https://cdn.fnknock.cn/windows/stable/latest.json";
 const UPDATE_PENDING_KEY: &str = "fn_knock:update:pending";
 const UPDATE_CONFIRM_KEY: &str = "fn_knock:update:confirm";
 const UPDATE_PENDING_TTL_SECONDS: usize = 7 * 24 * 60 * 60;
@@ -711,12 +710,7 @@ impl UpdateManager {
     }
 
     async fn fetch_manifest(&self) -> Result<OtaManifest, UpdateCheckError> {
-        let endpoint = if cfg!(windows) {
-            WINDOWS_OTA_LATEST_URL
-        } else {
-            OTA_LATEST_URL
-        };
-        let mut url = url::Url::parse(endpoint)
+        let mut url = url::Url::parse(OTA_LATEST_URL)
             .map_err(|error| UpdateCheckError::Message(error.to_string()))?;
         url.query_pairs_mut()
             .append_pair("t", &time_utils::now_ms().to_string());
@@ -1043,30 +1037,42 @@ fn parse_manifest_raw(value: &Value) -> Result<OtaManifest, ManifestError> {
 
 fn parse_windows_manifest_raw(value: &Value) -> Result<OtaManifest, ManifestError> {
     let object = value.as_object().ok_or(ManifestError::FormatInvalid)?;
-    let version = manifest_string(object, "version");
+    let package = object
+        .get("packages")
+        .and_then(Value::as_object)
+        .and_then(|packages| packages.get("windows"))
+        .and_then(Value::as_object)
+        .and_then(|windows| windows.get("x86_64"))
+        .and_then(Value::as_object)
+        .ok_or(ManifestError::MissingDownloadUrl)?;
+    let version = manifest_string(package, "version");
     if version.is_empty() {
         return Err(ManifestError::MissingVersion);
     }
-    let package = object
-        .get("platforms")
-        .and_then(Value::as_object)
-        .and_then(|platforms| platforms.get("windows-x86_64"))
-        .and_then(Value::as_object)
-        .ok_or(ManifestError::MissingDownloadUrl)?;
-    let download_url = manifest_string(package, "url");
+    let download_url = manifest_string(package, "download_url");
     if download_url.is_empty() {
         return Err(ManifestError::MissingDownloadUrl);
     }
     let sha256 = ensure_sha256_raw(&manifest_string(package, "sha256"), "sha256")?;
     Ok(OtaManifest {
-        update_available: compare_version(&version, APP_LOCAL_VERSION) > 0,
+        update_available: package
+            .get("update_available")
+            .and_then(Value::as_bool)
+            .unwrap_or(true),
         version,
-        force_update: false,
+        force_update: package
+            .get("force_update")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
         download_url,
         sha256,
         download_url_arm64: String::new(),
         sha256_arm64: String::new(),
-        release_notes: manifest_raw_string(object, "notes"),
+        release_notes: package
+            .get("release_notes")
+            .and_then(Value::as_str)
+            .map(ToString::to_string)
+            .unwrap_or_else(|| manifest_raw_string(object, "release_notes")),
     })
 }
 
@@ -1251,16 +1257,23 @@ mod tests {
     }
 
     #[test]
-    fn parses_windows_updater_manifest_with_release_notes_and_checksum() {
+    fn parses_windows_package_from_shared_latest_manifest() {
         let manifest = parse_windows_manifest_raw(&json!({
-            "version": "99.0.0",
-            "notes": "Windows release notes",
-            "platforms": {
-                "windows-x86_64": {
-                    "url": "https://cdn.fnknock.cn/files/99.0.0/windows/x86_64/setup.exe",
+            "version": "2.0.0",
+            "release_notes": "core notes",
+            "packages": {
+                "windows": {
+                  "x86_64": {
+                    "type": "windows",
+                    "version": "99.0.0",
+                    "download_url": "https://cdn.fnknock.cn/files/99.0.0/windows/x86_64/setup.exe",
                     "signature": "minisign",
                     "sha256": "a".repeat(64),
-                    "size": 12345
+                    "size": 12345,
+                    "release_notes": "Windows release notes",
+                    "update_available": true,
+                    "force_update": false
+                  }
                 }
             }
         }))

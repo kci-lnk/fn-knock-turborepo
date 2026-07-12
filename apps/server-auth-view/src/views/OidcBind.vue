@@ -51,7 +51,7 @@ import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api";
 import { useAuthSystemConfig } from "@/composables/useAuthSystemConfig";
 import type { LocaleConfig } from "@fn-knock/i18n/core";
-import type { AppearanceConfig } from "@admin-shared/utils/appearance";
+import type { AppearanceConfig } from "@frontend-core/appearance";
 import AuthCard from "@/components/AuthCard.vue";
 import AuthShell from "@/components/AuthShell.vue";
 

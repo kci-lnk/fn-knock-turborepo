@@ -4,7 +4,7 @@ import App from './App.vue'
 import router from './router'
 import { createFnKnockI18n } from '@fn-knock/i18n/vue/auth'
 import { applyStoredThemeMode } from '@/components/ui/theme-toggle'
-import { applyAppearanceConfig } from './lib/appearance'
+import { applyAppearanceConfig } from '@admin-shared/composables/useAppearanceState'
 
 applyStoredThemeMode()
 applyAppearanceConfig()

@@ -1,4 +1,4 @@
-import { applyAppearanceConfig } from "@/lib/appearance";
+import { applyAppearanceConfig } from "@admin-shared/composables/useAppearanceState";
 import { setFnKnockLocale } from "@fn-knock/i18n/vue/auth";
 
 type AuthLocaleConfig = {

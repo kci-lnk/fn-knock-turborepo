@@ -3,7 +3,7 @@ import { browserT } from "@fn-knock/i18n/vue/admin";
 import {
   DEFAULT_APPEARANCE_CONFIG,
   type AppearanceConfig,
-} from "@admin-shared/utils/appearance";
+} from "@frontend-core/appearance";
 import type {
   DockerAdminBootstrapState,
   RuntimeCapabilities,

@@ -16,7 +16,7 @@ import {
   getEffectiveRuntimeCapabilities,
   getEffectiveRuntimeProfile,
 } from "../lib/docker-debug";
-import { applyAppearanceConfig } from "../lib/appearance";
+import { applyAppearanceConfig } from "@admin-shared/composables/useAppearanceState";
 
 export const useConfigStore = defineStore("config", () => {
   const config = ref<AppConfig | null>(null);

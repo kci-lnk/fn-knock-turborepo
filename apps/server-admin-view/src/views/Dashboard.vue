@@ -56,7 +56,7 @@ import {
   THEME_COLOR_PRESETS,
   normalizeAppearanceConfig,
   type ThemeColorPresetKey,
-} from "@admin-shared/utils/appearance";
+} from "@frontend-core/appearance";
 
 const ranges = [
   {

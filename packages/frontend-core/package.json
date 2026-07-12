@@ -3,12 +3,17 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "scripts": {
+    "test": "tsx --test tests/*.test.ts"
+  },
   "dependencies": {
     "@fn-knock/i18n": "^0.0.0",
     "axios": "^1.16.0",
     "crypto-js": "^4.2.0"
   },
   "devDependencies": {
-    "@types/crypto-js": "^4.2.2"
+    "@types/crypto-js": "^4.2.2",
+    "@types/node": "^24.10.1",
+    "tsx": "4.21.0"
   }
 }

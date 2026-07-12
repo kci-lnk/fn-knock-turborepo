@@ -11,7 +11,7 @@ import {
   writeDockerAdminDebugPassword,
   writeDockerAdminDebugStage,
 } from "../lib/docker-debug";
-import { applyAppearanceConfig } from "../lib/appearance";
+import { applyAppearanceConfig } from "@admin-shared/composables/useAppearanceState";
 
 export const useDockerAdminAuthStore = defineStore("dockerAdminAuth", () => {
   const state = ref<DockerAdminBootstrapState | null>(null);

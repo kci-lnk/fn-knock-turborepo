@@ -1,11 +1,12 @@
+import { readonly, ref } from "vue";
+
 import {
   DEFAULT_THEME_COLOR_PRESET_KEY,
   normalizeAppearanceConfig,
   normalizeThemeColorPresetKey,
   type AppearanceConfig,
   type ThemeColorPresetKey,
-} from "@admin-shared/utils/appearance";
-import { readonly, ref } from "vue";
+} from "@frontend-core/appearance";
 
 const activeThemeColorPreset = ref<ThemeColorPresetKey>(
   DEFAULT_THEME_COLOR_PRESET_KEY,
@@ -39,3 +40,5 @@ export const applyAppearanceConfig = (
   applyThemeColorPreset(appearance.theme_color_preset);
   return appearance;
 };
+
+export type { AppearanceConfig, ThemeColorPresetKey };

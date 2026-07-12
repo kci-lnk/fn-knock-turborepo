@@ -402,7 +402,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { CircleUserRound, Cloud, Eye, EyeOff, Github } from "lucide-vue-next";
@@ -432,24 +432,13 @@ import type {
   AuthGrantType,
   AuthOidcProvider,
 } from "@frontend-core/auth/types";
-import type {
-  CaptchaPublicSettings,
-  CaptchaSubmission,
-} from "@frontend-core/captcha/types";
 import {
   apiClient,
   AuthAPI,
   buildAuthApiPath,
-  CaptchaAPI,
   fetchNoStore,
 } from "@/lib/api";
 import { useClientIpLocation } from "@/lib/client-ip-location";
-import {
-  buildPowSubmission,
-  CaptchaError,
-  normalizePowChallenge,
-  solvePowChallenge,
-} from "@/lib/captcha";
 import {
   guardAuthAutoRedirect,
   resetAuthAutoRedirectGuard,
@@ -463,6 +452,9 @@ import AuthShell from "@/components/AuthShell.vue";
 import TurnstileWidget from "@/components/captcha/TurnstileWidget.vue";
 import { useAuthBrowserCapabilities } from "@/composables/useAuthBrowserCapabilities";
 import { useAuthSystemConfig } from "@/composables/useAuthSystemConfig";
+import { useKnownPasskeyCredentials } from "@/composables/useKnownPasskeyCredentials";
+import { useLoginCaptcha } from "@/composables/useLoginCaptcha";
+import { useLoginCooldown } from "@/composables/useLoginCooldown";
 import { usePasskeyRegistration } from "@/composables/usePasskeyRegistration";
 
 import "altcha";
@@ -479,7 +471,6 @@ const rememberMe = ref(false);
 const errorMessage = ref("");
 const showErrorDialog = ref(false);
 const isLoading = ref(false);
-const loginCooldownSeconds = ref(0);
 const isPasskeyAvailable = ref(false);
 const isPasskeyLoading = ref(false);
 const isOidcLoading = ref(false);
@@ -497,53 +488,59 @@ const pendingRedirectTo = ref<string | null>(null);
 const { clientIp, ipLocation, ipLocationStatus, startLocationPolling } =
   useClientIpLocation();
 let lastLoginAttemptAt = 0;
-let loginCooldownTimer: number | null = null;
 const PASSKEY_BIND_PROMPT_STORAGE_KEY =
   "server-auth-view:passkey-bind-prompt-dismissed";
-const PASSKEY_CREDENTIAL_IDS_STORAGE_KEY =
-  "server-auth-view:known-passkey-credential-digests";
 
-const captchaConfig = ref<CaptchaPublicSettings | null>(null);
-const powWidgetRef = ref<any>(null);
-const turnstileWidgetRef = ref<InstanceType<typeof TurnstileWidget> | null>(
-  null,
-);
-const isCaptchaVerified = ref(false);
-const captchaSubmission = ref<CaptchaSubmission | null>(null);
-const isPowFallbackLoading = ref(false);
-const isCaptchaConfigLoading = ref(true);
 const { canUseNativePow, isPasskeySupported, refreshBrowserCapabilities } =
   useAuthBrowserCapabilities();
 const { applyAuthSystemConfig } = useAuthSystemConfig(i18n);
 const { registerPasskeyCredential } = usePasskeyRegistration();
+const { hasKnownPasskeyCredential, rememberKnownPasskeyCredentialId } =
+  useKnownPasskeyCredentials();
+const {
+  activeCaptchaProvider,
+  captchaConfig,
+  captchaSubmission,
+  captchaUnavailableReason,
+  handlePowFallbackVerify,
+  handlePowStateChange: onPowStateChange,
+  handleTurnstileError,
+  handleTurnstileVerified,
+  hasTurnstileSiteKey,
+  isCaptchaConfigLoading,
+  isCaptchaProviderAvailable,
+  isCaptchaVerified,
+  isPowFallbackLoading,
+  powWidgetRef,
+  powWidgetStrings,
+  resetCaptcha: handleCaptchaReset,
+  resetCaptchaWidgets,
+  turnstileWidgetRef,
+} = useLoginCaptcha({
+  canUseNativePow,
+  translate: (key) => t(key),
+  onError: (message) => {
+    errorMessage.value = message;
+    showErrorDialog.value = true;
+  },
+  onVerified: () => {
+    errorMessage.value = "";
+  },
+});
+// Vue assigns string template refs at runtime; keep them visible to TypeScript.
+void powWidgetRef;
+void turnstileWidgetRef;
+const {
+  isCoolingDown: isLoginCoolingDown,
+  remainingSeconds: loginCooldownSeconds,
+  resolveMessage: resolveLoginCooldownMessage,
+} = useLoginCooldown({
+  formatRetrySuffix: (seconds) => t("auth.retrySuffix", { seconds }),
+});
 
 const powChallengeUrl = buildAuthApiPath("/challenge");
 const powChallengeFetch = (input: string | URL, init?: RequestInit) =>
   fetchNoStore(input, init);
-const activeCaptchaProvider = computed(
-  () => captchaConfig.value?.provider ?? null,
-);
-const isCaptchaProviderAvailable = computed(
-  () => captchaConfig.value?.available ?? false,
-);
-const captchaUnavailableReason = computed(
-  () =>
-    captchaConfig.value?.unavailable_reason ||
-    t("auth.captchaConfigLoadFailed"),
-);
-const hasTurnstileSiteKey = computed(
-  () => !!captchaConfig.value?.turnstile.site_key.trim(),
-);
-const isLoginCoolingDown = computed(() => loginCooldownSeconds.value > 0);
-const powWidgetStrings = computed(() =>
-  JSON.stringify({
-    label: t("auth.notRobot"),
-    verified: t("auth.verified"),
-    verifying: t("auth.verifying"),
-    wait: t("auth.wait"),
-    error: t("auth.verifyError"),
-  }),
-);
 const loginButtonLabel = computed(() => {
   if (isLoading.value) {
     return t("auth.verifying");
@@ -630,26 +627,9 @@ function providerIconKind(provider: AuthOidcProvider): ProviderIconKind {
   return "generic";
 }
 
-function onPowStateChange(ev: CustomEvent) {
-  if (ev.detail.state === "verified") {
-    isCaptchaVerified.value = true;
-    captchaSubmission.value = {
-      provider: "pow",
-      proof: ev.detail.payload,
-    };
-    errorMessage.value = "";
-  } else {
-    handleCaptchaReset();
-  }
-}
-
 onMounted(async () => {
   refreshBrowserCapabilities();
   await loadBootstrap();
-});
-
-onUnmounted(() => {
-  clearLoginCooldownTimer();
 });
 
 async function loadBootstrap() {
@@ -692,108 +672,6 @@ async function loadBootstrap() {
   }
 }
 
-async function handlePowFallbackVerify() {
-  if (isPowFallbackLoading.value) return;
-  isPowFallbackLoading.value = true;
-  errorMessage.value = "";
-  try {
-    const challenge = normalizePowChallenge(await CaptchaAPI.getPowChallenge());
-    const number = await solvePowChallenge(challenge);
-    captchaSubmission.value = buildPowSubmission(challenge, number);
-    isCaptchaVerified.value = true;
-  } catch (e: any) {
-    handleCaptchaReset();
-    errorMessage.value =
-      e instanceof CaptchaError
-        ? t(`auth.${e.code}`)
-        : e?.response?.data?.message || e?.message || t("auth.captchaFailed");
-    showErrorDialog.value = true;
-  } finally {
-    isPowFallbackLoading.value = false;
-  }
-}
-
-function handleTurnstileVerified(token: string) {
-  isCaptchaVerified.value = true;
-  captchaSubmission.value = {
-    provider: "turnstile",
-    token,
-  };
-  errorMessage.value = "";
-}
-
-function handleTurnstileError(message: string) {
-  handleCaptchaReset();
-  errorMessage.value = message;
-  showErrorDialog.value = true;
-}
-
-function handleCaptchaReset() {
-  isCaptchaVerified.value = false;
-  captchaSubmission.value = null;
-}
-
-function clearLoginCooldownTimer() {
-  if (typeof window === "undefined" || loginCooldownTimer === null) {
-    return;
-  }
-
-  window.clearInterval(loginCooldownTimer);
-  loginCooldownTimer = null;
-}
-
-function startLoginCooldown(seconds: unknown) {
-  const parsedSeconds = Math.max(0, Math.ceil(Number(seconds) || 0));
-  if (parsedSeconds <= 0) {
-    return 0;
-  }
-
-  clearLoginCooldownTimer();
-  loginCooldownSeconds.value = parsedSeconds;
-
-  if (typeof window === "undefined") {
-    return parsedSeconds;
-  }
-
-  loginCooldownTimer = window.setInterval(() => {
-    if (loginCooldownSeconds.value <= 1) {
-      loginCooldownSeconds.value = 0;
-      clearLoginCooldownTimer();
-      return;
-    }
-    loginCooldownSeconds.value -= 1;
-  }, 1000);
-
-  return parsedSeconds;
-}
-
-function extractRetryAfterSeconds(payload: any): number {
-  const rawRetryAfter =
-    payload?.retryAfter ??
-    payload?.response?.data?.retryAfter ??
-    payload?.response?.headers?.["retry-after"];
-  const retryAfterValue = Array.isArray(rawRetryAfter)
-    ? rawRetryAfter[0]
-    : rawRetryAfter;
-  const parsedSeconds = Number(retryAfterValue);
-
-  return Number.isFinite(parsedSeconds) && parsedSeconds > 0
-    ? Math.ceil(parsedSeconds)
-    : 0;
-}
-
-function resolveRetryAfterMessage(message: string, retryAfter: number) {
-  const retrySuffix = t("auth.retrySuffix", { seconds: retryAfter });
-  if (
-    retryAfter <= 0 ||
-    message.includes(String(retryAfter)) ||
-    message.includes(retrySuffix)
-  ) {
-    return message;
-  }
-  return `${message}${retrySuffix}`;
-}
-
 function handleOtpComplete() {
   void handleLogin();
 }
@@ -803,110 +681,6 @@ function isPasskeyBindPromptDismissed() {
     return false;
   }
   return window.localStorage.getItem(PASSKEY_BIND_PROMPT_STORAGE_KEY) === "1";
-}
-
-function normalizePasskeyCredentialIds(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return [...new Set(value)]
-    .filter((item): item is string => typeof item === "string")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function readKnownPasskeyCredentialDigests() {
-  if (typeof window === "undefined") {
-    return [] as string[];
-  }
-
-  try {
-    const raw = window.localStorage.getItem(PASSKEY_CREDENTIAL_IDS_STORAGE_KEY);
-    if (!raw) {
-      return [] as string[];
-    }
-
-    return normalizePasskeyCredentialIds(JSON.parse(raw));
-  } catch {
-    return [] as string[];
-  }
-}
-
-function persistKnownPasskeyCredentialDigests(digests: string[]) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  const normalizedDigests = normalizePasskeyCredentialIds(digests);
-  if (normalizedDigests.length === 0) {
-    window.localStorage.removeItem(PASSKEY_CREDENTIAL_IDS_STORAGE_KEY);
-    return;
-  }
-
-  window.localStorage.setItem(
-    PASSKEY_CREDENTIAL_IDS_STORAGE_KEY,
-    JSON.stringify(normalizedDigests),
-  );
-}
-
-async function digestPasskeyCredentialId(
-  credentialId: string,
-): Promise<string | null> {
-  if (
-    typeof window === "undefined" ||
-    !window.isSecureContext ||
-    typeof window.crypto === "undefined" ||
-    !window.crypto.subtle
-  ) {
-    return null;
-  }
-
-  const normalizedCredentialId = credentialId.trim();
-  if (!normalizedCredentialId) {
-    return null;
-  }
-
-  const bytes = new TextEncoder().encode(normalizedCredentialId);
-  const digest = await window.crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest), (value) =>
-    value.toString(16).padStart(2, "0"),
-  ).join("");
-}
-
-async function rememberKnownPasskeyCredentialId(credentialId: unknown) {
-  if (typeof credentialId !== "string") {
-    return;
-  }
-
-  const digest = await digestPasskeyCredentialId(credentialId);
-  if (!digest) {
-    return;
-  }
-
-  const knownDigests = readKnownPasskeyCredentialDigests();
-  if (knownDigests.includes(digest)) {
-    return;
-  }
-
-  persistKnownPasskeyCredentialDigests([...knownDigests, digest]);
-}
-
-async function hasKnownPasskeyCredential(credentialIds: unknown) {
-  const knownDigests = new Set(readKnownPasskeyCredentialDigests());
-  if (knownDigests.size === 0) {
-    return false;
-  }
-
-  const normalizedCredentialIds = normalizePasskeyCredentialIds(credentialIds);
-  for (const credentialId of normalizedCredentialIds) {
-    const digest = await digestPasskeyCredentialId(credentialId);
-    if (digest && knownDigests.has(digest)) {
-      return true;
-    }
-  }
-
-  return false;
 }
 
 function persistPasskeyBindPromptPreference() {
@@ -1015,19 +789,17 @@ async function handleLogin() {
       }
       completeLogin(runType, redirectTo);
     } else {
-      const retryAfter = startLoginCooldown(extractRetryAfterSeconds(res.data));
-      errorMessage.value = resolveRetryAfterMessage(
+      errorMessage.value = resolveLoginCooldownMessage(
         res.data.message || t("auth.loginFailed"),
-        retryAfter,
+        res.data,
       );
       showErrorDialog.value = true;
       resetLoginState();
     }
   } catch (e: any) {
-    const retryAfter = startLoginCooldown(extractRetryAfterSeconds(e));
-    errorMessage.value = resolveRetryAfterMessage(
+    errorMessage.value = resolveLoginCooldownMessage(
       e?.response?.data?.message || t("auth.loginFailed"),
-      retryAfter,
+      e,
     );
     showErrorDialog.value = true;
     resetLoginState();
@@ -1099,20 +871,16 @@ async function handlePasskeyLogin() {
       );
       return;
     }
-    const retryAfter = startLoginCooldown(
-      extractRetryAfterSeconds(verifyRes.data),
-    );
     throw new Error(
-      resolveRetryAfterMessage(
+      resolveLoginCooldownMessage(
         verifyRes.data.message || t("auth.passkeyVerifyFailed"),
-        retryAfter,
+        verifyRes.data,
       ),
     );
   } catch (e: any) {
-    const retryAfter = startLoginCooldown(extractRetryAfterSeconds(e));
-    errorMessage.value = resolveRetryAfterMessage(
+    errorMessage.value = resolveLoginCooldownMessage(
       e?.response?.data?.message || e?.message || t("auth.passkeyLoginFailed"),
-      retryAfter,
+      e,
     );
     showErrorDialog.value = true;
   } finally {
@@ -1196,16 +964,6 @@ function skipPasskeyBind() {
 function resetLoginState() {
   token.value = "";
   password.value = "";
-  handleCaptchaReset();
-  if (
-    activeCaptchaProvider.value === "pow" &&
-    canUseNativePow.value &&
-    powWidgetRef.value
-  ) {
-    powWidgetRef.value.reset();
-  }
-  if (activeCaptchaProvider.value === "turnstile" && turnstileWidgetRef.value) {
-    turnstileWidgetRef.value.reset();
-  }
+  resetCaptchaWidgets();
 }
 </script>

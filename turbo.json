@@ -8,29 +8,79 @@
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
     "server-admin-view#build": {
+      "dependsOn": ["^build"],
       "inputs": [
         "$TURBO_DEFAULT$",
         ".env*",
         "../../packages/admin-shared/src/**",
         "../../packages/frontend-core/src/**",
         "../../packages/icons/**",
+        "../../packages/i18n/src/**",
         "../../packages/ui-vue/src/**"
-      ]
+      ],
+      "outputs": ["dist/**"]
     },
     "server-auth-view#build": {
+      "dependsOn": ["^build"],
       "inputs": [
         "$TURBO_DEFAULT$",
         ".env*",
+        "../../packages/admin-shared/src/**",
         "../../packages/frontend-core/src/**",
         "../../packages/icons/**",
+        "../../packages/i18n/src/**",
         "../../packages/ui-vue/src/**"
-      ]
+      ],
+      "outputs": ["dist/**"]
     },
     "lint": {
       "dependsOn": ["^lint"]
     },
     "check-types": {
       "dependsOn": ["^check-types"]
+    },
+    "server-admin-view#check-types": {
+      "dependsOn": ["^check-types"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../../packages/admin-shared/src/**",
+        "../../packages/frontend-core/src/**",
+        "../../packages/i18n/src/**",
+        "../../packages/ui-vue/src/**"
+      ]
+    },
+    "server-auth-view#check-types": {
+      "dependsOn": ["^check-types"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../../packages/admin-shared/src/**",
+        "../../packages/frontend-core/src/**",
+        "../../packages/i18n/src/**",
+        "../../packages/ui-vue/src/**"
+      ]
+    },
+    "test": {
+      "dependsOn": ["^test"]
+    },
+    "server-admin-view#test": {
+      "dependsOn": ["^test"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../../packages/admin-shared/src/**",
+        "../../packages/frontend-core/src/**",
+        "../../packages/i18n/src/**",
+        "../../packages/ui-vue/src/**"
+      ]
+    },
+    "server-auth-view#test": {
+      "dependsOn": ["^test"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../../packages/admin-shared/src/**",
+        "../../packages/frontend-core/src/**",
+        "../../packages/i18n/src/**",
+        "../../packages/ui-vue/src/**"
+      ]
     },
     "dev": {
       "cache": false,

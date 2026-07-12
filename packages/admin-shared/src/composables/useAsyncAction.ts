@@ -1,20 +1,6 @@
-import { ref } from 'vue';
+import { ref } from "vue";
 
-export function extractErrorMessage(error: unknown, fallback = 'Operation failed') {
-  if (error && typeof error === 'object') {
-    const maybeResponse = error as { response?: { data?: { message?: unknown } } };
-    const responseMessage = maybeResponse.response?.data?.message;
-    if (typeof responseMessage === 'string' && responseMessage.trim()) {
-      return responseMessage;
-    }
-
-    const maybeMessage = error as { message?: unknown };
-    if (typeof maybeMessage.message === 'string' && maybeMessage.message.trim()) {
-      return maybeMessage.message;
-    }
-  }
-  return fallback;
-}
+export { extractErrorMessage } from "@frontend-core/errors/extractErrorMessage";
 
 interface UseAsyncActionOptions {
   onError?: (error: unknown) => void;

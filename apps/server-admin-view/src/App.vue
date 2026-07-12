@@ -9,9 +9,9 @@ import { useThemeMode } from "@/components/ui/theme-toggle";
 import DynamicWhiteBackground from "@admin-shared/components/appearance/DynamicWhiteBackground.vue";
 import DockerAdminAccessGate from "./components/DockerAdminAccessGate.vue";
 import WelcomeScreen from "./components/WelcomeScreen.vue";
-import { DYNAMIC_WHITE_THEME_COLOR_PRESET_KEY } from "@admin-shared/utils/appearance";
+import { DYNAMIC_WHITE_THEME_COLOR_PRESET_KEY } from "@frontend-core/appearance";
 import { ConfigAPI } from "./lib/api";
-import { useAppearanceState } from "./lib/appearance";
+import { useAppearanceState } from "@admin-shared/composables/useAppearanceState";
 import { useDockerAdminAuthStore } from "./store/dockerAdminAuth";
 import { setFnKnockLocale } from "@fn-knock/i18n/vue/admin";
 

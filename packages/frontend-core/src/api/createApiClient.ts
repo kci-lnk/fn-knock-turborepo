@@ -1,5 +1,7 @@
 import axios, { type AxiosInstance } from "axios";
 
+import { extractErrorMessage } from "../errors/extractErrorMessage";
+
 export interface ApiClientOptions {
   baseURL: string;
   withCredentials?: boolean;
@@ -10,19 +12,9 @@ export const attachApiErrorMessageInterceptor = (apiClient: AxiosInstance) => {
     (response) => response,
     (error) => {
       if (axios.isAxiosError(error)) {
-        const payload = error.response?.data as
-          | { message?: unknown }
-          | string
-          | undefined;
-        const responseMessage =
-          typeof payload === "string"
-            ? payload.trim()
-            : typeof payload?.message === "string"
-              ? payload.message.trim()
-              : "";
-
-        if (responseMessage) {
-          error.message = responseMessage;
+        const message = extractErrorMessage(error, "");
+        if (message) {
+          error.message = message;
         }
       }
 

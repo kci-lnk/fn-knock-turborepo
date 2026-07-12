@@ -1,7 +1,7 @@
 import type { WAFConfig } from "./types/waf";
-import type { AppearanceConfig } from "@admin-shared/utils/appearance";
+import type { AppearanceConfig } from "@frontend-core/appearance";
 
-export type { AppearanceConfig } from "@admin-shared/utils/appearance";
+export type { AppearanceConfig } from "@frontend-core/appearance";
 
 export interface ProxyMapping {
   path: string;

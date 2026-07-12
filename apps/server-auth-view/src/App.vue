@@ -15,8 +15,8 @@
 import { computed } from "vue";
 import { ThemeModeToggle, useThemeMode } from "@/components/ui/theme-toggle";
 import DynamicWhiteBackground from "@admin-shared/components/appearance/DynamicWhiteBackground.vue";
-import { DYNAMIC_WHITE_THEME_COLOR_PRESET_KEY } from "@admin-shared/utils/appearance";
-import { useAppearanceState } from "@/lib/appearance";
+import { DYNAMIC_WHITE_THEME_COLOR_PRESET_KEY } from "@frontend-core/appearance";
+import { useAppearanceState } from "@admin-shared/composables/useAppearanceState";
 
 const { activeThemeColorPreset } = useAppearanceState();
 const { resolvedMode } = useThemeMode();

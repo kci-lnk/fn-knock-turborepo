@@ -389,7 +389,12 @@ export const koKRAdmin = {
     reset: "재설정",
     savingAndSyncing: "저장 및 동기화 중...",
     saveAndSync: "저장 및 동기화",
-    addRegionDescription: "주와 도시 범위를 선택하세요.",
+    addRegionDescription:
+      "하나의 지역과 하나 이상의 도시를 선택하세요. 전체 지역과 개별 도시는 동시에 선택할 수 없습니다.",
+    manageRegions: "지역 관리",
+    saveSelection: "선택 저장",
+    selectedRegionCount: "{count}개 선택",
+    unavailableSelection: "저장됨 · 현재 사용 불가",
     province: "지방",
     selectProvince: "주 선택",
     scope: "범위",

@@ -9,6 +9,7 @@ import { nextTick, ref } from "vue";
 
 import { createCidrRegionSelectorState } from "../src/components/cidr-region-selector-state";
 import { getCidrRegionSelectionKey } from "../src/types/cidr";
+import type { GatewayVisibilitySelection } from "../src/types";
 
 const srcRoot = fileURLToPath(new URL("../src", import.meta.url));
 const selectorPath = "components/CidrRegionSelector.vue";
@@ -47,6 +48,30 @@ const city = {
   ipv4Count: 1,
   ipv6Count: 1,
 };
+const secondCity = {
+  ...city,
+  label: "宁波市",
+  value: "浙江省::宁波市",
+  queryCity: "宁波市",
+};
+const provinceWide = {
+  ...city,
+  label: "浙江全省",
+  value: "__province_all__",
+  queryCity: null,
+  isProvinceWide: true,
+};
+const selectionFromOption = (
+  option: typeof city | typeof provinceWide,
+): GatewayVisibilitySelection => ({
+  province: province.value,
+  city: option.isProvinceWide ? null : option.label,
+  label: option.label,
+  value: option.value,
+  query_city: option.queryCity,
+  is_province_wide: option.isProvinceWide,
+  is_municipality: option.isMunicipality,
+});
 const flushPromises = () =>
   new Promise<void>((resolve) => setImmediate(resolve));
 
@@ -65,13 +90,16 @@ describe("CIDR region selector", () => {
     );
   });
 
-  it("loads, adds, deduplicates, and removes selections", async () => {
-    const selections = ref([]);
+  it("loads a new province empty and saves multiple cities at once", async () => {
+    const selections = ref<GatewayVisibilitySelection[]>([]);
     const disabled = ref(false);
     const state = createCidrRegionSelectorState({
       disabled,
       formatLoadError: String,
-      loadCities: async () => ({ defaultValue: city.value, options: [city] }),
+      loadCities: async () => ({
+        defaultValue: provinceWide.value,
+        options: [provinceWide, city, secondCity],
+      }),
       loadProvinces: async () => ({ options: [province] }),
       onLoadError: () => assert.fail("loading should succeed"),
       selections,
@@ -82,18 +110,162 @@ describe("CIDR region selector", () => {
     await nextTick();
     await flushPromises();
 
-    assert.equal(state.canAddRegion.value, true);
-    state.addRegion();
-    assert.equal(selections.value.length, 1);
-    assert.equal(state.isDialogOpen.value, false);
+    assert.deepEqual(state.draft.cityValues, []);
+    assert.equal(state.canSaveSelections.value, false);
+
+    state.toggleCity("浙江省::杭州市", true);
+    state.toggleCity("浙江省::宁波市", true);
+    assert.equal(state.selectedCityCount.value, 2);
+    assert.equal(state.canSaveSelections.value, true);
+    state.handleDialogOpenChange(false);
+    assert.deepEqual(selections.value, []);
 
     state.openDialog();
-    await nextTick();
     await flushPromises();
-    assert.equal(state.pendingRegionExists.value, true);
-    assert.equal(state.canAddRegion.value, false);
+    state.toggleCity("浙江省::杭州市", true);
+    state.toggleCity("浙江省::宁波市", true);
+    state.saveProvinceSelections();
+    assert.deepEqual(selections.value.map(getCidrRegionSelectionKey), [
+      "浙江省::杭州市",
+      "浙江省::宁波市",
+    ]);
+    assert.equal(state.isDialogOpen.value, false);
 
     state.removeRegion(selections.value[0]!);
+    assert.deepEqual(selections.value.map(getCidrRegionSelectionKey), [
+      "浙江省::宁波市",
+    ]);
+    state.dispose();
+  });
+
+  it("edits one province as a group without changing other provinces", async () => {
+    const otherProvinceSelection: GatewayVisibilitySelection = {
+      ...selectionFromOption(city),
+      province: "江苏省",
+      city: "南京市",
+      label: "南京市",
+      value: "江苏省::南京市",
+      query_city: "南京市",
+    };
+    const selections = ref<GatewayVisibilitySelection[]>([
+      otherProvinceSelection,
+      selectionFromOption(city),
+    ]);
+    const state = createCidrRegionSelectorState({
+      disabled: ref(false),
+      formatLoadError: String,
+      loadCities: async () => ({ options: [provinceWide, city, secondCity] }),
+      loadProvinces: async () => ({ options: [province] }),
+      onLoadError: () => assert.fail("loading should succeed"),
+      selections,
+    });
+
+    state.selectProvince(province.value);
+    await flushPromises();
+    assert.deepEqual(state.draft.cityValues, ["浙江省::杭州市"]);
+
+    state.toggleCity("浙江省::杭州市", false);
+    state.toggleCity("浙江省::宁波市", true);
+    state.saveProvinceSelections();
+    assert.deepEqual(selections.value.map(getCidrRegionSelectionKey), [
+      "江苏省::南京市",
+      "浙江省::宁波市",
+    ]);
+    state.dispose();
+  });
+
+  it("keeps province-wide and city selections mutually exclusive", async () => {
+    const selections = ref<GatewayVisibilitySelection[]>([]);
+    const state = createCidrRegionSelectorState({
+      disabled: ref(false),
+      formatLoadError: String,
+      loadCities: async () => ({ options: [provinceWide, city, secondCity] }),
+      loadProvinces: async () => ({ options: [province] }),
+      onLoadError: () => assert.fail("loading should succeed"),
+      selections,
+    });
+
+    state.selectProvince(province.value);
+    await flushPromises();
+    state.toggleCity("浙江省::杭州市", true);
+    state.toggleCity("浙江省::宁波市", true);
+    state.toggleCity("浙江省::", true);
+    assert.deepEqual(state.draft.cityValues, ["浙江省::"]);
+
+    state.toggleCity("浙江省::杭州市", true);
+    assert.deepEqual(state.draft.cityValues, ["浙江省::杭州市"]);
+    state.dispose();
+  });
+
+  it("normalizes legacy province-wide and city conflicts on load", async () => {
+    const selections = ref<GatewayVisibilitySelection[]>([
+      selectionFromOption(city),
+      selectionFromOption(provinceWide),
+      selectionFromOption(secondCity),
+    ]);
+    const state = createCidrRegionSelectorState({
+      disabled: ref(false),
+      formatLoadError: String,
+      loadCities: async () => ({ options: [provinceWide, city, secondCity] }),
+      loadProvinces: async () => ({ options: [province] }),
+      onLoadError: () => assert.fail("loading should succeed"),
+      selections,
+    });
+
+    state.selectProvince(province.value);
+    await flushPromises();
+    assert.deepEqual(state.draft.cityValues, ["浙江省::"]);
+    assert.equal(state.canSaveSelections.value, true);
+
+    state.saveProvinceSelections();
+    assert.deepEqual(selections.value.map(getCidrRegionSelectionKey), [
+      "浙江省::",
+    ]);
+    state.dispose();
+  });
+
+  it("can clear an existing province and preserves unavailable selections until unchecked", async () => {
+    const unavailableSelection: GatewayVisibilitySelection = {
+      ...selectionFromOption(city),
+      city: "旧城市",
+      label: "旧城市",
+      value: "浙江省::旧城市",
+      query_city: "旧城市",
+    };
+    const selections = ref<GatewayVisibilitySelection[]>([
+      selectionFromOption(city),
+      unavailableSelection,
+    ]);
+    const state = createCidrRegionSelectorState({
+      disabled: ref(false),
+      formatLoadError: String,
+      loadCities: async () => ({ options: [city] }),
+      loadProvinces: async () => ({ options: [province] }),
+      onLoadError: () => assert.fail("loading should succeed"),
+      selections,
+    });
+
+    state.selectProvince(province.value);
+    await flushPromises();
+    assert.deepEqual(
+      state.cityChoices.value.map((choice) => [choice.key, choice.unavailable]),
+      [
+        ["浙江省::杭州市", false],
+        ["浙江省::旧城市", true],
+      ],
+    );
+
+    state.toggleCity("浙江省::杭州市", false);
+    state.saveProvinceSelections();
+    assert.deepEqual(selections.value.map(getCidrRegionSelectionKey), [
+      "浙江省::旧城市",
+    ]);
+
+    state.selectProvince(province.value);
+    await flushPromises();
+    state.toggleCity("浙江省::旧城市", false);
+    assert.equal(state.canSaveSelections.value, true);
+    state.saveProvinceSelections();
     assert.deepEqual(selections.value, []);
     state.dispose();
   });
@@ -128,7 +300,7 @@ describe("CIDR region selector", () => {
     await firstRequest;
 
     assert.deepEqual(state.cityOptions.value, [secondCity]);
-    assert.equal(state.draft.cityValue, secondCity.value);
+    assert.deepEqual(state.draft.cityValues, []);
     assert.equal(state.cityOptionsLoading.value, false);
     state.dispose();
   });

@@ -393,7 +393,12 @@ export const enAdmin = {
     reset: "Reset",
     savingAndSyncing: "Saving and syncing...",
     saveAndSync: "Save and sync",
-    addRegionDescription: "Choose a province and city scope.",
+    addRegionDescription:
+      "Choose one province and one or more cities. The whole province and specific cities cannot be selected together.",
+    manageRegions: "Manage regions",
+    saveSelection: "Save selections",
+    selectedRegionCount: "{count} selected",
+    unavailableSelection: "Saved, currently unavailable",
     province: "Province",
     selectProvince: "Select province",
     scope: "Scope",

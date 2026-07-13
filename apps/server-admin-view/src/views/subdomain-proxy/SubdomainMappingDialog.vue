@@ -718,8 +718,10 @@ const visibilityCustomCidrsModel = computed({
                     t('admin.subdomainProxy.visibilityRegionsDescription')
                   "
                   :text="{
-                    add: t('admin.gatewayVisibilitySettings.add'),
-                    addRegion: t('admin.gatewayVisibilitySettings.addRegion'),
+                    add: t('admin.gatewayVisibilitySettings.saveSelection'),
+                    addRegion: t(
+                      'admin.gatewayVisibilitySettings.manageRegions',
+                    ),
                     cancel: t('admin.subdomainProxy.cancel'),
                     dialogDescription: t(
                       'admin.gatewayVisibilitySettings.addRegionDescription',
@@ -734,16 +736,20 @@ const visibilityCustomCidrsModel = computed({
                     noRegions: t('admin.gatewayVisibilitySettings.noRegions'),
                     province: t('admin.gatewayVisibilitySettings.province'),
                     retry: t('admin.subdomainProxy.retry'),
+                    selectedCount: (count) =>
+                      t('admin.gatewayVisibilitySettings.selectedRegionCount', {
+                        count,
+                      }),
                     scope: t('admin.gatewayVisibilitySettings.scope'),
                     selectCity: t('admin.gatewayVisibilitySettings.selectCity'),
-                    selectCityOrProvince: t(
-                      'admin.gatewayVisibilitySettings.selectCityOrProvinceWide',
-                    ),
                     selectProvince: t(
                       'admin.gatewayVisibilitySettings.selectProvince',
                     ),
                     selectProvinceFirst: t(
                       'admin.gatewayVisibilitySettings.selectProvinceFirst',
+                    ),
+                    unavailable: t(
+                      'admin.gatewayVisibilitySettings.unavailableSelection',
                     ),
                   }"
                 />

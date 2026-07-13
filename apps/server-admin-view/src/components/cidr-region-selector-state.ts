@@ -18,6 +18,19 @@ export interface CidrRegionSelectorStateOptions {
   selections: Ref<GatewayVisibilitySelection[]>;
 }
 
+export interface CidrCityChoice {
+  key: string;
+  label: string;
+  isProvinceWide: boolean;
+  unavailable: boolean;
+}
+
+const selectionSetsEqual = (left: string[], right: string[]) => {
+  if (left.length !== right.length) return false;
+  const rightSet = new Set(right);
+  return left.every((value) => rightSet.has(value));
+};
+
 export const createCidrRegionSelectorState = ({
   disabled,
   formatLoadError,
@@ -28,40 +41,67 @@ export const createCidrRegionSelectorState = ({
 }: CidrRegionSelectorStateOptions) => {
   const provinces = ref<CidrProvinceOption[]>([]);
   const cityOptions = ref<CidrCityOption[]>([]);
+  const originalProvinceSelections = ref<GatewayVisibilitySelection[]>([]);
   const provincesLoading = ref(false);
   const cityOptionsLoading = ref(false);
+  const cityOptionsReady = ref(false);
   const provincesLoadError = ref("");
   const isDialogOpen = ref(false);
   const draft = reactive({
     province: "",
-    cityValue: "",
+    cityValues: [] as string[],
   });
   let cityRequestToken = 0;
 
-  const selectedCityOption = computed(
-    () =>
-      cityOptions.value.find((option) => option.value === draft.cityValue) ??
-      null,
-  );
-  const citySelectKey = computed(() => draft.province || "empty");
-  const pendingRegionExists = computed(() => {
-    const city = selectedCityOption.value;
-    if (!draft.province || !city) return false;
-    const pendingKey = getCidrRegionSelectionKey({
+  const keyForOption = (option: CidrCityOption) =>
+    getCidrRegionSelectionKey({
       province: draft.province,
-      query_city: city.queryCity,
+      query_city: option.queryCity,
     });
-    return selections.value.some(
-      (item) => getCidrRegionSelectionKey(item) === pendingKey,
-    );
+
+  const cityChoices = computed<CidrCityChoice[]>(() => {
+    const choices = cityOptions.value.map((option) => ({
+      key: keyForOption(option),
+      label: option.label,
+      isProvinceWide: option.isProvinceWide,
+      unavailable: false,
+    }));
+    const availableKeys = new Set(choices.map((choice) => choice.key));
+
+    for (const selection of originalProvinceSelections.value) {
+      const key = getCidrRegionSelectionKey(selection);
+      if (availableKeys.has(key)) continue;
+      availableKeys.add(key);
+      choices.push({
+        key,
+        label: selection.label,
+        isProvinceWide: selection.is_province_wide || !selection.query_city,
+        unavailable: true,
+      });
+    }
+
+    return choices;
   });
-  const canAddRegion = computed(
+  const selectedCityCount = computed(() => draft.cityValues.length);
+  const originalCityValues = computed(() => [
+    ...new Set(
+      originalProvinceSelections.value.map((selection) =>
+        getCidrRegionSelectionKey(selection),
+      ),
+    ),
+  ]);
+  const hasDraftChanges = computed(
+    () =>
+      cityOptionsReady.value &&
+      !selectionSetsEqual(draft.cityValues, originalCityValues.value),
+  );
+  const canSaveSelections = computed(
     () =>
       !disabled.value &&
       Boolean(draft.province) &&
-      Boolean(selectedCityOption.value) &&
-      !pendingRegionExists.value &&
-      !cityOptionsLoading.value,
+      cityOptionsReady.value &&
+      !cityOptionsLoading.value &&
+      hasDraftChanges.value,
   );
 
   const reportLoadError = (error: unknown) => {
@@ -83,12 +123,18 @@ export const createCidrRegionSelectorState = ({
     }
   };
 
+  const clearCityDraft = () => {
+    cityOptions.value = [];
+    originalProvinceSelections.value = [];
+    draft.cityValues = [];
+    cityOptionsReady.value = false;
+  };
+
   const clearDraft = () => {
     cityRequestToken += 1;
     cityOptionsLoading.value = false;
     draft.province = "";
-    draft.cityValue = "";
-    cityOptions.value = [];
+    clearCityDraft();
   };
 
   const handleDialogOpenChange = (nextOpen: boolean) => {
@@ -107,24 +153,32 @@ export const createCidrRegionSelectorState = ({
 
   const loadCityOptions = async (province: string) => {
     if (!province) {
-      cityOptions.value = [];
-      draft.cityValue = "";
+      clearCityDraft();
       return;
     }
 
     const token = ++cityRequestToken;
     cityOptionsLoading.value = true;
-    cityOptions.value = [];
-    draft.cityValue = "";
+    clearCityDraft();
     try {
       const payload = await loadCities(province);
       if (token !== cityRequestToken) return;
       cityOptions.value = payload.options;
-      draft.cityValue = payload.defaultValue ?? payload.options[0]?.value ?? "";
+      originalProvinceSelections.value = selections.value
+        .filter((selection) => selection.province === province)
+        .map((selection) => ({ ...selection }));
+      const loadedCityValues = originalCityValues.value;
+      const selectedProvinceWideChoice = cityChoices.value.find(
+        (choice) =>
+          choice.isProvinceWide && loadedCityValues.includes(choice.key),
+      );
+      draft.cityValues = selectedProvinceWideChoice
+        ? [selectedProvinceWideChoice.key]
+        : [...loadedCityValues];
+      cityOptionsReady.value = true;
     } catch (error) {
       if (token !== cityRequestToken) return;
-      cityOptions.value = [];
-      draft.cityValue = "";
+      clearCityDraft();
       reportLoadError(error);
     } finally {
       if (token === cityRequestToken) cityOptionsLoading.value = false;
@@ -136,12 +190,40 @@ export const createCidrRegionSelectorState = ({
     void loadCityOptions(province);
   };
 
-  const addRegion = () => {
-    const option = selectedCityOption.value;
-    if (!option || !canAddRegion.value) return;
-    selections.value = [
-      ...selections.value,
-      {
+  const toggleCity = (key: string, checked: boolean) => {
+    if (disabled.value || !cityOptionsReady.value) return;
+    const choice = cityChoices.value.find((item) => item.key === key);
+    if (!choice) return;
+
+    if (!checked) {
+      draft.cityValues = draft.cityValues.filter((value) => value !== key);
+      return;
+    }
+
+    if (choice.isProvinceWide) {
+      draft.cityValues = [key];
+      return;
+    }
+
+    const provinceWideKeys = new Set(
+      cityChoices.value
+        .filter((item) => item.isProvinceWide)
+        .map((item) => item.key),
+    );
+    draft.cityValues = [
+      ...draft.cityValues.filter((value) => !provinceWideKeys.has(value)),
+      ...(draft.cityValues.includes(key) ? [] : [key]),
+    ];
+  };
+
+  const selectionFromChoice = (
+    choice: CidrCityChoice,
+  ): GatewayVisibilitySelection | null => {
+    const option = cityOptions.value.find(
+      (item) => keyForOption(item) === choice.key,
+    );
+    if (option) {
+      return {
         province: draft.province,
         city: option.isProvinceWide ? null : option.label,
         label: option.label,
@@ -149,8 +231,58 @@ export const createCidrRegionSelectorState = ({
         query_city: option.queryCity,
         is_province_wide: option.isProvinceWide,
         is_municipality: option.isMunicipality,
-      },
-    ];
+      };
+    }
+    const existing = originalProvinceSelections.value.find(
+      (item) => getCidrRegionSelectionKey(item) === choice.key,
+    );
+    return existing ? { ...existing } : null;
+  };
+
+  const saveProvinceSelections = () => {
+    if (!canSaveSelections.value) return;
+    const selectedKeys = new Set(draft.cityValues);
+    const replacements = cityChoices.value
+      .filter((choice) => selectedKeys.has(choice.key))
+      .map(selectionFromChoice)
+      .filter((selection): selection is GatewayVisibilitySelection =>
+        Boolean(selection),
+      );
+
+    const firstProvinceIndex = selections.value.findIndex(
+      (selection) => selection.province === draft.province,
+    );
+    const insertionIndex =
+      firstProvinceIndex >= 0 ? firstProvinceIndex : selections.value.length;
+    const nextSelections: GatewayVisibilitySelection[] = [];
+    const seen = new Set<string>();
+
+    selections.value.forEach((selection, index) => {
+      if (index === insertionIndex) {
+        for (const replacement of replacements) {
+          const key = getCidrRegionSelectionKey(replacement);
+          if (seen.has(key)) continue;
+          seen.add(key);
+          nextSelections.push(replacement);
+        }
+      }
+      if (selection.province === draft.province) return;
+      const key = getCidrRegionSelectionKey(selection);
+      if (seen.has(key)) return;
+      seen.add(key);
+      nextSelections.push(selection);
+    });
+
+    if (insertionIndex === selections.value.length) {
+      for (const replacement of replacements) {
+        const key = getCidrRegionSelectionKey(replacement);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        nextSelections.push(replacement);
+      }
+    }
+
+    selections.value = nextSelections;
     handleDialogOpenChange(false);
   };
 
@@ -171,25 +303,28 @@ export const createCidrRegionSelectorState = ({
   };
 
   return {
-    addRegion,
-    canAddRegion,
+    canSaveSelections,
+    cityChoices,
     cityOptions,
     cityOptionsLoading,
-    citySelectKey,
+    cityOptionsReady,
     clearDraft,
     dispose,
     draft,
     handleDialogOpenChange,
+    hasDraftChanges,
     isDialogOpen,
     loadCityOptions,
     loadProvinces,
     openDialog,
-    pendingRegionExists,
+    originalProvinceSelections,
     provinces,
     provincesLoadError,
     provincesLoading,
     removeRegion,
+    saveProvinceSelections,
     selectProvince,
-    selectedCityOption,
+    selectedCityCount,
+    toggleCity,
   };
 };

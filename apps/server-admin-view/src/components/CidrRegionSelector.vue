@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, toRef } from "vue";
+import { onMounted, toRef } from "vue";
 import { Loader2, Plus } from "lucide-vue-next";
 import type { AcceptableValue } from "reka-ui";
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -43,11 +44,12 @@ interface CidrRegionSelectorText {
   noRegions: string;
   province: string;
   retry: string;
+  selectedCount: (count: number) => string;
   scope: string;
   selectCity: string;
-  selectCityOrProvince: string;
   selectProvince: string;
   selectProvinceFirst: string;
+  unavailable: string;
 }
 
 const props = withDefaults(
@@ -66,11 +68,9 @@ const selections = defineModel<GatewayVisibilitySelection[]>({
   required: true,
 });
 const {
-  addRegion,
-  canAddRegion,
-  cityOptions,
+  canSaveSelections,
+  cityChoices,
   cityOptionsLoading,
-  citySelectKey,
   draft,
   handleDialogOpenChange,
   isDialogOpen,
@@ -80,7 +80,10 @@ const {
   provincesLoadError,
   provincesLoading,
   removeRegion,
+  saveProvinceSelections,
   selectProvince,
+  selectedCityCount,
+  toggleCity,
 } = createCidrRegionSelectorState({
   disabled: toRef(props, "disabled"),
   formatLoadError: (error) =>
@@ -93,16 +96,10 @@ const {
   selections,
 });
 
-const citySelectPlaceholder = computed(() => {
-  if (cityOptionsLoading.value) return props.text.loading;
-  if (!draft.province) return props.text.selectProvinceFirst;
-  return cityOptions.value.some((option) => option.isProvinceWide)
-    ? props.text.selectCityOrProvince
-    : props.text.selectCity;
-});
 const handleProvinceChange = (value: AcceptableValue) => {
   selectProvince(typeof value === "string" ? value : "");
 };
+const isCitySelected = (key: string) => draft.cityValues.includes(key);
 onMounted(() => {
   void loadProvinces();
 });
@@ -182,7 +179,9 @@ onMounted(() => {
         </div>
 
         <div class="space-y-4 border-t border-border/60 px-6 py-5">
-          <div class="grid gap-4 sm:grid-cols-2">
+          <div
+            class="grid gap-4 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]"
+          >
             <div class="space-y-2">
               <Label class="text-sm font-medium">{{ text.province }}</Label>
               <Select
@@ -208,33 +207,67 @@ onMounted(() => {
             </div>
 
             <div class="space-y-2">
-              <Label class="text-sm font-medium">{{ text.scope }}</Label>
-              <Select :key="citySelectKey" v-model="draft.cityValue">
-                <SelectTrigger
-                  class="h-11 w-full rounded-lg border-border/70 bg-background px-3 shadow-none"
-                  :disabled="
-                    disabled ||
-                    !draft.province ||
-                    cityOptionsLoading ||
-                    cityOptions.length === 0
-                  "
+              <div class="flex min-h-5 items-center justify-between gap-3">
+                <Label class="text-sm font-medium">{{ text.scope }}</Label>
+                <span
+                  v-if="draft.province && !cityOptionsLoading"
+                  class="text-xs text-muted-foreground"
                 >
-                  <Loader2
-                    v-if="cityOptionsLoading"
-                    class="h-4 w-4 animate-spin text-muted-foreground"
-                  />
-                  <SelectValue :placeholder="citySelectPlaceholder" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem
-                    v-for="city in cityOptions"
-                    :key="city.value"
-                    :value="city.value"
+                  {{ text.selectedCount(selectedCityCount) }}
+                </span>
+              </div>
+
+              <div
+                class="min-h-44 overflow-hidden rounded-lg border border-border/70 bg-background"
+              >
+                <div
+                  v-if="cityOptionsLoading"
+                  class="flex min-h-44 items-center justify-center gap-2 text-sm text-muted-foreground"
+                >
+                  <Loader2 class="h-4 w-4 animate-spin" />
+                  {{ text.loading }}
+                </div>
+                <div
+                  v-else-if="!draft.province"
+                  class="flex min-h-44 items-center justify-center px-4 text-center text-sm text-muted-foreground"
+                >
+                  {{ text.selectProvinceFirst }}
+                </div>
+                <div
+                  v-else-if="cityChoices.length === 0"
+                  class="flex min-h-44 items-center justify-center px-4 text-center text-sm text-muted-foreground"
+                >
+                  {{ text.selectCity }}
+                </div>
+                <div v-else class="max-h-64 overflow-y-auto p-2">
+                  <label
+                    v-for="choice in cityChoices"
+                    :key="choice.key"
+                    class="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2.5 transition-colors hover:bg-muted/50"
+                    :class="{
+                      'bg-primary/5': isCitySelected(choice.key),
+                      'cursor-not-allowed opacity-60': disabled,
+                    }"
                   >
-                    {{ city.label }}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+                    <Checkbox
+                      :model-value="isCitySelected(choice.key)"
+                      :disabled="disabled"
+                      @update:model-value="
+                        (value) => toggleCity(choice.key, value === true)
+                      "
+                    />
+                    <span class="min-w-0 flex-1 text-sm">
+                      {{ choice.label }}
+                    </span>
+                    <span
+                      v-if="choice.unavailable"
+                      class="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
+                    >
+                      {{ text.unavailable }}
+                    </span>
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -245,7 +278,10 @@ onMounted(() => {
           <Button variant="outline" @click="handleDialogOpenChange(false)">
             {{ text.cancel }}
           </Button>
-          <Button :disabled="!canAddRegion" @click="addRegion">
+          <Button
+            :disabled="!canSaveSelections"
+            @click="saveProvinceSelections"
+          >
             {{ text.add }}
           </Button>
         </DialogFooter>

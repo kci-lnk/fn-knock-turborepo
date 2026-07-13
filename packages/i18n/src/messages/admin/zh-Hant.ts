@@ -364,7 +364,12 @@ export const zhHantAdmin = {
     reset: "重置",
     savingAndSyncing: "保存並同步中...",
     saveAndSync: "保存並同步",
-    addRegionDescription: "選擇省份和城市範圍。",
+    addRegionDescription:
+      "選擇一個省份，並勾選一個或多個城市；全省與具體城市不能同時選擇。",
+    manageRegions: "管理地區",
+    saveSelection: "儲存選擇",
+    selectedRegionCount: "已選 {count} 項",
+    unavailableSelection: "已儲存，目前不可用",
     province: "省份",
     selectProvince: "選擇省份",
     scope: "範圍",

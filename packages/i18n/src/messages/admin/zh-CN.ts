@@ -362,7 +362,12 @@ export const zhCNAdmin = {
     reset: "重置",
     savingAndSyncing: "保存并同步中...",
     saveAndSync: "保存并同步",
-    addRegionDescription: "选择省份和城市范围。",
+    addRegionDescription:
+      "选择一个省份，并勾选一个或多个城市；全省与具体城市不能同时选择。",
+    manageRegions: "管理地区",
+    saveSelection: "保存选择",
+    selectedRegionCount: "已选 {count} 项",
+    unavailableSelection: "已保存，当前不可用",
     province: "省份",
     selectProvince: "选择省份",
     scope: "范围",

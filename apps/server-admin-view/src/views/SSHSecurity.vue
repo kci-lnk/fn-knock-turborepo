@@ -455,8 +455,8 @@ onMounted(async () => {
                 :disabled="regionInputsDisabled"
                 :description="t('admin.sshSecurity.allowedRegionsDescription')"
                 :text="{
-                  add: t('admin.sshSecurity.add'),
-                  addRegion: t('admin.sshSecurity.addRegion'),
+                  add: t('admin.gatewayVisibilitySettings.saveSelection'),
+                  addRegion: t('admin.gatewayVisibilitySettings.manageRegions'),
                   cancel: t('common.cancel'),
                   dialogDescription: t(
                     'admin.sshSecurity.addRegionDescription',
@@ -469,14 +469,18 @@ onMounted(async () => {
                   noRegions: t('admin.sshSecurity.noRegions'),
                   province: t('admin.sshSecurity.province'),
                   retry: t('admin.subdomainProxy.retry'),
+                  selectedCount: (count) =>
+                    t('admin.gatewayVisibilitySettings.selectedRegionCount', {
+                      count,
+                    }),
                   scope: t('admin.sshSecurity.scope'),
                   selectCity: t('admin.sshSecurity.selectCity'),
-                  selectCityOrProvince: t(
-                    'admin.sshSecurity.selectCityOrProvince',
-                  ),
                   selectProvince: t('admin.sshSecurity.selectProvince'),
                   selectProvinceFirst: t(
                     'admin.sshSecurity.selectProvinceFirst',
+                  ),
+                  unavailable: t(
+                    'admin.gatewayVisibilitySettings.unavailableSelection',
                   ),
                 }"
               />

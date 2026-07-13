@@ -261,8 +261,8 @@ const goToBlacklist = () => {
               t('admin.scannerFirewallSettings.cidrExemptionRegionsDescription')
             "
             :text="{
-              add: t('admin.scannerFirewallSettings.add'),
-              addRegion: t('admin.scannerFirewallSettings.addRegion'),
+              add: t('admin.gatewayVisibilitySettings.saveSelection'),
+              addRegion: t('admin.gatewayVisibilitySettings.manageRegions'),
               cancel: t('common.cancel'),
               dialogDescription: t(
                 'admin.scannerFirewallSettings.addRegionDescription',
@@ -275,14 +275,18 @@ const goToBlacklist = () => {
               noRegions: t('admin.scannerFirewallSettings.noRegions'),
               province: t('admin.scannerFirewallSettings.province'),
               retry: t('admin.subdomainProxy.retry'),
+              selectedCount: (count) =>
+                t('admin.gatewayVisibilitySettings.selectedRegionCount', {
+                  count,
+                }),
               scope: t('admin.scannerFirewallSettings.scope'),
               selectCity: t('admin.scannerFirewallSettings.selectCity'),
-              selectCityOrProvince: t(
-                'admin.scannerFirewallSettings.selectCityOrProvinceWide',
-              ),
               selectProvince: t('admin.scannerFirewallSettings.selectProvince'),
               selectProvinceFirst: t(
                 'admin.scannerFirewallSettings.selectProvinceFirst',
+              ),
+              unavailable: t(
+                'admin.gatewayVisibilitySettings.unavailableSelection',
               ),
             }"
           />

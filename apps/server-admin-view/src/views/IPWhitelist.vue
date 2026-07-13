@@ -461,8 +461,8 @@
               :disabled="regionInputsDisabled"
               :description="t('admin.ipWhitelist.regionScopeDescription')"
               :text="{
-                add: t('admin.ipWhitelist.add'),
-                addRegion: t('admin.ipWhitelist.addRegion'),
+                add: t('admin.gatewayVisibilitySettings.saveSelection'),
+                addRegion: t('admin.gatewayVisibilitySettings.manageRegions'),
                 cancel: t('common.cancel'),
                 dialogDescription: t('admin.ipWhitelist.addRegionDescription'),
                 loadFailed: t('admin.ipWhitelist.regionsLoadFailed'),
@@ -473,13 +473,17 @@
                 noRegions: t('admin.ipWhitelist.noRegions'),
                 province: t('admin.ipWhitelist.province'),
                 retry: t('admin.subdomainProxy.retry'),
+                selectedCount: (count) =>
+                  t('admin.gatewayVisibilitySettings.selectedRegionCount', {
+                    count,
+                  }),
                 scope: t('admin.ipWhitelist.scope'),
                 selectCity: t('admin.ipWhitelist.selectCity'),
-                selectCityOrProvince: t(
-                  'admin.ipWhitelist.selectCityOrProvince',
-                ),
                 selectProvince: t('admin.ipWhitelist.selectProvince'),
                 selectProvinceFirst: t('admin.ipWhitelist.selectProvinceFirst'),
+                unavailable: t(
+                  'admin.gatewayVisibilitySettings.unavailableSelection',
+                ),
               }"
             />
           </div>

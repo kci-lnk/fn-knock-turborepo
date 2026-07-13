@@ -402,7 +402,12 @@ export const jaJPAdmin = {
     reset: "リセット",
     savingAndSyncing: "保存と同期中...",
     saveAndSync: "保存と同期",
-    addRegionDescription: "州と都市の範囲を選択してください。",
+    addRegionDescription:
+      "1 つの州と 1 つ以上の都市を選択します。州全体と個別の都市を同時に選択することはできません。",
+    manageRegions: "地域を管理",
+    saveSelection: "選択を保存",
+    selectedRegionCount: "{count} 件選択",
+    unavailableSelection: "保存済み・現在利用不可",
     province: "県",
     selectProvince: "州を選択してください",
     scope: "範囲",

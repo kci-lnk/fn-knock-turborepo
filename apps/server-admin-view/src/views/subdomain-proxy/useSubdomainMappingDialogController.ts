@@ -14,17 +14,20 @@ import {
   isMappingDraftValid,
   normalizeMappingBasicAuth,
   normalizeMappingForm,
+  normalizeMappingVisibility,
   type TranslationParams,
 } from "./model";
 import { useBasicAuthProbe } from "./useBasicAuthProbe";
 import { useMappingDialogKeyboardScroll } from "./useMappingDialogKeyboardScroll";
 import { useMappingGatewayAdvanced } from "./useMappingGatewayAdvanced";
+import { useMappingVisibility } from "./useMappingVisibility";
 import { useSubdomainMappingDraft } from "./useSubdomainMappingDraft";
 
 type AsyncActionRun = <T>(
   action: () => Promise<T>,
   hooks?: {
     onSuccess?: (result: T) => void | Promise<void>;
+    onError?: (error: unknown) => void;
   },
 ) => Promise<T | undefined>;
 
@@ -175,6 +178,14 @@ export const useSubdomainMappingDialogController = ({
         currentBasicAuthProbeResult.value?.requiresBasicAuth === true),
   );
 
+  const mappingVisibility = useMappingVisibility({
+    isDialogOpen,
+    isMappingAuthService,
+    mappingForm,
+    translate,
+  });
+  const visibilityEditor = reactive(mappingVisibility);
+
   const {
     addMappingAdvancedCleanupHost,
     gatewayHostResponseBlockedReason,
@@ -199,14 +210,17 @@ export const useSubdomainMappingDialogController = ({
     visibleMappings,
   });
 
-  const isMappingValid = computed(() =>
-    isMappingDraftValid({
-      basicAuthValidationMessage: basicAuthValidationMessage.value,
-      canUseRootDomainSuffix: canUseRootDomainSuffix.value,
-      host: mappingDraftHost.value,
-      inputMode: mappingInputMode.value,
-      target: mappingForm.target,
-    }),
+  const isMappingValid = computed(
+    () =>
+      !mappingVisibility.isGlobalVisibilityLoading.value &&
+      !mappingVisibility.visibilityValidationMessage.value &&
+      isMappingDraftValid({
+        basicAuthValidationMessage: basicAuthValidationMessage.value,
+        canUseRootDomainSuffix: canUseRootDomainSuffix.value,
+        host: mappingDraftHost.value,
+        inputMode: mappingInputMode.value,
+        target: mappingForm.target,
+      }),
   );
 
   const {
@@ -253,6 +267,7 @@ export const useSubdomainMappingDialogController = ({
 
   function resetMappingAdvancedState(host = "") {
     resetGatewayAdvancedState(host);
+    mappingVisibility.resetVisibilityEditor();
   }
 
   function openCreateDialog() {
@@ -262,7 +277,10 @@ export const useSubdomainMappingDialogController = ({
     Object.assign(mappingForm, createDefaultMapping());
     resetMappingAdvancedState("");
     isDialogOpen.value = true;
-    void loadGatewayAdvancedDetails();
+    void Promise.all([
+      loadGatewayAdvancedDetails(),
+      mappingVisibility.loadGlobalVisibility(),
+    ]);
   }
 
   function openEditDialog(mapping: HostMapping) {
@@ -272,11 +290,15 @@ export const useSubdomainMappingDialogController = ({
       ...mapping,
       protocol_mode: mapping.protocol_mode || DEFAULT_PROTOCOL_MODE,
       basic_auth: normalizeMappingBasicAuth(mapping.basic_auth),
+      visibility: normalizeMappingVisibility(mapping.visibility),
     });
     mappingMetadataTarget.value = mapping.target.trim();
     resetMappingAdvancedState(mapping.host);
     isDialogOpen.value = true;
-    void loadGatewayAdvancedDetails();
+    void Promise.all([
+      loadGatewayAdvancedDetails(),
+      mappingVisibility.loadGlobalVisibility(),
+    ]);
   }
 
   function closeDialog() {
@@ -369,48 +391,58 @@ export const useSubdomainMappingDialogController = ({
       return;
     }
 
-    await runSaveMappings(async () => {
-      const next = [...allMappings.value];
-      const previousHost = editingHost.value;
-      const index = editingHost.value
-        ? next.findIndex((item) => item.host === editingHost.value)
-        : -1;
+    await runSaveMappings(
+      async () => {
+        const next = [...allMappings.value];
+        const previousHost = editingHost.value;
+        const index = editingHost.value
+          ? next.findIndex((item) => item.host === editingHost.value)
+          : -1;
 
-      if (index >= 0) {
-        next[index] = normalized;
-      } else {
-        next.push(normalized);
-      }
+        if (index >= 0) {
+          next[index] = normalized;
+        } else {
+          next.push(normalized);
+        }
 
-      await saveHostMappings(next);
-      if (previousHost !== normalized.host) {
-        addMappingAdvancedCleanupHost(previousHost);
-      }
-      editingHost.value = normalized.host;
-      Object.assign(mappingForm, normalized);
+        await saveHostMappings(next);
+        if (previousHost !== normalized.host) {
+          addMappingAdvancedCleanupHost(previousHost);
+        }
+        editingHost.value = normalized.host;
+        Object.assign(mappingForm, normalized);
 
-      try {
-        await saveMappingGatewayAdvanced(normalized, previousHost);
-      } catch (error) {
-        toast.error(translate("admin.subdomainProxy.advancedSaveFailed"), {
-          description: extractErrorMessage(
-            error,
-            translate("admin.subdomainProxy.advancedConfigSaveFailed"),
-          ),
-        });
-        return;
-      }
+        try {
+          await saveMappingGatewayAdvanced(normalized, previousHost);
+        } catch (error) {
+          toast.error(translate("admin.subdomainProxy.advancedSaveFailed"), {
+            description: extractErrorMessage(
+              error,
+              translate("admin.subdomainProxy.advancedConfigSaveFailed"),
+            ),
+          });
+          return;
+        }
 
-      toast.success(
-        index >= 0
-          ? translate("admin.subdomainProxy.mappingUpdated")
-          : translate("admin.subdomainProxy.mappingAdded"),
-      );
-      closeDialog();
-    });
+        toast.success(
+          index >= 0
+            ? translate("admin.subdomainProxy.mappingUpdated")
+            : translate("admin.subdomainProxy.mappingAdded"),
+        );
+        closeDialog();
+      },
+      {
+        onError: () => {
+          if (normalized.visibility.mode === "custom") {
+            mappingVisibility.openVisibilityView();
+          }
+        },
+      },
+    );
   }
 
   return {
+    ...mappingVisibility,
     basicAuthInjectionModel,
     basicAuthValidationMessage,
     canRefreshMappingMetadata,
@@ -457,5 +489,6 @@ export const useSubdomainMappingDialogController = ({
     showToolbar,
     updateMappingBasicAuth,
     updateMappingForm,
+    visibilityEditor,
   };
 };

@@ -159,18 +159,248 @@ fn normalizes_host_mapping_waf_defaults_and_auth_inheritance() {
 }
 
 #[test]
-fn host_mapping_responses_backfill_waf_defaults() {
+fn normalizes_host_mapping_visibility_and_preserves_legacy_updates() {
+    let previous = json!({
+        "host_mappings": [{
+            "host": "app.example.com",
+            "target": "http://127.0.0.1:8080",
+            "visibility": {
+                "mode": "custom",
+                "selections": [{ "province": "浙江省", "query_city": "杭州市" }],
+                "custom_cidrs": ["203.0.113.0/24"],
+                "cidrs": ["203.0.113.0/24"]
+            }
+        }]
+    });
+    let mappings = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "app.example.com",
+            "target": "http://127.0.0.1:8080"
+        })],
+        &previous,
+    )
+    .unwrap();
+
+    assert_eq!(
+        mappings[0]["visibility"],
+        previous["host_mappings"][0]["visibility"]
+    );
+
+    let legacy = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "legacy.example.com",
+            "target": "http://127.0.0.1:8081"
+        })],
+        &json!({}),
+    )
+    .unwrap();
+    assert_eq!(legacy[0]["visibility"]["mode"], json!("inherit"));
+    assert_eq!(legacy[0]["visibility"]["cidrs"], json!([]));
+}
+
+#[test]
+fn host_visibility_ignores_client_derived_cidrs_and_forces_auth_inheritance() {
+    let mappings = normalize_host_mappings_for_route(
+        vec![
+            json!({
+                "host": "app.example.com",
+                "target": "http://127.0.0.1:8080",
+                "visibility": {
+                    "mode": "custom",
+                    "selections": [],
+                    "custom_cidrs": ["203.0.113.0/24"],
+                    "cidrs": ["1.1.1.0/24"]
+                }
+            }),
+            json!({
+                "host": "auth.example.com",
+                "target": "http://127.0.0.1:7997",
+                "use_auth": false,
+                "visibility": {
+                    "mode": "custom",
+                    "custom_cidrs": ["203.0.113.0/24"],
+                    "cidrs": ["203.0.113.0/24"]
+                }
+            }),
+        ],
+        &json!({}),
+    )
+    .unwrap();
+
+    assert_eq!(mappings[0]["visibility"]["cidrs"], json!([]));
+    assert_eq!(mappings[1]["visibility"]["mode"], json!("inherit"));
+    assert_eq!(mappings[1]["visibility"]["custom_cidrs"], json!([]));
+    assert_eq!(mappings[1]["visibility"]["cidrs"], json!([]));
+}
+
+#[test]
+fn rejects_malformed_explicit_host_visibility_without_erasing_previous_rules() {
+    let previous = json!({
+        "host_mappings": [{
+            "host": "app.example.com",
+            "target": "http://127.0.0.1:8080",
+            "visibility": {
+                "mode": "custom",
+                "selections": [],
+                "custom_cidrs": ["203.0.113.0/24"],
+                "cidrs": ["203.0.113.0/24"]
+            }
+        }]
+    });
+
+    for visibility in [
+        json!("custom"),
+        json!({ "mode": "merge" }),
+        json!({ "mode": "custom", "selections": {} }),
+        json!({ "mode": "custom", "custom_cidrs": "203.0.113.0/24" }),
+    ] {
+        let error = normalize_host_mappings_for_route(
+            vec![json!({
+                "host": "app.example.com",
+                "target": "http://127.0.0.1:8081",
+                "visibility": visibility
+            })],
+            &previous,
+        )
+        .unwrap_err();
+        assert!(error.contains("Host mapping app.example.com visibility"));
+    }
+
+    let preserved = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "app.example.com",
+            "target": "http://127.0.0.1:8081"
+        })],
+        &previous,
+    )
+    .unwrap();
+    assert_eq!(
+        preserved[0]["visibility"],
+        previous["host_mappings"][0]["visibility"]
+    );
+}
+
+#[tokio::test]
+async fn compiles_custom_host_visibility_and_rejects_invalid_or_empty_rules() {
+    let (_directory, state) = proxy_config_test_state("http://127.0.0.1:1".to_string()).await;
+    let compiled = compile_host_mapping_visibilities(
+        &state,
+        vec![json!({
+            "host": "app.example.com",
+            "visibility": {
+                "mode": "custom",
+                "selections": [],
+                "custom_cidrs": [" 203.0.113.7/24 ", "203.0.113.0/24"],
+                "cidrs": ["1.1.1.0/24"]
+            }
+        })],
+        &json!({}),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        compiled[0]["visibility"]["custom_cidrs"],
+        json!(["203.0.113.0/24"])
+    );
+    assert_eq!(
+        compiled[0]["visibility"]["cidrs"],
+        json!(["203.0.113.0/24"])
+    );
+
+    let preserved = json!({
+        "host_mappings": [{
+            "host": "legacy.example.com",
+            "visibility": {
+                "mode": "custom",
+                "selections": [{ "province": "legacy-region", "query_city": null }],
+                "custom_cidrs": [],
+                "cidrs": ["198.51.100.0/24"]
+            }
+        }]
+    });
+    let legacy = compile_host_mapping_visibilities(
+        &state,
+        vec![preserved["host_mappings"][0].clone()],
+        &preserved,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        legacy[0]["visibility"],
+        preserved["host_mappings"][0]["visibility"]
+    );
+
+    for custom_cidrs in [json!([]), json!(["not-a-cidr"])] {
+        let error = compile_host_mapping_visibilities(
+            &state,
+            vec![json!({
+                "host": "app.example.com",
+                "visibility": {
+                    "mode": "custom",
+                    "selections": [],
+                    "custom_cidrs": custom_cidrs
+                }
+            })],
+            &json!({}),
+        )
+        .await
+        .unwrap_err();
+        assert!(error.contains("Host mapping app.example.com visibility"));
+    }
+}
+
+#[test]
+fn host_rules_payload_contains_only_compiled_visibility_fields() {
+    let payload = build_host_rules_payload(&[json!({
+        "host": "app.example.com",
+        "target": "http://127.0.0.1:8080",
+        "visibility": {
+            "mode": "custom",
+            "selections": [{ "province": "浙江省" }],
+            "custom_cidrs": ["203.0.113.0/24"],
+            "cidrs": ["203.0.113.0/24"]
+        }
+    })]);
+
+    assert_eq!(
+        payload[0]["visibility"],
+        json!({
+            "mode": "custom",
+            "cidrs": ["203.0.113.0/24"]
+        })
+    );
+}
+
+#[test]
+fn host_mapping_responses_backfill_legacy_defaults() {
     let mut mappings = vec![
         json!({"host": "app.example.com"}),
         json!({"host": "auth.example.com", "service_role": "auth", "waf_enabled": false}),
         json!({"host": "legacy-auth.example.com", "target": "http://localhost:7997", "waf_enabled": false}),
+        json!({
+            "host": "custom.example.com",
+            "visibility": {
+                "mode": "custom",
+                "selections": [],
+                "custom_cidrs": ["203.0.113.0/24"],
+                "cidrs": ["203.0.113.0/24"]
+            }
+        }),
     ];
 
-    normalize_host_mapping_waf_defaults(&mut mappings);
+    normalize_host_mapping_response_defaults(&mut mappings);
 
     assert_eq!(mappings[0]["waf_enabled"], json!(true));
     assert_eq!(mappings[1]["waf_enabled"], json!(true));
     assert_eq!(mappings[2]["waf_enabled"], json!(true));
+    assert_eq!(mappings[0]["visibility"]["mode"], json!("inherit"));
+    assert_eq!(mappings[1]["visibility"]["mode"], json!("inherit"));
+    assert_eq!(mappings[2]["visibility"]["mode"], json!("inherit"));
+    assert_eq!(mappings[3]["visibility"]["mode"], json!("custom"));
+    assert_eq!(
+        mappings[3]["visibility"]["cidrs"],
+        json!(["203.0.113.0/24"])
+    );
 }
 
 #[test]
@@ -293,6 +523,31 @@ fn validates_go_backend_echoed_protocol_modes() {
         "protocol_mode": "auto"
     }]);
     ensure_go_host_protocol_modes_applied(&automatic, &old_backend).unwrap();
+}
+
+#[test]
+fn validates_go_backend_echoed_host_visibility() {
+    let requested = json!([{
+        "host": "video.example.com",
+        "protocol_mode": "auto",
+        "visibility": { "mode": "custom", "cidrs": ["203.0.113.7/24"] }
+    }]);
+    let applied = json!({
+        "success": true,
+        "data": [{
+            "host": "video.example.com",
+            "protocol_mode": "auto",
+            "visibility": { "mode": "custom", "cidrs": ["203.0.113.0/24"] }
+        }]
+    });
+    ensure_go_host_protocol_modes_applied(&requested, &applied).unwrap();
+
+    let old_backend = json!({
+        "success": true,
+        "data": [{ "host": "video.example.com", "protocol_mode": "auto" }]
+    });
+    let error = ensure_go_host_protocol_modes_applied(&requested, &old_backend).unwrap_err();
+    assert!(error.contains("did not apply host visibility for video.example.com"));
 }
 
 #[test]
@@ -1559,6 +1814,20 @@ fn localizes_proxy_config_route_errors() {
             "Go backend did not apply HTTPS protocol mode http1 for video.example.com (reported auto); upgrade the gateway backend"
         ),
         "网关后端未应用 video.example.com 的 HTTPS 协议 http1，请升级网关后端"
+    );
+    assert_eq!(
+        localize_proxy_config_error(
+            &translator,
+            "Host mapping video.example.com visibility: 自定义可见性至少需要一个地区或一条 CIDR"
+        ),
+        "Host 映射 video.example.com 的可见性配置无效：自定义可见性至少需要一个地区或一条 CIDR"
+    );
+    assert_eq!(
+        localize_proxy_config_error(
+            &translator,
+            "Go backend did not apply host visibility for video.example.com; upgrade the gateway backend"
+        ),
+        "网关后端未应用 video.example.com 的可见性规则，请升级网关后端"
     );
 }
 

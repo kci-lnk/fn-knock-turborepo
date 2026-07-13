@@ -160,9 +160,6 @@ const saveBlockedReason = computed(() => {
   if (invalidCustomCidrs.value.length > 0) {
     return t("admin.gatewayVisibilitySettings.fixCustomCidrs");
   }
-  if (form.enabled && !hasVisibleTargets.value) {
-    return t("admin.gatewayVisibilitySettings.ruleRequired");
-  }
   return "";
 });
 
@@ -357,13 +354,6 @@ const saveSettings = async () => {
     return;
   }
 
-  if (form.enabled && !hasVisibleTargets.value) {
-    toast.error(t("admin.gatewayVisibilitySettings.ruleRequiredTitle"), {
-      description: t("admin.gatewayVisibilitySettings.ruleRequiredDescription"),
-    });
-    return;
-  }
-
   await runSave(
     () =>
       ConfigAPI.updateGatewayVisibility({
@@ -440,7 +430,9 @@ onMounted(() => {
         </div>
 
         <template v-else>
-          <div class="rounded-2xl border border-border/60 bg-muted/10 px-4 py-4">
+          <div
+            class="rounded-2xl border border-border/60 bg-muted/10 px-4 py-4"
+          >
             <div class="flex items-start justify-between gap-4">
               <div class="min-w-0 space-y-2">
                 <div class="flex flex-wrap items-center gap-2">
@@ -460,6 +452,13 @@ onMounted(() => {
 
           <div class="overflow-hidden rounded-xl border border-border/60">
             <template v-if="form.enabled">
+              <div
+                v-if="!hasVisibleTargets"
+                class="border-b border-amber-500/20 bg-amber-500/10 px-5 py-3 text-sm leading-6 text-amber-800 dark:text-amber-200"
+              >
+                {{ t("admin.gatewayVisibilitySettings.emptyRulesHint") }}
+              </div>
+
               <section class="space-y-4 p-5">
                 <div
                   class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
@@ -523,11 +522,19 @@ onMounted(() => {
                     t("admin.gatewayVisibilitySettings.customCidrs")
                   }}</Label>
                   <p class="text-sm leading-6 text-muted-foreground">
-                    {{ t("admin.gatewayVisibilitySettings.customCidrsHintBefore") }}
+                    {{
+                      t("admin.gatewayVisibilitySettings.customCidrsHintBefore")
+                    }}
                     <code>1.2.3.0/24</code>
-                    {{ t("admin.gatewayVisibilitySettings.customCidrsHintBetween") }}
+                    {{
+                      t(
+                        "admin.gatewayVisibilitySettings.customCidrsHintBetween",
+                      )
+                    }}
                     <code>2408:8000::/24</code>
-                    {{ t("admin.gatewayVisibilitySettings.customCidrsHintAfter") }}
+                    {{
+                      t("admin.gatewayVisibilitySettings.customCidrsHintAfter")
+                    }}
                   </p>
                 </div>
 
@@ -535,15 +542,20 @@ onMounted(() => {
                   v-model="form.customCidrsText"
                   :disabled="visibilityInputsDisabled"
                   class="min-h-36 font-mono text-sm"
-                  :placeholder="t('admin.gatewayVisibilitySettings.cidrPlaceholder')"
+                  :placeholder="
+                    t('admin.gatewayVisibilitySettings.cidrPlaceholder')
+                  "
                 />
 
                 <div class="flex flex-wrap gap-x-4 gap-y-2 text-sm">
                   <span class="text-muted-foreground">
                     {{
-                      t("admin.gatewayVisibilitySettings.customCidrsRecognized", {
-                        count: customCidrCount,
-                      })
+                      t(
+                        "admin.gatewayVisibilitySettings.customCidrsRecognized",
+                        {
+                          count: customCidrCount,
+                        },
+                      )
                     }}
                   </span>
                   <span
@@ -563,10 +575,7 @@ onMounted(() => {
               </section>
             </template>
 
-            <FloatingActionDock
-              :active="isDirty"
-              inline-class="space-y-4 p-5"
-            >
+            <FloatingActionDock :active="isDirty" inline-class="space-y-4 p-5">
               <template #inline>
                 <div class="flex flex-wrap items-center justify-end gap-3">
                   <Button
@@ -630,7 +639,9 @@ onMounted(() => {
                   :disabled="isSaving || provinces.length === 0"
                 >
                   <SelectValue
-                    :placeholder="t('admin.gatewayVisibilitySettings.selectProvince')"
+                    :placeholder="
+                      t('admin.gatewayVisibilitySettings.selectProvince')
+                    "
                   />
                 </SelectTrigger>
                 <SelectContent>

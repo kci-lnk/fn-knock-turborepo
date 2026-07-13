@@ -1,4 +1,8 @@
-import type { HostMapping, HostMappingBasicAuth } from "../../types";
+import type {
+  GatewayVisibilitySelection,
+  HostMapping,
+  HostMappingBasicAuth,
+} from "../../types";
 import { normalizeHostMappingAvailability } from "../host-mapping-availability";
 
 type HostMappingUpdatePayload = Pick<
@@ -17,7 +21,13 @@ type HostMappingUpdatePayload = Pick<
   | "basic_auth"
   | "locations"
   | "title_override"
->;
+> & {
+  visibility: {
+    mode: HostMapping["visibility"]["mode"];
+    selections: Pick<GatewayVisibilitySelection, "province" | "query_city">[];
+    custom_cidrs: string[];
+  };
+};
 
 export const toHostMappingBasicAuthPayload = (
   basicAuth: HostMappingBasicAuth,
@@ -40,6 +50,14 @@ export const toHostMappingUpdatePayload = (
   is_default: mapping.is_default === true,
   disabled: mapping.disabled === true,
   availability: normalizeHostMappingAvailability(mapping.availability),
+  visibility: {
+    mode: mapping.visibility?.mode === "custom" ? "custom" : "inherit",
+    selections: (mapping.visibility?.selections ?? []).map((selection) => ({
+      province: selection.province,
+      query_city: selection.query_city,
+    })),
+    custom_cidrs: [...(mapping.visibility?.custom_cidrs ?? [])],
+  },
   protocol_mode:
     mapping.protocol_mode === "http1" || mapping.protocol_mode === "http2"
       ? mapping.protocol_mode

@@ -360,8 +360,6 @@ export const enAdmin = {
     selectCityOrProvinceWide: "Select a city or the whole province",
     selectCity: "Select a city",
     fixCustomCidrs: "Fix invalid custom CIDR entries first",
-    ruleRequired:
-      "After visibility is enabled, at least one region or custom CIDR is required",
     loadFailedDescription: "Failed to load visibility configuration",
     saveFailed: "Save failed",
     saveFailedDescription: "Failed to save visibility configuration",
@@ -369,9 +367,8 @@ export const enAdmin = {
     cityLoadFailedDescription: "Failed to get the city list for the province",
     cidrValidationFailed: "CIDR validation failed",
     fixEntries: "Fix these entries: {items}",
-    ruleRequiredTitle: "At least one visibility rule is required",
-    ruleRequiredDescription:
-      "After visibility is enabled, at least one region or custom CIDR is required.",
+    emptyRulesHint:
+      "No global range is configured. After saving, subdomains that inherit globally allow only existing exempt addresses; configure custom visibility ranges on application subdomains as needed.",
     updated: "Gateway visibility updated",
     systemSettings: "System settings",
     gateway: "Gateway",
@@ -2409,6 +2406,23 @@ export const enAdmin = {
     scheduleAvailability: "Schedule enable or disable",
     delete: "Delete",
     backToBasicAria: "Back to basic information",
+    visibilityTitle: "Visibility",
+    visibilityBehavior: "Visibility behavior",
+    visibilityBehaviorDescription:
+      "Inherit the global rule or define an independent allowlist for this application subdomain.",
+    visibilityInherit: "Inherit global visibility",
+    visibilityCustom: "Custom",
+    visibilityCustomSummary: "Custom · {regions} regions · {cidrs} CIDRs",
+    visibilityRegions: "Region scope",
+    visibilityRegionsDescription:
+      "Add provinces or cities that may access this subdomain.",
+    visibilityCidrsDescription: "One CIDR per line, for this subdomain only.",
+    visibilityInvalidCidrs: "Invalid CIDRs: {items}",
+    visibilityRuleRequired:
+      "Custom visibility requires at least one region or CIDR",
+    visibilityLoadFailed: "Failed to load global visibility settings",
+    visibilityRegionsLoadFailed: "Failed to load regions",
+    retry: "Retry",
     advancedConfig: "Advanced configuration",
     wafEnabled: "Enable WAF",
     wafEnabledDescription:

@@ -7,6 +7,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
+use ipnet::IpNet;
 use serde_json::{Map, Value, json};
 use url::Url;
 
@@ -156,6 +157,7 @@ mod patch;
 mod rollback;
 mod runtime;
 
+pub(crate) use compile::compile_host_visibility_config;
 use compile::*;
 use details::*;
 use handlers::*;

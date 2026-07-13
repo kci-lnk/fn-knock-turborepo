@@ -332,7 +332,9 @@
         "duplicateHost": "Host 映射域名 {host} 重复",
         "protocolModeInvalid": "Host 映射 {host} 的 HTTPS 协议必须是 auto、http1 或 http2",
         "backendProtocolUnsupported": "网关后端未应用 {host} 的 HTTPS 协议 {mode}，请升级网关后端",
-        "revisionConflict": "Host 映射已在其他页面更新，请刷新后重试"
+        "revisionConflict": "Host 映射已在其他页面更新，请刷新后重试",
+        "visibilityInvalid": "Host 映射 {host} 的可见性配置无效：{message}",
+        "backendVisibilityUnsupported": "网关后端未应用 {host} 的可见性规则，请升级网关后端"
       },
       "streamMappings": {
         "payloadObjectRequired": "协议映射必须是对象",
@@ -3334,7 +3336,9 @@
         "duplicateHost": "Host 映射域名 {host} 重複",
         "protocolModeInvalid": "Host 映射 {host} 的 HTTPS 協議必須是 auto、http1 或 http2",
         "backendProtocolUnsupported": "閘道後端未套用 {host} 的 HTTPS 協議 {mode}，請升級閘道後端",
-        "revisionConflict": "Host 映射已在其他頁面更新，請重新整理後再試"
+        "revisionConflict": "Host 映射已在其他頁面更新，請重新整理後再試",
+        "visibilityInvalid": "Host 對應 {host} 的可見性設定無效：{message}",
+        "backendVisibilityUnsupported": "閘道後端未套用 {host} 的可見性規則，請升級閘道後端"
       },
       "streamMappings": {
         "payloadObjectRequired": "協議映射必須是物件",
@@ -6336,7 +6340,9 @@
         "duplicateHost": "Host mapping host {host} is duplicated",
         "protocolModeInvalid": "Host mapping {host} HTTPS protocol must be auto, http1, or http2",
         "backendProtocolUnsupported": "The gateway backend did not apply HTTPS protocol {mode} for {host}; upgrade the gateway backend",
-        "revisionConflict": "Host mappings were updated in another page; refresh and try again"
+        "revisionConflict": "Host mappings were updated in another page; refresh and try again",
+        "visibilityInvalid": "Host mapping {host} has invalid visibility settings: {message}",
+        "backendVisibilityUnsupported": "The gateway backend did not apply visibility rules for {host}; upgrade the gateway backend"
       },
       "streamMappings": {
         "payloadObjectRequired": "Stream mapping must be an object",
@@ -9338,7 +9344,9 @@
         "duplicateHost": "호스트 매핑 도메인 {host}이(가) 중복되었습니다.",
         "protocolModeInvalid": "호스트 매핑 {host}의 HTTPS 프로토콜은 auto, http1 또는 http2여야 합니다.",
         "backendProtocolUnsupported": "게이트웨이 백엔드가 {host}의 HTTPS 프로토콜 {mode}을(를) 적용하지 못했습니다. 게이트웨이 백엔드를 업그레이드하세요.",
-        "revisionConflict": "다른 페이지에서 호스트 매핑이 업데이트되었습니다. 새로 고친 후 다시 시도하세요."
+        "revisionConflict": "다른 페이지에서 호스트 매핑이 업데이트되었습니다. 새로 고친 후 다시 시도하세요.",
+        "visibilityInvalid": "호스트 매핑 {host}의 가시성 설정이 잘못되었습니다: {message}",
+        "backendVisibilityUnsupported": "게이트웨이 백엔드가 {host}의 가시성 규칙을 적용하지 못했습니다. 게이트웨이 백엔드를 업그레이드하세요."
       },
       "streamMappings": {
         "payloadObjectRequired": "스트림 매핑은 객체여야 합니다.",
@@ -12340,7 +12348,9 @@
         "duplicateHost": "Host マッピングのドメイン {host} が重複しています",
         "protocolModeInvalid": "Host マッピング {host} の HTTPS プロトコルは auto、http1、http2 のいずれかである必要があります",
         "backendProtocolUnsupported": "ゲートウェイバックエンドが {host} の HTTPS プロトコル {mode} を適用できませんでした。ゲートウェイバックエンドを更新してください",
-        "revisionConflict": "別のページで Host マッピングが更新されました。更新してから再試行してください"
+        "revisionConflict": "別のページで Host マッピングが更新されました。更新してから再試行してください",
+        "visibilityInvalid": "Host マッピング {host} の可視性設定が無効です: {message}",
+        "backendVisibilityUnsupported": "ゲートウェイバックエンドが {host} の可視性ルールを適用できませんでした。ゲートウェイバックエンドを更新してください"
       },
       "streamMappings": {
         "payloadObjectRequired": "ストリームマッピングはオブジェクトである必要があります",

@@ -24,6 +24,10 @@ pub(crate) fn build_host_rules_payload(mappings: &[Value]) -> Value {
                     "is_default": object.get("is_default").cloned().unwrap_or(Value::Bool(false)),
                     "disabled": object.get("disabled").cloned().unwrap_or(Value::Bool(false)),
                     "availability": object.get("availability").cloned().unwrap_or(Value::Null),
+                    "visibility": object.get("visibility").map(|visibility| json!({
+                        "mode": visibility.get("mode").and_then(Value::as_str).unwrap_or("inherit"),
+                        "cidrs": visibility.get("cidrs").cloned().unwrap_or_else(|| Value::Array(Vec::new())),
+                    })).unwrap_or_else(|| json!({ "mode": "inherit", "cidrs": [] })),
                     "protocol_mode": normalize_protocol_mode(object.get("protocol_mode")),
                     "title": title,
                     "favicon": favicon,

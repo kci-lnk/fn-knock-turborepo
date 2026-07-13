@@ -369,8 +369,6 @@ export const jaJPAdmin = {
     selectCityOrProvinceWide: "市または県を選択してください",
     selectCity: "都市を選択してください",
     fixCustomCidrs: "まずカスタム CIDR のフォーマットエラーを修正してください",
-    ruleRequired:
-      "可視性が有効な場合、少なくとも 1 つのリージョンまたはカスタム CIDR が必要です",
     loadFailedDescription: "可視性設定のロードに失敗しました",
     saveFailed: "保存に失敗しました",
     saveFailedDescription: "可視性設定を保存できませんでした",
@@ -378,9 +376,8 @@ export const jaJPAdmin = {
     cityLoadFailedDescription: "州内の都市のリストを取得できません",
     cidrValidationFailed: "CIDR 検証に失敗しました",
     fixEntries: "次のエントリを修正してください: {items}",
-    ruleRequiredTitle: "少なくとも 1 つの可視性ルールが必要です",
-    ruleRequiredDescription:
-      "可視性が有効な場合、少なくとも 1 つのリージョンまたはカスタム CIDR が必要です。",
+    emptyRulesHint:
+      "グローバル範囲が設定されていません。保存後、グローバル設定を継承するサブドメインでは既存の除外アドレスのみが許可されます。必要に応じて各アプリケーションサブドメインで可視性範囲を設定してください。",
     updated: "ゲートウェイの可視性が更新されました",
     systemSettings: "システム設定",
     gateway: "ゲートウェイ",
@@ -2445,6 +2442,23 @@ export const jaJPAdmin = {
     scheduleAvailability: "有効化または無効化を予約",
     delete: "削除",
     backToBasicAria: "基本情報に戻る",
+    visibilityTitle: "可視性",
+    visibilityBehavior: "可視性の動作",
+    visibilityBehaviorDescription:
+      "グローバルルールを継承するか、このアプリ用サブドメイン専用の許可範囲を指定します。",
+    visibilityInherit: "グローバル可視性を継承",
+    visibilityCustom: "カスタム",
+    visibilityCustomSummary: "カスタム · {regions} 地域 · {cidrs} CIDR",
+    visibilityRegions: "地域範囲",
+    visibilityRegionsDescription:
+      "このサブドメインへのアクセスを許可する地域を追加します。",
+    visibilityCidrsDescription:
+      "1 行に 1 CIDR、このサブドメインのみに適用されます。",
+    visibilityInvalidCidrs: "CIDR の形式が正しくありません：{items}",
+    visibilityRuleRequired: "カスタム可視性には地域または CIDR が必要です",
+    visibilityLoadFailed: "グローバル可視性設定を読み込めませんでした",
+    visibilityRegionsLoadFailed: "地域一覧を読み込めませんでした",
+    retry: "再試行",
     advancedConfig: "高度な構成",
     wafEnabled: "WAF を有効にする",
     wafEnabledDescription:

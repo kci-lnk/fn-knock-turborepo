@@ -1,0 +1,287 @@
+import { computed, ref, watch, type ComputedRef, type Ref } from "vue";
+import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
+import { parseCidrTextarea } from "@admin-shared/utils/cidr";
+import { CidrAPI, ConfigAPI } from "@/lib/api";
+import type {
+  CidrProvinceOption,
+  GatewayVisibilitySelection,
+  HostMapping,
+} from "@/types";
+import { useCidrRegionSelector } from "@/composables/useCidrRegionSelector";
+import type { TranslationParams } from "./model";
+
+export type MappingDialogView = "basic" | "visibility";
+export type MappingDialogMotionDirection = "forward" | "back";
+
+export type MappingVisibilityValidationIssue =
+  | { kind: "invalid_cidrs"; invalid: string[] }
+  | { kind: "empty" }
+  | null;
+
+export const getMappingVisibilityValidationIssue = ({
+  available,
+  mode,
+  selectionsCount,
+  customCidrsText,
+}: {
+  available: boolean;
+  mode: HostMapping["visibility"]["mode"];
+  selectionsCount: number;
+  customCidrsText: string;
+}): MappingVisibilityValidationIssue => {
+  if (!available || mode !== "custom") return null;
+  const parsed = parseCidrTextarea(customCidrsText);
+  if (parsed.invalid.length > 0) {
+    return { kind: "invalid_cidrs", invalid: parsed.invalid };
+  }
+  if (selectionsCount === 0 && parsed.cidrs.length === 0) {
+    return { kind: "empty" };
+  }
+  return null;
+};
+
+export const useMappingVisibility = ({
+  isDialogOpen,
+  isMappingAuthService,
+  mappingForm,
+  translate,
+}: {
+  isDialogOpen: Ref<boolean>;
+  isMappingAuthService: ComputedRef<boolean>;
+  mappingForm: HostMapping;
+  translate: (key: string, params?: TranslationParams) => string;
+}) => {
+  const mappingDialogView = ref<MappingDialogView>("basic");
+  const motionDirection = ref<MappingDialogMotionDirection>("forward");
+  const globalVisibilityEnabled = ref(false);
+  const isGlobalVisibilityLoading = ref(false);
+  const globalVisibilityLoadError = ref("");
+  const provinces = ref<CidrProvinceOption[]>([]);
+  const isProvincesLoading = ref(false);
+  const provincesLoadError = ref("");
+  const customCidrsText = ref("");
+  let globalRequestId = 0;
+
+  const visibilityMode = computed({
+    get: () =>
+      mappingForm.visibility?.mode === "custom" ? "custom" : "inherit",
+    set: (mode: "inherit" | "custom") => {
+      mappingForm.visibility.mode = mode;
+    },
+  });
+  const selections = computed<GatewayVisibilitySelection[]>({
+    get: () => mappingForm.visibility.selections,
+    set: (value) => {
+      mappingForm.visibility.selections = value;
+    },
+  });
+  const customCidrsState = computed(() =>
+    parseCidrTextarea(customCidrsText.value),
+  );
+  const visibilityAvailable = computed(
+    () => globalVisibilityEnabled.value && !isMappingAuthService.value,
+  );
+  const customVisibilityEnabled = computed(
+    () => visibilityMode.value === "custom",
+  );
+  const regionInputsDisabled = computed(
+    () => !customVisibilityEnabled.value || isProvincesLoading.value,
+  );
+  const visibilityValidationMessage = computed(() => {
+    const issue = getMappingVisibilityValidationIssue({
+      available: visibilityAvailable.value,
+      mode: visibilityMode.value,
+      selectionsCount: selections.value.length,
+      customCidrsText: customCidrsText.value,
+    });
+    if (issue?.kind === "invalid_cidrs") {
+      return translate("admin.subdomainProxy.visibilityInvalidCidrs", {
+        items: issue.invalid.join("、"),
+      });
+    }
+    if (issue?.kind === "empty") {
+      return translate("admin.subdomainProxy.visibilityRuleRequired");
+    }
+    return "";
+  });
+  const visibilitySummary = computed(() => {
+    if (visibilityMode.value !== "custom") {
+      return translate("admin.subdomainProxy.visibilityInherit");
+    }
+    return translate("admin.subdomainProxy.visibilityCustomSummary", {
+      regions: selections.value.length,
+      cidrs: customCidrsState.value.cidrs.length,
+    });
+  });
+
+  const {
+    addRegion,
+    canAddRegion,
+    cityOptions,
+    cityOptionsLoading,
+    citySelectKey,
+    citySelectPlaceholder,
+    handleRegionDialogOpenChange,
+    isRegionDialogOpen,
+    openRegionDialog,
+    regionDraft,
+    removeRegion,
+    selectionKey,
+  } = useCidrRegionSelector({
+    selections,
+    isEnabled: customVisibilityEnabled,
+    loadCities: (province) => CidrAPI.getCities(province),
+    provinces,
+    regionInputsDisabled,
+    translate: (key) => {
+      const keys: Record<string, string> = {
+        loading: "admin.gatewayVisibilitySettings.loading",
+        selectProvinceFirst:
+          "admin.gatewayVisibilitySettings.selectProvinceFirst",
+        selectCityOrProvince:
+          "admin.gatewayVisibilitySettings.selectCityOrProvinceWide",
+        selectCity: "admin.gatewayVisibilitySettings.selectCity",
+        regionsLoadFailed: "admin.gatewayVisibilitySettings.cityLoadFailed",
+        regionsLoadDescription:
+          "admin.gatewayVisibilitySettings.cityLoadFailedDescription",
+      };
+      return translate(keys[key] ?? key);
+    },
+  });
+
+  const syncCustomCidrsToForm = () => {
+    mappingForm.visibility.custom_cidrs = customCidrsText.value
+      .split(/\r?\n/u)
+      .map((value) => value.trim())
+      .filter(Boolean);
+  };
+
+  const resetVisibilityEditor = () => {
+    handleRegionDialogOpenChange(false);
+    mappingDialogView.value = "basic";
+    motionDirection.value = "forward";
+    globalVisibilityEnabled.value = false;
+    customCidrsText.value = (mappingForm.visibility?.custom_cidrs ?? []).join(
+      "\n",
+    );
+    globalVisibilityLoadError.value = "";
+    provincesLoadError.value = "";
+  };
+
+  const loadGlobalVisibility = async () => {
+    const requestId = ++globalRequestId;
+    globalVisibilityEnabled.value = false;
+    isGlobalVisibilityLoading.value = true;
+    globalVisibilityLoadError.value = "";
+    try {
+      const details = await ConfigAPI.getGatewayVisibility();
+      if (requestId !== globalRequestId) return;
+      globalVisibilityEnabled.value = details.config.enabled;
+    } catch (error) {
+      if (requestId !== globalRequestId) return;
+      globalVisibilityEnabled.value = false;
+      globalVisibilityLoadError.value = extractErrorMessage(
+        error,
+        translate("admin.subdomainProxy.visibilityLoadFailed"),
+      );
+    } finally {
+      if (requestId === globalRequestId) {
+        isGlobalVisibilityLoading.value = false;
+      }
+    }
+  };
+
+  const loadProvinces = async () => {
+    if (provinces.value.length > 0 || isProvincesLoading.value) return;
+    isProvincesLoading.value = true;
+    provincesLoadError.value = "";
+    try {
+      provinces.value = (await CidrAPI.getProvinces()).options;
+    } catch (error) {
+      provincesLoadError.value = extractErrorMessage(
+        error,
+        translate("admin.subdomainProxy.visibilityRegionsLoadFailed"),
+      );
+    } finally {
+      isProvincesLoading.value = false;
+    }
+  };
+
+  const openVisibilityView = () => {
+    if (!visibilityAvailable.value) return;
+    motionDirection.value = "forward";
+    mappingDialogView.value = "visibility";
+    if (customVisibilityEnabled.value) {
+      void loadProvinces();
+    }
+  };
+
+  const returnBasicView = () => {
+    motionDirection.value = "back";
+    mappingDialogView.value = "basic";
+  };
+
+  watch(customCidrsText, syncCustomCidrsToForm);
+  watch([mappingDialogView, customVisibilityEnabled], ([view, custom]) => {
+    if (view === "visibility" && custom) {
+      void loadProvinces();
+    }
+  });
+  watch(isMappingAuthService, (isAuth) => {
+    if (isAuth && mappingDialogView.value === "visibility") {
+      returnBasicView();
+    }
+  });
+  watch(isDialogOpen, (open) => {
+    if (!open) {
+      globalRequestId += 1;
+      isGlobalVisibilityLoading.value = false;
+    }
+  });
+
+  const transitionEnterFromClass = computed(() =>
+    motionDirection.value === "forward"
+      ? "opacity-0 motion-safe:translate-x-6"
+      : "opacity-0 motion-safe:-translate-x-6",
+  );
+  const transitionLeaveToClass = computed(() =>
+    motionDirection.value === "forward"
+      ? "opacity-0 motion-safe:-translate-x-6"
+      : "opacity-0 motion-safe:translate-x-6",
+  );
+
+  return {
+    addRegion,
+    canAddRegion,
+    cityOptions,
+    cityOptionsLoading,
+    citySelectKey,
+    citySelectPlaceholder,
+    customCidrsState,
+    customCidrsText,
+    globalVisibilityLoadError,
+    handleRegionDialogOpenChange,
+    isGlobalVisibilityLoading,
+    isProvincesLoading,
+    isRegionDialogOpen,
+    loadGlobalVisibility,
+    loadProvinces,
+    mappingDialogView,
+    openRegionDialog,
+    openVisibilityView,
+    provinces,
+    provincesLoadError,
+    regionDraft,
+    regionInputsDisabled,
+    removeRegion,
+    resetVisibilityEditor,
+    returnBasicView,
+    selectionKey,
+    transitionEnterFromClass,
+    transitionLeaveToClass,
+    visibilityAvailable,
+    visibilityMode,
+    visibilitySummary,
+    visibilityValidationMessage,
+  };
+};

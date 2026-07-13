@@ -27,9 +27,6 @@ pub(super) async fn compile_gateway_visibility_config(
     }
 
     let merged_cidrs = normalize_cidr_lines(resolved_cidrs.into_iter().chain(custom_cidrs.clone()));
-    if enabled && merged_cidrs.is_empty() {
-        return Err(translator.t("server.gatewayVisibility.emptyEnabledConfig"));
-    }
     let runtime_cidrs = if enabled { merged_cidrs } else { Vec::new() };
 
     Ok(CompiledGatewayVisibility {
@@ -44,6 +41,41 @@ pub(super) async fn compile_gateway_visibility_config(
             "updated_at": time_utils::now_iso(),
         }),
     })
+}
+
+pub(crate) async fn compile_host_visibility_config(
+    state: &AppState,
+    input: &Map<String, Value>,
+) -> Result<Value, String> {
+    let translator = Translator::from_state(state).await;
+    let selections = dedupe_visibility_selection_inputs(input.get("selections"));
+    let custom_cidrs =
+        validate_gateway_custom_cidrs(string_list(input.get("custom_cidrs")), &translator)?;
+    let mut stored_selections = Vec::new();
+    let mut resolved_cidrs = Vec::new();
+
+    for selection in selections {
+        let lookup = scanner::lookup_cidr_region(
+            state,
+            &selection.province,
+            selection.query_city.as_deref(),
+        )
+        .await?;
+        stored_selections.push(lookup.selection);
+        resolved_cidrs.extend(lookup.cidrs);
+    }
+
+    let cidrs = normalize_cidr_lines(resolved_cidrs.into_iter().chain(custom_cidrs.clone()));
+    if cidrs.is_empty() {
+        return Err(translator.t("server.gatewayVisibility.emptyEnabledConfig"));
+    }
+
+    Ok(json!({
+        "mode": "custom",
+        "selections": stored_selections,
+        "custom_cidrs": custom_cidrs,
+        "cidrs": cidrs,
+    }))
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -118,12 +150,23 @@ pub(super) fn normalize_cidr_lines(values: impl IntoIterator<Item = String>) -> 
     let mut seen = BTreeSet::new();
     let mut result = Vec::new();
     for value in values {
-        let cidr = value.trim();
-        if cidr.is_empty() {
+        let raw = value.trim();
+        if raw.is_empty() {
             continue;
         }
+        let cidr = raw
+            .parse::<IpNet>()
+            .map(|network| match network {
+                IpNet::V4(network) => {
+                    format!("{}/{}", network.network(), network.prefix_len())
+                }
+                IpNet::V6(network) => {
+                    format!("{}/{}", network.network(), network.prefix_len())
+                }
+            })
+            .unwrap_or_else(|_| raw.to_string());
         if seen.insert(cidr.to_ascii_lowercase()) {
-            result.push(cidr.to_string());
+            result.push(cidr);
         }
     }
     result

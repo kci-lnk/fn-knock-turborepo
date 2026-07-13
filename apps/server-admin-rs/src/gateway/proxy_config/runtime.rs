@@ -1,4 +1,5 @@
 use super::*;
+use ipnet::IpNet;
 
 pub(super) async fn sync_go_rules(state: &AppState, rules: &Value) -> Result<(), String> {
     ensure_go_success(
@@ -59,15 +60,15 @@ pub(super) fn ensure_go_host_protocol_modes_applied(
     requested: &Value,
     response: &Value,
 ) -> Result<(), String> {
-    let requested = host_protocol_modes_by_host(requested, "Host-rules request")?;
-    let echoed = host_protocol_modes_by_host(
-        response
-            .get("data")
-            .ok_or_else(|| "Go backend host-rules response is missing data".to_string())?,
-        "Go backend response",
-    )?;
-    for (host, requested_mode) in &requested {
-        let Some(echoed_mode) = echoed.get(host) else {
+    let echoed_payload = response
+        .get("data")
+        .ok_or_else(|| "Go backend host-rules response is missing data".to_string())?;
+    let requested_modes = host_protocol_modes_by_host(requested, "Host-rules request")?;
+    let echoed_modes = host_protocol_modes_by_host(echoed_payload, "Go backend response")?;
+    let requested_visibilities = host_visibilities_by_host(requested)?;
+    let echoed_visibilities = host_visibilities_by_host(echoed_payload)?;
+    for (host, requested_mode) in &requested_modes {
+        let Some(echoed_mode) = echoed_modes.get(host) else {
             return Err(format!(
                 "Go backend did not apply host mapping {host}; upgrade the gateway backend"
             ));
@@ -77,10 +78,23 @@ pub(super) fn ensure_go_host_protocol_modes_applied(
                 "Go backend did not apply HTTPS protocol mode {requested_mode} for {host} (reported {echoed_mode}); upgrade the gateway backend"
             ));
         }
+        let requested_visibility = requested_visibilities
+            .get(host)
+            .expect("visibility map follows the validated host map");
+        let echoed_visibility = echoed_visibilities
+            .get(host)
+            .expect("visibility map follows the validated host map");
+        if echoed_visibility.0 != requested_visibility.0
+            || (requested_visibility.0 == "custom" && echoed_visibility.1 != requested_visibility.1)
+        {
+            return Err(format!(
+                "Go backend did not apply host visibility for {host}; upgrade the gateway backend"
+            ));
+        }
     }
-    let mut unexpected_hosts = echoed
+    let mut unexpected_hosts = echoed_modes
         .keys()
-        .filter(|host| !requested.contains_key(*host))
+        .filter(|host| !requested_modes.contains_key(*host))
         .collect::<Vec<_>>();
     unexpected_hosts.sort_unstable();
     if let Some(host) = unexpected_hosts.first() {
@@ -89,6 +103,48 @@ pub(super) fn ensure_go_host_protocol_modes_applied(
         ));
     }
     Ok(())
+}
+
+fn host_visibilities_by_host(
+    value: &Value,
+) -> Result<HashMap<String, (String, Vec<String>)>, String> {
+    let items = value
+        .as_array()
+        .ok_or_else(|| "Host-rules visibility payload must be an array".to_string())?;
+    let mut visibilities = HashMap::with_capacity(items.len());
+    for item in items {
+        let host = normalize_host_value(item.get("host").and_then(Value::as_str).unwrap_or(""));
+        let visibility = item.get("visibility");
+        let mode = if visibility
+            .and_then(|value| value.get("mode"))
+            .and_then(Value::as_str)
+            == Some("custom")
+        {
+            "custom"
+        } else {
+            "inherit"
+        };
+        let mut seen = HashSet::new();
+        let cidrs = visibility
+            .and_then(|value| value.get("cidrs"))
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .filter_map(canonical_host_visibility_cidr)
+            .filter(|cidr| seen.insert(cidr.clone()))
+            .collect();
+        visibilities.insert(host, (mode.to_string(), cidrs));
+    }
+    Ok(visibilities)
+}
+
+fn canonical_host_visibility_cidr(value: &str) -> Option<String> {
+    let network = value.trim().parse::<IpNet>().ok()?;
+    Some(match network {
+        IpNet::V4(network) => format!("{}/{}", network.network(), network.prefix_len()),
+        IpNet::V6(network) => format!("{}/{}", network.network(), network.prefix_len()),
+    })
 }
 
 fn host_protocol_modes_by_host(

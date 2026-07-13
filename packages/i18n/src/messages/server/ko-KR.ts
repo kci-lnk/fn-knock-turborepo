@@ -378,6 +378,10 @@ export const koKRServer = {
         "호스트 매핑 {host}의 HTTPS 프로토콜은 auto, http1 또는 http2여야 합니다.",
       backendProtocolUnsupported:
         "게이트웨이 백엔드가 {host}의 HTTPS 프로토콜 {mode}을(를) 적용하지 못했습니다. 게이트웨이 백엔드를 업그레이드하세요.",
+      visibilityInvalid:
+        "호스트 매핑 {host}의 가시성 설정이 잘못되었습니다: {message}",
+      backendVisibilityUnsupported:
+        "게이트웨이 백엔드가 {host}의 가시성 규칙을 적용하지 못했습니다. 게이트웨이 백엔드를 업그레이드하세요.",
       revisionConflict:
         "다른 페이지에서 호스트 매핑이 업데이트되었습니다. 새로 고친 후 다시 시도하세요.",
       targetInvalid:

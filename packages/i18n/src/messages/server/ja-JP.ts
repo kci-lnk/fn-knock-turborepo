@@ -398,6 +398,10 @@ export const jaJPServer = {
         "Host マッピング {host} の HTTPS プロトコルは auto、http1、http2 のいずれかである必要があります",
       backendProtocolUnsupported:
         "ゲートウェイバックエンドが {host} の HTTPS プロトコル {mode} を適用できませんでした。ゲートウェイバックエンドを更新してください",
+      visibilityInvalid:
+        "Host マッピング {host} の可視性設定が無効です: {message}",
+      backendVisibilityUnsupported:
+        "ゲートウェイバックエンドが {host} の可視性ルールを適用できませんでした。ゲートウェイバックエンドを更新してください",
       revisionConflict:
         "別のページで Host マッピングが更新されました。更新してから再試行してください",
       targetInvalid:

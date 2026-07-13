@@ -50,6 +50,11 @@ message HostRuleAvailability {
   string end_time = 3;
 }
 
+message HostRuleVisibility {
+  string mode = 1;
+  repeated string cidrs = 2;
+}
+
 message Rule {
   string path = 1;
   string target = 2;
@@ -74,6 +79,7 @@ message HostRule {
   bool disabled = 12;
   HostRuleAvailability availability = 13;
   string protocol_mode = 14;
+  HostRuleVisibility visibility = 15;
 }
 
 message StreamRule {

@@ -1,5 +1,43 @@
 use super::*;
 
+async fn gateway_settings_test_state() -> (tempfile::TempDir, AppState) {
+    let directory = tempfile::tempdir().unwrap();
+    let mut settings = {
+        let _environment = crate::test_support::EnvGuard::new(&[]);
+        crate::settings::Settings::from_env()
+    };
+    settings.runtime_target = "linux".to_string();
+    settings.data_dir = directory.path().join("data");
+    settings.gateway_config_dir = directory.path().join("gateway");
+    settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
+    settings.legacy_redis_url = String::new();
+    settings.go_backend_grpc_addr = "http://127.0.0.1:1".to_string();
+    settings.internal_rpc_token = "test-internal-rpc-token".to_string();
+    settings.request_timeout = std::time::Duration::from_millis(100);
+    let state = AppState::new(settings).await.unwrap();
+    (directory, state)
+}
+
+#[tokio::test]
+async fn gateway_visibility_allows_enabled_empty_global_rules() {
+    let (_directory, state) = gateway_settings_test_state().await;
+    let input = json!({
+        "enabled": true,
+        "selections": [],
+        "custom_cidrs": [],
+    });
+
+    let compiled = compile_gateway_visibility_config(&state, input.as_object().unwrap())
+        .await
+        .unwrap();
+
+    assert_eq!(compiled.config["enabled"], Value::Bool(true));
+    assert_eq!(compiled.config["selections"], json!([]));
+    assert_eq!(compiled.config["custom_cidrs"], json!([]));
+    assert_eq!(compiled.runtime["enabled"], Value::Bool(true));
+    assert_eq!(compiled.runtime["cidrs"], json!([]));
+}
+
 #[test]
 fn gateway_response_uses_node_defaults() {
     let config = json!({

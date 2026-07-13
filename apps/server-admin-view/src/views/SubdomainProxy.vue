@@ -142,6 +142,7 @@
       :show-toolbar="showToolbar"
       :update-mapping-basic-auth="updateMappingBasicAuth"
       :update-mapping-form="updateMappingForm"
+      :visibility-editor="visibilityEditor"
       @close="closeDialog"
       @save="saveMapping"
       @update:open="handleDialogOpenChange"
@@ -248,6 +249,7 @@ import {
   DEFAULT_PROTOCOL_MODE,
   composeHostFromSubdomain,
   createDisabledMappingBasicAuth,
+  createDefaultMappingVisibility,
   getMappingDisplayTitle,
   isHttpTargetUrl,
   normalizeHostLike,
@@ -516,6 +518,7 @@ const {
   showToolbar,
   updateMappingBasicAuth,
   updateMappingForm,
+  visibilityEditor,
 } = useSubdomainMappingDialogController({
   allMappings,
   canUseRootDomainSuffix,
@@ -768,6 +771,7 @@ async function addAuthService() {
         availability: null,
         protocol_mode: DEFAULT_PROTOCOL_MODE,
         basic_auth: createDisabledMappingBasicAuth(),
+        visibility: createDefaultMappingVisibility(),
         locations: [],
         service_role: "auth",
         title: "",

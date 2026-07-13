@@ -308,6 +308,7 @@ export const buildDiscoveredServiceMappings = ({
     availability: null,
     protocol_mode: DEFAULT_PROTOCOL_MODE,
     basic_auth: createDisabledMappingBasicAuth(),
+    visibility: createDefaultMappingVisibility(),
     locations: [],
     service_role: "app",
     title: "",
@@ -617,6 +618,7 @@ export const createDefaultMapping = (): HostMapping => ({
   is_default: false,
   disabled: false,
   availability: null,
+  visibility: createDefaultMappingVisibility(),
   protocol_mode: DEFAULT_PROTOCOL_MODE,
   basic_auth: createDisabledMappingBasicAuth(),
   locations: [],
@@ -624,6 +626,23 @@ export const createDefaultMapping = (): HostMapping => ({
   title: "",
   title_override: "",
   favicon: "",
+});
+
+export const createDefaultMappingVisibility =
+  (): HostMapping["visibility"] => ({
+    mode: "inherit",
+    selections: [],
+    custom_cidrs: [],
+    cidrs: [],
+  });
+
+export const normalizeMappingVisibility = (
+  value: HostMapping["visibility"] | null | undefined,
+): HostMapping["visibility"] => ({
+  mode: value?.mode === "custom" ? "custom" : "inherit",
+  selections: (value?.selections ?? []).map((selection) => ({ ...selection })),
+  custom_cidrs: [...(value?.custom_cidrs ?? [])],
+  cidrs: [...(value?.cidrs ?? [])],
 });
 
 export const buildBookmarkExportFilename = (rootDomain: string): string => {
@@ -696,6 +715,10 @@ export const normalizeMappingForm = (
       serviceRole === "auth"
         ? null
         : normalizeHostMappingAvailability(input.availability),
+    visibility:
+      serviceRole === "auth"
+        ? createDefaultMappingVisibility()
+        : normalizeMappingVisibility(input.visibility),
     protocol_mode:
       input.protocol_mode === "http1" || input.protocol_mode === "http2"
         ? input.protocol_mode

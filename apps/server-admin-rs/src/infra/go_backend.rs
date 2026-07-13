@@ -17,12 +17,12 @@ use crate::grpc_proto::{
     AuthConfig, BasicAuthConfig, BoolValue, CommonLocationExemptionsRuntime, CrawlerBlockerConfig,
     FnosPortIconHijackConfig, GatewayListenerConfig, GatewayLogQuery, GatewayPortalConfig,
     GatewayVisibilityConfig, GeneralBlacklistListRequest, HostActiveIpStats, HostLocation,
-    HostLocationResponse, HostRequest, HostRule, HostRuleAvailability, HostRules, IpListRequest,
-    IpRequest, IptablesInitRequest, LocaleConfig, LoggingConfig, OmitTargetsConfig,
-    ReverseProxyThrottleConfig, ReverseProxyThrottleExemptIpsRuntime, Rule, Rules,
-    SshFirewallClearRequest, SshFirewallSyncRequest, SslConfig, SslDeployedCertificate, StreamRule,
-    StreamRules, StringValue, TcpRedirectRequest, WafBundleRequest, WafConfig, WafDrainRequest,
-    firewall_service_client::FirewallServiceClient,
+    HostLocationResponse, HostRequest, HostRule, HostRuleAvailability, HostRuleVisibility,
+    HostRules, IpListRequest, IpRequest, IptablesInitRequest, LocaleConfig, LoggingConfig,
+    OmitTargetsConfig, ReverseProxyThrottleConfig, ReverseProxyThrottleExemptIpsRuntime, Rule,
+    Rules, SshFirewallClearRequest, SshFirewallSyncRequest, SslConfig, SslDeployedCertificate,
+    StreamRule, StreamRules, StringValue, TcpRedirectRequest, WafBundleRequest, WafConfig,
+    WafDrainRequest, firewall_service_client::FirewallServiceClient,
     gateway_control_service_client::GatewayControlServiceClient,
     gateway_logs_service_client::GatewayLogsServiceClient,
     security_service_client::SecurityServiceClient, ssl_service_client::SslServiceClient,
@@ -1133,6 +1133,28 @@ fn parse_host_rule_availability(value: &Value) -> Option<HostRuleAvailability> {
     })
 }
 
+fn parse_host_rule_visibility(value: Option<&Value>) -> Option<HostRuleVisibility> {
+    let value = value?.as_object()?;
+    Some(HostRuleVisibility {
+        mode: value
+            .get("mode")
+            .and_then(Value::as_str)
+            .unwrap_or("inherit")
+            .to_string(),
+        cidrs: value
+            .get("cidrs")
+            .and_then(Value::as_array)
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(ToString::to_string)
+                    .collect()
+            })
+            .unwrap_or_default(),
+    })
+}
+
 fn parse_host_rules(value: &Value) -> Vec<HostRule> {
     value
         .as_array()
@@ -1151,6 +1173,7 @@ fn parse_host_rules(value: &Value) -> Vec<HostRule> {
                     availability: item
                         .get("availability")
                         .and_then(parse_host_rule_availability),
+                    visibility: parse_host_rule_visibility(item.get("visibility")),
                     protocol_mode: string_field(item, "protocol_mode"),
                     title: string_field(item, "title"),
                     favicon: string_field(item, "favicon"),
@@ -1385,6 +1408,10 @@ fn host_rules_to_json(items: Vec<HostRule>) -> Value {
                     "is_default": item.is_default,
                     "disabled": item.disabled,
                     "availability": host_rule_availability_to_json(item.availability),
+                    "visibility": item.visibility.map(|visibility| json!({
+                        "mode": visibility.mode,
+                        "cidrs": visibility.cidrs,
+                    })).unwrap_or_else(|| json!({ "mode": "inherit", "cidrs": [] })),
                     "protocol_mode": item.protocol_mode,
                     "title": item.title,
                     "favicon": item.favicon,

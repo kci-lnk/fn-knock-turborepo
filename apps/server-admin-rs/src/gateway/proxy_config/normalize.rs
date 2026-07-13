@@ -210,6 +210,12 @@ pub(super) fn normalize_host_mappings_for_route(
         } else {
             normalize_protocol_mode(previous.and_then(|value| value.get("protocol_mode")))
         };
+        let visibility = normalize_host_mapping_visibility(
+            object.get("visibility"),
+            previous.and_then(|value| value.get("visibility")),
+            service_role == "auth",
+        )
+        .map_err(|message| format!("Host mapping {host} {message}"))?;
 
         let locations = if service_role == "auth" {
             Vec::new()
@@ -292,6 +298,7 @@ pub(super) fn normalize_host_mappings_for_route(
         object.insert("is_default".to_string(), Value::Bool(is_default));
         object.insert("disabled".to_string(), Value::Bool(disabled));
         object.insert("availability".to_string(), availability);
+        object.insert("visibility".to_string(), visibility);
         object.insert("protocol_mode".to_string(), Value::String(protocol_mode));
         object.insert("basic_auth".to_string(), normalized_basic_auth);
         object.insert("locations".to_string(), Value::Array(locations));
@@ -330,6 +337,129 @@ pub(super) fn normalize_host_mappings_for_route(
     }
 
     Ok(normalized)
+}
+
+pub(super) async fn compile_host_mapping_visibilities(
+    state: &AppState,
+    mappings: Vec<Value>,
+    previous_config: &Value,
+) -> Result<Vec<Value>, String> {
+    let previous_by_host = previous_host_mappings_by_host(previous_config);
+    let mut compiled = Vec::with_capacity(mappings.len());
+    for mapping in mappings {
+        let Some(mut object) = mapping.as_object().cloned() else {
+            return Err("Host mapping must be an object".to_string());
+        };
+        let host = object
+            .get("host")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let is_custom = object
+            .get("visibility")
+            .and_then(|value| value.get("mode"))
+            .and_then(Value::as_str)
+            == Some("custom");
+        let matches_previous = previous_by_host
+            .get(&host)
+            .and_then(|value| value.get("visibility"))
+            == object.get("visibility");
+        if is_custom && !matches_previous {
+            let visibility = object
+                .get("visibility")
+                .and_then(Value::as_object)
+                .ok_or_else(|| format!("Host mapping {host} visibility must be an object"))?;
+            let next = gateway_settings::compile_host_visibility_config(state, visibility)
+                .await
+                .map_err(|message| format!("Host mapping {host} visibility: {message}"))?;
+            object.insert("visibility".to_string(), next);
+        }
+        compiled.push(Value::Object(object));
+    }
+    Ok(compiled)
+}
+
+pub(super) fn normalize_host_mapping_visibility(
+    requested: Option<&Value>,
+    previous: Option<&Value>,
+    is_auth: bool,
+) -> Result<Value, String> {
+    if is_auth {
+        return Ok(json!({
+            "mode": "inherit",
+            "selections": [],
+            "custom_cidrs": [],
+            "cidrs": [],
+        }));
+    }
+
+    let source = match requested {
+        Some(value) => Some(
+            value
+                .as_object()
+                .ok_or_else(|| "visibility must be an object".to_string())?,
+        ),
+        None => previous.and_then(Value::as_object),
+    };
+
+    if requested.is_some() {
+        if source
+            .and_then(|value| value.get("selections"))
+            .is_some_and(|value| !value.is_array())
+        {
+            return Err("visibility selections must be an array".to_string());
+        }
+        if source
+            .and_then(|value| value.get("custom_cidrs"))
+            .is_some_and(|value| !value.is_array())
+        {
+            return Err("visibility custom_cidrs must be an array".to_string());
+        }
+    }
+
+    let raw_mode = source.and_then(|value| value.get("mode"));
+    let mode = match raw_mode {
+        None => "inherit",
+        Some(Value::String(value)) if value == "inherit" || value == "custom" => value.as_str(),
+        Some(_) if requested.is_none() => "inherit",
+        Some(_) => return Err("visibility mode must be inherit or custom".to_string()),
+    };
+    let selections = source
+        .and_then(|value| value.get("selections"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let custom_cidrs =
+        normalized_visibility_strings(source.and_then(|value| value.get("custom_cidrs")));
+    let cidr_source = if requested.is_some() {
+        previous.and_then(|value| value.get("cidrs"))
+    } else {
+        source.and_then(|value| value.get("cidrs"))
+    };
+    let cidrs = normalized_visibility_strings(cidr_source);
+    Ok(json!({
+        "mode": mode,
+        "selections": selections,
+        "custom_cidrs": custom_cidrs,
+        "cidrs": cidrs,
+    }))
+}
+
+fn normalized_visibility_strings(value: Option<&Value>) -> Vec<String> {
+    let mut seen = HashSet::new();
+    value
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .filter(|value| seen.insert(value.to_ascii_lowercase()))
+                .map(ToString::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn normalize_host_mapping_availability_for_route(

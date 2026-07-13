@@ -87,6 +87,15 @@ export interface HostMappingAvailability {
   end_time: string;
 }
 
+export type HostVisibilityMode = "inherit" | "custom";
+
+export interface HostMappingVisibility {
+  mode: HostVisibilityMode;
+  selections: GatewayVisibilitySelection[];
+  custom_cidrs: string[];
+  cidrs: string[];
+}
+
 export type HostLocationMatch = "exact" | "prefix";
 export type HostLocationAction = "proxy" | "response";
 
@@ -118,6 +127,7 @@ export interface HostMapping {
   is_default: boolean;
   disabled: boolean;
   availability: HostMappingAvailability | null;
+  visibility: HostMappingVisibility;
   protocol_mode: HostProtocolMode;
   basic_auth: HostMappingBasicAuth;
   locations: HostLocation[];

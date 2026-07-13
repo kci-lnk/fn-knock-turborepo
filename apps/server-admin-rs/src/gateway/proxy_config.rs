@@ -411,6 +411,26 @@ fn localize_proxy_config_error(translator: &Translator, message: &str) -> String
             &[("host", host.to_string()), ("mode", mode.to_string())],
         );
     }
+    if let Some(host) = extract_between(
+        message,
+        "Go backend did not apply host visibility for ",
+        "; upgrade the gateway backend",
+    ) {
+        return admin_config_text_params(
+            translator,
+            "hostMappings.backendVisibilityUnsupported",
+            &[("host", host.to_string())],
+        );
+    }
+    if let Some(rest) = message.strip_prefix("Host mapping ")
+        && let Some((host, detail)) = rest.split_once(" visibility: ")
+    {
+        return admin_config_text_params(
+            translator,
+            "hostMappings.visibilityInvalid",
+            &[("host", host.to_string()), ("message", detail.to_string())],
+        );
+    }
     if let Some(host) = extract_between(message, "Auth host mapping ", " must be public") {
         return admin_config_text_params(
             translator,
@@ -740,7 +760,7 @@ pub(crate) fn host_mappings_revision_from_config(config: &Value) -> String {
 
 fn host_mappings_response(mut mappings: Vec<Value>) -> Response {
     let revision = host_mappings_revision(&mappings);
-    normalize_host_mapping_waf_defaults(&mut mappings);
+    normalize_host_mapping_response_defaults(&mut mappings);
     let mut response = response::ok(Value::Array(mappings)).into_response();
     if let Ok(value) = HeaderValue::from_str(&revision) {
         response.headers_mut().insert(
@@ -751,7 +771,7 @@ fn host_mappings_response(mut mappings: Vec<Value>) -> Response {
     response
 }
 
-fn normalize_host_mapping_waf_defaults(mappings: &mut [Value]) {
+fn normalize_host_mapping_response_defaults(mappings: &mut [Value]) {
     for mapping in mappings {
         let Some(object) = mapping.as_object_mut() else {
             continue;
@@ -766,7 +786,17 @@ fn normalize_host_mapping_waf_defaults(mappings: &mut [Value]) {
                 .get("waf_enabled")
                 .and_then(Value::as_bool)
                 .unwrap_or(true);
+        let visibility = normalize_host_mapping_visibility(None, object.get("visibility"), is_auth)
+            .unwrap_or_else(|_| {
+                json!({
+                    "mode": "inherit",
+                    "selections": [],
+                    "custom_cidrs": [],
+                    "cidrs": [],
+                })
+            });
         object.insert("waf_enabled".to_string(), Value::Bool(waf_enabled));
+        object.insert("visibility".to_string(), visibility);
     }
 }
 
@@ -1063,6 +1093,16 @@ async fn update_host_mappings(
             );
         }
     };
+    let normalized =
+        match compile_host_mapping_visibilities(&state, normalized, &previous_config).await {
+            Ok(value) => value,
+            Err(message) => {
+                return response::error(
+                    StatusCode::BAD_REQUEST,
+                    localize_proxy_config_error(&translator, &message),
+                );
+            }
+        };
 
     let mut candidate_config = previous_config.clone();
     ensure_object(&mut candidate_config).insert(

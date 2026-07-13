@@ -318,6 +318,9 @@ export const zhCNServer = {
         "Host 映射 {host} 的 HTTPS 协议必须是 auto、http1 或 http2",
       backendProtocolUnsupported:
         "网关后端未应用 {host} 的 HTTPS 协议 {mode}，请升级网关后端",
+      visibilityInvalid: "Host 映射 {host} 的可见性配置无效：{message}",
+      backendVisibilityUnsupported:
+        "网关后端未应用 {host} 的可见性规则，请升级网关后端",
       revisionConflict: "Host 映射已在其他页面更新，请刷新后重试",
       targetInvalid:
         "Host 映射 {host} 的目标必须以 http://、https://、ws:// 或 wss:// 开头并包含主机名",

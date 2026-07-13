@@ -853,6 +853,11 @@ export const zhHantAdmin = {
     ruleUpdateDescription: "規則狀態更新失敗",
     enableAll: "開啟全部",
     disableAll: "關閉全部",
+    enableRecommendedOnly: "僅開啟推薦",
+    recommendedRulesEnabled: "已恢復推薦規則",
+    enableAllConfirmTitle: "確認開啟全部規則？",
+    enableAllConfirmDescription: "全部開啟可能增加誤攔截風險，請確認仍要繼續。",
+    enableAllConfirmAction: "開啟全部",
     notSynced: "尚未同步",
     notFetched: "未獲取",
     fetched: "已獲取",
@@ -2259,6 +2264,9 @@ export const zhHantAdmin = {
     delete: "刪除",
     backToBasicAria: "返回基礎資訊",
     advancedConfig: "進階配置",
+    wafEnabled: "開啟 WAF",
+    wafEnabledDescription:
+      "關閉後，此業務子域會在全域 WAF 開啟時單獨跳過 WAF 檢查。",
     protocolMode: "HTTPS 協議",
     protocolModeDescription:
       "控制瀏覽器與此子網域建立 HTTPS 連線時使用的 HTTP 版本。遇到影片傳輸速度異常時可嘗試 HTTP/1.1。",

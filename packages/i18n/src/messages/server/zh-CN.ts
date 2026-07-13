@@ -313,6 +313,12 @@ export const zhCNServer = {
     hostMappings: {
       payloadObjectRequired: "Host 映射必须是对象",
       hostRequired: "Host 映射需要填写域名",
+      duplicateHost: "Host 映射域名 {host} 重复",
+      protocolModeInvalid:
+        "Host 映射 {host} 的 HTTPS 协议必须是 auto、http1 或 http2",
+      backendProtocolUnsupported:
+        "网关后端未应用 {host} 的 HTTPS 协议 {mode}，请升级网关后端",
+      revisionConflict: "Host 映射已在其他页面更新，请刷新后重试",
       targetInvalid:
         "Host 映射 {host} 的目标必须以 http://、https://、ws:// 或 wss:// 开头并包含主机名",
       singleAuthPortMapping: "只能有一个 Host 映射指向 AUTH_PORT 作为鉴权服务",
@@ -1346,6 +1352,7 @@ export const zhCNServer = {
       runModeGatewayRoutes: "运行模式与网关路由",
       directModeWhitelist: "直连模式白名单",
       gatewayLogging: "请求日志配置",
+      wafRuntime: "WAF 配置与运行状态",
       sslDeployment: "SSL 证书部署",
       legacyAuthLogCleanup: "废弃登录日志清理",
       systemResourceMonitorReset: "系统资源监控状态重置",

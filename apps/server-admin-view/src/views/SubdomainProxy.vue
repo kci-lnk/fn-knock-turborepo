@@ -102,6 +102,7 @@
       :full-host-input-hint="fullHostInputHint"
       :gateway-host-response-blocked-reason="gatewayHostResponseBlockedReason"
       :gateway-proxy-headers-blocked-reason="gatewayProxyHeadersBlockedReason"
+      :global-waf-enabled="globalWafEnabled"
       :handle-focus-in="handleMappingDialogFocusIn"
       :handle-input-mode-change="handleMappingInputModeChange"
       :handle-portal-disabled-tooltip-open-change="
@@ -370,6 +371,9 @@ const {
 });
 const isGatewayPortalEnabled = computed(
   () => configStore.config?.gateway_portal?.enabled !== false,
+);
+const globalWafEnabled = computed(
+  () => configStore.config?.waf?.enabled === true,
 );
 const shouldShowPortalDisabledTooltip = computed(
   () => !isGatewayPortalEnabled.value,
@@ -754,6 +758,7 @@ async function addAuthService() {
       {
         host,
         target,
+        waf_enabled: true,
         use_auth: false,
         access_mode: DEFAULT_ACCESS_MODE,
         suppress_toolbar: false,

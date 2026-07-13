@@ -934,6 +934,12 @@ export const jaJPAdmin = {
     ruleUpdateDescription: "ルールステータスの更新に失敗しました",
     enableAll: "すべて開く",
     disableAll: "すべて閉じる",
+    enableRecommendedOnly: "推奨のみ有効化",
+    recommendedRulesEnabled: "推奨ルールを復元しました",
+    enableAllConfirmTitle: "すべてのルールを有効にしますか？",
+    enableAllConfirmDescription:
+      "すべて有効にすると誤検知が増える可能性があります。続行することを確認してください。",
+    enableAllConfirmAction: "すべて有効にする",
     notSynced: "まだ同期されていません",
     notFetched: "未取得",
     fetched: "取得",
@@ -2440,6 +2446,9 @@ export const jaJPAdmin = {
     delete: "削除",
     backToBasicAria: "基本情報に戻る",
     advancedConfig: "高度な構成",
+    wafEnabled: "WAF を有効にする",
+    wafEnabledDescription:
+      "無効にすると、WAF が全体で有効でもこのアプリ用サブドメインは WAF 検査をスキップします。",
     protocolMode: "HTTPS プロトコル",
     protocolModeDescription:
       "このサブドメインへの HTTPS 接続でブラウザーが使用する HTTP バージョンを制御します。動画の転送速度が異常に遅い場合は HTTP/1.1 をお試しください。",

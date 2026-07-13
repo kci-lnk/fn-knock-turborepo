@@ -59,7 +59,7 @@ pub(super) async fn apply_waf_config(state: &AppState, patch: &Value) -> anyhow:
     if !full_config.is_object() {
         full_config = store::default_config();
     }
-    let current = normalize_fixed_waf_config(full_config.get("waf"), state);
+    let current = normalize_waf_config_for_full_config(&full_config, state);
     let mut next_raw = current.as_object().cloned().unwrap_or_default();
     if let Some(patch) = patch.as_object() {
         for key in [
@@ -78,7 +78,10 @@ pub(super) async fn apply_waf_config(state: &AppState, patch: &Value) -> anyhow:
         "updated_at".to_string(),
         Value::String(time_utils::now_iso()),
     );
-    let next = normalize_fixed_waf_config(Some(&Value::Object(next_raw)), state);
+    if let Some(object) = full_config.as_object_mut() {
+        object.insert("waf".to_string(), Value::Object(next_raw));
+    }
+    let next = normalize_waf_config_for_full_config(&full_config, state);
     if let Some(object) = full_config.as_object_mut() {
         object.insert("waf".to_string(), next.clone());
     }
@@ -105,9 +108,9 @@ pub(super) async fn apply_waf_config(state: &AppState, patch: &Value) -> anyhow:
 
 pub(crate) async fn sync_waf_config_to_gateway(
     state: &AppState,
-    config: Option<&Value>,
+    full_config: &Value,
 ) -> anyhow::Result<Value> {
-    let normalized = normalize_fixed_waf_config(config, state);
+    let normalized = normalize_waf_config_for_full_config(full_config, state);
     apply_waf_config_to_gateway(
         state,
         &normalized,
@@ -118,8 +121,40 @@ pub(crate) async fn sync_waf_config_to_gateway(
     Ok(normalized)
 }
 
+pub(crate) async fn restore_waf_runtime_after_import(
+    state: &AppState,
+    full_config: &Value,
+) -> anyhow::Result<Value> {
+    let normalized = normalize_waf_config_for_full_config(full_config, state);
+    if normalized
+        .get("enabled")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        ensure_waf_directories(state).await?;
+        let rules_state = read_rules_state(state).await?;
+        let has_enabled_rules = has_any_enabled_rule_files(state, &rules_state, None).await?;
+        if should_sync_system_rules_for_restore(&normalized, has_enabled_rules) {
+            sync_system_waf_rules(state).await?;
+        }
+    }
+    sync_waf_config_to_gateway(state, full_config).await
+}
+
+pub(super) fn should_sync_system_rules_for_restore(
+    normalized_waf_config: &Value,
+    has_enabled_rules: bool,
+) -> bool {
+    normalized_waf_config
+        .get("enabled")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+        && !has_enabled_rules
+}
+
 pub(super) async fn sync_waf_on_boot(state: &AppState) -> anyhow::Result<()> {
-    let config = load_waf_config(state).await?;
+    let full_config = state.store.get_config().await?;
+    let config = normalize_waf_config_for_full_config(&full_config, state);
     let enabled = config
         .get("enabled")
         .and_then(Value::as_bool)
@@ -144,7 +179,7 @@ pub(super) async fn sync_waf_on_boot(state: &AppState) -> anyhow::Result<()> {
             }
         }
     }
-    sync_waf_config_to_gateway(state, Some(&config)).await?;
+    sync_waf_config_to_gateway(state, &full_config).await?;
     Ok(())
 }
 
@@ -270,6 +305,7 @@ pub(super) async fn set_waf_rule_enabled(
     state: &AppState,
     input: WafRuleToggleBody,
 ) -> anyhow::Result<Value> {
+    let _rules_guard = state.waf_rules_update_lock.lock().await;
     ensure_waf_directories(state).await?;
     let source = if input.source.as_deref() == Some("custom") {
         "custom"
@@ -325,6 +361,82 @@ pub(super) async fn set_waf_rule_enabled(
     get_waf_details(state).await
 }
 
+pub(super) async fn set_recommended_system_rules(state: &AppState) -> anyhow::Result<Value> {
+    let _rules_guard = state.waf_rules_update_lock.lock().await;
+    ensure_waf_directories(state).await?;
+    let details = get_waf_details(state).await?;
+    let existing_names = details
+        .pointer("/system/rules")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|rule| rule.get("filename").and_then(Value::as_str))
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+
+    let previous_state = read_rules_state(state).await?;
+    let mut state_file = previous_state.clone();
+    apply_recommended_system_rule_state(&mut state_file, existing_names);
+
+    let config = load_waf_config(state).await?;
+    if config
+        .get("enabled")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+        && !has_any_enabled_rule_files(state, &state_file, None).await?
+    {
+        anyhow::bail!("Keep at least one WAF rule enabled");
+    }
+
+    write_rules_state(state, &state_file).await?;
+    let result = async {
+        apply_waf_config_to_gateway(state, &config, "Keep at least one WAF rule enabled").await?;
+        get_waf_details(state).await
+    }
+    .await;
+    match result {
+        Ok(details) => Ok(details),
+        Err(error) => {
+            let rollback_file = write_rules_state(state, &previous_state).await;
+            let rollback_runtime = if rollback_file.is_ok() {
+                apply_waf_config_to_gateway(state, &config, "Keep at least one WAF rule enabled")
+                    .await
+                    .err()
+            } else {
+                None
+            };
+            match (rollback_file.err(), rollback_runtime) {
+                (None, None) => Err(error),
+                (file_error, runtime_error) => Err(anyhow::anyhow!(
+                    "{error}; failed to roll back recommended WAF rules{}{}",
+                    file_error
+                        .map(|value| format!(": rules state: {value}"))
+                        .unwrap_or_default(),
+                    runtime_error
+                        .map(|value| format!(": gateway runtime: {value}"))
+                        .unwrap_or_default()
+                )),
+            }
+        }
+    }
+}
+
+pub(super) fn apply_recommended_system_rule_state(
+    state: &mut WafRulesState,
+    filenames: impl IntoIterator<Item = String>,
+) {
+    state.system_enabled = filenames
+        .into_iter()
+        .map(|filename| {
+            let enabled = is_system_rule_enabled_by_default(&filename);
+            (filename, enabled)
+        })
+        .collect();
+    state
+        .system_enabled
+        .insert(INITIALIZATION_RULE_FILENAME.to_string(), true);
+}
+
 pub(super) async fn read_waf_rule_file(
     state: &AppState,
     source: &str,
@@ -353,6 +465,7 @@ pub(super) async fn upload_custom_waf_rules(
     state: &AppState,
     input: WafUploadBody,
 ) -> anyhow::Result<Value> {
+    let _rules_guard = state.waf_rules_update_lock.lock().await;
     ensure_waf_directories(state).await?;
     if input.files.is_empty() {
         anyhow::bail!("Select at least one .conf file");
@@ -383,6 +496,7 @@ pub(super) async fn delete_custom_waf_rule(
     state: &AppState,
     filename: &str,
 ) -> anyhow::Result<Value> {
+    let _rules_guard = state.waf_rules_update_lock.lock().await;
     ensure_waf_directories(state).await?;
     let safe = safe_rule_filename(filename)?;
     let config = load_waf_config(state).await?;
@@ -467,7 +581,71 @@ pub(super) async fn drain_waf_events_now(state: &AppState) -> anyhow::Result<Val
 
 pub(super) async fn load_waf_config(state: &AppState) -> crate::storage::StorageResult<Value> {
     let config = state.store.get_config().await?;
-    Ok(normalize_fixed_waf_config(config.get("waf"), state))
+    Ok(normalize_waf_config_for_full_config(&config, state))
+}
+
+pub(crate) fn disabled_hosts_for_config(config: &Value) -> Vec<String> {
+    let mut seen = HashSet::new();
+    let mut hosts = config
+        .get("host_mappings")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|mapping| {
+            mapping.get("service_role").and_then(Value::as_str) != Some("auth")
+                && !mapping
+                    .get("target")
+                    .and_then(Value::as_str)
+                    .is_some_and(crate::gateway::proxy_config::is_auth_host_mapping_target)
+                && mapping.get("waf_enabled").and_then(Value::as_bool) == Some(false)
+        })
+        .filter_map(|mapping| mapping.get("host").and_then(Value::as_str))
+        .map(normalize_disabled_host)
+        .filter(|host| !host.is_empty() && seen.insert(host.clone()))
+        .collect::<Vec<_>>();
+    hosts.sort();
+    hosts
+}
+
+fn normalize_disabled_host(value: &str) -> String {
+    let lowered = value.trim().to_ascii_lowercase();
+    let authority = lowered
+        .split_once("://")
+        .map(|(_, rest)| rest)
+        .unwrap_or(&lowered)
+        .split('/')
+        .next()
+        .unwrap_or("")
+        .trim_end_matches('.')
+        .to_string();
+    if authority.starts_with('[') {
+        return authority
+            .find(']')
+            .map(|end| authority[..=end].to_string())
+            .unwrap_or(authority);
+    }
+    match authority.rsplit_once(':') {
+        Some((host, _)) if !host.contains(':') => host.trim_end_matches('.').to_string(),
+        _ => authority,
+    }
+}
+
+fn normalize_waf_config_for_full_config(config: &Value, state: &AppState) -> Value {
+    let mut raw = config
+        .get("waf")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+    raw.insert(
+        "disabled_hosts".to_string(),
+        Value::Array(
+            disabled_hosts_for_config(config)
+                .into_iter()
+                .map(Value::String)
+                .collect(),
+        ),
+    );
+    normalize_fixed_waf_config(Some(&Value::Object(raw)), state)
 }
 
 pub(super) fn normalize_fixed_waf_config(value: Option<&Value>, state: &AppState) -> Value {
@@ -526,7 +704,11 @@ pub(super) fn normalize_fixed_waf_config(value: Option<&Value>, state: &AppState
         "request_body_limit_bytes": request_body_limit,
         "request_body_in_memory_limit_bytes": request_body_memory_limit,
         "response_body_access": false,
-        "disabled_hosts": [],
+        "disabled_hosts": raw
+            .and_then(|object| object.get("disabled_hosts"))
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default(),
         "disabled_path_prefixes": [],
         "log_retention_days": normalize_i64(
             raw.and_then(|object| object.get("log_retention_days")),

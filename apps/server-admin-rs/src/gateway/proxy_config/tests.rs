@@ -103,6 +103,7 @@ fn normalizes_host_mapping_route_shape() {
         mapping.get("title").and_then(Value::as_str),
         Some("Old title")
     );
+    assert_eq!(mapping.get("waf_enabled"), Some(&Value::Bool(true)));
     assert_eq!(
         mapping.get("protocol_mode").and_then(Value::as_str),
         Some("http1")
@@ -126,6 +127,50 @@ fn normalizes_host_mapping_route_shape() {
         mapping_value.pointer("/locations/0/response/headers/X-Test"),
         Some(&Value::String("ok".to_string()))
     );
+}
+
+#[test]
+fn normalizes_host_mapping_waf_defaults_and_auth_inheritance() {
+    let mappings = normalize_host_mappings_for_route(
+        vec![
+            json!({
+                "host": "legacy.example.com",
+                "target": "http://127.0.0.1:8080"
+            }),
+            json!({
+                "host": "excluded.example.com",
+                "target": "http://127.0.0.1:8081",
+                "waf_enabled": false
+            }),
+            json!({
+                "host": "auth.example.com",
+                "target": "http://127.0.0.1:7997",
+                "use_auth": false,
+                "waf_enabled": false
+            }),
+        ],
+        &json!({}),
+    )
+    .unwrap();
+
+    assert_eq!(mappings[0].get("waf_enabled"), Some(&Value::Bool(true)));
+    assert_eq!(mappings[1].get("waf_enabled"), Some(&Value::Bool(false)));
+    assert_eq!(mappings[2].get("waf_enabled"), Some(&Value::Bool(true)));
+}
+
+#[test]
+fn host_mapping_responses_backfill_waf_defaults() {
+    let mut mappings = vec![
+        json!({"host": "app.example.com"}),
+        json!({"host": "auth.example.com", "service_role": "auth", "waf_enabled": false}),
+        json!({"host": "legacy-auth.example.com", "target": "http://localhost:7997", "waf_enabled": false}),
+    ];
+
+    normalize_host_mapping_waf_defaults(&mut mappings);
+
+    assert_eq!(mappings[0]["waf_enabled"], json!(true));
+    assert_eq!(mappings[1]["waf_enabled"], json!(true));
+    assert_eq!(mappings[2]["waf_enabled"], json!(true));
 }
 
 #[test]

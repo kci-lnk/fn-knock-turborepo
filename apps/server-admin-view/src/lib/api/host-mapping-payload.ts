@@ -5,6 +5,7 @@ type HostMappingUpdatePayload = Pick<
   HostMapping,
   | "host"
   | "target"
+  | "waf_enabled"
   | "use_auth"
   | "access_mode"
   | "suppress_toolbar"
@@ -31,6 +32,7 @@ export const toHostMappingUpdatePayload = (
 ): HostMappingUpdatePayload => ({
   host: mapping.host,
   target: mapping.target,
+  waf_enabled: mapping.waf_enabled !== false,
   use_auth: mapping.use_auth,
   access_mode: mapping.access_mode,
   suppress_toolbar: mapping.suppress_toolbar,

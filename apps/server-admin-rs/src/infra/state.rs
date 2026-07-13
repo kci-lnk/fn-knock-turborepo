@@ -39,6 +39,9 @@ pub struct AppStateInner {
     /// rollback and background metadata merges. Without this guard, two admin
     /// requests can persist in one order and reach the runtime in another.
     pub host_mappings_update_lock: Mutex<()>,
+    /// Serializes rule-file/state mutations with gateway reloads so rollback
+    /// cannot overwrite a concurrent WAF rule update.
+    pub waf_rules_update_lock: Mutex<()>,
 }
 
 impl AppState {
@@ -105,6 +108,7 @@ impl AppState {
                     "failed_target_ids": []
                 })),
                 host_mappings_update_lock: Mutex::new(()),
+                waf_rules_update_lock: Mutex::new(()),
             }),
         })
     }

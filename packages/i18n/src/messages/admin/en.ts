@@ -912,6 +912,12 @@ export const enAdmin = {
     ruleUpdateDescription: "Failed to update rule status",
     enableAll: "Enable all",
     disableAll: "Disable all",
+    enableRecommendedOnly: "Recommended only",
+    recommendedRulesEnabled: "Recommended rules restored",
+    enableAllConfirmTitle: "Enable every rule?",
+    enableAllConfirmDescription:
+      "Enabling every rule may increase false positives. Confirm that you want to continue.",
+    enableAllConfirmAction: "Enable all",
     notSynced: "Not synced yet",
     notFetched: "Not fetched",
     fetched: "Fetched",
@@ -2404,6 +2410,9 @@ export const enAdmin = {
     delete: "Delete",
     backToBasicAria: "Back to basic information",
     advancedConfig: "Advanced configuration",
+    wafEnabled: "Enable WAF",
+    wafEnabledDescription:
+      "When disabled, this application subdomain skips WAF checks even while WAF is enabled globally.",
     protocolMode: "HTTPS protocol",
     protocolModeDescription:
       "Controls the HTTP version browsers use for HTTPS connections to this subdomain. Try HTTP/1.1 when video transfer speed is unexpectedly low.",

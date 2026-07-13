@@ -375,6 +375,13 @@ export const enServer = {
     hostMappings: {
       payloadObjectRequired: "Host mapping must be an object",
       hostRequired: "Host mapping host is required",
+      duplicateHost: "Host mapping host {host} is duplicated",
+      protocolModeInvalid:
+        "Host mapping {host} HTTPS protocol must be auto, http1, or http2",
+      backendProtocolUnsupported:
+        "The gateway backend did not apply HTTPS protocol {mode} for {host}; upgrade the gateway backend",
+      revisionConflict:
+        "Host mappings were updated in another page; refresh and try again",
       targetInvalid:
         "Host mapping {host} target must start with http://, https://, ws://, or wss:// and include a host",
       singleAuthPortMapping:
@@ -1525,6 +1532,7 @@ export const enServer = {
       runModeGatewayRoutes: "Run mode and gateway routes",
       directModeWhitelist: "Direct-mode whitelist",
       gatewayLogging: "Request log configuration",
+      wafRuntime: "WAF configuration and runtime",
       sslDeployment: "SSL certificate deployment",
       legacyAuthLogCleanup: "Legacy auth log cleanup",
       systemResourceMonitorReset: "System resource monitor state reset",

@@ -462,6 +462,19 @@ const updateSelectedRules = (source: WAFRuleSource, enabled: boolean) => {
 const toggleAllRules = (source: WAFRuleSource) =>
   updateRulesEnabled(source, undefined, !allRulesEnabled(source));
 
+const enableRecommendedSystemRules = async () => {
+  await runRuleChange(WAFAPI.enableRecommendedSystemRules, {
+    onSuccess: (data) => {
+      applyFromDetails(data);
+      toast.success(t("admin.wafSettings.recommendedRulesEnabled"), {
+        description: data.config.enabled
+          ? t("admin.wafSettings.loadedToGateway")
+          : t("admin.wafSettings.currentRulesApplyWhenEnabled"),
+      });
+    },
+  });
+};
+
 const openRulePreview = async (rule: WAFRuleFile) => {
   const key = ruleKey(rule);
   activateRuleActions(rule);
@@ -760,10 +773,14 @@ onMounted(fetchDetails);
               :format-rule-meta="formatSystemRuleMeta"
               :format-rule-name="formatSystemRuleName"
               :is-busy="isBusy"
+              :is-changing-rules="isChangingRules"
               :loading-rule-key="loadingRuleKey"
               :rules="systemRules"
               :selected-filenames="selectedSystemRules"
+              show-recommended-action
+              :toggle-all-rules-action="() => toggleAllRules('system')"
               @activate-rule-actions="activateRuleActions"
+              @apply-recommended="enableRecommendedSystemRules"
               @download-rule-file="downloadRuleFile"
               @open-rule-preview="openRulePreview"
               @set-all-selected="(checked) => setAllSelected('system', checked)"
@@ -771,7 +788,6 @@ onMounted(fetchDetails);
                 (filename, checked) =>
                   setRuleSelected('system', filename, checked)
               "
-              @toggle-all-rules="toggleAllRules('system')"
               @toggle-rule="(rule, enabled) => toggleRule(rule, enabled)"
               @update-selected-rules="
                 (enabled) => updateSelectedRules('system', enabled)
@@ -825,6 +841,7 @@ onMounted(fetchDetails);
               :rules="customRules"
               :selected-filenames="selectedCustomRules"
               show-delete
+              :toggle-all-rules-action="() => toggleAllRules('custom')"
               @activate-rule-actions="activateRuleActions"
               @download-rule-file="downloadRuleFile"
               @open-rule-preview="openRulePreview"
@@ -833,7 +850,6 @@ onMounted(fetchDetails);
                 (filename, checked) =>
                   setRuleSelected('custom', filename, checked)
               "
-              @toggle-all-rules="toggleAllRules('custom')"
               @toggle-rule="(rule, enabled) => toggleRule(rule, enabled)"
               @update-selected-rules="
                 (enabled) => updateSelectedRules('custom', enabled)

@@ -27,23 +27,26 @@ const props = withDefaults(
     loadingRuleKey: string;
     rules: WAFRuleFile[];
     selectedFilenames: string[];
+    showRecommendedAction?: boolean;
     showDelete?: boolean;
+    toggleAllRulesAction: () => Promise<unknown> | void;
   }>(),
   {
     deleteRule: undefined,
     formatRuleAside: undefined,
     isChangingRules: false,
+    showRecommendedAction: false,
     showDelete: false,
   },
 );
 
 const emit = defineEmits<{
   activateRuleActions: [rule: WAFRuleFile];
+  applyRecommended: [];
   downloadRuleFile: [rule: WAFRuleFile];
   openRulePreview: [rule: WAFRuleFile];
   setAllSelected: [checked: boolean];
   setRuleSelected: [filename: string, checked: boolean];
-  toggleAllRules: [];
   toggleRule: [rule: WAFRuleFile, enabled: boolean];
   updateSelectedRules: [enabled: boolean];
 }>();
@@ -54,10 +57,8 @@ const selectedCount = computed(() => props.selectedFilenames.length);
 const isAllSelected = computed(
   () => props.rules.length > 0 && selectedCount.value === props.rules.length,
 );
-const toggleAllRulesLabel = computed(() =>
-  props.rules.length > 0 && props.rules.every((rule) => rule.enabled)
-    ? t("admin.wafSettings.disableAll")
-    : t("admin.wafSettings.enableAll"),
+const isAllRulesEnabled = computed(
+  () => props.rules.length > 0 && props.rules.every((rule) => rule.enabled),
 );
 
 const ruleKey = (rule: WAFRuleFile) => `${rule.source}:${rule.filename}`;
@@ -110,12 +111,37 @@ const ruleActionsClass = (rule: WAFRuleFile) =>
           {{ t("admin.wafSettings.disableSelected") }}
         </Button>
         <Button
+          v-if="showRecommendedAction"
           variant="outline"
           size="sm"
           :disabled="isBusy"
-          @click="emit('toggleAllRules')"
+          @click="emit('applyRecommended')"
         >
-          {{ toggleAllRulesLabel }}
+          {{ t("admin.wafSettings.enableRecommendedOnly") }}
+        </Button>
+        <ConfirmDangerPopover
+          v-if="!isAllRulesEnabled"
+          :title="t('admin.wafSettings.enableAllConfirmTitle')"
+          :description="t('admin.wafSettings.enableAllConfirmDescription')"
+          :confirm-text="t('admin.wafSettings.enableAllConfirmAction')"
+          :loading="isChangingRules"
+          :disabled="isBusy"
+          :on-confirm="async () => void (await toggleAllRulesAction())"
+        >
+          <template #trigger>
+            <Button variant="outline" size="sm" :disabled="isBusy">
+              {{ t("admin.wafSettings.enableAll") }}
+            </Button>
+          </template>
+        </ConfirmDangerPopover>
+        <Button
+          v-else
+          variant="outline"
+          size="sm"
+          :disabled="isBusy"
+          @click="toggleAllRulesAction"
+        >
+          {{ t("admin.wafSettings.disableAll") }}
         </Button>
       </div>
     </div>

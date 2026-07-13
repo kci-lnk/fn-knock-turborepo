@@ -305,10 +305,6 @@
       "hostMappings": {
         "payloadObjectRequired": "Host 映射必须是对象",
         "hostRequired": "Host 映射需要填写域名",
-        "duplicateHost": "Host 映射域名 {host} 重复",
-        "protocolModeInvalid": "Host 映射 {host} 的 HTTPS 协议必须是 auto、http1 或 http2",
-        "backendProtocolUnsupported": "网关后端未应用 {host} 的 HTTPS 协议 {mode}，请升级网关后端",
-        "revisionConflict": "Host 映射已在其他页面更新，请刷新后重试",
         "targetInvalid": "Host 映射 {host} 的目标必须以 http://、https://、ws:// 或 wss:// 开头并包含主机名",
         "singleAuthPortMapping": "只能有一个 Host 映射指向 AUTH_PORT 作为鉴权服务",
         "authMappingMustBePublic": "鉴权服务 {host} 必须保持公开入口，不能开启自身鉴权或严格白名单，否则会导致登录入口不可达",
@@ -332,7 +328,11 @@
         "onlyHttpTargetsSupported": "仅支持 http/https 目标地址",
         "metadataUpstreamStatus": "上游服务返回状态码 {status}",
         "bookmarkFolderForRoot": "{root} 子域映射",
-        "bookmarkFolderDefault": "fn-knock 子域映射"
+        "bookmarkFolderDefault": "fn-knock 子域映射",
+        "duplicateHost": "Host 映射域名 {host} 重复",
+        "protocolModeInvalid": "Host 映射 {host} 的 HTTPS 协议必须是 auto、http1 或 http2",
+        "backendProtocolUnsupported": "网关后端未应用 {host} 的 HTTPS 协议 {mode}，请升级网关后端",
+        "revisionConflict": "Host 映射已在其他页面更新，请刷新后重试"
       },
       "streamMappings": {
         "payloadObjectRequired": "协议映射必须是对象",
@@ -1277,7 +1277,8 @@
         "gatewayLogging": "请求日志配置",
         "sslDeployment": "SSL 证书部署",
         "legacyAuthLogCleanup": "废弃登录日志清理",
-        "systemResourceMonitorReset": "系统资源监控状态重置"
+        "systemResourceMonitorReset": "系统资源监控状态重置",
+        "wafRuntime": "WAF 配置与运行状态"
       },
       "archiveEmpty": "备份归档内容为空",
       "archiveTooLarge": "备份归档过大，无法导入",
@@ -3306,10 +3307,6 @@
       "hostMappings": {
         "payloadObjectRequired": "Host 映射必須是物件",
         "hostRequired": "Host 映射需要填寫域名",
-        "duplicateHost": "Host 映射域名 {host} 重複",
-        "protocolModeInvalid": "Host 映射 {host} 的 HTTPS 協議必須是 auto、http1 或 http2",
-        "backendProtocolUnsupported": "閘道後端未套用 {host} 的 HTTPS 協議 {mode}，請升級閘道後端",
-        "revisionConflict": "Host 映射已在其他頁面更新，請重新整理後再試",
         "targetInvalid": "Host 映射 {host} 的目標必須以 http://、https://、ws:// 或 wss:// 開頭並包含主機名",
         "singleAuthPortMapping": "只能有一個 Host 映射指向 AUTH_PORT 作為鑒權服務",
         "authMappingMustBePublic": "鑒權服務 {host} 必須保持公開入口，不能開啟自身鑒權或嚴格白名單，否則會導致登入入口不可達",
@@ -3333,7 +3330,11 @@
         "onlyHttpTargetsSupported": "僅支援 http/https 目標地址",
         "metadataUpstreamStatus": "上游服務返回狀態碼 {status}",
         "bookmarkFolderForRoot": "{root} 子域映射",
-        "bookmarkFolderDefault": "fn-knock 子域映射"
+        "bookmarkFolderDefault": "fn-knock 子域映射",
+        "duplicateHost": "Host 映射域名 {host} 重複",
+        "protocolModeInvalid": "Host 映射 {host} 的 HTTPS 協議必須是 auto、http1 或 http2",
+        "backendProtocolUnsupported": "閘道後端未套用 {host} 的 HTTPS 協議 {mode}，請升級閘道後端",
+        "revisionConflict": "Host 映射已在其他頁面更新，請重新整理後再試"
       },
       "streamMappings": {
         "payloadObjectRequired": "協議映射必須是物件",
@@ -4278,7 +4279,8 @@
         "gatewayLogging": "請求日誌配置",
         "sslDeployment": "SSL 證書部署",
         "legacyAuthLogCleanup": "廢棄登入日誌清理",
-        "systemResourceMonitorReset": "系統資源監控狀態重置"
+        "systemResourceMonitorReset": "系統資源監控狀態重置",
+        "wafRuntime": "WAF 配置與運行狀態"
       },
       "archiveEmpty": "備份歸檔內容為空",
       "archiveTooLarge": "備份歸檔過大，無法導入",
@@ -6307,10 +6309,6 @@
       "hostMappings": {
         "payloadObjectRequired": "Host mapping must be an object",
         "hostRequired": "Host mapping host is required",
-        "duplicateHost": "Host mapping host {host} is duplicated",
-        "protocolModeInvalid": "Host mapping {host} HTTPS protocol must be auto, http1, or http2",
-        "backendProtocolUnsupported": "The gateway backend did not apply HTTPS protocol {mode} for {host}; upgrade the gateway backend",
-        "revisionConflict": "Host mappings were updated in another page; refresh and try again",
         "targetInvalid": "Host mapping {host} target must start with http://, https://, ws://, or wss:// and include a host",
         "singleAuthPortMapping": "Only one Host mapping can point to AUTH_PORT as the auth service",
         "authMappingMustBePublic": "Auth service {host} must stay public and cannot enable self-auth or strict whitelist, otherwise the login entry becomes unreachable",
@@ -6334,7 +6332,11 @@
         "onlyHttpTargetsSupported": "Only http/https targets are supported",
         "metadataUpstreamStatus": "Upstream responded with {status}",
         "bookmarkFolderForRoot": "{root} subdomain mappings",
-        "bookmarkFolderDefault": "fn-knock subdomain mappings"
+        "bookmarkFolderDefault": "fn-knock subdomain mappings",
+        "duplicateHost": "Host mapping host {host} is duplicated",
+        "protocolModeInvalid": "Host mapping {host} HTTPS protocol must be auto, http1, or http2",
+        "backendProtocolUnsupported": "The gateway backend did not apply HTTPS protocol {mode} for {host}; upgrade the gateway backend",
+        "revisionConflict": "Host mappings were updated in another page; refresh and try again"
       },
       "streamMappings": {
         "payloadObjectRequired": "Stream mapping must be an object",
@@ -7279,7 +7281,8 @@
         "gatewayLogging": "Request log configuration",
         "sslDeployment": "SSL certificate deployment",
         "legacyAuthLogCleanup": "Legacy auth log cleanup",
-        "systemResourceMonitorReset": "System resource monitor state reset"
+        "systemResourceMonitorReset": "System resource monitor state reset",
+        "wafRuntime": "WAF configuration and runtime"
       },
       "archiveEmpty": "Backup archive content is empty",
       "archiveTooLarge": "Backup archive is too large to import",
@@ -9308,10 +9311,6 @@
       "hostMappings": {
         "payloadObjectRequired": "호스트 매핑은 객체여야 합니다.",
         "hostRequired": "호스트 매핑에는 도메인이 필요합니다.",
-        "duplicateHost": "호스트 매핑 도메인 {host}이(가) 중복되었습니다.",
-        "protocolModeInvalid": "호스트 매핑 {host}의 HTTPS 프로토콜은 auto, http1 또는 http2여야 합니다.",
-        "backendProtocolUnsupported": "게이트웨이 백엔드가 {host}의 HTTPS 프로토콜 {mode}을(를) 적용하지 못했습니다. 게이트웨이 백엔드를 업그레이드하세요.",
-        "revisionConflict": "다른 페이지에서 호스트 매핑이 업데이트되었습니다. 새로 고친 후 다시 시도하세요.",
         "targetInvalid": "호스트 매핑 {host} 대상은 http://, https://, ws:// 또는 wss://로 시작하고 호스트를 포함해야 합니다.",
         "singleAuthPortMapping": "하나의 호스트 매핑만 인증 서비스로 AUTH_PORT를 가리킬 수 있습니다.",
         "authMappingMustBePublic": "인증 서비스 {host}은 공개 상태로 유지되어야 하며 자체 인증 또는 엄격한 화이트리스트를 활성화할 수 없습니다. 그렇지 않으면 로그인 항목에 접근할 수 없게 됩니다.",
@@ -9335,7 +9334,11 @@
         "onlyHttpTargetsSupported": "http/https 대상만 지원됩니다.",
         "metadataUpstreamStatus": "업스트림이 상태 {status}을 반환했습니다.",
         "bookmarkFolderForRoot": "{root} 하위 도메인 매핑",
-        "bookmarkFolderDefault": "fn-knock 하위 도메인 매핑"
+        "bookmarkFolderDefault": "fn-knock 하위 도메인 매핑",
+        "duplicateHost": "호스트 매핑 도메인 {host}이(가) 중복되었습니다.",
+        "protocolModeInvalid": "호스트 매핑 {host}의 HTTPS 프로토콜은 auto, http1 또는 http2여야 합니다.",
+        "backendProtocolUnsupported": "게이트웨이 백엔드가 {host}의 HTTPS 프로토콜 {mode}을(를) 적용하지 못했습니다. 게이트웨이 백엔드를 업그레이드하세요.",
+        "revisionConflict": "다른 페이지에서 호스트 매핑이 업데이트되었습니다. 새로 고친 후 다시 시도하세요."
       },
       "streamMappings": {
         "payloadObjectRequired": "스트림 매핑은 객체여야 합니다.",
@@ -10280,7 +10283,8 @@
         "gatewayLogging": "로그 구성 요청",
         "sslDeployment": "SSL 인증서 배포",
         "legacyAuthLogCleanup": "기존 인증 로그 정리",
-        "systemResourceMonitorReset": "시스템 리소스 모니터 상태 재설정"
+        "systemResourceMonitorReset": "시스템 리소스 모니터 상태 재설정",
+        "wafRuntime": "WAF 구성 및 실행 상태"
       },
       "archiveEmpty": "백업 아카이브 콘텐츠가 비어 있습니다.",
       "archiveTooLarge": "백업 아카이브가 너무 커서 가져올 수 없습니다.",
@@ -12309,10 +12313,6 @@
       "hostMappings": {
         "payloadObjectRequired": "Host マッピングはオブジェクトである必要があります",
         "hostRequired": "Host マッピングにはドメインが必要です",
-        "duplicateHost": "Host マッピングのドメイン {host} が重複しています",
-        "protocolModeInvalid": "Host マッピング {host} の HTTPS プロトコルは auto、http1、http2 のいずれかである必要があります",
-        "backendProtocolUnsupported": "ゲートウェイバックエンドが {host} の HTTPS プロトコル {mode} を適用できませんでした。ゲートウェイバックエンドを更新してください",
-        "revisionConflict": "別のページで Host マッピングが更新されました。更新してから再試行してください",
         "targetInvalid": "Host マッピング {host} のターゲットは http://、https://、ws://、wss:// のいずれかで始まり、ホストを含む必要があります",
         "singleAuthPortMapping": "は、認証サービスとして AUTH_PORT を指すホスト マッピングを 1 つだけ持つことができます",
         "authMappingMustBePublic": "認証サービス {host} はパブリック入口を維持する必要があり、自己認証や厳格なホワイトリストを有効にすることはできません。そうしないと、ログイン入口に到達できなくなります。",
@@ -12336,7 +12336,11 @@
         "onlyHttpTargetsSupported": "http/https ターゲットのみサポートされています",
         "metadataUpstreamStatus": "上流サービスがステータス {status} を返しました",
         "bookmarkFolderForRoot": "{root} サブドメインマッピング",
-        "bookmarkFolderDefault": "fn-knock サブドメインマッピング"
+        "bookmarkFolderDefault": "fn-knock サブドメインマッピング",
+        "duplicateHost": "Host マッピングのドメイン {host} が重複しています",
+        "protocolModeInvalid": "Host マッピング {host} の HTTPS プロトコルは auto、http1、http2 のいずれかである必要があります",
+        "backendProtocolUnsupported": "ゲートウェイバックエンドが {host} の HTTPS プロトコル {mode} を適用できませんでした。ゲートウェイバックエンドを更新してください",
+        "revisionConflict": "別のページで Host マッピングが更新されました。更新してから再試行してください"
       },
       "streamMappings": {
         "payloadObjectRequired": "ストリームマッピングはオブジェクトである必要があります",
@@ -13281,7 +13285,8 @@
         "gatewayLogging": "ログ構成のリクエスト",
         "sslDeployment": "SSL 証明書の展開",
         "legacyAuthLogCleanup": "放棄されたログインログのクリーニング",
-        "systemResourceMonitorReset": "システムリソース監視ステータスリセット"
+        "systemResourceMonitorReset": "システムリソース監視ステータスリセット",
+        "wafRuntime": "WAF 設定と実行状態"
       },
       "archiveEmpty": "バックアップ アーカイブのコンテンツが空です",
       "archiveTooLarge": "バックアップ アーカイブが大きすぎるためインポートできません",

@@ -110,6 +110,7 @@ export interface HostLocation {
 export interface HostMapping {
   host: string;
   target: string;
+  waf_enabled: boolean;
   use_auth: boolean;
   access_mode: HostAccessMode;
   suppress_toolbar: boolean;

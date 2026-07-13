@@ -1,5 +1,25 @@
+use super::service::{apply_recommended_system_rule_state, should_sync_system_rules_for_restore};
 use super::*;
 use serde_json::json;
+
+async fn waf_test_state(go_backend_grpc_addr: &str) -> (tempfile::TempDir, AppState) {
+    let directory = tempfile::tempdir().unwrap();
+    let mut settings = {
+        let _environment = crate::test_support::EnvGuard::new(&[]);
+        crate::settings::Settings::from_env()
+    };
+    settings.runtime_target = "linux".to_string();
+    settings.data_dir = directory.path().join("data");
+    settings.gateway_config_dir = directory.path().join("gateway");
+    settings.waf_dir = directory.path().join("waf");
+    settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
+    settings.legacy_redis_url = String::new();
+    settings.go_backend_grpc_addr = go_backend_grpc_addr.to_string();
+    settings.internal_rpc_token = "test-internal-rpc-token".to_string();
+    settings.request_timeout = std::time::Duration::from_millis(100);
+    let state = AppState::new(settings).await.unwrap();
+    (directory, state)
+}
 
 #[test]
 fn sanitizes_initialization_rules_like_node() {
@@ -185,6 +205,168 @@ fn defaults_high_noise_system_rules_to_disabled() {
     ));
     assert!(is_system_rule_enabled_by_default(
         "REQUEST-949-BLOCKING-EVALUATION.conf"
+    ));
+}
+
+#[test]
+fn recommended_preset_resets_system_rules_and_preserves_custom_rules() {
+    let mut state = WafRulesState {
+        system_enabled: BTreeMap::from([
+            ("REQUEST-942-APPLICATION-ATTACK-SQLI.conf".to_string(), true),
+            ("REQUEST-949-BLOCKING-EVALUATION.conf".to_string(), false),
+            ("REMOVED-SYSTEM-RULE.conf".to_string(), true),
+        ]),
+        custom_enabled: BTreeMap::from([("custom.conf".to_string(), true)]),
+    };
+
+    apply_recommended_system_rule_state(
+        &mut state,
+        vec![
+            "REQUEST-942-APPLICATION-ATTACK-SQLI.conf".to_string(),
+            "REQUEST-949-BLOCKING-EVALUATION.conf".to_string(),
+        ],
+    );
+
+    assert_eq!(
+        state
+            .system_enabled
+            .get("REQUEST-942-APPLICATION-ATTACK-SQLI.conf"),
+        Some(&false)
+    );
+    assert_eq!(
+        state
+            .system_enabled
+            .get("REQUEST-949-BLOCKING-EVALUATION.conf"),
+        Some(&true)
+    );
+    assert_eq!(state.custom_enabled.get("custom.conf"), Some(&true));
+    assert!(
+        !state
+            .system_enabled
+            .contains_key("REMOVED-SYSTEM-RULE.conf")
+    );
+    assert_eq!(
+        state.system_enabled.get(INITIALIZATION_RULE_FILENAME),
+        Some(&true)
+    );
+}
+
+#[tokio::test]
+async fn recommended_preset_rolls_back_state_when_gateway_reload_fails() {
+    let (_directory, state) = waf_test_state("127.0.0.1:1").await;
+    ensure_waf_directories(&state).await.unwrap();
+    fs::write(
+        system_dir(&state).join("REQUEST-949-BLOCKING-EVALUATION.conf"),
+        b"SecAction \"id:949001,phase:1,pass\"\n",
+    )
+    .await
+    .unwrap();
+    fs::write(
+        custom_dir(&state).join("custom.conf"),
+        b"SecAction \"id:100001,phase:1,pass\"\n",
+    )
+    .await
+    .unwrap();
+    write_json_file(
+        &manifest_cache_path(&state),
+        &json!({
+            "manifest": {},
+            "cached_at": time_utils::now_iso(),
+            "last_checked_at": time_utils::now_iso(),
+            "last_error": null
+        }),
+    )
+    .await
+    .unwrap();
+    let previous = WafRulesState {
+        system_enabled: BTreeMap::from([
+            (INITIALIZATION_RULE_FILENAME.to_string(), true),
+            ("REQUEST-949-BLOCKING-EVALUATION.conf".to_string(), false),
+        ]),
+        custom_enabled: BTreeMap::from([("custom.conf".to_string(), true)]),
+    };
+    write_rules_state(&state, &previous).await.unwrap();
+    state
+        .store
+        .save_config(&json!({"waf": {"enabled": true, "mode": "block"}}))
+        .await
+        .unwrap();
+
+    assert!(set_recommended_system_rules(&state).await.is_err());
+
+    let restored = read_rules_state(&state).await.unwrap();
+    assert_eq!(restored.system_enabled, previous.system_enabled);
+    assert_eq!(restored.custom_enabled, previous.custom_enabled);
+}
+
+#[test]
+fn derives_disabled_waf_hosts_from_business_mappings() {
+    let config = json!({
+        "host_mappings": [
+            {"host": "Z.EXAMPLE.COM", "service_role": "app", "waf_enabled": false},
+            {"host": " App.Example.COM:443 ", "service_role": "app", "waf_enabled": false},
+            {"host": "app.example.com", "service_role": "app", "waf_enabled": false},
+            {"host": "enabled.example.com", "service_role": "app", "waf_enabled": true},
+            {"host": "auth.example.com", "service_role": "auth", "waf_enabled": false},
+            {"host": "legacy-auth.example.com", "target": "http://localhost:7997", "waf_enabled": false}
+        ]
+    });
+
+    assert_eq!(
+        disabled_hosts_for_config(&config),
+        vec!["app.example.com".to_string(), "z.example.com".to_string()]
+    );
+}
+
+#[test]
+fn disabled_waf_hosts_follow_mapping_renames_and_removals() {
+    let previous = json!({
+        "host_mappings": [
+            {"host": "B.Example.COM", "waf_enabled": false},
+            {"host": "a.example.com", "waf_enabled": false}
+        ]
+    });
+    let reordered = json!({
+        "host_mappings": [
+            {"host": "a.example.com", "waf_enabled": false},
+            {"host": "b.example.com", "waf_enabled": false}
+        ]
+    });
+    let renamed = json!({
+        "host_mappings": [
+            {"host": "renamed.example.com", "waf_enabled": false},
+            {"host": "a.example.com", "waf_enabled": false}
+        ]
+    });
+    let removed = json!({"host_mappings": []});
+
+    assert_eq!(
+        disabled_hosts_for_config(&previous),
+        disabled_hosts_for_config(&reordered)
+    );
+    assert_eq!(
+        disabled_hosts_for_config(&renamed),
+        vec![
+            "a.example.com".to_string(),
+            "renamed.example.com".to_string()
+        ]
+    );
+    assert!(disabled_hosts_for_config(&removed).is_empty());
+}
+
+#[test]
+fn backup_restore_syncs_rules_only_when_enabled_and_missing() {
+    assert!(should_sync_system_rules_for_restore(
+        &json!({"enabled": true}),
+        false
+    ));
+    assert!(!should_sync_system_rules_for_restore(
+        &json!({"enabled": true}),
+        true
+    ));
+    assert!(!should_sync_system_rules_for_restore(
+        &json!({"enabled": false}),
+        false
     ));
 }
 

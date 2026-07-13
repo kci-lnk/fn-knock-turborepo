@@ -20,7 +20,9 @@ use serde_json::{Map, Value, json};
 use tokio::time::{self as tokio_time, MissedTickBehavior};
 use url::Url;
 
-use crate::{gateway_settings, i18n::Translator, response, runtime_config, ssl, state::AppState};
+use crate::{
+    gateway_settings, i18n::Translator, response, runtime_config, ssl, state::AppState, waf,
+};
 
 mod auth_payload;
 mod bookmarks;
@@ -736,8 +738,9 @@ pub(crate) fn host_mappings_revision_from_config(config: &Value) -> String {
     host_mappings_revision(mappings)
 }
 
-fn host_mappings_response(mappings: Vec<Value>) -> Response {
+fn host_mappings_response(mut mappings: Vec<Value>) -> Response {
     let revision = host_mappings_revision(&mappings);
+    normalize_host_mapping_waf_defaults(&mut mappings);
     let mut response = response::ok(Value::Array(mappings)).into_response();
     if let Ok(value) = HeaderValue::from_str(&revision) {
         response.headers_mut().insert(
@@ -746,6 +749,29 @@ fn host_mappings_response(mappings: Vec<Value>) -> Response {
         );
     }
     response
+}
+
+fn normalize_host_mapping_waf_defaults(mappings: &mut [Value]) {
+    for mapping in mappings {
+        let Some(object) = mapping.as_object_mut() else {
+            continue;
+        };
+        let is_auth = object.get("service_role").and_then(Value::as_str) == Some("auth")
+            || object
+                .get("target")
+                .and_then(Value::as_str)
+                .is_some_and(is_auth_service_target);
+        let waf_enabled = is_auth
+            || object
+                .get("waf_enabled")
+                .and_then(Value::as_bool)
+                .unwrap_or(true);
+        object.insert("waf_enabled".to_string(), Value::Bool(waf_enabled));
+    }
+}
+
+pub(crate) fn is_auth_host_mapping_target(target: &str) -> bool {
+    is_auth_service_target(target)
 }
 
 async fn basic_auth_probe(State(state): State<AppState>, Json(body): Json<Value>) -> Response {
@@ -817,12 +843,12 @@ async fn refresh_host_mapping_titles(State(state): State<AppState>) -> Response 
             );
         }
     }
-    let config = match state
+    match state
         .store
         .compare_and_set_host_mappings(&mappings, &next_mappings)
         .await
     {
-        Ok(Some(config)) => config,
+        Ok(Some(_)) => {}
         Ok(None) => {
             return response::error(
                 StatusCode::CONFLICT,
@@ -836,7 +862,7 @@ async fn refresh_host_mapping_titles(State(state): State<AppState>) -> Response 
                 admin_config_text(&translator, "hostMappings.updateFailed"),
             );
         }
-    };
+    }
     if let Err(error) = transaction_lease.ensure_owned().await {
         tracing::warn!(%error, "host mappings transaction lease was lost before runtime sync");
         let _ = state
@@ -848,7 +874,8 @@ async fn refresh_host_mapping_titles(State(state): State<AppState>) -> Response 
             admin_config_text(&translator, "hostMappings.revisionConflict"),
         );
     }
-    if let Err(message) = sync_host_mappings_runtime(&state, &config, &next_mappings).await {
+    if let Err(message) = sync_host_mappings_runtime(&state, &previous_config, &next_mappings).await
+    {
         rollback_host_mappings(&state, &previous_config, &next_mappings).await;
         tracing::warn!(%message, "failed to sync host mappings after metadata refresh");
         return response::error(
@@ -1142,7 +1169,7 @@ async fn update_host_mappings(
         );
     }
 
-    if let Err(message) = sync_host_mappings_runtime(&state, &updated_config, &normalized).await {
+    if let Err(message) = sync_host_mappings_runtime(&state, &previous_config, &normalized).await {
         rollback_host_mappings(&state, &previous_config, &normalized).await;
         tracing::warn!(%message, "failed to sync host mappings runtime");
         return response::error(

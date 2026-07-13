@@ -29,12 +29,18 @@ pub(super) async fn rollback_host_mappings(
     previous_config: &Value,
     expected_current_mappings: &[Value],
 ) {
+    let attempted_mappings = expected_current_mappings.to_vec();
     rollback_host_mappings_with_runtime_sync(
         state,
         previous_config,
         expected_current_mappings,
-        |state, config, mappings| async move {
-            sync_host_mappings_runtime(&state, &config, &mappings).await
+        move |state, config, mappings| async move {
+            let mut attempted_config = config;
+            ensure_object(&mut attempted_config).insert(
+                "host_mappings".to_string(),
+                Value::Array(attempted_mappings),
+            );
+            sync_host_mappings_runtime(&state, &attempted_config, &mappings).await
         },
     )
     .await;
@@ -236,6 +242,16 @@ pub(super) fn normalize_host_mappings_for_route(
 
         object.insert("host".to_string(), Value::String(host));
         object.insert("target".to_string(), Value::String(target));
+        object.insert(
+            "waf_enabled".to_string(),
+            Value::Bool(
+                service_role == "auth"
+                    || object
+                        .get("waf_enabled")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(true),
+            ),
+        );
         object.insert(
             "use_auth".to_string(),
             Value::Bool(

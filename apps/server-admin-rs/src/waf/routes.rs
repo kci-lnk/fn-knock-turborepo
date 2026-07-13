@@ -31,12 +31,14 @@ mod service;
 
 use logs::*;
 use rules::*;
-pub(crate) use service::sync_waf_config_to_gateway;
 use service::{
     apply_waf_config, apply_waf_config_to_gateway, check_and_sync_system_waf_rules_if_needed,
     delete_custom_waf_rule, drain_waf_events_now, get_waf_details, load_waf_config,
-    read_waf_rule_file, set_waf_rule_enabled, sync_waf_on_boot, upload_custom_waf_rules,
-    waf_drain_interval_seconds,
+    read_waf_rule_file, set_recommended_system_rules, set_waf_rule_enabled, sync_waf_on_boot,
+    upload_custom_waf_rules, waf_drain_interval_seconds,
+};
+pub(crate) use service::{
+    disabled_hosts_for_config, restore_waf_runtime_after_import, sync_waf_config_to_gateway,
 };
 
 #[cfg(test)]
@@ -180,6 +182,10 @@ pub fn waf_routes() -> Router<AppState> {
         .route("/api/admin/waf/config", post(config))
         .route("/api/admin/waf/manifest/refresh", post(refresh_manifest))
         .route("/api/admin/waf/system/sync", post(sync_system_rules))
+        .route(
+            "/api/admin/waf/rules/recommended",
+            post(enable_recommended_rules),
+        )
         .route("/api/admin/waf/rules/enabled", post(set_rule_enabled))
         .route("/api/admin/waf/rules/{source}/{filename}", get(read_rule))
         .route("/api/admin/waf/custom/upload", post(upload_custom))
@@ -391,6 +397,19 @@ async fn set_rule_enabled(
         Ok(data) => response::ok(data).into_response(),
         Err(error) => {
             tracing::warn!(%error, "failed to update WAF rule state");
+            waf_error_response(&translator, StatusCode::BAD_REQUEST, error.to_string())
+        }
+    }
+}
+
+async fn enable_recommended_rules(
+    axum::extract::State(state): axum::extract::State<AppState>,
+) -> Response {
+    let translator = Translator::from_state(&state).await;
+    match set_recommended_system_rules(&state).await {
+        Ok(data) => response::ok(data).into_response(),
+        Err(error) => {
+            tracing::warn!(%error, "failed to restore recommended WAF rules");
             waf_error_response(&translator, StatusCode::BAD_REQUEST, error.to_string())
         }
     }

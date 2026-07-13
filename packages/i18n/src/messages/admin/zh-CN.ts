@@ -845,6 +845,11 @@ export const zhCNAdmin = {
     ruleUpdateDescription: "规则状态更新失败",
     enableAll: "开启全部",
     disableAll: "关闭全部",
+    enableRecommendedOnly: "仅开启推荐",
+    recommendedRulesEnabled: "已恢复推荐规则",
+    enableAllConfirmTitle: "确认开启全部规则？",
+    enableAllConfirmDescription: "全部开启可能增加误拦截风险，请确认仍要继续。",
+    enableAllConfirmAction: "开启全部",
     notSynced: "尚未同步",
     notFetched: "未获取",
     fetched: "已获取",
@@ -2250,6 +2255,9 @@ export const zhCNAdmin = {
     delete: "删除",
     backToBasicAria: "返回基础信息",
     advancedConfig: "高级配置",
+    wafEnabled: "开启 WAF",
+    wafEnabledDescription:
+      "关闭后，此业务子域会在全局 WAF 开启时单独跳过 WAF 检查。",
     protocolMode: "HTTPS 协议",
     protocolModeDescription:
       "控制浏览器与此子域建立 HTTPS 连接时使用的 HTTP 版本。遇到视频传输速度异常时可尝试 HTTP/1.1。",

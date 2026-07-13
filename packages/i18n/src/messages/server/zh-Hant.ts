@@ -313,6 +313,12 @@ export const zhHantServer = {
     hostMappings: {
       payloadObjectRequired: "Host 映射必須是物件",
       hostRequired: "Host 映射需要填寫域名",
+      duplicateHost: "Host 映射域名 {host} 重複",
+      protocolModeInvalid:
+        "Host 映射 {host} 的 HTTPS 協議必須是 auto、http1 或 http2",
+      backendProtocolUnsupported:
+        "閘道後端未套用 {host} 的 HTTPS 協議 {mode}，請升級閘道後端",
+      revisionConflict: "Host 映射已在其他頁面更新，請重新整理後再試",
       targetInvalid:
         "Host 映射 {host} 的目標必須以 http://、https://、ws:// 或 wss:// 開頭並包含主機名",
       singleAuthPortMapping: "只能有一個 Host 映射指向 AUTH_PORT 作為鑒權服務",
@@ -1346,6 +1352,7 @@ export const zhHantServer = {
       runModeGatewayRoutes: "運行模式與網關路由",
       directModeWhitelist: "直連模式白名單",
       gatewayLogging: "請求日誌配置",
+      wafRuntime: "WAF 配置與運行狀態",
       sslDeployment: "SSL 證書部署",
       legacyAuthLogCleanup: "廢棄登入日誌清理",
       systemResourceMonitorReset: "系統資源監控狀態重置",

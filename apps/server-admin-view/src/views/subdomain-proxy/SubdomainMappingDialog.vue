@@ -35,6 +35,7 @@ const props = defineProps<{
   fullHostInputHint: string;
   gatewayHostResponseBlockedReason: string;
   gatewayProxyHeadersBlockedReason: string;
+  globalWafEnabled: boolean;
   handleFocusIn: (event: FocusEvent) => void;
   handleInputModeChange: (mode: MappingInputMode) => void;
   handlePortalDisabledTooltipOpenChange: (open: boolean) => void;
@@ -136,6 +137,11 @@ const protocolModeModel = computed({
     props.updateMappingForm({
       protocol_mode: value === "http1" || value === "http2" ? value : "auto",
     }),
+});
+
+const mappingWafEnabledModel = computed({
+  get: () => props.mappingForm.waf_enabled !== false,
+  set: (value: boolean) => props.updateMappingForm({ waf_enabled: value }),
 });
 </script>
 
@@ -500,6 +506,25 @@ const protocolModeModel = computed({
                   </SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div
+              v-if="globalWafEnabled && !isMappingAuthService"
+              class="flex items-center justify-between gap-4 rounded-lg border px-4 py-3"
+            >
+              <div class="min-w-0 space-y-1">
+                <Label for="mapping-waf">
+                  {{ t("admin.subdomainProxy.wafEnabled") }}
+                </Label>
+                <p class="text-xs leading-5 text-muted-foreground">
+                  {{ t("admin.subdomainProxy.wafEnabledDescription") }}
+                </p>
+              </div>
+              <Switch
+                id="mapping-waf"
+                v-model="mappingWafEnabledModel"
+                :disabled="isSavingMappings"
+              />
             </div>
           </div>
         </div>

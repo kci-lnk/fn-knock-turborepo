@@ -905,6 +905,12 @@ export const koKRAdmin = {
     ruleUpdateDescription: "규칙 상태를 업데이트하지 못했습니다.",
     enableAll: "모두 활성화",
     disableAll: "모두 비활성화",
+    enableRecommendedOnly: "권장 규칙만 활성화",
+    recommendedRulesEnabled: "권장 규칙이 복원되었습니다",
+    enableAllConfirmTitle: "모든 규칙을 활성화할까요?",
+    enableAllConfirmDescription:
+      "모든 규칙을 활성화하면 오탐이 늘어날 수 있습니다. 계속할지 확인해 주세요.",
+    enableAllConfirmAction: "모두 활성화",
     notSynced: "아직 동기화되지 않음",
     notFetched: "가져오지 않음",
     fetched: "가져온",
@@ -2389,6 +2395,9 @@ export const koKRAdmin = {
     delete: "삭제",
     backToBasicAria: "기본정보로 돌아가기",
     advancedConfig: "고급 구성",
+    wafEnabled: "WAF 활성화",
+    wafEnabledDescription:
+      "비활성화하면 전역 WAF가 켜져 있어도 이 애플리케이션 하위 도메인은 WAF 검사를 건너뜁니다.",
     protocolMode: "HTTPS 프로토콜",
     protocolModeDescription:
       "브라우저가 이 하위 도메인에 HTTPS로 연결할 때 사용할 HTTP 버전을 제어합니다. 동영상 전송 속도가 비정상적으로 느리면 HTTP/1.1을 사용해 보세요.",

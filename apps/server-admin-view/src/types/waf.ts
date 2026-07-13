@@ -64,6 +64,7 @@ export interface WAFRuleFile {
   source: WAFRuleSource;
   filename: string;
   description: string;
+  recommended: boolean;
   enabled: boolean;
   size_bytes: number;
   updated_at: string;

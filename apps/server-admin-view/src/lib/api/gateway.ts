@@ -134,6 +134,10 @@ export const WAFAPI = {
     const res = await apiClient.post("/waf/rules/enabled", payload);
     return res.data.data;
   },
+  async enableRecommendedSystemRules(): Promise<WAFDetails> {
+    const res = await apiClient.post("/waf/rules/recommended");
+    return res.data.data;
+  },
   async getRuleFile(
     source: "system" | "custom",
     filename: string,

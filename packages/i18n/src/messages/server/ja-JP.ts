@@ -393,6 +393,13 @@ export const jaJPServer = {
       payloadObjectRequired:
         "Host マッピングはオブジェクトである必要があります",
       hostRequired: "Host マッピングにはドメインが必要です",
+      duplicateHost: "Host マッピングのドメイン {host} が重複しています",
+      protocolModeInvalid:
+        "Host マッピング {host} の HTTPS プロトコルは auto、http1、http2 のいずれかである必要があります",
+      backendProtocolUnsupported:
+        "ゲートウェイバックエンドが {host} の HTTPS プロトコル {mode} を適用できませんでした。ゲートウェイバックエンドを更新してください",
+      revisionConflict:
+        "別のページで Host マッピングが更新されました。更新してから再試行してください",
       targetInvalid:
         "Host マッピング {host} のターゲットは http://、https://、ws://、wss:// のいずれかで始まり、ホストを含む必要があります",
       singleAuthPortMapping:
@@ -1609,6 +1616,7 @@ export const jaJPServer = {
       runModeGatewayRoutes: "動作モードとゲートウェイルーティング",
       directModeWhitelist: "ダイレクトモードのホワイトリスト",
       gatewayLogging: "ログ構成のリクエスト",
+      wafRuntime: "WAF 設定と実行状態",
       sslDeployment: "SSL 証明書の展開",
       legacyAuthLogCleanup: "放棄されたログインログのクリーニング",
       systemResourceMonitorReset: "システムリソース監視ステータスリセット",

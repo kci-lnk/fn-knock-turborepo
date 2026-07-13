@@ -135,7 +135,7 @@ pub(super) async fn sync_go_auth_config(state: &AppState, config: &Value) -> Res
 
 pub(super) async fn sync_host_mappings_runtime(
     state: &AppState,
-    _config: &Value,
+    previous_config: &Value,
     _mappings: &[Value],
 ) -> Result<(), String> {
     // A non-Host config writer does not take the HostRules lease and may have
@@ -150,5 +150,13 @@ pub(super) async fn sync_host_mappings_runtime(
     sync_go_host_rules_for_config_locked(state, &current_config).await?;
     sync_go_auth_config(state, &current_config).await?;
     gateway_settings::sync_gateway_target_runtime_for_config(state, &current_config, true, true)
-        .await
+        .await?;
+    if waf::disabled_hosts_for_config(previous_config)
+        != waf::disabled_hosts_for_config(&current_config)
+    {
+        waf::sync_waf_config_to_gateway(state, &current_config)
+            .await
+            .map_err(|error| error.to_string())?;
+    }
+    Ok(())
 }

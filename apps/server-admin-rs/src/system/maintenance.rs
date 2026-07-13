@@ -26,7 +26,7 @@ use crate::{
     proxy_config, response, runtime_config, ssl,
     state::AppState,
     store::node_locale_compare_ordering,
-    system_monitor, time_utils,
+    system_monitor, time_utils, waf,
 };
 
 const KNOCK_BACKUP_PREFIX: &str = "fn_knock:";

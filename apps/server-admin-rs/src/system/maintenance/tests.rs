@@ -38,6 +38,17 @@ fn filters_backup_keys_like_node() {
 }
 
 #[test]
+fn restores_disabled_waf_before_other_runtime_steps() {
+    assert!(should_restore_waf_before_other_runtime_steps(&json!({
+        "waf": {"enabled": false}
+    })));
+    assert!(should_restore_waf_before_other_runtime_steps(&json!({})));
+    assert!(!should_restore_waf_before_other_runtime_steps(&json!({
+        "waf": {"enabled": true}
+    })));
+}
+
+#[test]
 fn builds_node_compatible_backup_filename() {
     assert_eq!(
         build_backup_filename("2026-07-05T01:02:03.456Z"),

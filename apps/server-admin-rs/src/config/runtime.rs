@@ -203,7 +203,7 @@ pub(crate) async fn sync_runtime_config_on_boot(state: AppState) {
         tracing::warn!(%error, "failed to sync gateway logging config on boot");
     }
 
-    if let Err(error) = waf::sync_waf_config_to_gateway(&state, config.get("waf")).await {
+    if let Err(error) = waf::sync_waf_config_to_gateway(&state, &config).await {
         tracing::warn!(%error, "failed to sync WAF config on boot");
     }
 

@@ -373,6 +373,13 @@ export const koKRServer = {
     hostMappings: {
       payloadObjectRequired: "호스트 매핑은 객체여야 합니다.",
       hostRequired: "호스트 매핑에는 도메인이 필요합니다.",
+      duplicateHost: "호스트 매핑 도메인 {host}이(가) 중복되었습니다.",
+      protocolModeInvalid:
+        "호스트 매핑 {host}의 HTTPS 프로토콜은 auto, http1 또는 http2여야 합니다.",
+      backendProtocolUnsupported:
+        "게이트웨이 백엔드가 {host}의 HTTPS 프로토콜 {mode}을(를) 적용하지 못했습니다. 게이트웨이 백엔드를 업그레이드하세요.",
+      revisionConflict:
+        "다른 페이지에서 호스트 매핑이 업데이트되었습니다. 새로 고친 후 다시 시도하세요.",
       targetInvalid:
         "호스트 매핑 {host} 대상은 http://, https://, ws:// 또는 wss://로 시작하고 호스트를 포함해야 합니다.",
       singleAuthPortMapping:
@@ -1538,6 +1545,7 @@ export const koKRServer = {
       runModeGatewayRoutes: "실행 모드 및 게이트웨이 경로",
       directModeWhitelist: "직접 모드 허용 목록",
       gatewayLogging: "로그 구성 요청",
+      wafRuntime: "WAF 구성 및 실행 상태",
       sslDeployment: "SSL 인증서 배포",
       legacyAuthLogCleanup: "기존 인증 로그 정리",
       systemResourceMonitorReset: "시스템 리소스 모니터 상태 재설정",

@@ -70,6 +70,7 @@ pub(super) async fn sync_system_waf_rules_from_manifest(
     state: &AppState,
     manifest: &Value,
 ) -> anyhow::Result<Value> {
+    let _rules_guard = state.waf_rules_update_lock.lock().await;
     let zip_buffer = download_system_zip(state, manifest).await?;
     let entries = unpack_system_rules_zip(&zip_buffer)?;
     if entries.rule_files.is_empty() {
@@ -373,6 +374,7 @@ pub(super) async fn list_rule_files(
                 } else {
                     "Custom WAF rule".to_string()
                 }),
+            "recommended": source == "system" && is_system_rule_enabled_by_default(&filename),
             "enabled": enabled_map
                 .get(&filename)
                 .copied()

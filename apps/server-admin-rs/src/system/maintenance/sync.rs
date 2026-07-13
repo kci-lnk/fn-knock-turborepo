@@ -17,6 +17,17 @@ pub(super) async fn sync_runtime_after_import(
         }
     };
     let run_type = config.get("run_type").and_then(Value::as_i64).unwrap_or(3);
+    let restore_waf_early = should_restore_waf_before_other_runtime_steps(&config);
+    let waf_label = maintenance_backup_text(translator, "syncSteps.wafRuntime");
+
+    if restore_waf_early {
+        record_waf_restore_result(
+            waf::restore_waf_runtime_after_import(state, &config).await,
+            &waf_label,
+            &mut warnings,
+            &mut synced_steps,
+        );
+    }
 
     let run_mode_label = maintenance_backup_text(translator, "syncSteps.runModeGatewayRoutes");
     match runtime_config::apply_run_type_config_with_host_rules_lock(state, &config, run_type).await
@@ -67,6 +78,15 @@ pub(super) async fn sync_runtime_after_import(
         Err(error) => warnings.push(format!("{gateway_logging_label}: {error}")),
     }
 
+    if !restore_waf_early {
+        record_waf_restore_result(
+            waf::restore_waf_runtime_after_import(state, &config).await,
+            &waf_label,
+            &mut warnings,
+            &mut synced_steps,
+        );
+    }
+
     let ssl_label = maintenance_backup_text(translator, "syncSteps.sslDeployment");
     match ssl::sync_ssl_deployment_to_gateway(state, Some(&config)).await {
         Ok(()) => synced_steps.push(ssl_label),
@@ -84,6 +104,26 @@ pub(super) async fn sync_runtime_after_import(
     synced_steps.push(monitor_label);
 
     (warnings, synced_steps)
+}
+
+pub(super) fn should_restore_waf_before_other_runtime_steps(config: &Value) -> bool {
+    !config
+        .get("waf")
+        .and_then(|waf| waf.get("enabled"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+}
+
+fn record_waf_restore_result(
+    result: anyhow::Result<Value>,
+    label: &str,
+    warnings: &mut Vec<String>,
+    synced_steps: &mut Vec<String>,
+) {
+    match result {
+        Ok(_) => synced_steps.push(label.to_string()),
+        Err(error) => warnings.push(format!("{label}: {error}")),
+    }
 }
 
 pub(super) async fn sync_direct_mode_whitelist_after_import(

@@ -826,7 +826,7 @@ pub(super) async fn sync_routes(State(state): State<AppState>) -> Response {
         );
     }
 
-    let waf_config = match waf::sync_waf_config_to_gateway(&state, config.get("waf")).await {
+    let waf_config = match waf::sync_waf_config_to_gateway(&state, &config).await {
         Ok(config) => config,
         Err(error) => {
             tracing::warn!(%error, "failed to sync WAF config");

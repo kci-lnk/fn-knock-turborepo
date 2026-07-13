@@ -5,13 +5,7 @@ import {
 } from "@admin-shared/composables/useAsyncAction";
 import { isValidCIDR } from "@admin-shared/utils/cidr";
 import { toast } from "@admin-shared/utils/toast";
-import { useCidrRegionSelector } from "../../composables/useCidrRegionSelector";
-import {
-  CidrAPI,
-  WhitelistAPI,
-  type CidrProvinceOption,
-  type GatewayVisibilitySelection,
-} from "../../lib/api";
+import { WhitelistAPI, type GatewayVisibilitySelection } from "../../lib/api";
 
 type Translate = (
   key: string,
@@ -42,9 +36,6 @@ export function useWhitelistAddRecord({
   });
   const cidrInputMode = ref<"manual" | "region">("manual");
   const whitelistRegionSelections = ref<GatewayVisibilitySelection[]>([]);
-  const provinces = ref<CidrProvinceOption[]>([]);
-  const isLoadingProvinces = ref(false);
-  const provincesLoaded = ref(false);
 
   const { isPending: isSaving, run: runAddRecord } = useAsyncAction({
     onError: (error) => {
@@ -76,75 +67,6 @@ export function useWhitelistAddRecord({
       : Boolean(newRecord.value.ip.trim()),
   );
 
-  const regionTranslate = (
-    key:
-      | "loading"
-      | "selectProvinceFirst"
-      | "selectCityOrProvince"
-      | "selectCity"
-      | "regionsLoadFailed"
-      | "regionsLoadDescription",
-    params?: Record<string, string | number>,
-  ) => {
-    const keyMap = {
-      loading: "admin.ipWhitelist.loading",
-      selectProvinceFirst: "admin.ipWhitelist.selectProvinceFirst",
-      selectCityOrProvince: "admin.ipWhitelist.selectCityOrProvince",
-      selectCity: "admin.ipWhitelist.selectCity",
-      regionsLoadFailed: "admin.ipWhitelist.regionsLoadFailed",
-      regionsLoadDescription: "admin.ipWhitelist.regionsLoadDescription",
-    } as const;
-    return translate(keyMap[key], params);
-  };
-
-  const {
-    addRegion,
-    canAddRegion,
-    cityOptions,
-    cityOptionsLoading,
-    citySelectKey,
-    citySelectPlaceholder,
-    handleRegionDialogOpenChange,
-    isRegionDialogOpen,
-    openRegionDialog,
-    regionDraft,
-    removeRegion,
-    selectionKey,
-  } = useCidrRegionSelector({
-    selections: whitelistRegionSelections,
-    isEnabled: isRegionCidrMode,
-    loadCities: (province) => CidrAPI.getCities(province),
-    provinces,
-    regionInputsDisabled,
-    translate: regionTranslate,
-  });
-
-  async function loadProvinces() {
-    if (provincesLoaded.value || isLoadingProvinces.value) return;
-
-    isLoadingProvinces.value = true;
-    try {
-      const payload = await CidrAPI.getProvinces();
-      provinces.value = payload.options;
-      provincesLoaded.value = true;
-    } catch (error) {
-      toast.error(translate("admin.ipWhitelist.regionsLoadFailed"), {
-        description: extractErrorMessage(
-          error,
-          translate("admin.ipWhitelist.regionsLoadDescription"),
-        ),
-      });
-    } finally {
-      isLoadingProvinces.value = false;
-    }
-  }
-
-  async function openWhitelistRegionDialog() {
-    if (regionInputsDisabled.value) return;
-    await loadProvinces();
-    openRegionDialog();
-  }
-
   function getNewRecordExpireAt() {
     if (durationSetting.value === "permanent") return null;
 
@@ -171,7 +93,6 @@ export function useWhitelistAddRecord({
     whitelistRegionSelections.value = [];
     durationSetting.value = "permanent";
     customHours.value = 24;
-    handleRegionDialogOpenChange(false);
   }
 
   async function completeAdd() {
@@ -266,30 +187,15 @@ export function useWhitelistAddRecord({
 
   return {
     addRecord,
-    addRegion,
-    canAddRegion,
     canSaveNewRecord,
     cidrInputMode,
-    cityOptions,
-    cityOptionsLoading,
-    citySelectKey,
-    citySelectPlaceholder,
     customHours,
     durationSetting,
-    handleRegionDialogOpenChange,
-    isLoadingProvinces,
     isRegionCidrMode,
-    isRegionDialogOpen,
     isSaving,
     newRecord,
     newRecordPlaceholder,
-    openWhitelistRegionDialog,
-    provinces,
-    provincesLoaded,
-    regionDraft,
     regionInputsDisabled,
-    removeRegion,
-    selectionKey,
     showAddDialog,
     whitelistRegionSelections,
   };

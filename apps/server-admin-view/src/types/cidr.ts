@@ -1,5 +1,10 @@
 export const CIDR_PROVINCE_WIDE_VALUE = "__province_all__";
 
+export const getCidrRegionSelectionKey = (selection: {
+  province: string;
+  query_city?: string | null;
+}) => `${selection.province}::${selection.query_city ?? ""}`;
+
 export interface CidrProvinceItem {
   name: string;
   cityCount: number;

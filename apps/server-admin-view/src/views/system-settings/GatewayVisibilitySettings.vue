@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { toast } from "@admin-shared/utils/toast";
 import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
@@ -24,63 +24,26 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import {
-  TagsInput,
-  TagsInputItem,
-  TagsInputItemDelete,
-  TagsInputItemText,
-} from "@/components/ui/tags-input";
 import { Textarea } from "@/components/ui/textarea";
-import { CidrAPI, ConfigAPI } from "../../lib/api";
+import CidrRegionSelector from "@/components/CidrRegionSelector.vue";
+import { ConfigAPI } from "../../lib/api";
 import type {
-  CidrCityOption,
-  CidrProvinceOption,
   GatewayVisibilityDetails,
   GatewayVisibilitySelection,
 } from "../../types";
+import { getCidrRegionSelectionKey } from "../../types/cidr";
 
 const { t } = useI18n();
 const settings = ref<GatewayVisibilityDetails | null>(null);
-const provinces = ref<CidrProvinceOption[]>([]);
-const cityOptions = ref<CidrCityOption[]>([]);
 const loadError = ref("");
-const cityOptionsLoading = ref(false);
-const isSelectionDialogOpen = ref(false);
-
-const draft = reactive({
-  province: "",
-  cityValue: "",
-});
 
 const form = reactive({
   enabled: false,
   selections: [] as GatewayVisibilitySelection[],
   customCidrsText: "",
 });
-
-let cityRequestToken = 0;
-
-const selectionKey = (selection: {
-  province: string;
-  query_city?: string | null;
-}) => `${selection.province}::${selection.query_city ?? ""}`;
 
 const customCidrsState = computed(() =>
   parseCidrTextarea(form.customCidrsText),
@@ -96,50 +59,10 @@ const hasVisibleTargets = computed(
   () => form.selections.length > 0 || customCidrsState.value.cidrs.length > 0,
 );
 
-const selectedCityOption = computed(
-  () =>
-    cityOptions.value.find((option) => option.value === draft.cityValue) ??
-    null,
-);
-
-const citySelectKey = computed(() => draft.province || "empty");
-
-const citySelectPlaceholder = computed(() => {
-  if (cityOptionsLoading.value)
-    return t("admin.gatewayVisibilitySettings.loading");
-  if (!draft.province)
-    return t("admin.gatewayVisibilitySettings.selectProvinceFirst");
-  return cityOptions.value.some((option) => option.isProvinceWide)
-    ? t("admin.gatewayVisibilitySettings.selectCityOrProvinceWide")
-    : t("admin.gatewayVisibilitySettings.selectCity");
-});
-
-const pendingSelectionExists = computed(() => {
-  const city = selectedCityOption.value;
-  if (!draft.province || !city) return false;
-  return form.selections.some(
-    (item) =>
-      selectionKey(item) ===
-      selectionKey({
-        province: draft.province,
-        query_city: city.queryCity,
-      }),
-  );
-});
-
-const canAddSelection = computed(
-  () =>
-    form.enabled &&
-    Boolean(draft.province) &&
-    Boolean(selectedCityOption.value) &&
-    !pendingSelectionExists.value &&
-    !cityOptionsLoading.value,
-);
-
 const formSnapshot = computed(() =>
   JSON.stringify({
     enabled: form.enabled,
-    selections: form.selections.map((item) => selectionKey(item)),
+    selections: form.selections.map((item) => getCidrRegionSelectionKey(item)),
     custom_cidrs: customCidrsState.value.cidrs,
   }),
 );
@@ -148,7 +71,7 @@ const savedSnapshot = computed(() =>
   JSON.stringify({
     enabled: settings.value?.config.enabled ?? false,
     selections: (settings.value?.config.selections ?? []).map((item) =>
-      selectionKey(item),
+      getCidrRegionSelectionKey(item),
     ),
     custom_cidrs: settings.value?.config.custom_cidrs ?? [],
   }),
@@ -198,113 +121,10 @@ const applyDetails = (details: GatewayVisibilityDetails) => {
   form.customCidrsText = details.config.custom_cidrs.join("\n");
 };
 
-const clearSelectionDraft = () => {
-  cityRequestToken += 1;
-  cityOptionsLoading.value = false;
-  draft.province = "";
-  draft.cityValue = "";
-  cityOptions.value = [];
-};
-
-const prepareSelectionDraft = () => {
-  const preferredProvince =
-    form.selections[0]?.province || provinces.value[0]?.value || "";
-
-  clearSelectionDraft();
-
-  if (preferredProvince) {
-    draft.province = preferredProvince;
-  }
-};
-
-const openSelectionDialog = () => {
-  if (visibilityInputsDisabled.value || provinces.value.length === 0) {
-    return;
-  }
-
-  isSelectionDialogOpen.value = true;
-  prepareSelectionDraft();
-};
-
-const handleSelectionDialogOpenChange = (nextOpen: boolean) => {
-  isSelectionDialogOpen.value = nextOpen;
-
-  if (!nextOpen) {
-    clearSelectionDraft();
-  }
-};
-
-const loadCityOptions = async (province: string) => {
-  if (!province) {
-    cityOptions.value = [];
-    draft.cityValue = "";
-    return;
-  }
-
-  const token = ++cityRequestToken;
-  cityOptionsLoading.value = true;
-  cityOptions.value = [];
-  draft.cityValue = "";
-  try {
-    const payload = await CidrAPI.getCities(province);
-    if (token !== cityRequestToken) return;
-
-    cityOptions.value = payload.options;
-    const hasCurrentValue = payload.options.some(
-      (item) => item.value === draft.cityValue,
-    );
-    draft.cityValue = hasCurrentValue
-      ? draft.cityValue
-      : (payload.defaultValue ?? payload.options[0]?.value ?? "");
-  } catch (error) {
-    if (token !== cityRequestToken) return;
-    cityOptions.value = [];
-    draft.cityValue = "";
-    toast.error(t("admin.gatewayVisibilitySettings.cityLoadFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.gatewayVisibilitySettings.cityLoadFailedDescription"),
-      ),
-    });
-  } finally {
-    if (token === cityRequestToken) {
-      cityOptionsLoading.value = false;
-    }
-  }
-};
-
-watch(
-  () => draft.province,
-  (province, previousProvince) => {
-    if (province !== previousProvince) {
-      if (!province) {
-        draft.cityValue = "";
-        cityOptions.value = [];
-        return;
-      }
-      void loadCityOptions(province);
-    }
-  },
-);
-
-watch(
-  () => form.enabled,
-  (enabled) => {
-    if (!enabled) {
-      handleSelectionDialogOpenChange(false);
-    }
-  },
-);
-
 const fetchDetails = async () => {
   await runLoad(async () => {
     loadError.value = "";
-    const [provincePayload, details] = await Promise.all([
-      CidrAPI.getProvinces(),
-      ConfigAPI.getGatewayVisibility(),
-    ]);
-
-    provinces.value = provincePayload.options;
+    const details = await ConfigAPI.getGatewayVisibility();
     applyDetails(details);
   });
 };
@@ -312,36 +132,6 @@ const fetchDetails = async () => {
 const resetForm = () => {
   if (!settings.value) return;
   applyDetails(settings.value);
-  handleSelectionDialogOpenChange(false);
-};
-
-const addSelection = () => {
-  const option = selectedCityOption.value;
-  if (!draft.province || !option || pendingSelectionExists.value) {
-    return;
-  }
-
-  form.selections.push({
-    province: draft.province,
-    city: option.isProvinceWide ? null : option.label,
-    label: option.label,
-    value: option.value,
-    query_city: option.queryCity,
-    is_province_wide: option.isProvinceWide,
-    is_municipality: option.isMunicipality,
-  });
-
-  handleSelectionDialogOpenChange(false);
-};
-
-const removeSelection = (selection: GatewayVisibilitySelection) => {
-  if (visibilityInputsDisabled.value) {
-    return;
-  }
-
-  form.selections = form.selections.filter(
-    (item) => selectionKey(item) !== selectionKey(selection),
-  );
 };
 
 const saveSettings = async () => {
@@ -460,60 +250,45 @@ onMounted(() => {
               </div>
 
               <section class="space-y-4 p-5">
-                <div
-                  class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
-                >
-                  <div class="space-y-1">
-                    <Label class="text-base">{{
-                      t("admin.gatewayVisibilitySettings.regionScope")
-                    }}</Label>
-                    <p class="text-sm leading-6 text-muted-foreground">
-                      {{ t("admin.gatewayVisibilitySettings.regionScopeHint") }}
-                    </p>
-                  </div>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    :disabled="
-                      visibilityInputsDisabled || provinces.length === 0
-                    "
-                    @click="openSelectionDialog"
-                  >
-                    {{ t("admin.gatewayVisibilitySettings.addRegion") }}
-                  </Button>
-                </div>
-
-                <div class="rounded-xl bg-muted/20 px-4 py-4">
-                  <TagsInput
-                    :model-value="
-                      form.selections.map((item) => selectionKey(item))
-                    "
-                    class="min-h-0 items-start gap-2 border-none bg-transparent px-0 py-0 shadow-none"
-                  >
-                    <template v-if="form.selections.length > 0">
-                      <TagsInputItem
-                        v-for="selection in form.selections"
-                        :key="selectionKey(selection)"
-                        :value="selectionKey(selection)"
-                        class="h-auto rounded-full border border-border/70 bg-background pr-1"
-                      >
-                        <TagsInputItemText class="px-3 py-1.5">
-                          {{ selection.label }}
-                        </TagsInputItemText>
-                        <TagsInputItemDelete
-                          v-if="form.enabled"
-                          class="mr-1 rounded-full hover:bg-muted"
-                          @click.prevent="removeSelection(selection)"
-                        />
-                      </TagsInputItem>
-                    </template>
-
-                    <div v-else class="px-1 py-1 text-sm text-muted-foreground">
-                      {{ t("admin.gatewayVisibilitySettings.noRegions") }}
-                    </div>
-                  </TagsInput>
-                </div>
+                <Label class="text-base">{{
+                  t("admin.gatewayVisibilitySettings.regionScope")
+                }}</Label>
+                <CidrRegionSelector
+                  v-model="form.selections"
+                  :disabled="visibilityInputsDisabled"
+                  :description="
+                    t('admin.gatewayVisibilitySettings.regionScopeHint')
+                  "
+                  :text="{
+                    add: t('admin.gatewayVisibilitySettings.add'),
+                    addRegion: t('admin.gatewayVisibilitySettings.addRegion'),
+                    cancel: t('common.cancel'),
+                    dialogDescription: t(
+                      'admin.gatewayVisibilitySettings.addRegionDescription',
+                    ),
+                    loadFailed: t(
+                      'admin.gatewayVisibilitySettings.cityLoadFailed',
+                    ),
+                    loadFailedDescription: t(
+                      'admin.gatewayVisibilitySettings.cityLoadFailedDescription',
+                    ),
+                    loading: t('admin.gatewayVisibilitySettings.loading'),
+                    noRegions: t('admin.gatewayVisibilitySettings.noRegions'),
+                    province: t('admin.gatewayVisibilitySettings.province'),
+                    retry: t('admin.subdomainProxy.retry'),
+                    scope: t('admin.gatewayVisibilitySettings.scope'),
+                    selectCity: t('admin.gatewayVisibilitySettings.selectCity'),
+                    selectCityOrProvince: t(
+                      'admin.gatewayVisibilitySettings.selectCityOrProvinceWide',
+                    ),
+                    selectProvince: t(
+                      'admin.gatewayVisibilitySettings.selectProvince',
+                    ),
+                    selectProvinceFirst: t(
+                      'admin.gatewayVisibilitySettings.selectProvinceFirst',
+                    ),
+                  }"
+                />
               </section>
 
               <section class="space-y-4 border-t border-border/60 p-5">
@@ -608,105 +383,5 @@ onMounted(() => {
         </template>
       </CardContent>
     </Card>
-
-    <Dialog
-      :open="isSelectionDialogOpen"
-      @update:open="handleSelectionDialogOpenChange"
-    >
-      <DialogContent
-        class="overflow-hidden border-border/70 bg-background p-0 shadow-xl sm:max-w-[560px]"
-      >
-        <div class="px-6 pt-6 pb-2">
-          <DialogHeader class="space-y-2 text-left">
-            <DialogTitle class="text-xl font-semibold tracking-tight">
-              {{ t("admin.gatewayVisibilitySettings.addRegion") }}
-            </DialogTitle>
-            <DialogDescription class="text-sm leading-6 text-muted-foreground">
-              {{ t("admin.gatewayVisibilitySettings.addRegionDescription") }}
-            </DialogDescription>
-          </DialogHeader>
-        </div>
-
-        <div class="space-y-4 border-t border-border/60 px-6 py-5">
-          <div class="grid gap-4 sm:grid-cols-2">
-            <div class="space-y-2">
-              <Label class="text-sm font-medium">{{
-                t("admin.gatewayVisibilitySettings.province")
-              }}</Label>
-              <Select v-model="draft.province">
-                <SelectTrigger
-                  class="h-11 w-full rounded-lg border-border/70 bg-background px-3 shadow-none"
-                  :disabled="isSaving || provinces.length === 0"
-                >
-                  <SelectValue
-                    :placeholder="
-                      t('admin.gatewayVisibilitySettings.selectProvince')
-                    "
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem
-                    v-for="province in provinces"
-                    :key="province.value"
-                    :value="province.value"
-                  >
-                    {{ province.label }}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div class="space-y-2">
-              <Label class="text-sm font-medium">{{
-                t("admin.gatewayVisibilitySettings.scope")
-              }}</Label>
-              <Select :key="citySelectKey" v-model="draft.cityValue">
-                <SelectTrigger
-                  class="h-11 w-full rounded-lg border-border/70 bg-background px-3 shadow-none"
-                  :disabled="
-                    isSaving ||
-                    !draft.province ||
-                    cityOptionsLoading ||
-                    cityOptions.length === 0
-                  "
-                >
-                  <span
-                    v-if="cityOptionsLoading"
-                    class="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-foreground"
-                  ></span>
-                  <SelectValue :placeholder="citySelectPlaceholder" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem
-                    v-for="city in cityOptions"
-                    :key="city.value"
-                    :value="city.value"
-                  >
-                    {{ city.label }}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
-
-        <DialogFooter
-          class="border-t border-border/60 px-6 py-4 sm:justify-end"
-        >
-          <Button
-            variant="outline"
-            @click="handleSelectionDialogOpenChange(false)"
-          >
-            {{ t("common.cancel") }}
-          </Button>
-          <Button
-            :disabled="!canAddSelection || isSaving"
-            @click="addSelection"
-          >
-            {{ t("admin.gatewayVisibilitySettings.add") }}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   </div>
 </template>

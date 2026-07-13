@@ -15,14 +15,7 @@ import {
 } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -33,12 +26,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import {
-  TagsInput,
-  TagsInputItem,
-  TagsInputItemDelete,
-  TagsInputItemText,
-} from "@/components/ui/tags-input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Tooltip,
@@ -47,6 +34,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import ProxyTargetInputField from "@admin-shared/components/common/ProxyTargetInputField.vue";
+import CidrRegionSelector from "@/components/CidrRegionSelector.vue";
 import type { HostMapping } from "@/types";
 import type { MappingInputMode } from "./model";
 import { useMappingVisibility } from "./useMappingVisibility";
@@ -722,74 +710,43 @@ const visibilityCustomCidrsModel = computed({
 
             <template v-if="visibilityModeModel === 'custom'">
               <section class="space-y-3 rounded-lg border px-4 py-3">
-                <div class="flex items-start justify-between gap-3">
-                  <div class="space-y-1">
-                    <Label>{{
-                      t("admin.subdomainProxy.visibilityRegions")
-                    }}</Label>
-                    <p class="text-xs leading-5 text-muted-foreground">
-                      {{
-                        t("admin.subdomainProxy.visibilityRegionsDescription")
-                      }}
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    :disabled="
-                      visibilityEditor.regionInputsDisabled ||
-                      visibilityEditor.provinces.length === 0
-                    "
-                    @click="visibilityEditor.openRegionDialog"
-                  >
-                    {{ t("admin.gatewayVisibilitySettings.addRegion") }}
-                  </Button>
-                </div>
-                <div
-                  v-if="visibilityEditor.provincesLoadError"
-                  class="flex items-center justify-between gap-3 rounded-md bg-destructive/5 px-3 py-2 text-xs text-destructive"
-                >
-                  <span>{{ visibilityEditor.provincesLoadError }}</span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    @click="visibilityEditor.loadProvinces"
-                  >
-                    {{ t("admin.subdomainProxy.retry") }}
-                  </Button>
-                </div>
-                <TagsInput
-                  :model-value="
-                    mappingForm.visibility.selections.map((item) =>
-                      visibilityEditor.selectionKey(item),
-                    )
+                <Label>{{ t("admin.subdomainProxy.visibilityRegions") }}</Label>
+                <CidrRegionSelector
+                  v-model="mappingForm.visibility.selections"
+                  :disabled="visibilityEditor.regionInputsDisabled"
+                  :description="
+                    t('admin.subdomainProxy.visibilityRegionsDescription')
                   "
-                  class="min-h-0 items-start gap-2 border-none bg-muted/20 px-3 py-3 shadow-none"
-                >
-                  <template v-if="mappingForm.visibility.selections.length > 0">
-                    <TagsInputItem
-                      v-for="selection in mappingForm.visibility.selections"
-                      :key="visibilityEditor.selectionKey(selection)"
-                      :value="visibilityEditor.selectionKey(selection)"
-                      class="h-auto rounded-full border border-border/70 bg-background pr-1"
-                    >
-                      <TagsInputItemText class="px-3 py-1.5">
-                        {{ selection.label }}
-                      </TagsInputItemText>
-                      <TagsInputItemDelete
-                        class="mr-1 rounded-full hover:bg-muted"
-                        @click.prevent="
-                          visibilityEditor.removeRegion(selection)
-                        "
-                      />
-                    </TagsInputItem>
-                  </template>
-                  <span v-else class="px-1 py-1 text-sm text-muted-foreground">
-                    {{ t("admin.gatewayVisibilitySettings.noRegions") }}
-                  </span>
-                </TagsInput>
+                  :text="{
+                    add: t('admin.gatewayVisibilitySettings.add'),
+                    addRegion: t('admin.gatewayVisibilitySettings.addRegion'),
+                    cancel: t('admin.subdomainProxy.cancel'),
+                    dialogDescription: t(
+                      'admin.gatewayVisibilitySettings.addRegionDescription',
+                    ),
+                    loadFailed: t(
+                      'admin.gatewayVisibilitySettings.cityLoadFailed',
+                    ),
+                    loadFailedDescription: t(
+                      'admin.subdomainProxy.visibilityRegionsLoadFailed',
+                    ),
+                    loading: t('admin.gatewayVisibilitySettings.loading'),
+                    noRegions: t('admin.gatewayVisibilitySettings.noRegions'),
+                    province: t('admin.gatewayVisibilitySettings.province'),
+                    retry: t('admin.subdomainProxy.retry'),
+                    scope: t('admin.gatewayVisibilitySettings.scope'),
+                    selectCity: t('admin.gatewayVisibilitySettings.selectCity'),
+                    selectCityOrProvince: t(
+                      'admin.gatewayVisibilitySettings.selectCityOrProvinceWide',
+                    ),
+                    selectProvince: t(
+                      'admin.gatewayVisibilitySettings.selectProvince',
+                    ),
+                    selectProvinceFirst: t(
+                      'admin.gatewayVisibilitySettings.selectProvinceFirst',
+                    ),
+                  }"
+                />
               </section>
 
               <section class="space-y-3 rounded-lg border px-4 py-3">
@@ -852,94 +809,6 @@ const visibilityCustomCidrsModel = computed({
           @click="emit('save')"
         >
           {{ t("admin.subdomainProxy.saveMapping") }}
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
-
-  <Dialog
-    :open="visibilityEditor.isRegionDialogOpen"
-    @update:open="visibilityEditor.handleRegionDialogOpenChange"
-  >
-    <DialogContent class="overflow-hidden p-0 sm:max-w-[560px]">
-      <div class="px-6 pb-2 pt-6">
-        <DialogHeader class="space-y-2 text-left">
-          <DialogTitle>{{
-            t("admin.gatewayVisibilitySettings.addRegion")
-          }}</DialogTitle>
-          <DialogDescription>
-            {{ t("admin.gatewayVisibilitySettings.addRegionDescription") }}
-          </DialogDescription>
-        </DialogHeader>
-      </div>
-      <div class="grid gap-4 border-t px-6 py-5 sm:grid-cols-2">
-        <div class="space-y-2">
-          <Label>{{ t("admin.gatewayVisibilitySettings.province") }}</Label>
-          <Select v-model="visibilityEditor.regionDraft.province">
-            <SelectTrigger
-              class="w-full"
-              :disabled="visibilityEditor.regionInputsDisabled"
-            >
-              <SelectValue
-                :placeholder="
-                  t('admin.gatewayVisibilitySettings.selectProvince')
-                "
-              />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem
-                v-for="province in visibilityEditor.provinces"
-                :key="province.value"
-                :value="province.value"
-              >
-                {{ province.label }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div class="space-y-2">
-          <Label>{{ t("admin.gatewayVisibilitySettings.scope") }}</Label>
-          <Select
-            :key="visibilityEditor.citySelectKey"
-            v-model="visibilityEditor.regionDraft.cityValue"
-          >
-            <SelectTrigger
-              class="w-full"
-              :disabled="
-                visibilityEditor.regionInputsDisabled ||
-                !visibilityEditor.regionDraft.province ||
-                visibilityEditor.cityOptionsLoading ||
-                visibilityEditor.cityOptions.length === 0
-              "
-            >
-              <SelectValue
-                :placeholder="visibilityEditor.citySelectPlaceholder"
-              />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem
-                v-for="city in visibilityEditor.cityOptions"
-                :key="city.value"
-                :value="city.value"
-              >
-                {{ city.label }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      <DialogFooter class="border-t px-6 py-4">
-        <Button
-          variant="outline"
-          @click="visibilityEditor.handleRegionDialogOpenChange(false)"
-        >
-          {{ t("admin.subdomainProxy.cancel") }}
-        </Button>
-        <Button
-          :disabled="!visibilityEditor.canAddRegion"
-          @click="visibilityEditor.addRegion"
-        >
-          {{ t("admin.gatewayVisibilitySettings.add") }}
         </Button>
       </DialogFooter>
     </DialogContent>

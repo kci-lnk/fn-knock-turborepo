@@ -456,60 +456,32 @@
                 {{ t("admin.ipWhitelist.regionSecurityWarningDescription") }}
               </AlertDescription>
             </Alert>
-
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <p class="text-sm text-muted-foreground">
-                {{ t("admin.ipWhitelist.regionScopeDescription") }}
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                :disabled="
-                  regionInputsDisabled ||
-                  isLoadingProvinces ||
-                  (provincesLoaded && provinces.length === 0)
-                "
-                @click="openWhitelistRegionDialog"
-              >
-                <Loader2
-                  v-if="isLoadingProvinces"
-                  class="h-4 w-4 animate-spin"
-                />
-                <Plus v-else class="h-4 w-4" />
-                {{ t("admin.ipWhitelist.addRegion") }}
-              </Button>
-            </div>
-
-            <div class="rounded-xl bg-muted/20 px-4 py-4">
-              <TagsInput
-                :model-value="
-                  whitelistRegionSelections.map((item) => selectionKey(item))
-                "
-                class="min-h-0 items-start gap-2 border-none bg-transparent px-0 py-0 shadow-none"
-              >
-                <template v-if="whitelistRegionSelections.length > 0">
-                  <TagsInputItem
-                    v-for="selection in whitelistRegionSelections"
-                    :key="selectionKey(selection)"
-                    :value="selectionKey(selection)"
-                    class="h-auto rounded-full border border-border/70 bg-background pr-1"
-                  >
-                    <TagsInputItemText class="px-3 py-1.5">
-                      {{ selection.label }}
-                    </TagsInputItemText>
-                    <TagsInputItemDelete
-                      class="mr-1 rounded-full hover:bg-muted"
-                      :disabled="regionInputsDisabled"
-                      @click.prevent="removeRegion(selection)"
-                    />
-                  </TagsInputItem>
-                </template>
-                <span v-else class="px-1 py-1 text-sm text-muted-foreground">
-                  {{ t("admin.ipWhitelist.noRegions") }}
-                </span>
-              </TagsInput>
-            </div>
+            <CidrRegionSelector
+              v-model="whitelistRegionSelections"
+              :disabled="regionInputsDisabled"
+              :description="t('admin.ipWhitelist.regionScopeDescription')"
+              :text="{
+                add: t('admin.ipWhitelist.add'),
+                addRegion: t('admin.ipWhitelist.addRegion'),
+                cancel: t('common.cancel'),
+                dialogDescription: t('admin.ipWhitelist.addRegionDescription'),
+                loadFailed: t('admin.ipWhitelist.regionsLoadFailed'),
+                loadFailedDescription: t(
+                  'admin.ipWhitelist.regionsLoadDescription',
+                ),
+                loading: t('admin.ipWhitelist.loading'),
+                noRegions: t('admin.ipWhitelist.noRegions'),
+                province: t('admin.ipWhitelist.province'),
+                retry: t('admin.subdomainProxy.retry'),
+                scope: t('admin.ipWhitelist.scope'),
+                selectCity: t('admin.ipWhitelist.selectCity'),
+                selectCityOrProvince: t(
+                  'admin.ipWhitelist.selectCityOrProvince',
+                ),
+                selectProvince: t('admin.ipWhitelist.selectProvince'),
+                selectProvinceFirst: t('admin.ipWhitelist.selectProvinceFirst'),
+              }"
+            />
           </div>
         </div>
 
@@ -604,96 +576,6 @@
       </DialogFooter>
     </DialogContent>
   </Dialog>
-
-  <Dialog
-    :open="isRegionDialogOpen"
-    @update:open="handleRegionDialogOpenChange"
-  >
-    <DialogContent
-      class="overflow-hidden border-border/70 bg-background p-0 shadow-xl sm:max-w-[560px]"
-    >
-      <div class="px-6 pt-6 pb-2">
-        <DialogHeader class="space-y-2 text-left">
-          <DialogTitle class="text-xl font-semibold tracking-tight">
-            {{ t("admin.ipWhitelist.addRegion") }}
-          </DialogTitle>
-          <DialogDescription class="text-sm leading-6 text-muted-foreground">
-            {{ t("admin.ipWhitelist.addRegionDescription") }}
-          </DialogDescription>
-        </DialogHeader>
-      </div>
-
-      <div class="space-y-4 border-t border-border/60 px-6 py-5">
-        <div class="grid gap-4 sm:grid-cols-2">
-          <div class="space-y-2">
-            <Label class="text-sm font-medium">
-              {{ t("admin.ipWhitelist.province") }}
-            </Label>
-            <Select v-model="regionDraft.province">
-              <SelectTrigger
-                class="h-11 w-full rounded-lg border-border/70 bg-background px-3 shadow-none"
-                :disabled="regionInputsDisabled || provinces.length === 0"
-              >
-                <SelectValue
-                  :placeholder="t('admin.ipWhitelist.selectProvince')"
-                />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem
-                  v-for="province in provinces"
-                  :key="province.value"
-                  :value="province.value"
-                >
-                  {{ province.label }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div class="space-y-2">
-            <Label class="text-sm font-medium">
-              {{ t("admin.ipWhitelist.scope") }}
-            </Label>
-            <Select :key="citySelectKey" v-model="regionDraft.cityValue">
-              <SelectTrigger
-                class="h-11 w-full rounded-lg border-border/70 bg-background px-3 shadow-none"
-                :disabled="
-                  regionInputsDisabled ||
-                  !regionDraft.province ||
-                  cityOptionsLoading ||
-                  cityOptions.length === 0
-                "
-              >
-                <Loader2
-                  v-if="cityOptionsLoading"
-                  class="h-4 w-4 animate-spin text-muted-foreground"
-                />
-                <SelectValue :placeholder="citySelectPlaceholder" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem
-                  v-for="city in cityOptions"
-                  :key="city.value"
-                  :value="city.value"
-                >
-                  {{ city.label }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </div>
-
-      <DialogFooter class="border-t border-border/60 px-6 py-4 sm:justify-end">
-        <Button variant="outline" @click="handleRegionDialogOpenChange(false)">
-          {{ t("common.cancel") }}
-        </Button>
-        <Button :disabled="!canAddRegion || isSaving" @click="addRegion">
-          {{ t("admin.ipWhitelist.add") }}
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
 </template>
 
 <script setup lang="ts">
@@ -737,20 +619,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  AlertTriangle,
-  Loader2,
-  Plus,
-  RefreshCw,
-  ShieldCheck,
-  Trash2,
-} from "lucide-vue-next";
-import {
-  TagsInput,
-  TagsInputItem,
-  TagsInputItemDelete,
-  TagsInputItemText,
-} from "@/components/ui/tags-input";
+import { AlertTriangle, RefreshCw, ShieldCheck, Trash2 } from "lucide-vue-next";
+import CidrRegionSelector from "@/components/CidrRegionSelector.vue";
 import RefreshButton from "@/components/RefreshButton.vue";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
@@ -813,30 +683,15 @@ const {
 });
 const {
   addRecord,
-  addRegion,
-  canAddRegion,
   canSaveNewRecord,
   cidrInputMode,
-  cityOptions,
-  cityOptionsLoading,
-  citySelectKey,
-  citySelectPlaceholder,
   customHours,
   durationSetting,
-  handleRegionDialogOpenChange,
-  isLoadingProvinces,
   isRegionCidrMode,
-  isRegionDialogOpen,
   isSaving,
   newRecord,
   newRecordPlaceholder,
-  openWhitelistRegionDialog,
-  provinces,
-  provincesLoaded,
-  regionDraft,
   regionInputsDisabled,
-  removeRegion,
-  selectionKey,
   showAddDialog,
   whitelistRegionSelections,
 } = useWhitelistAddRecord({
@@ -905,5 +760,4 @@ const formatRegionInput = (region: WhitelistRegionInput) =>
 
 const regionGroupLabel = (group: WhitelistRegionGroupRecord) =>
   group.regions.map(formatRegionInput).join(", ");
-
 </script>

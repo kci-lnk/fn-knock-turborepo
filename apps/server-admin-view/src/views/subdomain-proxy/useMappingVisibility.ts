@@ -1,13 +1,8 @@
 import { computed, ref, watch, type ComputedRef, type Ref } from "vue";
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { parseCidrTextarea } from "@admin-shared/utils/cidr";
-import { CidrAPI, ConfigAPI } from "@/lib/api";
-import type {
-  CidrProvinceOption,
-  GatewayVisibilitySelection,
-  HostMapping,
-} from "@/types";
-import { useCidrRegionSelector } from "@/composables/useCidrRegionSelector";
+import { ConfigAPI } from "@/lib/api";
+import type { GatewayVisibilitySelection, HostMapping } from "@/types";
 import type { TranslationParams } from "./model";
 
 export type MappingDialogView = "basic" | "visibility";
@@ -74,9 +69,6 @@ export const useMappingVisibility = ({
   const globalVisibilityEnabled = ref(false);
   const isGlobalVisibilityLoading = ref(false);
   const globalVisibilityLoadError = ref("");
-  const provinces = ref<CidrProvinceOption[]>([]);
-  const isProvincesLoading = ref(false);
-  const provincesLoadError = ref("");
   const customCidrsText = ref("");
   let globalRequestId = 0;
 
@@ -104,9 +96,7 @@ export const useMappingVisibility = ({
   const customVisibilityEnabled = computed(
     () => visibilityMode.value === "custom",
   );
-  const regionInputsDisabled = computed(
-    () => !customVisibilityEnabled.value || isProvincesLoading.value,
-  );
+  const regionInputsDisabled = computed(() => !customVisibilityEnabled.value);
   const visibilityValidationMessage = computed(() => {
     const issue = getMappingVisibilityValidationIssue({
       available: visibilityAvailable.value,
@@ -137,41 +127,6 @@ export const useMappingVisibility = ({
     });
   });
 
-  const {
-    addRegion,
-    canAddRegion,
-    cityOptions,
-    cityOptionsLoading,
-    citySelectKey,
-    citySelectPlaceholder,
-    handleRegionDialogOpenChange,
-    isRegionDialogOpen,
-    openRegionDialog,
-    regionDraft,
-    removeRegion,
-    selectionKey,
-  } = useCidrRegionSelector({
-    selections,
-    isEnabled: customVisibilityEnabled,
-    loadCities: (province) => CidrAPI.getCities(province),
-    provinces,
-    regionInputsDisabled,
-    translate: (key) => {
-      const keys: Record<string, string> = {
-        loading: "admin.gatewayVisibilitySettings.loading",
-        selectProvinceFirst:
-          "admin.gatewayVisibilitySettings.selectProvinceFirst",
-        selectCityOrProvince:
-          "admin.gatewayVisibilitySettings.selectCityOrProvinceWide",
-        selectCity: "admin.gatewayVisibilitySettings.selectCity",
-        regionsLoadFailed: "admin.gatewayVisibilitySettings.cityLoadFailed",
-        regionsLoadDescription:
-          "admin.gatewayVisibilitySettings.cityLoadFailedDescription",
-      };
-      return translate(keys[key] ?? key);
-    },
-  });
-
   const syncCustomCidrsToForm = () => {
     mappingForm.visibility.custom_cidrs = customCidrsText.value
       .split(/\r?\n/u)
@@ -180,7 +135,6 @@ export const useMappingVisibility = ({
   };
 
   const resetVisibilityEditor = () => {
-    handleRegionDialogOpenChange(false);
     mappingDialogView.value = "basic";
     motionDirection.value = "forward";
     globalVisibilityEnabled.value = false;
@@ -188,7 +142,6 @@ export const useMappingVisibility = ({
       "\n",
     );
     globalVisibilityLoadError.value = "";
-    provincesLoadError.value = "";
   };
 
   const loadGlobalVisibility = async () => {
@@ -214,29 +167,10 @@ export const useMappingVisibility = ({
     }
   };
 
-  const loadProvinces = async () => {
-    if (provinces.value.length > 0 || isProvincesLoading.value) return;
-    isProvincesLoading.value = true;
-    provincesLoadError.value = "";
-    try {
-      provinces.value = (await CidrAPI.getProvinces()).options;
-    } catch (error) {
-      provincesLoadError.value = extractErrorMessage(
-        error,
-        translate("admin.subdomainProxy.visibilityRegionsLoadFailed"),
-      );
-    } finally {
-      isProvincesLoading.value = false;
-    }
-  };
-
   const openVisibilityView = () => {
     if (!visibilityAvailable.value) return;
     motionDirection.value = "forward";
     mappingDialogView.value = "visibility";
-    if (customVisibilityEnabled.value) {
-      void loadProvinces();
-    }
   };
 
   const returnBasicView = () => {
@@ -245,11 +179,6 @@ export const useMappingVisibility = ({
   };
 
   watch(customCidrsText, syncCustomCidrsToForm);
-  watch([mappingDialogView, customVisibilityEnabled], ([view, custom]) => {
-    if (view === "visibility" && custom) {
-      void loadProvinces();
-    }
-  });
   watch(isMappingAuthService, (isAuth) => {
     if (isAuth && mappingDialogView.value === "visibility") {
       returnBasicView();
@@ -274,32 +203,16 @@ export const useMappingVisibility = ({
   );
 
   return {
-    addRegion,
-    canAddRegion,
-    cityOptions,
-    cityOptionsLoading,
-    citySelectKey,
-    citySelectPlaceholder,
     customCidrsState,
     customCidrsText,
     globalVisibilityLoadError,
-    handleRegionDialogOpenChange,
     isGlobalVisibilityLoading,
-    isProvincesLoading,
-    isRegionDialogOpen,
     loadGlobalVisibility,
-    loadProvinces,
     mappingDialogView,
-    openRegionDialog,
     openVisibilityView,
-    provinces,
-    provincesLoadError,
-    regionDraft,
     regionInputsDisabled,
-    removeRegion,
     resetVisibilityEditor,
     returnBasicView,
-    selectionKey,
     transitionEnterFromClass,
     transitionLeaveToClass,
     visibilityAvailable,

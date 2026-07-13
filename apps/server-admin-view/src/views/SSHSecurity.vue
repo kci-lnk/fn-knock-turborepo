@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, toRef } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { toast } from "@admin-shared/utils/toast";
 import {
@@ -34,29 +34,12 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  TagsInput,
-  TagsInputItem,
-  TagsInputItemDelete,
-  TagsInputItemText,
-} from "@/components/ui/tags-input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  ChevronDown,
-  Loader2,
-  Plus,
-  RefreshCw,
-  Save,
-  Trash2,
-} from "lucide-vue-next";
-import { CidrAPI, SSHSecurityAPI } from "../lib/api";
+import { ChevronDown, Loader2, RefreshCw, Save, Trash2 } from "lucide-vue-next";
+import CidrRegionSelector from "@/components/CidrRegionSelector.vue";
+import { SSHSecurityAPI } from "../lib/api";
 import { useConfigStore } from "../store/config";
-import type {
-  CidrProvinceOption,
-  SSHSecurityDetails,
-  SSHSecuritySelection,
-} from "../types";
-import { useCidrRegionSelector } from "../composables/useCidrRegionSelector";
+import type { SSHSecurityDetails, SSHSecuritySelection } from "../types";
 import SSHBlockListPanel from "./ssh-security/SSHBlockListPanel.vue";
 import SSHLoginLogsPanel from "./ssh-security/SSHLoginLogsPanel.vue";
 
@@ -67,7 +50,6 @@ type SSHBlockListPanelInstance = {
 const configStore = useConfigStore();
 const { t } = useI18n();
 const details = ref<SSHSecurityDetails | null>(null);
-const provinces = ref<CidrProvinceOption[]>([]);
 const activeTab = ref("login-logs");
 const isClearFirewallDialogOpen = ref(false);
 const blockListPanel = ref<SSHBlockListPanelInstance | null>(null);
@@ -117,48 +99,6 @@ const customCidrsState = computed(() =>
 );
 const invalidCustomCidrs = computed(() => customCidrsState.value.invalid);
 const regionInputsDisabled = computed(() => isSaving.value || !form.enabled);
-const sshRegionTranslate = (
-  key:
-    | "loading"
-    | "selectProvinceFirst"
-    | "selectCityOrProvince"
-    | "selectCity"
-    | "regionsLoadFailed"
-    | "regionsLoadDescription",
-  params?: Record<string, string | number>,
-) => {
-  const keyMap = {
-    loading: "admin.sshSecurity.loading",
-    selectProvinceFirst: "admin.sshSecurity.selectProvinceFirst",
-    selectCityOrProvince: "admin.sshSecurity.selectCityOrProvince",
-    selectCity: "admin.sshSecurity.selectCity",
-    regionsLoadFailed: "admin.sshSecurity.regionsLoadFailed",
-    regionsLoadDescription: "admin.sshSecurity.regionsLoadDescription",
-  } as const;
-  const resolvedKey = keyMap[key];
-  return params ? t(resolvedKey, params) : t(resolvedKey);
-};
-const {
-  addRegion,
-  canAddRegion,
-  cityOptions,
-  cityOptionsLoading,
-  citySelectKey,
-  citySelectPlaceholder,
-  handleRegionDialogOpenChange,
-  isRegionDialogOpen,
-  openRegionDialog,
-  regionDraft,
-  removeRegion,
-  selectionKey,
-} = useCidrRegionSelector({
-  selections: toRef(form, "allowedRegions"),
-  isEnabled: toRef(form, "enabled"),
-  loadCities: (province) => CidrAPI.getCities(province),
-  provinces,
-  regionInputsDisabled,
-  translate: sshRegionTranslate,
-});
 const sshPortsLabel = computed(() => {
   const ports = details.value?.summary.ssh_ports ?? [22];
   return ports.length > 0
@@ -208,11 +148,7 @@ const applyDetails = (value: SSHSecurityDetails) => {
 
 const loadDetails = async () => {
   await runLoad(async () => {
-    const [provincePayload, nextDetails] = await Promise.all([
-      CidrAPI.getProvinces(),
-      SSHSecurityAPI.getDetails(),
-    ]);
-    provinces.value = provincePayload.options;
+    const nextDetails = await SSHSecurityAPI.getDetails();
     applyDetails(nextDetails);
   });
 };
@@ -512,59 +448,38 @@ onMounted(async () => {
               <Label class="text-sm font-medium">
                 {{ t("admin.sshSecurity.allowedRegions") }}
               </Label>
-              <p
-                class="hidden pr-4 text-xs leading-5 text-muted-foreground sm:block"
-              >
-                {{ t("admin.sshSecurity.allowedRegionsDescription") }}
-              </p>
             </div>
             <div class="w-full max-w-2xl space-y-3">
-              <div class="flex flex-wrap items-center justify-between gap-3">
-                <p class="text-sm leading-6 text-muted-foreground sm:hidden">
-                  {{ t("admin.sshSecurity.allowedRegionsDescription") }}
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  :disabled="regionInputsDisabled || provinces.length === 0"
-                  @click="openRegionDialog"
-                >
-                  <Plus class="h-4 w-4" />
-                  {{ t("admin.sshSecurity.addRegion") }}
-                </Button>
-              </div>
-
-              <div class="rounded-xl bg-muted/20 px-4 py-4">
-                <TagsInput
-                  :model-value="
-                    form.allowedRegions.map((item) => selectionKey(item))
-                  "
-                  class="min-h-0 items-start gap-2 border-none bg-transparent px-0 py-0 shadow-none"
-                >
-                  <template v-if="form.allowedRegions.length > 0">
-                    <TagsInputItem
-                      v-for="selection in form.allowedRegions"
-                      :key="selectionKey(selection)"
-                      :value="selectionKey(selection)"
-                      class="h-auto rounded-full border border-border/70 bg-background pr-1"
-                    >
-                      <TagsInputItemText class="px-3 py-1.5">
-                        {{ selection.label }}
-                      </TagsInputItemText>
-                      <TagsInputItemDelete
-                        v-if="form.enabled"
-                        class="mr-1 rounded-full hover:bg-muted"
-                        :disabled="regionInputsDisabled"
-                        @click.prevent="removeRegion(selection)"
-                      />
-                    </TagsInputItem>
-                  </template>
-                  <span v-else class="px-1 py-1 text-sm text-muted-foreground">
-                    {{ t("admin.sshSecurity.noRegions") }}
-                  </span>
-                </TagsInput>
-              </div>
+              <CidrRegionSelector
+                v-model="form.allowedRegions"
+                :disabled="regionInputsDisabled"
+                :description="t('admin.sshSecurity.allowedRegionsDescription')"
+                :text="{
+                  add: t('admin.sshSecurity.add'),
+                  addRegion: t('admin.sshSecurity.addRegion'),
+                  cancel: t('common.cancel'),
+                  dialogDescription: t(
+                    'admin.sshSecurity.addRegionDescription',
+                  ),
+                  loadFailed: t('admin.sshSecurity.regionsLoadFailed'),
+                  loadFailedDescription: t(
+                    'admin.sshSecurity.regionsLoadDescription',
+                  ),
+                  loading: t('admin.sshSecurity.loading'),
+                  noRegions: t('admin.sshSecurity.noRegions'),
+                  province: t('admin.sshSecurity.province'),
+                  retry: t('admin.subdomainProxy.retry'),
+                  scope: t('admin.sshSecurity.scope'),
+                  selectCity: t('admin.sshSecurity.selectCity'),
+                  selectCityOrProvince: t(
+                    'admin.sshSecurity.selectCityOrProvince',
+                  ),
+                  selectProvince: t('admin.sshSecurity.selectProvince'),
+                  selectProvinceFirst: t(
+                    'admin.sshSecurity.selectProvinceFirst',
+                  ),
+                }"
+              />
             </div>
           </div>
 
@@ -678,101 +593,6 @@ onMounted(async () => {
         </Button>
       </template>
     </ConfigCollapsibleCard>
-
-    <Dialog
-      :open="isRegionDialogOpen"
-      @update:open="handleRegionDialogOpenChange"
-    >
-      <DialogContent
-        class="overflow-hidden border-border/70 bg-background p-0 shadow-xl sm:max-w-[560px]"
-      >
-        <div class="px-6 pt-6 pb-2">
-          <DialogHeader class="space-y-2 text-left">
-            <DialogTitle class="text-xl font-semibold tracking-tight">
-              {{ t("admin.sshSecurity.addRegion") }}
-            </DialogTitle>
-            <DialogDescription class="text-sm leading-6 text-muted-foreground">
-              {{ t("admin.sshSecurity.addRegionDescription") }}
-            </DialogDescription>
-          </DialogHeader>
-        </div>
-
-        <div class="space-y-4 border-t border-border/60 px-6 py-5">
-          <div class="grid gap-4 sm:grid-cols-2">
-            <div class="space-y-2">
-              <Label class="text-sm font-medium">
-                {{ t("admin.sshSecurity.province") }}
-              </Label>
-              <Select v-model="regionDraft.province">
-                <SelectTrigger
-                  class="h-11 w-full rounded-lg border-border/70 bg-background px-3 shadow-none"
-                  :disabled="regionInputsDisabled || provinces.length === 0"
-                >
-                  <SelectValue
-                    :placeholder="t('admin.sshSecurity.selectProvince')"
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem
-                    v-for="province in provinces"
-                    :key="province.value"
-                    :value="province.value"
-                  >
-                    {{ province.label }}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div class="space-y-2">
-              <Label class="text-sm font-medium">
-                {{ t("admin.sshSecurity.scope") }}
-              </Label>
-              <Select :key="citySelectKey" v-model="regionDraft.cityValue">
-                <SelectTrigger
-                  class="h-11 w-full rounded-lg border-border/70 bg-background px-3 shadow-none"
-                  :disabled="
-                    regionInputsDisabled ||
-                    !regionDraft.province ||
-                    cityOptionsLoading ||
-                    cityOptions.length === 0
-                  "
-                >
-                  <Loader2
-                    v-if="cityOptionsLoading"
-                    class="h-4 w-4 animate-spin text-muted-foreground"
-                  />
-                  <SelectValue :placeholder="citySelectPlaceholder" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem
-                    v-for="city in cityOptions"
-                    :key="city.value"
-                    :value="city.value"
-                  >
-                    {{ city.label }}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
-
-        <DialogFooter
-          class="border-t border-border/60 px-6 py-4 sm:justify-end"
-        >
-          <Button
-            variant="outline"
-            @click="handleRegionDialogOpenChange(false)"
-          >
-            {{ t("common.cancel") }}
-          </Button>
-          <Button :disabled="!canAddRegion || isSaving" @click="addRegion">
-            {{ t("admin.sshSecurity.add") }}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
 
     <Tabs v-model="activeTab" class="space-y-4">
       <TabsList>

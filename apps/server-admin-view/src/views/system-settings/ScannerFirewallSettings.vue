@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, toRef } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
-import { Plus, Shield } from "lucide-vue-next";
+import { Shield } from "lucide-vue-next";
 import {
   Card,
   CardHeader,
@@ -11,49 +11,25 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import {
-  TagsInput,
-  TagsInputItem,
-  TagsInputItemDelete,
-  TagsInputItemText,
-} from "@/components/ui/tags-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@admin-shared/utils/toast";
 import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
 import { parseCidrTextarea } from "@admin-shared/utils/cidr";
-import { CidrAPI, ScannerAPI, type ScannerSettings } from "../../lib/api";
+import CidrRegionSelector from "@/components/CidrRegionSelector.vue";
+import { ScannerAPI, type ScannerSettings } from "../../lib/api";
 import {
   extractErrorMessage,
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
-import type {
-  CidrProvinceOption,
-  GatewayVisibilitySelection,
-} from "../../types";
-import { useCidrRegionSelector } from "../../composables/useCidrRegionSelector";
+import type { GatewayVisibilitySelection } from "../../types";
+import { getCidrRegionSelectionKey } from "../../types/cidr";
 
 const settings = ref<ScannerSettings | null>(null);
-const provinces = ref<CidrProvinceOption[]>([]);
 const baseWindowMinutes = 5;
 const router = useRouter();
 const { t } = useI18n();
@@ -89,30 +65,6 @@ const form = reactive({
   cidrExemptionsText: "",
 });
 
-const scannerRegionTranslate = (
-  key:
-    | "loading"
-    | "selectProvinceFirst"
-    | "selectCityOrProvince"
-    | "selectCity"
-    | "regionsLoadFailed"
-    | "regionsLoadDescription",
-  params?: Record<string, string | number>,
-) => {
-  const keyMap: Record<string, string> = {
-    loading: "admin.scannerFirewallSettings.loading",
-    selectProvinceFirst: "admin.scannerFirewallSettings.selectProvinceFirst",
-    selectCityOrProvince:
-      "admin.scannerFirewallSettings.selectCityOrProvinceWide",
-    selectCity: "admin.scannerFirewallSettings.selectCity",
-    regionsLoadFailed: "admin.scannerFirewallSettings.regionsLoadFailed",
-    regionsLoadDescription:
-      "admin.scannerFirewallSettings.regionsLoadDescription",
-  };
-  const resolvedKey = keyMap[key] ?? key;
-  return params ? t(resolvedKey, params) : t(resolvedKey);
-};
-
 const derivedWindowMinutes = computed(() =>
   Math.max(baseWindowMinutes, Number(form.windowMinutes) || 0),
 );
@@ -121,27 +73,6 @@ const cidrExemptionsState = computed(() =>
 );
 const invalidCidrExemptions = computed(() => cidrExemptionsState.value.invalid);
 const regionInputsDisabled = computed(() => isSaving.value || !form.enabled);
-const {
-  addRegion,
-  canAddRegion,
-  cityOptions,
-  cityOptionsLoading,
-  citySelectKey,
-  citySelectPlaceholder,
-  handleRegionDialogOpenChange,
-  isRegionDialogOpen,
-  openRegionDialog,
-  regionDraft,
-  removeRegion,
-  selectionKey,
-} = useCidrRegionSelector({
-  selections: toRef(form, "cidrExemptionRegions"),
-  isEnabled: toRef(form, "enabled"),
-  loadCities: (province) => CidrAPI.getCities(province),
-  provinces,
-  regionInputsDisabled,
-  translate: scannerRegionTranslate,
-});
 const isDirty = computed(() => {
   if (!settings.value) return false;
   const compareDays = Math.ceil(settings.value.blacklistTtlSeconds / 86400);
@@ -154,11 +85,13 @@ const isDirty = computed(() => {
     compareDays !== Number(form.blacklistTtlDays) ||
     JSON.stringify(
       (settings.value.cidrExemptionRegions ?? []).map((item) =>
-        selectionKey(item),
+        getCidrRegionSelectionKey(item),
       ),
     ) !==
       JSON.stringify(
-        form.cidrExemptionRegions.map((item) => selectionKey(item)),
+        form.cidrExemptionRegions.map((item) =>
+          getCidrRegionSelectionKey(item),
+        ),
       ) ||
     JSON.stringify(settings.value.cidrExemptions ?? []) !==
       JSON.stringify(cidrExemptionsState.value.cidrs)
@@ -189,19 +122,7 @@ const applyFromSettings = (data: ScannerSettings) => {
 
 const fetchSettings = async () => {
   await runLoadSettings(async () => {
-    const [data, provincePayload] = await Promise.all([
-      ScannerAPI.getSettings(),
-      CidrAPI.getProvinces().catch((error) => {
-        toast.error(t("admin.scannerFirewallSettings.regionsLoadFailed"), {
-          description: extractErrorMessage(
-            error,
-            t("admin.scannerFirewallSettings.regionsLoadDescription"),
-          ),
-        });
-        return null;
-      }),
-    ]);
-    provinces.value = provincePayload?.options ?? [];
+    const data = await ScannerAPI.getSettings();
     applyFromSettings(data);
   });
 };
@@ -330,65 +251,41 @@ const goToBlacklist = () => {
         </div>
 
         <div class="flex flex-col p-6 gap-4">
-          <div
-            class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
-          >
-            <div class="space-y-1">
-              <Label class="text-base">
-                {{
-                  t("admin.scannerFirewallSettings.cidrExemptionRegionsTitle")
-                }}
-              </Label>
-              <div class="text-sm text-muted-foreground">
-                {{
-                  t(
-                    "admin.scannerFirewallSettings.cidrExemptionRegionsDescription",
-                  )
-                }}
-              </div>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              :disabled="regionInputsDisabled || provinces.length === 0"
-              @click="openRegionDialog"
-            >
-              <Plus class="h-4 w-4" />
-              {{ t("admin.scannerFirewallSettings.addRegion") }}
-            </Button>
-          </div>
-
-          <div class="rounded-xl bg-muted/20 px-4 py-4">
-            <TagsInput
-              :model-value="
-                form.cidrExemptionRegions.map((item) => selectionKey(item))
-              "
-              class="min-h-0 items-start gap-2 border-none bg-transparent px-0 py-0 shadow-none"
-            >
-              <template v-if="form.cidrExemptionRegions.length > 0">
-                <TagsInputItem
-                  v-for="selection in form.cidrExemptionRegions"
-                  :key="selectionKey(selection)"
-                  :value="selectionKey(selection)"
-                  class="h-auto rounded-full border border-border/70 bg-background pr-1"
-                >
-                  <TagsInputItemText class="px-3 py-1.5">
-                    {{ selection.label }}
-                  </TagsInputItemText>
-                  <TagsInputItemDelete
-                    v-if="form.enabled"
-                    class="mr-1 rounded-full hover:bg-muted"
-                    :disabled="regionInputsDisabled"
-                    @click.prevent="removeRegion(selection)"
-                  />
-                </TagsInputItem>
-              </template>
-              <span v-else class="px-1 py-1 text-sm text-muted-foreground">
-                {{ t("admin.scannerFirewallSettings.noRegions") }}
-              </span>
-            </TagsInput>
-          </div>
+          <Label class="text-base">
+            {{ t("admin.scannerFirewallSettings.cidrExemptionRegionsTitle") }}
+          </Label>
+          <CidrRegionSelector
+            v-model="form.cidrExemptionRegions"
+            :disabled="regionInputsDisabled"
+            :description="
+              t('admin.scannerFirewallSettings.cidrExemptionRegionsDescription')
+            "
+            :text="{
+              add: t('admin.scannerFirewallSettings.add'),
+              addRegion: t('admin.scannerFirewallSettings.addRegion'),
+              cancel: t('common.cancel'),
+              dialogDescription: t(
+                'admin.scannerFirewallSettings.addRegionDescription',
+              ),
+              loadFailed: t('admin.scannerFirewallSettings.regionsLoadFailed'),
+              loadFailedDescription: t(
+                'admin.scannerFirewallSettings.regionsLoadDescription',
+              ),
+              loading: t('admin.scannerFirewallSettings.loading'),
+              noRegions: t('admin.scannerFirewallSettings.noRegions'),
+              province: t('admin.scannerFirewallSettings.province'),
+              retry: t('admin.subdomainProxy.retry'),
+              scope: t('admin.scannerFirewallSettings.scope'),
+              selectCity: t('admin.scannerFirewallSettings.selectCity'),
+              selectCityOrProvince: t(
+                'admin.scannerFirewallSettings.selectCityOrProvinceWide',
+              ),
+              selectProvince: t('admin.scannerFirewallSettings.selectProvince'),
+              selectProvinceFirst: t(
+                'admin.scannerFirewallSettings.selectProvinceFirst',
+              ),
+            }"
+          />
         </div>
 
         <div class="flex flex-col p-6 gap-4">
@@ -574,96 +471,4 @@ const goToBlacklist = () => {
       </template>
     </FloatingActionDock>
   </Card>
-
-  <Dialog
-    :open="isRegionDialogOpen"
-    @update:open="handleRegionDialogOpenChange"
-  >
-    <DialogContent
-      class="overflow-hidden border-border/70 bg-background p-0 shadow-xl sm:max-w-[560px]"
-    >
-      <div class="px-6 pt-6 pb-2">
-        <DialogHeader class="space-y-2 text-left">
-          <DialogTitle class="text-xl font-semibold tracking-tight">
-            {{ t("admin.scannerFirewallSettings.addRegion") }}
-          </DialogTitle>
-          <DialogDescription class="text-sm leading-6 text-muted-foreground">
-            {{ t("admin.scannerFirewallSettings.addRegionDescription") }}
-          </DialogDescription>
-        </DialogHeader>
-      </div>
-
-      <div class="space-y-4 border-t border-border/60 px-6 py-5">
-        <div class="grid gap-4 sm:grid-cols-2">
-          <div class="space-y-2">
-            <Label class="text-sm font-medium">
-              {{ t("admin.scannerFirewallSettings.province") }}
-            </Label>
-            <Select v-model="regionDraft.province">
-              <SelectTrigger
-                class="h-11 w-full rounded-lg border-border/70 bg-background px-3 shadow-none"
-                :disabled="regionInputsDisabled || provinces.length === 0"
-              >
-                <SelectValue
-                  :placeholder="
-                    t('admin.scannerFirewallSettings.selectProvince')
-                  "
-                />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem
-                  v-for="province in provinces"
-                  :key="province.value"
-                  :value="province.value"
-                >
-                  {{ province.label }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div class="space-y-2">
-            <Label class="text-sm font-medium">
-              {{ t("admin.scannerFirewallSettings.scope") }}
-            </Label>
-            <Select :key="citySelectKey" v-model="regionDraft.cityValue">
-              <SelectTrigger
-                class="h-11 w-full rounded-lg border-border/70 bg-background px-3 shadow-none"
-                :disabled="
-                  regionInputsDisabled ||
-                  !regionDraft.province ||
-                  cityOptionsLoading ||
-                  cityOptions.length === 0
-                "
-              >
-                <span
-                  v-if="cityOptionsLoading"
-                  class="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/40 border-t-foreground"
-                ></span>
-                <SelectValue :placeholder="citySelectPlaceholder" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem
-                  v-for="city in cityOptions"
-                  :key="city.value"
-                  :value="city.value"
-                >
-                  {{ city.label }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </div>
-
-      <DialogFooter class="border-t border-border/60 px-6 py-4 sm:justify-end">
-        <Button variant="outline" @click="handleRegionDialogOpenChange(false)">
-          {{ t("common.cancel") }}
-        </Button>
-        <Button :disabled="!canAddRegion || isSaving" @click="addRegion">
-          {{ t("admin.scannerFirewallSettings.add") }}
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
 </template>

@@ -199,6 +199,45 @@ fn normalizes_host_mapping_visibility_and_preserves_legacy_updates() {
 }
 
 #[test]
+fn normalizes_disabled_host_visibility_and_preserves_custom_draft() {
+    let previous = json!({
+        "host_mappings": [{
+            "host": "app.example.com",
+            "target": "http://127.0.0.1:8080",
+            "visibility": {
+                "mode": "custom",
+                "selections": [{ "province": "浙江省", "query_city": "杭州市" }],
+                "custom_cidrs": ["203.0.113.0/24"],
+                "cidrs": ["203.0.113.0/24"]
+            }
+        }]
+    });
+    let mappings = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "app.example.com",
+            "target": "http://127.0.0.1:8080",
+            "visibility": {
+                "mode": "disabled",
+                "selections": [{ "province": "浙江省", "query_city": "杭州市" }],
+                "custom_cidrs": ["203.0.113.0/24"]
+            }
+        })],
+        &previous,
+    )
+    .unwrap();
+
+    assert_eq!(mappings[0]["visibility"]["mode"], json!("disabled"));
+    assert_eq!(
+        mappings[0]["visibility"]["custom_cidrs"],
+        json!(["203.0.113.0/24"])
+    );
+    assert_eq!(
+        mappings[0]["visibility"]["cidrs"],
+        json!(["203.0.113.0/24"])
+    );
+}
+
+#[test]
 fn host_visibility_ignores_client_derived_cidrs_and_forces_auth_inheritance() {
     let mappings = normalize_host_mappings_for_route(
         vec![
@@ -547,6 +586,23 @@ fn validates_go_backend_echoed_host_visibility() {
         "data": [{ "host": "video.example.com", "protocol_mode": "auto" }]
     });
     let error = ensure_go_host_protocol_modes_applied(&requested, &old_backend).unwrap_err();
+    assert!(error.contains("did not apply host visibility for video.example.com"));
+
+    let disabled = json!([{
+        "host": "video.example.com",
+        "protocol_mode": "auto",
+        "visibility": { "mode": "disabled", "cidrs": [] }
+    }]);
+    let disabled_applied = json!({
+        "success": true,
+        "data": [{
+            "host": "video.example.com",
+            "protocol_mode": "auto",
+            "visibility": { "mode": "disabled", "cidrs": [] }
+        }]
+    });
+    ensure_go_host_protocol_modes_applied(&disabled, &disabled_applied).unwrap();
+    let error = ensure_go_host_protocol_modes_applied(&disabled, &old_backend).unwrap_err();
     assert!(error.contains("did not apply host visibility for video.example.com"));
 }
 

@@ -20,7 +20,11 @@ import {
 import { useBasicAuthProbe } from "./useBasicAuthProbe";
 import { useMappingDialogKeyboardScroll } from "./useMappingDialogKeyboardScroll";
 import { useMappingGatewayAdvanced } from "./useMappingGatewayAdvanced";
-import { useMappingVisibility } from "./useMappingVisibility";
+import {
+  shouldBlockMappingSaveForVisibility,
+  shouldReturnToVisibilityAfterSaveError,
+  useMappingVisibility,
+} from "./useMappingVisibility";
 import { useSubdomainMappingDraft } from "./useSubdomainMappingDraft";
 
 type AsyncActionRun = <T>(
@@ -212,8 +216,12 @@ export const useSubdomainMappingDialogController = ({
 
   const isMappingValid = computed(
     () =>
-      !mappingVisibility.isGlobalVisibilityLoading.value &&
-      !mappingVisibility.visibilityValidationMessage.value &&
+      !shouldBlockMappingSaveForVisibility({
+        isAuthService: isMappingAuthService.value,
+        isLoading: mappingVisibility.isGlobalVisibilityLoading.value,
+        loadError: mappingVisibility.globalVisibilityLoadError.value,
+        validationMessage: mappingVisibility.visibilityValidationMessage.value,
+      }) &&
       isMappingDraftValid({
         basicAuthValidationMessage: basicAuthValidationMessage.value,
         canUseRootDomainSuffix: canUseRootDomainSuffix.value,
@@ -433,7 +441,9 @@ export const useSubdomainMappingDialogController = ({
       },
       {
         onError: () => {
-          if (normalized.visibility.mode === "custom") {
+          if (
+            shouldReturnToVisibilityAfterSaveError(normalized.visibility.mode)
+          ) {
             mappingVisibility.openVisibilityView();
           }
         },

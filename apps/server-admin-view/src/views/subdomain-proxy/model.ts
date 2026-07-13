@@ -639,7 +639,10 @@ export const createDefaultMappingVisibility =
 export const normalizeMappingVisibility = (
   value: HostMapping["visibility"] | null | undefined,
 ): HostMapping["visibility"] => ({
-  mode: value?.mode === "custom" ? "custom" : "inherit",
+  mode:
+    value?.mode === "custom" || value?.mode === "disabled"
+      ? value.mode
+      : "inherit",
   selections: (value?.selections ?? []).map((selection) => ({ ...selection })),
   custom_cidrs: [...(value?.custom_cidrs ?? [])],
   cidrs: [...(value?.cidrs ?? [])],

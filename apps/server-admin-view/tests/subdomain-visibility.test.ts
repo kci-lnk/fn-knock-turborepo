@@ -9,7 +9,11 @@ import {
   normalizeMappingForm,
   normalizeMappingVisibility,
 } from "../src/views/subdomain-proxy/model";
-import { getMappingVisibilityValidationIssue } from "../src/views/subdomain-proxy/useMappingVisibility";
+import {
+  getMappingVisibilityValidationIssue,
+  shouldBlockMappingSaveForVisibility,
+  shouldReturnToVisibilityAfterSaveError,
+} from "../src/views/subdomain-proxy/useMappingVisibility";
 
 describe("subdomain visibility", () => {
   it("defaults new and legacy mappings to global inheritance", () => {
@@ -56,6 +60,34 @@ describe("subdomain visibility", () => {
         custom_cidrs: ["203.0.113.0/24"],
         cidrs: ["203.0.113.0/24"],
       },
+    );
+  });
+
+  it("normalizes and submits disabled visibility without validating its saved draft", () => {
+    const mapping = createDefaultMapping();
+    mapping.visibility = {
+      mode: "disabled",
+      selections: [],
+      custom_cidrs: ["203.0.113.0/24"],
+      cidrs: ["203.0.113.0/24"],
+    };
+
+    assert.equal(
+      normalizeMappingVisibility(mapping.visibility).mode,
+      "disabled",
+    );
+    assert.equal(
+      toHostMappingUpdatePayload(mapping).visibility.mode,
+      "disabled",
+    );
+    assert.equal(
+      getMappingVisibilityValidationIssue({
+        available: true,
+        mode: "disabled",
+        selectionsCount: 0,
+        customCidrsText: "not-a-cidr",
+      }),
+      null,
     );
   });
 
@@ -140,5 +172,32 @@ describe("subdomain visibility", () => {
       }),
       { kind: "invalid_cidrs", invalid: ["not-a-cidr"] },
     );
+  });
+
+  it("blocks business mapping saves when global visibility cannot be loaded", () => {
+    assert.equal(
+      shouldBlockMappingSaveForVisibility({
+        isAuthService: false,
+        isLoading: false,
+        loadError: "network unavailable",
+        validationMessage: "",
+      }),
+      true,
+    );
+    assert.equal(
+      shouldBlockMappingSaveForVisibility({
+        isAuthService: true,
+        isLoading: false,
+        loadError: "network unavailable",
+        validationMessage: "",
+      }),
+      false,
+    );
+  });
+
+  it("returns to visibility settings after custom or disabled save failures", () => {
+    assert.equal(shouldReturnToVisibilityAfterSaveError("inherit"), false);
+    assert.equal(shouldReturnToVisibilityAfterSaveError("custom"), true);
+    assert.equal(shouldReturnToVisibilityAfterSaveError("disabled"), true);
   });
 });

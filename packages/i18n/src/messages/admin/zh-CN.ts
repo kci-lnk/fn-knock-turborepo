@@ -338,7 +338,7 @@ export const zhCNAdmin = {
     cidrValidationFailed: "CIDR 校验未通过",
     fixEntries: "请修正这些条目：{items}",
     emptyRulesHint:
-      "当前未设置全局范围。保存后，继承全局的子域仅允许现有豁免地址；你可以在业务子域中分别配置自定义可见性范围。",
+      "当前未设置全局范围。保存后，继承全局的子域仅允许现有豁免地址；业务子域可分别选择自定义范围或关闭限制。",
     updated: "网关可见性已更新",
     systemSettings: "系统设置",
     gateway: "网关",
@@ -2255,9 +2255,14 @@ export const zhCNAdmin = {
     visibilityTitle: "可见性",
     visibilityBehavior: "可见性行为",
     visibilityBehaviorDescription:
-      "继承全局规则，或仅为当前业务子域指定独立的允许范围。",
+      "继承全局规则、为当前业务子域指定独立范围，或关闭限制。",
     visibilityInherit: "继承全局可见性",
     visibilityCustom: "自定义",
+    visibilityDisabled: "关闭",
+    visibilityDisabledSummary: "关闭 · 不限制访问",
+    visibilityPriorityAlertTitle: "子域规则优先",
+    visibilityPriorityAlertDescription:
+      "当前子域设置优先于全局可见性：选择“自定义”会替换全局范围；选择“关闭”会跳过当前子域的可见性限制；选择“继承”才使用全局范围。",
     visibilityCustomSummary: "自定义 · {regions} 个地区 · {cidrs} 条 CIDR",
     visibilityRegions: "地区范围",
     visibilityRegionsDescription: "按省市添加允许访问当前子域的地区。",

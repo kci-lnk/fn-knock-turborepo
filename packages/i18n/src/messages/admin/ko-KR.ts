@@ -364,7 +364,7 @@ export const koKRAdmin = {
     cidrValidationFailed: "CIDR 검증 실패",
     fixEntries: "다음 항목을 수정하세요: {items}",
     emptyRulesHint:
-      "전역 범위가 설정되지 않았습니다. 저장 후 전역 설정을 상속하는 하위 도메인은 기존 예외 주소만 허용합니다. 필요에 따라 각 애플리케이션 하위 도메인에서 사용자 지정 가시성 범위를 설정하세요.",
+      "전역 범위가 설정되지 않았습니다. 저장 후 전역 설정을 상속하는 하위 도메인은 기존 예외 주소만 허용합니다. 각 애플리케이션 하위 도메인에서는 사용자 지정 범위를 사용하거나 가시성 제한을 끌 수 있습니다.",
     updated: "게이트웨이 공개 상태가 업데이트되었습니다.",
     systemSettings: "시스템 설정",
     gateway: "게이트웨이",
@@ -2394,9 +2394,14 @@ export const koKRAdmin = {
     visibilityTitle: "가시성",
     visibilityBehavior: "가시성 동작",
     visibilityBehaviorDescription:
-      "전역 규칙을 상속하거나 이 앱 하위 도메인만의 허용 범위를 지정합니다.",
+      "전역 규칙을 상속하거나 이 앱 하위 도메인만의 범위를 지정하거나 제한을 끕니다.",
     visibilityInherit: "전역 가시성 상속",
     visibilityCustom: "사용자 지정",
+    visibilityDisabled: "끄기",
+    visibilityDisabledSummary: "끄기 · 접근 제한 없음",
+    visibilityPriorityAlertTitle: "하위 도메인 규칙 우선",
+    visibilityPriorityAlertDescription:
+      "현재 하위 도메인 설정은 전역 가시성보다 우선합니다. 사용자 지정은 전역 범위를 대체하고, 끄기는 이 하위 도메인의 가시성 제한을 건너뛰며, 상속만 전역 범위를 사용합니다.",
     visibilityCustomSummary: "사용자 지정 · 지역 {regions}개 · CIDR {cidrs}개",
     visibilityRegions: "지역 범위",
     visibilityRegionsDescription:

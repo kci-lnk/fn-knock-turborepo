@@ -340,7 +340,7 @@ export const zhHantAdmin = {
     cidrValidationFailed: "CIDR 校驗未通過",
     fixEntries: "請修正這些條目：{items}",
     emptyRulesHint:
-      "目前未設定全域範圍。儲存後，繼承全域的子網域只允許既有豁免位址；你可以在業務子網域中分別設定自訂可見性範圍。",
+      "目前未設定全域範圍。儲存後，繼承全域的子網域只允許既有豁免位址；業務子網域可分別選擇自訂範圍或關閉限制。",
     updated: "網關可見性已更新",
     systemSettings: "系統設定",
     gateway: "網關",
@@ -2264,9 +2264,14 @@ export const zhHantAdmin = {
     visibilityTitle: "可見性",
     visibilityBehavior: "可見性行為",
     visibilityBehaviorDescription:
-      "繼承全域規則，或僅為目前業務子網域指定獨立的允許範圍。",
+      "繼承全域規則、為目前業務子網域指定獨立範圍，或關閉限制。",
     visibilityInherit: "繼承全域可見性",
     visibilityCustom: "自訂",
+    visibilityDisabled: "關閉",
+    visibilityDisabledSummary: "關閉 · 不限制存取",
+    visibilityPriorityAlertTitle: "子網域規則優先",
+    visibilityPriorityAlertDescription:
+      "目前子網域設定優先於全域可見性：選擇「自訂」會取代全域範圍；選擇「關閉」會略過目前子網域的可見性限制；只有選擇「繼承」才會使用全域範圍。",
     visibilityCustomSummary: "自訂 · {regions} 個地區 · {cidrs} 條 CIDR",
     visibilityRegions: "地區範圍",
     visibilityRegionsDescription: "按省市新增允許存取目前子網域的地區。",

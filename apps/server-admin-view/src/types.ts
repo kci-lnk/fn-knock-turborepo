@@ -87,7 +87,7 @@ export interface HostMappingAvailability {
   end_time: string;
 }
 
-export type HostVisibilityMode = "inherit" | "custom";
+export type HostVisibilityMode = "inherit" | "custom" | "disabled";
 
 export interface HostMappingVisibility {
   mode: HostVisibilityMode;

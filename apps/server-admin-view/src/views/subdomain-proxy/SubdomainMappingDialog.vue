@@ -7,12 +7,14 @@ import {
 } from "vue";
 import { useI18n } from "vue-i18n";
 import {
+  AlertTriangle,
   ChevronLeft,
   ChevronRight,
   RefreshCw,
   ShieldCheck,
 } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Dialog,
   DialogContent,
@@ -172,7 +174,7 @@ const mappingWafEnabledModel = computed({
 
 const visibilityModeModel = computed({
   get: () => props.visibilityEditor.visibilityMode,
-  set: (value: "inherit" | "custom") => {
+  set: (value: HostMapping["visibility"]["mode"]) => {
     props.visibilityEditor.visibilityMode = value;
   },
 });
@@ -604,6 +606,41 @@ const visibilityCustomCidrsModel = computed({
                 />
               </div>
 
+              <Alert
+                v-if="
+                  !isMappingAuthService &&
+                  visibilityEditor.globalVisibilityLoadError
+                "
+                variant="destructive"
+                class="items-start"
+              >
+                <AlertTriangle class="h-4 w-4" />
+                <AlertTitle>
+                  {{ t("admin.subdomainProxy.visibilityLoadFailed") }}
+                </AlertTitle>
+                <AlertDescription class="space-y-3">
+                  <p class="break-words">
+                    {{ visibilityEditor.globalVisibilityLoadError }}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    :disabled="visibilityEditor.isGlobalVisibilityLoading"
+                    @click="visibilityEditor.loadGlobalVisibility"
+                  >
+                    <RefreshCw
+                      class="mr-2 h-3.5 w-3.5"
+                      :class="{
+                        'animate-spin':
+                          visibilityEditor.isGlobalVisibilityLoading,
+                      }"
+                    />
+                    {{ t("admin.subdomainProxy.retry") }}
+                  </Button>
+                </AlertDescription>
+              </Alert>
+
               <Button
                 v-if="visibilityEditor.visibilityAvailable"
                 type="button"
@@ -644,6 +681,18 @@ const visibilityCustomCidrsModel = computed({
               </p>
             </div>
 
+            <Alert class="border-primary/25 bg-primary/5">
+              <ShieldCheck class="h-4 w-4" />
+              <AlertTitle>
+                {{ t("admin.subdomainProxy.visibilityPriorityAlertTitle") }}
+              </AlertTitle>
+              <AlertDescription class="leading-6">
+                {{
+                  t("admin.subdomainProxy.visibilityPriorityAlertDescription")
+                }}
+              </AlertDescription>
+            </Alert>
+
             <div class="space-y-2 rounded-lg border px-4 py-3">
               <div class="space-y-1">
                 <Label for="mapping-visibility-mode">
@@ -663,6 +712,9 @@ const visibilityCustomCidrsModel = computed({
                   </SelectItem>
                   <SelectItem value="custom">
                     {{ t("admin.subdomainProxy.visibilityCustom") }}
+                  </SelectItem>
+                  <SelectItem value="disabled">
+                    {{ t("admin.subdomainProxy.visibilityDisabled") }}
                   </SelectItem>
                 </SelectContent>
               </Select>

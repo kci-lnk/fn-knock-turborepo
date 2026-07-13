@@ -18,6 +18,24 @@ export type MappingVisibilityValidationIssue =
   | { kind: "empty" }
   | null;
 
+export const shouldBlockMappingSaveForVisibility = ({
+  isAuthService,
+  isLoading,
+  loadError,
+  validationMessage,
+}: {
+  isAuthService: boolean;
+  isLoading: boolean;
+  loadError: string;
+  validationMessage: string;
+}): boolean =>
+  !isAuthService &&
+  (isLoading || Boolean(loadError) || Boolean(validationMessage));
+
+export const shouldReturnToVisibilityAfterSaveError = (
+  mode: HostMapping["visibility"]["mode"],
+): boolean => mode !== "inherit";
+
 export const getMappingVisibilityValidationIssue = ({
   available,
   mode,
@@ -63,9 +81,11 @@ export const useMappingVisibility = ({
   let globalRequestId = 0;
 
   const visibilityMode = computed({
-    get: () =>
-      mappingForm.visibility?.mode === "custom" ? "custom" : "inherit",
-    set: (mode: "inherit" | "custom") => {
+    get: () => {
+      const mode = mappingForm.visibility?.mode;
+      return mode === "custom" || mode === "disabled" ? mode : "inherit";
+    },
+    set: (mode: HostMapping["visibility"]["mode"]) => {
       mappingForm.visibility.mode = mode;
     },
   });
@@ -105,7 +125,10 @@ export const useMappingVisibility = ({
     return "";
   });
   const visibilitySummary = computed(() => {
-    if (visibilityMode.value !== "custom") {
+    if (visibilityMode.value === "disabled") {
+      return translate("admin.subdomainProxy.visibilityDisabledSummary");
+    }
+    if (visibilityMode.value === "inherit") {
       return translate("admin.subdomainProxy.visibilityInherit");
     }
     return translate("admin.subdomainProxy.visibilityCustomSummary", {

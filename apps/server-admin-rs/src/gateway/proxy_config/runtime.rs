@@ -115,14 +115,13 @@ fn host_visibilities_by_host(
     for item in items {
         let host = normalize_host_value(item.get("host").and_then(Value::as_str).unwrap_or(""));
         let visibility = item.get("visibility");
-        let mode = if visibility
+        let mode = match visibility
             .and_then(|value| value.get("mode"))
             .and_then(Value::as_str)
-            == Some("custom")
         {
-            "custom"
-        } else {
-            "inherit"
+            Some("custom") => "custom",
+            Some("disabled") => "disabled",
+            _ => "inherit",
         };
         let mut seen = HashSet::new();
         let cidrs = visibility

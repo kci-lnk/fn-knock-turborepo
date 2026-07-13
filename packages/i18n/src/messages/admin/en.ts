@@ -368,7 +368,7 @@ export const enAdmin = {
     cidrValidationFailed: "CIDR validation failed",
     fixEntries: "Fix these entries: {items}",
     emptyRulesHint:
-      "No global range is configured. After saving, subdomains that inherit globally allow only existing exempt addresses; configure custom visibility ranges on application subdomains as needed.",
+      "No global range is configured. After saving, subdomains that inherit globally allow only existing exempt addresses; application subdomains may use a custom range or disable visibility restrictions.",
     updated: "Gateway visibility updated",
     systemSettings: "System settings",
     gateway: "Gateway",
@@ -2409,9 +2409,14 @@ export const enAdmin = {
     visibilityTitle: "Visibility",
     visibilityBehavior: "Visibility behavior",
     visibilityBehaviorDescription:
-      "Inherit the global rule or define an independent allowlist for this application subdomain.",
+      "Inherit the global rule, define an independent range, or disable visibility restrictions for this application subdomain.",
     visibilityInherit: "Inherit global visibility",
     visibilityCustom: "Custom",
+    visibilityDisabled: "Disabled",
+    visibilityDisabledSummary: "Disabled · unrestricted access",
+    visibilityPriorityAlertTitle: "Subdomain rules take priority",
+    visibilityPriorityAlertDescription:
+      "This subdomain setting overrides global visibility: Custom replaces the global range, Disabled skips visibility restrictions for this subdomain, and Inherit uses the global range.",
     visibilityCustomSummary: "Custom · {regions} regions · {cidrs} CIDRs",
     visibilityRegions: "Region scope",
     visibilityRegionsDescription:

@@ -420,9 +420,15 @@ pub(super) fn normalize_host_mapping_visibility(
     let raw_mode = source.and_then(|value| value.get("mode"));
     let mode = match raw_mode {
         None => "inherit",
-        Some(Value::String(value)) if value == "inherit" || value == "custom" => value.as_str(),
+        Some(Value::String(value))
+            if value == "inherit" || value == "custom" || value == "disabled" =>
+        {
+            value.as_str()
+        }
         Some(_) if requested.is_none() => "inherit",
-        Some(_) => return Err("visibility mode must be inherit or custom".to_string()),
+        Some(_) => {
+            return Err("visibility mode must be inherit, custom or disabled".to_string());
+        }
     };
     let selections = source
         .and_then(|value| value.get("selections"))

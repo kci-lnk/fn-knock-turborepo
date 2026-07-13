@@ -51,7 +51,11 @@ export const toHostMappingUpdatePayload = (
   disabled: mapping.disabled === true,
   availability: normalizeHostMappingAvailability(mapping.availability),
   visibility: {
-    mode: mapping.visibility?.mode === "custom" ? "custom" : "inherit",
+    mode:
+      mapping.visibility?.mode === "custom" ||
+      mapping.visibility?.mode === "disabled"
+        ? mapping.visibility.mode
+        : "inherit",
     selections: (mapping.visibility?.selections ?? []).map((selection) => ({
       province: selection.province,
       query_city: selection.query_city,

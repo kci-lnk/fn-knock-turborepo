@@ -377,7 +377,7 @@ export const jaJPAdmin = {
     cidrValidationFailed: "CIDR 検証に失敗しました",
     fixEntries: "次のエントリを修正してください: {items}",
     emptyRulesHint:
-      "グローバル範囲が設定されていません。保存後、グローバル設定を継承するサブドメインでは既存の除外アドレスのみが許可されます。必要に応じて各アプリケーションサブドメインで可視性範囲を設定してください。",
+      "グローバル範囲が設定されていません。保存後、グローバル設定を継承するサブドメインでは既存の除外アドレスのみが許可されます。各アプリケーションサブドメインではカスタム範囲を使用するか、可視性制限を無効にできます。",
     updated: "ゲートウェイの可視性が更新されました",
     systemSettings: "システム設定",
     gateway: "ゲートウェイ",
@@ -2445,9 +2445,14 @@ export const jaJPAdmin = {
     visibilityTitle: "可視性",
     visibilityBehavior: "可視性の動作",
     visibilityBehaviorDescription:
-      "グローバルルールを継承するか、このアプリ用サブドメイン専用の許可範囲を指定します。",
+      "グローバルルールを継承するか、このアプリ用サブドメイン専用の範囲を指定するか、制限を無効にします。",
     visibilityInherit: "グローバル可視性を継承",
     visibilityCustom: "カスタム",
+    visibilityDisabled: "無効",
+    visibilityDisabledSummary: "無効 · アクセス制限なし",
+    visibilityPriorityAlertTitle: "サブドメインルールが優先されます",
+    visibilityPriorityAlertDescription:
+      "このサブドメインの設定はグローバル可視性より優先されます。「カスタム」はグローバル範囲を置き換え、「無効」はこのサブドメインの可視性制限を適用せず、「継承」のみがグローバル範囲を使用します。",
     visibilityCustomSummary: "カスタム · {regions} 地域 · {cidrs} CIDR",
     visibilityRegions: "地域範囲",
     visibilityRegionsDescription:

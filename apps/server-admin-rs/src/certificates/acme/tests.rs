@@ -330,6 +330,36 @@ fn acme_zip_entry_names_preserve_requested_domain_like_node() {
 }
 
 #[test]
+fn acme_zip_uses_portable_names_and_non_empty_entries_for_wildcards() {
+    use std::io::Read as _;
+
+    assert_eq!(
+        acme_certificate_archive_stem("*.Example.COM."),
+        "wildcard.Example.COM"
+    );
+    let bytes = zip_acme_cert_pair("*.example.com", "CERT", "KEY").expect("zip should build");
+    let cursor = std::io::Cursor::new(bytes);
+    let mut archive = zip::ZipArchive::new(cursor).expect("zip should parse");
+    assert_eq!(archive.len(), 2);
+
+    let mut cert = String::new();
+    archive
+        .by_name("wildcard.example.com.cert.pem")
+        .expect("certificate entry")
+        .read_to_string(&mut cert)
+        .expect("certificate contents");
+    assert_eq!(cert, "CERT");
+
+    let mut key = String::new();
+    archive
+        .by_name("wildcard.example.com.key.pem")
+        .expect("private key entry")
+        .read_to_string(&mut key)
+        .expect("private key contents");
+    assert_eq!(key, "KEY");
+}
+
+#[test]
 fn acme_init_payload_matches_node_shape() {
     let payload = build_init_acme_payload(
         PathBuf::from("/data/.acme.sh/acme.sh"),

@@ -1128,10 +1128,11 @@ pub(super) async fn cert_download(
 ) -> Response {
     let t = Translator::from_state(&state).await;
     match get_certificate_for_domain(&state, &domain).await {
-        Ok(Some((_primary_domain, cert, key, _info))) => {
-            match zip_acme_cert_pair(&domain, &cert, &key) {
+        Ok(Some((primary_domain, cert, key, _info))) => {
+            match zip_acme_cert_pair(&primary_domain, &cert, &key) {
                 Ok(bytes) => {
-                    ssl::binary_response(bytes, "application/zip", &format!("{domain}.zip"))
+                    let archive_stem = acme_certificate_archive_stem(&primary_domain);
+                    ssl::binary_response(bytes, "application/zip", &format!("{archive_stem}.zip"))
                 }
                 Err(error) => {
                     tracing::warn!(%error, "failed to create ACME certificate zip");

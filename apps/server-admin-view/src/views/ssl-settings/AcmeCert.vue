@@ -409,6 +409,7 @@ import {
   type AcmeLogAnalysis,
   type AcmeOverview,
 } from "@/lib/api";
+import { acmeCertificateArchiveFilename } from "@/lib/acme-download";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -841,7 +842,10 @@ const downloadCertificate = async (
 ) => {
   await runDownload(async () => {
     const blob = await AcmeAPI.download(application.primaryDomain);
-    downloadBlob(blob, `${application.primaryDomain}.zip`);
+    downloadBlob(
+      blob,
+      acmeCertificateArchiveFilename(application.primaryDomain),
+    );
   });
 };
 

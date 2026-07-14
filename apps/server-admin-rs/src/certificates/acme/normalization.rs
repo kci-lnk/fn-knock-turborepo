@@ -345,13 +345,43 @@ pub(super) fn build_application_id(seed: Option<&str>) -> String {
     format!("acme_app_{}", uuid::Uuid::new_v4().simple())
 }
 
+pub(super) fn acme_certificate_archive_stem(domain: &str) -> String {
+    let trimmed = domain.trim().trim_end_matches('.');
+    let wildcard_safe = trimmed
+        .strip_prefix("*.")
+        .map(|suffix| format!("wildcard.{suffix}"))
+        .unwrap_or_else(|| trimmed.to_string());
+    let portable = wildcard_safe
+        .chars()
+        .map(|character| {
+            if character.is_control()
+                || matches!(
+                    character,
+                    '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*'
+                )
+            {
+                '_'
+            } else {
+                character
+            }
+        })
+        .collect::<String>();
+    let portable = portable.trim_matches([' ', '.']);
+    if portable.is_empty() {
+        "certificate".to_string()
+    } else {
+        portable.to_string()
+    }
+}
+
 pub(super) fn zip_acme_cert_pair(domain: &str, cert: &str, key: &str) -> anyhow::Result<Vec<u8>> {
     let cursor = Cursor::new(Vec::<u8>::new());
     let mut zip = ZipWriter::new(cursor);
     let options = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
-    zip.start_file(format!("{domain}.cert.pem"), options)?;
+    let archive_stem = acme_certificate_archive_stem(domain);
+    zip.start_file(format!("{archive_stem}.cert.pem"), options)?;
     zip.write_all(cert.as_bytes())?;
-    zip.start_file(format!("{domain}.key.pem"), options)?;
+    zip.start_file(format!("{archive_stem}.key.pem"), options)?;
     zip.write_all(key.as_bytes())?;
     Ok(zip.finish()?.into_inner())
 }

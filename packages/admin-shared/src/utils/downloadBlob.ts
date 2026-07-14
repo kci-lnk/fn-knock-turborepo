@@ -4,7 +4,12 @@ export function downloadBlob(blob: Blob, filename: string) {
   anchor.href = url;
   anchor.download = filename;
   document.body.appendChild(anchor);
-  anchor.click();
-  URL.revokeObjectURL(url);
-  anchor.remove();
+  try {
+    anchor.click();
+  } finally {
+    anchor.remove();
+    // WebKit can start consuming the object URL after the click handler returns.
+    // Revoking synchronously races that work and can produce an empty download.
+    setTimeout(() => URL.revokeObjectURL(url), 1_000);
+  }
 }

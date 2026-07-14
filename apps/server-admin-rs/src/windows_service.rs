@@ -288,6 +288,20 @@ async fn supervise(
             return Ok(SupervisionOutcome::DeterministicFailure(error));
         }
     };
+    let altcha_hmac_key = match load_or_create_secret(&paths.secrets.join("altcha-hmac-key")) {
+        Ok(secret) => secret,
+        Err(error) => {
+            let _ = write_status(
+                &paths,
+                &ServiceStateFile::faulted(
+                    Some(&runtime_config),
+                    None,
+                    &format!("invalid ALTCHA HMAC secret: {error}"),
+                ),
+            );
+            return Ok(SupervisionOutcome::DeterministicFailure(error));
+        }
+    };
     if let Err(error) = validate_installed_bundle() {
         let _ = write_status(
             &paths,
@@ -310,7 +324,13 @@ async fn supervise(
         );
         return Ok(SupervisionOutcome::DeterministicFailure(error));
     }
-    configure_runtime_environment(&paths, &runtime_config, &internal_token, &hmac_secret)?;
+    configure_runtime_environment(
+        &paths,
+        &runtime_config,
+        &internal_token,
+        &hmac_secret,
+        &altcha_hmac_key,
+    )?;
     let settings = Settings::from_env();
     let go_client = match GoBackendClient::new(
         settings.go_backend_grpc_addr.clone(),
@@ -1213,6 +1233,7 @@ fn configure_runtime_environment(
     config: &WindowsRuntimeConfig,
     internal_token: &str,
     hmac_secret: &str,
+    altcha_hmac_key: &str,
 ) -> anyhow::Result<()> {
     let install_dir = env::current_exe()?
         .parent()
@@ -1233,6 +1254,13 @@ fn configure_runtime_environment(
     set_env("FN_KNOCK_INTERNAL_RPC_TOKEN", internal_token);
     if env::var_os("HMAC_SECRET").is_none() {
         set_env("HMAC_SECRET", hmac_secret);
+    }
+    if env::var("ALTCHA_HMAC_KEY")
+        .ok()
+        .map(|value| value.trim().is_empty())
+        .unwrap_or(true)
+    {
+        set_env("ALTCHA_HMAC_KEY", altcha_hmac_key);
     }
     set_env("NODE_ENV", "production");
     set_env("EXPOSE_RUNTIME_HMAC_SECRET", "0");

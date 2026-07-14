@@ -38,6 +38,8 @@ $RustAcmeshExecutable = Join-Path $InstallRoot "rust-acmesh.exe"
 $DesktopExecutable = Join-Path $InstallRoot "fn-knock.exe"
 $BundleIdentityPath = Join-Path $InstallRoot "bundle.json"
 $RuntimeConfigPath = Join-Path $ProgramDataRoot "config\runtime.json"
+$HmacSecretPath = Join-Path $ProgramDataRoot "secrets\hmac-secret"
+$AltchaHmacKeyPath = Join-Path $ProgramDataRoot "secrets\altcha-hmac-key"
 $RegistryPaths = @(
   "Registry::HKEY_LOCAL_MACHINE\Software\KCI-LNK Corporation\Knock 敲门",
   "Registry::HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Uninstall\Knock 敲门"
@@ -50,6 +52,7 @@ $ClassificationFixtureRoot = Join-Path ([IO.Path]::GetTempPath()) "FnKnock-insta
 $script:CleanupAuthorized = $false
 $script:InstallAttempted = $false
 $script:TestSucceeded = $false
+$script:ExpectedAltchaHmacKey = $null
 
 function Assert-Condition {
   param(
@@ -68,6 +71,88 @@ function Assert-File {
   if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
     throw "Required installed file is missing: $Path"
   }
+}
+
+function Read-RequiredSecret {
+  param(
+    [Parameter(Mandatory = $true)][string]$Path,
+    [Parameter(Mandatory = $true)][string]$Label
+  )
+  Assert-File $Path
+  $secret = (Get-Content -Raw -LiteralPath $Path).Trim()
+  Assert-Condition ($secret.Length -ge 32) "$Label is missing or invalid"
+  return $secret
+}
+
+function Get-HmacSha256Hex {
+  param(
+    [Parameter(Mandatory = $true)][string]$Secret,
+    [Parameter(Mandatory = $true)][string]$Message
+  )
+  $hmac = [Security.Cryptography.HMACSHA256]::new(
+    [Text.Encoding]::UTF8.GetBytes($Secret)
+  )
+  try {
+    $digest = $hmac.ComputeHash([Text.Encoding]::UTF8.GetBytes($Message))
+    return [BitConverter]::ToString($digest).Replace("-", "").ToLowerInvariant()
+  } finally {
+    $hmac.Dispose()
+  }
+}
+
+function Assert-AuthCaptchaRuntime {
+  param(
+    [Parameter(Mandatory = $true)][int]$AuthPort,
+    [string]$ExpectedAltchaHmacKey = ""
+  )
+  $hmacSecret = Read-RequiredSecret -Path $HmacSecretPath -Label "Runtime HMAC secret"
+  $altchaHmacKey = Read-RequiredSecret -Path $AltchaHmacKeyPath -Label "ALTCHA HMAC secret"
+  if (-not [string]::IsNullOrEmpty($ExpectedAltchaHmacKey)) {
+    Assert-Condition ($altchaHmacKey -eq $ExpectedAltchaHmacKey) `
+      "ALTCHA HMAC secret changed across an installer lifecycle"
+  }
+
+  $timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds().ToString(
+    [Globalization.CultureInfo]::InvariantCulture
+  )
+  $nonce = [guid]::NewGuid().ToString("N")
+  $signature = Get-HmacSha256Hex -Secret $hmacSecret -Message "${timestamp}:${nonce}"
+  $bootstrap = Invoke-RestMethod `
+    -Method Get `
+    -Uri "http://127.0.0.1:$AuthPort/api/auth/bootstrap" `
+    -Headers @{
+      "x-timestamp" = $timestamp
+      "x-nonce" = $nonce
+      "x-signature" = $signature
+    } `
+    -TimeoutSec 5 `
+    -NoProxy `
+    -ErrorAction Stop
+  Assert-Condition ($bootstrap.success -eq $true) "Auth bootstrap did not succeed"
+  Assert-Condition ([string]$bootstrap.data.captcha.provider -eq "pow") `
+    "Auth bootstrap did not select the PoW captcha provider"
+  Assert-Condition ($bootstrap.data.captcha.available -eq $true) `
+    "Auth bootstrap reported that the PoW captcha provider is unavailable"
+  Assert-Condition `
+    ([string]::IsNullOrWhiteSpace([string]$bootstrap.data.captcha.unavailable_reason)) `
+    "Auth bootstrap returned a captcha unavailability reason"
+
+  $challenge = Invoke-RestMethod `
+    -Method Get `
+    -Uri "http://127.0.0.1:$AuthPort/api/auth/challenge" `
+    -TimeoutSec 5 `
+    -NoProxy `
+    -ErrorAction Stop
+  Assert-Condition ([string]$challenge.algorithm -eq "SHA-256") `
+    "PoW challenge did not use SHA-256"
+  Assert-Condition (-not [string]::IsNullOrWhiteSpace([string]$challenge.challenge)) `
+    "PoW challenge is missing its challenge value"
+  $expectedChallengeSignature = Get-HmacSha256Hex `
+    -Secret $altchaHmacKey `
+    -Message ([string]$challenge.challenge)
+  Assert-Condition ([string]$challenge.signature -eq $expectedChallengeSignature) `
+    "PoW challenge was not signed by the persisted ALTCHA HMAC secret"
+  return $altchaHmacKey
 }
 
 function Get-FnKnockService {
@@ -157,6 +242,21 @@ function Get-AdminPort {
     Write-Verbose "Unable to read the installed runtime configuration: $($_.Exception.Message)"
   }
   return 7991
+}
+
+function Get-AuthPort {
+  if (-not (Test-Path -LiteralPath $RuntimeConfigPath -PathType Leaf)) {
+    return 7997
+  }
+  try {
+    $runtime = Get-Content -Raw -LiteralPath $RuntimeConfigPath | ConvertFrom-Json
+    if ($null -ne $runtime.auth_port) {
+      return [int]$runtime.auth_port
+    }
+  } catch {
+    Write-Verbose "Unable to read the installed auth port: $($_.Exception.Message)"
+  }
+  return 7997
 }
 
 function Assert-ReadyContract {
@@ -253,6 +353,17 @@ function Assert-InstalledRuntime {
     -ExpectedVersion ([string]$bundleIdentity.version) `
     -ExpectedControlApiVersion ([int]$bundleIdentity.control_api_version) `
     -TimeoutSeconds $TimeoutSeconds
+  $expectedAltchaHmacKey = if ($null -eq $script:ExpectedAltchaHmacKey) {
+    ""
+  } else {
+    [string]$script:ExpectedAltchaHmacKey
+  }
+  $observedAltchaHmacKey = Assert-AuthCaptchaRuntime `
+    -AuthPort (Get-AuthPort) `
+    -ExpectedAltchaHmacKey $expectedAltchaHmacKey
+  if ($null -eq $script:ExpectedAltchaHmacKey) {
+    $script:ExpectedAltchaHmacKey = $observedAltchaHmacKey
+  }
   Assert-Condition ((Get-FnKnockFirewallRules).Count -gt 0) `
     "Installer did not create the '$FirewallRuleName' firewall rule"
 }

@@ -36,6 +36,8 @@ $FirewallRuleName = "FnKnock Gateway"
 $ProgramDataRoot = Join-Path $env:PROGRAMDATA "FnKnock"
 $StatusPath = Join-Path $ProgramDataRoot "state\status.json"
 $RuntimeConfigPath = Join-Path $ProgramDataRoot "config\runtime.json"
+$HmacSecretPath = Join-Path $ProgramDataRoot "secrets\hmac-secret"
+$AltchaHmacKeyPath = Join-Path $ProgramDataRoot "secrets\altcha-hmac-key"
 $RetainMarker = Join-Path $ProgramDataRoot "state\windows-smoke-retain.marker"
 $TempParent = Join-Path $env:SystemDrive "FnKnockSmoke"
 $TestRoot = Join-Path $TempParent ([guid]::NewGuid().ToString("N"))
@@ -64,6 +66,88 @@ function Assert-File {
   if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
     throw "Required smoke-test file is missing: $Path"
   }
+}
+
+function Read-RequiredSecret {
+  param(
+    [Parameter(Mandatory = $true)][string]$Path,
+    [Parameter(Mandatory = $true)][string]$Label
+  )
+  Assert-File $Path
+  $secret = (Get-Content -Raw -LiteralPath $Path).Trim()
+  Assert-Condition ($secret.Length -ge 32) "$Label is missing or invalid"
+  return $secret
+}
+
+function Get-HmacSha256Hex {
+  param(
+    [Parameter(Mandatory = $true)][string]$Secret,
+    [Parameter(Mandatory = $true)][string]$Message
+  )
+  $hmac = [Security.Cryptography.HMACSHA256]::new(
+    [Text.Encoding]::UTF8.GetBytes($Secret)
+  )
+  try {
+    $digest = $hmac.ComputeHash([Text.Encoding]::UTF8.GetBytes($Message))
+    return [BitConverter]::ToString($digest).Replace("-", "").ToLowerInvariant()
+  } finally {
+    $hmac.Dispose()
+  }
+}
+
+function Assert-AuthCaptchaRuntime {
+  param(
+    [Parameter(Mandatory = $true)][int]$AuthPort,
+    [string]$ExpectedAltchaHmacKey = ""
+  )
+  $hmacSecret = Read-RequiredSecret -Path $HmacSecretPath -Label "Runtime HMAC secret"
+  $altchaHmacKey = Read-RequiredSecret -Path $AltchaHmacKeyPath -Label "ALTCHA HMAC secret"
+  if (-not [string]::IsNullOrEmpty($ExpectedAltchaHmacKey)) {
+    Assert-Condition ($altchaHmacKey -eq $ExpectedAltchaHmacKey) `
+      "ALTCHA HMAC secret changed across a service restart"
+  }
+
+  $timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds().ToString(
+    [Globalization.CultureInfo]::InvariantCulture
+  )
+  $nonce = [guid]::NewGuid().ToString("N")
+  $signature = Get-HmacSha256Hex -Secret $hmacSecret -Message "${timestamp}:${nonce}"
+  $bootstrap = Invoke-RestMethod `
+    -Method Get `
+    -Uri "http://127.0.0.1:$AuthPort/api/auth/bootstrap" `
+    -Headers @{
+      "x-timestamp" = $timestamp
+      "x-nonce" = $nonce
+      "x-signature" = $signature
+    } `
+    -TimeoutSec 5 `
+    -NoProxy `
+    -ErrorAction Stop
+  Assert-Condition ($bootstrap.success -eq $true) "Auth bootstrap did not succeed"
+  Assert-Condition ([string]$bootstrap.data.captcha.provider -eq "pow") `
+    "Auth bootstrap did not select the PoW captcha provider"
+  Assert-Condition ($bootstrap.data.captcha.available -eq $true) `
+    "Auth bootstrap reported that the PoW captcha provider is unavailable"
+  Assert-Condition `
+    ([string]::IsNullOrWhiteSpace([string]$bootstrap.data.captcha.unavailable_reason)) `
+    "Auth bootstrap returned a captcha unavailability reason"
+
+  $challenge = Invoke-RestMethod `
+    -Method Get `
+    -Uri "http://127.0.0.1:$AuthPort/api/auth/challenge" `
+    -TimeoutSec 5 `
+    -NoProxy `
+    -ErrorAction Stop
+  Assert-Condition ([string]$challenge.algorithm -eq "SHA-256") `
+    "PoW challenge did not use SHA-256"
+  Assert-Condition (-not [string]::IsNullOrWhiteSpace([string]$challenge.challenge)) `
+    "PoW challenge is missing its challenge value"
+  $expectedChallengeSignature = Get-HmacSha256Hex `
+    -Secret $altchaHmacKey `
+    -Message ([string]$challenge.challenge)
+  Assert-Condition ([string]$challenge.signature -eq $expectedChallengeSignature) `
+    "PoW challenge was not signed by the persisted ALTCHA HMAC secret"
+  return $altchaHmacKey
 }
 
 function Copy-DirectoryContents {
@@ -617,6 +701,7 @@ try {
     -ExpectedVersion ([string]$bundleIdentity.version) `
     -ExpectedControlApiVersion ([int]$bundleIdentity.control_api_version) `
     -TimeoutSeconds $ReadyTimeoutSeconds
+  $altchaHmacKey = Assert-AuthCaptchaRuntime -AuthPort ([int]$runtimeConfig.auth_port)
   Assert-ProcessImage -ProcessId $baseline.ServiceProcessId -ExpectedPath $ServiceExecutable
   Assert-ProcessImage -ProcessId $baseline.GatewayProcessId -ExpectedPath $GatewayExecutable
   $proxyListener = Get-NetTCPConnection `
@@ -644,6 +729,9 @@ try {
     -Description "The Rust supervisor from the Go-crashed runtime group"
   Assert-ProcessImage -ProcessId $afterGoCrash.ServiceProcessId -ExpectedPath $ServiceExecutable
   Assert-ProcessImage -ProcessId $afterGoCrash.GatewayProcessId -ExpectedPath $GatewayExecutable
+  Assert-AuthCaptchaRuntime `
+    -AuthPort ([int]$runtimeConfig.auth_port) `
+    -ExpectedAltchaHmacKey $altchaHmacKey | Out-Null
 
   Write-Host "Crashing Rust and verifying Job Object cleanup plus SCM recovery"
   Stop-Process -Id $afterGoCrash.ServiceProcessId -Force
@@ -660,6 +748,9 @@ try {
     -TimeoutSeconds $RecoveryTimeoutSeconds
   Assert-ProcessImage -ProcessId $afterRustCrash.ServiceProcessId -ExpectedPath $ServiceExecutable
   Assert-ProcessImage -ProcessId $afterRustCrash.GatewayProcessId -ExpectedPath $GatewayExecutable
+  Assert-AuthCaptchaRuntime `
+    -AuthPort ([int]$runtimeConfig.auth_port) `
+    -ExpectedAltchaHmacKey $altchaHmacKey | Out-Null
 
   Write-Host "Stopping normally and verifying the gateway does not survive"
   Invoke-NativeChecked -FilePath $ServiceExecutable -Arguments @("stop")

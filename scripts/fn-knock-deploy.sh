@@ -54,6 +54,36 @@ get_remote_status() {
   ssh "${REMOTE_HOST}" "appcenter-cli status '${APP_NAME}' 2>/dev/null || true"
 }
 
+resolve_remote_install_volume() {
+  local configured_volume="${FN_KNOCK_REMOTE_INSTALL_VOLUME:-}"
+
+  if [ -n "${configured_volume}" ]; then
+    case "${configured_volume}" in
+      0|*[!0-9]*)
+        echo "ERROR: FN_KNOCK_REMOTE_INSTALL_VOLUME must be a positive volume index" >&2
+        return 1
+        ;;
+    esac
+
+    echo "${configured_volume}"
+    return 0
+  fi
+
+  ssh "${REMOTE_HOST}" '
+    for dir in /vol[1-9]*; do
+      [ -d "${dir}/@appcenter" ] || continue
+      volume="${dir#/vol}"
+      case "${volume}" in
+        ""|*[!0-9]*)
+          continue
+          ;;
+      esac
+      echo "${volume}"
+      exit 0
+    done
+  '
+}
+
 read_fpk_arches() {
   local raw="${FN_KNOCK_FPK_ARCHES:-amd64 arm64}"
   raw="${raw//,/ }"
@@ -112,6 +142,37 @@ assert_remote_installed() {
     echo "ERROR: application '${APP_NAME}' is not installed on remote host" >&2
     exit 1
   fi
+}
+
+wait_for_remote_running() {
+  local timeout="${FN_KNOCK_REMOTE_START_TIMEOUT:-60}"
+  local started_at
+  local status
+
+  case "${timeout}" in
+    0|*[!0-9]*)
+      echo "ERROR: FN_KNOCK_REMOTE_START_TIMEOUT must be a positive number of seconds" >&2
+      return 1
+      ;;
+  esac
+
+  started_at="$(date +%s)"
+  while true; do
+    status="$(get_remote_status)"
+    echo "${status}"
+    if echo "${status}" | grep -qi "running"; then
+      return 0
+    fi
+    if echo "${status}" | grep -qi "noinstall"; then
+      echo "ERROR: application '${APP_NAME}' is not installed on remote host" >&2
+      return 1
+    fi
+    if [ "$(( $(date +%s) - started_at ))" -ge "${timeout}" ]; then
+      echo "ERROR: application '${APP_NAME}' did not reach running state within ${timeout}s" >&2
+      return 1
+    fi
+    sleep 2
+  done
 }
 
 resolve_remote_ui_index() {
@@ -332,6 +393,10 @@ run_remote_pack() {
 }
 
 run_remote_install() {
+  local install_command
+  local install_volume
+  local status
+
   if ! fpk_arch_enabled "amd64"; then
     echo "ERROR: install-remote installs the x86/amd64 FPK; include amd64 in FN_KNOCK_FPK_ARCHES" >&2
     exit 1
@@ -352,17 +417,30 @@ EOF"
   log "Step 3/4: Ensure appcenter temp directory exists"
   ssh "${REMOTE_HOST}" "mkdir -p '${REMOTE_APPCENTER_TMP_DIR}'"
 
+  install_volume="$(resolve_remote_install_volume)"
   log "Step 3/4: Install and start new amd64 FPK"
-  if ! ssh "${REMOTE_HOST}" "appcenter-cli install-fpk '${REMOTE_FPK_AMD64_PATH}' --env '${REMOTE_INSTALL_ENV_PATH}'"; then
+  if [ -n "${install_volume}" ]; then
+    log "Step 3/4: Use appcenter volume ${install_volume}"
+    install_command="appcenter-cli install-fpk '${REMOTE_FPK_AMD64_PATH}' --env '${REMOTE_INSTALL_ENV_PATH}' --volume '${install_volume}'"
+  else
+    log "Step 3/4: No appcenter volume detected; use the remote CLI default"
+    install_command="appcenter-cli install-fpk '${REMOTE_FPK_AMD64_PATH}' --env '${REMOTE_INSTALL_ENV_PATH}'"
+  fi
+  if ! ssh "${REMOTE_HOST}" "${install_command}"; then
     log "Step 3/4: Install failed, tailing appcenter error log for diagnostics"
     ssh "${REMOTE_HOST}" "tail -n 120 /var/log/trim_app_center/error.log || true"
     exit 1
   fi
   log "Step 3/4: Verify installation state"
   assert_remote_installed
-  ssh "${REMOTE_HOST}" "appcenter-cli start '${APP_NAME}'"
+  status="$(get_remote_status)"
+  if echo "${status}" | grep -Eqi "starting|running"; then
+    log "Step 3/4: Appcenter already reports ${status}; skip duplicate start"
+  else
+    ssh "${REMOTE_HOST}" "appcenter-cli start '${APP_NAME}'"
+  fi
   log "Step 3/4: Verify runtime state"
-  assert_remote_installed
+  wait_for_remote_running
 
   log "Step 3/4: Tail runtime log"
   ssh "${REMOTE_HOST}" "tail -n 200 '${REMOTE_LOG_FILE}' || true"
@@ -464,6 +542,8 @@ Commands:
 Optional env overrides:
   FN_KNOCK_REMOTE_HOST  (default: root@192.168.31.98)
   FN_KNOCK_REMOTE_DIR   (default: /tmp/fn-knock-fpk)
+  FN_KNOCK_REMOTE_INSTALL_VOLUME (optional positive volume index; auto-detected from /volN/@appcenter)
+  FN_KNOCK_REMOTE_START_TIMEOUT (default: 60 seconds)
   FN_KNOCK_APP_NAME     (default: fn-knock)
   FN_KNOCK_LOCAL_APP_DIR (default: apps/fn-knock)
   FN_KNOCK_LOCAL_FPK_PATH (default: apps/fn-knock/dist/fn-knock.fpk; downloads as -amd64/-arm64)

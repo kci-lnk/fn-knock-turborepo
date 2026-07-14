@@ -3,6 +3,7 @@ import type {
   DDNSHttpTransport,
   DDNSNetworkInterfacePayload,
   DDNSProviderCapabilities,
+  DDNSPublicDnsProvider,
   DDNSPublicCheckSourcesPayload,
   DDNSTargetSummaryPayload,
   DDNSUpdateScope,
@@ -15,6 +16,7 @@ import {
 export type {
   DDNSHttpTransport,
   DDNSIpSource,
+  DDNSPublicDnsProvider,
   DDNSUpdateScope,
 } from "@/lib/api";
 
@@ -73,6 +75,7 @@ export const NETWORK_INTERFACE_AUTO_VALUE = "__auto__";
 export const DEFAULT_DDNS_UPDATE_SCOPE: DDNSUpdateScope = "dual_stack";
 export const DEFAULT_DDNS_IP_SOURCE: DDNSIpSource = "public";
 export const DEFAULT_DDNS_HTTP_TRANSPORT: DDNSHttpTransport = "curl";
+export const DEFAULT_DDNS_PUBLIC_DNS_PROVIDER: DDNSPublicDnsProvider = "alidns";
 export const DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES = 10;
 export const EMPTY_DDNS_PUBLIC_CHECK_SOURCES: DDNSPublicCheckSourcesPayload = {
   ipv4: [],
@@ -108,6 +111,20 @@ export const HTTP_TRANSPORT_OPTIONS: Array<{
   { labelKey: "admin.ddns.httpTransport.node", value: "node" },
 ];
 
+export const PUBLIC_DNS_PROVIDER_OPTIONS: Array<{
+  labelKey: string;
+  value: DDNSPublicDnsProvider;
+}> = [
+  { labelKey: "admin.ddns.publicDnsProvider.none", value: "none" },
+  { labelKey: "admin.ddns.publicDnsProvider.alidns", value: "alidns" },
+  { labelKey: "admin.ddns.publicDnsProvider.tencent", value: "tencent" },
+  {
+    labelKey: "admin.ddns.publicDnsProvider.cloudflare",
+    value: "cloudflare",
+  },
+  { labelKey: "admin.ddns.publicDnsProvider.google", value: "google" },
+];
+
 export const normalizeUpdateScope = (
   value: string | null | undefined,
 ): DDNSUpdateScope => {
@@ -137,6 +154,21 @@ export const normalizeDDNSHttpTransport = (
     return "node";
   }
   return DEFAULT_DDNS_HTTP_TRANSPORT;
+};
+
+export const normalizeDDNSPublicDnsProvider = (
+  value: string | null | undefined,
+): DDNSPublicDnsProvider => {
+  if (
+    value === "none" ||
+    value === "alidns" ||
+    value === "tencent" ||
+    value === "cloudflare" ||
+    value === "google"
+  ) {
+    return value;
+  }
+  return DEFAULT_DDNS_PUBLIC_DNS_PROVIDER;
 };
 
 export const normalizeNetworkInterface = (value: string | null | undefined) =>

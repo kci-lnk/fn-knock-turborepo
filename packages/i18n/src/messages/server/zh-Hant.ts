@@ -1457,6 +1457,12 @@ export const zhHantServer = {
     publicCheckSourceRequestFailed: "探測源 {url} 請求失敗: HTTP {status}",
     publicCheckSourceInvalidPayload: "探測源 {url} 未回傳有效的 {family} 地址",
     publicCheckTestFailed: "公網探測地址測試失敗",
+    publicDnsResolveFailed:
+      "使用公共 DNS 解析 {host} 的 {family} 地址失敗: {detail}",
+    publicDnsNoAddress: "公共 DNS 未回傳 {host} 的 {family} 地址",
+    publicDnsNoUsableServer: "所選網卡無法連線公共 DNS 伺服器",
+    publicCheckTimeout: "公網探測請求逾時",
+    publicCheckTooManyRedirects: "公網探測請求重新導向次數過多",
     interfaceSourceLabel: "網卡 {name}",
     selectedInterfaceSourceLabel: "所選網卡",
     publicSourceLabel: "公網",

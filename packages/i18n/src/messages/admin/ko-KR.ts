@@ -3408,12 +3408,22 @@ export const koKRAdmin = {
       "{bridge} 자격 증명이 {scope}에서 발견되었습니다. {count} 필드를 채울 수 있습니다.",
     updateIntervalLabel: "{minutes} 분마다 동기화",
     publicCheckSettings: "공개 탐지 설정",
-    publicCheckDialogTitle: "공개 탐지 설정",
+    publicCheckDialogTitle: "DDNS 설정",
     publicCheckDialogDescription:
       "DDNS가 현재 공개 IPv4/IPv6를 탐지할 때 사용할 주소와 요청 구현을 설정합니다.",
     httpTransportLabel: "요청 구현",
     httpTransportHint:
       "curl은 시스템 curl을 사용합니다. 내장 HTTP는 Rust 백엔드의 내장 네트워크 요청을 사용하며, 아웃바운드 인터페이스를 선택하면 해당 로컬 주소에 바인딩합니다.",
+    publicDnsProviderLabel: "공용 DNS 사용",
+    publicDnsProviderHint:
+      "탐지 주소를 확인할 수 없는 경우 공용 DNS를 사용하여 문제를 해결할 수 있습니다.",
+    publicDnsProvider: {
+      none: "사용 안 함",
+      alidns: "Alibaba DNS",
+      tencent: "Tencent DNS",
+      cloudflare: "Cloudflare DNS",
+      google: "Google DNS",
+    },
     httpTransport: {
       curl: "curl(기본값)",
       node: "내장 HTTP",

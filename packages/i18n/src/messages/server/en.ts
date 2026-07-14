@@ -1650,6 +1650,14 @@ export const enServer = {
     publicCheckSourceInvalidPayload:
       "Detection source {url} did not return a valid {family} address",
     publicCheckTestFailed: "Failed to test public detection sources",
+    publicDnsResolveFailed:
+      "Failed to resolve the {family} address for {host} with public DNS: {detail}",
+    publicDnsNoAddress: "Public DNS returned no {family} address for {host}",
+    publicDnsNoUsableServer:
+      "The selected interface cannot reach a public DNS server",
+    publicCheckTimeout: "The public detection request timed out",
+    publicCheckTooManyRedirects:
+      "The public detection request followed too many redirects",
     interfaceSourceLabel: "Interface {name}",
     selectedInterfaceSourceLabel: "Selected interface",
     publicSourceLabel: "Public network",

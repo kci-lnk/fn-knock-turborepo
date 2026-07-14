@@ -1,16 +1,19 @@
 import { ref, type Ref } from "vue";
 import type {
   DDNSHttpTransport,
+  DDNSPublicDnsProvider,
   DDNSPublicCheckSourcesPayload,
   DDNSStatusPayload,
   DDNSTargetSummaryPayload,
 } from "@/lib/api";
 import {
   DEFAULT_DDNS_HTTP_TRANSPORT,
+  DEFAULT_DDNS_PUBLIC_DNS_PROVIDER,
   DEFAULT_DDNS_IP_SOURCE,
   DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES,
   DEFAULT_DDNS_UPDATE_SCOPE,
   normalizeDDNSHttpTransport,
+  normalizeDDNSPublicDnsProvider,
   normalizeIpSource,
   normalizeNetworkInterface,
   normalizePublicCheckSources,
@@ -26,9 +29,7 @@ interface UseDDNSStatusOptions {
   selectedProvider: Ref<string>;
 }
 
-export function useDDNSStatus({
-  selectedProvider,
-}: UseDDNSStatusOptions) {
+export function useDDNSStatus({ selectedProvider }: UseDDNSStatusOptions) {
   const enabled = ref(true);
   const savedProvider = ref("");
   const lastIP = ref<LastIP>({ ipv4: null, ipv6: null, updated_at: null });
@@ -45,6 +46,9 @@ export function useDDNSStatus({
     normalizePublicCheckSources(undefined),
   );
   const httpTransport = ref<DDNSHttpTransport>(DEFAULT_DDNS_HTTP_TRANSPORT);
+  const publicDnsProvider = ref<DDNSPublicDnsProvider>(
+    DEFAULT_DDNS_PUBLIC_DNS_PROVIDER,
+  );
   const statusUpdateScope = ref<DDNSUpdateScope>(DEFAULT_DDNS_UPDATE_SCOPE);
   const statusIpSource = ref<DDNSIpSource>(DEFAULT_DDNS_IP_SOURCE);
   const statusNetworkInterface = ref("");
@@ -74,6 +78,9 @@ export function useDDNSStatus({
       defaultPublicCheckSources.value,
     );
     httpTransport.value = normalizeDDNSHttpTransport(status.httpTransport);
+    publicDnsProvider.value = normalizeDDNSPublicDnsProvider(
+      status.publicDnsProvider,
+    );
     statusUpdateScope.value = normalizeUpdateScope(status.updateScope);
     statusIpSource.value = normalizeIpSource(status.ipSource);
     statusNetworkInterface.value = normalizeNetworkInterface(
@@ -87,6 +94,7 @@ export function useDDNSStatus({
     defaultPublicCheckSources,
     enabled,
     httpTransport,
+    publicDnsProvider,
     lastCheck,
     lastIP,
     publicCheckSources,

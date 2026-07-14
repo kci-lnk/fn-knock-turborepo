@@ -3433,12 +3433,22 @@ export const enAdmin = {
       "{bridge} credentials were found in {scope}. {count} fields can be filled.",
     updateIntervalLabel: "Sync every {minutes} minutes",
     publicCheckSettings: "Public detection settings",
-    publicCheckDialogTitle: "Public detection settings",
+    publicCheckDialogTitle: "DDNS settings",
     publicCheckDialogDescription:
       "Configure the sources and request implementation DDNS uses to detect the current public IPv4/IPv6 address.",
     httpTransportLabel: "Request implementation",
     httpTransportHint:
       "curl uses the system curl binary. Built-in HTTP uses the Rust backend's built-in network request and binds the selected outbound interface by local address.",
+    publicDnsProviderLabel: "Use public DNS",
+    publicDnsProviderHint:
+      "If a detection source cannot be resolved, using a public DNS resolver can solve the problem.",
+    publicDnsProvider: {
+      none: "Do not use",
+      alidns: "Alibaba DNS",
+      tencent: "Tencent DNS",
+      cloudflare: "Cloudflare DNS",
+      google: "Google DNS",
+    },
     httpTransport: {
       curl: "curl (default)",
       node: "Built-in HTTP",

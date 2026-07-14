@@ -1457,6 +1457,12 @@ export const zhCNServer = {
     publicCheckSourceRequestFailed: "探测源 {url} 请求失败: HTTP {status}",
     publicCheckSourceInvalidPayload: "探测源 {url} 未返回有效的 {family} 地址",
     publicCheckTestFailed: "公网探测地址测试失败",
+    publicDnsResolveFailed:
+      "使用公共 DNS 解析 {host} 的 {family} 地址失败: {detail}",
+    publicDnsNoAddress: "公共 DNS 未返回 {host} 的 {family} 地址",
+    publicDnsNoUsableServer: "所选网卡无法连接公共 DNS 服务器",
+    publicCheckTimeout: "公网探测请求超时",
+    publicCheckTooManyRedirects: "公网探测请求重定向次数过多",
     interfaceSourceLabel: "网卡 {name}",
     selectedInterfaceSourceLabel: "所选网卡",
     publicSourceLabel: "公网",

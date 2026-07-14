@@ -1659,6 +1659,15 @@ export const koKRServer = {
     publicCheckSourceInvalidPayload:
       "탐지 소스 {url}이(가) 유효한 {family} 주소를 반환하지 않았습니다.",
     publicCheckTestFailed: "공개 탐지 주소 테스트 실패",
+    publicDnsResolveFailed:
+      "공용 DNS로 {host}의 {family} 주소를 확인하지 못했습니다: {detail}",
+    publicDnsNoAddress:
+      "공용 DNS가 {host}의 {family} 주소를 반환하지 않았습니다.",
+    publicDnsNoUsableServer:
+      "선택한 인터페이스에서 공용 DNS 서버에 연결할 수 없습니다.",
+    publicCheckTimeout: "공개 탐지 요청 시간이 초과되었습니다.",
+    publicCheckTooManyRedirects:
+      "공개 탐지 요청의 리디렉션 횟수가 너무 많습니다.",
     interfaceSourceLabel: "인터페이스 {name}",
     selectedInterfaceSourceLabel: "선택된 인터페이스",
     publicSourceLabel: "공용 네트워크",

@@ -3197,12 +3197,22 @@ export const zhHantAdmin = {
       "發現 {scope} 中已有 {bridge} 憑據，可補齊 {count} 個字段。",
     updateIntervalLabel: "每 {minutes} 分鐘自動同步",
     publicCheckSettings: "公網探測設定",
-    publicCheckDialogTitle: "公網探測設定",
+    publicCheckDialogTitle: "DDNS設定",
     publicCheckDialogDescription:
       "配置 DDNS 從公網探測目前 IPv4/IPv6 時使用的地址和請求實作。",
     httpTransportLabel: "請求實作",
     httpTransportHint:
       "curl 會沿用系統 curl；內建 HTTP 會使用 Rust 後端內建網路請求，並在選擇出站網卡時綁定該網卡的本機地址。",
+    publicDnsProviderLabel: "借助公共DNS",
+    publicDnsProviderHint:
+      "有些時候會導致無法解析探測地址，所以借助公共DNS可解決這種問題。",
+    publicDnsProvider: {
+      none: "不使用",
+      alidns: "阿里DNS",
+      tencent: "騰訊DNS",
+      cloudflare: "Cloudflare DNS",
+      google: "Google DNS",
+    },
     httpTransport: {
       curl: "curl（預設）",
       node: "內建 HTTP",

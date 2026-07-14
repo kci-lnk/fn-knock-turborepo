@@ -23,6 +23,7 @@ import { useTargetPolling } from "../composables/useTargetPolling";
 import type {
   DDNSHttpTransport,
   DDNSNetworkInterfacePayload,
+  DDNSPublicDnsProvider,
   DDNSPublicCheckSourcesPayload,
   DDNSPublicCheckTestResultPayload,
   DDNSTargetSummaryPayload,
@@ -33,6 +34,7 @@ import { docsUrls } from "../lib/docs";
 import { buildDDNSTimestampTooltipLines } from "../lib/ddns-time";
 import {
   DEFAULT_DDNS_HTTP_TRANSPORT,
+  DEFAULT_DDNS_PUBLIC_DNS_PROVIDER,
   DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES,
   INTERFACE_IPV4_INDEX_KEY,
   INTERFACE_IPV6_INDEX_KEY,
@@ -47,6 +49,7 @@ import {
   findProviderDef,
   normalizeInterfaceAddressIndex,
   normalizeDDNSHttpTransport,
+  normalizeDDNSPublicDnsProvider,
   normalizeIpSource,
   normalizeNetworkInterface,
   normalizePublicCheckSources,
@@ -92,6 +95,9 @@ const publicCheckDraft = ref<DDNSPublicCheckSourcesPayload>(
   normalizePublicCheckSources(undefined),
 );
 const httpTransportDraft = ref<DDNSHttpTransport>(DEFAULT_DDNS_HTTP_TRANSPORT);
+const publicDnsProviderDraft = ref<DDNSPublicDnsProvider>(
+  DEFAULT_DDNS_PUBLIC_DNS_PROVIDER,
+);
 const publicCheckTestResults = ref<DDNSPublicCheckTestResultPayload[]>([]);
 const logs = ref<LogEntry[]>([]);
 const networkInterfaces = ref<DDNSNetworkInterfacePayload[]>([]);
@@ -114,6 +120,7 @@ const {
   defaultPublicCheckSources,
   enabled,
   httpTransport,
+  publicDnsProvider,
   lastCheck,
   lastIP,
   publicCheckSources,
@@ -610,6 +617,7 @@ function openPublicCheckDialog() {
     publicCheckSources.value,
   );
   httpTransportDraft.value = httpTransport.value;
+  publicDnsProviderDraft.value = publicDnsProvider.value;
   publicCheckTestResults.value = [];
   showPublicCheckDialog.value = true;
 }
@@ -624,12 +632,16 @@ function restorePublicCheckDefaults() {
 async function savePublicCheckSources(
   nextSources: DDNSPublicCheckSourcesPayload,
   nextHttpTransport: DDNSHttpTransport,
+  nextPublicDnsProvider: DDNSPublicDnsProvider,
 ) {
   await runSavePublicCheckSources(
     () =>
       DDNSAPI.saveSettings({
         publicCheckSources: normalizePublicCheckSources(nextSources),
         httpTransport: normalizeDDNSHttpTransport(nextHttpTransport),
+        publicDnsProvider: normalizeDDNSPublicDnsProvider(
+          nextPublicDnsProvider,
+        ),
       }),
     {
       onSuccess: (settings) => {
@@ -648,6 +660,10 @@ async function savePublicCheckSources(
           settings.httpTransport,
         );
         httpTransportDraft.value = httpTransport.value;
+        publicDnsProvider.value = normalizeDDNSPublicDnsProvider(
+          settings.publicDnsProvider,
+        );
+        publicDnsProviderDraft.value = publicDnsProvider.value;
         publicCheckTestResults.value = [];
         showPublicCheckDialog.value = false;
         toast.success(t("admin.ddns.publicCheckSaved"));
@@ -659,6 +675,7 @@ async function savePublicCheckSources(
 async function testPublicCheckSources(
   nextSources: DDNSPublicCheckSourcesPayload,
   nextHttpTransport: DDNSHttpTransport,
+  nextPublicDnsProvider: DDNSPublicDnsProvider,
 ) {
   const sources = normalizePublicCheckSources(
     nextSources,
@@ -674,6 +691,9 @@ async function testPublicCheckSources(
     () =>
       DDNSAPI.testPublicCheckSources(sources, {
         httpTransport: normalizeDDNSHttpTransport(nextHttpTransport),
+        publicDnsProvider: normalizeDDNSPublicDnsProvider(
+          nextPublicDnsProvider,
+        ),
         networkInterface: normalizeNetworkInterface(
           providerConfig.value[NETWORK_INTERFACE_KEY],
         ),
@@ -1122,6 +1142,7 @@ onUnmounted(() => {
     <DDNSPublicCheckDialog
       v-model:draft="publicCheckDraft"
       v-model:http-transport-draft="httpTransportDraft"
+      v-model:public-dns-provider-draft="publicDnsProviderDraft"
       :open="showPublicCheckDialog"
       :is-saving="isSavingPublicCheckSources"
       :is-testing="isTestingPublicCheckSources"

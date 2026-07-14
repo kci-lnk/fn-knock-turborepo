@@ -3203,12 +3203,22 @@ export const zhCNAdmin = {
       "发现 {scope} 中已有 {bridge} 凭据，可补齐 {count} 个字段。",
     updateIntervalLabel: "每 {minutes} 分钟自动同步",
     publicCheckSettings: "公网探测设置",
-    publicCheckDialogTitle: "公网探测设置",
+    publicCheckDialogTitle: "DDNS设定",
     publicCheckDialogDescription:
       "配置 DDNS 从公网探测当前 IPv4/IPv6 时使用的地址和请求实现。",
     httpTransportLabel: "请求实现",
     httpTransportHint:
       "curl 会沿用系统 curl；内置 HTTP 会使用 Rust 后端内置网络请求，并在选择出站网卡时绑定该网卡的本地地址。",
+    publicDnsProviderLabel: "借助公共DNS",
+    publicDnsProviderHint:
+      "有些时候会导致无法解析探测地址，所以借助公共DNS可解决这种问题。",
+    publicDnsProvider: {
+      none: "不使用",
+      alidns: "阿里DNS",
+      tencent: "腾讯DNS",
+      cloudflare: "Cloudflare DNS",
+      google: "Google DNS",
+    },
     httpTransport: {
       curl: "curl（默认）",
       node: "内置 HTTP",

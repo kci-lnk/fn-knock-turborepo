@@ -47,6 +47,7 @@ pub(super) async fn build_ddns_status(
         "publicCheckSources": settings.get("publicCheckSources").cloned().unwrap_or_else(default_public_check_sources),
         "defaultPublicCheckSources": settings.get("defaultPublicCheckSources").cloned().unwrap_or_else(default_public_check_sources),
         "httpTransport": settings.get("httpTransport").cloned().unwrap_or(json!("curl")),
+        "publicDnsProvider": settings.get("publicDnsProvider").cloned().unwrap_or(json!(DEFAULT_PUBLIC_DNS_PROVIDER)),
         "updateScope": normalize_update_scope(primary.config.get("update_scope").map(String::as_str)),
         "ipSource": normalize_ip_source(primary.config.get("ip_source").map(String::as_str)),
         "networkInterface": normalize_network_interface(primary.config.get("network_interface").map(String::as_str)),

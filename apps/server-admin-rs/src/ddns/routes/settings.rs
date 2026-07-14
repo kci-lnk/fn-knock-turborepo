@@ -21,7 +21,13 @@ pub(super) fn parse_settings(raw: Option<&str>) -> Value {
         },
         "publicCheckSources": public_sources,
         "defaultPublicCheckSources": default_sources,
-        "httpTransport": normalize_http_transport(parsed.as_ref().and_then(|value| value.get("httpTransport")))
+        "httpTransport": normalize_http_transport(parsed.as_ref().and_then(|value| value.get("httpTransport"))),
+        "publicDnsProvider": normalize_public_dns_provider(
+            parsed
+                .as_ref()
+                .and_then(|value| value.get("publicDnsProvider"))
+                .and_then(Value::as_str),
+        )
     })
 }
 
@@ -338,6 +344,31 @@ pub(super) fn merge_http_transport_update(input: Option<&str>, current: &Value) 
         Some("curl") => "curl",
         None => normalize_http_transport(current.get("httpTransport")),
         Some(_) => "curl",
+    }
+}
+
+pub(super) const DEFAULT_PUBLIC_DNS_PROVIDER: &str = "alidns";
+
+pub(super) fn normalize_public_dns_provider(value: Option<&str>) -> &'static str {
+    match value {
+        Some("none") => "none",
+        Some("tencent") => "tencent",
+        Some("cloudflare") => "cloudflare",
+        Some("google") => "google",
+        Some("alidns") | None => DEFAULT_PUBLIC_DNS_PROVIDER,
+        Some(_) => DEFAULT_PUBLIC_DNS_PROVIDER,
+    }
+}
+
+pub(super) fn merge_public_dns_provider_update(
+    input: Option<&str>,
+    current: &Value,
+) -> &'static str {
+    match input {
+        Some(value) => normalize_public_dns_provider(Some(value)),
+        None => {
+            normalize_public_dns_provider(current.get("publicDnsProvider").and_then(Value::as_str))
+        }
     }
 }
 

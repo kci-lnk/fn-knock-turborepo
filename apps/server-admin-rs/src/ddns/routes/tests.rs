@@ -85,9 +85,98 @@ fn parses_ddns_settings_with_defaults() {
     ));
     assert_eq!(value["updateIntervalMinutes"], json!(5));
     assert_eq!(value["httpTransport"], json!("node"));
+    assert_eq!(value["publicDnsProvider"], json!("alidns"));
     assert_eq!(
         value["publicCheckSources"]["ipv4"],
         json!(["https://4.example.com"])
+    );
+}
+
+#[test]
+fn ddns_settings_public_dns_provider_defaults_and_normalizes() {
+    for provider in ["none", "alidns", "tencent", "cloudflare", "google"] {
+        let raw = json!({ "publicDnsProvider": provider }).to_string();
+        assert_eq!(parse_settings(Some(&raw))["publicDnsProvider"], provider);
+    }
+    assert_eq!(
+        parse_settings(Some(r#"{"publicDnsProvider":"invalid"}"#))["publicDnsProvider"],
+        json!("alidns")
+    );
+    assert_eq!(
+        merge_public_dns_provider_update(None, &json!({ "publicDnsProvider": "google" })),
+        "google"
+    );
+    assert_eq!(
+        merge_public_dns_provider_update(Some("invalid"), &json!({ "publicDnsProvider": "none" })),
+        "alidns"
+    );
+}
+
+#[test]
+fn public_dns_catalog_and_curl_resolve_entries_are_stable() {
+    assert_eq!(public_dns_server_addresses("alidns"), &PUBLIC_DNS_ALIDNS);
+    assert_eq!(public_dns_server_addresses("tencent"), &PUBLIC_DNS_TENCENT);
+    assert_eq!(
+        public_dns_server_addresses("cloudflare"),
+        &PUBLIC_DNS_CLOUDFLARE
+    );
+    assert_eq!(public_dns_server_addresses("google"), &PUBLIC_DNS_GOOGLE);
+    assert!(public_dns_server_addresses("none").is_empty());
+    assert_eq!(
+        format_curl_resolve_entry("example.com", 443, "192.0.2.1".parse().unwrap()),
+        "example.com:443:192.0.2.1"
+    );
+    assert_eq!(
+        format_curl_resolve_entry("example.com", 443, "2001:db8::1".parse().unwrap()),
+        "example.com:443:[2001:db8::1]"
+    );
+}
+
+#[derive(Clone)]
+struct FailingPublicDnsResolver;
+
+impl reqwest::dns::Resolve for FailingPublicDnsResolver {
+    fn resolve(&self, _name: reqwest::dns::Name) -> reqwest::dns::Resolving {
+        Box::pin(async {
+            Err(Box::new(std::io::Error::other(
+                "使用公共 DNS 解析 probe.example 的 IPv6 地址失败: no records found",
+            )) as Box<dyn std::error::Error + Send + Sync>)
+        })
+    }
+}
+
+#[tokio::test]
+async fn public_dns_reqwest_errors_surface_the_localized_root_cause() {
+    let client = reqwest::Client::builder()
+        .dns_resolver(FailingPublicDnsResolver)
+        .no_proxy()
+        .build()
+        .unwrap();
+    let error = client
+        .get("http://probe.example/")
+        .send()
+        .await
+        .unwrap_err();
+    assert_eq!(
+        deepest_error_message(&error),
+        "使用公共 DNS 解析 probe.example 的 IPv6 地址失败: no records found"
+    );
+}
+
+#[tokio::test]
+async fn public_dns_curl_deadline_bounds_dns_work() {
+    let translator = Translator::new("zh-CN");
+    let deadline = tokio_time::Instant::now() + Duration::from_millis(10);
+    let error = await_with_public_check_deadline(
+        deadline,
+        std::future::pending::<anyhow::Result<()>>(),
+        &translator,
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(
+        error.to_string(),
+        ddns_text(&translator, "publicCheckTimeout", &[])
     );
 }
 
@@ -380,6 +469,7 @@ async fn automatic_public_ip_detection_reports_empty_sources_like_node() {
     let detected = detect_current_public_ips(
         &json!({ "ipv4": [], "ipv6": [] }),
         "curl",
+        "none",
         None,
         true,
         true,

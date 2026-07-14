@@ -13,6 +13,7 @@ import {
   type DDNSDomainTargetsCapability,
 } from "../src/lib/ddns-domain";
 import {
+  normalizeDDNSPublicDnsProvider,
   validateDDNSCommonConfig,
   validateDDNSTargetConfig,
   type Provider,
@@ -48,6 +49,22 @@ const provider = (
     },
   ],
   capabilities: capability ? { domainTargets: capability } : undefined,
+});
+
+describe("DDNS public DNS provider", () => {
+  it("keeps supported providers and defaults missing or invalid values to AliDNS", () => {
+    for (const value of [
+      "none",
+      "alidns",
+      "tencent",
+      "cloudflare",
+      "google",
+    ] as const) {
+      assert.equal(normalizeDDNSPublicDnsProvider(value), value);
+    }
+    assert.equal(normalizeDDNSPublicDnsProvider(undefined), "alidns");
+    assert.equal(normalizeDDNSPublicDnsProvider("invalid"), "alidns");
+  });
 });
 
 describe("DDNS domain target parser", () => {

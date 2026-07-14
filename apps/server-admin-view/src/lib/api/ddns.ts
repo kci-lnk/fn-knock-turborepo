@@ -10,6 +10,12 @@ export type DDNSLogEntry = {
 export type DDNSIpSource = "public" | "interface" | "static" | "domain";
 export type DDNSUpdateScope = "dual_stack" | "ipv6_only" | "ipv4_only";
 export type DDNSHttpTransport = "curl" | "node";
+export type DDNSPublicDnsProvider =
+  | "none"
+  | "alidns"
+  | "tencent"
+  | "cloudflare"
+  | "google";
 
 export type DDNSProviderCapabilities = {
   addressMode?: "dual_stack" | "single_address";
@@ -41,6 +47,7 @@ export type DDNSStatusPayload = {
   publicCheckSources: DDNSPublicCheckSourcesPayload;
   defaultPublicCheckSources: DDNSPublicCheckSourcesPayload;
   httpTransport: DDNSHttpTransport;
+  publicDnsProvider: DDNSPublicDnsProvider;
   updateScope: DDNSUpdateScope;
   ipSource: DDNSIpSource;
   networkInterface: string;
@@ -65,12 +72,16 @@ export type DDNSSettingsPayload = {
   publicCheckSources: DDNSPublicCheckSourcesPayload;
   defaultPublicCheckSources: DDNSPublicCheckSourcesPayload;
   httpTransport: DDNSHttpTransport;
+  publicDnsProvider: DDNSPublicDnsProvider;
 };
 
 export type DDNSSettingsUpdatePayload = Partial<
   Pick<
     DDNSSettingsPayload,
-    "updateIntervalMinutes" | "publicCheckSources" | "httpTransport"
+    | "updateIntervalMinutes"
+    | "publicCheckSources"
+    | "httpTransport"
+    | "publicDnsProvider"
   >
 >;
 
@@ -163,6 +174,7 @@ export const DDNSAPI = {
     publicCheckSources: DDNSPublicCheckSourcesPayload,
     options: {
       httpTransport?: DDNSHttpTransport;
+      publicDnsProvider?: DDNSPublicDnsProvider;
       networkInterface?: string;
     } = {},
   ): Promise<{ results: DDNSPublicCheckTestResultPayload[] }> {

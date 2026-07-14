@@ -1743,6 +1743,15 @@ export const jaJPServer = {
     publicCheckSourceInvalidPayload:
       "検出元 {url} は有効な {family} アドレスを返しませんでした",
     publicCheckTestFailed: "公開検出アドレスのテストに失敗しました",
+    publicDnsResolveFailed:
+      "パブリックDNSで {host} の {family} アドレスを解決できませんでした: {detail}",
+    publicDnsNoAddress:
+      "パブリックDNSから {host} の {family} アドレスが返されませんでした",
+    publicDnsNoUsableServer:
+      "選択したインターフェースからパブリックDNSサーバーに接続できません",
+    publicCheckTimeout: "公開検出リクエストがタイムアウトしました",
+    publicCheckTooManyRedirects:
+      "公開検出リクエストのリダイレクト回数が多すぎます",
     interfaceSourceLabel: "ネットワークカード {name}",
     selectedInterfaceSourceLabel: "選択されたネットワークカード",
     publicSourceLabel: "パブリックネットワーク",

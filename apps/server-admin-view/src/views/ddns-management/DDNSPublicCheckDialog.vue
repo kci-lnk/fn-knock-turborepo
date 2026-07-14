@@ -30,18 +30,22 @@ import {
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import type {
   DDNSHttpTransport,
+  DDNSPublicDnsProvider,
   DDNSPublicCheckFamily,
   DDNSPublicCheckSourcesPayload,
   DDNSPublicCheckTestResultPayload,
 } from "@/lib/api";
 import {
   HTTP_TRANSPORT_OPTIONS,
+  PUBLIC_DNS_PROVIDER_OPTIONS,
   normalizeDDNSHttpTransport,
+  normalizeDDNSPublicDnsProvider,
 } from "./model";
 
 const props = defineProps<{
   draft: DDNSPublicCheckSourcesPayload;
   httpTransportDraft: DDNSHttpTransport;
+  publicDnsProviderDraft: DDNSPublicDnsProvider;
   isSaving: boolean;
   isTesting: boolean;
   open: boolean;
@@ -50,10 +54,19 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   "restore-defaults": [];
-  save: [value: DDNSPublicCheckSourcesPayload, transport: DDNSHttpTransport];
-  test: [value: DDNSPublicCheckSourcesPayload, transport: DDNSHttpTransport];
+  save: [
+    value: DDNSPublicCheckSourcesPayload,
+    transport: DDNSHttpTransport,
+    publicDnsProvider: DDNSPublicDnsProvider,
+  ];
+  test: [
+    value: DDNSPublicCheckSourcesPayload,
+    transport: DDNSHttpTransport,
+    publicDnsProvider: DDNSPublicDnsProvider,
+  ];
   "update:draft": [value: DDNSPublicCheckSourcesPayload];
   "update:httpTransportDraft": [value: DDNSHttpTransport];
+  "update:publicDnsProviderDraft": [value: DDNSPublicDnsProvider];
   "update:open": [value: boolean];
 }>();
 
@@ -108,6 +121,14 @@ const transportDraft = computed({
   set: (value: string) =>
     emit("update:httpTransportDraft", normalizeDDNSHttpTransport(value)),
 });
+const dnsProviderDraft = computed({
+  get: () => props.publicDnsProviderDraft,
+  set: (value: string) =>
+    emit(
+      "update:publicDnsProviderDraft",
+      normalizeDDNSPublicDnsProvider(value),
+    ),
+});
 </script>
 
 <template>
@@ -144,11 +165,30 @@ const transportDraft = computed({
           </p>
         </section>
 
-        <section
-          v-for="family in families"
-          :key="family.key"
-          class="space-y-3"
-        >
+        <section class="space-y-2">
+          <Label for="ddns-public-dns-provider" class="text-sm font-medium">
+            {{ t("admin.ddns.publicDnsProviderLabel") }}
+          </Label>
+          <Select v-model="dnsProviderDraft" :disabled="isBusy">
+            <SelectTrigger id="ddns-public-dns-provider" class="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem
+                v-for="option in PUBLIC_DNS_PROVIDER_OPTIONS"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ t(option.labelKey) }}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          <p class="text-xs leading-5 text-muted-foreground">
+            {{ t("admin.ddns.publicDnsProviderHint") }}
+          </p>
+        </section>
+
+        <section v-for="family in families" :key="family.key" class="space-y-3">
           <div class="flex items-center justify-between gap-3">
             <Label class="text-sm font-medium">
               {{ t(family.labelKey) }}
@@ -181,7 +221,12 @@ const transportDraft = computed({
                   updateSource(family.key, index, String($event))
                 "
                 @keydown.enter.prevent="
-                  emit('save', cloneSources(draft), transportDraft)
+                  emit(
+                    'save',
+                    cloneSources(draft),
+                    transportDraft,
+                    dnsProviderDraft,
+                  )
                 "
               />
               <Button
@@ -208,10 +253,7 @@ const transportDraft = computed({
           </p>
         </section>
 
-        <div
-          v-if="hasResults"
-          class="space-y-3 border-t pt-4"
-        >
+        <div v-if="hasResults" class="space-y-3 border-t pt-4">
           <h3 class="text-sm font-medium">
             {{ t("admin.ddns.publicCheckTestResultTitle") }}
           </h3>
@@ -245,9 +287,7 @@ const transportDraft = computed({
                   <p class="break-all font-medium">{{ result.url }}</p>
                   <p
                     :class="
-                      result.success
-                        ? 'text-emerald-700'
-                        : 'text-destructive'
+                      result.success ? 'text-emerald-700' : 'text-destructive'
                     "
                   >
                     {{
@@ -322,7 +362,14 @@ const transportDraft = computed({
             type="button"
             variant="outline"
             :disabled="isBusy"
-            @click="emit('test', cloneSources(draft), transportDraft)"
+            @click="
+              emit(
+                'test',
+                cloneSources(draft),
+                transportDraft,
+                dnsProviderDraft,
+              )
+            "
           >
             <RefreshCw
               class="mr-1.5 h-4 w-4"
@@ -333,7 +380,14 @@ const transportDraft = computed({
           <Button
             type="button"
             :disabled="isBusy"
-            @click="emit('save', cloneSources(draft), transportDraft)"
+            @click="
+              emit(
+                'save',
+                cloneSources(draft),
+                transportDraft,
+                dnsProviderDraft,
+              )
+            "
           >
             <RefreshCw v-if="isSaving" class="mr-1.5 h-4 w-4 animate-spin" />
             {{ isSaving ? t("admin.ddns.saving") : t("common.save") }}

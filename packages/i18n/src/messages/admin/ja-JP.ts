@@ -3487,12 +3487,22 @@ export const jaJPAdmin = {
       "は、{scope} がすでに {bridge} 資格情報を持っており、{count} フィールドを完了できることを発見しました。",
     updateIntervalLabel: "{minutes} 分ごとに自動的に同期します",
     publicCheckSettings: "公開検出設定",
-    publicCheckDialogTitle: "公開検出設定",
+    publicCheckDialogTitle: "DDNS設定",
     publicCheckDialogDescription:
       "DDNS が現在の公開 IPv4/IPv6 を検出するときに使用するアドレスとリクエスト実装を設定します。",
     httpTransportLabel: "リクエスト実装",
     httpTransportHint:
       "curl はシステムの curl を使用します。組み込み HTTP は Rust バックエンドの組み込みネットワークリクエストを使用し、送信インターフェイス選択時はそのローカルアドレスにバインドします。",
+    publicDnsProviderLabel: "パブリックDNSを使用",
+    publicDnsProviderHint:
+      "検出先アドレスを解決できない場合、パブリックDNSを使用すると問題を解決できます。",
+    publicDnsProvider: {
+      none: "使用しない",
+      alidns: "Alibaba DNS",
+      tencent: "Tencent DNS",
+      cloudflare: "Cloudflare DNS",
+      google: "Google DNS",
+    },
     httpTransport: {
       curl: "curl（デフォルト）",
       node: "組み込み HTTP",

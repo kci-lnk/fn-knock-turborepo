@@ -1,9 +1,40 @@
 use super::*;
 use crate::net_utils::{ipv4_prefix_len, ipv6_prefix_len};
+use hickory_resolver::{
+    Resolver, TokioResolver,
+    config::{ConnectionConfig, LookupIpStrategy, NameServerConfig, ResolveHosts, ResolverConfig},
+    net::runtime::TokioRuntimeProvider,
+};
+
+pub(super) const PUBLIC_DNS_ALIDNS: [&str; 4] = [
+    "223.5.5.5",
+    "223.6.6.6",
+    "2400:3200::1",
+    "2400:3200:baba::1",
+];
+pub(super) const PUBLIC_DNS_TENCENT: [&str; 4] = [
+    "119.29.29.29",
+    "182.254.116.116",
+    "2402:4e00::",
+    "2402:4e00:1::",
+];
+pub(super) const PUBLIC_DNS_CLOUDFLARE: [&str; 4] = [
+    "1.1.1.1",
+    "1.0.0.1",
+    "2606:4700:4700::1111",
+    "2606:4700:4700::1001",
+];
+pub(super) const PUBLIC_DNS_GOOGLE: [&str; 4] = [
+    "8.8.8.8",
+    "8.8.4.4",
+    "2001:4860:4860::8888",
+    "2001:4860:4860::8844",
+];
 
 pub(super) async fn test_public_check_sources_inner(
     sources: &Value,
     transport: &str,
+    public_dns_provider: &str,
     network_interface: Option<&str>,
     translator: &Translator,
 ) -> anyhow::Result<Vec<Value>> {
@@ -20,6 +51,7 @@ pub(super) async fn test_public_check_sources_inner(
             .filter_map(|value| value.as_str().map(str::to_string))
         {
             let transport = transport.to_string();
+            let public_dns_provider = public_dns_provider.to_string();
             let network_interface = network_interface.map(str::to_string);
             let translator = translator.clone();
             let current_index = index;
@@ -30,6 +62,7 @@ pub(super) async fn test_public_check_sources_inner(
                     family,
                     version,
                     &transport,
+                    &public_dns_provider,
                     network_interface.as_deref(),
                     &translator,
                 )
@@ -59,6 +92,7 @@ pub(super) struct CurrentPublicIps {
 pub(super) async fn detect_current_public_ips(
     sources: &Value,
     transport: &str,
+    public_dns_provider: &str,
     network_interface: Option<&str>,
     enable_ipv4: bool,
     enable_ipv6: bool,
@@ -69,12 +103,15 @@ pub(super) async fn detect_current_public_ips(
     let network_interface = normalize_network_interface(network_interface);
     let transport =
         normalize_http_transport(Some(&Value::String(transport.to_string()))).to_string();
+    let public_dns_provider = normalize_public_dns_provider(Some(public_dns_provider)).to_string();
     let translator_ipv4 = translator.clone();
     let translator_ipv6 = translator.clone();
     let ipv4_interface = network_interface.clone();
     let ipv6_interface = network_interface.clone();
     let ipv4_transport = transport.clone();
     let ipv6_transport = transport.clone();
+    let ipv4_public_dns_provider = public_dns_provider.clone();
+    let ipv6_public_dns_provider = public_dns_provider.clone();
 
     let (ipv4, ipv6) = tokio::join!(
         async move {
@@ -84,6 +121,7 @@ pub(super) async fn detect_current_public_ips(
                     "ipv4",
                     4,
                     ipv4_transport,
+                    ipv4_public_dns_provider,
                     ipv4_interface,
                     translator_ipv4,
                 )
@@ -99,6 +137,7 @@ pub(super) async fn detect_current_public_ips(
                     "ipv6",
                     6,
                     ipv6_transport,
+                    ipv6_public_dns_provider,
                     ipv6_interface,
                     translator_ipv6,
                 )
@@ -128,6 +167,7 @@ async fn detect_public_ip_family(
     family: &'static str,
     version: u8,
     transport: String,
+    public_dns_provider: String,
     network_interface: String,
     translator: Translator,
 ) -> PublicIpFamilyDetection {
@@ -148,6 +188,7 @@ async fn detect_public_ip_family(
     let mut tasks = JoinSet::new();
     for url in sources {
         let transport = transport.clone();
+        let public_dns_provider = public_dns_provider.clone();
         let network_interface = network_interface.clone();
         let translator = translator.clone();
         tasks.spawn(async move {
@@ -156,6 +197,7 @@ async fn detect_public_ip_family(
                 family,
                 version,
                 &transport,
+                &public_dns_provider,
                 Some(network_interface.as_str()),
                 &translator,
             )
@@ -212,15 +254,29 @@ pub(super) async fn test_single_public_check_source(
     family: &str,
     version: u8,
     transport: &str,
+    public_dns_provider: &str,
     network_interface: Option<&str>,
     translator: &Translator,
 ) -> Value {
     let result = if normalize_http_transport(Some(&Value::String(transport.to_string()))) == "node"
     {
-        test_single_public_check_source_via_reqwest(url, version, network_interface, translator)
-            .await
+        test_single_public_check_source_via_reqwest(
+            url,
+            version,
+            public_dns_provider,
+            network_interface,
+            translator,
+        )
+        .await
     } else {
-        test_single_public_check_source_via_curl(url, version, network_interface, translator).await
+        test_single_public_check_source_via_curl(
+            url,
+            version,
+            public_dns_provider,
+            network_interface,
+            translator,
+        )
+        .await
     };
 
     match result {
@@ -241,6 +297,7 @@ pub(super) async fn test_single_public_check_source(
 async fn test_single_public_check_source_via_reqwest(
     url: &str,
     version: u8,
+    public_dns_provider: &str,
     network_interface: Option<&str>,
     translator: &Translator,
 ) -> anyhow::Result<(u16, String)> {
@@ -249,6 +306,15 @@ async fn test_single_public_check_source_via_reqwest(
         .redirect(reqwest::redirect::Policy::limited(20))
         .no_proxy();
     let interface = normalize_network_interface(network_interface);
+    let public_dns_provider = normalize_public_dns_provider(Some(public_dns_provider));
+    if public_dns_provider != "none" {
+        builder = builder.dns_resolver(build_public_dns_resolver(
+            public_dns_provider,
+            version,
+            Some(interface.as_str()),
+            translator,
+        )?);
+    }
     if !interface.is_empty() && !interface.starts_with(DOCKER_HOST_INTERFACE_PREFIX) {
         let local_address = first_selectable_interface_ip(&interface, version, translator)?
             .ok_or_else(|| {
@@ -265,7 +331,7 @@ async fn test_single_public_check_source_via_reqwest(
                 ))
             })?;
         builder = builder.local_address(local_address);
-    } else {
+    } else if public_dns_provider == "none" {
         builder = apply_reqwest_family_resolver(builder, url, version, translator).await?;
     }
     let response = builder
@@ -273,7 +339,8 @@ async fn test_single_public_check_source_via_reqwest(
         .get(url)
         .header("Accept", "application/json, text/plain")
         .send()
-        .await?;
+        .await
+        .map_err(|error| anyhow::anyhow!(deepest_error_message(&error)))?;
     let status = response.status().as_u16();
     let text = response.text().await.unwrap_or_default();
     Ok((status, text))
@@ -282,10 +349,107 @@ async fn test_single_public_check_source_via_reqwest(
 async fn test_single_public_check_source_via_curl(
     url: &str,
     version: u8,
+    public_dns_provider: &str,
     network_interface: Option<&str>,
     translator: &Translator,
 ) -> anyhow::Result<(u16, String)> {
+    let public_dns_provider = normalize_public_dns_provider(Some(public_dns_provider));
+    if public_dns_provider == "none" {
+        let (status, body, _) = run_curl_public_check_request(
+            url,
+            version,
+            network_interface,
+            translator,
+            &[],
+            true,
+            Duration::from_millis(IP_DETECTION_TIMEOUT_MS),
+        )
+        .await?;
+        return Ok((status, body));
+    }
+
+    let resolver =
+        build_public_dns_resolver(public_dns_provider, version, network_interface, translator)?;
+    let deadline = tokio_time::Instant::now() + Duration::from_millis(IP_DETECTION_TIMEOUT_MS);
+    let mut current_url = url.to_string();
+    for redirect_count in 0..=20 {
+        let resolve_entries = await_with_public_check_deadline(
+            deadline,
+            curl_resolve_entries(&current_url, &resolver),
+            translator,
+        )
+        .await?;
+        let timeout = remaining_public_check_timeout(deadline, translator)?;
+        let (status, body, redirect_url) = run_curl_public_check_request(
+            &current_url,
+            version,
+            network_interface,
+            translator,
+            &resolve_entries,
+            false,
+            timeout,
+        )
+        .await?;
+        if (300..400).contains(&status) && !redirect_url.is_empty() {
+            if redirect_count == 20 {
+                anyhow::bail!(
+                    "{}",
+                    ddns_text(translator, "publicCheckTooManyRedirects", &[])
+                );
+            }
+            current_url = redirect_url;
+            continue;
+        }
+        return Ok((status, body));
+    }
+    unreachable!("redirect loop always returns or errors")
+}
+
+pub(super) fn deepest_error_message(error: &(dyn std::error::Error + 'static)) -> String {
+    let mut message = error.to_string();
+    let mut source = error.source();
+    while let Some(cause) = source {
+        message = cause.to_string();
+        source = cause.source();
+    }
+    message
+}
+
+pub(super) fn remaining_public_check_timeout(
+    deadline: tokio_time::Instant,
+    translator: &Translator,
+) -> anyhow::Result<Duration> {
+    match deadline.checked_duration_since(tokio_time::Instant::now()) {
+        Some(remaining) if !remaining.is_zero() => Ok(remaining),
+        _ => anyhow::bail!("{}", ddns_text(translator, "publicCheckTimeout", &[])),
+    }
+}
+
+pub(super) async fn await_with_public_check_deadline<T, F>(
+    deadline: tokio_time::Instant,
+    future: F,
+    translator: &Translator,
+) -> anyhow::Result<T>
+where
+    F: Future<Output = anyhow::Result<T>>,
+{
+    let timeout = remaining_public_check_timeout(deadline, translator)?;
+    tokio_time::timeout(timeout, future)
+        .await
+        .map_err(|_| anyhow::anyhow!(ddns_text(translator, "publicCheckTimeout", &[])))?
+}
+
+async fn run_curl_public_check_request(
+    url: &str,
+    version: u8,
+    network_interface: Option<&str>,
+    translator: &Translator,
+    resolve_entries: &[String],
+    follow_redirects: bool,
+    timeout: Duration,
+) -> anyhow::Result<(u16, String, String)> {
     const STATUS_MARKER: &str = "\n__FN_KNOCK_CURL_STATUS__";
+    const REDIRECT_MARKER: &str = "\n__FN_KNOCK_CURL_REDIRECT__";
     const PROXY_ENV_KEYS: [&str; 8] = [
         "http_proxy",
         "https_proxy",
@@ -302,16 +466,20 @@ async fn test_single_public_check_source_via_curl(
         .arg("-q")
         .arg("--silent")
         .arg("--show-error")
-        .arg("--location")
         .arg(if version == 4 { "-4" } else { "-6" })
         .arg("--max-time")
-        .arg(format!("{:.3}", IP_DETECTION_TIMEOUT_MS as f64 / 1000.0))
+        .arg(format!("{:.3}", timeout.as_secs_f64().max(0.001)))
         .arg("--write-out")
-        .arg(format!("{STATUS_MARKER}%{{http_code}}"))
+        .arg(format!(
+            "{STATUS_MARKER}%{{http_code}}{REDIRECT_MARKER}%{{redirect_url}}"
+        ))
         .arg("--header")
         .arg("Accept: application/json, text/plain")
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
+    if follow_redirects {
+        command.arg("--location");
+    }
     for key in PROXY_ENV_KEYS {
         command.env_remove(key);
     }
@@ -319,6 +487,9 @@ async fn test_single_public_check_source_via_curl(
     if !interface.is_empty() && !interface.starts_with(DOCKER_HOST_INTERFACE_PREFIX) {
         ensure_ddns_network_interface_exists(&interface, translator)?;
         command.arg("--interface").arg(interface);
+    }
+    for entry in resolve_entries {
+        command.arg("--resolve").arg(entry);
     }
     command.arg(url);
     let output = command.output().await?;
@@ -345,7 +516,17 @@ async fn test_single_public_check_source_via_curl(
         );
     }
     let output_text = String::from_utf8_lossy(&output.stdout).to_string();
-    let Some((body, status_text)) = output_text.rsplit_once(STATUS_MARKER) else {
+    let Some((before_redirect, redirect_url)) = output_text.rsplit_once(REDIRECT_MARKER) else {
+        anyhow::bail!(
+            "{}",
+            ddns_text(
+                translator,
+                "curlRequestFailed",
+                &[("detail", "missing redirect marker".to_string())],
+            )
+        );
+    };
+    let Some((body, status_text)) = before_redirect.rsplit_once(STATUS_MARKER) else {
         anyhow::bail!(
             "{}",
             ddns_text(
@@ -356,7 +537,171 @@ async fn test_single_public_check_source_via_curl(
         );
     };
     let status = status_text.trim().parse::<u16>().unwrap_or(0);
-    Ok((status, body.to_string()))
+    Ok((status, body.to_string(), redirect_url.trim().to_string()))
+}
+
+#[derive(Clone)]
+struct PublicDnsResolver {
+    inner: TokioResolver,
+    version: u8,
+    translator: Translator,
+}
+
+impl PublicDnsResolver {
+    async fn resolve_host(&self, host: &str) -> anyhow::Result<Vec<IpAddr>> {
+        if let Ok(ip) = host.parse::<IpAddr>() {
+            return Ok(vec![ip]);
+        }
+        let query = format!("{}.", host.trim_end_matches('.'));
+        let lookup = self.inner.lookup_ip(query).await.map_err(|error| {
+            anyhow::anyhow!(ddns_text(
+                &self.translator,
+                "publicDnsResolveFailed",
+                &[
+                    ("host", host.to_string()),
+                    (
+                        "family",
+                        if self.version == 4 { "IPv4" } else { "IPv6" }.to_string(),
+                    ),
+                    ("detail", error.to_string()),
+                ],
+            ))
+        })?;
+        let addresses = lookup
+            .iter()
+            .filter(|ip| (self.version == 4 && ip.is_ipv4()) || (self.version == 6 && ip.is_ipv6()))
+            .collect::<Vec<_>>();
+        if addresses.is_empty() {
+            anyhow::bail!(
+                "{}",
+                ddns_text(
+                    &self.translator,
+                    "publicDnsNoAddress",
+                    &[
+                        ("host", host.to_string()),
+                        (
+                            "family",
+                            if self.version == 4 { "IPv4" } else { "IPv6" }.to_string(),
+                        ),
+                    ],
+                )
+            );
+        }
+        Ok(addresses)
+    }
+}
+
+impl reqwest::dns::Resolve for PublicDnsResolver {
+    fn resolve(&self, name: reqwest::dns::Name) -> reqwest::dns::Resolving {
+        let resolver = self.clone();
+        let host = name.as_str().to_string();
+        Box::pin(async move {
+            let addresses = resolver.resolve_host(&host).await.map_err(|error| {
+                Box::new(std::io::Error::other(error.to_string()))
+                    as Box<dyn std::error::Error + Send + Sync>
+            })?;
+            Ok(Box::new(
+                addresses
+                    .into_iter()
+                    .map(|ip| std::net::SocketAddr::new(ip, 0)),
+            ) as reqwest::dns::Addrs)
+        })
+    }
+}
+
+pub(super) fn public_dns_server_addresses(provider: &str) -> &'static [&'static str] {
+    match normalize_public_dns_provider(Some(provider)) {
+        "tencent" => &PUBLIC_DNS_TENCENT,
+        "cloudflare" => &PUBLIC_DNS_CLOUDFLARE,
+        "google" => &PUBLIC_DNS_GOOGLE,
+        "alidns" => &PUBLIC_DNS_ALIDNS,
+        _ => &[],
+    }
+}
+
+fn build_public_dns_resolver(
+    provider: &str,
+    version: u8,
+    network_interface: Option<&str>,
+    translator: &Translator,
+) -> anyhow::Result<PublicDnsResolver> {
+    let interface = normalize_network_interface(network_interface);
+    let should_bind = !interface.is_empty() && !interface.starts_with(DOCKER_HOST_INTERFACE_PREFIX);
+    let local_ipv4 = if should_bind {
+        first_selectable_interface_ip(&interface, 4, translator)?
+    } else {
+        None
+    };
+    let local_ipv6 = if should_bind {
+        first_selectable_interface_ip(&interface, 6, translator)?
+    } else {
+        None
+    };
+    let mut name_servers = Vec::new();
+    for address in public_dns_server_addresses(provider) {
+        let ip = address.parse::<IpAddr>()?;
+        let bind_ip = if ip.is_ipv4() { local_ipv4 } else { local_ipv6 };
+        if should_bind && bind_ip.is_none() {
+            continue;
+        }
+        let bind_addr = bind_ip.map(|ip| std::net::SocketAddr::new(ip, 0));
+        let mut udp = ConnectionConfig::udp();
+        udp.bind_addr = bind_addr;
+        let mut tcp = ConnectionConfig::tcp();
+        tcp.bind_addr = bind_addr;
+        name_servers.push(NameServerConfig::new(ip, true, vec![udp, tcp]));
+    }
+    if name_servers.is_empty() {
+        anyhow::bail!("{}", ddns_text(translator, "publicDnsNoUsableServer", &[]));
+    }
+    let config = ResolverConfig::from_parts(None, Vec::new(), name_servers);
+    let mut builder = Resolver::builder_with_config(config, TokioRuntimeProvider::default());
+    let options = builder.options_mut();
+    options.timeout = Duration::from_millis(IP_DETECTION_TIMEOUT_MS);
+    options.attempts = 1;
+    options.num_concurrent_reqs = 4;
+    options.try_tcp_on_error = true;
+    options.use_hosts_file = ResolveHosts::Never;
+    options.ip_strategy = if version == 4 {
+        LookupIpStrategy::Ipv4Only
+    } else {
+        LookupIpStrategy::Ipv6Only
+    };
+    Ok(PublicDnsResolver {
+        inner: builder.build()?,
+        version,
+        translator: translator.clone(),
+    })
+}
+
+async fn curl_resolve_entries(
+    url: &str,
+    resolver: &PublicDnsResolver,
+) -> anyhow::Result<Vec<String>> {
+    let parsed = Url::parse(url)?;
+    let Some(host) = parsed.host_str() else {
+        return Ok(Vec::new());
+    };
+    if host.parse::<IpAddr>().is_ok() {
+        return Ok(Vec::new());
+    }
+    let port = parsed
+        .port_or_known_default()
+        .ok_or_else(|| anyhow::anyhow!("missing URL port"))?;
+    Ok(resolver
+        .resolve_host(host)
+        .await?
+        .into_iter()
+        .map(|ip| format_curl_resolve_entry(host, port, ip))
+        .collect())
+}
+
+pub(super) fn format_curl_resolve_entry(host: &str, port: u16, ip: IpAddr) -> String {
+    if ip.is_ipv6() {
+        format!("{host}:{port}:[{ip}]")
+    } else {
+        format!("{host}:{port}:{ip}")
+    }
 }
 
 async fn apply_reqwest_family_resolver(

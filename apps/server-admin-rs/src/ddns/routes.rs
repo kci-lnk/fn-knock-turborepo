@@ -97,6 +97,7 @@ struct SettingsBody {
     update_interval_minutes: Option<i64>,
     public_check_sources: Option<Value>,
     http_transport: Option<String>,
+    public_dns_provider: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -104,6 +105,7 @@ struct SettingsBody {
 struct PublicCheckTestBody {
     public_check_sources: Value,
     http_transport: Option<String>,
+    public_dns_provider: Option<String>,
     network_interface: Option<String>,
 }
 
@@ -394,10 +396,13 @@ async fn update_settings(
             .unwrap_or_else(default_public_check_sources),
     };
     let http_transport = merge_http_transport_update(body.http_transport.as_deref(), &current);
+    let public_dns_provider =
+        merge_public_dns_provider_update(body.public_dns_provider.as_deref(), &current);
     let stored = json!({
         "updateIntervalMinutes": interval,
         "publicCheckSources": public_sources,
-        "httpTransport": normalize_http_transport(Some(&Value::String(http_transport.to_string())))
+        "httpTransport": normalize_http_transport(Some(&Value::String(http_transport.to_string()))),
+        "publicDnsProvider": public_dns_provider
     });
     let serialized = serde_json::to_string(&stored).unwrap_or_default();
     match state
@@ -453,15 +458,9 @@ async fn test_public_check_sources(
         Ok(value) => value,
         Err(message) => return response::error(StatusCode::BAD_REQUEST, message),
     };
-    let transport = if let Some(value) = body.http_transport.as_ref() {
-        normalize_http_transport(Some(&Value::String(value.clone()))).to_string()
-    } else {
+    let stored_settings = if body.http_transport.is_none() || body.public_dns_provider.is_none() {
         match state.store.get_string_value(DDNS_SETTINGS).await {
-            Ok(raw) => parse_settings(raw.as_deref())
-                .get("httpTransport")
-                .and_then(Value::as_str)
-                .unwrap_or("curl")
-                .to_string(),
+            Ok(raw) => Some(parse_settings(raw.as_deref())),
             Err(error) => {
                 tracing::warn!(%error, "failed to load DDNS settings for public check test");
                 let message = error.to_string();
@@ -475,10 +474,33 @@ async fn test_public_check_sources(
                 );
             }
         }
+    } else {
+        None
+    };
+    let transport = if let Some(value) = body.http_transport.as_ref() {
+        normalize_http_transport(Some(&Value::String(value.clone()))).to_string()
+    } else {
+        stored_settings
+            .as_ref()
+            .and_then(|settings| settings.get("httpTransport"))
+            .and_then(Value::as_str)
+            .unwrap_or("curl")
+            .to_string()
+    };
+    let public_dns_provider = if let Some(value) = body.public_dns_provider.as_ref() {
+        normalize_public_dns_provider(Some(value.as_str())).to_string()
+    } else {
+        stored_settings
+            .as_ref()
+            .and_then(|settings| settings.get("publicDnsProvider"))
+            .and_then(Value::as_str)
+            .unwrap_or(DEFAULT_PUBLIC_DNS_PROVIDER)
+            .to_string()
     };
     match test_public_check_sources_inner(
         &sources,
         &transport,
+        &public_dns_provider,
         Some(network_interface.as_str()),
         &translator,
     )

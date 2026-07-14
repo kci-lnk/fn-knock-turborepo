@@ -86,6 +86,73 @@
         {{ t("admin.subdomainProxy.publicAccess") }}
       </Badge>
 
+      <TooltipProvider v-if="securityIndicators.waf">
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <span
+              tabindex="0"
+              class="inline-flex h-5 w-5 shrink-0 cursor-help items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+              :aria-label="
+                t('admin.subdomainProxy.statusWafEnabledAria', {
+                  host: formatHost(mapping.host),
+                })
+              "
+            >
+              <BrickWall class="h-3.5 w-3.5" />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top" align="center">
+            <p>{{ t("admin.subdomainProxy.statusWafEnabledTooltip") }}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+
+      <TooltipProvider v-if="securityIndicators.visibility">
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <span
+              tabindex="0"
+              class="inline-flex h-5 w-5 shrink-0 cursor-help items-center justify-center rounded-md transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+              :class="
+                securityIndicators.visibility === 'custom'
+                  ? 'text-primary hover:text-primary'
+                  : 'text-muted-foreground hover:text-foreground'
+              "
+              :aria-label="
+                securityIndicators.visibility === 'custom'
+                  ? t('admin.subdomainProxy.statusVisibilityCustomAria', {
+                      host: formatHost(mapping.host),
+                      regions: securityIndicators.regionCount,
+                      cidrs: securityIndicators.customCidrCount,
+                    })
+                  : t('admin.subdomainProxy.statusVisibilityInheritAria', {
+                      host: formatHost(mapping.host),
+                    })
+              "
+            >
+              <ScanEye
+                v-if="securityIndicators.visibility === 'custom'"
+                class="h-3.5 w-3.5"
+              />
+              <Eye v-else class="h-3.5 w-3.5" />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top" align="center">
+            <p v-if="securityIndicators.visibility === 'custom'">
+              {{
+                t("admin.subdomainProxy.statusVisibilityCustomTooltip", {
+                  regions: securityIndicators.regionCount,
+                  cidrs: securityIndicators.customCidrCount,
+                })
+              }}
+            </p>
+            <p v-else>
+              {{ t("admin.subdomainProxy.statusVisibilityInheritTooltip") }}
+            </p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+
       <PanelsTopLeft
         v-if="shouldShowToolbarIndicator"
         class="h-3.5 w-3.5 shrink-0"
@@ -133,10 +200,13 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import {
+  BrickWall,
   CircleOff,
   Clock,
+  Eye,
   PanelsTopLeft,
   Route as RouteIcon,
+  ScanEye,
   ShieldCheck,
   Star,
 } from "lucide-vue-next";
@@ -151,6 +221,7 @@ import { isWebSocketProxyTargetUrl } from "@admin-shared/utils/proxyTargetInput"
 import type { HostMapping } from "@/types";
 import {
   getLocationRulesCount,
+  getMappingSecurityIndicatorState,
   type HostMappingAvailabilityState,
 } from "./model";
 
@@ -160,6 +231,8 @@ const props = defineProps<{
   formatHost: (host: string) => string;
   handleLocationRulesTooltipOpenChange: (host: string, open: boolean) => void;
   handleLocationRulesTooltipTriggerClick: (host: string) => void;
+  globalVisibilityEnabled: boolean;
+  globalWafEnabled: boolean;
   isAuthService: boolean;
   isGatewayPortalEnabled: boolean;
   isLocationRulesTooltipOpen: (host: string) => boolean;
@@ -169,6 +242,14 @@ const props = defineProps<{
 const { t } = useI18n();
 
 const locationRulesCount = computed(() => getLocationRulesCount(props.mapping));
+const securityIndicators = computed(() =>
+  getMappingSecurityIndicatorState({
+    globalVisibilityEnabled: props.globalVisibilityEnabled,
+    globalWafEnabled: props.globalWafEnabled,
+    isAuthService: props.isAuthService,
+    mapping: props.mapping,
+  }),
+);
 const shouldShowToolbarIndicator = computed(
   () =>
     props.isGatewayPortalEnabled &&

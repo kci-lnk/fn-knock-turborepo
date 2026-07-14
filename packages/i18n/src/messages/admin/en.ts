@@ -2396,6 +2396,17 @@ export const enAdmin = {
     publicAccess: "Public access",
     locationRulesAria: "{host} has {count} path rules",
     locationRulesCount: "{count} path rules configured",
+    statusWafEnabledAria: "{host} has WAF enabled",
+    statusWafEnabledTooltip:
+      "WAF is enabled, so this subdomain is checked by the web application firewall.",
+    statusVisibilityInheritAria:
+      "{host} inherits the global visibility restrictions",
+    statusVisibilityInheritTooltip:
+      "Inherits the global visibility restrictions.",
+    statusVisibilityCustomAria:
+      "{host} uses custom visibility: {regions} regions, {cidrs} CIDRs",
+    statusVisibilityCustomTooltip:
+      "Custom visibility: {regions} regions · {cidrs} CIDRs.",
     disabledBadge: "Disabled",
     unavailableBadge: "Closed",
     scheduleOpenAria: "Currently inside the scheduled open window",

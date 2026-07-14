@@ -2433,6 +2433,15 @@ export const jaJPAdmin = {
     publicAccess: "パブリックアクセス",
     locationRulesAria: "{host} には {count} パスルールがあります",
     locationRulesCount: "には {count} パス ルールが設定されています",
+    statusWafEnabledAria: "{host} では WAF が有効です",
+    statusWafEnabledTooltip:
+      "WAF が有効なため、このサブドメインでは WAF チェックが実行されます。",
+    statusVisibilityInheritAria: "{host} はグローバル可視性制限を継承します",
+    statusVisibilityInheritTooltip: "グローバル可視性制限を継承します。",
+    statusVisibilityCustomAria:
+      "{host} はカスタム可視性を使用します：{regions} 地域、{cidrs} 件の CIDR",
+    statusVisibilityCustomTooltip:
+      "カスタム可視性：{regions} 地域 · {cidrs} 件の CIDR。",
     disabledBadge: "無効",
     unavailableBadge: "未公開",
     scheduleOpenAria: "現在はスケジュールされた公開時間内です",

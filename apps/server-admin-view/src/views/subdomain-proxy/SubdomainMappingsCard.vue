@@ -77,6 +77,8 @@ const props = defineProps<{
   getAvailabilityState: (mapping: HostMapping) => HostMappingAvailabilityState;
   getHostTrafficSample: (host: string) => HostTrafficStats | null;
   getMappingTitleForDisplay: (mapping: HostMapping) => string;
+  globalVisibilityEnabled: boolean;
+  globalWafEnabled: boolean;
   handleLocationRulesTooltipOpenChange: (host: string, open: boolean) => void;
   handleLocationRulesTooltipTriggerClick: (host: string) => void;
   handleProtocolHeadersWarningOpenChange: (host: string, open: boolean) => void;
@@ -535,6 +537,8 @@ const handleMappingTableScroll = (event: Event) => {
                   :availability-state="getAvailabilityState(mapping)"
                   :availability-window="formatAvailabilityWindow(mapping)"
                   :format-host="formatHost"
+                  :global-visibility-enabled="globalVisibilityEnabled"
+                  :global-waf-enabled="globalWafEnabled"
                   :is-auth-service="isAuthServiceTarget(mapping.target)"
                   :is-gateway-portal-enabled="isGatewayPortalEnabled"
                   :is-location-rules-tooltip-open="isLocationRulesTooltipOpen"

@@ -38,6 +38,8 @@
       :get-availability-state="getAvailabilityState"
       :get-host-traffic-sample="getHostTrafficSample"
       :get-mapping-title-for-display="getMappingTitleForDisplay"
+      :global-visibility-enabled="globalVisibilityEnabled"
+      :global-waf-enabled="globalWafEnabled"
       :handle-location-rules-tooltip-open-change="
         handleLocationRulesTooltipOpenChange
       "
@@ -377,6 +379,24 @@ const isGatewayPortalEnabled = computed(
 const globalWafEnabled = computed(
   () => configStore.config?.waf?.enabled === true,
 );
+const globalVisibilityEnabled = ref(false);
+let globalVisibilityRequestId = 0;
+
+const loadGlobalVisibilityStatus = async () => {
+  const requestId = ++globalVisibilityRequestId;
+  globalVisibilityEnabled.value = false;
+  try {
+    const details = await ConfigAPI.getGatewayVisibility();
+    if (requestId === globalVisibilityRequestId) {
+      globalVisibilityEnabled.value = details.config.enabled;
+    }
+  } catch (error) {
+    if (requestId === globalVisibilityRequestId) {
+      globalVisibilityEnabled.value = false;
+      console.warn("load gateway visibility status failed:", error);
+    }
+  }
+};
 const shouldShowPortalDisabledTooltip = computed(
   () => !isGatewayPortalEnabled.value,
 );
@@ -689,11 +709,13 @@ onMounted(async () => {
   if (!configStore.config) {
     await configStore.loadConfig();
   }
+  void loadGlobalVisibilityStatus();
   void loadAccessEntryPort();
   startTrafficRealtimePolling();
 });
 
 onUnmounted(() => {
+  globalVisibilityRequestId += 1;
   stopAvailabilityClock();
   window.visualViewport?.removeEventListener(
     "resize",

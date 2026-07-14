@@ -2253,6 +2253,14 @@ export const zhHantAdmin = {
     publicAccess: "公開訪問",
     locationRulesAria: "{host} 有 {count} 條路徑規則",
     locationRulesCount: "已配置 {count} 條路徑規則",
+    statusWafEnabledAria: "{host} 已啟用 WAF",
+    statusWafEnabledTooltip: "WAF 已開啟，此子域會執行 WAF 檢查。",
+    statusVisibilityInheritAria: "{host} 繼承全域可見性限制",
+    statusVisibilityInheritTooltip: "繼承全域可見性限制。",
+    statusVisibilityCustomAria:
+      "{host} 使用自訂可見性：{regions} 個地區，{cidrs} 條 CIDR",
+    statusVisibilityCustomTooltip:
+      "使用自訂可見性：{regions} 個地區 · {cidrs} 條 CIDR。",
     disabledBadge: "已禁用",
     unavailableBadge: "未開放",
     scheduleOpenAria: "目前處於定時開放時間",

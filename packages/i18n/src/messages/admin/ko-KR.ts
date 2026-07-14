@@ -2382,6 +2382,15 @@ export const koKRAdmin = {
     publicAccess: "공개 액세스",
     locationRulesAria: "{host}에는 {count} 경로 규칙이 있습니다.",
     locationRulesCount: "{count} 경로 규칙이 구성됨",
+    statusWafEnabledAria: "{host}에 WAF가 활성화되어 있습니다.",
+    statusWafEnabledTooltip:
+      "WAF가 활성화되어 이 하위 도메인에 WAF 검사가 적용됩니다.",
+    statusVisibilityInheritAria: "{host}는 전역 가시성 제한을 상속합니다.",
+    statusVisibilityInheritTooltip: "전역 가시성 제한을 상속합니다.",
+    statusVisibilityCustomAria:
+      "{host}는 사용자 지정 가시성을 사용합니다: 지역 {regions}개, CIDR {cidrs}개",
+    statusVisibilityCustomTooltip:
+      "사용자 지정 가시성: 지역 {regions}개 · CIDR {cidrs}개.",
     disabledBadge: "비활성화됨",
     unavailableBadge: "닫힘",
     scheduleOpenAria: "현재 예약된 개방 시간입니다.",

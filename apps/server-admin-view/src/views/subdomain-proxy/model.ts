@@ -664,6 +664,43 @@ export const buildBookmarkExportFilename = (rootDomain: string): string => {
 export const getLocationRulesCount = (mapping: HostMapping): number =>
   mapping.locations?.length ?? 0;
 
+export type HostMappingVisibilityIndicator = "inherit" | "custom" | null;
+
+export interface HostMappingSecurityIndicatorState {
+  customCidrCount: number;
+  regionCount: number;
+  visibility: HostMappingVisibilityIndicator;
+  waf: boolean;
+}
+
+export const getMappingSecurityIndicatorState = ({
+  globalVisibilityEnabled,
+  globalWafEnabled,
+  isAuthService,
+  mapping,
+}: {
+  globalVisibilityEnabled: boolean;
+  globalWafEnabled: boolean;
+  isAuthService: boolean;
+  mapping: HostMapping;
+}): HostMappingSecurityIndicatorState => {
+  const excluded = isAuthService || mapping.disabled === true;
+  const visibilityMode = mapping.visibility?.mode;
+  const visibility =
+    excluded || !globalVisibilityEnabled || visibilityMode === "disabled"
+      ? null
+      : visibilityMode === "custom"
+        ? "custom"
+        : "inherit";
+
+  return {
+    customCidrCount: mapping.visibility?.custom_cidrs?.length ?? 0,
+    regionCount: mapping.visibility?.selections?.length ?? 0,
+    visibility,
+    waf: !excluded && globalWafEnabled && mapping.waf_enabled !== false,
+  };
+};
+
 export const getMappingDisplayTitle = (mapping: HostMapping): string =>
   mapping.title_override.trim() || mapping.title.trim();
 

@@ -2244,6 +2244,14 @@ export const zhCNAdmin = {
     publicAccess: "公开访问",
     locationRulesAria: "{host} 有 {count} 条路径规则",
     locationRulesCount: "已配置 {count} 条路径规则",
+    statusWafEnabledAria: "{host} 已启用 WAF",
+    statusWafEnabledTooltip: "WAF 已开启，此子域会执行 WAF 检查。",
+    statusVisibilityInheritAria: "{host} 继承全局可见性限制",
+    statusVisibilityInheritTooltip: "继承全局可见性限制。",
+    statusVisibilityCustomAria:
+      "{host} 使用自定义可见性：{regions} 个地区，{cidrs} 条 CIDR",
+    statusVisibilityCustomTooltip:
+      "使用自定义可见性：{regions} 个地区 · {cidrs} 条 CIDR。",
     disabledBadge: "已禁用",
     unavailableBadge: "未开放",
     scheduleOpenAria: "当前处于定时开放时间",

@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import DataShareFilePicker from "@admin-shared/components/common/DataShareFilePicker.vue";
 import {
   Dialog,
@@ -22,6 +23,8 @@ import {
   Download,
   FolderTree,
   Laptop,
+  Loader2,
+  Trash2,
   Upload,
 } from "lucide-vue-next";
 import { toast } from "@admin-shared/utils/toast";
@@ -51,6 +54,8 @@ const selectedLocalFile = ref<File | null>(null);
 const selectedFnosFile = ref<SharedDataFileEntry | null>(null);
 const selectedSource = ref<BackupSelectionSource | null>(null);
 const isImportDialogOpen = ref(false);
+const isClearDataDialogOpen = ref(false);
+const clearDataConfirmation = ref("");
 const isBackupPickerOpen = ref(false);
 const backupFilesError = ref("");
 const hasLoadedBackupFiles = ref(false);
@@ -108,6 +113,17 @@ const { isPending: isImporting, run: runImport } = useAsyncAction({
   },
 });
 
+const { isPending: isClearingData, run: runClearData } = useAsyncAction({
+  onError: (error) => {
+    toast.error(t("admin.maintenanceSettings.clearAllDataFailed"), {
+      description: extractErrorMessage(
+        error,
+        t("admin.maintenanceSettings.clearAllDataFailedDescription"),
+      ),
+    });
+  },
+});
+
 const { isPending: isLoadingBackupFiles, run: runLoadBackupFiles } =
   useAsyncAction({
     onError: (error) => {
@@ -123,6 +139,14 @@ const { isPending: isLoadingBackupFiles, run: runLoadBackupFiles } =
   });
 
 const isBusy = computed(() => isExporting.value || isImporting.value);
+const expectedClearDataConfirmation = computed(() =>
+  t("admin.maintenanceSettings.clearAllDataConfirmationPhrase"),
+);
+const canClearAllData = computed(
+  () =>
+    !isClearingData.value &&
+    clearDataConfirmation.value === expectedClearDataConfirmation.value,
+);
 const hasSelectedBackup = computed(() => {
   if (selectedSource.value === "local") {
     return selectedLocalFile.value !== null;
@@ -366,6 +390,41 @@ async function importBackup() {
     },
   );
 }
+
+function openClearDataDialog() {
+  if (isClearingData.value) return;
+  clearDataConfirmation.value = "";
+  isClearDataDialogOpen.value = true;
+}
+
+function handleClearDataDialogOpenChange(open: boolean) {
+  if (isClearingData.value) return;
+  isClearDataDialogOpen.value = open;
+  if (!open) {
+    clearDataConfirmation.value = "";
+  }
+}
+
+async function clearAllData() {
+  if (!canClearAllData.value) return;
+
+  await runClearData(
+    () => MaintenanceAPI.clearAllData(clearDataConfirmation.value),
+    {
+      onSuccess: () => {
+        if (typeof window === "undefined") return;
+        window.localStorage.clear();
+        window.location.reload();
+      },
+    },
+  );
+}
+
+function handleClearDataEnter() {
+  if (canClearAllData.value) {
+    void clearAllData();
+  }
+}
 </script>
 
 <template>
@@ -582,6 +641,40 @@ async function importBackup() {
       </div>
     </section>
 
+    <section class="mt-6 overflow-hidden rounded-2xl border bg-background">
+      <div class="border-b px-6 py-5 sm:px-8">
+        <h2 class="text-xl font-semibold tracking-tight">
+          {{ t("admin.maintenanceSettings.dangerZoneTitle") }}
+        </h2>
+        <p class="mt-1 text-sm text-muted-foreground">
+          {{ t("admin.maintenanceSettings.dangerZoneDescription") }}
+        </p>
+      </div>
+
+      <div
+        class="flex flex-col gap-4 px-6 py-5 sm:px-8 lg:flex-row lg:items-center lg:justify-between"
+      >
+        <div class="space-y-1">
+          <p class="text-sm font-medium">
+            {{ t("admin.maintenanceSettings.clearAllDataTitle") }}
+          </p>
+          <p class="max-w-3xl text-sm leading-6 text-muted-foreground">
+            {{ t("admin.maintenanceSettings.clearAllDataDescription") }}
+          </p>
+        </div>
+
+        <Button
+          variant="outline"
+          class="shrink-0 border-destructive/40 text-destructive hover:bg-destructive/5 hover:text-destructive focus-visible:ring-destructive/20 lg:min-w-[168px]"
+          :disabled="isClearingData"
+          @click="openClearDataDialog"
+        >
+          <Trash2 class="mr-2 h-4 w-4" />
+          {{ t("admin.maintenanceSettings.clearAllDataAction") }}
+        </Button>
+      </div>
+    </section>
+
     <DataShareFilePicker
       v-if="supportsSharedBackup"
       v-model:open="isBackupPickerOpen"
@@ -656,6 +749,74 @@ async function importBackup() {
               isImporting
                 ? t("admin.maintenanceSettings.importingNow")
                 : t("admin.maintenanceSettings.confirmImport")
+            }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog
+      :open="isClearDataDialogOpen"
+      @update:open="handleClearDataDialogOpenChange"
+    >
+      <DialogContent
+        class="sm:max-w-[420px]"
+        :show-close-button="!isClearingData"
+      >
+        <DialogHeader>
+          <DialogTitle class="text-left">
+            {{ t("admin.maintenanceSettings.clearAllDataDialogTitle") }}
+          </DialogTitle>
+          <DialogDescription class="text-left text-sm leading-6">
+            {{ t("admin.maintenanceSettings.clearAllDataDialogDescription") }}
+          </DialogDescription>
+        </DialogHeader>
+
+        <p class="text-sm leading-6 text-destructive">
+          {{ t("admin.maintenanceSettings.clearAllDataWarning") }}
+        </p>
+
+        <div class="space-y-2">
+          <label for="clear-all-data-confirmation" class="text-sm font-medium">
+            {{
+              t("admin.maintenanceSettings.clearAllDataTypePrompt", {
+                phrase: expectedClearDataConfirmation,
+              })
+            }}
+          </label>
+          <Input
+            id="clear-all-data-confirmation"
+            v-model="clearDataConfirmation"
+            :placeholder="expectedClearDataConfirmation"
+            :disabled="isClearingData"
+            :aria-invalid="
+              clearDataConfirmation.length > 0 &&
+              clearDataConfirmation !== expectedClearDataConfirmation
+                ? 'true'
+                : undefined
+            "
+            @keydown.enter="handleClearDataEnter"
+          />
+        </div>
+
+        <DialogFooter class="mt-1 gap-2">
+          <Button
+            variant="outline"
+            :disabled="isClearingData"
+            @click="handleClearDataDialogOpenChange(false)"
+          >
+            {{ t("common.cancel") }}
+          </Button>
+          <Button
+            variant="destructive"
+            :disabled="!canClearAllData"
+            @click="clearAllData"
+          >
+            <Loader2 v-if="isClearingData" class="mr-2 h-4 w-4 animate-spin" />
+            {{
+              isClearingData
+                ? t("admin.maintenanceSettings.clearingAllData")
+                : t("admin.maintenanceSettings.confirmClearAllData")
             }}
           </Button>
         </DialogFooter>

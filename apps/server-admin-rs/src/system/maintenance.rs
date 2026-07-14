@@ -1,4 +1,5 @@
 use std::{
+    future::Future,
     io::{self, Write},
     path::{Component, Path, PathBuf},
     process::Stdio,
@@ -109,6 +110,7 @@ pub fn maintenance_routes() -> Router<AppState> {
             "/api/admin/maintenance/backup/import/fnos",
             post(import_backup_from_directory),
         )
+        .route("/api/admin/maintenance/data/clear", post(clear_all_data))
 }
 
 #[derive(serde::Deserialize)]
@@ -120,6 +122,11 @@ struct ImportBackupBody {
 #[derive(serde::Deserialize)]
 struct ImportBackupFromDirectoryBody {
     path: String,
+}
+
+#[derive(serde::Deserialize)]
+struct ClearAllDataBody {
+    confirmation: String,
 }
 
 struct BackupArchive {

@@ -1298,6 +1298,11 @@ export const zhCNServer = {
     turnstileResponseInvalid: "Turnstile 响应无效",
     unknownTotp: "未知 TOTP",
   },
+  maintenanceClear: {
+    confirmPhrase: "清空所有数据",
+    confirmationMismatch: "确认文本不匹配",
+    clearFailed: "清空所有数据失败",
+  },
   maintenanceBackup: {
     commandMissing: "系统环境缺少 {command} 命令",
     commandFailed: "执行 {command} 命令失败",

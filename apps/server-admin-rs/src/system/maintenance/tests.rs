@@ -1,5 +1,97 @@
 use super::*;
 
+async fn maintenance_test_state() -> (tempfile::TempDir, AppState) {
+    let directory = tempfile::tempdir().expect("create maintenance test directory");
+    let mut settings = {
+        let _environment = crate::test_support::EnvGuard::new(&[]);
+        crate::settings::Settings::from_env()
+    };
+    settings.runtime_target = "linux".to_string();
+    settings.data_dir = directory.path().join("data");
+    settings.gateway_config_dir = directory.path().join("gateway");
+    settings.sqlite_path = directory.path().join("fn-knock.sqlite3");
+    settings.legacy_redis_url = String::new();
+    settings.go_backend_grpc_addr = "http://127.0.0.1:1".to_string();
+    settings.internal_rpc_token = "maintenance-test-token".to_string();
+    settings.request_timeout = std::time::Duration::from_millis(100);
+    let state = AppState::new(settings)
+        .await
+        .expect("create maintenance test state");
+    (directory, state)
+}
+
+#[tokio::test]
+async fn clear_all_data_requires_the_localized_confirmation_phrase() {
+    let (_directory, state) = maintenance_test_state().await;
+    state
+        .store
+        .set_string_value("fn_knock:test:clear-route", "value")
+        .await
+        .expect("seed route data");
+
+    let rejected = clear_all_data_with_gateway_reset(
+        state.clone(),
+        ClearAllDataBody {
+            confirmation: "wrong phrase".to_string(),
+        },
+        || async { Ok(()) },
+    )
+    .await;
+    assert_eq!(rejected.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(
+        state
+            .store
+            .get_string_value("fn_knock:test:clear-route")
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("value")
+    );
+
+    let translator = Translator::from_state(&state).await;
+    let accepted = clear_all_data_with_gateway_reset(
+        state.clone(),
+        ClearAllDataBody {
+            confirmation: maintenance_clear_text(&translator, "confirmPhrase"),
+        },
+        || async { Ok(()) },
+    )
+    .await;
+    assert_eq!(accepted.status(), StatusCode::OK);
+    assert!(state.store.scan_keys("", 100).await.unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn clear_all_data_keeps_storage_when_gateway_reset_fails() {
+    let (_directory, state) = maintenance_test_state().await;
+    state
+        .store
+        .set_string_value("fn_knock:test:clear-route", "value")
+        .await
+        .expect("seed route data");
+    let translator = Translator::from_state(&state).await;
+
+    let response = clear_all_data_with_gateway_reset(
+        state.clone(),
+        ClearAllDataBody {
+            confirmation: maintenance_clear_text(&translator, "confirmPhrase"),
+        },
+        || async { anyhow::bail!("gateway reset failed") },
+    )
+    .await;
+
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(
+        state
+            .store
+            .get_string_value("fn_knock:test:clear-route")
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("value")
+    );
+}
+
 #[test]
 fn filters_backup_keys_like_node() {
     assert!(should_export_backup_key("fn_knock:config"));

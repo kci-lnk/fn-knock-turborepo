@@ -1547,6 +1547,11 @@ export const jaJPServer = {
     turnstileResponseInvalid: "Turnstile 応答が無効です",
     unknownTotp: "不明な TOTP",
   },
+  maintenanceClear: {
+    confirmPhrase: "すべてのデータを消去",
+    confirmationMismatch: "確認テキストが一致しません",
+    clearFailed: "すべてのデータを消去できませんでした",
+  },
   maintenanceBackup: {
     commandMissing: "システム環境に {command} コマンドがありません",
     commandFailed: "{command} コマンドの実行に失敗しました",

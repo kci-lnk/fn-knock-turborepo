@@ -1298,6 +1298,11 @@ export const zhHantServer = {
     turnstileResponseInvalid: "Turnstile 回應無效",
     unknownTotp: "未知 TOTP",
   },
+  maintenanceClear: {
+    confirmPhrase: "清空所有資料",
+    confirmationMismatch: "確認文字不相符",
+    clearFailed: "清空所有資料失敗",
+  },
   maintenanceBackup: {
     commandMissing: "系統環境缺少 {command} 命令",
     commandFailed: "執行 {command} 命令失敗",

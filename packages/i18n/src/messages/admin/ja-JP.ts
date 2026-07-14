@@ -492,6 +492,25 @@ export const jaJPAdmin = {
       "これにより、まず現在の設定がクリアされ、選択したバックアップ ファイルで上書きおよび復元されます。",
     importingNow: "インポート中...",
     confirmImport: "インポートの確認",
+    dangerZoneTitle: "クリーンアップ",
+    dangerZoneDescription:
+      "以下の操作は元に戻せません。慎重に実行してください。",
+    clearAllDataTitle: "すべてのデータを消去",
+    clearAllDataDescription:
+      "システム設定、アカウント、セッション、ログ、その他の保存データを完全に削除します。データベース構造とバックアップファイルは保持されます。",
+    clearAllDataAction: "すべてのデータを消去",
+    clearAllDataDialogTitle: "すべてのデータを消去しますか？",
+    clearAllDataDialogDescription:
+      "サーバーのストレージとこのブラウザーのローカルデータを直ちに消去し、管理画面を再読み込みします。",
+    clearAllDataWarning:
+      "削除したデータは復元できません。必要に応じて先にシステムバックアップをエクスポートしてください。",
+    clearAllDataTypePrompt: "確認のため {phrase} と入力してください。",
+    clearAllDataConfirmationPhrase: "すべてのデータを消去",
+    clearingAllData: "消去中...",
+    confirmClearAllData: "消去を確認",
+    clearAllDataFailed: "消去に失敗しました",
+    clearAllDataFailedDescription:
+      "すべてのデータを消去できませんでした。しばらくしてから再試行してください。",
   },
   ipLocationSettings: {
     ipLookupUrlRequired: "IP識別ライブラリのアドレスを入力してください",

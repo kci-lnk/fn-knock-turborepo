@@ -42,6 +42,73 @@ fn sorts_backup_strings_like_node_locale_compare() {
 }
 
 #[tokio::test]
+async fn clear_all_keys_removes_the_complete_keyspace_and_preserves_storage_metadata() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let store = Store::connect(dir.path().join("fn-knock.sqlite3"))
+        .await
+        .expect("open store");
+    store
+        .set_storage_meta_value("redis_migration_status", "done")
+        .await
+        .expect("seed storage metadata");
+
+    let mut conn = store.conn();
+    let _: () = redis::cmd("SET")
+        .arg("fn_knock:test:string")
+        .arg("value")
+        .query_async(&mut conn)
+        .await
+        .expect("seed string");
+    let _: () = redis::cmd("HSET")
+        .arg("fn_knock:test:hash")
+        .arg("field")
+        .arg("value")
+        .query_async(&mut conn)
+        .await
+        .expect("seed hash");
+    let _: () = redis::cmd("RPUSH")
+        .arg("fn_knock:test:list")
+        .arg("value")
+        .query_async(&mut conn)
+        .await
+        .expect("seed list");
+    let _: () = redis::cmd("SADD")
+        .arg("other:test:set")
+        .arg("value")
+        .query_async(&mut conn)
+        .await
+        .expect("seed set outside app prefix");
+    let _: () = redis::cmd("ZADD")
+        .arg("other:test:zset")
+        .arg(1)
+        .arg("value")
+        .query_async(&mut conn)
+        .await
+        .expect("seed zset outside app prefix");
+    let _: String = redis::cmd("XADD")
+        .arg("other:test:stream")
+        .arg("1-0")
+        .arg("field")
+        .arg("value")
+        .query_async(&mut conn)
+        .await
+        .expect("seed stream outside app prefix");
+
+    let cleared = store.clear_all_keys().await.expect("clear keyspace");
+
+    assert_eq!(cleared, 6);
+    assert!(store.scan_keys("", 100).await.unwrap().is_empty());
+    assert_eq!(
+        store
+            .storage_meta_value("redis_migration_status")
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("done")
+    );
+}
+
+#[tokio::test]
 async fn backup_restore_roundtrips_stream_field_order_and_duplicates() {
     let dir = tempfile::tempdir().expect("create temp dir");
     let store = Store::connect(dir.path().join("fn-knock.sqlite3"))

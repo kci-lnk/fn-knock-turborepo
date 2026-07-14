@@ -512,6 +512,14 @@ return value
         Ok(deleted)
     }
 
+    pub async fn clear_all_keys(&self) -> crate::storage::StorageResult<usize> {
+        let mut conn = self.conn();
+        let (cleared_keys, _): (usize, ()) = redis::pipe()
+            .query_async_replacing_prefix(&mut conn, "")
+            .await?;
+        Ok(cleared_keys)
+    }
+
     pub async fn storage_meta_value(
         &self,
         key: &str,

@@ -1488,6 +1488,11 @@ export const koKRServer = {
     turnstileResponseInvalid: "Turnstile 응답이 올바르지 않습니다.",
     unknownTotp: "알 수 없는 TOTP",
   },
+  maintenanceClear: {
+    confirmPhrase: "모든 데이터 지우기",
+    confirmationMismatch: "확인 문구가 일치하지 않습니다",
+    clearFailed: "모든 데이터를 지우지 못했습니다",
+  },
   maintenanceBackup: {
     commandMissing: "시스템 명령이 누락되었습니다: {command}",
     commandFailed: "명령 실행 실패: {command}",

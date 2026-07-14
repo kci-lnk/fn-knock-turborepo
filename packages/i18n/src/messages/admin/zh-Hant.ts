@@ -444,6 +444,22 @@ export const zhHantAdmin = {
     confirmImportDescription: "這會先清空目前配置，再用所選備份文件覆蓋恢復。",
     importingNow: "正在導入...",
     confirmImport: "確認導入",
+    dangerZoneTitle: "清理",
+    dangerZoneDescription: "以下操作無法復原，請謹慎操作。",
+    clearAllDataTitle: "清空所有資料",
+    clearAllDataDescription:
+      "永久刪除所有系統設定、帳號、工作階段、記錄及其他儲存資料。資料庫結構和備份檔案不會被刪除。",
+    clearAllDataAction: "清空所有資料",
+    clearAllDataDialogTitle: "清空所有資料？",
+    clearAllDataDialogDescription:
+      "此操作會立即清空伺服器儲存和目前瀏覽器的本機資料，然後重新載入管理後台。",
+    clearAllDataWarning: "資料刪除後無法復原。建議先匯出一份系統備份。",
+    clearAllDataTypePrompt: "請輸入 {phrase} 以確認。",
+    clearAllDataConfirmationPhrase: "清空所有資料",
+    clearingAllData: "正在清空...",
+    confirmClearAllData: "確認清空",
+    clearAllDataFailed: "清空失敗",
+    clearAllDataFailedDescription: "無法清空所有資料，請稍後再試。",
   },
   ipLocationSettings: {
     ...zhCNAdmin.ipLocationSettings,

@@ -474,6 +474,25 @@ export const koKRAdmin = {
       "이렇게 하면 먼저 현재 구성이 지워진 다음 선택한 백업 파일에서 복원됩니다.",
     importingNow: "가져오는 중...",
     confirmImport: "가져오기 확인",
+    dangerZoneTitle: "정리",
+    dangerZoneDescription:
+      "아래 작업은 되돌릴 수 없습니다. 신중하게 진행하세요.",
+    clearAllDataTitle: "모든 데이터 지우기",
+    clearAllDataDescription:
+      "모든 시스템 구성, 계정, 세션, 로그 및 기타 저장 데이터를 영구적으로 삭제합니다. 데이터베이스 구조와 백업 파일은 유지됩니다.",
+    clearAllDataAction: "모든 데이터 지우기",
+    clearAllDataDialogTitle: "모든 데이터를 지울까요?",
+    clearAllDataDialogDescription:
+      "서버 저장소와 이 브라우저의 로컬 데이터를 즉시 지운 다음 관리 화면을 다시 불러옵니다.",
+    clearAllDataWarning:
+      "삭제된 데이터는 복구할 수 없습니다. 필요한 경우 먼저 시스템 백업을 내보내세요.",
+    clearAllDataTypePrompt: "확인하려면 {phrase}을(를) 입력하세요.",
+    clearAllDataConfirmationPhrase: "모든 데이터 지우기",
+    clearingAllData: "지우는 중...",
+    confirmClearAllData: "지우기 확인",
+    clearAllDataFailed: "지우기 실패",
+    clearAllDataFailedDescription:
+      "모든 데이터를 지우지 못했습니다. 잠시 후 다시 시도하세요.",
   },
   ipLocationSettings: {
     ipLookupUrlRequired: "IP 조회 데이터베이스 URL을 입력하세요.",

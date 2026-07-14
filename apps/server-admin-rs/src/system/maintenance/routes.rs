@@ -74,3 +74,55 @@ pub(super) async fn import_backup_from_directory(
         ),
     }
 }
+
+pub(super) async fn clear_all_data(
+    State(state): State<AppState>,
+    Json(body): Json<ClearAllDataBody>,
+) -> Response {
+    let go_backend = state.go_backend.clone();
+    clear_all_data_with_gateway_reset(state, body, move || async move {
+        go_backend.reset_all_data().await
+    })
+    .await
+}
+
+pub(super) async fn clear_all_data_with_gateway_reset<F, Fut>(
+    state: AppState,
+    body: ClearAllDataBody,
+    reset_gateway: F,
+) -> Response
+where
+    F: FnOnce() -> Fut,
+    Fut: Future<Output = anyhow::Result<()>>,
+{
+    let translator = Translator::from_state(&state).await;
+    if body.confirmation != maintenance_clear_text(&translator, "confirmPhrase") {
+        return response::error(
+            StatusCode::BAD_REQUEST,
+            maintenance_clear_text(&translator, "confirmationMismatch"),
+        );
+    }
+
+    if let Err(error) = reset_gateway().await {
+        tracing::error!(%error, "failed to clear Go gateway data");
+        return response::error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            maintenance_clear_text(&translator, "clearFailed"),
+        );
+    }
+
+    match state.store.clear_all_keys().await {
+        Ok(cleared_keys) => response::ok(json!({
+            "cleared_keys": cleared_keys,
+            "gateway_reset": true,
+        }))
+        .into_response(),
+        Err(error) => {
+            tracing::error!(%error, "failed to clear all stored data");
+            response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                maintenance_clear_text(&translator, "clearFailed"),
+            )
+        }
+    }
+}

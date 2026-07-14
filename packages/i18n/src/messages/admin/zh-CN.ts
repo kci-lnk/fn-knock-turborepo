@@ -441,6 +441,22 @@ export const zhCNAdmin = {
     confirmImportDescription: "这会先清空当前配置，再用所选备份文件覆盖恢复。",
     importingNow: "正在导入...",
     confirmImport: "确认导入",
+    dangerZoneTitle: "清理",
+    dangerZoneDescription: "以下操作不可撤销，请谨慎操作。",
+    clearAllDataTitle: "清空所有数据",
+    clearAllDataDescription:
+      "永久删除所有系统配置、账号、会话、日志及其他存储数据。数据库结构和备份文件不会被删除。",
+    clearAllDataAction: "清空所有数据",
+    clearAllDataDialogTitle: "清空所有数据？",
+    clearAllDataDialogDescription:
+      "此操作会立即清空服务端存储和当前浏览器的本地数据，然后重新载入管理后台。",
+    clearAllDataWarning: "数据删除后无法恢复。建议先导出一份系统备份。",
+    clearAllDataTypePrompt: "请输入 {phrase} 以确认。",
+    clearAllDataConfirmationPhrase: "清空所有数据",
+    clearingAllData: "正在清空...",
+    confirmClearAllData: "确认清空",
+    clearAllDataFailed: "清空失败",
+    clearAllDataFailedDescription: "无法清空所有数据，请稍后重试。",
   },
   ipLocationSettings: {
     ipLookupUrlRequired: "请填写 IP 识别库地址",

@@ -1475,6 +1475,11 @@ export const enServer = {
     turnstileResponseInvalid: "Turnstile response is invalid",
     unknownTotp: "Unknown TOTP",
   },
+  maintenanceClear: {
+    confirmPhrase: "delete all data",
+    confirmationMismatch: "The confirmation text does not match",
+    clearFailed: "Failed to clear all data",
+  },
   maintenanceBackup: {
     commandMissing: "System command is missing: {command}",
     commandFailed: "Failed to run command: {command}",

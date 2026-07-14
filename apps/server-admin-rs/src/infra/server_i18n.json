@@ -3001,6 +3001,11 @@
         "deletedProvider": "已删除提供商",
         "storageUnavailable": "通知存储暂不可用"
       }
+    },
+    "maintenanceClear": {
+      "confirmPhrase": "清空所有数据",
+      "confirmationMismatch": "确认文本不匹配",
+      "clearFailed": "清空所有数据失败"
     }
   },
   "zh-Hant": {
@@ -6005,6 +6010,11 @@
         "deletedProvider": "已刪除提供商",
         "storageUnavailable": "通知儲存暫不可用"
       }
+    },
+    "maintenanceClear": {
+      "confirmPhrase": "清空所有資料",
+      "confirmationMismatch": "確認文字不相符",
+      "clearFailed": "清空所有資料失敗"
     }
   },
   "en": {
@@ -9009,6 +9019,11 @@
         "deletedProvider": "Deleted provider",
         "storageUnavailable": "Notification storage is temporarily unavailable"
       }
+    },
+    "maintenanceClear": {
+      "confirmPhrase": "delete all data",
+      "confirmationMismatch": "The confirmation text does not match",
+      "clearFailed": "Failed to clear all data"
     }
   },
   "ko-KR": {
@@ -12013,6 +12028,11 @@
         "deletedProvider": "삭제된 제공업체",
         "storageUnavailable": "알림 저장소를 일시적으로 사용할 수 없습니다."
       }
+    },
+    "maintenanceClear": {
+      "confirmPhrase": "모든 데이터 지우기",
+      "confirmationMismatch": "확인 문구가 일치하지 않습니다",
+      "clearFailed": "모든 데이터를 지우지 못했습니다"
     }
   },
   "ja-JP": {
@@ -15017,6 +15037,11 @@
         "deletedProvider": "プロバイダーが削除されました",
         "storageUnavailable": "通知ストレージは一時的に利用できません"
       }
+    },
+    "maintenanceClear": {
+      "confirmPhrase": "すべてのデータを消去",
+      "confirmationMismatch": "確認テキストが一致しません",
+      "clearFailed": "すべてのデータを消去できませんでした"
     }
   }
 }

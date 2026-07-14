@@ -31,6 +31,10 @@ pub(super) fn maintenance_backup_text(translator: &Translator, key: &str) -> Str
     translator.t(&format!("server.maintenanceBackup.{key}"))
 }
 
+pub(super) fn maintenance_clear_text(translator: &Translator, key: &str) -> String {
+    translator.t(&format!("server.maintenanceClear.{key}"))
+}
+
 pub(super) fn maintenance_backup_text_params(
     translator: &Translator,
     key: &str,

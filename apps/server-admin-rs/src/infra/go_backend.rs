@@ -31,7 +31,7 @@ use crate::grpc_proto::{
 
 const INTERNAL_TOKEN_METADATA_KEY: &str = "x-fn-knock-internal-rpc-token";
 const INTERNAL_GRPC_MAX_MESSAGE_SIZE: usize = 16 * 1024 * 1024;
-pub(crate) const GATEWAY_CONTROL_API_VERSION: u64 = 1;
+pub(crate) const GATEWAY_CONTROL_API_VERSION: u64 = 2;
 pub(crate) const GATEWAY_HEALTH_PROCESS: &str = "fnknock.gateway.process";
 pub(crate) const GATEWAY_HEALTH_DATAPLANE: &str = "fnknock.gateway.dataplane";
 pub(crate) const GATEWAY_HEALTH_AUTH_BRIDGE: &str = "fnknock.gateway.auth_bridge";
@@ -263,6 +263,23 @@ impl GoBackendClient {
         } else {
             anyhow::bail!(
                 "Go gateway rejected shutdown request: {}",
+                response.message.trim()
+            )
+        }
+    }
+
+    pub async fn reset_all_data(&self) -> anyhow::Result<()> {
+        let mut client = self.control.clone();
+        let response = client
+            .reset_all_data(self.request(()))
+            .await
+            .context("reset all Go gateway data")?
+            .into_inner();
+        if response.success {
+            Ok(())
+        } else {
+            anyhow::bail!(
+                "Go gateway rejected data reset request: {}",
                 response.message.trim()
             )
         }

@@ -649,6 +649,9 @@ service GatewayControlService {
   rpc GetServerInfo(google.protobuf.Empty) returns (ServerInfo);
   rpc GetGatewayListenerConfig(google.protobuf.Empty) returns (GatewayListenerConfig);
   rpc SetGatewayListenerConfig(GatewayListenerConfig) returns (GatewayListenerConfig);
+  // Resets all user-managed gateway configuration and volatile runtime data
+  // while preserving the process, control port, and installed runtime assets.
+  rpc ResetAllData(google.protobuf.Empty) returns (RpcStatus);
   // Requests an idempotent graceful process shutdown. The response only
   // acknowledges the request; shutdown continues asynchronously.
   rpc RequestShutdown(google.protobuf.Empty) returns (RpcStatus);

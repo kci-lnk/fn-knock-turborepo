@@ -756,6 +756,12 @@ export const MaintenanceAPI = {
     });
     return res.data.data;
   },
+  async clearAllData(confirmation: string): Promise<{ cleared_keys: number }> {
+    const res = await apiClient.post("/maintenance/data/clear", {
+      confirmation,
+    });
+    return res.data.data;
+  },
 };
 
 export type AccessEntryInfo = {

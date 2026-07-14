@@ -476,6 +476,25 @@ export const enAdmin = {
       "This clears the current configuration first, then restores from the selected backup file.",
     importingNow: "Importing...",
     confirmImport: "Confirm import",
+    dangerZoneTitle: "Cleanup",
+    dangerZoneDescription:
+      "The action below cannot be undone. Proceed carefully.",
+    clearAllDataTitle: "Clear all data",
+    clearAllDataDescription:
+      "Permanently delete all system configuration, accounts, sessions, logs, and other stored data. The database structure and backup files are retained.",
+    clearAllDataAction: "Clear all data",
+    clearAllDataDialogTitle: "Clear all data?",
+    clearAllDataDialogDescription:
+      "This immediately clears server storage and local data in this browser, then reloads the admin panel.",
+    clearAllDataWarning:
+      "Deleted data cannot be recovered. Export a system backup first if needed.",
+    clearAllDataTypePrompt: "Type {phrase} to confirm.",
+    clearAllDataConfirmationPhrase: "delete all data",
+    clearingAllData: "Clearing...",
+    confirmClearAllData: "Clear all data",
+    clearAllDataFailed: "Clear failed",
+    clearAllDataFailedDescription:
+      "All data could not be cleared. Try again later.",
   },
   ipLocationSettings: {
     ipLookupUrlRequired: "Enter the IP lookup database URL",

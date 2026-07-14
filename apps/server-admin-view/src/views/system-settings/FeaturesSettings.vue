@@ -69,7 +69,10 @@ const isProtocolMappingAvailable = computed(
 const isSmartConnectAvailable = computed(
   () => configStore.canUseSmartConnect && configStore.config?.run_type === 3,
 );
-const showSmartConnectEntry = computed(() => !configStore.isDockerDeployment);
+const showSmartConnectEntry = computed(
+  () =>
+    !configStore.isDockerDeployment && !configStore.isSynologyDeployment,
+);
 const isDashboardDisplaySwitchDisabled = computed(
   () => isSaving.value || configStore.isLoading || configStore.isError,
 );
@@ -109,9 +112,14 @@ const autoHttpsRuntimeError = computed(() => {
   );
 });
 const showAutoHttpsEntry = computed(
-  () => !configStore.isDockerDeployment && !configStore.isOpenWrtDeployment,
+  () =>
+    !configStore.isDockerDeployment &&
+    !configStore.isOpenWrtDeployment &&
+    !configStore.isSynologyDeployment,
 );
-const showSSHSecurityEntry = computed(() => configStore.canUseSshSecurity);
+const showSSHSecurityEntry = computed(
+  () => configStore.canUseSshSecurity && !configStore.isSynologyDeployment,
+);
 const isSSHSecurityAvailable = computed(
   () =>
     configStore.canManageHostFirewall && !sshSecurityUnavailableReason.value,

@@ -66,6 +66,7 @@ pub fn get_runtime_capabilities(profile: &RuntimeProfile) -> RuntimeCapabilities
     }
     let host_runtime_available = profile.deployment_target != "docker"
         && profile.deployment_target != "linux"
+        && profile.deployment_target != "synology"
         && profile.is_linux
         && profile.is_root_process;
 
@@ -79,13 +80,14 @@ pub fn get_runtime_capabilities(profile: &RuntimeProfile) -> RuntimeCapabilities
         system_clock_sync_available: host_runtime_available,
         self_update_available: profile.deployment_target == "fpk",
         terminal_available: profile.deployment_target != "docker"
-            && profile.deployment_target != "openwrt",
+            && profile.deployment_target != "openwrt"
+            && profile.deployment_target != "synology",
         shared_root_available: has_shared_root(),
         acme_available: true,
         acme_resource_required: false,
         cloudflared_available: true,
         frpc_available: true,
-        ssh_security_available: true,
+        ssh_security_available: profile.deployment_target != "synology",
         system_resource_monitor_available: true,
         desktop_update_managed: false,
     }
@@ -213,6 +215,7 @@ fn normalize_deployment_target(value: &str) -> Option<&'static str> {
         "fpk" => Some("fpk"),
         "openwrt" => Some("openwrt"),
         "linux" => Some("linux"),
+        "synology" | "dsm" => Some("synology"),
         "windows" => Some("windows"),
         "dev" | "development" => Some("dev"),
         _ => None,
@@ -341,6 +344,23 @@ mod tests {
         assert!(capabilities.terminal_available);
         assert!(!capabilities.self_update_available);
         assert_eq!(normalize_deployment_target("linux"), Some("linux"));
+    }
+
+    #[test]
+    fn synology_runtime_disables_unsupported_host_capabilities() {
+        let capabilities = get_runtime_capabilities(&profile("synology", true, true));
+        assert!(!capabilities.direct_mode_available);
+        assert!(!capabilities.host_firewall_available);
+        assert!(!capabilities.smart_connect_available);
+        assert!(!capabilities.fnos_certificate_sync_available);
+        assert!(!capabilities.system_clock_sync_available);
+        assert!(!capabilities.self_update_available);
+        assert!(!capabilities.terminal_available);
+        assert!(!capabilities.ssh_security_available);
+        assert!(capabilities.cloudflared_available);
+        assert!(capabilities.frpc_available);
+        assert!(capabilities.system_resource_monitor_available);
+        assert_eq!(normalize_deployment_target("DSM"), Some("synology"));
     }
 
     #[test]

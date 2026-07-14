@@ -41,6 +41,8 @@ export const koKRAdmin = {
       "시스템 업데이트를 열어 버전 정보와 Docker 업그레이드 안내를 확인하세요.",
     openWrtUpdateInfo:
       "시스템 업데이트를 열어 버전 정보와 OpenWrt IPK 업그레이드 안내를 확인하세요.",
+    synologyUpdateInfo:
+      "Synology 패키지는 DSM 패키지 센터에서 수동으로 업그레이드합니다. 시스템 업데이트 페이지에서 최신 SPK를 받을 수 있습니다.",
     windowsUpdateInfo:
       "Knock Windows 관리 프로그램에서 업데이트를 확인하고 설치하세요.",
     genericUpdateInfo:
@@ -84,8 +86,13 @@ export const koKRAdmin = {
     subtitleDesktop: "버전 정보 및 Windows 관리 프로그램 업그레이드 안내 보기",
     subtitleDocker: "버전 세부정보 및 Docker 업그레이드 지침 보기",
     subtitleOpenWrt: "버전 세부정보 및 OpenWrt IPK 업그레이드 지침 보기",
+    subtitleSynology: "버전 정보 및 Synology 패키지 업그레이드 안내 보기",
     subtitleGeneric: "버전 세부정보 및 수동 업그레이드 지침 보기",
     openGithub: "GitHub 프로젝트 열기",
+    synologyUpdateTitle: "Synology 패키지는 수동 업그레이드가 필요합니다",
+    synologyUpdateDescription:
+      "이 페이지에서는 버전만 확인합니다. 업데이트는 DSM 패키지 센터에서 설치하세요.",
+    synologyWebsite: "SPK 다운로드",
     selfUpdateUnsupportedTitle: "이 배포는 인앱 업데이트를 지원하지 않습니다.",
     selfUpdateUnsupportedDescription:
       "Docker 배포의 경우 새 이미지를 가져오고 업그레이드할 컨테이너를 다시 만듭니다. 이 페이지에서는 여전히 최신 버전을 확인하고 릴리스 노트를 표시할 수 있습니다.",
@@ -102,6 +109,8 @@ export const koKRAdmin = {
       "새 버전이 발견되었습니다. 이미지를 업데이트하여 업그레이드하세요.",
     newVersionOpenWrt:
       "새 버전이 발견되었습니다. 새 IPK를 설치하여 업그레이드하세요.",
+    newVersionSynology:
+      "새 버전이 발견되었습니다. 최신 Synology 패키지를 다운로드하세요.",
     newVersionDesktop:
       "새 버전이 발견되었습니다. Windows 관리 프로그램에서 업그레이드하세요.",
     newVersionGeneric:
@@ -114,6 +123,8 @@ export const koKRAdmin = {
       "새 이미지를 가져와 업그레이드할 컨테이너를 다시 만듭니다.",
     newVersionOpenWrtHint:
       "아키텍처에 맞는 IPK를 다운로드하여 LuCI Software 업로드로 설치하거나 opkg install --force-reinstall을 사용하세요.",
+    newVersionSynologyHint:
+      "위 버튼에서 최신 SPK를 다운로드하고 DSM 패키지 센터에서 수동으로 업그레이드하세요.",
     newVersionDesktopHint:
       "Knock Windows 관리 프로그램을 열고 실행 상태에서 업데이트를 확인하고 설치하세요.",
     newVersionGenericHint:
@@ -124,6 +135,8 @@ export const koKRAdmin = {
       "최신 릴리스와 Docker 이미지 업그레이드 안내를 계속 확인할 수 있습니다.",
     versionCheckHintOpenWrt:
       "최신 릴리스와 OpenWrt IPK 업그레이드 안내를 계속 확인할 수 있습니다.",
+    versionCheckHintSynology:
+      "새 버전이 제공되면 위 버튼에서 최신 Synology 패키지를 받을 수 있습니다.",
     versionCheckHintDesktop:
       "여기에서 최신 릴리스를 계속 확인할 수 있으며 업데이트 설치는 Knock Windows 관리 프로그램을 사용하세요.",
     versionCheckHintGeneric:

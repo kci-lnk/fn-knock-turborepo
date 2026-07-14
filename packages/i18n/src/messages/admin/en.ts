@@ -41,6 +41,8 @@ export const enAdmin = {
       "Open System Update for version details and Docker upgrade instructions.",
     openWrtUpdateInfo:
       "Open System Update for version details and OpenWrt IPK upgrade instructions.",
+    synologyUpdateInfo:
+      "Synology packages are upgraded manually in DSM Package Center. Open System Update to get the latest SPK.",
     windowsUpdateInfo:
       "Use the Knock Windows Manager to check for and install the update.",
     genericUpdateInfo:
@@ -86,8 +88,13 @@ export const enAdmin = {
     subtitleDocker: "View version details and Docker upgrade instructions",
     subtitleOpenWrt:
       "View version details and OpenWrt IPK upgrade instructions",
+    subtitleSynology: "View version details and Synology package upgrade instructions",
     subtitleGeneric: "View version details and manual upgrade instructions",
     openGithub: "Open GitHub project",
+    synologyUpdateTitle: "Manual Synology package upgrade",
+    synologyUpdateDescription:
+      "This page only checks versions. Install updates in DSM Package Center.",
+    synologyWebsite: "Download SPK",
     selfUpdateUnsupportedTitle:
       "This deployment does not support in-app updates",
     selfUpdateUnsupportedDescription:
@@ -103,6 +110,8 @@ export const enAdmin = {
     newVersionSelfUpdate: "New version found. Update soon.",
     newVersionDocker: "New version found. Upgrade by updating the image.",
     newVersionOpenWrt: "New version found. Upgrade by installing a new IPK.",
+    newVersionSynology:
+      "New version found. Download the latest Synology package.",
     newVersionDesktop:
       "New version found. Upgrade in the Knock Windows Manager.",
     newVersionGeneric:
@@ -115,6 +124,8 @@ export const enAdmin = {
       "Pull the new image and recreate the container to upgrade.",
     newVersionOpenWrtHint:
       "Download the matching architecture IPK, install it through LuCI Software upload, or use opkg install --force-reinstall.",
+    newVersionSynologyHint:
+      "Use the button above to download the latest SPK, then upgrade it manually in DSM Package Center.",
     newVersionDesktopHint:
       "Open the Knock Windows Manager and use Runtime Status to check for and install the update.",
     newVersionGenericHint:
@@ -126,6 +137,8 @@ export const enAdmin = {
       "You can keep checking the latest release and Docker image upgrade notes.",
     versionCheckHintOpenWrt:
       "You can keep checking the latest release and OpenWrt IPK upgrade notes.",
+    versionCheckHintSynology:
+      "When a new version is available, use the button above to get the latest Synology package.",
     versionCheckHintDesktop:
       "You can keep checking releases here; use the Knock Windows Manager to install updates.",
     versionCheckHintGeneric:

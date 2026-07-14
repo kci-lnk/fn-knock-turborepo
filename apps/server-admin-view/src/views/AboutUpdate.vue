@@ -17,6 +17,7 @@ import {
   Terminal,
   MonitorUp,
   AlertCircle,
+  ExternalLink,
 } from "lucide-vue-next";
 
 const updateStore = useUpdateStore();
@@ -27,8 +28,10 @@ const showInstallingOverlay = ref(false);
 const status = computed(() => updateStore.status);
 const canSelfUpdate = computed(() => configStore.canSelfUpdate);
 const desktopUpdateManaged = computed(() => configStore.isDesktopUpdateManaged);
+const isSynologyDeployment = computed(() => configStore.isSynologyDeployment);
 const nonSelfUpdateTarget = computed(() => {
   if (desktopUpdateManaged.value) return "Desktop";
+  if (isSynologyDeployment.value) return "Synology";
   if (configStore.isOpenWrtDeployment) return "OpenWrt";
   if (configStore.isDockerDeployment) return "Docker";
   return "Generic";
@@ -164,6 +167,10 @@ const openGithub = () => {
   window.open(githubUrl, "_blank", "noopener,noreferrer");
 };
 
+const openSynologyWebsite = () => {
+  window.open("https://www.fnknock.cn/synology", "_blank", "noopener,noreferrer");
+};
+
 const startInstallFlow = async () => {
   showInstallingOverlay.value = true;
   await new Promise((resolve) => window.setTimeout(resolve, 250));
@@ -230,8 +237,31 @@ onMounted(async () => {
           </AlertDescription>
         </Alert>
 
+        <div
+          v-if="isSynologyDeployment"
+          class="flex flex-col gap-3 rounded-xl border border-border/50 bg-muted/[0.14] px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div class="min-w-0 space-y-0.5">
+            <p class="text-sm font-medium text-foreground">
+              {{ t("admin.aboutUpdate.synologyUpdateTitle") }}
+            </p>
+            <p class="text-xs leading-5 text-muted-foreground">
+              {{ t("admin.aboutUpdate.synologyUpdateDescription") }}
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            class="shrink-0 border-border/70 bg-card shadow-none hover:bg-muted/60 dark:bg-muted/20 dark:hover:bg-muted/35"
+            @click="openSynologyWebsite"
+          >
+            {{ t("admin.aboutUpdate.synologyWebsite") }}
+            <ExternalLink class="ml-2 h-3.5 w-3.5" />
+          </Button>
+        </div>
+
           <Alert
-            v-if="!canSelfUpdate && !desktopUpdateManaged"
+            v-if="!canSelfUpdate && !desktopUpdateManaged && !isSynologyDeployment"
             class="rounded-xl border-border/70 bg-muted/30 text-foreground shadow-none"
           >
             <AlertCircle class="w-4 h-4" />

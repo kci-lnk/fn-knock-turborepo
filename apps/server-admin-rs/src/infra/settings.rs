@@ -239,6 +239,7 @@ fn normalize_runtime_target_env(value: &str) -> String {
         "fpk" => "fpk".to_string(),
         "openwrt" => "openwrt".to_string(),
         "linux" => "linux".to_string(),
+        "synology" | "dsm" => "synology".to_string(),
         "windows" => "windows".to_string(),
         "dev" | "development" => "dev".to_string(),
         _ => String::new(),
@@ -462,6 +463,8 @@ mod tests {
         assert_eq!(normalize_runtime_target_env(" FPK "), "fpk");
         assert_eq!(normalize_runtime_target_env("development"), "dev");
         assert_eq!(normalize_runtime_target_env("linux"), "linux");
+        assert_eq!(normalize_runtime_target_env("synology"), "synology");
+        assert_eq!(normalize_runtime_target_env("DSM"), "synology");
         assert_eq!(normalize_runtime_target_env("windows"), "windows");
         assert_eq!(normalize_runtime_target_env("unknown"), "");
     }
@@ -515,6 +518,34 @@ mod tests {
                 assert_eq!(settings.backend_host, "127.0.0.1");
                 assert_eq!(settings.admin_view_port, Some(7991));
                 assert_eq!(settings.admin_view_host, "0.0.0.0");
+            },
+        );
+    }
+
+    #[test]
+    fn synology_uses_the_loopback_backend_for_dsm_cgi() {
+        with_env_vars(
+            &[
+                "FN_KNOCK_RUNTIME_TARGET",
+                "BACKEND_PORT",
+                "ADMIN_VIEW_PORT",
+                "ADMIN_VIEW_HOST",
+                "BACKEND_HOST",
+            ],
+            |env| {
+                env.set("FN_KNOCK_RUNTIME_TARGET", "synology");
+                env.remove("BACKEND_PORT");
+                env.remove("ADMIN_VIEW_PORT");
+                env.remove("ADMIN_VIEW_HOST");
+                env.remove("BACKEND_HOST");
+
+                let settings = Settings::from_env();
+
+                assert_eq!(settings.runtime_target, "synology");
+                assert_eq!(settings.backend_host, "127.0.0.1");
+                assert_eq!(settings.backend_port, 7998);
+                assert_eq!(settings.admin_view_port, None);
+                assert_eq!(settings.admin_view_host, "127.0.0.1");
             },
         );
     }

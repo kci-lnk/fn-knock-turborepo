@@ -30,6 +30,7 @@ export type DeploymentTarget =
   | "docker"
   | "openwrt"
   | "linux"
+  | "synology"
   | "windows"
   | "dev";
 

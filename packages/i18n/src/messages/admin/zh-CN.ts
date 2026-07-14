@@ -38,6 +38,8 @@ export const zhCNAdmin = {
     normalUpdate: "可前往系统更新页查看详情并更新。",
     dockerUpdateInfo: "可前往系统更新页查看版本信息与 Docker 升级说明。",
     openWrtUpdateInfo: "可前往系统更新页查看版本信息与 OpenWrt IPK 升级说明。",
+    synologyUpdateInfo:
+      "群晖套件需要在 DSM 套件中心手动升级，可前往系统更新页获取最新版 SPK。",
     windowsUpdateInfo: "请前往“Knock 敲门 · Windows 管理程序”检查并安装更新。",
     genericUpdateInfo: "可前往系统更新页查看版本信息与手动升级说明。",
   },
@@ -77,8 +79,13 @@ export const zhCNAdmin = {
     subtitleDesktop: "查看版本信息与 Windows 管理程序升级说明",
     subtitleDocker: "查看版本信息与 Docker 升级方式",
     subtitleOpenWrt: "查看版本信息与 OpenWrt IPK 升级方式",
+    subtitleSynology: "查看版本信息与群晖套件升级方式",
     subtitleGeneric: "查看版本信息与手动升级方式",
     openGithub: "打开 GitHub 项目页",
+    synologyUpdateTitle: "群晖套件需手动升级",
+    synologyUpdateDescription:
+      "应用内仅检查版本，安装请在 DSM 套件中心完成。",
+    synologyWebsite: "下载 SPK",
     selfUpdateUnsupportedTitle: "当前部署不支持应用内更新",
     selfUpdateUnsupportedDescription:
       "Docker 部署请通过拉取新镜像并重建容器升级，页面仍可用于检查最新版本和查看发布说明。",
@@ -93,6 +100,7 @@ export const zhCNAdmin = {
     newVersionSelfUpdate: "发现新版本，建议立即更新",
     newVersionDocker: "发现新版本，请通过更新镜像升级",
     newVersionOpenWrt: "发现新版本，请通过更新 IPK 升级",
+    newVersionSynology: "发现新版本，请下载最新版群晖套件",
     newVersionDesktop: "发现新版本，请在 Windows 管理程序中升级",
     newVersionGeneric: "发现新版本，请按部署方式手动升级",
     alreadyLatest: "当前已是最新版本",
@@ -102,6 +110,8 @@ export const zhCNAdmin = {
     newVersionDockerHint: "拉取新镜像后重新创建容器即可升级。",
     newVersionOpenWrtHint:
       "下载匹配架构的 IPK，通过 LuCI 软件包上传安装，或使用 opkg install --force-reinstall 安装。",
+    newVersionSynologyHint:
+      "请使用上方按钮下载最新版 SPK，并在 DSM 套件中心手动升级。",
     newVersionDesktopHint:
       "打开“Knock 敲门 · Windows 管理程序”，在“运行状态”中检查并安装更新。",
     newVersionGenericHint: "请下载对应安装包并按当前部署方式升级。",
@@ -109,6 +119,8 @@ export const zhCNAdmin = {
     versionCheckHint: "可继续检查最新发布与更新说明。",
     versionCheckHintDocker: "可继续检查最新发布与 Docker 镜像升级说明。",
     versionCheckHintOpenWrt: "可继续检查最新发布与 OpenWrt IPK 升级说明。",
+    versionCheckHintSynology:
+      "发现新版后，可使用上方按钮获取最新版群晖套件。",
     versionCheckHintDesktop:
       "可继续检查最新发布；安装更新请使用 Knock Windows 管理程序。",
     versionCheckHintGeneric: "可继续检查最新发布与手动升级说明。",

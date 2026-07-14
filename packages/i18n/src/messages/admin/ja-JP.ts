@@ -43,6 +43,8 @@ export const jaJPAdmin = {
       "システム更新ページに移動して、バージョン情報と Docker アップグレード手順を表示できます。",
     openWrtUpdateInfo:
       "システム更新ページに移動して、バージョン情報と OpenWrt IPK のアップグレード手順を表示できます。",
+    synologyUpdateInfo:
+      "Synology パッケージは DSM パッケージセンターで手動アップグレードします。システム更新ページから最新の SPK を取得できます。",
     windowsUpdateInfo:
       "Knock Windows 管理プログラムで更新を確認してインストールしてください。",
     genericUpdateInfo:
@@ -90,8 +92,14 @@ export const jaJPAdmin = {
     subtitleDocker: "バージョン情報とDockerのアップグレード方法を表示します",
     subtitleOpenWrt:
       "バージョン情報とOpenWrt IPKのアップグレード方法を表示します",
+    subtitleSynology:
+      "バージョン情報と Synology パッケージのアップグレード方法を表示します",
     subtitleGeneric: "バージョン情報と手動アップグレード方法を表示します",
     openGithub: "GitHubプロジェクトページを開きます",
+    synologyUpdateTitle: "Synology パッケージは手動更新が必要です",
+    synologyUpdateDescription:
+      "このページではバージョン確認のみ行います。更新は DSM パッケージセンターでインストールしてください。",
+    synologyWebsite: "SPK をダウンロード",
     selfUpdateUnsupportedTitle:
       "現在の展開ではアプリ内アップデートがサポートされていません",
     selfUpdateUnsupportedDescription:
@@ -110,6 +118,8 @@ export const jaJPAdmin = {
       "新しいバージョンが見つかりました。アップデート イメージを通じてアップグレードしてください。",
     newVersionOpenWrt:
       "新しいバージョンが見つかりました。アップデートを通じてアップグレードしてください IPK",
+    newVersionSynology:
+      "新しいバージョンが見つかりました。最新の Synology パッケージをダウンロードしてください。",
     newVersionDesktop:
       "新しいバージョンが見つかりました。Windows 管理プログラムでアップグレードしてください。",
     newVersionGeneric:
@@ -122,6 +132,8 @@ export const jaJPAdmin = {
       "新しいイメージをプルし、コンテナを再作成してアップグレードします。",
     newVersionOpenWrtHint:
       "アーキテクチャに一致する IPK をダウンロードするか、LuCI パッケージを介してアップロードしてインストールするか、opkg install --force-reinstall を使用してインストールします。",
+    newVersionSynologyHint:
+      "上のボタンから最新の SPK をダウンロードし、DSM パッケージセンターで手動アップグレードしてください。",
     newVersionDesktopHint:
       "「Knock 敲門 · Windows 管理プログラム」を開き、「実行状態」で更新を確認してインストールしてください。",
     newVersionGenericHint:
@@ -132,6 +144,8 @@ export const jaJPAdmin = {
       "最新リリースと Docker イメージのアップグレード手順を引き続き確認できます。",
     versionCheckHintOpenWrt:
       "最新リリースと OpenWrt IPK アップグレード手順を引き続き確認できます。",
+    versionCheckHintSynology:
+      "新しいバージョンが利用可能になったら、上のボタンから最新の Synology パッケージを取得できます。",
     versionCheckHintDesktop:
       "ここで最新リリースを確認できます。更新のインストールには Knock Windows 管理プログラムを使用してください。",
     versionCheckHintGeneric:

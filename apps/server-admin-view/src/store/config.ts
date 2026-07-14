@@ -369,6 +369,9 @@ export const useConfigStore = defineStore("config", () => {
   const isLinuxDeployment = computed(
     () => runtimeProfile.value?.deployment_target === "linux",
   );
+  const isSynologyDeployment = computed(
+    () => runtimeProfile.value?.deployment_target === "synology",
+  );
   const isWindowsDeployment = computed(
     () => runtimeProfile.value?.deployment_target === "windows",
   );
@@ -440,6 +443,7 @@ export const useConfigStore = defineStore("config", () => {
     isFpkDeployment,
     isOpenWrtDeployment,
     isLinuxDeployment,
+    isSynologyDeployment,
     isWindowsDeployment,
     isProtectedAdminPanelDeployment,
     canUseDirectMode,

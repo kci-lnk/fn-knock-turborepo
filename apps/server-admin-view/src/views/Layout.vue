@@ -943,6 +943,10 @@ const updateBannerDescription = computed(() => {
     return t("admin.banner.dockerUpdateInfo");
   }
 
+  if (configStore.isSynologyDeployment) {
+    return t("admin.banner.synologyUpdateInfo");
+  }
+
   if (configStore.isDesktopUpdateManaged) {
     return t("admin.banner.windowsUpdateInfo");
   }

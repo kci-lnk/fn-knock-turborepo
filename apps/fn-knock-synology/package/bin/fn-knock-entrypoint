@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_HOME="${FN_KNOCK_APP_HOME:?FN_KNOCK_APP_HOME is required}"
+DATA_DIR="${FN_KNOCK_DATA_DIR:?FN_KNOCK_DATA_DIR is required}"
+GATEWAY_CONFIG_DIR="${FN_KNOCK_GATEWAY_CONFIG_DIR:-${DATA_DIR}/gateway}"
+BACKEND_PORT="${BACKEND_PORT:-7998}"
+AUTH_PORT="${AUTH_PORT:-7997}"
+GO_BACKEND_PORT="${GO_BACKEND_PORT:-7996}"
+GO_REPROXY_PORT="${GO_REPROXY_PORT:-7999}"
+BACKEND_HOST="${BACKEND_HOST:-127.0.0.1}"
+AUTH_HOST="${AUTH_HOST:-127.0.0.1}"
+GO_BACKEND_GRPC_ADDR="${GO_BACKEND_GRPC_ADDR:-127.0.0.1:${GO_BACKEND_PORT}}"
+RUST_BACKEND_BIN="${APP_HOME}/bin/server-admin-rs"
+GATEWAY_BIN="${APP_HOME}/bin/go-reauth-proxy"
+ADMIN_STATIC_PATH="${APP_HOME}/ui/www"
+AUTH_STATIC_PATH="${APP_HOME}/server-auth-view/dist"
+ACME_BUNDLE_ZIP="${APP_HOME}/server/server-admin/resources/acmesh.zip"
+
+generate_random_hex() {
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -hex 32
+  else
+    od -An -N32 -tx1 /dev/urandom | tr -d ' \n'
+  fi
+}
+
+load_or_create_secret() {
+  local name="$1"
+  local path="$2"
+  local value="${!name:-}"
+
+  if [ -z "${value}" ] && [ -f "${path}" ]; then
+    value="$(tr -d '\r\n' < "${path}")"
+  fi
+  if [ -z "${value}" ]; then
+    value="$(generate_random_hex)"
+    umask 077
+    printf '%s' "${value}" > "${path}"
+  fi
+  chmod 600 "${path}" 2>/dev/null || true
+  export "${name}=${value}"
+}
+
+wait_for_process_or_fail() {
+  local pid="$1"
+  local name="$2"
+  sleep 1
+  if ! kill -0 "${pid}" 2>/dev/null; then
+    echo "[fn-knock] ${name} exited during startup" >&2
+    wait "${pid}" || true
+    exit 1
+  fi
+}
+
+terminate_children() {
+  local pid
+  for pid in "${BACKEND_PID:-}" "${GATEWAY_PID:-}"; do
+    if [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null; then
+      kill "${pid}" 2>/dev/null || true
+    fi
+  done
+  wait "${BACKEND_PID:-}" 2>/dev/null || true
+  wait "${GATEWAY_PID:-}" 2>/dev/null || true
+}
+
+cleanup() {
+  local code=$?
+  trap - EXIT INT TERM
+  terminate_children
+  exit "${code}"
+}
+
+stop_gracefully() {
+  trap '' INT TERM
+  echo "[fn-knock] stop requested; terminating services"
+  terminate_children
+  exit 0
+}
+
+trap cleanup EXIT
+trap stop_gracefully INT TERM
+
+mkdir -p \
+  "${DATA_DIR}/frp/instances" \
+  "${DATA_DIR}/cloudflared" \
+  "${DATA_DIR}/updates" \
+  "${GATEWAY_CONFIG_DIR}"
+
+load_or_create_secret ALTCHA_HMAC_KEY "${DATA_DIR}/altcha_hmac_key"
+load_or_create_secret HMAC_SECRET "${DATA_DIR}/hmac_secret"
+load_or_create_secret FN_KNOCK_INTERNAL_RPC_TOKEN "${DATA_DIR}/internal_rpc_token"
+load_or_create_secret ADMIN_PROXY_SECRET "${DATA_DIR}/admin_proxy_secret"
+
+for required in "${GATEWAY_BIN}" "${RUST_BACKEND_BIN}"; do
+  [ -x "${required}" ] || { echo "[fn-knock] executable missing: ${required}" >&2; exit 1; }
+done
+for required in "${ADMIN_STATIC_PATH}" "${AUTH_STATIC_PATH}"; do
+  [ -d "${required}" ] || { echo "[fn-knock] static directory missing: ${required}" >&2; exit 1; }
+done
+[ -f "${ACME_BUNDLE_ZIP}" ] || { echo "[fn-knock] ACME bundle missing: ${ACME_BUNDLE_ZIP}" >&2; exit 1; }
+
+echo "[fn-knock] starting gateway: admin=${GO_BACKEND_PORT}, proxy=${GO_REPROXY_PORT}"
+BACKEND_PORT="${BACKEND_PORT}" \
+FN_KNOCK_INTERNAL_RPC_TOKEN="${FN_KNOCK_INTERNAL_RPC_TOKEN}" \
+FN_KNOCK_DISABLE_IPTABLES=1 \
+"${GATEWAY_BIN}" \
+  -c "${GATEWAY_CONFIG_DIR}" \
+  -admin-port "${GO_BACKEND_PORT}" \
+  -proxy-port "${GO_REPROXY_PORT}" &
+GATEWAY_PID=$!
+wait_for_process_or_fail "${GATEWAY_PID}" "gateway"
+
+echo "[fn-knock] starting Synology CGI backend: ${BACKEND_HOST}:${BACKEND_PORT}"
+(
+  cd "${APP_HOME}"
+  export \
+    ADMIN_STATIC_PATH AUTH_STATIC_PATH ACME_BUNDLE_ZIP \
+    DATA_DIR GATEWAY_CONFIG_DIR BACKEND_PORT AUTH_PORT \
+    GO_BACKEND_PORT GO_REPROXY_PORT GO_BACKEND_GRPC_ADDR \
+    BACKEND_HOST AUTH_HOST ALTCHA_HMAC_KEY HMAC_SECRET \
+    FN_KNOCK_INTERNAL_RPC_TOKEN ADMIN_PROXY_SECRET
+  FN_KNOCK_DATA_DIR="${DATA_DIR}" \
+  FN_KNOCK_GATEWAY_CONFIG_DIR="${GATEWAY_CONFIG_DIR}" \
+  FN_KNOCK_RUNTIME_TARGET="synology" \
+  FN_KNOCK_BACKEND_IMPL="rust" \
+  "${RUST_BACKEND_BIN}"
+) &
+BACKEND_PID=$!
+wait_for_process_or_fail "${BACKEND_PID}" "administration service"
+
+echo "[fn-knock] services are ready"
+while kill -0 "${GATEWAY_PID}" 2>/dev/null && kill -0 "${BACKEND_PID}" 2>/dev/null; do
+  sleep 1
+done
+
+exited_name="gateway"
+exited_pid="${GATEWAY_PID}"
+if kill -0 "${GATEWAY_PID}" 2>/dev/null; then
+  exited_name="administration service"
+  exited_pid="${BACKEND_PID}"
+fi
+
+set +e
+wait "${exited_pid}"
+exited_status=$?
+set -e
+echo "[fn-knock] ${exited_name} exited unexpectedly with status ${exited_status}" >&2
+exit 1

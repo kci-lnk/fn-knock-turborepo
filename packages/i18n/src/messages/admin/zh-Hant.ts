@@ -35,6 +35,8 @@ export const zhHantAdmin = {
     normalUpdate: "可前往系統更新頁查看詳情並更新。",
     dockerUpdateInfo: "可前往系統更新頁查看版本資訊與 Docker 升級說明。",
     openWrtUpdateInfo: "可前往系統更新頁查看版本資訊與 OpenWrt IPK 升級說明。",
+    synologyUpdateInfo:
+      "群暉套件需要在 DSM 套件中心手動升級，可前往系統更新頁取得最新版 SPK。",
     windowsUpdateInfo:
       "請前往「Knock 敲門 · Windows 管理程式」檢查並安裝更新。",
     genericUpdateInfo: "可前往系統更新頁查看版本資訊與手動升級說明。",
@@ -75,8 +77,13 @@ export const zhHantAdmin = {
     subtitleDesktop: "查看版本資訊與 Windows 管理程式升級說明",
     subtitleDocker: "查看版本資訊與 Docker 升級方式",
     subtitleOpenWrt: "查看版本資訊與 OpenWrt IPK 升級方式",
+    subtitleSynology: "查看版本資訊與群暉套件升級方式",
     subtitleGeneric: "查看版本資訊與手動升級方式",
     openGithub: "打開 GitHub 專案頁",
+    synologyUpdateTitle: "群暉套件需手動升級",
+    synologyUpdateDescription:
+      "應用內僅檢查版本，安裝請在 DSM 套件中心完成。",
+    synologyWebsite: "下載 SPK",
     selfUpdateUnsupportedTitle: "當前部署不支援應用內更新",
     selfUpdateUnsupportedDescription:
       "Docker 部署請通過拉取新鏡像並重建容器升級，頁面仍可用於檢查最新版本和查看發布說明。",
@@ -91,6 +98,7 @@ export const zhHantAdmin = {
     newVersionSelfUpdate: "發現新版本，建議立即更新",
     newVersionDocker: "發現新版本，請通過更新鏡像升級",
     newVersionOpenWrt: "發現新版本，請通過更新 IPK 升級",
+    newVersionSynology: "發現新版本，請下載最新版群暉套件",
     newVersionDesktop: "發現新版本，請在 Windows 管理程式中升級",
     newVersionGeneric: "發現新版本，請按部署方式手動升級",
     alreadyLatest: "目前已是最新版本",
@@ -100,6 +108,8 @@ export const zhHantAdmin = {
     newVersionDockerHint: "拉取新鏡像後重新創建容器即可升級。",
     newVersionOpenWrtHint:
       "下載匹配架構的 IPK，通過 LuCI 軟體包上傳安裝，或使用 opkg install --force-reinstall 安裝。",
+    newVersionSynologyHint:
+      "請使用上方按鈕下載最新版 SPK，並在 DSM 套件中心手動升級。",
     newVersionDesktopHint:
       "開啟「Knock 敲門 · Windows 管理程式」，在「運行狀態」中檢查並安裝更新。",
     newVersionGenericHint: "請下載對應安裝包並按當前部署方式升級。",
@@ -107,6 +117,8 @@ export const zhHantAdmin = {
     versionCheckHint: "可繼續檢查最新發布與更新說明。",
     versionCheckHintDocker: "可繼續檢查最新發布與 Docker 鏡像升級說明。",
     versionCheckHintOpenWrt: "可繼續檢查最新發布與 OpenWrt IPK 升級說明。",
+    versionCheckHintSynology:
+      "發現新版後，可使用上方按鈕取得最新版群暉套件。",
     versionCheckHintDesktop:
       "可繼續檢查最新發布；安裝更新請使用 Knock Windows 管理程式。",
     versionCheckHintGeneric: "可繼續檢查最新發布與手動升級說明。",

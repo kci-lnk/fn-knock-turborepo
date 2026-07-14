@@ -44,12 +44,17 @@ const showTunnelTabs = computed(
 const showAcmeTab = computed(
   () => configStore.canUseAcme && !configStore.isWindowsDeployment,
 );
-const showTerminalTab = computed(() => configStore.canUseTerminal);
+const showTerminalTab = computed(
+  () => configStore.canUseTerminal && !configStore.isSynologyDeployment,
+);
 const showPanelTab = computed(
   () => configStore.isProtectedAdminPanelDeployment,
 );
 const showFnosTab = computed(
-  () => !configStore.isLinuxDeployment && !configStore.isWindowsDeployment,
+  () =>
+    !configStore.isLinuxDeployment &&
+    !configStore.isSynologyDeployment &&
+    !configStore.isWindowsDeployment,
 );
 const allowedTabs = computed(() => {
   const tabs = [

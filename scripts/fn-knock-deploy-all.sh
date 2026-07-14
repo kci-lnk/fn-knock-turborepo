@@ -44,8 +44,36 @@ run_package_script() {
   "${RUNNER}" run "${script_name}"
 }
 
+verify_package_outputs() {
+  local artifacts_dir="${FN_KNOCK_ARTIFACTS_DIR:-${ROOT_DIR}/dist/fn-knock-artifacts}"
+  local linux_dir="${FN_KNOCK_PREPARED_LINUX_DIR:-${artifacts_dir}/linux}"
+  local -a linux_packages
+  local -a spk_packages
+
+  shopt -s nullglob
+  linux_packages=("${linux_dir}"/fn-knock-linux-*.tar.gz)
+  if [ -n "${FN_KNOCK_SYNOLOGY_OUTPUT:-}" ]; then
+    spk_packages=("${FN_KNOCK_SYNOLOGY_OUTPUT}")
+  else
+    spk_packages=("${ROOT_DIR}"/dist/synology/*.spk)
+  fi
+  shopt -u nullglob
+
+  if [ "${#linux_packages[@]}" -eq 0 ]; then
+    log "未找到 Linux 安装包: ${linux_dir}/fn-knock-linux-*.tar.gz"
+    return 1
+  fi
+  if [ "${#spk_packages[@]}" -eq 0 ] || [ ! -f "${spk_packages[0]}" ]; then
+    log "未找到 Synology SPK 安装包"
+    return 1
+  fi
+
+  log "本地安装包已就绪: Linux ${#linux_packages[@]} 个，SPK ${#spk_packages[@]} 个"
+}
+
 trap finish EXIT
 
+log "准备共享构建产物（包含 Linux 安装包）"
 run_package_script "fn-knock:prepare-artifacts"
 
 export FN_KNOCK_ARTIFACTS_ALREADY_PREPARED=1
@@ -53,3 +81,7 @@ export FN_KNOCK_ARTIFACTS_ALREADY_PREPARED=1
 run_package_script "fn-knock:deploy"
 run_package_script "fn-knock:openwrt:build"
 run_package_script "fn-knock:docker:local-deploy"
+
+log "使用共享产物打包 Synology SPK"
+run_package_script "fn-knock:spk:build:prepared"
+verify_package_outputs

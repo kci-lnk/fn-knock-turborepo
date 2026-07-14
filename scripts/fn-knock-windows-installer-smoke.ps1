@@ -340,8 +340,8 @@ function Assert-InstalledRuntime {
     "The installed bundle target is not windows-x86_64"
   Assert-Condition (-not [string]::IsNullOrWhiteSpace([string]$bundleIdentity.version)) `
     "The installed bundle has no version"
-  Assert-Condition ([int]$bundleIdentity.control_api_version -eq 1) `
-    "The installed bundle does not use control API version 1"
+  Assert-Condition ([int]$bundleIdentity.control_api_version -eq 2) `
+    "The installed bundle does not use control API version 2"
   foreach ($path in $RegistryPaths) {
     Assert-Condition (Test-Path -LiteralPath $path) `
       "Installer did not create required 64-bit registry metadata: $path"

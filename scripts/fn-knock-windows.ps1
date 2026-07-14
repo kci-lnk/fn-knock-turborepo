@@ -157,7 +157,7 @@ function Stage-WindowsBundle {
     version = $Version
     commit = $Commit
     gateway_commit = $GoCommit
-    control_api_version = 1
+    control_api_version = 2
     target = "windows-x86_64"
     files = @(
       "fn-knock.exe",

@@ -575,8 +575,8 @@ try {
     ConvertFrom-Json
   Assert-Condition ([string]$bundleIdentity.target -eq "windows-x86_64") `
     "The staged bundle target is not windows-x86_64"
-  Assert-Condition ([int]$bundleIdentity.control_api_version -eq 1) `
-    "The staged bundle does not use control API version 1"
+  Assert-Condition ([int]$bundleIdentity.control_api_version -eq 2) `
+    "The staged bundle does not use control API version 2"
 
   Write-Host "Assembling flattened smoke-test runtime at $CurrentRoot"
   New-Item -ItemType Directory -Force -Path $CurrentRoot | Out-Null

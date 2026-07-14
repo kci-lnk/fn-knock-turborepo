@@ -30,12 +30,32 @@ type HostMappingUpdatePayload = Pick<
 };
 
 export const toHostMappingBasicAuthPayload = (
-  basicAuth: HostMappingBasicAuth,
-): HostMappingBasicAuth => ({
-  enabled: basicAuth.enabled,
-  username: basicAuth.username.trim(),
-  password: basicAuth.password,
-});
+  basicAuth?: Partial<HostMappingBasicAuth> | null,
+): HostMappingBasicAuth => {
+  const username =
+    typeof basicAuth?.username === "string" ? basicAuth.username.trim() : "";
+  const password =
+    typeof basicAuth?.password === "string" ? basicAuth.password : "";
+
+  if (
+    basicAuth?.enabled !== true ||
+    !username ||
+    !password ||
+    username.includes(":")
+  ) {
+    return {
+      enabled: false,
+      username: "",
+      password: "",
+    };
+  }
+
+  return {
+    enabled: true,
+    username,
+    password,
+  };
+};
 
 export const toHostMappingUpdatePayload = (
   mapping: HostMapping,

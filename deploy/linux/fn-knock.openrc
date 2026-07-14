@@ -1,0 +1,27 @@
+#!/sbin/openrc-run
+# shellcheck shell=sh disable=SC2034
+
+name="fn-knock"
+description="fn-knock reverse proxy and administration service"
+supervisor="supervise-daemon"
+command="/opt/fn-knock/current/bin/fn-knock-entrypoint"
+output_log="/var/log/fn-knock.log"
+error_log="/var/log/fn-knock.log"
+respawn_delay=3
+respawn_max=0
+rc_ulimit="-n 1048576"
+
+depend() {
+  need net
+  after firewall
+}
+
+start_pre() {
+  checkpath --file --mode 0600 "${output_log}"
+  if [ -f /etc/fn-knock/fn-knock.env ]; then
+    set -a
+    # shellcheck disable=SC1091
+    . /etc/fn-knock/fn-knock.env
+    set +a
+  fi
+}

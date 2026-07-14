@@ -1,6 +1,7 @@
 # fn-knock Linux
 
-Linux releases target systemd and include `amd64`, `arm64`, and `armv7` bundles.
+Linux releases support systemd and Alpine Linux's OpenRC, and include `amd64`,
+`arm64`, and `armv7` musl bundles.
 Build them from the repository root with:
 
 ```bash
@@ -12,6 +13,11 @@ is already installed and lets the user install/update, open the management
 menu, check status, or uninstall. Before activation it checks all five runtime
 ports. If a port is occupied, the installer opens the port configuration menu
 so a replacement can be selected before continuing.
+
+On Alpine Linux, run the installer with `sh`. It installs the required Bash and
+runtime packages through `apk`, then registers fn-knock in OpenRC's `default`
+runlevel. A normally booted OpenRC system is required; minimal containers that
+do not run an init system are not supported by this host installer.
 
 The management panel defaults to `0.0.0.0:7991`. For public Internet use,
 place it behind an HTTPS reverse proxy with access controls instead of exposing
@@ -49,7 +55,7 @@ uses a duplicate or occupied port.
 Useful management commands:
 
 ```bash
-sudo knock status                # systemd status, PIDs, and RSS memory totals
+sudo knock status                # service status, PIDs, and RSS memory totals
 sudo knock update                # compare local/online versions, then update or redeploy
 sudo knock reset-panel-password  # clear panel password, sessions, and login backoff
 ```

@@ -3267,7 +3267,7 @@ dependencies = [
 
 [[package]]
 name = "server-admin-rs"
-version = "2.0.3"
+version = "2.0.5"
 dependencies = [
  "anyhow",
  "async-trait",

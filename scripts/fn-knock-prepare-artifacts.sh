@@ -580,6 +580,7 @@ build_linux_packages() {
     mkdir -p \
       "${release_root}/bin" \
       "${release_root}/config" \
+      "${release_root}/openrc" \
       "${release_root}/systemd" \
       "${release_root}/ui/www" \
       "${release_root}/server-auth-view/dist" \
@@ -592,6 +593,7 @@ build_linux_packages() {
     cp "${ROOT_DIR}/deploy/linux/knock" "${release_root}/bin/knock"
     cp "${ROOT_DIR}/deploy/linux/fn-knock.env" "${release_root}/config/fn-knock.env"
     cp "${ROOT_DIR}/deploy/linux/fn-knock.service" "${release_root}/systemd/fn-knock.service"
+    cp "${ROOT_DIR}/deploy/linux/fn-knock.openrc" "${release_root}/openrc/fn-knock"
     cp "${ROOT_DIR}/deploy/linux/install.sh" "${release_root}/install/install.sh"
     rsync -a "${RUNTIME_DIR}/ui/www/" "${release_root}/ui/www/"
     rsync -a "${RUNTIME_DIR}/server-auth-view/dist/" "${release_root}/server-auth-view/dist/"
@@ -602,6 +604,7 @@ build_linux_packages() {
       "${release_root}/bin/server-admin-rs" \
       "${release_root}/bin/fn-knock-entrypoint" \
       "${release_root}/bin/knock" \
+      "${release_root}/openrc/fn-knock" \
       "${release_root}/install/install.sh"
 
     cat > "${release_root}/release.json" <<EOF

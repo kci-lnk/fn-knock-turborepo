@@ -70,6 +70,46 @@ case "${command_name}" in
 esac
 EOF
 
+  cat > "${root}/fake-bin/rc-service" <<'EOF'
+#!/usr/bin/env bash
+set -u
+service_name="${1:-}"
+action="${2:-}"
+[ "${service_name}" = "fn-knock" ] || { printf 'unexpected OpenRC service: %s\n' "${service_name}" >&2; exit 2; }
+fail_once() {
+  [ "${FN_MOCK_FAIL:-}" = "$1" ] || return 1
+  [ ! -e "${FN_MOCK_STATE}/failed-${1}" ] || return 1
+  : > "${FN_MOCK_STATE}/failed-${1}"
+  return 0
+}
+case "${action}" in
+  status) [ "$(< "${FN_MOCK_STATE}/active")" = "1" ] ;;
+  restart)
+    printf '%s\n' 1 > "${FN_MOCK_STATE}/active"
+    if fail_once restart; then exit 1; fi
+    ;;
+  start) printf '%s\n' 1 > "${FN_MOCK_STATE}/active" ;;
+  stop) printf '%s\n' 0 > "${FN_MOCK_STATE}/active" ;;
+  *) printf 'unexpected rc-service action: %s\n' "${action}" >&2; exit 2 ;;
+esac
+EOF
+
+  cat > "${root}/fake-bin/rc-update" <<'EOF'
+#!/usr/bin/env bash
+set -u
+action="${1:-}"
+case "${action}" in
+  show)
+    if [ "$(< "${FN_MOCK_STATE}/enabled")" = "1" ]; then
+      printf '%s\n' ' fn-knock | default'
+    fi
+    ;;
+  add) printf '%s\n' 1 > "${FN_MOCK_STATE}/enabled" ;;
+  del) printf '%s\n' 0 > "${FN_MOCK_STATE}/enabled" ;;
+  *) printf 'unexpected rc-update action: %s\n' "${action}" >&2; exit 2 ;;
+esac
+EOF
+
   cat > "${root}/fake-bin/curl" <<'EOF'
 #!/usr/bin/env bash
 if [ "${FN_MOCK_FAIL:-}" = "health" ] && [ ! -e "${FN_MOCK_STATE}/failed-health" ]; then
@@ -104,15 +144,16 @@ EOF
 
 make_release() {
   local destination="$1" version="$2" marker="$3"
-  mkdir -p "${destination}/bin" "${destination}/systemd" "${destination}/config"
+  mkdir -p "${destination}/bin" "${destination}/openrc" "${destination}/systemd" "${destination}/config"
   printf '{\n  "version": "%s"\n}\n' "${version}" > "${destination}/release.json"
   printf '#!/usr/bin/env bash\n# %s\n' "${marker}" > "${destination}/bin/knock"
   printf '#!/usr/bin/env bash\nexit 0\n' > "${destination}/bin/fn-knock-entrypoint"
   printf '#!/usr/bin/env bash\nexit 0\n' > "${destination}/bin/go-reauth-proxy"
   printf '#!/usr/bin/env bash\nexit 0\n' > "${destination}/bin/server-admin-rs"
   printf '%s\n' "unit-${marker}" > "${destination}/systemd/fn-knock.service"
+  printf '#!/sbin/openrc-run\n# %s\n' "${marker}" > "${destination}/openrc/fn-knock"
   printf '%s\n' 'ADMIN_VIEW_PORT=7991' > "${destination}/config/fn-knock.env"
-  chmod 0755 "${destination}/bin/"*
+  chmod 0755 "${destination}/bin/"* "${destination}/openrc/fn-knock"
 }
 
 prepare_install_fixture() {
@@ -139,11 +180,31 @@ run_knock() {
     TMPDIR="${root}/tmp" \
     FN_MOCK_FAIL="${failure}" \
     FN_MOCK_STATE="${root}/state" \
+    FN_KNOCK_SERVICE_MANAGER=systemd \
     FN_KNOCK_APP_ROOT="${root}/app" \
     FN_KNOCK_CONFIG_DIR="${root}/config" \
     FN_KNOCK_DATA_DIR="${root}/data" \
     FN_KNOCK_UNIT_FILE="${root}/systemd/fn-knock.service" \
     FN_KNOCK_COMMAND_FILE="${root}/commands/knock" \
+    FN_KNOCK_HEALTH_ATTEMPTS=1 \
+    bash "${KNOCK}" "$@"
+}
+
+run_knock_openrc() {
+  local root="$1" failure="$2"
+  shift 2
+  env \
+    PATH="${root}/fake-bin:${PATH}" \
+    TMPDIR="${root}/tmp" \
+    FN_MOCK_FAIL="${failure}" \
+    FN_MOCK_STATE="${root}/state" \
+    FN_KNOCK_SERVICE_MANAGER=openrc \
+    FN_KNOCK_APP_ROOT="${root}/app" \
+    FN_KNOCK_CONFIG_DIR="${root}/config" \
+    FN_KNOCK_DATA_DIR="${root}/data" \
+    FN_KNOCK_UNIT_FILE="${root}/openrc/fn-knock" \
+    FN_KNOCK_COMMAND_FILE="${root}/commands/knock" \
+    FN_KNOCK_OPENRC_LOG_FILE="${root}/fn-knock.log" \
     FN_KNOCK_HEALTH_ATTEMPTS=1 \
     bash "${KNOCK}" "$@"
 }
@@ -252,6 +313,39 @@ test_numbered_port_configuration_keeps_service_mapping() {
   printf '%s\n' 'ok - numbered port configuration keeps the Go proxy and panel ports mapped correctly'
 }
 
+test_openrc_install_uses_openrc_service() {
+  local root="${TEST_ROOT}/openrc-install"
+  prepare_install_fixture "${root}"
+  mkdir -p "${root}/openrc"
+  cp -p "${root}/app/releases/1.0.0/openrc/fn-knock" "${root}/openrc/fn-knock"
+
+  run_knock_openrc "${root}" '' _install-extracted "${root}/source-2.0.0" 2.0.0
+
+  assert_equal "${root}/app/releases/2.0.0" "$(readlink "${root}/app/current")" "OpenRC install did not activate the new release"
+  cmp -s "${root}/source-2.0.0/openrc/fn-knock" "${root}/openrc/fn-knock" || fail_test "OpenRC service script was not installed"
+  assert_equal 1 "$(< "${root}/state/enabled")" "OpenRC service was not enabled"
+  assert_equal 1 "$(< "${root}/state/active")" "OpenRC service was not started"
+  printf '%s\n' 'ok - OpenRC install writes, enables, and starts the OpenRC service'
+}
+
+test_failed_openrc_install_restores_service() {
+  local root="${TEST_ROOT}/openrc-restore"
+  prepare_install_fixture "${root}"
+  mkdir -p "${root}/openrc"
+  cp -p "${root}/app/releases/1.0.0/openrc/fn-knock" "${root}/openrc/fn-knock"
+  cp -p "${root}/openrc/fn-knock" "${root}/expected-openrc"
+
+  if run_knock_openrc "${root}" restart _install-extracted "${root}/source-2.0.0" 2.0.0; then
+    fail_test "OpenRC installation unexpectedly succeeded after restart failed"
+  fi
+
+  assert_equal "${root}/app/releases/1.0.0" "$(readlink "${root}/app/current")" "OpenRC current link was not restored"
+  cmp -s "${root}/expected-openrc" "${root}/openrc/fn-knock" || fail_test "OpenRC service script was not restored"
+  assert_equal 1 "$(< "${root}/state/enabled")" "OpenRC enabled state was not restored"
+  assert_equal 1 "$(< "${root}/state/active")" "OpenRC active state was not restored"
+  printf '%s\n' 'ok - failed OpenRC install restores its service and active state'
+}
+
 make_entrypoint_fixture() {
   local root="$1" backend_mode="$2"
   mkdir -p \
@@ -350,5 +444,7 @@ test_failed_first_install_restores_absent_state
 test_failed_manual_rollback_restores_everything
 test_noninteractive_purge_is_rejected
 test_numbered_port_configuration_keeps_service_mapping
+test_openrc_install_uses_openrc_service
+test_failed_openrc_install_restores_service
 test_child_exit_forces_failure
 test_explicit_stop_is_graceful

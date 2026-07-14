@@ -9,7 +9,9 @@ PREVIOUS_LINK="${APP_ROOT}/previous"
 CONFIG_DIR="${FN_KNOCK_CONFIG_DIR:-/etc/fn-knock}"
 ENV_FILE="${FN_KNOCK_ENV_FILE:-${CONFIG_DIR}/fn-knock.env}"
 DATA_DIR="${FN_KNOCK_DATA_DIR:-/var/lib/fn-knock}"
-UNIT_FILE="${FN_KNOCK_UNIT_FILE:-/etc/systemd/system/fn-knock.service}"
+SERVICE_MANAGER="${FN_KNOCK_SERVICE_MANAGER:-}"
+UNIT_FILE="${FN_KNOCK_UNIT_FILE:-}"
+OPENRC_LOG_FILE="${FN_KNOCK_OPENRC_LOG_FILE:-/var/log/fn-knock.log}"
 COMMAND_FILE="${FN_KNOCK_COMMAND_FILE:-/usr/local/bin/knock}"
 DEFAULT_BASE_URL="https://cdn.fnknock.cn"
 
@@ -45,6 +47,108 @@ EOF
 
 require_root() {
   [ "$(id -u)" -eq 0 ] || fail "需要 root 权限，请运行：sudo knock $*"
+}
+
+init_service_manager() {
+  if [ -z "${SERVICE_MANAGER}" ]; then
+    if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+      SERVICE_MANAGER=systemd
+    elif command -v rc-service >/dev/null 2>&1 && command -v rc-update >/dev/null 2>&1; then
+      SERVICE_MANAGER=openrc
+    elif command -v systemctl >/dev/null 2>&1; then
+      # Test fixtures and chroots may not expose /run/systemd/system.
+      SERVICE_MANAGER=systemd
+    else
+      fail "未找到受支持的服务管理器（systemd 或 OpenRC）"
+    fi
+  fi
+  case "${SERVICE_MANAGER}" in
+    systemd)
+      command -v systemctl >/dev/null 2>&1 || fail "系统缺少 systemctl"
+      UNIT_FILE="${UNIT_FILE:-/etc/systemd/system/fn-knock.service}"
+      ;;
+    openrc)
+      command -v rc-service >/dev/null 2>&1 || fail "系统缺少 rc-service"
+      command -v rc-update >/dev/null 2>&1 || fail "系统缺少 rc-update"
+      UNIT_FILE="${UNIT_FILE:-/etc/init.d/fn-knock}"
+      ;;
+    *) fail "不支持的服务管理器：${SERVICE_MANAGER}" ;;
+  esac
+}
+
+service_daemon_reload() {
+  init_service_manager
+  [ "${SERVICE_MANAGER}" = openrc ] || systemctl daemon-reload
+}
+
+service_is_enabled() {
+  init_service_manager
+  if [ "${SERVICE_MANAGER}" = systemd ]; then
+    systemctl is-enabled --quiet "${SERVICE_NAME}" >/dev/null 2>&1
+  else
+    rc-update show default 2>/dev/null | grep -Eq "(^|[[:space:]])${SERVICE_NAME}([[:space:]]|$)"
+  fi
+}
+
+service_is_active() {
+  init_service_manager
+  if [ "${SERVICE_MANAGER}" = systemd ]; then
+    systemctl is-active --quiet "${SERVICE_NAME}" >/dev/null 2>&1
+  else
+    rc-service "${SERVICE_NAME}" status >/dev/null 2>&1
+  fi
+}
+
+service_enable() {
+  init_service_manager
+  if [ "${SERVICE_MANAGER}" = systemd ]; then
+    systemctl enable "${SERVICE_NAME}"
+  else
+    rc-update add "${SERVICE_NAME}" default
+  fi
+}
+
+service_disable() {
+  init_service_manager
+  if [ "${SERVICE_MANAGER}" = systemd ]; then
+    systemctl disable "${SERVICE_NAME}"
+  else
+    rc-update del "${SERVICE_NAME}" default
+  fi
+}
+
+service_control() {
+  local action="$1"
+  init_service_manager
+  if [ "${SERVICE_MANAGER}" = systemd ]; then
+    systemctl "${action}" "${SERVICE_NAME}"
+  else
+    rc-service "${SERVICE_NAME}" "${action}"
+  fi
+}
+
+service_reset_failed() {
+  init_service_manager
+  [ "${SERVICE_MANAGER}" = openrc ] || systemctl reset-failed "${SERVICE_NAME}"
+}
+
+service_logs() {
+  local follow="${1:-0}"
+  init_service_manager
+  if [ "${SERVICE_MANAGER}" = systemd ]; then
+    if [ "${follow}" = "1" ]; then
+      journalctl -u "${SERVICE_NAME}" -n 100 -f
+    else
+      journalctl -u "${SERVICE_NAME}" -n 100 --no-pager
+    fi
+  elif [ "${follow}" = "1" ]; then
+    touch "${OPENRC_LOG_FILE}"
+    tail -n 100 -f "${OPENRC_LOG_FILE}"
+  elif [ -f "${OPENRC_LOG_FILE}" ]; then
+    tail -n 100 "${OPENRC_LOG_FILE}"
+  else
+    warn "OpenRC 日志文件尚未创建：${OPENRC_LOG_FILE}"
+  fi
 }
 
 load_local_env() {
@@ -126,6 +230,24 @@ file_sha256() {
   fi
 }
 
+tar_list_archive() {
+  local archive="$1" list_file="$2"
+  if tar --help 2>&1 | grep -- '--warning' >/dev/null; then
+    tar --warning=no-unknown-keyword --warning=no-timestamp -tzf "${archive}" > "${list_file}"
+  else
+    tar -tzf "${archive}" > "${list_file}"
+  fi
+}
+
+tar_extract_archive() {
+  local archive="$1" destination="$2"
+  if tar --help 2>&1 | grep -- '--warning' >/dev/null; then
+    tar --warning=no-unknown-keyword --warning=no-timestamp -xzf "${archive}" -C "${destination}"
+  else
+    tar -xzf "${archive}" -C "${destination}"
+  fi
+}
+
 fetch_release() {
   local arch="$1"
   DOWNLOAD_DIR="$(mktemp -d /tmp/fn-knock-download.XXXXXX)"
@@ -144,9 +266,9 @@ fetch_release() {
   actual_sha="$(file_sha256 "${archive}")"
   [ "${actual_sha}" = "${MANIFEST_SHA256}" ] || fail "下载文件 SHA256 校验不匹配"
 
-  tar --warning=no-unknown-keyword --warning=no-timestamp -tzf "${archive}" > "${DOWNLOAD_DIR}/archive.list"
+  tar_list_archive "${archive}" "${DOWNLOAD_DIR}/archive.list"
   grep -qx 'fn-knock/release.json' "${DOWNLOAD_DIR}/archive.list" || fail "发布包目录结构无效"
-  tar --warning=no-unknown-keyword --warning=no-timestamp -xzf "${archive}" -C "${DOWNLOAD_DIR}"
+  tar_extract_archive "${archive}" "${DOWNLOAD_DIR}"
   DOWNLOADED_SOURCE="${DOWNLOAD_DIR}/fn-knock"
   [ -x "${DOWNLOADED_SOURCE}/bin/knock" ] || fail "发布包缺少 knock 管理命令"
 }
@@ -169,18 +291,33 @@ atomic_link() {
   local link="$2"
   local temporary="${link}.new.$$"
   ln -s "${target}" "${temporary}"
-  mv -Tf "${temporary}" "${link}"
+  if mv --help 2>&1 | grep -q -- '-T'; then
+    mv -Tf "${temporary}" "${link}"
+  else
+    rm -f "${link}"
+    mv -f "${temporary}" "${link}"
+  fi
 }
 
 install_management_files() {
   local release_dir="$1"
-  local command_tmp="${COMMAND_FILE}.new.$$"
-  local unit_tmp="${UNIT_FILE}.new.$$"
+  local command_tmp unit_tmp service_source service_mode
+  init_service_manager
+  command_tmp="${COMMAND_FILE}.new.$$"
+  unit_tmp="${UNIT_FILE}.new.$$"
+  if [ "${SERVICE_MANAGER}" = systemd ]; then
+    service_source="${release_dir}/systemd/fn-knock.service"
+    service_mode=0644
+  else
+    service_source="${release_dir}/openrc/fn-knock"
+    service_mode=0755
+  fi
+  [ -f "${service_source}" ] || fail "发布包缺少 ${SERVICE_MANAGER} 服务配置"
   install -m 0755 "${release_dir}/bin/knock" "${command_tmp}"
   mv -f "${command_tmp}" "${COMMAND_FILE}"
-  install -m 0644 "${release_dir}/systemd/fn-knock.service" "${unit_tmp}"
+  install -m "${service_mode}" "${service_source}" "${unit_tmp}"
   mv -f "${unit_tmp}" "${UNIT_FILE}"
-  systemctl daemon-reload
+  service_daemon_reload
 }
 
 snapshot_link_state() {
@@ -209,17 +346,18 @@ snapshot_file_state() {
 
 create_transaction_snapshot() {
   local snapshot_dir="$1"
+  init_service_manager
   snapshot_link_state "${CURRENT_LINK}" current "${snapshot_dir}" || return 1
   snapshot_link_state "${PREVIOUS_LINK}" previous "${snapshot_dir}" || return 1
   snapshot_file_state "${COMMAND_FILE}" command "${snapshot_dir}" || return 1
   snapshot_file_state "${UNIT_FILE}" unit "${snapshot_dir}" || return 1
 
-  if systemctl is-enabled --quiet "${SERVICE_NAME}" >/dev/null 2>&1; then
+  if service_is_enabled; then
     printf '%s\n' enabled > "${snapshot_dir}/service.enabled"
   else
     printf '%s\n' disabled > "${snapshot_dir}/service.enabled"
   fi
-  if systemctl is-active --quiet "${SERVICE_NAME}" >/dev/null 2>&1; then
+  if service_is_active; then
     printf '%s\n' active > "${snapshot_dir}/service.active"
   else
     printf '%s\n' inactive > "${snapshot_dir}/service.active"
@@ -253,15 +391,15 @@ restore_transaction_snapshot() {
   active_state="$(< "${snapshot_dir}/service.active")"
 
   # Stop a possibly running candidate before restoring its executable links.
-  if ! systemctl stop "${SERVICE_NAME}" >/dev/null 2>&1; then
-    if systemctl is-active --quiet "${SERVICE_NAME}" >/dev/null 2>&1; then
+  if ! service_control stop >/dev/null 2>&1; then
+    if service_is_active; then
       warn "恢复时无法停止候选服务"
       restore_failed=1
     fi
   fi
   if [ "${enabled_state}" = "disabled" ]; then
-    if ! systemctl disable "${SERVICE_NAME}" >/dev/null 2>&1; then
-      if systemctl is-enabled --quiet "${SERVICE_NAME}" >/dev/null 2>&1; then
+    if ! service_disable >/dev/null 2>&1; then
+      if service_is_enabled; then
         warn "无法恢复服务的禁用状态"
         restore_failed=1
       fi
@@ -273,22 +411,22 @@ restore_transaction_snapshot() {
   restore_file_state "${COMMAND_FILE}" command "${snapshot_dir}" || restore_failed=1
   restore_file_state "${UNIT_FILE}" unit "${snapshot_dir}" || restore_failed=1
 
-  if ! systemctl daemon-reload; then
-    warn "恢复上一版本时 systemd daemon-reload 失败"
+  if ! service_daemon_reload; then
+    warn "恢复上一版本时服务配置重载失败"
     restore_failed=1
   fi
-  if [ "${enabled_state}" = "enabled" ] && ! systemctl enable "${SERVICE_NAME}" >/dev/null; then
+  if [ "${enabled_state}" = "enabled" ] && ! service_enable >/dev/null; then
     warn "无法恢复服务的启用状态"
     restore_failed=1
   fi
   if [ "${active_state}" = "active" ]; then
-    if ! systemctl start "${SERVICE_NAME}"; then
+    if ! service_control start; then
       warn "无法恢复服务的运行状态"
       restore_failed=1
     fi
   else
-    systemctl stop "${SERVICE_NAME}" >/dev/null 2>&1 || true
-    systemctl reset-failed "${SERVICE_NAME}" >/dev/null 2>&1 || true
+    service_control stop >/dev/null 2>&1 || true
+    service_reset_failed >/dev/null 2>&1 || true
   fi
 
   return "${restore_failed}"
@@ -348,6 +486,7 @@ install_release() {
   local stage_dir="${RELEASES_DIR}/.${target_name}.new.$$"
   local old_current="" transaction_dir transaction_status
 
+  init_service_manager
   [ "$(release_version "${source_dir}")" = "${version}" ] || fail "发布包 release.json 的版本与 ${version} 不一致"
   mkdir -p "${RELEASES_DIR}"
   if [ ! -d "${target_dir}" ]; then
@@ -377,15 +516,15 @@ install_release() {
     fi
     atomic_link "${target_dir}" "${CURRENT_LINK}"
     install_management_files "${target_dir}"
-    systemctl enable "${SERVICE_NAME}" >/dev/null
-    systemctl restart "${SERVICE_NAME}"
+    service_enable >/dev/null
+    service_control restart
     wait_for_health
   )
   transaction_status=$?
   set -e
 
   if [ "${transaction_status}" -ne 0 ]; then
-    journalctl -u "${SERVICE_NAME}" -n 80 --no-pager >&2 || true
+    service_logs 0 >&2 || true
     warn "新版本启动失败，正在恢复链接、管理命令、服务配置和运行状态"
     if ! restore_transaction_snapshot "${transaction_dir}"; then
       rm -rf "${transaction_dir}"
@@ -434,7 +573,7 @@ port_listener_details() {
 
 port_is_current_running_listener() {
   local index="$1" port="$2"
-  systemctl is-active --quiet "${SERVICE_NAME}" >/dev/null 2>&1 && \
+  service_is_active && \
     [ "${CURRENT_PORT_VALUES[${index}]}" = "${port}" ]
 }
 
@@ -586,7 +725,7 @@ config_command() {
   fi
   read_tty "现在重启服务以应用新端口？[Y/n] "
   if [ "${REPLY:-Y}" != "n" ] && [ "${REPLY:-Y}" != "N" ]; then
-    systemctl restart "${SERVICE_NAME}"
+    service_control restart
     wait_for_health || fail "端口修改后服务健康检查失败"
   else
     warn "端口配置已保存，服务仍在使用旧端口；请稍后执行 sudo knock restart"
@@ -643,13 +782,19 @@ status_command() {
   local active enabled main_pid exec_status since admin_port proxy_port
   log "正在收集运行状态…"
   load_local_env
+  init_service_manager
   admin_port="${ADMIN_VIEW_PORT:-7991}"
   proxy_port="${GO_REPROXY_PORT:-7999}"
-  active="$(systemctl is-active "${SERVICE_NAME}" 2>/dev/null || true)"
-  enabled="$(systemctl is-enabled "${SERVICE_NAME}" 2>/dev/null || true)"
-  main_pid="$(systemctl show "${SERVICE_NAME}" -p MainPID --value 2>/dev/null || true)"
-  exec_status="$(systemctl show "${SERVICE_NAME}" -p ExecMainStatus --value 2>/dev/null || true)"
-  since="$(systemctl show "${SERVICE_NAME}" -p ActiveEnterTimestamp --value 2>/dev/null || true)"
+  if service_is_active; then active=active; else active=inactive; fi
+  if service_is_enabled; then enabled=enabled; else enabled=disabled; fi
+  main_pid=""
+  exec_status=""
+  since=""
+  if [ "${SERVICE_MANAGER}" = systemd ]; then
+    main_pid="$(systemctl show "${SERVICE_NAME}" -p MainPID --value 2>/dev/null || true)"
+    exec_status="$(systemctl show "${SERVICE_NAME}" -p ExecMainStatus --value 2>/dev/null || true)"
+    since="$(systemctl show "${SERVICE_NAME}" -p ActiveEnterTimestamp --value 2>/dev/null || true)"
+  fi
 
   printf '\n%s━━━ 服务状态 ━━━%s\n' "${C_ACCENT}" "${C_RESET}"
   if [ "${active}" = "active" ]; then
@@ -657,7 +802,11 @@ status_command() {
   else
     printf '  服务：%s%s%s    开机启动：%s\n' "${C_ERR}" "${active:-未知}" "${C_RESET}" "${enabled:-未知}"
   fi
-  printf '  systemd 主 PID：%s    最近退出码：%s\n' "${main_pid:-无}" "${exec_status:-未知}"
+  printf '  服务管理器：%s' "${SERVICE_MANAGER}"
+  if [ "${SERVICE_MANAGER}" = systemd ]; then
+    printf '    主 PID：%s    最近退出码：%s' "${main_pid:-无}" "${exec_status:-未知}"
+  fi
+  printf '\n'
   [ -z "${since}" ] || printf '  本次启动时间：%s\n' "${since}"
 
   printf '\n%s━━━ 对外监听端口 ━━━%s\n' "${C_ACCENT}" "${C_RESET}"
@@ -672,15 +821,19 @@ status_command() {
   printf '  %s合计：%d 个进程，RSS %s%s\n' \
     "${C_TITLE}" "${PROCESS_TOTAL_COUNT}" "$(format_memory "${PROCESS_TOTAL_RSS}")" "${C_RESET}"
 
-  printf '\n%s━━━ systemctl 摘要 ━━━%s\n' "${C_ACCENT}" "${C_RESET}"
-  systemctl status "${SERVICE_NAME}" --no-pager --lines=8 || true
+  printf '\n%s━━━ %s 摘要 ━━━%s\n' "${C_ACCENT}" "${SERVICE_MANAGER}" "${C_RESET}"
+  if [ "${SERVICE_MANAGER}" = systemd ]; then
+    systemctl status "${SERVICE_NAME}" --no-pager --lines=8 || true
+  else
+    rc-service "${SERVICE_NAME}" status || true
+  fi
 }
 
 service_action() {
   local action="$1" action_name="$2" state
   log "正在${action_name}服务…"
-  if systemctl "${action}" "${SERVICE_NAME}"; then
-    state="$(systemctl is-active "${SERVICE_NAME}" 2>/dev/null || true)"
+  if service_control "${action}"; then
+    if service_is_active; then state=active; else state=inactive; fi
     success "服务${action_name}完成，当前状态：${state:-未知}"
   else
     warn "服务${action_name}失败，请执行 sudo knock status 或 sudo knock logs 查看详情"
@@ -827,7 +980,7 @@ rollback_command() {
     atomic_link "${previous}" "${CURRENT_LINK}"
     atomic_link "${current}" "${PREVIOUS_LINK}"
     install_management_files "${previous}"
-    systemctl restart "${SERVICE_NAME}"
+    service_control restart
     wait_for_health
   )
   transaction_status=$?
@@ -850,12 +1003,13 @@ rollback_command() {
 uninstall_command() {
   require_root uninstall
   local purge=0 yes=0 answer
+  init_service_manager
   for arg in "$@"; do
     [ "${arg}" = "--purge" ] && purge=1
     [ "${arg}" = "--yes" ] && yes=1
   done
   if [ "${yes}" != "1" ]; then
-    warn "将卸载 fn-knock 程序和 systemd 服务；配置与数据会保留"
+    warn "将卸载 fn-knock 程序和 ${SERVICE_MANAGER} 服务；配置与数据会保留"
     read_tty "确认卸载？请输入 Y 继续："
     [ "${REPLY:-}" = "y" ] || [ "${REPLY:-}" = "Y" ] || { log "已取消卸载"; return; }
   fi
@@ -867,9 +1021,10 @@ uninstall_command() {
     [ "${answer}" = "DELETE" ] || fail "已取消彻底清除"
   fi
   log "正在停止并移除 fn-knock 服务…"
-  systemctl disable --now "${SERVICE_NAME}" >/dev/null 2>&1 || true
+  service_control stop >/dev/null 2>&1 || true
+  service_disable >/dev/null 2>&1 || true
   rm -f "${UNIT_FILE}"
-  systemctl daemon-reload
+  service_daemon_reload
   rm -rf "${APP_ROOT}"
   if [ "${purge}" = "1" ]; then
     rm -rf "${CONFIG_DIR}" "${DATA_DIR}"
@@ -907,7 +1062,7 @@ server {
     }
 }
 
-# 保存后先执行 nginx -t，再执行 systemctl reload nginx。
+# 保存后先执行 nginx -t，再使用系统服务管理器重新加载 nginx。
 # 不要直接将 ${port} 暴露到公网；公网入口应使用 HTTPS 和访问控制。
 EOF
 }
@@ -939,7 +1094,7 @@ EOF
       3) status_command ;;
       4) service_action start "启动" ;;
       5) service_action stop "停止" ;;
-      6) log "正在显示服务日志（按 Ctrl+C 返回菜单）…"; journalctl -u "${SERVICE_NAME}" -n 100 -f || true ;;
+      6) log "正在显示服务日志（按 Ctrl+C 返回菜单）…"; service_logs 1 || true ;;
       7) update_command ;;
       8) rollback_command ;;
       9) uninstall_command; return ;;
@@ -964,10 +1119,10 @@ case "${1:-}" in
     shift
     if [ "${1:-}" = "--follow" ] || [ "${1:-}" = "-f" ]; then
       log "正在跟随服务日志（按 Ctrl+C 退出）…"
-      journalctl -u "${SERVICE_NAME}" -n 100 -f
+      service_logs 1
     else
       log "最近 100 行服务日志："
-      journalctl -u "${SERVICE_NAME}" -n 100 --no-pager
+      service_logs 0
     fi
     ;;
   update) shift; update_command "$@" ;;

@@ -1,4 +1,5 @@
 import type { GatewayLogEntry } from "../../types";
+import { routeTypeLabel as resolveRouteTypeLabel } from "@/lib/routeType";
 import { normalizeIpKey } from "../../composables/useIpLocationBatch";
 import { buildDetailFields } from "@admin-shared/utils/buildDetailFields";
 import { formatDateTimeSafe } from "@admin-shared/utils/formatDateTimeSafe";
@@ -264,30 +265,7 @@ export const wafBadgeTitle = (
 export const routeTypeLabel = (
   value: string | undefined,
   t: GatewayLogTranslator,
-) => {
-  switch (value) {
-    case "path_rule":
-      return t("admin.wafLogs.routeTypes.pathRule");
-    case "host_rule":
-      return t("admin.wafLogs.routeTypes.hostRule");
-    case "auth_proxy":
-      return t("admin.wafLogs.routeTypes.authProxy");
-    case "select":
-      return t("admin.wafLogs.routeTypes.select");
-    case "preflight":
-      return t("admin.wafLogs.routeTypes.preflight");
-    case "slash_redirect":
-      return t("admin.wafLogs.routeTypes.slashRedirect");
-    case "favicon":
-      return t("admin.wafLogs.routeTypes.favicon");
-    case "general_blacklist":
-      return t("admin.wafLogs.routeTypes.generalBlacklist");
-    case "not_found":
-      return t("admin.wafLogs.routeTypes.notFound");
-    default:
-      return value || "-";
-  }
-};
+) => resolveRouteTypeLabel(value, t);
 
 export const authDecisionLabel = (
   value: string | undefined,

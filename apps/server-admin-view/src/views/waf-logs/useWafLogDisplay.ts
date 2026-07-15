@@ -2,6 +2,7 @@ import { computed, type ComputedRef, type Ref } from "vue";
 import { buildDetailFields } from "@admin-shared/utils/buildDetailFields";
 import { formatDateTimeSafe } from "@admin-shared/utils/formatDateTimeSafe";
 import type { WAFEvent, WAFInterruptionInfo, WAFRuleMatch } from "@/types";
+import { routeTypeLabel as resolveRouteTypeLabel } from "@/lib/routeType";
 
 const WAF_RULE_PATH_PREFIX = "/usr/local/apps/@appdata/fn-knock/waf";
 
@@ -100,30 +101,8 @@ export const useWafLogDisplay = ({
     }
   };
 
-  const routeTypeLabel = (value?: string) => {
-    switch (value) {
-      case "path_rule":
-        return translate("admin.wafLogs.routeTypes.pathRule");
-      case "host_rule":
-        return translate("admin.wafLogs.routeTypes.hostRule");
-      case "auth_proxy":
-        return translate("admin.wafLogs.routeTypes.authProxy");
-      case "select":
-        return translate("admin.wafLogs.routeTypes.select");
-      case "preflight":
-        return translate("admin.wafLogs.routeTypes.preflight");
-      case "slash_redirect":
-        return translate("admin.wafLogs.routeTypes.slashRedirect");
-      case "favicon":
-        return translate("admin.wafLogs.routeTypes.favicon");
-      case "general_blacklist":
-        return translate("admin.wafLogs.routeTypes.generalBlacklist");
-      case "not_found":
-        return translate("admin.wafLogs.routeTypes.notFound");
-      default:
-        return value || "-";
-    }
-  };
+  const routeTypeLabel = (value?: string) =>
+    resolveRouteTypeLabel(value, translate);
 
   const formatDate = (value?: string) =>
     formatDateTimeSafe(value, { locale: locale.value });

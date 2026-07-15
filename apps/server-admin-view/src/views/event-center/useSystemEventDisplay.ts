@@ -1,6 +1,7 @@
 import { computed, type Ref } from "vue";
 import { buildDetailFields } from "@admin-shared/utils/buildDetailFields";
 import { formatDateTimeSafe } from "@admin-shared/utils/formatDateTimeSafe";
+import { routeTypeLabel } from "@/lib/routeType";
 import type {
   SystemEventLevel,
   SystemEventRecord,
@@ -519,6 +520,8 @@ export const useSystemEventDisplay = ({
             return formatWafActionLabel(value) || String(value);
           if (key === "rule_ids" && Array.isArray(value))
             return value.join(", ");
+          if (key === "route_type")
+            return routeTypeLabel(String(value || ""), translate);
           if (key === "status")
             return formatTunnelStatusLabel(value) || String(value);
           if (key === "remember_me" || key === "is_auth_route")

@@ -175,7 +175,7 @@ onUnmounted(disposeResizeObserver);
               {{ t("admin.gatewayRequestLogs.columns.clientIp") }}
             </TableHead>
             <TableHead
-              class="h-10 text-[11px] font-medium text-muted-foreground"
+              class="h-10 w-[220px] min-w-[160px] max-w-[220px] text-[11px] font-medium text-muted-foreground"
             >
               {{ t("admin.gatewayRequestLogs.columns.route") }}
             </TableHead>
@@ -339,12 +339,22 @@ onUnmounted(disposeResizeObserver);
                 {{ headerLine }}
               </div>
             </TableCell>
-            <TableCell class="min-w-[110px] py-2.5">
-              <div class="text-sm text-foreground">
-                {{ routeTypeLabel(entry.route_type) }}
-              </div>
-              <div class="break-all text-[11px] text-muted-foreground">
-                {{ entry.route_key || "-" }}
+            <TableCell
+              class="w-[220px] min-w-[160px] max-w-[220px] overflow-hidden py-2.5"
+            >
+              <div class="w-full max-w-[204px] overflow-hidden">
+                <div
+                  class="truncate text-sm text-foreground"
+                  :title="routeTypeLabel(entry.route_type)"
+                >
+                  {{ routeTypeLabel(entry.route_type) }}
+                </div>
+                <div
+                  class="truncate text-[11px] text-muted-foreground"
+                  :title="entry.route_key || '-'"
+                >
+                  {{ entry.route_key || "-" }}
+                </div>
               </div>
             </TableCell>
             <TableCell

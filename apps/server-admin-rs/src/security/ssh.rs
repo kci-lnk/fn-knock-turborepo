@@ -24,9 +24,10 @@ use sha2::{Digest, Sha256};
 use tokio::time as tokio_time;
 
 use crate::{
+    cidr::{CidrOperator, CidrRegionQuery},
     http_utils::{is_private_or_local_ip, normalize_ip},
     i18n::Translator,
-    ip_location, response, runtime_profile, scanner,
+    ip_location, response, runtime_profile,
     state::AppState,
     system_events, time_utils,
 };

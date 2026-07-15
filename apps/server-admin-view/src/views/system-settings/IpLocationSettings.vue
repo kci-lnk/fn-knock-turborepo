@@ -246,9 +246,18 @@ const testCidrService = async () => {
   await runTestCidr(async () => {
     const result = await IpLocationSettingsAPI.testCidr(url);
     if (result.success) {
-      toast.success(t("admin.ipLocationSettings.connectionSuccess"), {
-        description: t("admin.ipLocationSettings.cidrHealthy"),
-      });
+      if (result.capabilities?.operatorFiltering.supported === false) {
+        toast.warning(t("admin.ipLocationSettings.cidrUpgradeRequiredTitle"), {
+          description: t("admin.ipLocationSettings.cidrUpgradeRequired", {
+            version:
+              result.capabilities.operatorFiltering.minimumContainerVersion,
+          }),
+        });
+      } else {
+        toast.success(t("admin.ipLocationSettings.connectionSuccess"), {
+          description: t("admin.ipLocationSettings.cidrHealthy"),
+        });
+      }
     } else {
       toast.error(t("admin.ipLocationSettings.connectionFailed"), {
         description: result.message,
@@ -279,10 +288,7 @@ onMounted(fetchSettings);
 
 <template>
   <div class="w-full space-y-4">
-    <div
-      v-if="isLoading && showLoadingSkeleton"
-      class="grid gap-4"
-    >
+    <div v-if="isLoading && showLoadingSkeleton" class="grid gap-4">
       <section class="rounded-xl border bg-card p-5 shadow-sm">
         <div class="flex gap-3">
           <Skeleton class="size-10 rounded-lg" />
@@ -314,7 +320,9 @@ onMounted(fetchSettings);
     </div>
 
     <div v-else-if="!isLoading" class="grid gap-4">
-      <section class="flex min-h-full flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
+      <section
+        class="flex min-h-full flex-col overflow-hidden rounded-xl border bg-card shadow-sm"
+      >
         <div class="border-b bg-muted/10 p-4 sm:p-5">
           <div class="flex gap-3">
             <div class="min-w-0 space-y-1">
@@ -338,7 +346,9 @@ onMounted(fetchSettings);
             <Select v-model="form.ip_lookup_mode" :disabled="isSaving">
               <SelectTrigger id="ip-location-lookup-mode" class="w-full">
                 <SelectValue
-                  :placeholder="t('admin.ipLocationSettings.chooseServiceSource')"
+                  :placeholder="
+                    t('admin.ipLocationSettings.chooseServiceSource')
+                  "
                 />
               </SelectTrigger>
               <SelectContent>
@@ -437,7 +447,9 @@ onMounted(fetchSettings);
         </div>
       </section>
 
-      <section class="flex min-h-full flex-col overflow-hidden rounded-xl border bg-card shadow-sm">
+      <section
+        class="flex min-h-full flex-col overflow-hidden rounded-xl border bg-card shadow-sm"
+      >
         <div class="border-b bg-muted/10 p-4 sm:p-5">
           <div class="flex gap-3">
             <div class="min-w-0 space-y-1">
@@ -461,7 +473,9 @@ onMounted(fetchSettings);
             <Select v-model="form.cidr_mode" :disabled="isSaving">
               <SelectTrigger id="ip-location-cidr-mode" class="w-full">
                 <SelectValue
-                  :placeholder="t('admin.ipLocationSettings.chooseServiceSource')"
+                  :placeholder="
+                    t('admin.ipLocationSettings.chooseServiceSource')
+                  "
                 />
               </SelectTrigger>
               <SelectContent>
@@ -504,16 +518,16 @@ onMounted(fetchSettings);
                   </p>
                   <p class="leading-6 text-muted-foreground">
                     {{ t("admin.ipLocationSettings.canUse") }}
-                  <a
-                    :href="cidrDockerUrl"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="inline-flex items-center gap-1 text-primary hover:underline"
-                  >
-                    go-cidr-api
-                    <ExternalLink class="size-3.5" />
-                  </a>
-                  {{ t("admin.ipLocationSettings.deploySuffix") }}
+                    <a
+                      :href="cidrDockerUrl"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="inline-flex items-center gap-1 text-primary hover:underline"
+                    >
+                      go-cidr-api
+                      <ExternalLink class="size-3.5" />
+                    </a>
+                    {{ t("admin.ipLocationSettings.deploySuffix") }}
                   </p>
                 </div>
               </div>
@@ -559,14 +573,20 @@ onMounted(fetchSettings);
       </section>
     </div>
 
-    <div v-else class="min-h-[220px] rounded-xl border bg-card" aria-hidden="true" />
+    <div
+      v-else
+      class="min-h-[220px] rounded-xl border bg-card"
+      aria-hidden="true"
+    />
 
     <FloatingActionDock
       :active="isDirty"
       inline-class="rounded-xl border bg-card px-4 py-4 shadow-sm sm:px-6"
     >
       <template #inline>
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+        <div
+          class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end"
+        >
           <div class="flex gap-3">
             <Button
               variant="outline"
@@ -603,10 +623,7 @@ onMounted(fetchSettings);
           <RotateCcw class="size-4" />
           {{ t("admin.ipLocationSettings.discard") }}
         </Button>
-        <Button
-          :disabled="!isDirty || isSaving"
-          @click="saveSettings"
-        >
+        <Button :disabled="!isDirty || isSaving" @click="saveSettings">
           <LoaderCircle v-if="isSaving" class="size-4 animate-spin" />
           <Save v-else class="size-4" />
           {{

@@ -1696,6 +1696,11 @@ export const jaJPServer = {
     invalidJson: "CIDR アップストリームが無効な JSON を返しました",
     upstreamUnexpected: "CIDR アップストリームは例外を返します",
     provinceWideLabel: "{province}県",
+    provinceWideUnsupported:
+      "浙江省と広東省では省全体の CIDR を選択できません。都市を選択してください",
+    operatorInvalid: "通信事業者は電信、聯通、移動のみ指定できます",
+    operatorUnsupported:
+      "現在の CIDR サービスは通信事業者フィルターをサポートしていません。CIDR コンテナを 0.1.3 以降へ更新してください",
   },
   dashboard: {
     inbound: "インバウンド",

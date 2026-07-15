@@ -202,6 +202,8 @@ pub struct WhitelistRegionInput {
     pub province: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub query_city: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operator: Option<crate::cidr::CidrOperator>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

@@ -1,4 +1,5 @@
 import { apiClient } from "./client";
+import type { CidrOperator } from "../../types";
 
 export interface WhiteListRecord {
   id: string;
@@ -21,6 +22,7 @@ export interface WhiteListRecord {
 export interface WhitelistRegionInput {
   province: string;
   query_city?: string | null;
+  operator?: CidrOperator | null;
 }
 
 export interface WhitelistRegionGroupRecord {

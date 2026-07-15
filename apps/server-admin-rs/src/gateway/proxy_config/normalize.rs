@@ -430,11 +430,18 @@ pub(super) fn normalize_host_mapping_visibility(
             return Err("visibility mode must be inherit, custom or disabled".to_string());
         }
     };
-    let selections = source
+    let requested_selections = source
         .and_then(|value| value.get("selections"))
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
+    let previous_selections = previous
+        .and_then(|value| value.get("selections"))
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+    let selections =
+        preserve_visibility_selection_metadata(requested_selections, previous_selections)?;
     let custom_cidrs =
         normalized_visibility_strings(source.and_then(|value| value.get("custom_cidrs")));
     let cidr_source = if requested.is_some() {
@@ -449,6 +456,52 @@ pub(super) fn normalize_host_mapping_visibility(
         "custom_cidrs": custom_cidrs,
         "cidrs": cidrs,
     }))
+}
+
+fn preserve_visibility_selection_metadata(
+    requested: Vec<Value>,
+    previous: &[Value],
+) -> Result<Vec<Value>, String> {
+    let mut previous_by_key = HashMap::new();
+    for selection in previous {
+        if let Ok(Some(key)) = visibility_selection_key(selection) {
+            previous_by_key.insert(key, selection.clone());
+        }
+    }
+
+    requested
+        .into_iter()
+        .map(|selection| {
+            let Some(key) = visibility_selection_key(&selection)? else {
+                return Ok(selection);
+            };
+            Ok(previous_by_key.get(&key).cloned().unwrap_or(selection))
+        })
+        .collect()
+}
+
+fn visibility_selection_key(selection: &Value) -> Result<Option<String>, String> {
+    let Some(object) = selection.as_object() else {
+        return Ok(None);
+    };
+    let province = object
+        .get("province")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim();
+    if province.is_empty() {
+        return Ok(None);
+    }
+    let query_city = object
+        .get("query_city")
+        .or_else(|| object.get("queryCity"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let operator = crate::cidr::CidrOperator::parse_value(object.get("operator"))?;
+    Ok(Some(
+        crate::cidr::CidrRegionQuery::new(province, query_city, operator).key(),
+    ))
 }
 
 fn normalized_visibility_strings(value: Option<&Value>) -> Vec<String> {

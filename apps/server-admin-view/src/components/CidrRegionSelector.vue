@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { onMounted, toRef } from "vue";
-import { Loader2, Plus } from "lucide-vue-next";
+import { AlertTriangle, Loader2, Plus } from "lucide-vue-next";
 import type { AcceptableValue } from "reka-ui";
+import { useI18n } from "vue-i18n";
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
 import { toast } from "@admin-shared/utils/toast";
 import { Button } from "@/components/ui/button";
@@ -29,8 +30,11 @@ import {
   TagsInputItemText,
 } from "@/components/ui/tags-input";
 import { CidrAPI } from "@/lib/api";
-import type { GatewayVisibilitySelection } from "@/types";
-import { getCidrRegionSelectionKey } from "@/types/cidr";
+import type { CidrOperator, GatewayVisibilitySelection } from "@/types";
+import {
+  getCidrRegionSelectionKey,
+  getCidrRegionSelectionLabel,
+} from "@/types/cidr";
 import { createCidrRegionSelectorState } from "./cidr-region-selector-state";
 
 interface CidrRegionSelectorText {
@@ -67,20 +71,29 @@ const props = withDefaults(
 const selections = defineModel<GatewayVisibilitySelection[]>({
   required: true,
 });
+const { t } = useI18n();
 const {
+  activeSelectionKeys,
   canSaveSelections,
+  capabilities,
+  capabilitiesLoading,
+  capabilityLoadError,
   cityChoices,
   cityOptionsLoading,
   draft,
   handleDialogOpenChange,
   isDialogOpen,
+  loadCapabilities,
   loadProvinces,
   openDialog,
+  operatorFilteringSupported,
+  operators,
   provinces,
   provincesLoadError,
   provincesLoading,
   removeRegion,
   saveProvinceSelections,
+  selectOperator,
   selectProvince,
   selectedCityCount,
   toggleCity,
@@ -88,6 +101,7 @@ const {
   disabled: toRef(props, "disabled"),
   formatLoadError: (error) =>
     extractErrorMessage(error, props.text.loadFailedDescription),
+  loadCapabilities: () => CidrAPI.getCapabilities(),
   loadCities: (province) => CidrAPI.getCities(province),
   loadProvinces: () => CidrAPI.getProvinces(),
   onLoadError: (description) => {
@@ -99,9 +113,16 @@ const {
 const handleProvinceChange = (value: AcceptableValue) => {
   selectProvince(typeof value === "string" ? value : "");
 };
-const isCitySelected = (key: string) => draft.cityValues.includes(key);
+const ALL_OPERATORS_VALUE = "__all_operators__";
+const handleOperatorChange = (value: AcceptableValue) => {
+  const normalized = typeof value === "string" ? value : ALL_OPERATORS_VALUE;
+  selectOperator(
+    normalized === ALL_OPERATORS_VALUE ? null : (normalized as CidrOperator),
+  );
+};
+const isCitySelected = (key: string) => activeSelectionKeys.value.includes(key);
 onMounted(() => {
-  void loadProvinces();
+  void Promise.all([loadProvinces(), loadCapabilities()]);
 });
 </script>
 
@@ -135,6 +156,41 @@ onMounted(() => {
       </Button>
     </div>
 
+    <div
+      v-if="
+        capabilityLoadError || (capabilities && !operatorFilteringSupported)
+      "
+      class="flex items-start gap-3 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300"
+    >
+      <AlertTriangle class="mt-0.5 h-4 w-4 shrink-0" />
+      <div class="min-w-0 flex-1 space-y-1">
+        <p class="font-medium">
+          {{ t("admin.cidrSelector.operatorUnavailable") }}
+        </p>
+        <p>
+          {{
+            capabilityLoadError
+              ? t("admin.cidrSelector.capabilityCheckFailed")
+              : t("admin.cidrSelector.operatorUpgradeRequired", {
+                  version:
+                    capabilities?.operatorFiltering.minimumContainerVersion ??
+                    "0.1.3",
+                })
+          }}
+        </p>
+      </div>
+      <Button
+        v-if="capabilityLoadError"
+        type="button"
+        variant="ghost"
+        size="sm"
+        :disabled="capabilitiesLoading"
+        @click="loadCapabilities"
+      >
+        {{ text.retry }}
+      </Button>
+    </div>
+
     <div class="rounded-xl bg-muted/20 px-4 py-4">
       <TagsInput
         :model-value="selections.map((item) => getCidrRegionSelectionKey(item))"
@@ -148,7 +204,7 @@ onMounted(() => {
             class="h-auto rounded-full border border-border/70 bg-background pr-1"
           >
             <TagsInputItemText class="px-3 py-1.5">
-              {{ selection.label }}
+              {{ getCidrRegionSelectionLabel(selection) }}
             </TagsInputItemText>
             <TagsInputItemDelete
               class="mr-1 rounded-full hover:bg-muted"
@@ -179,9 +235,7 @@ onMounted(() => {
         </div>
 
         <div class="space-y-4 border-t border-border/60 px-6 py-5">
-          <div
-            class="grid gap-4 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]"
-          >
+          <div class="grid gap-4 sm:grid-cols-2">
             <div class="space-y-2">
               <Label class="text-sm font-medium">{{ text.province }}</Label>
               <Select
@@ -207,6 +261,36 @@ onMounted(() => {
             </div>
 
             <div class="space-y-2">
+              <Label class="text-sm font-medium">
+                {{ t("admin.cidrSelector.operator") }}
+              </Label>
+              <Select
+                :model-value="draft.operator ?? ALL_OPERATORS_VALUE"
+                @update:model-value="handleOperatorChange"
+              >
+                <SelectTrigger
+                  class="h-11 w-full rounded-lg border-border/70 bg-background px-3 shadow-none"
+                  :disabled="disabled || capabilitiesLoading"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem :value="ALL_OPERATORS_VALUE">
+                    {{ t("admin.cidrSelector.allOperators") }}
+                  </SelectItem>
+                  <SelectItem
+                    v-for="operator in operators"
+                    :key="operator"
+                    :value="operator"
+                    :disabled="!operatorFilteringSupported"
+                  >
+                    {{ operator }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div class="space-y-2 sm:col-span-2">
               <div class="flex min-h-5 items-center justify-between gap-3">
                 <Label class="text-sm font-medium">{{ text.scope }}</Label>
                 <span

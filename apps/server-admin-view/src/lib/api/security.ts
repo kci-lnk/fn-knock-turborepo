@@ -1,4 +1,5 @@
 import type {
+  CidrOperator,
   GatewayVisibilitySelection,
   SSHLoginLogListPayload,
   SSHSecurityBlockListPayload,
@@ -109,6 +110,7 @@ export const ScannerAPI = {
     cidrExemptionRegions?: Array<{
       province: string;
       query_city?: string | null;
+      operator?: CidrOperator | null;
     }>;
   }): Promise<ScannerSettings> {
     const res = await apiClient.post("/scanner/settings", payload);
@@ -187,6 +189,7 @@ export const SSHSecurityAPI = {
       allowed_regions?: Array<{
         province: string;
         query_city?: string | null;
+        operator?: CidrOperator | null;
       }>;
     },
   ): Promise<SSHSecurityDetails> {

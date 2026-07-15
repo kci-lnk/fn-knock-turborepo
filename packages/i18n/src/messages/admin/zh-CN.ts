@@ -468,6 +468,15 @@ export const zhCNAdmin = {
     clearAllDataFailed: "清空失败",
     clearAllDataFailedDescription: "无法清空所有数据，请稍后重试。",
   },
+  cidrSelector: {
+    operator: "运营商",
+    allOperators: "全部运营商",
+    operatorUnavailable: "运营商筛选暂不可用",
+    capabilityCheckFailed:
+      "无法确认当前 CIDR 服务是否支持运营商筛选，已保留普通省市选择。请检查服务后重试。",
+    operatorUpgradeRequired:
+      "当前 CIDR 服务版本不支持运营商筛选。普通省市选择仍可使用；如需按运营商选择，请将 CIDR 容器升级至 {version} 或更高版本。",
+  },
   ipLocationSettings: {
     ipLookupUrlRequired: "请填写 IP 识别库地址",
     ipLookupUrlInvalid: "IP 识别库地址格式不正确",
@@ -486,6 +495,9 @@ export const zhCNAdmin = {
     connectionSuccess: "连接成功",
     ipLookupHealthy: "IP 识别库服务响应正常",
     cidrHealthy: "CIDR 地址库服务响应正常",
+    cidrUpgradeRequiredTitle: "连接成功，但 CIDR 容器需要升级",
+    cidrUpgradeRequired:
+      "基础省市查询可用，但当前版本不支持运营商筛选。请升级至 {version} 或更高版本。",
     settingsUpdated: "属地设置已更新",
     ipLookupTitle: "IP 识别库",
     ipLookupDescription: "查询单个 IP 的国家、地区和运营商信息。",

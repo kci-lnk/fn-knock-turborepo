@@ -35,7 +35,7 @@ pub(crate) use auth::{
 pub(crate) use certificates::{acme, auto_https, fnos_certificate_sync, ssl};
 pub(crate) use config::runtime as runtime_config;
 pub(crate) use ddns as ddns_status;
-pub(crate) use discovery::{ip_location, ip_location_config, scan_assets, scanner};
+pub(crate) use discovery::{cidr, ip_location, ip_location_config, scan_assets, scanner};
 pub(crate) use events as system_events;
 pub(crate) use gateway::{logs as gateway_logs, proxy_config, settings as gateway_settings};
 pub(crate) use infra::{

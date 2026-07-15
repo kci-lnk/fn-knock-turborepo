@@ -1,9 +1,39 @@
 export const CIDR_PROVINCE_WIDE_VALUE = "__province_all__";
 
+export const CIDR_OPERATORS = ["电信", "联通", "移动"] as const;
+export type CidrOperator = (typeof CIDR_OPERATORS)[number];
+
 export const getCidrRegionSelectionKey = (selection: {
   province: string;
   query_city?: string | null;
-}) => `${selection.province}::${selection.query_city ?? ""}`;
+  operator?: CidrOperator | null;
+}) =>
+  `${selection.province}::${selection.query_city ?? ""}::${selection.operator ?? ""}`;
+
+export const getCidrRegionSelectionLabel = (selection: {
+  province: string;
+  city?: string | null;
+  label?: string | null;
+  query_city?: string | null;
+  operator?: CidrOperator | null;
+}) => {
+  const label =
+    selection.label?.trim() ||
+    selection.city?.trim() ||
+    selection.query_city?.trim() ||
+    selection.province.trim();
+  const suffix = selection.operator ? ` · ${selection.operator}` : "";
+  return suffix && !label.endsWith(suffix) ? `${label}${suffix}` : label;
+};
+
+export interface CidrCapabilitiesPayload {
+  source: "online" | "custom";
+  operatorFiltering: {
+    supported: boolean;
+    operators: CidrOperator[];
+    minimumContainerVersion: string;
+  };
+}
 
 export interface CidrProvinceItem {
   name: string;
@@ -62,6 +92,7 @@ export interface CidrSelectionPayload {
   label: string;
   value: string;
   queryCity: string | null;
+  operator: CidrOperator | null;
   isProvinceWide: boolean;
   isMunicipality: boolean;
 }

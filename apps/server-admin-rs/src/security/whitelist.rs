@@ -23,9 +23,10 @@ use uuid::Uuid;
 
 use crate::{
     auth_mobility,
+    cidr::{CidrOperator, CidrRegionQuery},
     http_utils::{is_private_or_local_ip, normalize_ip},
     i18n::Translator,
-    ip_location, response, scanner,
+    ip_location, response,
     state::AppState,
     store::{
         LoginSession, WhitelistConcreteTarget, WhitelistRecord, WhitelistRegionGroupRecord,
@@ -664,7 +665,15 @@ async fn add_whitelist_regions(
     Json(body): Json<AddWhitelistRegionsBody>,
 ) -> Response {
     let translator = Translator::from_state(&state).await;
-    let regions = normalize_whitelist_region_inputs(&body.regions);
+    let regions = match normalize_whitelist_region_inputs(&body.regions) {
+        Ok(regions) => regions,
+        Err(message) => {
+            return response::error(
+                StatusCode::BAD_REQUEST,
+                crate::cidr::localize_error(&translator, &message),
+            );
+        }
+    };
     if regions.is_empty() {
         return response::error(
             StatusCode::BAD_REQUEST,
@@ -681,7 +690,10 @@ async fn add_whitelist_regions(
             );
         }
         Err(WhitelistRegionResolveError::Lookup(message)) => {
-            return response::error(StatusCode::BAD_GATEWAY, message);
+            return response::error(
+                StatusCode::BAD_GATEWAY,
+                crate::cidr::localize_error(&translator, &message),
+            );
         }
     };
 
@@ -1354,7 +1366,7 @@ enum WhitelistRegionResolveError {
     Lookup(String),
 }
 
-fn normalize_whitelist_region_inputs(value: &[Value]) -> Vec<WhitelistRegionInput> {
+fn normalize_whitelist_region_inputs(value: &[Value]) -> Result<Vec<WhitelistRegionInput>, String> {
     let mut result = Vec::new();
     let mut seen = BTreeSet::new();
     for item in value {
@@ -1369,15 +1381,17 @@ fn normalize_whitelist_region_inputs(value: &[Value]) -> Vec<WhitelistRegionInpu
             .trim()
             .to_string();
         let query_city = (!query_city.is_empty()).then_some(query_city);
-        let key = format!("{}\0{}", province, query_city.as_deref().unwrap_or(""));
+        let operator = CidrOperator::parse_value(object.get("operator"))?;
+        let key = CidrRegionQuery::new(province.clone(), query_city.clone(), operator).key();
         if seen.insert(key) {
             result.push(WhitelistRegionInput {
                 province,
                 query_city,
+                operator,
             });
         }
     }
-    result
+    Ok(result)
 }
 
 fn js_region_string(value: Option<&Value>) -> String {
@@ -1402,10 +1416,14 @@ async fn resolve_whitelist_region_cidrs(
     let mut cidrs = Vec::new();
     let mut seen = BTreeSet::new();
     for region in regions {
-        let lookup =
-            scanner::lookup_cidr_region(state, &region.province, region.query_city.as_deref())
-                .await
-                .map_err(WhitelistRegionResolveError::Lookup)?;
+        let query = CidrRegionQuery::new(
+            region.province.clone(),
+            region.query_city.clone(),
+            region.operator,
+        );
+        let lookup = crate::cidr::lookup_region(state, &query)
+            .await
+            .map_err(|error| WhitelistRegionResolveError::Lookup(error.to_string()))?;
         for cidr in lookup.cidrs {
             let Some(normalized) = normalize_cidr(&cidr) else {
                 continue;

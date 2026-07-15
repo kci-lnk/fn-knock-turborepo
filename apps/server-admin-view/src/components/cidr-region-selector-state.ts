@@ -1,14 +1,21 @@
 import { computed, reactive, ref, watch, type Ref } from "vue";
 import type {
+  CidrCapabilitiesPayload,
   CidrCityOption,
+  CidrOperator,
   CidrProvinceOption,
   GatewayVisibilitySelection,
 } from "@/types";
-import { getCidrRegionSelectionKey } from "@/types/cidr";
+import {
+  CIDR_OPERATORS,
+  getCidrRegionSelectionKey,
+  getCidrRegionSelectionLabel,
+} from "@/types/cidr";
 
 export interface CidrRegionSelectorStateOptions {
   disabled: Readonly<Ref<boolean>>;
   formatLoadError: (error: unknown) => string;
+  loadCapabilities: () => Promise<CidrCapabilitiesPayload>;
   loadCities: (province: string) => Promise<{
     defaultValue?: string | null;
     options: CidrCityOption[];
@@ -23,17 +30,75 @@ export interface CidrCityChoice {
   label: string;
   isProvinceWide: boolean;
   unavailable: boolean;
+  selection: GatewayVisibilitySelection;
 }
 
-const selectionSetsEqual = (left: string[], right: string[]) => {
-  if (left.length !== right.length) return false;
-  const rightSet = new Set(right);
-  return left.every((value) => rightSet.has(value));
+const selectionSetsEqual = (
+  left: GatewayVisibilitySelection[],
+  right: GatewayVisibilitySelection[],
+) => {
+  const leftKeys = left.map(getCidrRegionSelectionKey);
+  const rightKeys = new Set(right.map(getCidrRegionSelectionKey));
+  return (
+    leftKeys.length === rightKeys.size &&
+    leftKeys.every((key) => rightKeys.has(key))
+  );
+};
+
+const geographyKey = (selection: {
+  province: string;
+  query_city?: string | null;
+}) => `${selection.province}::${selection.query_city ?? ""}`;
+
+const operatorEquals = (
+  left?: CidrOperator | null,
+  right?: CidrOperator | null,
+) => (left ?? null) === (right ?? null);
+
+const normalizeProvinceSelections = (values: GatewayVisibilitySelection[]) => {
+  const seen = new Set<string>();
+  const deduped = values.filter((selection) => {
+    const key = getCidrRegionSelectionKey(selection);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const provinceWideOperators = new Set(
+    deduped
+      .filter(
+        (selection) => selection.is_province_wide || !selection.query_city,
+      )
+      .map((selection) => selection.operator ?? ""),
+  );
+  const allOperatorGeographies = new Set(
+    deduped.filter((selection) => !selection.operator).map(geographyKey),
+  );
+  return deduped.filter((selection) => {
+    if (
+      selection.query_city &&
+      provinceWideOperators.has(selection.operator ?? "")
+    ) {
+      return false;
+    }
+    return (
+      !selection.operator ||
+      !allOperatorGeographies.has(geographyKey(selection))
+    );
+  });
+};
+
+const regionLabel = (selection: GatewayVisibilitySelection) => {
+  const operator = selection.operator;
+  const label = getCidrRegionSelectionLabel(selection);
+  if (!operator) return label;
+  const suffix = ` · ${operator}`;
+  return label.endsWith(suffix) ? label.slice(0, -suffix.length) : label;
 };
 
 export const createCidrRegionSelectorState = ({
   disabled,
   formatLoadError,
+  loadCapabilities: fetchCapabilities,
   loadCities,
   loadProvinces: fetchProvinces,
   onLoadError,
@@ -42,58 +107,86 @@ export const createCidrRegionSelectorState = ({
   const provinces = ref<CidrProvinceOption[]>([]);
   const cityOptions = ref<CidrCityOption[]>([]);
   const originalProvinceSelections = ref<GatewayVisibilitySelection[]>([]);
+  const capabilities = ref<CidrCapabilitiesPayload | null>(null);
+  const capabilitiesLoading = ref(false);
+  const capabilityLoadError = ref("");
   const provincesLoading = ref(false);
   const cityOptionsLoading = ref(false);
   const cityOptionsReady = ref(false);
   const provincesLoadError = ref("");
   const isDialogOpen = ref(false);
-  const draft = reactive({
+  const draft = reactive<{
+    province: string;
+    operator: CidrOperator | null;
+    selections: GatewayVisibilitySelection[];
+  }>({
     province: "",
-    cityValues: [] as string[],
+    operator: null,
+    selections: [],
   });
   let cityRequestToken = 0;
 
-  const keyForOption = (option: CidrCityOption) =>
-    getCidrRegionSelectionKey({
-      province: draft.province,
-      query_city: option.queryCity,
-    });
+  const operatorFilteringSupported = computed(
+    () => capabilities.value?.operatorFiltering.supported === true,
+  );
+  const operators = computed(
+    () =>
+      capabilities.value?.operatorFiltering.operators ?? [...CIDR_OPERATORS],
+  );
+
+  const selectionFromOption = (
+    option: CidrCityOption,
+    operator: CidrOperator | null,
+  ): GatewayVisibilitySelection => ({
+    province: draft.province,
+    city: option.isProvinceWide ? null : option.label,
+    label: operator ? `${option.label} · ${operator}` : option.label,
+    value: option.value,
+    query_city: option.queryCity,
+    operator,
+    is_province_wide: option.isProvinceWide,
+    is_municipality: option.isMunicipality,
+  });
 
   const cityChoices = computed<CidrCityChoice[]>(() => {
-    const choices = cityOptions.value.map((option) => ({
-      key: keyForOption(option),
-      label: option.label,
-      isProvinceWide: option.isProvinceWide,
-      unavailable: false,
-    }));
+    const choices = cityOptions.value.map((option) => {
+      const selection = selectionFromOption(option, draft.operator);
+      return {
+        key: getCidrRegionSelectionKey(selection),
+        label: option.label,
+        isProvinceWide: option.isProvinceWide,
+        unavailable: false,
+        selection,
+      };
+    });
     const availableKeys = new Set(choices.map((choice) => choice.key));
 
-    for (const selection of originalProvinceSelections.value) {
+    for (const selection of draft.selections) {
+      if (!operatorEquals(selection.operator, draft.operator)) continue;
       const key = getCidrRegionSelectionKey(selection);
       if (availableKeys.has(key)) continue;
       availableKeys.add(key);
       choices.push({
         key,
-        label: selection.label,
+        label: regionLabel(selection),
         isProvinceWide: selection.is_province_wide || !selection.query_city,
         unavailable: true,
+        selection: { ...selection },
       });
     }
 
     return choices;
   });
-  const selectedCityCount = computed(() => draft.cityValues.length);
-  const originalCityValues = computed(() => [
-    ...new Set(
-      originalProvinceSelections.value.map((selection) =>
-        getCidrRegionSelectionKey(selection),
-      ),
-    ),
-  ]);
+  const activeSelectionKeys = computed(() =>
+    draft.selections
+      .filter((selection) => operatorEquals(selection.operator, draft.operator))
+      .map(getCidrRegionSelectionKey),
+  );
+  const selectedCityCount = computed(() => activeSelectionKeys.value.length);
   const hasDraftChanges = computed(
     () =>
       cityOptionsReady.value &&
-      !selectionSetsEqual(draft.cityValues, originalCityValues.value),
+      !selectionSetsEqual(draft.selections, originalProvinceSelections.value),
   );
   const canSaveSelections = computed(
     () =>
@@ -108,6 +201,20 @@ export const createCidrRegionSelectorState = ({
     const description = formatLoadError(error);
     onLoadError(description);
     return description;
+  };
+
+  const loadCapabilities = async () => {
+    if (capabilitiesLoading.value) return;
+    capabilitiesLoading.value = true;
+    capabilityLoadError.value = "";
+    try {
+      capabilities.value = await fetchCapabilities();
+    } catch (error) {
+      capabilities.value = null;
+      capabilityLoadError.value = formatLoadError(error);
+    } finally {
+      capabilitiesLoading.value = false;
+    }
   };
 
   const loadProvinces = async () => {
@@ -126,7 +233,7 @@ export const createCidrRegionSelectorState = ({
   const clearCityDraft = () => {
     cityOptions.value = [];
     originalProvinceSelections.value = [];
-    draft.cityValues = [];
+    draft.selections = [];
     cityOptionsReady.value = false;
   };
 
@@ -134,6 +241,7 @@ export const createCidrRegionSelectorState = ({
     cityRequestToken += 1;
     cityOptionsLoading.value = false;
     draft.province = "";
+    draft.operator = null;
     clearCityDraft();
   };
 
@@ -166,15 +274,13 @@ export const createCidrRegionSelectorState = ({
       cityOptions.value = payload.options;
       originalProvinceSelections.value = selections.value
         .filter((selection) => selection.province === province)
-        .map((selection) => ({ ...selection }));
-      const loadedCityValues = originalCityValues.value;
-      const selectedProvinceWideChoice = cityChoices.value.find(
-        (choice) =>
-          choice.isProvinceWide && loadedCityValues.includes(choice.key),
+        .map((selection) => ({
+          ...selection,
+          operator: selection.operator ?? null,
+        }));
+      draft.selections = normalizeProvinceSelections(
+        originalProvinceSelections.value.map((selection) => ({ ...selection })),
       );
-      draft.cityValues = selectedProvinceWideChoice
-        ? [selectedProvinceWideChoice.key]
-        : [...loadedCityValues];
       cityOptionsReady.value = true;
     } catch (error) {
       if (token !== cityRequestToken) return;
@@ -187,7 +293,13 @@ export const createCidrRegionSelectorState = ({
 
   const selectProvince = (province: string) => {
     draft.province = province;
+    draft.operator = null;
     void loadCityOptions(province);
+  };
+
+  const selectOperator = (operator: CidrOperator | null) => {
+    if (operator && !operatorFilteringSupported.value) return;
+    draft.operator = operator;
   };
 
   const toggleCity = (key: string, checked: boolean) => {
@@ -195,93 +307,41 @@ export const createCidrRegionSelectorState = ({
     const choice = cityChoices.value.find((item) => item.key === key);
     if (!choice) return;
 
-    if (!checked) {
-      draft.cityValues = draft.cityValues.filter((value) => value !== key);
-      return;
-    }
-
-    if (choice.isProvinceWide) {
-      draft.cityValues = [key];
-      return;
-    }
-
-    const provinceWideKeys = new Set(
-      cityChoices.value
-        .filter((item) => item.isProvinceWide)
-        .map((item) => item.key),
+    draft.selections = draft.selections.filter(
+      (selection) => getCidrRegionSelectionKey(selection) !== key,
     );
-    draft.cityValues = [
-      ...draft.cityValues.filter((value) => !provinceWideKeys.has(value)),
-      ...(draft.cityValues.includes(key) ? [] : [key]),
-    ];
-  };
+    if (!checked) return;
 
-  const selectionFromChoice = (
-    choice: CidrCityChoice,
-  ): GatewayVisibilitySelection | null => {
-    const option = cityOptions.value.find(
-      (item) => keyForOption(item) === choice.key,
-    );
-    if (option) {
-      return {
-        province: draft.province,
-        city: option.isProvinceWide ? null : option.label,
-        label: option.label,
-        value: option.value,
-        query_city: option.queryCity,
-        is_province_wide: option.isProvinceWide,
-        is_municipality: option.isMunicipality,
-      };
-    }
-    const existing = originalProvinceSelections.value.find(
-      (item) => getCidrRegionSelectionKey(item) === choice.key,
-    );
-    return existing ? { ...existing } : null;
+    const next = choice.selection;
+    draft.selections = draft.selections.filter((selection) => {
+      if (
+        operatorEquals(selection.operator, next.operator) &&
+        (next.is_province_wide || !next.query_city
+          ? Boolean(selection.query_city)
+          : selection.is_province_wide || !selection.query_city)
+      ) {
+        return false;
+      }
+      if (geographyKey(selection) !== geographyKey(next)) return true;
+      return next.operator ? Boolean(selection.operator) : !selection.operator;
+    });
+    draft.selections.push({ ...next });
   };
 
   const saveProvinceSelections = () => {
     if (!canSaveSelections.value) return;
-    const selectedKeys = new Set(draft.cityValues);
-    const replacements = cityChoices.value
-      .filter((choice) => selectedKeys.has(choice.key))
-      .map(selectionFromChoice)
-      .filter((selection): selection is GatewayVisibilitySelection =>
-        Boolean(selection),
-      );
-
+    const replacements = normalizeProvinceSelections(
+      draft.selections.map((selection) => ({ ...selection })),
+    );
     const firstProvinceIndex = selections.value.findIndex(
       (selection) => selection.province === draft.province,
     );
     const insertionIndex =
       firstProvinceIndex >= 0 ? firstProvinceIndex : selections.value.length;
-    const nextSelections: GatewayVisibilitySelection[] = [];
-    const seen = new Set<string>();
-
-    selections.value.forEach((selection, index) => {
-      if (index === insertionIndex) {
-        for (const replacement of replacements) {
-          const key = getCidrRegionSelectionKey(replacement);
-          if (seen.has(key)) continue;
-          seen.add(key);
-          nextSelections.push(replacement);
-        }
-      }
-      if (selection.province === draft.province) return;
-      const key = getCidrRegionSelectionKey(selection);
-      if (seen.has(key)) return;
-      seen.add(key);
-      nextSelections.push(selection);
-    });
-
-    if (insertionIndex === selections.value.length) {
-      for (const replacement of replacements) {
-        const key = getCidrRegionSelectionKey(replacement);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        nextSelections.push(replacement);
-      }
-    }
-
+    const nextSelections = selections.value.filter(
+      (selection) => selection.province !== draft.province,
+    );
+    nextSelections.splice(insertionIndex, 0, ...replacements);
     selections.value = nextSelections;
     handleDialogOpenChange(false);
   };
@@ -298,12 +358,14 @@ export const createCidrRegionSelectorState = ({
     if (isDisabled) handleDialogOpenChange(false);
   });
 
-  const dispose = () => {
-    stopDisabledWatch();
-  };
+  const dispose = () => stopDisabledWatch();
 
   return {
+    activeSelectionKeys,
     canSaveSelections,
+    capabilities,
+    capabilitiesLoading,
+    capabilityLoadError,
     cityChoices,
     cityOptions,
     cityOptionsLoading,
@@ -314,15 +376,19 @@ export const createCidrRegionSelectorState = ({
     handleDialogOpenChange,
     hasDraftChanges,
     isDialogOpen,
+    loadCapabilities,
     loadCityOptions,
     loadProvinces,
     openDialog,
+    operatorFilteringSupported,
+    operators,
     originalProvinceSelections,
     provinces,
     provincesLoadError,
     provincesLoading,
     removeRegion,
     saveProvinceSelections,
+    selectOperator,
     selectProvince,
     selectedCityCount,
     toggleCity,

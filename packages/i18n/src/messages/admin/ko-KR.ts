@@ -507,6 +507,15 @@ export const koKRAdmin = {
     clearAllDataFailedDescription:
       "모든 데이터를 지우지 못했습니다. 잠시 후 다시 시도하세요.",
   },
+  cidrSelector: {
+    operator: "통신사",
+    allOperators: "모든 통신사",
+    operatorUnavailable: "통신사 필터링을 사용할 수 없음",
+    capabilityCheckFailed:
+      "현재 CIDR 서비스의 통신사 필터링 지원 여부를 확인할 수 없습니다. 일반 지역 선택은 계속 사용할 수 있습니다. 서비스를 확인한 후 다시 시도하세요.",
+    operatorUpgradeRequired:
+      "현재 CIDR 서비스 버전은 통신사 필터링을 지원하지 않습니다. 일반 지역 선택은 계속 사용할 수 있습니다. 통신사별 선택을 사용하려면 CIDR 컨테이너를 {version} 이상으로 업그레이드하세요.",
+  },
   ipLocationSettings: {
     ipLookupUrlRequired: "IP 조회 데이터베이스 URL을 입력하세요.",
     ipLookupUrlInvalid: "잘못된 IP 조회 데이터베이스 URL",
@@ -526,6 +535,9 @@ export const koKRAdmin = {
     connectionSuccess: "연결됨",
     ipLookupHealthy: "IP 조회 서비스가 정상적으로 응답되었습니다.",
     cidrHealthy: "CIDR 데이터베이스 서비스가 정상적으로 응답했습니다.",
+    cidrUpgradeRequiredTitle: "연결되었지만 CIDR 컨테이너 업그레이드가 필요함",
+    cidrUpgradeRequired:
+      "기본 지역 조회는 가능하지만 현재 버전은 통신사 필터링을 지원하지 않습니다. {version} 이상으로 업그레이드하세요.",
     settingsUpdated: "위치 설정이 업데이트되었습니다.",
     ipLookupTitle: "IP 조회 데이터베이스",
     ipLookupDescription: "단일 IP에 대한 국가, 지역 및 ISP 정보를 쿼리합니다.",

@@ -155,6 +155,7 @@ const saveSettings = async () => {
         cidrExemptionRegions: form.cidrExemptionRegions.map((item) => ({
           province: item.province,
           query_city: item.query_city,
+          operator: item.operator,
         })),
         cidrExemptions: cidrExemptionsState.value.cidrs,
       };

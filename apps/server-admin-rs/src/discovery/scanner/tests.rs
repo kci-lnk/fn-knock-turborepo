@@ -129,28 +129,48 @@ fn dedupes_region_inputs_by_province_and_query_city() {
         ScannerCidrExemptionRegionBody {
             province: " 广东 ".to_string(),
             query_city: None,
+            operator: None,
         },
         ScannerCidrExemptionRegionBody {
             province: "广东".to_string(),
             query_city: Some("".to_string()),
+            operator: None,
         },
         ScannerCidrExemptionRegionBody {
             province: "广东".to_string(),
             query_city: Some("深圳".to_string()),
+            operator: None,
         },
-    ]);
+        ScannerCidrExemptionRegionBody {
+            province: "广东".to_string(),
+            query_city: Some("深圳".to_string()),
+            operator: Some(json!("移动")),
+        },
+    ])
+    .unwrap();
 
-    assert_eq!(regions.len(), 2);
+    assert_eq!(regions.len(), 3);
     assert_eq!(regions[0].province, "广东");
     assert_eq!(regions[0].query_city, None);
     assert_eq!(regions[1].query_city.as_deref(), Some("深圳"));
+    assert_eq!(regions[2].operator, Some(CidrOperator::Mobile));
+}
+
+#[test]
+fn scanner_regions_reject_non_string_operator() {
+    let result =
+        dedupe_scanner_cidr_exemption_region_inputs(vec![ScannerCidrExemptionRegionBody {
+            province: "浙江".to_string(),
+            query_city: Some("杭州".to_string()),
+            operator: Some(json!({ "unexpected": true })),
+        }]);
+    assert!(result.is_err());
 }
 
 #[test]
 fn builds_public_cidr_lookup_payload_with_camel_case_fields() {
-    let payload = cidr_lookup_payload_from_data(
-        "广东",
-        Some("深圳"),
+    let payload = crate::cidr::lookup_payload_from_data(
+        &CidrRegionQuery::new("广东", Some("深圳"), Some(CidrOperator::Mobile)),
         &json!({
             "province": "广东",
             "city": "深圳",
@@ -167,6 +187,8 @@ fn builds_public_cidr_lookup_payload_with_camel_case_fields() {
     );
 
     assert_eq!(payload["selection"]["queryCity"], "深圳");
+    assert_eq!(payload["selection"]["operator"], "移动");
+    assert_eq!(payload["selection"]["label"], "深圳 · 移动");
     assert_eq!(payload["selection"]["isProvinceWide"], false);
     assert_eq!(payload["cidrGroups"]["ipv4"][0], "1.1.1.0/24");
     assert_eq!(payload["counts"]["ipv4"], 10);
@@ -174,32 +196,16 @@ fn builds_public_cidr_lookup_payload_with_camel_case_fields() {
 }
 
 #[test]
-fn cidr_safe_int_matches_node_number_coercion_edges() {
-    assert_eq!(to_safe_i64(None, 9), 9);
-    assert_eq!(to_safe_i64(Some(&json!("7.9")), 9), 7);
-    assert_eq!(to_safe_i64(Some(&json!("")), 9), 0);
-    assert_eq!(to_safe_i64(Some(&json!(null)), 9), 0);
-    assert_eq!(to_safe_i64(Some(&json!(true)), 9), 1);
-    assert_eq!(to_safe_i64(Some(&json!(false)), 9), 0);
-    assert_eq!(to_safe_i64(Some(&json!(-3)), 9), 0);
-    assert_eq!(to_safe_i64(Some(&json!("bad")), 9), 9);
-    assert_eq!(to_safe_i64(Some(&json!(["4.2"])), 9), 4);
-    assert_eq!(to_safe_i64(Some(&json!([])), 9), 0);
-    assert_eq!(to_safe_i64(Some(&json!(["1", "2"])), 9), 9);
-}
-
-#[test]
 fn cidr_cities_total_fallback_excludes_province_wide_option_like_node() {
-    assert_eq!(cidr_cities_total(&json!({}), 2), 2);
-    assert_eq!(cidr_cities_total(&json!({ "total": "7.9" }), 2), 7);
+    assert_eq!(crate::cidr::cities_total(&json!({}), 2), 2);
+    assert_eq!(crate::cidr::cities_total(&json!({ "total": "7.9" }), 2), 7);
 }
 
 #[test]
 fn public_cidr_payload_localizes_province_wide_label_like_node() {
     let en = Translator::new("en-US");
-    let payload = cidr_lookup_payload_from_data(
-        "Guangdong",
-        None,
+    let payload = crate::cidr::lookup_payload_from_data(
+        &CidrRegionQuery::new("Guangdong", None::<String>, None),
         &json!({
             "province": "Guangdong",
             "cidr_groups": {
@@ -210,16 +216,18 @@ fn public_cidr_payload_localizes_province_wide_label_like_node() {
         Some(&en),
     );
 
-    assert_eq!(province_wide_label(Some(&en), "Guangdong"), "All Guangdong");
+    assert_eq!(
+        crate::cidr::province_wide_label(Some(&en), "Guangdong"),
+        "All Guangdong"
+    );
     assert_eq!(payload["selection"]["label"], "All Guangdong");
-    assert_eq!(payload["selection"]["value"], CIDR_PROVINCE_WIDE_VALUE);
+    assert_eq!(payload["selection"]["value"], "__province_all__");
 }
 
 #[test]
 fn public_cidr_payload_preserves_upstream_cidr_arrays_like_node() {
-    let payload = cidr_lookup_payload_from_data(
-        "广东",
-        Some("深圳"),
+    let payload = crate::cidr::lookup_payload_from_data(
+        &CidrRegionQuery::new("广东", Some("深圳"), None),
         &json!({
             "province": "广东",
             "city": "深圳",
@@ -241,11 +249,11 @@ fn public_cidr_payload_preserves_upstream_cidr_arrays_like_node() {
 #[test]
 fn resolves_cidr_api_base_url_like_node_helper() {
     assert_eq!(
-        resolve_ip_location_api_base_url("https://example.test").unwrap(),
+        crate::cidr::normalize_cidr_api_base_url("https://example.test").unwrap(),
         "https://example.test/api/v1"
     );
     assert_eq!(
-        resolve_ip_location_api_base_url("https://example.test/custom/").unwrap(),
+        crate::cidr::normalize_cidr_api_base_url("https://example.test/custom/").unwrap(),
         "https://example.test/custom"
     );
 }
@@ -272,5 +280,9 @@ fn localizes_scanner_and_cidr_route_errors() {
     assert_eq!(
         localize_cidr_error(&translator, "CIDR upstream response missing data"),
         "CIDR 上游返回异常"
+    );
+    assert_eq!(
+        localize_cidr_error(&translator, "CIDR operator filtering is unsupported"),
+        "当前 CIDR 服务不支持运营商筛选，请升级 CIDR 容器至 0.1.3 或更高版本"
     );
 }

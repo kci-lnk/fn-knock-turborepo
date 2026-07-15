@@ -24,7 +24,10 @@ type HostMappingUpdatePayload = Pick<
 > & {
   visibility: {
     mode: HostMapping["visibility"]["mode"];
-    selections: Pick<GatewayVisibilitySelection, "province" | "query_city">[];
+    selections: Pick<
+      GatewayVisibilitySelection,
+      "province" | "query_city" | "operator"
+    >[];
     custom_cidrs: string[];
   };
 };
@@ -79,6 +82,7 @@ export const toHostMappingUpdatePayload = (
     selections: (mapping.visibility?.selections ?? []).map((selection) => ({
       province: selection.province,
       query_city: selection.query_city,
+      ...(selection.operator ? { operator: selection.operator } : {}),
     })),
     custom_cidrs: [...(mapping.visibility?.custom_cidrs ?? [])],
   },

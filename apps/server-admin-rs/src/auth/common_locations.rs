@@ -17,7 +17,6 @@ use tokio::{
 use crate::{
     http_utils::{is_private_or_local_ip, normalize_ip},
     ip_location::ensure_ip_locations_enqueued,
-    scanner,
     state::AppState,
     time_utils,
 };
@@ -609,9 +608,11 @@ async fn resolve_region_cidrs(
     if group.country != KNOWN_COUNTRY_CHINA || group.province.is_empty() || group.city.is_empty() {
         return Ok((Vec::new(), None));
     }
-    match scanner::lookup_cidr_region(state, &group.province, Some(&group.city)).await {
+    let query =
+        crate::cidr::CidrRegionQuery::new(group.province.clone(), Some(group.city.clone()), None);
+    match crate::cidr::lookup_region(state, &query).await {
         Ok(result) => Ok((normalize_cidr_lines(result.cidrs), None)),
-        Err(error) => Ok((Vec::new(), Some(error))),
+        Err(error) => Ok((Vec::new(), Some(error.to_string()))),
     }
 }
 

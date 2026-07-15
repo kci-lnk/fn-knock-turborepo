@@ -166,7 +166,16 @@ fn normalizes_host_mapping_visibility_and_preserves_legacy_updates() {
             "target": "http://127.0.0.1:8080",
             "visibility": {
                 "mode": "custom",
-                "selections": [{ "province": "浙江省", "query_city": "杭州市" }],
+                "selections": [{
+                    "province": "浙江省",
+                    "city": "杭州市",
+                    "label": "杭州市 · 移动",
+                    "value": "杭州市",
+                    "query_city": "杭州市",
+                    "operator": "移动",
+                    "is_province_wide": false,
+                    "is_municipality": false
+                }],
                 "custom_cidrs": ["203.0.113.0/24"],
                 "cidrs": ["203.0.113.0/24"]
             }
@@ -206,7 +215,16 @@ fn normalizes_disabled_host_visibility_and_preserves_custom_draft() {
             "target": "http://127.0.0.1:8080",
             "visibility": {
                 "mode": "custom",
-                "selections": [{ "province": "浙江省", "query_city": "杭州市" }],
+                "selections": [{
+                    "province": "浙江省",
+                    "city": "杭州市",
+                    "label": "杭州市 · 移动",
+                    "value": "杭州市",
+                    "query_city": "杭州市",
+                    "operator": "移动",
+                    "is_province_wide": false,
+                    "is_municipality": false
+                }],
                 "custom_cidrs": ["203.0.113.0/24"],
                 "cidrs": ["203.0.113.0/24"]
             }
@@ -218,7 +236,7 @@ fn normalizes_disabled_host_visibility_and_preserves_custom_draft() {
             "target": "http://127.0.0.1:8080",
             "visibility": {
                 "mode": "disabled",
-                "selections": [{ "province": "浙江省", "query_city": "杭州市" }],
+                "selections": [{ "province": "浙江省", "query_city": "杭州市", "operator": "移动" }],
                 "custom_cidrs": ["203.0.113.0/24"]
             }
         })],
@@ -228,12 +246,48 @@ fn normalizes_disabled_host_visibility_and_preserves_custom_draft() {
 
     assert_eq!(mappings[0]["visibility"]["mode"], json!("disabled"));
     assert_eq!(
+        mappings[0]["visibility"]["selections"],
+        previous["host_mappings"][0]["visibility"]["selections"]
+    );
+    assert_eq!(
         mappings[0]["visibility"]["custom_cidrs"],
         json!(["203.0.113.0/24"])
     );
     assert_eq!(
         mappings[0]["visibility"]["cidrs"],
         json!(["203.0.113.0/24"])
+    );
+}
+
+#[test]
+fn disabled_visibility_rejects_invalid_operator_without_losing_previous_draft() {
+    let previous = json!({
+        "host_mappings": [{
+            "host": "app.example.com",
+            "target": "http://127.0.0.1:8080",
+            "visibility": {
+                "mode": "custom",
+                "selections": [{ "province": "浙江", "query_city": "杭州", "operator": "移动" }],
+                "custom_cidrs": [],
+                "cidrs": ["10.0.0.0/8"]
+            }
+        }]
+    });
+    let result = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "app.example.com",
+            "target": "http://127.0.0.1:8080",
+            "visibility": {
+                "mode": "disabled",
+                "selections": [{ "province": "浙江", "query_city": "杭州", "operator": false }]
+            }
+        })],
+        &previous,
+    );
+    assert!(result.is_err());
+    assert_eq!(
+        previous["host_mappings"][0]["visibility"]["selections"][0]["operator"],
+        json!("移动")
     );
 }
 

@@ -106,7 +106,7 @@ pub(super) async fn compile_config_patch(
                 .and_then(Value::as_bool)
                 .unwrap_or(false)
         });
-    let allowed_regions = resolve_allowed_regions(state, &raw, previous).await?;
+    let allowed_regions = resolve_allowed_regions(state, &raw, previous, translator).await?;
     let custom_cidrs = if raw.contains_key("custom_cidrs") {
         validate_cidrs(raw.get("custom_cidrs"), translator)?;
         normalize_cidrs(raw.get("custom_cidrs"))
@@ -132,6 +132,7 @@ pub(super) async fn resolve_allowed_regions(
     state: &AppState,
     raw: &Map<String, Value>,
     previous: &Value,
+    translator: &Translator,
 ) -> Result<ResolvedAllowedRegions, SshError> {
     let source = if raw.contains_key("allowed_regions") {
         raw.get("allowed_regions")
@@ -149,28 +150,19 @@ pub(super) async fn resolve_allowed_regions(
     let mut selections = Vec::new();
     let mut cidrs = Vec::new();
     for item in items {
-        let province = item
-            .get("province")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .trim();
-        if province.is_empty() {
+        let Some(query) = parse_allowed_region(item, translator)? else {
             continue;
-        }
-        let query_city = item
-            .get("query_city")
-            .or_else(|| item.get("queryCity"))
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .filter(|value| !value.is_empty());
-        let key = format!("{province}::{}", query_city.unwrap_or(""));
+        };
+        let key = query.key();
         if !seen.insert(key) {
             continue;
         }
-        let lookup = scanner::lookup_cidr_region(state, province, query_city)
+        let lookup = crate::cidr::lookup_region(state, &query)
             .await
-            .map_err(SshError::BadRequest)?;
-        selections.push(lookup.selection);
+            .map_err(|error| {
+                SshError::BadRequest(crate::cidr::localize_error(translator, &error.to_string()))
+            })?;
+        selections.push(serde_json::to_value(lookup.selection).unwrap_or(Value::Null));
         cidrs.extend(lookup.cidrs);
     }
     cidrs = normalize_cidr_strings(cidrs);
@@ -178,6 +170,30 @@ pub(super) async fn resolve_allowed_regions(
         selections: Value::Array(selections),
         cidrs,
     })
+}
+
+pub(super) fn parse_allowed_region(
+    item: &Value,
+    translator: &Translator,
+) -> Result<Option<CidrRegionQuery>, SshError> {
+    let province = item
+        .get("province")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim();
+    if province.is_empty() {
+        return Ok(None);
+    }
+    let query_city = item
+        .get("query_city")
+        .or_else(|| item.get("queryCity"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let operator = CidrOperator::parse_value(item.get("operator")).map_err(|message| {
+        SshError::BadRequest(crate::cidr::localize_error(translator, &message))
+    })?;
+    Ok(Some(CidrRegionQuery::new(province, query_city, operator)))
 }
 
 pub(super) fn build_runtime_from_config(

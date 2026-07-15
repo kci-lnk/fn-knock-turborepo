@@ -137,6 +137,7 @@ describe("subdomain visibility", () => {
           label: "杭州市",
           value: "浙江省::杭州市",
           query_city: "杭州市",
+          operator: "移动",
           is_province_wide: false,
           is_municipality: false,
         },
@@ -148,7 +149,7 @@ describe("subdomain visibility", () => {
     const payload = toHostMappingUpdatePayload(mapping);
     assert.deepEqual(payload.visibility.custom_cidrs, ["203.0.113.0/24"]);
     assert.deepEqual(payload.visibility.selections, [
-      { province: "浙江省", query_city: "杭州市" },
+      { province: "浙江省", query_city: "杭州市", operator: "移动" },
     ]);
     assert.equal("cidrs" in payload.visibility, false);
   });

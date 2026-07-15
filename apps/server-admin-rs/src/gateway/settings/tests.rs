@@ -1,5 +1,30 @@
 use super::*;
 
+#[test]
+fn visibility_selection_deduplication_includes_operator() {
+    let selections = dedupe_visibility_selection_inputs(Some(&json!([
+        { "province": "浙江", "query_city": "杭州", "operator": "移动" },
+        { "province": "浙江", "query_city": "杭州", "operator": "移动" },
+        { "province": "浙江", "query_city": "杭州", "operator": "电信" },
+        { "province": "浙江", "query_city": "杭州" }
+    ])))
+    .unwrap();
+    assert_eq!(selections.len(), 3);
+    assert_eq!(selections[0].operator, Some(CidrOperator::Mobile));
+    assert_eq!(selections[1].operator, Some(CidrOperator::Telecom));
+    assert_eq!(selections[2].operator, None);
+}
+
+#[test]
+fn visibility_selection_rejects_non_string_operator() {
+    assert!(
+        dedupe_visibility_selection_inputs(Some(&json!([
+            { "province": "浙江", "query_city": "杭州", "operator": 123 }
+        ])))
+        .is_err()
+    );
+}
+
 async fn gateway_settings_test_state() -> (tempfile::TempDir, AppState) {
     let directory = tempfile::tempdir().unwrap();
     let mut settings = {

@@ -1615,6 +1615,11 @@ export const koKRServer = {
     invalidJson: "CIDR 업스트림이 잘못된 JSON을 반환했습니다.",
     upstreamUnexpected: "CIDR 업스트림이 예상치 못한 응답을 반환했습니다.",
     provinceWideLabel: "모든 {province}",
+    provinceWideUnsupported:
+      "저장성과 광둥성은 성 전체 CIDR 선택을 지원하지 않습니다. 도시를 선택하세요.",
+    operatorInvalid: "통신사는 Telecom, Unicom 또는 Mobile만 지원됩니다.",
+    operatorUnsupported:
+      "현재 CIDR 서비스는 통신사 필터링을 지원하지 않습니다. CIDR 컨테이너를 0.1.3 이상으로 업그레이드하세요.",
   },
   dashboard: {
     inbound: "인바운드",

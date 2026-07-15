@@ -1,6 +1,8 @@
 import type {
   CidrCitiesPayload,
+  CidrCapabilitiesPayload,
   CidrLookupPayload,
+  CidrOperator,
   CidrProvincesPayload,
   CidrSelectorPayload,
   GatewayLogDatesPayload,
@@ -218,6 +220,10 @@ export const IpLocationAPI = {
 };
 
 export const CidrAPI = {
+  async getCapabilities(): Promise<CidrCapabilitiesPayload> {
+    const res = await apiClient.get("/cidr/capabilities");
+    return res.data.data;
+  },
   async getProvinces(): Promise<CidrProvincesPayload> {
     const res = await apiClient.get("/cidr/provinces");
     return res.data.data;
@@ -237,12 +243,16 @@ export const CidrAPI = {
   async getCidrs(payload: {
     province: string;
     city?: string | null;
+    operator?: CidrOperator | null;
   }): Promise<CidrLookupPayload> {
     const params: Record<string, string> = {
       province: payload.province,
     };
     if (payload.city) {
       params.city = payload.city;
+    }
+    if (payload.operator) {
+      params.operator = payload.operator;
     }
     const res = await apiClient.get("/cidr/cidrs", { params });
     return res.data.data;

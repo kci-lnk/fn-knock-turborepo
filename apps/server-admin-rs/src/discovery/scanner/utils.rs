@@ -1,9 +1,6 @@
 use super::*;
 
-pub(super) use crate::{
-    http_utils::url_encode_component as percent_encode_uri_component,
-    node_compat::{env_i64, floor_to_i64, parse_i64_or as parse_i64},
-};
+pub(super) use crate::node_compat::{env_i64, floor_to_i64, parse_i64_or as parse_i64};
 
 pub(super) fn parse_blacklist_delete_ips(body: &[u8]) -> Result<Vec<String>, &'static str> {
     let parsed = parse_json_body(body)?;
@@ -160,6 +157,9 @@ pub(super) fn normalize_scanner_cidr_exemption_selection(
             .and_then(Value::as_str)
             .map(normalize_string)
             .filter(|value| !value.is_empty()),
+        operator: CidrOperator::parse_value(value.get("operator"))
+            .ok()
+            .flatten(),
         is_province_wide: value
             .get("is_province_wide")
             .and_then(Value::as_bool)
@@ -173,7 +173,7 @@ pub(super) fn normalize_scanner_cidr_exemption_selection(
 
 pub(super) fn dedupe_scanner_cidr_exemption_region_inputs(
     values: Vec<ScannerCidrExemptionRegionBody>,
-) -> Vec<ScannerCidrExemptionRegionInput> {
+) -> Result<Vec<CidrRegionQuery>, ScannerError> {
     let mut seen = BTreeSet::new();
     let mut result = Vec::new();
     for value in values {
@@ -186,58 +186,26 @@ pub(super) fn dedupe_scanner_cidr_exemption_region_inputs(
             .as_deref()
             .map(normalize_string)
             .filter(|value| !value.is_empty());
-        let key = scanner_cidr_region_key(&province, query_city.as_deref());
+        let operator =
+            CidrOperator::parse_value(value.operator.as_ref()).map_err(ScannerError::BadRequest)?;
+        let query = CidrRegionQuery::new(province, query_city, operator);
+        let key = query.key();
         if seen.insert(key) {
-            result.push(ScannerCidrExemptionRegionInput {
-                province,
-                query_city,
-            });
+            result.push(query);
         }
     }
-    result
+    Ok(result)
 }
 
 pub(super) fn scanner_cidr_region_keys_equal(
-    left: &[ScannerCidrExemptionRegionInput],
-    right: &[ScannerCidrExemptionRegionInput],
+    left: &[CidrRegionQuery],
+    right: &[CidrRegionQuery],
 ) -> bool {
     left.len() == right.len()
-        && left.iter().zip(right).all(|(left, right)| {
-            scanner_cidr_region_key(&left.province, left.query_city.as_deref())
-                == scanner_cidr_region_key(&right.province, right.query_city.as_deref())
-        })
-}
-
-pub(super) fn scanner_cidr_region_key(province: &str, query_city: Option<&str>) -> String {
-    format!("{}::{}", province.trim(), query_city.unwrap_or("").trim())
-}
-
-pub(super) fn cidr_cache_key(province: &str, city: Option<&str>) -> String {
-    let province = percent_encode_uri_component(province);
-    match city {
-        Some(city) => format!(
-            "{CIDR_CACHE_PREFIX}:cidrs:{province}:{}",
-            percent_encode_uri_component(city)
-        ),
-        None => format!("{CIDR_CACHE_PREFIX}:cidrs:{province}"),
-    }
-}
-
-pub(super) fn json_string_array(value: Option<&Value>) -> Vec<String> {
-    value
-        .and_then(Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(Value::as_str)
-                .map(ToString::to_string)
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-pub(super) fn json_array_values(value: Option<&Value>) -> Vec<Value> {
-    value.and_then(Value::as_array).cloned().unwrap_or_default()
+        && left
+            .iter()
+            .zip(right)
+            .all(|(left, right)| left.key() == right.key())
 }
 
 pub(super) fn positive_i64(value: Option<&Value>) -> Option<i64> {
@@ -247,62 +215,6 @@ pub(super) fn positive_i64(value: Option<&Value>) -> Option<i64> {
         .or_else(|| value.as_f64().map(floor_to_i64))
         .or_else(|| value.as_str().and_then(|text| text.trim().parse().ok()))?;
     (parsed > 0).then_some(parsed)
-}
-
-pub(super) fn normalize_required_province(value: &str) -> Result<String, ScannerError> {
-    let normalized = normalize_string(value);
-    if normalized.is_empty() {
-        return Err(ScannerError::BadRequest("province is required".to_string()));
-    }
-    Ok(normalized)
-}
-
-pub(super) fn to_safe_i64(value: Option<&Value>, fallback: i64) -> i64 {
-    let parsed = value.and_then(js_number_like_i64_floor).unwrap_or(fallback);
-    parsed.max(0)
-}
-
-pub(super) fn js_number_like_i64_floor(value: &Value) -> Option<i64> {
-    let parsed = match value {
-        Value::Null => 0.0,
-        Value::Bool(value) => {
-            if *value {
-                1.0
-            } else {
-                0.0
-            }
-        }
-        Value::Number(value) => value.as_f64()?,
-        Value::String(value) => {
-            let trimmed = value.trim();
-            if trimmed.is_empty() {
-                0.0
-            } else {
-                trimmed.parse::<f64>().ok()?
-            }
-        }
-        Value::Array(items) => match items.as_slice() {
-            [] => 0.0,
-            [item] => {
-                let text = match item {
-                    Value::Null => String::new(),
-                    Value::Bool(value) => value.to_string(),
-                    Value::Number(value) => value.to_string(),
-                    Value::String(value) => value.clone(),
-                    Value::Array(_) | Value::Object(_) => return None,
-                };
-                let trimmed = text.trim();
-                if trimmed.is_empty() {
-                    0.0
-                } else {
-                    trimmed.parse::<f64>().ok()?
-                }
-            }
-            _ => return None,
-        },
-        Value::Object(_) => return None,
-    };
-    parsed.is_finite().then(|| floor_to_i64(parsed))
 }
 
 pub(super) fn normalize_string(value: &str) -> String {

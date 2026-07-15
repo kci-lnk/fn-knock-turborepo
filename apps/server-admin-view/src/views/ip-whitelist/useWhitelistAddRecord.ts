@@ -119,6 +119,7 @@ export function useWhitelistAddRecord({
           regions: whitelistRegionSelections.value.map((item) => ({
             province: item.province,
             query_city: item.query_city,
+            operator: item.operator,
           })),
           expireAt,
           ...(comment ? { comment } : {}),

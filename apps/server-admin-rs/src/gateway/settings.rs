@@ -12,9 +12,10 @@ use serde_json::{Map, Value, json};
 use url::Url;
 
 use crate::{
+    cidr::{CidrOperator, CidrRegionQuery},
     i18n::Translator,
     proxy_config::{self, build_gateway_auth_config},
-    response, scanner,
+    response,
     state::AppState,
     time_utils, whitelist,
 };
@@ -50,7 +51,7 @@ fn localize_gateway_route_message(translator: &Translator, message: &str) -> Str
         GO_BACKEND_UNSUCCESSFUL_RESPONSE => {
             translator.t("server.admin.runtimeConfigRoutes.upstreamUnavailable")
         }
-        _ => message.to_string(),
+        _ => crate::cidr::localize_error(translator, message),
     }
 }
 

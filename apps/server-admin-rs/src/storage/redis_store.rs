@@ -108,9 +108,13 @@ fn deserialize_whitelist_region_group(raw: &str) -> Option<WhitelistRegionGroupR
                 .unwrap_or_default()
                 .trim()
                 .to_string();
+            let operator = crate::cidr::CidrOperator::parse_value(object.get("operator"))
+                .ok()
+                .flatten();
             Some(WhitelistRegionInput {
                 province,
                 query_city: (!query_city.is_empty()).then_some(query_city),
+                operator,
             })
         })
         .collect::<Vec<_>>();

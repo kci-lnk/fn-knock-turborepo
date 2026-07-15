@@ -1604,6 +1604,11 @@ export const enServer = {
     invalidJson: "CIDR upstream returned invalid JSON",
     upstreamUnexpected: "CIDR upstream returned an unexpected response",
     provinceWideLabel: "All {province}",
+    provinceWideUnsupported:
+      "Province-wide CIDR selection is unavailable for Zhejiang and Guangdong; select a city instead",
+    operatorInvalid: "Carrier must be Telecom, Unicom, or Mobile",
+    operatorUnsupported:
+      "The current CIDR service does not support carrier filtering. Upgrade the CIDR container to 0.1.3 or later",
   },
   dashboard: {
     inbound: "Inbound",

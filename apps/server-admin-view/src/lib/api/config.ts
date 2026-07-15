@@ -11,6 +11,8 @@ import type {
   AutoHttpsConfig,
   AutoHttpsDetails,
   BackupDirectoryFilesPayload,
+  CidrOperator,
+  CidrCapabilitiesPayload,
   DashboardDisplayConfig,
   DnsmasqInstallState,
   DnsmasqStatus,
@@ -443,6 +445,7 @@ export const ConfigAPI = {
     selections: Array<{
       province: string;
       query_city?: string | null;
+      operator?: CidrOperator | null;
     }>;
     custom_cidrs: string[];
   }): Promise<GatewayVisibilityDetails> {
@@ -1069,7 +1072,11 @@ export const IpLocationSettingsAPI = {
     });
     return res.data;
   },
-  async testCidr(url: string): Promise<{ success: boolean; message: string }> {
+  async testCidr(url: string): Promise<{
+    success: boolean;
+    message: string;
+    capabilities?: CidrCapabilitiesPayload;
+  }> {
     const res = await apiClient.post("/config/ip_location_api/test-cidr", {
       url,
     });

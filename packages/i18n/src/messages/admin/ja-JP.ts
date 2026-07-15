@@ -526,6 +526,15 @@ export const jaJPAdmin = {
     clearAllDataFailedDescription:
       "すべてのデータを消去できませんでした。しばらくしてから再試行してください。",
   },
+  cidrSelector: {
+    operator: "通信事業者",
+    allOperators: "すべての通信事業者",
+    operatorUnavailable: "通信事業者フィルターは利用できません",
+    capabilityCheckFailed:
+      "現在の CIDR サービスが通信事業者フィルターをサポートしているか確認できません。通常の地域選択は引き続き利用できます。サービスを確認して再試行してください。",
+    operatorUpgradeRequired:
+      "現在の CIDR サービスは通信事業者フィルターをサポートしていません。通常の地域選択は引き続き利用できます。通信事業者別に選択するには CIDR コンテナを {version} 以降へ更新してください。",
+  },
   ipLocationSettings: {
     ipLookupUrlRequired: "IP識別ライブラリのアドレスを入力してください",
     ipLookupUrlInvalid: "IP 識別ライブラリのアドレス形式が正しくありません。",
@@ -547,6 +556,9 @@ export const jaJPAdmin = {
     connectionSuccess: "正常に接続されました",
     ipLookupHealthy: "IP 認識ライブラリサービスは正常に応答します",
     cidrHealthy: "CIDR 住所データベースサービスは正常に応答します",
+    cidrUpgradeRequiredTitle: "接続しましたが CIDR コンテナの更新が必要です",
+    cidrUpgradeRequired:
+      "基本的な地域クエリは利用できますが、現在のバージョンは通信事業者フィルターをサポートしていません。{version} 以降へ更新してください。",
     settingsUpdated: "テリトリー設定が更新されました",
     ipLookupTitle: "IP 認識ライブラリ",
     ipLookupDescription: "単一の IP の国、地域、オペレーター情報を照会します。",

@@ -151,6 +151,7 @@ const saveSettings = async () => {
         selections: form.selections.map((item) => ({
           province: item.province,
           query_city: item.query_city,
+          operator: item.operator,
         })),
         custom_cidrs: customCidrsState.value.cidrs,
       }),

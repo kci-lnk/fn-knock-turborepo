@@ -1417,6 +1417,10 @@ export const zhHantServer = {
     invalidJson: "CIDR 上游返回了無效 JSON",
     upstreamUnexpected: "CIDR 上游返回異常",
     provinceWideLabel: "{province}全省",
+    provinceWideUnsupported: "浙江和廣東不支援全省 CIDR 選擇，請選擇具體城市",
+    operatorInvalid: "運營商僅支援電信、聯通或移動",
+    operatorUnsupported:
+      "目前 CIDR 服務不支援運營商篩選，請將 CIDR 容器升級至 0.1.3 或更高版本",
   },
   dashboard: {
     inbound: "入站",

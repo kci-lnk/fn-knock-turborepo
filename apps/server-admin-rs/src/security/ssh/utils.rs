@@ -50,7 +50,10 @@ pub(super) fn normalize_allowed_regions(value: Option<&Value>) -> Value {
                 .and_then(Value::as_str)
                 .map(str::trim)
                 .filter(|value| !value.is_empty());
-            let key = format!("{province}::{}", query_city.unwrap_or(""));
+            let operator = CidrOperator::parse_value(item.get("operator"))
+            .ok()
+            .flatten();
+            let key = CidrRegionQuery::new(province, query_city, operator).key();
             if !seen.insert(key) {
                 return None;
             }
@@ -60,6 +63,7 @@ pub(super) fn normalize_allowed_regions(value: Option<&Value>) -> Value {
                 "label": item.get("label").and_then(Value::as_str).unwrap_or(province),
                 "value": item.get("value").and_then(Value::as_str).unwrap_or(province),
                 "query_city": query_city,
+                "operator": operator,
                 "is_province_wide": item.get("is_province_wide").and_then(Value::as_bool).unwrap_or(query_city.is_none()),
                 "is_municipality": item.get("is_municipality").and_then(Value::as_bool).unwrap_or(false)
             }))

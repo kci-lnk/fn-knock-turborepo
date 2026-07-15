@@ -993,6 +993,7 @@ export type GatewayVisibilitySelection = {
   label: string;
   value: string;
   query_city: string | null;
+  operator?: import("./types/cidr").CidrOperator | null;
   is_province_wide: boolean;
   is_municipality: boolean;
 };

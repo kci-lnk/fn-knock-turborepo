@@ -1333,7 +1333,10 @@
       "upstreamRequestFailed": "CIDR 上游请求失败 ({status})",
       "invalidJson": "CIDR 上游返回了无效 JSON",
       "upstreamUnexpected": "CIDR 上游返回异常",
-      "provinceWideLabel": "{province}全省"
+      "provinceWideLabel": "{province}全省",
+      "provinceWideUnsupported": "浙江和广东不支持全省 CIDR 选择，请选择具体城市",
+      "operatorInvalid": "运营商仅支持电信、联通或移动",
+      "operatorUnsupported": "当前 CIDR 服务不支持运营商筛选，请升级 CIDR 容器至 0.1.3 或更高版本"
     },
     "dashboard": {
       "inbound": "入站",
@@ -4342,7 +4345,10 @@
       "upstreamRequestFailed": "CIDR 上游請求失敗 ({status})",
       "invalidJson": "CIDR 上游返回了無效 JSON",
       "upstreamUnexpected": "CIDR 上游返回異常",
-      "provinceWideLabel": "{province}全省"
+      "provinceWideLabel": "{province}全省",
+      "provinceWideUnsupported": "浙江和廣東不支援全省 CIDR 選擇，請選擇具體城市",
+      "operatorInvalid": "運營商僅支援電信、聯通或移動",
+      "operatorUnsupported": "目前 CIDR 服務不支援運營商篩選，請將 CIDR 容器升級至 0.1.3 或更高版本"
     },
     "dashboard": {
       "inbound": "入站",
@@ -7351,7 +7357,10 @@
       "upstreamRequestFailed": "CIDR upstream request failed ({status})",
       "invalidJson": "CIDR upstream returned invalid JSON",
       "upstreamUnexpected": "CIDR upstream returned an unexpected response",
-      "provinceWideLabel": "All {province}"
+      "provinceWideLabel": "All {province}",
+      "provinceWideUnsupported": "Province-wide CIDR selection is unavailable for Zhejiang and Guangdong; select a city instead",
+      "operatorInvalid": "Carrier must be Telecom, Unicom, or Mobile",
+      "operatorUnsupported": "The current CIDR service does not support carrier filtering. Upgrade the CIDR container to 0.1.3 or later"
     },
     "dashboard": {
       "inbound": "Inbound",
@@ -10360,7 +10369,10 @@
       "upstreamRequestFailed": "CIDR 업스트림 요청 실패({status})",
       "invalidJson": "CIDR 업스트림이 잘못된 JSON을 반환했습니다.",
       "upstreamUnexpected": "CIDR 업스트림이 예상치 못한 응답을 반환했습니다.",
-      "provinceWideLabel": "모든 {province}"
+      "provinceWideLabel": "모든 {province}",
+      "provinceWideUnsupported": "저장성과 광둥성은 성 전체 CIDR 선택을 지원하지 않습니다. 도시를 선택하세요.",
+      "operatorInvalid": "통신사는 Telecom, Unicom 또는 Mobile만 지원됩니다.",
+      "operatorUnsupported": "현재 CIDR 서비스는 통신사 필터링을 지원하지 않습니다. CIDR 컨테이너를 0.1.3 이상으로 업그레이드하세요."
     },
     "dashboard": {
       "inbound": "인바운드",
@@ -13369,7 +13381,10 @@
       "upstreamRequestFailed": "CIDR アップストリームリクエストが失敗しました ({status})",
       "invalidJson": "CIDR アップストリームが無効な JSON を返しました",
       "upstreamUnexpected": "CIDR アップストリームは例外を返します",
-      "provinceWideLabel": "{province}県"
+      "provinceWideLabel": "{province}県",
+      "provinceWideUnsupported": "浙江省と広東省では省全体の CIDR を選択できません。都市を選択してください",
+      "operatorInvalid": "通信事業者は電信、聯通、移動のみ指定できます",
+      "operatorUnsupported": "現在の CIDR サービスは通信事業者フィルターをサポートしていません。CIDR コンテナを 0.1.3 以降へ更新してください"
     },
     "dashboard": {
       "inbound": "インバウンド",

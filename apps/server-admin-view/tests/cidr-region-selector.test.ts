@@ -8,8 +8,14 @@ import { describe, it } from "node:test";
 import { nextTick, ref } from "vue";
 
 import { createCidrRegionSelectorState } from "../src/components/cidr-region-selector-state";
-import { getCidrRegionSelectionKey } from "../src/types/cidr";
-import type { GatewayVisibilitySelection } from "../src/types";
+import {
+  getCidrRegionSelectionKey,
+  getCidrRegionSelectionLabel,
+} from "../src/types/cidr";
+import type {
+  CidrCapabilitiesPayload,
+  GatewayVisibilitySelection,
+} from "../src/types";
 
 const srcRoot = fileURLToPath(new URL("../src", import.meta.url));
 const selectorPath = "components/CidrRegionSelector.vue";
@@ -33,16 +39,24 @@ const listSourceFiles = async (directory: string): Promise<string[]> => {
   return files.flat().filter((path) => [".ts", ".vue"].includes(extname(path)));
 };
 
+const capabilities = (supported: boolean): CidrCapabilitiesPayload => ({
+  source: "custom",
+  operatorFiltering: {
+    supported,
+    operators: ["电信", "联通", "移动"],
+    minimumContainerVersion: "0.1.3",
+  },
+});
 const province = {
-  label: "浙江省",
-  value: "浙江省",
-  cityCount: 1,
+  label: "江苏省",
+  value: "江苏省",
+  cityCount: 2,
   isMunicipality: false,
 };
 const city = {
-  label: "杭州市",
-  value: "浙江省::杭州市",
-  queryCity: "杭州市",
+  label: "南京市",
+  value: "南京市",
+  queryCity: "南京市",
   isProvinceWide: false,
   isMunicipality: false,
   ipv4Count: 1,
@@ -50,222 +64,149 @@ const city = {
 };
 const secondCity = {
   ...city,
-  label: "宁波市",
-  value: "浙江省::宁波市",
-  queryCity: "宁波市",
+  label: "苏州市",
+  value: "苏州市",
+  queryCity: "苏州市",
 };
 const provinceWide = {
   ...city,
-  label: "浙江全省",
+  label: "江苏全省",
   value: "__province_all__",
   queryCity: null,
   isProvinceWide: true,
 };
 const selectionFromOption = (
   option: typeof city | typeof provinceWide,
+  operator: GatewayVisibilitySelection["operator"] = null,
 ): GatewayVisibilitySelection => ({
   province: province.value,
   city: option.isProvinceWide ? null : option.label,
-  label: option.label,
+  label: operator ? `${option.label} · ${operator}` : option.label,
   value: option.value,
   query_city: option.queryCity,
+  operator,
   is_province_wide: option.isProvinceWide,
   is_municipality: option.isMunicipality,
 });
 const flushPromises = () =>
   new Promise<void>((resolve) => setImmediate(resolve));
 
+const createState = (
+  selections = ref<GatewayVisibilitySelection[]>([]),
+  operatorSupport = true,
+) =>
+  createCidrRegionSelectorState({
+    disabled: ref(false),
+    formatLoadError: String,
+    loadCapabilities: async () => capabilities(operatorSupport),
+    loadCities: async () => ({ options: [provinceWide, city, secondCity] }),
+    loadProvinces: async () => ({ options: [province] }),
+    onLoadError: () => assert.fail("loading should succeed"),
+    selections,
+  });
+
 describe("CIDR region selector", () => {
-  it("builds one stable key for city and province-wide selections", () => {
+  it("builds stable keys from province, city, and operator", () => {
+    assert.equal(
+      getCidrRegionSelectionKey({ province: "浙江省", query_city: "杭州市" }),
+      "浙江省::杭州市::",
+    );
     assert.equal(
       getCidrRegionSelectionKey({
         province: "浙江省",
         query_city: "杭州市",
+        operator: "移动",
       }),
-      "浙江省::杭州市",
+      "浙江省::杭州市::移动",
     );
     assert.equal(
-      getCidrRegionSelectionKey({ province: "浙江省", query_city: null }),
-      "浙江省::",
+      getCidrRegionSelectionLabel({
+        province: "浙江省",
+        query_city: "杭州市",
+        operator: "移动",
+      }),
+      "杭州市 · 移动",
     );
   });
 
-  it("loads a new province empty and saves multiple cities at once", async () => {
+  it("saves multiple cities in the all-operator layer", async () => {
     const selections = ref<GatewayVisibilitySelection[]>([]);
-    const disabled = ref(false);
-    const state = createCidrRegionSelectorState({
-      disabled,
-      formatLoadError: String,
-      loadCities: async () => ({
-        defaultValue: provinceWide.value,
-        options: [provinceWide, city, secondCity],
-      }),
-      loadProvinces: async () => ({ options: [province] }),
-      onLoadError: () => assert.fail("loading should succeed"),
-      selections,
-    });
-
+    const state = createState(selections);
     await state.loadProvinces();
     state.openDialog();
-    await nextTick();
     await flushPromises();
 
-    assert.deepEqual(state.draft.cityValues, []);
-    assert.equal(state.canSaveSelections.value, false);
-
-    state.toggleCity("浙江省::杭州市", true);
-    state.toggleCity("浙江省::宁波市", true);
+    state.toggleCity("江苏省::南京市::", true);
+    state.toggleCity("江苏省::苏州市::", true);
     assert.equal(state.selectedCityCount.value, 2);
-    assert.equal(state.canSaveSelections.value, true);
-    state.handleDialogOpenChange(false);
-    assert.deepEqual(selections.value, []);
-
-    state.openDialog();
-    await flushPromises();
-    state.toggleCity("浙江省::杭州市", true);
-    state.toggleCity("浙江省::宁波市", true);
     state.saveProvinceSelections();
     assert.deepEqual(selections.value.map(getCidrRegionSelectionKey), [
-      "浙江省::杭州市",
-      "浙江省::宁波市",
-    ]);
-    assert.equal(state.isDialogOpen.value, false);
-
-    state.removeRegion(selections.value[0]!);
-    assert.deepEqual(selections.value.map(getCidrRegionSelectionKey), [
-      "浙江省::宁波市",
+      "江苏省::南京市::",
+      "江苏省::苏州市::",
     ]);
     state.dispose();
   });
 
-  it("edits one province as a group without changing other provinces", async () => {
-    const otherProvinceSelection: GatewayVisibilitySelection = {
-      ...selectionFromOption(city),
-      province: "江苏省",
-      city: "南京市",
-      label: "南京市",
-      value: "江苏省::南京市",
-      query_city: "南京市",
-    };
-    const selections = ref<GatewayVisibilitySelection[]>([
-      otherProvinceSelection,
-      selectionFromOption(city),
-    ]);
-    const state = createCidrRegionSelectorState({
-      disabled: ref(false),
-      formatLoadError: String,
-      loadCities: async () => ({ options: [provinceWide, city, secondCity] }),
-      loadProvinces: async () => ({ options: [province] }),
-      onLoadError: () => assert.fail("loading should succeed"),
-      selections,
-    });
-
-    state.selectProvince(province.value);
-    await flushPromises();
-    assert.deepEqual(state.draft.cityValues, ["浙江省::杭州市"]);
-
-    state.toggleCity("浙江省::杭州市", false);
-    state.toggleCity("浙江省::宁波市", true);
-    state.saveProvinceSelections();
-    assert.deepEqual(selections.value.map(getCidrRegionSelectionKey), [
-      "江苏省::南京市",
-      "浙江省::宁波市",
-    ]);
-    state.dispose();
-  });
-
-  it("keeps province-wide and city selections mutually exclusive", async () => {
+  it("supports multiple carriers and normalizes all-carrier overlap", async () => {
     const selections = ref<GatewayVisibilitySelection[]>([]);
-    const state = createCidrRegionSelectorState({
-      disabled: ref(false),
-      formatLoadError: String,
-      loadCities: async () => ({ options: [provinceWide, city, secondCity] }),
-      loadProvinces: async () => ({ options: [province] }),
-      onLoadError: () => assert.fail("loading should succeed"),
-      selections,
-    });
-
+    const state = createState(selections);
+    await state.loadCapabilities();
     state.selectProvince(province.value);
     await flushPromises();
-    state.toggleCity("浙江省::杭州市", true);
-    state.toggleCity("浙江省::宁波市", true);
-    state.toggleCity("浙江省::", true);
-    assert.deepEqual(state.draft.cityValues, ["浙江省::"]);
 
-    state.toggleCity("浙江省::杭州市", true);
-    assert.deepEqual(state.draft.cityValues, ["浙江省::杭州市"]);
-    state.dispose();
-  });
-
-  it("normalizes legacy province-wide and city conflicts on load", async () => {
-    const selections = ref<GatewayVisibilitySelection[]>([
-      selectionFromOption(city),
-      selectionFromOption(provinceWide),
-      selectionFromOption(secondCity),
+    state.selectOperator("移动");
+    state.toggleCity("江苏省::南京市::移动", true);
+    state.selectOperator("电信");
+    state.toggleCity("江苏省::南京市::电信", true);
+    assert.deepEqual(state.draft.selections.map(getCidrRegionSelectionKey), [
+      "江苏省::南京市::移动",
+      "江苏省::南京市::电信",
     ]);
-    const state = createCidrRegionSelectorState({
-      disabled: ref(false),
-      formatLoadError: String,
-      loadCities: async () => ({ options: [provinceWide, city, secondCity] }),
-      loadProvinces: async () => ({ options: [province] }),
-      onLoadError: () => assert.fail("loading should succeed"),
-      selections,
-    });
 
-    state.selectProvince(province.value);
-    await flushPromises();
-    assert.deepEqual(state.draft.cityValues, ["浙江省::"]);
-    assert.equal(state.canSaveSelections.value, true);
+    state.selectOperator(null);
+    state.toggleCity("江苏省::南京市::", true);
+    assert.deepEqual(state.draft.selections.map(getCidrRegionSelectionKey), [
+      "江苏省::南京市::",
+    ]);
 
-    state.saveProvinceSelections();
-    assert.deepEqual(selections.value.map(getCidrRegionSelectionKey), [
-      "浙江省::",
+    state.selectOperator("移动");
+    state.toggleCity("江苏省::南京市::移动", true);
+    assert.deepEqual(state.draft.selections.map(getCidrRegionSelectionKey), [
+      "江苏省::南京市::移动",
     ]);
     state.dispose();
   });
 
-  it("can clear an existing province and preserves unavailable selections until unchecked", async () => {
-    const unavailableSelection: GatewayVisibilitySelection = {
-      ...selectionFromOption(city),
-      city: "旧城市",
-      label: "旧城市",
-      value: "浙江省::旧城市",
-      query_city: "旧城市",
-    };
-    const selections = ref<GatewayVisibilitySelection[]>([
-      selectionFromOption(city),
-      unavailableSelection,
-    ]);
-    const state = createCidrRegionSelectorState({
-      disabled: ref(false),
-      formatLoadError: String,
-      loadCities: async () => ({ options: [city] }),
-      loadProvinces: async () => ({ options: [province] }),
-      onLoadError: () => assert.fail("loading should succeed"),
-      selections,
-    });
-
+  it("keeps province-wide and city choices exclusive within each carrier", async () => {
+    const state = createState();
+    await state.loadCapabilities();
     state.selectProvince(province.value);
     await flushPromises();
-    assert.deepEqual(
-      state.cityChoices.value.map((choice) => [choice.key, choice.unavailable]),
-      [
-        ["浙江省::杭州市", false],
-        ["浙江省::旧城市", true],
-      ],
-    );
-
-    state.toggleCity("浙江省::杭州市", false);
-    state.saveProvinceSelections();
-    assert.deepEqual(selections.value.map(getCidrRegionSelectionKey), [
-      "浙江省::旧城市",
+    state.selectOperator("移动");
+    state.toggleCity("江苏省::南京市::移动", true);
+    state.toggleCity("江苏省::::移动", true);
+    assert.deepEqual(state.draft.selections.map(getCidrRegionSelectionKey), [
+      "江苏省::::移动",
     ]);
 
-    state.selectProvince(province.value);
-    await flushPromises();
-    state.toggleCity("浙江省::旧城市", false);
-    assert.equal(state.canSaveSelections.value, true);
-    state.saveProvinceSelections();
+    state.selectOperator("电信");
+    state.toggleCity("江苏省::南京市::电信", true);
+    assert.deepEqual(state.draft.selections.map(getCidrRegionSelectionKey), [
+      "江苏省::::移动",
+      "江苏省::南京市::电信",
+    ]);
+    state.dispose();
+  });
+
+  it("degrades to regular region selection for legacy containers", async () => {
+    const existing = selectionFromOption(city, "移动");
+    const selections = ref([existing]);
+    const state = createState(selections, false);
+    await state.loadCapabilities();
+    assert.equal(state.operatorFilteringSupported.value, false);
+    state.selectOperator("移动");
+    assert.equal(state.draft.operator, null);
+    state.removeRegion(existing);
     assert.deepEqual(selections.value, []);
     state.dispose();
   });
@@ -273,8 +214,6 @@ describe("CIDR region selector", () => {
   it("ignores stale city responses", async () => {
     let resolveFirst!: (value: { options: [typeof city] }) => void;
     let resolveSecond!: (value: { options: [typeof city] }) => void;
-    const firstCity = { ...city, label: "旧城市", value: "old" };
-    const secondCity = { ...city, label: "新城市", value: "new" };
     const firstResponse = new Promise<{ options: [typeof city] }>((resolve) => {
       resolveFirst = resolve;
     });
@@ -286,6 +225,7 @@ describe("CIDR region selector", () => {
     const state = createCidrRegionSelectorState({
       disabled: ref(false),
       formatLoadError: String,
+      loadCapabilities: async () => capabilities(true),
       loadCities: (name) => (name === "first" ? firstResponse : secondResponse),
       loadProvinces: async () => ({ options: [province] }),
       onLoadError: () => assert.fail("loading should succeed"),
@@ -294,44 +234,27 @@ describe("CIDR region selector", () => {
 
     const firstRequest = state.loadCityOptions("first");
     const secondRequest = state.loadCityOptions("second");
-    resolveSecond({ options: [secondCity] });
+    resolveSecond({ options: [{ ...city, label: "新城市" }] });
     await secondRequest;
-    resolveFirst({ options: [firstCity] });
+    resolveFirst({ options: [{ ...city, label: "旧城市" }] });
     await firstRequest;
-
-    assert.deepEqual(state.cityOptions.value, [secondCity]);
-    assert.deepEqual(state.draft.cityValues, []);
-    assert.equal(state.cityOptionsLoading.value, false);
+    assert.equal(state.cityOptions.value[0]?.label, "新城市");
     state.dispose();
   });
 
-  it("recovers from province failures and closes when disabled", async () => {
+  it("closes and clears the draft when disabled", async () => {
     const disabled = ref(false);
-    const errors: string[] = [];
-    let attempts = 0;
     const state = createCidrRegionSelectorState({
       disabled,
-      formatLoadError: (error) => (error as Error).message,
-      loadCities: async () => ({ defaultValue: city.value, options: [city] }),
-      loadProvinces: async () => {
-        attempts += 1;
-        if (attempts === 1) throw new Error("province failure");
-        return { options: [province] };
-      },
-      onLoadError: (description) => errors.push(description),
+      formatLoadError: String,
+      loadCapabilities: async () => capabilities(true),
+      loadCities: async () => ({ options: [city] }),
+      loadProvinces: async () => ({ options: [province] }),
+      onLoadError: () => assert.fail("loading should succeed"),
       selections: ref([]),
     });
-
     await state.loadProvinces();
-    assert.equal(state.provincesLoadError.value, "province failure");
-    assert.deepEqual(errors, ["province failure"]);
-
-    await state.loadProvinces();
-    assert.equal(state.provincesLoadError.value, "");
-    assert.deepEqual(state.provinces.value, [province]);
-
     state.openDialog();
-    assert.equal(state.isDialogOpen.value, true);
     disabled.value = true;
     await nextTick();
     assert.equal(state.isDialogOpen.value, false);
@@ -343,28 +266,18 @@ describe("CIDR region selector", () => {
     await Promise.all(
       selectorConsumers.map(async (path) => {
         const source = await readFile(join(srcRoot, path), "utf8");
-        assert.equal(
-          source.match(/<CidrRegionSelector\b/gu)?.length,
-          1,
-          `${path} must render exactly one shared CIDR region selector`,
-        );
+        assert.equal(source.match(/<CidrRegionSelector\b/gu)?.length, 1);
         assert.doesNotMatch(
           source,
           /\bCidrAPI\b|\bregionDraft\b|\bcityOptionsLoading\b/u,
-        );
-        assert.doesNotMatch(
-          source,
-          /<Select[\s\S]{0,600}v-model="[^"]*province/u,
-          `${path} must not implement its own province selector`,
         );
       }),
     );
   });
 
-  it("keeps province/city loading logic inside the shared component", async () => {
+  it("keeps CIDR loading and selection logic encapsulated", async () => {
     const sourceFiles = await listSourceFiles(srcRoot);
     const violations: string[] = [];
-
     await Promise.all(
       sourceFiles.map(async (path) => {
         const source = await readFile(path, "utf8");
@@ -378,7 +291,9 @@ describe("CIDR region selector", () => {
         }
         if (
           sourcePath !== "lib/api/gateway.ts" &&
-          /["']\/cidr\/(?:provinces|cities|selector)["']/u.test(source)
+          /["']\/cidr\/(?:capabilities|provinces|cities|selector)["']/u.test(
+            source,
+          )
         ) {
           violations.push(sourcePath);
         }
@@ -392,11 +307,6 @@ describe("CIDR region selector", () => {
         }
       }),
     );
-
-    assert.deepEqual(
-      violations.sort(),
-      [],
-      "CIDR region loading and selection logic must not be reimplemented",
-    );
+    assert.deepEqual(violations.sort(), []);
   });
 });

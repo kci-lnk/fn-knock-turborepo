@@ -1,3 +1,4 @@
+use super::config::parse_allowed_region;
 use super::*;
 
 #[test]
@@ -138,6 +139,28 @@ fn localizes_ssh_security_route_and_validation_text() {
         SshError::BadRequest(message) => {
             assert_eq!(message, "自定义 CIDR 格式不正确：bad-cidr");
         }
+        _ => panic!("expected bad request"),
+    }
+}
+
+#[test]
+fn ssh_regions_preserve_operator_and_reject_non_string_values() {
+    let zh = Translator::new("zh-CN");
+    let query = parse_allowed_region(
+        &json!({ "province": "浙江", "query_city": "杭州", "operator": "联通" }),
+        &zh,
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(query.operator, Some(CidrOperator::Unicom));
+
+    let error = parse_allowed_region(
+        &json!({ "province": "浙江", "query_city": "杭州", "operator": [] }),
+        &zh,
+    )
+    .unwrap_err();
+    match error {
+        SshError::BadRequest(message) => assert_eq!(message, "运营商仅支持电信、联通或移动"),
         _ => panic!("expected bad request"),
     }
 }

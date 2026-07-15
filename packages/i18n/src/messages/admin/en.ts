@@ -510,6 +510,15 @@ export const enAdmin = {
     clearAllDataFailedDescription:
       "All data could not be cleared. Try again later.",
   },
+  cidrSelector: {
+    operator: "Carrier",
+    allOperators: "All carriers",
+    operatorUnavailable: "Carrier filtering is unavailable",
+    capabilityCheckFailed:
+      "Could not verify carrier-filtering support. Regular province and city selection remains available; check the CIDR service and retry.",
+    operatorUpgradeRequired:
+      "This CIDR service does not support carrier filtering. Regular region selection remains available. Upgrade the CIDR container to {version} or later to filter by carrier.",
+  },
   ipLocationSettings: {
     ipLookupUrlRequired: "Enter the IP lookup database URL",
     ipLookupUrlInvalid: "Invalid IP lookup database URL",
@@ -529,6 +538,10 @@ export const enAdmin = {
     connectionSuccess: "Connected",
     ipLookupHealthy: "IP lookup service responded normally",
     cidrHealthy: "CIDR database service responded normally",
+    cidrUpgradeRequiredTitle:
+      "Connected, but the CIDR container needs an upgrade",
+    cidrUpgradeRequired:
+      "Province and city queries work, but this version does not support carrier filtering. Upgrade to {version} or later.",
     settingsUpdated: "Location settings updated",
     ipLookupTitle: "IP lookup database",
     ipLookupDescription:

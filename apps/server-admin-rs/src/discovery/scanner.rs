@@ -14,18 +14,15 @@ use serde_json::{Value, json};
 use url::Url;
 
 use crate::{
-    common_auth_locations, http_utils, i18n::Translator, ip_location, response, state::AppState,
+    cidr::{CidrError, CidrOperator, CidrRegionQuery, CidrSelection},
+    common_auth_locations, http_utils,
+    i18n::Translator,
+    ip_location, response,
+    state::AppState,
     system_events, time_utils,
 };
 
 const SCANNER_BASE_WINDOW_SECONDS: i64 = 5 * 60;
-const DEFAULT_CIDR_API_URL: &str = "https://cidr.fnknock.cn/api/v1";
-const IP_LOCATION_API_SETTINGS_KEY: &str = "fn_knock:ip-location-api:settings";
-const CIDR_CACHE_PREFIX: &str = "fn_knock:cidr";
-const CIDR_SUCCESS_CACHE_TTL_SECONDS: usize = 30 * 24 * 60 * 60;
-const CIDR_PROVINCE_WIDE_VALUE: &str = "__province_all__";
-const CIDR_USER_AGENT: &str = "fn-knock-server-admin/1.0";
-const CIDR_CITY_ONLY_PROVINCES: &[&str] = &["广东", "浙江"];
 const SUBSONIC_REST_ENDPOINTS: &[&str] = &[
     "addchatmessage",
     "changeemail",
@@ -115,10 +112,6 @@ fn cidr_text(translator: &Translator, key: &str) -> String {
     translator.t(&format!("server.cidr.{key}"))
 }
 
-fn cidr_text_params(translator: &Translator, key: &str, params: &[(&str, String)]) -> String {
-    translator.t_params(&format!("server.cidr.{key}"), params)
-}
-
 fn localize_scanner_error(translator: &Translator, message: &str) -> String {
     let message = message.trim();
     match message {
@@ -126,9 +119,11 @@ fn localize_scanner_error(translator: &Translator, message: &str) -> String {
         "At least one IP is required" => return scanner_text(translator, "atLeastOneIpRequired"),
         "Record not found" => return scanner_text(translator, "recordNotFound"),
         "province is required" => return cidr_text(translator, "provinceRequired"),
+        "CIDR operator filtering is unsupported" => {
+            return cidr_text(translator, "operatorUnsupported");
+        }
         _ => {}
     }
-
     if let Some(cidrs) = message.strip_prefix("Invalid CIDR exemptions: ") {
         return scanner_text_params(
             translator,
@@ -141,42 +136,7 @@ fn localize_scanner_error(translator: &Translator, message: &str) -> String {
 }
 
 fn localize_cidr_error(translator: &Translator, message: &str) -> String {
-    let message = message.trim();
-    if message.is_empty() {
-        return cidr_text(translator, "serviceError");
-    }
-    match message {
-        "CIDR service failed" => return cidr_text(translator, "serviceError"),
-        "CIDR upstream response missing data" => {
-            return cidr_text(translator, "upstreamUnexpected");
-        }
-        _ => {}
-    }
-    if let Some(detail) = message.strip_prefix("Invalid CIDR API URL: ") {
-        return cidr_text_params(
-            translator,
-            "invalidApiUrl",
-            &[("error", detail.to_string())],
-        );
-    }
-    if let Some(status) = message.strip_prefix("CIDR upstream request failed: HTTP ") {
-        return cidr_text_params(
-            translator,
-            "upstreamRequestFailed",
-            &[("status", status.to_string())],
-        );
-    }
-    if let Some(detail) = message.strip_prefix("CIDR upstream request failed: ") {
-        return cidr_text_params(
-            translator,
-            "upstreamRequestFailedGeneric",
-            &[("error", detail.to_string())],
-        );
-    }
-    if message.starts_with("CIDR upstream returned invalid JSON") {
-        return cidr_text(translator, "invalidJson");
-    }
-    message.to_string()
+    crate::cidr::localize_error(translator, message)
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -187,6 +147,16 @@ enum ScannerError {
     Cidr(String),
     #[error(transparent)]
     Storage(#[from] crate::storage::StorageError),
+}
+
+impl From<CidrError> for ScannerError {
+    fn from(value: CidrError) -> Self {
+        match value {
+            CidrError::BadRequest(message) => Self::BadRequest(message),
+            CidrError::Service(message) => Self::Cidr(message),
+            CidrError::Storage(error) => Self::Storage(error),
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -205,6 +175,7 @@ struct CidrProvinceQuery {
 struct CidrCityQuery {
     province: String,
     city: Option<String>,
+    operator: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -228,24 +199,11 @@ struct ScannerCidrExemptionRegionBody {
     province: String,
     #[serde(default)]
     query_city: Option<String>,
+    #[serde(default)]
+    operator: Option<Value>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-struct ScannerCidrExemptionRegionInput {
-    province: String,
-    query_city: Option<String>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-struct ScannerCidrExemptionSelection {
-    province: String,
-    city: Option<String>,
-    label: String,
-    value: String,
-    query_city: Option<String>,
-    is_province_wide: bool,
-    is_municipality: bool,
-}
+type ScannerCidrExemptionSelection = CidrSelection;
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
 struct ScannerSettings {
@@ -277,16 +235,6 @@ struct ScannerEnvDefaults {
     blacklist_ttl_seconds: i64,
 }
 
-struct ResolvedCidrLookup {
-    selection: ScannerCidrExemptionSelection,
-    cidrs: Vec<String>,
-}
-
-pub(crate) struct CidrRegionLookup {
-    pub selection: Value,
-    pub cidrs: Vec<String>,
-}
-
 pub fn scanner_routes() -> Router<AppState> {
     Router::new()
         .route(
@@ -305,6 +253,7 @@ pub fn scanner_routes() -> Router<AppState> {
 
 pub fn cidr_routes() -> Router<AppState> {
     Router::new()
+        .route("/api/admin/cidr/capabilities", get(get_cidr_capabilities))
         .route("/api/admin/cidr/provinces", get(get_cidr_provinces))
         .route("/api/admin/cidr/cities", get(get_cidr_cities))
         .route("/api/admin/cidr/selector", get(get_cidr_selector))
@@ -318,17 +267,13 @@ pub(crate) struct ScannerPreflightRecordResult {
 }
 
 mod cidr_routes;
-mod cidr_service;
 mod handlers;
 mod preflight;
 mod settings;
 mod utils;
 
-pub(crate) use cidr_routes::lookup_cidr_region;
-use cidr_routes::{get_cidr_cidrs, get_cidr_cities, get_cidr_provinces, get_cidr_selector};
-use cidr_service::{
-    get_cidr_cities_payload, get_cidr_lookup_payload, get_cidr_provinces_payload,
-    lookup_region_cidrs, resolve_cidr_exemption_regions,
+use cidr_routes::{
+    get_cidr_capabilities, get_cidr_cidrs, get_cidr_cities, get_cidr_provinces, get_cidr_selector,
 };
 use handlers::{
     delete_blacklist, delete_blacklist_record, get_blacklist_record, get_settings, list_blacklist,
@@ -341,11 +286,6 @@ pub(crate) use preflight::{
 use settings::{load_scanner_settings, save_scanner_settings};
 use utils::*;
 
-#[cfg(test)]
-use cidr_service::{
-    cidr_cities_total, cidr_lookup_payload_from_data, province_wide_label,
-    resolve_ip_location_api_base_url,
-};
 #[cfg(test)]
 use preflight::{
     is_scanner_local_address, normalize_scanner_host, normalize_subsonic_rest_endpoint,

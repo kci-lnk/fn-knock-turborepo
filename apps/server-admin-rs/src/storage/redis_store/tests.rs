@@ -1278,6 +1278,8 @@ fn deserializes_whitelist_region_groups_like_node_store() {
                 "regions": [
                     { "province": 440000, "query_city": true },
                     { "province": "广东", "query_city": "" },
+                    { "province": "广东", "query_city": "深圳", "operator": "移动" },
+                    { "province": "广东", "query_city": "深圳", "operator": "电信" },
                     { "province": " ", "query_city": "ignored" },
                     null
                 ],
@@ -1297,11 +1299,23 @@ fn deserializes_whitelist_region_groups_like_node_store() {
         vec![
             WhitelistRegionInput {
                 province: "440000".to_string(),
-                query_city: Some("true".to_string())
+                query_city: Some("true".to_string()),
+                operator: None,
             },
             WhitelistRegionInput {
                 province: "广东".to_string(),
-                query_city: None
+                query_city: None,
+                operator: None,
+            },
+            WhitelistRegionInput {
+                province: "广东".to_string(),
+                query_city: Some("深圳".to_string()),
+                operator: Some(crate::cidr::CidrOperator::Mobile),
+            },
+            WhitelistRegionInput {
+                province: "广东".to_string(),
+                query_city: Some("深圳".to_string()),
+                operator: Some(crate::cidr::CidrOperator::Telecom),
             }
         ]
     );

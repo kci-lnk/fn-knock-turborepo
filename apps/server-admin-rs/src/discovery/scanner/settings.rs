@@ -21,13 +21,17 @@ pub(super) async fn save_scanner_settings(
     };
     let requested_regions = body
         .cidr_exemption_regions
-        .map(dedupe_scanner_cidr_exemption_region_inputs);
+        .map(dedupe_scanner_cidr_exemption_region_inputs)
+        .transpose()?;
     let previous_region_inputs = previous
         .cidr_exemption_regions
         .iter()
-        .map(|item| ScannerCidrExemptionRegionInput {
-            province: item.province.clone(),
-            query_city: item.query_city.clone(),
+        .map(|item| {
+            CidrRegionQuery::new(
+                item.province.clone(),
+                item.query_city.clone(),
+                item.operator,
+            )
         })
         .collect::<Vec<_>>();
     let reuse_region_resolution = requested_regions
@@ -41,8 +45,7 @@ pub(super) async fn save_scanner_settings(
         )
     } else {
         let resolved =
-            resolve_cidr_exemption_regions(state, requested_regions.as_deref().unwrap_or(&[]))
-                .await?;
+            crate::cidr::lookup_regions(state, requested_regions.as_deref().unwrap_or(&[])).await?;
         (
             resolved
                 .iter()

@@ -471,6 +471,15 @@ export const zhHantAdmin = {
     clearAllDataFailed: "清空失敗",
     clearAllDataFailedDescription: "無法清空所有資料，請稍後再試。",
   },
+  cidrSelector: {
+    operator: "運營商",
+    allOperators: "全部運營商",
+    operatorUnavailable: "運營商篩選暫不可用",
+    capabilityCheckFailed:
+      "無法確認目前 CIDR 服務是否支援運營商篩選，已保留一般省市選擇。請檢查服務後重試。",
+    operatorUpgradeRequired:
+      "目前 CIDR 服務版本不支援運營商篩選。一般省市選擇仍可使用；如需按運營商選擇，請將 CIDR 容器升級至 {version} 或更高版本。",
+  },
   ipLocationSettings: {
     ...zhCNAdmin.ipLocationSettings,
     ipLookupUrlRequired: "請填寫 IP 識別庫地址",
@@ -490,6 +499,9 @@ export const zhHantAdmin = {
     connectionSuccess: "連接成功",
     ipLookupHealthy: "IP 識別庫服務響應正常",
     cidrHealthy: "CIDR 地址庫服務響應正常",
+    cidrUpgradeRequiredTitle: "連線成功，但 CIDR 容器需要升級",
+    cidrUpgradeRequired:
+      "基礎省市查詢可用，但目前版本不支援運營商篩選。請升級至 {version} 或更高版本。",
     settingsUpdated: "屬地設定已更新",
     ipLookupTitle: "IP 識別庫",
     ipLookupDescription: "查詢單個 IP 的國家、地區和運營商資訊。",

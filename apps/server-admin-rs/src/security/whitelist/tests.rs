@@ -134,22 +134,35 @@ fn normalizes_whitelist_region_inputs() {
     let regions = normalize_whitelist_region_inputs(&[
         json!({ "province": "广东", "query_city": "深圳" }),
         json!({ "province": "广东", "query_city": "深圳" }),
+        json!({ "province": "广东", "query_city": "深圳", "operator": "移动" }),
         json!({ "province": "广东", "query_city": "" }),
         json!({ "province": 440000, "query_city": true }),
         json!({ "province": ["广东", null, "深圳"], "query_city": false }),
         json!({ "province": " " }),
         json!("ignored"),
-    ]);
+    ])
+    .unwrap();
 
-    assert_eq!(regions.len(), 4);
+    assert_eq!(regions.len(), 5);
     assert_eq!(regions[0].province, "广东");
     assert_eq!(regions[0].query_city.as_deref(), Some("深圳"));
-    assert_eq!(regions[1].province, "广东");
-    assert_eq!(regions[1].query_city, None);
-    assert_eq!(regions[2].province, "440000");
-    assert_eq!(regions[2].query_city.as_deref(), Some("true"));
-    assert_eq!(regions[3].province, "广东,,深圳");
-    assert_eq!(regions[3].query_city.as_deref(), Some("false"));
+    assert_eq!(regions[1].operator, Some(CidrOperator::Mobile));
+    assert_eq!(regions[2].province, "广东");
+    assert_eq!(regions[2].query_city, None);
+    assert_eq!(regions[3].province, "440000");
+    assert_eq!(regions[3].query_city.as_deref(), Some("true"));
+    assert_eq!(regions[4].province, "广东,,深圳");
+    assert_eq!(regions[4].query_city.as_deref(), Some("false"));
+}
+
+#[test]
+fn whitelist_regions_reject_non_string_operator() {
+    assert!(
+        normalize_whitelist_region_inputs(&[
+            json!({ "province": "广东", "query_city": "深圳", "operator": false }),
+        ])
+        .is_err()
+    );
 }
 
 #[test]
@@ -176,6 +189,7 @@ fn summarizes_whitelist_region_group_without_cidrs() {
         regions: vec![WhitelistRegionInput {
             province: "广东".to_string(),
             query_city: Some("深圳".to_string()),
+            operator: None,
         }],
         cidrs: vec!["1.1.1.0/24".to_string(), "2001:db8::/32".to_string()],
         expire_at: None,

@@ -149,7 +149,14 @@ async fn test_cidr(State(state): State<AppState>, Json(body): Json<TestUrlBody>)
                     .unwrap_or_else(|| admin_text(&translator, "connectionTest.invalidData")),
             ));
         }
-        Ok(test_success(&translator))
+        let capabilities = crate::cidr::probe_capabilities(&state, &base_url, "custom")
+            .await
+            .map_err(|message| crate::cidr::localize_error(&translator, &message))?;
+        Ok(json!({
+            "success": true,
+            "message": admin_text(&translator, "connectionTest.success"),
+            "capabilities": capabilities,
+        }))
     }
     .await;
     test_result_response(result, &translator)
@@ -375,6 +382,13 @@ mod tests {
         assert_eq!(
             localize_connection_test_error("Invalid response data", &translator),
             "服务返回数据异常"
+        );
+        assert_eq!(
+            crate::cidr::localize_error(
+                &translator,
+                "CIDR operator capability probe returned HTTP 502: upstream failed",
+            ),
+            "CIDR 上游返回异常"
         );
     }
 

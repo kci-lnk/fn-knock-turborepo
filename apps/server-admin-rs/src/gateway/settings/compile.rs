@@ -9,19 +9,17 @@ pub(super) async fn compile_gateway_visibility_config(
         .get("enabled")
         .and_then(Value::as_bool)
         .unwrap_or(false);
-    let selections = dedupe_visibility_selection_inputs(input.get("selections"));
+    let selections = dedupe_visibility_selection_inputs(input.get("selections"))
+        .map_err(|message| crate::cidr::localize_error(&translator, &message))?;
     let custom_cidrs =
         validate_gateway_custom_cidrs(string_list(input.get("custom_cidrs")), &translator)?;
     let mut stored_selections = Vec::new();
     let mut resolved_cidrs = Vec::new();
 
     for selection in selections {
-        let lookup = scanner::lookup_cidr_region(
-            state,
-            &selection.province,
-            selection.query_city.as_deref(),
-        )
-        .await?;
+        let lookup = crate::cidr::lookup_region(state, &selection.query())
+            .await
+            .map_err(|error| crate::cidr::localize_error(&translator, &error.to_string()))?;
         stored_selections.push(lookup.selection);
         resolved_cidrs.extend(lookup.cidrs);
     }
@@ -48,19 +46,17 @@ pub(crate) async fn compile_host_visibility_config(
     input: &Map<String, Value>,
 ) -> Result<Value, String> {
     let translator = Translator::from_state(state).await;
-    let selections = dedupe_visibility_selection_inputs(input.get("selections"));
+    let selections = dedupe_visibility_selection_inputs(input.get("selections"))
+        .map_err(|message| crate::cidr::localize_error(&translator, &message))?;
     let custom_cidrs =
         validate_gateway_custom_cidrs(string_list(input.get("custom_cidrs")), &translator)?;
     let mut stored_selections = Vec::new();
     let mut resolved_cidrs = Vec::new();
 
     for selection in selections {
-        let lookup = scanner::lookup_cidr_region(
-            state,
-            &selection.province,
-            selection.query_city.as_deref(),
-        )
-        .await?;
+        let lookup = crate::cidr::lookup_region(state, &selection.query())
+            .await
+            .map_err(|error| crate::cidr::localize_error(&translator, &error.to_string()))?;
         stored_selections.push(lookup.selection);
         resolved_cidrs.extend(lookup.cidrs);
     }
@@ -79,16 +75,29 @@ pub(crate) async fn compile_host_visibility_config(
 }
 
 #[derive(Debug, PartialEq, Eq)]
-struct VisibilitySelectionInput {
-    province: String,
-    query_city: Option<String>,
+pub(super) struct VisibilitySelectionInput {
+    pub(super) province: String,
+    pub(super) query_city: Option<String>,
+    pub(super) operator: Option<CidrOperator>,
 }
 
-fn dedupe_visibility_selection_inputs(value: Option<&Value>) -> Vec<VisibilitySelectionInput> {
+impl VisibilitySelectionInput {
+    fn query(&self) -> CidrRegionQuery {
+        CidrRegionQuery::new(
+            self.province.clone(),
+            self.query_city.clone(),
+            self.operator,
+        )
+    }
+}
+
+pub(super) fn dedupe_visibility_selection_inputs(
+    value: Option<&Value>,
+) -> Result<Vec<VisibilitySelectionInput>, String> {
     let mut result = Vec::new();
     let mut seen = BTreeSet::new();
     let Some(items) = value.and_then(Value::as_array) else {
-        return result;
+        return Ok(result);
     };
     for item in items {
         let province = item
@@ -107,15 +116,17 @@ fn dedupe_visibility_selection_inputs(value: Option<&Value>) -> Vec<VisibilitySe
             .map(str::trim)
             .filter(|value| !value.is_empty())
             .map(ToString::to_string);
-        let key = format!("{}::{}", province, query_city.as_deref().unwrap_or(""));
+        let operator = CidrOperator::parse_value(item.get("operator"))?;
+        let key = CidrRegionQuery::new(province.clone(), query_city.clone(), operator).key();
         if seen.insert(key) {
             result.push(VisibilitySelectionInput {
                 province,
                 query_city,
+                operator,
             });
         }
     }
-    result
+    Ok(result)
 }
 
 pub(super) fn validate_gateway_custom_cidrs(

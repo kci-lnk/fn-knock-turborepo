@@ -3226,8 +3226,8 @@ export const zhHantAdmin = {
       google: "Google DNS",
     },
     httpTransport: {
-      curl: "curl（預設）",
-      node: "內建 HTTP",
+      curl: "curl",
+      node: "內建 HTTP（預設）",
     },
     publicCheckIpv4Title: "IPv4 探測地址",
     publicCheckIpv6Title: "IPv6 探測地址",

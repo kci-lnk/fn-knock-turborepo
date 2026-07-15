@@ -74,7 +74,7 @@ export const SOURCE_DOMAIN_KEY = "source_domain";
 export const NETWORK_INTERFACE_AUTO_VALUE = "__auto__";
 export const DEFAULT_DDNS_UPDATE_SCOPE: DDNSUpdateScope = "dual_stack";
 export const DEFAULT_DDNS_IP_SOURCE: DDNSIpSource = "public";
-export const DEFAULT_DDNS_HTTP_TRANSPORT: DDNSHttpTransport = "curl";
+export const DEFAULT_DDNS_HTTP_TRANSPORT: DDNSHttpTransport = "node";
 export const DEFAULT_DDNS_PUBLIC_DNS_PROVIDER: DDNSPublicDnsProvider = "alidns";
 export const DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES = 10;
 export const EMPTY_DDNS_PUBLIC_CHECK_SOURCES: DDNSPublicCheckSourcesPayload = {
@@ -107,8 +107,8 @@ export const HTTP_TRANSPORT_OPTIONS: Array<{
   labelKey: string;
   value: DDNSHttpTransport;
 }> = [
-  { labelKey: "admin.ddns.httpTransport.curl", value: "curl" },
   { labelKey: "admin.ddns.httpTransport.node", value: "node" },
+  { labelKey: "admin.ddns.httpTransport.curl", value: "curl" },
 ];
 
 export const PUBLIC_DNS_PROVIDER_OPTIONS: Array<{
@@ -152,6 +152,9 @@ export const normalizeDDNSHttpTransport = (
 ): DDNSHttpTransport => {
   if (value === "node" || value === "fetch") {
     return "node";
+  }
+  if (value === "curl") {
+    return "curl";
   }
   return DEFAULT_DDNS_HTTP_TRANSPORT;
 };

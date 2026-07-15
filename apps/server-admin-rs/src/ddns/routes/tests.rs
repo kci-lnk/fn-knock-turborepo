@@ -93,6 +93,19 @@ fn parses_ddns_settings_with_defaults() {
 }
 
 #[test]
+fn ddns_settings_http_transport_defaults_to_builtin_http() {
+    assert_eq!(parse_settings(None)["httpTransport"], json!("node"));
+    assert_eq!(
+        parse_settings(Some(r#"{"httpTransport":"invalid"}"#))["httpTransport"],
+        json!("node")
+    );
+    assert_eq!(
+        parse_settings(Some(r#"{"httpTransport":"curl"}"#))["httpTransport"],
+        json!("curl")
+    );
+}
+
+#[test]
 fn ddns_settings_public_dns_provider_defaults_and_normalizes() {
     for provider in ["none", "alidns", "tencent", "cloudflare", "google"] {
         let raw = json!({ "publicDnsProvider": provider }).to_string();
@@ -239,7 +252,7 @@ fn ddns_settings_http_transport_update_matches_node_merge() {
     assert_eq!(merge_http_transport_update(None, &current_node), "node");
     assert_eq!(
         merge_http_transport_update(Some("invalid"), &current_node),
-        "curl"
+        "node"
     );
 }
 

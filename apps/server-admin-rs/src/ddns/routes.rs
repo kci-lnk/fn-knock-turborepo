@@ -484,7 +484,7 @@ async fn test_public_check_sources(
             .as_ref()
             .and_then(|settings| settings.get("httpTransport"))
             .and_then(Value::as_str)
-            .unwrap_or("curl")
+            .unwrap_or("node")
             .to_string()
     };
     let public_dns_provider = if let Some(value) = body.public_dns_provider.as_ref() {

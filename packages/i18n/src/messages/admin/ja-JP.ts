@@ -3518,8 +3518,8 @@ export const jaJPAdmin = {
       google: "Google DNS",
     },
     httpTransport: {
-      curl: "curl（デフォルト）",
-      node: "組み込み HTTP",
+      curl: "curl",
+      node: "組み込み HTTP（デフォルト）",
     },
     publicCheckIpv4Title: "IPv4 検出アドレス",
     publicCheckIpv6Title: "IPv6 検出アドレス",

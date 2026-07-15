@@ -334,7 +334,8 @@ pub(super) fn parse_legacy_ddns_cron_interval_minutes(pattern: Option<&str>) -> 
 pub(super) fn normalize_http_transport(value: Option<&Value>) -> &'static str {
     match value.and_then(Value::as_str) {
         Some("node" | "fetch") => "node",
-        _ => "curl",
+        Some("curl") => "curl",
+        _ => "node",
     }
 }
 
@@ -343,7 +344,7 @@ pub(super) fn merge_http_transport_update(input: Option<&str>, current: &Value) 
         Some("node" | "fetch") => "node",
         Some("curl") => "curl",
         None => normalize_http_transport(current.get("httpTransport")),
-        Some(_) => "curl",
+        Some(_) => "node",
     }
 }
 

@@ -3438,8 +3438,8 @@ export const koKRAdmin = {
       google: "Google DNS",
     },
     httpTransport: {
-      curl: "curl(기본값)",
-      node: "내장 HTTP",
+      curl: "curl",
+      node: "내장 HTTP(기본값)",
     },
     publicCheckIpv4Title: "IPv4 탐지 주소",
     publicCheckIpv6Title: "IPv6 탐지 주소",

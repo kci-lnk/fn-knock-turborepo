@@ -566,7 +566,7 @@ pub(super) async fn resolve_target_ips(
                 settings
                     .get("httpTransport")
                     .and_then(Value::as_str)
-                    .unwrap_or("curl"),
+                    .unwrap_or("node"),
                 settings
                     .get("publicDnsProvider")
                     .and_then(Value::as_str)

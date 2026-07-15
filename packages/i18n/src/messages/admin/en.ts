@@ -3463,8 +3463,8 @@ export const enAdmin = {
       google: "Google DNS",
     },
     httpTransport: {
-      curl: "curl (default)",
-      node: "Built-in HTTP",
+      curl: "curl",
+      node: "Built-in HTTP (default)",
     },
     publicCheckIpv4Title: "IPv4 detection sources",
     publicCheckIpv6Title: "IPv6 detection sources",

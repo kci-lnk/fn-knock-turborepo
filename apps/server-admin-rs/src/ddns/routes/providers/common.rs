@@ -517,9 +517,9 @@ pub(in crate::ddns::routes) fn utc_date(timestamp: i64) -> anyhow::Result<String
 
 pub(in crate::ddns::routes) fn strip_fractional_seconds(value: &str) -> String {
     if let Some(dot) = value.find('.')
-        && let Some(z_index) = value[dot..].find('Z')
+        && value.ends_with('Z')
     {
-        return format!("{}Z", &value[..dot + z_index]);
+        return format!("{}Z", &value[..dot]);
     }
     value.to_string()
 }

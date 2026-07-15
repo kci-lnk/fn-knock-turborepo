@@ -1003,6 +1003,59 @@ fn builds_ddns_provider_query_urls() {
 }
 
 #[test]
+fn cloud_provider_timestamps_omit_fractional_seconds() {
+    for (input, expected) in [
+        ("2026-07-15T08:09:10.123Z", "2026-07-15T08:09:10Z"),
+        ("2026-07-15T08:09:10.123456789Z", "2026-07-15T08:09:10Z"),
+        ("2026-07-15T08:09:10Z", "2026-07-15T08:09:10Z"),
+    ] {
+        assert_eq!(strip_fractional_seconds(input), expected);
+    }
+
+    let assert_iso8601 = |timestamp: &str| {
+        assert_eq!(timestamp.len(), 20);
+        assert_eq!(timestamp.as_bytes()[10], b'T');
+        assert_eq!(timestamp.as_bytes()[19], b'Z');
+        assert!(!timestamp.contains('.'));
+    };
+    let assert_compact = |timestamp: &str| {
+        assert_eq!(timestamp.len(), 16);
+        assert_eq!(timestamp.as_bytes()[8], b'T');
+        assert_eq!(timestamp.as_bytes()[15], b'Z');
+        assert!(!timestamp.contains(['-', ':', '.']));
+    };
+
+    // ESA signs this shared ISO8601 value directly as x-acs-date.
+    assert_iso8601(&iso8601_utc_without_millis());
+
+    let alidns_query = build_aliyun_signed_params("access-key", "secret", Vec::new(), "GET");
+    let alidns_timestamp = url::form_urlencoded::parse(alidns_query.as_bytes())
+        .find_map(|(key, value)| (key == "Timestamp").then(|| value.into_owned()))
+        .unwrap();
+    assert_iso8601(&alidns_timestamp);
+
+    let (baidu_timestamp, _) = baidu_bce_authorization(
+        "GET",
+        "https://bcd.baidubce.com/v1/domain",
+        "access-key",
+        "secret",
+    )
+    .unwrap();
+    assert_iso8601(&baidu_timestamp);
+
+    let (huawei_timestamp, _) = huawei_sdk_authorization(
+        "GET",
+        "https://dns.cn-north-4.myhuaweicloud.com/v2/zones",
+        "application/json",
+        "access-key",
+        "secret",
+        "",
+    )
+    .unwrap();
+    assert_compact(&huawei_timestamp);
+}
+
+#[test]
 fn edgeone_cname_origin_payload_and_host_header_errors_match_node() {
     assert_eq!(
         edgeone_cname_origin_info("203.0.113.8", Some("origin.example.com")),

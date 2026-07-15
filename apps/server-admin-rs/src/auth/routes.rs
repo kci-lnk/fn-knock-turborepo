@@ -29,7 +29,7 @@ use crate::{
     oidc_runtime::{consume_login_error_for_bootstrap, oidc_runtime_routes},
     passkey_runtime::{build_passkey_bind_info, passkey_routes, public_passkey_status},
     response::{self, ApiEnvelope},
-    scanner,
+    runtime_config, scanner,
     state::AppState,
     store::{LoginSession, TotpCredential},
     system_events, time_utils, whitelist,

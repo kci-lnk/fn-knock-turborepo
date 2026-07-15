@@ -114,18 +114,18 @@ pub(super) async fn captcha_config(State(state): State<AppState>) -> Response {
 
 pub(super) async fn challenge(State(state): State<AppState>) -> Response {
     let translator = Translator::from_state(&state).await;
-    let config = match state.store.get_config().await {
-        Ok(config) => config,
+    let settings = match runtime_config::load_captcha_settings(&state).await {
+        Ok(settings) => settings,
         Err(error) => {
-            tracing::warn!(%error, "failed to load captcha config for challenge");
+            tracing::warn!(%error, "failed to load captcha settings for challenge");
             return with_auth_headers(response::error(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 auth_route_text(&translator, "createCaptchaChallengeFailed"),
             ));
         }
     };
-    if config
-        .pointer("/captcha/provider")
+    if settings
+        .get("provider")
         .and_then(Value::as_str)
         .unwrap_or("pow")
         != "pow"
@@ -387,9 +387,7 @@ pub(super) async fn login(
         }
     }
 
-    if let Err(message) =
-        verify_captcha(&state, &config, &body.captcha, &client_ip, &translator).await
-    {
+    if let Err(message) = verify_captcha(&state, &body.captcha, &client_ip, &translator).await {
         return with_auth_headers(response::error(StatusCode::BAD_REQUEST, message));
     }
 

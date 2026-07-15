@@ -46,6 +46,7 @@ pub(super) async fn build_auth_shell_data(
     include_redirect: bool,
 ) -> anyhow::Result<(Value, AuthAccess)> {
     let config = state.store.get_config().await?;
+    let captcha_settings = runtime_config::load_captcha_settings(state).await?;
     let locale = config
         .get("locale")
         .cloned()
@@ -79,7 +80,7 @@ pub(super) async fn build_auth_shell_data(
             "login_mode": login_mode.as_str()
         },
         "client": { "ip": client_ip },
-        "captcha": public_captcha_settings_from_config(state, &config, &translator),
+        "captcha": public_captcha_settings_from_settings(state, &captcha_settings, &translator),
         "passkey": passkey,
         "oidc": { "providers": oidc_providers }
     });
@@ -306,27 +307,20 @@ pub(super) async fn resolve_auth_access_with_normal_access(
 
 pub(super) async fn public_captcha_settings(state: &AppState) -> anyhow::Result<Value> {
     let config = state.store.get_config().await?;
+    let settings = runtime_config::load_captcha_settings(state).await?;
     let translator = translator_from_config(&config);
-    Ok(public_captcha_settings_from_config(
+    Ok(public_captcha_settings_from_settings(
         state,
-        &config,
+        &settings,
         &translator,
     ))
 }
 
-pub(super) fn public_captcha_settings_from_config(
+pub(super) fn public_captcha_settings_from_settings(
     state: &AppState,
-    config: &Value,
+    captcha: &Value,
     translator: &Translator,
 ) -> Value {
-    let captcha = config.get("captcha").cloned().unwrap_or_else(|| {
-        json!({
-            "provider": "pow",
-            "widget_mode": "normal",
-            "pow": {},
-            "turnstile": { "site_key": "", "secret_key": "" }
-        })
-    });
     let provider = captcha
         .get("provider")
         .and_then(Value::as_str)

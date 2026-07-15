@@ -1,6 +1,11 @@
 use serde_json::json;
 
 use super::*;
+use axum::{
+    body::{Body, to_bytes},
+    http::Request,
+};
+use tower::ServiceExt;
 
 #[test]
 fn safe_redirect_allows_relative_current_origin_and_configured_hosts() {
@@ -757,6 +762,7 @@ async fn auth_route_test_state(name: &str) -> (tempfile::TempDir, AppState) {
     settings.legacy_redis_url = String::new();
     settings.go_backend_grpc_addr = "127.0.0.1:1".to_string();
     settings.internal_rpc_token = format!("auth-route-{name}-test");
+    settings.altcha_hmac_key = Some("auth-route-altcha-test-key".to_string());
     let state = AppState::new(settings)
         .await
         .expect("auth route test state");
@@ -766,6 +772,177 @@ async fn auth_route_test_state(name: &str) -> (tempfile::TempDir, AppState) {
         .await
         .expect("auth route test config");
     (directory, state)
+}
+
+fn captcha_route_test_app(state: AppState) -> Router {
+    Router::new()
+        .merge(runtime_config::runtime_config_routes())
+        .nest("/api/auth", auth_api_routes())
+        .with_state(state)
+}
+
+async fn response_json(response: Response) -> Value {
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read response body");
+    serde_json::from_slice(&body).expect("parse response body")
+}
+
+#[tokio::test]
+async fn turnstile_admin_setting_drives_all_auth_captcha_routes() {
+    let (_directory, state) = auth_route_test_state("turnstile-settings").await;
+    let app = captcha_route_test_app(state);
+    let turnstile_settings = json!({
+        "provider": "turnstile",
+        "widget_mode": "normal",
+        "pow": {},
+        "turnstile": {
+            "site_key": "turnstile-site-key",
+            "secret_key": "turnstile-secret-key"
+        }
+    });
+
+    let update_response = app
+        .clone()
+        .oneshot(
+            Request::post("/api/admin/config/captcha")
+                .header("content-type", "application/json")
+                .body(Body::from(turnstile_settings.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(update_response.status(), StatusCode::OK);
+    assert_eq!(
+        response_json(update_response).await["data"],
+        turnstile_settings
+    );
+
+    let bootstrap_response = app
+        .clone()
+        .oneshot(
+            Request::get("/api/auth/bootstrap")
+                .header("host", "auth.example.com")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(bootstrap_response.status(), StatusCode::OK);
+    let bootstrap = response_json(bootstrap_response).await;
+    let public_settings = &bootstrap["data"]["captcha"];
+    assert_eq!(public_settings["provider"], "turnstile");
+    assert_eq!(public_settings["available"], true);
+    assert_eq!(
+        public_settings["turnstile"]["site_key"],
+        "turnstile-site-key"
+    );
+    assert!(
+        public_settings["turnstile"].get("secret_key").is_none(),
+        "the public captcha payload must not expose the Turnstile secret"
+    );
+
+    let config_response = app
+        .clone()
+        .oneshot(
+            Request::get("/api/auth/captcha/config")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(config_response.status(), StatusCode::OK);
+    assert_eq!(
+        response_json(config_response).await["data"],
+        *public_settings
+    );
+
+    let challenge_response = app
+        .clone()
+        .oneshot(
+            Request::get("/api/auth/challenge")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(challenge_response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(
+        response_json(challenge_response).await["message"],
+        captcha_text(
+            &Translator::new(crate::i18n::DEFAULT_LOCALE),
+            "powNotEnabled"
+        )
+    );
+
+    let login_response = app
+        .oneshot(
+            Request::post("/api/auth/login")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "token": "000000",
+                        "captcha": { "provider": "pow", "proof": "unused" },
+                        "rememberMe": false
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(login_response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(
+        response_json(login_response).await["message"],
+        captcha_text(
+            &Translator::new(crate::i18n::DEFAULT_LOCALE),
+            "providerConfigMismatch"
+        )
+    );
+}
+
+#[tokio::test]
+async fn default_pow_setting_still_drives_bootstrap_and_challenge() {
+    let (_directory, state) = auth_route_test_state("default-pow-settings").await;
+    let app = captcha_route_test_app(state);
+
+    let bootstrap_response = app
+        .clone()
+        .oneshot(
+            Request::get("/api/auth/bootstrap")
+                .header("host", "auth.example.com")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(bootstrap_response.status(), StatusCode::OK);
+    let bootstrap = response_json(bootstrap_response).await;
+    assert_eq!(bootstrap["data"]["captcha"]["provider"], "pow");
+    assert_eq!(bootstrap["data"]["captcha"]["available"], true);
+
+    let challenge_response = app
+        .oneshot(
+            Request::get("/api/auth/challenge")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(challenge_response.status(), StatusCode::OK);
+    let challenge = response_json(challenge_response).await;
+    assert_eq!(challenge["algorithm"], "SHA-256");
+    assert_eq!(challenge["maxnumber"], POW_MAX_NUMBER);
+    assert!(
+        challenge["challenge"]
+            .as_str()
+            .is_some_and(|value| !value.is_empty())
+    );
+    assert!(
+        challenge["signature"]
+            .as_str()
+            .is_some_and(|value| !value.is_empty())
+    );
 }
 
 fn auth_route_test_session(ip: &str, expires_at: &str) -> LoginSession {

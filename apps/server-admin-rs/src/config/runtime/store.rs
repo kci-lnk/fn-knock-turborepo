@@ -71,7 +71,11 @@ pub(super) async fn save_protocol_mapping_feature(
         .await
 }
 
-pub(super) async fn load_captcha_settings(
+/// Loads the standalone captcha settings used by both admin and AUTH routes.
+///
+/// Captcha settings have never been part of the main `fn_knock:config` object;
+/// keep this as the single read path so provider selection cannot diverge.
+pub(crate) async fn load_captcha_settings(
     state: &AppState,
 ) -> crate::storage::StorageResult<Value> {
     let value = match state.store.get_json_value(CAPTCHA_SETTINGS_KEY).await? {

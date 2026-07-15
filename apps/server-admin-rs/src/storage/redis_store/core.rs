@@ -1177,35 +1177,6 @@ return 1
             .cloned()
             .unwrap_or_else(|| json!({ "theme_color_preset": "default" })))
     }
-
-    #[allow(dead_code)]
-    pub async fn captcha_public_settings(&self) -> crate::storage::StorageResult<Value> {
-        let config = self.get_config().await?;
-        let settings = config.get("captcha").cloned().unwrap_or_else(|| {
-            json!({
-                "provider": "pow",
-                "widget_mode": "normal",
-                "pow": {},
-                "turnstile": { "site_key": "", "secret_key": "" }
-            })
-        });
-        let provider = settings
-            .get("provider")
-            .and_then(Value::as_str)
-            .unwrap_or("pow");
-        let site_key = settings
-            .pointer("/turnstile/site_key")
-            .and_then(Value::as_str)
-            .unwrap_or("");
-        Ok(json!({
-            "provider": provider,
-            "widget_mode": "normal",
-            "available": true,
-            "unavailable_reason": null,
-            "pow": {},
-            "turnstile": { "site_key": site_key }
-        }))
-    }
 }
 
 fn append_backup_restore_commands(pipe: &mut redis::Pipeline, entry: &Value) -> usize {

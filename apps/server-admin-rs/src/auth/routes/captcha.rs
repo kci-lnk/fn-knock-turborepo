@@ -2,15 +2,16 @@ use super::*;
 
 pub(super) async fn verify_captcha(
     state: &AppState,
-    config: &Value,
     submission: &CaptchaSubmission,
     client_ip: &str,
     translator: &Translator,
 ) -> Result<(), String> {
-    let settings = config
-        .get("captcha")
-        .cloned()
-        .unwrap_or_else(|| json!({ "provider": "pow" }));
+    let settings = runtime_config::load_captcha_settings(state)
+        .await
+        .map_err(|error| {
+            tracing::warn!(%error, "failed to load captcha settings during verification");
+            auth_route_text(translator, "captchaVerifyFailed")
+        })?;
     let provider = settings
         .get("provider")
         .and_then(Value::as_str)

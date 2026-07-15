@@ -106,7 +106,9 @@ pub fn default_config() -> Value {
     });
     let scan_discovery = json!({
         "custom_cidrs": [],
-        "selected_cidrs": []
+        "selected_cidrs": [],
+        "intensity_mode": "auto",
+        "intensity_level": "medium"
     });
     let locale = json!({ "default_locale": "zh-CN" });
     let auth_credential_settings = json!({

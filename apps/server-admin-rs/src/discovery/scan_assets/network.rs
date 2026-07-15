@@ -324,5 +324,3 @@ pub(super) fn excluded_env_port_value(value: Option<String>, fallback: u16) -> O
 }
 
 pub(super) use crate::node_compat::parse_i64_prefix_trim_start as parse_js_parse_int_radix_10;
-
-pub(super) use crate::json_utils::ensure_object;

@@ -2407,6 +2407,10 @@ export const jaJPServer = {
     loadTargetsFailed: "スキャン対象の読み込みに失敗しました",
     loadConfigFailed: "設定の読み込みに失敗しました",
     saveTargetsFailed: "スキャン対象の保存に失敗しました",
+    loadSettingsFailed: "検出設定の読み込みに失敗しました",
+    saveSettingsFailed: "検出設定の保存に失敗しました",
+    invalidIntensityMode: "スキャン強度モードが無効です",
+    invalidIntensityLevel: "スキャン強度レベルが無効です",
     targetLabels: {
       docker: "{cidr} (Docker ホスト LAN)",
       loopback: "{cidr} (ネイティブ ループバック)",

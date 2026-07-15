@@ -56,71 +56,289 @@ fn expands_scan_cidrs_and_scope() {
 }
 
 #[test]
-fn discovery_host_groups_match_node_port_modes_and_self_skip() {
-    let scan_cidrs = vec![
-        LOOPBACK_DISCOVERY_CIDR.to_string(),
-        "192.168.1.0/30".to_string(),
-    ];
-    let full_range_cidrs = vec!["192.168.1.0/30".to_string()];
+fn discovery_host_groups_use_full_range_and_self_skip() {
+    let scan_cidrs = vec!["127.0.0.1/32".to_string(), "192.168.1.0/30".to_string()];
     let self_scan_hosts = vec!["192.168.1.1".to_string()];
 
-    let groups =
-        build_discovery_host_groups(&scan_cidrs, &full_range_cidrs, None, &self_scan_hosts);
+    let groups = build_discovery_host_groups(&scan_cidrs, None, &self_scan_hosts);
 
     assert_eq!(groups.len(), 3);
-    assert!(
-        groups
-            .iter()
-            .all(|group| group.mode == DiscoveryPortRangeMode::Full)
-    );
     assert_eq!(
         count_discovery_scan_ports_for_groups(&groups, &[]),
         59_920 + 59_920 + 59_921
     );
-    assert_eq!(
-        build_discovery_port_mode_label(&scan_cidrs, &full_range_cidrs),
-        "80-60000"
-    );
+    assert_eq!(build_discovery_port_mode_label(), "80-60000");
 }
 
 #[test]
-fn limited_discovery_uses_node_range_and_excluded_ports() {
+fn network_discovery_uses_full_range_and_excluded_ports() {
     let scan_cidrs = vec!["192.168.2.0/30".to_string()];
-    let groups = build_discovery_host_groups(&scan_cidrs, &[], None, &[]);
+    let groups = build_discovery_host_groups(&scan_cidrs, None, &[]);
 
     assert_eq!(groups.len(), 1);
-    assert_eq!(groups[0].mode, DiscoveryPortRangeMode::Limited);
     assert_eq!(groups[0].hosts.len(), 2);
     assert_eq!(
         count_discovery_scan_ports_for_groups(&groups, &[7_999]),
-        2 * (9_920 - 1)
+        2 * (59_921 - 1)
     );
-    assert_eq!(build_discovery_port_mode_label(&scan_cidrs, &[]), "80-9999");
+    assert_eq!(build_discovery_port_mode_label(), "80-60000");
 }
 
 #[test]
-fn mixed_discovery_label_matches_node_copy() {
-    let scan_cidrs = vec![
-        LOOPBACK_DISCOVERY_CIDR.to_string(),
-        "192.168.2.0/30".to_string(),
-    ];
-
-    assert_eq!(
-        build_discovery_port_mode_label(&scan_cidrs, &[]),
-        "local=80-60000, other=80-9999"
-    );
+fn every_intensity_uses_the_same_port_range() {
+    for level in [
+        ScanIntensityLevel::Low,
+        ScanIntensityLevel::Medium,
+        ScanIntensityLevel::High,
+        ScanIntensityLevel::Extreme,
+    ] {
+        assert_eq!(discovery_port_range().start, 80, "{}", level.as_str());
+        assert_eq!(discovery_port_range().end, 60_000, "{}", level.as_str());
+    }
 }
 
 #[test]
 fn discovery_port_list_merges_self_and_service_exclusions() {
     let ports = build_port_list(
-        limited_discovery_port_range(),
+        discovery_port_range(),
         &merge_discovery_skip_ports(LOCAL_SELF_DISCOVERY_SKIP_PORTS, &[7_999, 7_999]),
     );
 
     assert_eq!(ports.first().copied(), Some(81));
     assert!(!ports.contains(&7_999));
-    assert_eq!(ports.len(), 9_920 - 2);
+    assert_eq!(ports.len(), 59_921 - 2);
+}
+
+fn test_discover_job(state: &str, cancelled: bool, updated_at: i64) -> DiscoverJobHandle {
+    Arc::new(Mutex::new(DiscoverJob {
+        id: "test-job".to_string(),
+        cancel: Arc::new(AtomicBool::new(cancelled)),
+        created_at: 1,
+        updated_at,
+        state: state.to_string(),
+        meta: None,
+        progress: None,
+        service_events: Vec::new(),
+        service_map: Vec::new(),
+        result: None,
+        error: None,
+    }))
+}
+
+#[test]
+fn active_discovery_ttl_tracks_last_progress_instead_of_creation() {
+    let now = DISCOVER_JOB_ACTIVE_TTL_MS + 10_000;
+    let recently_updated = test_discover_job("running", false, now - 1_000);
+    let inactive = test_discover_job("running", false, now - DISCOVER_JOB_ACTIVE_TTL_MS - 1);
+
+    assert!(!discover_job_inactive_expired(
+        &discover_job_guard(&recently_updated),
+        now
+    ));
+    assert!(discover_job_inactive_expired(
+        &discover_job_guard(&inactive),
+        now
+    ));
+}
+
+#[test]
+fn cancelled_discovery_cannot_transition_back_to_running() {
+    for job in [
+        test_discover_job("cancelled", true, 1),
+        test_discover_job("cancelled", false, 1),
+    ] {
+        assert!(!mark_discover_job_running(
+            &job,
+            json!({ "foundServices": 0 }),
+            json!({ "scannedPorts": 0 })
+        ));
+        assert_eq!(discover_job_guard(&job).state, "cancelled");
+    }
+}
+
+#[test]
+fn scan_intensity_defaults_and_concurrency_are_stable() {
+    let (mode, level) = read_scan_intensity_config(&json!({}));
+    assert_eq!(mode, ScanIntensityMode::Auto);
+    assert_eq!(level, ScanIntensityLevel::Medium);
+    assert_eq!(ScanIntensityLevel::Low.concurrency(), 32);
+    assert_eq!(ScanIntensityLevel::Medium.concurrency(), 115);
+    assert_eq!(ScanIntensityLevel::High.concurrency(), 256);
+    assert_eq!(ScanIntensityLevel::Extreme.concurrency(), 512);
+    assert_eq!(
+        ScanIntensityLevel::Medium.concurrency(),
+        (6 * 64 * 30 + 50) / 100
+    );
+    assert!(ScanIntensityLevel::Extreme.concurrency() > 6 * 64);
+    assert_eq!(
+        effective_concurrency_for_level(ScanIntensityLevel::Extreme, 96),
+        96
+    );
+}
+
+#[test]
+fn scan_capacity_recommendation_respects_resource_thresholds() {
+    let capacity = |cpu_cores, total, available, safe_concurrency| ScanDeviceCapacity {
+        cpu_cores,
+        total_memory_bytes: Some(total),
+        available_memory_bytes: Some(available),
+        file_descriptor_limit: Some(65_536),
+        safe_concurrency,
+    };
+    assert_eq!(
+        recommend_scan_intensity(&capacity(1, 512 * 1024 * 1024, 128 * 1024 * 1024, 64)),
+        ScanIntensityLevel::Low
+    );
+    assert_eq!(
+        recommend_scan_intensity(&capacity(
+            2,
+            2 * 1024 * 1024 * 1024,
+            1024 * 1024 * 1024,
+            115
+        )),
+        ScanIntensityLevel::Medium
+    );
+    assert_eq!(
+        recommend_scan_intensity(&capacity(
+            4,
+            4 * 1024 * 1024 * 1024,
+            2 * 1024 * 1024 * 1024,
+            256
+        )),
+        ScanIntensityLevel::High
+    );
+    assert_eq!(
+        recommend_scan_intensity(&capacity(
+            8,
+            8 * 1024 * 1024 * 1024,
+            4 * 1024 * 1024 * 1024,
+            512
+        )),
+        ScanIntensityLevel::Extreme
+    );
+    assert_eq!(
+        recommend_scan_intensity(&capacity(
+            8,
+            8 * 1024 * 1024 * 1024,
+            4 * 1024 * 1024 * 1024,
+            511
+        )),
+        ScanIntensityLevel::High
+    );
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn macos_scan_capacity_reports_available_memory() {
+    let (total, available) = host_memory_bytes();
+    let total = total.expect("macOS total memory");
+    let available = available.expect("macOS available memory");
+    assert!(available > 0);
+    assert!(available <= total);
+}
+
+#[test]
+fn scan_safe_concurrency_uses_the_tightest_resource_budget() {
+    assert_eq!(
+        calculate_safe_concurrency(8, Some(128 * 1024 * 1024), Some(65_536)),
+        32
+    );
+    assert_eq!(
+        calculate_safe_concurrency(1, Some(8 * 1024 * 1024 * 1024), Some(65_536)),
+        128
+    );
+    assert_eq!(
+        calculate_safe_concurrency(16, Some(8 * 1024 * 1024 * 1024), Some(320)),
+        32
+    );
+    assert_eq!(calculate_safe_concurrency(32, None, None), 1024);
+    assert_eq!(
+        calculate_safe_concurrency(8, Some(4 * 1024 * 1024 * 1024), Some(65_536)),
+        1024
+    );
+}
+
+#[tokio::test]
+async fn expanded_global_budget_has_room_for_two_extreme_tasks() {
+    let global_budget = Arc::new(GlobalProbeBudget::new(1024));
+    let _registration = global_budget.register(1024).await;
+
+    assert_eq!(global_budget.current_limit(), 1024);
+    assert_eq!(ScanIntensityLevel::Extreme.concurrency() * 2, 1024);
+}
+
+async fn exercise_probe_wave(
+    global_budget: Arc<GlobalProbeBudget>,
+    task_budget: Arc<Semaphore>,
+    probe_count: usize,
+    active: Arc<AtomicUsize>,
+    peak: Arc<AtomicUsize>,
+) {
+    let mut probes = JoinSet::new();
+    for _ in 0..probe_count {
+        let global_budget = global_budget.clone();
+        let task_budget = task_budget.clone();
+        let active = active.clone();
+        let peak = peak.clone();
+        probes.spawn(async move {
+            let _task_permit = task_budget.acquire_owned().await.expect("task permit");
+            let _global_permit = global_budget.acquire().await.expect("global permit");
+            let current = active.fetch_add(1, Ordering::SeqCst) + 1;
+            peak.fetch_max(current, Ordering::SeqCst);
+            tokio::time::sleep(Duration::from_millis(2)).await;
+            active.fetch_sub(1, Ordering::SeqCst);
+        });
+    }
+    while let Some(result) = probes.join_next().await {
+        result.expect("probe task");
+    }
+}
+
+#[tokio::test]
+async fn per_task_probe_budget_caps_a_single_scan() {
+    let global_budget = Arc::new(GlobalProbeBudget::new(256));
+    let _registration = global_budget.register(128).await;
+    let active = Arc::new(AtomicUsize::new(0));
+    let peak = Arc::new(AtomicUsize::new(0));
+
+    exercise_probe_wave(
+        global_budget,
+        Arc::new(Semaphore::new(32)),
+        160,
+        active,
+        peak.clone(),
+    )
+    .await;
+
+    assert!(peak.load(Ordering::SeqCst) <= 32);
+}
+
+#[tokio::test]
+async fn global_probe_budget_caps_multiple_scans_at_the_safest_active_limit() {
+    let global_budget = Arc::new(GlobalProbeBudget::new(256));
+    let _first_registration = global_budget.register(128).await;
+    let _second_registration = global_budget.register(48).await;
+    assert_eq!(global_budget.current_limit(), 48);
+
+    let active = Arc::new(AtomicUsize::new(0));
+    let peak = Arc::new(AtomicUsize::new(0));
+    let first = exercise_probe_wave(
+        global_budget.clone(),
+        Arc::new(Semaphore::new(64)),
+        160,
+        active.clone(),
+        peak.clone(),
+    );
+    let second = exercise_probe_wave(
+        global_budget,
+        Arc::new(Semaphore::new(64)),
+        160,
+        active,
+        peak.clone(),
+    );
+    tokio::join!(first, second);
+
+    assert!(peak.load(Ordering::SeqCst) <= 48);
 }
 
 #[test]

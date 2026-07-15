@@ -2050,6 +2050,10 @@ export const zhCNServer = {
     loadTargetsFailed: "读取扫描目标失败",
     loadConfigFailed: "读取配置失败",
     saveTargetsFailed: "保存扫描目标失败",
+    loadSettingsFailed: "读取一键发现配置失败",
+    saveSettingsFailed: "保存一键发现配置失败",
+    invalidIntensityMode: "无效的扫描强度模式",
+    invalidIntensityLevel: "无效的扫描强度档位",
     targetLabels: {
       docker: "{cidr}（Docker 宿主机局域网）",
       loopback: "{cidr}（本机回环）",

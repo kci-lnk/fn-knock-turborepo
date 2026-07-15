@@ -4483,6 +4483,31 @@ export const koKRAdmin = {
     commentUpdateFailed: "댓글을 업데이트하지 못했습니다.",
     commentUpdated: "댓글이 업데이트되었습니다.",
   },
+  scanIntensity: {
+    title: "스캔 강도 설정",
+    description:
+      "서버 성능에 맞게 검색 동시 실행 수를 조정합니다. 모든 단계는 80–60000 포트를 검색합니다.",
+    loading: "장치 성능을 분석하는 중...",
+    level: "검색 강도",
+    recommended: "권장",
+    concurrency: "단계 동시 실행 {count}",
+    effectiveConcurrency: "실제 {count}",
+    resultSummary: "{level} · 동시 실행 {count}",
+    sliderLabel: "검색 강도 선택",
+    autoTitle: "장치 권장 설정 사용",
+    autoDescription:
+      "CPU, 사용 가능한 메모리, 파일 설명자 예산으로 안전한 단계를 선택합니다.",
+    sameRangeHint:
+      "네 단계는 같은 포트를 검색하며 속도와 장치 부하만 다릅니다.",
+    cpu: "유효 CPU: {count}코어",
+    memory: "사용 가능한 메모리: {available} / {total} MiB",
+    memoryUnknown: "메모리 정보를 사용할 수 없어 중간 단계를 기준으로 합니다",
+    safeConcurrency: "안전 동시 실행 상한: {count}",
+    loadFailed: "스캔 강도 설정을 불러오지 못했습니다",
+    saveFailed: "스캔 강도 설정을 저장하지 못했습니다",
+    saveSuccess: "스캔 강도 설정을 저장했습니다",
+    levels: { low: "낮음", medium: "중간", high: "높음", extreme: "매우 높음" },
+  },
   scanTargets: {
     title: "스캔 범위",
     description:

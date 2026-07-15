@@ -474,6 +474,60 @@ async fn gateway_target_section_merge_preserves_newer_config_and_section_writes(
 }
 
 #[tokio::test]
+async fn object_field_merge_preserves_concurrent_scan_discovery_writes() {
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let path = dir.path().join("fn-knock.sqlite3");
+    let target_store = Store::connect(&path).await.expect("open target store");
+    let intensity_store = Store::connect(&path).await.expect("open intensity store");
+    target_store
+        .save_config(&json!({
+            "host_mappings": [],
+            "scan_discovery": {
+                "custom_cidrs": [],
+                "selected_cidrs": [],
+                "intensity_mode": "auto",
+                "intensity_level": "medium"
+            }
+        }))
+        .await
+        .expect("seed scan discovery config");
+
+    let targets = target_store.merge_config_object_fields(
+        "scan_discovery",
+        [
+            ("custom_cidrs".to_string(), json!(["10.0.0.0/24"])),
+            ("selected_cidrs".to_string(), json!(["192.168.1.0/24"])),
+        ]
+        .into_iter()
+        .collect(),
+    );
+    let intensity = intensity_store.merge_config_object_fields(
+        "scan_discovery",
+        [
+            ("intensity_mode".to_string(), json!("manual")),
+            ("intensity_level".to_string(), json!("high")),
+        ]
+        .into_iter()
+        .collect(),
+    );
+    let (targets_result, intensity_result) = tokio::join!(targets, intensity);
+    targets_result.expect("merge target fields");
+    intensity_result.expect("merge intensity fields");
+
+    let merged = target_store.get_config().await.expect("load merged config");
+    assert_eq!(
+        merged["scan_discovery"]["custom_cidrs"],
+        json!(["10.0.0.0/24"])
+    );
+    assert_eq!(
+        merged["scan_discovery"]["selected_cidrs"],
+        json!(["192.168.1.0/24"])
+    );
+    assert_eq!(merged["scan_discovery"]["intensity_mode"], "manual");
+    assert_eq!(merged["scan_discovery"]["intensity_level"], "high");
+}
+
+#[tokio::test]
 async fn gateway_target_section_merge_distinguishes_absent_from_present() {
     let dir = tempfile::tempdir().expect("create temp dir");
     let path = dir.path().join("fn-knock.sqlite3");

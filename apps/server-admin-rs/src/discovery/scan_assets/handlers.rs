@@ -38,30 +38,28 @@ pub(super) async fn save_discover_targets(
         );
     }
 
-    let mut config = match state.store.get_config().await {
+    let config = match state
+        .store
+        .merge_config_object_fields(
+            "scan_discovery",
+            [
+                ("custom_cidrs".to_string(), json!(custom_cidrs)),
+                ("selected_cidrs".to_string(), json!(selected_cidrs)),
+            ]
+            .into_iter()
+            .collect(),
+        )
+        .await
+    {
         Ok(config) => config,
         Err(error) => {
-            tracing::warn!(%error, "failed to read scan discover targets config");
+            tracing::warn!(%error, "failed to save scan discover targets config");
             return response::error(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                translator.t("server.scanDiscovery.loadConfigFailed"),
+                translator.t("server.scanDiscovery.saveTargetsFailed"),
             );
         }
     };
-    ensure_object(&mut config).insert(
-        "scan_discovery".to_string(),
-        json!({
-            "custom_cidrs": custom_cidrs,
-            "selected_cidrs": selected_cidrs
-        }),
-    );
-    if let Err(error) = state.store.save_config(&config).await {
-        tracing::warn!(%error, "failed to save scan discover targets config");
-        return response::error(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            translator.t("server.scanDiscovery.saveTargetsFailed"),
-        );
-    }
     response::ok(build_discover_targets_payload(
         &state,
         &headers,
@@ -69,6 +67,62 @@ pub(super) async fn save_discover_targets(
         &translator,
     ))
     .into_response()
+}
+
+pub(super) async fn get_discover_settings(State(state): State<AppState>) -> Response {
+    let translator = Translator::from_state(&state).await;
+    match state.store.get_config().await {
+        Ok(config) => response::ok(build_discover_settings_payload(&config)).into_response(),
+        Err(error) => {
+            tracing::warn!(%error, "failed to read scan discover settings");
+            response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                translator.t("server.scanDiscovery.loadSettingsFailed"),
+            )
+        }
+    }
+}
+
+pub(super) async fn save_discover_settings(
+    State(state): State<AppState>,
+    Json(body): Json<DiscoverSettingsBody>,
+) -> Response {
+    let translator = Translator::from_state(&state).await;
+    let Some(mode) = ScanIntensityMode::parse(&body.intensity_mode) else {
+        return response::error(
+            StatusCode::BAD_REQUEST,
+            translator.t("server.scanDiscovery.invalidIntensityMode"),
+        );
+    };
+    let Some(level) = ScanIntensityLevel::parse(&body.intensity_level) else {
+        return response::error(
+            StatusCode::BAD_REQUEST,
+            translator.t("server.scanDiscovery.invalidIntensityLevel"),
+        );
+    };
+    let config = match state
+        .store
+        .merge_config_object_fields(
+            "scan_discovery",
+            [
+                ("intensity_mode".to_string(), json!(mode.as_str())),
+                ("intensity_level".to_string(), json!(level.as_str())),
+            ]
+            .into_iter()
+            .collect(),
+        )
+        .await
+    {
+        Ok(config) => config,
+        Err(error) => {
+            tracing::warn!(%error, "failed to save scan discover settings");
+            return response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                translator.t("server.scanDiscovery.saveSettingsFailed"),
+            );
+        }
+    };
+    response::ok(build_discover_settings_payload(&config)).into_response()
 }
 
 pub(super) async fn start_discover_job(
@@ -102,15 +156,14 @@ pub(super) async fn start_discover_job(
             );
         }
     };
-    let full_range_cidrs =
-        resolve_full_range_discover_cidrs(&state, &headers, &config, &translator);
     let self_scan_hosts = resolve_discover_self_hosts(&state, &headers);
     let exclude_ports = collect_excluded_ports(&state);
+    let runtime_settings = resolve_scan_runtime_settings(&config);
     let job = create_discover_job(
         scan_cidrs,
-        full_range_cidrs,
         self_scan_hosts,
         exclude_ports,
+        runtime_settings,
         translator,
     );
     let data = serialize_discover_job(&job, None);

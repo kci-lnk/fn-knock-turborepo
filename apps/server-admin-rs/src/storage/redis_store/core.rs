@@ -1063,6 +1063,53 @@ return 1
         ))
     }
 
+    /// Atomically merges fields into an object-valued top-level config
+    /// section. Each CAS retry starts from the latest stored config, so
+    /// independent writers cannot replace one another with stale snapshots.
+    pub async fn merge_config_object_fields(
+        &self,
+        section: &str,
+        fields: Map<String, Value>,
+    ) -> crate::storage::StorageResult<Value> {
+        let mut conn = self.conn();
+        for _ in 0..32 {
+            let snapshot = load_config_fence_snapshot(&mut conn).await?;
+            let mut current_config = snapshot.config.clone();
+            strip_internal_config_metadata(&mut current_config);
+            let Some(root) = current_config.as_object_mut() else {
+                return Err(crate::storage::storage_error(
+                    "stored config must be a JSON object",
+                ));
+            };
+            let section_value = root
+                .entry(section.to_string())
+                .or_insert_with(|| Value::Object(Map::new()));
+            if !section_value.is_object() {
+                *section_value = Value::Object(Map::new());
+            }
+            let section_object = section_value
+                .as_object_mut()
+                .expect("object value was initialized above");
+            section_object.extend(fields.clone());
+
+            let replacement_raw = serde_json::to_string(&current_config)?;
+            if compare_and_set_config_fence_snapshot(
+                &mut conn,
+                &snapshot,
+                &replacement_raw,
+                snapshot.generation,
+            )
+            .await?
+            {
+                inject_config_generation_marker(&mut current_config, snapshot.generation)?;
+                return Ok(current_config);
+            }
+        }
+        Err(crate::storage::storage_error(
+            "config changed too frequently while merging object fields",
+        ))
+    }
+
     pub async fn save_config(&self, value: &Value) -> crate::storage::StorageResult<()> {
         let mut requested_config = value.clone();
         let requested_generation = take_config_generation_marker(&mut requested_config)?;

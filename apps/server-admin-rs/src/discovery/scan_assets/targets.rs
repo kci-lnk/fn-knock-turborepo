@@ -87,29 +87,6 @@ pub(super) fn build_automatic_discover_targets(
     dedupe_targets(targets)
 }
 
-pub(super) fn resolve_full_range_discover_cidrs(
-    state: &AppState,
-    headers: &HeaderMap,
-    config: &Value,
-    translator: &Translator,
-) -> Vec<String> {
-    let automatic_targets = build_automatic_discover_targets(state, headers, config, translator);
-    normalize_allowed_scan_cidrs(
-        std::iter::once(LOOPBACK_DISCOVERY_CIDR.to_string()).chain(
-            automatic_targets
-                .iter()
-                .filter(|target| {
-                    matches!(
-                        target.get("source").and_then(Value::as_str),
-                        Some("loopback" | "interface" | "docker")
-                    )
-                })
-                .filter_map(|target| target.get("cidr").and_then(Value::as_str))
-                .map(ToString::to_string),
-        ),
-    )
-}
-
 pub(super) fn resolve_discover_self_hosts(state: &AppState, headers: &HeaderMap) -> Vec<String> {
     let mut hosts = vec![LOOPBACK_DISCOVERY_HOST.to_string()];
     hosts.extend(

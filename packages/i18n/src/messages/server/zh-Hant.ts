@@ -2050,6 +2050,10 @@ export const zhHantServer = {
     loadTargetsFailed: "讀取掃描目標失敗",
     loadConfigFailed: "讀取配置失敗",
     saveTargetsFailed: "保存掃描目標失敗",
+    loadSettingsFailed: "讀取一鍵發現配置失敗",
+    saveSettingsFailed: "保存一鍵發現配置失敗",
+    invalidIntensityMode: "無效的掃描強度模式",
+    invalidIntensityLevel: "無效的掃描強度檔位",
     targetLabels: {
       docker: "{cidr}（Docker 宿主機局域網）",
       loopback: "{cidr}（本機回環）",

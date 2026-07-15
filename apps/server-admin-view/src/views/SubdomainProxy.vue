@@ -83,6 +83,7 @@
       @open-clear-all-config="openClearAllConfigDialog"
       @open-create="openCreateDialog"
       @open-discover="openDiscoverDialog"
+      @open-discover-settings="isScanIntensityDialogOpen = true"
       @open-availability="openAvailabilityDialog"
       @open-gateway-locations="openGatewayLocations"
       @open-stale-cleanup="openStaleCleanupDialog"
@@ -91,6 +92,11 @@
       @set-default="setDefaultMapping"
       @sync-routes="syncRoutes"
       @toggle-enabled="openToggleMappingDialog"
+    />
+
+    <ScanDiscoveryIntensityDialog
+      v-model:open="isScanIntensityDialogOpen"
+      :disabled="isDiscovering"
     />
 
     <SubdomainMappingDialog
@@ -228,6 +234,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import StaleHostMappingsCleanupDialog from "@/components/StaleHostMappingsCleanupDialog.vue";
+import ScanDiscoveryIntensityDialog from "@/components/ScanDiscoveryIntensityDialog.vue";
 import SubdomainActionConfirmDialog from "./subdomain-proxy/SubdomainActionConfirmDialog.vue";
 import SubdomainAvailabilityDialog from "./subdomain-proxy/SubdomainAvailabilityDialog.vue";
 import SubdomainDeleteDialog from "./subdomain-proxy/SubdomainDeleteDialog.vue";
@@ -279,6 +286,7 @@ const { t } = useI18n();
 const staleCleanupDialogRef = ref<InstanceType<
   typeof StaleHostMappingsCleanupDialog
 > | null>(null);
+const isScanIntensityDialogOpen = ref(false);
 
 const searchQuery = ref("");
 const router = useRouter();

@@ -83,8 +83,7 @@ export const zhCNAdmin = {
     subtitleGeneric: "查看版本信息与手动升级方式",
     openGithub: "打开 GitHub 项目页",
     synologyUpdateTitle: "群晖套件需手动升级",
-    synologyUpdateDescription:
-      "应用内仅检查版本，安装请在 DSM 套件中心完成。",
+    synologyUpdateDescription: "应用内仅检查版本，安装请在 DSM 套件中心完成。",
     synologyWebsite: "下载 SPK",
     selfUpdateUnsupportedTitle: "当前部署不支持应用内更新",
     selfUpdateUnsupportedDescription:
@@ -119,8 +118,7 @@ export const zhCNAdmin = {
     versionCheckHint: "可继续检查最新发布与更新说明。",
     versionCheckHintDocker: "可继续检查最新发布与 Docker 镜像升级说明。",
     versionCheckHintOpenWrt: "可继续检查最新发布与 OpenWrt IPK 升级说明。",
-    versionCheckHintSynology:
-      "发现新版后，可使用上方按钮获取最新版群晖套件。",
+    versionCheckHintSynology: "发现新版后，可使用上方按钮获取最新版群晖套件。",
     versionCheckHintDesktop:
       "可继续检查最新发布；安装更新请使用 Knock Windows 管理程序。",
     versionCheckHintGeneric: "可继续检查最新发布与手动升级说明。",
@@ -4230,6 +4228,30 @@ export const zhCNAdmin = {
     refreshUnchanged: "域名状态已刷新，当前解析 IP 未变化。",
     commentUpdateFailed: "更新备注失败",
     commentUpdated: "备注已更新",
+  },
+  scanIntensity: {
+    title: "扫描强度配置",
+    description:
+      "根据服务端设备能力调整扫描并发。所有档位都会扫描 80–60000 端口。",
+    loading: "正在分析设备能力...",
+    level: "扫描强度",
+    recommended: "设备推荐",
+    concurrency: "档位并发 {count}",
+    effectiveConcurrency: "实际并发 {count}",
+    resultSummary: "{level}档 · 并发 {count}",
+    sliderLabel: "选择一键发现扫描强度",
+    autoTitle: "跟随设备推荐",
+    autoDescription: "根据 CPU、可用内存和文件句柄预算自动选择安全档位。",
+    sameRangeHint:
+      "四个档位的端口范围和发现结果一致，仅扫描速度与设备负载不同。",
+    cpu: "有效 CPU：{count} 核",
+    memory: "可用内存：{available} / {total} MiB",
+    memoryUnknown: "内存信息不可用，默认按中档评估",
+    safeConcurrency: "设备安全并发上限：{count}",
+    loadFailed: "读取扫描强度配置失败",
+    saveFailed: "保存扫描强度配置失败",
+    saveSuccess: "扫描强度配置已保存",
+    levels: { low: "低", medium: "中", high: "高", extreme: "极高" },
   },
   scanTargets: {
     title: "扫描网段",

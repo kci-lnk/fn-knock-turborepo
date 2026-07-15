@@ -88,7 +88,8 @@ export const enAdmin = {
     subtitleDocker: "View version details and Docker upgrade instructions",
     subtitleOpenWrt:
       "View version details and OpenWrt IPK upgrade instructions",
-    subtitleSynology: "View version details and Synology package upgrade instructions",
+    subtitleSynology:
+      "View version details and Synology package upgrade instructions",
     subtitleGeneric: "View version details and manual upgrade instructions",
     openGithub: "Open GitHub project",
     synologyUpdateTitle: "Manual Synology package upgrade",
@@ -4502,6 +4503,31 @@ export const enAdmin = {
     refreshUnchanged: "Domain status refreshed. Resolved IPs are unchanged.",
     commentUpdateFailed: "Failed to update comment",
     commentUpdated: "Comment updated",
+  },
+  scanIntensity: {
+    title: "Scan intensity settings",
+    description:
+      "Tune scan concurrency for the server. Every level scans ports 80–60000.",
+    loading: "Analyzing device capacity...",
+    level: "Scan intensity",
+    recommended: "Recommended",
+    concurrency: "Level concurrency {count}",
+    effectiveConcurrency: "Effective {count}",
+    resultSummary: "{level} · concurrency {count}",
+    sliderLabel: "Select discovery scan intensity",
+    autoTitle: "Follow device recommendation",
+    autoDescription:
+      "Select a safe level from CPU, available memory, and file descriptor budgets.",
+    sameRangeHint:
+      "All four levels scan the same ports and find the same services; only speed and device load differ.",
+    cpu: "Effective CPU: {count} cores",
+    memory: "Available memory: {available} / {total} MiB",
+    memoryUnknown: "Memory data unavailable; medium is used as the baseline",
+    safeConcurrency: "Safe device concurrency: {count}",
+    loadFailed: "Failed to load scan intensity settings",
+    saveFailed: "Failed to save scan intensity settings",
+    saveSuccess: "Scan intensity settings saved",
+    levels: { low: "Low", medium: "Medium", high: "High", extreme: "Extreme" },
   },
   scanTargets: {
     title: "Scan ranges",

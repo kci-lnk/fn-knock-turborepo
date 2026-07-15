@@ -4580,6 +4580,31 @@ export const jaJPAdmin = {
     commentUpdateFailed: "メモを更新できませんでした",
     commentUpdated: "注意事項を更新しました",
   },
+  scanIntensity: {
+    title: "スキャン強度設定",
+    description:
+      "サーバーの性能に合わせてスキャン同時実行数を調整します。全レベルでポート 80–60000 をスキャンします。",
+    loading: "デバイス性能を分析しています...",
+    level: "スキャン強度",
+    recommended: "推奨",
+    concurrency: "レベル同時実行数 {count}",
+    effectiveConcurrency: "実効 {count}",
+    resultSummary: "{level} · 同時実行 {count}",
+    sliderLabel: "検出スキャン強度を選択",
+    autoTitle: "デバイスの推奨に従う",
+    autoDescription:
+      "CPU、使用可能メモリ、ファイル記述子の予算から安全なレベルを選択します。",
+    sameRangeHint:
+      "4 つのレベルは同じポートをスキャンし、速度とデバイス負荷のみが異なります。",
+    cpu: "有効 CPU：{count} コア",
+    memory: "使用可能メモリ：{available} / {total} MiB",
+    memoryUnknown: "メモリ情報を取得できないため、中を基準にします",
+    safeConcurrency: "安全な同時実行上限：{count}",
+    loadFailed: "スキャン強度設定を読み込めませんでした",
+    saveFailed: "スキャン強度設定を保存できませんでした",
+    saveSuccess: "スキャン強度設定を保存しました",
+    levels: { low: "低", medium: "中", high: "高", extreme: "極高" },
+  },
   scanTargets: {
     title: "ネットワークセグメントをスキャンします",
     description:

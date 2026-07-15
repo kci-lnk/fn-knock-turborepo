@@ -19,7 +19,12 @@ use axum::{
 use get_if_addrs::{IfAddr, get_if_addrs};
 use serde::Deserialize;
 use serde_json::{Value, json};
-use tokio::{net::TcpStream, task::JoinSet, time::timeout};
+use tokio::{
+    net::TcpStream,
+    sync::{Notify, OwnedSemaphorePermit, Semaphore},
+    task::JoinSet,
+    time::timeout,
+};
 use url::Url;
 
 use crate::{i18n::Translator, response, runtime_profile, state::AppState};
@@ -27,6 +32,7 @@ use crate::{i18n::Translator, response, runtime_profile, state::AppState};
 mod analyzer;
 mod handlers;
 mod host_probe;
+mod intensity;
 mod jobs;
 mod network;
 mod runner;
@@ -35,6 +41,7 @@ mod targets;
 use analyzer::*;
 use handlers::*;
 use host_probe::*;
+use intensity::*;
 use jobs::*;
 use network::*;
 use runner::*;
@@ -50,24 +57,14 @@ const DISCOVER_JOB_ACTIVE_TTL_MS: i64 = 30 * 60 * 1000;
 const DISCOVER_JOB_DONE_TTL_MS: i64 = 5 * 60 * 1000;
 const DISCOVER_JOB_MAX_ACTIVE: usize = 4;
 const DISCOVER_JOB_MAX_RETAINED: usize = 64;
-const LOOPBACK_DISCOVERY_CIDR: &str = "127.0.0.1/32";
 const LOOPBACK_DISCOVERY_HOST: &str = "127.0.0.1";
 const DISCOVERY_PORT_RANGE_START: u16 = 80;
 const DISCOVERY_PORT_RANGE_END: u16 = 60_000;
-const DISCOVERY_LIMITED_PORT_RANGE_END: u16 = 9_999;
 const DISCOVERY_TIMEOUT_MS: u64 = 80;
 const DISCOVERY_HTTP_TIMEOUT_MS: u64 = 2_000;
 const DISCOVERY_HTTP_USER_AGENT: &str = "Fn-Knock-Scanner/1.0";
-const NETWORK_MAX_CONCURRENT: usize = 64;
 const NETWORK_HOST_CONCURRENCY: usize = 6;
-const LOOPBACK_MAX_CONCURRENT: usize = 200;
 const LOCAL_SELF_DISCOVERY_SKIP_PORTS: &[u16] = &[80];
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum DiscoveryPortRangeMode {
-    Full,
-    Limited,
-}
 
 #[derive(Clone, Copy)]
 struct DiscoveryPortRange {
@@ -77,8 +74,6 @@ struct DiscoveryPortRange {
 
 struct DiscoveryHostGroup {
     hosts: Vec<String>,
-    mode: DiscoveryPortRangeMode,
-    port_range: DiscoveryPortRange,
     skip_ports: Vec<u16>,
 }
 
@@ -94,6 +89,12 @@ struct DiscoverTargetsBody {
 struct DiscoverJobBody {
     #[serde(default)]
     target_cidrs: Vec<String>,
+}
+
+#[derive(Deserialize)]
+struct DiscoverSettingsBody {
+    intensity_mode: String,
+    intensity_level: String,
 }
 
 #[derive(Deserialize)]
@@ -131,6 +132,7 @@ struct DiscoverJob {
 type DiscoverJobHandle = Arc<Mutex<DiscoverJob>>;
 
 static DISCOVER_JOBS: OnceLock<Mutex<HashMap<String, DiscoverJobHandle>>> = OnceLock::new();
+static DISCOVERY_GLOBAL_PROBE_BUDGET: OnceLock<Arc<GlobalProbeBudget>> = OnceLock::new();
 
 #[derive(Clone)]
 struct DiscoveryProxyRule {
@@ -160,6 +162,10 @@ pub fn scan_asset_routes() -> Router<AppState> {
         .route(
             "/api/admin/scan/discover-targets",
             get(get_discover_targets).post(save_discover_targets),
+        )
+        .route(
+            "/api/admin/scan/discover-settings",
+            get(get_discover_settings).post(save_discover_settings),
         )
         .route("/api/admin/scan/discover/jobs", post(start_discover_job))
         .route(

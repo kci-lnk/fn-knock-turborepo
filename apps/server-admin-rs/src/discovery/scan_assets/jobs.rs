@@ -16,9 +16,9 @@ pub(super) fn discover_job_guard(job: &DiscoverJobHandle) -> MutexGuard<'_, Disc
 
 pub(super) fn create_discover_job(
     scan_cidrs: Vec<String>,
-    full_range_cidrs: Vec<String>,
     self_scan_hosts: Vec<String>,
     exclude_ports: Vec<u16>,
+    runtime_settings: ScanRuntimeSettings,
     translator: Translator,
 ) -> DiscoverJobHandle {
     cleanup_discover_jobs();
@@ -46,9 +46,9 @@ pub(super) fn create_discover_job(
         run_discover_job(
             job_for_task,
             scan_cidrs,
-            full_range_cidrs,
             self_scan_hosts,
             exclude_ports,
+            runtime_settings,
             translator,
         )
         .await;
@@ -94,7 +94,7 @@ pub(super) fn cleanup_discover_jobs() {
             }
             continue;
         }
-        if now - locked.created_at > DISCOVER_JOB_ACTIVE_TTL_MS {
+        if discover_job_inactive_expired(&locked, now) {
             locked.cancel.store(true, Ordering::SeqCst);
             locked.state = "cancelled".to_string();
             locked.service_events.clear();
@@ -109,6 +109,10 @@ pub(super) fn cleanup_discover_jobs() {
         }
     }
     enforce_discover_job_limits();
+}
+
+pub(super) fn discover_job_inactive_expired(job: &DiscoverJob, now: i64) -> bool {
+    now.saturating_sub(job.updated_at) > DISCOVER_JOB_ACTIVE_TTL_MS
 }
 
 pub(super) fn enforce_discover_job_limits() {
@@ -182,17 +186,10 @@ pub(super) fn normalize_service_cursor(value: Option<&str>, max: usize) -> usize
         .unwrap_or(0)
 }
 
-pub(super) fn full_discovery_port_range() -> DiscoveryPortRange {
+pub(super) fn discovery_port_range() -> DiscoveryPortRange {
     DiscoveryPortRange {
         start: DISCOVERY_PORT_RANGE_START,
         end: DISCOVERY_PORT_RANGE_END,
-    }
-}
-
-pub(super) fn limited_discovery_port_range() -> DiscoveryPortRange {
-    DiscoveryPortRange {
-        start: DISCOVERY_PORT_RANGE_START,
-        end: DISCOVERY_LIMITED_PORT_RANGE_END,
     }
 }
 
@@ -223,26 +220,8 @@ pub(super) fn merge_discovery_skip_ports(base: &[u16], extra: &[u16]) -> Vec<u16
         .collect()
 }
 
-pub(super) fn build_discovery_port_mode_label(
-    scan_cidrs: &[String],
-    full_range_cidrs: &[String],
-) -> String {
-    let groups = build_discovery_host_groups(scan_cidrs, full_range_cidrs, None, &[]);
-    let has_full = groups
-        .iter()
-        .any(|group| group.mode == DiscoveryPortRangeMode::Full);
-    let has_limited = groups
-        .iter()
-        .any(|group| group.mode == DiscoveryPortRangeMode::Limited);
-    if has_full && has_limited {
-        format!(
-            "local={DISCOVERY_PORT_RANGE_START}-{DISCOVERY_PORT_RANGE_END}, other={DISCOVERY_PORT_RANGE_START}-{DISCOVERY_LIMITED_PORT_RANGE_END}"
-        )
-    } else if has_limited {
-        format!("{DISCOVERY_PORT_RANGE_START}-{DISCOVERY_LIMITED_PORT_RANGE_END}")
-    } else {
-        format!("{DISCOVERY_PORT_RANGE_START}-{DISCOVERY_PORT_RANGE_END}")
-    }
+pub(super) fn build_discovery_port_mode_label() -> String {
+    format!("{DISCOVERY_PORT_RANGE_START}-{DISCOVERY_PORT_RANGE_END}")
 }
 
 pub(super) fn count_discovery_scan_ports_for_groups(
@@ -253,20 +232,16 @@ pub(super) fn count_discovery_scan_ports_for_groups(
         .iter()
         .map(|group| {
             let skip_ports = merge_discovery_skip_ports(exclude_ports, &group.skip_ports);
-            count_ports_in_range(group.port_range, &skip_ports) * group.hosts.len()
+            count_ports_in_range(discovery_port_range(), &skip_ports) * group.hosts.len()
         })
         .sum()
 }
 
 pub(super) fn build_discovery_host_groups(
     scan_cidrs: &[String],
-    full_range_cidrs: &[String],
     scan_hosts: Option<&[String]>,
     self_scan_hosts: &[String],
 ) -> Vec<DiscoveryHostGroup> {
-    let mut normalized_full_range = vec![LOOPBACK_DISCOVERY_CIDR.to_string()];
-    normalized_full_range.extend(full_range_cidrs.iter().cloned());
-    let normalized_full_range = normalize_allowed_scan_cidrs(normalized_full_range);
     let allowed_hosts = scan_hosts.map(|hosts| hosts.iter().cloned().collect::<BTreeSet<_>>());
     let self_scan_hosts = build_self_scan_host_set(self_scan_hosts);
     let mut seen_hosts = BTreeSet::new();
@@ -289,27 +264,7 @@ pub(super) fn build_discovery_host_groups(
             continue;
         }
 
-        let mut full_hosts = Vec::new();
-        let mut limited_hosts = Vec::new();
-        for host in hosts {
-            if is_full_range_discovery_host(&host, &normalized_full_range) {
-                full_hosts.push(host);
-            } else {
-                limited_hosts.push(host);
-            }
-        }
-        push_discovery_host_groups(
-            &mut groups,
-            full_hosts,
-            DiscoveryPortRangeMode::Full,
-            &self_scan_hosts,
-        );
-        push_discovery_host_groups(
-            &mut groups,
-            limited_hosts,
-            DiscoveryPortRangeMode::Limited,
-            &self_scan_hosts,
-        );
+        push_discovery_host_groups(&mut groups, hosts, &self_scan_hosts);
     }
 
     groups
@@ -325,7 +280,6 @@ pub(super) fn build_self_scan_host_set(self_scan_hosts: &[String]) -> BTreeSet<S
 pub(super) fn push_discovery_host_groups(
     groups: &mut Vec<DiscoveryHostGroup>,
     hosts: Vec<String>,
-    mode: DiscoveryPortRangeMode,
     self_scan_hosts: &BTreeSet<String>,
 ) {
     if hosts.is_empty() {
@@ -341,12 +295,11 @@ pub(super) fn push_discovery_host_groups(
         }
     }
     if !regular_hosts.is_empty() {
-        groups.push(build_discovery_host_group(regular_hosts, mode, Vec::new()));
+        groups.push(build_discovery_host_group(regular_hosts, Vec::new()));
     }
     if !local_self_hosts.is_empty() {
         groups.push(build_discovery_host_group(
             local_self_hosts,
-            mode,
             LOCAL_SELF_DISCOVERY_SKIP_PORTS.to_vec(),
         ));
     }
@@ -354,32 +307,7 @@ pub(super) fn push_discovery_host_groups(
 
 pub(super) fn build_discovery_host_group(
     hosts: Vec<String>,
-    mode: DiscoveryPortRangeMode,
     skip_ports: Vec<u16>,
 ) -> DiscoveryHostGroup {
-    DiscoveryHostGroup {
-        hosts,
-        mode,
-        port_range: if mode == DiscoveryPortRangeMode::Full {
-            full_discovery_port_range()
-        } else {
-            limited_discovery_port_range()
-        },
-        skip_ports,
-    }
-}
-
-pub(super) fn is_full_range_discovery_host(host: &str, full_range_cidrs: &[String]) -> bool {
-    if host == LOOPBACK_DISCOVERY_HOST {
-        return true;
-    }
-    let Ok(ip) = host.parse::<Ipv4Addr>() else {
-        return false;
-    };
-    let host_number = u32::from(ip);
-    full_range_cidrs.iter().any(|cidr| {
-        parse_allowed_scan_cidr(cidr).is_some_and(|parsed| {
-            host_number >= parsed.first_host && host_number <= parsed.last_host
-        })
-    })
+    DiscoveryHostGroup { hosts, skip_ports }
 }

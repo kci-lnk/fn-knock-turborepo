@@ -2287,6 +2287,10 @@ export const enServer = {
     loadTargetsFailed: "Failed to load scan targets",
     loadConfigFailed: "Failed to load configuration",
     saveTargetsFailed: "Failed to save scan targets",
+    loadSettingsFailed: "Failed to load discovery settings",
+    saveSettingsFailed: "Failed to save discovery settings",
+    invalidIntensityMode: "Invalid scan intensity mode",
+    invalidIntensityLevel: "Invalid scan intensity level",
     targetLabels: {
       docker: "{cidr} (Docker host LAN)",
       loopback: "{cidr} (local loopback)",

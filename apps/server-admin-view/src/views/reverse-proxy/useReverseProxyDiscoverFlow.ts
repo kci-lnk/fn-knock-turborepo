@@ -44,6 +44,11 @@ const createEmptyDiscoverResponse = (
   scanHostCount: patch.scanHostCount,
   scanScope: patch.scanScope,
   scanCidrs: patch.scanCidrs,
+  intensityMode: patch.intensityMode,
+  intensityLevel: patch.intensityLevel,
+  recommendedLevel: patch.recommendedLevel,
+  configuredConcurrency: patch.configuredConcurrency,
+  effectiveConcurrency: patch.effectiveConcurrency,
   services: [],
 });
 

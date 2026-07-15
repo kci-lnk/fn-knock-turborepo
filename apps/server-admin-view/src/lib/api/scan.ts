@@ -29,7 +29,38 @@ export interface ScanDiscoverResponse {
   scanHostCount?: number;
   scanScope?: string | null;
   scanCidrs?: string[];
+  intensityMode?: ScanIntensityMode;
+  intensityLevel?: ScanIntensityLevel;
+  recommendedLevel?: ScanIntensityLevel;
+  configuredConcurrency?: number;
+  effectiveConcurrency?: number;
   services: DiscoveredServiceInfo[];
+}
+
+export type ScanIntensityMode = "auto" | "manual";
+export type ScanIntensityLevel = "low" | "medium" | "high" | "extreme";
+
+export interface ScanDiscoveryCapability {
+  cpuCores: number;
+  totalMemoryMiB: number | null;
+  availableMemoryMiB: number | null;
+  fileDescriptorLimit: number | null;
+  safeConcurrency: number;
+}
+
+export interface ScanDiscoverySettings {
+  intensityMode: ScanIntensityMode;
+  configuredLevel: ScanIntensityLevel;
+  recommendedLevel: ScanIntensityLevel;
+  effectiveLevel: ScanIntensityLevel;
+  configuredConcurrency: number;
+  effectiveConcurrency: number;
+  capability: ScanDiscoveryCapability;
+}
+
+export interface ScanDiscoverySettingsSaveRequest {
+  intensity_mode: ScanIntensityMode;
+  intensity_level: ScanIntensityLevel;
 }
 
 export interface ScanDiscoverProgress {
@@ -180,6 +211,16 @@ export interface ScanDiscoveryTargetsSaveRequest {
 }
 
 export const ScanAPI = {
+  async getDiscoverSettings(): Promise<ScanDiscoverySettings> {
+    const res = await apiClient.get("/scan/discover-settings");
+    return res.data.data;
+  },
+  async saveDiscoverSettings(
+    payload: ScanDiscoverySettingsSaveRequest,
+  ): Promise<ScanDiscoverySettings> {
+    const res = await apiClient.post("/scan/discover-settings", payload);
+    return res.data.data;
+  },
   async startDiscoverJob(
     payload: ScanDiscoverRequest,
     signal?: AbortSignal,

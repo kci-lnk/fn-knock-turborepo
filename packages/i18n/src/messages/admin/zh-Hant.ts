@@ -81,8 +81,7 @@ export const zhHantAdmin = {
     subtitleGeneric: "查看版本資訊與手動升級方式",
     openGithub: "打開 GitHub 專案頁",
     synologyUpdateTitle: "群暉套件需手動升級",
-    synologyUpdateDescription:
-      "應用內僅檢查版本，安裝請在 DSM 套件中心完成。",
+    synologyUpdateDescription: "應用內僅檢查版本，安裝請在 DSM 套件中心完成。",
     synologyWebsite: "下載 SPK",
     selfUpdateUnsupportedTitle: "當前部署不支援應用內更新",
     selfUpdateUnsupportedDescription:
@@ -117,8 +116,7 @@ export const zhHantAdmin = {
     versionCheckHint: "可繼續檢查最新發布與更新說明。",
     versionCheckHintDocker: "可繼續檢查最新發布與 Docker 鏡像升級說明。",
     versionCheckHintOpenWrt: "可繼續檢查最新發布與 OpenWrt IPK 升級說明。",
-    versionCheckHintSynology:
-      "發現新版後，可使用上方按鈕取得最新版群暉套件。",
+    versionCheckHintSynology: "發現新版後，可使用上方按鈕取得最新版群暉套件。",
     versionCheckHintDesktop:
       "可繼續檢查最新發布；安裝更新請使用 Knock Windows 管理程式。",
     versionCheckHintGeneric: "可繼續檢查最新發布與手動升級說明。",
@@ -4156,6 +4154,30 @@ export const zhHantAdmin = {
     refreshUnchanged: "域名狀態已刷新，目前解析 IP 未變化。",
     commentUpdateFailed: "更新備註失敗",
     commentUpdated: "備註已更新",
+  },
+  scanIntensity: {
+    title: "掃描強度設定",
+    description:
+      "依服務端裝置能力調整掃描並發。所有檔位都會掃描 80–60000 連接埠。",
+    loading: "正在分析裝置能力...",
+    level: "掃描強度",
+    recommended: "裝置推薦",
+    concurrency: "檔位並發 {count}",
+    effectiveConcurrency: "實際並發 {count}",
+    resultSummary: "{level}檔 · 並發 {count}",
+    sliderLabel: "選擇一鍵發現掃描強度",
+    autoTitle: "跟隨裝置推薦",
+    autoDescription: "依 CPU、可用記憶體和檔案描述符預算自動選擇安全檔位。",
+    sameRangeHint:
+      "四個檔位的連接埠範圍和發現結果一致，僅掃描速度與裝置負載不同。",
+    cpu: "有效 CPU：{count} 核",
+    memory: "可用記憶體：{available} / {total} MiB",
+    memoryUnknown: "記憶體資訊不可用，預設按中檔評估",
+    safeConcurrency: "裝置安全並發上限：{count}",
+    loadFailed: "讀取掃描強度設定失敗",
+    saveFailed: "儲存掃描強度設定失敗",
+    saveSuccess: "掃描強度設定已儲存",
+    levels: { low: "低", medium: "中", high: "高", extreme: "極高" },
   },
   scanTargets: {
     ...zhCNAdmin.scanTargets,

@@ -21,6 +21,13 @@
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  :disabled="isDiscovering"
+                  @select="isScanIntensityDialogOpen = true"
+                >
+                  <SlidersHorizontal class="mr-2 h-4 w-4" />
+                  {{ t("admin.scanIntensity.title") }}
+                </DropdownMenuItem>
                 <DropdownMenuItem @click="openAddDialog">
                   <Plus class="mr-2 h-4 w-4" />
                   {{ t("admin.reverseProxy.addMapping") }}
@@ -195,6 +202,11 @@
       />
     </CardContent>
   </Card>
+
+  <ScanDiscoveryIntensityDialog
+    v-model:open="isScanIntensityDialogOpen"
+    :disabled="isDiscovering"
+  />
 
   <ReverseProxyMappingDialog
     :open="isMappingDialogOpen"
@@ -404,6 +416,16 @@
                 })
               }}
             </template>
+            <template v-if="discoveredData.intensityLevel">
+              ，{{
+                t("admin.scanIntensity.resultSummary", {
+                  level: t(
+                    `admin.scanIntensity.levels.${discoveredData.intensityLevel}`,
+                  ),
+                  count: discoveredData.effectiveConcurrency || 0,
+                })
+              }}
+            </template>
             ，{{
               t("admin.reverseProxy.selectedItems", {
                 count: `${selectedServices.length} / ${discoveredData.services.length}`,
@@ -481,6 +503,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import RefreshButton from "@/components/RefreshButton.vue";
 import ScanDiscoveryTargetsSettings from "@/components/ScanDiscoveryTargetsSettings.vue";
+import ScanDiscoveryIntensityDialog from "@/components/ScanDiscoveryIntensityDialog.vue";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
 import { Input } from "@/components/ui/input";
 import SearchInput from "@admin-shared/components/SearchInput.vue";
@@ -545,6 +568,7 @@ import {
 const currentHostname = window.location.hostname;
 const { t } = useI18n();
 const reverseProxyMessages = createReverseProxyMessages(t);
+const isScanIntensityDialogOpen = ref(false);
 const discoverTargetsSettingsRef = ref<InstanceType<
   typeof ScanDiscoveryTargetsSettings
 > | null>(null);

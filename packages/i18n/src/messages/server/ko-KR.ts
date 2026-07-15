@@ -2304,6 +2304,10 @@ export const koKRServer = {
     loadTargetsFailed: "스캔 대상을 불러오지 못했습니다.",
     loadConfigFailed: "설정을 불러오지 못했습니다.",
     saveTargetsFailed: "스캔 대상을 저장하지 못했습니다.",
+    loadSettingsFailed: "검색 설정을 불러오지 못했습니다.",
+    saveSettingsFailed: "검색 설정을 저장하지 못했습니다.",
+    invalidIntensityMode: "잘못된 검색 강도 모드입니다.",
+    invalidIntensityLevel: "잘못된 검색 강도 단계입니다.",
     targetLabels: {
       docker: "{cidr}(Docker 호스트 LAN)",
       loopback: "{cidr}(로컬 루프백)",

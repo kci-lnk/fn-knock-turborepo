@@ -24,7 +24,7 @@
 			"label": "task: server-admin-rs",
 			"type": "shell",
 			"isBackground": true,
-			"command": "source ~/.zshrc && npm run dev --workspace server-admin-rs",
+			"command": "source ~/.zshrc && npm run dev --workspace server-admin-rs -- --bin server-admin-rs",
 			"options": {
 				"env": {
 					"BACKEND_PORT": "7998",

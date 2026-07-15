@@ -216,6 +216,16 @@
                 })
               }}
             </template>
+            <template v-if="discoveredData.intensityLevel">
+              ，{{
+                t("admin.scanIntensity.resultSummary", {
+                  level: t(
+                    `admin.scanIntensity.levels.${discoveredData.intensityLevel}`,
+                  ),
+                  count: discoveredData.effectiveConcurrency || 0,
+                })
+              }}
+            </template>
             ，{{
               t("admin.subdomainProxy.selectedItems", {
                 count: `${selectedServices.length} / ${discoveredData.services.length}`,

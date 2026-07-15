@@ -16,6 +16,7 @@ import {
   RefreshCw,
   Route as RouteIcon,
   Search,
+  SlidersHorizontal,
   ShieldCheck,
   Star,
   StarOff,
@@ -118,6 +119,7 @@ const emit = defineEmits<{
   "open-clear-all-config": [];
   "open-create": [];
   "open-discover": [];
+  "open-discover-settings": [];
   "open-availability": [mapping: HostMapping];
   "open-gateway-locations": [host: string];
   "open-stale-cleanup": [];
@@ -194,6 +196,13 @@ const handleMappingTableScroll = (event: Event) => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  :disabled="isDiscovering"
+                  @select="emit('open-discover-settings')"
+                >
+                  <SlidersHorizontal class="mr-2 h-4 w-4" />
+                  {{ t("admin.scanIntensity.title") }}
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   v-if="authServiceMapping"
                   variant="destructive"

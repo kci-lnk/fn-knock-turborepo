@@ -2426,6 +2426,11 @@ export const koKRAdmin = {
     publicAccess: "공개 액세스",
     locationRulesAria: "{host}에는 {count} 경로 규칙이 있습니다.",
     locationRulesCount: "{count} 경로 규칙이 구성됨",
+    statusAuthRequiredAria: "{host}에 로그인 인증이 필요합니다.",
+    statusAuthRequiredTooltip:
+      "로그인 인증이 활성화되어 이 하위 도메인에 접근하려면 먼저 로그인해야 합니다.",
+    statusToolbarEnabledAria: "{host}에 포털 도구 모음이 활성화되어 있습니다.",
+    statusToolbarEnabledTooltip: "포털 도구 모음이 활성화되어 있습니다.",
     statusWafEnabledAria: "{host}에 WAF가 활성화되어 있습니다.",
     statusWafEnabledTooltip:
       "WAF가 활성화되어 이 하위 도메인에 WAF 검사가 적용됩니다.",

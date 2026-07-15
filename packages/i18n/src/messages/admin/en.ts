@@ -2442,6 +2442,11 @@ export const enAdmin = {
     publicAccess: "Public access",
     locationRulesAria: "{host} has {count} path rules",
     locationRulesCount: "{count} path rules configured",
+    statusAuthRequiredAria: "{host} requires sign-in",
+    statusAuthRequiredTooltip:
+      "Sign-in protection is enabled. Users must sign in before accessing this subdomain.",
+    statusToolbarEnabledAria: "{host} has the portal toolbar enabled",
+    statusToolbarEnabledTooltip: "The portal toolbar is enabled.",
     statusWafEnabledAria: "{host} has WAF enabled",
     statusWafEnabledTooltip:
       "WAF is enabled, so this subdomain is checked by the web application firewall.",

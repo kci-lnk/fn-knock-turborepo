@@ -2,12 +2,14 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { ref } from "vue";
 
 import type { HostMapping } from "../src/types";
 import {
   createDefaultMapping,
   getMappingSecurityIndicatorState,
 } from "../src/views/subdomain-proxy/model";
+import { useSubdomainTouchTooltips } from "../src/views/subdomain-proxy/useSubdomainTouchTooltips";
 
 const getState = (
   mapping: HostMapping,
@@ -93,5 +95,67 @@ describe("subdomain mapping security indicators", () => {
       visibility: null,
       waf: false,
     });
+  });
+
+  it("opens every status tooltip by touch and keeps only one open", () => {
+    const isTouchInteraction = ref(true);
+    const tooltips = useSubdomainTouchTooltips({
+      isTouchInteraction,
+      shouldShowPortalDisabledTooltip: ref(false),
+    });
+
+    tooltips.handleMappingStatusTooltipTriggerClick("app.example.com", "waf");
+    assert.equal(
+      tooltips.isMappingStatusTooltipOpen("app.example.com", "waf"),
+      true,
+    );
+
+    tooltips.handleMappingStatusTooltipTriggerClick(
+      "app.example.com",
+      "authentication",
+    );
+    assert.equal(
+      tooltips.isMappingStatusTooltipOpen("app.example.com", "waf"),
+      false,
+    );
+    assert.equal(
+      tooltips.isMappingStatusTooltipOpen("app.example.com", "authentication"),
+      true,
+    );
+
+    tooltips.handleMappingStatusTooltipTriggerClick(
+      "app.example.com",
+      "authentication",
+    );
+    assert.equal(
+      tooltips.isMappingStatusTooltipOpen("app.example.com", "authentication"),
+      false,
+    );
+  });
+
+  it("does not turn desktop clicks into sticky status tooltips", () => {
+    const tooltips = useSubdomainTouchTooltips({
+      isTouchInteraction: ref(false),
+      shouldShowPortalDisabledTooltip: ref(false),
+    });
+
+    tooltips.handleMappingStatusTooltipTriggerClick(
+      "app.example.com",
+      "toolbar",
+    );
+    assert.equal(
+      tooltips.isMappingStatusTooltipOpen("app.example.com", "toolbar"),
+      false,
+    );
+
+    tooltips.handleMappingStatusTooltipOpenChange(
+      "app.example.com",
+      "toolbar",
+      true,
+    );
+    assert.equal(
+      tooltips.isMappingStatusTooltipOpen("app.example.com", "toolbar"),
+      true,
+    );
   });
 });

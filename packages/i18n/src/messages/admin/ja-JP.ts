@@ -2478,6 +2478,11 @@ export const jaJPAdmin = {
     publicAccess: "パブリックアクセス",
     locationRulesAria: "{host} には {count} パスルールがあります",
     locationRulesCount: "には {count} パス ルールが設定されています",
+    statusAuthRequiredAria: "{host} へのアクセスにはログインが必要です",
+    statusAuthRequiredTooltip:
+      "ログイン保護が有効です。このサブドメインへのアクセスにはログインが必要です。",
+    statusToolbarEnabledAria: "{host} でポータルツールバーが有効です",
+    statusToolbarEnabledTooltip: "ポータルツールバーが有効です。",
     statusWafEnabledAria: "{host} では WAF が有効です",
     statusWafEnabledTooltip:
       "WAF が有効なため、このサブドメインでは WAF チェックが実行されます。",

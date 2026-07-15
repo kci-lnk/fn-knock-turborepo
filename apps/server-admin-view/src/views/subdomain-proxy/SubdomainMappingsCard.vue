@@ -62,6 +62,7 @@ import {
   getMappingFaviconSrc,
   type HostMappingAvailabilityState,
 } from "./model";
+import type { MappingStatusTooltip } from "./useSubdomainTouchTooltips";
 import SubdomainMappingStatusIndicators from "./SubdomainMappingStatusIndicators.vue";
 
 const props = defineProps<{
@@ -80,8 +81,15 @@ const props = defineProps<{
   getMappingTitleForDisplay: (mapping: HostMapping) => string;
   globalVisibilityEnabled: boolean;
   globalWafEnabled: boolean;
-  handleLocationRulesTooltipOpenChange: (host: string, open: boolean) => void;
-  handleLocationRulesTooltipTriggerClick: (host: string) => void;
+  handleMappingStatusTooltipOpenChange: (
+    host: string,
+    tooltip: MappingStatusTooltip,
+    open: boolean,
+  ) => void;
+  handleMappingStatusTooltipTriggerClick: (
+    host: string,
+    tooltip: MappingStatusTooltip,
+  ) => void;
   handleProtocolHeadersWarningOpenChange: (host: string, open: boolean) => void;
   hasRegularHostMappings: boolean;
   isClearingAllSubdomainConfig: boolean;
@@ -91,7 +99,10 @@ const props = defineProps<{
   isFaviconBroken: (mapping: HostMapping) => boolean;
   isGatewayPortalEnabled: boolean;
   isMappingUnavailable: (mapping: HostMapping) => boolean;
-  isLocationRulesTooltipOpen: (host: string) => boolean;
+  isMappingStatusTooltipOpen: (
+    host: string,
+    tooltip: MappingStatusTooltip,
+  ) => boolean;
   isProtocolHeadersWarningOpen: (host: string) => boolean;
   isRefreshingTitles: boolean;
   isRootDomainPendingSave: boolean;
@@ -550,12 +561,12 @@ const handleMappingTableScroll = (event: Event) => {
                   :global-waf-enabled="globalWafEnabled"
                   :is-auth-service="isAuthServiceTarget(mapping.target)"
                   :is-gateway-portal-enabled="isGatewayPortalEnabled"
-                  :is-location-rules-tooltip-open="isLocationRulesTooltipOpen"
-                  :handle-location-rules-tooltip-open-change="
-                    handleLocationRulesTooltipOpenChange
+                  :is-mapping-status-tooltip-open="isMappingStatusTooltipOpen"
+                  :handle-mapping-status-tooltip-open-change="
+                    handleMappingStatusTooltipOpenChange
                   "
-                  :handle-location-rules-tooltip-trigger-click="
-                    handleLocationRulesTooltipTriggerClick
+                  :handle-mapping-status-tooltip-trigger-click="
+                    handleMappingStatusTooltipTriggerClick
                   "
                 />
               </TableCell>

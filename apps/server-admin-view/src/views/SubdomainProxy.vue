@@ -40,11 +40,11 @@
       :get-mapping-title-for-display="getMappingTitleForDisplay"
       :global-visibility-enabled="globalVisibilityEnabled"
       :global-waf-enabled="globalWafEnabled"
-      :handle-location-rules-tooltip-open-change="
-        handleLocationRulesTooltipOpenChange
+      :handle-mapping-status-tooltip-open-change="
+        handleMappingStatusTooltipOpenChange
       "
-      :handle-location-rules-tooltip-trigger-click="
-        handleLocationRulesTooltipTriggerClick
+      :handle-mapping-status-tooltip-trigger-click="
+        handleMappingStatusTooltipTriggerClick
       "
       :handle-protocol-headers-warning-open-change="
         handleProtocolHeadersWarningOpenChange
@@ -58,7 +58,7 @@
       :is-favicon-broken="isFaviconBroken"
       :is-gateway-portal-enabled="isGatewayPortalEnabled"
       :is-mapping-unavailable="isMappingUnavailable"
-      :is-location-rules-tooltip-open="isLocationRulesTooltipOpen"
+      :is-mapping-status-tooltip-open="isMappingStatusTooltipOpen"
       :is-protocol-headers-warning-open="isProtocolHeadersWarningOpen"
       :is-refreshing-titles="isRefreshingTitles"
       :is-root-domain-pending-save="isRootDomainPendingSave"
@@ -409,11 +409,11 @@ const shouldShowPortalDisabledTooltip = computed(
   () => !isGatewayPortalEnabled.value,
 );
 const {
-  handleLocationRulesTooltipOpenChange,
-  handleLocationRulesTooltipTriggerClick,
+  handleMappingStatusTooltipOpenChange,
+  handleMappingStatusTooltipTriggerClick,
   handlePortalDisabledTooltipOpenChange,
   handlePortalDisabledTooltipTriggerClick,
-  isLocationRulesTooltipOpen,
+  isMappingStatusTooltipOpen,
   isPortalDisabledTooltipOpen,
 } = useSubdomainTouchTooltips({
   isTouchInteraction,

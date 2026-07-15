@@ -1,5 +1,14 @@
 import { ref, watch, type Ref } from "vue";
 
+export type MappingStatusTooltip =
+  | "availability"
+  | "default-domain"
+  | "authentication"
+  | "waf"
+  | "visibility"
+  | "toolbar"
+  | "location-rules";
+
 export const useSubdomainTouchTooltips = ({
   isTouchInteraction,
   shouldShowPortalDisabledTooltip,
@@ -7,33 +16,49 @@ export const useSubdomainTouchTooltips = ({
   isTouchInteraction: Ref<boolean>;
   shouldShowPortalDisabledTooltip: Ref<boolean>;
 }) => {
-  const openLocationRulesTooltipHost = ref<string | null>(null);
+  const openMappingStatusTooltipKey = ref<string | null>(null);
   const isPortalDisabledTooltipOpen = ref(false);
 
-  const isLocationRulesTooltipOpen = (host: string): boolean =>
-    openLocationRulesTooltipHost.value === host;
-
-  const handleLocationRulesTooltipOpenChange = (
+  const getMappingStatusTooltipKey = (
     host: string,
+    tooltip: MappingStatusTooltip,
+  ) => `${host}\u0000${tooltip}`;
+
+  const isMappingStatusTooltipOpen = (
+    host: string,
+    tooltip: MappingStatusTooltip,
+  ): boolean =>
+    openMappingStatusTooltipKey.value ===
+    getMappingStatusTooltipKey(host, tooltip);
+
+  const handleMappingStatusTooltipOpenChange = (
+    host: string,
+    tooltip: MappingStatusTooltip,
     nextOpen: boolean,
   ) => {
+    const key = getMappingStatusTooltipKey(host, tooltip);
+
     if (nextOpen) {
-      openLocationRulesTooltipHost.value = host;
+      openMappingStatusTooltipKey.value = key;
       return;
     }
 
-    if (openLocationRulesTooltipHost.value === host) {
-      openLocationRulesTooltipHost.value = null;
+    if (openMappingStatusTooltipKey.value === key) {
+      openMappingStatusTooltipKey.value = null;
     }
   };
 
-  const handleLocationRulesTooltipTriggerClick = (host: string) => {
+  const handleMappingStatusTooltipTriggerClick = (
+    host: string,
+    tooltip: MappingStatusTooltip,
+  ) => {
     if (!isTouchInteraction.value) {
       return;
     }
 
-    openLocationRulesTooltipHost.value =
-      openLocationRulesTooltipHost.value === host ? null : host;
+    const key = getMappingStatusTooltipKey(host, tooltip);
+    openMappingStatusTooltipKey.value =
+      openMappingStatusTooltipKey.value === key ? null : key;
   };
 
   const handlePortalDisabledTooltipOpenChange = (nextOpen: boolean) => {
@@ -55,11 +80,11 @@ export const useSubdomainTouchTooltips = ({
   });
 
   return {
-    handleLocationRulesTooltipOpenChange,
-    handleLocationRulesTooltipTriggerClick,
+    handleMappingStatusTooltipOpenChange,
+    handleMappingStatusTooltipTriggerClick,
     handlePortalDisabledTooltipOpenChange,
     handlePortalDisabledTooltipTriggerClick,
-    isLocationRulesTooltipOpen,
+    isMappingStatusTooltipOpen,
     isPortalDisabledTooltipOpen,
   };
 };

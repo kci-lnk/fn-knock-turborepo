@@ -13,12 +13,30 @@
 
     <template v-else>
       <TooltipProvider v-if="availabilityState === 'scheduled_closed'">
-        <Tooltip>
+        <Tooltip
+          :open="isMappingStatusTooltipOpen(mapping.host, 'availability')"
+          @update:open="
+            (nextOpen) =>
+              handleMappingStatusTooltipOpenChange(
+                mapping.host,
+                'availability',
+                nextOpen,
+              )
+          "
+        >
           <TooltipTrigger as-child>
             <Badge
+              as="button"
+              type="button"
               variant="outline"
               class="inline-flex h-6 w-6 cursor-help items-center justify-center rounded-full border-amber-500/35 bg-amber-500/5 p-0 text-amber-700 transition-colors hover:bg-amber-500/10 dark:text-amber-300"
               :aria-label="t('admin.subdomainProxy.unavailableBadge')"
+              @click="
+                handleMappingStatusTooltipTriggerClick(
+                  mapping.host,
+                  'availability',
+                )
+              "
             >
               <Clock class="h-3 w-3" />
             </Badge>
@@ -36,14 +54,31 @@
       </TooltipProvider>
 
       <TooltipProvider v-else-if="availabilityState === 'scheduled_open'">
-        <Tooltip>
+        <Tooltip
+          :open="isMappingStatusTooltipOpen(mapping.host, 'availability')"
+          @update:open="
+            (nextOpen) =>
+              handleMappingStatusTooltipOpenChange(
+                mapping.host,
+                'availability',
+                nextOpen,
+              )
+          "
+        >
           <TooltipTrigger as-child>
-            <span
-              class="inline-flex h-5 w-5 shrink-0 cursor-help items-center justify-center rounded-md text-muted-foreground"
+            <button
+              type="button"
+              class="inline-flex h-5 w-5 shrink-0 cursor-help items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
               :aria-label="t('admin.subdomainProxy.scheduleOpenAria')"
+              @click="
+                handleMappingStatusTooltipTriggerClick(
+                  mapping.host,
+                  'availability',
+                )
+              "
             >
               <Clock class="h-3.5 w-3.5" />
-            </span>
+            </button>
           </TooltipTrigger>
           <TooltipContent side="top" align="center">
             <p>
@@ -62,18 +97,35 @@
       </Badge>
 
       <TooltipProvider v-if="mapping.is_default">
-        <Tooltip>
+        <Tooltip
+          :open="isMappingStatusTooltipOpen(mapping.host, 'default-domain')"
+          @update:open="
+            (nextOpen) =>
+              handleMappingStatusTooltipOpenChange(
+                mapping.host,
+                'default-domain',
+                nextOpen,
+              )
+          "
+        >
           <TooltipTrigger as-child>
-            <span
-              class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-muted-foreground"
+            <button
+              type="button"
+              class="inline-flex h-5 w-5 shrink-0 cursor-help items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
               :aria-label="
                 t('admin.subdomainProxy.defaultDomainAria', {
                   host: formatHost(mapping.host),
                 })
               "
+              @click="
+                handleMappingStatusTooltipTriggerClick(
+                  mapping.host,
+                  'default-domain',
+                )
+              "
             >
               <Star class="h-3.5 w-3.5" />
-            </span>
+            </button>
           </TooltipTrigger>
           <TooltipContent side="top" align="center">
             <p>{{ t("admin.subdomainProxy.defaultDomain") }}</p>
@@ -81,25 +133,73 @@
         </Tooltip>
       </TooltipProvider>
 
-      <ShieldCheck v-if="mapping.use_auth" class="h-3.5 w-3.5 shrink-0" />
+      <TooltipProvider v-if="mapping.use_auth">
+        <Tooltip
+          :open="isMappingStatusTooltipOpen(mapping.host, 'authentication')"
+          @update:open="
+            (nextOpen) =>
+              handleMappingStatusTooltipOpenChange(
+                mapping.host,
+                'authentication',
+                nextOpen,
+              )
+          "
+        >
+          <TooltipTrigger as-child>
+            <button
+              type="button"
+              class="inline-flex h-5 w-5 shrink-0 cursor-help items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+              :aria-label="
+                t('admin.subdomainProxy.statusAuthRequiredAria', {
+                  host: formatHost(mapping.host),
+                })
+              "
+              @click="
+                handleMappingStatusTooltipTriggerClick(
+                  mapping.host,
+                  'authentication',
+                )
+              "
+            >
+              <ShieldCheck class="h-3.5 w-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top" align="center">
+            <p>{{ t("admin.subdomainProxy.statusAuthRequiredTooltip") }}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       <Badge v-else variant="secondary">
         {{ t("admin.subdomainProxy.publicAccess") }}
       </Badge>
 
       <TooltipProvider v-if="securityIndicators.waf">
-        <Tooltip>
+        <Tooltip
+          :open="isMappingStatusTooltipOpen(mapping.host, 'waf')"
+          @update:open="
+            (nextOpen) =>
+              handleMappingStatusTooltipOpenChange(
+                mapping.host,
+                'waf',
+                nextOpen,
+              )
+          "
+        >
           <TooltipTrigger as-child>
-            <span
-              tabindex="0"
+            <button
+              type="button"
               class="inline-flex h-5 w-5 shrink-0 cursor-help items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
               :aria-label="
                 t('admin.subdomainProxy.statusWafEnabledAria', {
                   host: formatHost(mapping.host),
                 })
               "
+              @click="
+                handleMappingStatusTooltipTriggerClick(mapping.host, 'waf')
+              "
             >
               <BrickWall class="h-3.5 w-3.5" />
-            </span>
+            </button>
           </TooltipTrigger>
           <TooltipContent side="top" align="center">
             <p>{{ t("admin.subdomainProxy.statusWafEnabledTooltip") }}</p>
@@ -108,10 +208,20 @@
       </TooltipProvider>
 
       <TooltipProvider v-if="securityIndicators.visibility">
-        <Tooltip>
+        <Tooltip
+          :open="isMappingStatusTooltipOpen(mapping.host, 'visibility')"
+          @update:open="
+            (nextOpen) =>
+              handleMappingStatusTooltipOpenChange(
+                mapping.host,
+                'visibility',
+                nextOpen,
+              )
+          "
+        >
           <TooltipTrigger as-child>
-            <span
-              tabindex="0"
+            <button
+              type="button"
               class="inline-flex h-5 w-5 shrink-0 cursor-help items-center justify-center rounded-md transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
               :class="
                 securityIndicators.visibility === 'custom'
@@ -129,13 +239,19 @@
                       host: formatHost(mapping.host),
                     })
               "
+              @click="
+                handleMappingStatusTooltipTriggerClick(
+                  mapping.host,
+                  'visibility',
+                )
+              "
             >
               <ScanEye
                 v-if="securityIndicators.visibility === 'custom'"
                 class="h-3.5 w-3.5"
               />
               <Eye v-else class="h-3.5 w-3.5" />
-            </span>
+            </button>
           </TooltipTrigger>
           <TooltipContent side="top" align="center">
             <p v-if="securityIndicators.visibility === 'custom'">
@@ -153,17 +269,50 @@
         </Tooltip>
       </TooltipProvider>
 
-      <PanelsTopLeft
-        v-if="shouldShowToolbarIndicator"
-        class="h-3.5 w-3.5 shrink-0"
-      />
+      <TooltipProvider v-if="shouldShowToolbarIndicator">
+        <Tooltip
+          :open="isMappingStatusTooltipOpen(mapping.host, 'toolbar')"
+          @update:open="
+            (nextOpen) =>
+              handleMappingStatusTooltipOpenChange(
+                mapping.host,
+                'toolbar',
+                nextOpen,
+              )
+          "
+        >
+          <TooltipTrigger as-child>
+            <button
+              type="button"
+              class="inline-flex h-5 w-5 shrink-0 cursor-help items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+              :aria-label="
+                t('admin.subdomainProxy.statusToolbarEnabledAria', {
+                  host: formatHost(mapping.host),
+                })
+              "
+              @click="
+                handleMappingStatusTooltipTriggerClick(mapping.host, 'toolbar')
+              "
+            >
+              <PanelsTopLeft class="h-3.5 w-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top" align="center">
+            <p>{{ t("admin.subdomainProxy.statusToolbarEnabledTooltip") }}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
 
       <TooltipProvider v-if="locationRulesCount > 0">
         <Tooltip
-          :open="isLocationRulesTooltipOpen(mapping.host)"
+          :open="isMappingStatusTooltipOpen(mapping.host, 'location-rules')"
           @update:open="
             (nextOpen) =>
-              handleLocationRulesTooltipOpenChange(mapping.host, nextOpen)
+              handleMappingStatusTooltipOpenChange(
+                mapping.host,
+                'location-rules',
+                nextOpen,
+              )
           "
         >
           <TooltipTrigger as-child>
@@ -176,7 +325,12 @@
                   count: locationRulesCount,
                 })
               "
-              @click="handleLocationRulesTooltipTriggerClick(mapping.host)"
+              @click="
+                handleMappingStatusTooltipTriggerClick(
+                  mapping.host,
+                  'location-rules',
+                )
+              "
             >
               <RouteIcon class="h-3.5 w-3.5" />
             </button>
@@ -224,18 +378,29 @@ import {
   getMappingSecurityIndicatorState,
   type HostMappingAvailabilityState,
 } from "./model";
+import type { MappingStatusTooltip } from "./useSubdomainTouchTooltips";
 
 const props = defineProps<{
   availabilityState: HostMappingAvailabilityState;
   availabilityWindow: string;
   formatHost: (host: string) => string;
-  handleLocationRulesTooltipOpenChange: (host: string, open: boolean) => void;
-  handleLocationRulesTooltipTriggerClick: (host: string) => void;
+  handleMappingStatusTooltipOpenChange: (
+    host: string,
+    tooltip: MappingStatusTooltip,
+    open: boolean,
+  ) => void;
+  handleMappingStatusTooltipTriggerClick: (
+    host: string,
+    tooltip: MappingStatusTooltip,
+  ) => void;
   globalVisibilityEnabled: boolean;
   globalWafEnabled: boolean;
   isAuthService: boolean;
   isGatewayPortalEnabled: boolean;
-  isLocationRulesTooltipOpen: (host: string) => boolean;
+  isMappingStatusTooltipOpen: (
+    host: string,
+    tooltip: MappingStatusTooltip,
+  ) => boolean;
   mapping: HostMapping;
 }>();
 

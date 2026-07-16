@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
-import { ChevronDown, RefreshCw, Save, Trash2, Undo2 } from "lucide-vue-next";
+import {
+  ChevronDown,
+  ChevronUp,
+  Ellipsis,
+  RefreshCw,
+  Save,
+  Trash2,
+  Undo2,
+} from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -210,25 +218,41 @@ const { t } = useI18n();
     <template #actions="{ collapse }">
       <FloatingActionDock
         :active="isDirty"
-        inline-class="p-4 sm:px-6 sm:py-4 bg-muted/30 border-t flex items-center justify-end gap-3 rounded-b-lg"
+        inline-class="p-4 sm:px-6 sm:py-4 bg-muted/30 border-t flex items-center justify-between gap-2 sm:justify-end sm:gap-3 rounded-b-lg"
       >
         <template #inline>
-          <Button variant="outline" @click="collapse">
-            {{ t("admin.ddns.collapse") }}
+          <Button
+            variant="outline"
+            class="h-10 w-10 shrink-0 gap-0 px-0 sm:h-9 sm:w-auto sm:gap-2 sm:px-4"
+            :aria-label="t('admin.ddns.collapse')"
+            :title="t('admin.ddns.collapse')"
+            @click="collapse"
+          >
+            <ChevronUp class="h-4 w-4 sm:hidden" />
+            <span class="hidden sm:inline">
+              {{ t("admin.ddns.collapse") }}
+            </span>
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger as-child>
               <Button
                 variant="outline"
-                class="w-24 gap-2"
+                class="h-10 w-10 shrink-0 gap-0 px-0 sm:h-9 sm:w-24 sm:gap-2 sm:px-4"
+                :aria-label="t('admin.ddns.actions')"
+                :title="t('admin.ddns.actions')"
                 :disabled="
                   isClearingPrimaryConfig ||
                   !selectedProvider ||
                   !hasSavedProviderConfig
                 "
               >
-                <span>{{ t("admin.ddns.actions") }}</span>
-                <ChevronDown class="h-4 w-4 text-muted-foreground" />
+                <Ellipsis class="h-4 w-4 sm:hidden" />
+                <span class="hidden sm:inline">
+                  {{ t("admin.ddns.actions") }}
+                </span>
+                <ChevronDown
+                  class="hidden h-4 w-4 text-muted-foreground sm:block"
+                />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" class="w-48">
@@ -246,34 +270,53 @@ const { t } = useI18n();
             v-if="isDirty"
             variant="outline"
             :disabled="isSaving || isTesting"
+            :aria-label="t('common.cancel')"
+            :title="t('common.cancel')"
             @click="emit('cancel')"
-            class="gap-2"
+            class="h-10 w-10 shrink-0 gap-0 px-0 sm:h-9 sm:w-auto sm:gap-2 sm:px-4"
           >
             <Undo2 class="h-4 w-4" />
-            {{ t("common.cancel") }}
+            <span class="hidden sm:inline">{{ t("common.cancel") }}</span>
           </Button>
           <Button
             v-if="isDirty"
             variant="outline"
             :disabled="isSaving || isTesting || !selectedProvider"
+            :aria-label="isSaving ? t('admin.ddns.saving') : t('common.save')"
+            :title="isSaving ? t('admin.ddns.saving') : t('common.save')"
             @click="emit('save')"
-            class="min-w-[88px] gap-2"
+            class="h-10 w-10 min-w-10 shrink-0 gap-0 px-0 sm:h-9 sm:w-auto sm:min-w-[88px] sm:gap-2 sm:px-4"
           >
             <RefreshCw v-if="isSaving" class="h-4 w-4 animate-spin" />
             <Save v-else class="h-4 w-4" />
-            {{ isSaving ? t("admin.ddns.saving") : t("common.save") }}
+            <span class="hidden sm:inline">
+              {{ isSaving ? t("admin.ddns.saving") : t("common.save") }}
+            </span>
           </Button>
           <Button
             :disabled="isTesting || isSaving || !selectedProvider"
-            @click="emit('test')"
-            class="min-w-[100px] shadow-sm"
-          >
-            <RefreshCw v-if="isTesting" class="w-4 h-4 mr-2 animate-spin" />
-            {{
+            :aria-label="
               isTesting
-                ? t("admin.ddns.updating")
-                : t("admin.ddns.saveAndUpdate")
-            }}
+                ? t('admin.ddns.updating')
+                : t('admin.ddns.saveAndUpdate')
+            "
+            :title="
+              isTesting
+                ? t('admin.ddns.updating')
+                : t('admin.ddns.saveAndUpdate')
+            "
+            @click="emit('test')"
+            class="h-10 w-10 min-w-10 shrink-0 gap-0 px-0 shadow-sm sm:h-9 sm:w-auto sm:min-w-[100px] sm:gap-2 sm:px-4"
+          >
+            <RefreshCw v-if="isTesting" class="h-4 w-4 animate-spin" />
+            <RefreshCw v-else class="h-4 w-4 sm:hidden" />
+            <span class="hidden sm:inline">
+              {{
+                isTesting
+                  ? t("admin.ddns.updating")
+                  : t("admin.ddns.saveAndUpdate")
+              }}
+            </span>
           </Button>
         </template>
 
@@ -282,34 +325,53 @@ const { t } = useI18n();
             v-if="isDirty"
             variant="outline"
             :disabled="isSaving || isTesting"
+            :aria-label="t('common.cancel')"
+            :title="t('common.cancel')"
             @click="emit('cancel')"
-            class="gap-2 border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white"
+            class="!w-10 !min-w-10 shrink-0 !gap-0 !px-0 border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white sm:!w-auto sm:!min-w-[5.65rem] sm:!gap-2 sm:!px-[1.15rem]"
           >
             <Undo2 class="h-4 w-4" />
-            {{ t("common.cancel") }}
+            <span class="hidden sm:inline">{{ t("common.cancel") }}</span>
           </Button>
           <Button
             v-if="isDirty"
             variant="outline"
             :disabled="isSaving || isTesting || !selectedProvider"
+            :aria-label="isSaving ? t('admin.ddns.saving') : t('common.save')"
+            :title="isSaving ? t('admin.ddns.saving') : t('common.save')"
             @click="emit('save')"
-            class="min-w-[88px] gap-2 border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white"
+            class="!w-10 !min-w-10 shrink-0 !gap-0 !px-0 border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white sm:!w-auto sm:!min-w-[5.65rem] sm:!gap-2 sm:!px-[1.15rem]"
           >
             <RefreshCw v-if="isSaving" class="h-4 w-4 animate-spin" />
             <Save v-else class="h-4 w-4" />
-            {{ isSaving ? t("admin.ddns.saving") : t("common.save") }}
+            <span class="hidden sm:inline">
+              {{ isSaving ? t("admin.ddns.saving") : t("common.save") }}
+            </span>
           </Button>
           <Button
             :disabled="isTesting || isSaving || !selectedProvider"
-            @click="emit('test')"
-            class="min-w-[100px] shadow-sm"
-          >
-            <RefreshCw v-if="isTesting" class="w-4 h-4 mr-2 animate-spin" />
-            {{
+            :aria-label="
               isTesting
-                ? t("admin.ddns.updating")
-                : t("admin.ddns.saveAndUpdate")
-            }}
+                ? t('admin.ddns.updating')
+                : t('admin.ddns.saveAndUpdate')
+            "
+            :title="
+              isTesting
+                ? t('admin.ddns.updating')
+                : t('admin.ddns.saveAndUpdate')
+            "
+            @click="emit('test')"
+            class="!w-10 !min-w-10 shrink-0 !gap-0 !px-0 shadow-sm sm:!w-auto sm:!min-w-[5.65rem] sm:!gap-2 sm:!px-[1.15rem]"
+          >
+            <RefreshCw v-if="isTesting" class="h-4 w-4 animate-spin" />
+            <RefreshCw v-else class="h-4 w-4 sm:hidden" />
+            <span class="hidden sm:inline">
+              {{
+                isTesting
+                  ? t("admin.ddns.updating")
+                  : t("admin.ddns.saveAndUpdate")
+              }}
+            </span>
           </Button>
         </template>
       </FloatingActionDock>

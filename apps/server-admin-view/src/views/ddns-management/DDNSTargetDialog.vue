@@ -386,7 +386,7 @@ const { t } = useI18n();
                 {{ t("admin.ddns.interfaceHint") }}
               </p>
             </div>
-            <div class="w-full max-w-md space-y-2">
+            <div class="min-w-0 w-full max-w-full sm:max-w-md space-y-2">
               <Select
                 :modelValue="
                   toNetworkInterfaceSelectValue(
@@ -403,9 +403,17 @@ const { t } = useI18n();
                     )
                 "
               >
-                <SelectTrigger id="ddns-target-network-interface">
-                  <SelectValue :placeholder="t('admin.ddns.autoSelect')">
-                    <span class="block min-w-0 max-w-full truncate">
+                <SelectTrigger
+                  id="ddns-target-network-interface"
+                  class="w-full min-w-0 max-w-full overflow-hidden"
+                >
+                  <SelectValue
+                    :placeholder="t('admin.ddns.autoSelect')"
+                    class="min-w-0 flex-1 overflow-hidden"
+                  >
+                    <span
+                      class="block w-full min-w-0 max-w-full truncate text-left"
+                    >
                       {{ networkInterfaceLabel }}
                     </span>
                   </SelectValue>

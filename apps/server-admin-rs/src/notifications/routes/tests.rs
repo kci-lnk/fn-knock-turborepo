@@ -407,6 +407,234 @@ fn notification_provider_parsers_follow_node_edges() {
 }
 
 #[test]
+fn harmonyosmeow_catalog_and_masking_match_provider_contract() {
+    let definition = provider_definition("harmonyosmeow").unwrap();
+    assert_eq!(definition.label, "HarmonyOSMeoW");
+    assert!(definition.target_schema.is_empty());
+    assert_eq!(definition.sensitive_fields, vec!["nickname"]);
+
+    let zh = provider_definition_view(&definition, &Translator::new("zh-CN"));
+    assert_eq!(zh.get("label"), Some(&json!("鸿蒙MeoW")));
+    assert_eq!(
+        schema_field(&zh, "connection_schema", "server_url").get("default_value"),
+        Some(&json!("https://api.chuckfang.com"))
+    );
+    assert_eq!(
+        schema_field(&zh, "connection_schema", "nickname").get("sensitive"),
+        Some(&json!(true))
+    );
+    assert_eq!(
+        zh.pointer("/capabilities/supports_markdown"),
+        Some(&json!(true))
+    );
+    assert_eq!(
+        zh.pointer("/capabilities/supports_actions"),
+        Some(&json!(true))
+    );
+    assert_eq!(
+        zh.pointer("/capabilities/supports_mentions"),
+        Some(&json!(false))
+    );
+    assert_eq!(
+        zh.pointer("/capabilities/max_body_length"),
+        Some(&Value::Null)
+    );
+
+    let en = provider_definition_view(&definition, &Translator::new("en"));
+    assert_eq!(en.get("label"), Some(&json!("HarmonyOSMeoW")));
+
+    let masked = mask_provider(&json!({
+        "id": "ntfprov_meow",
+        "name": "MeoW",
+        "type": "harmonyosmeow",
+        "connection_config": {
+            "server_url": "https://api.chuckfang.com",
+            "nickname": "JohnDoe",
+            "timeout_seconds": 5
+        }
+    }))
+    .unwrap();
+    assert_eq!(
+        masked.pointer("/connection_config_masked/nickname"),
+        Some(&json!("********"))
+    );
+}
+
+#[test]
+fn harmonyosmeow_url_and_markdown_body_are_safe_and_deterministic() {
+    let resolved = resolve_harmonyosmeow_url(
+        "https://api.example.com/base/?old=1#fragment",
+        "张 三测试",
+        "告警 / A",
+    )
+    .unwrap();
+    assert_eq!(
+        resolved,
+        "https://api.example.com/base/%E5%BC%A0%20%E4%B8%89%E6%B5%8B%E8%AF%95/%E5%91%8A%E8%AD%A6%20%2F%20A?msgType=markdown"
+    );
+    assert_eq!(
+        resolve_harmonyosmeow_url("https://api.example.com/", "JohnDoe", "Title").unwrap(),
+        "https://api.example.com/JohnDoe/Title?msgType=markdown"
+    );
+    assert!(resolve_harmonyosmeow_url("ftp://api.example.com", "JohnDoe", "Title").is_err());
+    assert!(resolve_harmonyosmeow_url("not a url", "JohnDoe", "Title").is_err());
+    assert!(resolve_harmonyosmeow_url("https://api.example.com", "John/Doe", "Title").is_err());
+
+    let definition = provider_definition("harmonyosmeow").unwrap();
+    assert!(
+        validate_provider_connection_config(
+            &definition,
+            &Map::from_iter([
+                ("server_url".to_string(), json!("https://api.example.com")),
+                ("nickname".to_string(), json!("John/Doe")),
+                ("timeout_seconds".to_string(), json!(5)),
+            ]),
+        )
+        .is_err()
+    );
+
+    let body = build_harmonyosmeow_body(&json!({
+        "title": "告警",
+        "summary": "服务异常",
+        "body_markdown": "请检查 **api** 服务。",
+        "facts": [{ "label": "状态", "value": "异常" }],
+        "actions": [{ "label": "查看详情", "url": "https://example.com/events/1" }]
+    }));
+    assert!(body.contains("请检查 **api** 服务。"));
+    assert!(body.contains("- **状态**：异常"));
+    assert!(body.contains("- [查看详情](https://example.com/events/1)"));
+    assert_eq!(build_harmonyosmeow_body(&json!({})), "fn-knock 通知");
+}
+
+#[test]
+fn harmonyosmeow_response_status_and_messages_drive_delivery_result() {
+    let success = harmonyosmeow_result(
+        json!({ "method": "POST" }),
+        200,
+        true,
+        r#"{"status":200,"message":"推送成功"}"#.to_string(),
+        Some(json!({ "status": 200, "message": "推送成功" })),
+    );
+    assert!(success.success);
+    assert!(!success.retryable);
+
+    let bad_request = harmonyosmeow_result(
+        json!({}),
+        200,
+        true,
+        r#"{"status":400,"msg":"昵称不存在"}"#.to_string(),
+        Some(json!({ "status": 400, "msg": "昵称不存在" })),
+    );
+    assert!(!bad_request.success);
+    assert!(!bad_request.retryable);
+    assert_eq!(bad_request.message, "昵称不存在");
+
+    let server_error = harmonyosmeow_result(
+        json!({}),
+        200,
+        true,
+        r#"{"status":500,"error":"服务异常"}"#.to_string(),
+        Some(json!({ "status": 500, "error": "服务异常" })),
+    );
+    assert!(!server_error.success);
+    assert!(server_error.retryable);
+    assert_eq!(server_error.message, "服务异常");
+
+    let rate_limited = harmonyosmeow_result(
+        json!({}),
+        429,
+        false,
+        r#"{"status":400,"message":"请求过多"}"#.to_string(),
+        Some(json!({ "status": 400, "message": "请求过多" })),
+    );
+    assert!(rate_limited.retryable);
+
+    let network_error = harmonyosmeow_result(
+        json!({}),
+        599,
+        false,
+        "connection refused".to_string(),
+        None,
+    );
+    assert!(network_error.retryable);
+    assert_eq!(network_error.message, "connection refused");
+    assert_eq!(network_error.response_summary, None);
+}
+
+#[tokio::test]
+async fn harmonyosmeow_text_request_matches_api_contract() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.unwrap();
+        let mut request = Vec::new();
+        let (header_end, content_length) = loop {
+            let mut buffer = [0_u8; 4096];
+            let read = stream.read(&mut buffer).await.unwrap();
+            assert!(read > 0, "client closed before request body completed");
+            request.extend_from_slice(&buffer[..read]);
+            let Some(header_end) = request.windows(4).position(|value| value == b"\r\n\r\n") else {
+                continue;
+            };
+            let headers = String::from_utf8_lossy(&request[..header_end]);
+            let content_length = headers
+                .lines()
+                .find_map(|line| {
+                    let (name, value) = line.split_once(':')?;
+                    name.eq_ignore_ascii_case("content-length")
+                        .then(|| value.trim().parse::<usize>().ok())
+                        .flatten()
+                })
+                .unwrap_or_default();
+            if request.len() >= header_end + 4 + content_length {
+                break (header_end, content_length);
+            }
+        };
+
+        let headers = String::from_utf8_lossy(&request[..header_end]);
+        let request_line = headers.lines().next().unwrap_or_default().to_string();
+        let content_type = headers
+            .lines()
+            .find_map(|line| {
+                let (name, value) = line.split_once(':')?;
+                name.eq_ignore_ascii_case("content-type")
+                    .then(|| value.trim().to_string())
+            })
+            .unwrap_or_default();
+        let body =
+            String::from_utf8(request[header_end + 4..header_end + 4 + content_length].to_vec())
+                .unwrap();
+
+        let response_body = r#"{"status":200,"message":"ok"}"#;
+        let response = format!(
+            "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+            response_body.len(),
+            response_body
+        );
+        stream.write_all(response.as_bytes()).await.unwrap();
+        (request_line, content_type, body)
+    });
+
+    let url = format!("http://{address}/JohnDoe/Alert?msgType=markdown");
+    let client = reqwest::Client::new();
+    let (status, ok, _text, parsed) =
+        send_prepared_text(client.post(url), "## Alert\n\nService recovered.", 5).await;
+    assert_eq!(status, 200);
+    assert!(ok);
+    assert_eq!(parsed, Some(json!({ "status": 200, "message": "ok" })));
+
+    let (request_line, content_type, body) = server.await.unwrap();
+    assert_eq!(
+        request_line,
+        "POST /JohnDoe/Alert?msgType=markdown HTTP/1.1"
+    );
+    assert_eq!(content_type, "text/plain; charset=utf-8");
+    assert_eq!(body, "## Alert\n\nService recovered.");
+}
+
+#[test]
 fn notification_page_parser_matches_node_parse_int_edges() {
     assert_eq!(parse_positive_int(None, 1, i64::MAX), 1);
     assert_eq!(parse_positive_int(Some(""), 20, 100), 20);
@@ -674,6 +902,14 @@ fn localizes_provider_test_builtin_messages() {
     assert_eq!(
         localize_provider_test_message(&en, "Topic ID 格式不正确：abc"),
         "Invalid Topic ID format: abc"
+    );
+    assert_eq!(
+        localize_provider_test_message(&en, "缺少 MeoW 接收昵称"),
+        "Missing MeoW recipient nickname"
+    );
+    assert_eq!(
+        localize_provider_test_message(&en, "MeoW 接收昵称不能包含斜杠"),
+        "MeoW recipient nickname cannot contain a slash"
     );
 }
 

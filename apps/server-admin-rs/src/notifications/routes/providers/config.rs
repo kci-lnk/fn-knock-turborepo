@@ -31,6 +31,20 @@ pub(in crate::notifications::routes) fn provider_config(provider: &Value) -> Map
         .unwrap_or_default()
 }
 
+pub(in crate::notifications::routes) fn validate_provider_connection_config(
+    definition: &ProviderDefinition,
+    config: &Map<String, Value>,
+) -> NotifyResult<()> {
+    if definition.provider_type == "harmonyosmeow"
+        && !harmonyosmeow_nickname_is_valid(&config_text(config, "nickname"))
+    {
+        return Err(NotifyError::BadRequest(
+            notification_provider_error_default("harmonyosmeow", "invalidNickname", &[]),
+        ));
+    }
+    Ok(())
+}
+
 pub(in crate::notifications::routes) fn target_config(target: &Value) -> Map<String, Value> {
     target
         .get("target_config")

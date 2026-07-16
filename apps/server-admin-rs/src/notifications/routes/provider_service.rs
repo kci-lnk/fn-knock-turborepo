@@ -11,6 +11,7 @@ pub(super) async fn create_provider_value(state: &AppState, body: Value) -> Noti
     normalize_provider_connection_aliases(definition.provider_type, &mut raw_config);
     let connection_config = normalize_schema_config(&raw_config, &definition.connection_schema)?;
     validate_required_fields(&connection_config, &definition.connection_schema)?;
+    validate_provider_connection_config(&definition, &connection_config)?;
 
     let existing = load_providers(state).await?;
     let names = existing
@@ -68,6 +69,7 @@ pub(super) async fn update_provider_value(
     }
     apply_schema_defaults(&mut merged, &definition.connection_schema);
     validate_required_fields(&merged, &definition.connection_schema)?;
+    validate_provider_connection_config(&definition, &merged)?;
 
     let mut updated = current
         .as_object()
@@ -134,6 +136,7 @@ pub(super) async fn draft_provider_value(state: &AppState, body: Value) -> Notif
     }
     apply_schema_defaults(&mut connection_config, &definition.connection_schema);
     validate_required_fields(&connection_config, &definition.connection_schema)?;
+    validate_provider_connection_config(&definition, &connection_config)?;
 
     let now = time_utils::now_iso();
     Ok(json!({

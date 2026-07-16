@@ -5,6 +5,7 @@ mod content;
 mod dingtalk;
 mod email;
 mod feishu;
+mod harmonyosmeow;
 mod http;
 mod magicpush;
 mod misc;
@@ -22,6 +23,7 @@ pub(super) use content::*;
 pub(super) use dingtalk::*;
 pub(super) use email::*;
 pub(super) use feishu::*;
+pub(super) use harmonyosmeow::*;
 pub(super) use http::*;
 pub(super) use magicpush::*;
 pub(super) use misc::*;
@@ -97,6 +99,7 @@ pub(super) fn is_http_notification_provider(provider_type: &str) -> bool {
             | "dingtalk"
             | "feishu"
             | "pushdeer"
+            | "harmonyosmeow"
             | "magicpush"
             | "bark"
             | "telegram"
@@ -149,6 +152,7 @@ pub(super) async fn send_http_notification_provider(
         "dingtalk" => send_dingtalk(state, provider, target, message, timeout_seconds).await,
         "feishu" => send_feishu(state, provider, target, message, timeout_seconds).await,
         "pushdeer" => send_pushdeer(state, provider, message, timeout_seconds).await,
+        "harmonyosmeow" => send_harmonyosmeow(state, provider, message, timeout_seconds).await,
         "magicpush" => send_magicpush(state, provider, message, timeout_seconds).await,
         "bark" => send_bark(state, provider, target, message, timeout_seconds).await,
         "telegram" => send_telegram(state, provider, target, message, timeout_seconds).await,

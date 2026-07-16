@@ -2796,6 +2796,30 @@ export const zhCNServer = {
             requestFailed: "WxPusher 请求失败",
           },
         },
+        harmonyosmeow: {
+          label: "鸿蒙MeoW",
+          description: "通过 MeoW Push API 向鸿蒙设备发送 Markdown 通知。",
+          fields: {
+            server_url: {
+              label: "服务地址",
+              description: "官方接口保持默认值即可。",
+            },
+            nickname: {
+              label: "接收昵称",
+              description:
+                "MeoW 应用中配置的用户昵称。昵称相当于接收标识，请妥善保管。",
+            },
+            timeout_seconds: {
+              label: "超时秒数",
+            },
+          },
+          errors: {
+            missingNickname: "缺少 MeoW 接收昵称",
+            invalidNickname: "MeoW 接收昵称不能包含斜杠",
+            invalidServerUrl: "MeoW 服务地址无效",
+            requestFailed: "MeoW 请求失败",
+          },
+        },
         bark: {
           label: "Bark 推送",
           description:

@@ -3191,6 +3191,31 @@ export const jaJPServer = {
             requestFailed: "WxPusher リクエストが失敗しました",
           },
         },
+        harmonyosmeow: {
+          label: "HarmonyOSMeoW",
+          description:
+            "MeoW Push API を通じて HarmonyOS デバイスに Markdown 通知を送信します。",
+          fields: {
+            server_url: {
+              label: "サービス URL",
+              description: "必要がなければ公式 API URL のまま使用してください。",
+            },
+            nickname: {
+              label: "受信者ニックネーム",
+              description:
+                "MeoW アプリで設定したユーザーニックネームです。非公開の受信者識別子として扱ってください。",
+            },
+            timeout_seconds: {
+              label: "タイムアウト秒数",
+            },
+          },
+          errors: {
+            missingNickname: "MeoW の受信者ニックネームがありません",
+            invalidNickname: "MeoW の受信者ニックネームにスラッシュは使用できません",
+            invalidServerUrl: "MeoW サービス URL が無効です",
+            requestFailed: "MeoW リクエストに失敗しました",
+          },
+        },
         bark: {
           label: "Bark",
           description:

@@ -3070,6 +3070,31 @@ export const koKRServer = {
             requestFailed: "WxPusher 요청이 실패했습니다.",
           },
         },
+        harmonyosmeow: {
+          label: "HarmonyOSMeoW",
+          description:
+            "MeoW Push API를 통해 HarmonyOS 기기에 Markdown 알림을 보냅니다.",
+          fields: {
+            server_url: {
+              label: "서비스 URL",
+              description: "필요한 경우가 아니면 공식 API URL을 유지하세요.",
+            },
+            nickname: {
+              label: "수신자 닉네임",
+              description:
+                "MeoW 앱에 설정된 사용자 닉네임입니다. 비공개 수신자 식별자로 취급하세요.",
+            },
+            timeout_seconds: {
+              label: "시간 제한(초)",
+            },
+          },
+          errors: {
+            missingNickname: "MeoW 수신자 닉네임 누락",
+            invalidNickname: "MeoW 수신자 닉네임에는 슬래시를 사용할 수 없습니다.",
+            invalidServerUrl: "잘못된 MeoW 서비스 URL",
+            requestFailed: "MeoW 요청 실패",
+          },
+        },
         bark: {
           label: "Bark",
           description:

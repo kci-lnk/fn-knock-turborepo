@@ -2954,6 +2954,29 @@
               "apiReturnedCode": "PushDeer API 返回代码 {code}",
               "requestFailed": "PushDeer 请求失败"
             }
+          },
+          "harmonyosmeow": {
+            "label": "鸿蒙MeoW",
+            "description": "通过 MeoW Push API 向鸿蒙设备发送 Markdown 通知。",
+            "fields": {
+              "server_url": {
+                "label": "服务地址",
+                "description": "官方接口保持默认值即可。"
+              },
+              "nickname": {
+                "label": "接收昵称",
+                "description": "MeoW 应用中配置的用户昵称。昵称相当于接收标识，请妥善保管。"
+              },
+              "timeout_seconds": {
+                "label": "超时秒数"
+              }
+            },
+            "errors": {
+              "missingNickname": "缺少 MeoW 接收昵称",
+              "invalidNickname": "MeoW 接收昵称不能包含斜杠",
+              "invalidServerUrl": "MeoW 服务地址无效",
+              "requestFailed": "MeoW 请求失败"
+            }
           }
         }
       },
@@ -5970,6 +5993,29 @@
               "requestReturned": "PushDeer 返回 HTTP {status}",
               "apiReturnedCode": "PushDeer API 返回代碼 {code}",
               "requestFailed": "PushDeer 請求失敗"
+            }
+          },
+          "harmonyosmeow": {
+            "label": "鸿蒙MeoW",
+            "description": "透過 MeoW Push API 向鴻蒙裝置發送 Markdown 通知。",
+            "fields": {
+              "server_url": {
+                "label": "服務位址",
+                "description": "官方介面保持預設值即可。"
+              },
+              "nickname": {
+                "label": "接收暱稱",
+                "description": "MeoW 應用程式中設定的使用者暱稱。暱稱相當於接收識別，請妥善保管。"
+              },
+              "timeout_seconds": {
+                "label": "逾時秒數"
+              }
+            },
+            "errors": {
+              "missingNickname": "缺少 MeoW 接收暱稱",
+              "invalidNickname": "MeoW 接收暱稱不能包含斜線",
+              "invalidServerUrl": "MeoW 服務位址無效",
+              "requestFailed": "MeoW 請求失敗"
             }
           }
         }
@@ -8988,6 +9034,29 @@
               "apiReturnedCode": "PushDeer API returned code {code}",
               "requestFailed": "PushDeer request failed"
             }
+          },
+          "harmonyosmeow": {
+            "label": "HarmonyOSMeoW",
+            "description": "Send Markdown notifications to HarmonyOS devices through the MeoW Push API.",
+            "fields": {
+              "server_url": {
+                "label": "Service URL",
+                "description": "Keep the official API URL unless needed."
+              },
+              "nickname": {
+                "label": "Recipient nickname",
+                "description": "The user nickname configured in MeoW. Treat it as a private recipient identifier."
+              },
+              "timeout_seconds": {
+                "label": "Timeout seconds"
+              }
+            },
+            "errors": {
+              "missingNickname": "Missing MeoW recipient nickname",
+              "invalidNickname": "MeoW recipient nickname cannot contain a slash",
+              "invalidServerUrl": "Invalid MeoW service URL",
+              "requestFailed": "MeoW request failed"
+            }
           }
         }
       },
@@ -12005,6 +12074,29 @@
               "apiReturnedCode": "PushDeer API가 {code} 코드를 반환했습니다.",
               "requestFailed": "PushDeer 요청이 실패했습니다."
             }
+          },
+          "harmonyosmeow": {
+            "label": "HarmonyOSMeoW",
+            "description": "MeoW Push API를 통해 HarmonyOS 기기에 Markdown 알림을 보냅니다.",
+            "fields": {
+              "server_url": {
+                "label": "서비스 URL",
+                "description": "필요한 경우가 아니면 공식 API URL을 유지하세요."
+              },
+              "nickname": {
+                "label": "수신자 닉네임",
+                "description": "MeoW 앱에 설정된 사용자 닉네임입니다. 비공개 수신자 식별자로 취급하세요."
+              },
+              "timeout_seconds": {
+                "label": "시간 제한(초)"
+              }
+            },
+            "errors": {
+              "missingNickname": "MeoW 수신자 닉네임 누락",
+              "invalidNickname": "MeoW 수신자 닉네임에는 슬래시를 사용할 수 없습니다.",
+              "invalidServerUrl": "잘못된 MeoW 서비스 URL",
+              "requestFailed": "MeoW 요청 실패"
+            }
           }
         }
       },
@@ -15021,6 +15113,29 @@
               "requestReturned": "PushDeer 戻る HTTP {status}",
               "apiReturnedCode": "PushDeer API リターンコード {code}",
               "requestFailed": "PushDeer リクエストは失敗しました"
+            }
+          },
+          "harmonyosmeow": {
+            "label": "HarmonyOSMeoW",
+            "description": "MeoW Push API を通じて HarmonyOS デバイスに Markdown 通知を送信します。",
+            "fields": {
+              "server_url": {
+                "label": "サービス URL",
+                "description": "必要がなければ公式 API URL のまま使用してください。"
+              },
+              "nickname": {
+                "label": "受信者ニックネーム",
+                "description": "MeoW アプリで設定したユーザーニックネームです。非公開の受信者識別子として扱ってください。"
+              },
+              "timeout_seconds": {
+                "label": "タイムアウト秒数"
+              }
+            },
+            "errors": {
+              "missingNickname": "MeoW の受信者ニックネームがありません",
+              "invalidNickname": "MeoW の受信者ニックネームにスラッシュは使用できません",
+              "invalidServerUrl": "MeoW サービス URL が無効です",
+              "requestFailed": "MeoW リクエストに失敗しました"
             }
           }
         }

@@ -73,6 +73,41 @@ pub(in crate::notifications::routes) async fn post_form(
     }
 }
 
+pub(in crate::notifications::routes) async fn post_text(
+    state: &AppState,
+    url: &str,
+    body: &str,
+    timeout_seconds: i64,
+) -> (u16, bool, String, Option<Value>) {
+    let request = state.fallback_client.post(url);
+    send_prepared_text(request, body, timeout_seconds).await
+}
+
+pub(in crate::notifications::routes) async fn send_prepared_text(
+    request: reqwest::RequestBuilder,
+    body: &str,
+    timeout_seconds: i64,
+) -> (u16, bool, String, Option<Value>) {
+    let request = request
+        .header("content-type", "text/plain; charset=utf-8")
+        .body(body.to_string());
+    match time::timeout(
+        Duration::from_secs(timeout_seconds.max(1) as u64),
+        request.send(),
+    )
+    .await
+    {
+        Ok(Ok(response)) => read_provider_response(response).await,
+        Ok(Err(error)) => (599, false, error.to_string(), None),
+        Err(_) => (
+            599,
+            false,
+            notification_service_default_text("testSendFailed", &[]),
+            None,
+        ),
+    }
+}
+
 pub(in crate::notifications::routes) async fn read_provider_response(
     response: reqwest::Response,
 ) -> (u16, bool, String, Option<Value>) {
@@ -141,6 +176,7 @@ pub(in crate::notifications::routes) fn provider_api_failure_retryable(
             "Feishu" => json_i64(parsed, "code") == Some(11232),
             "PushPlus" => matches!(json_i64(parsed, "code"), Some(500 | 999)),
             "Telegram" => json_i64(parsed, "error_code") == Some(429),
+            "HarmonyOSMeoW" => json_i64(parsed, "status") == Some(500),
             _ => false,
         }
 }

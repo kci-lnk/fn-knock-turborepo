@@ -96,6 +96,7 @@ pub(super) fn provider_definition(provider_type: &str) -> Option<ProviderDefinit
         "feishu" => Some(feishu_definition()),
         "email" => Some(email_definition()),
         "pushdeer" => Some(pushdeer_definition()),
+        "harmonyosmeow" => Some(harmonyosmeow_definition()),
         "magicpush" => Some(magicpush_definition()),
         "bark" => Some(bark_definition()),
         "telegram" => Some(telegram_definition()),

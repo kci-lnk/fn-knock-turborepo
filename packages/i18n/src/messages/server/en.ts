@@ -3055,6 +3055,31 @@ export const enServer = {
             requestFailed: "WxPusher request failed",
           },
         },
+        harmonyosmeow: {
+          label: "HarmonyOSMeoW",
+          description:
+            "Send Markdown notifications to HarmonyOS devices through the MeoW Push API.",
+          fields: {
+            server_url: {
+              label: "Service URL",
+              description: "Keep the official API URL unless needed.",
+            },
+            nickname: {
+              label: "Recipient nickname",
+              description:
+                "The user nickname configured in MeoW. Treat it as a private recipient identifier.",
+            },
+            timeout_seconds: {
+              label: "Timeout seconds",
+            },
+          },
+          errors: {
+            missingNickname: "Missing MeoW recipient nickname",
+            invalidNickname: "MeoW recipient nickname cannot contain a slash",
+            invalidServerUrl: "Invalid MeoW service URL",
+            requestFailed: "MeoW request failed",
+          },
+        },
         bark: {
           label: "Bark",
           description:

@@ -632,6 +632,7 @@ import PagedTableFooter from "@admin-shared/components/list/PagedTableFooter.vue
 import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
 import { useLocalPagedList } from "@admin-shared/composables/useLocalPagedList";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
+import { getCidrRegionSelectionLabel } from "@/types/cidr";
 import { docsUrls } from "../lib/docs";
 import { useWhitelistAddRecord } from "./ip-whitelist/useWhitelistAddRecord";
 import { useWhitelistRecordActions } from "./ip-whitelist/useWhitelistRecordActions";
@@ -758,9 +759,7 @@ const formatRemaining = (expireAt: number) => {
 };
 
 const formatRegionInput = (region: WhitelistRegionInput) =>
-  region.query_city
-    ? `${region.province} / ${region.query_city}`
-    : region.province;
+  getCidrRegionSelectionLabel(region, { includeProvince: true });
 
 const regionGroupLabel = (group: WhitelistRegionGroupRecord) =>
   group.regions.map(formatRegionInput).join(", ");

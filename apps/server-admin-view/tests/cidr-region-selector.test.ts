@@ -127,6 +127,17 @@ describe("CIDR region selector", () => {
       }),
       "杭州市 · 移动",
     );
+    assert.equal(
+      getCidrRegionSelectionLabel(
+        {
+          province: "浙江省",
+          query_city: "杭州市",
+          operator: "移动",
+        },
+        { includeProvince: true },
+      ),
+      "浙江省 / 杭州市 · 移动",
+    );
   });
 
   it("saves multiple cities in the all-operator layer", async () => {

@@ -10,18 +10,23 @@ export const getCidrRegionSelectionKey = (selection: {
 }) =>
   `${selection.province}::${selection.query_city ?? ""}::${selection.operator ?? ""}`;
 
-export const getCidrRegionSelectionLabel = (selection: {
-  province: string;
-  city?: string | null;
-  label?: string | null;
-  query_city?: string | null;
-  operator?: CidrOperator | null;
-}) => {
+export const getCidrRegionSelectionLabel = (
+  selection: {
+    province: string;
+    city?: string | null;
+    label?: string | null;
+    query_city?: string | null;
+    operator?: CidrOperator | null;
+  },
+  options: { includeProvince?: boolean } = {},
+) => {
+  const province = selection.province.trim();
+  const city = selection.city?.trim() || selection.query_city?.trim();
   const label =
+    (options.includeProvince && city ? `${province} / ${city}` : "") ||
     selection.label?.trim() ||
-    selection.city?.trim() ||
-    selection.query_city?.trim() ||
-    selection.province.trim();
+    city ||
+    province;
   const suffix = selection.operator ? ` · ${selection.operator}` : "";
   return suffix && !label.endsWith(suffix) ? `${label}${suffix}` : label;
 };

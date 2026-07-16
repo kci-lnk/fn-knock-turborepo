@@ -2,15 +2,69 @@
 
 PACKAGE_NAME="fn-knock-synology"
 RUNTIME_PORT_FILE="/var/packages/${PACKAGE_NAME}/var/runtime-ports.env"
-AUTHENTICATE_CGI="/usr/syno/synoman/webman/modules/authenticate.cgi"
+AUTHENTICATE_CGI="${AUTHENTICATE_CGI:-/usr/syno/synoman/webman/modules/authenticate.cgi}"
+SESSION_COOKIE_NAME="fn_knock_synotoken"
+STAGED_COOKIE_NAME="fn_knock_synotoken_stage"
+SESSION_COOKIE_PATH="/webman/3rdparty/${PACKAGE_NAME}/"
+ORIGINAL_QUERY_STRING="${QUERY_STRING:-}"
+
+cookie_value() {
+    printf '%s' "${HTTP_COOKIE:-}" |
+        tr ';' '\n' |
+        sed -n "s/^[[:space:]]*$1=//p" |
+        head -n 1
+}
+
+SESSION_TOKEN_ENCODED="$(cookie_value "${SESSION_COOKIE_NAME}")"
+case "${SESSION_TOKEN_ENCODED}" in
+    ''|*[!A-Za-z0-9._~%+-]*) SESSION_TOKEN_ENCODED="" ;;
+esac
+
+STAGED_TOKEN_ENCODED="$(cookie_value "${STAGED_COOKIE_NAME}")"
+case "${STAGED_TOKEN_ENCODED}" in
+    ''|*[!A-Za-z0-9._~%+-]*) STAGED_TOKEN_ENCODED="" ;;
+esac
+
+AUTH_TOKEN_ENCODED="${STAGED_TOKEN_ENCODED:-${SESSION_TOKEN_ENCODED}}"
+
+emit_session_cookies() {
+    [ -z "${AUTH_TOKEN_ENCODED}" ] || \
+        printf 'Set-Cookie: %s=%s; Path=%s; Secure; HttpOnly; SameSite=Strict\r\n' \
+            "${SESSION_COOKIE_NAME}" "${AUTH_TOKEN_ENCODED}" "${SESSION_COOKIE_PATH}"
+    [ -z "${STAGED_TOKEN_ENCODED}" ] || \
+        printf 'Set-Cookie: %s=; Path=%s; Secure; HttpOnly; SameSite=Strict; Max-Age=0\r\n' \
+            "${STAGED_COOKIE_NAME}" "${SESSION_COOKIE_PATH}"
+}
+
+clear_session_cookies() {
+    for COOKIE_NAME in "${SESSION_COOKIE_NAME}" "${STAGED_COOKIE_NAME}"; do
+        printf 'Set-Cookie: %s=; Path=%s; Secure; HttpOnly; SameSite=Strict; Max-Age=0\r\n' \
+            "${COOKIE_NAME}" "${SESSION_COOKIE_PATH}"
+    done
+}
+
+AUTH_QUERY_STRING="${ORIGINAL_QUERY_STRING}"
+if [ -n "${AUTH_TOKEN_ENCODED}" ]; then
+    case "&${AUTH_QUERY_STRING}&" in
+        *'&SynoToken='*) ;;
+        *)
+            if [ -n "${AUTH_QUERY_STRING}" ]; then
+                AUTH_QUERY_STRING="${AUTH_QUERY_STRING}&SynoToken=${AUTH_TOKEN_ENCODED}"
+            else
+                AUTH_QUERY_STRING="SynoToken=${AUTH_TOKEN_ENCODED}"
+            fi
+            ;;
+    esac
+fi
 
 AUTHENTICATED_USER=""
 if [ -x "${AUTHENTICATE_CGI}" ]; then
-    AUTHENTICATED_USER="$("${AUTHENTICATE_CGI}" 2>/dev/null)"
+    AUTHENTICATED_USER="$(QUERY_STRING="${AUTH_QUERY_STRING}" "${AUTHENTICATE_CGI}" 2>/dev/null)"
 fi
 
 if [ -z "${AUTHENTICATED_USER}" ]; then
     printf 'Status: 403 Forbidden\r\n'
+    clear_session_cookies
     printf 'Content-Type: text/plain; charset=utf-8\r\n\r\n'
     printf 'DSM authentication required.\n'
     exit 0
@@ -21,6 +75,7 @@ case " ${DSM_USER_GROUPS} " in
     *" administrators "*) ;;
     *)
         printf 'Status: 403 Forbidden\r\n'
+        emit_session_cookies
         printf 'Content-Type: text/plain; charset=utf-8\r\n\r\n'
         printf 'DSM administrator privileges required.\n'
         exit 0
@@ -35,7 +90,7 @@ TARGET_HOST="${ADMIN_TARGET_HOST:-127.0.0.1}"
 TARGET_PORT="${ADMIN_TARGET_PORT:-${BACKEND_PORT:-7998}}"
 REQ_URI="${REQUEST_URI:-}"
 URI_NO_QUERY="${REQ_URI%%\?*}"
-QUERY_STRING="${QUERY_STRING:-}"
+QUERY_STRING="${ORIGINAL_QUERY_STRING}"
 
 case "${URI_NO_QUERY}" in
     */index.cgi)
@@ -46,6 +101,7 @@ case "${URI_NO_QUERY}" in
         fi
         printf 'Status: 302 Found\r\n'
         printf 'Location: %s\r\n' "${LOCATION}"
+        emit_session_cookies
         printf 'Content-Type: text/plain; charset=utf-8\r\n\r\n'
         printf 'Redirecting\n'
         exit 0
@@ -61,6 +117,7 @@ esac
 case "${REL_PATH}" in
     *..*)
         printf 'Status: 400 Bad Request\r\n'
+        emit_session_cookies
         printf 'Content-Type: text/plain; charset=utf-8\r\n\r\n'
         printf 'Bad Request\n'
         exit 0
@@ -107,6 +164,7 @@ case "${REQUEST_METHOD_ORIGINAL}" in
         case "${CONTENT_LENGTH:-0}" in
             ''|*[!0-9]*)
                 printf 'Status: 400 Bad Request\r\n'
+                emit_session_cookies
                 printf 'Content-Type: text/plain; charset=utf-8\r\n\r\n'
                 printf 'Invalid Content-Length.\n'
                 exit 0
@@ -121,6 +179,7 @@ esac
 
 if ! curl "$@" "${TARGET_URL}"; then
     printf 'Status: 502 Bad Gateway\r\n'
+    emit_session_cookies
     printf 'Content-Type: text/plain; charset=utf-8\r\n\r\n'
     printf 'fn-knock is not available. Start the package in Package Center.\n'
     exit 0
@@ -135,6 +194,7 @@ CACHE_CONTROL_LINE="$(grep -i '^cache-control:' "${HEADER_FILE}" | tail -1 | tr 
 if [ -n "${STATUS_CODE}" ] && [ "${STATUS_CODE}" != "200" ]; then
     printf 'Status: %s %s\r\n' "${STATUS_CODE}" "${STATUS_TEXT}"
 fi
+emit_session_cookies
 if [ -n "${CONTENT_TYPE_LINE}" ]; then
     printf '%s\r\n' "${CONTENT_TYPE_LINE}"
 else

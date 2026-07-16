@@ -10,7 +10,7 @@ RUNTIME_DIR="${FN_KNOCK_PREPARED_RUNTIME_DIR:-${ARTIFACTS_DIR}/runtime}"
 MUSL_RUST_DIR="${FN_KNOCK_PREPARED_MUSL_RUST_BACKEND_DIR:-${ARTIFACTS_DIR}/musl-rust-backends}"
 PACKAGE_NAME="fn-knock-synology"
 PRODUCT_VERSION="$(jq -er '.version' "${ROOT_DIR}/version.json")"
-BUILD_NUMBER="${FN_KNOCK_SYNOLOGY_BUILD_NUMBER:-0014}"
+BUILD_NUMBER="${FN_KNOCK_SYNOLOGY_BUILD_NUMBER:-0015}"
 PACKAGE_VERSION="${PRODUCT_VERSION}-${BUILD_NUMBER}"
 OUTPUT_PATH="${FN_KNOCK_SYNOLOGY_OUTPUT:-${DIST_DIR}/${PACKAGE_NAME}-x86_64-${PACKAGE_VERSION}.spk}"
 BUILD_WORK_DIR=""
@@ -210,6 +210,7 @@ build_package() {
   chmod 644 "${spk_root}/conf/privilege" "${spk_root}/conf/resource"
 
   jq -e . "${payload_dir}/ui/config" "${spk_root}/conf/privilege" "${spk_root}/conf/resource" >/dev/null
+  node --check "${payload_dir}/ui/launch.js"
   sh -n "${payload_dir}/ui/index.cgi" "${spk_root}/scripts/"*
   bash -n "${payload_dir}/bin/fn-knock-entrypoint"
 
@@ -234,6 +235,8 @@ build_package() {
   tar -tf "${OUTPUT_PATH}" | grep -qx 'package.tgz' || fail "SPK is missing package.tgz"
   tar -tzf "${package_tgz}" | grep -Eq '^\./bin/server-admin-rs$' || fail "payload is missing backend"
   tar -tzf "${package_tgz}" | grep -Eq '^\./ui/index.cgi$' || fail "payload is missing DSM CGI"
+  tar -tzf "${package_tgz}" | grep -Eq '^\./ui/launch.html$' || fail "payload is missing DSM launcher"
+  tar -tzf "${package_tgz}" | grep -Eq '^\./ui/launch.js$' || fail "payload is missing DSM launcher script"
 
   checksum="$(shasum -a 256 "${OUTPUT_PATH}" | awk '{print $1}')"
   printf '%s  %s\n' "${checksum}" "$(basename "${OUTPUT_PATH}")" > "${OUTPUT_PATH}.sha256"
@@ -242,6 +245,7 @@ build_package() {
 }
 
 require_cmd jq
+require_cmd node
 require_cmd rsync
 require_cmd file
 require_cmd tar

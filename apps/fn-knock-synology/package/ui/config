@@ -5,7 +5,7 @@
       "title": "敲门 knock",
       "desc": "反向代理与安全管理",
       "icon": "images/icon_{0}.png",
-      "url": "/webman/3rdparty/fn-knock-synology/index.cgi/",
+      "url": "/webman/3rdparty/fn-knock-synology/launch.html",
       "allUsers": false
     }
   }

@@ -26,6 +26,7 @@ import type {
   DDNSUpdateScope,
   Provider,
   ProviderField,
+  LastIP,
 } from "./model";
 import DDNSAddressSourceFields from "./DDNSAddressSourceFields.vue";
 import DDNSProviderCredentialsFields from "./DDNSProviderCredentialsFields.vue";
@@ -47,6 +48,8 @@ defineProps<{
   hasSavedProviderConfig: boolean;
   interfaceIPv4Options: DDNSAddressOption[];
   interfaceIPv6Options: DDNSAddressOption[];
+  lastIp: LastIP;
+  selectionAnchor: LastIP;
   isClearingPrimaryConfig: boolean;
   isDirty: boolean;
   isFieldEditReady: (key: string) => boolean;
@@ -163,6 +166,8 @@ const { t } = useI18n();
           :format-option-label="formatOptionLabel"
           :interface-i-pv4-options="interfaceIPv4Options"
           :interface-i-pv6-options="interfaceIPv6Options"
+          :last-ip="lastIp"
+          :selection-anchor="selectionAnchor"
           :is-ip-source-option-disabled="isIpSourceOptionDisabled"
           :is-update-scope-option-disabled="isUpdateScopeOptionDisabled"
           :provider-config="providerConfig"

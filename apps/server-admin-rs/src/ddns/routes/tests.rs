@@ -16,6 +16,72 @@ async fn ddns_test_state() -> (tempfile::TempDir, AppState) {
     (directory, state)
 }
 
+#[tokio::test]
+async fn runtime_reset_preserves_interface_selection_anchor() {
+    let (_directory, state) = ddns_test_state().await;
+    let meta = DDNSTargetMeta {
+        id: "selection-anchor-test".to_string(),
+        name: "Selection anchor".to_string(),
+        is_primary: false,
+        enabled: true,
+        provider: Some("cloudflare".to_string()),
+        created_at: time_utils::now_iso(),
+        updated_at: time_utils::now_iso(),
+        sort_order: 1,
+    };
+    let last_ip = HashMap::from([("ipv6".to_string(), "2001:4860::20".to_string())]);
+    state
+        .store
+        .replace_hash_string_map(&target_last_ip_key(&meta.id), &last_ip)
+        .await
+        .unwrap();
+    state
+        .store
+        .replace_hash_string_map(&target_selection_anchor_key(&meta.id), &last_ip)
+        .await
+        .unwrap();
+
+    reset_target_runtime_state(&state, &meta).await.unwrap();
+
+    assert!(
+        state
+            .store
+            .hgetall_string_map(&target_last_ip_key(&meta.id))
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        state
+            .store
+            .hgetall_string_map(&target_selection_anchor_key(&meta.id))
+            .await
+            .unwrap(),
+        last_ip
+    );
+
+    let target = DDNSTargetRecord {
+        meta,
+        config: HashMap::new(),
+        last_ip: empty_last_ip(),
+        selection_anchor: parse_last_ip(&last_ip),
+        last_check: empty_last_check(),
+    };
+    set_target_last_ip(&state, &target, Some("8.8.8.8"), None)
+        .await
+        .unwrap();
+    assert_eq!(
+        state
+            .store
+            .hgetall_string_map(&target_selection_anchor_key(&target.meta.id))
+            .await
+            .unwrap()
+            .get("ipv6")
+            .map(String::as_str),
+        Some("2001:4860::20")
+    );
+}
+
 fn provider_by_name<'a>(providers: &'a Value, name: &str) -> &'a Value {
     providers
         .as_array()
@@ -697,6 +763,7 @@ fn detects_incomplete_ddns_target_config() {
         },
         config: HashMap::from([("domain".to_string(), "home.example.com".to_string())]),
         last_ip: empty_last_ip(),
+        selection_anchor: empty_last_ip(),
         last_check: empty_last_check(),
     };
     let translator = Translator::new(crate::i18n::DEFAULT_LOCALE);
@@ -731,6 +798,7 @@ fn detects_single_address_provider_dual_stack_like_node() {
             ),
         ]),
         last_ip: empty_last_ip(),
+        selection_anchor: empty_last_ip(),
         last_check: empty_last_check(),
     };
     let translator = Translator::new("zh-CN");
@@ -763,6 +831,7 @@ fn target_config_completeness_matches_node_runtime_inputs() {
             (DDNS_STATIC_IPV4_FIELD.to_string(), "not-an-ip".to_string()),
         ]),
         last_ip: empty_last_ip(),
+        selection_anchor: empty_last_ip(),
         last_check: empty_last_check(),
     };
     let translator = Translator::new("zh-CN");
@@ -897,12 +966,284 @@ fn localizes_ddns_route_and_provider_messages() {
 #[test]
 fn parses_docker_host_ipv6_interfaces() {
     let items = parse_host_if_inet6(
-        "20010db8000000000000000000000001 02 40 00 00 eth0\nfe800000000000000000000000000001 02 40 20 00 eth1",
+        "20014860000000000000000000000001 02 40 00 00 eth0\nfe800000000000000000000000000001 02 40 20 00 eth1",
     );
     assert_eq!(items.len(), 1);
     assert_eq!(items[0]["name"], json!("docker-host:eth0"));
     assert_eq!(items[0]["hasIpv6"], json!(true));
-    assert_eq!(items[0]["addresses"][0]["address"], json!("2001:db8::1"));
+    assert_eq!(items[0]["addresses"][0]["address"], json!("2001:4860::1"));
+    assert_eq!(items[0]["addresses"][0]["temporary"], json!(false));
+    assert_eq!(items[0]["addresses"][0]["prefixLength"], json!(64));
+}
+
+#[test]
+fn parses_linux_ipv6_address_flags() {
+    let metadata = parse_if_inet6_metadata("20010db8000000000000000000000001 02 40 00 69 eth0");
+    let status = metadata
+        .get(&("eth0".to_string(), "2001:db8::1".to_string()))
+        .unwrap();
+    assert_eq!(status["temporary"], json!(true));
+    assert_eq!(status["dadFailed"], json!(true));
+    assert_eq!(status["deprecated"], json!(true));
+    assert_eq!(status["tentative"], json!(true));
+}
+
+fn selector_network(addresses: Vec<Value>) -> Value {
+    json!({ "selectableAddresses": addresses })
+}
+
+fn ipv6_candidate(address: &str, temporary: Value) -> Value {
+    json!({
+        "family": "ipv6",
+        "address": address,
+        "temporary": temporary,
+        "deprecated": false,
+        "tentative": false,
+        "dadFailed": false
+    })
+}
+
+#[test]
+fn interface_selector_is_stable_across_candidate_order() {
+    let selector = InterfaceAddressSelector::default();
+    let first = selector_network(vec![
+        ipv6_candidate("2001:db8::20", json!(false)),
+        ipv6_candidate("2001:db8::10", json!(false)),
+    ]);
+    let reversed = selector_network(vec![
+        ipv6_candidate("2001:db8::10", json!(false)),
+        ipv6_candidate("2001:db8::20", json!(false)),
+    ]);
+    assert_eq!(
+        resolve_interface_selector(&first, "ipv6", &selector, None).selected,
+        Some("2001:db8::10".to_string())
+    );
+    assert_eq!(
+        resolve_interface_selector(&reversed, "ipv6", &selector, None).selected,
+        Some("2001:db8::10".to_string())
+    );
+}
+
+#[test]
+fn interface_selector_keeps_current_address_before_ranking() {
+    let network = selector_network(vec![
+        ipv6_candidate("2001:db8::10", json!(false)),
+        ipv6_candidate("2001:db8::20", json!(false)),
+    ]);
+    let selection = resolve_interface_selector(
+        &network,
+        "ipv6",
+        &InterfaceAddressSelector::default(),
+        Some("2001:db8::20"),
+    );
+    assert_eq!(selection.selected.as_deref(), Some("2001:db8::20"));
+    assert_eq!(selection.reason, "current");
+}
+
+#[test]
+fn interface_selector_follows_rotating_prefix_by_interface_id() {
+    let network = selector_network(vec![
+        ipv6_candidate("2001:db8:2::1234", json!(false)),
+        ipv6_candidate("2001:db8:2::9999", json!(false)),
+    ]);
+    let selector = normalize_interface_selector(
+        InterfaceAddressSelector {
+            mode: InterfaceSelectorMode::Rules,
+            ipv6_interface_id: Some("0000:0000:0000:1234".to_string()),
+            ..InterfaceAddressSelector::default()
+        },
+        "ipv6",
+    )
+    .unwrap();
+    assert_eq!(
+        resolve_interface_selector(&network, "ipv6", &selector, Some("2001:db8:1::1234"))
+            .selected
+            .as_deref(),
+        Some("2001:db8:2::1234")
+    );
+}
+
+#[test]
+fn interface_selector_applies_status_and_cidr_rules() {
+    let mut deprecated = ipv6_candidate("2001:db8:1::1", json!(false));
+    deprecated["deprecated"] = json!(true);
+    let mut tentative = ipv6_candidate("2001:db8:1::5", json!(false));
+    tentative["tentative"] = json!(true);
+    let mut dad_failed = ipv6_candidate("2001:db8:1::6", json!(false));
+    dad_failed["dadFailed"] = json!(true);
+    let network = selector_network(vec![
+        deprecated,
+        tentative,
+        dad_failed,
+        ipv6_candidate("2001:db8:1::2", json!(true)),
+        ipv6_candidate("2001:db8:2::3", Value::Null),
+        ipv6_candidate("2001:db8:1::4", json!(false)),
+    ]);
+    let selector = normalize_interface_selector(
+        InterfaceAddressSelector {
+            mode: InterfaceSelectorMode::Rules,
+            include_cidrs: vec!["2001:db8::/32".to_string()],
+            exclude_cidrs: vec!["2001:db8:2::/48".to_string()],
+            ..InterfaceAddressSelector::default()
+        },
+        "ipv6",
+    )
+    .unwrap();
+    let selection = resolve_interface_selector(&network, "ipv6", &selector, None);
+    assert_eq!(selection.selected.as_deref(), Some("2001:db8:1::4"));
+    assert_eq!(selection.eligible.len(), 1);
+    assert_eq!(selection.rejected.len(), 5);
+}
+
+#[test]
+fn interface_selector_allows_unknown_status_as_a_fallback() {
+    let network = selector_network(vec![ipv6_candidate("2001:db8::1", Value::Null)]);
+    let selection =
+        resolve_interface_selector(&network, "ipv6", &InterfaceAddressSelector::default(), None);
+    assert_eq!(selection.selected.as_deref(), Some("2001:db8::1"));
+}
+
+#[test]
+fn interface_selector_can_allow_temporary_addresses() {
+    let network = selector_network(vec![ipv6_candidate("2001:db8::1", json!(true))]);
+    assert!(
+        resolve_interface_selector(&network, "ipv6", &InterfaceAddressSelector::default(), None)
+            .selected
+            .is_none()
+    );
+    let selector = InterfaceAddressSelector {
+        allow_temporary: true,
+        ..InterfaceAddressSelector::default()
+    };
+    assert_eq!(
+        resolve_interface_selector(&network, "ipv6", &selector, None)
+            .selected
+            .as_deref(),
+        Some("2001:db8::1")
+    );
+}
+
+#[test]
+fn interface_selection_returns_an_error_when_rules_have_no_candidate() {
+    let directory = tempfile::tempdir().unwrap();
+    let proc_path = directory.path().join("if_inet6");
+    fs::write(
+        &proc_path,
+        "20014860000000000000000000000001 02 40 00 01 test0\n",
+    )
+    .unwrap();
+    let environment = crate::test_support::EnvGuard::new(&["DDNS_HOST_IF_INET6_PATH"]);
+    environment.set("DDNS_HOST_IF_INET6_PATH", &proc_path);
+    let selector = serde_json::to_string(&InterfaceAddressSelector::default()).unwrap();
+
+    let error = select_interface_address(
+        "docker-host:test0",
+        "ipv6",
+        Some(&selector),
+        None,
+        None,
+        &Translator::new("zh-CN"),
+    )
+    .unwrap_err();
+
+    let message = error.to_string();
+    assert!(message.contains("未匹配"));
+    assert!(message.contains("IPv6"));
+}
+
+#[test]
+fn legacy_selector_prefers_current_and_interface_id_before_index() {
+    let candidates = vec![
+        ipv6_candidate("2001:db8:2::1234", json!(false)),
+        ipv6_candidate("2001:db8:2::9999", json!(false)),
+    ];
+    assert_eq!(
+        legacy_select_interface_address(&candidates, "ipv6", Some("1"), Some("2001:db8:1::1234")),
+        Some(("2001:db8:2::1234".to_string(), "legacy_interface_id"))
+    );
+}
+
+#[test]
+fn legacy_index_keeps_original_position_when_an_earlier_address_is_deprecated() {
+    let mut deprecated = ipv6_candidate("2001:db8::1", json!(false));
+    deprecated["deprecated"] = json!(true);
+    let candidates = vec![
+        deprecated,
+        ipv6_candidate("2001:db8::2", json!(false)),
+        ipv6_candidate("2001:db8::3", json!(false)),
+    ];
+    assert_eq!(
+        legacy_select_interface_address(&candidates, "ipv6", Some("1"), None),
+        Some(("2001:db8::2".to_string(), "legacy_index"))
+    );
+    assert_eq!(
+        legacy_select_interface_address(&candidates, "ipv6", Some("0"), None),
+        None
+    );
+}
+
+#[test]
+fn interface_selector_validation_rejects_family_mismatch() {
+    let raw =
+        r#"{"version":1,"mode":"rules","includeCidrs":["192.0.2.0/24"],"allowTemporary":false}"#;
+    assert!(parse_interface_selector(Some(raw), "ipv6").is_err());
+}
+
+#[test]
+fn stored_selector_replaces_legacy_index_for_the_same_family() {
+    let selector = serde_json::to_string(&InterfaceAddressSelector::default()).unwrap();
+    let prepared = prepare_config_for_storage(
+        Some("cloudflare"),
+        HashMap::from([
+            (DDNS_IP_SOURCE_FIELD.to_string(), "interface".to_string()),
+            (DDNS_INTERFACE_IPV6_INDEX_FIELD.to_string(), "1".to_string()),
+            (
+                DDNS_INTERFACE_IPV6_SELECTOR_FIELD.to_string(),
+                selector.clone(),
+            ),
+        ]),
+    );
+    assert_eq!(
+        prepared
+            .get(DDNS_INTERFACE_IPV6_SELECTOR_FIELD)
+            .map(String::as_str),
+        Some(selector.as_str())
+    );
+    assert!(!prepared.contains_key(DDNS_INTERFACE_IPV6_INDEX_FIELD));
+}
+
+#[test]
+fn selector_no_match_is_runtime_unavailable_not_incomplete_config() {
+    let now = time_utils::now_iso();
+    let target = DDNSTargetRecord {
+        meta: DDNSTargetMeta {
+            id: "target-selector".to_string(),
+            name: "Selector".to_string(),
+            is_primary: false,
+            enabled: true,
+            provider: Some("cloudflare".to_string()),
+            created_at: now.clone(),
+            updated_at: now,
+            sort_order: 1,
+        },
+        config: HashMap::from([(
+            DDNS_INTERFACE_IPV6_SELECTOR_FIELD.to_string(),
+            serde_json::to_string(&InterfaceAddressSelector::default()).unwrap(),
+        )]),
+        last_ip: empty_last_ip(),
+        selection_anchor: empty_last_ip(),
+        last_check: empty_last_check(),
+    };
+    let network = selector_network(vec![ipv6_candidate("2001:db8::1", json!(true))]);
+    assert!(
+        selected_interface_address_incomplete_reason(
+            &target,
+            &network,
+            "ipv6",
+            &Translator::new("zh-CN")
+        )
+        .is_none()
+    );
 }
 
 #[test]
@@ -918,6 +1259,22 @@ fn interface_selectability_filters_private_ranges() {
     assert!(!is_selectable_interface_address(&json!({
         "family": "ipv6",
         "address": "fd00::1"
+    })));
+    for address in ["100.64.0.1", "192.0.2.1", "198.18.0.1", "224.0.0.1"] {
+        assert!(!is_selectable_interface_address(&json!({
+            "family": "ipv4",
+            "address": address
+        })));
+    }
+    for address in ["2001:db8::1", "ff02::1"] {
+        assert!(!is_selectable_interface_address(&json!({
+            "family": "ipv6",
+            "address": address
+        })));
+    }
+    assert!(is_selectable_interface_address(&json!({
+        "family": "ipv6",
+        "address": "2001:4860::1"
     })));
 }
 

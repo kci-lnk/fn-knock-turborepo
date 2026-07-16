@@ -900,6 +900,7 @@ pub(super) fn response_preview(text: &str) -> String {
 pub(super) fn list_ddns_network_interfaces() -> Vec<Value> {
     let mut interfaces = list_docker_host_ipv6_interfaces();
     let mut runtime = HashMap::<String, Vec<Value>>::new();
+    let runtime_ipv6_metadata = read_local_if_inet6_metadata();
     if let Ok(addrs) = get_if_addrs() {
         for iface in addrs {
             if iface.is_loopback() {
@@ -910,16 +911,30 @@ pub(super) fn list_ddns_network_interfaces() -> Vec<Value> {
                     "family": "ipv4",
                     "address": addr.ip.to_string(),
                     "cidr": format!("{}/{}", addr.ip, ipv4_prefix_len(addr.netmask)),
+                    "prefixLength": ipv4_prefix_len(addr.netmask),
                     "internal": false,
-                    "source": "runtime"
+                    "source": "runtime",
+                    "temporary": Value::Null,
+                    "deprecated": Value::Null,
+                    "tentative": Value::Null,
+                    "dadFailed": Value::Null
                 }),
-                IfAddr::V6(addr) if is_usable_ipv6(addr.ip) => json!({
-                    "family": "ipv6",
-                    "address": addr.ip.to_string(),
-                    "cidr": format!("{}/{}", addr.ip, ipv6_prefix_len(addr.netmask)),
-                    "internal": false,
-                    "source": "runtime"
-                }),
+                IfAddr::V6(addr) if is_usable_ipv6(addr.ip) => {
+                    let address = addr.ip.to_string();
+                    let status = runtime_ipv6_metadata.get(&(iface.name.clone(), address.clone()));
+                    json!({
+                        "family": "ipv6",
+                        "address": address,
+                        "cidr": format!("{}/{}", addr.ip, ipv6_prefix_len(addr.netmask)),
+                        "prefixLength": ipv6_prefix_len(addr.netmask),
+                        "internal": false,
+                        "source": "runtime",
+                        "temporary": status.and_then(|item| item.get("temporary")).cloned().unwrap_or(Value::Null),
+                        "deprecated": status.and_then(|item| item.get("deprecated")).cloned().unwrap_or(Value::Null),
+                        "tentative": status.and_then(|item| item.get("tentative")).cloned().unwrap_or(Value::Null),
+                        "dadFailed": status.and_then(|item| item.get("dadFailed")).cloned().unwrap_or(Value::Null)
+                    })
+                }
                 _ => continue,
             };
             runtime.entry(iface.name).or_default().push(address);
@@ -1019,6 +1034,7 @@ pub(super) fn parse_host_if_inet6(content: &str) -> Vec<Value> {
         };
         let prefix_len = u8::from_str_radix(parts[2], 16).unwrap_or(0);
         let scope = u8::from_str_radix(parts[3], 16).unwrap_or(255);
+        let flags = u32::from_str_radix(parts[4], 16).unwrap_or(0);
         if scope != 0 {
             continue;
         }
@@ -1029,12 +1045,18 @@ pub(super) fn parse_host_if_inet6(content: &str) -> Vec<Value> {
             continue;
         }
         let name = parts[5].to_string();
+        let status = ipv6_status_from_flags(flags);
         by_interface.entry(name).or_default().push(json!({
             "family": "ipv6",
             "address": address,
             "cidr": format!("{address}/{prefix_len}"),
+            "prefixLength": prefix_len,
             "internal": false,
-            "source": "docker_host"
+            "source": "docker_host",
+            "temporary": status["temporary"],
+            "deprecated": status["deprecated"],
+            "tentative": status["tentative"],
+            "dadFailed": status["dadFailed"]
         }));
     }
     let mut items = by_interface
@@ -1060,6 +1082,41 @@ pub(super) fn parse_host_if_inet6(content: &str) -> Vec<Value> {
             .cmp(right.get("name").and_then(Value::as_str).unwrap_or(""))
     });
     items
+}
+
+pub(super) fn read_local_if_inet6_metadata() -> HashMap<(String, String), Value> {
+    fs::read_to_string("/proc/net/if_inet6")
+        .ok()
+        .map(|content| parse_if_inet6_metadata(&content))
+        .unwrap_or_default()
+}
+
+pub(super) fn parse_if_inet6_metadata(content: &str) -> HashMap<(String, String), Value> {
+    let mut output = HashMap::new();
+    for line in content.lines() {
+        let parts = line.split_whitespace().collect::<Vec<_>>();
+        if parts.len() < 6 {
+            continue;
+        }
+        let Some(address) = format_ipv6_from_proc_hex(parts[0]) else {
+            continue;
+        };
+        let flags = u32::from_str_radix(parts[4], 16).unwrap_or(0);
+        output.insert(
+            (parts[5].to_string(), address),
+            ipv6_status_from_flags(flags),
+        );
+    }
+    output
+}
+
+pub(super) fn ipv6_status_from_flags(flags: u32) -> Value {
+    json!({
+        "temporary": flags & 0x01 != 0,
+        "dadFailed": flags & 0x08 != 0,
+        "deprecated": flags & 0x20 != 0,
+        "tentative": flags & 0x40 != 0
+    })
 }
 
 pub(super) fn format_ipv6_from_proc_hex(value: &str) -> Option<String> {
@@ -1091,14 +1148,33 @@ pub(super) fn is_selectable_interface_address(value: &Value) -> bool {
         return false;
     };
     match value.get("family").and_then(Value::as_str) {
-        Some("ipv4") => address
-            .parse::<Ipv4Addr>()
-            .is_ok_and(|ip| !is_private_ipv4(ip)),
-        Some("ipv6") => address
-            .parse::<Ipv6Addr>()
-            .is_ok_and(|ip| !is_unique_local_ipv6(ip)),
+        Some("ipv4") => address.parse::<Ipv4Addr>().is_ok_and(is_global_ipv4),
+        Some("ipv6") => address.parse::<Ipv6Addr>().is_ok_and(is_global_ipv6),
         _ => false,
     }
+}
+
+pub(super) fn is_global_ipv4(ip: Ipv4Addr) -> bool {
+    let octets = ip.octets();
+    !(ip.is_unspecified()
+        || ip.is_private()
+        || ip.is_loopback()
+        || ip.is_link_local()
+        || ip.is_multicast()
+        || ip.is_broadcast()
+        || ip.is_documentation()
+        || octets[0] == 0
+        || octets[0] >= 240
+        || matches!(octets, [100, second, _, _] if (64..=127).contains(&second))
+        || matches!(octets, [192, 0, 0, _] | [192, 88, 99, _])
+        || matches!(octets, [198, second, _, _] if second == 18 || second == 19))
+}
+
+pub(super) fn is_global_ipv6(ip: Ipv6Addr) -> bool {
+    let segments = ip.segments();
+    segments[0] & 0xe000 == 0x2000
+        && !(segments[0] == 0x2001 && segments[1] == 0x0db8)
+        && !(segments[0] == 0x3fff && segments[1] & 0xf000 == 0)
 }
 
 pub(super) fn is_usable_ipv4(ip: Ipv4Addr) -> bool {
@@ -1108,13 +1184,4 @@ pub(super) fn is_usable_ipv4(ip: Ipv4Addr) -> bool {
 
 pub(super) fn is_usable_ipv6(ip: Ipv6Addr) -> bool {
     !(ip.is_loopback() || ip.is_unicast_link_local() || ip.is_unspecified())
-}
-
-pub(super) fn is_private_ipv4(ip: Ipv4Addr) -> bool {
-    ip.is_private()
-}
-
-pub(super) fn is_unique_local_ipv6(ip: Ipv6Addr) -> bool {
-    let first = ip.octets()[0];
-    first == 0xfc || first == 0xfd
 }

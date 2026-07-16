@@ -2,7 +2,9 @@ import { computed, type Ref } from "vue";
 import type { DDNSNetworkInterfacePayload } from "@/lib/api";
 import {
   INTERFACE_IPV4_INDEX_KEY,
+  INTERFACE_IPV4_SELECTOR_KEY,
   INTERFACE_IPV6_INDEX_KEY,
+  INTERFACE_IPV6_SELECTOR_KEY,
   IP_SOURCE_KEY,
   IP_SOURCE_OPTIONS,
   NETWORK_INTERFACE_KEY,
@@ -100,7 +102,9 @@ export const useDDNSAddressSourceState = ({
   });
 
   const configuredNetworkInterface = computed(() => {
-    return normalizeNetworkInterface(providerConfig.value[NETWORK_INTERFACE_KEY]);
+    return normalizeNetworkInterface(
+      providerConfig.value[NETWORK_INTERFACE_KEY],
+    );
   });
 
   const resolvedNetworkInterfaces = computed(() => {
@@ -222,6 +226,8 @@ export const useDDNSAddressSourceState = ({
     providerConfig.value[NETWORK_INTERFACE_KEY] = value;
     providerConfig.value[INTERFACE_IPV4_INDEX_KEY] = "";
     providerConfig.value[INTERFACE_IPV6_INDEX_KEY] = "";
+    providerConfig.value[INTERFACE_IPV4_SELECTOR_KEY] = "";
+    providerConfig.value[INTERFACE_IPV6_SELECTOR_KEY] = "";
   };
 
   const updateConfiguredIpSource = (value: string) => {

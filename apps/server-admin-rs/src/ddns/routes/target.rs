@@ -84,6 +84,7 @@ pub(super) async fn create_ddns_target(
         },
         config,
         last_ip: empty_last_ip(),
+        selection_anchor: empty_last_ip(),
         last_check: empty_last_check(),
     };
     save_target_record(state, &record).await?;
@@ -143,6 +144,7 @@ pub(super) async fn delete_ddns_target(state: &AppState, id: &str) -> anyhow::Re
             target_meta_key(id),
             target_config_key(id),
             target_last_ip_key(id),
+            target_selection_anchor_key(id),
             target_last_check_key(id),
         ])
         .await?;
@@ -260,7 +262,20 @@ pub(super) async fn ensure_primary_initialized(state: &AppState) -> anyhow::Resu
         return Ok(());
     }
     let legacy = read_legacy_primary_target(state).await?;
-    save_target_record(state, &legacy).await
+    save_target_record(state, &legacy).await?;
+    let mut anchor = HashMap::new();
+    for field in ["ipv4", "ipv6", "updated_at"] {
+        if let Some(value) = legacy.selection_anchor.get(field).and_then(Value::as_str) {
+            anchor.insert(field.to_string(), value.to_string());
+        }
+    }
+    if !anchor.is_empty() {
+        state
+            .store
+            .replace_hash_string_map(&target_selection_anchor_key(&legacy.meta.id), &anchor)
+            .await?;
+    }
+    Ok(())
 }
 
 pub(super) async fn find_target_or_err(

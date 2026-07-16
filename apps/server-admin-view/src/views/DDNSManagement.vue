@@ -123,6 +123,7 @@ const {
   publicDnsProvider,
   lastCheck,
   lastIP,
+  selectionAnchor,
   publicCheckSources,
   savedProvider,
   statusIpSource,
@@ -1043,6 +1044,8 @@ onUnmounted(() => {
       :has-saved-provider-config="hasSavedProviderConfig"
       :interface-i-pv4-options="interfaceIPv4Options"
       :interface-i-pv6-options="interfaceIPv6Options"
+      :last-ip="lastIP"
+      :selection-anchor="selectionAnchor"
       :is-clearing-primary-config="isClearingPrimaryConfig"
       :is-dirty="isPrimaryConfigDirty"
       :is-field-edit-ready="isFieldEditReady"

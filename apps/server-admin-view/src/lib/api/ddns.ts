@@ -56,6 +56,11 @@ export type DDNSStatusPayload = {
     ipv6: string | null;
     updated_at: string | null;
   };
+  selectionAnchor: {
+    ipv4: string | null;
+    ipv6: string | null;
+    updated_at: string | null;
+  };
   lastCheck: {
     checked_at: string | null;
     outcome: "updated" | "noop" | "skipped" | "error" | null;
@@ -102,6 +107,11 @@ export type DDNSTargetSummaryPayload = {
     ipv6: string | null;
     updated_at: string | null;
   };
+  selectionAnchor: {
+    ipv4: string | null;
+    ipv6: string | null;
+    updated_at: string | null;
+  };
   lastCheck: {
     checked_at: string | null;
     outcome: "updated" | "noop" | "skipped" | "error" | null;
@@ -132,17 +142,46 @@ export type DDNSNetworkInterfacePayload = {
     family: "ipv4" | "ipv6";
     address: string;
     cidr: string | null;
+    prefixLength?: number | null;
     internal: boolean;
     source?: "runtime" | "docker_host";
+    temporary?: boolean | null;
+    deprecated?: boolean | null;
+    tentative?: boolean | null;
+    dadFailed?: boolean | null;
   }>;
   selectableAddresses: Array<{
     family: "ipv4" | "ipv6";
     address: string;
     cidr: string | null;
+    prefixLength?: number | null;
     internal: boolean;
     source?: "runtime" | "docker_host";
+    temporary?: boolean | null;
+    deprecated?: boolean | null;
+    tentative?: boolean | null;
+    dadFailed?: boolean | null;
   }>;
   source?: "runtime" | "docker_host";
+};
+
+export type DDNSInterfaceSelector = {
+  version: 1;
+  mode: "auto" | "rules";
+  preferredAddress?: string;
+  includeCidrs?: string[];
+  excludeCidrs?: string[];
+  ipv6InterfaceId?: string;
+  allowTemporary: boolean;
+};
+
+export type DDNSInterfaceSelectorPreviewPayload = {
+  selectedAddress: string | null;
+  matchedAddresses: DDNSNetworkInterfacePayload["selectableAddresses"];
+  rejectedAddresses: Array<{ address: string | null; reasons: string[] }>;
+  reason: "current" | "preferred" | "ranked" | "no_match";
+  warnings: Array<"multiple_matches" | "status_unknown">;
+  selector: DDNSInterfaceSelector;
 };
 
 export type DDNSPollPayload = {
@@ -205,6 +244,20 @@ export const DDNSAPI = {
   },
   async getNetworkInterfaces(): Promise<DDNSNetworkInterfacePayload[]> {
     const res = await apiClient.get("/ddns/interfaces");
+    return res.data.data;
+  },
+  async resolveInterfaceSelector(
+    payload: {
+      networkInterface: string;
+      family: "ipv4" | "ipv6";
+      selector: DDNSInterfaceSelector;
+      currentAddress?: string | null;
+    },
+    signal?: AbortSignal,
+  ): Promise<DDNSInterfaceSelectorPreviewPayload> {
+    const res = await apiClient.post("/ddns/interfaces/resolve", payload, {
+      signal,
+    });
     return res.data.data;
   },
   async setProvider(provider: string): Promise<void> {

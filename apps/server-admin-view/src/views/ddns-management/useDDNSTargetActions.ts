@@ -7,7 +7,9 @@ import type {
 } from "@/lib/api";
 import {
   INTERFACE_IPV4_INDEX_KEY,
+  INTERFACE_IPV4_SELECTOR_KEY,
   INTERFACE_IPV6_INDEX_KEY,
+  INTERFACE_IPV6_SELECTOR_KEY,
   NETWORK_INTERFACE_KEY,
   extractCommonTargetConfig,
   normalizeTargetConfigValues,
@@ -108,6 +110,12 @@ export const useDDNSTargetActions = ({
       config: normalizeTargetConfigValues(
         next?.config ?? extractCommonTargetConfig(providerConfig.value),
       ),
+      lastIP: next?.lastIP ?? { ipv4: null, ipv6: null },
+      selectionAnchor: next?.selectionAnchor ??
+        next?.lastIP ?? {
+          ipv4: null,
+          ipv6: null,
+        },
     };
   };
 
@@ -128,6 +136,8 @@ export const useDDNSTargetActions = ({
       enabled: detail.enabled,
       provider: detail.provider || "",
       config: detail.config,
+      lastIP: detail.lastIP,
+      selectionAnchor: detail.selectionAnchor,
     });
     showTargetDialog.value = true;
   };
@@ -152,6 +162,8 @@ export const useDDNSTargetActions = ({
       [NETWORK_INTERFACE_KEY]: value,
       [INTERFACE_IPV4_INDEX_KEY]: "",
       [INTERFACE_IPV6_INDEX_KEY]: "",
+      [INTERFACE_IPV4_SELECTOR_KEY]: "",
+      [INTERFACE_IPV6_SELECTOR_KEY]: "",
     };
   };
 

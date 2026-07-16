@@ -3391,9 +3391,41 @@ export const enAdmin = {
       "The address list below only shows filtered candidates to avoid obvious private addresses",
     chooseInterfaceFirst: "Select an outbound interface above first.",
     addressOrderHelp:
-      'Selections are saved as "the Nth IPv4 / IPv6". Changing the interface clears selected addresses automatically.',
+      "Addresses are rematched by stable properties instead of their position in the interface list. Changing the interface clears the rules.",
     filteredAddressHelp:
       "Obvious private addresses are filtered. If the list is empty, change the interface or use public detection.",
+    interfaceSelectorInvalid: "The interface address selector is invalid",
+    selectorModeLabel: "Selection mode",
+    selectorMode: {
+      auto: "Automatically choose a stable address",
+      rules: "Custom matching rules",
+    },
+    selectorPreferredLabel: "Preferred address",
+    selectorNoPreference: "No preference; rank by stability",
+    selectorIncludeCidrs: "Included CIDRs",
+    selectorExcludeCidrs: "Excluded CIDRs",
+    selectorInterfaceId: "IPv6 interface ID (lower 64 bits)",
+    selectorInterfaceIdHint:
+      "Ignores the changing network prefix. Choosing a preferred address can extract this value automatically.",
+    selectorAllowTemporary: "Allow temporary/privacy IPv6 addresses",
+    selectorAllowTemporaryHint:
+      "Disabled by default to avoid frequent updates when privacy addresses rotate.",
+    selectorLegacyMigrated:
+      "The legacy address position was converted to a stable selector and will take effect after saving.",
+    selectorPreviewing: "Previewing the match…",
+    selectorPreviewFailed: "Unable to preview address selection",
+    selectorPreviewSelected: "Will select",
+    selectorPreviewMultiple:
+      "Matched {count} candidates; one was selected deterministically",
+    selectorPreviewNoMatch: "The current rules do not match a usable address.",
+    selectorStatus: {
+      stable: "Stable",
+      temporary: "Temporary/privacy",
+      deprecated: "Deprecated",
+      tentative: "Tentative",
+      dadFailed: "Address conflict",
+      unknown: "Status unknown",
+    },
     selectIpv4Label: "Select IPv4 address",
     selectIpv4Hint:
       "This IPv4 address on the selected interface will be written to DDNS",

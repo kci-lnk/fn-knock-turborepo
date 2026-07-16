@@ -9,6 +9,7 @@ use std::{
 mod config;
 mod domain_targets;
 mod i18n;
+mod interface_selector;
 mod providers;
 mod public_check;
 mod route_actions;
@@ -20,6 +21,7 @@ mod tasks;
 use config::*;
 use domain_targets::*;
 use i18n::*;
+use interface_selector::*;
 use providers::*;
 use public_check::*;
 use route_actions::*;
@@ -73,6 +75,8 @@ const DDNS_NETWORK_INTERFACE_FIELD: &str = "network_interface";
 const DDNS_IP_SOURCE_FIELD: &str = "ip_source";
 const DDNS_INTERFACE_IPV4_INDEX_FIELD: &str = "interface_ipv4_index";
 const DDNS_INTERFACE_IPV6_INDEX_FIELD: &str = "interface_ipv6_index";
+const DDNS_INTERFACE_IPV4_SELECTOR_FIELD: &str = "interface_ipv4_selector";
+const DDNS_INTERFACE_IPV6_SELECTOR_FIELD: &str = "interface_ipv6_selector";
 const DDNS_STATIC_IPV4_FIELD: &str = "static_ipv4";
 const DDNS_STATIC_IPV6_FIELD: &str = "static_ipv6";
 const DDNS_SOURCE_DOMAIN_FIELD: &str = "source_domain";
@@ -107,6 +111,15 @@ struct PublicCheckTestBody {
     http_transport: Option<String>,
     public_dns_provider: Option<String>,
     network_interface: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct InterfaceSelectorPreviewBody {
+    network_interface: String,
+    family: String,
+    selector: Value,
+    current_address: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -159,6 +172,7 @@ struct DDNSTargetRecord {
     meta: DDNSTargetMeta,
     config: HashMap<String, String>,
     last_ip: Value,
+    selection_anchor: Value,
     last_check: Value,
 }
 
@@ -169,6 +183,7 @@ struct ResolvedTargetIps {
     source: &'static str,
     source_label: String,
     warnings: Vec<String>,
+    selection_logs: Vec<String>,
     update_scope: &'static str,
 }
 
@@ -192,6 +207,10 @@ pub fn ddns_status_routes() -> Router<AppState> {
             post(test_public_check_sources),
         )
         .route("/api/admin/ddns/interfaces", get(get_interfaces))
+        .route(
+            "/api/admin/ddns/interfaces/resolve",
+            post(resolve_interface_selector_preview),
+        )
         .route("/api/admin/ddns/provider", post(set_provider))
         .route(
             "/api/admin/ddns/config/{provider}",
@@ -519,6 +538,69 @@ async fn test_public_check_sources(
 
 async fn get_interfaces() -> Response {
     response::ok(list_ddns_network_interfaces()).into_response()
+}
+
+async fn resolve_interface_selector_preview(
+    State(state): State<AppState>,
+    Json(body): Json<InterfaceSelectorPreviewBody>,
+) -> Response {
+    let translator = Translator::from_state(&state).await;
+    let interface = normalize_network_interface(Some(&body.network_interface));
+    if !matches!(body.family.as_str(), "ipv4" | "ipv6") {
+        return response::error(
+            StatusCode::BAD_REQUEST,
+            ddns_text(&translator, "interfaceSelectorFamilyInvalid", &[]),
+        );
+    }
+    let Some(network) = list_ddns_network_interfaces()
+        .into_iter()
+        .find(|item| item.get("name").and_then(Value::as_str) == Some(interface.as_str()))
+    else {
+        return response::error(
+            StatusCode::BAD_REQUEST,
+            ddns_text(&translator, "interfaceNotFound", &[("name", interface)]),
+        );
+    };
+    let selector = match parse_interface_selector_value(&body.selector, &body.family) {
+        Ok(selector) => selector,
+        Err(error) => {
+            return response::error(
+                StatusCode::BAD_REQUEST,
+                ddns_text(
+                    &translator,
+                    "interfaceSelectorInvalid",
+                    &[("message", error.to_string())],
+                ),
+            );
+        }
+    };
+    let selection = resolve_interface_selector(
+        &network,
+        &body.family,
+        &selector,
+        body.current_address.as_deref(),
+    );
+    let mut warnings = Vec::new();
+    if selection.eligible.len() > 1 {
+        warnings.push("multiple_matches");
+    }
+    if body.family == "ipv6"
+        && selection.eligible.iter().any(|item| {
+            item.get("temporary").is_none_or(Value::is_null)
+                || item.get("deprecated").is_none_or(Value::is_null)
+        })
+    {
+        warnings.push("status_unknown");
+    }
+    response::ok(json!({
+        "selectedAddress": selection.selected,
+        "matchedAddresses": selection.eligible,
+        "rejectedAddresses": selection.rejected,
+        "reason": selection.reason,
+        "warnings": warnings,
+        "selector": selector
+    }))
+    .into_response()
 }
 
 async fn set_provider(State(state): State<AppState>, Json(body): Json<ProviderBody>) -> Response {

@@ -157,6 +157,16 @@ pub(super) async fn run_automatic_ddns_target(
         )
         .await?;
     }
+    for message in &ips.selection_logs {
+        append_target_log(
+            state,
+            "info",
+            target,
+            &trigger_message(translator, trigger, message),
+            translator,
+        )
+        .await?;
+    }
 
     if ips.source == "public" && ips.ipv4.is_none() && ips.ipv6.is_none() {
         let message = trigger_message(
@@ -479,6 +489,7 @@ pub(super) async fn resolve_target_ips(
             source,
             source_label: ddns_text(translator, "staticSourceLabel", &[]),
             warnings: Vec::new(),
+            selection_logs: Vec::new(),
             update_scope,
         }),
         "domain" => {
@@ -504,6 +515,7 @@ pub(super) async fn resolve_target_ips(
                     )
                 },
                 warnings: Vec::new(),
+                selection_logs: Vec::new(),
                 update_scope,
             })
         }
@@ -517,36 +529,49 @@ pub(super) async fn resolve_target_ips(
             if interface.is_empty() {
                 anyhow::bail!("{}", ddns_text(translator, "interfaceRequired", &[]));
             }
+            let (ipv4, ipv4_warnings, ipv4_logs) = if enable_ipv4 {
+                select_interface_address(
+                    &interface,
+                    "ipv4",
+                    target
+                        .config
+                        .get(DDNS_INTERFACE_IPV4_SELECTOR_FIELD)
+                        .map(String::as_str),
+                    target
+                        .config
+                        .get(DDNS_INTERFACE_IPV4_INDEX_FIELD)
+                        .map(String::as_str),
+                    target.selection_anchor.get("ipv4").and_then(Value::as_str),
+                    translator,
+                )?
+            } else {
+                (None, Vec::new(), Vec::new())
+            };
+            let (ipv6, ipv6_warnings, ipv6_logs) = if enable_ipv6 {
+                select_interface_address(
+                    &interface,
+                    "ipv6",
+                    target
+                        .config
+                        .get(DDNS_INTERFACE_IPV6_SELECTOR_FIELD)
+                        .map(String::as_str),
+                    target
+                        .config
+                        .get(DDNS_INTERFACE_IPV6_INDEX_FIELD)
+                        .map(String::as_str),
+                    target.selection_anchor.get("ipv6").and_then(Value::as_str),
+                    translator,
+                )?
+            } else {
+                (None, Vec::new(), Vec::new())
+            };
             Ok(ResolvedTargetIps {
-                ipv4: if enable_ipv4 {
-                    select_interface_address(
-                        &interface,
-                        "ipv4",
-                        target
-                            .config
-                            .get(DDNS_INTERFACE_IPV4_INDEX_FIELD)
-                            .map(String::as_str),
-                        translator,
-                    )?
-                } else {
-                    None
-                },
-                ipv6: if enable_ipv6 {
-                    select_interface_address(
-                        &interface,
-                        "ipv6",
-                        target
-                            .config
-                            .get(DDNS_INTERFACE_IPV6_INDEX_FIELD)
-                            .map(String::as_str),
-                        translator,
-                    )?
-                } else {
-                    None
-                },
+                ipv4,
+                ipv6,
                 source,
                 source_label: ddns_text(translator, "interfaceSourceLabel", &[("name", interface)]),
-                warnings: Vec::new(),
+                warnings: ipv4_warnings.into_iter().chain(ipv6_warnings).collect(),
+                selection_logs: ipv4_logs.into_iter().chain(ipv6_logs).collect(),
                 update_scope,
             })
         }
@@ -613,6 +638,7 @@ pub(super) async fn resolve_target_ips(
                 source,
                 source_label: ddns_text(translator, "publicSourceLabel", &[]),
                 warnings,
+                selection_logs: Vec::new(),
                 update_scope,
             })
         }
@@ -791,9 +817,11 @@ pub(super) fn is_valid_source_domain(domain: &str) -> bool {
 pub(super) fn select_interface_address(
     interface: &str,
     family: &str,
+    selector: Option<&str>,
     index: Option<&str>,
+    current_address: Option<&str>,
     translator: &Translator,
-) -> anyhow::Result<Option<String>> {
+) -> anyhow::Result<(Option<String>, Vec<String>, Vec<String>)> {
     let Some(item) = list_ddns_network_interfaces()
         .into_iter()
         .find(|item| item.get("name").and_then(Value::as_str) == Some(interface))
@@ -816,9 +844,98 @@ pub(super) fn select_interface_address(
         .filter(|item| item.get("family").and_then(Value::as_str) == Some(family))
         .collect::<Vec<_>>();
     if candidates.is_empty() {
-        return Ok(None);
+        anyhow::bail!(
+            "{}",
+            ddns_text(
+                translator,
+                "interfaceSelectorNoMatch",
+                &[("family", family_label(family))],
+            )
+        );
+    }
+    if let Some(selector) = parse_interface_selector(selector, family)? {
+        let selection = resolve_interface_selector(&item, family, &selector, current_address);
+        tracing::debug!(
+            interface,
+            family,
+            mode = ?selector.mode,
+            candidate_count = selection.eligible.len(),
+            selected = selection.selected.as_deref().unwrap_or(""),
+            reason = selection.reason,
+            "resolved DDNS interface selector"
+        );
+        if selection.selected.is_none() {
+            anyhow::bail!(
+                "{}",
+                ddns_text(
+                    translator,
+                    "interfaceSelectorNoMatch",
+                    &[("family", family_label(family))],
+                )
+            );
+        }
+        let warnings = if selection.eligible.len() > 1 {
+            vec![ddns_text(
+                translator,
+                "interfaceSelectorMultiple",
+                &[
+                    ("family", family_label(family)),
+                    ("count", selection.eligible.len().to_string()),
+                    ("address", selection.selected.clone().unwrap_or_default()),
+                    ("reason", selection.reason.to_string()),
+                ],
+            )]
+        } else {
+            Vec::new()
+        };
+        let selection_logs = selection
+            .selected
+            .as_ref()
+            .filter(|_| selection.reason != "current")
+            .map(|address| {
+                vec![ddns_text(
+                    translator,
+                    "interfaceSelectorResolved",
+                    &[
+                        ("family", family_label(family)),
+                        ("mode", format!("{:?}", selector.mode).to_ascii_lowercase()),
+                        ("count", selection.eligible.len().to_string()),
+                        ("address", address.clone()),
+                        ("reason", selection.reason.to_string()),
+                    ],
+                )]
+            })
+            .unwrap_or_default();
+        return Ok((selection.selected, warnings, selection_logs));
     }
     let raw_index = index.unwrap_or("").trim();
+    if let Some((address, reason)) =
+        legacy_select_interface_address(&candidates, family, index, current_address)
+    {
+        tracing::debug!(
+            interface,
+            family,
+            selected = address,
+            reason,
+            "resolved legacy DDNS interface address"
+        );
+        let selection_logs = if reason == "legacy_current" {
+            Vec::new()
+        } else {
+            vec![ddns_text(
+                translator,
+                "interfaceSelectorResolved",
+                &[
+                    ("family", family_label(family)),
+                    ("mode", "legacy".to_string()),
+                    ("count", candidates.len().to_string()),
+                    ("address", address.clone()),
+                    ("reason", reason.to_string()),
+                ],
+            )]
+        };
+        return Ok((Some(address), Vec::new(), selection_logs));
+    }
     if raw_index.is_empty() {
         anyhow::bail!(
             "{}",
@@ -845,23 +962,21 @@ pub(super) fn select_interface_address(
             ]
         ))
     })?;
-    candidates
-        .get(index)
-        .and_then(|item| item.get("address").and_then(Value::as_str))
-        .map(|value| Some(value.to_string()))
-        .ok_or_else(|| {
-            anyhow::anyhow!(ddns_text(
-                translator,
-                "selectedInterfaceAddressUnavailable",
-                &[
-                    ("index", (index + 1).to_string()),
-                    (
-                        "family",
-                        if family == "ipv4" { "IPv4" } else { "IPv6" }.to_string(),
-                    ),
-                ],
-            ))
-        })
+    anyhow::bail!(
+        "{}",
+        ddns_text(
+            translator,
+            "selectedInterfaceAddressUnavailable",
+            &[
+                ("index", (index + 1).to_string()),
+                ("family", family_label(family)),
+            ],
+        )
+    )
+}
+
+fn family_label(family: &str) -> String {
+    if family == "ipv4" { "IPv4" } else { "IPv6" }.to_string()
 }
 
 pub(super) fn target_ip_unavailable_message(
@@ -1094,6 +1209,23 @@ pub(super) fn selected_interface_address_incomplete_reason(
         return None;
     }
 
+    let selector_field = selector_field(family);
+    let selector_value = target.config.get(selector_field).map(String::as_str);
+    if selector_value.is_some_and(|value| !value.trim().is_empty()) {
+        match parse_interface_selector(selector_value, family) {
+            Ok(Some(_)) => {}
+            Ok(None) => return None,
+            Err(error) => {
+                return Some(ddns_text(
+                    translator,
+                    "interfaceSelectorInvalid",
+                    &[("message", error.to_string())],
+                ));
+            }
+        }
+        return None;
+    }
+
     let index_field = if family == "ipv4" {
         DDNS_INTERFACE_IPV4_INDEX_FIELD
     } else {
@@ -1101,6 +1233,16 @@ pub(super) fn selected_interface_address_incomplete_reason(
     };
     let index = normalize_interface_index(target.config.get(index_field).map(String::as_str));
     let family_label = if family == "ipv4" { "IPv4" } else { "IPv6" }.to_string();
+    if legacy_select_interface_address(
+        &candidates.into_iter().cloned().collect::<Vec<_>>(),
+        family,
+        Some(index.as_str()),
+        target.selection_anchor.get(family).and_then(Value::as_str),
+    )
+    .is_some()
+    {
+        return None;
+    }
     if index.is_empty() {
         return Some(ddns_text(
             translator,
@@ -1110,15 +1252,11 @@ pub(super) fn selected_interface_address_incomplete_reason(
     }
 
     let index = index.parse::<usize>().unwrap_or(usize::MAX);
-    if candidates.get(index).is_some() {
-        None
-    } else {
-        Some(ddns_text(
-            translator,
-            "selectedInterfaceAddressUnavailable",
-            &[("index", (index + 1).to_string()), ("family", family_label)],
-        ))
-    }
+    Some(ddns_text(
+        translator,
+        "selectedInterfaceAddressUnavailable",
+        &[("index", (index + 1).to_string()), ("family", family_label)],
+    ))
 }
 
 pub(super) fn target_config_incomplete_message(
@@ -1252,5 +1390,23 @@ pub(super) async fn set_target_last_ip(
             .replace_hash_string_map(DDNS_LEGACY_LAST_IP, &payload)
             .await?;
     }
+    let mut anchor = HashMap::new();
+    if let Some(value) = target.selection_anchor.get("ipv4").and_then(Value::as_str) {
+        anchor.insert("ipv4".to_string(), value.to_string());
+    }
+    if let Some(value) = target.selection_anchor.get("ipv6").and_then(Value::as_str) {
+        anchor.insert("ipv6".to_string(), value.to_string());
+    }
+    if let Some(value) = ipv4 {
+        anchor.insert("ipv4".to_string(), value.to_string());
+    }
+    if let Some(value) = ipv6 {
+        anchor.insert("ipv6".to_string(), value.to_string());
+    }
+    anchor.insert("updated_at".to_string(), time_utils::now_iso());
+    state
+        .store
+        .replace_hash_string_map(&target_selection_anchor_key(&target.meta.id), &anchor)
+        .await?;
     Ok(())
 }

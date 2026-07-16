@@ -11,6 +11,7 @@ pub(super) fn normalize_and_validate_config(
     provider: &str,
     config: HashMap<String, String>,
 ) -> anyhow::Result<HashMap<String, String>> {
+    validate_interface_selector_config(&config)?;
     let mut normalized = normalize_config(provider, config);
     normalize_and_validate_ddns_domain_config(provider, &mut normalized)?;
     Ok(normalized)
@@ -45,6 +46,22 @@ pub(super) fn normalize_config_map(
         normalize_interface_index(
             data.get(DDNS_INTERFACE_IPV6_INDEX_FIELD)
                 .map(String::as_str),
+        ),
+    );
+    data.insert(
+        DDNS_INTERFACE_IPV4_SELECTOR_FIELD.to_string(),
+        normalize_interface_selector_string(
+            data.get(DDNS_INTERFACE_IPV4_SELECTOR_FIELD)
+                .map(String::as_str),
+            "ipv4",
+        ),
+    );
+    data.insert(
+        DDNS_INTERFACE_IPV6_SELECTOR_FIELD.to_string(),
+        normalize_interface_selector_string(
+            data.get(DDNS_INTERFACE_IPV6_SELECTOR_FIELD)
+                .map(String::as_str),
+            "ipv6",
         ),
     );
     data.insert(
@@ -92,9 +109,25 @@ pub(super) fn prepare_config_for_storage(
     if ip_source != "interface" {
         config.remove(DDNS_INTERFACE_IPV4_INDEX_FIELD);
         config.remove(DDNS_INTERFACE_IPV6_INDEX_FIELD);
+        config.remove(DDNS_INTERFACE_IPV4_SELECTOR_FIELD);
+        config.remove(DDNS_INTERFACE_IPV6_SELECTOR_FIELD);
     } else {
+        if config
+            .get(DDNS_INTERFACE_IPV4_SELECTOR_FIELD)
+            .is_some_and(|value| !value.trim().is_empty())
+        {
+            config.remove(DDNS_INTERFACE_IPV4_INDEX_FIELD);
+        }
+        if config
+            .get(DDNS_INTERFACE_IPV6_SELECTOR_FIELD)
+            .is_some_and(|value| !value.trim().is_empty())
+        {
+            config.remove(DDNS_INTERFACE_IPV6_INDEX_FIELD);
+        }
         remove_empty(&mut config, DDNS_INTERFACE_IPV4_INDEX_FIELD);
         remove_empty(&mut config, DDNS_INTERFACE_IPV6_INDEX_FIELD);
+        remove_empty(&mut config, DDNS_INTERFACE_IPV4_SELECTOR_FIELD);
+        remove_empty(&mut config, DDNS_INTERFACE_IPV6_SELECTOR_FIELD);
     }
     if ip_source != "static" {
         config.remove(DDNS_STATIC_IPV4_FIELD);
@@ -117,6 +150,24 @@ pub(super) fn prepare_config_for_storage(
         config.remove(DDNS_EDGEONE_OVERSEAS_ACCESS_FIELD);
     }
     config
+}
+
+pub(super) fn validate_interface_selector_config(
+    config: &HashMap<String, String>,
+) -> anyhow::Result<()> {
+    parse_interface_selector(
+        config
+            .get(DDNS_INTERFACE_IPV4_SELECTOR_FIELD)
+            .map(String::as_str),
+        "ipv4",
+    )?;
+    parse_interface_selector(
+        config
+            .get(DDNS_INTERFACE_IPV6_SELECTOR_FIELD)
+            .map(String::as_str),
+        "ipv6",
+    )?;
+    Ok(())
 }
 
 pub(super) fn remove_empty(config: &mut HashMap<String, String>, key: &str) {

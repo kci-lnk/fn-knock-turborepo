@@ -26,7 +26,9 @@ import {
   DEFAULT_DDNS_IP_SOURCE,
   DEFAULT_DDNS_UPDATE_SCOPE,
   INTERFACE_IPV4_INDEX_KEY,
+  INTERFACE_IPV4_SELECTOR_KEY,
   INTERFACE_IPV6_INDEX_KEY,
+  INTERFACE_IPV6_SELECTOR_KEY,
   IP_SOURCE_KEY,
   IP_SOURCE_OPTIONS,
   NETWORK_INTERFACE_AUTO_VALUE,
@@ -36,7 +38,6 @@ import {
   STATIC_IPV6_KEY,
   UPDATE_SCOPE_KEY,
   UPDATE_SCOPE_OPTIONS,
-  normalizeInterfaceAddressIndex,
   normalizeIpSource,
   normalizeUpdateScope,
   toNetworkInterfaceSelectValue,
@@ -46,6 +47,7 @@ import {
   type ProviderField,
   type TargetDialogState,
 } from "./model";
+import DDNSInterfaceSelectorEditor from "./DDNSInterfaceSelectorEditor.vue";
 
 type LabelKeyOption<TValue extends string> = {
   labelKey: string;
@@ -468,39 +470,26 @@ const { t } = useI18n();
                 {{ t("admin.ddns.selectIpv4Hint") }}
               </p>
             </div>
-            <div class="w-full max-w-md space-y-2">
-              <Select
-                :modelValue="
-                  normalizeInterfaceAddressIndex(
-                    state.config[INTERFACE_IPV4_INDEX_KEY],
-                  ) || undefined
-                "
-                :disabled="ipv4Options.length === 0"
-                @update:modelValue="
-                  (val: any) =>
-                    (state.config[INTERFACE_IPV4_INDEX_KEY] =
-                      normalizeInterfaceAddressIndex(String(val ?? '')))
-                "
-              >
-                <SelectTrigger id="ddns-target-ipv4">
-                  <SelectValue
-                    :placeholder="t('admin.ddns.selectIpv4Placeholder')"
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem
-                    v-for="option in ipv4Options"
-                    :key="option.value"
-                    :value="option.value"
-                  >
-                    {{ option.label }}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <p class="text-[11px] text-muted-foreground sm:hidden">
-                {{ t("admin.ddns.selectIpv4Hint") }}
-              </p>
-            </div>
+            <DDNSInterfaceSelectorEditor
+              :current-address="
+                state.selectionAnchor?.ipv4 || state.lastIP?.ipv4
+              "
+              family="ipv4"
+              id-prefix="ddns-target-ipv4"
+              :legacy-index="state.config[INTERFACE_IPV4_INDEX_KEY]"
+              :model-value="state.config[INTERFACE_IPV4_SELECTOR_KEY]"
+              :network-interface="
+                resolvedNetworkInterfaces.find(
+                  (item) => item.name === state.config[NETWORK_INTERFACE_KEY],
+                ) || null
+              "
+              @update:model-value="
+                (value) => {
+                  state.config[INTERFACE_IPV4_SELECTOR_KEY] = value;
+                  state.config[INTERFACE_IPV4_INDEX_KEY] = '';
+                }
+              "
+            />
           </div>
 
           <div
@@ -515,39 +504,26 @@ const { t } = useI18n();
                 {{ t("admin.ddns.selectIpv6Hint") }}
               </p>
             </div>
-            <div class="w-full max-w-md space-y-2">
-              <Select
-                :modelValue="
-                  normalizeInterfaceAddressIndex(
-                    state.config[INTERFACE_IPV6_INDEX_KEY],
-                  ) || undefined
-                "
-                :disabled="ipv6Options.length === 0"
-                @update:modelValue="
-                  (val: any) =>
-                    (state.config[INTERFACE_IPV6_INDEX_KEY] =
-                      normalizeInterfaceAddressIndex(String(val ?? '')))
-                "
-              >
-                <SelectTrigger id="ddns-target-ipv6">
-                  <SelectValue
-                    :placeholder="t('admin.ddns.selectIpv6Placeholder')"
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem
-                    v-for="option in ipv6Options"
-                    :key="option.value"
-                    :value="option.value"
-                  >
-                    {{ option.label }}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <p class="text-[11px] text-muted-foreground sm:hidden">
-                {{ t("admin.ddns.selectIpv6Hint") }}
-              </p>
-            </div>
+            <DDNSInterfaceSelectorEditor
+              :current-address="
+                state.selectionAnchor?.ipv6 || state.lastIP?.ipv6
+              "
+              family="ipv6"
+              id-prefix="ddns-target-ipv6"
+              :legacy-index="state.config[INTERFACE_IPV6_INDEX_KEY]"
+              :model-value="state.config[INTERFACE_IPV6_SELECTOR_KEY]"
+              :network-interface="
+                resolvedNetworkInterfaces.find(
+                  (item) => item.name === state.config[NETWORK_INTERFACE_KEY],
+                ) || null
+              "
+              @update:model-value="
+                (value) => {
+                  state.config[INTERFACE_IPV6_SELECTOR_KEY] = value;
+                  state.config[INTERFACE_IPV6_INDEX_KEY] = '';
+                }
+              "
+            />
           </div>
 
           <template v-if="providerDef">

@@ -3366,9 +3366,41 @@ export const koKRAdmin = {
       "아래 주소 목록에는 명백한 개인 주소를 피하기 위해 필터링된 후보만 표시됩니다.",
     chooseInterfaceFirst: "먼저 위에서 아웃바운드 인터페이스를 선택하세요.",
     addressOrderHelp:
-      '선택 항목은 "N번째 IPv4/IPv6"로 저장됩니다. 인터페이스를 변경하면 선택한 주소가 자동으로 지워집니다.',
+      "주소는 인터페이스 목록의 위치가 아닌 안정적인 속성으로 다시 일치됩니다. 인터페이스를 변경하면 규칙이 지워집니다.",
     filteredAddressHelp:
       "명백한 개인 주소는 필터링됩니다. 목록이 비어 있으면 인터페이스를 변경하거나 공개 감지를 사용하십시오.",
+    interfaceSelectorInvalid: "인터페이스 주소 선택기가 잘못되었습니다.",
+    selectorModeLabel: "선택 모드",
+    selectorMode: {
+      auto: "안정적인 주소 자동 선택",
+      rules: "사용자 지정 일치 규칙",
+    },
+    selectorPreferredLabel: "선호 주소",
+    selectorNoPreference: "선호 없음, 안정성으로 자동 선택",
+    selectorIncludeCidrs: "포함할 CIDR",
+    selectorExcludeCidrs: "제외할 CIDR",
+    selectorInterfaceId: "IPv6 인터페이스 ID(하위 64비트)",
+    selectorInterfaceIdHint:
+      "변경되는 네트워크 접두사를 무시합니다. 선호 주소를 선택하면 자동으로 추출할 수 있습니다.",
+    selectorAllowTemporary: "임시/개인 정보 IPv6 주소 허용",
+    selectorAllowTemporaryHint:
+      "개인 정보 주소 순환으로 인한 잦은 업데이트를 방지하기 위해 기본적으로 꺼져 있습니다.",
+    selectorLegacyMigrated:
+      "기존 주소 위치를 안정적인 선택기로 변환했습니다. 저장 후 적용됩니다.",
+    selectorPreviewing: "일치 결과 미리 보는 중…",
+    selectorPreviewFailed: "주소 선택을 미리 볼 수 없습니다.",
+    selectorPreviewSelected: "선택 예정",
+    selectorPreviewMultiple:
+      "{count}개 후보가 일치하여 하나를 안정적으로 선택했습니다.",
+    selectorPreviewNoMatch: "현재 규칙과 일치하는 사용 가능한 주소가 없습니다.",
+    selectorStatus: {
+      stable: "안정적",
+      temporary: "임시/개인 정보",
+      deprecated: "사용 중단됨",
+      tentative: "확인 중",
+      dadFailed: "주소 충돌",
+      unknown: "상태 알 수 없음",
+    },
     selectIpv4Label: "IPv4 주소 선택",
     selectIpv4Hint: "선택한 인터페이스의 이 IPv4 주소는 DDNS에 기록됩니다.",
     selectIpv4Placeholder: "IPv4 주소 선택",

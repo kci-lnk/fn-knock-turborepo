@@ -1,6 +1,7 @@
 import type {
   DDNSIpSource,
   DDNSHttpTransport,
+  DDNSInterfaceSelector,
   DDNSNetworkInterfacePayload,
   DDNSProviderCapabilities,
   DDNSPublicDnsProvider,
@@ -61,6 +62,14 @@ export interface TargetDialogState {
   enabled: boolean;
   provider: string;
   config: Record<string, string>;
+  lastIP?: {
+    ipv4: string | null;
+    ipv6: string | null;
+  };
+  selectionAnchor?: {
+    ipv4: string | null;
+    ipv6: string | null;
+  };
 }
 
 export const UPDATE_SCOPE_KEY = "update_scope";
@@ -68,6 +77,8 @@ export const IP_SOURCE_KEY = "ip_source";
 export const NETWORK_INTERFACE_KEY = "network_interface";
 export const INTERFACE_IPV4_INDEX_KEY = "interface_ipv4_index";
 export const INTERFACE_IPV6_INDEX_KEY = "interface_ipv6_index";
+export const INTERFACE_IPV4_SELECTOR_KEY = "interface_ipv4_selector";
+export const INTERFACE_IPV6_SELECTOR_KEY = "interface_ipv6_selector";
 export const STATIC_IPV4_KEY = "static_ipv4";
 export const STATIC_IPV6_KEY = "static_ipv6";
 export const SOURCE_DOMAIN_KEY = "source_domain";
@@ -193,6 +204,165 @@ export const normalizeInterfaceAddressIndex = (
   return String(parsed);
 };
 
+export const createDefaultInterfaceSelector = (): DDNSInterfaceSelector => ({
+  version: 1,
+  mode: "auto",
+  allowTemporary: false,
+});
+
+export const parseInterfaceSelector = (
+  value: string | null | undefined,
+): DDNSInterfaceSelector | null => {
+  const raw = value?.trim();
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<DDNSInterfaceSelector>;
+    if (
+      parsed.version !== 1 ||
+      (parsed.mode !== "auto" && parsed.mode !== "rules") ||
+      (parsed.preferredAddress !== undefined &&
+        typeof parsed.preferredAddress !== "string") ||
+      (parsed.includeCidrs !== undefined &&
+        !Array.isArray(parsed.includeCidrs)) ||
+      (parsed.excludeCidrs !== undefined &&
+        !Array.isArray(parsed.excludeCidrs)) ||
+      (parsed.ipv6InterfaceId !== undefined &&
+        typeof parsed.ipv6InterfaceId !== "string") ||
+      typeof parsed.allowTemporary !== "boolean"
+    ) {
+      return null;
+    }
+    return {
+      version: 1,
+      mode: parsed.mode,
+      ...(parsed.preferredAddress?.trim()
+        ? { preferredAddress: parsed.preferredAddress.trim() }
+        : {}),
+      ...(parsed.includeCidrs?.length
+        ? {
+            includeCidrs: parsed.includeCidrs
+              .map(String)
+              .map((item) => item.trim())
+              .filter(Boolean),
+          }
+        : {}),
+      ...(parsed.excludeCidrs?.length
+        ? {
+            excludeCidrs: parsed.excludeCidrs
+              .map(String)
+              .map((item) => item.trim())
+              .filter(Boolean),
+          }
+        : {}),
+      ...(parsed.ipv6InterfaceId?.trim()
+        ? { ipv6InterfaceId: parsed.ipv6InterfaceId.trim() }
+        : {}),
+      allowTemporary: parsed.allowTemporary,
+    };
+  } catch {
+    return null;
+  }
+};
+
+export const serializeInterfaceSelector = (selector: DDNSInterfaceSelector) =>
+  JSON.stringify({
+    version: 1,
+    mode: selector.mode,
+    ...(selector.preferredAddress?.trim()
+      ? { preferredAddress: selector.preferredAddress.trim() }
+      : {}),
+    ...(selector.includeCidrs?.length
+      ? { includeCidrs: selector.includeCidrs.map((item) => item.trim()) }
+      : {}),
+    ...(selector.excludeCidrs?.length
+      ? { excludeCidrs: selector.excludeCidrs.map((item) => item.trim()) }
+      : {}),
+    ...(selector.ipv6InterfaceId?.trim()
+      ? { ipv6InterfaceId: selector.ipv6InterfaceId.trim() }
+      : {}),
+    allowTemporary: selector.allowTemporary,
+  } satisfies DDNSInterfaceSelector);
+
+export const normalizeInterfaceSelectorConfig = (
+  value: string | null | undefined,
+) => {
+  const selector = parseInterfaceSelector(value);
+  return selector ? serializeInterfaceSelector(selector) : "";
+};
+
+const expandIPv6Address = (address: string): string[] | null => {
+  const value = address.trim().toLowerCase();
+  if (!value || value.includes(".")) return null;
+  const halves = value.split("::");
+  if (halves.length > 2) return null;
+  const left = halves[0] ? halves[0].split(":") : [];
+  const right = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
+  if ([...left, ...right].some((part) => !/^[0-9a-f]{1,4}$/.test(part))) {
+    return null;
+  }
+  const missing = 8 - left.length - right.length;
+  if ((halves.length === 1 && missing !== 0) || missing < 0) return null;
+  return [...left, ...Array(missing).fill("0"), ...right].map((part) =>
+    part.padStart(4, "0"),
+  );
+};
+
+export const ipv6InterfaceIdFromAddress = (address: string) => {
+  const expanded = expandIPv6Address(address);
+  return expanded ? expanded.slice(4).join(":") : "";
+};
+
+export const buildInterfaceSelectorFromLegacyIndex = (
+  option: DDNSNetworkInterfacePayload | null | undefined,
+  family: "ipv4" | "ipv6",
+  legacyIndex: string | null | undefined,
+  currentAddress?: string | null,
+): { selector: DDNSInterfaceSelector; migrated: boolean } => {
+  const selector = createDefaultInterfaceSelector();
+  const legacyIndexValue = legacyIndex?.trim();
+  if (!legacyIndexValue) {
+    return { selector, migrated: false };
+  }
+  const index = Number(legacyIndexValue);
+  const candidates = (option?.selectableAddresses || []).filter(
+    (item) => item.family === family,
+  );
+  const usable = candidates.filter(
+    (item) => !item.tentative && !item.dadFailed && !item.deprecated,
+  );
+  const current = currentAddress?.trim().toLowerCase();
+  let candidate = current
+    ? usable.find((item) => item.address.toLowerCase() === current)
+    : undefined;
+  if (!candidate && family === "ipv6" && current) {
+    const interfaceId = ipv6InterfaceIdFromAddress(current);
+    if (interfaceId) {
+      candidate = usable
+        .filter(
+          (item) => ipv6InterfaceIdFromAddress(item.address) === interfaceId,
+        )
+        .sort((left, right) => left.address.localeCompare(right.address))[0];
+    }
+  }
+  if (!candidate && Number.isInteger(index) && index >= 0) {
+    const indexedCandidate = candidates[index];
+    if (
+      indexedCandidate &&
+      !indexedCandidate.tentative &&
+      !indexedCandidate.dadFailed &&
+      !indexedCandidate.deprecated
+    ) {
+      candidate = indexedCandidate;
+    }
+  }
+  if (!candidate) {
+    return { selector, migrated: false };
+  }
+  selector.preferredAddress = candidate.address;
+  selector.allowTemporary = candidate.temporary === true;
+  return { selector, migrated: true };
+};
+
 export const normalizeStaticIPAddress = (value: string | null | undefined) =>
   value?.trim() || "";
 
@@ -243,6 +413,12 @@ export const normalizeTargetConfigValues = (
   [INTERFACE_IPV6_INDEX_KEY]: normalizeInterfaceAddressIndex(
     config?.[INTERFACE_IPV6_INDEX_KEY],
   ),
+  [INTERFACE_IPV4_SELECTOR_KEY]: normalizeInterfaceSelectorConfig(
+    config?.[INTERFACE_IPV4_SELECTOR_KEY],
+  ),
+  [INTERFACE_IPV6_SELECTOR_KEY]: normalizeInterfaceSelectorConfig(
+    config?.[INTERFACE_IPV6_SELECTOR_KEY],
+  ),
   [STATIC_IPV4_KEY]: normalizeStaticIPAddress(config?.[STATIC_IPV4_KEY]),
   [STATIC_IPV6_KEY]: normalizeStaticIPAddress(config?.[STATIC_IPV6_KEY]),
   [SOURCE_DOMAIN_KEY]: normalizeSourceDomain(config?.[SOURCE_DOMAIN_KEY]),
@@ -261,6 +437,12 @@ export const extractCommonTargetConfig = (
   ),
   [INTERFACE_IPV6_INDEX_KEY]: normalizeInterfaceAddressIndex(
     config[INTERFACE_IPV6_INDEX_KEY],
+  ),
+  [INTERFACE_IPV4_SELECTOR_KEY]: normalizeInterfaceSelectorConfig(
+    config[INTERFACE_IPV4_SELECTOR_KEY],
+  ),
+  [INTERFACE_IPV6_SELECTOR_KEY]: normalizeInterfaceSelectorConfig(
+    config[INTERFACE_IPV6_SELECTOR_KEY],
   ),
   [STATIC_IPV4_KEY]: normalizeStaticIPAddress(config[STATIC_IPV4_KEY]),
   [STATIC_IPV6_KEY]: normalizeStaticIPAddress(config[STATIC_IPV6_KEY]),
@@ -597,8 +779,19 @@ const validateInterfaceIpSourceConfig = ({
   const ipv6Index = normalizeInterfaceAddressIndex(
     config[INTERFACE_IPV6_INDEX_KEY],
   );
+  const ipv4SelectorRaw = config[INTERFACE_IPV4_SELECTOR_KEY]?.trim() || "";
+  const ipv6SelectorRaw = config[INTERFACE_IPV6_SELECTOR_KEY]?.trim() || "";
+  const ipv4Selector = parseInterfaceSelector(ipv4SelectorRaw);
+  const ipv6Selector = parseInterfaceSelector(ipv6SelectorRaw);
 
-  if (needsIPv4 && ipv4Options.length > 0 && !ipv4Index) {
+  if (
+    (needsIPv4 && ipv4SelectorRaw && !ipv4Selector) ||
+    (needsIPv6 && ipv6SelectorRaw && !ipv6Selector)
+  ) {
+    return createValidationIssue("admin.ddns.interfaceSelectorInvalid");
+  }
+
+  if (needsIPv4 && ipv4Options.length > 0 && !ipv4Selector && !ipv4Index) {
     return createValidationIssue("admin.ddns.chooseIpv4", {
       descriptionKey: includeFilteredDescriptions
         ? "admin.ddns.chooseIpv4Description"
@@ -609,6 +802,7 @@ const validateInterfaceIpSourceConfig = ({
   if (
     includeUnavailableSelectionChecks &&
     needsIPv4 &&
+    !ipv4Selector &&
     ipv4Index &&
     !ipv4Options.some((option) => option.value === ipv4Index)
   ) {
@@ -617,7 +811,7 @@ const validateInterfaceIpSourceConfig = ({
     });
   }
 
-  if (needsIPv6 && ipv6Options.length > 0 && !ipv6Index) {
+  if (needsIPv6 && ipv6Options.length > 0 && !ipv6Selector && !ipv6Index) {
     return createValidationIssue("admin.ddns.chooseIpv6", {
       descriptionKey: includeFilteredDescriptions
         ? "admin.ddns.chooseIpv6Description"
@@ -628,6 +822,7 @@ const validateInterfaceIpSourceConfig = ({
   if (
     includeUnavailableSelectionChecks &&
     needsIPv6 &&
+    !ipv6Selector &&
     ipv6Index &&
     !ipv6Options.some((option) => option.value === ipv6Index)
   ) {

@@ -14,6 +14,7 @@ pub(super) fn ddns_error_response(translator: &Translator, error: anyhow::Error)
         || message.contains("Duplicate")
         || message.contains("Primary")
         || message.contains("interval")
+        || message.starts_with("Invalid DDNS interface selector:")
     {
         StatusCode::BAD_REQUEST
     } else {
@@ -46,6 +47,13 @@ pub(super) fn localize_ddns_error(translator: &Translator, message: &str) -> Str
             translator,
             "unknownProvider",
             &[("provider", provider.to_string())],
+        );
+    }
+    if message.starts_with("Invalid DDNS interface selector:") {
+        return ddns_text(
+            translator,
+            "interfaceSelectorInvalid",
+            &[("message", message.to_string())],
         );
     }
     message.to_string()

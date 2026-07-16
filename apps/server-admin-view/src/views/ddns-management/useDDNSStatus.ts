@@ -33,6 +33,11 @@ export function useDDNSStatus({ selectedProvider }: UseDDNSStatusOptions) {
   const enabled = ref(true);
   const savedProvider = ref("");
   const lastIP = ref<LastIP>({ ipv4: null, ipv6: null, updated_at: null });
+  const selectionAnchor = ref<LastIP>({
+    ipv4: null,
+    ipv6: null,
+    updated_at: null,
+  });
   const lastCheck = ref<LastCheck>({
     checked_at: null,
     outcome: null,
@@ -66,6 +71,7 @@ export function useDDNSStatus({ selectedProvider }: UseDDNSStatusOptions) {
       selectedProvider.value = savedProvider.value;
     }
     lastIP.value = status.lastIP;
+    selectionAnchor.value = status.selectionAnchor ?? status.lastIP;
     lastCheck.value = status.lastCheck;
     updateIntervalMinutes.value = normalizeUpdateIntervalMinutes(
       status.updateIntervalMinutes,
@@ -97,6 +103,7 @@ export function useDDNSStatus({ selectedProvider }: UseDDNSStatusOptions) {
     publicDnsProvider,
     lastCheck,
     lastIP,
+    selectionAnchor,
     publicCheckSources,
     savedProvider,
     statusIpSource,

@@ -52,6 +52,7 @@ pub(super) async fn build_ddns_status(
         "ipSource": normalize_ip_source(primary.config.get("ip_source").map(String::as_str)),
         "networkInterface": normalize_network_interface(primary.config.get("network_interface").map(String::as_str)),
         "lastIP": primary.last_ip,
+        "selectionAnchor": primary.selection_anchor,
         "lastCheck": primary.last_check,
         "primaryTargetId": primary_target_id,
         "extraTargetCount": extra_count,
@@ -114,6 +115,15 @@ pub(super) async fn read_target(
             .hgetall_string_map(&target_last_ip_key(id))
             .await?,
     );
+    let selection_anchor_data = state
+        .store
+        .hgetall_string_map(&target_selection_anchor_key(id))
+        .await?;
+    let selection_anchor = if selection_anchor_data.is_empty() {
+        last_ip.clone()
+    } else {
+        parse_last_ip(&selection_anchor_data)
+    };
     let last_check = parse_last_check(
         &state
             .store
@@ -124,6 +134,7 @@ pub(super) async fn read_target(
         meta,
         config,
         last_ip,
+        selection_anchor,
         last_check,
     }))
 }
@@ -164,6 +175,7 @@ pub(super) async fn read_legacy_primary_target(
             sort_order: 0,
         },
         config,
+        selection_anchor: last_ip.clone(),
         last_ip,
         last_check,
     })
@@ -184,6 +196,7 @@ pub(super) fn default_primary_target() -> DDNSTargetRecord {
         },
         config: HashMap::new(),
         last_ip: empty_last_ip(),
+        selection_anchor: empty_last_ip(),
         last_check: empty_last_check(),
     }
 }
@@ -262,6 +275,7 @@ pub(super) fn target_summary(target: &DDNSTargetRecord, translator: &Translator)
         "updatedAt": target.meta.updated_at,
         "sortOrder": target.meta.sort_order,
         "lastIP": target.last_ip,
+        "selectionAnchor": target.selection_anchor,
         "lastCheck": target.last_check
     })
 }

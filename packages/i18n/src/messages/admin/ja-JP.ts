@@ -3443,9 +3443,41 @@ export const jaJPAdmin = {
     chooseInterfaceFirst:
       "上記の送信ネットワーク カードを明示的に選択してください。",
     addressOrderHelp:
-      "には現在「番号 IPv4 / IPv6」が順番に格納されています。ネットワークカードを変更すると、選択したアドレスは自動的にクリアされます。",
+      "アドレスは一覧の位置ではなく安定した属性で再照合されます。ネットワークカードを変更するとルールがクリアされます。",
     filteredAddressHelp:
       "明らかなイントラネット アドレスはフィルタリングされています。リストが空の場合は、ネットワーク カードを変更するか、代わりにパブリック ネットワークからカードを取得してください。",
+    interfaceSelectorInvalid: "インターフェイスアドレス選択ルールが無効です",
+    selectorModeLabel: "選択モード",
+    selectorMode: {
+      auto: "安定したアドレスを自動選択",
+      rules: "カスタム照合ルール",
+    },
+    selectorPreferredLabel: "優先アドレス",
+    selectorNoPreference: "指定せず安定性で自動選択",
+    selectorIncludeCidrs: "含める CIDR",
+    selectorExcludeCidrs: "除外する CIDR",
+    selectorInterfaceId: "IPv6 インターフェイス ID（下位 64 ビット）",
+    selectorInterfaceIdHint:
+      "変化するネットワークプレフィックスを無視します。優先アドレスから自動抽出できます。",
+    selectorAllowTemporary: "一時/プライバシー IPv6 アドレスを許可",
+    selectorAllowTemporaryHint:
+      "プライバシーアドレスのローテーションによる頻繁な更新を避けるため、既定では無効です。",
+    selectorLegacyMigrated:
+      "従来のアドレス位置を安定した選択ルールへ変換しました。保存後に有効になります。",
+    selectorPreviewing: "照合結果をプレビュー中…",
+    selectorPreviewFailed: "アドレス選択をプレビューできません",
+    selectorPreviewSelected: "選択予定",
+    selectorPreviewMultiple: "{count} 件に一致し、1 件を安定して選択しました",
+    selectorPreviewNoMatch:
+      "現在のルールに一致する使用可能なアドレスがありません。",
+    selectorStatus: {
+      stable: "安定",
+      temporary: "一時/プライバシー",
+      deprecated: "非推奨",
+      tentative: "確認中",
+      dadFailed: "アドレス競合",
+      unknown: "状態不明",
+    },
     selectIpv4Label: "IPv4 アドレスを選択してください",
     selectIpv4Hint:
       "は、選択したネットワーク カード上のこの IPv4 アドレスを DDNS に書き込みます",

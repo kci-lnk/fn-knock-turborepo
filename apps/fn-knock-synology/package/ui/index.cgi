@@ -6,7 +6,17 @@ AUTHENTICATE_CGI="${AUTHENTICATE_CGI:-/usr/syno/synoman/webman/modules/authentic
 SESSION_COOKIE_NAME="fn_knock_synotoken"
 STAGED_COOKIE_NAME="fn_knock_synotoken_stage"
 SESSION_COOKIE_PATH="/webman/3rdparty/${PACKAGE_NAME}/"
+LAUNCHER_PATH="${SESSION_COOKIE_PATH}launch.html"
+AUTH_BOOTSTRAP_QUERY="fn_knock_auth_bootstrap=1"
 ORIGINAL_QUERY_STRING="${QUERY_STRING:-}"
+REQUEST_METHOD_ORIGINAL="${REQUEST_METHOD:-GET}"
+REQ_URI="${REQUEST_URI:-}"
+URI_NO_QUERY="${REQ_URI%%\?*}"
+
+COOKIE_SECURE_ATTR=""
+case "${HTTPS:-}:${HTTP_X_FORWARDED_PROTO:-}" in
+    on:*|1:*|*:https) COOKIE_SECURE_ATTR="; Secure" ;;
+esac
 
 cookie_value() {
     printf '%s' "${HTTP_COOKIE:-}" |
@@ -29,17 +39,18 @@ AUTH_TOKEN_ENCODED="${STAGED_TOKEN_ENCODED:-${SESSION_TOKEN_ENCODED}}"
 
 emit_session_cookies() {
     [ -z "${AUTH_TOKEN_ENCODED}" ] || \
-        printf 'Set-Cookie: %s=%s; Path=%s; Secure; HttpOnly; SameSite=Strict\r\n' \
-            "${SESSION_COOKIE_NAME}" "${AUTH_TOKEN_ENCODED}" "${SESSION_COOKIE_PATH}"
+        printf 'Set-Cookie: %s=%s; Path=%s%s; HttpOnly; SameSite=Strict\r\n' \
+            "${SESSION_COOKIE_NAME}" "${AUTH_TOKEN_ENCODED}" \
+            "${SESSION_COOKIE_PATH}" "${COOKIE_SECURE_ATTR}"
     [ -z "${STAGED_TOKEN_ENCODED}" ] || \
-        printf 'Set-Cookie: %s=; Path=%s; Secure; HttpOnly; SameSite=Strict; Max-Age=0\r\n' \
-            "${STAGED_COOKIE_NAME}" "${SESSION_COOKIE_PATH}"
+        printf 'Set-Cookie: %s=; Path=%s%s; HttpOnly; SameSite=Strict; Max-Age=0\r\n' \
+            "${STAGED_COOKIE_NAME}" "${SESSION_COOKIE_PATH}" "${COOKIE_SECURE_ATTR}"
 }
 
 clear_session_cookies() {
     for COOKIE_NAME in "${SESSION_COOKIE_NAME}" "${STAGED_COOKIE_NAME}"; do
-        printf 'Set-Cookie: %s=; Path=%s; Secure; HttpOnly; SameSite=Strict; Max-Age=0\r\n' \
-            "${COOKIE_NAME}" "${SESSION_COOKIE_PATH}"
+        printf 'Set-Cookie: %s=; Path=%s%s; HttpOnly; SameSite=Strict; Max-Age=0\r\n' \
+            "${COOKIE_NAME}" "${SESSION_COOKIE_PATH}" "${COOKIE_SECURE_ATTR}"
     done
 }
 
@@ -63,10 +74,22 @@ if [ -x "${AUTHENTICATE_CGI}" ]; then
 fi
 
 if [ -z "${AUTHENTICATED_USER}" ]; then
-    printf 'Status: 403 Forbidden\r\n'
-    clear_session_cookies
-    printf 'Content-Type: text/plain; charset=utf-8\r\n\r\n'
-    printf 'DSM authentication required.\n'
+    case "${REQUEST_METHOD_ORIGINAL}:${URI_NO_QUERY}:${ORIGINAL_QUERY_STRING}" in
+        GET:*/index.cgi:|GET:*/index.cgi/:)
+            printf 'Status: 302 Found\r\n'
+            printf 'Location: %s\r\n' "${LAUNCHER_PATH}"
+            clear_session_cookies
+            printf 'Cache-Control: no-cache, no-store, must-revalidate\r\n'
+            printf 'Content-Type: text/plain; charset=utf-8\r\n\r\n'
+            printf 'Redirecting to DSM session launcher.\n'
+            ;;
+        *)
+            printf 'Status: 403 Forbidden\r\n'
+            clear_session_cookies
+            printf 'Content-Type: text/plain; charset=utf-8\r\n\r\n'
+            printf 'DSM authentication required.\n'
+            ;;
+    esac
     exit 0
 fi
 
@@ -88,9 +111,10 @@ fi
 
 TARGET_HOST="${ADMIN_TARGET_HOST:-127.0.0.1}"
 TARGET_PORT="${ADMIN_TARGET_PORT:-${BACKEND_PORT:-7998}}"
-REQ_URI="${REQUEST_URI:-}"
-URI_NO_QUERY="${REQ_URI%%\?*}"
 QUERY_STRING="${ORIGINAL_QUERY_STRING}"
+if [ "${QUERY_STRING}" = "${AUTH_BOOTSTRAP_QUERY}" ]; then
+    QUERY_STRING=""
+fi
 
 case "${URI_NO_QUERY}" in
     */index.cgi)
@@ -129,7 +153,6 @@ if [ -n "${QUERY_STRING}" ]; then
     TARGET_URL="${TARGET_URL}?${QUERY_STRING}"
 fi
 
-REQUEST_METHOD_ORIGINAL="${REQUEST_METHOD:-GET}"
 UPSTREAM_METHOD="${REQUEST_METHOD_ORIGINAL}"
 if [ "${REQUEST_METHOD_ORIGINAL}" = "POST" ]; then
     case "${HTTP_X_HTTP_METHOD_OVERRIDE:-}" in

@@ -75,6 +75,7 @@ pub(super) async fn reconcile_acme_ssl_deployment(state: &AppState) -> anyhow::R
     let applications = read_acme_applications(state).await?;
     let t = Translator::from_state(state).await;
     let mut config = state.store.get_config().await?;
+    let previous_ssl = config.get("ssl").cloned();
     let mut deployment_changed = false;
 
     for application in applications {
@@ -98,7 +99,7 @@ pub(super) async fn reconcile_acme_ssl_deployment(state: &AppState) -> anyhow::R
                 return Ok(false);
             };
             let linked_certificate =
-                ssl::get_acme_ssl_certificate_by_source_ref(state, &application_id).await?;
+                replacement_library_certificate(&config, &application_id, &issued_certificate);
             let library_matches_issued = linked_certificate.as_ref().is_some_and(|certificate| {
                 same_pem(
                     certificate.get("cert").and_then(Value::as_str),
@@ -116,11 +117,12 @@ pub(super) async fn reconcile_acme_ssl_deployment(state: &AppState) -> anyhow::R
                 .as_ref()
                 .and_then(|certificate| certificate.get("id").and_then(Value::as_str))
                 .map(str::to_string);
+            if let Some(linked_id) = linked_id.as_deref() {
+                link_issued_certificate_to_library(state, &application_id, linked_id).await?;
+            }
+            let normalized_ssl = ssl::normalize_ssl_config(config.get("ssl"));
             let should_activate = linked_id.as_deref().is_some_and(|id| {
-                config
-                    .pointer("/ssl/active_cert_id")
-                    .and_then(Value::as_str)
-                    == Some(id)
+                normalized_ssl.get("active_cert_id").and_then(Value::as_str) == Some(id)
             });
             let label = linked_certificate
                 .as_ref()
@@ -192,7 +194,7 @@ pub(super) async fn reconcile_acme_ssl_deployment(state: &AppState) -> anyhow::R
                     .and_then(|certificate| certificate.get("source").and_then(Value::as_str))
                     == Some("acme")));
     if should_sync {
-        ssl::sync_ssl_deployment_to_gateway(state, Some(&config)).await?;
+        sync_ssl_deployment_with_rollback(state, previous_ssl.as_ref(), &config).await?;
     }
     Ok(())
 }

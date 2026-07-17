@@ -250,49 +250,15 @@ pub(super) async fn save_acme_application_with_effects(
             .collect::<Vec<_>>();
     write_acme_applications(state, &next_applications).await?;
 
-    let domain_changed = existing.as_ref().is_some_and(|previous| {
-        previous.get("primaryDomain").and_then(Value::as_str)
-            != application.get("primaryDomain").and_then(Value::as_str)
-            || normalized_domain_signature(
-                &previous
-                    .get("domains")
-                    .and_then(Value::as_array)
-                    .map(|values| normalize_domain_list(values.iter()))
-                    .unwrap_or_default(),
-            ) != normalized_domain_signature(
-                &application
-                    .get("domains")
-                    .and_then(Value::as_array)
-                    .map(|values| normalize_domain_list(values.iter()))
-                    .unwrap_or_default(),
-            )
-    });
-    if !domain_changed {
-        return Ok(AcmeApplicationSaveOutcome {
-            application,
-            removed_library_certificate_count: 0,
-            removed_active_library_certificate: false,
-        });
-    }
-
-    let deleted_issued_certificate = delete_acme_issued_certificate(state, &application_id).await?;
-    let previous_primary_domain = existing
-        .as_ref()
-        .and_then(|value| value.get("primaryDomain"))
-        .and_then(Value::as_str)
-        .unwrap_or("");
-    let (removed_count, removed_active) = cleanup_acme_application_artifacts(
-        state,
-        &application_id,
-        previous_primary_domain,
-        deleted_issued_certificate.as_ref(),
-    )
-    .await?;
-    Ok(AcmeApplicationSaveOutcome {
-        application,
-        removed_library_certificate_count: removed_count,
-        removed_active_library_certificate: removed_active,
-    })
+    // A domain change invalidates the issued certificate for application-level
+    // lookups, but it must not invalidate the certificate currently deployed
+    // by the gateway. Keep the issued record, library entry, active selection,
+    // and files while a replacement is being issued. Once issuance succeeds,
+    // the old domain-keyed files can be removed; the library snapshot still
+    // protects the deployed certificate if gateway synchronization fails.
+    // Compatibility checks hide the stale issued record from the updated
+    // application in the meantime.
+    Ok(AcmeApplicationSaveOutcome { application })
 }
 
 pub(super) async fn resolve_legacy_application_for_mutation(
@@ -448,4 +414,37 @@ pub(super) async fn remove_acme_domain_artifacts(
         }
     }
     Ok(())
+}
+
+pub(super) async fn cleanup_superseded_acme_domain_artifacts(
+    state: &AppState,
+    application_id: &str,
+    previous_primary_domain: &str,
+    current_primary_domain: &str,
+) -> anyhow::Result<bool> {
+    let previous_primary_domain = normalize_domain_name(previous_primary_domain);
+    let current_primary_domain = normalize_domain_name(current_primary_domain);
+    if previous_primary_domain.is_empty() || previous_primary_domain == current_primary_domain {
+        return Ok(false);
+    }
+
+    // A different application may have claimed the old primary domain while
+    // this ACME job was running. Its certificate files use the same storage
+    // key and directory, so never remove them in that case.
+    let old_domain_is_reused = read_acme_applications(state)
+        .await?
+        .iter()
+        .any(|application| {
+            application.get("id").and_then(Value::as_str) != Some(application_id)
+                && application
+                    .get("primaryDomain")
+                    .and_then(Value::as_str)
+                    .is_some_and(|domain| normalize_domain_name(domain) == previous_primary_domain)
+        });
+    if old_domain_is_reused {
+        return Ok(false);
+    }
+
+    remove_acme_domain_artifacts(state, &[previous_primary_domain]).await?;
+    Ok(true)
 }

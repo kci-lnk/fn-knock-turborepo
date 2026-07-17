@@ -2372,9 +2372,9 @@ export const enAdmin = {
     deleteAuthDescription:
       "This will delete the auth mapping for {host}. You will need to add the auth service again.",
     deleteAuthAction: "Delete auth service",
-    authServicePort: "Port used by the auth service",
+    authServicePort: "Public HTTPS port for the auth service",
     authServicePortHint:
-      "Use 10012 when the router maps 10012 -> 7999. If unchanged, use the current entry port.",
+      "Used only to generate public HTTPS URLs for browsers; it does not change the local listener or router mapping. If the router forwards public port 10012 to local port 7999, enter 10012. If not explicitly set, the current entry port is used.",
     edgeClientIpTitle: "Edge real IP detection",
     edgeClientIpDescription:
       "Only applies to subdomain mode. When enabled, the public auth address will no longer append the access port automatically.",

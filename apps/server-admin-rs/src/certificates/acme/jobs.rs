@@ -349,10 +349,17 @@ async fn update_running_acme_job(
     Ok(Some(job))
 }
 
-async fn acme_job_is_stopped(state: &AppState, id: &str) -> anyhow::Result<bool> {
+pub(super) async fn acme_job_is_stopped(state: &AppState, id: &str) -> anyhow::Result<bool> {
     Ok(get_acme_job(state, id)
         .await?
         .is_some_and(|job| job.get("status").and_then(Value::as_str) == Some("stopped")))
+}
+
+async fn ensure_acme_job_running(state: &AppState, id: &str, t: &Translator) -> anyhow::Result<()> {
+    if acme_job_is_stopped(state, id).await? {
+        anyhow::bail!(t.t("server.acmeJobRunner.manualStop"));
+    }
+    Ok(())
 }
 
 async fn append_stopped_ignored_log(state: &AppState, id: &str, t: &Translator) {
@@ -486,6 +493,8 @@ pub(super) async fn execute_acme_application_job(
         update_acme_application_job_state(&state, &application, &job).await?;
     }
 
+    let mut previous_issued_certificate = None;
+    let mut issued_certificate_commit_started = false;
     let result = async {
         let client_settings = ensure_client_settings(&state).await?;
         let certificate_authority = client_settings
@@ -493,7 +502,19 @@ pub(super) async fn execute_acme_application_job(
             .and_then(Value::as_str)
             .unwrap_or(DEFAULT_ACME_CERTIFICATE_AUTHORITY)
             .to_string();
+        let application_id = application
+            .get("id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| anyhow::anyhow!(t.t("server.store.acme.jobDataInvalid")))?;
+        previous_issued_certificate =
+            read_issued_certificates(&state)
+                .await?
+                .into_iter()
+                .find(|certificate| {
+                    certificate.get("applicationId").and_then(Value::as_str) == Some(application_id)
+                });
         issue_acme_certificate(&state, &application, &job_id, &certificate_authority, &t).await?;
+        ensure_acme_job_running(&state, &job_id, &t).await?;
         if let Some(job) = update_running_acme_job(
             &state,
             &job_id,
@@ -507,10 +528,6 @@ pub(super) async fn execute_acme_application_job(
         {
             update_acme_application_job_state(&state, &application, &job).await?;
         }
-        let application_id = application
-            .get("id")
-            .and_then(Value::as_str)
-            .ok_or_else(|| anyhow::anyhow!(t.t("server.store.acme.jobDataInvalid")))?;
         let latest_application = find_acme_application(&state, application_id)
             .await?
             .ok_or_else(|| {
@@ -543,7 +560,48 @@ pub(super) async fn execute_acme_application_job(
             .ok();
             anyhow::bail!(t.t("server.acmeJobRunner.issuedButApplicationChanged"));
         }
+        ensure_acme_job_running(&state, &job_id, &t).await?;
+        issued_certificate_commit_started = true;
         save_acme_issued_cert_from_fs(&state, &latest_application, &job_id, &t).await?;
+        ensure_acme_job_running(&state, &job_id, &t).await?;
+        sync_acme_library_after_issue(&state, &latest_application, &job_id, &t).await?;
+        if let Some(previous_primary_domain) = previous_issued_certificate
+            .as_ref()
+            .and_then(|certificate| certificate.get("primaryDomain"))
+            .and_then(Value::as_str)
+        {
+            let current_primary_domain = latest_application
+                .get("primaryDomain")
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            match cleanup_superseded_acme_domain_artifacts(
+                &state,
+                application_id,
+                previous_primary_domain,
+                current_primary_domain,
+            )
+            .await
+            {
+                Ok(true) => {
+                    tracing::info!(
+                        %application_id,
+                        %previous_primary_domain,
+                        %current_primary_domain,
+                        "removed superseded ACME certificate artifacts"
+                    );
+                }
+                Ok(false) => {}
+                Err(error) => {
+                    tracing::warn!(
+                        %error,
+                        %application_id,
+                        %previous_primary_domain,
+                        %current_primary_domain,
+                        "failed to remove superseded ACME certificate artifacts"
+                    );
+                }
+            }
+        }
         let working_domain = acme_issued_storage_domain(&state, &latest_application);
         if !working_domain.is_empty() {
             match clear_acme_domain_working_state(&state, &working_domain).await {
@@ -570,54 +628,44 @@ pub(super) async fn execute_acme_application_job(
                 }
             }
         }
-        sync_acme_library_after_issue(&state, &latest_application, &job_id, &t).await?;
         Ok::<(), anyhow::Error>(())
     }
     .await;
 
-    match result {
-        Ok(()) => {
-            if acme_job_is_stopped(&state, &job_id).await? {
-                append_stopped_ignored_log(&state, &job_id, &t).await;
-            } else if let Some(job) = update_running_acme_job(
-                &state,
-                &job_id,
-                json!({
-                    "status": "succeeded",
-                    "progress": 100,
-                    "finishedAt": now_node_iso(),
-                    "message": "succeeded",
-                }),
-                &t,
-            )
-            .await?
-            {
-                update_acme_application_job_state(&state, &application, &job).await?;
-            }
+    if result.is_err() && issued_certificate_commit_started {
+        let current_primary_domain = application
+            .get("primaryDomain")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        if let Err(error) = restore_acme_issued_certificate_snapshot(
+            &state,
+            application.get("id").and_then(Value::as_str).unwrap_or(""),
+            current_primary_domain,
+            previous_issued_certificate.as_ref(),
+        )
+        .await
+        {
+            tracing::error!(
+                %error,
+                %job_id,
+                "failed to restore ACME issued certificate after job failure"
+            );
         }
-        Err(error) => {
-            let message = error.to_string();
-            if acme_job_is_stopped(&state, &job_id).await? {
-                append_stopped_ignored_log(&state, &job_id, &t).await;
-            } else {
-                append_acme_log(
-                    &state,
-                    &job_id,
-                    &t.t_params(
-                        "server.acmeJobRunner.flowFailed",
-                        &[("message", message.clone())],
-                    ),
-                )
-                .await
-                .ok();
-                if let Some(job) = update_running_acme_job(
+    }
+
+    let finalization_result = async {
+        match result {
+            Ok(()) => {
+                if acme_job_is_stopped(&state, &job_id).await? {
+                    append_stopped_ignored_log(&state, &job_id, &t).await;
+                } else if let Some(job) = update_running_acme_job(
                     &state,
                     &job_id,
                     json!({
-                        "status": "failed",
+                        "status": "succeeded",
                         "progress": 100,
                         "finishedAt": now_node_iso(),
-                        "message": message,
+                        "message": "succeeded",
                     }),
                     &t,
                 )
@@ -626,13 +674,47 @@ pub(super) async fn execute_acme_application_job(
                     update_acme_application_job_state(&state, &application, &job).await?;
                 }
             }
+            Err(error) => {
+                let message = error.to_string();
+                if acme_job_is_stopped(&state, &job_id).await? {
+                    append_stopped_ignored_log(&state, &job_id, &t).await;
+                } else {
+                    append_acme_log(
+                        &state,
+                        &job_id,
+                        &t.t_params(
+                            "server.acmeJobRunner.flowFailed",
+                            &[("message", message.clone())],
+                        ),
+                    )
+                    .await
+                    .ok();
+                    if let Some(job) = update_running_acme_job(
+                        &state,
+                        &job_id,
+                        json!({
+                            "status": "failed",
+                            "progress": 100,
+                            "finishedAt": now_node_iso(),
+                            "message": message,
+                        }),
+                        &t,
+                    )
+                    .await?
+                    {
+                        update_acme_application_job_state(&state, &application, &job).await?;
+                    }
+                }
+            }
         }
+        Ok::<(), anyhow::Error>(())
     }
+    .await;
 
     heartbeat_stop.store(true, Ordering::Relaxed);
-    heartbeat_task.await.ok();
     release_acme_runtime_lock(&state, &lock).await.ok();
-    Ok(())
+    heartbeat_task.await.ok();
+    finalization_result
 }
 
 pub(super) fn start_acme_lock_heartbeat(

@@ -323,25 +323,13 @@ pub(super) async fn save_config(State(state): State<AppState>, req: Request<Body
     )
     .await
     {
-        Ok(saved) => {
-            if let Err(error) = sync_gateway_if_acme_library_removed(
-                &state,
-                saved.removed_active_library_certificate,
-                saved.removed_library_certificate_count,
-            )
-            .await
-            {
-                tracing::warn!(%error, "failed to sync gateway after ACME config cleanup");
-                return response::error(StatusCode::BAD_REQUEST, error.to_string());
-            }
-            response::ok(json!({
+        Ok(saved) => response::ok(json!({
                 "domains": saved.application.get("domains").cloned().unwrap_or_else(|| json!([])),
                 "dnsType": saved.application.get("dnsType").cloned().unwrap_or_else(|| json!("")),
                 "credentials": saved.application.get("credentials").cloned().unwrap_or_else(|| json!({})),
                 "updatedAt": saved.application.get("updatedAt").cloned().unwrap_or(Value::Null),
             }))
-            .into_response()
-        }
+            .into_response(),
         Err(error) => response::error(StatusCode::BAD_REQUEST, error.to_string()),
     }
 }
@@ -376,16 +364,6 @@ pub(super) async fn create_application(
     .await
     {
         Ok(saved) => {
-            if let Err(error) = sync_gateway_if_acme_library_removed(
-                &state,
-                saved.removed_active_library_certificate,
-                saved.removed_library_certificate_count,
-            )
-            .await
-            {
-                tracing::warn!(%error, "failed to sync gateway after ACME application cleanup");
-                return response::error(StatusCode::BAD_REQUEST, error.to_string());
-            }
             if submit_now {
                 return match start_acme_application_job(
                     state.clone(),
@@ -466,24 +444,6 @@ pub(super) async fn update_application(
     .await
     {
         Ok(saved) => {
-            if let Err(error) = sync_gateway_if_acme_library_removed(
-                &state,
-                saved.removed_active_library_certificate,
-                saved.removed_library_certificate_count,
-            )
-            .await
-            {
-                tracing::warn!(%error, "failed to sync gateway after ACME application update cleanup");
-                let message = error.to_string();
-                if let Some((job, lock)) = reservation.take() {
-                    fail_reserved_acme_application_job(
-                        &state, &existing, &job, &lock, &message, &t,
-                    )
-                    .await
-                    .ok();
-                }
-                return response::error(StatusCode::BAD_REQUEST, message);
-            }
             if let Some((job, lock)) = reservation.take() {
                 return match run_reserved_acme_application_job(
                     state.clone(),

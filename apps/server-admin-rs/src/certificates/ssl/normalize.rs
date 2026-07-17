@@ -2,7 +2,7 @@ use super::*;
 
 const DEFAULT_SSL_CERT_TIMESTAMP: &str = "1970-01-01T00:00:00.000Z";
 
-pub(super) fn normalize_ssl_config(value: Option<&Value>) -> Value {
+pub(crate) fn normalize_ssl_config(value: Option<&Value>) -> Value {
     let raw = value.cloned().unwrap_or_else(|| json!({}));
     let mut certificates = raw
         .get("certificates")

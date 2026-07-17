@@ -1110,6 +1110,59 @@ return 1
         ))
     }
 
+    /// Atomically replaces the SSL section only while it still exactly
+    /// matches the caller's expected value. Unrelated top-level configuration
+    /// writes are merged from the latest snapshot, while a concurrent SSL
+    /// writer produces a conflict instead of being overwritten.
+    pub async fn compare_and_set_ssl_config(
+        &self,
+        expected: Option<&Value>,
+        replacement: Option<&Value>,
+    ) -> crate::storage::StorageResult<Option<Value>> {
+        let mut conn = self.conn();
+        for _ in 0..32 {
+            let snapshot = load_config_fence_snapshot(&mut conn).await?;
+            let mut current_config = snapshot.config.clone();
+            strip_internal_config_metadata(&mut current_config);
+            let Some(object) = current_config.as_object_mut() else {
+                return Err(crate::storage::storage_error(
+                    "stored config must be a JSON object",
+                ));
+            };
+            let ssl_unchanged = match (object.get("ssl"), expected) {
+                (None, None) => true,
+                (Some(current), Some(expected)) => current == expected,
+                _ => false,
+            };
+            if !ssl_unchanged {
+                return Ok(None);
+            }
+            match replacement {
+                Some(replacement) => {
+                    object.insert("ssl".to_string(), replacement.clone());
+                }
+                None => {
+                    object.remove("ssl");
+                }
+            }
+            let replacement_raw = serde_json::to_string(&current_config)?;
+            if compare_and_set_config_fence_snapshot(
+                &mut conn,
+                &snapshot,
+                &replacement_raw,
+                snapshot.generation,
+            )
+            .await?
+            {
+                inject_config_generation_marker(&mut current_config, snapshot.generation)?;
+                return Ok(Some(current_config));
+            }
+        }
+        Err(crate::storage::storage_error(
+            "config changed too frequently while replacing SSL configuration",
+        ))
+    }
+
     pub async fn save_config(&self, value: &Value) -> crate::storage::StorageResult<()> {
         let mut requested_config = value.clone();
         let requested_generation = take_config_generation_marker(&mut requested_config)?;

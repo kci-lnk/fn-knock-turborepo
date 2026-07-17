@@ -2226,9 +2226,9 @@ export const zhHantAdmin = {
     deleteAuthDescription:
       "將刪除 {host} 對應的鑒權映射。刪除後需要重新添加鑒權服務。",
     deleteAuthAction: "刪除鑒權服務",
-    authServicePort: "鑒權服務所使用的端口",
+    authServicePort: "鑒權服務公開 HTTPS 端口",
     authServicePortHint:
-      "路由器 10012 -> 7999 時填寫 10012；未修改時使用目前入口端口。",
+      "僅用於產生瀏覽器存取鑒權服務的公開 HTTPS 位址，不會修改本機監聽端口或路由器映射。路由器將公開 10012 轉發到本機 7999 時填寫 10012；未設定時使用目前入口端口。",
     edgeClientIpTitle: "邊緣網路真實 IP 識別",
     edgeClientIpDescription:
       "僅對子域模式生效。開啟後，公開鑒權地址不再自動補訪問端口。",

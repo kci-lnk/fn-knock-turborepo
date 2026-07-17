@@ -91,6 +91,12 @@ pub(super) async fn save_ssl_certificate(
     next_ssl["certificates"] = Value::Array(certificates);
     if activate {
         let id = next.get("id").and_then(Value::as_str).unwrap_or("");
+        // Keep the legacy mirror aligned before normalization runs inside
+        // `mirror_active_ssl_certificate`. Otherwise replacing an active
+        // certificate in place makes the stale PEM pair look like an
+        // unrelated legacy certificate and inserts a duplicate library item.
+        next_ssl["cert"] = next.get("cert").cloned().unwrap_or_else(|| json!(""));
+        next_ssl["key"] = next.get("key").cloned().unwrap_or_else(|| json!(""));
         next_ssl = mirror_active_ssl_certificate(&next_ssl, Some(id));
     }
     config["ssl"] = next_ssl;
@@ -147,23 +153,6 @@ pub(crate) async fn save_acme_certificate_to_library(
         activate,
     )
     .await
-}
-
-pub(crate) async fn get_acme_ssl_certificate_by_source_ref(
-    state: &AppState,
-    source_ref_id: &str,
-) -> anyhow::Result<Option<Value>> {
-    find_acme_ssl_certificate(state, Some(source_ref_id), None).await
-}
-
-pub(crate) async fn active_ssl_certificate_id(state: &AppState) -> anyhow::Result<Option<String>> {
-    let config = state.store.get_config().await?;
-    Ok(normalize_ssl_config(config.get("ssl"))
-        .get("active_cert_id")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(str::to_string))
 }
 
 pub(crate) async fn auto_select_certificate_for_subdomain(

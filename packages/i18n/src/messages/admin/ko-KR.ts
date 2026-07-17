@@ -2355,9 +2355,9 @@ export const koKRAdmin = {
     deleteAuthDescription:
       "{host}에 대한 인증 매핑이 삭제됩니다. 인증 서비스를 다시 추가해야 합니다.",
     deleteAuthAction: "인증 서비스 삭제",
-    authServicePort: "인증 서비스에서 사용되는 포트",
+    authServicePort: "인증 서비스 공개 HTTPS 포트",
     authServicePortHint:
-      "라우터가 10012 -> 7999를 매핑하는 경우 10012를 사용합니다. 변경되지 않은 경우 현재 진입 포트를 사용합니다.",
+      "브라우저용 공개 HTTPS URL을 생성하는 데만 사용되며 로컬 수신 포트나 라우터 포트 매핑은 변경하지 않습니다. 라우터가 공용 포트 10012를 로컬 포트 7999로 전달하는 경우 10012를 입력하세요. 명시적으로 설정하지 않으면 현재 진입 포트를 사용합니다.",
     edgeClientIpTitle: "Edge 실제 IP 감지",
     edgeClientIpDescription:
       "하위 도메인 모드에만 적용됩니다. 활성화되면 공개 인증 주소가 더 이상 액세스 포트를 자동으로 추가하지 않습니다.",

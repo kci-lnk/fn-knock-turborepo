@@ -30,13 +30,10 @@ pub(super) async fn stop_active_acme_job(
         job = updated;
     }
     let process_result = stop_all_acme_processes(t).await;
-    if let Some(lock_id) = lock.get("lockId").and_then(Value::as_str) {
-        state
-            .store
-            .delete_lock_if_owned(ACME_RUNTIME_LOCK_KEY, lock_id)
-            .await
-            .ok();
-    }
+    // The executor owns the runtime lock and releases it only after it has
+    // observed the stopped state and crossed no further commit boundary.
+    // Releasing it here would allow a second job to overlap the still-running
+    // executor.
     Ok(json!({
         "stopped": !job.is_null(),
         "job": job,

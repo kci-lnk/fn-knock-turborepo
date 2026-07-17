@@ -107,8 +107,6 @@ struct SaveAcmeApplicationInput {
 
 struct AcmeApplicationSaveOutcome {
     application: Value,
-    removed_library_certificate_count: usize,
-    removed_active_library_certificate: bool,
 }
 
 fn acme_route_text(t: &Translator, key: &str) -> String {

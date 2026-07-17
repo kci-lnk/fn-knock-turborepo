@@ -2217,9 +2217,9 @@ export const zhCNAdmin = {
     deleteAuthDescription:
       "将删除 {host} 对应的鉴权映射。删除后需要重新添加鉴权服务。",
     deleteAuthAction: "删除鉴权服务",
-    authServicePort: "鉴权服务所使用的端口",
+    authServicePort: "鉴权服务公网 HTTPS 端口",
     authServicePortHint:
-      "路由器 10012 -> 7999 时填写 10012；未修改时使用当前入口端口。",
+      "仅用于生成浏览器访问鉴权服务的公网 HTTPS 地址，不会修改本机监听端口或路由器映射。路由器将公网 10012 转发到本机 7999 时填写 10012；未设置时使用当前入口端口。",
     edgeClientIpTitle: "边缘网络真实 IP 识别",
     edgeClientIpDescription:
       "仅对子域模式生效。开启后，公开鉴权地址不再自动补访问端口。",

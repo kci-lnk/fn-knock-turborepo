@@ -1,22 +1,19 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { useRoute, useRouter } from "vue-router";
+import { useRouter } from "vue-router";
 import {
   Ban,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
-  Eye,
   Settings,
   ShieldAlert,
   Trash2,
   Unlock,
 } from "lucide-vue-next";
 import { Alert } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import RefreshButton from "@/components/RefreshButton.vue";
 import SearchInput from "@admin-shared/components/SearchInput.vue";
 import {
@@ -26,217 +23,53 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { toast } from "@admin-shared/utils/toast";
-import { WAFAPI } from "../lib/api";
 import type { WAFEvent } from "../types";
-import { useConfigStore } from "../store/config";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import DetailDialog from "@admin-shared/components/common/DetailDialog.vue";
 import DetailFieldsGrid from "@admin-shared/components/common/DetailFieldsGrid.vue";
 import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
-import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
-import {
-  extractErrorMessage,
-  useAsyncAction,
-} from "@admin-shared/composables/useAsyncAction";
-import {
-  normalizeIpKey,
-  useIpLocationBatch,
-} from "../composables/useIpLocationBatch";
-import { useCursorPagination } from "../composables/useCursorPagination";
+import { normalizeIpKey } from "../composables/useIpLocationBatch";
 import { useWafLogIpSelection } from "./waf-logs/useWafLogIpSelection";
 import { useWafLogDisplay } from "./waf-logs/useWafLogDisplay";
+import {
+  getWafEventSourceIp,
+  useWafLogsResource,
+} from "./waf-logs/useWafLogsResource";
+import WAFLogsTable from "./waf-logs/WAFLogsTable.vue";
 
 const LIMIT_OPTIONS = ["20", "50", "100", "200"] as const;
-const AUTO_REFRESH_MS = 5_000;
-const getTodayString = () => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
 
-const route = useRoute();
 const router = useRouter();
-const configStore = useConfigStore();
 const { t, locale } = useI18n();
 
-const entries = ref<WAFEvent[]>([]);
-const availableDates = ref<string[]>([getTodayString()]);
-const selectedDate = ref(getTodayString());
-const limit = ref("50");
-const searchQuery = ref("");
-const traceFilter = ref(String(route.query.trace_id || ""));
-const loading = ref(false);
 const isDetailsOpen = ref(false);
 const activeEvent = ref<WAFEvent | null>(null);
-const selectedWafEntryKeys = ref<Set<string>>(new Set());
 const {
+  availableDates,
   canLoadNewer,
   canLoadOlder,
   currentCursor,
-  cursorHistory,
-  loadFirst: loadCursorFirst,
-  loadNewer: loadCursorNewer,
-  loadOlder: loadCursorOlder,
-  nextCursor,
-  reset: resetCursorPagination,
-} = useCursorPagination({ loading });
-let autoRefreshTimer: number | null = null;
-
-const { trackIps, getSnapshot } = useIpLocationBatch();
-const isWAFEnabled = computed(() => configStore.config?.waf?.enabled ?? false);
-const cursorPageLabel = computed(() =>
-  t("admin.wafLogs.cursorPage", { page: cursorHistory.value.length + 1 }),
-);
-const shouldFloatPagination = computed(
-  () => entries.value.length > 0 || canLoadNewer.value || canLoadOlder.value,
-);
-
-const { isPending: isDeleting, run: runDelete } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.wafLogs.deleteFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.wafLogs.deleteFailedDescription"),
-      ),
-    });
-  },
-});
-const applyDates = (dates: string[], preferred?: string) => {
-  const fallbackToday = getTodayString();
-  const nextDates = dates.length > 0 ? dates : [fallbackToday];
-  availableDates.value = nextDates;
-
-  if (preferred && nextDates.includes(preferred)) {
-    selectedDate.value = preferred;
-    return;
-  }
-  if (nextDates.includes(selectedDate.value)) return;
-  selectedDate.value = nextDates.includes(fallbackToday)
-    ? fallbackToday
-    : nextDates[0] || fallbackToday;
-};
-
-const drainEventsSilently = async (silent = true) => {
-  try {
-    await WAFAPI.drainEvents();
-  } catch (error) {
-    if (!silent) {
-      toast.error(t("admin.wafLogs.drainFailed"), {
-        description: extractErrorMessage(
-          error,
-          t("admin.wafLogs.drainFailedDescription"),
-        ),
-      });
-    }
-  }
-};
-
-const fetchEntries = async (
-  options: { silent?: boolean; drain?: boolean } = {},
-) => {
-  if (loading.value) return;
-  loading.value = true;
-  try {
-    if (options.drain) {
-      await drainEventsSilently(options.silent !== false);
-    }
-    const data = await WAFAPI.getLogs({
-      date: selectedDate.value,
-      trace_id: traceFilter.value.trim() || undefined,
-      search: searchQuery.value.trim() || undefined,
-      cursor: currentCursor.value || undefined,
-      limit: limit.value,
-    });
-    entries.value = data.items || [];
-    trackIps(entries.value.map((entry) => getEntrySourceIp(entry)));
-    nextCursor.value = data.next_cursor || "";
-    applyDates(data.available_dates || [], data.date || selectedDate.value);
-  } catch (error) {
-    trackIps([]);
-    if (!options.silent) {
-      entries.value = [];
-      nextCursor.value = "";
-      toast.error(t("admin.wafLogs.loadFailed"), {
-        description: extractErrorMessage(
-          error,
-          t("admin.wafLogs.loadFailedDescription"),
-        ),
-      });
-    }
-  } finally {
-    loading.value = false;
-  }
-};
-
-const refreshAll = async () => {
-  resetCursorPagination();
-  await fetchEntries({ drain: true, silent: false });
-};
-
-const handleSearch = async () => {
-  resetCursorPagination();
-  await fetchEntries();
-};
-
-const handleDateChange = async (value: unknown) => {
-  if (!value) return;
-  selectedDate.value = String(value);
-  resetCursorPagination();
-  await fetchEntries();
-};
-
-const handleLimitChange = async (value: unknown) => {
-  if (!value) return;
-  limit.value = String(value);
-  resetCursorPagination();
-  await fetchEntries();
-};
-
-const handleLoadOlder = async () => {
-  if (!loadCursorOlder()) return;
-  await fetchEntries();
-};
-
-const handleLoadNewer = async () => {
-  if (!loadCursorNewer()) return;
-  await fetchEntries();
-};
-
-const handleLoadFirst = async () => {
-  if (!loadCursorFirst()) return;
-  await fetchEntries();
-};
-
-const deleteSelectedDate = async () => {
-  await runDelete(() => WAFAPI.deleteLogs(selectedDate.value), {
-    onSuccess: async (data) => {
-      toast.success(
-        data.deleted
-          ? t("admin.wafLogs.deletedForDate", { date: selectedDate.value })
-          : t("admin.wafLogs.noDeletedForDate", {
-              date: selectedDate.value,
-            }),
-      );
-      searchQuery.value = "";
-      traceFilter.value = "";
-      resetCursorPagination();
-      applyDates(data.available_dates, getTodayString());
-      await fetchEntries();
-    },
-  });
-};
-
+  cursorPageLabel,
+  deleteSelectedDate,
+  entries,
+  getSnapshot,
+  handleDateChange,
+  handleLimitChange,
+  handleLoadFirst,
+  handleLoadNewer,
+  handleLoadOlder,
+  handleSearch,
+  isDeleting,
+  isWAFEnabled,
+  limit,
+  loading,
+  refreshAll,
+  searchQuery,
+  selectedDate,
+  selectedWafEntryKeys,
+  shouldFloatPagination,
+  traceFilter,
+} = useWafLogsResource();
 const viewDetails = (event: WAFEvent) => {
   activeEvent.value = event;
   isDetailsOpen.value = true;
@@ -246,11 +79,8 @@ const goToSettings = () => {
   router.push({ path: "/system", query: { tab: "waf" } });
 };
 
-const getEntrySourceIp = (event: WAFEvent) =>
-  event.client_ip || event.remote_addr || "";
-
 const getEntryActionIp = (event: WAFEvent) => {
-  const sourceIp = getEntrySourceIp(event);
+  const sourceIp = getWafEventSourceIp(event);
   return normalizeIpKey(sourceIp) || sourceIp.trim();
 };
 
@@ -266,12 +96,12 @@ const getEntrySelectionKey = (event: WAFEvent, index: number) =>
   ].join("|");
 
 const getEntryDisplayIp = (event: WAFEvent) => {
-  const sourceIp = getEntrySourceIp(event);
+  const sourceIp = getWafEventSourceIp(event);
   return normalizeIpKey(sourceIp) || sourceIp || "-";
 };
 
 const getEntryIpSnapshot = (event: WAFEvent) =>
-  getSnapshot(getEntrySourceIp(event));
+  getSnapshot(getWafEventSourceIp(event));
 
 const getEntryIpLocation = (event: WAFEvent) =>
   getEntryIpSnapshot(event)?.location || "";
@@ -343,44 +173,6 @@ const {
   activeEventWithIpLocation,
   locale,
   translate: (key, params) => (params ? t(key, params) : t(key)),
-});
-watch(
-  () => route.query.trace_id,
-  (value) => {
-    const next = String(value || "");
-    if (traceFilter.value === next) return;
-    traceFilter.value = next;
-    resetCursorPagination();
-    void fetchEntries({ drain: true });
-  },
-);
-
-const startAutoRefresh = () => {
-  stopAutoRefresh();
-  autoRefreshTimer = window.setInterval(() => {
-    if (currentCursor.value || cursorHistory.value.length > 0) return;
-    if (searchQuery.value.trim() || traceFilter.value.trim()) return;
-    void fetchEntries({ silent: true });
-  }, AUTO_REFRESH_MS);
-};
-
-const stopAutoRefresh = () => {
-  if (autoRefreshTimer !== null) {
-    window.clearInterval(autoRefreshTimer);
-    autoRefreshTimer = null;
-  }
-};
-
-onMounted(async () => {
-  if (!configStore.config) {
-    await configStore.loadConfig();
-  }
-  await fetchEntries({ drain: true });
-  startAutoRefresh();
-});
-
-onBeforeUnmount(() => {
-  stopAutoRefresh();
 });
 </script>
 
@@ -563,226 +355,28 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="min-h-0 flex-1 overflow-auto">
-        <Table class="min-w-[880px]">
-          <TableHeader class="sticky top-0 z-10 bg-background/95 backdrop-blur">
-            <TableRow>
-              <TableHead
-                class="h-10 w-[48px] min-w-[48px] text-[11px] font-medium text-muted-foreground"
-              >
-                <Checkbox
-                  v-model="isAllDisplayedRowsSelected"
-                  :disabled="!hasSelectableDisplayedRows"
-                />
-              </TableHead>
-              <TableHead
-                class="h-10 w-[320px] min-w-[320px] max-w-[320px] text-[11px] font-medium text-muted-foreground"
-                >{{ t("admin.wafLogs.requestColumn") }}</TableHead
-              >
-              <TableHead
-                class="h-10 text-[11px] font-medium text-muted-foreground"
-                >{{ t("admin.wafLogs.sourceColumn") }}</TableHead
-              >
-              <TableHead
-                class="h-10 min-w-[220px] text-[11px] font-medium text-muted-foreground"
-                >{{ t("admin.wafLogs.rulesColumn") }}</TableHead
-              >
-              <TableHead
-                class="sticky right-0 z-20 h-10 bg-background/95 pr-4 text-right text-[11px] font-medium text-muted-foreground"
-                >{{ t("admin.wafLogs.actionColumn") }}</TableHead
-              >
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TableRow v-if="loading && entries.length === 0">
-              <TableCell
-                colspan="5"
-                class="py-10 text-center text-muted-foreground"
-              >
-                {{ t("admin.wafLogs.loading") }}
-              </TableCell>
-            </TableRow>
-            <TableRow v-else-if="entries.length === 0">
-              <TableCell
-                colspan="5"
-                class="py-10 text-center text-muted-foreground"
-              >
-                {{ t("admin.wafLogs.empty") }}
-              </TableCell>
-            </TableRow>
-            <TableRow
-              v-else
-              v-for="entry in displayedEntries"
-              :key="entry.selectionKey"
-              class="group align-top"
-            >
-              <TableCell class="py-2.5">
-                <Checkbox
-                  :model-value="selectedWafEntryKeys.has(entry.selectionKey)"
-                  :disabled="!entry.actionIp"
-                  @update:model-value="
-                    toggleWafEntrySelection(entry.selectionKey)
-                  "
-                />
-              </TableCell>
-              <TableCell
-                class="w-[320px] min-w-[320px] max-w-[320px] whitespace-normal py-2.5"
-              >
-                <div class="space-y-1.5">
-                  <div class="flex items-start gap-2">
-                    <div
-                      class="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium leading-5 text-muted-foreground"
-                    >
-                      <HumanFriendlyTime :value="entry.time" :locale="locale" />
-                    </div>
-                    <Badge
-                      :variant="actionVariant(entry.action)"
-                      class="shrink-0"
-                    >
-                      {{ actionLabel(entry.action) }}
-                    </Badge>
-                    <div class="min-w-0 flex-1">
-                      <div
-                        class="flex items-center gap-2 text-sm text-foreground"
-                      >
-                        <span
-                          class="font-mono text-[11px] tracking-[0.12em] text-muted-foreground"
-                        >
-                          {{ entry.method || "-" }}
-                        </span>
-                        <span class="min-w-0 flex-1 truncate">{{
-                          entry.host || "-"
-                        }}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div
-                    class="whitespace-normal break-all font-mono text-[11px] leading-5 text-muted-foreground"
-                  >
-                    {{ entry.request_uri || entry.path || "-" }}
-                  </div>
-                  <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span class="text-[11px] text-muted-foreground">
-                      {{ routeTypeLabel(entry.route_type) }}
-                    </span>
-                    <span class="text-[11px] text-muted-foreground">
-                      {{ modeLabel(entry.mode) }}
-                    </span>
-                    <span
-                      v-if="entry.status"
-                      class="font-mono text-[11px] text-muted-foreground"
-                    >
-                      HTTP {{ entry.status }}
-                    </span>
-                    <span
-                      v-if="entry.route_key"
-                      class="break-all text-[11px] text-muted-foreground/75"
-                    >
-                      {{ entry.route_key }}
-                    </span>
-                  </div>
-                </div>
-              </TableCell>
-              <TableCell class="min-w-[150px] py-2.5">
-                <div class="font-mono text-sm text-foreground">
-                  {{ getEntryDisplayIp(entry) }}
-                </div>
-                <div
-                  v-if="getEntryIpLocationText(entry)"
-                  class="text-[11px] text-muted-foreground"
-                >
-                  {{ getEntryIpLocationText(entry) }}
-                </div>
-              </TableCell>
-              <TableCell class="py-2.5">
-                <div class="font-mono text-xs text-foreground">
-                  {{ formatPrimaryRuleId(entry) }}
-                </div>
-                <div
-                  v-if="formatRuleSummary(entry)"
-                  class="mt-1 line-clamp-2 text-[11px] leading-5 text-muted-foreground"
-                >
-                  {{ formatRuleSummary(entry) }}
-                </div>
-                <div
-                  v-if="formatRuleLocationSummary(entry)"
-                  class="mt-1 line-clamp-1 break-all font-mono text-[10px] leading-4 text-muted-foreground/75"
-                >
-                  {{ formatRuleLocationSummary(entry) }}
-                </div>
-              </TableCell>
-              <TableCell
-                class="sticky right-0 z-10 bg-background py-2.5 pr-4 text-right"
-              >
-                <div class="flex justify-end gap-1">
-                  <div
-                    class="pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
-                  >
-                    <ConfirmDangerPopover
-                      :title="
-                        isGeneralBlacklisted(entry.actionIp)
-                          ? t('admin.wafLogs.unblacklistOneTitle')
-                          : t('admin.wafLogs.blacklistOneTitle')
-                      "
-                      :description="
-                        isGeneralBlacklisted(entry.actionIp)
-                          ? t('admin.wafLogs.unblacklistOneDescription', {
-                              ip: entry.actionIp || '-',
-                            })
-                          : t('admin.wafLogs.blacklistOneDescription', {
-                              ip: entry.actionIp || '-',
-                            })
-                      "
-                      :loading="isMutatingBlacklistIps"
-                      :disabled="!entry.actionIp || isMutatingBlacklistIps"
-                      :on-confirm="
-                        () =>
-                          isGeneralBlacklisted(entry.actionIp)
-                            ? releaseIpsFromWafLogs([entry.actionIp])
-                            : blockIpsFromWafLogs([entry.actionIp])
-                      "
-                    >
-                      <template #trigger>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          class="h-8 w-8"
-                          :class="
-                            isGeneralBlacklisted(entry.actionIp)
-                              ? 'text-foreground hover:text-foreground'
-                              : 'text-destructive hover:text-destructive'
-                          "
-                          :disabled="!entry.actionIp || isMutatingBlacklistIps"
-                          :aria-label="
-                            isGeneralBlacklisted(entry.actionIp)
-                              ? t('admin.wafLogs.unblacklistOne')
-                              : t('admin.wafLogs.blacklistOne')
-                          "
-                        >
-                          <Unlock
-                            v-if="isGeneralBlacklisted(entry.actionIp)"
-                            class="h-4 w-4"
-                          />
-                          <Ban v-else class="h-4 w-4" />
-                        </Button>
-                      </template>
-                    </ConfirmDangerPopover>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    class="h-8 w-8 text-muted-foreground hover:text-foreground"
-                    :aria-label="t('common.viewDetails')"
-                    @click="viewDetails(entry)"
-                  >
-                    <Eye class="h-4 w-4" />
-                  </Button>
-                </div>
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
-      </div>
+      <WAFLogsTable
+        v-model:is-all-displayed-rows-selected="isAllDisplayedRowsSelected"
+        :action-label="actionLabel"
+        :action-variant="actionVariant"
+        :block-ips-from-waf-logs="blockIpsFromWafLogs"
+        :entries="displayedEntries"
+        :format-primary-rule-id="formatPrimaryRuleId"
+        :format-rule-location-summary="formatRuleLocationSummary"
+        :format-rule-summary="formatRuleSummary"
+        :get-entry-display-ip="getEntryDisplayIp"
+        :get-entry-ip-location-text="getEntryIpLocationText"
+        :has-selectable-displayed-rows="hasSelectableDisplayedRows"
+        :is-general-blacklisted="isGeneralBlacklisted"
+        :is-mutating-blacklist-ips="isMutatingBlacklistIps"
+        :loading="loading"
+        :mode-label="modeLabel"
+        :release-ips-from-waf-logs="releaseIpsFromWafLogs"
+        :route-type-label="routeTypeLabel"
+        :selected-waf-entry-keys="selectedWafEntryKeys"
+        :toggle-waf-entry-selection="toggleWafEntrySelection"
+        :view-details="viewDetails"
+      />
 
       <FloatingActionDock
         :active="shouldFloatPagination"

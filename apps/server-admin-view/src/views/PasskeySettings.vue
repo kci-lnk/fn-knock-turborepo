@@ -49,9 +49,7 @@
               </TableCell>
               <TableCell>{{ passkey.deviceName }}</TableCell>
               <TableCell
-                ><HumanFriendlyTime
-                  :value="passkey.createdAt"
-                  :locale="locale"
+                ><HumanFriendlyTime :value="passkey.createdAt" :locale="locale"
               /></TableCell>
               <TableCell class="text-right">
                 <ConfirmDangerPopover
@@ -157,16 +155,18 @@
               <TableCell class="text-right">
                 <ConfirmDangerPopover
                   :title="t('admin.passkeySettings.deleteOidcTitle')"
-                  :description="t('admin.passkeySettings.deleteOidcDescription')"
-                  :loading="isDeleting"
-                  :disabled="isDeleting"
-                  :on-confirm="() => handleDeleteOidcBinding(binding.id)"
+                  :description="
+                    t('admin.passkeySettings.deleteOidcDescription')
+                  "
+                  :loading="isDeletingBinding"
+                  :disabled="isDeletingBinding"
+                  :on-confirm="() => deleteOidcBinding(binding.id)"
                 >
                   <template #trigger>
                     <Button
                       variant="destructive"
                       size="sm"
-                      :disabled="isDeleting"
+                      :disabled="isDeletingBinding"
                     >
                       {{ t("admin.passkeySettings.delete") }}
                     </Button>
@@ -185,106 +185,22 @@
       </CardContent>
     </Card>
 
-    <Dialog :open="showInviteDialog" @update:open="handleInviteDialogOpenChange">
-      <DialogContent class="max-h-[88vh] overflow-y-auto sm:max-w-[560px]">
-        <DialogHeader>
-          <DialogTitle>{{ t("admin.passkeySettings.inviteTitle") }}</DialogTitle>
-          <DialogDescription>
-            {{ t("admin.passkeySettings.inviteDescription") }}
-          </DialogDescription>
-        </DialogHeader>
-        <div class="overflow-hidden rounded-lg border divide-y divide-border">
-          <div class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5">
-            <Label for="oidc-invite-provider">{{
-              t("admin.passkeySettings.provider")
-            }}</Label>
-            <Select
-              :model-value="inviteProviderId"
-              @update:model-value="handleInviteProviderChange"
-            >
-              <SelectTrigger id="oidc-invite-provider" class="w-full">
-                <SelectValue
-                  :placeholder="t('admin.passkeySettings.providerPlaceholder')"
-                />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem
-                  v-for="provider in providers"
-                  :key="provider.id"
-                  :value="provider.id"
-                >
-                  {{ provider.name }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-            <p class="text-[11px] text-muted-foreground">
-              {{ t("admin.passkeySettings.inviteExpiresIn") }}
-            </p>
-          </div>
-          <div
-            v-if="inviteUrl"
-            class="space-y-3 p-4 transition-colors hover:bg-muted/10 sm:p-5"
-          >
-            <Label>{{ t("admin.passkeySettings.inviteLink") }}</Label>
-            <div
-              class="flex items-start gap-2 rounded-md border bg-muted/30 px-2.5 py-2"
-            >
-              <p
-                class="min-w-0 flex-1 whitespace-normal break-all font-mono text-xs leading-5 text-muted-foreground"
-              >
-                {{ inviteUrl }}
-              </p>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                class="size-7 shrink-0"
-                :title="t('admin.passkeySettings.copyInviteLink')"
-                :aria-label="t('admin.passkeySettings.copyInviteLink')"
-                @click="copyInviteUrl"
-              >
-                <Copy class="h-4 w-4" />
-              </Button>
-            </div>
-            <p class="text-xs text-muted-foreground">
-              {{
-                t("admin.passkeySettings.expiresAt", {
-                  time: inviteExpiresAt || "-",
-                })
-              }}
-            </p>
-          </div>
-        </div>
-        <DialogFooter class="gap-2">
-          <Button variant="outline" @click="showInviteDialog = false">
-            {{ t("admin.passkeySettings.close") }}
-          </Button>
-          <Button
-            v-if="inviteUrl"
-            variant="outline"
-            @click="copyInviteUrl"
-          >
-            <Copy class="h-4 w-4" />
-            {{ t("admin.passkeySettings.copyLink") }}
-          </Button>
-          <Button
-            :disabled="isInviteCreating || !inviteProviderId"
-            @click="createInvite"
-          >
-            <LoaderCircle
-              v-if="isInviteCreating"
-              class="h-4 w-4 animate-spin"
-            />
-            <Link2 v-else class="h-4 w-4" />
-            {{ t("admin.passkeySettings.generate") }}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <OidcInviteDialog
+      v-model:open="showInviteDialog"
+      :expires-at="inviteExpiresAt"
+      :invite-url="inviteUrl"
+      :is-creating="isInviteCreating"
+      :provider-id="inviteProviderId"
+      :providers="providers"
+      @copy="copyInviteUrl"
+      @create="createInvite"
+      @provider-change="handleInviteProviderChange"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import {
@@ -311,24 +227,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Copy, Link2, LoaderCircle } from "lucide-vue-next";
+import { Link2 } from "lucide-vue-next";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
 import RefreshButton from "@/components/RefreshButton.vue";
@@ -336,32 +236,42 @@ import {
   extractErrorMessage,
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
-import { copyTextToClipboard } from "@admin-shared/utils/copyTextToClipboard";
 import { toast } from "@admin-shared/utils/toast";
 import { ConfigAPI } from "../lib/api";
-import type {
-  OIDCBinding,
-  OIDCProviderView,
-  PasskeyCredential,
-} from "../types";
+import type { PasskeyCredential } from "../types";
+import OidcInviteDialog from "./passkey-settings/OidcInviteDialog.vue";
+import { useOidcBindingWorkflow } from "./passkey-settings/useOidcBindingWorkflow";
 
 const route = useRoute();
 const { t, locale } = useI18n();
 const totpId = route.params.totpId as string;
-const OIDC_BINDINGS_AUTO_REFRESH_INTERVAL_MS = 5000;
 
 const passkeys = ref<PasskeyCredential[]>([]);
-const oidcBindings = ref<OIDCBinding[]>([]);
-const providers = ref<OIDCProviderView[]>([]);
 const errorMessage = ref("");
 const totpName = ref("");
-const showInviteDialog = ref(false);
-const inviteProviderId = ref("");
-const inviteUrl = ref("");
-const inviteExpiresAt = ref("");
-const isOidcBindingsRefreshing = ref(false);
-let oidcBindingsAutoRefreshTimer: ReturnType<typeof window.setInterval> | null =
-  null;
+const {
+  copyInviteUrl,
+  createInvite,
+  deleteOidcBinding,
+  handleInviteProviderChange,
+  handleRefreshOidcBindings,
+  inviteExpiresAt,
+  inviteProviderId,
+  inviteUrl,
+  isDeletingBinding,
+  isInviteCreating,
+  isOidcBindingsRefreshing,
+  loadOidcData,
+  oidcBindings,
+  openInviteDialog,
+  providers,
+  showInviteDialog,
+} = useOidcBindingWorkflow({
+  totpId,
+  setError: (message) => {
+    errorMessage.value = message;
+  },
+});
 
 const pageTitle = computed(() =>
   totpName.value
@@ -389,39 +299,18 @@ const { isPending: isDeleting, run: runDelete } = useAsyncAction({
     });
   },
 });
-const { isPending: isInviteCreating, run: runCreateInvite } = useAsyncAction({
-  onError: (error) => {
-    toast.error(
-      extractErrorMessage(error, t("admin.passkeySettings.createInviteFailed")),
-    );
-  },
-});
-
 onMounted(fetchCredentials);
-onBeforeUnmount(stopOidcBindingsAutoRefresh);
-
-watch(showInviteDialog, (isOpen) => {
-  if (isOpen) {
-    startOidcBindingsAutoRefresh();
-    return;
-  }
-  stopOidcBindingsAutoRefresh();
-});
 
 async function fetchCredentials() {
   errorMessage.value = "";
   await runLoad(async () => {
     totpName.value = "";
-    const [passkeysRes, statusRes, bindingsRes, providersRes] =
-      await Promise.all([
-        ConfigAPI.getPasskeys(totpId),
-        ConfigAPI.getTOTPStatus().catch(() => null),
-        ConfigAPI.getOIDCBindings(totpId),
-        ConfigAPI.getOIDCProviders(),
-      ]);
+    const [passkeysRes, statusRes] = await Promise.all([
+      ConfigAPI.getPasskeys(totpId),
+      ConfigAPI.getTOTPStatus().catch(() => null),
+      loadOidcData(),
+    ]);
     passkeys.value = passkeysRes;
-    oidcBindings.value = bindingsRes;
-    providers.value = providersRes.filter((provider) => provider.enabled);
     if (statusRes?.credentials) {
       const parentTotp = statusRes.credentials.find(
         (item) => item.id === totpId,
@@ -429,90 +318,6 @@ async function fetchCredentials() {
       if (parentTotp?.comment) totpName.value = parentTotp.comment;
     }
   });
-}
-
-async function refreshOidcBindings(options?: {
-  notifyOnAdded?: boolean;
-  showSuccessToast?: boolean;
-  showErrorToast?: boolean;
-}) {
-  if (isOidcBindingsRefreshing.value) return;
-
-  const previousIds = new Set(oidcBindings.value.map((binding) => binding.id));
-  isOidcBindingsRefreshing.value = true;
-  try {
-    const nextBindings = await ConfigAPI.getOIDCBindings(totpId);
-    const addedBindings = nextBindings.filter(
-      (binding) => !previousIds.has(binding.id),
-    );
-    oidcBindings.value = nextBindings;
-    errorMessage.value = "";
-
-    if (options?.notifyOnAdded && addedBindings.length > 0) {
-      const firstBinding = addedBindings[0];
-      if (!firstBinding) return;
-      toast.success(
-        addedBindings.length > 1
-          ? t("admin.passkeySettings.addedBindingsMany", {
-              count: addedBindings.length,
-            })
-          : t("admin.passkeySettings.addedBindingOne"),
-        {
-          description: formatOidcBindingLabel(firstBinding),
-        },
-      );
-      return;
-    }
-
-    if (options?.showSuccessToast) {
-      toast.success(t("admin.passkeySettings.bindingsRefreshed"));
-    }
-  } catch (error) {
-    const message = extractErrorMessage(
-      error,
-      t("admin.passkeySettings.refreshFailed"),
-    );
-    errorMessage.value = message;
-    if (options?.showErrorToast) {
-      toast.error(t("admin.passkeySettings.refreshErrorTitle"), {
-        description: message,
-      });
-    } else {
-      console.error("refreshOidcBindings:", error);
-    }
-  } finally {
-    isOidcBindingsRefreshing.value = false;
-  }
-}
-
-function formatOidcBindingLabel(binding: OIDCBinding) {
-  return (
-    binding.display_name ||
-    binding.email ||
-    binding.provider_name ||
-    binding.provider_type
-  );
-}
-
-function handleRefreshOidcBindings() {
-  void refreshOidcBindings({
-    notifyOnAdded: showInviteDialog.value,
-    showSuccessToast: !showInviteDialog.value,
-    showErrorToast: true,
-  });
-}
-
-function startOidcBindingsAutoRefresh() {
-  stopOidcBindingsAutoRefresh();
-  oidcBindingsAutoRefreshTimer = window.setInterval(() => {
-    void refreshOidcBindings({ notifyOnAdded: true });
-  }, OIDC_BINDINGS_AUTO_REFRESH_INTERVAL_MS);
-}
-
-function stopOidcBindingsAutoRefresh() {
-  if (oidcBindingsAutoRefreshTimer === null) return;
-  window.clearInterval(oidcBindingsAutoRefreshTimer);
-  oidcBindingsAutoRefreshTimer = null;
 }
 
 function formatId(id: string) {
@@ -528,73 +333,4 @@ async function handleDeletePasskey(passkeyId: string) {
     toast.success(t("admin.passkeySettings.passkeyDeleted"));
   });
 }
-
-async function handleDeleteOidcBinding(bindingId: string) {
-  errorMessage.value = "";
-  await runDelete(async () => {
-    await ConfigAPI.deleteOIDCBinding(bindingId);
-    await fetchCredentials();
-    toast.success(t("admin.passkeySettings.oidcDeleted"));
-  });
-}
-
-function openInviteDialog() {
-  inviteProviderId.value = providers.value[0]?.id || "";
-  inviteUrl.value = "";
-  inviteExpiresAt.value = "";
-  showInviteDialog.value = true;
-}
-
-function handleInviteDialogOpenChange(open: boolean) {
-  showInviteDialog.value = open;
-}
-
-function handleInviteProviderChange(value: unknown) {
-  inviteProviderId.value = String(value ?? "");
-  inviteUrl.value = "";
-  inviteExpiresAt.value = "";
-}
-
-async function createInvite() {
-  if (!inviteProviderId.value) {
-    toast.error(t("admin.passkeySettings.selectProvider"));
-    return;
-  }
-
-  await runCreateInvite(async () => {
-    const result = await ConfigAPI.createOIDCInvite({
-      totp_id: totpId,
-      provider_id: inviteProviderId.value,
-    });
-    inviteUrl.value = result.invite_url;
-    inviteExpiresAt.value = result.expires_at;
-    try {
-      await copyTextToClipboard(result.invite_url);
-      toast.success(t("admin.passkeySettings.inviteCreatedCopied"), {
-        description: result.invite_url,
-      });
-    } catch (error) {
-      console.error("createInvite copy:", error);
-      toast.warning(t("admin.passkeySettings.inviteCreatedCopyFailed"), {
-        description: t("admin.passkeySettings.manualCopyHint"),
-      });
-    }
-  });
-}
-
-async function copyInviteUrl() {
-  if (!inviteUrl.value) return;
-  try {
-    await copyTextToClipboard(inviteUrl.value);
-    toast.success(t("admin.passkeySettings.inviteCopied"), {
-      description: inviteUrl.value,
-    });
-  } catch (error) {
-    console.error("copyInviteUrl:", error);
-    toast.error(t("admin.passkeySettings.copyInviteFailed"), {
-      description: t("admin.passkeySettings.manualCopyHint"),
-    });
-  }
-}
-
 </script>

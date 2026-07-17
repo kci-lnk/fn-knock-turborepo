@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-control-regex -- control characters are intentionally rejected from archive filenames.
 const WINDOWS_UNSAFE_FILENAME_CHARACTERS = /[<>:"/\\|?*\u0000-\u001f]/g;
 
 export const acmeCertificateArchiveStem = (domain: string) => {

@@ -28,8 +28,8 @@ import { extractErrorMessage } from '@admin-shared/composables/useAsyncAction'
 import { DEFAULT_LOG_WINDOW_SIZE, mergePollingLogWindow } from '@admin-shared/utils/log-window'
 import { useConfigStore } from '../../../store/config'
 import LiveStatusBadge from '../../../components/LiveStatusBadge.vue'
-import { extractVisualFieldsFromToml } from '../../../lib/frpc-config-editor'
 import FrpcInstanceEditor from './FrpcInstanceEditor.vue'
+import { summarizeFrpcContent } from './frpcInstanceModel'
 
 type FrpcEditorExpose = {
   getContent: () => string
@@ -65,29 +65,11 @@ const isClearingLogs = ref(false)
 let pollTimer: number | null = null
 
 const summary = computed(() =>
-  instance.value?.summary ?? summarizeContent(content.value),
+  instance.value?.summary ??
+    summarizeFrpcContent(content.value, defaults.value.local_port),
 )
 const shouldOpenLogs = computed(() => route.query.section === 'logs')
 const shouldOpenConfig = computed(() => route.query.section === 'config')
-
-function summarizeContent(raw: string): FrpcInstanceSummary {
-  try {
-    const fields = extractVisualFieldsFromToml(raw, { localPort: defaults.value.local_port })
-    return {
-      serverAddr: fields.serverAddr,
-      serverPort: fields.serverPort,
-      localPort: fields.localPort,
-      remotePort: fields.remotePort,
-    }
-  } catch {
-    return {
-      serverAddr: '',
-      serverPort: '7000',
-      localPort: defaults.value.local_port,
-      remotePort: '',
-    }
-  }
-}
 
 function formatSummary(value: FrpcInstanceSummary) {
   const server = value.serverAddr

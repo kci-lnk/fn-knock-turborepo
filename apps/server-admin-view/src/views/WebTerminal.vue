@@ -12,42 +12,27 @@ import { useRouter } from "vue-router";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LoaderCircle } from "lucide-vue-next";
-import { toast } from "@admin-shared/utils/toast";
 import { TerminalAPI } from "../lib/api";
 import type {
   TerminalAttachmentRecord,
-  TerminalOutputChunk,
   TerminalRuntimeStatus,
   TerminalSessionRecord,
   TerminalTransport,
 } from "../types";
 import { useConfigStore } from "../store/config";
 import {
-  RECENT_SESSION_KEY,
-  ensureGhostty,
   toolbarModifierLabels,
   toolbarNavigationShortcuts,
   toolbarPrimaryShortcuts,
-  type ArmedModifier,
-  type GhosttyModule,
 } from "./web-terminal/terminal-runtime";
-import { focusElementWithoutScroll } from "./web-terminal/terminal-dom";
-import {
-  createLegacyTitleSequenceStripper,
-  decodeBase64ToBytes,
-  encodeCtrlInput,
-} from "./web-terminal/terminal-input";
-import {
-  createTerminalMouseReporter,
-} from "./web-terminal/terminal-mouse";
-import { createTerminalFitController } from "./web-terminal/terminal-fit";
-import { createTerminalTouchGestures } from "./web-terminal/terminal-touch";
 import { useTerminalInputQueue } from "./web-terminal/useTerminalInputQueue";
 import { useTerminalResizeQueue } from "./web-terminal/useTerminalResizeQueue";
 import { useTerminalFontSize } from "./web-terminal/useTerminalFontSize";
 import { useTerminalContextMenu } from "./web-terminal/useTerminalContextMenu";
 import { useTerminalViewportLayout } from "./web-terminal/useTerminalViewportLayout";
 import { useTerminalDialogs } from "./web-terminal/useTerminalDialogs";
+import { useTerminalSessionController } from "./web-terminal/useTerminalSessionController";
+import { useTerminalEmulator } from "./web-terminal/useTerminalEmulator";
 import TerminalConnectionErrorAlert from "./web-terminal/TerminalConnectionErrorAlert.vue";
 import TerminalContextMenu from "./web-terminal/TerminalContextMenu.vue";
 import TerminalGateAlerts from "./web-terminal/TerminalGateAlerts.vue";
@@ -60,7 +45,6 @@ import TerminalWindowChrome from "./web-terminal/TerminalWindowChrome.vue";
 const router = useRouter();
 const configStore = useConfigStore();
 const { t } = useI18n();
-
 const runtimeStatus = ref<TerminalRuntimeStatus | null>(null);
 const sessions = ref<TerminalSessionRecord[]>([]);
 const isBooting = ref(true);
@@ -73,25 +57,8 @@ const connectionState = ref<"idle" | "connecting" | "connected" | "error">(
 const connectionError = ref("");
 const activeTransport = ref<TerminalTransport | null>(null);
 const activeAttachment = ref<TerminalAttachmentRecord | null>(null);
-const terminalMountRef = ref<HTMLElement | null>(null);
-const isPinchZooming = ref(false);
-const armedModifier = ref<ArmedModifier | null>(null);
 
-let term: InstanceType<GhosttyModule["Terminal"]> | null = null;
-let fitAddon: InstanceType<GhosttyModule["FitAddon"]> | null = null;
-let pollGeneration = 0;
-let lastOutputCursor = 0;
-let outputTextDecoder = new TextDecoder();
-const legacyTitleSequenceStripper = createLegacyTitleSequenceStripper();
-let remoteOutputWriteDepth = 0;
-let terminalInternalResponseDropDepth = 0;
-const terminalFitController = createTerminalFitController({
-  getFitAddon: () => fitAddon,
-  getMountElement: () => terminalMountRef.value,
-  getTerminal: () => term,
-  runTerminalMutation: (mutation) =>
-    runTerminalInternalMutation(mutation, { dropResponses: true }),
-});
+let emulator!: ReturnType<typeof useTerminalEmulator>;
 const {
   compactViewport,
   isTerminalFullscreen,
@@ -110,9 +77,9 @@ const {
   terminalPanelStyle,
   toggleTerminalFullscreen,
 } = useTerminalViewportLayout({
-  focusTerminal: () => focusTerminal(),
-  scheduleFit: () => terminalFitController.schedule(),
-  syncTerminalTextInputAnchor: () => syncTerminalTextInputAnchor(),
+  focusTerminal: () => emulator.focusTerminal(),
+  scheduleFit: () => emulator.scheduleFit(),
+  syncTerminalTextInputAnchor: () => emulator.syncTerminalTextInputAnchor(),
 });
 const {
   applyTerminalFontSize,
@@ -123,17 +90,8 @@ const {
   terminalFontSize,
 } = useTerminalFontSize({
   compactViewport,
-  getTerminal: () => term,
-  scheduleFit: () => terminalFitController.schedule(),
-});
-const terminalTouchGestures = createTerminalTouchGestures({
-  applyFontSize: (value, options) => applyTerminalFontSize(value, options),
-  compactViewport,
-  getMountElement: () => terminalMountRef.value,
-  getTerminal: () => term,
-  isPinchZooming,
-  persistFontSize: () => persistTerminalFontSize(),
-  terminalFontSize,
+  getTerminal: () => emulator.getTerminal(),
+  scheduleFit: () => emulator.scheduleFit(),
 });
 const {
   clearPendingInput,
@@ -151,14 +109,6 @@ const {
     TerminalAPI.sendInput(attachmentId, payload),
   translate: (key) => t(key),
 });
-const terminalMouseReporter = createTerminalMouseReporter({
-  focusTerminal: () => focusTerminal(),
-  getFrameElement: () => terminalFrameRef.value,
-  getMountElement: () => terminalMountRef.value,
-  getRowHeight: () => terminalTouchGestures.getRowHeight(),
-  getTerminal: () => term,
-  queueInput: (payload) => queueTerminalInput(payload, { immediate: true }),
-});
 const {
   flushPendingResize,
   markSyncedResize,
@@ -166,13 +116,39 @@ const {
   scheduleResize,
 } = useTerminalResizeQueue({
   activeAttachment,
-  getTerminal: () => term,
+  getTerminal: () => emulator.getTerminal(),
   resizeAttachment: (attachmentId, cols, rows) =>
     TerminalAPI.resizeAttachment(attachmentId, cols, rows),
   restartPollingFromSnapshot: (attachment) =>
     restartHttpPollingFromSnapshot(attachment),
   sessions,
 });
+
+emulator = useTerminalEmulator({
+  applyFontSize: applyTerminalFontSize,
+  canAcceptInput: () => Boolean(activeAttachment.value),
+  compactViewport,
+  persistFontSize: persistTerminalFontSize,
+  queueInput: queueTerminalInput,
+  queueRemoteResponse: queueRemoteTerminalResponse,
+  scheduleResize,
+  terminalFontSize,
+  terminalFrameRef,
+  translate: (key) => t(key),
+});
+const {
+  applyOutputChunk,
+  armedModifier,
+  clearArmedModifier,
+  clearTerminal,
+  ensureTerminalReady,
+  focusTerminal,
+  isPinchZooming,
+  resetOutputState,
+  terminalMountRef,
+  toggleArmedModifier,
+} = emulator;
+void terminalMountRef;
 
 const selectedSession = computed(
   () =>
@@ -189,29 +165,23 @@ const terminalWindowSubtitle = computed(() => {
     session?.cwd.replace(/\/+$/, "").split("/").filter(Boolean) || [];
   const shell = shellSegments[shellSegments.length - 1] || "shell";
   const cwd = cwdSegments[cwdSegments.length - 1];
-
   return `${shell} · ${cwd || "~"}`;
 });
 const destroySessionDescription = computed(() => {
   const title = selectedSession.value?.title?.trim();
-  if (!title) {
-    return t("admin.webTerminal.destroyDescription");
-  }
-
-  return t("admin.webTerminal.destroyDescriptionWithTitle", { title });
+  return title
+    ? t("admin.webTerminal.destroyDescriptionWithTitle", { title })
+    : t("admin.webTerminal.destroyDescription");
 });
-
 const terminalEnabled = computed(
   () => configStore.config?.terminal_feature?.enabled === true,
 );
-
 const showMobileToolbar = computed(() => {
   if (configStore.config?.terminal_feature?.allow_mobile_toolbar === false) {
     return false;
   }
   return compactViewport.value;
 });
-
 const toolbarDisabled = computed(() => !activeAttachment.value);
 const armedModifierLabel = computed(() =>
   armedModifier.value ? toolbarModifierLabels[armedModifier.value] : "",
@@ -221,7 +191,6 @@ const terminalFullscreenLabel = computed(() =>
     ? t("admin.webTerminal.exitFullscreen")
     : t("admin.webTerminal.enterFullscreen"),
 );
-
 const statusTone = computed(() => {
   if (connectionState.value === "connected") {
     return t("admin.webTerminal.statusConnected");
@@ -234,126 +203,7 @@ const statusTone = computed(() => {
   }
   return t("admin.webTerminal.statusDisconnected");
 });
-
-const bindTerminalMouseReporting = () => {
-  terminalMouseReporter.bind();
-};
-
-const unbindTerminalMouseReporting = () => {
-  terminalMouseReporter.unbind();
-};
-
-const scheduleTerminalFit = () => {
-  terminalFitController.schedule();
-};
-
-const observeTerminalMountSize = () => {
-  terminalFitController.observeMountSize();
-};
-
-const bindTerminalTouchGestures = () => {
-  terminalTouchGestures.bind();
-};
-
-const unbindTerminalTouchGestures = () => {
-  terminalTouchGestures.unbind();
-};
-
-const rememberRecentSession = (sessionId: string) => {
-  localStorage.setItem(RECENT_SESSION_KEY, sessionId);
-};
-
-const resetOutputState = () => {
-  lastOutputCursor = 0;
-  outputTextDecoder = new TextDecoder();
-  legacyTitleSequenceStripper.reset();
-};
-
-const writeRemoteTerminalOutput = (payload: string) => {
-  if (!term) return;
-
-  remoteOutputWriteDepth += 1;
-  try {
-    term.write(payload);
-  } finally {
-    remoteOutputWriteDepth -= 1;
-  }
-};
-
-const runTerminalInternalMutation = (
-  action: () => void,
-  options?: { dropResponses?: boolean },
-) => {
-  remoteOutputWriteDepth += 1;
-  if (options?.dropResponses) {
-    terminalInternalResponseDropDepth += 1;
-  }
-  try {
-    action();
-  } finally {
-    if (options?.dropResponses) {
-      terminalInternalResponseDropDepth -= 1;
-    }
-    remoteOutputWriteDepth -= 1;
-  }
-};
-
-const clearTerminal = () => {
-  resetOutputState();
-  if (!term) return;
-
-  term.clear?.();
-  term.reset();
-  term.write("\u001b[2J\u001b[3J\u001b[H");
-  focusTerminal();
-};
-
-const getTerminalTextInput = (): HTMLTextAreaElement | null => {
-  const input = terminalMountRef.value?.querySelector("textarea");
-  return input instanceof HTMLTextAreaElement ? input : null;
-};
-
-const syncTerminalTextInputAnchor = () => {
-  const textInput = getTerminalTextInput();
-  if (!textInput) return;
-
-  textInput.style.position = compactViewport.value ? "fixed" : "absolute";
-  textInput.style.left = "0";
-  textInput.style.top = "0";
-  textInput.style.width = "1px";
-  textInput.style.height = "1px";
-  textInput.style.padding = "0";
-  textInput.style.border = "none";
-  textInput.style.margin = "0";
-  textInput.style.opacity = "0";
-  textInput.style.clipPath = "inset(50%)";
-  textInput.style.overflow = "hidden";
-  textInput.style.whiteSpace = "nowrap";
-  textInput.style.resize = "none";
-  textInput.style.pointerEvents = "none";
-  textInput.style.fontSize = "16px";
-};
-
-const focusTerminal = () => {
-  syncTerminalTextInputAnchor();
-
-  if (compactViewport.value) {
-    const textInput = getTerminalTextInput();
-    if (textInput) {
-      focusElementWithoutScroll(textInput);
-      void nextTick(() => {
-        const nextInput = getTerminalTextInput();
-        if (nextInput) {
-          focusElementWithoutScroll(nextInput);
-        }
-      });
-      return;
-    }
-  }
-
-  term?.focus();
-  void nextTick(() => term?.focus());
-};
+let disposed = false;
 
 const {
   focusTerminalAfterDialogClose,
@@ -370,10 +220,10 @@ const {
   submitSendDialog,
 } = useTerminalDialogs({
   activeAttachment,
-  clearArmedModifier: () => clearArmedModifier(),
-  focusTerminal: () => focusTerminal(),
+  clearArmedModifier,
+  focusTerminal,
   selectedSession,
-  sendPayloadNow: (payload) => sendTerminalPayloadNow(payload),
+  sendPayloadNow: sendTerminalPayloadNow,
   sessions,
   translate: (key) => t(key),
   updateSessionTitle: (sessionId, title) =>
@@ -393,457 +243,85 @@ const {
   terminalContextMenuStyle,
 } = useTerminalContextMenu({
   activeAttachment,
-  clearArmedModifier: () => clearArmedModifier(),
-  focusTerminal: () => focusTerminal(),
-  getTerminal: () => term,
-  openManualPasteDialog: () => openManualPasteDialog(),
+  clearArmedModifier,
+  focusTerminal,
+  getTerminal: () => emulator.getTerminal(),
+  openManualPasteDialog,
   translate: (key) => t(key),
 });
 
 const handleWindowKeydown = (event: KeyboardEvent) => {
   if (event.key !== "Escape") return;
-
   if (terminalContextMenuOpen.value) {
     event.preventDefault();
     closeTerminalContextMenu();
     focusTerminal();
     return;
   }
-
   if (!isTerminalFullscreen.value) return;
-
   event.preventDefault();
   void setTerminalFullscreen(false);
 };
-
 const keepTerminalFocused = (event: Event) => {
-  if (event instanceof PointerEvent && event.pointerType !== "mouse") {
-    return;
-  }
+  if (event instanceof PointerEvent && event.pointerType !== "mouse") return;
   event.preventDefault();
   focusTerminal();
 };
-
-const clearArmedModifier = () => {
-  armedModifier.value = null;
-};
-
-const applyArmedModifierToInput = (value: string): string => {
-  const currentModifier = armedModifier.value;
-  if (!currentModifier) return value;
-
-  armedModifier.value = null;
-  if (currentModifier === "alt") {
-    return `\u001b${value}`;
-  }
-
-  return encodeCtrlInput(value) ?? value;
-};
-
-const toggleArmedModifier = (modifier: ArmedModifier) => {
-  if (!activeAttachment.value) return;
-  armedModifier.value = armedModifier.value === modifier ? null : modifier;
-  focusTerminal();
-};
-
-const applyOutputChunk = (chunk: TerminalOutputChunk) => {
-  if (!term) return;
-
-  if (chunk.reset) {
-    term.reset();
-    outputTextDecoder = new TextDecoder();
-    lastOutputCursor = 0;
-    legacyTitleSequenceStripper.reset();
-  }
-
-  if (chunk.data_base64) {
-    const payload = legacyTitleSequenceStripper.strip(
-      outputTextDecoder.decode(decodeBase64ToBytes(chunk.data_base64), {
-        stream: true,
-      }),
-    );
-    if (payload) {
-      writeRemoteTerminalOutput(payload);
-    }
-  }
-
-  lastOutputCursor = chunk.cursor;
-  void nextTick(() => {
-    focusTerminal();
-  });
-};
-
-const refreshSessions = async () => {
-  sessions.value = await TerminalAPI.listSessions();
-  if (
-    selectedSessionId.value &&
-    !sessions.value.some((item) => item.id === selectedSessionId.value)
-  ) {
-    selectedSessionId.value = "";
-  }
-};
-
-const sendShortcut = (value: string) => {
-  queueTerminalInput(value, { immediate: true });
-  term?.focus();
-};
-
 const sendToolbarShortcut = (value: string) => {
   clearArmedModifier();
-  sendShortcut(value);
+  queueTerminalInput(value, { immediate: true });
   focusTerminal();
 };
 
-const handleSessionTabChange = async (sessionId: string | number) => {
-  const nextSessionId = String(sessionId || "");
-  if (!nextSessionId || nextSessionId === selectedSessionId.value) return;
-  const nextSession =
-    sessions.value.find((session) => session.id === nextSessionId) || null;
-  if (!nextSession) return;
-
-  try {
-    await connectToSession(nextSession);
-  } catch (error) {
-    toast.error(t("admin.webTerminal.switchFailed"), {
-      description:
-        error instanceof Error
-          ? error.message
-          : t("admin.webTerminal.switchFailedDescription"),
-    });
-  }
-};
-
-function restartHttpPollingFromSnapshot(attachment: TerminalAttachmentRecord) {
-  if (activeAttachment.value?.id !== attachment.id) return;
-
-  resetOutputState();
-  void startHttpPolling(attachment);
-}
-
-const stopCurrentConnection = async (detach = true) => {
-  pollGeneration += 1;
-  await flushPendingInput().catch(() => undefined);
-  await flushPendingResize().catch(() => undefined);
-  clearPendingInput();
-  clearArmedModifier();
-  resetResizeState();
-
-  const attachmentId = activeAttachment.value?.id;
-  activeAttachment.value = null;
-  activeTransport.value = null;
-  connectionState.value = "idle";
-  connectionError.value = "";
-  resetOutputState();
-
-  if (detach && attachmentId) {
-    await TerminalAPI.detachAttachment(attachmentId).catch(() => undefined);
-  }
-};
-
-const startHttpPolling = async (attachment: TerminalAttachmentRecord) => {
-  const generation = ++pollGeneration;
-  connectionState.value = "connected";
-  activeTransport.value = "http-polling";
-
-  while (
-    generation === pollGeneration &&
-    activeAttachment.value?.id === attachment.id
-  ) {
-    try {
-      const result = await TerminalAPI.pollAttachment(attachment.id, {
-        cursor: lastOutputCursor,
-        timeout_ms: 4500,
-      });
-      if (
-        generation !== pollGeneration ||
-        activeAttachment.value?.id !== attachment.id
-      ) {
-        return;
-      }
-      if (result.changed && result.chunk) {
-        applyOutputChunk(result.chunk);
-      }
-    } catch (error) {
-      if (generation !== pollGeneration) return;
-      connectionState.value = "error";
-      connectionError.value =
-        error instanceof Error
-          ? error.message
-          : t("admin.webTerminal.pollingDisconnected");
-      return;
-    }
-  }
-};
-
-const ensureTerminalReady = async () => {
-  if (term) return;
-  await nextTick();
-  await initializeTerminal();
-  if (!term) {
-    throw new Error(t("admin.webTerminal.notReady"));
-  }
-};
-
-const connectToSession = async (session: TerminalSessionRecord) => {
-  selectedSessionId.value = session.id;
-  await ensureTerminalReady();
-  await stopCurrentConnection();
-  selectedSessionId.value = session.id;
-  rememberRecentSession(session.id);
-
-  connectionState.value = "connecting";
-  connectionError.value = "";
-  markSyncedResize(session.id, session.cols, session.rows);
-  clearTerminal();
-
-  let attachment: TerminalAttachmentRecord;
-  try {
-    attachment = await TerminalAPI.createAttachment(session.id);
-  } catch (error) {
-    const pendingInput = getPendingInputSnapshot();
-    if (pendingInput.hasPendingInput) {
-      console.warn(
-        "[terminal] clearing buffered input after attachment failed",
-        {
-          sessionId: session.id,
-          bufferedBytes: pendingInput.byteLength,
-        },
-      );
-    }
-    clearPendingInput();
-    throw error;
-  }
-
-  activeAttachment.value = attachment;
-  const pendingInput = getPendingInputSnapshot();
-  if (pendingInput.hasPendingInput) {
-    console.warn("[terminal] attachment ready, flushing buffered input", {
-      sessionId: session.id,
-      attachmentId: attachment.id,
-      bufferedBytes: pendingInput.byteLength,
-    });
-  }
-  scheduleResize();
-  void startHttpPolling(attachment);
-  void flushPendingInput();
-};
-
-const createSession = async (
-  options: { toastOnSuccess?: boolean; connect?: boolean } = {},
-): Promise<TerminalSessionRecord | null> => {
-  const { toastOnSuccess = true, connect = true } = options;
-  isCreating.value = true;
-  try {
-    const session = await TerminalAPI.createSession({
-      cols: term?.cols || 120,
-      rows: term?.rows || 32,
-    });
-    await refreshSessions();
-    if (connect) {
-      await connectToSession(session);
-    }
-    if (toastOnSuccess) {
-      toast.success(t("admin.webTerminal.sessionCreated"));
-    }
-    return session;
-  } catch (error) {
-    toast.error(t("admin.webTerminal.createFailed"), {
-      description:
-        error instanceof Error
-          ? error.message
-          : t("admin.webTerminal.createFailedDescription"),
-    });
-    return null;
-  } finally {
-    isCreating.value = false;
-  }
-};
-
-const reconnectSession = async () => {
-  if (!selectedSession.value) return;
-  try {
-    await connectToSession(selectedSession.value);
-  } catch (error) {
-    toast.error(t("admin.webTerminal.reconnectFailed"), {
-      description:
-        error instanceof Error
-          ? error.message
-          : t("admin.webTerminal.reconnectFailedDescription"),
-    });
-  }
-};
-
-const destroySelectedSession = async () => {
-  if (!selectedSession.value) return;
-
-  isKilling.value = true;
-  try {
-    await stopCurrentConnection();
-    await TerminalAPI.deleteSession(selectedSession.value.id);
-    await refreshSessions();
-    const next = sessions.value[0];
-    if (next) {
-      await connectToSession(next);
-    } else {
-      selectedSessionId.value = "";
-      clearTerminal();
-    }
-    toast.success(t("admin.webTerminal.sessionEnded"));
-  } catch (error) {
-    toast.error(t("admin.webTerminal.endFailed"), {
-      description:
-        error instanceof Error
-          ? error.message
-          : t("admin.webTerminal.endFailedDescription"),
-    });
-  } finally {
-    isKilling.value = false;
-  }
-};
-
-const initializeTerminal = async () => {
-  if (!terminalMountRef.value || term) return;
-  const { Terminal, FitAddon, ghostty } = await ensureGhostty();
-  term = new Terminal({
-    ghostty,
-    fontSize: terminalFontSize.value,
-    cursorBlink: true,
-    fontFamily:
-      '"SFMono-Regular", "SF Mono", ui-monospace, Menlo, Monaco, Consolas, monospace',
-    theme: {
-      background: "#1c1c1e",
-      foreground: "#ebeef2",
-      cursor: "#f8fafc",
-      black: "#141416",
-      red: "#f87171",
-      green: "#4ade80",
-      yellow: "#facc15",
-      blue: "#60a5fa",
-      magenta: "#f472b6",
-      cyan: "#22d3ee",
-      white: "#e2e8f0",
-      brightBlack: "#475569",
-      brightRed: "#fb7185",
-      brightGreen: "#86efac",
-      brightYellow: "#fde047",
-      brightBlue: "#93c5fd",
-      brightMagenta: "#f9a8d4",
-      brightCyan: "#67e8f9",
-      brightWhite: "#f8fafc",
-    },
-  });
-  fitAddon = new FitAddon();
-  term.loadAddon(fitAddon);
-  term.open(terminalMountRef.value);
-  syncTerminalTextInputAnchor();
-  bindTerminalMouseReporting();
-  bindTerminalTouchGestures();
-  terminalFitController.apply();
-  observeTerminalMountSize();
-  scheduleTerminalFit();
-  focusTerminal();
-  term.onData((data) => {
-    if (terminalInternalResponseDropDepth > 0) {
-      return;
-    }
-
-    if (remoteOutputWriteDepth > 0) {
-      queueRemoteTerminalResponse(data);
-      return;
-    }
-
-    queueTerminalInput(applyArmedModifierToInput(data));
-  });
-  term.onResize(() => {
-    scheduleResize();
-  });
-};
-
-const ensureDefaultSessionOnEntry = async (
-  status: TerminalRuntimeStatus,
-  sessionList: TerminalSessionRecord[],
-): Promise<TerminalSessionRecord[]> => {
-  if (
-    sessionList.length > 0 ||
-    !terminalEnabled.value ||
-    !status.enabled ||
-    status.blockedReason
-  ) {
-    return sessionList;
-  }
-
-  const session = await createSession({
-    toastOnSuccess: false,
-    connect: false,
-  });
-  if (!session) {
-    return sessionList;
-  }
-
-  return sessions.value.length > 0 ? sessions.value : [session];
-};
-
-const bootstrapPage = async () => {
-  let initialSession: TerminalSessionRecord | null = null;
-  let shouldConnectInitialSession = false;
-
-  try {
-    if (!configStore.config) {
-      await configStore.loadConfig();
-    }
-    const [status, sessionList] = await Promise.all([
-      TerminalAPI.getStatus(),
-      TerminalAPI.listSessions(),
-    ]);
-    runtimeStatus.value = status;
-    const resolvedSessions = await ensureDefaultSessionOnEntry(
-      status,
-      sessionList,
-    );
-    sessions.value = resolvedSessions;
-
-    const remembered = localStorage.getItem(RECENT_SESSION_KEY) || "";
-    const firstSession =
-      resolvedSessions.find((item) => item.id === remembered) ||
-      resolvedSessions[0];
-    if (firstSession && terminalEnabled.value && !status.blockedReason) {
-      selectedSessionId.value = firstSession.id;
-      initialSession = firstSession;
-      shouldConnectInitialSession = true;
-    }
-  } catch (error) {
-    connectionState.value = "error";
-    connectionError.value =
-      error instanceof Error
-        ? error.message
-        : t("admin.webTerminal.initFailed");
-  } finally {
-    isBooting.value = false;
-    await nextTick();
-    syncViewportHeight();
-  }
-
-  if (initialSession && shouldConnectInitialSession) {
-    try {
-      await connectToSession(initialSession);
-    } catch (error) {
-      connectionState.value = "error";
-      connectionError.value =
-        error instanceof Error
-          ? error.message
-          : t("admin.webTerminal.initFailed");
-    }
-  }
-};
+const {
+  bootstrapPage,
+  createSession,
+  dispose: disposeTerminalSession,
+  destroySelectedSession,
+  handleSessionTabChange,
+  reconnectSession,
+  restartHttpPollingFromSnapshot,
+} = useTerminalSessionController({
+  activeAttachment,
+  activeTransport,
+  applyOutputChunk,
+  clearArmedModifier,
+  clearPendingInput,
+  clearTerminal,
+  connectionError,
+  connectionState,
+  ensureConfig: async () => {
+    if (!configStore.config) await configStore.loadConfig();
+  },
+  ensureTerminalReady,
+  flushPendingInput,
+  flushPendingResize,
+  getOutputCursor: emulator.getOutputCursor,
+  getPendingInputSnapshot,
+  getTerminalSize: emulator.getTerminalSize,
+  isBooting,
+  isCreating,
+  isKilling,
+  markSyncedResize,
+  onBootstrapLayoutReady: syncViewportHeight,
+  resetOutputState,
+  resetResizeState,
+  runtimeStatus,
+  scheduleResize,
+  selectedSession,
+  selectedSessionId,
+  sessions,
+  terminalEnabled,
+});
 
 onMounted(async () => {
   startViewportTracking();
   loadTerminalFontSize();
   await bootstrapPage();
+  if (disposed) return;
   window.addEventListener("keydown", handleWindowKeydown);
   document.addEventListener("pointerdown", handleDocumentPointerDown);
 });
-
 watch(
   [
     () => sessions.value.length,
@@ -853,24 +331,16 @@ watch(
     isTerminalFullscreen,
   ],
   () => {
-    void nextTick().then(() => {
-      syncViewportHeight();
-    });
+    void nextTick().then(syncViewportHeight);
   },
 );
-
 onBeforeUnmount(() => {
-  unbindTerminalMouseReporting();
-  unbindTerminalTouchGestures();
+  disposed = true;
   stopViewportTracking();
   window.removeEventListener("keydown", handleWindowKeydown);
   document.removeEventListener("pointerdown", handleDocumentPointerDown);
-  terminalFitController.dispose();
-  void stopCurrentConnection();
-  fitAddon?.dispose();
-  term?.dispose();
-  fitAddon = null;
-  term = null;
+  emulator.dispose();
+  void disposeTerminalSession();
 });
 </script>
 

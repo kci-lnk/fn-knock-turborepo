@@ -81,6 +81,7 @@ export const isSameOrSubdomain = (domain: string, zoneRoot: string) =>
   );
 
 export const isValidDDNSDomainTarget = (target: string) => {
+  // eslint-disable-next-line no-control-regex -- this validation intentionally rejects non-ASCII input, including NUL.
   if (!target || target.length > 253 || !/^[\x00-\x7F]+$/.test(target)) {
     return false;
   }

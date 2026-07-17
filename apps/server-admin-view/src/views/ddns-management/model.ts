@@ -475,6 +475,33 @@ export const findProviderDef = (
 ): Provider | null =>
   providers.find((provider) => provider.name === providerName) || null;
 
+export const hasConfiguredProviderFields = (
+  provider: Provider | null,
+  config: Record<string, string>,
+) =>
+  provider?.fields.some(
+    (field) => String(config[field.key] ?? "").trim() !== "",
+  ) === true;
+
+export const normalizeProviderConfigForComparison = (
+  config: Record<string, string>,
+) => {
+  const normalized = normalizeTargetConfigValues(config);
+  return Object.keys(normalized)
+    .sort()
+    .reduce<Record<string, string>>((result, key) => {
+      result[key] = String(normalized[key] ?? "");
+      return result;
+    }, {});
+};
+
+export const isProviderConfigEqual = (
+  left: Record<string, string>,
+  right: Record<string, string>,
+) =>
+  JSON.stringify(normalizeProviderConfigForComparison(left)) ===
+  JSON.stringify(normalizeProviderConfigForComparison(right));
+
 export const isSingleAddressProvider = (
   providers: Provider[],
   providerName: string,

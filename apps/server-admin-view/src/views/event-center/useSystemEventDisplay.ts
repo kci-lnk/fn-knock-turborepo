@@ -720,7 +720,7 @@ export const useSystemEventDisplay = ({
       case "FN_EVENT_DDNS_UPDATE_COMPLETED":
         return translate("admin.eventCenter.events.ddnsUpdated", {
           provider: String(payload.provider || "-"),
-          result: Boolean(payload.success)
+          result: payload.success
             ? translate("admin.eventCenter.events.success")
             : translate("admin.eventCenter.events.failure"),
           message: String(payload.message || "-"),

@@ -176,107 +176,18 @@
       </CardContent>
     </Card>
 
-    <Dialog :open="isDialogOpen" @update:open="handleDialogOpenChange">
-      <DialogContent class="sm:max-w-[520px]">
-        <DialogHeader>
-          <DialogTitle>
-            {{
-              isEditing
-                ? t("admin.streamMappings.editTitle")
-                : t("admin.streamMappings.createTitle")
-            }}
-          </DialogTitle>
-          <DialogDescription>
-            {{ t("admin.streamMappings.dialogDescription") }}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div class="grid gap-4 py-4">
-          <div class="space-y-2">
-            <Label for="stream-protocol">{{
-              t("admin.streamMappings.transportProtocol")
-            }}</Label>
-            <StreamProtocolMultiSelect
-              id="stream-protocol"
-              v-model="form.protocols"
-            />
-            <p class="text-xs text-muted-foreground">
-              {{ t("admin.streamMappings.protocolHint") }}
-            </p>
-          </div>
-
-          <div class="space-y-2">
-            <Label for="stream-listen-port">{{
-              t("admin.streamMappings.listenPort")
-            }}</Label>
-            <Input
-              id="stream-listen-port"
-              v-model="form.listen_port"
-              inputmode="numeric"
-              :placeholder="t('admin.streamMappings.listenPortPlaceholder')"
-              @blur="markPortBlurred"
-            />
-            <p class="text-xs text-muted-foreground">
-              {{ t("admin.streamMappings.listenPortHint") }}
-            </p>
-          </div>
-
-          <div class="space-y-2">
-            <Label for="stream-target">{{
-              t("admin.streamMappings.target")
-            }}</Label>
-            <Input
-              id="stream-target"
-              v-model="form.target"
-              :placeholder="t('admin.streamMappings.targetPlaceholder')"
-              @blur="markTargetBlurred"
-            />
-            <p class="text-xs text-muted-foreground">
-              {{ t("admin.streamMappings.targetHint") }}
-            </p>
-          </div>
-
-          <div
-            class="flex items-center justify-between rounded-lg border px-4 py-3"
-          >
-            <div class="space-y-1">
-              <Label for="stream-auth">{{
-                t("admin.streamMappings.authRequiredLabel")
-              }}</Label>
-              <p class="text-xs text-muted-foreground">
-                {{ t("admin.streamMappings.authRequiredHint") }}
-              </p>
-            </div>
-            <Switch id="stream-auth" v-model="form.use_auth" />
-          </div>
-
-          <div
-            v-if="showValidation && validationMessage"
-            class="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive"
-          >
-            {{ validationMessage }}
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" @click="closeDialog">{{
-            t("common.cancel")
-          }}</Button>
-          <Button :disabled="isSaving" @click="saveMapping">
-            <span
-              v-if="isSaving"
-              class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
-            ></span>
-            {{ t("admin.streamMappings.saveMapping") }}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <StreamMappingEditorDialog
+      v-model:open="isDialogOpen"
+      :existing-mappings="allMappings"
+      :mapping="editingMapping"
+      :saving="isSaving"
+      @save="saveMapping"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue";
+import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { ChevronDown, Info, Plus, RefreshCw } from "lucide-vue-next";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -290,26 +201,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import SearchInput from "@admin-shared/components/SearchInput.vue";
 import { extractErrorMessage } from "@admin-shared/composables/useAsyncAction";
-import { isValidHostPort } from "@admin-shared/utils/parseHostPort";
 import { toast } from "@admin-shared/utils/toast";
 import {
   Table,
@@ -321,35 +220,26 @@ import {
 } from "@/components/ui/table";
 import { ConfigAPI } from "../lib/api";
 import { useConfigStore } from "../store/config";
-import type { StreamMapping, StreamMappingProtocol } from "../types";
-import StreamProtocolMultiSelect from "../components/StreamProtocolMultiSelect.vue";
+import type { StreamMapping } from "../types";
+import StreamMappingEditorDialog from "./stream-mappings/StreamMappingEditorDialog.vue";
+import {
+  compareStreamMappings,
+  formatMappingLabel,
+  formatProtocolLabel,
+  getMappingKey,
+  normalizeStreamMapping,
+  type StreamMappingEditorSubmission,
+} from "./stream-mappings/streamMappingModel";
 
 const configStore = useConfigStore();
-const { t, locale } = useI18n();
-const DEFAULT_STREAM_PROTOCOL: StreamMappingProtocol = "tcp";
-const STREAM_PROTOCOLS: StreamMappingProtocol[] = ["tcp", "udp"];
+const { t } = useI18n();
 
 const searchQuery = ref("");
 const isDialogOpen = ref(false);
 const isSaving = ref(false);
 const isSyncing = ref(false);
-const editingMappingKey = ref<string | null>(null);
+const editingMapping = ref<StreamMapping | null>(null);
 const removingMappingKey = ref<string | null>(null);
-const hasAttemptedSubmit = ref(false);
-const hasPortBlurred = ref(false);
-const hasTargetBlurred = ref(false);
-
-const form = reactive<{
-  protocols: StreamMappingProtocol[];
-  listen_port: string;
-  target: string;
-  use_auth: boolean;
-}>({
-  protocols: [DEFAULT_STREAM_PROTOCOL],
-  listen_port: "",
-  target: "",
-  use_auth: true,
-});
 
 const allMappings = computed(() =>
   [...(configStore.config?.stream_mappings ?? [])]
@@ -375,233 +265,38 @@ const filteredMappings = computed(() => {
   });
 });
 
-const isEditing = computed(() => editingMappingKey.value !== null);
-const parsedListenPort = computed(() => {
-  const value = Number.parseInt(form.listen_port.trim(), 10);
-  if (!Number.isFinite(value)) return null;
-  return value;
-});
-const selectedProtocols = computed(() =>
-  normalizeProtocolSelection(form.protocols),
-);
-
-const duplicateProtocols = computed(() => {
-  const port = parsedListenPort.value;
-  if (port === null) return [];
-
-  return selectedProtocols.value.filter((protocol) =>
-    allMappings.value.some(
-      (mapping) =>
-        getMappingKey(mapping) === createMappingKey(protocol, port) &&
-        getMappingKey(mapping) !== editingMappingKey.value,
-    ),
-  );
-});
-
-const isTargetValid = computed(() => isValidStreamTarget(form.target));
-
-function getPortValidationMessage(showRequired: boolean): string {
-  const rawPort = form.listen_port.trim();
-  if (!rawPort) {
-    return showRequired ? t("admin.streamMappings.portRequired") : "";
-  }
-
-  const port = parsedListenPort.value;
-  if (port === null) return t("admin.streamMappings.portInteger");
-  if (port <= 0 || port > 65535) {
-    return t("admin.streamMappings.portRange");
-  }
-  if (duplicateProtocols.value.length > 0) {
-    return t("admin.streamMappings.duplicatePort", {
-      protocols: formatProtocolList(duplicateProtocols.value),
-      port,
-    });
-  }
-  return "";
-}
-
-function getTargetValidationMessage(showRequired: boolean): string {
-  const rawTarget = form.target.trim();
-  if (!rawTarget) {
-    return showRequired ? t("admin.streamMappings.targetRequired") : "";
-  }
-  if (!isTargetValid.value) {
-    return t("admin.streamMappings.targetInvalid");
-  }
-  return "";
-}
-
-const validationMessage = computed(() => {
-  if (hasAttemptedSubmit.value) {
-    const submitMessage = submitValidationMessage.value;
-    if (submitMessage) return submitMessage;
-    return "";
-  }
-
-  const shouldValidatePort =
-    hasPortBlurred.value && form.listen_port.trim() !== "";
-  if (shouldValidatePort) {
-    const portMessage = getPortValidationMessage(false);
-    if (portMessage) return portMessage;
-  }
-
-  const shouldValidateTarget =
-    hasTargetBlurred.value && form.target.trim() !== "";
-  if (shouldValidateTarget) {
-    const targetMessage = getTargetValidationMessage(false);
-    if (targetMessage) return targetMessage;
-  }
-
-  return "";
-});
-
-const showValidation = computed(() => Boolean(validationMessage.value));
-const submitValidationMessage = computed(() => {
-  if (selectedProtocols.value.length === 0) {
-    return t("admin.streamMappings.protocolRequired");
-  }
-  const portMessage = getPortValidationMessage(true);
-  if (portMessage) return portMessage;
-  return getTargetValidationMessage(true);
-});
-
-function isValidStreamTarget(target: string): boolean {
-  return isValidHostPort(target);
-}
-
-function normalizeProtocol(
-  protocol?: StreamMappingProtocol | string | null,
-): StreamMappingProtocol {
-  return protocol === "udp" ? "udp" : DEFAULT_STREAM_PROTOCOL;
-}
-
-function normalizeProtocolSelection(
-  protocols: StreamMappingProtocol[] | undefined,
-): StreamMappingProtocol[] {
-  const selected = new Set(
-    (protocols ?? []).map((protocol) => normalizeProtocol(protocol)),
-  );
-  const normalized = STREAM_PROTOCOLS.filter((protocol) =>
-    selected.has(protocol),
-  );
-  return normalized.length > 0 ? normalized : [DEFAULT_STREAM_PROTOCOL];
-}
-
-function normalizeStreamMapping(mapping: StreamMapping): StreamMapping {
-  return {
-    ...mapping,
-    protocol: normalizeProtocol(mapping.protocol),
-  };
-}
-
-function createMappingKey(
-  protocol: StreamMappingProtocol,
-  listenPort: number,
-): string {
-  return `${protocol}:${listenPort}`;
-}
-
-function getMappingKey(mapping: StreamMapping): string {
-  return createMappingKey(
-    normalizeProtocol(mapping.protocol),
-    mapping.listen_port,
-  );
-}
-
-function compareStreamMappings(a: StreamMapping, b: StreamMapping): number {
-  if (a.listen_port !== b.listen_port) {
-    return a.listen_port - b.listen_port;
-  }
-  return a.protocol.localeCompare(b.protocol);
-}
-
-function formatProtocolLabel(protocol: StreamMappingProtocol): string {
-  return protocol.toUpperCase();
-}
-
-function formatProtocolList(protocols: StreamMappingProtocol[]): string {
-  const separator = String(locale.value).startsWith("en") ? ", " : "、";
-  return protocols.map(formatProtocolLabel).join(separator);
-}
-
-function formatMappingLabel(mapping: StreamMapping): string {
-  return `${formatProtocolLabel(normalizeProtocol(mapping.protocol))}/${mapping.listen_port}`;
-}
-
-function resetForm() {
-  form.protocols = [DEFAULT_STREAM_PROTOCOL];
-  form.listen_port = "";
-  form.target = "";
-  form.use_auth = true;
-  editingMappingKey.value = null;
-  hasAttemptedSubmit.value = false;
-  hasPortBlurred.value = false;
-  hasTargetBlurred.value = false;
-}
-
-function handleDialogOpenChange(nextOpen: boolean) {
-  if (!nextOpen) {
-    closeDialog();
-  }
-}
-
 function openCreateDialog() {
-  resetForm();
+  editingMapping.value = null;
   isDialogOpen.value = true;
 }
 
 function openEditDialog(mapping: StreamMapping) {
-  const normalized = normalizeStreamMapping(mapping);
-  form.protocols = [normalized.protocol];
-  form.listen_port = String(mapping.listen_port);
-  form.target = mapping.target;
-  form.use_auth = mapping.use_auth;
-  editingMappingKey.value = getMappingKey(normalized);
+  editingMapping.value = normalizeStreamMapping(mapping);
   isDialogOpen.value = true;
 }
 
-function closeDialog() {
-  isDialogOpen.value = false;
-  resetForm();
-}
-
-function markPortBlurred() {
-  hasPortBlurred.value = true;
-}
-
-function markTargetBlurred() {
-  hasTargetBlurred.value = true;
-}
-
-async function saveMapping() {
-  hasAttemptedSubmit.value = true;
-  if (submitValidationMessage.value || parsedListenPort.value === null) return;
-
-  const nextMappings: StreamMapping[] = selectedProtocols.value.map(
-    (protocol) => ({
-      protocol,
-      listen_port: parsedListenPort.value!,
-      target: form.target.trim(),
-      use_auth: form.use_auth,
-    }),
-  );
-
+async function saveMapping(submission: StreamMappingEditorSubmission) {
   isSaving.value = true;
   try {
     const next = [...allMappings.value];
     const existingIndex = next.findIndex(
-      (mapping) => getMappingKey(mapping) === editingMappingKey.value,
+      (mapping) => getMappingKey(mapping) === submission.editingKey,
     );
 
     if (existingIndex >= 0) {
-      next.splice(existingIndex, 1, ...nextMappings);
+      next.splice(existingIndex, 1, ...submission.mappings);
     } else {
-      next.push(...nextMappings);
+      next.push(...submission.mappings);
     }
 
     await configStore.saveStreamMappings(next);
-    toast.success(getSaveSuccessMessage(nextMappings.length));
-    closeDialog();
+    toast.success(
+      getSaveSuccessMessage(
+        submission.mappings.length,
+        submission.editingKey !== null,
+      ),
+    );
+    isDialogOpen.value = false;
   } catch (error: any) {
     toast.error(t("admin.streamMappings.saveFailed"), {
       description: extractErrorMessage(error, t("common.tryLater")),
@@ -611,8 +306,8 @@ async function saveMapping() {
   }
 }
 
-function getSaveSuccessMessage(savedCount: number): string {
-  const action = isEditing.value
+function getSaveSuccessMessage(savedCount: number, isEditing: boolean): string {
+  const action = isEditing
     ? t("admin.streamMappings.actionUpdate")
     : t("admin.streamMappings.actionCreate");
   return savedCount > 1

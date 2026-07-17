@@ -15,7 +15,7 @@
     </CardHeader>
     <CardContent class="grid gap-4">
       <div
-        class="dynamic-white-cert-subsurface rounded-lg border bg-muted/30 p-4 grid gap-3"
+        class="dynamic-white-cert-subsurface grid gap-3 rounded-lg border bg-muted/30 p-4"
       >
         <div
           class="grid grid-cols-[88px_minmax(0,1fr)] gap-y-3 text-sm sm:grid-cols-[100px_minmax(0,1fr)]"
@@ -34,600 +34,61 @@
   </Card>
 
   <div v-else class="grid gap-4">
-    <Card class="dynamic-white-cert-card">
-      <CardHeader>
-        <div class="flex flex-wrap items-start justify-between gap-3">
-          <div class="grid gap-1">
-            <CardTitle class="flex items-center gap-3">
-              <span>{{ t("admin.certConfig.currentStatus") }}</span>
-              <Badge
-                :variant="activeCertificate ? 'default' : 'secondary'"
-                :class="
-                  activeCertificate ? 'bg-green-600 hover:bg-green-600' : ''
-                "
-              >
-                {{ primaryCertificateBadgeLabel }}
-              </Badge>
-            </CardTitle>
-            <CardDescription class="leading-6">
-              {{ statusOverviewText }}
-            </CardDescription>
-          </div>
-          <div class="flex flex-wrap gap-2">
-            <Badge variant="outline">
-              {{ deploymentModeLabel }}
-            </Badge>
-            <Badge variant="secondary">
-              {{
-                t("admin.certConfig.certificateLibraryCount", {
-                  count: certificates.length,
-                })
-              }}
-            </Badge>
-          </div>
-        </div>
-      </CardHeader>
+    <CertificateStatusCard
+      :active-certificate="activeCertificate"
+      :certificate-count="certificates.length"
+      :deployment-mode-label="deploymentModeLabel"
+      :is-activating="isActivating"
+      :is-clearing="isClearing"
+      :is-updating-deployment-mode="isUpdatingDeploymentMode"
+      :library-coverage="libraryCoverage"
+      :primary-certificate-badge-label="primaryCertificateBadgeLabel"
+      :recommended-certificate-id="recommendedCertificateId"
+      :show-multi-sni-suggestion="showMultiSniSuggestion"
+      :status-overview-text="statusOverviewText"
+      @activate-recommended="activateRecommendedCertificate"
+      @clear="handleClear"
+      @switch-to-multi-sni="updateDeploymentMode('multi_sni')"
+    />
 
-      <CardContent v-if="libraryCoverage" class="pt-0">
-        <Alert
-          :variant="
-            libraryCoverage.status === 'missing' ? 'destructive' : 'default'
-          "
-          class="dynamic-white-glass-surface"
-        >
-          <AlertTitle>{{ t("admin.certConfig.subdomainLoopTitle") }}</AlertTitle>
-          <AlertDescription class="grid gap-2">
-            <p>{{ libraryCoverage.summary }}</p>
-            <p
-              v-if="
-                libraryCoverage.combined_covering_certificate_ids.length > 1
-              "
-              class="text-xs text-muted-foreground"
-            >
-              {{
-                t("admin.certConfig.combinedCoverageCount", {
-                  count:
-                    libraryCoverage.combined_covering_certificate_ids.length,
-                })
-              }}
-            </p>
-            <div
-              v-if="libraryCoverage.warnings.length"
-              class="grid gap-1 text-xs text-muted-foreground"
-            >
-              <div v-for="warning in libraryCoverage.warnings" :key="warning">
-                {{ warning }}
-              </div>
-            </div>
-            <div class="flex flex-wrap gap-2">
-              <Button
-                v-if="showMultiSniSuggestion"
-                size="sm"
-                variant="outline"
-                :disabled="isUpdatingDeploymentMode"
-                @click="updateDeploymentMode('multi_sni')"
-              >
-                {{ t("admin.certConfig.switchToMultiSni") }}
-              </Button>
-              <Button
-                v-if="recommendedCertificateId"
-                size="sm"
-                :disabled="isActivating"
-                @click="activateRecommendedCertificate"
-              >
-                {{ t("admin.certConfig.switchToRecommended") }}
-              </Button>
-            </div>
-          </AlertDescription>
-        </Alert>
-      </CardContent>
-
-      <CardFooter
-        v-if="activeCertificate"
-        class="flex flex-wrap justify-end gap-2 border-t pt-6"
-      >
-        <ConfirmDangerPopover
-          :title="t('admin.certConfig.disableTitle')"
-          :description="t('admin.certConfig.disableDescription')"
-          :confirm-text="t('admin.certConfig.disableConfirm')"
-          :loading="isClearing"
-          :disabled="isClearing"
-          :on-confirm="handleClear"
-        >
-          <template #trigger>
-            <Button variant="destructive" size="sm" :disabled="isClearing">
-              {{ t("admin.certConfig.disableHttps") }}
-            </Button>
-          </template>
-        </ConfirmDangerPopover>
-      </CardFooter>
-    </Card>
-
-    <ConfigCollapsibleCard
-      :title="t('admin.certConfig.deploymentTitle')"
-      :configured="deploymentSectionConfigured"
+    <CertificateDeploymentCard
+      :certificate-count="certificates.length"
+      :configured-deployment-mode-label="configuredDeploymentModeLabel"
+      :deployed-gateway-certificates="deployedGatewayCertificates"
+      :deployment-card-class="deploymentCardClass"
+      :deployment-mode-description="deploymentModeDescription"
+      :deployment-mode-mismatch="deploymentModeMismatch"
+      :deployment-mode-short-label="deploymentModeShortLabel"
+      :deployment-section-configured="deploymentSectionConfigured"
+      :deployment-summary="deploymentSummary"
+      :gateway-certificate-key="gatewayCertificateKey"
+      :gateway-certificate-label="gatewayCertificateLabel"
+      :gateway-deployment-summary="gatewayDeploymentSummary"
+      :gateway-sync-error="gatewaySyncError"
+      :is-updating-deployment-mode="isUpdatingDeploymentMode"
+      :multi-sni-preview="multiSniPreview"
+      :pending-deployment-mode="pendingDeploymentMode"
       :ready="hasLoadedSSLStatus"
-      :edit-label="t('admin.certConfig.viewConfig')"
-      collapsed-content-class="min-h-[76px] flex flex-col items-start gap-3 sm:h-[40px] sm:flex-row sm:items-center sm:justify-between"
-      summary-class="text-xs text-muted-foreground max-w-full whitespace-normal break-words sm:truncate"
-      expanded-content-class="p-0 sm:p-0"
-      actions-class="border-t bg-muted/30 px-4 py-4 sm:px-6 flex flex-col-reverse gap-2 rounded-b-lg sm:flex-row sm:items-center sm:justify-end"
-      card-class="dynamic-white-cert-card"
-    >
-      <template #summary>
-        {{ deploymentSummary }}
-      </template>
+      :single-active-preview="singleActivePreview"
+      :ssl-status="sslStatus"
+      @update-mode="updateDeploymentMode"
+    />
 
-      <template #default>
-        <div class="divide-y divide-border">
-          <div class="p-4 sm:p-6 grid gap-2">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <div class="text-base font-semibold">
-                {{ t("admin.certConfig.deploymentHeading") }}
-              </div>
-              <Badge variant="outline">{{ deploymentModeShortLabel }}</Badge>
-            </div>
-            <p class="text-sm text-muted-foreground">
-              {{ t("admin.certConfig.deploymentIntro") }}
-            </p>
-            <p class="text-xs text-muted-foreground">
-              {{ deploymentModeDescription }}
-            </p>
-            <p
-              v-if="deploymentModeMismatch"
-              class="text-xs text-amber-600 dark:text-amber-400"
-            >
-              {{
-                t("admin.certConfig.deploymentMismatch", {
-                  configured: configuredDeploymentModeLabel,
-                  current: deploymentModeShortLabel,
-                })
-              }}
-            </p>
-            <p
-              v-else-if="gatewaySyncError"
-              class="text-xs text-amber-600 dark:text-amber-400"
-            >
-              {{ gatewaySyncError }}
-            </p>
-          </div>
-
-          <div class="grid gap-3 p-4 sm:p-6 lg:grid-cols-2">
-            <div
-              class="dynamic-white-cert-subsurface rounded-lg border p-4 grid gap-3 transition-colors"
-              :class="deploymentCardClass('single_active')"
-            >
-              <div class="flex flex-wrap items-start justify-between gap-2">
-                <div class="grid gap-1">
-                  <div class="text-sm font-medium">
-                    {{ t("admin.certConfig.singleActiveTitle") }}
-                  </div>
-                  <p class="text-xs text-muted-foreground">
-                    {{ t("admin.certConfig.singleActiveDescription") }}
-                  </p>
-                </div>
-                <Badge
-                  v-if="sslStatus?.deploymentMode === 'single_active'"
-                  variant="default"
-                  class="bg-green-600 hover:bg-green-600"
-                >
-                  {{ t("admin.certConfig.currentMode") }}
-                </Badge>
-              </div>
-
-              <div class="grid gap-2 text-xs text-muted-foreground">
-                <div>
-                  {{
-                    t("admin.certConfig.expectedDeploy", {
-                      count: singleActivePreview.count,
-                    })
-                  }}
-                </div>
-                <div>
-                  {{
-                    t("admin.certConfig.publicCertificate", {
-                      label: singleActivePreview.defaultLabel,
-                    })
-                  }}
-                </div>
-                <div v-if="singleActivePreview.domainSummary">
-                  {{
-                    t("admin.certConfig.coveredDomains", {
-                      domains: singleActivePreview.domainSummary,
-                    })
-                  }}
-                </div>
-              </div>
-
-              <Button
-                variant="outline"
-                class="justify-start"
-                :class="
-                  sslStatus?.deploymentMode === 'single_active'
-                    ? 'border-border/70 bg-muted/60 text-foreground disabled:opacity-100 dark:bg-muted/40'
-                    : ''
-                "
-                :disabled="
-                  isUpdatingDeploymentMode ||
-                  sslStatus?.deploymentMode === 'single_active'
-                "
-                @click="updateDeploymentMode('single_active')"
-              >
-                <span
-                  v-if="
-                    isUpdatingDeploymentMode &&
-                    pendingDeploymentMode === 'single_active'
-                  "
-                  class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
-                ></span>
-                {{
-                  sslStatus?.deploymentMode === "single_active"
-                    ? t("admin.certConfig.currentlyInUse")
-                    : t("admin.certConfig.switchToSingleActive")
-                }}
-              </Button>
-            </div>
-
-            <div
-              class="dynamic-white-cert-subsurface rounded-lg border p-4 grid gap-3 transition-colors"
-              :class="deploymentCardClass('multi_sni')"
-            >
-              <div class="flex flex-wrap items-start justify-between gap-2">
-                <div class="grid gap-1">
-                  <div class="text-sm font-medium">
-                    {{ t("admin.certConfig.multiSniTitle") }}
-                  </div>
-                  <p class="text-xs text-muted-foreground">
-                    {{ t("admin.certConfig.multiSniDescription") }}
-                  </p>
-                </div>
-                <Badge
-                  v-if="sslStatus?.deploymentMode === 'multi_sni'"
-                  variant="default"
-                  class="bg-green-600 hover:bg-green-600"
-                >
-                  {{ t("admin.certConfig.currentMode") }}
-                </Badge>
-              </div>
-
-              <div class="grid gap-2 text-xs text-muted-foreground">
-                <div>
-                  {{
-                    t("admin.certConfig.expectedDeploy", {
-                      count: multiSniPreview.count,
-                    })
-                  }}
-                </div>
-                <div>
-                  {{
-                    t("admin.certConfig.defaultCertificate", {
-                      label: multiSniPreview.defaultLabel,
-                    })
-                  }}
-                </div>
-                <div
-                  v-if="multiSniPreview.previewItems.length"
-                  class="flex flex-wrap gap-1.5"
-                >
-                  <Badge
-                    v-for="item in multiSniPreview.previewItems"
-                    :key="item.id"
-                    variant="secondary"
-                    class="max-w-full"
-                  >
-                    <span class="truncate">{{ item.label }}</span>
-                    <span
-                      v-if="item.isDefault"
-                      class="ml-1 text-[10px] text-muted-foreground"
-                      >{{ t("admin.certConfig.defaultTag") }}</span
-                    >
-                  </Badge>
-                  <Badge
-                    v-if="multiSniPreview.remainingCount > 0"
-                    variant="outline"
-                  >
-                    {{
-                      t("admin.certConfig.moreCertificates", {
-                        count: multiSniPreview.remainingCount,
-                      })
-                    }}
-                  </Badge>
-                </div>
-              </div>
-
-              <Button
-                class="justify-start"
-                :class="
-                  sslStatus?.deploymentMode === 'multi_sni'
-                    ? 'border border-border/70 bg-muted/60 text-foreground hover:bg-muted/60 disabled:opacity-100 dark:bg-muted/40 dark:hover:bg-muted/40'
-                    : ''
-                "
-                :disabled="
-                  isUpdatingDeploymentMode ||
-                  !certificates.length ||
-                  sslStatus?.deploymentMode === 'multi_sni'
-                "
-                @click="updateDeploymentMode('multi_sni')"
-              >
-                <span
-                  v-if="
-                    isUpdatingDeploymentMode &&
-                    pendingDeploymentMode === 'multi_sni'
-                  "
-                  class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
-                ></span>
-                {{
-                  sslStatus?.deploymentMode === "multi_sni"
-                    ? t("admin.certConfig.currentlyInUse")
-                    : t("admin.certConfig.switchToMultiSni")
-                }}
-              </Button>
-            </div>
-          </div>
-
-          <div class="p-4 sm:p-6">
-            <div
-              class="dynamic-white-cert-subsurface rounded-lg border border-dashed bg-muted/20 p-4 grid gap-2"
-            >
-              <div class="text-xs font-medium">
-                {{ t("admin.certConfig.gatewayReceivedTitle") }}
-              </div>
-              <p class="text-xs text-muted-foreground">
-                {{ gatewayDeploymentSummary }}
-              </p>
-              <div
-                v-if="deployedGatewayCertificates.length"
-                class="flex flex-wrap gap-1.5"
-              >
-                <Badge
-                  v-for="certificate in deployedGatewayCertificates"
-                  :key="gatewayCertificateKey(certificate)"
-                  variant="secondary"
-                  class="max-w-full"
-                >
-                  <span class="truncate">{{
-                    gatewayCertificateLabel(certificate)
-                  }}</span>
-                  <span
-                    v-if="certificate.is_default"
-                    class="ml-1 text-[10px] text-muted-foreground"
-                  >
-                    {{ t("admin.certConfig.defaultTag") }}
-                  </span>
-                </Badge>
-              </div>
-            </div>
-          </div>
-        </div>
-      </template>
-
-      <template #actions="{ collapse }">
-        <Button variant="outline" @click="collapse">
-          {{ t("admin.certConfig.collapse") }}
-        </Button>
-      </template>
-    </ConfigCollapsibleCard>
-
-    <ConfigCollapsibleCard
-      v-if="activeCertificate || subdomainCoverage"
-      :title="t('admin.certConfig.currentCertificateTitle')"
-      :configured="Boolean(activeCertificate?.certInfo)"
+    <ActiveCertificateDetailsCard
+      :active-certificate="activeCertificate"
+      :coverage-badge-class="coverageBadgeClass"
+      :coverage-badge-label="coverageBadgeLabel"
+      :coverage-badge-variant="coverageBadgeVariant"
+      :current-certificate-summary="currentCertificateSummary"
+      :format-date="formatDate"
+      :format-dn="formatDN"
+      :is-expired="isExpired"
+      :is-expiring-soon="isExpiringSoon"
       :ready="hasLoadedSSLStatus"
-      :edit-label="t('common.viewDetails')"
-      collapsed-content-class="min-h-[76px] flex flex-col items-start gap-3 sm:h-[40px] sm:flex-row sm:items-center sm:justify-between"
-      summary-class="text-xs text-muted-foreground max-w-full whitespace-normal break-words sm:truncate"
-      expanded-content-class="p-0 sm:p-0"
-      actions-class="border-t bg-muted/30 px-4 py-4 sm:px-6 flex flex-col gap-2 rounded-b-lg sm:flex-row sm:justify-end"
-      card-class="dynamic-white-cert-card"
-    >
-      <template #summary>
-        {{ currentCertificateSummary }}
-      </template>
-
-      <template #default>
-        <div class="p-4 sm:p-6">
-          <div
-            v-if="activeCertificate?.certInfo"
-            class="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]"
-          >
-            <div
-              class="dynamic-white-cert-subsurface rounded-lg border bg-muted/20 p-4 grid gap-4"
-            >
-              <div
-                class="grid grid-cols-[88px_minmax(0,1fr)] gap-y-3 text-sm sm:grid-cols-[100px_minmax(0,1fr)]"
-              >
-                <span class="text-muted-foreground font-medium">
-                  {{ t("admin.certConfig.fieldName") }}
-                </span>
-                <span class="min-w-0 font-medium">{{
-                  activeCertificate.label
-                }}</span>
-
-                <span class="text-muted-foreground font-medium">
-                  {{ t("admin.certConfig.fieldSource") }}
-                </span>
-                <span class="min-w-0 text-xs">{{
-                  sourceLabel(activeCertificate.source)
-                }}</span>
-
-                <span class="text-muted-foreground font-medium">
-                  {{ t("admin.certConfig.fieldIssuer") }}
-                </span>
-                <span class="min-w-0 font-mono text-xs break-all">{{
-                  formatDN(activeCertificate.certInfo.issuer)
-                }}</span>
-
-                <span class="text-muted-foreground font-medium">
-                  {{ t("admin.certConfig.fieldSubject") }}
-                </span>
-                <span class="min-w-0 font-mono text-xs break-all">{{
-                  formatDN(activeCertificate.certInfo.subject)
-                }}</span>
-
-                <span class="text-muted-foreground font-medium">
-                  {{ t("admin.certConfig.fieldValidity") }}
-                </span>
-                <span class="min-w-0 text-xs">
-                  <span>{{
-                    formatDate(activeCertificate.certInfo.validFrom)
-                  }}</span>
-                  <span class="mx-1 text-muted-foreground">
-                    {{ t("admin.certConfig.to") }}
-                  </span>
-                  <span
-                    :class="isExpired ? 'text-destructive font-semibold' : ''"
-                  >
-                    {{ formatDate(activeCertificate.certInfo.validTo) }}
-                  </span>
-                  <Badge
-                    v-if="isExpired"
-                    variant="destructive"
-                    class="ml-2 text-[10px]"
-                    >{{ t("admin.certConfig.expired") }}</Badge
-                  >
-                  <Badge
-                    v-else-if="isExpiringSoon"
-                    variant="outline"
-                    class="ml-2 text-[10px] border-yellow-500 text-yellow-600 dark:border-yellow-400/80 dark:text-yellow-300"
-                  >
-                    {{ t("admin.certConfig.expiringSoon") }}
-                  </Badge>
-                </span>
-
-                <span class="text-muted-foreground font-medium">
-                  {{ t("admin.certConfig.fieldDomains") }}
-                </span>
-                <div class="min-w-0 flex flex-wrap gap-1.5">
-                  <Badge
-                    v-for="dns in activeCertificate.certInfo.dnsNames"
-                    :key="dns"
-                    variant="secondary"
-                    class="font-mono text-xs"
-                  >
-                    {{ dns }}
-                  </Badge>
-                  <span
-                    v-if="!activeCertificate.certInfo.dnsNames.length"
-                    class="text-xs text-muted-foreground"
-                  >
-                    {{ t("admin.certConfig.none") }}
-                  </span>
-                </div>
-
-                <span class="text-muted-foreground font-medium">
-                  {{ t("admin.certConfig.fieldUpdatedAt") }}
-                </span>
-                <span class="min-w-0 text-xs text-muted-foreground">
-                  {{ formatDate(activeCertificate.updated_at) }}
-                </span>
-              </div>
-            </div>
-
-            <div
-              v-if="subdomainCoverage"
-              class="dynamic-white-cert-subsurface rounded-lg border bg-background/80 p-4 grid gap-3"
-            >
-              <div class="flex flex-wrap items-center justify-between gap-3">
-                <div class="text-sm font-medium">
-                  {{ t("admin.certConfig.coverageAnalysisTitle") }}
-                </div>
-                <Badge
-                  :variant="coverageBadgeVariant(subdomainCoverage)"
-                  :class="coverageBadgeClass(subdomainCoverage)"
-                >
-                  {{ coverageBadgeLabel(subdomainCoverage) }}
-                </Badge>
-              </div>
-              <p class="text-sm text-muted-foreground">
-                {{ subdomainCoverage.summary }}
-              </p>
-              <div
-                class="grid grid-cols-[88px_minmax(0,1fr)] gap-y-3 text-sm sm:grid-cols-[100px_minmax(0,1fr)]"
-              >
-                <span class="text-muted-foreground font-medium">
-                  {{ t("admin.certConfig.authService") }}
-                </span>
-                <span class="min-w-0 font-mono text-xs break-all">
-                  {{
-                    subdomainCoverage.auth_host ||
-                    t("admin.certConfig.notConfigured")
-                  }}
-                </span>
-
-                <span class="text-muted-foreground font-medium">
-                  {{ t("admin.certConfig.recommendedDomains") }}
-                </span>
-                <span class="min-w-0 font-mono text-xs break-all">
-                  {{
-                    subdomainCoverage.recommended_domains.length
-                      ? subdomainCoverage.recommended_domains.join(", ")
-                      : t("admin.certConfig.noRecommendation")
-                  }}
-                </span>
-
-                <span class="text-muted-foreground font-medium">
-                  {{ t("admin.certConfig.hostCoverage") }}
-                </span>
-                <span class="min-w-0 text-xs">
-                  {{ subdomainCoverage.covered_hosts.length }} /
-                  {{
-                    subdomainCoverage.covered_hosts.length +
-                    subdomainCoverage.uncovered_hosts.length
-                  }}
-                  {{
-                    t("admin.certConfig.hostCoverageCount", {
-                      covered: subdomainCoverage.covered_hosts.length,
-                      total:
-                        subdomainCoverage.covered_hosts.length +
-                        subdomainCoverage.uncovered_hosts.length,
-                    })
-                  }}
-                </span>
-              </div>
-              <div
-                v-if="subdomainCoverage.uncovered_hosts.length"
-                class="text-xs text-amber-600 dark:text-amber-400"
-              >
-                {{
-                  t("admin.certConfig.uncoveredHosts", {
-                    hosts: uncoveredHostsPreview(
-                      subdomainCoverage.uncovered_hosts,
-                    ),
-                  })
-                }}
-              </div>
-              <div
-                v-if="subdomainCoverage.warnings.length"
-                class="grid gap-1 text-xs text-muted-foreground"
-              >
-                <div
-                  v-for="warning in subdomainCoverage.warnings"
-                  :key="warning"
-                >
-                  {{ warning }}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <Alert v-else variant="default" class="dynamic-white-glass-surface">
-            <AlertTitle>{{ t("admin.certConfig.noActiveTitle") }}</AlertTitle>
-            <AlertDescription class="grid gap-2">
-              <p>{{ t("admin.certConfig.noActiveDescription") }}</p>
-              <p v-if="subdomainCoverage" class="text-xs text-muted-foreground">
-                {{ subdomainCoverage.summary }}
-              </p>
-            </AlertDescription>
-          </Alert>
-        </div>
-      </template>
-
-      <template #actions="{ collapse }">
-        <Button variant="outline" @click="collapse">
-          {{ t("admin.certConfig.collapse") }}
-        </Button>
-      </template>
-    </ConfigCollapsibleCard>
+      :source-label="sourceLabel"
+      :subdomain-coverage="subdomainCoverage"
+      :uncovered-hosts-preview="uncoveredHostsPreview"
+    />
 
     <ConfigCollapsibleCard
       :title="t('admin.certConfig.manualUploadTitle')"
@@ -640,13 +101,11 @@
       actions-class="border-t bg-muted/30 px-4 py-4 sm:px-6 flex flex-col-reverse gap-2 rounded-b-lg sm:flex-row sm:items-center sm:justify-end"
       card-class="dynamic-white-cert-card"
     >
-      <template #summary>
-        {{ manualUploadSummary }}
-      </template>
+      <template #summary>{{ manualUploadSummary }}</template>
 
       <template #default>
         <div class="divide-y divide-border">
-          <div class="p-4 sm:p-6 grid gap-2">
+          <div class="grid gap-2 p-4 sm:p-6">
             <div class="text-base font-semibold">
               {{ t("admin.certConfig.uploadNewTitle") }}
             </div>
@@ -655,7 +114,7 @@
             </p>
           </div>
 
-          <div class="p-4 sm:p-6 grid gap-6">
+          <div class="grid gap-6 p-4 sm:p-6">
             <CertForm
               v-model:cert="formData.cert"
               v-model:sslKey="formData.key"
@@ -670,9 +129,7 @@
             />
 
             <Alert v-if="errorMessage" variant="destructive">
-              <AlertTitle>
-                {{ t("admin.certConfig.validationFailed") }}
-              </AlertTitle>
+              <AlertTitle>{{ t("admin.certConfig.validationFailed") }}</AlertTitle>
               <AlertDescription>{{ errorMessage }}</AlertDescription>
             </Alert>
           </div>
@@ -743,19 +200,16 @@ import { onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   Card,
+  CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import ConfigCollapsibleCard from "@admin-shared/components/ConfigCollapsibleCard.vue";
 import CertForm from "@admin-shared/components/ssl/CertForm.vue";
-import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import {
   extractErrorMessage,
   useAsyncAction,
@@ -764,7 +218,10 @@ import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { ConfigAPI } from "../../lib/api";
 import type { SSLStatus } from "../../types";
 import { toast } from "@admin-shared/utils/toast";
+import ActiveCertificateDetailsCard from "./ActiveCertificateDetailsCard.vue";
+import CertificateDeploymentCard from "./CertificateDeploymentCard.vue";
 import CertificateLibraryCard from "./CertificateLibraryCard.vue";
+import CertificateStatusCard from "./CertificateStatusCard.vue";
 import { useCertConfigViewModel } from "./useCertConfigViewModel";
 import { useSSLSharedFiles } from "./useSSLSharedFiles";
 
@@ -819,9 +276,7 @@ const { isPending: isActivating, run: runActivateSSL } = useAsyncAction({
 });
 const { isPending: isDeleting, run: runDeleteSSL } = useAsyncAction({
   onError: (error) => {
-    toast.error(
-      extractErrorMessage(error, t("admin.certConfig.deleteFailed")),
-    );
+    toast.error(extractErrorMessage(error, t("admin.certConfig.deleteFailed")));
   },
 });
 const { isPending: isClearingLibrary, run: runClearSSLLibrary } =
@@ -891,7 +346,7 @@ const {
 });
 
 onMounted(() => {
-  loadSSLStatus();
+  void loadSSLStatus();
 });
 
 async function loadSSLStatus() {

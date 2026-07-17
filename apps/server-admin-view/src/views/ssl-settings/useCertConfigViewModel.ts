@@ -9,13 +9,13 @@ import type {
 
 type TranslationParams = Record<string, string | number>;
 
-type DeploymentPreviewItem = {
+export type DeploymentPreviewItem = {
   id: string;
   label: string;
   isDefault: boolean;
 };
 
-type GatewayCertificateItem = NonNullable<
+export type GatewayCertificateItem = NonNullable<
   SSLStatus["gateway_status"]
 >["certificates"][number];
 

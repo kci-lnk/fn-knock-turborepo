@@ -22,74 +22,22 @@ import {
 } from "@admin-shared/composables/useAsyncAction";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { ConfigAPI } from "../../lib/api";
-import { isAnySubdomainRoutingMode } from "../../lib/reverse-proxy-submode";
-import type {
-  AuthCredentialSettings,
-  HostMapping,
-  PostLoginIpGrantMode,
-} from "../../types";
+import type { AuthCredentialSettings, PostLoginIpGrantMode } from "../../types";
 import { useConfigStore } from "../../store/config";
 import SessionDurationFieldRow from "./SessionDurationFieldRow.vue";
-
-type DurationUnit = "second" | "minute" | "hour" | "day" | "week" | "year";
-
-type DurationField = {
-  value: number;
-  unit: DurationUnit;
-};
+import {
+  durationUnits,
+  ipGrantDurationUnits,
+  mobilityWindowDurationUnits,
+  splitDuration,
+  toDurationSeconds as toSeconds,
+  type SessionDurationField as DurationField,
+} from "./session-settings/sessionDurationModel";
+import { useSessionCookieScope } from "./session-settings/useSessionCookieScope";
 
 const configStore = useConfigStore();
 const { t } = useI18n();
 const settings = ref<AuthCredentialSettings | null>(null);
-
-const durationUnits: Array<{
-  value: DurationUnit;
-  labelKey: string;
-  seconds: number;
-}> = [
-  {
-    value: "second",
-    labelKey: "admin.sessionSettings.units.second",
-    seconds: 1,
-  },
-  {
-    value: "minute",
-    labelKey: "admin.sessionSettings.units.minute",
-    seconds: 60,
-  },
-  {
-    value: "hour",
-    labelKey: "admin.sessionSettings.units.hour",
-    seconds: 3600,
-  },
-  {
-    value: "day",
-    labelKey: "admin.sessionSettings.units.day",
-    seconds: 24 * 3600,
-  },
-  {
-    value: "week",
-    labelKey: "admin.sessionSettings.units.week",
-    seconds: 7 * 24 * 3600,
-  },
-  {
-    value: "year",
-    labelKey: "admin.sessionSettings.units.year",
-    seconds: 365 * 24 * 3600,
-  },
-];
-
-const ipGrantDurationUnits = durationUnits.filter(
-  (unit) =>
-    unit.value === "second" || unit.value === "minute" || unit.value === "hour",
-);
-const mobilityWindowDurationUnits = durationUnits.filter(
-  (unit) => unit.value === "minute" || unit.value === "hour",
-);
-
-const durationUnitMap = Object.fromEntries(
-  durationUnits.map((item) => [item.value, item.seconds]),
-) as Record<DurationUnit, number>;
 
 const form = reactive<{
   session: DurationField;
@@ -167,28 +115,6 @@ const { isPending: isSaving, run: runSaveSettings } = useAsyncAction({
   },
 });
 
-const clampDurationValue = (value: unknown) =>
-  Math.max(1, Math.floor(Number(value) || 0));
-
-const toSeconds = (field: DurationField): number =>
-  clampDurationValue(field.value) * durationUnitMap[field.unit];
-
-const splitDuration = (
-  seconds: number,
-  units = durationUnits,
-): DurationField => {
-  const safeSeconds = Math.max(1, Math.floor(Number(seconds) || 1));
-  const matchedUnit =
-    [...units].reverse().find((unit) => safeSeconds % unit.seconds === 0) ??
-    units[0] ??
-    durationUnits[0]!;
-
-  return {
-    value: Math.max(1, safeSeconds / matchedUnit.seconds),
-    unit: matchedUnit.value,
-  };
-};
-
 const formatDuration = (seconds: number, units = durationUnits): string => {
   const normalized = splitDuration(seconds, units);
   const label =
@@ -197,46 +123,12 @@ const formatDuration = (seconds: number, units = durationUnits): string => {
   return `${normalized.value} ${unitLabel}`;
 };
 
-const isDirectMode = computed(() => configStore.config?.run_type === 0);
-const isSubdomainRoutingMode = computed(() =>
-  isAnySubdomainRoutingMode(configStore.config),
-);
-const normalizeDomainName = (value: string | null | undefined) =>
-  String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/^\./, "")
-    .replace(/\.$/, "");
-const isHostWithinDomain = (host: string, domain: string): boolean => {
-  const normalizedHost = normalizeDomainName(host);
-  const normalizedDomain = normalizeDomainName(domain);
-  if (!normalizedHost || !normalizedDomain) return false;
-  return (
-    normalizedHost === normalizedDomain ||
-    normalizedHost.endsWith(`.${normalizedDomain}`)
-  );
-};
-const isAuthServiceMapping = (mapping: HostMapping): boolean =>
-  mapping.service_role === "auth";
-const effectiveSharedCookieDomain = computed(() => {
-  const explicit = configStore.config?.subdomain_mode?.cookie_domain?.trim();
-  if (explicit) return explicit;
-  const rootDomain = configStore.config?.subdomain_mode?.root_domain?.trim();
-  return rootDomain || "";
-});
-const incompatibleCookieScopeHosts = computed(() => {
-  if (!isSubdomainRoutingMode.value) return [];
-  const sharedDomain = normalizeDomainName(effectiveSharedCookieDomain.value);
-  const mappings = configStore.config?.host_mappings ?? [];
-  return mappings
-    .filter((mapping) => mapping.use_auth && !isAuthServiceMapping(mapping))
-    .map((mapping) => normalizeDomainName(mapping.host))
-    .filter(
-      (host): host is string =>
-        Boolean(host) &&
-        (!sharedDomain || !isHostWithinDomain(host, sharedDomain)),
-    );
-});
+const {
+  effectiveSharedCookieDomain,
+  incompatibleCookieScopeHosts,
+  isDirectMode,
+  isSubdomainRoutingMode,
+} = useSessionCookieScope();
 const sessionTtlSeconds = computed(() => toSeconds(form.session));
 const rememberMeTtlSeconds = computed(() => toSeconds(form.rememberMe));
 const customGrantTtlSeconds = computed(() => toSeconds(form.customGrant));

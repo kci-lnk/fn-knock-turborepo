@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,404 +26,50 @@ import {
   Trash2,
   Upload,
 } from "lucide-vue-next";
-import { toast } from "@admin-shared/utils/toast";
-import {
-  buildKnockBackupFilename,
-  KNOCK_BACKUP_EXTENSION,
-} from "@admin-shared/utils/maintenanceBackup";
-import {
-  extractErrorMessage,
-  useAsyncAction,
-} from "@admin-shared/composables/useAsyncAction";
-import { MaintenanceAPI } from "../../lib/api";
-import { supportsSharedBackupForRuntime } from "../../lib/maintenance-runtime";
-import type {
-  BackupDirectoryFilesPayload,
-  FnKnockBackupImportResult,
-  SharedDataFileEntry,
-} from "../../types";
-import { useConfigStore } from "../../store/config";
+import { KNOCK_BACKUP_EXTENSION } from "@admin-shared/utils/maintenanceBackup";
+import { useMaintenanceBackupWorkflow } from "./useMaintenanceBackupWorkflow";
+import { useMaintenanceClearData } from "./useMaintenanceClearData";
 
-type BackupSelectionSource = "local" | "fnos";
-
-const configStore = useConfigStore();
 const { t } = useI18n();
-const fileInputRef = ref<HTMLInputElement | null>(null);
-const selectedLocalFile = ref<File | null>(null);
-const selectedFnosFile = ref<SharedDataFileEntry | null>(null);
-const selectedSource = ref<BackupSelectionSource | null>(null);
-const isImportDialogOpen = ref(false);
-const isClearDataDialogOpen = ref(false);
-const clearDataConfirmation = ref("");
-const isBackupPickerOpen = ref(false);
-const backupFilesError = ref("");
-const hasLoadedBackupFiles = ref(false);
-const supportsSharedBackup = computed(() =>
-  supportsSharedBackupForRuntime(
-    configStore.runtimeProfile,
-    configStore.capabilities,
-  ),
-);
-const localImportHintBeforeKey = computed(() => {
-  if (configStore.isDockerDeployment) {
-    return "admin.maintenanceSettings.dockerImportHintBefore";
-  }
-  if (configStore.isOpenWrtDeployment) {
-    return "admin.maintenanceSettings.openWrtImportHintBefore";
-  }
-  return "admin.maintenanceSettings.localImportHintBefore";
-});
-const localImportHintAfterKey = computed(() => {
-  if (configStore.isDockerDeployment) {
-    return "admin.maintenanceSettings.dockerImportHintAfter";
-  }
-  if (configStore.isOpenWrtDeployment) {
-    return "admin.maintenanceSettings.openWrtImportHintAfter";
-  }
-  return "admin.maintenanceSettings.localImportHintAfter";
-});
+const {
+  backupFiles,
+  backupFilesError,
+  exportBackupToFnos,
+  exportBackupToLocal,
+  fileInputRef,
+  handleFileChange,
+  handleFnosFileSelect,
+  hasSelectedBackup,
+  importBackup,
+  isBackupPickerOpen,
+  isBusy,
+  isExporting,
+  isImportDialogOpen,
+  isImporting,
+  isLoadingBackupFiles,
+  localImportHintAfterKey,
+  localImportHintBeforeKey,
+  openFnosBackupPicker,
+  openImportDialog,
+  refreshBackupFiles,
+  selectedSummary,
+  supportsSharedBackup,
+  triggerLocalFilePicker,
+} = useMaintenanceBackupWorkflow();
+const {
+  canClearAllData,
+  clearAllData,
+  clearDataConfirmation,
+  expectedClearDataConfirmation,
+  handleClearDataDialogOpenChange,
+  handleClearDataEnter,
+  isClearDataDialogOpen,
+  isClearingData,
+  openClearDataDialog,
+} = useMaintenanceClearData();
 
-const defaultBackupFiles: BackupDirectoryFilesPayload = {
-  shareName: "fn-knock / backup",
-  available: false,
-  files: [],
-};
-const backupFiles = ref<BackupDirectoryFilesPayload>(defaultBackupFiles);
-
-const { isPending: isExporting, run: runExport } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.maintenanceSettings.exportFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.maintenanceSettings.exportFailedDescription"),
-      ),
-    });
-  },
-});
-
-const { isPending: isImporting, run: runImport } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.maintenanceSettings.importFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.maintenanceSettings.importFailedDescription"),
-      ),
-    });
-  },
-});
-
-const { isPending: isClearingData, run: runClearData } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.maintenanceSettings.clearAllDataFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.maintenanceSettings.clearAllDataFailedDescription"),
-      ),
-    });
-  },
-});
-
-const { isPending: isLoadingBackupFiles, run: runLoadBackupFiles } =
-  useAsyncAction({
-    onError: (error) => {
-      const message = extractErrorMessage(
-        error,
-        t("admin.maintenanceSettings.loadFnosDirFailedDescription"),
-      );
-      backupFilesError.value = message;
-      toast.error(t("admin.maintenanceSettings.loadFnosDirFailed"), {
-        description: message,
-      });
-    },
-  });
-
-const isBusy = computed(() => isExporting.value || isImporting.value);
-const expectedClearDataConfirmation = computed(() =>
-  t("admin.maintenanceSettings.clearAllDataConfirmationPhrase"),
-);
-const canClearAllData = computed(
-  () =>
-    !isClearingData.value &&
-    clearDataConfirmation.value === expectedClearDataConfirmation.value,
-);
-const hasSelectedBackup = computed(() => {
-  if (selectedSource.value === "local") {
-    return selectedLocalFile.value !== null;
-  }
-  if (selectedSource.value === "fnos") {
-    return selectedFnosFile.value !== null;
-  }
-  return false;
-});
-
-const selectedSummary = computed(() => {
-  if (selectedSource.value === "local" && selectedLocalFile.value) {
-    return {
-      name: selectedLocalFile.value.name,
-      size: formatFileSize(selectedLocalFile.value.size),
-      sourceLabel: t("admin.maintenanceSettings.localFile"),
-      location: "",
-    };
-  }
-
-  if (selectedSource.value === "fnos" && selectedFnosFile.value) {
-    return {
-      name: selectedFnosFile.value.name,
-      size: formatFileSize(selectedFnosFile.value.size),
-      sourceLabel: t("admin.maintenanceSettings.fnosBackup"),
-      location: selectedFnosFile.value.relativePath,
-    };
-  }
-
-  return null;
-});
-
-function formatFileSize(size: number): string {
-  if (!Number.isFinite(size) || size < 1024) {
-    return `${Math.max(0, Math.floor(size || 0))} B`;
-  }
-  if (size < 1024 * 1024) {
-    return `${(size / 1024).toFixed(1)} KB`;
-  }
-  return `${(size / (1024 * 1024)).toFixed(2)} MB`;
-}
-
-function buildDownloadFilename(): string {
-  return buildKnockBackupFilename();
-}
-
-function resetSelectedBackup() {
-  selectedLocalFile.value = null;
-  selectedFnosFile.value = null;
-  selectedSource.value = null;
-  if (fileInputRef.value) {
-    fileInputRef.value.value = "";
-  }
-}
-
-function triggerLocalFilePicker() {
-  if (isBusy.value) return;
-  if (fileInputRef.value) {
-    fileInputRef.value.value = "";
-  }
-  fileInputRef.value?.click();
-}
-
-async function handleFileChange(event: Event) {
-  const input = event.target as HTMLInputElement | null;
-  const file = input?.files?.[0] ?? null;
-
-  if (!file) {
-    return;
-  }
-
-  if (!file.name.toLowerCase().endsWith(KNOCK_BACKUP_EXTENSION)) {
-    resetSelectedBackup();
-    toast.error(t("admin.maintenanceSettings.invalidBackupFile"), {
-      description: t("admin.maintenanceSettings.invalidBackupFileDescription", {
-        extension: KNOCK_BACKUP_EXTENSION,
-      }),
-    });
-    return;
-  }
-
-  selectedLocalFile.value = file;
-  selectedFnosFile.value = null;
-  selectedSource.value = "local";
-}
-
-async function loadBackupFiles(force = false) {
-  if (hasLoadedBackupFiles.value && !force) return;
-
-  backupFilesError.value = "";
-  const nextFiles = await runLoadBackupFiles(async () =>
-    MaintenanceAPI.getBackupDirectoryFiles(),
-  );
-  if (!nextFiles) return;
-
-  backupFiles.value = nextFiles;
-  hasLoadedBackupFiles.value = true;
-}
-
-async function openFnosBackupPicker() {
-  if (isBusy.value) return;
-  await loadBackupFiles();
-  if (backupFilesError.value) return;
-  isBackupPickerOpen.value = true;
-}
-
-async function refreshBackupFiles() {
-  await loadBackupFiles(true);
-}
-
-function handleFnosFileSelect(file: SharedDataFileEntry) {
-  selectedFnosFile.value = file;
-  selectedLocalFile.value = null;
-  selectedSource.value = "fnos";
-  isBackupPickerOpen.value = false;
-  toast.success(
-    t("admin.maintenanceSettings.fnosBackupSelected", { name: file.name }),
-  );
-}
-
-async function exportBackupToLocal() {
-  await runExport(async () => {
-    const blob = await MaintenanceAPI.downloadBackup();
-    const downloadUrl = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = downloadUrl;
-    anchor.download = buildDownloadFilename();
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(downloadUrl);
-    toast.success(t("admin.maintenanceSettings.backupDownloadStarted"));
-  });
-}
-
-async function exportBackupToFnos() {
-  await runExport(async () => {
-    const result = await MaintenanceAPI.exportBackupToFnos();
-    if (hasLoadedBackupFiles.value) {
-      await loadBackupFiles(true);
-    }
-    toast.success(t("admin.maintenanceSettings.backupExportedToFnos"), {
-      description: t("admin.maintenanceSettings.writtenToPath", {
-        path: result.relativePath,
-      }),
-    });
-  });
-}
-
-function openImportDialog() {
-  if (!hasSelectedBackup.value) {
-    toast.error(t("admin.maintenanceSettings.chooseBackupFirst"));
-    return;
-  }
-  isImportDialogOpen.value = true;
-}
-
-function buildImportDescription(result: FnKnockBackupImportResult): string {
-  if (result.warnings.length === 0) {
-    return t("admin.maintenanceSettings.importSuccessDescription", {
-      keys: result.imported_keys,
-      steps: result.synced_steps.length,
-    });
-  }
-
-  const preview = result.warnings.slice(0, 2).join("；");
-  return result.warnings.length > 2
-    ? t("admin.maintenanceSettings.importWarningsWithMore", {
-        preview,
-        count: result.warnings.length - 2,
-      })
-    : preview;
-}
-
-async function readFileAsBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.onerror = () =>
-      reject(
-        reader.error ||
-          new Error(t("admin.maintenanceSettings.readBackupFileFailed")),
-      );
-    reader.onload = () => {
-      const result = typeof reader.result === "string" ? reader.result : "";
-      const marker = "base64,";
-      const markerIndex = result.indexOf(marker);
-
-      if (markerIndex < 0) {
-        reject(new Error(t("admin.maintenanceSettings.parseBackupFileFailed")));
-        return;
-      }
-
-      resolve(result.slice(markerIndex + marker.length));
-    };
-
-    reader.readAsDataURL(file);
-  });
-}
-
-async function importBackup() {
-  await runImport(
-    async () => {
-      if (selectedSource.value === "fnos" && selectedFnosFile.value) {
-        return MaintenanceAPI.importBackupFromFnos(
-          selectedFnosFile.value.relativePath,
-        );
-      }
-
-      if (selectedSource.value === "local" && selectedLocalFile.value) {
-        return MaintenanceAPI.importBackup({
-          filename: selectedLocalFile.value.name,
-          archive_base64: await readFileAsBase64(selectedLocalFile.value),
-        });
-      }
-
-      throw new Error(t("admin.maintenanceSettings.chooseBackupFirst"));
-    },
-    {
-      onSuccess: async (result) => {
-        isImportDialogOpen.value = false;
-        resetSelectedBackup();
-        await configStore.loadConfig();
-
-        if (result.warnings.length > 0) {
-          toast.info(t("admin.maintenanceSettings.backupImported"), {
-            description: buildImportDescription(result),
-          });
-        } else {
-          toast.success(t("admin.maintenanceSettings.backupImported"), {
-            description: buildImportDescription(result),
-          });
-        }
-
-        if (typeof window !== "undefined") {
-          window.setTimeout(() => {
-            window.location.reload();
-          }, 1200);
-        }
-      },
-    },
-  );
-}
-
-function openClearDataDialog() {
-  if (isClearingData.value) return;
-  clearDataConfirmation.value = "";
-  isClearDataDialogOpen.value = true;
-}
-
-function handleClearDataDialogOpenChange(open: boolean) {
-  if (isClearingData.value) return;
-  isClearDataDialogOpen.value = open;
-  if (!open) {
-    clearDataConfirmation.value = "";
-  }
-}
-
-async function clearAllData() {
-  if (!canClearAllData.value) return;
-
-  await runClearData(
-    () => MaintenanceAPI.clearAllData(clearDataConfirmation.value),
-    {
-      onSuccess: () => {
-        if (typeof window === "undefined") return;
-        window.localStorage.clear();
-        window.location.reload();
-      },
-    },
-  );
-}
-
-function handleClearDataEnter() {
-  if (canClearAllData.value) {
-    void clearAllData();
-  }
-}
+// Vue assigns this string template ref at runtime.
+void fileInputRef;
 </script>
 
 <template>

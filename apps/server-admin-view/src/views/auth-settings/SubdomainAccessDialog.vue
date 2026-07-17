@@ -21,7 +21,7 @@ type SubdomainAccessOption = {
   builtin?: boolean;
 };
 
-const props = defineProps<{
+defineProps<{
   hasTarget: boolean;
   isSaving: boolean;
   mode: TOTPSubdomainAccessMode;

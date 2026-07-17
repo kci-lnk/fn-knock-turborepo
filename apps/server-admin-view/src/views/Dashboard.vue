@@ -1,11 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { toast } from "@admin-shared/utils/toast";
-import { DashboardAPI, DDNSAPI, SecurityAPI } from "../lib/api";
-import type { DashboardStats, ThreatOverview } from "../types";
-import { isCloudflaredTunnelAvailable } from "../lib/reverse-proxy-submode";
 import {
   Card,
   CardContent,
@@ -27,109 +24,31 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  ArrowDownLeft,
-  ArrowRight,
-  ArrowUpRight,
-  Ban,
-  Check,
-  Clock,
-  Globe,
-  Network,
-  Palette,
-  Route as RouteIcon,
-  ShieldAlert,
-  TriangleAlert,
-  Wifi,
-} from "lucide-vue-next";
-import { useAsyncAction } from "@admin-shared/composables/useAsyncAction";
+import { ArrowRight, Check, Palette, TriangleAlert } from "lucide-vue-next";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
 import { useConfigStore } from "../store/config";
 import { useDashboardTunnelStatus } from "./dashboard/useDashboardTunnelStatus";
 import { useDashboardRealtimeTraffic } from "./dashboard/useDashboardRealtimeTraffic";
-import { buildDDNSTimestampTooltipLines } from "../lib/ddns-time";
-import TimeSeriesChart, {
-  type TimeSeriesChartSeries,
-} from "@/components/charts/TimeSeriesChart.vue";
+import { useDashboardViewModel } from "./dashboard/useDashboardViewModel";
+import {
+  dashboardRanges,
+  useDashboardData,
+} from "./dashboard/useDashboardData";
+import TimeSeriesChart from "@/components/charts/TimeSeriesChart.vue";
 import {
   THEME_COLOR_PRESETS,
   normalizeAppearanceConfig,
   type ThemeColorPresetKey,
 } from "@frontend-core/appearance";
 
-const ranges = [
-  {
-    key: "15m",
-    labelKey: "admin.dashboard.ranges.fifteenMinutes",
-    sec: 15 * 60,
-  },
-  { key: "1h", labelKey: "admin.dashboard.ranges.oneHour", sec: 60 * 60 },
-  {
-    key: "6h",
-    labelKey: "admin.dashboard.ranges.sixHours",
-    sec: 6 * 60 * 60,
-  },
-  {
-    key: "1d",
-    labelKey: "admin.dashboard.ranges.twentyFourHours",
-    sec: 24 * 60 * 60,
-  },
-  {
-    key: "7d",
-    labelKey: "admin.dashboard.ranges.sevenDays",
-    sec: 7 * 24 * 60 * 60,
-  },
-] as const;
-
-const rangeKey = ref<(typeof ranges)[number]["key"]>("1h");
-const themeDialogOpen = ref(false);
-const isSavingThemePreset = ref(false);
-const isAutoRefresh = ref(true);
-const { run: runLoadDashboard } = useAsyncAction();
-const isInitializing = ref(true);
-const errorMessage = ref("");
-const stats = ref<DashboardStats | null>(null);
-const threatOverview = ref<ThreatOverview | null>(null);
-const lastUpdatedAt = ref<Date | null>(null);
-let refreshTimer: number | null = null;
-
 const router = useRouter();
 const configStore = useConfigStore();
-const { locale, t } = useI18n();
+const { t } = useI18n();
+const ranges = dashboardRanges;
+const themeDialogOpen = ref(false);
+const isSavingThemePreset = ref(false);
 
-const ddnsStatus = ref<{
-  enabled: boolean;
-  provider: string | null;
-  updateScope: "dual_stack" | "ipv6_only" | "ipv4_only";
-  extraTargetCount: number;
-  enabledExtraTargetCount: number;
-  targets: Array<{
-    id: string;
-    isPrimary: boolean;
-    lastCheck: {
-      outcome: "updated" | "noop" | "skipped" | "error" | null;
-    };
-  }>;
-  lastIP: {
-    ipv4: string | null;
-    ipv6: string | null;
-    updated_at: string | null;
-  };
-  lastCheck: {
-    checked_at: string | null;
-    outcome: "updated" | "noop" | "skipped" | "error" | null;
-    message: string | null;
-  };
-} | null>(null);
-const isDdnsInitializing = ref(true);
-const { isPending: isDdnsPending, run: runLoadDdnsStatus } = useAsyncAction();
-const isDdnsLoading = computed(
-  () => isDdnsInitializing.value || isDdnsPending.value,
-);
-const showMainSkeleton = useDelayedLoading(isInitializing);
-const showDdnsSkeleton = useDelayedLoading(() => isDdnsLoading.value);
-const ddnsError = ref("");
 const showTunnelSection = computed(
   () =>
     configStore.config?.run_type === 1 &&
@@ -153,76 +72,62 @@ const showEntryStatusModule = computed(
   () =>
     configStore.config?.dashboard_display?.show_entry_status_module !== false,
 );
-const showCloudflaredTunnel = computed(
-  () =>
-    configStore.canUseCloudflared &&
-    isCloudflaredTunnelAvailable(configStore.config),
-);
-const ddnsUpdateScopeLabelKeys = {
-  dual_stack: "admin.dashboard.ddns.updateScopes.dualStack",
-  ipv6_only: "admin.dashboard.ddns.updateScopes.ipv6Only",
-  ipv4_only: "admin.dashboard.ddns.updateScopes.ipv4Only",
-} as const;
-
-const trafficSeriesLabelKeys: Record<string, string> = {
-  "\u5165\u7AD9": "admin.dashboard.traffic.ingressSeries",
-  "\u51FA\u7AD9": "admin.dashboard.traffic.egressSeries",
-};
-
-const getDdnsTimestampLabels = () => ({
-  lastSuccessfulUpdate: t("admin.ddns.lastSuccessfulUpdate"),
-  lastCheck: t("admin.ddns.lastCheck"),
-  never: t("admin.ddns.never"),
-});
-
-const translateTrafficSeriesName = (name: unknown) => {
-  const value = String(name ?? "");
-  const key = trafficSeriesLabelKeys[value];
-  return key ? t(key) : value;
-};
-
 const gotoTunnel = (tab: "frp" | "cloudflared") => {
-  router.push({ path: "/tunnel", query: { tab } });
+  void router.push({ path: "/tunnel", query: { tab } });
 };
-
 const gotoDdns = () => {
-  router.push({ path: "/ddns" });
+  void router.push({ path: "/ddns" });
 };
 
-const activeRange = computed(
-  () => ranges.find((r) => r.key === rangeKey.value) ?? ranges[1],
-);
+const {
+  polling: realtimePolling,
+  realtimeInBps,
+  realtimeOutBps,
+  realtimeStats,
+} = useDashboardRealtimeTraffic();
+
+const {
+  activeRange,
+  ddnsStatus,
+  errorMessage,
+  isDdnsLoading,
+  isInitializing,
+  rangeKey,
+  showDdnsSkeleton,
+  showMainSkeleton,
+  stats,
+  threatOverview,
+} = useDashboardData({
+  disposeTunnelStatus,
+  scheduleTunnelStatusLoad,
+  startRealtimePolling: realtimePolling.start,
+  stopRealtimePolling: realtimePolling.stop,
+  translate: (key) => t(key),
+});
 
 const themePresetOptions = THEME_COLOR_PRESETS.map((preset) => ({
   ...preset,
   labelKey: `admin.dashboard.theme.presets.${preset.key}`,
 }));
-
 const activeThemeColorPreset = computed(
   () =>
     normalizeAppearanceConfig(configStore.config?.appearance)
       .theme_color_preset,
 );
-
 const getErrorMessage = (error: unknown, fallback: string) => {
   const value = error as {
     response?: { data?: { message?: string } };
     message?: string;
   };
-
   return value?.response?.data?.message || value?.message || fallback;
 };
-
 const selectThemeColorPreset = async (preset: ThemeColorPresetKey) => {
   if (preset === activeThemeColorPreset.value || isSavingThemePreset.value) {
     return;
   }
-
   isSavingThemePreset.value = true;
   try {
-    await configStore.saveAppearanceConfig({
-      theme_color_preset: preset,
-    });
+    await configStore.saveAppearanceConfig({ theme_color_preset: preset });
     themeDialogOpen.value = false;
   } catch (error) {
     toast.error(t("admin.dashboard.theme.saveFailed"), {
@@ -233,408 +138,41 @@ const selectThemeColorPreset = async (preset: ThemeColorPresetKey) => {
   }
 };
 
-const formatBytes = (bytes: number | null | undefined) => {
-  const v = Number(bytes ?? 0);
-  if (!Number.isFinite(v) || v <= 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB"] as const;
-  const exp = Math.max(
-    0,
-    Math.min(units.length - 1, Math.floor(Math.log(v) / Math.log(1024))),
-  );
-  const n = v / 1024 ** exp;
-  const digits = exp === 0 ? 0 : n >= 100 ? 0 : n >= 10 ? 1 : 2;
-  return `${n.toFixed(digits)} ${units[exp]}`;
-};
-
-const formatBps = (bps: number | null | undefined) => `${formatBytes(bps)} /s`;
-
-const formatNumber = (value: number | null | undefined, fallback = "-") => {
-  if (value === null || value === undefined) return fallback;
-  const v = Number(value);
-  if (!Number.isFinite(v)) return fallback;
-  return new Intl.NumberFormat(String(locale.value)).format(Math.round(v));
-};
-
-const onlineNow = computed(
-  () => realtimeStats.value?.active_conns ?? stats.value?.now?.online ?? null,
-);
-
-const normalizeSeriesData = (value: unknown) => {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((point) => {
-      if (!Array.isArray(point)) return null;
-      const time = Number(point[0]);
-      const amount = Number(point[1]);
-      if (!Number.isFinite(time) || !Number.isFinite(amount)) return null;
-      return [time, amount] as const;
-    })
-    .filter((point): point is readonly [number, number] => Boolean(point));
-};
-
-const trafficSeries = computed<TimeSeriesChartSeries[]>(() => {
-  const base = (stats.value?.traffic.echarts ?? {}) as any;
-  const colors = ["#0f766e", "#2563eb"];
-
-  return (Array.isArray(base?.series) ? base.series : []).map(
-    (s: any, idx: number) => {
-      const color = colors[idx % colors.length] ?? "#0f766e";
-      return {
-        name: translateTrafficSeriesName(s?.name),
-        color,
-        fill: `${color}14`,
-        data: normalizeSeriesData(s?.data),
-      };
-    },
-  );
-});
-
-const threatSeries = computed<TimeSeriesChartSeries[]>(() => {
-  const failedSeries = threatOverview.value?.series.failedLogins ?? [];
-  const blockedSeries = threatOverview.value?.series.blockedScanners ?? [];
-  const wafSeries = threatOverview.value?.series.wafEvents ?? [];
-  return [
-    {
-      name: t("admin.dashboard.security.failedLogins"),
-      color: "#525252",
-      fill: "rgba(82, 82, 82, 0.08)",
-      data: failedSeries,
-    },
-    {
-      name: t("admin.dashboard.security.scanners"),
-      color: "#991b1b",
-      fill: "rgba(153, 27, 27, 0.08)",
-      data: blockedSeries,
-    },
-    {
-      name: "WAF",
-      color: "#b45309",
-      fill: "rgba(180, 83, 9, 0.08)",
-      data: wafSeries,
-    },
-  ];
-});
-
 const {
-  polling: realtimePolling,
+  ddnsCards,
+  ddnsState,
+  entryStatusCardDescription,
+  entryStatusCardTitle,
+  formatBps,
+  formatNumber,
+  liveMetricCards,
+  onlineNow,
+  securityCards,
+  threatSeries,
+  titleRangeText,
+  trafficSeries,
+  tunnelCards,
+} = useDashboardViewModel({
+  activeRangeSec: () => activeRange.value.sec,
+  cfStatus,
+  ddnsStatus,
+  defaultTunnel,
+  frpStatus,
   realtimeInBps,
   realtimeOutBps,
   realtimeStats,
-} = useDashboardRealtimeTraffic();
-
-const loadDdnsStatus = async () => {
-  ddnsError.value = "";
-  await runLoadDdnsStatus(() => DDNSAPI.getStatus(), {
-    onSuccess: (status) => {
-      ddnsStatus.value = status;
-    },
-    onError: (err: any) => {
-      const msg =
-        err?.response?.data?.message ||
-        err?.message ||
-        t("admin.dashboard.errors.loadFailed");
-      ddnsError.value = msg;
-      ddnsStatus.value = null;
-    },
-    onFinally: () => {
-      isDdnsInitializing.value = false;
-    },
-  });
-};
-
-const load = async () => {
-  await runLoadDashboard(
-    async () => {
-      errorMessage.value = "";
-      const [statsRes, threatRes] = await Promise.allSettled([
-        DashboardAPI.getStats(activeRange.value.sec),
-        SecurityAPI.getOverview(activeRange.value.sec),
-      ]);
-
-      if (statsRes.status === "fulfilled") {
-        stats.value = statsRes.value;
-        lastUpdatedAt.value = new Date();
-      } else {
-        const msg =
-          (statsRes.reason as any)?.response?.data?.message ||
-          (statsRes.reason as any)?.message ||
-          t("admin.dashboard.errors.loadFailed");
-        errorMessage.value = msg;
-        toast.error(t("admin.dashboard.errors.dashboardLoadFailed"), {
-          description: msg,
-        });
-      }
-
-      if (threatRes.status === "fulfilled") {
-        threatOverview.value = threatRes.value;
-      }
-    },
-    {
-      onError: (err: any) => {
-        const msg =
-          err?.response?.data?.message ||
-          err?.message ||
-          t("admin.dashboard.errors.loadFailed");
-        errorMessage.value = msg;
-        toast.error(t("admin.dashboard.errors.dashboardLoadFailed"), {
-          description: msg,
-        });
-      },
-      onFinally: () => {
-        isInitializing.value = false;
-      },
-    },
-  );
-  scheduleTunnelStatusLoad();
-  window.setTimeout(() => {
-    void loadDdnsStatus();
-  }, 0);
-};
-
-const refreshAll = () => {
-  void load();
-};
-
-const startAutoRefresh = () => {
-  if (refreshTimer) window.clearInterval(refreshTimer);
-  refreshTimer = window.setInterval(() => {
-    if (!isAutoRefresh.value) return;
-    refreshAll();
-  }, 15000);
-};
-
-watch(rangeKey, () => {
-  void load();
+  showTunnelSection,
+  stats,
+  threatOverview,
 });
 
 watch(showTunnelSection, (visible) => {
   if (visible) {
     scheduleTunnelStatusLoad();
-    return;
+  } else {
+    resetTunnelStatus();
   }
-
-  resetTunnelStatus();
 });
-
-watch(isAutoRefresh, () => {
-  if (isAutoRefresh.value) startAutoRefresh();
-  else if (refreshTimer) window.clearInterval(refreshTimer);
-});
-
-onMounted(() => {
-  refreshAll();
-  realtimePolling.start();
-  if (isAutoRefresh.value) startAutoRefresh();
-});
-
-onUnmounted(() => {
-  if (refreshTimer) window.clearInterval(refreshTimer);
-  disposeTunnelStatus();
-  realtimePolling.stop();
-});
-
-const titleRangeText = computed(() => {
-  const sec = stats.value?.rangeSec ?? activeRange.value.sec;
-  if (sec < 3600) {
-    return t("admin.dashboard.duration.minutes", {
-      count: Math.round(sec / 60),
-    });
-  }
-  if (sec < 24 * 3600) {
-    return t("admin.dashboard.duration.hours", {
-      count: Math.round(sec / 3600),
-    });
-  }
-  return t("admin.dashboard.duration.days", {
-    count: Math.round(sec / 86400),
-  });
-});
-
-const metricIconTones = {
-  liveIngress: {
-    color: "#0f766e",
-  },
-  liveEgress: {
-    color: "#1d4ed8",
-  },
-  totalIngress: {
-    color: "#0369a1",
-  },
-  totalEgress: {
-    color: "#6d28d9",
-  },
-} as const;
-
-const liveMetricCards = computed(() => [
-  {
-    label: t("admin.dashboard.metrics.liveIngress"),
-    value: realtimeInBps.value === null ? "-" : formatBps(realtimeInBps.value),
-    hint: t("admin.dashboard.metrics.currentReceiveRate"),
-    icon: ArrowDownLeft,
-    iconTone: metricIconTones.liveIngress,
-  },
-  {
-    label: t("admin.dashboard.metrics.liveEgress"),
-    value:
-      realtimeOutBps.value === null ? "-" : formatBps(realtimeOutBps.value),
-    hint: t("admin.dashboard.metrics.currentSendRate"),
-    icon: ArrowUpRight,
-    iconTone: metricIconTones.liveEgress,
-  },
-  {
-    label: t("admin.dashboard.metrics.totalIngress"),
-    value: formatBytes(stats.value?.totals?.inBytes),
-    hint: t("admin.dashboard.metrics.rangeReceiveTotal", {
-      range: titleRangeText.value,
-    }),
-    icon: ArrowDownLeft,
-    iconTone: metricIconTones.totalIngress,
-  },
-  {
-    label: t("admin.dashboard.metrics.totalEgress"),
-    value: formatBytes(stats.value?.totals?.outBytes),
-    hint: t("admin.dashboard.metrics.rangeSendTotal", {
-      range: titleRangeText.value,
-    }),
-    icon: ArrowUpRight,
-    iconTone: metricIconTones.totalEgress,
-  },
-]);
-
-const securityCards = computed(() => [
-  {
-    label: t("admin.dashboard.security.failedLogins"),
-    value: formatNumber(threatOverview.value?.totals?.failedLogins),
-    hint: t("admin.dashboard.security.failedLoginsHint"),
-    icon: ShieldAlert,
-  },
-  {
-    label: t("admin.dashboard.security.scanners"),
-    value: formatNumber(threatOverview.value?.totals?.blockedScanners),
-    hint: t("admin.dashboard.security.scannersHint"),
-    icon: Ban,
-  },
-  {
-    label: "WAF",
-    value: formatNumber(threatOverview.value?.totals?.wafEvents),
-    hint: t("admin.dashboard.security.wafHint"),
-    icon: TriangleAlert,
-  },
-]);
-
-const ddnsState = computed(() => {
-  if (ddnsStatus.value?.enabled) {
-    return {
-      active: true,
-      label: t("admin.dashboard.ddns.activeSync"),
-    };
-  }
-  return {
-    active: false,
-    label: t("admin.dashboard.ddns.paused"),
-  };
-});
-
-const ddnsCards = computed(() => [
-  {
-    label: t("admin.dashboard.ddns.provider"),
-    value:
-      ddnsStatus.value?.provider || t("admin.dashboard.ddns.notConfigured"),
-    hint:
-      (ddnsStatus.value?.extraTargetCount || 0) > 0
-        ? t("admin.dashboard.ddns.primaryDynamicServiceWithExtra", {
-            count: ddnsStatus.value?.extraTargetCount || 0,
-          })
-        : t("admin.dashboard.ddns.primaryDynamicService"),
-    icon: Network,
-  },
-  {
-    label: "IPv4",
-    value: ddnsStatus.value?.lastIP?.ipv4 || "---.---.---.---",
-    hint: t("admin.dashboard.ddns.lastReportedAddress"),
-    icon: Wifi,
-  },
-  {
-    label: "IPv6",
-    value:
-      ddnsStatus.value?.lastIP?.ipv6 ||
-      t("admin.dashboard.ddns.noAddressDetected"),
-    hint: t("admin.dashboard.ddns.lastReportedAddress"),
-    icon: Globe,
-  },
-  {
-    label: t("admin.dashboard.ddns.updateScope"),
-    value: ddnsStatus.value
-      ? t(ddnsUpdateScopeLabelKeys[ddnsStatus.value.updateScope])
-      : "IPv4 & IPv6",
-    hint: t("admin.dashboard.ddns.activePolicy"),
-    icon: RouteIcon,
-  },
-  {
-    label: t("admin.dashboard.ddns.lastCheck"),
-    value: ddnsStatus.value?.lastCheck?.checked_at ?? null,
-    hint: t("admin.dashboard.ddns.autoCheckTime"),
-    icon: Clock,
-    isTime: true,
-    tooltipLines: buildDDNSTimestampTooltipLines({
-      updatedAt: ddnsStatus.value?.lastIP?.updated_at,
-      checkedAt: ddnsStatus.value?.lastCheck?.checked_at,
-      locale: String(locale.value),
-      labels: getDdnsTimestampLabels(),
-    }),
-  },
-  {
-    label: t("admin.dashboard.ddns.extraDomains"),
-    value: String(ddnsStatus.value?.extraTargetCount || 0),
-    hint:
-      (ddnsStatus.value?.targets || []).filter(
-        (target) => !target.isPrimary && target.lastCheck.outcome === "error",
-      ).length > 0
-        ? t("admin.dashboard.ddns.extraDomainsError", {
-            count: (ddnsStatus.value?.targets || []).filter(
-              (target) =>
-                !target.isPrimary && target.lastCheck.outcome === "error",
-            ).length,
-          })
-        : t("admin.dashboard.ddns.extraDomainsCount"),
-    icon: Globe,
-  },
-]);
-
-const entryStatusCardTitle = computed(() =>
-  showTunnelSection.value
-    ? t("admin.dashboard.entry.entryAndTunnel")
-    : t("admin.dashboard.entry.entryStatus"),
-);
-
-const entryStatusCardDescription = computed(() =>
-  showTunnelSection.value
-    ? t("admin.dashboard.entry.ddnsAndTunnelStatus")
-    : t("admin.dashboard.entry.ddnsStatus"),
-);
-
-const tunnelCards = computed(() => [
-  ...(configStore.canUseFrpc
-    ? [
-        {
-          key: "frp" as const,
-          label: t("admin.dashboard.tunnel.frp"),
-          status: frpStatus.value,
-          isDefault: defaultTunnel.value === "frp",
-        },
-      ]
-    : []),
-  ...(showCloudflaredTunnel.value
-    ? [
-        {
-          key: "cloudflared" as const,
-          label: "Cloudflared",
-          status: cfStatus.value,
-          isDefault: defaultTunnel.value === "cloudflared",
-        },
-      ]
-    : []),
-]);
 </script>
 
 <template>

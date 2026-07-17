@@ -1,5 +1,21 @@
 import type { NotificationSchemaField } from "../../../types";
 
+export type ProviderDialogMode = "create" | "edit";
+
+export type EditableProviderForm = {
+  name: string;
+  type: string;
+  enabled: boolean;
+  connection_config: Record<string, unknown>;
+};
+
+export type ProviderFormPayload = {
+  name?: string;
+  type: string;
+  enabled: boolean;
+  connection_config: Record<string, unknown>;
+};
+
 const escapeRegExp = (value: string) =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 

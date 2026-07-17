@@ -77,6 +77,14 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm ci
 
+      - name: Install dependency auditor
+        run: cargo install cargo-audit --version 0.22.2 --locked
+
+      - name: Run security and lint gates
+        run: |
+          npm run security:audit
+          npm run lint
+
       - name: Verify generated Go control-plane stubs
         shell: pwsh
         run: |
@@ -175,6 +183,14 @@ jobs:
 
       - name: Install JavaScript dependencies
         run: npm ci
+
+      - name: Install dependency auditor
+        run: cargo install cargo-audit --version 0.22.2 --locked
+
+      - name: Run security and lint gates
+        run: |
+          npm run security:audit
+          npm run lint
 
       - name: Install NSIS
         shell: pwsh

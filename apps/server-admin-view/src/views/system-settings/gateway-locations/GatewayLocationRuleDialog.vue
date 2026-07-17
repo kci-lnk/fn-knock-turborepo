@@ -29,21 +29,12 @@ import {
 import { Trash2 } from "lucide-vue-next";
 import ResponseBodyEditor from "@/components/ResponseBodyEditor.vue";
 import ResponseContentTypeField from "@/components/ResponseContentTypeField.vue";
-import type { HostLocation, HostLocationAction } from "@/types";
-
-type HeaderRow = {
-  name: string;
-  value: string;
-};
-
-type LocationForm = Omit<HostLocation, "response"> & {
-  response: HostLocation["response"];
-  headers: HeaderRow[];
-};
+import type { HostLocationAction } from "@/types";
+import type { GatewayLocationForm } from "./gatewayLocationModel";
 
 const props = defineProps<{
   editingIndex: number | null;
-  form: LocationForm;
+  form: GatewayLocationForm;
   formError: string;
   isProxyLocationWebSocketTarget: boolean;
   isSaving: boolean;

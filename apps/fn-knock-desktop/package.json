@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "cargo run --manifest-path native/Cargo.toml",
     "build": "echo Native Win32 controller requires no web frontend",
-    "check-types": "cargo check --manifest-path native/Cargo.toml --target x86_64-pc-windows-msvc",
+    "check-types": "cargo check --manifest-path native/Cargo.toml",
+    "check-types:windows": "cargo check --manifest-path native/Cargo.toml --target x86_64-pc-windows-msvc",
     "build:native": "cargo build --release --manifest-path native/Cargo.toml --target x86_64-pc-windows-msvc"
   },
   "dependencies": {},

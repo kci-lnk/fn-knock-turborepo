@@ -273,14 +273,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
-import { useI18n } from "vue-i18n";
 import { Eye, EyeOff } from "lucide-vue-next";
-import type {
-  AcmeApplicationPayload,
-  AcmeApplicationRecord,
-  AcmeDnsProvider,
-} from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -309,312 +302,39 @@ import {
   TagsInputItemText,
 } from "@/components/ui/tags-input";
 import CredentialTransferHint from "@/components/CredentialTransferHint.vue";
-import { useDnsCredentialTransfer } from "@/composables/useDnsCredentialTransfer";
-import { toast } from "@admin-shared/utils/toast";
+import {
+  useAcmeApplicationForm,
+  type AcmeApplicationDialogEmit,
+  type AcmeApplicationDialogProps,
+} from "./acme-application/useAcmeApplicationForm";
 
-type DnsCredentialField = {
-  key: string;
-  label?: string;
-  description?: string;
-  required?: boolean;
-};
-
-type DnsCredentialScheme = {
-  id: string;
-  label: string;
-  description?: string;
-  fields: DnsCredentialField[];
-};
-
-const { locale, t } = useI18n();
-
-const props = defineProps<{
-  open: boolean;
-  mode: "create" | "edit";
-  initialValue?: AcmeApplicationRecord | null;
-  dnsProviders: AcmeDnsProvider[];
-  pending?: boolean;
-}>();
-
-const emit = defineEmits<{
-  "update:open": [value: boolean];
-  submit: [payload: AcmeApplicationPayload];
-}>();
-
-const name = ref("");
-const domains = ref<string[]>([]);
-const dnsType = ref("");
-const credentials = ref<Record<string, string>>({});
-const renewEnabled = ref(true);
-const isCredentialsVisible = ref(false);
-const credentialEditReady = ref<Record<string, boolean>>({});
-
-const activeProvider = computed(() => {
-  return (
-    props.dnsProviders.find((provider) => provider.dnsType === dnsType.value) ||
-    null
-  );
-});
-
-const activeDnsType = computed(() => dnsType.value.trim());
-
-const getProviderCredentialFields = (provider: AcmeDnsProvider | null) => {
-  if (!provider) return [] as DnsCredentialField[];
-
-  const fields: DnsCredentialField[] = [];
-  const seen = new Set<string>();
-
-  for (const scheme of provider.credentialSchemes) {
-    for (const field of scheme.fields) {
-      if (seen.has(field.key)) continue;
-      seen.add(field.key);
-      fields.push(field);
-    }
-  }
-
-  return fields;
-};
-
-const getSatisfiedCredentialScheme = (
-  provider: AcmeDnsProvider | null,
-  values: Record<string, string>,
-) => {
-  if (!provider) return null;
-
-  return (
-    provider.credentialSchemes.find((scheme) =>
-      scheme.fields
-        .filter((field) => field.required !== false)
-        .every((field) => Boolean((values[field.key] || "").trim())),
-    ) || null
-  );
-};
-
-const activeCredentialSchemes = computed<DnsCredentialScheme[]>(
-  () => activeProvider.value?.credentialSchemes || [],
-);
-const activeCredentialFields = computed(() =>
-  getProviderCredentialFields(activeProvider.value),
-);
-const hasMultipleCredentialSchemes = computed(
-  () => activeCredentialSchemes.value.length > 1,
-);
-const matchedCredentialScheme = computed(() =>
-  getSatisfiedCredentialScheme(activeProvider.value, credentials.value),
-);
-const filledCredentialCount = computed(() => {
-  return activeCredentialFields.value.filter(
-    (field) => (credentials.value[field.key] || "").trim().length > 0,
-  ).length;
-});
-
-const credentialSummary = computed(() => {
-  if (!activeCredentialFields.value.length) {
-    return t("admin.acmeApplicationDialog.noExtraCredentials");
-  }
-  if (matchedCredentialScheme.value) {
-    return t("admin.acmeApplicationDialog.schemeSatisfied", {
-      label: matchedCredentialScheme.value.label,
-    });
-  }
-  if (!filledCredentialCount.value) {
-    return hasMultipleCredentialSchemes.value
-      ? t("admin.acmeApplicationDialog.schemeCount", {
-          count: activeCredentialSchemes.value.length,
-        })
-      : t("admin.acmeApplicationDialog.requiredFieldCount", {
-          count: activeCredentialFields.value.length,
-        });
-  }
-  if (hasMultipleCredentialSchemes.value) {
-    return t("admin.acmeApplicationDialog.filledAnyScheme", {
-      count: filledCredentialCount.value,
-    });
-  }
-  return t("admin.acmeApplicationDialog.filledFieldCount", {
-    filled: filledCredentialCount.value,
-    total: activeCredentialFields.value.length,
-  });
-});
-
-const providerGroupKey = (group?: string | null) => {
-  if (group === "\u5e38\u7528") return "common";
-  if (group === "\u56fd\u5185") return "china";
-  if (group === "\u56fd\u9645") return "international";
-  if (group === "\u81ea\u5efa/\u9ad8\u7ea7") return "customAdvanced";
-  if (!group || group === "\u5176\u4ed6") return "other";
-  return group;
-};
-
-const providerGroupLabel = (key: string) => {
-  if (
-    key === "common" ||
-    key === "china" ||
-    key === "international" ||
-    key === "customAdvanced" ||
-    key === "other"
-  ) {
-    return t(`admin.acmeApplicationDialog.providerGroups.${key}`);
-  }
-  return key;
-};
-
-const groupedProviders = computed(() => {
-  const groupOrder = ["common", "china", "international", "customAdvanced"];
-  const bucket = new Map<string, AcmeDnsProvider[]>();
-  for (const provider of props.dnsProviders) {
-    const group = providerGroupKey(provider.group);
-    if (!bucket.has(group)) bucket.set(group, []);
-    bucket.get(group)!.push(provider);
-  }
-
-  const groups = Array.from(bucket.entries()).map(([group, items]) => ({
-    group: providerGroupLabel(group),
-    groupKey: group,
-    items: items
-      .slice()
-      .sort((a, b) => a.label.localeCompare(b.label, locale.value)),
-  }));
-
-  groups.sort((a, b) => {
-    const ai = groupOrder.indexOf(a.groupKey);
-    const bi = groupOrder.indexOf(b.groupKey);
-    if (ai === -1 && bi === -1) {
-      return a.group.localeCompare(b.group, locale.value);
-    }
-    if (ai === -1) return 1;
-    if (bi === -1) return -1;
-    return ai - bi;
-  });
-
-  return groups;
-});
-
-const dialogTitle = computed(() => {
-  return props.mode === "edit"
-    ? t("admin.acmeApplicationDialog.editTitle")
-    : t("admin.acmeApplicationDialog.createTitle");
-});
-
-const getCredentialStateKey = (key: string) => `${activeDnsType.value}:${key}`;
-
-const enableCredentialEditing = (key: string) => {
-  credentialEditReady.value[getCredentialStateKey(key)] = true;
-};
-
-const isCredentialEditReady = (key: string) =>
-  credentialEditReady.value[getCredentialStateKey(key)] === true;
+const props = defineProps<AcmeApplicationDialogProps>();
+const emit = defineEmits<AcmeApplicationDialogEmit>();
 
 const {
-  applySuggestion: applyTransferredCredentials,
-  isLoadingSource: isTransferSourceLoading,
-  sourceScopeLabel: transferSourceScopeLabel,
-  suggestion: credentialTransferSuggestion,
-} = useDnsCredentialTransfer({
-  target: "acme",
-  providerId: activeDnsType,
-  targetCredentials: credentials,
-});
-
-const credentialTransferDescription = computed(() => {
-  const suggestion = credentialTransferSuggestion.value;
-  if (!suggestion) return "";
-  return t("admin.acmeApplicationDialog.transferDescription", {
-    source: transferSourceScopeLabel.value,
-    bridge: suggestion.bridgeLabel,
-    count: suggestion.fillableFields.length,
-  });
-});
-
-const canSubmit = computed(() => {
-  if (!domains.value.length) return false;
-  if (!/^dns_[a-z0-9_]+$/i.test(activeDnsType.value)) return false;
-  if (!activeCredentialFields.value.length) return true;
-  return Boolean(matchedCredentialScheme.value);
-});
-
-const buildCredentialsPayload = () => {
-  const out: Record<string, string> = {};
-  for (const [key, value] of Object.entries(credentials.value || {})) {
-    const normalizedKey = key.trim();
-    const normalizedValue = String(value ?? "").trim();
-    if (!normalizedKey || !normalizedValue) continue;
-    out[normalizedKey] = normalizedValue;
-  }
-  return out;
-};
-
-const syncForm = () => {
-  const initialValue = props.initialValue;
-  name.value = initialValue?.name || "";
-  domains.value = Array.isArray(initialValue?.domains)
-    ? [...initialValue!.domains]
-    : [];
-  dnsType.value = initialValue?.dnsType || "";
-  credentials.value = { ...(initialValue?.credentials || {}) };
-  renewEnabled.value = initialValue?.renewEnabled ?? true;
-  isCredentialsVisible.value = false;
-  credentialEditReady.value = {};
-};
-
-const handleOpenChange = (nextOpen: boolean) => {
-  emit("update:open", nextOpen);
-};
-
-const submit = (submitNow: boolean) => {
-  if (!canSubmit.value) return;
-  emit("submit", {
-    name: name.value.trim() || undefined,
-    domains: domains.value,
-    dnsType: activeDnsType.value,
-    credentials: buildCredentialsPayload(),
-    renewEnabled: renewEnabled.value,
-    submitNow,
-  });
-};
-
-const applyCredentialTransfer = () => {
-  const result = applyTransferredCredentials();
-  if (!result) return;
-
-  for (const key of result.appliedKeys) {
-    enableCredentialEditing(key);
-  }
-
-  toast.success(
-    t("admin.acmeApplicationDialog.transferApplied", {
-      source: transferSourceScopeLabel.value,
-      count: result.count,
-    }),
-  );
-};
-
-watch(
-  () => [props.open, props.initialValue] as const,
-  ([open]) => {
-    if (!open) return;
-    syncForm();
-  },
-  { immediate: true },
-);
-
-watch(dnsType, () => {
-  credentialEditReady.value = {};
-  const keys = getProviderCredentialFields(activeProvider.value).map(
-    (field) => field.key,
-  );
-  if (!keys.length) {
-    credentials.value = {};
-    isCredentialsVisible.value = false;
-    return;
-  }
-
-  const previous = { ...(credentials.value || {}) };
-  const next: Record<string, string> = {};
-  for (const key of keys) {
-    next[key] = typeof previous[key] === "string" ? previous[key] : "";
-  }
-  credentials.value = next;
-  isCredentialsVisible.value = false;
-});
+  activeCredentialFields,
+  activeCredentialSchemes,
+  activeDnsType,
+  applyCredentialTransfer,
+  canSubmit,
+  credentialSummary,
+  credentialTransferDescription,
+  credentialTransferSuggestion,
+  credentials,
+  dialogTitle,
+  dnsType,
+  domains,
+  enableCredentialEditing,
+  groupedProviders,
+  handleOpenChange,
+  hasMultipleCredentialSchemes,
+  isCredentialEditReady,
+  isCredentialsVisible,
+  isTransferSourceLoading,
+  name,
+  renewEnabled,
+  submit,
+  t,
+  transferSourceScopeLabel,
+} = useAcmeApplicationForm(props, emit);
 </script>

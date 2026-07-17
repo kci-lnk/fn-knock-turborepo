@@ -321,9 +321,6 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
-import { useI18n } from "vue-i18n";
-import { useRoute } from "vue-router";
 import { ArrowRight, ArrowUpDown } from "lucide-vue-next";
 import {
   Breadcrumb,
@@ -344,246 +341,26 @@ import {
 } from "@/components/ui/card";
 import LiveStatusBadge from "@/components/LiveStatusBadge.vue";
 import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime.vue";
-import { SessionAPI } from "../../../lib/api";
-import type {
-  SessionMobilityDetails,
-  SessionMobilityEvent,
-  SessionRecord,
-} from "../../../types";
-import {
-  extractErrorMessage,
-  useAsyncAction,
-} from "@admin-shared/composables/useAsyncAction";
+import { useSessionMobilityPage } from "./useSessionMobilityPage";
 
-type SortOrder = "asc" | "desc";
-
-type TimelineEntry = {
-  id: string;
-  event: SessionMobilityEvent;
-  title: string;
-  subtitle: string;
-  gapLabel: string | null;
-  happenedAtMs: number;
-};
-
-const route = useRoute();
-const { t, locale } = useI18n();
-
-const session = ref<SessionRecord | null>(null);
-const mobility = ref<SessionMobilityDetails | null>(null);
-const loadError = ref("");
-const sortOrder = ref<SortOrder>("desc");
-
-const { isPending: isLoading, run: runLoad } = useAsyncAction({
-  onError: (error) => {
-    loadError.value = extractErrorMessage(
-      error,
-      t("admin.sessions.mobilityPage.loadFailedFallback"),
-    );
-  },
-});
-
-const sessionId = computed(() => String(route.params.id || ""));
-const mobilitySummary = computed(
-  () => mobility.value?.summary ?? session.value?.mobility ?? null,
-);
-const sortToggleLabel = computed(() => {
-  return sortOrder.value === "desc"
-    ? t("admin.sessions.mobilityPage.sortDesc")
-    : t("admin.sessions.mobilityPage.sortAsc");
-});
-
-const headerDescription = computed(() => {
-  if (!session.value) {
-    return t("admin.sessions.mobilityPage.defaultDescription");
-  }
-  return t("admin.sessions.mobilityPage.sessionDescription", {
-    name: session.value.credentialName,
-    id: middleEllipsis(session.value.id, 20),
-  });
-});
-
-const driftCountDescription = computed(() => {
-  const count = mobilitySummary.value?.driftCount ?? 0;
-  if (count === 0) return t("admin.sessions.mobilityPage.driftCountZero");
-  if (count === 1) return t("admin.sessions.mobilityPage.driftCountOne");
-  return t("admin.sessions.mobilityPage.driftCountMany", { count });
-});
-
-const chronologicalEntries = computed<TimelineEntry[]>(() => {
-  const events = [...(mobility.value?.events ?? [])].sort((a, b) => {
-    return (Date.parse(a.happenedAt) || 0) - (Date.parse(b.happenedAt) || 0);
-  });
-
-  return events.map((event, index) => {
-    const previous = index > 0 ? events[index - 1] : null;
-    const happenedAtMs = Date.parse(event.happenedAt) || 0;
-    const previousMs = previous ? Date.parse(previous.happenedAt) || 0 : 0;
-    const gapMs =
-      previous && happenedAtMs > previousMs ? happenedAtMs - previousMs : 0;
-
-    if (event.kind === "login") {
-      return {
-        id: `login-${event.happenedAt}-${index}`,
-        event,
-        title: t("admin.sessions.mobilityPage.loginTitle"),
-        subtitle: t("admin.sessions.mobilityPage.loginSubtitle"),
-        gapLabel: null,
-        happenedAtMs,
-      };
-    }
-
-    return {
-      id: `drift-${event.happenedAt}-${index}`,
-      event,
-      title: formatSourceLabel(event.source),
-      subtitle: t("admin.sessions.mobilityPage.driftSubtitle"),
-      gapLabel:
-        gapMs > 0
-          ? t("admin.sessions.mobilityPage.gapLabel", {
-              duration: formatDuration(gapMs),
-            })
-          : null,
-      happenedAtMs,
-    };
-  });
-});
-
-const timelineEntries = computed(() => {
-  const entries = [...chronologicalEntries.value];
-  return sortOrder.value === "desc" ? entries.reverse() : entries;
-});
-const latestEntryId = computed(() => {
-  return (
-    chronologicalEntries.value[chronologicalEntries.value.length - 1]?.id ?? ""
-  );
-});
-
-const timelineSpanMs = computed(() => {
-  const entries = chronologicalEntries.value;
-  if (entries.length < 2) return 0;
-  const first = entries[0]?.happenedAtMs ?? 0;
-  const last = entries[entries.length - 1]?.happenedAtMs ?? 0;
-  return Math.max(0, last - first);
-});
-
-const timelineSpanLabel = computed(() => {
-  if (timelineSpanMs.value <= 0) return t("admin.sessions.mobilityPage.noSpan");
-  return formatDuration(timelineSpanMs.value);
-});
-
-const timelineSpanDescription = computed(() => {
-  const count = chronologicalEntries.value.length;
-  if (count <= 1) return t("admin.sessions.mobilityPage.onlyLoginStart");
-  return t("admin.sessions.mobilityPage.spanDescription");
-});
-
-const lastEvent = computed(() => {
-  const entries = chronologicalEntries.value;
-  return entries[entries.length - 1] ?? null;
-});
-
-const lastEventTimeLabel = computed(() => {
-  if (!lastEvent.value) return t("admin.sessions.mobilityPage.noRecord");
-  if (lastEvent.value.event.kind === "login") {
-    return t("admin.sessions.mobilityPage.loginOnlyRecord");
-  }
-  return "";
-});
-
-const lastEventTimeValue = computed(() => {
-  if (!lastEvent.value || lastEvent.value.event.kind === "login") return null;
-  return lastEvent.value.event.happenedAt;
-});
-
-const lastEventSourceLabel = computed(() => {
-  if (!lastEvent.value) return t("admin.sessions.mobilityPage.noChangeSource");
-  if (lastEvent.value.event.kind === "login") {
-    return t("admin.sessions.mobilityPage.noIpChangeYet");
-  }
-  return t("admin.sessions.mobilityPage.sourcePrefix", {
-    source: formatSourceLabel(lastEvent.value.event.source),
-  });
-});
-
-function middleEllipsis(text: string, max = 16) {
-  if (!text) return "";
-  if (text.length <= max) return text;
-  const head = Math.ceil((max - 1) / 2);
-  const tail = Math.floor((max - 1) / 2);
-  return `${text.slice(0, head)}……${text.slice(text.length - tail)}`;
-}
-
-function formatSourceLabel(
-  source:
-    | "login"
-    | "proxy-session"
-    | "fnos-token"
-    | "session-refresh"
-    | "browser-session",
-) {
-  if (source === "login") return t("admin.sessions.mobilityPage.source.login");
-  if (source === "fnos-token") {
-    return t("admin.sessions.mobilityPage.source.fnosToken");
-  }
-  if (source === "session-refresh") {
-    return t("admin.sessions.mobilityPage.source.sessionRefresh");
-  }
-  if (source === "browser-session") {
-    return t("admin.sessions.mobilityPage.source.browserSession");
-  }
-  return t("admin.sessions.mobilityPage.source.proxySession");
-}
-
-function formatDuration(ms: number) {
-  const totalMinutes = Math.max(0, Math.floor(ms / 60000));
-  const days = Math.floor(totalMinutes / (60 * 24));
-  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
-  const minutes = totalMinutes % 60;
-
-  if (days > 0) {
-    return hours > 0
-      ? t("admin.sessions.mobilityPage.duration.daysHours", { days, hours })
-      : t("admin.sessions.mobilityPage.duration.days", { days });
-  }
-  if (hours > 0) {
-    return minutes > 0
-      ? t("admin.sessions.mobilityPage.duration.hoursMinutes", {
-          hours,
-          minutes,
-        })
-      : t("admin.sessions.mobilityPage.duration.hours", { hours });
-  }
-  if (minutes > 0) {
-    return t("admin.sessions.mobilityPage.duration.minutes", { minutes });
-  }
-  return t("admin.sessions.mobilityPage.duration.lessThanMinute");
-}
-
-async function fetchData() {
-  if (!sessionId.value) return;
-  loadError.value = "";
-  session.value = null;
-  mobility.value = null;
-  await runLoad(async () => {
-    const [sessionData, mobilityData] = await Promise.all([
-      SessionAPI.get(sessionId.value),
-      SessionAPI.getMobility(sessionId.value),
-    ]);
-    session.value = sessionData;
-    mobility.value = mobilityData;
-  });
-}
-
-function toggleSortOrder() {
-  sortOrder.value = sortOrder.value === "desc" ? "asc" : "desc";
-}
-
-watch(
-  sessionId,
-  () => {
-    void fetchData();
-  },
-  { immediate: true },
-);
+const {
+  driftCountDescription,
+  headerDescription,
+  isLoading,
+  lastEventSourceLabel,
+  lastEventTimeLabel,
+  lastEventTimeValue,
+  latestEntryId,
+  loadError,
+  locale,
+  mobilitySummary,
+  session,
+  sortOrder,
+  sortToggleLabel,
+  t,
+  timelineEntries,
+  timelineSpanDescription,
+  timelineSpanLabel,
+  toggleSortOrder,
+} = useSessionMobilityPage();
 </script>

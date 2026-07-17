@@ -8,6 +8,12 @@ const readSource = (path: string) =>
 const componentSource = readSource(
   "../src/components/ScanDiscoveryIntensityDialog.vue",
 );
+const matrixComposableSource = readSource(
+  "../src/composables/useScanIntensityMatrix.ts",
+);
+const settingsComposableSource = readSource(
+  "../src/composables/useScanDiscoveryIntensitySettings.ts",
+);
 const zhCnAdminSource = readSource(
   "../../../packages/i18n/src/messages/admin/zh-CN.ts",
 );
@@ -20,8 +26,10 @@ const subdomainCardSource = readSource(
 
 describe("scan discovery intensity", () => {
   it("keeps the configuration UI in one business-named SFC", () => {
-    assert.match(componentSource, /ScanAPI\.getDiscoverSettings\(\)/u);
-    assert.match(componentSource, /ScanAPI\.saveDiscoverSettings/u);
+    assert.match(componentSource, /useScanDiscoveryIntensitySettings/u);
+    assert.doesNotMatch(componentSource, /ScanAPI\./u);
+    assert.match(settingsComposableSource, /ScanAPI\.getDiscoverSettings\(\)/u);
+    assert.match(settingsComposableSource, /ScanAPI\.saveDiscoverSettings/u);
     assert.doesNotMatch(
       componentSource,
       /EffortCard|Ultracode|useSliderState|useWebglFire/u,
@@ -67,44 +75,49 @@ describe("scan discovery intensity", () => {
     assert.match(componentSource, /max="100"/u);
     assert.match(componentSource, /<TooltipProvider>/u);
     assert.match(componentSource, /<TooltipContent align="end"/u);
-    assert.match(componentSource, /currentEffectiveConcurrency/u);
-    assert.match(componentSource, /payload\.capability\.safeConcurrency/u);
+    assert.match(settingsComposableSource, /currentEffectiveConcurrency/u);
+    assert.match(
+      settingsComposableSource,
+      /payload\.capability\.safeConcurrency/u,
+    );
     assert.match(componentSource, /admin\.scanIntensity\.safeConcurrency/u);
     assert.match(componentSource, /@click\.stop="toggleConcurrencyPopup"/u);
-    assert.match(componentSource, /position < 33/u);
-    assert.match(componentSource, /position < 66/u);
-    assert.match(componentSource, /position < 100/u);
+    assert.match(settingsComposableSource, /position < 33/u);
+    assert.match(settingsComposableSource, /position < 66/u);
+    assert.match(settingsComposableSource, /position < 100/u);
     assert.doesNotMatch(componentSource, /max="3"/u);
   });
 
-  it("retains the four-pass WebGL feedback pipeline and lifecycle guards", () => {
-    assert.match(componentSource, /getContext\("webgl2"/u);
-    assert.match(componentSource, /PROBE_FIELD_SOURCE/u);
-    assert.match(componentSource, /PROBE_BLUR_SOURCE/u);
-    assert.match(componentSource, /PROBE_COMPOSITE_SOURCE/u);
-    assert.match(componentSource, /feedbackFront/u);
-    assert.match(componentSource, /feedbackBack/u);
-    assert.match(componentSource, /ResizeObserver/u);
-    assert.match(componentSource, /webglcontextlost/u);
-    assert.match(componentSource, /webglcontextrestored/u);
-    assert.match(componentSource, /prefers-reduced-motion/u);
-    assert.match(componentSource, /releaseRenderTargets/u);
-    assert.match(componentSource, /releaseMatrixPrograms/u);
-    assert.match(componentSource, /visualTier !== 3/u);
-    assert.match(componentSource, /startPortWave/u);
-    assert.match(componentSource, /stopPortWave/u);
+  it("encapsulates the four-pass WebGL pipeline behind a business composable", () => {
+    assert.match(componentSource, /useScanIntensityMatrix/u);
+    assert.match(componentSource, /setCanvas: setMatrixCanvas/u);
+    assert.match(matrixComposableSource, /getContext\("webgl2"/u);
+    assert.match(matrixComposableSource, /PROBE_FIELD_SOURCE/u);
+    assert.match(matrixComposableSource, /PROBE_BLUR_SOURCE/u);
+    assert.match(matrixComposableSource, /PROBE_COMPOSITE_SOURCE/u);
+    assert.match(matrixComposableSource, /feedbackFront/u);
+    assert.match(matrixComposableSource, /feedbackBack/u);
+    assert.match(matrixComposableSource, /ResizeObserver/u);
+    assert.match(matrixComposableSource, /webglcontextlost/u);
+    assert.match(matrixComposableSource, /webglcontextrestored/u);
+    assert.match(matrixComposableSource, /prefers-reduced-motion/u);
+    assert.match(matrixComposableSource, /releaseRenderTargets/u);
+    assert.match(matrixComposableSource, /releaseMatrixPrograms/u);
+    assert.match(matrixComposableSource, /visualTier !== 3/u);
+    assert.match(matrixComposableSource, /startPortWave/u);
+    assert.match(matrixComposableSource, /stopPortWave/u);
   });
 
   it("uses four concurrency-only levels and the shared settings endpoint", () => {
     assert.match(scanApiSource, /"low" \| "medium" \| "high" \| "extreme"/u);
     assert.match(scanApiSource, /get\("\/scan\/discover-settings"\)/u);
     assert.match(scanApiSource, /post\("\/scan\/discover-settings"/u);
-    assert.match(componentSource, /low: 32/u);
-    assert.match(componentSource, /medium: 115/u);
-    assert.match(componentSource, /high: 256/u);
-    assert.match(componentSource, /extreme: 512/u);
+    assert.match(settingsComposableSource, /low: 32/u);
+    assert.match(settingsComposableSource, /medium: 115/u);
+    assert.match(settingsComposableSource, /high: 256/u);
+    assert.match(settingsComposableSource, /extreme: 512/u);
     assert.match(componentSource, /@change="flushManualSave"/u);
-    assert.match(componentSource, /persistSettings\("auto"\)/u);
+    assert.match(settingsComposableSource, /persistSettings\("auto"\)/u);
     assert.match(zhCnAdminSource, /80–60000/u);
   });
 

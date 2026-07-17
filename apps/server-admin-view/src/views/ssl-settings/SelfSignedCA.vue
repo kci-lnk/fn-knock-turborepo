@@ -271,259 +271,84 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
-import { useI18n } from 'vue-i18n';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuGroup, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
-import { ButtonGroup } from '@/components/ui/button-group'
-import { Skeleton } from '@/components/ui/skeleton';
-import { toast } from '@admin-shared/utils/toast';
-import { MoreHorizontal, RefreshCw, Trash2 } from 'lucide-vue-next';
-import { ConfigAPI } from '../../lib/api';
-import ConfirmDangerPopover from '@admin-shared/components/common/ConfirmDangerPopover.vue';
-import { extractErrorMessage, useAsyncAction } from '@admin-shared/composables/useAsyncAction';
-import { useDelayedLoading } from '@admin-shared/composables/useDelayedLoading';
-import { downloadBlob } from '@admin-shared/utils/downloadBlob';
+import { useI18n } from "vue-i18n";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { MoreHorizontal, RefreshCw, Trash2 } from "lucide-vue-next";
+import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
+import { useSelfSignedCA } from "./useSelfSignedCA";
 
 const { locale, t } = useI18n();
-const newHost = ref('');
-const hosts = ref<string[]>([]);
-const parseHosts = (value: string) =>
-  value
-    .split(/[\uFF0C,]/g)
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0);
-const pendingHosts = computed(() => {
-  const entries = parseHosts(newHost.value);
-  return [...new Set(entries)];
+const {
+  addHost,
+  caInfo,
+  confirmFinalClear,
+  confirmFinalRegen,
+  confirmFirst,
+  confirmRegenFirst,
+  confirmRemoveHost,
+  downloadCA,
+  downloadServer,
+  formatDate,
+  generateRootCA,
+  hasRootCA,
+  hosts,
+  isBusy,
+  isClearing,
+  isDownloading,
+  isIP,
+  isInitializing,
+  isRegenerating,
+  isRemoving,
+  issueAndInstall,
+  newHost,
+  openFirstConfirm,
+  openRegenFirstConfirm,
+  pendingHosts,
+  removingHost,
+  showFirstConfirm,
+  showInitializingSkeleton,
+  showRegenFirstConfirm,
+  showRegenSecondConfirm,
+  showSecondConfirm,
+} = useSelfSignedCA({
+  locale,
+  translate: (key, params) => (params ? t(key, params) : t(key)),
 });
-
-const hasRootCA = ref(false);
-const caInfo = ref<{ subject: string; issuer: string; validFrom: string; validTo: string; serialNumber: string } | null>(null);
-const isInitializing = ref(true);
-const showInitializingSkeleton = useDelayedLoading(isInitializing);
-const removingHost = ref<string | null>(null);
-const showFirstConfirm = ref(false);
-const showSecondConfirm = ref(false);
-const showRegenFirstConfirm = ref(false);
-const showRegenSecondConfirm = ref(false);
-const { isPending: isBusy, run: runBusyAction } = useAsyncAction();
-const { isPending: isRemoving, run: runRemoveHostAction } = useAsyncAction();
-const { isPending: isClearing, run: runClearRootCA } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t('admin.selfSignedCA.clearFailed'), {
-      description: extractErrorMessage(error, t('admin.selfSignedCA.unknownError')),
-    });
-  },
-});
-const { isPending: isRegenerating, run: runRegenerateRootCA } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t('admin.selfSignedCA.regenerateFailed'), {
-      description: extractErrorMessage(error, t('admin.selfSignedCA.unknownError')),
-    });
-  },
-});
-const { isPending: isDownloading, run: runDownloadFile } = useAsyncAction({
-  onError: (error) => {
-    toast.error(extractErrorMessage(error, t('admin.selfSignedCA.downloadFailed')));
-  },
-});
-const { run: runRefreshCAStatus } = useAsyncAction({
-  onError: () => {
-    hasRootCA.value = false;
-    caInfo.value = null;
-    hosts.value = [];
-  },
-});
-
-onMounted(() => {
-  refreshCAStatus();
-});
-
-const isIP = (v: string) => {
-  const s = v.trim();
-  const noPort: string = s.includes(':') ? (s.split(':')[0] || s) : s;
-  return /^(?:(?:25[0-5]|2[0-4]\d|[01]?\d?\d)(?:\.|$)){4}$/.test(noPort);
-};
-
-async function addHost() {
-  const entries = pendingHosts.value;
-  if (!entries.length) return;
-  await runBusyAction(
-    async () => {
-      for (const entry of entries) {
-        hosts.value = await ConfigAPI.addCAHost(entry);
-      }
-    },
-    {
-      onSuccess: () => {
-        newHost.value = '';
-        toast.success(
-          entries.length > 1
-            ? t('admin.selfSignedCA.hostsAdded', { count: entries.length })
-            : t('admin.selfSignedCA.hostAdded'),
-        );
-      },
-      onError: (error) => {
-        toast.error(t('admin.selfSignedCA.addFailed'), {
-          description: extractErrorMessage(error, t('admin.selfSignedCA.unknownError')),
-        });
-      },
-    },
-  );
-}
-
-async function confirmRemoveHost(value: string) {
-  removingHost.value = value;
-  await runRemoveHostAction(
-    () => ConfigAPI.removeCAHost(value),
-    {
-      onSuccess: (nextHosts) => {
-        hosts.value = nextHosts;
-        toast.success(t('admin.selfSignedCA.hostRemoved'));
-      },
-      onError: (error) => {
-        toast.error(t('admin.selfSignedCA.removeFailed'), {
-          description: extractErrorMessage(error, t('admin.selfSignedCA.unknownError')),
-        });
-      },
-      onFinally: () => {
-        removingHost.value = null;
-      },
-    },
-  );
-}
-
-async function generateRootCA() {
-  await runBusyAction(
-    () => ConfigAPI.initCA(),
-    {
-      onSuccess: async () => {
-        await refreshCAStatus();
-        toast.success(t('admin.selfSignedCA.rootGenerated'));
-      },
-      onError: (error) => {
-        toast.error(t('admin.selfSignedCA.generateFailed'), {
-          description: extractErrorMessage(error, t('admin.selfSignedCA.unknownError')),
-        });
-      },
-    },
-  );
-}
-
-function openFirstConfirm() {
-  showFirstConfirm.value = true;
-}
-
-function confirmFirst() {
-  showFirstConfirm.value = false;
-  showSecondConfirm.value = true;
-}
-
-async function confirmFinalClear() {
-  await runClearRootCA(
-    () => ConfigAPI.clearCA(),
-    {
-      onSuccess: () => {
-      caInfo.value = null;
-      hasRootCA.value = false;
-      toast.success(t('admin.selfSignedCA.rootCleared'));
-      showSecondConfirm.value = false;
-      },
-    },
-  );
-}
-
-function openRegenFirstConfirm() {
-  showRegenFirstConfirm.value = true;
-}
-
-function confirmRegenFirst() {
-  showRegenFirstConfirm.value = false;
-  showRegenSecondConfirm.value = true;
-}
-
-async function confirmFinalRegen() {
-  await runRegenerateRootCA(
-    () => ConfigAPI.initCA(),
-    {
-      onSuccess: async () => {
-        await refreshCAStatus();
-        toast.success(t('admin.selfSignedCA.rootRegenerated'));
-        showRegenSecondConfirm.value = false;
-      },
-    },
-  );
-}
-
-async function refreshCAStatus() {
-  await runRefreshCAStatus(
-    async () => {
-      const { initialized, info } = await ConfigAPI.getCAStatus();
-      hasRootCA.value = initialized;
-      caInfo.value = info || null;
-      hosts.value = await ConfigAPI.getCAHosts();
-    },
-    {
-      onFinally: () => {
-        isInitializing.value = false;
-      },
-    },
-  );
-}
-
-async function issueAndInstall() {
-  if (!hasRootCA.value || !hosts.value.length) return;
-  await runBusyAction(
-    () => ConfigAPI.issueAndInstall(),
-    {
-      onSuccess: ({ success, message }) => {
-        if (success) {
-          toast.success(t('admin.selfSignedCA.certificateIssuedInstalled'));
-          return;
-        }
-        toast.error(t('admin.selfSignedCA.issueFailed'), {
-          description: message || t('admin.selfSignedCA.unknownError'),
-        });
-      },
-      onError: (error) => {
-        toast.error(t('admin.selfSignedCA.issueFailed'), {
-          description: extractErrorMessage(error, t('admin.selfSignedCA.unknownError')),
-        });
-      },
-    },
-  );
-}
-
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  if (Number.isNaN(date.getTime())) return dateStr;
-  return date.toLocaleDateString(locale.value, {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-}
-
-async function downloadCA() {
-  await runDownloadFile(async () => {
-    const blob = await ConfigAPI.downloadCACert();
-    downloadBlob(blob, 'KCI-LNK-Root-CA.pem');
-  });
-}
-
-async function downloadServer() {
-  await runDownloadFile(async () => {
-    const blob = await ConfigAPI.downloadServerCert();
-    downloadBlob(blob, 'server-cert.zip');
-  });
-}
 </script>

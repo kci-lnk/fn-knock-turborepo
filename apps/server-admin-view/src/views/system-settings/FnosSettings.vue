@@ -22,6 +22,7 @@ import {
 } from "@admin-shared/composables/useAsyncAction";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { useConfigStore } from "../../store/config";
+import { useFnosNetworkTuningViewModel } from "./fnos-settings/useFnosNetworkTuningViewModel";
 
 const configStore = useConfigStore();
 const router = useRouter();
@@ -99,98 +100,19 @@ const isShareBypassMode = computed(
 const isRestrictedByRunMode = computed(
   () => configStore.config?.run_type === 0,
 );
-const isNetworkTuningAvailable = computed(
-  () => networkTuningStatus.value?.available === true,
-);
-const isBbrSupported = computed(
-  () => networkTuningStatus.value?.bbr.supported === true,
-);
-const isMtuProbingSupported = computed(
-  () => networkTuningStatus.value?.mtu_probing.supported === true,
-);
-const networkTuningUnavailableText = computed(
-  () =>
-    networkTuningStatus.value?.blocked_reason ||
-    t("admin.fnosSettings.networkTuningUnavailable"),
-);
-
-const displaySysctlValue = (value: string | null | undefined) =>
-  value?.trim() || "--";
-
-const displayList = (values: string[] | null | undefined) =>
-  values && values.length > 0 ? values.join(" ") : "--";
-
-const desiredStateText = (enabled: boolean | null | undefined) =>
-  t(
-    enabled
-      ? "admin.fnosSettings.desiredEnabled"
-      : "admin.fnosSettings.desiredDisabled",
-  );
-
-const bbrDesiredDescription = computed(() =>
-  t("admin.fnosSettings.desiredState", {
-    state: desiredStateText(networkTuningStatus.value?.config.bbr_enabled),
-  }),
-);
-
-const bbrCurrentDescription = computed(() => {
-  const status = networkTuningStatus.value;
-  return t("admin.fnosSettings.bbrCurrent", {
-    congestion: displaySysctlValue(status?.bbr.current_congestion_control),
-    qdisc: displaySysctlValue(status?.bbr.current_default_qdisc),
-    available: displayList(status?.bbr.available_congestion_control),
-  });
-});
-
-const bbrSupportDescription = computed(() => {
-  const status = networkTuningStatus.value;
-  if (!status) return "";
-  return status.bbr.supported
-    ? t("admin.fnosSettings.bbrSupported")
-    : t("admin.fnosSettings.bbrUnsupported");
-});
-
-const bbrStateMismatchDescription = computed(() => {
-  const status = networkTuningStatus.value;
-  if (!status) return "";
-  if (status.config.bbr_enabled && !status.bbr.active) {
-    return t("admin.fnosSettings.bbrRuntimeInactiveAfterEnable");
-  }
-  if (!status.config.bbr_enabled && status.bbr.active) {
-    return t("admin.fnosSettings.bbrRuntimeStillActiveAfterDisable");
-  }
-  return "";
-});
-
-const mtuDesiredDescription = computed(() =>
-  t("admin.fnosSettings.desiredState", {
-    state: desiredStateText(
-      networkTuningStatus.value?.config.mtu_probing_enabled,
-    ),
-  }),
-);
-
-const mtuCurrentDescription = computed(() =>
-  t("admin.fnosSettings.mtuCurrent", {
-    value: displaySysctlValue(
-      networkTuningStatus.value?.mtu_probing.current_value,
-    ),
-  }),
-);
-
-const mtuStateMismatchDescription = computed(() => {
-  const status = networkTuningStatus.value;
-  if (!status) return "";
-  if (status.config.mtu_probing_enabled && !status.mtu_probing.active) {
-    return t("admin.fnosSettings.mtuRuntimeInactiveAfterEnable");
-  }
-  if (!status.config.mtu_probing_enabled && status.mtu_probing.active) {
-    return t("admin.fnosSettings.mtuRuntimeStillActiveAfterDisable", {
-      value: displaySysctlValue(status.mtu_probing.current_value),
-    });
-  }
-  return "";
-});
+const {
+  bbrCurrentDescription,
+  bbrDesiredDescription,
+  bbrStateMismatchDescription,
+  bbrSupportDescription,
+  isBbrSupported,
+  isMtuProbingSupported,
+  isNetworkTuningAvailable,
+  mtuCurrentDescription,
+  mtuDesiredDescription,
+  mtuStateMismatchDescription,
+  networkTuningUnavailableText,
+} = useFnosNetworkTuningViewModel(networkTuningStatus);
 
 const applyFromSettings = (data: FnosShareBypassConfig) => {
   settings.value = data;

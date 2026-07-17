@@ -253,17 +253,10 @@ import {
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
 import {
-  DEFAULT_ACCESS_MODE,
-  DEFAULT_AUTH_SUBDOMAIN,
-  DEFAULT_PROTOCOL_MODE,
-  composeHostFromSubdomain,
-  createDisabledMappingBasicAuth,
-  createDefaultMappingVisibility,
   getMappingDisplayTitle,
   isHttpTargetUrl,
   normalizeHostLike,
   parseTargetPort,
-  resolveDefaultAuthServiceTarget,
 } from "./subdomain-proxy/model";
 import { useAccessEntryPort } from "@/composables/useAccessEntryPort";
 import { useSubdomainAvailabilityActions } from "./subdomain-proxy/useSubdomainAvailabilityActions";
@@ -280,6 +273,8 @@ import { useSubdomainDiscoverFlow } from "./subdomain-proxy/useSubdomainDiscover
 import { useSubdomainMappingDialogController } from "./subdomain-proxy/useSubdomainMappingDialogController";
 import { useSubdomainMappingListActions } from "./subdomain-proxy/useSubdomainMappingListActions";
 import { useSubdomainModeConfig } from "./subdomain-proxy/useSubdomainModeConfig";
+import { useSubdomainDestructiveActions } from "./subdomain-proxy/useSubdomainDestructiveActions";
+import { useGatewayVisibilityStatus } from "./subdomain-proxy/useGatewayVisibilityStatus";
 
 const configStore = useConfigStore();
 const { t } = useI18n();
@@ -387,24 +382,8 @@ const isGatewayPortalEnabled = computed(
 const globalWafEnabled = computed(
   () => configStore.config?.waf?.enabled === true,
 );
-const globalVisibilityEnabled = ref(false);
-let globalVisibilityRequestId = 0;
-
-const loadGlobalVisibilityStatus = async () => {
-  const requestId = ++globalVisibilityRequestId;
-  globalVisibilityEnabled.value = false;
-  try {
-    const details = await ConfigAPI.getGatewayVisibility();
-    if (requestId === globalVisibilityRequestId) {
-      globalVisibilityEnabled.value = details.config.enabled;
-    }
-  } catch (error) {
-    if (requestId === globalVisibilityRequestId) {
-      globalVisibilityEnabled.value = false;
-      console.warn("load gateway visibility status failed:", error);
-    }
-  }
-};
+const { globalVisibilityEnabled, loadGlobalVisibilityStatus } =
+  useGatewayVisibilityStatus();
 const shouldShowPortalDisabledTooltip = computed(
   () => !isGatewayPortalEnabled.value,
 );
@@ -452,6 +431,28 @@ const {
   openDeleteMappingDialog,
 } = useSubdomainDeleteDialog({
   mappingsCount: computed(() => allMappings.value.length),
+  translate: (key, params) => (params ? t(key, params) : t(key)),
+});
+const {
+  addAuthService,
+  confirmDelete,
+  isClearingAllSubdomainConfig,
+  openClearAllConfigDialog,
+  removeAuthService,
+} = useSubdomainDestructiveActions({
+  advanceClearAllConfirmation,
+  allMappings,
+  authServiceMapping,
+  canManageNewMappings,
+  closeDeleteDialog,
+  currentModeConfig,
+  deleteDialogState,
+  isAuthServiceTarget,
+  modeForm,
+  openClearAllConfigDialogState,
+  runSaveMappings,
+  savedRootDomain,
+  saveHostMappings: (mappings) => configStore.saveHostMappings(mappings),
   translate: (key, params) => (params ? t(key, params) : t(key)),
 });
 const isGatewayAdvancedAvailableByMode = computed(() =>
@@ -608,20 +609,6 @@ const {
   translate: (key, params) => (params ? t(key, params) : t(key)),
 });
 
-const {
-  isPending: isClearingAllSubdomainConfig,
-  run: runClearAllSubdomainConfig,
-} = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.subdomainProxy.clearFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.subdomainProxy.clearConfigFailed"),
-      ),
-    });
-  },
-});
-
 const { isPending: isSyncing, run: runSyncRoutes } = useAsyncAction({
   onError: (error) => {
     toast.error(t("admin.subdomainProxy.syncFailed"), {
@@ -723,7 +710,6 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
-  globalVisibilityRequestId += 1;
   stopAvailabilityClock();
   window.visualViewport?.removeEventListener(
     "resize",
@@ -739,174 +725,6 @@ onUnmounted(() => {
   stopDiscoverScan();
 });
 
-async function addAuthService() {
-  if (!canManageNewMappings.value) {
-    toast.error(t("admin.subdomainProxy.cannotAddAuthService"), {
-      description: !savedRootDomain.value
-        ? t("admin.subdomainProxy.saveRootFirst")
-        : t("admin.subdomainProxy.rootDirtyAddAuth"),
-    });
-    return;
-  }
-
-  if (authServiceMapping.value) {
-    toast.error(t("admin.subdomainProxy.authServiceExists"), {
-      description: t("admin.subdomainProxy.authServiceExistsDescription", {
-        host: authServiceMapping.value.host,
-      }),
-    });
-    return;
-  }
-
-  const host = composeHostFromSubdomain(
-    DEFAULT_AUTH_SUBDOMAIN,
-    savedRootDomain.value,
-  );
-  const target = resolveDefaultAuthServiceTarget(
-    modeForm.auth_target,
-    currentModeConfig.value.auth_target,
-  );
-
-  if (!host) {
-    toast.error(t("admin.subdomainProxy.defaultAuthGenerateFailed"), {
-      description: t("admin.subdomainProxy.confirmRootSaved"),
-    });
-    return;
-  }
-
-  const duplicateHost = allMappings.value.find((item) => item.host === host);
-  if (duplicateHost) {
-    toast.error(t("admin.subdomainProxy.defaultAuthSubdomainExists"), {
-      description: t(
-        "admin.subdomainProxy.defaultAuthSubdomainExistsDescription",
-        { host },
-      ),
-    });
-    return;
-  }
-
-  await runSaveMappings(async () => {
-    await configStore.saveHostMappings([
-      ...allMappings.value,
-      {
-        host,
-        target,
-        waf_enabled: true,
-        use_auth: false,
-        access_mode: DEFAULT_ACCESS_MODE,
-        suppress_toolbar: false,
-        preserve_host: true,
-        is_default: false,
-        disabled: false,
-        availability: null,
-        protocol_mode: DEFAULT_PROTOCOL_MODE,
-        basic_auth: createDisabledMappingBasicAuth(),
-        visibility: createDefaultMappingVisibility(),
-        locations: [],
-        service_role: "auth",
-        title: "",
-        title_override: "",
-        favicon: "",
-      },
-    ]);
-
-    toast.success(t("admin.subdomainProxy.authServiceAdded"), {
-      description: `${host} -> ${target}`,
-    });
-  });
-}
-
-function openClearAllConfigDialog() {
-  if (allMappings.value.length === 0) {
-    toast.error(t("admin.subdomainProxy.noClearableMappings"));
-    return;
-  }
-
-  openClearAllConfigDialogState();
-}
-
-async function removeAuthService(): Promise<boolean> {
-  if (!authServiceMapping.value) {
-    toast.error(t("admin.subdomainProxy.noCurrentAuthService"));
-    return false;
-  }
-
-  const authHost = authServiceMapping.value.host;
-
-  const removed = await runSaveMappings(async () => {
-    await configStore.saveHostMappings(
-      allMappings.value.filter((item) => !isAuthServiceTarget(item.target)),
-    );
-
-    toast.success(t("admin.subdomainProxy.authServiceDeleted"), {
-      description: authHost,
-    });
-
-    return true;
-  });
-
-  return removed === true;
-}
-
-async function clearAllSubdomainConfig(): Promise<boolean> {
-  const mappingsCount = allMappings.value.length;
-
-  const cleared = await runClearAllSubdomainConfig(async () => {
-    await configStore.saveHostMappings([]);
-
-    toast.success(t("admin.subdomainProxy.allCleared"), {
-      description:
-        mappingsCount > 0
-          ? t("admin.subdomainProxy.clearedMappingsDescription", {
-              count: mappingsCount,
-            })
-          : t("admin.subdomainProxy.modeConfigKept"),
-    });
-
-    return true;
-  });
-
-  return cleared === true;
-}
-
-async function removeMapping(host: string): Promise<boolean> {
-  const target = allMappings.value.find((item) => item.host === host);
-  if (!target) return false;
-
-  const removed = await runSaveMappings(async () => {
-    await configStore.saveHostMappings(
-      allMappings.value.filter((item) => item.host !== host),
-    );
-    toast.success(t("admin.subdomainProxy.mappingDeleted"));
-
-    return true;
-  });
-
-  return removed === true;
-}
-
-async function confirmDelete() {
-  const target = deleteDialogState.value;
-  if (!target) return;
-
-  if (target.kind === "clear_all") {
-    if (advanceClearAllConfirmation()) {
-      return;
-    }
-
-    const cleared = await clearAllSubdomainConfig();
-    if (cleared) {
-      closeDeleteDialog();
-    }
-    return;
-  }
-
-  const removed = await removeMapping(target.host);
-
-  if (removed) {
-    closeDeleteDialog();
-  }
-}
 
 function openStaleCleanupDialog() {
   void staleCleanupDialogRef.value?.open();

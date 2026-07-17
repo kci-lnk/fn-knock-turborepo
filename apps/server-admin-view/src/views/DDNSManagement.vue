@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, computed } from "vue";
+import { ref, onMounted, onUnmounted, computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { onBeforeRouteLeave } from "vue-router";
 import { Settings2 } from "lucide-vue-next";
@@ -8,60 +8,18 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
 import { toast } from "@admin-shared/utils/toast";
-import { copyTextToClipboard } from "@admin-shared/utils/copyTextToClipboard";
 import {
   extractErrorMessage,
   useAsyncAction,
 } from "@admin-shared/composables/useAsyncAction";
-import { formatDateTimeSafe } from "@admin-shared/utils/formatDateTimeSafe";
-import {
-  DEFAULT_LOG_WINDOW_SIZE,
-  mergePollingLogWindow,
-} from "@admin-shared/utils/log-window";
-import { useDnsCredentialTransfer } from "@/composables/useDnsCredentialTransfer";
-import { useTargetPolling } from "../composables/useTargetPolling";
-import type {
-  DDNSHttpTransport,
-  DDNSNetworkInterfacePayload,
-  DDNSPublicDnsProvider,
-  DDNSPublicCheckSourcesPayload,
-  DDNSPublicCheckTestResultPayload,
-  DDNSTargetSummaryPayload,
-} from "../lib/api";
+import type { DDNSNetworkInterfacePayload } from "../lib/api";
 import { useConfigStore } from "../store/config";
 import { isAnySubdomainRoutingMode } from "../lib/reverse-proxy-submode";
 import { docsUrls } from "../lib/docs";
-import { buildDDNSTimestampTooltipLines } from "../lib/ddns-time";
 import {
-  DEFAULT_DDNS_HTTP_TRANSPORT,
-  DEFAULT_DDNS_PUBLIC_DNS_PROVIDER,
-  DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES,
-  INTERFACE_IPV4_INDEX_KEY,
-  INTERFACE_IPV6_INDEX_KEY,
-  IP_SOURCE_KEY,
-  MAX_DDNS_UPDATE_INTERVAL_MINUTES,
-  MIN_DDNS_UPDATE_INTERVAL_MINUTES,
-  NETWORK_INTERFACE_KEY,
-  SOURCE_DOMAIN_KEY,
-  STATIC_IPV4_KEY,
-  STATIC_IPV6_KEY,
-  UPDATE_SCOPE_KEY,
-  findProviderDef,
-  normalizeInterfaceAddressIndex,
-  normalizeDDNSHttpTransport,
-  normalizeDDNSPublicDnsProvider,
-  normalizeIpSource,
-  normalizeNetworkInterface,
-  normalizePublicCheckSources,
-  normalizeSourceDomain,
-  normalizeStaticIPAddress,
   normalizeTargetConfigValues,
-  normalizeUpdateIntervalMinutes,
-  normalizeUpdateScope,
-  parseUpdateIntervalDraft,
   validateDDNSCommonConfig,
   type DDNSValidationIssue,
-  type LogEntry,
   type Provider,
   type TargetDialogState,
 } from "./ddns-management/model";
@@ -79,7 +37,13 @@ import DDNSUpdateIntervalDialog from "./ddns-management/DDNSUpdateIntervalDialog
 import { useDDNSTargetActions } from "./ddns-management/useDDNSTargetActions";
 import { useDDNSTargetDialogState } from "./ddns-management/useDDNSTargetDialogState";
 import { useDDNSPrimaryConfigActions } from "./ddns-management/useDDNSPrimaryConfigActions";
+import { useDDNSPolling } from "./ddns-management/useDDNSPolling";
+import { useDDNSResourceLoading } from "./ddns-management/useDDNSResourceLoading";
+import { useDDNSSettingsDialogs } from "./ddns-management/useDDNSSettingsDialogs";
 import { useDDNSStatus } from "./ddns-management/useDDNSStatus";
+import { useDDNSCredentialTransferHint } from "./ddns-management/useDDNSCredentialTransferHint";
+import { useDDNSPrimaryConfigState } from "./ddns-management/useDDNSPrimaryConfigState";
+import { useDDNSStatusPresentation } from "./ddns-management/useDDNSStatusPresentation";
 
 const { t, locale } = useI18n();
 
@@ -90,20 +54,8 @@ const selectedProvider = ref<string>("");
 const providers = ref<Provider[]>([]);
 const providerConfig = ref<Record<string, string>>({});
 const savedProviderConfig = ref<Record<string, string>>({});
-const updateIntervalDraft = ref(String(DEFAULT_DDNS_UPDATE_INTERVAL_MINUTES));
-const publicCheckDraft = ref<DDNSPublicCheckSourcesPayload>(
-  normalizePublicCheckSources(undefined),
-);
-const httpTransportDraft = ref<DDNSHttpTransport>(DEFAULT_DDNS_HTTP_TRANSPORT);
-const publicDnsProviderDraft = ref<DDNSPublicDnsProvider>(
-  DEFAULT_DDNS_PUBLIC_DNS_PROVIDER,
-);
-const publicCheckTestResults = ref<DDNSPublicCheckTestResultPayload[]>([]);
-const logs = ref<LogEntry[]>([]);
 const networkInterfaces = ref<DDNSNetworkInterfacePayload[]>([]);
 const showTargetDialog = ref(false);
-const showUpdateIntervalDialog = ref(false);
-const showPublicCheckDialog = ref(false);
 const targetDialogMode = ref<"create" | "edit">("create");
 const targetDialogState = ref<TargetDialogState>({
   id: null,
@@ -135,61 +87,36 @@ const {
   selectedProvider,
 });
 
+const {
+  httpTransportDraft,
+  isSavingPublicCheckSources,
+  isSavingUpdateInterval,
+  isTestingPublicCheckSources,
+  openPublicCheckDialog,
+  openUpdateIntervalDialog,
+  publicCheckDraft,
+  publicCheckTestResults,
+  publicDnsProviderDraft,
+  restorePublicCheckDefaults,
+  savePublicCheckSources,
+  saveUpdateInterval,
+  showPublicCheckDialog,
+  showUpdateIntervalDialog,
+  testPublicCheckSources,
+  updateIntervalDraft,
+} = useDDNSSettingsDialogs({
+  defaultPublicCheckSources,
+  httpTransport,
+  providerConfig,
+  publicCheckSources,
+  publicDnsProvider,
+  updateIntervalMinutes,
+});
+
 const { isPending: isTesting, run: runTestUpdate } = useAsyncAction({
   onError: (error) => {
     toast.error(t("admin.ddns.updateFailed"), {
       description: extractErrorMessage(error, t("admin.ddns.updateFailed")),
-    });
-  },
-});
-const { isPending: isClearingLogs, run: runClearLogs } = useAsyncAction({
-  onError: () => {
-    toast.error(t("admin.ddns.clearLogsFailed"));
-  },
-});
-const { isPending: isTogglingEnabled, run: runToggleEnabled } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.ddns.toggleFailed"), {
-      description: extractErrorMessage(error, t("admin.ddns.toggleFailed")),
-    });
-  },
-});
-const { run: runLoadStatus } = useAsyncAction({
-  onError: (error) => {
-    console.error(
-      "loadStatus:",
-      extractErrorMessage(error, t("admin.ddns.loadStatusFailed")),
-    );
-  },
-});
-const { run: runLoadProviders } = useAsyncAction({
-  onError: (error) => {
-    console.error(
-      "loadProviders:",
-      extractErrorMessage(error, t("admin.ddns.loadProvidersFailed")),
-    );
-  },
-});
-const { run: runLoadNetworkInterfaces } = useAsyncAction({
-  onError: (error) => {
-    console.error(
-      "loadNetworkInterfaces:",
-      extractErrorMessage(error, t("admin.ddns.loadInterfacesFailed")),
-    );
-  },
-});
-const { run: runLoadConfig } = useAsyncAction({
-  onError: (error) => {
-    console.error(
-      "loadConfig:",
-      extractErrorMessage(error, t("admin.ddns.loadConfigFailed")),
-    );
-  },
-});
-const { isPending: isLoading, run: runInitialize } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.ddns.initFailed"), {
-      description: extractErrorMessage(error, t("admin.ddns.initLoadFailed")),
     });
   },
 });
@@ -198,43 +125,6 @@ const { isPending: isSavingTarget, run: runSaveTarget } = useAsyncAction({
   onError: (error) => {
     toast.error(t("admin.ddns.saveTargetFailed"), {
       description: extractErrorMessage(error, t("admin.ddns.saveTargetFailed")),
-    });
-  },
-});
-const { isPending: isSavingUpdateInterval, run: runSaveUpdateInterval } =
-  useAsyncAction({
-    onError: (error) => {
-      toast.error(t("admin.ddns.saveIntervalFailed"), {
-        description: extractErrorMessage(
-          error,
-          t("admin.ddns.saveIntervalFailed"),
-        ),
-      });
-    },
-  });
-const {
-  isPending: isSavingPublicCheckSources,
-  run: runSavePublicCheckSources,
-} = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.ddns.savePublicCheckFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.ddns.savePublicCheckFailed"),
-      ),
-    });
-  },
-});
-const {
-  isPending: isTestingPublicCheckSources,
-  run: runTestPublicCheckSources,
-} = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.ddns.testPublicCheckSourcesFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.ddns.testPublicCheckSourcesFailed"),
-      ),
     });
   },
 });
@@ -282,10 +172,6 @@ const {
 } = useDDNSFieldState({
   selectedProvider,
   targetDialogState,
-});
-
-const currentProviderDef = computed(() => {
-  return findProviderDef(providers.value, selectedProvider.value);
 });
 
 const extraTargets = computed(() =>
@@ -350,83 +236,74 @@ const {
   translate: (key, params) => (params ? t(key, params) : t(key)),
 });
 
-const getTargetLastCheckTooltipLines = (target: DDNSTargetSummaryPayload) =>
-  buildDDNSTimestampTooltipLines({
-    updatedAt: target.lastIP.updated_at,
-    checkedAt: target.lastCheck.checked_at,
-    locale: String(locale.value),
-    labels: {
-      lastSuccessfulUpdate: t("admin.ddns.lastSuccessfulUpdate"),
-      lastCheck: t("admin.ddns.lastCheck"),
-      never: t("admin.ddns.never"),
-    },
-  });
-
 const {
-  applySuggestion: applyTransferredCredentials,
-  isLoadingSource: isTransferSourceLoading,
-  sourceScopeLabel: transferSourceScopeLabel,
-  suggestion: credentialTransferSuggestion,
-} = useDnsCredentialTransfer({
-  target: "ddns",
-  providerId: selectedProvider,
-  targetCredentials: providerConfig,
+  currentProviderDef,
+  hasProviderConfig,
+  hasSavedProviderConfig,
+  isPrimaryConfigDirty,
+  onProviderChange,
+  setProviderConfigField,
+} = useDDNSPrimaryConfigState({
+  loadConfig: () => loadConfig(),
+  providerConfig,
+  providers,
+  savedProvider,
+  savedProviderConfig,
+  selectedProvider,
+  translate: (key) => t(key),
 });
-
-const credentialTransferDescription = computed(() => {
-  const suggestion = credentialTransferSuggestion.value;
-  if (!suggestion) return "";
-
-  return t("admin.ddns.credentialTransferDescription", {
-    scope: transferSourceScopeLabel.value,
-    bridge: suggestion.bridgeLabel,
-    count: suggestion.fillableFields.length,
+const {
+  applyCredentialTransfer,
+  credentialTransferDescription,
+  credentialTransferSuggestion,
+  isTransferSourceLoading,
+  transferSourceScopeLabel,
+} = useDDNSCredentialTransferHint({
+  enableFieldEditing,
+  providerConfig,
+  selectedProvider,
+  translate: (key, params) => (params ? t(key, params) : t(key)),
+});
+const {
+  copyIpAddress,
+  getTargetLastCheckTooltipLines,
+  lastCheckTooltipLines,
+  updateIntervalLabel,
+} = useDDNSStatusPresentation({
+  lastCheck,
+  lastIP,
+  locale,
+  translate: (key, params) => (params ? t(key, params) : t(key)),
+  updateIntervalMinutes,
+});
+const { initialize, isLoading, loadConfig, loadStatus } =
+  useDDNSResourceLoading({
+    applyStatus,
+    currentProviderDef,
+    ensurePasswordFieldsVisible,
+    isInitialized,
+    isPrimaryConfigDirty,
+    networkInterfaces,
+    providerConfig,
+    providers,
+    resetFieldEditReady,
+    savedProviderConfig,
+    selectedProvider,
   });
+const {
+  isClearingLogs,
+  isTogglingEnabled,
+  logLines,
+  logs,
+  onClearLogs,
+  refresh: refreshPolling,
+  start: startPolling,
+  stop: stopPolling,
+} = useDDNSPolling({
+  applyStatus,
+  enabled,
+  isPrimaryConfigDirty,
 });
-
-const hasProviderConfig = computed(() => {
-  const def = currentProviderDef.value;
-  if (!def) return false;
-  return def.fields.some(
-    (field) => providerConfig.value[field.key]?.toString().trim() !== "",
-  );
-});
-
-const hasSavedProviderConfig = computed(() => {
-  const def = currentProviderDef.value;
-  if (!def) return false;
-  return def.fields.some(
-    (field) => savedProviderConfig.value[field.key]?.toString().trim() !== "",
-  );
-});
-const normalizePrimaryProviderConfigForComparison = (
-  config: Record<string, string>,
-) => {
-  const normalized = normalizeTargetConfigValues(config);
-  return Object.keys(normalized)
-    .sort()
-    .reduce<Record<string, string>>((result, key) => {
-      result[key] = String(normalized[key] ?? "");
-      return result;
-    }, {});
-};
-const isPrimaryConfigValueDirty = computed(() => {
-  if (!selectedProvider.value) return false;
-  return (
-    JSON.stringify(
-      normalizePrimaryProviderConfigForComparison(providerConfig.value),
-    ) !==
-    JSON.stringify(
-      normalizePrimaryProviderConfigForComparison(savedProviderConfig.value),
-    )
-  );
-});
-const isPrimaryProviderDirty = computed(
-  () => selectedProvider.value !== savedProvider.value,
-);
-const isPrimaryConfigDirty = computed(
-  () => isPrimaryProviderDirty.value || isPrimaryConfigValueDirty.value,
-);
 const isEnabledSwitchDisabled = computed(
   () => isTogglingEnabled.value || isLoading.value,
 );
@@ -464,277 +341,6 @@ const {
   providers,
   translate: (key, params) => (params ? t(key, params) : t(key)),
 });
-const updateIntervalLabel = computed(() =>
-  t("admin.ddns.updateIntervalLabel", {
-    minutes: updateIntervalMinutes.value,
-  }),
-);
-
-async function loadStatus() {
-  await runLoadStatus(async () => {
-    const status = await DDNSAPI.getStatus();
-    applyStatus(status, {
-      syncProvider: !isInitialized.value || !isPrimaryConfigDirty.value,
-    });
-  });
-}
-
-async function loadProviders() {
-  await runLoadProviders(async () => {
-    const data = await DDNSAPI.getProviders();
-    providers.value = data.map((p) => ({
-      ...p,
-      fields: p.fields.map((f) => ({
-        ...f,
-        type: f.type as "text" | "password" | "select",
-      })),
-    }));
-  });
-}
-
-async function loadNetworkInterfaces() {
-  await runLoadNetworkInterfaces(async () => {
-    networkInterfaces.value = await DDNSAPI.getNetworkInterfaces();
-  });
-}
-
-async function loadConfig() {
-  if (!selectedProvider.value) {
-    providerConfig.value = {};
-    savedProviderConfig.value = {};
-    return;
-  }
-  await runLoadConfig(async () => {
-    const config = await DDNSAPI.getConfig(selectedProvider.value);
-    const def = currentProviderDef.value;
-    const merged: Record<string, string> = {
-      [UPDATE_SCOPE_KEY]: normalizeUpdateScope(config[UPDATE_SCOPE_KEY]),
-      [IP_SOURCE_KEY]: normalizeIpSource(config[IP_SOURCE_KEY]),
-      [NETWORK_INTERFACE_KEY]: normalizeNetworkInterface(
-        config[NETWORK_INTERFACE_KEY],
-      ),
-      [INTERFACE_IPV4_INDEX_KEY]: normalizeInterfaceAddressIndex(
-        config[INTERFACE_IPV4_INDEX_KEY],
-      ),
-      [INTERFACE_IPV6_INDEX_KEY]: normalizeInterfaceAddressIndex(
-        config[INTERFACE_IPV6_INDEX_KEY],
-      ),
-      [STATIC_IPV4_KEY]: normalizeStaticIPAddress(config[STATIC_IPV4_KEY]),
-      [STATIC_IPV6_KEY]: normalizeStaticIPAddress(config[STATIC_IPV6_KEY]),
-      [SOURCE_DOMAIN_KEY]: normalizeSourceDomain(config[SOURCE_DOMAIN_KEY]),
-    };
-
-    resetFieldEditReady();
-
-    if (def) {
-      for (const f of def.fields) {
-        const val = config[f.key] ?? "";
-        merged[f.key] = val;
-      }
-      ensurePasswordFieldsVisible(def.fields);
-    }
-    providerConfig.value = merged;
-    savedProviderConfig.value = { ...merged };
-  });
-}
-
-const ddnsPolling = useTargetPolling({
-  target: "ddns",
-  intervalMs: 2000,
-  onData: (payload) => {
-    logs.value = mergePollingLogWindow(logs.value, payload.logs as LogEntry[], {
-      reset: payload.reset,
-      max: DEFAULT_LOG_WINDOW_SIZE,
-    });
-
-    const status = payload.status;
-    applyStatus(status, {
-      syncEnabled: false,
-      syncProvider: !isPrimaryConfigDirty.value,
-    });
-    if (enabledInitialized && status.enabled !== enabled.value) {
-      enabledInitialized = false;
-      enabled.value = status.enabled;
-      enabledInitialized = true;
-    }
-  },
-  onError: (error) => {
-    console.error(
-      "ddns poll:",
-      extractErrorMessage(error, t("admin.ddns.pollStatusFailed")),
-    );
-  },
-});
-
-let enabledInitialized = false;
-watch(enabled, async (val) => {
-  if (!enabledInitialized) return;
-  await runToggleEnabled(() => DDNSAPI.toggle(val), {
-    onSuccess: () => {
-      toast.success(val ? t("admin.ddns.enabled") : t("admin.ddns.disabled"));
-    },
-    onError: () => {
-      enabledInitialized = false;
-      enabled.value = !val;
-      enabledInitialized = true;
-    },
-  });
-});
-
-function openUpdateIntervalDialog() {
-  updateIntervalDraft.value = String(updateIntervalMinutes.value);
-  showUpdateIntervalDialog.value = true;
-}
-
-async function saveUpdateInterval() {
-  const next = parseUpdateIntervalDraft(updateIntervalDraft.value);
-  if (next === null) {
-    toast.error(t("admin.ddns.intervalInvalid"), {
-      description: t("admin.ddns.intervalInvalidDescription", {
-        min: MIN_DDNS_UPDATE_INTERVAL_MINUTES,
-        max: MAX_DDNS_UPDATE_INTERVAL_MINUTES,
-      }),
-    });
-    return;
-  }
-
-  await runSaveUpdateInterval(
-    () => DDNSAPI.saveSettings({ updateIntervalMinutes: next }),
-    {
-      onSuccess: (settings) => {
-        updateIntervalMinutes.value = normalizeUpdateIntervalMinutes(
-          settings.updateIntervalMinutes,
-        );
-        updateIntervalDraft.value = String(updateIntervalMinutes.value);
-        showUpdateIntervalDialog.value = false;
-        toast.success(t("admin.ddns.intervalSaved"));
-      },
-    },
-  );
-}
-
-function openPublicCheckDialog() {
-  publicCheckDraft.value = normalizePublicCheckSources(
-    publicCheckSources.value,
-  );
-  httpTransportDraft.value = httpTransport.value;
-  publicDnsProviderDraft.value = publicDnsProvider.value;
-  publicCheckTestResults.value = [];
-  showPublicCheckDialog.value = true;
-}
-
-function restorePublicCheckDefaults() {
-  publicCheckDraft.value = normalizePublicCheckSources(
-    defaultPublicCheckSources.value,
-  );
-  publicCheckTestResults.value = [];
-}
-
-async function savePublicCheckSources(
-  nextSources: DDNSPublicCheckSourcesPayload,
-  nextHttpTransport: DDNSHttpTransport,
-  nextPublicDnsProvider: DDNSPublicDnsProvider,
-) {
-  await runSavePublicCheckSources(
-    () =>
-      DDNSAPI.saveSettings({
-        publicCheckSources: normalizePublicCheckSources(nextSources),
-        httpTransport: normalizeDDNSHttpTransport(nextHttpTransport),
-        publicDnsProvider: normalizeDDNSPublicDnsProvider(
-          nextPublicDnsProvider,
-        ),
-      }),
-    {
-      onSuccess: (settings) => {
-        defaultPublicCheckSources.value = normalizePublicCheckSources(
-          settings.defaultPublicCheckSources,
-        );
-        publicCheckSources.value = normalizePublicCheckSources(
-          settings.publicCheckSources,
-          defaultPublicCheckSources.value,
-        );
-        publicCheckDraft.value = normalizePublicCheckSources(
-          settings.publicCheckSources,
-          defaultPublicCheckSources.value,
-        );
-        httpTransport.value = normalizeDDNSHttpTransport(
-          settings.httpTransport,
-        );
-        httpTransportDraft.value = httpTransport.value;
-        publicDnsProvider.value = normalizeDDNSPublicDnsProvider(
-          settings.publicDnsProvider,
-        );
-        publicDnsProviderDraft.value = publicDnsProvider.value;
-        publicCheckTestResults.value = [];
-        showPublicCheckDialog.value = false;
-        toast.success(t("admin.ddns.publicCheckSaved"));
-      },
-    },
-  );
-}
-
-async function testPublicCheckSources(
-  nextSources: DDNSPublicCheckSourcesPayload,
-  nextHttpTransport: DDNSHttpTransport,
-  nextPublicDnsProvider: DDNSPublicDnsProvider,
-) {
-  const sources = normalizePublicCheckSources(
-    nextSources,
-    defaultPublicCheckSources.value,
-  );
-  if (sources.ipv4.length === 0 && sources.ipv6.length === 0) {
-    publicCheckTestResults.value = [];
-    toast.error(t("admin.ddns.publicCheckNoTestSourcesConfigured"));
-    return;
-  }
-
-  await runTestPublicCheckSources(
-    () =>
-      DDNSAPI.testPublicCheckSources(sources, {
-        httpTransport: normalizeDDNSHttpTransport(nextHttpTransport),
-        publicDnsProvider: normalizeDDNSPublicDnsProvider(
-          nextPublicDnsProvider,
-        ),
-        networkInterface: normalizeNetworkInterface(
-          providerConfig.value[NETWORK_INTERFACE_KEY],
-        ),
-      }),
-    {
-      onSuccess: (payload) => {
-        publicCheckTestResults.value = payload.results || [];
-        if (publicCheckTestResults.value.length === 0) {
-          toast.error(t("admin.ddns.publicCheckNoTestSourcesConfigured"));
-          return;
-        }
-        const hasFailures = publicCheckTestResults.value.some(
-          (item) => !item.success,
-        );
-        if (hasFailures) {
-          toast.error(t("admin.ddns.publicCheckTestCompletedWithErrors"));
-        } else {
-          toast.success(t("admin.ddns.publicCheckTestCompleted"));
-        }
-      },
-    },
-  );
-}
-
-async function onProviderChange(val: string) {
-  if (!val || val === selectedProvider.value) return;
-  if (
-    isPrimaryConfigValueDirty.value &&
-    !window.confirm(t("admin.ddns.unsavedSwitchProviderConfirm"))
-  ) {
-    return;
-  }
-  selectedProvider.value = val;
-  await loadConfig();
-}
-
-function setProviderConfigField(key: string, value: string) {
-  providerConfig.value[key] = value;
-}
-
 const showValidationIssue = (issue: DDNSValidationIssue | null) => {
   if (!issue) {
     return false;
@@ -780,10 +386,7 @@ const {
   loadStatus,
   providerConfig,
   providers,
-  refreshPolling: () => {
-    ddnsPolling.resetCursor();
-    void ddnsPolling.refresh();
-  },
+  refreshPolling,
   resetTargetFieldVisibility,
   runDeleteTarget,
   runSaveTarget,
@@ -832,10 +435,7 @@ const {
   loadStatus,
   normalizeForSubmit: normalizePrimaryDomainForSubmit,
   providerConfig,
-  refreshPolling: () => {
-    ddnsPolling.resetCursor();
-    void ddnsPolling.refresh();
-  },
+  refreshPolling,
   resetFieldEditReady,
   savedProvider,
   savedProviderConfig,
@@ -846,22 +446,6 @@ const {
 const isProviderSelectDisabled = computed(
   () => isSaving.value || isTesting.value || isLoading.value,
 );
-
-function applyCredentialTransfer() {
-  const result = applyTransferredCredentials();
-  if (!result) return;
-
-  for (const key of result.appliedKeys) {
-    enableFieldEditing(key);
-  }
-
-  toast.success(
-    t("admin.ddns.credentialsApplied", {
-      scope: transferSourceScopeLabel.value,
-      count: result.count,
-    }),
-  );
-}
 
 async function onTest() {
   await runTestUpdate(async () => {
@@ -879,84 +463,6 @@ async function onTest() {
   });
 }
 
-async function onClearLogs() {
-  await runClearLogs(() => DDNSAPI.clearLogs(), {
-    onSuccess: () => {
-      logs.value = [];
-      ddnsPolling.resetCursor();
-      void ddnsPolling.refresh();
-      toast.success(t("admin.ddns.logsCleared"));
-    },
-  });
-}
-
-function formatTime(iso: string | null): string {
-  return formatDateTimeSafe(iso, {
-    locale: String(locale.value),
-    emptyText: t("admin.ddns.never"),
-  });
-}
-
-const lastCheckTooltipLines = computed(() =>
-  buildDDNSTimestampTooltipLines({
-    updatedAt: lastIP.value.updated_at,
-    checkedAt: lastCheck.value.checked_at,
-    locale: String(locale.value),
-    labels: {
-      lastSuccessfulUpdate: t("admin.ddns.lastSuccessfulUpdate"),
-      lastCheck: t("admin.ddns.lastCheck"),
-      never: t("admin.ddns.never"),
-    },
-  }),
-);
-
-async function copyIpAddress(
-  versionLabel: "IPv4" | "IPv6",
-  value: string | null,
-) {
-  const address = value?.trim();
-  if (!address) {
-    toast.error(
-      t("admin.ddns.copyUnavailable", {
-        version: versionLabel,
-      }),
-    );
-    return;
-  }
-
-  try {
-    await copyTextToClipboard(address);
-    toast.success(
-      t("admin.ddns.copySuccess", {
-        version: versionLabel,
-      }),
-      { description: address },
-    );
-  } catch (error) {
-    console.error("copyIpAddress:", error);
-    toast.error(
-      t("admin.ddns.copyFailed", {
-        version: versionLabel,
-      }),
-      {
-        description: t("admin.ddns.copyFailedDescription"),
-      },
-    );
-  }
-}
-
-const logLines = computed(() =>
-  logs.value.map((e) => {
-    const tag =
-      e.level === "error"
-        ? t("admin.ddns.logLevelError")
-        : e.level === "warn"
-          ? t("admin.ddns.logLevelWarn")
-          : t("admin.ddns.logLevelInfo");
-    return `${tag} ${formatTime(e.time)}  ${e.message}`;
-  }),
-);
-
 const confirmDiscardUnsavedPrimaryConfig = () =>
   !isPrimaryConfigDirty.value ||
   window.confirm(t("admin.ddns.unsavedLeaveConfirm"));
@@ -971,20 +477,14 @@ onBeforeRouteLeave(() => confirmDiscardUnsavedPrimaryConfig());
 
 onMounted(async () => {
   window.addEventListener("beforeunload", handleBeforeUnload);
-  const initialized = await runInitialize(async () => {
-    await Promise.all([loadProviders(), loadStatus(), loadNetworkInterfaces()]);
-    enabledInitialized = true;
-    await loadConfig();
-    return true;
-  });
-  isInitialized.value = true;
+  const initialized = await initialize();
   if (initialized) {
-    ddnsPolling.start();
+    startPolling();
   }
 });
 onUnmounted(() => {
   window.removeEventListener("beforeunload", handleBeforeUnload);
-  ddnsPolling.stop();
+  stopPolling();
 });
 </script>
 

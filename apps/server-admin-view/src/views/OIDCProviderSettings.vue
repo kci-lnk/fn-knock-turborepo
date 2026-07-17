@@ -171,101 +171,13 @@
             {{ t("admin.oidcProviders.createDescription") }}
           </DialogDescription>
         </DialogHeader>
-        <div class="overflow-hidden rounded-lg border divide-y divide-border">
-          <div class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5">
-            <Label for="oidc-provider-type">{{
-              t("admin.oidcProviders.provider")
-            }}</Label>
-            <Select
-              :model-value="form.type"
-              @update:model-value="handleCreateProviderTypeChange"
-            >
-              <SelectTrigger id="oidc-provider-type" class="w-full">
-                <SelectValue
-                  :placeholder="t('admin.oidcProviders.selectProvider')"
-                />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem
-                  v-for="item in catalog"
-                  :key="item.type"
-                  :value="item.type"
-                >
-                  {{ item.label }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div
-            v-if="form.type !== 'fnknock_qq'"
-            class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5"
-          >
-            <Label for="oidc-provider-name">{{
-              t("admin.oidcProviders.displayName")
-            }}</Label>
-            <Input
-              id="oidc-provider-name"
-              v-model="form.name"
-              :placeholder="t('admin.oidcProviders.displayNamePlaceholder')"
-            />
-          </div>
-          <div
-            v-if="form.type === 'microsoft'"
-            class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5"
-          >
-            <Label for="oidc-provider-tenant">Tenant</Label>
-            <Input
-              id="oidc-provider-tenant"
-              v-model="form.tenant"
-              placeholder="common / organizations / tenant id"
-            />
-          </div>
-          <div
-            v-if="form.type !== 'fnknock_qq'"
-            class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5"
-          >
-            <Label for="oidc-provider-client-id">Client ID</Label>
-            <Input
-              id="oidc-provider-client-id"
-              v-model="form.clientId"
-              autocomplete="off"
-            />
-          </div>
-          <div
-            v-if="form.type !== 'fnknock_qq'"
-            class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5"
-          >
-            <Label for="oidc-provider-client-secret">Client Secret</Label>
-            <Input
-              id="oidc-provider-client-secret"
-              v-model="form.clientSecret"
-              type="password"
-              autocomplete="new-password"
-            />
-          </div>
-          <div
-            v-if="form.type === 'custom_oidc'"
-            class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5"
-          >
-            <Label for="oidc-provider-issuer">Issuer</Label>
-            <Input
-              id="oidc-provider-issuer"
-              v-model="form.issuer"
-              placeholder="https://idp.example.com"
-            />
-          </div>
-          <div
-            v-if="form.type !== 'fnknock_qq'"
-            class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5"
-          >
-            <Label for="oidc-provider-scopes">Scopes</Label>
-            <Input
-              id="oidc-provider-scopes"
-              v-model="form.scopes"
-              placeholder="openid profile email"
-            />
-          </div>
-        </div>
+        <OIDCProviderFormFields
+          :catalog="catalog"
+          :form="form"
+          mode="create"
+          :provider-label="providerLabel"
+          @type-change="handleCreateProviderTypeChange"
+        />
         <DialogFooter class="gap-2">
           <Button
             variant="outline"
@@ -328,100 +240,12 @@
             {{ t("admin.oidcProviders.editDescription") }}
           </DialogDescription>
         </DialogHeader>
-        <div class="overflow-hidden rounded-lg border divide-y divide-border">
-          <div class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5">
-            <Label for="oidc-edit-provider-type">{{
-              t("admin.oidcProviders.columns.type")
-            }}</Label>
-            <Input
-              id="oidc-edit-provider-type"
-              :model-value="providerLabel(editForm.type)"
-              disabled
-            />
-          </div>
-          <div class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5">
-            <Label for="oidc-edit-provider-name">{{
-              t("admin.oidcProviders.displayName")
-            }}</Label>
-            <Input id="oidc-edit-provider-name" v-model="editForm.name" />
-          </div>
-          <div
-            v-if="editForm.type === 'microsoft'"
-            class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5"
-          >
-            <Label for="oidc-edit-provider-tenant">Tenant</Label>
-            <Input
-              id="oidc-edit-provider-tenant"
-              v-model="editForm.tenant"
-              placeholder="common / organizations / tenant id"
-            />
-          </div>
-          <div
-            v-if="editForm.type !== 'fnknock_qq'"
-            class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5"
-          >
-            <Label for="oidc-edit-provider-client-id">Client ID</Label>
-            <Input
-              id="oidc-edit-provider-client-id"
-              v-model="editForm.clientId"
-              autocomplete="off"
-            />
-          </div>
-          <div
-            v-if="editForm.type !== 'fnknock_qq'"
-            class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5"
-          >
-            <Label for="oidc-edit-provider-client-secret">
-              Client Secret
-            </Label>
-            <Input
-              id="oidc-edit-provider-client-secret"
-              v-model="editForm.clientSecret"
-              type="password"
-              autocomplete="new-password"
-              :placeholder="t('admin.oidcProviders.keepSecretPlaceholder')"
-            />
-          </div>
-          <div
-            v-if="editForm.type === 'custom_oidc'"
-            class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5"
-          >
-            <Label for="oidc-edit-provider-issuer">Issuer</Label>
-            <Input
-              id="oidc-edit-provider-issuer"
-              v-model="editForm.issuer"
-              placeholder="https://idp.example.com"
-            />
-          </div>
-          <div
-            v-if="editForm.type !== 'fnknock_qq'"
-            class="space-y-2 p-4 transition-colors hover:bg-muted/10 sm:p-5"
-          >
-            <Label for="oidc-edit-provider-scopes">Scopes</Label>
-            <Input
-              id="oidc-edit-provider-scopes"
-              v-model="editForm.scopes"
-              placeholder="openid profile email"
-            />
-          </div>
-          <div
-            class="flex items-center justify-between gap-3 p-4 transition-colors hover:bg-muted/10 sm:p-5"
-          >
-            <Label class="text-sm font-medium">{{
-              t("admin.oidcProviders.enabledStatus")
-            }}</Label>
-            <div class="flex items-center gap-3">
-              <Switch v-model="editForm.enabled" />
-              <span class="text-sm text-muted-foreground">
-                {{
-                  editForm.enabled
-                    ? t("admin.oidcProviders.enabled")
-                    : t("admin.oidcProviders.disabled")
-                }}
-              </span>
-            </div>
-          </div>
-        </div>
+        <OIDCProviderFormFields
+          :catalog="catalog"
+          :form="editForm"
+          mode="edit"
+          :provider-label="providerLabel"
+        />
         <DialogFooter class="gap-2">
           <Button variant="outline" @click="showEditDialog = false">
             {{ t("admin.oidcProviders.cancel") }}
@@ -437,9 +261,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { useRouter } from "vue-router";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -472,19 +294,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import {
   CircleAlert,
   Copy,
@@ -494,295 +306,30 @@ import {
   Trash2,
 } from "lucide-vue-next";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
-import {
-  extractErrorMessage,
-  useAsyncAction,
-} from "@admin-shared/composables/useAsyncAction";
-import { copyTextToClipboard } from "@admin-shared/utils/copyTextToClipboard";
-import { toast } from "@admin-shared/utils/toast";
-import { ConfigAPI } from "../lib/api";
-import type {
-  ExternalAuthProviderType,
-  OIDCProviderCatalogItem,
-  OIDCProviderView,
-} from "../types";
+import OIDCProviderFormFields from "./oidc-provider-settings/OIDCProviderFormFields.vue";
+import { useOIDCProviderManagement } from "./oidc-provider-settings/useOIDCProviderManagement";
 
 const { t } = useI18n();
-const router = useRouter();
-const catalog = ref<OIDCProviderCatalogItem[]>([]);
-const providers = ref<OIDCProviderView[]>([]);
-const form = reactive({
-  type: "google" as ExternalAuthProviderType,
-  name: "",
-  clientId: "",
-  clientSecret: "",
-  issuer: "",
-  tenant: "common",
-  scopes: "",
-});
-const showCreateDialog = ref(false);
-const showQqBindingAlert = ref(false);
-const showEditDialog = ref(false);
-const editForm = reactive({
-  id: "",
-  type: "google" as ExternalAuthProviderType,
-  name: "",
-  enabled: false,
-  clientId: "",
-  clientSecret: "",
-  issuer: "",
-  tenant: "common",
-  scopes: "",
-});
-
-const selectedDefinition = computed(() =>
-  catalog.value.find((item) => item.type === form.type),
-);
-
-const { isPending: isLoading, run: runLoad } = useAsyncAction({
-  onError: (error) => {
-    toast.error(
-      extractErrorMessage(error, t("admin.oidcProviders.loadFailed")),
-    );
-  },
-});
-const { isPending: isSaving, run: runSave } = useAsyncAction({
-  onError: (error) => {
-    toast.error(
-      extractErrorMessage(error, t("admin.oidcProviders.saveFailed")),
-    );
-  },
-});
-const { isPending: isMutating, run: runMutate } = useAsyncAction({
-  onError: (error) => {
-    toast.error(
-      extractErrorMessage(error, t("admin.oidcProviders.operationFailed")),
-    );
-  },
-});
-
-watch(
-  selectedDefinition,
-  (definition) => {
-    if (!definition) return;
-    if (!form.name.trim()) form.name = definition.default_name;
-    form.scopes = definition.default_scopes.join(" ");
-    if (definition.type === "microsoft" && !form.tenant.trim()) {
-      form.tenant = "common";
-    }
-  },
-  { immediate: true },
-);
-
-onMounted(loadAll);
-
-function resetCreateForm() {
-  const definition =
-    catalog.value.find((item) => item.type === form.type) || catalog.value[0];
-  form.type = (definition?.type || "google") as ExternalAuthProviderType;
-  form.name = definition?.default_name || "";
-  form.clientId = "";
-  form.clientSecret = "";
-  form.issuer = "";
-  form.tenant = "common";
-  form.scopes = definition?.default_scopes.join(" ") || "";
-}
-
-function openCreateDialog() {
-  resetCreateForm();
-  showCreateDialog.value = true;
-}
-
-function handleCreateProviderTypeChange(value: unknown) {
-  form.type = String(value ?? "") as ExternalAuthProviderType;
-  const definition = catalog.value.find((item) => item.type === form.type);
-  form.name = definition?.default_name || "";
-  form.scopes = definition?.default_scopes.join(" ") || "";
-  form.issuer = "";
-  form.tenant = "common";
-}
-
-function providerLabel(type: string) {
-  return catalog.value.find((item) => item.type === type)?.label || type;
-}
-
-function normalizeScopes(value: string) {
-  return value
-    .split(/[,\s]+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function connectionValueText(value: unknown) {
-  if (Array.isArray(value)) return value.join(" ");
-  return typeof value === "string" ? value : "";
-}
-
-function hasConnectionValue(value: unknown) {
-  if (Array.isArray(value)) return value.length > 0;
-  return typeof value === "string" ? value.trim().length > 0 : !!value;
-}
-
-function isCreateConfigComplete() {
-  const definition = selectedDefinition.value;
-  if (!definition) return false;
-  if (definition.type === "fnknock_qq") return true;
-  const values: Record<string, unknown> = {
-    client_id: form.clientId.trim(),
-    client_secret: form.clientSecret.trim(),
-    issuer:
-      form.type === "custom_oidc"
-        ? form.issuer.trim()
-        : form.type === "microsoft" && form.tenant.trim()
-          ? `https://login.microsoftonline.com/${form.tenant.trim()}/v2.0`
-          : undefined,
-  };
-  return definition.required_fields.every((field) =>
-    hasConnectionValue(values[field]),
-  );
-}
-
-function providerHasRequiredConfig(provider: OIDCProviderView) {
-  const definition = catalog.value.find((item) => item.type === provider.type);
-  if (!definition) return false;
-  return definition.required_fields.every((field) =>
-    hasConnectionValue(provider.connection_config_masked[field]),
-  );
-}
-
-function providerStatus(provider: OIDCProviderView) {
-  if (!providerHasRequiredConfig(provider))
-    return t("admin.oidcProviders.pendingConfig");
-  return provider.enabled
-    ? t("admin.oidcProviders.enabled")
-    : t("admin.oidcProviders.disabled");
-}
-
-async function copyCallbackUrl(url: string) {
-  try {
-    await copyTextToClipboard(url);
-    toast.success(t("admin.oidcProviders.callbackCopied"), {
-      description: url,
-    });
-  } catch (error) {
-    console.error("copyCallbackUrl:", error);
-    toast.error(t("admin.oidcProviders.callbackCopyFailed"), {
-      description: t("admin.oidcProviders.copyRestricted"),
-    });
-  }
-}
-
-async function loadAll() {
-  await runLoad(async () => {
-    const [catalogData, providersData] = await Promise.all([
-      ConfigAPI.getOIDCProviderCatalog(),
-      ConfigAPI.getOIDCProviders(),
-    ]);
-    catalog.value = catalogData;
-    providers.value = providersData;
-    if (!catalog.value.some((item) => item.type === form.type)) {
-      resetCreateForm();
-    }
-  });
-}
-
-async function handleCreateProvider() {
-  await runSave(async () => {
-    const isQqProvider = form.type === "fnknock_qq";
-    const scopes = normalizeScopes(form.scopes);
-    const enabled = isCreateConfigComplete();
-    const provider = await ConfigAPI.createOIDCProvider({
-      type: form.type,
-      name: form.name.trim(),
-      // Keep the public QQ provider out of the login page until discovery succeeds.
-      enabled: isQqProvider ? false : enabled,
-      connection_config: {
-        client_id: form.clientId.trim(),
-        client_secret: form.clientSecret.trim(),
-        ...(form.type === "custom_oidc" ? { issuer: form.issuer.trim() } : {}),
-        ...(form.type === "microsoft" ? { tenant: form.tenant.trim() } : {}),
-        ...(scopes.length ? { scopes } : {}),
-      },
-    });
-    if (isQqProvider) {
-      const testResult = await ConfigAPI.testOIDCProvider(provider.id);
-      if (!testResult.success) {
-        try {
-          await ConfigAPI.deleteOIDCProvider(provider.id);
-        } catch {
-          // It remains disabled, so a cleanup failure cannot expose a broken login option.
-        }
-        throw new Error(
-          testResult.message || t("admin.oidcProviders.operationFailed"),
-        );
-      }
-      await ConfigAPI.updateOIDCProvider(provider.id, { enabled: true });
-    }
-    form.clientId = "";
-    form.clientSecret = "";
-    showCreateDialog.value = false;
-    toast.success(
-      enabled
-        ? t("admin.oidcProviders.providerAdded")
-        : t("admin.oidcProviders.providerDraftAdded"),
-    );
-    await loadAll();
-    if (isQqProvider) showQqBindingAlert.value = true;
-  });
-}
-
-async function returnToTotpManagement() {
-  showQqBindingAlert.value = false;
-  await router.push({ name: "AuthSettings" });
-}
-
-function openEditDialog(provider: OIDCProviderView) {
-  const config = provider.connection_config_masked || {};
-  editForm.id = provider.id;
-  editForm.type = provider.type;
-  editForm.name = provider.name;
-  editForm.enabled = provider.enabled;
-  editForm.clientId = connectionValueText(config.client_id);
-  editForm.clientSecret = "";
-  editForm.issuer = connectionValueText(config.issuer);
-  editForm.tenant = connectionValueText(config.tenant) || "common";
-  editForm.scopes = connectionValueText(config.scopes);
-  showEditDialog.value = true;
-}
-
-async function saveProviderEdit() {
-  if (!editForm.id) return;
-  await runMutate(async () => {
-    const scopes = normalizeScopes(editForm.scopes);
-    const connectionConfig: Record<string, unknown> = {
-      client_id: editForm.clientId.trim(),
-      ...(editForm.clientSecret.trim()
-        ? { client_secret: editForm.clientSecret.trim() }
-        : {}),
-      ...(editForm.type === "custom_oidc"
-        ? { issuer: editForm.issuer.trim() }
-        : {}),
-      ...(editForm.type === "microsoft"
-        ? { tenant: editForm.tenant.trim() }
-        : {}),
-      ...(scopes.length ? { scopes } : {}),
-    };
-    await ConfigAPI.updateOIDCProvider(editForm.id, {
-      name: editForm.name.trim(),
-      enabled: editForm.enabled,
-      connection_config: connectionConfig,
-    });
-    toast.success(t("admin.oidcProviders.providerSaved"));
-    showEditDialog.value = false;
-    await loadAll();
-  });
-}
-
-async function deleteProvider(id: string) {
-  await runMutate(async () => {
-    await ConfigAPI.deleteOIDCProvider(id);
-    toast.success(t("admin.oidcProviders.providerDeleted"));
-    await loadAll();
-  });
-}
+const {
+  catalog,
+  copyCallbackUrl,
+  deleteProvider,
+  editForm,
+  form,
+  handleCreateProvider,
+  handleCreateProviderTypeChange,
+  isLoading,
+  isMutating,
+  isSaving,
+  openCreateDialog,
+  openEditDialog,
+  providerLabel,
+  providers,
+  providerStatus,
+  returnToTotpManagement,
+  saveProviderEdit,
+  showCreateDialog,
+  showEditDialog,
+  showQqBindingAlert,
+} = useOIDCProviderManagement();
 </script>

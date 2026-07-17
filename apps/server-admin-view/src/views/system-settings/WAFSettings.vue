@@ -1,11 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
-import { useI18n } from "vue-i18n";
-import {
-  RefreshCw,
-  TriangleAlert,
-  Upload,
-} from "lucide-vue-next";
+import { RefreshCw, TriangleAlert, Upload } from "lucide-vue-next";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -26,555 +20,62 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import {
-  TooltipProvider,
-} from "@/components/ui/tooltip";
-import { toast } from "@admin-shared/utils/toast";
-import { downloadBlob } from "@admin-shared/utils/downloadBlob";
-import { WAFAPI } from "../../lib/api";
-import type {
-  WAFDetails,
-  WAFRuleFile,
-  WAFRuleFileContent,
-  WAFRuleSource,
-} from "../../types";
-import { useConfigStore } from "../../store/config";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import DetailDialog from "@admin-shared/components/common/DetailDialog.vue";
 import WAFRuleList from "./waf-settings/WAFRuleList.vue";
-import {
-  extractErrorMessage,
-  useAsyncAction,
-} from "@admin-shared/composables/useAsyncAction";
-import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
+import { useWAFSettings } from "./waf-settings/useWAFSettings";
 
-const { locale, t } = useI18n();
-const levelOptions = computed(() => [
-  {
-    value: "1",
-    label: t("admin.wafSettings.levels.daily"),
-    description: t("admin.wafSettings.levels.dailyDescription"),
-  },
-  {
-    value: "2",
-    label: t("admin.wafSettings.levels.enhanced"),
-    description: t("admin.wafSettings.levels.enhancedDescription"),
-  },
-  {
-    value: "3",
-    label: t("admin.wafSettings.levels.strict"),
-    description: t("admin.wafSettings.levels.strictDescription"),
-  },
-  {
-    value: "4",
-    label: t("admin.wafSettings.levels.maximum"),
-    description: t("admin.wafSettings.levels.maximumDescription"),
-  },
-] as const);
-const SYSTEM_INITIALIZATION_RULE_FILENAME = "REQUEST-901-INITIALIZATION.conf";
+const {
+  activateRuleActions,
+  activeRuleActionsKey,
+  activeRulePreview,
+  customRules,
+  deleteCustomRule,
+  details,
+  downloadingRuleKey,
+  downloadRuleFile,
+  enableRecommendedSystemRules,
+  form,
+  formatCustomRuleMeta,
+  formatCustomRuleName,
+  formatDate,
+  formatRuleSize,
+  formatSize,
+  formatSystemRuleMeta,
+  formatSystemRuleName,
+  handleAutoUpdateChange,
+  handleCommonLocationExemptChange,
+  handleEnabledChange,
+  handleParanoiaLevelChange,
+  handleUploadChange,
+  isBusy,
+  isChangingRules,
+  isLoading,
+  isRulePreviewOpen,
+  isUpdatingSystemRules,
+  levelOptions,
+  loadingRuleKey,
+  manifestLabel,
+  openRulePreview,
+  selectedCustomRules,
+  selectedSystemRules,
+  setAllSelected,
+  setRuleSelected,
+  showLoadingSkeleton,
+  sourceLabel,
+  syncedLabel,
+  systemRules,
+  t,
+  toggleAllRules,
+  toggleRule,
+  triggerUpload,
+  updateSelectedRules,
+  updateSystemRules,
+  uploadInputRef,
+} = useWAFSettings();
 
-const configStore = useConfigStore();
-const details = ref<WAFDetails | null>(null);
-const uploadInputRef = ref<HTMLInputElement | null>(null);
-const selectedSystemRules = ref<string[]>([]);
-const selectedCustomRules = ref<string[]>([]);
-const activeRuleActionsKey = ref("");
-const loadingRuleKey = ref("");
-const downloadingRuleKey = ref("");
-const isRulePreviewOpen = ref(false);
-const activeRulePreview = ref<WAFRuleFileContent | null>(null);
-const form = reactive({
-  enabled: false,
-  system_rules_auto_update_enabled: true,
-  common_location_exempt_enabled: false,
-  paranoia_level: 1,
-  executing_paranoia_level: 1,
-});
-
-const { isPending: isLoading, run: runLoadDetails } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.wafSettings.loadFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.wafSettings.loadDescription"),
-      ),
-    });
-  },
-});
-const showLoadingSkeleton = useDelayedLoading(isLoading);
-const { isPending: isSaving, run: runSaveSettings } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.wafSettings.saveFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.wafSettings.saveDescription"),
-      ),
-    });
-  },
-});
-const { isPending: isUpdatingSystemRules, run: runUpdateSystemRules } =
-  useAsyncAction({
-    onError: (error) => {
-      toast.error(t("admin.wafSettings.updateFailed"), {
-        description: extractErrorMessage(
-          error,
-          t("admin.wafSettings.systemUpdateDescription"),
-        ),
-      });
-    },
-  });
-const { isPending: isUploading, run: runUploadRules } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.wafSettings.uploadFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.wafSettings.uploadDescription"),
-      ),
-    });
-  },
-});
-const { isPending: isChangingRules, run: runRuleChange } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.wafSettings.updateFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.wafSettings.ruleUpdateDescription"),
-      ),
-    });
-  },
-});
-
-const isBusy = computed(
-  () =>
-    isSaving.value ||
-    isUpdatingSystemRules.value ||
-    isUploading.value ||
-    isChangingRules.value,
-);
-const systemRules = computed(() =>
-  (details.value?.system.rules || []).filter(
-    (rule) => rule.filename !== SYSTEM_INITIALIZATION_RULE_FILENAME,
-  ),
-);
-const customRules = computed(() => details.value?.custom.rules || []);
-const sourceRules = (source: WAFRuleSource) =>
-  source === "system" ? systemRules.value : customRules.value;
-const allRulesEnabled = (source: WAFRuleSource) => {
-  const rules = sourceRules(source);
-  return rules.length > 0 && rules.every((rule) => rule.enabled);
-};
-const syncedLabel = computed(() => {
-  const syncedAt = details.value?.system.synced?.synced_at;
-  return syncedAt ? formatDate(syncedAt) : t("admin.wafSettings.notSynced");
-});
-const manifestLabel = computed(() => {
-  const manifest = details.value?.system.manifest;
-  if (!manifest) return t("admin.wafSettings.notFetched");
-  return manifest.packagingTime
-    ? formatDate(manifest.packagingTime)
-    : t("admin.wafSettings.fetched");
-});
-
-const clampLevel = (value: unknown, fallback = 1) => {
-  const parsed = Number.parseInt(String(value ?? ""), 10);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.min(4, Math.max(1, parsed));
-};
-
-const formatDate = (value?: string | null) => {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString(locale.value, {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-};
-
-const formatSize = (value: number) => {
-  if (value >= 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`;
-  if (value >= 1024) return `${(value / 1024).toFixed(1)} KB`;
-  return `${value} B`;
-};
-
-const formatSystemRuleName = (rule: WAFRuleFile) =>
-  rule.filename.replace(/\.conf$/i, "");
-
-const formatSystemRuleMeta = (rule: WAFRuleFile) => rule.description;
-
-const formatRuleSize = (rule: WAFRuleFile) => formatSize(rule.size_bytes);
-
-const formatCustomRuleName = (rule: WAFRuleFile) => rule.filename;
-
-const formatCustomRuleMeta = (rule: WAFRuleFile) =>
-  `${formatSize(rule.size_bytes)} · ${formatDate(rule.updated_at)}`;
-
-const sourceLabel = (source: WAFRuleSource) =>
-  source === "system"
-    ? t("admin.wafSettings.systemRules")
-    : t("admin.wafSettings.customRules");
-
-const ruleKey = (rule: Pick<WAFRuleFile, "source" | "filename">) =>
-  `${rule.source}:${rule.filename}`;
-
-const activateRuleActions = (rule: Pick<WAFRuleFile, "source" | "filename">) => {
-  activeRuleActionsKey.value = ruleKey(rule);
-};
-
-const applyFromDetails = (data: WAFDetails) => {
-  details.value = data;
-  form.enabled = data.config.enabled === true;
-  form.system_rules_auto_update_enabled =
-    data.config.system_rules_auto_update_enabled !== false;
-  form.common_location_exempt_enabled =
-    data.config.common_location_exempt_enabled === true;
-  const level = clampLevel(data.config.paranoia_level, 1);
-  form.paranoia_level = level;
-  form.executing_paranoia_level = level;
-  selectedSystemRules.value = [];
-  selectedCustomRules.value = [];
-};
-
-const fetchDetails = async () => {
-  await runLoadDetails(async () => {
-    applyFromDetails(await WAFAPI.getDetails());
-  });
-};
-
-const handleParanoiaLevelChange = (value: unknown) => {
-  const level = clampLevel(value, 1);
-  form.paranoia_level = level;
-  form.executing_paranoia_level = level;
-  return saveSettings(t("admin.wafSettings.protectionUpdated"));
-};
-
-const saveSettings = async (
-  successMessage = t("admin.wafSettings.settingsUpdated"),
-) => {
-  await runSaveSettings(
-    () =>
-      WAFAPI.updateConfig({
-        enabled: form.enabled,
-        system_rules_auto_update_enabled: form.system_rules_auto_update_enabled,
-        common_location_exempt_enabled: form.common_location_exempt_enabled,
-        paranoia_level: form.paranoia_level,
-        executing_paranoia_level: form.executing_paranoia_level,
-      }),
-    {
-      onSuccess: async (data) => {
-        applyFromDetails(data);
-        toast.success(successMessage);
-        await configStore.loadConfig();
-      },
-      onError: () => {
-        if (details.value) applyFromDetails(details.value);
-      },
-    },
-  );
-};
-
-const refreshAndSyncSystemRules = async () => {
-  const refreshed = await WAFAPI.refreshManifest();
-  if (!refreshed.system.update_available && refreshed.system.rules.length > 0) {
-    return { details: refreshed, updated: false };
-  }
-  return { details: await WAFAPI.syncSystemRules(), updated: true };
-};
-
-const handleEnabledChange = async (enabled: boolean) => {
-  if (form.enabled === enabled || isBusy.value) return;
-  const previousEnabled = form.enabled;
-  form.enabled = enabled;
-  await runSaveSettings(
-    async () => {
-      if (enabled) {
-        await refreshAndSyncSystemRules();
-      }
-      return WAFAPI.updateConfig({
-        enabled,
-        system_rules_auto_update_enabled: form.system_rules_auto_update_enabled,
-        common_location_exempt_enabled: form.common_location_exempt_enabled,
-        paranoia_level: form.paranoia_level,
-        executing_paranoia_level: form.executing_paranoia_level,
-      });
-    },
-    {
-      onSuccess: async (data) => {
-        applyFromDetails(data);
-        toast.success(
-          enabled
-            ? t("admin.wafSettings.enabledTitle")
-            : t("admin.wafSettings.disabledTitle"),
-          {
-            description: enabled
-              ? t("admin.wafSettings.enabledDescription")
-              : t("admin.wafSettings.disabledDescription"),
-          },
-        );
-        await configStore.loadConfig();
-      },
-      onError: () => {
-        form.enabled = previousEnabled;
-        if (details.value) applyFromDetails(details.value);
-      },
-    },
-  );
-};
-
-const handleCommonLocationExemptChange = async (enabled: boolean) => {
-  if (form.common_location_exempt_enabled === enabled || isBusy.value) return;
-  const previousEnabled = form.common_location_exempt_enabled;
-  form.common_location_exempt_enabled = enabled;
-  await runSaveSettings(
-    () =>
-      WAFAPI.updateConfig({
-        common_location_exempt_enabled: enabled,
-      }),
-    {
-      onSuccess: (data) => {
-        applyFromDetails(data);
-        toast.success(
-          enabled
-            ? t("admin.wafSettings.commonLocationEnabled")
-            : t("admin.wafSettings.commonLocationDisabled"),
-        );
-      },
-      onError: () => {
-        form.common_location_exempt_enabled = previousEnabled;
-        if (details.value) applyFromDetails(details.value);
-      },
-    },
-  );
-};
-
-const handleAutoUpdateChange = async (enabled: boolean) => {
-  if (form.system_rules_auto_update_enabled === enabled || isBusy.value) return;
-  const previousEnabled = form.system_rules_auto_update_enabled;
-  form.system_rules_auto_update_enabled = enabled;
-  await runSaveSettings(
-    () =>
-      WAFAPI.updateConfig({
-        system_rules_auto_update_enabled: enabled,
-      }),
-    {
-      onSuccess: (data) => {
-        applyFromDetails(data);
-        toast.success(
-          enabled
-            ? t("admin.wafSettings.autoUpdateEnabled")
-            : t("admin.wafSettings.autoUpdateDisabled"),
-          {
-            description: enabled
-              ? t("admin.wafSettings.autoUpdateEnabledDescription")
-              : t("admin.wafSettings.autoUpdateDisabledDescription"),
-          },
-        );
-      },
-      onError: () => {
-        form.system_rules_auto_update_enabled = previousEnabled;
-        if (details.value) applyFromDetails(details.value);
-      },
-    },
-  );
-};
-
-const updateSystemRules = async () => {
-  await runUpdateSystemRules(refreshAndSyncSystemRules, {
-    onSuccess: ({ details: nextDetails, updated }) => {
-      applyFromDetails(nextDetails);
-      if (updated) {
-        toast.success(t("admin.wafSettings.systemRulesUpdated"), {
-          description: nextDetails.config.enabled
-            ? t("admin.wafSettings.loadedToGateway")
-            : t("admin.wafSettings.rulesApplyWhenEnabled"),
-        });
-        return;
-      }
-      toast.success(t("admin.wafSettings.rulesLatest"), {
-        description: t("admin.wafSettings.noNewSystemRules"),
-      });
-    },
-  });
-};
-
-const selectionRef = (source: WAFRuleSource) =>
-  source === "system" ? selectedSystemRules : selectedCustomRules;
-
-const setRuleSelected = (
-  source: WAFRuleSource,
-  filename: string,
-  checked: boolean,
-) => {
-  const target = selectionRef(source);
-  target.value = checked
-    ? [...new Set([...target.value, filename])]
-    : target.value.filter((item) => item !== filename);
-};
-
-const setAllSelected = (source: WAFRuleSource, checked: boolean) => {
-  selectionRef(source).value = checked
-    ? (source === "system" ? systemRules.value : customRules.value).map(
-        (rule) => rule.filename,
-      )
-    : [];
-};
-
-const updateRulesEnabled = async (
-  source: WAFRuleSource,
-  filenames: string[] | undefined,
-  enabled: boolean,
-) => {
-  await runRuleChange(
-    () =>
-      WAFAPI.setRulesEnabled({
-        source,
-        filenames,
-        enabled,
-      }),
-    {
-      onSuccess: (data) => {
-        applyFromDetails(data);
-        toast.success(
-          enabled
-            ? t("admin.wafSettings.ruleEnabled")
-            : t("admin.wafSettings.ruleDisabled"),
-          {
-            description: data.config.enabled
-              ? t("admin.wafSettings.loadedToGateway")
-              : t("admin.wafSettings.currentRulesApplyWhenEnabled"),
-          },
-        );
-      },
-    },
-  );
-};
-
-const toggleRule = (rule: WAFRuleFile, enabled: boolean) =>
-  updateRulesEnabled(rule.source, [rule.filename], enabled);
-
-const updateSelectedRules = (source: WAFRuleSource, enabled: boolean) => {
-  const filenames = selectionRef(source).value;
-  if (filenames.length === 0) return;
-  return updateRulesEnabled(source, filenames, enabled);
-};
-
-const toggleAllRules = (source: WAFRuleSource) =>
-  updateRulesEnabled(source, undefined, !allRulesEnabled(source));
-
-const enableRecommendedSystemRules = async () => {
-  await runRuleChange(WAFAPI.enableRecommendedSystemRules, {
-    onSuccess: (data) => {
-      applyFromDetails(data);
-      toast.success(t("admin.wafSettings.recommendedRulesEnabled"), {
-        description: data.config.enabled
-          ? t("admin.wafSettings.loadedToGateway")
-          : t("admin.wafSettings.currentRulesApplyWhenEnabled"),
-      });
-    },
-  });
-};
-
-const openRulePreview = async (rule: WAFRuleFile) => {
-  const key = ruleKey(rule);
-  activateRuleActions(rule);
-  loadingRuleKey.value = key;
-  try {
-    activeRulePreview.value = await WAFAPI.getRuleFile(
-      rule.source,
-      rule.filename,
-    );
-    isRulePreviewOpen.value = true;
-  } catch (error) {
-    toast.error(t("admin.wafSettings.readFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.wafSettings.ruleReadDescription"),
-      ),
-    });
-  } finally {
-    if (loadingRuleKey.value === key) loadingRuleKey.value = "";
-  }
-};
-
-const downloadRuleFile = async (rule: WAFRuleFile) => {
-  const key = ruleKey(rule);
-  activateRuleActions(rule);
-  downloadingRuleKey.value = key;
-  try {
-    const data = await WAFAPI.getRuleFile(rule.source, rule.filename);
-    downloadBlob(
-      new Blob([data.content], { type: "text/plain;charset=utf-8" }),
-      data.filename || rule.filename,
-    );
-  } catch (error) {
-    toast.error(t("admin.wafSettings.downloadFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.wafSettings.ruleDownloadDescription"),
-      ),
-    });
-  } finally {
-    if (downloadingRuleKey.value === key) downloadingRuleKey.value = "";
-  }
-};
-
-const readFileAsBase64 = (file: File): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const value = String(reader.result || "");
-      resolve(value.includes(",") ? value.split(",")[1] || "" : value);
-    };
-    reader.onerror = () =>
-      reject(reader.error || new Error(t("admin.wafSettings.fileReadFailed")));
-    reader.readAsDataURL(file);
-  });
-
-const triggerUpload = () => uploadInputRef.value?.click();
-
-const handleUploadChange = async (event: Event) => {
-  const input = event.target as HTMLInputElement;
-  const files = Array.from(input.files || []);
-  input.value = "";
-  if (files.length === 0) return;
-  await runUploadRules(
-    async () =>
-      WAFAPI.uploadCustomRules({
-        files: await Promise.all(
-          files.map(async (file) => ({
-            filename: file.name,
-            content_base64: await readFileAsBase64(file),
-          })),
-        ),
-      }),
-    {
-      onSuccess: (data) => {
-        applyFromDetails(data);
-        toast.success(t("admin.wafSettings.customRulesUploaded"), {
-          description: data.config.enabled
-            ? t("admin.wafSettings.loadedToGateway")
-            : t("admin.wafSettings.currentRulesApplyWhenEnabled"),
-        });
-      },
-    },
-  );
-};
-
-const deleteCustomRule = async (filename: string) => {
-  await runRuleChange(() => WAFAPI.deleteCustomRule(filename), {
-    onSuccess: (data) => {
-      applyFromDetails(data);
-      toast.success(t("admin.wafSettings.customRuleDeleted"), {
-        description: data.config.enabled
-          ? t("admin.wafSettings.loadedToGateway")
-          : t("admin.wafSettings.currentRulesApplyWhenEnabled"),
-      });
-    },
-  });
-};
-
-onMounted(fetchDetails);
+// Vue assigns this string template ref at runtime.
+void uploadInputRef;
 </script>
 
 <template>
@@ -876,7 +377,8 @@ onMounted(fetchDetails);
       >
         <pre
           class="max-h-[60vh] overflow-auto whitespace-pre-wrap break-words p-3 font-mono text-xs leading-5 text-foreground"
-      >{{ activeRulePreview.content }}</pre>
+          >{{ activeRulePreview.content }}</pre
+        >
       </div>
     </DetailDialog>
   </TooltipProvider>

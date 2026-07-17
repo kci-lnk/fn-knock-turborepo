@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from "vue";
-import { useI18n } from "vue-i18n";
 import {
   CheckCircle2,
   ExternalLink,
@@ -21,269 +19,26 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
-import { toast } from "@admin-shared/utils/toast";
-import {
-  extractErrorMessage,
-  useAsyncAction,
-} from "@admin-shared/composables/useAsyncAction";
-import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
-import { IpLocationSettingsAPI } from "../../lib/api";
-import type { IpLocationApiConfig } from "../../lib/api";
+import { useIpLocationSettings } from "./ip-location/useIpLocationSettings";
 
-const OFFICIAL_IP_LOOKUP_URL = "https://ipaddress.fnknock.cn/api/v1";
-const OFFICIAL_CIDR_URL = "https://cidr.fnknock.cn/api/v1";
-const DEFAULT_CUSTOM_IP_LOOKUP_URL = "http://127.0.0.1:30661";
-const DEFAULT_CUSTOM_CIDR_URL = "http://127.0.0.1:30662";
-const ipLookupDockerUrl = "https://hub.docker.com/r/kcilnk/go-ipaddress-api";
-const cidrDockerUrl = "https://hub.docker.com/r/kcilnk/go-cidr-api";
-const { t } = useI18n();
-
-const settings = ref<IpLocationApiConfig | null>(null);
-const form = reactive<
-  Pick<IpLocationApiConfig, "ip_lookup_mode" | "cidr_mode">
->({
-  ip_lookup_mode: "online",
-  cidr_mode: "online",
-});
-
-const ipLookupUrlInput = ref("");
-const cidrUrlInput = ref("");
-
-const normalizeBaseUrl = (value: string) => value.trim().replace(/\/+$/, "");
-
-const applyDefaultCustomUrls = () => {
-  if (
-    form.ip_lookup_mode === "custom" &&
-    !normalizeBaseUrl(ipLookupUrlInput.value)
-  ) {
-    ipLookupUrlInput.value = DEFAULT_CUSTOM_IP_LOOKUP_URL;
-  }
-
-  if (form.cidr_mode === "custom" && !normalizeBaseUrl(cidrUrlInput.value)) {
-    cidrUrlInput.value = DEFAULT_CUSTOM_CIDR_URL;
-  }
-};
-
-const buildPayload = (): IpLocationApiConfig => ({
-  ip_lookup_mode: form.ip_lookup_mode,
-  ip_lookup_url:
-    form.ip_lookup_mode === "custom"
-      ? normalizeBaseUrl(ipLookupUrlInput.value)
-      : OFFICIAL_IP_LOOKUP_URL,
-  cidr_mode: form.cidr_mode,
-  cidr_url:
-    form.cidr_mode === "custom"
-      ? normalizeBaseUrl(cidrUrlInput.value)
-      : OFFICIAL_CIDR_URL,
-});
-
-const currentPayload = computed(buildPayload);
-
-const isHttpUrl = (value: string) => {
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
-};
-
-const validateCustomUrls = (payload: IpLocationApiConfig) => {
-  if (payload.ip_lookup_mode === "custom") {
-    if (!payload.ip_lookup_url) {
-      toast.error(t("admin.ipLocationSettings.ipLookupUrlRequired"));
-      return false;
-    }
-    if (!isHttpUrl(payload.ip_lookup_url)) {
-      toast.error(t("admin.ipLocationSettings.ipLookupUrlInvalid"), {
-        description: t("admin.ipLocationSettings.httpUrlRequired"),
-      });
-      return false;
-    }
-  }
-
-  if (payload.cidr_mode === "custom") {
-    if (!payload.cidr_url) {
-      toast.error(t("admin.ipLocationSettings.cidrUrlRequired"));
-      return false;
-    }
-    if (!isHttpUrl(payload.cidr_url)) {
-      toast.error(t("admin.ipLocationSettings.cidrUrlInvalid"), {
-        description: t("admin.ipLocationSettings.httpUrlRequired"),
-      });
-      return false;
-    }
-  }
-
-  return true;
-};
-
-const { isPending: isLoading, run: runLoadSettings } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.ipLocationSettings.loadFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.ipLocationSettings.loadFailedDescription"),
-      ),
-    });
-  },
-});
-const showLoadingSkeleton = useDelayedLoading(isLoading);
-
-const { isPending: isSaving, run: runSaveSettings } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.ipLocationSettings.saveFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.ipLocationSettings.saveFailedDescription"),
-      ),
-    });
-  },
-});
-
-const { isPending: isTestingIpLookup, run: runTestIpLookup } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.ipLocationSettings.connectionFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.ipLocationSettings.ipLookupUnavailable"),
-      ),
-    });
-  },
-});
-
-const { isPending: isTestingCidr, run: runTestCidr } = useAsyncAction({
-  onError: (error) => {
-    toast.error(t("admin.ipLocationSettings.connectionFailed"), {
-      description: extractErrorMessage(
-        error,
-        t("admin.ipLocationSettings.cidrUnavailable"),
-      ),
-    });
-  },
-});
-
-const isDirty = computed(() => {
-  if (!settings.value) return false;
-  const payload = currentPayload.value;
-  return (
-    settings.value.ip_lookup_mode !== payload.ip_lookup_mode ||
-    settings.value.ip_lookup_url !== payload.ip_lookup_url ||
-    settings.value.cidr_mode !== payload.cidr_mode ||
-    settings.value.cidr_url !== payload.cidr_url
-  );
-});
-
-const applyFromSettings = (data: IpLocationApiConfig) => {
-  const normalized: IpLocationApiConfig = {
-    ip_lookup_mode: data.ip_lookup_mode,
-    ip_lookup_url: normalizeBaseUrl(data.ip_lookup_url),
-    cidr_mode: data.cidr_mode,
-    cidr_url: normalizeBaseUrl(data.cidr_url),
-  };
-
-  settings.value = normalized;
-  form.ip_lookup_mode = normalized.ip_lookup_mode;
-  form.cidr_mode = normalized.cidr_mode;
-  ipLookupUrlInput.value =
-    normalized.ip_lookup_mode === "custom" ? normalized.ip_lookup_url : "";
-  cidrUrlInput.value =
-    normalized.cidr_mode === "custom" ? normalized.cidr_url : "";
-  applyDefaultCustomUrls();
-};
-
-const fetchSettings = async () => {
-  await runLoadSettings(async () => {
-    const data = await IpLocationSettingsAPI.getSettings();
-    applyFromSettings(data);
-  });
-};
-
-const resetForm = () => {
-  if (settings.value) applyFromSettings(settings.value);
-};
-
-const testIpLookupService = async () => {
-  const url = normalizeBaseUrl(ipLookupUrlInput.value);
-  if (!url) {
-    toast.error(t("admin.ipLocationSettings.ipLookupUrlInputRequired"));
-    return;
-  }
-  if (!isHttpUrl(url)) {
-    toast.error(t("admin.ipLocationSettings.ipLookupUrlInvalid"), {
-      description: t("admin.ipLocationSettings.httpUrlRequired"),
-    });
-    return;
-  }
-
-  await runTestIpLookup(async () => {
-    const result = await IpLocationSettingsAPI.testIpLookup(url);
-    if (result.success) {
-      toast.success(t("admin.ipLocationSettings.connectionSuccess"), {
-        description: t("admin.ipLocationSettings.ipLookupHealthy"),
-      });
-    } else {
-      toast.error(t("admin.ipLocationSettings.connectionFailed"), {
-        description: result.message,
-      });
-    }
-  });
-};
-
-const testCidrService = async () => {
-  const url = normalizeBaseUrl(cidrUrlInput.value);
-  if (!url) {
-    toast.error(t("admin.ipLocationSettings.cidrUrlInputRequired"));
-    return;
-  }
-  if (!isHttpUrl(url)) {
-    toast.error(t("admin.ipLocationSettings.cidrUrlInvalid"), {
-      description: t("admin.ipLocationSettings.httpUrlRequired"),
-    });
-    return;
-  }
-
-  await runTestCidr(async () => {
-    const result = await IpLocationSettingsAPI.testCidr(url);
-    if (result.success) {
-      if (result.capabilities?.operatorFiltering.supported === false) {
-        toast.warning(t("admin.ipLocationSettings.cidrUpgradeRequiredTitle"), {
-          description: t("admin.ipLocationSettings.cidrUpgradeRequired", {
-            version:
-              result.capabilities.operatorFiltering.minimumContainerVersion,
-          }),
-        });
-      } else {
-        toast.success(t("admin.ipLocationSettings.connectionSuccess"), {
-          description: t("admin.ipLocationSettings.cidrHealthy"),
-        });
-      }
-    } else {
-      toast.error(t("admin.ipLocationSettings.connectionFailed"), {
-        description: result.message,
-      });
-    }
-  });
-};
-
-const saveSettings = async () => {
-  const payload = currentPayload.value;
-  if (!validateCustomUrls(payload)) return;
-
-  await runSaveSettings(() => IpLocationSettingsAPI.updateSettings(payload), {
-    onSuccess: (data) => {
-      applyFromSettings(data);
-      toast.success(t("admin.ipLocationSettings.settingsUpdated"));
-    },
-  });
-};
-
-watch(
-  () => [form.ip_lookup_mode, form.cidr_mode] as const,
-  applyDefaultCustomUrls,
-);
-
-onMounted(fetchSettings);
+const {
+  cidrDockerUrl,
+  cidrUrlInput,
+  form,
+  ipLookupDockerUrl,
+  ipLookupUrlInput,
+  isDirty,
+  isLoading,
+  isSaving,
+  isTestingCidr,
+  isTestingIpLookup,
+  resetForm,
+  saveSettings,
+  showLoadingSkeleton,
+  t,
+  testCidrService,
+  testIpLookupService,
+} = useIpLocationSettings();
 </script>
 
 <template>
@@ -328,6 +83,7 @@ onMounted(fetchSettings);
             <div class="min-w-0 space-y-1">
               <h3 class="text-base font-semibold tracking-normal">
                 {{ t("admin.ipLocationSettings.ipLookupTitle") }}
+                {{ t("admin.ipLocationSettings.ipLookupTitle") }}
               </h3>
               <p class="text-sm leading-6 text-muted-foreground">
                 {{ t("admin.ipLocationSettings.ipLookupDescription") }}
@@ -352,12 +108,12 @@ onMounted(fetchSettings);
                 />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="online">{{
-                  t("admin.ipLocationSettings.officialOnlineService")
-                }}</SelectItem>
-                <SelectItem value="custom">{{
-                  t("admin.ipLocationSettings.customService")
-                }}</SelectItem>
+                <SelectItem value="online">
+                  {{ t("admin.ipLocationSettings.officialOnlineService") }}
+                </SelectItem>
+                <SelectItem value="custom">
+                  {{ t("admin.ipLocationSettings.customService") }}
+                </SelectItem>
               </SelectContent>
             </Select>
             <p class="text-sm leading-6 text-muted-foreground">
@@ -479,12 +235,12 @@ onMounted(fetchSettings);
                 />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="online">{{
-                  t("admin.ipLocationSettings.officialOnlineService")
-                }}</SelectItem>
-                <SelectItem value="custom">{{
-                  t("admin.ipLocationSettings.customService")
-                }}</SelectItem>
+                <SelectItem value="online">
+                  {{ t("admin.ipLocationSettings.officialOnlineService") }}
+                </SelectItem>
+                <SelectItem value="custom">
+                  {{ t("admin.ipLocationSettings.customService") }}
+                </SelectItem>
               </SelectContent>
             </Select>
             <p class="text-sm leading-6 text-muted-foreground">
@@ -591,8 +347,8 @@ onMounted(fetchSettings);
             <Button
               variant="outline"
               class="flex-1 sm:flex-none"
-              @click="resetForm"
               :disabled="!isDirty || isSaving"
+              @click="resetForm"
             >
               <RotateCcw class="size-4" />
               {{ t("admin.ipLocationSettings.discard") }}
@@ -617,8 +373,8 @@ onMounted(fetchSettings);
       <template #floating>
         <Button
           variant="outline"
-          @click="resetForm"
           :disabled="!isDirty || isSaving"
+          @click="resetForm"
         >
           <RotateCcw class="size-4" />
           {{ t("admin.ipLocationSettings.discard") }}

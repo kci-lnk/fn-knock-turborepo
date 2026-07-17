@@ -11,6 +11,7 @@ let ghosttyModulePromise: Promise<GhosttyRuntime> | null = null;
 export const textEncoder = new TextEncoder();
 export const LEGACY_MOUSE_SEQUENCE_PREFIX = "\u001b[M";
 export const REMOTE_RESPONSE_CODEPOINT_SAMPLE_LIMIT = 12;
+// eslint-disable-next-line no-control-regex -- terminal responses may contain ASCII control sequences by design.
 export const ASCII_TERMINAL_RESPONSE_PATTERN = /^[\u0000-\u007f]*$/;
 
 export const ensureGhostty = async () => {

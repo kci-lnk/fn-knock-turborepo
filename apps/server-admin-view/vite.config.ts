@@ -40,7 +40,7 @@ const createGhosttyExternalWasmPlugin = (): Plugin => ({
     }
 
     const inlineLoadPattern =
-      /  static async load\(A\) \{\n    if \(A\)\n      return q\.loadFromPath\(A\);\n    const B = new URL\("data:application\/wasm;base64,[\s\S]*?\n  static async loadFromPath\(A\) \{/
+      / {2}static async load\(A\) \{\n {4}if \(A\)\n {6}return q\.loadFromPath\(A\);\n {4}const B = new URL\("data:application\/wasm;base64,[\s\S]*?\n {2}static async loadFromPath\(A\) \{/
     const externalLoad = `  static async load(A) {
     if (!A)
       throw new Error("ghostty-web requires an explicit WASM URL in this build");

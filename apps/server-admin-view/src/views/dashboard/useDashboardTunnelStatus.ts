@@ -4,7 +4,7 @@ import { isCloudflaredTunnelAvailable } from "@/lib/reverse-proxy-submode";
 import type { AppConfig } from "@/types";
 import { useAsyncAction } from "@admin-shared/composables/useAsyncAction";
 
-type TunnelStatus = {
+export type TunnelStatus = {
   running: boolean;
   pid: number | null;
   initialized: boolean;

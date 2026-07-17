@@ -365,227 +365,25 @@
     </CardContent>
   </Card>
 
-  <Dialog v-model:open="showAddDialog">
-    <DialogContent class="sm:max-w-[640px]">
-      <DialogHeader>
-        <DialogTitle>{{ t("admin.ipWhitelist.addDialogTitle") }}</DialogTitle>
-        <DialogDescription>
-          {{ t("admin.ipWhitelist.addDialogDescription") }}
-        </DialogDescription>
-      </DialogHeader>
-      <div class="grid gap-4 py-4">
-        <div class="grid grid-cols-4 items-center gap-4">
-          <Label for="targetType" class="text-right">{{
-            t("admin.ipWhitelist.type")
-          }}</Label>
-          <Select v-model="newRecord.targetType">
-            <SelectTrigger class="col-span-3">
-              <SelectValue :placeholder="t('admin.ipWhitelist.selectType')" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ip">{{
-                t("admin.ipWhitelist.typeIp")
-              }}</SelectItem>
-              <SelectItem value="cidr">{{
-                t("admin.ipWhitelist.typeCidr")
-              }}</SelectItem>
-              <SelectItem value="cname">{{
-                t("admin.ipWhitelist.typeCname")
-              }}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div
-          v-if="newRecord.targetType === 'cidr'"
-          class="grid grid-cols-4 items-center gap-4"
-        >
-          <Label class="text-right">{{
-            t("admin.ipWhitelist.cidrInputMode")
-          }}</Label>
-          <div
-            class="col-span-3 inline-flex w-fit rounded-md border border-border bg-muted/20 p-1"
-          >
-            <Button
-              type="button"
-              size="sm"
-              :variant="cidrInputMode === 'manual' ? 'default' : 'ghost'"
-              class="h-8"
-              @click="cidrInputMode = 'manual'"
-            >
-              {{ t("admin.ipWhitelist.cidrInputManual") }}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              :variant="cidrInputMode === 'region' ? 'default' : 'ghost'"
-              class="h-8"
-              @click="cidrInputMode = 'region'"
-            >
-              {{ t("admin.ipWhitelist.cidrInputRegion") }}
-            </Button>
-          </div>
-        </div>
-
-        <div
-          v-if="!isRegionCidrMode"
-          class="grid grid-cols-4 items-center gap-4"
-        >
-          <Label for="ip" class="text-right">{{
-            t("admin.ipWhitelist.target")
-          }}</Label>
-          <Input
-            id="ip"
-            v-model="newRecord.ip"
-            :placeholder="newRecordPlaceholder"
-            class="col-span-3"
-          />
-        </div>
-
-        <div v-else class="grid grid-cols-4 items-start gap-4">
-          <Label class="pt-2 text-right">{{
-            t("admin.ipWhitelist.regionScope")
-          }}</Label>
-          <div class="col-span-3 space-y-3">
-            <Alert variant="destructive" class="items-start">
-              <AlertTriangle class="h-4 w-4" />
-              <AlertTitle>
-                {{ t("admin.ipWhitelist.regionSecurityWarningTitle") }}
-              </AlertTitle>
-              <AlertDescription>
-                {{ t("admin.ipWhitelist.regionSecurityWarningDescription") }}
-              </AlertDescription>
-            </Alert>
-            <CidrRegionSelector
-              v-model="whitelistRegionSelections"
-              :disabled="regionInputsDisabled"
-              :description="t('admin.ipWhitelist.regionScopeDescription')"
-              :text="{
-                add: t('admin.gatewayVisibilitySettings.saveSelection'),
-                addRegion: t('admin.gatewayVisibilitySettings.manageRegions'),
-                cancel: t('common.cancel'),
-                dialogDescription: t('admin.ipWhitelist.addRegionDescription'),
-                loadFailed: t('admin.ipWhitelist.regionsLoadFailed'),
-                loadFailedDescription: t(
-                  'admin.ipWhitelist.regionsLoadDescription',
-                ),
-                loading: t('admin.ipWhitelist.loading'),
-                noRegions: t('admin.ipWhitelist.noRegions'),
-                province: t('admin.ipWhitelist.province'),
-                retry: t('admin.subdomainProxy.retry'),
-                selectedCount: (count) =>
-                  t('admin.gatewayVisibilitySettings.selectedRegionCount', {
-                    count,
-                  }),
-                scope: t('admin.ipWhitelist.scope'),
-                selectCity: t('admin.ipWhitelist.selectCity'),
-                selectProvince: t('admin.ipWhitelist.selectProvince'),
-                selectProvinceFirst: t('admin.ipWhitelist.selectProvinceFirst'),
-                unavailable: t(
-                  'admin.gatewayVisibilitySettings.unavailableSelection',
-                ),
-              }"
-            />
-          </div>
-        </div>
-
-        <div
-          v-if="newRecord.targetType === 'cname'"
-          class="grid grid-cols-4 items-center gap-4"
-        >
-          <Label for="checkIntervalMinutes" class="text-right">{{
-            t("admin.ipWhitelist.checkIntervalLabel")
-          }}</Label>
-          <div class="col-span-3 flex items-center gap-2">
-            <Input
-              id="checkIntervalMinutes"
-              type="number"
-              min="1"
-              v-model.number="newRecord.checkIntervalMinutes"
-              :placeholder="t('admin.ipWhitelist.defaultFive')"
-            />
-            <span class="text-sm text-muted-foreground whitespace-nowrap">{{
-              t("admin.ipWhitelist.minutes")
-            }}</span>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-4 items-center gap-4">
-          <Label for="duration" class="text-right">{{
-            t("admin.ipWhitelist.duration")
-          }}</Label>
-          <Select v-model="durationSetting">
-            <SelectTrigger class="col-span-3">
-              <SelectValue
-                :placeholder="t('admin.ipWhitelist.selectDuration')"
-              />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="permanent">{{
-                t("admin.ipWhitelist.permanent")
-              }}</SelectItem>
-              <SelectItem value="1h">{{
-                t("admin.ipWhitelist.oneHour")
-              }}</SelectItem>
-              <SelectItem value="24h">{{
-                t("admin.ipWhitelist.twentyFourHours")
-              }}</SelectItem>
-              <SelectItem value="7d">{{
-                t("admin.ipWhitelist.sevenDays")
-              }}</SelectItem>
-              <SelectItem value="custom">{{
-                t("admin.ipWhitelist.customHours")
-              }}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div
-          v-if="durationSetting === 'custom'"
-          class="grid grid-cols-4 items-center gap-4"
-        >
-          <Label for="customHours" class="text-right">{{
-            t("admin.ipWhitelist.customHours")
-          }}</Label>
-          <Input
-            id="customHours"
-            type="number"
-            min="1"
-            v-model.number="customHours"
-            :placeholder="t('admin.ipWhitelist.customHoursPlaceholder')"
-            class="col-span-3"
-          />
-        </div>
-
-        <div class="grid grid-cols-4 items-center gap-4">
-          <Label for="comment" class="text-right">{{
-            t("admin.ipWhitelist.commentOptional")
-          }}</Label>
-          <Input
-            id="comment"
-            v-model="newRecord.comment"
-            :placeholder="t('admin.ipWhitelist.commentPlaceholder')"
-            class="col-span-3"
-            @keyup.enter="addRecord"
-          />
-        </div>
-      </div>
-      <DialogFooter>
-        <Button variant="outline" @click="showAddDialog = false">{{
-          t("common.cancel")
-        }}</Button>
-        <Button @click="addRecord" :disabled="!canSaveNewRecord || isSaving">{{
-          t("common.save")
-        }}</Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+  <WhitelistAddDialog
+    v-model:cidr-input-mode="cidrInputMode"
+    v-model:custom-hours="customHours"
+    v-model:duration-setting="durationSetting"
+    v-model:new-record="newRecord"
+    v-model:open="showAddDialog"
+    v-model:region-selections="whitelistRegionSelections"
+    :can-save="canSaveNewRecord"
+    :is-region-cidr-mode="isRegionCidrMode"
+    :is-saving="isSaving"
+    :new-record-placeholder="newRecordPlaceholder"
+    :region-inputs-disabled="regionInputsDisabled"
+    @add="addRecord"
+  />
 </template>
 
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Card,
   CardHeader,
@@ -594,7 +392,6 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import InlineCommentEditor from "@admin-shared/components/InlineCommentEditor.vue";
 import SearchInput from "@admin-shared/components/SearchInput.vue";
@@ -606,25 +403,8 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { AlertTriangle, RefreshCw, ShieldCheck, Trash2 } from "lucide-vue-next";
-import CidrRegionSelector from "@/components/CidrRegionSelector.vue";
+import { RefreshCw, ShieldCheck, Trash2 } from "lucide-vue-next";
 import RefreshButton from "@/components/RefreshButton.vue";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
@@ -634,6 +414,7 @@ import { useLocalPagedList } from "@admin-shared/composables/useLocalPagedList";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { getCidrRegionSelectionLabel } from "@/types/cidr";
 import { docsUrls } from "../lib/docs";
+import WhitelistAddDialog from "./ip-whitelist/WhitelistAddDialog.vue";
 import { useWhitelistAddRecord } from "./ip-whitelist/useWhitelistAddRecord";
 import { useWhitelistRecordActions } from "./ip-whitelist/useWhitelistRecordActions";
 import { useWhitelistRecords } from "./ip-whitelist/useWhitelistRecords";

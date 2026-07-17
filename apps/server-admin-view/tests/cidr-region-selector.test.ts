@@ -21,9 +21,9 @@ const srcRoot = fileURLToPath(new URL("../src", import.meta.url));
 const selectorPath = "components/CidrRegionSelector.vue";
 const selectorStatePath = "components/cidr-region-selector-state.ts";
 const selectorConsumers = [
-  "views/IPWhitelist.vue",
+  "views/ip-whitelist/WhitelistAddDialog.vue",
   "views/SSHSecurity.vue",
-  "views/subdomain-proxy/SubdomainMappingDialog.vue",
+  "views/subdomain-proxy/SubdomainMappingVisibilityPanel.vue",
   "views/system-settings/GatewayVisibilitySettings.vue",
   "views/system-settings/ScannerFirewallSettings.vue",
 ];

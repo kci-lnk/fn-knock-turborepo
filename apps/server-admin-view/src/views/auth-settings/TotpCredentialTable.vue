@@ -24,7 +24,7 @@ import HumanFriendlyTime from "@admin-shared/components/common/HumanFriendlyTime
 import InlineCommentEditor from "@admin-shared/components/InlineCommentEditor.vue";
 import type { TOTPCredential } from "../../types";
 
-const props = defineProps<{
+defineProps<{
   credentials: TOTPCredential[];
   getSubdomainAccessPreview: (totp: TOTPCredential) => string;
   getSubdomainAccessSummary: (totp: TOTPCredential) => string;

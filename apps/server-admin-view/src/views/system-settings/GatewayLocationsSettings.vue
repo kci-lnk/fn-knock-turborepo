@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import {
@@ -11,16 +11,8 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -42,64 +34,24 @@ import { toast } from "@admin-shared/utils/toast";
 import { Pencil, Trash2 } from "lucide-vue-next";
 import { isAnySubdomainRoutingMode } from "../../lib/reverse-proxy-submode";
 import { useConfigStore } from "../../store/config";
-import type {
-  HostMapping,
-  HostLocation,
-  HostLocationAction,
-} from "../../types";
+import type { HostMapping, HostLocation } from "../../types";
+import GatewayLocationHostPickerDialog from "./gateway-locations/GatewayLocationHostPickerDialog.vue";
 import GatewayLocationRuleDialog from "./gateway-locations/GatewayLocationRuleDialog.vue";
-
-type HeaderRow = {
-  name: string;
-  value: string;
-};
-
-type LocationForm = Omit<HostLocation, "response"> & {
-  response: HostLocation["response"];
-  headers: HeaderRow[];
-};
+import {
+  cloneLocation,
+  DEFAULT_RESPONSE_CONTENT_TYPE,
+} from "./gateway-locations/gatewayLocationModel";
+import { useGatewayLocationEditor } from "./gateway-locations/useGatewayLocationEditor";
 
 type HostMappingTitleInfo = Pick<HostMapping, "title" | "title_override">;
-
-const DEFAULT_RESPONSE_CONTENT_TYPE = "text/plain; charset=utf-8";
-const forbiddenResponseHeaders = new Set([
-  "connection",
-  "keep-alive",
-  "proxy-connection",
-  "proxy-authenticate",
-  "proxy-authorization",
-  "te",
-  "trailer",
-  "transfer-encoding",
-  "upgrade",
-  "content-length",
-  "content-type",
-]);
 
 const route = useRoute();
 const router = useRouter();
 const configStore = useConfigStore();
 const { t } = useI18n();
 const selectedHost = ref("");
-const editingIndex = ref<number | null>(null);
-const isDialogOpen = ref(false);
 const isHostPickerOpen = ref(false);
 const draftLocations = ref<HostLocation[]>([]);
-const form = reactive<LocationForm>({
-  path: "",
-  match: "exact",
-  action: "proxy",
-  target: "",
-  strip_path: true,
-  rewrite_html: true,
-  response: {
-    status: 200,
-    content_type: DEFAULT_RESPONSE_CONTENT_TYPE,
-    headers: {},
-    body: "",
-  },
-  headers: [],
-});
 
 const { isPending: isLoading, run: runLoad } = useAsyncAction({
   onError: (error) => {
@@ -147,54 +99,12 @@ const sortedDraftLocations = computed(() =>
 const canSave = computed(
   () => Boolean(selectedMapping.value) && isDirty.value && !isSaving.value,
 );
-const isProxyLocationWebSocketTarget = computed(
-  () => form.action === "proxy" && isWebSocketProxyTargetUrl(form.target),
-);
 
 const getMappingDisplayTitle = (mapping?: HostMappingTitleInfo | null) =>
   mapping?.title_override.trim() || mapping?.title.trim() || "";
 
 const getMappingTitleForDisplay = (mapping?: HostMappingTitleInfo | null) =>
   getMappingDisplayTitle(mapping) || "-";
-
-const createDefaultLocation = (): HostLocation => ({
-  path: "",
-  match: "exact",
-  action: "proxy",
-  target: "",
-  strip_path: true,
-  rewrite_html: true,
-  response: {
-    status: 200,
-    content_type: DEFAULT_RESPONSE_CONTENT_TYPE,
-    headers: {},
-    body: "",
-  },
-});
-
-const cloneLocation = (location: HostLocation): HostLocation => ({
-  ...location,
-  response: {
-    status: location.response?.status ?? 200,
-    content_type:
-      location.response?.content_type?.trim() || DEFAULT_RESPONSE_CONTENT_TYPE,
-    headers: { ...(location.response?.headers ?? {}) },
-    body: location.response?.body ?? "",
-  },
-});
-
-const headersToRows = (headers: Record<string, string>): HeaderRow[] =>
-  Object.entries(headers).map(([name, value]) => ({ name, value }));
-
-const rowsToHeaders = (rows: HeaderRow[]): Record<string, string> => {
-  const headers: Record<string, string> = {};
-  for (const row of rows) {
-    const name = row.name.trim();
-    if (!name) continue;
-    headers[name] = row.value;
-  }
-  return headers;
-};
 
 const resetDraftFromSelected = () => {
   draftLocations.value = (selectedMapping.value?.locations ?? []).map(
@@ -237,151 +147,6 @@ const ensureSelectedHost = () => {
   resetDraftFromSelected();
 };
 
-const openCreateDialog = () => {
-  editingIndex.value = null;
-  Object.assign(form, createDefaultLocation(), { headers: [] });
-  isDialogOpen.value = true;
-};
-
-const openEditDialog = (index: number) => {
-  const location = draftLocations.value[index];
-  if (!location) return;
-  editingIndex.value = index;
-  Object.assign(form, cloneLocation(location), {
-    headers: headersToRows(location.response?.headers ?? {}),
-  });
-  isDialogOpen.value = true;
-};
-
-const closeDialog = () => {
-  isDialogOpen.value = false;
-  editingIndex.value = null;
-  Object.assign(form, createDefaultLocation(), { headers: [] });
-};
-
-const setAction = (action: HostLocationAction) => {
-  form.action = action;
-  if (action === "response") {
-    form.strip_path = false;
-    form.rewrite_html = false;
-  } else {
-    form.strip_path = true;
-    form.rewrite_html = true;
-  }
-};
-
-const addHeaderRow = () => {
-  form.headers.push({ name: "", value: "" });
-};
-
-const removeHeaderRow = (index: number) => {
-  form.headers.splice(index, 1);
-};
-
-const isValidHeaderName = (value: string): boolean =>
-  /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(value);
-
-const cleanHostLocationPath = (value: string): string => {
-  const raw = value.trim();
-  if (!raw.startsWith("/")) return raw;
-
-  const segments: string[] = [];
-  for (const segment of raw.split("/")) {
-    if (!segment || segment === ".") continue;
-    if (segment === "..") {
-      segments.pop();
-      continue;
-    }
-    segments.push(segment);
-  }
-
-  return `/${segments.join("/")}`;
-};
-
-const formError = computed(() => {
-  const rawLocationPath = form.path.trim();
-  if (!rawLocationPath) return t("admin.gatewayLocationsSettings.pathRequired");
-  if (!rawLocationPath.startsWith("/")) {
-    return t("admin.gatewayLocationsSettings.pathMustStartSlash");
-  }
-  const locationPath = cleanHostLocationPath(rawLocationPath);
-  if (locationPath === "/") {
-    return t("admin.gatewayLocationsSettings.rootPathForbidden");
-  }
-  if (
-    locationPath.startsWith("/__") ||
-    locationPath === "/s" ||
-    locationPath === "/s/"
-  ) {
-    return t("admin.gatewayLocationsSettings.reservedPathForbidden");
-  }
-  const duplicate = draftLocations.value.some(
-    (location, index) =>
-      index !== editingIndex.value &&
-      location.path === locationPath &&
-      location.match === form.match,
-  );
-  if (duplicate) return t("admin.gatewayLocationsSettings.duplicatePath");
-  if (form.action === "proxy" && !form.target.trim()) {
-    return t("admin.gatewayLocationsSettings.proxyTargetRequired");
-  }
-  if (form.action === "response") {
-    const status = Math.floor(Number(form.response.status) || 0);
-    if (status < 100 || status > 599) {
-      return t("admin.gatewayLocationsSettings.statusRange");
-    }
-    const seen = new Set<string>();
-    for (const row of form.headers) {
-      const name = row.name.trim();
-      if (!name && !row.value) continue;
-      if (!name) return t("admin.gatewayLocationsSettings.headerNameRequired");
-      if (!isValidHeaderName(name)) {
-        return t("admin.gatewayLocationsSettings.invalidHeaderName", { name });
-      }
-      const key = name.toLowerCase();
-      if (forbiddenResponseHeaders.has(key)) {
-        return t("admin.gatewayLocationsSettings.forbiddenHeader", { name });
-      }
-      if (seen.has(key)) {
-        return t("admin.gatewayLocationsSettings.duplicateHeader", { name });
-      }
-      seen.add(key);
-    }
-  }
-  return "";
-});
-
-const buildLocationFromForm = (): HostLocation => {
-  const action = form.action;
-  const isWebSocketProxy =
-    action === "proxy" && isWebSocketProxyTargetUrl(form.target);
-  return {
-    path: cleanHostLocationPath(form.path),
-    match: form.match,
-    action,
-    target: action === "proxy" ? form.target.trim() : "",
-    strip_path: action === "proxy" ? form.strip_path : false,
-    rewrite_html:
-      action === "proxy" && !isWebSocketProxy ? form.rewrite_html : false,
-    response:
-      action === "response"
-        ? {
-            status: Math.floor(Number(form.response.status) || 200),
-            content_type:
-              form.response.content_type.trim() ||
-              DEFAULT_RESPONSE_CONTENT_TYPE,
-            headers: rowsToHeaders(form.headers),
-            body: form.response.body,
-          }
-        : {
-            status: 200,
-            content_type: DEFAULT_RESPONSE_CONTENT_TYPE,
-            headers: {},
-            body: "",
-          },
-  };
-};
-
 const persistLocations = async (locations: HostLocation[]) => {
   const host = selectedHost.value;
   const mapping = selectedMapping.value;
@@ -409,31 +174,21 @@ const persistLocations = async (locations: HostLocation[]) => {
   return result !== undefined;
 };
 
-const saveDialogLocation = async () => {
-  if (formError.value) {
-    toast.error(t("admin.gatewayLocationsSettings.ruleNotSaved"), {
-      description: formError.value,
-    });
-    return;
-  }
-
-  const nextLocation = buildLocationFromForm();
-  const nextLocations =
-    editingIndex.value === null
-      ? [...draftLocations.value, nextLocation]
-      : draftLocations.value.map((location, index) =>
-          index === editingIndex.value ? nextLocation : location,
-        );
-
-  const saved = await persistLocations(nextLocations);
-  if (saved) closeDialog();
-};
-
-const removeLocation = (index: number) => {
-  draftLocations.value = draftLocations.value.filter(
-    (_, itemIndex) => itemIndex !== index,
-  );
-};
+const {
+  addHeaderRow,
+  closeDialog,
+  editingIndex,
+  form,
+  formError,
+  isDialogOpen,
+  isProxyLocationWebSocketTarget,
+  openCreateDialog,
+  openEditDialog,
+  removeHeaderRow,
+  removeLocation,
+  saveDialogLocation,
+  setAction,
+} = useGatewayLocationEditor({ draftLocations, persistLocations });
 
 const saveLocations = async () => {
   await persistLocations(draftLocations.value);
@@ -759,80 +514,14 @@ onMounted(async () => {
       </CardContent>
     </Card>
 
-    <Dialog :open="isHostPickerOpen" @update:open="handleHostPickerOpenChange">
-      <DialogContent class="sm:max-w-[760px]">
-        <DialogHeader>
-          <DialogTitle>
-            {{ t("admin.gatewayLocationsSettings.chooseHost") }}
-          </DialogTitle>
-          <DialogDescription class="leading-6">
-            {{ t("admin.gatewayLocationsSettings.chooseHostDescription") }}
-            <span class="font-medium text-foreground">
-              {{
-                selectedMapping?.host ||
-                t("admin.gatewayLocationsSettings.notSelected")
-              }}
-            </span>
-            <template v-if="selectedMapping">
-              · {{ getMappingTitleForDisplay(selectedMapping) }}
-            </template>
-          </DialogDescription>
-        </DialogHeader>
-
-        <div class="grid max-h-[60vh] gap-2 overflow-y-auto pr-1">
-          <button
-            v-for="mapping in availableMappings"
-            :key="mapping.host"
-            type="button"
-            class="w-full rounded-md border px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/40"
-            :class="
-              mapping.host === selectedHost
-                ? 'border-border bg-muted/40'
-                : 'border-border/60 bg-background hover:border-primary/30 hover:bg-muted/20'
-            "
-            @click="selectHostFromDialog(mapping.host)"
-          >
-            <span
-              class="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] sm:items-center"
-            >
-              <span class="min-w-0 space-y-1">
-                <span class="flex min-w-0 flex-wrap items-center gap-2">
-                  <span class="truncate text-sm font-semibold">
-                    {{ mapping.host }}
-                  </span>
-                  <Badge
-                    v-if="mapping.host === selectedHost"
-                    variant="secondary"
-                  >
-                    {{ t("admin.gatewayLocationsSettings.current") }}
-                  </Badge>
-                  <span class="text-xs text-muted-foreground">
-                    {{ mapping.locations?.length ?? 0 }}
-                  </span>
-                </span>
-                <span class="block truncate text-sm text-muted-foreground">
-                  {{
-                    mapping.target ||
-                    t("admin.gatewayLocationsSettings.notSelected")
-                  }}
-                </span>
-              </span>
-
-              <span class="min-w-0 space-y-1">
-                <span class="flex items-center gap-2">
-                  <span class="text-xs font-medium text-muted-foreground">
-                    {{ t("admin.gatewayLocationsSettings.siteTitle") }}
-                  </span>
-                </span>
-                <span class="block truncate text-sm font-medium">
-                  {{ getMappingTitleForDisplay(mapping) }}
-                </span>
-              </span>
-            </span>
-          </button>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <GatewayLocationHostPickerDialog
+      :mappings="availableMappings"
+      :open="isHostPickerOpen"
+      :selected-host="selectedHost"
+      :selected-mapping="selectedMapping"
+      @select="selectHostFromDialog"
+      @update:open="handleHostPickerOpenChange"
+    />
 
     <GatewayLocationRuleDialog
       :open="isDialogOpen"

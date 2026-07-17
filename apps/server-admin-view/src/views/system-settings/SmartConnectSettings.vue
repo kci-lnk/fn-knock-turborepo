@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue";
+import { reactive, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import {
@@ -34,11 +34,7 @@ import RefreshButton from "@/components/RefreshButton.vue";
 import FloatingActionDock from "@admin-shared/components/common/FloatingActionDock.vue";
 import { toast } from "@admin-shared/utils/toast";
 import { SystemAPI } from "../../lib/api";
-import type {
-  SmartConnectConfig,
-  SmartConnectDetails,
-  SmartConnectLocalIpOption,
-} from "../../types";
+import type { SmartConnectConfig, SmartConnectDetails } from "../../types";
 import {
   extractErrorMessage,
   useAsyncAction,
@@ -46,6 +42,12 @@ import {
 import { usePollingResourceStatus } from "@admin-shared/composables/usePollingResourceStatus";
 import { useDelayedLoading } from "@admin-shared/composables/useDelayedLoading";
 import { useConfigStore } from "../../store/config";
+import {
+  cloneSmartConnectDetails,
+  hasUnsavedSmartConnectDraft,
+  resolveSelectedIpv4,
+} from "./smart-connect/smartConnectModel";
+import { useSmartConnectViewModel } from "./smart-connect/useSmartConnectViewModel";
 
 const router = useRouter();
 const configStore = useConfigStore();
@@ -57,73 +59,16 @@ const form = reactive<SmartConnectConfig>({
   selected_ipv4: "",
 });
 
-const cloneDetails = (value: SmartConnectDetails): SmartConnectDetails => ({
-  config: {
-    ...value.config,
-  },
-  availability: {
-    ...value.availability,
-  },
-  dnsmasq: {
-    ...value.dnsmasq,
-    install_state: {
-      ...value.dnsmasq.install_state,
-    },
-    runtime: {
-      ...value.dnsmasq.runtime,
-      synced_domains: [...value.dnsmasq.runtime.synced_domains],
-    },
-  },
-  domains: [...value.domains],
-  local_ip_options: value.local_ip_options.map((item) => ({ ...item })),
-});
-
-const resolveSelectedIpv4 = (
-  configuredValue: string,
-  localIpOptions: SmartConnectLocalIpOption[],
-): string => configuredValue.trim() || localIpOptions[0]?.value || "";
-
-const normalizeSmartConnectConfig = (
-  value: Partial<SmartConnectConfig>,
-): SmartConnectConfig => ({
-  enabled: value.enabled === true,
-  selected_ipv4: String(value.selected_ipv4 ?? "").trim(),
-});
-
-const getComparableFormConfig = (
-  value: Partial<SmartConnectConfig>,
-  persistedSelectedIpv4 = "",
-): SmartConnectConfig => {
-  const normalized = normalizeSmartConnectConfig(value);
-  if (normalized.enabled) {
-    return normalized;
-  }
-
-  return {
-    ...normalized,
-    selected_ipv4: persistedSelectedIpv4.trim(),
-  };
-};
-
-const hasUnsavedConfigDraft = (): boolean => {
-  if (!details.value) return false;
-  return (
-    JSON.stringify(normalizeSmartConnectConfig(details.value.config)) !==
-    JSON.stringify(
-      getComparableFormConfig(form, details.value.config.selected_ipv4),
-    )
-  );
-};
-
 const applyDetails = (
   value: SmartConnectDetails,
   options: {
     preserveDraft?: boolean;
   } = {},
 ) => {
-  const nextDetails = cloneDetails(value);
+  const nextDetails = cloneSmartConnectDetails(value);
   const shouldPreserveDraft =
-    options.preserveDraft === true && hasUnsavedConfigDraft();
+    options.preserveDraft === true &&
+    hasUnsavedSmartConnectDraft(details.value, form);
   const selectedIpv4 = shouldPreserveDraft
     ? form.selected_ipv4
     : nextDetails.config.selected_ipv4;
@@ -160,12 +105,12 @@ const { isPending: isStartingInstall, run: runStartInstall } = useAsyncAction({
         ? t("admin.smartConnectSettings.initializeFailed")
         : t("admin.smartConnectSettings.installFailed"),
       {
-      description: extractErrorMessage(
-        error,
-        installMode === "initialize"
-          ? t("admin.smartConnectSettings.startInitializeFailed")
-          : t("admin.smartConnectSettings.startInstallFailed"),
-      ),
+        description: extractErrorMessage(
+          error,
+          installMode === "initialize"
+            ? t("admin.smartConnectSettings.startInitializeFailed")
+            : t("admin.smartConnectSettings.startInstallFailed"),
+        ),
       },
     );
     void refreshDetails();
@@ -194,145 +139,22 @@ const { isInitializing, refresh: refreshDetails } =
 
 const showLoadingSkeleton = useDelayedLoading(isInitializing);
 
-const isDirty = computed(() => {
-  if (!details.value) return false;
-  return (
-    JSON.stringify(normalizeSmartConnectConfig(details.value.config)) !==
-    JSON.stringify(
-      getComparableFormConfig(form, details.value.config.selected_ipv4),
-    )
-  );
-});
-
-const capabilityBlockedReason = computed(() => {
-  if (configStore.canUseSmartConnect) return "";
-  if (configStore.isDockerDeployment) {
-    return t("admin.smartConnectSettings.dockerUnsupported");
-  }
-  return t("admin.smartConnectSettings.environmentUnsupported");
-});
-const isSmartConnectAvailable = computed(
-  () => details.value?.availability.available === true,
-);
-const showDnsmasqCard = computed(() => form.enabled);
-const isDnsmasqReady = computed(() => {
-  const dnsmasq = details.value?.dnsmasq;
-  if (!dnsmasq) return false;
-
-  return (
-    dnsmasq.install_state.status !== "installing" &&
-    dnsmasq.install_state.status !== "error" &&
-    dnsmasq.installed &&
-    dnsmasq.service_active &&
-    dnsmasq.initialized
-  );
-});
-const showDnsmasqSetupCard = computed(
-  () => showDnsmasqCard.value && !isDnsmasqReady.value,
-);
-const showAdvancedCards = computed(() => form.enabled && isDnsmasqReady.value);
-const dnsmasqSummaryText = computed(() => {
-  const dnsmasq = details.value?.dnsmasq;
-  if (!dnsmasq) return "";
-
-  const parts = [
-    dnsmasq.service_active
-      ? t("admin.smartConnectSettings.serviceRunning")
-      : t("admin.smartConnectSettings.serviceStopped"),
-    t("admin.smartConnectSettings.managedRules", {
-      count: dnsmasq.runtime.managed_rule_count,
-    }),
-  ];
-  return parts.join(" · ");
-});
-const dnsmasqProgress = computed(() => {
-  const value = Number(details.value?.dnsmasq.install_state.progress ?? 0);
-  if (!Number.isFinite(value)) return 0;
-  return Math.max(0, Math.min(100, value));
-});
-const dnsmasqStatusLabel = computed(() => {
-  const dnsmasq = details.value?.dnsmasq;
-  if (!dnsmasq) return t("admin.smartConnectSettings.loading");
-  if (dnsmasq.install_state.status === "installing")
-    return t("admin.smartConnectSettings.installing");
-  if (dnsmasq.install_state.status === "error")
-    return t("admin.smartConnectSettings.abnormal");
-  if (!dnsmasq.installed) return t("admin.smartConnectSettings.notInstalled");
-  if (!dnsmasq.service_active) return t("admin.smartConnectSettings.notRunning");
-  if (!dnsmasq.initialized)
-    return t("admin.smartConnectSettings.pendingInitialization");
-  return t("admin.smartConnectSettings.ready");
-});
-const dnsmasqStatusVariant = computed(() => {
-  const dnsmasq = details.value?.dnsmasq;
-  if (!dnsmasq) return "outline";
-  if (dnsmasq.install_state.status === "error") return "destructive";
-  if (dnsmasq.install_state.status === "installing") return "secondary";
-  if (!dnsmasq.installed) return "outline";
-  if (!dnsmasq.service_active) return "destructive";
-  if (!dnsmasq.initialized) return "secondary";
-  return "default";
-});
-const dnsmasqNeedsInitialization = computed(() => {
-  const dnsmasq = details.value?.dnsmasq;
-  if (!dnsmasq?.installed) return false;
-  return !dnsmasq.service_active || !dnsmasq.initialized;
-});
-const showDnsmasqAction = computed(() => {
-  const dnsmasq = details.value?.dnsmasq;
-  if (!dnsmasq) return false;
-  return (
-    dnsmasq.install_state.status === "installing" ||
-    dnsmasq.install_state.status === "error" ||
-    !dnsmasq.installed ||
-    dnsmasqNeedsInitialization.value
-  );
-});
-const dnsmasqActionLabel = computed(() => {
-  return t("admin.smartConnectSettings.initialize");
-});
-const resolvedIpOptions = computed<SmartConnectLocalIpOption[]>(() => {
-  const currentOptions = details.value?.local_ip_options ?? [];
-  if (
-    !form.selected_ipv4 ||
-    currentOptions.some((item) => item.value === form.selected_ipv4)
-  ) {
-    return currentOptions;
-  }
-
-  return [
-    ...currentOptions,
-    {
-      label: t("admin.smartConnectSettings.currentConfiguredIpUnavailable", {
-        ip: form.selected_ipv4,
-      }),
-      value: form.selected_ipv4,
-      interface: "manual",
-    },
-  ];
-});
-const saveBlockedReason = computed(() => {
-  if (!configStore.canUseSmartConnect) {
-    return capabilityBlockedReason.value;
-  }
-  if (!form.enabled) return "";
-  if (!isSmartConnectAvailable.value) {
-    return (
-      details.value?.availability.reason ||
-      t("admin.smartConnectSettings.currentModeUnavailable")
-    );
-  }
-  if (!details.value?.dnsmasq.initialized) {
-    return t("admin.smartConnectSettings.initializeDnsmasqFirst");
-  }
-  if (!form.selected_ipv4) {
-    return t("admin.smartConnectSettings.selectLocalIpFirst");
-  }
-  if ((details.value?.domains.length ?? 0) === 0) {
-    return t("admin.smartConnectSettings.noDomainsToSync");
-  }
-  return "";
-});
+const {
+  capabilityBlockedReason,
+  dnsmasqActionLabel,
+  dnsmasqProgress,
+  dnsmasqStatusLabel,
+  dnsmasqStatusVariant,
+  dnsmasqSummaryText,
+  isDirty,
+  isSmartConnectAvailable,
+  resolvedIpOptions,
+  saveBlockedReason,
+  showAdvancedCards,
+  showDnsmasqAction,
+  showDnsmasqCard,
+  showDnsmasqSetupCard,
+} = useSmartConnectViewModel({ details, form });
 
 const refreshAll = async () => {
   await Promise.all([refreshDetails(), configStore.loadConfig()]);
@@ -467,9 +289,12 @@ const saveSettings = async () => {
             {{
               !configStore.canUseSmartConnect
                 ? capabilityBlockedReason
-                : t("admin.smartConnectSettings.currentModeUnavailableWithReason", {
-                    reason: details.availability.reason,
-                  })
+                : t(
+                    "admin.smartConnectSettings.currentModeUnavailableWithReason",
+                    {
+                      reason: details.availability.reason,
+                    },
+                  )
             }}
           </div>
 
@@ -649,11 +474,9 @@ const saveSettings = async () => {
                         })
                       }}
 
-                      <span
-                        >{{
-                          t("admin.smartConnectSettings.androidWarning")
-                        }}</span
-                      >
+                      <span>{{
+                        t("admin.smartConnectSettings.androidWarning")
+                      }}</span>
                     </p>
                   </div>
                 </section>

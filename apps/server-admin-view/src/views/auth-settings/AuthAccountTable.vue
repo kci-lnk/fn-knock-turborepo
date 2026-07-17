@@ -24,7 +24,7 @@ import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerP
 import InlineCommentEditor from "@admin-shared/components/InlineCommentEditor.vue";
 import type { AuthAccount } from "../../types";
 
-const props = defineProps<{
+defineProps<{
   accounts: AuthAccount[];
   title?: string;
   description?: string;

@@ -19,6 +19,13 @@ interface UseWhitelistAddRecordOptions {
   translate: Translate;
 }
 
+export type WhitelistNewRecord = {
+  ip: string;
+  targetType: "ip" | "cidr" | "cname";
+  checkIntervalMinutes: number;
+  comment: string;
+};
+
 export function useWhitelistAddRecord({
   currentPage,
   fetchRecords,
@@ -28,7 +35,7 @@ export function useWhitelistAddRecord({
   const showAddDialog = ref(false);
   const durationSetting = ref("permanent");
   const customHours = ref(24);
-  const newRecord = ref({
+  const newRecord = ref<WhitelistNewRecord>({
     ip: "",
     targetType: "ip" as "ip" | "cidr" | "cname",
     checkIntervalMinutes: 5,

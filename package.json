@@ -6,6 +6,7 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
+    "security:audit": "node ./scripts/security-audit.mjs",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
     "fn-knock:assemble-runtime": "bash ./scripts/assemble-runtime.sh",
@@ -49,14 +50,14 @@
     "i18n:scan": "node ./packages/i18n/scripts/scan.mjs"
   },
   "devDependencies": {
-    "esbuild": "0.27.7",
+    "esbuild": "^0.28.1",
     "prettier": "^3.7.4",
-    "turbo": "^2.8.12",
-    "tsx": "4.21.0",
+    "tsx": "^4.23.1",
+    "turbo": "^2.10.5",
     "typescript": "5.9.2"
   },
   "engines": {
-    "node": ">=18"
+    "node": "^20.19.0 || >=22.12.0"
   },
   "packageManager": "npm@10.8.2",
   "workspaces": [
@@ -69,6 +70,6 @@
   "allowScripts": {
     "vue-demi@0.14.10": true,
     "@parcel/watcher@2.5.6": true,
-    "esbuild@0.27.7": true
+    "esbuild@0.28.1": true
   }
 }

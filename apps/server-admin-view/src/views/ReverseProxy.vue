@@ -221,261 +221,27 @@
     @save="saveMapping"
   />
 
-  <Dialog
+  <ReverseProxyDiscoverDialog
+    ref="discoverTargetsSettingsRef"
+    v-model:selected-services="selectedServices"
+    :discovered-data="discoveredData"
+    :footer-scanned-ports="discoverFooterScannedPorts"
+    :is-all-selected="isAllSelected"
+    :is-discovering="isDiscovering"
+    :is-saving="isSaving"
+    :is-selection-valid="isDiscoverSelectionValid"
+    :is-settings-open="isDiscoverSettingsOpen"
     :open="isDiscoverDialogOpen"
+    :resolve-service-host="resolveDiscoveredServiceHost"
+    :show-host-column="showDiscoverHostColumn"
+    @cancel="dismissDiscoverDialog"
+    @save="saveDiscoveredServices"
+    @scan="triggerScan"
+    @stop-scan="stopDiscoverScan"
+    @toggle-all="onToggleAllDiscoverSelect"
+    @toggle-settings="toggleDiscoverSettings"
     @update:open="handleDiscoverDialogOpenChange"
-  >
-    <DialogContent
-      class="max-w-[calc(100vw-2rem)] sm:max-w-[800px] max-h-[85vh] flex flex-col overflow-hidden"
-    >
-      <DialogHeader class="shrink-0">
-        <div
-          class="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
-        >
-          <DialogTitle>{{ t("admin.reverseProxy.discoverTitle") }}</DialogTitle>
-          <div
-            class="flex w-fit max-w-full min-w-0 self-center items-center gap-2 sm:self-auto"
-          >
-            <Button
-              variant="outline"
-              size="icon"
-              class="h-11 w-11 sm:h-9 sm:w-9"
-              :disabled="isDiscovering"
-              @click="toggleDiscoverSettings"
-            >
-              <SlidersHorizontal class="h-4 w-4" />
-            </Button>
-            <RefreshButton
-              class="h-11 w-auto max-w-[calc(100vw-7rem)] min-w-0 !shrink justify-center overflow-hidden sm:h-9 [&>span]:min-w-0 [&>span]:truncate"
-              :label="t('admin.reverseProxy.refreshServices')"
-              :loading="isDiscovering"
-              :disabled="isDiscovering"
-              @click="triggerScan"
-            />
-            <Button
-              v-if="isDiscovering"
-              class="h-11 sm:h-9"
-              variant="outline"
-              @click="stopDiscoverScan"
-            >
-              <X class="mr-2 h-4 w-4" />
-              {{ t("admin.reverseProxy.cancel") }}
-            </Button>
-          </div>
-        </div>
-        <DialogDescription>
-          {{ t("admin.reverseProxy.discoverDescription") }}
-        </DialogDescription>
-        <ScanDiscoveryTargetsSettings
-          ref="discoverTargetsSettingsRef"
-          v-show="isDiscoverSettingsOpen"
-          class="mt-3"
-        />
-      </DialogHeader>
-
-      <div class="flex-1 min-h-0 overflow-auto">
-        <div class="py-2">
-          <div
-            v-if="
-              isDiscovering &&
-              (!discoveredData || discoveredData.services.length === 0)
-            "
-            class="flex flex-col items-center justify-center py-16 space-y-4"
-          >
-            <RefreshCw class="h-8 w-8 animate-spin text-muted-foreground" />
-            <p class="text-sm text-muted-foreground">
-              {{ t("admin.reverseProxy.probing") }}
-            </p>
-          </div>
-
-          <div
-            v-else-if="
-              !isDiscovering &&
-              discoveredData &&
-              discoveredData.services.length === 0
-            "
-            class="text-center py-16 text-muted-foreground"
-          >
-            {{ t("admin.reverseProxy.discoverEmpty") }}
-          </div>
-
-          <div
-            v-else-if="discoveredData && discoveredData.services.length > 0"
-            class="border rounded-md bg-background"
-          >
-            <Table container-class="overflow-visible">
-              <TableHeader
-                class="sticky top-0 z-10 bg-background shadow-sm [&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-background"
-              >
-                <TableRow>
-                  <TableHead class="w-[50px] text-center">
-                    <input
-                      type="checkbox"
-                      class="h-4 w-4 rounded border-gray-300 text-primary cursor-pointer"
-                      :checked="isAllSelected"
-                      @change="onToggleAllDiscoverSelect"
-                    />
-                  </TableHead>
-                  <TableHead v-if="showDiscoverHostColumn" class="w-[140px]">
-                    {{ t("admin.reverseProxy.discoverColumns.host") }}
-                  </TableHead>
-                  <TableHead class="w-[80px]">{{
-                    t("admin.reverseProxy.discoverColumns.port")
-                  }}</TableHead>
-                  <TableHead class="w-[100px]">{{
-                    t("admin.reverseProxy.discoverColumns.status")
-                  }}</TableHead>
-                  <TableHead>{{
-                    t("admin.reverseProxy.discoverColumns.serviceId")
-                  }}</TableHead>
-                  <TableHead class="w-[200px]">{{
-                    t("admin.reverseProxy.discoverColumns.suggestedPath")
-                  }}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow
-                  v-for="(svc, index) in discoveredData.services"
-                  :key="index"
-                >
-                  <TableCell class="text-center">
-                    <input
-                      type="checkbox"
-                      class="h-4 w-4 rounded border-gray-300 text-primary cursor-pointer"
-                      :value="svc"
-                      v-model="selectedServices"
-                    />
-                  </TableCell>
-                  <TableCell
-                    v-if="showDiscoverHostColumn"
-                    class="font-mono text-xs text-muted-foreground"
-                  >
-                    {{ resolveDiscoveredServiceHost(svc) }}
-                  </TableCell>
-                  <TableCell class="font-medium">
-                    <a
-                      :href="`http://${resolveDiscoveredServiceHost(svc)}:${svc.port}`"
-                      target="_blank"
-                      class="text-primary hover:underline hover:text-primary/80 transition-colors"
-                      :title="t('admin.reverseProxy.openNewWindow')"
-                    >
-                      {{ svc.port }}
-                    </a>
-                  </TableCell>
-                  <TableCell>
-                    <span
-                      v-if="svc.httpStatus === 401"
-                      class="text-amber-600 bg-amber-500/10 text-xs px-2 py-0.5 rounded"
-                      >{{ t("admin.reverseProxy.authRequiredShort") }}</span
-                    >
-                    <span
-                      v-else
-                      class="text-green-600 bg-green-500/10 text-xs px-2 py-0.5 rounded"
-                      >{{ svc.httpStatus }}</span
-                    >
-                  </TableCell>
-                  <TableCell>
-                    <span v-if="svc.detail.label" class="text-sm">{{
-                      svc.detail.label
-                    }}</span>
-                    <span v-else class="text-red-500 text-sm font-medium">{{
-                      t("admin.reverseProxy.unknownService")
-                    }}</span>
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      v-model="svc.detail.rule.path"
-                      :placeholder="
-                        t('admin.reverseProxy.requiredPathPlaceholder')
-                      "
-                      class="h-8 text-sm"
-                      :class="{
-                        'border-destructive focus-visible:ring-destructive':
-                          selectedServices.includes(svc) &&
-                          !svc.detail.rule.path.trim(),
-                      }"
-                    />
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </div>
-        </div>
-      </div>
-
-      <DialogFooter class="mt-2 shrink-0 items-center sm:justify-between">
-        <span class="text-sm text-muted-foreground">
-          <template v-if="discoveredData">
-            <template v-if="isDiscovering">
-              {{ t("admin.reverseProxy.probing") }}
-            </template>
-            <template v-else>
-              {{
-                t("admin.reverseProxy.scannedPorts", {
-                  count: discoverFooterScannedPorts,
-                })
-              }}
-            </template>
-            <template v-if="discoveredData.intensityLevel">
-              ，{{
-                t("admin.scanIntensity.resultSummary", {
-                  level: t(
-                    `admin.scanIntensity.levels.${discoveredData.intensityLevel}`,
-                  ),
-                  count: discoveredData.effectiveConcurrency || 0,
-                })
-              }}
-            </template>
-            ，{{
-              t("admin.reverseProxy.selectedItems", {
-                count: `${selectedServices.length} / ${discoveredData.services.length}`,
-              })
-            }}
-            <template v-if="discoveredData.scanCidrs?.length">
-              ，{{
-                t("admin.reverseProxy.coveredCidrsHosts", {
-                  cidrs: discoveredData.scanCidrs.length,
-                  hosts:
-                    discoveredData.scanHostCount ||
-                    discoveredData.scannedHosts ||
-                    0,
-                })
-              }}
-            </template>
-            <template
-              v-if="
-                !discoveredData.scanCidrs?.length &&
-                discoveredData.scannedHosts &&
-                discoveredData.scannedHosts > 1
-              "
-            >
-              {{
-                t("admin.reverseProxy.coveredHosts", {
-                  hosts:
-                    discoveredData.scanScope || discoveredData.scannedHosts,
-                })
-              }}
-            </template>
-          </template>
-        </span>
-        <div class="space-x-2">
-          <Button variant="outline" @click="dismissDiscoverDialog">
-            {{ t("admin.reverseProxy.cancel") }}
-          </Button>
-          <Button
-            @click="saveDiscoveredServices"
-            :disabled="
-              selectedServices.length === 0 ||
-              !isDiscoverSelectionValid ||
-              isSaving
-            "
-          >
-            {{ t("admin.reverseProxy.addSelected") }}
-          </Button>
-        </div>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
+  />
 
   <ReverseProxyDefaultRouteDialog
     :open="isDefaultRouteConfirmOpen"
@@ -501,11 +267,8 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import RefreshButton from "@/components/RefreshButton.vue";
-import ScanDiscoveryTargetsSettings from "@/components/ScanDiscoveryTargetsSettings.vue";
 import ScanDiscoveryIntensityDialog from "@/components/ScanDiscoveryIntensityDialog.vue";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
-import { Input } from "@/components/ui/input";
 import SearchInput from "@admin-shared/components/SearchInput.vue";
 import {
   Table,
@@ -515,14 +278,6 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -535,7 +290,6 @@ import {
   Plus,
   Search,
   SlidersHorizontal,
-  X,
 } from "lucide-vue-next";
 import { useConfigStore } from "../store/config";
 import { ConfigAPI } from "../lib/api";
@@ -543,6 +297,7 @@ import type { ProxyMapping } from "../types";
 import ConfirmDangerPopover from "@admin-shared/components/common/ConfirmDangerPopover.vue";
 import PagedTableFooter from "@admin-shared/components/list/PagedTableFooter.vue";
 import ReverseProxyDefaultRouteDialog from "./reverse-proxy/ReverseProxyDefaultRouteDialog.vue";
+import ReverseProxyDiscoverDialog from "./reverse-proxy/ReverseProxyDiscoverDialog.vue";
 import ReverseProxyMappingDialog from "./reverse-proxy/ReverseProxyMappingDialog.vue";
 import { useAsyncAction } from "@admin-shared/composables/useAsyncAction";
 import { useAccessEntryPort } from "@/composables/useAccessEntryPort";
@@ -570,7 +325,7 @@ const { t } = useI18n();
 const reverseProxyMessages = createReverseProxyMessages(t);
 const isScanIntensityDialogOpen = ref(false);
 const discoverTargetsSettingsRef = ref<InstanceType<
-  typeof ScanDiscoveryTargetsSettings
+  typeof ReverseProxyDiscoverDialog
 > | null>(null);
 
 const isDefaultRoute = (path: string) => {

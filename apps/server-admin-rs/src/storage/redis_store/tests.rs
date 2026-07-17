@@ -760,6 +760,14 @@ async fn every_application_eval_operation_runs_on_sqlite() {
     let bind_token = store.create_passkey_bind_token("totp", 60).await.unwrap();
     assert_eq!(
         store
+            .get_passkey_bind_token_totp_id(&bind_token)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("totp")
+    );
+    assert_eq!(
+        store
             .consume_passkey_bind_token(&bind_token)
             .await
             .unwrap()
@@ -768,6 +776,13 @@ async fn every_application_eval_operation_runs_on_sqlite() {
     );
     assert_eq!(
         store.consume_passkey_bind_token(&bind_token).await.unwrap(),
+        None
+    );
+    assert_eq!(
+        store
+            .get_passkey_bind_token_totp_id(&bind_token)
+            .await
+            .unwrap(),
         None
     );
 

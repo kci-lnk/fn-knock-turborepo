@@ -66,6 +66,11 @@ export const enAuth = {
   oidcLoginFailed: "External sign-in failed. Please try again.",
   passkeyBindInvalid: "Binding credential is invalid. Sign in again.",
   passkeyBindFailed: "Passkey binding failed",
+  passkeyCreateCancelled: "Passkey creation was cancelled or timed out",
+  passkeyCreateUnavailable:
+    "The system could not create a Passkey. Make sure screen lock and a password manager are enabled, then try again.",
+  passkeyAlreadyRegistered:
+    "This device or password manager already has the Passkey. You can use it directly.",
   home: {
     statusTitles: {
       browserSession: "This browser session is verified",
@@ -126,6 +131,9 @@ export const enAuth = {
     enablePasskey: "Enable Passkey sign-in",
     passkeySupportedUnbound:
       "This browser supports Passkey, but none is bound yet",
+    addPasskey: "Add another Passkey",
+    passkeyAvailableAddDevice:
+      "This account already has a Passkey. Add another if it has not synced to this device.",
     logoutDelay: "The sign-out button will appear in {seconds} seconds",
     logout: "Sign out",
     logoutConfirmTitle: "Confirm sign out",

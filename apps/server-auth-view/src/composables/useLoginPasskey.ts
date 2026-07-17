@@ -185,8 +185,11 @@ export const useLoginPasskey = ({
       const { credentialId } = await registerPasskeyCredential(
         passkeyBindToken.value,
         {
+          alreadyRegistered: translate("auth.passkeyAlreadyRegistered"),
           bindFailed: translate("auth.passkeyBindFailed"),
+          cancelled: translate("auth.passkeyCreateCancelled"),
           noResponse: translate("auth.passkeyNoResponse"),
+          unavailable: translate("auth.passkeyCreateUnavailable"),
         },
       );
       await rememberKnownPasskeyCredentialId(credentialId);

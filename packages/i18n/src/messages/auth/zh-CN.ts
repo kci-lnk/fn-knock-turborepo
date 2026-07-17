@@ -62,6 +62,11 @@ export const zhCNAuth = {
   oidcLoginFailed: "外部登录失败，请重试",
   passkeyBindInvalid: "绑定凭证无效，请重新登录",
   passkeyBindFailed: "Passkey 绑定失败",
+  passkeyCreateCancelled: "Passkey 创建未完成，可能已取消或超时",
+  passkeyCreateUnavailable:
+    "系统无法创建 Passkey。请确认已设置屏幕锁并启用密码管理器，然后重试。",
+  passkeyAlreadyRegistered:
+    "当前设备或密码管理器已有此 Passkey，可直接使用，无需重复绑定",
   home: {
     statusTitles: {
       browserSession: "当前浏览器会话已验证",
@@ -117,6 +122,9 @@ export const zhCNAuth = {
     },
     enablePasskey: "开启 Passkey 一键登录",
     passkeySupportedUnbound: "当前浏览器支持 Passkey，但尚未绑定",
+    addPasskey: "再添加一个 Passkey",
+    passkeyAvailableAddDevice:
+      "账号已有 Passkey；如当前设备尚未同步，可再添加一个",
     logoutDelay: "退出登录按钮将在 {seconds} 秒后显示",
     logout: "退出登录",
     logoutConfirmTitle: "确认退出登录",

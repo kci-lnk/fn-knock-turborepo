@@ -126,6 +126,15 @@ export const useKnownPasskeyCredentials = (
     return persistKnownPasskeyCredentialDigests([...knownDigests, digest]);
   };
 
+  const rememberSoleKnownPasskeyCredentialId = async (
+    credentialIds: unknown,
+  ) => {
+    const normalizedIds = normalizePasskeyCredentialIds(credentialIds);
+    return normalizedIds.length === 1
+      ? rememberKnownPasskeyCredentialId(normalizedIds[0])
+      : false;
+  };
+
   const hasKnownPasskeyCredential = async (credentialIds: unknown) => {
     const knownDigests = new Set(readKnownPasskeyCredentialDigests());
     if (knownDigests.size === 0) {
@@ -147,5 +156,6 @@ export const useKnownPasskeyCredentials = (
     persistKnownPasskeyCredentialDigests,
     readKnownPasskeyCredentialDigests,
     rememberKnownPasskeyCredentialId,
+    rememberSoleKnownPasskeyCredentialId,
   };
 };

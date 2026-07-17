@@ -1309,13 +1309,12 @@ return 0
         Ok(token)
     }
 
-    pub async fn is_passkey_bind_token_valid(
+    pub async fn get_passkey_bind_token_totp_id(
         &self,
         token: &str,
-    ) -> crate::storage::StorageResult<bool> {
+    ) -> crate::storage::StorageResult<Option<String>> {
         let mut conn = self.conn();
-        let value: Option<String> = conn.get(format!("fn_knock:passkey:bind:{token}")).await?;
-        Ok(value.is_some())
+        conn.get(format!("fn_knock:passkey:bind:{token}")).await
     }
 
     pub async fn consume_passkey_bind_token(

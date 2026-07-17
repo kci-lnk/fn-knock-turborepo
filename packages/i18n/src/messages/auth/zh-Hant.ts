@@ -60,6 +60,11 @@ export const zhHantAuth = {
   oidcLoginFailed: "外部登入失敗，請重試",
   passkeyBindInvalid: "綁定憑證無效，請重新登入",
   passkeyBindFailed: "Passkey 綁定失敗",
+  passkeyCreateCancelled: "Passkey 建立未完成，可能已取消或逾時",
+  passkeyCreateUnavailable:
+    "系統無法建立 Passkey。請確認已設定螢幕鎖定並啟用密碼管理器，然後重試。",
+  passkeyAlreadyRegistered:
+    "目前裝置或密碼管理器已有此 Passkey，可直接使用，無需重複綁定",
   home: {
     statusTitles: {
       browserSession: "目前瀏覽器會話已驗證",
@@ -115,6 +120,9 @@ export const zhHantAuth = {
     },
     enablePasskey: "開啟 Passkey 一鍵登入",
     passkeySupportedUnbound: "目前瀏覽器支援 Passkey，但尚未綁定",
+    addPasskey: "再新增一個 Passkey",
+    passkeyAvailableAddDevice:
+      "帳號已有 Passkey；若目前裝置尚未同步，可再新增一個",
     logoutDelay: "登出按鈕將在 {seconds} 秒後顯示",
     logout: "登出",
     logoutConfirmTitle: "確認登出",

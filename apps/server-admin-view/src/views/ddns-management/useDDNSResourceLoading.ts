@@ -11,20 +11,7 @@ import {
   type DDNSStatusPayload,
 } from "@/lib/api";
 import {
-  INTERFACE_IPV4_INDEX_KEY,
-  INTERFACE_IPV6_INDEX_KEY,
-  IP_SOURCE_KEY,
-  NETWORK_INTERFACE_KEY,
-  SOURCE_DOMAIN_KEY,
-  STATIC_IPV4_KEY,
-  STATIC_IPV6_KEY,
-  UPDATE_SCOPE_KEY,
-  normalizeInterfaceAddressIndex,
-  normalizeIpSource,
-  normalizeNetworkInterface,
-  normalizeSourceDomain,
-  normalizeStaticIPAddress,
-  normalizeUpdateScope,
+  extractCommonTargetConfig,
   type Provider,
   type ProviderField,
 } from "./model";
@@ -137,22 +124,7 @@ export const useDDNSResourceLoading = ({
     await runLoadConfig(async () => {
       const config = await DDNSAPI.getConfig(selectedProvider.value);
       const providerDef = currentProviderDef.value;
-      const merged: Record<string, string> = {
-        [UPDATE_SCOPE_KEY]: normalizeUpdateScope(config[UPDATE_SCOPE_KEY]),
-        [IP_SOURCE_KEY]: normalizeIpSource(config[IP_SOURCE_KEY]),
-        [NETWORK_INTERFACE_KEY]: normalizeNetworkInterface(
-          config[NETWORK_INTERFACE_KEY],
-        ),
-        [INTERFACE_IPV4_INDEX_KEY]: normalizeInterfaceAddressIndex(
-          config[INTERFACE_IPV4_INDEX_KEY],
-        ),
-        [INTERFACE_IPV6_INDEX_KEY]: normalizeInterfaceAddressIndex(
-          config[INTERFACE_IPV6_INDEX_KEY],
-        ),
-        [STATIC_IPV4_KEY]: normalizeStaticIPAddress(config[STATIC_IPV4_KEY]),
-        [STATIC_IPV6_KEY]: normalizeStaticIPAddress(config[STATIC_IPV6_KEY]),
-        [SOURCE_DOMAIN_KEY]: normalizeSourceDomain(config[SOURCE_DOMAIN_KEY]),
-      };
+      const merged = extractCommonTargetConfig(config);
 
       resetFieldEditReady();
       if (providerDef) {

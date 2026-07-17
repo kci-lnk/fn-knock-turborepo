@@ -72,6 +72,12 @@ export const jaJPAuth = {
   passkeyBindInvalid:
     "バインディング認証情報が無効です。再度ログインしてください。",
   passkeyBindFailed: "Passkey バインドに失敗しました",
+  passkeyCreateCancelled:
+    "Passkey の作成が完了しませんでした。キャンセルまたはタイムアウトした可能性があります。",
+  passkeyCreateUnavailable:
+    "システムで Passkey を作成できませんでした。画面ロックとパスワード マネージャーが有効になっていることを確認して、もう一度お試しください。",
+  passkeyAlreadyRegistered:
+    "このデバイスまたはパスワードマネージャーにはすでに Passkey があります。そのまま使用できます。",
   home: {
     statusTitles: {
       browserSession: "現在のブラウザセッションが認証されました",
@@ -134,6 +140,9 @@ export const jaJPAuth = {
     enablePasskey: "Passkeyをオンにする ワンクリックログイン",
     passkeySupportedUnbound:
       "現在のブラウザは Passkey をサポートしていますが、まだバインドされていません",
+    addPasskey: "別の Passkey を追加",
+    passkeyAvailableAddDevice:
+      "このアカウントにはすでに Passkey があります。このデバイスに同期されていない場合は追加できます。",
     logoutDelay: "{seconds}秒後にログアウトボタンが表示されます",
     logout: "ログアウト",
     logoutConfirmTitle: "ログアウトを確認します",

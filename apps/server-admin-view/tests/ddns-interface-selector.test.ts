@@ -7,6 +7,7 @@ import {
   NETWORK_INTERFACE_KEY,
   UPDATE_SCOPE_KEY,
   buildInterfaceSelectorFromLegacyIndex,
+  extractCommonTargetConfig,
   ipv6InterfaceIdFromAddress,
   parseInterfaceSelector,
   serializeInterfaceSelector,
@@ -154,4 +155,53 @@ test("interface validation accepts a semantic selector without an index", () => 
     updateScope: "ipv6_only",
   });
   assert.equal(issue, null);
+});
+
+test("interface validation allows implicit automatic IPv6 selection", () => {
+  const issue = validateDDNSCommonConfig({
+    config: {
+      [IP_SOURCE_KEY]: "interface",
+      [NETWORK_INTERFACE_KEY]: "eth0",
+      [UPDATE_SCOPE_KEY]: "ipv6_only",
+    },
+    ipSource: "interface",
+    ipv4Options: [],
+    ipv6Options: [{ value: "0", label: "IPv6" }],
+    providerName: "cloudflare",
+    providers: [],
+    updateScope: "ipv6_only",
+  });
+  assert.equal(issue, null);
+});
+
+test("interface validation still rejects malformed explicit selectors", () => {
+  const issue = validateDDNSCommonConfig({
+    config: {
+      [IP_SOURCE_KEY]: "interface",
+      [NETWORK_INTERFACE_KEY]: "eth0",
+      [UPDATE_SCOPE_KEY]: "ipv6_only",
+      [INTERFACE_IPV6_SELECTOR_KEY]: "{invalid",
+    },
+    ipSource: "interface",
+    ipv4Options: [],
+    ipv6Options: [{ value: "0", label: "IPv6" }],
+    providerName: "cloudflare",
+    providers: [],
+    updateScope: "ipv6_only",
+  });
+  assert.equal(issue?.messageKey, "admin.ddns.interfaceSelectorInvalid");
+});
+
+test("loaded target normalization preserves the IPv6 selector", () => {
+  const selector = serializeInterfaceSelector({
+    version: 1,
+    mode: "rules",
+    includeCidrs: ["2409:8a74::/32"],
+    allowTemporary: false,
+  });
+  const normalized = extractCommonTargetConfig({
+    [INTERFACE_IPV6_SELECTOR_KEY]: selector,
+  });
+
+  assert.equal(normalized[INTERFACE_IPV6_SELECTOR_KEY], selector);
 });

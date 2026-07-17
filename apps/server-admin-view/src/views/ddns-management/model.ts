@@ -748,14 +748,12 @@ const validateSingleAddressProviderScope = (
 const validateInterfaceIpSourceConfig = ({
   config,
   includeFilteredDescriptions,
-  includeUnavailableSelectionChecks,
   ipv4Options,
   ipv6Options,
   updateScope,
 }: {
   config: Record<string, string>;
   includeFilteredDescriptions: boolean;
-  includeUnavailableSelectionChecks: boolean;
   ipv4Options: DDNSAddressOption[];
   ipv6Options: DDNSAddressOption[];
   updateScope: DDNSUpdateScope;
@@ -800,12 +798,6 @@ const validateInterfaceIpSourceConfig = ({
 
   const needsIPv4 = updateScope !== "ipv6_only";
   const needsIPv6 = updateScope !== "ipv4_only";
-  const ipv4Index = normalizeInterfaceAddressIndex(
-    config[INTERFACE_IPV4_INDEX_KEY],
-  );
-  const ipv6Index = normalizeInterfaceAddressIndex(
-    config[INTERFACE_IPV6_INDEX_KEY],
-  );
   const ipv4SelectorRaw = config[INTERFACE_IPV4_SELECTOR_KEY]?.trim() || "";
   const ipv6SelectorRaw = config[INTERFACE_IPV6_SELECTOR_KEY]?.trim() || "";
   const ipv4Selector = parseInterfaceSelector(ipv4SelectorRaw);
@@ -818,46 +810,8 @@ const validateInterfaceIpSourceConfig = ({
     return createValidationIssue("admin.ddns.interfaceSelectorInvalid");
   }
 
-  if (needsIPv4 && ipv4Options.length > 0 && !ipv4Selector && !ipv4Index) {
-    return createValidationIssue("admin.ddns.chooseIpv4", {
-      descriptionKey: includeFilteredDescriptions
-        ? "admin.ddns.chooseIpv4Description"
-        : undefined,
-    });
-  }
-
-  if (
-    includeUnavailableSelectionChecks &&
-    needsIPv4 &&
-    !ipv4Selector &&
-    ipv4Index &&
-    !ipv4Options.some((option) => option.value === ipv4Index)
-  ) {
-    return createValidationIssue("admin.ddns.ipv4Unavailable", {
-      descriptionKey: "admin.ddns.ipv4UnavailableDescription",
-    });
-  }
-
-  if (needsIPv6 && ipv6Options.length > 0 && !ipv6Selector && !ipv6Index) {
-    return createValidationIssue("admin.ddns.chooseIpv6", {
-      descriptionKey: includeFilteredDescriptions
-        ? "admin.ddns.chooseIpv6Description"
-        : undefined,
-    });
-  }
-
-  if (
-    includeUnavailableSelectionChecks &&
-    needsIPv6 &&
-    !ipv6Selector &&
-    ipv6Index &&
-    !ipv6Options.some((option) => option.value === ipv6Index)
-  ) {
-    return createValidationIssue("admin.ddns.ipv6Unavailable", {
-      descriptionKey: "admin.ddns.ipv6UnavailableDescription",
-    });
-  }
-
+  // An explicit selector is optional. The runtime's implicit auto selector
+  // keeps the current address or deterministically ranks usable candidates.
   return null;
 };
 
@@ -908,7 +862,6 @@ export const validateDDNSCommonConfig = ({
   return validateInterfaceIpSourceConfig({
     config,
     includeFilteredDescriptions: true,
-    includeUnavailableSelectionChecks: true,
     ipv4Options,
     ipv6Options,
     updateScope,
@@ -974,7 +927,6 @@ export const validateDDNSTargetConfig = ({
   return validateInterfaceIpSourceConfig({
     config,
     includeFilteredDescriptions: false,
-    includeUnavailableSelectionChecks: false,
     ipv4Options,
     ipv6Options,
     updateScope,

@@ -65,6 +65,7 @@ pub fn passkey_routes() -> Router<AppState> {
         .route("/passkey/status", get(status))
         .route("/passkey/auth/options", post(auth_options))
         .route("/passkey/auth/verify", post(auth_verify))
+        .route("/passkey/bind-status", get(bind_status))
         .route("/passkey/bind-token", post(bind_token))
         .route("/passkey/register/options", post(register_options))
         .route("/passkey/register/verify", post(register_verify))
@@ -167,7 +168,7 @@ async fn auth_options(State(state): State<AppState>, headers: HeaderMap) -> Resp
 
     let credentials = passkeys
         .iter()
-        .filter_map(passkey_to_security_key)
+        .filter_map(stored_passkey)
         .collect::<Vec<_>>();
     if credentials.is_empty() {
         return with_auth_headers(response::error(
@@ -187,7 +188,7 @@ async fn auth_options(State(state): State<AppState>, headers: HeaderMap) -> Resp
         }
     };
 
-    let (options, auth_state) = match webauthn.start_securitykey_authentication(&credentials) {
+    let (options, auth_state) = match webauthn.start_passkey_authentication(&credentials) {
         Ok(value) => value,
         Err(error) => {
             tracing::warn!(%error, "failed to start passkey authentication");
@@ -319,7 +320,7 @@ async fn auth_verify(
     if let Some(flags) = backup_flags {
         patch_authentication_state_backup_flags(&mut state_json, credential.id.as_str(), flags);
     }
-    let auth_state: SecurityKeyAuthentication =
+    let auth_state: PasskeyAuthentication =
         match serde_json::from_value(state_json.get("state").cloned().unwrap_or(Value::Null)) {
             Ok(value) => value,
             Err(error) => {
@@ -391,7 +392,7 @@ async fn auth_verify(
         .to_string();
     let totp_id = string_field(matched, "totpId").unwrap_or("").to_string();
     let linked_totp_name = linked_totp_name(&state, &totp_id).await;
-    let auth_result = match webauthn.finish_securitykey_authentication(&credential, &auth_state) {
+    let auth_result = match webauthn.finish_passkey_authentication(&credential, &auth_state) {
         Ok(value) => value,
         Err(error) => {
             tracing::warn!(%error, "passkey verification failed");
@@ -525,44 +526,10 @@ async fn bind_token(State(state): State<AppState>, headers: HeaderMap) -> Respon
     if let Err(response) = ensure_passkey_login_mode(&state, &translator).await {
         return response;
     }
-    let Some(session_id) = parse_passkey_cookie_value(&headers, cookies::SESSION_COOKIE_NAME)
-    else {
-        return with_auth_headers(response::error(
-            StatusCode::UNAUTHORIZED,
-            passkey_text(&translator, "unauthorizedOrMissingTotp"),
-        ));
+    let session = match resolve_passkey_bind_session(&state, &headers, &translator).await {
+        Ok(value) => value,
+        Err(response) => return response,
     };
-    let session = match state.store.get_session(&session_id).await {
-        Ok(Some(session)) => session,
-        Ok(None) => {
-            let config = state.store.get_config().await.ok();
-            return passkey_bind_unauthorized_response(&headers, &translator, config.as_ref());
-        }
-        Err(error) => {
-            tracing::warn!(%error, "failed to load passkey bind session");
-            return with_auth_headers(response::error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                passkey_text(&translator, "createBindTokenFailed"),
-            ));
-        }
-    };
-    if login_session_has_expired(&session) {
-        let config = match state.store.get_config().await {
-            Ok(config) => config,
-            Err(error) => {
-                tracing::warn!(%error, %session_id, "failed to load config while revoking expired passkey bind session");
-                Value::Null
-            }
-        };
-        revoke_expired_presented_session(&state, &session_id, &session, &config).await;
-        return passkey_bind_unauthorized_response(&headers, &translator, Some(&config));
-    }
-    if session.totp_id.trim().is_empty() {
-        return with_auth_headers(response::error(
-            StatusCode::UNAUTHORIZED,
-            passkey_text(&translator, "unauthorizedOrMissingTotp"),
-        ));
-    }
     match build_passkey_bind_info(&state, &session.totp_id).await {
         Ok(value) => with_auth_headers(response::ok(value).into_response()),
         Err(error) => {
@@ -573,6 +540,88 @@ async fn bind_token(State(state): State<AppState>, headers: HeaderMap) -> Respon
             ))
         }
     }
+}
+
+async fn bind_status(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let translator = Translator::from_state(&state).await;
+    if let Err(response) = ensure_passkey_login_mode(&state, &translator).await {
+        return response;
+    }
+    let session = match resolve_passkey_bind_session(&state, &headers, &translator).await {
+        Ok(value) => value,
+        Err(response) => return response,
+    };
+    match build_passkey_bind_status(&state, &session.totp_id).await {
+        Ok(mut value) => {
+            if AuthMethod::Passkey.matches_session_str(&session.method)
+                && !session.credential_id.trim().is_empty()
+            {
+                value["current_session_credential_id"] =
+                    Value::String(session.credential_id.clone());
+            }
+            with_auth_headers(response::ok(value).into_response())
+        }
+        Err(error) => {
+            tracing::warn!(%error, "failed to inspect passkey bind status");
+            with_auth_headers(response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                passkey_text(&translator, "createBindTokenFailed"),
+            ))
+        }
+    }
+}
+
+async fn resolve_passkey_bind_session(
+    state: &AppState,
+    headers: &HeaderMap,
+    translator: &Translator,
+) -> Result<crate::store::LoginSession, Response> {
+    let Some(session_id) = parse_passkey_cookie_value(headers, cookies::SESSION_COOKIE_NAME) else {
+        return Err(with_auth_headers(response::error(
+            StatusCode::UNAUTHORIZED,
+            passkey_text(translator, "unauthorizedOrMissingTotp"),
+        )));
+    };
+    let session = match state.store.get_session(&session_id).await {
+        Ok(Some(session)) => session,
+        Ok(None) => {
+            let config = state.store.get_config().await.ok();
+            return Err(passkey_bind_unauthorized_response(
+                headers,
+                translator,
+                config.as_ref(),
+            ));
+        }
+        Err(error) => {
+            tracing::warn!(%error, "failed to load passkey bind session");
+            return Err(with_auth_headers(response::error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                passkey_text(translator, "createBindTokenFailed"),
+            )));
+        }
+    };
+    if login_session_has_expired(&session) {
+        let config = match state.store.get_config().await {
+            Ok(config) => config,
+            Err(error) => {
+                tracing::warn!(%error, %session_id, "failed to load config while revoking expired passkey bind session");
+                Value::Null
+            }
+        };
+        revoke_expired_presented_session(state, &session_id, &session, &config).await;
+        return Err(passkey_bind_unauthorized_response(
+            headers,
+            translator,
+            Some(&config),
+        ));
+    }
+    if session.totp_id.trim().is_empty() {
+        return Err(with_auth_headers(response::error(
+            StatusCode::UNAUTHORIZED,
+            passkey_text(translator, "unauthorizedOrMissingTotp"),
+        )));
+    }
+    Ok(session)
 }
 
 fn passkey_bind_unauthorized_response(
@@ -621,6 +670,16 @@ fn passkey_device_name(value: String) -> String {
     }
 }
 
+fn registration_exclude_credentials(passkeys: &[Value], totp_id: &str) -> Vec<Vec<u8>> {
+    passkeys
+        .iter()
+        .filter(|passkey| passkey.get("totpId").and_then(Value::as_str) == Some(totp_id))
+        .filter_map(|passkey| {
+            string_field(passkey, "id").and_then(|id| URL_SAFE_NO_PAD.decode(id).ok())
+        })
+        .collect()
+}
+
 async fn register_options(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -630,9 +689,13 @@ async fn register_options(
     if let Err(response) = ensure_passkey_login_mode(&state, &translator).await {
         return response;
     }
-    match state.store.is_passkey_bind_token_valid(&body.token).await {
-        Ok(true) => {}
-        Ok(false) => {
+    let totp_id = match state
+        .store
+        .get_passkey_bind_token_totp_id(&body.token)
+        .await
+    {
+        Ok(Some(value)) if !value.trim().is_empty() => value,
+        Ok(_) => {
             return with_auth_headers(response::error(
                 StatusCode::UNAUTHORIZED,
                 passkey_text(&translator, "bindTokenExpired"),
@@ -645,7 +708,7 @@ async fn register_options(
                 passkey_text(&translator, "createRegistrationOptionsFailed"),
             ));
         }
-    }
+    };
     let config = match state.store.get_config().await {
         Ok(config) => config,
         Err(error) => {
@@ -666,12 +729,7 @@ async fn register_options(
             ));
         }
     };
-    let exclude = passkeys
-        .iter()
-        .filter_map(|passkey| {
-            string_field(passkey, "id").and_then(|id| URL_SAFE_NO_PAD.decode(id).ok())
-        })
-        .collect::<Vec<_>>();
+    let exclude = registration_exclude_credentials(&passkeys, &totp_id);
     let rp_info = rp_info(&state, &config, &headers).await;
     let webauthn = match build_webauthn(&rp_info) {
         Ok(webauthn) => webauthn,
@@ -683,13 +741,11 @@ async fn register_options(
             ));
         }
     };
-    let (mut options, registration_state) = match webauthn.start_securitykey_registration(
-        PASSKEY_ADMIN_UUID,
-        "admin",
-        "admin",
+    let android_google_password_manager = is_android_passkey_client(&headers);
+    let (options, registration_state) = match start_passkey_registration_for_client(
+        &webauthn,
         (!exclude.is_empty()).then_some(exclude),
-        None,
-        None,
+        android_google_password_manager,
     ) {
         Ok(value) => value,
         Err(error) => {
@@ -700,17 +756,6 @@ async fn register_options(
             ));
         }
     };
-    let registration_state =
-        match require_registration_user_verification(&mut options, registration_state) {
-            Ok(value) => value,
-            Err(error) => {
-                tracing::warn!(%error, "failed to normalize passkey registration state");
-                return with_auth_headers(response::error(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    passkey_text(&translator, "createRegistrationOptionsFailed"),
-                ));
-            }
-        };
     let challenge = URL_SAFE_NO_PAD.encode(&options.public_key.challenge);
     if let Err(error) = state
         .store
@@ -726,6 +771,11 @@ async fn register_options(
     let state_json = json!({
         "type": "register",
         "state": registration_state,
+        "registration_profile": if android_google_password_manager {
+            "android_google_password_manager"
+        } else {
+            "passkey"
+        },
         "rp_id": rp_info.rp_id,
         "origin": rp_info.origin,
         "mode": rp_info.mode
@@ -743,21 +793,6 @@ async fn register_options(
     }
 
     with_auth_headers(response::ok(options.public_key).into_response())
-}
-
-fn require_registration_user_verification(
-    options: &mut CreationChallengeResponse,
-    registration_state: SecurityKeyRegistration,
-) -> serde_json::Result<Value> {
-    if let Some(selection) = options.public_key.authenticator_selection.as_mut() {
-        selection.user_verification = UserVerificationPolicy::Required;
-    }
-
-    let mut state = serde_json::to_value(registration_state)?;
-    if let Some(policy) = state.pointer_mut("/rs/policy") {
-        *policy = Value::String("required".to_string());
-    }
-    Ok(state)
 }
 
 async fn register_verify(
@@ -829,7 +864,7 @@ async fn register_verify(
             ));
         }
     };
-    let registration_state: SecurityKeyRegistration =
+    let registration_state: PasskeyRegistration =
         match serde_json::from_value(state_json.get("state").cloned().unwrap_or(Value::Null)) {
             Ok(value) => value,
             Err(error) => {
@@ -878,18 +913,17 @@ async fn register_verify(
             ));
         }
     };
-    let security_key =
-        match webauthn.finish_securitykey_registration(&credential, &registration_state) {
-            Ok(value) => value,
-            Err(error) => {
-                tracing::warn!(%error, "passkey registration verification failed");
-                return with_auth_headers(response::error(
-                    StatusCode::BAD_REQUEST,
-                    passkey_text(&translator, "registrationFailed"),
-                ));
-            }
-        };
-    let stored_credential: Credential = security_key.into();
+    let passkey = match webauthn.finish_passkey_registration(&credential, &registration_state) {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::warn!(%error, "passkey registration verification failed");
+            return with_auth_headers(response::error(
+                StatusCode::BAD_REQUEST,
+                passkey_text(&translator, "registrationFailed"),
+            ));
+        }
+    };
+    let stored_credential: Credential = passkey.into();
     let id = URL_SAFE_NO_PAD.encode(&stored_credential.cred_id);
     let passkeys = match state.store.get_passkeys().await {
         Ok(passkeys) => passkeys,
@@ -986,6 +1020,17 @@ pub(crate) async fn build_passkey_bind_info(
     state: &AppState,
     totp_id: &str,
 ) -> anyhow::Result<Value> {
+    let mut status = build_passkey_bind_status(state, totp_id).await?;
+    let token = state
+        .store
+        .create_passkey_bind_token(totp_id, PASSKEY_BIND_TTL_SECONDS)
+        .await?;
+    status["bind_token"] = Value::String(token.clone());
+    status["token"] = Value::String(token);
+    Ok(status)
+}
+
+async fn build_passkey_bind_status(state: &AppState, totp_id: &str) -> anyhow::Result<Value> {
     let passkeys = state.store.get_passkeys().await?;
     let credential_ids = passkeys
         .iter()
@@ -997,15 +1042,9 @@ pub(crate) async fn build_passkey_bind_info(
                 .map(|value| Value::String(value.to_string()))
         })
         .collect::<Vec<_>>();
-    let token = state
-        .store
-        .create_passkey_bind_token(totp_id, PASSKEY_BIND_TTL_SECONDS)
-        .await?;
     Ok(json!({
         "available": !credential_ids.is_empty(),
         "can_bind": true,
-        "bind_token": token,
-        "token": token,
         "credential_ids": credential_ids
     }))
 }
@@ -1104,10 +1143,47 @@ fn passkey_backoff_response(
     response
 }
 
-fn passkey_to_security_key(value: &Value) -> Option<SecurityKey> {
+fn start_passkey_registration_for_client(
+    webauthn: &Webauthn,
+    exclude_credentials: Option<Vec<CredentialID>>,
+    android_google_password_manager: bool,
+) -> WebauthnResult<(CreationChallengeResponse, PasskeyRegistration)> {
+    if android_google_password_manager {
+        webauthn.start_google_passkey_in_google_password_manager_only_registration(
+            PASSKEY_ADMIN_UUID,
+            "admin",
+            "admin",
+            exclude_credentials,
+        )
+    } else {
+        webauthn.start_passkey_registration(
+            PASSKEY_ADMIN_UUID,
+            "admin",
+            "admin",
+            exclude_credentials,
+        )
+    }
+}
+
+fn is_android_passkey_client(headers: &HeaderMap) -> bool {
+    let client_platform = headers
+        .get("sec-ch-ua-platform")
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.trim().trim_matches('"'));
+    if client_platform.is_some_and(|value| value.eq_ignore_ascii_case("android")) {
+        return true;
+    }
+
+    headers
+        .get(header::USER_AGENT)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.to_ascii_lowercase().contains("android"))
+}
+
+fn stored_passkey(value: &Value) -> Option<Passkey> {
     if let Some(credential) = value.get("webauthnCredential") {
         return match serde_json::from_value::<Credential>(credential.clone()) {
-            Ok(credential) => Some(SecurityKey::from(credential)),
+            Ok(credential) => Some(Passkey::from(credential)),
             Err(error) => {
                 tracing::warn!(%error, "failed to decode stored passkey credential");
                 None
@@ -1159,7 +1235,7 @@ fn passkey_to_security_key(value: &Value) -> Option<SecurityKey> {
         },
         attestation_format: AttestationFormat::None,
     };
-    Some(SecurityKey::from(credential))
+    Some(Passkey::from(credential))
 }
 
 fn cose_key_to_base64url(key: &COSEKey) -> anyhow::Result<String> {

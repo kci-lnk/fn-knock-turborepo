@@ -874,41 +874,17 @@ pub(super) fn select_interface_address(
                 )
             );
         }
-        let warnings = if selection.eligible.len() > 1 {
-            vec![ddns_text(
-                translator,
-                "interfaceSelectorMultiple",
-                &[
-                    ("family", family_label(family)),
-                    ("count", selection.eligible.len().to_string()),
-                    ("address", selection.selected.clone().unwrap_or_default()),
-                    ("reason", selection.reason.to_string()),
-                ],
-            )]
-        } else {
-            Vec::new()
-        };
-        let selection_logs = selection
-            .selected
-            .as_ref()
-            .filter(|_| selection.reason != "current")
-            .map(|address| {
-                vec![ddns_text(
-                    translator,
-                    "interfaceSelectorResolved",
-                    &[
-                        ("family", family_label(family)),
-                        ("mode", format!("{:?}", selector.mode).to_ascii_lowercase()),
-                        ("count", selection.eligible.len().to_string()),
-                        ("address", address.clone()),
-                        ("reason", selection.reason.to_string()),
-                    ],
-                )]
-            })
-            .unwrap_or_default();
-        return Ok((selection.selected, warnings, selection_logs));
+        let selection_logs = interface_address_switch_logs(
+            translator,
+            family,
+            &format!("{:?}", selector.mode).to_ascii_lowercase(),
+            selection.eligible.len(),
+            selection.selected.as_deref(),
+            selection.reason,
+            current_address,
+        );
+        return Ok((selection.selected, Vec::new(), selection_logs));
     }
-    let raw_index = index.unwrap_or("").trim();
     if let Some((address, reason)) =
         legacy_select_interface_address(&candidates, family, index, current_address)
     {
@@ -919,60 +895,93 @@ pub(super) fn select_interface_address(
             reason,
             "resolved legacy DDNS interface address"
         );
-        let selection_logs = if reason == "legacy_current" {
-            Vec::new()
-        } else {
-            vec![ddns_text(
-                translator,
-                "interfaceSelectorResolved",
-                &[
-                    ("family", family_label(family)),
-                    ("mode", "legacy".to_string()),
-                    ("count", candidates.len().to_string()),
-                    ("address", address.clone()),
-                    ("reason", reason.to_string()),
-                ],
-            )]
-        };
+        let selection_logs = interface_address_switch_logs(
+            translator,
+            family,
+            "legacy",
+            candidates.len(),
+            Some(&address),
+            reason,
+            current_address,
+        );
         return Ok((Some(address), Vec::new(), selection_logs));
     }
-    if raw_index.is_empty() {
+
+    // A missing or stale legacy index must not stop unattended DDNS updates.
+    // The semantic auto selector keeps the current address when possible and
+    // otherwise chooses the highest-ranked stable candidate deterministically.
+    let selector = InterfaceAddressSelector::default();
+    let selection = resolve_interface_selector(&item, family, &selector, current_address);
+    tracing::debug!(
+        interface,
+        family,
+        mode = ?selector.mode,
+        candidate_count = selection.eligible.len(),
+        selected = selection.selected.as_deref().unwrap_or(""),
+        reason = selection.reason,
+        "resolved DDNS interface address with implicit auto selector"
+    );
+    let Some(address) = selection.selected else {
         anyhow::bail!(
             "{}",
             ddns_text(
                 translator,
-                "selectInterfaceAddress",
-                &[(
-                    "family",
-                    if family == "ipv4" { "IPv4" } else { "IPv6" }.to_string(),
-                )],
+                "interfaceSelectorNoMatch",
+                &[("family", family_label(family))],
             )
         );
+    };
+    let selection_logs = interface_address_switch_logs(
+        translator,
+        family,
+        "auto",
+        selection.eligible.len(),
+        Some(&address),
+        selection.reason,
+        current_address,
+    );
+    Ok((Some(address), Vec::new(), selection_logs))
+}
+
+fn interface_address_switch_logs(
+    translator: &Translator,
+    family: &str,
+    mode: &str,
+    candidate_count: usize,
+    selected_address: Option<&str>,
+    reason: &str,
+    current_address: Option<&str>,
+) -> Vec<String> {
+    let Some(selected_address) = selected_address else {
+        return Vec::new();
+    };
+    let Some(current_address) = current_address
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return Vec::new();
+    };
+    let unchanged = match (
+        current_address.parse::<IpAddr>(),
+        selected_address.parse::<IpAddr>(),
+    ) {
+        (Ok(current), Ok(selected)) => current == selected,
+        _ => current_address == selected_address,
+    };
+    if unchanged {
+        return Vec::new();
     }
-    let index = raw_index.parse::<usize>().map_err(|_| {
-        anyhow::anyhow!(ddns_text(
-            translator,
-            "selectedInterfaceAddressUnavailable",
-            &[
-                ("index", raw_index.to_string()),
-                (
-                    "family",
-                    if family == "ipv4" { "IPv4" } else { "IPv6" }.to_string()
-                ),
-            ]
-        ))
-    })?;
-    anyhow::bail!(
-        "{}",
-        ddns_text(
-            translator,
-            "selectedInterfaceAddressUnavailable",
-            &[
-                ("index", (index + 1).to_string()),
-                ("family", family_label(family)),
-            ],
-        )
-    )
+    vec![ddns_text(
+        translator,
+        "interfaceSelectorResolved",
+        &[
+            ("family", family_label(family)),
+            ("mode", mode.to_string()),
+            ("count", candidate_count.to_string()),
+            ("address", selected_address.to_string()),
+            ("reason", reason.to_string()),
+        ],
+    )]
 }
 
 fn family_label(family: &str) -> String {
@@ -1243,19 +1252,20 @@ pub(super) fn selected_interface_address_incomplete_reason(
     {
         return None;
     }
-    if index.is_empty() {
-        return Some(ddns_text(
-            translator,
-            "selectInterfaceAddress",
-            &[("family", family_label)],
-        ));
+    let selection = resolve_interface_selector(
+        network,
+        family,
+        &InterfaceAddressSelector::default(),
+        target.selection_anchor.get(family).and_then(Value::as_str),
+    );
+    if selection.selected.is_some() {
+        return None;
     }
 
-    let index = index.parse::<usize>().unwrap_or(usize::MAX);
     Some(ddns_text(
         translator,
-        "selectedInterfaceAddressUnavailable",
-        &[("index", (index + 1).to_string()), ("family", family_label)],
+        "interfaceSelectorNoMatch",
+        &[("family", family_label)],
     ))
 }
 

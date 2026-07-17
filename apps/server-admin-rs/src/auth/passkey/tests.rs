@@ -1,5 +1,6 @@
 use super::*;
 use crate::store::LoginSession;
+use axum::body::to_bytes;
 use axum::http::HeaderMap;
 
 #[test]
@@ -178,6 +179,80 @@ async fn passkey_bind_token_clears_cookie_when_session_key_is_missing() {
     assert_passkey_session_clear_cookie_scopes(&response);
 }
 
+#[tokio::test]
+async fn passkey_bind_status_returns_account_credentials_without_a_bind_token() {
+    let (_directory, state) = passkey_test_state("bind-status").await;
+    let session_id = "valid-passkey-bind-session";
+    state
+        .store
+        .add_session(
+            session_id,
+            &passkey_test_session("2099-01-01T00:00:00Z"),
+            3600,
+        )
+        .await
+        .expect("passkey bind session fixture");
+    state
+        .store
+        .add_passkey(&json!({
+            "id": "current-account-passkey",
+            "totpId": "totp-1"
+        }))
+        .await
+        .expect("current account passkey fixture");
+    state
+        .store
+        .add_passkey(&json!({
+            "id": "other-account-passkey",
+            "totpId": "totp-2"
+        }))
+        .await
+        .expect("other account passkey fixture");
+
+    let response = bind_status(State(state), passkey_bind_test_headers(session_id)).await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read bind status response");
+    let payload: Value = serde_json::from_slice(&body).expect("parse bind status response");
+    assert_eq!(
+        payload.pointer("/data/credential_ids"),
+        Some(&json!(["current-account-passkey"]))
+    );
+    assert_eq!(payload.pointer("/data/can_bind"), Some(&json!(true)));
+    assert_eq!(payload.pointer("/data/token"), None);
+    assert_eq!(payload.pointer("/data/bind_token"), None);
+    assert_eq!(payload.pointer("/data/current_session_credential_id"), None);
+}
+
+#[tokio::test]
+async fn passkey_bind_status_identifies_the_passkey_used_by_the_current_session() {
+    let (_directory, state) = passkey_test_state("passkey-session-bind-status").await;
+    let session_id = "current-passkey-session";
+    let mut session = passkey_test_session("2099-01-01T00:00:00Z");
+    session.method = AuthMethod::Passkey.as_session_str().to_string();
+    session.credential_id = "current-session-passkey".to_string();
+    state
+        .store
+        .add_session(session_id, &session, 3600)
+        .await
+        .expect("current passkey session fixture");
+
+    let response = bind_status(State(state), passkey_bind_test_headers(session_id)).await;
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read current passkey session status response");
+    let payload: Value =
+        serde_json::from_slice(&body).expect("parse current passkey session status response");
+    assert_eq!(
+        payload.pointer("/data/current_session_credential_id"),
+        Some(&json!("current-session-passkey"))
+    );
+}
+
 #[test]
 fn passkey_device_name_matches_node_fallback_without_trimming() {
     assert_eq!(passkey_device_name(String::new()), "Unknown Device");
@@ -188,19 +263,39 @@ fn passkey_device_name_matches_node_fallback_without_trimming() {
 }
 
 #[test]
-fn registration_options_require_uv_when_credprotect_requires_uv() {
+fn registration_excludes_only_passkeys_for_the_binding_account() {
+    let passkeys = vec![
+        json!({
+            "id": URL_SAFE_NO_PAD.encode([1u8, 2, 3]),
+            "totpId": "totp-1"
+        }),
+        json!({
+            "id": URL_SAFE_NO_PAD.encode([4u8, 5, 6]),
+            "totpId": "totp-2"
+        }),
+        json!({
+            "id": "not-base64url",
+            "totpId": "totp-1"
+        }),
+    ];
+
+    assert_eq!(
+        registration_exclude_credentials(&passkeys, "totp-1"),
+        vec![vec![1, 2, 3]]
+    );
+}
+
+#[test]
+fn android_registration_options_target_google_password_manager() {
     let rp_info = RpInfo {
         rp_id: "auth.example.com".to_string(),
         origin: "https://auth.example.com".to_string(),
         mode: "auth_host".to_string(),
     };
     let webauthn = build_webauthn(&rp_info).expect("valid rp config");
-    let (mut options, registration_state) = webauthn
-        .start_securitykey_registration(PASSKEY_ADMIN_UUID, "admin", "admin", None, None, None)
-        .expect("registration options");
-
-    let state = require_registration_user_verification(&mut options, registration_state)
-        .expect("registration state serializes");
+    let (options, registration_state) =
+        start_passkey_registration_for_client(&webauthn, None, true).expect("registration options");
+    let state = serde_json::to_value(registration_state).expect("registration state serializes");
     let options = serde_json::to_value(options.public_key).expect("options serialize");
 
     assert_eq!(
@@ -208,15 +303,121 @@ fn registration_options_require_uv_when_credprotect_requires_uv() {
         Some(&json!("required"))
     );
     assert_eq!(
+        options.pointer("/authenticatorSelection/residentKey"),
+        Some(&json!("required"))
+    );
+    assert_eq!(
+        options.pointer("/authenticatorSelection/requireResidentKey"),
+        Some(&json!(true))
+    );
+    assert_eq!(
+        options.pointer("/authenticatorSelection/authenticatorAttachment"),
+        Some(&json!("platform"))
+    );
+    assert_eq!(options.pointer("/hints/0"), Some(&json!("client-device")));
+    assert_eq!(
         options.pointer("/extensions/credentialProtectionPolicy"),
-        Some(&json!("userVerificationRequired"))
+        None
     );
     assert_eq!(state.pointer("/rs/policy"), Some(&json!("required")));
 }
 
 #[test]
+fn standard_registration_uses_passkey_policy() {
+    let rp_info = RpInfo {
+        rp_id: "auth.example.com".to_string(),
+        origin: "https://auth.example.com".to_string(),
+        mode: "auth_host".to_string(),
+    };
+    let webauthn = build_webauthn(&rp_info).expect("valid rp config");
+    let (options, registration_state) =
+        start_passkey_registration_for_client(&webauthn, None, false)
+            .expect("registration options");
+    let state = serde_json::to_value(registration_state).expect("registration state serializes");
+    let options = serde_json::to_value(options.public_key).expect("options serialize");
+
+    assert_eq!(
+        options.pointer("/authenticatorSelection/userVerification"),
+        Some(&json!("required"))
+    );
+    assert_eq!(options.pointer("/hints"), None);
+    assert_eq!(state.pointer("/rs/policy"), Some(&json!("required")));
+}
+
+#[test]
+fn detects_android_passkey_clients_from_client_hints_or_user_agent() {
+    let mut client_hints = HeaderMap::new();
+    client_hints.insert(
+        "sec-ch-ua-platform",
+        HeaderValue::from_static("\"Android\""),
+    );
+    assert!(is_android_passkey_client(&client_hints));
+
+    let mut user_agent_headers = HeaderMap::new();
+    user_agent_headers.insert(
+        header::USER_AGENT,
+        HeaderValue::from_static("Mozilla/5.0 (Linux; Android 15; 24129PN74C)"),
+    );
+    assert!(is_android_passkey_client(&user_agent_headers));
+
+    let mut desktop_headers = HeaderMap::new();
+    desktop_headers.insert(
+        header::USER_AGENT,
+        HeaderValue::from_static("Mozilla/5.0 (Macintosh; Intel Mac OS X 15_5)"),
+    );
+    assert!(!is_android_passkey_client(&desktop_headers));
+}
+
+#[test]
 fn malformed_stored_webauthn_credential_does_not_fallback_to_legacy_fields() {
-    let legacy_key = COSEKey {
+    let legacy_key = test_cose_key();
+    let mut passkey = json!({
+        "id": URL_SAFE_NO_PAD.encode([1u8, 2, 3, 4]),
+        "publicKey": cose_key_to_base64url(&legacy_key).expect("legacy public key encodes"),
+        "webauthnCredential": {
+            "registration_policy": "required"
+        }
+    });
+
+    assert!(stored_passkey(&passkey).is_none());
+
+    passkey
+        .as_object_mut()
+        .expect("fixture is object")
+        .remove("webauthnCredential");
+    assert!(stored_passkey(&passkey).is_some());
+}
+
+#[test]
+fn legacy_stored_credentials_authenticate_with_required_user_verification() {
+    let rp_info = RpInfo {
+        rp_id: "auth.example.com".to_string(),
+        origin: "https://auth.example.com".to_string(),
+        mode: "auth_host".to_string(),
+    };
+    let webauthn = build_webauthn(&rp_info).expect("valid rp config");
+    let legacy = json!({
+        "id": URL_SAFE_NO_PAD.encode([1u8, 2, 3, 4]),
+        "publicKey": cose_key_to_base64url(&test_cose_key()).expect("legacy public key encodes"),
+        "counter": 0
+    });
+    let passkey = stored_passkey(&legacy).expect("legacy credential converts to passkey");
+    let (options, auth_state) = webauthn
+        .start_passkey_authentication(&[passkey])
+        .expect("authentication options");
+    let options = serde_json::to_value(options.public_key).expect("options serialize");
+    let state = serde_json::to_value(auth_state).expect("authentication state serializes");
+
+    assert_eq!(
+        options.pointer("/userVerification"),
+        Some(&json!("required"))
+    );
+    assert_eq!(options.pointer("/hints"), None);
+    assert_eq!(state.pointer("/ast/policy"), Some(&json!("required")));
+}
+
+fn test_cose_key() -> COSEKey {
+    COSEKey {
         type_: COSEAlgorithm::ES256,
         key: COSEKeyType::EC_EC2(COSEEC2Key {
             curve: ECDSACurve::SECP256R1,
@@ -229,22 +430,7 @@ fn malformed_stored_webauthn_credential_does_not_fallback_to_legacy_fields() {
                 6, 47, 103, 92, 19, 58, 117, 103, 249, 0, 219, 8, 95, 196,
             ],
         }),
-    };
-    let mut passkey = json!({
-        "id": URL_SAFE_NO_PAD.encode([1u8, 2, 3, 4]),
-        "publicKey": cose_key_to_base64url(&legacy_key).expect("legacy public key encodes"),
-        "webauthnCredential": {
-            "registration_policy": "required"
-        }
-    });
-
-    assert!(passkey_to_security_key(&passkey).is_none());
-
-    passkey
-        .as_object_mut()
-        .expect("fixture is object")
-        .remove("webauthnCredential");
-    assert!(passkey_to_security_key(&passkey).is_some());
+    }
 }
 
 #[test]

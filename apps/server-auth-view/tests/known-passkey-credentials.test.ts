@@ -77,6 +77,30 @@ describe("known passkey credential storage", () => {
     );
   });
 
+  it("remembers a legacy credential only when the server identifies exactly one", async () => {
+    const storage = new MemoryStorage();
+    const knownCredentials = useKnownPasskeyCredentials({
+      storage,
+      storageKey: "known",
+      hashCredentialId: async (credentialId) => `digest:${credentialId}`,
+    });
+
+    assert.equal(
+      await knownCredentials.rememberSoleKnownPasskeyCredentialId(["only"]),
+      true,
+    );
+    assert.equal(
+      await knownCredentials.rememberSoleKnownPasskeyCredentialId([
+        "first",
+        "second",
+      ]),
+      false,
+    );
+    assert.deepEqual(knownCredentials.readKnownPasskeyCredentialDigests(), [
+      "digest:only",
+    ]);
+  });
+
   it("fails closed when storage is unavailable or malformed", async () => {
     const unavailable = useKnownPasskeyCredentials({
       storage: null,

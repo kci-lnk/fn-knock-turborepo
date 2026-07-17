@@ -68,6 +68,12 @@ export const koKRAuth = {
   oidcLoginFailed: "외부 로그인에 실패했습니다. 다시 시도해 주세요.",
   passkeyBindInvalid: "바인딩 자격 증명이 잘못되었습니다. 다시 로그인하세요.",
   passkeyBindFailed: "패스키 바인딩 실패",
+  passkeyCreateCancelled:
+    "패스키 만들기가 완료되지 않았습니다. 취소되었거나 시간이 초과되었을 수 있습니다.",
+  passkeyCreateUnavailable:
+    "시스템에서 패스키를 만들 수 없습니다. 화면 잠금과 비밀번호 관리자가 활성화되어 있는지 확인한 후 다시 시도하세요.",
+  passkeyAlreadyRegistered:
+    "이 기기 또는 비밀번호 관리자에 이미 패스키가 있습니다. 바로 사용할 수 있습니다.",
   home: {
     statusTitles: {
       browserSession: "이 브라우저 세션이 확인되었습니다.",
@@ -127,6 +133,9 @@ export const koKRAuth = {
     enablePasskey: "패스키 로그인 활성화",
     passkeySupportedUnbound:
       "이 브라우저는 Passkey를 지원하지만 아직 바인딩된 것은 없습니다.",
+    addPasskey: "다른 패스키 추가",
+    passkeyAvailableAddDevice:
+      "이 계정에는 이미 패스키가 있습니다. 이 기기에 동기화되지 않았다면 하나 더 추가할 수 있습니다.",
     logoutDelay: "{seconds} 초 후에 로그아웃 버튼이 나타납니다.",
     logout: "로그아웃",
     logoutConfirmTitle: "로그아웃 확인",

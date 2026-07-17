@@ -1152,6 +1152,108 @@ fn interface_selection_returns_an_error_when_rules_have_no_candidate() {
 }
 
 #[test]
+fn interface_selection_uses_implicit_auto_when_no_selection_is_stored() {
+    let directory = tempfile::tempdir().unwrap();
+    let proc_path = directory.path().join("if_inet6");
+    fs::write(
+        &proc_path,
+        concat!(
+            "24098a745c903730020c29fffe0f5c24 02 40 00 00 test0\n",
+            "24098a745c903730020c29fffe0f5c10 02 40 00 00 test0\n"
+        ),
+    )
+    .unwrap();
+    let environment = crate::test_support::EnvGuard::new(&["DDNS_HOST_IF_INET6_PATH"]);
+    environment.set("DDNS_HOST_IF_INET6_PATH", &proc_path);
+
+    let (selected, warnings, selection_logs) = select_interface_address(
+        "docker-host:test0",
+        "ipv6",
+        None,
+        None,
+        None,
+        &Translator::new("zh-CN"),
+    )
+    .unwrap();
+
+    assert_eq!(
+        selected.as_deref(),
+        Some("2409:8a74:5c90:3730:20c:29ff:fe0f:5c10")
+    );
+    assert!(warnings.is_empty());
+    assert!(selection_logs.is_empty());
+}
+
+#[test]
+fn stable_multi_candidate_selection_does_not_emit_a_warning() {
+    let directory = tempfile::tempdir().unwrap();
+    let proc_path = directory.path().join("if_inet6");
+    fs::write(
+        &proc_path,
+        concat!(
+            "24098a745c903730020c29fffe0f5c24 02 40 00 00 test0\n",
+            "24098a745c903730020c29fffe0f5c10 02 40 00 00 test0\n"
+        ),
+    )
+    .unwrap();
+    let environment = crate::test_support::EnvGuard::new(&["DDNS_HOST_IF_INET6_PATH"]);
+    environment.set("DDNS_HOST_IF_INET6_PATH", &proc_path);
+    let selector = serde_json::to_string(&InterfaceAddressSelector::default()).unwrap();
+
+    let (selected, warnings, selection_logs) = select_interface_address(
+        "docker-host:test0",
+        "ipv6",
+        Some(&selector),
+        None,
+        Some("2409:8a74:5c90:3730:20c:29ff:fe0f:5c24"),
+        &Translator::new("zh-CN"),
+    )
+    .unwrap();
+
+    assert_eq!(
+        selected.as_deref(),
+        Some("2409:8a74:5c90:3730:20c:29ff:fe0f:5c24")
+    );
+    assert!(warnings.is_empty());
+    assert!(selection_logs.is_empty());
+}
+
+#[test]
+fn address_selection_logs_only_a_forced_switch() {
+    let directory = tempfile::tempdir().unwrap();
+    let proc_path = directory.path().join("if_inet6");
+    fs::write(
+        &proc_path,
+        concat!(
+            "24098a745c903730020c29fffe0f5c24 02 40 00 00 test0\n",
+            "24098a745c903730020c29fffe0f5c10 02 40 00 00 test0\n"
+        ),
+    )
+    .unwrap();
+    let environment = crate::test_support::EnvGuard::new(&["DDNS_HOST_IF_INET6_PATH"]);
+    environment.set("DDNS_HOST_IF_INET6_PATH", &proc_path);
+    let selector = serde_json::to_string(&InterfaceAddressSelector::default()).unwrap();
+
+    let (selected, warnings, selection_logs) = select_interface_address(
+        "docker-host:test0",
+        "ipv6",
+        Some(&selector),
+        None,
+        Some("2409:8a74:ffff:3730:20c:29ff:fe0f:5c24"),
+        &Translator::new("zh-CN"),
+    )
+    .unwrap();
+
+    assert_eq!(
+        selected.as_deref(),
+        Some("2409:8a74:5c90:3730:20c:29ff:fe0f:5c10")
+    );
+    assert!(warnings.is_empty());
+    assert_eq!(selection_logs.len(), 1);
+    assert!(selection_logs[0].contains("2409:8a74:5c90:3730:20c:29ff:fe0f:5c10"));
+}
+
+#[test]
 fn legacy_selector_prefers_current_and_interface_id_before_index() {
     let candidates = vec![
         ipv6_candidate("2001:db8:2::1234", json!(false)),
@@ -1243,6 +1345,76 @@ fn selector_no_match_is_runtime_unavailable_not_incomplete_config() {
             &Translator::new("zh-CN")
         )
         .is_none()
+    );
+}
+
+#[test]
+fn implicit_auto_selection_is_complete_when_a_stable_candidate_exists() {
+    let now = time_utils::now_iso();
+    let target = DDNSTargetRecord {
+        meta: DDNSTargetMeta {
+            id: "target-implicit-auto".to_string(),
+            name: "Implicit auto".to_string(),
+            is_primary: false,
+            enabled: true,
+            provider: Some("cloudflare".to_string()),
+            created_at: now.clone(),
+            updated_at: now,
+            sort_order: 1,
+        },
+        config: HashMap::new(),
+        last_ip: empty_last_ip(),
+        selection_anchor: empty_last_ip(),
+        last_check: empty_last_check(),
+    };
+    let network = selector_network(vec![ipv6_candidate("2001:db8::1", json!(false))]);
+
+    assert!(
+        selected_interface_address_incomplete_reason(
+            &target,
+            &network,
+            "ipv6",
+            &Translator::new("zh-CN")
+        )
+        .is_none()
+    );
+}
+
+#[test]
+fn interface_runtime_validation_allows_immediate_refresh_with_implicit_auto() {
+    let directory = tempfile::tempdir().unwrap();
+    let proc_path = directory.path().join("if_inet6");
+    fs::write(
+        &proc_path,
+        "24098a745c903730020c29fffe0f5c24 02 40 00 00 test0\n",
+    )
+    .unwrap();
+    let environment = crate::test_support::EnvGuard::new(&["DDNS_HOST_IF_INET6_PATH"]);
+    environment.set("DDNS_HOST_IF_INET6_PATH", &proc_path);
+    let now = time_utils::now_iso();
+    let target = DDNSTargetRecord {
+        meta: DDNSTargetMeta {
+            id: "target-immediate-refresh".to_string(),
+            name: "Immediate refresh".to_string(),
+            is_primary: true,
+            enabled: true,
+            provider: Some("cloudflare".to_string()),
+            created_at: now.clone(),
+            updated_at: now,
+            sort_order: 0,
+        },
+        config: HashMap::from([(
+            DDNS_NETWORK_INTERFACE_FIELD.to_string(),
+            "docker-host:test0".to_string(),
+        )]),
+        last_ip: empty_last_ip(),
+        selection_anchor: empty_last_ip(),
+        last_check: empty_last_check(),
+    };
+
+    assert!(
+        interface_config_incomplete_reason(&target, "ipv6_only", &Translator::new("zh-CN"))
+            .is_none()
     );
 }
 

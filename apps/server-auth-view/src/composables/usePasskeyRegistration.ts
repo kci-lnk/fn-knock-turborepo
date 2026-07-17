@@ -3,10 +3,17 @@ import {
   serializeCredential,
 } from "@frontend-core/passkey/utils";
 import { apiClient } from "@/lib/api";
+import {
+  getPasskeyErrorDetails,
+  resolvePasskeyRegistrationError,
+} from "@/lib/passkey-errors";
 
 type RegisterPasskeyMessages = {
+  alreadyRegistered: string;
   bindFailed: string;
+  cancelled: string;
   noResponse: string;
+  unavailable: string;
 };
 
 const resolvePasskeyDeviceName = () =>
@@ -24,9 +31,30 @@ export const usePasskeyRegistration = () => {
       token,
     });
     const creationOptions = normalizeCreationOptions(optionsRes.data.data);
-    const credential = await navigator.credentials.create({
-      publicKey: creationOptions,
-    });
+    let credential: Credential | null;
+    try {
+      credential = await navigator.credentials.create({
+        publicKey: creationOptions,
+      });
+    } catch (error) {
+      const details = getPasskeyErrorDetails(error);
+      console.warn("Passkey credential creation failed", {
+        name: details.name,
+        message: details.message,
+        platform: resolvePasskeyDeviceName(),
+        secureContext: window.isSecureContext,
+      });
+      const registrationError = new Error(
+        resolvePasskeyRegistrationError(error, {
+          alreadyRegistered: messages.alreadyRegistered,
+          cancelled: messages.cancelled,
+          failed: messages.bindFailed,
+          unavailable: messages.unavailable,
+        }),
+      );
+      registrationError.name = details.name || "PasskeyRegistrationError";
+      throw registrationError;
+    }
     if (!credential) {
       throw new Error(messages.noResponse);
     }

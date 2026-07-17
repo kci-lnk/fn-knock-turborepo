@@ -35,10 +35,10 @@
             v-if="isPasskeyBinding"
             class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-foreground"
           ></span>
-          {{ t("auth.home.enablePasskey") }}
+          {{ t(passkeyBindCopy.button) }}
         </Button>
         <p class="text-xs text-center text-muted-foreground">
-          {{ t("auth.home.passkeySupportedUnbound") }}
+          {{ t(passkeyBindCopy.hint) }}
         </p>
       </div>
       <p v-if="passkeyError" class="text-xs text-center text-destructive">
@@ -143,12 +143,19 @@ import AuthShell from "@/components/AuthShell.vue";
 import { useAuthBrowserCapabilities } from "@/composables/useAuthBrowserCapabilities";
 import { useAuthSystemConfig } from "@/composables/useAuthSystemConfig";
 import { usePasskeyRegistration } from "@/composables/usePasskeyRegistration";
+import { useKnownPasskeyCredentials } from "@/composables/useKnownPasskeyCredentials";
+import {
+  passkeyBindingCopyKeys,
+  shouldOfferPasskeyBinding,
+} from "@/lib/passkey-bind-offer";
 
 const router = useRouter();
 const i18n = useI18n();
 const { t } = i18n;
 const isLoading = ref(false);
 const isPasskeyAvailable = ref(false);
+const canBindPasskey = ref(false);
+const currentBrowserHasKnownPasskey = ref(false);
 const isPasskeyBinding = ref(false);
 const passkeyError = ref("");
 const isCheckingAuth = ref(true);
@@ -163,6 +170,11 @@ const { isPasskeySupported, refreshBrowserCapabilities } =
   useAuthBrowserCapabilities();
 const { applyAuthSystemConfig } = useAuthSystemConfig(i18n);
 const { registerPasskeyCredential } = usePasskeyRegistration();
+const {
+  hasKnownPasskeyCredential,
+  rememberKnownPasskeyCredentialId,
+  rememberSoleKnownPasskeyCredentialId,
+} = useKnownPasskeyCredentials();
 
 const resolveGrantKey = (grantType?: AuthGrantType) => {
   switch (grantType) {
@@ -204,11 +216,17 @@ const logoutDialogDescription = computed(() =>
   t(`auth.home.logoutDialogDescriptions.${logoutDialogKey.value}`),
 );
 
-const canShowPasskeyBind = computed(
-  () =>
-    isPasskeySupported.value &&
-    !isPasskeyAvailable.value &&
-    authLoginMode.value !== "password",
+const canShowPasskeyBind = computed(() =>
+  shouldOfferPasskeyBinding({
+    canBindPasskey: canBindPasskey.value,
+    currentBrowserHasKnownPasskey: currentBrowserHasKnownPasskey.value,
+    isPasskeySupported: isPasskeySupported.value,
+    loginMode: authLoginMode.value,
+  }),
+);
+
+const passkeyBindCopy = computed(() =>
+  passkeyBindingCopyKeys(isPasskeyAvailable.value),
 );
 
 let logoutDelayTimer: ReturnType<typeof window.setTimeout> | null = null;
@@ -276,18 +294,47 @@ async function loadSession() {
     );
     await router.replace({ path: "/login", query });
     return false;
+  }
+}
+
+async function loadPasskeyBindStatus() {
+  if (!isPasskeySupported.value || authLoginMode.value === "password") {
+    return;
+  }
+  try {
+    const statusRes = await apiClient.get("/passkey/bind-status");
+    const bindStatus = statusRes.data?.data;
+    canBindPasskey.value = bindStatus?.can_bind === true;
+    const currentSessionCredentialId =
+      bindStatus?.current_session_credential_id;
+    if (
+      typeof currentSessionCredentialId === "string" &&
+      currentSessionCredentialId
+    ) {
+      await rememberKnownPasskeyCredentialId(currentSessionCredentialId);
+      currentBrowserHasKnownPasskey.value = true;
+    } else {
+      currentBrowserHasKnownPasskey.value =
+        await hasKnownPasskeyCredential(bindStatus?.credential_ids);
+    }
+  } catch (e) {
+    canBindPasskey.value = false;
+    console.warn("Passkey bind status request failed:", e);
+  }
+}
+
+onMounted(async () => {
+  refreshBrowserCapabilities();
+  try {
+    const isAuthenticated = await loadSession();
+    if (!isAuthenticated) {
+      return;
+    }
+    await loadPasskeyBindStatus();
+    initLogoutAvailability();
   } finally {
     isCheckingAuth.value = false;
   }
-}
-onMounted(async () => {
-  refreshBrowserCapabilities();
-  const isAuthenticated = await loadSession();
-  if (!isAuthenticated) {
-    return;
-  }
-
-  initLogoutAvailability();
 });
 
 onBeforeUnmount(() => {
@@ -323,18 +370,31 @@ async function handlePasskeyBind() {
   }
   isPasskeyBinding.value = true;
   passkeyError.value = "";
+  let accountCredentialIds: unknown;
   try {
     const tokenRes = await apiClient.post("/passkey/bind-token");
-    const bindToken = tokenRes.data?.data?.token;
+    const bindInfo = tokenRes.data?.data;
+    accountCredentialIds = bindInfo?.credential_ids;
+    const bindToken = bindInfo?.token;
     if (!bindToken) {
       throw new Error(t("auth.home.passkeyTokenMissing"));
     }
-    await registerPasskeyCredential(bindToken, {
+    const registration = await registerPasskeyCredential(bindToken, {
+      alreadyRegistered: t("auth.passkeyAlreadyRegistered"),
       bindFailed: t("auth.passkeyBindFailed"),
+      cancelled: t("auth.passkeyCreateCancelled"),
       noResponse: t("auth.passkeyNoResponse"),
+      unavailable: t("auth.passkeyCreateUnavailable"),
     });
+    await rememberKnownPasskeyCredentialId(registration.credentialId);
+    currentBrowserHasKnownPasskey.value = true;
     isPasskeyAvailable.value = true;
   } catch (e: any) {
+    if (e?.name === "InvalidStateError") {
+      await rememberSoleKnownPasskeyCredentialId(accountCredentialIds);
+      currentBrowserHasKnownPasskey.value = true;
+      isPasskeyAvailable.value = true;
+    }
     passkeyError.value =
       e?.response?.data?.message || e?.message || t("auth.passkeyBindFailed");
   } finally {

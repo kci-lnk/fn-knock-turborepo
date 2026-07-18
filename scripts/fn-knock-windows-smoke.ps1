@@ -795,3 +795,9 @@ try {
     Write-Warning "FnKnock Windows runtime smoke test failed; test-owned state was cleaned up"
   }
 }
+
+# GitHub's pwsh wrapper exits with $LASTEXITCODE when it is defined. Cleanup
+# intentionally tolerates native commands such as netsh/sc reporting that an
+# already-removed resource is absent, so do not leak that stale status after
+# every smoke assertion and the final leftover checks have succeeded.
+$global:LASTEXITCODE = 0

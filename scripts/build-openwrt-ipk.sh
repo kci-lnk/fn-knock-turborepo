@@ -38,6 +38,8 @@ LICENSE="${FN_KNOCK_OPENWRT_LICENSE:-MIT}"
 IPK_CONTAINER_FORMAT="${FN_KNOCK_OPENWRT_IPK_FORMAT:-tar}"
 APK_DOCKER_IMAGE="${FN_KNOCK_OPENWRT_APK_DOCKER_IMAGE:-alpine:3.23}"
 RUST_MUSL_CROSS_IMAGE_PREFIX="${FN_KNOCK_OPENWRT_RUST_MUSL_CROSS_IMAGE_PREFIX:-messense/rust-musl-cross}"
+TAR_FLAVOR=""
+TAR_OWNER_ARGS=()
 
 case "${BACKEND_IMPL}" in
   rust) ;;
@@ -56,6 +58,25 @@ fail() {
 require_cmd() {
   local cmd="$1"
   command -v "${cmd}" >/dev/null 2>&1 || fail "missing required command: ${cmd}"
+}
+
+configure_tar_compatibility() {
+  local tar_version
+
+  tar_version="$(tar --version 2>&1 | tr '[:upper:]' '[:lower:]' || true)"
+  case "${tar_version}" in
+    *bsdtar*|*libarchive*)
+      TAR_FLAVOR="bsd"
+      TAR_OWNER_ARGS=(--uid 0 --gid 0 --uname root --gname root)
+      ;;
+    *gnu\ tar*)
+      TAR_FLAVOR="gnu"
+      TAR_OWNER_ARGS=(--owner=0 --group=0 --numeric-owner --sort=name)
+      ;;
+    *)
+      fail "unsupported tar implementation; GNU tar or bsdtar is required"
+      ;;
+  esac
 }
 
 clean_output_dir() {
@@ -521,12 +542,9 @@ create_tarball() {
   local source_dir="$1"
   local output_file="$2"
 
-  tar \
+  COPYFILE_DISABLE=1 tar \
+    "${TAR_OWNER_ARGS[@]}" \
     --format=ustar \
-    --uid 0 \
-    --gid 0 \
-    --uname root \
-    --gname root \
     -czf "${output_file}" \
     -C "${source_dir}" \
     .
@@ -559,7 +577,17 @@ validate_root_ownership() {
   local tar_file="$1"
   local bad_entries
 
-  bad_entries="$(tar -tvzf "${tar_file}" | awk '$3 != "root" || $4 != "root" { print }')"
+  case "${TAR_FLAVOR}" in
+    bsd)
+      bad_entries="$(tar -tvzf "${tar_file}" | awk '$3 != "root" || $4 != "root" { print }')"
+      ;;
+    gnu)
+      bad_entries="$(tar --numeric-owner -tvzf "${tar_file}" | awk '$2 != "0/0" { print }')"
+      ;;
+    *)
+      fail "tar compatibility has not been configured"
+      ;;
+  esac
   if [ -n "${bad_entries}" ]; then
     printf '%s\n' "${bad_entries}" >&2
     fail "tarball contains non-root-owned entries: ${tar_file}"
@@ -695,12 +723,9 @@ create_tar_ipk_archive() {
   local package_work_dir="$1"
   local output_file="$2"
 
-  tar \
+  COPYFILE_DISABLE=1 tar \
+    "${TAR_OWNER_ARGS[@]}" \
     --format=ustar \
-    --uid 0 \
-    --gid 0 \
-    --uname root \
-    --gname root \
     -czf "${output_file}" \
     -C "${package_work_dir}" \
     ./debian-binary \
@@ -1320,6 +1345,7 @@ build_istore_meta_packages() {
 
 main() {
   require_cmd tar
+  configure_tar_compatibility
   require_cmd rsync
   require_cmd file
   fn_knock_sync_rust_package_version "${ROOT_DIR}" "[fn-knock-openwrt]"
@@ -1380,4 +1406,6 @@ main() {
   log "OpenWrt package build completed (${package_formats[*]})"
 }
 
-main "$@"
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+  main "$@"
+fi

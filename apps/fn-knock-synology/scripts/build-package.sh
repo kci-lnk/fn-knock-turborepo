@@ -161,6 +161,8 @@ build_package() {
   local temp_output
   local extract_size
   local checksum
+  local spk_listing
+  local payload_listing
   local -a owner_args
   local -a lifecycle_scripts
   local script_name
@@ -241,12 +243,14 @@ build_package() {
     INFO PACKAGE_ICON.PNG PACKAGE_ICON_256.PNG package.tgz scripts conf
   mv "${temp_output}" "${OUTPUT_PATH}"
 
-  tar -tf "${OUTPUT_PATH}" | grep -qx 'INFO' || fail "SPK is missing INFO"
-  tar -tf "${OUTPUT_PATH}" | grep -qx 'package.tgz' || fail "SPK is missing package.tgz"
-  tar -tzf "${package_tgz}" | grep -Eq '^\./bin/server-admin-rs$' || fail "payload is missing backend"
-  tar -tzf "${package_tgz}" | grep -Eq '^\./ui/index.cgi$' || fail "payload is missing DSM CGI"
-  tar -tzf "${package_tgz}" | grep -Eq '^\./ui/launch.html$' || fail "payload is missing DSM launcher"
-  tar -tzf "${package_tgz}" | grep -Eq '^\./ui/launch.js$' || fail "payload is missing DSM launcher script"
+  spk_listing="$(tar -tf "${OUTPUT_PATH}")" || fail "failed to inspect SPK contents"
+  payload_listing="$(tar -tzf "${package_tgz}")" || fail "failed to inspect SPK payload contents"
+  grep -Fqx 'INFO' <<< "${spk_listing}" || fail "SPK is missing INFO"
+  grep -Fqx 'package.tgz' <<< "${spk_listing}" || fail "SPK is missing package.tgz"
+  grep -Fqx './bin/server-admin-rs' <<< "${payload_listing}" || fail "payload is missing backend"
+  grep -Fqx './ui/index.cgi' <<< "${payload_listing}" || fail "payload is missing DSM CGI"
+  grep -Fqx './ui/launch.html' <<< "${payload_listing}" || fail "payload is missing DSM launcher"
+  grep -Fqx './ui/launch.js' <<< "${payload_listing}" || fail "payload is missing DSM launcher script"
 
   checksum="$(shasum -a 256 "${OUTPUT_PATH}" | awk '{print $1}')"
   printf '%s  %s\n' "${checksum}" "$(basename "${OUTPUT_PATH}")" > "${OUTPUT_PATH}.sha256"

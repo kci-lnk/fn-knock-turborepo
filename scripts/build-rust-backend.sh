@@ -123,7 +123,7 @@ mkdir -p "$(dirname "${OUTPUT}")"
 case "${MODE}" in
   gnu)
     command -v zig >/dev/null 2>&1 || fail "zig is required for GNU cross compilation"
-    cargo zigbuild --version >/dev/null 2>&1 || fail "cargo-zigbuild is required"
+    command -v cargo-zigbuild >/dev/null 2>&1 || fail "cargo-zigbuild is required"
     rustup target add "${TARGET}" >/dev/null
     TARGET_DIR="${ROOT_DIR}/dist/server-admin-rs-target/release-gnu-${ARCH}"
     log "building ${TARGET}.glibc-${GLIBC_VERSION}"

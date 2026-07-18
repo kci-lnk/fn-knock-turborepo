@@ -1,0 +1,93 @@
+#!/bin/bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/fn-knock-finalize-test.XXXXXX")"
+ASSETS_DIR="${WORK_DIR}/assets"
+VERSION="$(jq -r '.version' "${ROOT_DIR}/version.json")"
+
+cleanup() {
+  rm -rf "${WORK_DIR}"
+}
+trap cleanup EXIT
+
+fail() {
+  printf '[test-release-finalize] ERROR: %s\n' "$*" >&2
+  exit 1
+}
+
+expect_failure() {
+  local expected="$1"
+  shift
+  local output
+  if output="$("$@" 2>&1)"; then
+    fail "command unexpectedly succeeded: $*"
+  fi
+  printf '%s\n' "${output}" | grep -Fq "${expected}" || \
+    fail "failure did not contain '${expected}': ${output}"
+}
+
+run_finalize() {
+  FN_KNOCK_VERSION="${VERSION}" \
+  FN_KNOCK_RELEASE_TAG="v${VERSION}" \
+  FN_KNOCK_SOURCE_COMMIT=1111111111111111111111111111111111111111 \
+  FN_KNOCK_GO_SOURCE_COMMIT=2222222222222222222222222222222222222222 \
+  FN_KNOCK_DOCKER_IMAGE=kcilnk/fn-knock \
+  FN_KNOCK_DOCKER_DIGEST=sha256:3333333333333333333333333333333333333333333333333333333333333333 \
+  FN_KNOCK_REQUIRE_DOCKER=1 \
+    node "${ROOT_DIR}/scripts/fn-knock-release-finalize.mjs" "${ASSETS_DIR}"
+}
+
+mkdir -p "${ASSETS_DIR}"
+for name in \
+  "fn-knock-${VERSION}-fnos-amd64.fpk" \
+  "fn-knock-${VERSION}-fnos-arm64.fpk" \
+  "fn-knock-linux-${VERSION}-amd64.tar.gz" \
+  "fn-knock-linux-${VERSION}-amd64.tar.gz.sha256" \
+  "fn-knock-linux-${VERSION}-arm64.tar.gz" \
+  "fn-knock-linux-${VERSION}-arm64.tar.gz.sha256" \
+  "fn-knock-linux-${VERSION}-arm.tar.gz" \
+  "fn-knock-linux-${VERSION}-arm.tar.gz.sha256" \
+  "fn-knock_${VERSION}-1_aarch64_cortex-a53.ipk" \
+  "fn-knock_${VERSION}-r1_aarch64_cortex-a53.apk" \
+  "fn-knock_${VERSION}-1_aarch64_generic.ipk" \
+  "fn-knock_${VERSION}-r1_aarch64_generic.apk" \
+  "fn-knock_${VERSION}-1_arm_cortex-a7_neon-vfpv4.ipk" \
+  "fn-knock_${VERSION}-r1_arm_cortex-a7_neon-vfpv4.apk" \
+  "fn-knock_${VERSION}-1_arm_cortex-a5_vfpv4.ipk" \
+  "fn-knock_${VERSION}-r1_arm_cortex-a5_vfpv4.apk" \
+  "fn-knock_${VERSION}-1_x86_64.ipk" \
+  "fn-knock_${VERSION}-r1_x86_64.apk" \
+  "app-meta-fn-knock_${VERSION}-r1_all.ipk" \
+  "app-meta-fn-knock-${VERSION}-r1.apk" \
+  "fn-knock-synology-x86_64-${VERSION}-0017.spk" \
+  "fn-knock-synology-x86_64-${VERSION}-0017.spk.sha256" \
+  "fn-knock-${VERSION}-windows-x86_64-unsigned-setup.exe" \
+  "fn-knock-${VERSION}-windows-x86_64-unsigned-setup.exe.sha256" \
+  "fn-knock-${VERSION}-windows-x86_64-unsigned-release.json" \
+  "fn-knock-${VERSION}-windows-x86_64-unsigned-updater.json"
+do
+  printf 'fixture:%s\n' "${name}" > "${ASSETS_DIR}/${name}"
+done
+
+run_finalize >/dev/null
+jq -e \
+  --arg version "${VERSION}" \
+  '
+    .schema_version == 1 and
+    .version == $version and
+    .tag == ("v" + $version) and
+    (.artifacts | length) == 26 and
+    .metadata_files == ["release-manifest.json", "SHA256SUMS"] and
+    .docker.published == true and
+    .docker.reference == ("kcilnk/fn-knock:" + $version) and
+    .docker.platforms == ["linux/amd64", "linux/arm64", "linux/arm/v7"]
+  ' \
+  "${ASSETS_DIR}/release-manifest.json" >/dev/null
+[ "$(wc -l < "${ASSETS_DIR}/SHA256SUMS" | tr -d ' ')" = "27" ] || \
+  fail "SHA256SUMS does not cover 26 deliverables and release-manifest.json"
+
+printf 'unexpected\n' > "${ASSETS_DIR}/unexpected.bin"
+expect_failure "exactly 26 deliverables" run_finalize
+
+printf '[test-release-finalize] all inventory tests passed\n'

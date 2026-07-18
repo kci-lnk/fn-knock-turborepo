@@ -13,6 +13,7 @@ APP_DIR="${ROOT_DIR}/apps/fn-knock/app"
 DOCKER_RUST_BACKEND_DIR="${FN_KNOCK_DOCKER_RUST_BACKEND_DIR:-${ROOT_DIR}/deploy/docker/rust-backends}"
 MANIFEST_FILE="${ROOT_DIR}/apps/fn-knock/manifest"
 RUST_MUSL_CROSS_IMAGE_PREFIX="${FN_KNOCK_RUST_MUSL_CROSS_IMAGE_PREFIX:-messense/rust-musl-cross}"
+PREBUILT_ONLY="${FN_KNOCK_PREBUILT_ONLY:-0}"
 
 NEED_RUNTIME=0
 NEED_FPK_RUST=0
@@ -285,6 +286,20 @@ sync_versions() {
 build_runtime() {
   [ "${NEED_RUNTIME}" = "1" ] || return 0
 
+  if [ "${PREBUILT_ONLY}" = "1" ]; then
+    [ -d "${RUNTIME_DIR}/ui/www" ] || fail "missing prebuilt admin UI: ${RUNTIME_DIR}/ui/www"
+    [ -d "${RUNTIME_DIR}/server-auth-view/dist" ] || fail "missing prebuilt auth UI: ${RUNTIME_DIR}/server-auth-view/dist"
+    [ -f "${RUNTIME_DIR}/server/server-admin/resources/acmesh.zip" ] || fail "missing prebuilt ACME bundle"
+    for arch in "${RUNTIME_GATEWAY_ARCHES[@]}"; do
+      validate_elf_arch \
+        "${RUNTIME_DIR}/server/go-reauth-proxy-linux-${arch}" \
+        "${arch}" \
+        "prebuilt Go gateway ${arch}"
+    done
+    log "Using prebuilt runtime: ${RUNTIME_DIR}"
+    return
+  fi
+
   require_cmd rsync
   log "Preparing runtime assets -> ${RUNTIME_DIR}"
   FN_KNOCK_BUILD_RUST_BACKEND=0 \
@@ -354,7 +369,7 @@ build_fpk_rust_backend_with_docker() {
     -v "${ROOT_DIR}:/workspace" \
     -w /workspace \
     "${image}" \
-    bash -lc 'export PATH=/usr/local/cargo/bin:$PATH; cargo build --release --manifest-path apps/server-admin-rs/Cargo.toml && cp "${CARGO_TARGET_DIR}/release/server-admin-rs" "${FN_KNOCK_RUST_OUT}" && { strip --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || true; }'
+    bash -lc 'export PATH=/usr/local/cargo/bin:$PATH; cargo build --locked --release --manifest-path apps/server-admin-rs/Cargo.toml && cp "${CARGO_TARGET_DIR}/release/server-admin-rs" "${FN_KNOCK_RUST_OUT}" && { strip --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || true; }'
 
   chmod 755 "${out_bin}"
   validate_elf_arch "${out_bin}" "${arch}" "FPK Rust backend ${arch}"
@@ -379,6 +394,7 @@ build_fpk_rust_backend_with_zig() {
   log "Building FPK Rust backend ${arch} with cargo-zigbuild (${target_arg})"
   rustup target add "${target_triple}" >/dev/null
   CARGO_TARGET_DIR="${target_dir}" cargo zigbuild \
+    --locked \
     --release \
     --manifest-path "${ROOT_DIR}/apps/server-admin-rs/Cargo.toml" \
     --target "${target_arg}"
@@ -398,6 +414,16 @@ build_fpk_rust_backends() {
 
   [ "${NEED_FPK_RUST}" = "1" ] || return 0
   require_cmd file
+  if [ "${PREBUILT_ONLY}" = "1" ]; then
+    for arch in "${FPK_ARCHES[@]}"; do
+      validate_elf_arch \
+        "${FPK_RUST_BACKEND_DIR}/server-admin-rs-linux-${arch}" \
+        "${arch}" \
+        "prebuilt FPK Rust backend ${arch}"
+    done
+    log "Using prebuilt FPK Rust backends: ${FPK_RUST_BACKEND_DIR}"
+    return
+  fi
   configure_rust_build_parallelism
   builder="$(resolve_fpk_rust_builder)"
   log "Preparing FPK Rust backends (${FPK_ARCHES[*]}, builder: ${builder}) -> ${FPK_RUST_BACKEND_DIR}"
@@ -494,7 +520,7 @@ build_musl_rust_backend() {
     -v "${ROOT_DIR}:/workspace" \
     -w /workspace \
     "${image}" \
-    sh -lc 'cargo build --release --manifest-path apps/server-admin-rs/Cargo.toml --target "${FN_KNOCK_RUST_TARGET}" && cp "${CARGO_TARGET_DIR}/${FN_KNOCK_RUST_TARGET}/release/server-admin-rs" "${FN_KNOCK_RUST_OUT}" && { "${FN_KNOCK_RUST_TARGET}-strip" --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || strip --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || true; }'
+    sh -lc 'cargo build --locked --release --manifest-path apps/server-admin-rs/Cargo.toml --target "${FN_KNOCK_RUST_TARGET}" && cp "${CARGO_TARGET_DIR}/${FN_KNOCK_RUST_TARGET}/release/server-admin-rs" "${FN_KNOCK_RUST_OUT}" && { "${FN_KNOCK_RUST_TARGET}-strip" --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || strip --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || true; }'
 
   chmod 755 "${out_bin}"
   validate_elf_arch "${out_bin}" "${arch}" "musl Rust backend ${arch}"
@@ -506,8 +532,18 @@ build_musl_rust_backends() {
   local out_bin
 
   [ "${NEED_MUSL_RUST}" = "1" ] || return 0
-  require_cmd docker
   require_cmd file
+  if [ "${PREBUILT_ONLY}" = "1" ]; then
+    for arch in "${MUSL_ARCHES[@]}"; do
+      validate_elf_arch \
+        "${MUSL_RUST_BACKEND_DIR}/server-admin-rs-linux-${arch}" \
+        "${arch}" \
+        "prebuilt musl Rust backend ${arch}"
+    done
+    log "Using prebuilt musl Rust backends: ${MUSL_RUST_BACKEND_DIR}"
+    return
+  fi
+  require_cmd docker
   log "Preparing musl Rust backends (${MUSL_ARCHES[*]}) -> ${MUSL_RUST_BACKEND_DIR}"
 
   for arch in "${MUSL_ARCHES[@]}"; do

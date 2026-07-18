@@ -1,0 +1,685 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  FN_KNOCK_DOCKER_IMAGE_REPO: kcilnk/fn-knock
+  NODE_VERSION: "22.22.3"
+  NPM_VERSION: "10.8.2"
+  RUST_VERSION: "1.96.0"
+  ZIG_VERSION: "0.16.0"
+  CARGO_ZIGBUILD_VERSION: "0.22.3"
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.contract.outputs.version }}
+      tag: ${{ steps.contract.outputs.tag }}
+      source_sha: ${{ steps.source.outputs.sha }}
+      go_sha: ${{ steps.gateway.outputs.sha }}
+
+    steps:
+      - name: Checkout fn-knock
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: Validate release contract
+        id: contract
+        shell: bash
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            tag="${GITHUB_REF_NAME}"
+          else
+            tag="v$(jq -r .version version.json)"
+          fi
+          bash ./scripts/release-preflight.sh "${tag}"
+
+      - name: Refuse to overwrite a published release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if state="$(gh release view "${GITHUB_REF_NAME}" --json isDraft --jq .isDraft 2>/dev/null)"; then
+            [ "${state}" = "true" ] || {
+              echo "Published release ${GITHUB_REF_NAME} already exists; refusing to rebuild it" >&2
+              exit 1
+            }
+          fi
+
+      - name: Freeze source commit
+        id: source
+        shell: bash
+        run: |
+          sha="$(git rev-parse HEAD)"
+          printf 'sha=%s\n' "${sha}" >> "${GITHUB_OUTPUT}"
+
+      - name: Freeze Go gateway main commit
+        id: gateway
+        shell: bash
+        run: |
+          sha="$(git ls-remote https://github.com/kci-lnk/Go-Reauth-Proxy.git refs/heads/main | awk '{print $1}')"
+          printf '%s\n' "${sha}" | grep -Eq '^[0-9a-f]{40}$'
+          printf 'sha=%s\n' "${sha}" >> "${GITHUB_OUTPUT}"
+          printf 'Go-Reauth-Proxy/main -> %s\n' "${sha}"
+
+  quality:
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      FN_KNOCK_GO_SOURCE_COMMIT: ${{ needs.preflight.outputs.go_sha }}
+
+    steps:
+      - name: Checkout fn-knock
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.preflight.outputs.source_sha }}
+          persist-credentials: false
+
+      - name: Checkout frozen Go gateway
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: kci-lnk/Go-Reauth-Proxy
+          path: Go-Reauth-Proxy
+          ref: ${{ env.FN_KNOCK_GO_SOURCE_COMMIT }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: Go-Reauth-Proxy/go.mod
+          cache-dependency-path: Go-Reauth-Proxy/go.sum
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: Set up protobuf compiler
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
+        with:
+          version: "35.1"
+
+      - name: Install locked build tools
+        shell: bash
+        run: |
+          npm install --global "npm@${NPM_VERSION}"
+          npm ci
+          cargo install cargo-audit --version 0.22.2 --locked
+
+      - name: Run JavaScript and Rust quality gates
+        run: |
+          npm run security:audit
+          npm run lint
+          npm run check-types
+          npm run test
+          npm run fn-knock:release:test
+
+      - name: Run Go tests
+        working-directory: Go-Reauth-Proxy
+        env:
+          GOFLAGS: -mod=readonly
+        run: go test ./...
+
+      - name: Verify generated Go control-plane stubs
+        shell: bash
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.6
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
+          export PATH="$(go env GOPATH)/bin:${PATH}"
+          protoc \
+            --proto_path packages/grpc-contracts/proto \
+            --go_out Go-Reauth-Proxy \
+            --go_opt module=go-reauth-proxy \
+            --go-grpc_out Go-Reauth-Proxy \
+            --go-grpc_opt module=go-reauth-proxy \
+            packages/grpc-contracts/proto/fnknock/v1/gateway.proto
+          git -C Go-Reauth-Proxy diff --exit-code -- pkg/grpc/pb
+
+  build-common:
+    needs: [preflight, quality]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      FN_KNOCK_GO_SOURCE_COMMIT: ${{ needs.preflight.outputs.go_sha }}
+      FN_KNOCK_VERSION: ${{ needs.preflight.outputs.version }}
+
+    steps:
+      - name: Checkout fn-knock
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.preflight.outputs.source_sha }}
+          persist-credentials: false
+
+      - name: Checkout frozen Go gateway
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: kci-lnk/Go-Reauth-Proxy
+          path: Go-Reauth-Proxy
+          ref: ${{ env.FN_KNOCK_GO_SOURCE_COMMIT }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: Go-Reauth-Proxy/go.mod
+          cache-dependency-path: Go-Reauth-Proxy/go.sum
+
+      - name: Build shared frontends and Go binaries
+        shell: bash
+        run: |
+          npm install --global "npm@${NPM_VERSION}"
+          npm ci
+          npx turbo run build --filter=server-admin-view --filter=server-auth-view
+          FN_KNOCK_GO_SKIP_TESTS=1 \
+            bash ./scripts/build-go-release.sh \
+              "${GITHUB_WORKSPACE}/Go-Reauth-Proxy" \
+              "${GITHUB_WORKSPACE}/dist/fn-knock-go-release"
+
+      - name: Stage common runtime
+        shell: bash
+        run: |
+          runtime="dist/fn-knock-artifacts/runtime"
+          mkdir -p \
+            "${runtime}/ui/www" \
+            "${runtime}/server-auth-view/dist" \
+            "${runtime}/server/server-admin/resources" \
+            "${runtime}/server"
+          rsync -a apps/server-admin-view/dist/ "${runtime}/ui/www/"
+          rsync -a apps/server-auth-view/dist/ "${runtime}/server-auth-view/dist/"
+          cp apps/server-admin-rs/resources/acmesh.zip "${runtime}/server/server-admin/resources/acmesh.zip"
+          for arch in amd64 arm64 arm; do
+            cp "dist/fn-knock-go-release/go-reauth-proxy-linux-${arch}" "${runtime}/server/"
+            cp "dist/fn-knock-go-release/go-reauth-proxy-linux-${arch}.version" "${runtime}/server/"
+          done
+          tar -czf release-build-common.tar.gz \
+            dist/fn-knock-artifacts/runtime \
+            dist/fn-knock-go-release
+
+      - name: Upload common build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-build-common
+          path: release-build-common.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+  build-rust-gnu:
+    needs: [preflight, quality]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+
+    steps:
+      - name: Checkout fn-knock
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.preflight.outputs.source_sha }}
+          persist-credentials: false
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: Set up Zig
+        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
+
+      - name: Build GNU Rust backend
+        shell: bash
+        run: |
+          cargo install cargo-zigbuild --version "${CARGO_ZIGBUILD_VERSION}" --locked
+          output="${GITHUB_WORKSPACE}/dist/fn-knock-artifacts/fpk-rust-backends/server-admin-rs-linux-${{ matrix.arch }}"
+          bash ./scripts/build-rust-backend.sh gnu "${{ matrix.arch }}" "${output}"
+          tar -czf "release-build-rust-gnu-${{ matrix.arch }}.tar.gz" \
+            "dist/fn-knock-artifacts/fpk-rust-backends/server-admin-rs-linux-${{ matrix.arch }}"
+
+      - name: Upload GNU Rust backend
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-build-rust-gnu-${{ matrix.arch }}
+          path: release-build-rust-gnu-${{ matrix.arch }}.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+  build-rust-musl:
+    needs: [preflight, quality]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64, arm]
+
+    steps:
+      - name: Checkout fn-knock
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.preflight.outputs.source_sha }}
+          persist-credentials: false
+
+      - name: Build musl Rust backend
+        shell: bash
+        run: |
+          output="${GITHUB_WORKSPACE}/dist/fn-knock-artifacts/musl-rust-backends/server-admin-rs-linux-${{ matrix.arch }}"
+          bash ./scripts/build-rust-backend.sh musl "${{ matrix.arch }}" "${output}"
+          tar -czf "release-build-rust-musl-${{ matrix.arch }}.tar.gz" \
+            "dist/fn-knock-artifacts/musl-rust-backends/server-admin-rs-linux-${{ matrix.arch }}"
+
+      - name: Upload musl Rust backend
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-build-rust-musl-${{ matrix.arch }}
+          path: release-build-rust-musl-${{ matrix.arch }}.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+  windows-unsigned:
+    needs: [preflight, quality]
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      FN_KNOCK_GO_SOURCE_COMMIT: ${{ needs.preflight.outputs.go_sha }}
+
+    steps:
+      - name: Checkout fn-knock
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.preflight.outputs.source_sha }}
+          persist-credentials: false
+
+      - name: Checkout frozen Go gateway
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: kci-lnk/Go-Reauth-Proxy
+          path: Go-Reauth-Proxy
+          ref: ${{ env.FN_KNOCK_GO_SOURCE_COMMIT }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: Go-Reauth-Proxy/go.mod
+          cache-dependency-path: Go-Reauth-Proxy/go.sum
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          npm install --global "npm@$env:NPM_VERSION"
+          npm ci
+          choco install nsis --no-progress -y
+
+      - name: Build unsigned native runtime and NSIS installer
+        shell: pwsh
+        run: >-
+          ./scripts/fn-knock-windows.ps1
+          -Mode Build
+          -BundleInstaller
+          -RequireCleanTree
+          -GoRepository "${{ github.workspace }}\Go-Reauth-Proxy"
+
+      - name: Smoke test Windows runtime
+        shell: pwsh
+        timeout-minutes: 15
+        run: ./scripts/fn-knock-windows-smoke.ps1
+
+      - name: Install and uninstall unsigned installer
+        shell: pwsh
+        timeout-minutes: 15
+        run: |
+          $setup = (Resolve-Path "dist\windows\fn-knock-*-windows-x86_64-unsigned-setup.exe").Path
+          ./scripts/fn-knock-windows-installer-smoke.ps1 -SetupPath $setup
+          ./scripts/fn-knock-windows-finalize.ps1 -SetupPath $setup -SignaturePolicy Unsigned
+
+      - name: Archive Windows release inputs
+        shell: pwsh
+        run: tar -czf windows-release.tar.gz -C dist/fn-knock-artifacts/windows/x86_64 .
+
+      - name: Upload Windows release inputs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-windows-assets
+          path: windows-release.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+  assemble:
+    needs: [preflight, build-common, build-rust-gnu, build-rust-musl]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout fn-knock
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.preflight.outputs.source_sha }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Download prebuilt inputs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: release-build-*
+          path: downloads
+          merge-multiple: true
+
+      - name: Restore prebuilt inputs
+        shell: bash
+        run: |
+          for archive in downloads/*.tar.gz; do
+            tar -xzf "${archive}"
+          done
+
+      - name: Install verified fnpack
+        shell: bash
+        run: |
+          curl --fail --location --silent --show-error \
+            https://static2.fnnas.com/fnpack/fnpack-1.2.3-linux-amd64 \
+            --output "${RUNNER_TEMP}/fnpack"
+          printf '%s  %s\n' \
+            54b97fa7b70968c4d05c79840f5daeff508957d0bb2062fdb0376d00d9615c93 \
+            "${RUNNER_TEMP}/fnpack" | sha256sum --check
+          chmod 755 "${RUNNER_TEMP}/fnpack"
+
+      - name: Assemble Linux, NAS, and OpenWrt release assets
+        env:
+          FN_KNOCK_FNPACK_BIN: ${{ runner.temp }}/fnpack
+        run: bash ./scripts/fn-knock-assemble-release.sh
+
+      - name: Archive assembled release assets
+        shell: bash
+        run: tar -czf release-linux-assets.tar.gz -C dist/release-assets .
+
+      - name: Upload assembled release assets
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-linux-assets
+          path: release-linux-assets.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+  docker-arch:
+    needs: [preflight, build-common, build-rust-musl]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+          - arch: arm64
+            platform: linux/arm64
+          - arch: arm32
+            platform: linux/arm/v7
+
+    steps:
+      - name: Checkout fn-knock
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.preflight.outputs.source_sha }}
+          persist-credentials: false
+
+      - name: Download common and musl inputs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: release-build-*
+          path: downloads
+          merge-multiple: true
+
+      - name: Stage Docker build context
+        shell: bash
+        run: |
+          for archive in downloads/release-build-common.tar.gz downloads/release-build-rust-musl-*.tar.gz; do
+            tar -xzf "${archive}"
+          done
+          FN_KNOCK_PREBUILT_ONLY=1 \
+          FN_KNOCK_RUNTIME_GATEWAY_ARCHES="amd64 arm64 arm" \
+          FN_KNOCK_MUSL_ARCHES="amd64 arm64 arm" \
+            bash ./scripts/fn-knock-prepare-artifacts.sh docker
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Log in to Docker Hub
+        if: github.event_name == 'push'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build architecture image
+        id: image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          platforms: ${{ matrix.platform }}
+          push: ${{ github.event_name == 'push' }}
+          tags: ${{ env.FN_KNOCK_DOCKER_IMAGE_REPO }}:${{ needs.preflight.outputs.version }}-${{ matrix.arch }}
+          outputs: ${{ github.event_name == 'workflow_dispatch' && format('type=oci,dest=/tmp/fn-knock-{0}.tar', matrix.arch) || '' }}
+          cache-from: type=gha,scope=release-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=release-${{ matrix.arch }}
+          provenance: mode=max
+          sbom: true
+
+      - name: Upload dry-run OCI image
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-dry-run-docker-${{ matrix.arch }}
+          path: /tmp/fn-knock-${{ matrix.arch }}.tar
+          if-no-files-found: error
+          retention-days: 7
+
+  docker-manifest:
+    if: github.event_name == 'push'
+    needs: [preflight, docker-arch]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      digest: ${{ steps.verify.outputs.digest }}
+
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Create and verify version manifest
+        id: verify
+        shell: bash
+        run: |
+          version="${{ needs.preflight.outputs.version }}"
+          image="${FN_KNOCK_DOCKER_IMAGE_REPO}"
+          docker buildx imagetools create \
+            -t "${image}:${version}" \
+            "${image}:${version}-amd64" \
+            "${image}:${version}-arm64" \
+            "${image}:${version}-arm32"
+          inspect="$(docker buildx imagetools inspect "${image}:${version}")"
+          printf '%s\n' "${inspect}"
+          printf '%s\n' "${inspect}" | grep -q 'linux/amd64'
+          printf '%s\n' "${inspect}" | grep -q 'linux/arm64'
+          printf '%s\n' "${inspect}" | grep -q 'linux/arm/v7'
+          digest="$(printf '%s\n' "${inspect}" | awk '/^Digest:/ {print $2; exit}')"
+          printf '%s\n' "${digest}" | grep -Eq '^sha256:[0-9a-f]{64}$'
+          printf 'digest=%s\n' "${digest}" >> "${GITHUB_OUTPUT}"
+
+  publish:
+    needs: [preflight, assemble, windows-unsigned, docker-manifest]
+    if: >-
+      always() &&
+      needs.preflight.result == 'success' &&
+      needs.assemble.result == 'success' &&
+      needs.windows-unsigned.result == 'success' &&
+      (github.event_name != 'push' || needs.docker-manifest.result == 'success')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+
+    steps:
+      - name: Checkout fn-knock
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.preflight.outputs.source_sha }}
+          persist-credentials: false
+
+      - name: Download release archives
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: release-*-assets
+          path: downloads
+          merge-multiple: true
+
+      - name: Finalize release inventory and checksums
+        env:
+          FN_KNOCK_VERSION: ${{ needs.preflight.outputs.version }}
+          FN_KNOCK_RELEASE_TAG: ${{ needs.preflight.outputs.tag }}
+          FN_KNOCK_SOURCE_COMMIT: ${{ needs.preflight.outputs.source_sha }}
+          FN_KNOCK_GO_SOURCE_COMMIT: ${{ needs.preflight.outputs.go_sha }}
+          FN_KNOCK_DOCKER_IMAGE: ${{ env.FN_KNOCK_DOCKER_IMAGE_REPO }}
+          FN_KNOCK_DOCKER_DIGEST: ${{ needs.docker-manifest.outputs.digest }}
+          FN_KNOCK_REQUIRE_DOCKER: ${{ github.event_name == 'push' && '1' || '0' }}
+        shell: bash
+        run: |
+          mkdir -p dist/release-assets
+          for archive in downloads/*.tar.gz; do
+            tar -xzf "${archive}" -C dist/release-assets
+          done
+          node ./scripts/fn-knock-release-finalize.mjs dist/release-assets
+          jq -r '.artifacts[].name, .metadata_files[]' \
+            dist/release-assets/release-manifest.json | sort > /tmp/manifest-assets
+          find dist/release-assets -maxdepth 1 -type f -exec basename {} \; |
+            sort > /tmp/directory-assets
+          diff -u /tmp/manifest-assets /tmp/directory-assets
+
+      - name: Upload complete dry-run/release bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: fn-knock-${{ needs.preflight.outputs.version }}-release
+          path: dist/release-assets/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Attest release assets
+        if: github.event_name == 'push'
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        with:
+          subject-path: dist/release-assets/*
+
+      - name: Set up Docker Buildx
+        if: github.event_name == 'push'
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Log in to Docker Hub
+        if: github.event_name == 'push'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Publish immutable GitHub Release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.preflight.outputs.tag }}
+          VERSION: ${{ needs.preflight.outputs.version }}
+          DOCKER_DIGEST: ${{ needs.docker-manifest.outputs.digest }}
+        shell: bash
+        run: |
+          if gh release view "${TAG}" --json isDraft >/tmp/release.json 2>/dev/null; then
+            jq -e '.isDraft == true' /tmp/release.json >/dev/null ||
+              { echo "Published release ${TAG} already exists; refusing to overwrite it" >&2; exit 1; }
+          else
+            gh release create "${TAG}" \
+              --draft \
+              --verify-tag \
+              --title "fn-knock ${VERSION}" \
+              --notes-file "release-notes/${VERSION}.md"
+          fi
+
+          gh release upload "${TAG}" dist/release-assets/* --clobber
+          find dist/release-assets -maxdepth 1 -type f -exec basename {} \; | sort > /tmp/expected-assets
+          gh release view "${TAG}" --json assets --jq '.assets[].name' | sort > /tmp/actual-assets
+          diff -u /tmp/expected-assets /tmp/actual-assets
+
+          docker buildx imagetools create \
+            -t "${FN_KNOCK_DOCKER_IMAGE_REPO}:latest" \
+            "${FN_KNOCK_DOCKER_IMAGE_REPO}@${DOCKER_DIGEST}"
+          latest="$(docker buildx imagetools inspect "${FN_KNOCK_DOCKER_IMAGE_REPO}:latest")"
+          latest_digest="$(printf '%s\n' "${latest}" | awk '/^Digest:/ {print $2; exit}')"
+          [ "${latest_digest}" = "${DOCKER_DIGEST}" ] || {
+            echo "latest digest ${latest_digest} does not match ${DOCKER_DIGEST}" >&2
+            exit 1
+          }
+          printf '%s\n' "${latest}" | grep -q 'linux/amd64'
+          printf '%s\n' "${latest}" | grep -q 'linux/arm64'
+          printf '%s\n' "${latest}" | grep -q 'linux/arm/v7'
+
+          gh release edit "${TAG}" --draft=false --latest

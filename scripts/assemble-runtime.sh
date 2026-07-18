@@ -87,7 +87,7 @@ npx turbo "${turbo_build_args[@]}"
 if [ "${BUILD_RUST_BACKEND}" = "1" ]; then
   fn_knock_sync_rust_package_version "${ROOT_DIR}" "[fn-knock]"
   echo "[fn-knock] Building server-admin-rs..."
-  cargo build --release --manifest-path "${ROOT_DIR}/apps/server-admin-rs/Cargo.toml"
+  cargo build --locked --release --manifest-path "${ROOT_DIR}/apps/server-admin-rs/Cargo.toml"
 fi
 
 echo "[fn-knock] Preparing runtime directories..."

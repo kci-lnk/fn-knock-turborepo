@@ -94,11 +94,34 @@ FN_KNOCK_FORCE_ARTIFACT_REBUILD=1 bun run fn-knock:deploy-all
 | `npm run fn-knock:windows:test`       | Windows 原生测试与构建检查  |
 | `npm run fn-knock:windows:build`      | Windows x86_64 本地 unsigned NSIS 安装包 |
 
+## 自动发布
+
+推送与 `version.json` 一致的 `vX.Y.Z` tag 后，`.github/workflows/release.yml`
+会冻结 `Go-Reauth-Proxy/main` 的完整提交 SHA，完成全平台构建、结构与架构校验，
+然后发布 GitHub Release 和 `kcilnk/fn-knock` 的三架构 Docker manifest。Windows
+安装包明确标记为 `unsigned`。
+
+仓库 Actions secrets 使用：
+
+- `DOCKER_USERNAME`：Docker Hub 用户名
+- `DOCKER_PASSWORD`：Docker Hub Access Token
+
+首次发布或修改打包流程后，先在 Actions 页面手动运行 `Release`。手动运行是
+完整 dry-run：会生成并上传全部 Actions artifacts，但不会推送 Docker，也不会
+创建 GitHub Release。正式发布前可在本地运行：
+
+```bash
+npm run fn-knock:release:preflight -- v2.0.8
+npm run fn-knock:release:test
+```
+
+公开的 Release 不会被工作流覆盖；同一 tag 只有仍处于 draft 状态时才允许重跑。
+
 ## 开发提示
 
 - 需要 Node.js `>= 18`，仓库使用 npm workspace 和 Turborepo。
 - FPK / Docker 打包会读取 `Go-Reauth-Proxy` 的网关二进制；默认查找相邻目录 `../Go-Reauth-Proxy`，也可以通过 `FN_KNOCK_GO_REAUTH_PROXY_DIR` 指定路径。
-- Windows 版的架构、数据目录、服务命令和签名顺序见 [apps/fn-knock-desktop/README.md](./apps/fn-knock-desktop/README.md)。发布包必须由原生 Windows Server 2022 x64 CI 生成。
+- Windows 版的架构、数据目录、服务命令和发布流程见 [apps/fn-knock-desktop/README.md](./apps/fn-knock-desktop/README.md)。发布包必须由原生 Windows Server 2022 x64 CI 生成。
 - 远端部署脚本带有本地开发默认值，正式使用前请按自己的机器修改 `FN_KNOCK_REMOTE_HOST`、`FN_KNOCK_DOCKER_REMOTE_HOST` 等环境变量。
 
 ## 支持项目

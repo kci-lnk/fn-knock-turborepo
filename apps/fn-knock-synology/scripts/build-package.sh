@@ -15,6 +15,7 @@ PACKAGE_VERSION="${PRODUCT_VERSION}-${BUILD_NUMBER}"
 OUTPUT_PATH="${FN_KNOCK_SYNOLOGY_OUTPUT:-${DIST_DIR}/${PACKAGE_NAME}-x86_64-${PACKAGE_VERSION}.spk}"
 BUILD_WORK_DIR=""
 GATEWAY_ARTIFACT=""
+PREBUILT_GATEWAY="${FN_KNOCK_SYNOLOGY_GATEWAY_BIN:-}"
 
 log() {
   printf '[fn-knock-synology] %s\n' "$*"
@@ -52,6 +53,15 @@ build_gateway_artifact() {
   local gateway_dir="${FN_KNOCK_GO_REAUTH_PROXY_DIR:-${ROOT_DIR}/../Go-Reauth-Proxy}"
   local commit="unknown"
 
+  if [ -n "${PREBUILT_GATEWAY}" ]; then
+    [ -f "${PREBUILT_GATEWAY}" ] || fail "missing prebuilt Synology gateway: ${PREBUILT_GATEWAY}"
+    log "using prebuilt Synology gateway ${PREBUILT_GATEWAY}"
+    mkdir -p "$(dirname "${GATEWAY_ARTIFACT}")"
+    cp "${PREBUILT_GATEWAY}" "${GATEWAY_ARTIFACT}"
+    chmod +x "${GATEWAY_ARTIFACT}"
+    return
+  fi
+
   [ -d "${gateway_dir}" ] || fail "missing Go-Reauth-Proxy checkout: ${gateway_dir}"
   if git -C "${gateway_dir}" rev-parse --short HEAD >/dev/null 2>&1; then
     commit="$(git -C "${gateway_dir}" rev-parse --short HEAD)"
@@ -61,7 +71,7 @@ build_gateway_artifact() {
   mkdir -p "$(dirname "${GATEWAY_ARTIFACT}")"
   (
     cd "${gateway_dir}"
-    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOFLAGS=-mod=readonly \
       go build \
         -ldflags="-s -w -X go-reauth-proxy/pkg/version.Version=${PRODUCT_VERSION} -X go-reauth-proxy/pkg/version.Commit=${commit}" \
         -trimpath \
@@ -251,7 +261,9 @@ require_cmd file
 require_cmd tar
 require_cmd gzip
 require_cmd shasum
-require_cmd go
+if [ -z "${PREBUILT_GATEWAY}" ]; then
+  require_cmd go
+fi
 BUILD_WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/fn-knock-synology.XXXXXX")"
 GATEWAY_ARTIFACT="${BUILD_WORK_DIR}/gateway/go-reauth-proxy-linux-amd64"
 trap cleanup EXIT

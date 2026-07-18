@@ -2,9 +2,9 @@
   "name": "server-admin-rs",
   "private": true,
   "scripts": {
-    "build": "cargo build --release",
-    "check-types": "cargo check",
+    "build": "cargo build --locked --release",
+    "check-types": "cargo check --locked",
     "dev": "cargo run",
-    "test": "cargo test"
+    "test": "cargo test --locked"
   }
 }

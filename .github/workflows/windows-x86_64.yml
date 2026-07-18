@@ -3,29 +3,16 @@ name: Windows x86_64
 on:
   pull_request:
   workflow_dispatch:
-    inputs:
-      go_gateway_commit:
-        description: Immutable 40-character Go-Reauth-Proxy commit SHA
-        required: true
-        type: string
-  push:
-    tags:
-      - "v*"
 
 permissions:
   contents: read
 
 jobs:
-  verify-pr:
-    if: github.event_name == 'pull_request'
+  verify-unsigned:
     runs-on: windows-2022
-    timeout-minutes: 90
+    timeout-minutes: 120
     env:
       CARGO_TERM_COLOR: always
-      # A repository variable may advance this dependency, but the fallback is
-      # deliberately a public, immutable commit so fork PR validation is
-      # reproducible without reading any secret.
-      FN_KNOCK_GO_SOURCE_COMMIT: ${{ vars.FN_KNOCK_GO_GATEWAY_COMMIT || 'b3c59f29fd225657bc74644a1234f7cc9c8b81aa' }}
 
     steps:
       - name: Checkout fn-knock
@@ -33,89 +20,58 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Validate immutable Go source lock
-        shell: pwsh
-        run: |
-          if (
-            $env:FN_KNOCK_GO_SOURCE_COMMIT -notmatch '^[0-9a-fA-F]{40}$'
-          ) {
-            throw "FN_KNOCK_GO_GATEWAY_COMMIT must be an immutable 40-character SHA"
-          }
-
-      # This repository is public. Deliberately do not use FN_KNOCK_SOURCE_TOKEN
-      # here: pull_request workflows, including forks, must remain secret-free.
-      - name: Checkout public Go gateway for integration tests
+      - name: Checkout current Go gateway main
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           repository: kci-lnk/Go-Reauth-Proxy
           path: Go-Reauth-Proxy
-          ref: ${{ env.FN_KNOCK_GO_SOURCE_COMMIT }}
+          ref: main
           persist-credentials: false
+
+      - name: Record frozen Go commit
+        shell: pwsh
+        run: |
+          $commit = (git -C Go-Reauth-Proxy rev-parse HEAD).Trim()
+          if ($commit -notmatch '^[0-9a-fA-F]{40}$') {
+            throw "Unable to resolve Go-Reauth-Proxy/main"
+          }
+          "FN_KNOCK_GO_SOURCE_COMMIT=$commit" >> $env:GITHUB_ENV
 
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: "22"
+          node-version: "22.22.3"
           cache: npm
 
       - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version: "1.25.x"
+          go-version-file: Go-Reauth-Proxy/go.mod
           cache-dependency-path: Go-Reauth-Proxy/go.sum
 
-      - name: Set up protobuf compiler
-        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
-        with:
-          version: "35.1"
-
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
         with:
+          toolchain: "1.96.0"
           targets: x86_64-pc-windows-msvc
 
-      - name: Install JavaScript dependencies
-        run: npm ci
-
-      - name: Install dependency auditor
-        run: cargo install cargo-audit --version 0.22.2 --locked
-
-      - name: Run security and lint gates
-        run: |
-          npm run security:audit
-          npm run lint
-
-      - name: Verify generated Go control-plane stubs
+      - name: Install dependencies
         shell: pwsh
         run: |
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.6
-          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
-          $env:PATH = "$(go env GOPATH)\bin;$env:PATH"
-          protoc `
-            --proto_path "packages\grpc-contracts\proto" `
-            --go_out "Go-Reauth-Proxy" `
-            --go_opt module=go-reauth-proxy `
-            --go-grpc_out "Go-Reauth-Proxy" `
-            --go-grpc_opt module=go-reauth-proxy `
-            "packages\grpc-contracts\proto\fnknock\v1\gateway.proto"
-          if ($LASTEXITCODE -ne 0) { throw "protobuf generation failed" }
-          git -C Go-Reauth-Proxy diff --exit-code -- pkg/grpc/pb
-          if ($LASTEXITCODE -ne 0) { throw "Go protobuf stubs drifted from the shared contract" }
-
-      - name: Install NSIS
-        shell: pwsh
-        run: choco install nsis --no-progress -y
+          npm install --global npm@10.8.2
+          npm ci
+          choco install nsis --no-progress -y
 
       - name: Build unsigned native runtime and installer
-        id: unsigned-installer
         shell: pwsh
-        run: |
-          ./scripts/fn-knock-windows.ps1 -Mode Build -BundleInstaller -RequireCleanTree -GoRepository "${{ github.workspace }}\Go-Reauth-Proxy"
-          if ($LASTEXITCODE -ne 0) { throw "unsigned native installer build failed" }
-          $setup = (Resolve-Path "dist\windows\fn-knock-*-windows-x86_64-unsigned-setup.exe").Path
-          "setup=$setup" >> $env:GITHUB_OUTPUT
+        run: >-
+          ./scripts/fn-knock-windows.ps1
+          -Mode Build
+          -BundleInstaller
+          -RequireCleanTree
+          -GoRepository "${{ github.workspace }}\Go-Reauth-Proxy"
 
-      - name: Smoke test the native Windows runtime group
+      - name: Smoke test native Windows runtime
         shell: pwsh
         timeout-minutes: 15
         run: ./scripts/fn-knock-windows-smoke.ps1
@@ -123,193 +79,15 @@ jobs:
       - name: Install and uninstall unsigned NSIS installer
         shell: pwsh
         timeout-minutes: 15
-        run: ./scripts/fn-knock-windows-installer-smoke.ps1 -SetupPath "${{ steps.unsigned-installer.outputs.setup }}"
-
-  build-sign-package:
-    if: github.event_name != 'pull_request'
-    permissions:
-      contents: read
-      id-token: write
-    runs-on: windows-2022
-    timeout-minutes: 90
-    env:
-      AZURE_CORE_OUTPUT: none
-      CARGO_TERM_COLOR: always
-      FN_KNOCK_GO_SOURCE_COMMIT: ${{ inputs.go_gateway_commit || vars.FN_KNOCK_GO_GATEWAY_COMMIT }}
-
-    steps:
-      - name: Checkout fn-knock
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          persist-credentials: false
-
-      - name: Validate immutable Go source lock
-        shell: pwsh
         run: |
-          if ($env:FN_KNOCK_GO_SOURCE_COMMIT -notmatch '^[0-9a-fA-F]{40}$') {
-            throw "Set go_gateway_commit (manual run) or FN_KNOCK_GO_GATEWAY_COMMIT (tag run) to an immutable 40-character SHA"
-          }
+          $setup = (Resolve-Path "dist\windows\fn-knock-*-windows-x86_64-unsigned-setup.exe").Path
+          ./scripts/fn-knock-windows-installer-smoke.ps1 -SetupPath $setup
 
-      - name: Checkout Go gateway
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          repository: kci-lnk/Go-Reauth-Proxy
-          token: ${{ secrets.FN_KNOCK_SOURCE_TOKEN }}
-          path: Go-Reauth-Proxy
-          ref: ${{ env.FN_KNOCK_GO_SOURCE_COMMIT }}
-          persist-credentials: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: "22"
-          cache: npm
-
-      - name: Set up Go
-        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
-        with:
-          go-version: "1.25.x"
-          cache-dependency-path: Go-Reauth-Proxy/go.sum
-
-      - name: Set up protobuf compiler
-        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
-        with:
-          version: "35.1"
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
-        with:
-          targets: x86_64-pc-windows-msvc
-
-      - name: Install JavaScript dependencies
-        run: npm ci
-
-      - name: Install dependency auditor
-        run: cargo install cargo-audit --version 0.22.2 --locked
-
-      - name: Run security and lint gates
-        run: |
-          npm run security:audit
-          npm run lint
-
-      - name: Install NSIS
-        shell: pwsh
-        run: |
-          choco install nsis --no-progress -y
-
-      - name: Verify generated Go control-plane stubs
-        shell: pwsh
-        run: |
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.6
-          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
-          $env:PATH = "$(go env GOPATH)\bin;$env:PATH"
-          protoc `
-            --proto_path "packages\grpc-contracts\proto" `
-            --go_out "Go-Reauth-Proxy" `
-            --go_opt module=go-reauth-proxy `
-            --go-grpc_out "Go-Reauth-Proxy" `
-            --go-grpc_opt module=go-reauth-proxy `
-            "packages\grpc-contracts\proto\fnknock\v1\gateway.proto"
-          if ($LASTEXITCODE -ne 0) { throw "protobuf generation failed" }
-          git -C Go-Reauth-Proxy diff --exit-code -- pkg/grpc/pb
-          if ($LASTEXITCODE -ne 0) { throw "Go protobuf stubs drifted from the shared contract" }
-
-      - name: Build and test the complete Windows bundle
-        shell: pwsh
-        run: >-
-          ./scripts/fn-knock-windows.ps1
-          -Mode Build
-          -RequireCleanTree
-          -GoRepository "${{ github.workspace }}\Go-Reauth-Proxy"
-
-      - name: Smoke test the native Windows runtime group
-        shell: pwsh
-        timeout-minutes: 15
-        run: ./scripts/fn-knock-windows-smoke.ps1
-
-      - name: Azure login for Artifact Signing
-        uses: Azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Authenticode-sign GUI, service, and gateway
-        uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2
-        with:
-          endpoint: ${{ vars.ARTIFACT_SIGNING_ENDPOINT }}
-          signing-account-name: ${{ vars.ARTIFACT_SIGNING_ACCOUNT }}
-          certificate-profile-name: ${{ vars.ARTIFACT_SIGNING_PROFILE }}
-          files: |
-            ${{ github.workspace }}\apps\fn-knock-desktop\bundle\windows\fn-knock-service.exe
-            ${{ github.workspace }}\apps\fn-knock-desktop\bundle\windows\fn-knock-gateway.exe
-            ${{ github.workspace }}\apps\fn-knock-desktop\bundle\windows\rust-acmesh.exe
-            ${{ github.workspace }}\apps\fn-knock-desktop\native\target\x86_64-pc-windows-msvc\release\fn-knock.exe
-          file-digest: SHA256
-          timestamp-rfc3161: http://timestamp.acs.microsoft.com
-          timestamp-digest: SHA256
-          description: Knock 敲门 Windows Gateway
-          description-url: https://github.com/kci-lnk/fn-knock-turborepo
-
-      - name: Verify signed executables
-        shell: pwsh
-        run: |
-          $files = @(
-            "apps\fn-knock-desktop\bundle\windows\fn-knock-service.exe",
-            "apps\fn-knock-desktop\bundle\windows\fn-knock-gateway.exe",
-            "apps\fn-knock-desktop\bundle\windows\rust-acmesh.exe",
-            "apps\fn-knock-desktop\native\target\x86_64-pc-windows-msvc\release\fn-knock.exe"
-          )
-          foreach ($file in $files) {
-            $signature = Get-AuthenticodeSignature $file
-            if ($signature.Status -ne "Valid") {
-              throw "Invalid Authenticode signature for $file: $($signature.Status)"
-            }
-          }
-
-      - name: Build NSIS package from signed components
-        id: bundle
-        shell: pwsh
-        run: |
-          $setup = (& ./scripts/fn-knock-windows-package.ps1 | Select-Object -Last 1)
-          if (-not (Test-Path -LiteralPath $setup -PathType Leaf)) { throw "native NSIS package was not created" }
-          "setup=$setup" >> $env:GITHUB_OUTPUT
-
-      - name: Authenticode-sign final setup
-        uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2
-        with:
-          endpoint: ${{ vars.ARTIFACT_SIGNING_ENDPOINT }}
-          signing-account-name: ${{ vars.ARTIFACT_SIGNING_ACCOUNT }}
-          certificate-profile-name: ${{ vars.ARTIFACT_SIGNING_PROFILE }}
-          files: ${{ steps.bundle.outputs.setup }}
-          file-digest: SHA256
-          timestamp-rfc3161: http://timestamp.acs.microsoft.com
-          timestamp-digest: SHA256
-          description: Knock 敲门 Windows Installer
-          description-url: https://github.com/kci-lnk/fn-knock-turborepo
-
-      - name: Verify signed NSIS installer
-        shell: pwsh
-        run: |
-          $setup = "${{ steps.bundle.outputs.setup }}"
-          $signature = Get-AuthenticodeSignature $setup
-          if ($signature.Status -ne "Valid") {
-            throw "Invalid Authenticode signature for NSIS setup: $($signature.Status)"
-          }
-
-      - name: Install and uninstall signed NSIS installer
-        shell: pwsh
-        timeout-minutes: 15
-        run: ./scripts/fn-knock-windows-installer-smoke.ps1 -SetupPath "${{ steps.bundle.outputs.setup }}"
-
-      - name: Finalize fixed-name release artifacts
-        shell: pwsh
-        run: ./scripts/fn-knock-windows-finalize.ps1 -SetupPath "${{ steps.bundle.outputs.setup }}"
-
-      - name: Upload immutable release input
+      - name: Upload manual verification artifact
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: fn-knock-windows-x86_64
-          path: dist/fn-knock-artifacts/windows/x86_64/
+          name: fn-knock-windows-x86_64-unsigned
+          path: dist/windows/*-unsigned-setup.exe
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 14

@@ -245,7 +245,7 @@ build_fpk_rust_backend_with_docker() {
     -v "${ROOT_DIR}:/workspace" \
     -w /workspace \
     "${image}" \
-    bash -lc 'export PATH=/usr/local/cargo/bin:$PATH; cargo build --release --manifest-path apps/server-admin-rs/Cargo.toml && cp "${CARGO_TARGET_DIR}/release/server-admin-rs" "${FN_KNOCK_RUST_OUT}" && { strip --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || true; }'
+    bash -lc 'export PATH=/usr/local/cargo/bin:$PATH; cargo build --locked --release --manifest-path apps/server-admin-rs/Cargo.toml && cp "${CARGO_TARGET_DIR}/release/server-admin-rs" "${FN_KNOCK_RUST_OUT}" && { strip --strip-unneeded "${FN_KNOCK_RUST_OUT}" 2>/dev/null || true; }'
 
   chmod 755 "${out_bin}"
   log_rust_backend_binary_size "${out_bin}" "${arch}"
@@ -269,6 +269,7 @@ build_fpk_rust_backend_with_zig() {
   echo "[fn-knock] Building server-admin-rs for ${target_arg} with cargo-zigbuild..."
   rustup target add "${target_triple}" >/dev/null
   CARGO_TARGET_DIR="${target_dir}" cargo zigbuild \
+    --locked \
     --release \
     --manifest-path "${ROOT_DIR}/apps/server-admin-rs/Cargo.toml" \
     --target "${target_arg}"

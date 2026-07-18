@@ -3,13 +3,16 @@ param(
   [Parameter(Mandatory = $true)]
   [string]$SetupPath,
   [string]$OutputDirectory = "",
-  [string]$ReleaseNotesPath = ""
+  [string]$ReleaseNotesPath = "",
+  [ValidateSet("Signed", "Unsigned")]
+  [string]$SignaturePolicy = "Unsigned",
+  [string]$ReleaseBaseUrl = ""
 )
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
-function Assert-WindowsInstaller([string]$Path) {
+function Assert-WindowsInstaller([string]$Path, [string]$Policy) {
   $item = Get-Item -LiteralPath $Path
   if ($item.Length -lt 64) {
     throw "Windows installer is too small to contain a valid PE header: $Path"
@@ -37,9 +40,11 @@ function Assert-WindowsInstaller([string]$Path) {
     $stream.Dispose()
   }
 
-  $signature = Get-AuthenticodeSignature -LiteralPath $item.FullName
-  if ($signature.Status -ne "Valid") {
-    throw "Windows installer Authenticode signature is invalid: $($signature.Status) ($Path)"
+  if ($Policy -eq "Signed") {
+    $signature = Get-AuthenticodeSignature -LiteralPath $item.FullName
+    if ($signature.Status -ne "Valid") {
+      throw "Windows installer Authenticode signature is invalid: $($signature.Status) ($Path)"
+    }
   }
 }
 
@@ -65,10 +70,14 @@ if (-not $OutputDirectory) {
 }
 New-Item -ItemType Directory -Force $OutputDirectory | Out-Null
 
-$ArtifactName = "fn-knock-$Version-windows-x86_64-setup.exe"
+if ($SignaturePolicy -eq "Unsigned") {
+  $ArtifactName = "fn-knock-$Version-windows-x86_64-unsigned-setup.exe"
+} else {
+  $ArtifactName = "fn-knock-$Version-windows-x86_64-setup.exe"
+}
 $ArtifactPath = Join-Path $OutputDirectory $ArtifactName
 Copy-Item -Force $SetupPath $ArtifactPath
-Assert-WindowsInstaller $ArtifactPath
+Assert-WindowsInstaller $ArtifactPath $SignaturePolicy
 
 $Sha256 = (Get-FileHash -Algorithm SHA256 $ArtifactPath).Hash.ToLowerInvariant()
 $ShaPath = "$ArtifactPath.sha256"
@@ -78,7 +87,10 @@ $ShaPath = "$ArtifactPath.sha256"
   [System.Text.UTF8Encoding]::new($false)
 )
 
-$Url = "https://cdn.fnknock.cn/files/$Version/windows/x86_64/$ArtifactName"
+if (-not $ReleaseBaseUrl) {
+  $ReleaseBaseUrl = "https://github.com/kci-lnk/fn-knock-turborepo/releases/download/v$Version"
+}
+$Url = "$($ReleaseBaseUrl.TrimEnd('/'))/$ArtifactName"
 $PublishedAt = [DateTimeOffset]::UtcNow.ToString("o")
 if (-not $ReleaseNotesPath) {
   $ReleaseNotesPath = Join-Path $Root "release-notes\$Version.md"
@@ -98,6 +110,7 @@ $Release = @{
   runtime_target = "windows"
   architecture = "x86_64"
   channel = "stable"
+  signature_policy = $SignaturePolicy.ToLowerInvariant()
   published_at = $PublishedAt
   release_notes = $ReleaseNotes
   file_name = $ArtifactName
@@ -118,6 +131,7 @@ $Updater = @{
   version = $Version
   notes = $ReleaseNotes
   pub_date = $PublishedAt
+  signature_policy = $SignaturePolicy.ToLowerInvariant()
   platforms = @{
     "windows-x86_64" = @{
       url = $Url
@@ -128,12 +142,12 @@ $Updater = @{
 } | ConvertTo-Json -Depth 12
 
 [System.IO.File]::WriteAllText(
-  (Join-Path $OutputDirectory "release.json"),
+  (Join-Path $OutputDirectory "fn-knock-$Version-windows-x86_64-$($SignaturePolicy.ToLowerInvariant())-release.json"),
   "$Release`n",
   [System.Text.UTF8Encoding]::new($false)
 )
 [System.IO.File]::WriteAllText(
-  (Join-Path $OutputDirectory "updater.json"),
+  (Join-Path $OutputDirectory "fn-knock-$Version-windows-x86_64-$($SignaturePolicy.ToLowerInvariant())-updater.json"),
   "$Updater`n",
   [System.Text.UTF8Encoding]::new($false)
 )

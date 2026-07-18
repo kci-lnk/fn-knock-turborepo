@@ -106,11 +106,11 @@ function Invoke-GoChecksAndBuild {
     $env:GOOS = "windows"
     $env:GOARCH = "amd64"
     $env:CGO_ENABLED = "0"
-    go test ./...
+    go test -mod=readonly ./...
     Assert-LastExitCode "Go Windows tests"
     New-Item -ItemType Directory -Force (Join-Path $GoRepository "build") | Out-Null
     $output = Join-Path $GoRepository "build\go-reauth-proxy-windows-amd64.exe"
-    go build -trimpath -ldflags "-s -w -X go-reauth-proxy/pkg/version.Version=$Version -X go-reauth-proxy/pkg/version.Commit=$GoCommit" -o $output ./cmd/server
+    go build -mod=readonly -trimpath -ldflags "-s -w -X go-reauth-proxy/pkg/version.Version=$Version -X go-reauth-proxy/pkg/version.Commit=$GoCommit" -o $output ./cmd/server
     Assert-LastExitCode "Go Windows build"
   } finally {
     Pop-Location
@@ -122,11 +122,11 @@ function Invoke-RustChecksAndBuild {
   $env:FN_KNOCK_DEPLOYMENT_TARGET = "windows"
   $env:FN_KNOCK_COMMIT = $Commit
   $env:FN_KNOCK_GATEWAY_COMMIT = $GoCommit
-  cargo test --manifest-path $manifest
+  cargo test --locked --manifest-path $manifest
   Assert-LastExitCode "Rust unit tests"
-  cargo check --manifest-path $manifest --target $Target
+  cargo check --locked --manifest-path $manifest --target $Target
   Assert-LastExitCode "Rust Windows check"
-  cargo build --release --manifest-path $manifest --target $Target
+  cargo build --locked --release --manifest-path $manifest --target $Target
   Assert-LastExitCode "Rust Windows release build"
 }
 
@@ -272,7 +272,7 @@ Invoke-RustChecksAndBuild
 Stage-WindowsBundle
 
 if (-not $SkipDesktopBundle) {
-  cargo build --release --manifest-path (Join-Path $DesktopNative "Cargo.toml") --target $Target
+  cargo build --locked --release --manifest-path (Join-Path $DesktopNative "Cargo.toml") --target $Target
   Assert-LastExitCode "native Win32 controller release build"
 
   if ($BundleInstaller) {

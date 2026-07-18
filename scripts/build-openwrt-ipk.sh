@@ -1010,7 +1010,9 @@ validate_apk() {
     "${APK_DOCKER_IMAGE}" \
     sh -eu -c '
       apk extract --allow-untrusted --destination /inspect "/packages/${APK_FILE_NAME}" >/dev/null
-      bad_entry="$(find /inspect \( ! -user root -o ! -group root \) -print -quit)"
+      # The bind-mounted /inspect directory belongs to the host runner. Only
+      # package entries below it carry ownership metadata from the APK.
+      bad_entry="$(find /inspect -mindepth 1 \( ! -user root -o ! -group root \) -print -quit)"
       if [ -n "${bad_entry}" ]; then
         echo "APK extract contains non-root-owned entry: ${bad_entry}" >&2
         exit 1
@@ -1191,7 +1193,9 @@ validate_istore_meta_apk() {
     "${APK_DOCKER_IMAGE}" \
     sh -eu -c '
       apk extract --allow-untrusted --destination /inspect "/packages/${APK_FILE_NAME}" >/dev/null
-      bad_entry="$(find /inspect \( ! -user root -o ! -group root \) -print -quit)"
+      # The bind-mounted /inspect directory belongs to the host runner. Only
+      # package entries below it carry ownership metadata from the APK.
+      bad_entry="$(find /inspect -mindepth 1 \( ! -user root -o ! -group root \) -print -quit)"
       if [ -n "${bad_entry}" ]; then
         echo "APK extract contains non-root-owned entry: ${bad_entry}" >&2
         exit 1

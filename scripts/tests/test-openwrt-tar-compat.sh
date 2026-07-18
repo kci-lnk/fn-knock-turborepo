@@ -17,6 +17,12 @@ test_fail() {
 
 source "${ROOT_DIR}/scripts/build-openwrt-ipk.sh"
 
+MOUNT_SAFE_CHECK_COUNT="$(
+  grep -Fc 'find /inspect -mindepth 1' "${ROOT_DIR}/scripts/build-openwrt-ipk.sh"
+)"
+[ "${MOUNT_SAFE_CHECK_COUNT}" -eq 2 ] || \
+  test_fail "both APK ownership checks must skip the bind-mounted extraction root"
+
 configure_tar_compatibility
 case "${TAR_FLAVOR}" in
   bsd)

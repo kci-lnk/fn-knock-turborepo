@@ -81,8 +81,9 @@ validate_arch() {
     esac
     if [ "${MODE}" = "musl" ]; then
       dynamic_section="$("${READELF_BIN}" -d "${OUTPUT}" 2>&1 || true)"
-      printf '%s\n' "${dynamic_section}" | grep -q '(NEEDED)' && \
+      if printf '%s\n' "${dynamic_section}" | grep -q '(NEEDED)'; then
         fail "${OUTPUT}: musl output has dynamic dependencies"
+      fi
     fi
   elif [ "${CI:-}" = "true" ]; then
     fail "readelf is required for CI ELF validation"
@@ -149,14 +150,14 @@ case "${MODE}" in
       -v "${ROOT_DIR}:/workspace" \
       -w /workspace \
       "${IMAGE}" \
-      sh -lc 'cargo build --locked --release --manifest-path apps/server-admin-rs/Cargo.toml --target "${FN_KNOCK_RUST_TARGET}" && cp "${CARGO_TARGET_DIR}/${FN_KNOCK_RUST_TARGET}/release/server-admin-rs" "${FN_KNOCK_RUST_OUT}"'
+      sh -lc 'cargo build --locked --release --manifest-path apps/server-admin-rs/Cargo.toml --target "${FN_KNOCK_RUST_TARGET}" && cp "${CARGO_TARGET_DIR}/${FN_KNOCK_RUST_TARGET}/release/server-admin-rs" "${FN_KNOCK_RUST_OUT}" && chmod 755 "${FN_KNOCK_RUST_OUT}"'
     ;;
   *)
     fail "unsupported mode: ${MODE}"
     ;;
 esac
 
-chmod 755 "${OUTPUT}"
+[ -x "${OUTPUT}" ] || chmod 755 "${OUTPUT}"
 validate_arch
 validate_glibc_ceiling
 log "built ${OUTPUT}"

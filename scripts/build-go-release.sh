@@ -63,8 +63,9 @@ validate_binary() {
         ;;
     esac
     dynamic_section="$("${READELF_BIN}" -d "${path}" 2>&1 || true)"
-    printf '%s\n' "${dynamic_section}" | grep -q '(NEEDED)' && \
+    if printf '%s\n' "${dynamic_section}" | grep -q '(NEEDED)'; then
       fail "${target}: CGO-disabled Go output has dynamic dependencies"
+    fi
   elif [ "${target}" != "windows-amd64" ] && [ "${CI:-}" = "true" ]; then
     fail "readelf is required for CI ELF validation"
   fi

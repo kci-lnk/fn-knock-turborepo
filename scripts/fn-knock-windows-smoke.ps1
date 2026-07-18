@@ -266,7 +266,11 @@ function Test-TcpPortAvailable {
 }
 
 function Get-AvailableTcpPort {
-  param([Parameter(Mandatory = $true)][System.Collections.Generic.HashSet[int]]$UsedPorts)
+  param(
+    [Parameter(Mandatory = $true)]
+    [AllowEmptyCollection()]
+    [System.Collections.Generic.HashSet[int]]$UsedPorts
+  )
   for ($attempt = 0; $attempt -lt 100; $attempt++) {
     $probe = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
     try {

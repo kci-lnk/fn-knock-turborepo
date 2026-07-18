@@ -1009,6 +1009,8 @@ validate_apk() {
     -v "${extract_dir}:/inspect" \
     "${APK_DOCKER_IMAGE}" \
     sh -eu -c '
+      inspect_owner="$(stat -c "%u:%g" /inspect)"
+      trap "chown -R ${inspect_owner} /inspect" EXIT
       apk extract --allow-untrusted --destination /inspect "/packages/${APK_FILE_NAME}" >/dev/null
       # The bind-mounted /inspect directory belongs to the host runner. Only
       # package entries below it carry ownership metadata from the APK.
@@ -1192,6 +1194,8 @@ validate_istore_meta_apk() {
     -v "${extract_dir}:/inspect" \
     "${APK_DOCKER_IMAGE}" \
     sh -eu -c '
+      inspect_owner="$(stat -c "%u:%g" /inspect)"
+      trap "chown -R ${inspect_owner} /inspect" EXIT
       apk extract --allow-untrusted --destination /inspect "/packages/${APK_FILE_NAME}" >/dev/null
       # The bind-mounted /inspect directory belongs to the host runner. Only
       # package entries below it carry ownership metadata from the APK.

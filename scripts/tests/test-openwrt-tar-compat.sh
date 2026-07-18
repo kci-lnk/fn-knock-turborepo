@@ -23,6 +23,13 @@ MOUNT_SAFE_CHECK_COUNT="$(
 [ "${MOUNT_SAFE_CHECK_COUNT}" -eq 2 ] || \
   test_fail "both APK ownership checks must skip the bind-mounted extraction root"
 
+OWNER_RESTORE_COUNT="$(
+  grep -Fc 'trap "chown -R ${inspect_owner} /inspect" EXIT' \
+    "${ROOT_DIR}/scripts/build-openwrt-ipk.sh"
+)"
+[ "${OWNER_RESTORE_COUNT}" -eq 2 ] || \
+  test_fail "both APK ownership checks must restore extracted files to the host owner"
+
 configure_tar_compatibility
 case "${TAR_FLAVOR}" in
   bsd)

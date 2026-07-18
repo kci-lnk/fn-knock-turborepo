@@ -1,7 +1,7 @@
 [package]
 name = "server-admin-rs"
 # Crate metadata only. The fn-knock product version is defined in ../../version.json.
-version = "2.0.7"
+version = "2.0.8"
 edition = "2024"
 
 [profile.release]
@@ -28,6 +28,7 @@ http = "1.3"
 http-body-util = "0.1"
 idna = "1.1"
 ipnet = "2.12"
+regex = "1.12"
 jsonwebtoken = "9.3"
 lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls-tls"] }
 mime_guess = "2.0"

@@ -130,6 +130,31 @@ fn normalizes_host_mapping_route_shape() {
 }
 
 #[test]
+fn ordinary_host_mapping_updates_cannot_inject_uncompiled_advanced_auth() {
+    let mappings = normalize_host_mappings_for_route(
+        vec![json!({
+            "host": "new.example.com",
+            "target": "http://127.0.0.1:8080",
+            "use_auth": true,
+            "advanced_auth": {
+                "enabled": true,
+                "policy_version": "client-controlled",
+                "groups": [{ "id": "g", "conditions": [{
+                    "id": "c", "target": "url_path", "operator": "prefix", "values": ["/"]
+                }] }]
+            }
+        })],
+        &json!({ "host_mappings": [] }),
+    )
+    .unwrap();
+    assert_eq!(mappings[0]["advanced_auth"]["enabled"], json!(false));
+    assert_ne!(
+        mappings[0]["advanced_auth"]["policy_version"],
+        json!("client-controlled")
+    );
+}
+
+#[test]
 fn normalizes_host_mapping_waf_defaults_and_auth_inheritance() {
     let mappings = normalize_host_mappings_for_route(
         vec![
@@ -658,6 +683,77 @@ fn validates_go_backend_echoed_host_visibility() {
     ensure_go_host_protocol_modes_applied(&disabled, &disabled_applied).unwrap();
     let error = ensure_go_host_protocol_modes_applied(&disabled, &old_backend).unwrap_err();
     assert!(error.contains("did not apply host visibility for video.example.com"));
+}
+
+#[test]
+fn validates_advanced_auth_echo_without_comparing_control_metadata() {
+    let requested = json!([{
+        "host": "video.example.com",
+        "protocol_mode": "auto",
+        "advanced_auth": {
+            "enabled": true,
+            "idle_ttl_seconds": 86400,
+            "max_lifetime_seconds": 2592000,
+            "policy_version": "policy-v1",
+            "compiled_at": "2026-01-01T00:00:00Z",
+            "cidr_source": "online",
+            "cidr_source_fingerprint": "abc123",
+            "groups": [{
+                "id": "region",
+                "conditions": [{
+                    "id": "src",
+                    "target": "source_region",
+                    "operator": "in",
+                    "name": "",
+                    "values": [],
+                    "selections": [{ "province": "浙江" }],
+                    "cidrs": ["192.0.2.0/24"]
+                }]
+            }]
+        }
+    }]);
+    let applied = json!({
+        "success": true,
+        "data": [{
+            "host": "video.example.com",
+            "protocol_mode": "auto",
+            "advanced_auth": {
+                "enabled": true,
+                "idle_ttl_seconds": 86400,
+                "max_lifetime_seconds": 2592000,
+                "policy_version": "policy-v1",
+                "groups": [{
+                    "id": "region",
+                    "conditions": [{
+                        "id": "src",
+                        "target": "source_region",
+                        "operator": "in",
+                        "name": "",
+                        "values": null,
+                        "cidrs": ["192.0.2.0/24"]
+                    }]
+                }]
+            }
+        }]
+    });
+    ensure_go_host_protocol_modes_applied(&requested, &applied).unwrap();
+
+    let stale_version = json!({
+        "success": true,
+        "data": [{
+            "host": "video.example.com",
+            "protocol_mode": "auto",
+            "advanced_auth": {
+                "enabled": true,
+                "idle_ttl_seconds": 86400,
+                "max_lifetime_seconds": 2592000,
+                "policy_version": "stale",
+                "groups": []
+            }
+        }]
+    });
+    let error = ensure_go_host_protocol_modes_applied(&requested, &stale_version).unwrap_err();
+    assert!(error.contains("did not apply advanced authentication"));
 }
 
 #[test]

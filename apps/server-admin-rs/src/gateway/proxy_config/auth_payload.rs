@@ -28,6 +28,7 @@ pub(crate) fn build_host_rules_payload(mappings: &[Value]) -> Value {
                         "mode": visibility.get("mode").and_then(Value::as_str).unwrap_or("inherit"),
                         "cidrs": visibility.get("cidrs").cloned().unwrap_or_else(|| Value::Array(Vec::new())),
                     })).unwrap_or_else(|| json!({ "mode": "inherit", "cidrs": [] })),
+                    "advanced_auth": object.get("advanced_auth").cloned().unwrap_or(Value::Null),
                     "protocol_mode": normalize_protocol_mode(object.get("protocol_mode")),
                     "title": title,
                     "favicon": favicon,

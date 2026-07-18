@@ -39,6 +39,35 @@ export const vueConfig = [
           varsIgnorePattern: "^_",
         },
       ],
+      "no-restricted-globals": [
+        "error",
+        {
+          name: "confirm",
+          message:
+            "Use the project confirmation dialog. Browser-mandated leave prompts should use beforeunload.",
+        },
+      ],
+      "no-restricted-properties": [
+        "error",
+        {
+          object: "window",
+          property: "confirm",
+          message:
+            "Use the project confirmation dialog. Browser-mandated leave prompts should use beforeunload.",
+        },
+        {
+          object: "globalThis",
+          property: "confirm",
+          message:
+            "Use the project confirmation dialog. Browser-mandated leave prompts should use beforeunload.",
+        },
+        {
+          object: "self",
+          property: "confirm",
+          message:
+            "Use the project confirmation dialog. Browser-mandated leave prompts should use beforeunload.",
+        },
+      ],
       "vue/multi-word-component-names": "off",
       // Editors receive a reactive form object and update its nested fields.
       // Replacing the prop itself remains forbidden.

@@ -97,6 +97,64 @@ export interface HostMappingVisibility {
   cidrs: string[];
 }
 
+export type AdvancedAuthConditionTarget =
+  | "source_ip"
+  | "source_region"
+  | "url_path"
+  | "request_header"
+  | "query_parameter"
+  | "http_method";
+
+export type AdvancedAuthOperator =
+  | "equals"
+  | "not_equals"
+  | "in_cidr"
+  | "not_in_cidr"
+  | "in"
+  | "not_in"
+  | "exists"
+  | "not_exists"
+  | "prefix"
+  | "not_prefix"
+  | "contains"
+  | "not_contains"
+  | "starts_with"
+  | "not_starts_with"
+  | "ends_with"
+  | "not_ends_with"
+  | "regex"
+  | "not_regex";
+
+export interface AdvancedAuthCondition {
+  id: string;
+  target: AdvancedAuthConditionTarget;
+  operator: AdvancedAuthOperator;
+  name?: string;
+  values?: string[];
+  selections: GatewayVisibilitySelection[];
+  /** Resolved CIDRs are returned by the control plane and are read-only. */
+  cidrs?: string[];
+  resolved_at?: string;
+  cidr_source?: string;
+  cidr_source_fingerprint?: string;
+}
+
+export interface AdvancedAuthRuleGroup {
+  id: string;
+  conditions: AdvancedAuthCondition[];
+}
+
+export interface AdvancedAuthConfig {
+  enabled: boolean;
+  idle_ttl_seconds: number;
+  max_lifetime_seconds: number;
+  policy_version?: string;
+  groups: AdvancedAuthRuleGroup[];
+  compiled_at?: string;
+  cidr_source?: string;
+  cidr_source_fingerprint?: string;
+}
+
 export type HostLocationMatch = "exact" | "prefix";
 export type HostLocationAction = "proxy" | "response";
 
@@ -136,6 +194,7 @@ export interface HostMapping {
   title: string;
   title_override: string;
   favicon: string;
+  advanced_auth?: AdvancedAuthConfig;
 }
 
 export interface HostMappingRefreshSummary {
@@ -548,6 +607,8 @@ export interface GatewayLogEntry {
   logged_in: boolean;
   auth_required: boolean;
   auth_decision?: string;
+  auth_rule_group_id?: string;
+  auth_grant_state?: string;
   auth_credential_id?: string;
   auth_credential_name?: string;
   auth_credential_method?: string;

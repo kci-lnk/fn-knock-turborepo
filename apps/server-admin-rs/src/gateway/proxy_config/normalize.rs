@@ -302,6 +302,44 @@ pub(super) fn normalize_host_mappings_for_route(
         object.insert("protocol_mode".to_string(), Value::String(protocol_mode));
         object.insert("basic_auth".to_string(), normalized_basic_auth);
         object.insert("locations".to_string(), Value::Array(locations));
+        let mut advanced_auth = previous
+            .and_then(|value| value.get("advanced_auth"))
+            .cloned()
+            .unwrap_or_else(|| {
+                json!({
+                    "enabled": false,
+                    "idle_ttl_seconds": 86_400,
+                    "max_lifetime_seconds": 2_592_000,
+                    "policy_version": uuid::Uuid::new_v4().to_string(),
+                    "groups": [],
+                })
+            });
+        if service_role == "auth" {
+            advanced_auth = json!({
+                "enabled": false,
+                "idle_ttl_seconds": 86_400,
+                "max_lifetime_seconds": 2_592_000,
+                "policy_version": uuid::Uuid::new_v4().to_string(),
+                "groups": [],
+            });
+        } else {
+            let should_disable_advanced_auth = !object
+                .get("use_auth")
+                .and_then(Value::as_bool)
+                .unwrap_or(true)
+                && advanced_auth
+                    .get("enabled")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false);
+            if should_disable_advanced_auth && let Some(config) = advanced_auth.as_object_mut() {
+                config.insert("enabled".to_string(), Value::Bool(false));
+                config.insert(
+                    "policy_version".to_string(),
+                    Value::String(uuid::Uuid::new_v4().to_string()),
+                );
+            }
+        }
+        object.insert("advanced_auth".to_string(), advanced_auth);
         object.insert(
             "service_role".to_string(),
             Value::String(service_role.to_string()),

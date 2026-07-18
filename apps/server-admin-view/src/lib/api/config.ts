@@ -2,6 +2,7 @@ import type { CaptchaSettings } from "@frontend-core/captcha/types";
 
 import type {
   AppConfig,
+  AdvancedAuthConfig,
   AppearanceConfig,
   AuthAccount,
   AuthCredentialSettings,
@@ -83,6 +84,12 @@ export interface RevisionedConfig {
 export interface RevisionedHostMappings {
   mappings: HostMapping[];
   revision: string | null;
+}
+
+export interface AdvancedAuthDetails {
+  host: string;
+  revision: string | null;
+  advanced_auth: AdvancedAuthConfig;
 }
 
 export type {
@@ -284,6 +291,28 @@ export const ConfigAPI = {
       mappings: res.data.data,
       revision: hostMappingsRevisionFromHeaders(res.headers),
     };
+  },
+  async getAdvancedAuth(host: string): Promise<AdvancedAuthDetails> {
+    const res = await apiClient.get(
+      `/config/host_mappings/${encodeURIComponent(host)}/advanced_auth`,
+    );
+    return res.data.data;
+  },
+  async updateAdvancedAuth(
+    host: string,
+    revision: string | null,
+    advancedAuth: AdvancedAuthConfig,
+    acknowledgeBroadRules = false,
+  ): Promise<AdvancedAuthDetails> {
+    const res = await apiClient.put(
+      `/config/host_mappings/${encodeURIComponent(host)}/advanced_auth`,
+      {
+        revision: revision || undefined,
+        advanced_auth: advancedAuth,
+        acknowledge_broad_rules: acknowledgeBroadRules,
+      },
+    );
+    return res.data.data;
   },
   async refreshAllHostMappingTitles(): Promise<HostMappingRefreshSummary> {
     const res = await apiClient.post("/config/host_mappings/refresh_titles");

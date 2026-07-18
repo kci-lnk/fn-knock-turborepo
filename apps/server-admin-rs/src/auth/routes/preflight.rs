@@ -1,3 +1,4 @@
+use super::subdomain_grant;
 use super::*;
 
 const EXPIRED_SESSION_BACKGROUND_CLEANUP_TIMEOUT: std::time::Duration =
@@ -62,6 +63,26 @@ pub(super) async fn apply_preflight_behavior_with_normal_access(
 ) -> anyhow::Result<()> {
     let forwarded_path = preflight_forwarded_path(headers);
     let mut share_decision_handled = false;
+    let strict_whitelist_denied = if access_mode == RequestedAccessMode::StrictWhitelist {
+        match has_preflight_whitelist_access(state, client_ip).await {
+            Ok(allowed) => !allowed,
+            Err(error) => {
+                tracing::warn!(
+                    %error,
+                    %client_ip,
+                    "strict whitelist lookup failed; denying preflight"
+                );
+                true
+            }
+        }
+    } else {
+        false
+    };
+    let active_rule_grant = if !normal_access.authorized && !strict_whitelist_denied {
+        subdomain_grant::inspect_existing(state, headers, config).await?
+    } else {
+        None
+    };
 
     if normal_access.invalid_session_cookie {
         for domain in resolve_cookie_clear_domains(Some(config), headers) {
@@ -73,18 +94,19 @@ pub(super) async fn apply_preflight_behavior_with_normal_access(
         }
     }
 
-    if normal_access.deny_reason.as_deref() == Some(REAUTH_SCOPE_DENIED) {
+    if strict_whitelist_denied {
+        response
+            .headers_mut()
+            .insert("X-Option", HeaderValue::from_static("Deny"));
+    } else if active_rule_grant.is_some() {
+        // A previously issued grant is already bound to this host and policy;
+        // it is intentionally independent of the current rule inputs.
+    } else if normal_access.deny_reason.as_deref() == Some(REAUTH_SCOPE_DENIED) {
         insert_preflight_headers(response, &normal_access.response_headers);
         response.headers_mut().insert(
             REAUTH_ACCESS_DENIED_HEADER,
             HeaderValue::from_static(REAUTH_SCOPE_DENIED),
         );
-    } else if access_mode == RequestedAccessMode::StrictWhitelist
-        && !has_preflight_whitelist_access(state, client_ip).await?
-    {
-        response
-            .headers_mut()
-            .insert("X-Option", HeaderValue::from_static("Deny"));
     } else if !normal_access.authorized {
         let decision = fnos_share_bypass::resolve_preflight(state, headers, uri, config).await?;
         share_decision_handled = decision.handled;

@@ -52,6 +52,12 @@ const router = createRouter({
           component: () => import("../views/SubdomainProxy.vue"),
         },
         {
+          path: "subdomains/:host/advanced-auth",
+          name: "SubdomainAdvancedAuth",
+          component: () =>
+            import("../views/subdomain-proxy/SubdomainAdvancedAuth.vue"),
+        },
+        {
           path: "streams",
           name: "StreamMappings",
           component: () => import("../views/StreamMappings.vue"),
@@ -227,6 +233,7 @@ router.beforeEach(async (to, from) => {
     to.path !== "/streams" &&
     to.path !== "/proxy" &&
     to.path !== "/subdomains" &&
+    !to.path.startsWith("/subdomains/") &&
     to.path !== "/terminal" &&
     to.path !== "/ssh-security" &&
     to.path !== "/tunnel" &&
@@ -262,7 +269,10 @@ router.beforeEach(async (to, from) => {
     return isSubdomainRoutingMode ? "/subdomains" : "/whitelist";
   }
 
-  if (to.path === "/subdomains" && !isSubdomainRoutingMode) {
+  if (
+    (to.path === "/subdomains" || to.path.startsWith("/subdomains/")) &&
+    !isSubdomainRoutingMode
+  ) {
     return configStore.config?.run_type === 1 ? "/proxy" : "/whitelist";
   }
 

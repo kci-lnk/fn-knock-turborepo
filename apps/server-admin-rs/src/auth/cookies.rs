@@ -7,6 +7,7 @@ pub const ADMIN_PANEL_SESSION_COOKIE_NAME: &str = "fn-knock-admin-panel-session"
 pub const FNOS_SHARE_SESSION_COOKIE_NAME: &str = "fn-knock-fnos-share-session";
 pub const OIDC_LOGIN_ERROR_COOKIE_NAME: &str = "fn-knock-oidc-login-error";
 pub const OIDC_FLOW_COOKIE_NAME: &str = "fn-knock-oidc-flow";
+pub const SUBDOMAIN_RULE_GRANT_COOKIE_NAME: &str = "fn-knock-subdomain-rule-grant";
 
 pub fn read_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
     let cookie = headers.get(axum::http::header::COOKIE)?.to_str().ok()?;
@@ -21,6 +22,37 @@ pub fn read_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
         }
     }
     None
+}
+
+/// Return a copy of request headers with one cookie name removed.  Auth shell
+/// endpoints use this for the host-only rule grant: a temporary business
+/// credential must never make `/__auth__/bootstrap` or `/session` look like a
+/// system login, while logout deliberately keeps the original headers so it
+/// can revoke the server-side record.
+pub fn without_cookie(headers: &HeaderMap, name: &str) -> HeaderMap {
+    let mut copy = headers.clone();
+    let values = headers
+        .get_all(axum::http::header::COOKIE)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(|value| value.split(';'))
+        .filter_map(|segment| {
+            let trimmed = segment.trim();
+            let (key, _) = trimmed.split_once('=')?;
+            (key.trim() != name).then_some(trimmed.to_string())
+        })
+        .collect::<Vec<_>>();
+    copy.remove(axum::http::header::COOKIE);
+    if !values.is_empty() {
+        copy.insert(
+            axum::http::header::COOKIE,
+            values
+                .join("; ")
+                .parse()
+                .unwrap_or_else(|_| axum::http::HeaderValue::from_static("")),
+        );
+    }
+    copy
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -130,6 +162,17 @@ pub fn fnos_share_session_cookie(session_id: &str, max_age: i64, domain: Option<
         true,
         session_cookie_secure(true),
         session_cookie_same_site(),
+    )
+}
+
+pub fn subdomain_rule_clear_cookie() -> String {
+    build_clear_cookie(
+        SUBDOMAIN_RULE_GRANT_COOKIE_NAME,
+        "/",
+        None,
+        true,
+        session_cookie_secure(true),
+        "Lax",
     )
 }
 
@@ -305,6 +348,25 @@ mod tests {
             read_cookie(&headers, SESSION_COOKIE_NAME).as_deref(),
             Some(" abc")
         );
+    }
+
+    #[test]
+    fn without_cookie_keeps_normal_credentials_and_removes_only_named_cookie() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::COOKIE,
+            HeaderValue::from_static(
+                "x-go-reauth-proxy-session-id=session; fn-knock-subdomain-rule-grant=grant",
+            ),
+        );
+        let filtered = without_cookie(&headers, SUBDOMAIN_RULE_GRANT_COOKIE_NAME);
+        assert_eq!(
+            filtered
+                .get(header::COOKIE)
+                .and_then(|value| value.to_str().ok()),
+            Some("x-go-reauth-proxy-session-id=session")
+        );
+        assert!(read_cookie(&filtered, SUBDOMAIN_RULE_GRANT_COOKIE_NAME).is_none());
     }
 
     #[test]

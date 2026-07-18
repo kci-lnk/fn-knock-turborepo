@@ -75,7 +75,10 @@ async fn run_auth_bridge_once(state: AppState, shutdown: &CancellationToken) -> 
         request_id: String::new(),
         payload: Some(auth_bridge_envelope::Payload::Ready(AuthBridgeReady {
             instance_id: Uuid::new_v4().to_string(),
-            capabilities: vec![AUTHORIZE_HTTP_V1_CAPABILITY.to_string()],
+            capabilities: vec![
+                AUTHORIZE_HTTP_V1_CAPABILITY.to_string(),
+                "subdomain_rule_grant_v1".to_string(),
+            ],
         })),
     })
     .await
@@ -227,13 +230,35 @@ async fn handle_authorize_http(
                 tracing::warn!(%error, "auth bridge authorize HTTP preflight failed");
             }
         }
-        let preflight = preflight_auth_response_from_http(&preflight);
+        let mut preflight = preflight_auth_response_from_http(&preflight);
         preflight_rejected = preflight_rejects_request(&preflight);
+        // A validated subdomain-rule match may proceed to the verify stage so
+        // Rust can issue the host-only grant. Protective preflight denials
+        // (blacklist/WAF/strict whitelist) remain fail-closed.
+        if preflight_rejected
+            && request
+                .subdomain_rule_match
+                .as_ref()
+                .is_some_and(|matched| {
+                    subdomain_grant::match_is_valid(
+                        &config,
+                        resolve_request_hostname_from_headers(&headers)
+                            .as_deref()
+                            .unwrap_or(""),
+                        matched,
+                    )
+                })
+            && !preflight.deny
+        {
+            preflight_rejected = false;
+            preflight.redirect_location.clear();
+            preflight.access_denied_reason.clear();
+        }
         response.preflight = Some(preflight);
     }
 
     if run_verify && !preflight_rejected {
-        match resolve_auth_access_with_normal_access(
+        match resolve_auth_access_with_normal_access_and_rule_match(
             &state,
             &headers,
             &uri,
@@ -241,6 +266,7 @@ async fn handle_authorize_http(
             &config,
             &client_ip,
             &normal_access,
+            request.subdomain_rule_match.as_ref(),
         )
         .await
         {
@@ -310,15 +336,60 @@ fn verify_auth_response_from_access(access: AuthAccess) -> VerifyAuthResponse {
     } else {
         auth_verify_denied_status(&access)
     };
+    let grant_type = access.grant_type.as_deref();
+    let is_rule_grant = matches!(grant_type, Some("subdomain_rule" | "subdomain_rule_login"));
+    let rule_group = access.response_headers.iter().find_map(|(key, value)| {
+        key.eq_ignore_ascii_case("X-Reauth-Auth-Rule-Group")
+            .then_some(value.clone())
+    });
+    let grant_state = access.response_headers.iter().find_map(|(key, value)| {
+        key.eq_ignore_ascii_case("X-Reauth-Auth-Grant-State")
+            .then_some(value.clone())
+    });
+    let rule_cache_max_age = access.response_headers.iter().find_map(|(key, value)| {
+        key.eq_ignore_ascii_case("X-Reauth-Auth-Cache-Max-Age")
+            .then(|| value.trim().parse::<i32>().ok())
+            .flatten()
+    });
     VerifyAuthResponse {
         success: access.authenticated,
         message: access.message,
         status: status.as_u16() as i32,
         set_cookies: access.set_cookies,
-        suppress_toolbar: access.grant_type.as_deref() == Some("fnos_share"),
+        suppress_toolbar: is_rule_grant || grant_type == Some("fnos_share"),
         redirect_location: String::new(),
         access_denied_reason: access.deny_reason.unwrap_or_default(),
         response_headers: headers_from_pairs(&access.response_headers),
+        grant_kind: auth_grant_kind(grant_type),
+        decision: auth_decision(grant_type, access.authenticated),
+        login_authenticated: grant_type != Some("subdomain_rule"),
+        host_authorized: access.authenticated,
+        cache_max_age_seconds: if is_rule_grant {
+            rule_cache_max_age.unwrap_or(0).clamp(0, 60)
+        } else {
+            0
+        },
+        auth_rule_group_id: rule_group.unwrap_or_default(),
+        auth_grant_state: grant_state.unwrap_or_default(),
+    }
+}
+
+fn auth_grant_kind(grant_type: Option<&str>) -> i32 {
+    match grant_type {
+        Some("fnos_share") => crate::grpc_proto::AuthGrantKind::FnosShare as i32,
+        Some("subdomain_rule" | "subdomain_rule_login") => {
+            crate::grpc_proto::AuthGrantKind::SubdomainRule as i32
+        }
+        Some(_) => crate::grpc_proto::AuthGrantKind::Login as i32,
+        None => crate::grpc_proto::AuthGrantKind::Unspecified as i32,
+    }
+}
+
+fn auth_decision(grant_type: Option<&str>, authenticated: bool) -> String {
+    match grant_type {
+        Some("subdomain_rule" | "subdomain_rule_login") => "subdomain_rule_allowed".to_string(),
+        Some("fnos_share") | Some(_) if authenticated => "passed".to_string(),
+        _ => String::new(),
     }
 }
 
@@ -332,6 +403,13 @@ fn verify_auth_error_response(translator: &Translator) -> VerifyAuthResponse {
         redirect_location: String::new(),
         access_denied_reason: String::new(),
         response_headers: Vec::new(),
+        grant_kind: crate::grpc_proto::AuthGrantKind::Unspecified as i32,
+        decision: String::new(),
+        login_authenticated: false,
+        host_authorized: false,
+        cache_max_age_seconds: 0,
+        auth_rule_group_id: String::new(),
+        auth_grant_state: String::new(),
     }
 }
 

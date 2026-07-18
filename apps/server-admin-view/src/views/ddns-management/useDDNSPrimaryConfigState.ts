@@ -7,23 +7,23 @@ import {
 } from "./model";
 
 interface UseDDNSPrimaryConfigStateOptions {
+  confirmProviderChange: () => Promise<boolean>;
   loadConfig: () => Promise<unknown>;
   providerConfig: Ref<Record<string, string>>;
   providers: Ref<Provider[]>;
   savedProvider: Ref<string>;
   savedProviderConfig: Ref<Record<string, string>>;
   selectedProvider: Ref<string>;
-  translate: (key: string) => string;
 }
 
 export function useDDNSPrimaryConfigState({
+  confirmProviderChange,
   loadConfig,
   providerConfig,
   providers,
   savedProvider,
   savedProviderConfig,
   selectedProvider,
-  translate,
 }: UseDDNSPrimaryConfigStateOptions) {
   const currentProviderDef = computed(() =>
     findProviderDef(providers.value, selectedProvider.value),
@@ -51,10 +51,7 @@ export function useDDNSPrimaryConfigState({
 
   async function onProviderChange(value: string) {
     if (!value || value === selectedProvider.value) return;
-    if (
-      isPrimaryConfigValueDirty.value &&
-      !window.confirm(translate("admin.ddns.unsavedSwitchProviderConfirm"))
-    ) {
+    if (isPrimaryConfigValueDirty.value && !(await confirmProviderChange())) {
       return;
     }
     selectedProvider.value = value;

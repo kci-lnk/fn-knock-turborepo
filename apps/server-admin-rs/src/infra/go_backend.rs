@@ -14,15 +14,16 @@ use tonic_health::pb::{
 
 use crate::app_version::APP_LOCAL_VERSION;
 use crate::grpc_proto::{
-    AuthConfig, BasicAuthConfig, BoolValue, CommonLocationExemptionsRuntime, CrawlerBlockerConfig,
-    FnosPortIconHijackConfig, GatewayListenerConfig, GatewayLogQuery, GatewayPortalConfig,
-    GatewayVisibilityConfig, GeneralBlacklistListRequest, HostActiveIpStats, HostLocation,
-    HostLocationResponse, HostRequest, HostRule, HostRuleAvailability, HostRuleVisibility,
-    HostRules, IpListRequest, IpRequest, IptablesInitRequest, LocaleConfig, LoggingConfig,
-    OmitTargetsConfig, ReverseProxyThrottleConfig, ReverseProxyThrottleExemptIpsRuntime, Rule,
-    Rules, SshFirewallClearRequest, SshFirewallSyncRequest, SslConfig, SslDeployedCertificate,
-    StreamRule, StreamRules, StringValue, TcpRedirectRequest, WafBundleRequest, WafConfig,
-    WafDrainRequest, firewall_service_client::FirewallServiceClient,
+    AdvancedAuthCondition, AdvancedAuthConfig, AdvancedAuthGroup, AuthConfig, BasicAuthConfig,
+    BoolValue, CommonLocationExemptionsRuntime, CrawlerBlockerConfig, FnosPortIconHijackConfig,
+    GatewayListenerConfig, GatewayLogQuery, GatewayPortalConfig, GatewayVisibilityConfig,
+    GeneralBlacklistListRequest, HostActiveIpStats, HostLocation, HostLocationResponse,
+    HostRequest, HostRule, HostRuleAvailability, HostRuleVisibility, HostRules, IpListRequest,
+    IpRequest, IptablesInitRequest, LocaleConfig, LoggingConfig, OmitTargetsConfig,
+    ReverseProxyThrottleConfig, ReverseProxyThrottleExemptIpsRuntime, Rule, Rules,
+    SshFirewallClearRequest, SshFirewallSyncRequest, SslConfig, SslDeployedCertificate, StreamRule,
+    StreamRules, StringValue, TcpRedirectRequest, WafBundleRequest, WafConfig, WafDrainRequest,
+    firewall_service_client::FirewallServiceClient,
     gateway_control_service_client::GatewayControlServiceClient,
     gateway_logs_service_client::GatewayLogsServiceClient,
     security_service_client::SecurityServiceClient, ssl_service_client::SslServiceClient,
@@ -1172,6 +1173,94 @@ fn parse_host_rule_visibility(value: Option<&Value>) -> Option<HostRuleVisibilit
     })
 }
 
+fn string_array(value: Option<&Value>) -> Vec<String> {
+    value
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(ToString::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn parse_advanced_auth(value: Option<&Value>) -> Option<AdvancedAuthConfig> {
+    let value = value?.as_object()?;
+    let groups = value
+        .get("groups")
+        .and_then(Value::as_array)
+        .map(|groups| {
+            groups
+                .iter()
+                .filter_map(Value::as_object)
+                .map(|group| AdvancedAuthGroup {
+                    id: group
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_string(),
+                    conditions: group
+                        .get("conditions")
+                        .and_then(Value::as_array)
+                        .map(|conditions| {
+                            conditions
+                                .iter()
+                                .filter_map(Value::as_object)
+                                .map(|condition| AdvancedAuthCondition {
+                                    id: condition
+                                        .get("id")
+                                        .and_then(Value::as_str)
+                                        .unwrap_or_default()
+                                        .to_string(),
+                                    target: condition
+                                        .get("target")
+                                        .and_then(Value::as_str)
+                                        .unwrap_or_default()
+                                        .to_string(),
+                                    operator: condition
+                                        .get("operator")
+                                        .and_then(Value::as_str)
+                                        .unwrap_or_default()
+                                        .to_string(),
+                                    name: condition
+                                        .get("name")
+                                        .and_then(Value::as_str)
+                                        .unwrap_or_default()
+                                        .to_string(),
+                                    values: string_array(condition.get("values")),
+                                    cidrs: string_array(condition.get("cidrs")),
+                                })
+                                .collect()
+                        })
+                        .unwrap_or_default(),
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    Some(AdvancedAuthConfig {
+        enabled: value
+            .get("enabled")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        idle_ttl_seconds: value
+            .get("idle_ttl_seconds")
+            .and_then(Value::as_i64)
+            .unwrap_or(0),
+        max_lifetime_seconds: value
+            .get("max_lifetime_seconds")
+            .and_then(Value::as_i64)
+            .unwrap_or(0),
+        policy_version: value
+            .get("policy_version")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        groups,
+    })
+}
+
 fn parse_host_rules(value: &Value) -> Vec<HostRule> {
     value
         .as_array()
@@ -1191,6 +1280,7 @@ fn parse_host_rules(value: &Value) -> Vec<HostRule> {
                         .get("availability")
                         .and_then(parse_host_rule_availability),
                     visibility: parse_host_rule_visibility(item.get("visibility")),
+                    advanced_auth: parse_advanced_auth(item.get("advanced_auth")),
                     protocol_mode: string_field(item, "protocol_mode"),
                     title: string_field(item, "title"),
                     favicon: string_field(item, "favicon"),
@@ -1410,6 +1500,29 @@ fn host_rule_availability_to_json(availability: Option<HostRuleAvailability>) ->
     }
 }
 
+fn advanced_auth_to_json(config: Option<AdvancedAuthConfig>) -> Value {
+    let Some(config) = config else {
+        return Value::Null;
+    };
+    json!({
+        "enabled": config.enabled,
+        "idle_ttl_seconds": config.idle_ttl_seconds,
+        "max_lifetime_seconds": config.max_lifetime_seconds,
+        "policy_version": config.policy_version,
+        "groups": config.groups.into_iter().map(|group| json!({
+            "id": group.id,
+            "conditions": group.conditions.into_iter().map(|condition| json!({
+                "id": condition.id,
+                "target": condition.target,
+                "operator": condition.operator,
+                "name": condition.name,
+                "values": condition.values,
+                "cidrs": condition.cidrs,
+            })).collect::<Vec<_>>(),
+        })).collect::<Vec<_>>(),
+    })
+}
+
 fn host_rules_to_json(items: Vec<HostRule>) -> Value {
     Value::Array(
         items
@@ -1429,6 +1542,7 @@ fn host_rules_to_json(items: Vec<HostRule>) -> Value {
                         "mode": visibility.mode,
                         "cidrs": visibility.cidrs,
                     })).unwrap_or_else(|| json!({ "mode": "inherit", "cidrs": [] })),
+                    "advanced_auth": advanced_auth_to_json(item.advanced_auth),
                     "protocol_mode": item.protocol_mode,
                     "title": item.title,
                     "favicon": item.favicon,

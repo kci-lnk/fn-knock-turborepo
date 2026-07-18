@@ -184,6 +184,79 @@ impl Store {
         Ok(())
     }
 
+    /// Atomically increment a short-lived counter and attach its window TTL.
+    ///
+    /// This is intentionally kept in the storage layer so the production
+    /// Redis backend and the SQLite compatibility backend share the exact same
+    /// rate-limit semantics.  The first increment owns the expiry; subsequent
+    /// increments only update the value.
+    pub async fn increment_counter_with_ttl(
+        &self,
+        key: &str,
+        ttl_seconds: i64,
+    ) -> crate::storage::StorageResult<i64> {
+        let mut conn = self.conn();
+        let script = r#"
+-- fn-knock:eval:increment-counter-with-ttl:v1
+local count = redis.call("INCR", KEYS[1])
+if count == 1 then
+  redis.call("EXPIRE", KEYS[1], ARGV[1])
+end
+return count
+"#;
+        redis::cmd("EVAL")
+            .arg(script)
+            .arg(1)
+            .arg(key)
+            .arg(ttl_seconds.max(1))
+            .query_async(&mut conn)
+            .await
+    }
+
+    /// Store an expiring string and track it in a sorted-set expiry index,
+    /// refusing new members once the live index reaches `limit`.
+    ///
+    /// Existing data keys may always be refreshed so reaching the cap does not
+    /// invalidate grants that have already been issued.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn set_expiring_string_with_zset_limit(
+        &self,
+        data_key: &str,
+        value: &str,
+        ttl_seconds: i64,
+        index_key: &str,
+        now_score: i64,
+        expires_at_score: i64,
+        limit: i64,
+    ) -> crate::storage::StorageResult<bool> {
+        let mut conn = self.conn();
+        let script = r#"
+-- fn-knock:eval:set-expiring-string-with-zset-limit:v1
+redis.call("ZREMRANGEBYSCORE", KEYS[2], "-inf", ARGV[3])
+local tracked = redis.call("ZSCORE", KEYS[2], KEYS[1])
+local existing = redis.call("EXISTS", KEYS[1])
+if not tracked and existing == 0 and redis.call("ZCARD", KEYS[2]) >= tonumber(ARGV[5]) then
+  return 0
+end
+redis.call("SET", KEYS[1], ARGV[1], "EX", ARGV[2])
+redis.call("ZADD", KEYS[2], ARGV[4], KEYS[1])
+return 1
+"#;
+        let stored: i64 = redis::cmd("EVAL")
+            .arg(script)
+            .arg(2)
+            .arg(data_key)
+            .arg(index_key)
+            .arg(value)
+            .arg(ttl_seconds.max(1))
+            .arg(now_score)
+            .arg(expires_at_score)
+            .arg(limit.max(1))
+            .query_async(&mut conn)
+            .await?;
+        Ok(stored == 1)
+    }
+
     pub async fn set_string_value(
         &self,
         key: &str,

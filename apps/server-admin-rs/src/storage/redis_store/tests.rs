@@ -681,6 +681,109 @@ async fn every_application_eval_operation_runs_on_sqlite() {
         .await
         .expect("open store");
 
+    assert_eq!(
+        store
+            .increment_counter_with_ttl("fn_knock:test:counter", 60)
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        store
+            .increment_counter_with_ttl("fn_knock:test:counter", 60)
+            .await
+            .unwrap(),
+        2
+    );
+    let mut counter_conn = store.conn();
+    assert!(counter_conn.ttl("fn_knock:test:counter").await.unwrap() > 0);
+
+    assert!(
+        store
+            .set_expiring_string_with_zset_limit(
+                "fn_knock:test:limited:one",
+                "one",
+                60,
+                "fn_knock:test:limited:index",
+                100,
+                160,
+                2,
+            )
+            .await
+            .unwrap()
+    );
+    assert!(
+        store
+            .set_expiring_string_with_zset_limit(
+                "fn_knock:test:limited:two",
+                "two",
+                60,
+                "fn_knock:test:limited:index",
+                100,
+                160,
+                2,
+            )
+            .await
+            .unwrap()
+    );
+    assert!(
+        !store
+            .set_expiring_string_with_zset_limit(
+                "fn_knock:test:limited:three",
+                "three",
+                60,
+                "fn_knock:test:limited:index",
+                100,
+                160,
+                2,
+            )
+            .await
+            .unwrap()
+    );
+    assert!(
+        store
+            .set_expiring_string_with_zset_limit(
+                "fn_knock:test:limited:one",
+                "renewed",
+                60,
+                "fn_knock:test:limited:index",
+                100,
+                180,
+                2,
+            )
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        store
+            .get_string_value("fn_knock:test:limited:one")
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("renewed")
+    );
+    assert_eq!(
+        store
+            .get_string_value("fn_knock:test:limited:three")
+            .await
+            .unwrap(),
+        None
+    );
+    assert!(
+        store
+            .set_expiring_string_with_zset_limit(
+                "fn_knock:test:limited:three",
+                "after-expiry",
+                60,
+                "fn_knock:test:limited:index",
+                181,
+                241,
+                2,
+            )
+            .await
+            .unwrap()
+    );
+
     store
         .set_string_value("fn_knock:test:compare", "owner")
         .await

@@ -52,6 +52,15 @@ const BACKUP_EXCLUDED_KEY_PREFIXES: &[&str] = &[
     "fn_knock:auth_log_data:",
     "fn_knock:auth_logs:",
     "fn_knock:auth_mobility:",
+    // Per-host temporary grants are revocable runtime credentials, never
+    // backup material.  Keeping this prefix excluded also prevents an
+    // imported archive from resurrecting a grant issued before restore.
+    "fn_knock:auth:subdomain_rule_grant:",
+    // The per-host expiry index contains runtime credential metadata and may
+    // otherwise restore orphan members without their excluded grant records.
+    "fn_knock:auth:subdomain_rule_grant_active:",
+    // Sliding-window issuance counters are runtime state as well.
+    "fn_knock:auth:subdomain_rule_rate:",
     "fn_knock:backoff:",
     "fn_knock:cidr:",
     "fn_knock:cloudflared:logs",

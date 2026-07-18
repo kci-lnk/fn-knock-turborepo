@@ -3267,7 +3267,7 @@ dependencies = [
 
 [[package]]
 name = "server-admin-rs"
-version = "2.0.7"
+version = "2.0.8"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3292,6 +3292,7 @@ dependencies = [
  "rand 0.9.4",
  "rcgen",
  "redis",
+ "regex",
  "reqwest",
  "rustls",
  "scrypt 0.12.0",

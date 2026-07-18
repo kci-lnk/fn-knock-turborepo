@@ -169,7 +169,53 @@
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
-      <Badge v-else variant="secondary">
+
+      <TooltipProvider v-if="mapping.advanced_auth?.enabled === true">
+        <Tooltip
+          :open="isMappingStatusTooltipOpen(mapping.host, 'advanced-auth')"
+          @update:open="
+            (nextOpen) =>
+              handleMappingStatusTooltipOpenChange(
+                mapping.host,
+                'advanced-auth',
+                nextOpen,
+              )
+          "
+        >
+          <TooltipTrigger as-child>
+            <button
+              type="button"
+              class="inline-flex h-5 w-5 shrink-0 cursor-help items-center justify-center rounded-md text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+              :aria-label="
+                t('admin.subdomainProxy.advancedAuthEnabledAria', {
+                  host: formatHost(mapping.host),
+                })
+              "
+              @click="
+                handleMappingStatusTooltipTriggerClick(
+                  mapping.host,
+                  'advanced-auth',
+                )
+              "
+            >
+              <ShieldOff class="h-3.5 w-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top" align="center">
+            <p>
+              {{
+                t('admin.subdomainProxy.advancedAuthEnabledTooltip', {
+                  groups: mapping.advanced_auth.groups.length,
+                  idle: formatDuration(
+                    mapping.advanced_auth.idle_ttl_seconds,
+                  ),
+                })
+              }}
+            </p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+      <Badge v-if="!mapping.use_auth" variant="secondary">
         {{ t("admin.subdomainProxy.publicAccess") }}
       </Badge>
 
@@ -362,6 +408,7 @@ import {
   Route as RouteIcon,
   ScanEye,
   ShieldCheck,
+  ShieldOff,
   Star,
 } from "lucide-vue-next";
 import { Badge } from "@/components/ui/badge";
@@ -422,4 +469,15 @@ const shouldShowToolbarIndicator = computed(
     !props.mapping.suppress_toolbar &&
     !isWebSocketProxyTargetUrl(props.mapping.target),
 );
+
+const formatDuration = (seconds: number): string => {
+  const totalMinutes = Math.max(1, Math.round(seconds / 60));
+  if (totalMinutes % (24 * 60) === 0) {
+    return `${totalMinutes / (24 * 60)}d`;
+  }
+  if (totalMinutes % 60 === 0) {
+    return `${totalMinutes / 60}h`;
+  }
+  return `${totalMinutes}m`;
+};
 </script>

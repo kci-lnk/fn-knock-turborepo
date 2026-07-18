@@ -67,6 +67,8 @@ pub(super) fn ensure_go_host_protocol_modes_applied(
     let echoed_modes = host_protocol_modes_by_host(echoed_payload, "Go backend response")?;
     let requested_visibilities = host_visibilities_by_host(requested)?;
     let echoed_visibilities = host_visibilities_by_host(echoed_payload)?;
+    let requested_advanced_auth = host_advanced_auth_by_host(requested)?;
+    let echoed_advanced_auth = host_advanced_auth_by_host(echoed_payload)?;
     for (host, requested_mode) in &requested_modes {
         let Some(echoed_mode) = echoed_modes.get(host) else {
             return Err(format!(
@@ -91,6 +93,20 @@ pub(super) fn ensure_go_host_protocol_modes_applied(
                 "Go backend did not apply host visibility for {host}; upgrade the gateway backend"
             ));
         }
+        if let Some(requested_policy) = requested_advanced_auth.get(host)
+            && requested_policy
+                .get("enabled")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+            && echoed_advanced_auth
+                .get(host)
+                .map(gateway_advanced_auth_projection)
+                != Some(gateway_advanced_auth_projection(requested_policy))
+        {
+            return Err(format!(
+                "Go backend did not apply advanced authentication for {host}; upgrade the gateway backend"
+            ));
+        }
     }
     let mut unexpected_hosts = echoed_modes
         .keys()
@@ -103,6 +119,85 @@ pub(super) fn ensure_go_host_protocol_modes_applied(
         ));
     }
     Ok(())
+}
+
+/// The protobuf deliberately carries only fields the gateway evaluates.  A
+/// persisted control-plane policy also contains CIDR selector metadata
+/// (`selections`, source fingerprint and compile time), which the gateway
+/// cannot echo.  Compare this stable projection instead of rejecting every
+/// region-backed policy during the runtime transaction.
+fn gateway_advanced_auth_projection(value: &Value) -> Value {
+    let Some(object) = value.as_object() else {
+        return Value::Null;
+    };
+    let groups = object
+        .get("groups")
+        .and_then(Value::as_array)
+        .map(|groups| {
+            groups
+                .iter()
+                .filter_map(Value::as_object)
+                .map(|group| {
+                    let conditions = group
+                        .get("conditions")
+                        .and_then(Value::as_array)
+                        .map(|conditions| {
+                            conditions
+                                .iter()
+                                .filter_map(Value::as_object)
+                                .map(|condition| {
+                                    json!({
+                                        "id": condition.get("id").cloned().unwrap_or(Value::String(String::new())),
+                                        "target": condition.get("target").cloned().unwrap_or(Value::String(String::new())),
+                                        "operator": condition.get("operator").cloned().unwrap_or(Value::String(String::new())),
+                                        "name": condition.get("name").cloned().unwrap_or(Value::String(String::new())),
+                                        // Go normalizes empty slices to nil in
+                                        // protobuf and emits JSON null; treat
+                                        // null and [] as the same semantic
+                                        // value for an omitted field.
+                                        "values": gateway_list_value(condition.get("values")),
+                                        "cidrs": gateway_list_value(condition.get("cidrs")),
+                                    })
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                        .unwrap_or_default();
+                    json!({
+                        "id": group.get("id").cloned().unwrap_or(Value::String(String::new())),
+                        "conditions": conditions,
+                    })
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    json!({
+        "enabled": object.get("enabled").cloned().unwrap_or(Value::Bool(false)),
+        "idle_ttl_seconds": object.get("idle_ttl_seconds").cloned().unwrap_or(Value::from(0)),
+        "max_lifetime_seconds": object.get("max_lifetime_seconds").cloned().unwrap_or(Value::from(0)),
+        "policy_version": object.get("policy_version").cloned().unwrap_or(Value::String(String::new())),
+        "groups": groups,
+    })
+}
+
+fn gateway_list_value(value: Option<&Value>) -> Value {
+    match value {
+        Some(Value::Array(values)) if values.is_empty() => Value::Null,
+        Some(value) => value.clone(),
+        None => Value::Null,
+    }
+}
+
+fn host_advanced_auth_by_host(value: &Value) -> Result<HashMap<String, Value>, String> {
+    let items = value
+        .as_array()
+        .ok_or_else(|| "Host-rules advanced-auth payload must be an array".to_string())?;
+    let mut policies = HashMap::with_capacity(items.len());
+    for item in items {
+        let host = normalize_host_value(item.get("host").and_then(Value::as_str).unwrap_or(""));
+        let policy = item.get("advanced_auth").cloned().unwrap_or(Value::Null);
+        policies.insert(host, policy);
+    }
+    Ok(policies)
 }
 
 fn host_visibilities_by_host(

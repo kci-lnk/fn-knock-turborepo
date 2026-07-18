@@ -922,6 +922,13 @@ pub(super) async fn logout(
     headers: HeaderMap,
     uri: Uri,
 ) -> Response {
+    let grant_revoke_failed =
+        if let Err(error) = super::subdomain_grant::revoke(&state, &headers).await {
+            tracing::warn!(%error, "failed to revoke subdomain rule grant on logout");
+            true
+        } else {
+            false
+        };
     let config = match state.store.get_config().await {
         Ok(config) => Some(config),
         Err(error) => {
@@ -984,9 +991,16 @@ pub(super) async fn logout(
     }
 
     let cookie_domains = resolve_cookie_clear_domains(config.as_ref(), &headers);
-    let mut response = Response::builder()
-        .status(StatusCode::FOUND)
-        .header(header::LOCATION, post_logout_location(&headers, &uri))
+    let mut response_builder = Response::builder().status(if grant_revoke_failed {
+        StatusCode::SERVICE_UNAVAILABLE
+    } else {
+        StatusCode::FOUND
+    });
+    if !grant_revoke_failed {
+        response_builder =
+            response_builder.header(header::LOCATION, post_logout_location(&headers, &uri));
+    }
+    let mut response = response_builder
         .body(axum::body::Body::empty())
         .unwrap_or_else(|_| Response::new(axum::body::Body::empty()));
     apply_no_store_headers(response.headers_mut());
@@ -1000,6 +1014,13 @@ pub(super) async fn logout(
             response.headers_mut(),
             cookies::fnos_share_clear_cookie(domain.as_deref()),
             "share clear cookie",
+        );
+    }
+    if cookies::read_cookie(&headers, super::subdomain_grant::COOKIE_NAME).is_some() {
+        append_set_cookie_header(
+            response.headers_mut(),
+            super::subdomain_grant::clear_cookie(),
+            "subdomain rule grant clear cookie",
         );
     }
     response

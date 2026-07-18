@@ -9,7 +9,7 @@ use std::{
 
 use axum::{
     Json, Router,
-    extract::State,
+    extract::{Path, State},
     http::{HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -24,6 +24,7 @@ use crate::{
     gateway_settings, i18n::Translator, response, runtime_config, ssl, state::AppState, waf,
 };
 
+mod advanced_auth;
 mod auth_payload;
 mod bookmarks;
 mod metadata_fetch;
@@ -34,6 +35,7 @@ mod normalize;
 mod runtime;
 mod subdomain;
 
+use advanced_auth::*;
 pub(crate) use auth_payload::*;
 use bookmarks::*;
 use metadata_fetch::*;
@@ -687,6 +689,10 @@ pub fn proxy_config_routes() -> Router<AppState> {
         .route(
             "/api/admin/config/host_mappings/basic_auth_probe",
             post(basic_auth_probe),
+        )
+        .route(
+            "/api/admin/config/host_mappings/{host}/advanced_auth",
+            get(get_advanced_auth).put(update_advanced_auth),
         )
         .route(
             "/api/admin/config/host_mappings/metadata",

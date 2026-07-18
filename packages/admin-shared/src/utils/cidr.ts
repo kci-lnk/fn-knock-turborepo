@@ -1,13 +1,13 @@
 const IPV4_SEGMENT_RE = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/;
 const IPV6_SEGMENT_RE = /^[0-9a-f]{1,4}$/i;
 
-const isValidIPv4Address = (value: string): boolean => {
+export const isValidIPv4Address = (value: string): boolean => {
   const parts = value.split(".");
   if (parts.length !== 4) return false;
   return parts.every((part) => IPV4_SEGMENT_RE.test(part));
 };
 
-const isValidIPv6Address = (value: string): boolean => {
+export const isValidIPv6Address = (value: string): boolean => {
   const normalized = value.trim();
   if (!normalized || normalized.includes("%")) {
     return false;

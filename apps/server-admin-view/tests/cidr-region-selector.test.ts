@@ -128,6 +128,16 @@ describe("CIDR region selector", () => {
       "杭州市 · 移动",
     );
     assert.equal(
+      getCidrRegionSelectionLabel({
+        province: "浙江省",
+        city: "杭州市",
+        label: "杭州市",
+        query_city: "杭州市",
+        operator: "电信",
+      }),
+      "杭州市 · 电信",
+    );
+    assert.equal(
       getCidrRegionSelectionLabel(
         {
           province: "浙江省",

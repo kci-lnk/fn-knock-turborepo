@@ -86,6 +86,7 @@
       @open-discover-settings="isScanIntensityDialogOpen = true"
       @open-availability="openAvailabilityDialog"
       @open-gateway-locations="openGatewayLocations"
+      @open-advanced-auth="openAdvancedAuth"
       @open-stale-cleanup="openStaleCleanupDialog"
       @refresh-all-titles="refreshAllTitles"
       @save-order="saveMappingOrder"
@@ -728,6 +729,12 @@ onUnmounted(() => {
 
 function openStaleCleanupDialog() {
   void staleCleanupDialogRef.value?.open();
+}
+
+function openAdvancedAuth(host: string) {
+  void router.push({
+    path: `/subdomains/${encodeURIComponent(host)}/advanced-auth`,
+  });
 }
 
 const saveHostMappingsForCleanup = async (mappings: HostMapping[]) => {

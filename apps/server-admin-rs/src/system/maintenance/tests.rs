@@ -98,6 +98,9 @@ fn filters_backup_keys_like_node() {
     assert!(!should_export_backup_key(
         "fn_knock:config:host_mappings:generation"
     ));
+    assert!(!should_export_backup_key(
+        "fn_knock:auth:subdomain_rule_grant_active:app.example.com"
+    ));
     for prefix in BACKUP_EXCLUDED_KEY_PREFIXES {
         assert!(
             !should_export_backup_key(&format!("{prefix}sample")),

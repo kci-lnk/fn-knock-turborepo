@@ -18,6 +18,7 @@ import {
   Search,
   SlidersHorizontal,
   ShieldCheck,
+  ShieldOff,
   Star,
   StarOff,
   Trash2,
@@ -60,6 +61,7 @@ import type { HostTrafficStats, HostMapping } from "@/types";
 import {
   getMappingDisplayTitle,
   getMappingFaviconSrc,
+  isHttpTargetUrl,
   type HostMappingAvailabilityState,
 } from "./model";
 import type { MappingStatusTooltip } from "./useSubdomainTouchTooltips";
@@ -133,6 +135,7 @@ const emit = defineEmits<{
   "open-discover-settings": [];
   "open-availability": [mapping: HostMapping];
   "open-gateway-locations": [host: string];
+  "open-advanced-auth": [host: string];
   "open-stale-cleanup": [];
   "refresh-all-titles": [];
   "save-order": [];
@@ -597,6 +600,17 @@ const handleMappingTableScroll = (event: Event) => {
                       >
                         <RouteIcon class="mr-2 h-4 w-4" />
                         {{ t("admin.subdomainProxy.paths") }}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        v-if="
+                          !isAuthServiceTarget(mapping.target) &&
+                          mapping.use_auth &&
+                          isHttpTargetUrl(mapping.target)
+                        "
+                        @select="emit('open-advanced-auth', mapping.host)"
+                      >
+                        <ShieldOff class="mr-2 h-4 w-4" />
+                        {{ t("admin.subdomainProxy.advancedAuthConfig") }}
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         v-if="

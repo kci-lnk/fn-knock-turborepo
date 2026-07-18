@@ -40,6 +40,7 @@ mod captcha;
 mod handlers;
 mod preflight;
 mod redirect;
+mod subdomain_grant;
 mod utils;
 mod verify;
 

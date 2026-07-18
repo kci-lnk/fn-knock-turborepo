@@ -1805,6 +1805,99 @@ fn eval_command_tx(tx: &rusqlite::Transaction<'_>, args: &[String]) -> RedisResu
     let keys = &args[keys_start..argv_start];
     let argv = &args[argv_start..];
 
+    if script.contains("fn-knock:eval:increment-counter-with-ttl:v1") {
+        let key = keys
+            .first()
+            .ok_or_else(|| storage_error("counter EVAL key missing"))?;
+        let ttl = parse_i64(
+            argv.first()
+                .ok_or_else(|| storage_error("counter EVAL TTL missing"))?,
+        )?
+        .max(1);
+        let current = string_get_tx(tx, key)?
+            .and_then(|value| value.parse::<i64>().ok())
+            .unwrap_or(0);
+        let next = current
+            .checked_add(1)
+            .ok_or_else(|| storage_error("counter overflow"))?;
+        if next == 1 {
+            set_string_tx(
+                tx,
+                key,
+                &next.to_string(),
+                Some(now_ms().saturating_add(ttl.saturating_mul(1000))),
+            )?;
+        } else {
+            set_string_preserve_ttl_tx(tx, key, &next.to_string())?;
+        }
+        return Ok(CmdOutput::Int(next));
+    }
+
+    if script.contains("fn-knock:eval:set-expiring-string-with-zset-limit:v1") {
+        let data_key = keys
+            .first()
+            .ok_or_else(|| storage_error("limited string EVAL data key missing"))?;
+        let index_key = keys
+            .get(1)
+            .ok_or_else(|| storage_error("limited string EVAL index key missing"))?;
+        let value = argv
+            .first()
+            .ok_or_else(|| storage_error("limited string EVAL value missing"))?;
+        let ttl = parse_i64(
+            argv.get(1)
+                .ok_or_else(|| storage_error("limited string EVAL TTL missing"))?,
+        )?
+        .max(1);
+        let now_score = parse_i64(
+            argv.get(2)
+                .ok_or_else(|| storage_error("limited string EVAL current score missing"))?,
+        )?;
+        let expires_at_score = parse_i64(
+            argv.get(3)
+                .ok_or_else(|| storage_error("limited string EVAL expiry score missing"))?,
+        )?;
+        let limit = parse_i64(
+            argv.get(4)
+                .ok_or_else(|| storage_error("limited string EVAL limit missing"))?,
+        )?
+        .max(1);
+
+        purge_expired_tx(tx, index_key)?;
+        delete_zset_score_range_tx(
+            tx,
+            index_key,
+            ScoreBound::inclusive(f64::NEG_INFINITY),
+            ScoreBound::inclusive(now_score as f64),
+        )?;
+        let tracked = count_rows_tx(
+            tx,
+            "SELECT COUNT(*) FROM kv_zset WHERE key = ?1 AND member = ?2",
+            &[index_key, data_key],
+        )? > 0;
+        let existing = string_get_tx(tx, data_key)?.is_some();
+        let active = count_rows_tx(
+            tx,
+            "SELECT COUNT(*) FROM kv_zset WHERE key = ?1",
+            &[index_key],
+        )?;
+        if !tracked && !existing && active >= limit {
+            return Ok(CmdOutput::Int(0));
+        }
+
+        set_string_tx(
+            tx,
+            data_key,
+            value,
+            Some(now_ms().saturating_add(ttl.saturating_mul(1000))),
+        )?;
+        ensure_key_tx(tx, index_key, "zset", None)?;
+        tx.execute(
+            "INSERT OR REPLACE INTO kv_zset(key, member, score) VALUES (?1, ?2, ?3)",
+            params![index_key, data_key, expires_at_score],
+        )?;
+        return Ok(CmdOutput::Int(1));
+    }
+
     if script.contains("fn-knock:eval:cas-config-host-generation-raw:v1") {
         let config_key = keys
             .first()

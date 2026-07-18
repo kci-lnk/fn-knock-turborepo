@@ -7,6 +7,8 @@ import { DDNSAPI } from "../lib/api";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import DocsLinkButton from "@/components/DocsLinkButton.vue";
+import ConfirmationDialog from "@admin-shared/components/common/ConfirmationDialog.vue";
+import { useConfirmationDialog } from "@admin-shared/composables/useConfirmationDialog";
 import { toast } from "@admin-shared/utils/toast";
 import {
   extractErrorMessage,
@@ -46,6 +48,13 @@ import { useDDNSPrimaryConfigState } from "./ddns-management/useDDNSPrimaryConfi
 import { useDDNSStatusPresentation } from "./ddns-management/useDDNSStatusPresentation";
 
 const { t, locale } = useI18n();
+const {
+  confirmationDialogOpen,
+  confirmationDialogOptions,
+  confirmPendingAction,
+  handleConfirmationDialogOpenChange,
+  requestConfirmation,
+} = useConfirmationDialog();
 
 // ─── State ─────────────────────────────────────────────────────
 const isInitialized = ref(false);
@@ -244,13 +253,18 @@ const {
   onProviderChange,
   setProviderConfigField,
 } = useDDNSPrimaryConfigState({
+  confirmProviderChange: () =>
+    requestConfirmation({
+      confirmVariant: "destructive",
+      description: t("admin.ddns.unsavedSwitchProviderConfirm"),
+      title: t("common.confirm"),
+    }),
   loadConfig: () => loadConfig(),
   providerConfig,
   providers,
   savedProvider,
   savedProviderConfig,
   selectedProvider,
-  translate: (key) => t(key),
 });
 const {
   applyCredentialTransfer,
@@ -465,7 +479,11 @@ async function onTest() {
 
 const confirmDiscardUnsavedPrimaryConfig = () =>
   !isPrimaryConfigDirty.value ||
-  window.confirm(t("admin.ddns.unsavedLeaveConfirm"));
+  requestConfirmation({
+    confirmVariant: "destructive",
+    description: t("admin.ddns.unsavedLeaveConfirm"),
+    title: t("common.confirm"),
+  });
 
 const handleBeforeUnload = (event: BeforeUnloadEvent) => {
   if (!isPrimaryConfigDirty.value) return;
@@ -661,6 +679,13 @@ onUnmounted(() => {
       :is-clearing="isClearingPrimaryConfig"
       @update:open="showClearPrimaryConfigDialog = $event"
       @confirm="confirmClearPrimaryConfig"
+    />
+
+    <ConfirmationDialog
+      :open="confirmationDialogOpen"
+      v-bind="confirmationDialogOptions"
+      @update:open="handleConfirmationDialogOpenChange"
+      @confirm="confirmPendingAction"
     />
   </div>
 

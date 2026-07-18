@@ -55,6 +55,31 @@ message HostRuleVisibility {
   repeated string cidrs = 2;
 }
 
+// Advanced authentication rules are compiled by the control plane before they
+// are sent to the gateway. Region selectors are deliberately absent here:
+// source_region conditions carry their immutable, resolved CIDRs in cidrs.
+message AdvancedAuthCondition {
+  string id = 1;
+  string target = 2;
+  string operator = 3;
+  string name = 4;
+  repeated string values = 5;
+  repeated string cidrs = 6;
+}
+
+message AdvancedAuthGroup {
+  string id = 1;
+  repeated AdvancedAuthCondition conditions = 2;
+}
+
+message AdvancedAuthConfig {
+  bool enabled = 1;
+  int64 idle_ttl_seconds = 2;
+  int64 max_lifetime_seconds = 3;
+  string policy_version = 4;
+  repeated AdvancedAuthGroup groups = 5;
+}
+
 message Rule {
   string path = 1;
   string target = 2;
@@ -80,6 +105,7 @@ message HostRule {
   HostRuleAvailability availability = 13;
   string protocol_mode = 14;
   HostRuleVisibility visibility = 15;
+  AdvancedAuthConfig advanced_auth = 16;
 }
 
 message StreamRule {
@@ -362,6 +388,8 @@ message GatewayLogEntry {
   string waf_action = 41;
   string waf_bundle = 42;
   bool general_blacklist_blocked = 43;
+  string auth_rule_group_id = 44;
+  string auth_grant_state = 45;
 }
 
 message GatewayLogDates {
@@ -571,6 +599,19 @@ enum AuthCacheScope {
   AUTH_CACHE_SCOPE_HOST = 3;
 }
 
+enum AuthGrantKind {
+  AUTH_GRANT_KIND_UNSPECIFIED = 0;
+  AUTH_GRANT_KIND_LOGIN = 1;
+  AUTH_GRANT_KIND_FNOS_SHARE = 2;
+  AUTH_GRANT_KIND_SUBDOMAIN_RULE = 3;
+}
+
+message SubdomainRuleMatch {
+  string host = 1;
+  string policy_version = 2;
+  string group_id = 3;
+}
+
 message VerifyAuthRequest {
   AuthContext context = 1;
 }
@@ -584,6 +625,13 @@ message VerifyAuthResponse {
   string redirect_location = 6;
   string access_denied_reason = 7;
   repeated Header response_headers = 8;
+  AuthGrantKind grant_kind = 9;
+  string decision = 10;
+  bool login_authenticated = 11;
+  bool host_authorized = 12;
+  int32 cache_max_age_seconds = 13;
+  string auth_rule_group_id = 14;
+  string auth_grant_state = 15;
 }
 
 message PreflightAuthRequest {
@@ -602,6 +650,7 @@ message AuthorizeHttpRequest {
   AuthContext context = 1;
   bool matched = 2;
   HttpAuthMode mode = 3;
+  SubdomainRuleMatch subdomain_rule_match = 4;
 }
 
 message AuthorizeHttpResponse {

@@ -292,6 +292,24 @@ export const authDecisionLabel = (
       return t(
         "admin.gatewayRequestLogs.authDecisions.generalBlacklistBlocked",
       );
+    case "subdomain_rule_allowed":
+      return t("admin.gatewayRequestLogs.authDecisions.subdomainRuleAllowed");
+    default:
+      return value || "-";
+  }
+};
+
+const authGrantStateLabel = (
+  value: string | undefined,
+  t: GatewayLogTranslator,
+) => {
+  switch (value) {
+    case "issued":
+      return t("admin.gatewayRequestLogs.grantStates.issued");
+    case "renewed":
+      return t("admin.gatewayRequestLogs.grantStates.renewed");
+    case "reused":
+      return t("admin.gatewayRequestLogs.grantStates.reused");
     default:
       return value || "-";
   }
@@ -396,6 +414,14 @@ const detailFields = [
   {
     key: "auth_decision",
     labelKey: "admin.gatewayRequestLogs.detailFields.authDecision",
+  },
+  {
+    key: "auth_rule_group_id",
+    labelKey: "admin.gatewayRequestLogs.detailFields.authRuleGroupId",
+  },
+  {
+    key: "auth_grant_state",
+    labelKey: "admin.gatewayRequestLogs.detailFields.authGrantState",
   },
   {
     key: "auth_credential_method",
@@ -504,6 +530,8 @@ export const buildGatewayLogDetailItems = (
       if (key === "route_type") return routeTypeLabel(String(value || ""), t);
       if (key === "auth_decision")
         return authDecisionLabel(String(value || ""), t);
+      if (key === "auth_grant_state")
+        return authGrantStateLabel(String(value || ""), t);
       if (key === "auth_credential_method")
         return credentialMethodLabel(String(value || ""), t) || "-";
       if (key === "waf_action") return wafActionLabel(String(value || ""), t);

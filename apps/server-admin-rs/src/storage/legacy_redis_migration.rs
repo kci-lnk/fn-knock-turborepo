@@ -31,6 +31,9 @@ const TRANSIENT_KEY_PREFIXES: &[&str] = &[
     "fn_knock:acme:job:",
     "fn_knock:auth_log_data:",
     "fn_knock:auth_logs:",
+    "fn_knock:auth:subdomain_rule_grant:",
+    "fn_knock:auth:subdomain_rule_grant_active:",
+    "fn_knock:auth:subdomain_rule_rate:",
     "fn_knock:backoff:",
     "fn_knock:cleanup:",
     "fn_knock:docker_admin:login_backoff:",
@@ -644,6 +647,9 @@ mod tests {
         assert!(!should_migrate_legacy_key("fn_knock:passkey:challenge:abc"));
         assert!(!should_migrate_legacy_key("fn_knock:passkey:state:abc"));
         assert!(!should_migrate_legacy_key("fn_knock:oidc:state:abc"));
+        assert!(!should_migrate_legacy_key(
+            "fn_knock:auth:subdomain_rule_grant_active:app.example.com"
+        ));
         assert!(!should_migrate_legacy_key(
             "fn_knock:notifications:runtime:lock:dispatch"
         ));

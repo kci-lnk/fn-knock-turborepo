@@ -7,6 +7,7 @@ export type MappingStatusTooltip =
   | "waf"
   | "visibility"
   | "toolbar"
+  | "advanced-auth"
   | "location-rules";
 
 export const useSubdomainTouchTooltips = ({

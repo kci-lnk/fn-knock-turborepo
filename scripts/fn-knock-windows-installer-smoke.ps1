@@ -221,7 +221,7 @@ function Wait-FirewallRulesAbsent {
   param([Parameter(Mandatory = $true)][int]$TimeoutSeconds)
   $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
   while ([DateTime]::UtcNow -lt $deadline) {
-    if ((Get-FnKnockFirewallRules).Count -eq 0) {
+    if (@(Get-FnKnockFirewallRules).Count -eq 0) {
       return
     }
     Start-Sleep -Milliseconds 500
@@ -364,7 +364,7 @@ function Assert-InstalledRuntime {
   if ($null -eq $script:ExpectedAltchaHmacKey) {
     $script:ExpectedAltchaHmacKey = $observedAltchaHmacKey
   }
-  Assert-Condition ((Get-FnKnockFirewallRules).Count -gt 0) `
+  Assert-Condition (@(Get-FnKnockFirewallRules).Count -gt 0) `
     "Installer did not create the '$FirewallRuleName' firewall rule"
 }
 
@@ -440,7 +440,7 @@ function Assert-InstallerRejectsMalformedCompleteBundle {
     "The rejected invalid bundle identity was modified"
   Assert-Condition ($null -eq (Get-FnKnockService)) `
     "The rejected invalid bundle unexpectedly registered the service"
-  Assert-Condition ((Get-FnKnockFirewallRules).Count -eq 0) `
+  Assert-Condition (@(Get-FnKnockFirewallRules).Count -eq 0) `
     "The rejected invalid bundle unexpectedly created a firewall rule"
   Assert-InstallerMetadataAbsent
   Assert-Condition (-not (Test-Path -LiteralPath (Join-Path $ProgramDataRoot "rollback\pending\transaction.pending") -PathType Leaf)) `
@@ -529,7 +529,7 @@ function Assert-FirstInstallPreservesNonEmptyDirectory {
     "The rejected first install modified the pre-existing sentinel"
   Assert-Condition ($null -eq (Get-FnKnockService)) `
     "The rejected first install unexpectedly registered the service"
-  Assert-Condition ((Get-FnKnockFirewallRules).Count -eq 0) `
+  Assert-Condition (@(Get-FnKnockFirewallRules).Count -eq 0) `
     "The rejected first install unexpectedly created a firewall rule"
   Assert-InstallerMetadataAbsent
   Assert-Condition (-not (Test-Path -LiteralPath (Join-Path $ProgramDataRoot "rollback\pending\transaction.pending") -PathType Leaf)) `
@@ -649,7 +649,7 @@ function Invoke-InstallerCleanup {
     if ($null -ne (Get-FnKnockService)) {
       $leftovers.Add("SCM service")
     }
-    if ((Get-FnKnockFirewallRules).Count -ne 0) {
+    if (@(Get-FnKnockFirewallRules).Count -ne 0) {
       $leftovers.Add("firewall rule")
     }
     if (Test-Path -LiteralPath $ProductRoot) {
@@ -681,10 +681,10 @@ try {
   if ($null -ne (Get-FnKnockService)) {
     throw "Refusing to run: a pre-existing $ServiceName service is installed"
   }
-  if ((Get-FnKnockFirewallRules).Count -ne 0) {
+  if (@(Get-FnKnockFirewallRules).Count -ne 0) {
     throw "Refusing to run: a pre-existing '$FirewallRuleName' firewall rule exists"
   }
-  if ((Get-FnKnockProcesses).Count -ne 0) {
+  if (@(Get-FnKnockProcesses).Count -ne 0) {
     throw "Refusing to run: an existing FnKnock process is running"
   }
   Assert-InstallerMetadataAbsent
@@ -697,8 +697,8 @@ try {
     }
   }
   if ($null -ne (Get-FnKnockService) -or
-      (Get-FnKnockFirewallRules).Count -ne 0 -or
-      (Get-FnKnockProcesses).Count -ne 0) {
+      @(Get-FnKnockFirewallRules).Count -ne 0 -or
+      @(Get-FnKnockProcesses).Count -ne 0) {
     throw "Refusing to install: FnKnock state appeared after the initial safety check"
   }
   Assert-InstallerMetadataAbsent
@@ -741,3 +741,7 @@ try {
     Write-Warning "FnKnock installer smoke test failed; test-owned state was cleaned up"
   }
 }
+
+# Keep GitHub's pwsh wrapper from treating an intentionally tolerated native
+# cleanup status as the result of an otherwise successful installer smoke run.
+$global:LASTEXITCODE = 0

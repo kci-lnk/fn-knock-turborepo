@@ -170,18 +170,55 @@ function Get-FnKnockProcesses {
   )
 }
 
+function Invoke-NativeProcess {
+  param(
+    [Parameter(Mandatory = $true)][string]$FilePath,
+    [string[]]$Arguments = @()
+  )
+
+  $startInfo = [Diagnostics.ProcessStartInfo]::new()
+  $startInfo.FileName = $FilePath
+  $startInfo.UseShellExecute = $false
+  $startInfo.CreateNoWindow = $true
+  $startInfo.RedirectStandardOutput = $true
+  $startInfo.RedirectStandardError = $true
+  foreach ($argument in $Arguments) {
+    [void]$startInfo.ArgumentList.Add($argument)
+  }
+
+  $process = [Diagnostics.Process]::new()
+  $process.StartInfo = $startInfo
+  try {
+    if (-not $process.Start()) {
+      throw "Failed to start native process: $FilePath"
+    }
+    $standardOutputTask = $process.StandardOutput.ReadToEndAsync()
+    $standardErrorTask = $process.StandardError.ReadToEndAsync()
+    $process.WaitForExit()
+    $standardOutput = $standardOutputTask.GetAwaiter().GetResult()
+    $standardError = $standardErrorTask.GetAwaiter().GetResult()
+    if (-not [string]::IsNullOrWhiteSpace($standardOutput)) {
+      Write-Host ($standardOutput.TrimEnd())
+    }
+    if (-not [string]::IsNullOrWhiteSpace($standardError)) {
+      Write-Host ($standardError.TrimEnd())
+    }
+    return [pscustomobject]@{
+      ExitCode = [int]$process.ExitCode
+    }
+  } finally {
+    $process.Dispose()
+  }
+}
+
 function Invoke-NativeChecked {
   param(
     [Parameter(Mandatory = $true)][string]$FilePath,
     [string[]]$Arguments = @()
   )
-  $output = & $FilePath @Arguments 2>&1
-  $exitCode = $LASTEXITCODE
-  if ($output) {
-    $output | ForEach-Object { Write-Host $_ }
-  }
-  if ($exitCode -ne 0) {
-    throw "$FilePath $($Arguments -join ' ') failed with exit code $exitCode"
+  $result = Invoke-NativeProcess -FilePath $FilePath -Arguments $Arguments
+  if ($result.ExitCode -ne 0) {
+    throw "$FilePath $($Arguments -join ' ') failed with exit code $($result.ExitCode)"
   }
 }
 
@@ -384,12 +421,8 @@ function Invoke-NativeExpectFailure {
     [Parameter(Mandatory = $true)][string]$FilePath,
     [string[]]$Arguments = @()
   )
-  $output = & $FilePath @Arguments 2>&1
-  $exitCode = $LASTEXITCODE
-  if ($output) {
-    $output | ForEach-Object { Write-Host $_ }
-  }
-  if ($exitCode -eq 0) {
+  $result = Invoke-NativeProcess -FilePath $FilePath -Arguments $Arguments
+  if ($result.ExitCode -eq 0) {
     throw "$FilePath unexpectedly succeeded"
   }
 }

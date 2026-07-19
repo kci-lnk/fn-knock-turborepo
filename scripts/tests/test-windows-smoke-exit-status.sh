@@ -46,4 +46,23 @@ unsafe_count_calls="$(
 [ -z "${unsafe_count_calls}" ] || \
   fail "installer smoke collection counts must handle zero results with @(...): ${unsafe_count_calls}"
 
+grep -Fq '[Diagnostics.ProcessStartInfo]::new()' "${INSTALLER_SMOKE_SCRIPT}" || \
+  fail "installer smoke native runner must use ProcessStartInfo"
+grep -Fq '$process.WaitForExit()' "${INSTALLER_SMOKE_SCRIPT}" || \
+  fail "installer smoke native runner must wait for GUI installers"
+grep -Fq 'ExitCode = [int]$process.ExitCode' "${INSTALLER_SMOKE_SCRIPT}" || \
+  fail "installer smoke native runner must capture the process ExitCode"
+
+unsafe_native_exit_reads="$(
+  awk '
+    /^function Invoke-NativeChecked / { in_helper = 1 }
+    /^function Wait-ServiceState / { in_helper = 0 }
+    /^function Invoke-NativeExpectFailure / { in_helper = 1 }
+    /^function Assert-UninstalledRuntime / { in_helper = 0 }
+    in_helper && /\$LASTEXITCODE/ { print }
+  ' "${INSTALLER_SMOKE_SCRIPT}"
+)"
+[ -z "${unsafe_native_exit_reads}" ] || \
+  fail "installer native helpers must not rely on optional LASTEXITCODE: ${unsafe_native_exit_reads}"
+
 printf '[test-windows-smoke-exit-status] success exit status contract passed\n'

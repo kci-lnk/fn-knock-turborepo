@@ -18,8 +18,11 @@ env:
   FN_KNOCK_DOCKER_IMAGE_REPO: kcilnk/fn-knock
   NODE_VERSION: "22.22.3"
   NPM_VERSION: "10.8.2"
+  PROTOC_VERSION: "35.1"
+  PROTOC_LINUX_X86_64_SHA256: "6930ebf62bd4ea607b98fff052596c6ee564b9835b4ce172c75a3f53ae9d91b7"
   RUST_VERSION: "1.96.0"
   ZIG_VERSION: "0.16.0"
+  ZIG_LINUX_X86_64_SHA256: "70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00"
   CARGO_ZIGBUILD_VERSION: "0.22.3"
 
 jobs:
@@ -107,7 +110,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -124,9 +127,19 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
 
       - name: Set up protobuf compiler
-        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3
-        with:
-          version: "35.1"
+        shell: bash
+        run: |
+          archive="${RUNNER_TEMP}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
+          install_dir="${RUNNER_TEMP}/protoc-${PROTOC_VERSION}"
+          curl --fail --location --retry 5 --retry-all-errors \
+            --output "${archive}" \
+            "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
+          printf '%s  %s\n' "${PROTOC_LINUX_X86_64_SHA256}" "${archive}" |
+            sha256sum --check -
+          mkdir -p "${install_dir}"
+          unzip -q "${archive}" -d "${install_dir}"
+          printf '%s\n' "${install_dir}/bin" >> "${GITHUB_PATH}"
+          "${install_dir}/bin/protoc" --version
 
       - name: Install locked build tools
         shell: bash
@@ -188,7 +201,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -260,9 +273,19 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
 
       - name: Set up Zig
-        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2
-        with:
-          version: ${{ env.ZIG_VERSION }}
+        shell: bash
+        run: |
+          archive="${RUNNER_TEMP}/zig-x86_64-linux-${ZIG_VERSION}.tar.xz"
+          install_dir="${RUNNER_TEMP}/zig-${ZIG_VERSION}"
+          curl --fail --location --retry 5 --retry-all-errors \
+            --output "${archive}" \
+            "https://ziglang.org/download/${ZIG_VERSION}/zig-x86_64-linux-${ZIG_VERSION}.tar.xz"
+          printf '%s  %s\n' "${ZIG_LINUX_X86_64_SHA256}" "${archive}" |
+            sha256sum --check -
+          mkdir -p "${install_dir}"
+          tar -xJf "${archive}" --strip-components=1 -C "${install_dir}"
+          printf '%s\n' "${install_dir}" >> "${GITHUB_PATH}"
+          "${install_dir}/zig" version
 
       - name: Build GNU Rust backend
         shell: bash
@@ -336,7 +359,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -400,7 +423,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -487,21 +510,21 @@ jobs:
             bash ./scripts/fn-knock-prepare-artifacts.sh docker
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       - name: Log in to Docker Hub
         if: github.event_name == 'push'
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build architecture image
         id: image
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           file: deploy/docker/Dockerfile
@@ -533,10 +556,10 @@ jobs:
 
     steps:
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
@@ -622,17 +645,17 @@ jobs:
 
       - name: Attest release assets
         if: github.event_name == 'push'
-        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-path: dist/release-assets/*
 
       - name: Set up Docker Buildx
         if: github.event_name == 'push'
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       - name: Log in to Docker Hub
         if: github.event_name == 'push'
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}

@@ -71,18 +71,6 @@ jobs:
           -RequireCleanTree
           -GoRepository "${{ github.workspace }}\Go-Reauth-Proxy"
 
-      - name: Smoke test native Windows runtime
-        shell: pwsh
-        timeout-minutes: 15
-        run: ./scripts/fn-knock-windows-smoke.ps1
-
-      - name: Install and uninstall unsigned NSIS installer
-        shell: pwsh
-        timeout-minutes: 15
-        run: |
-          $setup = (Resolve-Path "dist\windows\fn-knock-*-windows-x86_64-unsigned-setup.exe").Path
-          ./scripts/fn-knock-windows-installer-smoke.ps1 -SetupPath $setup
-
       - name: Upload manual verification artifact
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

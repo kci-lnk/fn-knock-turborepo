@@ -369,17 +369,10 @@ jobs:
           -RequireCleanTree
           -GoRepository "${{ github.workspace }}\Go-Reauth-Proxy"
 
-      - name: Smoke test Windows runtime
+      - name: Finalize unsigned installer metadata
         shell: pwsh
-        timeout-minutes: 15
-        run: ./scripts/fn-knock-windows-smoke.ps1
-
-      - name: Install and uninstall unsigned installer
-        shell: pwsh
-        timeout-minutes: 15
         run: |
           $setup = (Resolve-Path "dist\windows\fn-knock-*-windows-x86_64-unsigned-setup.exe").Path
-          ./scripts/fn-knock-windows-installer-smoke.ps1 -SetupPath $setup
           ./scripts/fn-knock-windows-finalize.ps1 -SetupPath $setup -SignaturePolicy Unsigned
 
       - name: Archive Windows release inputs

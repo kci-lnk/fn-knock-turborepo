@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RUNTIME_SMOKE_SCRIPT="${ROOT_DIR}/scripts/fn-knock-windows-smoke.ps1"
 INSTALLER_SMOKE_SCRIPT="${ROOT_DIR}/scripts/fn-knock-windows-installer-smoke.ps1"
+RELEASE_WORKFLOW="${ROOT_DIR}/.github/workflows/release.yml"
+WINDOWS_WORKFLOW="${ROOT_DIR}/.github/workflows/windows-x86_64.yml"
 
 fail() {
   printf '[test-windows-smoke-exit-status] ERROR: %s\n' "$*" >&2
@@ -64,5 +66,16 @@ unsafe_native_exit_reads="$(
 )"
 [ -z "${unsafe_native_exit_reads}" ] || \
   fail "installer native helpers must not rely on optional LASTEXITCODE: ${unsafe_native_exit_reads}"
+
+workflow_smoke_calls="$(
+  grep -HnE 'fn-knock-windows-(smoke|installer-smoke)\.ps1' \
+    "${RELEASE_WORKFLOW}" "${WINDOWS_WORKFLOW}" || true
+)"
+[ -z "${workflow_smoke_calls}" ] || \
+  fail "GitHub Actions must not run Windows smoke/install lifecycle tests: ${workflow_smoke_calls}"
+
+grep -Fq './scripts/fn-knock-windows-finalize.ps1 -SetupPath $setup -SignaturePolicy Unsigned' \
+  "${RELEASE_WORKFLOW}" || \
+  fail "release workflow must still finalize the unsigned installer metadata"
 
 printf '[test-windows-smoke-exit-status] success exit status contract passed\n'

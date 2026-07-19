@@ -16,12 +16,12 @@ jobs:
 
     steps:
       - name: Checkout fn-knock
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
 
       - name: Checkout current Go gateway main
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: kci-lnk/Go-Reauth-Proxy
           path: Go-Reauth-Proxy
@@ -73,7 +73,7 @@ jobs:
 
       - name: Upload manual verification artifact
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: fn-knock-windows-x86_64-unsigned
           path: dist/windows/*-unsigned-setup.exe

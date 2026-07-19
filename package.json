@@ -29,7 +29,7 @@
     "fn-knock:deploy": "bash ./scripts/fn-knock-deploy.sh deploy",
     "fn-knock:deploy-all": "bash ./scripts/fn-knock-deploy-all.sh",
     "fn-knock:release:preflight": "bash ./scripts/release-preflight.sh",
-    "fn-knock:release:test": "bash ./scripts/tests/test-release-preflight.sh && bash ./scripts/tests/test-release-build-helpers.sh && bash ./scripts/tests/test-openwrt-tar-compat.sh && bash ./scripts/tests/test-synology-package-validation.sh && bash ./scripts/tests/test-windows-smoke-exit-status.sh && bash ./scripts/tests/test-fpk-staging.sh && bash ./scripts/tests/test-release-finalize.sh",
+    "fn-knock:release:test": "bash ./scripts/tests/test-release-preflight.sh && bash ./scripts/tests/test-release-build-helpers.sh && bash ./scripts/tests/test-openwrt-tar-compat.sh && bash ./scripts/tests/test-synology-package-validation.sh && bash ./scripts/tests/test-windows-smoke-exit-status.sh && bash ./scripts/tests/test-workflow-action-pins.sh && bash ./scripts/tests/test-fpk-staging.sh && bash ./scripts/tests/test-release-finalize.sh",
     "fn-knock:release:fpk": "bash ./scripts/fn-knock-package-fpk.sh",
     "fn-knock:release:assemble": "bash ./scripts/fn-knock-assemble-release.sh",
     "fn-knock:deploy-fast": "FN_KNOCK_FPK_ARCHES=amd64 FN_KNOCK_RUST_PARALLEL_RELEASE=1 FN_KNOCK_FORCE_ARTIFACT_REBUILD=1 FN_KNOCK_FORCE_FRONTEND_REBUILD=1 FN_KNOCK_GO_REAUTH_PROXY_FORCE_BUILD=1 bash ./scripts/fn-knock-deploy.sh deploy",

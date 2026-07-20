@@ -199,6 +199,9 @@ npm run build
 | `npm run fn-knock:windows:build`               | Windows x86_64 向け未署名 NSIS インストーラーをビルド |
 | `npm run fn-knock:release:test`                | リリースパイプライン全体を検証                        |
 | `npm run fn-knock:release:preflight -- vX.Y.Z` | バージョンとリリース前提条件を検証                    |
+| `bun run release status`                       | 現在のリリースバージョン状態を表示                    |
+
+新しいリリースを準備するには、このリポジトリと隣接する `../Go-Reauth-Proxy` のワークツリーをクリーンにしてから、`bun run release prepare patch` を実行します（`minor`、`major`、または明示的な `X.Y.Z` も使用できます）。このツールは両方のリポジトリの製品バージョンを同期し、前回のバージョンタグ以降のコミットから release notes を生成します。Go リポジトリが別の場所にある場合は `FN_KNOCK_GO_REAUTH_PROXY_DIR` を設定してください。`--dry-run` で変更をプレビューでき、`--notes-file <path>` でリリースノートを指定できます。その後、`bun run release check` と `bun run fn-knock:release:test` を実行し、Go リポジトリを先に commit、push してください。このツールが commit、tag、push、publish を自動実行することはありません。
 
 `version.json` と一致する `vX.Y.Z` タグを push すると、リリースワークフローが現在のソースと Go ゲートウェイのコミットを固定し、品質ゲートを実行して、すべての対応プラットフォームをビルドします。続いて対象アーキテクチャの検証、チェックサム、SBOM、ビルド来歴を生成し、GitHub Release を公開します。
 

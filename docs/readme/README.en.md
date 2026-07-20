@@ -199,6 +199,9 @@ By default, the Go gateway source is read from the adjacent `../Go-Reauth-Proxy`
 | `npm run fn-knock:windows:build`               | Build an unsigned NSIS installer for Windows x86_64 |
 | `npm run fn-knock:release:test`                | Validate the complete release pipeline              |
 | `npm run fn-knock:release:preflight -- vX.Y.Z` | Validate the version and release prerequisites      |
+| `bun run release status`                       | Show the current release version status             |
+
+To prepare a new release, start with clean worktrees for this repository and the adjacent `../Go-Reauth-Proxy`, then run `bun run release prepare patch` (or use `minor`, `major`, or an explicit `X.Y.Z`). The helper synchronizes product versions across both repositories and generates release notes from commits after the previous version tag. Set `FN_KNOCK_GO_REAUTH_PROXY_DIR` when the Go repository is elsewhere. Use `--dry-run` to preview changes or `--notes-file <path>` to supply release notes. Then run `bun run release check` and `bun run fn-knock:release:test`, and commit and push the Go repository first. The helper never commits, tags, pushes, or publishes.
 
 After a `vX.Y.Z` tag matching `version.json` is pushed, the release workflow pins the current source and Go gateway commits, runs the quality gates, builds every supported platform, verifies target architectures, generates checksums, SBOMs, and provenance, and publishes the GitHub Release.
 

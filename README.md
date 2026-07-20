@@ -199,8 +199,11 @@ Go 网关源码默认从相邻目录 `../Go-Reauth-Proxy` 读取，也可以通�
 | `npm run fn-knock:windows:build`               | 构建 Windows x86_64 unsigned NSIS 安装包 |
 | `npm run fn-knock:release:test`                | 检查完整发布链路                         |
 | `npm run fn-knock:release:preflight -- vX.Y.Z` | 校验版本与发布前置条件                   |
+| `bun run release status`                       | 查看当前发布版本状态                     |
 
-推送与 `version.json` 一致的 `vX.Y.Z` tag 后，发布工作流会冻结当前源码和 Go 网关提交，完成质量门禁、多平台构建、架构校验、校验清单、SBOM / provenance 及 GitHub Release 发布。
+发布新版本时，建议在本仓库和相邻的 `../Go-Reauth-Proxy` 均为干净工作区时运行 `bun run release prepare patch`（也可使用 `minor`、`major` 或明确的 `X.Y.Z`）。该工具会同步两个仓库内的所有产品版本，并从上一个版本 Tag 后的提交生成 release notes；Go 仓库位于其他位置时可设置 `FN_KNOCK_GO_REAUTH_PROXY_DIR`。使用 `--dry-run` 可先预览，使用 `--notes-file <path>` 可指定发布说明。完成后运行 `bun run release check` 和 `bun run fn-knock:release:test`，并先提交、推送 Go 仓库。工具不会自动提交、打 Tag 或推送。
+
+推送与 `version.json` 一致的 `vX.Y.Z` Tag 后，发布工作流会冻结当前源码和 Go 网关提交，完成质量门禁、多平台构建、架构校验、校验清单、SBOM / provenance 及 GitHub Release 发布。
 
 ## 支持项目
 

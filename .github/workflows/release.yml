@@ -115,6 +115,14 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
+      - name: Verify frozen Go gateway version
+        env:
+          FN_KNOCK_GO_REAUTH_PROXY_DIR: ${{ github.workspace }}/Go-Reauth-Proxy
+        run: >-
+          node ./scripts/fn-knock-release.mjs
+          gateway-check
+          ${{ needs.preflight.outputs.version }}
+
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:

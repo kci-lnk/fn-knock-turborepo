@@ -10,6 +10,8 @@ Windows x86_64 版由一个明确标记为 unsigned 的 NSIS 安装包交付，�
 
 桌面管理程序通过 SCM API 启停和重启服务，端口配置采用原子写入、就绪检查与失败回滚。清除管理密码也由管理程序完成，子进程统一使用 `CREATE_NO_WINDOW`，不会弹出 CMD 或 PowerShell 窗口。7991 管理后台在系统浏览器中打开，桌面程序不包含 WebView 或前端运行时。
 
+管理程序原生支持中文简体、中文正體、English、한국어与日本語。首次启动默认跟随 Windows 首选 UI 语言，不受支持的系统语言回退到中文简体；窗口右上角的语言按钮可即时切换，也可恢复“跟随 Windows”。手动选择按 Windows 用户保存在 `%APPDATA%\FnKnock\windows-manager-locale.txt`，不会改写服务端配置。
+
 ## 原生 Windows 构建
 
 本机开发和安装测试可从仓库根目录一键生成 unsigned NSIS 安装包：

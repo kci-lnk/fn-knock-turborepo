@@ -12,7 +12,7 @@ use serde_json::Value;
 #[cfg(test)]
 use serde_json::json;
 
-use crate::platform;
+use crate::{i18n, platform};
 
 pub const SERVICE_NAME: &str = "FnKnock";
 const READY_PATH: &str = "/__fn-knock/readyz";
@@ -56,7 +56,8 @@ impl RuntimeConfig {
     pub fn validate(&self) -> Result<(), String> {
         if self.schema_version != 1 {
             return Err(format!(
-                "unsupported runtime configuration schema {}",
+                "{} {}",
+                i18n::tr("不支持的运行配置架构"),
                 self.schema_version
             ));
         }
@@ -68,7 +69,7 @@ impl RuntimeConfig {
             self.proxy_port,
         ];
         if ports.contains(&0) {
-            return Err("ports must be between 1 and 65535".to_string());
+            return Err(i18n::tr("端口必须介于 1 和 65535 之间").to_string());
         }
         if [
             self.admin_port,
@@ -79,10 +80,10 @@ impl RuntimeConfig {
         .iter()
         .any(|port| *port < 1024)
         {
-            return Err("internal ports must be at least 1024".to_string());
+            return Err(i18n::tr("内部端口必须大于或等于 1024").to_string());
         }
         if ports.into_iter().collect::<HashSet<_>>().len() != ports.len() {
-            return Err("the five runtime ports must be unique".to_string());
+            return Err(i18n::tr("五个运行端口不能重复").to_string());
         }
         Ok(())
     }
@@ -145,9 +146,9 @@ pub fn load_runtime_config() -> Result<RuntimeConfig, String> {
         return Ok(RuntimeConfig::default());
     }
     let raw = fs::read_to_string(&path)
-        .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
+        .map_err(|error| format!("{} {}：{error}", i18n::tr("无法读取"), path.display()))?;
     let config: RuntimeConfig = serde_json::from_str(&raw)
-        .map_err(|error| format!("invalid {}: {error}", path.display()))?;
+        .map_err(|error| format!("{} {}：{error}", i18n::tr("无效配置"), path.display()))?;
     config.validate()?;
     Ok(config)
 }
@@ -167,7 +168,7 @@ pub fn load_public_runtime_config() -> Result<RuntimeConfig, String> {
 pub fn save_runtime_config(config: &RuntimeConfig) -> Result<(), String> {
     config.validate()?;
     let bytes = serde_json::to_vec_pretty(config)
-        .map_err(|error| format!("failed to encode runtime configuration: {error}"))?;
+        .map_err(|error| format!("{}：{error}", i18n::tr("无法编码运行配置")))?;
     platform::write_runtime_config_and_restart(&config_path(), &bytes)
 }
 
@@ -208,7 +209,12 @@ pub fn check_ready(port: u16) -> (bool, Option<String>) {
     let address = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, port));
     let mut stream = match TcpStream::connect_timeout(&address, Duration::from_millis(550)) {
         Ok(stream) => stream,
-        Err(error) => return (false, Some(format!("管理服务未响应：{error}"))),
+        Err(error) => {
+            return (
+                false,
+                Some(format!("{}：{error}", i18n::tr("管理服务未响应"))),
+            );
+        }
     };
     let _ = stream.set_read_timeout(Some(Duration::from_millis(800)));
     let _ = stream.set_write_timeout(Some(Duration::from_millis(500)));
@@ -216,11 +222,17 @@ pub fn check_ready(port: u16) -> (bool, Option<String>) {
         "GET {READY_PATH} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\nAccept: application/json\r\n\r\n"
     );
     if let Err(error) = stream.write_all(request.as_bytes()) {
-        return (false, Some(format!("就绪检查发送失败：{error}")));
+        return (
+            false,
+            Some(format!("{}：{error}", i18n::tr("就绪检查发送失败"))),
+        );
     }
     let mut response = String::new();
     if let Err(error) = stream.read_to_string(&mut response) {
-        return (false, Some(format!("就绪检查读取失败：{error}")));
+        return (
+            false,
+            Some(format!("{}：{error}", i18n::tr("就绪检查读取失败"))),
+        );
     }
     let status_line = response.lines().next().unwrap_or_default();
     let http_ok = status_line.contains(" 200 ");
@@ -233,11 +245,11 @@ pub fn check_ready(port: u16) -> (bool, Option<String>) {
     let detail = if ready {
         None
     } else if !listener_still_trusted {
-        Some("就绪检查期间 FnKnock 服务或管理端口所有者发生变化".to_string())
+        Some(i18n::tr("就绪检查期间 FnKnock 服务或管理端口所有者发生变化").to_string())
     } else {
         body.and_then(read_ready_detail).or_else(|| {
             http_ok
-                .then(|| "就绪响应未确认完整运行组件".to_string())
+                .then(|| i18n::tr("就绪响应未确认完整运行组件").to_string())
                 .or_else(|| Some(status_line.to_string()))
         })
     };
@@ -321,11 +333,11 @@ fn extract_failure(status: Option<&Value>, ready: bool) -> Option<String> {
 
 fn collect_port_status(config: &RuntimeConfig) -> Vec<PortStatus> {
     [
-        ("管理", config.admin_port),
+        (i18n::tr("管理"), config.admin_port),
         ("Rust API", config.backend_port),
-        ("认证", config.auth_port),
+        (i18n::tr("认证"), config.auth_port),
         ("Go gRPC", config.grpc_port),
-        ("代理", config.proxy_port),
+        (i18n::tr("代理"), config.proxy_port),
     ]
     .into_iter()
     .map(|(name, port)| PortStatus {
@@ -357,7 +369,7 @@ mod tests {
     fn duplicate_ports_are_rejected() {
         let mut config = RuntimeConfig::default();
         config.grpc_port = config.admin_port;
-        assert!(config.validate().unwrap_err().contains("unique"));
+        assert!(config.validate().is_err());
     }
 
     #[test]

@@ -43,24 +43,26 @@ mod windows_ui {
                 DestroyWindow, DispatchMessageW, ES_AUTOHSCROLL, GetCursorPos, GetDlgItem,
                 GetMessageW, GetWindowRect, GetWindowTextLengthW, GetWindowTextW, HMENU, IDC_ARROW,
                 IDI_APPLICATION, KillTimer, LoadCursorW, LoadIconW, MB_ICONERROR,
-                MB_ICONINFORMATION, MB_ICONWARNING, MB_OK, MB_YESNO, MF_SEPARATOR, MF_STRING, MSG,
-                MessageBoxW, MoveWindow, PostMessageW, PostQuitMessage, RegisterClassW, SW_HIDE,
-                SW_SHOW, SW_SHOWNORMAL, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, SendMessageW,
-                SetForegroundWindow, SetTimer, SetWindowPos, SetWindowTextW, ShowWindow,
-                TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RETURNCMD, TrackPopupMenu, TranslateMessage,
-                WM_APP, WM_CLOSE, WM_COMMAND, WM_CREATE, WM_CTLCOLORSTATIC, WM_DESTROY,
-                WM_DPICHANGED, WM_LBUTTONUP, WM_NOTIFY, WM_RBUTTONUP, WM_TIMER, WM_USER, WNDCLASSW,
-                WS_BORDER, WS_CAPTION, WS_CHILD, WS_MINIMIZEBOX, WS_OVERLAPPED, WS_SYSMENU,
-                WS_TABSTOP, WS_VISIBLE,
+                MB_ICONINFORMATION, MB_ICONWARNING, MB_OK, MB_YESNO, MF_CHECKED, MF_SEPARATOR,
+                MF_STRING, MSG, MessageBoxW, MoveWindow, PostMessageW, PostQuitMessage,
+                RegisterClassW, SW_HIDE, SW_SHOW, SW_SHOWNORMAL, SWP_NOACTIVATE, SWP_NOSIZE,
+                SWP_NOZORDER, SendMessageW, SetForegroundWindow, SetTimer, SetWindowPos,
+                SetWindowTextW, ShowWindow, TPM_BOTTOMALIGN, TPM_LEFTALIGN, TPM_RETURNCMD,
+                TrackPopupMenu, TranslateMessage, WM_APP, WM_CLOSE, WM_COMMAND, WM_CREATE,
+                WM_CTLCOLORSTATIC, WM_DESTROY, WM_DPICHANGED, WM_LBUTTONUP, WM_NOTIFY,
+                WM_RBUTTONUP, WM_TIMER, WM_USER, WNDCLASSW, WS_BORDER, WS_CAPTION, WS_CHILD,
+                WS_MINIMIZEBOX, WS_OVERLAPPED, WS_SYSMENU, WS_TABSTOP, WS_VISIBLE,
             },
         },
     };
 
-    use crate::{platform, runtime, update};
+    use crate::{
+        i18n::{self, Locale},
+        platform, runtime, update,
+    };
 
     const CLASS_NAME: &str = "FnKnockNativeController";
     const ABOUT_CLASS_NAME: &str = "FnKnockNativeAbout";
-    const WINDOW_TITLE: &str = "Knock 敲门 · Windows 管理程序";
     const OFFICIAL_URL: &str = "https://www.fnknock.cn/";
     const GITHUB_URL: &str = "https://github.com/kci-lnk/fn-knock-turborepo";
     const TRAY_MESSAGE: u32 = WM_APP + 1;
@@ -69,6 +71,16 @@ mod windows_ui {
     const ID_STATUS_TITLE: i32 = 100;
     const ID_STATUS_DETAIL: i32 = 106;
     const ID_MEMORY_LABEL: i32 = 109;
+    const ID_SUBTITLE_LABEL: i32 = 110;
+    const ID_STATUS_GROUP: i32 = 111;
+    const ID_PORT_GROUP: i32 = 112;
+    const ID_ADMIN_LABEL: i32 = 113;
+    const ID_PROXY_LABEL: i32 = 114;
+    const ID_ADVANCED_LABEL: i32 = 115;
+    const ID_BACKEND_LABEL: i32 = 116;
+    const ID_AUTH_LABEL: i32 = 117;
+    const ID_GRPC_LABEL: i32 = 118;
+    const ID_TRAY_HINT: i32 = 119;
     const ID_VERSION_LABEL: i32 = 107;
     const ID_TITLE_LABEL: i32 = 108;
     const ID_ADMIN_PORT: i32 = 101;
@@ -88,6 +100,9 @@ mod windows_ui {
     const ID_OFFICIAL_LINK: i32 = 210;
     const ID_GITHUB_LINK: i32 = 211;
     const ID_ABOUT_CLOSE: i32 = 212;
+    const ID_LANGUAGE: i32 = 213;
+    const ID_ABOUT_VERSION: i32 = 214;
+    const ID_ABOUT_SUBTITLE: i32 = 215;
     const ID_TRAY_OPEN: usize = 301;
     const ID_TRAY_ADMIN: usize = 302;
     const ID_TRAY_RESTART: usize = 303;
@@ -96,6 +111,12 @@ mod windows_ui {
     const ID_TRAY_START: usize = 306;
     const ID_TRAY_STOP: usize = 307;
     const ID_TRAY_ABOUT: usize = 308;
+    const ID_LOCALE_AUTO: usize = 401;
+    const ID_LOCALE_ZH_CN: usize = 402;
+    const ID_LOCALE_ZH_HANT: usize = 403;
+    const ID_LOCALE_EN: usize = 404;
+    const ID_LOCALE_KO_KR: usize = 405;
+    const ID_LOCALE_JA_JP: usize = 406;
     const APP_ICON_RESOURCE_ID: usize = 1;
     const MEMORY_TIMER_ID: usize = 1;
 
@@ -212,6 +233,13 @@ mod windows_ui {
         unsafe { SetWindowTextW(hwnd, value.as_ptr()) };
     }
 
+    unsafe fn get_text(hwnd: HWND) -> String {
+        let length = unsafe { GetWindowTextLengthW(hwnd) };
+        let mut buffer = vec![0_u16; length as usize + 1];
+        unsafe { GetWindowTextW(hwnd, buffer.as_mut_ptr(), buffer.len() as i32) };
+        String::from_utf16_lossy(&buffer[..length as usize])
+    }
+
     unsafe fn show_control(hwnd: HWND, id: i32, visible: bool) {
         unsafe {
             ShowWindow(
@@ -317,7 +345,7 @@ mod windows_ui {
     unsafe fn message(hwnd: HWND, text: &str, error: bool) {
         let text = wide(text);
         let title = wide(if error {
-            "fn-knock 操作失败"
+            i18n::tr("fn-knock 操作失败")
         } else {
             "Knock 敲门"
         });
@@ -351,6 +379,7 @@ mod windows_ui {
             ID_RESET_PASSWORD,
             ID_REFRESH,
             ID_CHECK_UPDATE,
+            ID_LANGUAGE,
         ] {
             unsafe { EnableWindow(GetDlgItem(hwnd, id), if busy { 0 } else { 1 }) };
         }
@@ -363,7 +392,10 @@ mod windows_ui {
             STATUS_READY.store(false, Ordering::Release);
             unsafe { set_text(GetDlgItem(hwnd, ID_STATUS_TITLE), label) };
             unsafe {
-                set_text(GetDlgItem(hwnd, ID_STATUS_DETAIL), "正在执行操作，请稍候…")
+                set_text(
+                    GetDlgItem(hwnd, ID_STATUS_DETAIL),
+                    i18n::tr("正在执行操作，请稍候…"),
+                )
             };
         }
     }
@@ -452,22 +484,32 @@ mod windows_ui {
     unsafe fn refresh(hwnd: HWND) {
         let status = runtime::collect_status();
         STATUS_READY.store(status.ready, Ordering::Release);
-        let status_title = if status.ready {
-            "●  服务运行正常"
-        } else {
-            "●  服务需要处理"
-        };
+        let status_title = format!(
+            "●  {}",
+            i18n::tr(if status.ready {
+                "服务运行正常"
+            } else {
+                "服务需要处理"
+            })
+        );
         let status_detail = format!(
-            "Windows 服务：{}    管理后台：127.0.0.1:{}\r\n{}",
+            "{}{}{}    {}{}127.0.0.1:{}\r\n{}",
+            i18n::tr("Windows 服务"),
+            i18n::label_separator(),
             status.service_state,
+            i18n::tr("管理后台"),
+            i18n::label_separator(),
             status.config.admin_port,
             if status.ready {
-                "网关、认证与管理组件均已就绪"
+                i18n::tr("网关、认证与管理组件均已就绪")
             } else {
-                status.ready_detail.as_deref().unwrap_or("服务尚未就绪")
+                status
+                    .ready_detail
+                    .as_deref()
+                    .unwrap_or_else(|| i18n::tr("服务尚未就绪"))
             }
         );
-        unsafe { set_text(GetDlgItem(hwnd, ID_STATUS_TITLE), status_title) };
+        unsafe { set_text(GetDlgItem(hwnd, ID_STATUS_TITLE), &status_title) };
         unsafe { set_text(GetDlgItem(hwnd, ID_STATUS_DETAIL), &status_detail) };
         unsafe {
             set_text(
@@ -515,15 +557,15 @@ mod windows_ui {
                 move_action(hwnd, ID_STOP, 210, 132);
                 move_action(hwnd, ID_RESTART, 354, 132);
                 move_action(hwnd, ID_REFRESH, 498, 132);
-                set_text(GetDlgItem(hwnd, ID_SAVE), "保存并重启服务");
+                set_text(GetDlgItem(hwnd, ID_SAVE), i18n::tr("保存并重启服务"));
             } else if status.service_stopped {
                 move_action(hwnd, ID_START, 24, 174);
                 move_action(hwnd, ID_REFRESH, 210, 132);
-                set_text(GetDlgItem(hwnd, ID_SAVE), "保存并启动服务");
+                set_text(GetDlgItem(hwnd, ID_SAVE), i18n::tr("保存并启动服务"));
             } else {
                 show_control(hwnd, ID_START, false);
                 move_action(hwnd, ID_REFRESH, 24, 174);
-                set_text(GetDlgItem(hwnd, ID_SAVE), "保存端口设置");
+                set_text(GetDlgItem(hwnd, ID_SAVE), i18n::tr("保存端口设置"));
             }
         }
         unsafe { refresh_memory(hwnd, status.service_running) };
@@ -542,9 +584,14 @@ mod windows_ui {
                     set_text(
                         label,
                         &format!(
-                            "内存占用：服务 {:.1} MB  ·  网关 {:.1} MB  ·  合计 {:.1} MB",
+                            "{}{}{} {:.1} MB  ·  {} {:.1} MB  ·  {} {:.1} MB",
+                            i18n::tr("内存占用"),
+                            i18n::label_separator(),
+                            i18n::tr("服务"),
                             service as f64 / mib,
+                            i18n::tr("网关"),
                             gateway as f64 / mib,
+                            i18n::tr("合计"),
                             service.saturating_add(gateway) as f64 / mib,
                         ),
                     )
@@ -558,23 +605,20 @@ mod windows_ui {
     }
 
     unsafe fn read_port(hwnd: HWND, id: i32, label: &str) -> Result<u16, String> {
-        let control = unsafe { GetDlgItem(hwnd, id) };
-        let length = unsafe { GetWindowTextLengthW(control) };
-        let mut buffer = vec![0_u16; length as usize + 1];
-        unsafe { GetWindowTextW(control, buffer.as_mut_ptr(), buffer.len() as i32) };
-        let value = String::from_utf16_lossy(&buffer[..length as usize]);
+        let value = unsafe { get_text(GetDlgItem(hwnd, id)) };
         value
             .parse::<u16>()
-            .map_err(|_| format!("{label}必须是 1–65535 的整数"))
+            .map_err(|_| format!("{label}{}", i18n::tr("必须是 1–65535 的整数")))
     }
 
     unsafe fn read_port_config(hwnd: HWND) -> Result<runtime::RuntimeConfig, String> {
         let mut config = runtime::load_public_runtime_config().unwrap_or_default();
-        config.admin_port = unsafe { read_port(hwnd, ID_ADMIN_PORT, "管理端口")? };
-        config.proxy_port = unsafe { read_port(hwnd, ID_PROXY_PORT, "代理端口")? };
-        config.backend_port = unsafe { read_port(hwnd, ID_BACKEND_PORT, "Rust API 端口")? };
-        config.auth_port = unsafe { read_port(hwnd, ID_AUTH_PORT, "认证端口")? };
-        config.grpc_port = unsafe { read_port(hwnd, ID_GRPC_PORT, "Go gRPC 端口")? };
+        config.admin_port = unsafe { read_port(hwnd, ID_ADMIN_PORT, i18n::tr("管理端口"))? };
+        config.proxy_port = unsafe { read_port(hwnd, ID_PROXY_PORT, i18n::tr("代理端口"))? };
+        config.backend_port =
+            unsafe { read_port(hwnd, ID_BACKEND_PORT, i18n::tr("Rust API 端口"))? };
+        config.auth_port = unsafe { read_port(hwnd, ID_AUTH_PORT, i18n::tr("认证端口"))? };
+        config.grpc_port = unsafe { read_port(hwnd, ID_GRPC_PORT, i18n::tr("Go gRPC 端口"))? };
         config.onboarding_complete = true;
         config.validate()?;
         Ok(config)
@@ -594,7 +638,10 @@ mod windows_ui {
             )
         } as isize;
         if result <= 32 {
-            Err(format!("无法打开链接（ShellExecute={result}）"))
+            Err(format!(
+                "{}（ShellExecute={result}）",
+                i18n::tr("无法打开链接")
+            ))
         } else {
             Ok(())
         }
@@ -626,20 +673,25 @@ mod windows_ui {
 
     unsafe fn check_update(hwnd: HWND) -> Result<(), String> {
         let Some(offer) = update::check()? else {
-            unsafe { message(hwnd, "当前已经是最新稳定版本。", false) };
+            unsafe { message(hwnd, i18n::tr("当前已经是最新稳定版本。"), false) };
             return Ok(());
         };
         let update_kind = if offer.force_update {
-            "检测到必须安装的重要更新。"
+            i18n::tr("检测到必须安装的重要更新。")
         } else {
-            "检测到版本更新。"
+            i18n::tr("检测到版本更新。")
         };
         let prompt = wide(&format!(
-            "{update_kind}\r\n\r\n当前版本：{}\r\n最新版本：{}\r\n\r\n确认要更新吗？",
+            "{update_kind}\r\n\r\n{}{}{}\r\n{}{}{}\r\n\r\n{}",
+            i18n::tr("当前版本"),
+            i18n::label_separator(),
             env!("CARGO_PKG_VERSION"),
-            offer.version
+            i18n::tr("最新版本"),
+            i18n::label_separator(),
+            offer.version,
+            i18n::tr("确认要更新吗？"),
         ));
-        let title = wide("Knock 敲门 · 更新");
+        let title = wide(&format!("Knock 敲门 · {}", i18n::tr("更新")));
         if unsafe {
             MessageBoxW(
                 hwnd,
@@ -651,7 +703,7 @@ mod windows_ui {
         {
             update::install(&offer)?;
             unsafe {
-                message(hwnd, "更新安装器已启动，管理程序将退出。", false);
+                message(hwnd, i18n::tr("更新安装器已启动，管理程序将退出。"), false);
                 remove_tray(hwnd);
                 DestroyWindow(hwnd);
             }
@@ -722,23 +774,26 @@ mod windows_ui {
                         72,
                         390,
                         24,
-                        0,
+                        ID_ABOUT_VERSION,
                     );
                     create_control(
                         hwnd,
                         "STATIC",
-                        "本机网关服务与管理程序",
+                        i18n::tr("本机网关服务与管理程序"),
                         0,
                         30,
                         106,
                         390,
                         24,
-                        0,
+                        ID_ABOUT_SUBTITLE,
                     );
                     create_control(
                         hwnd,
                         "SysLink",
-                        "<a href=\"https://www.fnknock.cn/\">官方网站  www.fnknock.cn</a>",
+                        &format!(
+                            "<a href=\"https://www.fnknock.cn/\">{}  www.fnknock.cn</a>",
+                            i18n::tr("官方网站")
+                        ),
                         WS_TABSTOP | 0x0001,
                         30,
                         150,
@@ -749,7 +804,10 @@ mod windows_ui {
                     create_control(
                         hwnd,
                         "SysLink",
-                        "<a href=\"https://github.com/kci-lnk/fn-knock-turborepo\">GitHub 项目</a>",
+                        &format!(
+                            "<a href=\"https://github.com/kci-lnk/fn-knock-turborepo\">{}</a>",
+                            i18n::tr("GitHub 项目")
+                        ),
                         WS_TABSTOP | 0x0001,
                         30,
                         184,
@@ -760,7 +818,7 @@ mod windows_ui {
                     create_control(
                         hwnd,
                         "BUTTON",
-                        "关闭",
+                        i18n::tr("关闭"),
                         BS_DEFPUSHBUTTON as u32 | BS_FLAT as u32 | WS_TABSTOP,
                         328,
                         227,
@@ -825,7 +883,7 @@ mod windows_ui {
         }
         let instance = unsafe { GetModuleHandleW(ptr::null()) };
         let class_name = wide(ABOUT_CLASS_NAME);
-        let title = wide("关于 Knock 敲门");
+        let title = wide(i18n::tr("关于 Knock 敲门"));
         let dpi = unsafe { GetDpiForWindow(owner) }.max(96);
         let hwnd = unsafe {
             CreateWindowExW(
@@ -853,31 +911,203 @@ mod windows_ui {
         }
     }
 
+    unsafe fn apply_about_language(hwnd: HWND) {
+        if hwnd.is_null() {
+            return;
+        }
+        unsafe {
+            set_text(hwnd, i18n::tr("关于 Knock 敲门"));
+            set_text(
+                GetDlgItem(hwnd, ID_ABOUT_SUBTITLE),
+                i18n::tr("本机网关服务与管理程序"),
+            );
+            set_text(
+                GetDlgItem(hwnd, ID_OFFICIAL_LINK),
+                &format!(
+                    "<a href=\"https://www.fnknock.cn/\">{}  www.fnknock.cn</a>",
+                    i18n::tr("官方网站")
+                ),
+            );
+            set_text(
+                GetDlgItem(hwnd, ID_GITHUB_LINK),
+                &format!(
+                    "<a href=\"https://github.com/kci-lnk/fn-knock-turborepo\">{}</a>",
+                    i18n::tr("GitHub 项目")
+                ),
+            );
+            set_text(GetDlgItem(hwnd, ID_ABOUT_CLOSE), i18n::tr("关闭"));
+        }
+    }
+
+    unsafe fn apply_language(hwnd: HWND) {
+        let port_values = [
+            ID_ADMIN_PORT,
+            ID_PROXY_PORT,
+            ID_BACKEND_PORT,
+            ID_AUTH_PORT,
+            ID_GRPC_PORT,
+        ]
+        .map(|id| (id, unsafe { get_text(GetDlgItem(hwnd, id)) }));
+        unsafe {
+            set_text(
+                hwnd,
+                &format!("Knock 敲门 · {}", i18n::tr("Windows 管理程序")),
+            );
+            set_text(
+                GetDlgItem(hwnd, ID_SUBTITLE_LABEL),
+                i18n::tr("fn-knock 本机服务与端口管理"),
+            );
+            set_text(
+                GetDlgItem(hwnd, ID_LANGUAGE),
+                &i18n::language_button_label(),
+            );
+            set_text(GetDlgItem(hwnd, ID_STATUS_GROUP), i18n::tr("运行状态"));
+            set_text(GetDlgItem(hwnd, ID_PORT_GROUP), i18n::tr("端口设置"));
+            set_text(GetDlgItem(hwnd, ID_ADMIN_LABEL), i18n::tr("管理后台"));
+            set_text(GetDlgItem(hwnd, ID_PROXY_LABEL), i18n::tr("代理入口"));
+            set_text(
+                GetDlgItem(hwnd, ID_ADVANCED_LABEL),
+                i18n::tr("高级端口（通常无需修改）"),
+            );
+            set_text(GetDlgItem(hwnd, ID_BACKEND_LABEL), "Rust API");
+            set_text(GetDlgItem(hwnd, ID_AUTH_LABEL), i18n::tr("认证"));
+            set_text(GetDlgItem(hwnd, ID_GRPC_LABEL), "Go gRPC");
+            set_text(GetDlgItem(hwnd, ID_OPEN_ADMIN), i18n::tr("打开管理后台"));
+            set_text(GetDlgItem(hwnd, ID_START), i18n::tr("启动服务"));
+            set_text(GetDlgItem(hwnd, ID_STOP), i18n::tr("停止服务"));
+            set_text(GetDlgItem(hwnd, ID_RESTART), i18n::tr("重启服务"));
+            set_text(GetDlgItem(hwnd, ID_REFRESH), i18n::tr("刷新状态"));
+            set_text(
+                GetDlgItem(hwnd, ID_RESET_PASSWORD),
+                i18n::tr("清除管理密码"),
+            );
+            set_text(GetDlgItem(hwnd, ID_CHECK_UPDATE), i18n::tr("检查更新"));
+            set_text(
+                GetDlgItem(hwnd, ID_TRAY_HINT),
+                i18n::tr("关闭窗口后，fn-knock 将继续在系统托盘运行。"),
+            );
+            set_text(
+                GetDlgItem(hwnd, ID_OFFICIAL_LINK),
+                &format!(
+                    "<a href=\"https://www.fnknock.cn/\">{}</a>",
+                    i18n::tr("官方网站")
+                ),
+            );
+            set_text(
+                GetDlgItem(hwnd, ID_GITHUB_LINK),
+                &format!(
+                    "<a href=\"https://github.com/kci-lnk/fn-knock-turborepo\">{}</a>",
+                    i18n::tr("GitHub 项目")
+                ),
+            );
+            refresh(hwnd);
+            for (id, value) in port_values {
+                set_text(GetDlgItem(hwnd, id), &value);
+            }
+            apply_about_language(ABOUT_WINDOW.load(Ordering::Acquire) as HWND);
+        }
+    }
+
+    const fn locale_menu_id(locale: Locale) -> usize {
+        match locale {
+            Locale::ZhCn => ID_LOCALE_ZH_CN,
+            Locale::ZhHant => ID_LOCALE_ZH_HANT,
+            Locale::En => ID_LOCALE_EN,
+            Locale::KoKr => ID_LOCALE_KO_KR,
+            Locale::JaJp => ID_LOCALE_JA_JP,
+        }
+    }
+
+    unsafe fn language_menu(hwnd: HWND) {
+        let menu = unsafe { CreatePopupMenu() };
+        if menu.is_null() {
+            return;
+        }
+        let auto_label = wide(i18n::tr("跟随 Windows"));
+        let auto_flags = MF_STRING
+            | if i18n::follows_windows() {
+                MF_CHECKED
+            } else {
+                0
+            };
+        unsafe { AppendMenuW(menu, auto_flags, ID_LOCALE_AUTO, auto_label.as_ptr()) };
+        unsafe { AppendMenuW(menu, MF_SEPARATOR, 0, ptr::null()) };
+        for locale in Locale::ALL {
+            let label = wide(locale.display_name());
+            let flags = MF_STRING
+                | if !i18n::follows_windows() && locale == i18n::active_locale() {
+                    MF_CHECKED
+                } else {
+                    0
+                };
+            unsafe { AppendMenuW(menu, flags, locale_menu_id(locale), label.as_ptr()) };
+        }
+
+        let mut anchor: RECT = unsafe { std::mem::zeroed() };
+        if unsafe { GetWindowRect(GetDlgItem(hwnd, ID_LANGUAGE), &mut anchor) } == 0 {
+            unsafe { DestroyMenu(menu) };
+            return;
+        }
+        let command = unsafe {
+            TrackPopupMenu(
+                menu,
+                TPM_LEFTALIGN | TPM_RETURNCMD,
+                anchor.left,
+                anchor.bottom,
+                0,
+                hwnd,
+                ptr::null(),
+            )
+        } as usize;
+        unsafe { DestroyMenu(menu) };
+
+        let selected = match command {
+            ID_LOCALE_AUTO => Some(None),
+            ID_LOCALE_ZH_CN => Some(Some(Locale::ZhCn)),
+            ID_LOCALE_ZH_HANT => Some(Some(Locale::ZhHant)),
+            ID_LOCALE_EN => Some(Some(Locale::En)),
+            ID_LOCALE_KO_KR => Some(Some(Locale::KoKr)),
+            ID_LOCALE_JA_JP => Some(Some(Locale::JaJp)),
+            _ => None,
+        };
+        if let Some(locale) = selected {
+            let result = i18n::choose(locale);
+            unsafe { apply_language(hwnd) };
+            if let Err(error) = result {
+                unsafe { message(hwnd, &error, true) };
+            }
+        }
+    }
+
     unsafe fn tray_menu(hwnd: HWND) {
         let menu = unsafe { CreatePopupMenu() };
-        let mut items = vec![(ID_TRAY_OPEN, "打开管理程序")];
+        let mut items = vec![(ID_TRAY_OPEN, i18n::tr("打开管理程序"))];
         let running = platform::service_is_running();
         if running {
-            items.push((ID_TRAY_ADMIN, "打开管理后台"));
+            items.push((ID_TRAY_ADMIN, i18n::tr("打开管理后台")));
         }
         if !OPERATION_BUSY.load(Ordering::Acquire) {
             if running {
-                items.push((ID_TRAY_STOP, "停止服务"));
-                items.push((ID_TRAY_RESTART, "重启服务"));
+                items.push((ID_TRAY_STOP, i18n::tr("停止服务")));
+                items.push((ID_TRAY_RESTART, i18n::tr("重启服务")));
             } else if platform::service_is_stopped() {
-                items.push((ID_TRAY_START, "启动服务"));
+                items.push((ID_TRAY_START, i18n::tr("启动服务")));
             }
         }
-        items.push((ID_TRAY_UPDATE, "检查更新"));
-        items.push((ID_TRAY_ABOUT, "关于"));
+        items.push((ID_TRAY_UPDATE, i18n::tr("检查更新")));
+        items.push((ID_TRAY_ABOUT, i18n::tr("关于")));
         for (id, label) in items {
             let label = wide(label);
             unsafe { AppendMenuW(menu, MF_STRING, id, label.as_ptr()) };
         }
         unsafe { AppendMenuW(menu, MF_SEPARATOR, 0, ptr::null()) };
-        let version = wide(&format!("版本 {}", env!("CARGO_PKG_VERSION")));
+        let version = wide(&format!(
+            "{} {}",
+            i18n::tr("版本"),
+            env!("CARGO_PKG_VERSION")
+        ));
         unsafe { AppendMenuW(menu, MF_STRING, 0, version.as_ptr()) };
-        let quit = wide("退出管理程序");
+        let quit = wide(i18n::tr("退出管理程序"));
         unsafe { AppendMenuW(menu, MF_STRING, ID_TRAY_QUIT, quit.as_ptr()) };
         let mut point = POINT { x: 0, y: 0 };
         unsafe {
@@ -910,8 +1140,8 @@ mod windows_ui {
                 unsafe {
                     begin_operation(
                         hwnd,
-                        "正在重启服务…",
-                        "fn-knock 服务已重新启动。",
+                        i18n::tr("正在重启服务…"),
+                        i18n::tr("fn-knock 服务已重新启动。"),
                         platform::restart_service,
                     )
                 };
@@ -920,8 +1150,8 @@ mod windows_ui {
                 unsafe {
                     begin_operation(
                         hwnd,
-                        "正在启动服务…",
-                        "fn-knock 服务已启动。",
+                        i18n::tr("正在启动服务…"),
+                        i18n::tr("fn-knock 服务已启动。"),
                         platform::start_service,
                     )
                 };
@@ -930,8 +1160,8 @@ mod windows_ui {
                 unsafe {
                     begin_operation(
                         hwnd,
-                        "正在停止服务…",
-                        "fn-knock 服务已停止。",
+                        i18n::tr("正在停止服务…"),
+                        i18n::tr("fn-knock 服务已停止。"),
                         platform::stop_service,
                     )
                 };
@@ -975,31 +1205,42 @@ mod windows_ui {
                     create_control(
                         hwnd,
                         "STATIC",
-                        "fn-knock 本机服务与端口管理",
+                        i18n::tr("fn-knock 本机服务与端口管理"),
                         0,
                         30,
                         58,
                         430,
                         22,
-                        0,
+                        ID_SUBTITLE_LABEL,
                     );
                     create_control(hwnd, "STATIC", "", 0, 500, 30, 185, 22, ID_VERSION_LABEL);
+                    create_control(
+                        hwnd,
+                        "BUTTON",
+                        &i18n::language_button_label(),
+                        BS_PUSHBUTTON as u32 | BS_FLAT as u32 | WS_TABSTOP,
+                        536,
+                        54,
+                        148,
+                        30,
+                        ID_LANGUAGE,
+                    );
 
                     create_control(
                         hwnd,
                         "BUTTON",
-                        "运行状态",
+                        i18n::tr("运行状态"),
                         BS_GROUPBOX as u32,
                         24,
                         92,
                         660,
                         150,
-                        0,
+                        ID_STATUS_GROUP,
                     );
                     let status_title = create_control(
                         hwnd,
                         "STATIC",
-                        "正在读取状态…",
+                        i18n::tr("正在读取状态…"),
                         0,
                         48,
                         121,
@@ -1012,7 +1253,7 @@ mod windows_ui {
                     create_control(
                         hwnd,
                         "STATIC",
-                        "内存占用：正在读取…",
+                        i18n::tr("内存占用：正在读取…"),
                         0,
                         48,
                         207,
@@ -1024,50 +1265,80 @@ mod windows_ui {
                     create_control(
                         hwnd,
                         "BUTTON",
-                        "端口设置",
+                        i18n::tr("端口设置"),
                         BS_GROUPBOX as u32,
                         24,
                         254,
                         660,
                         194,
-                        0,
+                        ID_PORT_GROUP,
                     );
-                    create_control(hwnd, "STATIC", "管理后台", 0, 48, 287, 86, 22, 0);
+                    create_control(
+                        hwnd,
+                        "STATIC",
+                        i18n::tr("管理后台"),
+                        0,
+                        48,
+                        287,
+                        118,
+                        22,
+                        ID_ADMIN_LABEL,
+                    );
                     create_control(
                         hwnd,
                         "EDIT",
                         "7991",
                         WS_BORDER | ES_AUTOHSCROLL as u32 | WS_TABSTOP,
-                        138,
+                        170,
                         282,
-                        112,
+                        80,
                         30,
                         ID_ADMIN_PORT,
                     );
-                    create_control(hwnd, "STATIC", "代理入口", 0, 292, 287, 86, 22, 0);
+                    create_control(
+                        hwnd,
+                        "STATIC",
+                        i18n::tr("代理入口"),
+                        0,
+                        292,
+                        287,
+                        145,
+                        22,
+                        ID_PROXY_LABEL,
+                    );
                     create_control(
                         hwnd,
                         "EDIT",
                         "7999",
                         WS_BORDER | ES_AUTOHSCROLL as u32 | WS_TABSTOP,
-                        382,
+                        442,
                         282,
-                        112,
+                        96,
                         30,
                         ID_PROXY_PORT,
                     );
                     create_control(
                         hwnd,
                         "STATIC",
-                        "高级端口（通常无需修改）",
+                        i18n::tr("高级端口（通常无需修改）"),
                         0,
                         48,
                         334,
-                        230,
+                        290,
                         22,
-                        0,
+                        ID_ADVANCED_LABEL,
                     );
-                    create_control(hwnd, "STATIC", "Rust API", 0, 48, 369, 70, 22, 0);
+                    create_control(
+                        hwnd,
+                        "STATIC",
+                        "Rust API",
+                        0,
+                        48,
+                        369,
+                        70,
+                        22,
+                        ID_BACKEND_LABEL,
+                    );
                     create_control(
                         hwnd,
                         "EDIT",
@@ -1079,7 +1350,17 @@ mod windows_ui {
                         29,
                         ID_BACKEND_PORT,
                     );
-                    create_control(hwnd, "STATIC", "认证", 0, 215, 369, 42, 22, 0);
+                    create_control(
+                        hwnd,
+                        "STATIC",
+                        i18n::tr("认证"),
+                        0,
+                        215,
+                        369,
+                        42,
+                        22,
+                        ID_AUTH_LABEL,
+                    );
                     create_control(
                         hwnd,
                         "EDIT",
@@ -1091,7 +1372,17 @@ mod windows_ui {
                         29,
                         ID_AUTH_PORT,
                     );
-                    create_control(hwnd, "STATIC", "Go gRPC", 0, 356, 369, 65, 22, 0);
+                    create_control(
+                        hwnd,
+                        "STATIC",
+                        "Go gRPC",
+                        0,
+                        356,
+                        369,
+                        65,
+                        22,
+                        ID_GRPC_LABEL,
+                    );
                     create_control(
                         hwnd,
                         "EDIT",
@@ -1106,11 +1397,11 @@ mod windows_ui {
                     create_control(
                         hwnd,
                         "BUTTON",
-                        "保存并重启服务",
+                        i18n::tr("保存并重启服务"),
                         BS_PUSHBUTTON as u32 | BS_FLAT as u32 | WS_TABSTOP,
-                        516,
+                        500,
                         361,
-                        142,
+                        158,
                         34,
                         ID_SAVE,
                     );
@@ -1118,7 +1409,7 @@ mod windows_ui {
                     create_control(
                         hwnd,
                         "BUTTON",
-                        "打开管理后台",
+                        i18n::tr("打开管理后台"),
                         BS_DEFPUSHBUTTON as u32 | BS_FLAT as u32 | WS_TABSTOP,
                         24,
                         470,
@@ -1129,7 +1420,7 @@ mod windows_ui {
                     create_control(
                         hwnd,
                         "BUTTON",
-                        "启动服务",
+                        i18n::tr("启动服务"),
                         BS_PUSHBUTTON as u32 | BS_FLAT as u32 | WS_TABSTOP,
                         210,
                         470,
@@ -1140,7 +1431,7 @@ mod windows_ui {
                     create_control(
                         hwnd,
                         "BUTTON",
-                        "停止服务",
+                        i18n::tr("停止服务"),
                         BS_PUSHBUTTON as u32 | BS_FLAT as u32 | WS_TABSTOP,
                         210,
                         470,
@@ -1151,7 +1442,7 @@ mod windows_ui {
                     create_control(
                         hwnd,
                         "BUTTON",
-                        "重启服务",
+                        i18n::tr("重启服务"),
                         BS_PUSHBUTTON as u32 | BS_FLAT as u32 | WS_TABSTOP,
                         354,
                         470,
@@ -1162,7 +1453,7 @@ mod windows_ui {
                     create_control(
                         hwnd,
                         "BUTTON",
-                        "刷新状态",
+                        i18n::tr("刷新状态"),
                         BS_PUSHBUTTON as u32 | BS_FLAT as u32 | WS_TABSTOP,
                         498,
                         470,
@@ -1173,7 +1464,7 @@ mod windows_ui {
                     create_control(
                         hwnd,
                         "BUTTON",
-                        "清除管理密码",
+                        i18n::tr("清除管理密码"),
                         BS_PUSHBUTTON as u32 | BS_FLAT as u32 | WS_TABSTOP,
                         24,
                         525,
@@ -1184,7 +1475,7 @@ mod windows_ui {
                     create_control(
                         hwnd,
                         "BUTTON",
-                        "检查更新",
+                        i18n::tr("检查更新"),
                         BS_PUSHBUTTON as u32 | BS_FLAT as u32 | WS_TABSTOP,
                         210,
                         525,
@@ -1195,33 +1486,39 @@ mod windows_ui {
                     create_control(
                         hwnd,
                         "STATIC",
-                        "关闭窗口后，fn-knock 将继续在系统托盘运行。",
+                        i18n::tr("关闭窗口后，fn-knock 将继续在系统托盘运行。"),
                         0,
                         354,
                         533,
                         310,
                         22,
-                        0,
+                        ID_TRAY_HINT,
                     );
                     create_control(
                         hwnd,
                         "SysLink",
-                        "<a href=\"https://www.fnknock.cn/\">官方网站</a>",
+                        &format!(
+                            "<a href=\"https://www.fnknock.cn/\">{}</a>",
+                            i18n::tr("官方网站")
+                        ),
                         WS_TABSTOP | 0x0001,
                         354,
                         565,
-                        110,
+                        124,
                         24,
                         ID_OFFICIAL_LINK,
                     );
                     create_control(
                         hwnd,
                         "SysLink",
-                        "<a href=\"https://github.com/kci-lnk/fn-knock-turborepo\">GitHub 项目</a>",
+                        &format!(
+                            "<a href=\"https://github.com/kci-lnk/fn-knock-turborepo\">{}</a>",
+                            i18n::tr("GitHub 项目")
+                        ),
                         WS_TABSTOP | 0x0001,
-                        480,
+                        490,
                         565,
-                        150,
+                        168,
                         24,
                         ID_GITHUB_LINK,
                     );
@@ -1249,6 +1546,7 @@ mod windows_ui {
                     return 0;
                 }
                 match id {
+                    ID_LANGUAGE => unsafe { language_menu(hwnd) },
                     ID_OPEN_ADMIN => {
                         if let Err(error) = open_admin() {
                             unsafe { message(hwnd, &error, true) };
@@ -1257,24 +1555,24 @@ mod windows_ui {
                     ID_START => unsafe {
                         begin_operation(
                             hwnd,
-                            "正在启动服务…",
-                            "fn-knock 服务已启动。",
+                            i18n::tr("正在启动服务…"),
+                            i18n::tr("fn-knock 服务已启动。"),
                             platform::start_service,
                         )
                     },
                     ID_STOP => unsafe {
                         begin_operation(
                             hwnd,
-                            "正在停止服务…",
-                            "fn-knock 服务已停止。",
+                            i18n::tr("正在停止服务…"),
+                            i18n::tr("fn-knock 服务已停止。"),
                             platform::stop_service,
                         )
                     },
                     ID_RESTART => unsafe {
                         begin_operation(
                             hwnd,
-                            "正在重启服务…",
-                            "fn-knock 服务已重新启动。",
+                            i18n::tr("正在重启服务…"),
+                            i18n::tr("fn-knock 服务已重新启动。"),
                             platform::restart_service,
                         )
                     },
@@ -1282,15 +1580,17 @@ mod windows_ui {
                         Ok(config) => unsafe {
                             begin_operation(
                                 hwnd,
-                                "正在应用端口并验证服务…",
-                                "端口配置已生效，服务已通过就绪检查。",
+                                i18n::tr("正在应用端口并验证服务…"),
+                                i18n::tr("端口配置已生效，服务已通过就绪检查。"),
                                 move || runtime::save_runtime_config(&config),
                             )
                         },
                         Err(error) => unsafe { message(hwnd, &error, true) },
                     },
                     ID_RESET_PASSWORD => {
-                        let prompt = wide("将清除管理密码、登录会话与失败退避状态。确定继续吗？");
+                        let prompt = wide(i18n::tr(
+                            "将清除管理密码、登录会话与失败退避状态。确定继续吗？",
+                        ));
                         let title = wide("Knock 敲门");
                         if unsafe {
                             MessageBoxW(
@@ -1304,8 +1604,8 @@ mod windows_ui {
                             unsafe {
                                 begin_operation(
                                     hwnd,
-                                    "正在清除管理密码…",
-                                    "管理密码与现有登录会话已清除，服务已恢复。",
+                                    i18n::tr("正在清除管理密码…"),
+                                    i18n::tr("管理密码与现有登录会话已清除，服务已恢复。"),
                                     platform::reset_panel_password,
                                 )
                             };
@@ -1410,6 +1710,7 @@ mod windows_ui {
     }
 
     pub fn run() {
+        i18n::initialize();
         unsafe {
             InitCommonControls();
             let common_controls = INITCOMMONCONTROLSEX {
@@ -1462,7 +1763,7 @@ mod windows_ui {
             if RegisterClassW(&about_class) == 0 {
                 return;
             }
-            let title = wide(WINDOW_TITLE);
+            let title = wide(&format!("Knock 敲门 · {}", i18n::tr("Windows 管理程序")));
             let dpi = GetDpiForSystem().max(96);
             let hwnd = CreateWindowExW(
                 0,

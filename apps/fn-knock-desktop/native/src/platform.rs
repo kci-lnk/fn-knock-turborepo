@@ -14,6 +14,7 @@ mod imp {
         time::{Duration, Instant},
     };
 
+    use crate::i18n;
     use windows_service::{
         service::{ServiceAccess, ServiceState, ServiceStatus},
         service_manager::{ServiceManager, ServiceManagerAccess},
@@ -100,7 +101,8 @@ mod imp {
         };
         if result < 0 || raw.is_null() {
             return Err(format!(
-                "无法解析 Windows ProgramData（HRESULT 0x{:08x}）",
+                "{}（HRESULT 0x{:08x}）",
+                i18n::tr("无法解析 Windows ProgramData"),
                 result as u32
             ));
         }
@@ -118,11 +120,12 @@ mod imp {
     }
 
     fn open_service(access: ServiceAccess) -> Result<windows_service::service::Service, String> {
-        let manager = ServiceManager::local_computer(None::<&str>, ServiceManagerAccess::CONNECT)
-            .map_err(|error| format!("无法连接 Windows 服务管理器：{error}"))?;
+        let manager =
+            ServiceManager::local_computer(None::<&str>, ServiceManagerAccess::CONNECT)
+                .map_err(|error| format!("{}：{error}", i18n::tr("无法连接 Windows 服务管理器")))?;
         manager
             .open_service(SERVICE_NAME, access)
-            .map_err(|error| format!("无法打开 fn-knock 服务：{error}"))
+            .map_err(|error| format!("{}：{error}", i18n::tr("无法打开 fn-knock 服务")))
     }
 
     fn wait_for_state(
@@ -134,13 +137,16 @@ mod imp {
         loop {
             let status = service
                 .query_status()
-                .map_err(|error| format!("查询服务状态失败：{error}"))?;
+                .map_err(|error| format!("{}：{error}", i18n::tr("查询服务状态失败")))?;
             if status.current_state == target {
                 return Ok(status);
             }
             if Instant::now() >= deadline {
                 return Err(format!(
-                    "等待服务状态 {target:?} 超时，当前为 {:?}",
+                    "{} {target:?} {}，{} {:?}",
+                    i18n::tr("等待服务状态"),
+                    i18n::tr("超时"),
+                    i18n::tr("当前状态为"),
                     status.current_state
                 ));
             }
@@ -150,22 +156,22 @@ mod imp {
 
     pub fn service_state(name: &str) -> String {
         if name != SERVICE_NAME {
-            return "未知服务".to_string();
+            return i18n::tr("未知服务").to_string();
         }
         match open_service(ServiceAccess::QUERY_STATUS)
             .and_then(|service| service.query_status().map_err(|e| e.to_string()))
         {
             Ok(status) => match status.current_state {
-                ServiceState::Stopped => "已停止",
-                ServiceState::StartPending => "正在启动",
-                ServiceState::StopPending => "正在停止",
-                ServiceState::Running => "运行中",
-                ServiceState::ContinuePending => "正在继续",
-                ServiceState::PausePending => "正在暂停",
-                ServiceState::Paused => "已暂停",
+                ServiceState::Stopped => i18n::tr("已停止"),
+                ServiceState::StartPending => i18n::tr("正在启动"),
+                ServiceState::StopPending => i18n::tr("正在停止"),
+                ServiceState::Running => i18n::tr("运行中"),
+                ServiceState::ContinuePending => i18n::tr("正在继续"),
+                ServiceState::PausePending => i18n::tr("正在暂停"),
+                ServiceState::Paused => i18n::tr("已暂停"),
             }
             .to_string(),
-            Err(error) => format!("不可用：{error}"),
+            Err(error) => format!("{}：{error}", i18n::tr("不可用")),
         }
     }
 
@@ -190,7 +196,10 @@ mod imp {
             )
         };
         if process.is_null() {
-            return Err(format!("无法打开进程 {process_id} 读取内存信息"));
+            return Err(format!(
+                "{} {process_id}",
+                i18n::tr("无法打开进程以读取内存信息")
+            ));
         }
         let mut counters: PROCESS_MEMORY_COUNTERS = unsafe { std::mem::zeroed() };
         counters.cb = size_of::<PROCESS_MEMORY_COUNTERS>() as u32;
@@ -203,7 +212,7 @@ mod imp {
         };
         unsafe { CloseHandle(process) };
         if result == 0 {
-            Err(format!("无法读取进程 {process_id} 的内存信息"))
+            Err(format!("{} {process_id}", i18n::tr("无法读取进程内存信息")))
         } else {
             Ok(counters.WorkingSetSize as u64)
         }
@@ -212,19 +221,21 @@ mod imp {
     pub fn service_process_memory() -> Result<(u64, u64), String> {
         let _ = enable_debug_privilege();
         let service = open_service(ServiceAccess::QUERY_STATUS)?;
-        let status = service.query_status().map_err(|error| error.to_string())?;
+        let status = service
+            .query_status()
+            .map_err(|error| format!("{}：{error}", i18n::tr("查询服务状态失败")))?;
         if status.current_state != ServiceState::Running {
             return Ok((0, 0));
         }
         let service_pid = status
             .process_id
             .filter(|pid| *pid != 0)
-            .ok_or("SCM 未返回服务 PID")?;
+            .ok_or_else(|| i18n::tr("SCM 未返回服务 PID").to_string())?;
         let service_bytes = working_set_bytes(service_pid)?;
 
         let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
         if snapshot == INVALID_HANDLE_VALUE {
-            return Err("无法枚举 fn-knock 网关进程".to_string());
+            return Err(i18n::tr("无法枚举 fn-knock 网关进程").to_string());
         }
         let mut entry: PROCESSENTRY32W = unsafe { std::mem::zeroed() };
         entry.dwSize = size_of::<PROCESSENTRY32W>() as u32;
@@ -248,7 +259,7 @@ mod imp {
         }
         unsafe { CloseHandle(snapshot) };
         if gateway_bytes == 0 {
-            Err("fn-knock 网关进程尚未提供内存数据".to_string())
+            Err(i18n::tr("fn-knock 网关进程尚未提供内存数据").to_string())
         } else {
             Ok((service_bytes, gateway_bytes))
         }
@@ -256,26 +267,30 @@ mod imp {
 
     pub fn start_service() -> Result<(), String> {
         let service = open_service(ServiceAccess::START | ServiceAccess::QUERY_STATUS)?;
-        let status = service.query_status().map_err(|error| error.to_string())?;
+        let status = service
+            .query_status()
+            .map_err(|error| format!("{}：{error}", i18n::tr("查询服务状态失败")))?;
         if status.current_state == ServiceState::Running {
             return Ok(());
         }
         service
             .start::<&OsStr>(&[])
-            .map_err(|error| format!("启动服务失败：{error}"))?;
+            .map_err(|error| format!("{}：{error}", i18n::tr("启动服务失败")))?;
         wait_for_state(&service, ServiceState::Running, Duration::from_secs(25))?;
         Ok(())
     }
 
     pub fn stop_service() -> Result<(), String> {
         let service = open_service(ServiceAccess::STOP | ServiceAccess::QUERY_STATUS)?;
-        let status = service.query_status().map_err(|error| error.to_string())?;
+        let status = service
+            .query_status()
+            .map_err(|error| format!("{}：{error}", i18n::tr("查询服务状态失败")))?;
         if status.current_state == ServiceState::Stopped {
             return Ok(());
         }
         service
             .stop()
-            .map_err(|error| format!("停止服务失败：{error}"))?;
+            .map_err(|error| format!("{}：{error}", i18n::tr("停止服务失败")))?;
         wait_for_state(&service, ServiceState::Stopped, Duration::from_secs(25))?;
         Ok(())
     }
@@ -286,14 +301,17 @@ mod imp {
     }
 
     pub fn write_runtime_config_and_restart(path: &Path, bytes: &[u8]) -> Result<(), String> {
-        let parent = path.parent().ok_or("运行配置路径缺少父目录")?;
-        fs::create_dir_all(parent).map_err(|error| format!("创建配置目录失败：{error}"))?;
+        let parent = path
+            .parent()
+            .ok_or_else(|| i18n::tr("运行配置路径缺少父目录").to_string())?;
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("{}：{error}", i18n::tr("创建配置目录失败")))?;
         let previous = fs::read(path).ok();
         let desired_port = serde_json::from_slice::<serde_json::Value>(bytes)
             .ok()
             .and_then(|value| value.get("admin_port").and_then(serde_json::Value::as_u64))
             .and_then(|value| u16::try_from(value).ok())
-            .ok_or("运行配置缺少有效的管理端口")?;
+            .ok_or_else(|| i18n::tr("运行配置缺少有效的管理端口").to_string())?;
         let previous_port = previous.as_deref().and_then(|bytes| {
             serde_json::from_slice::<serde_json::Value>(bytes)
                 .ok()
@@ -302,23 +320,24 @@ mod imp {
         });
         let staging = parent.join(format!(".runtime-{}.tmp", std::process::id()));
         let backup = parent.join(format!(".runtime-{}.rollback", std::process::id()));
-        let mut staged =
-            fs::File::create(&staging).map_err(|error| format!("创建临时配置失败：{error}"))?;
+        let mut staged = fs::File::create(&staging)
+            .map_err(|error| format!("{}：{error}", i18n::tr("创建临时配置失败")))?;
         use std::io::Write;
         staged
             .write_all(bytes)
             .and_then(|_| staged.sync_all())
-            .map_err(|error| format!("写入临时配置失败：{error}"))?;
+            .map_err(|error| format!("{}：{error}", i18n::tr("写入临时配置失败")))?;
         drop(staged);
         let _ = fs::remove_file(&backup);
         if path.exists() {
-            fs::rename(path, &backup).map_err(|error| format!("备份旧配置失败：{error}"))?;
+            fs::rename(path, &backup)
+                .map_err(|error| format!("{}：{error}", i18n::tr("备份旧配置失败")))?;
         }
         if let Err(error) = fs::rename(&staging, path) {
             if backup.exists() {
                 let _ = fs::rename(&backup, path);
             }
-            return Err(format!("替换运行配置失败：{error}"));
+            return Err(format!("{}：{error}", i18n::tr("替换运行配置失败")));
         }
 
         let apply_result = restart_service().and_then(|_| {
@@ -330,8 +349,10 @@ mod imp {
                 }
                 if Instant::now() >= deadline {
                     return Err(format!(
-                        "新管理端口 {desired_port} 未能就绪：{}",
-                        detail.unwrap_or_else(|| "readyz 超时".to_string())
+                        "{} {desired_port} {}：{}",
+                        i18n::tr("新管理端口"),
+                        i18n::tr("未能就绪"),
+                        detail.unwrap_or_else(|| i18n::tr("readyz 超时").to_string())
                     ));
                 }
                 thread::sleep(Duration::from_millis(250));
@@ -351,14 +372,19 @@ mod imp {
                         }
                         thread::sleep(Duration::from_millis(250));
                     }
-                    return Err(format!("旧管理端口 {port} 回滚后未能就绪"));
+                    return Err(format!(
+                        "{} {port} {}",
+                        i18n::tr("旧管理端口"),
+                        i18n::tr("回滚后未能就绪")
+                    ));
                 }
                 Ok(())
             });
             return match rollback_result {
-                Ok(()) => Err(format!("{apply_error}；已恢复旧配置")),
+                Ok(()) => Err(format!("{apply_error}；{}", i18n::tr("已恢复旧配置"))),
                 Err(rollback_error) => Err(format!(
-                    "{apply_error}；旧配置已恢复，但服务恢复失败：{rollback_error}"
+                    "{apply_error}；{}：{rollback_error}",
+                    i18n::tr("旧配置已恢复，但服务恢复失败")
                 )),
             };
         }
@@ -371,16 +397,16 @@ mod imp {
         let service_exe = std::env::current_exe()
             .map_err(|error| error.to_string())?
             .parent()
-            .ok_or("管理程序路径缺少父目录")?
+            .ok_or_else(|| i18n::tr("管理程序路径缺少父目录").to_string())?
             .join("fn-knock-service.exe");
         let result = Command::new(&service_exe)
             .arg("reset-panel-password")
             .creation_flags(CREATE_NO_WINDOW)
             .status()
-            .map_err(|error| format!("无法执行密码清理：{error}"))?;
+            .map_err(|error| format!("{}：{error}", i18n::tr("无法执行密码清理")))?;
         let restart = start_service();
         if !result.success() {
-            return Err(format!("密码清理失败：{result}"));
+            return Err(format!("{}：{result}", i18n::tr("密码清理失败")));
         }
         restart
     }
@@ -398,7 +424,7 @@ mod imp {
             )
         };
         if probe != ERROR_INSUFFICIENT_BUFFER || byte_count < size_of::<u32>() as u32 {
-            return Err(format!("无法读取 TCP 监听表（{probe}）"));
+            return Err(format!("{}（{probe}）", i18n::tr("无法读取 TCP 监听表")));
         }
         let mut table = vec![0_u32; (byte_count as usize).div_ceil(size_of::<u32>())];
         let result = unsafe {
@@ -412,7 +438,7 @@ mod imp {
             )
         };
         if result != 0 {
-            return Err(format!("无法读取 TCP 监听表（{result}）"));
+            return Err(format!("{}（{result}）", i18n::tr("无法读取 TCP 监听表")));
         }
         let count = table[0] as usize;
         let rows = unsafe {
@@ -430,21 +456,27 @@ mod imp {
 
     pub fn verify_service_listener(name: &str, port: u16) -> Result<(), String> {
         if name != SERVICE_NAME {
-            return Err("服务标识不匹配".to_string());
+            return Err(i18n::tr("服务标识不匹配").to_string());
         }
         let service = open_service(ServiceAccess::QUERY_STATUS)?;
-        let status = service.query_status().map_err(|error| error.to_string())?;
+        let status = service
+            .query_status()
+            .map_err(|error| format!("{}：{error}", i18n::tr("查询服务状态失败")))?;
         if status.current_state != ServiceState::Running {
-            return Err("fn-knock 服务尚未运行".to_string());
+            return Err(i18n::tr("fn-knock 服务尚未运行").to_string());
         }
         let service_pid = status
             .process_id
             .filter(|pid| *pid != 0)
-            .ok_or("SCM 未返回服务 PID")?;
-        let listener_pid =
-            tcp_listener_owner_pid(port)?.ok_or_else(|| format!("管理端口 {port} 尚未监听"))?;
+            .ok_or_else(|| i18n::tr("SCM 未返回服务 PID").to_string())?;
+        let listener_pid = tcp_listener_owner_pid(port)?
+            .ok_or_else(|| format!("{} {port} {}", i18n::tr("管理端口"), i18n::tr("尚未监听")))?;
         if listener_pid != service_pid {
-            return Err(format!("管理端口 {port} 不属于 fn-knock 服务"));
+            return Err(format!(
+                "{} {port} {}",
+                i18n::tr("管理端口"),
+                i18n::tr("不属于 fn-knock 服务")
+            ));
         }
         Ok(())
     }
@@ -456,12 +488,13 @@ mod imp {
 
 #[cfg(not(windows))]
 mod imp {
+    use crate::i18n;
     use std::{fs, path::Path};
     pub fn program_data_dir() -> Result<std::path::PathBuf, String> {
         Ok(std::env::temp_dir().join("FnKnock"))
     }
     pub fn service_state(_: &str) -> String {
-        "仅 Windows 可用".to_string()
+        i18n::tr("仅 Windows 可用").to_string()
     }
     pub fn service_is_running() -> bool {
         false
@@ -476,16 +509,16 @@ mod imp {
         Ok(())
     }
     pub fn start_service() -> Result<(), String> {
-        Err("仅 Windows 可用".to_string())
+        Err(i18n::tr("仅 Windows 可用").to_string())
     }
     pub fn restart_service() -> Result<(), String> {
-        Err("仅 Windows 可用".to_string())
+        Err(i18n::tr("仅 Windows 可用").to_string())
     }
     pub fn stop_service() -> Result<(), String> {
-        Err("仅 Windows 可用".to_string())
+        Err(i18n::tr("仅 Windows 可用").to_string())
     }
     pub fn reset_panel_password() -> Result<(), String> {
-        Err("仅 Windows 可用".to_string())
+        Err(i18n::tr("仅 Windows 可用").to_string())
     }
     pub fn write_runtime_config_and_restart(path: &Path, bytes: &[u8]) -> Result<(), String> {
         if let Some(parent) = path.parent() {

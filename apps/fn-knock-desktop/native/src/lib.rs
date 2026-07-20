@@ -1,3 +1,5 @@
+#[cfg_attr(not(windows), allow(dead_code))]
+mod i18n;
 mod native;
 #[cfg_attr(not(windows), allow(dead_code))]
 mod platform;

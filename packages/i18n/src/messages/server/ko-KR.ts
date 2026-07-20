@@ -1719,6 +1719,16 @@ export const koKRServer = {
       "직접 인터페이스 모드를 사용하기 전에 {family} 주소를 선택하세요.",
     selectedInterfaceAddressUnavailable:
       "선택한 인터페이스의 {index} {family} 주소는 더 이상 사용할 수 없습니다. 다시 선택하세요.",
+    interfaceSelectorFamilyInvalid:
+      "인터페이스 주소 선택기의 주소 패밀리가 잘못되었습니다.",
+    interfaceSelectorInvalid:
+      "인터페이스 주소 선택기가 잘못되었습니다: {message}",
+    interfaceSelectorNoMatch:
+      "인터페이스 주소 선택기가 사용 가능한 {family} 주소와 일치하지 않습니다.",
+    interfaceSelectorMultiple:
+      "{family} 선택기가 {count}개 후보와 일치하여 {address}을(를) 선택했습니다({reason}).",
+    interfaceSelectorResolved:
+      "{family} 주소 선택: {mode} 모드, {count}개 일치, {address} 선택({reason})",
     ipv4FailedContinueIpv6: "IPv4 감지에 실패해 IPv6로 계속합니다({error}).",
     ipv4Failed: "IPv4 감지 실패({error})",
     ipv6FailedContinueIpv4: "IPv6 감지에 실패해 IPv4로 계속합니다({error}).",

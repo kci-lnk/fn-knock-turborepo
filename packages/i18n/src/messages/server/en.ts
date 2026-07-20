@@ -1705,6 +1705,16 @@ export const enServer = {
       "Select a {family} address before using direct interface mode",
     selectedInterfaceAddressUnavailable:
       "The selected interface's {index} {family} address is no longer available. Select again.",
+    interfaceSelectorFamilyInvalid:
+      "The interface address selector has an invalid address family",
+    interfaceSelectorInvalid:
+      "Invalid interface address selector: {message}",
+    interfaceSelectorNoMatch:
+      "The interface address selector did not match a usable {family} address",
+    interfaceSelectorMultiple:
+      "The {family} selector matched {count} candidates; selected {address} ({reason})",
+    interfaceSelectorResolved:
+      "{family} address selection: mode {mode}, matched {count}, selected {address} ({reason})",
     ipv4FailedContinueIpv6:
       "IPv4 detection failed; continuing with IPv6 ({error})",
     ipv4Failed: "IPv4 detection failed ({error})",

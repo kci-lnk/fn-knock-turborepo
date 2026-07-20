@@ -1503,6 +1503,14 @@ export const zhCNServer = {
     selectInterfaceAddress: "从网卡直接获取时，请先选择一个 {family} 地址",
     selectedInterfaceAddressUnavailable:
       "所选网卡的第 {index} 个 {family} 地址已不可用，请重新选择",
+    interfaceSelectorFamilyInvalid: "网卡地址选择规则的地址族无效",
+    interfaceSelectorInvalid: "网卡地址选择规则无效：{message}",
+    interfaceSelectorNoMatch:
+      "网卡地址选择规则未匹配到可用的 {family} 地址",
+    interfaceSelectorMultiple:
+      "{family} 地址规则匹配到 {count} 个候选，已选择 {address}（{reason}）",
+    interfaceSelectorResolved:
+      "{family} 地址选择：模式 {mode}，命中 {count} 个候选，选择 {address}（{reason}）",
     ipv4FailedContinueIpv6: "IPv4 获取失败，将继续使用 IPv6 ({error})",
     ipv4Failed: "IPv4 获取失败 ({error})",
     ipv6FailedContinueIpv4: "IPv6 获取失败，将继续使用 IPv4 ({error})",

@@ -1503,6 +1503,14 @@ export const zhHantServer = {
     selectInterfaceAddress: "從網卡直接取得時，請先選擇一個 {family} 地址",
     selectedInterfaceAddressUnavailable:
       "所選網卡的第 {index} 個 {family} 地址已不可用，請重新選擇",
+    interfaceSelectorFamilyInvalid: "網卡地址選擇規則的地址族無效",
+    interfaceSelectorInvalid: "網卡地址選擇規則無效：{message}",
+    interfaceSelectorNoMatch:
+      "網卡地址選擇規則未匹配到可用的 {family} 地址",
+    interfaceSelectorMultiple:
+      "{family} 地址規則匹配到 {count} 個候選，已選擇 {address}（{reason}）",
+    interfaceSelectorResolved:
+      "{family} 地址選擇：模式 {mode}，命中 {count} 個候選，選擇 {address}（{reason}）",
     ipv4FailedContinueIpv6: "IPv4 取得失敗，將繼續使用 IPv6 ({error})",
     ipv4Failed: "IPv4 取得失敗 ({error})",
     ipv6FailedContinueIpv4: "IPv6 取得失敗，將繼續使用 IPv4 ({error})",

@@ -1787,6 +1787,16 @@ export const jaJPServer = {
       "インターフェースから直接取得するには、{family} アドレスを選択してください",
     selectedInterfaceAddressUnavailable:
       "選択したインターフェースの {index} 番目の {family} アドレスは使用できなくなりました。選択し直してください",
+    interfaceSelectorFamilyInvalid:
+      "インターフェイスアドレス選択ルールのアドレスファミリが無効です",
+    interfaceSelectorInvalid:
+      "インターフェイスアドレス選択ルールが無効です: {message}",
+    interfaceSelectorNoMatch:
+      "インターフェイスアドレス選択ルールに使用可能な {family} アドレスが一致しませんでした",
+    interfaceSelectorMultiple:
+      "{family} 選択ルールは {count} 件に一致し、{address} を選択しました（{reason}）",
+    interfaceSelectorResolved:
+      "{family} アドレス選択: モード {mode}、{count} 件一致、{address} を選択（{reason}）",
     ipv4FailedContinueIpv6:
       "IPv4 の検出に失敗したため、IPv6 で続行します（{error}）",
     ipv4Failed: "IPv4 の検出に失敗しました（{error}）",

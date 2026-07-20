@@ -7,6 +7,13 @@
 <h1 align="center">fn-knock · 敲门</h1>
 
 <p align="center">
+  <strong>简体中文</strong> ·
+  <a href="./docs/readme/README.en.md">English</a> ·
+  <a href="./docs/readme/README.ko.md">한국어</a> ·
+  <a href="./docs/readme/README.ja.md">日本語</a>
+</p>
+
+<p align="center">
   面向 NAS、软路由与家庭服务器的多平台高性能安全网关
 </p>
 

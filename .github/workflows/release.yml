@@ -680,8 +680,15 @@ jobs:
               --notes-file "release-notes/${VERSION}.md"
           fi
 
-          gh release upload "${TAG}" dist/release-assets/* --clobber
           find dist/release-assets -maxdepth 1 -type f -exec basename {} \; | sort > /tmp/expected-assets
+          gh release view "${TAG}" --json assets --jq '.assets[].name' | sort > /tmp/existing-assets
+          comm -23 /tmp/existing-assets /tmp/expected-assets |
+            while IFS= read -r stale_asset; do
+              [ -n "${stale_asset}" ] || continue
+              gh release delete-asset "${TAG}" "${stale_asset}" --yes
+            done
+
+          gh release upload "${TAG}" dist/release-assets/* --clobber
           gh release view "${TAG}" --json assets --jq '.assets[].name' | sort > /tmp/actual-assets
           diff -u /tmp/expected-assets /tmp/actual-assets
 

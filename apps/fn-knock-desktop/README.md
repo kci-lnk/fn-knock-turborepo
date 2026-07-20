@@ -38,4 +38,4 @@ npm ci
 3. 执行运行时、安装和卸载 smoke test，并校验 MZ/PE 头。
 4. 对最终字节生成 SHA-256；文件名和元数据均保留 `unsigned`，不得伪装为已签名包。
 
-`scripts/fn-knock-windows-finalize.ps1` 输出 EXE、SHA-256、unsigned `release.json` 和 unsigned `updater.json` 四个发布文件，下载地址指向对应 GitHub Release。Windows 安装包同时内置 `rust-acmesh.exe`，用于 DNS-01 证书申请。
+`scripts/fn-knock-windows-finalize.ps1` 输出 EXE、SHA-256、unsigned `release.json` 和 unsigned `updater.json` 作为发布汇总输入；GitHub Release 仅公开 EXE，校验信息统一收录于根级 `release-manifest.json` 和 `SHA256SUMS`。Windows 安装包同时内置 `rust-acmesh.exe`，用于 DNS-01 证书申请。

@@ -1041,6 +1041,21 @@ fn interface_selector_keeps_current_address_before_ranking() {
 }
 
 #[test]
+fn interface_selector_prefers_manual_address_before_current() {
+    let network = selector_network(vec![
+        ipv6_candidate("2001:db8::10", json!(false)),
+        ipv6_candidate("2001:db8::20", json!(false)),
+    ]);
+    let selector = InterfaceAddressSelector {
+        preferred_address: Some("2001:db8::10".to_string()),
+        ..InterfaceAddressSelector::default()
+    };
+    let selection = resolve_interface_selector(&network, "ipv6", &selector, Some("2001:db8::20"));
+    assert_eq!(selection.selected.as_deref(), Some("2001:db8::10"));
+    assert_eq!(selection.reason, "preferred");
+}
+
+#[test]
 fn interface_selector_follows_rotating_prefix_by_interface_id() {
     let network = selector_network(vec![
         ipv6_candidate("2001:db8:2::1234", json!(false)),

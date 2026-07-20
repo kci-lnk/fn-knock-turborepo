@@ -253,10 +253,10 @@ pub(super) fn resolve_interface_selector(
     eligible.sort_by(compare_interface_candidates);
     let current = canonical_candidate_address(current_address, family);
     let preferred = selector.preferred_address.as_deref();
-    let (selected, reason) = if let Some(value) = find_candidate(&eligible, current.as_deref()) {
-        (Some(value), "current")
-    } else if let Some(value) = find_candidate(&eligible, preferred) {
+    let (selected, reason) = if let Some(value) = find_candidate(&eligible, preferred) {
         (Some(value), "preferred")
+    } else if let Some(value) = find_candidate(&eligible, current.as_deref()) {
+        (Some(value), "current")
     } else if let Some(value) = eligible
         .first()
         .and_then(candidate_address)

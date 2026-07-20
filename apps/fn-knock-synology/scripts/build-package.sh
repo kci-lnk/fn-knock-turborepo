@@ -12,10 +12,41 @@ PACKAGE_NAME="fn-knock-synology"
 PRODUCT_VERSION="$(jq -er '.version' "${ROOT_DIR}/version.json")"
 BUILD_NUMBER="${FN_KNOCK_SYNOLOGY_BUILD_NUMBER:-0017}"
 PACKAGE_VERSION="${PRODUCT_VERSION}-${BUILD_NUMBER}"
-OUTPUT_PATH="${FN_KNOCK_SYNOLOGY_OUTPUT:-${DIST_DIR}/${PACKAGE_NAME}-x86_64-${PACKAGE_VERSION}.spk}"
+TARGET_ARCH="${FN_KNOCK_SYNOLOGY_ARCH:-${1:-x86_64}}"
+RUNTIME_ARCH=""
+GO_ARCH=""
+GO_ARM=""
+ELF_DESCRIPTION=""
+OUTPUT_PATH=""
 BUILD_WORK_DIR=""
 GATEWAY_ARTIFACT=""
 PREBUILT_GATEWAY="${FN_KNOCK_SYNOLOGY_GATEWAY_BIN:-}"
+
+case "${TARGET_ARCH}" in
+  x86_64)
+    RUNTIME_ARCH="amd64"
+    GO_ARCH="amd64"
+    ELF_DESCRIPTION="Linux x86-64"
+    ;;
+  armv8)
+    RUNTIME_ARCH="arm64"
+    GO_ARCH="arm64"
+    ELF_DESCRIPTION="Linux AArch64"
+    ;;
+  armv7)
+    RUNTIME_ARCH="arm"
+    GO_ARCH="arm"
+    GO_ARM="7"
+    ELF_DESCRIPTION="Linux ARMv7"
+    ;;
+  *)
+    printf '[fn-knock-synology] ERROR: unsupported Synology architecture: %s (expected x86_64, armv8, or armv7)\n' \
+      "${TARGET_ARCH}" >&2
+    exit 1
+    ;;
+esac
+
+OUTPUT_PATH="${FN_KNOCK_SYNOLOGY_OUTPUT:-${DIST_DIR}/${PACKAGE_NAME}-${TARGET_ARCH}-${PACKAGE_VERSION}.spk}"
 
 log() {
   printf '[fn-knock-synology] %s\n' "$*"
@@ -42,9 +73,9 @@ prepare_artifacts() {
     return
   fi
 
-  log "preparing amd64 runtime artifacts"
-  FN_KNOCK_MUSL_ARCHES=amd64 \
-  FN_KNOCK_RUNTIME_GATEWAY_ARCHES=amd64 \
+  log "preparing ${TARGET_ARCH} runtime artifacts (${RUNTIME_ARCH})"
+  FN_KNOCK_MUSL_ARCHES="${RUNTIME_ARCH}" \
+  FN_KNOCK_RUNTIME_GATEWAY_ARCHES="${RUNTIME_ARCH}" \
   FN_KNOCK_GO_REAUTH_PROXY_FORCE_BUILD="${FN_KNOCK_GO_REAUTH_PROXY_FORCE_BUILD:-1}" \
     bash "${ROOT_DIR}/scripts/fn-knock-prepare-artifacts.sh" openwrt
 }
@@ -71,19 +102,48 @@ build_gateway_artifact() {
   mkdir -p "$(dirname "${GATEWAY_ARTIFACT}")"
   (
     cd "${gateway_dir}"
-    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOFLAGS=-mod=readonly \
-      go build \
-        -ldflags="-s -w -X go-reauth-proxy/pkg/version.Version=${PRODUCT_VERSION} -X go-reauth-proxy/pkg/version.Commit=${commit}" \
-        -trimpath \
-        -o "${GATEWAY_ARTIFACT}" \
-        ./cmd/server
+    export CGO_ENABLED=0
+    export GOOS=linux
+    export GOARCH="${GO_ARCH}"
+    export GOFLAGS=-mod=readonly
+    if [ -n "${GO_ARM}" ]; then
+      export GOARM="${GO_ARM}"
+    else
+      unset GOARM || true
+    fi
+    go build \
+      -ldflags="-s -w -X go-reauth-proxy/pkg/version.Version=${PRODUCT_VERSION} -X go-reauth-proxy/pkg/version.Commit=${commit}" \
+      -trimpath \
+      -o "${GATEWAY_ARTIFACT}" \
+      ./cmd/server
   )
   chmod +x "${GATEWAY_ARTIFACT}"
 }
 
-validate_artifacts() {
-  local backend="${MUSL_RUST_DIR}/server-admin-rs-linux-amd64"
+validate_elf_arch() {
+  local path="$1"
+  local label="$2"
   local file_info
+
+  file_info="$(file -b "${path}")"
+  case "${TARGET_ARCH}" in
+    x86_64)
+      printf '%s\n' "${file_info}" | grep -Eq 'ELF 64-bit LSB.*x86-64' || \
+        fail "${label} is not ${ELF_DESCRIPTION}: ${file_info}"
+      ;;
+    armv8)
+      printf '%s\n' "${file_info}" | grep -Eq 'ELF 64-bit LSB.*(ARM aarch64|aarch64)' || \
+        fail "${label} is not ${ELF_DESCRIPTION}: ${file_info}"
+      ;;
+    armv7)
+      printf '%s\n' "${file_info}" | grep -Eq 'ELF 32-bit LSB.*ARM' || \
+        fail "${label} is not ${ELF_DESCRIPTION}: ${file_info}"
+      ;;
+  esac
+}
+
+validate_artifacts() {
+  local backend="${MUSL_RUST_DIR}/server-admin-rs-linux-${RUNTIME_ARCH}"
 
   [ -x "${GATEWAY_ARTIFACT}" ] || fail "missing gateway artifact: ${GATEWAY_ARTIFACT}"
   [ -x "${backend}" ] || fail "missing Rust backend artifact: ${backend}"
@@ -91,12 +151,8 @@ validate_artifacts() {
   [ -d "${RUNTIME_DIR}/server-auth-view/dist" ] || fail "missing auth UI artifacts"
   [ -f "${RUNTIME_DIR}/server/server-admin/resources/acmesh.zip" ] || fail "missing ACME bundle"
 
-  file_info="$(file -b "${GATEWAY_ARTIFACT}")"
-  printf '%s\n' "${file_info}" | grep -Eq 'ELF 64-bit LSB.*x86-64' || \
-    fail "gateway is not a Linux x86-64 ELF: ${file_info}"
-  file_info="$(file -b "${backend}")"
-  printf '%s\n' "${file_info}" | grep -Eq 'ELF 64-bit LSB.*x86-64' || \
-    fail "backend is not a Linux x86-64 ELF: ${file_info}"
+  validate_elf_arch "${GATEWAY_ARTIFACT}" "gateway"
+  validate_elf_arch "${backend}" "backend"
 }
 
 clean_old_packages() {
@@ -105,18 +161,18 @@ clean_old_packages() {
   output_dir="$(dirname "${OUTPUT_PATH}")"
   mkdir -p "${output_dir}"
   rm -f \
-    "${output_dir}/${PACKAGE_NAME}-"*.spk \
-    "${output_dir}/${PACKAGE_NAME}-"*.spk.sha256 \
-    "${output_dir}/${PACKAGE_NAME}-"*.spk.tmp \
+    "${output_dir}/${PACKAGE_NAME}-${TARGET_ARCH}-"*.spk \
+    "${output_dir}/${PACKAGE_NAME}-${TARGET_ARCH}-"*.spk.sha256 \
+    "${output_dir}/${PACKAGE_NAME}-${TARGET_ARCH}-"*.spk.tmp \
     "${OUTPUT_PATH}" \
     "${OUTPUT_PATH}.sha256" \
     "${OUTPUT_PATH}.tmp"
 
   if [ "${LEGACY_DIST_DIR}" != "${output_dir}" ]; then
     rm -f \
-      "${LEGACY_DIST_DIR}/${PACKAGE_NAME}-"*.spk \
-      "${LEGACY_DIST_DIR}/${PACKAGE_NAME}-"*.spk.sha256 \
-      "${LEGACY_DIST_DIR}/${PACKAGE_NAME}-"*.spk.tmp
+      "${LEGACY_DIST_DIR}/${PACKAGE_NAME}-${TARGET_ARCH}-"*.spk \
+      "${LEGACY_DIST_DIR}/${PACKAGE_NAME}-${TARGET_ARCH}-"*.spk.sha256 \
+      "${LEGACY_DIST_DIR}/${PACKAGE_NAME}-${TARGET_ARCH}-"*.spk.tmp
   fi
 }
 
@@ -128,7 +184,7 @@ write_info() {
 package="${PACKAGE_NAME}"
 version="${PACKAGE_VERSION}"
 os_min_ver="7.0-40000"
-arch="x86_64"
+arch="${TARGET_ARCH}"
 maintainer="fn-knock"
 maintainer_url="https://www.fnknock.cn/synology"
 distributor="fn-knock"
@@ -189,7 +245,7 @@ build_package() {
   cp "${RUNTIME_DIR}/server/server-admin/resources/acmesh.zip" \
     "${payload_dir}/server/server-admin/resources/acmesh.zip"
   cp "${GATEWAY_ARTIFACT}" "${payload_dir}/bin/go-reauth-proxy"
-  cp "${MUSL_RUST_DIR}/server-admin-rs-linux-amd64" "${payload_dir}/bin/server-admin-rs"
+  cp "${MUSL_RUST_DIR}/server-admin-rs-linux-${RUNTIME_ARCH}" "${payload_dir}/bin/server-admin-rs"
 
   cp "${ROOT_DIR}/apps/fn-knock/ICON_64.PNG" "${spk_root}/PACKAGE_ICON.PNG"
   cp "${ROOT_DIR}/apps/fn-knock/ICON_256.PNG" "${spk_root}/PACKAGE_ICON_256.PNG"
@@ -269,7 +325,7 @@ if [ -z "${PREBUILT_GATEWAY}" ]; then
   require_cmd go
 fi
 BUILD_WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/fn-knock-synology.XXXXXX")"
-GATEWAY_ARTIFACT="${BUILD_WORK_DIR}/gateway/go-reauth-proxy-linux-amd64"
+GATEWAY_ARTIFACT="${BUILD_WORK_DIR}/gateway/go-reauth-proxy-linux-${RUNTIME_ARCH}"
 trap cleanup EXIT
 prepare_artifacts
 build_gateway_artifact

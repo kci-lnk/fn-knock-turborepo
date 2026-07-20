@@ -62,6 +62,10 @@ for name in \
   "app-meta-fn-knock-${VERSION}-r1.apk" \
   "fn-knock-synology-x86_64-${VERSION}-0017.spk" \
   "fn-knock-synology-x86_64-${VERSION}-0017.spk.sha256" \
+  "fn-knock-synology-armv8-${VERSION}-0017.spk" \
+  "fn-knock-synology-armv8-${VERSION}-0017.spk.sha256" \
+  "fn-knock-synology-armv7-${VERSION}-0017.spk" \
+  "fn-knock-synology-armv7-${VERSION}-0017.spk.sha256" \
   "fn-knock-${VERSION}-windows-x86_64-unsigned-setup.exe" \
   "fn-knock-${VERSION}-windows-x86_64-unsigned-setup.exe.sha256" \
   "fn-knock-${VERSION}-windows-x86_64-unsigned-release.json" \
@@ -77,17 +81,18 @@ jq -e \
     .schema_version == 1 and
     .version == $version and
     .tag == ("v" + $version) and
-    (.artifacts | length) == 19 and
+    (.artifacts | length) == 21 and
     ([.artifacts[].name | endswith(".sha256") or endswith(".json")] | any | not) and
     ([.artifacts[].name | select(startswith("app-meta-"))] | length) == 2 and
+    ([.artifacts[] | select(.platform == "synology") | .architecture] | sort) == ["armv7", "armv8", "x86_64"] and
     .metadata_files == ["release-manifest.json", "SHA256SUMS"] and
     .docker.published == true and
     .docker.reference == ("kcilnk/fn-knock:" + $version) and
     .docker.platforms == ["linux/amd64", "linux/arm64", "linux/arm/v7"]
   ' \
   "${ASSETS_DIR}/release-manifest.json" >/dev/null
-[ "$(wc -l < "${ASSETS_DIR}/SHA256SUMS" | tr -d ' ')" = "20" ] || \
-  fail "SHA256SUMS does not cover 19 public deliverables and release-manifest.json"
+[ "$(wc -l < "${ASSETS_DIR}/SHA256SUMS" | tr -d ' ')" = "22" ] || \
+  fail "SHA256SUMS does not cover 21 public deliverables and release-manifest.json"
 if find "${ASSETS_DIR}" -maxdepth 1 -type f \
   \( -name '*.sha256' -o \( -name '*.json' ! -name 'release-manifest.json' \) \) |
     grep -q .
@@ -98,6 +103,6 @@ fi
 run_finalize >/dev/null
 
 printf 'unexpected\n' > "${ASSETS_DIR}/unexpected.bin"
-expect_failure "exactly 19 deliverables" run_finalize
+expect_failure "exactly 21 deliverables" run_finalize
 
 printf '[test-release-finalize] all inventory tests passed\n'

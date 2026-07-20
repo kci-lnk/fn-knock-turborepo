@@ -36,7 +36,9 @@ function requireNames(files, names) {
 function requireCount(files, expression, expected, label) {
   const matching = files.filter((name) => expression.test(name));
   if (matching.length !== expected) {
-    fail(`${label}: expected ${expected}, found ${matching.length}: ${matching.join(", ")}`);
+    fail(
+      `${label}: expected ${expected}, found ${matching.length}: ${matching.join(", ")}`,
+    );
   }
 }
 
@@ -45,13 +47,24 @@ function isPerArtifactMetadata(name) {
 }
 
 function classify(name) {
-  if (name.endsWith(".fpk")) return { platform: "fnos", architecture: name.includes("arm64") ? "arm64" : "amd64" };
-  if (name.endsWith(".spk")) return { platform: "synology", architecture: "x86_64" };
-  if (name.includes("windows-x86_64")) return { platform: "windows", architecture: "x86_64" };
-  if (name.includes("aarch64")) return { platform: "openwrt", architecture: "arm64" };
-  if (name.includes("arm_cortex")) return { platform: "openwrt", architecture: "armv7" };
-  if (name.includes("x86_64") && /\.(ipk|apk)$/.test(name)) return { platform: "openwrt", architecture: "amd64" };
-  if (name.startsWith("app-meta-")) return { platform: "openwrt", architecture: "all" };
+  if (name.endsWith(".fpk"))
+    return {
+      platform: "fnos",
+      architecture: name.includes("arm64") ? "arm64" : "amd64",
+    };
+  const synologyMatch = name.match(/^fn-knock-synology-(x86_64|armv8|armv7)-/);
+  if (synologyMatch)
+    return { platform: "synology", architecture: synologyMatch[1] };
+  if (name.includes("windows-x86_64"))
+    return { platform: "windows", architecture: "x86_64" };
+  if (name.includes("aarch64"))
+    return { platform: "openwrt", architecture: "arm64" };
+  if (name.includes("arm_cortex"))
+    return { platform: "openwrt", architecture: "armv7" };
+  if (name.includes("x86_64") && /\.(ipk|apk)$/.test(name))
+    return { platform: "openwrt", architecture: "amd64" };
+  if (name.startsWith("app-meta-"))
+    return { platform: "openwrt", architecture: "all" };
   const linuxMatch = name.match(/linux-[^-]+-(amd64|arm64|arm)\.tar\.gz$/);
   if (linuxMatch) {
     return {
@@ -63,7 +76,9 @@ function classify(name) {
 }
 
 async function main() {
-  const directory = path.resolve(process.argv[2] ?? process.env.FN_KNOCK_RELEASE_ASSETS_DIR ?? "");
+  const directory = path.resolve(
+    process.argv[2] ?? process.env.FN_KNOCK_RELEASE_ASSETS_DIR ?? "",
+  );
   const version = process.env.FN_KNOCK_VERSION;
   const tag = process.env.FN_KNOCK_RELEASE_TAG;
   const sourceCommit = process.env.FN_KNOCK_SOURCE_COMMIT;
@@ -73,22 +88,35 @@ async function main() {
   const requireDocker = process.env.FN_KNOCK_REQUIRE_DOCKER === "1";
 
   if (!directory || !version || !tag || !sourceCommit || !gatewayCommit) {
-    fail("assets directory, version, tag, source commit, and gateway commit are required");
+    fail(
+      "assets directory, version, tag, source commit, and gateway commit are required",
+    );
   }
-  if (tag !== `v${version}`) fail(`tag ${tag} does not match version ${version}`);
-  for (const [label, value] of [["source", sourceCommit], ["gateway", gatewayCommit]]) {
-    if (!/^[0-9a-f]{40}$/i.test(value)) fail(`${label} commit is invalid: ${value}`);
+  if (tag !== `v${version}`)
+    fail(`tag ${tag} does not match version ${version}`);
+  for (const [label, value] of [
+    ["source", sourceCommit],
+    ["gateway", gatewayCommit],
+  ]) {
+    if (!/^[0-9a-f]{40}$/i.test(value))
+      fail(`${label} commit is invalid: ${value}`);
   }
   if (requireDocker && !/^sha256:[0-9a-f]{64}$/i.test(dockerDigest)) {
-    fail(`Docker digest is required for a published release: ${dockerDigest || "<empty>"}`);
+    fail(
+      `Docker digest is required for a published release: ${dockerDigest || "<empty>"}`,
+    );
   }
 
   const ignored = new Set(["SHA256SUMS", "release-manifest.json"]);
-  const inventory = (await listFiles(directory)).filter((name) => !ignored.has(name));
+  const inventory = (await listFiles(directory)).filter(
+    (name) => !ignored.has(name),
+  );
   const excludedFiles = inventory.filter(isPerArtifactMetadata);
   const files = inventory.filter((name) => !isPerArtifactMetadata(name));
-  if (files.length !== 19) {
-    fail(`public release inventory must contain exactly 19 deliverables before metadata; found ${files.length}`);
+  if (files.length !== 21) {
+    fail(
+      `public release inventory must contain exactly 21 deliverables before metadata; found ${files.length}`,
+    );
   }
   requireNames(files, [
     `fn-knock-${version}-fnos-amd64.fpk`,
@@ -112,9 +140,28 @@ async function main() {
       `fn-knock_${version}-r1_${profile}.apk`,
     ]);
   }
-  requireCount(files, /^fn-knock_.+\.(ipk|apk)$/, 10, "OpenWrt architecture packages");
-  requireCount(files, /^app-meta-fn-knock.*\.(ipk|apk)$/, 2, "OpenWrt metadata packages");
-  requireCount(files, new RegExp(`^fn-knock-synology-x86_64-${version.replaceAll(".", "\\.")}-[^.]+\\.spk$`), 1, "Synology package");
+  requireCount(
+    files,
+    /^fn-knock_.+\.(ipk|apk)$/,
+    10,
+    "OpenWrt architecture packages",
+  );
+  requireCount(
+    files,
+    /^app-meta-fn-knock.*\.(ipk|apk)$/,
+    2,
+    "OpenWrt metadata packages",
+  );
+  for (const architecture of ["x86_64", "armv8", "armv7"]) {
+    requireCount(
+      files,
+      new RegExp(
+        `^fn-knock-synology-${architecture}-${version.replaceAll(".", "\\.")}-\\d+\\.spk$`,
+      ),
+      1,
+      `Synology ${architecture} package`,
+    );
+  }
 
   const artifacts = [];
   for (const name of files) {
@@ -148,15 +195,25 @@ async function main() {
     },
   };
   const manifestPath = path.join(directory, "release-manifest.json");
-  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+  await writeFile(
+    manifestPath,
+    `${JSON.stringify(manifest, null, 2)}\n`,
+    "utf8",
+  );
 
   const checksumNames = [...files, "release-manifest.json"].sort();
   const checksumLines = [];
   for (const name of checksumNames) {
     checksumLines.push(`${await sha256(path.join(directory, name))}  ${name}`);
   }
-  await writeFile(path.join(directory, "SHA256SUMS"), `${checksumLines.join("\n")}\n`, "utf8");
-  await Promise.all(excludedFiles.map((name) => unlink(path.join(directory, name))));
+  await writeFile(
+    path.join(directory, "SHA256SUMS"),
+    `${checksumLines.join("\n")}\n`,
+    "utf8",
+  );
+  await Promise.all(
+    excludedFiles.map((name) => unlink(path.join(directory, name))),
+  );
   console.log(
     `[release-finalize] finalized ${files.length} public deliverables and removed ${excludedFiles.length} per-artifact metadata files in ${directory}`,
   );

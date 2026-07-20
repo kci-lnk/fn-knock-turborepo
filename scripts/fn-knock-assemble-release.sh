@@ -53,10 +53,9 @@ FN_KNOCK_USE_PREPARED_ARTIFACTS=1 \
 FN_KNOCK_OPENWRT_RUST_BACKEND_BIN_DIR="${ARTIFACTS_DIR}/musl-rust-backends" \
   bash "${ROOT_DIR}/scripts/build-openwrt-ipk.sh"
 
-log "building Synology SPK from prebuilt inputs"
+log "building Synology SPKs from prebuilt inputs"
 FN_KNOCK_SYNOLOGY_SKIP_ARTIFACT_PREPARE=1 \
-FN_KNOCK_SYNOLOGY_GATEWAY_BIN="${ARTIFACTS_DIR}/runtime/server/go-reauth-proxy-linux-amd64" \
-  bash "${ROOT_DIR}/apps/fn-knock-synology/scripts/build-package.sh"
+  bash "${ROOT_DIR}/apps/fn-knock-synology/scripts/build-all-packages.sh"
 
 copy_matches "FPK" "${ARTIFACTS_DIR}/fpk/"*.fpk
 copy_matches "Linux" "${ARTIFACTS_DIR}/linux/"*.tar.gz "${ARTIFACTS_DIR}/linux/"*.sha256

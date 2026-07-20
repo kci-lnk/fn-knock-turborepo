@@ -5,14 +5,40 @@ separate from the fnOS FPK packages under `apps/fn-knock*` because DSM uses a
 different package format, lifecycle environment, privilege model, and desktop
 integration.
 
-Build the x86_64 package from the repository root:
+Build the x86_64, ARMv8, and ARMv7 packages from the repository root:
 
 ```bash
 npm run fn-knock:spk:build
 ```
 
-The generated package is written to
-`dist/synology/fn-knock-synology-x86_64-<version>.spk`.
+To build one architecture only, use one of:
+
+```bash
+npm run fn-knock:spk:build:x86_64
+npm run fn-knock:spk:build:armv8
+npm run fn-knock:spk:build:armv7
+```
+
+The generated packages are written to
+`dist/synology/fn-knock-synology-{x86_64|armv8|armv7}-<version>-<build>.spk`.
+Use `npm run fn-knock:spk:build:prepared` to package all three architectures
+from an existing prepared runtime without rebuilding shared inputs.
+
+## ARM DSM 7 manual smoke checklist
+
+Run this checklist on both an `armv8` and an `armv7` DSM 7 NAS when hardware is
+available:
+
+- Confirm the model's Synology Package Arch, manually install the matching SPK,
+  and verify that DSM rejects the other ARM package.
+- Start and stop the package from Package Center and confirm that both native
+  services stay running under the package account.
+- Open **Knock** from the DSM desktop and complete the authenticated CGI launch.
+- Confirm that the admin backend listens only on `127.0.0.1:7998` and remains
+  reachable through the DSM desktop proxy.
+- Configure a gateway mapping and verify service traffic through port `7999`.
+- Upgrade from the previous SPK build and confirm that configuration, keys, and
+  runtime data are preserved.
 
 The package runs as the DSM-created `fn-knock-synology` package user. Host
 firewall mutation is intentionally disabled: DSM 7 rejects unsigned third-party

@@ -460,7 +460,7 @@ jobs:
             "${RUNNER_TEMP}/fnpack" | sha256sum --check
           chmod 755 "${RUNNER_TEMP}/fnpack"
 
-      - name: Assemble Linux, NAS, and OpenWrt release assets
+      - name: Assemble Linux, multi-architecture NAS, and OpenWrt release assets
         env:
           FN_KNOCK_FNPACK_BIN: ${{ runner.temp }}/fnpack
         run: bash ./scripts/fn-knock-assemble-release.sh
